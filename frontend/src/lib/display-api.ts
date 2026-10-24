@@ -1,9 +1,4 @@
-import {
-  ApiError,
-  apiErrorFromResponse,
-  enrichApiError,
-  transportFetch,
-} from "./api-error";
+import { apiErrorFromResponse, transportFetch } from "./api-error";
 // Client API for the info-point display domain (issue #1325).
 // Admin CRUD goes through the session-authenticated Next.js proxy routes
 // under /api/displays; the public dashboard fetch is token-only.
@@ -67,18 +62,11 @@ export interface DashboardPayload {
   };
 }
 
-export class DisplayDashboardError extends ApiError {
-  constructor(public readonly status: number) {
-    super(`display dashboard request failed with status ${status}`, status);
-    this.name = "DisplayDashboardError";
-  }
-}
-
 /**
  * Fetches the public dashboard aggregate. No session required — the token
  * authenticates via the X-Display-Token header (never the URL, so it stays
- * out of request-path logs). Throws DisplayDashboardError on non-OK
- * responses (404 = unknown/revoked token).
+ * out of request-path logs). Throws an ApiError on non-OK responses
+ * (404 = unknown/revoked token).
  */
 export async function fetchDisplayDashboard(
   token: string,
@@ -90,8 +78,10 @@ export async function fetchDisplayDashboard(
     headers: { "X-Display-Token": token },
   });
   if (!response.ok) {
-    const body: unknown = await response.json().catch(() => null);
-    throw enrichApiError(new DisplayDashboardError(response.status), body);
+    throw await apiErrorFromResponse(
+      response,
+      `display dashboard request failed with status ${response.status}`,
+    );
   }
   return (await response.json()) as DashboardPayload;
 }

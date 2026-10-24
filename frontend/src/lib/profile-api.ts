@@ -22,6 +22,14 @@ interface ProfileApiResult {
 }
 
 /**
+ * A 200 answer without `success` is a server defect: the shared error path
+ * shows it as general.server (#2517).
+ */
+function unsuccessfulResult(message: string): ApiError {
+  return new ApiError(message, 500);
+}
+
+/**
  * Fetch the current user's profile
  */
 export async function fetchProfile(): Promise<Profile> {
@@ -29,34 +37,23 @@ export async function fetchProfile(): Promise<Profile> {
     const response = await sessionFetch(`/api/me/profile`, { method: "GET" });
 
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      throw await apiErrorFromResponse(
+        response,
+        `HTTP error! status: ${response.status}`,
+      );
     }
 
     const result = (await response.json()) as ProfileApiResult;
 
     if (!result.success) {
-      throw new Error(result.message || "Failed to fetch profile");
+      throw unsuccessfulResult(result.message || "Failed to fetch profile");
     }
 
     return mapProfileResponse(result.data);
   } catch (error) {
-    if (
-      error instanceof Error &&
-      error.message === "No authentication token available"
-    ) {
-      throw error;
-    }
     logger.error("failed to fetch profile", { error: String(error) });
-    throw new Error("Failed to fetch profile", { cause: error });
+    throw error;
   }
-}
-
-/**
- * A 200 answer without `success` is a server defect: the shared error path
- * shows it as general.server (#2517).
- */
-function unsuccessfulResult(message: string): ApiError {
-  return new ApiError(message, 500);
 }
 
 /**
@@ -152,37 +149,5 @@ export async function uploadAvatar(file: File): Promise<Profile> {
   } catch (error) {
     logger.error("failed to upload avatar", { error: String(error) });
     throw error;
-  }
-}
-
-/**
- * Delete the user's avatar
- */
-export async function deleteAvatar(): Promise<Profile> {
-  try {
-    const response = await sessionFetch(`/api/me/profile/avatar`, {
-      method: "DELETE",
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const result = (await response.json()) as ProfileApiResult;
-
-    if (!result.success) {
-      throw new Error(result.message || "Failed to delete avatar");
-    }
-
-    return mapProfileResponse(result.data);
-  } catch (error) {
-    if (
-      error instanceof Error &&
-      error.message === "No authentication token available"
-    ) {
-      throw error;
-    }
-    logger.error("failed to delete avatar", { error: String(error) });
-    throw new Error("Failed to delete avatar", { cause: error });
   }
 }

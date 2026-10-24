@@ -5,20 +5,21 @@ import (
 	"errors"
 	"log/slog"
 
+	"github.com/moto-nrw/project-phoenix/tenant"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // Consumer-owned ports of the excused-absence workflow, re-exported so the
 // composition root can implement them without reaching into the module.
 type (
 	ExcusedRequestStudents = ports.ExcusedRequestStudents
-	ReviewStudent          = ports.ReviewStudent
-	PersonName             = ports.PersonName
-	ReviewScope            = ports.ReviewScope
-	ReviewScopeResolver    = ports.ReviewScopeResolver
+	ReviewStudent          = careplan.ReviewStudent
+	PersonName             = careplan.PersonName
+	ReviewScope            = careplan.ReviewScope
+	ReviewScopeResolver    = careplan.ReviewScopeResolver
 	RequestEvent           = ports.RequestEvent
 	DecisionAudience       = ports.DecisionAudience
 	RequestMessenger       = ports.RequestMessenger
@@ -64,17 +65,15 @@ func NewExcusedAbsenceRequests(deps ExcusedRequestDependencies) (*ExcusedAbsence
 		observe = ports.Observer(deps.Observe)
 	}
 	return application.NewExcusedRequests(application.ExcusedRequestDependencies{
-		CarePlan: deps.CarePlan, Students: deps.Students, Scope: deps.Scope, Hooks: tenantHooks{},
+		CarePlan: deps.CarePlan, Students: deps.Students, Scope: deps.Scope, Hooks: TenantHooks{},
 		Today: deps.Today, Observe: observe, Logger: deps.Logger,
 		Messenger: deps.Messenger, Broadcaster: deps.Broadcaster, Notifier: deps.Notifier,
 		Ledger: deps.Ledger, Shares: deps.Shares,
 	})
 }
 
-// tenantHooks binds the workflow's after-commit effects to the ambient
-// tenant transaction.
-type tenantHooks struct{}
+type TenantHooks struct{}
 
-func (tenantHooks) TenantID(ctx context.Context) int64 { return tenant.FromContext(ctx) }
-
-func (tenantHooks) AfterCommit(ctx context.Context, fn func()) { tenant.RegisterAfterCommit(ctx, fn) }
+func (TenantHooks) TenantID(ctx context.Context) int64         { return tenant.FromContext(ctx) }
+func (TenantHooks) AfterCommit(ctx context.Context, fn func()) { tenant.RegisterAfterCommit(ctx, fn) }
+func (TenantHooks) MarkRollback(ctx context.Context)           { tenant.MarkRollback(ctx) }

@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 )
 
@@ -11,12 +12,21 @@ import (
 // rows an earlier exit of the same children removed and changing that exit
 // puts back first. The restorable half skips a row somebody re-planned by
 // hand since, because the live half already counted it.
-func (s *Service) CountPlannedRosterForCareExit(ctx context.Context, studentIDs []int64, after string, restorable []domain.CareExitRosterRow) (counts map[int64]int, err error) {
+func (s *Service) CountPlannedRosterForCareExit(ctx context.Context, studentIDs []int64, after string, restorable []timetable.CareExitRosterRow) (counts map[int64]int, err error) {
+	if hasInvalidID(studentIDs) || !timetable.ValidDate(after) {
+		return nil, s.reject("count_planned_roster_for_care_exit", timetable.ErrInvalidInstanceStudentQuery)
+	}
+	for _, row := range restorable {
+		if row.TenantID <= 0 || row.StudentID <= 0 || row.InstanceID <= 0 {
+			return nil, s.reject("count_planned_roster_for_care_exit", timetable.ErrInvalidInstanceStudent)
+		}
+	}
+
 	counts = map[int64]int{}
 	if len(studentIDs) == 0 {
 		return counts, nil
 	}
-	err = s.run("count_planned_roster_for_care_exit", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "count_planned_roster_for_care_exit", func(ctx context.Context, stats *domain.OperationStats) error {
 		live, err := s.plannedCareExitRoster(ctx, studentIDs, after, stats)
 		if err != nil {
 			return err
@@ -34,7 +44,7 @@ func (s *Service) CountPlannedRosterForCareExit(ctx context.Context, studentIDs 
 
 // countRestorableCareExitRoster adds the archived rows a care exit could
 // restore, except those of blocks that already ended.
-func (s *Service) countRestorableCareExitRoster(ctx context.Context, studentIDs []int64, after string, restorable []domain.CareExitRosterRow, counts map[int64]int, stats *domain.OperationStats) error {
+func (s *Service) countRestorableCareExitRoster(ctx context.Context, studentIDs []int64, after string, restorable []timetable.CareExitRosterRow, counts map[int64]int, stats *domain.OperationStats) error {
 	restored, measured, err := s.store.ListRestorableRosterForCareExit(ctx, studentIDs, after, restorable)
 	stats.Add(measured)
 	if err != nil {
@@ -60,13 +70,17 @@ func (s *Service) countRestorableCareExitRoster(ctx context.Context, studentIDs 
 // on validUntil (exclusive) takes away against the same baseline. A booking
 // the earlier exit capped counts with its previous end; one it deleted counts
 // only while it has not been re-created.
-func (s *Service) CountRunningEnrollmentsForCareExit(ctx context.Context, studentIDs []int64, validUntil string, restorable []domain.CareExitEnrollmentRemoval) (counts map[int64]int, err error) {
+func (s *Service) CountRunningEnrollmentsForCareExit(ctx context.Context, studentIDs []int64, validUntil string, restorable []timetable.CareExitEnrollmentRemoval) (counts map[int64]int, err error) {
+	if hasInvalidID(studentIDs) || !timetable.ValidDate(validUntil) || invalidCareExitRemovals(restorable) {
+		return nil, s.reject("count_running_enrollments_for_care_exit", timetable.ErrInvalidCareExitEnrollment)
+	}
+
 	counts = map[int64]int{}
 	if len(studentIDs) == 0 {
 		return counts, nil
 	}
 	capped, deleted := splitCareExitEnrollmentRemovals(restorable)
-	err = s.run("count_running_enrollments_for_care_exit", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "count_running_enrollments_for_care_exit", func(ctx context.Context, stats *domain.OperationStats) error {
 		live, measured, err := s.store.CountRunningEnrollmentsForCareExit(ctx, studentIDs, validUntil, capped)
 		stats.Add(measured)
 		if err != nil {
@@ -84,7 +98,7 @@ func (s *Service) CountRunningEnrollmentsForCareExit(ctx context.Context, studen
 	return counts, err
 }
 
-func splitCareExitEnrollmentRemovals(removals []domain.CareExitEnrollmentRemoval) (capped, deleted []domain.CareExitEnrollmentRemoval) {
+func splitCareExitEnrollmentRemovals(removals []timetable.CareExitEnrollmentRemoval) (capped, deleted []timetable.CareExitEnrollmentRemoval) {
 	for _, removal := range removals {
 		if removal.WasDeleted {
 			deleted = append(deleted, removal)

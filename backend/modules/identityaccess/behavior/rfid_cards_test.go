@@ -7,9 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
@@ -17,7 +16,7 @@ import (
 func TestRFIDCardsRegistrationAndIsolation(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	cards, err := repositories.NewIdentityAccessForTests(db)
+	cards, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 	tag := fmt.Sprintf("ABCD%016X", testpkg.UniqueTestTenantID(t))
@@ -40,7 +39,7 @@ func TestRFIDCardsRegistrationAndIsolation(t *testing.T) {
 
 	otherSchool := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, otherSchool)
-	_, _, found, err = cards.LookupRFIDCard(tenant.WithTenantID(ctx, otherSchool), tag)
+	_, _, found, err = cards.LookupRFIDCard(testpkg.ContextForTenant(ctx, otherSchool), tag)
 	require.NoError(t, err)
 	require.False(t, found, "a card from another school is not visible")
 	_, _, _, err = cards.LookupRFIDCard(context.Background(), tag)
@@ -49,7 +48,7 @@ func TestRFIDCardsRegistrationAndIsolation(t *testing.T) {
 
 	rolledBackTag := fmt.Sprintf("ABCD%016X", testpkg.UniqueTestTenantID(t))
 	rollback := errors.New("roll back RFID registration")
-	err = tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+	err = testpkg.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
 		require.NoError(t, cards.RegisterRFIDCard(txCtx, rolledBackTag))
 		_, _, visible, readErr := cards.LookupRFIDCard(txCtx, rolledBackTag)
 		require.NoError(t, readErr)
@@ -72,9 +71,9 @@ func TestRFIDCardsRegistrationAndIsolation(t *testing.T) {
 func TestRFIDCardsDatabaseFailure(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupClosableTestDB(t)
-	cards, err := repositories.NewIdentityAccessForTests(db)
+	cards, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
-	ctx := tenant.WithUnitOfWork(testpkg.TenantContext(testpkg.Tenant(t)), testpkg.TenantRuntime(t, db))
+	ctx := testpkg.ContextWithTenantRuntime(testpkg.TenantContext(testpkg.Tenant(t)), testpkg.TenantRuntime(t, db))
 	require.NoError(t, db.Close())
 	_, _, _, err = cards.LookupRFIDCard(ctx, "ABCD1234")
 	require.ErrorContains(t, err, "database is closed")

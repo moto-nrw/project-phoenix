@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/devicescan"
-	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/ports"
+	"github.com/moto-nrw/project-phoenix/modules/devicescan/ports"
 )
 
 // PickupInfo reads today's pickup time and notes of a student card without
@@ -52,7 +52,7 @@ func (s *Service) PickupInfo(ctx context.Context, rfidTag string) (*devicescan.P
 	}
 
 	if session, err := s.sessions.Current(ctx, device.ID); err == nil && session != nil {
-		if err := s.sessions.Touch(ctx, session.ID); err != nil {
+		if err := s.sessions.UpdateSessionActivity(ctx, session.ID); err != nil {
 			s.logger.WarnContext(ctx, "failed to update session activity during pickup query",
 				slog.Int64("session_id", session.ID),
 				slog.String("error", err.Error()),
@@ -65,7 +65,7 @@ func (s *Service) PickupInfo(ctx context.Context, rfidTag string) (*devicescan.P
 // resolvePickupPerson keeps the pickup-query error contract: an unknown card
 // is 404 with an unregistered-scan record, a lookup failure 500, and an
 // unassigned card 404.
-func (s *Service) resolvePickupPerson(ctx context.Context, device *ports.Device, tag string) (*ports.Person, error) {
+func (s *Service) resolvePickupPerson(ctx context.Context, device *devicescan.PrincipalDevice, tag string) (*ports.Person, error) {
 	person, err := s.people.FindPersonByTag(ctx, tag)
 	if err != nil {
 		if isPersonNotFound(err) {

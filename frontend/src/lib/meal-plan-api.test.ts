@@ -2,7 +2,10 @@ import { describe, it, expect, beforeEach, vi, type Mock } from "vitest";
 
 import {
   getMealPlanWeek,
+  getDailyMealParticipants,
+  getWeeklyMealParticipants,
   setDay,
+  setMealParticipantDay,
   mondayOf,
   workWeekDates,
 } from "./meal-plan-api";
@@ -24,6 +27,145 @@ function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
 
 beforeEach(() => {
   mockedFetch.mockReset();
+});
+
+describe("getWeeklyMealParticipants", () => {
+  it("requests the week and maps each day's children", async () => {
+    let seenURL = "";
+    mockedFetch.mockImplementation(async (url: string) => {
+      seenURL = url;
+      return jsonResponse({
+        data: {
+          week_start: "2026-09-07",
+          cutoff_time: "09:00",
+          cutoff_lead_days: 1,
+          cutoff_weekday: 3,
+          cancellation_cutoff_time: "16:00",
+          cancellation_cutoff_lead_days: 1,
+          days: [
+            {
+              date: "2026-09-07",
+              participants: [
+                {
+                  student_id: "42",
+                  first_name: "Mia",
+                  last_name: "Muster",
+                  school_class: "2a",
+                },
+              ],
+            },
+            { date: "2026-09-08", closed: true, participants: [] },
+          ],
+        },
+      });
+    });
+
+    const week = await getWeeklyMealParticipants("2026-09-09");
+    expect(seenURL).toBe(
+      "/api/meal-plan/participants/week?week_start=2026-09-09",
+    );
+    expect(week).toEqual({
+      weekStart: "2026-09-07",
+      cutoffTime: "09:00",
+      cutoffLeadDays: 1,
+      cutoffWeekday: 3,
+      cancellationCutoffTime: "16:00",
+      cancellationCutoffLeadDays: 1,
+      days: [
+        {
+          date: "2026-09-07",
+          closed: false,
+          participants: [
+            {
+              studentId: "42",
+              firstName: "Mia",
+              lastName: "Muster",
+              schoolClass: "2a",
+            },
+          ],
+        },
+        { date: "2026-09-08", closed: true, participants: [] },
+      ],
+    });
+  });
+});
+
+describe("getDailyMealParticipants", () => {
+  it("maps the closed flag, the available children and default cutoffs", async () => {
+    mockedFetch.mockResolvedValue(
+      jsonResponse({
+        data: {
+          date: "2026-09-07",
+          cutoff_time: "09:00",
+          closed: false,
+          participants: [],
+          available: [
+            {
+              student_id: "43",
+              first_name: "Ben",
+              last_name: "Beispiel",
+              school_class: "3b",
+            },
+          ],
+        },
+      }),
+    );
+
+    await expect(getDailyMealParticipants("2026-09-07")).resolves.toEqual({
+      date: "2026-09-07",
+      cutoffTime: "09:00",
+      cutoffLeadDays: 0,
+      cutoffWeekday: 0,
+      cancellationCutoffTime: "",
+      cancellationCutoffLeadDays: 0,
+      closed: false,
+      participants: [],
+      available: [
+        {
+          studentId: "43",
+          firstName: "Ben",
+          lastName: "Beispiel",
+          schoolClass: "3b",
+        },
+      ],
+    });
+  });
+});
+
+describe("setMealParticipantDay", () => {
+  it("signs a child up or off with PUT and resets the day with DELETE", async () => {
+    mockedFetch.mockResolvedValue(jsonResponse({ status: "success" }));
+
+    await setMealParticipantDay("43", "2026-09-07", true);
+    await setMealParticipantDay("43", "2026-09-07", null);
+
+    expect(mockedFetch).toHaveBeenNthCalledWith(
+      1,
+      "/api/meal-plan/participants/43/2026-09-07",
+      expect.objectContaining({
+        method: "PUT",
+        body: JSON.stringify({ participating: true }),
+      }),
+    );
+    expect(mockedFetch).toHaveBeenNthCalledWith(
+      2,
+      "/api/meal-plan/participants/43/2026-09-07",
+      expect.objectContaining({ method: "DELETE" }),
+    );
+  });
+
+  it("throws the API error of a refused change", async () => {
+    mockedFetch.mockResolvedValue(
+      jsonResponse(
+        { status: 400, detail: "invalid", code: "general.input" },
+        { status: 400 },
+      ),
+    );
+
+    await expect(
+      setMealParticipantDay("43", "2026-09-04", false),
+    ).rejects.toThrow();
+  });
 });
 
 describe("getMealPlanWeek", () => {

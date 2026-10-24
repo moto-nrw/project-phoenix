@@ -6,10 +6,11 @@ import (
 	"log/slog"
 	"testing"
 
+	api "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
@@ -23,19 +24,19 @@ import (
 // these tests need a real *bun.DB to compile.
 type stubChildRepo struct {
 	gotAccountID int64
-	result       []*parentModels.ChildSummary
+	result       []*parentService.ChildSummary
 	err          error
 }
 
-func (s *stubChildRepo) ListByAccount(_ context.Context, accountID int64) ([]*parentModels.ChildSummary, error) {
+func (s *stubChildRepo) ListByAccount(_ context.Context, accountID int64) ([]*parentService.ChildSummary, error) {
 	s.gotAccountID = accountID
 	return s.result, s.err
 }
 
-// FindForAccount satisfies the ChildRepository interface. Returns the
+// FindForAccount satisfies the ChildReads interface. Returns the
 // first canned child whose StudentID matches, or nil when none — mirrors
 // the real repo's "not linked" contract.
-func (s *stubChildRepo) FindForAccount(_ context.Context, accountID, studentID int64) (*parentModels.ChildSummary, error) {
+func (s *stubChildRepo) FindForAccount(_ context.Context, accountID, studentID int64) (*parentService.ChildSummary, error) {
 	s.gotAccountID = accountID
 	if s.err != nil {
 		return nil, s.err
@@ -50,7 +51,7 @@ func (s *stubChildRepo) FindForAccount(_ context.Context, accountID, studentID i
 
 type stubEnrollableRepo struct {
 	gotAccountID int64
-	result       []*parentModels.EnrollablePhase
+	result       []*parentService.EnrollablePhase
 	err          error
 }
 
@@ -70,21 +71,30 @@ func (s stubEnrollmentSettings) EnrollmentEnabledForTenants(_ context.Context, t
 	return result, nil
 }
 
-func (s *stubEnrollableRepo) ListEnrollable(_ context.Context, accountID int64) ([]*parentModels.EnrollablePhase, error) {
+func (s *stubEnrollableRepo) ListEnrollable(_ context.Context, accountID int64) ([]*parentService.EnrollablePhase, error) {
 	s.gotAccountID = accountID
 	return s.result, s.err
 }
 
-func (s *stubEnrollableRepo) GuardianSubmitStatus(_ context.Context, _, _ int64) (*parentModels.GuardianSubmitStatus, error) {
-	return &parentModels.GuardianSubmitStatus{}, nil
+func (s *stubEnrollableRepo) GuardianSubmitStatus(_ context.Context, _, _ int64) (*parentService.GuardianSubmitStatus, error) {
+	return &parentService.GuardianSubmitStatus{}, nil
 }
 
 func newSvcWithChild(t *testing.T, child *stubChildRepo) *parentService.Portal {
 	t.Helper()
 	testpkg.SetupTestDB(t)
 	return parentportalcompose.New(parentportalcompose.Dependencies{
-		ChildRepo: child,
-		Logger:    slog.Default(),
+		GuardianChanges: api.ParentGuardianChanges(),
+		DeparturePolicy: api.ParentDeparturePolicy(),
+		GuardianPolicy:  api.NewParentGuardianPolicy(),
+		Fingerprints:    api.SecurityFingerprints{},
+		Declarations:    api.ParentDeclarationPolicy(),
+		Locales:         api.ParentPortalLocales(),
+		Runtime:         api.ParentPortalRuntime{},
+		ChildRepo:       child,
+		Logger:          slog.Default(),
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	})
 }
 
@@ -92,9 +102,18 @@ func newSvcWithEnrollable(t *testing.T, enroll *stubEnrollableRepo) *parentServi
 	t.Helper()
 	testpkg.SetupTestDB(t)
 	return parentportalcompose.New(parentportalcompose.Dependencies{
+		GuardianChanges:     api.ParentGuardianChanges(),
+		DeparturePolicy:     api.ParentDeparturePolicy(),
+		GuardianPolicy:      api.NewParentGuardianPolicy(),
+		Fingerprints:        api.SecurityFingerprints{},
+		Declarations:        api.ParentDeclarationPolicy(),
+		Locales:             api.ParentPortalLocales(),
+		Runtime:             api.ParentPortalRuntime{},
 		EnrollablePhaseRepo: enroll,
 		EnrollmentSettings:  stubEnrollmentSettings{},
 		Logger:              slog.Default(),
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	})
 }
 
@@ -117,14 +136,23 @@ func fakeAdminContext(t *testing.T) context.Context {
 func TestService_ListEnrollableForAccount_FiltersDisabledTenantsThroughTypedSettings(t *testing.T) {
 	t.Parallel()
 
-	repo := &stubEnrollableRepo{result: []*parentModels.EnrollablePhase{
+	repo := &stubEnrollableRepo{result: []*parentService.EnrollablePhase{
 		{SchoolID: 11, PhaseID: 101},
 		{SchoolID: 22, PhaseID: 202},
 	}}
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		GuardianChanges:     api.ParentGuardianChanges(),
+		DeparturePolicy:     api.ParentDeparturePolicy(),
+		GuardianPolicy:      api.NewParentGuardianPolicy(),
+		Fingerprints:        api.SecurityFingerprints{},
+		Declarations:        api.ParentDeclarationPolicy(),
+		Locales:             api.ParentPortalLocales(),
+		Runtime:             api.ParentPortalRuntime{},
 		EnrollablePhaseRepo: repo,
 		EnrollmentSettings:  stubEnrollmentSettings{values: map[int64]bool{11: true, 22: false}},
 		Logger:              slog.Default(),
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	})
 
 	got, err := svc.ListEnrollableForAccount(fakeAdminContext(t), 999)
@@ -138,9 +166,18 @@ func TestService_ListEnrollableForAccount_PropagatesTypedSettingsFailure(t *test
 
 	want := errors.New("settings unavailable")
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
-		EnrollablePhaseRepo: &stubEnrollableRepo{result: []*parentModels.EnrollablePhase{{SchoolID: 11}}},
+		GuardianChanges:     api.ParentGuardianChanges(),
+		DeparturePolicy:     api.ParentDeparturePolicy(),
+		GuardianPolicy:      api.NewParentGuardianPolicy(),
+		Fingerprints:        api.SecurityFingerprints{},
+		Declarations:        api.ParentDeclarationPolicy(),
+		Locales:             api.ParentPortalLocales(),
+		Runtime:             api.ParentPortalRuntime{},
+		EnrollablePhaseRepo: &stubEnrollableRepo{result: []*parentService.EnrollablePhase{{SchoolID: 11}}},
 		EnrollmentSettings:  stubEnrollmentSettings{err: want},
 		Logger:              slog.Default(),
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	})
 
 	_, err := svc.ListEnrollableForAccount(fakeAdminContext(t), 999)
@@ -153,7 +190,7 @@ func TestService_ListChildrenForAccount_PassesAccountIDThrough(t *testing.T) {
 	t.Parallel()
 
 	repo := &stubChildRepo{
-		result: []*parentModels.ChildSummary{
+		result: []*parentService.ChildSummary{
 			{StudentID: 4321, FirstName: "Lara", LastName: "Beispiel"},
 		},
 	}
@@ -166,26 +203,17 @@ func TestService_ListChildrenForAccount_PassesAccountIDThrough(t *testing.T) {
 	assert.Equal(t, int64(4321), repo.gotAccountID)
 }
 
-func TestService_ListChildrenForAccount_RejectsZeroAccount(t *testing.T) {
+func TestService_ListChildrenForAccount_RejectsNonPositiveAccount(t *testing.T) {
 	t.Parallel()
 
-	repo := &stubChildRepo{}
-	svc := newSvcWithChild(t, repo)
+	for _, accountID := range []int64{0, -42} {
+		repo := &stubChildRepo{}
+		svc := newSvcWithChild(t, repo)
 
-	_, err := svc.ListChildrenForAccount(testpkg.WithPackageTenantRuntime(context.Background()), 0)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "account_id must be positive")
-	assert.Equal(t, int64(0), repo.gotAccountID, "repo must not be called for invalid input")
-}
-
-func TestService_ListChildrenForAccount_RejectsNegativeAccount(t *testing.T) {
-	t.Parallel()
-
-	repo := &stubChildRepo{}
-	svc := newSvcWithChild(t, repo)
-
-	_, err := svc.ListChildrenForAccount(testpkg.WithPackageTenantRuntime(context.Background()), -42)
-	require.Error(t, err)
+		_, err := svc.ListChildrenForAccount(testpkg.WithPackageTenantRuntime(context.Background()), accountID)
+		require.ErrorContains(t, err, "account_id must be positive", "account %d", accountID)
+		assert.Zero(t, repo.gotAccountID, "repo must not be called for account %d", accountID)
+	}
 }
 
 func TestService_ListChildrenForAccount_PropagatesRepoError(t *testing.T) {
@@ -203,7 +231,7 @@ func TestService_ListChildrenForAccount_PropagatesRepoError(t *testing.T) {
 func TestService_ListChildrenForAccount_EmptyResultPropagates(t *testing.T) {
 	t.Parallel()
 
-	repo := &stubChildRepo{result: []*parentModels.ChildSummary{}}
+	repo := &stubChildRepo{result: []*parentService.ChildSummary{}}
 	svc := newSvcWithChild(t, repo)
 
 	got, err := svc.ListChildrenForAccount(testpkg.WithPackageTenantRuntime(context.Background()), 1)
@@ -218,7 +246,7 @@ func TestService_ListEnrollableForAccount_PassesAccountIDThrough(t *testing.T) {
 	t.Parallel()
 
 	repo := &stubEnrollableRepo{
-		result: []*parentModels.EnrollablePhase{
+		result: []*parentService.EnrollablePhase{
 			{SchoolID: 5005, PhaseID: 7007, PhaseName: "Schuljahr 2026/27", AlreadyLinked: true},
 		},
 	}
@@ -232,26 +260,17 @@ func TestService_ListEnrollableForAccount_PassesAccountIDThrough(t *testing.T) {
 	assert.Equal(t, int64(999), repo.gotAccountID)
 }
 
-func TestService_ListEnrollableForAccount_RejectsZeroAccount(t *testing.T) {
+func TestService_ListEnrollableForAccount_RejectsNonPositiveAccount(t *testing.T) {
 	t.Parallel()
 
-	repo := &stubEnrollableRepo{}
-	svc := newSvcWithEnrollable(t, repo)
+	for _, accountID := range []int64{0, -1} {
+		repo := &stubEnrollableRepo{}
+		svc := newSvcWithEnrollable(t, repo)
 
-	_, err := svc.ListEnrollableForAccount(testpkg.WithPackageTenantRuntime(context.Background()), 0)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "account_id must be positive")
-	assert.Equal(t, int64(0), repo.gotAccountID)
-}
-
-func TestService_ListEnrollableForAccount_RejectsNegativeAccount(t *testing.T) {
-	t.Parallel()
-
-	repo := &stubEnrollableRepo{}
-	svc := newSvcWithEnrollable(t, repo)
-
-	_, err := svc.ListEnrollableForAccount(testpkg.WithPackageTenantRuntime(context.Background()), -1)
-	require.Error(t, err)
+		_, err := svc.ListEnrollableForAccount(testpkg.WithPackageTenantRuntime(context.Background()), accountID)
+		require.ErrorContains(t, err, "account_id must be positive", "account %d", accountID)
+		assert.Zero(t, repo.gotAccountID, "repo must not be called for account %d", accountID)
+	}
 }
 
 func TestService_ListEnrollableForAccount_PropagatesRepoError(t *testing.T) {
@@ -269,7 +288,7 @@ func TestService_ListEnrollableForAccount_PropagatesRepoError(t *testing.T) {
 func TestService_ListEnrollableForAccount_EmptyResultPropagates(t *testing.T) {
 	t.Parallel()
 
-	repo := &stubEnrollableRepo{result: []*parentModels.EnrollablePhase{}}
+	repo := &stubEnrollableRepo{result: []*parentService.EnrollablePhase{}}
 	svc := newSvcWithEnrollable(t, repo)
 
 	got, err := svc.ListEnrollableForAccount(testpkg.WithPackageTenantRuntime(context.Background()), 1)
@@ -290,8 +309,17 @@ func TestNewService_NilLoggerFallsBackToDefault(t *testing.T) {
 	testpkg.SetupTestDB(t)
 
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
-		ChildRepo: &stubChildRepo{},
-		Logger:    nil,
+		GuardianChanges: api.ParentGuardianChanges(),
+		DeparturePolicy: api.ParentDeparturePolicy(),
+		GuardianPolicy:  api.NewParentGuardianPolicy(),
+		Fingerprints:    api.SecurityFingerprints{},
+		Declarations:    api.ParentDeclarationPolicy(),
+		Locales:         api.ParentPortalLocales(),
+		Runtime:         api.ParentPortalRuntime{},
+		ChildRepo:       &stubChildRepo{},
+		Logger:          nil,
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	})
 	require.NotNil(t, svc)
 

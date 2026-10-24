@@ -4,6 +4,7 @@ import {
   createParentPutHandler,
   parentApiPut,
 } from "~/lib/parent/route-wrapper.server";
+import { bffError } from "~/lib/api-response-error.server";
 
 /** Bounds the path segment before it reaches the backend. */
 const VALID_TYPE_PATTERN = /^[a-z0-9_]{1,64}$/;
@@ -21,7 +22,7 @@ export const PUT = createParentPutHandler(
   ) => {
     const type = params.type as string;
     if (!VALID_TYPE_PATTERN.test(type)) {
-      throw new Error("API error (400): Invalid notification type format");
+      throw bffError(400, "Invalid notification type format");
     }
     return parentApiPut(
       `/parent/me/notification-preferences/${type}`,

@@ -123,6 +123,30 @@ func TestModuleDeletesOnlyUpcomingInstanceStaff(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestModuleDeletesAllInstanceStaffForRetention(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module, ctx := buildModule(t, db), testpkg.Ctx(t)
+	fixture := newOwnedActivityInstanceFixture(t, db, "staff-retention")
+	staff := testpkg.CreateTestStaff(t, db, "Owner", "Retention")
+	other := testpkg.CreateTestStaff(t, db, "Owner", "Keep")
+	past := createOwnedActivityInstance(t, module, ctx, fixture, "2027-10-04", "08:00:00", "Past")
+	future := createOwnedActivityInstance(t, module, ctx, fixture, "2027-10-06", "08:00:00", "Future")
+	createOwnedInstanceStaff(t, module, ctx, past.ID, staff.ID, false, false)
+	createOwnedInstanceStaff(t, module, ctx, future.ID, staff.ID, false, false)
+	kept := createOwnedInstanceStaff(t, module, ctx, future.ID, other.ID, false, false)
+
+	result, err := module.DeleteRetiredStaffAssignments(ctx, staff.ID)
+
+	require.NoError(t, err)
+	assert.EqualValues(t, 2, result.InstanceStaff)
+	deleted, err := module.ListInstanceStaff(ctx, timetable.InstanceStaffFilter{StaffIDs: []int64{staff.ID}})
+	require.NoError(t, err)
+	assert.Empty(t, deleted)
+	_, err = module.FindInstanceStaff(ctx, kept.ID)
+	require.NoError(t, err)
+}
+
 func TestModuleInstanceStaffFailuresAndRollback(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
@@ -160,13 +184,19 @@ func TestInstanceStaffListQueryBudgetStaysFlat(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Owner", fmt.Sprintf("Budget-%d", index))
 		createOwnedInstanceStaff(t, module, ctx, instance.ID, staff.ID, false, false)
 	}
-	counter := testpkg.CaptureQueries(t, db)
-	_, err := module.ListInstanceStaff(ctx, timetable.InstanceStaffFilter{InstanceIDs: []int64{instance.ID}})
-	require.NoError(t, err)
-	testpkg.AssertQueryBudget(t, "modules.timetable.instance_staff.list", counter.Queries())
+	// The owner read runs inside the HTTP/workflow unit of work. The budget
+	// still measures every business query, not connection/role setup.
+	require.NoError(t, tenant.WithinCurrentTenant(ctx, func(ctx context.Context) error {
+		counter := testpkg.CaptureQueries(t, db)
+		_, err := module.ListInstanceStaff(ctx, timetable.InstanceStaffFilter{InstanceIDs: []int64{instance.ID}})
+		require.NoError(t, err)
+		testpkg.AssertQueryBudget(t, "modules.timetable.instance_staff.list", counter.Queries())
+
+		return nil
+	}))
 }
 
-func createOwnedInstanceStaff(t *testing.T, module *timetable.Module, ctx context.Context, instanceID, staffID int64, primary, absent bool) timetable.InstanceStaff {
+func createOwnedInstanceStaff(t *testing.T, module timetable.Owner, ctx context.Context, instanceID, staffID int64, primary, absent bool) timetable.InstanceStaff {
 	t.Helper()
 	value, err := module.CreateInstanceStaff(ctx, ownedInstanceStaffInput(instanceID, staffID, primary, absent))
 	require.NoError(t, err)

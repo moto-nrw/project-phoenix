@@ -7,6 +7,17 @@ vi.mock("~/lib/swr/hooks", () => ({
   useSWRAuth: (...args: unknown[]) => mockUseSWRAuth(...args),
 }));
 
+// GET /api/reminders verlangt users:read (#4573); die Betreuungskraft hält es.
+const sessionState = vi.hoisted(() => ({
+  permissions: ["users:read"] as string[],
+}));
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({
+    data: { user: { permissions: sessionState.permissions } },
+    status: "authenticated",
+  }),
+}));
+
 import { useReminders } from "./use-reminders";
 
 function swrReturn(
@@ -23,6 +34,7 @@ function swrReturn(
 
 beforeEach(() => {
   vi.clearAllMocks();
+  sessionState.permissions = ["users:read"];
 });
 
 describe("useReminders", () => {
@@ -47,6 +59,27 @@ describe("useReminders", () => {
     expect(result.current.count).toBe(1);
     expect(result.current.enabled).toBe(true);
     expect(result.current.isLoading).toBe(false);
+  });
+
+  it("asks under the shared key with users:read", () => {
+    mockUseSWRAuth.mockReturnValue(swrReturn(undefined, { isLoading: true }));
+
+    renderHook(() => useReminders());
+
+    expect(mockUseSWRAuth.mock.calls[0]?.[0]).toBe("reminders");
+  });
+
+  // #4573: die AG-Leitung hat kein users:read. Ohne das Recht wäre jede
+  // Abfrage ein 403, minütlich aus Glocke und Startseite.
+  it("does not ask without users:read", () => {
+    sessionState.permissions = ["schedules:read"];
+    mockUseSWRAuth.mockReturnValue(swrReturn(undefined));
+
+    const { result } = renderHook(() => useReminders());
+
+    expect(mockUseSWRAuth.mock.calls[0]?.[0]).toBeNull();
+    expect(result.current.enabled).toBe(false);
+    expect(result.current.count).toBe(0);
   });
 
   it("falls back to safe defaults while data is undefined", () => {

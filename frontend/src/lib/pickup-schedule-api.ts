@@ -1,15 +1,9 @@
-import {
-  ApiError,
-  apiErrorFromBody,
-  enrichApiError,
-  transportFetch,
-} from "./api-error";
+import { ApiError, apiErrorFromBody, transportFetch } from "./api-error";
 // Pickup Schedule API Client
 // Calls Next.js API routes which proxy to the Go backend
 
 import type {
   PickupData,
-  BulkPickupScheduleFormData,
   PickupExceptionFormData,
   PickupException,
   PickupNoteFormData,
@@ -18,12 +12,15 @@ import type {
   BackendPickupData,
   BackendPickupException,
   BackendPickupNote,
+  BackendDepartureException,
+  DepartureException,
+  DepartureMode,
 } from "./pickup-schedule-helpers";
 import {
+  mapDepartureExceptionResponse,
   mapPickupDataResponse,
   mapPickupExceptionResponse,
   mapPickupNoteResponse,
-  mapBulkPickupScheduleFormToBackend,
   mapPickupExceptionFormToBackend,
   mapPickupNoteFormToBackend,
 } from "./pickup-schedule-helpers";
@@ -34,7 +31,6 @@ interface ApiResponse<T> {
   status: string;
   data?: T;
   message?: string;
-  error?: string;
 }
 
 export interface BulkPickupScheduleInput {
@@ -44,13 +40,6 @@ export interface BulkPickupScheduleInput {
 
 export interface BulkPickupResult {
   students_affected: number;
-}
-
-export class PickupScheduleApiError extends ApiError {
-  constructor(message: string, code?: string) {
-    super(message, undefined, { code });
-    this.name = "PickupScheduleApiError";
-  }
 }
 
 export interface PickupAdjustmentSelection {
@@ -177,22 +166,6 @@ export async function bulkUpsertPickupSchedules(
   );
 }
 
-// Error response from failed JSON parsing
-interface ErrorResponse {
-  error?: string;
-  code?: string;
-}
-
-// Type guard for error responses
-function isErrorResponse(value: unknown): value is ErrorResponse {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    (typeof (value as ErrorResponse).error === "string" ||
-      typeof (value as ErrorResponse).code === "string")
-  );
-}
-
 export async function previewStudentPickupAdjustment(
   studentId: string,
   payload: PickupAdjustmentPayload,
@@ -255,30 +228,22 @@ async function throwResponseError(
   response: Response,
   fallback: string,
 ): Promise<never> {
-  // Ein Rumpf ohne JSON klassifiziert sich allein über den Status; der
-  // Ausfall des Parsens hat deshalb keine eigene Folge.
-  const body: unknown = await response.json().catch(() => undefined);
-  const message = isErrorResponse(body) && body.error ? body.error : fallback;
-  throw enrichApiError(
-    new PickupScheduleApiError(
-      message,
-      isErrorResponse(body) ? body.code : undefined,
-    ),
-    body,
+  throw apiErrorFromBody(
+    fallback,
     response.status,
+    await response.json().catch(() => undefined),
   );
 }
 
 /**
- * A success status whose body still reports a failure (or lacks the data) is
- * a server fault unless the body names its own code.
+ * A success status whose body lacks the data is a server fault.
  */
 function bodyError(message: string, body: unknown): ApiError {
   return apiErrorFromBody(message, 500, body);
 }
 
 /**
- * Parse a JSON API response body; throw if the body signals an error or has no data.
+ * Parse a JSON API response body; a success without data is a server fault.
  */
 async function parseApiResult<T>(
   response: Response,
@@ -286,26 +251,11 @@ async function parseApiResult<T>(
 ): Promise<T> {
   const result = (await response.json()) as ApiResponse<T>;
 
-  if (result.status === "error" || !result.data) {
-    throw bodyError(result.error ?? fallback, result);
+  if (!result.data) {
+    throw bodyError(fallback, result);
   }
 
   return result.data;
-}
-
-/**
- * Handle a DELETE response (204 No Content or JSON body).
- */
-async function handleDeleteResponse(
-  response: Response,
-  fallback: string,
-): Promise<void> {
-  if (response.status === 204) return;
-
-  const result = (await response.json()) as ApiResponse<null>;
-  if (result.status === "error") {
-    throw bodyError(result.error ?? fallback, result);
-  }
 }
 
 /**
@@ -331,41 +281,9 @@ export async function fetchStudentPickupData(
 
   const result = (await response.json()) as ApiResponse<BackendPickupData>;
 
-  if (result.status === "error") {
-    throw bodyError(result.error ?? "Failed to fetch pickup schedules", result);
-  }
-
   return mapPickupDataResponse(
     result.data ?? { schedules: [], exceptions: [], notes: [] },
   );
-}
-
-/**
- * Update weekly pickup schedules for a student (bulk upsert)
- */
-export async function updateStudentPickupSchedules(
-  studentId: string,
-  data: BulkPickupScheduleFormData,
-): Promise<PickupData> {
-  const backendData = mapBulkPickupScheduleFormToBackend(data);
-
-  const response = await transportFetch(
-    `/api/students/${studentId}/pickup-schedules`,
-    {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(backendData),
-    },
-  );
-
-  if (!response.ok) {
-    await throwResponseError(response, "Failed to update pickup schedules");
-  }
-
-  return parseApiResult<BackendPickupData>(
-    response,
-    "Failed to update pickup schedules",
-  ).then(mapPickupDataResponse);
 }
 
 /**
@@ -470,8 +388,55 @@ export async function deleteStudentPickupException(
   if (!response.ok) {
     await throwResponseError(response, "Failed to delete pickup exception");
   }
+}
 
-  await handleDeleteResponse(response, "Failed to delete pickup exception");
+/**
+ * Setzt die Abholart eines einzelnen Tages (#3945). Ein Tag hat höchstens
+ * einen Wert; erneutes Speichern ersetzt ihn.
+ */
+export async function setStudentDepartureException(
+  studentId: string,
+  date: string,
+  data: { departureMode: DepartureMode; reason?: string },
+): Promise<DepartureException> {
+  const response = await transportFetch(
+    `/api/students/${studentId}/departure-exceptions/${date}`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        departure_mode: data.departureMode,
+        reason: data.reason,
+      }),
+    },
+  );
+
+  if (!response.ok) {
+    await throwResponseError(response, "Failed to set departure exception");
+  }
+
+  const result = await parseApiResult<BackendDepartureException>(
+    response,
+    "Failed to set departure exception",
+  );
+  return mapDepartureExceptionResponse(result);
+}
+
+/**
+ * Gibt den Tag an den Wochenplan zurück: die Abholart des Tages entfällt.
+ */
+export async function deleteStudentDepartureException(
+  studentId: string,
+  date: string,
+): Promise<void> {
+  const response = await transportFetch(
+    `/api/students/${studentId}/departure-exceptions/${date}`,
+    { method: "DELETE" },
+  );
+
+  if (!response.ok) {
+    await throwResponseError(response, "Failed to delete departure exception");
+  }
 }
 
 // =============================================================================
@@ -552,8 +517,6 @@ export async function deleteStudentPickupNote(
   if (!response.ok) {
     await throwResponseError(response, "Failed to delete pickup note");
   }
-
-  await handleDeleteResponse(response, "Failed to delete pickup note");
 }
 
 /**
@@ -576,21 +539,11 @@ export async function replaceStudentWeekdayPickupNotes(
   if (!response.ok) {
     await throwResponseError(response, "Failed to update pickup notes");
   }
-
-  await handleDeleteResponse(response, "Failed to update pickup notes");
 }
 
 // =============================================================================
-// BULK PICKUP TIMES API (for OGS dashboard)
+// BULK PICKUP TIMES (types for the OGS dashboard)
 // =============================================================================
-
-/**
- * Backend day note in bulk response
- */
-interface BulkDayNoteResponse {
-  id: number;
-  content: string;
-}
 
 /**
  * Frontend day note in bulk response
@@ -598,19 +551,6 @@ interface BulkDayNoteResponse {
 interface BulkDayNote {
   id: string;
   content: string;
-}
-
-/**
- * Bulk pickup time response from backend
- */
-export interface BulkPickupTimeResponse {
-  student_id: number;
-  date: string;
-  weekday_name: string;
-  pickup_time?: string;
-  is_exception: boolean;
-  day_notes?: BulkDayNoteResponse[];
-  notes?: string;
 }
 
 /**
@@ -622,72 +562,9 @@ export interface BulkPickupTime {
   weekdayName: string;
   pickupTime?: string;
   isException: boolean;
+  /** The Abholart set for this day only (#3946); only the supervision
+   *  dashboard carries it. */
+  dayDepartureMode?: DepartureMode;
   dayNotes: BulkDayNote[];
   notes?: string;
-}
-
-/**
- * Map backend bulk pickup time to frontend format
- */
-function mapBulkPickupTimeResponse(
-  data: BulkPickupTimeResponse,
-): BulkPickupTime {
-  return {
-    studentId: data.student_id.toString(),
-    date: data.date,
-    weekdayName: data.weekday_name,
-    pickupTime: data.pickup_time,
-    isException: data.is_exception,
-    dayNotes: (data.day_notes ?? []).map((n) => ({
-      id: n.id.toString(),
-      content: n.content,
-    })),
-    notes: data.notes,
-  };
-}
-
-/**
- * Fetch effective pickup times for multiple students on a given date.
- * Uses bulk backend endpoint (O(2) queries instead of O(N)).
- *
- * @param studentIds - Array of student IDs
- * @param date - Optional date string (YYYY-MM-DD), defaults to today
- * @returns Map of studentId -> pickup time data
- */
-export async function fetchBulkPickupTimes(
-  studentIds: string[],
-  date?: string,
-): Promise<Map<string, BulkPickupTime>> {
-  if (studentIds.length === 0) {
-    return new Map();
-  }
-
-  const response = await transportFetch("/api/students/pickup-times/bulk", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      student_ids: studentIds.map((id) => Number.parseInt(id, 10)),
-      date: date,
-    }),
-  });
-
-  if (!response.ok) {
-    await throwResponseError(response, "Failed to fetch bulk pickup times");
-  }
-
-  const data = await parseApiResult<BulkPickupTimeResponse[]>(
-    response,
-    "Failed to fetch bulk pickup times",
-  );
-
-  // Convert array to Map for O(1) lookup
-  const pickupTimesMap = new Map<string, BulkPickupTime>();
-  for (const item of data) {
-    const mapped = mapBulkPickupTimeResponse(item);
-    pickupTimesMap.set(mapped.studentId, mapped);
-  }
-
-  return pickupTimesMap;
 }

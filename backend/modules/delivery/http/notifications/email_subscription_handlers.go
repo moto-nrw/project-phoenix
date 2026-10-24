@@ -6,9 +6,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/api/common"
-	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 )
 
 // emailSubscriptionResponse is the caller's own decision for one opt-in
@@ -23,13 +20,13 @@ func (rs *Resource) getEmailSubscription(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	ctx := r.Context()
-	enabled, err := rs.PreferenceService.EmailSubscribed(ctx, int64(jwt.ClaimsFromCtx(ctx).ID),
-		jwt.PermissionsFromCtx(ctx), chi.URLParam(r, "type"))
+	enabled, err := rs.PreferenceService.EmailSubscribed(ctx, int64(rs.Runtime.Caller(ctx).ID),
+		rs.Runtime.Permissions(ctx), chi.URLParam(r, "type"))
 	if err != nil {
-		renderEmailSubscriptionError(w, r, err)
+		rs.renderEmailSubscriptionError(w, r, err)
 		return
 	}
-	common.Respond(w, r, http.StatusOK, emailSubscriptionResponse{Enabled: enabled}, "E-mail subscription retrieved successfully")
+	rs.Runtime.Respond(w, r, http.StatusOK, emailSubscriptionResponse{Enabled: enabled}, "E-mail subscription retrieved successfully")
 }
 
 // setEmailSubscription records the caller's decision for an e-mail type.
@@ -40,21 +37,21 @@ func (rs *Resource) setEmailSubscription(w http.ResponseWriter, r *http.Request)
 	r.Body = http.MaxBytesReader(w, r.Body, 1<<10)
 	req := &preferenceRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		rs.Runtime.Invalid(w, r, err)
 		return
 	}
 	ctx := r.Context()
-	if err := rs.PreferenceService.SetEmailSubscribed(ctx, int64(jwt.ClaimsFromCtx(ctx).ID),
-		jwt.PermissionsFromCtx(ctx), chi.URLParam(r, "type"), *req.Enabled); err != nil {
-		renderEmailSubscriptionError(w, r, err)
+	if err := rs.PreferenceService.SetEmailSubscribed(ctx, int64(rs.Runtime.Caller(ctx).ID),
+		rs.Runtime.Permissions(ctx), chi.URLParam(r, "type"), *req.Enabled); err != nil {
+		rs.renderEmailSubscriptionError(w, r, err)
 		return
 	}
-	common.Respond(w, r, http.StatusNoContent, nil, "")
+	rs.Runtime.Respond(w, r, http.StatusNoContent, nil, "")
 }
 
 func (rs *Resource) preferencesConfigured(w http.ResponseWriter, r *http.Request) bool {
 	if rs.PreferenceService == nil {
-		common.RenderError(w, r, common.ErrorInternalServer(errors.New("notification preferences are not configured")))
+		rs.Runtime.Internal(w, r, errors.New("notification preferences are not configured"))
 		return false
 	}
 	return true
@@ -62,13 +59,13 @@ func (rs *Resource) preferencesConfigured(w http.ResponseWriter, r *http.Request
 
 // renderEmailSubscriptionError maps the service's refusals: a push or unknown
 // type is not found here, a missing permission is forbidden.
-func renderEmailSubscriptionError(w http.ResponseWriter, r *http.Request, err error) {
+func (rs *Resource) renderEmailSubscriptionError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
-	case errors.Is(err, notificationsService.ErrUnknownNotificationType):
-		common.RenderError(w, r, common.ErrorNotFound(errors.New("unknown e-mail notification type")))
-	case errors.Is(err, notificationsService.ErrEmailPermissionRequired):
-		common.RenderError(w, r, common.ErrorForbidden(errors.New("insufficient permissions")))
+	case rs.PreferenceService.IsUnknownType(err):
+		rs.Runtime.NotFound(w, r, errors.New("unknown e-mail notification type"))
+	case rs.PreferenceService.IsPermissionRequired(err):
+		rs.Runtime.Forbidden(w, r, errors.New("insufficient permissions"))
 	default:
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		rs.Runtime.Internal(w, r, err)
 	}
 }

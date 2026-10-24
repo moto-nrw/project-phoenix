@@ -4,7 +4,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ModalProvider } from "~/components/dashboard/modal-context";
 import {
-  CareRequestApiError,
   fetchCareScheduleChangeRequest,
   type StaffCareRequestDetail,
 } from "~/lib/care-request-review-api";
@@ -169,7 +168,7 @@ describe("PickupRequestDetailModal", () => {
 
   it("erklärt eine entfernte Anfrage und fehlenden Zugriff verständlich", async () => {
     mockFetch.mockRejectedValue(
-      new CareRequestApiError("not found", "care.request_not_found", 404),
+      new ApiError("not found", 404, { code: "care.request_not_found" }),
     );
     const { unmount } = render(
       <PickupRequestDetailModal requestId="42" onClose={vi.fn()} />,
@@ -180,9 +179,7 @@ describe("PickupRequestDetailModal", () => {
     ).toBeInTheDocument();
     unmount();
 
-    mockFetch.mockRejectedValue(
-      new CareRequestApiError("forbidden", undefined, 403),
-    );
+    mockFetch.mockRejectedValue(new ApiError("forbidden", 403));
     render(<PickupRequestDetailModal requestId="42" onClose={vi.fn()} />, {
       wrapper: Wrapper,
     });
@@ -234,11 +231,21 @@ describe("PickupRequestDetailModal", () => {
     consoleError.mockRestore();
   });
 
-  it("lädt nichts, solange keine Anfrage gewählt ist", () => {
-    render(<PickupRequestDetailModal requestId={null} onClose={vi.fn()} />, {
-      wrapper: Wrapper,
-    });
+  it("lädt nichts, solange keine Anfrage gewählt ist", async () => {
+    const { unmount } = render(
+      <PickupRequestDetailModal requestId={null} onClose={vi.fn()} />,
+      { wrapper: Wrapper },
+    );
     expect(mockFetch).not.toHaveBeenCalled();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    unmount();
+
+    mockFetch.mockResolvedValue(detail());
+    render(<PickupRequestDetailModal requestId="42" onClose={vi.fn()} />, {
+      wrapper: Wrapper,
+    });
+    // Anker: mit gewählter Anfrage öffnet derselbe Aufbau den Dialog.
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    expect(await screen.findByText("Mia Muster")).toBeInTheDocument();
   });
 });

@@ -8,7 +8,7 @@ package sessionrecordstest
 import (
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
 )
 
@@ -38,6 +38,6 @@ type GroupSupervisorRow struct {
 	StaffID       int64          `bun:"staff_id,notnull" json:"staff_id"`
 	GroupID       int64          `bun:"group_id,notnull" json:"group_id"`
 	Role          string         `bun:"role,notnull" json:"role"`
-	StartDate     timezone.Date  `bun:"start_date,notnull,type:date" json:"start_date"`
-	EndDate       *timezone.Date `bun:"end_date,type:date" json:"end_date,omitempty"`
+	StartDate     calendar.Date  `bun:"start_date,notnull,type:date" json:"start_date"`
+	EndDate       *calendar.Date `bun:"end_date,type:date" json:"end_date,omitempty"`
 }

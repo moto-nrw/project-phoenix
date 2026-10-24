@@ -20,8 +20,8 @@ import type { ShiftType } from "~/lib/shift-type-helpers";
 // Schichtart aufgeteilt. Wochenend-Dienste derselben Woche zählen mit.
 
 const UNTYPED_KEY = "untyped";
-const UNTYPED_LABEL = "Ohne Schichtart";
-const UNKNOWN_TYPE_LABEL = "Unbekannte Schichtart";
+const UNTYPED_LABEL = "Ohne Dienstart";
+const UNKNOWN_TYPE_LABEL = "Unbekannte Dienstart";
 const EMPTY_VALUE = "–";
 
 const DELTA_COLOR = {
@@ -172,7 +172,7 @@ export function DienstplanHoursCard({
   return (
     <SectionCard
       title="Stunden der Woche"
-      description="Geplante Stunden je Schichtart, ohne Pausen. Ausgefallene Dienste zählen nicht. Das Soll kommt aus dem Arbeitszeitmodell."
+      description="Geplante Stunden je Dienstart, ohne Pausen. Ausgefallene Dienste zählen nicht. Das Soll kommt aus dem Arbeitszeitmodell."
       testId="dienstplan-hours-card"
     >
       <DataTable

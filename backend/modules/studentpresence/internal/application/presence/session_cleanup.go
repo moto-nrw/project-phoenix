@@ -7,8 +7,8 @@ import (
 	"slices"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // CleanupAbandonedSessions cleans up sessions that have been abandoned for longer than the specified duration.
@@ -19,7 +19,12 @@ import (
 func (s *service) CleanupAbandonedSessions(ctx context.Context, threshold time.Duration) (int, error) {
 	// Find sessions with no activity since the threshold
 	cutoffTime := time.Now().Add(-threshold)
-	sessions, err := s.GroupRepo.FindActiveSessionsOlderThan(ctx, cutoffTime)
+	var sessions []*ports.ActiveGroup
+	err := s.runInSessionTx(ctx, func(txCtx context.Context) error {
+		var readErr error
+		sessions, readErr = s.GroupRepo.FindActiveSessionsOlderThan(txCtx, cutoffTime)
+		return readErr
+	})
 	if err != nil {
 		return 0, &ActiveError{Op: "CleanupAbandonedSessions", Err: err}
 	}
@@ -184,7 +189,7 @@ func (s *service) endDailySessionsLocked(ctx context.Context, activeIDs []int64,
 // cleanupOrphanedSupervisors closes supervisor records from previous days
 // that the per-group loop wouldn't find (e.g., groups already ended but supervisors left open)
 func (s *service) cleanupOrphanedSupervisors(ctx context.Context, result *DailySessionCleanupResult) {
-	today := timezone.TodayDate()
+	today := calendar.TodayDate()
 
 	// Find orphaned supervisor records from before today with no end_date
 	staleRecords, err := s.SupervisorRepo.FindStaleOpen(ctx, today)
@@ -207,7 +212,7 @@ func (s *service) cleanupOrphanedSupervisors(ctx context.Context, result *DailyS
 	}
 }
 
-func (s *service) closeStaleSupervisor(ctx context.Context, record *ports.GroupSupervisor, today timezone.Date) (bool, error) {
+func (s *service) closeStaleSupervisor(ctx context.Context, record *ports.GroupSupervisor, today calendar.Date) (bool, error) {
 	closed := false
 	err := s.runInSessionTx(ctx, func(txCtx context.Context) error {
 		if err := s.lockGroupRows(txCtx, record.GroupID); err != nil {

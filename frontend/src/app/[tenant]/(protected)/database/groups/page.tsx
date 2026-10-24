@@ -326,7 +326,7 @@ function GroupsPageContent() {
       }
       className="flex w-full flex-col"
       intro={{
-        title: "Gruppen",
+        title: "Gruppendaten",
         description: statusLine,
         actions: (
           <DatabaseCreateAction

@@ -30,22 +30,6 @@ describe("ChoiceModal", () => {
     vi.useRealTimers();
   });
 
-  it("does not render when isOpen is false", () => {
-    render(
-      <TestWrapper>
-        <ChoiceModal
-          isOpen={false}
-          onClose={vi.fn()}
-          title="Änderung anwenden"
-          options={options}
-          onSelect={vi.fn()}
-        />
-      </TestWrapper>,
-    );
-
-    expect(screen.queryByText("Änderung anwenden")).not.toBeInTheDocument();
-  });
-
   it("renders title, description and all options", async () => {
     render(
       <TestWrapper>
@@ -94,6 +78,9 @@ describe("ChoiceModal", () => {
       vi.advanceTimersByTime(20);
     });
 
+    // Anker: der Dialog ist offen und zeigt Titel und Optionen.
+    expect(screen.getByText("Änderung anwenden")).toBeInTheDocument();
+    expect(screen.getByText("Nur diesen Termin")).toBeInTheDocument();
     expect(
       screen.queryByText("Wofür soll die Änderung gelten?"),
     ).not.toBeInTheDocument();

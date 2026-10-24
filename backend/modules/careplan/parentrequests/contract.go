@@ -1,8 +1,9 @@
 // Package parentrequests is the Care Plan contract of the cross-kind parent
 // request commands (#2267, #3354): approving several open requests at once
 // and closing a conflict group in one transaction. It carries the command
-// inputs, the request kinds and the stable error sentinels the staff routes
-// render; the coordination itself lives behind the Care Plan composition.
+// inputs, the request kinds, the stable error sentinels the staff routes
+// render and the reason rule both the staff routes and the parents portal
+// apply; the coordination itself lives behind the Care Plan composition.
 package parentrequests
 
 import (
@@ -26,9 +27,9 @@ const (
 )
 
 // Sentinels shared by the bulk, resolve, decide, correct and mark-done routes
-// of every request kind. The routes render their text verbatim, so the
-// strings are part of the wire contract and predate the move of the
-// coordination into Care Plan (#3354).
+// of every request kind. The routes send their text as diagnostic detail;
+// clients show the code catalog. They predate the move of the coordination
+// into Care Plan (#3354).
 var (
 	// ErrInvalidBulkRequest means the bulk command itself is malformed.
 	ErrInvalidBulkRequest = errors.New("parent requests: invalid bulk approval")

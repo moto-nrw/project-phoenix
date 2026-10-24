@@ -10,33 +10,30 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 
 	"github.com/gofrs/uuid"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
 
-const operatorTestPassword = "SecurePass123!" //nolint:gosec // pragma: allowlist secret
+var operatorTestPassword = testpkg.NewTestPassword()
 
 // buildServiceFactory composes the service root the way the server does.
-func buildServiceFactory(t *testing.T, db *bun.DB) *services.Factory {
+func buildServiceFactory(t *testing.T, db *bun.DB) identityaccess.Owner {
 	t.Helper()
-	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
+	identityModule, err := api.NewTestIdentityAccess(testpkg.NewDatabase(t, db), slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
-	require.NoError(t, serviceFactory.SetTenantRuntime(testpkg.TenantRuntime(t, db)))
-	return serviceFactory
+	return identityModule
 }
 
 // buildAuthService wires the operator flows the way the service root does.
 func buildAuthService(t *testing.T, db *bun.DB) operatorServiceShim {
 	t.Helper()
-	return operatorServiceShim{module: buildServiceFactory(t, db).OperatorAuth}
+	return operatorServiceShim{module: buildServiceFactory(t, db)}
 }
 
 // buildOperatorPasswordChange returns the operator password change the root
@@ -46,7 +43,7 @@ func buildOperatorPasswordChange(t *testing.T, db *bun.DB) interface {
 	ChangeOperatorPassword(ctx context.Context, operatorID int64, currentPassword, newPassword string) error
 } {
 	t.Helper()
-	return buildServiceFactory(t, db).AccountAuthentication()
+	return buildServiceFactory(t, db)
 }
 
 // createEmailChangeTestOperator creates an operator with a real Argon2id password hash.
@@ -63,13 +60,6 @@ func createEmailChangeTestOperator(t *testing.T, db *bun.DB, email string) (int6
 		email, hash, "Test Operator",
 	).Scan(ctx, &operatorID)
 	require.NoError(t, err, "Failed to create test operator")
-
-	t.Cleanup(func() {
-		_, _ = db.ExecContext(ctx, `DELETE FROM platform.operator_email_change_tokens WHERE operator_id = ?`, operatorID)
-		_, _ = db.ExecContext(ctx, `DELETE FROM platform.operator_refresh_tokens WHERE operator_id = ?`, operatorID)
-		_, _ = db.ExecContext(ctx, `DELETE FROM platform.operator_audit_log WHERE operator_id = ?`, operatorID)
-		_, _ = db.ExecContext(ctx, `DELETE FROM platform.operators WHERE id = ?`, operatorID)
-	})
 
 	return operatorID, hash
 }
@@ -316,7 +306,7 @@ func TestIntegration_EmailChange_ChangePassword_InvalidatesToken(t *testing.T) {
 	require.NotEmpty(t, tokenStr)
 
 	// 3. Change password — must atomically invalidate the outstanding token
-	newPassword := "ChangedPass789!"
+	newPassword := testpkg.NewTestPassword()
 	err = buildOperatorPasswordChange(t, db).ChangeOperatorPassword(ctx, operatorID, operatorTestPassword, newPassword)
 	require.NoError(t, err)
 
@@ -369,10 +359,6 @@ func TestIntegration_EmailChange_Cleanup_ServiceLevel(t *testing.T) {
 		operatorID, "stale@test.local", staleToken, time.Now().Add(-90*time.Minute),
 	)
 	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		_, _ = db.ExecContext(ctx, `DELETE FROM platform.operator_email_change_tokens WHERE operator_id = ?`, operatorID)
-	})
 
 	// Run service-level cleanup (invalidate + delete)
 	deleted, err := service.CleanupExpiredEmailChangeTokens(ctx)

@@ -8,6 +8,7 @@ import type { ShellBootstrap } from "~/lib/shell-seed";
 import { readTenantSessionSnapshot } from "~/lib/tenant-session-snapshot.server";
 import type { TenantInfo, TenantSettings } from "~/lib/tenant-api";
 import {
+  bookedModuleFields,
   normalizeAttendanceEditScope,
   normalizeEarlyCheckoutTolerance,
   normalizeOverviewScope,
@@ -29,7 +30,7 @@ interface TenantResolveResponse {
   settings: TenantSettings;
   presence_mode?: string;
   student_photos_enabled?: boolean;
-  nfc_enabled?: boolean;
+  booked_modules?: string[];
   parent_messaging_enabled?: boolean;
   staff_messaging_enabled?: boolean;
   display_enabled?: boolean;
@@ -44,11 +45,13 @@ interface TenantResolveResponse {
   show_timetable_counts?: boolean;
   waitlist_enabled?: boolean;
   grade_level_max: number;
+  analytics_enabled?: boolean;
   analytics_freigabe?: boolean;
   analytics_recording_sample_percent?: number;
   early_checkout_note_enabled?: boolean;
   early_checkout_note_tolerance_minutes?: number;
   weekend_follows_friday?: boolean;
+  child_search_only_navigation?: boolean;
 }
 
 /**
@@ -83,7 +86,7 @@ async function fetchTenantInfo(slug: string): Promise<TenantInfo | null> {
     settings: data.settings ?? {},
     presenceMode: normalizePresenceMode(data.presence_mode),
     studentPhotosEnabled: data.student_photos_enabled === true,
-    nfcEnabled: data.nfc_enabled === true,
+    ...bookedModuleFields(data.booked_modules),
     messagingEnabled: data.parent_messaging_enabled === true,
     staffMessagingEnabled: data.staff_messaging_enabled === true,
     displayEnabled: data.display_enabled === true,
@@ -102,6 +105,7 @@ async function fetchTenantInfo(slug: string): Promise<TenantInfo | null> {
     showTimetableCounts: data.show_timetable_counts !== false,
     waitlistEnabled: data.waitlist_enabled !== false,
     gradeLevelMax: data.grade_level_max,
+    analyticsEnabled: data.analytics_enabled === true,
     analyticsFreigabe: data.analytics_freigabe === true,
     analyticsRecordingSamplePercent: normalizeRecordingSamplePercent(
       data.analytics_recording_sample_percent,
@@ -111,6 +115,7 @@ async function fetchTenantInfo(slug: string): Promise<TenantInfo | null> {
       data.early_checkout_note_tolerance_minutes,
     ),
     weekendFollowsFriday: data.weekend_follows_friday === true,
+    childSearchOnlyNavigation: data.child_search_only_navigation === true,
   };
 }
 

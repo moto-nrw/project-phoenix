@@ -3,7 +3,6 @@ package timetablehttp
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -36,7 +35,7 @@ func TestOperationsCreateAndStartSpontaneousResolvesActivityAgainstRealRepositor
 	existingGroup := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("Bestehende AG %d", time.Now().UnixNano()))
 
 	service := &fakeOperationsService{start: &timetable.StartedOperation{Status: timetable.InstanceStatusActive}}
-	res := NewResource(Dependencies{
+	res := newResourceForTest(Dependencies{
 		OperationsService: service,
 		TimetableData:     testTimetableData(db).TimetableData(),
 		People:            staffAccountPeople(staff.PersonID, staff.ID),
@@ -75,18 +74,17 @@ func TestOperationsCreateAndStartSpontaneousResolvesActivityAgainstRealRepositor
 		return *service.lastSpontaneousInput.ActivityGroupID
 	}
 
-	_, err := repos.ActivityCategory.FindByNameIncludingArchivedForShare(testpkg.Ctx(t), "Spontan")
-	var notFound interface{ RepositoryNotFound() }
-	require.True(t, errors.As(err, &notFound), "the tenant starts without a Spontan category: %v", err)
+	_, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), db, repos.ActivityCategory.FindCategoryByNameForAssignment, "Spontan")
+	require.ErrorIs(t, err, timetable.ErrCategoryNotFound, "the tenant starts without a Spontan category")
 
 	newTitle := fmt.Sprintf("Neue Werkstatt %d", time.Now().UnixNano())
 	createdGroupID := start(newTitle)
 
 	assert.NotEqual(t, existingGroup.ID, createdGroupID)
-	createdGroup, err := repos.ActivityGroup.FindByID(testpkg.Ctx(t), createdGroupID)
+	createdGroup, err := repos.Timetable.FindGroup(testpkg.Ctx(t), createdGroupID)
 	require.NoError(t, err)
 	assert.Equal(t, newTitle, createdGroup.Name)
-	category, err := repos.ActivityCategory.FindByNameIncludingArchivedForShare(testpkg.Ctx(t), "Spontan")
+	category, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), db, repos.ActivityCategory.FindCategoryByNameForAssignment, "Spontan")
 	require.NoError(t, err, "a tenant without the Spontan category gets one on the first spontaneous start")
 	assert.Equal(t, category.ID, createdGroup.CategoryID)
 

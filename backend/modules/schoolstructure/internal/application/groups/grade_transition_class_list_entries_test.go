@@ -119,7 +119,7 @@ func TestGradeTransitionWorkflow_Apply_RemapsClassListEntries(t *testing.T) {
 		"an entry in an unmapped class must not move")
 
 	// Both rewrites are ledgered: the two deletes and the single re-insert.
-	ledger, err := f.deps.Structure.ListTransitionClassListLedger(ctx, transitionID)
+	ledger, err := testpkg.TenantQuery1(t, ctx, db, f.deps.Structure.ListTransitionClassListLedger, transitionID)
 	require.NoError(t, err)
 	require.Len(t, ledger, 3, "two removals plus the one promoted re-insert")
 
@@ -361,7 +361,7 @@ func TestGradeTransitionWorkflow_ClassListEntries_NoEntriesNoLedger(t *testing.T
 	_, err := wf.Apply(ctx, transitionID, "")
 	require.NoError(t, err)
 
-	ledger, err := f.deps.Structure.ListTransitionClassListLedger(ctx, transitionID)
+	ledger, err := testpkg.TenantQuery1(t, ctx, db, f.deps.Structure.ListTransitionClassListLedger, transitionID)
 	require.NoError(t, err)
 	assert.Empty(t, ledger, "no entries, no ledger rows")
 	assert.Empty(t, classListAuditRows(t, db, ctx), "nothing was rewritten, so nothing is audited")

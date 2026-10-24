@@ -24,7 +24,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -49,7 +48,7 @@ type devSetup struct {
 func buildDevModule(t *testing.T) *devSetup {
 	t.Helper()
 	clock := func() time.Time { return calendar.NewDate(2030, 8, 26).BerlinMidnight().Add(12 * time.Hour) }
-	db, serviceFactory := testutil.SetupTimetableModule(t, clock)
+	db, serviceFactory := RootCompositions.Module(t, clock)
 
 	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
@@ -64,11 +63,11 @@ func buildDevModule(t *testing.T) *devSetup {
 	// the deviation writes (#1886) to the real service so the DB-effect
 	// assertions keep exercising real rows.
 	mock := &mockInstanceService{real: serviceFactory.Instance}
-	res := NewResource(Dependencies{
+	res := newResourceForTest(Dependencies{
 		TimetableData:   testTimetableData(db, clock).TimetableData(),
-		People:          must(testutil.NewTimetablePeople(db)),
+		People:          must(RootCompositions.People(db)),
 		InstanceService: mock,
-		Deviations:      serviceFactory.TimetableData.Deviations,
+		Deviations:      serviceFactory.Deviations,
 		Now:             clock,
 	})
 

@@ -9,13 +9,11 @@ import React, {
   type RefObject,
 } from "react";
 import { Modal } from "./modal";
-import { Alert } from "./alert";
 import { FormErrorAlert } from "./form-error-alert";
 import { Input } from "./input";
 import type { DatabaseFormErrorPath } from "./database/database-form";
 import { wireErrorCode } from "~/lib/api-error";
 import { requestPasswordReset, type ApiError } from "~/lib/auth-api";
-import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "PasswordReset" });
@@ -28,12 +26,11 @@ interface PasswordResetModalProps {
   readonly copy?: PasswordResetModalCopy;
   /**
    * The owner's shared API error path (`useApiFormError`), handed in because
-   * the kit may not import contexts (#2517). With it, a failed request shows
-   * the catalog text of its code in the dialog, a field error marks the
-   * address, and the wait after too many requests is read from the code.
-   * Without it the modal keeps its own texts (portals not yet moved).
+   * the kit may not import contexts (#2517). A failed request shows the
+   * catalog text of its code in the dialog, a field error marks the address,
+   * and the wait after too many requests is read from the code.
    */
-  readonly errorPath?: DatabaseFormErrorPath;
+  readonly errorPath: DatabaseFormErrorPath;
   /** The element `errorPath` searches for a refused field to focus. */
   readonly formRef?: RefObject<HTMLFormElement | null>;
 }
@@ -49,13 +46,10 @@ interface PasswordResetModalCopy {
   readonly successMessage: string;
   readonly successHint: string;
   readonly close: string;
-  /** Own texts without `errorPath` (portals not yet moved). */
-  readonly rateLimitError?: (countdown: string) => string;
-  readonly genericError?: string;
   /**
-   * With `errorPath`: `{object}` of the catalog text, feminine or neuter
-   * with article ("das Senden des Links"), and the wait shown next to the
-   * button after too many requests.
+   * `{object}` of the catalog text, feminine or neuter with article ("das
+   * Senden des Links"), and the wait shown next to the button after too
+   * many requests.
    */
   readonly errorObject?: string;
   readonly rateLimitWait?: (countdown: string) => string;
@@ -75,18 +69,10 @@ const DEFAULT_PASSWORD_RESET_MODAL_COPY: Required<PasswordResetModalCopy> = {
   successHint:
     "Bitte überprüfen Sie Ihren Posteingang und folgen Sie den Anweisungen in der E-Mail.",
   close: "Schließen",
-  rateLimitError: (countdown) =>
-    `Zu viele Versuche. Bitte versuche es erneut in ${countdown}.`,
-  genericError: "Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.",
   errorObject: "das Senden des Links",
   rateLimitWait: (countdown) =>
     `Einen neuen Link können Sie in ${countdown} anfordern.`,
 };
-
-const rateLimitErrorText = (copy: PasswordResetModalCopy, countdown: string) =>
-  (copy.rateLimitError ?? DEFAULT_PASSWORD_RESET_MODAL_COPY.rateLimitError)(
-    countdown,
-  );
 
 // Email Icon Component
 const EmailIcon = ({ className }: { className?: string }) => (
@@ -144,12 +130,10 @@ export function PasswordResetModal({
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
-  const [error, setError] = useState("");
-  const errorRef = useScrollToError(error);
   const [rateLimitUntil, setRateLimitUntil] = useState<number | null>(null);
   const [secondsRemaining, setSecondsRemaining] = useState(0);
   const latestSubmitRef = useRef<() => void>(() => undefined);
-  const clearPathError = errorPath?.clear;
+  const clearPathError = errorPath.clear;
 
   useEffect(() => {
     if (typeof globalThis === "undefined") return;
@@ -178,23 +162,18 @@ export function PasswordResetModal({
         if (typeof globalThis !== "undefined") {
           globalThis.localStorage.removeItem(rateLimitStorageKey);
         }
-        if (clearPathError) clearPathError();
-        else setError("");
+        clearPathError();
       } else {
-        const diffSeconds = Math.ceil((rateLimitUntil - now) / 1000);
-        setSecondsRemaining(diffSeconds);
-        // With the shared path the catalog text stays in the alert and the
-        // countdown runs next to the button.
-        if (!clearPathError) {
-          setError(rateLimitErrorText(copy, formatCountdown(diffSeconds)));
-        }
+        // The catalog text stays in the alert; the countdown runs next to
+        // the button.
+        setSecondsRemaining(Math.ceil((rateLimitUntil - now) / 1000));
       }
     };
 
     updateCountdown();
     const intervalId = globalThis.setInterval(updateCountdown, 1000);
     return () => globalThis.clearInterval(intervalId);
-  }, [copy, rateLimitStorageKey, rateLimitUntil, clearPathError]);
+  }, [rateLimitStorageKey, rateLimitUntil, clearPathError]);
 
   const rateLimitActive =
     rateLimitUntil !== null && rateLimitUntil > Date.now();
@@ -202,8 +181,7 @@ export function PasswordResetModal({
   // Reset state when modal closes
   const handleClose = useCallback(() => {
     setEmail("");
-    setError("");
-    clearPathError?.();
+    clearPathError();
     setIsSuccess(false);
     setIsLoading(false);
     onClose();
@@ -228,7 +206,8 @@ export function PasswordResetModal({
   const errorObject =
     copy.errorObject ?? DEFAULT_PASSWORD_RESET_MODAL_COPY.errorObject;
 
-  const submitWithErrorPath = async (path: DatabaseFormErrorPath) => {
+  const submit = async () => {
+    const path = errorPath;
     path.clear();
     setIsLoading(true);
     try {
@@ -261,53 +240,14 @@ export function PasswordResetModal({
   // „Wiederholen“ sendet die Adresse, die dann im Feld steht.
   useLayoutEffect(() => {
     latestSubmitRef.current = () => {
-      if (errorPath) void submitWithErrorPath(errorPath);
+      void submit();
     };
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (errorPath) {
-      // The button is disabled while the wait runs.
-      if (!rateLimitActive) await submitWithErrorPath(errorPath);
-      return;
-    }
-    if (rateLimitActive) {
-      setError(
-        rateLimitErrorText(
-          copy,
-          formatCountdown(Math.max(secondsRemaining, 0)),
-        ),
-      );
-      return;
-    }
-
-    setIsLoading(true);
-    setError("");
-
-    try {
-      await onRequestReset(email);
-      setIsSuccess(true);
-    } catch (err) {
-      const apiError = err as ApiError | undefined;
-
-      if (apiError?.status === 429) {
-        logger.warn("password_reset_rate_limited", {
-          error: "rate_limit_exceeded",
-        });
-        const retrySeconds = startRateLimit(apiError.retryAfterSeconds);
-        setError(rateLimitErrorText(copy, formatCountdown(retrySeconds)));
-      } else {
-        logger.error("password_reset_failed", {
-          error: err instanceof Error ? err.message : String(err),
-        });
-        setError(
-          copy.genericError ?? DEFAULT_PASSWORD_RESET_MODAL_COPY.genericError,
-        );
-      }
-    } finally {
-      setIsLoading(false);
-    }
+    // The button is disabled while the wait runs.
+    if (!rateLimitActive) await submit();
   };
 
   return (
@@ -347,16 +287,8 @@ export function PasswordResetModal({
               noValidate
               className="mt-6 space-y-4"
             >
-              {errorPath ? (
-                <FormErrorAlert message={errorPath.error} />
-              ) : (
-                error && (
-                  <div ref={errorRef}>
-                    <Alert type="error" message={error} />
-                  </div>
-                )
-              )}
-              {errorPath && rateLimitActive ? (
+              <FormErrorAlert message={errorPath.error} />
+              {rateLimitActive ? (
                 <p className="text-sm text-gray-600" role="status">
                   {(
                     copy.rateLimitWait ??
@@ -383,7 +315,7 @@ export function PasswordResetModal({
                   className="w-full"
                   label=""
                   disabled={isLoading}
-                  error={errorPath?.fieldError("email")}
+                  error={errorPath.fieldError("email")}
                 />
               </div>
 

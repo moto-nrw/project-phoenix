@@ -15,9 +15,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// The care lifecycle, the companion graph and the child documents (#3427)
-// drive owners around Care Plan through consumer-owned ports. The composition
-// that holds those owners binds them here.
+// Root binds the lifecycle, companion and document ports (#3427).
 type (
 	CareLifecycleOwners      = application.CareLifecycleOwners
 	CareStudentDirectory     = ports.CareStudentDirectory
@@ -62,21 +60,24 @@ type CareLifecycleDependencies struct {
 	Fingerprint func([]byte) string
 	Logger      *slog.Logger
 	// Today defaults to the Berlin calendar day.
-	Today func() calendar.Date
+	Today            func() calendar.Date
+	StudentDirectory StudentDirectory
 }
 
 // NewCareLifecycle composes the one care-lifecycle capability.
+// Workflow entries belong to their transport consumer, not these dependencies.
+// Root binds resumption separately so this capability cannot invoke it.
 func NewCareLifecycle(deps CareLifecycleDependencies) (careplan.CareLifecycle, error) {
-	if deps.DB == nil {
-		return nil, errors.New("care lifecycle compose: database is required")
+	if deps.DB == nil || deps.StudentDirectory == nil {
+		return nil, errors.New("care lifecycle compose: database and student directory are required")
 	}
 	today := deps.Today
 	if today == nil {
 		today = calendar.TodayDate
 	}
 	return application.NewCareLifecycle(application.CareLifecycleDependencies{
-		Owners: deps.Owners, Records: deps.Records,
-		Directory:             postgres.New(carePlanDatabase(deps.DB)),
+		Owners: deps.Owners, Records: deps.Records, SourceBookings: NewOfferingBookings(),
+		Directory:             postgres.NewDirectoryStore(postgres.New(postgres.CarePlanDatabase(deps.DB)), deps.StudentDirectory),
 		Unit:                  tenant.NewTransactionRunner().RunInTx,
 		LockCareBookingWrites: deps.LockCareBookingWrites,
 		BookingsAuthoritative: deps.BookingsAuthoritative,
@@ -114,42 +115,13 @@ func NewStudentDocuments(deps StudentDocumentDependencies) (careplan.StudentDocu
 	if err != nil {
 		return nil, err
 	}
-	return studentDocuments{StudentDocuments: documents, documentFileRecords: documentFileRecords{records: deps.Records}}, nil
+	return application.StudentDocumentsBinding{StudentDocuments: documents, DocumentFileRecords: application.DocumentFileRecords{Records: deps.Records}}, nil
 }
 
-// studentDocuments joins the authorized document application with the file
-// bookkeeping File Storage's coordinator settles.
-type studentDocuments struct {
-	*application.StudentDocuments
-	documentFileRecords
-}
-
-var _ careplan.StudentDocuments = studentDocuments{}
-
-// documentFileRecords binds File Storage's coordinator store to Care Plan's
-// document records. The coordinator acts after its own authorization and
-// needs no rule of the Dokumente tab, and each record command already commits
-// its own tenant transaction.
-type documentFileRecords struct{ records careplan.Capability }
-
-func (r documentFileRecords) MarkFileDeleted(ctx context.Context, documentID int64) error {
-	return r.records.MarkCareDocumentFileDeleted(ctx, documentID)
-}
-
-func (r documentFileRecords) MarkQueuedCleanupCompleteByFilename(ctx context.Context, storedName string) error {
-	return r.records.CompleteCareDocumentCleanupByFilename(ctx, storedName)
-}
-
-func (r documentFileRecords) ActivateQueuedCleanup(ctx context.Context, storedName string) error {
-	return r.records.ActivateCareDocumentCleanup(ctx, storedName)
-}
+var _ careplan.StudentDocuments = application.StudentDocumentsBinding{}
 
 // ownTenantTransaction runs every command in a transaction of its own for the
 // request's school, committed before the command returns.
 func ownTenantTransaction(db *bun.DB) ports.UnitOfWork {
-	return func(ctx context.Context, command func(context.Context) error) error {
-		return tenant.WithTenantTx(ctx, db, tenant.FromContext(ctx), func(txCtx context.Context, _ bun.Tx) error {
-			return command(txCtx)
-		})
-	}
+	return postgres.OwnTenantTransactionBinding(db, tenant.WithTenantTx)
 }

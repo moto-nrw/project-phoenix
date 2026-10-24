@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -30,7 +31,8 @@ func (deletionServiceStub) DeleteChild(context.Context, int64, int64, int64, str
 func TestAdminEnrollmentDeletionRoutesRequireConfigManage(t *testing.T) {
 	t.Parallel()
 
-	rs := &Resource{DeletionService: deletionServiceStub{}}
+	rs := &Resource{
+		Failures: DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation}, DeletionService: deletionServiceStub{}}
 
 	for _, test := range []struct {
 		method string

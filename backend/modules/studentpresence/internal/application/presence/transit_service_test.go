@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -150,7 +150,7 @@ func TestActiveService_SchoolWideAttendanceMove(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, source.ID, visit.ActiveGroupID)
 			}
-			supervisions, err := testSchoolPresence(t, db).QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{StaffID: &staff.ID, ActiveOn: new(timezone.TodayDate().String())})
+			supervisions, err := testSchoolPresence(t, db).QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{StaffID: &staff.ID, ActiveOn: new(calendar.TodayDate().String())})
 			require.NoError(t, err)
 			if tc.targetSupervised {
 				require.Len(t, supervisions, 1)
@@ -572,9 +572,6 @@ func TestActiveService_MoveStudentsToActiveGroup_BinaryModeReturnsUnchanged(t *t
 		DO UPDATE SET value = EXCLUDED.value, updated_at = now()
 	`, testpkg.Tenant(t)).Exec(ctx)
 	require.NoError(t, err)
-	defer func() {
-		_, _ = db.NewRaw(`DELETE FROM config.setting_values WHERE tenant_id = ? AND setting_key = 'operations.presence_mode'`, testpkg.Tenant(t)).Exec(ctx)
-	}()
 
 	activity := testpkg.CreateTestActivityGroup(t, db, "move-binary-target")
 	room := testpkg.CreateTestRoom(t, db, "Move Binary Target Room")
@@ -612,9 +609,6 @@ func TestActiveService_MoveStudentsToActiveGroup_BinaryModeRejectsStaleVisit(t *
 		DO UPDATE SET value = EXCLUDED.value, updated_at = now()
 	`, testpkg.Tenant(t)).Exec(ctx)
 	require.NoError(t, err)
-	defer func() {
-		_, _ = db.NewRaw(`DELETE FROM config.setting_values WHERE tenant_id = ? AND setting_key = 'operations.presence_mode'`, testpkg.Tenant(t)).Exec(ctx)
-	}()
 
 	now := time.Now()
 	sourceActivity := testpkg.CreateTestActivityGroup(t, db, "move-binary-stale-source")
@@ -746,9 +740,6 @@ func TestActiveService_MoveStudentsToTransit_BinaryModeReturnsUnchanged(t *testi
 		DO UPDATE SET value = EXCLUDED.value, updated_at = now()
 	`, testpkg.Tenant(t)).Exec(ctx)
 	require.NoError(t, err)
-	defer func() {
-		_, _ = db.NewRaw(`DELETE FROM config.setting_values WHERE tenant_id = ? AND setting_key = 'operations.presence_mode'`, testpkg.Tenant(t)).Exec(ctx)
-	}()
 
 	const (
 		studentA int64 = 60001
@@ -844,9 +835,6 @@ func TestActiveService_AssignTransitStudentsToActiveGroup_BinaryModeSkipsAll(t *
 		DO UPDATE SET value = EXCLUDED.value, updated_at = now()
 	`, testpkg.Tenant(t)).Exec(ctx)
 	require.NoError(t, err)
-	defer func() {
-		_, _ = db.NewRaw(`DELETE FROM config.setting_values WHERE tenant_id = ? AND setting_key = 'operations.presence_mode'`, testpkg.Tenant(t)).Exec(ctx)
-	}()
 
 	activity := testpkg.CreateTestActivityGroup(t, db, "transit-binary-target")
 	room := testpkg.CreateTestRoom(t, db, "Transit Binary Target Room")
@@ -1006,7 +994,7 @@ func TestActiveService_MoveStudentsToActiveGroupAuthorized_RejectsPushIntoTarget
 	// tomorrow, so it cannot make the target room safe for a push today.
 	testpkg.CreateTestGroupSupervisor(t, db, fx.staff, fx.sourceGroup.ID, "supervisor")
 	targetSupervision := testpkg.CreateTestGroupSupervisor(t, db, fx.colleague, fx.targetGroup.ID, "supervisor")
-	targetSupervision.StartDate = timezone.TodayDate().AddDays(1)
+	targetSupervision.StartDate = calendar.TodayDate().AddDays(1)
 	require.NoError(t, service.UpdateGroupSupervisor(ctx, supervisorOf(targetSupervision)))
 
 	result, err := service.MoveStudentsToActiveGroupAuthorized(ctx, []int64{fx.studentID}, fx.targetGroup.ID, activeSvc.StudentMoveAuthorization{StaffID: fx.staff})

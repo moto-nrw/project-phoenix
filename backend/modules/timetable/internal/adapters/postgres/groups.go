@@ -8,49 +8,52 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/uptrace/bun"
 )
 
 type groupRow struct {
-	bun.BaseModel         `bun:"table:groups,alias:group"`
-	ID                    int64      `bun:"id,pk,autoincrement"`
-	TenantID              int64      `bun:"tenant_id,notnull"`
-	CreatedAt             time.Time  `bun:"created_at,nullzero,notnull,default:current_timestamp"`
-	UpdatedAt             time.Time  `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
-	Name                  string     `bun:"name"`
-	MaxParticipants       int        `bun:"max_participants,nullzero"`
-	RequiredStaff         *int       `bun:"required_staff"`
-	IsOpen                bool       `bun:"is_open"`
-	CategoryID            int64      `bun:"category_id"`
-	PlanningTrackID       *int64     `bun:"planning_track_id"`
-	PlannedRoomID         *int64     `bun:"planned_room_id"`
-	CreatedBy             *int64     `bun:"created_by"`
-	Type                  string     `bun:"type"`
-	EducationGroupID      *int64     `bun:"education_group_id"`
-	ListKind              *string    `bun:"list_kind"`
-	IsTemplate            bool       `bun:"is_template"`
-	IsSystem              bool       `bun:"is_system"`
-	ArchivedAt            *time.Time `bun:"archived_at"`
-	SeriesRootID          *int64     `bun:"series_root_id"`
-	CalendarPeriodID      *int64     `bun:"calendar_period_id"`
-	TargetGroupType       string     `bun:"target_group_type"`
-	TargetGradeLevel      *int16     `bun:"target_grade_level"`
-	TargetSchoolClass     *string    `bun:"target_school_class"`
-	SourceCareOfferingIDs []int64    `bun:"source_care_offering_ids,type:jsonb,nullzero"`
-	SourceGradeLevels     []int      `bun:"source_grade_levels,type:jsonb,nullzero"`
-	SourceSchoolClasses   []string   `bun:"source_school_classes,type:jsonb,nullzero"`
-	Notes                 *string    `bun:"notes"`
-	IncludeClosingDays    bool       `bun:"include_closing_days,notnull"`
-	SeriesLastDay         *string    `bun:"series_last_day"`
-	CategoryName          string     `bun:"category_name,scanonly"`
-	CategoryCreatedAt     time.Time  `bun:"category_created_at,scanonly"`
-	CategoryUpdatedAt     time.Time  `bun:"category_updated_at,scanonly"`
-	CategoryDescription   string     `bun:"category_description,scanonly"`
-	CategoryColor         string     `bun:"category_color,scanonly"`
-	CategoryIsSystem      bool       `bun:"category_is_system,scanonly"`
-	CategoryShiftTypeID   *int64     `bun:"category_shift_type_id,scanonly"`
-	CategoryArchivedAt    *time.Time `bun:"category_archived_at,scanonly"`
+	bun.BaseModel         `bun:"table:activities.groups,alias:group"`
+	ID                    int64          `bun:"id,pk,autoincrement"`
+	TenantID              int64          `bun:"tenant_id,notnull"`
+	CreatedAt             time.Time      `bun:"created_at,nullzero,notnull,default:current_timestamp"`
+	UpdatedAt             time.Time      `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
+	Name                  string         `bun:"name"`
+	MaxParticipants       int            `bun:"max_participants,nullzero"`
+	RequiredStaff         *int           `bun:"required_staff"`
+	IsOpen                bool           `bun:"is_open"`
+	CategoryID            int64          `bun:"category_id"`
+	PlanningTrackID       *int64         `bun:"planning_track_id"`
+	PlannedRoomID         *int64         `bun:"planned_room_id"`
+	CreatedBy             *int64         `bun:"created_by"`
+	Type                  string         `bun:"type"`
+	EducationGroupID      *int64         `bun:"education_group_id"`
+	ListKind              *string        `bun:"list_kind"`
+	IsTemplate            bool           `bun:"is_template"`
+	IsSystem              bool           `bun:"is_system"`
+	ArchivedAt            *time.Time     `bun:"archived_at"`
+	SeriesRootID          *int64         `bun:"series_root_id"`
+	CalendarPeriodID      *int64         `bun:"calendar_period_id"`
+	TargetGroupType       string         `bun:"target_group_type"`
+	TargetGradeLevel      *int16         `bun:"target_grade_level"`
+	TargetSchoolClass     *string        `bun:"target_school_class"`
+	SourceCareOfferingIDs []int64        `bun:"source_care_offering_ids,type:jsonb,nullzero"`
+	SourceGradeLevels     []int          `bun:"source_grade_levels,type:jsonb,nullzero"`
+	SourceSchoolClasses   []string       `bun:"source_school_classes,type:jsonb,nullzero"`
+	Notes                 *string        `bun:"notes"`
+	IncludeClosingDays    bool           `bun:"include_closing_days,notnull"`
+	SeriesLastDay         *calendar.Date `bun:"series_last_day"`
+	CategoryName          string         `bun:"category_name,scanonly"`
+	CategoryCreatedAt     time.Time      `bun:"category_created_at,scanonly"`
+	CategoryUpdatedAt     time.Time      `bun:"category_updated_at,scanonly"`
+	CategoryDescription   string         `bun:"category_description,scanonly"`
+	CategoryColor         string         `bun:"category_color,scanonly"`
+	CategoryIsSystem      bool           `bun:"category_is_system,scanonly"`
+	CategoryShiftTypeID   *int64         `bun:"category_shift_type_id,scanonly"`
+	CategoryArchivedAt    *time.Time     `bun:"category_archived_at,scanonly"`
 }
 
 type groupTargetRow struct {
@@ -66,10 +69,10 @@ type groupTargetRow struct {
 	EducationGroupName string    `bun:"education_group_name,scanonly"`
 }
 
-func (s *Store) FindGroup(ctx context.Context, id int64, lock string) (domain.Group, bool, domain.OperationStats, error) {
+func (s *Store) FindGroup(ctx context.Context, id int64, lock string) (timetable.Group, bool, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return domain.Group{}, false, domain.OperationStats{}, err
+		return timetable.Group{}, false, domain.OperationStats{}, err
 	}
 	row := groupRow{}
 	query := db.NewSelect().Model(&row).ModelTableExpr(`activities.groups AS "group"`).ColumnExpr(`"group".*`).
@@ -81,10 +84,10 @@ func (s *Store) FindGroup(ctx context.Context, id int64, lock string) (domain.Gr
 	return groupToDomain(row, false), found, stats, err
 }
 
-func (s *Store) FindGroupByName(ctx context.Context, name string) (domain.Group, bool, domain.OperationStats, error) {
+func (s *Store) FindGroupByName(ctx context.Context, name string) (timetable.Group, bool, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return domain.Group{}, false, domain.OperationStats{}, err
+		return timetable.Group{}, false, domain.OperationStats{}, err
 	}
 	row := groupRow{}
 	query := db.NewSelect().Model(&row).ModelTableExpr(`activities.groups AS "group"`).ColumnExpr(`"group".*`).
@@ -95,7 +98,7 @@ func (s *Store) FindGroupByName(ctx context.Context, name string) (domain.Group,
 	return groupToDomain(row, false), found, stats, err
 }
 
-func (s *Store) ListGroups(ctx context.Context, filter domain.GroupFilter) ([]domain.Group, domain.OperationStats, error) {
+func (s *Store) ListGroups(ctx context.Context, filter timetable.GroupFilter) ([]timetable.Group, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
@@ -106,7 +109,7 @@ func (s *Store) ListGroups(ctx context.Context, filter domain.GroupFilter) ([]do
 	if err != nil {
 		return nil, stats, err
 	}
-	result := make([]domain.Group, 0, len(rows))
+	result := make([]timetable.Group, 0, len(rows))
 	for _, row := range rows {
 		result = append(result, groupToDomain(row, true))
 	}
@@ -114,22 +117,41 @@ func (s *Store) ListGroups(ctx context.Context, filter domain.GroupFilter) ([]do
 	return result, stats, nil
 }
 
-func (s *Store) ListCourseGroups(ctx context.Context, filter domain.CourseGroupFilter) ([]domain.CourseGroup, domain.OperationStats, error) {
+func (s *Store) ListCourseGroups(ctx context.Context, filter timetable.CourseGroupFilter) ([]timetable.CourseGroup, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
-	type courseGroupRow struct {
-		ID                    int64    `bun:"id"`
-		Active                bool     `bun:"active"`
-		MaxParticipants       int      `bun:"max_participants"`
-		SourceCareOfferingIDs []int64  `bun:"source_care_offering_ids,type:jsonb,nullzero"`
-		SourceGradeLevels     []int    `bun:"source_grade_levels,type:jsonb,nullzero"`
-		SourceSchoolClasses   []string `bun:"source_school_classes,type:jsonb,nullzero"`
-		ScheduledWeekdays     []int    `bun:"scheduled_weekdays,array"`
-	}
 	rows := []courseGroupRow{}
-	query := db.NewSelect().Model(&rows).ModelTableExpr(`activities.groups AS "group"`).
+	query := courseGroupListQuery(db, &rows, tenantID, filter)
+	stats, err := scanAll(ctx, query, "list course groups")
+	if err != nil {
+		return nil, stats, err
+	}
+	result := make([]timetable.CourseGroup, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, courseGroupToDomain(row))
+	}
+	stats.Rows = int64(len(result))
+	return result, stats, nil
+}
+
+// courseGroupRow is the course-group projection ListCourseGroups scans.
+type courseGroupRow struct {
+	ID                    int64    `bun:"id"`
+	Active                bool     `bun:"active"`
+	MaxParticipants       int      `bun:"max_participants"`
+	SourceCareOfferingIDs []int64  `bun:"source_care_offering_ids,type:jsonb,nullzero"`
+	SourceGradeLevels     []int    `bun:"source_grade_levels,type:jsonb,nullzero"`
+	SourceSchoolClasses   []string `bun:"source_school_classes,type:jsonb,nullzero"`
+	ScheduledWeekdays     []int    `bun:"scheduled_weekdays,array"`
+}
+
+// courseGroupListQuery builds the course-group read: the group facts, its
+// scheduled weekdays (bounded to filter.EffectiveOn when set) and the legacy
+// group or source-offering match.
+func courseGroupListQuery(db bun.IDB, rows *[]courseGroupRow, tenantID int64, filter timetable.CourseGroupFilter) *bun.SelectQuery {
+	query := db.NewSelect().Model(rows).ModelTableExpr(`activities.groups AS "group"`).
 		ColumnExpr(`"group".id, "group".archived_at IS NULL AS active, "group".max_participants,
 			"group".source_care_offering_ids, "group".source_grade_levels, "group".source_school_classes`)
 	if filter.EffectiveOn == "" {
@@ -166,30 +188,25 @@ func (s *Store) ListCourseGroups(ctx context.Context, filter domain.CourseGroupF
 			}
 			return q
 		})
-	stats, err := scanAll(ctx, query, "list course groups")
-	if err != nil {
-		return nil, stats, err
-	}
-	result := make([]domain.CourseGroup, 0, len(rows))
-	for _, row := range rows {
-		result = append(result, domain.CourseGroup{
-			ID:                    row.ID,
-			Active:                row.Active,
-			MaxParticipants:       row.MaxParticipants,
-			SourceCareOfferingIDs: append([]int64(nil), row.SourceCareOfferingIDs...),
-			SourceGradeLevels:     append([]int(nil), row.SourceGradeLevels...),
-			SourceSchoolClasses:   append([]string(nil), row.SourceSchoolClasses...),
-			ScheduledWeekdays:     append([]int(nil), row.ScheduledWeekdays...),
-		})
-	}
-	stats.Rows = int64(len(result))
-	return result, stats, nil
+	return query
 }
 
-func (s *Store) CreateGroup(ctx context.Context, fields domain.GroupFields) (domain.Group, domain.OperationStats, error) {
+func courseGroupToDomain(row courseGroupRow) timetable.CourseGroup {
+	return timetable.CourseGroup{
+		ID:                    row.ID,
+		Active:                row.Active,
+		MaxParticipants:       row.MaxParticipants,
+		SourceCareOfferingIDs: append([]int64(nil), row.SourceCareOfferingIDs...),
+		SourceGradeLevels:     append([]int(nil), row.SourceGradeLevels...),
+		SourceSchoolClasses:   append([]string(nil), row.SourceSchoolClasses...),
+		ScheduledWeekdays:     append([]int(nil), row.ScheduledWeekdays...),
+	}
+}
+
+func (s *Store) CreateGroup(ctx context.Context, fields timetable.GroupInput) (timetable.Group, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return domain.Group{}, domain.OperationStats{}, err
+		return timetable.Group{}, domain.OperationStats{}, err
 	}
 	row := groupRow{TenantID: tenantID}
 	applyGroupFields(&row, fields)
@@ -198,16 +215,16 @@ func (s *Store) CreateGroup(ctx context.Context, fields domain.GroupFields) (dom
 	err = db.NewInsert().Model(&row).ModelTableExpr(`activities.groups`).Returning("*").Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
-		return domain.Group{}, stats, classifyWriteError("create group", err, &stats)
+		return timetable.Group{}, stats, classifyWriteError("create group", err, &stats)
 	}
 	stats.Rows = 1
 	return groupToDomain(row, false), stats, nil
 }
 
-func (s *Store) UpdateGroup(ctx context.Context, id int64, fields domain.GroupFields) (domain.Group, bool, domain.OperationStats, error) {
+func (s *Store) UpdateGroup(ctx context.Context, id int64, fields timetable.GroupInput) (timetable.Group, bool, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return domain.Group{}, false, domain.OperationStats{}, err
+		return timetable.Group{}, false, domain.OperationStats{}, err
 	}
 	row := groupRow{}
 	row.ID, row.TenantID = id, tenantID
@@ -217,10 +234,10 @@ func (s *Store) UpdateGroup(ctx context.Context, id int64, fields domain.GroupFi
 	err = groupUpdateQuery(db, &row, tenantID, id).Returning("*").Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if errors.Is(err, sql.ErrNoRows) {
-		return domain.Group{}, false, stats, nil
+		return timetable.Group{}, false, stats, nil
 	}
 	if err != nil {
-		return domain.Group{}, false, stats, classifyWriteError("update group", err, &stats)
+		return timetable.Group{}, false, stats, classifyWriteError("update group", err, &stats)
 	}
 	stats.Rows = 1
 	return groupToDomain(row, false), true, stats, nil
@@ -242,7 +259,7 @@ func (s *Store) DeleteGroup(ctx context.Context, id int64) (domain.OperationStat
 	return stats, err
 }
 
-func (s *Store) UpdateTemplate(ctx context.Context, id int64, fields domain.TemplateFields) (int64, domain.OperationStats, error) {
+func (s *Store) UpdateTemplate(ctx context.Context, id int64, fields timetable.TemplateUpdate) (int64, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return 0, domain.OperationStats{}, err
@@ -282,7 +299,7 @@ func (s *Store) ArchiveTemplate(ctx context.Context, id int64) (int64, domain.Op
 	return rows, stats, err
 }
 
-func (s *Store) UpdateGroupOfferingSource(ctx context.Context, id int64, fields domain.OfferingSourceFields) (domain.OperationStats, error) {
+func (s *Store) UpdateGroupOfferingSource(ctx context.Context, id int64, fields timetable.OfferingSourceInput) (domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err
@@ -312,7 +329,7 @@ func (s *Store) UpdateGroupOfferingSource(ctx context.Context, id int64, fields 
 	return stats, err
 }
 
-func templateUpdateQuery(db bun.IDB, tenantID, id int64, fields domain.TemplateFields, offeringIDs, grades, classes any) *bun.UpdateQuery {
+func templateUpdateQuery(db bun.IDB, tenantID, id int64, fields timetable.TemplateUpdate, offeringIDs, grades, classes any) *bun.UpdateQuery {
 	query := db.NewUpdate().Table("activities.groups").Set("name = ?", fields.Name).Set("type = ?", fields.Type).
 		Set("category_id = ?", fields.CategoryID).Set("planned_room_id = NULLIF(?, 0)", fields.RoomID).
 		Set("education_group_id = ?", fields.EducationGroupID).Set("required_staff = ?", fields.RequiredStaff).
@@ -341,7 +358,7 @@ func templateUpdateQuery(db bun.IDB, tenantID, id int64, fields domain.TemplateF
 	return query
 }
 
-func templateSourceValues(fields domain.TemplateFields) (any, any, any, error) {
+func templateSourceValues(fields timetable.TemplateUpdate) (any, any, any, error) {
 	offeringIDs, err := jsonText(fields.SourceCareOfferingIDs)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("timetable postgres: encode source care offering IDs: %w", err)
@@ -368,7 +385,7 @@ func jsonText[T any](values []T) (any, error) {
 	return string(encoded), nil
 }
 
-func groupListQuery(db bun.IDB, rows *[]groupRow, tenantID int64, filter domain.GroupFilter) *bun.SelectQuery {
+func groupListQuery(db bun.IDB, rows *[]groupRow, tenantID int64, filter timetable.GroupFilter) *bun.SelectQuery {
 	query := db.NewSelect().Model(rows).ModelTableExpr(`activities.groups AS "group"`).
 		ColumnExpr(`"group".*`).
 		ColumnExpr(`"category".created_at AS category_created_at, "category".updated_at AS category_updated_at`).
@@ -408,7 +425,7 @@ func groupListQuery(db bun.IDB, rows *[]groupRow, tenantID int64, filter domain.
 	return query
 }
 
-func applyGroupSourceFilter(query *bun.SelectQuery, tenantID int64, filter domain.GroupFilter) *bun.SelectQuery {
+func applyGroupSourceFilter(query *bun.SelectQuery, tenantID int64, filter timetable.GroupFilter) *bun.SelectQuery {
 	if filter.SeriesForGroupID != nil {
 		query = query.Where(`COALESCE("group".series_root_id, "group".id) = (
 			SELECT COALESCE("selected".series_root_id, "selected".id) FROM activities.groups AS "selected"
@@ -427,8 +444,8 @@ func applyGroupSourceFilter(query *bun.SelectQuery, tenantID int64, filter domai
 	return query
 }
 
-func (s *Store) ListGroupTargets(ctx context.Context, ids []int64) (map[int64][]domain.GroupTarget, domain.OperationStats, error) {
-	result := make(map[int64][]domain.GroupTarget, len(ids))
+func (s *Store) ListGroupTargets(ctx context.Context, ids []int64) (map[int64][]timetable.GroupTarget, domain.OperationStats, error) {
+	result := make(map[int64][]timetable.GroupTarget, len(ids))
 	if len(ids) == 0 {
 		return result, domain.OperationStats{}, nil
 	}
@@ -451,7 +468,7 @@ func (s *Store) ListGroupTargets(ctx context.Context, ids []int64) (map[int64][]
 	return result, stats, nil
 }
 
-func (s *Store) ReplaceGroupTargets(ctx context.Context, groupID int64, targets []domain.GroupTargetFields) (domain.OperationStats, error) {
+func (s *Store) ReplaceGroupTargets(ctx context.Context, groupID int64, targets []timetable.GroupTargetInput) (domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err
@@ -493,7 +510,7 @@ func deleteGroupTargets(ctx context.Context, db bun.IDB, tenantID, groupID int64
 	return err
 }
 
-func applyGroupFields(row *groupRow, fields domain.GroupFields) {
+func applyGroupFields(row *groupRow, fields timetable.GroupInput) {
 	row.Name, row.MaxParticipants, row.RequiredStaff = fields.Name, fields.MaxParticipants, fields.RequiredStaff
 	row.IsOpen, row.CategoryID, row.PlanningTrackID = fields.IsOpen, fields.CategoryID, fields.PlanningTrackID
 	row.PlannedRoomID, row.CreatedBy, row.Type = fields.PlannedRoomID, fields.CreatedBy, fields.Type
@@ -503,7 +520,7 @@ func applyGroupFields(row *groupRow, fields domain.GroupFields) {
 	row.TargetGradeLevel, row.TargetSchoolClass = fields.TargetGradeLevel, fields.TargetSchoolClass
 	row.SourceCareOfferingIDs, row.SourceGradeLevels = fields.SourceCareOfferingIDs, fields.SourceGradeLevels
 	row.SourceSchoolClasses, row.Notes = fields.SourceSchoolClasses, fields.Notes
-	row.IncludeClosingDays, row.SeriesLastDay = fields.IncludeClosingDays, fields.SeriesLastDay
+	row.IncludeClosingDays, row.SeriesLastDay = fields.IncludeClosingDays, (*calendar.Date)(fields.SeriesLastDay)
 }
 
 func groupUpdateQuery(db bun.IDB, row *groupRow, tenantID, id int64) *bun.UpdateQuery {
@@ -526,8 +543,8 @@ func dateOnlyPtr(value *string) *string {
 	return &day
 }
 
-func groupToDomain(row groupRow, withCategory bool) domain.Group {
-	group := domain.Group{
+func groupToDomain(row groupRow, withCategory bool) timetable.Group {
+	group := timetable.Group{
 		ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		Name: row.Name, MaxParticipants: row.MaxParticipants, RequiredStaff: row.RequiredStaff, IsOpen: row.IsOpen,
 		CategoryID: row.CategoryID, PlanningTrackID: row.PlanningTrackID, PlannedRoomID: row.PlannedRoomID,
@@ -537,10 +554,10 @@ func groupToDomain(row groupRow, withCategory bool) domain.Group {
 		TargetGradeLevel: row.TargetGradeLevel, TargetSchoolClass: row.TargetSchoolClass,
 		SourceCareOfferingIDs: row.SourceCareOfferingIDs, SourceGradeLevels: row.SourceGradeLevels,
 		SourceSchoolClasses: row.SourceSchoolClasses, Notes: row.Notes, IncludeClosingDays: row.IncludeClosingDays,
-		SeriesLastDay: dateOnlyPtr(row.SeriesLastDay),
+		SeriesLastDay: dateOnlyPtr((*string)(row.SeriesLastDay)),
 	}
 	if withCategory {
-		group.Category = &domain.Category{ID: row.CategoryID, TenantID: row.TenantID,
+		group.Category = &timetable.Category{ID: row.CategoryID, TenantID: row.TenantID,
 			CreatedAt: row.CategoryCreatedAt, UpdatedAt: row.CategoryUpdatedAt, Name: row.CategoryName,
 			Description: row.CategoryDescription, Color: row.CategoryColor, IsSystem: row.CategoryIsSystem,
 			ShiftTypeID: row.CategoryShiftTypeID, ArchivedAt: row.CategoryArchivedAt}
@@ -548,8 +565,8 @@ func groupToDomain(row groupRow, withCategory bool) domain.Group {
 	return group
 }
 
-func groupTargetToDomain(row groupTargetRow) domain.GroupTarget {
-	return domain.GroupTarget{
+func groupTargetToDomain(row groupTargetRow) timetable.GroupTarget {
+	return timetable.GroupTarget{
 		ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		ActivityGroupID: row.ActivityGroupID,
 		TargetGroupType: row.TargetGroupType, TargetGradeLevel: row.TargetGradeLevel,

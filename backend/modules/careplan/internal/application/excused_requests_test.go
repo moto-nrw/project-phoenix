@@ -134,42 +134,42 @@ func (f *fakeCarePlan) ListPickupExceptions(ctx context.Context, filter careplan
 }
 
 type fakeStudents struct {
-	students      func(context.Context, []int64) (map[int64]ports.ReviewStudent, error)
-	lock          func(context.Context, int64) (ports.ReviewStudent, error)
-	persons       func(context.Context, []int64) (map[int64]ports.PersonName, error)
-	reviewers     func(context.Context, []int64) (map[int64]ports.PersonName, error)
+	students      func(context.Context, []int64) (map[int64]careplan.ReviewStudent, error)
+	lock          func(context.Context, int64) (careplan.ReviewStudent, error)
+	persons       func(context.Context, []int64) (map[int64]careplan.PersonName, error)
+	reviewers     func(context.Context, []int64) (map[int64]careplan.PersonName, error)
 	liveFlags     func(context.Context, int64, string, time.Time) error
 	liveFlagCalls int
 }
 
-func activeStudent() ports.ReviewStudent {
-	return ports.ReviewStudent{ID: fakeStudentID, PersonID: fakePersonID}
+func activeStudent() careplan.ReviewStudent {
+	return careplan.ReviewStudent{ID: fakeStudentID, PersonID: fakePersonID}
 }
 
-func (f *fakeStudents) FindStudents(ctx context.Context, ids []int64) (map[int64]ports.ReviewStudent, error) {
+func (f *fakeStudents) FindStudents(ctx context.Context, ids []int64) (map[int64]careplan.ReviewStudent, error) {
 	if f.students == nil {
-		return map[int64]ports.ReviewStudent{fakeStudentID: activeStudent()}, nil
+		return map[int64]careplan.ReviewStudent{fakeStudentID: activeStudent()}, nil
 	}
 	return f.students(ctx, ids)
 }
 
-func (f *fakeStudents) LockStudent(ctx context.Context, id int64) (ports.ReviewStudent, error) {
+func (f *fakeStudents) LockStudent(ctx context.Context, id int64) (careplan.ReviewStudent, error) {
 	if f.lock == nil {
 		return activeStudent(), nil
 	}
 	return f.lock(ctx, id)
 }
 
-func (f *fakeStudents) PersonNames(ctx context.Context, ids []int64) (map[int64]ports.PersonName, error) {
+func (f *fakeStudents) PersonNames(ctx context.Context, ids []int64) (map[int64]careplan.PersonName, error) {
 	if f.persons == nil {
-		return map[int64]ports.PersonName{fakePersonID: {FirstName: "Felix", LastName: "Schneider"}}, nil
+		return map[int64]careplan.PersonName{fakePersonID: {FirstName: "Felix", LastName: "Schneider"}}, nil
 	}
 	return f.persons(ctx, ids)
 }
 
-func (f *fakeStudents) ReviewerNames(ctx context.Context, ids []int64) (map[int64]ports.PersonName, error) {
+func (f *fakeStudents) ReviewerNames(ctx context.Context, ids []int64) (map[int64]careplan.PersonName, error) {
 	if f.reviewers == nil {
-		return map[int64]ports.PersonName{}, nil
+		return map[int64]careplan.PersonName{}, nil
 	}
 	return f.reviewers(ctx, ids)
 }
@@ -212,6 +212,7 @@ func (b *fakeBroadcaster) StudentUpdated(int64) error        { b.studentUpdated+
 func (b *fakeBroadcaster) ChangeRequestsChanged(int64) error { b.queueChanged++; return nil }
 
 type fakeMessenger struct {
+	committedView func(context.Context, func())
 	hasAccess     bool
 	accessErr     error
 	enqueued      []ports.RequestEvent
@@ -226,8 +227,14 @@ func (m *fakeMessenger) EnqueueRequestDecision(_ context.Context, _, _, _ int64,
 	m.enqueued = append(m.enqueued, event)
 	return nil
 }
-func (m *fakeMessenger) EmitChildEvent(_, _, _ int64, event ports.RequestEvent) {
-	m.emitted = append(m.emitted, event)
+func (m *fakeMessenger) EmitChildEvent(ctx context.Context, _, _, _ int64, event ports.RequestEvent) error {
+	appendEvent := func() { m.emitted = append(m.emitted, event) }
+	if m.committedView != nil {
+		m.committedView(ctx, appendEvent)
+	} else {
+		appendEvent()
+	}
+	return nil
 }
 func (m *fakeMessenger) BroadcastChildUpdateToGuardians(_, _ int64) { m.guardianWakes++ }
 func (m *fakeMessenger) GuardianHasChildAccess(context.Context, int64, int64) (bool, error) {
@@ -236,9 +243,14 @@ func (m *fakeMessenger) GuardianHasChildAccess(context.Context, int64, int64) (b
 func (m *fakeMessenger) ResolveDecisionAudience(context.Context, int64, int64, []int64) (ports.DecisionAudience, error) {
 	return m.audience, nil
 }
-func (m *fakeMessenger) EmitDecisionAudience(_, _ int64, _ ports.DecisionAudience, full, _ ports.RequestEvent) {
-	m.audienceCalls++
-	m.audienceFull = append(m.audienceFull, full)
+func (m *fakeMessenger) EmitDecisionAudience(ctx context.Context, _, _ int64, _ ports.DecisionAudience, full, _ ports.RequestEvent) error {
+	appendEvent := func() { m.audienceCalls++; m.audienceFull = append(m.audienceFull, full) }
+	if m.committedView != nil {
+		m.committedView(ctx, appendEvent)
+	} else {
+		appendEvent()
+	}
+	return nil
 }
 
 type fakeNotifier struct{ reports []ports.AbsenceReport }
@@ -263,7 +275,7 @@ type harness struct {
 	messenger   *fakeMessenger
 	notifier    *fakeNotifier
 	ledger      *fakeLedger
-	scope       ports.ReviewScope
+	scope       careplan.ReviewScope
 	scopeErr    error
 	workflow    *ExcusedRequests
 }
@@ -273,11 +285,12 @@ func newHarness(t *testing.T, carePlan *fakeCarePlan, students *fakeStudents) *h
 	h := &harness{
 		carePlan: carePlan, students: students, hooks: newFakeHooks(),
 		broadcaster: &fakeBroadcaster{}, messenger: &fakeMessenger{hasAccess: true},
-		notifier: &fakeNotifier{}, ledger: &fakeLedger{}, scope: ports.ReviewScope{SchoolWide: true},
+		notifier: &fakeNotifier{}, ledger: &fakeLedger{}, scope: careplan.ReviewScope{SchoolWide: true},
 	}
+	h.messenger.committedView = h.hooks.AfterCommit
 	workflow, err := NewExcusedRequests(ExcusedRequestDependencies{
 		CarePlan: carePlan, Students: students, Hooks: h.hooks, Today: func() careplan.Date { return fakeToday },
-		Scope:     func(context.Context) (ports.ReviewScope, error) { return h.scope, h.scopeErr },
+		Scope:     func(context.Context) (careplan.ReviewScope, error) { return h.scope, h.scopeErr },
 		Messenger: h.messenger, Broadcaster: h.broadcaster, Notifier: h.notifier, Ledger: h.ledger,
 	})
 	require.NoError(t, err)
@@ -487,13 +500,13 @@ func TestListPendingPropagatesDirectoryFailures(t *testing.T) {
 	_, _, err := h.workflow.ListPending(context.Background(), careplan.RequestQueueFilter{})
 	require.ErrorIs(t, err, errBoom)
 
-	h = newHarness(t, &fakeCarePlan{listRequests: listOne}, &fakeStudents{students: func(context.Context, []int64) (map[int64]ports.ReviewStudent, error) {
+	h = newHarness(t, &fakeCarePlan{listRequests: listOne}, &fakeStudents{students: func(context.Context, []int64) (map[int64]careplan.ReviewStudent, error) {
 		return nil, errBoom
 	}})
 	_, _, err = h.workflow.ListPending(context.Background(), careplan.RequestQueueFilter{})
 	require.ErrorIs(t, err, errBoom)
 
-	h = newHarness(t, &fakeCarePlan{listRequests: listOne}, &fakeStudents{persons: func(context.Context, []int64) (map[int64]ports.PersonName, error) {
+	h = newHarness(t, &fakeCarePlan{listRequests: listOne}, &fakeStudents{persons: func(context.Context, []int64) (map[int64]careplan.PersonName, error) {
 		return nil, errBoom
 	}})
 	_, _, err = h.workflow.ListPending(context.Background(), careplan.RequestQueueFilter{})
@@ -515,13 +528,13 @@ func TestListPendingScopesEnrichesAndProbesTheNextPage(t *testing.T) {
 	h := newHarness(t, &fakeCarePlan{listRequests: func(_ context.Context, filter careplan.ExcusedAbsenceRequestFilter) ([]careplan.ExcusedAbsenceRequest, error) {
 		seenLimit = filter.Queue.Limit
 		return rows[:filter.Queue.Limit], nil
-	}}, &fakeStudents{students: func(context.Context, []int64) (map[int64]ports.ReviewStudent, error) {
-		return map[int64]ports.ReviewStudent{
+	}}, &fakeStudents{students: func(context.Context, []int64) (map[int64]careplan.ReviewStudent, error) {
+		return map[int64]careplan.ReviewStudent{
 			fakeStudentID: {ID: fakeStudentID, PersonID: fakePersonID, GroupID: &group},
 			other:         {ID: other, PersonID: 100},
 		}, nil
 	}})
-	h.scope = ports.ReviewScope{GroupIDs: []int64{group}}
+	h.scope = careplan.ReviewScope{GroupIDs: []int64{group}}
 
 	items, next, err := h.workflow.ListPending(context.Background(), careplan.RequestQueueFilter{Limit: 2})
 	require.NoError(t, err)
@@ -540,8 +553,8 @@ func TestListPendingUsesSharedDayForCareEndAndEligibility(t *testing.T) {
 	for _, end := range []careplan.Date{"", fakePast} {
 		h := newHarness(t, &fakeCarePlan{listRequests: func(context.Context, careplan.ExcusedAbsenceRequestFilter) ([]careplan.ExcusedAbsenceRequest, error) {
 			return []careplan.ExcusedAbsenceRequest{pendingRow(1, fakePast)}, nil
-		}}, &fakeStudents{students: func(context.Context, []int64) (map[int64]ports.ReviewStudent, error) {
-			return map[int64]ports.ReviewStudent{fakeStudentID: {ID: fakeStudentID, PersonID: fakePersonID, EnrolledUntil: end}}, nil
+		}}, &fakeStudents{students: func(context.Context, []int64) (map[int64]careplan.ReviewStudent, error) {
+			return map[int64]careplan.ReviewStudent{fakeStudentID: {ID: fakeStudentID, PersonID: fakePersonID, EnrolledUntil: end}}, nil
 		}})
 		items, _, err := h.workflow.ListPending(context.Background(), careplan.RequestQueueFilter{UrgentDate: fakePast.String()})
 		require.NoError(t, err)
@@ -557,8 +570,8 @@ func TestListPendingHidesAlumniAndEndedCare(t *testing.T) {
 	rows[1].StudentID = ended
 	h := newHarness(t, &fakeCarePlan{listRequests: func(context.Context, careplan.ExcusedAbsenceRequestFilter) ([]careplan.ExcusedAbsenceRequest, error) {
 		return rows, nil
-	}}, &fakeStudents{students: func(context.Context, []int64) (map[int64]ports.ReviewStudent, error) {
-		return map[int64]ports.ReviewStudent{
+	}}, &fakeStudents{students: func(context.Context, []int64) (map[int64]careplan.ReviewStudent, error) {
+		return map[int64]careplan.ReviewStudent{
 			fakeStudentID: {ID: fakeStudentID, PersonID: fakePersonID, Alumnus: true},
 			ended:         {ID: ended, PersonID: 100, EnrolledUntil: fakePast},
 		}, nil
@@ -596,7 +609,7 @@ func TestPendingByStudentForDatePropagatesFailures(t *testing.T) {
 
 	h = newHarness(t, &fakeCarePlan{listRequests: func(context.Context, careplan.ExcusedAbsenceRequestFilter) ([]careplan.ExcusedAbsenceRequest, error) {
 		return []careplan.ExcusedAbsenceRequest{pendingRow(1, fakeTomorrow)}, nil
-	}}, &fakeStudents{students: func(context.Context, []int64) (map[int64]ports.ReviewStudent, error) { return nil, errBoom }})
+	}}, &fakeStudents{students: func(context.Context, []int64) (map[int64]careplan.ReviewStudent, error) { return nil, errBoom }})
 	_, err = h.workflow.PendingByStudentForDate(context.Background(), fakeTomorrow)
 	require.ErrorIs(t, err, errBoom)
 }
@@ -606,7 +619,7 @@ func TestPendingByStudentForDatePropagatesFailures(t *testing.T) {
 func TestDecideForbiddenOutsideTheReviewScope(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t, decidablePlan(pendingRow(5, fakeTomorrow)), &fakeStudents{})
-	h.scope = ports.ReviewScope{}
+	h.scope = careplan.ReviewScope{}
 	_, err := h.workflow.Decide(context.Background(), careplan.ExcusedRequestDecideInput{RequestID: 5, Approve: true})
 	assert.ErrorIs(t, err, careplan.ErrExcusedRequestForbidden)
 	assert.Zero(t, h.hooks.pending())
@@ -629,13 +642,13 @@ func TestDecideRefusesAlumniEndedCareAndDaysBeyondCare(t *testing.T) {
 	t.Parallel()
 	alumnus := activeStudent()
 	alumnus.Alumnus = true
-	h := newHarness(t, decidablePlan(pendingRow(5, fakeTomorrow)), &fakeStudents{lock: func(context.Context, int64) (ports.ReviewStudent, error) { return alumnus, nil }})
+	h := newHarness(t, decidablePlan(pendingRow(5, fakeTomorrow)), &fakeStudents{lock: func(context.Context, int64) (careplan.ReviewStudent, error) { return alumnus, nil }})
 	_, err := h.workflow.Decide(context.Background(), careplan.ExcusedRequestDecideInput{RequestID: 5, Approve: false, Reason: "weg"})
 	assert.ErrorIs(t, err, careplan.ErrExcusedRequestNotFound, "neither verdict may act on an alumnus")
 
 	beyond := activeStudent()
 	beyond.EnrolledUntil = fakeTomorrow
-	h = newHarness(t, decidablePlan(pendingRow(5, fakeTomorrow, fakeNextWeek)), &fakeStudents{lock: func(context.Context, int64) (ports.ReviewStudent, error) { return beyond, nil }})
+	h = newHarness(t, decidablePlan(pendingRow(5, fakeTomorrow, fakeNextWeek)), &fakeStudents{lock: func(context.Context, int64) (careplan.ReviewStudent, error) { return beyond, nil }})
 	_, err = h.workflow.Decide(context.Background(), careplan.ExcusedRequestDecideInput{RequestID: 5, Approve: true})
 	assert.ErrorIs(t, err, careplan.ErrExcusedRequestNotFound, "approval must not create an absence after care ends")
 	_, err = h.workflow.Decide(context.Background(), careplan.ExcusedRequestDecideInput{RequestID: 5, Approve: false, Reason: "zu spät"})
@@ -777,7 +790,7 @@ func TestDecidePropagatesEveryWriteFailure(t *testing.T) {
 	row := pendingRow(5, fakeToday)
 	cases := map[string]func(*fakeCarePlan, *fakeStudents){
 		"student lock": func(_ *fakeCarePlan, s *fakeStudents) {
-			s.lock = func(context.Context, int64) (ports.ReviewStudent, error) { return ports.ReviewStudent{}, errBoom }
+			s.lock = func(context.Context, int64) (careplan.ReviewStudent, error) { return careplan.ReviewStudent{}, errBoom }
 		},
 		"clear competing days": func(p *fakeCarePlan, _ *fakeStudents) {
 			p.clearDays = func(context.Context, int64, string, []careplan.Date, time.Time, string) error { return errBoom }
@@ -923,16 +936,16 @@ func TestCorrectApprovalKeepsDecideGuards(t *testing.T) {
 		{
 			name: "alumnus",
 			plan: func(row careplan.ExcusedAbsenceRequest) *fakeCarePlan { return decidablePlan(row) },
-			students: &fakeStudents{lock: func(context.Context, int64) (ports.ReviewStudent, error) {
-				return ports.ReviewStudent{ID: fakeStudentID, PersonID: fakePersonID, Alumnus: true}, nil
+			students: &fakeStudents{lock: func(context.Context, int64) (careplan.ReviewStudent, error) {
+				return careplan.ReviewStudent{ID: fakeStudentID, PersonID: fakePersonID, Alumnus: true}, nil
 			}},
 			access: true, want: careplan.ErrExcusedRequestNotFound,
 		},
 		{
 			name: "care ended",
 			plan: func(row careplan.ExcusedAbsenceRequest) *fakeCarePlan { return decidablePlan(row) },
-			students: &fakeStudents{lock: func(context.Context, int64) (ports.ReviewStudent, error) {
-				return ports.ReviewStudent{ID: fakeStudentID, PersonID: fakePersonID, EnrolledUntil: fakePast}, nil
+			students: &fakeStudents{lock: func(context.Context, int64) (careplan.ReviewStudent, error) {
+				return careplan.ReviewStudent{ID: fakeStudentID, PersonID: fakePersonID, EnrolledUntil: fakePast}, nil
 			}},
 			access: true, want: careplan.ErrExcusedRequestNotFound,
 		},
@@ -944,6 +957,27 @@ func TestCorrectApprovalKeepsDecideGuards(t *testing.T) {
 
 			err := h.workflow.Correct(context.Background(), row.ID, true, "", "Doch genehmigt", fakeReviewer)
 			assert.ErrorIs(t, err, tc.want)
+		})
+	}
+}
+
+func TestExcusedEditHidesUnownedRequestsBeforeReadingTheirChild(t *testing.T) {
+	t.Parallel()
+	for _, mismatch := range []string{"child", "submitter"} {
+		t.Run(mismatch, func(t *testing.T) {
+			row := pendingRow(5, fakeTomorrow)
+			input := careplan.ExcusedRequestEditInput{RequestID: row.ID, StudentID: row.StudentID, GuardianAccountID: row.SubmittedBy}
+			if mismatch == "child" {
+				input.StudentID = otherStudentID
+			} else {
+				input.GuardianAccountID = fakeReviewer
+			}
+			plan := &fakeCarePlan{findRequest: func(context.Context, int64, bool) (careplan.ExcusedAbsenceRequest, error) { return row, nil }}
+			h := newHarness(t, plan, &fakeStudents{lock: func(context.Context, int64) (careplan.ReviewStudent, error) {
+				return careplan.ReviewStudent{}, errBoom
+			}})
+			_, err := h.workflow.EditRequest(context.Background(), input)
+			require.ErrorIs(t, err, careplan.ErrExcusedRequestNotFound)
 		})
 	}
 }

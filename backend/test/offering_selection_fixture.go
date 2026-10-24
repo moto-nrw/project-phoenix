@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -46,6 +46,6 @@ type auditOfferingSelection struct {
 	RequestChildID int64
 	CareOfferingID int64
 	SelectedDays   []string
-	ValidFrom      *timezone.Date
-	ValidUntil     *timezone.Date
+	ValidFrom      *calendar.Date
+	ValidUntil     *calendar.Date
 }

@@ -7,7 +7,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
 
-func (rs *Resource) bulkStudentMoveAuthorization(w http.ResponseWriter, r *http.Request) (*studentpresence.StudentMoveAuthorization, bool) {
+func (rs *Resource) BulkStudentMoveAuthorization(w http.ResponseWriter, r *http.Request) (*studentpresence.StudentMoveAuthorization, bool) {
 	if canBypassBulkMoveResourceChecks(r) {
 		return &studentpresence.StudentMoveAuthorization{BypassResourceChecks: true}, true
 	}

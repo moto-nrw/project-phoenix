@@ -7,9 +7,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
+	api "github.com/moto-nrw/project-phoenix/roots/owners"
+
+	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -18,7 +20,7 @@ import (
 func TestSchoolAccountListingsScopeAndInvitationSuppression(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	query, err := repositories.NewIdentityAccessForTests(db)
+	query, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 	home := testpkg.Tenant(t)
@@ -44,7 +46,7 @@ func TestSchoolAccountListingsScopeAndInvitationSuppression(t *testing.T) {
 	require.Empty(t, empty, "an empty school set is never a platform-wide lookup")
 
 	rollback := errors.New("rollback listing fixture changes")
-	err = tenant.WithAdminTx(ctx, db, func(txCtx context.Context, tx bun.Tx) error {
+	err = testpkg.WithAdminTx(t, ctx, db, func(txCtx context.Context, tx bun.Tx) error {
 		_, updateErr := tx.NewRaw("UPDATE auth.account_tenants SET status = 'inactive' WHERE account_id = ? AND tenant_id = ?", account.ID, home).Exec(txCtx)
 		require.NoError(t, updateErr)
 		inside, readErr := query.ListSchoolAccountListings(txCtx, []int64{home})
@@ -65,15 +67,15 @@ func TestOperatorAccountListingCaregiverEnrichment(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, db, "Ada", "Listing")
-	query, err := repositories.NewIdentityAccessForTests(db)
+	query, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
-	persons, err := repositories.NewPeopleDirectory(db)
+	persons, err := api.NewPeopleDirectory(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	membership, err := repositories.NewSchoolMembership(db)
+	membership, err := api.NewSchoolMembership(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	schools, err := repositories.NewOrganizationTenancy(db)
+	schools, err := api.NewOrganizationTenancy(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	directory := repositories.NewOperatorAccountDirectory(query, persons, membership, schools)
+	directory := api.NewOperatorAccountDirectory(query, persons, membership, schools)
 	ctx := testpkg.Ctx(t)
 	rows, err := directory.ListAccountsByTenantID(ctx, testpkg.Tenant(t))
 	require.NoError(t, err)
@@ -91,4 +93,4 @@ func TestOperatorAccountListingCaregiverEnrichment(t *testing.T) {
 	require.False(t, rows[0].IsActiveCaregiver)
 }
 
-var _ identityaccess.SchoolAccountListings = (*identityaccess.Module)(nil)
+var _ identityaccess.SchoolAccountListings = (identityaccess.Owner)(nil)

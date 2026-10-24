@@ -3,11 +3,11 @@ package enrollmenthttp_test
 import (
 	"testing"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -21,37 +21,38 @@ import (
 func TestDecisionService_Decide_ExistingStudentRenewalKeepsRunningClassUntilYearStarts(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	newYearStart := calendar.NewDate(2030, 8, 1)
 	newYearEnd := calendar.NewDate(2031, 7, 31)
-	env.sourcePhase.Kind = enrollmentModels.PhaseKindSchoolYear
+	env.sourcePhase.Kind = capability.PhaseKindSchoolYear
 	env.sourcePhase.ServiceStartDate = capability.Date(newYearStart)
 	env.sourcePhase.ServiceEndDate = capability.Date(newYearEnd)
-	require.NoError(t, env.repos.Enrollment().UpdatePhase(ctx, enrollmentAPI.OwnerPhaseForTest(env.sourcePhase)))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, env.db, env.repos.Enrollment().UpdatePhase, enrollmentAPI.OwnerPhaseForTest(env.sourcePhase)))
 
 	runningFrom := calendar.NewDate(2026, 8, 1)
 	runningUntil := calendar.NewDate(2027, 7, 31)
-	existing := testpkg.CreateTestStudent(t, env.db, "Ida", "Laufend", "1a")
-	existing.Status = usersModels.StudentStatusActive
+	existingFixture := testpkg.CreateTestStudent(t, env.db, "Ida", "Laufend", "1a")
+	existing, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.Student.FindByID, any(existingFixture.ID))
+	require.NoError(t, err)
+	existing.Status = peopleValues.StudentStatusActive
 	existing.EnrolledFrom = &runningFrom
 	existing.EnrolledUntil = &runningUntil
-	require.NoError(t, env.repos.Student.Update(ctx, existing))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), env.repos.Student.Update, existing))
 
 	requestID, childID := submitReEnrollment(t, env, "Eltern", "Laufend", "renewal-running@example.com", nil,
 		"Ida", "Laufend", map[string]any{"agb": true, "data_processing": true, "email_contact": true, "photo": true})
 	matchChildToExistingStudent(t, env, childID, existing.ID)
 
-	_, err := env.decision.Decide(ctx, enrollmentAPI.DecideInput{
+	_, err = testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.decision.Decide, enrollmentAPI.DecideInput{
 		RequestID: requestID, ChildID: childID, Status: capability.DecisionApproved, ReviewedBy: env.creatorID,
 	})
 	require.NoError(t, err)
 
-	student, err := env.repos.Student.FindByID(ctx, existing.ID)
+	student, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.Student.FindByID, any(existing.ID))
 	require.NoError(t, err)
-	assert.Equal(t, usersModels.StudentStatusActive, student.Status)
+	assert.Equal(t, peopleValues.StudentStatusActive, student.Status)
 	assert.Equal(t, "1a", student.SchoolClass, "the running class stays until the new school year")
 	require.NotNil(t, student.EnrolledFrom)
 	assert.Equal(t, runningFrom, *student.EnrolledFrom, "the running enrollment start stays")
@@ -69,19 +70,19 @@ func TestDecisionService_Decide_ExistingStudentRenewalKeepsRunningClassUntilYear
 		RequestID: requestID, ChildID: childID, ActorAccountID: env.creatorID,
 	})
 	require.NoError(t, err)
-	student, err = env.repos.Student.FindByID(ctx, existing.ID)
+	student, err = testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.Student.FindByID, any(existing.ID))
 	require.NoError(t, err)
 	assert.Equal(t, "1a", student.SchoolClass, "an edit before the new school year keeps the running class")
 
 	owner := decisionOwner(t, env.decision)
-	applied, err := owner.ApplyDueClassSwitches(ctx, newYearStart.AddDays(-1))
+	applied, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), owner.ApplyDueClassSwitches, newYearStart.AddDays(-1))
 	require.NoError(t, err)
 	assert.Equal(t, 0, applied, "nothing switches before the new school year")
 
-	applied, err = owner.ApplyDueClassSwitches(ctx, newYearStart)
+	applied, err = testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), owner.ApplyDueClassSwitches, newYearStart)
 	require.NoError(t, err)
 	assert.Equal(t, 1, applied)
-	student, err = env.repos.Student.FindByID(ctx, existing.ID)
+	student, err = testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.Student.FindByID, any(existing.ID))
 	require.NoError(t, err)
 	assert.Equal(t, "3", student.SchoolClass, "the edited target applies when the new school year starts")
 	assert.Equal(t, runningFrom, *student.EnrolledFrom)
@@ -92,38 +93,39 @@ func TestDecisionService_Decide_ExistingStudentRenewalKeepsRunningClassUntilYear
 func TestDecisionService_Decide_InactiveExistingStudentRenewalSwitchesAtOnce(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	newYearStart := calendar.NewDate(2030, 8, 1)
 	newYearEnd := calendar.NewDate(2031, 7, 31)
-	env.sourcePhase.Kind = enrollmentModels.PhaseKindSchoolYear
+	env.sourcePhase.Kind = capability.PhaseKindSchoolYear
 	env.sourcePhase.ServiceStartDate = capability.Date(newYearStart)
 	env.sourcePhase.ServiceEndDate = capability.Date(newYearEnd)
-	require.NoError(t, env.repos.Enrollment().UpdatePhase(ctx, enrollmentAPI.OwnerPhaseForTest(env.sourcePhase)))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, env.db, env.repos.Enrollment().UpdatePhase, enrollmentAPI.OwnerPhaseForTest(env.sourcePhase)))
 
-	existing := testpkg.CreateTestStudent(t, env.db, "Ole", "Pause", "1a")
-	existing.Status = usersModels.StudentStatusInactive
-	require.NoError(t, env.repos.Student.Update(ctx, existing))
+	existingFixture := testpkg.CreateTestStudent(t, env.db, "Ole", "Pause", "1a")
+	existing, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.Student.FindByID, any(existingFixture.ID))
+	require.NoError(t, err)
+	existing.Status = peopleValues.StudentStatusInactive
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), env.repos.Student.Update, existing))
 
 	requestID, childID := submitReEnrollment(t, env, "Eltern", "Pause", "renewal-inactive@example.com", nil,
 		"Ole", "Pause", map[string]any{"agb": true, "data_processing": true, "email_contact": true, "photo": true})
 	matchChildToExistingStudent(t, env, childID, existing.ID)
 
-	_, err := env.decision.Decide(ctx, enrollmentAPI.DecideInput{
+	_, err = testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.decision.Decide, enrollmentAPI.DecideInput{
 		RequestID: requestID, ChildID: childID, Status: capability.DecisionApproved, ReviewedBy: env.creatorID,
 	})
 	require.NoError(t, err)
 
-	student, err := env.repos.Student.FindByID(ctx, existing.ID)
+	student, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.Student.FindByID, any(existing.ID))
 	require.NoError(t, err)
-	assert.Equal(t, usersModels.StudentStatusPending, student.Status)
+	assert.Equal(t, peopleValues.StudentStatusPending, student.Status)
 	assert.Equal(t, "2", student.SchoolClass)
 	require.NotNil(t, student.EnrolledFrom)
 	assert.Equal(t, newYearStart, *student.EnrolledFrom)
 
-	applied, err := decisionOwner(t, env.decision).ApplyDueClassSwitches(ctx, newYearStart)
+	applied, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), decisionOwner(t, env.decision).ApplyDueClassSwitches, newYearStart)
 	require.NoError(t, err)
 	assert.Equal(t, 0, applied, "nothing was planned for a child switched at once")
 }
@@ -134,10 +136,10 @@ func TestDecisionService_Decide_InactiveExistingStudentRenewalSwitchesAtOnce(t *
 func TestDecisionService_Decide_ActiveExistingStudentNonSchoolYearRenewalSwitchesAtOnce(t *testing.T) {
 	t.Parallel()
 
-	for _, kind := range []string{enrollmentModels.PhaseKindHoliday, enrollmentModels.PhaseKindCustom} {
+	for _, kind := range []string{capability.PhaseKindHoliday, capability.PhaseKindCustom} {
 		t.Run(kind, func(t *testing.T) {
-			env, cleanup := setupDecisionTest(t)
-			defer cleanup()
+			testpkg.OwnTenant(t)
+			env := setupDecisionTest(t)
 			ctx := testpkg.Ctx(t)
 
 			phaseStart := calendar.NewDate(2030, 10, 14)
@@ -145,26 +147,28 @@ func TestDecisionService_Decide_ActiveExistingStudentNonSchoolYearRenewalSwitche
 			env.sourcePhase.Kind = kind
 			env.sourcePhase.ServiceStartDate = capability.Date(phaseStart)
 			env.sourcePhase.ServiceEndDate = capability.Date(phaseEnd)
-			require.NoError(t, env.repos.Enrollment().UpdatePhase(ctx, enrollmentAPI.OwnerPhaseForTest(env.sourcePhase)))
+			require.NoError(t, testpkg.TenantCommand1(t, ctx, env.db, env.repos.Enrollment().UpdatePhase, enrollmentAPI.OwnerPhaseForTest(env.sourcePhase)))
 
-			existing := testpkg.CreateTestStudent(t, env.db, "Jana", kind, "1a")
-			existing.Status = usersModels.StudentStatusActive
-			require.NoError(t, env.repos.Student.Update(ctx, existing))
+			existingFixture := testpkg.CreateTestStudent(t, env.db, "Jana", kind, "1a")
+			existing, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.Student.FindByID, any(existingFixture.ID))
+			require.NoError(t, err)
+			existing.Status = peopleValues.StudentStatusActive
+			require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), env.repos.Student.Update, existing))
 
 			requestID, childID := submitReEnrollment(t, env, "Eltern", kind, kind+"-renewal@example.com", nil,
 				"Jana", kind, map[string]any{"agb": true, "data_processing": true, "email_contact": true, "photo": true})
 			matchChildToExistingStudent(t, env, childID, existing.ID)
 
-			_, err := env.decision.Decide(ctx, enrollmentAPI.DecideInput{
+			_, err = testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.decision.Decide, enrollmentAPI.DecideInput{
 				RequestID: requestID, ChildID: childID, Status: capability.DecisionApproved, ReviewedBy: env.creatorID,
 			})
 			require.NoError(t, err)
 
-			student, err := env.repos.Student.FindByID(ctx, existing.ID)
+			student, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.Student.FindByID, any(existing.ID))
 			require.NoError(t, err)
 			assert.Equal(t, "2", student.SchoolClass)
 
-			applied, err := decisionOwner(t, env.decision).ApplyDueClassSwitches(ctx, phaseStart)
+			applied, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), decisionOwner(t, env.decision).ApplyDueClassSwitches, phaseStart)
 			require.NoError(t, err)
 			assert.Zero(t, applied, "a non-school-year renewal must not plan a deferred class switch")
 		})

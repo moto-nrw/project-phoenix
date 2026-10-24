@@ -3,8 +3,6 @@ package presence
 import (
 	"context"
 	"strconv"
-
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 )
 
 // broadcastSupervisionRefresh sends the tenant-wide refresh used by attendance
@@ -14,7 +12,10 @@ import (
 // Carries no child identity (#2085). The scoped student_checkin /
 // student_checkout emitted alongside it still carry the id.
 func (s *service) broadcastSupervisionRefresh(ctx context.Context, activeGroupID, reason string, eduGroupIDs []string) {
-	realtimeevents.PublishSupervisionRefresh(ctx, s.Broadcaster, s.getLogger(), activeGroupID, reason, eduGroupIDs)
+	if s.Broadcaster == nil {
+		return
+	}
+	s.Broadcaster.SupervisionRefresh(ctx, activeGroupID, reason, eduGroupIDs)
 }
 
 // broadcastDashboardCountsChanged sends the tenant-wide dashboard refresh
@@ -28,7 +29,10 @@ func (s *service) broadcastSupervisionRefresh(ctx context.Context, activeGroupID
 // check-in traffic out to every other school's clients, multiplying the
 // refetch herd across tenants.
 func (s *service) broadcastDashboardCountsChanged(ctx context.Context, eduGroupIDs []string) {
-	realtimeevents.PublishDashboardCountsChanged(ctx, s.Broadcaster, s.getLogger(), eduGroupIDs)
+	if s.Broadcaster == nil {
+		return
+	}
+	s.Broadcaster.DashboardCountsChanged(ctx, eduGroupIDs)
 }
 
 // eduGroupIDsOf formats the known routing group for tenant invalidations.

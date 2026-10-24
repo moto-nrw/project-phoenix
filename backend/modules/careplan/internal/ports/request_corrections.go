@@ -12,6 +12,8 @@ type RequestCorrectionRecords interface {
 	Redecide(context.Context, int64, string, *string, int64, bool) error
 	FindException(context.Context, int64) (*careplan.PickupException, error)
 	DeleteException(context.Context, int64) error
+	FindDepartureException(context.Context, int64) (*careplan.DepartureException, error)
+	DeleteDepartureException(context.Context, int64) error
 }
 
 type RequestCorrectionEvent struct {
@@ -26,10 +28,10 @@ type RequestCorrectionEffects interface {
 }
 
 type RequestCorrectionPeople interface {
-	LockStudent(context.Context, int64) (ReviewStudent, error)
-	CanReview(context.Context, ReviewStudent) (bool, error)
+	LockStudent(context.Context, int64) (careplan.ReviewStudent, error)
+	CanReview(context.Context, careplan.ReviewStudent) (bool, error)
 }
 
 type RequestCorrectionPlans interface {
-	ApplyPickup(context.Context, *carerequests.Request, *string, bool) (int64, error)
+	ApplyPickup(context.Context, *carerequests.Request, *string, bool) (carerequests.PickupApplied, error)
 }

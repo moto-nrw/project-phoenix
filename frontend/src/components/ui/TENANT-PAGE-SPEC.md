@@ -18,6 +18,7 @@ Wurzel jeder Seite ist `TenantPage` aus `~/components/ui/tenant-page`:
   title="Kinder"
   stats={statusLine} // echte Zahlen, KEIN Erklärsatz
   statsLoading={isLoading} // rendert an der Stelle ein Skelett
+  info={<p>Erklärung zum Kennenlernen</p>} // Info-Knopf neben dem Titel
   actions={<Button size="md">Kind anlegen</Button>}
   search={{ value: query, onChange: setQuery, placeholder: "Kind suchen…" }}
   filters={filterConfigs} // FilterConfig[] aus ui/page-header/types
@@ -25,7 +26,7 @@ Wurzel jeder Seite ist `TenantPage` aus `~/components/ui/tenant-page`:
   error={error}
   loading={isLoading}
   empty={hasNothing ? { title: "…", description: "…" } : null}
-  back // auf Unterseiten: mobiler Zurück-Knopf
+  back // auf Unterseiten: Rückweg über dem Titel, auf jeder Breite (backHref, backLabel)
 >
   {inhalt}
 </TenantPage>
@@ -53,11 +54,17 @@ Gerenderte Reihenfolge, fest, nicht verhandelbar:
    **Höchstens drei Paare** — `TenantPageStats` schneidet dahinter ab. Die
    Statuszeile ist eine Orientierung; was mehr sagen will, ist eine Fläche
    im Inhalt, keine längere Zeile.
+   Eine Zahl, die schon auf einer Fläche im Inhalt steht (Kachel, Karte),
+   steht nicht noch einmal in der Statuszeile. Dann bleibt `stats` leer.
+   Erklärtext, den man nur zum Kennenlernen braucht, gehört in `info`: er
+   liegt hinter einem Info-Knopf neben dem Titel (Popover, per Tipp und
+   Tastatur, auch mit Link) und kostet im Alltag keine Kartenzeile (#4385).
+   Text, den man bei jedem Besuch braucht, bleibt eine `SectionCard`.
 4. **Aktionen gehören in `actions`, und dort steht GENAU EINE sichtbar.**
    Keine eigene Button-Zeile unter oder über dem Kopf, keine Zeile, die nur
    einen Zähler, ein Select oder einen Export-Knopf trägt. Neben dem Titel
    steht die Aktion, die man täglich braucht („Neu", „Drucken",
-   „Schichtarten verwalten"), daneben das Kebab-Menü mit allem Weiteren.
+   „Dienstarten verwalten"), daneben das Kebab-Menü mit allem Weiteren.
    Export gehört ins Menü, unter der Überschrift „Herunterladen" bzw.
    „Exportieren" — nie als Knopfreihe je Format. Kontextbedienelemente
    (Zeitraum, Datum) zählen nicht als Aktion und dürfen daneben stehen.
@@ -74,6 +81,13 @@ Gerenderte Reihenfolge, fest, nicht verhandelbar:
    Ein Filter mit Mehrfachauswahl (`type: "buttons"`, `multiSelect`) rendert
    als Chip-Reihe, ein Einfachfilter als `SegmentedControl`: eine
    Filterreihe darf nie aussehen wie eine zweite Reiterleiste.
+   **Suche über der Liste:** Beginnt die Liste weit unter der Kopfkarte,
+   weil andere Flächen des Gerüsts davor stehen, steht dieselbe Zeile als
+   `TenantPageListSearch` direkt über der Liste und nicht im Kopf. Das ist
+   keine Ausnahmeseite: Gerüst, Kopf und Reihenfolge bleiben, nur die
+   Suchzeile rückt an ihre Liste. Bisher gilt das für die Aktuelle Aufsicht
+   (#4353), wo Als Nächstes, Kinder unterwegs und der Kopf des Blocks die
+   Suche sonst weit von den Kinderlisten trennen.
 6. **Zustände kommen aus dem Gerüst**: `error`, `loading`, `empty`. Kein
    `return null`, kein freier Spinner, kein „Wird geladen…"-Fließtext, kein
    Fehler-Alert, der nur auf einem Breakpoint sichtbar ist. Alle drei stehen
@@ -187,7 +201,7 @@ die Kosten einer Desktop-Karte in einer 390-px-Spalte. Das entscheidet
 - **Der Kopf bleibt eine Karte.** Titel, Statuszeile, Aktionen, Reiter und
   Suche stehen auch auf dem Telefon in der weißen Kopfkarte
   (`moto-content-surface`, Rahmen, Schatten), nur mit engerem Innenrand
-  (`max-sm:p-4`); der Zurück-Knopf steht mit darin. Schrift direkt auf dem
+  (`max-sm:p-4`); der Rückweg steht mit darin. Schrift direkt auf dem
   Punktmuster ist ausgeschlossen: eine transparente oder rahmenlose Kopfzeile
   unter `sm` war zweimal eine Zwischenfassung und wurde beide Male
   zurückgenommen (30.08. und 03.09.2026). Der Seitenname steht mobil im
@@ -226,16 +240,16 @@ Desktop-Wert unvariiert als Grundwert (`p-5`, nicht `sm:p-5`) — sonst
 stehen zwei Varianten-Regeln für dieselbe Eigenschaft nebeneinander und
 welche gewinnt, hängt an der internen Sortierung von Tailwind.
 
-| Mass | Desktop | `compact` | Telefon |
-|---|---|---|---|
-| Seitenrand der Hülle | 32 px | 20 px | 16 px |
-| Kopfkarte, `SectionCard`, `InfoCard` | 20/24 px | 16 px | 16 px |
-| `StatCard`, `TileCard` | 20 px | 16 px | 12/16 px |
-| Titel (`prominent`) | 28 px | 24 px | 24 px |
-| Titel (Standard) | 24 px | 20 px | 20 px |
-| Rumpf-Rhythmus | 24 px | 16 px | 12 px |
-| Reiterband | 12 px, `text-base` | 8 px, `text-sm` | Pillen |
-| Tabellenzelle senkrecht | 12 px | 8 px | 12 px |
+| Mass                                 | Desktop            | `compact`       | Telefon  |
+| ------------------------------------ | ------------------ | --------------- | -------- |
+| Seitenrand der Hülle                 | 32 px              | 20 px           | 16 px    |
+| Kopfkarte, `SectionCard`, `InfoCard` | 20/24 px           | 16 px           | 16 px    |
+| `StatCard`, `TileCard`               | 20 px              | 16 px           | 12/16 px |
+| Titel (`prominent`)                  | 28 px              | 24 px           | 24 px    |
+| Titel (Standard)                     | 24 px              | 20 px           | 20 px    |
+| Rumpf-Rhythmus                       | 24 px              | 16 px           | 12 px    |
+| Reiterband                           | 12 px, `text-base` | 8 px, `text-sm` | Pillen   |
+| Tabellenzelle senkrecht              | 12 px              | 8 px            | 12 px    |
 
 Nicht in der Stufe: die Bedienhöhe. 768–1023 px ist genau der Tablet-
 Bereich, und ein 36-px-Knopf unterschreitet dort das Touch-Mass. Regel 17

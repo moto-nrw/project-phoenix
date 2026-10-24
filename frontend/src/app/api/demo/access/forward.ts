@@ -3,6 +3,7 @@ import { getServerApiUrl } from "~/lib/server-api-url";
 import { getClientForwardHeaders } from "~/lib/client-headers.server";
 import { createLogger } from "~/lib/logger";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
+import { problemResponse } from "~/lib/api-helpers.server";
 
 const logger = createLogger({ component: "DemoAccessRoute" });
 
@@ -20,22 +21,16 @@ export async function forwardDemoToken(
     // An unreadable body is an unknown token.
   }
   if (!token) {
-    return NextResponse.json(
-      { error: "demo access is unknown" },
-      { status: 404 },
-    );
+    return problemResponse(404, "demo access is unknown", request);
   }
   try {
     const response = await send(token, getClientForwardHeaders(request));
-    return forwardBackendResponse(response);
+    return forwardBackendResponse(response, request);
   } catch (error) {
     logger.error("demo_access_forward_failed", {
       error: error instanceof Error ? error.message : String(error),
     });
-    return NextResponse.json(
-      { error: "Internal Server Error" },
-      { status: 500 },
-    );
+    return problemResponse(500, "Internal Server Error", request);
   }
 }
 

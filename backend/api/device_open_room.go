@@ -3,6 +3,8 @@ package api
 import (
 	"context"
 
+	scanBindings "github.com/moto-nrw/project-phoenix/roots/devicescanbinding"
+
 	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
 	"github.com/moto-nrw/project-phoenix/workflows/openroommove"
 )
@@ -12,15 +14,12 @@ import (
 // runs the same capability as the phone move. The device-scan composition
 // translates the refusals; this binding only converts the workflow's types.
 func newDeviceOpenRoomMover(command openroommove.Command) devicescanCompose.OpenRoomMover {
-	return devicescanCompose.NewOpenRoomMover(
+	return scanBindings.NewOpenRoomMover(
 		func(ctx context.Context, studentID, roomID int64) (devicescanCompose.OpenRoomMoveReport, error) {
 			result, err := command.MoveToOpenRoom(ctx, openroommove.Move{
 				StudentIDs: []int64{studentID},
 				RoomID:     roomID,
-				// The kiosk is trusted like the binary attendance toggle: it
-				// authenticated with its key and the school PIN, and the
-				// child's card was scanned at it.
-				Actor: openroommove.Actor{BypassResourceChecks: true},
+				Actor:      openroommove.KioskActor(),
 			})
 			if err != nil {
 				return devicescanCompose.OpenRoomMoveReport{}, err

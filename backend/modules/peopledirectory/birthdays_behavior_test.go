@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -45,8 +45,11 @@ func birthdaySettings(enabled, includeStaff bool) *settingsDouble {
 	}
 }
 
-func newBirthdayService(db *bun.DB, settings *settingsDouble, now func() time.Time) peopledirectory.Birthdays {
-	return testutil.NewBirthdayCapability(db, settings, now)
+func newBirthdayService(db *bun.DB, settings *settingsDouble, now func() time.Time) interface {
+	peopledirectory.Birthdays
+	SetOptOut(context.Context, int64, bool) error
+} {
+	return api.NewBirthdayCapabilityForTests(testpkg.MustDatabase(db), settings, now)
 }
 
 // setBirthday stamps a birth date on a fixture person. The fixtures create
@@ -112,7 +115,7 @@ func TestBirthdayOverviewShowsTheWholeWeek(t *testing.T) {
 
 	service := newBirthdayService(db, birthdaySettings(true, false), func() time.Time { return wednesday })
 
-	overview, err := service.Overview(testpkg.Ctx(t), fullAccess{}, nil)
+	overview, err := testpkg.TenantQuery2(t, testpkg.Ctx(t), db, service.Overview, peopledirectory.BirthdayVisibility(fullAccess{}), nil)
 	require.NoError(t, err)
 
 	assert.Equal(t, calendar.DateFromTime(wednesday), overview.Today)
@@ -158,7 +161,7 @@ func TestBirthdayOverviewOtherWeeks(t *testing.T) {
 
 	t.Run("previous week", func(t *testing.T) {
 		thursday := calendar.NewDate(2026, time.July, 30)
-		overview, err := service.Overview(ctx, fullAccess{}, &thursday)
+		overview, err := testpkg.TenantQuery2(t, ctx, db, service.Overview, peopledirectory.BirthdayVisibility(fullAccess{}), &thursday)
 		require.NoError(t, err)
 
 		assert.Equal(t, calendar.NewDate(2026, time.July, 27), overview.WeekStart, "any day selects its week")
@@ -171,7 +174,7 @@ func TestBirthdayOverviewOtherWeeks(t *testing.T) {
 	})
 
 	t.Run("bounds travel with every answer", func(t *testing.T) {
-		overview, err := service.Overview(ctx, fullAccess{}, nil)
+		overview, err := testpkg.TenantQuery2(t, ctx, db, service.Overview, peopledirectory.BirthdayVisibility(fullAccess{}), nil)
 		require.NoError(t, err)
 
 		assert.Equal(t, calendar.NewDate(2026, time.July, 6), overview.EarliestWeekStart)
@@ -180,7 +183,7 @@ func TestBirthdayOverviewOtherWeeks(t *testing.T) {
 
 	t.Run("beyond the reach", func(t *testing.T) {
 		tooFar := calendar.NewDate(2026, time.June, 29)
-		_, err := service.Overview(ctx, fullAccess{}, &tooFar)
+		_, err := testpkg.TenantQuery2(t, ctx, db, service.Overview, peopledirectory.BirthdayVisibility(fullAccess{}), &tooFar)
 		require.ErrorIs(t, err, peopledirectory.ErrBirthdayWeekOutOfRange)
 	})
 }
@@ -197,7 +200,7 @@ func TestBirthdayOverviewLeapDayFallsOnFirstOfMarch(t *testing.T) {
 	commonYear := time.Date(2027, time.March, 1, 9, 0, 0, 0, calendar.Berlin)
 	service := newBirthdayService(db, birthdaySettings(true, false), func() time.Time { return commonYear })
 
-	overview, err := service.Overview(testpkg.Ctx(t), fullAccess{}, nil)
+	overview, err := testpkg.TenantQuery2(t, testpkg.Ctx(t), db, service.Overview, peopledirectory.BirthdayVisibility(fullAccess{}), nil)
 	require.NoError(t, err)
 
 	assert.Equal(t, []calendar.Date{calendar.NewDate(2027, time.March, 1)}, shownOn(overview, "Jonas Schalttagskind"))
@@ -208,7 +211,7 @@ func TestBirthdayOverviewLeapDayFallsOnFirstOfMarch(t *testing.T) {
 	leapYear := time.Date(2028, time.March, 1, 9, 0, 0, 0, calendar.Berlin)
 	leapService := newBirthdayService(db, birthdaySettings(true, false), func() time.Time { return leapYear })
 
-	leapOverview, err := leapService.Overview(testpkg.Ctx(t), fullAccess{}, nil)
+	leapOverview, err := testpkg.TenantQuery2(t, testpkg.Ctx(t), db, leapService.Overview, peopledirectory.BirthdayVisibility(fullAccess{}), nil)
 	require.NoError(t, err)
 
 	assert.Equal(t, []calendar.Date{calendar.NewDate(2028, time.February, 29)}, shownOn(leapOverview, "Jonas Schalttagskind"))
@@ -246,7 +249,7 @@ func TestBirthdayOverviewStaffVisibility(t *testing.T) {
 	t.Run("hidden while the school has not opted in", func(t *testing.T) {
 		service := newBirthdayService(db, birthdaySettings(true, false), func() time.Time { return today })
 
-		overview, err := service.Overview(ctx, fullAccess{}, nil)
+		overview, err := testpkg.TenantQuery2(t, ctx, db, service.Overview, peopledirectory.BirthdayVisibility(fullAccess{}), nil)
 		require.NoError(t, err)
 
 		assert.False(t, overview.IncludeStaff)
@@ -255,9 +258,9 @@ func TestBirthdayOverviewStaffVisibility(t *testing.T) {
 
 	t.Run("shown once the school opted in, except for the personal opt-out", func(t *testing.T) {
 		service := newBirthdayService(db, birthdaySettings(true, true), func() time.Time { return today })
-		require.NoError(t, service.SetOptOut(ctx, account.ID, true))
+		require.NoError(t, testpkg.TenantCommand2(t, ctx, db, service.SetOptOut, account.ID, true))
 
-		overview, err := service.Overview(ctx, fullAccess{}, nil)
+		overview, err := testpkg.TenantQuery2(t, ctx, db, service.Overview, peopledirectory.BirthdayVisibility(fullAccess{}), nil)
 		require.NoError(t, err)
 
 		assert.True(t, overview.IncludeStaff)
@@ -285,7 +288,7 @@ func TestBirthdayOverviewDisabled(t *testing.T) {
 
 	service := newBirthdayService(db, birthdaySettings(false, true), func() time.Time { return today })
 
-	overview, err := service.Overview(testpkg.Ctx(t), fullAccess{}, nil)
+	overview, err := testpkg.TenantQuery2(t, testpkg.Ctx(t), db, service.Overview, peopledirectory.BirthdayVisibility(fullAccess{}), nil)
 	require.NoError(t, err)
 
 	assert.False(t, overview.Enabled)
@@ -309,7 +312,7 @@ func TestBirthdayOverviewSettingsErrors(t *testing.T) {
 				return false, errors.New("boom")
 			},
 		}
-		_, err := newBirthdayService(db, settings, now).Overview(ctx, fullAccess{}, nil)
+		_, err := testpkg.TenantQuery2(t, ctx, db, newBirthdayService(db, settings, now).Overview, peopledirectory.BirthdayVisibility(fullAccess{}), nil)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "resolve birthday display setting")
 	})
@@ -323,7 +326,7 @@ func TestBirthdayOverviewSettingsErrors(t *testing.T) {
 				return false, errors.New("boom")
 			},
 		}
-		_, err := newBirthdayService(db, settings, now).Overview(ctx, fullAccess{}, nil)
+		_, err := testpkg.TenantQuery2(t, ctx, db, newBirthdayService(db, settings, now).Overview, peopledirectory.BirthdayVisibility(fullAccess{}), nil)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "resolve staff birthday setting")
 	})
@@ -348,10 +351,10 @@ func TestListStaffBirthdays(t *testing.T) {
 
 	ctx := testpkg.Ctx(t)
 	service := newBirthdayService(db, birthdaySettings(true, true), nil)
-	require.NoError(t, service.SetOptOut(ctx, account.ID, true))
+	require.NoError(t, testpkg.TenantCommand2(t, ctx, db, service.SetOptOut, account.ID, true))
 
 	t.Run("whole year, calendar order, opt-outs included", func(t *testing.T) {
-		entries, err := service.ListStaffBirthdays(ctx, nil)
+		entries, err := testpkg.TenantQuery1(t, ctx, db, service.ListStaffBirthdays, nil)
 		require.NoError(t, err)
 
 		names := make([]string, 0, len(entries))
@@ -371,7 +374,7 @@ func TestListStaffBirthdays(t *testing.T) {
 	})
 
 	t.Run("month filter keeps only the selected months", func(t *testing.T) {
-		entries, err := service.ListStaffBirthdays(ctx, map[time.Month]bool{time.March: true})
+		entries, err := testpkg.TenantQuery1(t, ctx, db, service.ListStaffBirthdays, map[time.Month]bool{time.March: true})
 		require.NoError(t, err)
 
 		names := make([]string, 0, len(entries))
@@ -406,20 +409,20 @@ func TestBirthdayOptOutRoundTrip(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	service := newBirthdayService(db, birthdaySettings(true, true), nil)
 
-	optOut, err := service.GetOptOut(ctx, account.ID)
+	optOut, err := testpkg.TenantQuery1(t, ctx, db, service.GetOptOut, account.ID)
 	require.NoError(t, err)
 	assert.False(t, optOut, "a new staff member is visible by default")
 
-	require.NoError(t, service.SetOptOut(ctx, account.ID, true))
-	require.NoError(t, service.SetOptOut(ctx, account.ID, true), "setting the same value again is a no-op")
+	require.NoError(t, testpkg.TenantCommand2(t, ctx, db, service.SetOptOut, account.ID, true))
+	require.NoError(t, testpkg.TenantCommand2(t, ctx, db, service.SetOptOut, account.ID, true), "setting the same value again is a no-op")
 
-	optOut, err = service.GetOptOut(ctx, account.ID)
+	optOut, err = testpkg.TenantQuery1(t, ctx, db, service.GetOptOut, account.ID)
 	require.NoError(t, err)
 	assert.True(t, optOut)
 
-	require.NoError(t, service.SetOptOut(ctx, account.ID, false))
+	require.NoError(t, testpkg.TenantCommand2(t, ctx, db, service.SetOptOut, account.ID, false))
 
-	optOut, err = service.GetOptOut(ctx, account.ID)
+	optOut, err = testpkg.TenantQuery1(t, ctx, db, service.GetOptOut, account.ID)
 	require.NoError(t, err)
 	assert.False(t, optOut)
 }
@@ -437,18 +440,49 @@ func TestBirthdayOptOutWithoutStaffRecord(t *testing.T) {
 	t.Run("account without a person", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "birthday-no-person@example.com")
 
-		_, err := service.GetOptOut(ctx, account.ID)
+		_, err := testpkg.TenantQuery1(t, ctx, db, service.GetOptOut, account.ID)
 		require.ErrorIs(t, err, peopledirectory.ErrStaffNotFound)
 
-		require.ErrorIs(t, service.SetOptOut(ctx, account.ID, true), peopledirectory.ErrStaffNotFound)
+		require.ErrorIs(t, testpkg.TenantCommand2(t, ctx, db, service.SetOptOut, account.ID, true), peopledirectory.ErrStaffNotFound)
 	})
 
 	t.Run("person without a staff record", func(t *testing.T) {
 		_, account := testpkg.CreateTestPersonWithAccount(t, db, "Hanna", "Nurperson")
 
-		_, err := service.GetOptOut(ctx, account.ID)
+		_, err := testpkg.TenantQuery1(t, ctx, db, service.GetOptOut, account.ID)
 		require.ErrorIs(t, err, peopledirectory.ErrStaffNotFound)
 	})
+}
+
+func TestBirthdayOptOutRollsBackWithTheCaller(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	_, account := testpkg.CreateTestStaffWithAccount(t, db, "Greta", "Rollback")
+	service := newBirthdayService(db, birthdaySettings(true, true), nil)
+	abort := errors.New("abort birthday preference")
+	err := testpkg.TenantCommand0(t, testpkg.Ctx(t), db, func(ctx context.Context) error {
+		require.NoError(t, service.SetOptOut(ctx, account.ID, true))
+		return abort
+	})
+	require.ErrorIs(t, err, abort)
+	optOut, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), db, service.GetOptOut, account.ID)
+	require.NoError(t, err)
+	assert.False(t, optOut)
+}
+
+func TestBirthdayOptOutCannotWriteAnotherSchool(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	_, account := testpkg.CreateTestStaffWithAccount(t, db, "Greta", "Schulgrenze")
+	service := newBirthdayService(db, birthdaySettings(true, true), nil)
+	t.Run("foreign school", func(t *testing.T) {
+		foreign := testpkg.OwnCtx(t)
+		err := testpkg.TenantCommand2(t, foreign, db, service.SetOptOut, account.ID, true)
+		require.ErrorIs(t, err, peopledirectory.ErrStaffNotFound)
+	})
+	optOut, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), db, service.GetOptOut, account.ID)
+	require.NoError(t, err)
+	assert.False(t, optOut)
 }
 
 // Datenschutz-Blocker aus dem Review: a birthday row is student data. Since
@@ -485,21 +519,21 @@ func TestBirthdayOverviewAppliesStudentDataScope(t *testing.T) {
 	service := newBirthdayService(db, birthdaySettings(true, false), func() time.Time { return today })
 
 	t.Run("caller without full access sees no child at all", func(t *testing.T) {
-		overview, err := service.Overview(ctx, noAccess{}, nil)
+		overview, err := testpkg.TenantQuery2(t, ctx, db, service.Overview, peopledirectory.BirthdayVisibility(noAccess{}), nil)
 		require.NoError(t, err)
 
 		assert.Empty(t, celebrationNames(overview), "the display fails closed rather than publishing the school")
 	})
 
 	t.Run("unclassified caller sees no child at all", func(t *testing.T) {
-		overview, err := service.Overview(ctx, nil, nil)
+		overview, err := testpkg.TenantQuery2(t, ctx, db, service.Overview, nil, nil)
 		require.NoError(t, err)
 
 		assert.Empty(t, celebrationNames(overview), "a nil visibility must never be read as full access")
 	})
 
 	t.Run("full access sees every child, group or not", func(t *testing.T) {
-		overview, err := service.Overview(ctx, fullAccess{}, nil)
+		overview, err := testpkg.TenantQuery2(t, ctx, db, service.Overview, peopledirectory.BirthdayVisibility(fullAccess{}), nil)
 		require.NoError(t, err)
 
 		names := celebrationNames(overview)
@@ -530,7 +564,7 @@ func TestStudentBirthdaysExcludeEndedCare(t *testing.T) {
 	setEnrolledUntil(t, db, lastDay.ID, today)
 	setEnrolledUntil(t, db, departed.ID, today.AddDays(-1))
 
-	overview, err := newBirthdayService(db, birthdaySettings(true, false), nil).Overview(ctx, fullAccess{}, nil)
+	overview, err := testpkg.TenantQuery2(t, ctx, db, newBirthdayService(db, birthdaySettings(true, false), nil).Overview, peopledirectory.BirthdayVisibility(fullAccess{}), nil)
 	require.NoError(t, err)
 
 	names := celebrationNames(overview)

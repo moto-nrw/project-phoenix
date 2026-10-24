@@ -8,8 +8,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -22,7 +22,7 @@ func calendarFeedHash(accountID int64, candidate int) string {
 func TestNativeStaffFeedConcurrentCreationKeepsOneWinner(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	feeds, err := repositories.NewIdentityAccessForTests(db)
+	feeds, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
 	account := testpkg.CreateTestAccount(t, db, "feed-race")
 	ctx := testpkg.Ctx(t)
@@ -62,7 +62,7 @@ func TestNativeStaffFeedConcurrentCreationKeepsOneWinner(t *testing.T) {
 func TestNativeStaffFeedScopeRotationAndAmbientRollback(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	feeds, err := repositories.NewIdentityAccessForTests(db)
+	feeds, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
 	account := testpkg.CreateTestAccount(t, db, "feed-scope")
 	ctx := testpkg.Ctx(t)
@@ -78,7 +78,7 @@ func TestNativeStaffFeedScopeRotationAndAmbientRollback(t *testing.T) {
 	require.Equal(t, otherHash, stored)
 	rollback := errors.New("rollback staff feed rotation")
 	rotatedHash := calendarFeedHash(account.ID, 2)
-	err = tenant.WithAdminTx(ctx, db, func(txCtx context.Context, _ bun.Tx) error {
+	err = testpkg.WithAdminTx(t, ctx, db, func(txCtx context.Context, _ bun.Tx) error {
 		updated, rotateErr := feeds.RotateStaffCalendarFeedToken(txCtx, account.ID, home, rotatedHash)
 		require.NoError(t, rotateErr)
 		require.True(t, updated)

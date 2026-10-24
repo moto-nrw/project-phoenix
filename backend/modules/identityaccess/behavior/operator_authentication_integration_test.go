@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -185,6 +185,7 @@ func TestIntegration_OperatorPasswordChange_RevokesSessions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	identity := buildOperatorIdentity(t, db)
 	ctx := context.Background()
+	newPassword := testpkg.NewTestPassword()
 	operator := testpkg.CreateTestOperatorWithPassword(t, db, operatorLoginEmail("operator-password"), testPassword)
 	_, _, err := identity.IssueTokensForAuthenticatedOperator(ctx, operator.ID, "127.0.0.1", "ua")
 	require.NoError(t, err)
@@ -192,18 +193,18 @@ func TestIntegration_OperatorPasswordChange_RevokesSessions(t *testing.T) {
 	require.NoError(t, err)
 	handle := liveOperatorHandle(t, db, operator.ID)
 
-	require.ErrorIs(t, identity.ChangeOperatorPassword(ctx, operator.ID, "wrong", "ChangedPass789!"), identityaccess.ErrOperatorPasswordMismatch)
+	require.ErrorIs(t, identity.ChangeOperatorPassword(ctx, operator.ID, "wrong", newPassword), identityaccess.ErrOperatorPasswordMismatch)
 	var invalid *identityaccess.InvalidInputError
 	require.ErrorAs(t, identity.ChangeOperatorPassword(ctx, operator.ID, testPassword, "weak"), &invalid)
 	assert.Equal(t, 2, countOperatorSessions(t, db, operator.ID), "a refused change keeps the sessions")
 
-	require.NoError(t, identity.ChangeOperatorPassword(ctx, operator.ID, testPassword, "ChangedPass789!"))
+	require.NoError(t, identity.ChangeOperatorPassword(ctx, operator.ID, testPassword, newPassword))
 	assert.Equal(t, 0, countOperatorSessions(t, db, operator.ID), "a password change revokes every operator refresh session")
 	_, _, err = identity.RefreshOperatorToken(ctx, operator.ID, handle)
 	require.ErrorIs(t, err, identityaccess.ErrOperatorRefreshTokenInvalid)
 	assert.Equal(t, 2, countOperatorAudit(t, db, operator.ID, "token_revoked"), "one revocation entry per family")
 
-	result, err := identity.LoginOperatorWithMFAGate(ctx, operator.Email, "ChangedPass789!", "127.0.0.1", "ua", "")
+	result, err := identity.LoginOperatorWithMFAGate(ctx, operator.Email, newPassword, "127.0.0.1", "ua", "")
 	require.NoError(t, err, "the new password verifies")
 	assert.Equal(t, identityaccess.LoginStatusMFAEnrollmentRequired, result.Status)
 }
@@ -239,13 +240,10 @@ func testSchoolID(tb testing.TB) int64 { return testpkg.Tenant(tb) }
 
 // buildOperatorIdentity composes the service root and returns the public
 // Identity & Access module the operator routes call.
-func buildOperatorIdentity(t *testing.T, db *bun.DB) *identityaccess.Module {
+func buildOperatorIdentity(t *testing.T, db *bun.DB) identityaccess.Owner {
 	t.Helper()
-	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	serviceFactory, err := services.NewFactoryForTestsWithConfig(repoFactory, db, slog.Default(), authTestFactoryConfig(false))
+	module, err := api.NewTestIdentityAccessWithConfig(testpkg.NewDatabase(t, db), slog.Default(), authTestFactoryConfig(false))
 	require.NoError(t, err, "Failed to create service factory")
-	require.NoError(t, serviceFactory.SetTenantRuntime(testpkg.TenantRuntime(t, db)))
-	module := serviceFactory.AccountAuthentication()
 	require.NotNil(t, module, "the factory composes the operator flows on the identity module")
 	return module
 }

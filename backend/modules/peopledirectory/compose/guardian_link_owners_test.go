@@ -41,11 +41,11 @@ func (o failingGuardianLinkOwners) GrantGuardianStudentAccess(ctx context.Contex
 	return o.testGuardianLinkOwners.GrantGuardianStudentAccess(ctx, tenantID, relationshipID, accountID, permissions)
 }
 
-func buildModuleWithLinkOwners(t *testing.T, db *bun.DB, owners GuardianLinkOwners) *peopledirectory.Module {
+func buildModuleWithLinkOwners(t *testing.T, db *bun.DB, owners GuardianLinkOwners) peopledirectory.Owner {
 	t.Helper()
-	module, err := NewWithGuardianMemberships(Dependencies{DB: db, Observe: func(Observation) {}, GuardianLinkOwners: owners}, testPortalMemberships(db))
+	module, err := New(Dependencies{StudentDirectory: testpkg.StudentDirectory{}, DB: db, Observe: func(Observation) {}, GuardianLinkOwners: owners, GuardianLinkRows: testpkg.GuardianLinks{}}, testPortalMemberships(db))
 	require.NoError(t, err)
-	return module
+	return module.Owner
 }
 
 func countLinkHalves(t *testing.T, db *bun.DB, studentID, guardianID int64) int {
@@ -76,7 +76,7 @@ func TestGuardianPortalLinkRollsBackAfterEveryOwnerCommand(t *testing.T) {
 		StudentID: student.ID, GuardianProfileID: guardian.ID, RelationshipType: "parent", CanPickup: true,
 		Permissions: json.RawMessage(`{"parent_portal.access": true}`),
 	}
-	healthy := testGuardianLinkOwners{db: db}
+	healthy := testGuardianLinkOwners{Db: db}
 	for _, owners := range []failingGuardianLinkOwners{
 		{testGuardianLinkOwners: healthy, failPickupCreate: true},
 		{testGuardianLinkOwners: healthy, failAccessGrant: true},
@@ -125,7 +125,7 @@ func TestGuardianPortalRelinkLeavesThePrimaryAlone(t *testing.T) {
 	student := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Portal", "Relink", "1a")
 	primary := testpkg.CreateTestGuardianProfileForTenant(t, db, tenantID, "Portal", "Primary", "portal-relink-primary")
 	other := testpkg.CreateTestGuardianProfileForTenant(t, db, tenantID, "Portal", "Other", "portal-relink-other")
-	module := buildModuleWithLinkOwners(t, db, testGuardianLinkOwners{db: db})
+	module := buildModuleWithLinkOwners(t, db, testGuardianLinkOwners{Db: db})
 
 	primaryLink := peopledirectory.GuardianContactLink{
 		StudentID: student.ID, GuardianProfileID: primary.ID, RelationshipType: "parent", IsPrimary: true,

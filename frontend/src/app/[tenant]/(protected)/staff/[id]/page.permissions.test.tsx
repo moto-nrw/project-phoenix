@@ -19,8 +19,11 @@ const { mockRecordUpdate, mockUpdateTeacher, mockDeleteTeacher } = vi.hoisted(
 );
 const detailRequest = vi.hoisted(() => ({
   error: null as unknown,
+  endedOn: null as string | null,
+  avatarUrl: undefined as string | undefined,
   mutate: vi.fn(),
 }));
+const roleAssignment = vi.hoisted(() => ({ currentIsLehrkraft: false }));
 
 vi.mock("next-auth/react", () => ({
   useSession: vi.fn(),
@@ -77,6 +80,8 @@ vi.mock("~/lib/database/service-factory", () => ({
 vi.mock("~/lib/swr", () => ({
   useTenantMutate: () => vi.fn(),
   useSWRAuth: (key: string | null, fetcher?: () => Promise<unknown>) => {
+    if (key?.startsWith("staff-history-"))
+      return { data: [], isLoading: false, error: null };
     if (key?.startsWith("staff-record-")) {
       return { data: staffRecord, isLoading: false, error: null };
     }
@@ -93,6 +98,9 @@ vi.mock("~/lib/swr", () => ({
       return {
         data: {
           id: "42",
+          startedOn: "2024-09-02",
+          endedOn: detailRequest.endedOn,
+          avatarUrl: detailRequest.avatarUrl,
           name: "Mila Muster",
           firstName: "Mila",
           lastName: "Muster",
@@ -110,7 +118,7 @@ vi.mock("~/lib/swr", () => ({
         data: {
           options: [{ id: "1", name: "Administration", systemName: "admin" }],
           currentRoleIds: ["1"],
-          currentIsLehrkraft: false,
+          currentIsLehrkraft: roleAssignment.currentIsLehrkraft,
         },
         isLoading: false,
         error: null,
@@ -127,6 +135,7 @@ vi.mock("~/lib/staff-api", () => ({
     getDocumentProfile: vi.fn(),
   },
   staffAbsenceService: { getAbsences: vi.fn() },
+  staffHistoryService: { getHistory: vi.fn() },
 }));
 
 vi.mock("~/lib/staff-helpers", () => ({
@@ -192,12 +201,98 @@ vi.mock("./page-skeleton", () => ({
 }));
 
 describe("StaffDetailContent permissions", () => {
+  it.each(["konto", "klassen", "arbeitszeitmodell", "abwesenheiten"])(
+    "keeps former employment read-only for a direct %s bookmark",
+    (requestedTab) => {
+      detailRequest.endedOn = "2026-07-31";
+      searchParams.set("tab", requestedTab);
+      searchParams.set("from", "/staff?status=ehemalige&search=Mila");
+      vi.mocked(useSession).mockReturnValue({
+        data: {
+          user: {
+            id: "7",
+            token: "test-token",
+            roles: ["admin"],
+            permissions: ["admin:*"],
+          },
+          expires: "2099-01-01",
+        },
+        status: "authenticated",
+        update: vi.fn(),
+      });
+      render(<StaffDetailContent />);
+      expect(screen.getByText("02.09.2024")).toBeInTheDocument();
+      expect(screen.getByText("31.07.2026")).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Weitere Aktionen" }),
+      ).not.toBeInTheDocument();
+      for (const label of [
+        "Konto",
+        "Klassen",
+        "Arbeitszeitmodell",
+        "Abwesenheiten",
+      ])
+        expect(
+          screen.queryByRole("tab", { name: label }),
+        ).not.toBeInTheDocument();
+      expect(
+        screen.getByRole("link", { name: "Zurück zu den Mitarbeitenden" }),
+      ).toHaveAttribute(
+        "href",
+        "/test-tenant/staff?status=ehemalige&search=Mila",
+      );
+      fireEvent.click(screen.getByRole("tab", { name: "Stammdaten" }));
+      expect(
+        screen.queryByRole("button", { name: "Bearbeiten" }),
+      ).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole("tab", { name: "Zeiterfassung" }));
+      expect(
+        screen.queryByRole("button", {
+          name: /nachtragen|öffnen|Buchen|Bearbeiten/,
+        }),
+      ).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole("tab", { name: "Dokumente" }));
+      expect(
+        screen.getByText(
+          "Die Personaldokumente wurden beim Austritt endgültig gelöscht.",
+        ),
+      ).toBeInTheDocument();
+    },
+  );
   beforeEach(() => {
     vi.clearAllMocks();
     detailRequest.error = null;
+    detailRequest.endedOn = null;
+    detailRequest.avatarUrl = undefined;
+    roleAssignment.currentIsLehrkraft = false;
+    searchParams.delete("from");
     searchParams.delete("tab");
     searchParams.delete("date");
     window.scrollTo = vi.fn();
+  });
+
+  // #4432: the redesign in #1310 dropped the picture and left the initials.
+  it("shows the uploaded profile picture in the header", () => {
+    detailRequest.avatarUrl = "/api/staff/42/avatar";
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          id: "7",
+          token: "test-token",
+          roles: ["admin"],
+          permissions: ["admin:*"],
+        },
+        expires: "2099-01-01T00:00:00.000Z",
+      },
+      status: "authenticated",
+      update: vi.fn(),
+    });
+
+    const { container } = render(<StaffDetailContent />);
+
+    expect(container.querySelector("img")?.getAttribute("src")).toMatch(
+      /\/api\/staff\/42\/avatar$/,
+    );
   });
 
   it("shows overview and time tracking to managers without admin role", () => {
@@ -449,7 +544,7 @@ describe("StaffDetailContent permissions", () => {
     expect(
       screen.queryByRole("tab", { name: "Zeiterfassung" }),
     ).not.toBeInTheDocument();
-    expect(screen.getByText("Systemrolle")).toBeInTheDocument();
+    expect(screen.getByText("Rolle")).toBeInTheDocument();
     // Ohne staff:manage kein Bearbeiten, ohne users:delete kein Löschen: das
     // Kebab fehlt ganz statt leer zu bleiben.
     expect(
@@ -575,12 +670,54 @@ describe("StaffDetailContent permissions", () => {
     render(<StaffDetailContent />);
 
     fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
-    expect(screen.getByRole("combobox", { name: "Systemrolle" })).toBeVisible();
+    expect(screen.getByRole("combobox", { name: "Rolle" })).toBeVisible();
     expect(screen.queryByLabelText("Position")).not.toBeInTheDocument();
     expect(
       screen.queryByLabelText("Notizen der Leitung"),
     ).not.toBeInTheDocument();
   });
+
+  // #4431: the Lehrkraft hint sends the reader to „Löschen" only when the
+  // header menu offers it (users:delete); otherwise it names who can.
+  it.each([
+    {
+      permissions: ["users:read", "users:manage", "users:delete"],
+      canDelete: true,
+    },
+    { permissions: ["users:read", "users:manage"], canDelete: false },
+  ])(
+    "matches the Lehrkraft role hint to the delete permission ($permissions)",
+    ({ permissions, canDelete }) => {
+      roleAssignment.currentIsLehrkraft = true;
+      vi.mocked(useSession).mockReturnValue({
+        data: {
+          user: {
+            id: "7",
+            token: "test-token",
+            roles: ["teacher"],
+            permissions,
+          },
+          expires: "2099-01-01T00:00:00.000Z",
+        },
+        status: "authenticated",
+        update: vi.fn(),
+      });
+
+      render(<StaffDetailContent />);
+
+      fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
+      expect(screen.queryByRole("menuitem", { name: "Löschen" }) !== null).toBe(
+        canDelete,
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+      expect(screen.queryByText("Wählen Sie „Löschen“.") !== null).toBe(
+        canDelete,
+      );
+      expect(
+        screen.queryByText(/Das kann nur, wer Personal löschen darf/) !== null,
+      ).toBe(!canDelete);
+    },
+  );
 
   it("redirects a role without any staff permission back to the referrer", () => {
     searchParams.set("from", "/database/personal");

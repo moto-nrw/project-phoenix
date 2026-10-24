@@ -10,9 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-chi/jwtauth/v5"
-	jwxjwt "github.com/lestrrat-go/jwx/v3/jwt"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -43,7 +40,7 @@ func TestSSEConnection_WriteSSEMessage(t *testing.T) {
 	t.Parallel()
 
 	mf := newMockFlusher()
-	conn := &sseConnection{
+	conn := &sseConnection[realtime.Event, *realtime.Client]{
 		writer:  mf,
 		flusher: mf,
 		staffID: 123,
@@ -62,7 +59,7 @@ func TestSSEConnection_WriteSSEMessage_EmptyData(t *testing.T) {
 	t.Parallel()
 
 	mf := newMockFlusher()
-	conn := &sseConnection{
+	conn := &sseConnection[realtime.Event, *realtime.Client]{
 		writer:  mf,
 		flusher: mf,
 		staffID: 456,
@@ -80,7 +77,7 @@ func TestSSEConnection_SendHeartbeat(t *testing.T) {
 	t.Parallel()
 
 	mf := newMockFlusher()
-	conn := &sseConnection{
+	conn := &sseConnection[realtime.Event, *realtime.Client]{
 		writer:  mf,
 		flusher: mf,
 		staffID: 789,
@@ -98,7 +95,7 @@ func TestSSEConnection_SendConnectedEvent(t *testing.T) {
 	t.Parallel()
 
 	mf := newMockFlusher()
-	conn := &sseConnection{
+	conn := &sseConnection[realtime.Event, *realtime.Client]{
 		writer:  mf,
 		flusher: mf,
 		staffID: 100,
@@ -134,7 +131,7 @@ func TestSSEConnection_SendConnectedEvent_EmptyTopics(t *testing.T) {
 	t.Parallel()
 
 	mf := newMockFlusher()
-	conn := &sseConnection{
+	conn := &sseConnection[realtime.Event, *realtime.Client]{
 		writer:  mf,
 		flusher: mf,
 		staffID: 200,
@@ -158,7 +155,7 @@ func TestSSEConnection_SendEvent(t *testing.T) {
 	t.Parallel()
 
 	mf := newMockFlusher()
-	conn := &sseConnection{
+	conn := &sseConnection[realtime.Event, *realtime.Client]{
 		writer:  mf,
 		flusher: mf,
 		staffID: 300,
@@ -184,13 +181,13 @@ func TestRunEventLoopDoesNotSendBufferedEventAfterDeadline(t *testing.T) {
 
 	for range 32 {
 		hub := realtime.NewHub(slog.Default())
-		rs := &Resource{hub: hub}
+		rs := &Resource[realtime.Event, *realtime.Client]{runtime: testSSETransportRuntime(), hub: hub}
 		mf := newMockFlusher()
 		client := &realtime.Client{
 			Channel:          make(chan realtime.Event, 1),
 			SubscribedGroups: make(map[string]bool),
 		}
-		conn := &sseConnection{
+		conn := &sseConnection[realtime.Event, *realtime.Client]{
 			writer:  mf,
 			flusher: mf,
 			client:  client,
@@ -214,7 +211,7 @@ func TestRunEventLoopDoesNotSendBufferedEventAfterDeadline(t *testing.T) {
 func TestSetupSSEConnection_Success(t *testing.T) {
 	t.Parallel()
 
-	rs := &Resource{}
+	rs := &Resource[realtime.Event, *realtime.Client]{runtime: testSSETransportRuntime()}
 
 	// Create a mock ResponseWriter that implements http.Flusher
 	mf := newMockFlusher()
@@ -233,7 +230,7 @@ func TestSetupSSEConnection_Success(t *testing.T) {
 func TestSetupSSEConnection_NonFlusher(t *testing.T) {
 	t.Parallel()
 
-	rs := &Resource{}
+	rs := &Resource[realtime.Event, *realtime.Client]{runtime: testSSETransportRuntime()}
 
 	// Regular ResponseRecorder doesn't implement http.Flusher interface directly
 	// when accessed as http.ResponseWriter - only mockFlusher adds it
@@ -244,42 +241,12 @@ func TestSetupSSEConnection_NonFlusher(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, statusCode)
 }
 
-func TestWithSSETokenDeadlineAppliesAccessTokenExpiry(t *testing.T) {
-	t.Parallel()
-
-	expiresAt := time.Now().Add(time.Hour)
-	token, err := jwxjwt.NewBuilder().Expiration(expiresAt).Build()
-	require.NoError(t, err)
-
-	ctx := jwtauth.NewContext(context.Background(), token, nil)
-	deadlineCtx, cancel, ok := withSSETokenDeadline(ctx)
-	require.True(t, ok)
-	defer cancel()
-
-	deadline, hasDeadline := deadlineCtx.Deadline()
-	require.True(t, hasDeadline)
-	assert.WithinDuration(t, expiresAt, deadline, time.Millisecond)
-}
-
-func TestWithSSETokenDeadlineRejectsTokenWithoutExpiry(t *testing.T) {
-	t.Parallel()
-
-	token, err := jwxjwt.NewBuilder().Build()
-	require.NoError(t, err)
-
-	ctx := jwtauth.NewContext(context.Background(), token, nil)
-	_, cancel, ok := withSSETokenDeadline(ctx)
-	defer cancel()
-
-	assert.False(t, ok)
-}
-
 func TestCreateAndRegisterClientPreservesAdminScope(t *testing.T) {
 	t.Parallel()
 
 	hub := realtime.NewHub(slog.Default())
-	rs := &Resource{hub: hub}
-	conn := &sseConnection{
+	rs := &Resource[realtime.Event, *realtime.Client]{runtime: testSSETransportRuntime(), hub: hub}
+	conn := &sseConnection[realtime.Event, *realtime.Client]{
 		staffID:  123,
 		tenantID: 41,
 		isAdmin:  true,
@@ -292,30 +259,6 @@ func TestCreateAndRegisterClientPreservesAdminScope(t *testing.T) {
 	require.NotNil(t, conn.client)
 	assert.True(t, conn.client.IsAdmin)
 	assert.Equal(t, int64(41), conn.client.TenantID)
-}
-
-func TestPrincipalAdminScope(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name        string
-		isAdmin     bool
-		permissions []string
-		want        bool
-	}{
-		{name: "literal admin", isAdmin: true, want: true},
-		{name: "admin wildcard", permissions: []string{"admin:*"}, want: true},
-		{name: "full wildcard", permissions: []string{"*:*"}, want: true},
-		{name: "scoped caregiver", permissions: []string{"users:read"}, want: false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			principal, err := permissions.NewPrincipal(permissions.PrincipalInput{AccountID: 1, TenantID: 2, Admin: tt.isAdmin, Permissions: tt.permissions})
-			require.NoError(t, err)
-			assert.Equal(t, tt.want, principal.HasAdminScope())
-		})
-	}
 }
 
 // nonFlusherResponseWriter is a ResponseWriter that doesn't implement Flusher
@@ -393,42 +336,11 @@ func TestConnectedEvent_Marshaling(t *testing.T) {
 	assert.Equal(t, event.SubscribedTopicCount, unmarshaled.SubscribedTopicCount)
 }
 
-// =============================================================================
-// RESOURCE TESTS
-// =============================================================================
-
-func TestNewResource(t *testing.T) {
-	t.Parallel()
-
-	hub := realtime.NewHub(slog.Default())
-
-	// Test with nil services (should not panic)
-	resource := NewResource(hub, nil, nil, slog.Default())
-	assert.NotNil(t, resource)
-	assert.Equal(t, hub, resource.hub)
-}
-
-func TestResource_Router(t *testing.T) {
-	t.Parallel()
-
-	hub := realtime.NewHub(slog.Default())
-	resource := NewResource(hub, nil, nil, slog.Default())
-
-	router := resource.Router()
-	assert.NotNil(t, router)
-}
-
-func TestResource_EventsHandler(t *testing.T) {
-	t.Parallel()
-
-	hub := realtime.NewHub(slog.Default())
-	resource := NewResource(hub, nil, nil, slog.Default())
-
-	handler := resource.eventsHandler
-	assert.NotNil(t, handler)
-}
-
 // Helper function
 func ptr(s string) *string {
 	return &s
+}
+
+func testSSETransportRuntime() Runtime[realtime.Event, *realtime.Client] {
+	return Runtime[realtime.Event, *realtime.Client]{NewClient: realtime.NewSSEClient}
 }

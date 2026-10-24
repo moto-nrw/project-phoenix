@@ -9,7 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -20,13 +22,14 @@ import (
 // Bounded local evidence for #2678, not a replacement for a runtime checkpoint.
 func TestUnregisteredTagScanRuntime(t *testing.T) {
 	t.Parallel()
+	testpkg.RequireRuntimeEvidence(t)
 	db := testpkg.SetupIsolatedTestDB(t)
 	ctx := testpkg.Ctx(t)
-	rooms, err := repositories.NewFacilities(db)
+	rooms, err := api.NewFacilities(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	var measuring, observing bool
 	var operations []map[string]any
-	fleet, err := compose.New(compose.Dependencies{DB: db, Rooms: rooms, Observe: func(event compose.Observation) {
+	fleet, err := compose.New(compose.Dependencies{DB: db, Rooms: rooms, APIKeys: owners.DeviceAPIKeys{}, Observe: func(event compose.Observation) {
 		if observing {
 			operations = append(operations, map[string]any{"operation": event.Operation, "error_code": devicefleet.ErrorCode(event.Err), "queries": event.Stats.Queries, "rows": event.Stats.Rows, "duration_ms": float64(event.Duration) / float64(time.Millisecond)})
 		}

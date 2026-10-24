@@ -35,7 +35,8 @@ func TestScheduleHistoryCursorUsesLastDatabaseRowBeforeScopeFiltering(t *testing
 		hidden.ID:  {ID: hidden.ID, PersonID: hidden.PersonID},
 	}}}
 	query, err := NewScheduleReviews(db, func(Observation) {}, ScheduleReviewDependencies{
-		People: directory, Bookings: scheduleReviewBookingsFixture{}, Classes: scheduleReviewClassesFixture{},
+		StudentDirectory: testpkg.StudentDirectory{},
+		People:           directory, Bookings: scheduleReviewBookingsFixture{}, Classes: scheduleReviewClassesFixture{},
 		Scope:                 func(context.Context) (ReviewScope, error) { return ReviewScope{GroupIDs: []int64{group.ID}}, nil },
 		BookingsAuthoritative: func(context.Context) (bool, error) { return false, nil }, Today: func() careplan.Date { return "2026-09-20" },
 	})

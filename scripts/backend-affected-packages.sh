@@ -52,8 +52,14 @@ changed_dirs=$(printf '%s\n' "$backend_changes" | awk '
     next
   }
   /^backend\/templates\/email\/.*\.html$/ { print "test templates/email"; next }
-  /^backend\/localization\/locales\.json$/ { print "production localization"; next }
-  /^backend\/services\/listexport\/assets\// { print "production services/listexport" }
+  /^backend\/test\/[^\/]+\.json$/ { print "test test"; next }
+  /^backend\/modules\/delivery\/internal\/adapters\/localization\/locales\.json$/ {
+    print "production modules/delivery/internal/adapters/localization"
+    next
+  }
+  /^backend\/modules\/documentrendering\/internal\/application\/listrenderer\/assets\// {
+    print "production modules/documentrendering/internal/application/listrenderer"
+  }
 ' | sort -u)
 
 if [ -z "$changed_dirs" ]; then
@@ -61,7 +67,7 @@ if [ -z "$changed_dirs" ]; then
 fi
 
 existing_dirs=()
-deleted_production=false
+deleted_production_dirs=()
 while read -r kind dir; do
   package_dir="$repo_root/backend"
   if [ "$dir" != "." ]; then
@@ -79,14 +85,28 @@ while read -r kind dir; do
   if [ -n "$package_exists" ]; then
     existing_dirs+=("$kind $dir")
   elif [ "$kind" = production ]; then
-    deleted_production=true
+    deleted_production_dirs+=("$dir")
   fi
 done <<< "$changed_dirs"
 
-if [ "$deleted_production" = true ]; then
+if [ "${#deleted_production_dirs[@]}" -gt 0 ]; then
   # There is no package left to test, but surviving imports of the removed
   # package must fail instead of turning the changed-test run into a no-op.
-  (cd "$repo_root/backend" && go list -deps -test -export ./... >/dev/null)
+  # -export would compile every test dependency before selection even starts.
+  # Load the graph only, and also reject imports of packages left with just
+  # test files: go list accepts those, but an ordinary import cannot build.
+  module=$(cd "$repo_root/backend" && go list -m)
+  deleted_packages=$(printf '%s\n' "${deleted_production_dirs[@]}" | awk -v module="$module" '
+    { print ($0 == "." ? module : module "/" $0) }
+  ')
+  (cd "$repo_root/backend" && go list -tags=testhooks -deps -test -f '{{range .Imports}}{{println .}}{{end}}' ./...) |
+    awk 'NR == FNR { deleted[$0] = 1; next }
+      $0 in deleted {
+        print "deleted production package is still imported: " $0 > "/dev/stderr"
+        failed = 1
+      }
+      END { exit failed }
+    ' <(printf '%s\n' "$deleted_packages") -
 fi
 
 if [ "${#existing_dirs[@]}" -eq 0 ]; then
@@ -133,10 +153,11 @@ fi
     printf '%s/test\n' "$module"
   fi
   if [ -n "$production_changed" ]; then
-    {
-      go list -f "{{.ImportPath}}{{range .$deps_field}} {{.}}{{end}}" ./...
-      go list -test -f "{{if .ForTest}}{{.ForTest}}{{range .$deps_field}} {{.}}{{end}}{{end}}" ./...
-    } |
+    # -test includes the ordinary packages too, so load both graphs once.
+    # ForTest maps test variants to their owner; Match retains ordinary
+    # packages without tests and excludes generated test mains. Do not filter
+    # by a .test suffix: a real package may legitimately have that name.
+    go list -tags=testhooks -test -f "{{if .ForTest}}{{.ForTest}}{{range .$deps_field}} {{.}}{{end}}{{else if .Match}}{{.ImportPath}}{{range .$deps_field}} {{.}}{{end}}{{end}}" ./... |
       awk 'NR == FNR { changed[$0] = 1; next }
         {
           for (field = 2; field <= NF; field++) {

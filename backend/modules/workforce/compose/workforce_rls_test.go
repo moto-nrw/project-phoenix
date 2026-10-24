@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -26,7 +26,7 @@ func TestWorkforceCutoverTablesEnforceRLS(t *testing.T) {
 			ctx := testpkg.Ctx(t)
 			staff := testpkg.CreateTestStaff(t, db, "RLS", side)
 			ids := make(map[string]int64)
-			day := timezone.NewDate(2026, 5, 4)
+			day := calendar.NewDate(2026, 5, 4)
 			session, err := capability.CreateWorkSession(ctx, testWorkSession(staff.ID, day, day.BerlinMidnight().Add(8*time.Hour)))
 			require.NoError(t, err)
 			ids["active.work_sessions"] = session.ID

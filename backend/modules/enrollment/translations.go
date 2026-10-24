@@ -1,6 +1,7 @@
 package enrollment
 
 import (
+	"encoding/json"
 	"fmt"
 	"slices"
 	"strings"
@@ -147,4 +148,29 @@ func validTranslationLocale(locale string) bool {
 		}
 	}
 	return true
+}
+
+// NormalizeOfferingTranslations interprets the translation document of a
+// care offering's name, description and selection group (#3377). A document
+// that does not decode counts as absent (ok false); a nil result with ok
+// true means nothing remains to store.
+func NormalizeOfferingTranslations(raw json.RawMessage) (normalized json.RawMessage, ok bool, err error) {
+	var translations Translations
+	if len(raw) > 0 {
+		if err := json.Unmarshal(raw, &translations); err != nil {
+			return nil, false, nil
+		}
+	}
+	cleaned, err := translations.Normalize(TranslationAttrName, TranslationAttrDescription, TranslationAttrSelectionGroup)
+	if err != nil {
+		return nil, true, err
+	}
+	if cleaned == nil {
+		return nil, true, nil
+	}
+	encoded, err := json.Marshal(cleaned)
+	if err != nil {
+		return nil, true, fmt.Errorf("encode care offering translations: %w", err)
+	}
+	return encoded, true, nil
 }

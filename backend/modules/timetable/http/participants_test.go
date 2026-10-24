@@ -1,7 +1,7 @@
 // Integration tests for GET /instances/{id}/participants (#2283): the narrow
 // per-instance name list that lets schedules:read holders (Leseansicht) see
 // who takes part in a block without the users:read-gated full roster. Same
-// no-middleware router pattern as student_day_test.go — tenant context and
+// explicit transaction-root router pattern as student_day_test.go — tenant context and
 // permissions are injected directly into the request context.
 package timetablehttp
 
@@ -14,8 +14,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -84,9 +83,9 @@ func buildParticipantsSetup(t *testing.T) *participantsSetup {
 		})
 	}
 
-	setup.res = NewResource(Dependencies{
+	setup.res = newResourceForTest(Dependencies{
 		TimetableData: testTimetableData(db).TimetableData(),
-		People:        must(testutil.NewTimetablePeople(db)),
+		People:        must(RootCompositions.People(db)),
 		// UserContextService intentionally nil: the admin-perm path
 		// short-circuits CanReadStudent; the non-staff test relies on the
 		// fallthrough filtering every student out.
@@ -94,17 +93,18 @@ func buildParticipantsSetup(t *testing.T) *participantsSetup {
 	return setup
 }
 
-func participantsRouter(parentCtx context.Context, res *Resource, perms []string) chi.Router {
+func participantsRouter(parentCtx context.Context, res *Resource, db *bun.DB, perms []string) chi.Router {
 	tenantID := tenant.FromContext(parentCtx)
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 			ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(req.Context()), tenantID)
-			ctx = context.WithValue(ctx, jwt.CtxPermissions, perms)
+			ctx = context.WithValue(ctx, sessiontoken.CtxPermissions, perms)
 			next.ServeHTTP(w, req.WithContext(ctx))
 		})
 	})
+	r.Use(testpkg.TenantTxMiddleware(db))
 	r.Get("/instances/{id}/participants", res.getInstanceParticipants)
 	return r
 }
@@ -114,7 +114,7 @@ func TestGetInstanceParticipants_AdminSeesSortedNames(t *testing.T) {
 
 	s := buildParticipantsSetup(t)
 
-	router := participantsRouter(s.ctx, s.res, []string{"admin:*"})
+	router := participantsRouter(s.ctx, s.res, s.db, []string{"admin:*"})
 	w := doGet(t, router, fmt.Sprintf("/instances/%d/participants", s.instanceID))
 	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
 
@@ -136,7 +136,7 @@ func TestGetInstanceParticipants_NonStaffSeesNoStudentNames(t *testing.T) {
 	// schedules:read alone reaches the endpoint, but with no verified staff
 	// context every name is filtered out — 200 with an empty list, never a 403
 	// and never a leak.
-	router := participantsRouter(s.ctx, s.res, []string{"schedules:read"})
+	router := participantsRouter(s.ctx, s.res, s.db, []string{"schedules:read"})
 	w := doGet(t, router, fmt.Sprintf("/instances/%d/participants", s.instanceID))
 	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
 
@@ -165,7 +165,7 @@ func TestGetInstanceParticipants_AlumnusExcluded(t *testing.T) {
 		Exec(ctx)
 	require.NoError(t, err)
 
-	router := participantsRouter(s.ctx, s.res, []string{"admin:*"})
+	router := participantsRouter(s.ctx, s.res, s.db, []string{"admin:*"})
 	w := doGet(t, router, fmt.Sprintf("/instances/%d/participants", s.instanceID))
 	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
 
@@ -180,7 +180,7 @@ func TestGetInstanceParticipants_UnknownInstance404(t *testing.T) {
 
 	s := buildParticipantsSetup(t)
 
-	router := participantsRouter(s.ctx, s.res, []string{"admin:*"})
+	router := participantsRouter(s.ctx, s.res, s.db, []string{"admin:*"})
 	w := doGet(t, router, "/instances/999999999/participants")
 	assert.Equal(t, http.StatusNotFound, w.Code, "body=%s", w.Body.String())
 }

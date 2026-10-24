@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/moto-nrw/project-phoenix/modules/devicescan/ports"
+
 	"time"
 )
 
@@ -20,7 +22,7 @@ type MirroredSession struct {
 type MirrorTimetable interface {
 	HasInstance(context.Context, int64) (bool, error)
 	CreateInstance(context.Context, MirroredSession) (MirroredSession, error)
-	AddStaff(context.Context, int64, int64) error
+	AddSessionInstanceStaff(context.Context, int64, int64) error
 	ActivityTitle(context.Context, int64) (string, error)
 	CalendarParts(time.Time) (date string, minutes int)
 }
@@ -44,7 +46,7 @@ func NewSessionMirror(timetable MirrorTimetable, publish MirrorPublisher, logger
 	return &sessionMirror{timetable: timetable, publish: publish, logger: logger}
 }
 
-func (s *sessionMirror) MirrorSession(ctx context.Context, group LifecycleSession, supervisorIDs []int64) {
+func (s *sessionMirror) MirrorSession(ctx context.Context, group ports.LifecycleSession, supervisorIDs []int64) {
 	existing, err := s.timetable.HasInstance(ctx, group.ID)
 	if err != nil {
 		s.logger.WarnContext(ctx, "failed to check mirrored timetable instance",
@@ -86,23 +88,27 @@ func (s *sessionMirror) MirrorSession(ctx context.Context, group LifecycleSessio
 		)
 		return
 	}
-	seen := make(map[int64]bool, len(supervisorIDs))
-	for _, id := range supervisorIDs {
-		if id <= 0 || seen[id] {
-			continue
-		}
-		seen[id] = true
-		if err := s.timetable.AddStaff(ctx, instance.ID, id); err != nil {
-			s.logger.WarnContext(ctx, "failed to mirror IoT session staff to timetable",
-				slog.Int64("instance_id", instance.ID),
-				slog.Int64("staff_id", id),
-				slog.String("error", err.Error()),
-			)
-		}
-	}
+	s.mirrorStaff(ctx, instance.ID, supervisorIDs)
 	if s.publish != nil {
 		s.publish(ctx, instance)
 	}
 }
 
 func mirrorClock(minutes int) string { return fmt.Sprintf("%02d:%02d:00", minutes/60, minutes%60) }
+
+func (s *sessionMirror) mirrorStaff(ctx context.Context, instanceID int64, supervisorIDs []int64) {
+	seen := make(map[int64]bool, len(supervisorIDs))
+	for _, id := range supervisorIDs {
+		if id <= 0 || seen[id] {
+			continue
+		}
+		seen[id] = true
+		if err := s.timetable.AddSessionInstanceStaff(ctx, instanceID, id); err != nil {
+			s.logger.WarnContext(ctx, "failed to mirror IoT session staff to timetable",
+				slog.Int64("instance_id", instanceID),
+				slog.Int64("staff_id", id),
+				slog.String("error", err.Error()),
+			)
+		}
+	}
+}

@@ -77,8 +77,8 @@ describe("SchoolSidebar", () => {
     const { container } = render(<SchoolSidebar teamChat={teamChat} />);
 
     expect(container.querySelector("aside > div")).toHaveClass(
-      "top-[57px]",
-      "h-[calc(100vh-57px)]",
+      "top-[73px]",
+      "h-[calc(100vh-73px)]",
     );
   });
 });

@@ -122,7 +122,7 @@ describe("RolesMasterDetail", () => {
     expect(screen.getAllByText("Vertretungslehrkraft").length).toBeGreaterThan(
       0,
     );
-    expect(screen.getByText("1 Berechtigungen")).toBeInTheDocument();
+    expect(screen.getByText("1 Berechtigung")).toBeInTheDocument();
   });
 
   it("opens the inline edit form and triggers delete for non-system roles", () => {
@@ -273,7 +273,7 @@ describe("RolesMasterDetail", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        "System-Rollen können nicht bearbeitet oder gelöscht werden.",
+        "Vorgegebene Rollen gelten für alle Schulen. Sie können nicht bearbeitet oder gelöscht werden.",
       ),
     ).toBeInTheDocument();
   });

@@ -1,9 +1,10 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import { ApiError } from "~/lib/api-error";
 import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import deMessages from "~/i18n/messages/de.json";
 import {
-  ParentApiError,
+  listGroupThreads,
   listMessageThreads,
   listMyChildren,
 } from "~/lib/parent-api";
@@ -18,6 +19,7 @@ vi.mock("~/lib/parent-api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/lib/parent-api")>()),
   listMyChildren: vi.fn(),
   listMessageThreads: vi.fn(),
+  listGroupThreads: vi.fn(),
 }));
 
 vi.mock("~/lib/hooks/use-messages-activity", () => ({
@@ -32,6 +34,7 @@ vi.mock("~/components/parent/ogs-conversation", () => ({
 
 const mockedChildren = vi.mocked(listMyChildren);
 const mockedThreads = vi.mocked(listMessageThreads);
+const mockedGroupThreads = vi.mocked(listGroupThreads);
 
 const felix = {
   student_id: "42",
@@ -57,6 +60,109 @@ function renderPage() {
 beforeEach(() => {
   vi.clearAllMocks();
   mockedThreads.mockResolvedValue([]);
+  mockedGroupThreads.mockResolvedValue([]);
+});
+
+const sommerfest = {
+  id: "9",
+  title: "Sommerfest am Freitag",
+  target_label: "Gruppe Sonnenblumen",
+  school_name: "Schule am Berg",
+  counterpart_name: "OGS Schule am Berg",
+  closed: false,
+  last_message_at: "2026-09-09T08:00:00Z",
+  last_message_body: "Wer kann einen Kuchen mitbringen?",
+  unread: 1,
+  children: [{ student_id: "42", first_name: "Felix", last_name: "Schneider" }],
+};
+
+describe("ParentMessagesPage – Gruppennachrichten (#4784)", () => {
+  it("zeigt bei einem Kind die Gruppennachrichten ueber dem Chat", async () => {
+    mockedChildren.mockResolvedValue([felix]);
+    mockedGroupThreads.mockResolvedValue([sommerfest]);
+
+    renderPage();
+
+    expect(await screen.findByTestId("conversation")).toHaveTextContent("42");
+    expect(
+      screen.getByRole("heading", { name: "Gruppennachrichten der OGS" }),
+    ).toBeInTheDocument();
+    const link = screen.getByRole("link", { name: /Sommerfest am Freitag/ });
+    expect(link).toHaveAttribute("href", "/parents/messages/group/9");
+    expect(link).toHaveTextContent("Gruppe Sonnenblumen");
+    expect(link).toHaveTextContent("Wer kann einen Kuchen mitbringen?");
+    expect(link).toHaveTextContent("1");
+  });
+
+  it("markiert eine geschlossene Gruppennachricht bei mehreren Kindern", async () => {
+    mockedChildren.mockResolvedValue([felix, mia]);
+    mockedGroupThreads.mockResolvedValue([
+      { ...sommerfest, closed: true, unread: 0 },
+    ]);
+
+    renderPage();
+
+    const link = await screen.findByRole("link", {
+      name: /Sommerfest am Freitag/,
+    });
+    expect(link).toHaveTextContent("Geschlossen");
+  });
+
+  it("zeigt ohne Gruppennachricht keinen leeren Abschnitt", async () => {
+    mockedChildren.mockResolvedValue([felix]);
+
+    renderPage();
+
+    expect(await screen.findByTestId("conversation")).toBeInTheDocument();
+    expect(screen.getByTestId("conversation")).toHaveTextContent("42");
+    expect(
+      screen.queryByRole("heading", { name: "Gruppennachrichten der OGS" }),
+    ).not.toBeInTheDocument();
+  });
+
+  // Die unabhängige Gruppennachrichten-Abfrage darf die bestehende
+  // Unterhaltungsliste nicht verdecken, ihr Fehler bleibt aber sichtbar.
+  it("zeigt den Fehler bei fehlenden Gruppennachrichten neben den Unterhaltungen", async () => {
+    mockedChildren.mockResolvedValue([felix, mia]);
+    mockedThreads.mockResolvedValue([
+      {
+        thread_id: "t1",
+        student_id: "42",
+        student_name: "Felix Schneider",
+        school_name: "Schule am Berg",
+        counterpart_name: "OGS Schule am Berg",
+        last_message_kind: "message",
+        last_message_read_by_staff: false,
+        unread: 0,
+      },
+    ]);
+    mockedGroupThreads
+      .mockRejectedValueOnce(
+        new ApiError("diag", 503, { code: "general.unavailable" }),
+      )
+      .mockResolvedValueOnce([sommerfest]);
+
+    renderPage();
+
+    // Anker: die bestehende Unterhaltungsliste ist geladen.
+    expect(
+      await screen.findByRole("link", { name: /Felix Schneider/ }),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Gruppennachrichten"),
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Wiederholen" }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+
+    expect(
+      await screen.findByRole("link", { name: /Sommerfest am Freitag/ }),
+    ).toBeInTheDocument();
+  });
 });
 
 describe("ParentMessagesPage", () => {
@@ -224,7 +330,7 @@ describe("ParentMessagesPage", () => {
   it("zeigt einen Ladefehler mit Wiederholen statt einer leeren Seite", async () => {
     mockedChildren
       .mockRejectedValueOnce(
-        new ParentApiError("db kaputt", 503, "general.unavailable"),
+        new ApiError("db kaputt", 503, { code: "general.unavailable" }),
       )
       .mockResolvedValueOnce([felix]);
     renderPage();

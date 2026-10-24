@@ -9,9 +9,13 @@ import Image from "next/image";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Alert } from "~/components/ui/alert";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
-import { credentialError } from "~/components/auth/credential-error";
+import {
+  credentialError,
+  LOGIN_REFUSALS,
+  PASSKEY_LOGIN_REFUSALS,
+} from "~/components/auth/credential-error";
 import { useApiFormError } from "~/contexts/ToastContext";
-import { wireErrorCode } from "~/lib/api-error";
+import { ApiError, wireErrorCode } from "~/lib/api-error";
 import { refreshToken } from "~/lib/auth-api";
 import { trackTenantEvent } from "~/lib/analytics";
 import { SmartRedirect } from "~/components/auth/smart-redirect";
@@ -33,16 +37,11 @@ import { parentsPortalLoginUrl } from "~/lib/parent-url";
 import { schoolPortalLoginUrl } from "~/lib/school-url";
 import { isSchoolPortalHandoffPath } from "~/lib/redirect-utils";
 import { DELIBERATE_LOGOUT_KEY } from "~/lib/session-cache";
-import {
-  login as loginApi,
-  MFAApiError,
-  type MFATokenResponse,
-} from "~/lib/mfa-api";
+import { login as loginApi, type MFATokenResponse } from "~/lib/mfa-api";
 import {
   isPasskeySupported,
   isPasskeyCeremonyIncompleteError,
   loginWithPasskey,
-  PasskeyApiError,
 } from "~/lib/passkey-api";
 
 import { errorStatus } from "~/lib/expected-failure";
@@ -401,7 +400,7 @@ function LoginForm() {
       // and refused on role, so being specific leaks nothing — and the
       // generic "Anmeldung fehlgeschlagen" reads like a password problem,
       // which is what sent parents into repeated reset loops.
-      if (err instanceof MFAApiError && showWrongPortalHint(err.code)) {
+      if (err instanceof ApiError && showWrongPortalHint(err.code)) {
         return;
       }
 
@@ -409,12 +408,12 @@ function LoginForm() {
       // sich die Ablehnung wie ein falsches Passwort, und niemand kommt über
       // "Passwort vergessen" wieder hinein (#3376).
       const code =
-        err instanceof MFAApiError ? wireErrorCode(err.code) : undefined;
+        err instanceof ApiError ? wireErrorCode(err.code) : undefined;
       trackLoginEvent("login_failed", {
         reason: (code && LOGIN_FAILURE_REASONS[code]) ?? "error",
       });
       // Vor der Anmeldung heißt 401 "abgelehnt", nicht "Sitzung abgelaufen".
-      void formErrors.show(credentialError(err), {
+      void formErrors.show(credentialError(err, LOGIN_REFUSALS), {
         object: "die Anmeldung",
         retry: () => latestSubmitRef.current(),
       });
@@ -458,13 +457,13 @@ function LoginForm() {
         });
         return;
       }
-      if (err instanceof PasskeyApiError && showWrongPortalHint(err.code)) {
+      if (err instanceof ApiError && showWrongPortalHint(err.code)) {
         return;
       }
       logger.error("passkey login failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      void formErrors.show(credentialError(err), {
+      void formErrors.show(credentialError(err, PASSKEY_LOGIN_REFUSALS), {
         object: "die Anmeldung mit Passkey",
         retry: () => latestPasskeyRef.current(),
       });
@@ -540,7 +539,7 @@ function LoginForm() {
               onSuccess={handleMFASuccess}
               onError={(mfaError) => {
                 if (
-                  mfaError instanceof MFAApiError &&
+                  mfaError instanceof ApiError &&
                   showWrongPortalHint(mfaError.code)
                 ) {
                   setMfaStep(null);

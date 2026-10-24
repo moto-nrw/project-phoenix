@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/domain"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/driver/pgdriver"
 )
@@ -29,33 +29,39 @@ type staffEmploymentRow struct {
 	BirthdayDisplayOptOut bool          `bun:"birthday_display_opt_out,notnull"`
 }
 
-func (row staffEmploymentRow) toDomain() domain.StaffEmployment {
-	return domain.StaffEmployment{
+func (row staffEmploymentRow) toDomain() workforce.StaffEmployment {
+	return workforce.StaffEmployment{
 		MembershipID: row.MembershipID, StaffNotes: row.StaffNotes, EmploymentType: row.EmploymentType,
 		WorkTimeModelID: row.WorkTimeModelID, PersonnelNumber: row.PersonnelNumber,
 		RotationAnchorDate: calendarDateString(row.RotationAnchorDate), BirthdayDisplayOptOut: row.BirthdayDisplayOptOut,
 	}
 }
 
-func staffEmploymentTenant[Q interface{ Where(string, ...any) Q }](query Q, tenantID int64) Q {
-	if tenantID > 0 {
-		return query.Where(`"profile".tenant_id = ?`, tenantID)
+func staffEmploymentTenant[Q interface {
+	Where(string, ...any) Q
+	Err(error) Q
+}](query Q, scope TenantScope) Q {
+	if err := scope.Validate(); err != nil {
+		return query.Err(err)
 	}
-	return query
+	if scope.AcrossSchools {
+		return query
+	}
+	return query.Where(`"profile".tenant_id = ?`, scope.TenantID)
 }
 
-func (s *Store) StaffEmployments(ctx context.Context, membershipIDs []int64) (map[int64]domain.StaffEmployment, error) {
-	result := make(map[int64]domain.StaffEmployment, len(membershipIDs))
+func (s *Store) StaffEmployments(ctx context.Context, membershipIDs []int64) (map[int64]workforce.StaffEmployment, error) {
+	result := make(map[int64]workforce.StaffEmployment, len(membershipIDs))
 	if len(membershipIDs) == 0 {
 		return result, nil
 	}
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, err
 	}
 	var rows []staffEmploymentRow
 	if err := staffEmploymentTenant(db.NewSelect().Model(&rows).
-		Where(`"profile".membership_id IN (?)`, bun.List(membershipIDs)), tenantID).
+		Where(`"profile".membership_id IN (?)`, bun.List(membershipIDs)), scope).
 		Scan(ctx); err != nil {
 		return nil, fmt.Errorf("workforce postgres: list staff employment: %w", err)
 	}
@@ -66,7 +72,7 @@ func (s *Store) StaffEmployments(ctx context.Context, membershipIDs []int64) (ma
 }
 
 func (s *Store) StaffOnWorkTimeModel(ctx context.Context, workTimeModelID int64) ([]int64, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -74,7 +80,7 @@ func (s *Store) StaffOnWorkTimeModel(ctx context.Context, workTimeModelID int64)
 	if err := staffEmploymentTenant(db.NewSelect().Model((*staffEmploymentRow)(nil)).
 		Column("membership_id").
 		Where(`"profile".work_time_model_id = ?`, workTimeModelID).
-		OrderExpr(`"profile".membership_id ASC`), tenantID).
+		OrderExpr(`"profile".membership_id ASC`), scope).
 		Scan(ctx, &ids); err != nil {
 		return nil, fmt.Errorf("workforce postgres: list staff on work time model: %w", err)
 	}
@@ -82,34 +88,34 @@ func (s *Store) StaffOnWorkTimeModel(ctx context.Context, workTimeModelID int64)
 }
 
 // LockStaffEmployment reads one profile FOR UPDATE.
-func (s *Store) LockStaffEmployment(ctx context.Context, membershipID int64) (domain.StaffEmployment, error) {
-	db, tenantID, err := s.database(ctx)
+func (s *Store) LockStaffEmployment(ctx context.Context, membershipID int64) (workforce.StaffEmployment, error) {
+	db, scope, err := s.database(ctx)
 	if err != nil {
-		return domain.StaffEmployment{}, err
+		return workforce.StaffEmployment{}, err
 	}
 	row := staffEmploymentRow{}
 	err = staffEmploymentTenant(db.NewSelect().Model(&row).
-		Where(`"profile".membership_id = ?`, membershipID).For("UPDATE"), tenantID).Scan(ctx)
+		Where(`"profile".membership_id = ?`, membershipID).For("UPDATE"), scope).Scan(ctx)
 	if errors.Is(err, sql.ErrNoRows) {
-		return domain.StaffEmployment{}, domain.ErrStaffEmploymentNotFound
+		return workforce.StaffEmployment{}, workforce.ErrStaffEmploymentNotFound
 	}
 	if err != nil {
-		return domain.StaffEmployment{}, fmt.Errorf("workforce postgres: lock staff employment: %w", err)
+		return workforce.StaffEmployment{}, fmt.Errorf("workforce postgres: lock staff employment: %w", err)
 	}
 	return row.toDomain(), nil
 }
 
 // SaveStaffEmployment creates the profile or replaces every field of it.
-func (s *Store) SaveStaffEmployment(ctx context.Context, value domain.StaffEmployment) error {
-	db, tenantID, err := s.database(ctx)
+func (s *Store) SaveStaffEmployment(ctx context.Context, value workforce.StaffEmployment) error {
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return err
 	}
-	if tenantID <= 0 {
+	if scope.TenantID <= 0 {
 		return errors.New("workforce postgres: tenant is required to save a staff employment profile")
 	}
 	row := staffEmploymentRow{
-		MembershipID: value.MembershipID, TenantID: tenantID, StaffNotes: value.StaffNotes,
+		MembershipID: value.MembershipID, TenantID: scope.TenantID, StaffNotes: value.StaffNotes,
 		EmploymentType: value.EmploymentType, WorkTimeModelID: value.WorkTimeModelID,
 		PersonnelNumber: value.PersonnelNumber, RotationAnchorDate: optionalCalendarDate(value.RotationAnchorDate),
 		BirthdayDisplayOptOut: value.BirthdayDisplayOptOut,
@@ -134,15 +140,29 @@ func (s *Store) SaveStaffEmployment(ctx context.Context, value domain.StaffEmplo
 		return fmt.Errorf("workforce postgres: save staff employment: count rows: %w", err)
 	}
 	if rows != 1 {
-		return domain.ErrStaffEmploymentNotFound
+		return workforce.ErrStaffEmploymentNotFound
 	}
 	return nil
 }
 
-func (s *Store) ClearStaffWorkTimeModel(ctx context.Context, membershipID int64) error {
-	return s.updateStaffEmployment(ctx, "clear staff work time model", membershipID, func(query *bun.UpdateQuery) *bun.UpdateQuery {
-		return query.Set(`work_time_model_id = NULL`)
-	})
+// ReleaseWorkTimeModel detaches the given memberships from the template. The
+// template guard keeps a binding another writer moved in the meantime.
+func (s *Store) ReleaseWorkTimeModel(ctx context.Context, workTimeModelID int64, membershipIDs []int64) error {
+	if len(membershipIDs) == 0 {
+		return nil
+	}
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return err
+	}
+	if _, err := staffEmploymentTenant(db.NewUpdate().Model((*staffEmploymentRow)(nil)).
+		Set(`work_time_model_id = NULL`).
+		Where(`"profile".work_time_model_id = ?`, workTimeModelID).
+		Where(`"profile".membership_id IN (?)`, bun.List(membershipIDs)), tenantID).
+		Exec(ctx); err != nil {
+		return fmt.Errorf("workforce postgres: release work time model: %w", err)
+	}
+	return nil
 }
 
 func (s *Store) SetStaffNotes(ctx context.Context, membershipID int64, notes string) error {
@@ -161,13 +181,13 @@ func (s *Store) RebaseStaffRotationAnchor(ctx context.Context, membershipIDs []i
 	if len(membershipIDs) == 0 {
 		return nil
 	}
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return err
 	}
 	if _, err := staffEmploymentTenant(db.NewUpdate().Model((*staffEmploymentRow)(nil)).
 		Set(`rotation_anchor_date = ?`, optionalCalendarDate(anchorDate)).
-		Where(`"profile".membership_id IN (?)`, bun.List(membershipIDs)), tenantID).
+		Where(`"profile".membership_id IN (?)`, bun.List(membershipIDs)), scope).
 		Exec(ctx); err != nil {
 		return fmt.Errorf("workforce postgres: rebase staff rotation anchor: %w", err)
 	}
@@ -175,12 +195,12 @@ func (s *Store) RebaseStaffRotationAnchor(ctx context.Context, membershipIDs []i
 }
 
 func (s *Store) updateStaffEmployment(ctx context.Context, operation string, membershipID int64, set func(*bun.UpdateQuery) *bun.UpdateQuery) error {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return err
 	}
 	result, err := staffEmploymentTenant(set(db.NewUpdate().Model((*staffEmploymentRow)(nil))).
-		Where(`"profile".membership_id = ?`, membershipID), tenantID).Exec(ctx)
+		Where(`"profile".membership_id = ?`, membershipID), scope).Exec(ctx)
 	if err != nil {
 		return staffEmploymentWriteError(operation, err)
 	}
@@ -189,14 +209,14 @@ func (s *Store) updateStaffEmployment(ctx context.Context, operation string, mem
 		return fmt.Errorf("workforce postgres: %s: count rows: %w", operation, err)
 	}
 	if rows != 1 {
-		return domain.ErrStaffEmploymentNotFound
+		return workforce.ErrStaffEmploymentNotFound
 	}
 	return nil
 }
 
 func staffEmploymentWriteError(operation string, err error) error {
 	if pgErr, ok := errors.AsType[pgdriver.Error](err); ok && pgErr.IntegrityViolation() && pgErr.Field('n') == staffPersonnelNumberConstraint {
-		return domain.ErrPersonnelNumberTaken
+		return workforce.ErrPersonnelNumberTaken
 	}
 	return fmt.Errorf("workforce postgres: %s staff employment: %w", operation, err)
 }

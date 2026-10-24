@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 )
 
@@ -16,18 +17,12 @@ func (s *Store) RecordSupervision(ctx context.Context, input ports.GroupSupervis
 		return ports.GroupSupervision{}, ports.Stats{}, err
 	}
 	started := time.Now()
-	if input.CreatedAt.IsZero() {
-		input.CreatedAt = started
-	}
-	if input.UpdatedAt.IsZero() {
-		input.UpdatedAt = started
-	}
 	var result ports.GroupSupervision
 	err = db.NewRaw(`INSERT INTO active.group_supervisors
- (tenant_id, group_id, staff_id, role, start_date, end_date, created_at, updated_at)
- VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+ (tenant_id, group_id, staff_id, role, start_date, end_date)
+ VALUES (?, ?, ?, ?, ?, ?)
  RETURNING id, tenant_id, group_id, staff_id, role, start_date, end_date, created_at, updated_at`,
-		tenantID, input.GroupID, input.StaffID, input.Role, input.StartDate, input.EndDate, input.CreatedAt, input.UpdatedAt).Scan(ctx, &result)
+		tenantID, input.GroupID, input.StaffID, input.Role, input.StartDate, input.EndDate).Scan(ctx, &result)
 	stats := ports.Stats{Queries: 1, StatementDuration: time.Since(started)}
 	if err != nil {
 		return ports.GroupSupervision{}, stats, fmt.Errorf("record supervision: %w", err)
@@ -51,7 +46,7 @@ func (s *Store) ReviseSupervision(ctx context.Context, input ports.GroupSupervis
 	stats := ports.Stats{Queries: 1, StatementDuration: time.Since(started)}
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return ports.GroupSupervision{}, stats, ports.ErrSupervisionNotFound
+			return ports.GroupSupervision{}, stats, studentpresence.ErrSupervisionNotFound
 		}
 		return ports.GroupSupervision{}, stats, fmt.Errorf("revise supervision: %w", err)
 	}

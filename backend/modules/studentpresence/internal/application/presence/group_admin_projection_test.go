@@ -5,7 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -17,7 +18,7 @@ func TestActiveGroupRepository_FindActiveByDeviceIDWithNamesInAdminTransaction(t
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := sessionGroups(repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveGroup)
+	repo := sessionGroups(api.NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db)).ActiveGroup)
 	ctx := testpkg.Ctx(t)
 	activityGroup := testpkg.CreateTestActivityGroup(t, db, "Administrative activity")
 	room := testpkg.CreateTestRoom(t, db, "Administrative room")

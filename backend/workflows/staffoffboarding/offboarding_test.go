@@ -31,9 +31,9 @@ type fixture struct {
 	staffID    int64
 	personID   int64
 	shiftID    int64
-	membership *schoolmembership.Module
-	workforce  *workforce.Module
-	people     *peopledirectory.Module
+	membership schoolmembership.Owner
+	workforce  workforce.Capability
+	people     peopledirectory.Capability
 }
 
 func newFixture(t *testing.T) fixture {
@@ -48,7 +48,7 @@ func newFixture(t *testing.T) fixture {
 	require.NoError(t, err)
 	retirement, err := membershipcompose.NewOffboarding(memberDeps)
 	require.NoError(t, err)
-	people, err := peoplecompose.New(peoplecompose.Dependencies{DB: db, Observe: func(peoplecompose.Observation) {}})
+	people, err := peoplecompose.New(peoplecompose.Dependencies{StudentDirectory: testpkg.StudentDirectory{}, DB: db, Observe: func(peoplecompose.Observation) {}}, nil)
 	require.NoError(t, err)
 	presence, err := presencecompose.New(presencecompose.Dependencies{DB: db, Observe: func(presencecompose.Observation) {}})
 	require.NoError(t, err)
@@ -68,7 +68,7 @@ func newFixture(t *testing.T) fixture {
 	room := testpkg.CreateTestRoom(t, db, "Offboarding workflow")
 	instance := testpkg.CreateTestActivityInstance(t, db, testpkg.Date(2027, 10, 4), room.ID, testpkg.ActivityInstanceOpts{})
 	testpkg.CreateTestInstanceStaff(t, db, instance.ID, staff.ID, testpkg.InstanceStaffOpts{})
-	shift, err := work.CreateStaffShift(ctx, workforce.StaffShift{StaffID: staff.ID, Date: "2027-10-04", StartTime: "08:00:00", EndTime: "12:00:00", CreatedBy: actor.ID})
+	shift, err := work.CreateStaffShift(ctx, &workforce.StaffShift{StaffID: staff.ID, Date: "2027-10-04", StartTime: "08:00:00", EndTime: "12:00:00", CreatedBy: actor.ID})
 	require.NoError(t, err)
 	_, err = membership.CreateClassAssignment(ctx, schoolmembership.CreateClassAssignment{StaffID: staff.ID, SchoolClass: "4a"})
 	require.NoError(t, err)
@@ -92,7 +92,7 @@ func newFixture(t *testing.T) fixture {
 		GroupAccessChanged: func(context.Context) {},
 		Observe:            func(staffoffboarding.Observation) {},
 	}
-	return fixture{deps: deps, staffID: staff.ID, personID: staff.PersonID, shiftID: shift.ID, membership: membership, workforce: work, people: people}
+	return fixture{deps: deps, staffID: staff.ID, personID: staff.PersonID, shiftID: shift.ID, membership: membership, workforce: work, people: people.Owner}
 }
 
 func (f fixture) assertOperational(t *testing.T) {
@@ -144,7 +144,7 @@ func TestWorkflowRollsBackAfterEachOwnerCommand(t *testing.T) {
 						return result, err
 					}
 					return result, failure
-				})
+				}, nil, schoolmembership.Reinstatement{})
 			case "audit":
 				f.deps.AppendAudit = func(context.Context, staffoffboarding.Actor, staffoffboarding.Result) error { return failure }
 			case "cleanup":
@@ -259,8 +259,4 @@ func (b employmentBinding) StaffEmployments(ctx context.Context, ids []int64) (m
 
 func (b employmentBinding) SaveStaffEmployment(ctx context.Context, value membershipcompose.StaffEmploymentProfile) error {
 	return b.owner.SaveStaffEmployment(ctx, workforce.StaffEmployment(value))
-}
-
-func (b employmentBinding) ClearStaffWorkTimeModel(ctx context.Context, id int64) error {
-	return b.owner.ClearStaffWorkTimeModel(ctx, id)
 }

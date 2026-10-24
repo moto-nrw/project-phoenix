@@ -13,6 +13,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil/routetest"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -47,7 +48,8 @@ func serveMyProfile(t *testing.T, rs *Resource, claims routetest.Claims, tenantI
 func TestGetMyProfile_UnwiredPortIsServerError(t *testing.T) {
 	t.Parallel()
 
-	w := serveMyProfile(t, &Resource{}, routetest.Claims{ID: 4321}, 4242)
+	w := serveMyProfile(t, &Resource{
+		Failures: DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation}}, routetest.Claims{ID: 4321}, 4242)
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
@@ -62,7 +64,8 @@ func TestGetMyProfile_RendersTheGuardianProfileOfTheSchool(t *testing.T) {
 		Children: []capability.GuardianAutofillChild{{StudentID: 77, FirstName: "Lara", LastName: "Beispiel", SchoolClass: "2a", EnrollmentSubmit: true, Status: "active"}},
 	}}
 
-	w := serveMyProfile(t, &Resource{GuardianProfiles: stub}, routetest.Claims{ID: 4321, FirstName: "Claim", Sub: "claim@example.test"}, 4242)
+	w := serveMyProfile(t, &Resource{
+		Failures: DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation}, GuardianProfiles: stub}, routetest.Claims{ID: 4321, FirstName: "Claim", Sub: "claim@example.test"}, 4242)
 
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 	assert.Equal(t, int64(4321), stub.accountID)
@@ -95,7 +98,8 @@ func TestGetMyProfile_RendersTheGuardianProfileOfTheSchool(t *testing.T) {
 func TestGetMyProfile_NoProfileFallsBackToClaims(t *testing.T) {
 	t.Parallel()
 
-	w := serveMyProfile(t, &Resource{GuardianProfiles: &guardianProfilesStub{}}, routetest.Claims{ID: 4321, FirstName: "Claim", Sub: "claim@example.test"}, 4242)
+	w := serveMyProfile(t, &Resource{
+		Failures: DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation}, GuardianProfiles: &guardianProfilesStub{}}, routetest.Claims{ID: 4321, FirstName: "Claim", Sub: "claim@example.test"}, 4242)
 
 	require.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), `"first_name":"Claim"`)
@@ -105,7 +109,8 @@ func TestGetMyProfile_NoProfileFallsBackToClaims(t *testing.T) {
 func TestGetMyProfile_LoadFailureIsServerError(t *testing.T) {
 	t.Parallel()
 
-	w := serveMyProfile(t, &Resource{GuardianProfiles: &guardianProfilesStub{err: errors.New("profile read failed")}}, routetest.Claims{ID: 4321}, 4242)
+	w := serveMyProfile(t, &Resource{
+		Failures: DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation}, GuardianProfiles: &guardianProfilesStub{err: errors.New("profile read failed")}}, routetest.Claims{ID: 4321}, 4242)
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
@@ -113,7 +118,8 @@ func TestGetMyProfile_RequiresAccountAndTenant(t *testing.T) {
 	t.Parallel()
 
 	stub := &guardianProfilesStub{}
-	rs := &Resource{GuardianProfiles: stub}
+	rs := &Resource{
+		Failures: DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation}, GuardianProfiles: stub}
 
 	assert.Equal(t, http.StatusForbidden, serveMyProfile(t, rs, routetest.Claims{}, 4242).Code)
 	assert.Equal(t, http.StatusForbidden, serveMyProfile(t, rs, routetest.Claims{ID: 4321}, 0).Code)

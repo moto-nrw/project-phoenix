@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"testing"
 
+	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -16,9 +17,9 @@ import (
 func TestCleanupRootsExposeOnlyCommandSpecificBuilders(t *testing.T) {
 	t.Parallel()
 
-	contextType := reflect.TypeFor[cleanupContext]()
-	_, hasRepositoriesFactory := contextType.FieldByName("RepoFactory")
-	_, hasServicesFactory := contextType.FieldByName("ServiceFactory")
+	rootType := reflect.TypeFor[cleanupRoot]()
+	_, hasRepositoriesFactory := rootType.FieldByName("RepoFactory")
+	_, hasServicesFactory := rootType.FieldByName("ServiceFactory")
 	assert.False(t, hasRepositoriesFactory)
 	assert.False(t, hasServicesFactory)
 	assert.NotNil(t, defaultCleanupRoot.authCleanup)
@@ -59,33 +60,32 @@ func TestCleanupRootFailsFastForEveryMissingCapability(t *testing.T) {
 func TestCleanupRootFailsFastForEveryNilBuiltCapability(t *testing.T) {
 	t.Parallel()
 
-	ctx := &cleanupContext{}
 	tests := []struct {
 		capability string
 		build      func() error
 	}{
 		{"auth", func() error {
-			_, err := buildCleanupDependency(ctx, func(*cleanupContext) authCleanupService { return nil }, "auth")
+			_, err := requireCleanupDependency[authCleanupService](nil, "auth")
 			return err
 		}},
 		{"invitation", func() error {
-			_, err := buildCleanupDependency(ctx, func(*cleanupContext) invitationCleanupService { return nil }, "invitation")
+			_, err := requireCleanupDependency[invitationCleanupService](nil, "invitation")
 			return err
 		}},
 		{"session", func() error {
-			_, err := buildCleanupDependency(ctx, func(*cleanupContext) sessionCleanupService { return nil }, "session")
+			_, err := requireCleanupDependency[sessionCleanupService](nil, "session")
 			return err
 		}},
 		{"retention", func() error {
-			_, err := buildCleanupDependency(ctx, func(*cleanupContext) retentionCleanupService { return nil }, "retention")
+			_, err := requireCleanupDependency[retentionCleanupService](nil, "retention")
 			return err
 		}},
 		{"timetable", func() error {
-			_, err := buildCleanupDependency(ctx, func(*cleanupContext) timetableCleanupService { return nil }, "timetable")
+			_, err := requireCleanupDependency[timetableCleanupService](nil, "timetable")
 			return err
 		}},
 		{"time-tracking", func() error {
-			_, err := buildCleanupDependency(ctx, func(*cleanupContext) timeTrackingCleanupService { return nil }, "time-tracking")
+			_, err := requireCleanupDependency[timeTrackingCleanupService](nil, "time-tracking")
 			return err
 		}},
 	}
@@ -108,10 +108,8 @@ func (*nilAuthCleanup) DeleteStalePasswordResetWindows(context.Context) (int, er
 func TestCleanupRootRejectsTypedNilBuiltCapability(t *testing.T) {
 	t.Parallel()
 
-	_, err := buildCleanupDependency(&cleanupContext{}, func(*cleanupContext) authCleanupService {
-		var service *nilAuthCleanup
-		return service
-	}, "auth")
+	var service *nilAuthCleanup
+	_, err := requireCleanupDependency[authCleanupService](service, "auth")
 	require.EqualError(t, err, "auth cleanup service builder returned nil")
 }
 
@@ -319,21 +317,18 @@ func TestRecentDeletionRow_Struct(t *testing.T) {
 }
 
 // =============================================================================
-// cleanupContext Tests
+// closeCleanupDatabase Tests
 // =============================================================================
 
-func TestCleanupContext_Close_NilDB(t *testing.T) {
+func TestCloseCleanupDatabase_NilDB(t *testing.T) {
 	t.Parallel()
-	ctx := &cleanupContext{
-		DB: nil,
-	}
 
-	// Should not panic with nil DB
-	ctx.Close()
+	// Should not panic without a database
+	closeCleanupDatabase(transactionruntime.Database{}, nil)
 }
 
 func TestCleanupRootFailsFastWithoutDatabaseDependency(t *testing.T) {
 	t.Parallel()
-	_, err := (cleanupRoot{}).newContext()
+	_, err := (cleanupRoot{}).open()
 	require.ErrorContains(t, err, "cleanup database opener is required")
 }

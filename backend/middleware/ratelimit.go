@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 	"net"
@@ -91,7 +92,7 @@ func (rl *RateLimiter) ExemptLoopback() {
 // isLoopbackPeer reports whether the request's TCP peer is a loopback address.
 //
 // The root router rewrites RemoteAddr from the rightmost X-Forwarded-For entry
-// (ClientIPFromXFF and syncClientIPToRemoteAddr in api/base.go), so a request
+// (ClientIPFromXFFTrustedProxies and syncClientIPToRemoteAddr in api/base.go), so a request
 // that carries the header has a RemoteAddr chosen by a header, not by the
 // connection. Only a request without the header still holds the TCP peer, and
 // only such a request can be exempt.
@@ -155,7 +156,28 @@ func (rl *RateLimiter) reject(w http.ResponseWriter, r *http.Request, bucket str
 	if rl.logger != nil {
 		rl.logger.LogRateLimitExceeded(r)
 	}
-	http.Error(w, "Rate limit exceeded. Please try again later.", http.StatusTooManyRequests)
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(http.StatusTooManyRequests)
+	_ = json.NewEncoder(w).Encode(rateLimitProblem{
+		Status: http.StatusTooManyRequests,
+		Detail: "Rate limit exceeded. Please try again later.",
+		Code:   codeGeneralUnavailable,
+	})
+}
+
+// codeGeneralUnavailable is the registered class code (error-registry.json)
+// of a rate-limited request. This package may not import api/common, so it
+// names the code once here.
+const codeGeneralUnavailable = "general.unavailable"
+
+// rateLimitProblem is the shared error envelope (ADR 0006) of a rejected
+// request: the HTTP status number, the diagnostic text and the registered
+// code. ProblemResponseMiddleware adds type, title and instance like for
+// every error answer.
+type rateLimitProblem struct {
+	Status int    `json:"status"`
+	Detail string `json:"detail"`
+	Code   string `json:"code"`
 }
 
 // getVisitor returns the rate limiter for the given request key.

@@ -221,10 +221,6 @@ describe("activitiesConfig", () => {
     expect(activitiesConfig.labels?.deleteConfirmation).toContain("löschen");
   });
 
-  it("does not expose custom detail actions for removed activity subpages", () => {
-    expect(activitiesConfig.detail.actions?.custom).toBeUndefined();
-  });
-
   // An empty list would look like a school without categories or
   // supervisors; the form shows the catalog text with retry instead (#2517).
   it.each([

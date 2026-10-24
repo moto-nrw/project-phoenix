@@ -11,7 +11,6 @@ import (
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -39,14 +38,14 @@ func (d *deviceRepoForSessionUnitTest) UpdateRoomID(ctx context.Context, id int6
 }
 
 type workSessionServiceForSessionUnitTest struct {
-	ensureCheckedInFunc func(ctx context.Context, staffID int64, source string) (*timerecords.WorkSession, error)
+	ensureCheckedInFunc func(ctx context.Context, staffID int64, source studentpresence.StampSource) (bool, error)
 }
 
-func (w *workSessionServiceForSessionUnitTest) EnsureCheckedIn(ctx context.Context, staffID int64, source string) (*timerecords.WorkSession, error) {
+func (w *workSessionServiceForSessionUnitTest) EnsureCheckedIn(ctx context.Context, staffID int64, source studentpresence.StampSource) (bool, error) {
 	if w.ensureCheckedInFunc != nil {
 		return w.ensureCheckedInFunc(ctx, staffID, source)
 	}
-	return &timerecords.WorkSession{}, nil
+	return true, nil
 }
 
 // plannedStartNotReachedForSessionUnitTest stands in for the time clock's
@@ -667,13 +666,13 @@ func TestAssignMultipleSupervisorsNonCritical_WorkSessionBestEffortBranches(t *t
 			return nil
 		},
 	}, WorkSessionService: &workSessionServiceForSessionUnitTest{
-		ensureCheckedInFunc: func(_ context.Context, staffID int64, source string) (*timerecords.WorkSession, error) {
+		ensureCheckedInFunc: func(_ context.Context, staffID int64, source studentpresence.StampSource) (bool, error) {
 			checked[staffID] = true
 			assert.Equal(t, stampSourceNFC, source)
 			if err := checkInResults[staffID]; err != nil {
-				return nil, err
+				return false, err
 			}
-			return nil, nil
+			return false, nil
 		},
 	}},
 	}

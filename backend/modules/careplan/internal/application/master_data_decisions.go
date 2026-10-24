@@ -18,9 +18,9 @@ import (
 // ports may be nil and the decision then skips that effect.
 type MasterDataDecisionDependencies struct {
 	Requests    ports.MasterDataRequestRows
-	People      ports.MasterDataFieldReviews
+	People      careplan.MasterDataFieldReviews
 	Records     ports.MasterDataRecords
-	Scope       ports.ReviewScopeResolver
+	Scope       careplan.ReviewScopeResolver
 	Hooks       ports.TransactionHooks
 	Today       func() careplan.Date
 	Logger      *slog.Logger
@@ -37,9 +37,9 @@ type MasterDataDecisionDependencies struct {
 // Every method runs inside the ambient tenant transaction the caller opened.
 type MasterDataDecisions struct {
 	requests    ports.MasterDataRequestRows
-	people      ports.MasterDataFieldReviews
+	people      careplan.MasterDataFieldReviews
 	records     ports.MasterDataRecords
-	scope       ports.ReviewScopeResolver
+	scope       careplan.ReviewScopeResolver
 	hooks       ports.TransactionHooks
 	today       func() careplan.Date
 	logger      *slog.Logger
@@ -123,19 +123,16 @@ func (s *MasterDataDecisions) loadPendingDecisionRequest(ctx context.Context, in
 	return req, nil
 }
 
-// lockPendingRequest takes the request row FOR UPDATE and refuses it unless
-// it is still open.
+// lockPendingRequest locks the child before the request and refuses a closed row.
 func (s *MasterDataDecisions) lockPendingRequest(ctx context.Context, requestID int64) (*careplan.StudentDataChangeRequest, error) {
-	row, err := s.requests.FindPendingStudentDataRequest(ctx, requestID)
-	switch {
-	case errors.Is(err, careplan.ErrStudentDataRequestNotFound):
-		return nil, masterdatarequests.ErrReviewNotFound
-	case errors.Is(err, careplan.ErrStudentDataRequestNotPending):
-		return nil, masterdatarequests.ErrReviewNotPending
-	case err != nil:
+	row, err := s.lockRequestStudent(ctx, requestID)
+	if err != nil {
 		return nil, err
 	}
-	return &row, nil
+	if row.Status != masterdatarequests.StatusPending {
+		return nil, masterdatarequests.ErrReviewNotPending
+	}
+	return row, nil
 }
 
 // authorizeDecision gates approve and reject alike: the caller may decide a
@@ -145,9 +142,8 @@ func (s *MasterDataDecisions) lockPendingRequest(ctx context.Context, requestID 
 // a concurrent grade transition cannot change underneath it: the transition
 // locks exactly this row before flipping it to alumnus, so an unlocked read
 // could let an approval through and have the graduation commit before the
-// person or student write lands. It is also the transaction's first row
-// lock: the apply only re-acquires this row or takes the child's person row
-// after it, so no lock order is inverted (#405 review).
+// person or student write lands. The child is already locked before the
+// request; this re-acquisition supplies its current authorization state.
 func (s *MasterDataDecisions) authorizeDecision(ctx context.Context, studentID int64) error {
 	student, err := s.records.LockStudent(ctx, studentID)
 	if err != nil {
@@ -257,4 +253,27 @@ func (s *MasterDataDecisions) record(ctx context.Context, entry ports.RequestLed
 		return nil
 	}
 	return s.ledger.Record(ctx, entry)
+}
+
+// lockRequestStudent locates the immutable child ID without a lock, then takes
+// class(shared) -> child -> request. All status/version checks use the re-read.
+func (s *MasterDataDecisions) lockRequestStudent(ctx context.Context, id int64) (*careplan.StudentDataChangeRequest, error) {
+	snapshot, err := s.requests.FindStudentDataRequest(ctx, id, false)
+	if errors.Is(err, careplan.ErrStudentDataRequestNotFound) {
+		return nil, masterdatarequests.ErrReviewNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	if err := s.lockStudent(ctx, snapshot.StudentID); err != nil {
+		return nil, err
+	}
+	row, err := s.requests.FindStudentDataRequest(ctx, id, true)
+	if errors.Is(err, careplan.ErrStudentDataRequestNotFound) {
+		return nil, masterdatarequests.ErrReviewNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &row, nil
 }

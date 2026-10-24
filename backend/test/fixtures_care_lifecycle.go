@@ -2,11 +2,11 @@ package test
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
@@ -16,33 +16,41 @@ import (
 // rather than in either package because both suites need the identical
 // starting state and a second copy is how the two drift apart.
 
-// CareWithdrawalWriter is the slice of the withdrawal repository the fixture
-// stores through. Care Plan owns the task's upsert rule (one pending task per
-// child, a school confirmation surviving a booking expiry), so the fixture
-// asks the owner rather than inserting a row the owner would never write.
-type CareWithdrawalWriter interface {
-	UpsertPending(ctx context.Context, completion *users.CareWithdrawalCompletion) error
-}
-
 // CreateTestCareWithdrawalCompletion stores one pending withdrawal task for
 // the child: the school confirmed the withdrawal and firstGap is the first day
 // without a booking.
 func CreateTestCareWithdrawalCompletion(
 	tb testing.TB,
-	withdrawals CareWithdrawalWriter,
+	db bun.IDB,
 	studentID, actorID int64,
-	firstGap timezone.Date,
-) *users.CareWithdrawalCompletion {
+	firstGap calendar.Date,
+) *CareWithdrawalCompletion {
 	tb.Helper()
-	row := &users.CareWithdrawalCompletion{
-		StudentID:               &studentID,
-		FirstBookinglessDay:     firstGap,
-		Trigger:                 users.CareWithdrawalTriggerDirectSchool,
-		WithdrawalConfirmedBy:   &actorID,
-		WithdrawalConfirmedRole: "admin",
-		WithdrawalConfirmedAt:   time.Now(),
-	}
-	require.NoError(tb, withdrawals.UpsertPending(Ctx(tb), row))
+	return CreateTestCareWithdrawalCompletionConfirmedAt(tb, db, studentID, actorID, firstGap, time.Now())
+}
+
+// upsertTestPendingCareWithdrawal stores row as the child's pending
+// withdrawal task in the test's tenant. Care Plan keeps one pending task per
+// child, so a second call for the same child moves that task to the new
+// values. Care Plan's rule that a school confirmation survives a later
+// booking expiry is not reproduced here; a test of that rule drives Care Plan.
+func upsertTestPendingCareWithdrawal(tb testing.TB, db bun.IDB, row *CareWithdrawalCompletion) *CareWithdrawalCompletion {
+	tb.Helper()
+	row.TenantID = fixtureTenantID(tb)
+	row.State = "pending"
+	row.SourceOfferings = json.RawMessage(`[]`)
+	_, err := db.NewInsert().
+		Model(row).
+		On("CONFLICT (tenant_id, student_id) WHERE state = 'pending' AND student_id IS NOT NULL DO UPDATE").
+		Set("first_bookingless_day = EXCLUDED.first_bookingless_day").
+		Set("trigger = EXCLUDED.trigger").
+		Set("withdrawal_confirmed_by = EXCLUDED.withdrawal_confirmed_by").
+		Set("withdrawal_confirmed_role = EXCLUDED.withdrawal_confirmed_role").
+		Set("withdrawal_confirmed_at = EXCLUDED.withdrawal_confirmed_at").
+		Set("updated_at = NOW()").
+		Returning("id, created_at, updated_at").
+		Exec(Ctx(tb))
+	require.NoError(tb, err, "store pending care withdrawal task")
 	return row
 }
 
@@ -83,13 +91,13 @@ func SetStudentLifecycle(
 	tb testing.TB,
 	db *bun.DB,
 	studentID int64,
-	status users.StudentStatus,
-	enrolledFrom, enrolledUntil *timezone.Date,
+	status string,
+	enrolledFrom, enrolledUntil *calendar.Date,
 ) {
 	tb.Helper()
 	query, err := updateStudentMembershipFixture(Ctx(tb), db, studentID)
 	require.NoError(tb, err)
-	query = query.Set("status = ?", string(status))
+	query = query.Set("status = ?", status)
 	if enrolledFrom != nil {
 		query = query.Set("enrolled_from = ?", *enrolledFrom)
 	} else {
@@ -102,37 +110,4 @@ func SetStudentLifecycle(
 	}
 	_, err = query.Exec(Ctx(tb))
 	require.NoError(tb, err, "failed to seed lifecycle columns")
-}
-
-// StudentPlanWriter is the slice of the child repository the departure-plan
-// fixture needs. It writes through the repository rather than in raw SQL so
-// the stored plan is the normalized one every production write leaves behind;
-// a hand-written UPDATE would desynchronize the derived columns and make the
-// next real write look like it changed them.
-type StudentPlanWriter interface {
-	FindByID(ctx context.Context, id any) (*users.Student, error)
-	Update(ctx context.Context, student *users.Student) error
-}
-
-// SetAccompaniedDepartureDays gives the child an "Anderes Kind" departure plan
-// on the given weekdays, which is the precondition for carrying a companion
-// link. The free-text note comes along because an accompanied plan must say
-// "mit wem" and there is no link yet at this point.
-func SetAccompaniedDepartureDays(
-	tb testing.TB,
-	ctx context.Context,
-	students StudentPlanWriter,
-	studentID int64,
-	days ...string,
-) *users.Student {
-	tb.Helper()
-	student, err := students.FindByID(ctx, studentID)
-	require.NoError(tb, err)
-	require.NotNil(tb, student)
-
-	note := "Nachbarskind"
-	student.AllowedDepartureModes = users.WithAccompaniedDays(student.AllowedDepartureModes, days)
-	student.DepartureCompanionNote = &note
-	require.NoError(tb, students.Update(ctx, student))
-	return student
 }

@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -56,6 +55,8 @@ type Runtime struct {
 	// TagExists reports whether an RFID card with that identifier exists.
 	TagExists       func(context.Context, string) (bool, error)
 	ObserveResponse func(int, string)
+	// ParseIDParam reads an int64 path parameter: api/common.ParseIDParam.
+	ParseIDParam func(*http.Request, string) (int64, error)
 }
 
 type Resource struct {
@@ -66,7 +67,8 @@ type Resource struct {
 func NewResource(directory peopledirectory.Capability, runtime Runtime) *Resource {
 	if directory == nil || runtime.Protected == nil || runtime.Permission == nil || runtime.ParsePagination == nil ||
 		runtime.Success == nil || runtime.SuccessPaginated == nil || runtime.NoContent == nil || runtime.Failure == nil ||
-		runtime.AccountEmails == nil || runtime.TagExists == nil || runtime.ObserveResponse == nil {
+		runtime.AccountEmails == nil || runtime.TagExists == nil || runtime.ObserveResponse == nil ||
+		runtime.ParseIDParam == nil {
 		panic("users HTTP: all dependencies are required")
 	}
 	return &Resource{directory: directory, runtime: runtime}
@@ -105,37 +107,21 @@ type PersonRequest struct {
 	AccountID int64  `json:"account_id,omitempty"`
 }
 
-// Bind reports every blank name as its own field (#2511). The text stays the
-// first missing name's sentence, which clients not yet on the error code
-// path still compare against until #2520.
+// Bind reports every blank name as its own field (#2511); the shared error
+// envelope lists them in `errors`. The text is diagnostics (#2520).
 func (request *PersonRequest) Bind(*http.Request) error {
 	missing := validation.Errors{}
-	text := ""
 	if request.FirstName == "" {
 		missing["first_name"] = errors.New("is required")
-		text = "first name is required"
 	}
 	if request.LastName == "" {
 		missing["last_name"] = errors.New("is required")
-		if text == "" {
-			text = "last name is required"
-		}
 	}
 	if len(missing) == 0 {
 		return nil
 	}
-	return &missingNamesError{text: text, fields: missing}
+	return missing
 }
-
-// missingNamesError keeps the legacy diagnostic text and carries the fields
-// for the shared error envelope, which reads them through errors.As.
-type missingNamesError struct {
-	text   string
-	fields validation.Errors
-}
-
-func (e *missingNamesError) Error() string { return e.text }
-func (e *missingNamesError) Unwrap() error { return e.fields }
 
 func (rs *Resource) listPersons(w http.ResponseWriter, r *http.Request) {
 	page, pageSize := rs.runtime.ParsePagination(r)
@@ -332,7 +318,7 @@ func (rs *Resource) personResponse(ctx context.Context, person peopledirectory.P
 }
 
 func (rs *Resource) parseID(w http.ResponseWriter, r *http.Request) (int64, bool) {
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := rs.runtime.ParseIDParam(r, "id")
 	if err != nil || id <= 0 {
 		rs.failure(w, r, FailureInvalidRequest, errors.New("invalid person ID"), "invalid_parameters")
 		return 0, false

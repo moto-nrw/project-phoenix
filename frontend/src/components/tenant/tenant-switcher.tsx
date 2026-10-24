@@ -13,7 +13,6 @@ import { mutate } from "~/lib/swr";
 import {
   listAvailableTenants,
   performTenantSwitch,
-  TenantSwitchError,
   type TenantSummary,
 } from "~/lib/tenant-api";
 import { performEndStaffPreview } from "~/lib/staff-preview-api";
@@ -26,6 +25,7 @@ import { clientEnv } from "~/env.client";
 import { Alert } from "~/components/ui/alert";
 import { credentialError } from "~/components/auth/credential-error";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
 import {
   BrandLink,
   BrandLogo,
@@ -34,7 +34,10 @@ import {
 
 const logger = createLogger({ component: "BrandTenantSwitcher" });
 
-const NO_ACCESS = ["identity.tenant_access_denied"] as const;
+const SWITCH_REFUSALS = [
+  "identity.tenant_access_denied",
+  "identity.mfa_session_required",
+] as const;
 
 interface BrandTenantSwitcherProps {
   readonly href?: string;
@@ -157,8 +160,8 @@ export function BrandTenantSwitcher({
           target_slug: targetTenant.subdomain,
         });
         if (
-          err instanceof TenantSwitchError &&
-          err.reason === "use_school_portal"
+          err instanceof ApiError &&
+          err.code === "identity.use_school_portal"
         ) {
           let portalUrl: string | null = null;
           try {
@@ -172,11 +175,35 @@ export function BrandTenantSwitcher({
           }
           setSchoolPortalHint({ url: portalUrl });
         } else {
+          const openTargetLogin = () => {
+            void import("./tenant-relogin")
+              .then(({ reloginAtTenant }) =>
+                reloginAtTenant(targetTenant.subdomain),
+              )
+              .catch((error: unknown) => {
+                void showSwitchError(error, {
+                  object: "die Abmeldung",
+                  retry: openTargetLogin,
+                });
+              });
+          };
           // Kein Zugang zur Schule kommt als 401: ohne den Code-Abgleich
           // spränge der Fehlerweg wortlos zur Anmeldung (#2517).
-          void showSwitchError(credentialError(err, NO_ACCESS), {
-            object: `das Wechseln zu ${targetTenant.name}`,
-            retry: () => latestSwitchRef.current(targetTenant),
+          void showSwitchError(credentialError(err, SWITCH_REFUSALS), {
+            object:
+              err instanceof ApiError &&
+              err.code === "identity.mfa_session_required"
+                ? targetTenant.name
+                : `das Wechseln zu ${targetTenant.name}`,
+            ...(err instanceof ApiError &&
+            err.code === "identity.mfa_session_required"
+              ? {
+                  action: {
+                    label: "Zur Schulanmeldung",
+                    onClick: openTargetLogin,
+                  },
+                }
+              : { retry: () => latestSwitchRef.current(targetTenant) }),
           });
         }
         setIsSwitching(false);

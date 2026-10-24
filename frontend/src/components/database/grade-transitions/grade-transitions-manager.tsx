@@ -11,6 +11,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { ApiError } from "~/lib/api-error";
 import { Pencil, Play, RotateCcw, Trash2, Users } from "lucide-react";
 import {
   FormErrorAlert,
@@ -41,7 +42,6 @@ import {
   NOT_DRAFT_CODE,
   NOT_LATEST_TRANSITION_CODE,
   revertGradeTransition,
-  TransitionRequestError,
   type GradeTransition,
   type TransitionResult,
   type TransitionStatus,
@@ -260,7 +260,7 @@ export function GradeTransitionsManager({
         error: error instanceof Error ? error.message : String(error),
       });
       void showLoadError(error, {
-        object: "die Liste der Jahrgangswechsel",
+        object: "die Liste der Schuljahreswechsel",
         retry: () => void refresh(),
       });
       return null;
@@ -291,7 +291,7 @@ export function GradeTransitionsManager({
     setPreviewFor(null);
     setEditorDraft(null);
     toast.success(
-      `Der Jahrgangswechsel ist angewendet: ${result.studentsPromoted} Kinder versetzt, ${result.studentsGraduated} Abgänge.`,
+      `Der Schuljahreswechsel ist angewendet: ${result.studentsPromoted} Kinder versetzt, ${result.studentsGraduated} Abgänge.`,
     );
     void refresh();
   };
@@ -305,13 +305,13 @@ export function GradeTransitionsManager({
       const summary = `${result.studentsPromoted} Kinder zurückversetzt, ${result.studentsGraduated} Abgänge wiederhergestellt`;
       if (result.warnings.length > 0) {
         toast.warning(
-          `Der Jahrgangswechsel ist nur teilweise zurückgesetzt: ${summary}. ${result.warnings
+          `Der Schuljahreswechsel ist nur teilweise zurückgesetzt: ${summary}. ${result.warnings
             .map(describeRevertWarning)
             .join(" ")}`,
           { duration: 12000 },
         );
       } else {
-        toast.success(`Der Jahrgangswechsel ist zurückgesetzt: ${summary}.`);
+        toast.success(`Der Schuljahreswechsel ist zurückgesetzt: ${summary}.`);
       }
       setRevertTarget(null);
       void refresh();
@@ -326,7 +326,7 @@ export function GradeTransitionsManager({
       // reload and re-point the dialog at the new latest instead of telling the
       // user to try again against a target that can never succeed (#405 review).
       if (
-        error instanceof TransitionRequestError &&
+        error instanceof ApiError &&
         error.code === NOT_LATEST_TRANSITION_CODE
       ) {
         const list = await refresh();
@@ -334,12 +334,9 @@ export function GradeTransitionsManager({
         setRevertTarget(latest);
         // Der Dialog zeigt jetzt den neuesten; der Grund steht darin.
         void (latest ? revertErrors.show : showActionError)(error, {
-          object: "das Zurücksetzen des Jahrgangswechsels",
+          object: "das Zurücksetzen des Schuljahreswechsels",
         });
-      } else if (
-        error instanceof TransitionRequestError &&
-        error.code === NOT_APPLIED_CODE
-      ) {
+      } else if (error instanceof ApiError && error.code === NOT_APPLIED_CODE) {
         // The target is no longer in applied status: another admin already
         // reverted it since this list was fetched. Retrying the same ID can
         // never succeed, so reload the list and close the dialog instead of
@@ -347,12 +344,12 @@ export function GradeTransitionsManager({
         setRevertTarget(null);
         void refresh();
         void showActionError(error, {
-          object: "das Zurücksetzen des Jahrgangswechsels",
+          object: "das Zurücksetzen des Schuljahreswechsels",
         });
       } else {
         // Der Dialog bleibt offen und nennt den Grund.
         void revertErrors.show(error, {
-          object: "das Zurücksetzen des Jahrgangswechsels",
+          object: "das Zurücksetzen des Schuljahreswechsels",
           retry: () => latestRevertRef.current(),
         });
       }
@@ -380,10 +377,7 @@ export function GradeTransitionsManager({
       // A grade_transition.not_draft conflict means another admin applied this draft since the
       // list was fetched. Retrying the delete can never succeed, so reload the
       // list and close the dialog instead of suggesting a retry (#405 review).
-      if (
-        error instanceof TransitionRequestError &&
-        error.code === NOT_DRAFT_CODE
-      ) {
+      if (error instanceof ApiError && error.code === NOT_DRAFT_CODE) {
         setDeleteTarget(null);
         void refresh();
         void showActionError(error, { object: "das Löschen des Entwurfs" });
@@ -540,12 +534,12 @@ export function GradeTransitionsManager({
           die die Tabelle trägt: kein zweiter Seitenkopf und keine eigene
           Zeile nur für den Knopf. */}
       <SectionCard
-        title="Angelegte Jahrgangswechsel"
+        title="Angelegte Schuljahreswechsel"
         description="Versetzt alle Kinder in die nächste Klasse und verwaltet Abgänge zum Schuljahreswechsel."
         actions={
           permissions.canCreate ? (
             <Button type="button" size="md" onClick={() => openEditorFor(null)}>
-              Neuer Jahrgangswechsel
+              Neuer Schuljahreswechsel
             </Button>
           ) : undefined
         }
@@ -560,12 +554,12 @@ export function GradeTransitionsManager({
           emptyState={
             <div className="py-8 text-center text-sm text-gray-500">
               <p className="font-medium text-gray-700">
-                Noch kein Jahrgangswechsel angelegt.
+                Noch kein Schuljahreswechsel angelegt.
               </p>
               <p className="mt-1">
-                Mit Neuer Jahrgangswechsel werden alle Klassen automatisch
-                vorgeschlagen (z. B. 1a in 2a) und lassen sich vor dem Anwenden
-                anpassen.
+                Mit einem neuen Schuljahreswechsel werden alle Klassen
+                automatisch vorgeschlagen (z. B. 1a in 2a) und lassen sich vor
+                dem Anwenden anpassen.
               </p>
             </div>
           }
@@ -621,14 +615,14 @@ export function GradeTransitionsManager({
           revertErrors.clear();
         }}
         onConfirm={handleRevert}
-        title="Jahrgangswechsel zurücksetzen"
+        title="Schuljahreswechsel zurücksetzen"
         confirmText="Ja, zurücksetzen"
         cancelText="Abbrechen"
         isConfirmLoading={busy}
       >
         <FormErrorAlert message={revertErrors.error} className="mb-3" />
         <p>
-          Den Jahrgangswechsel {revertTarget?.academicYear} wirklich
+          Den Schuljahreswechsel {revertTarget?.academicYear} wirklich
           zurücksetzen? Versetzte Kinder kehren in ihre alte Klasse zurück,
           Abgänge werden wiederhergestellt.
         </p>

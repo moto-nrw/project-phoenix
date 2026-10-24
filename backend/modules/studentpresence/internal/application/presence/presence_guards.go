@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -12,7 +11,7 @@ import (
 // validateStudentExists checks if a student exists, returning appropriate errors
 func (s *service) validateStudentExists(ctx context.Context, studentID int64) error {
 	if _, err := s.StudentRepo.FindByID(ctx, studentID); err != nil {
-		if base.IsNoRows(err) {
+		if IsNoRows(err) {
 			return ErrStudentNotFound
 		}
 		return err
@@ -34,7 +33,7 @@ func (s *service) ensureStudentCheckinAllowed(ctx context.Context, studentID int
 	}
 	student, err := s.StudentRepo.FindByIDForUpdate(ctx, studentID)
 	if err != nil {
-		if base.IsNoRows(err) {
+		if IsNoRows(err) {
 			return ErrStudentNotFound
 		}
 		return err
@@ -55,7 +54,7 @@ func (s *service) ensureStudentCheckinAllowed(ctx context.Context, studentID int
 // validateActiveGroupExists checks if an active group exists, returning appropriate errors
 func (s *service) validateActiveGroupExists(ctx context.Context, groupID int64) error {
 	if _, err := s.GroupRepo.FindByID(ctx, groupID); err != nil {
-		if base.IsNoRows(err) {
+		if IsNoRows(err) {
 			return ErrActiveGroupNotFound
 		}
 		return err
@@ -87,7 +86,7 @@ func (s *service) lockActiveGroupOpenForUpdate(ctx context.Context, groupID int6
 // validateStaffExists locks a live staff member and maps missing-row errors.
 func (s *service) validateStaffExists(ctx context.Context, staffID int64) error {
 	found, err := s.StaffRepo.LockStaffExists(ctx, staffID)
-	if base.IsNoRows(err) || (err == nil && !found) {
+	if IsNoRows(err) || (err == nil && !found) {
 		return ErrStaffNotFound
 	}
 	return err

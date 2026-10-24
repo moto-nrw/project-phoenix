@@ -71,42 +71,6 @@ type Calendar interface {
 	NonWorkingDayQuery
 }
 
-func (m *Module) AddCalendarPeriod(ctx context.Context, input CreateCalendarPeriod) (CalendarPeriod, error) {
-	if err := validateCalendarPeriodFields(&input.CalendarPeriodFields); err != nil {
-		return CalendarPeriod{}, err
-	}
-	return m.engine.AddCalendarPeriod(ctx, input)
-}
-
-func (m *Module) ChangeCalendarPeriod(ctx context.Context, input UpdateCalendarPeriod) (CalendarPeriod, error) {
-	if input.ID <= 0 {
-		return CalendarPeriod{}, invalidPeriod("calendar period ID is required")
-	}
-	if err := validateCalendarPeriodFields(&input.CalendarPeriodFields); err != nil {
-		return CalendarPeriod{}, err
-	}
-	return m.engine.ChangeCalendarPeriod(ctx, input)
-}
-
-func (m *Module) RemoveCalendarPeriod(ctx context.Context, id int64) error {
-	if id <= 0 {
-		return invalidPeriod("calendar period ID is required")
-	}
-	return m.engine.RemoveCalendarPeriod(ctx, id)
-}
-
-func (m *Module) EnsureDefaultSchoolYear(ctx context.Context) ([]CalendarPeriod, bool, error) {
-	return m.engine.EnsureDefaultSchoolYear(ctx)
-}
-
 // ListActiveOverlaps is advisory only: callers attach the result as a
 // warning, never as a save blocker. Inactive periods cannot collide with
 // anything, so the store round-trip is skipped for them.
-func (m *Module) ListActiveOverlaps(ctx context.Context, period CalendarPeriod) ([]CalendarPeriod, error) {
-	if !period.IsActive {
-		return nil, nil
-	}
-	return m.ListCalendarPeriods(ctx, CalendarPeriodFilter{
-		ActiveOnly: true, OverlappingFrom: period.StartDate, OverlappingTo: period.EndDate, ExcludeID: period.ID,
-	})
-}

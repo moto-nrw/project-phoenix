@@ -15,7 +15,7 @@ import (
 	"github.com/go-chi/render"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // FormSchemaResponse is the wire shape returned to admin UIs. The id is
@@ -157,7 +157,7 @@ func (rs *Resource) getSchemaPreviewBootstrap(w http.ResponseWriter, r *http.Req
 			}
 			schema = loaded
 		}
-		list, listErr := rs.PhaseService.AllPhases(ctx)
+		list, listErr := rs.PhaseService.Phases(ctx)
 		phases = list
 		return listErr
 	})
@@ -414,7 +414,7 @@ func (rs *Resource) publishSchema(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	if claims.ID <= 0 {
 		common.RenderError(w, r, common.ErrorUnauthorized(errors.New("missing actor")))
 		return
@@ -467,7 +467,7 @@ func (rs *Resource) updateSchema(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	if claims.ID <= 0 {
 		common.RenderError(w, r, common.ErrorUnauthorized(errors.New("missing actor")))
 		return

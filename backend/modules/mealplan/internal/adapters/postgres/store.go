@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/modules/mealplan"
+
 	"github.com/moto-nrw/project-phoenix/modules/mealplan/internal/domain"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
 )
 
@@ -17,17 +19,19 @@ type Store struct{ database Database }
 type row struct {
 	bun.BaseModel `bun:"table:meal_plan_entries,alias:meal_plan_entry"`
 	TenantID      int64         `bun:"tenant_id"`
-	Date          timezone.Date `bun:"date,type:date"`
+	Date          calendar.Date `bun:"date,type:date"`
 	Position      int           `bun:"position"`
 	Dish          string        `bun:"dish"`
 	Note          *string       `bun:"note"`
+	// nullzero: an unset list inserts the column default, the empty list.
+	Allergens []string `bun:"allergens,array,nullzero"`
 }
 
 type participationScheduleRow struct {
 	bun.BaseModel `bun:"table:meal_participation_schedules,alias:meal_participation_schedule"`
 	TenantID      int64         `bun:"tenant_id"`
 	StudentID     int64         `bun:"student_id"`
-	EffectiveFrom timezone.Date `bun:"effective_from,type:date"`
+	EffectiveFrom calendar.Date `bun:"effective_from,type:date"`
 	Monday        bool          `bun:"monday"`
 	Tuesday       bool          `bun:"tuesday"`
 	Wednesday     bool          `bun:"wednesday"`
@@ -40,7 +44,7 @@ type participationOverrideRow struct {
 	bun.BaseModel `bun:"table:meal_participation_overrides,alias:meal_participation_override"`
 	TenantID      int64         `bun:"tenant_id"`
 	StudentID     int64         `bun:"student_id"`
-	Date          timezone.Date `bun:"date,type:date"`
+	Date          calendar.Date `bun:"date,type:date"`
 	Participating bool          `bun:"participating"`
 	ChangedBy     int64         `bun:"changed_by_account_id"`
 }
@@ -48,7 +52,7 @@ type participationOverrideRow struct {
 type sickDayRow struct {
 	ID         int64         `bun:"id"`
 	StudentID  int64         `bun:"student_id"`
-	Date       timezone.Date `bun:"date,type:date"`
+	Date       calendar.Date `bun:"date,type:date"`
 	ChangedAt  time.Time     `bun:"changed_at"`
 	ReportedAt time.Time     `bun:"reported_at"`
 	ClearedAt  *time.Time    `bun:"cleared_at"`
@@ -81,12 +85,12 @@ func (s *Store) FindWeek(ctx context.Context, start, end domain.Date) ([]domain.
 	}
 	entries := make([]domain.Entry, 0, len(rows))
 	for _, value := range rows {
-		entries = append(entries, domain.Entry{Date: value.Date, Position: value.Position, Dish: value.Dish, Note: value.Note})
+		entries = append(entries, domain.Entry{Date: value.Date, Position: value.Position, Dish: value.Dish, Note: value.Note, Allergens: value.Allergens})
 	}
 	return entries, stats, nil
 }
 
-func (s *Store) ReplaceDay(ctx context.Context, date domain.Date, dishes []domain.Dish) (domain.OperationStats, error) {
+func (s *Store) ReplaceDay(ctx context.Context, date domain.Date, dishes []mealplan.Dish) (domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err
@@ -97,7 +101,11 @@ func (s *Store) ReplaceDay(ctx context.Context, date domain.Date, dishes []domai
 	}
 	rows := make([]row, 0, len(dishes))
 	for position, dish := range dishes {
-		rows = append(rows, row{TenantID: tenantID, Date: date, Position: position, Dish: dish.Dish, Note: dish.Note})
+		allergens := make([]string, 0, len(dish.Allergens))
+		for _, allergen := range dish.Allergens {
+			allergens = append(allergens, string(allergen))
+		}
+		rows = append(rows, row{TenantID: tenantID, Date: date, Position: position, Dish: dish.Dish, Note: dish.Note, Allergens: allergens})
 	}
 	query := db.NewInsert().Model(&rows).ModelTableExpr(`schedule.meal_plan_entries`)
 	started := time.Now()
@@ -193,20 +201,7 @@ func (s *Store) FindParticipation(ctx context.Context, studentID int64, start, e
 		return domain.ParticipationData{}, stats, fmt.Errorf("meal plan postgres: find sick days: %w", err)
 	}
 
-	data := domain.ParticipationData{
-		Schedules: make([]domain.ParticipationSchedule, 0, len(schedules)),
-		Overrides: make([]domain.DayOverride, 0, len(overrides)),
-		SickDays:  make([]domain.SickDay, 0, len(sickDays)),
-	}
-	for _, schedule := range schedules {
-		data.Schedules = append(data.Schedules, domain.ParticipationSchedule{EffectiveFrom: schedule.EffectiveFrom, Weekdays: weekdaysFromRow(schedule)})
-	}
-	for _, override := range overrides {
-		data.Overrides = append(data.Overrides, domain.DayOverride{Date: override.Date, Participating: override.Participating})
-	}
-	for _, sick := range sickDays {
-		data.SickDays = append(data.SickDays, domain.SickDay{ID: sick.ID, Date: sick.Date, ChangedAt: sick.ChangedAt, ReportedAt: sick.ReportedAt, ClearedAt: sick.ClearedAt})
-	}
+	data := participationValues(schedules, overrides, sickDays)
 	return data, stats, nil
 }
 
@@ -341,35 +336,8 @@ func (s *Store) FindDailyParticipation(ctx context.Context, studentIDs []int64, 
 		states[override.StudentID] = state
 	}
 
-	var sickDays []sickDayRow
-	if err := timedQuery(&stats, func() error {
-		return db.NewSelect().Model(&sickDays).
-			ModelTableExpr(`schedule.meal_sickness_status_history AS "sickness_history"`).
-			ColumnExpr(`"sickness_history".id`).
-			ColumnExpr(`"sickness_history".student_id`).
-			ColumnExpr(`"sickness_history".date`).
-			ColumnExpr(`"sickness_history".changed_at`).
-			ColumnExpr(`"sickness_history".reported_at`).
-			ColumnExpr(`"sickness_history".cleared_at`).
-			DistinctOn(`"sickness_history".student_id`).
-			Where(`"sickness_history".tenant_id = ?`, tenantID).
-			Where(`"sickness_history".student_id IN (?)`, bun.List(studentIDs)).
-			Where(`"sickness_history".date = ?`, date).
-			Where(`"sickness_history".changed_at <= ?`, cutoff).
-			OrderExpr(`"sickness_history".student_id ASC`).
-			OrderExpr(`"sickness_history".changed_at DESC`).
-			OrderExpr(`"sickness_history".id DESC`).
-			Scan(ctx)
-	}); err != nil {
-		return nil, stats, fmt.Errorf("meal plan postgres: find daily sickness history: %w", err)
-	}
-	stats.Rows += int64(len(sickDays))
-	for _, sickDay := range sickDays {
-		state := states[sickDay.StudentID]
-		reportedAt := sickDay.ReportedAt
-		state.SickReportedAt = &reportedAt
-		state.SickClearedAt = sickDay.ClearedAt
-		states[sickDay.StudentID] = state
+	if err := loadDailySickness(ctx, db, tenantID, studentIDs, date, cutoff, states, &stats); err != nil {
+		return nil, stats, err
 	}
 	return states, stats, nil
 }
@@ -408,4 +376,56 @@ func timedQuery(stats *domain.OperationStats, query func() error) error {
 	stats.Queries++
 	stats.StatementDuration += time.Since(started)
 	return err
+}
+
+func participationValues(schedules []participationScheduleRow, overrides []participationOverrideRow, sickDays []sickDayRow) domain.ParticipationData {
+	data := domain.ParticipationData{
+		Schedules: make([]domain.ParticipationSchedule, 0, len(schedules)),
+		Overrides: make([]domain.DayOverride, 0, len(overrides)),
+		SickDays:  make([]domain.SickDay, 0, len(sickDays)),
+	}
+	for _, schedule := range schedules {
+		data.Schedules = append(data.Schedules, domain.ParticipationSchedule{EffectiveFrom: schedule.EffectiveFrom, Weekdays: weekdaysFromRow(schedule)})
+	}
+	for _, override := range overrides {
+		data.Overrides = append(data.Overrides, domain.DayOverride{Date: override.Date, Participating: override.Participating})
+	}
+	for _, sick := range sickDays {
+		data.SickDays = append(data.SickDays, domain.SickDay{ID: sick.ID, Date: sick.Date, ChangedAt: sick.ChangedAt, ReportedAt: sick.ReportedAt, ClearedAt: sick.ClearedAt})
+	}
+	return data
+}
+
+func loadDailySickness(ctx context.Context, db bun.IDB, tenantID int64, studentIDs []int64, date domain.Date, cutoff time.Time, states map[int64]domain.DailyParticipation, stats *domain.OperationStats) error {
+	var sickDays []sickDayRow
+	if err := timedQuery(stats, func() error {
+		return db.NewSelect().Model(&sickDays).
+			ModelTableExpr(`schedule.meal_sickness_status_history AS "sickness_history"`).
+			ColumnExpr(`"sickness_history".id`).
+			ColumnExpr(`"sickness_history".student_id`).
+			ColumnExpr(`"sickness_history".date`).
+			ColumnExpr(`"sickness_history".changed_at`).
+			ColumnExpr(`"sickness_history".reported_at`).
+			ColumnExpr(`"sickness_history".cleared_at`).
+			DistinctOn(`"sickness_history".student_id`).
+			Where(`"sickness_history".tenant_id = ?`, tenantID).
+			Where(`"sickness_history".student_id IN (?)`, bun.List(studentIDs)).
+			Where(`"sickness_history".date = ?`, date).
+			Where(`"sickness_history".changed_at <= ?`, cutoff).
+			OrderExpr(`"sickness_history".student_id ASC`).
+			OrderExpr(`"sickness_history".changed_at DESC`).
+			OrderExpr(`"sickness_history".id DESC`).
+			Scan(ctx)
+	}); err != nil {
+		return fmt.Errorf("meal plan postgres: find daily sickness history: %w", err)
+	}
+	stats.Rows += int64(len(sickDays))
+	for _, sickDay := range sickDays {
+		state := states[sickDay.StudentID]
+		reportedAt := sickDay.ReportedAt
+		state.SickReportedAt = &reportedAt
+		state.SickClearedAt = sickDay.ClearedAt
+		states[sickDay.StudentID] = state
+	}
+	return nil
 }

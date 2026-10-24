@@ -4,28 +4,29 @@ import (
 	"context"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/communication"
 	"github.com/moto-nrw/project-phoenix/modules/communication/internal/domain"
 )
 
 type Store interface {
-	Create(context.Context, domain.Announcement) (domain.Announcement, domain.OperationStats, error)
-	Get(context.Context, int64) (domain.Announcement, domain.OperationStats, error)
-	GetForMutation(context.Context, int64) (domain.Announcement, domain.OperationStats, error)
-	Update(context.Context, domain.Announcement) (domain.Announcement, domain.OperationStats, error)
+	Create(context.Context, communication.Announcement) (communication.Announcement, domain.OperationStats, error)
+	Get(context.Context, int64) (communication.Announcement, domain.OperationStats, error)
+	GetForMutation(context.Context, int64) (communication.Announcement, domain.OperationStats, error)
+	Update(context.Context, communication.Announcement) (communication.Announcement, domain.OperationStats, error)
 	Delete(context.Context, int64) (domain.OperationStats, error)
-	List(context.Context, bool) ([]domain.Announcement, domain.OperationStats, error)
+	List(context.Context, bool) ([]communication.Announcement, domain.OperationStats, error)
 	Publish(context.Context, int64) (domain.OperationStats, error)
 	Unpublish(context.Context, int64) (domain.OperationStats, error)
 	MarkSeen(context.Context, int64, int64) (domain.OperationStats, error)
 	MarkDismissed(context.Context, int64, int64) (domain.OperationStats, error)
-	ViewStats(context.Context, int64) (domain.AnnouncementStats, domain.OperationStats, error)
+	ViewStats(context.Context, int64) (communication.AnnouncementStats, domain.OperationStats, error)
 }
 
 type Audience interface {
-	Unread(context.Context, int64, []string, int64, int64) ([]domain.Announcement, domain.OperationStats, error)
+	Unread(context.Context, int64, []string, int64, int64) ([]communication.Announcement, domain.OperationStats, error)
 	CountUnread(context.Context, int64, []string, int64, int64) (int, domain.OperationStats, error)
-	TargetCount(context.Context, domain.Announcement) (int, domain.OperationStats, error)
-	ViewDetails(context.Context, int64) ([]domain.AnnouncementViewDetail, domain.OperationStats, error)
+	TargetCount(context.Context, communication.Announcement) (int, domain.OperationStats, error)
+	ViewDetails(context.Context, int64) ([]communication.AnnouncementViewDetail, domain.OperationStats, error)
 }
 
 type Targets interface {
@@ -42,6 +43,7 @@ type Audit interface {
 }
 
 type Transaction interface {
+	HasTransaction(context.Context) bool
 	RunAdmin(context.Context, func(context.Context) error) error
 }
 

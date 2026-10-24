@@ -12,6 +12,10 @@ import { loadShotList, selectShots } from "./shot-list";
 //   SHOT_OUT   Ausgabeverzeichnis (wird ersetzt)
 //   SHOT_VERSION  Versionsname im Manifest, Standard "lokal"
 
+// Der vollständige Lauf fotografiert und rahmt alle Gerätevarianten. Auf
+// CI benötigt schon die Aufnahme rund elf Minuten; die Rahmung kommt dazu.
+test.describe.configure({ timeout: 30 * 60_000 });
+
 test("Produkt-Screenshots erzeugen", async () => {
   const ids = (process.env.SHOT_IDS ?? "")
     .split(",")

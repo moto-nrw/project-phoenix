@@ -1,20 +1,14 @@
 // components/dashboard/sidebar.tsx
 "use client";
 
-import {
-  Fragment,
-  Suspense,
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import { Fragment, Suspense, useCallback, useEffect, useMemo } from "react";
 import { NavLink } from "~/components/ui/nav-link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { normalizeTenantPathname, useTenantAwarePath } from "~/lib/tenant-path";
 import {
   useAttendanceLogEnabled,
+  useChildSearchOnlyNavigation,
   useStaffMessagingEnabled,
   useDisplayEnabled,
   useNFCEnabled,
@@ -27,17 +21,23 @@ import {
 import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
 import { useOptionalSupervision } from "~/lib/supervision-context";
-import type { SupervisedRoom } from "~/lib/supervision-derive";
+import {
+  isSharedOpenRoom,
+  type SupervisedRoom,
+} from "~/lib/supervision-derive";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import { isDemoBannerShown } from "~/components/demo/demo-banner";
 import { useDemoEveningActive } from "~/components/demo/demo-evening-notice";
 import {
+  canReadSupervisionData,
   hasEffectiveAdminScope,
   hasPermission,
   hasRole,
   isCaregiver,
   leadsSchool,
 } from "~/lib/auth-utils";
+import { STUDENT_READ_PERMISSIONS } from "~/lib/student-access";
+import { canOpenActiveSupervision } from "~/lib/active-supervision-access";
 import { canReviewGuardianApprovals } from "~/lib/guardian-approval-access";
 import { useCareWithdrawalsPending } from "~/lib/hooks/use-care-withdrawals-pending";
 import { useChangeRequestAccess } from "~/lib/hooks/use-change-request-access";
@@ -48,10 +48,11 @@ import { useSidebarCollapsed } from "~/lib/hooks/use-sidebar-collapsed";
 import { useSidebarCollapseTransition } from "~/lib/hooks/use-sidebar-collapse-transition";
 import { useLocalStorageValue } from "~/lib/hooks/use-local-storage-value";
 import {
-  LAST_GROUP_SECTION_STORAGE_KEY,
-  OGS_GROUP_SECTION_LABELS,
-  ogsGroupSectionOf,
-} from "~/lib/ogs-group-sections";
+  isOwnGroup,
+  OGS_GROUPS_LABEL,
+  OGS_GROUPS_OVERVIEW_PATH,
+  ogsGroupHref,
+} from "~/lib/ogs-groups-navigation";
 import { useStaffAbsencesPending } from "~/lib/hooks/use-staff-absences-pending";
 import { useMessagesUnread } from "~/lib/hooks/use-messages-unread";
 import { useStaffMessagesUnread } from "~/lib/hooks/use-staff-messages-unread";
@@ -162,31 +163,37 @@ const NAV_ITEMS: NavItem[] = [
     hideForAdmin: true,
   },
   {
+    // Alle Kinder liest das Schülerverzeichnis: users:read oder, für die
+    // Rolle „Gast“, students:read (ADR 0091). Ohne beides, etwa als
+    // AG-Leitung, wäre der Eintrag eine Sackgasse.
     ...STAFF_FLAT_PAGES.studentSearch,
     icon: navigationIcons.userSingle,
     concept: "children",
-    alwaysShow: true,
+    requiresPermission: STUDENT_READ_PERMISSIONS,
   },
   {
     ...STAFF_FLAT_PAGES.activities,
     icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2",
     concept: "activities",
     activeColor: "text-moto-coral",
-    alwaysShow: true,
+    // Dasselbe Recht wie GET /api/activities (#4573, AG-Leitung).
+    requiresPermission: ["activities:list", "activities:read"],
   },
   {
     ...STAFF_FLAT_PAGES.rooms,
     icon: navigationIcons.rooms,
     concept: "rooms",
     activeColor: "text-moto-navy",
-    alwaysShow: true,
+    // Dasselbe Recht wie GET /api/rooms (#4573, AG-Leitung).
+    requiresPermission: "rooms:read",
   },
   {
     ...STAFF_FLAT_PAGES.staff,
     concept: "staff",
     icon: "M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2",
     activeColor: "text-moto-orange",
-    alwaysShow: true,
+    // Dasselbe Recht wie GET /api/staff (#4573, AG-Leitung).
+    requiresPermission: ["users:read", "staff:manage", "staff:stammdaten"],
   },
   {
     ...STAFF_FLAT_PAGES.calendar,
@@ -204,6 +211,8 @@ const NAV_ITEMS: NavItem[] = [
     icon: "M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15",
     concept: "groupAccess",
     activeColor: "text-moto-purple",
+    // Die Seite öffnet nur mit substitutions:read (#4573, AG-Leitung).
+    requiresPermission: "substitutions:read",
   },
   {
     ...STAFF_FLAT_PAGES.infoDisplays,
@@ -216,7 +225,9 @@ const NAV_ITEMS: NavItem[] = [
     ...STAFF_FLAT_PAGES.timeTracking,
     icon: "M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0Z",
     concept: "timeTracking",
-    alwaysShow: true,
+    // Die eigene Zeiterfassung liest das Backend nur mit time_tracking:own;
+    // externe Kräfte (#4573) erfassen keine Arbeitszeit.
+    requiresPermission: "time_tracking:own",
   },
   {
     // Eigener Dienstplan (#3821): die Route liest nur über time_tracking:own.
@@ -271,7 +282,9 @@ const NAV_ITEMS: NavItem[] = [
     icon: navigationIcons.emergency,
     concept: "emergency",
     activeColor: "text-moto-wine",
-    alwaysShow: true,
+    // Die Notfallliste exportiert das Backend nur mit users:read (#4573,
+    // AG-Leitung).
+    requiresPermission: "users:read",
     bottomPinned: true,
   },
   {
@@ -466,6 +479,8 @@ function isGroupSubItemActive(
 ): boolean {
   if (childGroupId) return childGroupId === groupId;
   if (!pathname.startsWith("/ogs-groups")) return false;
+  // Auf der Auswahlseite ist keine einzelne Gruppe geöffnet (#4351).
+  if (pathname.startsWith(OGS_GROUPS_OVERVIEW_PATH)) return false;
   if (currentGroupParam) return currentGroupParam === groupId;
   return index === 0;
 }
@@ -536,8 +551,8 @@ function asideClasses(collapsed: boolean, className: string): string {
   } ${SIDEBAR_WIDTH_TRANSITION} ${className}`;
 }
 
-// Der klebende Innenbereich beginnt unter der Kopfzeile (48px + 1px Rand,
-// #2827) plus 8px Luft und trägt dieselbe Breite und dieselbe Bewegung wie
+// Der klebende Innenbereich beginnt unter der Kopfzeile (ab lg 64px + 1px Rand,
+// #4345) plus 8px Luft und trägt dieselbe Breite und dieselbe Bewegung wie
 // die Hülle.
 //
 // Mitarbeiter-Vorschau (#2893): der feste Hinweisstreifen (h-12 = 48px)
@@ -552,10 +567,10 @@ function stickyClasses(
   eveningRow = false,
 ): string {
   const offset = eveningRow
-    ? "top-[137px] h-[calc(100vh-137px)]"
+    ? "top-[153px] h-[calc(100vh-153px)]"
     : stripActive
-      ? "top-[105px] h-[calc(100vh-105px)]"
-      : "top-[57px] h-[calc(100vh-57px)]";
+      ? "top-[121px] h-[calc(100vh-121px)]"
+      : "top-[73px] h-[calc(100vh-73px)]";
   return `sticky ${offset} flex flex-col ${
     collapsed ? SIDEBAR_WIDTH_COLLAPSED : SIDEBAR_WIDTH_EXPANDED
   } ${SIDEBAR_WIDTH_TRANSITION}`;
@@ -659,6 +674,7 @@ function SidebarContent({
   const userIsAdmin = hasRole(session, "admin");
   const userHasEffectiveAdminScope = hasEffectiveAdminScope(session);
   const userIsCaregiver = isCaregiver(session);
+  const canReadSupervisions = canReadSupervisionData(session);
   // Leitung der Einrichtung: Adminzuschnitt oder config:manage, das Recht
   // hinter Anmeldungen und Einstellungen (#3469). Entscheidet über die
   // Anmeldungen und die Rolle der Hilfe, nicht über einzelne Rechte.
@@ -733,6 +749,9 @@ function SidebarContent({
   // festen Gruppen sinnvoll; bei offener Betreuung arbeiten ohnehin alle
   // Berechtigten mit allen Kindern.
   const openCareGroupMode = useOpenCareGroupMode();
+  // Kinder nur über „Alle Kinder“ (#1321): Gruppen und Aktuelle
+  // Aufsicht verlassen die Leiste und stehen dort als Reiter.
+  const childSearchOnlyNavigation = useChildSearchOnlyNavigation();
 
   // Die Adresse hinter dem Eintrag `Hilfe` ganz unten, mit dem Kontext der
   // Sitzung. Die mobile Navigation holt sie aus demselben Hook (#3575).
@@ -773,7 +792,9 @@ function SidebarContent({
       PARENT_SUB_PAGES.filter((page) => {
         switch (page.feature) {
           case "messages":
-            return true;
+            // Elternnachrichten verlangen users:read (#4573: nicht für
+            // die AG-Leitung).
+            return userIsAdmin || hasPermission(session, "users:read");
           case "approvals":
             // Lesen users:manage, Entscheiden users:update (#3469).
             return canReviewGuardianApprovals(session);
@@ -863,6 +884,16 @@ function SidebarContent({
   // Helper to determine active href for student detail pages based on referrer
   const getStudentDetailActiveHref = (from: string | null): string => {
     if (!from) return "/students/search";
+    // Gruppen- und Aufsichtsseiten bleiben als Arbeitsseiten erreichbar,
+    // teilen sich bei eingeschalteter Navigation aber den sichtbaren
+    // Einstieg „Alle Kinder“ – auch nach dem Öffnen einer Kindakte.
+    if (
+      childSearchOnlyNavigation &&
+      (from.startsWith("/ogs-groups") ||
+        from.startsWith("/active-supervisions"))
+    ) {
+      return "/students/search";
+    }
     if (from.startsWith("/ogs-groups")) return "/ogs-groups";
     if (from.startsWith("/active-supervisions")) return "/active-supervisions";
     if (from.startsWith("/day-log")) return "/day-log";
@@ -925,6 +956,15 @@ function SidebarContent({
     return null;
   };
 
+  // Ein offener Raum ohne eigene Aufsicht, geöffnet über seine Raumseite,
+  // gehört in der Navigation zu „Räume“, nicht zu „Aktuelle Aufsicht“ (#4372).
+  const isViewingSharedOpenRoom =
+    pathname.startsWith("/active-supervisions") &&
+    isSharedOpenRoom(supervisedRooms, {
+      roomId: searchParams.get("room"),
+      sessionId: searchParams.get("session"),
+    });
+
   // Check if a navigation link should be highlighted as active
   const isActiveLink = (href: string) => {
     if (objectRouteActiveHref !== null) {
@@ -935,6 +975,17 @@ function SidebarContent({
       return href === operatorDrillInHref;
     }
     if (href === "/home") return pathname === "/home";
+    if (isViewingSharedOpenRoom) return href === STAFF_FLAT_PAGES.rooms.href;
+    // Ohne eigene Einträge gehören Gruppen- und Aufsichtsseite zu „Alle
+    // Kinder“, von wo aus sie geöffnet werden (#1321).
+    if (
+      href === STAFF_FLAT_PAGES.studentSearch.href &&
+      childSearchOnlyNavigation &&
+      (pathname.startsWith("/ogs-groups") ||
+        pathname.startsWith("/active-supervisions"))
+    ) {
+      return true;
+    }
     if (href === "/parents") return pathname === "/parents" || pathname === "/";
     // Planungsseiten zählen mit ihren Alt-Pfaden (/timetables,
     // /staff/dienstplan, /vertretungsplan), damit ein alter Link die richtige
@@ -1193,22 +1244,9 @@ function SidebarContent({
   const currentGroupParam = searchParams.get("group");
   const currentRoomParam = searchParams.get("room");
   const currentSessionParam = searchParams.get("session");
-  const personalGroups = useMemo(
-    () => groups.filter((group) => group.is_personal !== false),
-    [groups],
-  );
-  const otherGroups = useMemo(
-    () => groups.filter((group) => group.is_personal === false),
-    [groups],
-  );
-  // `null` heißt: der Unterbereich richtet sich nach der geöffneten Gruppe.
-  // Ein Klick setzt ihn auf `true`/`false` und übersteuert die Auswahl damit.
-  // Ohne diese Übersteuerung hielte eine geöffnete fremde Gruppe "Weitere
-  // Gruppen" dauerhaft offen — "Meine Gruppen" ließe sich dann gar nicht mehr
-  // aufklappen, auch nicht über das Icon im eingeklappten Streifen (#2923).
-  const [otherGroupsExpanded, setOtherGroupsExpanded] = useState<
-    boolean | null
-  >(null);
+  // Unter „Gruppen“ stehen nur die eigenen Gruppen; alle übrigen erreicht
+  // man über die Auswahlseite (#4351).
+  const personalGroups = useMemo(() => groups.filter(isOwnGroup), [groups]);
 
   // On child pages (e.g. student detail with ?from=/ogs-groups), determine
   // which sub-item should stay highlighted using the last selection from localStorage.
@@ -1219,13 +1257,6 @@ function SidebarContent({
     "sidebar-last-group",
     childFromParam?.startsWith("/ogs-groups") ?? false,
   );
-  const hasSelectedOtherGroup = otherGroups.some(
-    (group) =>
-      group.id.toString() === currentGroupParam ||
-      group.id.toString() === childGroupId,
-  );
-  const areOtherGroupsExpanded =
-    expanded === "groups" && (otherGroupsExpanded ?? hasSelectedOtherGroup);
   const childRoomId = useLocalStorageValue(
     "sidebar-last-room",
     childFromParam?.startsWith("/active-supervisions") ?? false,
@@ -1234,40 +1265,17 @@ function SidebarContent({
     "supervision-last-session",
     childFromParam?.startsWith("/active-supervisions") ?? false,
   );
-  // Offene Räume (#3065) stehen wie "Weitere Gruppen" in einem eigenen
-  // Bereich unter der eigenen Aufsicht: für alle erreichbar, aber nicht die
-  // eigene Aufsicht. `null` heißt wie dort: richtet sich nach dem geöffneten
-  // Raum, ein Klick übersteuert.
-  const ownSupervisedRooms = useMemo(
-    () => supervisedRooms.filter((room) => !room.isOpenRoom),
+  // „Aktuelle Aufsicht“ zeigt nur laufende Aufsichten: eigene, mit der
+  // Schulübersicht auch fremde. Ein offener Raum (#3065) steht hier nur, wenn
+  // die Person dort selbst Aufsicht führt (#4349). Alle anderen offenen Räume
+  // erreicht sie über „Räume“, wo sie oben stehen (#4372).
+  const supervisionNavRooms = useMemo(
+    () =>
+      supervisedRooms.filter(
+        (room) => !room.isOpenRoom || room.isOwnSupervision,
+      ),
     [supervisedRooms],
   );
-  const openSupervisedRooms = useMemo(
-    () => supervisedRooms.filter((room) => room.isOpenRoom),
-    [supervisedRooms],
-  );
-  const [openRoomsExpanded, setOpenRoomsExpanded] = useState<boolean | null>(
-    null,
-  );
-  const hasSelectedOpenRoom = openSupervisedRooms.some(
-    (room) =>
-      room.id === currentRoomParam ||
-      room.id === childRoomId ||
-      (currentSessionParam !== null &&
-        (room.sessionIds?.includes(currentSessionParam) ?? false)),
-  );
-  const areOpenRoomsExpanded =
-    expanded === "supervisions" && (openRoomsExpanded ?? hasSelectedOpenRoom);
-
-  useEffect(() => {
-    if (expanded !== "groups") {
-      setOtherGroupsExpanded(null);
-    }
-    if (expanded !== "supervisions") {
-      setOpenRoomsExpanded(null);
-    }
-  }, [expanded]);
-
   // Persist last selected sub-item per accordion section to localStorage.
   // Pages read this on mount to restore the user's last selection.
   useEffect(() => {
@@ -1276,10 +1284,6 @@ function SidebarContent({
       const group = groups.find((g) => g.id.toString() === currentGroupParam);
       if (group) {
         localStorage.setItem("sidebar-last-group-name", group.name);
-        localStorage.setItem(
-          LAST_GROUP_SECTION_STORAGE_KEY,
-          ogsGroupSectionOf(group.is_personal),
-        );
       }
     }
   }, [pathname, currentGroupParam, groups]);
@@ -1307,64 +1311,66 @@ function SidebarContent({
 
   // Toggle accordion AND navigate to the correct URL (with last-selected sub-item).
   // Reads localStorage at click-time so the page loads with the right param immediately.
+  // „Gruppen“ führt auf die Auswahlseite (#4351), so wie die
+  // Datenverwaltung auf ihren Hub. Auf der Auswahlseite selbst klappt der
+  // Eintrag nur auf und zu; ebenso in der einzigen Gruppe, denn die
+  // Auswahlseite öffnet sie dann ohnehin wieder direkt.
   const handleGroupsToggle = useCallback(() => {
+    const onGroupsPage = pathname.startsWith("/ogs-groups");
     if (
-      expanded === "groups" &&
-      (otherGroupsExpanded ?? hasSelectedOtherGroup)
+      pathname.startsWith(OGS_GROUPS_OVERVIEW_PATH) ||
+      (onGroupsPage && groups.length <= 1)
     ) {
-      setOtherGroupsExpanded(false);
+      toggle("groups");
       return;
     }
-    toggle("groups");
-    if (!pathname.startsWith("/ogs-groups")) {
-      const savedGroupId = localStorage.getItem("sidebar-last-group");
-      const targetGroup = savedGroupId
-        ? personalGroups.find((g) => g.id.toString() === savedGroupId)
-        : personalGroups[0];
-      const groupId = targetGroup?.id ?? personalGroups[0]?.id;
-      if (groupId) {
-        router.push(`/ogs-groups?group=${groupId}`);
-      }
-    }
-  }, [
-    expanded,
-    hasSelectedOtherGroup,
-    otherGroupsExpanded,
-    pathname,
-    personalGroups,
-    router,
-    toggle,
-  ]);
+    if (!onGroupsPage) toggle("groups");
+    router.push(OGS_GROUPS_OVERVIEW_PATH);
+  }, [groups.length, pathname, router, toggle]);
 
   const handleSupervisionsToggle = useCallback(() => {
-    if (areOpenRoomsExpanded) {
-      setOpenRoomsExpanded(false);
-      return;
+    // Aus einem offenen Raum ohne eigene Aufsicht heraus führt der Eintrag
+    // in die eigene Aufsicht und bleibt dabei aufgeklappt.
+    if (!isViewingSharedOpenRoom || expanded !== "supervisions") {
+      toggle("supervisions");
     }
-    toggle("supervisions");
-    if (!pathname.startsWith("/active-supervisions")) {
+    if (
+      !pathname.startsWith("/active-supervisions") ||
+      isViewingSharedOpenRoom
+    ) {
       // Own supervisions use their session key (#2265). A saved session that
       // belongs to a released room instead identifies that room's shared view.
+      // Only entries listed under „Aktuelle Aufsicht“ qualify: a released room
+      // without an own supervision lives under „Räume“ (#4372).
       const savedSessionId = localStorage.getItem("supervision-last-session");
       const savedRoomId = localStorage.getItem("sidebar-last-room");
       const targetRoom =
         (savedSessionId
-          ? (supervisedRooms.find(
+          ? (supervisionNavRooms.find(
               (r) => !r.isOpenRoom && r.groupId === savedSessionId,
             ) ??
-            supervisedRooms.find((r) => r.sessionIds?.includes(savedSessionId)))
+            supervisionNavRooms.find((r) =>
+              r.sessionIds?.includes(savedSessionId),
+            ))
           : undefined) ??
         (savedRoomId
-          ? supervisedRooms.find((r) => r.id === savedRoomId)
+          ? supervisionNavRooms.find((r) => r.id === savedRoomId)
           : undefined) ??
-        supervisedRooms[0];
+        supervisionNavRooms[0];
       if (targetRoom) {
         router.push(supervisionHref(targetRoom));
       } else {
         router.push("/active-supervisions");
       }
     }
-  }, [areOpenRoomsExpanded, toggle, pathname, supervisedRooms, router]);
+  }, [
+    toggle,
+    expanded,
+    pathname,
+    isViewingSharedOpenRoom,
+    supervisionNavRooms,
+    router,
+  ]);
 
   const handleDatabaseToggle = useCallback(() => {
     // Die Leitung landet auf dem Hub. Delegierte Personen haben nur einen
@@ -1417,12 +1423,13 @@ function SidebarContent({
     }
   }, [toggle, pathname, router]);
 
-  // Caregivers see their own supervision. A successful overview request also
-  // covers effective admins and verified staff under all_staff (#2380).
+  // Everyone with group-read access sees own supervisions. A successful
+  // overview request also covers effective admins and verified staff under
+  // all_staff (#2380).
   // overviewEnabled keeps a released room (#3065) from opening the accordion:
   // it is reachable for everyone and grants no supervision, so it must not
   // stand for one when the school keeps everyone on their own supervisions.
-  const showStaffAccordions = userIsCaregiver || overviewEnabled;
+  const showStaffAccordions = canReadSupervisions || overviewEnabled;
   const showGroupAccordion = showStaffAccordions || userHasEffectiveAdminScope;
 
   // Resolve operator nav hrefs once (operatorPath is deterministic for the page lifetime)
@@ -1494,181 +1501,98 @@ function SidebarContent({
   }
 
   // Die vier Akkordeon-Bereiche, jeder als Zeile innerhalb seiner Gruppe
-  // (#2826). Meine Gruppen mit Weitere Gruppen darunter: tenant staff/admin,
-  // hidden in open-care mode.
+  // (#2826). Gruppen: tenant staff/admin, hidden in open-care mode. Ein
+  // Eintrag führt auf die Auswahlseite, darunter stehen die eigenen Gruppen
+  // (#4351).
   const renderGroupsSection = () =>
-    showGroupAccordion && !openCareGroupMode ? (
-      <>
-        <SidebarAccordionSection
-          icon={GROUP_NAV_ICON}
-          concept="groups"
-          label={OGS_GROUP_SECTION_LABELS.personal}
-          tourId="nav-section-groups"
-          activeColor="text-moto-green"
-          isExpanded={expanded === "groups" && !areOtherGroupsExpanded}
-          {...sectionProps("groups", handleGroupsToggle, () =>
-            // Das Icon im Streifen heißt "Meine Gruppen". Ohne diesen
-            // Rücksetzer öffnet es die Leiste im zuletzt gewählten
-            // Unterbereich "Weitere Gruppen" — die eigenen Gruppen
-            // blieben dann zu, obwohl man sie angeklickt hat.
-            setOtherGroupsExpanded(false),
-          )}
-          isActive={isAccordionSectionActive(
-            "/ogs-groups",
-            Boolean(currentGroupParam) ||
-              Boolean(childGroupId) ||
-              groups.length > 0,
-          )}
-          isIconActive={
-            pathname.startsWith("/ogs-groups") || Boolean(childGroupId)
-          }
-          isLoading={isLoadingGroups}
-          emptyText="Keine eigenen Gruppen"
-          hasChildren={personalGroups.length > 0}
-        >
-          {personalGroups.map((group, index) => (
-            <SidebarSubItem
-              key={group.id}
-              href={`/ogs-groups?group=${group.id}`}
-              label={group.name}
-              count={formatGroupAttendanceCount(group.id)}
-              isActive={isGroupSubItemActive(
-                childGroupId,
-                group.id.toString(),
-                pathname,
-                currentGroupParam,
-                index,
-              )}
-            />
-          ))}
-        </SidebarAccordionSection>
-        {/* "Weitere Gruppen" trägt dasselbe Icon wie "Meine Gruppen".
-                  Ausgeklappt trennen die Bezeichnungen die beiden Bereiche;
-                  im Streifen stünden zwei nicht unterscheidbare Icons
-                  untereinander, deshalb bleibt der zweite dort weg.
-                  Er verschwindet aber nicht schlagartig: für die Dauer der
-                  Bewegung bleibt der Bereich mit seinen offenen Unterpunkten
-                  stehen, blendet aus und zieht seine ganze Höhe mit derselben
-                  Kurve auf null wie die Breite der Leiste. Ohne das sprängen
-                  die Zeilen darunter im ersten Bild um die volle Höhe des
-                  offenen Bereichs hoch — genau der zweite Sprung, den dieser
-                  PR beseitigt. Beim Aufklappen läuft dieselbe Bewegung
-                  rückwärts: der Bereich wächst mit der Breite auf und wird
-                  erst dabei durch seine Bezeichnung unterscheidbar. */}
-        {otherGroups.length > 0 && (!collapsed || labelsMounted) && (
-          <div
-            aria-hidden={!labelsVisible}
-            className={`grid motion-safe:transition-[grid-template-rows,opacity] motion-safe:duration-200 motion-safe:ease-in-out ${
-              labelsVisible
-                ? "grid-rows-[1fr] opacity-100"
-                : "grid-rows-[0fr] opacity-0"
-            }`}
-          >
-            {/* inert: der ausblendende Bereich darf keinen
-                      Tastaturfokus mehr fangen. */}
-            <div className="overflow-hidden" inert={!labelsVisible}>
-              <SidebarAccordionSection
-                icon={GROUP_NAV_ICON}
-                concept="groups"
-                label={OGS_GROUP_SECTION_LABELS.other}
-                activeColor="text-moto-green"
-                isExpanded={areOtherGroupsExpanded}
-                collapsed={collapsed}
-                labelsMounted={labelsMounted}
-                labelsVisible={labelsVisible}
-                // Die Hülle darüber zieht die ganze Höhe des offenen
-                // Bereichs zusammen. Der Inhalt behält seine Höhe
-                // solange bei, sonst liefen zwei geschachtelte
-                // Höhenbewegungen und die Zeilen darunter bewegten sich
-                // zweimal (#2923).
-                keepBodyExpandedWhileCollapsing={labelsMounted}
-                onToggle={() => {
-                  // Aus dem Streifen heraus zuerst aufklappen: die
-                  // Untergruppen sind sonst nicht sichtbar.
-                  if (collapsed) onExpandSidebar();
-                  if (expanded !== "groups") {
-                    toggle("groups");
-                  }
-                  setOtherGroupsExpanded(
-                    (current) => !(current ?? hasSelectedOtherGroup),
-                  );
-                }}
-                isActive={isAccordionSectionActive(
-                  "/ogs-groups",
-                  Boolean(currentGroupParam) || Boolean(childGroupId),
-                )}
-                isIconActive={
-                  pathname.startsWith("/ogs-groups") || Boolean(childGroupId)
-                }
-                hasChildren
-              >
-                {otherGroups.map((group, index) => (
-                  <SidebarSubItem
-                    key={group.id}
-                    href={`/ogs-groups?group=${group.id}`}
-                    label={group.name}
-                    count={formatGroupAttendanceCount(group.id)}
-                    isActive={isGroupSubItemActive(
-                      childGroupId,
-                      group.id.toString(),
-                      pathname,
-                      currentGroupParam,
-                      personalGroups.length + index,
-                    )}
-                  />
-                ))}
-              </SidebarAccordionSection>
-            </div>
-          </div>
+    showGroupAccordion && !openCareGroupMode && !childSearchOnlyNavigation ? (
+      <SidebarAccordionSection
+        icon={GROUP_NAV_ICON}
+        concept="groups"
+        label={OGS_GROUPS_LABEL}
+        tourId="nav-section-groups"
+        activeColor="text-moto-green"
+        isExpanded={expanded === "groups"}
+        {...sectionProps("groups", handleGroupsToggle)}
+        isActive={isAccordionSectionActive(
+          "/ogs-groups",
+          Boolean(currentGroupParam) ||
+            Boolean(childGroupId) ||
+            groups.length > 0,
         )}
-      </>
+        isIconActive={
+          pathname.startsWith("/ogs-groups") || Boolean(childGroupId)
+        }
+        isLoading={isLoadingGroups}
+        emptyText="Keine eigenen Gruppen"
+        hasChildren={personalGroups.length > 0}
+      >
+        {personalGroups.map((group, index) => (
+          <SidebarSubItem
+            key={group.id}
+            href={ogsGroupHref(group.id)}
+            label={group.name}
+            count={formatGroupAttendanceCount(group.id)}
+            isActive={isGroupSubItemActive(
+              childGroupId,
+              group.id.toString(),
+              pathname,
+              currentGroupParam,
+              index,
+            )}
+          />
+        ))}
+      </SidebarAccordionSection>
     ) : null;
 
   // Aktuelle Aufsicht (staff only; hidden in binary mode because room-level
-  // supervision has no meaning without visits). Offene Räume darunter wie
-  // "Weitere Gruppen" unter "Meine Gruppen" (#3065).
+  // supervision has no meaning without visits). Offene Räume ohne eigene
+  // Aufsicht stehen unter „Räume“ (#4372). Mit `schedules:read` allein
+  // (#4573) zeigt die Seite die eigene laufende Aufsicht.
   const renderSupervisionsSection = () =>
-    showStaffAccordions && !isBinaryMode ? (
+    (overviewEnabled || canOpenActiveSupervision(session)) &&
+    !isBinaryMode &&
+    !childSearchOnlyNavigation ? (
       <>
         <SidebarAccordionSection
           icon={SUPERVISION_NAV_ICON}
           concept="supervision"
           label={
-            ownSupervisedRooms.length > 1
+            supervisionNavRooms.length > 1
               ? "Aktuelle Aufsichten"
               : "Aktuelle Aufsicht"
           }
           tourId="nav-section-supervisions"
           activeColor="text-moto-purple"
-          isExpanded={expanded === "supervisions" && !areOpenRoomsExpanded}
-          {...sectionProps("supervisions", handleSupervisionsToggle, () =>
-            // Das Icon im Streifen heißt "Aktuelle Aufsicht". Ohne diesen
-            // Rücksetzer öffnete es die Leiste im zuletzt gewählten
-            // Unterbereich "Offene Räume".
-            setOpenRoomsExpanded(false),
-          )}
-          isActive={isAccordionSectionActive(
-            "/active-supervisions",
-            Boolean(currentRoomParam) ||
-              Boolean(childRoomId) ||
-              supervisedRooms.length > 0,
-          )}
+          isExpanded={expanded === "supervisions"}
+          {...sectionProps("supervisions", handleSupervisionsToggle)}
+          isActive={
+            !isViewingSharedOpenRoom &&
+            isAccordionSectionActive(
+              "/active-supervisions",
+              Boolean(currentRoomParam) ||
+                Boolean(childRoomId) ||
+                supervisionNavRooms.length > 0,
+            )
+          }
           isIconActive={
-            pathname.startsWith("/active-supervisions") || Boolean(childRoomId)
+            !isViewingSharedOpenRoom &&
+            (pathname.startsWith("/active-supervisions") ||
+              Boolean(childRoomId))
           }
           isLoading={isLoadingSupervision}
           emptyText="Keine aktive Aufsicht"
-          hasChildren={ownSupervisedRooms.length > 0}
+          hasChildren={supervisionNavRooms.length > 0}
         >
-          {ownSupervisedRooms.map((room, index) => (
+          {supervisionNavRooms.map((room, index) => (
             <SidebarSubItem
-              key={`${room.id}-${room.groupId ?? index}`}
+              key={`${room.id}-${room.isOpenRoom ? "open" : room.groupId}`}
               href={supervisionHref(room)}
               label={room.name}
               isActive={isRoomSubItemActive(
                 childSessionId,
                 childRoomId,
-                room.groupId,
+                room.isOpenRoom ? null : room.groupId,
                 room.sessionIds ?? [],
                 room.id,
                 pathname,
@@ -1679,77 +1603,6 @@ function SidebarContent({
             />
           ))}
         </SidebarAccordionSection>
-        {/* Offene Räume sind ein Raum-Bereich, keine zweite eigene Aufsicht:
-            Das Tür-Icon trennt sie in der Navigation sichtbar von der
-            aktuellen Aufsicht. Im eingeklappten Streifen blendet der Bereich
-            wie „Weitere Gruppen“ aus und zieht seine Höhe auf null. */}
-        {openSupervisedRooms.length > 0 && (!collapsed || labelsMounted) && (
-          <div
-            aria-hidden={!labelsVisible}
-            className={`grid motion-safe:transition-[grid-template-rows,opacity] motion-safe:duration-200 motion-safe:ease-in-out ${
-              labelsVisible
-                ? "grid-rows-[1fr] opacity-100"
-                : "grid-rows-[0fr] opacity-0"
-            }`}
-          >
-            {/* inert: der ausblendende Bereich darf keinen
-                Tastaturfokus mehr fangen. */}
-            <div className="overflow-hidden" inert={!labelsVisible}>
-              <SidebarAccordionSection
-                icon={SUPERVISION_NAV_ICON}
-                concept="rooms"
-                label="Offene Räume"
-                activeColor="text-moto-purple"
-                isExpanded={areOpenRoomsExpanded}
-                collapsed={collapsed}
-                labelsMounted={labelsMounted}
-                labelsVisible={labelsVisible}
-                // Die Hülle darüber zieht die ganze Höhe zusammen; der Inhalt
-                // behält seine Höhe solange bei (#2923).
-                keepBodyExpandedWhileCollapsing={labelsMounted}
-                onToggle={() => {
-                  // Aus dem Streifen heraus zuerst aufklappen: die Räume
-                  // sind sonst nicht sichtbar.
-                  if (collapsed) onExpandSidebar();
-                  if (expanded !== "supervisions") {
-                    toggle("supervisions");
-                  }
-                  setOpenRoomsExpanded(
-                    (current) => !(current ?? hasSelectedOpenRoom),
-                  );
-                }}
-                isActive={isAccordionSectionActive(
-                  "/active-supervisions",
-                  hasSelectedOpenRoom,
-                )}
-                isIconActive={
-                  pathname.startsWith("/active-supervisions") ||
-                  Boolean(childRoomId)
-                }
-                hasChildren
-              >
-                {openSupervisedRooms.map((room, index) => (
-                  <SidebarSubItem
-                    key={`${room.id}-open`}
-                    href={supervisionHref(room)}
-                    label={room.name}
-                    isActive={isRoomSubItemActive(
-                      childSessionId,
-                      childRoomId,
-                      null,
-                      room.sessionIds ?? [],
-                      room.id,
-                      pathname,
-                      currentSessionParam,
-                      currentRoomParam,
-                      ownSupervisedRooms.length + index,
-                    )}
-                  />
-                ))}
-              </SidebarAccordionSection>
-            </div>
-          </div>
-        )}
       </>
     ) : null;
 
@@ -1958,7 +1811,7 @@ export function Sidebar({ className = "" }: SidebarProps) {
     <Suspense
       fallback={
         <aside className={asideClasses(collapsed, className)}>
-          <div className={`sticky top-[57px] ${SIDEBAR_NAV_PADDING}`}>
+          <div className={`sticky top-[73px] ${SIDEBAR_NAV_PADDING}`}>
             {/* Platzhalter im selben Raster wie die fertigen Zeilen: 40px
                 hoch, Icon an derselben Stelle — der Wechsel vom Platzhalter
                 zur Navigation verschiebt nichts. */}

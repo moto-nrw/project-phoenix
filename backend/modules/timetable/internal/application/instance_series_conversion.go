@@ -1,0 +1,126 @@
+package application
+
+import (
+	"context"
+	"errors"
+	"fmt"
+
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	scheduleModel "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
+	"github.com/moto-nrw/project-phoenix/tenant"
+)
+
+type instanceSeriesConversion struct {
+	deps ports.InstanceSeriesConversionDependencies
+}
+
+// NewInstanceSeriesConversion composes the conversion of a one-off
+// occurrence into a series.
+func NewInstanceSeriesConversion(deps ports.InstanceSeriesConversionDependencies) (timetable.InstanceSeriesConversion, error) {
+	if deps.Transactions == nil || noInstanceRows(deps.InstanceRepo) || deps.Lifecycle == nil || deps.Templates == nil || deps.RecurrenceLock == nil {
+		return nil, errors.New("timetable instance series conversion: required dependency is nil")
+	}
+	return &instanceSeriesConversion{deps: deps}, nil
+}
+
+// ConvertInstanceToSeries creates the template and links the pre-existing
+// occurrence in one tenant transaction. The recurrence lock serializes it
+// with template writes and materialization; a second concurrent conversion
+// observes the committed link and cannot create another template.
+func (s *instanceSeriesConversion) ConvertInstanceToSeries(ctx context.Context, in timetable.ConvertInstanceToSeriesInput) (*timetable.ConvertInstanceToSeriesResult, error) {
+	if in.InstanceID <= 0 {
+		return nil, fmt.Errorf("convert instance to series: instance id must be positive")
+	}
+	if in.Template.ScheduleValidFrom == nil || in.Template.ScheduleValidFrom.IsZero() {
+		return nil, fmt.Errorf("convert instance to series: start date is required")
+	}
+	if in.Template.CalendarPeriodID == nil || *in.Template.CalendarPeriodID <= 0 {
+		return nil, fmt.Errorf("convert instance to series: calendar period is required")
+	}
+	tenantID := tenant.FromContext(ctx)
+	if tenantID <= 0 {
+		return nil, fmt.Errorf("convert instance to series: no tenant in context")
+	}
+	var result timetable.ConvertInstanceToSeriesResult
+	err := inTenant(ctx, s.deps.Transactions, tenantID, func(txCtx context.Context) error {
+		var err error
+		result, err = s.convertLocked(txCtx, in)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (s *instanceSeriesConversion) convertLocked(ctx context.Context, in timetable.ConvertInstanceToSeriesInput) (timetable.ConvertInstanceToSeriesResult, error) {
+	var none timetable.ConvertInstanceToSeriesResult
+	if err := s.deps.RecurrenceLock.LockRecurrenceWrites(ctx); err != nil {
+		return none, &ports.ScheduleError{Op: "convert instance to series: lock recurrence", Err: err}
+	}
+	instance, err := s.convertibleInstance(ctx, in.InstanceID)
+	if err != nil {
+		return none, err
+	}
+	created, err := s.deps.Templates.CreateTemplate(ctx, in.Template)
+	if err != nil {
+		return none, err
+	}
+	date := *in.Template.ScheduleValidFrom
+	assignments, err := s.deps.Templates.TemplateAssignmentsOn(ctx, created.TemplateID, date, *in.Template.CalendarPeriodID)
+	if err != nil {
+		return none, err
+	}
+	templateID := created.TemplateID
+	// The calendar period stamps the materializer marker, so the seed is
+	// visible to the template-backed reads (reconcile, offering resync,
+	// primary-staff alignment) and the period-scoped roster predicates.
+	if _, err := s.deps.Lifecycle.UpdatePlanned(ctx, in.InstanceID, timetable.UpdateInstanceInput{
+		Date:             date,
+		StartTime:        in.Template.StartTime,
+		EndTime:          in.Template.EndTime,
+		Title:            in.Template.Name,
+		Description:      instance.Description,
+		Notes:            in.InstanceNotes,
+		RoomID:           in.Template.RoomID,
+		ActivityGroupID:  &templateID,
+		CalendarPeriodID: in.Template.CalendarPeriodID,
+		ListKind:         in.Template.ListKind,
+		StaffIDs:         assignments.StaffIDs,
+		StudentIDs:       assignments.StudentIDs,
+		RequiredStaff:    nil,
+	}, in.ActorAccountID); err != nil {
+		return none, err
+	}
+	// The edit keeps occurrence-specific staff metadata; align the planned
+	// rows with the template once more so a newly chosen Hauptbetreuung is
+	// primary on the seed as well.
+	if err := s.deps.Templates.AlignPlannedInstanceStaff(ctx, templateID, assignments.StaffIDs, date); err != nil {
+		return none, err
+	}
+	return timetable.ConvertInstanceToSeriesResult{
+		TemplateID:       created.TemplateID,
+		TimeframeID:      created.TimeframeID,
+		ScheduleIDs:      created.ScheduleIDs,
+		LinkedInstanceID: in.InstanceID,
+	}, nil
+}
+
+func (s *instanceSeriesConversion) convertibleInstance(ctx context.Context, instanceID int64) (*scheduleModel.ActivityInstance, error) {
+	instance, err := findLegacyInstance(ctx, s.deps.InstanceRepo.Reads, instanceID)
+	if errors.Is(err, transactionruntime.ErrNoRows) || instance == nil {
+		return nil, timetable.ErrInstanceNotFound
+	}
+	if err != nil {
+		return nil, &ports.ScheduleError{Op: "convert instance to series: load instance", Err: err}
+	}
+	if instance.Status != scheduleModel.InstanceStatusPlanned {
+		return nil, fmt.Errorf("%w: cannot convert instance in status %q", timetable.ErrInvalidInstanceTransition, instance.Status)
+	}
+	if instance.ActivityGroupID != nil {
+		return nil, timetable.ErrInstanceAlreadyInSeries
+	}
+	return instance, nil
+}

@@ -5,6 +5,7 @@
 // explicit second confirmation before applying.
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { ApiError } from "~/lib/api-error";
 import { Button } from "~/components/ui/button";
 import {
   FormErrorAlert,
@@ -25,7 +26,6 @@ import { createLogger } from "~/lib/logger";
 import {
   applyGradeTransition,
   PREVIEW_STALE_CODE,
-  TransitionRequestError,
   previewGradeTransition,
   type GradeTransition,
   type TransitionPreview,
@@ -136,13 +136,10 @@ export function TransitionPreviewModal({
       // Vorschau wird neu geladen, damit über den aktuellen Stand entschieden
       // wird (#405).
       void showApplyError(error, {
-        object: "das Anwenden des Jahrgangswechsels",
+        object: "das Anwenden des Schuljahreswechsels",
         retry: () => latestApplyRef.current(),
       });
-      if (
-        error instanceof TransitionRequestError &&
-        error.code === PREVIEW_STALE_CODE
-      ) {
+      if (error instanceof ApiError && error.code === PREVIEW_STALE_CODE) {
         await reloadPreview();
       }
       setApplying(false);
@@ -168,7 +165,7 @@ export function TransitionPreviewModal({
         <SlideOverContent widthClass="sm:w-[760px]">
           <SlideOverHeader className="flex-row items-start justify-between gap-3">
             <div className="min-w-0">
-              <SlideOverTitle>{`Vorschau: Jahrgangswechsel ${transition.academicYear}`}</SlideOverTitle>
+              <SlideOverTitle>{`Vorschau: Schuljahreswechsel ${transition.academicYear}`}</SlideOverTitle>
             </div>
             <SlideOverCloseButton />
           </SlideOverHeader>
@@ -283,7 +280,7 @@ export function TransitionPreviewModal({
                 onClick={() => setConfirmOpen(true)}
                 disabled={!preview || applying}
               >
-                Jahrgangswechsel anwenden
+                Schuljahreswechsel anwenden
               </Button>
             )}
           </SlideOverFooter>
@@ -301,7 +298,7 @@ export function TransitionPreviewModal({
         isDismissDisabled={applying}
       >
         <p>
-          Der Jahrgangswechsel {transition.academicYear} wird jetzt für alle
+          Der Schuljahreswechsel {transition.academicYear} wird jetzt für alle
           betroffenen Kinder durchgeführt.
           {preview && preview.toGraduate > 0 && (
             <>

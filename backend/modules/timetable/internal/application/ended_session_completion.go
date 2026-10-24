@@ -1,0 +1,185 @@
+package application
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"time"
+
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+)
+
+// Completion of blocks whose live session somebody else ended (#1747, #3424
+// slice S5): the nightly session end, the force-start path that kicks a
+// running session off a device or an activity, and the kiosk's "Sitzung
+// beenden". A path that only flips the instance status would leave every
+// expected row behind — an absence nobody recorded and a non-booking nobody
+// wrote down, on a day that is over and that no later path revisits.
+//
+// Session-end completions stay outside the five-minute reopen window; the
+// planner and operations Complete path owns recovery snapshots and the
+// planned-end gate.
+
+type endedSessionCompletion struct {
+	deps ports.EndedSessionCompletionDependencies
+}
+
+// NewEndedSessionCompletion composes the Timetable owner's completion of
+// blocks behind ended live sessions.
+func NewEndedSessionCompletion(deps ports.EndedSessionCompletionDependencies) (timetable.EndedSessionCompletion, error) {
+	if noInstanceRows(deps.Instances) || noParticipantRows(deps.Participants) {
+		return nil, errors.New("ended session completion: instances and participants are required")
+	}
+	return &endedSessionCompletion{deps: deps}, nil
+}
+
+// CompleteActiveByActiveGroupIDs finalizes attendance, then completes the
+// blocks. The bulk absent update only matches blocks that still run, so it
+// has to precede the completion.
+func (c *endedSessionCompletion) CompleteActiveByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, completedAt time.Time) (int64, error) {
+	if len(activeGroupIDs) == 0 {
+		return 0, nil
+	}
+	notScheduled, err := c.notScheduledForEndedSessions(ctx, activeGroupIDs)
+	if err != nil {
+		return 0, err
+	}
+	// Stamp the non-booking marker before sparing those rows the absence:
+	// the spared rows must carry the reason themselves, or later writers of
+	// `status` cannot tell them from ordinary expected rows (#1747 review).
+	if err := markParticipantsNotScheduled(ctx, c.deps.Participants, notScheduled); err != nil {
+		return 0, fmt.Errorf("complete bridged instances: mark not scheduled: %w", err)
+	}
+	if err := markExpectedAbsentBySessions(ctx, c.deps.Participants.Presence, activeGroupIDs, completedAt, notScheduled); err != nil {
+		return 0, fmt.Errorf("complete bridged instances: mark absent: %w", err)
+	}
+	completed, err := completeSessionInstances(ctx, c.deps.Instances.Sessions, activeGroupIDs, completedAt)
+	if err != nil {
+		return 0, err
+	}
+	if completed == 0 {
+		return 0, nil
+	}
+	if err := c.recordSpontaneousEnds(ctx, activeGroupIDs, completedAt); err != nil {
+		return 0, err
+	}
+	return completed, nil
+}
+
+// recordSpontaneousEnds gives the spontaneous blocks behind the ended
+// sessions their real end (#3921). Kiosk sessions end here, by the kiosk,
+// the timeout or the nightly close, and their mirrored block's end is only
+// the placeholder hour the mirror wrote.
+func (c *endedSessionCompletion) recordSpontaneousEnds(ctx context.Context, activeGroupIDs []int64, completedAt time.Time) error {
+	instances, err := listLegacyInstances(ctx, c.deps.Instances.Reads, ports.LegacyInstanceFilter{ActiveGroupIDs: activeGroupIDs}, "list with options")
+	if err != nil {
+		return fmt.Errorf("complete bridged instances: load spontaneous blocks: %w", err)
+	}
+	for _, instance := range instances {
+		end, ok := SpontaneousCompletionEnd(instance, completedAt)
+		if !ok {
+			continue
+		}
+		instance.EndTime = end
+		if _, err := updateLegacyInstanceColumns(ctx, c.deps.Instances, instance, "end_time"); err != nil {
+			return fmt.Errorf("complete bridged instances: record spontaneous end: %w", err)
+		}
+	}
+	return nil
+}
+
+// notScheduledForEndedSessions collects the (instance, student) pairs whose
+// child the care plan does not book at all on that instance's date. An
+// explicitly cancelled day is deliberately not in here: it is a reported
+// absence and still gets written. The exclusions are per instance on
+// purpose: one run can close blocks of several dates, and a child not booked
+// on one date may be expected on another. Without a care-day port the list
+// stays empty, which keeps the blanket absence stamp.
+func (c *endedSessionCompletion) notScheduledForEndedSessions(ctx context.Context, activeGroupIDs []int64) ([]scheduleModels.StudentInstanceRef, error) {
+	if c.deps.CareDays == nil {
+		return nil, nil
+	}
+	datesByInstance, err := c.endedInstanceDates(ctx, activeGroupIDs)
+	if err != nil || len(datesByInstance) == 0 {
+		return nil, err
+	}
+	instanceIDs := make([]int64, 0, len(datesByInstance))
+	for instanceID := range datesByInstance {
+		instanceIDs = append(instanceIDs, instanceID)
+	}
+	// Not just the 'expected' rows: a broad day status (sick / excused /
+	// class trip) is reported before anything knows whether the child was
+	// booked, so an unbooked child can already sit here as 'absent' with the
+	// status day owning the row. Ending the block resolves that, and
+	// MarkNotScheduled only undoes the false absence on rows this read
+	// returns (#1747 review).
+	rows, err := notScheduledCandidatesOf(ctx, c.deps.Participants.Reads, instanceIDs)
+	if err != nil {
+		return nil, fmt.Errorf("complete bridged instances: load candidate students: %w", err)
+	}
+	window, ok := coveringCareDayWindow(rows, datesByInstance)
+	if !ok {
+		return nil, nil
+	}
+	// Sessions can straddle midnight, so the blocks may span two dates. One
+	// range read over the covering window resolves every (student, date)
+	// pair at the cost of a single date.
+	careDays, err := c.deps.CareDays.ResolveForRange(ctx, window.studentIDs, window.from, window.to)
+	if err != nil {
+		return nil, fmt.Errorf("complete bridged instances: resolve care days: %s..%s: %w", window.from, window.to, err)
+	}
+	exclusions := make([]scheduleModels.StudentInstanceRef, 0)
+	for _, row := range rows {
+		date, ok := datesByInstance[row.InstanceID]
+		if ok && c.deps.CareDays.ExemptFromAbsence(careDays[row.StudentID][date]) {
+			exclusions = append(exclusions, scheduleModels.StudentInstanceRef{StudentID: row.StudentID, InstanceID: row.InstanceID})
+		}
+	}
+	return exclusions, nil
+}
+
+// endedInstanceDates maps each block bridged to one of the sessions to its
+// date.
+func (c *endedSessionCompletion) endedInstanceDates(ctx context.Context, activeGroupIDs []int64) (map[int64]calendar.Date, error) {
+	instances, err := listLegacyInstances(ctx, c.deps.Instances.Reads, ports.LegacyInstanceFilter{ActiveGroupIDs: activeGroupIDs}, "list with options")
+	if err != nil {
+		return nil, fmt.Errorf("complete bridged instances: load instances: %w", err)
+	}
+	dates := make(map[int64]calendar.Date, len(instances))
+	for _, instance := range instances {
+		dates[instance.ID] = calendar.Date(instance.Date)
+	}
+	return dates, nil
+}
+
+// careDayWindow is the inclusive date window and the distinct children one
+// care-day read covers.
+type careDayWindow struct {
+	from, to   calendar.Date
+	studentIDs []int64
+}
+
+func coveringCareDayWindow(rows []*scheduleModels.InstanceStudent, datesByInstance map[int64]calendar.Date) (careDayWindow, bool) {
+	var window careDayWindow
+	seen := make(map[int64]bool, len(rows))
+	for _, row := range rows {
+		date, ok := datesByInstance[row.InstanceID]
+		if !ok {
+			continue
+		}
+		if len(window.studentIDs) == 0 || date.Before(window.from) {
+			window.from = date
+		}
+		if len(window.studentIDs) == 0 || date.After(window.to) {
+			window.to = date
+		}
+		if !seen[row.StudentID] {
+			seen[row.StudentID] = true
+			window.studentIDs = append(window.studentIDs, row.StudentID)
+		}
+	}
+	return window, len(window.studentIDs) > 0
+}

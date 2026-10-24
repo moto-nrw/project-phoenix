@@ -38,8 +38,10 @@ describe("GET /api/operator/billing/key-date-counts/export", () => {
 
     expect(response.status).toBe(503);
     await expect(response.json()).resolves.toEqual({
-      status: "error",
-      error: "Export proxy failed",
+      type: "about:blank",
+      title: "Service Unavailable",
+      status: 503,
+      detail: "Service Unavailable",
       code: "general.unavailable",
     });
   });
@@ -55,8 +57,10 @@ describe("GET /api/operator/billing/key-date-counts/export", () => {
 
     expect(response.status).toBe(503);
     await expect(response.json()).resolves.toEqual({
-      status: "error",
-      error: "Export proxy failed",
+      type: "about:blank",
+      title: "Service Unavailable",
+      status: 503,
+      detail: "Service Unavailable",
       code: "general.unavailable",
     });
   });

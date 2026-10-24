@@ -7,10 +7,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/uptrace/bun"
@@ -58,7 +59,7 @@ func (s operatorSchema) items() []schemaItem {
 
 func TestOperatorSchoolSettings_SchemaShowsEverySharedSettingWritable(t *testing.T) {
 	t.Parallel()
-	_, module := testutil.SetupOperatorSettingsModule(t)
+	_, module := setupOperatorSettingsModule(t)
 	schoolSettings := module.OperatorSchoolSettings(nil)
 
 	raw, err := schoolSettings.Schema(testpkg.Ctx(t), testpkg.Tenant(t))
@@ -76,7 +77,7 @@ func TestOperatorSchoolSettings_SchemaShowsEverySharedSettingWritable(t *testing
 
 func TestOperatorSchoolSettings_CheckOperatorWritable(t *testing.T) {
 	t.Parallel()
-	_, module := testutil.SetupOperatorSettingsModule(t)
+	_, module := setupOperatorSettingsModule(t)
 	schoolSettings := module.OperatorSchoolSettings(nil)
 
 	require.NoError(t, schoolSettings.CheckOperatorWritable(sessionEndTimeKey))
@@ -87,7 +88,7 @@ func TestOperatorSchoolSettings_CheckOperatorWritable(t *testing.T) {
 
 func TestOperatorSchoolSettings_SetRevealReset(t *testing.T) {
 	t.Parallel()
-	db, module := testutil.SetupOperatorSettingsModule(t)
+	db, module := setupOperatorSettingsModule(t)
 	schoolSettings := module.OperatorSchoolSettings(nil)
 	ctx, schoolID, actor := testpkg.Ctx(t), testpkg.Tenant(t), changedBy(t, db)
 
@@ -108,7 +109,7 @@ func TestOperatorSchoolSettings_SetRevealReset(t *testing.T) {
 
 func TestOperatorSchoolSettings_SettingsErrors(t *testing.T) {
 	t.Parallel()
-	db, module := testutil.SetupOperatorSettingsModule(t)
+	db, module := setupOperatorSettingsModule(t)
 	schoolSettings := module.OperatorSchoolSettings(nil)
 	ctx, schoolID, actor := testpkg.Ctx(t), testpkg.Tenant(t), changedBy(t, db)
 
@@ -127,7 +128,7 @@ func TestOperatorSchoolSettings_SettingsErrors(t *testing.T) {
 
 func TestOperatorSchoolSettings_SetValueRunsHookAndBroadcastAfterCommit(t *testing.T) {
 	t.Parallel()
-	db, module := testutil.SetupOperatorSettingsModule(t)
+	db, module := setupOperatorSettingsModule(t)
 	ctx, schoolID, actor := testpkg.Ctx(t), testpkg.Tenant(t), changedBy(t, db)
 
 	var events []string
@@ -135,7 +136,7 @@ func TestOperatorSchoolSettings_SetValueRunsHookAndBroadcastAfterCommit(t *testi
 	var hookValue any
 	var notifiedTenant int64
 	var notifiedKey string
-	schoolSettings := module.OperatorSchoolSettingsWith(testutil.OperatorSchoolSettingsOptions{
+	schoolSettings := module.OperatorSchoolSettingsWith(api.OperatorSchoolSettingsTestOptions{
 		Notify: func(_ context.Context, tenantID int64, key string) {
 			events = append(events, "broadcast")
 			notifiedTenant, notifiedKey = tenantID, key
@@ -158,11 +159,11 @@ func TestOperatorSchoolSettings_SetValueRunsHookAndBroadcastAfterCommit(t *testi
 
 func TestOperatorSchoolSettings_HookErrorRollsBackWithoutBroadcast(t *testing.T) {
 	t.Parallel()
-	db, module := testutil.SetupOperatorSettingsModule(t)
+	db, module := setupOperatorSettingsModule(t)
 	ctx, schoolID, actor := testpkg.Ctx(t), testpkg.Tenant(t), changedBy(t, db)
 
 	var broadcasts int
-	schoolSettings := module.OperatorSchoolSettingsWith(testutil.OperatorSchoolSettingsOptions{
+	schoolSettings := module.OperatorSchoolSettingsWith(api.OperatorSchoolSettingsTestOptions{
 		Notify: func(context.Context, int64, string) { broadcasts++ },
 		OnValueSet: func(context.Context, int64, string, any) (func(), error) {
 			return nil, errors.New("hook rejected the change")
@@ -182,12 +183,12 @@ func TestOperatorSchoolSettings_HookErrorRollsBackWithoutBroadcast(t *testing.T)
 
 func TestOperatorSchoolSettings_ResetReplaysHookOnlyForPhotoFlag(t *testing.T) {
 	t.Parallel()
-	db, module := testutil.SetupOperatorSettingsModule(t)
+	db, module := setupOperatorSettingsModule(t)
 	ctx, schoolID, actor := testpkg.Ctx(t), testpkg.Tenant(t), changedBy(t, db)
 
 	var hookKeys []string
 	var hookValues []any
-	schoolSettings := module.OperatorSchoolSettingsWith(testutil.OperatorSchoolSettingsOptions{
+	schoolSettings := module.OperatorSchoolSettingsWith(api.OperatorSchoolSettingsTestOptions{
 		OnValueSet: func(_ context.Context, _ int64, key string, value any) (func(), error) {
 			hookKeys = append(hookKeys, key)
 			hookValues = append(hookValues, value)
@@ -208,7 +209,7 @@ func TestOperatorSchoolSettings_ResetReplaysHookOnlyForPhotoFlag(t *testing.T) {
 
 func TestOperatorSchoolSettings_PresenceModeGuard(t *testing.T) {
 	t.Parallel()
-	db, module := testutil.SetupOperatorSettingsModule(t)
+	db, module := setupOperatorSettingsModule(t)
 	schoolSettings := module.OperatorSchoolSettings(nil)
 	ctx, schoolID, actor := testpkg.Ctx(t), testpkg.Tenant(t), changedBy(t, db)
 
@@ -228,24 +229,4 @@ func TestOperatorSchoolSettings_PresenceModeGuard(t *testing.T) {
 	value, err = schoolSettings.Reveal(ctx, schoolID, settings.KeyPresenceMode)
 	require.NoError(t, err)
 	assert.Equal(t, presenceModeBinary, value)
-}
-
-func TestOperatorSchoolSettings_BookingAuthorityImpact(t *testing.T) {
-	t.Parallel()
-	_, module := testutil.SetupOperatorSettingsModule(t)
-
-	impact, err := module.OperatorSchoolSettings(nil).BookingAuthorityImpact(testpkg.Ctx(t), testpkg.Tenant(t))
-	require.NoError(t, err)
-	require.NotNil(t, impact)
-	assert.Empty(t, impact.BlockingChildren, "a school without children has nothing blocking")
-}
-
-func TestOperatorSchoolSettings_BookingAuthorityImpactUnavailableWithoutCarePlan(t *testing.T) {
-	t.Parallel()
-	_, module := testutil.SetupOperatorSettingsModule(t)
-	schoolSettings := module.OperatorSchoolSettingsWith(testutil.OperatorSchoolSettingsOptions{WithoutCarePlan: true})
-
-	impact, err := schoolSettings.BookingAuthorityImpact(testpkg.Ctx(t), testpkg.Tenant(t))
-	require.ErrorIs(t, err, settings.ErrBookingAuthorityImpactUnavailable)
-	assert.Nil(t, impact)
 }

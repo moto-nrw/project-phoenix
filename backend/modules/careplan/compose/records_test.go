@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	postgresNative "github.com/moto-nrw/project-phoenix/modules/careplan/internal/adapters/postgres"
+	careplanPorts "github.com/moto-nrw/project-phoenix/modules/careplan/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -17,11 +19,11 @@ import (
 )
 
 type recordingStudentNames struct {
-	values []StudentName
+	values []careplanPorts.StudentName
 	calls  int
 }
 
-func (p *recordingStudentNames) ListStudentNamesByID(context.Context, []int64) ([]StudentName, error) {
+func (p *recordingStudentNames) ListStudentNamesByID(context.Context, []int64) ([]careplanPorts.StudentName, error) {
 	p.calls++
 	return p.values, nil
 }
@@ -32,13 +34,14 @@ func TestCompanionFacadePreservesNamesIsolationAndQueryCount(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	first := testpkg.CreateTestStudent(t, db, "Erstes", "Kind", "1a")
 	second := testpkg.CreateTestStudent(t, db, "Zweites", "Kind", "1a")
-	people := &recordingStudentNames{values: []StudentName{{
+	people := &recordingStudentNames{values: []careplanPorts.StudentName{{
 		StudentID: second.ID, FirstName: "Zweites", LastName: "Kind",
 	}}}
 	var observations []Observation
 	module, err := New(Dependencies{
-		DB: db, Observe: func(value Observation) { observations = append(observations, value) },
-		AmbientDB: func(context.Context) bun.IDB { return db }, People: people,
+		StudentDirectory: testpkg.StudentDirectory{},
+		DB:               db, Observe: func(value Observation) { observations = append(observations, value) },
+		AmbientDB: postgresNative.TenantAmbientDatabase(db), People: people,
 		StatusStudents: emptyPeopleDirectory{}, StatusSlots: emptyStatusSlots{},
 		StudentLock:     func(context.Context, int64) error { return nil },
 		StudentNotFound: errors.New("student not found"),
@@ -169,7 +172,7 @@ func TestCareScheduleDuplicateConflictIsObserved(t *testing.T) {
 	assert.Error(t, observations[1].Err)
 }
 
-func seedNamedCarePlanTables(t *testing.T, module *careplan.Module, ctx context.Context, studentID, companionID, staffID, accountID int64) {
+func seedNamedCarePlanTables(t *testing.T, module careplan.Owner, ctx context.Context, studentID, companionID, staffID, accountID int64) {
 	t.Helper()
 	enrollmentID := studentID + 1_000_000
 	require.NoError(t, module.UpsertCareExit(ctx, careplan.CareExit{StudentID: studentID, Reason: careplan.CareExitReasonMovedAway}))
@@ -220,7 +223,7 @@ func seedNamedCarePlanTables(t *testing.T, module *careplan.Module, ctx context.
 func assertNamedCarePlanTableCounts(t *testing.T, db *bun.DB, ctx context.Context, tenantID int64) {
 	t.Helper()
 	err := tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
-		scoped, activeTenantID, databaseErr := carePlanDatabase(db)(txCtx)
+		scoped, activeTenantID, databaseErr := postgresNative.CarePlanDatabase(db)(txCtx)
 		require.NoError(t, databaseErr)
 		assert.Equal(t, tenantID, activeTenantID)
 		for _, table := range []string{
@@ -352,7 +355,7 @@ func TestCareRecordCommandsRollBackAndRetry(t *testing.T) {
 	t.Run("care document and cleanup intent", func(t *testing.T) { testCareDocumentRollbackAndRetry(t, db, module, ctx) })
 }
 
-func testCareExitRollbackAndRetry(t *testing.T, db *bun.DB, module *careplan.Module, ctx context.Context) {
+func testCareExitRollbackAndRetry(t *testing.T, db *bun.DB, module careplan.Owner, ctx context.Context) {
 	student := testpkg.CreateTestStudent(t, db, "Exit", "Rollback", "1a")
 	assertRollbackAndRetry(t, ctx,
 		func(commandCtx context.Context) error {
@@ -366,7 +369,7 @@ func testCareExitRollbackAndRetry(t *testing.T, db *bun.DB, module *careplan.Mod
 	)
 }
 
-func testCompanionRollbackAndRetry(t *testing.T, db *bun.DB, module *careplan.Module, ctx context.Context) {
+func testCompanionRollbackAndRetry(t *testing.T, db *bun.DB, module careplan.Owner, ctx context.Context) {
 	first := testpkg.CreateTestStudent(t, db, "Companion", "Rollback", "1a")
 	second := testpkg.CreateTestStudent(t, db, "Companion", "Retry", "1a")
 	assertRollbackAndRetry(t, ctx,
@@ -383,7 +386,7 @@ func testCompanionRollbackAndRetry(t *testing.T, db *bun.DB, module *careplan.Mo
 	)
 }
 
-func testRemovalLedgersRollbackAndRetry(t *testing.T, db *bun.DB, module *careplan.Module, ctx context.Context) {
+func testRemovalLedgersRollbackAndRetry(t *testing.T, db *bun.DB, module careplan.Owner, ctx context.Context) {
 	student := testpkg.CreateTestStudent(t, db, "Ledger", "Rollback", "1a")
 	enrollmentID := student.ID + 1_000_000
 	assertRollbackAndRetry(t, ctx,
@@ -402,7 +405,7 @@ func testRemovalLedgersRollbackAndRetry(t *testing.T, db *bun.DB, module *carepl
 	)
 }
 
-func removalLedgersPresent(t *testing.T, module *careplan.Module, ctx context.Context, studentID int64) bool {
+func removalLedgersPresent(t *testing.T, module careplan.Owner, ctx context.Context, studentID int64) bool {
 	removals, err := module.ListCareExitRemovals(ctx, []int64{studentID})
 	require.NoError(t, err)
 	sources, err := module.ListCareExitSourceRemovals(ctx, []int64{studentID})
@@ -410,7 +413,7 @@ func removalLedgersPresent(t *testing.T, module *careplan.Module, ctx context.Co
 	return len(removals) == 1 && len(sources) == 1
 }
 
-func testCareDocumentRollbackAndRetry(t *testing.T, db *bun.DB, module *careplan.Module, ctx context.Context) {
+func testCareDocumentRollbackAndRetry(t *testing.T, db *bun.DB, module careplan.Owner, ctx context.Context) {
 	student := testpkg.CreateTestStudent(t, db, "Document", "Rollback", "1a")
 	filename := fmt.Sprintf("care-record-rollback-%d.pdf", student.ID)
 	assertRollbackAndRetry(t, ctx,
@@ -432,7 +435,7 @@ func testCareDocumentRollbackAndRetry(t *testing.T, db *bun.DB, module *careplan
 	)
 }
 
-func careDocumentRecordsPresent(t *testing.T, module *careplan.Module, ctx context.Context, studentID int64) bool {
+func careDocumentRecordsPresent(t *testing.T, module careplan.Owner, ctx context.Context, studentID int64) bool {
 	values, err := module.ListCareDocuments(ctx, studentID, []string{"attest"})
 	require.NoError(t, err)
 	cleanups, err := module.ListCareDocumentCleanups(ctx, &studentID)
@@ -456,4 +459,37 @@ func assertRollbackAndRetry(
 	assert.False(t, present(ctx), "the forced failure must roll back every write")
 	require.NoError(t, command(ctx))
 	assert.True(t, present(ctx), "the retry must apply the command once")
+}
+
+func TestCarePlanReadsRequireSchoolAndStoresRequireExistingTransaction(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildModule(t, db)
+	ctx := testpkg.WithTenantRuntime(t, context.Background(), db)
+	reads := []func() error{
+		func() error { _, err := module.FindCareExits(ctx, []int64{1}); return err },
+		func() error { _, err := module.ListCompanionEdges(ctx, 1); return err },
+		func() error {
+			_, err := module.ListStudentStatusDays(ctx, careplan.StudentStatusDayFilter{})
+			return err
+		},
+		func() error {
+			_, err := module.ListExcusedAbsenceRequests(ctx, careplan.ExcusedAbsenceRequestFilter{})
+			return err
+		},
+		func() error { _, err := module.ListArrivalSchedules(ctx, careplan.StudentScheduleFilter{}); return err },
+		func() error {
+			_, err := module.ListArrivalExceptions(ctx, careplan.StudentScheduleFilter{})
+			return err
+		},
+		func() error { _, err := module.ListArrivalNotes(ctx, careplan.StudentScheduleFilter{}); return err },
+		func() error { _, err := module.ListPickupSchedules(ctx, careplan.StudentScheduleFilter{}); return err },
+		func() error { _, err := module.ListPickupExceptions(ctx, careplan.StudentScheduleFilter{}); return err },
+		func() error { _, err := module.ListPickupNotes(ctx, careplan.StudentScheduleFilter{}); return err },
+	}
+	for _, read := range reads {
+		require.Error(t, read())
+	}
+	_, _, err := postgresNative.CarePlanDatabase(db)(tenant.WithTenantID(ctx, testpkg.Tenant(t)))
+	require.ErrorContains(t, err, "transaction is required")
 }

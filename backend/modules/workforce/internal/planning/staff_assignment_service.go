@@ -7,8 +7,8 @@ import (
 	"slices"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // StaffAssignment is one Betreuungsplan block a staff member is planned into on
@@ -25,7 +25,7 @@ type StaffAssignment struct {
 	// instance with no template.
 	GroupName *string
 	RoomName  string
-	Date      timezone.Date
+	Date      calendar.Date
 	// StartTime/EndTime are wall-clock (TIME columns), normalized for the caller.
 	StartTime time.Time
 	EndTime   time.Time
@@ -53,7 +53,7 @@ type StaffAssignmentService interface {
 	// ListAssignmentsForStaff returns the staff member's own activity-instance
 	// assignments in [from, to], enriched with room and activity names and the
 	// Vertretungsplan flags, ordered by date then start time.
-	ListAssignmentsForStaff(ctx context.Context, staffID int64, from, to timezone.Date) ([]*StaffAssignment, error)
+	ListAssignmentsForStaff(ctx context.Context, staffID int64, from, to calendar.Date) ([]*StaffAssignment, error)
 }
 
 // StaffAssignmentDependencies wires the narrow reads behind the service.
@@ -78,7 +78,7 @@ func (s *staffAssignmentService) getLogger() *slog.Logger {
 	return loggerOrDefault(s.logger)
 }
 
-func (s *staffAssignmentService) ListAssignmentsForStaff(ctx context.Context, staffID int64, from, to timezone.Date) ([]*StaffAssignment, error) {
+func (s *staffAssignmentService) ListAssignmentsForStaff(ctx context.Context, staffID int64, from, to calendar.Date) ([]*StaffAssignment, error) {
 	if staffID <= 0 {
 		return nil, fmt.Errorf("%w: staff ID is required", ErrShiftInvalid)
 	}
@@ -156,8 +156,8 @@ func staffAssignmentFor(row *timetable.InstanceStaff, inst *timetable.ScheduledI
 		GroupName:       groupNameFor(inst.ActivityGroupID, groupNames),
 		RoomName:        roomNames[roomID],
 		Date:            inst.Date,
-		StartTime:       timezone.NormalizeWallClock(inst.StartTime),
-		EndTime:         timezone.NormalizeWallClock(inst.EndTime),
+		StartTime:       calendar.NormalizeWallClock(inst.StartTime),
+		EndTime:         calendar.NormalizeWallClock(inst.EndTime),
 		Status:          inst.Status,
 		IsSpontaneous:   inst.IsSpontaneous,
 		Cancelled:       inst.Status == timetable.InstanceStatusCancelled,
@@ -189,16 +189,12 @@ func (s *staffAssignmentService) resolveRoomNames(ctx context.Context, rows []*t
 	for id := range idSet {
 		ids = append(ids, id)
 	}
-	names := make(map[int64]string, len(ids))
 	if len(ids) == 0 {
-		return names, nil
+		return make(map[int64]string), nil
 	}
-	rooms, err := s.deps.RoomRepo.FindByIDs(ctx, ids)
+	names, err := s.deps.RoomRepo.RoomNamesByID(ctx, ids)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve room names for staff assignments: %w", err)
-	}
-	for _, room := range rooms {
-		names[room.ID] = room.Name
 	}
 	return names, nil
 }

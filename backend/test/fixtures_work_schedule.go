@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
@@ -24,7 +24,7 @@ type StaffWorkScheduleFixture struct {
 // target minutes of one weekday (ISO: 0=Monday … 6=Sunday), valid from
 // validFrom onwards with no rotation. Callers that need a whole week create
 // one row per weekday.
-func CreateTestStaffWorkScheduleForTenant(tb testing.TB, db *bun.DB, tenantID, staffID int64, dayOfWeek, targetMinutes int, validFrom timezone.Date) *StaffWorkScheduleFixture {
+func CreateTestStaffWorkScheduleForTenant(tb testing.TB, db *bun.DB, tenantID, staffID int64, dayOfWeek, targetMinutes int, validFrom calendar.Date) *StaffWorkScheduleFixture {
 	tb.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -52,4 +52,24 @@ func SetStaffWorkScheduleTargetMinutes(tb testing.TB, db *bun.DB, ctx context.Co
 		targetMinutes, scheduleID,
 	).Exec(ctx)
 	require.NoError(tb, err, "Failed to change test staff work schedule target")
+}
+
+// OwnTestWorkTimeModel registers teardown for a work-time model that a
+// production path created. config.work_time_model_entries has no tenant of its
+// own and only goes away with its model, so the package clone cannot dispose
+// of it; staff profiles that point at the model are detached first.
+func OwnTestWorkTimeModel(tb testing.TB, db *bun.DB, modelID int64) {
+	tb.Helper()
+	tb.Cleanup(func() {
+		ctx := context.Background()
+		_, err := db.NewUpdate().TableExpr("users.staff_employment_profiles").
+			Set("work_time_model_id = NULL").
+			Where("work_time_model_id = ?", modelID).
+			Exec(ctx)
+		require.NoError(tb, err)
+		_, err = db.NewDelete().TableExpr("config.work_time_models").
+			Where("id = ?", modelID).
+			Exec(ctx)
+		require.NoError(tb, err)
+	})
 }

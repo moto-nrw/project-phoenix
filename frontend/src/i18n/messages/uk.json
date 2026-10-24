@@ -217,7 +217,9 @@
     "week": "Тиждень",
     "participationTitle": "Коли {name} обідає?",
     "participationCutoff": "Ви можете змінити запис у той самий день до {time}.",
+    "participationCutoffLead": "Ви можете змінити запис до {time} {days, plural, one {за # робочий день до обіду} few {за # робочі дні до обіду} many {за # робочих днів до обіду} other {за # робочого дня до обіду}}.",
     "participationSickness": "Підтверджене повідомлення про хворобу до {time} скасовує обід для вашої дитини. Після цього запис залишається.",
+    "participationSicknessLead": "Підтверджене повідомлення про хворобу до {time} {days, plural, one {за # робочий день до обіду} few {за # робочі дні до обіду} many {за # робочих днів до обіду} other {за # робочого дня до обіду}} скасовує обід для вашої дитини. Після цього запис залишається.",
     "participationLoading": "Запис на обід завантажується",
     "regularDays": "Постійні дні",
     "noRegularDays": "Немає постійних днів",
@@ -248,12 +250,46 @@
     "useRegular": "Використати постійний запис",
     "errorObjectSchools": "огляд харчування",
     "errorObjectWeek": "список страв на цей тиждень",
-    "errorObjectParticipation": "запис на обід"
+    "errorObjectParticipation": "запис на обід",
+    "participationCutoffWeekday": "Ви можете змінити запис до {weekday}, {time}, на весь наступний тиждень.",
+    "participationCancellation": "Скасувати можна пізніше: до {time} {days, plural, =0 {у день харчування} one {за # робочий день до харчування} few {за # робочі дні до харчування} many {за # робочих днів до харчування} other {за # робочого дня до харчування}}.",
+    "participationSicknessWeekday": "Підтверджене повідомлення про хворобу до {weekday}, {time}, за тиждень до харчування скасовує харчування дитини. Після цього запис залишається.",
+    "closedDay": "Немає харчування: свято або неробочий день",
+    "registerWeek": "Записати на весь тиждень",
+    "unregisterWeek": "Скасувати на весь тиждень",
+    "weekActionsHint": "Діє для всіх днів цього тижня, які ви ще можете змінити.",
+    "unregisterWeekTitle": "Скасувати на весь тиждень?",
+    "unregisterWeekText": "Запис {name} на обід буде скасовано на {count, plural, one {# день} few {# дні} many {# днів} other {# дня}} цього тижня. Знову записатися можна лише до терміну змін."
+  },
+  "mealAllergens": {
+    "legendTitle": "Алергени",
+    "choose": "Вибрати алергени",
+    "marksShort": "Алергени: {letters}",
+    "marksLabel": "Містить: {names}",
+    "noneThisWeek": "На цей тиждень алергени не зазначено.",
+    "source": "Ці дані надає школа або постачальник харчування. Страва без літери не обов'язково вільна від алергенів. З питаннями звертайтеся до OGS.",
+    "names": {
+      "gluten": "Злаки, що містять глютен",
+      "crustaceans": "Ракоподібні",
+      "eggs": "Яйця",
+      "fish": "Риба",
+      "peanuts": "Арахіс",
+      "soybeans": "Соя",
+      "milk": "Молоко (включно з лактозою)",
+      "nuts": "Горіхи",
+      "celery": "Селера",
+      "mustard": "Гірчиця",
+      "sesame": "Кунжут",
+      "sulphites": "Діоксид сірки та сульфіти",
+      "lupin": "Люпин",
+      "molluscs": "Молюски"
+    }
   },
   "mealParticipantList": {
     "title": "Денний список для кухні",
     "description": "У списку всі діти, які записані на обід цього дня.",
     "cutoff": "Зміни на цей день можливі до {time}.",
+    "cutoffLead": "Зміни на цей день можливі до {time} {days, plural, one {за # робочий день} few {за # робочі дні} many {за # робочих днів} other {за # робочого дня}}.",
     "child": "Дитина",
     "class": "Клас",
     "dateAria": "Дата: {date}",
@@ -268,7 +304,44 @@
     "errorObject": "денний список",
     "caption": "Обід {date}",
     "emptyTitle": "На цей день немає записів",
-    "emptyDescription": "На цей день у списку для кухні немає жодної дитини."
+    "emptyDescription": "На цей день у списку для кухні немає жодної дитини.",
+    "viewAria": "Вигляд списку для кухні",
+    "viewDay": "День",
+    "viewWeek": "Тиждень",
+    "weekTitle": "Список на тиждень для кухні",
+    "weekDescription": "У списку всі діти, записані на обід цього тижня.",
+    "weekCutoff": "Зміни можливі до {time} {days, plural, =0 {у день обіду} one {за # робочий день} few {за # робочі дні} many {за # робочих днів} other {за # робочого дня}}.",
+    "weekDateAria": "Тиждень з {from}",
+    "weekDownloadGroup": "Завантажити список на тиждень",
+    "weekDownloadPdf": "Завантажити список на тиждень у PDF",
+    "weekDownloadExcel": "Завантажити список на тиждень як файл Excel",
+    "weekErrorObject": "список на тиждень",
+    "weekCaption": "Обід з {from} по {to}",
+    "weekEmptyTitle": "Цього тижня немає записів",
+    "weekEmptyDescription": "Цього тижня у списку для кухні немає дітей.",
+    "weekRegistered": "записано",
+    "weekNotRegistered": "не записано",
+    "weekCountsLabel": "Кількість обідів на день",
+    "weekCount": "{count, plural, one {# дитина} few {# дитини} many {# дітей} other {# дитини}}",
+    "cutoffWeekday": "Зміни можливі до {weekday} попереднього тижня, {time}.",
+    "cancellationCutoff": "Скасувати можна до {time} {days, plural, =0 {у день харчування} one {за # робочий день} few {за # робочі дні} many {за # робочих днів} other {за # робочого дня}}.",
+    "closedTitle": "Цього дня харчування немає",
+    "closedDescription": "Цей день — свято або неробочий день школи.",
+    "weekClosed": "немає харчування",
+    "staffChangeHint": "Тут можна записати дітей або скасувати запис і після терміну.",
+    "addChild": "Записати дитину",
+    "addChildTitle": "Записати дитину на {date}",
+    "addChildLabel": "Дитина",
+    "addChildPlaceholder": "Оберіть дитину",
+    "addChildEmpty": "Усі діти цього дня вже записані.",
+    "addChildRequired": "Будь ласка, оберіть дитину.",
+    "cancel": "Скасувати",
+    "saving": "Збереження…",
+    "rowActions": "Дії для: {name}",
+    "unregister": "Скасувати запис",
+    "registeredToast": "{name} записано на {date}.",
+    "unregisteredToast": "Запис {name} на {date} скасовано.",
+    "changeErrorObject": "запис"
   },
   "parentDashboard": {
     "eyebrow": "Батьківський портал",
@@ -719,6 +792,7 @@
       "errorObjectPickup": "порядок забирання"
     },
     "back": "Назад до «Мої діти»",
+    "backSingle": "Назад до «Моя дитина»",
     "today": {
       "title": "Сьогодні",
       "description": "Найважливіша інформація та завдання на сьогодні.",
@@ -826,7 +900,18 @@
       "statusRejected": "Відхилено: {reason}",
       "noDecisionReason": "Причину не вказано",
       "submit": "Надіслати запит",
-      "errorObject": "час забирання"
+      "errorObject": "час забирання",
+      "titleWithMode": "Змінити забирання",
+      "introWithMode": "Запитайте на один день інший час або інший спосіб забирання. Тижневий розклад залишається без змін. Зміна діє лише після того, як OGS її підтвердить.",
+      "modeLabel": "Спосіб забирання цього дня",
+      "modeUnchanged": "Як у тижневому розкладі",
+      "noTimeOrMode": "Введіть час забирання або виберіть спосіб забирання.",
+      "reasonRequiredGeneric": "Коротко вкажіть, чому змінюється забирання.",
+      "pickupOptionalHint": "Залиште порожнім, якщо час не змінюється.",
+      "modeStaffSet": "OGS уже встановила спосіб забирання на цей день: {mode}.",
+      "pendingMode": "Новий спосіб забирання: {to}",
+      "statusApprovedChange": "Підтверджено, зміну застосовано.",
+      "errorStaffConflictGeneric": "OGS уже внесла зміну на цей день. Зверніться до команди OGS."
     },
     "actions": {
       "sick": {
@@ -985,7 +1070,8 @@
     "submitText": "Підготуйте контактні дані, дату народження, рік навчання та бажані пропозиції догляду. Обов'язкові поля позначені у формі.",
     "statusTitle": "Стежте за статусом",
     "statusText": "Після надсилання відкриється сторінка статусу. Збережіть посилання або лист із підтвердженням, щоб повернутися до неї пізніше.",
-    "backToPicker": "Вибрати інший запис",
+    "backToPicker": "Назад до вибору",
+    "backToParentPicker": "Назад до «Новий запис»",
     "backToPortal": "Назад до батьківського порталу",
     "parentEmbeddedKicker": "Запис на догляд в OGS",
     "formEyebrow": "Заповніть форму",
@@ -1010,6 +1096,14 @@
     "dateRange": "з {from} до {to}"
   },
   "enrollmentForm": {
+    "attachments": {
+      "open": "Відкрити",
+      "download": "Завантажити",
+      "openLabel": "Відкрити {label}",
+      "downloadLabel": "Завантажити {label}",
+      "errorObject": "PDF-файл",
+      "popupBlocked": "Дозвольте відкрити нове вікно."
+    },
     "errorObject": "запис",
     "loading": "Завантажуємо форму…",
     "legalGermanNotice": "Юридично чинними є ці тексти німецькою мовою.",
@@ -1081,10 +1175,12 @@
       "groupExactlyOne": "У групі «{group}» виберіть рівно одну пропозицію.",
       "groupAtLeastOne": "У групі «{group}» виберіть хоча б одну пропозицію.",
       "groupAtMostOne": "У групі «{group}» виберіть не більше однієї пропозиції.",
+      "groupDayConflict": "{day}: обрано {offerings}. Оберіть лише одну пропозицію на день.",
       "pickupConfirm": "Підтвердьте правила забирання (виберіть дні або залиште порожнім).",
       "weekdayRequired": "Виберіть хоча б один день тижня.",
       "weekdayModeConfirm": "Підтвердьте, як дитина повертається додому: сама чи її забирають.",
-      "weekdayMultiModeRequired": "Виберіть для кожного дня догляду хоча б один спосіб повернення додому."
+      "weekdayMultiModeRequired": "Виберіть для кожного дня догляду хоча б один спосіб повернення додому.",
+      "file": "Завантажте хоча б один файл."
     },
     "actions": {
       "addChild": "Ще одна дитина",
@@ -1119,7 +1215,10 @@
       "ruleExactlyOne": "Виберіть рівно одну",
       "ruleAtLeastOne": "Виберіть хоча б одну",
       "ruleAtMostOne": "Не більше однієї",
-      "availabilitySelectionRemoved": "Через зміну року навчання деякі пропозиції догляду більше не доступні. Пов'язаний вибір, дні догляду та автоматичні додаткові записи прибрано."
+      "ruleAtMostOnePerDay": "Не більше однієї на день",
+      "availabilitySelectionRemoved": "Через зміну року навчання деякі пропозиції догляду більше не доступні. Пов'язаний вибір, дні догляду та автоматичні додаткові записи прибрано.",
+      "chooseGradeFirst": "Спочатку виберіть рік навчання дитини. Після цього тут з'являться відповідні пропозиції догляду.",
+      "noOfferingsForGrade": "Для {grade} класу немає відповідних пропозицій догляду. Якщо у вас є запитання, зверніться до OGS."
     },
     "consent": {
       "agb": "Я приймаю загальні умови школи.",
@@ -1131,7 +1230,7 @@
       "emailTitle": "Контакт ел. поштою",
       "photoTitle": "Згода на фотографування"
     },
-    "captchaMisconfigured": "Запис зараз неможливий: захист від ботів налаштований не повністю. Будь ласка, зверніться до керівництва OGS.",
+    "captchaMisconfigured": "Онлайн-запис зараз неможливий. Це не ваша провина. Будь ласка, зверніться до OGS.",
     "structured": {
       "yes": "Так",
       "no": "Ні",
@@ -1231,6 +1330,23 @@
       "noCare": "Пропозиції не заброньовано.",
       "hint": "Зміни для {name} тепер робляться через застосунок для батьків.",
       "noAccess": "Не можете увійти в застосунок для батьків? Будь ласка, зверніться до OGS."
+    },
+    "upload": {
+      "errorObject": "файл",
+      "choose": "Вибрати файл",
+      "chooseMore": "Вибрати ще файл",
+      "allowed": "Дозволено: {types}, не більше {max} МБ на файл.",
+      "upTo": "До {count} файлів.",
+      "camera": "На телефоні можна також зробити фото.",
+      "uploading": "Завантаження …",
+      "remove": "Видалити {name}",
+      "wrongType": "Цей файл має неправильний тип. Дозволено: {types}.",
+      "tooLarge": "Цей файл завеликий. Дозволено не більше {max} МБ.",
+      "empty": "Цей файл порожній. Виберіть інший файл.",
+      "onlyOne": "Тут можна завантажити лише один файл.",
+      "tooMany": "Тут можна завантажити не більше {count} файлів.",
+      "pendingSubmit": "Зачекайте, доки завантажаться всі файли.",
+      "previewDisabled": "У попередньому перегляді не можна завантажувати файли."
     }
   },
   "enrollmentStatus": {
@@ -1318,6 +1434,7 @@
     "changeRequestReplySending": "Надсилається…",
     "changeRequestReplySubmit": "Надіслати відповідь",
     "backToStatus": "Назад до статусу",
+    "backToParentApp": "Назад до застосунку для батьків",
     "nameLabel": "Ім'я",
     "emailLabel": "Ел. пошта",
     "phoneLabel": "Телефон",
@@ -1490,11 +1607,15 @@
     "requestHint": "Команда перевіряє ці зміни, перш ніж їх застосувати.",
     "departureDescription": "Укажіть для кожного дня тижня: дитину забирають, вона йде сама або їде автобусом. Зміни перевіряє OGS.",
     "departureReadOnlyAccompanied": "Ваша дитина щонайменше один день іде додому з іншою дитиною. Тут ви не можете змінити дорогу додому.",
+    "departureEdit": "Редагувати",
+    "departureCancel": "Скасувати",
+    "departureSubmitting": "Запит надсилається…",
+    "departurePendingNotice": "OGS перевіряє вашу зміну. До підтвердження діє попередній шлях додому.",
     "requestButton": "Запитати зміну",
     "requestSubmitted": "Запит надіслано. Команда перевірить вашу зміну.",
     "requestEdit": "Змінити запит",
     "pendingBadge": "На перевірці",
-    "pendingNotice": "Зміна в цьому полі очікує підтвердження команди.",
+    "pendingTitle": "Запитана зміна",
     "editDisabled": "У цій OGS редагування цих даних вимкнено.",
     "requestDisabled": "У цій OGS запити на зміни вимкнено.",
     "notSet": "Не вказано",
@@ -1623,6 +1744,7 @@
       "cancel": "Скасувати",
       "noChange": "Ваш вибір збігається з поточним бронюванням. Щоб надіслати запит, змініть щось.",
       "noDaysSelected": "Виберіть хоча б один день для кожної вибраної пропозиції.",
+      "dayConflict": "{day}: обрано {offerings}. Оберіть лише одну пропозицію на день.",
       "capacityFull": "В одній із вибраних пропозицій уже немає вільних місць. Виберіть іншу пропозицію або зверніться, будь ласка, до школи.",
       "alreadyPending": "Для вашої дитини вже є запит. Зачекайте, поки його перевірять.",
       "withdrawalConfirmTitle": "Повністю скасувати догляд?",
@@ -1739,7 +1861,9 @@
     "eventRequestWithdrawn": "Запит відкликано",
     "eventRequestCreatedCareOffering": "Надіслано запит щодо заброньованого догляду",
     "eventRequestConfirmedCareOffering": "Запит підтверджено, заброньований догляд буде змінено",
-    "eventRequestConfirmedCareOfferingDated": "Запит підтверджено, заброньований догляд буде змінено з {date}"
+    "eventRequestConfirmedCareOfferingDated": "Запит підтверджено, заброньований догляд буде змінено з {date}",
+    "eventRequestCreatedPickupChangeWithMode": "Запит щодо забирання надіслано",
+    "eventRequestConfirmedPickupChangeWithMode": "Запит підтверджено, забирання змінено"
   },
   "parentFeedback": {
     "kicker": "Відгук",
@@ -1804,7 +1928,10 @@
       "pickupHint": "Змінити час забирання на один день",
       "message": "Написати повідомлення",
       "messageCompact": "Написати повідомлення",
-      "messageHint": "Зв'язатися з OGS: {name}"
+      "messageHint": "Зв'язатися з OGS: {name}",
+      "pickupWithMode": "Змінити забирання: {name}",
+      "pickupCompactWithMode": "Змінити забирання",
+      "pickupHintWithMode": "Змінити час або спосіб забирання на один день"
     }
   },
   "parentStart": {
@@ -1951,7 +2078,7 @@
     "sent": "Надіслано",
     "readByOgs": "Прочитано в OGS",
     "aboutChild": "Для {name}",
-    "back": "Назад",
+    "back": "Назад до повідомлень",
     "composerPlaceholder": "Написати повідомлення в OGS",
     "composerLabel": "Повідомлення",
     "send": "Надіслати",
@@ -1962,6 +2089,25 @@
     "errorObjectConversation": "листування",
     "errorObjectMessage": "повідомлення",
     "errorObjectList": "список листувань"
+  },
+  "parentGroupThreads": {
+    "sectionTitle": "Групові повідомлення від OGS",
+    "sectionDescription": "Тут OGS пише групі, класу або гуртку вашої дитини.",
+    "closed": "Закрито",
+    "forChildren": "Для: {names}",
+    "privacyNote": "Вашу відповідь отримає лише OGS. Інші батьки її не бачать.",
+    "replyTitle": "Відповідь для OGS",
+    "replyChildLabel": "Відповідь за",
+    "replyPlaceholder": "Напишіть відповідь для OGS",
+    "replyFieldLabel": "Відповідь",
+    "sentConfirmation": "OGS отримала вашу відповідь.",
+    "toChat": "До чату з OGS",
+    "closedNote": "Це групове повідомлення закрито. Ви й далі можете писати OGS у чаті про вашу дитину.",
+    "writingDisabled": "Ви не можете відповісти на це повідомлення. Читати його ви можете.",
+    "answerTo": "Відповідь на: {title}",
+    "errorObjectThread": "групове повідомлення",
+    "errorObjectAnswer": "відповідь",
+    "errorObjectList": "групові повідомлення"
   },
   "parentCalendar": {
     "kicker": "Події під рукою",
@@ -2066,6 +2212,7 @@
     },
     "codes": {
       "attendance": {
+        "log_disabled": "У вас немає доступу до: {object}. Зверніться до школи.",
         "web_disabled": "У вас немає доступу до: {object}. Зверніться до школи."
       },
       "care": {
@@ -2144,6 +2291,9 @@
         "arrival_exception_editor_required": "У вас немає доступу до: {object}. Зверніться до школи.",
         "arrival_exception_past_date": "Не вдалося зберегти: {object}. Перевірте введені дані.",
         "arrival_exception_weekend": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+        "morning_attendance_no_school_day": "Сьогодні не навчальний день. Присутність можна позначати лише в навчальні дні.",
+        "morning_attendance_not_today": "Присутність можна позначити лише на сьогодні. Відкрийте сьогоднішній день.",
+        "morning_attendance_unknown_child": "Одна дитина більше не належить до цього класу. Оновіть сторінку.",
         "school_write_disabled": "У вас немає доступу до: {object}. Зверніться до школи."
       },
       "communication": {
@@ -2158,9 +2308,13 @@
         "staff_messaging_disabled": "У вас немає доступу до: {object}. Зверніться до школи.",
         "staff_notice_outdated": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "system_announcement_immutable": "Не вдалося змінити: {object}. Перевірте поточний стан.",
-        "announcement_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан."
+        "announcement_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "group_thread_closed": "Це групове повідомлення закрито. Відповісти більше не можна.",
+        "group_thread_no_recipients": "Жодна дитина в цій групі не має батьків із доступом до moto. Повідомлення не надіслано."
       },
       "enrollment": {
+        "form_attachment_invalid": "Перевірте назву та PDF-файл.",
+        "approval_care_offering_day_conflict": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "approval_care_offering_exactly_one": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "approval_care_offering_missing": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "approval_data_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
@@ -2169,6 +2323,7 @@
         "care_offering_auto_add_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
         "care_offering_capacity_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
         "care_offering_closed": "Обрана програма догляду зараз не приймає заявки. Оберіть іншу.",
+        "care_offering_day_conflict": "На один день обрано дві програми, які не можна поєднувати. Оберіть лише одну на день.",
         "care_offering_days_required": "Не вдалося зберегти: {object}. Перевірте введені дані.",
         "care_offering_exactly_one": "Оберіть рівно одну програму догляду для кожної дитини.",
         "care_offering_full": "Обрана програма догляду вже заповнена. Оберіть іншу або зверніться до школи.",
@@ -2240,6 +2395,11 @@
         "legal_block_key_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
         "legal_block_required_not_allowed": "Не вдалося зберегти: {object}. Перевірте введені дані.",
         "legal_document_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+        "form_field_file_options_invalid": "Перевірте запитання з файлом. Виберіть хоча б один тип файлу і розмір від 1 до 10 МБ.",
+        "upload_invalid": "Цей файл не підходить. Виберіть дозволений тип файлу розміром не більше {max_mb} МБ.",
+        "upload_expired": "Термін дії завантаженого файлу минув. Завантажте його ще раз.",
+        "upload_rate_limited": "Завантажено забагато файлів. Спробуйте пізніше.",
+        "upload_not_found": "Цього файлу більше немає. Завантажте його ще раз.",
         "message_required": "Напишіть повідомлення.",
         "offering_adjustment_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
         "phase_care_offering_conflict": "Не вдалося змінити: {object}. Перевірте поточний стан.",
@@ -2276,6 +2436,7 @@
         "announcement_published": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "attachment_limit_reached": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "file_missing": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+        "file_name_invalid": "Назва файлу не дозволена. Виберіть файл ще раз.",
         "file_too_large": "Не вдалося зберегти: {object}. Перевірте введені дані.",
         "file_type_not_allowed": "Не вдалося зберегти: {object}. Перевірте введені дані.",
         "file_unreadable": "Не вдалося зберегти: {object}. Перевірте введені дані.",
@@ -2325,6 +2486,7 @@
         "preview_token_invalid": "У вас немає доступу до: {object}. Зверніться до школи.",
         "read_only_preview": "У вас немає доступу до: {object}. Зверніться до школи.",
         "role_name_taken": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "role_platform_permission": "Не вдалося зберегти: {object}. Перевірте введені дані.",
         "session_account_inactive": "Ваш обліковий запис вимкнено. Зверніться до керівництва вашої школи.",
         "tenant_access_denied": "У вас немає доступу до: {object}. Зверніться до школи.",
         "use_parent_portal": "У вас немає доступу до: {object}. Зверніться до школи.",
@@ -2332,10 +2494,13 @@
         "username_taken": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "password_mismatch": "Не вдалося зберегти: {object}. Перевірте введені дані.",
         "operator_invitation_invalid": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "operator_self_deactivation": "Ви не можете деактивувати власний обліковий запис. Попросіть іншу людину з команди зробити це.",
         "invitation_rate_limited": "{object} зараз недоступний. Спробуйте ще раз.",
         "email_change_rate_limited": "{object} зараз недоступний. Спробуйте ще раз.",
         "email_change_same_email": "Не вдалося зберегти: {object}. Перевірте введені дані.",
         "email_change_link_invalid": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "mfa_status_unavailable": "Підтвердження входу зараз недоступне. Спробуйте ще раз.",
+        "mfa_session_required": "Для входу до {object} потрібне додаткове підтвердження. Кнопка завершить поточний сеанс і відкриє сторінку входу цієї школи. Увійдіть там знову й підтвердьте вхід.",
         "mfa_not_enrolled": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "mfa_already_enrolled": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "passkey_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
@@ -2394,6 +2559,7 @@
         "wc_not_configured": "Не вдалося обробити: {object}. Спробуйте пізніше."
       },
       "meals": {
+        "invalid_allergens": "Не вдалося зберегти алергени. Будь ласка, виберіть їх знову.",
         "invalid_dishes": "Не вдалося зберегти: {object}. Перевірте введені дані.",
         "invalid_meal_date": "Не вдалося зберегти: {object}. Перевірте введені дані.",
         "invalid_participation": "Указано неправильні дані: {object}. Перевірте введені дані.",
@@ -2453,6 +2619,7 @@
         "care_exit_preview_changed": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "care_exit_too_many_students": "Не вдалося зберегти: {object}. Перевірте введені дані.",
         "care_offerings_disabled": "Зараз тут недоступно: {object}. Зверніться до контактної особи.",
+        "care_resume_alumnus": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "care_resume_missing": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "care_resume_not_checked": "Не вдалося зберегти: {object}. Перевірте введені дані.",
         "care_resume_not_ended": "Не вдалося змінити: {object}. Перевірте поточний стан.",
@@ -2471,6 +2638,7 @@
         "class_list_entry_student_exists": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "class_list_entry_student_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "companion_lock_busy": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "companion_plan_conflict": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "companion_would_lose_departure": "Не вдалося зберегти: {object}. Перевірте введені дані.",
         "companions_changed": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "conflict_kind_unsupported": "Не вдалося зберегти: {object}. Перевірте введені дані.",
@@ -2764,7 +2932,11 @@
         "managed_by_upload": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "invalid_value": "Не вдалося зберегти: {object}. Перевірте введені дані.",
         "presence_mode_switch_blocked": "Не вдалося змінити: {object}. Перевірте поточний стан.",
-        "booking_authority_blocked": "Не вдалося змінити: {object}. Перевірте поточний стан."
+        "booking_authority_blocked": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "attendance_visible_exceeds_retention": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+        "attendance_retention_below_visible": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+        "module_requires": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+        "module_required_by": "Не вдалося зберегти: {object}. Перевірте введені дані."
       },
       "devices": {
         "tag_scan_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
@@ -2772,6 +2944,23 @@
       },
       "billing": {
         "invalid_key_day": "Не вдалося зберегти: {object}. Перевірте введені дані."
+      },
+      "display": {
+        "disabled": "У вас немає доступу до: {object}. Зверніться до школи."
+      },
+      "feedback": {
+        "disabled": "У вас немає доступу до: {object}. Зверніться до школи."
+      },
+      "staff": {
+        "external_access_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+        "external_email_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+        "external_email_invited": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "external_email_required": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+        "external_has_account": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "not_external": "Не вдалося змінити: {object}. Перевірте поточний стан."
+      },
+      "operator": {
+        "audit_unavailable": "{object} зараз недоступний. Спробуйте ще раз."
       }
     },
     "actions": {

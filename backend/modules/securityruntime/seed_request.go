@@ -1,6 +1,6 @@
 package securityruntime
 
-import "github.com/moto-nrw/project-phoenix/auth/authorize"
+import "github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/application/authorize"
 
 const SeedInvitationTokenHeader = authorize.SeedInvitationTokenHeader
 

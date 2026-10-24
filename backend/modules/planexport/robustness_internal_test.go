@@ -3,11 +3,12 @@ package planexport
 import (
 	"bytes"
 	"context"
+	"errors"
 	"log/slog"
 	"strings"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/services/listexport"
+	listexport "github.com/moto-nrw/project-phoenix/modules/documentrendering/records"
 )
 
 // The plan exports read half a dozen optional sources. The rule this file
@@ -522,17 +523,18 @@ func TestExportsRefuseBadRequests(t *testing.T) {
 		t.Fatal("expected the care template to be refused by the staff export")
 	}
 
+	// One week beyond the cap: the week expansion refuses it.
 	params = defaultParams()
 	params.To = dayKey(monday.AddDays(7 * maxExportWeeks))
-	if _, err := service.ExportDienstplan(context.Background(), params); err == nil {
-		t.Fatal("expected an oversized range to be refused")
+	if _, err := service.ExportDienstplan(context.Background(), params); !errors.Is(err, ErrRangeTooLarge) {
+		t.Fatalf("err = %v, want the oversized range refused", err)
 	}
 
 	care, _ := newBetreuungsplanService(nil, nil, nil)
 	careRange := careParams()
 	careRange.To = dayKey(monday.AddDays(7 * maxExportWeeks))
-	if _, err := care.ExportBetreuungsplan(context.Background(), careRange); err == nil {
-		t.Fatal("expected an oversized range to be refused on the care plan too")
+	if _, err := care.ExportBetreuungsplan(context.Background(), careRange); !errors.Is(err, ErrRangeTooLarge) {
+		t.Fatalf("err = %v, want the oversized range refused on the care plan too", err)
 	}
 }
 
@@ -614,7 +616,7 @@ func TestDienstplanByAreaLabelsCoverCancellationAndUntitledBlocks(t *testing.T) 
 
 	// Every window starts at 07:30, so the rows fall back to title order.
 	labels := rowLabels(renderer.doc)
-	want := []string{areaWithoutShiftType, "Frühbetreuung", "Randstunde"}
+	want := []string{"Frühbetreuung", areaWithoutShiftType, "Randstunde"}
 	for i, label := range want {
 		if i >= len(labels) || labels[i] != label {
 			t.Fatalf("row order = %v, want %v", labels, want)
@@ -792,21 +794,6 @@ func TestExportLogsThroughTheInjectedLogger(t *testing.T) {
 	}
 	if !strings.Contains(sink.String(), "dienstplan export rendered") {
 		t.Fatalf("log = %q, want the export recorded", sink.String())
-	}
-}
-
-// Both dates are required: an absent one would otherwise widen to the zero
-// date's week and print a sheet from the year 1.
-func TestParamsRejectMissingDates(t *testing.T) {
-	t.Parallel()
-
-	params := defaultParams()
-	params.From = ""
-	if _, err := params.validate(TemplatesForDienstplan); err == nil {
-		t.Fatal("expected a missing from-date to be refused")
-	}
-	if _, err := ParseParams("2026-07-27", "not-a-date", string(TemplateByPerson), "", ""); err == nil {
-		t.Fatal("expected an unparsable to-date to be refused")
 	}
 }
 

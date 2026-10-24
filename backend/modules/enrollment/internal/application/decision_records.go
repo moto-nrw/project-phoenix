@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -121,8 +120,8 @@ func childInput(r *RequestChild) (*enrollment.RequestChild, error) {
 	return result, nil
 }
 
-func requestValues(values []*enrollment.Request) ([]*enrollmentModels.Request, error) {
-	var result []*enrollmentModels.Request
+func requestValues(values []*enrollment.Request) ([]*Request, error) {
+	var result []*Request
 	for _, value := range values {
 		converted, err := requestValue(value)
 		if err != nil {
@@ -133,7 +132,7 @@ func requestValues(values []*enrollment.Request) ([]*enrollmentModels.Request, e
 	return result, nil
 }
 
-func requestInput(r *enrollmentModels.Request) (*enrollment.Request, error) {
+func requestInput(r *Request) (*enrollment.Request, error) {
 	if r == nil {
 		return nil, nil
 	}
@@ -163,7 +162,7 @@ func requestInput(r *enrollmentModels.Request) (*enrollment.Request, error) {
 // decodedRequestByID reads and decodes one request, optionally locked.
 func decodedRequestByID(ctx context.Context, owner interface {
 	RequestByID(context.Context, int64, bool) (*enrollment.Request, error)
-}, id int64, lock bool) (*enrollmentModels.Request, error) {
+}, id int64, lock bool) (*Request, error) {
 	value, err := owner.RequestByID(ctx, id, lock)
 	if err != nil {
 		return nil, err
@@ -196,9 +195,9 @@ func decodedChildrenOfRequest(ctx context.Context, owner interface {
 
 // schoolBrand returns the school's mail branding, or empty strings when no
 // Enrollment notifications are bound.
-func schoolBrand(ctx context.Context, notifications enrollment.Notifications, tenantID int64, baseURL string) (string, string) {
+func schoolBrand(ctx context.Context, notifications enrollment.Notifications, tenantID int64, baseURL string) (string, string, string) {
 	if notifications == nil {
-		return "", ""
+		return "", "", ""
 	}
 	return notifications.SchoolBrand(ctx, tenantID, baseURL)
 }
@@ -206,7 +205,7 @@ func schoolBrand(ctx context.Context, notifications enrollment.Notifications, te
 // decisionGeneration is one persisted child-state generation of a request as
 // the decision flow holds it: the decoded request and its children.
 type decisionGeneration struct {
-	Request           *enrollmentModels.Request
+	Request           *Request
 	Children          []*RequestChild
 	Phase             *enrollment.Phase
 	ImmediateChildIDs map[int64]struct{}

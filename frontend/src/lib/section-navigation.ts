@@ -106,13 +106,16 @@ export const DATABASE_SUB_PAGES: readonly SectionSubPage[] = [
   // Namens (#3114).
   { href: "/database/categories", label: "Terminkategorien" },
   { href: "/database/planning-tracks", label: "Planungsspuren" },
-  { href: "/database/shift-types", label: "Schichtarten" },
+  { href: "/database/shift-types", label: "Dienstarten" },
   { href: "/database/absence-types", label: "Abwesenheitsarten" },
-  { href: "/database/groups", label: "Gruppen" },
+  // „Gruppendaten", nicht „Gruppen": im Tagesbetrieb heißt die Auswahl der
+  // Gruppen am laufenden Tag schon „Gruppen" (#4351). Dieselbe Trennung wie
+  // bei „Kinderdaten" (#4590).
+  { href: "/database/groups", label: "Gruppendaten" },
   { href: "/database/roles", label: "Rollen" },
   { href: "/database/devices", label: "Geräte" },
   { href: "/database/permissions", label: "Berechtigungen" },
-  { href: "/database/grade-transitions", label: "Jahrgangswechsel" },
+  { href: "/database/grade-transitions", label: "Schuljahreswechsel" },
   { href: "/database/exports", label: "Exporte" },
 ];
 
@@ -128,7 +131,7 @@ export const DATABASE_SUB_PAGES: readonly SectionSubPage[] = [
  * `admin`. Eine Leitungsrolle, die eine Schule selbst anlegt, kam damit nie
  * in die Verwaltung.
  *
- * Für Kinderdaten, Räume, Gruppen und Exporte gilt das `manage`-Recht des
+ * Für Kinderdaten, Räume, Gruppendaten und Exporte gilt das `manage`-Recht des
  * Bereichs, nicht das Leserecht: mit `users:read` allein sähe jede
  * Betreuungskraft eine Kinderdaten-Seite, deren Anlegen und Löschen ihr
  * das Backend verweigert. Die Aktivitäten-Stammdaten haben keinen Eintrag
@@ -253,7 +256,7 @@ export const PARENT_SUB_PAGES: readonly ParentSubPage[] = [
     label: "Bankverbindungen",
     feature: "bankDetails",
   },
-  { href: "/meal-plan", label: "Essensplan", feature: "mealPlan" },
+  { href: "/meal-plan", label: "Speiseplan", feature: "mealPlan" },
 ];
 
 /**
@@ -288,14 +291,15 @@ export const STAFF_FLAT_PAGES = {
   anfragen: { href: "/anfragen", label: "Anfragen" },
   // Tages-Betreuungsplan (#2383): die Standardseite der Betreuungskräfte —
   // bewusst eine eigene Top-Level-Route, keine Unterseite des Admin-
-  // Planungsbereichs /betreuungsplan.
-  tagesplan: { href: "/tagesplan", label: "Tagesplan" },
+  // Planungsbereichs /betreuungsplan. Der Eintrag zeigt immer den laufenden
+  // Tag und heißt deshalb „Heute“ (#4348); intern bleibt es der Tagesplan.
+  tagesplan: { href: "/tagesplan", label: "Heute" },
   calendar: { href: "/calendar", label: "Mein Kalender" },
   // Dateiablage (#2596): gemeinsame Dateien der OGS mit Ordner-Freigaben.
   // Bewusst „Dateien“, nicht „Dokumente“: der Dokumente-Tab bei Kind und
   // Personal ist ein anderer Ort.
   dateien: { href: "/dateien", label: "Dateien" },
-  substitutions: { href: "/substitutions", label: "Vertretungen" },
+  substitutions: { href: "/substitutions", label: "Übergaben" },
   infoDisplays: { href: "/info-displays", label: "Info-Displays" },
   timeTracking: { href: "/time-tracking", label: "Zeiterfassung" },
   // Eigener Wochenplan der Mitarbeitenden (#3821), nur lesend. Eigene Route,

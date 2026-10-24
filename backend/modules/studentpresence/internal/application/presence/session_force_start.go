@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -354,7 +354,7 @@ func (s *service) transferActiveSupervisorsBetweenGroups(ctx context.Context, ol
 			StaffID:   supervisor.StaffID,
 			GroupID:   newGroupID,
 			Role:      normalizeTransferredSupervisorRole(supervisor.Role),
-			StartDate: timezone.DateFromTime(newGroupStartTime),
+			StartDate: calendar.DateFromTime(newGroupStartTime),
 		}
 		transferredSupervisor.SetTenantID(tenant.FromContext(ctx))
 		if err := s.SupervisorRepo.Create(ctx, transferredSupervisor); err != nil {

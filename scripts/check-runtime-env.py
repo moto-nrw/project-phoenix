@@ -114,7 +114,7 @@ def main():
                                      if sidecar or name != "demo-runtime"})
                 check_missing_config(path, directory)
                 if sidecar:
-                    check_demo_runtime(path)
+                    check_demo_runtime(path, bool(args.revision))
         print("Runtime environment boundaries: PASS")
     except (ValueError, KeyError, subprocess.CalledProcessError) as error:
         print("Runtime environment boundaries: FAIL: " + str(error), file=sys.stderr)
@@ -122,7 +122,7 @@ def main():
     return 0
 
 
-def check_demo_runtime(path):
+def check_demo_runtime(path, historical=False):
     """Sidecar rules beyond the allowlist that check() already enforced."""
     services = compose_config(path, False)["services"]
     raw = services["demo-runtime"]
@@ -139,10 +139,14 @@ def check_demo_runtime(path):
         raise ValueError("demo-runtime: must share the server network with a read-only filesystem")
     # Loopback in the shared network namespace: only this peer is exempt from
     # the demo server's rate limits (see docs/operations/standing-demo.md).
-    command = ["./main", "demo", "--url", "http://127.0.0.1:8080", "--heartbeat", "/tmp/demo-heartbeat"]
+    # The dev tools binary runs the demo (ADR 0060); revisions before it ran
+    # the demo from the server binary.
+    arguments = ["demo", "--url", "http://127.0.0.1:8080", "--heartbeat", "/tmp/demo-heartbeat"]
+    binaries = ["./devtools", "./main"] if historical else ["./devtools"]
     # Fallback of #3463: both processes must agree on the standing demo school.
     fallback = "--demo-standing-school"
-    if raw.get("command") not in (command, command + [fallback]):
+    commands = [[binary] + arguments for binary in binaries]
+    if raw.get("command") not in commands + [command + [fallback] for command in commands]:
         raise ValueError("demo-runtime: must use the guarded command and the server's loopback address")
     if (fallback in raw["command"]) != (fallback in services["server"].get("command", [])):
         raise ValueError("demo-runtime: server and sidecar must both select the standing demo school, or neither")

@@ -1,16 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Session } from "next-auth";
-import { NextRequest } from "next/server";
 import { GET } from "./route";
 import { ApiResponseError } from "~/lib/api-helpers.server";
-
-// ============================================================================
-// Types
-// ============================================================================
-
-interface ExtendedSession extends Session {
-  user: Session["user"] & { token?: string };
-}
+import {
+  type ExtendedSession,
+  createMockRequest,
+  defaultSession,
+} from "~/test/route-test-helpers";
 
 // ============================================================================
 // Mocks
@@ -40,16 +35,6 @@ vi.mock("~/lib/api-helpers.server", async (importOriginal) => {
 // ============================================================================
 // Test Helpers
 // ============================================================================
-
-function createMockRequest(path: string): NextRequest {
-  const url = new URL(path, "http://localhost:3000");
-  return new NextRequest(url);
-}
-
-const defaultSession: ExtendedSession = {
-  user: { id: "1", token: "test-token", name: "Test User" },
-  expires: "2099-01-01",
-};
 
 interface ApiResponse<T> {
   status: string;
@@ -203,7 +188,10 @@ describe("GET /api/rooms/[id]/history", () => {
 
   it("returns empty array when room has no history (404)", async () => {
     mockApiGet.mockRejectedValueOnce(
-      new ApiResponseError(404, '{"status":"error","error":"not found"}'),
+      new ApiResponseError(
+        404,
+        '{"status":404,"detail":"not found","code":"general.input"}',
+      ),
     );
 
     const request = createMockRequest("/api/rooms/999/history");
@@ -215,18 +203,17 @@ describe("GET /api/rooms/[id]/history", () => {
     expect(json.data).toEqual([]);
   });
 
-  it("translates a 403 feature_disabled error into a 200 + status:feature_disabled signal", async () => {
+  it("translates the attendance.log_disabled 403 into a 200 + status:feature_disabled signal", async () => {
     // Issue #1425 follow-up: when gdpr.attendance_log_enabled is off the
-    // backend returns 403 with body { status: "error", error:
-    // "feature_disabled" }. The proxy must NOT treat that as a server
-    // error — instead it returns a structured "the feature is off" signal
-    // (HTTP 200) so the drawer can hide the section deliberately. A plain
-    // 403 without the feature_disabled marker still falls through to the
-    // generic error path (covered by "handles backend errors" below).
+    // backend returns 403 with the code attendance.log_disabled. The proxy
+    // must NOT treat that as a server error — instead it returns a
+    // structured "the feature is off" signal (HTTP 200) so the drawer can
+    // hide the section deliberately. A plain 403 without that code still
+    // falls through to the generic error path (covered below).
     mockApiGet.mockRejectedValueOnce(
       new ApiResponseError(
         403,
-        '{"status":"error","error":"feature_disabled"}',
+        '{"status":403,"detail":"feature_disabled","code":"attendance.log_disabled"}',
       ),
     );
 
@@ -242,20 +229,25 @@ describe("GET /api/rooms/[id]/history", () => {
     expect(json.data).toEqual([]);
   });
 
-  it("does NOT translate a generic 403 (no feature_disabled marker) into the disabled signal", async () => {
+  it("does NOT translate a generic 403 into the disabled signal, even with the old text", async () => {
     // A plain RBAC failure must retain its backend status and body.
-    // Otherwise we'd silently mask permission bugs as "feature off".
+    // Otherwise we'd silently mask permission bugs as "feature off". The
+    // diagnostic text alone never decides (ADR 0006).
     mockApiGet.mockRejectedValueOnce(
-      new ApiResponseError(403, '{"status":"error","error":"forbidden"}'),
+      new ApiResponseError(
+        403,
+        '{"type":"about:blank","title":"Forbidden","status":403,"detail":"feature_disabled","code":"general.permission"}',
+      ),
     );
 
     const request = createMockRequest("/api/rooms/123/history");
     const response = await GET(request);
 
     expect(response.status).toBe(403);
-    expect(await response.json()).toEqual({
-      status: "error",
-      error: "forbidden",
+    expect(await response.json()).toMatchObject({
+      status: 403,
+      detail: "feature_disabled",
+      code: "general.permission",
     });
   });
 
@@ -264,8 +256,8 @@ describe("GET /api/rooms/[id]/history", () => {
     const response = await GET(request);
 
     expect(response.status).toBe(400);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Invalid id parameter");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Invalid id parameter");
     expect(mockApiGet).not.toHaveBeenCalled();
   });
 
@@ -276,8 +268,9 @@ describe("GET /api/rooms/[id]/history", () => {
     const response = await GET(request);
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Database connection failed");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toContain("Database connection failed");
   });
 
   it("handles non-Error rejections", async () => {
@@ -287,8 +280,8 @@ describe("GET /api/rooms/[id]/history", () => {
     const response = await GET(request);
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Internal Server Error");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
   });
 
   it("extracts room ID from URL path correctly", async () => {

@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { TimetableRosterContent } from "./timetable-roster";
@@ -75,7 +75,6 @@ function renderRoster(
 ) {
   render(
     <TimetableRosterContent
-      addStudentResults={[]}
       addStudentSearch=""
       attendanceWebEnabled={false}
       isAddingStudent={false}
@@ -106,14 +105,15 @@ describe("TimetableRosterContent search (#3889)", () => {
   it("shows every child under its status without a search", () => {
     renderRoster(null);
 
-    for (const name of [
-      "Emma Meyer",
-      "Emil Fischer",
-      "Anna Emmerich",
-      "Paul Becker",
-    ]) {
+    for (const name of ["Emma Meyer", "Emil Fischer", "Anna Emmerich"]) {
       expect(screen.getByText(name)).toBeInTheDocument();
     }
+    // The children who left start folded (#4353).
+    expect(screen.queryByText("Paul Becker")).not.toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Nicht mehr im Raum ausklappen" }),
+    );
+    expect(screen.getByText("Paul Becker")).toBeInTheDocument();
   });
 
   it("finds expected, absent and departed children, each under its status", () => {

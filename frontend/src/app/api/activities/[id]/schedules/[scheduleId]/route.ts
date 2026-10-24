@@ -1,11 +1,7 @@
 // app/api/activities/[id]/schedules/[scheduleId]/route.ts
 import type { NextRequest } from "next/server";
-import {
-  apiGet,
-  apiPut,
-  apiDelete,
-  ApiResponseError,
-} from "~/lib/api-helpers.server";
+import { apiGet, apiPut, apiDelete } from "~/lib/api-helpers.server";
+import { ApiResponseError } from "~/lib/api-response-error.server";
 import {
   createGetHandler,
   createPutHandler,
@@ -56,12 +52,10 @@ export const GET = createGetHandler(
       if (error instanceof ApiResponseError) throw error;
       // Properly propagate the error for handling in the service layer
       throw new Error(
-        JSON.stringify({
-          status: 500,
-          message: `Failed to fetch schedule ${scheduleId} for activity ${id}: ${error instanceof Error ? error.message : "Unknown error"}`,
-          code: "ACTIVITY_SCHEDULE_ERROR",
-        }),
-        { cause: error },
+        `Failed to fetch schedule ${scheduleId} for activity ${id}: ${error instanceof Error ? error.message : "Unknown error"}`,
+        {
+          cause: error,
+        },
       );
     }
   },
@@ -119,11 +113,7 @@ export const PUT = createPutHandler(
       if (error instanceof ApiResponseError) throw error;
       // Properly propagate the error for handling in the service layer
       throw new Error(
-        JSON.stringify({
-          status: 500,
-          message: `Failed to update schedule ${scheduleId} for activity ${id}: ${error instanceof Error ? error.message : "Unknown error"}`,
-          code: "ACTIVITY_SCHEDULE_UPDATE_ERROR",
-        }),
+        `Failed to update schedule ${scheduleId} for activity ${id}: ${error instanceof Error ? error.message : "Unknown error"}`,
         { cause: error },
       );
     }
@@ -157,11 +147,7 @@ export const DELETE = createDeleteHandler(
       if (error instanceof ApiResponseError) throw error;
       // Properly propagate the error for handling in the service layer
       throw new Error(
-        JSON.stringify({
-          status: 500,
-          message: `Failed to delete schedule ${scheduleId} for activity ${id}: ${error instanceof Error ? error.message : "Unknown error"}`,
-          code: "ACTIVITY_SCHEDULE_DELETE_ERROR",
-        }),
+        `Failed to delete schedule ${scheduleId} for activity ${id}: ${error instanceof Error ? error.message : "Unknown error"}`,
         { cause: error },
       );
     }

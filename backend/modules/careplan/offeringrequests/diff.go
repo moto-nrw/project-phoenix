@@ -40,6 +40,20 @@ func CorrectionDiff(beforeRaw, afterRaw json.RawMessage) ([]DiffEntry, error) {
 	if err != nil {
 		return nil, err
 	}
+	ids, labels := snapshotOfferings(before, after)
+	diff := make([]DiffEntry, 0, len(ids))
+	for _, id := range ids {
+		entry := correctionEntry(id, labels[id], before, after)
+		if entry.OldState != entry.NewState || !slices.Equal(entry.OldDays, entry.NewDays) {
+			diff = append(diff, entry)
+		}
+	}
+	return diff, nil
+}
+
+// snapshotOfferings returns the sorted offering IDs of both sides and the last
+// non-blank offering name seen per ID, the after side winning over before.
+func snapshotOfferings(before, after map[int64]adjustmentSnapshot) ([]int64, map[int64]string) {
 	ids := make([]int64, 0, len(before)+len(after))
 	labels := make(map[int64]string, len(before)+len(after))
 	for _, side := range []map[int64]adjustmentSnapshot{before, after} {
@@ -53,23 +67,21 @@ func CorrectionDiff(beforeRaw, afterRaw json.RawMessage) ([]DiffEntry, error) {
 		}
 	}
 	slices.Sort(ids)
-	diff := make([]DiffEntry, 0, len(ids))
-	for _, id := range ids {
-		entry := DiffEntry{OfferingID: id, Label: labels[id], OldState: "not_booked", NewState: "removed"}
-		if entry.Label == "" {
-			entry.Label = fmt.Sprintf("Angebot %d", id)
-		}
-		if snapshot, ok := before[id]; ok {
-			entry.OldState, entry.OldDays = "booked", CanonicalDays(snapshot.SelectedDays)
-		}
-		if snapshot, ok := after[id]; ok {
-			entry.NewState, entry.NewDays = "booked", CanonicalDays(snapshot.SelectedDays)
-		}
-		if entry.OldState != entry.NewState || !slices.Equal(entry.OldDays, entry.NewDays) {
-			diff = append(diff, entry)
-		}
+	return ids, labels
+}
+
+func correctionEntry(id int64, label string, before, after map[int64]adjustmentSnapshot) DiffEntry {
+	entry := DiffEntry{OfferingID: id, Label: label, OldState: "not_booked", NewState: "removed"}
+	if entry.Label == "" {
+		entry.Label = fmt.Sprintf("Angebot %d", id)
 	}
-	return diff, nil
+	if snapshot, ok := before[id]; ok {
+		entry.OldState, entry.OldDays = "booked", CanonicalDays(snapshot.SelectedDays)
+	}
+	if snapshot, ok := after[id]; ok {
+		entry.NewState, entry.NewDays = "booked", CanonicalDays(snapshot.SelectedDays)
+	}
+	return entry
 }
 
 func decodeAdjustment(raw json.RawMessage) (map[int64]adjustmentSnapshot, error) {

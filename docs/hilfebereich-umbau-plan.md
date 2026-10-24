@@ -239,6 +239,12 @@ _Regeln:_ kein Thema → kein Symbol (nie ersatzweise auf die Startseite); immer
 normaler `<Link>` — ungespeicherte Eingaben schützt der vorhandene `use-navigation-guard` von selbst
 (§7.2); mobil nicht mit dem globalen Hilfe-Eintrag der Bottom-Nav konkurrieren.
 
+Telefon und Tablet (#4475): Das Fragezeichen steht rechts bei den Aktionen im
+Seitenkopf. Im Personal- und Elternportal übernimmt unter `lg` der Inhaltskopf
+die Hilfe, darüber die feste Kopfzeile. moto schule behält seine Kopfzeile auf
+allen Breiten. Der allgemeine Hilfe-Eintrag in der Navigation bleibt bei der
+Themenübersicht; es kommt kein weiterer Eintrag in die untere Leiste.
+
 **B3 · Zwei Wächter** — Größe S, Risiko niedrig
 (a) Auflösbarkeit: jede verwendete `HelpTopicId` ergibt eine existierende URL.
 (b) Abdeckung, **shrink-only**: jede `page.tsx` unter `(protected)` ist zentral einem Thema

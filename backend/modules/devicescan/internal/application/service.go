@@ -13,7 +13,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	"github.com/moto-nrw/project-phoenix/modules/devicescan"
-	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/ports"
+	"github.com/moto-nrw/project-phoenix/modules/devicescan/ports"
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
 )
 
@@ -49,12 +49,12 @@ type Dependencies struct {
 	Fleet      Fleet
 	Presence   Presence
 	Rooms      Rooms
-	Principals ports.Principals
+	Principals devicescan.PrincipalReader
 	People     ports.People
 	Visits     ports.Visits
-	Sessions   ports.Sessions
+	Sessions   SessionOperations
 	Attendance ports.Attendance
-	Activities ports.Activities
+	Activities ActivityCatalog
 	Rosters    ports.Rosters
 	Groups     ports.Groups
 	Pickups    ports.Pickups
@@ -72,12 +72,12 @@ type Service struct {
 	fleet      Fleet
 	presence   Presence
 	rooms      Rooms
-	principals ports.Principals
+	principals devicescan.PrincipalReader
 	people     ports.People
 	visits     ports.Visits
-	sessions   ports.Sessions
+	sessions   SessionOperations
 	attendance ports.Attendance
-	activities ports.Activities
+	activities ActivityCatalog
 	rosters    ports.Rosters
 	groups     ports.Groups
 	pickups    ports.Pickups
@@ -112,7 +112,7 @@ func NewService(deps Dependencies) *Service {
 func (s *Service) now() time.Time { return s.clock.Now() }
 
 // device resolves the authenticated device of the request.
-func (s *Service) device(ctx context.Context) (*ports.Device, error) {
+func (s *Service) device(ctx context.Context) (*devicescan.PrincipalDevice, error) {
 	device, ok := s.principals.Device(ctx)
 	if !ok || device == nil {
 		return nil, devicescan.ErrDeviceUnauthorized
@@ -120,7 +120,7 @@ func (s *Service) device(ctx context.Context) (*ports.Device, error) {
 	return device, nil
 }
 
-func publicDevice(device *ports.Device) devicescan.Device {
+func publicDevice(device *devicescan.PrincipalDevice) devicescan.Device {
 	return devicescan.Device{
 		ID: device.ID, DeviceID: device.DeviceID, DeviceType: device.DeviceType,
 		Name: device.Name, Status: device.Status, LastSeen: device.LastSeen, Active: device.Active,
@@ -151,7 +151,7 @@ func (s *Service) Ping(ctx context.Context) (*devicescan.DevicePing, error) {
 	sessionActive := false
 	if session, err := s.sessions.Current(ctx, device.ID); err == nil && session != nil {
 		sessionActive = true
-		if err := s.sessions.Touch(ctx, session.ID); err != nil {
+		if err := s.sessions.UpdateSessionActivity(ctx, session.ID); err != nil {
 			s.logger.WarnContext(ctx, "failed to update session activity during ping",
 				slog.Int64("session_id", session.ID),
 				slog.String("error", err.Error()),
@@ -205,7 +205,7 @@ func (s *Service) Status(ctx context.Context) (*devicescan.DeviceStatus, error) 
 // recordUnregisteredScan best-effort persists a scan of a card that
 // resolves to no person, stamped with the scanning device. A persistence
 // error only logs: the scan response must not fail because bookkeeping did.
-func (s *Service) recordUnregisteredScan(ctx context.Context, device *ports.Device, tag string) {
+func (s *Service) recordUnregisteredScan(ctx context.Context, device *devicescan.PrincipalDevice, tag string) {
 	var deviceID *int64
 	if device != nil && device.ID > 0 {
 		id := device.ID

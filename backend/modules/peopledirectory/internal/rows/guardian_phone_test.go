@@ -1,0 +1,257 @@
+package users
+
+import (
+	"testing"
+
+	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
+)
+
+func TestGuardianPhoneNumber_Validate(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		phone   *GuardianPhoneNumber
+		wantErr bool
+	}{
+		{
+			name: "valid phone number",
+			phone: &GuardianPhoneNumber{
+				GuardianProfileID: 1,
+				PhoneNumber:       "+49 30 123456",
+				PhoneType:         PhoneTypeHome,
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid mobile phone",
+			phone: &GuardianPhoneNumber{
+				GuardianProfileID: 1,
+				PhoneNumber:       "0170-1234567",
+				PhoneType:         PhoneTypeMobile,
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid work phone with label",
+			phone: &GuardianPhoneNumber{
+				GuardianProfileID: 1,
+				PhoneNumber:       "+49 30 9876543",
+				PhoneType:         PhoneTypeWork,
+				Label:             ptrtest.Ptr("Büro"),
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid other phone type",
+			phone: &GuardianPhoneNumber{
+				GuardianProfileID: 1,
+				PhoneNumber:       "030-999999",
+				PhoneType:         PhoneTypeOther,
+			},
+			wantErr: false,
+		},
+		{
+			name: "missing guardian profile ID",
+			phone: &GuardianPhoneNumber{
+				GuardianProfileID: 0,
+				PhoneNumber:       "+49 30 123456",
+				PhoneType:         PhoneTypeHome,
+			},
+			wantErr: true,
+		},
+		{
+			name: "negative guardian profile ID",
+			phone: &GuardianPhoneNumber{
+				GuardianProfileID: -1,
+				PhoneNumber:       "+49 30 123456",
+				PhoneType:         PhoneTypeHome,
+			},
+			wantErr: true,
+		},
+		{
+			name: "empty phone number",
+			phone: &GuardianPhoneNumber{
+				GuardianProfileID: 1,
+				PhoneNumber:       "",
+				PhoneType:         PhoneTypeHome,
+			},
+			wantErr: true,
+		},
+		{
+			name: "whitespace only phone number",
+			phone: &GuardianPhoneNumber{
+				GuardianProfileID: 1,
+				PhoneNumber:       "   ",
+				PhoneType:         PhoneTypeHome,
+			},
+			wantErr: true,
+		},
+		{
+			name: "invalid phone number format - letters",
+			phone: &GuardianPhoneNumber{
+				GuardianProfileID: 1,
+				PhoneNumber:       "ABC123",
+				PhoneType:         PhoneTypeHome,
+			},
+			wantErr: true,
+		},
+		{
+			name: "invalid phone number format - special chars",
+			phone: &GuardianPhoneNumber{
+				GuardianProfileID: 1,
+				PhoneNumber:       "123#456",
+				PhoneType:         PhoneTypeHome,
+			},
+			wantErr: true,
+		},
+		{
+			name: "phone number too short",
+			phone: &GuardianPhoneNumber{
+				GuardianProfileID: 1,
+				PhoneNumber:       "12",
+				PhoneType:         PhoneTypeHome,
+			},
+			wantErr: true,
+		},
+		{
+			name: "invalid phone type",
+			phone: &GuardianPhoneNumber{
+				GuardianProfileID: 1,
+				PhoneNumber:       "+49 30 123456",
+				PhoneType:         "invalid",
+			},
+			wantErr: true,
+		},
+		{
+			name: "empty phone type",
+			phone: &GuardianPhoneNumber{
+				GuardianProfileID: 1,
+				PhoneNumber:       "+49 30 123456",
+				PhoneType:         "",
+			},
+			wantErr: true,
+		},
+		{
+			name: "trims phone number whitespace",
+			phone: &GuardianPhoneNumber{
+				GuardianProfileID: 1,
+				PhoneNumber:       "  +49 30 123456  ",
+				PhoneType:         PhoneTypeHome,
+			},
+			wantErr: false,
+		},
+		{
+			name: "trims empty label to nil",
+			phone: &GuardianPhoneNumber{
+				GuardianProfileID: 1,
+				PhoneNumber:       "+49 30 123456",
+				PhoneType:         PhoneTypeHome,
+				Label:             ptrtest.Ptr("   "),
+			},
+			wantErr: false,
+		},
+		{
+			name: "corrects negative priority to 1",
+			phone: &GuardianPhoneNumber{
+				GuardianProfileID: 1,
+				PhoneNumber:       "+49 30 123456",
+				PhoneType:         PhoneTypeHome,
+				Priority:          -5,
+			},
+			wantErr: false,
+		},
+		{
+			name: "corrects zero priority to 1",
+			phone: &GuardianPhoneNumber{
+				GuardianProfileID: 1,
+				PhoneNumber:       "+49 30 123456",
+				PhoneType:         PhoneTypeHome,
+				Priority:          0,
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.phone.Validate()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("GuardianPhoneNumber.Validate() error = %v, wantErr %v", err, tt.wantErr)
+			}
+
+			// Check side effects of validation
+			if !tt.wantErr {
+				// Verify phone number was trimmed
+				if tt.name == "trims phone number whitespace" {
+					if tt.phone.PhoneNumber != "+49 30 123456" {
+						t.Errorf("GuardianPhoneNumber.Validate() did not trim phone number, got %q", tt.phone.PhoneNumber)
+					}
+				}
+
+				// Verify empty label was set to nil
+				if tt.name == "trims empty label to nil" {
+					if tt.phone.Label != nil {
+						t.Errorf("GuardianPhoneNumber.Validate() did not set empty label to nil, got %v", tt.phone.Label)
+					}
+				}
+
+				// Verify priority was corrected
+				if tt.name == "corrects negative priority to 1" || tt.name == "corrects zero priority to 1" {
+					if tt.phone.Priority != 1 {
+						t.Errorf("GuardianPhoneNumber.Validate() did not correct priority to 1, got %d", tt.phone.Priority)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestValidPhoneTypes(t *testing.T) {
+	t.Parallel()
+
+	expected := map[PhoneType]bool{
+		PhoneTypeMobile: true,
+		PhoneTypeHome:   true,
+		PhoneTypeWork:   true,
+		PhoneTypeOther:  true,
+	}
+
+	if len(ValidPhoneTypes) != len(expected) {
+		t.Errorf("ValidPhoneTypes has %d entries, want %d", len(ValidPhoneTypes), len(expected))
+	}
+
+	for pt, valid := range expected {
+		if ValidPhoneTypes[pt] != valid {
+			t.Errorf("ValidPhoneTypes[%q] = %v, want %v", pt, ValidPhoneTypes[pt], valid)
+		}
+	}
+
+	// Verify invalid type returns false
+	if ValidPhoneTypes["invalid"] {
+		t.Error("ValidPhoneTypes[\"invalid\"] should be false")
+	}
+}
+
+func TestPhoneTypeConstants(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		constant PhoneType
+		expected string
+	}{
+		{"PhoneTypeMobile", PhoneTypeMobile, "mobile"},
+		{"PhoneTypeHome", PhoneTypeHome, "home"},
+		{"PhoneTypeWork", PhoneTypeWork, "work"},
+		{"PhoneTypeOther", PhoneTypeOther, "other"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if string(tt.constant) != tt.expected {
+				t.Errorf("%s = %q, want %q", tt.name, tt.constant, tt.expected)
+			}
+		})
+	}
+}

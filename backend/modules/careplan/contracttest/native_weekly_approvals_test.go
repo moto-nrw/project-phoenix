@@ -29,9 +29,9 @@ type weeklyApprovalBoundary struct {
 func (b *weeklyApprovalBoundary) TrackCompanionChanges(ctx context.Context) (context.Context, func() bool) {
 	return ctx, func() bool { return true }
 }
-func (b *weeklyApprovalBoundary) ActingStaffID(context.Context) (int64, error) {
+func (b *weeklyApprovalBoundary) CurrentStaffID(context.Context) (int64, bool, error) {
 	b.calls = append(b.calls, "staff")
-	return b.staffID, nil
+	return b.staffID, true, nil
 }
 func (b *weeklyApprovalBoundary) LockDepartureModes(context.Context, int64) (map[string][]string, error) {
 	b.calls = append(b.calls, "lock")
@@ -84,7 +84,7 @@ func TestNativeWeeklyApprovalMergesAndRollsBackOnAuditFailure(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	owner := careplantest.NewCarePlan(t, db)
+	owner := careplantest.NewCarePlan(t, db, testpkg.StudentDirectory{})
 	student := testpkg.CreateTestStudent(t, db, "Weekly", "Approval", "1a")
 	staff, account := testpkg.CreateTestStaffWithAccount(t, db, "Weekly", "Reviewer")
 	clock := time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC)

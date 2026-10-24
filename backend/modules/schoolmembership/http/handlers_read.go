@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // listStaffFilters holds the parsed query parameters of the directory read.
@@ -16,6 +17,9 @@ type listStaffFilters struct {
 	lastName     string
 	teachersOnly bool
 	filterByRole string
+	// employment is "former" for the Ehemalige filter (#3403); any other
+	// value lists the current staff.
+	employment string
 }
 
 func parseListStaffFilters(r *http.Request) listStaffFilters {
@@ -24,6 +28,7 @@ func parseListStaffFilters(r *http.Request) listStaffFilters {
 		lastName:     r.URL.Query().Get("last_name"),
 		teachersOnly: r.URL.Query().Get("teachers_only") == "true",
 		filterByRole: r.URL.Query().Get("role"),
+		employment:   r.URL.Query().Get("employment"),
 	}
 }
 
@@ -53,18 +58,28 @@ func (rs *Resource) passesRoleFilter(ctx context.Context, person *Person, role s
 	return rs.runtime.AccountHasRole(ctx, *person.AccountID, role)
 }
 
-// listStaff lists the staff directory. Every foreign lookup is batched, so
-// the response costs a fixed number of round trips regardless of staff count.
+// listStaff lists the current staff, or with ?employment=former the former
+// employments (#3403).
 func (rs *Resource) listStaff(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
 	filters := parseListStaffFilters(r)
+	if filters.employment == employmentFormer {
+		rs.listFormerStaff(w, r, filters)
+		return
+	}
+	rs.listCurrentStaff(w, r, filters)
+}
 
+// listCurrentStaff lists the staff directory. Every foreign lookup is
+// batched, so the response costs a fixed number of round trips regardless of
+// staff count.
+func (rs *Resource) listCurrentStaff(w http.ResponseWriter, r *http.Request, filters listStaffFilters) {
+	ctx := r.Context()
 	members, err := rs.membership.ListStaff(ctx, schoolmembership.StaffFilter{})
 	if err != nil {
 		rs.internal(w, r, err)
 		return
 	}
-	teachers, err := rs.teacherIndex(ctx, staffIDsOf(members))
+	teachers, err := rs.teacherIndex(ctx, staffIDsOf(members), false)
 	if err != nil {
 		rs.internal(w, r, err)
 		return
@@ -75,7 +90,7 @@ func (rs *Resource) listStaff(w http.ResponseWriter, r *http.Request) {
 		rs.internal(w, r, err)
 		return
 	}
-	data := rs.loadDirectory(ctx, accountIDsOf(persons))
+	data := rs.withInvitations(ctx, rs.loadDirectory(ctx, accountIDsOf(persons)), members, persons)
 	access := rs.fieldAccess(ctx)
 
 	responses := make([]any, 0, len(members))
@@ -148,7 +163,7 @@ func (rs *Resource) listDocumentDirectory(w http.ResponseWriter, r *http.Request
 // getStaff returns one staff member, as a teacher response when a teacher
 // profile exists.
 func (rs *Resource) getStaff(w http.ResponseWriter, r *http.Request) {
-	staff, ok := rs.parseAndFindStaff(w, r)
+	staff, ok := rs.parseAndFindStaffForRead(w, r)
 	if !ok {
 		return
 	}
@@ -164,8 +179,20 @@ func (rs *Resource) getStaff(w http.ResponseWriter, r *http.Request) {
 	if person != nil && person.AccountID != nil {
 		accountIDs = append(accountIDs, *person.AccountID)
 	}
-	data := rs.loadDirectory(ctx, accountIDs).enrich(staff, person, access.personnel)
+	directory := rs.withInvitations(ctx, rs.loadDirectory(ctx, accountIDs), []schoolmembership.Staff{staff}, map[int64]*Person{staff.PersonID: person})
+	data := directory.enrich(staff, person, access.personnel)
 
+	if staff.IsDeleted() {
+		teachers, err := rs.teacherIndex(ctx, []int64{staff.ID}, true)
+		if err != nil {
+			rs.internal(w, r, err)
+			return
+		}
+		if teacher, exists := teachers[staff.ID]; exists {
+			rs.respond(w, r, http.StatusOK, buildTeacherResponse(access, staff, person, teacher, data), "Teacher retrieved successfully")
+			return
+		}
+	}
 	if teacher := rs.teacherByStaff(ctx, staff.ID); teacher != nil {
 		rs.respond(w, r, http.StatusOK, buildTeacherResponse(access, staff, person, *teacher, data), "Teacher retrieved successfully")
 		return
@@ -188,7 +215,7 @@ func (rs *Resource) getDocumentProfile(w http.ResponseWriter, r *http.Request) {
 }
 
 func (rs *Resource) getMinimalStaffProfile(w http.ResponseWriter, r *http.Request, message string) {
-	staff, ok := rs.parseAndFindStaff(w, r)
+	staff, ok := rs.parseAndFindStaffForRead(w, r)
 	if !ok {
 		return
 	}
@@ -201,17 +228,24 @@ func (rs *Resource) getMinimalStaffProfile(w http.ResponseWriter, r *http.Reques
 		rs.failure(w, r, FailureNotFound, errors.New(msgStaffNotFound), "not_found")
 		return
 	}
-	rs.respond(w, r, http.StatusOK, map[string]any{
-		"id":        staff.ID,
-		"name":      person.FirstName + " " + person.LastName,
-		"firstName": person.FirstName,
-		"lastName":  person.LastName,
-	}, message)
+	profile := map[string]any{
+		"id": staff.ID, "name": person.FirstName + " " + person.LastName,
+		"firstName": person.FirstName, "lastName": person.LastName,
+	}
+	if staff.IsDeleted() {
+		profile["started_on"] = calendar.DateFromTime(staff.CreatedAt)
+		profile["ended_on"] = staffEndedOn(staff)
+	}
+	rs.respond(w, r, http.StatusOK, profile, message)
 }
 
 // serveStaffAvatar streams the avatar of the account behind a staff member.
 // Every miss along the chain is a plain 404, as before — the image tag on the
 // staff screens has no other error handling.
+// errStaffAvatarNotFound answers every avatar lookup that does not lead to an
+// image with the same 404, so the reason stays out of the response.
+var errStaffAvatarNotFound = errors.New("staff avatar not found")
+
 func (rs *Resource) serveStaffAvatar(w http.ResponseWriter, r *http.Request) {
 	id, ok := rs.parseStaffID(w, r)
 	if !ok {
@@ -220,21 +254,21 @@ func (rs *Resource) serveStaffAvatar(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	staff, findErr := rs.membership.FindStaff(ctx, id)
 	if findErr != nil {
-		http.NotFound(w, r)
+		rs.runtime.Failure(w, r, FailureNotFound, errStaffAvatarNotFound)
 		return
 	}
 	person, personErr := rs.personFor(ctx, staff)
 	if personErr != nil {
-		http.NotFound(w, r)
+		rs.runtime.Failure(w, r, FailureNotFound, errStaffAvatarNotFound)
 		return
 	}
 	if person == nil || person.AccountID == nil {
-		http.NotFound(w, r)
+		rs.runtime.Failure(w, r, FailureNotFound, errStaffAvatarNotFound)
 		return
 	}
 	avatars, avatarErr := rs.runtime.AccountAvatars(ctx, []int64{*person.AccountID})
 	if avatarErr != nil || avatars[*person.AccountID] == "" {
-		http.NotFound(w, r)
+		rs.runtime.Failure(w, r, FailureNotFound, errStaffAvatarNotFound)
 		return
 	}
 	rs.runtime.ServeAvatar(w, r, avatars[*person.AccountID])

@@ -5,7 +5,8 @@ import (
 	"testing"
 	"time"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
@@ -16,7 +17,7 @@ import (
 // and without children (#3822).
 func makeDutyScenario(t *testing.T, materializeDate calendar.Date, requiredStaff *int) *scenarioSetup {
 	t.Helper()
-	s := makeScenario(t, activitiesModels.WeekdayMonday, materializeDate)
+	s := makeScenario(t, activityContract.WeekdayMonday, materializeDate)
 	_, err := s.db.NewDelete().TableExpr(`activities.student_enrollments`).
 		Where("activity_group_id = ?", s.template.ID).Exec(s.ctx)
 	require.NoError(t, err)
@@ -49,7 +50,7 @@ func TestDutyWithoutRoomMaterializesAndIsNeverStarted(t *testing.T) {
 		Scan(s.ctx, &roomIsNull))
 	assert.True(t, roomIsNull)
 
-	_, err = s.factory.Instance.Start(s.ctx, rows[0].ID, s.staffID)
+	_, err = s.instance.Start(s.ctx, rows[0].ID, s.staffID)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, timetable.ErrInvalidInstanceTransition), "got %v", err)
 }
@@ -96,7 +97,7 @@ func TestDutyAutoStartSkipsDuty(t *testing.T) {
 
 	// Inside the 14:00–15:00 window of the scenario timeframe.
 	now := time.Date(2026, time.April, 20, 14, 30, 0, 0, time.Local)
-	result, err := s.factory.AutoStart.RunForTenant(s.ctx, now)
+	result, err := s.autoStart.RunForTenant(s.ctx, now)
 	require.NoError(t, err)
 	assert.Equal(t, 1, result.SkippedDuty)
 	assert.Zero(t, result.Started)
@@ -116,7 +117,7 @@ func TestDutyIsAGapBelowRequiredStaff(t *testing.T) {
 	rows := listInstancesForDate(t, s.db, s.template.ID, materializeDate)
 	require.Len(t, rows, 1)
 
-	gaps, err := s.factory.TimetableData.Data.ListUnderstaffedInstances(s.ctx, materializeDate, materializeDate)
+	gaps, err := s.timetableData.Data.ListUnderstaffedInstances(s.ctx, materializeDate, materializeDate)
 	require.NoError(t, err)
 	require.Len(t, gaps, 1, "one present person, two required")
 	assert.Equal(t, rows[0].ID, gaps[0].Instance.ID)
@@ -124,7 +125,7 @@ func TestDutyIsAGapBelowRequiredStaff(t *testing.T) {
 	_, err = s.db.NewUpdate().TableExpr(`activities.groups`).Set("required_staff = 1").
 		Where("id = ?", s.template.ID).Exec(s.ctx)
 	require.NoError(t, err)
-	gaps, err = s.factory.TimetableData.Data.ListUnderstaffedInstances(s.ctx, materializeDate, materializeDate)
+	gaps, err = s.timetableData.Data.ListUnderstaffedInstances(s.ctx, materializeDate, materializeDate)
 	require.NoError(t, err)
 	assert.Empty(t, gaps, "the floor is met")
 }

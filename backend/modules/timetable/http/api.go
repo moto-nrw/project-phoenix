@@ -6,16 +6,14 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/classday"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+
 	"github.com/moto-nrw/project-phoenix/modules/settings"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -110,9 +108,10 @@ type Dependencies struct {
 	// shift-coverage probe from the Timetable owner (#3550).
 	ConflictDetection  timetable.ConflictDetectionCapability
 	CareDayService     careplan.CareDayQuery
-	UserContextService securityruntime.StudentAccessUserContext
-	SettingsService    settings.Resolver
-	SlotListsService   classday.SlotLists
+	UserContextService interface {
+		HasCurrentStaff(context.Context) (bool, error)
+	}
+	SettingsService settings.Resolver
 	// OfferingSourceOptions serves the offering-source editor support
 	// endpoint, the empty-roster explanation of the instance list and the
 	// roster indicator of the template list (#2137, #3140).
@@ -125,7 +124,7 @@ type Dependencies struct {
 	PlanningTracks    timetable.PlanningTrackAdministration
 	// PickupExtensions serves the open block decisions for later pickup
 	// times (#3261).
-	PickupExtensions timetable.PickupExtensionCapability
+	PickupExtensions PickupExtensionDecisions
 	// Staffing wakes the tenant's open staff pages after a staffing save
 	// commits (#1844); nil sends nothing.
 	Staffing StaffingAnnouncer
@@ -133,10 +132,23 @@ type Dependencies struct {
 	Now      func() time.Time
 }
 
+// PickupExtensionDecisions are the later-pickup decisions these routes serve:
+// the open tasks, the child of one task, and the resolution. The root binds
+// the Care Exit workflow, which also re-applies the reported attendance
+// (#3261, #4825).
+type PickupExtensionDecisions interface {
+	FindPickupExtensionStudent(ctx context.Context, taskID int64) (int64, error)
+	ListOpenPickupExtensions(ctx context.Context, studentID int64) ([]timetable.PickupExtensionTask, error)
+	ResolvePickupExtension(ctx context.Context, taskID int64, blockIDs []int64) (timetable.PickupExtensionResolution, error)
+}
+
 // NewResource creates a new timetable resource from the given Dependencies.
-// Nil deps are tolerated at construction time; the dependent handler returns
-// 500 at request time if one of its deps is unset.
+// Settings are required at construction time; other route-specific dependencies
+// are checked by their handlers.
 func NewResource(deps Dependencies) *Resource {
+	if deps.SettingsService == nil {
+		panic("timetable API: settings service is required")
+	}
 	if deps.Now == nil {
 		deps.Now = calendar.Now
 	}
@@ -581,23 +593,12 @@ func calendarPeriodWriteErrorRenderer(r *http.Request, err error, serverMsg stri
 }
 
 func isCalendarPeriodRosterDeleteConflict(err error) bool {
-	if err == nil {
-		return false
-	}
-
-	if errors.Is(err, schoolcalendar.ErrCalendarPeriodRosterConflict) {
-		return true
-	}
-
-	msg := err.Error()
-	return strings.Contains(msg, "duplicate key value violates unique constraint \"idx_student_enrollments_active\"") ||
-		strings.Contains(msg, "duplicate key value violates unique constraint \"idx_supervisors_active\"")
+	return errors.Is(err, schoolcalendar.ErrCalendarPeriodRosterConflict)
 }
 
 // defaultChildrenPerStaffRatio mirrors the registry default for
-// timetable.children_per_staff_ratio (services/config/defaults/timetable.go)
-// and is the fallback used when the settings service is unwired (tests) or a
-// tenant override lookup fails.
+// timetable.children_per_staff_ratio (modules/settings/internal/defaults/timetable.go).
+// Only an unreadable operational staffing ratio uses this compatibility value.
 const defaultChildrenPerStaffRatio = 12
 
 // childrenPerStaffRatio resolves the Betreuungsschlüssel setting once per
@@ -617,26 +618,17 @@ func (rs *Resource) childrenPerStaffRatio(ctx context.Context) int {
 }
 
 func (rs *Resource) enforcePlannedEnd(ctx context.Context) (bool, error) {
-	if rs.SettingsService == nil {
-		// Registry default for timetable.enforce_planned_end. Tests and
-		// partial facades may leave settings unwired; a real lookup failure
-		// below must still surface.
-		return true, nil
-	}
 	enforce, err := rs.SettingsService.ResolveBool(ctx, settings.KeyTimetableEnforcePlannedEnd)
 	if err != nil {
-		return false, fmt.Errorf("%w: resolve planned end policy: %v", timetable.ErrLifecycleSettings, err)
+		return false, fmt.Errorf("%w: resolve planned end policy: %w", timetable.ErrLifecycleSettings, err)
 	}
 	return enforce, nil
 }
 
 func (rs *Resource) completeLeadMinutes(ctx context.Context) (int, error) {
-	if rs.SettingsService == nil {
-		return 0, fmt.Errorf("%w: settings service is not configured", timetable.ErrLifecycleSettings)
-	}
 	lead, err := rs.SettingsService.ResolveInt(ctx, settings.KeyTimetableCompleteLeadMinutes)
 	if err != nil {
-		return 0, fmt.Errorf("%w: resolve complete lead: %v", timetable.ErrLifecycleSettings, err)
+		return 0, fmt.Errorf("%w: resolve complete lead: %w", timetable.ErrLifecycleSettings, err)
 	}
 	return lead, nil
 }

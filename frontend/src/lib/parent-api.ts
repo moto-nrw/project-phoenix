@@ -1,4 +1,9 @@
-import { ApiError, transportFetch, unavailableApiError } from "./api-error";
+import {
+  ApiError,
+  transportFetch,
+  unavailableApiError,
+  apiErrorFromBody,
+} from "./api-error";
 /**
  * Parent-portal client API. Symmetric to the operator-api / tenant
  * api-helpers split. Every call goes through a Next.js proxy route
@@ -13,6 +18,10 @@ import type { AppLocale } from "~/i18n/locales";
 import type { ConsentRecord, ConsentState } from "~/lib/consent-types";
 import { downloadBlob, filenameFromDisposition } from "~/lib/file-download";
 import { createLogger } from "~/lib/logger";
+import {
+  normalizeMealAllergens,
+  type MealAllergen,
+} from "~/lib/meal-allergens";
 import type { ChatMessage, RequestDiffEntry } from "~/lib/messaging-status";
 import { readEnrollmentError } from "~/lib/enrollment-api-error";
 import type {
@@ -43,39 +52,6 @@ export type ChildConsentState = ConsentState;
 export interface ChildConsent extends ConsentRecord {
   readonly can_withdraw: boolean;
   readonly can_grant: boolean;
-}
-
-// Per-child status values exposed on the enrollment-requests list.
-// Mirrors models/enrollment ChildStatus* constants.
-type EnrollmentChildStatus =
-  | "submitted"
-  | "under_review"
-  | "approved"
-  | "waitlisted"
-  | "rejected"
-  | "withdrawn";
-
-interface EnrollmentRequestChild {
-  readonly child_id: string;
-  readonly first_name: string;
-  readonly last_name: string;
-  readonly status: EnrollmentChildStatus;
-  readonly status_reason?: string;
-}
-
-export interface EnrollmentRequest {
-  readonly request_id: string;
-  readonly tenant_id: string;
-  readonly status_token: string;
-  readonly submitted_at: string; // ISO timestamp
-  readonly withdrawn_at?: string; // ISO timestamp
-  readonly phase_id: string;
-  readonly phase_name: string;
-  readonly service_start_date: string; // ISO date
-  readonly service_end_date: string; // ISO date
-  readonly school_name: string;
-  readonly school_slug: string;
-  readonly children: EnrollmentRequestChild[];
 }
 
 // One enrollment phase the calling parent may apply to, joined to its school.
@@ -261,6 +237,9 @@ export interface ChildFeatures {
   // actions for a chat-only guardian instead of dead-ending on a backend 403.
   readonly request_submit_enabled: boolean;
   readonly pickup_change_enabled: boolean;
+  // Ob die Anfrage für einen Tag auch eine andere Abholart enthalten darf
+  // (#3945): Abholänderung für einen Tag UND Abholart ändern sind an.
+  readonly pickup_change_mode_enabled?: boolean;
   // Die Schule kann eine Uhrzeit festlegen, bis zu der Eltern die Abholzeit
   // für heute ändern dürfen (operations.parent_pickup_change_cutoff_time,
   // #3163). Leer oder fehlend heißt: keine Frist. today_closed sagt, dass die
@@ -269,6 +248,10 @@ export interface ChildFeatures {
   readonly pickup_change_today_closed?: boolean;
   readonly pickup_manage_allowed?: boolean;
   readonly guardian_contact_manage_allowed: boolean;
+  // Ob die Person ihre eigenen offenen Abwesenheitsanfragen ändern darf
+  // (parent_portal.sick_note.submit, #4603). Fehlt das Feld (älteres
+  // Backend), bleibt der Knopf aus.
+  readonly absence_request_edit_enabled?: boolean;
   readonly related_accounts_invite_enabled: boolean;
   readonly related_accounts_remove_enabled: boolean;
   readonly master_data_edit_enabled: boolean;
@@ -298,6 +281,8 @@ export interface MealPlanEntry {
   readonly position: number;
   readonly dish: string;
   readonly note?: string | null;
+  /** Codes of the main allergens, in legend order; empty when unmarked. */
+  readonly allergens: readonly MealAllergen[];
 }
 
 // One day's pickup override plus OGS-owned arrival state for display.
@@ -323,13 +308,30 @@ export interface CareException {
   // resolves the tile to an absence rather than the base-plan pickup. Undefined
   // for ordinary rows.
   readonly arrival_absent?: boolean;
+  // Die Abholart, die die OGS für diesen Tag eingetragen oder bestätigt hat
+  // (#3945). Fehlt sie, gilt die Abholart aus dem Wochenplan.
+  readonly departure_mode?: DayDepartureMode;
 }
 
+// Abholarten, die Eltern für einen einzelnen Tag anfragen können (#3945).
+// „In Begleitung“ setzt nur die OGS, weil sie das Begleitkind verknüpft.
+export const REQUESTABLE_DAY_DEPARTURE_MODES = [
+  "alone",
+  "bus",
+  "pickup",
+] as const;
+export type DayDepartureMode =
+  (typeof REQUESTABLE_DAY_DEPARTURE_MODES)[number] | "accompanied";
+
+// Eine Abholänderungsanfrage für einen Tag. pickup_time oder departure_mode
+// ist null, wenn die Anfrage diesen Teil nicht ändert (#3945).
 export interface PickupChangeRequest {
   readonly id: string;
   readonly date: string;
-  readonly pickup_time: string;
+  readonly pickup_time: string | null;
   readonly previous_pickup_time?: string;
+  readonly departure_mode?: DayDepartureMode | null;
+  readonly previous_departure_modes?: readonly DayDepartureMode[];
   readonly reason: string;
   readonly status: "pending" | "approved" | "rejected" | "withdrawn";
   readonly decision_reason?: string;
@@ -442,63 +444,33 @@ function unwrapEnvelope<T>(json: ApiEnvelope<T>): T {
 }
 
 /**
- * A failed parents-portal API call. Carries the HTTP status and the backend's
- * stable error `code` (e.g. "care.care_exception_conflict") so callers can map to a
- * localized message instead of showing the raw English error string. Extends
- * `Error`, so existing `err instanceof Error ? err.message` handling still works.
- */
-export class ParentApiError extends ApiError {
-  readonly status: number;
-  constructor(
-    message: string,
-    status: number,
-    code?: string,
-    payload?: {
-      details?: Record<string, unknown>;
-      errors?: { field: string; reason: string }[];
-      instance?: string;
-    },
-  ) {
-    super(message, status, { code, ...payload });
-    this.name = "ParentApiError";
-    this.status = status;
-  }
-}
-
-/**
  * Reads the backend error message + code off a failed response, logs it, and
  * (on 401) bounces the user to the parents login. Shared by
  * getJson/postJson/deleteJson so the error/redirect/logging path lives in
- * exactly one place. Always throws a ParentApiError.
+ * exactly one place. Always throws an ApiError with status, code, field
+ * errors and request ID from the envelope.
  */
 async function throwResponseError(
   url: string,
   response: Response,
 ): Promise<never> {
-  let message = `Request failed (${response.status})`;
-  let code: string | undefined;
-  let payload:
-    | {
-        details?: Record<string, unknown>;
-        errors?: { field: string; reason: string }[];
-        instance?: string;
-      }
-    | undefined;
+  let body: unknown;
   try {
-    const body = (await response.json()) as {
-      error?: string;
-      code?: string;
-      details?: Record<string, unknown>;
-      errors?: { field: string; reason: string }[];
-      instance?: string;
-    };
-    if (body.error) message = body.error;
-    if (body.code) code = body.code;
-    payload = body;
+    body = await response.json();
   } catch {
-    // Body was not JSON, keep the generic message.
+    // Body was not JSON; the status still classifies.
   }
-  const context = { url, status: response.status, message, code };
+  const error = apiErrorFromBody(
+    `Request failed (${response.status})`,
+    response.status,
+    body,
+  );
+  const context = {
+    url,
+    status: response.status,
+    message: error.message,
+    code: error.code,
+  };
   if (response.status === 401) {
     logger.warn("parent_api_request_failed", context);
     if (typeof window !== "undefined") {
@@ -507,7 +479,7 @@ async function throwResponseError(
   } else {
     logger.error("parent_api_request_failed", context);
   }
-  throw new ParentApiError(message, response.status, code, payload);
+  throw error;
 }
 
 async function getJson<T>(url: string): Promise<T> {
@@ -593,15 +565,6 @@ export async function grantChildPhotoConsent(
     `/api/parent/me/children/${encodeURIComponent(studentId)}/consents/photo`,
     {},
   );
-}
-
-/**
- * Fetches every enrollment.requests row owned by the calling parent's
- * account, joined to phase + school + child summaries. Newest first.
- * Powers the "Anmeldungen in Bearbeitung" section on the dashboard.
- */
-export async function listMyEnrollments(): Promise<EnrollmentRequest[]> {
-  return getJson<EnrollmentRequest[]>("/api/parent/me/enrollments");
 }
 
 /**
@@ -859,10 +822,7 @@ export async function getChildToday(studentId: string): Promise<ChildToday> {
       `/api/parent/me/children/${encodeURIComponent(studentId)}/today`,
     );
   } catch (err) {
-    if (
-      err instanceof ParentApiError &&
-      (err.status === 403 || err.status === 404)
-    ) {
+    if (err instanceof ApiError && (err.status === 403 || err.status === 404)) {
       logger.warn("parent_child_today_unavailable", {
         status: err.status,
         student_id: studentId,
@@ -882,14 +842,26 @@ export async function getChildMealPlan(
   studentId: string,
   weekStart: string,
 ): Promise<MealPlanEntry[]> {
-  return getJson<MealPlanEntry[]>(
+  const entries = await getJson<
+    Array<Omit<MealPlanEntry, "allergens"> & { allergens?: string[] | null }>
+  >(
     `/api/parent/me/children/${encodeURIComponent(
       studentId,
     )}/meal-plan?week_start=${encodeURIComponent(weekStart)}`,
   );
+  return (entries ?? []).map((entry) => ({
+    ...entry,
+    allergens: normalizeMealAllergens(entry.allergens),
+  }));
 }
 
-type MealParticipationSource = "none" | "regular" | "override" | "sick";
+type MealParticipationSource =
+  | "none"
+  | "regular"
+  | "override"
+  | "sick"
+  /** Feiertag oder Schließtag: kein Essen, nicht änderbar. */
+  | "closed";
 
 interface MealParticipationDay {
   readonly date: string;
@@ -902,6 +874,16 @@ export interface MealParticipation {
   readonly weekdays: number[];
   readonly effective_from?: string;
   readonly cutoff_time: string;
+  /** Werktage vor dem Essenstag, an denen die Frist gilt; 0 = am selben Tag. */
+  readonly cutoff_lead_days?: number;
+  /**
+   * 1-5 (Mo-Fr): Die Frist der ganzen nächsten Woche endet an diesem
+   * Wochentag; 0 = Vorlauf in Werktagen.
+   */
+  readonly cutoff_weekday?: number;
+  /** Spätere Abmeldefrist; fehlt, wenn sie der Änderungsfrist entspricht. */
+  readonly cancellation_cutoff_time?: string;
+  readonly cancellation_cutoff_lead_days?: number;
   readonly days: MealParticipationDay[];
 }
 
@@ -965,7 +947,12 @@ export async function listSickDays(studentId: string): Promise<StatusDay[]> {
 // own messages, "staff" for replies from the OGS. For staff messages
 // `sender_name` is the "OGS [Schulname]" label.
 // The wire message shape is shared with the staff client; see ChatMessage.
-export type ParentMessage = ChatMessage;
+export type ParentMessage = ChatMessage & {
+  // The group thread this own message answers (#4784). Only the guardian and
+  // the OGS see the answer.
+  readonly group_thread_id?: string;
+  readonly group_thread_title?: string;
+};
 
 // One row on the messages landing page: a child's conversation, with the
 // guardian's unread (staff-sent) count and last-activity metadata.
@@ -1117,20 +1104,6 @@ export interface ThreadView {
 /** Lists the guardian's conversations (one per child written about). */
 export async function listMessageThreads(): Promise<ThreadSummary[]> {
   return getJson<ThreadSummary[]>("/api/parent/me/messages");
-}
-
-/**
- * Lists the guardian's conversation(s) about ONE child (at most one per the chat
- * model). The child detail page uses this instead of fetching the whole
- * cross-tenant inbox and filtering client-side. Reading it does NOT mark the
- * thread read.
- */
-export async function listChildThreads(
-  studentId: string,
-): Promise<ThreadSummary[]> {
-  return getJson<ThreadSummary[]>(
-    `/api/parent/me/messages/children/${encodeURIComponent(studentId)}/threads`,
-  );
 }
 
 /**
@@ -1395,10 +1368,62 @@ export async function getChildConversation(
 export async function postChildMessage(
   studentId: string,
   body: string,
+  groupThreadId?: string,
 ): Promise<ThreadView> {
   return postJson<ThreadView>(
     `/api/parent/me/messages/children/${encodeURIComponent(studentId)}`,
-    { body },
+    groupThreadId ? { body, group_thread_id: groupThreadId } : { body },
+  );
+}
+
+// Gruppennachrichten (#4784): the OGS writes to a group, class or AG. The
+// guardian sees only what reached them, for their own children; an answer
+// goes into the child's conversation with the OGS.
+
+/** One of the guardian's own children a group thread reached. */
+export interface GroupThreadChild {
+  readonly student_id: string;
+  readonly first_name: string;
+  readonly last_name: string;
+}
+
+/** One row of the guardian's group thread list. */
+export interface GroupThreadSummary {
+  readonly id: string;
+  readonly title: string;
+  readonly target_label: string;
+  readonly school_name: string;
+  readonly counterpart_name: string; // "OGS [Schulname]"
+  readonly closed: boolean;
+  readonly last_message_at?: string; // ISO timestamp
+  readonly last_message_body: string;
+  readonly unread: number;
+  readonly children: readonly GroupThreadChild[];
+}
+
+/** One OGS message of a group thread; the sender is always the OGS. */
+interface GroupThreadMessage {
+  readonly id: string;
+  readonly body: string;
+  readonly created_at: string; // ISO timestamp
+}
+
+/** An opened group thread. */
+export interface GroupThreadView extends GroupThreadSummary {
+  readonly messages: readonly GroupThreadMessage[];
+}
+
+/** Lists the group threads that reached the guardian, newest first. */
+export async function listGroupThreads(): Promise<GroupThreadSummary[]> {
+  return getJson<GroupThreadSummary[]>("/api/parent/me/messages/group-threads");
+}
+
+/** Opens one group thread. Reading marks it read server-side. */
+export async function getGroupThread(
+  groupThreadId: string,
+): Promise<GroupThreadView> {
+  return getJson<GroupThreadView>(
+    `/api/parent/me/messages/group-threads/${encodeURIComponent(groupThreadId)}`,
   );
 }
 
@@ -1411,7 +1436,10 @@ export async function submitCareException(
   studentId: string,
   params: {
     date: string;
+    /** Leer: die Abholzeit des Tages bleibt (#3945). */
     pickupTime: string;
+    /** Leer: die Abholart des Tages bleibt (#3945). */
+    departureMode?: DayDepartureMode | "";
     reason: string;
     recipientGuardianProfileIds?: string[];
   },
@@ -1420,7 +1448,8 @@ export async function submitCareException(
     `/api/parent/me/children/${encodeURIComponent(studentId)}/care-exception`,
     {
       date: params.date,
-      pickup_time: params.pickupTime,
+      pickup_time: params.pickupTime || undefined,
+      departure_mode: params.departureMode || undefined,
       reason: params.reason,
       recipient_guardian_profile_ids: params.recipientGuardianProfileIds ?? [],
     },
@@ -1434,6 +1463,7 @@ export async function updatePickupChangeRequest(
   input: {
     date: string;
     pickupTime: string;
+    departureMode?: DayDepartureMode | "";
     reason: string;
     expectedVersion: string;
   },
@@ -1443,6 +1473,7 @@ export async function updatePickupChangeRequest(
     {
       date: input.date,
       pickup_time: input.pickupTime,
+      departure_mode: input.departureMode ?? "",
       reason: input.reason,
       expected_version: input.expectedVersion,
     },

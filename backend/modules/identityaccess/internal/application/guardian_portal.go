@@ -7,7 +7,11 @@ import (
 )
 
 func (q *AccountRoleQueries) FindActiveGuardianMemberships(ctx context.Context, accountIDs []int64) (result map[int64][]int64, err error) {
-	err = q.service.run(ctx, q.service.tx.RunPlatform, "find_active_guardian_memberships", func(txCtx context.Context, stats *domain.OperationStats) error {
+	defer func() { err = MapError(err) }()
+	if len(accountIDs) == 0 {
+		return map[int64][]int64{}, nil
+	}
+	err = q.service.run(ctx, q.service.tx.RunAdmin, "find_active_guardian_memberships", func(txCtx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		var queryErr error
 		result, queryStats, queryErr = q.store.FindActiveGuardianMemberships(txCtx, accountIDs)
@@ -18,7 +22,11 @@ func (q *AccountRoleQueries) FindActiveGuardianMemberships(ctx context.Context, 
 }
 
 func (q *AccountRoleQueries) FindLoginReadyGuardianMemberships(ctx context.Context, accountIDs []int64) (result map[int64][]int64, err error) {
-	err = q.service.run(ctx, q.service.tx.RunPlatform, "find_login_ready_guardian_memberships", func(txCtx context.Context, stats *domain.OperationStats) error {
+	defer func() { err = MapError(err) }()
+	if len(accountIDs) == 0 {
+		return map[int64][]int64{}, nil
+	}
+	err = q.service.run(ctx, q.service.tx.RunAdmin, "find_login_ready_guardian_memberships", func(txCtx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		var queryErr error
 		result, queryStats, queryErr = q.store.FindLoginReadyGuardianMemberships(txCtx, accountIDs)

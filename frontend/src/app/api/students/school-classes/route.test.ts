@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
 import { GET } from "./route";
-
-interface ExtendedSession extends Session {
-  user: Session["user"] & { token?: string };
-}
+import {
+  type ExtendedSession,
+  createMockContext,
+  defaultSession,
+} from "~/test/route-test-helpers";
 
 const { mockAuth, mockApiGet } = vi.hoisted(() => ({
   mockAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
@@ -16,7 +16,8 @@ vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));
 
-vi.mock("~/lib/api-helpers.server", () => ({
+vi.mock("~/lib/api-helpers.server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/api-helpers.server")>()),
   apiGet: mockApiGet,
   handleApiError: vi.fn((error: unknown) => {
     const message =
@@ -25,17 +26,8 @@ vi.mock("~/lib/api-helpers.server", () => ({
   }),
 }));
 
-const defaultSession: ExtendedSession = {
-  user: { id: "1", token: "test-token", name: "Test User" },
-  expires: "2099-01-01",
-};
-
 function createMockRequest(path: string): NextRequest {
   return new NextRequest(new URL(path, "http://localhost:3000"));
-}
-
-function createMockContext() {
-  return { params: Promise.resolve({}) };
 }
 
 async function parseJsonResponse<T>(response: Response): Promise<T> {

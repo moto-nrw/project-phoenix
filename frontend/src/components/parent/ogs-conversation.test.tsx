@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import { ApiError } from "~/lib/api-error";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ParentApiError } from "~/lib/parent-api";
 import { catalogText } from "~/test/error-catalog-text";
 
 const { mockGetConversation, mockPostMessage } = vi.hoisted(() => ({
@@ -46,13 +46,32 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
+describe("OgsConversation back link", () => {
+  it("names the inbox and sits in the head card above the title", async () => {
+    mockGetConversation.mockResolvedValueOnce(thread);
+
+    render(<OgsConversation studentId="42" showBack />);
+
+    const title = await screen.findByRole("heading", {
+      level: 1,
+      name: "OGS-Team der Schule am Berg",
+    });
+    const back = screen.getByRole("link", { name: "Zurück zu Nachrichten" });
+    expect(back).toHaveAttribute("href", "/parents/messages");
+    expect(back.closest("section")).toBe(title.closest("section"));
+    expect(
+      back.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+});
+
 // #2518: Lade- und Sendefehler laufen über den gemeinsamen Fehlerweg, mit
 // Katalogtext und Wiederholen, nie mit dem Satz vom Server.
 describe("OgsConversation errors", () => {
   it("shows a failed load in the thread and retries it", async () => {
     mockGetConversation
       .mockRejectedValueOnce(
-        new ParentApiError("thread kaputt", 503, "general.unavailable"),
+        new ApiError("thread kaputt", 503, { code: "general.unavailable" }),
       )
       .mockResolvedValueOnce(thread);
 
@@ -76,7 +95,7 @@ describe("OgsConversation errors", () => {
   it("shows a failed send above the composer and keeps the draft", async () => {
     mockGetConversation.mockResolvedValue(thread);
     mockPostMessage.mockRejectedValueOnce(
-      new ParentApiError("not allowed", 403, "general.permission"),
+      new ApiError("not allowed", 403, { code: "general.permission" }),
     );
 
     render(<OgsConversation studentId="42" />);
@@ -92,5 +111,45 @@ describe("OgsConversation errors", () => {
     ).toBeInTheDocument();
     expect(screen.queryByText(/not allowed/)).not.toBeInTheDocument();
     expect(field).toHaveValue("Hallo OGS");
+  });
+});
+
+// #4784: eine Antwort auf eine Gruppennachricht zeigt, worauf sie sich bezieht.
+describe("OgsConversation group thread answers", () => {
+  it("shows the group thread an own answer refers to and links to it", async () => {
+    mockGetConversation.mockResolvedValueOnce({
+      ...thread,
+      messages: [
+        {
+          id: "m1",
+          kind: "message",
+          sender_kind: "guardian",
+          sender_name: "Sabine Schneider",
+          body: "Wir bringen einen Apfelkuchen mit.",
+          created_at: "2026-09-09T08:00:00Z",
+          group_thread_id: "9",
+          group_thread_title: "Sommerfest am Freitag",
+        },
+        {
+          id: "m2",
+          kind: "message",
+          sender_kind: "guardian",
+          sender_name: "Sabine Schneider",
+          body: "Und noch eine Frage.",
+          created_at: "2026-09-09T08:05:00Z",
+        },
+      ],
+    });
+
+    render(<OgsConversation studentId="42" />);
+
+    const reference = await screen.findByRole("link", {
+      name: "Antwort auf: Sommerfest am Freitag",
+    });
+    expect(reference).toHaveAttribute("href", "/parents/messages/group/9");
+    expect(screen.getByText("Und noch eine Frage.")).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: /Antwort auf/ })).toHaveLength(
+      1,
+    );
   });
 });

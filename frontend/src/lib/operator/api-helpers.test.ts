@@ -1,9 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import {
-  operatorFetch,
-  OperatorApiError,
-  isOperatorApiError,
-} from "./api-helpers";
+import { ApiError } from "../api-error";
+import { operatorFetch } from "./api-helpers";
 
 global.fetch = vi.fn();
 
@@ -90,26 +87,32 @@ describe("operatorFetch", () => {
     expect(result).toEqual(plainData);
   });
 
-  it("throws OperatorApiError on non-ok response with JSON error", async () => {
+  it("throws an ApiError with the envelope on a non-ok response", async () => {
     (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: false,
       status: 400,
       statusText: "Bad Request",
-      json: async () => ({ error: "Invalid input" }),
+      json: async () => ({
+        detail: "Invalid input",
+        code: "general.input",
+        status: 400,
+      }),
     });
 
-    await expect(operatorFetch("/api/test")).rejects.toThrow(OperatorApiError);
-    await expect(operatorFetch("/api/test")).rejects.toThrow("Invalid input");
+    await expect(operatorFetch("/api/test")).rejects.toThrow(ApiError);
+    await expect(operatorFetch("/api/test")).rejects.toThrow("Bad Request");
 
     try {
       await operatorFetch("/api/test");
     } catch (error) {
-      expect(error).toBeInstanceOf(OperatorApiError);
-      expect((error as OperatorApiError).status).toBe(400);
+      expect(error).toBeInstanceOf(ApiError);
+      expect((error as ApiError).status).toBe(400);
+      expect((error as ApiError).code).toBe("general.input");
+      expect((error as ApiError).detail).toBe("Invalid input");
     }
   });
 
-  it("throws OperatorApiError with statusText when JSON parsing fails", async () => {
+  it("throws an ApiError with statusText when JSON parsing fails", async () => {
     (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: false,
       status: 500,
@@ -151,38 +154,5 @@ describe("operatorFetch", () => {
       body: updateData,
     });
     expect(result).toEqual(updateData);
-  });
-});
-
-describe("OperatorApiError", () => {
-  it("sets name and status correctly", () => {
-    const error = new OperatorApiError("Test error", 404);
-    expect(error.name).toBe("OperatorApiError");
-    expect(error.status).toBe(404);
-    expect(error.message).toBe("Test error");
-  });
-
-  it("is instanceof Error", () => {
-    const error = new OperatorApiError("Test", 500);
-    expect(error).toBeInstanceOf(Error);
-  });
-});
-
-describe("isOperatorApiError", () => {
-  it("returns true for OperatorApiError instance", () => {
-    const error = new OperatorApiError("Test", 400);
-    expect(isOperatorApiError(error)).toBe(true);
-  });
-
-  it("returns false for regular Error", () => {
-    const error = new Error("Regular error");
-    expect(isOperatorApiError(error)).toBe(false);
-  });
-
-  it("returns false for non-error values", () => {
-    expect(isOperatorApiError("string")).toBe(false);
-    expect(isOperatorApiError(null)).toBe(false);
-    expect(isOperatorApiError(undefined)).toBe(false);
-    expect(isOperatorApiError({})).toBe(false);
   });
 });

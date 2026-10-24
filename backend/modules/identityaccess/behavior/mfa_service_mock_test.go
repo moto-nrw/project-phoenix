@@ -155,11 +155,12 @@ func (m *MFAServiceMock) ResendMFAChallengeForScope(ctx context.Context, challen
 	return "", nil
 }
 
-func (m *MFAServiceMock) VerifyMFACodeForAccount(ctx context.Context, accountID, tenantID int64, code, expectedScope string) error {
+func (m *MFAServiceMock) VerifyMFACodeForAccount(ctx context.Context, accountID, tenantID int64, code, expectedScope string) (identityaccess.VerifiedMFAChallenge, error) {
+	var err error
 	if m.VerifyMFACodeForAccountFn != nil {
-		return m.VerifyMFACodeForAccountFn(ctx, accountID, tenantID, code, expectedScope)
+		err = m.VerifyMFACodeForAccountFn(ctx, accountID, tenantID, code, expectedScope)
 	}
-	return nil
+	return identityaccess.VerifiedMFAChallenge{AccountID: accountID, TenantID: tenantID, Scope: expectedScope}, err
 }
 
 func (m *MFAServiceMock) EnrollMFA(ctx context.Context, accountID int64) error {
@@ -174,6 +175,12 @@ func (m *MFAServiceMock) DisableMFA(ctx context.Context, accountID int64) error 
 		return m.DisableMFAFn(ctx, accountID)
 	}
 	return nil
+}
+
+func (m *MFAServiceMock) PrepareTrustedDevice(_ context.Context, accountID, tenantID int64, userAgent string, ip net.IP) (identityaccess.TrustedDeviceIssue, error) {
+	return func(ctx context.Context) (string, time.Time, error) {
+		return m.IssueTrustedDevice(ctx, accountID, tenantID, userAgent, ip)
+	}, nil
 }
 
 func (m *MFAServiceMock) IssueTrustedDevice(ctx context.Context, accountID, tenantID int64, userAgent string, ip net.IP) (string, time.Time, error) {

@@ -1,7 +1,7 @@
+import { ApiError } from "./api-error";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   timetableOperationsApi,
-  TimetableOperationsApiError,
   isReopenUnavailableError,
 } from "./timetable-operations-api";
 
@@ -354,11 +354,11 @@ describe("timetableOperationsApi", () => {
     );
   });
 
-  it("uses backend error messages and falls back when JSON parsing fails", async () => {
+  it("uses fallback messages and retains diagnostics separately", async () => {
     const mockFetch = vi.mocked(globalThis.fetch);
     mockFetch
       .mockResolvedValueOnce(
-        jsonResponse({ error: "Nicht erlaubt" }, false, 403),
+        jsonResponse({ detail: "Nicht erlaubt" }, false, 403),
       )
       .mockResolvedValueOnce(jsonResponse({}, false, 418))
       .mockResolvedValueOnce({
@@ -368,7 +368,7 @@ describe("timetableOperationsApi", () => {
       } as Response);
 
     await expect(timetableOperationsApi.complete("136", [])).rejects.toThrow(
-      "Nicht erlaubt",
+      "Anfrage fehlgeschlagen (HTTP 403)",
     );
     await expect(timetableOperationsApi.complete("136", [])).rejects.toThrow(
       "Anfrage fehlgeschlagen (HTTP 418)",
@@ -380,7 +380,11 @@ describe("timetableOperationsApi", () => {
 
   it("keeps http status and backend code on operations errors", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValueOnce(
-      jsonResponse({ error: "Raum belegt", code: "room_conflict" }, false, 409),
+      jsonResponse(
+        { detail: "Raum belegt", code: "room_conflict" },
+        false,
+        409,
+      ),
     );
 
     const err = await timetableOperationsApi.reopen("137").then(
@@ -389,10 +393,10 @@ describe("timetableOperationsApi", () => {
       },
       (caught: unknown) => caught,
     );
-    expect(err).toBeInstanceOf(TimetableOperationsApiError);
+    expect(err).toBeInstanceOf(ApiError);
     expect(err).toMatchObject({
-      name: "TimetableOperationsApiError",
-      httpStatus: 409,
+      name: "ApiError",
+      status: 409,
       code: "room_conflict",
     });
     expect(isReopenUnavailableError(err)).toBe(false);
@@ -401,28 +405,25 @@ describe("timetableOperationsApi", () => {
 
 describe("isReopenUnavailableError", () => {
   it("treats only terminal reopen failures as unavailable", () => {
+    expect(isReopenUnavailableError(new ApiError("Raum belegt", 409))).toBe(
+      false,
+    );
     expect(
       isReopenUnavailableError(
-        new TimetableOperationsApiError("Raum belegt", 409),
-      ),
-    ).toBe(false);
-    expect(
-      isReopenUnavailableError(
-        new TimetableOperationsApiError(
+        new ApiError(
           "invalid instance transition: reopen window expired",
           409,
-          "timetable.invalid_transition",
+          { code: "timetable.invalid_transition" },
         ),
       ),
     ).toBe(true);
     expect(
-      isReopenUnavailableError(
-        new TimetableOperationsApiError("nicht berechtigt", 403),
-      ),
+      isReopenUnavailableError(new ApiError("nicht berechtigt", 403)),
     ).toBe(true);
+    // A plain Error carries neither status nor code: its text is not read.
     expect(
       isReopenUnavailableError(new Error("completion snapshot missing")),
-    ).toBe(true);
+    ).toBe(false);
   });
 });
 

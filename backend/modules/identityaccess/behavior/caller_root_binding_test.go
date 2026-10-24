@@ -9,9 +9,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
-	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // overviewScopeSettings resolves the one school-wide access setting (#2380)
@@ -83,7 +84,7 @@ func TestCallerOverviewAppliesTheOverviewScope(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			staff := &overviewStaffFake{staff: tc.staff}
 
-			got, err := services.CallerOverview{Settings: tc.settings}.HasOperationalOverview(context.Background(), staff, tc.assignmentBound, tc.admin)
+			got, err := owners.CallerOverview{Settings: tc.settings}.HasOperationalOverview(context.Background(), staff, tc.assignmentBound, tc.admin)
 
 			if tc.wantErr {
 				require.Error(t, err)
@@ -102,7 +103,7 @@ func TestCallerOverviewAppliesTheOverviewScope(t *testing.T) {
 func TestCallerOverviewWithoutSettingsNeverGrants(t *testing.T) {
 	t.Parallel()
 
-	got, err := services.CallerOverview{}.HasOperationalOverview(context.Background(), &overviewStaffFake{staff: true}, false, true)
+	got, err := owners.CallerOverview{}.HasOperationalOverview(context.Background(), &overviewStaffFake{staff: true}, false, true)
 
 	require.NoError(t, err)
 	assert.False(t, got)
@@ -113,33 +114,33 @@ func TestCallerOverviewAsksForStaffOnlyUnderAllStaff(t *testing.T) {
 	t.Parallel()
 
 	admin := &overviewStaffFake{staff: true}
-	_, err := services.CallerOverview{Settings: overviewScopeSettings(overviewScopeAllStaff)}.
+	_, err := owners.CallerOverview{Settings: overviewScopeSettings(overviewScopeAllStaff)}.
 		HasOperationalOverview(context.Background(), admin, false, true)
 	require.NoError(t, err)
 	assert.Zero(t, admin.calls)
 
 	own := &overviewStaffFake{staff: true}
-	_, err = services.CallerOverview{Settings: overviewScopeSettings(overviewScopeOwn)}.
+	_, err = owners.CallerOverview{Settings: overviewScopeSettings(overviewScopeOwn)}.
 		HasOperationalOverview(context.Background(), own, false, false)
 	require.NoError(t, err)
 	assert.Zero(t, own.calls)
 }
 
-func claimsContext(claims authjwt.AppClaims, permissions ...string) context.Context {
-	ctx := context.WithValue(context.Background(), authjwt.CtxClaims, claims)
-	return context.WithValue(ctx, authjwt.CtxPermissions, permissions)
+func claimsContext(claims sessiontoken.AppClaims, permissions ...string) context.Context {
+	ctx := context.WithValue(context.Background(), sessiontoken.CtxClaims, claims)
+	return context.WithValue(ctx, sessiontoken.CtxPermissions, permissions)
 }
 
 func TestCallerFromClaimsWithoutClaimsIsUnauthenticated(t *testing.T) {
 	t.Parallel()
 
-	assert.Zero(t, services.CallerFromClaims(context.Background()))
+	assert.Zero(t, api.CallerFromClaims(context.Background()))
 }
 
 func TestCallerFromClaimsMapsTheVerifiedPrincipal(t *testing.T) {
 	t.Parallel()
 
-	caller := services.CallerFromClaims(claimsContext(authjwt.AppClaims{ID: 42, TenantID: 10, Scope: "tenant", IsAdmin: true}, "users:update"))
+	caller := api.CallerFromClaims(claimsContext(sessiontoken.AppClaims{ID: 42, TenantID: 10, Scope: "tenant", IsAdmin: true}, "users:update"))
 
 	assert.True(t, caller.Authenticated)
 	assert.Equal(t, int64(42), caller.AccountID)
@@ -155,8 +156,8 @@ func TestCallerFromClaimsMapsTheVerifiedPrincipal(t *testing.T) {
 func TestCallerFromClaimsMarksTheSchoolPortal(t *testing.T) {
 	t.Parallel()
 
-	assert.True(t, services.CallerFromClaims(claimsContext(authjwt.AppClaims{ID: 42, TenantID: 10, Scope: "school"})).SchoolScope)
-	assert.False(t, services.CallerFromClaims(claimsContext(authjwt.AppClaims{ID: 42, TenantID: 10, Scope: "tenant"})).SchoolScope)
+	assert.True(t, api.CallerFromClaims(claimsContext(sessiontoken.AppClaims{ID: 42, TenantID: 10, Scope: "school"})).SchoolScope)
+	assert.False(t, api.CallerFromClaims(claimsContext(sessiontoken.AppClaims{ID: 42, TenantID: 10, Scope: "tenant"})).SchoolScope)
 }
 
 // A system-wide admin permission counts as effective admin without the admin
@@ -166,10 +167,10 @@ func TestCallerFromClaimsDetectsTheAdminWildcard(t *testing.T) {
 
 	for _, permission := range []string{"admin:*", "*:*"} {
 		t.Run(permission, func(t *testing.T) {
-			caller := services.CallerFromClaims(claimsContext(authjwt.AppClaims{ID: 42, TenantID: 10}, permission))
+			caller := api.CallerFromClaims(claimsContext(sessiontoken.AppClaims{ID: 42, TenantID: 10}, permission))
 			assert.True(t, caller.AdminWildcard)
 			assert.False(t, caller.AdminRole)
 		})
 	}
-	assert.False(t, services.CallerFromClaims(claimsContext(authjwt.AppClaims{ID: 42, TenantID: 10}, "users:update")).AdminWildcard)
+	assert.False(t, api.CallerFromClaims(claimsContext(sessiontoken.AppClaims{ID: 42, TenantID: 10}, "users:update")).AdminWildcard)
 }

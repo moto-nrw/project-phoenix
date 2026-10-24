@@ -7,11 +7,12 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 	"github.com/uptrace/bun"
 )
 
-func (s *Store) FindVisit(ctx context.Context, id int64) (*ports.Visit, ports.Stats, error) {
+func (s *Store) FindVisit(ctx context.Context, id int64) (*studentpresence.Visit, ports.Stats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, ports.Stats{}, err
@@ -28,7 +29,7 @@ func (s *Store) FindVisit(ctx context.Context, id int64) (*ports.Visit, ports.St
 	return row.record(), stats, nil
 }
 
-func visitQuery(db bun.IDB, tenantID int64, rows any, filter ports.VisitFilter) *bun.SelectQuery {
+func visitQuery(db bun.IDB, tenantID int64, rows any, filter studentpresence.VisitFilter) *bun.SelectQuery {
 	query := db.NewSelect().Model(rows).ModelTableExpr(`active.visits AS "visit"`).Where("visit.tenant_id = ?", tenantID)
 	if filter.IDs != nil {
 		query = query.Where("visit.id IN (?)", bun.List(filter.IDs))
@@ -39,18 +40,7 @@ func visitQuery(db bun.IDB, tenantID int64, rows any, filter ports.VisitFilter) 
 	if filter.ActiveGroupIDs != nil {
 		query = query.Where("visit.active_group_id IN (?)", bun.List(filter.ActiveGroupIDs))
 	}
-	if filter.EnteredFrom != nil {
-		query = query.Where("visit.entry_time >= ?", *filter.EnteredFrom)
-	}
-	if filter.EnteredUntil != nil {
-		query = query.Where("visit.entry_time <= ?", *filter.EnteredUntil)
-	}
-	if filter.OverlapFrom != nil {
-		query = query.Where("(visit.exit_time IS NULL OR visit.exit_time >= ?)", *filter.OverlapFrom)
-	}
-	if filter.OverlapUntil != nil {
-		query = query.Where("visit.entry_time <= ?", *filter.OverlapUntil)
-	}
+	query = visitTimeQuery(query, filter)
 	if filter.OpenOnly {
 		query = query.Where("visit.exit_time IS NULL")
 	}
@@ -77,14 +67,33 @@ func visitQuery(db bun.IDB, tenantID int64, rows any, filter ports.VisitFilter) 
 	return query
 }
 
-func (s *Store) ListVisits(ctx context.Context, filter ports.VisitFilter) ([]*ports.Visit, ports.Stats, error) {
+func visitTimeQuery(query *bun.SelectQuery, filter studentpresence.VisitFilter) *bun.SelectQuery {
+	if filter.EnteredFrom != nil {
+		query = query.Where("visit.entry_time >= ?", *filter.EnteredFrom)
+	}
+	if filter.EnteredUntil != nil {
+		query = query.Where("visit.entry_time <= ?", *filter.EnteredUntil)
+	}
+	if filter.OverlapFrom != nil {
+		query = query.Where("(visit.exit_time IS NULL OR visit.exit_time >= ?)", *filter.OverlapFrom)
+	}
+	if filter.OverlapUntil != nil {
+		query = query.Where("visit.entry_time <= ?", *filter.OverlapUntil)
+	}
+	if filter.ClosedSince != nil {
+		query = query.Where("(visit.exit_time IS NULL OR visit.exit_time >= ?)", *filter.ClosedSince)
+	}
+	return query
+}
+
+func (s *Store) ListVisits(ctx context.Context, filter studentpresence.VisitFilter) ([]*studentpresence.Visit, ports.Stats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, ports.Stats{}, err
 	}
 	rows := []*visitRow{}
 	if (filter.IDs != nil && len(filter.IDs) == 0) || (filter.StudentIDs != nil && len(filter.StudentIDs) == 0) || (filter.ActiveGroupIDs != nil && len(filter.ActiveGroupIDs) == 0) {
-		return []*ports.Visit{}, ports.Stats{}, nil
+		return []*studentpresence.Visit{}, ports.Stats{}, nil
 	}
 	started := time.Now()
 	err = visitQuery(db, tenantID, &rows, filter).Scan(ctx)
@@ -95,7 +104,11 @@ func (s *Store) ListVisits(ctx context.Context, filter ports.VisitFilter) ([]*po
 	return visitRecordsFromRows(rows), stats, nil
 }
 
-func (s *Store) RecordVisit(ctx context.Context, row *ports.Visit) (ports.Stats, error) {
+// openVisitPerStudentIndex is the partial unique index of migration 1.15.47
+// that allows one open visit per student and tenant.
+const openVisitPerStudentIndex = "uniq_active_visits_open_per_student"
+
+func (s *Store) RecordVisit(ctx context.Context, row *studentpresence.Visit) (ports.Stats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return ports.Stats{}, err
@@ -108,6 +121,9 @@ func (s *Store) RecordVisit(ctx context.Context, row *ports.Visit) (ports.Stats,
 	started := time.Now()
 	result, err := db.NewInsert().Model(stored).ModelTableExpr("active.visits").Exec(ctx)
 	stats := ports.Stats{Queries: 1, StatementDuration: time.Since(started)}
+	if isUniqueViolationOn(err, openVisitPerStudentIndex) {
+		return stats, fmt.Errorf("record visit: %w", errors.Join(ports.ErrOpenVisitExists, err))
+	}
 	if err != nil {
 		return stats, fmt.Errorf("record visit: %w", err)
 	}
@@ -116,7 +132,7 @@ func (s *Store) RecordVisit(ctx context.Context, row *ports.Visit) (ports.Stats,
 	return stats, err
 }
 
-func (s *Store) ReviseVisit(ctx context.Context, row *ports.Visit) (ports.Stats, error) {
+func (s *Store) ReviseVisit(ctx context.Context, row *studentpresence.Visit) (ports.Stats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return ports.Stats{}, err
@@ -158,14 +174,14 @@ func (s *Store) DeleteVisit(ctx context.Context, id int64) (ports.Stats, error) 
 }
 
 // CloseVisits absorbs concurrent retries without reopening completed intervals.
-func (s *Store) CloseVisits(ctx context.Context, ids []int64, at time.Time) ([]*ports.Visit, ports.Stats, error) {
+func (s *Store) CloseVisits(ctx context.Context, ids []int64, at time.Time) ([]*studentpresence.Visit, ports.Stats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, ports.Stats{}, err
 	}
 	rows := []*visitRow{}
 	if len(ids) == 0 {
-		return []*ports.Visit{}, ports.Stats{}, nil
+		return []*studentpresence.Visit{}, ports.Stats{}, nil
 	}
 	started := time.Now()
 	err = db.NewUpdate().Model((*visitRow)(nil)).ModelTableExpr(`active.visits AS "visit"`).

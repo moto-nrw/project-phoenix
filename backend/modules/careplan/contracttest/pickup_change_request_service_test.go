@@ -8,14 +8,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	api "github.com/moto-nrw/project-phoenix/roots/owners"
+
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,14 +24,14 @@ import (
 )
 
 func newPickupChangeFixture(t *testing.T) *careFixture {
-	return newCareFixture(t, services.WithCareRequestToday(func() timezone.Date { return timezone.NewDate(2026, 8, 24) }))
+	return newCareFixture(t, api.WithCareRequestToday(func() calendar.Date { return calendar.NewDate(2026, 8, 24) }))
 }
 
 // nextSchoolDay moves a date off the weekend. A pickup schedule only knows
 // Monday to Friday, so a plain "today + 2" made this test fail every Thursday
 // and Friday — the calendar, not the code, decided whether it was green
 // (#2419).
-func nextSchoolDay(d timezone.Date) timezone.Date {
+func nextSchoolDay(d calendar.Date) calendar.Date {
 	for d.Weekday() == time.Saturday || d.Weekday() == time.Sunday {
 		d = d.AddDays(1)
 	}
@@ -42,34 +43,27 @@ func TestPickupChangeRequestAppliesOnlyAfterStaffApproval(t *testing.T) {
 
 	f := newPickupChangeFixture(t)
 	ctx := f.staffCtx(f.staffAccount)
-	date := nextSchoolDay(timezone.NewDate(2026, 8, 24).AddDays(2))
+	date := nextSchoolDay(calendar.NewDate(2026, 8, 24).AddDays(2))
 	pickup := time.Date(2000, 1, 1, 14, 30, 0, 0, time.UTC)
 	weekday := int(date.Weekday())
-	require.NoError(t, f.sf.PickupSchedule.UpsertStudentPickupSchedule(ctx, &careplan.PickupSchedule{
+	require.NoError(t, f.schedules.Pickups.UpsertStudentPickupSchedule(ctx, &careplan.PickupSchedule{
 		StudentID:  f.chain.StudentID,
 		Weekday:    weekday,
-		PickupTime: timezone.NormalizeWallClock(time.Date(1, 1, 1, 15, 30, 0, 0, time.UTC)),
+		PickupTime: calendar.NormalizeWallClock(time.Date(1, 1, 1, 15, 30, 0, 0, time.UTC)),
 		CreatedBy:  f.staffID,
 	}))
 	t.Cleanup(func() {
-		require.NoError(t, f.sf.PickupSchedule.DeleteStudentPickupSchedule(ctx, f.chain.StudentID))
+		require.NoError(t, f.schedules.Pickups.DeleteStudentPickupSchedule(ctx, f.chain.StudentID))
 	})
 
-	req, err := f.svc.CreatePickupChangeRequest(
-		ctx,
-		f.chain.StudentID,
-		f.chain.AccountID,
-		date,
-		pickup,
-		"Arzttermin",
-	)
+	req, err := testpkg.TenantQuery5(t, ctx, f.db, f.svc.CreatePickupChangeRequest, f.chain.StudentID, f.chain.AccountID, date, pickup, "Arzttermin")
 	require.NoError(t, err)
-	assert.Equal(t, scheduleModels.CareRequestKindPickupChange, req.RequestKind)
+	assert.Equal(t, carerequests.KindPickupChange, req.RequestKind)
 	var payload map[string]any
 	require.NoError(t, json.Unmarshal(req.Payload, &payload))
 	assert.Equal(t, "15:30", payload["previous_pickup_time"])
 
-	before, err := f.repos.StudentPickupException.FindByStudentIDAndDate(ctx, f.chain.StudentID, scheduleModels.Date(date))
+	before, err := careplantest.NewScheduleRecords(f.reposCare.CarePlan()).StudentPickupException.FindByStudentIDAndDate(ctx, f.chain.StudentID, careplan.Date(date))
 	require.NoError(t, err)
 	assert.Nil(t, before)
 
@@ -80,20 +74,20 @@ func TestPickupChangeRequestAppliesOnlyAfterStaffApproval(t *testing.T) {
 	require.NotNil(t, items[0].Reason)
 	assert.Equal(t, "Arzttermin", *items[0].Reason)
 
-	decided, err := f.svc.Decide(ctx, carerequests.DecideInput{
+	decided, err := testpkg.TenantQuery1(t, ctx, f.db, f.svc.Decide, carerequests.DecideInput{
 		RequestID:  req.ID,
 		Approve:    true,
 		ReviewedBy: f.staffAccount,
 	})
 	require.NoError(t, err)
-	assert.Equal(t, scheduleModels.CareRequestStatusApproved, decided.Request.Status)
+	assert.Equal(t, carerequests.StatusApproved, decided.Request.Status)
 
-	applied, err := f.repos.StudentPickupException.FindByStudentIDAndDate(ctx, f.chain.StudentID, scheduleModels.Date(date))
+	applied, err := careplantest.NewScheduleRecords(f.reposCare.CarePlan()).StudentPickupException.FindByStudentIDAndDate(ctx, f.chain.StudentID, careplan.Date(date))
 	require.NoError(t, err)
 	require.NotNil(t, applied)
 	require.NotNil(t, applied.PickupTime)
 	assert.Equal(t, "14:30", applied.PickupTime.Format("15:04"))
-	assert.Equal(t, scheduleModels.ExceptionSourceStaff, applied.Source)
+	assert.Equal(t, careplan.ExceptionSourceStaff, applied.Source)
 	assert.Equal(t, f.staffID, applied.CreatedBy)
 	require.NotNil(t, applied.Reason)
 	assert.Equal(t, "Arzttermin", *applied.Reason)
@@ -105,31 +99,31 @@ func TestPickupChangeApprovalExcusesBlocksAfterEarlierPickup(t *testing.T) {
 	f, date, slotID := newPickupApprovalAutoExcusalScenario(t)
 	ctx := f.staffCtx(f.staffAccount)
 
-	req, err := f.svc.CreatePickupChangeRequest(
-		ctx,
-		f.chain.StudentID,
-		f.chain.AccountID,
-		date,
-		time.Date(2000, 1, 1, 14, 30, 0, 0, time.UTC),
-		"Arzttermin",
-	)
+	req, err := testpkg.TenantQuery5(t, ctx, f.db, f.svc.CreatePickupChangeRequest, f.chain.StudentID, f.chain.AccountID, date, time.Date(2000, 1, 1, 14, 30, 0, 0, time.UTC), "Arzttermin")
 	require.NoError(t, err)
-	_, err = f.svc.Decide(ctx, carerequests.DecideInput{
+	_, err = testpkg.TenantQuery1(t, ctx, f.db, f.svc.Decide, carerequests.DecideInput{
 		RequestID:  req.ID,
 		Approve:    true,
 		ReviewedBy: f.staffAccount,
 	})
 	require.NoError(t, err)
 
-	got, err := f.repos.InstanceStudent.FindByID(ctx, slotID)
+	got, err := testpkg.TenantQuery1(t, ctx,
+
+		f.db, f.
+			timetable.
+			NativeParticipants().FindByID,
+		slotID,
+	)
+
 	require.NoError(t, err)
 	require.NotNil(t, got)
-	assert.Equal(t, scheduleModels.AttendanceStatusAbsent, got.Status)
+	assert.Equal(t, studentpresence.SessionAttendanceAbsent, got.Status)
 	require.NotNil(t, got.Substatus)
-	assert.Equal(t, scheduleModels.AttendanceSubstatusExcused, *got.Substatus)
+	assert.Equal(t, studentpresence.SessionAttendanceSubstatusExcused, *got.Substatus)
 	require.NotNil(t, got.PickupExceptionID)
 
-	exception, err := f.repos.StudentPickupException.FindByStudentIDAndDate(ctx, f.chain.StudentID, scheduleModels.Date(date))
+	exception, err := careplantest.NewScheduleRecords(f.reposCare.CarePlan()).StudentPickupException.FindByStudentIDAndDate(ctx, f.chain.StudentID, careplan.Date(date))
 	require.NoError(t, err)
 	require.NotNil(t, exception)
 	assert.True(t, exception.ExcusedAuto)
@@ -140,14 +134,7 @@ func TestPendingPickupChangeNamesBlocksRemovedByApproval(t *testing.T) {
 
 	f, date, _ := newPickupApprovalAutoExcusalScenario(t)
 	ctx := f.staffCtx(f.staffAccount)
-	_, err := f.svc.CreatePickupChangeRequest(
-		ctx,
-		f.chain.StudentID,
-		f.chain.AccountID,
-		date,
-		time.Date(2000, 1, 1, 14, 30, 0, 0, time.UTC),
-		"Arzttermin",
-	)
+	_, err := testpkg.TenantQuery5(t, ctx, f.db, f.svc.CreatePickupChangeRequest, f.chain.StudentID, f.chain.AccountID, date, time.Date(2000, 1, 1, 14, 30, 0, 0, time.UTC), "Arzttermin")
 	require.NoError(t, err)
 
 	items, _, err := nativeCareReviews(t, f).ListPending(ctx, careplan.RequestQueueFilter{})
@@ -167,9 +154,7 @@ func TestPendingPickupChangeMarksUnavailableImpact(t *testing.T) {
 	var payload map[string]any
 	require.NoError(t, json.Unmarshal(req.Payload, &payload))
 	payload["pickup_time"] = "bad"
-	row := &scheduleModels.CareScheduleChangeRequest{Payload: payload}
-	row.ID = req.ID
-	_, err := f.db.NewUpdate().Model(row).Column("payload").WherePK().Exec(ctx)
+	_, err := f.db.NewUpdate().TableExpr("schedule.care_schedule_change_requests").Set("payload = ?", testpkg.FixtureJSON(t, payload)).Where("id = ?", req.ID).Exec(ctx)
 	require.NoError(t, err)
 
 	items, _, err := nativeCareReviews(t, f).ListPending(ctx, careplan.RequestQueueFilter{})
@@ -195,16 +180,16 @@ func TestPickupApprovalRejectsStaleAffectedBlockList(t *testing.T) {
 	block := testpkg.CreateTestActivityInstance(t, f.db, date, room.ID, testpkg.ActivityInstanceOpts{
 		StartHHMM: "15:30", EndHHMM: "16:30", Title: "Späte AG",
 	})
-	testpkg.CreateTestInstanceStudent(t, f.db, block.ID, f.chain.StudentID, scheduleModels.AttendanceStatusExpected)
+	testpkg.CreateTestInstanceStudent(t, f.db, block.ID, f.chain.StudentID, studentpresence.SessionAttendanceExpected)
 
-	_, err = f.svc.Decide(ctx, carerequests.DecideInput{
+	_, err = testpkg.TenantQuery1(t, ctx, f.db, f.svc.Decide, carerequests.DecideInput{
 		RequestID: req.ID, Approve: true, ReviewedBy: f.staffAccount,
 		ExpectedImpactToken: &expected,
 	})
 	require.ErrorIs(t, err, carerequests.ErrPickupChangeImpactChanged)
-	kept, findErr := f.repos.CareScheduleChangeRequest.FindByID(ctx, req.ID)
+	kept, findErr := careplantest.NewScheduleRecords(f.reposCare.CarePlan()).CareScheduleChangeRequest.FindByID(ctx, req.ID)
 	require.NoError(t, findErr)
-	assert.Equal(t, scheduleModels.CareRequestStatusPending, kept.Status)
+	assert.Equal(t, carerequests.StatusPending, kept.Status)
 }
 
 func TestPickupApprovalRequiresImpactTokenForHTTPDecision(t *testing.T) {
@@ -213,14 +198,14 @@ func TestPickupApprovalRequiresImpactTokenForHTTPDecision(t *testing.T) {
 	ctx := f.staffCtx(f.staffAccount)
 	req := seedPickupChangeRequest(t, f, date)
 
-	_, err := f.svc.Decide(ctx, carerequests.DecideInput{
+	_, err := testpkg.TenantQuery1(t, ctx, f.db, f.svc.Decide, carerequests.DecideInput{
 		RequestID: req.ID, Approve: true, ReviewedBy: f.staffAccount,
 		RequireImpactToken: true,
 	})
 	require.ErrorIs(t, err, carerequests.ErrPickupChangeImpactRequired)
-	kept, findErr := f.repos.CareScheduleChangeRequest.FindByID(ctx, req.ID)
+	kept, findErr := careplantest.NewScheduleRecords(f.reposCare.CarePlan()).CareScheduleChangeRequest.FindByID(ctx, req.ID)
 	require.NoError(t, findErr)
-	assert.Equal(t, scheduleModels.CareRequestStatusPending, kept.Status)
+	assert.Equal(t, carerequests.StatusPending, kept.Status)
 }
 
 func TestPickupChangeApprovalReleasesAutoExcusalAfterLaterPickup(t *testing.T) {
@@ -231,29 +216,29 @@ func TestPickupChangeApprovalReleasesAutoExcusalAfterLaterPickup(t *testing.T) {
 	earlierPickup := time.Date(2000, 1, 1, 14, 30, 0, 0, time.UTC)
 	f.seedGuardianPickupAutoExcusal(t, date, earlierPickup)
 
-	req, err := f.svc.CreatePickupChangeRequest(
-		ctx,
-		f.chain.StudentID,
-		f.chain.AccountID,
-		date,
-		time.Date(2000, 1, 1, 16, 30, 0, 0, time.UTC),
-		"Späterer Termin",
-	)
+	req, err := testpkg.TenantQuery5(t, ctx, f.db, f.svc.CreatePickupChangeRequest, f.chain.StudentID, f.chain.AccountID, date, time.Date(2000, 1, 1, 16, 30, 0, 0, time.UTC), "Späterer Termin")
 	require.NoError(t, err)
-	_, err = f.svc.Decide(ctx, carerequests.DecideInput{
+	_, err = testpkg.TenantQuery1(t, ctx, f.db, f.svc.Decide, carerequests.DecideInput{
 		RequestID:  req.ID,
 		Approve:    true,
 		ReviewedBy: f.staffAccount,
 	})
 	require.NoError(t, err)
 
-	got, err := f.repos.InstanceStudent.FindByID(ctx, slotID)
+	got, err := testpkg.TenantQuery1(t, ctx,
+
+		f.db, f.
+			timetable.
+			NativeParticipants().FindByID,
+		slotID,
+	)
+
 	require.NoError(t, err)
 	require.NotNil(t, got)
-	assert.Equal(t, scheduleModels.AttendanceStatusExpected, got.Status)
+	assert.Equal(t, studentpresence.SessionAttendanceExpected, got.Status)
 	assert.Nil(t, got.PickupExceptionID)
 
-	exception, err := f.repos.StudentPickupException.FindByStudentIDAndDate(ctx, f.chain.StudentID, scheduleModels.Date(date))
+	exception, err := careplantest.NewScheduleRecords(f.reposCare.CarePlan()).StudentPickupException.FindByStudentIDAndDate(ctx, f.chain.StudentID, careplan.Date(date))
 	require.NoError(t, err)
 	require.NotNil(t, exception)
 	assert.False(t, exception.ExcusedAuto)
@@ -265,14 +250,7 @@ func TestPickupChangeApprovalRollsBackWhenAutoExcusalFails(t *testing.T) {
 
 	f, date, slotID := newPickupApprovalAutoExcusalScenario(t)
 	ctx := f.staffCtx(f.staffAccount)
-	req, err := f.svc.CreatePickupChangeRequest(
-		ctx,
-		f.chain.StudentID,
-		f.chain.AccountID,
-		date,
-		time.Date(2000, 1, 1, 14, 30, 0, 0, time.UTC),
-		"Arzttermin",
-	)
+	req, err := testpkg.TenantQuery5(t, ctx, f.db, f.svc.CreatePickupChangeRequest, f.chain.StudentID, f.chain.AccountID, date, time.Date(2000, 1, 1, 14, 30, 0, 0, time.UTC), "Arzttermin")
 	require.NoError(t, err)
 
 	releaseSlot := holdInstanceStudentLock(t, f, slotID)
@@ -280,7 +258,7 @@ func TestPickupChangeApprovalRollsBackWhenAutoExcusalFails(t *testing.T) {
 		if _, timeoutErr := tx.ExecContext(txCtx, `SET LOCAL lock_timeout = '100ms'`); timeoutErr != nil {
 			return timeoutErr
 		}
-		_, decideErr := f.svc.Decide(txCtx, carerequests.DecideInput{
+		_, decideErr := testpkg.TenantQuery1(t, txCtx, f.db, f.svc.Decide, carerequests.DecideInput{
 			RequestID:  req.ID,
 			Approve:    true,
 			ReviewedBy: f.staffAccount,
@@ -293,20 +271,27 @@ func TestPickupChangeApprovalRollsBackWhenAutoExcusalFails(t *testing.T) {
 }
 
 func assertPickupApprovalRolledBack(
-	t *testing.T, f *careFixture, ctx context.Context, date timezone.Date, slotID, requestID int64,
+	t *testing.T, f *careFixture, ctx context.Context, date calendar.Date, slotID, requestID int64,
 ) {
 	t.Helper()
-	exception, err := f.repos.StudentPickupException.FindByStudentIDAndDate(ctx, f.chain.StudentID, scheduleModels.Date(date))
+	exception, err := careplantest.NewScheduleRecords(f.reposCare.CarePlan()).StudentPickupException.FindByStudentIDAndDate(ctx, f.chain.StudentID, careplan.Date(date))
 	require.NoError(t, err)
 	assert.Nil(t, exception, "the exception write must roll back with the failed sync")
-	request, err := f.repos.CareScheduleChangeRequest.FindByID(ctx, requestID)
+	request, err := careplantest.NewScheduleRecords(f.reposCare.CarePlan()).CareScheduleChangeRequest.FindByID(ctx, requestID)
 	require.NoError(t, err)
 	require.NotNil(t, request)
-	assert.Equal(t, scheduleModels.CareRequestStatusPending, request.Status)
-	slot, err := f.repos.InstanceStudent.FindByID(ctx, slotID)
+	assert.Equal(t, carerequests.StatusPending, request.Status)
+	slot, err := testpkg.TenantQuery1(t, ctx,
+
+		f.db, f.
+			timetable.
+			NativeParticipants().FindByID,
+		slotID,
+	)
+
 	require.NoError(t, err)
 	require.NotNil(t, slot)
-	assert.Equal(t, scheduleModels.AttendanceStatusExpected, slot.Status)
+	assert.Equal(t, studentpresence.SessionAttendanceExpected, slot.Status)
 }
 
 func holdInstanceStudentLock(t *testing.T, f *careFixture, slotID int64) func() {
@@ -346,15 +331,15 @@ func holdInstanceStudentLock(t *testing.T, f *careFixture, slotID int64) func() 
 	return unlock
 }
 
-func newPickupApprovalAutoExcusalScenario(t *testing.T) (*careFixture, timezone.Date, int64) {
+func newPickupApprovalAutoExcusalScenario(t *testing.T) (*careFixture, calendar.Date, int64) {
 	t.Helper()
 	f := newPickupChangeFixture(t)
 	ctx := f.staffCtx(f.staffAccount)
-	date := nextSchoolDay(timezone.NewDate(2026, 8, 24).AddDays(2))
-	require.NoError(t, f.sf.PickupSchedule.UpsertStudentPickupSchedule(ctx, &careplan.PickupSchedule{
+	date := nextSchoolDay(calendar.NewDate(2026, 8, 24).AddDays(2))
+	require.NoError(t, f.schedules.Pickups.UpsertStudentPickupSchedule(ctx, &careplan.PickupSchedule{
 		StudentID:  f.chain.StudentID,
 		Weekday:    int(date.Weekday()),
-		PickupTime: timezone.NormalizeWallClock(time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC)),
+		PickupTime: calendar.NormalizeWallClock(time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC)),
 		CreatedBy:  f.staffID,
 	}))
 	room := testpkg.CreateTestRoom(t, f.db, "Pickup request auto excusal")
@@ -368,22 +353,15 @@ func newPickupApprovalAutoExcusalScenario(t *testing.T) (*careFixture, timezone.
 		f.db,
 		block.ID,
 		f.chain.StudentID,
-		scheduleModels.AttendanceStatusExpected,
+		studentpresence.SessionAttendanceExpected,
 	)
 	return f, date, slot.ID
 }
 
 // seedPickupChangeRequest books a pending parent pickup change for a future day.
-func seedPickupChangeRequest(t *testing.T, f *careFixture, date timezone.Date) *carerequests.Request {
+func seedPickupChangeRequest(t *testing.T, f *careFixture, date calendar.Date) *carerequests.Request {
 	t.Helper()
-	req, err := f.svc.CreatePickupChangeRequest(
-		f.staffCtx(f.staffAccount),
-		f.chain.StudentID,
-		f.chain.AccountID,
-		date,
-		time.Date(2000, 1, 1, 14, 30, 0, 0, time.UTC),
-		"Arzttermin",
-	)
+	req, err := testpkg.TenantQuery5(t, f.staffCtx(f.staffAccount), f.db, f.svc.CreatePickupChangeRequest, f.chain.StudentID, f.chain.AccountID, date, time.Date(2000, 1, 1, 14, 30, 0, 0, time.UTC), "Arzttermin")
 	require.NoError(t, err)
 	return req
 }
@@ -396,29 +374,29 @@ func TestPickupChangeApprovalYieldsToStaffException(t *testing.T) {
 
 	f := newPickupChangeFixture(t)
 	ctx := f.staffCtx(f.staffAccount)
-	date := timezone.NewDate(2026, 8, 24).AddDays(3)
+	date := calendar.NewDate(2026, 8, 24).AddDays(3)
 	req := seedPickupChangeRequest(t, f, date)
 
 	staffPickup := time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC)
 	staffReason := "Von der OGS gesetzt"
-	require.NoError(t, f.repos.StudentPickupException.Create(ctx, &scheduleModels.StudentPickupException{
-		TenantModel:   scheduleModels.TenantModel{TenantID: f.chain.TenantID},
+	require.NoError(t, careplantest.NewScheduleRecords(f.reposCare.CarePlan()).StudentPickupException.Create(ctx, &careplan.PickupException{
+		TenantID:      f.chain.TenantID,
 		StudentID:     f.chain.StudentID,
-		ExceptionDate: scheduleModels.Date(date),
+		ExceptionDate: careplan.Date(date),
 		PickupTime:    &staffPickup,
 		Reason:        &staffReason,
-		Source:        scheduleModels.ExceptionSourceStaff,
+		Source:        careplan.ExceptionSourceStaff,
 		CreatedBy:     f.staffID,
 	}))
 
-	_, err := f.svc.Decide(ctx, carerequests.DecideInput{
+	_, err := testpkg.TenantQuery1(t, ctx, f.db, f.svc.Decide, carerequests.DecideInput{
 		RequestID:  req.ID,
 		Approve:    true,
 		ReviewedBy: f.staffAccount,
 	})
 	require.ErrorIs(t, err, carerequests.ErrPickupChangeConflict)
 
-	kept, findErr := f.repos.StudentPickupException.FindByStudentIDAndDate(ctx, f.chain.StudentID, scheduleModels.Date(date))
+	kept, findErr := careplantest.NewScheduleRecords(f.reposCare.CarePlan()).StudentPickupException.FindByStudentIDAndDate(ctx, f.chain.StudentID, careplan.Date(date))
 	require.NoError(t, findErr)
 	require.NotNil(t, kept)
 	require.NotNil(t, kept.PickupTime)
@@ -433,26 +411,26 @@ func TestPickupChangeApprovalYieldsToExcusedAbsence(t *testing.T) {
 
 	f := newPickupChangeFixture(t)
 	ctx := f.staffCtx(f.staffAccount)
-	date := timezone.NewDate(2026, 8, 24).AddDays(4)
+	date := calendar.NewDate(2026, 8, 24).AddDays(4)
 	req := seedPickupChangeRequest(t, f, date)
 
 	// Source stays "guardian" on purpose: that isolates the excusal rule from
 	// the staff-source rule, which the test above already covers.
 	excusedFrom := time.Date(2000, 1, 1, 13, 0, 0, 0, time.UTC)
 	excusedReason := "Entschuldigt ab 13 Uhr"
-	require.NoError(t, f.repos.StudentPickupException.Create(ctx, &scheduleModels.StudentPickupException{
-		TenantModel:       scheduleModels.TenantModel{TenantID: f.chain.TenantID},
+	require.NoError(t, careplantest.NewScheduleRecords(f.reposCare.CarePlan()).StudentPickupException.Create(ctx, &careplan.PickupException{
+		TenantID:          f.chain.TenantID,
 		StudentID:         f.chain.StudentID,
-		ExceptionDate:     scheduleModels.Date(date),
+		ExceptionDate:     careplan.Date(date),
 		PickupTime:        &excusedFrom,
 		ExcusedFrom:       &excusedFrom,
 		ExcusedReason:     &excusedReason,
 		ExcusedCreatedBy:  &f.staffID,
-		Source:            scheduleModels.ExceptionSourceGuardian,
+		Source:            careplan.ExceptionSourceGuardian,
 		CreatedByGuardian: &f.chain.AccountID,
 	}))
 
-	_, err := f.svc.Decide(ctx, carerequests.DecideInput{
+	_, err := testpkg.TenantQuery1(t, ctx, f.db, f.svc.Decide, carerequests.DecideInput{
 		RequestID:  req.ID,
 		Approve:    true,
 		ReviewedBy: f.staffAccount,
@@ -465,18 +443,11 @@ func TestPickupChangeApprovalRejectsCompletedSameDayPickup(t *testing.T) {
 
 	f := newPickupChangeFixture(t)
 	ctx := f.staffCtx(f.staffAccount)
-	date := timezone.NewDate(2026, 8, 24)
-	req, err := f.svc.CreatePickupChangeRequest(
-		ctx,
-		f.chain.StudentID,
-		f.chain.AccountID,
-		date,
-		time.Date(2000, 1, 1, 16, 30, 0, 0, time.UTC),
-		"Späterer Termin",
-	)
+	date := calendar.NewDate(2026, 8, 24)
+	req, err := testpkg.TenantQuery5(t, ctx, f.db, f.svc.CreatePickupChangeRequest, f.chain.StudentID, f.chain.AccountID, date, time.Date(2000, 1, 1, 16, 30, 0, 0, time.UTC), "Späterer Termin")
 	require.NoError(t, err)
 	device := testpkg.CreateTestDeviceForTenant(t, f.db, f.chain.TenantID, "pickup-review-checkout")
-	checkedOutAt := timezone.Now()
+	checkedOutAt := calendar.Now()
 	attendance := studentpresence.Attendance{
 		TenantID:     f.chain.TenantID,
 		StudentID:    f.chain.StudentID,
@@ -487,10 +458,10 @@ func TestPickupChangeApprovalRejectsCompletedSameDayPickup(t *testing.T) {
 	}
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: f.db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
-	_, err = presence.RecordAttendance(ctx, attendance)
+	_, err = testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), presence.RecordAttendance, attendance)
 	require.NoError(t, err)
 
-	_, err = f.svc.Decide(ctx, carerequests.DecideInput{
+	_, err = testpkg.TenantQuery1(t, ctx, f.db, f.svc.Decide, carerequests.DecideInput{
 		RequestID:  req.ID,
 		Approve:    true,
 		ReviewedBy: f.staffAccount,
@@ -504,7 +475,7 @@ func TestPickupChangeApprovalRejectsDateAfterPlannedCareEnd(t *testing.T) {
 
 	f := newPickupChangeFixture(t)
 	ctx := f.staffCtx(f.staffAccount)
-	date := timezone.NewDate(2026, 8, 24).AddDays(4)
+	date := calendar.NewDate(2026, 8, 24).AddDays(4)
 	req := seedPickupChangeRequest(t, f, date)
 	lastCareDay := date.AddDays(-1)
 	_, err := f.db.NewUpdate().
@@ -514,12 +485,12 @@ func TestPickupChangeApprovalRejectsDateAfterPlannedCareEnd(t *testing.T) {
 		Exec(ctx)
 	require.NoError(t, err)
 
-	_, err = f.svc.Decide(ctx, carerequests.DecideInput{
+	_, err = testpkg.TenantQuery1(t, ctx, f.db, f.svc.Decide, carerequests.DecideInput{
 		RequestID: req.ID, Approve: true, ReviewedBy: f.staffAccount,
 	})
 	require.ErrorIs(t, err, carerequests.ErrNotFound)
 
-	exception, findErr := f.repos.StudentPickupException.FindByStudentIDAndDate(ctx, f.chain.StudentID, scheduleModels.Date(date))
+	exception, findErr := careplantest.NewScheduleRecords(f.reposCare.CarePlan()).StudentPickupException.FindByStudentIDAndDate(ctx, f.chain.StudentID, careplan.Date(date))
 	require.NoError(t, findErr)
 	assert.Nil(t, exception, "approval must not create a pickup exception after care ends")
 }
@@ -534,26 +505,19 @@ func TestPickupChangeRequestsForDifferentDaysCoexist(t *testing.T) {
 
 	f := newPickupChangeFixture(t)
 	ctx := f.staffCtx(f.staffAccount)
-	tuesday := timezone.NewDate(2026, 8, 24).AddDays(7)
+	tuesday := calendar.NewDate(2026, 8, 24).AddDays(7)
 	wednesday := tuesday.AddDays(1)
 
 	first := seedPickupChangeRequest(t, f, tuesday)
 
-	second, err := f.svc.CreatePickupChangeRequest(
-		ctx, f.chain.StudentID, f.chain.AccountID, wednesday,
-		time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC), "Früherer Termin",
-	)
+	second, err := testpkg.TenantQuery5(t, ctx, f.db, f.svc.CreatePickupChangeRequest, f.chain.StudentID, f.chain.AccountID, wednesday, time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC), "Früherer Termin")
 	require.NoError(t, err, "ein Antrag für einen anderen Tag darf nicht blockiert werden")
 	assert.NotEqual(t, first.ID, second.ID)
 
-	_, err = f.svc.CreatePickupChangeRequest(
-		ctx, f.chain.StudentID, f.chain.AccountID, tuesday,
-		time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC), "Doppelt",
-	)
+	_, err = testpkg.TenantQuery5(t, ctx, f.db, f.svc.CreatePickupChangeRequest, f.chain.StudentID, f.chain.AccountID, tuesday, time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC), "Doppelt")
 	require.ErrorIs(t, err, carerequests.ErrAlreadyPending)
 
-	_, err = f.svc.CreateRequest(ctx, f.chain.StudentID, f.chain.AccountID,
-		careWeekdays(map[string]any{"weekday": 1, "pickup": "15:00"}))
+	_, err = testpkg.TenantQuery3(t, ctx, f.db, f.svc.CreateRequest, f.chain.StudentID, f.chain.AccountID, careWeekdays(map[string]any{"weekday": 1, "pickup": "15:00"}))
 	require.NoError(t, err, "ein Wochenplan-Antrag koexistiert mit offenen Abholanträgen")
 
 	pending, _, err := nativeCareReviews(t, f).ListPending(ctx, careplan.RequestQueueFilter{})
@@ -561,7 +525,7 @@ func TestPickupChangeRequestsForDifferentDaysCoexist(t *testing.T) {
 	require.Len(t, pending, 3, "both pickup requests coexist with the weekly request")
 	pickupIDs := make([]int64, 0, 2)
 	for _, item := range pending {
-		if item.Request.RequestKind == scheduleModels.CareRequestKindPickupChange {
+		if item.Request.RequestKind == carerequests.KindPickupChange {
 			pickupIDs = append(pickupIDs, item.Request.ID)
 		}
 	}
@@ -578,34 +542,34 @@ func TestPickupChangeApprovalRejectsExpiredRequest(t *testing.T) {
 	ctx := f.staffCtx(f.staffAccount)
 	// CreatePickupChangeRequest refuses past dates, so an expired request can
 	// only exist by aging in the queue — seed it directly at the repo.
-	req := &scheduleModels.CareScheduleChangeRequest{
+	req := &careplan.CareScheduleChangeRequest{
 		StudentID:   f.chain.StudentID,
 		SubmittedBy: f.chain.AccountID,
-		RequestKind: scheduleModels.CareRequestKindPickupChange,
-		Payload: map[string]any{
-			"date":        timezone.NewDate(2026, 8, 24).AddDays(-1).String(),
+		RequestKind: carerequests.KindPickupChange,
+		Payload: testpkg.FixtureJSON(t, map[string]any{
+			"date":        calendar.NewDate(2026, 8, 24).AddDays(-1).String(),
 			"pickup_time": "14:30",
 			"reason":      "Arzttermin",
-		},
-		Status: scheduleModels.CareRequestStatusPending,
+		}),
+		Status: carerequests.StatusPending,
 	}
-	require.NoError(t, f.repos.CareScheduleChangeRequest.Create(ctx, req))
+	require.NoError(t, careplantest.NewScheduleRecords(f.reposCare.CarePlan()).CareScheduleChangeRequest.Create(ctx, req))
 
-	_, err := f.svc.Decide(ctx, carerequests.DecideInput{
+	_, err := testpkg.TenantQuery1(t, ctx, f.db, f.svc.Decide, carerequests.DecideInput{
 		RequestID:  req.ID,
 		Approve:    true,
 		ReviewedBy: f.staffAccount,
 	})
 	require.ErrorIs(t, err, carerequests.ErrPickupChangeExpired)
 
-	decided, err := f.svc.Decide(ctx, carerequests.DecideInput{
+	decided, err := testpkg.TenantQuery1(t, ctx, f.db, f.svc.Decide, carerequests.DecideInput{
 		RequestID:  req.ID,
 		Approve:    false,
 		Reason:     "Der Tag liegt in der Vergangenheit.",
 		ReviewedBy: f.staffAccount,
 	})
 	require.NoError(t, err, "eine abgelaufene Anfrage bleibt per Ablehnung abschließbar")
-	assert.Equal(t, scheduleModels.CareRequestStatusRejected, decided.Request.Status)
+	assert.Equal(t, carerequests.StatusRejected, decided.Request.Status)
 }
 
 // TestListPickupChangeRequestsReturnsTheParentsOwn covers the read the parents
@@ -615,17 +579,17 @@ func TestListPickupChangeRequestsReturnsTheParentsOwn(t *testing.T) {
 
 	f := newPickupChangeFixture(t)
 	ctx := f.staffCtx(f.staffAccount)
-	date := timezone.NewDate(2026, 8, 24).AddDays(6)
+	date := calendar.NewDate(2026, 8, 24).AddDays(6)
 	req := seedPickupChangeRequest(t, f, date)
 
-	rows, err := f.svc.ListPickupChangeRequests(ctx, f.chain.StudentID, time.Now().AddDate(0, -2, 0))
+	rows, err := testpkg.TenantQuery2(t, ctx, f.db, f.svc.ListPickupChangeRequests, f.chain.StudentID, time.Now().AddDate(0, -2, 0))
 	require.NoError(t, err)
 
 	found := false
 	for _, row := range rows {
 		if row.ID == req.ID {
 			found = true
-			assert.Equal(t, scheduleModels.CareRequestStatusPending, row.Status)
+			assert.Equal(t, carerequests.StatusPending, row.Status)
 		}
 	}
 	assert.True(t, found, "die eigene Anfrage muss in der Liste stehen")
@@ -639,16 +603,13 @@ type pickupCorrecter interface {
 
 // approvedPickupChange files a pickup change and approves it, returning the
 // request and the day it covers.
-func approvedPickupChange(t *testing.T, f *careFixture) (*carerequests.Request, timezone.Date) {
+func approvedPickupChange(t *testing.T, f *careFixture) (*carerequests.Request, calendar.Date) {
 	t.Helper()
 	ctx := f.staffCtx(f.staffAccount)
-	date := nextSchoolDay(timezone.NewDate(2026, 8, 24).AddDays(2))
-	req, err := f.svc.CreatePickupChangeRequest(
-		ctx, f.chain.StudentID, f.chain.AccountID, date,
-		time.Date(2000, 1, 1, 14, 30, 0, 0, time.UTC), "Arzttermin",
-	)
+	date := nextSchoolDay(calendar.NewDate(2026, 8, 24).AddDays(2))
+	req, err := testpkg.TenantQuery5(t, ctx, f.db, f.svc.CreatePickupChangeRequest, f.chain.StudentID, f.chain.AccountID, date, time.Date(2000, 1, 1, 14, 30, 0, 0, time.UTC), "Arzttermin")
 	require.NoError(t, err)
-	_, err = f.svc.Decide(ctx, carerequests.DecideInput{
+	_, err = testpkg.TenantQuery1(t, ctx, f.db, f.svc.Decide, carerequests.DecideInput{
 		RequestID: req.ID, Approve: true, ReviewedBy: f.staffAccount,
 	})
 	require.NoError(t, err)
@@ -672,14 +633,14 @@ func TestPickupChangeCorrectRefusesWithoutALedgerEntry(t *testing.T) {
 	ctx := f.staffCtx(f.staffAccount)
 	req, date := approvedPickupChange(t, f)
 
-	applied, err := f.repos.StudentPickupException.FindByStudentIDAndDate(ctx, f.chain.StudentID, scheduleModels.Date(date))
+	applied, err := careplantest.NewScheduleRecords(f.reposCare.CarePlan()).StudentPickupException.FindByStudentIDAndDate(ctx, f.chain.StudentID, careplan.Date(date))
 	require.NoError(t, err)
 	require.NotNil(t, applied)
 
-	err = f.svc.(pickupCorrecter).Correct(ctx, req.ID, false, "", "Doch nicht genehmigt", f.staffAccount)
+	err = testpkg.TenantCommand5(t, ctx, f.db, f.svc.(pickupCorrecter).Correct, req.ID, false, "", "Doch nicht genehmigt", f.staffAccount)
 	require.ErrorContains(t, err, "cannot be corrected")
 
-	survivor, ferr := f.repos.StudentPickupException.FindByStudentIDAndDate(ctx, f.chain.StudentID, scheduleModels.Date(date))
+	survivor, ferr := careplantest.NewScheduleRecords(f.reposCare.CarePlan()).StudentPickupException.FindByStudentIDAndDate(ctx, f.chain.StudentID, careplan.Date(date))
 	require.NoError(t, ferr)
 	assert.NotNil(t, survivor, "nothing is deleted when the revert cannot prove what to delete")
 }
@@ -691,10 +652,9 @@ func TestCareScheduleCorrectIsUnsupported(t *testing.T) {
 
 	f := newPickupChangeFixture(t)
 	ctx := f.staffCtx(f.staffAccount)
-	req, err := f.svc.CreateRequest(ctx, f.chain.StudentID, f.chain.AccountID,
-		careWeekdays(map[string]any{"weekday": 1, "pickup": "15:00"}))
+	req, err := testpkg.TenantQuery3(t, ctx, f.db, f.svc.CreateRequest, f.chain.StudentID, f.chain.AccountID, careWeekdays(map[string]any{"weekday": 1, "pickup": "15:00"}))
 	require.NoError(t, err)
-	_, err = f.svc.Decide(ctx, carerequests.DecideInput{
+	_, err = testpkg.TenantQuery1(t, ctx, f.db, f.svc.Decide, carerequests.DecideInput{
 		RequestID: req.ID, Approve: false, Reason: "Nicht möglich", ReviewedBy: f.staffAccount,
 	})
 	require.NoError(t, err)
@@ -710,10 +670,7 @@ func TestPickupChangeCorrectRefusesAnUndecidedRequest(t *testing.T) {
 
 	f := newPickupChangeFixture(t)
 	ctx := f.staffCtx(f.staffAccount)
-	req, err := f.svc.CreatePickupChangeRequest(
-		ctx, f.chain.StudentID, f.chain.AccountID, nextSchoolDay(timezone.NewDate(2026, 8, 24).AddDays(2)),
-		time.Date(2000, 1, 1, 14, 30, 0, 0, time.UTC), "Arzttermin",
-	)
+	req, err := testpkg.TenantQuery5(t, ctx, f.db, f.svc.CreatePickupChangeRequest, f.chain.StudentID, f.chain.AccountID, nextSchoolDay(calendar.NewDate(2026, 8, 24).AddDays(2)), time.Date(2000, 1, 1, 14, 30, 0, 0, time.UTC), "Arzttermin")
 	require.NoError(t, err)
 
 	err = f.svc.(pickupCorrecter).Correct(ctx, req.ID, false, "", "Korrektur", f.staffAccount)

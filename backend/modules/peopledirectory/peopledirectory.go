@@ -50,6 +50,16 @@ type Person struct {
 
 func (p Person) FullName() string { return p.FirstName + " " + p.LastName }
 
+// PersonDisplayName is the trimmed "first last" display name of a person, so
+// a missing part leaves no stray space.
+func PersonDisplayName(firstName, lastName string) string {
+	return strings.TrimSpace(firstName + " " + lastName)
+}
+
+// PersonIsLive reports a person the directory has not soft-deleted: a deleted
+// person carries its deletion time.
+func PersonIsLive(deletedAt *time.Time) bool { return deletedAt == nil }
+
 type CreatePerson struct {
 	FirstName string
 	LastName  string
@@ -136,6 +146,10 @@ type Command interface {
 	GuardianPortalCommand
 	StudentPortalCommand
 	FamilyProtectionCommand
+	AccountLifecycleCommand
+	PersonDetailsCommand
+	EnrollmentPersonCommand
+	PersonRemovalCommand
 	CreatePerson(context.Context, CreatePerson) (Person, error)
 	UpdatePerson(context.Context, UpdatePerson) (Person, error)
 	// DeletePerson soft-deletes the person (deleted_at), keeping the row.
@@ -154,228 +168,9 @@ type Command interface {
 }
 
 type Capability interface {
+	StudentTagRelease
 	Query
 	Command
-}
-
-type engine interface {
-	FamilyProtectionQuery
-	FamilyProtectionCommand
-	StudentDepartureQuery
-	studentEngine
-	StudentDirectoryQuery
-	StudentDirectoryCommand
-	StudentWriteCommand
-	studentDeletionEngine
-	StudentAuditQuery
-	StudentPhotoQuery
-	StudentConsentQuery
-	StudentAuditCommand
-	StudentPhotoCommand
-	StudentNoteQuery
-	StudentNoteCommand
-	guardianEngine
-	guardianPortalEngine
-	Create(context.Context, CreatePerson) (Person, error)
-	Update(context.Context, UpdatePerson) (Person, error)
-	Delete(context.Context, int64) error
-	FindByID(context.Context, int64, string) (Person, error)
-	FindByAccount(context.Context, int64) (Person, error)
-	FindByTag(context.Context, string) (Person, error)
-	ListByIDs(context.Context, []int64) ([]Person, error)
-	ListAcrossTenantsByIDs(context.Context, []int64) ([]Person, error)
-	ListByTenantIDs(context.Context, []int64) ([]Person, error)
-	ListByAccounts(context.Context, []int64) ([]Person, error)
-	Search(context.Context, PersonFilter) ([]Person, error)
-	CountByTenant(context.Context) (map[int64]int, error)
-	LinkAccount(context.Context, int64, int64) error
-	UnlinkAccount(context.Context, int64) error
-	LinkTag(context.Context, int64, string) error
-	UnlinkTag(context.Context, int64) error
-	ReleaseTags(context.Context, []int64) ([]ReleasedTag, error)
-	RestoreTag(context.Context, int64, string) (bool, error)
-}
-
-type Module struct {
-	engine    engine
-	guardians guardianProviderSlot
-}
-
-func NewModule(engine engine) *Module {
-	if engine == nil {
-		panic("people directory: engine is required")
-	}
-	return &Module{engine: engine}
-}
-
-func (m *Module) CreatePerson(ctx context.Context, input CreatePerson) (Person, error) {
-	input.FirstName, input.LastName = normalizeNames(input.FirstName, input.LastName)
-	input.TagID = normalizeTag(input.TagID)
-	if err := validateNames(input.FirstName, input.LastName); err != nil {
-		return Person{}, err
-	}
-	if err := validateReferences(input.TagID, input.AccountID); err != nil {
-		return Person{}, err
-	}
-	if err := validateBirthday(input.Birthday); err != nil {
-		return Person{}, err
-	}
-	return m.engine.Create(ctx, input)
-}
-
-func (m *Module) UpdatePerson(ctx context.Context, input UpdatePerson) (Person, error) {
-	input.FirstName, input.LastName = normalizeNames(input.FirstName, input.LastName)
-	input.TagID = normalizeTag(input.TagID)
-	if input.ID <= 0 {
-		return Person{}, invalid("person ID is required")
-	}
-	if err := validateNames(input.FirstName, input.LastName); err != nil {
-		return Person{}, err
-	}
-	if err := validateReferences(input.TagID, input.AccountID); err != nil {
-		return Person{}, err
-	}
-	if err := validateBirthday(input.Birthday); err != nil {
-		return Person{}, err
-	}
-	return m.engine.Update(ctx, input)
-}
-
-func (m *Module) DeletePerson(ctx context.Context, id int64) error {
-	if id <= 0 {
-		return invalid("person ID is required")
-	}
-	return m.engine.Delete(ctx, id)
-}
-
-func (m *Module) FindPerson(ctx context.Context, id int64) (Person, error) {
-	if id <= 0 {
-		return Person{}, invalid("person ID is required")
-	}
-	return m.engine.FindByID(ctx, id, "")
-}
-
-func (m *Module) FindPersonForMutation(ctx context.Context, id int64) (Person, error) {
-	if id <= 0 {
-		return Person{}, invalid("person ID is required")
-	}
-	return m.engine.FindByID(ctx, id, "UPDATE")
-}
-
-func (m *Module) FindPersonByAccount(ctx context.Context, accountID int64) (Person, error) {
-	if accountID <= 0 {
-		return Person{}, invalid("account ID is required")
-	}
-	return m.engine.FindByAccount(ctx, accountID)
-}
-
-func (m *Module) FindPersonByTag(ctx context.Context, tagID string) (Person, error) {
-	tagID = NormalizeTagID(tagID)
-	if tagID == "" {
-		return Person{}, invalid("tag ID is required")
-	}
-	return m.engine.FindByTag(ctx, tagID)
-}
-
-func (m *Module) ListPersonsByID(ctx context.Context, ids []int64) ([]Person, error) {
-	ids = uniquePositive(ids)
-	if len(ids) == 0 {
-		return []Person{}, nil
-	}
-	return m.engine.ListByIDs(ctx, ids)
-}
-
-func (m *Module) ListPersonsAcrossTenantsByID(ctx context.Context, ids []int64) ([]Person, error) {
-	ids = uniquePositive(ids)
-	if len(ids) == 0 {
-		return []Person{}, nil
-	}
-	return m.engine.ListAcrossTenantsByIDs(ctx, ids)
-}
-
-func (m *Module) ListPersonsByTenantIDs(ctx context.Context, tenantIDs []int64) ([]Person, error) {
-	tenantIDs = uniquePositive(tenantIDs)
-	if len(tenantIDs) == 0 {
-		return []Person{}, nil
-	}
-	return m.engine.ListByTenantIDs(ctx, tenantIDs)
-}
-
-func (m *Module) ListPersonsByAccount(ctx context.Context, accountIDs []int64) ([]Person, error) {
-	accountIDs = uniquePositive(accountIDs)
-	if len(accountIDs) == 0 {
-		return []Person{}, nil
-	}
-	return m.engine.ListByAccounts(ctx, accountIDs)
-}
-
-func (m *Module) SearchPersons(ctx context.Context, filter PersonFilter) ([]Person, error) {
-	filter.FirstNamePrefix = strings.TrimSpace(filter.FirstNamePrefix)
-	filter.LastNamePrefix = strings.TrimSpace(filter.LastNamePrefix)
-	filter.FirstNameEquals = strings.TrimSpace(filter.FirstNameEquals)
-	filter.LastNameEquals = strings.TrimSpace(filter.LastNameEquals)
-	filter.FullNameContains = strings.TrimSpace(filter.FullNameContains)
-	filter.TagID = NormalizeTagID(filter.TagID)
-	filter.AccountIDs = uniquePositive(filter.AccountIDs)
-	if filter.Page < 0 || filter.PageSize < 0 {
-		return nil, invalid("page and page size must not be negative")
-	}
-	if filter.PageSize > MaxPageSize {
-		filter.PageSize = MaxPageSize
-	}
-	return m.engine.Search(ctx, filter)
-}
-
-func (m *Module) CountPersonsByTenant(ctx context.Context) (map[int64]int, error) {
-	return m.engine.CountByTenant(ctx)
-}
-
-func (m *Module) LinkAccount(ctx context.Context, personID, accountID int64) error {
-	if personID <= 0 || accountID <= 0 {
-		return invalid("person ID and account ID are required")
-	}
-	return m.engine.LinkAccount(ctx, personID, accountID)
-}
-
-func (m *Module) UnlinkAccount(ctx context.Context, personID int64) error {
-	if personID <= 0 {
-		return invalid("person ID is required")
-	}
-	return m.engine.UnlinkAccount(ctx, personID)
-}
-
-func (m *Module) LinkTag(ctx context.Context, personID int64, tagID string) error {
-	tagID = NormalizeTagID(tagID)
-	if personID <= 0 || tagID == "" {
-		return invalid("person ID and tag ID are required")
-	}
-	return m.engine.LinkTag(ctx, personID, tagID)
-}
-
-func (m *Module) UnlinkTag(ctx context.Context, personID int64) error {
-	if personID <= 0 {
-		return invalid("person ID is required")
-	}
-	return m.engine.UnlinkTag(ctx, personID)
-}
-
-func (m *Module) ReleaseTags(ctx context.Context, personIDs []int64) ([]ReleasedTag, error) {
-	personIDs = uniquePositive(personIDs)
-	if len(personIDs) == 0 {
-		return []ReleasedTag{}, nil
-	}
-	return m.engine.ReleaseTags(ctx, personIDs)
-}
-
-func (m *Module) RestoreTag(ctx context.Context, personID int64, tagID string) (bool, error) {
-	tagID = NormalizeTagID(tagID)
-	if personID <= 0 {
-		return false, invalid("person ID is required")
-	}
-	if tagID == "" {
-		return false, nil
-	}
-	return m.engine.RestoreTag(ctx, personID, tagID)
 }
 
 // NormalizeTagID mirrors the RFID card identifier format: trimmed, upper
@@ -386,7 +181,8 @@ func NormalizeTagID(tagID string) string {
 	return strings.NewReplacer(":", "", "-", "", " ", "").Replace(tagID)
 }
 
-func normalizeNames(firstName, lastName string) (string, string) {
+// NormalizePersonNames trims the names without changing their spelling.
+func NormalizePersonNames(firstName, lastName string) (string, string) {
 	return strings.TrimSpace(firstName), strings.TrimSpace(lastName)
 }
 
@@ -414,7 +210,8 @@ func validateNames(firstName, lastName string) error {
 	return nil
 }
 
-func validateReferences(tagID *string, accountID *int64) error {
+// ValidatePersonReferences checks optional account and tag references.
+func ValidatePersonReferences(tagID *string, accountID *int64) error {
 	if accountID != nil && *accountID <= 0 {
 		return invalid("account ID must be positive")
 	}
@@ -424,7 +221,8 @@ func validateReferences(tagID *string, accountID *int64) error {
 	return nil
 }
 
-func validateBirthday(birthday string) error {
+// ValidateBirthday accepts an empty value or a valid calendar date.
+func ValidateBirthday(birthday string) error {
 	if birthday == "" {
 		return nil
 	}
@@ -434,7 +232,8 @@ func validateBirthday(birthday string) error {
 	return nil
 }
 
-func uniquePositive(ids []int64) []int64 {
+// PositiveIDs preserves the order of distinct positive identifiers.
+func PositiveIDs(ids []int64) []int64 {
 	result := make([]int64, 0, len(ids))
 	seen := make(map[int64]struct{}, len(ids))
 	for _, id := range ids {
@@ -449,8 +248,6 @@ func uniquePositive(ids []int64) []int64 {
 	}
 	return result
 }
-
-func invalid(reason string) error { return &InvalidPersonError{Reason: reason} }
 
 // ErrorCode is the stable label recorded per operation outcome.
 func ErrorCode(err error) string {
@@ -475,4 +272,54 @@ func ErrorCode(err error) string {
 	default:
 		return "internal_error"
 	}
+}
+
+// NormalizePersonCreate applies the person command's input contract.
+func NormalizePersonCreate(input CreatePerson) (CreatePerson, error) {
+	input.FirstName, input.LastName = NormalizePersonNames(input.FirstName, input.LastName)
+	input.TagID = normalizeTag(input.TagID)
+	if err := validateNames(input.FirstName, input.LastName); err != nil {
+		return input, err
+	}
+	if err := ValidatePersonReferences(input.TagID, input.AccountID); err != nil {
+		return input, err
+	}
+	if err := ValidateBirthday(input.Birthday); err != nil {
+		return input, err
+	}
+	return input, nil
+}
+
+// NormalizePersonUpdate applies the person command's input contract.
+func NormalizePersonUpdate(input UpdatePerson) (UpdatePerson, error) {
+	input.FirstName, input.LastName = NormalizePersonNames(input.FirstName, input.LastName)
+	input.TagID = normalizeTag(input.TagID)
+	if input.ID <= 0 {
+		return input, invalid("person ID is required")
+	}
+	if err := validateNames(input.FirstName, input.LastName); err != nil {
+		return input, err
+	}
+	if err := ValidatePersonReferences(input.TagID, input.AccountID); err != nil {
+		return input, err
+	}
+	if err := ValidateBirthday(input.Birthday); err != nil {
+		return input, err
+	}
+	return input, nil
+}
+
+func invalid(reason string) error { return &InvalidPersonError{Reason: reason} }
+
+// Owner is the directory capability and its scheduled retention commands.
+type Owner interface {
+	Capability
+	StudentStatusFlagCapability
+	ChildlessGuardianRetention
+	RetiredStaffRetention
+}
+
+// RetiredStaffRetention erases a retired person only while the read revision still holds.
+type RetiredStaffRetention interface {
+	AnonymizeRetiredStaffPerson(context.Context, int64, time.Time) (bool, error)
 }

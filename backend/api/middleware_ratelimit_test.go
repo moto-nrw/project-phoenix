@@ -10,51 +10,7 @@ import (
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
-
-// =============================================================================
-// customMiddleware.NewRateLimiter Tests
-// =============================================================================
-
-func TestNewRateLimiter(t *testing.T) {
-	t.Parallel()
-
-	rl := customMiddleware.NewRateLimiter(60, 10)
-	require.NotNil(t, rl)
-}
-
-func TestNewRateLimiter_DifferentRates(t *testing.T) {
-	t.Parallel()
-
-	testCases := []struct {
-		requestsPerMinute int
-		burst             int
-	}{
-		{10, 5},
-		{60, 10},
-		{120, 20},
-		{1, 1},
-	}
-
-	for _, tc := range testCases {
-		t.Run("", func(t *testing.T) {
-			rl := customMiddleware.NewRateLimiter(tc.requestsPerMinute, tc.burst)
-			require.NotNil(t, rl)
-		})
-	}
-}
-
-// =============================================================================
-// SetLogger Tests
-// =============================================================================
-
-func TestRateLimiter_SetLogger(t *testing.T) {
-	t.Parallel()
-
-	rl := customMiddleware.NewRateLimiter(60, 10)
-	assert.NotPanics(t, func() { rl.SetLogger(customMiddleware.NewSecurityLogger()) })
-}
 
 // =============================================================================
 // customMiddleware.GetClientIP Tests
@@ -79,7 +35,7 @@ func TestGetClientIP_ChiClientIPFromXFF(t *testing.T) {
 	req.Header.Set("X-Forwarded-For", "10.0.0.1")
 	req.RemoteAddr = "127.0.0.1:12345"
 
-	ip := getClientIPThroughMiddleware(req, chimiddleware.ClientIPFromXFF())
+	ip := getClientIPThroughMiddleware(req, chimiddleware.ClientIPFromXFFTrustedProxies(1))
 	assert.Equal(t, "10.0.0.1", ip, "Should return first IP from X-Forwarded-For")
 }
 
@@ -90,7 +46,7 @@ func TestGetClientIP_ChiClientIPFromXFF_RejectsSpoofedLeftmost(t *testing.T) {
 	req.Header.Set("X-Forwarded-For", "10.0.0.1, 10.0.0.2")
 	req.RemoteAddr = "127.0.0.1:12345"
 
-	ip := getClientIPThroughMiddleware(req, chimiddleware.ClientIPFromXFF())
+	ip := getClientIPThroughMiddleware(req, chimiddleware.ClientIPFromXFFTrustedProxies(1))
 	assert.Equal(t, "10.0.0.2", ip, "Should trust the rightmost XFF hop when no proxy CIDRs are configured")
 }
 
@@ -130,7 +86,7 @@ func TestGetClientIP_IPv6_XForwardedFor(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.Header.Set("X-Forwarded-For", "2001:db8::1")
 
-	ip := getClientIPThroughMiddleware(req, chimiddleware.ClientIPFromXFF())
+	ip := getClientIPThroughMiddleware(req, chimiddleware.ClientIPFromXFFTrustedProxies(1))
 	assert.Equal(t, "2001:db8::1", ip)
 }
 
@@ -451,38 +407,6 @@ func TestRateLimiter_Middleware_SharedAcrossEndpoints(t *testing.T) {
 	rr3 := httptest.NewRecorder()
 	r.ServeHTTP(rr3, req3)
 	assert.Equal(t, http.StatusTooManyRequests, rr3.Code)
-}
-
-// =============================================================================
-// Security Logger Integration Tests
-// =============================================================================
-
-func TestRateLimiter_Middleware_LogsRateLimitViolations(t *testing.T) {
-	t.Parallel()
-
-	rl := customMiddleware.NewRateLimiter(1, 1)
-	// Note: Can't easily test with real SecurityLogger without its full implementation
-	// This tests the logging path exists
-
-	r := chi.NewRouter()
-	r.Use(rl.Middleware())
-	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-
-	// Exhaust rate limit
-	req1 := httptest.NewRequest(http.MethodGet, "/test", nil)
-	req1.RemoteAddr = "192.168.1.1:12345"
-	rr1 := httptest.NewRecorder()
-	r.ServeHTTP(rr1, req1)
-
-	// Trigger rate limit - logger would be called if set
-	req2 := httptest.NewRequest(http.MethodGet, "/test", nil)
-	req2.RemoteAddr = "192.168.1.1:12345"
-	rr2 := httptest.NewRecorder()
-	r.ServeHTTP(rr2, req2)
-
-	assert.Equal(t, http.StatusTooManyRequests, rr2.Code)
 }
 
 // =============================================================================

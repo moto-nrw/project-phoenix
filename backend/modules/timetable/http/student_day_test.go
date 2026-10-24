@@ -17,8 +17,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -56,9 +55,9 @@ func buildStudentDaySetup(t *testing.T) *studentDaySetup {
 	student := testpkg.CreateTestStudent(t, db, "SD", fmt.Sprintf("Stu-%d", suffix), "3a")
 
 	// Wire the full resource with real repos for the B11 path.
-	res := NewResource(Dependencies{
+	res := newResourceForTest(Dependencies{
 		TimetableData: testTimetableData(db).TimetableData(),
-		People:        must(testutil.NewTimetablePeople(db)),
+		People:        must(RootCompositions.People(db)),
 		// UserContextService + SettingsService intentionally nil:
 		// admin-perm path short-circuits CanReadStudent; the 403 test relies on
 		// the fallthrough returning false when userCtx is nil.
@@ -89,7 +88,7 @@ func studentRouter(tb testing.TB, parentCtx context.Context, res *Resource, perm
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 			ctx := tenant.WithTenantID(testpkg.WithTestTenantRuntime(tb, req.Context()), tenantID)
-			ctx = context.WithValue(ctx, jwt.CtxPermissions, perms)
+			ctx = context.WithValue(ctx, sessiontoken.CtxPermissions, perms)
 			// One transaction per request, as TenantTxMiddleware opens in
 			// production: the owner's reads join it instead of opening one
 			// each, which is what the query budget counts.

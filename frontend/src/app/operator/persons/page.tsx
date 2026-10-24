@@ -10,6 +10,7 @@ import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import type { OperatorPerson } from "~/lib/operator/provisioning-helpers";
 import { PersonTags } from "~/components/operator/persons-table";
+import { StaffPersonMerge } from "~/components/operator/staff-person-merge";
 import { DeletePersonModal } from "~/components/operator/delete-person-modal";
 import { SimpleEmptyState } from "../provisioning/provisioning-shared";
 import {
@@ -162,6 +163,15 @@ function OperatorPersonsPageContent() {
             ))}
           </div>
         </>
+      )}
+
+      {selectedSchool && (
+        <StaffPersonMerge
+          key={selectedSchool.id}
+          schoolId={selectedSchool.id}
+          schoolName={selectedSchool.name}
+          onMerged={() => mutateSchoolPersons()}
+        />
       )}
 
       <DeletePersonModal

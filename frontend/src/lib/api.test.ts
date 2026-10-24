@@ -1,3 +1,4 @@
+import { ApiError } from "./api-error";
 /**
  * Tests for api.ts helper functions
  * These test the pure helper functions that parse, validate, and transform API data
@@ -304,13 +305,33 @@ describe("api.ts helper functions", () => {
       }
     });
 
+    it("preserves a forbidden response as a permission error", async () => {
+      const { fetchWithRetry } = await import("./api-helpers");
+      vi.mocked(fetchWithRetry).mockResolvedValue({
+        data: null,
+        response: null,
+        accessDeniedStatus: 403,
+      });
+
+      const { studentService } = await import("./api");
+
+      const restore = setupBrowserEnv();
+      try {
+        await expect(
+          studentService.getStudents({ token: "test-token" }),
+        ).rejects.toMatchObject({ status: 403, code: "general.permission" });
+      } finally {
+        restore();
+      }
+    });
+
     it("logs 429 failures as rate-limit warnings", async () => {
       const consoleWarn = vi
         .spyOn(console, "warn")
         .mockImplementation(() => {});
       const { fetchWithRetry } = await import("./api-helpers");
       vi.mocked(fetchWithRetry).mockRejectedValueOnce(
-        new Error("API error: 429"),
+        new ApiError("API error: 429", 429),
       );
 
       const { studentService } = await import("./api");
@@ -641,6 +662,26 @@ describe("api.ts helper functions", () => {
       }
     });
 
+    it("preserves a forbidden response as a permission error", async () => {
+      const { fetchWithRetry } = await import("./api-helpers");
+      vi.mocked(fetchWithRetry).mockResolvedValue({
+        data: null,
+        response: null,
+        accessDeniedStatus: 403,
+      });
+
+      const { studentService } = await import("./api");
+
+      const restore = setupBrowserEnv();
+      try {
+        await expect(
+          studentService.getSchoolClasses({ token: "test-token" }),
+        ).rejects.toMatchObject({ status: 403, code: "general.permission" });
+      } finally {
+        restore();
+      }
+    });
+
     it("uses axios and parses wrapped school classes on the server", async () => {
       const apiTransport = (await import("./api-transport")).default;
       const getSpy = vi.spyOn(apiTransport, "get").mockResolvedValue({
@@ -937,6 +978,27 @@ describe("api.ts helper functions", () => {
         restore();
       }
     });
+
+    it("preserves a forbidden response as a permission error", async () => {
+      const { fetchWithRetry } = await import("./api-helpers");
+      vi.mocked(fetchWithRetry).mockResolvedValue({
+        data: null,
+        response: null,
+        accessDeniedStatus: 403,
+      });
+
+      const { roomService } = await import("./api");
+
+      const restore = setupBrowserEnv();
+      try {
+        await expect(roomService.getRoom("1")).rejects.toMatchObject({
+          status: 403,
+          code: "general.permission",
+        });
+      } finally {
+        restore();
+      }
+    });
   });
 
   describe("groupService.getGroup", () => {
@@ -1055,6 +1117,27 @@ describe("api.ts helper functions", () => {
         restore();
       }
     });
+
+    it("preserves a forbidden response as a permission error", async () => {
+      const { fetchWithRetry } = await import("./api-helpers");
+      vi.mocked(fetchWithRetry).mockResolvedValue({
+        data: null,
+        response: null,
+        accessDeniedStatus: 403,
+      });
+
+      const { groupService } = await import("./api");
+
+      const restore = setupBrowserEnv();
+      try {
+        await expect(groupService.getGroup("1")).rejects.toMatchObject({
+          status: 403,
+          code: "general.permission",
+        });
+      } finally {
+        restore();
+      }
+    });
   });
 
   describe("groupService.deleteGroup error handling", () => {
@@ -1062,7 +1145,7 @@ describe("api.ts helper functions", () => {
       global.fetch = vi.fn().mockResolvedValue({
         ok: false,
         text: () =>
-          Promise.resolve('{"error":"cannot delete group with students"}'),
+          Promise.resolve('{"detail":"cannot delete group with students"}'),
       });
 
       const { getSession } = await import("next-auth/react");
@@ -1075,16 +1158,17 @@ describe("api.ts helper functions", () => {
       const restore = setupBrowserEnv();
       try {
         await expect(groupService.deleteGroup("1")).rejects.toThrow(
-          "cannot delete group with students",
+          "API error: undefined",
         );
       } finally {
         restore();
       }
     });
 
-    it("extracts error from known patterns", async () => {
+    it("classifies a plain-text failure by its status", async () => {
       global.fetch = vi.fn().mockResolvedValue({
         ok: false,
+        status: 409,
         text: () => Promise.resolve("Error: cannot delete group with students"),
       });
 
@@ -1097,9 +1181,10 @@ describe("api.ts helper functions", () => {
 
       const restore = setupBrowserEnv();
       try {
-        await expect(groupService.deleteGroup("1")).rejects.toThrow(
-          "cannot delete group with students",
-        );
+        await expect(groupService.deleteGroup("1")).rejects.toMatchObject({
+          status: 409,
+          code: "general.business_rejection",
+        });
       } finally {
         restore();
       }
@@ -1376,6 +1461,27 @@ describe("api.ts helper functions", () => {
         restore();
       }
     });
+
+    it("preserves a forbidden response as a permission error", async () => {
+      const { fetchWithRetry } = await import("./api-helpers");
+      vi.mocked(fetchWithRetry).mockResolvedValue({
+        data: null,
+        response: null,
+        accessDeniedStatus: 403,
+      });
+
+      const { studentService } = await import("./api");
+
+      const restore = setupBrowserEnv();
+      try {
+        await expect(studentService.getStudent("1")).rejects.toMatchObject({
+          status: 403,
+          code: "general.permission",
+        });
+      } finally {
+        restore();
+      }
+    });
   });
 
   describe("studentService.updateStudent", () => {
@@ -1583,7 +1689,7 @@ describe("api.ts helper functions", () => {
       global.fetch = vi.fn().mockResolvedValue({
         ok: false,
         status: 400,
-        text: () => Promise.resolve('{"error":"Validation failed"}'),
+        text: () => Promise.resolve('{"detail":"Validation failed"}'),
       });
 
       const { getSession } = await import("next-auth/react");
@@ -1603,7 +1709,7 @@ describe("api.ts helper functions", () => {
             name: "Test Student",
             current_location: "",
           }),
-        ).rejects.toThrow("Validation failed");
+        ).rejects.toThrow("Error updating student 1: API error: 400");
       } finally {
         restore();
       }
@@ -1702,18 +1808,17 @@ describe("api.ts helper functions", () => {
         }
       };
 
-      const { CompanionDepartureRefusedError, isCompanionDepartureRefusal } =
-        await import("./api");
+      const { isCompanionDepartureRefusal } = await import("./api");
+      const { ApiError } = await import("./api-error");
 
       const stranded = await respondWith(
         JSON.stringify({
-          status: "error",
-          error:
-            "Ein verknüpftes Kind hätte danach keine Angabe mehr dazu, mit wem es nach Hause geht. Bitte zuerst den Heimweg dieses Kindes anpassen.",
+          status: 400,
+          detail: "removing the link would strand a linked companion",
           code: "students.companion_would_lose_departure",
         }),
       );
-      expect(stranded).toBeInstanceOf(CompanionDepartureRefusedError);
+      expect(stranded).toBeInstanceOf(ApiError);
       expect(isCompanionDepartureRefusal(stranded)).toBe(true);
       // The form reads the code; the backend sentence stays diagnosis.
       expect(stranded).toMatchObject({
@@ -1722,19 +1827,21 @@ describe("api.ts helper functions", () => {
       });
 
       const otherBadRequest = await respondWith(
-        JSON.stringify({ status: "error", error: "invalid weekday" }),
+        JSON.stringify({
+          status: 400,
+          detail: "invalid weekday",
+          code: "general.input",
+        }),
       );
-      expect(otherBadRequest).not.toBeInstanceOf(
-        CompanionDepartureRefusedError,
-      );
+      expect(otherBadRequest).toBeInstanceOf(ApiError);
       expect(isCompanionDepartureRefusal(otherBadRequest)).toBe(false);
     });
 
     // The stale-list 409 is the third 409 on this endpoint and the only one
     // whose retry must NOT re-send the same list: doing so would delete the
-    // change the refusal is protecting. It therefore needs its own type, and
-    // must not be mistaken for the answerable companion question.
-    it("types the stale-list 409 apart from the companion question", async () => {
+    // change the refusal is protecting. Its code sets it apart, and it must
+    // not be mistaken for the answerable companion question.
+    it("tells the stale-list 409 apart from the companion question by its code", async () => {
       const respondWith = async (body: string) => {
         global.fetch = vi.fn().mockResolvedValue({
           ok: false,
@@ -1763,22 +1870,17 @@ describe("api.ts helper functions", () => {
         }
       };
 
-      const {
-        CompanionsChangedError,
-        CompanionPlanConflictError,
-        isCompanionsChanged,
-      } = await import("./api");
+      const { CompanionPlanConflictError, isCompanionsChanged } =
+        await import("./api");
       const { ApiError } = await import("./api-error");
 
       const stale = await respondWith(
         JSON.stringify({
-          status: "error",
-          error:
-            "Die Laufgemeinschaft dieses Kindes wurde zwischenzeitlich geändert. Bitte neu laden und noch einmal speichern.",
+          status: 409,
+          detail: "companion list changed since it was loaded",
           code: "students.companions_changed",
         }),
       );
-      expect(stale).toBeInstanceOf(CompanionsChangedError);
       expect(stale).not.toBeInstanceOf(CompanionPlanConflictError);
       expect(isCompanionsChanged(stale)).toBe(true);
       // The shared error path reads the code, never the sentence (#2513).
@@ -1820,16 +1922,16 @@ describe("api.ts helper functions", () => {
         }),
       });
       const plain = Object.assign(new Error("Fehler"), {
-        body: JSON.stringify({ error: "Fehler" }),
+        body: JSON.stringify({ detail: "Fehler" }),
       });
 
       expect(isPrivacyConsentSaved(marked)).toBe(true);
       expect(isPrivacyConsentSaved(plain)).toBe(false);
     });
 
-    // The marker also has to survive the wrapping where the body is lost and
-    // only the message carries the JSON.
-    it("reads the marker out of the message when no body is attached", async () => {
+    // The marker is structured data: a message that happens to contain the
+    // JSON is never read for it.
+    it("never reads the marker out of the message", async () => {
       const { isPrivacyConsentSaved } = await import("./api");
 
       const fromMessage = new Error(
@@ -1838,7 +1940,7 @@ describe("api.ts helper functions", () => {
           details: { privacy_consent_saved: true },
         })}`,
       );
-      expect(isPrivacyConsentSaved(fromMessage)).toBe(true);
+      expect(isPrivacyConsentSaved(fromMessage)).toBe(false);
       expect(isPrivacyConsentSaved(new Error("API error (500): boom"))).toBe(
         false,
       );
@@ -1879,16 +1981,16 @@ describe("api.ts helper functions", () => {
 
       const {
         isPrivacyConsentSaved,
+        isCompanionsChanged,
+        isCompanionDepartureRefusal,
         CompanionPlanConflictError,
-        CompanionsChangedError,
-        CompanionDepartureRefusedError,
       } = await import("./api");
       const details = { privacy_consent_saved: true };
 
       const conflict = await respondWith(
         409,
         JSON.stringify({
-          error: "Ein verknüpftes Kind läuft an diesem Tag nicht allein.",
+          detail: "companion may not walk along on this day",
           conflicts: [{ student_id: 7, weekdays: ["mon"] }],
           details,
         }),
@@ -1899,34 +2001,34 @@ describe("api.ts helper functions", () => {
       const stale = await respondWith(
         409,
         JSON.stringify({
-          error: "Die Laufgemeinschaft wurde zwischenzeitlich geändert.",
+          detail: "companion list changed since it was loaded",
           code: "students.companions_changed",
           details,
         }),
       );
-      expect(stale).toBeInstanceOf(CompanionsChangedError);
+      expect(isCompanionsChanged(stale)).toBe(true);
       expect(isPrivacyConsentSaved(stale)).toBe(true);
 
       const stranded = await respondWith(
         400,
         JSON.stringify({
-          error: "Bitte zuerst den Heimweg dieses Kindes anpassen.",
+          detail: "removing the link would strand a linked companion",
           code: "students.companion_would_lose_departure",
           details,
         }),
       );
-      expect(stranded).toBeInstanceOf(CompanionDepartureRefusedError);
+      expect(isCompanionDepartureRefusal(stranded)).toBe(true);
       expect(isPrivacyConsentSaved(stranded)).toBe(true);
 
       // …and stays absent when the consent write never ran.
       const unmarked = await respondWith(
         409,
         JSON.stringify({
-          error: "Die Laufgemeinschaft wurde zwischenzeitlich geändert.",
+          detail: "companion list changed since it was loaded",
           code: "students.companions_changed",
         }),
       );
-      expect(unmarked).toBeInstanceOf(CompanionsChangedError);
+      expect(isCompanionsChanged(unmarked)).toBe(true);
       expect(isPrivacyConsentSaved(unmarked)).toBe(false);
     });
   });
@@ -2388,11 +2490,35 @@ describe("api.ts helper functions", () => {
       }
     });
 
-    it("parseApiErrorMessage extracts error from JSON", async () => {
+    it("keeps a request without a response marked as such (#2512)", async () => {
+      const { unavailableApiError } = await import("./api-error");
+      const { fetchWithRetry } = await import("./api-helpers");
+      vi.mocked(fetchWithRetry).mockRejectedValue(
+        unavailableApiError(new TypeError("Failed to fetch")),
+      );
+
+      const { getSession } = await import("next-auth/react");
+      vi.mocked(getSession).mockResolvedValue({
+        user: { token: "test-token" },
+      } as never);
+
+      const { studentService } = await import("./api");
+
+      const restore = setupBrowserEnv();
+      try {
+        await expect(
+          studentService.getStudents({ token: "test" }),
+        ).rejects.toMatchObject({ status: 503, noResponse: true });
+      } finally {
+        restore();
+      }
+    });
+
+    it("takes the diagnostic message from the envelope detail", async () => {
       global.fetch = vi.fn().mockResolvedValue({
         ok: false,
         status: 400,
-        text: () => Promise.resolve('{"error":"Validation failed"}'),
+        text: () => Promise.resolve('{"detail":"Validation failed"}'),
       });
 
       const { getSession } = await import("next-auth/react");
@@ -2412,30 +2538,7 @@ describe("api.ts helper functions", () => {
             name: "Test User",
             current_location: "",
           }),
-        ).rejects.toThrow("Validation failed");
-      } finally {
-        restore();
-      }
-    });
-
-    it("extractApiError falls back to pattern matching", async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: false,
-        text: () => Promise.resolve("Error: cannot delete group with students"),
-      });
-
-      const { getSession } = await import("next-auth/react");
-      vi.mocked(getSession).mockResolvedValue({
-        user: { token: "test" },
-      } as never);
-
-      const { groupService } = await import("./api");
-
-      const restore = setupBrowserEnv();
-      try {
-        await expect(groupService.deleteGroup("1")).rejects.toThrow(
-          "cannot delete group with students",
-        );
+        ).rejects.toThrow("Error creating student: API error: 400");
       } finally {
         restore();
       }

@@ -35,6 +35,7 @@ const (
 	ResourceSchedules     = "schedules"
 	ResourceCalendar      = "calendar"
 	ResourceDisplay       = "display"
+	ResourceStudents      = "students"
 )
 
 // Admin permissions
@@ -75,6 +76,14 @@ const (
 	// already holds users:read).
 	UsersAbsence = ResourceUsers + ":absence"
 )
+
+// StudentsRead opens only the read routes of the child list and detail
+// (list, detail, current visit, status-day overview, school classes, photo,
+// OGS group live view), never the guardian directory, parent messages,
+// student notes or exports. It is the child access of the system role guest
+// („Gast“, access level „Nur ansehen“, ADR 0091). Every staff role keeps
+// users:read, which opens the same routes and more, so no staff role needs it.
+const StudentsRead = ResourceStudents + ":" + ActionRead
 
 // Activity permissions
 const (
@@ -260,6 +269,16 @@ const (
 	StaffDocumentsHealth = ResourceStaffDocuments + ":health"
 )
 
+// Enrollment upload permission (#4783). enrollment_uploads:read opens the
+// files parents attach to an enrollment request, such as income proofs.
+// Catalog-only like student_documents:health: admins match via the admin:*
+// wildcard; the request detail itself stays config:manage.
+const (
+	ResourceEnrollmentUploads = "enrollment_uploads"
+
+	EnrollmentUploadsRead = ResourceEnrollmentUploads + ":read"
+)
+
 // Student document permissions (#777). student_documents:health gates
 // Attest, Impfnachweis and Medikamentenplan (Art. 9 GDPR health data);
 // student_documents:legal gates the Sorgerechtsnachweis, which is not Art. 9
@@ -318,6 +337,12 @@ const (
 	// operations.school_portal_write_scope decides whether it is unlocked,
 	// and the education.class_teachers assignment decides for which class.
 	ClassDayArrivalExceptionWrite = ResourceClassDay + ":arrival_exception_write"
+	// ClassDayMorningAttendanceWrite lets a Lehrkraft mark each child of her
+	// assigned classes present or absent for today's school morning (#4790).
+	// The school's setting operations.school_portal_morning_attendance
+	// decides whether it is unlocked, and the education.class_teachers
+	// assignment decides for which class.
+	ClassDayMorningAttendanceWrite = ResourceClassDay + ":morning_attendance_write"
 )
 
 // Supervision permission for the school portal (#2527). supervision:own gates

@@ -7,10 +7,6 @@ package studentdeletion
 
 import (
 	"context"
-	"crypto/sha256"
-	"crypto/subtle"
-	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"sort"
 	"strings"
@@ -41,26 +37,26 @@ var (
 	ErrStudentNotFound = errors.New("student not found")
 	// ErrNotGraduated refuses a purge for a child restored between the
 	// Abgänge list and the locked re-read.
-	ErrNotGraduated = errors.New("Kind ist kein Abgänger mehr und wurde nicht gelöscht. Bitte Liste neu laden.") //nolint:staticcheck // ST1005: user-facing German message
+	ErrNotGraduated = errors.New("kind ist kein Abgänger mehr und wurde nicht gelöscht. Bitte Liste neu laden")
 	// ErrGraduatedUnderLock refuses an ordinary deletion for a child who
 	// graduated while the request was in flight; the adapter answers the
 	// same 404 the alumnus gate returns.
 	ErrGraduatedUnderLock   = errors.New("student graduated between snapshot and lock")
-	ErrPreviewChanged       = errors.New("Die Daten haben sich seit der Vorschau geändert. Bitte Auswirkungen erneut prüfen.")          //nolint:staticcheck // ST1005: user-facing German message
-	ErrConfirmationMismatch = errors.New("Der eingegebene Name stimmt nicht mit dem Kind überein.")                                     //nolint:staticcheck // ST1005: user-facing German message
-	ErrNotAcknowledged      = errors.New("Die Unwiderruflichkeit der Löschung muss bestätigt werden.")                                  //nolint:staticcheck // ST1005: user-facing German message
-	ErrInvalidReason        = errors.New("Ungültiger Löschgrund.")                                                                      //nolint:staticcheck // ST1005: user-facing German message
-	ErrAlumnus              = errors.New("Abgänger werden über den Jahrgangswechsel endgültig gelöscht.")                               //nolint:staticcheck // ST1005: user-facing German message
-	ErrRetentionNotEnded    = errors.New("Der Grund „Aufbewahrungsfrist abgelaufen“ gilt nur für Kinder, deren Betreuung beendet ist.") //nolint:staticcheck // ST1005: user-facing German message
+	ErrPreviewChanged       = errors.New("die Daten haben sich seit der Vorschau geändert. Bitte Auswirkungen erneut prüfen")
+	ErrConfirmationMismatch = errors.New("der eingegebene Name stimmt nicht mit dem Kind überein")
+	ErrNotAcknowledged      = errors.New("die Unwiderruflichkeit der Löschung muss bestätigt werden")
+	ErrInvalidReason        = errors.New("ungültiger Löschgrund")
+	ErrAlumnus              = errors.New("abgänger werden über den Schuljahreswechsel endgültig gelöscht")
+	ErrRetentionNotEnded    = errors.New("der Grund „Aufbewahrungsfrist abgelaufen“ gilt nur für Kinder, deren Betreuung beendet ist")
 	// ErrCompanionWouldLoseDeparture refuses a deletion that would strand a
 	// linked child: their plan says "Anderes Kind" for a weekday this child
 	// covered and nothing else answers "mit wem".
-	ErrCompanionWouldLoseDeparture = errors.New("Ein verknüpftes Kind hätte danach keine Angabe mehr dazu, mit wem es nach Hause geht. Bitte zuerst den Heimweg dieses Kindes anpassen.") //nolint:staticcheck // ST1005: user-facing German message
+	ErrCompanionWouldLoseDeparture = errors.New("ein verknüpftes Kind hätte danach keine Angabe mehr dazu, mit wem es nach Hause geht. Bitte zuerst den Heimweg dieses Kindes anpassen")
 	// ErrCompanionLockBusy is the retriable refusal when a linked child's row
 	// is held by a concurrent edit this transaction must not wait for.
-	ErrCompanionLockBusy         = errors.New("Ein verknüpftes Kind wird gerade an anderer Stelle bearbeitet. Bitte in einem Moment erneut speichern.") //nolint:staticcheck // ST1005: user-facing German message
-	ErrWithdrawalNotFound        = errors.New("Diese Abmeldung gibt es nicht oder nicht mehr.")                                                         //nolint:staticcheck // ST1005: user-facing German message
-	ErrWithdrawalAlreadyResolved = errors.New("Die Abmeldung wurde bereits erledigt oder ist nicht mehr aktuell.")                                      //nolint:staticcheck // ST1005: user-facing German message
+	ErrCompanionLockBusy         = errors.New("ein verknüpftes Kind wird gerade an anderer Stelle bearbeitet. Bitte in einem Moment erneut speichern")
+	ErrWithdrawalNotFound        = errors.New("diese Abmeldung gibt es nicht oder nicht mehr")
+	ErrWithdrawalAlreadyResolved = errors.New("die Abmeldung wurde bereits erledigt oder ist nicht mehr aktuell")
 )
 
 // Counts groups every child-owned or child-linked row affected by a permanent
@@ -103,16 +99,17 @@ type Confirmation struct {
 // Preview is the owner-consistent impact snapshot. Fingerprint binds the
 // confirmation to the exact student, person and counts it was shown for.
 type Preview struct {
-	StudentID        int64
-	PersonID         int64
-	ConfirmationName string
-	Fingerprint      string
-	Counts           Counts
-	Alumnus          bool
-	CareEnded        bool
-	PhotoPath        string
-	CompanionIDs     []int64
-	personUpdatedAt  time.Time
+	StudentID         int64
+	PersonID          int64
+	ConfirmationName  string
+	Fingerprint       string
+	Counts            Counts
+	Alumnus           bool
+	CareEnded         bool
+	PhotoPath         string
+	CompanionIDs      []int64
+	hasEnrollmentRefs bool
+	personUpdatedAt   time.Time
 }
 
 // Result reports what one committed deletion changed.
@@ -139,6 +136,8 @@ type Directory interface {
 	LockEnrollmentClassWrites(ctx context.Context) error
 	FindPerson(ctx context.Context, id int64) (peopledirectory.Person, error)
 	FindPersonForMutation(ctx context.Context, id int64) (peopledirectory.Person, error)
+	// ListStudentRecordsDueForStatus lists the automatic deletion's candidates.
+	ListStudentRecordsDueForStatus(ctx context.Context, status, bound, asOf string) ([]peopledirectory.StudentRecord, error)
 	peopledirectory.StudentDeletionCommand
 }
 
@@ -173,6 +172,14 @@ type Conversations interface {
 	LockStudentMessageThreads(context.Context, int64) error
 }
 
+// Enrollment is the Enrollment port: the preview counts the accepted
+// enrollments that leave with the child, while the total retains the locked
+// recheck for every linked enrollment (#3962).
+type Enrollment interface {
+	CountStudentReferencesForDeletion(context.Context, int64) (approved, total int, err error)
+	DeleteApprovedEnrollmentsOfStudent(context.Context, int64) (int, error)
+}
+
 // Counter is an owner query answering one preview number for a child.
 type Counter func(ctx context.Context, studentID int64) (int, error)
 
@@ -191,16 +198,16 @@ type Dependencies struct {
 	Timetable     Timetable
 	Structure     Structure
 	Conversations Conversations
+	Enrollment    Enrollment
 
-	CountAttendance           Counter
-	CountVisits               Counter
-	CountConsents             Counter
-	CountEnrollmentReferences Counter
-	CountActivityEnrollments  Counter
-	CountAppointments         Counter
-	CountFeedback             Counter
-	CountAuditReferences      Counter
-	CountGuardianInvitations  Counter
+	CountAttendance          Counter
+	CountVisits              Counter
+	CountConsents            Counter
+	CountActivityEnrollments Counter
+	CountAppointments        Counter
+	CountFeedback            Counter
+	CountAuditReferences     Counter
+	CountGuardianInvitations Counter
 
 	// LockCareBookingWrites is the tenant-wide recurrence gate every
 	// care-booking writer takes. The withdrawal path holds it after the shared
@@ -208,7 +215,7 @@ type Dependencies struct {
 	// and a concurrent grade-transition apply cannot deadlock.
 	LockCareBookingWrites func(context.Context) error
 	AppendAudit           func(context.Context, Actor, Result) error
-	PhotoRemoved          func(context.Context, Actor, string)
+	PhotoRemoved          func(context.Context, Actor, string) error
 	CompanionsChanged     func(context.Context, Actor, int64)
 	Observe               func(Observation)
 }
@@ -225,7 +232,7 @@ type Workflow struct{ deps Dependencies }
 func New(deps Dependencies) (*Workflow, error) {
 	if deps.UnitOfWork == nil || deps.Authorize == nil || deps.Today == nil || deps.Now == nil ||
 		deps.Directory == nil || deps.CarePlan == nil || deps.Timetable == nil || deps.Structure == nil || deps.Conversations == nil ||
-		deps.CountAttendance == nil || deps.CountVisits == nil || deps.CountConsents == nil || deps.CountEnrollmentReferences == nil ||
+		deps.CountAttendance == nil || deps.CountVisits == nil || deps.CountConsents == nil || deps.Enrollment == nil ||
 		deps.CountActivityEnrollments == nil || deps.CountAppointments == nil || deps.CountFeedback == nil ||
 		deps.CountAuditReferences == nil || deps.CountGuardianInvitations == nil ||
 		deps.LockCareBookingWrites == nil || deps.AppendAudit == nil || deps.PhotoRemoved == nil || deps.CompanionsChanged == nil || deps.Observe == nil {
@@ -457,11 +464,11 @@ func (w *Workflow) lockedSnapshot(ctx context.Context, studentID int64) (Preview
 	// locked student or person rows. Re-read every counted category before the
 	// cascade so the confirmation and both audit records describe this
 	// transaction's deletion, not an earlier snapshot.
-	current, err := w.loadCounts(ctx, studentID, preview.PersonID)
+	current, err := w.loadCounts(ctx, studentID)
 	if err != nil {
 		return Preview{}, err
 	}
-	if current != preview.Counts {
+	if current.Counts != preview.Counts || current.hasEnrollmentRefs != preview.hasEnrollmentRefs {
 		return Preview{}, ErrPreviewChanged
 	}
 	return preview, nil
@@ -488,21 +495,22 @@ func (w *Workflow) snapshot(ctx context.Context, studentID int64, lock bool) (Pr
 	if err != nil {
 		return Preview{}, err
 	}
-	counts, err := w.loadCounts(ctx, studentID, student.PersonID)
+	counts, err := w.loadCounts(ctx, studentID)
 	if err != nil {
 		return Preview{}, err
 	}
-	fingerprint, err := fingerprintOf(student.UpdatedAt, person.UpdatedAt, counts)
+	fingerprint, err := fingerprintOf(student.UpdatedAt, person.UpdatedAt, counts.Counts)
 	if err != nil {
 		return Preview{}, err
 	}
 	preview := Preview{
 		StudentID: studentID, PersonID: student.PersonID,
 		ConfirmationName: strings.TrimSpace(person.FirstName + " " + person.LastName),
-		Fingerprint:      fingerprint, Counts: counts,
-		Alumnus:         student.Status == peopledirectory.StudentStatusAlumnus,
-		CareEnded:       student.EnrolledUntil != "" && w.deps.Today() > student.EnrolledUntil,
-		personUpdatedAt: person.UpdatedAt,
+		Fingerprint:      fingerprint, Counts: counts.Counts,
+		Alumnus:           student.Status == peopledirectory.StudentStatusAlumnus,
+		CareEnded:         student.EnrolledUntil != "" && w.deps.Today() > student.EnrolledUntil,
+		hasEnrollmentRefs: counts.hasEnrollmentRefs,
+		personUpdatedAt:   person.UpdatedAt,
 	}
 	if student.PhotoPath != nil {
 		preview.PhotoPath = *student.PhotoPath
@@ -510,73 +518,56 @@ func (w *Workflow) snapshot(ctx context.Context, studentID int64, lock bool) (Pr
 	return preview, nil
 }
 
-func (w *Workflow) loadCounts(ctx context.Context, studentID, personID int64) (Counts, error) {
-	var counts Counts
+func (w *Workflow) loadCounts(ctx context.Context, studentID int64) (countSnapshot, error) {
+	var counts countSnapshot
 	var err error
 	if counts.TimetableAssignments, err = w.deps.Timetable.CountStudentAssignments(ctx, studentID); err != nil {
-		return Counts{}, err
+		return countSnapshot{}, err
 	}
 	if counts.ActivityEnrollments, err = w.deps.CountActivityEnrollments(ctx, studentID); err != nil {
-		return Counts{}, err
+		return countSnapshot{}, err
 	}
 	visits, err := w.deps.CountVisits(ctx, studentID)
 	if err != nil {
-		return Counts{}, err
+		return countSnapshot{}, err
 	}
 	attendance, err := w.deps.CountAttendance(ctx, studentID)
 	if err != nil {
-		return Counts{}, err
+		return countSnapshot{}, err
 	}
 	carePlanCounts, err := w.deps.CarePlan.CountCarePlanDeletionRecords(ctx, studentID)
 	if err != nil {
-		return Counts{}, err
+		return countSnapshot{}, err
 	}
 	counts.AttendanceRecords = visits + attendance + carePlanCounts.StatusDays + carePlanCounts.ExcusedRequests
 	if counts.CareSchedules, err = w.deps.CarePlan.CountStudentScheduleRows(ctx, studentID); err != nil {
-		return Counts{}, err
+		return countSnapshot{}, err
 	}
-	if counts.GuardianLinks, err = w.deps.Directory.CountStudentGuardianLinks(ctx, studentID, personID); err != nil {
-		return Counts{}, err
+	if counts.GuardianLinks, err = w.deps.Directory.CountStudentGuardianLinks(ctx, studentID); err != nil {
+		return countSnapshot{}, err
 	}
 	if counts.CompanionLinks, err = w.deps.CarePlan.CountCompanionLinks(ctx, studentID); err != nil {
-		return Counts{}, err
+		return countSnapshot{}, err
 	}
 	invitations, err := w.deps.CountGuardianInvitations(ctx, studentID)
 	if err != nil {
-		return Counts{}, err
+		return countSnapshot{}, err
 	}
 	conversations, err := w.deps.Conversations.CountStudentConversationRecords(ctx, studentID)
 	if err != nil {
-		return Counts{}, err
+		return countSnapshot{}, err
 	}
 	counts.Communications = invitations + conversations + carePlanCounts.CareRequests + carePlanCounts.DataRequests
 	if counts.Consents, err = w.deps.CountConsents(ctx, studentID); err != nil {
-		return Counts{}, err
+		return countSnapshot{}, err
 	}
-	if counts.EnrollmentReferences, err = w.deps.CountEnrollmentReferences(ctx, studentID); err != nil {
-		return Counts{}, err
+	if err := w.loadEnrollmentRefs(ctx, studentID, &counts); err != nil {
+		return countSnapshot{}, err
 	}
-	rosterRemovals, err := w.deps.Timetable.CountStudentRosterRemovals(ctx, studentID)
+	counts.OtherRecords, err = w.countOtherStudentRecords(ctx, studentID)
 	if err != nil {
-		return Counts{}, err
+		return countSnapshot{}, err
 	}
-	history, err := w.deps.Structure.CountStudentTransitionHistory(ctx, studentID)
-	if err != nil {
-		return Counts{}, err
-	}
-	appointments, err := w.deps.CountAppointments(ctx, studentID)
-	if err != nil {
-		return Counts{}, err
-	}
-	auditReferences, err := w.deps.CountAuditReferences(ctx, studentID)
-	if err != nil {
-		return Counts{}, err
-	}
-	feedback, err := w.deps.CountFeedback(ctx, studentID)
-	if err != nil {
-		return Counts{}, err
-	}
-	counts.OtherRecords = rosterRemovals + history + appointments + auditReferences + feedback
 	return counts, nil
 }
 
@@ -600,20 +591,9 @@ func (w *Workflow) lockCompanionGraph(ctx context.Context, subjectID int64) ([]i
 	for _, link := range links[subjectID] {
 		ids = append(ids, link.CompanionStudentID)
 	}
-	held := make(map[int64]bool, len(ids))
-	var maxHeld int64
-	for _, id := range ascending(ids) {
-		found, err := w.lockStudent(ctx, id, "update")
-		if err != nil {
-			return nil, err
-		}
-		if !found && id == subjectID {
-			return nil, ErrStudentNotFound
-		}
-		held[id] = true
-		if id > maxHeld {
-			maxHeld = id
-		}
+	held, maxHeld, err := w.lockInitialCompanions(ctx, subjectID, ids)
+	if err != nil {
+		return nil, err
 	}
 	links, err = w.deps.CarePlan.ListCompanionLinks(ctx, []int64{subjectID})
 	if err != nil {
@@ -678,23 +658,8 @@ func (w *Workflow) checkCompanionStranding(ctx context.Context, subjectID int64)
 		return err
 	}
 	for _, id := range removed {
-		// The rows are already held by lockCompanionGraph; this read only
-		// fetches the plan under the lock this transaction owns.
-		companion, err := w.deps.Directory.ReadEnrollmentStudent(ctx, id, "")
-		if errors.Is(err, peopledirectory.ErrStudentNotFound) {
-			continue // deleted or another tenant: nothing left to strand
-		}
-		if err != nil {
+		if err := w.requireCompanionUnstranded(ctx, id, removedDays[id], covered[id]); err != nil {
 			return err
-		}
-		if companion.DepartureCompanionNote != nil && strings.TrimSpace(*companion.DepartureCompanionNote) != "" {
-			continue // the free-text note carries the detail for every day
-		}
-		accompanied := accompaniedWeekdays(companion.AllowedDepartureModes, companion.DepartureDays)
-		for _, day := range removedDays[id] {
-			if accompanied[day] && !covered[id][day] {
-				return ErrCompanionWouldLoseDeparture
-			}
 		}
 	}
 	return nil
@@ -733,15 +698,7 @@ func (w *Workflow) mutate(ctx context.Context, actor Actor, preview Preview, rea
 	if deletedAssignments != int64(preview.Counts.TimetableAssignments) {
 		return result, ErrPreviewChanged
 	}
-	if _, err := w.deps.Directory.DeleteLegacyGuardianLinks(ctx, preview.PersonID); err != nil {
-		return result, err
-	}
-	// Before the cascade: the document rows go with the child, the queued
-	// intents do not, and they are what gets the bytes off disk.
-	if result.DocumentCleanups, err = w.deps.CarePlan.QueueCareDocumentCleanupForDeletedStudent(ctx, preview.StudentID, now); err != nil {
-		return result, err
-	}
-	if result.WithdrawalsRedacted, err = w.deps.CarePlan.RedactWithdrawalsForDeletedStudent(ctx, preview.StudentID, actor.AccountID, now); err != nil {
+	if err := w.releaseDependents(ctx, actor, preview, now, &result); err != nil {
 		return result, err
 	}
 	deleted, err := w.deps.Directory.DeleteStudent(ctx, preview.StudentID)
@@ -765,35 +722,14 @@ func (w *Workflow) mutate(ctx context.Context, actor Actor, preview Preview, rea
 		return result, err
 	}
 	if result.PhotoPath != "" {
-		w.deps.PhotoRemoved(ctx, actor, result.PhotoPath)
+		if err := w.deps.PhotoRemoved(ctx, actor, result.PhotoPath); err != nil {
+			return result, err
+		}
 	}
 	if len(result.CompanionIDs) > 0 {
 		w.deps.CompanionsChanged(ctx, actor, result.StudentID)
 	}
 	return result, nil
-}
-
-func fingerprintOf(studentUpdatedAt, personUpdatedAt time.Time, counts Counts) (string, error) {
-	payload := struct {
-		StudentUpdatedAt int64  `json:"student_updated_at"`
-		PersonUpdatedAt  int64  `json:"person_updated_at"`
-		Counts           Counts `json:"counts"`
-	}{StudentUpdatedAt: studentUpdatedAt.UnixNano(), PersonUpdatedAt: personUpdatedAt.UnixNano(), Counts: counts}
-	encoded, err := json.Marshal(payload)
-	if err != nil {
-		return "", err
-	}
-	sum := sha256.Sum256(encoded)
-	return hex.EncodeToString(sum[:]), nil
-}
-
-func equalFingerprint(actual, expected string) bool {
-	actualBytes, actualErr := hex.DecodeString(actual)
-	expectedBytes, expectedErr := hex.DecodeString(strings.TrimSpace(expected))
-	if actualErr != nil || expectedErr != nil || len(actualBytes) != len(expectedBytes) {
-		return false
-	}
-	return subtle.ConstantTimeCompare(actualBytes, expectedBytes) == 1
 }
 
 func ascending(ids []int64) []int64 {

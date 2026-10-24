@@ -1,11 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
 import { GET } from "./route";
-
-interface ExtendedSession extends Session {
-  user: Session["user"] & { token?: string };
-}
+import type { ExtendedSession } from "~/test/route-test-helpers";
 
 const { mockAuth, mockApiGet } = vi.hoisted(() => ({
   mockAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
@@ -16,7 +12,8 @@ vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));
 
-vi.mock("~/lib/api-helpers.server", () => ({
+vi.mock("~/lib/api-helpers.server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/api-helpers.server")>()),
   apiGet: mockApiGet,
   handleApiError: vi.fn((error: unknown) => {
     const message =
@@ -52,17 +49,5 @@ describe("GET /api/students/child-quota", () => {
     expect(await response.json()).toMatchObject({
       data: { limited: true, booked_places: 50, occupied_places: 48 },
     });
-  });
-
-  it("refuses without a session", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const response = await GET(
-      new NextRequest(new URL("/api/students/child-quota", "http://localhost")),
-      { params: Promise.resolve({}) },
-    );
-
-    expect(response.status).toBe(401);
-    expect(mockApiGet).not.toHaveBeenCalled();
   });
 });

@@ -3,13 +3,19 @@ package application
 import (
 	"context"
 
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
 )
 
-func (s *StudentService) ReadEnrollment(ctx context.Context, id int64, lock string) (result domain.EnrollmentRecord, err error) {
+func (s *StudentService) ReadEnrollment(ctx context.Context, id int64, lock string) (result peopledirectory.EnrollmentRecord, err error) {
 	run := s.tx.RunRead
 	if lock != "" {
-		run = s.tx.RunWrite
+		run = func(ctx context.Context, fn func(context.Context) error) error {
+			if err := s.tx.RequireTransaction(ctx); err != nil {
+				return err
+			}
+			return fn(ctx)
+		}
 	}
 	err = s.run(ctx, "read_enrollment_student", run, func(txCtx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
@@ -21,7 +27,12 @@ func (s *StudentService) ReadEnrollment(ctx context.Context, id int64, lock stri
 }
 
 func (s *StudentService) LockEnrollmentClassWrites(ctx context.Context) error {
-	return s.run(ctx, "lock_enrollment_class_writes", s.tx.RunWrite, func(txCtx context.Context, stats *domain.OperationStats) error {
+	return s.run(ctx, "lock_enrollment_class_writes", func(ctx context.Context, fn func(context.Context) error) error {
+		if err := s.tx.RequireTransaction(ctx); err != nil {
+			return err
+		}
+		return fn(ctx)
+	}, func(txCtx context.Context, stats *domain.OperationStats) error {
 		queryStats, err := s.store.LockEnrollmentClassWrites(txCtx)
 		stats.Add(queryStats)
 		return err
@@ -60,11 +71,11 @@ func (s *StudentService) ApplyEnrollmentProfile(ctx context.Context, id int64, i
 		if err := s.owners.SaveCare(txCtx, membershipID, record, plan, record.DepartureCompanionNote, input.DepartureSet); err != nil {
 			return err
 		}
-		return s.syncLegacySupervisorNotes(txCtx, stats, record.ID, record.SupervisorNotes, input.SupervisorNotesSet)
+		return s.importPermanentHint(txCtx, stats, record.ID, input.PermanentHint)
 	})
 }
 
-func (s *StudentService) CreateEnrollment(ctx context.Context, input domain.EnrollmentStudent) (result domain.Student, err error) {
+func (s *StudentService) CreateEnrollment(ctx context.Context, input domain.EnrollmentStudent) (result peopledirectory.Student, err error) {
 	err = s.run(ctx, "create_enrollment_student", s.runStudentWrite, func(txCtx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		result, queryStats, err = s.store.CreateEnrollment(txCtx, input)
@@ -84,8 +95,10 @@ func (s *StudentService) CreateEnrollment(ctx context.Context, input domain.Enro
 		if err := s.owners.SaveCare(txCtx, membershipID, record, plan, record.DepartureCompanionNote, input.InitialProfile != nil && input.InitialProfile.DepartureSet); err != nil {
 			return err
 		}
-		return s.syncLegacySupervisorNotes(txCtx, stats, record.ID, record.SupervisorNotes,
-			input.InitialProfile != nil && input.InitialProfile.SupervisorNotesSet && hasLegacySupervisorNotes(record.SupervisorNotes))
+		if input.InitialProfile == nil {
+			return nil
+		}
+		return s.importPermanentHint(txCtx, stats, record.ID, input.InitialProfile.PermanentHint)
 	})
 	return result, err
 }

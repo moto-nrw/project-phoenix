@@ -74,7 +74,51 @@ func runGoList(project string, build Build) ([]byte, error) {
 		}
 		return nil, fmt.Errorf("load Go packages: %w", err)
 	}
+	if len(build.Tags) > 0 {
+		production := build
+		production.Tags = nil
+		untagged, err := runGoList(project, production)
+		if err != nil {
+			return nil, err
+		}
+		if err := requireAdditiveBuildTags(untagged, output); err != nil {
+			return nil, err
+		}
+	}
 	return output, nil
+}
+
+// An analysis tag may expose test hooks, never hide real production source.
+func requireAdditiveBuildTags(production, tagged []byte) error {
+	files := func(output []byte) (map[string]bool, error) {
+		result := make(map[string]bool)
+		decoder := json.NewDecoder(strings.NewReader(string(output)))
+		for {
+			var pkg goListPackage
+			if err := decoder.Decode(&pkg); err == io.EOF {
+				return result, nil
+			} else if err != nil {
+				return nil, err
+			}
+			for _, name := range pkg.GoFiles {
+				result[filepath.Join(pkg.Dir, name)] = true
+			}
+		}
+	}
+	ordinary, err := files(production)
+	if err != nil {
+		return err
+	}
+	exposed, err := files(tagged)
+	if err != nil {
+		return err
+	}
+	for name := range ordinary {
+		if !exposed[name] {
+			return fmt.Errorf("analysis build tags exclude production source %s", name)
+		}
+	}
+	return nil
 }
 
 func fixedBuildEnvironment(build Build) []string {
@@ -85,6 +129,15 @@ func fixedBuildEnvironment(build Build) []string {
 		}
 		environment = append(environment, entry)
 	}
+	for index, entry := range environment {
+		if strings.HasPrefix(entry, "GOFLAGS=") {
+			environment = append(environment[:index], environment[index+1:]...)
+			break
+		}
+	}
+	// Policy tags are fixed just like GOOS/GOARCH; inherited test-runner flags
+	// must not change the graph of a historical base or an isolated fixture.
+	environment = append(environment, "GOFLAGS="+os.Getenv("GOFLAGS")+" -tags="+strings.Join(build.Tags, ","))
 	return append(environment, "GOOS="+build.GOOS, "GOARCH="+build.GOARCH, "CGO_ENABLED=0")
 }
 

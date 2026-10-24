@@ -7,7 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
+	api "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -20,7 +21,7 @@ import (
 // which is the only provider over audit.unregistered_tag_scans.
 func newScanFleet(t *testing.T, db *bun.DB) devicefleet.Capability {
 	t.Helper()
-	fleet, err := repositories.NewDeviceFleet(db)
+	fleet, err := api.NewDeviceFleet(testpkg.NewDatabase(t, db))
 	require.NoError(t, err, "Failed to compose the device fleet")
 	return fleet
 }
@@ -233,6 +234,42 @@ func TestUnregisteredTagScan_DeleteExpiredKeepsRecentScans(t *testing.T) {
 	require.ErrorIs(t, err, devicefleet.ErrTenantRequired, "retention never runs without a tenant")
 }
 
+// TestUnregisteredTagScan_DeleteExpiredRollsBackAndRetriesIdempotently injects
+// a failure after the retention delete: the row survives, the retry deletes
+// it once and a second retry deletes nothing (moved from the opt-in
+// TestUnregisteredTagScanRuntime, #4426).
+func TestUnregisteredTagScan_DeleteExpiredRollsBackAndRetriesIdempotently(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	fleet := newScanFleet(t, db)
+	ctx := testpkg.Ctx(t)
+	now := time.Now()
+	expired := recordScan(t, fleet, ctx, "TAG-RETENTION-ROLLBACK", nil, now.Add(-120*24*time.Hour))
+	cutoff := now.Add(-devicefleet.UnregisteredTagScanRetentionDays * 24 * time.Hour)
+	wantErr := errors.New("abort after retention")
+
+	err := testpkg.WithinTenantContext(t, ctx, db, testpkg.Tenant(t), func(txCtx context.Context) error {
+		deleted, err := fleet.DeleteExpiredUnregisteredTagScans(txCtx, cutoff)
+		require.NoError(t, err)
+		require.EqualValues(t, 1, deleted)
+		return wantErr
+	})
+	require.ErrorIs(t, err, wantErr)
+	_, err = fleet.FindUnregisteredTagScan(ctx, expired.ID)
+	require.NoError(t, err, "retention rollback restores the authoritative row")
+
+	deleted, err := fleet.DeleteExpiredUnregisteredTagScans(ctx, cutoff)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, deleted)
+	_, err = fleet.FindUnregisteredTagScan(ctx, expired.ID)
+	require.ErrorIs(t, err, devicefleet.ErrUnregisteredTagScanNotFound)
+
+	deleted, err = fleet.DeleteExpiredUnregisteredTagScans(ctx, cutoff)
+	require.NoError(t, err)
+	require.Zero(t, deleted, "retry after successful retention is idempotent")
+}
+
 // TestUnregisteredTagScan_TwoTenantIsolation proves audit.unregistered_tag_scans
 // is bounded by RLS for the tenant role and that the admin review still sees
 // each tenant's rows with only that tenant's device identity.
@@ -397,7 +434,7 @@ func TestUnregisteredTagScan_KeepsPersistenceFailuresVisible(t *testing.T) {
 
 	db := testpkg.SetupClosableTestDB(t)
 	fleet := newScanFleet(t, db)
-	ctx := testpkg.Ctx(t)
+	ctx := testpkg.ContextWithTenantRuntime(testpkg.Ctx(t), testpkg.TenantRuntime(t, db))
 	require.NoError(t, db.Close())
 
 	_, err := fleet.FindUnregisteredTagScan(ctx, int64(999999))
@@ -409,7 +446,6 @@ func TestUnregisteredTagScan_KeepsPersistenceFailuresVisible(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "list unregistered tag scans")
 
-	// Writes open their transaction through the ambient unit of work, which
-	// the test harness binds to the package pool rather than this closed
-	// handle; their failure paths are covered by the rollback tests above.
+	// The runtime belongs to this closable pool; both reads and writes now
+	// fail at the same transaction boundary. Rollback behavior is covered above.
 }

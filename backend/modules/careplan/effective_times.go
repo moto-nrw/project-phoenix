@@ -55,4 +55,8 @@ type EffectivePickupTime struct {
 	// ChangedAt is when the overriding day exception was recorded; set only
 	// together with IsException.
 	ChangedAt *time.Time `json:"changed_at,omitempty"`
+	// DayDepartureMode is the Abholart set for this day only (#3946), empty
+	// when the weekly plan applies; only GetBulkEffectivePickupDaysForDate
+	// fills it.
+	DayDepartureMode string `json:"day_departure_mode,omitempty"`
 }

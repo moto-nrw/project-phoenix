@@ -8,7 +8,7 @@ package absencerecordstest
 import (
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
 )
 
@@ -20,7 +20,7 @@ type StudentStatusDayRow struct {
 	UpdatedAt         time.Time     `bun:"updated_at,nullzero,notnull,default:current_timestamp" json:"updated_at"`
 	TenantID          int64         `bun:"tenant_id,notnull" json:"tenant_id"`
 	StudentID         int64         `bun:"student_id,notnull" json:"student_id"`
-	Date              timezone.Date `bun:"date,notnull,type:date" json:"date"`
+	Date              calendar.Date `bun:"date,notnull,type:date" json:"date"`
 	Status            string        `bun:"status,notnull" json:"status"`
 	ReportedAt        time.Time     `bun:"reported_at,notnull" json:"reported_at"`
 	ClearedAt         *time.Time    `bun:"cleared_at" json:"cleared_at,omitempty"`
@@ -38,7 +38,7 @@ type ExcusedAbsenceRequestRow struct {
 	TenantID       int64           `bun:"tenant_id,notnull" json:"tenant_id"`
 	StudentID      int64           `bun:"student_id,notnull" json:"student_id"`
 	SubmittedBy    int64           `bun:"submitted_by,notnull" json:"submitted_by"`
-	Dates          []timezone.Date `bun:"dates,type:jsonb,notnull" json:"dates"`
+	Dates          []calendar.Date `bun:"dates,type:jsonb,notnull" json:"dates"`
 	Note           string          `bun:"note,notnull" json:"note"`
 	AbsenceStatus  string          `bun:"absence_status,notnull,default:'excused'" json:"absence_status"`
 	Status         string          `bun:"status,notnull,default:'pending'" json:"status"`

@@ -10,9 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/internal/testdb"
-	"github.com/moto-nrw/project-phoenix/models/audit"
+	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
@@ -21,37 +20,27 @@ import (
 	"github.com/uptrace/bun/driver/pgdriver"
 )
 
-type authEventCommand struct{ repo audit.AuthEventRepository }
+// auditCommand appends the audit events of one type into a trail.
+type auditCommand[E any] struct {
+	create func(context.Context, E) error
+}
 
-func (c authEventCommand) Append(ctx context.Context, event any) error {
-	authEvent, ok := event.(*audit.AuthEvent)
+func (c auditCommand[E]) Append(ctx context.Context, event any) error {
+	typed, ok := event.(E)
 	if !ok {
-		return fmt.Errorf("test auth event command: unsupported event %T", event)
+		return fmt.Errorf("test audit command: unsupported event %T", event)
 	}
-	return c.repo.Create(ctx, authEvent)
+	return c.create(ctx, typed)
 }
 
-func NewAuthEventCommand(repo audit.AuthEventRepository) audit.Command {
-	return authEventCommand{repo: repo}
-}
-
-type guardianFinancialChangeCommand struct {
-	repo audit.GuardianFinancialChangeCreator
-}
-
-func (c guardianFinancialChangeCommand) Append(ctx context.Context, event any) error {
-	change, ok := event.(*audit.GuardianFinancialChange)
-	if !ok {
-		return fmt.Errorf("test guardian financial change command: unsupported event %T", event)
-	}
-	return c.repo.Create(ctx, change)
-}
-
-// NewGuardianFinancialChangeCommand routes the guardian payer audit rows a
-// flow appends into the given trail, so a behaviour suite can pin the audit
-// row without naming the Audit Platform's event types.
-func NewGuardianFinancialChangeCommand(repo audit.GuardianFinancialChangeCreator) audit.Command {
-	return guardianFinancialChangeCommand{repo: repo}
+// NewAuditCommand routes the audit events of one type a flow appends into
+// the given trail's Create, so a behaviour suite can pin the audit row
+// without naming the Audit Platform's event types. The result satisfies the
+// Audit Platform's command port; events of any other type are refused.
+func NewAuditCommand[E any](create func(context.Context, E) error) interface {
+	Append(context.Context, any) error
+} {
+	return auditCommand[E]{create: create}
 }
 
 // Database aliases and constructors keep migration tests on the shared test
@@ -103,6 +92,9 @@ func SetupTestDB(t testing.TB) *bun.DB {
 	}
 
 	setupPackageTestDB(t)
+	if perTestTenants {
+		claimTenantRun(t)
+	}
 	if perTestDatabases || hasIsolatedTestDB(t) {
 		return setupIsolatedTestDB(t)
 	}
@@ -143,20 +135,6 @@ func setupPackageTestDB(t testing.TB) {
 	}
 }
 
-// WithAfterCommitHooks queues realtime side effects until the returned commit
-// function is called. It keeps service-package tests on the shared test seam
-// instead of importing tenant runtime internals directly.
-func WithAfterCommitHooks(ctx context.Context) (context.Context, func()) {
-	return tenant.WithAfterCommitHooksForTest(ctx)
-}
-
-// RegisterAfterCommit queues fn after the surrounding tenant transaction
-// commits, and runs it at once outside a transaction, for doubles that stand
-// in for a committed side effect.
-func RegisterAfterCommit(ctx context.Context, fn func()) {
-	tenant.RegisterAfterCommit(ctx, fn)
-}
-
 // SetupClosableTestDB returns a PRIVATE pool against the package clone for
 // tests that deliberately close their database to provoke errors. Closing
 // the shared SetupTestDB pool would kill every later test in the binary;
@@ -171,7 +149,7 @@ func SetupClosableTestDB(t *testing.T) *bun.DB {
 		return db
 	}
 
-	db, err := database.DBConn()
+	db, err := transactionruntime.OpenPool()
 	require.NoError(t, err, "Failed to open private test database pool")
 	return db
 }
@@ -188,7 +166,7 @@ func SetupServeTestDB(t *testing.T) *bun.DB {
 		require.NoError(t, err, "Failed to open private phoenix_auth isolated test database pool")
 		return db
 	}
-	db, err := database.DBConnForServe()
+	db, err := transactionruntime.OpenServePool()
 	require.NoError(t, err, "Failed to open private phoenix_auth test database pool")
 	return db
 }
@@ -202,8 +180,7 @@ func SetupServeTestDB(t *testing.T) *bun.DB {
 // Without tenant context, EnsureTenantID silently leaves tenant_id=0, which violates
 // FK constraints on tenant-scoped tables.
 func TenantContext(tenantID int64) context.Context {
-	ctx := tenant.WithTenantID(WithPackageTenantRuntime(context.Background()), tenantID)
-	return audit.WithTenantID(ctx, tenantID)
+	return tenant.WithTenantID(WithPackageTenantRuntime(context.Background()), tenantID)
 }
 
 // TenantScope owns a unique tenant for a test and provides the matching context.
@@ -232,8 +209,7 @@ func (s TenantScope) Context() context.Context {
 	if ctx == nil {
 		ctx = WithPackageTenantRuntime(context.Background())
 	}
-	ctx = tenant.WithTenantID(ctx, s.TenantID)
-	return audit.WithTenantID(ctx, s.TenantID)
+	return tenant.WithTenantID(ctx, s.TenantID)
 }
 
 var uniqueTestTenantCounter int64

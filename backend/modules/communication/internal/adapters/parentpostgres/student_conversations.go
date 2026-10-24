@@ -16,14 +16,14 @@ func NewStudentConversationStore(database Database) *StudentConversationStore {
 	return &StudentConversationStore{store: newStore(database)}
 }
 
-// CountRecords returns how many conversation rows belong to one child: its
+// CountStudentConversationRecords returns how many conversation rows belong to one child: its
 // threads, their messages, and every read cursor into them.
-func (s *StudentConversationStore) CountRecords(ctx context.Context, studentID int64) (int, error) {
-	db, tenantID, err := s.database(ctx)
+func (s *StudentConversationStore) CountStudentConversationRecords(ctx context.Context, studentID int64) (int, error) {
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return 0, err
 	}
-	if tenantID <= 0 {
+	if scope.TenantID <= 0 {
 		return 0, fmt.Errorf("count student conversation records: tenant context is required")
 	}
 	var counts struct {
@@ -42,30 +42,30 @@ func (s *StudentConversationStore) CountRecords(ctx context.Context, studentID i
 				WHERE "parent_message_read".tenant_id = ? AND "parent_message_thread".student_id = ?
 			)
 		)::int AS records`,
-		tenantID, studentID, tenantID, studentID, tenantID, studentID,
+		scope.TenantID, studentID, scope.TenantID, studentID, scope.TenantID, studentID,
 	).Scan(ctx, &counts); err != nil {
 		return 0, fmt.Errorf("count student conversation records: %w", err)
 	}
 	return counts.Records, nil
 }
 
-// LockThreads prevents a read cursor or message from being added after the
+// LockStudentMessageThreads prevents a read cursor or message from being added after the
 // deletion preview is rechecked. Both row kinds reference their thread, so the
 // FOR UPDATE lock serializes their foreign-key checks until the deletion
 // commits or rolls back.
-func (s *StudentConversationStore) LockThreads(ctx context.Context, studentID int64) error {
-	db, tenantID, err := s.database(ctx)
+func (s *StudentConversationStore) LockStudentMessageThreads(ctx context.Context, studentID int64) error {
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return err
 	}
-	if tenantID <= 0 {
+	if scope.TenantID <= 0 {
 		return fmt.Errorf("lock student message threads: tenant context is required")
 	}
 	var threadIDs []int64
 	if err := db.NewSelect().
 		TableExpr(parentThreadTableExpr).
 		ColumnExpr(`"parent_message_thread".id`).
-		Where(`"parent_message_thread".tenant_id = ?`, tenantID).
+		Where(`"parent_message_thread".tenant_id = ?`, scope.TenantID).
 		Where(`"parent_message_thread".student_id = ?`, studentID).
 		OrderExpr(`"parent_message_thread".id ASC`).
 		For("UPDATE").

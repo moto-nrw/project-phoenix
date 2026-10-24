@@ -7,13 +7,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
@@ -55,19 +57,31 @@ func (s stubExcused) ListForStudent(_ context.Context, _ int64, _ time.Time) ([]
 func buildParentServiceWithExcused(t *testing.T, excused careplan.ExcusedAbsenceRequests) (*parentService.Portal, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	bc := testpkg.NewRecordingBroadcaster()
 	return parentportalcompose.New(parentportalcompose.Dependencies{
-		CarePlan:        repos.CarePlan(),
-		People:          repositories.MustNewPeopleDirectory(db),
+		GuardianChanges: owners.ParentGuardianChanges(),
+		DeparturePolicy: owners.ParentDeparturePolicy(),
+		GuardianPolicy:  owners.NewParentGuardianPolicy(),
+		Fingerprints:    owners.SecurityFingerprints{},
+		Declarations:    owners.ParentDeclarationPolicy(),
+		Locales:         owners.ParentPortalLocales(),
+		Runtime:         owners.ParentPortalRuntime{},
+		CarePlan:        owners.NewParentCarePlanCommands(repos.CarePlan(), nil),
+		People:          owners.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:    careProfiles(t, db),
-		ChildRepo:       repos.ParentChild,
+		ChildRepo:       repos.ParentChildReads(),
 		StatusDayRepo:   repos.StudentStatusDay,
-		StudentRepo:     repos.Student,
+		StudentRepo:     owners.NewParentStudentReads(reposPeople.Student),
 		Settings:        excusedApprovalSettings{requiresApproval: true},
-		Broadcaster:     bc,
-		ExcusedRequests: excused,
+		StudentUpdates:  owners.BindParentStudentUpdates(bc),
+		ExcusedRequests: owners.NewParentExcusedAbsenceRequests(excused),
 		Logger:          slog.Default(),
+
+		DataRequests: owners.NewParentDataRequestCommands(repos.CarePlan()),
+
+		CarePlanPolicy: owners.NewParentCarePlanPolicy(),
 	}), db
 }
 
@@ -77,7 +91,7 @@ func buildParentServiceWithExcused(t *testing.T, excused careplan.ExcusedAbsence
 func TestSubmitExcusedRequest_MapsServiceErrors(t *testing.T) {
 	t.Parallel()
 
-	day := timezone.TodayDate().AddDays(3)
+	day := calendar.TodayDate().AddDays(3)
 	cases := []struct {
 		name string
 		in   error
@@ -96,7 +110,7 @@ func TestSubmitExcusedRequest_MapsServiceErrors(t *testing.T) {
 			chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 			_, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-				[]timezone.Date{day}, "Familienfeier", absencerecords.StudentStatusDayExcused, nil)
+				[]calendar.Date{day}, "Familienfeier", absencerecords.StudentStatusDayExcused, nil)
 			require.Error(t, err)
 			if tc.want != nil {
 				assert.ErrorIs(t, err, tc.want)
@@ -111,7 +125,7 @@ func TestSubmitExcusedRequest_MapsServiceErrors(t *testing.T) {
 func TestEditExcusedRequest_MapsServiceErrors(t *testing.T) {
 	t.Parallel()
 
-	day := timezone.TodayDate().AddDays(3)
+	day := calendar.TodayDate().AddDays(3)
 	cases := []struct {
 		name string
 		in   error
@@ -129,7 +143,7 @@ func TestEditExcusedRequest_MapsServiceErrors(t *testing.T) {
 			chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 			_, err := svc.EditExcusedRequest(testpkg.WithPackageTenantRuntime(context.Background()),
-				chain.AccountID, chain.StudentID, 1, []timezone.Date{day}, "Familienfeier", "")
+				chain.AccountID, chain.StudentID, 1, []calendar.Date{day}, "Familienfeier", "")
 			assert.ErrorIs(t, err, tc.want)
 		})
 	}
@@ -144,7 +158,7 @@ func TestSubmitExcused_NoServiceConfigured(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	_, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		[]timezone.Date{timezone.TodayDate().AddDays(3)}, "Familienfeier", absencerecords.StudentStatusDayExcused, nil)
+		[]calendar.Date{calendar.TodayDate().AddDays(3)}, "Familienfeier", absencerecords.StudentStatusDayExcused, nil)
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "not configured")
 }

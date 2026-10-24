@@ -40,7 +40,7 @@ vi.mock("~/lib/tenant-router", () => ({
 }));
 vi.mock("~/lib/hooks/use-day-plan-href", () => ({
   useDayPlanHref: () => "/test-tenant/tagesplan",
-  useDayPlanLabel: () => "Zum Tagesplan",
+  useDayPlanLabel: () => "Heute öffnen",
 }));
 vi.mock("~/lib/timetable-operations-api", () => ({
   timetableOperationsApi: api,
@@ -148,6 +148,33 @@ describe("MyDayBlock (#2180)", () => {
     expect(screen.queryByText("Bewegungszeit")).not.toBeInTheDocument();
     expect(screen.getByText("OGS-Raum 2 · 18 Kinder")).toBeInTheDocument();
     expect(screen.getByText("Sporthalle · 18 Kinder")).toBeInTheDocument();
+  });
+
+  // #4350: dieselbe Zeile wie im Tagesplan. Kante in der Blockfarbe, Raum
+  // und Personal mit ihren Symbolen; getönt wird nichts, hier ist alles eigen.
+  it("zeigt die Symbole wie der Tagesplan, ohne Kante und ohne Tönung (#4350)", () => {
+    swr.data = [
+      block({
+        id: "9",
+        title: "Basteln",
+        roomName: "Kreativraum",
+        planningTrackColor: "#5080D8",
+        staffNames: [
+          { staffId: "1", displayName: "Julia Klein", isSubstitute: false },
+        ],
+      }),
+    ];
+
+    render(<MyDayBlock />);
+
+    const meta = screen.getByText(/Kreativraum/);
+    const icons = meta.querySelectorAll("[data-moto-duotone-tone]");
+    expect(icons).toHaveLength(2);
+    expect(meta).toHaveTextContent("Julia Klein");
+    const row = meta.closest("li")?.querySelector("div") as HTMLElement;
+    expect(row).not.toHaveClass("border-l-4");
+    expect(row.style.borderLeftColor).toBe("");
+    expect(row.style.backgroundColor).toBe("");
   });
 
   it("setzt die Jetzt-Linie vor den Block, der als Nächstes zählt", () => {

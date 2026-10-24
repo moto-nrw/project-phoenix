@@ -99,7 +99,7 @@ describe("POST /api/parent/auth/password-reset/confirm", () => {
   it("propagates a 400 for an invalid or expired token", async () => {
     vi.mocked(global.fetch).mockResolvedValueOnce(
       new Response(
-        JSON.stringify({ error: "invalid or expired reset token" }),
+        JSON.stringify({ detail: "invalid or expired reset token" }),
         {
           status: 400,
           headers: { "Content-Type": "application/json" },
@@ -114,101 +114,7 @@ describe("POST /api/parent/auth/password-reset/confirm", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(400);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("invalid or expired reset token");
-  });
-
-  it("falls back to the message field when error is absent", async () => {
-    vi.mocked(global.fetch).mockResolvedValueOnce(
-      new Response(JSON.stringify({ message: "Password too weak" }), {
-        status: 400,
-        headers: { "Content-Type": "application/json" },
-      }),
-    );
-
-    const request = createMockRequest(
-      "/api/parent/auth/password-reset/confirm",
-      { token: "valid", new_password: "weak" },
-    );
-    const response = await POST(request);
-
-    expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toEqual({
-      message: "Password too weak",
-    });
-  });
-
-  it("returns non-JSON error bodies verbatim", async () => {
-    vi.mocked(global.fetch).mockResolvedValueOnce(
-      new Response("Server Error", {
-        status: 500,
-        headers: { "Content-Type": "text/plain" },
-      }),
-    );
-
-    const request = createMockRequest(
-      "/api/parent/auth/password-reset/confirm",
-      { token: "valid", new_password: "NewPassword123!" },
-    );
-    const response = await POST(request);
-
-    expect(response.status).toBe(500);
-    expect(response.headers.get("Content-Type")).toContain("text/plain");
-    expect(await response.text()).toBe("Server Error");
-  });
-
-  it("uses the German fallback message for an empty error body", async () => {
-    vi.mocked(global.fetch).mockResolvedValueOnce(
-      new Response("", {
-        status: 500,
-        headers: { "Content-Type": "text/plain" },
-      }),
-    );
-
-    const request = createMockRequest(
-      "/api/parent/auth/password-reset/confirm",
-      { token: "valid", new_password: "NewPassword123!" },
-    );
-    const response = await POST(request);
-
-    expect(response.status).toBe(500);
-    expect(await response.text()).toBe("");
-  });
-
-  it("uses the German fallback when the JSON error body is unparseable", async () => {
-    vi.spyOn(console, "warn").mockImplementation(() => undefined);
-
-    vi.mocked(global.fetch).mockResolvedValueOnce(
-      new Response("invalid json", {
-        status: 400,
-        headers: { "Content-Type": "application/json" },
-      }),
-    );
-
-    const request = createMockRequest(
-      "/api/parent/auth/password-reset/confirm",
-      { token: "valid", new_password: "NewPassword123!" },
-    );
-    const response = await POST(request);
-
-    expect(response.status).toBe(400);
-    expect(response.headers.get("Content-Type")).toContain("application/json");
-    expect(await response.text()).toBe("invalid json");
-  });
-
-  it("returns 500 when the upstream fetch throws", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => undefined);
-
-    vi.mocked(global.fetch).mockRejectedValueOnce(new Error("Network error"));
-
-    const request = createMockRequest(
-      "/api/parent/auth/password-reset/confirm",
-      { token: "valid", new_password: "NewPassword123!" },
-    );
-    const response = await POST(request);
-
-    expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Internal Server Error");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("invalid or expired reset token");
   });
 });

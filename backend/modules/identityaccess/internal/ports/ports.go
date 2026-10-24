@@ -45,6 +45,7 @@ type Store interface {
 // and the operator refresh-session table. Both are platform-wide: no row
 // carries a tenant.
 type OperatorStore interface {
+	PasswordLoginStore
 	FindOperator(ctx context.Context, id int64, forUpdate bool) (domain.Operator, bool, domain.OperationStats, error)
 	FindOperatorByEmail(ctx context.Context, email string) (domain.Operator, bool, domain.OperationStats, error)
 	ListOperators(ctx context.Context) ([]domain.Operator, domain.OperationStats, error)
@@ -55,6 +56,9 @@ type OperatorStore interface {
 	// reports whether the row existed.
 	UpdateOperator(ctx context.Context, operator domain.Operator) (bool, domain.OperationStats, error)
 	DeleteOperator(ctx context.Context, id int64) (domain.OperationStats, error)
+	// DeleteDeactivatedOperators removes the accounts whose database-clock
+	// retention window has ended and reports how many went.
+	DeleteDeactivatedOperators(ctx context.Context) (int, domain.OperationStats, error)
 	RecordOperatorLogin(ctx context.Context, id int64, at time.Time) (domain.OperationStats, error)
 	// IncrementOperatorMFAAttempts bumps the counter and applies the lockout
 	// window in one statement once the threshold is reached.
@@ -234,14 +238,16 @@ type Transaction interface {
 	// in context.
 	RunWrite(context.Context, func(context.Context) error) error
 	// RunRead joins the caller's transaction, else opens a tenant
-	// transaction, else an admin transaction for tenantless readers.
+	// transaction. A missing school is an error.
 	RunRead(context.Context, func(context.Context) error) error
 	// RunPlatform joins the caller's transaction when one is active and
-	// otherwise runs on the root connection. Operator rows are platform-wide
+	// otherwise opens an explicit administrative transaction. Operator rows are platform-wide
 	// and carry no tenant, so no tenant transaction is opened for them; the
 	// operator flows open their own administrative transaction where several
 	// writes must commit together.
 	RunPlatform(context.Context, func(context.Context) error) error
+	// RunAdmin is the explicit operator/cross-school worker boundary.
+	RunAdmin(context.Context, func(context.Context) error) error
 }
 
 type Observation struct {
@@ -259,7 +265,13 @@ type Observer func(Observation)
 // tenant-scoped roles and permissions. Every statement runs on the
 // connection the caller's context carries; the locking variants require an
 // ambient transaction.
+type PasswordLoginStore interface {
+	LockPasswordLoginState(ctx context.Context, id int64, operator bool) (domain.PasswordLoginState, error)
+	SavePasswordLoginState(ctx context.Context, id int64, operator bool, state domain.PasswordLoginState) error
+}
+
 type AccountLoginStore interface {
+	PasswordLoginStore
 	// DemoAccountExists reports whether a demo access of the public demo
 	// signed the account in (#3462). It needs the administrative transaction.
 	DemoAccountExists(ctx context.Context, accountID int64) (bool, error)
@@ -268,6 +280,10 @@ type AccountLoginStore interface {
 	HasActiveAccountTenant(ctx context.Context, accountID, tenantID int64) (bool, domain.OperationStats, error)
 	// FindLoginAccountByEmail matches case-insensitively.
 	FindLoginAccountByEmail(ctx context.Context, email string) (domain.LoginAccount, bool, domain.OperationStats, error)
+	// LockLoginAccountByEmail is the email lookup with an exclusive row lock.
+	// It requires the caller's transaction and serializes writes that name an
+	// address with account retention.
+	LockLoginAccountByEmail(ctx context.Context, email string) (domain.LoginAccount, bool, domain.OperationStats, error)
 	FindLoginAccount(ctx context.Context, id int64, forUpdate bool) (domain.LoginAccount, bool, domain.OperationStats, error)
 	// RecordAccountLogin stamps the last login; on the login path it also
 	// takes the account row lock the session cap serializes on.
@@ -326,16 +342,16 @@ type TokenCodec interface {
 	RefreshExpiry() time.Duration
 }
 
-// MFAPolicy is a resolved MFA verdict waiting for the role set it applies to.
+// MFAPolicy is a resolved MFA verdict waiting for the permission set it applies to.
 type MFAPolicy interface {
-	RequiredFor(roleNames []string) bool
+	RequiredFor(permissions []string) bool
 }
 
 // MFAGate is the consumer-owned port over the retained MFA service. An
 // unconfigured gate (Configured false) means "not required / not enrolled".
 type MFAGate interface {
 	Configured() bool
-	IsRequired(ctx context.Context, accountID int64, email string, roleNames []string, tenantID int64) (bool, error)
+	IsRequired(ctx context.Context, accountID int64, email string, permissions []string, tenantID int64) (bool, error)
 	ResolvePolicy(ctx context.Context, accountID, tenantID int64) (MFAPolicy, error)
 	// ResolvePolicyInTx re-reads the policy on the caller's transaction, past
 	// every request-scoped cache.
@@ -463,7 +479,7 @@ type SchoolIdentityProvisioner interface {
 // account's role change is refused with.
 type SchoolRolePolicy interface {
 	ValidateAssignableSchoolRole(role domain.RoleFact, tenantID int64) error
-	IsLehrkraftSystemRole(role domain.RoleFact) bool
+	IsLehrkraftRole(role domain.RoleFact) bool
 	RoleNeedsStaffRecord(role domain.RoleFact) bool
 	LehrkraftRoleImmutable() error
 }
@@ -490,7 +506,7 @@ type OperatorAudit interface {
 // e-mail change links. The composition binds it to the module's own link
 // operations (#2722), so the revocation joins the password change.
 type OperatorCredentialCleanup interface {
-	InvalidateEmailChangeTokens(ctx context.Context, operatorID int64) error
+	RevokeEmailChanges(ctx context.Context, operatorID int64) error
 }
 
 // PasswordHasher hashes a new password and applies the strength policy.

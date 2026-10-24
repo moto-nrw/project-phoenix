@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // ErrInvalidQuery reports a malformed listing query: an unknown view, type
@@ -115,23 +115,8 @@ func (q *ListQuery) validate() error {
 		q.Limit = DefaultLimit
 	}
 	q.Limit = min(q.Limit, MaxLimit)
-	if !q.typesNormalized {
-		if len(q.Types) == 0 {
-			q.Types = append([]string(nil), TypeOrder...)
-		} else {
-			for _, typ := range q.Types {
-				if !isRequestType(typ) {
-					return ErrInvalidQuery
-				}
-			}
-			q.Types = intersectTypes(TypeOrder, q.Types...)
-		}
-		// Corrections have no open state — the working list must never show
-		// them, not even when a client asks for the type explicitly.
-		if !q.History {
-			q.Types = removeType(q.Types, TypeDirectCorrection)
-		}
-		q.typesNormalized = true
+	if err := q.normalizeTypes(); err != nil {
+		return err
 	}
 	if !q.History {
 		if len(q.Statuses) > 0 || !q.From.IsZero() || !q.To.IsZero() {
@@ -190,14 +175,14 @@ func parseHistoryFilters(q *ListQuery, values url.Values) error {
 		q.Statuses = statuses
 	}
 	if rawFrom != "" {
-		from, err := timezone.ParseDate(rawFrom)
+		from, err := calendar.ParseDate(rawFrom)
 		if err != nil {
 			return ErrInvalidQuery
 		}
 		q.From = from.BerlinMidnight()
 	}
 	if rawTo != "" {
-		to, err := timezone.ParseDate(rawTo)
+		to, err := calendar.ParseDate(rawTo)
 		if err != nil {
 			return ErrInvalidQuery
 		}
@@ -338,4 +323,26 @@ func withNormalPhaseCursor(raw string) string {
 	}
 	cursor[normalPhaseCursorKey] = nil
 	return encodeCursor(cursor)
+}
+
+func (q *ListQuery) normalizeTypes() error {
+	if !q.typesNormalized {
+		if len(q.Types) == 0 {
+			q.Types = append([]string(nil), TypeOrder...)
+		} else {
+			for _, typ := range q.Types {
+				if !isRequestType(typ) {
+					return ErrInvalidQuery
+				}
+			}
+			q.Types = intersectTypes(TypeOrder, q.Types...)
+		}
+		// Corrections have no open state — the working list must never show
+		// them, not even when a client asks for the type explicitly.
+		if !q.History {
+			q.Types = removeType(q.Types, TypeDirectCorrection)
+		}
+		q.typesNormalized = true
+	}
+	return nil
 }

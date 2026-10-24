@@ -15,12 +15,16 @@ import (
 	"path/filepath"
 	"testing"
 
+	rootAPI "github.com/moto-nrw/project-phoenix/api"
+	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api/testutil/routetest"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/me"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -45,8 +49,8 @@ type testContext struct {
 func setupUserContextRoute(t *testing.T) *testContext {
 	t.Helper()
 
-	db, module := testutil.SetupUserContextModule(t)
-	resource := me.NewResource(module.UserContext.Caller(), module.UserContext)
+	db, module := setupUserContextModule(t)
+	resource := me.NewResource(module.Caller(), module, rootAPI.TenantSessionChain, nativeUploads.UploadFiles{})
 
 	return &testContext{
 		db: db,
@@ -475,6 +479,33 @@ func TestGetGroupVisits_Unauthenticated(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, rr.Code, "Expected 401 for unauthenticated request")
 }
 
+// A room session that does not exist (any more) is an expected refusal
+// (#4599): both session routes answer 404 with the class code, not 500.
+func TestGroupSessionRoutes_UnknownSessionAnswersNotFound(t *testing.T) {
+	t.Parallel()
+	tc := setupUserContextRoute(t)
+
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "UnknownSession", "Test")
+	var missingSessionID int64
+	require.NoError(t, tc.db.NewSelect().
+		ColumnExpr("nextval(pg_get_serial_sequence('active.groups', 'id'))").
+		Scan(testpkg.Ctx(t), &missingSessionID))
+	token := testutil.MintTestJWT(t, testutil.TeacherTestClaims(int(account.ID)))
+
+	for _, route := range []string{"students", "visits"} {
+		t.Run(route, func(t *testing.T) {
+			req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/groups/%d/%s", missingSessionID, route), nil,
+				testutil.WithJWTBearer(token),
+			)
+
+			rr := testutil.ExecuteRequest(tc.router, req)
+
+			require.Equal(t, http.StatusNotFound, rr.Code, rr.Body.String())
+			assert.Equal(t, routetest.ClassCode(http.StatusNotFound), testutil.ParseJSONResponse(t, rr.Body.Bytes())["code"])
+		})
+	}
+}
+
 // =============================================================================
 // AVATAR TESTS
 // =============================================================================
@@ -567,18 +598,6 @@ func TestServeAvatar_GlobalAvatarFile(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, rr.Code)
 	assert.Equal(t, []byte("fake-image-data"), rr.Body.Bytes())
-}
-
-// =============================================================================
-// ROUTER TESTS
-// =============================================================================
-
-func TestRouter_ReturnsValidRouter(t *testing.T) {
-	t.Parallel()
-	tc := setupUserContextRoute(t)
-
-	router := tc.resource.Router()
-	assert.NotNil(t, router, "Router should not be nil")
 }
 
 // =============================================================================
@@ -766,8 +785,19 @@ func TestUploadAvatar_Success(t *testing.T) {
 		_ = os.Remove(avatarFilePath)
 	})
 
-	_, err = os.Stat(avatarFilePath)
+	fileInfo, err := os.Stat(avatarFilePath)
 	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o600), fileInfo.Mode().Perm())
+	dirInfo, err := os.Stat(filepath.Dir(avatarFilePath))
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o700), dirInfo.Mode().Perm())
+
+	getReq := testutil.NewAuthenticatedRequest(t, http.MethodGet, "/profile/avatar/"+filepath.Base(avatar), nil,
+		testutil.WithJWTBearer(testutil.MintTestJWT(t, claims)))
+	imageResponse := testutil.ExecuteRequest(tc.router, getReq)
+	require.Equal(t, http.StatusOK, imageResponse.Code)
+	assert.Equal(t, pngContent, imageResponse.Body.String())
+	assert.Equal(t, "private, max-age=86400", imageResponse.Header().Get("Cache-Control"))
 }
 
 // =============================================================================

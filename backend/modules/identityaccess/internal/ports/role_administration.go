@@ -3,6 +3,7 @@ package ports
 import (
 	"context"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 )
 
@@ -34,6 +35,9 @@ type RoleStore interface {
 	// ListAccountRoles returns the roles the account holds at the tenant in
 	// context.
 	ListAccountRoles(ctx context.Context, accountID int64) ([]domain.ManagedRole, error)
+	// ListAccountsHoldingRole maps the supplied accounts that hold roleName at
+	// the tenant in context. Accounts without that role are absent from the map.
+	ListAccountsHoldingRole(ctx context.Context, accountIDs []int64, roleName string) (map[int64]bool, error)
 	ListAccountRoleNames(ctx context.Context, accountIDs []int64) (map[int64]string, error)
 
 	// AccountHoldsRole reports whether the account-role mapping exists.
@@ -55,7 +59,7 @@ type RoleStore interface {
 // RoleAssignmentPolicy classifies roles for the assignment rules; the public
 // package owns the decisions, the composition binds them.
 type RoleAssignmentPolicy interface {
-	IsLehrkraftSystemRole(role *domain.RoleFacts) bool
+	IsLehrkraftRole(role *domain.RoleFacts) bool
 	IsGuardianTierRole(role *domain.RoleFacts) bool
 	// IsPlatformCaregiverRole reports whether the role already is the
 	// platform caregiver role, so the caregiver upgrade adds nothing.
@@ -68,14 +72,22 @@ type RoleAssignmentPolicy interface {
 // SchoolIdentity completes the school identity chain a role requires on the
 // caller's transaction.
 type SchoolIdentity interface {
-	EnsureSchoolIdentity(ctx context.Context, input domain.SchoolIdentityInput) (*domain.SchoolIdentity, error)
+	EnsureSchoolIdentityChain(ctx context.Context, input domain.SchoolIdentityInput) (*domain.SchoolIdentity, error)
+}
+
+// InvitationIdentity is the school identity chain as the invitation flows see
+// it: the chain an acceptance completes, and beforehand the retired
+// membership it would continue for an account at the school in context.
+type InvitationIdentity interface {
+	SchoolIdentity
+	FindFormerEmploymentByAccount(ctx context.Context, accountID int64) (domain.FormerEmployment, bool, error)
 }
 
 // SessionRevocation revokes an account's sessions at the school on the
 // caller's transaction and queues the push cleanup once it committed.
 type SessionRevocation interface {
-	DeleteAccountSessionsWithAudit(ctx context.Context, accountID int64, reason, ipAddress, userAgent string) ([]domain.AccountSession, error)
-	QueuePushCleanup(ctx context.Context, accountID int64, sessions []domain.AccountSession, reason string)
+	DeleteAccountSessionsWithAudit(ctx context.Context, accountID int64, reason, ipAddress, userAgent string) ([]identityaccess.AccountSession, error)
+	QueuePushCleanup(ctx context.Context, accountID int64, sessions []identityaccess.AccountSession, reason string)
 }
 
 // CaregiverProfiles answers whether the account's identity at the tenant in
@@ -96,21 +108,16 @@ type PermissionStore interface {
 	DeletePermission(ctx context.Context, id int64) error
 	ListPermissions(ctx context.Context, filter domain.PermissionFilter) ([]domain.ManagedPermission, error)
 	ListRolePermissions(ctx context.Context, roleID int64) ([]domain.ManagedPermission, error)
-	// ListAccountPermissions returns the direct and the role-based
-	// permissions of the account.
-	ListAccountPermissions(ctx context.Context, accountID int64) ([]domain.ManagedPermission, error)
-	ListAccountDirectPermissions(ctx context.Context, accountID int64) ([]domain.ManagedPermission, error)
 	AssignRolePermission(ctx context.Context, roleID, permissionID int64) error
+	// AssignRolePermissions skips listed permissions the catalog no longer holds.
+	AssignRolePermissions(ctx context.Context, roleID int64, permissionIDs []int64) error
 	RemoveRolePermission(ctx context.Context, roleID, permissionID int64) error
 	DeletePermissionAssignments(ctx context.Context, permissionID int64) error
 	DeletePermissionGrants(ctx context.Context, permissionID int64) error
-	GrantAccountPermission(ctx context.Context, accountID, permissionID int64) error
-	DenyAccountPermission(ctx context.Context, accountID, permissionID int64) error
-	RemoveAccountPermission(ctx context.Context, accountID, permissionID int64) error
 }
 
 // ManageableAccounts applies the account administration's visibility rules.
 // Missing and out-of-scope accounts return ErrAccountNotFound.
 type ManageableAccounts interface {
-	FindManageableAccount(ctx context.Context, accountID int64) (domain.ManagedAccountRecord, error)
+	FindManageableAccount(ctx context.Context, accountID int64) (identityaccess.ManagedAccount, error)
 }

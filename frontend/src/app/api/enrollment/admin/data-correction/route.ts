@@ -1,11 +1,11 @@
 import { captureBffException } from "~/lib/sentry-bff.server";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
-import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { auth } from "~/server/auth";
 import { withTenantAuth } from "~/server/auth/tenant-route";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { createLogger } from "~/lib/logger";
+import { problemResponse } from "~/lib/api-helpers.server";
 
 const logger = createLogger({
   component: "EnrollmentAdminDataCorrectionRoute",
@@ -26,21 +26,22 @@ async function PUTHandler(request: NextRequest) {
   const session = await auth();
   const token = session?.user?.token;
   if (!token) {
-    return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
+    return problemResponse(401, "Unauthenticated", request);
   }
 
   let body: DataCorrectionBody;
   try {
     body = (await request.json()) as DataCorrectionBody;
   } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    return problemResponse(400, "Invalid JSON", request);
   }
   const requestID = body.request_id == null ? "" : String(body.request_id);
   const childID = body.child_id == null ? "" : String(body.child_id);
   if (!requestID || !childID) {
-    return NextResponse.json(
-      { error: "request_id and child_id are required" },
-      { status: 400 },
+    return problemResponse(
+      400,
+      "request_id and child_id are required",
+      request,
     );
   }
 
@@ -65,16 +66,13 @@ async function PUTHandler(request: NextRequest) {
         }),
       },
     );
-    return forwardBackendResponse(upstream);
+    return forwardBackendResponse(upstream, request);
   } catch (error) {
     captureBffException(error, request);
     logger.error("admin_child_data_correction_failed", {
       error: error instanceof Error ? error.message : String(error),
     });
-    return NextResponse.json(
-      { error: "Internal Server Error" },
-      { status: 500 },
-    );
+    return problemResponse(500, "Internal Server Error", request);
   }
 }
 

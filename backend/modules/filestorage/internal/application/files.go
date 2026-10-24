@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/modules/filestorage"
 	"github.com/moto-nrw/project-phoenix/modules/filestorage/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/filestorage/internal/ports"
 )
@@ -13,8 +14,11 @@ import (
 // ListFiles returns the folder and its live files, newest first, each with
 // the actor's delete right. Objects whose prior post-commit removal did not
 // finish are retried after the caller's transaction commits.
-func (s *Service) ListFiles(ctx context.Context, folderID int64, actor domain.Actor) (folder domain.Folder, files []domain.FileView, err error) {
-	err = s.run("list_files", func(o *op) error {
+func (s *Service) ListFiles(ctx context.Context, folderID int64, who filestorage.Actor) (filestorage.FileList, error) {
+	actor := s.actor(who)
+	var folder domain.Folder
+	var files []domain.FileView
+	err := s.runRead(ctx, "list_files", func(ctx context.Context, o *op) error {
 		var err error
 		if folder, err = s.requireVisible(ctx, o, folderID, actor); err != nil {
 			return err
@@ -35,7 +39,17 @@ func (s *Service) ListFiles(ctx context.Context, folderID int64, actor domain.Ac
 		s.retryCleanups(ctx, o, folderID)
 		return nil
 	})
-	return folder, files, err
+	if err != nil {
+		return filestorage.FileList{}, err
+	}
+	result := filestorage.FileList{
+		Folder: toFolder(domain.FolderView{FolderListItem: domain.FolderListItem{Folder: folder, FileCount: int64(len(files))}}),
+		Files:  make([]filestorage.File, 0, len(files)),
+	}
+	for _, file := range files {
+		result.Files = append(result.Files, toFile(file.Document, file.CanDelete))
+	}
+	return result, nil
 }
 
 // retryCleanups schedules removal of objects whose unlink did not finish, for
@@ -61,7 +75,7 @@ func (s *Service) retryCleanups(ctx context.Context, o *op, folderID int64) {
 // writing anything, so an unauthorized request costs nothing but the request
 // itself. UploadFile repeats the check inside its transaction.
 func (s *Service) AuthorizeUpload(ctx context.Context, folderID int64, actor domain.Actor) error {
-	return s.run("authorize_upload", func(o *op) error {
+	return s.runRead(ctx, "authorize_upload", func(ctx context.Context, o *op) error {
 		return s.write(ctx, o, func(txCtx context.Context, o *op) error {
 			return s.requireUpload(txCtx, o, folderID, actor)
 		})
@@ -77,24 +91,19 @@ func (s *Service) requireUpload(ctx context.Context, o *op, folderID int64, acto
 		return err
 	}
 	if !allowed {
-		return fmt.Errorf("%w: uploads are reserved for the leadership", domain.ErrForbidden)
+		return fmt.Errorf("%w: uploads are reserved for the leadership", filestorage.ErrForbidden)
 	}
 	return nil
 }
 
 // UploadFile stores one upload: intent, object, metadata, settle.
-func (s *Service) UploadFile(ctx context.Context, folderID int64, upload domain.Upload, actor domain.Actor) (file domain.Document, err error) {
-	err = s.run("upload_file", func(o *op) error {
+func (s *Service) UploadFile(ctx context.Context, folderID int64, value filestorage.Upload, who filestorage.Actor) (filestorage.File, error) {
+	upload, actor := domainUpload(value), s.actor(who)
+	var file domain.Document
+	err := s.run("upload_file", func(o *op) error {
 		tenantID := s.deps.Tx.TenantID(ctx)
-		if tenantID <= 0 {
-			return fmt.Errorf("%w: no tenant context", domain.ErrInvalid)
-		}
-		if err := requireActor(actor); err != nil {
+		if err := normalizeUpload(tenantID, actor, &upload); err != nil {
 			return err
-		}
-		upload.FilenameDisplay = strings.TrimSpace(upload.FilenameDisplay)
-		if upload.FilenameDisplay == "" {
-			return fmt.Errorf("%w: filename is required", domain.ErrInvalid)
 		}
 		// Authorize BEFORE anything is written, so a request that was never
 		// allowed costs neither disk nor a cleanup row.
@@ -126,15 +135,18 @@ func (s *Service) UploadFile(ctx context.Context, folderID int64, upload domain.
 		if err != nil {
 			// Only request-shaped rejections prove the row never landed;
 			// anything deeper is left to the queued intent.
-			rejectedBeforeCommit := errors.Is(err, domain.ErrInvalid) ||
-				errors.Is(err, domain.ErrForbidden) ||
-				errors.Is(err, domain.ErrQuotaExceeded)
+			rejectedBeforeCommit := errors.Is(err, filestorage.ErrInvalid) ||
+				errors.Is(err, filestorage.ErrForbidden) ||
+				errors.Is(err, filestorage.ErrQuotaExceeded)
 			s.releaseFailedUpload(ctx, k, tenantID, folderID, storedName, rejectedBeforeCommit, err)
 			return err
 		}
 		return nil
 	})
-	return file, err
+	if err != nil {
+		return filestorage.File{}, err
+	}
+	return toFile(file, true), nil
 }
 
 func (s *Service) createFile(ctx context.Context, o *op, tenantID, folderID int64, storedName string, size int64, upload domain.Upload, actor domain.Actor) (file domain.Document, err error) {
@@ -157,7 +169,7 @@ func (s *Service) createFile(ctx context.Context, o *op, tenantID, folderID int6
 			SizeBytes: size, ContentType: upload.ContentType, UploadedBy: actor.AccountID,
 		}
 		if err := document.Validate(); err != nil {
-			return fmt.Errorf("%w: %s", domain.ErrInvalid, err.Error())
+			return fmt.Errorf("%w: %s", filestorage.ErrInvalid, err.Error())
 		}
 		created, stats, err := s.deps.Files.Create(txCtx, document)
 		o.add(stats)
@@ -193,15 +205,18 @@ func (s *Service) requireQuota(ctx context.Context, o *op, sizeBytes int64) erro
 		return err
 	}
 	if used+sizeBytes > maxBytes {
-		return domain.ErrQuotaExceeded
+		return filestorage.ErrQuotaExceeded
 	}
 	return nil
 }
 
 // OpenFile resolves a file the actor may see and opens its bytes. The caller
 // closes the object.
-func (s *Service) OpenFile(ctx context.Context, folderID, fileID int64, actor domain.Actor) (file domain.Document, object ports.Object, err error) {
-	err = s.run("open_file", func(o *op) error {
+func (s *Service) OpenFile(ctx context.Context, folderID, fileID int64, who filestorage.Actor) (filestorage.Content, error) {
+	actor := s.actor(who)
+	var file domain.Document
+	var object ports.Object
+	err := s.run("open_file", func(o *op) error {
 		if err := s.write(ctx, o, func(txCtx context.Context, o *op) error {
 			if _, err := s.requireVisible(txCtx, o, folderID, actor); err != nil {
 				return err
@@ -212,7 +227,7 @@ func (s *Service) OpenFile(ctx context.Context, folderID, fileID int64, actor do
 				return err
 			}
 			if !ok {
-				return domain.ErrNotFound
+				return filestorage.ErrNotFound
 			}
 			file = found
 			return nil
@@ -223,58 +238,31 @@ func (s *Service) OpenFile(ctx context.Context, folderID, fileID int64, actor do
 		object, err = s.openObject(ctx, s.files(), s.deps.Tx.TenantID(ctx), file)
 		return err
 	})
-	return file, object, err
+	if err != nil {
+		return filestorage.Content{}, err
+	}
+	return toContent(file, object), nil
 }
 
 // DeleteFile soft-deletes a file with an audit row and removes its bytes after
 // commit. A file that is already soft-deleted but still has bytes gets its
 // removal retried instead of a 404 the caller cannot act on.
-func (s *Service) DeleteFile(ctx context.Context, folderID, fileID int64, actor domain.Actor) error {
+func (s *Service) DeleteFile(ctx context.Context, folderID, fileID int64, who filestorage.Actor) error {
+	actor := s.actor(who)
 	return s.run("delete_file", func(o *op) error {
 		if err := requireActor(actor); err != nil {
 			return err
 		}
-		var document domain.Document
+		var deletedDocument domain.Document
 		if err := s.write(ctx, o, func(txCtx context.Context, o *op) error {
-			if _, err := s.requireVisible(txCtx, o, folderID, actor); err != nil {
-				return err
-			}
-			live, found, stats, err := s.deps.Files.FindForOwner(txCtx, folderID, fileID, false)
-			o.add(stats)
-			if err != nil {
-				return err
-			}
-			if !found {
-				deleted, found, stats, err := s.deps.Files.FindForOwner(txCtx, folderID, fileID, true)
-				o.add(stats)
-				if err != nil {
-					return err
-				}
-				if !found {
-					return domain.ErrNotFound
-				}
-				if err := s.requireDeleteRight(txCtx, deleted, actor); err != nil {
-					return err
-				}
-				document = deleted
-				return nil
-			}
-			if err := s.requireDeleteRight(txCtx, live, actor); err != nil {
-				return err
-			}
-			deleted, stats, err := s.deps.Files.SoftDelete(txCtx, live.ID, actor.AccountID)
-			o.add(stats)
-			if err != nil {
-				return err
-			}
-			document = deleted
-			return s.record(txCtx, actor, ports.EventFileDeleted, &folderID, nil, &deleted.ID,
-				fmt.Sprintf("Datei „%s“ gelöscht", deleted.FilenameDisplay))
+			document, err := s.deleteFileRecord(txCtx, o, folderID, fileID, actor)
+			deletedDocument = document
+			return err
 		}); err != nil {
 			return err
 		}
-		if document.BytesPresent() {
-			s.scheduleCleanup(ctx, s.files(), document, "delete")
+		if deletedDocument.BytesPresent() {
+			s.scheduleCleanup(ctx, s.files(), deletedDocument, "delete")
 		}
 		return nil
 	})
@@ -286,7 +274,58 @@ func (s *Service) requireDeleteRight(ctx context.Context, document domain.Docume
 		return err
 	}
 	if !allowed {
-		return fmt.Errorf("%w: only own uploads can be deleted", domain.ErrForbidden)
+		return fmt.Errorf("%w: only own uploads can be deleted", filestorage.ErrForbidden)
+	}
+	return nil
+}
+
+func (s *Service) deleteFileRecord(txCtx context.Context, o *op, folderID, fileID int64, actor domain.Actor) (document domain.Document, err error) {
+	if _, err := s.requireVisible(txCtx, o, folderID, actor); err != nil {
+		return document, err
+	}
+	live, found, stats, err := s.deps.Files.FindForOwner(txCtx, folderID, fileID, false)
+	o.add(stats)
+	if err != nil {
+		return document, err
+	}
+	if !found {
+		deleted, found, stats, err := s.deps.Files.FindForOwner(txCtx, folderID, fileID, true)
+		o.add(stats)
+		if err != nil {
+			return document, err
+		}
+		if !found {
+			return document, filestorage.ErrNotFound
+		}
+		if err := s.requireDeleteRight(txCtx, deleted, actor); err != nil {
+			return document, err
+		}
+		document = deleted
+		return document, nil
+	}
+	if err := s.requireDeleteRight(txCtx, live, actor); err != nil {
+		return document, err
+	}
+	deleted, stats, err := s.deps.Files.SoftDelete(txCtx, live.ID, actor.AccountID)
+	o.add(stats)
+	if err != nil {
+		return document, err
+	}
+	document = deleted
+	return document, s.record(txCtx, actor, ports.EventFileDeleted, &folderID, nil, &deleted.ID,
+		fmt.Sprintf("Datei „%s“ gelöscht", deleted.FilenameDisplay))
+}
+
+func normalizeUpload(tenantID int64, actor domain.Actor, upload *domain.Upload) error {
+	if tenantID <= 0 {
+		return fmt.Errorf("%w: no tenant context", filestorage.ErrInvalid)
+	}
+	if err := requireActor(actor); err != nil {
+		return err
+	}
+	upload.FilenameDisplay = strings.TrimSpace(upload.FilenameDisplay)
+	if upload.FilenameDisplay == "" {
+		return fmt.Errorf("%w: filename is required", filestorage.ErrInvalid)
 	}
 	return nil
 }

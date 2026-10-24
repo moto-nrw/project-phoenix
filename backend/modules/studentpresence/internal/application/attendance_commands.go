@@ -3,27 +3,40 @@ package application
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-func (s *Service) RecordAttendance(ctx context.Context, row *ports.Attendance) error {
-	return s.runWrite(ctx, "record_attendance", func(txCtx context.Context) (ports.Stats, error) {
-		if row == nil || row.StudentID <= 0 || row.Date == "" || row.CheckInTime.IsZero() || row.DeviceID <= 0 {
+func (s *Service) RecordAttendance(ctx context.Context, value studentpresence.Attendance) (studentpresence.Attendance, error) {
+	row, err := attendanceFromPublic(value)
+	if err != nil {
+		return studentpresence.Attendance{}, err
+	}
+	err = s.runWrite(ctx, "record_attendance", func(txCtx context.Context) (ports.Stats, error) {
+		if row.StudentID <= 0 || row.Date == "" || row.CheckInTime.IsZero() || row.DeviceID <= 0 {
 			return ports.Stats{}, errors.New("student presence: invalid attendance")
 		}
 		return s.store.RecordAttendance(txCtx, row)
 	})
+	return attendanceToPublic(row), err
 }
 
-func (s *Service) ReviseAttendance(ctx context.Context, row *ports.Attendance) error {
-	return s.runWrite(ctx, "revise_attendance", func(txCtx context.Context) (ports.Stats, error) {
-		if row == nil || row.StudentID <= 0 || row.Date == "" || row.CheckInTime.IsZero() || row.DeviceID <= 0 || row.ID <= 0 {
+func (s *Service) ReviseAttendance(ctx context.Context, value studentpresence.Attendance) (studentpresence.Attendance, error) {
+	row, err := attendanceFromPublic(value)
+	if err != nil {
+		return studentpresence.Attendance{}, err
+	}
+	err = s.runWrite(ctx, "revise_attendance", func(txCtx context.Context) (ports.Stats, error) {
+		if row.StudentID <= 0 || row.Date == "" || row.CheckInTime.IsZero() || row.DeviceID <= 0 || row.ID <= 0 {
 			return ports.Stats{}, errors.New("student presence: invalid attendance")
 		}
 		return s.store.ReviseAttendance(txCtx, row)
 	})
+	return attendanceToPublic(row), err
 }
 
 func (s *Service) DeleteAttendance(ctx context.Context, id int64) error {
@@ -34,10 +47,39 @@ func (s *Service) DeleteAttendance(ctx context.Context, id int64) error {
 		return s.store.DeleteAttendance(txCtx, id)
 	})
 }
-func (s *Service) EnsureAttendanceBatch(ctx context.Context, rows []*ports.Attendance) (result []int64, err error) {
+
+// DeleteExpiredAttendance deletes the attendance dated before the first
+// Berlin calendar day a window of retentionDays keeps, for the nightly
+// retention (#3957). It joins the school's cleanup transaction and never
+// opens its own, so the deletion commits with its deletion-log entry.
+func (s *Service) DeleteExpiredAttendance(ctx context.Context, retentionDays int) (deleted int, err error) {
+	if retentionDays <= 0 {
+		return 0, fmt.Errorf("%w, got %d", studentpresence.ErrAttendanceRetentionWindow, retentionDays)
+	}
+	cutoff := calendar.TodayDate().AddDays(-retentionDays)
+	err = s.run("delete_attendance_before", func() (ports.Stats, error) {
+		if err := s.tx.Require(ctx); err != nil {
+			return ports.Stats{}, err
+		}
+		stats, err := s.store.DeleteAttendanceBefore(ctx, cutoff)
+		deleted = int(stats.Rows)
+		return stats, err
+	})
+	return deleted, err
+}
+
+func (s *Service) EnsureAttendanceBatch(ctx context.Context, values []studentpresence.Attendance) (result []int64, err error) {
+	rows := make([]*ports.Attendance, 0, len(values))
+	for _, value := range values {
+		row, err := attendanceFromPublic(value)
+		if err != nil {
+			return nil, err
+		}
+		rows = append(rows, row)
+	}
 	err = s.runWrite(ctx, "ensure_attendance_batch", func(txCtx context.Context) (ports.Stats, error) {
 		for _, row := range rows {
-			if row == nil || row.StudentID <= 0 || row.Date == "" || row.CheckInTime.IsZero() || row.DeviceID <= 0 {
+			if row.StudentID <= 0 || row.Date == "" || row.CheckInTime.IsZero() || row.DeviceID <= 0 {
 				return ports.Stats{}, errors.New("student presence: invalid attendance")
 			}
 		}
@@ -72,8 +114,11 @@ func (s *Service) LockStudentAttendance(ctx context.Context, id int64) error {
 	})
 }
 
-func (s *Service) HasAttendance(ctx context.Context, filter ports.AttendanceFilter) (result bool, err error) {
-	err = s.run("has_attendance", func() (ports.Stats, error) {
+func (s *Service) HasAttendance(ctx context.Context, filter studentpresence.AttendanceFilter) (result bool, err error) {
+	if err := validAttendanceFilterDates(filter); err != nil {
+		return false, err
+	}
+	err = s.runWrite(ctx, "has_attendance", func(ctx context.Context) (ports.Stats, error) {
 		if !validIDs(filter.IDs) || !validIDs(filter.StudentIDs) || filter.ForUpdate {
 			return ports.Stats{}, errors.New("student presence: invalid attendance query")
 		}
@@ -85,7 +130,7 @@ func (s *Service) HasAttendance(ctx context.Context, filter ports.AttendanceFilt
 }
 
 func (s *Service) CountAttendanceByStaff(ctx context.Context, id int64) (result int, err error) {
-	err = s.run("count_attendance_by_staff", func() (ports.Stats, error) {
+	err = s.runWrite(ctx, "count_attendance_by_staff", func(ctx context.Context) (ports.Stats, error) {
 		if id <= 0 {
 			return ports.Stats{}, errors.New("student presence: invalid attendance query")
 		}
@@ -97,7 +142,10 @@ func (s *Service) CountAttendanceByStaff(ctx context.Context, id int64) (result 
 }
 
 func (s *Service) ListOpenAttendanceStudentIDs(ctx context.Context, date string) (result []int64, err error) {
-	err = s.run("list_open_attendance_student_ids", func() (ports.Stats, error) {
+	if _, err := calendar.ParseDate(date); err != nil {
+		return nil, err
+	}
+	err = s.runWrite(ctx, "list_open_attendance_student_ids", func(ctx context.Context) (ports.Stats, error) {
 		if date == "" {
 			return ports.Stats{}, errors.New("student presence: invalid attendance query")
 		}

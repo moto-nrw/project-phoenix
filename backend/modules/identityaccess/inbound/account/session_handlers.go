@@ -9,9 +9,9 @@ import (
 	"github.com/go-chi/render"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/rotation"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application/rotation"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 const headerUserAgent = "User-Agent"
@@ -288,7 +288,7 @@ func (rs *Resource) linkToTenant(w http.ResponseWriter, r *http.Request) {
 // the role ID, the tenant ID, and whether the handler should return early
 // (true = error rendered).
 func (rs *Resource) authorizeRoleAssignment(w http.ResponseWriter, r *http.Request, requestedRoleID *int64) (*int64, int64, bool) {
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 
 	if requestedRoleID == nil || *requestedRoleID <= 0 {
 		common.RenderError(w, r, common.ErrorInvalidRequest(
@@ -410,7 +410,7 @@ func buildSchoolIdentityResponse(identity *identityaccess.SchoolIdentity) *Schoo
 // refreshToken handles token refresh
 func (rs *Resource) refreshToken(w http.ResponseWriter, r *http.Request) {
 	// Get refresh token from context
-	refreshToken := jwt.RefreshTokenFromCtx(r.Context())
+	refreshToken := sessiontoken.RefreshTokenFromCtx(r.Context())
 
 	// Get IP address and user agent for audit logging
 	ipAddress := getClientIP(r)
@@ -420,12 +420,14 @@ func (rs *Resource) refreshToken(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorServiceUnavailable(errors.New("session refresh unavailable")))
 		return
 	}
-	ctx := rotation.WithRecoveryProof(r.Context(), r.Header.Get(rotation.RecoveryProofHeader))
-	accessToken, newRefreshToken, err := rs.Sessions.RefreshTokenWithAudit(ctx, refreshToken, ipAddress, userAgent)
+	recoveryProof := r.Header.Get(rotation.RecoveryProofHeader)
+	accessToken, newRefreshToken, err := rs.Sessions.RefreshTokenWithAudit(r.Context(), refreshToken, recoveryProof, ipAddress, userAgent)
 	if err != nil {
 		var authErr *identityaccess.AuthenticationError
 		if errors.As(err, &authErr) {
 			switch {
+			case errors.Is(err, identityaccess.ErrMFAStatusUnavailable):
+				common.RenderError(w, r, common.ErrorServiceUnavailableWithCode(err, common.CodeIdentityMfaStatusUnavailable))
 			case errors.Is(err, identityaccess.ErrInvalidToken):
 				common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrInvalidToken))
 			case errors.Is(err, identityaccess.ErrTokenExpired):
@@ -464,7 +466,7 @@ func (rs *Resource) refreshToken(w http.ResponseWriter, r *http.Request) {
 // logout handles user logout
 func (rs *Resource) logout(w http.ResponseWriter, r *http.Request) {
 	// Get refresh token from context
-	refreshToken := jwt.RefreshTokenFromCtx(r.Context())
+	refreshToken := sessiontoken.RefreshTokenFromCtx(r.Context())
 
 	// Get IP address and user agent for audit logging
 	ipAddress := getClientIP(r)
@@ -496,7 +498,7 @@ func (rs *Resource) changePassword(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get user ID from JWT claims
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 
 	err := rs.Sessions.ChangeAccountPassword(r.Context(), int64(claims.ID), req.CurrentPassword, req.NewPassword)
 	if err != nil {
@@ -540,6 +542,8 @@ func (rs *Resource) canGrantRole(role *identityaccess.AssignableSchoolRole, perm
 		Name:     role.Name,
 		IsSystem: role.IsSystem,
 		BaseRole: role.BaseRole,
+		// A Lehrkraft copy is graded like the Lehrkraft role (#4574).
+		SchoolPortal: role.SchoolPortal,
 	}
 	return rs.RoleGrants.CanGrantRole(facts, permissions, append([]string(nil), role.Permissions...))
 }

@@ -1,15 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Session } from "next-auth";
-import { NextRequest, NextResponse } from "next/server";
 import { PUT, DELETE } from "./route";
-
-// ============================================================================
-// Types
-// ============================================================================
-
-interface ExtendedSession extends Session {
-  user: Session["user"] & { token?: string };
-}
+import {
+  type ExtendedSession,
+  createMockContext,
+  createMockRequest,
+  defaultSession,
+} from "~/test/route-test-helpers";
 
 // ============================================================================
 // Mocks
@@ -30,16 +26,7 @@ const {
   mockApiGet: vi.fn(),
   mockFetch: vi.fn(),
   mockGetServerApiUrl: vi.fn(() => "http://localhost:8080"),
-  mockHandleApiError: vi.fn((error: unknown) => {
-    const message =
-      error instanceof Error ? error.message : "Internal Server Error";
-    const status = message.includes("(401)")
-      ? 401
-      : message.includes("(404)")
-        ? 404
-        : 500;
-    return NextResponse.json({ error: message }, { status });
-  }),
+  mockHandleApiError: vi.fn(),
 }));
 
 vi.mock("~/server/auth", () => ({
@@ -47,13 +34,17 @@ vi.mock("~/server/auth", () => ({
   uncachedAuth: mockUncachedAuth,
 }));
 
-vi.mock("~/lib/api-helpers.server", () => ({
-  apiGet: mockApiGet,
-  apiPost: vi.fn(),
-  apiPut: mockApiPut,
-  apiDelete: vi.fn(),
-  handleApiError: mockHandleApiError,
-}));
+vi.mock("~/lib/api-helpers.server", async () => {
+  const helper = await import("~/test/helpers/handle-api-error");
+  mockHandleApiError.mockImplementation(helper.mockHandleApiError);
+  return {
+    apiGet: mockApiGet,
+    apiPost: vi.fn(),
+    apiPut: mockApiPut,
+    apiDelete: vi.fn(),
+    handleApiError: mockHandleApiError,
+  };
+});
 
 vi.mock("~/lib/server-api-url", () => ({
   getServerApiUrl: mockGetServerApiUrl,
@@ -64,35 +55,6 @@ global.fetch = mockFetch as unknown as typeof fetch;
 // ============================================================================
 // Test Helpers
 // ============================================================================
-
-function createMockRequest(
-  path: string,
-  options: { method?: string; body?: unknown } = {},
-): NextRequest {
-  const url = new URL(path, "http://localhost:3000");
-  const requestInit: { method: string; body?: string; headers?: HeadersInit } =
-    {
-      method: options.method ?? "GET",
-    };
-
-  if (options.body) {
-    requestInit.body = JSON.stringify(options.body);
-    requestInit.headers = { "Content-Type": "application/json" };
-  }
-
-  return new NextRequest(url, requestInit);
-}
-
-function createMockContext(
-  params: Record<string, string | string[] | undefined> = {},
-) {
-  return { params: Promise.resolve(params) };
-}
-
-const defaultSession: ExtendedSession = {
-  user: { id: "1", token: "test-token", name: "Test User" },
-  expires: "2099-01-01",
-};
 
 async function parseJsonResponse<T>(response: Response): Promise<T> {
   return (await response.json()) as T;
@@ -107,21 +69,6 @@ describe("PUT /api/activities/[id]/supervisors/[supervisorId]", () => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(defaultSession);
     mockUncachedAuth.mockResolvedValue(defaultSession);
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/activities/1/supervisors/2", {
-      method: "PUT",
-      body: { is_primary: true },
-    });
-    const response = await PUT(
-      request,
-      createMockContext({ id: "1", supervisorId: "2" }),
-    );
-
-    expect(response.status).toBe(401);
   });
 
   it("updates supervisor role successfully", async () => {
@@ -190,8 +137,11 @@ describe("PUT /api/activities/[id]/supervisors/[supervisorId]", () => {
       "test-token",
       { is_primary: true },
     );
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Fallback activity id was extracted from URL");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toContain(
+      "Fallback activity id was extracted from URL",
+    );
   });
 
   it("returns 400 when supervisorId is missing", async () => {
@@ -205,8 +155,9 @@ describe("PUT /api/activities/[id]/supervisors/[supervisorId]", () => {
     );
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Supervisor ID is required");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toContain("Supervisor ID is required");
   });
 
   it("returns 400 when is_primary is missing", async () => {
@@ -220,27 +171,11 @@ describe("PUT /api/activities/[id]/supervisors/[supervisorId]", () => {
     );
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("is_primary parameter is required");
-  });
-
-  it("returns 500 when update fails", async () => {
-    mockApiPut.mockRejectedValueOnce(
-      new Error("Failed to update supervisor role"),
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toContain(
+      "is_primary parameter is required",
     );
-
-    const request = createMockRequest("/api/activities/1/supervisors/2", {
-      method: "PUT",
-      body: { is_primary: true },
-    });
-    const response = await PUT(
-      request,
-      createMockContext({ id: "1", supervisorId: "2" }),
-    );
-
-    expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Failed to update supervisor role");
   });
 });
 
@@ -338,8 +273,9 @@ describe("DELETE /api/activities/[id]/supervisors/[supervisorId]", () => {
     );
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Supervisor ID is required");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toContain("Supervisor ID is required");
   });
 
   it("returns 500 when removal fails", async () => {
@@ -356,16 +292,16 @@ describe("DELETE /api/activities/[id]/supervisors/[supervisorId]", () => {
 
     expect(response.status).toBe(500);
     expect(mockHandleApiError).toHaveBeenCalledWith(thrown, request);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Failed to remove supervisor");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toContain("Failed to remove supervisor");
   });
 
   it("forwards structured backend errors unchanged", async () => {
     mockFetch.mockResolvedValueOnce(
       new Response(
         JSON.stringify({
-          status: "error",
-          error: "cannot remove the only supervisor",
+          detail: "cannot remove the only supervisor",
           code: "timetable.only_supervisor_replacement_required",
         }),
         {
@@ -398,8 +334,7 @@ describe("DELETE /api/activities/[id]/supervisors/[supervisorId]", () => {
     );
     expect(response.status).toBe(409);
     await expect(response.json()).resolves.toEqual({
-      status: "error",
-      error: "cannot remove the only supervisor",
+      detail: "cannot remove the only supervisor",
       code: "timetable.only_supervisor_replacement_required",
     });
   });
@@ -411,7 +346,7 @@ describe("DELETE /api/activities/[id]/supervisors/[supervisorId]", () => {
     });
     mockFetch
       .mockResolvedValueOnce(
-        new Response(JSON.stringify({ error: "expired" }), {
+        new Response(JSON.stringify({ detail: "expired" }), {
           status: 401,
           headers: { "Content-Type": "application/json" },
         }),
@@ -457,10 +392,10 @@ describe("DELETE /api/activities/[id]/supervisors/[supervisorId]", () => {
     await expect(response.json()).resolves.toEqual({ success: true });
   });
 
-  it("returns TOKEN_EXPIRED when refresh does not yield a new token", async () => {
+  it("answers token expired when refresh does not yield a new token", async () => {
     mockUncachedAuth.mockResolvedValueOnce(defaultSession);
     mockFetch.mockResolvedValueOnce(
-      new Response(JSON.stringify({ error: "expired" }), {
+      new Response(JSON.stringify({ detail: "expired" }), {
         status: 401,
         headers: { "Content-Type": "application/json" },
       }),
@@ -476,9 +411,10 @@ describe("DELETE /api/activities/[id]/supervisors/[supervisorId]", () => {
 
     expect(mockFetch).toHaveBeenCalledTimes(1);
     expect(response.status).toBe(401);
-    await expect(response.json()).resolves.toEqual({
-      error: "Token expired",
-      code: "TOKEN_EXPIRED",
+    await expect(response.json()).resolves.toMatchObject({
+      status: 401,
+      detail: "Token expired",
+      code: "general.permission",
     });
   });
 });

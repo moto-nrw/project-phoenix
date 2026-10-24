@@ -13,16 +13,12 @@ import type {
 import type { StudentGuardianPayload } from "~/lib/guardian-helpers";
 import type { ArrivalScheduleFormEntry } from "~/lib/arrival-schedule-helpers";
 import type { BackendPickupScheduleRequest } from "~/lib/pickup-schedule-helpers";
-import { ApiResponseError } from "~/lib/api-helpers";
+import { bffError } from "~/lib/api-response-error.server";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "StudentRequestHelpers" });
 import { prepareStudentForBackend } from "~/lib/student-helpers";
 import { LOCATION_STATUSES } from "~/lib/location-helper";
-
-function createPermissionError(message: string): ApiResponseError {
-  return new ApiResponseError(403, JSON.stringify({ error: message }));
-}
 
 /**
  * Backend student request structure
@@ -47,7 +43,6 @@ interface BackendStudentRequest {
   address_city?: string;
   address_postal_code?: string;
   health_info?: string;
-  supervisor_notes?: string;
   pickup_status?: string;
   // Guardians created atomically with the student (guardian_profiles system).
   guardians?: StudentGuardianPayload[];
@@ -112,11 +107,9 @@ export function rejectRetiredStudentContacts(body: object): void {
   ]);
   for (const key of Object.keys(body)) {
     if (retired.has(key.toLowerCase())) {
-      throw new ApiResponseError(
+      throw bffError(
         400,
-        JSON.stringify({
-          error: `${key} is no longer supported on students; use guardian contacts`,
-        }),
+        `${key} is no longer supported on students; use guardian contacts`,
       );
     }
   }
@@ -162,7 +155,6 @@ export function buildBackendStudentRequest(
     address_city: backendData.address_city,
     address_postal_code: backendData.address_postal_code,
     health_info: backendData.health_info,
-    supervisor_notes: backendData.supervisor_notes,
     pickup_status: backendData.pickup_status,
   };
 
@@ -279,55 +271,4 @@ export async function buildStudentResponse(
     privacy_consent_accepted: false,
     data_retention_days: 30,
   };
-}
-
-/**
- * Handles student creation errors and throws appropriate messages
- *
- * @param error - Error from student creation
- */
-export function handleStudentCreationError(error: unknown): never {
-  // Check for permission errors (403 Forbidden)
-  if (error instanceof Error && error.message.includes("403")) {
-    logger.error("permission denied when creating student", {
-      error: String(error),
-    });
-    if (
-      error.message.includes(
-        "users:update permission required to create student schedules",
-      )
-    ) {
-      throw createPermissionError(
-        "Permission denied: You need the 'users:update' permission to create student Betreuungszeiten.",
-      );
-    }
-    throw createPermissionError(
-      "Permission denied: You need the 'users:create' permission to create students.",
-    );
-  }
-
-  // Check for validation errors (400)
-  if (error instanceof Error && error.message.includes("400")) {
-    const errorMessage = error.message;
-    logger.error("validation error when creating student", {
-      error: errorMessage,
-    });
-
-    // Extract specific error messages
-    const validationErrors: Record<string, string> = {
-      "first name is required": "First name is required",
-      "school class is required": "School class is required",
-      "guardian name is required": "Guardian name is required",
-      "guardian contact is required": "Guardian contact is required",
-    };
-
-    for (const [key, message] of Object.entries(validationErrors)) {
-      if (errorMessage.includes(key)) {
-        throw new Error(message);
-      }
-    }
-  }
-
-  // Re-throw other errors
-  throw error;
 }

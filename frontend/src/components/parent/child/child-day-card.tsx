@@ -339,20 +339,29 @@ function ChildDayActions({
       )}
     </>
   );
+  // Darf die Anfrage auch die Abholart ändern, heißt die Aktion „Abholung“
+  // statt „Abholzeit“ (#3945).
+  const withMode = features.pickup_change_mode_enabled === true;
   const pickupActionContent = (
     <>
       <MotoConceptIcon concept="pickup" size={20} aria-hidden="true" />
       {display === "compact" ? (
         <span className="min-w-0 text-center leading-5">
-          {t("actions.pickupCompact")}
+          {t(
+            withMode
+              ? "actions.pickupCompactWithMode"
+              : "actions.pickupCompact",
+          )}
         </span>
       ) : (
         <span className="min-w-0 text-left">
           <span className="block text-base leading-5 font-semibold">
-            {t("actions.pickup", { name: firstName })}
+            {t(withMode ? "actions.pickupWithMode" : "actions.pickup", {
+              name: firstName,
+            })}
           </span>
           <span className="mt-0.5 block text-xs leading-4 font-normal text-gray-500">
-            {t("actions.pickupHint")}
+            {t(withMode ? "actions.pickupHintWithMode" : "actions.pickupHint")}
           </span>
         </span>
       )}

@@ -9,10 +9,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	"github.com/moto-nrw/project-phoenix/services"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
@@ -24,31 +24,43 @@ import (
 func buildSharingAtCreationServices(t *testing.T) (*parentService.Portal, parentService.RequestSharingService, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	excused, err := services.NewTestExcusedAbsenceRequests(services.ExcusedRequestTestOptions{
-		CarePlan: repos.CarePlan(), Students: repos.Student, Persons: repos.Person, Events: repos.ParentRequestEvent, Logger: slog.Default(),
-	})
+	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	reposCare := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	excused, err := api.NewTestExcusedAbsenceRequests(api.ExcusedRequestTestOptions{
+		CarePlan: reposCare.CarePlan(), Logger: slog.Default(),
+	}, api.ExcusedRequestTestPeople{Students: repos.Student, Persons: repos.Person, Events: repos.ParentRequestEvent}, nil, nil)
 	require.NoError(t, err)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
-		CarePlan:               repos.CarePlan(),
-		People:                 repositories.MustNewPeopleDirectory(db),
+		GuardianChanges:        owners.ParentGuardianChanges(),
+		DeparturePolicy:        owners.ParentDeparturePolicy(),
+		GuardianPolicy:         owners.NewParentGuardianPolicy(),
+		Fingerprints:           owners.SecurityFingerprints{},
+		Declarations:           owners.ParentDeclarationPolicy(),
+		Locales:                owners.ParentPortalLocales(),
+		Runtime:                owners.ParentPortalRuntime{},
+		CarePlan:               owners.NewParentCarePlanCommands(reposCare.CarePlan(), nil),
+		People:                 owners.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:           careProfiles(t, db),
-		ChildRepo:              repos.ParentChild,
-		StatusDayRepo:          repos.StudentStatusDay,
-		StudentRepo:            repos.Student,
-		PersonRepo:             repos.Person,
-		GuardianProfileRepo:    repos.GuardianProfile,
-		StudentGuardianRepo:    repos.StudentGuardian,
-		FamilyProtectionEvents: repos.FamilyProtection,
-		ParentRequestShares:    repos.ParentRequestShare,
-		ParentRequestEvents:    repos.ParentRequestEvent,
-		ExcusedRequests:        excused,
-		ExcusedRequestRepo:     repos.ExcusedAbsenceRequest,
+		ChildRepo:              reposCare.ParentChildReads(),
+		StatusDayRepo:          reposCare.StudentStatusDay,
+		StudentRepo:            owners.NewParentStudentReads(repos.Student),
+		PersonRepo:             owners.NewParentPersonReads(repos.Person),
+		GuardianProfileRepo:    owners.NewParentGuardianProfileReads(repos.GuardianProfile),
+		StudentGuardianRepo:    owners.NewParentStudentGuardianReads(repos.StudentGuardian),
+		FamilyProtectionEvents: owners.BindParentFamilyProtectionReads(repos.FamilyProtection),
+		ParentRequestShares:    owners.BindParentRequestShareRecords(repos.ParentRequestShare),
+		ParentRequestEvents:    owners.NewParentRequestEvents(repos.ParentRequestEvent),
+		ExcusedRequests:        owners.NewParentExcusedAbsenceRequests(excused),
+		ExcusedRequestRepo:     reposCare.ExcusedAbsenceRequest,
 		Settings: excusedApprovalSettings{
 			sickRequiresApproval:    true,
 			excusedRequiresApproval: true,
 		},
 		Logger: slog.Default(),
+
+		DataRequests: owners.NewParentDataRequestCommands(reposCare.CarePlan()),
+
+		CarePlanPolicy: owners.NewParentCarePlanPolicy(),
 	})
 	// Portal implements the sharing surface at compile time.
 	var sharing parentService.RequestSharingService = svc
@@ -67,7 +79,7 @@ func TestShareTravelsWithTheCreation(t *testing.T) {
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 
 	res, err := svc.SubmitSickNote(ctx, family.AccountID, family.StudentID,
-		[]timezone.Date{timezone.TodayDate().AddDays(3)}, "Familienfeier",
+		[]calendar.Date{calendar.TodayDate().AddDays(3)}, "Familienfeier",
 		absencerecords.StudentStatusDayExcused, []int64{co.GuardianProfileID})
 	require.NoError(t, err)
 	require.NotNil(t, res.PendingRequest)
@@ -96,7 +108,7 @@ func TestForgedRecipientRollsTheRequestBack(t *testing.T) {
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 
 	_, err := svc.SubmitSickNote(ctx, family.AccountID, family.StudentID,
-		[]timezone.Date{timezone.TodayDate().AddDays(4)}, "Familienfeier",
+		[]calendar.Date{calendar.TodayDate().AddDays(4)}, "Familienfeier",
 		absencerecords.StudentStatusDayExcused, []int64{stranger.GuardianProfileID})
 	require.ErrorIs(t, err, parentService.ErrRequestSharingInvalid)
 
@@ -116,7 +128,7 @@ func TestEmptyRecipientsWriteNoShareEvent(t *testing.T) {
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 
 	res, err := svc.SubmitSickNote(ctx, family.AccountID, family.StudentID,
-		[]timezone.Date{timezone.TodayDate().AddDays(5)}, "Familienfeier",
+		[]calendar.Date{calendar.TodayDate().AddDays(5)}, "Familienfeier",
 		absencerecords.StudentStatusDayExcused, nil)
 	require.NoError(t, err)
 	require.NotNil(t, res.PendingRequest)

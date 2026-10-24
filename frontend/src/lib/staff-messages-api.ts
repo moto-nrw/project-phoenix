@@ -1,5 +1,10 @@
 import type { ErrorCode } from "~/lib/error-codes.generated";
-import { ApiError, enrichApiError, transportFetch } from "./api-error";
+import {
+  ApiError,
+  apiErrorFromBody,
+  transportFetch,
+  wireErrorCode,
+} from "./api-error";
 /**
  * Client for the OGS-internal colleague chat (#2598). Chat model: one
  * continuous conversation between two staff accounts of the same school (no
@@ -90,7 +95,6 @@ interface ApiResponse<T> {
   status?: string;
   success?: boolean;
   data?: T;
-  error?: string;
   code?: string;
 }
 
@@ -103,14 +107,6 @@ interface ApiResponse<T> {
 const STAFF_MESSAGING_DISABLED: ErrorCode =
   "communication.staff_messaging_disabled";
 
-/** An error carrying the backend's stable code, when there was one. */
-class StaffMessagesError extends ApiError {
-  constructor(message: string, code?: string) {
-    super(message, undefined, { code });
-    this.name = "StaffMessagesError";
-  }
-}
-
 /**
  * Wire contract with modules/communication/http/staffmessages: the other side of this conversation is
  * no longer a reachable colleague. Same reasoning as STAFF_MESSAGING_DISABLED -
@@ -122,19 +118,21 @@ const COUNTERPART_UNAVAILABLE: ErrorCode =
 /** Whether an unknown thrown value is the "counterpart has left" case. */
 export function isCounterpartUnavailable(err: unknown): boolean {
   return (
-    err instanceof StaffMessagesError && err.code === COUNTERPART_UNAVAILABLE
+    err instanceof ApiError &&
+    wireErrorCode(err.code) === COUNTERPART_UNAVAILABLE
   );
 }
 
 /** Whether an unknown thrown value is the "school switched it off" case. */
 export function isStaffMessagingDisabled(err: unknown): boolean {
   return (
-    err instanceof StaffMessagesError && err.code === STAFF_MESSAGING_DISABLED
+    err instanceof ApiError &&
+    wireErrorCode(err.code) === STAFF_MESSAGING_DISABLED
   );
 }
 
 /**
- * Throws a failed response as a StaffMessagesError carrying the envelope's
+ * Throws a failed response as an ApiError carrying the envelope's
  * code, status, field errors and request ID (#2517). The message is a
  * developer diagnostic; the shared display path shows the catalog text.
  */
@@ -144,11 +142,7 @@ async function unwrap<T>(
 ): Promise<ApiResponse<T>> {
   const body = (await response.json().catch(() => ({}))) as ApiResponse<T>;
   if (!response.ok) {
-    throw enrichApiError(
-      new StaffMessagesError(body.error ?? fallbackMessage, body.code),
-      body,
-      response.status,
-    );
+    throw apiErrorFromBody(fallbackMessage, response.status, body);
   }
   return body;
 }

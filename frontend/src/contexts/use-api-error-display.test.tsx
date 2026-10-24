@@ -2,7 +2,6 @@ import {
   act,
   fireEvent,
   render,
-  renderHook,
   screen,
   waitFor,
 } from "@testing-library/react";
@@ -15,6 +14,7 @@ import {
 } from "~/contexts/ToastContext";
 import { clientEnv } from "~/env.client";
 import { ApiError } from "~/lib/api-error";
+import { releaseFakeTimers } from "~/test/clock";
 
 function TestForm({ error }: { error: ApiError }) {
   const display = useApiErrorDisplay();
@@ -33,6 +33,39 @@ function TestForm({ error }: { error: ApiError }) {
 }
 
 describe("useApiErrorDisplay", () => {
+  it("shows a message the screen found itself as a lasting error toast", async () => {
+    vi.useFakeTimers();
+    try {
+      function TestAction() {
+        const display = useApiErrorDisplay();
+        return (
+          <button
+            type="button"
+            onClick={() =>
+              display.showMessage("Der Link konnte nicht kopiert werden.")
+            }
+          >
+            Kopieren
+          </button>
+        );
+      }
+      render(
+        <ToastProvider>
+          <TestAction />
+        </ToastProvider>,
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Kopieren" }));
+      act(() => {
+        vi.advanceTimersByTime(10_000);
+      });
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "Der Link konnte nicht kopiert werden.",
+      );
+    } finally {
+      releaseFakeTimers();
+    }
+  });
+
   it("shows field errors at fields and focuses the first failed field", async () => {
     const error = new ApiError("backend diagnostic", 422, {
       code: "general.input",
@@ -121,12 +154,22 @@ describe("useApiErrorDisplay", () => {
     const assign = vi
       .spyOn(window.location, "assign")
       .mockImplementation(() => undefined);
-    const { result } = renderHook(() => useApiErrorDisplay(), {
-      wrapper: ToastProvider,
-    });
+    let display: ReturnType<typeof useApiErrorDisplay> | undefined;
+    function Probe() {
+      display = useApiErrorDisplay();
+      return <p>Fehleranzeige bereit</p>;
+    }
+    render(
+      <ToastProvider>
+        <Probe />
+      </ToastProvider>,
+    );
+    // Die Probe ist montiert. Das belegt nur den Render; dass der
+    // Toast-Bereich Fehler zeigen kann, belegt die Gegenprobe am Ende.
+    expect(screen.getByText("Fehleranzeige bereit")).toBeInTheDocument();
     let presentation;
     await act(async () => {
-      presentation = await result.current.show(
+      presentation = await display!.show(
         new ApiError("backend diagnostic", 401, { code: "general.permission" }),
         { object: "die Gruppe" },
       );
@@ -134,6 +177,15 @@ describe("useApiErrorDisplay", () => {
     expect(presentation).toMatchObject({ kind: "api", requiresLogin: true });
     expect(assign).toHaveBeenCalledWith("/?error=SessionExpired");
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+
+    // Gegenprobe im selben Provider: ein anderer Fehler erscheint als Toast.
+    await act(async () => {
+      await display!.show(
+        new ApiError("backend diagnostic", 500, { code: "general.server" }),
+        { object: "die Gruppe" },
+      );
+    });
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
     assign.mockRestore();
   });
 });

@@ -12,9 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	facilitiesModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -29,7 +28,7 @@ type asInstanceStaffRepo struct {
 	err  error
 }
 
-func (r *asInstanceStaffRepo) FindByStaffAndDateRange(context.Context, int64, timezone.Date, timezone.Date) ([]*timetable.InstanceStaff, error) {
+func (r *asInstanceStaffRepo) FindByStaffAndDateRange(context.Context, int64, calendar.Date, calendar.Date) ([]*timetable.InstanceStaff, error) {
 	return r.rows, r.err
 }
 
@@ -44,12 +43,11 @@ func (r *asInstanceRepo) FindByIDs(context.Context, []int64) ([]*timetable.Sched
 }
 
 type asRoomRepo struct {
-	facilitiesModels.RoomRepository
-	rooms []*facilitiesModels.Room
+	rooms map[int64]string
 	err   error
 }
 
-func (r *asRoomRepo) FindByIDs(context.Context, []int64) ([]*facilitiesModels.Room, error) {
+func (r *asRoomRepo) RoomNamesByID(context.Context, []int64) (map[int64]string, error) {
 	return r.rooms, r.err
 }
 
@@ -84,7 +82,7 @@ func TestAssignmentService_RejectsInvalidStaffID(t *testing.T) {
 	t.Parallel()
 
 	svc := assignmentServiceFixture(&asInstanceStaffRepo{}, &asInstanceRepo{}, &asRoomRepo{}, &asGroupRepo{})
-	date := timezone.NewDate(2026, time.March, 10)
+	date := calendar.NewDate(2026, time.March, 10)
 
 	_, err := svc.ListAssignmentsForStaff(context.Background(), 0, date, date)
 	require.Error(t, err)
@@ -96,7 +94,7 @@ func TestAssignmentService_RejectsInvalidRange(t *testing.T) {
 
 	svc := assignmentServiceFixture(&asInstanceStaffRepo{}, &asInstanceRepo{}, &asRoomRepo{}, &asGroupRepo{})
 
-	_, err := svc.ListAssignmentsForStaff(context.Background(), 7, timezone.Date(""), timezone.NewDate(2026, time.March, 10))
+	_, err := svc.ListAssignmentsForStaff(context.Background(), 7, calendar.Date(""), calendar.NewDate(2026, time.March, 10))
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrShiftInvalid)
 }
@@ -108,7 +106,7 @@ func TestAssignmentService_PropagatesInstanceStaffError(t *testing.T) {
 		&asInstanceStaffRepo{err: errors.New("staff read failed")},
 		&asInstanceRepo{}, &asRoomRepo{}, &asGroupRepo{},
 	)
-	date := timezone.NewDate(2026, time.March, 10)
+	date := calendar.NewDate(2026, time.March, 10)
 
 	_, err := svc.ListAssignmentsForStaff(context.Background(), 7, date, date)
 	require.Error(t, err)
@@ -119,7 +117,7 @@ func TestAssignmentService_EmptyWhenNoRows(t *testing.T) {
 	t.Parallel()
 
 	svc := assignmentServiceFixture(&asInstanceStaffRepo{rows: nil}, &asInstanceRepo{}, &asRoomRepo{}, &asGroupRepo{})
-	date := timezone.NewDate(2026, time.March, 10)
+	date := calendar.NewDate(2026, time.March, 10)
 
 	got, err := svc.ListAssignmentsForStaff(context.Background(), 7, date, date)
 	require.NoError(t, err)
@@ -134,7 +132,7 @@ func TestAssignmentService_PropagatesInstanceLoadError(t *testing.T) {
 		&asInstanceRepo{err: errors.New("instance load failed")},
 		&asRoomRepo{}, &asGroupRepo{},
 	)
-	date := timezone.NewDate(2026, time.March, 10)
+	date := calendar.NewDate(2026, time.March, 10)
 
 	_, err := svc.ListAssignmentsForStaff(context.Background(), 7, date, date)
 	require.Error(t, err)
@@ -152,7 +150,7 @@ func TestAssignmentService_PropagatesRoomError(t *testing.T) {
 		&asRoomRepo{err: errors.New("room read failed")},
 		&asGroupRepo{},
 	)
-	date := timezone.NewDate(2026, time.March, 10)
+	date := calendar.NewDate(2026, time.March, 10)
 
 	_, err := svc.ListAssignmentsForStaff(context.Background(), 7, date, date)
 	require.Error(t, err)
@@ -168,10 +166,10 @@ func TestAssignmentService_PropagatesGroupError(t *testing.T) {
 	svc := assignmentServiceFixture(
 		&asInstanceStaffRepo{rows: []*timetable.InstanceStaff{instanceStaffRow(1, 7)}},
 		&asInstanceRepo{instances: []*timetable.ScheduledInstance{inst}},
-		&asRoomRepo{rooms: []*facilitiesModels.Room{{ID: 100, Name: "Raum A"}}},
+		&asRoomRepo{rooms: map[int64]string{100: "Raum A"}},
 		&asGroupRepo{err: errors.New("group read failed")},
 	)
-	date := timezone.NewDate(2026, time.March, 10)
+	date := calendar.NewDate(2026, time.March, 10)
 
 	_, err := svc.ListAssignmentsForStaff(context.Background(), 7, date, date)
 	require.Error(t, err)
@@ -191,20 +189,20 @@ func TestAssignmentService_EnrichesAndSorts(t *testing.T) {
 	override := int64(200)
 
 	instA := &timetable.ScheduledInstance{ // later date, primary block, resolved group
-		Date: timezone.NewDate(2026, time.March, 11), Title: "Lernzeit",
+		Date: calendar.NewDate(2026, time.March, 11), Title: "Lernzeit",
 		ActivityGroupID: &grp1, RoomID: 100, StartTime: wall(9, 0), EndTime: wall(10, 0),
 		Status: timetable.InstanceStatusPlanned,
 	}
 	instA.ID = 1
 	cancelReason := "Ausflug"
 	instB := &timetable.ScheduledInstance{ // earlier date, cancelled, vanished group, room override
-		Date: timezone.NewDate(2026, time.March, 10), Title: "Fußball-AG",
+		Date: calendar.NewDate(2026, time.March, 10), Title: "Fußball-AG",
 		ActivityGroupID: &grp2, RoomID: 100, StartTime: wall(14, 0), EndTime: wall(15, 0),
 		Status: timetable.InstanceStatusCancelled, CancelReason: &cancelReason, UnderstaffedAck: true,
 	}
 	instB.ID = 2
 	instC := &timetable.ScheduledInstance{ // same date as B, earlier time, spontaneous (no group)
-		Date: timezone.NewDate(2026, time.March, 10), Title: "Spontan",
+		Date: calendar.NewDate(2026, time.March, 10), Title: "Spontan",
 		RoomID: 100, StartTime: wall(8, 0), EndTime: wall(9, 0),
 		Status: timetable.InstanceStatusPlanned,
 	}
@@ -224,9 +222,9 @@ func TestAssignmentService_EnrichesAndSorts(t *testing.T) {
 	svc := assignmentServiceFixture(
 		&asInstanceStaffRepo{rows: []*timetable.InstanceStaff{rowA, rowB, rowC, rowMissing}},
 		&asInstanceRepo{instances: []*timetable.ScheduledInstance{instA, instB, instC}},
-		&asRoomRepo{rooms: []*facilitiesModels.Room{
-			{ID: 100, Name: "Raum A"},
-			{ID: 200, Name: "Raum B"},
+		&asRoomRepo{rooms: map[int64]string{
+			100: "Raum A",
+			200: "Raum B",
 		}},
 		&asGroupRepo{groups: []*timetable.Group{
 			{Name: "Lernzeit"}, // ID set below
@@ -235,7 +233,7 @@ func TestAssignmentService_EnrichesAndSorts(t *testing.T) {
 	// Set the returned group's ID to grp1; grp2 stays absent (vanished).
 	svc.(*staffAssignmentService).deps.ActivityGroupRepo.(*asGroupRepo).groups[0].ID = grp1
 
-	got, err := svc.ListAssignmentsForStaff(context.Background(), 7, timezone.NewDate(2026, time.March, 10), timezone.NewDate(2026, time.March, 11))
+	got, err := svc.ListAssignmentsForStaff(context.Background(), 7, calendar.NewDate(2026, time.March, 10), calendar.NewDate(2026, time.March, 11))
 	require.NoError(t, err)
 	require.Len(t, got, 3, "the row referencing a missing instance is skipped")
 
@@ -275,7 +273,7 @@ func TestAssignmentService_ToleratesMissingInstancesAndRooms(t *testing.T) {
 		&asRoomRepo{err: errors.New("must not be called")},
 		&asGroupRepo{err: errors.New("must not be called")},
 	)
-	date := timezone.NewDate(2026, time.March, 10)
+	date := calendar.NewDate(2026, time.March, 10)
 
 	got, err := svc.ListAssignmentsForStaff(context.Background(), 7, date, date)
 	require.NoError(t, err)

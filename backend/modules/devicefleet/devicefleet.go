@@ -75,39 +75,38 @@ func ValidDeviceStatus(status DeviceStatus) bool {
 // through the Facilities owner and is empty when the device has no room or
 // the room belongs to another tenant.
 type Device struct {
-	ID                    int64
-	TenantID              int64
-	CreatedAt             time.Time
-	UpdatedAt             time.Time
-	DeviceID              string
-	DeviceType            string
-	Name                  *string
-	Status                DeviceStatus
-	APIKey                *string
-	LastSeen              *time.Time
-	RegisteredByID        *int64
-	RoomID                *int64
-	ArchivedAt            *time.Time
-	TransferredToDeviceID *int64
-	RoomName              *string
+	ID                    int64        `json:"id"`
+	TenantID              int64        `json:"tenant_id"`
+	CreatedAt             time.Time    `json:"created_at"`
+	UpdatedAt             time.Time    `json:"updated_at"`
+	DeviceID              string       `json:"device_id"`
+	DeviceType            string       `json:"device_type"`
+	Name                  *string      `json:"name,omitempty"`
+	Status                DeviceStatus `json:"status"`
+	APIKey                *string      `json:"-"`
+	APIKeyHash            *string      `json:"-"`
+	MaskedAPIKey          string       `json:"masked_api_key"`
+	LastSeen              *time.Time   `json:"last_seen,omitempty"`
+	RegisteredByID        *int64       `json:"registered_by_id,omitempty"`
+	RoomID                *int64       `json:"room_id,omitempty"`
+	ArchivedAt            *time.Time   `json:"-"`
+	TransferredToDeviceID *int64       `json:"-"`
+	RoomName              *string      `json:"room_name,omitempty"`
 }
 
 // IsActive reports whether the device is in the active state.
 func (d Device) IsActive() bool { return d.Status == DeviceStatusActive }
 
-// IsOffline reports whether the device is in the offline state.
-func (d Device) IsOffline() bool { return d.Status == DeviceStatusOffline }
-
-// HasAPIKey reports whether the device carries a usable API key.
-func (d Device) HasAPIKey() bool { return d.APIKey != nil && *d.APIKey != "" }
-
 // CreateDevice registers one device. An empty APIKey is minted by the owner.
+// APIKeyHash is reserved for moving an existing credential between schools.
 type CreateDevice struct {
 	DeviceID       string
 	DeviceType     string
 	Name           *string
 	Status         DeviceStatus
 	APIKey         *string
+	APIKeyHash     *string
+	MaskedAPIKey   string
 	LastSeen       *time.Time
 	RegisteredByID *int64
 	RoomID         *int64
@@ -121,6 +120,8 @@ type UpdateDevice struct {
 	Name                  *string
 	Status                DeviceStatus
 	APIKey                *string
+	APIKeyHash            *string
+	MaskedAPIKey          string
 	LastSeen              *time.Time
 	RegisteredByID        *int64
 	RoomID                *int64
@@ -156,6 +157,12 @@ type Display struct {
 
 // DeviceQuery answers device reads for every owner.
 type DeviceQuery interface {
+	DeviceLookup
+	DeviceOnlineStatus
+}
+
+// DeviceLookup resolves device records and fleet listings.
+type DeviceLookup interface {
 	FindDevice(context.Context, int64) (Device, error)
 	FindDeviceForUpdate(context.Context, int64) (Device, error)
 	FindDeviceByDeviceID(context.Context, string) (Device, error)
@@ -168,7 +175,10 @@ type DeviceQuery interface {
 	// dashboard's cross-tenant questions without a foreign join.
 	CountDevicesByTenant(context.Context) (map[int64]int, error)
 	ListDevicesByTenant(context.Context, []int64) ([]Device, error)
+}
 
+// DeviceOnlineStatus evaluates online status for device values.
+type DeviceOnlineStatus interface {
 	// DeviceOnlineWindow and the two predicates below are the owner's
 	// online/offline decision (#586, Rule 12): the row holds last_seen, this
 	// owner holds the rule and the per-tenant window.
@@ -185,7 +195,8 @@ type DeviceCommand interface {
 	DeleteDevice(context.Context, int64) error
 	UpdateDeviceStatus(context.Context, string, DeviceStatus) error
 	UpdateDeviceLastSeen(context.Context, int64, time.Time) error
-	UpdateDeviceRoom(context.Context, int64, int64) error
+	// UpdateRoomID moves one device into a room.
+	UpdateRoomID(context.Context, int64, int64) error
 }
 
 // DisplayQuery answers info-point reads.
@@ -223,60 +234,7 @@ type Command interface {
 type Capability interface {
 	Query
 	Command
-}
-
-// engine is the composed runtime behind the facade. Device authentication
-// and the public dashboard route resolve a device or display before any
-// tenant is known, so this owner never demands an ambient tenant of its own:
-// the store applies the caller's tenant as a predicate when there is one and
-// RLS remains the boundary when there is not.
-type engine interface {
-	ObserveRejection(string, time.Duration, error)
-
-	FindDevice(context.Context, int64) (Device, error)
-	FindDeviceForUpdate(context.Context, int64) (Device, error)
-	FindDeviceByDeviceID(context.Context, string) (Device, error)
-	FindDeviceByAPIKey(context.Context, string) (Device, error)
-	ListDevices(context.Context, DeviceFilter) ([]Device, error)
-	ListDevicesByID(context.Context, []int64) ([]Device, error)
-	ListOfflineDevices(context.Context, time.Duration) ([]Device, error)
-	CountDevicesByType(context.Context) (map[string]int, error)
-	CountDevicesByTenant(context.Context) (map[int64]int, error)
-	ListDevicesByTenant(context.Context, []int64) ([]Device, error)
-	DeviceOnlineWindow(context.Context) time.Duration
-	IsDeviceOnlineAt(context.Context, Device, time.Time) bool
-	Now() time.Time
-	CreateDevice(context.Context, CreateDevice) (Device, error)
-	UpdateDevice(context.Context, UpdateDevice) (Device, error)
-	UpdateDeviceColumns(context.Context, UpdateDevice, []string) (int64, error)
-	DeleteDevice(context.Context, int64) error
-	UpdateDeviceStatus(context.Context, string, DeviceStatus) error
-	UpdateDeviceLastSeen(context.Context, int64, time.Time) error
-	UpdateDeviceRoom(context.Context, int64, int64) error
-
-	ListDisplays(context.Context) ([]Display, error)
-	CreateDisplay(context.Context, string) (Display, string, error)
-	UpdateDisplay(context.Context, int64, *string, *bool) (Display, error)
-	RegenerateDisplayToken(context.Context, int64) (string, error)
-	DeleteDisplay(context.Context, int64) error
-	Dashboard(context.Context, string) (Dashboard, error)
-
-	FindUnregisteredTagScan(context.Context, int64) (UnregisteredTagScan, error)
-	ListUnregisteredTagScans(context.Context, UnregisteredTagScanFilter) ([]UnregisteredTagScan, error)
-	RecordUnregisteredTagScan(context.Context, RecordUnregisteredTagScan) (UnregisteredTagScan, error)
-	ResolveUnregisteredTagScan(context.Context, ResolveUnregisteredTagScan) (UnregisteredTagScan, error)
-	DeleteExpiredUnregisteredTagScans(context.Context, time.Time) (int64, error)
-}
-
-// Module is the public facade every caller holds.
-type Module struct{ engine engine }
-
-// NewModule wraps a composed engine.
-func NewModule(engine engine) *Module {
-	if engine == nil {
-		panic("devicefleet: engine is required")
-	}
-	return &Module{engine: engine}
+	UnregisteredTagScanRetention
 }
 
 // ErrorCode maps an owner error to the stable label the runtime evidence
@@ -314,7 +272,38 @@ func ErrorCode(err error) string {
 	}
 }
 
-func (m *Module) reject(operation string, err error) error {
-	m.engine.ObserveRejection(operation, 0, err)
-	return err
+// Validate applies device invariants and defaults an empty status to active.
+func (input *CreateDevice) Validate() error {
+	status, err := validatedDeviceStatus(input.DeviceID, input.DeviceType, input.Status)
+	if err != nil {
+		return err
+	}
+	input.Status = status
+	return nil
+}
+
+func validatedDeviceStatus(deviceID, deviceType string, status DeviceStatus) (DeviceStatus, error) {
+	if deviceID == "" {
+		return "", errors.New("device ID is required")
+	}
+	if deviceType == "" {
+		return "", errors.New("device type is required")
+	}
+	if status == "" {
+		return DeviceStatusActive, nil
+	}
+	if !ValidDeviceStatus(status) {
+		return "", errors.New("invalid device status")
+	}
+	return status, nil
+}
+
+// Validate applies the device invariants to a full-row update.
+func (input *UpdateDevice) Validate() error {
+	status, err := validatedDeviceStatus(input.DeviceID, input.DeviceType, input.Status)
+	if err != nil {
+		return err
+	}
+	input.Status = status
+	return nil
 }

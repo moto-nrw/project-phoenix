@@ -9,6 +9,7 @@ import (
 // Operator audit vocabulary the provisioning flows record (#3253). The
 // values are the stored platform.operator_audit_log strings.
 const (
+	AuditActionView         = "view"
 	AuditActionCreate       = "create"
 	AuditActionUpdate       = "update"
 	AuditActionDelete       = "delete"
@@ -23,6 +24,8 @@ const (
 	AuditResourceDevice       = "device"
 	AuditResourceAccount      = "account"
 	AuditResourcePerson       = "person"
+	AuditResourceAnnouncement = "announcement"
+	AuditResourceTagScan      = "unregistered_tag_scan"
 )
 
 // Device vocabulary shared with Device Fleet.
@@ -172,6 +175,8 @@ type Device struct {
 	Name                  *string
 	Status                string
 	APIKey                *string
+	APIKeyHash            *string
+	MaskedAPIKey          string
 	LastSeen              *time.Time
 	RegisteredByID        *int64
 	RoomID                *int64
@@ -181,12 +186,14 @@ type Device struct {
 
 // NewDevice registers a device at one school.
 type NewDevice struct {
-	TenantID   int64
-	DeviceID   string
-	DeviceType string
-	Name       *string
-	Status     string
-	APIKey     *string
+	TenantID     int64
+	DeviceID     string
+	DeviceType   string
+	Name         *string
+	Status       string
+	APIKey       *string
+	APIKeyHash   *string
+	MaskedAPIKey string
 }
 
 // DeviceSession is the open kiosk session of a device.
@@ -197,12 +204,14 @@ type DeviceSession struct {
 	RoomName     *string
 }
 
-// Person is the part of a person the soft delete reads.
+// Person is the part of a person the soft delete reads. FormerStaff is true
+// when the person holds retired staff memberships and no live one.
 type Person struct {
 	ID          int64
 	TenantID    int64
 	AccountID   *int64
 	HasRFIDCard bool
+	FormerStaff bool
 }
 
 // PersonListing is one person of the operator person listings.
@@ -230,59 +239,4 @@ type ActivityCategory struct {
 	Name        string
 	Description string
 	Color       string
-}
-
-// DashboardCounts are the platform-wide counts the operator overview shows
-// before devices are attached.
-type DashboardCounts struct {
-	Organizations int
-	Schools       int
-	Accounts      int
-}
-
-// OrganizationSummary is an organisation with its school and account counts.
-type OrganizationSummary struct {
-	ID           int64
-	Name         string
-	Slug         string
-	Active       bool
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
-	DeletedAt    *time.Time
-	Settings     string
-	SchoolCount  int
-	AccountCount int
-}
-
-// SchoolSummary is a school with its organisation's name and account count.
-type SchoolSummary struct {
-	ID               int64
-	OrganizationID   int64
-	OrganizationName string
-	Name             string
-	Slug             string
-	Subdomain        string
-	Active           bool
-	Hidden           bool
-	CreatedAt        time.Time
-	UpdatedAt        time.Time
-	DeletedAt        *time.Time
-	Address          string
-	City             string
-	Zip              string
-	Phone            string
-	Email            string
-	Settings         string
-	AccountCount     int
-	// ChildQuotaBundles is nil when the school has no Kinderkontingent.
-	ChildQuotaBundles    *int
-	ChildQuotaBundleSize int
-}
-
-// PWAUsageRow is one (school, portal) bucket of PWA standalone usage.
-type PWAUsageRow struct {
-	TenantID        int64
-	Portal          string
-	StandaloneUsers int
-	EligibleUsers   int
 }

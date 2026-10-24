@@ -518,12 +518,14 @@ describe("SettingsContent (via renderTab)", () => {
   it("shows nothing when schema is null (no access)", async () => {
     mockFetchSchema.mockResolvedValue(null);
 
-    const { container } = renderWithProviders(
-      <RenderedTab tabId="settings-operations" />,
-    );
-    await waitFor(() => {
-      expect(container.querySelector(".animate-spin")).toBeNull();
-    });
+    renderWithProviders(<RenderedTab tabId="settings-operations" />);
+    // Anker: das Schema ist geladen, der Tab ist gerendert (während des
+    // Ladens steht dort "no-tabs").
+    expect(await screen.findByTestId("settings-tab")).toBeInTheDocument();
+    expect(screen.queryByText("Sitzungen")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Keine Einstellungen verfügbar."),
+    ).not.toBeInTheDocument();
   });
 
   it("shows Keine Einstellungen for unknown tab", async () => {

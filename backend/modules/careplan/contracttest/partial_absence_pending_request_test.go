@@ -4,13 +4,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
+
+	"github.com/moto-nrw/project-phoenix/api"
+
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-
-	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,21 +22,20 @@ func TestPartialAbsenceCreate_RefusesPendingFullDayRequest(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	timetableDeps := repositories.NewUnobservedTimetableDependencies(db)
-	repos := repositories.NewFactory(db, timetableDeps)
-	svc, err := compose.NewPartialAbsences(db, repos.CarePlan(), repositories.NewStudentPresenceForTests(db), nil)
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	svc, err := compose.NewPartialAbsences(db, repos.CarePlan(), api.NewStudentPresenceForTests(testpkg.NewDatabase(t, db)), nil)
 	require.NoError(t, err)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	staff := testpkg.CreateTestStaff(t, db, "Partial", "Pending")
 
-	day := timezone.NewDate(2026, 8, 24).AddDays(5)
+	day := calendar.NewDate(2026, 8, 24).AddDays(5)
 	ctx := testpkg.TenantContext(chain.TenantID)
 
 	req := &absencerecords.ExcusedAbsenceRequest{
 		StudentID:   chain.StudentID,
 		SubmittedBy: chain.AccountID,
-		Dates:       []timezone.Date{day},
+		Dates:       []calendar.Date{day},
 		Note:        "Familienfeier",
 		Status:      absencerecords.ExcusedRequestStatusPending,
 	}
@@ -45,13 +45,13 @@ func TestPartialAbsenceCreate_RefusesPendingFullDayRequest(t *testing.T) {
 	_, err = svc.CreatePartialAbsence(ctx, careplan.PartialAbsenceInput{
 		StudentID: chain.StudentID,
 		Date:      day,
-		FromTime:  timezone.NormalizeWallClock(time.Date(2000, 1, 1, 13, 30, 0, 0, time.UTC)),
+		FromTime:  calendar.NormalizeWallClock(time.Date(2000, 1, 1, 13, 30, 0, 0, time.UTC)),
 		Reason:    "Arzttermin",
 		StaffID:   staff.ID,
 	})
 	require.ErrorIs(t, err, careplan.ErrPartialAbsencePendingRequestConflict)
 
-	rows, listErr := repos.StudentPickupException.FindByStudentIDAndDateRange(ctx, chain.StudentID, scheduleModels.Date(day), scheduleModels.Date(day))
+	rows, listErr := careplantest.NewScheduleRecords(repos.CarePlan()).StudentPickupException.FindByStudentIDAndDateRange(ctx, chain.StudentID, careplan.Date(day), careplan.Date(day))
 	require.NoError(t, listErr)
 	assert.Empty(t, rows, "pending full-day request must block partial-absence creation")
 }

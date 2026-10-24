@@ -6,6 +6,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 )
 
 // testRoomOccupancy asks Student Presence whether another open session
@@ -15,7 +16,7 @@ type testRoomOccupancy struct {
 	sessions studentpresence.SessionRecords
 }
 
-func (o testRoomOccupancy) RoomOccupied(ctx context.Context, roomID int64) (bool, error) {
+func (o testRoomOccupancy) SpontaneousRoomOccupied(ctx context.Context, roomID int64) (bool, error) {
 	occupied, _, err := o.sessions.CheckRoomConflict(ctx, roomID, 0)
 	return occupied, err
 }
@@ -25,61 +26,75 @@ func (o testRoomOccupancy) RoomOccupied(ctx context.Context, roomID int64) (bool
 // an accidental dependency fails loudly; without Locks the attendance lock
 // and without a database the spontaneous-start locks are skipped.
 type unitDataDeps struct {
-	Instances     timetableCompose.DataInstances
-	Participants  timetableCompose.DataParticipants
-	Templates     timetableCompose.DataTemplates
-	Groups        timetableCompose.DataGroups
-	BlockMetadata timetableCompose.BlockDisplayMetadata
-	Categories    timetableCompose.DataCategories
-	Rooms         timetableCompose.RoomNames
+	Instances     timetablePorts.LegacyInstanceReads
+	Participants  timetablePorts.ParticipantRows
+	Templates     timetablePorts.DataTemplates
+	Groups        timetablePorts.DataGroups
+	BlockMetadata timetablePorts.BlockDisplayMetadata
+	Categories    timetablePorts.DataCategories
+	Rooms         timetablePorts.RoomNames
 	Sessions      studentpresence.SessionRecords
-	Locks         timetableCompose.AttendanceLocks
+	Locks         timetablePorts.AttendanceLocks
 }
 
 type (
-	stubDataInstances     struct{ timetableCompose.DataInstances }
-	stubDataInstanceStaff struct {
-		timetableCompose.OperationInstanceStaff
+	stubDataInstances struct {
+		timetablePorts.LegacyInstanceReads
 	}
-	stubDataParticipants struct {
-		timetableCompose.DataParticipants
+	stubDataInstanceStaff struct {
+		timetable.InstanceStaffQuery
+	}
+	stubParticipantPlans struct {
+		timetable.InstanceStudentCapability
+	}
+	stubParticipantPresence struct {
+		timetablePorts.ParticipantPresence
+	}
+	stubParticipantReads struct {
+		timetablePorts.LegacyParticipantReads
 	}
 	stubDataPickupExceptions struct {
-		timetableCompose.DataPickupExceptions
+		timetablePorts.DataPickupExceptions
 	}
 	stubDataArrivalExceptions struct {
-		timetableCompose.DataArrivalExceptions
+		timetablePorts.DataArrivalExceptions
 	}
 	stubDataVisits struct {
-		timetableCompose.OperationVisits
+		timetablePorts.OperationVisits
 	}
-	stubDataTemplates struct{ timetableCompose.DataTemplates }
-	stubDataGroups    struct{ timetableCompose.DataGroups }
+	stubDataTemplates struct{ timetablePorts.DataTemplates }
+	stubDataGroups    struct{ timetablePorts.DataGroups }
 	stubBlockMetadata struct {
-		timetableCompose.BlockDisplayMetadata
+		timetablePorts.BlockDisplayMetadata
 	}
 	stubDataCategories struct {
-		timetableCompose.DataCategories
+		timetablePorts.DataCategories
 	}
 	stubDataRooms struct {
-		timetableCompose.RoomNames
+		timetablePorts.RoomNames
 	}
 	stubDataSessions        struct{ studentpresence.SessionRecords }
 	stubDataDeviationEvents struct {
-		timetableCompose.DeviationEventReader
+		timetablePorts.DeviationEventReader
 	}
 	stubDataConflictAcks struct {
 		timetable.ConflictAckCapability
 	}
 )
 
+// stubParticipantRows are participant rows whose parts panic when reached.
+func stubParticipantRows() timetablePorts.ParticipantRows {
+	return timetablePorts.ParticipantRows{Plans: stubParticipantPlans{}, Presence: stubParticipantPresence{}, Reads: stubParticipantReads{}}
+}
+
 // unitTimetableData composes the Timetable owner's planner reads over the
 // given fakes.
 func unitTimetableData(deps unitDataDeps) timetable.TimetableDataCapability {
-	composed := timetableCompose.TimetableDataDependencies{
+	composed := timetablePorts.TimetableDataDependencies{
+		RunInTx:           func(ctx context.Context, fn func(context.Context) error) error { return fn(ctx) },
 		Instances:         stubDataInstances{},
 		InstanceStaff:     stubDataInstanceStaff{},
-		Participants:      stubDataParticipants{},
+		Participants:      stubParticipantRows(),
 		PickupExceptions:  stubDataPickupExceptions{},
 		ArrivalExceptions: stubDataArrivalExceptions{},
 		Visits:            stubDataVisits{},
@@ -96,7 +111,7 @@ func unitTimetableData(deps unitDataDeps) timetable.TimetableDataCapability {
 	if deps.Instances != nil {
 		composed.Instances = deps.Instances
 	}
-	if deps.Participants != nil {
+	if deps.Participants.Reads != nil {
 		composed.Participants = deps.Participants
 	}
 	if deps.Templates != nil {

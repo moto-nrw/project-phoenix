@@ -11,13 +11,16 @@ import (
 	"text/tabwriter"
 	"time"
 
+	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/database"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/services"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 )
 
 // Error message and format constants (S1192 fix - reduces string duplication)
@@ -31,25 +34,6 @@ const (
 	// dateTimeFormat is the standard date-time format used for display
 	dateTimeFormat = "2006-01-02 15:04:05"
 )
-
-// cleanupContext holds only the resources selected by one cleanup command.
-// Note: Context should be passed as a parameter to methods that need it,
-// rather than stored in the struct (per Go best practices).
-type cleanupContext struct {
-	DB                         *bun.DB
-	CleanupService             studentpresence.PresenceCleanup
-	AuthCleanupService         authCleanupService
-	InvitationCleanupService   invitationCleanupService
-	SessionCleanupService      sessionCleanupService
-	TimetableCleanupService    services.TimetableCleanup
-	TimeTrackingCleanupService services.TimeTrackingCleanupService
-	TenantRuntime              tenant.UnitOfWork
-	Output                     io.Writer
-	Logger                     *log.Logger
-	Audit                      services.AuditCommand
-	Schools                    services.SchoolCapability
-	Timetable                  services.TimetableCapability
-}
 
 type authCleanupService interface {
 	CountExpiredTokens(context.Context) (int, error)
@@ -67,21 +51,24 @@ type sessionCleanupService interface {
 }
 
 type retentionCleanupService = studentpresence.PresenceCleanup
-type timetableCleanupService = services.TimetableCleanup
-type timeTrackingCleanupService = services.TimeTrackingCleanupService
+type timetableCleanupService = timetable.TimetableCleanup
+type timeTrackingCleanupService = workforceCompose.TimeTrackingCleanupService
 
+// cleanupRoot names how each cleanup command builds its one sweep. A command
+// opens the database, builds the owners its sweep needs as local values and
+// passes them on; nothing is held between the steps.
 type cleanupRoot struct {
-	openDatabase        func() (*bun.DB, error)
-	authCleanup         func(*cleanupContext) authCleanupService
-	invitationCleanup   func(*cleanupContext) invitationCleanupService
-	sessionCleanup      func(*cleanupContext) sessionCleanupService
-	retentionCleanup    func(*cleanupContext) studentpresence.PresenceCleanup
-	timetableCleanup    func(*cleanupContext) services.TimetableCleanup
-	timeTrackingCleanup func(*cleanupContext) services.TimeTrackingCleanupService
+	openDatabase        func() (transactionruntime.Database, error)
+	authCleanup         func(transactionruntime.Database, auditModels.Command) authCleanupService
+	invitationCleanup   func(transactionruntime.Database) invitationCleanupService
+	sessionCleanup      func(transactionruntime.Database, organizationtenancy.Capability, timetable.Capability) sessionCleanupService
+	retentionCleanup    func(transactionruntime.Database, organizationtenancy.Capability, auditModels.Command) studentpresence.PresenceCleanup
+	timetableCleanup    func(transactionruntime.Database, organizationtenancy.Capability, timetable.Capability, auditModels.Command) timetable.TimetableCleanup
+	timeTrackingCleanup func(transactionruntime.Database, organizationtenancy.Capability, auditModels.Command) workforceCompose.TimeTrackingCleanupService
 }
 
 var defaultCleanupRoot = cleanupRoot{
-	openDatabase:        database.InitDB,
+	openDatabase:        transactionruntime.OpenDatabase,
 	authCleanup:         buildAuthCleanupService,
 	invitationCleanup:   buildInvitationCleanupService,
 	sessionCleanup:      buildSessionCleanupService,
@@ -117,12 +104,10 @@ func (root cleanupRoot) validateCapability(capability string) error {
 	return nil
 }
 
-func buildCleanupDependency[T any](ctx *cleanupContext, builder func(*cleanupContext) T, capability string) (T, error) {
+// requireCleanupDependency rejects a service its builder could not compose,
+// including a typed nil.
+func requireCleanupDependency[T any](service T, capability string) (T, error) {
 	var zero T
-	if builder == nil {
-		return zero, fmt.Errorf("%s cleanup service builder is required", capability)
-	}
-	service := builder(ctx)
 	value := reflect.ValueOf(service)
 	if !value.IsValid() || ((value.Kind() == reflect.Interface || value.Kind() == reflect.Pointer) && value.IsNil()) {
 		return zero, fmt.Errorf("%s cleanup service builder returned nil", capability)
@@ -130,89 +115,97 @@ func buildCleanupDependency[T any](ctx *cleanupContext, builder func(*cleanupCon
 	return service, nil
 }
 
-// newCleanupContext initializes the database and tenant transaction runtime.
-// The caller must call Close() when done.
-func newCleanupContext() (*cleanupContext, error) {
-	return defaultCleanupRoot.newContext()
-}
-
-func (root cleanupRoot) newContext() (*cleanupContext, error) {
+// open opens the command's database and tenant transaction runtime.
+// The caller must close it with closeCleanupDatabase when done.
+func (root cleanupRoot) open() (transactionruntime.Database, error) {
 	if root.openDatabase == nil {
-		return nil, fmt.Errorf("cleanup database opener is required")
+		return transactionruntime.Database{}, fmt.Errorf("cleanup database opener is required")
 	}
 	db, err := root.openDatabase()
 	if err != nil {
-		return nil, fmt.Errorf(errInitDB, err)
+		return transactionruntime.Database{}, fmt.Errorf(errInitDB, err)
 	}
-	if db == nil {
-		return nil, fmt.Errorf("cleanup database opener returned nil")
+	if db.Pool() == nil {
+		return transactionruntime.Database{}, fmt.Errorf("cleanup database opener returned nil")
 	}
+	return db, nil
+}
 
-	postgresRuntime, err := database.NewPostgresUnitOfWork(db, tenant.ObservePoolWait)
-	if err != nil {
-		_ = db.Close()
-		return nil, err
+// openFor fails fast on a missing builder for capability before it opens the
+// database.
+func (root cleanupRoot) openFor(capability string) (transactionruntime.Database, error) {
+	if err := root.validateCapability(capability); err != nil {
+		return transactionruntime.Database{}, err
 	}
-	tenantRuntime, err := services.BindTenantRuntime(
-		postgresRuntime.WithinTenant,
-		postgresRuntime.WithinAdmin,
-		postgresRuntime,
-		database.IsRetryableTransactionError,
-	)
+	return root.open()
+}
+
+// openWithAudit opens the database for capability with the fail-closed Audit
+// command its sweep appends through.
+func (root cleanupRoot) openWithAudit(capability string) (transactionruntime.Database, auditModels.Command, error) {
+	db, err := root.openFor(capability)
 	if err != nil {
-		_ = db.Close()
-		return nil, err
+		return transactionruntime.Database{}, nil, err
 	}
 	auditCommand, err := newCleanupAuditCommand()
 	if err != nil {
 		_ = db.Close()
-		return nil, err
+		return transactionruntime.Database{}, nil, err
 	}
-	schools, err := services.NewOrganizationTenancy(db)
-	if err != nil {
-		_ = db.Close()
-		return nil, err
-	}
-	timetableCapability, err := api.NewCleanupTimetable(db)
-	if err != nil {
-		_ = db.Close()
-		return nil, err
-	}
-	return &cleanupContext{
-		DB:            db,
-		TenantRuntime: tenantRuntime,
-		Output:        os.Stdout,
-		Logger:        log.Default(),
-		Audit:         auditCommand,
-		Schools:       schools,
-		Timetable:     timetableCapability,
-	}, nil
+	return db, auditCommand, nil
 }
 
-func newCleanupContextWithAuthCleanup() (*cleanupContext, error) {
-	if err := defaultCleanupRoot.validateCapability("auth"); err != nil {
-		return nil, err
-	}
-	ctx, err := newCleanupContext()
+// newCleanupSchools composes Organization & Tenancy over db; on failure db is
+// closed.
+func newCleanupSchools(db transactionruntime.Database) (organizationtenancy.Capability, error) {
+	schools, err := owners.NewOrganizationTenancy(db)
 	if err != nil {
+		_ = db.Close()
 		return nil, err
 	}
-	ctx.AuthCleanupService, err = buildCleanupDependency(ctx, defaultCleanupRoot.authCleanup, "auth")
+	return schools, nil
+}
+
+// newCleanupTimetableOwner composes the Timetable owner over db; on failure db
+// is closed.
+func newCleanupTimetableOwner(db transactionruntime.Database) (timetable.Capability, error) {
+	timetableCapability, err := owners.NewCleanupTimetable(db)
 	if err != nil {
-		ctx.Close()
+		_ = db.Close()
 		return nil, err
 	}
-	return ctx, nil
+	return timetableCapability, nil
+}
+
+// requireBuiltCleanup closes db when the built service is missing.
+func requireBuiltCleanup[T any](db transactionruntime.Database, service T, capability string) (T, error) {
+	built, err := requireCleanupDependency(service, capability)
+	if err != nil {
+		closeCleanupDatabase(db, log.Default())
+	}
+	return built, err
+}
+
+func (root cleanupRoot) openAuthCleanup() (transactionruntime.Database, authCleanupService, error) {
+	db, auditCommand, err := root.openWithAudit("auth")
+	if err != nil {
+		return transactionruntime.Database{}, nil, err
+	}
+	service, err := requireBuiltCleanup(db, root.authCleanup(db, auditCommand), "auth")
+	if err != nil {
+		return transactionruntime.Database{}, nil, err
+	}
+	return db, service, nil
 }
 
 // newCleanupAuditCommand builds the fail-closed Audit command every cleanup
 // root appends through.
-func newCleanupAuditCommand() (services.AuditCommand, error) {
-	return services.NewCleanupAuditCommand(slog.Default().With("service", "cleanup-cli"))
+func newCleanupAuditCommand() (auditModels.Command, error) {
+	return api.NewCleanupAuditCommand(slog.Default().With("service", "cleanup-cli"))
 }
 
-func buildAuthCleanupService(ctx *cleanupContext) authCleanupService {
-	service, err := services.NewAuthCleanupService(ctx.DB, ctx.TenantRuntime, slog.Default().With("service", "auth-cleanup-cli"), ctx.Audit)
+func buildAuthCleanupService(db transactionruntime.Database, auditCommand auditModels.Command) authCleanupService {
+	service, err := api.NewAuthCleanupService(db, slog.Default().With("service", "auth-cleanup-cli"), auditCommand)
 	if err != nil {
 		slog.Default().Error("auth cleanup service composition failed", "error", err)
 		return nil
@@ -220,26 +213,22 @@ func buildAuthCleanupService(ctx *cleanupContext) authCleanupService {
 	return service
 }
 
-func newCleanupContextWithInvitationCleanup() (*cleanupContext, error) {
-	if err := defaultCleanupRoot.validateCapability("invitation"); err != nil {
-		return nil, err
-	}
-	ctx, err := newCleanupContext()
+func (root cleanupRoot) openInvitationCleanup() (transactionruntime.Database, invitationCleanupService, error) {
+	db, err := root.openFor("invitation")
 	if err != nil {
-		return nil, err
+		return transactionruntime.Database{}, nil, err
 	}
-	ctx.InvitationCleanupService, err = buildCleanupDependency(ctx, defaultCleanupRoot.invitationCleanup, "invitation")
+	service, err := requireBuiltCleanup(db, root.invitationCleanup(db), "invitation")
 	if err != nil {
-		ctx.Close()
-		return nil, err
+		return transactionruntime.Database{}, nil, err
 	}
-	return ctx, nil
+	return db, service, nil
 }
 
-func buildInvitationCleanupService(ctx *cleanupContext) invitationCleanupService {
-	service, err := services.NewInvitationCleanupService(ctx.DB, slog.Default().With("service", "invitation-cleanup-cli"))
+func buildInvitationCleanupService(db transactionruntime.Database) invitationCleanupService {
+	service, err := identityaccessCompose.NewInvitationMaintenance(db.Pool())
 	if err != nil {
-		// buildCleanupDependency reports the nil as the missing capability,
+		// requireCleanupDependency reports the nil as the missing capability,
 		// the same way a builder that cannot compose its service does.
 		slog.Default().Error("invitation cleanup service unavailable", slog.Any("error", err))
 		return nil
@@ -247,126 +236,123 @@ func buildInvitationCleanupService(ctx *cleanupContext) invitationCleanupService
 	return service
 }
 
-func newCleanupContextWithSessionCleanup() (*cleanupContext, error) {
-	if err := defaultCleanupRoot.validateCapability("session"); err != nil {
-		return nil, err
-	}
-	ctx, err := newCleanupContext()
+func (root cleanupRoot) openSessionCleanup() (transactionruntime.Database, organizationtenancy.Capability, sessionCleanupService, error) {
+	db, err := root.openFor("session")
 	if err != nil {
-		return nil, err
+		return transactionruntime.Database{}, nil, nil, err
 	}
-	ctx.SessionCleanupService, err = buildCleanupDependency(ctx, defaultCleanupRoot.sessionCleanup, "session")
+	schools, err := newCleanupSchools(db)
 	if err != nil {
-		ctx.Close()
-		return nil, err
+		return transactionruntime.Database{}, nil, nil, err
 	}
-	return ctx, nil
+	timetableCapability, err := newCleanupTimetableOwner(db)
+	if err != nil {
+		return transactionruntime.Database{}, nil, nil, err
+	}
+	service, err := requireBuiltCleanup(db, root.sessionCleanup(db, schools, timetableCapability), "session")
+	if err != nil {
+		return transactionruntime.Database{}, nil, nil, err
+	}
+	return db, schools, service, nil
 }
 
-func buildSessionCleanupService(ctx *cleanupContext) sessionCleanupService {
-	return services.NewSessionCleanupService(ctx.DB, ctx.TenantRuntime, ctx.Schools, ctx.Timetable, slog.Default().With("service", "session-cleanup-cli"))
+func buildSessionCleanupService(db transactionruntime.Database, schools organizationtenancy.Capability, timetableCapability timetable.Capability) sessionCleanupService {
+	return newSessionCleanupService(db, schools, timetableCapability, slog.Default().With("service", "session-cleanup-cli"))
 }
 
-// newCleanupContextWithCleanupService initializes database and cleanup service.
-// Use this for visit/attendance cleanup commands.
-// The caller must call Close() when done.
-func newCleanupContextWithCleanupService() (*cleanupContext, error) {
-	if err := defaultCleanupRoot.validateCapability("retention"); err != nil {
-		return nil, err
-	}
-	ctx, err := newCleanupContext()
+// openRetentionCleanup opens the database and builds the visit, attendance
+// and supervisor retention sweep. The caller must close the database.
+func (root cleanupRoot) openRetentionCleanup() (transactionruntime.Database, organizationtenancy.Capability, studentpresence.PresenceCleanup, error) {
+	db, auditCommand, err := root.openWithAudit("retention")
 	if err != nil {
-		return nil, err
+		return transactionruntime.Database{}, nil, nil, err
 	}
-
-	ctx.CleanupService, err = buildCleanupDependency(ctx, defaultCleanupRoot.retentionCleanup, "retention")
+	schools, err := newCleanupSchools(db)
 	if err != nil {
-		ctx.Close()
-		return nil, err
+		return transactionruntime.Database{}, nil, nil, err
 	}
-	return ctx, nil
+	service, err := requireBuiltCleanup(db, root.retentionCleanup(db, schools, auditCommand), "retention")
+	if err != nil {
+		return transactionruntime.Database{}, nil, nil, err
+	}
+	return db, schools, service, nil
 }
 
-func buildRetentionCleanupService(ctx *cleanupContext) studentpresence.PresenceCleanup {
-	return services.NewRetentionCleanupService(ctx.DB, ctx.TenantRuntime, ctx.Schools, slog.Default().With("service", "retention-cleanup-cli"), ctx.Audit)
-
+func buildRetentionCleanupService(db transactionruntime.Database, schools organizationtenancy.Capability, auditCommand auditModels.Command) studentpresence.PresenceCleanup {
+	return newRetentionCleanupService(db, schools, slog.Default().With("service", "retention-cleanup-cli"), auditCommand)
 }
 
-// newCleanupContextWithTimetableCleanup initializes database + timetable
-// GDPR cleanup service (WP-B14), including its narrow settings graph.
-// The caller must call Close() when done.
-func newCleanupContextWithTimetableCleanup() (*cleanupContext, error) {
-	if err := defaultCleanupRoot.validateCapability("timetable"); err != nil {
-		return nil, err
-	}
-	ctx, err := newCleanupContext()
+// openTimetableCleanup opens the database and builds the timetable GDPR
+// cleanup service (WP-B14), including its narrow settings graph. The caller
+// must close the database.
+func (root cleanupRoot) openTimetableCleanup() (transactionruntime.Database, organizationtenancy.Capability, timetable.TimetableCleanup, error) {
+	db, auditCommand, err := root.openWithAudit("timetable")
 	if err != nil {
-		return nil, err
+		return transactionruntime.Database{}, nil, nil, err
 	}
-	ctx.TimetableCleanupService, err = buildCleanupDependency(ctx, defaultCleanupRoot.timetableCleanup, "timetable")
+	schools, err := newCleanupSchools(db)
 	if err != nil {
-		ctx.Close()
-		return nil, err
+		return transactionruntime.Database{}, nil, nil, err
 	}
-	return ctx, nil
+	timetableCapability, err := newCleanupTimetableOwner(db)
+	if err != nil {
+		return transactionruntime.Database{}, nil, nil, err
+	}
+	service, err := requireBuiltCleanup(db, root.timetableCleanup(db, schools, timetableCapability, auditCommand), "timetable")
+	if err != nil {
+		return transactionruntime.Database{}, nil, nil, err
+	}
+	return db, schools, service, nil
 }
 
-func buildTimetableCleanupService(ctx *cleanupContext) services.TimetableCleanup {
+func buildTimetableCleanupService(db transactionruntime.Database, schools organizationtenancy.Capability, timetableCapability timetable.Capability, auditCommand auditModels.Command) timetable.TimetableCleanup {
 	logger := slog.Default().With("service", "timetable-cleanup-cli")
-	cleanup, err := services.NewTimetableCleanupService(ctx.DB, ctx.TenantRuntime, ctx.Schools, ctx.Timetable, logger, ctx.Audit)
+	cleanup, err := newTimetableCleanupService(db, schools, timetableCapability, logger, auditCommand)
 	if err != nil {
-		// buildCleanupDependency reports the missing service to the caller.
+		// requireCleanupDependency reports the missing service to the caller.
 		logger.Error("compose timetable cleanup", slog.String("error", err.Error()))
 		return nil
 	}
 	return cleanup
 }
 
-// newCleanupContextWithTimeTrackingCleanup initializes database + time-tracking
-// retention cleanup service (Tranche 0b). Reuses the same audit repo and
+// openTimeTrackingCleanup opens the database and builds the time-tracking
+// retention cleanup service (Tranche 0b). It reuses the same audit repo and
 // settings service the scheduler version uses so CLI and cron stay in lock-
-// step. Caller must Close().
-func newCleanupContextWithTimeTrackingCleanup() (*cleanupContext, error) {
-	if err := defaultCleanupRoot.validateCapability("time-tracking"); err != nil {
-		return nil, err
-	}
-	ctx, err := newCleanupContext()
+// step. The caller must close the database.
+func (root cleanupRoot) openTimeTrackingCleanup() (transactionruntime.Database, organizationtenancy.Capability, workforceCompose.TimeTrackingCleanupService, error) {
+	db, auditCommand, err := root.openWithAudit("time-tracking")
 	if err != nil {
-		return nil, err
+		return transactionruntime.Database{}, nil, nil, err
 	}
-	ctx.TimeTrackingCleanupService, err = buildCleanupDependency(ctx, defaultCleanupRoot.timeTrackingCleanup, "time-tracking")
+	schools, err := newCleanupSchools(db)
 	if err != nil {
-		ctx.Close()
-		return nil, err
+		return transactionruntime.Database{}, nil, nil, err
 	}
-	return ctx, nil
+	service, err := requireBuiltCleanup(db, root.timeTrackingCleanup(db, schools, auditCommand), "time-tracking")
+	if err != nil {
+		return transactionruntime.Database{}, nil, nil, err
+	}
+	return db, schools, service, nil
 }
 
-func buildTimeTrackingCleanupService(ctx *cleanupContext) services.TimeTrackingCleanupService {
-	return services.NewTimeTrackingCleanupService(ctx.DB, ctx.TenantRuntime, ctx.Schools, slog.Default().With("service", "time-tracking-cleanup-cli"), ctx.Audit)
+func buildTimeTrackingCleanupService(db transactionruntime.Database, schools organizationtenancy.Capability, auditCommand auditModels.Command) workforceCompose.TimeTrackingCleanupService {
+	workTime, err := api.NewUnobservedWorkforce(db)
+	if err != nil {
+		panic(fmt.Sprintf("time tracking cleanup: compose workforce: %v", err))
+	}
+	return newTimeTrackingCleanupService(db, schools, workTime, slog.Default().With("service", "time-tracking-cleanup-cli"), auditCommand)
 }
 
-// Close releases database resources.
-func (c *cleanupContext) Close() {
-	if c.DB != nil {
-		if err := c.DB.Close(); err != nil {
-			c.logger().Printf(errCloseDB, err)
+// closeCleanupDatabase releases the database and reports a failure to
+// logger; a nil logger discards it.
+func closeCleanupDatabase(db transactionruntime.Database, logger *log.Logger) {
+	if err := db.Close(); err != nil {
+		if logger == nil {
+			logger = log.New(io.Discard, "", 0)
 		}
+		logger.Printf(errCloseDB, err)
 	}
-}
-
-func (c *cleanupContext) output() io.Writer {
-	if c.Output != nil {
-		return c.Output
-	}
-	return io.Discard
-}
-
-func (c *cleanupContext) logger() *log.Logger {
-	if c.Logger != nil {
-		return c.Logger
-	}
-	return log.New(io.Discard, "", 0)
 }
 
 // setupLogger creates a logger that writes to the specified file or stdout.
@@ -505,8 +491,8 @@ type recentDeletionRow struct {
 }
 
 // queryRecentDeletions fetches recent deletion activity from the audit table.
-func queryRecentDeletions(ctx context.Context, db *bun.DB) ([]recentDeletionRow, error) {
-	summaries, err := repositories.ListRecentAuditRetentionSummaries(ctx, db, time.Now().AddDate(0, 0, -30), 10)
+func queryRecentDeletions(ctx context.Context, db transactionruntime.Database) ([]recentDeletionRow, error) {
+	summaries, err := listRecentAuditRetentionSummaries(ctx, db, time.Now().AddDate(0, 0, -30), 10)
 	if err != nil {
 		return nil, err
 	}

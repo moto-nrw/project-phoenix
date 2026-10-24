@@ -25,7 +25,10 @@ import {
 import { ApiError } from "~/lib/api-error";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { useTenantRouter } from "~/lib/tenant-router";
-import { resolveDetailReferrer } from "~/lib/tenant-path";
+import {
+  resolveStudentReferrer,
+  studentReferrerBackLabel,
+} from "./student-referrer";
 import { groupService, studentService } from "~/lib/api";
 import { schoolCheckinStudent } from "~/lib/student-api";
 import { isAtSchoolLocation } from "~/lib/location-helper";
@@ -36,10 +39,6 @@ import {
 import { useStudentEnrollmentExtraFields } from "~/lib/hooks/use-student-enrollment-extra-fields";
 import { useScrollToTop } from "~/lib/hooks/use-scroll-to-top";
 import { useLocalStorageValue } from "~/lib/hooks/use-local-storage-value";
-import {
-  LAST_GROUP_SECTION_STORAGE_KEY,
-  parseOgsGroupSection,
-} from "~/lib/ogs-group-sections";
 import { useSWRAuth } from "~/lib/swr";
 import type { SupervisorContact } from "~/lib/student-helpers";
 import {
@@ -235,6 +234,7 @@ function studentTabs(
   canViewCarePlan: boolean,
   canViewDocuments: boolean,
   canViewRequestLog: boolean,
+  canReadParentData = true,
 ): StudentTabId[] {
   const base = hasStudentReadAccess
     ? canViewEnrollments
@@ -272,10 +272,22 @@ function studentTabs(
   // Änderungsprotokoll (#2437) mirrors the aggregate route's gate exactly:
   // RequiresAnyPermission(users:update, users:absence). Without either, the
   // list would only answer 403, so the tab stays away.
-  return canViewRequestLog
+  const withRequestLog = canViewRequestLog
     ? withDocuments
     : withDocuments.filter((tab) => tab !== "aenderungsprotokoll");
+  // Notizen, Nachrichten and Erziehungsberechtigte read parent data and
+  // notes, which stay on users:read. The role „Gast“ opens the child with
+  // students:read only (ADR 0091); those tabs would only answer 403.
+  return canReadParentData
+    ? withRequestLog
+    : withRequestLog.filter((tab) => !PARENT_DATA_TABS.has(tab));
 }
+
+const PARENT_DATA_TABS: ReadonlySet<StudentTabId> = new Set<StudentTabId>([
+  "notizen",
+  "nachrichten",
+  "erziehungsberechtigte",
+]);
 
 /**
  * Reiter der Kindakte für die Kopfkarte. Alle Reiter stehen nebeneinander;
@@ -399,26 +411,8 @@ function StudentDetailPageContent() {
   const navRouter = useRouter();
   const tenantRouter = useTenantRouter();
   const studentId = params.id as string;
-  const referrer = resolveDetailReferrer(
-    searchParams.get("from"),
-    "/students/search",
-    [
-      "/students/search",
-      "/database/students",
-      "/rooms",
-      "/active-supervisions",
-      "/day-log",
-      "/messages",
-      "/absences",
-      "/ogs-groups",
-    ],
-  );
-  // Der Rückweg heißt wie die Sammlung, aus der man kam: die Kinderdaten der
-  // Datenverwaltung verlinken seit #3115 hierher, statt ein eigenes Pane zu
-  // tragen.
-  const backLabel = referrer.startsWith("/database/students")
-    ? "Zurück zu den Kinderdaten"
-    : "Zurück zur Kinderübersicht";
+  const referrer = resolveStudentReferrer(searchParams.get("from"));
+  const backLabel = studentReferrerBackLabel(referrer);
   const toast = useToast();
   // Die Bestätigungsdialoge bleiben bei einem Fehler offen. Ein Toast läge
   // hinter ihrem Hintergrund, also steht der Fehler im Dialog selbst. Es ist
@@ -461,10 +455,10 @@ function StudentDetailPageContent() {
     student,
     loading,
     error,
-    hasFullAccess,
+    hasFullAccess: childGrantsFullAccess,
     hasWriteAccess,
-    hasAbsenceWriteAccess,
-    hasSickExcusedWriteAccess,
+    hasAbsenceWriteAccess: childGrantsAbsenceWrite,
+    hasSickExcusedWriteAccess: childGrantsSickExcusedWrite,
     attendanceLogEnabled,
     feedbackEnabled,
     supervisors,
@@ -473,6 +467,22 @@ function StudentDetailPageContent() {
     mySupervisedRooms,
     refreshData,
   } = useStudentData(studentId);
+  // Die Antwort sagt, was dieses Kind dem Konto erlaubt; die Routen dahinter
+  // verlangen zusätzlich ein Recht der Sitzung. Der Gast liest das Kind nur
+  // mit students:read (ADR 0091): Betreuungszeiten, Abholung, Ankunft und
+  // Statustage hängen an users:read, Abwesenheiten und Klassenfahrten
+  // schreiben users:update oder users:absence. Ohne das Recht fehlt die
+  // Fläche, statt mit einem 403 zu scheitern.
+  const sessionReadsChildDetails =
+    sessionStatus === "authenticated" && hasPermission(session, "users:read");
+  const sessionWritesAbsences =
+    sessionStatus === "authenticated" &&
+    (hasPermission(session, "users:update") ||
+      hasPermission(session, "users:absence"));
+  const hasFullAccess = childGrantsFullAccess && sessionReadsChildDetails;
+  const hasAbsenceWriteAccess =
+    childGrantsAbsenceWrite && sessionWritesAbsences;
+  const hasSickExcusedWriteAccess = childGrantsSickExcusedWrite;
   // Ladefehler der Akte über den gemeinsamen Fehlerweg (#2513). Ein 404 ist
   // kein Fehler zum Wiederholen, sondern „Kind nicht gefunden“.
   const studentNotFound = error instanceof ApiError && error.status === 404;
@@ -529,6 +539,9 @@ function StudentDetailPageContent() {
     (hasPermission(session, "users:update") ||
       hasPermission(session, "student_documents:health") ||
       hasPermission(session, "student_documents:legal"));
+  // Eltern, Notizen und Nachrichten hängen an users:read; die Rolle „Gast“
+  // sieht das Kind nur mit students:read (ADR 0091).
+  const canReadParentData = sessionReadsChildDetails;
   // Same gate the aggregate request route uses (#2437).
   const canViewRequestLog =
     sessionStatus === "authenticated" &&
@@ -560,6 +573,7 @@ function StudentDetailPageContent() {
         canViewCarePlan,
         canViewDocuments,
         canViewRequestLog,
+        canReadParentData,
       ),
     [
       canViewEnrollments,
@@ -567,6 +581,7 @@ function StudentDetailPageContent() {
       hasFullAccess,
       canViewDocuments,
       canViewRequestLog,
+      canReadParentData,
     ],
   );
   const tabResolutionTabs =
@@ -577,13 +592,9 @@ function StudentDetailPageContent() {
       : visibleTabs;
 
   // Set breadcrumb data, include group/room name for 3-level breadcrumb
-  // when navigating from an accordion section (e.g. Weitere Gruppen > 1a > Mia Fischer)
+  // when navigating from an accordion section (e.g. Gruppen > 1a > Mia Fischer)
   const breadcrumbGroupName = useLocalStorageValue(
     "sidebar-last-group-name",
-    referrer.startsWith("/ogs-groups"),
-  );
-  const breadcrumbGroupSection = useLocalStorageValue(
-    LAST_GROUP_SECTION_STORAGE_KEY,
     referrer.startsWith("/ogs-groups"),
   );
   const breadcrumbRoomName = useLocalStorageValue(
@@ -595,7 +606,6 @@ function StudentDetailPageContent() {
     studentName: student?.name,
     referrerPage: referrer,
     ogsGroupName: breadcrumbGroupName ?? undefined,
-    ogsGroupSection: parseOgsGroupSection(breadcrumbGroupSection),
     activeSupervisionName: breadcrumbRoomName ?? undefined,
   });
 
@@ -908,7 +918,7 @@ function StudentDetailPageContent() {
   }, [loading, student, sessionStatus, urlTab, activeTab, handleTabChange]);
 
   // Show loading state. `referrer` needs no fetched data (it's derived from
-  // the `?from=` query param above), so the BackButton renders for real here
+  // the `?from=` query param above), so the back link renders for real here
   // instead of a placeholder — see page-skeleton.tsx. The rest of the body
   // stays skeletonized: `visibleTabs` and the FullAccessView/LimitedAccessView
   // split both depend on `hasFullAccess`, a field on the student object that
@@ -1345,6 +1355,11 @@ function StudentDetailPageContent() {
     isAtSchoolLocation(student.current_location);
   const showCheckout = canCheckin && !isNotCheckedIn;
   const showCheckin = canCheckin && isNotCheckedIn;
+  const hasQuickActions =
+    showCheckout ||
+    showCheckin ||
+    hasAbsenceWriteAccess ||
+    hasSickExcusedWriteAccess;
 
   // =============================================================================
   // RENDER
@@ -1404,27 +1419,30 @@ function StudentDetailPageContent() {
         </span>
       }
       searchSlotHeight="natural"
+      // Ohne eine einzige Schnellaktion bliebe eine leere Zeile im Kopf.
       searchSlot={
-        <StudentQuickActions
-          student={student}
-          showCheckout={showCheckout}
-          showCheckin={showCheckin}
-          hasAbsenceWriteAccess={hasAbsenceWriteAccess}
-          hasSickExcusedWriteAccess={hasSickExcusedWriteAccess}
-          onCheckoutClick={() => {
-            setCheckoutNote("");
-            setCheckoutIsEarly(isEarlyCheckout(todayPickup.time));
-            setShowConfirmCheckout(true);
-          }}
-          onCheckinClick={() => setShowConfirmCheckin(true)}
-          onSickClick={handleSickClick}
-          sickLoading={sickLoading}
-          isQuickExcused={isQuickExcused}
-          onExcusedClick={handleExcusedClick}
-          excusedLoading={excusedLoading}
-          onClassTripClick={() => setPlannedStatusModal("class_trip")}
-          plannedStatusLoading={plannedStatusLoading}
-        />
+        hasQuickActions ? (
+          <StudentQuickActions
+            student={student}
+            showCheckout={showCheckout}
+            showCheckin={showCheckin}
+            hasAbsenceWriteAccess={hasAbsenceWriteAccess}
+            hasSickExcusedWriteAccess={hasSickExcusedWriteAccess}
+            onCheckoutClick={() => {
+              setCheckoutNote("");
+              setCheckoutIsEarly(isEarlyCheckout(todayPickup.time));
+              setShowConfirmCheckout(true);
+            }}
+            onCheckinClick={() => setShowConfirmCheckin(true)}
+            onSickClick={handleSickClick}
+            sickLoading={sickLoading}
+            isQuickExcused={isQuickExcused}
+            onExcusedClick={handleExcusedClick}
+            excusedLoading={excusedLoading}
+            onClassTripClick={() => setPlannedStatusModal("class_trip")}
+            plannedStatusLoading={plannedStatusLoading}
+          />
+        ) : undefined
       }
       tabs={{
         value: activeTab,
@@ -1874,16 +1892,23 @@ function LimitedAccessView({
         className={`${TAB_CONTENT_CLASS} space-y-4 sm:space-y-6`}
       >
         <SupervisorsCard supervisors={supervisors} studentName={student.name} />
-        <PersonalInfoReadOnly student={student} />
+        {/* Die Laufgemeinschaft hängt wie die Erziehungsberechtigten an
+            users:read; der Reiter steht nur mit diesem Recht da. */}
+        <PersonalInfoReadOnly
+          student={student}
+          showCompanions={tabs.includes("erziehungsberechtigte")}
+        />
       </StudentTabPanel>
 
-      <StudentTabPanel
-        value="erziehungsberechtigte"
-        activeTab={activeTab}
-        className={TAB_CONTENT_CLASS}
-      >
-        <StudentGuardianManager studentId={student.id} readOnly={true} />
-      </StudentTabPanel>
+      {tabs.includes("erziehungsberechtigte") ? (
+        <StudentTabPanel
+          value="erziehungsberechtigte"
+          activeTab={activeTab}
+          className={TAB_CONTENT_CLASS}
+        >
+          <StudentGuardianManager studentId={student.id} readOnly={true} />
+        </StudentTabPanel>
+      ) : null}
 
       {canViewEnrollments ? (
         <StudentTabPanel
@@ -2064,7 +2089,10 @@ function FullAccessView({
             onEditClick={hasWriteAccess ? onOpenPersonalInfoEdit : undefined}
           />
         )}
-        <StudentPermanentNotesCard studentId={studentId} />
+        {/* Die Hinweise sind Notizen: wie der Reiter nur mit users:read. */}
+        {tabs.includes("notizen") ? (
+          <StudentPermanentNotesCard studentId={studentId} />
+        ) : null}
         <StudentConsentsReadOnly consents={student.consents} />
         {canManageFamilyProtection ? (
           <SectionCard
@@ -2081,10 +2109,11 @@ function FullAccessView({
         activeTab={activeTab}
         className={TAB_CONTENT_CLASS}
       >
-        {notesTabSeen ? (
+        {notesTabSeen && tabs.includes("notizen") ? (
           <StudentNotizenTab
             studentId={studentId}
             educationGroupId={student.group_id ?? ""}
+            educationGroupName={student.group_name ?? ""}
           />
         ) : null}
       </StudentTabPanel>
@@ -2094,7 +2123,7 @@ function FullAccessView({
         activeTab={activeTab}
         className={TAB_CONTENT_CLASS}
       >
-        {studentId && messagesTabSeen && (
+        {studentId && messagesTabSeen && tabs.includes("nachrichten") && (
           <ParentMessagesCard
             studentId={studentId}
             studentName={student?.name}
@@ -2102,17 +2131,19 @@ function FullAccessView({
         )}
       </StudentTabPanel>
 
-      <StudentTabPanel
-        value="erziehungsberechtigte"
-        activeTab={activeTab}
-        className={TAB_CONTENT_CLASS}
-      >
-        <StudentGuardianManager
-          studentId={studentId}
-          readOnly={!hasWriteAccess}
-          onUpdate={hasWriteAccess ? onRefreshData : undefined}
-        />
-      </StudentTabPanel>
+      {tabs.includes("erziehungsberechtigte") ? (
+        <StudentTabPanel
+          value="erziehungsberechtigte"
+          activeTab={activeTab}
+          className={TAB_CONTENT_CLASS}
+        >
+          <StudentGuardianManager
+            studentId={studentId}
+            readOnly={!hasWriteAccess}
+            onUpdate={hasWriteAccess ? onRefreshData : undefined}
+          />
+        </StudentTabPanel>
+      ) : null}
 
       {canViewCarePlan ? (
         <StudentTabPanel
@@ -2151,6 +2182,7 @@ function FullAccessView({
           onDeleteStatusDay={onDeleteStatusDay}
           canDeleteStatusDay={canDeleteStatusDay}
           onVisibleDateRangeChange={onVisibleDateRangeChange}
+          weeklyDepartureModes={student.allowed_departure_modes}
         />
       </StudentTabPanel>
 

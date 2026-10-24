@@ -6,8 +6,6 @@ import (
 	"log/slog"
 	"strconv"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailbranding"
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
 
@@ -21,7 +19,7 @@ func (s *ChangeRequests) emailNotificationsEnabled(ctx context.Context) bool {
 
 // enqueueAdminNotification fans a change-request mail out to every admin
 // recipient, with the admin deep link in the payload.
-func (s *ChangeRequests) enqueueAdminNotification(ctx context.Context, tenantID int64, req *enrollmentModels.Request, changeRequestID int64, kind string) {
+func (s *ChangeRequests) enqueueAdminNotification(ctx context.Context, tenantID int64, req *Request, changeRequestID int64, kind string) {
 	if s.deps.Outbox == nil {
 		return
 	}
@@ -42,7 +40,7 @@ func (s *ChangeRequests) enqueueAdminNotification(ctx context.Context, tenantID 
 }
 
 // enqueueParentNotification sends a change-request mail to the guardian.
-func (s *ChangeRequests) enqueueParentNotification(ctx context.Context, tenantID int64, req *enrollmentModels.Request, changeRequestID int64, kind string) {
+func (s *ChangeRequests) enqueueParentNotification(ctx context.Context, tenantID int64, req *Request, changeRequestID int64, kind string) {
 	if s.deps.Outbox == nil {
 		return
 	}
@@ -59,7 +57,7 @@ func (s *ChangeRequests) enqueueParentNotification(ctx context.Context, tenantID
 	}
 }
 
-func (s *ChangeRequests) enqueueChangeRequestMail(ctx context.Context, tenantID int64, req *enrollmentModels.Request, changeRequestID int64, kind string, payload map[string]any) {
+func (s *ChangeRequests) enqueueChangeRequestMail(ctx context.Context, tenantID int64, req *Request, changeRequestID int64, kind string, payload map[string]any) {
 	if err := s.deps.Outbox.EnqueueMail(ctx, Mail{
 		Kind: kind, Payload: payload, RelatedEntityType: enrollment.MailRelatedRequest, RelatedEntityID: req.ID,
 	}); err != nil {
@@ -90,8 +88,8 @@ func (s *ChangeRequests) logChangeRequestNotificationFailure(err error, tenantID
 	)
 }
 
-func (s *ChangeRequests) emailPayload(ctx context.Context, req *enrollmentModels.Request, changeRequestID int64, recipient string) map[string]any {
-	schoolName, logoURL := schoolBrand(ctx, s.deps.Notifications, req.TenantID, s.deps.ParentsURL)
+func (s *ChangeRequests) emailPayload(ctx context.Context, req *Request, changeRequestID int64, recipient string) map[string]any {
+	schoolName, logoURL, footerLogoURL := schoolBrand(ctx, s.deps.Notifications, req.TenantID, s.deps.ParentsURL)
 	return map[string]any{
 		enrollment.EnrollmentPayloadGuardianFirstName: req.GuardianFirstName,
 		enrollment.EnrollmentPayloadGuardianLastName:  req.GuardianLastName,
@@ -99,7 +97,7 @@ func (s *ChangeRequests) emailPayload(ctx context.Context, req *enrollmentModels
 		enrollment.EnrollmentPayloadSchoolName:        schoolName,
 		enrollment.EnrollmentPayloadStatusURL:         enrollment.StatusURL(s.deps.ParentsURL, req.StatusToken),
 		enrollment.EnrollmentPayloadLogoURL:           logoURL,
-		enrollment.EnrollmentPayloadMotoLogoURL:       emailbranding.MotoLogoURL(s.deps.ParentsURL),
+		enrollment.EnrollmentPayloadMotoLogoURL:       footerLogoURL,
 		enrollment.EnrollmentPayloadRecipientEmail:    recipient,
 		"change_request_id":                           strconv.FormatInt(changeRequestID, 10),
 	}

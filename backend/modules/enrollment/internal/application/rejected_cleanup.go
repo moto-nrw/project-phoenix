@@ -7,32 +7,35 @@ import (
 	"log/slog"
 	"time"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
 
 // RejectedRequestCleaner finds and deletes fully rejected requests.
 type RejectedRequestCleaner interface {
 	DeleteRequestTree(context.Context, int64) error
 	FullyRejectedRequestsBefore(ctx context.Context, cutoff time.Time) ([]int64, error)
-	RequestByID(context.Context, int64, bool) (*enrollment.Request, error)
+	SettledRequestsBefore(ctx context.Context, withdrawnCutoff, rejectedCutoff time.Time) ([]int64, error)
+	RequestByID(context.Context, int64, bool) (*enrollmentNative.Request, error)
 	DeleteRequest(ctx context.Context, requestID int64) error
 }
 
 // RejectedChildren locks the children of a request.
 type RejectedChildren interface {
-	ChildrenForRequest(ctx context.Context, requestID int64, forUpdate bool) ([]*enrollment.RequestChild, error)
+	ChildrenForRequest(ctx context.Context, requestID int64, forUpdate bool) ([]*enrollmentNative.RequestChild, error)
 }
 
-// UsedLateInviteCleaner deletes the late invites a request used.
+// UsedLateInviteCleaner deletes the late invites a request used, and the
+// invitations settled before a cutoff.
 type UsedLateInviteCleaner interface {
 	DeleteLateInvitesByUsedRequestID(ctx context.Context, requestID int64) (int64, error)
+	DeleteLateInvitesSettledBefore(ctx context.Context, cutoff time.Time) (int64, error)
 }
 
-// RetentionSettings resolves the tenant's retention of rejected
-// enrollments in days.
+// RetentionSettings resolves the tenant's retention of rejected and of
+// withdrawn enrollments in days.
 type RetentionSettings interface {
 	RejectedRetentionDays(ctx context.Context) (int, error)
+	WithdrawnRetentionDays(ctx context.Context) (int, error)
 }
 
 // RejectedCleanupDependencies bind the retention worker to its owners.
@@ -58,7 +61,7 @@ type RejectedCleanup struct {
 	deps RejectedCleanupDependencies
 }
 
-var _ enrollment.RejectedEnrollmentCleaner = (*RejectedCleanup)(nil)
+var _ enrollmentNative.RejectedEnrollmentCleaner = (*RejectedCleanup)(nil)
 
 // NewRejectedCleanup composes the retention worker.
 func NewRejectedCleanup(deps RejectedCleanupDependencies) *RejectedCleanup {
@@ -79,34 +82,37 @@ func (s *RejectedCleanup) runInTx(ctx context.Context, fn func(context.Context) 
 
 // CleanupRejectedEnrollments deletes every request whose children were all
 // rejected before the retention cutoff.
-func (s *RejectedCleanup) CleanupRejectedEnrollments(ctx context.Context) (enrollment.RejectedEnrollmentCleanupResult, error) {
+func (s *RejectedCleanup) CleanupRejectedEnrollments(ctx context.Context) (enrollmentNative.RejectedEnrollmentCleanupResult, error) {
 	d := s.deps
 	if d.Requests == nil || d.Children == nil || d.LateInvites == nil || d.Delivery == nil || d.Settings == nil || d.Runtime.InTransaction == nil {
-		return enrollment.RejectedEnrollmentCleanupResult{}, errors.New("rejected enrollment cleanup is not configured")
+		return enrollmentNative.RejectedEnrollmentCleanupResult{}, errors.New("rejected enrollment cleanup is not configured")
 	}
 	days, err := d.Settings.RejectedRetentionDays(ctx)
 	if err != nil {
-		return enrollment.RejectedEnrollmentCleanupResult{}, fmt.Errorf("resolve rejected enrollment retention: %w", err)
+		return enrollmentNative.RejectedEnrollmentCleanupResult{}, fmt.Errorf("resolve rejected enrollment retention: %w", err)
 	}
 	if days < 0 {
-		return enrollment.RejectedEnrollmentCleanupResult{}, fmt.Errorf("invalid rejected enrollment retention days: %d", days)
+		return enrollmentNative.RejectedEnrollmentCleanupResult{}, fmt.Errorf("invalid rejected enrollment retention days: %d", days)
 	}
 	cutoff := time.Now().Add(-time.Duration(days) * 24 * time.Hour)
-	result := enrollment.RejectedEnrollmentCleanupResult{}
+	result := enrollmentNative.RejectedEnrollmentCleanupResult{}
 	err = s.runInTx(ctx, func(txCtx context.Context) error {
 		requestIDs, listErr := d.Requests.FullyRejectedRequestsBefore(txCtx, cutoff)
 		if listErr != nil {
 			return listErr
 		}
+		settled := func(children []*enrollmentNative.RequestChild) bool {
+			return childrenRemainFullyRejectedBefore(children, cutoff)
+		}
 		for _, requestID := range requestIDs {
-			if err := s.cleanupRequest(txCtx, requestID, cutoff, &result); err != nil {
+			if err := s.cleanupRequest(txCtx, requestID, settled, &result); err != nil {
 				return err
 			}
 		}
 		return nil
 	})
 	if err != nil {
-		return enrollment.RejectedEnrollmentCleanupResult{}, err
+		return enrollmentNative.RejectedEnrollmentCleanupResult{}, err
 	}
 	d.Logger.InfoContext(ctx, "rejected enrollment cleanup completed",
 		slog.Int("deleted_requests", result.DeletedRequests),
@@ -115,11 +121,11 @@ func (s *RejectedCleanup) CleanupRejectedEnrollments(ctx context.Context) (enrol
 	return result, nil
 }
 
-// cleanupRequest deletes one fully rejected request. It matches every
-// request-mutation path's parent -> children lock order: locking children
-// first and then cascading the parent delete can deadlock with an edit that
-// already holds the request row.
-func (s *RejectedCleanup) cleanupRequest(ctx context.Context, requestID int64, cutoff time.Time, result *enrollment.RejectedEnrollmentCleanupResult) error {
+// cleanupRequest deletes one request whose locked children are still
+// settled. It matches every request-mutation path's parent -> children lock
+// order: locking children first and then cascading the parent delete can
+// deadlock with an edit that already holds the request row.
+func (s *RejectedCleanup) cleanupRequest(ctx context.Context, requestID int64, settled func([]*enrollmentNative.RequestChild) bool, result *enrollmentNative.RejectedEnrollmentCleanupResult) error {
 	d := s.deps
 	if _, err := d.Requests.RequestByID(ctx, requestID, true); err != nil {
 		return fmt.Errorf("lock rejected enrollment request: %w", err)
@@ -128,7 +134,7 @@ func (s *RejectedCleanup) cleanupRequest(ctx context.Context, requestID int64, c
 	if err != nil {
 		return fmt.Errorf("lock rejected enrollment request children: %w", err)
 	}
-	if !childrenRemainFullyRejectedBefore(children, cutoff) {
+	if !settled(children) {
 		return nil
 	}
 	emailCount, err := d.Delivery.CountRelatedEmails(ctx, enrollmentRequestDeliveryType, requestID)
@@ -160,7 +166,7 @@ func (s *RejectedCleanup) cleanupRequest(ctx context.Context, requestID int64, c
 
 // deleteAudited cancels the request's mails, deletes the request tree and
 // appends the system deletion audit row.
-func (s *RejectedCleanup) deleteAudited(ctx context.Context, requestID int64, impact *enrollment.DeletionImpact, result *enrollment.RejectedEnrollmentCleanupResult) error {
+func (s *RejectedCleanup) deleteAudited(ctx context.Context, requestID int64, impact *enrollmentNative.DeletionImpact, result *enrollmentNative.RejectedEnrollmentCleanupResult) error {
 	d := s.deps
 	cancelled, err := d.Delivery.CancelRelatedEmails(ctx, enrollmentRequestDeliveryType, requestID, "related enrollment data deleted")
 	if err != nil {
@@ -187,7 +193,7 @@ func (s *RejectedCleanup) deleteAudited(ctx context.Context, requestID int64, im
 
 // deleteUnaudited is the compatibility path for focused unit tests that
 // compose the worker without the production audit dependencies.
-func (s *RejectedCleanup) deleteUnaudited(ctx context.Context, requestID int64, result *enrollment.RejectedEnrollmentCleanupResult) error {
+func (s *RejectedCleanup) deleteUnaudited(ctx context.Context, requestID int64, result *enrollmentNative.RejectedEnrollmentCleanupResult) error {
 	d := s.deps
 	deletedLateInvites, err := d.LateInvites.DeleteLateInvitesByUsedRequestID(ctx, requestID)
 	if err != nil {
@@ -206,12 +212,12 @@ func (s *RejectedCleanup) deleteUnaudited(ctx context.Context, requestID int64, 
 	return nil
 }
 
-func childrenRemainFullyRejectedBefore(children []*enrollment.RequestChild, cutoff time.Time) bool {
+func childrenRemainFullyRejectedBefore(children []*enrollmentNative.RequestChild, cutoff time.Time) bool {
 	if len(children) == 0 {
 		return false
 	}
 	for _, child := range children {
-		if child == nil || child.Status != enrollmentModels.ChildStatusRejected || child.ReviewedAt == nil || !child.ReviewedAt.Before(cutoff) {
+		if child == nil || child.Status != enrollmentNative.ChildStatusRejected || child.ReviewedAt == nil || !child.ReviewedAt.Before(cutoff) {
 			return false
 		}
 	}

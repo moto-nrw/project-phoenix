@@ -3,23 +3,17 @@ package domain
 import (
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-type Date = timezone.Date
-
-func ParseDate(value string) (Date, error) { return timezone.ParseDate(value) }
-
-type Dish struct {
-	Dish string
-	Note *string
-}
+type Date = calendar.Date
 
 type Entry struct {
-	Date     Date
-	Position int
-	Dish     string
-	Note     *string
+	Date      Date
+	Position  int
+	Dish      string
+	Note      *string
+	Allergens []string
 }
 
 type OperationStats struct {

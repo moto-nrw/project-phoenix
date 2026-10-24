@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
 )
 
@@ -31,7 +31,7 @@ const (
 )
 
 // ScheduleDate is the calendar day of a schedule row.
-type ScheduleDate = timezone.Date
+type ScheduleDate = calendar.Date
 
 // ActivityInstance is one schedule.activity_instances row.
 type ActivityInstance struct {
@@ -40,7 +40,7 @@ type ActivityInstance struct {
 	CreatedAt              time.Time       `bun:"created_at,nullzero,notnull,default:current_timestamp"`
 	UpdatedAt              time.Time       `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
 	TenantID               int64           `bun:"tenant_id,notnull"`
-	Date                   timezone.Date   `bun:"date,notnull"`
+	Date                   calendar.Date   `bun:"date,notnull"`
 	ActivityGroupID        *int64          `bun:"activity_group_id"`
 	CalendarPeriodID       *int64          `bun:"calendar_period_id"`
 	Title                  string          `bun:"title,notnull"`
@@ -131,7 +131,7 @@ type StudentPickupNote struct {
 	UpdatedAt     time.Time     `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
 	TenantID      int64         `bun:"tenant_id,notnull"`
 	StudentID     int64         `bun:"student_id,notnull"`
-	NoteDate      timezone.Date `bun:"note_date,nullzero"`
+	NoteDate      calendar.Date `bun:"note_date,nullzero"`
 	Weekday       int           `bun:"weekday,nullzero"`
 	Content       string        `bun:"content,notnull"`
 	CreatedBy     int64         `bun:"created_by,notnull"`
@@ -145,7 +145,7 @@ type StudentPickupException struct {
 	UpdatedAt             time.Time     `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
 	TenantID              int64         `bun:"tenant_id,notnull"`
 	StudentID             int64         `bun:"student_id,notnull"`
-	ExceptionDate         timezone.Date `bun:"exception_date,notnull"`
+	ExceptionDate         calendar.Date `bun:"exception_date,notnull"`
 	PickupTime            *time.Time    `bun:"pickup_time"`
 	Reason                *string       `bun:"reason"`
 	ExcusedFrom           *time.Time    `bun:"excused_from"`
@@ -180,7 +180,7 @@ type StudentArrivalException struct {
 	UpdatedAt         time.Time     `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
 	TenantID          int64         `bun:"tenant_id,notnull"`
 	StudentID         int64         `bun:"student_id,notnull"`
-	ExceptionDate     timezone.Date `bun:"exception_date,notnull"`
+	ExceptionDate     calendar.Date `bun:"exception_date,notnull"`
 	ExpectedArrival   *time.Time    `bun:"expected_arrival"`
 	Reason            *string       `bun:"reason"`
 	Source            string        `bun:"source,nullzero,notnull,default:'staff'"`
@@ -196,7 +196,7 @@ type StudentArrivalNote struct {
 	UpdatedAt     time.Time     `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
 	TenantID      int64         `bun:"tenant_id,notnull"`
 	StudentID     int64         `bun:"student_id,notnull"`
-	NoteDate      timezone.Date `bun:"note_date,notnull"`
+	NoteDate      calendar.Date `bun:"note_date,notnull"`
 	Content       string        `bun:"content,notnull"`
 	CreatedBy     int64         `bun:"created_by,notnull"`
 }
@@ -210,10 +210,10 @@ type CalendarPeriod struct {
 	TenantID        int64          `bun:"tenant_id,notnull"`
 	Name            string         `bun:"name,notnull"`
 	PeriodType      string         `bun:"period_type,notnull"`
-	StartDate       timezone.Date  `bun:"start_date,notnull"`
-	EndDate         timezone.Date  `bun:"end_date,notnull"`
+	StartDate       calendar.Date  `bun:"start_date,notnull"`
+	EndDate         calendar.Date  `bun:"end_date,notnull"`
 	WeekCycleLength int            `bun:"week_cycle_length,notnull,default:1"`
-	WeekCycleAnchor *timezone.Date `bun:"week_cycle_anchor"`
+	WeekCycleAnchor *calendar.Date `bun:"week_cycle_anchor"`
 	IsActive        bool           `bun:"is_active,notnull,default:false"`
 }
 
@@ -238,7 +238,7 @@ type StaffShift struct {
 	UpdatedAt            time.Time      `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
 	TenantID             int64          `bun:"tenant_id,notnull"`
 	StaffID              int64          `bun:"staff_id,notnull"`
-	Date                 timezone.Date  `bun:"date,notnull,type:date"`
+	Date                 calendar.Date  `bun:"date,notnull,type:date"`
 	StartTime            time.Time      `bun:"start_time,notnull"`
 	EndTime              time.Time      `bun:"end_time,notnull"`
 	BreakMinutes         int            `bun:"break_minutes,notnull,default:0"`
@@ -246,7 +246,7 @@ type StaffShift struct {
 	Notes                string         `bun:"notes"`
 	SeriesID             *int64         `bun:"series_id"`
 	Detached             bool           `bun:"detached,notnull,default:false"`
-	SeriesOccurrenceDate *timezone.Date `bun:"series_occurrence_date,type:date"`
+	SeriesOccurrenceDate *calendar.Date `bun:"series_occurrence_date,type:date"`
 	Cancelled            bool           `bun:"cancelled,notnull,default:false"`
 	ChangeReason         *string        `bun:"change_reason"`
 	OriginShiftID        *int64         `bun:"origin_shift_id"`
@@ -275,8 +275,8 @@ type ClosingDay struct {
 	CreatedAt     time.Time     `bun:"created_at,nullzero,notnull,default:current_timestamp"`
 	UpdatedAt     time.Time     `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
 	TenantID      int64         `bun:"tenant_id,notnull"`
-	StartDate     timezone.Date `bun:"start_date,notnull"`
-	EndDate       timezone.Date `bun:"end_date,notnull"`
+	StartDate     calendar.Date `bun:"start_date,notnull"`
+	EndDate       calendar.Date `bun:"end_date,notnull"`
 	Reason        string        `bun:"reason,notnull"`
 }
 
@@ -288,7 +288,7 @@ type ActivityException struct {
 	UpdatedAt       time.Time     `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
 	TenantID        int64         `bun:"tenant_id,notnull"`
 	ActivityGroupID int64         `bun:"activity_group_id,notnull"`
-	ExceptionDate   timezone.Date `bun:"exception_date,notnull"`
+	ExceptionDate   calendar.Date `bun:"exception_date,notnull"`
 	ExceptionType   string        `bun:"exception_type,notnull"`
 	StartTime       *time.Time    `bun:"start_time"`
 	EndTime         *time.Time    `bun:"end_time"`

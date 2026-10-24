@@ -371,54 +371,25 @@ describe("OperatorDevicesPage", () => {
     expect(cells.length).toBeGreaterThan(0);
   });
 
-  // --- Clipboard ---
-
-  it("copies API key to clipboard", async () => {
-    const writeText = vi.fn().mockResolvedValue(undefined);
+  // Existing keys are deliberately read-only. Clipboard success and failure
+  // remain covered by the one-time creation/rotation dialog suites.
+  it("keeps keys read-only even if a stale list fixture contains a raw key", () => {
+    const writeText = vi.fn();
     Object.defineProperty(navigator, "clipboard", {
       value: { writeText },
       writable: true,
       configurable: true,
     });
-
     withDefaultSWR({ allDevices: [mockDevice] });
-
     render(<OperatorDevicesPage />);
 
-    fireEvent.click(screen.getByTitle("API-Key kopieren"));
-
-    await waitFor(() => {
-      expect(writeText).toHaveBeenCalledWith("full-api-key-value");
-    });
-  });
-
-  it("logs clipboard errors when copying fails", async () => {
-    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {
-      // noop
-    });
-    const writeText = vi.fn().mockRejectedValue(new Error("denied"));
-    Object.defineProperty(navigator, "clipboard", {
-      value: { writeText },
-      writable: true,
-      configurable: true,
-    });
-
-    withDefaultSWR({ allDevices: [mockDevice] });
-
-    render(<OperatorDevicesPage />);
-
-    fireEvent.click(screen.getByTitle("API-Key kopieren"));
-
-    await waitFor(() => {
-      expect(consoleError).toHaveBeenCalledWith(
-        "clipboard_copy_failed",
-        expect.objectContaining({
-          error: "Failed to copy API key to clipboard",
-        }),
-      );
-    });
-
-    consoleError.mockRestore();
+    // Anker: Die geladene Gerätezeile zeigt ihre ID und maskierte Kennung.
+    expect(screen.getByText(mockDevice.deviceId)).toBeInTheDocument();
+    expect(screen.getByText(mockDevice.maskedApiKey)).toBeInTheDocument();
+    expect(screen.queryByText(mockDevice.apiKey)).toBeNull();
+    expect(screen.queryByTitle("API-Key kopieren")).toBeNull();
+    fireEvent.click(screen.getByText(mockDevice.maskedApiKey));
+    expect(writeText).not.toHaveBeenCalled();
   });
 
   // --- Loading + sorting ---
@@ -460,9 +431,9 @@ describe("OperatorDevicesPage", () => {
 
     fireEvent.click(screen.getByText("API-Key"));
 
-    const apiKeyButtons = screen.getAllByTitle("API-Key kopieren");
-    expect(apiKeyButtons[0]).toHaveTextContent("aaaa-key");
-    expect(apiKeyButtons[1]).toHaveTextContent("zzzz-key");
+    const maskedKeys = screen.getAllByText(/^(aaaa|zzzz)-key$/);
+    expect(maskedKeys[0]).toHaveTextContent("aaaa-key");
+    expect(maskedKeys[1]).toHaveTextContent("zzzz-key");
   });
 
   it("sorts devices by name column", () => {

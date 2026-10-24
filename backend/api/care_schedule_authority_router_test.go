@@ -11,8 +11,8 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/modules/settings"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -21,9 +21,7 @@ import (
 
 func TestCareScheduleAuthorityHTTPFlow(t *testing.T) {
 	t.Parallel()
-	db, module := testutil.SetupStudentModule(t)
-	resource, err := newCareScheduleTestRouter(db, module)
-	require.NoError(t, err)
+	db, resource := setupCareScheduleRouter(t)
 	router := chi.NewRouter()
 	router.Use(testpkg.TenantRuntimeMiddleware(t, db))
 	router.Mount("/", resource)
@@ -37,9 +35,9 @@ func TestCareScheduleAuthorityHTTPFlow(t *testing.T) {
 			INSERT INTO config.setting_values (tenant_id, setting_key, value)
 			VALUES (?, ?, to_jsonb(?::boolean)), (?, ?, 'true'::jsonb), (?, ?, 'true'::jsonb)
 			ON CONFLICT (tenant_id, setting_key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
-			chain.TenantID, configModels.KeyEnrollmentBookingsAuthoritative, authoritative,
-			chain.TenantID, configModels.KeyParentCarePickupRequestEnabled,
-			chain.TenantID, configModels.KeyParentCareModeRequestEnabled,
+			chain.TenantID, settings.KeyEnrollmentBookingsAuthoritative, authoritative,
+			chain.TenantID, settings.KeyParentCarePickupRequestEnabled,
+			chain.TenantID, settings.KeyParentCareModeRequestEnabled,
 		)
 		require.NoError(t, err)
 	}
@@ -65,7 +63,7 @@ func careScheduleParentToken(t *testing.T, chain testpkg.ParentChain) string {
 	t.Helper()
 	// Parent-scope principals are not tenant-bound; the security principal
 	// seam rejects a parent token that carries a tenant (#2645).
-	return testutil.MintTestJWT(t, jwt.AppClaims{
+	return testutil.MintTestJWT(t, sessiontoken.AppClaims{
 		ID: int(chain.AccountID), Sub: chain.Email, Roles: []string{"guardian"},
 		Scope: tenant.ScopeParent,
 	})

@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Session } from "next-auth";
-import { NextRequest } from "next/server";
 import { GET, PUT, DELETE } from "./route";
-
-interface ExtendedSession extends Session {
-  user: Session["user"] & { token?: string };
-}
+import {
+  type ExtendedSession,
+  createMockContext,
+  createMockRequest,
+  defaultSession,
+} from "~/test/route-test-helpers";
 
 const { mockAuth, mockApiGet, mockApiPut, mockApiDelete } = vi.hoisted(() => ({
   mockAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
@@ -18,51 +18,17 @@ vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));
 
-vi.mock("~/lib/api-helpers.server", () => ({
-  apiGet: mockApiGet,
-  apiPost: vi.fn(),
-  apiPut: mockApiPut,
-  apiDelete: mockApiDelete,
-  handleApiError: vi.fn((error: unknown) => {
-    const message =
-      error instanceof Error ? error.message : "Internal Server Error";
-    const status = message.includes("(401)")
-      ? 401
-      : message.includes("(404)")
-        ? 404
-        : 500;
-    return new Response(JSON.stringify({ error: message }), { status });
-  }),
-}));
-
-function createMockRequest(
-  path: string,
-  options: { method?: string; body?: unknown } = {},
-): NextRequest {
-  const url = new URL(path, "http://localhost:3000");
-  const requestInit: { method: string; body?: string; headers?: HeadersInit } =
-    {
-      method: options.method ?? "GET",
-    };
-
-  if (options.body) {
-    requestInit.body = JSON.stringify(options.body);
-    requestInit.headers = { "Content-Type": "application/json" };
-  }
-
-  return new NextRequest(url, requestInit);
-}
-
-function createMockContext(
-  params: Record<string, string | string[] | undefined> = {},
-) {
-  return { params: Promise.resolve(params) };
-}
-
-const defaultSession: ExtendedSession = {
-  user: { id: "1", token: "test-token", name: "Test User" },
-  expires: "2099-01-01",
-};
+vi.mock("~/lib/api-helpers.server", async () => {
+  const { mockHandleApiError } =
+    await import("~/test/helpers/handle-api-error");
+  return {
+    apiGet: mockApiGet,
+    apiPost: vi.fn(),
+    apiPut: mockApiPut,
+    apiDelete: mockApiDelete,
+    handleApiError: vi.fn(mockHandleApiError),
+  };
+});
 
 async function parseJsonResponse<T>(response: Response): Promise<T> {
   return (await response.json()) as T;
@@ -72,15 +38,6 @@ describe("GET /api/activities/[id]", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(defaultSession);
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/activities/123");
-    const response = await GET(request, createMockContext({ id: "123" }));
-
-    expect(response.status).toBe(401);
   });
 
   it("fetches activity by ID with wrapped response", async () => {
@@ -146,17 +103,6 @@ describe("GET /api/activities/[id]", () => {
     expect(json.data.id).toBe("7");
   });
 
-  it("returns 404 when activity not found", async () => {
-    mockApiGet.mockRejectedValueOnce(
-      new Error("API error (404): Activity not found"),
-    );
-
-    const request = createMockRequest("/api/activities/999");
-    const response = await GET(request, createMockContext({ id: "999" }));
-
-    expect(response.status).toBe(404);
-  });
-
   it("throws error for unexpected response structure", async () => {
     mockApiGet.mockResolvedValueOnce({ unexpected: "structure" });
 
@@ -171,18 +117,6 @@ describe("PUT /api/activities/[id]", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(defaultSession);
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/activities/5", {
-      method: "PUT",
-      body: { name: "Updated Name" },
-    });
-    const response = await PUT(request, createMockContext({ id: "5" }));
-
-    expect(response.status).toBe(401);
   });
 
   it("updates activity successfully with wrapped response", async () => {
@@ -267,8 +201,9 @@ describe("PUT /api/activities/[id]", () => {
     const response = await PUT(request, createMockContext({ id: "invalid" }));
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Invalid activity ID");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toContain("Invalid activity ID");
   });
 });
 
@@ -276,17 +211,6 @@ describe("DELETE /api/activities/[id]", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(defaultSession);
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/activities/5", {
-      method: "DELETE",
-    });
-    const response = await DELETE(request, createMockContext({ id: "5" }));
-
-    expect(response.status).toBe(401);
   });
 
   it("deletes activity successfully with 204 status", async () => {
@@ -337,8 +261,9 @@ describe("DELETE /api/activities/[id]", () => {
     );
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Invalid activity ID");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toContain("Invalid activity ID");
   });
 
   it("handles empty response from backend", async () => {

@@ -10,34 +10,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/sessionrecordstest"
-
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecordstest"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-
-	"github.com/moto-nrw/project-phoenix/auth/userpass/userpasstest"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-
-	"github.com/moto-nrw/project-phoenix/models/audit"
-	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime/userpasstest"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/sessionrecordstest"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
-
-// CreateTestRoomCapacityError returns an opaque admission failure for transport
-// contract tests. The room belongs to the calling test's tenant.
-func CreateTestRoomCapacityError(tb testing.TB) error {
-	tb.Helper()
-	room := CreateTestRoom(tb, SetupTestDB(tb), "capacity error")
-	return &studentpresence.RoomCapacityError{
-		RoomID: room.ID, RoomName: room.Name,
-		CurrentOccupancy: 43, MaxCapacity: 43,
-	}
-}
 
 // SQL constants to avoid duplication
 const (
@@ -75,7 +58,7 @@ func InsertAuditTestWorkSession(ctx context.Context, db *bun.DB, session any) er
 	if !ok {
 		return fmt.Errorf("audit work-session fixture preparation is required")
 	}
-	fixture.PrepareAuditWorkSession(audit.TenantIDFromContext(ctx))
+	fixture.PrepareAuditWorkSession(tenant.FromContext(ctx))
 	_, err := db.NewInsert().Model(session).ModelTableExpr(`active.work_sessions AS "work_session"`).Exec(ctx)
 	return err
 }
@@ -306,17 +289,17 @@ func EnsureWebManualDevice(tb testing.TB, db *bun.DB) *Device {
 }
 
 // CreateTestPerson creates a real person in the database (required for staff creation)
-func CreateTestPerson(tb testing.TB, db *bun.DB, firstName, lastName string) *users.Person {
+func CreateTestPerson(tb testing.TB, db *bun.DB, firstName, lastName string) *Person {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	person := &users.Person{
+	person := &Person{
 		FirstName: firstName,
 		LastName:  lastName,
 	}
-	person.SetTenantID(fixtureTenantID(tb))
+	person.TenantID = fixtureTenantID(tb)
 
 	err := db.NewInsert().
 		Model(person).
@@ -329,7 +312,7 @@ func CreateTestPerson(tb testing.TB, db *bun.DB, firstName, lastName string) *us
 
 // CreateTestStaff creates a real staff member in the database
 // This requires a person, so it creates one automatically
-func CreateTestStaff(tb testing.TB, db *bun.DB, firstName, lastName string) *users.Staff {
+func CreateTestStaff(tb testing.TB, db *bun.DB, firstName, lastName string) *Staff {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -339,10 +322,10 @@ func CreateTestStaff(tb testing.TB, db *bun.DB, firstName, lastName string) *use
 	person := CreateTestPerson(tb, db, firstName, lastName)
 
 	// Create staff record
-	staff := &users.Staff{
+	staff := &Staff{
 		PersonID: person.ID,
 	}
-	staff.SetTenantID(fixtureTenantID(tb))
+	staff.TenantID = fixtureTenantID(tb)
 
 	err := insertTestStaff(ctx, db, staff)
 	require.NoError(tb, err, "Failed to create test staff")
@@ -356,11 +339,7 @@ func CreateTestStaff(tb testing.TB, db *bun.DB, firstName, lastName string) *use
 // insertTestStaff stores a staff fixture in its owners: the School Membership
 // row (tenant, person, lifecycle) and its Workforce employment profile. The
 // membership id is the staff id every dependent table references (#2754).
-// A test that restored the pre-cutover world gets the historical table.
-func insertTestStaff(ctx context.Context, db bun.IDB, staff *users.Staff) error {
-	if historical, err := insertHistoricalStaff(ctx, db, staff); err != nil || historical {
-		return err
-	}
+func insertTestStaff(ctx context.Context, db bun.IDB, staff *Staff) error {
 	return db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
 		if err := tx.NewRaw(`INSERT INTO users.staff_school_memberships (tenant_id, person_id, deleted_at)
 			VALUES (?, ?, ?) RETURNING id, created_at, updated_at`,
@@ -371,25 +350,25 @@ func insertTestStaff(ctx context.Context, db bun.IDB, staff *users.Staff) error 
 		_, err := tx.NewRaw(`INSERT INTO users.staff_employment_profiles
 			(membership_id, tenant_id, staff_notes, employment_type, work_time_model_id,
 			 personnel_number, rotation_anchor_date, birthday_display_opt_out)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-			staff.ID, staff.TenantID, staff.StaffNotes, staff.EmploymentType, staff.WorkTimeModelID,
-			staff.PersonnelNumber, staff.RotationAnchorDate, staff.BirthdayDisplayOptOut).Exec(ctx)
+			VALUES (?, ?, ?, NULL, NULL, ?, NULL, ?)`,
+			staff.ID, staff.TenantID, staff.StaffNotes,
+			staff.PersonnelNumber, staff.BirthdayDisplayOptOut).Exec(ctx)
 		return err
 	})
 }
 
 // CreateTestStaffForPerson creates a staff record for an existing person
 // Use this when you need to control the person record separately
-func CreateTestStaffForPerson(tb testing.TB, db *bun.DB, personID int64) *users.Staff {
+func CreateTestStaffForPerson(tb testing.TB, db *bun.DB, personID int64) *Staff {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	staff := &users.Staff{
+	staff := &Staff{
 		PersonID: personID,
 	}
-	staff.SetTenantID(fixtureTenantID(tb))
+	staff.TenantID = fixtureTenantID(tb)
 
 	err := insertTestStaff(ctx, db, staff)
 	require.NoError(tb, err, "Failed to create test staff for person")
@@ -397,16 +376,9 @@ func CreateTestStaffForPerson(tb testing.TB, db *bun.DB, personID int64) *users.
 	return staff
 }
 
-// StudentInGroup returns a detached student row that belongs to groupID
-// (nil: no group), for policy tests that decide over the row alone and never
-// touch the database.
-func StudentInGroup(groupID *int64) *users.Student {
-	return &users.Student{GroupID: groupID}
-}
-
 // CreateTestStudent creates a real student in the database
 // This requires a person, so it creates one automatically
-func CreateTestStudent(tb testing.TB, db *bun.DB, firstName, lastName, schoolClass string) *users.Student {
+func CreateTestStudent(tb testing.TB, db *bun.DB, firstName, lastName, schoolClass string) *Student {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -416,11 +388,11 @@ func CreateTestStudent(tb testing.TB, db *bun.DB, firstName, lastName, schoolCla
 	person := CreateTestPerson(tb, db, firstName, lastName)
 
 	// Create student record
-	student := &users.Student{
+	student := &Student{
 		PersonID:    person.ID,
 		SchoolClass: schoolClass,
 	}
-	student.SetTenantID(fixtureTenantID(tb))
+	student.TenantID = fixtureTenantID(tb)
 
 	err := insertStudentFixture(ctx, db, student)
 	require.NoError(tb, err, "Failed to create test student")
@@ -460,7 +432,7 @@ func CreateTestEducationGroup(tb testing.TB, db *bun.DB, name string) *Education
 // CreateTestTeacher creates a real teacher in the database.
 // Teachers require a Staff record, which requires a Person record.
 // Returns the teacher with Staff reference populated for cleanup.
-func CreateTestTeacher(tb testing.TB, db *bun.DB, firstName, lastName string) *users.Teacher {
+func CreateTestTeacher(tb testing.TB, db *bun.DB, firstName, lastName string) *Teacher {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -469,10 +441,10 @@ func CreateTestTeacher(tb testing.TB, db *bun.DB, firstName, lastName string) *u
 	// Create staff first (which creates person)
 	staff := CreateTestStaff(tb, db, firstName, lastName)
 
-	teacher := &users.Teacher{
+	teacher := &Teacher{
 		StaffID: staff.ID,
 	}
-	teacher.SetTenantID(fixtureTenantID(tb))
+	teacher.TenantID = fixtureTenantID(tb)
 
 	err := db.NewInsert().
 		Model(teacher).
@@ -604,7 +576,7 @@ func CreateTestGroupSupervisor(tb testing.TB, db *bun.DB, staffID, activeGroupID
 		StaffID:   staffID,
 		GroupID:   activeGroupID,
 		Role:      role,
-		StartDate: timezone.TodayDate(),
+		StartDate: calendar.TodayDate(),
 	}
 	supervisor.TenantID = fixtureTenantID(tb)
 
@@ -634,6 +606,14 @@ func cleanupRoleRecords(tb testing.TB, db *bun.DB, roleIDs ...int64) {
 
 	_, err = db.NewDelete().
 		TableExpr("auth.account_roles").
+		Where("role_id IN (?)", bun.List(roleIDs)).
+		Exec(ctx)
+	require.NoError(tb, err)
+
+	// Invitations a test sent for the role restrict its deletion
+	// (fk_invitation_role ON DELETE RESTRICT).
+	_, err = db.NewDelete().
+		TableExpr("auth.invitation_tokens").
 		Where("role_id IN (?)", bun.List(roleIDs)).
 		Exec(ctx)
 	require.NoError(tb, err)
@@ -675,18 +655,18 @@ func cleanupPermissionRecords(tb testing.TB, db *bun.DB, permissionIDs ...int64)
 
 // CreateTestPersonWithAccountID creates a person linked to an existing account ID.
 // Use this when you already have an account and want to link a person to it.
-func CreateTestPersonWithAccountID(tb testing.TB, db *bun.DB, firstName, lastName string, accountID int64) *users.Person {
+func CreateTestPersonWithAccountID(tb testing.TB, db *bun.DB, firstName, lastName string, accountID int64) *Person {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	person := &users.Person{
+	person := &Person{
 		FirstName: firstName,
 		LastName:  lastName,
 		AccountID: &accountID,
 	}
-	person.SetTenantID(fixtureTenantID(tb))
+	person.TenantID = fixtureTenantID(tb)
 
 	err := db.NewInsert().
 		Model(person).
@@ -860,7 +840,7 @@ func hashPasswordUncached(password string) (string, error) {
 
 // CreateTestPersonWithAccount creates a person linked to an account.
 // This is needed for policy tests that look up users by account ID.
-func CreateTestPersonWithAccount(tb testing.TB, db *bun.DB, firstName, lastName string) (*users.Person, *AccountFixture) {
+func CreateTestPersonWithAccount(tb testing.TB, db *bun.DB, firstName, lastName string) (*Person, *AccountFixture) {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -870,12 +850,12 @@ func CreateTestPersonWithAccount(tb testing.TB, db *bun.DB, firstName, lastName 
 	account := CreateTestAccount(tb, db, fmt.Sprintf("%s.%s", firstName, lastName))
 
 	// Create person with account reference
-	person := &users.Person{
+	person := &Person{
 		FirstName: firstName,
 		LastName:  lastName,
 		AccountID: &account.ID,
 	}
-	person.SetTenantID(fixtureTenantID(tb))
+	person.TenantID = fixtureTenantID(tb)
 
 	err := db.NewInsert().
 		Model(person).
@@ -888,7 +868,7 @@ func CreateTestPersonWithAccount(tb testing.TB, db *bun.DB, firstName, lastName 
 
 // CreateTestStudentWithAccount creates a student with linked person and account.
 // Returns the student with PersonID set, and the associated account for auth context.
-func CreateTestStudentWithAccount(tb testing.TB, db *bun.DB, firstName, lastName, schoolClass string) (*users.Student, *AccountFixture) {
+func CreateTestStudentWithAccount(tb testing.TB, db *bun.DB, firstName, lastName, schoolClass string) (*Student, *AccountFixture) {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -898,11 +878,11 @@ func CreateTestStudentWithAccount(tb testing.TB, db *bun.DB, firstName, lastName
 	person, account := CreateTestPersonWithAccount(tb, db, firstName, lastName)
 
 	// Create student
-	student := &users.Student{
+	student := &Student{
 		PersonID:    person.ID,
 		SchoolClass: schoolClass,
 	}
-	student.SetTenantID(fixtureTenantID(tb))
+	student.TenantID = fixtureTenantID(tb)
 
 	err := insertStudentFixture(ctx, db, student)
 	require.NoError(tb, err, "Failed to create test student with account")
@@ -911,7 +891,7 @@ func CreateTestStudentWithAccount(tb testing.TB, db *bun.DB, firstName, lastName
 }
 
 // CreateTestStaffWithAccount creates a staff member with linked person and account.
-func CreateTestStaffWithAccount(tb testing.TB, db *bun.DB, firstName, lastName string) (*users.Staff, *AccountFixture) {
+func CreateTestStaffWithAccount(tb testing.TB, db *bun.DB, firstName, lastName string) (*Staff, *AccountFixture) {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -921,10 +901,10 @@ func CreateTestStaffWithAccount(tb testing.TB, db *bun.DB, firstName, lastName s
 	person, account := CreateTestPersonWithAccount(tb, db, firstName, lastName)
 
 	// Create staff
-	staff := &users.Staff{
+	staff := &Staff{
 		PersonID: person.ID,
 	}
-	staff.SetTenantID(fixtureTenantID(tb))
+	staff.TenantID = fixtureTenantID(tb)
 
 	err := insertTestStaff(ctx, db, staff)
 	require.NoError(tb, err, "Failed to create test staff with account")
@@ -942,7 +922,7 @@ func CreateTestStaffWithAccount(tb testing.TB, db *bun.DB, firstName, lastName s
 // account so FindReachableCalendarStaffIDs treats them as invitable. Use this in
 // calendar tests wherever staff must be selectable recipients. The added rows
 // inherit ownership from the account's test-tenant mapping.
-func CreateTestCalendarStaff(tb testing.TB, db *bun.DB, firstName, lastName string) (*users.Staff, *AccountFixture) {
+func CreateTestCalendarStaff(tb testing.TB, db *bun.DB, firstName, lastName string) (*Staff, *AccountFixture) {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -983,7 +963,7 @@ func CreateTestCalendarStaff(tb testing.TB, db *bun.DB, firstName, lastName stri
 
 // CreateTestTeacherWithAccount creates a teacher with full chain: Account → Person → Staff → Teacher.
 // Returns the teacher and account for auth context testing.
-func CreateTestTeacherWithAccount(tb testing.TB, db *bun.DB, firstName, lastName string) (*users.Teacher, *AccountFixture) {
+func CreateTestTeacherWithAccount(tb testing.TB, db *bun.DB, firstName, lastName string) (*Teacher, *AccountFixture) {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -993,10 +973,10 @@ func CreateTestTeacherWithAccount(tb testing.TB, db *bun.DB, firstName, lastName
 	staff, account := CreateTestStaffWithAccount(tb, db, firstName, lastName)
 
 	// Create teacher
-	teacher := &users.Teacher{
+	teacher := &Teacher{
 		StaffID: staff.ID,
 	}
-	teacher.SetTenantID(fixtureTenantID(tb))
+	teacher.TenantID = fixtureTenantID(tb)
 
 	err := db.NewInsert().
 		Model(teacher).
@@ -1131,22 +1111,29 @@ func AssignLehrkraftSystemRole(tb testing.TB, db *bun.DB, accountID, tenantID in
 }
 
 // GrantTestPermission grants a seeded permission (by name, e.g.
-// "config:manage") directly to an account at one school, the way a school
-// hands one right to one person.
+// "config:manage") to an account at one school through a dedicated school
+// role, the way a school hands one right to one person. Direct account grants
+// are retired (#4485), so the right always travels through a role.
 func GrantTestPermission(tb testing.TB, db *bun.DB, tenantID, accountID int64, permissionName string) {
 	tb.Helper()
+
+	role := CreateTestRoleForTenant(tb, db, "grant-"+permissionName, tenantID)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	result, err := db.ExecContext(ctx, `
-		INSERT INTO auth.account_permissions (tenant_id, account_id, permission_id, granted)
-		SELECT ?, ?, id, TRUE FROM auth.permissions WHERE name = ?`,
-		tenantID, accountID, permissionName)
+		INSERT INTO auth.role_permissions (role_id, permission_id)
+		SELECT ?, id FROM auth.permissions WHERE name = ?`,
+		role.ID, permissionName)
 	require.NoError(tb, err, "Failed to grant test permission")
 	rows, err := result.RowsAffected()
 	require.NoError(tb, err)
 	require.EqualValues(tb, 1, rows, "the seeded permission %s must exist", permissionName)
+	_, err = db.ExecContext(ctx,
+		"INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)",
+		accountID, role.ID, tenantID)
+	require.NoError(tb, err, "Failed to assign test permission role")
 }
 
 // CreateTestPermission creates a permission in the database.
@@ -1277,7 +1264,7 @@ func LinkRFIDToStudent(tb testing.TB, db *bun.DB, personID int64, tagID string) 
 }
 
 // CreateTestGuardianProfile creates a guardian profile in the database.
-func CreateTestGuardianProfile(tb testing.TB, db *bun.DB, email string) *users.GuardianProfile {
+func CreateTestGuardianProfile(tb testing.TB, db *bun.DB, email string) *GuardianProfile {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -1286,14 +1273,14 @@ func CreateTestGuardianProfile(tb testing.TB, db *bun.DB, email string) *users.G
 	// Make email unique
 	uniqueEmail := fmt.Sprintf(testEmailFormat, email, uniqueFixtureSuffix())
 
-	profile := &users.GuardianProfile{
+	profile := &GuardianProfile{
 		FirstName:              "Guardian",
 		LastName:               "Test",
 		Email:                  &uniqueEmail,
 		PreferredContactMethod: "email",
 		LanguagePreference:     "de",
 	}
-	profile.SetTenantID(fixtureTenantID(tb))
+	profile.TenantID = fixtureTenantID(tb)
 
 	err := db.NewInsert().
 		Model(profile).
@@ -1310,7 +1297,7 @@ func CreateTestGuardianProfile(tb testing.TB, db *bun.DB, email string) *users.G
 
 // CreateTestGroupSubstitution creates a teacher substitution record.
 // regularStaffID can be nil if no regular staff is being substituted.
-func CreateTestGroupSubstitution(tb testing.TB, db *bun.DB, groupID int64, regularStaffID *int64, substituteStaffID int64, startDate, endDate timezone.Date) *EducationGroupSubstitution {
+func CreateTestGroupSubstitution(tb testing.TB, db *bun.DB, groupID int64, regularStaffID *int64, substituteStaffID int64, startDate, endDate calendar.Date) *EducationGroupSubstitution {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -1339,38 +1326,38 @@ func CreateTestGroupSubstitution(tb testing.TB, db *bun.DB, groupID int64, regul
 	return substitution
 }
 
-// CreateTestGuest creates a guest instructor in the database.
+// CreateTestExternalCaregiverRecord creates an external caregiver record.
 // This requires a Staff record, which is created automatically.
-func CreateTestGuest(tb testing.TB, db *bun.DB, expertise string) *users.Guest {
+func CreateTestExternalCaregiverRecord(tb testing.TB, db *bun.DB, expertise string) *ExternalCaregiverRecord {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	// Create staff first (which creates person)
-	staff := CreateTestStaff(tb, db, "Guest", "Instructor")
+	staff := CreateTestStaff(tb, db, "Extern", "Kursleitung")
 
-	guest := &users.Guest{
+	record := &ExternalCaregiverRecord{
 		StaffID:           staff.ID,
 		ActivityExpertise: expertise,
 		Organization:      "Test Organization",
 	}
-	guest.SetTenantID(fixtureTenantID(tb))
+	record.TenantID = fixtureTenantID(tb)
 
 	err := db.NewInsert().
-		Model(guest).
-		ModelTableExpr(`users.guests`).
+		Model(record).
+		ModelTableExpr(`users.external_caregivers`).
 		Scan(ctx)
-	require.NoError(tb, err, "Failed to create test guest")
+	require.NoError(tb, err, "Failed to create test external caregiver record")
 
 	// Store staff reference for cleanup
-	guest.Staff = staff
+	record.Staff = staff
 
-	return guest
+	return record
 }
 
 // This requires a Student, which is created automatically.
-func CreateTestPrivacyConsent(tb testing.TB, db *bun.DB, prefix string) *users.PrivacyConsent {
+func CreateTestPrivacyConsent(tb testing.TB, db *bun.DB, prefix string) *PrivacyConsent {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -1383,7 +1370,7 @@ func CreateTestPrivacyConsent(tb testing.TB, db *bun.DB, prefix string) *users.P
 	expiresAt := now.AddDate(1, 0, 0) // 1 year from now
 	durationDays := 365
 
-	consent := &users.PrivacyConsent{
+	consent := &PrivacyConsent{
 		StudentID:         student.ID,
 		PolicyVersion:     "v1.0",
 		Accepted:          true,
@@ -1393,7 +1380,7 @@ func CreateTestPrivacyConsent(tb testing.TB, db *bun.DB, prefix string) *users.P
 		RenewalRequired:   false,
 		DataRetentionDays: 30,
 	}
-	consent.SetTenantID(fixtureTenantID(tb))
+	consent.TenantID = fixtureTenantID(tb)
 
 	err := db.NewInsert().
 		Model(consent).
@@ -1401,29 +1388,7 @@ func CreateTestPrivacyConsent(tb testing.TB, db *bun.DB, prefix string) *users.P
 		Scan(ctx)
 	require.NoError(tb, err, "Failed to create test privacy consent")
 
-	// Store student reference for cleanup
-	consent.Student = student
-
 	return consent
-}
-
-// CreateTestParentAccount creates a legacy guardian-link account and returns its ID.
-func CreateTestParentAccount(tb testing.TB, db *bun.DB, email string) int64 {
-	tb.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	// Make email unique
-	uniqueEmail := fmt.Sprintf(testEmailFormat, email, uniqueFixtureSuffix())
-	username := fmt.Sprintf("parent-%d", uniqueFixtureSuffix())
-
-	var accountID int64
-	err := db.NewRaw(`INSERT INTO auth.accounts_parents (tenant_id, email, username, active)
-		VALUES (?, ?, ?, TRUE) RETURNING id`, fixtureTenantID(tb), uniqueEmail, username).Scan(ctx, &accountID)
-	require.NoError(tb, err, "Failed to create test parent account")
-
-	return accountID
 }
 
 // ============================================================================
@@ -1575,39 +1540,18 @@ func GetOrCreateTestRole(tb testing.TB, db *bun.DB, name string) *RoleFixture {
 // JWT Test Helpers
 // ============================================================================
 
-// TestJWTSecret is the fixed secret shared by test routers and token helpers.
+// TestJWTSecret is generated once per binary and shared by test routers and token helpers.
 // Never use it outside tests.
-const TestJWTSecret = "test-jwt-secret-32-chars-minimum"
+var TestJWTSecret = NewTestSigningSecret()
 
 // GetTestTokenAuth returns a TokenAuth instance for testing.
 // A fresh instance avoids shared mutable initialization between parallel tests.
-func GetTestTokenAuth(tb testing.TB) *jwt.TokenAuth {
+func GetTestTokenAuth(tb testing.TB) *sessiontoken.TokenAuth {
 	tb.Helper()
 
-	tokenAuth, err := jwt.NewTokenAuthWithDurations(TestJWTSecret, 15*time.Minute, time.Hour)
+	tokenAuth, err := sessiontoken.NewTokenAuthWithDurations(TestJWTSecret, 15*time.Minute, time.Hour)
 	require.NoError(tb, err, "Failed to create test TokenAuth")
 	return tokenAuth
-}
-
-// CreateTestJWT creates a valid JWT access token for the given account ID.
-// This token can be used in the Authorization header for authenticated API requests.
-func CreateTestJWT(tb testing.TB, accountID int64, permissions []string) string {
-	tb.Helper()
-
-	tokenAuth := GetTestTokenAuth(tb)
-
-	claims := jwt.AppClaims{
-		ID:          int(accountID),
-		Sub:         fmt.Sprintf("%d", accountID), // Required claim - subject identifier
-		Roles:       []string{"user"},
-		Permissions: permissions,
-		TenantID:    fixtureTenantID(tb),
-	}
-
-	token, err := tokenAuth.CreateJWT(claims)
-	require.NoError(tb, err, "Failed to create test JWT")
-
-	return token
 }
 
 // ============================================================================
@@ -1788,17 +1732,17 @@ func EnsureAccountTenant(tb testing.TB, db *bun.DB, accountID, tenantID int64) {
 }
 
 // CreateTestPersonForTenant creates a person belonging to a specific tenant.
-func CreateTestPersonForTenant(tb testing.TB, db *bun.DB, tenantID int64, firstName, lastName string) *users.Person {
+func CreateTestPersonForTenant(tb testing.TB, db *bun.DB, tenantID int64, firstName, lastName string) *Person {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	person := &users.Person{
+	person := &Person{
 		FirstName: firstName,
 		LastName:  lastName,
 	}
-	person.SetTenantID(tenantID)
+	person.TenantID = tenantID
 
 	err := db.NewInsert().
 		Model(person).
@@ -1810,7 +1754,7 @@ func CreateTestPersonForTenant(tb testing.TB, db *bun.DB, tenantID int64, firstN
 }
 
 // CreateTestStudentForTenant creates a student (and person) belonging to a specific tenant.
-func CreateTestStudentForTenant(tb testing.TB, db *bun.DB, tenantID int64, firstName, lastName, className string) *users.Student {
+func CreateTestStudentForTenant(tb testing.TB, db *bun.DB, tenantID int64, firstName, lastName, className string) *Student {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -1819,16 +1763,15 @@ func CreateTestStudentForTenant(tb testing.TB, db *bun.DB, tenantID int64, first
 	// Create person first (Student has FK to Person)
 	person := CreateTestPersonForTenant(tb, db, tenantID, firstName, lastName)
 
-	student := &users.Student{
+	student := &Student{
 		PersonID:    person.ID,
 		SchoolClass: className,
 	}
-	student.SetTenantID(tenantID)
+	student.TenantID = tenantID
 
 	err := insertStudentFixture(ctx, db, student)
 	require.NoError(tb, err, "Failed to create test student for tenant")
 
-	student.Person = person
 	return student
 }
 
@@ -1990,7 +1933,7 @@ func CreateTestTokenForTenant(tb testing.TB, db *bun.DB, tenantID int64, account
 }
 
 // CreateTestStaffForTenant creates a staff member (and person) belonging to a specific tenant.
-func CreateTestStaffForTenant(tb testing.TB, db *bun.DB, tenantID int64, firstName, lastName string) *users.Staff {
+func CreateTestStaffForTenant(tb testing.TB, db *bun.DB, tenantID int64, firstName, lastName string) *Staff {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -1998,10 +1941,10 @@ func CreateTestStaffForTenant(tb testing.TB, db *bun.DB, tenantID int64, firstNa
 
 	person := CreateTestPersonForTenant(tb, db, tenantID, firstName, lastName)
 
-	staff := &users.Staff{
+	staff := &Staff{
 		PersonID: person.ID,
 	}
-	staff.SetTenantID(tenantID)
+	staff.TenantID = tenantID
 
 	err := insertTestStaff(ctx, db, staff)
 	require.NoError(tb, err, "Failed to create test staff for tenant")
@@ -2015,7 +1958,7 @@ func CreateTestStaffForTenant(tb testing.TB, db *bun.DB, tenantID int64, firstNa
 // also needs the account's tenant mapping, roles, or the school row itself —
 // those all hang off the tenant id, and tenant 1 is shared with every other
 // package running in parallel.
-func CreateTestStaffWithAccountForTenant(tb testing.TB, db *bun.DB, tenantID int64, firstName, lastName string) (*users.Staff, *AccountFixture) {
+func CreateTestStaffWithAccountForTenant(tb testing.TB, db *bun.DB, tenantID int64, firstName, lastName string) (*Staff, *AccountFixture) {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -2023,20 +1966,20 @@ func CreateTestStaffWithAccountForTenant(tb testing.TB, db *bun.DB, tenantID int
 
 	account := CreateTestAccount(tb, db, fmt.Sprintf("%s.%s", firstName, lastName))
 
-	person := &users.Person{
+	person := &Person{
 		FirstName: firstName,
 		LastName:  lastName,
 		AccountID: &account.ID,
 	}
-	person.SetTenantID(tenantID)
+	person.TenantID = tenantID
 	err := db.NewInsert().
 		Model(person).
 		ModelTableExpr(`users.persons`).
 		Scan(ctx)
 	require.NoError(tb, err, "Failed to create test person with account for tenant")
 
-	staff := &users.Staff{PersonID: person.ID}
-	staff.SetTenantID(tenantID)
+	staff := &Staff{PersonID: person.ID}
+	staff.TenantID = tenantID
 	err = insertTestStaff(ctx, db, staff)
 	require.NoError(tb, err, "Failed to create test staff with account for tenant")
 
@@ -2182,20 +2125,22 @@ func CreateTestActiveGroupWithIDsForTenant(tb testing.TB, db *bun.DB, tenantID, 
 }
 
 // CreateTestDataDeletionForTenant creates a data deletion audit record belonging to a specific tenant.
-func CreateTestDataDeletionForTenant(tb testing.TB, db *bun.DB, tenantID int64, studentID int64) *audit.DataDeletion {
+func CreateTestDataDeletionForTenant(tb testing.TB, db *bun.DB, tenantID int64, studentID int64) *DataDeletion {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	deletion := audit.NewDataDeletion(
-		studentID,
-		audit.DeletionTypeManual,
-		10,
-		"test-system",
-	)
-	deletion.SetTenantID(tenantID)
-	deletion.DeletionReason = "Tenant isolation test"
+	deletion := &DataDeletion{
+		TenantID:       tenantID,
+		StudentID:      &studentID,
+		DeletionType:   "manual",
+		RecordsDeleted: 10,
+		DeletionReason: "Tenant isolation test",
+		DeletedBy:      "test-system",
+		DeletedAt:      time.Now(),
+		Metadata:       map[string]any{},
+	}
 
 	_, err := db.NewInsert().
 		Model(deletion).
@@ -2436,7 +2381,7 @@ func CreateTestArrivalException(tb testing.TB, db *bun.DB, studentID int64, date
 
 	row := &StudentArrivalException{
 		StudentID:     studentID,
-		ExceptionDate: timezone.Date(date.String()),
+		ExceptionDate: calendar.Date(date.String()),
 		CreatedBy:     staffID,
 	}
 	if arrivalHHMM != "" {
@@ -2489,7 +2434,7 @@ func CreateTestPickupException(tb testing.TB, db *bun.DB, studentID int64, date 
 
 	row := &StudentPickupException{
 		StudentID:     studentID,
-		ExceptionDate: timezone.Date(date.String()),
+		ExceptionDate: calendar.Date(date.String()),
 		CreatedBy:     staffID,
 	}
 	if pickupHHMM != "" {
@@ -2530,8 +2475,8 @@ type ActivityInstanceOpts struct {
 
 // Date returns a calendar date for callers that should not depend on the
 // application's date implementation directly.
-func Date(year int, month time.Month, day int) timezone.Date {
-	return timezone.NewDate(year, month, day)
+func Date(year int, month time.Month, day int) calendar.Date {
+	return calendar.NewDate(year, month, day)
 }
 
 type CalendarDate interface {
@@ -2539,15 +2484,15 @@ type CalendarDate interface {
 }
 
 // TodayDate returns today's Berlin calendar date for fixture setup.
-func TodayDate() timezone.Date {
-	return timezone.TodayDate()
+func TodayDate() calendar.Date {
+	return calendar.TodayDate()
 }
 
 // WallClock returns a normalized clock-only value (PostgreSQL TIME) for
 // callers that should not depend on the application's time implementation
 // directly.
 func WallClock(hour, minute int) time.Time {
-	return timezone.NormalizeWallClock(time.Date(1, time.January, 1, hour, minute, 0, 0, time.UTC))
+	return calendar.NormalizeWallClock(time.Date(1, time.January, 1, hour, minute, 0, 0, time.UTC))
 }
 
 // CreateTestActivityInstance inserts a schedule.activity_instances row.
@@ -2570,7 +2515,7 @@ func CreateTestCompletedInstanceWithStudentForTenant(tb testing.TB, db *bun.DB, 
 	room := CreateTestRoomForTenant(tb, db, tenantID, fmt.Sprintf("AC-Room-%d", suffix))
 	student := CreateTestStudentForTenant(tb, db, tenantID, "AC-Stu", fmt.Sprintf("Child-%d", suffix), "2a")
 	instance := CreateTestActivityInstanceForTenant(tb, db, tenantID,
-		timezone.NewDate(2026, 4, 22), room.ID, ActivityInstanceOpts{
+		calendar.NewDate(2026, 4, 22), room.ID, ActivityInstanceOpts{
 			Title:  fmt.Sprintf("AC-Instance-%d", suffix),
 			Status: ScheduleInstanceStatusCompleted,
 		})
@@ -2609,7 +2554,7 @@ func CreateTestActivityInstanceForTenant(tb testing.TB, db *bun.DB, tenantID int
 	}
 
 	row := &ActivityInstance{
-		Date:             timezone.Date(date.String()),
+		Date:             calendar.Date(date.String()),
 		ActivityGroupID:  opts.ActivityGroupID,
 		CalendarPeriodID: opts.CalendarPeriodID,
 		ActiveGroupID:    opts.ActiveGroupID,
@@ -2622,16 +2567,6 @@ func CreateTestActivityInstanceForTenant(tb testing.TB, db *bun.DB, tenantID int
 	}
 	row.TenantID = tenantID
 
-	if !presenceStorageContracted(tb, db) {
-		// A migration test restored the old execution columns in its own
-		// clone; they are the storage there.
-		_, err := db.NewInsert().
-			Model(row).
-			ModelTableExpr(`schedule.activity_instances`).
-			Exec(ctx)
-		require.NoError(tb, err, "Failed to create test activity instance")
-		return row
-	}
 	// Timetable plans the block, Student Presence runs it (#2762, #2763): a
 	// running or completed block is a planned row plus its session.
 	InsertActivityInstanceRow(tb, ctx, db, row)
@@ -2652,8 +2587,8 @@ func CreateTestCalendarPeriod(tb testing.TB, db *bun.DB, name string, start, end
 	row := &CalendarPeriod{
 		Name:            name,
 		PeriodType:      SchedulePeriodTypeCustom,
-		StartDate:       timezone.Date(start.String()),
-		EndDate:         timezone.Date(end.String()),
+		StartDate:       calendar.Date(start.String()),
+		EndDate:         calendar.Date(end.String()),
 		WeekCycleLength: 1,
 		IsActive:        false,
 	}
@@ -2696,13 +2631,13 @@ func CreateTestWeekCyclePeriodForTenant(tb testing.TB, db *bun.DB, tenantID int6
 	row := &CalendarPeriod{
 		Name:            name,
 		PeriodType:      SchedulePeriodTypeCustom,
-		StartDate:       timezone.Date(start.String()),
-		EndDate:         timezone.Date(end.String()),
+		StartDate:       calendar.Date(start.String()),
+		EndDate:         calendar.Date(end.String()),
 		WeekCycleLength: cycleLength,
 		IsActive:        true,
 	}
 	if anchor != nil {
-		value := timezone.Date(anchor.String())
+		value := calendar.Date(anchor.String())
 		row.WeekCycleAnchor = &value
 	}
 	row.TenantID = tenantID
@@ -2723,7 +2658,7 @@ func CreateTestClosingDay(tb testing.TB, db *bun.DB, start, end CalendarDate, re
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	row := &ClosingDay{StartDate: timezone.Date(start.String()), EndDate: timezone.Date(end.String()), Reason: reason}
+	row := &ClosingDay{StartDate: calendar.Date(start.String()), EndDate: calendar.Date(end.String()), Reason: reason}
 	row.TenantID = fixtureTenantID(tb)
 
 	_, err := db.NewInsert().
@@ -2751,37 +2686,6 @@ func CreateTestDateframe(tb testing.TB, db *bun.DB, name string, start, end time
 		Exec(ctx)
 	require.NoError(tb, err, "Failed to create test dateframe")
 	return row
-}
-
-// StaffNoticeOpts controls optional fields for NewTestStaffNotice.
-type StaffNoticeOpts struct {
-	Important               bool // default priority is "info"
-	ValidUntil              *timezone.Date
-	Inactive                bool
-	RequiresAcknowledgement bool
-}
-
-// NewTestStaffNotice builds an unsaved Tagesinformation (#2180) with the
-// fields a repository test needs: every day of the week, no week pattern,
-// active unless opts.Inactive. It does not touch the database — the
-// repository under test persists it, so the fixture stays out of that path.
-func NewTestStaffNotice(tb testing.TB, title string, validFrom timezone.Date, createdBy int64, opts StaffNoticeOpts) *users.StaffNotice {
-	tb.Helper()
-
-	priority := users.StaffNoticePriorityInfo
-	if opts.Important {
-		priority = users.StaffNoticePriorityImportant
-	}
-	return &users.StaffNotice{
-		Title:                   title,
-		Priority:                priority,
-		ValidFrom:               validFrom,
-		ValidUntil:              opts.ValidUntil,
-		Weekdays:                []int16{},
-		RequiresAcknowledgement: opts.RequiresAcknowledgement,
-		Active:                  !opts.Inactive,
-		CreatedBy:               createdBy,
-	}
 }
 
 // StaffShiftOpts controls optional fields for CreateTestStaffShift.
@@ -2813,7 +2717,7 @@ func CreateTestStaffShift(tb testing.TB, db *bun.DB, staffID int64, date Calenda
 
 	row := &StaffShift{
 		StaffID:     staffID,
-		Date:        timezone.Date(date.String()),
+		Date:        calendar.Date(date.String()),
 		StartTime:   parseTimeHHMM(tb, startHHMM),
 		EndTime:     parseTimeHHMM(tb, endHHMM),
 		Notes:       opts.Notes,
@@ -2879,16 +2783,6 @@ func CreateTestInstanceStudent(tb testing.TB, db *bun.DB, instanceID, studentID 
 	}
 	row.TenantID = fixtureTenantID(tb)
 
-	if !presenceStorageContracted(tb, db) {
-		// A migration test restored the old attendance columns in its own
-		// clone; they are the storage there.
-		_, err := db.NewInsert().
-			Model(row).
-			ModelTableExpr(`schedule.instance_students`).
-			Exec(ctx)
-		require.NoError(tb, err, "Failed to create test instance student")
-		return row
-	}
 	// Timetable plans the participant, Student Presence records the
 	// attendance (#2762, #2763). A missing attendance row means expected.
 	InsertInstanceStudentRow(tb, ctx, db, row)
@@ -2906,7 +2800,7 @@ type (
 // excused / class trip) for a student on a date. Callers that pass its ID into
 // InstanceStudentOpts.StudentStatusDayID reproduce the state ApplyStatusDay
 // leaves behind: a slot absence the day status owns. The package clone owns it.
-func CreateTestStudentStatusDay(tb testing.TB, db *bun.DB, studentID int64, date timezone.Date, status string) *StudentStatusDayRow {
+func CreateTestStudentStatusDay(tb testing.TB, db *bun.DB, studentID int64, date calendar.Date, status string) *StudentStatusDayRow {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -2997,7 +2891,7 @@ func CreateTestParentGuardianChain(tb testing.TB, db *bun.DB) ParentChain {
 	student := CreateTestStudent(tb, db, "Felix", "Schneider", "1a")
 	account := CreateTestAccount(tb, db, "parent")
 
-	profile := &users.GuardianProfile{
+	profile := &GuardianProfile{
 		FirstName:              "Sabine",
 		LastName:               "Schneider",
 		Email:                  &account.Email,
@@ -3006,11 +2900,11 @@ func CreateTestParentGuardianChain(tb testing.TB, db *bun.DB) ParentChain {
 		PreferredContactMethod: "email",
 		LanguagePreference:     "de",
 	}
-	profile.SetTenantID(fixtureTenantID(tb))
+	profile.TenantID = fixtureTenantID(tb)
 	_, err := db.NewInsert().Model(profile).ModelTableExpr(`users.guardian_profiles`).Exec(ctx)
 	require.NoError(tb, err, "Failed to create test guardian profile")
 
-	link := &users.StudentGuardian{
+	link := &StudentGuardian{
 		StudentID:          student.ID,
 		GuardianProfileID:  profile.ID,
 		RelationshipType:   "parent",
@@ -3020,7 +2914,7 @@ func CreateTestParentGuardianChain(tb testing.TB, db *bun.DB) ParentChain {
 	}
 	ApplyStudentGuardianRole(link, securityruntime.GuardianRolePrimaryGuardian)
 	link.IsPrimary = true
-	link.SetTenantID(fixtureTenantID(tb))
+	link.TenantID = fixtureTenantID(tb)
 	require.NoError(tb, InsertTestStudentGuardian(ctx, db, link), "Failed to create student guardian link")
 
 	now := time.Now()
@@ -3071,13 +2965,13 @@ func CreateTestParentGuardianChain(tb testing.TB, db *bun.DB) ParentChain {
 // the current test tenant covering the current school year.
 func CreateTestEnrollmentPhase(tb testing.TB, db *bun.DB) *enrollmentOwner.Phase {
 	tb.Helper()
-	return createTestEnrollmentPhase(tb, db, nil, timezone.TodayDate())
+	return createTestEnrollmentPhase(tb, db, nil, calendar.TodayDate())
 }
 
 // CreateTestEnrollmentPhaseAround creates the same phase around a fixed day.
 // Tests that run their services on a fixed clock use it, so the phase still
 // covers their "today" when the real date has moved on.
-func CreateTestEnrollmentPhaseAround(tb testing.TB, db *bun.DB, today timezone.Date) *enrollmentOwner.Phase {
+func CreateTestEnrollmentPhaseAround(tb testing.TB, db *bun.DB, today calendar.Date) *enrollmentOwner.Phase {
 	tb.Helper()
 	return createTestEnrollmentPhase(tb, db, nil, today)
 }
@@ -3085,7 +2979,7 @@ func CreateTestEnrollmentPhaseAround(tb testing.TB, db *bun.DB, today timezone.D
 // CreateTestEnrollmentPhaseForCalendarPeriod creates a phase linked to a real planning period.
 func CreateTestEnrollmentPhaseForCalendarPeriod(tb testing.TB, db *bun.DB, periodID int64) *enrollmentOwner.Phase {
 	tb.Helper()
-	return createTestEnrollmentPhase(tb, db, &periodID, timezone.TodayDate())
+	return createTestEnrollmentPhase(tb, db, &periodID, calendar.TodayDate())
 }
 
 // CreateTestEnrollmentRequestAwaitingGuardian submits a public enrollment
@@ -3102,18 +2996,18 @@ func CreateTestEnrollmentRequestAwaitingGuardian(tb testing.TB, db *bun.DB, phas
 		GuardianEmail:     guardianEmail,
 		ConsentFlags:      []byte("{}"),
 		CustomData:        []byte("{}"),
-		SubmissionSource:  enrollment.RequestSourcePublic,
+		SubmissionSource:  enrollmentOwner.RequestSourcePublic,
 		SourceMetadata:    []byte("{}"),
 		StatusToken:       statusToken,
 		SubmittedAt:       time.Now(),
 	}
-	if err := enrollmentOwner.New().InsertRequest(ctx, request); err != nil {
+	if err := insertEnrollmentRequest(tb, ctx, db, request); err != nil {
 		tb.Fatalf("create test enrollment request: %v", err)
 	}
 	return request
 }
 
-func createTestEnrollmentPhase(tb testing.TB, db *bun.DB, periodID *int64, today timezone.Date) *enrollmentOwner.Phase {
+func createTestEnrollmentPhase(tb testing.TB, db *bun.DB, periodID *int64, today calendar.Date) *enrollmentOwner.Phase {
 	tb.Helper()
 	ctx := WithTenantRuntime(tb, TenantContext(fixtureTenantID(tb)), db)
 	phase := &enrollmentOwner.Phase{
@@ -3126,7 +3020,7 @@ func createTestEnrollmentPhase(tb testing.TB, db *bun.DB, periodID *int64, today
 		CalendarPeriodID:          periodID,
 		IsActive:                  true,
 	}
-	err := enrollmentOwner.New().InsertPhase(ctx, phase)
+	err := insertEnrollmentPhase(tb, ctx, db, phase)
 	if err != nil {
 		tb.Fatalf("create test enrollment phase: %v", err)
 	}
@@ -3135,13 +3029,13 @@ func createTestEnrollmentPhase(tb testing.TB, db *bun.DB, periodID *int64, today
 
 // CreateTestCareOffering creates a minimal active care offering in the given
 // phase (fixed Mo-Fr).
-func CreateTestCareOffering(tb testing.TB, db *bun.DB, phaseID int64, name string) *enrollment.CareOffering {
+func CreateTestCareOffering(tb testing.TB, db *bun.DB, phaseID int64, name string) *CareOffering {
 	tb.Helper()
 	ctx := TenantContext(fixtureTenantID(tb))
-	offering := &enrollment.CareOffering{
+	offering := &CareOffering{
 		PhaseID:            phaseID,
 		Name:               fmt.Sprintf("%s-%d", name, uniqueFixtureSuffix()),
-		DaysOfWeekMode:     enrollment.DaysOfWeekModeFixed,
+		DaysOfWeekMode:     enrollmentOwner.DaysOfWeekModeFixed,
 		AvailableDays:      []string{"mon", "tue", "wed", "thu", "fri"},
 		AutoAddGradeLevels: []int{},
 		IsActive:           true,
@@ -3154,23 +3048,23 @@ func CreateTestCareOffering(tb testing.TB, db *bun.DB, phaseID int64, name strin
 
 // CreateTestClassListEntry creates a class-list-only entry (#2382) for the
 // default test tenant, with cleanup (entry + audit trail) registered.
-func CreateTestClassListEntry(tb testing.TB, db *bun.DB, firstName, lastName, schoolClass string) *users.ClassListEntry {
+func CreateTestClassListEntry(tb testing.TB, db *bun.DB, firstName, lastName, schoolClass string) *ClassListEntry {
 	tb.Helper()
 	return CreateTestClassListEntryForTenant(tb, db, fixtureTenantID(tb), firstName, lastName, schoolClass)
 }
 
 // CreateTestClassListEntryForTenant creates a class-list-only entry (#2382)
 // for a specific tenant, with cleanup (entry + audit trail) registered.
-func CreateTestClassListEntryForTenant(tb testing.TB, db *bun.DB, tenantID int64, firstName, lastName, schoolClass string) *users.ClassListEntry {
+func CreateTestClassListEntryForTenant(tb testing.TB, db *bun.DB, tenantID int64, firstName, lastName, schoolClass string) *ClassListEntry {
 	tb.Helper()
 	ctx := TenantContext(tenantID)
-	entry := &users.ClassListEntry{
+	entry := &ClassListEntry{
 		FirstName:   firstName,
 		LastName:    lastName,
 		SchoolClass: schoolClass,
 	}
-	entry.SetTenantID(tenantID)
-	_, err := db.NewInsert().Model(entry).ModelTableExpr(`users.class_list_entries AS "class_list_entry"`).Returning("*").Exec(ctx)
+	entry.TenantID = tenantID
+	_, err := db.NewInsert().Model(entry).ModelTableExpr(`users.class_list_entries AS "class_list_entry"`).Returning("id, created_at, updated_at").Exec(ctx)
 	if err != nil {
 		tb.Fatalf("create test class list entry: %v", err)
 	}
@@ -3208,7 +3102,7 @@ func CreateTestCoGuardianForStudent(
 	defer cancel()
 
 	account := CreateTestAccount(tb, db, "co-guardian")
-	profile := &users.GuardianProfile{
+	profile := &GuardianProfile{
 		FirstName:              firstName,
 		LastName:               lastName,
 		Email:                  &account.Email,
@@ -3217,11 +3111,11 @@ func CreateTestCoGuardianForStudent(
 		PreferredContactMethod: "email",
 		LanguagePreference:     "de",
 	}
-	profile.SetTenantID(fixtureTenantID(tb))
+	profile.TenantID = fixtureTenantID(tb)
 	_, err := db.NewInsert().Model(profile).ModelTableExpr(`users.guardian_profiles`).Exec(ctx)
 	require.NoError(tb, err, "Failed to create co-guardian profile")
 
-	link := &users.StudentGuardian{
+	link := &StudentGuardian{
 		StudentID:          studentID,
 		GuardianProfileID:  profile.ID,
 		RelationshipType:   "parent",
@@ -3231,7 +3125,7 @@ func CreateTestCoGuardianForStudent(
 	}
 	// A co-guardian, not the primary one: same portal access, no primacy.
 	ApplyStudentGuardianRole(link, securityruntime.GuardianRoleCoGuardian)
-	link.SetTenantID(fixtureTenantID(tb))
+	link.TenantID = fixtureTenantID(tb)
 	require.NoError(tb, InsertTestStudentGuardian(ctx, db, link), "Failed to link co-guardian to student")
 
 	now := time.Now()
@@ -3270,20 +3164,20 @@ func CreateTestCoGuardianForStudent(
 //
 // It stays a draft: publishing is a service concern, and the callers that need
 // a live announcement publish it themselves.
-func CreateTestParentAnnouncement(tb testing.TB, db *bun.DB, createdBy int64, title string) *users.ParentAnnouncement {
+func CreateTestParentAnnouncement(tb testing.TB, db *bun.DB, createdBy int64, title string) *ParentAnnouncement {
 	tb.Helper()
 	ctx := TenantContext(fixtureTenantID(tb))
-	announcement := &users.ParentAnnouncement{
+	announcement := &ParentAnnouncement{
 		Title:     fmt.Sprintf("%s-%d", title, uniqueFixtureSuffix()),
 		Body:      "Testinhalt.",
-		Priority:  users.ParentAnnouncementPriorityInfo,
+		Priority:  "info",
 		Active:    true,
 		CreatedBy: createdBy,
 	}
-	announcement.SetTenantID(fixtureTenantID(tb))
+	announcement.TenantID = fixtureTenantID(tb)
 	_, err := db.NewInsert().Model(announcement).
 		ModelTableExpr(`users.parent_announcements AS "parent_announcement"`).
-		Returning("*").Exec(ctx)
+		Returning("id, created_at, updated_at").Exec(ctx)
 	if err != nil {
 		tb.Fatalf("create test parent announcement: %v", err)
 	}

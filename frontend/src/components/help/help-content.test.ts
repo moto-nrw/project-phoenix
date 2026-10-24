@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { HELP_TOPICS } from "~/lib/help-topics";
 import {
   getHelpTopics,
   helpTopicMatchesRole,
@@ -63,4 +64,16 @@ describe("help overview icons", () => {
       }
     }
   }
+});
+
+describe("data management help", () => {
+  it("only promises counts on the tiles that show them", () => {
+    const topic = getHelpTopics("detailed").find(
+      ({ id }) => id === HELP_TOPICS.dataManagement,
+    );
+
+    expect(topic?.result).toBe(
+      "Jede Kachel führt in ihren Bereich. Auf manchen Kacheln steht, wie viele Einträge es gibt.",
+    );
+  });
 });

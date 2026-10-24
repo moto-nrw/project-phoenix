@@ -13,13 +13,15 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -33,7 +35,7 @@ type unreadEnv struct {
 	router   http.Handler
 	tenantID int64
 	phaseID  int64
-	repos    repositories.EnrollmentTestRepositories
+	repos    api.EnrollmentTestRepositories
 	requests enrollmentAPI.RequestService
 }
 
@@ -43,8 +45,10 @@ func setupUnreadTest(t *testing.T) *unreadEnv {
 	tenantID := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	ctx := testpkg.Ctx(t)
-	repos, err := repositories.NewEnrollmentTestRepositories(db, repositories.NewTestAuditStore(db))
+	repos, err := api.NewEnrollmentTestRepositories(testpkg.NewDatabase(t, db), owners.NewTestAuditStore(testpkg.NewDatabase(t, db)))
 	require.NoError(t, err)
+	reposCare := api.NewEnrollmentCarePlanRows(testpkg.NewDatabase(t, db))
+	reposSchools := api.NewOrganizationTestRows(testpkg.NewDatabase(t, db))
 	settings := stubTakeoverSettings{}
 
 	_, author := testpkg.CreateTestPersonWithAccount(t, db, "Uta", "Ungelesen")
@@ -54,27 +58,27 @@ func setupUnreadTest(t *testing.T) *unreadEnv {
 	require.NoError(t, err)
 	phase := &capability.Phase{
 		Name:             "unread-" + t.Name(),
-		Kind:             enrollmentModels.PhaseKindSchoolYear,
+		Kind:             capability.PhaseKindSchoolYear,
 		ServiceStartDate: capability.Date(calendar.NewDate(2026, 9, 1)),
 		ServiceEndDate:   capability.Date(calendar.NewDate(2027, 7, 31)),
 		IsActive:         true,
 		FormSchemaID:     &schema.ID,
-		CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
+		CareOverflowMode: capability.PhaseCareOverflowWaitlist,
 	}
 	phase.TenantID = tenantID
-	require.NoError(t, repos.Enrollment().InsertPhase(ctx, phase))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repos.Enrollment().InsertPhase, phase))
 
-	offerings := testutil.NewEnrollmentCareOfferingRecords(repos.CarePlan)
-	requests := enrollmentAPI.NewRequestService(testutil.NewEnrollmentIntake(testutil.EnrollmentIntakeSources{
+	offerings := enrollmentCompose.NewCareOfferingRecords(reposCare.CarePlan)
+	requests := newFixtureRequestRoot(owners.NewEnrollmentIntake(owners.EnrollmentIntakeSources{
 		Requests:         repos.Enrollment(),
 		ParentChanges:    repos.Enrollment(),
 		Children:         repos.Enrollment(),
 		Guardians:        repos.Enrollment(),
 		CareOfferingRepo: offerings,
-		Capacity:         testutil.NewEnrollmentOfferingCapacity(offerings, repos.Enrollment(), settings),
+		Capacity:         owners.NewEnrollmentOfferingCapacity(offerings, repos.Enrollment(), settings),
 		Catalog:          repos.Enrollment(),
-		SchoolRepo:       capabilitySchools{schools: repos.School},
-		Notifications:    NewTestNotifications(repos.Enrollment(), notifyModeSettings{settings: settings}, discardingOutbox{}, capabilitySchools{schools: repos.School}),
+		SchoolRepo:       capabilitySchools{schools: reposSchools.School},
+		Notifications:    NewTestNotifications(repos.Enrollment(), notifyModeSettings{settings: settings}, discardingOutbox{}, capabilitySchools{schools: reposSchools.School}),
 		RateLimitRepo:    repos.Enrollment(),
 		OutboxEnqueuer:   discardingOutbox{},
 		Settings:         settings,
@@ -82,18 +86,24 @@ func setupUnreadTest(t *testing.T) *unreadEnv {
 		ParentsURL:       "http://parents.localhost:3000",
 		Logger:           slog.Default(),
 	}))
-	decisions := enrollmentAPI.NewDecisionService(testutil.PublicEnrollmentDecisions(testutil.NewEnrollmentDecisions(testutil.EnrollmentDecisionSources{
-		Requests: repos.Enrollment(), Children: repos.Enrollment(),
-		Guardians: repos.Enrollment(), LateInvites: repos.Enrollment(), CareOfferings: offerings,
-		Phases: repos.Enrollment(), Schemas: repos.Enrollment(), Settings: settings,
-		ParentsURL: "http://parents.localhost:3000", Logger: slog.Default(),
+	decisions := enrollmentAPI.NewDecisionService(enrollmentCompose.PublicDecisions(owners.NewEnrollmentDecisions(enrollmentCompose.DecisionDependencies{
+		Requests:    repos.Enrollment(),
+		Children:    repos.Enrollment(),
+		Guardians:   repos.Enrollment(),
+		LateInvites: repos.Enrollment(),
+		Phases:      repos.Enrollment(),
+		Schemas:     repos.Enrollment(),
+		Offerings:   offerings,
+		ParentsURL:  owners.EnrollmentDecisionParentsURL("http://parents.localhost:3000", ""),
+		Settings:    owners.EnrollmentDecisionSettingValues(settings),
+		Logger:      slog.Default(),
 	})))
 	resource := enrollmentAPI.NewResource(
 		nil, nil, requests, nil, nil, decisions, nil, nil, nil,
 		nil, enrollmentAPI.GuardianInvitationRuntime{}, nil, nil,
-	)
+		nativeUploads.UploadFiles{}, enrollmentAPI.DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation})
 	return &unreadEnv{
-		db: db, router: testpkg.TenantRuntimeMiddleware(t, db)(resource.Router()),
+		db: db, router: testpkg.TenantRuntimeMiddleware(t, db)(resource.Router(api.TenantSessionChain)),
 		tenantID: tenantID, phaseID: phase.ID, repos: repos, requests: requests,
 	}
 }
@@ -125,7 +135,7 @@ func (env *unreadEnv) submit(t *testing.T, children int) *enrollmentAPI.SubmitRe
 func (env *unreadEnv) reader(t *testing.T, tenantID int64, permissions ...string) string {
 	t.Helper()
 	_, account := testpkg.CreateTestPersonWithAccount(t, env.db, "Lea", "Leser")
-	return testutil.MintTestJWT(t, jwt.AppClaims{
+	return testutil.MintTestJWT(t, sessiontoken.AppClaims{
 		ID: int(account.ID), Sub: account.Email, Username: "leser" + strconv.FormatInt(account.ID, 10),
 		Roles: []string{"admin"}, Permissions: permissions, TenantID: tenantID,
 	})
@@ -228,13 +238,11 @@ func TestUnreadEnrollments_ParentEditResetsButDecisionDoesNot(t *testing.T) {
 	require.Equal(t, 0, env.count(t, anna))
 
 	// An OGS decision on one child moves no parent-change stamp.
-	require.NoError(t, env.repos.Enrollment().UpdateChildStatus(testpkg.Ctx(t), submitted.Children[0].ID,
-		enrollmentModels.ChildStatusWaitlisted, nil, 0))
+	require.NoError(t, testpkg.TenantCommand4(t, testpkg.Ctx(t), env.db, env.repos.Enrollment().UpdateChildStatus, submitted.Children[0].ID, capability.ChildStatusWaitlisted, nil, 0))
 	assert.Equal(t, 0, env.count(t, anna), "an OGS decision keeps the enrollment read")
 
 	// Parent edits are accepted only while every child is submitted.
-	require.NoError(t, env.repos.Enrollment().UpdateChildStatus(testpkg.Ctx(t), submitted.Children[0].ID,
-		enrollmentModels.ChildStatusSubmitted, nil, 0))
+	require.NoError(t, testpkg.TenantCommand4(t, testpkg.Ctx(t), env.db, env.repos.Enrollment().UpdateChildStatus, submitted.Children[0].ID, capability.ChildStatusSubmitted, nil, 0))
 	rec := env.do(t, http.MethodPatch, "/requests/"+submitted.Request.StatusToken, "", `{"guardian_first_name":"Ulrike"}`)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.Equal(t, 1, env.count(t, anna), "a parent edit makes it unread again")
@@ -245,8 +253,7 @@ func TestUnreadEnrollments_RenewalConfirmationResets(t *testing.T) {
 	env := setupUnreadTest(t)
 	anna := env.reader(t, env.tenantID, managePermissions...)
 	submitted := env.submit(t, 1)
-	require.NoError(t, env.repos.Enrollment().UpdateChildStatus(testpkg.Ctx(t), submitted.Children[0].ID,
-		enrollmentModels.ChildStatusPendingRenewal, nil, 0))
+	require.NoError(t, testpkg.TenantCommand4(t, testpkg.Ctx(t), env.db, env.repos.Enrollment().UpdateChildStatus, submitted.Children[0].ID, capability.ChildStatusPendingRenewal, nil, 0))
 	require.Equal(t, http.StatusNoContent, env.do(t, http.MethodPut, idPath(submitted.Request.ID, "/read"), anna, "").Code)
 	require.Equal(t, 0, env.count(t, anna))
 
@@ -261,9 +268,9 @@ func TestUnreadEnrollments_TerminalChildrenAndInactivePhaseDoNotCount(t *testing
 	anna := env.reader(t, env.tenantID, managePermissions...)
 	closed, open := env.submit(t, 2), env.submit(t, 1)
 	ctx := testpkg.Ctx(t)
-	require.NoError(t, env.repos.Enrollment().UpdateChildStatus(ctx, closed.Children[0].ID, enrollmentModels.ChildStatusRejected, nil, 0))
+	require.NoError(t, testpkg.TenantCommand4(t, ctx, env.db, env.repos.Enrollment().UpdateChildStatus, closed.Children[0].ID, capability.ChildStatusRejected, nil, 0))
 	require.Equal(t, 2, env.count(t, anna), "one open child keeps the enrollment unread")
-	require.NoError(t, env.repos.Enrollment().UpdateChildStatus(ctx, closed.Children[1].ID, enrollmentModels.ChildStatusWithdrawn, nil, 0))
+	require.NoError(t, testpkg.TenantCommand4(t, ctx, env.db, env.repos.Enrollment().UpdateChildStatus, closed.Children[1].ID, capability.ChildStatusWithdrawn, nil, 0))
 	assert.Equal(t, 1, env.count(t, anna), "only terminal children: not counted")
 	assert.False(t, env.listUnread(t, anna)[strconv.FormatInt(closed.Request.ID, 10)])
 
@@ -279,7 +286,7 @@ func TestUnreadEnrollments_ReadOnlyPreviewDoesNotRead(t *testing.T) {
 	env := setupUnreadTest(t)
 	submitted := env.submit(t, 1)
 	_, account := testpkg.CreateTestPersonWithAccount(t, env.db, "Pia", "Preview")
-	claims := jwt.AppClaims{
+	claims := sessiontoken.AppClaims{
 		ID: int(account.ID), Sub: account.Email, Username: "preview" + strconv.FormatInt(account.ID, 10),
 		Roles: []string{"admin"}, Permissions: managePermissions, TenantID: env.tenantID,
 	}
@@ -327,9 +334,8 @@ func TestUnreadEnrollments_TenantIsolation(t *testing.T) {
 
 func TestSubmit_AdminNotificationLinksToAdminDetail(t *testing.T) {
 	t.Parallel()
-	env, cleanup := setupRequestTest(t)
-	defer cleanup()
-	env.settings.stringValues[configModel.KeyEnrollmentNotificationEmails] = "admin@example.com"
+	env := setupRequestTest(t)
+	env.settings.stringValues[settingKeyNotificationEmails] = "admin@example.com"
 
 	result, err := env.svc.Submit(testpkg.Ctx(t), validSubmission(t, env.phaseID))
 	require.NoError(t, err)

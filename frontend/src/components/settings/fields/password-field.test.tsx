@@ -54,6 +54,8 @@ describe("PasswordField", () => {
     renderWithToast(
       <PasswordField {...defaultProps} hasValue={true} disabled />,
     );
+    // Anker: die Anzeige des gesetzten Werts ist gerendert.
+    expect(screen.getByText("••••••")).toBeInTheDocument();
     expect(screen.queryByLabelText("Wert anzeigen")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Wert ändern")).not.toBeInTheDocument();
   });

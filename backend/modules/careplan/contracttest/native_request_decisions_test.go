@@ -34,7 +34,7 @@ func (d *decisionBoundary) CanReview(context.Context, compose.ReviewStudent) (bo
 	d.calls = append(d.calls, "authorize")
 	return true, nil
 }
-func (d *decisionBoundary) GuardianHasAccess(context.Context, int64, int64) (bool, error) {
+func (d *decisionBoundary) GuardianHasChildAccess(context.Context, int64, int64) (bool, error) {
 	d.calls = append(d.calls, "guardian")
 	return d.guardianAccess, nil
 }
@@ -48,8 +48,8 @@ func (d *decisionBoundary) ApplyWeekly(ctx context.Context, request *carerequest
 		PickupTime: time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC), CreatedBy: d.staffID})
 	return false, err
 }
-func (*decisionBoundary) ApplyPickup(context.Context, *carerequests.Request, *string, bool) (int64, error) {
-	return 0, errors.New("unexpected pickup application")
+func (*decisionBoundary) ApplyPickup(context.Context, *carerequests.Request, *string, bool) (carerequests.PickupApplied, error) {
+	return carerequests.PickupApplied{}, errors.New("unexpected pickup application")
 }
 func (d *decisionBoundary) RegisterDecision(context.Context, *carerequests.Request, carerequests.DecideInput, string, bool) error {
 	d.calls = append(d.calls, "effects")
@@ -68,7 +68,7 @@ func (d *decisionBoundary) RecordDecision(context.Context, *carerequests.Request
 func TestNativeRequestDecisionRollsBackAppliedPlanAndSnapshot(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	owner := careplantest.NewCarePlan(t, db)
+	owner := careplantest.NewCarePlan(t, db, testpkg.StudentDirectory{})
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "Decision", "Transaction", "1a")
 	account := testpkg.CreateTestAccount(t, db, "parent")
@@ -78,7 +78,7 @@ func TestNativeRequestDecisionRollsBackAppliedPlanAndSnapshot(t *testing.T) {
 	require.NoError(t, err)
 	boundary := &decisionBoundary{owner: owner, student: compose.ReviewStudent{ID: student.ID}, staffID: staff.ID,
 		guardianAccess: true, ledgerErr: errors.New("decision ledger unavailable")}
-	service, err := compose.NewRequestDecisions(compose.RequestDecisionDependencies{Records: owner, People: boundary, Plans: boundary,
+	service, err := compose.NewRequestDecisions(compose.RequestDecisionDependencies{Records: owner, People: boundary, Guardians: boundary, Plans: boundary,
 		Effects: boundary, Today: func() calendar.Date { return "2026-09-20" }})
 	require.NoError(t, err)
 	input := carerequests.DecideInput{RequestID: row.ID, Approve: true, ReviewedBy: reviewer.ID, ExpectedVersion: careplan.ParentRequestVersion(row.UpdatedAt)}

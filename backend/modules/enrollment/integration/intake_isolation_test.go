@@ -76,14 +76,14 @@ func TestIntakeCommandsAndRLSPreserveTenantIsolation(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			testpkg.OwnTenant(t)
 			phase := &enrollment.Phase{Name: name, ServiceStartDate: "2030-08-01", ServiceEndDate: "2031-07-31"}
-			require.NoError(t, module.InsertPhase(testpkg.Ctx(t), phase))
+			require.NoError(t, testpkg.TenantCommand1(t, testpkg.Ctx(t), db, module.InsertPhase, phase))
 			request := &enrollment.Request{
 				PhaseID: phase.ID, GuardianFirstName: "Fixture", GuardianLastName: "Guardian",
 				GuardianEmail: "intake@example.test", StatusToken: fmt.Sprintf("isolation-%d", phase.ID),
 			}
-			require.NoError(t, module.InsertRequest(testpkg.Ctx(t), request))
+			require.NoError(t, testpkg.TenantCommand1(t, testpkg.Ctx(t), db, module.InsertRequest, request))
 			child := &enrollment.RequestChild{RequestID: request.ID, FirstName: "Fixture", LastName: "Child", DateOfBirth: "2023-03-26"}
-			require.NoError(t, module.InsertChild(testpkg.Ctx(t), child))
+			require.NoError(t, testpkg.TenantCommand1(t, testpkg.Ctx(t), db, module.InsertChild, child))
 			require.Equal(t, testpkg.Tenant(t), request.TenantID)
 			require.Equal(t, testpkg.Tenant(t), child.TenantID)
 			requests = append(requests, request)
@@ -94,24 +94,24 @@ func TestIntakeCommandsAndRLSPreserveTenantIsolation(t *testing.T) {
 		foreign := requests[1-index]
 		foreignChild := children[1-index]
 		ctx := testpkg.ContextForTenant(testpkg.Ctx(t), request.TenantID)
-		_, err := module.RequestByID(ctx, foreign.ID, false)
+		_, err := testpkg.TenantQuery2(t, ctx, db, module.RequestByID, foreign.ID, false)
 		require.ErrorIs(t, err, sql.ErrNoRows)
-		_, err = module.ChildByID(ctx, foreignChild.ID)
+		_, err = testpkg.TenantQuery1(t, ctx, db, module.ChildByID, foreignChild.ID)
 		require.ErrorIs(t, err, sql.ErrNoRows)
-		rows, err := module.RequestsByID(ctx, []int64{request.ID, foreign.ID})
+		rows, err := testpkg.TenantQuery1(t, ctx, db, module.RequestsByID, []int64{request.ID, foreign.ID})
 		require.NoError(t, err)
 		require.Len(t, rows, 1)
 		require.Equal(t, request.ID, rows[0].ID)
 		changed := *foreignChild
 		changed.FirstName = "must not change"
-		require.Error(t, module.UpdateChildData(ctx, &changed))
+		require.Error(t, testpkg.TenantCommand1(t, ctx, db, module.UpdateChildData, &changed))
 		changedRequest := *foreign
 		changedRequest.GuardianFirstName = "must not change"
-		require.ErrorIs(t, module.UpdateRequestGuardian(ctx, &changedRequest, false), sql.ErrNoRows)
+		require.ErrorIs(t, testpkg.TenantCommand2(t, ctx, db, module.UpdateRequestGuardian, &changedRequest, false), sql.ErrNoRows)
 		crossTenantChild := &enrollment.RequestChild{RequestID: foreign.ID, FirstName: "Fixture", LastName: "Child", DateOfBirth: "2023-03-26"}
-		require.ErrorIs(t, module.InsertChild(ctx, crossTenantChild), sql.ErrNoRows)
+		require.ErrorIs(t, testpkg.TenantCommand1(t, ctx, db, module.InsertChild, crossTenantChild), sql.ErrNoRows)
 		crossTenantRequest := &enrollment.Request{PhaseID: foreign.PhaseID}
-		require.ErrorIs(t, module.InsertRequest(ctx, crossTenantRequest), sql.ErrNoRows)
+		require.ErrorIs(t, testpkg.TenantCommand1(t, ctx, db, module.InsertRequest, crossTenantRequest), sql.ErrNoRows)
 
 		err = testpkg.WithTenantTx(t, ctx, db, request.TenantID, func(txCtx context.Context, tx bun.Tx) error {
 			var bypass bool
@@ -129,11 +129,11 @@ func TestIntakeCommandsAndRLSPreserveTenantIsolation(t *testing.T) {
 			return nil
 		})
 		require.NoError(t, err)
-		current, err := module.ChildByID(ctx, children[index].ID)
+		current, err := testpkg.TenantQuery1(t, ctx, db, module.ChildByID, children[index].ID)
 		require.NoError(t, err)
 		require.Equal(t, "Fixture", current.FirstName)
 		require.Equal(t, enrollment.Date("2023-03-26"), current.DateOfBirth)
-		currentRequest, err := module.RequestByID(ctx, request.ID, false)
+		currentRequest, err := testpkg.TenantQuery2(t, ctx, db, module.RequestByID, request.ID, false)
 		require.NoError(t, err)
 		require.Equal(t, "Fixture", currentRequest.GuardianFirstName)
 	}
@@ -145,19 +145,19 @@ func TestIntakeTimestampDefaults(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	owner := enrollmentCompose.New()
 	phase := &enrollment.Phase{Name: "Timestamp defaults", ServiceStartDate: "2030-08-01", ServiceEndDate: "2031-07-31"}
-	require.NoError(t, owner.InsertPhase(ctx, phase))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), owner.InsertPhase, phase))
 	before := time.Now().Add(-time.Second)
 	request := &enrollment.Request{PhaseID: phase.ID, GuardianFirstName: "Fixture", GuardianLastName: "Guardian", GuardianEmail: "timestamps@example.test", StatusToken: "timestamp-defaults"}
-	require.NoError(t, owner.InsertRequest(ctx, request))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), owner.InsertRequest, request))
 	child := &enrollment.RequestChild{RequestID: request.ID, FirstName: "Fixture", LastName: "Child", DateOfBirth: "2023-03-26"}
-	require.NoError(t, owner.InsertChild(ctx, child))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), owner.InsertChild, child))
 	guardian := &enrollment.RequestGuardian{RequestID: request.ID, FirstName: "Second", LastName: "Guardian"}
-	require.NoError(t, owner.CreateRequestGuardian(ctx, guardian))
-	storedRequest, err := owner.RequestByID(ctx, request.ID, false)
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), owner.CreateRequestGuardian, guardian))
+	storedRequest, err := testpkg.TenantQuery2(t, ctx, testpkg.SetupTestDB(t), owner.RequestByID, request.ID, false)
 	require.NoError(t, err)
-	storedChild, err := owner.ChildByID(ctx, child.ID)
+	storedChild, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), owner.ChildByID, child.ID)
 	require.NoError(t, err)
-	storedGuardians, err := owner.RequestGuardians(ctx, []int64{request.ID})
+	storedGuardians, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), owner.RequestGuardians, []int64{request.ID})
 	require.NoError(t, err)
 	require.Len(t, storedGuardians, 1)
 	after := time.Now().Add(time.Second)

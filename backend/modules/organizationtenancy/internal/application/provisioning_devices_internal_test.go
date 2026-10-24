@@ -34,28 +34,7 @@ func terminal(id, tenantID int64, deviceID string) domain.Device {
 	return domain.Device{
 		ID: id, TenantID: tenantID, CreatedAt: fixedTime, UpdatedAt: fixedTime,
 		DeviceID: deviceID, DeviceType: "terminal", Name: &name,
-		Status: domain.DeviceStatusActive, APIKey: &key,
-	}
-}
-
-func TestMaskAPIKey(t *testing.T) {
-	t.Parallel()
-
-	for name, tc := range map[string]struct {
-		key  *string
-		want string
-	}{
-		"nil":        {nil, ""},
-		"empty":      {strPtr(""), ""},
-		"short":      {strPtr("abc"), "abc"},
-		"ten chars":  {strPtr("0123456789"), "0123456789"},
-		"long":       {strPtr("0123456789abcdef"), "0123456789..."},
-		"eleven len": {strPtr("0123456789a"), "0123456789..."},
-	} {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-			assert.Equal(t, tc.want, maskAPIKey(tc.key))
-		})
+		Status: domain.DeviceStatusActive, APIKey: &key, MaskedAPIKey: "...-key",
 	}
 }
 
@@ -108,8 +87,8 @@ func TestProvisioningListDevices(t *testing.T) {
 		assert.Equal(t, "Talent OGS", never.OrganizationName)
 		assert.Equal(t, "terminal", never.DeviceType)
 		assert.Equal(t, fixedTime, never.CreatedAt)
-		require.NotNil(t, never.APIKey)
-		assert.Equal(t, "dev_A-NEVE...", never.MaskedAPIKey)
+		require.True(t, never.APIKey == nil, "operator lists must not return credentials")
+		assert.Equal(t, "...-key", never.MaskedAPIKey)
 		assert.False(t, never.IsOnline)
 		assert.Nil(t, never.LastSeen)
 		assert.False(t, offline.IsOnline)
@@ -254,7 +233,7 @@ func TestProvisioningCreateDevice(t *testing.T) {
 		assert.Equal(t, domain.DeviceStatusActive, device.Status)
 		require.NotNil(t, device.APIKey)
 		assert.Equal(t, "dev_generated-key-1", *device.APIKey)
-		assert.Equal(t, "dev_genera...", device.MaskedAPIKey)
+		assert.Equal(t, "...", device.MaskedAPIKey)
 		assert.Equal(t, "Burbach", device.SchoolName)
 		assert.Equal(t, "Talent OGS", device.OrganizationName)
 		assert.Equal(t, 1, h.secrets.calls)
@@ -267,21 +246,20 @@ func TestProvisioningCreateDevice(t *testing.T) {
 		}, auditChanges(t, entry))
 	})
 
-	t.Run("uses the operator's key", func(t *testing.T) {
+	t.Run("rejects custom keys before writing", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
 		seedDeviceSchools(h)
 
 		device, err := h.svc.CreateDevice(context.Background(), 10, "BURBACH-1", "terminal", nil, strPtr("manual-key-123"), testOperatorID, operatorIP)
 
-		require.NoError(t, err)
-		require.NotNil(t, device.APIKey)
-		assert.Equal(t, "manual-key-123", *device.APIKey)
-		assert.Zero(t, h.secrets.calls)
-		entry := h.onlyAudit(t, domain.AuditActionCreate, domain.AuditResourceDevice, device.ID)
-		assert.Equal(t, "manual", auditChanges(t, entry)["api_key_mode"])
+		assert.Nil(t, device)
+		var invalid *organizationtenancy.InvalidProvisioningDataError
+		require.ErrorAs(t, err, &invalid)
+		assert.Empty(t, h.devices.created)
+		assert.Empty(t, h.devices.updated)
+		assert.Empty(t, h.audit.entries)
 	})
-
 	t.Run("an empty operator key counts as none", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
@@ -327,7 +305,7 @@ func TestProvisioningCreateDevice(t *testing.T) {
 		assert.Empty(t, h.audit.entries)
 	})
 
-	t.Run("a taken operator key is a conflict without retry", func(t *testing.T) {
+	t.Run("rejects custom keys even when already taken", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
 		seedDeviceSchools(h)
@@ -336,13 +314,12 @@ func TestProvisioningCreateDevice(t *testing.T) {
 		device, err := h.svc.CreateDevice(context.Background(), 10, "BURBACH-1", "terminal", nil, strPtr("dev_TAKEN-secret-key"), testOperatorID, operatorIP)
 
 		assert.Nil(t, device)
-		var conflict *organizationtenancy.ProvisioningConflictError
-		require.ErrorAs(t, err, &conflict)
-		assert.Contains(t, conflict.Error(), "api_key already in use")
-		assert.Len(t, h.devices.created, 1)
+		var invalid *organizationtenancy.InvalidProvisioningDataError
+		require.ErrorAs(t, err, &invalid)
+		assert.Empty(t, h.devices.created)
+		assert.Empty(t, h.devices.updated)
 		assert.Empty(t, h.audit.entries)
 	})
-
 	t.Run("a device id taken at the school is a conflict", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
@@ -502,20 +479,21 @@ func TestProvisioningSetDeviceAPIKey(t *testing.T) {
 		}, auditChanges(t, entry))
 	})
 
-	t.Run("sets the operator's key", func(t *testing.T) {
+	t.Run("rejects custom keys before writing", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
 		seed(h)
 
 		device, err := h.svc.SetDeviceAPIKey(context.Background(), 1, strPtr("manual-key"), testOperatorID, operatorIP)
 
-		require.NoError(t, err)
-		assert.Equal(t, "manual-key", *device.APIKey)
-		assert.Zero(t, h.secrets.calls)
-		assert.Equal(t, "manual", auditChanges(t, h.audit.entries[0])["api_key_mode"])
+		assert.Nil(t, device)
+		var invalid *organizationtenancy.InvalidProvisioningDataError
+		require.ErrorAs(t, err, &invalid)
+		assert.Empty(t, h.devices.created)
+		assert.Empty(t, h.devices.updated)
+		assert.Empty(t, h.audit.entries)
 	})
-
-	t.Run("a taken operator key is a conflict without retry", func(t *testing.T) {
+	t.Run("rejects custom keys even when already taken", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
 		seed(h)
@@ -523,13 +501,12 @@ func TestProvisioningSetDeviceAPIKey(t *testing.T) {
 		device, err := h.svc.SetDeviceAPIKey(context.Background(), 1, strPtr("dev_WALBACH-1-secret-key"), testOperatorID, operatorIP)
 
 		assert.Nil(t, device)
-		var conflict *organizationtenancy.ProvisioningConflictError
-		require.ErrorAs(t, err, &conflict)
-		assert.Len(t, h.devices.updated, 1)
-		assert.Equal(t, "dev_BURBACH-1-secret-key", *h.devices.devices[1].APIKey)
+		var invalid *organizationtenancy.InvalidProvisioningDataError
+		require.ErrorAs(t, err, &invalid)
+		assert.Empty(t, h.devices.created)
+		assert.Empty(t, h.devices.updated)
 		assert.Empty(t, h.audit.entries)
 	})
-
 	t.Run("regenerates a colliding generated key", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
@@ -701,14 +678,14 @@ func TestProvisioningDeleteDevice(t *testing.T) {
 		}, auditChanges(t, entry))
 	})
 
-	t.Run("audit failure does not fail the deletion", func(t *testing.T) {
+	t.Run("audit failure fails the transaction", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
 		seed(h)
 		h.audit.err = errBoom
 
-		require.NoError(t, h.svc.DeleteDevice(context.Background(), 1, testOperatorID, operatorIP))
-		assert.Equal(t, []int64{1}, h.devices.deleted)
+		require.ErrorIs(t, h.svc.DeleteDevice(context.Background(), 1, testOperatorID, operatorIP), errBoom)
+		assert.ErrorIs(t, h.tx.lastErr, errBoom)
 	})
 
 	for name, tc := range map[string]struct {
@@ -943,7 +920,9 @@ func TestProvisioningTransferDevice(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
 		source := seed(h)
-		originalKey := *source.APIKey
+		originalHash := "example-device-hash"
+		source.APIKeyHash = &originalHash
+		source.APIKey = nil
 
 		result, err := h.svc.TransferDevice(context.Background(), 200, 20, testOperatorID, operatorIP)
 
@@ -953,7 +932,7 @@ func TestProvisioningTransferDevice(t *testing.T) {
 		target := h.devices.created[0]
 		assert.Equal(t, domain.NewDevice{
 			TenantID: 20, DeviceID: "BURBACH-2", DeviceType: "terminal",
-			Name: source.Name, Status: domain.DeviceStatusActive, APIKey: &originalKey,
+			Name: source.Name, Status: domain.DeviceStatusActive, APIKeyHash: &originalHash, MaskedAPIKey: source.MaskedAPIKey,
 		}, target)
 
 		assert.Equal(t, int64(501), result.ID)
@@ -961,8 +940,10 @@ func TestProvisioningTransferDevice(t *testing.T) {
 		assert.Equal(t, int64(20), result.SchoolID)
 		assert.Equal(t, "Walbach", result.SchoolName)
 		assert.Nil(t, result.LastSeen, "the new row starts without the source's presence")
-		require.NotNil(t, result.APIKey)
-		assert.Equal(t, originalKey, *result.APIKey)
+		assert.Nil(t, result.APIKey)
+		require.NotNil(t, target.APIKeyHash)
+		assert.Equal(t, originalHash, *target.APIKeyHash)
+		assert.Nil(t, h.devices.updated[0].APIKeyHash)
 
 		require.Len(t, h.devices.updated, 2)
 		archived := h.devices.updated[0]

@@ -6,7 +6,6 @@ import type {
   TimetableRoster,
   TimetableRosterRow,
 } from "~/lib/timetable-operations-types";
-import type { Student } from "~/lib/student-helpers";
 
 function rosterRow(
   studentId: string,
@@ -69,7 +68,6 @@ function renderRoster(
 ) {
   render(
     <TimetableRosterContent
-      addStudentResults={[]}
       addStudentSearch=""
       attendanceWebEnabled={attendanceWebEnabled}
       isAddingStudent={false}
@@ -113,6 +111,10 @@ describe("TimetableRosterContent pickup times", () => {
       ),
     );
 
+    // The children who left start folded (#4353).
+    fireEvent.click(
+      screen.getByRole("button", { name: "Nicht mehr im Raum ausklappen" }),
+    );
     for (const time of ["13:00", "13:10", "13:20", "13:30", "13:40"]) {
       expect(screen.getByText(`Gehzeit: ${time}`)).toBeInTheDocument();
     }
@@ -132,58 +134,6 @@ describe("TimetableRosterContent pickup times", () => {
     expect(
       screen.getByRole("button", { name: "Einchecken" }),
     ).toBeInTheDocument();
-  });
-});
-
-describe("TimetableRosterContent unplanned student dialog", () => {
-  it("clears a selected child when the dialog closes", () => {
-    const students: Student[] = [
-      {
-        id: "1",
-        name: "Marie Beier",
-        school_class: "2a",
-        current_location: "home",
-      },
-      {
-        id: "2",
-        name: "Marie Garschagen",
-        school_class: "2a",
-        current_location: "home",
-      },
-    ];
-    render(
-      <TimetableRosterContent
-        addStudentResults={students}
-        addStudentSearch="Marie"
-        attendanceWebEnabled
-        isAddingStudent={false}
-        isCompletingInstance={false}
-        isConfirmingExpected={false}
-        roster={roster([], true)}
-        showTimetableCounts={false}
-        onAddStudent={vi.fn()}
-        onComplete={vi.fn()}
-        onConfirmExpected={vi.fn()}
-        onRosterAction={vi.fn()}
-        onSearchChange={vi.fn()}
-      />,
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: "Kind hinzufügen" }));
-    fireEvent.click(screen.getByRole("button", { name: /Marie Beier/ }));
-    expect(screen.getByRole("button", { name: "Hinzufügen" })).toBeEnabled();
-
-    fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
-    expect(
-      screen.queryByRole("searchbox", { name: "Kind ungeplant suchen" }),
-    ).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Kind hinzufügen" }));
-    expect(screen.getByRole("button", { name: /Marie Beier/ })).toHaveAttribute(
-      "aria-pressed",
-      "false",
-    );
-    expect(screen.getByRole("button", { name: "Hinzufügen" })).toBeDisabled();
   });
 });
 
@@ -324,6 +274,8 @@ describe("TimetableRosterContent late arrivals", () => {
       true,
     );
 
+    // Anker: das früh eingecheckte Kind steht als Zeile in der Liste.
+    expect(screen.getByText("Früher da Kind")).toBeInTheDocument();
     expect(screen.queryByText("Kommt um 13:45 Uhr")).not.toBeInTheDocument();
     expect(screen.queryByText("Kommt später")).not.toBeInTheDocument();
   });
@@ -348,6 +300,10 @@ describe("TimetableRosterContent late arrivals", () => {
       true,
     );
 
+    // Anker: das abwesende Kind steht als Zeile da, das gegangene im
+    // (eingeklappten) Abschnitt „Nicht mehr im Raum“.
+    expect(screen.getByText("Abwesend Kind")).toBeInTheDocument();
+    expect(screen.getByText("Nicht mehr im Raum")).toBeInTheDocument();
     expect(screen.queryByText("Kommt um 13:45 Uhr")).not.toBeInTheDocument();
   });
 

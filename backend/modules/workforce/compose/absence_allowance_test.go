@@ -2,6 +2,7 @@ package compose
 
 import (
 	"testing"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -9,10 +10,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// allowanceNow is the clock of the allowance contract tests. Their 2026 claim
+// expires on 2026-12-31, after which a live clock reads it as lapsed (#4027).
+var allowanceNow = testpkg.Date(2026, time.August, 24).BerlinMidnight().Add(12 * time.Hour)
+
 func TestAllowanceSummaryNativeContract(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	capability := buildWorkforce(t, db)
+	capability := buildWorkforceAt(t, db, allowanceNow)
 	ctx := testpkg.Ctx(t)
 	staff := testpkg.CreateTestStaff(t, db, "Allowance", "Owner")
 	absenceType, err := capability.CreateAbsenceType(ctx, workforce.CreateAbsenceType{Name: "Custom", AllowanceEnabled: true})
@@ -27,7 +32,7 @@ func TestAllowanceSummaryNativeContract(t *testing.T) {
 	} {
 		row.StaffID, row.CreatedBy, row.AbsenceTypeID = staff.ID, staff.ID, &absenceType.ID
 		row.AbsenceType = workforce.AbsenceTypeOther
-		_, err := capability.CreateStaffAbsence(ctx, row)
+		_, err := capability.CreateStaffAbsence(ctx, &row)
 		require.NoError(t, err)
 	}
 	summary, err := capability.AllowanceSummary(ctx, staff.ID, absenceType.ID, 2026)

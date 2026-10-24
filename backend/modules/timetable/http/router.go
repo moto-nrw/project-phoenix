@@ -3,17 +3,18 @@ package timetablehttp
 import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
+	settingsFacts "github.com/moto-nrw/project-phoenix/modules/settings"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 )
 
 // Router returns a configured router for timetable endpoints
-func (rs *Resource) Router() chi.Router {
+func (rs *Resource) Router(protectedTenantRoutes func(chi.Router, func(chi.Router, common.Middleware))) chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
-	common.ProtectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) {
+	protectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) {
 		rs.mountCalendarRoutes(r, withTx)
 
 		// WP-B8: manual materialization. Admin-only — reuses SchedulesManage
@@ -102,9 +103,9 @@ func (rs *Resource) mountInstancePlanningRoutes(r chi.Router, withTx common.Midd
 		Post("/bulk-cancel", rs.bulkCancelInstances)
 	r.With(common.RequiresPermission(permissions.SchedulesManage), withTx).
 		Post("/{id}/start", rs.startInstance)
-	r.With(common.RequiresPermission(permissions.SchedulesManage), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).
+	r.With(common.RequiresPermission(permissions.SchedulesManage), withTx, common.RequireWebAttendanceEnabled(settingsFacts.WebAttendanceEnabledReader(rs.SettingsService))).
 		Post("/{id}/complete", rs.completeInstance)
-	r.With(common.RequiresPermission(permissions.SchedulesManage), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).
+	r.With(common.RequiresPermission(permissions.SchedulesManage), withTx, common.RequireWebAttendanceEnabled(settingsFacts.WebAttendanceEnabledReader(rs.SettingsService))).
 		Post("/{id}/reopen", rs.reopenInstance)
 	r.With(common.RequiresPermission(permissions.SchedulesManage), withTx, rs.requireWebAttendanceForActiveInstance).
 		Post("/{id}/cancel", rs.cancelInstance)
@@ -147,14 +148,14 @@ func (rs *Resource) mountInstanceAttendanceRoutes(r chi.Router, withTx common.Mi
 	// like the lifecycle routes. Path params are {instance_id} and
 	// {student_id} — distinct from the {id} param above so they live
 	// in a sibling route subtree.
-	r.With(common.RequiresPermission(permissions.SchedulesManage), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).
+	r.With(common.RequiresPermission(permissions.SchedulesManage), withTx, common.RequireWebAttendanceEnabled(settingsFacts.WebAttendanceEnabledReader(rs.SettingsService))).
 		Patch("/{instance_id}/students/{student_id}", rs.patchInstanceStudent)
 
 	// #2898: correcting a COMPLETED block. Deliberately a separate
 	// route from the PATCH above, which stays frozen after completion.
 	// Same SchedulesManage gate, but the correction demands a reason
 	// and writes audit.attendance_corrections.
-	r.With(common.RequiresPermission(permissions.SchedulesManage), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).
+	r.With(common.RequiresPermission(permissions.SchedulesManage), withTx, common.RequireWebAttendanceEnabled(settingsFacts.WebAttendanceEnabledReader(rs.SettingsService))).
 		Post("/{instance_id}/students/{student_id}/correction", rs.correctInstanceStudent)
 	r.With(common.RequiresPermission(permissions.SchedulesManage), withTx).
 		Get("/{instance_id}/students/{student_id}/corrections", rs.getInstanceStudentCorrections)
@@ -236,18 +237,6 @@ func (rs *Resource) mountPlanningCoordinationRoutes(r chi.Router, withTx common.
 // mountExportRoutes registers the slot lists and the printable
 // Betreuungsplan.
 func (rs *Resource) mountExportRoutes(r chi.Router, withTx common.Middleware) {
-	// Issue #1565: lists from planned care slots (Plan / Ist / Abgleich).
-	// Read-only, but they expose named children + presence, so they require
-	// student-data read on top of schedule read (GDPR) — same bar as the
-	// emergency snapshot export (UsersRead).
-	r.Route("/lists", func(r chi.Router) {
-		r.With(common.RequiresAllPermissions(permissions.SchedulesRead, permissions.UsersRead), withTx).
-			Post("/options", rs.listSlotListOptions)
-		r.With(common.RequiresAllPermissions(permissions.SchedulesRead, permissions.UsersRead), withTx).
-			Post("/preview", rs.previewSlotList)
-		r.With(common.RequiresAllPermissions(permissions.SchedulesRead, permissions.UsersRead), withTx).
-			Post("/export", rs.exportSlotList)
-	})
 
 	// Printable Betreuungsplan week (#2079). Staff names are on the sheet,
 	// so it needs users:read on top of the schedules:read the plan itself
@@ -281,17 +270,17 @@ func (rs *Resource) mountOperationRoutes(r chi.Router, withTx common.Middleware)
 			Post("/spontaneous/start", rs.operationsCreateAndStartSpontaneous)
 		r.With(common.RequiresPermission(permissions.SchedulesRead), withTx).
 			Post("/instances/{id}/start", rs.operationsStart)
-		r.With(common.RequiresPermission(permissions.SchedulesRead), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).
+		r.With(common.RequiresPermission(permissions.SchedulesRead), withTx, common.RequireWebAttendanceEnabled(settingsFacts.WebAttendanceEnabledReader(rs.SettingsService))).
 			Post("/instances/{id}/complete", rs.operationsComplete)
-		r.With(common.RequiresPermission(permissions.SchedulesRead), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).
+		r.With(common.RequiresPermission(permissions.SchedulesRead), withTx, common.RequireWebAttendanceEnabled(settingsFacts.WebAttendanceEnabledReader(rs.SettingsService))).
 			Post("/instances/{id}/reopen", rs.operationsReopen)
-		r.With(common.RequiresPermission(permissions.SchedulesRead), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).
+		r.With(common.RequiresPermission(permissions.SchedulesRead), withTx, common.RequireWebAttendanceEnabled(settingsFacts.WebAttendanceEnabledReader(rs.SettingsService))).
 			Post("/instances/{id}/students/{student_id}/check-in", rs.operationsCheckInStudent)
-		r.With(common.RequiresPermission(permissions.SchedulesRead), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).
+		r.With(common.RequiresPermission(permissions.SchedulesRead), withTx, common.RequireWebAttendanceEnabled(settingsFacts.WebAttendanceEnabledReader(rs.SettingsService))).
 			Post("/instances/{id}/students/check-in", rs.operationsCheckInStudents)
-		r.With(common.RequiresPermission(permissions.SchedulesRead), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).
+		r.With(common.RequiresPermission(permissions.SchedulesRead), withTx, common.RequireWebAttendanceEnabled(settingsFacts.WebAttendanceEnabledReader(rs.SettingsService))).
 			Post("/instances/{id}/students/{student_id}/check-out", rs.operationsCheckOutStudent)
-		r.With(common.RequiresPermission(permissions.SchedulesRead), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).
+		r.With(common.RequiresPermission(permissions.SchedulesRead), withTx, common.RequireWebAttendanceEnabled(settingsFacts.WebAttendanceEnabledReader(rs.SettingsService))).
 			Patch("/instances/{id}/students/{student_id}/attendance", rs.operationsPatchAttendance)
 	})
 }

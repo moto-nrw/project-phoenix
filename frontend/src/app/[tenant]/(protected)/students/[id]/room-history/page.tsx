@@ -4,27 +4,28 @@ import React, {
   Suspense,
   useCallback,
   useEffect,
-  useLayoutEffect,
   useMemo,
-  useRef,
   useState,
 } from "react";
 import dynamic from "next/dynamic";
 import { useParams, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { ChevronRight, Download } from "lucide-react";
-import { BackButton } from "~/components/ui/back-button";
 import { Skeleton } from "~/components/ui/skeleton";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import { SectionCard } from "~/components/ui/section-card";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { TenantPage } from "~/components/ui/tenant-page";
-import { useApiErrorDisplay, useApiLoadError } from "~/contexts/ToastContext";
+import {
+  resolveStudentReferrer,
+  studentHistoryBack,
+} from "../student-referrer";
+import { useApiLoadError } from "~/contexts/ToastContext";
 import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
 import { useStudentHistoryBreadcrumb } from "~/lib/breadcrumb-context";
 import { useScrollToTop } from "~/lib/hooks/use-scroll-to-top";
 import { createLogger } from "~/lib/logger";
-import { todayISO } from "~/lib/date-helpers";
+import { berlinTodayISO, todayISO } from "~/lib/date-helpers";
 import {
   type AttendanceHistory,
   type AttendanceHistoryDay,
@@ -42,11 +43,9 @@ import {
 import { hasPermission } from "~/lib/auth-utils";
 import { RoomHistorySkeleton } from "./page-skeleton";
 import type { HistoryChartPoint } from "./history-charts";
+import { AttendanceExportDialog } from "~/components/students/attendance-export-dialog";
 
 const logger = createLogger({ component: "StudentRoomHistoryPage" });
-
-const EXPORT_FORMATS = ["pdf", "docx", "xlsx"] as const;
-type ExportFormat = (typeof EXPORT_FORMATS)[number];
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -647,7 +646,7 @@ function StudentRoomHistoryPageContent() {
   const params = useParams();
   const searchParams = useSearchParams();
   const studentId = params.id as string;
-  const referrer = searchParams.get("from") ?? "/students/search";
+  const referrer = resolveStudentReferrer(searchParams.get("from"));
   useSession();
 
   const [student, setStudent] = useState<Student | null>(null);
@@ -660,12 +659,7 @@ function StudentRoomHistoryPageContent() {
   const clearHistoryError = historyLoad.clear;
   // Bumped by „Wiederholen“ to load the page again.
   const [attempt, setAttempt] = useState(0);
-  const [exporting, setExporting] = useState<ExportFormat | null>(null);
-  const { show: showExportError } = useApiErrorDisplay();
-  // „Wiederholen“ im Fehler-Toast ruft die aktuelle Fassung des Exports auf.
-  const latestDownloadRef = useRef<(format: ExportFormat) => Promise<void>>(
-    async () => undefined,
-  );
+  const [exportOpen, setExportOpen] = useState(false);
 
   useStudentHistoryBreadcrumb({ studentName: student?.name, referrer });
 
@@ -723,48 +717,6 @@ function StudentRoomHistoryPageContent() {
     }
   }, [clearHistoryError, showHistoryError, studentId]);
 
-  const downloadExport = useCallback(
-    async (format: ExportFormat): Promise<void> => {
-      setExporting(format);
-      try {
-        const res = await transportFetch(
-          `/api/students/${studentId}/attendance-history/export?format=${format}`,
-        );
-        if (!res.ok) {
-          throw await apiErrorFromResponse(res, "attendance export failed");
-        }
-        const blob = await res.blob();
-        const disposition = res.headers.get("Content-Disposition") ?? "";
-        const filename =
-          /filename="([^"]+)"/.exec(disposition)?.[1] ??
-          `anwesenheit.${format}`;
-        const url = URL.createObjectURL(blob);
-        const anchor = document.createElement("a");
-        anchor.href = url;
-        anchor.download = filename;
-        document.body.appendChild(anchor);
-        anchor.click();
-        anchor.remove();
-        URL.revokeObjectURL(url);
-      } catch (err) {
-        logger.error("attendance_history_export_failed", {
-          student_id: studentId,
-          error: err instanceof Error ? err.message : String(err),
-        });
-        await showExportError(err, {
-          object: "die Exportdatei",
-          retry: () => void latestDownloadRef.current(format),
-        });
-      } finally {
-        setExporting(null);
-      }
-    },
-    [showExportError, studentId],
-  );
-  useLayoutEffect(() => {
-    latestDownloadRef.current = downloadExport;
-  });
-
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
@@ -805,44 +757,31 @@ function StudentRoomHistoryPageContent() {
     : featureDisabled
       ? null
       : historyLoad.error;
-  // Im Fehlerfall führt der Rückweg auf die Liste, sonst auf die Kindakte in
-  // den Reiter, aus dem diese Unterseite geöffnet wurde.
-  const backReferrer =
-    pageError !== null
-      ? referrer
-      : `/students/${studentId}?from=${referrer}&tab=historie`;
+  const back = studentHistoryBack(studentId, referrer, pageError !== null);
 
   return (
     <>
-      {/* Back button (mobile only). tab=historie returns to the originating tab
-          on the detail page (this sub-page lives under Historie, issue #1501);
-          from= still drives the detail page's own back button to the list. */}
-      <BackButton referrer={backReferrer} />
-
       {/* Der Entitätskopf ist die Kopfkarte der Seite. */}
       <TenantPage
+        back
+        {...back}
         leading={<ConceptIconTile concept="changeHistory" variant="page" />}
         title={displayName || "Anwesenheitsprotokoll"}
         stats={studentMeta || dayLine}
         statsLoading={loading}
         loading={loading}
         error={pageError}
-        // Herunterladen steht im Kebab der Kopfkarte, wie auf jeder anderen
-        // Werkzeugfläche -- keine eigene Knopfreihe je Format.
+        // Exportieren steht im Kebab der Kopfkarte, wie auf jeder anderen
+        // Werkzeugfläche; der Zeitraum wird im Export-Dialog gewählt.
         actions={
           history && history.days.length > 0 ? (
             <OverflowMenu
               items={[
-                { kind: "header", label: "Herunterladen" },
-                ...EXPORT_FORMATS.map((format) => ({
-                  label:
-                    exporting === format
-                      ? "Wird exportiert…"
-                      : format.toUpperCase(),
+                {
+                  label: "Exportieren",
                   icon: <Download className="h-4 w-4" aria-hidden />,
-                  onClick: () => void downloadExport(format),
-                  disabled: exporting !== null,
-                })),
+                  onClick: () => setExportOpen(true),
+                },
               ]}
               ariaLabel="Weitere Aktionen"
             />
@@ -878,6 +817,16 @@ function StudentRoomHistoryPageContent() {
           </>
         )}
       </TenantPage>
+      {history && exportOpen ? (
+        <AttendanceExportDialog
+          isOpen
+          onClose={() => setExportOpen(false)}
+          studentId={studentId}
+          studentName={displayName}
+          today={berlinTodayISO()}
+          visibleDays={history.caps.attendanceDays}
+        />
+      ) : null}
     </>
   );
 }

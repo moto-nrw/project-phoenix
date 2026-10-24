@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -63,6 +64,7 @@ func TestLogin_MFARequiredResponseShape(t *testing.T) {
 	t.Parallel()
 
 	rs := &Resource{
+		ConstraintViolation: transactionFailures.IsConstraintViolation,
 		Sessions: &loginGateStub{
 			result: &identityaccess.LoginResult{
 				Status:         identityaccess.LoginStatusMFARequired,
@@ -91,6 +93,7 @@ func TestLogin_AuthenticatedResponseShape(t *testing.T) {
 	t.Parallel()
 
 	rs := &Resource{
+		ConstraintViolation: transactionFailures.IsConstraintViolation,
 		Sessions: &loginGateStub{
 			result: &identityaccess.LoginResult{
 				Status:       identityaccess.LoginStatusAuthenticated,
@@ -123,6 +126,7 @@ func TestLogin_EnrollmentRequiredEmitsScopedToken(t *testing.T) {
 	t.Parallel()
 
 	rs := &Resource{
+		ConstraintViolation: transactionFailures.IsConstraintViolation,
 		Sessions: &loginGateStub{
 			result: &identityaccess.LoginResult{
 				Status:                identityaccess.LoginStatusMFAEnrollmentRequired,
@@ -158,7 +162,8 @@ func TestLogin_PassesTrustedDeviceCookie(t *testing.T) {
 			RefreshToken: "r",
 		},
 	}
-	rs := &Resource{Sessions: stub}
+	rs := &Resource{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, Sessions: stub}
 
 	req := newLoginRequest(t, "j@example.com", "Test1234%")
 	req.AddCookie(&http.Cookie{Name: trustedDeviceCookieName, Value: "trust.cookie.value"})
@@ -194,7 +199,8 @@ func TestLogin_ServiceErrorMapping(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			rs := &Resource{
-				Sessions: &loginGateStub{err: tc.err},
+				ConstraintViolation: transactionFailures.IsConstraintViolation,
+				Sessions:            &loginGateStub{err: tc.err},
 			}
 			rr := httptest.NewRecorder()
 			rs.login(rr, newLoginRequest(t, "x@y.de", "Test1234%"))
@@ -216,6 +222,7 @@ func TestLogin_GuardianOnlyReturnsParentPortalCode(t *testing.T) {
 	t.Parallel()
 
 	rs := &Resource{
+		ConstraintViolation: transactionFailures.IsConstraintViolation,
 		Sessions: &loginGateStub{
 			err: &identityaccess.AuthenticationError{
 				Op:  "login",
@@ -230,8 +237,8 @@ func TestLogin_GuardianOnlyReturnsParentPortalCode(t *testing.T) {
 	assert.Equal(t, http.StatusForbidden, rr.Code)
 
 	var body struct {
-		Status string `json:"status"`
-		Error  string `json:"error"`
+		Status int    `json:"status"`
+		Detail string `json:"detail"`
 		Code   string `json:"code"`
 	}
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))

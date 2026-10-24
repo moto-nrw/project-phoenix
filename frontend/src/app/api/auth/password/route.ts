@@ -1,7 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { auth } from "~/server/auth";
 import { withTenantAuth } from "~/server/auth/tenant-route";
-import { apiPost, handleApiError } from "~/lib/api-helpers.server";
+import {
+  apiPost,
+  handleApiError,
+  problemResponse,
+} from "~/lib/api-helpers.server";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "AuthPasswordRoute" });
@@ -11,10 +15,7 @@ async function POSTHandler(request: NextRequest) {
     const session = await auth();
 
     if (!session?.user?.token) {
-      return NextResponse.json(
-        { error: "Nicht authentifiziert" },
-        { status: 401 },
-      );
+      return problemResponse(401, "Unauthenticated", request);
     }
 
     let body: {
@@ -25,22 +26,16 @@ async function POSTHandler(request: NextRequest) {
     try {
       body = (await request.json()) as typeof body;
     } catch {
-      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+      return problemResponse(400, "Invalid JSON", request);
     }
     const { currentPassword, newPassword, confirmPassword } = body;
 
     if (!currentPassword || !newPassword || !confirmPassword) {
-      return NextResponse.json(
-        { error: "Alle Passwortfelder sind erforderlich" },
-        { status: 400 },
-      );
+      return problemResponse(400, "all password fields are required", request);
     }
 
     if (newPassword !== confirmPassword) {
-      return NextResponse.json(
-        { error: "Die neuen Passwörter stimmen nicht überein" },
-        { status: 400 },
-      );
+      return problemResponse(400, "new passwords do not match", request);
     }
 
     await apiPost("/auth/password", session.user.token, {

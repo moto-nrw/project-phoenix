@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -21,7 +20,7 @@ func TestNativeRoleAssignmentPersistenceLifecycle(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	home := testpkg.Tenant(t)
 	other, _ := testpkg.CreateTestTenant(t, db)
-	otherCtx := tenant.WithTenantID(ctx, other)
+	otherCtx := testpkg.ContextForTenant(ctx, other)
 	account := testpkg.CreateTestAccount(t, db, "assignment-lifecycle")
 	peer := testpkg.CreateTestAccount(t, db, "assignment-peer")
 	testpkg.EnsureAccountTenant(t, db, account.ID, other)
@@ -36,6 +35,11 @@ func TestNativeRoleAssignmentPersistenceLifecycle(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, initial)
 
+	err = testpkg.WithAdminTx(t, context.Background(), db, func(adminCtx context.Context, _ bun.Tx) error {
+		return roles.AssignRoleToAccount(adminCtx, account.ID, first.ID)
+	})
+	require.Error(t, err, "an admin transaction cannot substitute for a required assignment school")
+	require.Error(t, roles.AssignRoleToAccount(ctx, account.ID, foreign.ID), "a school cannot assign another school's custom role")
 	require.NoError(t, roles.AssignRoleToAccount(ctx, account.ID, first.ID))
 	require.NoError(t, roles.AssignRoleToAccount(ctx, account.ID, first.ID))
 	require.NoError(t, roles.AssignRoleToAccount(ctx, account.ID, second.ID))
@@ -46,8 +50,8 @@ func TestNativeRoleAssignmentPersistenceLifecycle(t *testing.T) {
 	require.Len(t, current, 2, "repeated assignment must not duplicate the mapping")
 
 	rollback := errors.New("roll back role replacement")
-	err = tenant.WithAdminTx(ctx, db, func(txCtx context.Context, _ bun.Tx) error {
-		txCtx = tenant.WithTenantID(txCtx, home)
+	err = testpkg.WithAdminTx(t, ctx, db, func(txCtx context.Context, _ bun.Tx) error {
+		txCtx = testpkg.ContextForTenant(txCtx, home)
 		require.NoError(t, roles.ReplaceAccountRole(txCtx, account.ID, second.ID))
 		inside, readErr := roles.GetAccountRoles(txCtx, account.ID)
 		require.NoError(t, readErr)

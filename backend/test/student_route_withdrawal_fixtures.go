@@ -4,9 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/stretchr/testify/require"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/uptrace/bun"
 )
 
 // CreateTestBookingExpiredCareWithdrawalOn stores the pending withdrawal task
@@ -15,40 +14,36 @@ import (
 // new day.
 func CreateTestBookingExpiredCareWithdrawalOn(
 	tb testing.TB,
-	withdrawals CareWithdrawalWriter,
+	db bun.IDB,
 	studentID int64,
-	firstGap timezone.Date,
-) *users.CareWithdrawalCompletion {
+	firstGap calendar.Date,
+) *CareWithdrawalCompletion {
 	tb.Helper()
-	row := &users.CareWithdrawalCompletion{
+	return upsertTestPendingCareWithdrawal(tb, db, &CareWithdrawalCompletion{
 		StudentID:               &studentID,
 		FirstBookinglessDay:     firstGap,
-		Trigger:                 users.CareWithdrawalTriggerBookingExpired,
+		Trigger:                 "booking_expired",
 		WithdrawalConfirmedRole: "system",
 		WithdrawalConfirmedAt:   time.Now(),
-	}
-	require.NoError(tb, withdrawals.UpsertPending(Ctx(tb), row))
-	return row
+	})
 }
 
 // CreateTestCareWithdrawalCompletionConfirmedAt is
 // CreateTestCareWithdrawalCompletion with an explicit confirmation instant.
 func CreateTestCareWithdrawalCompletionConfirmedAt(
 	tb testing.TB,
-	withdrawals CareWithdrawalWriter,
+	db bun.IDB,
 	studentID, actorID int64,
-	firstGap timezone.Date,
+	firstGap calendar.Date,
 	confirmedAt time.Time,
-) *users.CareWithdrawalCompletion {
+) *CareWithdrawalCompletion {
 	tb.Helper()
-	row := &users.CareWithdrawalCompletion{
+	return upsertTestPendingCareWithdrawal(tb, db, &CareWithdrawalCompletion{
 		StudentID:               &studentID,
 		FirstBookinglessDay:     firstGap,
-		Trigger:                 users.CareWithdrawalTriggerDirectSchool,
+		Trigger:                 "direct_school",
 		WithdrawalConfirmedBy:   &actorID,
 		WithdrawalConfirmedRole: "admin",
 		WithdrawalConfirmedAt:   confirmedAt,
-	}
-	require.NoError(tb, withdrawals.UpsertPending(Ctx(tb), row))
-	return row
+	})
 }

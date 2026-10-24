@@ -14,7 +14,7 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -209,8 +209,7 @@ func renderTemplateCareOfferingConflict(w http.ResponseWriter, r *http.Request, 
 		return false
 	}
 	common.RenderError(w, r, common.ErrorInvalidRequestWithCode(
-		//nolint:staticcheck // ST1005: user-facing German message
-		errors.New("Die Änderung ist nicht möglich, weil dadurch ein verknüpftes Betreuungsangebot ungültig würde. Bitte passen Sie zuerst das Angebot oder dessen Stundenplan-Verknüpfung an."),
+		errors.New("die Änderung ist nicht möglich, weil dadurch ein verknüpftes Betreuungsangebot ungültig würde. Bitte passen Sie zuerst das Angebot oder dessen Stundenplan-Verknüpfung an"),
 		common.CodeTimetableTemplateCareOfferingConflict,
 	))
 	return true
@@ -222,8 +221,7 @@ func renderTemplateRosterRebaseConflict(w http.ResponseWriter, r *http.Request, 
 	}
 	tenant.MarkRollback(r.Context())
 	common.RenderError(w, r, common.ErrorConflictWithCode(
-		//nolint:staticcheck // ST1005: user-facing German message
-		errors.New("Die Zeitraumänderung würde geschützte Kinderzuordnungen zusammenführen. Bitte bereinigen Sie zuerst die betroffenen Zuordnungen."),
+		errors.New("die Zeitraumänderung würde geschützte Kinderzuordnungen zusammenführen. Bitte bereinigen Sie zuerst die betroffenen Zuordnungen"),
 		common.CodeTimetableTemplateRosterRebaseConflict,
 	))
 	return true
@@ -256,7 +254,7 @@ func (rs *Resource) splitTemplate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	in.GradeLevelMax = gradeLevelMax
-	in.ActorAccountID = jwt.ActorAccountIDFromCtx(r.Context())
+	in.ActorAccountID = sessiontoken.ActorAccountIDFromCtx(r.Context())
 	if !rs.validateSplitTemplateReferences(w, r, req) {
 		return
 	}

@@ -8,15 +8,15 @@ import {
   convertToBackendRoom,
   authFetch,
   fetchWithRetry,
-  ApiResponseError,
 } from "./api-helpers";
-import { ApiError } from "./api-error";
+import { ApiError, errorClassCode, problemTitle } from "./api-error";
 import {
   extractParams,
   handleApiError,
   apiGet,
   apiPost,
-  checkAuth,
+  bffError,
+  problemResponse,
   ApiResponseError as ServerApiResponseError,
 } from "./api-helpers.server";
 import { suppressConsole } from "~/test/helpers/console";
@@ -105,22 +105,24 @@ describe("extractParams", () => {
 
 describe("ApiResponseError", () => {
   it("parses JSON response bodies lazily and memoizes the result", () => {
-    const error = new ApiResponseError(
+    const error = new ServerApiResponseError(
       403,
-      JSON.stringify({ error: "feature_disabled" }),
+      JSON.stringify({ detail: "feature_disabled", code: "feedback.disabled" }),
     );
 
     expect(error.status).toBe(403);
-    expect(error.body<{ error: string }>()).toEqual({
-      error: "feature_disabled",
+    expect(error.body<{ detail: string }>()).toEqual({
+      detail: "feature_disabled",
+      code: "feedback.disabled",
     });
-    expect(error.body<{ error: string }>()).toEqual({
-      error: "feature_disabled",
+    expect(error.body<{ detail: string }>()).toEqual({
+      detail: "feature_disabled",
+      code: "feedback.disabled",
     });
   });
 
   it("returns null for non-JSON response bodies", () => {
-    const error = new ApiResponseError(500, "plain backend failure");
+    const error = new ServerApiResponseError(500, "plain backend failure");
 
     expect(error.body()).toBeNull();
     expect(error.body()).toBeNull();
@@ -138,14 +140,39 @@ describe("ApiResponseError", () => {
 describe("handleApiError", () => {
   const consoleSpies = suppressConsole("error", "warn");
 
-  it("extracts status code from 'API error (XXX):' format", async () => {
-    const error = new Error("API error (404): Not found");
+  function backendError(status: number, body: unknown, retryAfter?: string) {
+    const envelope = {
+      type: "about:blank",
+      title: problemTitle(status),
+      status,
+      detail: problemTitle(status),
+      instance: "request-1",
+      code: errorClassCode(status),
+      ...(body as Record<string, unknown>),
+    };
+    return new ServerApiResponseError(status, JSON.stringify(envelope), {
+      contentType: "application/problem+json",
+      retryAfter,
+    });
+  }
 
-    const response = handleApiError(error);
-    const body = (await response.json()) as { error: string };
+  it("forwards the backend envelope with its status unchanged", async () => {
+    const envelope = {
+      type: "about:blank",
+      title: "Conflict",
+      status: 409,
+      detail: "account already has access to tenant",
+      instance: "req-1",
+      code: "identity.account_already_has_tenant_access",
+    };
 
-    expect(response.status).toBe(404);
-    expect(body.error).toBe("API error (404): Not found");
+    const response = handleApiError(backendError(409, envelope));
+
+    expect(response.status).toBe(409);
+    expect(response.headers.get("Content-Type")).toBe(
+      "application/problem+json",
+    );
+    expect(await response.json()).toEqual(envelope);
   });
 
   it("forwards Retry-After from a backend 429", () => {
@@ -157,67 +184,303 @@ describe("handleApiError", () => {
     expect(response.headers.get("Retry-After")).toBe("17");
   });
 
-  it("extracts status code from 'API error: XXX' format", () => {
-    const error = new Error("API error: 403 Forbidden");
+  it("wraps a non-JSON backend body in an envelope with the class code", async () => {
+    const response = handleApiError(
+      new ServerApiResponseError(502, "<html>Bad Gateway</html>"),
+    );
+
+    expect(response.status).toBe(502);
+    expect(await response.json()).toMatchObject({
+      status: 502,
+      detail: "Bad Gateway",
+      code: "general.unavailable",
+    });
+  });
+
+  // F3: nothing an upstream proxy, an exception or this server's own
+  // diagnostics wrote may reach the browser. The cause stays in the log.
+  it("does not forward a non-JSON upstream body to the browser", async () => {
+    const response = handleApiError(
+      new ServerApiResponseError(502, "<html>secret upstream</html>"),
+    );
+
+    expect(response.status).toBe(502);
+    const body = await response.text();
+    expect(JSON.parse(body)).toMatchObject({
+      status: 502,
+      detail: "Bad Gateway",
+      code: "general.unavailable",
+    });
+    expect(body).not.toContain("secret upstream");
+  });
+
+  it("does not forward a valid backend 5xx envelope to the browser", async () => {
+    const response = handleApiError(
+      backendError(500, {
+        detail: "database host db.internal refused the connection",
+        code: "general.server",
+        details: { host: "db.internal" },
+      }),
+    );
+
+    expect(response.status).toBe(500);
+    const body = await response.text();
+    expect(JSON.parse(body)).toMatchObject({
+      status: 500,
+      detail: "Internal Server Error",
+      code: "general.server",
+    });
+    expect(body).not.toContain("db.internal");
+    expect(body).not.toContain("refused the connection");
+  });
+
+  it("adds the request ID to a sanitized backend error", async () => {
+    const response = handleApiError(
+      new ServerApiResponseError(502, "upstream diagnostics"),
+      new Request("https://frontend.test/api/example", {
+        headers: { "X-Request-ID": "request-502" },
+      }),
+    );
+
+    expect(await response.json()).toMatchObject({
+      status: 502,
+      instance: "request-502",
+    });
+  });
+
+  it("preserves a registered backend 5xx code while sanitizing diagnostics", async () => {
+    const response = handleApiError(
+      backendError(500, {
+        detail: "database host db.internal refused the connection",
+        code: "iot.schulhof_not_configured",
+        details: { host: "db.internal" },
+      }),
+    );
+
+    expect(response.status).toBe(500);
+    const body = await response.text();
+    expect(JSON.parse(body)).toMatchObject({
+      status: 500,
+      detail: "Internal Server Error",
+      code: "iot.schulhof_not_configured",
+    });
+    expect(body).not.toContain("db.internal");
+  });
+
+  it("replaces an incomplete JSON backend error with a class envelope", async () => {
+    const response = handleApiError(
+      new ServerApiResponseError(
+        400,
+        JSON.stringify({ error: "upstream validation diagnostics" }),
+        { contentType: "application/problem+json" },
+      ),
+    );
+
+    expect(response.status).toBe(400);
+    const body = await response.text();
+    expect(JSON.parse(body)).toMatchObject({
+      status: 400,
+      detail: "Bad Request",
+      code: "general.input",
+    });
+    expect(body).not.toContain("upstream validation diagnostics");
+  });
+
+  it("keeps an unknown error's message in the log, not in the response", async () => {
+    const response = handleApiError(new Error("db password wrong at 10.0.0.5"));
+
+    expect(response.status).toBe(500);
+    const body = await response.text();
+    expect(JSON.parse(body)).toMatchObject({
+      status: 500,
+      detail: "Internal Server Error",
+      code: "general.server",
+    });
+    expect(body).not.toContain("db password wrong at 10.0.0.5");
+    expect(JSON.stringify(consoleSpies.error.mock.calls)).toContain(
+      "db password wrong at 10.0.0.5",
+    );
+  });
+
+  it("answers an ApiError with its code but without its diagnostic message", async () => {
+    const response = handleApiError(
+      new ApiError("internal diag", 409, {
+        code: "students.change_request_stale",
+      }),
+    );
+
+    expect(response.status).toBe(409);
+    const body = await response.text();
+    expect(JSON.parse(body)).toMatchObject({
+      status: 409,
+      code: "students.change_request_stale",
+    });
+    expect(body).not.toContain("internal diag");
+  });
+
+  it("replaces an unregistered ApiError code with its status class", async () => {
+    const response = handleApiError(
+      new ApiError("upstream diagnostic", 409, {
+        code: "upstream.unknown_code",
+      }),
+    );
+
+    expect(response.status).toBe(409);
+    const body = await response.text();
+    expect(JSON.parse(body)).toMatchObject({
+      status: 409,
+      code: "general.business_rejection",
+    });
+    expect(body).not.toContain("upstream diagnostic");
+    expect(body).not.toContain("upstream.unknown_code");
+  });
+
+  // A plain Error whose text happens to look like the old
+  // "API error (403)" shape carries no status: the text never decides.
+  it("never reads a status out of the message", async () => {
+    const response = handleApiError(new Error("API error (403): Forbidden"));
+
+    expect(response.status).toBe(500);
+    expect(await response.json()).toMatchObject({
+      status: 500,
+      code: "general.server",
+    });
+  });
+
+  it("answers an ApiError with its status, code and payload", async () => {
+    const error = new ApiError("bad date", 400, {
+      code: "general.input",
+      errors: [{ field: "date", reason: "invalid" }],
+      details: { field: "date" },
+    });
 
     const response = handleApiError(error);
 
-    expect(response.status).toBe(403);
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      status: 400,
+      detail: "Bad Request",
+      code: "general.input",
+      errors: [{ field: "date", reason: "invalid" }],
+      details: { field: "date" },
+    });
+  });
+
+  it("strips diagnostic ApiError extensions from a 5xx response", async () => {
+    const response = handleApiError(
+      new ApiError("database host db.internal refused the connection", 503, {
+        code: "iot.schulhof_not_configured",
+        errors: [{ field: "database_password", reason: "secret" }],
+        details: { host: "db.internal", password: "secret" },
+        instance: "request-503",
+      }),
+    );
+
+    const body = await response.text();
+    expect(JSON.parse(body)).toMatchObject({
+      status: 503,
+      detail: "Service Unavailable",
+      code: "iot.schulhof_not_configured",
+      instance: "request-503",
+    });
+    expect(body).not.toContain("database_password");
+    expect(body).not.toContain("db.internal");
+    expect(body).not.toContain("secret");
+  });
+
+  it("adds the request ID to frontend-generated errors", async () => {
+    const response = handleApiError(
+      new ApiError("bad date", 400),
+      new Request("https://frontend.test/api/example", {
+        headers: { "X-Request-ID": "request-400" },
+      }),
+    );
+
+    expect(await response.json()).toMatchObject({
+      status: 400,
+      instance: "request-400",
+    });
+  });
+
+  it("adds the request ID to BFF errors forwarded by the route wrapper", async () => {
+    const response = handleApiError(
+      bffError(400, "request body is not valid JSON"),
+      new Request("https://frontend.test/api/example", {
+        headers: { "X-Request-ID": "request-bff" },
+      }),
+    );
+
+    expect(await response.json()).toMatchObject({
+      status: 400,
+      instance: "request-bff",
+    });
+  });
+
+  it("adds the request ID to a directly constructed problem response", async () => {
+    const response = problemResponse(
+      400,
+      "Invalid JSON",
+      undefined,
+      new Request("https://frontend.test/api/example", {
+        headers: { "X-Request-ID": "request-direct" },
+      }),
+      undefined,
+    );
+
+    expect(await response.json()).toMatchObject({
+      status: 400,
+      instance: "request-direct",
+    });
   });
 
   it("logs error for 5xx status codes", () => {
-    const error = new Error("API error (500): Internal Server Error");
-
-    handleApiError(error);
+    handleApiError(backendError(500, { status: 500, detail: "boom" }));
 
     expect(consoleSpies.error).toHaveBeenCalled();
     expect(consoleSpies.warn).not.toHaveBeenCalled();
   });
 
   it("logs the backend's error code with a 5xx, so the event carries error_code", () => {
-    const error = new ServerApiResponseError(
-      503,
-      JSON.stringify({
-        status: "error",
-        error: "down",
-        code: "db_unavailable",
+    handleApiError(
+      backendError(503, {
+        status: 503,
+        detail: "down",
+        code: "general.unavailable",
       }),
     );
 
-    handleApiError(error);
-
     expect(consoleSpies.error).toHaveBeenCalledWith(
       "api route error",
-      expect.objectContaining({ status: 503, error_code: "db_unavailable" }),
+      expect.objectContaining({
+        status: 503,
+        error_code: "general.unavailable",
+      }),
     );
   });
 
   it("logs warning for 4xx status codes", () => {
-    const error = new Error("API error (400): Bad Request");
-
-    handleApiError(error);
+    handleApiError(backendError(400, { status: 400, detail: "Bad Request" }));
 
     expect(consoleSpies.warn).toHaveBeenCalled();
-    // consoleError not called for 4xx
+    expect(consoleSpies.error).not.toHaveBeenCalled();
   });
 
   it("redacts free-text notes from 409 conflict bodies before logging", () => {
-    const backendJson = JSON.stringify({
-      status: "error",
-      error: "existing student status days were not overwritten",
-      conflicts: [
-        {
-          id: 7,
-          student_id: 42,
-          date: "2026-05-26",
-          status: "sick",
-          note: "Fieber und Halsschmerzen",
-        },
-      ],
-    });
-    const error = new Error(`API error (409): ${backendJson}`);
-
-    const response = handleApiError(error);
+    const response = handleApiError(
+      backendError(409, {
+        status: 409,
+        detail: "existing student status days were not overwritten",
+        conflicts: [
+          {
+            id: 7,
+            student_id: 42,
+            date: "2026-05-26",
+            status: "sick",
+            note: "Fieber und Halsschmerzen",
+          },
+        ],
+      }),
+    );
 
     expect(response.status).toBe(409);
     expect(consoleSpies.warn).toHaveBeenCalledWith("api route error", {
@@ -230,94 +493,59 @@ describe("handleApiError", () => {
   });
 
   it("logs rate-limit responses with rate_limited context", () => {
-    const error = new Error("API error (429): Rate limit exceeded");
-
-    handleApiError(error);
+    handleApiError(new ServerApiResponseError(429, "Rate limit exceeded"));
 
     expect(consoleSpies.warn).toHaveBeenCalledWith("api route rate limited", {
       status: 429,
-      error: "API error (429): Rate limit exceeded",
+      error: "Rate limit exceeded",
       rate_limited: true,
     });
     expect(consoleSpies.error).not.toHaveBeenCalled();
   });
 
-  it("returns 500 for unknown error format", async () => {
-    const error = new Error("Something went wrong");
-
-    const response = handleApiError(error);
-    const body = (await response.json()) as { error: string };
+  it("returns 500 for an error without a status", async () => {
+    const response = handleApiError(new Error("Something went wrong"));
 
     expect(response.status).toBe(500);
-    expect(body.error).toBe("Something went wrong");
+    expect(await response.json()).toMatchObject({
+      status: 500,
+      detail: "Internal Server Error",
+      code: "general.server",
+    });
   });
 
   it("handles non-Error objects", async () => {
     const response = handleApiError("string error");
-    const body = (await response.json()) as { error: string };
 
     expect(response.status).toBe(500);
-    expect(body.error).toBe("Internal Server Error");
-  });
-
-  it("extracts error and code from embedded backend JSON", async () => {
-    const backendJson = JSON.stringify({
-      status: "error",
-      error: "account already has access to tenant",
-      code: "identity.account_already_has_tenant_access",
+    expect(await response.json()).toMatchObject({
+      status: 500,
+      detail: "Internal Server Error",
+      code: "general.server",
     });
-    const error = new Error(`API error (409): ${backendJson}`);
-
-    const response = handleApiError(error);
-    const body = (await response.json()) as { error: string; code?: string };
-
-    expect(response.status).toBe(409);
-    expect(body.error).toBe("account already has access to tenant");
-    expect(body.code).toBe("identity.account_already_has_tenant_access");
-  });
-
-  it("omits code field when backend JSON has no code", async () => {
-    const backendJson = JSON.stringify({
-      status: "error",
-      error: "email already exists",
-    });
-    const error = new Error(`API error (409): ${backendJson}`);
-
-    const response = handleApiError(error);
-    const body = (await response.json()) as { error: string; code?: string };
-
-    expect(response.status).toBe(409);
-    expect(body.error).toBe("email already exists");
-    expect(body.code).toBeUndefined();
   });
 
   // Regression for Issue #1368: the proxy must forward the backend's
-  // structured `details` payload alongside `error` and `code`. Dropping
-  // details here breaks the reopen-with-status-change modal because the
-  // UI can no longer learn which session is conflicting from the response —
-  // it falls back to history-data lookup, which is empty on past weeks.
+  // structured `details` payload. Dropping details breaks the
+  // reopen-with-status-change modal because the UI can no longer learn which
+  // session is conflicting from the response.
   it("forwards backend details payload (e.g. reopen_status_conflict)", async () => {
-    const backendJson = JSON.stringify({
-      status: "error",
-      error: "reopen status conflict",
-      code: "reopen_status_conflict",
-      details: {
-        session_id: "42",
-        existing_status: "present",
-        requested_status: "home_office",
-      },
-    });
-    const error = new Error(`API error (409): ${backendJson}`);
-
-    const response = handleApiError(error);
+    const response = handleApiError(
+      backendError(409, {
+        status: 409,
+        detail: "reopen status conflict",
+        details: {
+          session_id: "42",
+          existing_status: "present",
+          requested_status: "home_office",
+        },
+      }),
+    );
     const body = (await response.json()) as {
-      error: string;
-      code?: string;
       details?: Record<string, unknown>;
     };
 
     expect(response.status).toBe(409);
-    expect(body.code).toBe("reopen_status_conflict");
     expect(body.details).toEqual({
       session_id: "42",
       existing_status: "present",
@@ -331,102 +559,87 @@ describe("handleApiError", () => {
   // the confirmation it re-sends — dropping it here leaves the confirmation
   // empty and "Ergänzen und speichern" loops on the same 409 forever.
   it("forwards the top-level conflicts array of a companion-plan 409", async () => {
-    const backendJson = JSON.stringify({
-      status: "error",
-      error:
-        "Der Heimweg des verknüpften Kindes erlaubt diese Tage noch nicht.",
-      conflicts: [{ student_id: 42, weekdays: ["mon", "tue"] }],
-    });
-    const error = new Error(`API error (409): ${backendJson}`);
-
-    const response = handleApiError(error);
+    const response = handleApiError(
+      backendError(409, {
+        status: 409,
+        detail: "companion departure plan does not allow these days",
+        code: "students.companion_plan_conflict",
+        conflicts: [{ student_id: 42, weekdays: ["mon", "tue"] }],
+      }),
+    );
     const body = (await response.json()) as {
-      error: string;
+      code?: string;
       conflicts?: unknown[];
     };
 
     expect(response.status).toBe(409);
+    expect(body.code).toBe("students.companion_plan_conflict");
     expect(body.conflicts).toEqual([
       { student_id: 42, weekdays: ["mon", "tue"] },
     ]);
-    expect(body.error).toBe(
-      "Der Heimweg des verknüpften Kindes erlaubt diese Tage noch nicht.",
-    );
-  });
-
-  it("omits details field when backend JSON has no details", async () => {
-    const backendJson = JSON.stringify({
-      status: "error",
-      error: "generic 409",
-      code: "generic_conflict",
-    });
-    const error = new Error(`API error (409): ${backendJson}`);
-
-    const response = handleApiError(error);
-    const body = (await response.json()) as {
-      error: string;
-      code?: string;
-      details?: Record<string, unknown>;
-    };
-
-    expect(body.details).toBeUndefined();
   });
 });
 
 describe("handleDomainApiError", () => {
-  // Helper to capture thrown error from handleDomainApiError
-  function captureThrown(fn: () => void): {
-    status: number;
-    code: string;
-    message: string;
-  } {
+  function captureThrown(fn: () => void): unknown {
     try {
       fn();
-      // If we reach here, function didn't throw
-      throw new Error("Function did not throw");
     } catch (e) {
-      // If it's our "didn't throw" error, rethrow it
-      if (e instanceof Error && e.message === "Function did not throw") {
-        throw e;
-      }
-      return JSON.parse((e as Error).message) as {
-        status: number;
-        code: string;
-        message: string;
-      };
+      return e;
     }
+    throw new Error("Function did not throw");
   }
 
-  it("throws structured error with extracted status code", () => {
-    const error = new Error("API error (403): Access denied");
+  it("passes a structured ApiError through unchanged", () => {
+    const error = new ApiError("denied", 403, {
+      code: "general.permission",
+    });
 
-    const thrown = captureThrown(() =>
-      handleDomainApiError(error, "fetch students", "STUDENT"),
-    );
-
-    expect(thrown.status).toBe(403);
-    expect(thrown.code).toBe("STUDENT_API_ERROR_403");
-    expect(thrown.message).toContain("Failed to fetch students");
+    expect(
+      captureThrown(() => handleDomainApiError(error, "fetch students")),
+    ).toBe(error);
   });
 
-  it("uses 500 status for errors without status code", () => {
-    const error = new Error("Unknown error");
+  it("keeps status and envelope of an Axios response", () => {
+    const error = Object.assign(new Error("Request failed"), {
+      response: {
+        status: 409,
+        data: { detail: "conflict", code: "students.partial_absence_conflict" },
+      },
+    });
 
     const thrown = captureThrown(() =>
-      handleDomainApiError(error, "update activity", "ACTIVITY"),
+      handleDomainApiError(error, "fetch students"),
     );
 
-    expect(thrown.status).toBe(500);
-    expect(thrown.code).toBe("ACTIVITY_API_ERROR_UNKNOWN");
+    expect(thrown).toBeInstanceOf(ApiError);
+    expect(thrown).toMatchObject({
+      status: 409,
+      code: "students.partial_absence_conflict",
+      message: "Failed to fetch students",
+      detail: "conflict",
+    });
+  });
+
+  it("never reads a status out of the message", () => {
+    const thrown = captureThrown(() =>
+      handleDomainApiError(
+        new Error("API error (403): Access denied"),
+        "update activity",
+      ),
+    );
+
+    expect(thrown).toMatchObject({ status: 500, code: "general.server" });
+    expect((thrown as Error).message).toContain("Failed to update activity");
   });
 
   it("handles non-Error objects", () => {
     const thrown = captureThrown(() =>
-      handleDomainApiError("string error", "delete room", "ROOM"),
+      handleDomainApiError("string error", "delete room"),
     );
 
-    expect(thrown.status).toBe(500);
-    expect(thrown.message).toContain("Unknown error");
+    expect(thrown).toMatchObject({ status: 500 });
+    expect((thrown as Error).message).toContain("Unknown error");
   });
 });
 
@@ -782,6 +995,7 @@ describe("fetchWithRetry", () => {
 
     expect(result.response).toBeNull();
     expect(result.data).toBeNull();
+    expect(result.accessDeniedStatus).toBe(401);
     expect(getNewToken).not.toHaveBeenCalled();
   });
 
@@ -824,6 +1038,7 @@ describe("fetchWithRetry", () => {
 
     expect(result.response).toBeNull();
     expect(result.data).toBeNull();
+    expect(result.accessDeniedStatus).toBe(403);
     expect(consoleSpies.warn).toHaveBeenCalled();
   });
 
@@ -963,49 +1178,6 @@ vi.mock("../server/auth", () => ({
   auth: vi.fn(),
 }));
 
-describe("checkAuth", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it("returns null when session has valid token", async () => {
-    const { auth } = await import("../server/auth");
-    vi.mocked(auth).mockResolvedValueOnce({
-      user: { id: "1", token: "valid-token" },
-      expires: "",
-    } as never);
-
-    const result = await checkAuth();
-
-    expect(result).toBeNull();
-  });
-
-  it("returns 401 response when session is null", async () => {
-    const { auth } = await import("../server/auth");
-    vi.mocked(auth).mockResolvedValueOnce(null as never);
-
-    const result = await checkAuth();
-
-    expect(result).not.toBeNull();
-    expect(result?.status).toBe(401);
-    const body = (await result?.json()) as { error: string };
-    expect(body.error).toBe("Unauthorized");
-  });
-
-  it("returns 401 response when user has no token", async () => {
-    const { auth } = await import("../server/auth");
-    vi.mocked(auth).mockResolvedValueOnce({
-      user: { id: "1", token: undefined },
-      expires: "",
-    } as never);
-
-    const result = await checkAuth();
-
-    expect(result).not.toBeNull();
-    expect(result?.status).toBe(401);
-  });
-});
-
 // ===== API FUNCTION TESTS (SERVER-SIDE) =====
 
 describe("apiGet (server-side)", () => {
@@ -1043,13 +1215,13 @@ describe("apiGet (server-side)", () => {
     "forwards a %s conflict body and status unchanged through the proxy",
     async (method, endpoint, requestBody) => {
       const backendBody = JSON.stringify({
-        type: "/help/fehlermeldungen#konflikt",
+        type: "https://moto-app.de/help/fehlermeldungen#anleitung-vorgang-nicht-moeglich",
         title: "Conflict",
         status: 409,
-        error: "item already exists",
-        code: "item_conflict",
+        detail: "item already exists",
+        code: "general.business_rejection",
         details: { item_id: "42" },
-        errors: [{ field: "name", code: "duplicate" }],
+        errors: [{ field: "name", reason: "duplicate" }],
         instance: "/api/items/42",
       });
       mockNextHeaders.mockResolvedValueOnce(new Headers());

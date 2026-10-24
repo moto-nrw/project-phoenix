@@ -1,6 +1,12 @@
 {
   "codes": [
     {
+      "code": "attendance.log_disabled",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "attendance.log_disabled"
+    },
+    {
       "code": "attendance.web_disabled",
       "class": "permission",
       "parameters": [],
@@ -445,6 +451,24 @@
       "legacy": "class_arrival_exception_weekend"
     },
     {
+      "code": "classday.morning_attendance_no_school_day",
+      "class": "input",
+      "parameters": [],
+      "legacy": "classday.morning_attendance_no_school_day"
+    },
+    {
+      "code": "classday.morning_attendance_not_today",
+      "class": "input",
+      "parameters": [],
+      "legacy": "classday.morning_attendance_not_today"
+    },
+    {
+      "code": "classday.morning_attendance_unknown_child",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "classday.morning_attendance_unknown_child"
+    },
+    {
       "code": "classday.school_write_disabled",
       "class": "permission",
       "parameters": [],
@@ -517,6 +541,18 @@
       "legacy": "system_announcement_immutable"
     },
     {
+      "code": "display.disabled",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "display.disabled"
+    },
+    {
+      "code": "enrollment.approval_care_offering_day_conflict",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.approval_care_offering_day_conflict"
+    },
+    {
       "code": "enrollment.approval_care_offering_exactly_one",
       "class": "business_rejection",
       "parameters": [],
@@ -527,6 +563,12 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "enrollment.approval_care_offering_missing"
+    },
+    {
+      "code": "enrollment.care_offering_day_conflict",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.care_offering_day_conflict"
     },
     {
       "code": "enrollment.care_offering_days_required",
@@ -789,6 +831,12 @@
       "legacy": "enrollment.window_closed"
     },
     {
+      "code": "feedback.disabled",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "feedback.disabled"
+    },
+    {
       "code": "files.announcement_published",
       "class": "business_rejection",
       "parameters": [],
@@ -805,6 +853,12 @@
       "class": "input",
       "parameters": [],
       "legacy": "files.file_missing"
+    },
+    {
+      "code": "files.file_name_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "files.file_name_invalid"
     },
     {
       "code": "files.file_too_large",
@@ -969,6 +1023,14 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "identity.role_name_taken"
+    },
+    {
+      "code": "identity.role_platform_permission",
+      "class": "input",
+      "parameters": [
+        "permission"
+      ],
+      "legacy": "identity.role_platform_permission"
     },
     {
       "code": "identity.invitation_account_login_required",
@@ -1383,6 +1445,12 @@
       "legacy": "iot.wc_not_configured"
     },
     {
+      "code": "meals.invalid_allergens",
+      "class": "input",
+      "parameters": [],
+      "legacy": "meals.invalid_allergens"
+    },
+    {
       "code": "meals.invalid_dishes",
       "class": "input",
       "parameters": [],
@@ -1673,6 +1741,12 @@
       "legacy": "care_offerings_disabled"
     },
     {
+      "code": "students.care_resume_alumnus",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "students.care_resume_alumnus"
+    },
+    {
       "code": "students.care_resume_missing",
       "class": "business_rejection",
       "parameters": [],
@@ -1759,6 +1833,12 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "companion_lock_busy"
+    },
+    {
+      "code": "students.companion_plan_conflict",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "students.companion_plan_conflict"
     },
     {
       "code": "students.companion_would_lose_departure",
@@ -3515,6 +3595,12 @@
       "legacy": "enrollment.form_field_label_required"
     },
     {
+      "code": "enrollment.form_attachment_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.form_attachment_invalid"
+    },
+    {
       "code": "enrollment.form_field_content_required",
       "class": "input",
       "parameters": [],
@@ -3581,6 +3667,38 @@
         "max_mb"
       ],
       "legacy": "enrollment.legal_document_invalid"
+    },
+    {
+      "code": "enrollment.form_field_file_options_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.form_field_file_options_invalid"
+    },
+    {
+      "code": "enrollment.upload_invalid",
+      "class": "input",
+      "parameters": [
+        "max_mb"
+      ],
+      "legacy": "enrollment.upload_invalid"
+    },
+    {
+      "code": "enrollment.upload_expired",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.upload_expired"
+    },
+    {
+      "code": "enrollment.upload_rate_limited",
+      "class": "unavailable",
+      "parameters": [],
+      "legacy": "enrollment.upload_rate_limited"
+    },
+    {
+      "code": "enrollment.upload_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.upload_not_found"
     },
     {
       "code": "enrollment.request_not_found",
@@ -3823,6 +3941,12 @@
       "legacy": "identity.operator_invitation_invalid"
     },
     {
+      "code": "identity.operator_self_deactivation",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "identity.operator_self_deactivation"
+    },
+    {
       "code": "identity.invitation_rate_limited",
       "class": "unavailable",
       "parameters": [],
@@ -3845,6 +3969,18 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "identity.email_change_link_invalid"
+    },
+    {
+      "code": "identity.mfa_status_unavailable",
+      "class": "unavailable",
+      "parameters": [],
+      "legacy": "identity.mfa_status_unavailable"
+    },
+    {
+      "code": "identity.mfa_session_required",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "identity.mfa_session_required"
     },
     {
       "code": "identity.mfa_not_enrolled",
@@ -4083,6 +4219,40 @@
       "legacy": "settings.booking_authority_blocked"
     },
     {
+      "code": "settings.attendance_visible_exceeds_retention",
+      "class": "input",
+      "parameters": [
+        "retention_days"
+      ],
+      "legacy": "settings.attendance_visible_exceeds_retention"
+    },
+    {
+      "code": "settings.attendance_retention_below_visible",
+      "class": "input",
+      "parameters": [
+        "visible_days"
+      ],
+      "legacy": "settings.attendance_retention_below_visible"
+    },
+    {
+      "code": "settings.module_requires",
+      "class": "input",
+      "parameters": [
+        "module",
+        "required"
+      ],
+      "legacy": "settings.module_requires"
+    },
+    {
+      "code": "settings.module_required_by",
+      "class": "input",
+      "parameters": [
+        "module",
+        "dependents"
+      ],
+      "legacy": "settings.module_required_by"
+    },
+    {
       "code": "communication.announcement_not_found",
       "class": "business_rejection",
       "parameters": [],
@@ -4105,6 +4275,60 @@
       "class": "input",
       "parameters": [],
       "legacy": "billing.invalid_key_day"
+    },
+    {
+      "code": "staff.external_email_required",
+      "class": "input",
+      "parameters": [],
+      "legacy": "staff.external_email_required"
+    },
+    {
+      "code": "staff.external_email_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "staff.external_email_invalid"
+    },
+    {
+      "code": "staff.not_external",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "staff.not_external"
+    },
+    {
+      "code": "staff.external_has_account",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "staff.external_has_account"
+    },
+    {
+      "code": "staff.external_email_invited",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "staff.external_email_invited"
+    },
+    {
+      "code": "staff.external_access_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "staff.external_access_invalid"
+    },
+    {
+      "code": "communication.group_thread_closed",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "communication.group_thread_closed"
+    },
+    {
+      "code": "communication.group_thread_no_recipients",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "communication.group_thread_no_recipients"
+    },
+    {
+      "code": "operator.audit_unavailable",
+      "class": "unavailable",
+      "parameters": [],
+      "legacy": "operator.audit_unavailable"
     }
   ]
 }

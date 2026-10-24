@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
 import { GET } from "./route";
-
-interface ExtendedSession extends Session {
-  user: Session["user"] & { token?: string };
-}
+import {
+  type ExtendedSession,
+  createMockContext,
+  defaultSession,
+} from "~/test/route-test-helpers";
 
 const { mockAuth } = vi.hoisted(() => ({
   mockAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
@@ -15,29 +15,12 @@ vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));
 
-vi.mock("~/lib/api-helpers.server", () => ({
-  handleApiError: vi.fn((error: unknown) => {
-    const message =
-      error instanceof Error ? error.message : "Internal Server Error";
-    const status = message.includes("(401)")
-      ? 401
-      : message.includes("(400)")
-        ? 400
-        : 500;
-    return new Response(JSON.stringify({ error: message }), { status });
-  }),
+vi.mock("~/lib/api-helpers.server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/api-helpers.server")>()),
+  handleApiError: vi.fn(
+    (await import("~/test/helpers/handle-api-error")).mockHandleApiError,
+  ),
 }));
-
-const defaultSession: ExtendedSession = {
-  user: { id: "1", token: "test-token", name: "Test User" },
-  expires: "2099-01-01",
-};
-
-function createMockContext(
-  params: Record<string, string | string[] | undefined> = {},
-) {
-  return { params: Promise.resolve(params) };
-}
 
 describe("GET /api/me/profile/avatar/[filename]", () => {
   beforeEach(() => {
@@ -70,8 +53,8 @@ describe("GET /api/me/profile/avatar/[filename]", () => {
     );
 
     expect(response.status).toBe(400);
-    const json = (await response.json()) as { error: string };
-    expect(json.error).toContain("Filename is required");
+    const json = (await response.json()) as { detail: string };
+    expect(json.detail).toContain("Filename is required");
   });
 
   it("rejects filename with path traversal attack", async () => {
@@ -84,8 +67,8 @@ describe("GET /api/me/profile/avatar/[filename]", () => {
     );
 
     expect(response.status).toBe(400);
-    const json = (await response.json()) as { error: string };
-    expect(json.error).toContain("Invalid filename");
+    const json = (await response.json()) as { detail: string };
+    expect(json.detail).toContain("Invalid filename");
   });
 
   it("rejects filename with forward slashes", async () => {
@@ -98,8 +81,8 @@ describe("GET /api/me/profile/avatar/[filename]", () => {
     );
 
     expect(response.status).toBe(400);
-    const json = (await response.json()) as { error: string };
-    expect(json.error).toContain("Invalid filename");
+    const json = (await response.json()) as { detail: string };
+    expect(json.detail).toContain("Invalid filename");
   });
 
   it("rejects filename with backslashes", async () => {
@@ -112,8 +95,8 @@ describe("GET /api/me/profile/avatar/[filename]", () => {
     );
 
     expect(response.status).toBe(400);
-    const json = (await response.json()) as { error: string };
-    expect(json.error).toContain("Invalid filename");
+    const json = (await response.json()) as { detail: string };
+    expect(json.detail).toContain("Invalid filename");
   });
 
   it("successfully fetches JPEG avatar", async () => {

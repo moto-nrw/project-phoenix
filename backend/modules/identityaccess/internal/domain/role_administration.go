@@ -11,18 +11,12 @@ import (
 // contract the retained auth service established.
 
 var (
-	ErrSystemRoleImmutable = errors.New("system roles cannot be modified")
-	ErrPermissionNotFound  = errors.New("permission not found")
 	// ErrBaseRoleRequired rejects a custom role without the system role it
 	// maps to for announcement targeting.
 	ErrBaseRoleRequired = errors.New("base_role is required for custom roles")
 	// ErrRoleNameTaken rejects a role name the school (or the platform, for a
 	// system role) already uses.
 	ErrRoleNameTaken = errors.New("role name already exists")
-
-	ErrRoleCaregiverNeedsProfile     = errors.New("Ein Lehrkraft-Konto hat kein Betreuungsprofil und kann nicht auf eine Betreuer-Rolle umgestellt werden") //nolint:staticcheck // ST1005: user-facing German message
-	ErrLehrkraftRoleImmutable        = errors.New("Ein Lehrkraft-Konto kann nicht umgestellt werden")                                                       //nolint:staticcheck // ST1005: user-facing German message
-	ErrRoleLehrkraftCaregiverProfile = errors.New("Das Konto hat ein Betreuungsprofil an dieser Schule und kann nicht auf Lehrkraft umgestellt werden")     //nolint:staticcheck // ST1005: user-facing German message
 )
 
 // ManagedRole is one auth.roles row as the administration reads and writes
@@ -34,13 +28,16 @@ type ManagedRole struct {
 	Description string
 	IsSystem    bool
 	BaseRole    *string
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	// SchoolPortal marks a school role made from the Lehrkraft template: it
+	// opens moto schule like the system role lehrkraft (#4574).
+	SchoolPortal bool
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
 }
 
 // Facts projects the role onto its classification facts.
 func (r ManagedRole) Facts() *RoleFacts {
-	return &RoleFacts{ID: r.ID, TenantID: r.TenantID, Name: r.Name, IsSystem: r.IsSystem, BaseRole: r.BaseRole}
+	return &RoleFacts{ID: r.ID, TenantID: r.TenantID, Name: r.Name, IsSystem: r.IsSystem, BaseRole: r.BaseRole, SchoolPortal: r.SchoolPortal}
 }
 
 // ManagedPermission is one auth.permissions row.

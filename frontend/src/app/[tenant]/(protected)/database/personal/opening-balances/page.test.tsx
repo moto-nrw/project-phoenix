@@ -134,6 +134,14 @@ describe("OpeningBalanceImportPage", () => {
     cleanup();
   });
 
+  it("führt zurück zum Personal", () => {
+    render(<OpeningBalanceImportPage />);
+
+    expect(
+      screen.getByRole("link", { name: "Zurück zum Personal" }),
+    ).toHaveAttribute("href", expect.stringMatching(/\/database\/personal$/));
+  });
+
   it("rendert die vier Schritte der Seite", () => {
     render(<OpeningBalanceImportPage />);
 
@@ -325,8 +333,8 @@ describe("OpeningBalanceImportPage", () => {
         ok: false,
         json: () =>
           Promise.resolve({
-            status: "error",
-            error: "Import fehlgeschlagen",
+            status: 409,
+            detail: "import batch failed",
             code: "import.import_batch_failed",
             details: {
               result: {
@@ -367,14 +375,16 @@ describe("OpeningBalanceImportPage", () => {
     });
     fireEvent.click(screen.getByText("2 Übernahmen buchen"));
 
+    // A batch that stopped after saved rows is a failure of the import:
+    // it stands in the form's error alert, not in a warning (#2520).
     await waitFor(() => {
-      expect(
-        screen.getByText(/100 Zeilen sind gespeichert/),
-      ).toBeInTheDocument();
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        /100 Zeilen sind gespeichert/,
+      );
     });
-    expect(
-      screen.getByText(/Zeile 152 hat den Rest angehalten/),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      /Zeile 152 hat den Rest angehalten/,
+    );
     expect(screen.getByText("Import nicht vollständig")).toBeInTheDocument();
     expect(screen.getByText("Clara Weber")).toBeInTheDocument();
     expect(

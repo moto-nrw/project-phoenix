@@ -8,6 +8,7 @@ import { withTenantAuth } from "~/server/auth/tenant-route";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { createLogger } from "~/lib/logger";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
+import { problemResponse } from "~/lib/api-helpers.server";
 
 const logger = createLogger({ component: "StudentPhotoServeRoute" });
 
@@ -20,7 +21,7 @@ async function GETHandler(
   const session = await auth();
   const token = session?.user?.token;
   if (!token) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return problemResponse(401, "Unauthorized", request);
   }
 
   const backendUrl = `${getServerApiUrl()}/api/students/${encodeURIComponent(id)}/photo/${encodeURIComponent(filename)}`;
@@ -76,7 +77,7 @@ async function GETHandler(
       filename,
       status: upstream.status,
     });
-    return forwardBackendResponse(upstream);
+    return forwardBackendResponse(upstream, request);
   }
 
   // 200 path — stream the body through unchanged. Preserve Content-Type,

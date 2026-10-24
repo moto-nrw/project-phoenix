@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"testing"
 
+	scanBindings "github.com/moto-nrw/project-phoenix/roots/devicescanbinding"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -31,7 +33,7 @@ type recordedOpenRoomMove struct{ studentID, roomID int64 }
 // report or error and records what it was asked.
 func openRoomMoverWith(report devicescanCompose.OpenRoomMoveReport, err error) (devicescanCompose.OpenRoomMover, *[]recordedOpenRoomMove) {
 	var moves []recordedOpenRoomMove
-	mover := devicescanCompose.NewOpenRoomMover(func(_ context.Context, studentID, roomID int64) (devicescanCompose.OpenRoomMoveReport, error) {
+	mover := scanBindings.NewOpenRoomMover(func(_ context.Context, studentID, roomID int64) (devicescanCompose.OpenRoomMoveReport, error) {
 		moves = append(moves, recordedOpenRoomMove{studentID: studentID, roomID: roomID})
 		return report, err
 	}, devicescanCompose.OpenRoomRefusals{RoomNotFound: errTestRoomNotFound, RoomNotReleased: errTestRoomNotReleased})
@@ -133,9 +135,9 @@ func TestNewOpenRoomMover_RequiresTheMoveAndItsRefusals(t *testing.T) {
 		return devicescanCompose.OpenRoomMoveReport{}, nil
 	}
 	assert.Panics(t, func() {
-		devicescanCompose.NewOpenRoomMover(nil, devicescanCompose.OpenRoomRefusals{RoomNotFound: errTestRoomNotFound, RoomNotReleased: errTestRoomNotReleased})
+		scanBindings.NewOpenRoomMover(nil, devicescanCompose.OpenRoomRefusals{RoomNotFound: errTestRoomNotFound, RoomNotReleased: errTestRoomNotReleased})
 	})
 	assert.Panics(t, func() {
-		devicescanCompose.NewOpenRoomMover(move, devicescanCompose.OpenRoomRefusals{RoomNotFound: errTestRoomNotFound})
+		scanBindings.NewOpenRoomMover(move, devicescanCompose.OpenRoomRefusals{RoomNotFound: errTestRoomNotFound})
 	})
 }

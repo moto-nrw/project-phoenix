@@ -16,11 +16,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	settingsContract "github.com/moto-nrw/project-phoenix/modules/settings"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -34,7 +35,7 @@ func TestOperationsPlannedNow(t *testing.T) {
 	service := &fakeOperationsService{
 		planned: []timetable.OperationPlannedInstance{{ID: 220, Title: "Lernzeit"}},
 	}
-	res := NewResource(Dependencies{OperationsService: service})
+	res := newResourceForTest(Dependencies{OperationsService: service})
 	router := operationRouter(http.MethodGet, "/planned-now", res.operationsPlannedNow)
 
 	rr := executeOperationRequest(t, router, http.MethodGet, "/planned-now?date=2026-05-10", nil)
@@ -62,7 +63,7 @@ func TestOperationsRosterRoutesRedactPickupTimesWithoutStudentRead(t *testing.T)
 	t.Parallel()
 
 	pickupTime := "15:00"
-	resource := NewResource(Dependencies{OperationsService: &fakeOperationsService{
+	resource := newResourceForTest(Dependencies{OperationsService: &fakeOperationsService{
 		roster: &timetable.OperationRoster{
 			Rows:              []timetable.OperationRosterRow{{StudentID: 350, PickupTime: &pickupTime}},
 			PickupTimesLoaded: true,
@@ -80,7 +81,7 @@ func TestOperationsRosterRoutesRedactPickupTimesWithoutStudentRead(t *testing.T)
 		t.Run(tc.path, func(t *testing.T) {
 			router := operationRouter(http.MethodGet, tc.route, tc.handler)
 			request := httptest.NewRequest(http.MethodGet, tc.path, nil)
-			testutil.WithClaims(t, jwt.AppClaims{ID: 120})(request)
+			testutil.WithClaims(t, sessiontoken.AppClaims{ID: 120})(request)
 			testutil.WithPermissions(permissions.SchedulesRead)(request)
 			response := httptest.NewRecorder()
 
@@ -103,9 +104,9 @@ func TestOperationsPlannedNowAllowsRosterFreeScheduleRead(t *testing.T) {
 		RosterPreview:     []timetable.OperationRosterRow{{StudentID: 350, PickupTime: &pickupTime}},
 		PickupTimesLoaded: true,
 	}}}
-	router := operationRouter(http.MethodGet, "/planned-now", NewResource(Dependencies{OperationsService: service}).operationsPlannedNow)
+	router := operationRouter(http.MethodGet, "/planned-now", newResourceForTest(Dependencies{OperationsService: service}).operationsPlannedNow)
 	req := httptest.NewRequest(http.MethodGet, "/planned-now", nil)
-	testutil.WithClaims(t, jwt.AppClaims{ID: 120})(req)
+	testutil.WithClaims(t, sessiontoken.AppClaims{ID: 120})(req)
 	testutil.WithPermissions(permissions.SchedulesRead)(req)
 	response := httptest.NewRecorder()
 
@@ -115,7 +116,7 @@ func TestOperationsPlannedNowAllowsRosterFreeScheduleRead(t *testing.T) {
 	assert.False(t, service.lastPlannedOptions.IncludeRoster)
 
 	request := httptest.NewRequest(http.MethodGet, "/planned-now?include_roster=true", nil)
-	testutil.WithClaims(t, jwt.AppClaims{ID: 120})(request)
+	testutil.WithClaims(t, sessiontoken.AppClaims{ID: 120})(request)
 	testutil.WithPermissions(permissions.SchedulesRead)(request)
 	response = httptest.NewRecorder()
 
@@ -135,7 +136,7 @@ func TestOperationsMutationResponsesRedactPickupTimesWithoutStudentRead(t *testi
 		roster:   &timetable.OperationRoster{Rows: []timetable.OperationRosterRow{{StudentID: 350, PickupTime: &pickupTime}}, PickupTimesLoaded: true},
 		patchRow: &timetable.OperationRosterRow{StudentID: 350, PickupTime: &pickupTime},
 	}
-	resource := NewResource(Dependencies{OperationsService: service})
+	resource := newResourceForTest(Dependencies{OperationsService: service})
 	cases := []struct {
 		method  string
 		path    string
@@ -160,7 +161,7 @@ func TestOperationsMutationResponsesRedactPickupTimesWithoutStudentRead(t *testi
 			if tc.body != nil {
 				request.Header.Set("Content-Type", "application/json")
 			}
-			testutil.WithClaims(t, jwt.AppClaims{ID: 120})(request)
+			testutil.WithClaims(t, sessiontoken.AppClaims{ID: 120})(request)
 			testutil.WithPermissions(permissions.SchedulesRead)(request)
 			response := httptest.NewRecorder()
 
@@ -183,12 +184,12 @@ func testWorkdayNow() time.Time {
 func TestOperationsPlannedNowValidationAndWiring(t *testing.T) {
 	t.Parallel()
 
-	res := NewResource(Dependencies{})
+	res := newResourceForTest(Dependencies{})
 	router := operationRouter(http.MethodGet, "/planned-now", res.operationsPlannedNow)
 	rr := executeOperationRequest(t, router, http.MethodGet, "/planned-now", nil)
 	assert.Equal(t, http.StatusInternalServerError, rr.Code)
 
-	res = NewResource(Dependencies{OperationsService: &fakeOperationsService{}})
+	res = newResourceForTest(Dependencies{OperationsService: &fakeOperationsService{}})
 	router = operationRouter(http.MethodGet, "/planned-now", res.operationsPlannedNow)
 	rr = executeOperationRequest(t, router, http.MethodGet, "/planned-now?date=bad", nil)
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
@@ -218,7 +219,7 @@ func TestOperationsInstanceEndpoints(t *testing.T) {
 		},
 		complete: &timetable.ScheduledInstance{ID: 232, Status: timetable.InstanceStatusCompleted},
 	}
-	res := NewResource(Dependencies{OperationsService: service})
+	res := newResourceForTest(Dependencies{OperationsService: service})
 
 	cases := []struct {
 		name   string
@@ -254,7 +255,7 @@ func TestOperationsReopenEffectiveAdminScope(t *testing.T) {
 			ActiveGroupID: 341,
 		},
 	}
-	res := NewResource(Dependencies{OperationsService: service})
+	res := newResourceForTest(Dependencies{OperationsService: service})
 	router := operationRouter(http.MethodPost, "/instances/{id}/reopen", res.operationsReopen)
 
 	cases := []struct {
@@ -273,9 +274,9 @@ func TestOperationsReopenEffectiveAdminScope(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			service.lastIsAdmin = false
 			req := httptest.NewRequest(http.MethodPost, "/instances/231/reopen", nil)
-			testutil.WithClaims(t, jwt.AppClaims{ID: 120, IsAdmin: tc.isAdmin, TenantID: testpkg.Tenant(t)})(req)
+			testutil.WithClaims(t, sessiontoken.AppClaims{ID: 120, IsAdmin: tc.isAdmin, TenantID: testpkg.Tenant(t)})(req)
 			testutil.WithPermissions(tc.permissions...)(req)
-			attachTestPrincipal(t, req, jwt.AppClaims{ID: 120, IsAdmin: tc.isAdmin, TenantID: testpkg.Tenant(t)}, tc.permissions)
+			attachTestPrincipal(t, req, sessiontoken.AppClaims{ID: 120, IsAdmin: tc.isAdmin, TenantID: testpkg.Tenant(t)}, tc.permissions)
 			rr := httptest.NewRecorder()
 			router.ServeHTTP(rr, req)
 
@@ -286,7 +287,7 @@ func TestOperationsReopenEffectiveAdminScope(t *testing.T) {
 	}
 }
 
-func attachTestPrincipal(t *testing.T, req *http.Request, claims jwt.AppClaims, granted []string) {
+func attachTestPrincipal(t *testing.T, req *http.Request, claims sessiontoken.AppClaims, granted []string) {
 	t.Helper()
 	principal, err := permissions.NewPrincipal(permissions.PrincipalInput{
 		AccountID: int64(claims.ID), TenantID: claims.TenantID, Scope: claims.Scope,
@@ -311,7 +312,7 @@ func TestOperationsCreateAndStartSpontaneous(t *testing.T) {
 			ActiveGroupID: 341,
 		},
 	}
-	res := NewResource(Dependencies{
+	res := newResourceForTest(Dependencies{
 		InstanceService:   instanceSvc,
 		OperationsService: service,
 		TimetableData:     operationTimetableData(operationDataDeps{ActiveGroupRepo: &fakeOperationActiveGroupRepo{}}),
@@ -384,9 +385,9 @@ func TestOperationsCreateAndStartSpontaneousRollsBackNon5xxFailures(t *testing.T
 		boolValue:   true,
 		scope:       settingsContract.OverviewScopeAdmins,
 	}
-	res := NewResource(Dependencies{
+	res := newResourceForTest(Dependencies{
 		InstanceService:   instanceSvc,
-		OperationsService: newRealSpontaneousOpsService(t, instanceSvc, testpkg.StaffAccountPeople{PersonID: 224, StaffID: 324}, settings),
+		OperationsService: newRealSpontaneousOpsService(t, instanceSvc, RootCompositions.StaffAccountPeople(224, 324, testRequestSession{}), settings),
 		TimetableData:     operationTimetableData(operationDataDeps{ActiveGroupRepo: &fakeOperationActiveGroupRepo{}}),
 		People:            staffAccountPeople(224, 324),
 		SettingsService:   settings,
@@ -465,7 +466,7 @@ func TestOperationsCreateAndStartSpontaneousReusesActivityByName(t *testing.T) {
 			ActiveGroupID: 342,
 		},
 	}
-	res := NewResource(Dependencies{
+	res := newResourceForTest(Dependencies{
 		InstanceService:   instanceSvc,
 		OperationsService: service,
 		TimetableData:     activity.timetableData(operationDataDeps{ActiveGroupRepo: &fakeOperationActiveGroupRepo{}}),
@@ -505,7 +506,7 @@ func TestOperationsCreateAndStartSpontaneousCreatesActivityForNewName(t *testing
 			ActiveGroupID: 343,
 		},
 	}
-	res := NewResource(Dependencies{
+	res := newResourceForTest(Dependencies{
 		InstanceService:   instanceSvc,
 		OperationsService: service,
 		TimetableData:     activity.timetableData(operationDataDeps{ActiveGroupRepo: &fakeOperationActiveGroupRepo{}}),
@@ -537,7 +538,7 @@ func TestOperationsCreateAndStartSpontaneousRejectsArchivedCategory(t *testing.T
 	// category.
 	activity := &fakeSpontaneousActivity{err: timetable.ErrSpontaneousCategoryArchived}
 	service := &fakeOperationsService{}
-	res := NewResource(Dependencies{
+	res := newResourceForTest(Dependencies{
 		OperationsService: service,
 		TimetableData: activity.timetableData(operationDataDeps{
 			ActiveGroupRepo: &fakeOperationActiveGroupRepo{},
@@ -582,7 +583,7 @@ func TestServerSpontaneousActivityWindowCapsLateWindowSameDay(t *testing.T) {
 func TestOperationsCreateAndStartSpontaneousRejectsStudents(t *testing.T) {
 	t.Parallel()
 
-	res := NewResource(Dependencies{
+	res := newResourceForTest(Dependencies{
 		TimetableData:     operationTimetableData(operationDataDeps{ActiveGroupRepo: &fakeOperationActiveGroupRepo{}}),
 		InstanceService:   &mockInstanceService{},
 		OperationsService: &fakeOperationsService{},
@@ -611,7 +612,7 @@ func TestOperationsCreateAndStartSpontaneousRejectsWeekend(t *testing.T) {
 
 	const roomID int64 = 7
 	service := &fakeOperationsService{}
-	res := NewResource(Dependencies{
+	res := newResourceForTest(Dependencies{
 		TimetableData:     operationTimetableData(operationDataDeps{ActiveGroupRepo: &fakeOperationActiveGroupRepo{}}),
 		InstanceService:   &mockInstanceService{},
 		OperationsService: service,
@@ -635,7 +636,7 @@ func TestOperationsCreateAndStartSpontaneousRejectsOccupiedRoom(t *testing.T) {
 	t.Parallel()
 
 	service := &fakeOperationsService{}
-	res := NewResource(Dependencies{
+	res := newResourceForTest(Dependencies{
 		InstanceService:   &mockInstanceService{},
 		OperationsService: service,
 		TimetableData:     operationTimetableData(operationDataDeps{ActiveGroupRepo: &fakeOperationActiveGroupRepo{hasRoomConflict: true}}),
@@ -663,7 +664,7 @@ func TestOperationsCreateAndStartSpontaneousRequiresSetting(t *testing.T) {
 	t.Parallel()
 
 	service := &fakeOperationsService{}
-	res := NewResource(Dependencies{
+	res := newResourceForTest(Dependencies{
 		TimetableData:     operationTimetableData(operationDataDeps{ActiveGroupRepo: &fakeOperationActiveGroupRepo{}}),
 		InstanceService:   &mockInstanceService{},
 		OperationsService: service,
@@ -690,7 +691,7 @@ func TestOperationsCreateAndStartSpontaneousRequiresSetting(t *testing.T) {
 func TestOperationsCapabilities(t *testing.T) {
 	t.Parallel()
 
-	res := NewResource(Dependencies{
+	res := newResourceForTest(Dependencies{
 		TimetableData: operationTimetableData(operationDataDeps{ActiveGroupRepo: &fakeOperationActiveGroupRepo{}}),
 		SettingsService: &fakeOperationSettingsService{
 			hasOverride: true,
@@ -708,11 +709,11 @@ func TestOperationsCapabilities(t *testing.T) {
 func TestOperationsCapabilitiesDefaultsToEnabled(t *testing.T) {
 	t.Parallel()
 
-	res := NewResource(Dependencies{
+	res := newResourceForTest(Dependencies{
 		TimetableData: operationTimetableData(operationDataDeps{ActiveGroupRepo: &fakeOperationActiveGroupRepo{}}),
 		SettingsService: &fakeOperationSettingsService{
 			hasOverride: false,
-			boolValue:   false,
+			boolValue:   true,
 		},
 	})
 	router := operationRouter(http.MethodGet, "/capabilities", res.operationsCapabilities)
@@ -728,7 +729,7 @@ func TestOperationsCapabilitiesDefaultsToEnabled(t *testing.T) {
 func TestOperationsCapabilitiesDisabledWhenSwitchOff(t *testing.T) {
 	t.Parallel()
 
-	res := NewResource(Dependencies{
+	res := newResourceForTest(Dependencies{
 		TimetableData: operationTimetableData(operationDataDeps{ActiveGroupRepo: &fakeOperationActiveGroupRepo{}}),
 		SettingsService: &fakeOperationSettingsService{
 			hasOverride: true,
@@ -747,7 +748,7 @@ func TestOperationsCapabilitiesDisabledWhenSwitchOff(t *testing.T) {
 func TestOperationsCapabilitiesIgnoreRemovedCareConcept(t *testing.T) {
 	t.Parallel()
 
-	res := NewResource(Dependencies{
+	res := newResourceForTest(Dependencies{
 		TimetableData: operationTimetableData(operationDataDeps{ActiveGroupRepo: &fakeOperationActiveGroupRepo{}}),
 		SettingsService: &fakeOperationSettingsService{
 			hasOverride: true,
@@ -769,7 +770,7 @@ func TestOperationsRosterByActiveGroup(t *testing.T) {
 	service := &fakeOperationsService{
 		roster: &timetable.OperationRoster{Instance: timetable.OperationRosterInstance{ID: 240}},
 	}
-	res := NewResource(Dependencies{OperationsService: service})
+	res := newResourceForTest(Dependencies{OperationsService: service})
 	router := operationRouter(http.MethodGet, "/active-groups/{id}/roster", res.operationsRosterByActiveGroup)
 
 	rr := executeOperationRequest(t, router, http.MethodGet, "/active-groups/340/roster", nil)
@@ -777,7 +778,7 @@ func TestOperationsRosterByActiveGroup(t *testing.T) {
 	require.Equal(t, http.StatusOK, rr.Code)
 	assert.Equal(t, int64(340), service.lastActiveGroupID)
 
-	nilRes := NewResource(Dependencies{})
+	nilRes := newResourceForTest(Dependencies{})
 	nilRouter := operationRouter(http.MethodGet, "/active-groups/{id}/roster", nilRes.operationsRosterByActiveGroup)
 	rr = executeOperationRequest(t, nilRouter, http.MethodGet, "/active-groups/340/roster", nil)
 	assert.Equal(t, http.StatusInternalServerError, rr.Code)
@@ -792,7 +793,7 @@ func TestOperationsStudentEndpoints(t *testing.T) {
 	service := &fakeOperationsService{
 		roster: &timetable.OperationRoster{Instance: timetable.OperationRosterInstance{ID: 250}},
 	}
-	res := NewResource(Dependencies{OperationsService: service})
+	res := newResourceForTest(Dependencies{OperationsService: service})
 
 	checkInRouter := operationRouter(http.MethodPost, "/instances/{id}/students/{student_id}/check-in", res.operationsCheckInStudent)
 	rr := executeOperationRequest(t, checkInRouter, http.MethodPost, "/instances/250/students/350/check-in", nil)
@@ -812,7 +813,7 @@ func TestOperationsStudentEndpoints(t *testing.T) {
 	errorRouter := operationRouter(
 		http.MethodPost,
 		"/instances/{id}/students/{student_id}/check-in",
-		NewResource(Dependencies{OperationsService: &fakeOperationsService{err: timetable.ErrTimetableOperationConflict}}).operationsCheckInStudent,
+		newResourceForTest(Dependencies{OperationsService: &fakeOperationsService{err: timetable.ErrTimetableOperationConflict}}).operationsCheckInStudent,
 	)
 	rr = executeOperationRequest(t, errorRouter, http.MethodPost, "/instances/250/students/350/check-in", nil)
 	assert.Equal(t, http.StatusConflict, rr.Code)
@@ -820,7 +821,7 @@ func TestOperationsStudentEndpoints(t *testing.T) {
 	errorRouter = operationRouter(
 		http.MethodPost,
 		"/instances/{id}/students/{student_id}/check-out",
-		NewResource(Dependencies{OperationsService: &fakeOperationsService{err: timetable.ErrTimetableOperationNotFound}}).operationsCheckOutStudent,
+		newResourceForTest(Dependencies{OperationsService: &fakeOperationsService{err: timetable.ErrTimetableOperationNotFound}}).operationsCheckOutStudent,
 	)
 	rr = executeOperationRequest(t, errorRouter, http.MethodPost, "/instances/250/students/350/check-out", nil)
 	assert.Equal(t, http.StatusNotFound, rr.Code)
@@ -833,7 +834,7 @@ func TestOperationsPatchAttendanceValidatesAndDelegates(t *testing.T) {
 	service := &fakeOperationsService{
 		patchRow: &timetable.OperationRosterRow{StudentID: 360, Status: timetable.SlotAttendanceAbsent},
 	}
-	res := NewResource(Dependencies{OperationsService: service})
+	res := newResourceForTest(Dependencies{OperationsService: service})
 	router := operationRouter(http.MethodPatch, "/instances/{id}/students/{student_id}/attendance", res.operationsPatchAttendance)
 
 	rr := executeOperationRequest(t, router, http.MethodPatch, "/instances/260/students/360/attendance", map[string]any{
@@ -851,12 +852,12 @@ func TestOperationsPatchAttendanceValidatesAndDelegates(t *testing.T) {
 func TestOperationsPatchAttendanceRejectsBadRequests(t *testing.T) {
 	t.Parallel()
 
-	nilService := NewResource(Dependencies{})
+	nilService := newResourceForTest(Dependencies{})
 	nilRouter := operationRouter(http.MethodPatch, "/instances/{id}/students/{student_id}/attendance", nilService.operationsPatchAttendance)
 	rr := executeOperationRequest(t, nilRouter, http.MethodPatch, "/instances/260/students/360/attendance", map[string]any{"status": "present"})
 	assert.Equal(t, http.StatusInternalServerError, rr.Code)
 
-	res := NewResource(Dependencies{OperationsService: &fakeOperationsService{}})
+	res := newResourceForTest(Dependencies{OperationsService: &fakeOperationsService{}})
 	router := operationRouter(http.MethodPatch, "/instances/{id}/students/{student_id}/attendance", res.operationsPatchAttendance)
 
 	rr = executeOperationRequest(t, router, http.MethodPatch, "/instances/260/students/360/attendance", map[string]any{})
@@ -865,7 +866,7 @@ func TestOperationsPatchAttendanceRejectsBadRequests(t *testing.T) {
 	rr = executeOperationRequest(t, router, http.MethodPatch, "/instances/260/students/360/attendance", "{bad json")
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 
-	res = NewResource(Dependencies{OperationsService: &fakeOperationsService{
+	res = newResourceForTest(Dependencies{OperationsService: &fakeOperationsService{
 		err: &timetable.AttendanceValidationError{
 			Fields: []timetable.AttendanceFieldError{{Field: "substatus", Reason: "cannot be set when status is expected"}},
 		},
@@ -875,7 +876,7 @@ func TestOperationsPatchAttendanceRejectsBadRequests(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 	assert.Contains(t, rr.Body.String(), "substatus")
 
-	res = NewResource(Dependencies{
+	res = newResourceForTest(Dependencies{
 		OperationsService: &fakeOperationsService{err: timetable.ErrTimetableOperationForbidden},
 	})
 	router = operationRouter(http.MethodPatch, "/instances/{id}/students/{student_id}/attendance", res.operationsPatchAttendance)
@@ -886,7 +887,7 @@ func TestOperationsPatchAttendanceRejectsBadRequests(t *testing.T) {
 func TestOperationsIDParsingAndErrorMapping(t *testing.T) {
 	t.Parallel()
 
-	res := NewResource(Dependencies{OperationsService: &fakeOperationsService{err: timetable.ErrTimetableOperationForbidden}})
+	res := newResourceForTest(Dependencies{OperationsService: &fakeOperationsService{err: timetable.ErrTimetableOperationForbidden}})
 	router := operationRouter(http.MethodGet, "/instances/{id}/roster", res.operationsRoster)
 	rr := executeOperationRequest(t, router, http.MethodGet, "/instances/abc/roster", nil)
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
@@ -914,7 +915,7 @@ func TestOperationsIDParsingAndErrorMapping(t *testing.T) {
 
 	for _, tc := range errorCases {
 		t.Run(tc.err.Error(), func(t *testing.T) {
-			res := NewResource(Dependencies{OperationsService: &fakeOperationsService{err: tc.err}})
+			res := newResourceForTest(Dependencies{OperationsService: &fakeOperationsService{err: tc.err}})
 			router := operationRouter(http.MethodGet, "/instances/{id}/roster", res.operationsRoster)
 
 			rr := executeOperationRequest(t, router, http.MethodGet, "/instances/260/roster", nil)
@@ -954,7 +955,7 @@ type fakeOperationActiveGroupRepo struct {
 // fakeOperationRooms names the Facilities rooms for the planner reads: every
 // room is called name, and without a name no room exists.
 type fakeOperationRooms struct {
-	timetableCompose.RoomNames
+	timetablePorts.RoomNames
 	name string
 	err  error
 }
@@ -965,7 +966,7 @@ type fakeOperationRooms struct {
 // tests that reach it fake it at the capability, see fakeSpontaneousActivity).
 type operationDataDeps struct {
 	ActiveGroupRepo studentpresence.SessionRecords
-	Rooms           timetableCompose.RoomNames
+	Rooms           timetablePorts.RoomNames
 }
 
 func operationTimetableData(deps operationDataDeps) timetable.TimetableDataCapability {
@@ -1022,44 +1023,44 @@ func (f *fakeSpontaneousActivity) resolve(_ context.Context, title string, reque
 // constructor and panic if wrongly called.
 type (
 	stubOpInstances struct {
-		timetableCompose.OperationInstances
+		timetablePorts.LegacyInstanceReads
 	}
 	stubOpInstanceStaff struct {
-		timetableCompose.OperationInstanceStaff
-	}
-	stubOpParticipants struct {
-		timetableCompose.OperationParticipants
+		timetable.InstanceStaffQuery
 	}
 	stubOpTemplates struct {
-		timetableCompose.OperationTemplates
+		timetable.ActivityGroupQuery
 	}
 	stubOpSessions struct {
-		timetableCompose.OperationSessions
+		timetablePorts.OperationSessions
 	}
 	stubOpSupervisions struct {
-		timetableCompose.OperationSupervisions
+		timetablePorts.OperationSupervisions
 	}
 	stubOpVisits struct {
-		timetableCompose.OperationVisits
+		timetablePorts.OperationVisits
 	}
 	stubOpAttendance struct {
-		timetableCompose.OperationAttendance
+		timetablePorts.OperationAttendance
 	}
 	stubOpStudents struct {
-		timetableCompose.OperationStudents
+		timetablePorts.OperationStudents
 	}
 	stubOpEducationGroups struct{}
-	stubOpRooms           struct{ timetableCompose.RoomNames }
-	stubOpCareDays        struct{ timetableCompose.CareDays }
-	stubOpArrivals        struct{}
-	stubOpPickups         struct{}
+	stubOpRooms           struct{ timetablePorts.RoomNames }
+	stubOpBlockMetadata   struct {
+		timetablePorts.BlockDisplayMetadata
+	}
+	stubOpCareDays struct{ timetablePorts.CareDays }
+	stubOpArrivals struct{}
+	stubOpPickups  struct{}
 )
 
 func (stubOpEducationGroups) EducationGroupNames(context.Context, []int64) (map[int64]string, error) {
 	panic("unused")
 }
 
-func (stubOpArrivals) EffectiveArrivals(context.Context, []int64, calendar.Date) (map[int64]*timetableCompose.ExpectedArrival, error) {
+func (stubOpArrivals) EffectiveArrivals(context.Context, []int64, calendar.Date) (map[int64]*timetablePorts.ExpectedArrival, error) {
 	panic("unused")
 }
 
@@ -1090,7 +1091,7 @@ func (testOperationSettings) EnforcePlannedEnd(context.Context) (bool, error) { 
 
 func (testOperationSettings) CompleteLeadMinutes(context.Context) (int, error) { return 0, nil }
 
-func (testOperationSettings) ActionScopeKey(timetableCompose.ScopedAction) (string, error) {
+func (testOperationSettings) ActionScopeKey(timetablePorts.ScopedAction) (string, error) {
 	return testActionScopeKey, nil
 }
 
@@ -1140,12 +1141,15 @@ func (testOperationLifecycle) Reopen(context.Context, int64, int64, bool) (*time
 // newRealSpontaneousOpsService wires the Timetable owner's real operational
 // day so the handler exercises the real CreateAndStartSpontaneous (Create +
 // Start + MarkRollback), not a fake.
-func newRealSpontaneousOpsService(t *testing.T, instanceSvc timetable.InstanceLifecycleCapability, personSvc timetableCompose.OperationPeople, settings *fakeOperationSettingsService) timetable.OperationCapability {
+func newRealSpontaneousOpsService(t *testing.T, instanceSvc timetable.InstanceLifecycleCapability, personSvc interface {
+	timetablePorts.OperationPeople
+	timetablePorts.OperationCaller
+}, settings *fakeOperationSettingsService) timetable.OperationCapability {
 	t.Helper()
-	operations, err := timetableCompose.NewOperations(timetableCompose.OperationDependencies{
+	operations, err := timetableCompose.NewOperations(timetablePorts.OperationDependencies{
 		Instances:            stubOpInstances{},
 		InstanceStaff:        stubOpInstanceStaff{},
-		Participants:         stubOpParticipants{},
+		Participants:         stubParticipantRows(),
 		Templates:            stubOpTemplates{},
 		Sessions:             stubOpSessions{},
 		Supervisions:         stubOpSupervisions{},
@@ -1155,15 +1159,33 @@ func newRealSpontaneousOpsService(t *testing.T, instanceSvc timetable.InstanceLi
 		People:               personSvc,
 		EducationGroups:      stubOpEducationGroups{},
 		Rooms:                stubOpRooms{},
+		BlockMetadata:        stubOpBlockMetadata{},
 		Settings:             testOperationSettings{settings: settings},
 		CareDays:             stubOpCareDays{},
 		Arrivals:             stubOpArrivals{},
 		Pickups:              stubOpPickups{},
 		Lifecycle:            testOperationLifecycle{instances: instanceSvc},
+		Session:              testRequestSession{},
 		NormalizeSchoolClass: func(class string) string { return class },
-	})
+	}, personSvc)
 	require.NoError(t, err)
 	return operations
+}
+
+// testRequestSession reads the operational day's session from the claims and
+// permissions the test request carries, as the root's binding does.
+type testRequestSession struct{}
+
+func (testRequestSession) Claims(ctx context.Context) timetablePorts.RequestClaims {
+	claims := sessiontoken.ClaimsFromCtx(ctx)
+	return timetablePorts.RequestClaims{
+		AccountID: int64(claims.ID), TenantID: claims.TenantID, Scope: claims.Scope,
+		SchoolScope: claims.IsSchoolScope(), Admin: claims.IsAdmin,
+	}
+}
+
+func (testRequestSession) Permissions(ctx context.Context) []string {
+	return sessiontoken.PermissionsFromCtx(ctx)
 }
 
 func (r fakeOperationRooms) RoomName(context.Context, int64) (string, bool, error) {
@@ -1390,7 +1412,7 @@ func TestOperationsCheckInParticipantLimitWire(t *testing.T) {
 	router := operationRouter(
 		http.MethodPost,
 		"/instances/{id}/students/{student_id}/check-in",
-		NewResource(Dependencies{OperationsService: &fakeOperationsService{err: limitErr}}).operationsCheckInStudent,
+		newResourceForTest(Dependencies{OperationsService: &fakeOperationsService{err: limitErr}}).operationsCheckInStudent,
 	)
 
 	rr := executeOperationRequest(t, router, http.MethodPost, "/instances/250/students/350/check-in", nil)
@@ -1416,7 +1438,7 @@ func TestOperationsCheckInRoomCapacityWire(t *testing.T) {
 	router := operationRouter(
 		http.MethodPost,
 		"/instances/{id}/students/{student_id}/check-in",
-		NewResource(Dependencies{OperationsService: &fakeOperationsService{err: capacityErr}}).operationsCheckInStudent,
+		newResourceForTest(Dependencies{OperationsService: &fakeOperationsService{err: capacityErr}}).operationsCheckInStudent,
 	)
 
 	rr := executeOperationRequest(t, router, http.MethodPost, "/instances/250/students/350/check-in", nil)

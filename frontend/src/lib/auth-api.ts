@@ -39,14 +39,8 @@ export async function buildApiError(
       contentType.includes("application/json") ||
       contentType.includes("+json")
     ) {
-      const body = (await response.json()) as {
-        error?: string;
-        message?: string;
-        code?: string;
-        details?: Record<string, unknown>;
-      };
-      message = body?.error ?? body?.message ?? fallbackMessage;
-      payload = body;
+      // The envelope's `detail` becomes the diagnostic message.
+      payload = await response.json();
     } else {
       const text = (await response.text()).trim();
       if (text) {

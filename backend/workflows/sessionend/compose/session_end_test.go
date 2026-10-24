@@ -8,12 +8,15 @@ import (
 	"testing"
 	"time"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
+	endbinding "github.com/moto-nrw/project-phoenix/roots/sessionendbinding"
+
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -58,7 +61,7 @@ func (w *recordingWaker) BroadcastChildUpdateToGuardians(tenantID, studentID int
 }
 
 type stack struct {
-	presence   *studentpresence.Module
+	presence   studentpresence.Owner
 	timetable  timetable.Capability
 	completion *recordingCompletion
 	bc         *testpkg.RecordingBroadcaster
@@ -77,19 +80,14 @@ type stack struct {
 func newStack(t *testing.T) *stack {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	plan := timetabletest.New(t, db)
+	plan := owners.NewTestTimetable(t, testpkg.MustDatabase(db))
 	// The slot check-outs of the close are a Student Presence attendance rule
 	// that resolves its participants through the Timetable plan (#2762).
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}, Roster: plannedRoster{plan: plan}})
 	require.NoError(t, err)
-	people, err := peopleCompose.New(peopleCompose.Dependencies{DB: db, Observe: func(peopleCompose.Observation) {}})
+	people, err := peopleCompose.New(peopleCompose.Dependencies{StudentDirectory: testpkg.StudentDirectory{}, DB: db, Observe: func(peopleCompose.Observation) {}}, nil)
 	require.NoError(t, err)
-	rooms, err := facilitiesCompose.New(facilitiesCompose.Dependencies{
-		DB:            db,
-		DeletionLock:  func(context.Context) error { return nil },
-		DeletionGuard: func(context.Context, int64) error { return nil },
-		Observe:       func(facilitiesCompose.Observation) {},
-	})
+	rooms, err := facilitiesCompose.NewUnobserved(db)
 	require.NoError(t, err)
 	s := &stack{
 		presence:   presence,
@@ -139,15 +137,16 @@ func newStack(t *testing.T) *stack {
 		return testpkg.EndedActiveGroup{GroupID: group.ID, SupervisorID: testpkg.CreateTestGroupSupervisor(t, db, staff.ID, group.ID, "supervisor").ID}
 	}
 	s.command, err = compose.New(compose.Dependencies{
-		Presence:    presence,
-		Sessions:    presence,
-		Timetable:   s.timetable,
-		Completion:  s.completion,
-		Students:    people,
-		Rooms:       rooms,
-		Broadcaster: s.bc,
-		Guardians:   s.waker,
-		Observe:     func(o compose.Observation) { s.observed = append(s.observed, o) },
+		Notifier: endbinding.NewNotifier(s.bc, s.waker, nil),
+
+		Presence:   presence,
+		Sessions:   presence,
+		Timetable:  s.timetable,
+		Completion: s.completion,
+		Students:   people,
+		Rooms:      rooms,
+
+		Observe: func(o compose.Observation) { s.observed = append(s.observed, o) },
 	})
 	require.NoError(t, err)
 	return s

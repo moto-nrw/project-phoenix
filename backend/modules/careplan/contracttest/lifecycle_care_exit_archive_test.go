@@ -6,9 +6,8 @@ import (
 	"testing"
 
 	"github.com/gofrs/uuid"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -31,8 +30,8 @@ func TestCareExitArchive_RecordedAtUsesTheBerlinDay(t *testing.T) {
 	class := fmt.Sprintf("ce-%s", uuid.Must(uuid.NewV4()).String()[:8])
 	student := testpkg.CreateTestStudent(t, db, "CareExitRecorded", "Kid", class)
 
-	yesterday := timezone.TodayDate().AddDays(-1)
-	testpkg.SetStudentLifecycle(t, db, student.ID, users.StudentStatusActive, nil, &yesterday)
+	yesterday := calendar.TodayDate().AddDays(-1)
+	testpkg.SetStudentLifecycle(t, db, student.ID, testpkg.StudentStatusActive, nil, &yesterday)
 
 	require.NoError(t, carePlanRecords(db).UpsertCareExit(ctx, careplan.CareExit{
 		StudentID: student.ID,
@@ -89,7 +88,7 @@ func TestCareExitConfirmation_LocksPersonImpactRows(t *testing.T) {
 	actorID := careActor(t, db)
 	student := testpkg.CreateTestStudent(t, db, "CareExitLock", "Kid", "2a")
 	input := careplan.CareExitInput{
-		StudentIDs: []int64{student.ID}, LastCareDay: timezone.TodayDate(), Reason: careplan.CareExitReasonMovedAway,
+		StudentIDs: []int64{student.ID}, LastCareDay: calendar.TodayDate(), Reason: careplan.CareExitReasonMovedAway,
 	}
 	preview, err := svc.Preview(ctx, input)
 	require.NoError(t, err)

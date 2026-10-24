@@ -1,8 +1,12 @@
 ---
-status: accepted
+status: superseded by ADR 0058
 ---
 
 # The target may keep two cyclic components, and they only shrink
+
+> Superseded by [ADR 0058](0058-owner-dependencies-form-a-dag.md) on
+> 2026-10-15: the target graph is acyclic, without member lists. The cut of
+> `organization-tenancy -> delivery-platform` below still stands (#4072).
 
 [#2580](https://github.com/moto-nrw/project-phoenix/issues/2580) names the
 cycle among the backend package families as a problem and then only requires an

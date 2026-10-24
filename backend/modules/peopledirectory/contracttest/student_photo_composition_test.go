@@ -8,10 +8,12 @@ import (
 	"sync/atomic"
 	"testing"
 
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	api "github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	servicesPkg "github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -45,11 +47,11 @@ func (d *stubPhotoDirectory) PurgeStudentPhotos(context.Context) ([]string, erro
 
 func (*stubPhotoDirectory) ApplyStudentPhotoConsent(
 	_ context.Context, current peopleModule.StudentPhotoState, _ *bool,
-) peopleModule.StudentPhotoState {
-	return current
+) (peopleModule.StudentPhotoState, error) {
+	return current, nil
 }
 
-func (*stubPhotoDirectory) ScheduleStudentPhotoUnlink(context.Context, string) {}
+func (*stubPhotoDirectory) ScheduleStudentPhotoUnlink(context.Context, string) error { return nil }
 
 type stubPhotoUnlinker struct{ urls []string }
 
@@ -67,12 +69,12 @@ func tenantIDsOf(calls []testpkg.BroadcastCall) []int64 {
 func newPhotoSeam(
 	t *testing.T,
 	directory *stubPhotoDirectory,
-	broadcaster servicesPkg.PhotoBroadcaster,
-	unlinker servicesPkg.PeopleDirectorySuitePhotoUnlinker,
+	broadcaster owners.PhotoBroadcaster,
+	unlinker peoplePorts.PhotoUnlinker,
 	logger *slog.Logger,
-) servicesPkg.PeopleDirectorySuiteStudentPhotos {
+) peoplePorts.StudentPhotoService {
 	t.Helper()
-	return servicesPkg.NewStudentPhotos(directory, nil, servicesPkg.StudentPhotoRuntimeDependencies{
+	return api.NewStudentPhotos(directory, api.StudentPhotoRuntimeDependencies{
 		Broadcaster: broadcaster, Unlinker: unlinker, Logger: logger,
 	})
 }
@@ -134,7 +136,7 @@ func TestHandleFeatureToggleEnableSkipsThePurge(t *testing.T) {
 					event.Data.Source != nil && *event.Data.Source == "tenant_photos_enabled":
 					sawEnableSource = true
 				case event.Type == realtime.EventTenantSettingsChanged &&
-					event.Data.Source != nil && *event.Data.Source == configModel.KeyStudentPhotosEnabled:
+					event.Data.Source != nil && *event.Data.Source == settingStudentPhotosEnabled:
 					sawSettingsChanged = true
 				}
 			}
@@ -195,10 +197,10 @@ func TestPhotoRoutesRequireATenantContext(t *testing.T) {
 	seam := newPhotoSeam(t, &stubPhotoDirectory{}, testpkg.NewRecordingBroadcaster(), nil, slog.Default())
 
 	require.ErrorIs(t,
-		seam.CommitUpload(context.Background(), servicesPkg.PeopleDirectorySuiteCommitUpload{StudentID: 1}),
-		servicesPkg.ErrPhotoNoTenant)
+		seam.CommitUpload(context.Background(), peoplePorts.CommitUploadRequest{StudentID: 1}),
+		owners.ErrPhotoNoTenant)
 	_, err := seam.CommitDelete(context.Background(), 1)
-	require.ErrorIs(t, err, servicesPkg.ErrPhotoNoTenant)
+	require.ErrorIs(t, err, owners.ErrPhotoNoTenant)
 	_, err = seam.LookupForRead(context.Background(), 1, "a.jpg")
-	require.ErrorIs(t, err, servicesPkg.ErrPhotoNoTenant)
+	require.ErrorIs(t, err, owners.ErrPhotoNoTenant)
 }

@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	carePlanPorts "github.com/moto-nrw/project-phoenix/modules/careplan/ports"
 	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -21,7 +22,7 @@ func (emptyPickupBookings) ListApprovedByStudentIDsInRange(context.Context, []in
 }
 
 type pickupBaselineReadProbe struct {
-	compose.PickupBaselineRecords
+	carePlanPorts.PickupBaselineRecords
 	scheduleReads int
 	offeringReads int
 }
@@ -41,7 +42,7 @@ func TestNativePickupBaselinesAvoidUnfilteredReadsAndFailClosedOnSettings(t *tes
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "Baseline", "Native", "1a")
-	records := &pickupBaselineReadProbe{PickupBaselineRecords: careplantest.NewCarePlan(t, db)}
+	records := &pickupBaselineReadProbe{PickupBaselineRecords: careplantest.NewCarePlan(t, db, testpkg.StudentDirectory{})}
 	var modeErr error
 	service, err := compose.NewPickupBaselines(records, emptyPickupBookings{}, func(context.Context) (bool, error) { return true, modeErr })
 	require.NoError(t, err)
@@ -66,7 +67,7 @@ func TestNativePickupSchedulesPersistAndRejectDuplicateStaffEdits(t *testing.T) 
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	owner := careplantest.NewCarePlan(t, db)
+	owner := careplantest.NewCarePlan(t, db, testpkg.StudentDirectory{})
 	student := testpkg.CreateTestStudent(t, db, "Pickup", "Native", "1a")
 	staff := testpkg.CreateTestStaff(t, db, "Pickup", "Staff")
 	service, err := compose.NewPickupSchedules(db, owner, excusalBaseline{}, nil, nil, nil)
@@ -116,7 +117,7 @@ func TestNativePickupApprovalRecordsPreserveDayAndConflict(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	owner := careplantest.NewCarePlan(t, db)
+	owner := careplantest.NewCarePlan(t, db, testpkg.StudentDirectory{})
 	student := testpkg.CreateTestStudent(t, db, "Approval", "Records", "1a")
 	staff := testpkg.CreateTestStaff(t, db, "Approval", "Writer")
 	records, err := compose.NewPickupApprovalExceptions(owner)

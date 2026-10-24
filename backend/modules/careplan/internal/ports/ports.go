@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/domain"
 )
 
@@ -46,21 +47,21 @@ type Store interface {
 	RedactWithdrawalsForDeletedStudent(ctx context.Context, studentID, actorAccountID int64, at time.Time) (int, domain.OperationStats, error)
 	WithdrawalStore
 
-	FindCareOffering(context.Context, int64) (domain.CareOffering, bool, domain.OperationStats, error)
-	ListCareOfferings(context.Context, domain.CareOfferingFilter) ([]domain.CareOffering, domain.OperationStats, error)
+	FindCareOffering(context.Context, int64) (careplan.CareOffering, bool, domain.OperationStats, error)
+	ListCareOfferings(context.Context, careplan.CareOfferingFilter) ([]careplan.CareOffering, domain.OperationStats, error)
 	CountCareOfferingsByPhase(context.Context, int64) (int, domain.OperationStats, error)
-	CreateCareOffering(context.Context, domain.CareOfferingFields) (domain.CareOffering, domain.OperationStats, error)
-	UpdateCareOffering(context.Context, int64, domain.CareOfferingFields) (domain.CareOffering, domain.OperationStats, error)
+	CreateCareOffering(context.Context, careplan.CareOfferingFields) (careplan.CareOffering, domain.OperationStats, error)
+	UpdateCareOffering(context.Context, int64, careplan.CareOfferingFields) (careplan.CareOffering, domain.OperationStats, error)
 	DeleteCareOffering(context.Context, int64) (domain.OperationStats, error)
 	ReplaceAutoAddTriggers(context.Context, int64, []int64) (domain.OperationStats, error)
 
-	FindOfferingChange(context.Context, int64, bool) (domain.OfferingChangeRequest, bool, domain.OperationStats, error)
-	ListOfferingChanges(context.Context, domain.OfferingChangeFilter) ([]domain.OfferingChangeRequest, domain.OperationStats, error)
-	CreateOfferingChange(context.Context, domain.OfferingChangeRequest) (domain.OfferingChangeRequest, domain.OperationStats, error)
+	FindOfferingChange(context.Context, int64, bool) (careplan.OfferingChangeRequest, bool, domain.OperationStats, error)
+	ListOfferingChanges(context.Context, careplan.OfferingChangeFilter) ([]careplan.OfferingChangeRequest, domain.OperationStats, error)
+	CreateOfferingChange(context.Context, careplan.OfferingChangeRequest) (careplan.OfferingChangeRequest, domain.OperationStats, error)
 	UpdateOfferingChangeEffectiveFrom(context.Context, int64, string) (domain.OperationStats, error)
 	UpdateApprovedCompleteWithdrawal(context.Context, int64, bool) (domain.OperationStats, error)
-	UpdatePendingOfferingChange(context.Context, domain.UpdatePendingOfferingChange) (domain.OperationStats, error)
-	DecideOfferingChange(context.Context, domain.DecideOfferingChange) (domain.OperationStats, error)
+	UpdatePendingOfferingChange(context.Context, careplan.UpdatePendingOfferingChange) (domain.OperationStats, error)
+	DecideOfferingChange(context.Context, careplan.DecideOfferingChange) (domain.OperationStats, error)
 	UpdateOfferingChangeSnapshot(context.Context, int64, json.RawMessage) (domain.OperationStats, error)
 	ClosePendingOfferingChanges(context.Context, []int64, string, *int64, time.Time) (domain.OperationStats, error)
 }
@@ -79,14 +80,12 @@ type StudentScheduleStore interface {
 	UpdateArrivalException(context.Context, domain.ArrivalException) (domain.OperationStats, error)
 	DeleteArrivalException(context.Context, int64) (domain.OperationStats, error)
 	DeleteArrivalExceptionsByStudent(context.Context, int64) (domain.OperationStats, error)
-	DeleteArrivalExceptionsBefore(context.Context, domain.Date) (domain.OperationStats, error)
 	FindArrivalNote(context.Context, int64) (domain.ArrivalNote, bool, domain.OperationStats, error)
 	ListArrivalNotes(context.Context, domain.StudentScheduleFilter) ([]domain.ArrivalNote, domain.OperationStats, error)
 	CreateArrivalNote(context.Context, domain.ArrivalNote) (domain.ArrivalNote, domain.OperationStats, error)
 	UpdateArrivalNote(context.Context, domain.ArrivalNote) (domain.OperationStats, error)
 	DeleteArrivalNote(context.Context, int64) (domain.OperationStats, error)
 	DeleteArrivalNotesByStudent(context.Context, int64) (domain.OperationStats, error)
-	DeleteArrivalNotesBefore(context.Context, domain.Date) (domain.OperationStats, error)
 	FindPickupSchedule(context.Context, int64) (domain.PickupSchedule, bool, domain.OperationStats, error)
 	ListPickupSchedules(context.Context, domain.StudentScheduleFilter) ([]domain.PickupSchedule, domain.OperationStats, error)
 	CreatePickupSchedule(context.Context, domain.PickupSchedule) (domain.PickupSchedule, domain.OperationStats, error)
@@ -100,14 +99,15 @@ type StudentScheduleStore interface {
 	UpdatePickupException(context.Context, domain.PickupException) (domain.OperationStats, error)
 	DeletePickupException(context.Context, int64) (domain.OperationStats, error)
 	DeletePickupExceptionsByStudent(context.Context, int64) (domain.OperationStats, error)
-	DeletePickupExceptionsBefore(context.Context, domain.Date) (domain.OperationStats, error)
 	FindPickupNote(context.Context, int64) (domain.PickupNote, bool, domain.OperationStats, error)
 	ListPickupNotes(context.Context, domain.StudentScheduleFilter) ([]domain.PickupNote, domain.OperationStats, error)
 	CreatePickupNote(context.Context, domain.PickupNote) (domain.PickupNote, domain.OperationStats, error)
 	UpdatePickupNote(context.Context, domain.PickupNote) (domain.OperationStats, error)
 	DeletePickupNote(context.Context, int64) (domain.OperationStats, error)
 	DeletePickupNotesByStudent(context.Context, int64) (domain.OperationStats, error)
-	DeletePickupNotesBefore(context.Context, domain.Date) (domain.OperationStats, error)
+	ListDepartureExceptions(context.Context, domain.StudentScheduleFilter) ([]domain.DepartureException, domain.OperationStats, error)
+	SaveDepartureException(context.Context, domain.DepartureException) (domain.DepartureException, domain.OperationStats, error)
+	DeleteDepartureException(context.Context, int64) (domain.OperationStats, error)
 	CountStudentScheduleRows(context.Context, int64) (int, domain.OperationStats, error)
 	EndStudentSchedulesForCareExit(context.Context, []int64, domain.Date) (domain.OperationStats, error)
 	RestoreStudentSchedulesForCareExit(context.Context, []int64) (domain.OperationStats, error)

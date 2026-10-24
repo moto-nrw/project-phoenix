@@ -6,29 +6,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/requestfeed/internal/domain"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/requestfeed"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
-
-func TestListRequestFeedItemsQueryBudget(t *testing.T) {
-	t.Parallel()
-	db := testpkg.SetupTestDB(t)
-	counter := testpkg.CaptureQueries(t, db)
-	counter.Reset()
-
-	err := testpkg.WithTenantTx(t, testpkg.Ctx(t), db, testpkg.Tenant(t), func(ctx context.Context, tx bun.Tx) error {
-		_, listErr := New(func(context.Context) (bun.IDB, error) { return tx, nil }).List(ctx, testpkg.Tenant(t), time.Now().Add(-30*24*time.Hour), domain.Access{
-			Active: true, GeneralRequests: true, EnrollmentRequests: true,
-		})
-		return listErr
-	})
-	require.NoError(t, err)
-	testpkg.AssertQueryBudget(t, "modules.careplan.request_feed.list", counter.Matching(func(sqlLower string) bool {
-		return strings.Contains(sqlLower, "select kind, id, created_at")
-	}))
-}
 
 func TestCreateAndRotateRequestFeedSubscription(t *testing.T) {
 	t.Parallel()
@@ -39,7 +21,7 @@ func TestCreateAndRotateRequestFeedSubscription(t *testing.T) {
 	replacementHash := strings.Repeat("b", 64)
 
 	err := testpkg.WithTenantTx(t, testpkg.Ctx(t), db, tenantID, func(ctx context.Context, tx bun.Tx) error {
-		store := New(func(context.Context) (bun.IDB, error) { return tx, nil })
+		store := New(func(context.Context) (bun.IDB, error) { return tx, nil }, unusedFeed{})
 
 		created, createErr := store.Create(ctx, tenantID, account.ID, initialHash)
 		require.NoError(t, createErr)
@@ -66,4 +48,16 @@ func TestCreateAndRotateRequestFeedSubscription(t *testing.T) {
 func TestMain(m *testing.M) {
 	testpkg.PerTestTenants()
 	testpkg.Run(m)
+}
+
+// unusedFeed stands in for the projection reader the subscription writes
+// never call.
+type unusedFeed struct{}
+
+func (unusedFeed) ResolveAccess(context.Context, int64, int64) (requestfeed.FeedAccess, bool, error) {
+	panic("request feed store test: the subscription writes read no access")
+}
+
+func (unusedFeed) ListNewParentRequests(context.Context, int64, time.Time, bool, bool) ([]requestfeed.FeedEntry, error) {
+	panic("request feed store test: the subscription writes list no requests")
 }

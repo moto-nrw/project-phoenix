@@ -8,12 +8,16 @@ import {
   PublicEnrollmentPageShell,
 } from "~/components/enrollment/public-enrollment-shell";
 import { useOneTimeQueryFlag } from "~/lib/hooks/use-one-time-query-flag";
+import { useAnalyticsSchoolPolicy } from "~/lib/hooks/use-analytics-school-policy";
+import { parentPath } from "~/lib/parent-url";
 
 interface PageProps {
   readonly params: Promise<{ token: string }>;
 }
 
 export default function ParentEnrollmentStatusPage({ params }: PageProps) {
+  // The token status contract cannot establish the target school's permission.
+  useAnalyticsSchoolPolicy("", false);
   return (
     <Suspense
       fallback={
@@ -39,6 +43,7 @@ function ParentEnrollmentStatusPageContent({ params }: PageProps) {
         token={token}
         justSubmitted={justSubmitted}
         duplicateWarning={searchParams.get("duplicate_warning") === "1"}
+        parentAppHref={parentPath("/parents")}
       />
     </PublicEnrollmentPageShell>
   );

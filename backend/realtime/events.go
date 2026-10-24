@@ -414,6 +414,33 @@ func NewStaffMessageEvent(senderAccountID, threadID int64) Event {
 	return NewEvent(EventStaffMessage, "", data)
 }
 
+// NewInstanceOverdueEvent builds the EventInstanceOverdue SSE event for a
+// planned timetable block whose start lies past the school's overdue
+// threshold. startTime is the wall clock as HH:MM:SS. A planned block has no
+// active group yet, so there is no group topic to route it through; it goes
+// to the whole school, where the dashboards pick it up.
+func NewInstanceOverdueEvent(instanceID int64, date, startTime string, roomID int64) Event {
+	id := strconv.FormatInt(instanceID, 10)
+	room := strconv.FormatInt(roomID, 10)
+	return NewEvent(EventInstanceOverdue, "", EventData{
+		InstanceID:        &id,
+		InstanceDate:      &date,
+		InstanceStartTime: &startTime,
+		RoomID:            &room,
+	})
+}
+
+// NewInstanceOverdueRefreshEvent asks the live-supervision views of the school
+// to refetch because a planned block became overdue.
+func NewInstanceOverdueRefreshEvent(instanceID int64) Event {
+	id := strconv.FormatInt(instanceID, 10)
+	reason := "instance_overdue"
+	return NewEvent(EventActiveSupervisionChanged, "", EventData{
+		InstanceID: &id,
+		Reason:     &reason,
+	})
+}
+
 // parentMessageData builds the shared payload for the parent-messaging events:
 // the guardian account as Source plus the (optional) thread/student filter. One
 // home so the new-message and read events can never drift in shape.

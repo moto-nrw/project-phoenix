@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
 	"github.com/stretchr/testify/assert"
@@ -18,10 +17,10 @@ func TestPickupQueriesPreserveResolvedClockAndDisplayIdentity(t *testing.T) {
 	// A fixed weekday exercises pickup resolution even when the suite runs on weekends.
 	today := testpkg.Date(2026, time.September, 4)
 	now := today.BerlinMidnight().Add(12 * time.Hour)
-	db, module := testutil.SetupRemindersModule(t, func() time.Time { return now })
+	db, module, settings := setupRemindersModule(t, func() time.Time { return now })
 	ctx := testpkg.Ctx(t)
 	for _, key := range []string{"reminders.pickup_upcoming_enabled", "reminders.pickup_overdue_enabled"} {
-		require.NoError(t, module.Settings.SetValue(ctx, key, true, nil, nil))
+		require.NoError(t, settings.Settings.SetValue(ctx, key, true, nil, nil))
 	}
 	staff := testpkg.CreateTestStaff(t, db, "Reminder", "Staff")
 	device := testpkg.CreateTestDevice(t, db, "reminder-pickup-query")

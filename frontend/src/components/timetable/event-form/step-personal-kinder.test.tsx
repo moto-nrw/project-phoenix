@@ -1,7 +1,13 @@
 import "@testing-library/jest-dom/vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { createRef } from "react";
 import { describe, expect, it, vi } from "vitest";
+
+const { createExternal } = vi.hoisted(() => ({ createExternal: vi.fn() }));
+vi.mock("~/lib/staff-api", () => ({
+  staffService: { createExternal, inviteExternal: vi.fn() },
+}));
+
 import { StepPersonalKinder } from "./step-personal-kinder";
 import { emptyForm } from "./form-model";
 
@@ -19,6 +25,7 @@ function renderStep(
       groups={[]}
       students={[]}
       staff={[]}
+      addStaffOption={vi.fn()}
       loadingRefs={false}
       loadingStudents={false}
       studentLoadFailed={false}
@@ -85,7 +92,16 @@ describe("StepPersonalKinder — Klassenfilter (#2482)", () => {
 
   it("offers the class filter only once a source is selected", () => {
     renderStep({ form: sourcedForm({ sourceCareOfferingIds: [] }) });
+    // Anker: die Angebots-Ansicht ohne Quelle zeigt ihren Hinweis.
+    expect(
+      screen.getByText(/Mit Angeboten als Quelle übernimmt der Regeltermin/),
+    ).toBeInTheDocument();
     expect(screen.queryByText("Kinder eingrenzen")).not.toBeInTheDocument();
+  });
+
+  it("offers the class filter with a selected source", () => {
+    renderStep({ form: sourcedForm() });
+    expect(screen.getByText("Kinder eingrenzen")).toBeInTheDocument();
   });
 
   it("shows classes with their child counts in the Klasse mode", () => {
@@ -116,9 +132,24 @@ describe("StepPersonalKinder — Klassenfilter (#2482)", () => {
       sourceGradeOptions: [1, 2],
       sourceClassOptions: ["1a"],
     });
+    // Anker: im Klasse-Modus steht die Klassen-Auswahl da.
+    expect(
+      screen.getByRole("checkbox", { name: /^Klasse 1a/ }),
+    ).toBeInTheDocument();
     expect(
       screen.queryByRole("checkbox", { name: /^Jahrgang/ }),
     ).not.toBeInTheDocument();
+  });
+
+  it("shows the grade checkboxes in the Jahrgang mode", () => {
+    renderStep({
+      form: sourcedForm({ sourceFilterMode: "jahrgang" }),
+      sourceGradeOptions: [1, 2],
+      sourceClassOptions: ["1a"],
+    });
+    expect(screen.getAllByRole("checkbox", { name: /^Jahrgang/ })).toHaveLength(
+      2,
+    );
   });
 
   it("switches the filter mode through the segmented control", () => {
@@ -374,6 +405,8 @@ describe("StepPersonalKinder — Maximale Teilnehmerzahl (#2233)", () => {
   it("hides the field outside the series flow — a single occurrence has no capacity of its own", () => {
     renderStep({ isSeriesFlow: false });
 
+    // Anker: das Nachbarfeld „Benötigtes Personal“ steht da.
+    expect(screen.getByLabelText("Benötigtes Personal")).toBeInTheDocument();
     expect(
       screen.queryByLabelText("Maximale Teilnehmerzahl"),
     ).not.toBeInTheDocument();
@@ -466,5 +499,95 @@ describe("StepPersonalKinder — Lade- und Prüfhinweise (#2516)", () => {
         "Hinweis: Doppelte Einplanungen konnten nicht geprüft werden. Sie können trotzdem speichern.",
       ),
     ).toBeInTheDocument();
+  });
+});
+
+// #4573: externe Personen direkt im Schritt „Personal“ eintragen.
+describe("StepPersonalKinder — externe Person", () => {
+  const plainForm = () => ({
+    ...emptyForm("2026-08-03"),
+    targetGroupType: "none" as const,
+  });
+
+  it("records and invites an external person and adds them to the roster", async () => {
+    const created = {
+      id: "88",
+      name: "Lea Gast",
+      firstName: "Lea",
+      lastName: "Gast",
+      hasRfid: false,
+      isTeacher: true,
+      isSupervising: false,
+      supervisions: [],
+      isExternal: true,
+      externalAccountStatus: "invitation_pending" as const,
+    };
+    createExternal.mockResolvedValueOnce(created);
+    const addStaffOption = vi.fn();
+    const { update } = renderStep({
+      form: { ...plainForm(), staffIds: ["1"] },
+      staff: [{ id: "1", name: "Interne Kraft" }],
+      canCreateExternalCaregiver: true,
+      addStaffOption,
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Externe Person eintragen" }),
+    );
+    fireEvent.change(screen.getByLabelText("Vorname"), {
+      target: { value: "Lea" },
+    });
+    fireEvent.change(screen.getByLabelText("Nachname"), {
+      target: { value: "Gast" },
+    });
+    fireEvent.click(
+      screen.getByRole("radio", { name: /Eigene Termine betreuen/ }),
+    );
+    fireEvent.change(screen.getByLabelText("E-Mail-Adresse"), {
+      target: { value: "lea@example.test" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Eintragen" }));
+
+    await waitFor(() => expect(addStaffOption).toHaveBeenCalledWith(created));
+    expect(update).toHaveBeenCalledWith("staffIds", ["1", "88"]);
+  });
+
+  // ADR 0091: „Nur ansehen“ only where the planner may grant the role Gast.
+  it.each([
+    [true, true],
+    [false, false],
+  ])(
+    "offers „Nur ansehen“ only with canGrantExternalView=%s",
+    (canGrantExternalView, offered) => {
+      renderStep({
+        form: plainForm(),
+        staff: [{ id: "1", name: "Interne Kraft" }],
+        canCreateExternalCaregiver: true,
+        canGrantExternalView,
+      });
+
+      fireEvent.click(
+        screen.getByRole("button", { name: "Externe Person eintragen" }),
+      );
+
+      // Anker: die Zugangswahl ist offen.
+      expect(screen.getByRole("radio", { name: /Kein Zugang/ })).toBeChecked();
+      expect(
+        screen.queryByRole("radio", { name: /Nur ansehen/ }) !== null,
+      ).toBe(offered);
+    },
+  );
+
+  it("offers no entry without permission to create users", () => {
+    renderStep({
+      form: plainForm(),
+      staff: [{ id: "1", name: "Interne Kraft" }],
+    });
+
+    // Anker: die Personalliste ist geladen.
+    expect(screen.getByText("Interne Kraft")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Externe Person eintragen" }),
+    ).not.toBeInTheDocument();
   });
 });

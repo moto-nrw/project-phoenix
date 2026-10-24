@@ -9,6 +9,8 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	postgresNative "github.com/moto-nrw/project-phoenix/modules/careplan/internal/adapters/postgres"
+	careplanPorts "github.com/moto-nrw/project-phoenix/modules/careplan/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -23,7 +25,7 @@ type observationLog struct {
 
 type emptyPeopleDirectory struct{}
 
-func (emptyPeopleDirectory) ListStudentNamesByID(context.Context, []int64) ([]StudentName, error) {
+func (emptyPeopleDirectory) ListStudentNamesByID(context.Context, []int64) ([]careplanPorts.StudentName, error) {
 	return nil, nil
 }
 
@@ -55,14 +57,15 @@ func (l *observationLog) record(observation Observation) {
 	l.seen = append(l.seen, observation)
 }
 
-func buildModule(t *testing.T, db *bun.DB, observe ...func(Observation)) *careplan.Module {
+func buildModule(t *testing.T, db *bun.DB, observe ...func(Observation)) careplan.Owner {
 	t.Helper()
 	observer := func(Observation) {}
 	if len(observe) > 0 {
 		observer = observe[0]
 	}
 	module, err := New(Dependencies{
-		DB: db, Observe: observer, AmbientDB: func(context.Context) bun.IDB { return db },
+		StudentDirectory: testpkg.StudentDirectory{},
+		DB:               db, Observe: observer, AmbientDB: postgresNative.TenantAmbientDatabase(db),
 		People: emptyPeopleDirectory{}, StatusStudents: emptyPeopleDirectory{}, StatusSlots: emptyStatusSlots{},
 		StudentLock: func(context.Context, int64) error { return nil }, StudentNotFound: errors.New("student not found"),
 	})
@@ -84,7 +87,7 @@ func offeringFields(phaseID int64, name string) careplan.CareOfferingFields {
 	}
 }
 
-func createOffering(t *testing.T, ctx context.Context, module *careplan.Module, fields careplan.CareOfferingFields) careplan.CareOffering {
+func createOffering(t *testing.T, ctx context.Context, module careplan.Owner, fields careplan.CareOfferingFields) careplan.CareOffering {
 	t.Helper()
 	offering, err := module.CreateCareOffering(ctx, careplan.CreateCareOffering{CareOfferingFields: fields})
 	require.NoError(t, err)
@@ -117,6 +120,35 @@ func TestCareOfferingLifecycleAndTenantIsolation(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, listed)
 	require.ErrorIs(t, module.DeleteCareOffering(otherCtx, created.ID), careplan.ErrCareOfferingNotFound)
+}
+
+// TestCareOfferingNormalizationReachesTheStore checks that the service
+// stores the normalized catalog values and lists deduplicated IDs.
+func TestCareOfferingNormalizationReachesTheStore(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildModule(t, db)
+	ctx := testpkg.Ctx(t)
+	phase := testpkg.CreateTestEnrollmentPhase(t, db)
+	early := createOffering(t, ctx, module, offeringFields(phase.ID, "Früh"))
+	late := createOffering(t, ctx, module, offeringFields(phase.ID, "Spät"))
+
+	listed, err := module.ListCareOfferings(ctx, careplan.CareOfferingFilter{IDs: []int64{late.ID, 0, late.ID, early.ID}})
+	require.NoError(t, err)
+	require.Len(t, listed, 2)
+	assert.Equal(t, []int64{early.ID, late.ID}, []int64{listed[0].ID, listed[1].ID}, "catalog order")
+
+	created, err := module.CreateCareOffering(ctx, careplan.CreateCareOffering{CareOfferingFields: careplan.CareOfferingFields{
+		PhaseID: phase.ID, Name: " Ganztag ", AvailableDays: []string{"MON"}, AutoAddTriggerOfferingIDs: []int64{early.ID, -1, early.ID, late.ID},
+	}})
+	require.NoError(t, err)
+	stored, err := module.FindCareOffering(ctx, created.ID)
+	require.NoError(t, err)
+	assert.Equal(t, []int64{early.ID, late.ID}, stored.AutoAddTriggerOfferingIDs)
+	assert.Equal(t, "Ganztag", stored.Name)
+	assert.Equal(t, []string{"mon"}, stored.AvailableDays)
+	assert.Equal(t, "fixed", stored.DaysOfWeekMode)
+	assert.Equal(t, "optional", stored.SelectionRule)
 }
 
 func TestCareOfferingCompoundWritesRollbackAndRetry(t *testing.T) {

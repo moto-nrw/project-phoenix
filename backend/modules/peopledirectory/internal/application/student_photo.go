@@ -50,24 +50,12 @@ func (s *StudentPhotoService) CommitPhoto(ctx context.Context, studentID int64, 
 		if err := s.requireFeatureEnabled(txCtx); err != nil {
 			return err
 		}
-		photo, err := s.readPhoto(txCtx, stats, studentID, false)
-		if err != nil {
+		if err := s.requireInitialPhotoConsent(txCtx, stats, studentID, consentAck); err != nil {
 			return err
 		}
-		if photo.PhotoConsentGivenAt == nil && !consentAck {
-			return domain.ErrPhotoConsentRequired
-		}
-
-		// Serialize against a feature-disable purge.
-		lockStats, err := s.store.LockPhotoFeature(txCtx)
-		stats.Add(lockStats)
-		if err != nil {
+		if err := s.lockPhotoCommitFeature(txCtx, stats); err != nil {
 			return err
 		}
-		if err := s.requireFeatureEnabled(txCtx); err != nil {
-			return domain.ErrPhotoFeatureDisabledMid
-		}
-
 		fresh, err := s.readPhoto(txCtx, stats, studentID, true)
 		if err != nil {
 			return err
@@ -76,35 +64,11 @@ func (s *StudentPhotoService) CommitPhoto(ctx context.Context, studentID int64, 
 			return domain.ErrPhotoConsentWithdrawn
 		}
 
-		before := fresh
-		capturedOld := fresh.StoredPhoto()
-		newURL := storedURL
-		fresh.PhotoPath = &newURL
-		changedAt := s.now()
-		if consentAck && fresh.PhotoConsentGivenAt == nil {
-			grantedAt, grantedBy := changedAt, s.runtime.ActingAccountID(txCtx)
-			fresh.PhotoConsentGivenAt = &grantedAt
-			fresh.PhotoConsentGivenBy = &grantedBy
-		}
-		saveStats, err := s.store.SavePhoto(txCtx, fresh)
-		stats.Add(saveStats)
+		capturedOld, newURL, err := s.saveCommittedPhoto(txCtx, stats, fresh, storedURL, consentAck)
 		if err != nil {
 			return err
 		}
-		if consentAck {
-			if err := s.recordConsent(txCtx, before, fresh, changedAt); err != nil {
-				return err
-			}
-		}
-
-		tenantID := s.tx.TenantID(txCtx)
-		s.tx.RegisterAfterCommit(txCtx, func() {
-			if capturedOld != "" && capturedOld != newURL {
-				s.runtime.UnlinkStoredPhoto(capturedOld)
-			}
-			s.runtime.BroadcastPhotoChange(tenantID, studentID, PhotoSourceUploaded)
-		})
-		return nil
+		return s.finishPhotoReplacement(txCtx, studentID, capturedOld, newURL)
 	})
 }
 
@@ -142,6 +106,9 @@ func (s *StudentPhotoService) ClearPhoto(ctx context.Context, studentID int64) (
 			return err
 		}
 
+		if err := s.runtime.QueueUnlinkStoredPhoto(txCtx, clearedURL); err != nil {
+			return err
+		}
 		detached, tenantID := clearedURL, s.tx.TenantID(txCtx)
 		s.tx.RegisterAfterCommit(txCtx, func() {
 			s.runtime.UnlinkStoredPhoto(detached)
@@ -199,7 +166,17 @@ func (s *StudentPhotoService) PurgePhotos(ctx context.Context) (result []string,
 		var purgeStats domain.OperationStats
 		result, purgeStats, err = s.store.PurgePhotos(txCtx)
 		stats.Add(purgeStats)
-		return err
+		if err != nil {
+			return err
+		}
+		if s.runtime != nil {
+			for _, url := range result {
+				if err := s.runtime.QueueUnlinkStoredPhoto(txCtx, url); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
 	})
 	return result, err
 }
@@ -212,27 +189,34 @@ func (s *StudentPhotoService) ApplyPhotoConsent(
 	ctx context.Context,
 	current domain.StudentPhoto,
 	requestedConsent *bool,
-) domain.StudentPhoto {
+) (domain.StudentPhoto, error) {
 	if requestedConsent == nil || s.runtime == nil {
-		return current
+		return current, nil
 	}
 	updated, transition := domain.ApplyPhotoConsent(
 		requestedConsent, current, s.now(), s.runtime.ActingAccountID(ctx))
 	if transition.RemovedPhotoPath != "" {
+		if err := s.runtime.QueueUnlinkStoredPhoto(ctx, transition.RemovedPhotoPath); err != nil {
+			return current, err
+		}
 		detached := transition.RemovedPhotoPath
 		s.tx.RegisterAfterCommit(ctx, func() { s.runtime.UnlinkStoredPhoto(detached) })
 	}
-	return updated
+	return updated, nil
 }
 
 // ScheduleUnlink removes a detached file after the caller's commit. An empty
 // URL is a no-op so callers need no conditional.
-func (s *StudentPhotoService) ScheduleUnlink(ctx context.Context, storedURL string) {
+func (s *StudentPhotoService) ScheduleUnlink(ctx context.Context, storedURL string) error {
 	if storedURL == "" || s.runtime == nil {
-		return
+		return nil
+	}
+	if err := s.runtime.QueueUnlinkStoredPhoto(ctx, storedURL); err != nil {
+		return err
 	}
 	detached := storedURL
 	s.tx.RegisterAfterCommit(ctx, func() { s.runtime.UnlinkStoredPhoto(detached) })
+	return nil
 }
 
 // readPhoto loads the photo slice, refusing a missing child and a graduate
@@ -284,8 +268,8 @@ func (s *StudentPhotoService) recordConsent(
 	}
 	return s.runtime.RecordPhotoConsent(
 		ctx,
-		domain.StudentConsentSnapshot{StudentID: before.StudentID, PhotoConsentGivenAt: before.PhotoConsentGivenAt},
-		domain.StudentConsentSnapshot{StudentID: after.StudentID, PhotoConsentGivenAt: after.PhotoConsentGivenAt},
+		ports.StudentPhotoConsentSnapshot{StudentID: before.StudentID, PhotoConsentGivenAt: before.PhotoConsentGivenAt},
+		ports.StudentPhotoConsentSnapshot{StudentID: after.StudentID, PhotoConsentGivenAt: after.PhotoConsentGivenAt},
 		actorAccountID,
 		changedAt,
 	)
@@ -303,10 +287,82 @@ func (s *StudentPhotoService) run(ctx context.Context, operation string, fn func
 // takes it first, in the same order the photo writes above do, so the two
 // never deadlock against each other.
 func (s *StudentPhotoService) LockFeature(ctx context.Context) error {
-	return observeRun(ctx, s.observe, "lock_student_photo_feature", s.tx.RunWrite,
+	return observeRun(ctx, s.observe, "lock_student_photo_feature", func(ctx context.Context, fn func(context.Context) error) error {
+		if err := s.tx.RequireTransaction(ctx); err != nil {
+			return err
+		}
+		return fn(ctx)
+	},
 		func(txCtx context.Context, stats *domain.OperationStats) error {
 			lockStats, err := s.store.LockPhotoFeature(txCtx)
 			stats.Add(lockStats)
 			return err
 		})
+}
+
+func (s *StudentPhotoService) finishPhotoReplacement(ctx context.Context, studentID int64, capturedOld, newURL string) error {
+	if capturedOld != "" && capturedOld != newURL {
+		if err := s.runtime.QueueUnlinkStoredPhoto(ctx, capturedOld); err != nil {
+			return err
+		}
+	}
+	tenantID := s.tx.TenantID(ctx)
+	s.tx.RegisterAfterCommit(ctx, func() {
+		if capturedOld != "" && capturedOld != newURL {
+			s.runtime.UnlinkStoredPhoto(capturedOld)
+		}
+		s.runtime.BroadcastPhotoChange(tenantID, studentID, PhotoSourceUploaded)
+	})
+	return nil
+}
+
+func (s *StudentPhotoService) saveCommittedPhoto(txCtx context.Context, stats *domain.OperationStats, fresh domain.StudentPhoto, storedURL string, consentAck bool) (string, string, error) {
+	before := fresh
+	capturedOld := fresh.StoredPhoto()
+	newURL := storedURL
+	fresh.PhotoPath = &newURL
+	changedAt := s.now()
+	if consentAck && fresh.PhotoConsentGivenAt == nil {
+		grantedAt, grantedBy := changedAt, s.runtime.ActingAccountID(txCtx)
+		fresh.PhotoConsentGivenAt = &grantedAt
+		fresh.PhotoConsentGivenBy = &grantedBy
+	}
+	saveStats, err := s.store.SavePhoto(txCtx, fresh)
+	stats.Add(saveStats)
+	if err != nil {
+		return "", "", err
+	}
+	if consentAck {
+		if err := s.recordConsent(txCtx, before, fresh, changedAt); err != nil {
+			return "", "", err
+		}
+	}
+
+	return capturedOld, newURL, nil
+}
+
+func (s *StudentPhotoService) lockPhotoCommitFeature(txCtx context.Context, stats *domain.OperationStats) error {
+	// Serialize against a feature-disable purge.
+	lockStats, err := s.store.LockPhotoFeature(txCtx)
+	stats.Add(lockStats)
+	if err != nil {
+		return err
+	}
+	if err := s.requireFeatureEnabled(txCtx); err != nil {
+		return domain.ErrPhotoFeatureDisabledMid
+	}
+
+	return nil
+}
+
+func (s *StudentPhotoService) requireInitialPhotoConsent(txCtx context.Context, stats *domain.OperationStats, studentID int64, consentAck bool) error {
+	photo, err := s.readPhoto(txCtx, stats, studentID, false)
+	if err != nil {
+		return err
+	}
+	if photo.PhotoConsentGivenAt == nil && !consentAck {
+		return domain.ErrPhotoConsentRequired
+	}
+
+	return nil
 }

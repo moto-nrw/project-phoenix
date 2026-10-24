@@ -228,20 +228,13 @@ func (rs *Resource) getActiveGroupVisitsWithDisplay(w http.ResponseWriter, r *ht
 
 	// One batch query for every setting this handler and its downstream
 	// helpers (DetermineStudentAccess included) resolve (issue #2065).
-	r = r.WithContext(common.PrefetchStudentDisplaySettings(r.Context(), rs.SettingsService))
+	r = r.WithContext(rs.displaySettings.PrefetchStudentDisplaySettings(r.Context()))
 
 	// The school-wide overview scope broadens the operational room scope.
 	// Per-student GDPR fields below still use DetermineStudentAccess and are
 	// never broadened by it.
-	if !rs.operationalOverview(r.Context()) {
-		staff, err := rs.extractStaffFromRequest(w, r)
-		if err != nil {
-			return
-		}
-
-		if rs.verifyStaffSupervisionAccess(w, r, staff.ID, id) != nil {
-			return
-		}
+	if !rs.requireVisitDisplayAccess(w, r, id) {
+		return
 	}
 
 	results, err := rs.Operations.SessionVisitsWithDisplay(r.Context(), id)
@@ -255,10 +248,12 @@ func (rs *Resource) getActiveGroupVisitsWithDisplay(w http.ResponseWriter, r *ht
 	// caller who can't see a student's planned schedule (because they
 	// don't supervise the student's education group) must not see the
 	// real check-in/out clock either.
-	access := common.DetermineStudentAccessWithStaffLookup(r, func(ctx context.Context) (bool, error) {
+	admin, staff := rs.authorization.StudentDataAccess(r.Context(), func(ctx context.Context) (bool, error) {
 		staff, err := rs.UserContextService.GetCurrentStaff(ctx)
 		return staff != nil, err
 	})
+
+	access := &common.StudentAccessContext{IsAdmin: admin, IsStaff: staff}
 
 	attendanceStatuses, err := rs.fetchAttendanceStatusesForVisits(r, results, access)
 	if err != nil {
@@ -266,8 +261,15 @@ func (rs *Resource) getActiveGroupVisitsWithDisplay(w http.ResponseWriter, r *ht
 		return
 	}
 
-	photosEnabled := common.StudentPhotosEnabled(r.Context(), rs.SettingsService, rs.getLogger())
+	photosEnabled, err := rs.displaySettings.StudentPhotosEnabled(r.Context())
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap(http.StatusText(http.StatusInternalServerError), err))
+		return
+	}
 	responses := rs.buildVisitDisplayResponses(results, attendanceStatuses, access, photosEnabled)
+	if !common.CanReadStudentAbsence(r.Context()) {
+		redactVisitAbsenceStatuses(responses)
+	}
 	common.Respond(w, r, http.StatusOK, responses, "Active group visits with display data retrieved successfully")
 }
 
@@ -383,37 +385,8 @@ func (rs *Resource) buildVisitDisplayResponses(results []studentpresence.VisitDi
 			excused = *result.Excused
 		}
 
-		var actualArrival *string
-		var actualPickup *string
-		if access.HasFullAccess() {
-			if attendanceStatus, ok := attendanceStatuses[result.StudentID]; ok && attendanceStatus != nil {
-				actualArrival = calendar.FormatBerlinClock(attendanceStatus.CheckInTime)
-				actualPickup = calendar.FormatBerlinClock(attendanceStatus.CheckOutTime)
-			}
-		}
-
-		// Rewrite the raw /uploads/student-photos/{filename} path stored on
-		// the row to the authenticated /api/students/{id}/photo/{filename}
-		// proxy URL the browser uses (same logic as populatePhotoFields in
-		// api/students/response_helpers.go). Storing the proxy URL inside
-		// active.visits would couple two domains; rewriting here keeps the
-		// JSON contract consistent across endpoints — same helper the
-		// student response shaper uses, so a path-format change in one
-		// place can't desync the two response payloads.
-		//
-		// Gate on access.HasFullAccess() — the same
-		// predicate the actualArrival/actualPickup branch above uses, and
-		// the same predicate serveStudentPhoto checks via
-		// authorize.CanReadStudent. A caregiver may supervise this active
-		// room without supervising the student's home education group;
-		// without the gate, list responses would emit photo_url for those
-		// rows and every avatar request would 403 in the byte-serve path,
-		// leaving the UI with broken-image placeholders.
-		photoURL := ""
-		if photosEnabled && result.PhotoPath != nil &&
-			access.HasFullAccess() {
-			photoURL = common.BuildStudentPhotoServeURL(result.StudentID, *result.PhotoPath)
-		}
+		actualArrival, actualPickup := visitActualTimes(result.StudentID, attendanceStatuses, access)
+		photoURL := visitPhotoURL(result, access, photosEnabled)
 
 		responses = append(responses, VisitWithDisplayDataResponse{
 			ID:            result.VisitID,
@@ -437,6 +410,54 @@ func (rs *Resource) buildVisitDisplayResponses(results []studentpresence.VisitDi
 		})
 	}
 	return responses
+}
+
+// redactVisitAbsenceStatuses clears sick and excused status with their
+// timestamps.
+func redactVisitAbsenceStatuses(responses []VisitWithDisplayDataResponse) {
+	for i := range responses {
+		responses[i].Sick, responses[i].SickSince = false, nil
+		responses[i].Excused, responses[i].ExcusedSince = false, nil
+	}
+}
+
+// visitActualTimes returns the Berlin clock times of the student's recorded
+// arrival and pickup, only for callers with full access to the student.
+func visitActualTimes(studentID int64, attendanceStatuses map[int64]*studentpresence.AttendanceStatus, access *common.StudentAccessContext) (*string, *string) {
+	var actualArrival *string
+	var actualPickup *string
+	if access.HasFullAccess() {
+		if attendanceStatus, ok := attendanceStatuses[studentID]; ok && attendanceStatus != nil {
+			actualArrival = calendar.FormatBerlinClock(attendanceStatus.CheckInTime)
+			actualPickup = calendar.FormatBerlinClock(attendanceStatus.CheckOutTime)
+		}
+	}
+	return actualArrival, actualPickup
+}
+
+// visitPhotoURL rewrites the raw /uploads/student-photos/{filename} path
+// stored on the row to the authenticated /api/students/{id}/photo/{filename}
+// proxy URL the browser uses (same logic as populatePhotoFields in
+// api/students/response_helpers.go). Storing the proxy URL inside
+// active.visits would couple two domains; rewriting here keeps the JSON
+// contract consistent across endpoints — same helper the student response
+// shaper uses, so a path-format change in one place can't desync the two
+// response payloads.
+//
+// Gate on access.HasFullAccess() — the same predicate visitActualTimes uses,
+// and the same predicate serveStudentPhoto checks via
+// authorize.CanReadStudent. A caregiver may supervise this active room
+// without supervising the student's home education group; without the gate,
+// list responses would emit photo_url for those rows and every avatar request
+// would 403 in the byte-serve path, leaving the UI with broken-image
+// placeholders.
+func visitPhotoURL(result studentpresence.VisitDisplay, access *common.StudentAccessContext, photosEnabled bool) string {
+	photoURL := ""
+	if photosEnabled && result.PhotoPath != nil &&
+		access.HasFullAccess() {
+		photoURL = common.BuildStudentPhotoServeURL(result.StudentID, *result.PhotoPath)
+	}
+	return photoURL
 }
 
 // getActiveGroupSupervisors handles getting supervisors for an active group
@@ -557,7 +578,7 @@ func (rs *Resource) deleteActiveGroup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Delete active group
-	if err := rs.Operations.RemoveSession(r.Context(), id); err != nil {
+	if err := rs.Operations.DeleteActiveGroup(r.Context(), id); err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
@@ -575,7 +596,7 @@ func (rs *Resource) endActiveGroup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// End active group session
-	if err := rs.Operations.EndSession(r.Context(), id); err != nil {
+	if err := rs.Operations.EndActiveGroupSession(r.Context(), id); err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
@@ -589,4 +610,22 @@ func (rs *Resource) endActiveGroup(w http.ResponseWriter, r *http.Request) {
 
 	// Return the updated active group
 	common.Respond(w, r, http.StatusOK, response, "Active group session ended successfully")
+}
+
+// requireVisitDisplayAccess permits the school-wide overview or the caller's
+// own supervised group; an unreadable scope grants neither path.
+func (rs *Resource) requireVisitDisplayAccess(w http.ResponseWriter, r *http.Request, groupID int64) bool {
+	overview, err := rs.operationalOverview(r.Context())
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap("failed to resolve operational overview", err))
+		return false
+	}
+	if overview {
+		return true
+	}
+	staff, err := rs.extractStaffFromRequest(w, r)
+	if err != nil {
+		return false
+	}
+	return rs.verifyStaffSupervisionAccess(w, r, staff.ID, groupID) == nil
 }

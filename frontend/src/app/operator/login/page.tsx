@@ -7,7 +7,11 @@ import { signIn, signOut, useSession } from "next-auth/react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Alert } from "~/components/ui/alert";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
-import { credentialError } from "~/components/auth/credential-error";
+import {
+  credentialError,
+  LOGIN_REFUSALS,
+  PASSKEY_LOGIN_REFUSALS,
+} from "~/components/auth/credential-error";
 import { useApiFormError } from "~/contexts/ToastContext";
 import {
   AuthShell,
@@ -199,7 +203,9 @@ export default function OperatorLoginPage() {
         error: err instanceof Error ? err.message : String(err),
       });
       // Vor der Anmeldung heißt 401 "abgelehnt", nicht "Sitzung abgelaufen".
-      void showLoginError(credentialError(err), { object: "die Anmeldung" });
+      void showLoginError(credentialError(err, LOGIN_REFUSALS), {
+        object: "die Anmeldung",
+      });
     } finally {
       setIsLoading(false);
     }
@@ -225,7 +231,7 @@ export default function OperatorLoginPage() {
       logger.warn("operator_passkey_login_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      void showLoginError(credentialError(err), {
+      void showLoginError(credentialError(err, PASSKEY_LOGIN_REFUSALS), {
         object: "die Anmeldung mit Passkey",
       });
     } finally {

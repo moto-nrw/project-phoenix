@@ -37,12 +37,14 @@ func TestDayReportKeepsTheWireShape(t *testing.T) {
 			{
 				StudentID: 12, FirstName: "Nico", LastName: "Krank", Registered: true, Offerings: []string{},
 				Departure: "Keine Angabe", Status: "sick", ReportedAt: &reportedAt,
+				MorningAttendance: &classday.DayMorningAttendance{Status: "absent", Source: "report"},
 			},
 			{
 				FirstName: "Lisa", LastName: "NurListe", ListEntry: true, ListEntryID: 9007199254740993, Offerings: []string{},
 			},
 		},
-		ClassArrivalException: &classday.DayArrivalException{ArrivalTime: "12:45", Reason: "Unterricht fällt aus", Origin: "school"},
+		ClassArrivalException:      &classday.DayArrivalException{ArrivalTime: "12:45", Reason: "Unterricht fällt aus", Origin: "school"},
+		CanRecordMorningAttendance: true,
 	}
 
 	got, err := json.Marshal(report)
@@ -57,11 +59,13 @@ func TestDayReportKeepsTheWireShape(t *testing.T) {
 			 "pickup": "15:00", "departure": "Abholung", "pickup_changed": true, "pickup_regular": "16:00",
 			 "reported_at": "2026-08-05T05:00:00Z"},
 			{"student_id": 12, "first_name": "Nico", "last_name": "Krank", "registered": true, "stays_today": false,
-			 "offerings": [], "departure": "Keine Angabe", "status": "sick", "reported_at": "2026-08-05T05:00:00Z"},
+			 "offerings": [], "departure": "Keine Angabe", "status": "sick", "reported_at": "2026-08-05T05:00:00Z",
+			 "morning_attendance": {"status": "absent", "source": "report"}},
 			{"student_id": 0, "first_name": "Lisa", "last_name": "NurListe", "list_entry": true,
 			 "list_entry_id": "9007199254740993", "registered": false, "stays_today": false, "offerings": []}
 		],
-		"class_arrival_exception": {"arrival_time": "12:45", "reason": "Unterricht fällt aus", "origin": "school"}
+		"class_arrival_exception": {"arrival_time": "12:45", "reason": "Unterricht fällt aus", "origin": "school"},
+		"can_record_morning_attendance": true
 	}`, string(got))
 
 	// The optionals stay omitted.
@@ -69,6 +73,7 @@ func TestDayReportKeepsTheWireShape(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotContains(t, string(bare), "class_arrival_exception")
 	assert.NotContains(t, string(bare), "phase_name")
+	assert.Contains(t, string(bare), `"can_record_morning_attendance":false`, "the verdict is always on the wire")
 }
 
 // TestArrivalExceptionErrorsKeepTheirMessages pins the error contract of the

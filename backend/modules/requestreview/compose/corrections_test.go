@@ -14,7 +14,7 @@ import (
 func TestCorrectionLogPreservesCursorBeforeVisibilityAndAccess(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	people, err := peoplecompose.New(peoplecompose.Dependencies{DB: db, Observe: func(peoplecompose.Observation) {}})
+	people, err := peoplecompose.New(peoplecompose.Dependencies{StudentDirectory: testpkg.StudentDirectory{}, DB: db, Observe: func(peoplecompose.Observation) {}}, nil)
 	require.NoError(t, err)
 	visible := testpkg.CreateTestStudent(t, db, "Visible", "Correction", "1a")
 	hidden := testpkg.CreateTestStudent(t, db, "Former", "Correction", "1a")
@@ -23,7 +23,7 @@ func TestCorrectionLogPreservesCursorBeforeVisibilityAndAccess(t *testing.T) {
 	first := testpkg.CreateTestOfferingCorrection(t, db, visible.ID, "direct", instant)
 	last := testpkg.CreateTestOfferingCorrection(t, db, hidden.ID, "direct", instant)
 	allowed := true
-	log, err := NewCorrectionLog(db, people, func(context.Context) bool { return allowed }, func(AuditObservation) {})
+	log, err := composeCorrectionLog(t, db, people, func(context.Context) bool { return allowed })
 	require.NoError(t, err)
 	rows, cursor, err := log.History(testpkg.Ctx(t), requestreview.QueueFilter{Limit: 1})
 	require.NoError(t, err)
@@ -44,6 +44,6 @@ func TestCorrectionLogPreservesCursorBeforeVisibilityAndAccess(t *testing.T) {
 	rows, _, err = log.History(testpkg.Ctx(t), requestreview.QueueFilter{Limit: 10})
 	require.NoError(t, err)
 	require.Empty(t, rows)
-	_, err = NewCorrectionLog(db, people, nil, func(AuditObservation) {})
+	_, err = composeCorrectionLog(t, db, people, nil)
 	require.Error(t, err)
 }

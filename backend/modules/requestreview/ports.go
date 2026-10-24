@@ -57,6 +57,9 @@ type Row struct {
 	SortTime    time.Time
 	StudentID   int64
 	StudentName string
+	// SubmittedBy is the account that filed the request; zero for a row
+	// nobody filed (an office correction).
+	SubmittedBy int64
 	Status      string
 	// Version is the expected_version the decide routes compare against,
 	// rendered by the owner rule from the row's updated_at.
@@ -139,7 +142,28 @@ type StudentDirectory interface {
 	GroupNames(ctx context.Context, studentIDs []int64) (map[int64]string, error)
 }
 
+// SubmitterKey names one filing: the account that filed for one child. The
+// relationship is per child, so the account alone is not enough.
+type SubmitterKey struct {
+	StudentID int64
+	AccountID int64
+}
+
+// Submitter is the person who filed a request as the school knows them.
+type Submitter struct {
+	Name string
+	// RelationshipType is the stored relationship to the child ("parent",
+	// "guardian", ...); empty when none is stored. Never derived from the name.
+	RelationshipType string
+}
+
+// SubmitterDirectory names who filed each request, read in the tenant in
+// context. A filing the school no longer knows (profile removed) is absent.
+type SubmitterDirectory interface {
+	Submitters(ctx context.Context, keys []SubmitterKey) (map[SubmitterKey]Submitter, error)
+}
+
 // FamilyProtection reports the Familienschutz flag per child.
 type FamilyProtection interface {
-	Protected(ctx context.Context, studentIDs []int64) (map[int64]bool, error)
+	CurrentFamilyProtection(ctx context.Context, studentIDs []int64) (map[int64]bool, error)
 }

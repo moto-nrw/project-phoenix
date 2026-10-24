@@ -21,11 +21,13 @@ import (
 	"testing"
 	"time"
 
+	rootAPI "github.com/moto-nrw/project-phoenix/api"
+	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	filestorageModule "github.com/moto-nrw/project-phoenix/modules/filestorage"
 	filestoreAPI "github.com/moto-nrw/project-phoenix/modules/filestorage/http/files"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -57,7 +59,7 @@ func fakeXLSX(t *testing.T) []byte {
 type apiContext struct {
 	t                     *testing.T
 	db                    *bun.DB
-	files                 *filestorageModule.Module
+	files                 filestorageModule.Capability
 	setStaffUploadEnabled func() error
 	router                chi.Router
 	// admin holds admin:*; member holds only a plain permission.
@@ -67,26 +69,26 @@ type apiContext struct {
 
 func setupFileStoreRoute(t *testing.T) *apiContext {
 	t.Helper()
-	objects, err := common.PrivateUploadsBackend()
+	objects, err := nativeUploads.PrivateUploadsBackend()
 	require.NoError(t, err)
-	db, svc := testutil.SetupFileStoreModule(t, objects)
-	resource := filestoreAPI.NewResource(svc.FileStore, slog.Default())
+	db, files, setSetting := setupFileStoreModule(t, objects)
+	resource := filestoreAPI.NewResource(files, slog.Default())
 	router := chi.NewRouter()
 	router.Use(testpkg.TenantRuntimeMiddleware(t, db))
-	router.Mount("/files", resource.Router())
+	router.Mount("/files", resource.Router(rootAPI.ProtectedTenantRoutes))
 
 	suffix := time.Now().UnixNano()
 	_, adminAccount := testpkg.CreateTestPersonWithAccount(t, db, "Leitung", fmt.Sprintf("Admin-%d", suffix))
 	_, memberAccount := testpkg.CreateTestPersonWithAccount(t, db, "Team", fmt.Sprintf("Mitglied-%d", suffix))
 	t.Cleanup(func() {
-		if pubDir, err := common.ResolvePublicDir(); err == nil {
+		if pubDir, err := nativeUploads.ResolvePublicDir(); err == nil {
 			_ = os.RemoveAll(filepath.Join(pubDir, "uploads", "files", fmt.Sprint(testpkg.Tenant(t))))
 		}
 	})
 	return &apiContext{
-		t: t, db: db, files: svc.FileStore, router: router, admin: adminAccount.ID, member: memberAccount.ID,
+		t: t, db: db, files: files, router: router, admin: adminAccount.ID, member: memberAccount.ID,
 		setStaffUploadEnabled: func() error {
-			return svc.Settings.SetValue(testpkg.Ctx(t), configModel.KeyFilesStaffUploadEnabled, true, nil, nil)
+			return setSetting(testpkg.Ctx(t), "files.staff_upload_enabled", true)
 		},
 	}
 }
@@ -313,6 +315,56 @@ func TestFolderManagementRequiresPermission(t *testing.T) {
 	assert.Contains(t, accountIDs, c.member)
 	assert.Contains(t, accountIDs, c.admin)
 	assert.NotEmpty(t, audience.Data.Roles)
+}
+
+// TestFileRoutesWriteOnlyOnUpload holds what the opt-in
+// TestFileStorageRuntimeEvidence asserted on every sample (#4426): the folder
+// and file reads and the download write no row and issue a stable number of
+// statements, an upload writes metadata.
+func TestFileRoutesWriteOnlyOnUpload(t *testing.T) {
+	t.Parallel()
+	c := setupFileStoreRoute(t)
+	ctx := testpkg.Ctx(t)
+	folder := c.createFolder(folderPayload{Name: "Schreibprobe", Visibility: "all_staff"})
+	rec := c.upload(folder, "Vorlage.pdf", fakePDF, c.admin, permissions.AdminWildcard)
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	var uploaded struct {
+		Data struct {
+			ID common.JSONID `json:"id"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &uploaded))
+	counter := testpkg.CaptureQueriesForContext(t, c.db)
+
+	for _, read := range []struct {
+		name      string
+		path      string
+		accountID int64
+		perm      string
+	}{
+		{"list-folders-manager", "/files/folders", c.admin, permissions.AdminWildcard},
+		{"list-folders-member", "/files/folders", c.member, permissions.UsersRead},
+		{"list-files", fmt.Sprintf("/files/folders/%d/files", folder), c.admin, permissions.AdminWildcard},
+		{"download", fmt.Sprintf("/files/folders/%d/files/%d/download", folder, uploaded.Data.ID.Int64()), c.member, permissions.UsersRead},
+	} {
+		// Twice: the statement count of a read must not vary between
+		// identical requests, so a per-row query cannot hide in an average.
+		var statements []int
+		for range 2 {
+			counter.Reset()
+			rec := c.request(counter.Context(ctx), http.MethodGet, read.path, nil, "", read.accountID, read.perm)
+			require.Equal(t, http.StatusOK, rec.Code, "%s: %s", read.name, rec.Body.String())
+			require.Zero(t, counter.WriteRows(), "%s: a read must not write", read.name)
+			statements = append(statements, counter.Total())
+		}
+		require.Equal(t, statements[0], statements[1], "%s: statement count must not vary across requests", read.name)
+	}
+
+	counter.Reset()
+	body, contentType := multipartPDF(t, "Messung.pdf")
+	rec = c.request(counter.Context(ctx), http.MethodPost, fmt.Sprintf("/files/folders/%d/files", folder), body, contentType, c.admin, permissions.AdminWildcard)
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	require.Positive(t, counter.WriteRows(), "an upload must write metadata rows")
 }
 
 func TestUploadDownloadDeleteLifecycle(t *testing.T) {

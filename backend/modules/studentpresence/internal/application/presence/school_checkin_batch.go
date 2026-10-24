@@ -8,10 +8,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -81,7 +80,7 @@ func (s *service) processSchoolCheckinBatch(
 		return nil, err
 	}
 
-	outcomes, actionable, actionableStudents := schoolCheckinCandidates(writeOrder, locked, timezone.TodayDate())
+	outcomes, actionable, actionableStudents := schoolCheckinCandidates(writeOrder, locked, calendar.TodayDate())
 
 	// ONE instant for the whole batch, taken AFTER the row locks: every
 	// competing attendance opener locks the student row first, so any
@@ -92,7 +91,7 @@ func (s *service) processSchoolCheckinBatch(
 	// disagree, and because all writes below run in single statements the
 	// batch cannot straddle a Berlin midnight item-by-item (review #2372).
 	now := s.now()
-	day := timezone.DateFromTime(now)
+	day := calendar.DateFromTime(now)
 
 	writes := schoolCheckinWrites{changed: make(map[int64]bool, len(actionable))}
 	if len(actionable) > 0 {
@@ -157,7 +156,7 @@ func (s *service) lockSchoolCheckinStudents(ctx context.Context, studentIDs []in
 func schoolCheckinCandidates(
 	writeOrder []int64,
 	locked map[int64]*StudentRecord,
-	today timezone.Date,
+	today calendar.Date,
 ) (map[int64]SchoolCheckinBatchItem, []int64, []*StudentRecord) {
 	outcomes := make(map[int64]SchoolCheckinBatchItem, len(writeOrder))
 	actionable := make([]int64, 0, len(writeOrder))
@@ -190,7 +189,7 @@ func (s *service) applySchoolCheckinAction(
 	actionableStudents []*StudentRecord,
 	staffID int64,
 	now time.Time,
-	day timezone.Date,
+	day calendar.Date,
 	writes *schoolCheckinWrites,
 ) error {
 	if action == SchoolCheckinActionIn {
@@ -223,7 +222,7 @@ func (s *service) applySchoolCheckinAction(
 
 // refreshSchoolCheckinStatuses back-fills each outcome's final status from
 // one post-write status read of the batch day.
-func (s *service) refreshSchoolCheckinStatuses(ctx context.Context, actionable []int64, day timezone.Date, outcomes map[int64]SchoolCheckinBatchItem) error {
+func (s *service) refreshSchoolCheckinStatuses(ctx context.Context, actionable []int64, day calendar.Date, outcomes map[int64]SchoolCheckinBatchItem) error {
 	rows, err := s.SchoolPresence.ListSchoolStatuses(ctx, actionable, day.String())
 	if err != nil {
 		return &ActiveError{Op: "ProcessSchoolCheckinBatch", Err: err}
@@ -268,7 +267,7 @@ func (s *service) applyBatchCheckIn(
 	actionableStudents []*StudentRecord,
 	staffID int64,
 	now time.Time,
-	day timezone.Date,
+	day calendar.Date,
 ) ([]int64, error) {
 	// ONE device resolution for the whole batch — every row is the same
 	// virtual web device (review #2372).
@@ -333,7 +332,7 @@ func (s *service) applyBatchCheckOut(
 	actionable []int64,
 	staffID int64,
 	now time.Time,
-	day timezone.Date,
+	day calendar.Date,
 ) ([]studentpresence.Attendance, []*studentpresence.Visit, error) {
 	mode, err := s.GetPresenceMode(ctx)
 	if err != nil {
@@ -363,14 +362,14 @@ func (s *service) applyBatchCheckOut(
 
 // closeBatchVisits ends the batch's open room visits entered on or before the
 // batch day.
-func (s *service) closeBatchVisits(ctx context.Context, actionable []int64, now time.Time, day timezone.Date) ([]studentpresence.Visit, error) {
+func (s *service) closeBatchVisits(ctx context.Context, actionable []int64, now time.Time, day calendar.Date) ([]studentpresence.Visit, error) {
 	openVisits, err := s.currentPresenceVisits(ctx, actionable, false)
 	if err != nil {
 		return nil, &ActiveError{Op: "ProcessSchoolCheckinBatch", Err: err}
 	}
 	visitIDs := make([]int64, 0, len(openVisits))
 	for _, visit := range openVisits {
-		if timezone.DateFromTime(visit.EntryTime).After(day) {
+		if calendar.DateFromTime(visit.EntryTime).After(day) {
 			continue // newer care session after the rollover — leave it open
 		}
 		visitIDs = append(visitIDs, visit.ID)
@@ -424,7 +423,7 @@ func (s *service) autoClearOnBatchCheckin(
 	actionable []int64,
 	actionableStudents []*StudentRecord,
 	now time.Time,
-	day timezone.Date,
+	day calendar.Date,
 ) error {
 	if err := s.clearBatchLiveFlags(ctx, actionableStudents, now); err != nil {
 		return err
@@ -471,7 +470,7 @@ func (s *service) clearBatchPlannedStatuses(
 	actionable []int64,
 	actionableStudents []*StudentRecord,
 	now time.Time,
-	day timezone.Date,
+	day calendar.Date,
 ) error {
 	rows, err := s.StudentStatusRepo.FindActiveByStudentIDsAndDate(ctx, actionable, day)
 	if err != nil {
@@ -543,14 +542,14 @@ func (s *service) registerSchoolCheckinBatchBroadcast(
 		// One event per active group whose roster changed.
 		for groupID, ids := range activeGroups {
 			groupIDStr := strconv.FormatInt(groupID, 10)
-			realtimeevents.PublishBulkStudentChange(ctx, s.Broadcaster, s.getLogger(), checkIn, groupIDStr, ids, allEduGroupIDs)
+			s.Broadcaster.BulkStudentChange(ctx, checkIn, groupIDStr, ids, allEduGroupIDs)
 		}
 
 		// One event per distinct educational group, carrying only that
 		// group's students so each client invalidates the right caches.
 		// No active group: this is a roomless attendance change.
 		for gid, ids := range eduGroups {
-			realtimeevents.PublishBulkStudentChangeToEducationGroup(ctx, s.Broadcaster, s.getLogger(), checkIn, "", gid, ids)
+			s.Broadcaster.BulkStudentChangeToEducationGroup(ctx, checkIn, "", gid, ids)
 		}
 
 		// Single tenant-wide refresh for the entire batch. The group-specific

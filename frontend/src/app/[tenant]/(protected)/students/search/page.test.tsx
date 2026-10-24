@@ -12,6 +12,7 @@ import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
 import { roomService } from "~/lib/api";
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
+import { takeAnnouncementStudents } from "~/lib/announcement-prefill";
 import StudentSearchPage from "./page";
 
 const STUDENT_SEARCH_FILTER_STORAGE_KEY =
@@ -33,6 +34,14 @@ vi.mock("next/navigation", () => ({
     replace: vi.fn(),
   })),
   useSearchParams: vi.fn(() => mockSearchParams),
+}));
+
+// „Elternbrief schreiben" (#4779) hängt an admin:* und
+// operations.parent_news_enabled. Die Bedingung selbst prüfen die Tests des
+// Anmeldephasen-Rücklaufs, der denselben Hook nutzt; hier zählt nur, was die
+// Seite daraus macht.
+vi.mock("~/lib/hooks/use-parent-announcements-available", () => ({
+  useParentAnnouncementsAvailable: vi.fn(() => false),
 }));
 
 // Mock breadcrumb context
@@ -129,7 +138,7 @@ vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
             <>
               <option value="all">All</option>
               <option value="anwesend">Anwesend</option>
-              <option value="abwesend">Abwesend</option>
+              <option value="abwesend">Zuhause</option>
               <option value="unterwegs">Unterwegs</option>
               <option value="schulhof">Schulhof</option>
             </>
@@ -238,6 +247,7 @@ vi.mock("~/lib/location-helper", async (importOriginal) => {
       UNKNOWN: "Unbekannt",
       SICK: "Krank",
       EXCUSED: "Entschuldigt",
+      NOT_ARRIVAL: "Kommt heute nicht",
     },
   };
 });
@@ -1082,7 +1092,9 @@ describe("StudentSearchPage", () => {
 
       await waitFor(() => {
         expect(
-          screen.getByText("1 Kind · 0 in der Schule · 0 zuhause · 1 krank"),
+          screen.getByText(
+            "1 Kind · 0 in der OGS · 0 in der Schule · 0 zuhause · 1 krank",
+          ),
         ).toBeInTheDocument();
       });
     });
@@ -1159,6 +1171,49 @@ describe("StudentSearchPage", () => {
           screen.queryByText(new RegExp(`^Max\\b`)),
         ).not.toBeInTheDocument();
       });
+    });
+
+    // #4588: ein Kind ohne bekannten Ort oder mit „Kommt heute nicht“ zählt
+    // in der Statuszeile als zuhause; der Filter hinter der Kachel „Zuhause“
+    // muss genau diese Kinder zeigen und darf keins davon verlieren.
+    it("shows every child the summary counts as home under the 'Zuhause' filter", async () => {
+      const swrModule = await import("~/lib/swr");
+      mockUseSWRAuthWithStudents(swrModule, {
+        data: {
+          students: [
+            { ...mockStudents[0]!, current_location: "Zuhause" },
+            { ...mockStudents[1]!, current_location: "" },
+            { ...mockStudents[2]!, current_location: "Kommt heute nicht" },
+            { ...mockStudents[3]!, current_location: "Anwesend - Raum 101" },
+          ],
+        },
+        isLoading: false,
+        error: null,
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      mockSearchParams.set("status", "abwesend");
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(
+          screen.getByText(
+            "4 Kinder · 1 in der OGS · 0 in der Schule · 3 zuhause · 0 krank",
+          ),
+        ).toBeInTheDocument();
+      });
+      expect(
+        screen.getByText(new RegExp(`^${mockStudents[0]!.first_name}\\b`)),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(new RegExp(`^${mockStudents[1]!.first_name}\\b`)),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(new RegExp(`^${mockStudents[2]!.first_name}\\b`)),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText(new RegExp(`^${mockStudents[3]!.first_name}\\b`)),
+      ).not.toBeInTheDocument();
     });
 
     it("collapses a sick student's time rows into one neutral 'not coming' line (Variant B)", async () => {
@@ -1290,6 +1345,7 @@ describe("StudentSearchPage", () => {
       await waitFor(() => {
         expect(screen.getByText(new RegExp(`^Max\\b`))).toBeInTheDocument();
       });
+      expect(screen.getByText(new RegExp(`^Anna\\b`))).toBeInTheDocument();
 
       fireEvent.change(screen.getByTestId("filter-attendance"), {
         target: { value: "krank" },
@@ -1324,6 +1380,7 @@ describe("StudentSearchPage", () => {
       await waitFor(() => {
         expect(screen.getByText(new RegExp(`^Max\\b`))).toBeInTheDocument();
       });
+      expect(screen.getByText(new RegExp(`^Anna\\b`))).toBeInTheDocument();
 
       fireEvent.change(screen.getByTestId("filter-attendance"), {
         target: { value: "entschuldigt" },
@@ -1339,6 +1396,57 @@ describe("StudentSearchPage", () => {
         ).toHaveTextContent("Entschuldigt");
       });
     });
+  });
+
+  describe("combined excused drill-down", () => {
+    it.each([
+      [
+        "entschuldigt-klassenfahrt",
+        ["Max", "Anna"],
+        "Entschuldigt oder Klassenfahrt",
+      ],
+      ["entschuldigt", ["Max"], "Entschuldigt"],
+      ["klassenfahrt", ["Anna"], "Klassenfahrt"],
+    ] as const)(
+      "restores %s from the URL without changing the single-status filters",
+      async (status, visibleNames, label) => {
+        mockSearchParams.set("status", status);
+        const swrModule = await import("~/lib/swr");
+        mockUseSWRAuthWithStudents(swrModule, {
+          data: {
+            students: [
+              { ...mockStudents[0]!, excused: true },
+              { ...mockStudents[1]!, class_trip: true },
+              { ...mockStudents[2]!, sick: true },
+            ],
+          },
+          isLoading: false,
+          error: null,
+        } as ReturnType<typeof swrModule.useSWRAuth>);
+
+        render(<StudentSearchPage />);
+
+        await waitFor(() => {
+          // Anker: die erwarteten Kinder sind als geladene Ergebnisse sichtbar.
+          for (const name of visibleNames) {
+            expect(
+              screen.getByText(new RegExp(`^${name}\\b`)),
+            ).toBeInTheDocument();
+          }
+          for (const name of ["Max", "Anna", "Tom"]) {
+            if (!visibleNames.some((visible) => visible === name)) {
+              expect(
+                screen.queryByText(new RegExp(`^${name}\\b`)),
+              ).not.toBeInTheDocument();
+            }
+          }
+          expect(screen.getByTestId("filter-attendance")).toHaveValue(status);
+          expect(
+            screen.getByTestId("active-filter-attendance"),
+          ).toHaveTextContent(label);
+        });
+      },
+    );
   });
 
   describe("Year Filtering", () => {
@@ -1546,6 +1654,180 @@ describe("StudentSearchPage", () => {
       await waitFor(() => {
         expect(screen.getByTestId("filter-attendance")).toHaveValue("all");
       });
+    });
+  });
+
+  describe("Elternbrief aus der Kindersuche (#4779)", () => {
+    async function allowParentAnnouncements(available: boolean) {
+      const hookModule =
+        await import("~/lib/hooks/use-parent-announcements-available");
+      vi.mocked(hookModule.useParentAnnouncementsAvailable).mockReturnValue(
+        available,
+      );
+    }
+
+    async function mockRouterPush() {
+      const mockPush = vi.fn();
+      const navigation = await import("next/navigation");
+      vi.mocked(navigation.useRouter).mockReturnValue({
+        push: mockPush,
+        replace: vi.fn(),
+        back: vi.fn(),
+        forward: vi.fn(),
+        refresh: vi.fn(),
+        prefetch: vi.fn(),
+        bfcacheId: "test",
+      });
+      return mockPush;
+    }
+
+    afterEach(async () => {
+      await allowParentAnnouncements(false);
+      window.sessionStorage.clear();
+    });
+
+    it("hands exactly the children without photo consent to the letter composer", async () => {
+      // Der Fotofilter läuft im Backend: Die Antwort enthält nur Anna und Tom.
+      mockSearchParams.set("photo_consent", "no");
+      await allowParentAnnouncements(true);
+      const mockPush = await mockRouterPush();
+      const swrModule = await import("~/lib/swr");
+      mockUseSWRAuthWithStudents(swrModule, {
+        data: {
+          students: mockStudents
+            .filter((student) => !student.photo_consent_given)
+            .map((student) => ({
+              ...student,
+              name: `${student.first_name} ${student.second_name}`,
+            })),
+        },
+        isLoading: false,
+        error: null,
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      render(<StudentSearchPage />);
+
+      fireEvent.click(
+        await screen.findByTestId("overflow-Elternbrief schreiben"),
+      );
+
+      expect(mockPush).toHaveBeenCalledTimes(1);
+      const target = new URL(
+        mockPush.mock.calls[0]?.[0] as string,
+        "http://localhost",
+      );
+      expect(target.pathname).toBe("/test-tenant/parent-announcements");
+      expect(target.searchParams.get("art")).toBe("elternbriefe");
+      expect(target.searchParams.get("neu")).toBe("kinder");
+      // Keine Namen in der Adresse, nur der Verweis auf die Ablage.
+      expect(target.search).not.toMatch(/Anna|Tom|Schmidt|Weber/);
+      const token = target.searchParams.get("vorbelegung");
+      expect(token).toBeTruthy();
+      expect(takeAnnouncementStudents("test-tenant", token!)).toEqual([
+        { id: "2", name: "Anna Schmidt" },
+        { id: "3", name: "Tom Weber" },
+      ]);
+    });
+
+    it("offers no letter when the school or person cannot write parent announcements", async () => {
+      await allowParentAnnouncements(false);
+
+      render(<StudentSearchPage />);
+
+      // Anker: das Menü ist da, nur der Eintrag fehlt.
+      expect(
+        await screen.findByTestId("overflow-Abwesenheiten"),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByTestId("overflow-Elternbrief schreiben"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("offers no letter while the filtered list is empty", async () => {
+      await allowParentAnnouncements(true);
+      const swrModule = await import("~/lib/swr");
+      mockUseSWRAuthWithStudents(swrModule, {
+        data: { students: [] },
+        isLoading: false,
+        error: null,
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      render(<StudentSearchPage />);
+
+      expect(
+        await screen.findByText("Keine Kinder gefunden"),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByTestId("overflow-Elternbrief schreiben"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("offers no letter for an incomplete result", async () => {
+      await allowParentAnnouncements(true);
+      const swrModule = await import("~/lib/swr");
+      mockUseSWRAuthWithStudents(swrModule, {
+        data: {
+          students: mockStudents,
+          truncatedTotal: 25000,
+        },
+        isLoading: false,
+        error: null,
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      render(<StudentSearchPage />);
+
+      // Anker: die vollständige Aktionsliste ist geladen.
+      expect(
+        await screen.findByTestId("overflow-Abwesenheiten"),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByTestId("overflow-Elternbrief schreiben"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("offers no letter while a new search result is loading", async () => {
+      await allowParentAnnouncements(true);
+      const swrModule = await import("~/lib/swr");
+      mockUseSWRAuthWithStudents(swrModule, {
+        // keepPreviousData still exposes these children for the old filter.
+        data: { students: mockStudents },
+        isLoading: false,
+        isValidating: true,
+        error: undefined,
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      render(<StudentSearchPage />);
+
+      // Anker: das Aktionsmenü bleibt während der Neuladung sichtbar.
+      expect(
+        await screen.findByTestId("overflow-Abwesenheiten"),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByTestId("overflow-Elternbrief schreiben"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("offers no letter after a new search request failed", async () => {
+      await allowParentAnnouncements(true);
+      const swrModule = await import("~/lib/swr");
+      mockUseSWRAuthWithStudents(swrModule, {
+        // keepPreviousData can retain children from the failed request's
+        // preceding filter.
+        data: { students: mockStudents },
+        isLoading: false,
+        isValidating: false,
+        error: new Error("Die Suche ist fehlgeschlagen"),
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      render(<StudentSearchPage />);
+
+      // Anker: das Aktionsmenü bleibt auch beim Ladefehler sichtbar.
+      expect(
+        await screen.findByTestId("overflow-Abwesenheiten"),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByTestId("overflow-Elternbrief schreiben"),
+      ).not.toBeInTheDocument();
     });
   });
 
@@ -2640,16 +2922,37 @@ describe("StudentSearchPage", () => {
 
       render(<StudentSearchPage />);
 
-      await waitFor(() => {
-        expect(
-          screen.queryByTestId("filter-photoConsent"),
-        ).not.toBeInTheDocument();
-        expect(
-          screen.queryByTestId("active-filter-photoConsent"),
-        ).not.toBeInTheDocument();
-        expect(screen.getByText(new RegExp(`^Max\\b`))).toBeInTheDocument();
-        expect(screen.getByText(new RegExp(`^Lisa\\b`))).toBeInTheDocument();
-      });
+      // Anker: Liste und Filterleiste sind geladen, nur der Fotofilter fehlt.
+      expect(
+        await screen.findByText(new RegExp(`^Max\\b`)),
+      ).toBeInTheDocument();
+      expect(screen.getByText(new RegExp(`^Lisa\\b`))).toBeInTheDocument();
+      expect(screen.getByTestId("filter-attendance")).toBeInTheDocument();
+      expect(
+        screen.queryByTestId("filter-photoConsent"),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId("active-filter-photoConsent"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("shows the photo consent filter when the tenant photo feature is enabled", async () => {
+      const tenantProvider = await import("~/lib/tenant-context");
+      vi.mocked(tenantProvider.useTenantSafe).mockReturnValue({
+        tenantSlug: "test-tenant",
+        tenant: { studentPhotosEnabled: true },
+      } as unknown as ReturnType<typeof tenantProvider.useTenantSafe>);
+      mockSearchParams.set("photo_consent", "no");
+
+      render(<StudentSearchPage />);
+
+      expect(
+        await screen.findByText(new RegExp(`^Max\\b`)),
+      ).toBeInTheDocument();
+      expect(screen.getByTestId("filter-photoConsent")).toBeInTheDocument();
+      expect(
+        screen.getByTestId("active-filter-photoConsent"),
+      ).toBeInTheDocument();
     });
 
     it("hides the photo consent filter when the API omits consent state", async () => {
@@ -2669,11 +2972,13 @@ describe("StudentSearchPage", () => {
 
       render(<StudentSearchPage />);
 
-      await waitFor(() => {
-        expect(
-          screen.queryByTestId("filter-photoConsent"),
-        ).not.toBeInTheDocument();
-      });
+      // Anker: die Liste ist geladen, nur der Filter fehlt.
+      expect(
+        await screen.findByText(new RegExp(`^Max\\b`)),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByTestId("filter-photoConsent"),
+      ).not.toBeInTheDocument();
     });
 
     // GDPR exclusion of redacted students from administrative filters is now
@@ -2886,6 +3191,9 @@ describe("StudentSearchPage", () => {
       await waitFor(() => {
         expect(screen.getByText(new RegExp(`^Max\\b`))).toBeInTheDocument();
       });
+      for (const name of ["Anna", "Tom", "Lisa"]) {
+        expect(screen.getByText(new RegExp(`^${name}\\b`))).toBeInTheDocument();
+      }
 
       // Filter by 15:30, only Max has this pickup time
       const pickupFilter = screen.getByTestId("filter-pickupTime");
@@ -2911,6 +3219,7 @@ describe("StudentSearchPage", () => {
       await waitFor(() => {
         expect(screen.getByText(new RegExp(`^Max\\b`))).toBeInTheDocument();
       });
+      expect(screen.getByText(new RegExp(`^Tom\\b`))).toBeInTheDocument();
 
       // Filter by "none": Anna and Lisa have no pickup_time
       const pickupFilter = screen.getByTestId("filter-pickupTime");
@@ -3075,6 +3384,9 @@ describe("StudentSearchPage", () => {
       await waitFor(() => {
         expect(screen.getByText(new RegExp(`^Max\\b`))).toBeInTheDocument();
       });
+      for (const name of ["Anna", "Lisa"]) {
+        expect(screen.getByText(new RegExp(`^${name}\\b`))).toBeInTheDocument();
+      }
 
       fireEvent.change(screen.getByTestId("filter-arrivalTime"), {
         target: { value: "08:15" },
@@ -3137,6 +3449,10 @@ describe("StudentSearchPage", () => {
           screen.getByText(new RegExp(`^NoArrival\\b`)),
         ).toBeInTheDocument();
       });
+      expect(screen.getByText(new RegExp(`^Exception\\b`))).toBeInTheDocument();
+      expect(
+        screen.getByText(new RegExp(`^RedactedArrival\\b`)),
+      ).toBeInTheDocument();
 
       fireEvent.change(screen.getByTestId("filter-arrivalTime"), {
         target: { value: "none" },
@@ -3359,7 +3675,7 @@ describe("StudentSearchPage", () => {
         "Schulhof",
         "Krank",
         "Entschuldigt",
-        "Abwesend",
+        "Zuhause",
       ]);
     });
 
@@ -3746,7 +4062,7 @@ describe("StudentSearchPage", () => {
         screen.getAllByText(new RegExp(`^Anwesend\\b`)).length,
       ).toBeGreaterThan(0);
       expect(
-        screen.getAllByText(new RegExp(`^Abwesend\\b`)).length,
+        screen.getAllByText(new RegExp(`^Zuhause\\b`)).length,
       ).toBeGreaterThan(0);
     });
 

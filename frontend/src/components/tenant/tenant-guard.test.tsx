@@ -49,30 +49,9 @@ vi.mock("~/lib/tenant-context", () => ({
   useNFCEnabled: vi.fn(() => true),
 }));
 
-vi.mock("~/lib/tenant-api", async () => {
-  const { ApiError } = await import("~/lib/api-error");
-  return {
-    performTenantSwitch: mockPerformTenantSwitch,
-    TenantSwitchError: class TenantSwitchError extends ApiError {
-      reason: "access_denied" | "unknown";
-
-      constructor(
-        message: string,
-        status: number,
-        reason: "access_denied" | "unknown" = "unknown",
-      ) {
-        super(message, status, {
-          code:
-            reason === "access_denied"
-              ? "identity.tenant_access_denied"
-              : undefined,
-        });
-        this.name = "TenantSwitchError";
-        this.reason = reason;
-      }
-    },
-  };
-});
+vi.mock("~/lib/tenant-api", () => ({
+  performTenantSwitch: mockPerformTenantSwitch,
+}));
 
 // "Neu anmelden" ist eine Aktion ohne Formular: ein Fehler dabei kommt als
 // Toast (#2517). Der Grund eines gescheiterten Wechsels läuft über den echten
@@ -92,7 +71,6 @@ vi.mock("~/lib/session-cache", () => ({
 }));
 
 import { TenantGuard } from "./tenant-guard";
-import { TenantSwitchError } from "~/lib/tenant-api";
 
 // ============================================================================
 // Test Data
@@ -147,7 +125,7 @@ describe("TenantGuard", () => {
     originalLocation = window.location;
     Object.defineProperty(window, "location", {
       writable: true,
-      value: { ...originalLocation, href: "", assign: vi.fn() },
+      value: { ...originalLocation, href: "", pathname: "/", assign: vi.fn() },
     });
   });
 
@@ -292,6 +270,32 @@ describe("TenantGuard", () => {
     expect(mockUpdate).toHaveBeenCalled();
   });
 
+  it("stops automatic switching and offers explicit target login when MFA proof is missing", async () => {
+    mockUseSession.mockReturnValue({
+      data: { user: { tenantId: 1, token: "access-token" } },
+      status: "authenticated",
+      update: vi.fn(),
+    });
+    mockUseTenant.mockReturnValue({ tenantSlug: "school-b", tenant: tenantB });
+    mockPerformTenantSwitch.mockRejectedValue(
+      new ApiError("second factor required", 401, {
+        code: "identity.mfa_session_required",
+      }),
+    );
+    render(
+      <TenantGuard>
+        <div>Protected Content</div>
+      </TenantGuard>,
+    );
+    expect(
+      await screen.findByRole("button", { name: "Zur Schulanmeldung" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("School B");
+    expect(mockPerformTenantSwitch).toHaveBeenCalledTimes(1);
+    expect(mockSignOut).not.toHaveBeenCalled();
+    expect(window.location.assign).not.toHaveBeenCalled();
+  });
+
   it("signs out when switchTenant reports access denied", async () => {
     mockUseSession.mockReturnValue({
       data: { user: { tenantId: 1, token: "access-token" } },
@@ -303,11 +307,9 @@ describe("TenantGuard", () => {
       tenant: tenantB,
     });
     mockPerformTenantSwitch.mockRejectedValue(
-      new TenantSwitchError(
-        "account does not have access to this tenant",
-        401,
-        "access_denied",
-      ),
+      new ApiError("account does not have access to this tenant", 401, {
+        code: "identity.tenant_access_denied",
+      }),
     );
 
     render(
@@ -332,11 +334,9 @@ describe("TenantGuard", () => {
       tenant: tenantB,
     });
     mockPerformTenantSwitch.mockRejectedValue(
-      new TenantSwitchError(
-        "account does not have access to this tenant",
-        401,
-        "access_denied",
-      ),
+      new ApiError("account does not have access to this tenant", 401, {
+        code: "identity.tenant_access_denied",
+      }),
     );
     mockSignOut.mockRejectedValue(new Error("sign-out failed"));
 
@@ -455,6 +455,10 @@ describe("TenantGuard", () => {
       </TenantGuard>,
     );
 
+    // Anker: die Guard zeigt den Abmeldehinweis der Operator-Sitzung.
+    expect(
+      screen.getByText("Operator-Sitzung wird beendet..."),
+    ).toBeInTheDocument();
     // Children must NOT render
     expect(screen.queryByText("Protected Content")).not.toBeInTheDocument();
 

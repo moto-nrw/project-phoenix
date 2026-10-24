@@ -15,10 +15,13 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const navigationMockState = vi.hoisted(() => ({
   roomParam: null as string | null,
+  permissions: [] as string[],
 }));
 
 // Mock auth-utils with hasRole that reads session roles
 vi.mock("~/lib/auth-utils", () => ({
+  canReadSupervisionData: (session: { user?: { isAdmin?: boolean } } | null) =>
+    !(session?.user?.isAdmin ?? false),
   isAdmin: (session: { user?: { isAdmin?: boolean } } | null) =>
     session?.user?.isAdmin ?? false,
   isCaregiver: (session: { user?: { isAdmin?: boolean } } | null) =>
@@ -28,7 +31,8 @@ vi.mock("~/lib/auth-utils", () => ({
     if (role === "user") return !(session?.user?.isAdmin ?? false);
     return false;
   },
-  hasPermission: () => false,
+  hasPermission: (_session: unknown, permission: string) =>
+    navigationMockState.permissions.includes(permission),
 }));
 
 // Mock next-auth/react
@@ -198,16 +202,6 @@ vi.mock("~/lib/location-helper", async (importOriginal) => {
 // Mock pickup-helpers
 vi.mock("~/lib/pickup-helpers", () => ({
   useMinuteClock: () => new Date("2026-01-15T12:00:00"),
-}));
-
-// Mock pickup-schedule-api
-vi.mock("~/lib/pickup-schedule-api", () => ({
-  fetchBulkPickupTimes: vi.fn(() => Promise.resolve(new Map())),
-}));
-
-// Mock student-arrival-api
-vi.mock("~/lib/student-arrival-api", () => ({
-  fetchBulkArrivalTimes: vi.fn(() => Promise.resolve(new Map())),
 }));
 
 // Mock StudentCard components
@@ -410,6 +404,7 @@ describe("MeinRaumPage roster actions", () => {
     vi.mocked(useAttendanceWebEnabled).mockReturnValue(true);
     vi.mocked(useShowTimetableCounts).mockReturnValue(true);
     navigationMockState.roomParam = null;
+    navigationMockState.permissions = [];
     window.innerWidth = 800;
     localStorage.clear();
     primaryRosterRows = [expectedRow];
@@ -475,6 +470,27 @@ describe("MeinRaumPage roster actions", () => {
       );
     });
     expect(timetableOperationsApi.checkIn).toHaveBeenCalledWith("99", "100");
+  });
+
+  it("links each block row to the child's profile with users:read (#4356)", async () => {
+    navigationMockState.permissions = ["users:read"];
+
+    render(<MeinRaumPage />);
+
+    // Pfad-Modus: der Link trägt den Schul-Slug, wie jede Navigation der Seite.
+    expect(
+      await screen.findByRole("link", { name: "Profil ansehen: Marie Muster" }),
+    ).toHaveAttribute(
+      "href",
+      "/test-tenant/students/100?from=/active-supervisions",
+    );
+  });
+
+  it("offers no profile link without users:read (#4356)", async () => {
+    render(<MeinRaumPage />);
+
+    await screen.findByRole("button", { name: "Einchecken" });
+    expect(screen.queryByRole("link", { name: /Profil ansehen/ })).toBeNull();
   });
 
   it("shows no notice when the check-in involved no move", async () => {
@@ -827,7 +843,7 @@ describe("MeinRaumPage roster actions", () => {
       name: "Kind ungeplant suchen",
     });
     fireEvent.change(search, { target: { value: "Ben" } });
-    const result = await screen.findByRole("button", {
+    const result = await screen.findByRole("radio", {
       name: /Ben Neu/,
     });
     fireEvent.click(result);
@@ -907,7 +923,7 @@ describe("MeinRaumPage roster actions", () => {
           }),
           { target: { value: "Ben" } },
         );
-        fireEvent.click(await screen.findByRole("button", { name: /Ben Neu/ }));
+        fireEvent.click(await screen.findByRole("radio", { name: /Ben Neu/ }));
         fireEvent.click(screen.getByRole("button", { name: "Hinzufügen" }));
       }
 

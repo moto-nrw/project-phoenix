@@ -4,13 +4,14 @@ import (
 	"context"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/domain"
 )
 
 // RecordUnregisteredTagScan appends one scan for the caller's tenant. The
 // scan is bookkeeping for the operator review; it never blocks the kiosk.
-func (s *Service) RecordUnregisteredTagScan(ctx context.Context, input domain.RecordUnregisteredTagScan) (domain.UnregisteredTagScan, error) {
-	var recorded domain.UnregisteredTagScan
+func (s *Service) RecordUnregisteredTagScan(ctx context.Context, input devicefleet.RecordUnregisteredTagScan) (devicefleet.UnregisteredTagScan, error) {
+	var recorded devicefleet.UnregisteredTagScan
 	err := s.runWrite(ctx, "record_unregistered_tag_scan", func(ctx context.Context, stats *domain.OperationStats) error {
 		input.Normalize(s.deps.Now())
 		if err := input.Validate(); err != nil {
@@ -25,9 +26,12 @@ func (s *Service) RecordUnregisteredTagScan(ctx context.Context, input domain.Re
 }
 
 // FindUnregisteredTagScan reads one scan with its device identity.
-func (s *Service) FindUnregisteredTagScan(ctx context.Context, id int64) (domain.UnregisteredTagScan, error) {
-	var found domain.UnregisteredTagScan
-	err := s.run(ctx, "find_unregistered_tag_scan", func(ctx context.Context, stats *domain.OperationStats) error {
+func (s *Service) FindUnregisteredTagScan(ctx context.Context, id int64) (devicefleet.UnregisteredTagScan, error) {
+	if id <= 0 {
+		return devicefleet.UnregisteredTagScan{}, s.reject("find_unregistered_tag_scan", devicefleet.ErrInvalidUnregisteredTagScan)
+	}
+	var found devicefleet.UnregisteredTagScan
+	err := s.runInTenant(ctx, "find_unregistered_tag_scan", func(ctx context.Context, stats *domain.OperationStats) error {
 		scan, err := s.findUnregisteredTagScan(ctx, id, stats)
 		found = scan
 		return err
@@ -37,9 +41,17 @@ func (s *Service) FindUnregisteredTagScan(ctx context.Context, id int64) (domain
 
 // ListUnregisteredTagScans reads the scans matching filter, newest first,
 // with their device identities.
-func (s *Service) ListUnregisteredTagScans(ctx context.Context, filter domain.UnregisteredTagScanFilter) ([]domain.UnregisteredTagScan, error) {
-	var scans []domain.UnregisteredTagScan
-	err := s.run(ctx, "list_unregistered_tag_scans", func(ctx context.Context, stats *domain.OperationStats) error {
+func (s *Service) ListUnregisteredTagScans(ctx context.Context, filter devicefleet.UnregisteredTagScanFilter) ([]devicefleet.UnregisteredTagScan, error) {
+	for _, id := range filter.TenantIDs {
+		if id <= 0 {
+			return nil, s.reject("list_unregistered_tag_scans", devicefleet.ErrInvalidUnregisteredTagScan)
+		}
+	}
+	if filter.Limit < 0 {
+		return nil, s.reject("list_unregistered_tag_scans", devicefleet.ErrInvalidUnregisteredTagScan)
+	}
+	var scans []devicefleet.UnregisteredTagScan
+	err := s.runInTenant(ctx, "list_unregistered_tag_scans", func(ctx context.Context, stats *domain.OperationStats) error {
 		stored, queryStats, err := s.deps.Scans.List(ctx, filter)
 		stats.Add(queryStats)
 		if err != nil {
@@ -51,21 +63,28 @@ func (s *Service) ListUnregisteredTagScans(ctx context.Context, filter domain.Un
 		scans = stored
 		return nil
 	})
-	return scans, err
+	if err != nil {
+		return nil, err
+	}
+	if scans == nil {
+		scans = []devicefleet.UnregisteredTagScan{}
+	}
+	return scans, nil
 }
 
 // ResolveUnregisteredTagScan marks one open scan as handled. A scan that is
 // gone reports ErrUnregisteredTagScanNotFound; one already handled reports
 // ErrUnregisteredTagScanResolved, so a retry after a lost response is loud
 // but never double-stamps.
-func (s *Service) ResolveUnregisteredTagScan(ctx context.Context, input domain.ResolveUnregisteredTagScan) (domain.UnregisteredTagScan, error) {
-	var resolved domain.UnregisteredTagScan
+func (s *Service) ResolveUnregisteredTagScan(ctx context.Context, input devicefleet.ResolveUnregisteredTagScan) (devicefleet.UnregisteredTagScan, error) {
+	if input.ID <= 0 || input.OperatorID <= 0 {
+		return devicefleet.UnregisteredTagScan{}, s.reject("resolve_unregistered_tag_scan", devicefleet.ErrInvalidUnregisteredTagScan)
+	}
+	storedInput := domain.ResolveUnregisteredTagScan{ID: input.ID, OperatorID: input.OperatorID, Note: input.Note}
+	var resolved devicefleet.UnregisteredTagScan
 	err := s.runWrite(ctx, "resolve_unregistered_tag_scan", func(ctx context.Context, stats *domain.OperationStats) error {
-		input.Normalize(s.deps.Now())
-		if err := input.Validate(); err != nil {
-			return err
-		}
-		affected, queryStats, err := s.deps.Scans.Resolve(ctx, input)
+		storedInput.Normalize(s.deps.Now())
+		affected, queryStats, err := s.deps.Scans.Resolve(ctx, storedInput)
 		stats.Add(queryStats)
 		if err != nil {
 			return err
@@ -77,9 +96,9 @@ func (s *Service) ResolveUnregisteredTagScan(ctx context.Context, input domain.R
 				return findErr
 			}
 			if !found {
-				return domain.ErrUnregisteredTagScanNotFound
+				return devicefleet.ErrUnregisteredTagScanNotFound
 			}
-			return domain.ErrUnregisteredTagScanResolved
+			return devicefleet.ErrUnregisteredTagScanResolved
 		}
 		scan, err := s.findUnregisteredTagScan(ctx, input.ID, stats)
 		resolved = scan
@@ -91,6 +110,9 @@ func (s *Service) ResolveUnregisteredTagScan(ctx context.Context, input domain.R
 // DeleteExpiredUnregisteredTagScans removes the caller tenant's scans older
 // than cutoff.
 func (s *Service) DeleteExpiredUnregisteredTagScans(ctx context.Context, cutoff time.Time) (int64, error) {
+	if cutoff.IsZero() {
+		return 0, s.reject("delete_expired_unregistered_tag_scans", devicefleet.ErrInvalidUnregisteredTagScan)
+	}
 	var deleted int64
 	err := s.runWrite(ctx, "delete_expired_unregistered_tag_scans", func(ctx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
@@ -102,18 +124,18 @@ func (s *Service) DeleteExpiredUnregisteredTagScans(ctx context.Context, cutoff 
 	return deleted, err
 }
 
-func (s *Service) findUnregisteredTagScan(ctx context.Context, id int64, stats *domain.OperationStats) (domain.UnregisteredTagScan, error) {
+func (s *Service) findUnregisteredTagScan(ctx context.Context, id int64, stats *domain.OperationStats) (devicefleet.UnregisteredTagScan, error) {
 	scan, found, queryStats, err := s.deps.Scans.FindByID(ctx, id)
 	stats.Add(queryStats)
 	if err != nil {
-		return domain.UnregisteredTagScan{}, err
+		return devicefleet.UnregisteredTagScan{}, err
 	}
 	if !found {
-		return domain.UnregisteredTagScan{}, domain.ErrUnregisteredTagScanNotFound
+		return devicefleet.UnregisteredTagScan{}, devicefleet.ErrUnregisteredTagScanNotFound
 	}
-	scans := []domain.UnregisteredTagScan{scan}
+	scans := []devicefleet.UnregisteredTagScan{scan}
 	if err := s.attachScanDevices(ctx, scans, stats); err != nil {
-		return domain.UnregisteredTagScan{}, err
+		return devicefleet.UnregisteredTagScan{}, err
 	}
 	return scans[0], nil
 }
@@ -121,7 +143,7 @@ func (s *Service) findUnregisteredTagScan(ctx context.Context, id int64, stats *
 // attachScanDevices fills each scan's device identity from the owner's own
 // device store. A device of another tenant leaves both fields unset, as the
 // retired tenant-matched join did.
-func (s *Service) attachScanDevices(ctx context.Context, scans []domain.UnregisteredTagScan, stats *domain.OperationStats) error {
+func (s *Service) attachScanDevices(ctx context.Context, scans []devicefleet.UnregisteredTagScan, stats *domain.OperationStats) error {
 	ids := make([]int64, 0, len(scans))
 	seen := make(map[int64]struct{}, len(scans))
 	for _, scan := range scans {
@@ -142,7 +164,7 @@ func (s *Service) attachScanDevices(ctx context.Context, scans []domain.Unregist
 	if err != nil {
 		return err
 	}
-	byID := make(map[int64]domain.Device, len(devices))
+	byID := make(map[int64]devicefleet.Device, len(devices))
 	for _, device := range devices {
 		byID[device.ID] = device
 	}

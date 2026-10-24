@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createTenantJsonProxy } from "~/lib/backend-proxy-route.server";
+import { problemResponse } from "~/lib/api-helpers.server";
 
 function permissionPath(
   _request: Request,
@@ -7,10 +8,7 @@ function permissionPath(
 ) {
   const permissionId = params.permissionId;
   if (typeof permissionId !== "string" || !permissionId) {
-    return NextResponse.json(
-      { error: "Permission ID is required" },
-      { status: 400 },
-    );
+    return problemResponse(400, "Permission ID is required", _request);
   }
   return `/auth/permissions/${encodeURIComponent(permissionId)}`;
 }

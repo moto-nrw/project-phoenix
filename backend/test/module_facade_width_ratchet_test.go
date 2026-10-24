@@ -46,8 +46,9 @@ import (
 //   - An interface NOT in the allowlist must declare ≤ 12 methods.
 //   - An allowlisted interface may never exceed its recorded width.
 //   - When a split lowers a width (or drops it to ≤ 12), the test fails until
-//     the entry is lowered/removed — the ratchet only turns one way. Never
-//     raise a number, never add an entry.
+//     the entry is lowered/removed — the ratchet only turns one way.
+//     Additions or raises require a new-numbered ADR cited by the entry
+//     (ADR 0070).
 //
 // Keys are "relative/file.go:InterfaceName", paths starting at "modules/" or
 // "workflows/".
@@ -78,41 +79,7 @@ var moduleFacadeNonRootDirs = map[string]bool{
 // width measured today:
 //
 //	cd backend && ../scripts/run-go-toolchain.sh go test ./test/ -run TestModuleFacadeWidthRatchet
-var moduleFacadeAllowlist = map[string]int{
-	"modules/appointments/appointments.go:Command":                               16,
-	"modules/appointments/appointments.go:Query":                                 20,
-	"modules/careplan/excusedrequests/contract.go:Service":                       18,
-	"modules/careplan/records.go:CareRecordsCommand":                             14,
-	"modules/careplan/records.go:CareRecordsQuery":                               15,
-	"modules/careplan/requests.go:CareRequestsCommand":                           16,
-	"modules/careplan/schedules.go:StudentSchedulesCommand":                      32,
-	"modules/careplan/schedules.go:StudentSchedulesQuery":                        13,
-	"modules/communication/parent_announcements.go:ParentAnnouncementCapability": 16,
-	"modules/devicefleet/administration.go:Administration":                       22,
-	"modules/devicefleet/devicefleet.go:DeviceQuery":                             13,
-	"modules/identityaccess/account_authentication.go:AccountAuthentication":     14,
-	"modules/identityaccess/operator_tokens.go:OperatorTokenCommand":             13,
-	"modules/organizationtenancy/organizationtenancy.go:Query":                   20,
-	"modules/organizationtenancy/provisioning.go:Provisioning":                   33,
-	"modules/peopledirectory/guardian.go:GuardianCommand":                        16,
-	"modules/peopledirectory/guardian.go:GuardianProvider":                       31,
-	"modules/peopledirectory/guardian.go:GuardianQuery":                          19,
-	"modules/peopledirectory/student_directory.go:StudentDirectoryQuery":         16,
-	"modules/schoolcalendar/portal/contract.go:Service":                          21,
-	"modules/schoolmembership/schoolmembership.go:Command":                       25,
-	"modules/schoolmembership/schoolmembership.go:Query":                         17,
-	"modules/studentpresence/studentpresence.go:Command":                         26,
-	"modules/studentpresence/studentpresence.go:Query":                           17,
-	"modules/timetable/timetable.go:Command":                                     17,
-	"modules/timetable/timetable.go:Query":                                       20,
-	"modules/workforce/shift.go:ShiftCommand":                                    19,
-	"modules/workforce/staffadmin.go:StaffDocuments":                             16,
-	"modules/workforce/staffrecord.go:StaffRecordCommand":                        13,
-	"modules/workforce/timetracking.go:StaffAbsences":                            22,
-	"modules/workforce/timetracking.go:WorkSessions":                             15,
-	"modules/workforce/worksession.go:WorkSessionCommand":                        24,
-	"modules/workforce/worksession.go:WorkSessionQuery":                          18,
-}
+var moduleFacadeAllowlist = map[string]int{}
 
 func TestModuleFacadeWidthRatchet(t *testing.T) {
 	t.Parallel()

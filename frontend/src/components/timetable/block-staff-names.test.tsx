@@ -133,7 +133,7 @@ describe("staffNamesFromOverview", () => {
           ],
         },
       ],
-      staff: [{ id: "2", name: "Ben Müller" }],
+      staff: [{ id: "2", name: "Ben Müller", isExternal: false }],
     });
     expect(names.get("1")).toBe("Anna Kowalski");
     expect(names.get("2")).toBe("Ben Müller");

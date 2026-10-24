@@ -31,6 +31,7 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -38,6 +39,7 @@ import (
 	"reflect"
 	"regexp"
 	"runtime"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -51,7 +53,7 @@ import (
 
 var updateGoldens = flag.Bool("update-goldens", false, "rewrite the route-table, IoT auth-matrix and IoT error-string golden files")
 
-func checkRouteTableGolden(t *testing.T, apiInstance *serveGraph) {
+func checkRouteTableGolden(t *testing.T, apiInstance *goldenRuntime) {
 	t.Parallel()
 
 	var routes, middlewareRoutes []string
@@ -75,9 +77,9 @@ func checkRouteTableGolden(t *testing.T, apiInstance *serveGraph) {
 	// mount their own verifier, so only this walk of the production router
 	// notices a missing root mount. Regenerating the golden cannot hide it.
 	for _, chain := range middlewareRoutes {
-		authenticator := strings.Index(chain, "legacy/jwt.Authenticat")
+		authenticator := strings.Index(chain, "sessiontoken.Authenticat")
 		if authenticator < 0 {
-			authenticator = strings.Index(chain, "legacy/jwt.MFAEnrollmentAuthenticat")
+			authenticator = strings.Index(chain, "sessiontoken.MFAEnrollmentAuthenticat")
 		}
 		if authenticator < 0 {
 			continue
@@ -88,9 +90,8 @@ func checkRouteTableGolden(t *testing.T, apiInstance *serveGraph) {
 
 	compareGolden(t, filepath.Join("testdata", "route_table.golden"), strings.Join(routes, "\n")+"\n",
 		"the route table changed — if intentional, regenerate with -update-goldens and call the change out in the PR description")
-	compareGolden(t, filepath.Join("testdata", "middleware_table.golden"), strings.Join(middlewareRoutes, "\n")+"\n",
-		"a route's middleware chain changed — if intentional, regenerate with -update-goldens and call out the auth, scope, transaction, and observability impact",
-		stableMiddlewareTable)
+	compareMiddlewareGolden(t, filepath.Join("testdata", "middleware_table.golden"), strings.Join(middlewareRoutes, "\n")+"\n",
+		"a route's middleware chain changed — if intentional, regenerate with -update-goldens and call out the auth, scope, transaction, and observability impact")
 
 	// Der Frontend-Client ruft Sammlungen ohne Schrägstrich am Ende auf
 	// (/api/staff-notices), das Backend registriert den Subrouter mit "/".
@@ -131,8 +132,8 @@ func checkRouteTableGolden(t *testing.T, apiInstance *serveGraph) {
 	// policy) needs nothing.
 	t.Run("every authenticated write route carries the read-only preview guard", func(t *testing.T) {
 		const (
-			authenticator = "modules/identityaccess/legacy/jwt.Authenticator"
-			readOnlyGuard = "api/common.ReadOnlyPreviewMiddleware"
+			authenticator = "modules/identityaccess/sessiontoken.Authenticator"
+			readOnlyGuard = "api.ReadOnlyPreviewMiddleware"
 		)
 		safeMethods := map[string]bool{
 			http.MethodGet:     true,
@@ -165,7 +166,7 @@ func checkRouteTableGolden(t *testing.T, apiInstance *serveGraph) {
 		sort.Strings(unguarded)
 
 		require.Emptyf(t, unguarded,
-			"these routes authenticate a JWT without api/common.ReadOnlyPreviewMiddleware — a read-only staff-preview token could write through them. Add the middleware right after jwt.Authenticator in the group that mounts them:\n%s",
+			"these routes authenticate a JWT without api.ReadOnlyPreviewMiddleware — a read-only staff-preview token could write through them. Add the middleware right after sessiontoken.Authenticator in the group that mounts them:\n%s",
 			strings.Join(unguarded, "\n"))
 	})
 }
@@ -186,6 +187,11 @@ func stableMiddlewareTable(table string) string {
 		}
 		names := strings.Split(chain, " > ")
 		for j, name := range names {
+			// Same middleware body, relocated from the IoT binding package into Root.
+			if name == "api.iotMetricsMiddleware" {
+				names[j] = "api/iot/compose.iotMetricsMiddleware"
+				continue
+			}
 			if !strings.HasSuffix(name, "#") {
 				continue
 			}
@@ -204,7 +210,7 @@ func stableMiddlewareTable(table string) string {
 // ones like {id:[0-9]+}) for probe-URL substitution.
 var chiParamPattern = regexp.MustCompile(`\{[^}]+\}`)
 
-func checkIoTAuthMatrixGolden(t *testing.T, apiInstance *serveGraph) {
+func checkIoTAuthMatrixGolden(t *testing.T, apiInstance *goldenRuntime) {
 	t.Parallel()
 	const requestID = "8dc3a9ca-8ac7-4b8e-9bfa-3c17760d92c0"
 
@@ -247,7 +253,7 @@ func checkIoTAuthMatrixGolden(t *testing.T, apiInstance *serveGraph) {
 		"an unauthenticated /api/iot request now gets a different rejection — a route may have slipped between the device-auth and JWT groups; kiosks would see raw 401s. If intentional, regenerate with -update-goldens")
 }
 
-func compareGolden(t *testing.T, path, got, hint string, normalizers ...func(string) string) {
+func compareGolden(t *testing.T, path, got, hint string) {
 	t.Helper()
 	if *updateGoldens {
 		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o750))
@@ -257,14 +263,75 @@ func compareGolden(t *testing.T, path, got, hint string, normalizers ...func(str
 	}
 	wantBytes, err := os.ReadFile(path) // #nosec G304 -- repo-local testdata
 	require.NoErrorf(t, err, "golden file %s missing — generate it with -update-goldens", path)
-	want := string(wantBytes)
-	for _, normalize := range normalizers {
-		want = normalize(want)
-		got = normalize(got)
-	}
-	if want != got {
+	if want := string(wantBytes); want != got {
 		t.Errorf("%s\n\ngolden diff for %s:\n%s", hint, path, unifiedDiff(want, got))
 	}
+}
+
+// compareMiddlewareGolden compares "METHOD /route -> chain" lines against a
+// golden file that stores each distinct chain once, with its routes indented
+// below it. An added or moved route is one short line in the file's diff, and
+// a changed chain is one header line.
+func compareMiddlewareGolden(t *testing.T, path, got, hint string) {
+	t.Helper()
+	wantBytes, err := os.ReadFile(path) // #nosec G304 -- repo-local testdata
+	if *updateGoldens {
+		if err == nil {
+			got = preserveEquivalentMiddlewareNames(expandMiddlewareTable(t, string(wantBytes)), got, stableMiddlewareTable)
+		} else {
+			require.ErrorIs(t, err, os.ErrNotExist)
+		}
+		require.NoError(t, os.WriteFile(path, []byte(groupMiddlewareTable(t, got)), 0o600))
+		t.Logf("golden rewritten: %s", path)
+		return
+	}
+	require.NoErrorf(t, err, "golden file %s missing — generate it with -update-goldens", path)
+	want := stableMiddlewareTable(expandMiddlewareTable(t, string(wantBytes)))
+	if got = stableMiddlewareTable(got); want != got {
+		t.Errorf("%s\n\ngolden diff for %s:\n%s", hint, path, unifiedDiff(want, got))
+	}
+}
+
+const middlewareTableHeader = "# Each unindented line is a middleware chain, outermost first.\n" +
+	"# The indented routes below it run through exactly that chain.\n"
+
+func groupMiddlewareTable(t *testing.T, table string) string {
+	t.Helper()
+	routesByChain := make(map[string][]string)
+	for _, line := range strings.Split(strings.TrimSuffix(table, "\n"), "\n") {
+		route, chain, ok := strings.Cut(line, " -> ")
+		require.Truef(t, ok && chain != "", "middleware table line without a chain: %q", line)
+		routesByChain[chain] = append(routesByChain[chain], route)
+	}
+	var b strings.Builder
+	b.WriteString(middlewareTableHeader)
+	for _, chain := range slices.Sorted(maps.Keys(routesByChain)) {
+		b.WriteString("\n" + chain + "\n")
+		routes := routesByChain[chain]
+		slices.Sort(routes)
+		for _, route := range routes {
+			b.WriteString("\t" + route + "\n")
+		}
+	}
+	return b.String()
+}
+
+func expandMiddlewareTable(t *testing.T, grouped string) string {
+	t.Helper()
+	var lines []string
+	chain := ""
+	for _, line := range strings.Split(grouped, "\n") {
+		switch {
+		case line == "" || strings.HasPrefix(line, "#"):
+		case strings.HasPrefix(line, "\t"):
+			require.NotEmptyf(t, chain, "middleware golden route %q precedes every chain", line)
+			lines = append(lines, strings.TrimPrefix(line, "\t")+" -> "+chain)
+		default:
+			chain = line
+		}
+	}
+	slices.Sort(lines)
+	return strings.Join(lines, "\n") + "\n"
 }
 
 // unifiedDiff renders a minimal line diff (no external deps) — enough to see
@@ -314,30 +381,45 @@ func TestFullProductionRouterGolden(t *testing.T) {
 		PublicAPIURL:        "http://api.invalid",
 		Logger:              slog.Default(),
 		SentryPyrePortalDSN: sentryFake.dsn(relayTestProjectID),
+		// Cloudflare's documented always-passing Turnstile test keys.
+		Turnstile: TurnstileKeys{SiteKey: "1x00000000000000000000AA", SecretKey: "1x0000000000000000000000000000000AA"},
 	}, func(runtime *Runtime) error {
 		called = true
 		require.NotNil(t, runtime.worker)
-		api, ok := runtime.Handler().(*serveGraph)
+		handler, ok := runtime.Handler().(*serveHandler)
 		require.True(t, ok)
+		api := &goldenRuntime{handler: handler, router: handler.router, db: runtime.db}
 		if *runtimeCheckpointOutput != "" {
 			measureRuntimeCheckpoint(t, runtime)
 		}
 		// Wait for parallel contract subtests before WithRuntime closes its resources.
 		t.Run("contracts", func(t *testing.T) {
+			t.Run("readiness", func(t *testing.T) {
+				rec := httptest.NewRecorder()
+				api.router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/ready", nil))
+				require.Equal(t, http.StatusOK, rec.Code)
+				require.Equal(t, "OK", rec.Body.String())
+			})
 			t.Run("route table", func(t *testing.T) { checkRouteTableGolden(t, api) })
 			t.Run("core action classification", func(t *testing.T) { checkCoreActionClassification(t, api) })
 			t.Run("IoT auth matrix", func(t *testing.T) { checkIoTAuthMatrixGolden(t, api) })
 			t.Run("error envelope on every route", func(t *testing.T) { checkErrorEnvelopeOnEveryRoute(t, api) })
-			t.Run("IoT error strings", checkIoTErrorStringsGolden)
+			t.Run("IoT error code declarations", checkIoTErrorCodesGolden)
 			t.Run("IoT error reports relay", func(t *testing.T) { checkIoTErrorReportsRelay(t, api, sentryFake, newKiosk) })
 			t.Run("school scope matrix", func(t *testing.T) { checkSchoolScopeMatrix(t, api) })
 			t.Run("caregiver wiring", func(t *testing.T) { checkCaregiverWiring(t, api) })
 			t.Run("timetable conflict wiring", func(t *testing.T) { checkTimetableConflictWiring(t, api) })
+			t.Run("former late-bound mounts", func(t *testing.T) { checkFormerLateBoundMounts(t, api) })
+			t.Run("meal plan allergens", func(t *testing.T) { checkMealPlanAllergens(t, api) })
+			t.Run("class list entry administration", func(t *testing.T) { checkClassListEntryAdministration(t, api) })
 			t.Run("enrollment submission", func(t *testing.T) { checkEnrollmentSubmissionGolden(t, api) })
 			t.Run("open room kiosk booking", func(t *testing.T) { checkOpenRoomKioskBooking(t, api) })
+			t.Run("move bypass authorization", func(t *testing.T) { checkMoveBypassAuthorization(t, api) })
 			t.Run("IoT error codes", func(t *testing.T) { checkIoTErrorCodes(t, api) })
 			t.Run("phase response query budget", func(t *testing.T) { checkPhaseResponseQueryBudget(t, api) })
 			t.Run("rate limited operator invitations", func(t *testing.T) { checkOperatorInvitationMount(t, api) })
+			t.Run("ag-leitung route permissions", func(t *testing.T) { checkAGLeitungRoutePermissions(t, api) })
+			t.Run("guest route permissions", func(t *testing.T) { checkGuestRoutePermissions(t, api) })
 		})
 		return nil
 	})

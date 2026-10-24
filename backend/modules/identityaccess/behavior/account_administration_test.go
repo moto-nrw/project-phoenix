@@ -23,7 +23,7 @@ func TestFindOwnAccountIgnoresTheManagementBoundary(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	administration := setupAuthFactory(t, db).AccountAuthentication()
+	administration := setupAuthFactory(t, db)
 
 	// An account with no membership at the school in context: the
 	// administration may not touch it, its holder may still read it.
@@ -48,7 +48,7 @@ func TestUpdateManageableAccountNormalisesTheAddress(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	administration := setupAuthFactory(t, db).AccountAuthentication()
+	administration := setupAuthFactory(t, db)
 	tenantID := testpkg.Tenant(t)
 
 	account := testpkg.CreateTestAccount(t, db, "update-normalised")
@@ -75,7 +75,7 @@ func TestUpdateManageableAccountRefusesAnEmptyAddress(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	administration := setupAuthFactory(t, db).AccountAuthentication()
+	administration := setupAuthFactory(t, db)
 	tenantID := testpkg.Tenant(t)
 
 	account := testpkg.CreateTestAccount(t, db, "update-nameless")
@@ -100,7 +100,7 @@ func TestChangeAccountPasswordKeepsTheCredentialOnAWrongCurrentPassword(t *testi
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	administration := setupAuthFactory(t, db).AccountAuthentication()
+	administration := setupAuthFactory(t, db)
 
 	email := fmt.Sprintf("change-password-%d@test.local", time.Now().UnixNano())
 	account := testpkg.CreateTestAccountWithPassword(t, db, email, testPassword)
@@ -114,4 +114,53 @@ func TestChangeAccountPasswordKeepsTheCredentialOnAWrongCurrentPassword(t *testi
 
 	require.NoError(t, administration.ChangeAccountPassword(context.Background(), account.ID, testPassword, testNewPassword))
 	assert.NotEqual(t, before, accountPasswordHash(t, db, account.ID), "the accepted change replaces the credential")
+}
+
+func TestAccountAdministrationIgnoresErasedAccounts(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	administration := setupAuthFactory(t, db)
+	ctx := testpkg.Ctx(t)
+	account := testpkg.CreateTestAccountWithPassword(t, db, fmt.Sprintf("erased-administration-%d@test.local", time.Now().UnixNano()), testPassword)
+	tenantID := testpkg.Tenant(t)
+	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
+	role := testpkg.CreateTestRoleForTenant(t, db, "erased-administration-role", tenantID)
+	_, err := db.NewRaw(`INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)`, account.ID, role.ID, tenantID).Exec(ctx)
+	require.NoError(t, err)
+	beforeHash := accountPasswordHash(t, db, account.ID)
+	_, err = db.NewRaw(`UPDATE auth.accounts SET personal_data_erased_at = NOW() WHERE id = ?`, account.ID).Exec(ctx)
+	require.NoError(t, err)
+
+	_, err = administration.FindOwnAccount(ctx, account.ID)
+	require.ErrorIs(t, err, identityaccess.ErrAccountNotFound)
+	_, err = administration.FindManageableAccount(ctx, account.ID)
+	require.ErrorIs(t, err, identityaccess.ErrAccountNotFound)
+	listed, err := administration.ListManageableAccounts(ctx, identityaccess.AccountListFilter{})
+	require.NoError(t, err)
+	for _, listedAccount := range listed {
+		assert.NotEqual(t, account.ID, listedAccount.ID)
+	}
+	byRole, err := administration.ListManageableAccountsByRole(ctx, role.Name)
+	require.NoError(t, err)
+	for _, listedAccount := range byRole {
+		assert.NotEqual(t, account.ID, listedAccount.ID)
+	}
+
+	require.ErrorIs(t, administration.UpdateManageableAccount(ctx, identityaccess.AccountIdentityUpdate{
+		AccountID: account.ID, Email: "changed-after-erasure@test.local",
+	}), identityaccess.ErrAccountNotFound)
+	require.ErrorIs(t, administration.ActivateAccount(ctx, account.ID), identityaccess.ErrAccountNotFound)
+	require.ErrorIs(t, administration.DeactivateAccount(ctx, account.ID), identityaccess.ErrAccountNotFound)
+	require.ErrorIs(t, administration.ChangeAccountPassword(ctx, account.ID, testPassword, testNewPassword), identityaccess.ErrAccountNotFound)
+
+	var current struct {
+		Email        string `bun:"email"`
+		Active       bool   `bun:"active"`
+		PasswordHash string `bun:"password_hash"`
+	}
+	require.NoError(t, db.NewRaw(`SELECT email, active, password_hash FROM auth.accounts WHERE id = ?`, account.ID).Scan(ctx, &current))
+	assert.Equal(t, account.Email, current.Email)
+	assert.Equal(t, account.Active, current.Active)
+	assert.Equal(t, beforeHash, current.PasswordHash)
 }

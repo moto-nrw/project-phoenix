@@ -2,6 +2,7 @@ import { unavailableApiError, type ApiError } from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
 import { readEnrollmentError } from "~/lib/enrollment-api-error";
 import type { ChildStatus } from "~/lib/enrollment-admin-api";
+import { downloadBlob, filenameFromDisposition } from "~/lib/file-download";
 
 const logger = createLogger({ component: "EnrollmentReportAPI" });
 
@@ -101,7 +102,6 @@ interface CareUsageRowOffering {
 interface BackendEnvelope<T> {
   status?: string;
   data?: T;
-  error?: string;
   message?: string;
 }
 
@@ -181,16 +181,10 @@ export async function exportCareUsageReport(
       "Auswertung konnte nicht exportiert werden",
     );
   }
-  const blob = await response.blob();
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download =
-    filenameFromDisposition(response) ?? `anmelde-auswertung.${format}`;
-  document.body.append(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
+  downloadBlob(
+    await response.blob(),
+    filenameFromDisposition(response) ?? `anmelde-auswertung.${format}`,
+  );
 }
 
 export async function exportPhaseClassRoster(
@@ -220,17 +214,11 @@ export async function exportPhaseClassRoster(
       "Klassenliste konnte nicht exportiert werden",
     );
   }
-  const blob = await response.blob();
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.download =
+  downloadBlob(
+    await response.blob(),
     filenameFromDisposition(response) ??
-    (schoolClass ? `klassenliste.${format}` : `klassenlisten.${format}`);
-  link.href = url;
-  document.body.append(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
+      (schoolClass ? `klassenliste.${format}` : `klassenlisten.${format}`),
+  );
 }
 
 function appendCareUsageParams(url: URL, filters: CareUsageFilters) {
@@ -260,10 +248,4 @@ function appendCareUsageParams(url: URL, filters: CareUsageFilters) {
   if (filters.search?.trim()) {
     url.searchParams.set("search", filters.search.trim());
   }
-}
-
-function filenameFromDisposition(response: Response): string | null {
-  const disposition = response.headers.get("content-disposition");
-  const match = /filename="([^"]+)"/.exec(disposition ?? "");
-  return match?.[1] ?? null;
 }

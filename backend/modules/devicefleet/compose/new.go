@@ -5,23 +5,16 @@ package compose
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/sha256"
-	"encoding/base64"
-	"encoding/hex"
 	"errors"
-	"fmt"
-	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/randstr"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
+	"github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/adapters/credentials"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/ports"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -32,7 +25,7 @@ type Observation = ports.Observation
 // ErrDisplayNotFound is what a TenantFacts implementation returns when the
 // tenant behind a display token no longer exists. The owner turns it into
 // devicefleet.ErrDisplayNotFound, so a dead link never reveals tenant state.
-var ErrDisplayNotFound = domain.ErrDisplayNotFound
+var ErrDisplayNotFound = devicefleet.ErrDisplayNotFound
 
 // School is the tenant fact the dashboard reads before a tenant is scoped.
 type School = domain.School
@@ -58,18 +51,11 @@ type DashboardSources = ports.DashboardSources
 // devicefleet.ErrDisplayNotFound so a dead link never leaks tenant state.
 type TenantFacts = ports.TenantFacts
 
-// PresenceQuery is the subset of the Student Presence capability the
-// dashboard reads.
-type PresenceQuery interface {
-	ListVisits(context.Context, studentpresence.VisitFilter) ([]studentpresence.Visit, error)
-	ListAttendance(context.Context, studentpresence.AttendanceFilter) ([]studentpresence.Attendance, error)
-}
-
 // Dependencies are the collaborators the Device Fleet owner needs.
 type Dependencies struct {
 	DB        *bun.DB
 	Rooms     facilitiesModule.Query
-	Presence  PresenceQuery
+	Presence  application.PresenceQuery
 	Dashboard DashboardSources
 	Tenants   TenantFacts
 	// Now is the owner's clock. The info-point aggregate derives the rendered
@@ -77,11 +63,13 @@ type Dependencies struct {
 	// serves the dashboard must supply Berlin time (timezone.Now); device-only
 	// graphs may leave it unset and get plain instants.
 	Now func() time.Time
-	// OnlineWindow resolves the per-tenant iot.device_online_window_minutes
-	// setting. Graphs without a settings service leave it unset and the owner
-	// falls back to defaultDeviceOnlineWindow.
-	OnlineWindow func(context.Context) time.Duration
-	Observe      func(Observation)
+	// OnlineWindowMinutes resolves the raw iot.device_online_window_minutes
+	// value. Graphs without a settings service leave it unset; unset and
+	// non-positive minutes fall back to the owner's default window.
+	OnlineWindowMinutes func(context.Context) int
+	// APIKeys mints device API keys; the root binds Security Runtime's minter.
+	APIKeys interface{ Mint() (string, error) }
+	Observe func(Observation)
 }
 
 // New composes the Device Fleet module.
@@ -89,9 +77,9 @@ type Dependencies struct {
 // Device authentication and the public dashboard route both resolve a row
 // before any tenant is known, so the store applies the caller's tenant as a
 // predicate only when there is one; RLS remains the boundary otherwise.
-func New(dependencies Dependencies) (*devicefleet.Module, error) {
-	if dependencies.DB == nil || dependencies.Rooms == nil || dependencies.Observe == nil {
-		return nil, errors.New("devicefleet compose: database, rooms, and observer are required")
+func New(dependencies Dependencies) (devicefleet.Capability, error) {
+	if dependencies.DB == nil || dependencies.Rooms == nil || dependencies.APIKeys == nil || dependencies.Observe == nil {
+		return nil, errors.New("devicefleet compose: database, rooms, API keys and observer are required")
 	}
 	now := dependencies.Now
 	if now == nil {
@@ -103,169 +91,48 @@ func New(dependencies Dependencies) (*devicefleet.Module, error) {
 	// Device-only graphs (the repository factory, CLI roots) never serve the
 	// public dashboard. They leave its collaborators unset and every
 	// dashboard read then fails loudly instead of returning a partial screen.
-	presence := ports.PresenceReader(presenceReader{presence: dependencies.Presence})
+	presence := ports.PresenceReader(application.PresenceReader{Presence: dependencies.Presence})
 	if dependencies.Presence == nil {
-		presence = uncomposedDashboard{}
+		presence = application.UncomposedDashboard{}
 	}
 	dashboard := dependencies.Dashboard
 	if dashboard == nil {
-		dashboard = uncomposedDashboard{}
+		dashboard = application.UncomposedDashboard{}
 	}
 	tenants := dependencies.Tenants
 	if tenants == nil {
-		tenants = uncomposedDashboard{}
+		tenants = application.UncomposedDashboard{}
 	}
-	runtime := databaseRuntime(dependencies.DB)
-	observe := func(observation Observation) {
-		observation.Err = mapError(observation.Err)
-		dependencies.Observe(observation)
-	}
+	runtime := postgres.DatabaseRuntime(dependencies.DB)
+	observe := dependencies.Observe
 	service := application.New(application.Dependencies{
 		Devices:   postgres.NewDeviceStore(runtime),
 		Displays:  postgres.NewDisplayStore(runtime),
 		Scans:     postgres.NewUnregisteredTagScanStore(runtime),
-		Rooms:     roomDirectory{rooms: dependencies.Rooms},
+		Rooms:     application.RoomDirectory{Rooms: dependencies.Rooms},
 		Presence:  presence,
 		Dashboard: dashboard,
 		Tenants:   tenants,
 		Tx:        transaction{db: dependencies.DB},
-		Tokens:    displayTokens{},
-		APIKeys:   deviceAPIKeys{},
+		Tokens:    credentials.DisplayTokens{},
+		APIKeys:   credentials.DeviceKeys{Minter: dependencies.APIKeys},
 		Now:       ports.Clock(now),
-		Window:    ports.WindowResolver(dependencies.OnlineWindow),
+		Window:    devicefleet.OnlineWindowFromMinutes(dependencies.OnlineWindowMinutes),
 		Observe:   observe,
 	})
-	return devicefleet.NewModule(engine{service: service, observe: observe, now: now}), nil
-}
-
-// databaseRuntime resolves the ambient transaction and tenant. A missing
-// tenant is not an error: device authentication and the public dashboard
-// route both run before one exists.
-func databaseRuntime(db *bun.DB) postgres.Database {
-	return func(ctx context.Context) (bun.IDB, int64, error) {
-		tenantID := tenant.FromContext(ctx)
-		transaction, hasTransaction := tenant.TransactionFromContext(ctx)
-		if !hasTransaction {
-			return db, tenantID, nil
-		}
-		switch tx := transaction.(type) {
-		case bun.Tx:
-			return tx, tenantID, nil
-		case *bun.Tx:
-			if tx != nil {
-				return tx, tenantID, nil
-			}
-			return db, tenantID, nil
-		default:
-			return nil, 0, fmt.Errorf("devicefleet postgres: unsupported transaction %T", transaction)
-		}
-	}
+	return service, nil
 }
 
 type transaction struct{ db *bun.DB }
 
 func (t transaction) RunWrite(ctx context.Context, callback func(context.Context) error) error {
-	if _, ok := tenant.TransactionFromContext(ctx); ok {
-		return callback(ctx)
-	}
-	if tenant.FromContext(ctx) <= 0 {
-		// Operator and CLI graphs write without an ambient tenant exactly as
-		// the retired repositories did; RLS still bounds the statement.
-		return callback(ctx)
-	}
-	return tenant.WithinCurrentTenant(ctx, callback)
+	return postgres.TransactionRunWriteBinding(ctx, callback, tenant.WithinTenant)
 }
 
 func (t transaction) AdminScope(ctx context.Context, callback func(context.Context) error) error {
-	return tenant.WithAdminTx(ctx, t.db, func(adminCtx context.Context, _ bun.Tx) error {
-		return callback(adminCtx)
-	})
+	return postgres.TransactionAdminScopeBinding(ctx, callback, tenant.WithAdminTx, t.db)
 }
 
 func (t transaction) TenantScope(ctx context.Context, tenantID int64, callback func(context.Context) error) error {
-	return tenant.WithTenantTx(ctx, t.db, tenantID, func(tenantCtx context.Context, _ bun.Tx) error {
-		return callback(tenantCtx)
-	})
+	return postgres.TransactionTenantScopeBinding(ctx, tenantID, callback, tenant.WithTenantTx, t.db)
 }
-
-type roomDirectory struct{ rooms facilitiesModule.Query }
-
-func (d roomDirectory) ListRoomsByID(ctx context.Context, ids []int64) ([]domain.Room, error) {
-	rooms, err := d.rooms.ListRoomsByID(ctx, ids)
-	if err != nil {
-		return nil, err
-	}
-	return toDomainRooms(rooms), nil
-}
-
-func (d roomDirectory) ListRooms(ctx context.Context) ([]domain.Room, error) {
-	rooms, err := d.rooms.ListRooms(ctx, facilitiesModule.RoomFilter{})
-	if err != nil {
-		return nil, err
-	}
-	return toDomainRooms(rooms), nil
-}
-
-func toDomainRooms(rooms []facilitiesModule.Room) []domain.Room {
-	result := make([]domain.Room, 0, len(rooms))
-	for _, room := range rooms {
-		result = append(result, domain.Room{
-			ID: room.ID, TenantID: room.TenantID, Name: room.Name, Capacity: room.Capacity,
-		})
-	}
-	return result
-}
-
-type presenceReader struct{ presence PresenceQuery }
-
-func (r presenceReader) ListOpenVisits(ctx context.Context) ([]domain.PresentVisit, error) {
-	visits, err := r.presence.ListVisits(ctx, studentpresence.VisitFilter{OpenOnly: true})
-	if err != nil {
-		return nil, err
-	}
-	result := make([]domain.PresentVisit, 0, len(visits))
-	for _, visit := range visits {
-		if visit.ExitTime != nil {
-			continue
-		}
-		result = append(result, domain.PresentVisit{ActiveGroupID: visit.ActiveGroupID, StudentID: visit.StudentID})
-	}
-	return result, nil
-}
-
-func (r presenceReader) ListPresentStudents(ctx context.Context, today time.Time) ([]int64, error) {
-	day := today.Format(time.DateOnly)
-	attendance, err := r.presence.ListAttendance(ctx, studentpresence.AttendanceFilter{FromDate: day, UntilDate: day})
-	if err != nil {
-		return nil, err
-	}
-	present := make([]int64, 0, len(attendance))
-	for _, entry := range attendance {
-		if entry.CheckOutTime == nil {
-			present = append(present, entry.StudentID)
-		}
-	}
-	return present, nil
-}
-
-// displayTokens mints 32 random bytes as URL-safe base64 and persists only
-// the SHA-256 hex digest, so a database leak exposes no usable dashboard URL.
-type displayTokens struct{}
-
-func (displayTokens) Mint() (string, string, error) {
-	buffer := make([]byte, 32)
-	if _, err := rand.Read(buffer); err != nil {
-		return "", "", fmt.Errorf("failed to generate display token: %w", err)
-	}
-	raw := base64.RawURLEncoding.EncodeToString(buffer)
-	return raw, displayTokens{}.Hash(raw), nil
-}
-
-func (displayTokens) Hash(raw string) string {
-	sum := sha256.Sum256([]byte(strings.TrimSpace(raw)))
-	return hex.EncodeToString(sum[:])
-}
-
-type deviceAPIKeys struct{}
-
-func (deviceAPIKeys) Mint() (string, error) { return randstr.APIKey() }

@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "generator": "scripts/run-go-toolchain.sh go run scripts/backend-service-factory-callers/main.go; Go AST inventory over backend/**/*.go including tests, excluding testdata",
+  "replacement_provider": "the root's service graph (backend/api/service_graph*.go), composed by newServeServiceGraph in the serving root and by NewServiceGraphForTests in the test graphs, over the owner compositions",
+  "retired_package": {
+    "path": "github.com/moto-nrw/project-phoenix/services",
+    "go_files": [],
+    "importers": []
+  },
+  "retired_symbols": [
+    {
+      "package": "github.com/moto-nrw/project-phoenix/api",
+      "symbol": "Factory",
+      "declarations": [],
+      "references": []
+    },
+    {
+      "package": "github.com/moto-nrw/project-phoenix/api",
+      "symbol": "NewFactoryForTests",
+      "declarations": [],
+      "references": []
+    },
+    {
+      "package": "github.com/moto-nrw/project-phoenix/api",
+      "symbol": "NewFactoryForTestsWithConfig",
+      "declarations": [],
+      "references": []
+    },
+    {
+      "package": "github.com/moto-nrw/project-phoenix/api",
+      "symbol": "TestFactory",
+      "declarations": [],
+      "references": []
+    },
+    {
+      "package": "github.com/moto-nrw/project-phoenix/services",
+      "symbol": "Factory",
+      "declarations": [],
+      "references": []
+    },
+    {
+      "package": "github.com/moto-nrw/project-phoenix/services",
+      "symbol": "NewFactoryWithModules",
+      "declarations": [],
+      "references": []
+    },
+    {
+      "package": "github.com/moto-nrw/project-phoenix/services",
+      "symbol": "NewFactoryWithConfig",
+      "declarations": [],
+      "references": []
+    },
+    {
+      "package": "github.com/moto-nrw/project-phoenix/services",
+      "symbol": "SetTenantRuntime",
+      "declarations": [],
+      "references": []
+    }
+  ],
+  "scanned_go_files": 7355
+}

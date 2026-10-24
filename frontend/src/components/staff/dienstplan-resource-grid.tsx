@@ -779,7 +779,7 @@ export function DienstplanResourceGrid({
             <div className="border-t border-gray-200 px-3 py-2">
               <PlanLegend
                 entries={legendEntries}
-                aria-label="Legende Schichtarten und Zustände"
+                aria-label="Legende Dienstarten und Zustände"
               />
             </div>
           </div>
@@ -821,7 +821,7 @@ export function DienstplanResourceGrid({
             legend={
               <PlanLegend
                 entries={legendEntries}
-                aria-label="Legende Schichtarten und Zustände"
+                aria-label="Legende Dienstarten und Zustände"
               />
             }
           />

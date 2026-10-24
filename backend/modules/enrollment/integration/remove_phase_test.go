@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/enrollment/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -65,14 +66,14 @@ func TestRemovePhaseRollsBackEachWriteAndRetries(t *testing.T) {
 			})
 			failure := errors.New("injected removal failure")
 			engine := &phaseRemovalFailure{Store: store, stage: stage, failure: failure}
-			module := enrollment.NewModule(engine, tenant.NewTransactionRunner())
+			module := compose.NewWithStore(engine, nil)
 			phase := testpkg.CreateTestEnrollmentPhase(t, db)
 			request := &enrollment.Request{PhaseID: phase.ID, GuardianFirstName: "First", GuardianLastName: "Last", GuardianEmail: "guardian@example.test", StatusToken: fmt.Sprintf("remove-phase-%d", phase.ID)}
-			require.NoError(t, module.InsertRequest(ctx, request))
+			require.NoError(t, testpkg.TenantCommand1(t, ctx, db, module.InsertRequest, request))
 			child := &enrollment.RequestChild{RequestID: request.ID, FirstName: "Child", LastName: "Last", DateOfBirth: "2020-03-29"}
-			require.NoError(t, module.InsertChild(ctx, child))
+			require.NoError(t, testpkg.TenantCommand1(t, ctx, db, module.InsertChild, child))
 			guardian := &enrollment.RequestGuardian{RequestID: request.ID, FirstName: "Co", LastName: "Guardian"}
-			require.NoError(t, module.CreateRequestGuardian(ctx, guardian))
+			require.NoError(t, testpkg.TenantCommand1(t, ctx, db, module.CreateRequestGuardian, guardian))
 
 			foreignTenant, _ := testpkg.CreateTestTenant(t, db)
 			foreignCtx := testpkg.ContextForTenant(ctx, foreignTenant)
@@ -82,13 +83,13 @@ func TestRemovePhaseRollsBackEachWriteAndRetries(t *testing.T) {
 			count, err := module.RemovePhase(ctx, phase.ID)
 			require.ErrorIs(t, err, failure)
 			require.Zero(t, count, "a rolled-back delete must not report committed rows")
-			_, err = module.Phase(ctx, phase.ID)
+			_, err = testpkg.TenantQuery1(t, ctx, db, module.Phase, phase.ID)
 			require.NoError(t, err)
-			_, err = module.RequestByID(ctx, request.ID, false)
+			_, err = testpkg.TenantQuery2(t, ctx, db, module.RequestByID, request.ID, false)
 			require.NoError(t, err)
-			_, err = module.ChildByID(ctx, child.ID)
+			_, err = testpkg.TenantQuery1(t, ctx, db, module.ChildByID, child.ID)
 			require.NoError(t, err)
-			guardians, err := module.RequestGuardians(ctx, []int64{request.ID})
+			guardians, err := testpkg.TenantQuery1(t, ctx, db, module.RequestGuardians, []int64{request.ID})
 			require.NoError(t, err)
 			require.Len(t, guardians, 1)
 
@@ -96,13 +97,13 @@ func TestRemovePhaseRollsBackEachWriteAndRetries(t *testing.T) {
 			count, err = module.RemovePhase(ctx, phase.ID)
 			require.NoError(t, err)
 			require.Equal(t, 1, count)
-			_, err = module.Phase(ctx, phase.ID)
+			_, err = testpkg.TenantQuery1(t, ctx, db, module.Phase, phase.ID)
 			require.ErrorIs(t, err, sql.ErrNoRows)
-			_, err = module.RequestByID(ctx, request.ID, false)
+			_, err = testpkg.TenantQuery2(t, ctx, db, module.RequestByID, request.ID, false)
 			require.ErrorIs(t, err, sql.ErrNoRows)
-			_, err = module.ChildByID(ctx, child.ID)
+			_, err = testpkg.TenantQuery1(t, ctx, db, module.ChildByID, child.ID)
 			require.ErrorIs(t, err, sql.ErrNoRows)
-			guardians, err = module.RequestGuardians(ctx, []int64{request.ID})
+			guardians, err = testpkg.TenantQuery1(t, ctx, db, module.RequestGuardians, []int64{request.ID})
 			require.NoError(t, err)
 			require.Empty(t, guardians)
 		})

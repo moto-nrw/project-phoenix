@@ -1,4 +1,4 @@
-import { ApiError, apiErrorFromBody } from "./api-error";
+import { ApiError, apiErrorFromResponse } from "./api-error";
 import { createLogger } from "./logger";
 import { sessionFetch } from "./session-cache";
 
@@ -65,48 +65,15 @@ export function mapStaffOnboardingState(
   };
 }
 
-/**
- * Fehler mit HTTP-Status, Code und Vorgangskennung der Antwort, damit der
- * gemeinsame Fehlerweg den passenden Katalogtext zeigt (#2517).
- */
-export class StaffOnboardingError extends ApiError {
-  declare status: number;
-
-  constructor(status: number, body?: unknown) {
-    const wire = apiErrorFromBody(
-      `staff onboarding request failed (${status})`,
-      status,
-      body,
-    );
-    super(wire.message, status, {
-      code: wire.code,
-      details: wire.details,
-      errors: wire.errors,
-      instance: wire.instance,
-    });
-    this.name = "StaffOnboardingError";
-  }
-}
-
-async function failedResponseBody(response: Response): Promise<unknown> {
-  try {
-    const text = await response.text();
-    return text ? (JSON.parse(text) as unknown) : undefined;
-  } catch {
-    // Kein JSON: der Status allein ordnet den Fehler ein.
-    return undefined;
-  }
-}
-
 async function readState(
   response: Response,
   event: string,
 ): Promise<StaffOnboardingState> {
   if (!response.ok) {
     logger.error(event, { status: response.status });
-    throw new StaffOnboardingError(
-      response.status,
-      await failedResponseBody(response),
+    throw await apiErrorFromResponse(
+      response,
+      `staff onboarding request failed (${response.status})`,
     );
   }
   const body = (await response.json()) as
@@ -117,7 +84,10 @@ async function readState(
   if (!Array.isArray(data.done_steps) || !Array.isArray(data.skipped_steps)) {
     logger.error(event, { reason: "unexpected_shape" });
     // Eine unbrauchbare Antwort ist ein Serverfehler, kein Eingabefehler.
-    throw new StaffOnboardingError(500);
+    throw new ApiError(
+      "staff onboarding response has an unexpected shape",
+      500,
+    );
   }
   return mapStaffOnboardingState(data);
 }

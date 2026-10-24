@@ -3,7 +3,7 @@
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
-import { Download, Info, ListChecks, RefreshCw, X } from "lucide-react";
+import { Download, Info, ListChecks, RefreshCw } from "lucide-react";
 import { SkeletonRegion, FormSkeleton } from "~/components/ui/page-skeletons";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
@@ -22,7 +22,6 @@ import {
 } from "~/lib/import-mode";
 import {
   countAlreadyExistsRows,
-  importBatchFailureAlertType,
   importBatchFailureMessage,
   importBatchSavedCount,
   readImportBatchFailure,
@@ -177,8 +176,8 @@ export default function StudentImportPage() {
   const [importInterrupted, setImportInterrupted] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   // Fehler der Datei und des Imports stehen im Kasten über der Vorlage,
-  // mit Wiederholen (#2517). Ein angehaltener Stapel ist kein Fehler des
-  // Ablaufs, sondern ein Stand: er steht als eigener Hinweis.
+  // mit Wiederholen (#2517). Ein angehaltener Stapel steht dort auch, mit
+  // oder ohne gespeicherte Zeilen: der Import als Ganzes ist gescheitert.
   const importErrors = useApiFormError();
   const { show: showTemplateError } = useApiErrorDisplay();
   const [batchNotice, setBatchNotice] = useState<string | null>(null);
@@ -513,6 +512,9 @@ export default function StudentImportPage() {
   const quotaNotice = importInterrupted
     ? null
     : importChildQuotaNotice(importResult?.child_quota);
+  // Passt die Datei nicht ins Kontingent, steht das im Fehlerkasten.
+  const quotaBlocker =
+    quotaNotice?.type === "error" ? quotaNotice.message : null;
 
   // Statuszeile des Seitenkopfs: der Stand des Imports, nicht ein Erklärsatz.
   const statusLine = uploadedFile
@@ -531,7 +533,13 @@ export default function StudentImportPage() {
 
   if (status === "loading") {
     return (
-      <TenantPage title="Kinder importieren" stats={statusLine} back>
+      <TenantPage
+        title="Kinder importieren"
+        stats={statusLine}
+        back
+        backHref="/database/students"
+        backLabel="Zurück zu den Kinderdaten"
+      >
         <SkeletonRegion label="Kinder-Import wird geladen…">
           <FormSkeleton fields={2} />
         </SkeletonRegion>
@@ -540,7 +548,13 @@ export default function StudentImportPage() {
   }
 
   return (
-    <TenantPage title="Kinder importieren" stats={statusLine} back>
+    <TenantPage
+      title="Kinder importieren"
+      stats={statusLine}
+      back
+      backHref="/database/students"
+      backLabel="Zurück zu den Kinderdaten"
+    >
       {/* Info Section */}
       <SectionCard title="Import-Anleitung" icon={Info}>
         <ul className="list-inside list-disc space-y-1 text-sm text-gray-600">
@@ -560,25 +574,9 @@ export default function StudentImportPage() {
         </ul>
       </SectionCard>
 
-      <FormErrorAlert message={importErrors.error} />
-      {batchNotice && importResult ? (
-        <div className="relative">
-          <Alert
-            type={importBatchFailureAlertType(importResult)}
-            message={batchNotice}
-          />
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={() => setBatchNotice(null)}
-            className="text-moto-red hover:text-moto-red-strong absolute top-1/2 right-2 -translate-y-1/2"
-            aria-label="Hinweis schließen"
-          >
-            <X className="h-4 w-4" aria-hidden="true" />
-          </Button>
-        </div>
-      ) : null}
+      <FormErrorAlert
+        message={importErrors.error ?? batchNotice ?? quotaBlocker}
+      />
 
       {/* Download Template Button */}
       <SectionCard title="Vorlage herunterladen" icon={Download}>
@@ -665,8 +663,8 @@ export default function StudentImportPage() {
       {/* Preview Section */}
       {(previewData.length > 0 || importInterrupted) && !importComplete && (
         <>
-          {quotaNotice && (
-            <Alert type={quotaNotice.type} message={quotaNotice.message} />
+          {quotaNotice?.type === "info" && (
+            <Alert type="info" message={quotaNotice.message} />
           )}
 
           {/* Statistics */}

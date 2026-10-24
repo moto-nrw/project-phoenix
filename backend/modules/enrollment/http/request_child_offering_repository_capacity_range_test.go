@@ -3,23 +3,22 @@ package enrollmenthttp_test
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	owner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 func TestOwnerOffering_CountMaxActiveByCareOfferingInRange_IncludesFutureBookings(t *testing.T) {
 	t.Parallel()
 
 	db, _, tenantID, childID, offeringID := setupChildOfferingTest(t, testpkg.SetupTestDB(t))
-	repo := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant)
+	repo := api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant)
 	from := calendar.NewDate(2026, 8, 24)
 	futureFrom := from.AddDays(30)
 	until := from.AddDays(90)
@@ -51,7 +50,7 @@ func TestOwnerOffering_CountMaxActiveByCareOfferingInRangeExcludingRequestChild_
 	t.Parallel()
 
 	db, _, tenantID, childID, offeringID := setupChildOfferingTest(t, testpkg.SetupTestDB(t))
-	repo := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant)
+	repo := api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant)
 	from := calendar.NewDate(2026, 8, 24)
 	until := from.AddDays(90)
 

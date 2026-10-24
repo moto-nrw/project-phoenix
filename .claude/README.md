@@ -15,7 +15,7 @@ load its references only when their task trigger matches.
 | Domain and decisions | `CONTEXT.md`, `docs/adr/`; conventions in `docs/agents/domain.md` |
 | Task workflows | Root `.agents/skills/` is canonical; `.claude/skills/` contains directory symlinks. Preserve area-local canonical directions |
 | Backend detail | `docs/agents/backend-testing.md` for fixtures; `docs/agents/backend-data.md` for BUN and migrations |
-| Frontend detail | `docs/agents/frontend-api.md` for server/API boundaries; `docs/agents/frontend-performance.md` for budgets; `docs/agents/frontend-testing.md` for the deterministic test clock |
+| Frontend detail | `docs/agents/frontend-api.md` for server/API boundaries; `docs/agents/frontend-performance.md` for budgets; `docs/agents/frontend-testing.md` for the deterministic test clock and absence assertions |
 | Real-time contract | `docs/agents/realtime.md` for producers, streaming, and client refetches |
 
 Codex instruction discovery uses `AGENTS.md`; a `.codex/rules` symlink alone
@@ -97,7 +97,7 @@ isolated Git repositories without running expensive analyzers.
 - Put only cross-task information in the root. Put domain-specific examples
   beside their domain; versions and script inventories come from manifests.
 - Temporary migration guidance names its issue and removal criteria.
-  Current #2580 guidance in `backend/CLAUDE.md` overrides legacy layer examples.
+  The target architecture in `backend/CLAUDE.md` overrides legacy layer examples.
 - Keep user preferences out of team rules. Optional `CLAUDE.local.md` is read
   if present; global Codex/Claude instruction files are outside this repo.
 - Run `node scripts/check-agent-context.mjs`, its fixture tests with
@@ -114,7 +114,7 @@ isolated Git repositories without running expensive analyzers.
 
 | Example task | Expected references / behavior |
 |---|---|
-| Fix a backend calendar-day bug | Backend migration policy, calendar-date rule, hermetic tests; fix implementation without asking to preserve an unchanged contract |
+| Fix a backend calendar-day bug | Backend target architecture, calendar-date rule, hermetic tests; fix implementation without asking to preserve an unchanged contract |
 | Change a tenant UI flow | Frontend entry points, UI kit, Verständlichkeit, German-copy skill, help-guide and screenshot rules |
 | Review a login/refresh change | Review skill, affected area rules, contracts and security; include MFA and wrong-portal rejection |
 

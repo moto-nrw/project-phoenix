@@ -70,14 +70,14 @@ func buildSplitSeriesSetup(t *testing.T, name string) *splitSeriesSetup {
 
 // decodeTemplateError reads the error envelope of a non-2xx response.
 func decodeTemplateError(t *testing.T, w *httptest.ResponseRecorder) struct {
-	Status string `json:"status"`
-	Error  string `json:"error"`
+	Status int    `json:"status"`
+	Detail string `json:"detail"`
 	Code   string `json:"code"`
 } {
 	t.Helper()
 	var out struct {
-		Status string `json:"status"`
-		Error  string `json:"error"`
+		Status int    `json:"status"`
+		Detail string `json:"detail"`
 		Code   string `json:"code"`
 	}
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &out), "body=%s", w.Body.String())
@@ -125,7 +125,7 @@ func TestUpdateTemplate_RejectsInvalidSeriesRosterFrom(t *testing.T) {
 	body["series_roster_from"] = "not-a-date"
 	w := doTemplateJSON(t, s.router, http.MethodPut, fmt.Sprintf("/templates/%d", s.newID), body)
 	require.Equal(t, http.StatusBadRequest, w.Code, "body=%s", w.Body.String())
-	assert.Contains(t, decodeTemplateError(t, w).Error, "series_roster_from")
+	assert.Contains(t, decodeTemplateError(t, w).Detail, "series_roster_from")
 }
 
 func TestSplitTemplate_RejectsSeriesRosterFrom(t *testing.T) {
@@ -139,7 +139,7 @@ func TestSplitTemplate_RejectsSeriesRosterFrom(t *testing.T) {
 	w := doTemplateJSON(t, s.router, http.MethodPost,
 		fmt.Sprintf("/templates/%d/split", s.newID), body)
 	require.Equal(t, http.StatusBadRequest, w.Code, "body=%s", w.Body.String())
-	assert.Contains(t, decodeTemplateError(t, w).Error, "series_roster_from is not supported on a split")
+	assert.Contains(t, decodeTemplateError(t, w).Detail, "series_roster_from is not supported on a split")
 }
 
 // TestUpdateTemplate_SeriesRosterFromReachesPredecessor is the API-level happy

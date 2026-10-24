@@ -8,14 +8,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	projectJWT "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // checkCoreActionClassification is the route guard of the usage analytics:
 // every writing route of the portal routers in the production router (and
 // of the demo, mounted under APP_ENV=demo only) either names its core action
 // or is explicitly not captured, and the table names no route that is gone.
-func checkCoreActionClassification(t *testing.T, apiInstance *serveGraph) {
+func checkCoreActionClassification(t *testing.T, apiInstance *goldenRuntime) {
 	t.Parallel()
 
 	unclassified, stale, err := coreActionRouteGaps(apiInstance.router)
@@ -57,7 +57,7 @@ func TestAnalyticsActorFollowsTheTokenScope(t *testing.T) {
 
 	cases := []struct {
 		name     string
-		claims   projectJWT.AppClaims
+		claims   sessiontoken.AppClaims
 		surface  string
 		role     string
 		schoolID int64
@@ -65,31 +65,31 @@ func TestAnalyticsActorFollowsTheTokenScope(t *testing.T) {
 	}{
 		{
 			name:    "OGS staff",
-			claims:  projectJWT.AppClaims{TenantID: 12, Roles: []string{"Betreuung Nord"}},
+			claims:  sessiontoken.AppClaims{TenantID: 12, Roles: []string{"Betreuung Nord"}},
 			surface: "ogs", role: "staff", schoolID: 12, ok: true,
 		},
 		{
 			name:    "OGS admin",
-			claims:  projectJWT.AppClaims{TenantID: 12, IsAdmin: true, Scope: "tenant"},
+			claims:  sessiontoken.AppClaims{TenantID: 12, IsAdmin: true, Scope: "tenant"},
 			surface: "ogs", role: "admin", schoolID: 12, ok: true,
 		},
 		{
 			name:    "staff preview is an admin at work",
-			claims:  projectJWT.AppClaims{TenantID: 12, ReadOnly: true, ActingAdminID: 3},
+			claims:  sessiontoken.AppClaims{TenantID: 12, ReadOnly: true, ActingAdminID: 3},
 			surface: "ogs", role: "admin", schoolID: 12, ok: true,
 		},
 		{
 			name:    "parents have no school",
-			claims:  projectJWT.AppClaims{Scope: "parent", TenantID: 12},
+			claims:  sessiontoken.AppClaims{Scope: "parent", TenantID: 12},
 			surface: "parents", role: "guardian", ok: true,
 		},
 		{
 			name:    "school portal",
-			claims:  projectJWT.AppClaims{Scope: "school", TenantID: 12},
+			claims:  sessiontoken.AppClaims{Scope: "school", TenantID: 12},
 			surface: "school", role: "lehrkraft", schoolID: 12, ok: true,
 		},
-		{name: "operator is no portal", claims: projectJWT.AppClaims{Scope: "platform"}},
-		{name: "tenant token without school", claims: projectJWT.AppClaims{}},
+		{name: "operator is no portal", claims: sessiontoken.AppClaims{Scope: "platform"}},
+		{name: "tenant token without school", claims: sessiontoken.AppClaims{}},
 	}
 	for _, tc := range cases {
 		actor, ok := analyticsActor(tc.claims)
@@ -101,22 +101,22 @@ func TestAnalyticsActorFollowsTheTokenScope(t *testing.T) {
 }
 
 // The account leaves the session only for the pseudonymous ID of an OGS
-// account under Analyse-Freigabe (#3603): never from the parents or school
+// account under Analyse-Freigabe (#3603). Parents keep it internal for policy; the school
 // portal, and never from the staff preview, where an admin looks at someone
 // else's view.
-func TestAnalyticsActorNamesTheAccountOnlyForOGS(t *testing.T) {
+func TestAnalyticsActorKeepsAccountOnlyForOGSIdentityAndParentPolicy(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
 		name      string
-		claims    projectJWT.AppClaims
+		claims    sessiontoken.AppClaims
 		accountID int64
 	}{
-		{"OGS staff", projectJWT.AppClaims{ID: 7, TenantID: 12}, 7},
-		{"OGS admin", projectJWT.AppClaims{ID: 7, TenantID: 12, IsAdmin: true, Scope: "tenant"}, 7},
-		{"staff preview", projectJWT.AppClaims{ID: 7, TenantID: 12, ReadOnly: true, ActingAdminID: 3}, 0},
-		{"parents portal", projectJWT.AppClaims{ID: 7, Scope: "parent", TenantID: 12}, 0},
-		{"school portal", projectJWT.AppClaims{ID: 7, Scope: "school", TenantID: 12}, 0},
+		{"OGS staff", sessiontoken.AppClaims{ID: 7, TenantID: 12}, 7},
+		{"OGS admin", sessiontoken.AppClaims{ID: 7, TenantID: 12, IsAdmin: true, Scope: "tenant"}, 7},
+		{"staff preview", sessiontoken.AppClaims{ID: 7, TenantID: 12, ReadOnly: true, ActingAdminID: 3}, 0},
+		{"parents portal policy lookup", sessiontoken.AppClaims{ID: 7, Scope: "parent", TenantID: 12}, 7},
+		{"school portal", sessiontoken.AppClaims{ID: 7, Scope: "school", TenantID: 12}, 0},
 	}
 	for _, tc := range cases {
 		actor, ok := analyticsActor(tc.claims)

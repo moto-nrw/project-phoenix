@@ -60,8 +60,8 @@ describe("POST /api/auth/token", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(401);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("No refresh token found");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("No refresh token found");
   });
 
   it("returns 401 when no refresh token in session", async () => {
@@ -74,8 +74,8 @@ describe("POST /api/auth/token", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(401);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("No refresh token found");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("No refresh token found");
   });
 
   it("returns 401 when session has empty token", async () => {
@@ -93,8 +93,8 @@ describe("POST /api/auth/token", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(401);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("No refresh token found");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("No refresh token found");
   });
 
   it("successfully returns tokens from session", async () => {
@@ -127,7 +127,7 @@ describe("POST /api/auth/token", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Internal Server Error");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
   });
 });

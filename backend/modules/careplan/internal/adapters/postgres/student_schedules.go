@@ -393,13 +393,6 @@ func (s *Store) DeleteArrivalExceptionsByStudent(ctx context.Context, id int64) 
 	}
 	return execAny(ctx, db.NewDelete().TableExpr(`schedule.student_arrival_exceptions AS "student_arrival_exception"`).Where(`"student_arrival_exception".tenant_id = ?`, tid).Where(`"student_arrival_exception".student_id = ?`, id), "delete arrival exceptions by student")
 }
-func (s *Store) DeleteArrivalExceptionsBefore(ctx context.Context, d careplan.Date) (domain.OperationStats, error) {
-	db, tid, err := s.databaseForWrite(ctx, "delete old arrival exceptions")
-	if err != nil {
-		return domain.OperationStats{}, err
-	}
-	return execAny(ctx, db.NewDelete().TableExpr(`schedule.student_arrival_exceptions AS "student_arrival_exception"`).Where(`"student_arrival_exception".tenant_id = ?`, tid).Where(`"student_arrival_exception".exception_date < ?`, calendarDate(d)), "delete past arrival exceptions")
-}
 
 func (s *Store) FindArrivalNote(ctx context.Context, id int64) (careplan.ArrivalNote, bool, domain.OperationStats, error) {
 	db, tid, err := s.database(ctx)
@@ -481,13 +474,6 @@ func (s *Store) DeleteArrivalNotesByStudent(ctx context.Context, id int64) (doma
 		return domain.OperationStats{}, err
 	}
 	return execAny(ctx, db.NewDelete().TableExpr(`schedule.student_arrival_notes AS "student_arrival_note"`).Where(`"student_arrival_note".tenant_id = ?`, tid).Where(`"student_arrival_note".student_id = ?`, id), "delete arrival notes by student")
-}
-func (s *Store) DeleteArrivalNotesBefore(ctx context.Context, d careplan.Date) (domain.OperationStats, error) {
-	db, tid, err := s.databaseForWrite(ctx, "delete old arrival notes")
-	if err != nil {
-		return domain.OperationStats{}, err
-	}
-	return execAny(ctx, db.NewDelete().TableExpr(`schedule.student_arrival_notes AS "student_arrival_note"`).Where(`"student_arrival_note".tenant_id = ?`, tid).Where(`"student_arrival_note".note_date < ?`, calendarDate(d)), "delete past arrival notes")
 }
 
 func (s *Store) FindPickupSchedule(ctx context.Context, id int64) (careplan.PickupSchedule, bool, domain.OperationStats, error) {
@@ -643,8 +629,9 @@ func (s *Store) CountStudentScheduleRows(ctx context.Context, studentID int64) (
 		(SELECT COUNT(*) FROM schedule.student_arrival_notes WHERE tenant_id = ? AND student_id = ?) +
 		(SELECT COUNT(*) FROM schedule.student_pickup_schedules WHERE tenant_id = ? AND student_id = ?) +
 		(SELECT COUNT(*) FROM schedule.student_pickup_exceptions WHERE tenant_id = ? AND student_id = ?) +
-		(SELECT COUNT(*) FROM schedule.student_pickup_notes WHERE tenant_id = ? AND student_id = ?)
-	)::int`, tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID).Scan(ctx, &count)
+		(SELECT COUNT(*) FROM schedule.student_pickup_notes WHERE tenant_id = ? AND student_id = ?) +
+		(SELECT COUNT(*) FROM schedule.student_departure_exceptions WHERE tenant_id = ? AND student_id = ?)
+	)::int`, tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID).Scan(ctx, &count)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
 		return 0, stats, fmt.Errorf("care plan postgres: count student schedule rows: %w", err)
@@ -693,6 +680,7 @@ func (s *Store) EndStudentSchedulesForCareExit(ctx context.Context, studentIDs [
 		{db.NewRaw(`SELECT tenant_id, student_id, 'arrival_schedule'::text AS kind, id AS source_row_id, TRUE AS was_deleted, to_jsonb(plan) AS snapshot FROM schedule.student_arrival_schedules AS plan WHERE tenant_id = ? AND student_id IN (?)`, tenantID, bun.List(studentIDs)), db.NewDelete().TableExpr(`schedule.student_arrival_schedules AS "plan"`).Where(`"plan".tenant_id = ?`, tenantID).Where(`"plan".student_id IN (?)`, bun.List(studentIDs)), careplan.CareExitSourceArrivalSchedule},
 		{db.NewRaw(`SELECT tenant_id, student_id, 'pickup_exception'::text AS kind, id AS source_row_id, TRUE AS was_deleted, to_jsonb(plan) AS snapshot FROM schedule.student_pickup_exceptions AS plan WHERE tenant_id = ? AND student_id IN (?) AND exception_date >= ?`, tenantID, bun.List(studentIDs), calendarDate(validUntil)), db.NewDelete().TableExpr(`schedule.student_pickup_exceptions AS "plan"`).Where(`"plan".tenant_id = ?`, tenantID).Where(`"plan".student_id IN (?)`, bun.List(studentIDs)).Where(`"plan".exception_date >= ?`, calendarDate(validUntil)), careplan.CareExitSourcePickupException},
 		{db.NewRaw(`SELECT tenant_id, student_id, 'arrival_exception'::text AS kind, id AS source_row_id, TRUE AS was_deleted, to_jsonb(plan) AS snapshot FROM schedule.student_arrival_exceptions AS plan WHERE tenant_id = ? AND student_id IN (?) AND exception_date >= ?`, tenantID, bun.List(studentIDs), calendarDate(validUntil)), db.NewDelete().TableExpr(`schedule.student_arrival_exceptions AS "plan"`).Where(`"plan".tenant_id = ?`, tenantID).Where(`"plan".student_id IN (?)`, bun.List(studentIDs)).Where(`"plan".exception_date >= ?`, calendarDate(validUntil)), careplan.CareExitSourceArrivalException},
+		{db.NewRaw(`SELECT tenant_id, student_id, 'departure_exception'::text AS kind, id AS source_row_id, TRUE AS was_deleted, to_jsonb(plan) AS snapshot FROM schedule.student_departure_exceptions AS plan WHERE tenant_id = ? AND student_id IN (?) AND exception_date >= ?`, tenantID, bun.List(studentIDs), calendarDate(validUntil)), db.NewDelete().TableExpr(`schedule.student_departure_exceptions AS "plan"`).Where(`"plan".tenant_id = ?`, tenantID).Where(`"plan".student_id IN (?)`, bun.List(studentIDs)).Where(`"plan".exception_date >= ?`, calendarDate(validUntil)), careplan.CareExitSourceDepartureException},
 	}
 	var deletedRows int64
 	for _, operation := range operations {
@@ -720,6 +708,7 @@ func (s *Store) RestoreStudentSchedulesForCareExit(ctx context.Context, studentI
 		{db.NewRaw(`INSERT INTO schedule.student_arrival_schedules SELECT (jsonb_populate_record(NULL::schedule.student_arrival_schedules, removal.snapshot)).* FROM users.student_care_exit_source_removals AS removal WHERE removal.kind = 'arrival_schedule' AND removal.was_deleted = TRUE AND removal.tenant_id = ? AND removal.student_id IN (?) ON CONFLICT DO NOTHING`, tenantID, bun.List(studentIDs)), careplan.CareExitSourceArrivalSchedule},
 		{db.NewRaw(`INSERT INTO schedule.student_pickup_exceptions SELECT (jsonb_populate_record(NULL::schedule.student_pickup_exceptions, removal.snapshot)).* FROM users.student_care_exit_source_removals AS removal WHERE removal.kind = 'pickup_exception' AND removal.was_deleted = TRUE AND removal.tenant_id = ? AND removal.student_id IN (?) ON CONFLICT DO NOTHING`, tenantID, bun.List(studentIDs)), careplan.CareExitSourcePickupException},
 		{db.NewRaw(`INSERT INTO schedule.student_arrival_exceptions SELECT (jsonb_populate_record(NULL::schedule.student_arrival_exceptions, removal.snapshot)).* FROM users.student_care_exit_source_removals AS removal WHERE removal.kind = 'arrival_exception' AND removal.was_deleted = TRUE AND removal.tenant_id = ? AND removal.student_id IN (?) ON CONFLICT DO NOTHING`, tenantID, bun.List(studentIDs)), careplan.CareExitSourceArrivalException},
+		{db.NewRaw(`INSERT INTO schedule.student_departure_exceptions SELECT (jsonb_populate_record(NULL::schedule.student_departure_exceptions, removal.snapshot)).* FROM users.student_care_exit_source_removals AS removal WHERE removal.kind = 'departure_exception' AND removal.was_deleted = TRUE AND removal.tenant_id = ? AND removal.student_id IN (?) ON CONFLICT DO NOTHING`, tenantID, bun.List(studentIDs)), careplan.CareExitSourceDepartureException},
 	}
 	var restoredRows int64
 	for _, operation := range operations {

@@ -25,7 +25,7 @@ export async function GET(
   }
 
   if (!response.ok) {
-    return forwardBackendResponse(response);
+    return forwardBackendResponse(response, _request);
   }
 
   const contentType = response.headers.get("Content-Type") ?? "";

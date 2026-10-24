@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM golang:1.27.2-alpine3.24 AS builder
+FROM golang:1.27.3-alpine3.24 AS builder
 
 ENV GOTOOLCHAIN=local
 
@@ -24,8 +24,16 @@ RUN --mount=type=cache,mode=0755,target=/go/pkg/mod \
     -ldflags="-s -w -X github.com/moto-nrw/project-phoenix/cmd.release=${SENTRY_RELEASE}" \
     -o main .
 
-# Multi-Stage production build
-FROM alpine:3.21 AS production
+# The dev tools (seed, simulate, demo) are a binary of their own (ADR 0060).
+# Only the demo target builds and ships it; the production target never
+# reaches this stage.
+FROM builder AS devtools-builder
+RUN --mount=type=cache,mode=0755,target=/go/pkg/mod \
+    --mount=type=cache,mode=0755,target=/root/.cache/go-build \
+    CGO_ENABLED=0 go build -ldflags="-s -w" -o devtools ./cmd/devtools
+
+# Multi-Stage runtime base shared by the production and demo targets
+FROM alpine:3.21 AS runtime
 RUN apk --no-cache add ca-certificates bash tzdata
 ENV TZ=Europe/Berlin
 
@@ -49,3 +57,10 @@ USER appuser
 EXPOSE 8080
 # Set the binary as the entrypoint of the container
 CMD ["./main", "serve"]
+
+# Demo image: the server plus the dev tools binary for the demo-runtime sidecar.
+FROM runtime AS demo
+COPY --from=devtools-builder --chown=appuser:appgroup /src/devtools .
+
+# Production image (the default target): the server binary only.
+FROM runtime AS production

@@ -159,22 +159,24 @@ function DatevReportPanel({
   );
 }
 
-// Ergebnis der Übertragung. Ein Fehlschlag wird als Fehlschlag gezeigt — das
+// Ein Fehlschlag der Übertragung, für den Fehlerkasten des Dialogs. Das
 // Backend antwortet auch dann mit 200, damit der Eintrag im Protokoll erhalten
 // bleibt, also entscheidet hier `transferred`, nicht der HTTP-Status.
+function transferFailure(state: TransferState): string | null {
+  if (state.status !== "done" || state.outcome.transferred) return null;
+  return transferFailureMessage(state.outcome.reason);
+}
+
+// Ergebnis der Übertragung. Jeder Fehlschlag, der Anfrage selbst wie der
+// Übertragung, steht im Fehlerkasten des Dialogs.
 function TransferResultPanel({ state }: { readonly state: TransferState }) {
   if (state.status === "idle") return null;
   if (state.status === "running") {
     return <p className="text-sm text-gray-500">Datei wird übertragen …</p>;
   }
-  // Ein Fehler der Anfrage selbst steht im Fehlerkasten des Dialogs.
   if (state.status === "error") return null;
   const { outcome } = state;
-  if (!outcome.transferred) {
-    return (
-      <Alert type="error" message={transferFailureMessage(outcome.reason)} />
-    );
-  }
+  if (!outcome.transferred) return null;
   return (
     <Alert
       type="success"
@@ -270,8 +272,8 @@ export function StaffTimeExportModal({ isOpen, onClose, year, month }: Props) {
           error: error instanceof Error ? error.message : String(error),
         });
         setReportState({ status: "failed", requestKey });
-        // The incomplete payroll setup arrives as DatevConfigIncompleteError
-        // with its own code; the catalog names the next step.
+        // The incomplete payroll setup arrives as an ApiError with the code
+        // workforce.payroll_config_incomplete; the catalog names the next step.
         void showReportError(error, {
           object: DATEV_REPORT_OBJECT,
           retry: () => setReportAttempt((attempt) => attempt + 1),
@@ -378,7 +380,9 @@ export function StaffTimeExportModal({ isOpen, onClose, year, month }: Props) {
       }
     >
       <div className="space-y-4">
-        <FormErrorAlert message={transferErrors.error} />
+        <FormErrorAlert
+          message={transferErrors.error ?? transferFailure(transferState)}
+        />
         <p className="text-sm text-gray-600">
           Export für alle Mitarbeitenden. Die Werte entsprechen der
           Zeitkonten-Tabelle; abgeschlossene Monate tragen den eingefrorenen

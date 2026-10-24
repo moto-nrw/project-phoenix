@@ -1,0 +1,127 @@
+package users
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"fmt"
+
+	"github.com/uptrace/bun"
+
+	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/rows"
+	ports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
+)
+
+// GuardianFinancialDataRepository implements
+// users.GuardianFinancialDataRepository (#2608). A narrow repository of its
+// own rather than a widening of GuardianProfileRepository: the bank row must
+// stay an isolated dependency so only the guardians:financial service path can
+// reach it.
+type GuardianFinancialDataRepository struct {
+	runtime Runtime
+}
+
+// NewGuardianFinancialDataRepository creates the 1:1 guardian bank repository.
+func newRawGuardianFinancialDataRepository(runtime Runtime) *GuardianFinancialDataRepository {
+	return &GuardianFinancialDataRepository{runtime: requireRuntime(runtime)}
+}
+
+// FindByGuardianProfileID returns the guardian's bank row, or (nil, nil) when
+// none exists yet — a guardian without bank details is a normal state, not an
+// error.
+func (r *GuardianFinancialDataRepository) FindByGuardianProfileID(ctx context.Context, guardianProfileID int64) (*users.GuardianFinancialData, error) {
+	data := new(users.GuardianFinancialData)
+	ambientDB1, databaseErr1 := r.runtime.DB(ctx)
+	if databaseErr1 != nil {
+		return *new(*users.GuardianFinancialData), databaseErr1
+	}
+	query := ambientDB1.NewSelect().
+		Model(data).
+		ModelTableExpr(`users.guardian_financial_data AS "guardian_financial_data"`).
+		Where(`"guardian_financial_data".guardian_profile_id = ?`, guardianProfileID)
+
+	query = withTenantFilter(ctx, r.runtime, query, "guardian_financial_data")
+
+	if err := query.Scan(ctx); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, &ports.DatabaseError{Op: "find guardian financial data by guardian profile id", Err: translateNotFound(err)}
+	}
+	return data, nil
+}
+
+// ListByGuardianProfileIDs loads several guardians' bank rows in one query,
+// keyed by guardian profile ID. Guardians without a row are simply absent from
+// the map.
+func (r *GuardianFinancialDataRepository) ListByGuardianProfileIDs(ctx context.Context, guardianProfileIDs []int64) (map[int64]*users.GuardianFinancialData, error) {
+	out := make(map[int64]*users.GuardianFinancialData, len(guardianProfileIDs))
+	if len(guardianProfileIDs) == 0 {
+		return out, nil
+	}
+
+	var rows []*users.GuardianFinancialData
+	ambientDB2, databaseErr2 := r.runtime.DB(ctx)
+	if databaseErr2 != nil {
+		return *new(map[int64]*users.GuardianFinancialData), databaseErr2
+	}
+	query := ambientDB2.NewSelect().
+		Model(&rows).
+		ModelTableExpr(`users.guardian_financial_data AS "guardian_financial_data"`).
+		Where(`"guardian_financial_data".guardian_profile_id IN (?)`, bun.List(guardianProfileIDs))
+
+	query = withTenantFilter(ctx, r.runtime, query, "guardian_financial_data")
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &ports.DatabaseError{Op: "list guardian financial data by guardian profile ids", Err: translateNotFound(err)}
+	}
+
+	for _, row := range rows {
+		out[row.GuardianProfileID] = row
+	}
+	return out, nil
+}
+
+// Create inserts a guardian's bank row, stamping the context's tenant when the
+// row has none yet.
+func (r *GuardianFinancialDataRepository) Create(ctx context.Context, data *users.GuardianFinancialData) error {
+	if data == nil {
+		return fmt.Errorf("%s cannot be nil or zero value", "GuardianFinancialData")
+	}
+	if err := data.Validate(); err != nil {
+		return err
+	}
+	ensureTenantID(ctx, r.runtime, data)
+	ambientDB3, databaseErr3 := r.runtime.DB(ctx)
+	if databaseErr3 != nil {
+		return databaseErr3
+	}
+	if _, err := ambientDB3.NewInsert().Model(data).ModelTableExpr(`users.guardian_financial_data`).Exec(ctx); err != nil {
+		return &ports.DatabaseError{Op: "create", Err: err}
+	}
+	return nil
+}
+
+// Update writes a guardian's bank row.
+func (r *GuardianFinancialDataRepository) Update(ctx context.Context, data *users.GuardianFinancialData) error {
+	if data == nil {
+		return fmt.Errorf("%s cannot be nil or zero value", "GuardianFinancialData")
+	}
+	if err := data.Validate(); err != nil {
+		return err
+	}
+	ambientDB4, databaseErr4 := r.runtime.DB(ctx)
+	if databaseErr4 != nil {
+		return databaseErr4
+	}
+	query := ambientDB4.NewUpdate().
+		Model(data).
+		ModelTableExpr(`users.guardian_financial_data AS "guardian_financial_data"`).
+		WherePK()
+	query = withTenantFilter(ctx, r.runtime, query, "guardian_financial_data")
+	result, err := query.Exec(ctx)
+	if err != nil {
+		return &ports.DatabaseError{Op: "update", Err: err}
+	}
+	return assertRowsAffected(result, 1, "update GuardianFinancialData")
+}

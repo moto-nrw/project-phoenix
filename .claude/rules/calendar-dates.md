@@ -4,9 +4,13 @@ paths:
   - "frontend/src/**"
 ---
 
-# Calendar Dates: timezone.Date, Not time.Time
+# Calendar Dates: calendar.Date, Not time.Time
 
-**RULE: A calendar day (no clock, no timezone) is represented as `timezone.Date` everywhere in the backend** — model fields for `DATE` columns, repository signatures, query parameters compared against `DATE` columns, and API payloads (`YYYY-MM-DD`). `time.Time` is for instants only. On the frontend, calendar dates travel as `"YYYY-MM-DD"` strings and are never derived via `.toISOString()`.
+**RULE: A calendar day (no clock, no timezone) is represented as `calendar.Date` everywhere in the backend** — model fields for `DATE` columns, repository signatures, query parameters compared against `DATE` columns, and API payloads (`YYYY-MM-DD`). `time.Time` is for instants only. On the frontend, calendar dates travel as `"YYYY-MM-DD"` strings and are never derived via `.toISOString()`.
+
+> **Package:** the type and helpers live in `backend/sharedkernel/calendar`
+> (`calendar.Date`, `calendar.TodayDate()`, `calendar.NormalizeWallClock()`, …).
+> Import `sharedkernel/calendar` directly.
 
 ## Why
 
@@ -19,7 +23,7 @@ DATE columns scan back as UTC midnight. This single mechanism caused dozens
 of production and test-flake fixes before the 2026-06 migration eliminated
 the bug class.
 
-`timezone.Date` (backend/internal/timezone/date.go) is a string-backed
+`calendar.Date` (backend/sharedkernel/calendar/date.go) is a string-backed
 `YYYY-MM-DD` value with no instant and no location. bun binds that string
 directly — there is nothing for the driver to shift. The old
 compensation helpers `DateOfUTC`/`TodayUTC` are deleted; the remaining
@@ -30,16 +34,16 @@ math.
 
 | Need | Use | Never |
 |---|---|---|
-| Today as a calendar day | `timezone.TodayDate()` | `timezone.Today()`, `time.Now().Truncate(24h)` |
-| Calendar day of an instant | `timezone.DateFromTime(t)` | manual UTC/Berlin truncation |
-| Model field for a `DATE` column | `timezone.Date` / `*timezone.Date` (nullable) | `time.Time`, zero-Date sentinels |
-| Parse an API date | `timezone.ParseDate("2026-06-10")` | `time.Parse("2006-01-02", s)` |
+| Today as a calendar day | `calendar.TodayDate()` | `calendar.Today()`, `time.Now().Truncate(24h)` |
+| Calendar day of an instant | `calendar.DateFromTime(t)` | manual UTC/Berlin truncation |
+| Model field for a `DATE` column | `calendar.Date` / `*calendar.Date` (nullable) | `time.Time`, zero-Date sentinels |
+| Parse an API date | `calendar.ParseDate("2026-06-10")` | `time.Parse("2006-01-02", s)` |
 | Serialize a date | `d.String()` (ISO) / `d.Format("02.01.2006")` (German) | `.Format` on a scanned instant |
 | Compare / sort dates | `==`, `d.Before(o)`, `d.After(o)`, `d.Compare(o)`; map keys work | comparing `time.Time` against DATE values |
 | Date arithmetic | `d.AddDays(n)`, `a.DaysUntil(b)` (DST-exact), `d.Weekday()` | `AddDate`, `Sub().Hours()/24` |
-| Day boundaries as instants (TIMESTAMPTZ scans) | `d.BerlinMidnight()`, `d.EndOfDay()` (23:59:59 Berlin) | `timezone.EndOfDay(t)` on raw scanned values |
+| Day boundaries as instants (TIMESTAMPTZ scans) | `d.BerlinMidnight()`, `d.EndOfDay()` (23:59:59 Berlin) | `calendar.EndOfDay(t)` on raw scanned values |
 | Actual instant (created_at, check_in_time) | `time.Time` (TIMESTAMPTZ) | — |
-| Clock time without date (TIME column) | `timezone.NormalizeWallClock()` normalization | TIMESTAMPTZ |
+| Clock time without date (TIME column) | `calendar.NormalizeWallClock()` normalization | TIMESTAMPTZ |
 
 ## Need X → use Y (frontend)
 
@@ -69,17 +73,17 @@ today := time.Now().Truncate(24 * time.Hour)
 query.Where("date = ?", someTime)
 
 // CORRECT — DATE column field
-Date timezone.Date `bun:"date,notnull,type:date" json:"date"`
+Date calendar.Date `bun:"date,notnull,type:date" json:"date"`
 
 // CORRECT — today's calendar day, comparison, boundary instant
-today := timezone.TodayDate()
+today := calendar.TodayDate()
 if entry.Date == today { ... }
 q.Where("check_in_time < ?", entry.Date.EndOfDay())
 ```
 
-**NULL semantics**: the zero value is `timezone.Date("")` and means unset; do
+**NULL semantics**: the zero value is `calendar.Date("")` and means unset; do
 not bind it as a date or use it as a sentinel. An optional date is
-`*timezone.Date`, where `nil` binds NULL.
+`*calendar.Date`, where `nil` binds NULL.
 
 ## Enforcement
 
@@ -89,7 +93,7 @@ not bind it as a date or use it as a sentinel. An optional date is
    and fails when the field is `time.Time`. Its maps (`unmappedDateColumns`,
    `renamedDateColumns`, `droppedDateColumns`) classify columns the scan
    cannot join; stale entries fail the test. **A new DATE column compiles
-   only with a `timezone.Date` field.**
+   only with a `calendar.Date` field.**
 2. The same test bans `Truncate(24 * time.Hour)` date math everywhere
    (`no_truncate_24h_date_math`, empty allowlist).
 3. **forbidigo** (`.golangci.yml`) bans `time.Time.Truncate` in production
@@ -99,35 +103,35 @@ not bind it as a date or use it as a sentinel. An optional date is
 5. **`TestActivityInstanceWallClockRatchet`**
    (`backend/test/wall_clock_verification_test.go`) rejects
    `ActivityInstance.StartTime`/`EndTime` assignments derived from
-   `time.Now()` or `timezone.Now()` unless they pass through
-   `timezone.NormalizeWallClock()`. These fields map to PostgreSQL `TIME`; binding a
+   `time.Now()` or `calendar.Now()` unless they pass through
+   `calendar.NormalizeWallClock()`. These fields map to PostgreSQL `TIME`; binding a
    Berlin instant converts it to UTC and can reverse the clock interval around
    UTC midnight.
 
 ## Detection
 
 ```bash
-rg --type go 'time\.Time' backend/models/ | rg -i '`bun:"[^"]*"' | rg -i 'date|day|birthday|valid_'  # suspect fields
+rg --type go 'time\.Time' backend/modules/ backend/workflows/ | rg -i '`bun:"[^"]*"' | rg -i 'date|day|birthday|valid_'  # suspect fields
 rg --type go 'Truncate\(24 \* time\.Hour\)' backend/
-cd backend && go test ./test/ -run 'Test(DateColumnTypes|ActivityInstanceWallClockRatchet)' # backend date/time gates
+cd backend && ../scripts/run-go-toolchain.sh go test -tags=testhooks ./test/ -run 'Test(DateColumnTypes|ActivityInstanceWallClockRatchet)' # backend date/time gates
 rg -n '\.toISOString\(\)\s*\.\s*(split|slice)' frontend/src/                  # frontend UTC extraction
 ```
 
 ## Code Review Checklist
 
-- [ ] New `DATE` column in a migration → model field is `timezone.Date`; the registry test stays green without new allowlist entries
+- [ ] New `DATE` column in a migration → model field is `calendar.Date`; the registry test stays green without new allowlist entries
 - [ ] No `time.Time` field whose name suggests a calendar day (`date`, `*_date`, `day`, `birthday`, `valid_from`, …)
 - [ ] No raw `time.Time` argument compared against a DATE column in Where clauses or raw SQL
-- [ ] Ad-hoc repo result structs (ModelTableExpr pattern) scanning DATE columns use `timezone.Date` too — the registry test does NOT see these
+- [ ] Ad-hoc repo result structs (ModelTableExpr pattern) scanning DATE columns use `calendar.Date` too — the registry test does NOT see these
 - [ ] API contract checked: a model-serialized date field emits `"YYYY-MM-DD"` — verify consumers when flipping a previously RFC3339 field
-- [ ] Tests construct dates via `timezone.NewDate(...)`/`TodayDate()` — never `time.Now()`-derived instants for calendar days
+- [ ] Tests construct dates via `calendar.NewDate(...)`/`TodayDate()` — never `time.Now()`-derived instants for calendar days
 - [ ] Frontend serializes via `toISODate`/`todayISO`/`parseISODate` — no `.toISOString()` date extraction
 
 ## Scope boundary
 
 TIME WITHOUT TIME ZONE columns (wall-clock times like `11:30`) are a separate
-concern: normalize via `timezone.NormalizeWallClock()` (see
-[backend date/time invariants](../../backend/CLAUDE.md#calendar-dates-timezonedate-mandatory)).
+concern: normalize via `calendar.NormalizeWallClock()` (see
+[backend date/time invariants](../../backend/CLAUDE.md#calendar-dates-calendardate-mandatory)).
 `ActivityInstance` writes have a source ratchet; other TIME-backed models still
 rely on their repository/service normalization and code review. Instants
 (TIMESTAMPTZ) stay `time.Time` everywhere.

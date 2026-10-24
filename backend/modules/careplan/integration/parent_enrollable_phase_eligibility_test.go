@@ -10,9 +10,16 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
+	parentModels "github.com/moto-nrw/project-phoenix/modules/careplan/internal/rows"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+)
+
+// The enrollment.phases.audience values (#1663) the fixtures below write
+// and the projected rows carry.
+const (
+	phaseAudienceOpen             = "open"
+	phaseAudienceExistingStudents = "existing_students"
+	phaseAudienceLinkedParents    = "linked_parents"
 )
 
 // insertEnrollablePhaseWithAudience mirrors insertEnrollablePhase but
@@ -88,19 +95,15 @@ func TestEnrollablePhaseRepository_ListEnrollable_LinkedParentsPhaseHiddenWithou
 
 	// Fresh account: no tenant mapping, no guardian rows anywhere.
 	account := testpkg.CreateTestAccount(t, db, "eligibility-unlinked")
-	t.Cleanup(func() {
-		_, _ = db.NewDelete().Table("auth.accounts").Where("id = ?", account.ID).Exec(context.Background())
-	})
 
 	openName := fmt.Sprintf("eligibility-open-%d", time.Now().UnixNano())
 	linkedName := fmt.Sprintf("eligibility-linked-%d", time.Now().UnixNano())
-	defer wipePhasesForTenant(db, tenantID, "eligibility-")
-	insertEnrollablePhaseWithAudience(t, db, tenantID, openName, enrollmentModels.PhaseAudienceOpen)
-	insertEnrollablePhaseWithAudience(t, db, tenantID, linkedName, enrollmentModels.PhaseAudienceLinkedParents)
+	insertEnrollablePhaseWithAudience(t, db, tenantID, openName, phaseAudienceOpen)
+	insertEnrollablePhaseWithAudience(t, db, tenantID, linkedName, phaseAudienceLinkedParents)
 
 	names := phaseNamesOf(listEnrollableAsAdmin(t, db, account.ID))
 	assert.Contains(t, names, openName, "open phase must be listed for an unlinked parent")
-	assert.Equal(t, enrollmentModels.PhaseAudienceOpen, names[openName], "audience must be mapped onto the row")
+	assert.Equal(t, phaseAudienceOpen, names[openName], "audience must be mapped onto the row")
 	assert.NotContains(t, names, linkedName,
 		"linked_parents phase must be hidden for an account without a guardian link")
 }
@@ -112,8 +115,7 @@ func TestEnrollablePhaseRepository_ListEnrollable_LinkedParentsPhaseVisibleWithS
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	linkedName := fmt.Sprintf("eligibility-visible-%d", time.Now().UnixNano())
-	defer wipePhasesForTenant(db, chain.TenantID, "eligibility-visible")
-	insertEnrollablePhaseWithAudience(t, db, chain.TenantID, linkedName, enrollmentModels.PhaseAudienceLinkedParents)
+	insertEnrollablePhaseWithAudience(t, db, chain.TenantID, linkedName, phaseAudienceLinkedParents)
 
 	names := phaseNamesOf(listEnrollableAsAdmin(t, db, chain.AccountID))
 	assert.Contains(t, names, linkedName,
@@ -135,9 +137,8 @@ func TestEnrollablePhaseRepository_ListEnrollable_RevokedSubmitPermissionScopedT
 	// applies no account-wide denial, so the picker must not either (#1663).
 	openName := fmt.Sprintf("eligibility-revoked-open-%d", time.Now().UnixNano())
 	existingName := fmt.Sprintf("eligibility-revoked-existing-%d", time.Now().UnixNano())
-	defer wipePhasesForTenant(db, chain.TenantID, "eligibility-revoked")
-	insertEnrollablePhaseWithAudience(t, db, chain.TenantID, openName, enrollmentModels.PhaseAudienceOpen)
-	insertEnrollablePhaseWithAudience(t, db, chain.TenantID, existingName, enrollmentModels.PhaseAudienceExistingStudents)
+	insertEnrollablePhaseWithAudience(t, db, chain.TenantID, openName, phaseAudienceOpen)
+	insertEnrollablePhaseWithAudience(t, db, chain.TenantID, existingName, phaseAudienceExistingStudents)
 
 	names := phaseNamesOf(listEnrollableAsAdmin(t, db, chain.AccountID))
 	assert.Contains(t, names, openName,
@@ -159,15 +160,11 @@ func TestEnrollablePhaseRepository_ListEnrollable_ExistingStudentsHiddenWithoutG
 	// per-student submit permission — so the picker must not advertise it
 	// (#1663).
 	account := testpkg.CreateTestAccount(t, db, "eligibility-existing-unlinked")
-	t.Cleanup(func() {
-		_, _ = db.NewDelete().Table("auth.accounts").Where("id = ?", account.ID).Exec(context.Background())
-	})
 
 	openName := fmt.Sprintf("eligibility-exunlinked-open-%d", time.Now().UnixNano())
 	existingName := fmt.Sprintf("eligibility-exunlinked-existing-%d", time.Now().UnixNano())
-	defer wipePhasesForTenant(db, tenantID, "eligibility-exunlinked")
-	insertEnrollablePhaseWithAudience(t, db, tenantID, openName, enrollmentModels.PhaseAudienceOpen)
-	insertEnrollablePhaseWithAudience(t, db, tenantID, existingName, enrollmentModels.PhaseAudienceExistingStudents)
+	insertEnrollablePhaseWithAudience(t, db, tenantID, openName, phaseAudienceOpen)
+	insertEnrollablePhaseWithAudience(t, db, tenantID, existingName, phaseAudienceExistingStudents)
 
 	names := phaseNamesOf(listEnrollableAsAdmin(t, db, account.ID))
 	assert.Contains(t, names, openName,
@@ -183,8 +180,7 @@ func TestEnrollablePhaseRepository_ListEnrollable_ExistingStudentsVisibleWithSub
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	existingName := fmt.Sprintf("eligibility-exvisible-%d", time.Now().UnixNano())
-	defer wipePhasesForTenant(db, chain.TenantID, "eligibility-exvisible")
-	insertEnrollablePhaseWithAudience(t, db, chain.TenantID, existingName, enrollmentModels.PhaseAudienceExistingStudents)
+	insertEnrollablePhaseWithAudience(t, db, chain.TenantID, existingName, phaseAudienceExistingStudents)
 
 	names := phaseNamesOf(listEnrollableAsAdmin(t, db, chain.AccountID))
 	assert.Contains(t, names, existingName,
@@ -214,9 +210,8 @@ func TestEnrollablePhaseRepository_ListEnrollable_ExistingStudentsHiddenForInact
 
 	existingName := fmt.Sprintf("eligibility-exinactive-existing-%d", time.Now().UnixNano())
 	linkedName := fmt.Sprintf("eligibility-exinactive-linked-%d", time.Now().UnixNano())
-	defer wipePhasesForTenant(db, chain.TenantID, "eligibility-exinactive")
-	insertEnrollablePhaseWithAudience(t, db, chain.TenantID, existingName, enrollmentModels.PhaseAudienceExistingStudents)
-	insertEnrollablePhaseWithAudience(t, db, chain.TenantID, linkedName, enrollmentModels.PhaseAudienceLinkedParents)
+	insertEnrollablePhaseWithAudience(t, db, chain.TenantID, existingName, phaseAudienceExistingStudents)
+	insertEnrollablePhaseWithAudience(t, db, chain.TenantID, linkedName, phaseAudienceLinkedParents)
 
 	names := phaseNamesOf(listEnrollableAsAdmin(t, db, chain.AccountID))
 	assert.NotContains(t, names, existingName,
@@ -235,8 +230,7 @@ func TestEnrollablePhaseRepository_ListEnrollable_ExistingStudentsVisibleForPend
 	setStudentStatus(t, db, chain.StudentID, "pending")
 
 	existingName := fmt.Sprintf("eligibility-expending-%d", time.Now().UnixNano())
-	defer wipePhasesForTenant(db, chain.TenantID, "eligibility-expending")
-	insertEnrollablePhaseWithAudience(t, db, chain.TenantID, existingName, enrollmentModels.PhaseAudienceExistingStudents)
+	insertEnrollablePhaseWithAudience(t, db, chain.TenantID, existingName, phaseAudienceExistingStudents)
 
 	names := phaseNamesOf(listEnrollableAsAdmin(t, db, chain.AccountID))
 	assert.Contains(t, names, existingName,
@@ -253,8 +247,7 @@ func TestEnrollablePhaseRepository_ListEnrollable_DeactivatedMappingHidesLinkedP
 	deactivateAccountTenantMapping(t, db, chain.AccountID)
 
 	linkedName := fmt.Sprintf("eligibility-deactivated-%d", time.Now().UnixNano())
-	defer wipePhasesForTenant(db, chain.TenantID, "eligibility-deactivated")
-	insertEnrollablePhaseWithAudience(t, db, chain.TenantID, linkedName, enrollmentModels.PhaseAudienceLinkedParents)
+	insertEnrollablePhaseWithAudience(t, db, chain.TenantID, linkedName, phaseAudienceLinkedParents)
 
 	names := phaseNamesOf(listEnrollableAsAdmin(t, db, chain.AccountID))
 	assert.NotContains(t, names, linkedName,
@@ -283,14 +276,10 @@ func TestEnrollablePhaseRepository_ListEnrollable_HiddenSchoolExcludedForUnlinke
 	setSchoolHidden(t, db, chain.TenantID, true)
 
 	openName := fmt.Sprintf("eligibility-hidden-%d", time.Now().UnixNano())
-	defer wipePhasesForTenant(db, chain.TenantID, "eligibility-hidden")
-	insertEnrollablePhaseWithAudience(t, db, chain.TenantID, openName, enrollmentModels.PhaseAudienceOpen)
+	insertEnrollablePhaseWithAudience(t, db, chain.TenantID, openName, phaseAudienceOpen)
 
 	// Fresh account: not a member of the hidden school.
 	fresh := testpkg.CreateTestAccount(t, db, "hidden-unlinked")
-	t.Cleanup(func() {
-		_, _ = db.NewDelete().Table("auth.accounts").Where("id = ?", fresh.ID).Exec(context.Background())
-	})
 
 	names := phaseNamesOf(listEnrollableAsAdmin(t, db, fresh.ID))
 	assert.NotContains(t, names, openName,
@@ -320,18 +309,12 @@ func TestEnrollablePhaseRepository_ListEnrollable_HiddenSchoolExcludedForNonGuar
 	setSchoolHidden(t, db, chain.TenantID, true)
 
 	openName := fmt.Sprintf("eligibility-hiddenstaff-%d", time.Now().UnixNano())
-	defer wipePhasesForTenant(db, chain.TenantID, "eligibility-hiddenstaff")
-	insertEnrollablePhaseWithAudience(t, db, chain.TenantID, openName, enrollmentModels.PhaseAudienceOpen)
+	insertEnrollablePhaseWithAudience(t, db, chain.TenantID, openName, phaseAudienceOpen)
 
 	// An ACTIVE member of the hidden school that holds no guardian relationship
 	// there — the shape a staff or admin account has.
 	member := testpkg.CreateTestAccount(t, db, "hidden-nonguardian")
 	testpkg.MapAccountToTenant(t, db, member.ID, chain.TenantID)
-	t.Cleanup(func() {
-		ctx := context.Background()
-		_, _ = db.NewDelete().Table("auth.account_tenants").Where("account_id = ?", member.ID).Exec(ctx)
-		_, _ = db.NewDelete().Table("auth.accounts").Where("id = ?", member.ID).Exec(ctx)
-	})
 
 	names := phaseNamesOf(listEnrollableAsAdmin(t, db, member.ID))
 	assert.NotContains(t, names, openName,
@@ -356,8 +339,7 @@ func TestEnrollablePhaseRepository_ListEnrollable_HiddenSchoolVisibleToActiveMem
 	setSchoolHidden(t, db, chain.TenantID, true)
 
 	openName := fmt.Sprintf("eligibility-hiddenmember-%d", time.Now().UnixNano())
-	defer wipePhasesForTenant(db, chain.TenantID, "eligibility-hiddenmember")
-	insertEnrollablePhaseWithAudience(t, db, chain.TenantID, openName, enrollmentModels.PhaseAudienceOpen)
+	insertEnrollablePhaseWithAudience(t, db, chain.TenantID, openName, phaseAudienceOpen)
 
 	names := phaseNamesOf(listEnrollableAsAdmin(t, db, chain.AccountID))
 	assert.Contains(t, names, openName,
@@ -410,9 +392,7 @@ func TestEnrollablePhaseRepository_GuardianSubmitStatus(t *testing.T) {
 	// "nothing anywhere" includes the tenant mapping CreateTestAccount adds
 	// for the test's own tenant (#2419).
 	testpkg.UnclaimTestAccount(t, db, fresh.ID)
-	t.Cleanup(func() {
-		_, _ = db.NewDelete().Table("auth.accounts").Where("id = ?", fresh.ID).Exec(context.Background())
-	})
+	testpkg.OwnTestAccount(t, db, fresh.ID)
 	require.NoError(t, runAsAdmin(t, db, func(ctx context.Context) error {
 		var sErr error
 		status, sErr = repo.GuardianSubmitStatus(ctx, fresh.ID, chain.TenantID)

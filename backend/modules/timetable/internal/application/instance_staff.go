@@ -3,18 +3,23 @@ package application
 import (
 	"context"
 
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 )
 
-func (s *Service) FindInstanceStaff(ctx context.Context, id int64) (result domain.InstanceStaff, err error) {
-	err = s.run("find_instance_staff", func(stats *domain.OperationStats) error {
+func (s *Service) FindInstanceStaff(ctx context.Context, id int64) (result timetable.InstanceStaff, err error) {
+	if id <= 0 {
+		return timetable.InstanceStaff{}, s.reject("find_instance_staff", timetable.ErrInvalidInstanceStaffQuery)
+	}
+
+	err = s.run(ctx, "find_instance_staff", func(ctx context.Context, stats *domain.OperationStats) error {
 		value, found, queryStats, findErr := s.store.FindInstanceStaff(ctx, id)
 		stats.Add(queryStats)
 		if findErr != nil {
 			return findErr
 		}
 		if !found {
-			return domain.ErrInstanceStaffNotFound
+			return timetable.ErrInstanceStaffNotFound
 		}
 		result = value
 		return nil
@@ -22,8 +27,12 @@ func (s *Service) FindInstanceStaff(ctx context.Context, id int64) (result domai
 	return result, err
 }
 
-func (s *Service) ListInstanceStaff(ctx context.Context, filter domain.InstanceStaffFilter) (result []domain.InstanceStaff, err error) {
-	err = s.run("list_instance_staff", func(stats *domain.OperationStats) error {
+func (s *Service) ListInstanceStaff(ctx context.Context, filter timetable.InstanceStaffFilter) (result []timetable.InstanceStaff, err error) {
+	if !validInstanceStaffFilter(filter) {
+		return nil, s.reject("list_instance_staff", timetable.ErrInvalidInstanceStaffQuery)
+	}
+
+	err = s.run(ctx, "list_instance_staff", func(ctx context.Context, stats *domain.OperationStats) error {
 		values, queryStats, listErr := s.store.ListInstanceStaff(ctx, filter)
 		stats.Add(queryStats)
 		result = values
@@ -33,7 +42,11 @@ func (s *Service) ListInstanceStaff(ctx context.Context, filter domain.InstanceS
 }
 
 func (s *Service) CountNonAbsentInstanceStaff(ctx context.Context, instanceIDs []int64) (result map[int64]int, err error) {
-	err = s.run("count_non_absent_instance_staff", func(stats *domain.OperationStats) error {
+	if hasInvalidID(instanceIDs) {
+		return nil, s.reject("count_non_absent_instance_staff", timetable.ErrInvalidInstanceStaffQuery)
+	}
+
+	err = s.run(ctx, "count_non_absent_instance_staff", func(ctx context.Context, stats *domain.OperationStats) error {
 		counts, queryStats, countErr := s.store.CountNonAbsentInstanceStaff(ctx, instanceIDs)
 		stats.Add(queryStats)
 		result = counts
@@ -42,7 +55,11 @@ func (s *Service) CountNonAbsentInstanceStaff(ctx context.Context, instanceIDs [
 	return result, err
 }
 
-func (s *Service) CreateInstanceStaff(ctx context.Context, fields domain.InstanceStaffFields) (result domain.InstanceStaff, err error) {
+func (s *Service) CreateInstanceStaff(ctx context.Context, fields timetable.InstanceStaffInput) (result timetable.InstanceStaff, err error) {
+	if !validInstanceStaff(fields) {
+		return timetable.InstanceStaff{}, s.reject("create_instance_staff", timetable.ErrInvalidInstanceStaff)
+	}
+
 	err = s.runWrite(ctx, "create_instance_staff", true, func(txCtx context.Context, stats *domain.OperationStats) error {
 		if err := s.lockStaffAssignment(txCtx, fields.StaffID); err != nil {
 			return err
@@ -58,7 +75,11 @@ func (s *Service) CreateInstanceStaff(ctx context.Context, fields domain.Instanc
 	return result, err
 }
 
-func (s *Service) UpdateInstanceStaff(ctx context.Context, id int64, fields domain.InstanceStaffFields) (result domain.InstanceStaff, err error) {
+func (s *Service) UpdateInstanceStaff(ctx context.Context, id int64, fields timetable.InstanceStaffInput) (result timetable.InstanceStaff, err error) {
+	if id <= 0 || !validInstanceStaff(fields) {
+		return timetable.InstanceStaff{}, s.reject("update_instance_staff", timetable.ErrInvalidInstanceStaff)
+	}
+
 	err = s.runWrite(ctx, "update_instance_staff", true, func(txCtx context.Context, stats *domain.OperationStats) error {
 		if err := s.lockStaffAssignment(txCtx, fields.StaffID); err != nil {
 			return err
@@ -72,7 +93,7 @@ func (s *Service) UpdateInstanceStaff(ctx context.Context, id int64, fields doma
 			return updateErr
 		}
 		if !found {
-			return domain.ErrInstanceStaffNotFound
+			return timetable.ErrInstanceStaffNotFound
 		}
 		result = value
 		return nil
@@ -87,12 +108,16 @@ func (s *Service) lockInstanceForStaffAssignment(ctx context.Context, instanceID
 		return err
 	}
 	if !found {
-		return domain.ErrActivityInstanceNotFound
+		return timetable.ErrActivityInstanceNotFound
 	}
 	return nil
 }
 
-func (s *Service) PatchInstanceStaff(ctx context.Context, id int64, fields domain.InstanceStaffFields, columns []string) (result int64, err error) {
+func (s *Service) PatchInstanceStaff(ctx context.Context, id int64, fields timetable.InstanceStaffInput, columns []string) (result int64, err error) {
+	if id <= 0 || !validInstanceStaffColumns(columns) {
+		return 0, s.reject("patch_instance_staff", timetable.ErrInvalidInstanceStaff)
+	}
+
 	err = s.runWrite(ctx, "patch_instance_staff", true, func(txCtx context.Context, stats *domain.OperationStats) error {
 		rows, queryStats, updateErr := s.store.PatchInstanceStaff(txCtx, id, fields, columns)
 		stats.Add(queryStats)
@@ -103,6 +128,10 @@ func (s *Service) PatchInstanceStaff(ctx context.Context, id int64, fields domai
 }
 
 func (s *Service) DeleteInstanceStaff(ctx context.Context, id int64) error {
+	if id <= 0 {
+		return s.reject("delete_instance_staff", timetable.ErrInvalidInstanceStaff)
+	}
+
 	return s.runWrite(ctx, "delete_instance_staff", true, func(txCtx context.Context, stats *domain.OperationStats) error {
 		queryStats, err := s.store.DeleteInstanceStaff(txCtx, id)
 		stats.Add(queryStats)
@@ -111,6 +140,10 @@ func (s *Service) DeleteInstanceStaff(ctx context.Context, id int64) error {
 }
 
 func (s *Service) DeleteInstanceStaffByInstance(ctx context.Context, instanceID int64) error {
+	if instanceID <= 0 {
+		return s.reject("delete_instance_staff_by_instance", timetable.ErrInvalidInstanceStaff)
+	}
+
 	return s.runWrite(ctx, "delete_instance_staff_by_instance", true, func(txCtx context.Context, stats *domain.OperationStats) error {
 		queryStats, err := s.store.DeleteInstanceStaffByInstance(txCtx, instanceID)
 		stats.Add(queryStats)
@@ -118,11 +151,25 @@ func (s *Service) DeleteInstanceStaffByInstance(ctx context.Context, instanceID 
 	})
 }
 
+func (s *Service) deleteInstanceStaffByStaff(ctx context.Context, staffID int64) (result int64, err error) {
+	err = s.runWrite(ctx, "delete_instance_staff_by_staff", true, func(txCtx context.Context, stats *domain.OperationStats) error {
+		rows, queryStats, deleteErr := s.store.DeleteInstanceStaffByStaff(txCtx, staffID)
+		stats.Add(queryStats)
+		result = rows
+		return deleteErr
+	})
+	return result, err
+}
+
 func (s *Service) DeleteUpcomingInstanceStaff(ctx context.Context, staffID int64, after string) (result int64, err error) {
+	if staffID <= 0 || !timetable.ValidDate(after) {
+		return 0, s.reject("delete_upcoming_instance_staff", timetable.ErrInvalidInstanceStaff)
+	}
+
 	err = s.runWrite(ctx, "delete_upcoming_instance_staff", true, func(txCtx context.Context, stats *domain.OperationStats) error {
 		// A block of the day that Student Presence already runs or ended is
 		// history and keeps its staff (#2762); only unstarted plans go.
-		sameDay, listStats, listErr := s.store.ListInstanceStaff(txCtx, domain.InstanceStaffFilter{StaffIDs: []int64{staffID}, Date: &after})
+		sameDay, listStats, listErr := s.store.ListInstanceStaff(txCtx, timetable.InstanceStaffFilter{StaffIDs: []int64{staffID}, Date: &after})
 		stats.Add(listStats)
 		if listErr != nil {
 			return listErr

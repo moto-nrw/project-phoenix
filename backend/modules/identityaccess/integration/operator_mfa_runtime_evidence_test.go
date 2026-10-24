@@ -23,8 +23,9 @@ import (
 // logged for the migration ticket.
 func TestOperatorMFARuntimeEvidence(t *testing.T) {
 	t.Parallel()
+	testpkg.RequireRuntimeEvidence(t)
 	db := testpkg.SetupIsolatedTestDB(t)
-	records, err := identityCompose.New(identityCompose.Dependencies{DB: db, Observe: func(identityCompose.Observation) {}})
+	records, err := identityCompose.New(identityCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityCompose.Observation) {}})
 	require.NoError(t, err)
 	operator := testpkg.CreateTestOperator(t, db)
 	counter := testpkg.CaptureQueriesForContext(t, db)

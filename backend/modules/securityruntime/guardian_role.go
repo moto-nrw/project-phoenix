@@ -1,9 +1,11 @@
 package securityruntime
 
 import (
+	"bytes"
+	"encoding/json"
 	"sort"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/application/authorize"
 )
 
 // Role presets of a student-guardian relationship.
@@ -20,6 +22,8 @@ const (
 // Parent-portal permissions a relationship role preset grants.
 const (
 	GuardianPermissionPortalAccess     = authorize.GuardianPermissionPortalAccess
+	GuardianPermissionSickNoteSubmit   = authorize.GuardianPermissionSickNoteSubmit
+	GuardianPermissionNotesWrite       = authorize.GuardianPermissionNotesWrite
 	GuardianPermissionEnrollmentSubmit = authorize.GuardianPermissionEnrollmentSubmit
 	GuardianPermissionPollResponse     = authorize.GuardianPermissionPollResponse
 )
@@ -59,6 +63,28 @@ func GuardianPermissionGranted(value any) bool {
 	return authorize.StudentGuardianHasPermission(storedGuardianPermission{value: value}, storedGuardianPermissionKey)
 }
 
+// GuardianPermissionGrantedJSON reports whether the stored permissions
+// object grants permission, read by GuardianPermissionGranted. It fails
+// closed: an object that does not decode, a missing key and a value that
+// does not decode all grant nothing. Numbers keep their exact text.
+func GuardianPermissionGrantedJSON(raw json.RawMessage, permission string) bool {
+	var values map[string]json.RawMessage
+	if json.Unmarshal(raw, &values) != nil {
+		return false
+	}
+	value, exists := values[permission]
+	if !exists {
+		return false
+	}
+	decoder := json.NewDecoder(bytes.NewReader(value))
+	decoder.UseNumber()
+	var stored any
+	if decoder.Decode(&stored) != nil {
+		return false
+	}
+	return GuardianPermissionGranted(stored)
+}
+
 const storedGuardianPermissionKey = "permission"
 
 // storedGuardianPermission carries one stored permission value through the
@@ -70,3 +96,31 @@ func (p storedGuardianPermission) GuardianAuthorizationData() (string, string, b
 }
 
 func (storedGuardianPermission) SetGuardianAuthorizationData(string, map[string]interface{}) {}
+
+// GuardianRoleClass groups the stored relationship roles by the access a
+// guardian invitation may build on them.
+type GuardianRoleClass int
+
+const (
+	// GuardianRoleClassRestricted is every role without parents-portal
+	// access that a confirmed invitation may upgrade to a legal guardian.
+	GuardianRoleClassRestricted GuardianRoleClass = iota
+	// GuardianRoleClassFull is a full guardian preset (primary, legal or
+	// co-guardian).
+	GuardianRoleClassFull
+	// GuardianRoleClassSocialWorker is the school-managed social worker
+	// preset, which no invitation may upgrade.
+	GuardianRoleClassSocialWorker
+)
+
+// ClassifyGuardianRole reports the class of a stored relationship role.
+func ClassifyGuardianRole(role string) GuardianRoleClass {
+	switch {
+	case IsFullGuardianRole(role):
+		return GuardianRoleClassFull
+	case authorize.NormalizeGuardianRole(role) == GuardianRoleSocialWorker:
+		return GuardianRoleClassSocialWorker
+	default:
+		return GuardianRoleClassRestricted
+	}
+}

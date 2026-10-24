@@ -6,12 +6,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/services"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/moto-nrw/project-phoenix/workflows/shiftplansync"
 	"github.com/moto-nrw/project-phoenix/workflows/shiftplansync/compose"
@@ -24,12 +24,14 @@ import (
 // rebuilds a cancelled shift's covers and the per-staff write lock, while the
 // retained timetable planning services serve the Betreuungsplan staffing.
 type planSyncEnv struct {
-	db        *bun.DB
-	repos     repositories.TimetableTestRepositories
-	timetable services.TimetableTestModule
-	shifts    workforce.Capability
-	planning  workforce.StaffShiftPlanning
-	lock      func(context.Context, int64) error
+	db    *bun.DB
+	repos owners.TimetableTestRepositories
+	// deviations is the Änderungsprotokoll the suites read back.
+	deviations api.TimetableDeviationAudit
+	timetable  api.TimetableTestModule
+	shifts     workforce.Capability
+	Planning   workforce.StaffShiftPlanning
+	Lock       func(context.Context, int64) error
 	// cascade and substitution are the workflow's two halves, bound the way
 	// the composition root binds them.
 	cascade      shiftplansync.SickCascade
@@ -48,28 +50,34 @@ func newPlanSyncEnv(t *testing.T, cascadeBroadcaster realtime.Broadcaster, now f
 	if now != nil {
 		clocks = append(clocks, now)
 	}
-	today := timezone.CalendarDateClock(clocks...)
+	today := calendar.CalendarDateClock(clocks...)
 
-	repos, err := repositories.NewTimetableTestRepositories(db, clocks...)
+	repos, err := api.NewTimetableTestRepositories(testpkg.NewDatabase(t, db), clocks...)
 	require.NoError(t, err)
-	timetable, err := services.NewTimetableTestModule(db, testpkg.TenantRuntime(t, db), clocks...)
+	members := owners.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db))
+	rooms, err := owners.NewTimetableRoomRows(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	membership, err := repositories.NewSchoolMembership(db)
+	schoolCalendar, err := api.NewTimetableSchoolCalendar(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	capability, err := repositories.NewWorkforce(db, membership)
+	deviations := api.NewTimetableDeviationAudit(testpkg.NewDatabase(t, db))
+	timetable, _, realtimeHub, err := api.NewTimetableTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), clocks...)
+	require.NoError(t, err)
+	membership, err := owners.NewSchoolMembership(testpkg.NewDatabase(t, db))
+	require.NoError(t, err)
+	capability, err := owners.NewWorkforce(testpkg.NewDatabase(t, db), membership)
 	require.NoError(t, err)
 
 	shiftPlanning, err := workforceCompose.NewShiftPlanning(workforceCompose.ShiftPlanningDependencies{
 		Workforce:       capability,
-		Staff:           repos.Staff,
-		CalendarPeriods: repos.SchoolCalendar(),
-		DeviationEvents: repos.DeviationEvent,
-		Instances:       repositories.NewTimetableInstanceReads(repos.ActivityInstance),
-		InstanceStaff:   repositories.NewTimetableInstanceStaffReads(repos.InstanceStaff),
-		Rooms:           repos.Room,
-		ActivityGroups:  repositories.NewTimetableGroupReads(repos.ActivityGroup),
+		Staff:           owners.NewPlanStaffDirectory(members.Staff),
+		CalendarPeriods: schoolCalendar.SchoolCalendar(),
+		ShiftMoveAudit:  owners.NewShiftMoveAudit(deviations.DeviationEvent),
+		Instances:       repos.InstanceReads(),
+		InstanceStaff:   repos.InstanceStaffReads(),
+		Rooms:           owners.NewTimetableRoomNames(rooms.Facilities),
+		ActivityGroups:  repos.GroupReads(),
 		DB:              db,
-		Broadcaster:     timetable.RealtimeHub,
+		Broadcaster:     realtimeHub,
 		Logger:          logger,
 		Today:           today,
 	})
@@ -79,7 +87,7 @@ func newPlanSyncEnv(t *testing.T, cascadeBroadcaster realtime.Broadcaster, now f
 
 	broadcaster := cascadeBroadcaster
 	if broadcaster == nil {
-		broadcaster = timetable.RealtimeHub
+		broadcaster = realtimeHub
 	}
 	lock := workforceCompose.NewStaffShiftLock(db)
 	cascade, err := compose.NewSickCascade(compose.SickCascadeDependencies{
@@ -87,8 +95,8 @@ func newPlanSyncEnv(t *testing.T, cascadeBroadcaster realtime.Broadcaster, now f
 		Workforce:       capability,
 		LockStaffShifts: lock,
 		Deviations:      timetable.TimetableData.Deviations,
-		TimetableData:   services.NewSickCascadeTimetableRows(repos.OwnerRows(), db),
-		InstanceStaff:   repositories.NewTimetableInstanceStaffReads(repos.InstanceStaff),
+		TimetableData:   api.NewSickCascadeTimetableRows(repos.OwnerRows(), testpkg.NewDatabase(t, db)),
+		InstanceStaff:   repos.InstanceStaffReads(),
 		Broadcaster:     broadcaster,
 		Logger:          logger,
 		Today:           today,
@@ -96,21 +104,23 @@ func newPlanSyncEnv(t *testing.T, cascadeBroadcaster realtime.Broadcaster, now f
 	require.NoError(t, err)
 	substitution, err := compose.NewSubstitution(compose.SubstitutionDependencies{
 		Deviations:        timetable.TimetableData.Deviations,
-		ActivityInstances: repositories.NewTimetableInstanceReads(repos.ActivityInstance),
-		InstanceStaff:     repositories.NewTimetableInstanceStaffReads(repos.InstanceStaff),
-		Staff:             repos.Staff,
+		ActivityInstances: repos.InstanceReads(),
+		InstanceStaff:     repos.InstanceStaffReads(),
+		Staff:             owners.NewPlanStaffDirectory(members.Staff),
 		Broadcaster:       broadcaster,
 		Logger:            logger,
+		Runtime:           testpkg.TenantTransactionRuntime{},
 	})
 	require.NoError(t, err)
 
 	return planSyncEnv{
 		db:           db,
 		repos:        repos,
+		deviations:   deviations,
 		timetable:    timetable,
 		shifts:       capability,
-		planning:     planning,
-		lock:         lock,
+		Planning:     planning,
+		Lock:         lock,
 		cascade:      cascade,
 		substitution: substitution,
 	}

@@ -141,3 +141,25 @@ func DecisionDiff(raw json.RawMessage) ([]DiffEntry, error) {
 	}
 	return result, nil
 }
+
+// CheckStoredJSON reports a request whose stored payload or decision
+// snapshot does not decode as a JSON object, as the retained repository did
+// when it mapped every listed row. An empty or null document is fine.
+func (r Request) CheckStoredJSON() error {
+	var payload map[string]any
+	if err := unmarshalOptionalJSON(r.Payload, &payload); err != nil {
+		return fmt.Errorf("decode offering change payload: %w", err)
+	}
+	var snapshot map[string]any
+	if err := unmarshalOptionalJSON(r.DecisionSnapshot, &snapshot); err != nil {
+		return fmt.Errorf("decode offering change decision snapshot: %w", err)
+	}
+	return nil
+}
+
+func unmarshalOptionalJSON(data json.RawMessage, target any) error {
+	if len(data) == 0 || string(data) == "null" {
+		return nil
+	}
+	return json.Unmarshal(data, target)
+}

@@ -3,18 +3,23 @@ package application
 import (
 	"context"
 
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 )
 
-func (s *Service) FindActivityException(ctx context.Context, id int64) (result domain.ActivityException, err error) {
-	err = s.run("find_activity_exception", func(stats *domain.OperationStats) error {
+func (s *Service) FindActivityException(ctx context.Context, id int64) (result timetable.ActivityException, err error) {
+	if id <= 0 {
+		return timetable.ActivityException{}, s.reject("find_activity_exception", timetable.ErrInvalidActivityExceptionQuery)
+	}
+
+	err = s.run(ctx, "find_activity_exception", func(ctx context.Context, stats *domain.OperationStats) error {
 		value, found, queryStats, findErr := s.store.FindActivityException(ctx, id)
 		stats.Add(queryStats)
 		if findErr != nil {
 			return findErr
 		}
 		if !found {
-			return domain.ErrActivityExceptionNotFound
+			return timetable.ErrActivityExceptionNotFound
 		}
 		result = value
 		return nil
@@ -22,8 +27,12 @@ func (s *Service) FindActivityException(ctx context.Context, id int64) (result d
 	return result, err
 }
 
-func (s *Service) ListActivityExceptions(ctx context.Context, filter domain.ActivityExceptionFilter) (result []domain.ActivityException, err error) {
-	err = s.run("list_activity_exceptions", func(stats *domain.OperationStats) error {
+func (s *Service) ListActivityExceptions(ctx context.Context, filter timetable.ActivityExceptionFilter) (result []timetable.ActivityException, err error) {
+	if !validActivityExceptionFilter(filter) {
+		return nil, s.reject("list_activity_exceptions", timetable.ErrInvalidActivityExceptionQuery)
+	}
+
+	err = s.run(ctx, "list_activity_exceptions", func(ctx context.Context, stats *domain.OperationStats) error {
 		values, queryStats, listErr := s.store.ListActivityExceptions(ctx, filter)
 		stats.Add(queryStats)
 		result = values
@@ -33,7 +42,11 @@ func (s *Service) ListActivityExceptions(ctx context.Context, filter domain.Acti
 }
 
 func (s *Service) CountActivityExceptions(ctx context.Context, before *string) (result int, err error) {
-	err = s.run("count_activity_exceptions", func(stats *domain.OperationStats) error {
+	if !validOptionalDate(before) {
+		return 0, s.reject("count_activity_exceptions", timetable.ErrInvalidActivityExceptionQuery)
+	}
+
+	err = s.run(ctx, "count_activity_exceptions", func(ctx context.Context, stats *domain.OperationStats) error {
 		count, queryStats, countErr := s.store.CountActivityExceptions(ctx, before)
 		stats.Add(queryStats)
 		result = count
@@ -43,7 +56,11 @@ func (s *Service) CountActivityExceptions(ctx context.Context, before *string) (
 }
 
 func (s *Service) OldestActivityExceptionBefore(ctx context.Context, before *string) (result *string, err error) {
-	err = s.run("oldest_activity_exception", func(stats *domain.OperationStats) error {
+	if !validOptionalDate(before) {
+		return nil, s.reject("oldest_activity_exception", timetable.ErrInvalidActivityExceptionQuery)
+	}
+
+	err = s.run(ctx, "oldest_activity_exception", func(ctx context.Context, stats *domain.OperationStats) error {
 		value, queryStats, findErr := s.store.OldestActivityExceptionBefore(ctx, before)
 		stats.Add(queryStats)
 		result = value
@@ -52,7 +69,11 @@ func (s *Service) OldestActivityExceptionBefore(ctx context.Context, before *str
 	return result, err
 }
 
-func (s *Service) CreateActivityException(ctx context.Context, fields domain.ActivityExceptionFields) (result domain.ActivityException, err error) {
+func (s *Service) CreateActivityException(ctx context.Context, fields timetable.ActivityExceptionInput) (result timetable.ActivityException, err error) {
+	if !validActivityException(fields) {
+		return timetable.ActivityException{}, s.reject("create_activity_exception", timetable.ErrInvalidActivityException)
+	}
+
 	err = s.runWrite(ctx, "create_activity_exception", true, func(txCtx context.Context, stats *domain.OperationStats) error {
 		value, queryStats, createErr := s.store.CreateActivityException(txCtx, fields)
 		stats.Add(queryStats)
@@ -62,7 +83,11 @@ func (s *Service) CreateActivityException(ctx context.Context, fields domain.Act
 	return result, err
 }
 
-func (s *Service) UpdateActivityException(ctx context.Context, id int64, fields domain.ActivityExceptionFields) (result domain.ActivityException, err error) {
+func (s *Service) UpdateActivityException(ctx context.Context, id int64, fields timetable.ActivityExceptionInput) (result timetable.ActivityException, err error) {
+	if id <= 0 || !validActivityException(fields) {
+		return timetable.ActivityException{}, s.reject("update_activity_exception", timetable.ErrInvalidActivityException)
+	}
+
 	err = s.runWrite(ctx, "update_activity_exception", true, func(txCtx context.Context, stats *domain.OperationStats) error {
 		value, found, queryStats, updateErr := s.store.UpdateActivityException(txCtx, id, fields)
 		stats.Add(queryStats)
@@ -70,7 +95,7 @@ func (s *Service) UpdateActivityException(ctx context.Context, id int64, fields 
 			return updateErr
 		}
 		if !found {
-			return domain.ErrActivityExceptionNotFound
+			return timetable.ErrActivityExceptionNotFound
 		}
 		result = value
 		return nil
@@ -79,6 +104,10 @@ func (s *Service) UpdateActivityException(ctx context.Context, id int64, fields 
 }
 
 func (s *Service) DeleteActivityException(ctx context.Context, id int64) error {
+	if id <= 0 {
+		return s.reject("delete_activity_exception", timetable.ErrInvalidActivityException)
+	}
+
 	return s.runWrite(ctx, "delete_activity_exception", true, func(txCtx context.Context, stats *domain.OperationStats) error {
 		queryStats, err := s.store.DeleteActivityException(txCtx, id)
 		stats.Add(queryStats)
@@ -87,6 +116,10 @@ func (s *Service) DeleteActivityException(ctx context.Context, id int64) error {
 }
 
 func (s *Service) DeleteActivityExceptionsBefore(ctx context.Context, before string) (result int64, err error) {
+	if !timetable.ValidDate(before) {
+		return 0, s.reject("delete_activity_exceptions_before", timetable.ErrInvalidActivityException)
+	}
+
 	err = s.runWrite(ctx, "delete_activity_exceptions_before", true, func(txCtx context.Context, stats *domain.OperationStats) error {
 		rows, queryStats, deleteErr := s.store.DeleteActivityExceptionsBefore(txCtx, before)
 		stats.Add(queryStats)

@@ -9,14 +9,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/devicescan"
-	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/ports"
+	"github.com/moto-nrw/project-phoenix/modules/devicescan/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 func attendanceState() *ports.AttendanceState {
 	checkIn := fixedNow.Add(-2 * time.Hour)
-	return &ports.AttendanceState{Status: "checked_in", Date: timezone.NewDate(2026, 8, 5), CheckInTime: &checkIn, CheckedInBy: "Staff Member"}
+	return &ports.AttendanceState{Status: "checked_in", Date: calendar.NewDate(2026, 8, 5), CheckInTime: &checkIn, CheckedInBy: "Staff Member"}
 }
 
 func TestAttendanceStatus(t *testing.T) {

@@ -291,10 +291,6 @@ vi.mock("~/lib/substitution-api", () => ({
   },
 }));
 
-vi.mock("~/lib/pickup-schedule-api", () => ({
-  fetchBulkPickupTimes: vi.fn(() => Promise.resolve(new Map())),
-}));
-
 vi.mock("~/lib/pickup-helpers", () => ({
   useMinuteClock: () => new Date(),
 }));

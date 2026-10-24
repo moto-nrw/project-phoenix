@@ -6,6 +6,7 @@ import { withTenantAuth } from "~/server/auth/tenant-route";
 import { incomingAnalyticsSessionHeaders } from "~/lib/analytics-session-header.server";
 import { createLogger } from "~/lib/logger";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
+import { problemResponse } from "~/lib/api-helpers.server";
 
 const logger = createLogger({ component: "EnrollmentPhaseExportRoute" });
 
@@ -13,7 +14,12 @@ interface RouteContext {
   params: Promise<{ id: string }>;
 }
 
-async function proxyExport(phaseId: string, body: string, token: string) {
+async function proxyExport(
+  request: NextRequest,
+  phaseId: string,
+  body: string,
+  token: string,
+) {
   const { getServerApiUrl } = await import("~/lib/server-api-url");
   const response = await fetch(
     `${getServerApiUrl()}/api/enrollment/phases/${encodeURIComponent(phaseId)}/export`,
@@ -30,7 +36,7 @@ async function proxyExport(phaseId: string, body: string, token: string) {
   );
 
   if (!response.ok) {
-    return forwardBackendResponse(response);
+    return forwardBackendResponse(response, request);
   }
 
   const contentType =
@@ -49,12 +55,12 @@ async function POSTHandler(request: NextRequest, context: RouteContext) {
   try {
     const session = await auth();
     if (!session?.user?.token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return problemResponse(401, "Unauthorized", request);
     }
 
     const { id } = await context.params;
     const body = await request.text();
-    const response = await proxyExport(id, body, session.user.token);
+    const response = await proxyExport(request, id, body, session.user.token);
     if (response.status !== 401) return response;
 
     const refreshed = await uncachedAuth();
@@ -64,12 +70,12 @@ async function POSTHandler(request: NextRequest, context: RouteContext) {
     ) {
       return response;
     }
-    return proxyExport(id, body, refreshed.user.token);
+    return proxyExport(request, id, body, refreshed.user.token);
   } catch (error) {
     captureBffException(error, request);
     const message = error instanceof Error ? error.message : "Export failed";
     logger.error("enrollment_phase_export_route_failed", { error: message });
-    return NextResponse.json({ error: message }, { status: 500 });
+    return problemResponse(500, message, request);
   }
 }
 

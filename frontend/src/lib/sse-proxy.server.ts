@@ -74,7 +74,7 @@ export async function proxySSEStream(
       logger.error("SSE backend connection failed", {
         status: backendResponse.status,
       });
-      return forwardBackendResponse(backendResponse);
+      return forwardBackendResponse(backendResponse, request);
     }
 
     if (!backendResponse.body) {

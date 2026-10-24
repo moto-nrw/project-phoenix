@@ -1143,7 +1143,7 @@ describe("staff-api", () => {
       expect(result[0]?.workStatus).toBe("present");
     });
 
-    it("returns Homeoffice for home_office work status (priority 4)", async () => {
+    it("returns Unterwegs for home_office work status (priority 4)", async () => {
       const staffHomeOffice: BackendStaffResponse = {
         ...sampleBackendStaff,
         work_status: "home_office",
@@ -1170,7 +1170,7 @@ describe("staff-api", () => {
       const result = await staffService.getAllStaff();
 
       expect(result[0]?.isSupervising).toBe(false);
-      expect(result[0]?.currentLocation).toBe("Homeoffice");
+      expect(result[0]?.currentLocation).toBe("Unterwegs");
       expect(result[0]?.workStatus).toBe("home_office");
     });
 
@@ -1309,7 +1309,152 @@ describe("staff-api", () => {
     });
   });
 
+  describe("external caregivers (#4573)", () => {
+    const externalRecord = {
+      ...sampleBackendStaff,
+      id: "88",
+      name: "Lea Gast",
+      firstName: "Lea",
+      lastName: "Gast",
+      is_external: true,
+      external_organization: "Musikschule",
+      external_account_status: "invitation_pending" as const,
+    };
+
+    it("creates an external caregiver with access and invitation address", async () => {
+      const mockFetch = vi.mocked(globalThis.fetch);
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ data: externalRecord }),
+      } as Response);
+
+      const staff = await staffService.createExternal({
+        firstName: " Lea ",
+        lastName: "Gast",
+        email: " lea@example.test ",
+        organization: "Musikschule",
+        access: "supervise",
+      });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/staff/externals",
+        expect.objectContaining({ method: "POST" }),
+      );
+      const init = mockFetch.mock.calls[0]?.[1];
+      expect(JSON.parse(String(init?.body))).toEqual({
+        first_name: "Lea",
+        last_name: "Gast",
+        email: "lea@example.test",
+        organization: "Musikschule",
+        access: "supervise",
+      });
+      expect(staff).toMatchObject({
+        id: "88",
+        isExternal: true,
+        externalOrganization: "Musikschule",
+        externalAccountStatus: "invitation_pending",
+      });
+    });
+
+    // ADR 0091: Kein Zugang sends no email, even a typed one.
+    it("creates Kein Zugang without an email address", async () => {
+      const mockFetch = vi.mocked(globalThis.fetch);
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: { ...externalRecord, external_account_status: "none" },
+          }),
+      } as Response);
+
+      const staff = await staffService.createExternal({
+        firstName: "Lea",
+        lastName: "Gast",
+        email: "lea@example.test",
+        access: "none",
+      });
+
+      const init = mockFetch.mock.calls[0]?.[1];
+      expect(JSON.parse(String(init?.body))).toEqual({
+        first_name: "Lea",
+        last_name: "Gast",
+        organization: "",
+        access: "none",
+      });
+      expect(staff.externalAccountStatus).toBe("none");
+    });
+
+    it("invites an existing external caregiver under its id", async () => {
+      const mockFetch = vi.mocked(globalThis.fetch);
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ data: externalRecord }),
+      } as Response);
+
+      const staff = await staffService.inviteExternal(
+        "9007199254740993",
+        "lea@example.test",
+        "view",
+      );
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/staff/externals/9007199254740993/invitation",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ email: "lea@example.test", access: "view" }),
+        }),
+      );
+      expect(staff.externalAccountStatus).toBe("invitation_pending");
+    });
+
+    it("throws the API error of a refused invitation", async () => {
+      vi.mocked(globalThis.fetch).mockResolvedValueOnce({
+        ok: false,
+        status: 409,
+        statusText: "Conflict",
+        headers: new Headers({ "Content-Type": "application/problem+json" }),
+        text: () =>
+          Promise.resolve(
+            JSON.stringify({
+              status: 409,
+              code: "identity.account_already_has_tenant_access",
+              detail: "has access",
+            }),
+          ),
+        json: () =>
+          Promise.resolve({
+            status: 409,
+            code: "identity.account_already_has_tenant_access",
+            detail: "has access",
+          }),
+      } as Response);
+
+      await expect(
+        staffService.inviteExternal("12", "lea@example.test", "supervise"),
+      ).rejects.toMatchObject({
+        status: 409,
+        code: "identity.account_already_has_tenant_access",
+      });
+    });
+  });
+
   describe("staffService.getStaffById", () => {
+    it("maps the retained employment period without converting calendar dates", async () => {
+      vi.mocked(globalThis.fetch).mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              ...sampleBackendStaff,
+              started_on: "2024-09-02",
+              ended_on: "2026-07-31",
+            },
+          }),
+      } as Response);
+      const staff = await staffService.getStaffById("1");
+      expect(staff.startedOn).toBe("2024-09-02");
+      expect(staff.endedOn).toBe("2026-07-31");
+    });
     it("fetches and maps a single staff member", async () => {
       const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
       mockFetch.mockResolvedValueOnce({
@@ -1337,6 +1482,35 @@ describe("staff-api", () => {
       expect(result.employmentType).toBe("mini_job");
       expect(result.isExternal).toBe(true);
       expect(result.externalOrganization).toBe("Musikschule Bergstadt");
+    });
+
+    it("addresses the profile picture through the staff avatar route", async () => {
+      vi.mocked(globalThis.fetch).mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              ...sampleBackendStaff,
+              avatar: "/uploads/avatars/global/lea.png",
+            },
+          }),
+      } as Response);
+
+      const staff = await staffService.getStaffById("1");
+
+      expect(staff.avatarUrl).toBe("/api/staff/1/avatar");
+    });
+
+    it("leaves the profile picture empty without a stored avatar", async () => {
+      vi.mocked(globalThis.fetch).mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({ data: { ...sampleBackendStaff, avatar: null } }),
+      } as Response);
+
+      const staff = await staffService.getStaffById("1");
+
+      expect(staff.avatarUrl).toBeUndefined();
     });
 
     it("throws when the staff member request fails", async () => {
@@ -1953,7 +2127,7 @@ describe("staff-api", () => {
         ok: false,
         status: 409,
         text: () =>
-          Promise.resolve(JSON.stringify({ error: "rejected", code })),
+          Promise.resolve(JSON.stringify({ detail: "rejected", code })),
       } as Response);
 
       const failure = staffAbsenceService.setVacationOpening("4", {
@@ -1972,13 +2146,13 @@ describe("staff-api", () => {
         status: 404,
         text: () =>
           Promise.resolve(
-            JSON.stringify({ error: "Keine Übernahme für dieses Jahr" }),
+            JSON.stringify({ detail: "Keine Übernahme für dieses Jahr" }),
           ),
       } as Response);
 
       await expect(
         staffAbsenceService.deleteVacationOpening("4", 2026),
-      ).rejects.toThrow("Keine Übernahme für dieses Jahr");
+      ).rejects.toThrow("Löschen fehlgeschlagen");
     });
 
     it("deletes a takeover for the given year", async () => {
@@ -2008,7 +2182,7 @@ describe("staff-api", () => {
           text: () =>
             Promise.resolve(
               JSON.stringify({
-                error: "vacation quota exceeded: 2026: remaining -2",
+                detail: "vacation quota exceeded: 2026: remaining -2",
                 code: "workforce.vacation_quota_below_used",
               }),
             ),
@@ -2087,7 +2261,7 @@ describe("staff-api", () => {
         text: () =>
           Promise.resolve(
             JSON.stringify({
-              error: "vacation quota exceeded: 2026: remaining 1, needed 3",
+              detail: "vacation quota exceeded: 2026: remaining 1, needed 3",
               code: "workforce.vacation_quota_exceeded",
             }),
           ),
@@ -2238,15 +2412,15 @@ describe("staff-api", () => {
     it.each([
       {
         code: "workforce.vacation_quota_exceeded",
-        error: "vacation quota exceeded",
+        detail: "vacation quota exceeded",
       },
       {
         code: "workforce.absence_allowance_exceeded",
-        error: "staff absence type allowance exceeded",
+        detail: "staff absence type allowance exceeded",
       },
       {
         code: "workforce.absence_overlap",
-        error: "dates overlap with an existing absence",
+        detail: "dates overlap with an existing absence",
       },
     ])("keeps the code of a refused booking (#3256): %o", async (payload) => {
       const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
@@ -2328,7 +2502,7 @@ describe("staff-api", () => {
           Promise.resolve(
             JSON.stringify({
               code: "workforce.absence_rebooking_blocked",
-              error: "Der August 2026 ist abgeschlossen.",
+              detail: "Der August 2026 ist abgeschlossen.",
             }),
           ),
       } as Response);
@@ -2354,7 +2528,7 @@ describe("staff-api", () => {
           Promise.resolve(
             JSON.stringify({
               code: "workforce.absence_allowance_exceeded",
-              error: "staff absence type allowance exceeded",
+              detail: "staff absence type allowance exceeded",
             }),
           ),
       } as Response);
@@ -2540,7 +2714,7 @@ describe("staff-api", () => {
         text: () =>
           Promise.resolve(
             JSON.stringify({
-              error: "database unavailable",
+              detail: "database unavailable",
               code: "general.server",
               instance: "req-session-write",
             }),
@@ -2562,7 +2736,7 @@ describe("staff-api", () => {
       const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
       const overlapBody = JSON.stringify({
         status: "error",
-        error: "work session overlaps an existing block (08:00-12:00)",
+        detail: "work session overlaps an existing block (08:00-12:00)",
         code: "workforce.work_session_overlap",
       });
       mockFetch
@@ -2732,7 +2906,7 @@ describe("staff-api", () => {
         text: () =>
           Promise.resolve(
             JSON.stringify({
-              error: "balance adjustment exceeds accrued balance",
+              detail: "balance adjustment exceeds accrued balance",
               code: "workforce.balance_adjustment_exceeds_balance",
             }),
           ),
@@ -2759,7 +2933,7 @@ describe("staff-api", () => {
         text: () =>
           Promise.resolve(
             JSON.stringify({
-              error: "balance adjustment exceeds accrued balance",
+              detail: "balance adjustment exceeds accrued balance",
               code: "workforce.balance_adjustment_exceeds_balance",
             }),
           ),
@@ -2785,7 +2959,7 @@ describe("staff-api", () => {
         text: () =>
           Promise.resolve(
             JSON.stringify({
-              error: "balance adjustment exceeds accrued balance",
+              detail: "balance adjustment exceeds accrued balance",
               code: "workforce.balance_adjustment_exceeds_balance",
             }),
           ),
@@ -2820,7 +2994,7 @@ describe("staff-api", () => {
           text: () =>
             Promise.resolve(
               JSON.stringify({
-                error: "duplicate",
+                detail: "duplicate",
                 code: "workforce.balance_already_reset",
               }),
             ),
@@ -2831,7 +3005,7 @@ describe("staff-api", () => {
           text: () =>
             Promise.resolve(
               JSON.stringify({
-                error: "dependent",
+                detail: "dependent",
                 code: "workforce.dependent_balance_reset",
               }),
             ),
@@ -2929,7 +3103,7 @@ describe("staff-api", () => {
         ok: false,
         status: 409,
         text: () =>
-          Promise.resolve(JSON.stringify({ error: "rejected", code })),
+          Promise.resolve(JSON.stringify({ detail: "rejected", code })),
       } as Response);
 
       const failure = staffBalanceAdjustmentService.createOpening("4", {
@@ -2948,7 +3122,7 @@ describe("staff-api", () => {
         status: 400,
         text: () =>
           Promise.resolve(
-            JSON.stringify({ error: "Stichtag liegt in der Zukunft" }),
+            JSON.stringify({ detail: "Stichtag liegt in der Zukunft" }),
           ),
       } as Response);
 
@@ -2958,7 +3132,7 @@ describe("staff-api", () => {
           balanceMinutes: 600,
           note: "Übernahme",
         }),
-      ).rejects.toThrow("Stichtag liegt in der Zukunft");
+      ).rejects.toThrow("Eröffnungssaldo fehlgeschlagen");
     });
   });
 
@@ -3252,7 +3426,7 @@ describe("staff-api", () => {
           Promise.resolve(
             JSON.stringify({
               code: "workforce.stammdaten_invalid",
-              error: "invalid IBAN checksum",
+              detail: "invalid IBAN checksum",
             }),
           ),
       } as unknown as Response);
@@ -3277,7 +3451,7 @@ describe("staff-api", () => {
         ok: false,
         statusText: "Conflict",
         text: () =>
-          Promise.resolve(JSON.stringify({ error: "Mitarbeiter gesperrt" })),
+          Promise.resolve(JSON.stringify({ detail: "Mitarbeiter gesperrt" })),
       } as unknown as Response);
 
       await expect(
@@ -3294,7 +3468,7 @@ describe("staff-api", () => {
           },
           "",
         ),
-      ).rejects.toThrow("Mitarbeiter gesperrt");
+      ).rejects.toThrow("Stammdaten konnten nicht gespeichert werden");
     });
 
     it("falls back to the generic save message on an empty error body", async () => {

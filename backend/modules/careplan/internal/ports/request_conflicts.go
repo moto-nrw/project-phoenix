@@ -15,7 +15,9 @@ type RequestConflictRecords interface {
 
 type RequestConflictPlans interface {
 	LockStudentAndExceptionDay(context.Context, int64, string) error
-	ActingStaffID(context.Context) (int64, error)
+	// CurrentStaffID is the caller's staff profile; found is false when the
+	// caller has none.
+	CurrentStaffID(context.Context) (staffID int64, found bool, err error)
 	SaveApprovedException(context.Context, int64, int64, calendar.Date, time.Time, string, int64) (int64, error)
 	Sync(context.Context, int64) error
 	UpsertStudentPickupSchedule(context.Context, *careplan.PickupSchedule) error

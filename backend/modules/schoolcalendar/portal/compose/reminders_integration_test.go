@@ -6,37 +6,43 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
+	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
+	calModels "github.com/moto-nrw/project-phoenix/modules/appointments"
 	calendarSvc "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
-	calendarRuntime "github.com/moto-nrw/project-phoenix/services"
+	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+// The notification types the calendar addresses its guardian notifications
+// and the guardians' opt-outs by.
+const (
+	notificationTypeParentAppointment         = "parent_appointment"
+	notificationTypeParentAppointmentReminder = "parent_appointment_reminder"
+)
+
 type reminderCaptureNotifier struct {
-	events []notifications.Event
+	events []calendarCompose.Notification
 	err    error
 }
 
-func (n *reminderCaptureNotifier) Notify(_ context.Context, event notifications.Event) error {
-	if n.err != nil {
-		return n.err
-	}
+func (n *reminderCaptureNotifier) Notify(_ context.Context, event calendarCompose.Notification) error {
 	n.events = append(n.events, event)
 	return nil
 }
 
-func (n *reminderCaptureNotifier) NotifySynchronously(ctx context.Context, event notifications.Event) error {
+func (n *reminderCaptureNotifier) NotifySynchronously(ctx context.Context, event calendarCompose.Notification) error {
+	// Transport failure belongs to synchronous delivery, not lifecycle enqueue.
+	if n.err != nil {
+		return n.err
+	}
 	return n.Notify(ctx, event)
 }
 
-type reminderPreferences struct {
-	notifications.PreferenceService
-}
+type reminderPreferences struct{}
 
 func (reminderPreferences) FilterNotOptedOut(_ context.Context, _ string, accountIDs []int64) ([]int64, error) {
 	return accountIDs, nil
@@ -51,7 +57,6 @@ func (reminderPreferences) FilterOptedIn(_ context.Context, _ string, accountIDs
 // behind the same explicit-opt-out gate, so a type-blind double would suppress
 // both and no test could tell which gate it proved.
 type optedOutAppointmentPreferences struct {
-	notifications.PreferenceService
 	optedOutType string
 }
 
@@ -107,20 +112,20 @@ func TestCalendarServiceIntegration_AppointmentReminders(t *testing.T) {
 
 	t.Run("a window that does not contain the start queues nothing", func(t *testing.T) {
 		before := len(outbox.enqueued)
-		queued, err := testutil.ComposeCalendarReminderCommand(db, service).EnqueueDueAppointmentReminders(ctx, startsAt.Add(-2*time.Hour), startsAt.Add(-time.Hour))
+		queued, err := api.NewCalendarReminderCommand(testpkg.NewDatabase(t, db), service).EnqueueDueAppointmentReminders(ctx, startsAt.Add(-2*time.Hour), startsAt.Add(-time.Hour))
 		require.NoError(t, err)
 		assert.Zero(t, queued)
 		assert.Len(t, outbox.enqueued, before)
 	})
 
 	t.Run("a window containing the start queues one reminder per guardian", func(t *testing.T) {
-		queued, err := testutil.ComposeCalendarReminderCommand(db, service).EnqueueDueAppointmentReminders(ctx, startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute))
+		queued, err := api.NewCalendarReminderCommand(testpkg.NewDatabase(t, db), service).EnqueueDueAppointmentReminders(ctx, startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute))
 		require.NoError(t, err)
 		require.Equal(t, 1, queued)
 
 		last := outbox.enqueued[len(outbox.enqueued)-1]
-		assert.Equal(t, platformModels.EmailKindAppointmentReminder, last.Kind)
-		assert.Equal(t, platformModels.EmailRelatedTypeAppointment, last.RelatedEntityType)
+		assert.Equal(t, emailKindAppointmentReminder, last.Kind)
+		assert.Equal(t, emailRelatedTypeAppointment, last.RelatedEntityType)
 		assert.Equal(t, detail.Appointment.ID, last.RelatedEntityID)
 		assert.NotEmpty(t, last.IdempotencyKey,
 			"without a key a second tick would mail the same occurrence again")
@@ -133,14 +138,14 @@ func TestCalendarServiceIntegration_AppointmentReminders(t *testing.T) {
 		// An occurrence exactly at `to` belongs to the NEXT window. Without this
 		// the adjacent windows the scheduler produces would both claim it.
 		before := len(outbox.enqueued)
-		queued, err := testutil.ComposeCalendarReminderCommand(db, service).EnqueueDueAppointmentReminders(ctx, startsAt.Add(-time.Hour), startsAt)
+		queued, err := api.NewCalendarReminderCommand(testpkg.NewDatabase(t, db), service).EnqueueDueAppointmentReminders(ctx, startsAt.Add(-time.Hour), startsAt)
 		require.NoError(t, err)
 		assert.Zero(t, queued)
 		assert.Len(t, outbox.enqueued, before)
 	})
 
 	t.Run("an inverted window is refused rather than scanned", func(t *testing.T) {
-		queued, err := testutil.ComposeCalendarReminderCommand(db, service).EnqueueDueAppointmentReminders(ctx, startsAt, startsAt.Add(-time.Hour))
+		queued, err := api.NewCalendarReminderCommand(testpkg.NewDatabase(t, db), service).EnqueueDueAppointmentReminders(ctx, startsAt, startsAt.Add(-time.Hour))
 		require.NoError(t, err)
 		assert.Zero(t, queued)
 	})
@@ -156,9 +161,9 @@ func TestCalendarServiceIntegration_AppointmentReminderEmailHonorsOptOut(t *test
 	cfg := calendarTestConfig(t, db)
 	cfg.Outbox = outbox
 	cfg.ParentsURL = "https://parents.test"
-	cfg.Preferences = optedOutAppointmentPreferences{optedOutType: notifications.TypeParentAppointmentReminder}
+	cfg.Preferences = optedOutAppointmentPreferences{optedOutType: notificationTypeParentAppointmentReminder}
 	cfg.ReminderNotifier = notifier
-	service := calendarRuntime.NewCalendarPortal(cfg)
+	service := owners.NewCalendarPortal(cfg)
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Reminder", "Consent")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
 
@@ -180,12 +185,12 @@ func TestCalendarServiceIntegration_AppointmentReminderEmailHonorsOptOut(t *test
 	require.Len(t, outbox.enqueued, 1, "the lifecycle e-mail uses explicit opt-out semantics")
 
 	startsAt := berlinInstant(t, appointmentDate, 18, 0)
-	queued, err := testutil.ComposeCalendarReminderCommand(db, service).EnqueueDueAppointmentReminders(ctx, startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute))
+	queued, err := api.NewCalendarReminderCommand(testpkg.NewDatabase(t, db), service).EnqueueDueAppointmentReminders(ctx, startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute))
 	require.NoError(t, err)
 	assert.Zero(t, queued, "reminders must respect an explicit guardian opt-out")
 	assert.Len(t, outbox.enqueued, 1)
 	require.Len(t, notifier.events, 1, "an e-mail opt-out must not suppress an opted-in push")
-	assert.Equal(t, notifications.TypeParentAppointmentReminder, notifier.events[0].Type)
+	assert.Equal(t, notificationTypeParentAppointmentReminder, notifier.events[0].Type)
 }
 
 func TestCalendarServiceIntegration_AppointmentReminderPushesWithoutGuardianEmail(t *testing.T) {
@@ -201,7 +206,7 @@ func TestCalendarServiceIntegration_AppointmentReminderPushesWithoutGuardianEmai
 	cfg.Notifier = notifier
 	cfg.ReminderNotifier = notifier
 	cfg.Preferences = reminderPreferences{}
-	service := calendarRuntime.NewCalendarPortal(cfg)
+	service := owners.NewCalendarPortal(cfg)
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Reminder", "Organizer")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
 
@@ -230,20 +235,20 @@ func TestCalendarServiceIntegration_AppointmentReminderPushesWithoutGuardianEmai
 	notifier.events = nil // Ignore the appointment publication push.
 
 	startsAt := berlinInstant(t, appointmentDate, 18, 0)
-	queued, err := testutil.ComposeCalendarReminderCommand(db, service).EnqueueDueAppointmentReminders(ctx, startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute))
+	queued, err := api.NewCalendarReminderCommand(testpkg.NewDatabase(t, db), service).EnqueueDueAppointmentReminders(ctx, startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute))
 	require.NoError(t, err)
 	assert.Zero(t, queued, "an e-mail-less guardian has no outbox e-mail to queue")
 	require.Len(t, notifier.events, 1)
-	assert.Equal(t, notifications.TypeParentAppointmentReminder, notifier.events[0].Type)
+	assert.Equal(t, notificationTypeParentAppointmentReminder, notifier.events[0].Type)
 	assert.Equal(t, []int64{parentChain.AccountID}, notifier.events[0].Audience.GuardianAccountIDs)
 
-	queued, err = testutil.ComposeCalendarReminderCommand(db, service).EnqueueDueAppointmentReminders(ctx, startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute))
+	queued, err = api.NewCalendarReminderCommand(testpkg.NewDatabase(t, db), service).EnqueueDueAppointmentReminders(ctx, startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute))
 	require.NoError(t, err)
 	assert.Zero(t, queued)
 	assert.Len(t, notifier.events, 1, "the overlapping scheduler scan must not repeat the push")
 }
 
-func TestCalendarServiceIntegration_AppointmentReminderRetriesPushAfterDispatchFailure(t *testing.T) {
+func TestCalendarServiceIntegration_AppointmentReminderKeepsTransportFailureTerminal(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
@@ -256,7 +261,7 @@ func TestCalendarServiceIntegration_AppointmentReminderRetriesPushAfterDispatchF
 	cfg.Notifier = notifier
 	cfg.ReminderNotifier = notifier
 	cfg.Preferences = reminderPreferences{}
-	service := calendarRuntime.NewCalendarPortal(cfg)
+	service := owners.NewCalendarPortal(cfg)
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Reminder", "Retry")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
 
@@ -285,17 +290,16 @@ func TestCalendarServiceIntegration_AppointmentReminderRetriesPushAfterDispatchF
 	notifier.events = nil
 
 	startsAt := berlinInstant(t, appointmentDate, 18, 0)
-	queued, err := testutil.ComposeCalendarReminderCommand(db, service).EnqueueDueAppointmentReminders(ctx, startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute))
+	queued, err := api.NewCalendarReminderCommand(testpkg.NewDatabase(t, db), service).EnqueueDueAppointmentReminders(ctx, startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute))
 	require.Error(t, err)
 	assert.Zero(t, queued)
 	assert.Empty(t, notifier.events, "a failed dispatch must not be marked delivered")
 
 	notifier.err = nil
-	queued, err = testutil.ComposeCalendarReminderCommand(db, service).EnqueueDueAppointmentReminders(ctx, startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute))
-	require.NoError(t, err)
+	queued, err = api.NewCalendarReminderCommand(testpkg.NewDatabase(t, db), service).EnqueueDueAppointmentReminders(ctx, startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute))
+	require.ErrorContains(t, err, "temporary notification failure")
 	assert.Zero(t, queued)
-	require.Len(t, notifier.events, 1, "the next scan must retry the unclaimed push")
-	assert.Equal(t, []int64{parentChain.AccountID}, notifier.events[0].Audience.GuardianAccountIDs)
+	assert.Empty(t, notifier.events, "a terminal transport failure must not send again on the next scan")
 }
 
 // E-mail and push are separate channels. An installation without an e-mail
@@ -334,12 +338,12 @@ func TestCalendarServiceIntegration_AppointmentReminderPushesWithoutOutbox(t *te
 	cfg.Preferences = reminderPreferences{}
 
 	startsAt := berlinInstant(t, appointmentDate, 18, 0)
-	queued, err := testutil.ComposeCalendarReminderCommand(db, calendarRuntime.NewCalendarPortal(cfg)).
+	queued, err := api.NewCalendarReminderCommand(testpkg.NewDatabase(t, db), owners.NewCalendarPortal(cfg)).
 		EnqueueDueAppointmentReminders(ctx, startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute))
 	require.NoError(t, err)
 	assert.Zero(t, queued, "without an outbox there is no e-mail to queue")
 	require.Len(t, notifier.events, 1, "the push must not depend on the e-mail outbox")
-	assert.Equal(t, notifications.TypeParentAppointmentReminder, notifier.events[0].Type)
+	assert.Equal(t, notificationTypeParentAppointmentReminder, notifier.events[0].Type)
 	assert.Equal(t, []int64{parentChain.AccountID}, notifier.events[0].Audience.GuardianAccountIDs)
 }
 
@@ -353,13 +357,13 @@ func TestCalendarServiceIntegration_AppointmentReminderRetriesPushAfterMissingSu
 	db := testpkg.SetupTestDB(t)
 
 	outbox := &recordingOutbox{}
-	notifier := &reminderCaptureNotifier{err: notifications.ErrNoWebPushSubscribers}
+	notifier := &reminderCaptureNotifier{err: api.CalendarNoPushAudience()}
 	cfg := calendarTestConfig(t, db)
 	cfg.Outbox = outbox
 	cfg.ParentsURL = "https://parents.test"
 	cfg.ReminderNotifier = notifier
 	cfg.Preferences = reminderPreferences{}
-	service := calendarRuntime.NewCalendarPortal(cfg)
+	service := owners.NewCalendarPortal(cfg)
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Reminder", "NoPush")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
 
@@ -380,12 +384,12 @@ func TestCalendarServiceIntegration_AppointmentReminderRetriesPushAfterMissingSu
 
 	startsAt := berlinInstant(t, appointmentDate, 18, 0)
 	ctx := calendarContext(t, organizerAccount.ID)
-	queued, err := testutil.ComposeCalendarReminderCommand(db, service).EnqueueDueAppointmentReminders(ctx, startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute))
+	queued, err := api.NewCalendarReminderCommand(testpkg.NewDatabase(t, db), service).EnqueueDueAppointmentReminders(ctx, startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute))
 	require.NoError(t, err)
 	assert.Equal(t, 1, queued)
 
 	notifier.err = nil
-	queued, err = testutil.ComposeCalendarReminderCommand(db, service).EnqueueDueAppointmentReminders(ctx, startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute))
+	queued, err = api.NewCalendarReminderCommand(testpkg.NewDatabase(t, db), service).EnqueueDueAppointmentReminders(ctx, startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute))
 	require.NoError(t, err)
 	assert.Zero(t, queued, "the outbox key keeps the second scan from queueing the e-mail again")
 	require.Len(t, notifier.events, 1, "a missing push audience must not retain the claim")
@@ -401,8 +405,8 @@ func TestCalendarServiceIntegration_AppointmentLifecycleEmailHonorsOptOut(t *tes
 	cfg := calendarTestConfig(t, db)
 	cfg.Outbox = outbox
 	cfg.ParentsURL = "https://parents.test"
-	cfg.Preferences = optedOutAppointmentPreferences{optedOutType: notifications.TypeParentAppointment}
-	service := calendarRuntime.NewCalendarPortal(cfg)
+	cfg.Preferences = optedOutAppointmentPreferences{optedOutType: notificationTypeParentAppointment}
+	service := owners.NewCalendarPortal(cfg)
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Reminder", "Organizer")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
 
@@ -456,7 +460,7 @@ func TestCalendarServiceIntegration_CancelledAppointmentIsNotReminded(t *testing
 
 	before := len(outbox.enqueued)
 	startsAt := berlinInstant(t, appointmentDate, 9, 0)
-	queued, err := testutil.ComposeCalendarReminderCommand(db, service).EnqueueDueAppointmentReminders(ctx, startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute))
+	queued, err := api.NewCalendarReminderCommand(testpkg.NewDatabase(t, db), service).EnqueueDueAppointmentReminders(ctx, startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute))
 	require.NoError(t, err)
 	assert.Zero(t, queued)
 	assert.Len(t, outbox.enqueued, before, "a cancelled appointment has nothing to remind about")
@@ -493,7 +497,7 @@ func TestCalendarServiceIntegration_SilentAppointmentIsNotReminded(t *testing.T)
 	require.Empty(t, outbox.enqueued, "no publish mail either")
 
 	startsAt := berlinInstant(t, appointmentDate, 15, 0)
-	queued, err := testutil.ComposeCalendarReminderCommand(db, service).EnqueueDueAppointmentReminders(ctx, startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute))
+	queued, err := api.NewCalendarReminderCommand(testpkg.NewDatabase(t, db), service).EnqueueDueAppointmentReminders(ctx, startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute))
 	require.NoError(t, err)
 	assert.Zero(t, queued)
 	assert.Empty(t, outbox.enqueued)
@@ -539,19 +543,19 @@ func TestCalendarServiceIntegration_RecurringAppointmentRemindsPerOccurrence(t *
 	startsAt := berlinInstant(t, secondOccurrence, 14, 0)
 
 	before := len(outbox.enqueued)
-	queued, err := testutil.ComposeCalendarReminderCommand(db, service).EnqueueDueAppointmentReminders(ctx, startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute))
+	queued, err := api.NewCalendarReminderCommand(testpkg.NewDatabase(t, db), service).EnqueueDueAppointmentReminders(ctx, startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute))
 	require.NoError(t, err)
 	require.Equal(t, 1, queued, "only the occurrence inside the window")
 
 	last := outbox.enqueued[len(outbox.enqueued)-1]
-	assert.Equal(t, platformModels.EmailKindAppointmentReminder, last.Kind)
+	assert.Equal(t, emailKindAppointmentReminder, last.Kind)
 	assert.Contains(t, last.Payload["when_text"], "13.05.2026",
 		"the reminder advertises its own occurrence, not the series start")
 
 	// The same window again must add nothing: the idempotency key is what makes a
 	// re-run, an overlapping window or a second scheduler process harmless.
 	sameWindowCount := len(outbox.enqueued)
-	queued, err = testutil.ComposeCalendarReminderCommand(db, service).EnqueueDueAppointmentReminders(ctx, startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute))
+	queued, err = api.NewCalendarReminderCommand(testpkg.NewDatabase(t, db), service).EnqueueDueAppointmentReminders(ctx, startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute))
 	require.NoError(t, err)
 	assert.Zero(t, queued)
 	assert.Len(t, outbox.enqueued, sameWindowCount)
@@ -616,7 +620,7 @@ func TestCalendarServiceIntegration_ExtremeRecurrenceIntervalDoesNotBreakTheScan
 	require.NoError(t, err)
 
 	startsAt := berlinInstant(t, appointmentDate, 18, 0)
-	queued, err := testutil.ComposeCalendarReminderCommand(db, service).EnqueueDueAppointmentReminders(ctx, startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute))
+	queued, err := api.NewCalendarReminderCommand(testpkg.NewDatabase(t, db), service).EnqueueDueAppointmentReminders(ctx, startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute))
 	require.NoError(t, err, "the scan must survive a series whose bound overshoots the date range")
 	assert.GreaterOrEqual(t, queued, 1, "the ordinary appointment is still reminded")
 }
@@ -628,7 +632,7 @@ func TestCalendarServiceIntegration_ReminderForMovedRecurringOccurrence(t *testi
 
 	outbox := &recordingOutbox{}
 	service := setupCalendarServiceWithOutbox(t, db, outbox)
-	repos := calendarTestRepositories(t, db)
+	_, _, _, _, reposAppointments, _, _ := calendarTestRepositories(t, db)
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "MovedReminder", "Organizer")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
 
@@ -655,7 +659,7 @@ func TestCalendarServiceIntegration_ReminderForMovedRecurringOccurrence(t *testi
 
 	movedDate := portalDate(2026, 2, 4)
 	movedModelDate := calModels.Date(movedDate)
-	require.NoError(t, repos.Appointments().CreateOccurrenceOverride(ctx, &calModels.AppointmentOccurrenceOverride{
+	require.NoError(t, reposAppointments.Appointments().CreateOccurrenceOverride(ctx, &calModels.AppointmentOccurrenceOverride{
 		AppointmentID:  detail.Appointment.ID,
 		OccurrenceDate: calModels.Date(seriesStart),
 		StartDate:      &movedModelDate,
@@ -663,7 +667,7 @@ func TestCalendarServiceIntegration_ReminderForMovedRecurringOccurrence(t *testi
 	}))
 
 	startsAt := berlinInstant(t, movedDate, 14, 0)
-	queued, err := testutil.ComposeCalendarReminderCommand(db, service).EnqueueDueAppointmentReminders(ctx, startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute))
+	queued, err := api.NewCalendarReminderCommand(testpkg.NewDatabase(t, db), service).EnqueueDueAppointmentReminders(ctx, startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute))
 	require.NoError(t, err)
 	assert.Equal(t, 1, queued)
 	assert.Contains(t, outbox.enqueued[len(outbox.enqueued)-1].Payload["when_text"], "04.02.2026")

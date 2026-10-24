@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -15,7 +15,7 @@ import (
 func TestGuardianPortalMemberships(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	access, err := repositories.NewIdentityAccessForTests(db)
+	access, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 	home := testpkg.Tenant(t)
@@ -50,7 +50,7 @@ func TestGuardianPortalMemberships(t *testing.T) {
 		require.Equal(t, map[int64][]int64{active.AccountID: {home}}, memberships)
 		return nil
 	}))
-	require.NoError(t, testpkg.WithinTenantContext(t, tenant.WithTenantID(ctx, other), db, other, func(txCtx context.Context) error {
+	require.NoError(t, testpkg.WithinTenantContext(t, testpkg.ContextForTenant(ctx, other), db, other, func(txCtx context.Context) error {
 		memberships, queryErr := access.FindActiveGuardianMemberships(txCtx, ids)
 		require.NoError(t, queryErr)
 		require.Equal(t, map[int64][]int64{active.AccountID: {other}}, memberships)
@@ -58,7 +58,7 @@ func TestGuardianPortalMemberships(t *testing.T) {
 	}))
 
 	rollback := errors.New("roll back guardian membership revocation")
-	err = tenant.WithAdminTx(ctx, db, func(txCtx context.Context, tx bun.Tx) error {
+	err = testpkg.WithAdminTx(t, ctx, db, func(txCtx context.Context, tx bun.Tx) error {
 		_, deleteErr := tx.ExecContext(txCtx, "DELETE FROM auth.account_roles WHERE account_id = ? AND tenant_id = ?", active.AccountID, home)
 		require.NoError(t, deleteErr)
 		memberships, queryErr := access.FindActiveGuardianMemberships(txCtx, []int64{active.AccountID})
@@ -75,7 +75,7 @@ func TestGuardianPortalMemberships(t *testing.T) {
 func TestLoginReadyGuardianPortalMembershipsRequirePassword(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	access, err := repositories.NewIdentityAccessForTests(db)
+	access, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 	ready := testpkg.CreateTestParentGuardianChain(t, db)
@@ -92,7 +92,7 @@ func TestLoginReadyGuardianPortalMembershipsRequirePassword(t *testing.T) {
 func TestGuardianPortalMembershipsEmptyAndDatabaseFailure(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupClosableTestDB(t)
-	access, err := repositories.NewIdentityAccessForTests(db)
+	access, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
 	require.NoError(t, db.Close())
 	memberships, err := access.FindActiveGuardianMemberships(testpkg.Ctx(t), nil)

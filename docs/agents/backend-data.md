@@ -6,7 +6,7 @@ Paths in code spans start at `backend/` unless prefixed with `backend/`,
 
 ## Database Configuration
 
-DSN resolution is **fail-fast** (`database/database_config.go`) — there are no localhost fallbacks:
+DSN resolution is **fail-fast** (`modules/transactionruntime/internal/adapters/database/database_config.go`) — there are no localhost fallbacks:
 
 1. `APP_ENV=test` — requires `TEST_DB_DSN` and never falls through to `DB_DSN` (test DB on port 5433)
 2. Every other environment — requires `DB_DSN`; CLI commands connect as the `postgres` **superuser** (the seeder is API-based and opens no DB connection itself)
@@ -48,7 +48,23 @@ err := r.db.NewSelect().
 ```
 
 ### Transactions and Filters
-Open tenant transactions through `tenant.TransactionRunner` (or the composition root's `tenant.UnitOfWork`). The runtime propagates the active transaction through context; repositories pick it up through `base.GetDB(ctx, db)`. For query filters and the generic repository API (`Repository[T]`, `base.Filter` with `Equal`/`ILike`/`In`/pagination), see `.claude/rules/backend-conventions.md` Rule 2 — don't invent per-field finder methods.
+Open tenant transactions through `tenant.TransactionRunner` (or the composition
+root's `tenant.UnitOfWork`). The runtime propagates the active transaction through
+context (`tenant.TransactionFromContext` in `tenant/runtime.go`). Owner-private
+adapters resolve that transaction through their existing bindings, not a shared
+repository base. For example, People Directory's `NewDatabase` in
+`modules/peopledirectory/internal/adapters/postgres/native_compose_bindings_callback_database.go`
+passes the transaction and validated tenant to `ResolveDatabase` in the same
+package's `scope.go`. Missing or unsupported transactions always fail. Missing school scope is allowed
+only when the caller explicitly selected an administrative transaction.
+Its `StudentStore.InsertRecord` and `UpdateRecord` (`student_write.go` in that
+package) require a positive tenant, set the inserted row's tenant from the scope,
+and constrain updates by tenant ID.
+
+Reuse the owner's existing typed filters and query helpers before adding a
+query method, as required by `.claude/rules/backend-conventions.md` Rule 2.
+Keep SQL and driver types inside policy-authorized owner adapters; cross-owner
+callers use public capabilities bound to consumer-owned ports.
 
 ### Soft Delete
 `users.Person`, `users.Staff`, and `users.Teacher` carry `deleted_at` with bun's `soft_delete` tag: normal queries auto-filter soft-deleted rows. Staff deletion runs an offboarding service (not a bare delete). Keep this in mind when counting rows or writing raw SQL against these tables. `users.staff_documents` and `users.staff_qualifications` carry a plain `deleted_at` column instead: their workforce store filters `deleted_at IS NULL` explicitly, and the tenant role has no DELETE grant on them.

@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Fragment,
   useEffect,
   useId,
   useState,
@@ -8,17 +9,22 @@ import {
   type ReactNode,
 } from "react";
 import { UserPlus, Users } from "lucide-react";
+import { ArrowUpRightIcon } from "@phosphor-icons/react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Alert } from "~/components/ui/alert";
-import { Button } from "~/components/ui/button";
+import { Button, ButtonLink } from "~/components/ui/button";
 import { ChoiceModal } from "~/components/ui/choice-modal";
 import type { FormErrorInput } from "~/components/ui/form-error";
-import { FormModal } from "~/components/ui/form-modal";
 import { EmptyStudentResults } from "~/components/ui/empty-student-results";
-import { Input } from "~/components/ui/input";
 import { OccupancyBadges } from "~/components/ui/occupancy-badges";
+import type { AddUnplannedStudentModalProps } from "~/components/active-supervisions/add-unplanned-student-modal";
 import type { PresentChildrenPickerProps } from "~/components/active-supervisions/present-children-picker";
-import { SectionCard } from "~/components/ui/section-card";
+import {
+  SectionCard,
+  SectionCollapseToggle,
+} from "~/components/ui/section-card";
+import { Tooltip } from "~/components/ui/tooltip";
+import { GroupIcon, SchoolClassIcon } from "~/components/students/student-card";
 import { overbookedHintFor, type Occupancy } from "~/lib/activity-occupancy";
 import { useNFCEnabled } from "~/lib/tenant-context";
 import {
@@ -43,7 +49,7 @@ import type {
   TimetableRosterRow,
 } from "~/lib/timetable-operations-types";
 import { isCareDayExpected, isNotScheduledRow } from "~/lib/timetable-types";
-import type { Student } from "~/lib/student-helpers";
+import { rosterRunState } from "~/components/active-supervisions/view-model";
 
 /**
  * Marks the attendance mutation as our own before firing the request so the
@@ -90,18 +96,39 @@ export function moveNoticeFromRoster(
     : `${name} wurde aus einer anderen Aktivität hierher geholt.`;
 }
 
-function rosterStudentMeta(
-  row: TimetableRosterRow,
-  instanceIsSpontaneous: boolean,
-): string {
-  return [
-    row.schoolClass,
-    row.groupName,
-    row.isUnplanned && !instanceIsSpontaneous ? "ungeplant" : "",
-  ]
-    .filter((value, index, values) => value && values.indexOf(value) === index)
-    .join(" · ");
+// Class and group follow the name on its line, with the icons of the room
+// cards (#4356); the hidden words keep them apart for screen readers. A
+// group named like the class is not repeated.
+function RosterStudentMeta({
+  row,
+  instanceIsSpontaneous,
+}: Readonly<{ row: TimetableRosterRow; instanceIsSpontaneous: boolean }>) {
+  const showGroup = row.groupName && row.groupName !== row.schoolClass;
+  return (
+    <>
+      {row.schoolClass ? (
+        <span className={ROSTER_META_CLASS}>
+          <SchoolClassIcon />
+          <span className="sr-only">Klasse </span>
+          {row.schoolClass}
+        </span>
+      ) : null}
+      {showGroup ? (
+        <span className={ROSTER_META_CLASS}>
+          <GroupIcon />
+          <span className="sr-only">Gruppe </span>
+          {row.groupName}
+        </span>
+      ) : null}
+      {row.isUnplanned && !instanceIsSpontaneous ? (
+        <span className="text-xs font-medium text-gray-500">ungeplant</span>
+      ) : null}
+    </>
+  );
 }
+
+const ROSTER_META_CLASS =
+  "inline-flex items-center gap-1 text-xs font-medium text-gray-500";
 
 function RosterSummaryStat({
   label,
@@ -239,10 +266,24 @@ interface RosterRowActionsProps {
     action: RosterAction,
     row: TimetableRosterRow,
   ) => Promise<void>;
+  /** Adresse der Kinderseite; ohne sie gibt es den Knopf „Profil ansehen“ nicht. */
+  readonly profileHref?: string;
 }
 
-function RosterRowActions({ row, onAction, access }: RosterRowActionsProps) {
-  if (!access.attendance && !access.statuses && !access.absence) return null;
+function RosterRowActions({
+  row,
+  onAction,
+  access,
+  profileHref,
+}: RosterRowActionsProps) {
+  if (
+    !access.attendance &&
+    !access.statuses &&
+    !access.absence &&
+    !profileHref
+  ) {
+    return null;
+  }
   const runAction = async (action: RosterAction) => {
     await onAction(action, row);
   };
@@ -325,6 +366,33 @@ function RosterRowActions({ row, onAction, access }: RosterRowActionsProps) {
           Zurück auf erwartet
         </Button>
       ) : null}
+      {/* Ein Link, kein Anwesenheitsknopf: er öffnet nur die Kinderseite
+          (#4356). Nur ein Icon am Ende der Zeile, damit die Zeile nicht
+          wächst; auf dem Handy rechts außen. Der Name im Label unterscheidet
+          die Links der Liste. */}
+      {profileHref ? (
+        <Tooltip
+          content="Profil ansehen"
+          asChild
+          iconOnly
+          className="ml-auto sm:ml-0"
+          bubbleClassName="right-0 left-auto"
+        >
+          <ButtonLink
+            href={profileHref}
+            variant="outline"
+            size="icon"
+            aria-label={`Profil ansehen: ${row.studentName || `Kind ${row.studentId}`}`}
+            className="size-9 shrink-0"
+          >
+            <ArrowUpRightIcon
+              className="size-4"
+              weight="bold"
+              aria-hidden="true"
+            />
+          </ButtonLink>
+        </Tooltip>
+      ) : null}
     </div>
   );
 }
@@ -345,6 +413,7 @@ interface TimetableRosterRowProps {
    * sieht auch nicht antippbar aus.
    */
   readonly onOpenStudent?: (row: TimetableRosterRow) => void;
+  readonly studentProfileHref?: (row: TimetableRosterRow) => string;
 }
 
 function TimetableRosterStudentRow({
@@ -357,6 +426,7 @@ function TimetableRosterStudentRow({
   row,
   onAction,
   onOpenStudent,
+  studentProfileHref,
 }: TimetableRosterRowProps) {
   const pickupTimeLabel = rosterPickupTimeLabel(
     row.pickupTime,
@@ -398,65 +468,75 @@ function TimetableRosterStudentRow({
   );
 
   return (
-    <div className="flex flex-col gap-3 border-b border-gray-100 px-4 py-3 last:border-b-0 sm:flex-row sm:items-start sm:justify-between">
+    <div className="flex flex-col gap-2 border-b border-gray-100 px-4 py-2.5 last:border-b-0 sm:flex-row sm:items-start sm:justify-between">
       <div className="min-w-0 flex-1">
-        {onOpenStudent ? (
-          <button
-            type="button"
-            onClick={() => onOpenStudent(row)}
-            className="text-left font-medium text-gray-900 underline decoration-gray-300 underline-offset-4 hover:decoration-gray-600"
-          >
-            {row.studentName || `Kind ${row.studentId}`}
-          </button>
-        ) : (
-          <div className="font-medium text-gray-900">
-            {row.studentName || `Kind ${row.studentId}`}
-          </div>
-        )}
-        <div className="mt-1 text-sm text-gray-500">
-          {rosterStudentMeta(row, instanceIsSpontaneous)}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
+          {onOpenStudent ? (
+            <button
+              type="button"
+              onClick={() => onOpenStudent(row)}
+              className="text-left font-medium text-gray-900 underline decoration-gray-300 underline-offset-4 hover:decoration-gray-600"
+            >
+              {row.studentName || `Kind ${row.studentId}`}
+            </button>
+          ) : (
+            <div className="font-medium text-gray-900">
+              {row.studentName || `Kind ${row.studentId}`}
+            </div>
+          )}
+          <RosterStudentMeta
+            row={row}
+            instanceIsSpontaneous={instanceIsSpontaneous}
+          />
         </div>
         {pickupTimeLabel === null ? null : (
-          <div className="mt-1 text-sm font-medium text-gray-700">
+          <div className="mt-0.5 text-sm font-medium text-gray-700">
             Gehzeit: {pickupTimeLabel}
           </div>
         )}
         {arrivalTime ? (
-          <div className="mt-1 text-sm font-medium text-gray-700">
+          <div className="mt-0.5 text-sm font-medium text-gray-700">
             Kommt um {arrivalTime} Uhr
           </div>
         ) : null}
         {classException && expectsArrival ? (
-          <div className="mt-1 text-sm text-gray-700">
+          <div className="mt-0.5 text-sm text-gray-700">
             {classException.message}
           </div>
         ) : null}
         {planningNotes.map((warning) => (
           <div
             key={`${warning.kind}:${warning.message}`}
-            className="text-moto-amber-strong mt-1 text-sm"
+            className="text-moto-amber-strong mt-0.5 text-sm"
           >
             {warning.message}
           </div>
         ))}
         {attendanceDetail ? (
-          <div className="text-moto-amber-strong mt-1 text-sm">
+          <div className="text-moto-amber-strong mt-0.5 text-sm">
             {attendanceDetail}
           </div>
         ) : null}
         {row.parallelPresentIn ? (
-          <div className="text-moto-amber-strong mt-1 text-sm">
+          <div className="text-moto-amber-strong mt-0.5 text-sm">
             {`Auch in „${row.parallelPresentIn.title}“ (${row.parallelPresentIn.startTime}–${row.parallelPresentIn.endTime}) als anwesend eingetragen`}
           </div>
         ) : null}
       </div>
-      <RosterRowActions row={row} onAction={onAction} access={actionAccess} />
+      <RosterRowActions
+        row={row}
+        onAction={onAction}
+        access={actionAccess}
+        profileHref={studentProfileHref?.(row)}
+      />
     </div>
   );
 }
 
 interface TimetableRosterSectionProps {
   readonly actionAccess: RosterActionAccess;
+  /** Folded when the roster opens; nothing remembers the reader's choice. */
+  readonly defaultCollapsed?: boolean;
   /** One line under the section title — for a precondition the rows share. */
   readonly description?: string;
   readonly instanceIsSpontaneous: boolean;
@@ -466,6 +546,7 @@ interface TimetableRosterSectionProps {
   readonly pickupTimesRedacted?: boolean;
   readonly onAction: RosterRowActionsProps["onAction"];
   readonly onOpenStudent?: (row: TimetableRosterRow) => void;
+  readonly studentProfileHref?: (row: TimetableRosterRow) => string;
   readonly rows: TimetableRosterRow[];
   readonly showTimetableCounts: boolean;
   readonly title: string;
@@ -473,6 +554,7 @@ interface TimetableRosterSectionProps {
 
 function TimetableRosterSection({
   actionAccess,
+  defaultCollapsed = false,
   description,
   instanceIsSpontaneous,
   now,
@@ -481,40 +563,56 @@ function TimetableRosterSection({
   pickupTimesRedacted,
   onAction,
   onOpenStudent,
+  studentProfileHref,
   rows,
   showTimetableCounts,
   title,
 }: TimetableRosterSectionProps) {
+  const [collapsed, setCollapsed] = useState(defaultCollapsed);
+  const bodyId = useId();
   if (rows.length === 0) return null;
   const countLabel = showTimetableCounts ? ` (${rows.length})` : "";
 
   return (
     <section className="moto-content-surface overflow-hidden rounded-lg border">
-      <div className="border-b border-gray-100 bg-gray-50 px-4 py-2">
+      <div
+        className={`grid grid-cols-[1fr_auto] items-center gap-x-2 bg-gray-50 py-1 pr-2 pl-4 ${collapsed ? "" : "border-b border-gray-100"}`}
+      >
         <span className="text-sm font-semibold text-gray-700">
           {title}
           {countLabel}
         </span>
+        <SectionCollapseToggle
+          title={title}
+          collapsed={collapsed}
+          controls={collapsed ? undefined : bodyId}
+          onToggle={() => setCollapsed((value) => !value)}
+        />
         {description ? (
-          <p className="mt-0.5 text-xs font-normal text-gray-500">
+          <p className="col-span-2 -mt-1 pb-1 text-xs font-normal text-gray-500">
             {description}
           </p>
         ) : null}
       </div>
-      {rows.map((row) => (
-        <TimetableRosterStudentRow
-          key={`${row.studentId}-${row.status}-${row.visitId ?? "planned"}`}
-          actionAccess={actionAccess}
-          instanceIsSpontaneous={instanceIsSpontaneous}
-          now={now}
-          rosterDate={rosterDate}
-          pickupTimesLoaded={pickupTimesLoaded}
-          pickupTimesRedacted={pickupTimesRedacted}
-          row={row}
-          onAction={onAction}
-          onOpenStudent={onOpenStudent}
-        />
-      ))}
+      {collapsed ? null : (
+        <div id={bodyId}>
+          {rows.map((row) => (
+            <TimetableRosterStudentRow
+              key={`${row.studentId}-${row.status}-${row.visitId ?? "planned"}`}
+              actionAccess={actionAccess}
+              instanceIsSpontaneous={instanceIsSpontaneous}
+              now={now}
+              rosterDate={rosterDate}
+              pickupTimesLoaded={pickupTimesLoaded}
+              pickupTimesRedacted={pickupTimesRedacted}
+              row={row}
+              onAction={onAction}
+              onOpenStudent={onOpenStudent}
+              studentProfileHref={studentProfileHref}
+            />
+          ))}
+        </div>
+      )}
     </section>
   );
 }
@@ -551,6 +649,8 @@ interface TimetableRosterHeaderProps {
   readonly nfcEnabled: boolean;
   readonly extraActions?: ReactNode;
   readonly toggle?: ReactNode;
+  readonly showStatus: boolean;
+  readonly showRoom: boolean;
   /** Öffnet den Dialog „Kind ungeplant hinzufügen“; fehlt ohne das Recht. */
   readonly onAddStudent?: () => void;
   readonly onAddPresentStudents?: () => void;
@@ -573,6 +673,8 @@ function TimetableRosterHeader({
   nfcEnabled,
   extraActions,
   toggle,
+  showStatus,
+  showRoom,
   onAddStudent,
   onAddPresentStudents,
   onComplete,
@@ -611,21 +713,26 @@ function TimetableRosterHeader({
             {/* Der Kicker folgt dem Zustand des Blocks. Fest "Aktiv" war
                 gelogen, sobald der Roster eines beendeten Termins offen ist —
                 im Reopen-Fenster der OGS ebenso wie in der Aufsicht einer
-                Lehrkraft (#2527). */}
-            <p
-              className={`text-xs font-semibold tracking-wide uppercase ${
-                roster.instance.status === "completed"
-                  ? "text-gray-500"
-                  : "text-moto-green-strong"
-              }`}
-            >
-              {roster.instance.status === "completed" ? "Beendet" : "Aktiv"}
-            </p>
+                Lehrkraft (#2527). Er heißt wie das Abzeichen im Seitenkopf
+                („Aktiv“ / „Beendet“, #4354). */}
+            {showStatus ? (
+              <p
+                className={`text-xs font-semibold tracking-wide uppercase ${
+                  roster.instance.status === "completed"
+                    ? "text-gray-500"
+                    : "text-moto-green-strong"
+                }`}
+              >
+                {rosterRunState(roster.instance.status).label}
+              </p>
+            ) : null}
             <h2 className="truncate text-base font-semibold text-gray-900">
               {roster.instance.title}
             </h2>
             <p className="truncate text-sm text-gray-600">
-              {roster.instance.roomName ?? `Raum ${roster.instance.roomId}`} ·{" "}
+              {showRoom
+                ? `${roster.instance.roomName ?? `Raum ${roster.instance.roomId}`} · `
+                : null}
               {hasOpenEnd(roster.instance)
                 ? `seit ${roster.instance.startTime}`
                 : `${roster.instance.startTime}-${roster.instance.endTime}`}
@@ -733,159 +840,7 @@ function TimetableRosterHeader({
   );
 }
 
-interface AddUnplannedStudentModalProps {
-  readonly isOpen: boolean;
-  readonly instanceId: string;
-  readonly isAddingStudent: boolean;
-  readonly results: Student[];
-  readonly search: string;
-  readonly error: FormErrorInput;
-  readonly onAdd: (studentId: string) => Promise<boolean>;
-  readonly onClose: () => void;
-  readonly onSearchChange: (value: string) => void;
-}
-
-// Das Nachtragen eines Kindes ist eine Kopf-Aktion mit Dialog, kein
-// Formular im Listenkörper (#3112, Bauart 1 Regel 3): die Liste bleibt eine
-// Liste, und „Hinzufügen“ steht unten im Dialog, wo eine Aktion hingehört.
-function AddUnplannedStudentModal({
-  isOpen,
-  instanceId,
-  isAddingStudent,
-  results,
-  search,
-  error,
-  onAdd,
-  onClose,
-  onSearchChange,
-}: AddUnplannedStudentModalProps) {
-  const formId = useId();
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  // Ein Termin-Wechsel bei offenem Dialog verwirft die Auswahl: eine alte
-  // Auswahl darf nie in den neuen Termin geschrieben werden.
-  const [selectionInstanceId, setSelectionInstanceId] = useState(instanceId);
-  if (selectionInstanceId !== instanceId) {
-    setSelectionInstanceId(instanceId);
-    setSelectedId(null);
-  }
-  // Derived against the current results so a stale selection from a previous
-  // search can never add the wrong child.
-  const selectedStudent =
-    results.find((student) => student.id.toString() === selectedId) ?? null;
-  const targetStudent =
-    selectedStudent ?? (results.length === 1 ? (results[0] ?? null) : null);
-  const handleClose = () => {
-    setSelectedId(null);
-    onClose();
-  };
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (targetStudent && !isAddingStudent) {
-      if (await onAdd(targetStudent.id.toString())) {
-        handleClose();
-      }
-    }
-  };
-
-  return (
-    <FormModal
-      isOpen={isOpen}
-      onClose={handleClose}
-      title="Kind ungeplant hinzufügen"
-      size="md"
-      error={error}
-      closeDisabled={isAddingStudent}
-      footer={
-        <div className="flex flex-wrap justify-end gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="md"
-            onClick={handleClose}
-            disabled={isAddingStudent}
-          >
-            Abbrechen
-          </Button>
-          <Button
-            type="submit"
-            form={formId}
-            disabled={isAddingStudent || !targetStudent}
-            variant="success"
-            size="md"
-          >
-            {isAddingStudent ? "Wird hinzugefügt…" : "Hinzufügen"}
-          </Button>
-        </div>
-      }
-    >
-      <form id={formId} onSubmit={handleSubmit} className="space-y-3">
-        <p className="text-sm text-gray-600">
-          Das Kind wird sofort als anwesend in dieser Aktivität eingetragen.
-        </p>
-        <Input
-          type="search"
-          name="unplanned-student-search"
-          aria-label="Kind ungeplant suchen"
-          controlSize="compact"
-          value={search}
-          onChange={(event) => {
-            setSelectedId(null);
-            onSearchChange(event.target.value);
-          }}
-          placeholder="Weiteres Kind suchen..."
-        />
-        {results.length > 0 ? (
-          <div className="mt-2 grid gap-2">
-            {results.map((student) => {
-              const studentId = student.id.toString();
-              const isSelected = selectedStudent?.id.toString() === studentId;
-              return (
-                <Button
-                  key={student.id}
-                  type="button"
-                  variant="ghost"
-                  size="md"
-                  disabled={isAddingStudent}
-                  aria-pressed={isSelected}
-                  onClick={() =>
-                    setSelectedId((prev) =>
-                      prev === studentId ? null : studentId,
-                    )
-                  }
-                  className={`min-h-11 w-full !justify-start border px-3 text-left !shadow-none ${
-                    isSelected
-                      ? "!border-moto-green !bg-moto-green/10 hover:!bg-moto-green/15"
-                      : "hover:!border-moto-green !border-gray-200 !bg-transparent hover:!bg-gray-100"
-                  }`}
-                >
-                  <span className="font-medium text-gray-900">
-                    {student.name ||
-                      [student.first_name, student.second_name]
-                        .filter(Boolean)
-                        .join(" ")}
-                  </span>
-                  <span className="ml-2 text-gray-500">
-                    {[student.school_class, student.group_name]
-                      .filter(Boolean)
-                      .join(" · ")}
-                  </span>
-                </Button>
-              );
-            })}
-          </div>
-        ) : null}
-        {results.length > 1 && !selectedStudent ? (
-          <p className="mt-2 text-sm text-gray-500">
-            Bitte ein Kind aus der Liste antippen.
-          </p>
-        ) : null}
-      </form>
-    </FormModal>
-  );
-}
-
 interface TimetableRosterContentProps {
-  readonly addStudentResults: Student[];
   readonly addStudentSearch: string;
   readonly attendanceWebEnabled: boolean;
   readonly isAddingStudent: boolean;
@@ -919,6 +874,18 @@ interface TimetableRosterContentProps {
    * mit mehreren Blöcken ist (#3281).
    */
   readonly headerToggle?: ReactNode;
+  /**
+   * Der Seitenkopf sagt schon, ob der Block läuft (#4354): die Kopfkarte
+   * wiederholt „Aktiv“ / „Beendet“ dann nicht. Ein Raum mit mehreren Blöcken
+   * lässt das weg, dort trägt jede Karte ihren eigenen Zustand.
+   */
+  readonly statusInPageHead?: boolean;
+  /**
+   * Der Seitenkopf nennt den Raum schon (#4354): in der eigenen Aufsicht in
+   * der Statuszeile, im offenen Raum als Titel. Die Kopfkarte zeigt dann nur
+   * die Uhrzeit.
+   */
+  readonly roomInPageHead?: boolean;
   readonly onAddStudent: (studentId: string) => Promise<boolean>;
   /**
    * Trägt eine Auswahl der gerade anwesenden Kinder gesammelt ein (#3824).
@@ -930,6 +897,11 @@ interface TimetableRosterContentProps {
    * herein, damit das Schulportal, das ihn nie zeigt, ihn auch nicht mitlädt.
    */
   readonly presentChildrenPicker?: ComponentType<PresentChildrenPickerProps>;
+  /**
+   * Der Dialog „Kind ungeplant hinzufügen“. Er lädt alle Kinder der Schule;
+   * wie die Auswahl oben reichen ihn nur die Tenant-Seiten herein (#4355).
+   */
+  readonly addUnplannedStudentModal?: ComponentType<AddUnplannedStudentModalProps>;
   /**
    * Öffnet die Auswahl „Anwesende Kinder hinzufügen“ einmal von selbst, z. B.
    * direkt nach dem Start einer spontanen Aktivität.
@@ -948,6 +920,12 @@ interface TimetableRosterContentProps {
    */
   readonly onExcuseRestOfDay?: (row: TimetableRosterRow) => Promise<void>;
   readonly onOpenStudent?: (row: TimetableRosterRow) => void;
+  /**
+   * Adresse der Kinderseite für den Knopf „Profil ansehen“ (#4356). Nur wer
+   * die Kinderseite öffnen darf (`users:read`), bekommt sie; ohne sie fehlt
+   * der Knopf.
+   */
+  readonly studentProfileHref?: (row: TimetableRosterRow) => string;
   readonly onSearchChange: (value: string) => void;
   /**
    * Suche und Filter der Seite (#3889). Sie engen die Abschnitte ein, die
@@ -1028,7 +1006,6 @@ function rosterSections(
 }
 
 export function TimetableRosterContent({
-  addStudentResults,
   addStudentSearch,
   attendanceWebEnabled,
   isAddingStudent,
@@ -1041,9 +1018,12 @@ export function TimetableRosterContent({
   headerNote,
   headerActions,
   headerToggle,
+  statusInPageHead = false,
+  roomInPageHead = false,
   onAddStudent,
   onAddPresentStudents,
   presentChildrenPicker: PresentChildrenPicker,
+  addUnplannedStudentModal: AddUnplannedStudentModal,
   presentPickerAutoOpen = false,
   onPresentPickerAutoOpened,
   onComplete,
@@ -1051,6 +1031,7 @@ export function TimetableRosterContent({
   onRosterAction,
   onExcuseRestOfDay,
   onOpenStudent,
+  studentProfileHref,
   onSearchChange,
   rowFilter = null,
   addStudentError,
@@ -1091,6 +1072,8 @@ export function TimetableRosterContent({
     .join(" ");
   const [addStudentOpen, setAddStudentOpen] = useState(false);
   const [presentPickerOpen, setPresentPickerOpen] = useState(false);
+  const addStudentEnabled =
+    canAddUnplanned && AddUnplannedStudentModal !== undefined;
   const presentPickerEnabled =
     actionsEnabled &&
     canAddUnplanned &&
@@ -1152,6 +1135,7 @@ export function TimetableRosterContent({
   const visible = rowFilter
     ? rosterSections(roster.rows.filter(rowFilter), now, roster.instance.date)
     : all;
+  const isNarrowed = rowFilter !== null;
   const hasNoMatch = rowFilter ? !roster.rows.some(rowFilter) : false;
   const confirmableExpectedRows = expected.filter(
     (row) => row.planned && !row.currentlyPresent,
@@ -1167,6 +1151,7 @@ export function TimetableRosterContent({
     pickupTimesRedacted: roster.pickupTimesRedacted,
     onAction: handleRosterAction,
     onOpenStudent,
+    studentProfileHref,
     showTimetableCounts,
   };
 
@@ -1186,8 +1171,10 @@ export function TimetableRosterContent({
         nfcEnabled={nfcEnabled}
         extraActions={headerActions}
         toggle={headerToggle}
+        showStatus={!statusInPageHead}
+        showRoom={!roomInPageHead}
         onAddStudent={
-          canAddUnplanned ? () => setAddStudentOpen(true) : undefined
+          addStudentEnabled ? () => setAddStudentOpen(true) : undefined
         }
         onAddPresentStudents={
           presentPickerEnabled ? () => setPresentPickerOpen(true) : undefined
@@ -1210,12 +1197,12 @@ export function TimetableRosterContent({
           message="Die Gehzeiten konnten nicht geladen werden. Die Anwesenheitsliste bleibt verfügbar."
         />
       ) : null}
-      {actionsEnabled && canAddUnplanned ? (
+      {actionsEnabled && addStudentEnabled ? (
         <AddUnplannedStudentModal
           isOpen={addStudentOpen}
           instanceId={roster.instance.id}
+          inBlockStudentIds={inBlockStudentIds}
           isAddingStudent={isAddingStudent}
-          results={addStudentResults}
           search={addStudentSearch}
           error={addStudentError}
           onAdd={onAddStudent}
@@ -1251,41 +1238,47 @@ export function TimetableRosterContent({
           />
         </SectionCard>
       ) : null}
-      <TimetableRosterSection
-        title="Anwesend"
-        rows={visible.present}
-        {...sectionProps}
-      />
-      <TimetableRosterSection
-        title="Erwartet"
-        rows={visible.expected}
-        {...sectionProps}
-      />
-      <TimetableRosterSection
-        title="Kommt später"
-        rows={visible.arrivingLater}
-        {...sectionProps}
-      />
-      <TimetableRosterSection
-        title="Heute nicht eingeplant"
-        rows={visible.notScheduled}
-        {...sectionProps}
-      />
-      <TimetableRosterSection
-        title="Entschuldigt / Abwesend"
-        rows={visible.absent}
-        {...sectionProps}
-      />
-      <TimetableRosterSection
-        title="Nicht mehr im Raum"
-        rows={visible.departed}
-        {...sectionProps}
-      />
-      <TimetableRosterSection
-        title={unplannedTitle}
-        rows={visible.unplanned}
-        {...sectionProps}
-      />
+      {/* Children in the room come first, planned or not (#4353). Each list
+          folds from its head. A search or filter remounts the lists open so
+          every hit shows; clearing it restores the opening state. */}
+      <Fragment key={isNarrowed ? "narrowed" : "all"}>
+        <TimetableRosterSection
+          title="Anwesend"
+          rows={visible.present}
+          {...sectionProps}
+        />
+        <TimetableRosterSection
+          title={unplannedTitle}
+          rows={visible.unplanned}
+          {...sectionProps}
+        />
+        <TimetableRosterSection
+          title="Erwartet"
+          rows={visible.expected}
+          {...sectionProps}
+        />
+        <TimetableRosterSection
+          title="Kommt später"
+          rows={visible.arrivingLater}
+          {...sectionProps}
+        />
+        <TimetableRosterSection
+          title="Heute nicht eingeplant"
+          rows={visible.notScheduled}
+          {...sectionProps}
+        />
+        <TimetableRosterSection
+          title="Entschuldigt / Abwesend"
+          rows={visible.absent}
+          {...sectionProps}
+        />
+        <TimetableRosterSection
+          title="Nicht mehr im Raum"
+          rows={visible.departed}
+          defaultCollapsed={!isNarrowed}
+          {...sectionProps}
+        />
+      </Fragment>
     </div>
   );
 }

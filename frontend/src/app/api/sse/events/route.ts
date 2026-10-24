@@ -3,6 +3,7 @@ import { auth } from "~/server/auth";
 import { withTenantAuth } from "~/server/auth/tenant-route";
 import { createLogger } from "~/lib/logger";
 import { proxySSEStream } from "~/lib/sse-proxy.server";
+import { problemResponse } from "~/lib/api-helpers.server";
 
 const logger = createLogger({ component: "SSEEventsRoute" });
 
@@ -21,7 +22,7 @@ async function GETHandler(request: NextRequest) {
   const session = await auth();
 
   if (!session?.user?.token) {
-    return new Response("Unauthorized", { status: 401 });
+    return problemResponse(401, "Unauthorized", request);
   }
 
   return proxySSEStream(request, {

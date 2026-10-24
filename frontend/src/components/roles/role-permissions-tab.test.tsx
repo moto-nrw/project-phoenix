@@ -39,7 +39,9 @@ vi.mock("~/lib/auth-service", () => ({
   },
 }));
 
-vi.mock("~/lib/permission-labels", () => ({
+vi.mock("~/lib/permission-labels", async (importOriginal) => ({
+  // Platform and risk rules stay real (#4574); only the wording is stubbed.
+  ...(await importOriginal<typeof import("~/lib/permission-labels")>()),
   localizeAction: (action: string) => action,
   localizeDescription: (
     _resource: string,
@@ -104,7 +106,7 @@ describe("RolePermissionsTab", () => {
     );
 
     expect(
-      await screen.findByText("1 Berechtigungen zugewiesen."),
+      await screen.findByText("1 Berechtigung zugewiesen."),
     ).toBeInTheDocument();
     expect(screen.getByText("students:read")).toBeInTheDocument();
     expect(screen.queryByText("rooms:read")).not.toBeInTheDocument();
@@ -271,7 +273,7 @@ describe("RolePermissionsTab", () => {
         onCancelEdit={onCancelEdit}
       />,
     );
-    await screen.findByText("1 Berechtigungen zugewiesen.");
+    await screen.findByText("1 Berechtigung zugewiesen.");
 
     rerender(
       <RolePermissionsTab
@@ -443,5 +445,84 @@ describe("RolePermissionsTab", () => {
     expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
     expect(onCancelEdit).toHaveBeenCalledOnce();
+  });
+  it("names the Verwaltung role as the owner of a held admin:*", async () => {
+    const adminWildcard = permission("p10", "admin", "*");
+    mockGetPermissions.mockResolvedValue([...allPermissions, adminWildcard]);
+    mockGetRolePermissions.mockResolvedValue([adminWildcard]);
+    render(
+      <RolePermissionsTab
+        role={role}
+        editing
+        onSaved={onSaved}
+        onCancelEdit={onCancelEdit}
+      />,
+    );
+
+    expect(
+      await screen.findByRole("checkbox", { name: "admin:*" }),
+    ).toHaveAccessibleDescription(
+      "Nur für die Rolle Verwaltung. Sie können es entfernen, aber nicht wieder vergeben.",
+    );
+  });
+  it("offers no reserved permission and keeps one the role already holds removable", async () => {
+    const adminWildcard = permission("p10", "admin", "*");
+    const systemManage = permission("p11", "system", "manage");
+    mockGetPermissions.mockResolvedValue([
+      ...allPermissions,
+      adminWildcard,
+      systemManage,
+    ]);
+    mockGetRolePermissions.mockResolvedValue([
+      allPermissions[0]!,
+      systemManage,
+    ]);
+    render(
+      <RolePermissionsTab
+        role={role}
+        editing
+        onSaved={onSaved}
+        onCancelEdit={onCancelEdit}
+      />,
+    );
+
+    const held = await screen.findByRole("checkbox", {
+      name: "system:manage",
+    });
+    expect(held).toBeChecked();
+    expect(held).toHaveAccessibleDescription(
+      "Nur für das moto-Team. Sie können es entfernen, aber nicht wieder vergeben.",
+    );
+    expect(
+      screen.getByRole("checkbox", { name: "students:read" }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("checkbox", { name: "admin:*" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText("2 von 4 Berechtigungen ausgewählt."),
+    ).toBeInTheDocument();
+  });
+
+  it("explains what a risky permission allows", async () => {
+    const usersManage = permission("p20", "users", "manage");
+    mockGetPermissions.mockResolvedValue([...allPermissions, usersManage]);
+    render(
+      <RolePermissionsTab
+        role={role}
+        editing
+        onSaved={onSaved}
+        onCancelEdit={onCancelEdit}
+      />,
+    );
+
+    expect(
+      await screen.findByRole("checkbox", { name: "users:manage" }),
+    ).toHaveAccessibleDescription(
+      "Diese Person kann sich und anderen jede Rolle der Schule geben.",
+    );
+    expect(
+      screen.getByRole("checkbox", { name: "rooms:read" }),
+    ).not.toHaveAccessibleDescription();
   });
 });

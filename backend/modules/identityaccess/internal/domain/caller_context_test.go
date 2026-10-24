@@ -25,6 +25,7 @@ func TestCallerErrorVariables(t *testing.T) {
 		{"ErrCallerNotLinkedToStaff", ErrCallerNotLinkedToStaff, "user not linked to a staff member"},
 		{"ErrCallerNotLinkedToTeacher", ErrCallerNotLinkedToTeacher, "user not linked to a teacher"},
 		{"ErrCallerGroupNotFound", ErrCallerGroupNotFound, "group not found"},
+		{"ErrCallerSessionNotFound", ErrCallerSessionNotFound, "session not found"},
 	}
 
 	for _, tt := range tests {
@@ -45,6 +46,7 @@ func TestCallerErrorsAreDistinct(t *testing.T) {
 		ErrCallerNotLinkedToStaff,
 		ErrCallerNotLinkedToTeacher,
 		ErrCallerGroupNotFound,
+		ErrCallerSessionNotFound,
 	}
 
 	for i, err1 := range errorVars {
@@ -91,7 +93,7 @@ func TestCallerError(t *testing.T) {
 func TestCallerGroupsPartialError(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Error message includes counts", func(t *testing.T) {
+	t.Run("error text names the counts", func(t *testing.T) {
 		partialErr := &CallerGroupsPartialError{
 			Op: "BulkUpdate", SuccessCount: 5, FailureCount: 2,
 			FailedIDs: []int64{10, 20}, LastErr: errors.New("final operation failed"),

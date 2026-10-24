@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
 import { createTenantJsonProxy } from "~/lib/backend-proxy-route.server";
+import { problemResponse } from "~/lib/api-helpers.server";
 
 /** Bounds the path segment before it reaches the backend. */
 const VALID_TYPE_PATTERN = /^[a-z0-9_]{1,64}$/;
@@ -10,10 +10,7 @@ function emailSubscriptionPath(
 ) {
   const type = params.type;
   if (typeof type !== "string" || !VALID_TYPE_PATTERN.test(type)) {
-    return NextResponse.json(
-      { error: "Invalid notification type format" },
-      { status: 400 },
-    );
+    return problemResponse(400, "Invalid notification type format", _request);
   }
   return `/api/notifications/email-subscriptions/${type}`;
 }

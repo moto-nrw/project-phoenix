@@ -22,10 +22,20 @@ describe("Input", () => {
     expect(screen.getByText("Invalid email address")).toBeInTheDocument();
   });
 
+  it("announces the error as an alert when provided", () => {
+    render(<Input name="email" error="Invalid email address" />);
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Invalid email address",
+    );
+  });
+
   it("does not render error when not provided", () => {
     render(<Input name="email" />);
 
-    expect(screen.queryByRole("paragraph")).not.toBeInTheDocument();
+    // Anker: das Eingabefeld steht da, nur ohne Fehler.
+    expect(screen.getByRole("textbox")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("passes custom className", () => {

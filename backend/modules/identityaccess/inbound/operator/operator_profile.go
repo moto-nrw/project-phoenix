@@ -8,7 +8,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/gofrs/uuid"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // ProfileResource handles the operator profile read and the e-mail change.
@@ -26,7 +26,7 @@ func NewProfileResource(authService OperatorAccess) *ProfileResource {
 
 // GetProfile handles retrieving the current operator's profile
 func (rs *ProfileResource) GetProfile(w http.ResponseWriter, r *http.Request) {
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	operatorID := int64(claims.ID)
 
 	operator, err := rs.authService.FindOperator(r.Context(), operatorID)
@@ -78,7 +78,7 @@ func (req *ConfirmEmailChangeRequest) Bind(r *http.Request) error {
 
 // InitiateEmailChange handles starting the email change verification flow
 func (rs *ProfileResource) InitiateEmailChange(w http.ResponseWriter, r *http.Request) {
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	operatorID := int64(claims.ID)
 
 	req := &InitiateEmailChangeRequest{}

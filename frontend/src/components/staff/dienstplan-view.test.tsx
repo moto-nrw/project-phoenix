@@ -494,13 +494,13 @@ describe("DienstplanView", () => {
     expect(screen.getByTestId("dienstplan-grid")).toBeInTheDocument();
     expect(
       await screen.findByText(
-        catalogText("general.unavailable", "die Liste der Schichtarten"),
+        catalogText("general.unavailable", "die Liste der Dienstarten"),
       ),
     ).toBeInTheDocument();
     // Seit #3114 führt die Kopf-Aktion auf die Route der Schichtarten, die
     // ihre Liste selbst lädt: ein Ladefehler HIER sperrt sie nicht mehr.
     expect(
-      screen.getByRole("link", { name: "Schichtarten verwalten" }),
+      screen.getByRole("link", { name: "Dienstarten verwalten" }),
     ).toHaveAttribute(
       "href",
       expect.stringContaining("/database/shift-types") as unknown as string,
@@ -775,6 +775,8 @@ describe("DienstplanView", () => {
 
     render(<DienstplanView />);
 
+    // Anker: der Deep-Link ist auf die geladene Wochenansicht zurückgefallen.
+    expect(screen.getByTestId("dienstplan-grid")).toBeInTheDocument();
     expect(screen.queryByTestId("halbjahr-grid")).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Halbjahr" }),
@@ -802,6 +804,11 @@ describe("DienstplanView", () => {
 
     render(<DienstplanView />);
 
+    // Anker: der Kopf der vollen Planansicht steht da (der Halbjahr-Tab hängt
+    // an denselben Rechten wie der Export, ohne users:read).
+    expect(
+      screen.getByRole("button", { name: "Halbjahr" }),
+    ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Weitere Aktionen" }),
     ).not.toBeInTheDocument();

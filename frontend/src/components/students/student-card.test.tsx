@@ -73,14 +73,6 @@ describe("StudentCard", () => {
     ).toBeInTheDocument();
   });
 
-  it("nennt das Ziel im Namen der Kachel statt in einer Hinweiszeile", () => {
-    render(<StudentCard {...defaultProps} />);
-
-    // Die Hinweiszeile stand auf jeder der 116 Karten und war am Rechner
-    // ohnehin falsch („Tippen"). Das Ziel trägt jetzt das aria-label.
-    expect(screen.queryByText(/Tippen für mehr Infos/)).not.toBeInTheDocument();
-  });
-
   it("renders extra content when provided", () => {
     render(
       <StudentCard
@@ -91,13 +83,6 @@ describe("StudentCard", () => {
 
     expect(screen.getByTestId("extra")).toBeInTheDocument();
     expect(screen.getByText("Class 1a")).toBeInTheDocument();
-  });
-
-  it("does not render the previous default gradient overlay", () => {
-    const { container } = render(<StudentCard {...defaultProps} />);
-
-    const gradientDiv = container.querySelector(".from-blue-50\\/80");
-    expect(gradientDiv).not.toBeInTheDocument();
   });
 
   it("renders both location badge and tracking indicators when both are provided", () => {
@@ -273,6 +258,8 @@ describe("StudentCard", () => {
     render(<StudentCard {...defaultProps} photoUrl="https://x/y.jpg" />);
     // aria-label on Avatar is the trimmed full name; absence proves the
     // overlay was skipped despite a photoUrl being passed in.
+    // Anker: der Kartenkopf mit dem Namen ist gerendert.
+    expect(screen.getByText("Max Mustermann")).toBeInTheDocument();
     expect(screen.queryByLabelText("Max Mustermann")).toBeNull();
   });
 
@@ -346,19 +333,69 @@ describe("StudentCard", () => {
     expect(btn).not.toHaveAttribute("data-checkin-mode");
     expect(btn).not.toHaveAttribute("data-checkin-state");
   });
+});
 
-  it("hides the navigation arrow + 'mehr Infos' hint when checkinMode is true", () => {
-    // Affordances scoped to navigation mode only; the tap-strip carries
-    // the action signal in check-in mode instead.
+describe("StudentCard one-day pickup change (#3946)", () => {
+  const props = {
+    studentId: "1",
+    firstName: "Max",
+    lastName: "Mustermann",
+    onClick: vi.fn(),
+    locationBadge: <span>badge</span>,
+  };
+
+  it("shows no strip without a change", () => {
+    render(<StudentCard {...props} />);
+
+    const button = screen.getByRole("button");
+    expect(button).not.toHaveAttribute("data-day-home-change");
+    expect(
+      button.querySelector('[data-day-home-change-strip="true"]'),
+    ).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ["time", { time: true }, "Gehzeit heute geändert"],
+    [
+      "mode",
+      { time: false, mode: "pickup" },
+      "Abholart heute geändert: Wird abgeholt",
+    ],
+    [
+      "both",
+      { time: true, mode: "bus" },
+      "Gehzeit und Abholart heute geändert: Fährt Bus",
+    ],
+  ] as const)(
+    "names the %s change in a strip and in the card's label",
+    (kind, change, label) => {
+      render(<StudentCard {...props} dayHomeChange={change} />);
+
+      const button = screen.getByRole("button", {
+        name: `Max Mustermann, ${label} - Details öffnen`,
+      });
+      expect(button).toHaveAttribute("data-day-home-change", kind);
+      expect(
+        button.querySelector('[data-day-home-change-strip="true"]'),
+      ).toHaveTextContent(label);
+    },
+  );
+
+  it("puts the strip above the check-in tap strip", () => {
     render(
       <StudentCard
-        {...defaultProps}
+        {...props}
         checkinMode
         checkinState="anwesend"
         onCheckinClick={vi.fn()}
+        dayHomeChange={{ time: true }}
       />,
     );
-    expect(screen.queryByText(/Tippen für mehr Infos/)).toBeNull();
+
+    const button = screen.getByRole("button");
+    const change = button.querySelector('[data-day-home-change-strip="true"]');
+    const tap = button.querySelector('[data-checkin-tap-strip="true"]');
+    expect(change?.nextElementSibling).toBe(tap);
   });
 });
 
@@ -732,18 +769,24 @@ describe("StudentAbsenceRow day note (#3369)", () => {
   it("adds no line without a note", () => {
     render(<StudentAbsenceRow label="kein Plan für heute" />);
 
+    // Anker: die Abwesenheitszeile ist gerendert.
+    expect(
+      screen.getByText("Kommt heute nicht (kein Plan für heute)"),
+    ).toBeInTheDocument();
     expect(screen.queryByText(/Notiz:/)).not.toBeInTheDocument();
   });
 });
 
 describe("StudentPendingExcusedRow", () => {
-  it("uses the shared amber status tone", () => {
+  // #4371: the location is the only pill on a card; the pending request is a
+  // plain text row that keeps the parent's note on hover.
+  it("renders as a text row, not a pill, with the note as title", () => {
     render(<StudentPendingExcusedRow note="Noch offen" />);
 
-    expect(screen.getByText("Freigabe ausstehend")).toHaveStyle({
-      backgroundColor: "#FEF3C7",
-      color: "#92400E",
-    });
+    const text = screen.getByText("Freigabe ausstehend");
+    expect(text.className).not.toMatch(/\brounded-full\b/);
+    expect(text.style.backgroundColor).toBe("");
+    expect(text.closest("[title]")).toHaveAttribute("title", "Noch offen");
   });
 });
 

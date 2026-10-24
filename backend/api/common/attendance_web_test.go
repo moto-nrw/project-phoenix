@@ -58,7 +58,7 @@ func TestRequireWebAttendanceEnabled(t *testing.T) {
 				called = true
 				w.WriteHeader(http.StatusNoContent)
 			})
-			handler := RequireWebAttendanceEnabled(tt.settings)(next)
+			handler := RequireWebAttendanceEnabled(configModel.WebAttendanceEnabledReader(tt.settings))(next)
 			w := httptest.NewRecorder()
 			handler.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/attendance", nil))
 

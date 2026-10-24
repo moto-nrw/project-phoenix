@@ -7,10 +7,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 
-	"github.com/moto-nrw/project-phoenix/services"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
@@ -27,13 +26,13 @@ func TestEnsureSchoolIdentityAcceptsTheReaderSpellingOfATag(t *testing.T) {
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("tag-spelling-%d@example.com", time.Now().UnixNano()))
 	testpkg.MapAccountToTenant(t, db, account.ID, testpkg.Tenant(t))
 
-	provisioning, err := services.NewSchoolIdentityForTests(db, testpkg.TenantRuntime(t, db))
+	provisioning, err := api.NewSchoolIdentityForTests(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
 
 	lower := strings.ToLower(card.ID)
 	submitted := " " + lower[:2] + ":" + lower[2:4] + "-" + lower[4:6] + " " + lower[6:] + " "
 	var identity *identityaccess.SchoolIdentity
-	err = tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+	err = testpkg.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
 		var ensureErr error
 		identity, ensureErr = provisioning.EnsureSchoolIdentity(txCtx, identityaccess.SchoolIdentityInput{
 			AccountID:    account.ID,
@@ -66,11 +65,11 @@ func TestEnsureSchoolIdentityReportsAnUnknownTagAsTheRetainedSentinel(t *testing
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("tag-unknown-%d@example.com", time.Now().UnixNano()))
 	testpkg.MapAccountToTenant(t, db, account.ID, testpkg.Tenant(t))
 
-	provisioning, err := services.NewSchoolIdentityForTests(db, testpkg.TenantRuntime(t, db))
+	provisioning, err := api.NewSchoolIdentityForTests(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
 
 	unknown := "NOTACARD"
-	err = tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+	err = testpkg.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
 		_, ensureErr := provisioning.EnsureSchoolIdentity(txCtx, identityaccess.SchoolIdentityInput{
 			AccountID:    account.ID,
 			TenantID:     testpkg.Tenant(t),
@@ -83,5 +82,5 @@ func TestEnsureSchoolIdentityReportsAnUnknownTagAsTheRetainedSentinel(t *testing
 		return ensureErr
 	})
 	require.ErrorIs(t, err, identityaccess.ErrSchoolIdentityTagUnknown)
-	require.Contains(t, err.Error(), "Der angegebene Transponder ist an dieser Schule nicht bekannt")
+	require.Contains(t, err.Error(), "der angegebene Transponder ist an dieser Schule nicht bekannt")
 }

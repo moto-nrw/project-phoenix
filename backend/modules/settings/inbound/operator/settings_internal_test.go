@@ -1,6 +1,7 @@
 package operator
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -12,7 +13,7 @@ import (
 func TestNewSettingsResource(t *testing.T) {
 	t.Parallel()
 
-	res := NewSettingsResource(SettingsConfig{})
+	res := NewSettingsResource(SettingsConfig{OperatorID: func(context.Context) int64 { return 0 }})
 	assert.NotNil(t, res)
 	assert.Nil(t, res.settings)
 	assert.Nil(t, res.schoolService)

@@ -16,9 +16,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	authAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -52,23 +55,23 @@ func newDemoEnv(t *testing.T) demoEnv {
 	db := testpkg.SetupTestDB(t)
 	var slug string
 	require.NoError(t, db.NewRaw(`SELECT slug FROM platform.schools WHERE id = ?`, testpkg.Tenant(t)).Scan(context.Background(), &slug))
-	return mountDemoEnv(t, db, slug, testutil.WithStandingDemoSchool(slug))
+	return mountDemoEnv(t, db, slug, api.WithStandingDemoSchool(slug))
 }
 
 // mountDemoEnv composes the demo access with the options. The transport
 // carries the demo environment's mail lock (#3465).
-func mountDemoEnv(t *testing.T, db *bun.DB, slug string, options ...testutil.AuthTestOption) demoEnv {
+func mountDemoEnv(t *testing.T, db *bun.DB, slug string, options ...api.AuthTestOption) demoEnv {
 	t.Helper()
 	mails := testpkg.NewCapturingMailer()
-	options = append(options, testutil.WithDemoCapturingMailer(mails))
-	svc := testutil.SetupAuthModuleOn(t, db, options...)
+	options = append(options, api.WithAuthTestMailer(mails.InDemoEnvironment()))
+	svc := setupAuthModuleOn(t, db, options...)
 	resource, err := authAPI.NewDemoResource(svc.DemoAccess, demoOrigins)
 	require.NoError(t, err)
-	auth := authAPI.NewResource(svc.Auth, svc.Invitation, testSchoolDirectory{schools: svc.Schools, db: db, runtime: testpkg.TenantRuntime(t, db)}, svc.AccountAuthentication, testutil.AccountRouteTenantRuntime())
-	auth.RoleGrants = testutil.AccountRoleGrantPolicy()
+	auth := authAPI.NewResource(svc.Auth, svc.Invitation, testSchoolDirectory{schools: api.NewOrganizationTestRows(testpkg.NewDatabase(t, db)).School, db: db, runtime: testpkg.TenantRuntime(t, db)}, svc.AccountAuthentication, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation, &settingsDouble{})
+	auth.RoleGrants = api.AccountRoleGrantPolicy()
 	router := testutil.NewTenantRouter(db)
 	router.Mount("/demo", resource.Router())
-	router.Mount("/auth", auth.Router())
+	router.Mount("/auth", auth.Router(api.TenantSessionChain))
 	return demoEnv{db: db, router: router, slug: slug, prospect: demoAddress(t), mails: mails}
 }
 
@@ -325,7 +328,7 @@ func TestDemoRoutesExistOnlyInTheDemoEnvironment(t *testing.T) {
 	}
 	for _, appEnv := range []string{"", "development", "test", "staging", "production"} {
 		router := chi.NewRouter()
-		require.NoError(t, authAPI.MountDemoRoutes(router, testutil.IsDemoEnvironment(appEnv), compose, demoOrigins))
+		require.NoError(t, authAPI.MountDemoRoutes(router, api.IsDemoEnvironment(appEnv), compose, demoOrigins))
 		assert.Zero(t, composed, "nothing is composed under APP_ENV=%q", appEnv)
 		for _, route := range routes {
 			rr := httptest.NewRecorder()
@@ -335,7 +338,7 @@ func TestDemoRoutesExistOnlyInTheDemoEnvironment(t *testing.T) {
 	}
 
 	router := chi.NewRouter()
-	require.NoError(t, authAPI.MountDemoRoutes(router, testutil.IsDemoEnvironment("demo"), compose, demoOrigins))
+	require.NoError(t, authAPI.MountDemoRoutes(router, api.IsDemoEnvironment("demo"), compose, demoOrigins))
 	for _, route := range routes {
 		assert.True(t, router.Match(chi.NewRouteContext(), route.method, route.path), "%s %s", route.method, route.path)
 	}

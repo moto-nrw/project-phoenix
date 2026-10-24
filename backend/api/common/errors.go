@@ -8,7 +8,6 @@ import (
 	"net/http"
 
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -94,14 +93,15 @@ type ErrResponse struct {
 	Err            error `json:"-"`
 	HTTPStatusCode int   `json:"-"`
 
-	Status    string       `json:"status"`
-	Type      string       `json:"type"`
-	Title     string       `json:"title"`
-	Detail    string       `json:"detail"`
-	Instance  string       `json:"instance"`
-	ErrorText string       `json:"error,omitempty"`
-	Code      string       `json:"code,omitempty"`
-	Errors    []FieldError `json:"errors,omitempty"`
+	// The RFC 9457 members (ADR 0006, #2520). Status is the HTTP status
+	// number, Detail is developer diagnostics; the identity is Code.
+	Type     string       `json:"type"`
+	Title    string       `json:"title"`
+	Status   int          `json:"status"`
+	Detail   string       `json:"detail"`
+	Instance string       `json:"instance"`
+	Code     string       `json:"code"`
+	Errors   []FieldError `json:"errors,omitempty"`
 	// Details carries structured, code-specific payload that lets the frontend
 	// react to a conflict without having to refetch and pattern-match local
 	// state. Populated by helpers like ErrorConflictWithDetails. Keys are
@@ -116,7 +116,10 @@ func (e *ErrResponse) Render(_ http.ResponseWriter, r *http.Request) error {
 	}
 	e.Type = problemType(e.Code, e.HTTPStatusCode)
 	e.Title = problemTitle(e.HTTPStatusCode)
-	e.Detail = e.ErrorText
+	e.Status = e.HTTPStatusCode
+	if e.Detail == "" {
+		e.Detail = e.Title
+	}
 	e.Instance = requestID(r)
 	render.Status(r, e.HTTPStatusCode)
 	return nil
@@ -138,8 +141,7 @@ func newErrResponse(status int, err error) *ErrResponse {
 	return &ErrResponse{
 		Err:            err,
 		HTTPStatusCode: status,
-		Status:         "error",
-		ErrorText:      text,
+		Detail:         text,
 	}
 }
 
@@ -166,21 +168,18 @@ func ErrorInvalidRequestWithCode(err error, code string) render.Renderer {
 func ErrorInvalidOnField(err error, code, field string) render.Renderer {
 	resp := newErrResponse(http.StatusBadRequest, err)
 	resp.Code = code
-	resp.Errors = []FieldError{{Field: field, Reason: resp.ErrorText}}
+	resp.Errors = []FieldError{{Field: field, Reason: resp.Detail}}
 	return resp
 }
 
-// ErrorValidation returns a 400 Bad Request with a summary message and a
-// per-field error list. The summary goes in the standard `error` field so
-// existing frontend handlers that read `.error` continue to display a
-// message; the `errors` array surfaces individual field problems for form
-// rendering.
+// ErrorValidation returns a 400 Bad Request with a summary and a per-field
+// error list. The summary is developer diagnostics in `detail`; the client
+// names the problem by its code and marks each field from `errors`.
 func ErrorValidation(summary string, fields []FieldError) render.Renderer {
 	return &ErrResponse{
 		Err:            errors.New(summary),
 		HTTPStatusCode: http.StatusBadRequest,
-		Status:         "error",
-		ErrorText:      summary,
+		Detail:         summary,
 		Errors:         fields,
 	}
 }
@@ -206,7 +205,7 @@ func ErrorUnauthorizedWithCode(err error, code string) render.Renderer {
 func ErrorUnauthorizedOnField(err error, code, field string) render.Renderer {
 	resp := newErrResponse(http.StatusUnauthorized, err)
 	resp.Code = code
-	resp.Errors = []FieldError{{Field: field, Reason: resp.ErrorText}}
+	resp.Errors = []FieldError{{Field: field, Reason: resp.Detail}}
 	return resp
 }
 
@@ -228,8 +227,7 @@ func ErrorNotFoundWithCode(err error, code string) render.Renderer {
 	return &ErrResponse{
 		Err:            err,
 		HTTPStatusCode: http.StatusNotFound,
-		Status:         "error",
-		ErrorText:      err.Error(),
+		Detail:         err.Error(),
 		Code:           code,
 	}
 }
@@ -251,8 +249,7 @@ func ErrorInternalServerWrap(clientMsg string, cause error) render.Renderer {
 	return &ErrResponse{
 		Err:            fmt.Errorf("%s: %w", clientMsg, cause),
 		HTTPStatusCode: http.StatusInternalServerError,
-		Status:         "error",
-		ErrorText:      clientMsg,
+		Detail:         clientMsg,
 	}
 }
 
@@ -263,8 +260,7 @@ func ErrorInternalServerWrapWithCode(clientMsg string, cause error, code string)
 	return &ErrResponse{
 		Err:            fmt.Errorf("%s: %w", clientMsg, cause),
 		HTTPStatusCode: http.StatusInternalServerError,
-		Status:         "error",
-		ErrorText:      clientMsg,
+		Detail:         clientMsg,
 		Code:           code,
 	}
 }
@@ -294,7 +290,7 @@ func ErrorConflictWithCode(err error, code string) render.Renderer {
 func ErrorConflictOnField(err error, code, field string) render.Renderer {
 	resp := newErrResponse(http.StatusConflict, err)
 	resp.Code = code
-	resp.Errors = []FieldError{{Field: field, Reason: resp.ErrorText}}
+	resp.Errors = []FieldError{{Field: field, Reason: resp.Detail}}
 	return resp
 }
 
@@ -306,8 +302,7 @@ func ErrorConflictWithDetails(err error, code string, details map[string]any) re
 	return &ErrResponse{
 		Err:            err,
 		HTTPStatusCode: http.StatusConflict,
-		Status:         "error",
-		ErrorText:      err.Error(),
+		Detail:         err.Error(),
 		Code:           code,
 		Details:        details,
 	}
@@ -390,8 +385,7 @@ func detailsObject(value any) (map[string]any, error) {
 func ErrorConflictMessage(message string) render.Renderer {
 	return &ErrResponse{
 		HTTPStatusCode: http.StatusConflict,
-		Status:         "error",
-		ErrorText:      message,
+		Detail:         message,
 	}
 }
 
@@ -402,8 +396,7 @@ func ErrorConflictMessage(message string) render.Renderer {
 func ErrorInvalidRequestMessage(message string) render.Renderer {
 	return &ErrResponse{
 		HTTPStatusCode: http.StatusBadRequest,
-		Status:         "error",
-		ErrorText:      message,
+		Detail:         message,
 	}
 }
 
@@ -420,8 +413,7 @@ func ErrorInvalidRequestMessageWithCode(message, code string) render.Renderer {
 func ErrorForbiddenMessage(message string) render.Renderer {
 	return &ErrResponse{
 		HTTPStatusCode: http.StatusForbidden,
-		Status:         "error",
-		ErrorText:      message,
+		Detail:         message,
 	}
 }
 
@@ -432,8 +424,7 @@ func ErrorForbiddenMessage(message string) render.Renderer {
 func ErrorForbiddenMessageWithCode(message, code string) render.Renderer {
 	return &ErrResponse{
 		HTTPStatusCode: http.StatusForbidden,
-		Status:         "error",
-		ErrorText:      message,
+		Detail:         message,
 		Code:           code,
 	}
 }
@@ -443,8 +434,7 @@ func ErrorForbiddenMessageWithCode(message, code string) render.Renderer {
 func ErrorNotFoundMessage(message string) render.Renderer {
 	return &ErrResponse{
 		HTTPStatusCode: http.StatusNotFound,
-		Status:         "error",
-		ErrorText:      message,
+		Detail:         message,
 	}
 }
 
@@ -454,8 +444,7 @@ func ErrorNotFoundMessage(message string) render.Renderer {
 func ErrorConflictMessageWithCode(message, code string) render.Renderer {
 	return &ErrResponse{
 		HTTPStatusCode: http.StatusConflict,
-		Status:         "error",
-		ErrorText:      message,
+		Detail:         message,
 		Code:           code,
 	}
 }
@@ -492,6 +481,13 @@ func ErrorServiceUnavailable(err error) render.Renderer {
 	return newErrResponse(http.StatusServiceUnavailable, err)
 }
 
+// ErrorServiceUnavailableWithCode identifies a retryable dependency failure.
+func ErrorServiceUnavailableWithCode(err error, code string) render.Renderer {
+	response := newErrResponse(http.StatusServiceUnavailable, err)
+	response.Code = code
+	return response
+}
+
 // ErrorBadGatewayWrap returns a 502 response with a stable client-facing
 // message for an upstream service that did not take the request. The cause
 // stays in the log.
@@ -499,18 +495,9 @@ func ErrorBadGatewayWrap(clientMsg string, cause error) render.Renderer {
 	return &ErrResponse{
 		Err:            fmt.Errorf("%s: %w", clientMsg, cause),
 		HTTPStatusCode: http.StatusBadGateway,
-		Status:         "error",
-		ErrorText:      clientMsg,
+		Detail:         clientMsg,
 	}
 }
-
-// IsTransientDatabaseError classifies connection failures through Transaction Runtime.
-func IsTransientDatabaseError(err error) bool {
-	return transactionruntime.IsTransientDatabaseError(err)
-}
-
-// IsConstraintViolation classifies dependency refusals through Transaction Runtime.
-func IsConstraintViolation(err error) bool { return transactionruntime.IsConstraintViolation(err) }
 
 // ErrorGone returns a 410 Gone error response
 func ErrorGone(err error) render.Renderer {
@@ -534,4 +521,15 @@ func RequireDependency(w http.ResponseWriter, r *http.Request, ok bool, unavaila
 		RenderError(w, r, newErrResponse(http.StatusServiceUnavailable, unavailableErr))
 	}
 	return ok
+}
+
+// RenderStatus answers status in the shared error envelope without a logged
+// cause: the detail is the given diagnostic text or the status title, the
+// code the class code of the status. It is for a refusal that has no cause
+// to report, such as a missing credential, an unknown file or a fault that
+// was already logged where it happened.
+func RenderStatus(w http.ResponseWriter, r *http.Request, status int, detail string) {
+	if err := render.Render(w, r, &ErrResponse{HTTPStatusCode: status, Detail: detail}); err != nil {
+		slog.Default().ErrorContext(r.Context(), "error rendering error response", slog.String("error", err.Error()))
+	}
 }

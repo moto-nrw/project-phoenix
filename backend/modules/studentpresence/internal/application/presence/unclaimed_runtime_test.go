@@ -14,6 +14,7 @@ import (
 
 func TestUnclaimedClaimRuntime(t *testing.T) {
 	t.Parallel()
+	testpkg.RequireRuntimeEvidence(t)
 	db := testpkg.SetupIsolatedTestDB(t)
 	ctx := testpkg.Ctx(t)
 	service := createActiveService(t, db)

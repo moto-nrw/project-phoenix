@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/uptrace/bun"
 )
@@ -31,7 +32,7 @@ type rosterRemovalRow struct {
 
 // ArchivePlannedInstanceStudents deletes the given participants and parks
 // them with their attendance snapshots for the transition.
-func (s *Store) ArchivePlannedInstanceStudents(ctx context.Context, transitionID int64, entries []domain.RosterArchiveEntry) (int64, domain.OperationStats, error) {
+func (s *Store) ArchivePlannedInstanceStudents(ctx context.Context, transitionID int64, entries []timetable.RosterArchiveEntry) (int64, domain.OperationStats, error) {
 	if len(entries) == 0 {
 		return 0, domain.OperationStats{}, nil
 	}
@@ -40,7 +41,7 @@ func (s *Store) ArchivePlannedInstanceStudents(ctx context.Context, transitionID
 		return 0, domain.OperationStats{}, err
 	}
 	ids := make([]int64, 0, len(entries))
-	snapshots := make(map[int64]domain.ArchivedAttendance, len(entries))
+	snapshots := make(map[int64]timetable.ArchivedAttendance, len(entries))
 	for _, entry := range entries {
 		ids = append(ids, entry.ParticipantID)
 		snapshots[entry.ParticipantID] = entry.Attendance
@@ -132,9 +133,9 @@ func rosterRemovalsToDomain(values []rosterRemovalRow) []domain.RosterRemoval {
 
 // InsertRestoredInstanceStudents puts archived participants back and returns
 // the rows it inserted; a roster that lists the child again keeps its row.
-func (s *Store) InsertRestoredInstanceStudents(ctx context.Context, fields []domain.InstanceStudentFields) ([]domain.InstanceStudent, domain.OperationStats, error) {
+func (s *Store) InsertRestoredInstanceStudents(ctx context.Context, fields []timetable.InstanceStudentInput) ([]timetable.InstanceStudent, domain.OperationStats, error) {
 	if len(fields) == 0 {
-		return []domain.InstanceStudent{}, domain.OperationStats{}, nil
+		return []timetable.InstanceStudent{}, domain.OperationStats{}, nil
 	}
 	db, tenantID, err := s.database(ctx)
 	if err != nil {

@@ -157,8 +157,43 @@ func TestRefreshToken_SchoolPortalOnlyAccountIsRefused(t *testing.T) {
 	// that justified it.
 	removeSchoolSystemRole(t, db, accountID, tenantID, "user")
 
-	_, _, err = service.RefreshTokenWithAudit(context.Background(), refreshToken, "", "")
+	_, _, err = service.RefreshTokenWithAudit(context.Background(), refreshToken, "", "", "")
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, identityaccess.ErrMustUseSchoolPortal)
+}
+
+// assignLehrkraftCopy gives the account a school role made from the template
+// „Wie Lehrkraft“ (#4574): a custom role with its own name, marked
+// school_portal, as the role administration creates it.
+func assignLehrkraftCopy(t *testing.T, db *bun.DB, accountID, tenantID int64) {
+	t.Helper()
+	role := testpkg.CreateTestRoleForTenant(t, db, "klassenleitung", tenantID)
+	_, err := db.Exec(`UPDATE auth.roles SET school_portal = TRUE WHERE id = ?`, role.ID)
+	require.NoError(t, err)
+	_, err = db.Exec(`INSERT INTO auth.account_roles (account_id, role_id, tenant_id, created_at, updated_at)
+		VALUES (?, ?, ?, NOW(), NOW())`, accountID, role.ID, tenantID)
+	require.NoError(t, err)
+}
+
+// A Lehrkraft copy opens moto schule and keeps its holder out of the OGS
+// portal, exactly like the Lehrkraft role (#4574).
+func TestLehrkraftCopy_UsesSchoolPortal(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	service := setupAuthService(t, db)
+
+	email, accountID, tenantID, slug := registerAccountAtTenant(t, db, service, "school-copy")
+	assignLehrkraftCopy(t, db, accountID, tenantID)
+
+	_, err := service.LoginWithMFAGate(context.Background(), email, testPassword, "", "", slug, "")
+	require.Error(t, err)
+	assert.ErrorIs(t, err, identityaccess.ErrMustUseSchoolPortal)
+
+	result, err := service.LoginSchoolWithMFAGate(context.Background(), email, testPassword, "", "", "")
+	require.NoError(t, err)
+	require.Equal(t, identityaccess.LoginStatusAuthenticated, result.Status)
+	scope, tokenTenantID := decodeTokenClaims(t, result.AccessToken)
+	assert.Equal(t, schoolScope, scope)
+	assert.Equal(t, tenantID, tokenTenantID)
 }

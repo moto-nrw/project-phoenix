@@ -4,11 +4,10 @@ import (
 	"context"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -54,13 +53,13 @@ func TestStudentAuditCompositionRecordsSystemStatusChange(t *testing.T) {
 	t.Parallel()
 
 	capability := &stubStudentAuditCapability{}
-	service := services.NewPeopleDirectorySuiteStudentAudit(testpkg.RequestAuditActor, repositories.NewStudentAuditFor(capability))
+	service := api.NewPeopleDirectorySuiteStudentAudit(testpkg.RequestAuditActor, owners.NewStudentAuditFor(capability))
 
 	err := service.RecordSystemStatusChange(
 		context.Background(),
 		42,
-		userModels.StudentStatusPending,
-		userModels.StudentStatusActive,
+		peopleModule.StudentStatusPending,
+		peopleModule.StudentStatusActive,
 	)
 
 	require.NoError(t, err)
@@ -69,8 +68,8 @@ func TestStudentAuditCompositionRecordsSystemStatusChange(t *testing.T) {
 	assert.Equal(t, int64(42), recorded.after.StudentID)
 	assert.Equal(t, peopleModule.StudentAuditSystemActorID, recorded.editedBy)
 	assert.Equal(t, peopleModule.StudentAuditSystemActorName, recorded.editedByName)
-	assert.Equal(t, string(userModels.StudentStatusPending), recorded.before.Status)
-	assert.Equal(t, string(userModels.StudentStatusActive), recorded.after.Status)
+	assert.Equal(t, string(peopleModule.StudentStatusPending), recorded.before.Status)
+	assert.Equal(t, string(peopleModule.StudentStatusActive), recorded.after.Status)
 }
 
 // The editor's display name comes from the authenticated caller, and a
@@ -80,19 +79,19 @@ func TestStudentAuditCompositionResolvesActorName(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		claims     jwt.AppClaims
+		claims     sessiontoken.AppClaims
 		editedBy   int64
 		wantEditor string
 	}{
 		{
 			name:       "full name",
-			claims:     jwt.AppClaims{ID: 23, FirstName: "Mara", LastName: "Muster"},
+			claims:     sessiontoken.AppClaims{ID: 23, FirstName: "Mara", LastName: "Muster"},
 			editedBy:   23,
 			wantEditor: "Mara Muster",
 		},
 		{
 			name:       "username fallback",
-			claims:     jwt.AppClaims{ID: 23, Username: "mara.muster"},
+			claims:     sessiontoken.AppClaims{ID: 23, Username: "mara.muster"},
 			editedBy:   23,
 			wantEditor: "mara.muster",
 		},
@@ -100,7 +99,7 @@ func TestStudentAuditCompositionResolvesActorName(t *testing.T) {
 			// The owner stores "Unbekannt" for an unnamed editor; the port
 			// deliberately hands it nothing rather than the wrong name.
 			name:       "mismatched actor",
-			claims:     jwt.AppClaims{ID: 99, FirstName: "Andere", LastName: "Person"},
+			claims:     sessiontoken.AppClaims{ID: 99, FirstName: "Andere", LastName: "Person"},
 			editedBy:   23,
 			wantEditor: "",
 		},
@@ -109,13 +108,13 @@ func TestStudentAuditCompositionResolvesActorName(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			capability := &stubStudentAuditCapability{}
-			service := services.NewPeopleDirectorySuiteStudentAudit(testpkg.RequestAuditActor, repositories.NewStudentAuditFor(capability))
-			ctx := context.WithValue(context.Background(), jwt.CtxClaims, tc.claims)
+			service := api.NewPeopleDirectorySuiteStudentAudit(testpkg.RequestAuditActor, owners.NewStudentAuditFor(capability))
+			ctx := context.WithValue(context.Background(), sessiontoken.CtxClaims, tc.claims)
 
 			err := service.RecordChangesForActor(
 				ctx,
-				&userModels.Student{HealthInfo: auditPortStrPtr("alt")},
-				&userModels.Student{HealthInfo: auditPortStrPtr("neu")},
+				&peopleModule.StudentState{HealthInfo: auditPortStrPtr("alt")},
+				&peopleModule.StudentState{HealthInfo: auditPortStrPtr("neu")},
 				tc.editedBy,
 			)
 
@@ -133,10 +132,10 @@ func TestStudentAuditCompositionIgnoresMissingSnapshots(t *testing.T) {
 	t.Parallel()
 
 	capability := &stubStudentAuditCapability{}
-	service := services.NewPeopleDirectorySuiteStudentAudit(testpkg.RequestAuditActor, repositories.NewStudentAuditFor(capability))
+	service := api.NewPeopleDirectorySuiteStudentAudit(testpkg.RequestAuditActor, owners.NewStudentAuditFor(capability))
 
-	require.NoError(t, service.RecordChanges(context.Background(), nil, &userModels.Student{}, 1, "Wer"))
-	require.NoError(t, service.RecordChanges(context.Background(), &userModels.Student{}, nil, 1, "Wer"))
+	require.NoError(t, service.RecordChanges(context.Background(), nil, &peopleModule.StudentState{}, 1, "Wer"))
+	require.NoError(t, service.RecordChanges(context.Background(), &peopleModule.StudentState{}, nil, 1, "Wer"))
 	assert.Empty(t, capability.recorded)
 }
 

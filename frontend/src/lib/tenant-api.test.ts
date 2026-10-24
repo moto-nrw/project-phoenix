@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import type { TenantSwitchError } from "./tenant-api";
 
 // ============================================================================
 // Mocks
@@ -138,6 +137,8 @@ describe("tenant-api", () => {
         // — matches backend's own safe fallback.
         presenceMode: "detailed",
         studentPhotosEnabled: false,
+        // Missing booked_modules books nothing (#4892).
+        bookedModules: [],
         nfcEnabled: false,
         messagingEnabled: false,
         // Der Team-Chat (#2598) fehlt in dieser Antwort, also bleibt er aus —
@@ -171,12 +172,14 @@ describe("tenant-api", () => {
         gradeLevelMax: 13,
         // Older backends omit the Analyse-Freigabe (#3603): off, and nothing
         // is recorded.
+        analyticsEnabled: false,
         analyticsFreigabe: false,
         analyticsRecordingSamplePercent: 0,
         // Older backends omit the early-checkout question (#3324): no note
         // field, so the dialog never guesses a window.
         earlyCheckoutNoteToleranceMinutes: null,
         weekendFollowsFriday: false,
+        childSearchOnlyNavigation: false,
       });
     });
 
@@ -272,6 +275,7 @@ describe("tenant-api", () => {
       vi.mocked(global.fetch)
         .mockResolvedValueOnce(
           respond({
+            analytics_enabled: true,
             analytics_freigabe: true,
             analytics_recording_sample_percent: 25,
           }),
@@ -335,7 +339,7 @@ describe("tenant-api", () => {
       expect(result?.presenceMode).toBe("binary");
     });
 
-    it("passes through nfcEnabled=true when the backend advertises it", async () => {
+    it("derives nfcEnabled from the booked NFC module", async () => {
       const backendData = {
         status: "success",
         data: {
@@ -346,7 +350,7 @@ describe("tenant-api", () => {
           organization_id: 11,
           organization_name: "Org B",
           settings: {},
-          nfc_enabled: true,
+          booked_modules: ["nfc_anwesenheit", "zeiterfassung", "spaeter"],
         },
       };
       vi.mocked(global.fetch).mockResolvedValueOnce(
@@ -357,6 +361,34 @@ describe("tenant-api", () => {
       );
       const result = await resolveTenant("nfc-school");
       expect(result?.nfcEnabled).toBe(true);
+      expect(result?.bookedModules).toEqual([
+        "nfc_anwesenheit",
+        "zeiterfassung",
+      ]);
+    });
+
+    it("books no module when booked_modules is missing", async () => {
+      const backendData = {
+        status: "success",
+        data: {
+          tenant_id: 2,
+          slug: "basis-school",
+          name: "Basis School",
+          subdomain: "basis",
+          organization_id: 11,
+          organization_name: "Org B",
+          settings: {},
+        },
+      };
+      vi.mocked(global.fetch).mockResolvedValueOnce(
+        new Response(JSON.stringify(backendData), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+      const result = await resolveTenant("basis-school");
+      expect(result?.bookedModules).toEqual([]);
+      expect(result?.nfcEnabled).toBe(false);
     });
 
     it.each([
@@ -387,6 +419,37 @@ describe("tenant-api", () => {
         );
         const result = await resolveTenant("demo");
         expect(result?.weekendFollowsFriday).toBe(expected);
+      },
+    );
+
+    it.each([
+      [true, true],
+      ["true", false],
+      [undefined, false],
+    ])(
+      "maps child_search_only_navigation=%s to childSearchOnlyNavigation=%s (#1321)",
+      async (raw, expected) => {
+        const backendData = {
+          status: "success",
+          data: {
+            tenant_id: 3,
+            slug: "demo",
+            name: "Demo",
+            subdomain: "demo",
+            organization_id: 12,
+            organization_name: "Org C",
+            settings: {},
+            child_search_only_navigation: raw,
+          },
+        };
+        vi.mocked(global.fetch).mockResolvedValueOnce(
+          new Response(JSON.stringify(backendData), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        );
+        const result = await resolveTenant("demo");
+        expect(result?.childSearchOnlyNavigation).toBe(expected);
       },
     );
 
@@ -696,10 +759,19 @@ describe("tenant-api", () => {
 
       const result = await switchTenant("school-b");
 
-      expect(mockSessionFetch).toHaveBeenCalledWith("/api/auth/switch-tenant", {
-        method: "POST",
-        body: JSON.stringify({ tenant_slug: "school-b" }),
-      });
+      expect(mockSessionFetch).toHaveBeenCalledWith(
+        "/api/auth/switch-tenant",
+        {
+          method: "POST",
+          body: JSON.stringify({ tenant_slug: "school-b" }),
+        },
+        {
+          authRefusals: [
+            "identity.tenant_access_denied",
+            "identity.mfa_session_required",
+          ],
+        },
+      );
       expect(result).toEqual(tokens);
     });
 
@@ -707,8 +779,8 @@ describe("tenant-api", () => {
       mockSessionFetch.mockResolvedValueOnce(
         new Response(
           JSON.stringify({
-            status: "error",
-            error: "account does not have access to this tenant",
+            status: 401,
+            detail: "account does not have access to this tenant",
             code: "identity.tenant_access_denied",
           }),
           {
@@ -719,36 +791,37 @@ describe("tenant-api", () => {
       );
 
       await expect(switchTenant("nonexistent")).rejects.toMatchObject({
-        name: "TenantSwitchError",
-        message: "account does not have access to this tenant",
+        name: "ApiError",
+        message: "Failed to switch tenant",
+        detail: "account does not have access to this tenant",
         status: 401,
-        reason: "access_denied",
         code: "identity.tenant_access_denied",
-      } satisfies Partial<TenantSwitchError>);
+      });
     });
 
     it("classifies by the code, not by the diagnostic text", async () => {
       mockSessionFetch.mockResolvedValueOnce(
         new Response(
           JSON.stringify({
-            error: "account does not have access to this tenant",
+            detail: "account does not have access to this tenant",
           }),
           { status: 401, headers: { "Content-Type": "application/json" } },
         ),
       );
 
       await expect(switchTenant("school-b")).rejects.toMatchObject({
-        name: "TenantSwitchError",
-        reason: "unknown",
-      } satisfies Partial<TenantSwitchError>);
+        name: "ApiError",
+        status: 401,
+        code: "general.permission",
+      });
     });
 
     it("preserves the school portal handoff code", async () => {
       mockSessionFetch.mockResolvedValueOnce(
         new Response(
           JSON.stringify({
-            status: "error",
-            error: "school portal accounts must log in at the school portal",
+            status: 403,
+            detail: "school portal accounts must log in at the school portal",
             code: "identity.use_school_portal",
           }),
           {
@@ -759,38 +832,37 @@ describe("tenant-api", () => {
       );
 
       await expect(switchTenant("school-b")).rejects.toMatchObject({
-        name: "TenantSwitchError",
+        name: "ApiError",
         status: 403,
-        reason: "use_school_portal",
         code: "identity.use_school_portal",
-      } satisfies Partial<TenantSwitchError>);
+      });
     });
 
     it("throws generic error when response body is empty", async () => {
       mockSessionFetch.mockResolvedValueOnce(new Response("", { status: 500 }));
 
       await expect(switchTenant("bad")).rejects.toMatchObject({
-        name: "TenantSwitchError",
+        name: "ApiError",
         message: "Failed to switch tenant",
         status: 500,
-        reason: "unknown",
-      } satisfies Partial<TenantSwitchError>);
+        code: "general.server",
+      });
     });
 
-    it("falls back to raw text when response body is not JSON", async () => {
+    it("keeps the fallback diagnostic when the body is not JSON", async () => {
       mockSessionFetch.mockResolvedValueOnce(
         new Response("plain text error", { status: 503 }),
       );
 
       await expect(switchTenant("bad")).rejects.toMatchObject({
-        name: "TenantSwitchError",
-        message: "plain text error",
+        name: "ApiError",
+        message: "Failed to switch tenant",
         status: 503,
-        reason: "unknown",
-      } satisfies Partial<TenantSwitchError>);
+        code: "general.unavailable",
+      });
     });
 
-    it("uses message field when error field is missing", async () => {
+    it("does not read a legacy message field as the diagnostic", async () => {
       mockSessionFetch.mockResolvedValueOnce(
         new Response(JSON.stringify({ message: "something went wrong" }), {
           status: 400,
@@ -799,14 +871,14 @@ describe("tenant-api", () => {
       );
 
       await expect(switchTenant("bad")).rejects.toMatchObject({
-        name: "TenantSwitchError",
-        message: "something went wrong",
+        name: "ApiError",
+        message: "Failed to switch tenant",
         status: 400,
-        reason: "unknown",
-      } satisfies Partial<TenantSwitchError>);
+        code: "general.input",
+      });
     });
 
-    it("falls back to raw text when JSON has no error or message field", async () => {
+    it("keeps the fallback diagnostic when JSON has no detail", async () => {
       mockSessionFetch.mockResolvedValueOnce(
         new Response(JSON.stringify({ foo: "bar" }), {
           status: 422,
@@ -815,11 +887,11 @@ describe("tenant-api", () => {
       );
 
       await expect(switchTenant("bad")).rejects.toMatchObject({
-        name: "TenantSwitchError",
-        message: '{"foo":"bar"}',
+        name: "ApiError",
+        message: "Failed to switch tenant",
         status: 422,
-        reason: "unknown",
-      } satisfies Partial<TenantSwitchError>);
+        code: "general.business_rejection",
+      });
     });
   });
 
@@ -859,10 +931,19 @@ describe("tenant-api", () => {
       expect(result).toEqual(tokens);
 
       // Step 1: switch-tenant called
-      expect(mockSessionFetch).toHaveBeenCalledWith("/api/auth/switch-tenant", {
-        method: "POST",
-        body: JSON.stringify({ tenant_slug: "school-b" }),
-      });
+      expect(mockSessionFetch).toHaveBeenCalledWith(
+        "/api/auth/switch-tenant",
+        {
+          method: "POST",
+          body: JSON.stringify({ tenant_slug: "school-b" }),
+        },
+        {
+          authRefusals: [
+            "identity.tenant_access_denied",
+            "identity.mfa_session_required",
+          ],
+        },
+      );
 
       // Step 2: signIn called with new tokens
       expect(mockSignIn).toHaveBeenCalledWith("credentials", {
@@ -916,11 +997,11 @@ describe("tenant-api", () => {
       ]);
     });
 
-    it("propagates TenantSwitchError when backend rejects", async () => {
+    it("propagates the ApiError when backend rejects", async () => {
       mockSessionFetch.mockResolvedValueOnce(
         new Response(
           JSON.stringify({
-            error: "account does not have access to this tenant",
+            detail: "account does not have access to this tenant",
             code: "identity.tenant_access_denied",
           }),
           {
@@ -933,8 +1014,8 @@ describe("tenant-api", () => {
       await expect(
         performTenantSwitch("bad-tenant", mockSignIn, mockSwrMutate),
       ).rejects.toMatchObject({
-        name: "TenantSwitchError",
-        reason: "access_denied",
+        name: "ApiError",
+        code: "identity.tenant_access_denied",
       });
 
       // Should NOT have called signIn or cache clearing

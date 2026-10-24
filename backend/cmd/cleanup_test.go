@@ -11,11 +11,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
+	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -46,37 +50,40 @@ func render(fn func(io.Writer)) string {
 	return output.String()
 }
 
-// setupTestCleanupContext creates a cleanupContext with test database
-func setupTestCleanupContext(t *testing.T) *cleanupContext {
+// setupTestRetentionCleanup builds the retention cleanup over the test
+// database, with the database and schools it sweeps.
+func setupTestRetentionCleanup(t *testing.T) (transactionruntime.Database, organizationtenancy.Capability, studentpresence.PresenceCleanup) {
 	db := testpkg.SetupTestDB(t)
-	schools, err := repositories.NewOrganizationTenancy(db)
+	schools, err := owners.NewOrganizationTenancy(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	ctx := &cleanupContext{
-		Schools:       schools,
-		TenantRuntime: testpkg.TenantRuntime(t, db),
-		DB:            db,
-		Audit:         repositories.NewTestAuditStore(db),
-		Output:        io.Discard,
-		Logger:        log.New(io.Discard, "", 0),
-	}
-	ctx.CleanupService = buildRetentionCleanupService(ctx)
-	return ctx
+	cleanupDB := testpkg.NewDatabase(t, db)
+	retention := buildRetentionCleanupService(cleanupDB, schools, owners.NewTestAuditStore(testpkg.NewDatabase(t, db)))
+	return cleanupDB, schools, retention
 }
 
-// setupTestCleanupContextWithServices creates the narrow session-cleanup service.
-func setupTestCleanupContextWithServices(t *testing.T) *cleanupContext {
+// setupTestSessionCleanup creates the narrow session-cleanup service, with
+// the database and schools it sweeps.
+func setupTestSessionCleanup(t *testing.T) (transactionruntime.Database, organizationtenancy.Capability, sessionCleanupService) {
 	db := testpkg.SetupTestDB(t)
-	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	timetableOwner := owners.MustNewUnobservedTimetable(testpkg.NewDatabase(t, db))
+	students := owners.MustNewPeopleDirectory(testpkg.NewDatabase(t, db))
+	rooms := owners.MustNewUnobservedRooms(testpkg.NewDatabase(t, db))
+	membership := owners.MustNewSchoolMembership(testpkg.NewDatabase(t, db))
+	sessionDevices, err := owners.NewDeviceFleet(testpkg.NewDatabase(t, db))
+	require.NoError(t, err)
+	sessions := owners.NewSessionRecords(testpkg.NewDatabase(t, db), nil, sessionDevices, rooms, timetableOwner, membership, students)
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
-	sessionGroups, sessionSupervisors := presenceCompose.SessionRepositories(repoFactory.ActiveGroup)
+	devices, err := api.NewDeviceRepository(testpkg.NewDatabase(t, db))
+	require.NoError(t, err)
+	sessionGroups, sessionSupervisors := presenceCompose.SessionRepositories(sessions)
 	sessionService := presenceservice.NewPresence(presenceservice.PresenceDependencies{
 		SchoolPresence: presence,
 		GroupRepo:      sessionGroups,
 		SupervisorRepo: sessionSupervisors,
 		DeviceRepo: cleanupTestDevices{
 			findDeviceID: func(ctx context.Context) (int64, error) {
-				device, err := repoFactory.Device.FindByDeviceID(ctx, "WEB-MANUAL-001")
+				device, err := devices.FindByDeviceID(ctx, "WEB-MANUAL-001")
 				if err != nil {
 					return 0, err
 				}
@@ -85,24 +92,15 @@ func setupTestCleanupContextWithServices(t *testing.T) *cleanupContext {
 				}
 				return device.ID, nil
 			},
-			updateRoomID: repoFactory.Device.UpdateRoomID,
+			updateRoomID: devices.UpdateRoomID,
 		},
-		TimetableBridgeCompleter: repoFactory.ActivityInstance,
+		TimetableBridgeCompleter: api.NewUnobservedTimetableRepositories(testpkg.NewDatabase(t, db)).NativeInstances(),
 		DB:                       db,
 		Logger:                   slog.Default(),
 	}, presenceservice.WithPresenceSettings(detailedPresenceSettings{}))
-	cleanupSvc := buildRetentionCleanupService(&cleanupContext{DB: db, Audit: repositories.NewTestAuditStore(db)})
-	schools, err := repositories.NewOrganizationTenancy(db)
+	schools, err := owners.NewOrganizationTenancy(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	return &cleanupContext{
-		Schools:               schools,
-		TenantRuntime:         testpkg.TenantRuntime(t, db),
-		DB:                    db,
-		SessionCleanupService: sessionService,
-		CleanupService:        cleanupSvc,
-		Output:                io.Discard,
-		Logger:                log.New(io.Discard, "", 0),
-	}
+	return testpkg.NewDatabase(t, db), schools, sessionService
 }
 
 // =============================================================================
@@ -678,12 +676,12 @@ func TestPrintStaffBreakdown_WithData(t *testing.T) {
 
 func TestRunVisitsDryRun_NotVerbose(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestCleanupContext(t)
+	db, schools, retention := setupTestRetentionCleanup(t)
 
 	var logBuf bytes.Buffer
 	logger := log.New(&logBuf, "", 0)
 
-	err := runVisitsDryRun(logger, ctx, false)
+	err := runVisitsDryRun(logger, db, schools, retention, io.Discard, false)
 	require.NoError(t, err)
 
 	// Check logger output
@@ -697,12 +695,12 @@ func TestRunVisitsDryRun_NotVerbose(t *testing.T) {
 
 func TestRunVisitsDryRun_Verbose(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestCleanupContext(t)
+	db, schools, retention := setupTestRetentionCleanup(t)
 
 	var logBuf bytes.Buffer
 	logger := log.New(&logBuf, "", 0)
 
-	err := runVisitsDryRun(logger, ctx, true)
+	err := runVisitsDryRun(logger, db, schools, retention, io.Discard, true)
 	require.NoError(t, err)
 
 	logOutput := logBuf.String()
@@ -711,61 +709,61 @@ func TestRunVisitsDryRun_Verbose(t *testing.T) {
 
 func TestRunVisitsCleanup(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestCleanupContext(t)
+	db, schools, retention := setupTestRetentionCleanup(t)
 
 	var logBuf bytes.Buffer
 	logger := log.New(&logBuf, "", 0)
 
 	// Should run without error even if no data to clean
-	err := runVisitsCleanup(logger, ctx, false)
+	err := runVisitsCleanup(logger, db, schools, retention, io.Discard, false)
 	require.NoError(t, err)
 }
 
 func TestRunAttendanceDryRun_NotVerbose(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestCleanupContext(t)
+	db, schools, retention := setupTestRetentionCleanup(t)
 
-	err := runAttendanceDryRun(ctx, false)
+	err := runAttendanceDryRun(db, schools, retention, io.Discard, false)
 	require.NoError(t, err)
 }
 
 func TestRunAttendanceDryRun_Verbose(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestCleanupContext(t)
+	db, schools, retention := setupTestRetentionCleanup(t)
 
-	err := runAttendanceDryRun(ctx, true)
+	err := runAttendanceDryRun(db, schools, retention, io.Discard, true)
 	require.NoError(t, err)
 }
 
 func TestRunAttendanceCleanup(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestCleanupContext(t)
+	db, schools, retention := setupTestRetentionCleanup(t)
 
-	err := runAttendanceCleanup(ctx, false)
+	err := runAttendanceCleanup(db, schools, retention, io.Discard, false)
 	require.NoError(t, err)
 }
 
 func TestRunSupervisorsDryRun_NotVerbose(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestCleanupContext(t)
+	db, schools, retention := setupTestRetentionCleanup(t)
 
-	err := runSupervisorsDryRun(ctx, false)
+	err := runSupervisorsDryRun(db, schools, retention, io.Discard, false)
 	require.NoError(t, err)
 }
 
 func TestRunSupervisorsDryRun_Verbose(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestCleanupContext(t)
+	db, schools, retention := setupTestRetentionCleanup(t)
 
-	err := runSupervisorsDryRun(ctx, true)
+	err := runSupervisorsDryRun(db, schools, retention, io.Discard, true)
 	require.NoError(t, err)
 }
 
 func TestRunSupervisorsCleanup(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestCleanupContext(t)
+	db, schools, retention := setupTestRetentionCleanup(t)
 
-	err := runSupervisorsCleanup(ctx, false)
+	err := runSupervisorsCleanup(db, schools, retention, io.Discard, false)
 	require.NoError(t, err)
 }
 
@@ -775,12 +773,11 @@ func TestRunSupervisorsCleanup(t *testing.T) {
 
 func TestPrintVerboseRecentDeletions(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestCleanupContext(t)
+	db, _, _ := setupTestRetentionCleanup(t)
 
 	// Should run without error even if no recent deletions exist
 	var output bytes.Buffer
-	ctx.Output = &output
-	printVerboseRecentDeletions(ctx)
+	printVerboseRecentDeletions(db, &output)
 
 	// Should at least print the header
 	assert.Contains(t, output.String(), "Recent deletion activity:")
@@ -788,33 +785,32 @@ func TestPrintVerboseRecentDeletions(t *testing.T) {
 
 func TestCountExpiredTokens(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestCleanupContext(t)
+	db, _, _ := setupTestRetentionCleanup(t)
 
 	// Without the Identity & Access owner service the preview fails closed
 	// instead of counting auth.tokens itself (#2720).
-	_, err := countExpiredTokens(ctx)
+	_, err := countExpiredTokens(nil)
 	require.Error(t, err)
 
 	auditCommand, err := newCleanupAuditCommand()
 	require.NoError(t, err)
-	ctx.Audit = auditCommand
-	ctx.AuthCleanupService = buildAuthCleanupService(ctx)
+	auth := buildAuthCleanupService(db, auditCommand)
 
 	// Should return count (0 or more) without error
-	count, err := countExpiredTokens(ctx)
+	count, err := countExpiredTokens(auth)
 	require.NoError(t, err)
 	assert.GreaterOrEqual(t, count, 0)
 }
 
 func TestRunAbandonedSessionCleanup_DryRun(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestCleanupContextWithServices(t)
+	db, schools, sessions := setupTestSessionCleanup(t)
 
 	var logBuf bytes.Buffer
-	ctx.Logger = log.New(&logBuf, "", 0)
+	logger := log.New(&logBuf, "", 0)
 
 	threshold := 5 * time.Minute
-	err := runAbandonedSessionCleanup(ctx, threshold, true)
+	err := runAbandonedSessionCleanup(db, schools, sessions, io.Discard, logger, threshold, true)
 	require.NoError(t, err)
 
 	logOutput := logBuf.String()
@@ -824,12 +820,11 @@ func TestRunAbandonedSessionCleanup_DryRun(t *testing.T) {
 
 func TestRunAbandonedSessionCleanup_Execute(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestCleanupContextWithServices(t)
+	db, schools, sessions := setupTestSessionCleanup(t)
 
 	threshold := 5 * time.Minute
 	var output bytes.Buffer
-	ctx.Output = &output
-	err := runAbandonedSessionCleanup(ctx, threshold, false)
+	err := runAbandonedSessionCleanup(db, schools, sessions, &output, log.New(io.Discard, "", 0), threshold, false)
 	require.NoError(t, err)
 
 	// Should print summary
@@ -841,12 +836,12 @@ func TestRunAbandonedSessionCleanup_Execute(t *testing.T) {
 
 func TestRunDailySessionCleanup_DryRun(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestCleanupContextWithServices(t)
+	db, schools, sessions := setupTestSessionCleanup(t)
 
 	var logBuf bytes.Buffer
-	ctx.Logger = log.New(&logBuf, "", 0)
+	logger := log.New(&logBuf, "", 0)
 
-	err := runDailySessionCleanup(ctx, true, false)
+	err := runDailySessionCleanup(db, schools, sessions, io.Discard, logger, true, false)
 	require.NoError(t, err)
 
 	logOutput := logBuf.String()
@@ -856,10 +851,9 @@ func TestRunDailySessionCleanup_DryRun(t *testing.T) {
 
 func TestRunDailySessionCleanup_Execute(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestCleanupContextWithServices(t)
+	db, schools, sessions := setupTestSessionCleanup(t)
 	var output bytes.Buffer
-	ctx.Output = &output
-	err := runDailySessionCleanup(ctx, false, false)
+	err := runDailySessionCleanup(db, schools, sessions, &output, log.New(io.Discard, "", 0), false, false)
 	require.NoError(t, err)
 
 	// Should print summary

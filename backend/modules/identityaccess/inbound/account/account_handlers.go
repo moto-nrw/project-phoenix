@@ -1,7 +1,6 @@
 package account
 
 import (
-	"context"
 	"errors"
 	"net/http"
 
@@ -10,13 +9,13 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // getAccount returns the current user's account details
 func (rs *Resource) getAccount(w http.ResponseWriter, r *http.Request) {
 	// Get user ID and permissions from JWT claims
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 
 	account, err := rs.Sessions.FindOwnAccount(r.Context(), int64(claims.ID))
 	if err != nil {
@@ -205,18 +204,6 @@ func (rs *Resource) getAccountsByRole(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.Respond(w, r, http.StatusOK, accountResponses(accounts), "Accounts retrieved successfully")
-}
-
-// activateAccount and deactivateAccount re-enable and disable an account
-// the caller may administer. A deactivation also revokes the account's
-// sessions, which is why it is its own command and not a field of the
-// account update.
-func (rs *Resource) activateAccount(ctx context.Context, accountID int64) error {
-	return rs.Sessions.ActivateAccount(ctx, accountID)
-}
-
-func (rs *Resource) deactivateAccount(ctx context.Context, accountID int64) error {
-	return rs.Sessions.DeactivateAccount(ctx, accountID)
 }
 
 // accountResponses is the account listing's wire shape: the identifying

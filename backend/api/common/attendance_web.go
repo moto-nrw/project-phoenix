@@ -4,24 +4,20 @@ import (
 	"context"
 	"errors"
 	"net/http"
-
-	configModel "github.com/moto-nrw/project-phoenix/modules/settings"
 )
 
 // RequireWebAttendanceEnabled makes attendance.web_enabled authoritative for
 // staff-initiated HTTP mutations. It must run after TenantTxMiddleware so the
 // setting is resolved in the request tenant. IoT, scheduler, and other system
 // paths do not use this middleware and remain unaffected.
-func RequireWebAttendanceEnabled(settings interface {
-	ResolveBool(context.Context, string) (bool, error)
-}) Middleware {
+func RequireWebAttendanceEnabled(enabledForRequest func(context.Context) (bool, error)) Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if settings == nil {
+			if enabledForRequest == nil {
 				RenderError(w, r, ErrorServiceUnavailable(errors.New("attendance settings service is not configured")))
 				return
 			}
-			enabled, err := settings.ResolveBool(r.Context(), configModel.KeyAttendanceWebEnabled)
+			enabled, err := enabledForRequest(r.Context())
 			if err != nil {
 				RenderError(w, r, ErrorServiceUnavailable(err))
 				return

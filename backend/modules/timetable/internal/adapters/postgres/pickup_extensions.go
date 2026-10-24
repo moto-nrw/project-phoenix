@@ -272,7 +272,21 @@ func (s *Store) ListPickupExtensionWeekdayBlocks(ctx context.Context, tasks []do
 	// A future pickup change needs the schedule that will apply then. A delayed
 	// decision must not revive a schedule that has already expired, so schedules
 	// are evaluated at the later of the task's effective date and today.
-	err = db.NewRaw(`
+	err = db.NewRaw(pickupExtensionWeekdayBlocksSQL,
+		today, pgdialect.Array(taskIDs), pgdialect.Array(studentIDs), pgdialect.Array(weekdays),
+		pgdialect.Array(effective), pgdialect.Array(froms), pgdialect.Array(tos), tenantID,
+	).Scan(ctx, &rows)
+	stats.StatementDuration = time.Since(started)
+	if err != nil {
+		return nil, stats, classifyWriteError("list pickup extension weekday blocks", err, &stats)
+	}
+	stats.Rows = int64(len(rows))
+	return pickupExtensionBlocks(rows), stats, nil
+}
+
+// pickupExtensionWeekdayBlocksSQL is the read of ListPickupExtensionWeekdayBlocks.
+// Its placeholders are today, the six task arrays and the tenant ID.
+const pickupExtensionWeekdayBlocksSQL = `
 		WITH task AS (
 			SELECT *, GREATEST(effective_from, ?::date) AS operational_from
 			FROM unnest(?::BIGINT[], ?::BIGINT[], ?::INT[], ?::DATE[], ?::TIME[], ?::TIME[])
@@ -314,17 +328,7 @@ func (s *Store) ListPickupExtensionWeekdayBlocks(ctx context.Context, tasks []do
 					AND ("attendee".weekday IS NULL OR "attendee".weekday = task.weekday)
 					AND (COALESCE(jsonb_array_length("attendee".selected_weekdays), 0) = 0
 						OR "attendee".selected_weekdays @> to_jsonb(ARRAY[task.weekday]))))
-		ORDER BY task.task_id, "template".id, "schedule".valid_from DESC NULLS LAST`,
-		today, pgdialect.Array(taskIDs), pgdialect.Array(studentIDs), pgdialect.Array(weekdays),
-		pgdialect.Array(effective), pgdialect.Array(froms), pgdialect.Array(tos), tenantID,
-	).Scan(ctx, &rows)
-	stats.StatementDuration = time.Since(started)
-	if err != nil {
-		return nil, stats, classifyWriteError("list pickup extension weekday blocks", err, &stats)
-	}
-	stats.Rows = int64(len(rows))
-	return pickupExtensionBlocks(rows), stats, nil
-}
+		ORDER BY task.task_id, "template".id, "schedule".valid_from DESC NULLS LAST`
 
 // ListPickupExtensionTemplateInstances returns the planned blocks of one
 // template on the weekday from the given date on that do not list the child as

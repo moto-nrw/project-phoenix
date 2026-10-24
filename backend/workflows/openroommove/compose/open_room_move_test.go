@@ -6,6 +6,10 @@ import (
 	"sync"
 	"testing"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
+	movebinding "github.com/moto-nrw/project-phoenix/roots/openroommovebinding"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -13,7 +17,6 @@ import (
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/moto-nrw/project-phoenix/workflows/openroommove"
@@ -77,28 +80,35 @@ func (p *recordingPresence) MoveStudentsToOpenRoomSessionAuthorized(ctx context.
 }
 
 type moveStack struct {
-	rooms     *facilities.Module
+	rooms     facilities.Capability
 	timetable timetable.Capability
 	presence  *recordingPresence
 	command   openroommove.Command
 }
 
+// unusedRooms answers that nothing still needs a room.
+type unusedRooms struct{}
+
+func (unusedRooms) HasActiveSessions(context.Context, int64) (bool, error)      { return false, nil }
+func (unusedRooms) RequiredByCareOffering(context.Context, int64) (bool, error) { return false, nil }
+
 func newMoveStack(t *testing.T) *moveStack {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	rooms, err := facilitiesCompose.New(facilitiesCompose.Dependencies{
-		DB:            db,
-		DeletionLock:  func(context.Context) error { return nil },
-		DeletionGuard: func(context.Context, int64) error { return nil },
-		Observe:       func(facilitiesCompose.Observation) {},
+		DB:           db,
+		DeletionLock: func(context.Context) error { return nil },
+		Usage:        unusedRooms{},
+		Observe:      func(facilitiesCompose.Observation) {},
 	})
 	require.NoError(t, err)
-	s := &moveStack{rooms: rooms, timetable: timetabletest.New(t, db), presence: newRecordingPresence()}
+	s := &moveStack{rooms: rooms, timetable: owners.NewTestTimetable(t, testpkg.MustDatabase(db)), presence: newRecordingPresence()}
 	s.command, err = compose.New(compose.Dependencies{
-		Rooms:      rooms,
-		Activities: s.timetable,
-		Presence:   s.presence,
-		Observe:    func(compose.Observation) {},
+		Rooms:        rooms,
+		Activities:   s.timetable,
+		RoomSessions: movebinding.NewRoomSessions(s.presence),
+		Moves:        movebinding.NewMoves(s.presence),
+		Observe:      func(compose.Observation) {},
 	})
 	require.NoError(t, err)
 	return s

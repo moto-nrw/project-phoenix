@@ -84,7 +84,7 @@ func (s *administration) CreateDevice(ctx context.Context, device *Device) error
 
 	created, err := s.devices.CreateDevice(ctx, CreateDevice{
 		DeviceID: device.DeviceID, DeviceType: device.DeviceType, Name: device.Name,
-		Status: DeviceStatus(device.Status), APIKey: device.APIKey,
+		Status: DeviceStatus(device.Status), APIKey: device.APIKey, APIKeyHash: device.APIKeyHash, MaskedAPIKey: device.MaskedAPIKey,
 		LastSeen: device.LastSeen, RegisteredByID: device.RegisteredByID, RoomID: device.RoomID,
 	})
 	if err != nil {
@@ -156,7 +156,7 @@ func (s *administration) UpdateDevice(ctx context.Context, device *Device) error
 
 	updated, err := s.devices.UpdateDevice(ctx, UpdateDevice{
 		ID: device.ID, DeviceID: device.DeviceID, DeviceType: device.DeviceType, Name: device.Name,
-		Status: DeviceStatus(device.Status), APIKey: device.APIKey, LastSeen: device.LastSeen,
+		Status: DeviceStatus(device.Status), APIKey: device.APIKey, APIKeyHash: device.APIKeyHash, MaskedAPIKey: device.MaskedAPIKey, LastSeen: device.LastSeen,
 		RegisteredByID: device.RegisteredByID, RoomID: device.RoomID, ArchivedAt: device.ArchivedAt,
 		TransferredToDeviceID: device.TransferredToDeviceID,
 	})
@@ -334,6 +334,13 @@ func (s *administration) ScanNetwork(_ context.Context) (map[string]string, erro
 }
 
 type Administration interface {
+	DeviceAdministration
+	DeviceMonitoring
+	DeviceDiscovery
+}
+
+// DeviceAdministration creates, edits and removes fleet devices.
+type DeviceAdministration interface {
 	// Core device operations
 	CreateDevice(ctx context.Context, device *Device) error
 	GetDeviceByID(ctx context.Context, id int64) (*Device, error)
@@ -341,22 +348,32 @@ type Administration interface {
 	UpdateDevice(ctx context.Context, device *Device) error
 	DeleteDevice(ctx context.Context, id int64) error
 	ListDevices(ctx context.Context, filter DeviceFilter) ([]*Device, error)
-
 	// Status operations
 	UpdateDeviceStatus(ctx context.Context, deviceID string, status DeviceStatus) error
 	PingDevice(ctx context.Context, deviceID string) error
+}
 
+// DeviceMonitoring combines device reports and online status.
+type DeviceMonitoring interface {
+	DeviceReporting
+	DeviceOnlineMonitoring
+}
+
+// DeviceReporting reads filtered fleet reports.
+type DeviceReporting interface {
 	// Filtered lookups
 	GetDevicesByType(ctx context.Context, deviceType string) ([]*Device, error)
 	GetDevicesByStatus(ctx context.Context, status DeviceStatus) ([]*Device, error)
 	GetDevicesByRegisteredBy(ctx context.Context, personID int64) ([]*Device, error)
-
 	// Monitoring and reporting
 	GetActiveDevices(ctx context.Context) ([]*Device, error)
 	GetDevicesRequiringMaintenance(ctx context.Context) ([]*Device, error)
 	GetOfflineDevices(ctx context.Context, offlineDuration time.Duration) ([]*Device, error)
 	GetDeviceTypeStatistics(ctx context.Context) (map[string]int, error)
+}
 
+// DeviceOnlineMonitoring evaluates online status for administration callers.
+type DeviceOnlineMonitoring interface {
 	// Online/offline decision (issue #586 — Rule 12). The window is resolved
 	// by the Device Fleet owner from the per-tenant setting
 	// device_online_window_minutes.
@@ -364,11 +381,13 @@ type Administration interface {
 	IsDeviceOnline(ctx context.Context, device *Device) bool
 	IsDeviceOnlineAt(ctx context.Context, device *Device, now time.Time) bool
 	IsLastSeenOnline(ctx context.Context, lastSeen *time.Time) bool
+}
 
+// DeviceDiscovery exposes device discovery and the composed fleet.
+type DeviceDiscovery interface {
 	// Network operations
 	DetectNewDevices(ctx context.Context) ([]*Device, error)
 	ScanNetwork(ctx context.Context) (map[string]string, error)
-
 	// Fleet exposes the Device Fleet owner this service delegates to, so the
 	// composition root binds one instance for every entry point (#2676).
 	Fleet() Capability

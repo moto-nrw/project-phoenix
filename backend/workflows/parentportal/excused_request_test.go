@@ -10,14 +10,13 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	"github.com/moto-nrw/project-phoenix/services"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
@@ -27,7 +26,7 @@ import (
 // the excused-approval gate (#1845) configurable, so the approval branch can be
 // exercised both ways.
 type excusedApprovalSettings struct {
-	configService.SettingsService
+	parentService.SettingsService
 	// requiresApproval keeps older error-path fixtures focused on the original
 	// excused-only gate; new tests set the two explicit switches below.
 	requiresApproval        bool
@@ -37,11 +36,11 @@ type excusedApprovalSettings struct {
 
 func (s excusedApprovalSettings) ResolveBoolForTenant(_ context.Context, _ int64, key string) (bool, error) {
 	switch key {
-	case configModels.KeyParentSickNoteEnabled, configModels.KeyParentSickReportsEnabled, configModels.KeyParentExcusedReportsEnabled:
+	case parentService.KeyParentSickNoteEnabled, parentService.KeyParentSickReportsEnabled, parentService.KeyParentExcusedReportsEnabled:
 		return true, nil
-	case configModels.KeyParentSickRequiresApproval:
+	case parentService.KeyParentSickRequiresApproval:
 		return s.sickRequiresApproval, nil
-	case configModels.KeyParentExcusedRequiresApproval:
+	case parentService.KeyParentExcusedRequiresApproval:
 		return s.requiresApproval || s.excusedRequiresApproval, nil
 	default:
 		return false, nil
@@ -49,8 +48,8 @@ func (s excusedApprovalSettings) ResolveBoolForTenant(_ context.Context, _ int64
 }
 
 func (s excusedApprovalSettings) ResolveStringForTenant(_ context.Context, _ int64, key string) (string, error) {
-	if key == configModels.KeyGuardianParentInviteMode {
-		return configModels.ParentInviteModeDisabled, nil
+	if key == parentService.KeyGuardianParentInviteMode {
+		return parentService.ParentInviteModeDisabled, nil
 	}
 	return "", nil
 }
@@ -65,32 +64,44 @@ func buildExcusedServices(t *testing.T, requiresApproval bool) (*parentService.P
 func buildAbsenceApprovalServices(t *testing.T, sickRequiresApproval, excusedRequiresApproval bool) (*parentService.Portal, careplan.ExcusedAbsenceRequests, *testpkg.RecordingBroadcaster, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	bc := testpkg.NewRecordingBroadcaster()
-	excused, err := services.NewTestExcusedAbsenceRequests(services.ExcusedRequestTestOptions{
-		CarePlan: repos.CarePlan(), Students: repos.Student, Persons: repos.Person, Broadcaster: bc, Logger: slog.Default(),
-		Today: func() timezone.Date { return timezone.NewDate(2026, 8, 24) },
-	})
+	excused, err := api.NewTestExcusedAbsenceRequests(api.ExcusedRequestTestOptions{
+		CarePlan: repos.CarePlan(), Logger: slog.Default(),
+		Today: func() calendar.Date { return calendar.NewDate(2026, 8, 24) },
+	}, api.ExcusedRequestTestPeople{Students: reposPeople.Student, Persons: reposPeople.Person}, nil, bc)
 	require.NoError(t, err)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
-		CarePlan:       repos.CarePlan(),
-		People:         repositories.MustNewPeopleDirectory(db),
-		CareProfiles:   careProfiles(t, db),
-		ChildRepo:      repos.ParentChild,
-		StatusDayRepo:  repos.StudentStatusDay,
-		StudentRepo:    repos.Student,
-		CareExceptions: repos.CarePlan(),
+		GuardianChanges: owners.ParentGuardianChanges(),
+		DeparturePolicy: owners.ParentDeparturePolicy(),
+		GuardianPolicy:  owners.NewParentGuardianPolicy(),
+		Fingerprints:    owners.SecurityFingerprints{},
+		Declarations:    owners.ParentDeclarationPolicy(),
+		Locales:         owners.ParentPortalLocales(),
+		Runtime:         owners.ParentPortalRuntime{},
+		CarePlan:        owners.NewParentCarePlanCommands(repos.CarePlan(), nil),
+		People:          owners.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
+		CareProfiles:    careProfiles(t, db),
+		ChildRepo:       repos.ParentChildReads(),
+		StatusDayRepo:   repos.StudentStatusDay,
+		StudentRepo:     owners.NewParentStudentReads(reposPeople.Student),
+		CareExceptions:  owners.NewParentCareExceptions(repos.CarePlan()),
 		Settings: excusedApprovalSettings{
 			sickRequiresApproval:    sickRequiresApproval,
 			excusedRequiresApproval: excusedRequiresApproval,
 		},
 		MealPlan:        availableMealPlan(true),
-		Broadcaster:     bc,
-		ExcusedRequests: excused,
+		StudentUpdates:  owners.BindParentStudentUpdates(bc),
+		ExcusedRequests: owners.NewParentExcusedAbsenceRequests(excused),
 		Logger:          slog.Default(),
 		Now: func() time.Time {
 			return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 		},
+
+		DataRequests: owners.NewParentDataRequestCommands(repos.CarePlan()),
+
+		CarePlanPolicy: owners.NewParentCarePlanPolicy(),
 	})
 	return svc, excused, bc, db
 }
@@ -103,9 +114,9 @@ func TestSubmitSick_ApprovalOn_CreatesPendingRequest(t *testing.T) {
 	svc, _, _, db := buildAbsenceApprovalServices(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	day := timezone.TodayDate()
+	day := calendar.TodayDate()
 	res, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		[]timezone.Date{day}, "Fieber", absencerecords.StudentStatusDaySick, nil)
+		[]calendar.Date{day}, "Fieber", absencerecords.StudentStatusDaySick, nil)
 	require.NoError(t, err)
 	require.NotNil(t, res.PendingRequest, "a sick report must become a pending request when approval is on")
 	assert.Empty(t, res.StatusDays, "no status day is written while the sick request is pending")
@@ -126,9 +137,9 @@ func TestSubmitSick_ApprovalOff_WritesDirectly(t *testing.T) {
 	svc, _, _, db := buildAbsenceApprovalServices(t, false, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	day := timezone.TodayDate().AddDays(2)
+	day := calendar.TodayDate().AddDays(2)
 	res, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		[]timezone.Date{day}, "Fieber", absencerecords.StudentStatusDaySick, nil)
+		[]calendar.Date{day}, "Fieber", absencerecords.StudentStatusDaySick, nil)
 	require.NoError(t, err)
 	require.Nil(t, res.PendingRequest)
 	require.Len(t, res.StatusDays, 1)
@@ -140,10 +151,10 @@ func TestSickRequest_ApproveWritesSickStatusAndLiveFlag(t *testing.T) {
 
 	svc, requests, _, db := buildAbsenceApprovalServices(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	today := timezone.NewDate(2026, 8, 24)
+	today := calendar.NewDate(2026, 8, 24)
 
 	res, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		[]timezone.Date{today}, "Fieber", absencerecords.StudentStatusDaySick, nil)
+		[]calendar.Date{today}, "Fieber", absencerecords.StudentStatusDaySick, nil)
 	require.NoError(t, err)
 
 	err = testpkg.WithTenantTx(t, adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
@@ -173,7 +184,7 @@ func TestSickRequest_ApproveWritesSickStatusAndLiveFlag(t *testing.T) {
 // adminCtx returns a context carrying wildcard-admin permissions so the staff
 // decide gate authorizes without a wired userContext.
 func adminCtx() context.Context {
-	return context.WithValue(testpkg.WithPackageTenantRuntime(context.Background()), jwt.CtxPermissions, []string{"admin:*"})
+	return context.WithValue(testpkg.WithPackageTenantRuntime(context.Background()), sessiontoken.CtxPermissions, []string{"admin:*"})
 }
 
 // TestSubmitExcused_ApprovalOn_CreatesPendingRequest verifies that with the
@@ -185,9 +196,9 @@ func TestSubmitExcused_ApprovalOn_CreatesPendingRequest(t *testing.T) {
 	svc, _, _, db := buildExcusedServices(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	day := timezone.TodayDate().AddDays(3)
+	day := calendar.TodayDate().AddDays(3)
 	res, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		[]timezone.Date{day}, "Familienfeier", absencerecords.StudentStatusDayExcused, nil)
+		[]calendar.Date{day}, "Familienfeier", absencerecords.StudentStatusDayExcused, nil)
 	require.NoError(t, err)
 	require.NotNil(t, res.PendingRequest, "an excused report must become a pending request when approval is on")
 	assert.Empty(t, res.StatusDays, "no status day is written while the request is pending")
@@ -196,8 +207,8 @@ func TestSubmitExcused_ApprovalOn_CreatesPendingRequest(t *testing.T) {
 	assert.Equal(t, "Familienfeier", res.PendingRequest.Note)
 
 	// The absence list (status days) stays empty — the child is still expected.
-	from := timezone.TodayDate()
-	to := timezone.NewDate(from.Year(), from.Month()+1, from.Day())
+	from := calendar.TodayDate()
+	to := calendar.NewDate(from.Year(), from.Month()+1, from.Day())
 	absences, err := svc.ListSickDays(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, from, to)
 	require.NoError(t, err)
 	assert.Empty(t, absences, "a pending excused request must not appear as a confirmed absence")
@@ -217,9 +228,9 @@ func TestSubmitExcused_ApprovalOff_WritesDirectly(t *testing.T) {
 	svc, _, _, db := buildExcusedServices(t, false)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	day := timezone.TodayDate().AddDays(3)
+	day := calendar.TodayDate().AddDays(3)
 	res, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		[]timezone.Date{day}, "Familienfeier", absencerecords.StudentStatusDayExcused, nil)
+		[]calendar.Date{day}, "Familienfeier", absencerecords.StudentStatusDayExcused, nil)
 	require.NoError(t, err)
 	require.Nil(t, res.PendingRequest, "no request is created when the gate is off")
 	require.Len(t, res.StatusDays, 1)
@@ -235,9 +246,9 @@ func TestSubmitExcused_EmptyNoteRejected(t *testing.T) {
 		svc, _, _, db := buildExcusedServices(t, gate)
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-		day := timezone.TodayDate().AddDays(3)
+		day := calendar.TodayDate().AddDays(3)
 		_, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-			[]timezone.Date{day}, "   ", absencerecords.StudentStatusDayExcused, nil)
+			[]calendar.Date{day}, "   ", absencerecords.StudentStatusDayExcused, nil)
 		assert.ErrorIs(t, err, parentService.ErrEmptyNote, "excused with blank note must be rejected (gate=%v)", gate)
 
 	}
@@ -251,9 +262,9 @@ func TestExcusedRequest_ApproveWritesStatusDays(t *testing.T) {
 	svc, excused, _, db := buildExcusedServices(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	day := timezone.NewDate(2026, 8, 24).AddDays(3)
+	day := calendar.NewDate(2026, 8, 24).AddDays(3)
 	res, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		[]timezone.Date{day}, "Familienfeier", absencerecords.StudentStatusDayExcused, nil)
+		[]calendar.Date{day}, "Familienfeier", absencerecords.StudentStatusDayExcused, nil)
 	require.NoError(t, err)
 	require.NotNil(t, res.PendingRequest)
 	requestID := res.PendingRequest.ID
@@ -273,8 +284,8 @@ func TestExcusedRequest_ApproveWritesStatusDays(t *testing.T) {
 	require.NoError(t, err)
 
 	// The approved absence now shows as a confirmed excused status day.
-	from := timezone.NewDate(2026, 8, 24)
-	to := timezone.NewDate(from.Year(), from.Month()+1, from.Day())
+	from := calendar.NewDate(2026, 8, 24)
+	to := calendar.NewDate(from.Year(), from.Month()+1, from.Day())
 	absences, err := svc.ListSickDays(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, from, to)
 	require.NoError(t, err)
 	require.Len(t, absences, 1, "approving the request writes the excused status day")
@@ -291,9 +302,9 @@ func TestExcusedRequest_RejectWritesNoStatusDay(t *testing.T) {
 	svc, excused, _, db := buildExcusedServices(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	day := timezone.TodayDate().AddDays(3)
+	day := calendar.TodayDate().AddDays(3)
 	res, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		[]timezone.Date{day}, "Familienfeier", absencerecords.StudentStatusDayExcused, nil)
+		[]calendar.Date{day}, "Familienfeier", absencerecords.StudentStatusDayExcused, nil)
 	require.NoError(t, err)
 	requestID := res.PendingRequest.ID
 
@@ -307,8 +318,8 @@ func TestExcusedRequest_RejectWritesNoStatusDay(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	from := timezone.TodayDate()
-	to := timezone.NewDate(from.Year(), from.Month()+1, from.Day())
+	from := calendar.TodayDate()
+	to := calendar.NewDate(from.Year(), from.Month()+1, from.Day())
 	absences, err := svc.ListSickDays(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, from, to)
 	require.NoError(t, err)
 	assert.Empty(t, absences, "a rejected request must not write a status day")
@@ -326,9 +337,9 @@ func TestListExcusedRequests_ShowsRecentlyRejectedLongPending(t *testing.T) {
 	svc, excused, _, db := buildExcusedServices(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	day := timezone.TodayDate().AddDays(3)
+	day := calendar.TodayDate().AddDays(3)
 	res, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		[]timezone.Date{day}, "Familienfeier", absencerecords.StudentStatusDayExcused, nil)
+		[]calendar.Date{day}, "Familienfeier", absencerecords.StudentStatusDayExcused, nil)
 	require.NoError(t, err)
 	requestID := res.PendingRequest.ID
 
@@ -375,9 +386,9 @@ func TestListExcusedRequests_ShowsApprovedForOutOfWindowDates(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	// A date well beyond the parent's ~2-month status-day window.
-	far := timezone.TodayDate().AddDays(120)
+	far := calendar.TodayDate().AddDays(120)
 	res, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		[]timezone.Date{far}, "Urlaub", absencerecords.StudentStatusDayExcused, nil)
+		[]calendar.Date{far}, "Urlaub", absencerecords.StudentStatusDayExcused, nil)
 	require.NoError(t, err)
 	requestID := res.PendingRequest.ID
 
@@ -391,8 +402,8 @@ func TestListExcusedRequests_ShowsApprovedForOutOfWindowDates(t *testing.T) {
 	require.NoError(t, err)
 
 	// The status-day view (today..+1 month here) does NOT include the far date.
-	from := timezone.TodayDate()
-	to := timezone.NewDate(from.Year(), from.Month()+1, from.Day())
+	from := calendar.TodayDate()
+	to := calendar.NewDate(from.Year(), from.Month()+1, from.Day())
 	absences, err := svc.ListSickDays(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, from, to)
 	require.NoError(t, err)
 	assert.Empty(t, absences, "the confirmed day is outside the parent's status-day window")

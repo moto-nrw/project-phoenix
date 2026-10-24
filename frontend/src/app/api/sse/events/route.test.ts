@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
 import { GET } from "./route";
-
-interface ExtendedSession extends Session {
-  user: Session["user"] & { token?: string };
-}
+import {
+  type ExtendedSession,
+  createMockRequest,
+  defaultSession,
+} from "~/test/route-test-helpers";
 
 const { mockAuth, mockFetch } = vi.hoisted(() => ({
   mockAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
@@ -27,11 +27,6 @@ vi.mock("~/env", () => ({
   },
 }));
 
-function createMockRequest(path: string): NextRequest {
-  const url = new URL(path, "http://localhost:3000");
-  return new NextRequest(url);
-}
-
 function createAbortableRequest(
   path: string,
   signal: AbortSignal,
@@ -41,11 +36,6 @@ function createAbortableRequest(
     signal,
   } as unknown as NextRequest;
 }
-
-const defaultSession: ExtendedSession = {
-  user: { id: "1", token: "test-token", name: "Test User" },
-  expires: "2099-01-01",
-};
 
 describe("GET /api/sse/events", () => {
   beforeEach(() => {
@@ -64,7 +54,7 @@ describe("GET /api/sse/events", () => {
 
     expect(response.status).toBe(401);
     const text = await response.text();
-    expect(text).toBe("Unauthorized");
+    expect(JSON.parse(text)).toMatchObject({ detail: "Unauthorized" });
   });
 
   it("returns 401 when session has no token", async () => {
@@ -151,15 +141,18 @@ describe("GET /api/sse/events", () => {
     expect(text).toBe("Forbidden");
   });
 
-  it("handles backend error without body", async () => {
+  it("replaces an empty backend server error with a safe problem envelope", async () => {
     mockFetch.mockResolvedValueOnce(new Response(null, { status: 500 }));
 
     const request = createMockRequest("/api/sse/events");
     const response = await GET(request);
 
     expect(response.status).toBe(500);
-    const text = await response.text();
-    expect(text).toBe("");
+    expect(await response.json()).toMatchObject({
+      status: 500,
+      detail: "Internal Server Error",
+      code: "general.server",
+    });
   });
 
   it("returns 502 when backend has no body", async () => {

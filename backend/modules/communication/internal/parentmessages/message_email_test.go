@@ -1,31 +1,34 @@
 package messaging_test
 
-// E-Mail an den Sorgeberechtigten, wenn die OGS eine Nachricht schreibt
-// (#2307). Die E-Mail ist der Rueckfall, wenn Push nicht eingerichtet ist:
-// ohne sie bleibt eine Nachricht unbemerkt, genau der von einer Schule
-// gemeldete Fall. Getestet wird gegen die echte Datenbank und den echten
-// Dispatcher, nur der Mailer ist der geteilte test.CapturingMailer.
-
 import (
 	"context"
 	"errors"
 	"fmt"
 	"log/slog"
 	"strconv"
-	"sync"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api"
+	"github.com/moto-nrw/project-phoenix/modules/communication"
+	deliveryPolicy "github.com/moto-nrw/project-phoenix/modules/delivery/devices"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/email"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
+	// E-Mail an den Sorgeberechtigten, wenn die OGS eine Nachricht schreibt
+	// (#2307). Die E-Mail ist der Rueckfall, wenn Push nicht eingerichtet ist:
+	// ohne sie bleibt eine Nachricht unbemerkt, genau der von einer Schule
+	// gemeldete Fall. Getestet wird gegen die echte Datenbank und den echten
+	// Dispatcher, nur der Mailer ist der geteilte test.CapturingMailer.
+
 	messaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
+
+	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+
+	settingsValues "github.com/moto-nrw/project-phoenix/modules/settings"
+
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -35,7 +38,7 @@ const testParentsURL = "https://eltern.example"
 // e-mail channel asks: it drops the accounts that explicitly declined and keeps
 // everyone who never decided.
 type stubMessagePreferences struct {
-	notifications.PreferenceService
+	communication.NotificationPreferences
 	declined bool
 	gotType  string
 }
@@ -49,82 +52,64 @@ func (s *stubMessagePreferences) FilterNotOptedOut(_ context.Context, notificati
 }
 
 type emailFixture struct {
+	db     *bun.DB
 	svc    *messaging.Service
-	outbox *recordingMessageOutbox
+	outbox *api.CapturingOutbox
 	chain  testpkg.ParentChain
 	staff  int64
 }
 
-type recordingMessageOutbox struct {
-	mu   sync.Mutex
-	rows []platformModels.OutboxEnqueueRequest
-}
-
-func (o *recordingMessageOutbox) EnqueueOutbox(_ context.Context, req platformModels.OutboxEnqueueRequest) error {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	o.rows = append(o.rows, req)
-	return nil
-}
-
-func (o *recordingMessageOutbox) Rows() []platformModels.OutboxEnqueueRequest {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	return append([]platformModels.OutboxEnqueueRequest(nil), o.rows...)
-}
-
-func (o *recordingMessageOutbox) Clear() {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	o.rows = nil
-}
-
-func newEmailFixture(t *testing.T, preferences notifications.PreferenceService) *emailFixture {
+func newEmailFixture(t *testing.T, preferences communication.NotificationPreferences) *emailFixture {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	organizations, err := repositories.NewOrganizationTenancy(db)
+	reposMessages := api.NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	reposAccounts := api.NewAccountSuiteRepositories(testpkg.NewDatabase(t, db))
+	organizations, err := owners.NewOrganizationTenancy(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	outbox := &recordingMessageOutbox{}
+	outbox := api.NewCapturingOutbox()
 	svc := messaging.NewService(messaging.Config{
-		ThreadRepo:       repos.ParentMessageThread,
-		MessageRepo:      repos.ParentMessage,
-		ReadRepo:         repos.ParentMessageRead,
-		Persons:          newPersons(repos, db),
-		Settings:         stubSettings{messagingEnabled: true},
-		Broadcaster:      testpkg.NewRecordingBroadcaster(),
-		DB:               db,
+		UserContext: owners.StaffStudentReads{},
+		Session:     api.CommunicationSession{},
+		ThreadRepo:  messaging.NewThreadRepository(reposMessages.ParentMessageThread),
+		MessageRepo: messaging.NewMessageRepository(parentStore.NewParentMessageRepository(db)),
+		ReadRepo:    messaging.NewReadRepository(reposMessages.ParentMessageRead),
+		Persons:     newPersons(reposPeople, reposAccounts, db),
+		Settings:    settingsValues.NewParentMessagingValues(stubSettings{messagingEnabled: true}),
+		Broadcaster: testpkg.NewRecordingBroadcaster(),
+
 		Logger:           slog.Default(),
 		Preferences:      preferences,
-		Outbox:           outbox,
-		GuardianProfiles: repos.GuardianProfile,
+		Outbox:           api.BindCommunicationCapturingOutbox(outbox),
+		GuardianProfiles: owners.BindParentMessageGuardianProfiles(reposPeople.GuardianProfile),
 		Schools:          schoolNames{schools: organizations},
 		ParentsURL:       testParentsURL,
-	})
+	}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	_, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Olivia", "Berg")
 
-	return &emailFixture{svc: svc, outbox: outbox, chain: chain, staff: staffAccount.ID}
+	return &emailFixture{db: db, svc: svc, outbox: outbox, chain: chain, staff: staffAccount.ID}
 }
 
-// mailContent unwraps the template data of a captured message.
-func mailContent(t *testing.T, msg *email.Message) map[string]any {
+// renderedMail is what the delivery worker would send for a captured request.
+type renderedMail struct {
+	To       string
+	Subject  string
+	Template string
+	Content  map[string]any
+}
+
+// renderMessageRow renders a captured outbox request the way the delivery
+// worker does. The sender address is the worker's default and stays unset.
+func renderMessageRow(t *testing.T, kind string, payload map[string]any) renderedMail {
 	t.Helper()
+	renderer := messaging.NewParentMessageRenderer(messaging.ParentMessageRendererConfig{}, deliveryPolicy.ParentDeliveryPolicy{})
+	msg, err := api.RenderCommunicationMailFixture(context.Background(), communication.MailRenderer(renderer), kind, payload)
+	require.NoError(t, err)
 	content, ok := msg.Content.(map[string]any)
 	require.True(t, ok, "Template-Daten sind eine Map")
-	return content
-}
-
-func renderMessageRow(t *testing.T, req platformModels.OutboxEnqueueRequest) *email.Message {
-	t.Helper()
-	row := &emailoutbox.Intent{Kind: req.Kind, Payload: req.Payload}
-	renderer := messaging.NewParentMessageRenderer(messaging.ParentMessageRendererConfig{
-		DefaultFrom: email.NewEmail("moto", "no-reply@moto.test"),
-	})
-	msg, err := renderer(context.Background(), row)
-	require.NoError(t, err)
-	return msg
+	return renderedMail{To: msg.To.Address, Subject: msg.Subject, Template: msg.Template, Content: content}
 }
 
 func guardianEmail(t *testing.T, db *bun.DB, accountID int64) string {
@@ -147,20 +132,19 @@ func TestStartThread_SendsGuardianEmail(t *testing.T) {
 	f := newEmailFixture(t, nil)
 	db := testpkg.SetupTestDB(t)
 
-	_, err := f.svc.StartThread(adminCtx(t, f.staff), f.chain.StudentID, f.chain.AccountID,
-		"Guten Tag, Felix hat heute seine Jacke vergessen. Bitte melden Sie sich kurz bei uns.")
+	_, err := testpkg.TenantQuery3(t, adminCtx(t, f.staff), f.db, f.svc.StartThread, f.chain.StudentID, f.chain.AccountID, "Guten Tag, Felix hat heute seine Jacke vergessen. Bitte melden Sie sich kurz bei uns.")
 	require.NoError(t, err)
 
-	rows := f.outbox.Rows()
+	rows := f.outbox.Requests()
 	require.Len(t, rows, 1)
-	assert.Equal(t, platformModels.EmailKindParentMessage, rows[0].Kind)
-	assert.Equal(t, platformModels.EmailRelatedTypeParentMessage, rows[0].RelatedEntityType)
+	assert.Equal(t, "parent_message", rows[0].Kind)
+	assert.Equal(t, "parent_message", rows[0].RelatedEntityType)
 
-	msg := renderMessageRow(t, rows[0])
-	assert.Equal(t, guardianEmail(t, db, f.chain.AccountID), msg.To.Address)
+	msg := renderMessageRow(t, rows[0].Kind, rows[0].Payload)
+	assert.Equal(t, guardianEmail(t, db, f.chain.AccountID), msg.To)
 	assert.Equal(t, "Neue Nachricht von der OGS", msg.Subject)
 	assert.Equal(t, "parent-message-notification.html", msg.Template)
-	content := mailContent(t, msg)
+	content := msg.Content
 	assert.Equal(t, testParentsURL+"/messages/"+strconv.FormatInt(f.chain.StudentID, 10), content["MessagesURL"])
 	assert.NotContains(t, content, "ChildName")
 	assert.NotContains(t, content, "Preview")
@@ -179,13 +163,13 @@ func TestStartThread_LocalizesGuardianEmail(t *testing.T) {
 		Exec(context.Background())
 	require.NoError(t, err)
 
-	_, err = f.svc.StartThread(adminCtx(t, f.staff), f.chain.StudentID, f.chain.AccountID, "Please reply")
+	_, err = testpkg.TenantQuery3(t, adminCtx(t, f.staff), f.db, f.svc.StartThread, f.chain.StudentID, f.chain.AccountID, "Please reply")
 	require.NoError(t, err)
-	rows := f.outbox.Rows()
+	rows := f.outbox.Requests()
 	require.Len(t, rows, 1)
-	msg := renderMessageRow(t, rows[0])
+	msg := renderMessageRow(t, rows[0].Kind, rows[0].Payload)
 	assert.Equal(t, "New message from the OGS", msg.Subject)
-	content := mailContent(t, msg)
+	content := msg.Content
 	assert.Equal(t, "New message", content["BrandKicker"])
 	assert.Equal(t, "Reply", content["ReplyLabel"])
 	assert.Contains(t, content["IntroText"], "sent you a message")
@@ -200,15 +184,15 @@ func TestPostMessage_QueuesAnotherDataMinimalEmail(t *testing.T) {
 	f := newEmailFixture(t, nil)
 	ctx := adminCtx(t, f.staff)
 
-	detail, err := f.svc.StartThread(ctx, f.chain.StudentID, f.chain.AccountID, "Erste Nachricht")
+	detail, err := testpkg.TenantQuery3(t, ctx, f.db, f.svc.StartThread, f.chain.StudentID, f.chain.AccountID, "Erste Nachricht")
 	require.NoError(t, err)
-	f.outbox.Clear()
+	before := len(f.outbox.Requests())
 
 	sensitive := "Gesundheitsinformation, die nicht in eine E-Mail gehoert"
-	_, err = f.svc.PostMessage(ctx, detail.ThreadID, sensitive, detail.Messages[0].ID)
+	_, err = testpkg.TenantQuery3(t, ctx, f.db, f.svc.PostMessage, detail.ThreadID, sensitive, detail.Messages[0].ID)
 	require.NoError(t, err)
 
-	rows := f.outbox.Rows()
+	rows := f.outbox.Requests()[before:]
 	require.Len(t, rows, 1)
 	assert.NotContains(t, fmt.Sprint(rows[0].Payload), sensitive)
 	assert.Contains(t, rows[0].IdempotencyKey, "parent_message:")
@@ -222,11 +206,11 @@ func TestStartThread_RespectsGuardianOptOut(t *testing.T) {
 	preferences := &stubMessagePreferences{declined: true}
 	f := newEmailFixture(t, preferences)
 
-	_, err := f.svc.StartThread(adminCtx(t, f.staff), f.chain.StudentID, f.chain.AccountID, "Guten Tag")
+	_, err := testpkg.TenantQuery3(t, adminCtx(t, f.staff), f.db, f.svc.StartThread, f.chain.StudentID, f.chain.AccountID, "Guten Tag")
 	require.NoError(t, err)
 
-	assert.Empty(t, f.outbox.Rows(), "kein Versand nach Widerspruch")
-	assert.Equal(t, notifications.TypeParentMessage, preferences.gotType)
+	assert.Empty(t, f.outbox.Requests(), "kein Versand nach Widerspruch")
+	assert.Equal(t, communication.TypeParentMessage, preferences.gotType)
 }
 
 // schoolNames reads the sending school's name through the Organisation &

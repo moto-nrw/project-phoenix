@@ -11,7 +11,7 @@ import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
-import { credentialError } from "./credential-error";
+import { credentialError, MFA_STEP_REFUSALS } from "./credential-error";
 import {
   resendChallenge,
   verifyMFA,
@@ -65,8 +65,9 @@ export function MFAChallengeForm({
   trustedDeviceDays = 90,
 }: MFAChallengeFormProps) {
   const [rememberDevice, setRememberDevice] = useState(false);
-  // Fehler über den gemeinsamen Weg (#2517). Vor der Sitzung heißt 401
-  // "Code abgelehnt", deshalb credentialError.
+  // Fehler über den gemeinsamen Weg (#2517). Ein abgelehnter Code bleibt im
+  // Formular (MFA_STEP_REFUSALS); jeder andere 401 ist eine abgelaufene
+  // Anmeldung und führt zur Anmeldeseite.
   const formRef = useRef<HTMLDivElement>(null);
   const formErrors = useApiFormError(formRef);
   const { show: showError, clear: clearError } = formErrors;
@@ -111,7 +112,7 @@ export function MFAChallengeForm({
         otpRef.current?.reset();
         // Kein Wiederholen: der Code steht nicht mehr im Feld, man tippt
         // ihn neu ein.
-        void showError(credentialError(err), {
+        void showError(credentialError(err, MFA_STEP_REFUSALS), {
           object: "die Prüfung des Codes",
         });
       } finally {
@@ -147,7 +148,7 @@ export function MFAChallengeForm({
         scope,
         error: err instanceof Error ? err.message : String(err),
       });
-      void showError(credentialError(err), {
+      void showError(credentialError(err, MFA_STEP_REFUSALS), {
         object: "das Senden eines neuen Codes",
         retry: () => latestResendRef.current(),
       });

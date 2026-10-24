@@ -152,7 +152,6 @@ describe("PersonalInfoEditPanel", () => {
     address_city: "Köln",
     address_postal_code: "50667",
     health_info: "Keine Allergien",
-    supervisor_notes: "Betreuernotiz",
     extra_info: "Elternnotiz",
     ...overrides,
   });
@@ -264,19 +263,6 @@ describe("PersonalInfoEditPanel", () => {
       fireEvent.change(input, { target: { value: "Neuer Name" } });
 
       expect(input.value).toBe("Neuer Name");
-    });
-
-    it("does not render sick toggle (moved to StudentSickReportSection)", () => {
-      render(
-        <PersonalInfoEditPanel
-          onCancel={mockOnCancel}
-          student={createMockStudent()}
-          onSave={mockOnSave}
-        />,
-      );
-
-      expect(screen.queryByRole("switch")).not.toBeInTheDocument();
-      expect(screen.queryByText("Krankmeldung")).not.toBeInTheDocument();
     });
   });
 
@@ -410,16 +396,11 @@ describe("PersonalInfoEditPanel", () => {
     // save-failed toast would leave that instruction unread and the user with
     // no way to resolve the refusal.
     it("names the Laufgemeinschaft when a link would strand the other child", async () => {
-      const { CompanionDepartureRefusedError } = await import("~/lib/api");
+      const { ApiError } = await import("~/lib/api-error");
       mockOnSave.mockRejectedValue(
-        new CompanionDepartureRefusedError(
-          JSON.stringify({
-            status: "error",
-            error:
-              "Ein verknüpftes Kind hätte danach keine Angabe mehr dazu, mit wem es nach Hause geht. Bitte zuerst den Heimweg dieses Kindes anpassen.",
-            code: "students.companion_would_lose_departure",
-          }),
-        ),
+        new ApiError("removing the link would strand a linked companion", 400, {
+          code: "students.companion_would_lose_departure",
+        }),
       );
 
       render(

@@ -4,10 +4,10 @@
 // report reverses exactly the rows it stamped, and the schedule substitution
 // moves.
 //
-// The cascade implements workforce.ShiftPlanSync, the port Workforce's absence
-// service declares. Both directions run inside the caller's tenant transaction
-// and are FAIL-CLOSED: the first error aborts the whole absence write, so a
-// half-cascaded sick report never commits.
+// The cascade applies the workforce.SickCascadePlan Workforce's absence
+// writes return; SickReports runs both in one tenant transaction (#4825). Both
+// directions are FAIL-CLOSED: the first error aborts the whole absence write,
+// so a half-cascaded sick report never commits.
 package application
 
 import (
@@ -17,11 +17,10 @@ import (
 	"log/slog"
 	"sort"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/workflows/shiftplansync/ports"
 )
 
@@ -41,10 +40,10 @@ const (
 // decides whether a block is still plannable. The composition root binds
 // them.
 type TimetableRows interface {
-	AcquireSubstituteDayLock(ctx context.Context, date timezone.Date) error
-	GetInstanceStaffByStaffAndDate(ctx context.Context, staffID int64, date timezone.Date) ([]*timetable.InstanceStaff, error)
+	AcquireSubstituteDayLock(ctx context.Context, date calendar.Date) error
+	FindByStaffAndDate(ctx context.Context, staffID int64, date calendar.Date) ([]*timetable.InstanceStaff, error)
 	GetActivityInstancesByID(ctx context.Context, ids []int64) (map[int64]*timetable.ScheduledInstance, error)
-	GetInstanceStaff(ctx context.Context, instanceID int64) ([]*timetable.InstanceStaff, error)
+	FindByInstanceID(ctx context.Context, instanceID int64) ([]*timetable.InstanceStaff, error)
 }
 
 // SickStamps are the sick-report provenance stamps on block assignments: the
@@ -75,7 +74,7 @@ type SickCascadeDependencies struct {
 	Logger        *slog.Logger
 	// Today is the calendar day the past-day guards compare against; nil
 	// means timezone.TodayDate.
-	Today func() timezone.Date
+	Today func() calendar.Date
 }
 
 type sickCascade struct {
@@ -85,12 +84,21 @@ type sickCascade struct {
 	sickStamps    SickStamps
 	broadcaster   realtime.Broadcaster
 	logger        *slog.Logger
-	today         func() timezone.Date
+	today         func() calendar.Date
+}
+
+// SickCascade is the cascade's method set; shiftplansync.SickCascade documents
+// it.
+type SickCascade interface {
+	MarkSickForRange(ctx context.Context, in workforce.SickCascadeInput) error
+	ClearSickForRange(ctx context.Context, in workforce.SickCascadeInput) error
+	ReconcileSickRange(ctx context.Context, before, after workforce.SickCascadeInput) error
+	ReassignSickStamps(ctx context.Context, fromAbsenceID, toAbsenceID int64) error
 }
 
 // NewSickCascade wires the #1843 cascade. Compose checks the dependencies and
-// binds the result into Workforce's absence lifecycle.
-func NewSickCascade(deps SickCascadeDependencies) workforce.ShiftPlanSync {
+// binds the result into the sick-report entry.
+func NewSickCascade(deps SickCascadeDependencies) SickCascade {
 	return &sickCascade{
 		shifts:        deps.Shifts,
 		deviations:    deps.Deviations,
@@ -102,11 +110,11 @@ func NewSickCascade(deps SickCascadeDependencies) workforce.ShiftPlanSync {
 	}
 }
 
-func (s *sickCascade) todayDate() timezone.Date {
+func (s *sickCascade) todayDate() calendar.Date {
 	if s.today != nil {
 		return s.today()
 	}
-	return timezone.TodayDate()
+	return calendar.TodayDate()
 }
 
 func (s *sickCascade) getLogger() *slog.Logger {
@@ -159,7 +167,7 @@ func (s *sickCascade) MarkSickForRange(ctx context.Context, in workforce.SickCas
 	return nil
 }
 
-func (s *sickCascade) cancelShiftsForSickDays(ctx context.Context, report sickReport, days []timezone.Date) error {
+func (s *sickCascade) cancelShiftsForSickDays(ctx context.Context, report sickReport, days []calendar.Date) error {
 	shifts, err := s.shifts.ListStaffShifts(ctx, workforce.StaffShiftFilter{
 		StaffID: report.subjectStaffID,
 		From:    days[0].String(),
@@ -172,7 +180,7 @@ func (s *sickCascade) cancelShiftsForSickDays(ctx context.Context, report sickRe
 	if err != nil {
 		return fmt.Errorf("sick cascade: load shifts: %w", err)
 	}
-	daySet := make(map[timezone.Date]bool, len(days))
+	daySet := make(map[calendar.Date]bool, len(days))
 	for _, d := range days {
 		daySet[d] = true
 	}
@@ -208,7 +216,7 @@ func (s *sickCascade) cancelShiftsForSickDays(ctx context.Context, report sickRe
 // covers stay), and a cover the sick person owns for a colleague: cancelling
 // a cover is invalid and deleting it would destroy admin work, so it is left
 // for the admin to re-plan.
-func (s *sickCascade) shiftTakesSickCancellation(shift workforce.StaffShift, days map[timezone.Date]bool, today timezone.Date) (bool, error) {
+func (s *sickCascade) shiftTakesSickCancellation(shift workforce.StaffShift, days map[calendar.Date]bool, today calendar.Date) (bool, error) {
 	date, err := shiftDate(shift)
 	if err != nil {
 		return false, err
@@ -227,7 +235,7 @@ func (s *sickCascade) shiftTakesSickCancellation(shift workforce.StaffShift, day
 	return true, nil
 }
 
-func (s *sickCascade) markBlocksForSickDays(ctx context.Context, report sickReport, days []timezone.Date, activeTouched timetable.TouchedActivities) error {
+func (s *sickCascade) markBlocksForSickDays(ctx context.Context, report sickReport, days []calendar.Date, activeTouched timetable.TouchedActivities) error {
 	// Past days are never touched: a completed/historical instance records
 	// what actually happened (mirrors the deviations endpoints' past guard).
 	today := s.todayDate()
@@ -243,11 +251,11 @@ func (s *sickCascade) markBlocksForSickDays(ctx context.Context, report sickRepo
 	return nil
 }
 
-func (s *sickCascade) markBlocksForSickDay(ctx context.Context, report sickReport, day timezone.Date, reason *string, activeTouched timetable.TouchedActivities) error {
+func (s *sickCascade) markBlocksForSickDay(ctx context.Context, report sickReport, day calendar.Date, reason *string, activeTouched timetable.TouchedActivities) error {
 	if err := s.timetableData.AcquireSubstituteDayLock(ctx, day); err != nil {
 		return fmt.Errorf("sick cascade: day lock %s: %w", day.String(), err)
 	}
-	rows, err := s.timetableData.GetInstanceStaffByStaffAndDate(ctx, report.subjectStaffID, day)
+	rows, err := s.timetableData.FindByStaffAndDate(ctx, report.subjectStaffID, day)
 	if err != nil {
 		return fmt.Errorf("sick cascade: load assignments %s: %w", day.String(), err)
 	}
@@ -256,7 +264,7 @@ func (s *sickCascade) markBlocksForSickDay(ctx context.Context, report sickRepor
 		return fmt.Errorf("sick cascade: load instances for %s: %w", day.String(), err)
 	}
 	if missingID := missingActivityInstanceID(rows, instancesByID); missingID > 0 {
-		return fmt.Errorf("sick cascade: load instance %d: %w", missingID, modelBase.ErrNotFound)
+		return fmt.Errorf("sick cascade: load instance %d: %w", missingID, errRecordNotFound)
 	}
 	for _, row := range rows {
 		if row.IsAbsent {
@@ -402,7 +410,7 @@ func staffShiftIDs(shifts []workforce.StaffShift) []int64 {
 	return ids
 }
 
-func (s *sickCascade) reconcileRemovedSickDays(ctx context.Context, before sickReport, removed map[timezone.Date]bool, activeTouched timetable.TouchedActivities) error {
+func (s *sickCascade) reconcileRemovedSickDays(ctx context.Context, before sickReport, removed map[calendar.Date]bool, activeTouched timetable.TouchedActivities) error {
 	if len(removed) == 0 {
 		return nil
 	}
@@ -412,7 +420,7 @@ func (s *sickCascade) reconcileRemovedSickDays(ctx context.Context, before sickR
 	return s.clearStampedBlocks(ctx, before, removed, activeTouched)
 }
 
-func (s *sickCascade) reconcileAddedSickDays(ctx context.Context, after sickReport, added map[timezone.Date]bool, activeTouched timetable.TouchedActivities) error {
+func (s *sickCascade) reconcileAddedSickDays(ctx context.Context, after sickReport, added map[calendar.Date]bool, activeTouched timetable.TouchedActivities) error {
 	if len(added) == 0 {
 		return nil
 	}
@@ -423,7 +431,7 @@ func (s *sickCascade) reconcileAddedSickDays(ctx context.Context, after sickRepo
 	return s.markBlocksForSickDays(ctx, after, days, activeTouched)
 }
 
-func (s *sickCascade) acquireCascadeDayLocks(ctx context.Context, days map[timezone.Date]bool) error {
+func (s *sickCascade) acquireCascadeDayLocks(ctx context.Context, days map[calendar.Date]bool) error {
 	today := s.todayDate()
 	for _, day := range sortedDateSet(days) {
 		if day.Before(today) {
@@ -436,7 +444,7 @@ func (s *sickCascade) acquireCascadeDayLocks(ctx context.Context, days map[timez
 	return nil
 }
 
-func (s *sickCascade) reactivateStampedShifts(ctx context.Context, report sickReport, onlyDays map[timezone.Date]bool) error {
+func (s *sickCascade) reactivateStampedShifts(ctx context.Context, report sickReport, onlyDays map[calendar.Date]bool) error {
 	shifts, err := s.stampedShifts(ctx, report.absenceID)
 	if err != nil {
 		return fmt.Errorf("sick clear: load stamped shifts: %w", err)
@@ -500,7 +508,7 @@ func (s *sickCascade) releaseStampedShift(ctx context.Context, shift workforce.S
 	return nil
 }
 
-func (s *sickCascade) clearStampedBlocks(ctx context.Context, report sickReport, onlyDays map[timezone.Date]bool, activeTouched timetable.TouchedActivities) error {
+func (s *sickCascade) clearStampedBlocks(ctx context.Context, report sickReport, onlyDays map[calendar.Date]bool, activeTouched timetable.TouchedActivities) error {
 	rows, err := s.loadStampedBlockRows(ctx, report.absenceID)
 	if err != nil || len(rows) == 0 {
 		return err
@@ -533,16 +541,16 @@ func (s *sickCascade) loadStampedBlockRows(ctx context.Context, absenceID int64)
 	return rows, nil
 }
 
-func (s *sickCascade) classifyStampedBlockRows(ctx context.Context, rows []*timetable.InstanceStaff, onlyDays map[timezone.Date]bool) (map[timezone.Date][]stampedSickBlockRow, []*timetable.InstanceStaff, error) {
+func (s *sickCascade) classifyStampedBlockRows(ctx context.Context, rows []*timetable.InstanceStaff, onlyDays map[calendar.Date]bool) (map[calendar.Date][]stampedSickBlockRow, []*timetable.InstanceStaff, error) {
 	today := s.todayDate()
-	byDay := make(map[timezone.Date][]stampedSickBlockRow)
+	byDay := make(map[calendar.Date][]stampedSickBlockRow)
 	var releaseOnly []*timetable.InstanceStaff
 	instancesByID, err := s.timetableData.GetActivityInstancesByID(ctx, instanceStaffInstanceIDs(rows))
 	if err != nil {
 		return nil, nil, fmt.Errorf("sick clear: load stamped instances: %w", err)
 	}
 	if missingID := missingActivityInstanceID(rows, instancesByID); missingID > 0 {
-		return nil, nil, fmt.Errorf("sick clear: load instance %d: %w", missingID, modelBase.ErrNotFound)
+		return nil, nil, fmt.Errorf("sick clear: load instance %d: %w", missingID, errRecordNotFound)
 	}
 	for _, row := range rows {
 		instance := instancesByID[row.InstanceID]
@@ -588,8 +596,8 @@ func (s *sickCascade) releaseSickBlockStamps(ctx context.Context, rows []*timeta
 	return nil
 }
 
-func sortedStampedBlockDays(byDay map[timezone.Date][]stampedSickBlockRow) []timezone.Date {
-	dates := make([]timezone.Date, 0, len(byDay))
+func sortedStampedBlockDays(byDay map[calendar.Date][]stampedSickBlockRow) []calendar.Date {
+	dates := make([]calendar.Date, 0, len(byDay))
 	for d := range byDay {
 		dates = append(dates, d)
 	}
@@ -597,7 +605,7 @@ func sortedStampedBlockDays(byDay map[timezone.Date][]stampedSickBlockRow) []tim
 	return dates
 }
 
-func (s *sickCascade) clearStampedBlocksForDay(ctx context.Context, report sickReport, day timezone.Date, entries []stampedSickBlockRow, activeTouched timetable.TouchedActivities) error {
+func (s *sickCascade) clearStampedBlocksForDay(ctx context.Context, report sickReport, day calendar.Date, entries []stampedSickBlockRow, activeTouched timetable.TouchedActivities) error {
 	if err := s.timetableData.AcquireSubstituteDayLock(ctx, day); err != nil {
 		return fmt.Errorf("sick clear: day lock %s: %w", day.String(), err)
 	}
@@ -658,7 +666,7 @@ func (s *sickCascade) ReassignSickStamps(ctx context.Context, fromAbsenceID, toA
 }
 
 func (s *sickCascade) instanceHasActiveSubstitute(ctx context.Context, instanceID int64) (bool, error) {
-	allRows, err := s.timetableData.GetInstanceStaff(ctx, instanceID)
+	allRows, err := s.timetableData.FindByInstanceID(ctx, instanceID)
 	if err != nil {
 		return false, fmt.Errorf("sick clear: load instance staff %d: %w", instanceID, err)
 	}
@@ -678,18 +686,18 @@ type sickReport struct {
 	absenceID      int64
 	actorStaffID   int64
 	actorAccountID *int64
-	dateStart      timezone.Date
-	dateEnd        timezone.Date
+	dateStart      calendar.Date
+	dateEnd        calendar.Date
 	skipStartDay   bool
 	skipEndDay     bool
 }
 
 func parseSickReport(in workforce.SickCascadeInput) (sickReport, error) {
-	start, err := timezone.ParseDate(in.DateStart)
+	start, err := calendar.ParseDate(in.DateStart)
 	if err != nil {
 		return sickReport{}, fmt.Errorf("sick cascade: invalid date_start %q: %w", in.DateStart, err)
 	}
-	end, err := timezone.ParseDate(in.DateEnd)
+	end, err := calendar.ParseDate(in.DateEnd)
 	if err != nil {
 		return sickReport{}, fmt.Errorf("sick cascade: invalid date_end %q: %w", in.DateEnd, err)
 	}
@@ -714,8 +722,8 @@ func stampScope(in workforce.SickCascadeInput) sickReport {
 // shiftDate reads a stored shift's calendar day. A row the database returns is
 // always a valid DateLayout value; a malformed one is a data error the
 // fail-closed cascade must surface instead of skipping the row.
-func shiftDate(shift workforce.StaffShift) (timezone.Date, error) {
-	date, err := timezone.ParseDate(shift.Date)
+func shiftDate(shift workforce.StaffShift) (calendar.Date, error) {
+	date, err := calendar.ParseDate(shift.Date)
 	if err != nil {
 		return "", fmt.Errorf("sick cascade: shift %d has an invalid date %q: %w", shift.ID, shift.Date, err)
 	}
@@ -724,8 +732,8 @@ func shiftDate(shift workforce.StaffShift) (timezone.Date, error) {
 
 // sickCascadeDays expands the absence range into the full sick days, skipping
 // half boundary days — a half sick day never cascades (#1843 product rule).
-func sickCascadeDays(report sickReport) []timezone.Date {
-	var days []timezone.Date
+func sickCascadeDays(report sickReport) []calendar.Date {
+	var days []calendar.Date
 	for d := report.dateStart; !d.After(report.dateEnd); d = d.AddDays(1) {
 		if report.skipStartDay && d == report.dateStart {
 			continue
@@ -738,11 +746,11 @@ func sickCascadeDays(report sickReport) []timezone.Date {
 	return days
 }
 
-func sickCascadeDayDifference(before, after sickReport) (removed, added map[timezone.Date]bool) {
+func sickCascadeDayDifference(before, after sickReport) (removed, added map[calendar.Date]bool) {
 	beforeDays := dateSet(sickCascadeDays(before))
 	afterDays := dateSet(sickCascadeDays(after))
-	removed = make(map[timezone.Date]bool)
-	added = make(map[timezone.Date]bool)
+	removed = make(map[calendar.Date]bool)
+	added = make(map[calendar.Date]bool)
 	for day := range beforeDays {
 		if !afterDays[day] {
 			removed[day] = true
@@ -756,16 +764,16 @@ func sickCascadeDayDifference(before, after sickReport) (removed, added map[time
 	return removed, added
 }
 
-func dateSet(days []timezone.Date) map[timezone.Date]bool {
-	set := make(map[timezone.Date]bool, len(days))
+func dateSet(days []calendar.Date) map[calendar.Date]bool {
+	set := make(map[calendar.Date]bool, len(days))
 	for _, day := range days {
 		set[day] = true
 	}
 	return set
 }
 
-func unionDateSets(left, right map[timezone.Date]bool) map[timezone.Date]bool {
-	union := make(map[timezone.Date]bool, len(left)+len(right))
+func unionDateSets(left, right map[calendar.Date]bool) map[calendar.Date]bool {
+	union := make(map[calendar.Date]bool, len(left)+len(right))
 	for day := range left {
 		union[day] = true
 	}
@@ -775,8 +783,8 @@ func unionDateSets(left, right map[timezone.Date]bool) map[timezone.Date]bool {
 	return union
 }
 
-func sortedDateSet(set map[timezone.Date]bool) []timezone.Date {
-	days := make([]timezone.Date, 0, len(set))
+func sortedDateSet(set map[calendar.Date]bool) []calendar.Date {
+	days := make([]calendar.Date, 0, len(set))
 	for day := range set {
 		days = append(days, day)
 	}

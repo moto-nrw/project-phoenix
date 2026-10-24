@@ -16,16 +16,6 @@ func TestParentCareRequestFieldSettingsPreserveEffectiveMessagingBehavior(t *tes
 
 	enabledTenant, _ := testpkg.CreateTestTenant(t, db)
 	disabledTenant, _ := testpkg.CreateTestTenant(t, db)
-	t.Cleanup(func() {
-		_, _ = db.NewRaw(`
-			DELETE FROM config.setting_audit
-			WHERE tenant_id IN (?, ?)
-				AND setting_key LIKE 'operations.parent_care_%_request_enabled';
-			DELETE FROM config.setting_values
-			WHERE tenant_id IN (?, ?)
-				AND setting_key LIKE 'operations.parent_care_%_request_enabled';
-		`, enabledTenant, disabledTenant, enabledTenant, disabledTenant).Exec(context.Background())
-	})
 	_, err := db.NewRaw(`
 		INSERT INTO config.setting_values (tenant_id, setting_key, value)
 		VALUES (?, 'operations.parent_notes_enabled', 'false'::jsonb)

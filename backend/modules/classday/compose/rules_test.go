@@ -3,13 +3,14 @@ package compose_test
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/classday/compose"
 	"github.com/moto-nrw/project-phoenix/modules/classday/internal/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-func ptrDate(d timezone.Date) *timezone.Date { return &d }
+func ptrDate(d calendar.Date) *calendar.Date { return &d }
 
 // TestRulesEnrolledOn_ImmediateActivation covers the #1565-review fix through
 // the binding: an immediately activated child (enrollment.default_activation_mode
@@ -18,9 +19,9 @@ func ptrDate(d timezone.Date) *timezone.Date { return &d }
 func TestRulesEnrolledOn_ImmediateActivation(t *testing.T) {
 	t.Parallel()
 
-	list := timezone.NewDate(2030, 9, 4)
-	future := timezone.NewDate(2030, 12, 1)
-	past := timezone.NewDate(2030, 8, 1)
+	list := calendar.NewDate(2030, 9, 4)
+	future := calendar.NewDate(2030, 12, 1)
+	past := calendar.NewDate(2030, 8, 1)
 	// The list is built for "today": the immediate-activation override lets an
 	// active child count from today onward, so the requested date is today here.
 	today := list
@@ -32,34 +33,34 @@ func TestRulesEnrolledOn_ImmediateActivation(t *testing.T) {
 	}{
 		{
 			name:    "active child with future enrolled_from is eligible now (immediate activation)",
-			student: ports.StudentFacts{Status: string(userModels.StudentStatusActive), EnrolledFrom: ptrDate(future)},
+			student: ports.StudentFacts{Status: testpkg.StudentStatusActive, EnrolledFrom: ptrDate(future)},
 			want:    true,
 		},
 		{
 			name:    "expired child without attendance is excluded",
-			student: ports.StudentFacts{Status: string(userModels.StudentStatusActive), EnrolledUntil: ptrDate(past)},
+			student: ports.StudentFacts{Status: testpkg.StudentStatusActive, EnrolledUntil: ptrDate(past)},
 			want:    false,
 		},
 		{
 			name:    "pending child before enrolled_from is excluded (interval is source of truth)",
-			student: ports.StudentFacts{Status: string(userModels.StudentStatusPending), EnrolledFrom: ptrDate(future)},
+			student: ports.StudentFacts{Status: testpkg.StudentStatusPending, EnrolledFrom: ptrDate(future)},
 			want:    false,
 		},
 		{
 			name:    "pending child already enrolled on the date is included",
-			student: ports.StudentFacts{Status: string(userModels.StudentStatusPending), EnrolledFrom: ptrDate(past)},
+			student: ports.StudentFacts{Status: testpkg.StudentStatusPending, EnrolledFrom: ptrDate(past)},
 			want:    true,
 		},
 		{
 			name:    "inactive legacy child without enrollment bounds is excluded",
-			student: ports.StudentFacts{Status: string(userModels.StudentStatusInactive)},
+			student: ports.StudentFacts{Status: testpkg.StudentStatusInactive},
 			want:    false,
 		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := (compose.Rules{}).EnrolledOn(tc.student, list, today); got != tc.want {
+			if got := compose.Rules(api.ClassDayEnrolledOn).EnrolledOn(tc.student, list, today); got != tc.want {
 				t.Fatalf("EnrolledOn = %v, want %v", got, tc.want)
 			}
 		})
@@ -73,15 +74,15 @@ func TestRulesEnrolledOn_ImmediateActivation(t *testing.T) {
 func TestRulesEnrolledOn_HistoricalDateBeforeEnrollment(t *testing.T) {
 	t.Parallel()
 
-	today := timezone.NewDate(2030, 9, 4)
+	today := calendar.NewDate(2030, 9, 4)
 	enrolledFrom := today.AddDays(-30) // enrollment started 30 days ago
 	beforeEnrollment := today.AddDays(-60)
 	withinWindow := today.AddDays(-10)
 
-	activeChild := func(from timezone.Date) ports.StudentFacts {
-		return ports.StudentFacts{Status: string(userModels.StudentStatusActive), EnrolledFrom: ptrDate(from)}
+	activeChild := func(from calendar.Date) ports.StudentFacts {
+		return ports.StudentFacts{Status: testpkg.StudentStatusActive, EnrolledFrom: ptrDate(from)}
 	}
-	rules := compose.Rules{}
+	rules := compose.Rules(api.ClassDayEnrolledOn)
 
 	if rules.EnrolledOn(activeChild(enrolledFrom), beforeEnrollment, today) {
 		t.Fatal("active child must NOT be eligible for a past date before enrolled_from")
@@ -102,8 +103,8 @@ func TestRulesEnrolledOn_HistoricalDateBeforeEnrollment(t *testing.T) {
 // plan verdict through.
 func TestRulesRowCareDay(t *testing.T) {
 	t.Parallel()
-	rules := compose.Rules{}
-	now := timezone.NewDate(2030, 9, 4).BerlinMidnight()
+	rules := compose.Rules(api.ClassDayEnrolledOn)
+	now := calendar.NewDate(2030, 9, 4).BerlinMidnight()
 
 	if got := rules.RowCareDay(false, ports.RosterFacts{Status: "expected", ManualStatusAt: &now}, ports.CareDayNotScheduled); got != ports.CareDayUnknown {
 		t.Fatalf("manual status must answer unknown, got %s", got)

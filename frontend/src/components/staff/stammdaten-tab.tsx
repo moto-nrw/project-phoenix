@@ -89,6 +89,7 @@ export function StammdatenTab({
   canManagePayrollSettings,
   canViewSections = false,
   canEditSections = false,
+  readOnly = false,
   canViewFinancial = false,
 }: {
   readonly staffId: string;
@@ -96,6 +97,7 @@ export function StammdatenTab({
   readonly canManagePayrollSettings: boolean;
   readonly canViewSections?: boolean;
   readonly canEditSections?: boolean;
+  readonly readOnly?: boolean;
   readonly canViewFinancial?: boolean;
 }) {
   const tenantPath = useTenantAwarePath();
@@ -182,7 +184,7 @@ export function StammdatenTab({
   const payrollEditable = canManagePayroll && !payrollLoading;
   const financialEditable = canViewFinancial && !financialError;
   const canStartEditing =
-    sectionsEditable || payrollEditable || financialEditable;
+    !readOnly && (sectionsEditable || payrollEditable || financialEditable);
 
   const patchDraft = (patch: Partial<StammdatenDraft>) =>
     setDraft((current) => (current ? { ...current, ...patch } : current));

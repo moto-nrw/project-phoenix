@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/tenant"
 
 	"github.com/DATA-DOG/go-sqlmock"
@@ -19,9 +19,9 @@ func TestEnsureStaffPresenceKeepsCheckInFailureBestEffort(t *testing.T) {
 
 	called := false
 	workSessions := &workSessionServiceForSessionUnitTest{
-		ensureCheckedInFunc: func(_ context.Context, _ int64, _ string) (*timerecords.WorkSession, error) {
+		ensureCheckedInFunc: func(_ context.Context, _ int64, _ studentpresence.StampSource) (bool, error) {
 			called = true
-			return nil, errors.New("check-in failed")
+			return false, errors.New("check-in failed")
 		},
 	}
 	svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal,
@@ -39,9 +39,9 @@ func TestEnsureStaffPresenceAcceptsClosedSessionSkip(t *testing.T) {
 
 	called := false
 	workSessions := &workSessionServiceForSessionUnitTest{
-		ensureCheckedInFunc: func(_ context.Context, _ int64, _ string) (*timerecords.WorkSession, error) {
+		ensureCheckedInFunc: func(_ context.Context, _ int64, _ studentpresence.StampSource) (bool, error) {
 			called = true
-			return nil, nil
+			return false, nil
 		},
 	}
 	svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal,
@@ -59,9 +59,9 @@ func TestEnsureStaffPresenceForAttendanceResultSkipsIdempotentCheckout(t *testin
 
 	called := false
 	workSessions := &workSessionServiceForSessionUnitTest{
-		ensureCheckedInFunc: func(_ context.Context, _ int64, _ string) (*timerecords.WorkSession, error) {
+		ensureCheckedInFunc: func(_ context.Context, _ int64, _ studentpresence.StampSource) (bool, error) {
 			called = true
-			return nil, nil
+			return false, nil
 		},
 	}
 	svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal,
@@ -81,9 +81,9 @@ func TestEnsureStaffPresenceForAttendanceResultStampsMutatingCheckout(t *testing
 
 	called := false
 	workSessions := &workSessionServiceForSessionUnitTest{
-		ensureCheckedInFunc: func(_ context.Context, _ int64, _ string) (*timerecords.WorkSession, error) {
+		ensureCheckedInFunc: func(_ context.Context, _ int64, _ studentpresence.StampSource) (bool, error) {
 			called = true
-			return nil, nil
+			return false, nil
 		},
 	}
 	svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal,
@@ -118,8 +118,8 @@ func TestEnsureStaffPresenceRollsBackFailedCheckInToSavepoint(t *testing.T) {
 	mock.ExpectRollback()
 
 	workSessions := &workSessionServiceForSessionUnitTest{
-		ensureCheckedInFunc: func(_ context.Context, _ int64, _ string) (*timerecords.WorkSession, error) {
-			return nil, errors.New("check-in failed")
+		ensureCheckedInFunc: func(_ context.Context, _ int64, _ studentpresence.StampSource) (bool, error) {
+			return false, errors.New("check-in failed")
 		},
 	}
 	svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal,

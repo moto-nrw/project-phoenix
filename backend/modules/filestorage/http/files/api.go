@@ -19,7 +19,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/filestorage"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 const (
@@ -56,9 +56,9 @@ func NewResource(files filestorage.Capability, logger *slog.Logger) *Resource {
 //
 // upload + download skip withTx so a slow body or file stream doesn't pin a
 // bun pool connection; the owner opens its own short transactions.
-func (rs *Resource) Router() chi.Router {
+func (rs *Resource) Router(protectedTenantRoutes func(chi.Router, func(chi.Router, common.Middleware))) chi.Router {
 	r := chi.NewRouter()
-	common.ProtectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) {
+	protectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) {
 		manage := common.RequiresPermission(permissions.FilesManage)
 
 		r.With(withTx).Get("/folders", rs.listFolders)
@@ -77,14 +77,14 @@ func (rs *Resource) Router() chi.Router {
 
 // actorFromRequest builds the capability actor from the JWT.
 func actorFromRequest(r *http.Request) (filestorage.Actor, error) {
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	if claims.ID == 0 {
 		return filestorage.Actor{}, errors.New("invalid token: no account id")
 	}
 	return filestorage.Actor{
 		AccountID:   int64(claims.ID),
 		Name:        strings.TrimSpace(strings.TrimSpace(claims.FirstName) + " " + strings.TrimSpace(claims.LastName)),
-		Permissions: jwt.PermissionsFromCtx(r.Context()),
+		Permissions: sessiontoken.PermissionsFromCtx(r.Context()),
 	}, nil
 }
 

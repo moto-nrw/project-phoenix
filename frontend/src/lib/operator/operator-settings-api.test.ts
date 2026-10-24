@@ -7,16 +7,6 @@ const { mockOperatorFetch } = vi.hoisted(() => ({
 
 vi.mock("./api-helpers", () => ({
   operatorFetch: mockOperatorFetch,
-  OperatorApiError: class OperatorApiError extends Error {
-    status: number;
-    constructor(message: string, status: number) {
-      super(message);
-      this.name = "OperatorApiError";
-      this.status = status;
-    }
-  },
-  isOperatorApiError: (e: unknown) =>
-    e instanceof Error && e.name === "OperatorApiError",
 }));
 
 // Import after mocks are set up
@@ -27,7 +17,7 @@ import {
   resetOperatorSettingValue,
   revealOperatorSettingValue,
 } from "./operator-settings-api";
-import { OperatorApiError } from "./api-helpers";
+import { ApiError } from "../api-error";
 
 const SCHOOL_ID = "42";
 
@@ -75,16 +65,14 @@ describe("operator-settings-api", () => {
 
     // #2519: an unknown school is an error the page shows, not "no schema".
     it("rethrows a 404", async () => {
-      const error = new OperatorApiError("not found", 404);
+      const error = new ApiError("not found", 404);
       mockOperatorFetch.mockRejectedValue(error);
 
       await expect(fetchOperatorSettingsSchema(SCHOOL_ID)).rejects.toBe(error);
     });
 
     it("rethrows on non-404 error", async () => {
-      mockOperatorFetch.mockRejectedValue(
-        new OperatorApiError("server error", 500),
-      );
+      mockOperatorFetch.mockRejectedValue(new ApiError("server error", 500));
 
       await expect(fetchOperatorSettingsSchema(SCHOOL_ID)).rejects.toThrow(
         "server error",
@@ -128,10 +116,10 @@ describe("operator-settings-api", () => {
     // The field shows the error on the shared path (#2519); the client no
     // longer turns the backend sentence into its own text.
     it.each([
-      ["validation", new OperatorApiError("below minimum 5", 400)],
-      ["not found", new OperatorApiError("not found", 404)],
-      ["conflict", new OperatorApiError("presence mode conflict", 409)],
-      ["server", new OperatorApiError("boom", 500)],
+      ["validation", new ApiError("below minimum 5", 400)],
+      ["not found", new ApiError("not found", 404)],
+      ["conflict", new ApiError("presence mode conflict", 409)],
+      ["server", new ApiError("boom", 500)],
       ["network", new Error("fetch failed")],
     ])("rethrows the %s error unchanged", async (_, error) => {
       mockOperatorFetch.mockRejectedValue(error);
@@ -156,7 +144,7 @@ describe("operator-settings-api", () => {
     });
 
     it.each([
-      ["server", new OperatorApiError("boom", 500)],
+      ["server", new ApiError("boom", 500)],
       ["network", new Error("network down")],
     ])("rethrows the %s error unchanged", async (_, error) => {
       mockOperatorFetch.mockRejectedValue(error);
@@ -192,7 +180,7 @@ describe("operator-settings-api", () => {
     // A failed reveal used to look like an empty value; the field now shows
     // it (#2519).
     it("rethrows a failed request", async () => {
-      const error = new OperatorApiError("not found", 404);
+      const error = new ApiError("not found", 404);
       mockOperatorFetch.mockRejectedValue(error);
 
       await expect(

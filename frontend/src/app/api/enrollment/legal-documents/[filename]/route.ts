@@ -1,6 +1,12 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { apiDelete, handleApiError } from "~/lib/api-helpers.server";
+import {
+  apiDelete,
+  handleApiError,
+  problemResponse,
+} from "~/lib/api-helpers.server";
+import { isApiResponseError } from "~/lib/api-response-error.server";
+import { createTokenExpiredResponse } from "~/lib/route-wrapper-utils.server";
 import { auth, uncachedAuth } from "~/server/auth";
 import { withTenantAuth } from "~/server/auth/tenant-route";
 
@@ -9,14 +15,7 @@ interface RouteContext {
 }
 
 function isStaleTokenError(error: unknown): boolean {
-  return error instanceof Error && error.message.includes("API error (401)");
-}
-
-function tokenExpiredResponse() {
-  return NextResponse.json(
-    { error: "Token expired", code: "TOKEN_EXPIRED" },
-    { status: 401 },
-  );
+  return isApiResponseError(error, 401);
 }
 
 async function deleteWithRetry(endpoint: string, token: string) {
@@ -49,12 +48,12 @@ async function DELETEHandler(_request: NextRequest, context: RouteContext) {
   const session = await auth();
   const token = session?.user?.token;
   if (!token) {
-    return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
+    return problemResponse(401, "Unauthenticated", _request);
   }
 
   const { filename } = await context.params;
   if (!filename) {
-    return NextResponse.json({ error: "Invalid filename" }, { status: 400 });
+    return problemResponse(400, "Invalid filename", _request);
   }
 
   try {
@@ -63,7 +62,7 @@ async function DELETEHandler(_request: NextRequest, context: RouteContext) {
       token,
     );
     if (!deleted) {
-      return tokenExpiredResponse();
+      return createTokenExpiredResponse(_request);
     }
     return new NextResponse(null, { status: 204 });
   } catch (error) {

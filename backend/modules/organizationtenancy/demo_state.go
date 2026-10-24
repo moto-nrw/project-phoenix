@@ -16,13 +16,15 @@ var ErrDemoCapacityReached = errors.New("demo capacity reached")
 // DemoSchoolState retains the complete synthetic seed contract. It is never
 // exposed through a tenant or operator HTTP endpoint: it includes credentials.
 type DemoSchoolState struct {
-	SchoolID int64
-	SeedJSON []byte
+	SchoolID               int64
+	SeedJSON               []byte
+	VisitorAccountID       int64
+	VisitorParentAccountID int64
 }
 
 type DemoStateEngine interface {
 	LoadDemoSchool(context.Context, string) (*DemoSchoolState, error)
-	ReserveDemoSchool(context.Context, string, int64) error
+	ReserveDemoSchool(context.Context, string, int64, int64, int64) error
 	RememberDemoSchool(context.Context, string, DemoSchoolState) error
 	UpdateDemoSchool(context.Context, string, DemoSchoolState) error
 	WithDemoLease(context.Context, string, func(context.Context) error) error
@@ -48,11 +50,11 @@ func (d *DemoSchools) LoadDemoSchool(ctx context.Context, name string) (*DemoSch
 
 // ReserveDemoSchool retains a newly bootstrapped school before its complete
 // seed state exists, so a later failed attempt can retire that school.
-func (d *DemoSchools) ReserveDemoSchool(ctx context.Context, name string, schoolID int64) error {
+func (d *DemoSchools) ReserveDemoSchool(ctx context.Context, name string, schoolID, visitorAccountID, visitorParentAccountID int64) error {
 	if name == "" || schoolID <= 0 {
 		return fmt.Errorf("demo school name and school ID are required")
 	}
-	return d.engine.ReserveDemoSchool(ctx, name, schoolID)
+	return d.engine.ReserveDemoSchool(ctx, name, schoolID, visitorAccountID, visitorParentAccountID)
 }
 
 func (d *DemoSchools) RememberDemoSchool(ctx context.Context, name string, state DemoSchoolState) error {
@@ -69,6 +71,17 @@ func (d *DemoSchools) UpdateDemoSchool(ctx context.Context, name string, state D
 		return fmt.Errorf("demo school name, school ID and seed state are required")
 	}
 	return d.engine.UpdateDemoSchool(ctx, name, state)
+}
+
+// RememberDemoSchoolFields and UpdateDemoSchoolFields save the state from its
+// fields, for callers that hold this capability through the owner's
+// composition but not the state type (the dev tools, ADR 0060).
+func (d *DemoSchools) RememberDemoSchoolFields(ctx context.Context, name string, schoolID int64, seedJSON []byte, visitorAccountID, visitorParentAccountID int64) error {
+	return d.RememberDemoSchool(ctx, name, DemoSchoolState{SchoolID: schoolID, SeedJSON: seedJSON, VisitorAccountID: visitorAccountID, VisitorParentAccountID: visitorParentAccountID})
+}
+
+func (d *DemoSchools) UpdateDemoSchoolFields(ctx context.Context, name string, schoolID int64, seedJSON []byte, visitorAccountID, visitorParentAccountID int64) error {
+	return d.UpdateDemoSchool(ctx, name, DemoSchoolState{SchoolID: schoolID, SeedJSON: seedJSON, VisitorAccountID: visitorAccountID, VisitorParentAccountID: visitorParentAccountID})
 }
 
 func (d *DemoSchools) WithDemoLease(ctx context.Context, name string, run func(context.Context) error) error {
@@ -112,8 +125,12 @@ type DemoQueueEngine interface {
 	ActiveDemoSchools(ctx context.Context, since time.Time) ([]string, error)
 	// RetireDemoSchools soft-deletes the schools of the named orders (#3470)
 	// and returns how many it hid. A hidden school is neither ticked nor
-	// counted, and cannot be entered.
-	RetireDemoSchools(ctx context.Context, slugs []string) (int, error)
+	// counted, and cannot be entered. Then it removes the visitor of every
+	// closed order no demo access names any more (#4048): the order with its
+	// names, account ids and credentials, and the visitor's name in the hidden
+	// schools. It does so with no slugs too, and returns how many orders it
+	// removed.
+	RetireDemoSchools(ctx context.Context, slugs []string) (hidden, erased int, err error)
 }
 
 // DemoSchoolQueue hands the demo process its orders. Only the process that

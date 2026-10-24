@@ -63,114 +63,136 @@ func boundedRecurrenceDates(appointment *Appointment, rule *RecurrenceRule, limi
 	if interval <= 0 {
 		interval = 1
 	}
-	start := Date(appointment.StartDate)
-	out := make([]Date, 0, limit)
-	past := func(d Date) bool {
-		return rule.EndsOn != nil && d.After(Date(*rule.EndsOn))
+	batch := boundedRecurrence{
+		start: Date(appointment.StartDate), rule: rule,
+		interval: interval, limit: limit, dates: make([]Date, 0, limit),
 	}
-
 	switch rule.Frequency {
 	case RecurrenceFrequencyDaily:
-		for k := 0; len(out) < limit; k++ {
-			d := start.AddDays(k * interval)
-			if past(d) {
-				break
-			}
-			out = append(out, d)
-		}
-
+		batch.daily()
 	case RecurrenceFrequencyWeekly:
-		offsets := weekdayOffsets(normalizeRecurrenceWeekdays(rule.Weekdays))
-		weekBase := weekStartMonday(start)
-		// startOffset is start's own Monday-based weekday offset, used when no
-		// explicit weekdays are given (the occurrence is the start weekday).
-		startOffset := (int(start.Weekday()) + 6) % 7
-		for w := 0; len(out) < limit; w += interval {
-			weekStart := weekBase.AddDays(w * 7)
-			if past(weekStart) {
-				break
-			}
-			if len(offsets) == 0 {
-				d := weekStart.AddDays(startOffset)
-				if !d.Before(start) && !past(d) {
-					out = append(out, d)
-				}
-				continue
-			}
-			for _, off := range offsets {
-				if len(out) >= limit {
-					break
-				}
-				d := weekStart.AddDays(off)
-				if d.Before(start) || past(d) {
-					continue
-				}
-				out = append(out, d)
-			}
-		}
-
+		batch.weekly()
 	case RecurrenceFrequencyMonthly:
-		days := monthlyCandidateDays(rule, start)
-		// The (month-of-year, leap-phase) pattern of reachable months repeats
-		// within this many steps, so this many consecutive empty months proves no
-		// further occurrence exists (mirrors firstMonthlyOccurrence's bound).
-		maxEmpty := 4*(12/gcdInt(interval, 12)) + 12
-		empty := 0
-		for k := 0; len(out) < limit; k++ {
-			year, month := addMonthsTo(start.Year(), int(start.Month()), k*interval)
-			if past(NewDate(year, time.Month(month), 1)) {
-				break
-			}
-			dim := daysInMonth(year, month)
-			produced := 0
-			for _, day := range days {
-				if len(out) >= limit {
-					break
-				}
-				if day < 1 || day > dim {
-					continue
-				}
-				d := NewDate(year, time.Month(month), day)
-				if d.Before(start) || past(d) {
-					continue
-				}
-				out = append(out, d)
-				produced++
-			}
-			if produced == 0 {
-				empty++
-				if empty > maxEmpty {
-					break
-				}
-			} else {
-				empty = 0
-			}
-		}
-
+		batch.monthly()
 	case RecurrenceFrequencyYearly:
-		// Only a Feb-29 rule is sparse (the day is absent in non-leap years); the
-		// Gregorian leap cycle is 400 years, so this many empty steps proves
-		// exhaustion regardless of interval.
-		const maxEmpty = 400
-		empty := 0
-		for k := 0; len(out) < limit; k++ {
-			year := start.Year() + k*interval
-			if daysInMonth(year, int(start.Month())) < start.Day() {
-				empty++
-				if empty > maxEmpty {
-					break
-				}
-				continue
-			}
-			d := NewDate(year, start.Month(), start.Day())
-			if past(d) {
+		batch.yearly()
+	}
+	return batch.dates
+}
+
+// boundedRecurrence collects a frequency's chronological candidates within the
+// series bounds. Each walker advances by interval periods rather than by days.
+type boundedRecurrence struct {
+	start    Date
+	rule     *RecurrenceRule
+	interval int
+	limit    int
+	dates    []Date
+}
+
+func (b *boundedRecurrence) full() bool {
+	return len(b.dates) >= b.limit
+}
+
+func (b *boundedRecurrence) pastEnd(d Date) bool {
+	return b.rule.EndsOn != nil && d.After(Date(*b.rule.EndsOn))
+}
+
+func (b *boundedRecurrence) appendCandidate(d Date) {
+	if !d.Before(b.start) && !b.pastEnd(d) {
+		b.dates = append(b.dates, d)
+	}
+}
+
+func (b *boundedRecurrence) daily() {
+	for k := 0; !b.full(); k++ {
+		d := b.start.AddDays(k * b.interval)
+		if b.pastEnd(d) {
+			break
+		}
+		b.dates = append(b.dates, d)
+	}
+}
+
+func (b *boundedRecurrence) weekly() {
+	offsets := weekdayOffsets(normalizeRecurrenceWeekdays(b.rule.Weekdays))
+	weekBase := weekStartMonday(b.start)
+	// Without explicit weekdays, each interval lands on the start weekday.
+	if len(offsets) == 0 {
+		offsets = []int{(int(b.start.Weekday()) + 6) % 7}
+	}
+	for w := 0; !b.full(); w += b.interval {
+		weekStart := weekBase.AddDays(w * 7)
+		if b.pastEnd(weekStart) {
+			break
+		}
+		for _, off := range offsets {
+			if b.full() {
 				break
 			}
-			out = append(out, d)
+			b.appendCandidate(weekStart.AddDays(off))
+		}
+	}
+}
+
+func (b *boundedRecurrence) monthly() {
+	days := monthlyCandidateDays(b.rule, b.start)
+	// Reachable (month-of-year, leap-phase) patterns repeat within this bound;
+	// consecutive empty months beyond it prove that the rule is exhausted.
+	maxEmpty := 4*(12/gcdInt(b.interval, 12)) + 12
+	empty := 0
+	for k := 0; !b.full(); k++ {
+		year, month := addMonthsTo(b.start.Year(), int(b.start.Month()), k*b.interval)
+		if b.pastEnd(NewDate(year, time.Month(month), 1)) {
+			break
+		}
+		before := len(b.dates)
+		b.appendMonth(year, month, days)
+		if len(b.dates) == before {
+			empty++
+			if empty > maxEmpty {
+				break
+			}
+		} else {
 			empty = 0
 		}
 	}
-	return out
+}
+
+func (b *boundedRecurrence) appendMonth(year, month int, days []int) {
+	dim := daysInMonth(year, month)
+	for _, day := range days {
+		if b.full() {
+			break
+		}
+		if day < 1 || day > dim {
+			continue
+		}
+		b.appendCandidate(NewDate(year, time.Month(month), day))
+	}
+}
+
+func (b *boundedRecurrence) yearly() {
+	// Only Feb 29 is sparse. The Gregorian leap cycle bounds empty steps even
+	// when the interval skips every leap year.
+	const maxEmpty = 400
+	empty := 0
+	for k := 0; !b.full(); k++ {
+		year := b.start.Year() + k*b.interval
+		if daysInMonth(year, int(b.start.Month())) < b.start.Day() {
+			empty++
+			if empty > maxEmpty {
+				break
+			}
+			continue
+		}
+		d := NewDate(year, b.start.Month(), b.start.Day())
+		if b.pastEnd(d) {
+			break
+		}
+		b.dates = append(b.dates, d)
+		empty = 0
+	}
 }
 
 // monthlyCandidateDays returns the sorted day-of-month values a monthly rule can
@@ -413,12 +435,7 @@ func matchesRule(start, candidate Date, rule *RecurrenceRule) bool {
 		if len(rule.MonthDays) == 0 {
 			return candidate.Day() == start.Day()
 		}
-		for _, day := range rule.MonthDays {
-			if candidate.Day() == day {
-				return true
-			}
-		}
-		return false
+		return slices.Contains(rule.MonthDays, candidate.Day())
 	case RecurrenceFrequencyYearly:
 		years := candidate.Year() - start.Year()
 		return years >= 0 && years%rule.IntervalCount == 0 && candidate.Month() == start.Month() && candidate.Day() == start.Day()

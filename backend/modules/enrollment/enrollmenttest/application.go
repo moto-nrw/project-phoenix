@@ -26,8 +26,15 @@ func NewApprovedOfferingProjection(selections compose.ApprovedSelections, studen
 	return compose.NewApprovedOfferingProjection(selections, students)
 }
 
-// NewPhases composes the phase administration.
-func NewPhases(deps PhaseDependencies) *Phases { return compose.NewPhases(deps) }
+// NewPhases composes the phase administration; a missing required
+// dependency panics, as the suite's construction is wrong.
+func NewPhases(deps PhaseDependencies) *Phases {
+	phases, err := compose.NewResyncingPhases(deps)
+	if err != nil {
+		panic(err)
+	}
+	return phases
+}
 
 // NewFormSchemas composes form-schema publishing over the owner.
 func NewFormSchemas(records compose.FormSchemaRecords, settings compose.CollectionSettings, logger *slog.Logger) enrollment.FormSchemaAdministration {

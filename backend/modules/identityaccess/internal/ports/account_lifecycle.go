@@ -10,7 +10,7 @@ import (
 // AccountLifecycleStore is the persistence port over the identity-owned rows
 // the lifecycle flows (#3225) read and write beyond the login store: the
 // school's account listing, the direct permission grants, the school mapping
-// deactivation, account e-mails and auth.accounts_parents. Every statement
+// deactivation and account e-mails. Every statement
 // runs on the connection the caller's context carries.
 type AccountLifecycleStore interface {
 	// ListTenantAccounts returns every account mapped to the school with its
@@ -22,15 +22,6 @@ type AccountLifecycleStore interface {
 	// re-invitation can reactivate it.
 	DeactivateTenantMapping(ctx context.Context, accountID, tenantID int64) (domain.OperationStats, error)
 	ListAccountEmails(ctx context.Context, accountIDs []int64) (map[int64]string, domain.OperationStats, error)
-
-	FindParentAccount(ctx context.Context, id int64) (domain.ParentAccount, bool, domain.OperationStats, error)
-	FindParentAccountByEmail(ctx context.Context, email string) (domain.ParentAccount, bool, domain.OperationStats, error)
-	FindParentAccountByUsername(ctx context.Context, username string) (domain.ParentAccount, bool, domain.OperationStats, error)
-	InsertParentAccount(ctx context.Context, account domain.ParentAccount) (domain.ParentAccount, domain.OperationStats, error)
-	// UpdateParentAccount writes e-mail, username, active flag and password
-	// hash and reports whether the row existed.
-	UpdateParentAccount(ctx context.Context, account domain.ParentAccount) (bool, domain.OperationStats, error)
-	ListParentAccounts(ctx context.Context, filter domain.ParentAccountFilter) ([]domain.ParentAccount, domain.OperationStats, error)
 }
 
 // StaffDirectory is the consumer-owned port over the People Directory and
@@ -48,10 +39,13 @@ type StaffDirectory interface {
 	FindPersonNames(ctx context.Context, accountIDs []int64) (map[int64]domain.PersonName, error)
 	CreatePerson(ctx context.Context, person domain.PersonRecord) (int64, error)
 	LinkPersonToAccount(ctx context.Context, personID, accountID int64) error
+	// MoveAccountLink unlinks the account from one person and links it to
+	// another of the same school.
+	MoveAccountLink(ctx context.Context, fromPersonID, toPersonID, accountID int64) error
 	LinkPersonToRFIDCard(ctx context.Context, personID int64, tagID string) error
 	IsStudentPerson(ctx context.Context, personID int64) (bool, error)
 	FindStaffByPerson(ctx context.Context, personID int64) (domain.StaffMember, bool, error)
-	CreateStaff(ctx context.Context, tenantID, personID int64) (int64, error)
+	CreateStaff(ctx context.Context, tenantID, personID int64, retiredStaffID *int64) (int64, error)
 	FindCaregiverProfile(ctx context.Context, staffID int64) (domain.CaregiverProfile, bool, error)
 	CreateCaregiverProfile(ctx context.Context, tenantID, staffID int64, position string) (int64, error)
 }
@@ -105,6 +99,7 @@ type PasswordPolicy interface {
 type GuardianDirectory interface {
 	FindGuardianProfileByEmail(ctx context.Context, email string) (domain.GuardianProfile, bool, error)
 	FindGuardianProfile(ctx context.Context, id int64) (domain.GuardianProfile, bool, error)
+	LockGuardianProfile(ctx context.Context, id int64) (domain.GuardianProfile, bool, error)
 	FindGuardianProfiles(ctx context.Context, ids []int64) (map[int64]domain.GuardianProfile, error)
 	CreateGuardianProfile(ctx context.Context, profile domain.GuardianProfile) (int64, error)
 	DeleteGuardianProfile(ctx context.Context, id int64) error
@@ -175,7 +170,7 @@ type GuardianEnrollments interface {
 // EnqueueExistingAccountEmail tells an account holder who got access without
 // a token invitation to sign in to the parents portal with their credentials.
 type GuardianInvitationDelivery interface {
-	InvitationExpiry(ctx context.Context) time.Duration
+	InvitationExpiry(ctx context.Context) (time.Duration, error)
 	SchoolName(ctx context.Context, tenantID int64) string
 	// EnqueueInvitationEmail reports whether the primary access mail was
 	// queued. A welcome must not follow a failed primary mail.

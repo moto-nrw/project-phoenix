@@ -18,15 +18,14 @@ var (
 
 	ErrStaffOffboardingConflict = errors.New("account access changed since offboarding preview")
 
-	ErrSchoolIdentityNamesRequired   = errors.New("Vor- und Nachname sind erforderlich, um ein Konto als Personal anzulegen")                                                //nolint:staticcheck // ST1005: user-facing German message
-	ErrSchoolIdentityPersonIsStudent = errors.New("Dieses Konto ist mit dem Datensatz eines Kindes verknüpft und kann nicht als Personal angelegt werden")                   //nolint:staticcheck // ST1005: user-facing German message
-	ErrSchoolIdentityTagUnknown      = errors.New("Der angegebene Transponder ist an dieser Schule nicht bekannt")                                                           //nolint:staticcheck // ST1005: user-facing German message
-	ErrSchoolIdentityTagConflict     = errors.New("Diese Person trägt an dieser Schule bereits einen anderen Transponder; dieser wird über die Personalverwaltung geändert") //nolint:staticcheck // ST1005: user-facing German message
-	ErrSchoolIdentityTagTaken        = errors.New("Dieser Transponder ist an dieser Schule bereits einer anderen Person zugeordnet")                                         //nolint:staticcheck // ST1005: user-facing German message
+	ErrSchoolIdentityNamesRequired   = errors.New("vor- und Nachname sind erforderlich, um ein Konto als Personal anzulegen")
+	ErrSchoolIdentityPersonIsStudent = errors.New("dieses Konto ist mit dem Datensatz eines Kindes verknüpft und kann nicht als Personal angelegt werden")
+	ErrSchoolIdentityTagUnknown      = errors.New("der angegebene Transponder ist an dieser Schule nicht bekannt")
+	ErrSchoolIdentityTagConflict     = errors.New("diese Person trägt an dieser Schule bereits einen anderen Transponder; dieser wird über die Personalverwaltung geändert")
+	ErrSchoolIdentityTagTaken        = errors.New("dieser Transponder ist an dieser Schule bereits einer anderen Person zugeordnet")
 
-	ErrParentAccountNotFound = errors.New("parent account not found")
-	ErrEmailAlreadyExists    = errors.New("Diese E-Mail-Adresse ist bereits registriert") //nolint:staticcheck // ST1005: user-facing German message
-	ErrUsernameAlreadyExists = errors.New("Dieser Benutzername ist bereits vergeben")     //nolint:staticcheck // ST1005: user-facing German message
+	ErrEmailAlreadyExists    = errors.New("diese E-Mail-Adresse ist bereits registriert")
+	ErrUsernameAlreadyExists = errors.New("dieser Benutzername ist bereits vergeben")
 
 	// ErrPasswordTooWeak reports a credential that does not meet the
 	// complexity requirements Security Runtime owns. The module reports it
@@ -37,7 +36,7 @@ var (
 	ErrCannotRemovePrimaryGuardian      = errors.New("the primary guardian cannot be removed by a parent")
 	ErrCannotRemoveStaffManagedGuardian = errors.New("staff-managed guardian contacts cannot be removed by a parent")
 	ErrCannotRemoveOwnAccess            = errors.New("a parent cannot remove their own access to a child")
-	ErrCannotRemovePayerGuardian        = errors.New("Diese Person ist als Zahler für das Kind eingetragen und kann nicht entfernt werden. Bitte wenden Sie sich an die Schule.") //nolint:staticcheck // ST1005: user-facing German message
+	ErrCannotRemovePayerGuardian        = errors.New("diese Person ist als Zahler für das Kind eingetragen und kann nicht entfernt werden. Bitte wenden Sie sich an die Schule")
 	ErrInviteSocialWorkerManaged        = errors.New("a social-worker contact is managed by the school and cannot be invited to the parents portal")
 	ErrGuardianInvitationNotFound       = errors.New("invitation not found")
 	ErrGuardianInvitationExpired        = errors.New("invitation has expired")
@@ -127,12 +126,14 @@ type StaffOffboardingAccess interface {
 
 // RoleFacts are the classification facts of a role: its tier (base_role)
 // and, for system roles seeded before the column existed, its name.
+// SchoolPortal marks a school role made from the Lehrkraft template (#4574).
 type RoleFacts struct {
-	ID       int64
-	TenantID *int64
-	Name     string
-	IsSystem bool
-	BaseRole *string
+	ID           int64
+	TenantID     *int64
+	Name         string
+	IsSystem     bool
+	BaseRole     *string
+	SchoolPortal bool
 }
 
 // Role tiers and the system role names the classification falls back to.
@@ -140,6 +141,14 @@ const (
 	BaseRoleAdmin    = "admin"
 	BaseRoleUser     = "user"
 	BaseRoleGuardian = "guardian"
+
+	// GuestRoleName is the system role „Gast“: the access level „Nur
+	// ansehen“ (ADR 0091), children, rooms and AGs without parent data.
+	GuestRoleName = "guest"
+	// AGLeitungRoleName is the system role „AG-Leitung“ (migration
+	// 1.15.478, ADR 0091): base role user, only schedules:read, runs the
+	// own blocks. The role does not make anyone external.
+	AGLeitungRoleName = "ag-leitung"
 
 	lehrkraftRoleName     = "lehrkraft"
 	legacyTeacherRoleName = "teacher"
@@ -166,10 +175,15 @@ func EffectiveBaseRole(role *RoleFacts) string {
 	return ""
 }
 
-// IsLehrkraftSystemRole reports whether the role is the platform Lehrkraft
-// role (#1772): class_day-read-only by design, never a caregiver.
-func IsLehrkraftSystemRole(role *RoleFacts) bool {
-	return role != nil && role.IsSystem && strings.EqualFold(strings.TrimSpace(role.Name), lehrkraftRoleName)
+// IsLehrkraftRole reports whether the role is a Lehrkraft role (#1772):
+// class_day-read-only by design, never a caregiver, used in moto schule. That
+// is the platform role lehrkraft and every school role made from its
+// template (#4574).
+func IsLehrkraftRole(role *RoleFacts) bool {
+	if role == nil {
+		return false
+	}
+	return role.SchoolPortal || (role.IsSystem && strings.EqualFold(strings.TrimSpace(role.Name), lehrkraftRoleName))
 }
 
 // RoleNeedsStaffRecord reports whether an account holding this role at a
@@ -193,7 +207,7 @@ func RoleNeedsCaregiverProfile(role *RoleFacts) bool {
 	if role == nil {
 		return false
 	}
-	if IsLehrkraftSystemRole(role) {
+	if IsLehrkraftRole(role) {
 		return false
 	}
 	if strings.EqualFold(EffectiveBaseRole(role), BaseRoleUser) {
@@ -245,6 +259,12 @@ type SchoolIdentityInput struct {
 	CreatePerson bool
 }
 
+// OperatorProvisioningCreatesPerson is the CreatePerson of operator
+// provisioning: an operator sets up a school's accounts before anyone
+// entered their people there, so the school identity creates the missing
+// person.
+const OperatorProvisioningCreatesPerson = true
+
 // SchoolIdentity is what the account carries at the school afterwards.
 // TeacherID is zero for roles that run without a caregiver profile.
 type SchoolIdentity struct {
@@ -266,39 +286,6 @@ type SchoolIdentityProvisioning interface {
 	// that guards the Lehrkraft role reads (#1772). Offboarded records do not
 	// count.
 	HasLiveCaregiverProfile(ctx context.Context, accountID int64) (bool, error)
-}
-
-// ParentAccount is one parent authentication account of the school in
-// context.
-type ParentAccount struct {
-	ID        int64
-	TenantID  int64
-	Email     string
-	Username  string
-	Active    bool
-	CreatedAt time.Time
-	UpdatedAt time.Time
-}
-
-// ParentAccountFilter narrows ListParentAccounts. Zero values do not filter.
-type ParentAccountFilter struct {
-	Email  string
-	Active *bool
-}
-
-// ParentAccountAccess manages parent accounts. Lookups report
-// ErrParentAccountNotFound for an unknown account; creation refuses a taken
-// address or username with the retained German sentinels.
-type ParentAccountAccess interface {
-	CreateParentAccount(ctx context.Context, email, username, password string) (ParentAccount, error)
-	GetParentAccountByID(ctx context.Context, id int64) (ParentAccount, error)
-	GetParentAccountByEmail(ctx context.Context, email string) (ParentAccount, error)
-	// UpdateParentAccount writes e-mail, username and active flag; the
-	// stored credential is kept.
-	UpdateParentAccount(ctx context.Context, account ParentAccount) error
-	ActivateParentAccount(ctx context.Context, id int64) error
-	DeactivateParentAccount(ctx context.Context, id int64) error
-	ListParentAccounts(ctx context.Context, filter ParentAccountFilter) ([]ParentAccount, error)
 }
 
 // InviteToStudentRequest is the unified "invite an email to a child" input,
@@ -323,6 +310,11 @@ type InviteToStudentRequest struct {
 	// is always queued for staff approval.
 	ConfirmRoleUpgrade bool
 }
+
+// StaffInviteRequiresApproval is the RequireApproval of an invite staff send
+// from the "Erziehungsberechtigte" tab: staff are the approvers, so their
+// invite acts immediately.
+const StaffInviteRequiresApproval = false
 
 // InviteToStudentOutcome describes what the resolve logic did.
 type InviteToStudentOutcome string
@@ -354,6 +346,16 @@ type RevokeAccessRequest struct {
 	ByParent bool
 	// MayClearPayer says whether the actor holds guardians:financial (#2608).
 	MayClearPayer bool
+}
+
+// ParentRevokeAccessRequest is the parents-portal removal of a relative's
+// access: a parent never removes the primary guardian, and never holds
+// guardians:financial, so the payer guard stays closed.
+func ParentRevokeAccessRequest(studentID, guardianProfileID, actorAccountID int64) RevokeAccessRequest {
+	return RevokeAccessRequest{
+		StudentID: studentID, GuardianProfileID: guardianProfileID, ActorAccountID: actorAccountID,
+		ByParent: true,
+	}
 }
 
 // PendingApprovalView is the staff-facing, name-resolved projection of a
@@ -391,87 +393,6 @@ type AccountLifecycle interface {
 	StaffPreview
 	StaffOffboardingAccess
 	SchoolIdentityProvisioning
-	ParentAccountAccess
 	GuardianRelativeAccess
 	GuardianInvitations
-}
-
-func (m *Module) StartStaffPreview(ctx context.Context, adminAccountID, tenantID, targetAccountID int64, previousToken, ipAddress, userAgent string) (*StaffPreviewSession, error) {
-	return m.engine.StartStaffPreview(ctx, adminAccountID, tenantID, targetAccountID, previousToken, ipAddress, userAgent)
-}
-
-func (m *Module) EndStaffPreview(ctx context.Context, previewToken, ipAddress, userAgent string) (int64, error) {
-	return m.engine.EndStaffPreview(ctx, previewToken, ipAddress, userAgent)
-}
-
-func (m *Module) ListStaffPreviewCandidates(ctx context.Context, tenantID, excludeAccountID int64) ([]StaffPreviewCandidate, error) {
-	return m.engine.ListStaffPreviewCandidates(ctx, tenantID, excludeAccountID)
-}
-
-func (m *Module) PreviewStaffOffboarding(ctx context.Context, accountID int64) (StaffOffboardingPreview, error) {
-	return m.engine.PreviewStaffOffboarding(ctx, accountID)
-}
-
-func (m *Module) ExecuteStaffOffboarding(ctx context.Context, accountID int64, revision string) (StaffOffboardingResult, error) {
-	return m.engine.ExecuteStaffOffboarding(ctx, accountID, revision)
-}
-
-func (m *Module) EnsureSchoolIdentity(ctx context.Context, input SchoolIdentityInput) (*SchoolIdentity, error) {
-	return m.engine.EnsureSchoolIdentity(ctx, input)
-}
-
-func (m *Module) HasLiveCaregiverProfile(ctx context.Context, accountID int64) (bool, error) {
-	return m.engine.HasLiveCaregiverProfile(ctx, accountID)
-}
-
-func (m *Module) CreateParentAccount(ctx context.Context, email, username, password string) (ParentAccount, error) {
-	return m.engine.CreateParentAccount(ctx, email, username, password)
-}
-
-func (m *Module) GetParentAccountByID(ctx context.Context, id int64) (ParentAccount, error) {
-	return m.engine.GetParentAccountByID(ctx, id)
-}
-
-func (m *Module) GetParentAccountByEmail(ctx context.Context, email string) (ParentAccount, error) {
-	return m.engine.GetParentAccountByEmail(ctx, email)
-}
-
-func (m *Module) UpdateParentAccount(ctx context.Context, account ParentAccount) error {
-	return m.engine.UpdateParentAccount(ctx, account)
-}
-
-func (m *Module) ActivateParentAccount(ctx context.Context, id int64) error {
-	return m.engine.ActivateParentAccount(ctx, id)
-}
-
-func (m *Module) DeactivateParentAccount(ctx context.Context, id int64) error {
-	return m.engine.DeactivateParentAccount(ctx, id)
-}
-
-func (m *Module) ListParentAccounts(ctx context.Context, filter ParentAccountFilter) ([]ParentAccount, error) {
-	return m.engine.ListParentAccounts(ctx, filter)
-}
-
-func (m *Module) InviteToStudent(ctx context.Context, req InviteToStudentRequest) (*InviteToStudentResult, error) {
-	return m.engine.InviteToStudent(ctx, req)
-}
-
-func (m *Module) ApproveInvitation(ctx context.Context, invitationID, approverAccountID int64) error {
-	return m.engine.ApproveInvitation(ctx, invitationID, approverAccountID)
-}
-
-func (m *Module) RejectInvitation(ctx context.Context, invitationID, approverAccountID int64) error {
-	return m.engine.RejectInvitation(ctx, invitationID, approverAccountID)
-}
-
-func (m *Module) PendingInvitationStudentID(ctx context.Context, invitationID int64) (int64, error) {
-	return m.engine.PendingInvitationStudentID(ctx, invitationID)
-}
-
-func (m *Module) ListPendingApprovalsDetailed(ctx context.Context) ([]PendingApprovalView, error) {
-	return m.engine.ListPendingApprovalsDetailed(ctx)
-}
-
-func (m *Module) RevokeAccess(ctx context.Context, req RevokeAccessRequest) error {
-	return m.engine.RevokeAccess(ctx, req)
 }

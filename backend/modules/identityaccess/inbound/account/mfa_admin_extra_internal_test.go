@@ -10,19 +10,19 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/moto-nrw/project-phoenix/api/testutil"
 )
 
 // adminAuthStub embeds the unrelated account capability. These MFA handlers
-// must not call it; the zero module fails closed if that boundary changes.
+// must not call it; the nil owner fails closed if that boundary changes.
 type adminAuthStub struct {
-	identityaccess.Module
+	identityaccess.Owner
 }
 
 // adminMFAStub is a focused MFAService stub for the admin handlers.
@@ -113,6 +113,7 @@ func TestMFAAdminGetState_HappyPath(t *testing.T) {
 	// drive the stub's return value rather than the two-call shape the
 	// handler used previously.
 	rs := &Resource{
+		ConstraintViolation: transactionFailures.IsConstraintViolation,
 		MFAService: &adminMFAStub{
 			getAdminStateFn: func(_ context.Context, _, _, _ int64, _ []string) (identityaccess.MFAAdminState, error) {
 				return identityaccess.MFAAdminState{
@@ -137,7 +138,8 @@ func TestMFAAdminGetState_HappyPath(t *testing.T) {
 func TestMFAAdminGetState_BadIDReturns400(t *testing.T) {
 	t.Parallel()
 
-	rs := &Resource{MFAService: &adminMFAStub{}}
+	rs := &Resource{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, MFAService: &adminMFAStub{}}
 
 	r := reqWithAccountID(t, http.MethodGet, "not-a-number", nil, 0, nil)
 	rr := httptest.NewRecorder()
@@ -154,6 +156,7 @@ func TestMFAAdminGetState_RequiresAuthenticatedActor(t *testing.T) {
 	// actor identity GetAdminState can't run its membership check, so
 	// the handler must refuse before delegating. (#1430 review round 2)
 	rs := &Resource{
+		ConstraintViolation: transactionFailures.IsConstraintViolation,
 		MFAService: &adminMFAStub{
 			getAdminStateFn: func(context.Context, int64, int64, int64, []string) (identityaccess.MFAAdminState, error) {
 				t.Fatal("GetAdminState must not run without an authenticated actor")
@@ -177,6 +180,7 @@ func TestMFAAdminGetState_CrossTenantReturns403(t *testing.T) {
 	// ErrMFAPermissionDenied to 403 so a tenant admin cannot probe
 	// foreign account_ids. (#1430 review round 2)
 	rs := &Resource{
+		ConstraintViolation: transactionFailures.IsConstraintViolation,
 		MFAService: &adminMFAStub{
 			getAdminStateFn: func(context.Context, int64, int64, int64, []string) (identityaccess.MFAAdminState, error) {
 				return identityaccess.MFAAdminState{}, identityaccess.ErrMFAPermissionDenied
@@ -199,6 +203,7 @@ func TestMFAAdminGetState_ServiceErrorReturns500(t *testing.T) {
 	// debugging). Permission denial is the only "expected" failure
 	// shape; everything else is operational.
 	rs := &Resource{
+		ConstraintViolation: transactionFailures.IsConstraintViolation,
 		MFAService: &adminMFAStub{
 			getAdminStateFn: func(context.Context, int64, int64, int64, []string) (identityaccess.MFAAdminState, error) {
 				return identityaccess.MFAAdminState{}, errors.New("db connection lost")
@@ -219,6 +224,7 @@ func TestMFAAdminSetOverride_HappyPath(t *testing.T) {
 	var capturedOverride string
 	var capturedTenantID int64
 	rs := &Resource{
+		ConstraintViolation: transactionFailures.IsConstraintViolation,
 		MFAService: &adminMFAStub{
 			setOverrideFn: func(_ context.Context, _, actorTenantID, _ int64, override, _ string, _ []string) error {
 				capturedOverride = override
@@ -248,8 +254,9 @@ func TestMFAAdminSetOverride_RequiresClaim(t *testing.T) {
 	t.Parallel()
 
 	rs := &Resource{
-		MFAService:  &adminMFAStub{},
-		AuthService: &adminAuthStub{},
+		ConstraintViolation: transactionFailures.IsConstraintViolation,
+		MFAService:          &adminMFAStub{},
+		AuthService:         &adminAuthStub{},
 	}
 
 	r := reqWithAccountID(t, http.MethodPut, "200",
@@ -265,8 +272,9 @@ func TestMFAAdminSetOverride_RejectsBadOverride(t *testing.T) {
 	t.Parallel()
 
 	rs := &Resource{
-		MFAService:  &adminMFAStub{},
-		AuthService: &adminAuthStub{},
+		ConstraintViolation: transactionFailures.IsConstraintViolation,
+		MFAService:          &adminMFAStub{},
+		AuthService:         &adminAuthStub{},
 	}
 
 	r := reqWithAccountID(t, http.MethodPut, "200",
@@ -282,6 +290,7 @@ func TestMFAAdminSetOverride_PermissionDeniedMapsTo403(t *testing.T) {
 	t.Parallel()
 
 	rs := &Resource{
+		ConstraintViolation: transactionFailures.IsConstraintViolation,
 		MFAService: &adminMFAStub{
 			setOverrideFn: func(context.Context, int64, int64, int64, string, string, []string) error {
 				return identityaccess.ErrMFAPermissionDenied
@@ -305,6 +314,7 @@ func TestMFAAdminDisable_HappyPath(t *testing.T) {
 	var capturedReason string
 	var capturedTenantID int64
 	rs := &Resource{
+		ConstraintViolation: transactionFailures.IsConstraintViolation,
 		MFAService: &adminMFAStub{
 			adminDisableMFAFn: func(_ context.Context, _, actorTenantID, _ int64, reason string, _ []string) error {
 				capturedReason = reason
@@ -330,7 +340,8 @@ func TestMFAAdminDisable_HappyPath(t *testing.T) {
 func TestMFAAdminDisable_BadID_Returns400(t *testing.T) {
 	t.Parallel()
 
-	rs := &Resource{MFAService: &adminMFAStub{}}
+	rs := &Resource{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, MFAService: &adminMFAStub{}}
 
 	r := reqWithAccountID(t, http.MethodPost, "0",
 		MFAAdminOverrideRequest{Reason: "ok ok"},
@@ -344,7 +355,8 @@ func TestMFAAdminDisable_BadID_Returns400(t *testing.T) {
 func TestMFAAdminDisable_RejectsEmptyReason(t *testing.T) {
 	t.Parallel()
 
-	rs := &Resource{MFAService: &adminMFAStub{}}
+	rs := &Resource{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, MFAService: &adminMFAStub{}}
 
 	r := reqWithAccountID(t, http.MethodPost, "300",
 		MFAAdminOverrideRequest{Reason: "   "}, // whitespace only
@@ -358,11 +370,12 @@ func TestMFAAdminDisable_RejectsEmptyReason(t *testing.T) {
 func TestMFAAdminDisable_ServiceErrorMapsTo500(t *testing.T) {
 	t.Parallel()
 
-	rs := &Resource{MFAService: &adminMFAStub{
-		adminDisableMFAFn: func(context.Context, int64, int64, int64, string, []string) error {
-			return errors.New("db down")
-		},
-	}}
+	rs := &Resource{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, MFAService: &adminMFAStub{
+			adminDisableMFAFn: func(context.Context, int64, int64, int64, string, []string) error {
+				return errors.New("db down")
+			},
+		}}
 
 	r := reqWithAccountID(t, http.MethodPost, "300",
 		MFAAdminOverrideRequest{Reason: "User lost phone"},

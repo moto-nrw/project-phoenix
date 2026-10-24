@@ -2,251 +2,81 @@ package application
 
 import (
 	"context"
+	"fmt"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/ports"
 )
 
-// Service runs every calendar operation on the caller's ambient transaction
-// (or the shared connection when there is none, exactly like the legacy
-// repositories), records one observation per call and turns "no row"
-// outcomes into the stable domain errors.
+// Service joins the caller's transaction or opens a school unit of work for
+// record operations. Pure holiday/render operations need no database scope.
+// It records one observation per call and preserves the domain errors.
 type Service struct {
 	store          ports.Store
 	observe        ports.Observer
 	administration Administration
+	// CalendarAlgorithms promotes ValidHolidayRegion unchanged.
+	CalendarAlgorithms
 }
 
 // New composes the service. The administrative write path needs a
 // transaction runner and a clock; the gate, guard and federal-state ports
 // are optional collaborators of the composition.
-func New(store ports.Store, observe ports.Observer, administration Administration) *Service {
-	if store == nil || observe == nil || administration.Transaction == nil || administration.Today == nil {
+func New(store ports.Store, observe ports.Observer, administration Administration, algorithms CalendarAlgorithms) *Service {
+	if algorithms == nil || store == nil || observe == nil || administration.Transaction == nil || administration.Today == nil {
 		panic("school calendar application: all dependencies are required")
 	}
-	return &Service{store: store, observe: observe, administration: administration}
+	administration.Observe = observe
+	return &Service{store: store, observe: observe, administration: administration, CalendarAlgorithms: algorithms}
 }
 
 // --- calendar periods ---
 
-func (s *Service) FindCalendarPeriod(ctx context.Context, id int64) (result domain.CalendarPeriod, err error) {
-	err = s.run("find_calendar_period", func(stats *domain.OperationStats) error {
-		var found bool
-		var queryStats domain.OperationStats
-		result, found, queryStats, err = s.store.FindCalendarPeriod(ctx, id)
-		stats.Add(queryStats)
-		if err == nil && !found {
-			return domain.ErrCalendarPeriodNotFound
-		}
-		return err
-	})
-	return result, err
-}
-
-func (s *Service) ListCalendarPeriods(ctx context.Context, filter domain.CalendarPeriodFilter) (result []domain.CalendarPeriod, err error) {
-	err = s.run("list_calendar_periods", func(stats *domain.OperationStats) error {
-		var queryStats domain.OperationStats
-		result, queryStats, err = s.store.ListCalendarPeriods(ctx, filter)
-		stats.Add(queryStats)
-		return err
-	})
-	return result, err
-}
-
-func (s *Service) CreateCalendarPeriod(ctx context.Context, fields domain.CalendarPeriodFields, ifAbsent bool) (result domain.CalendarPeriod, created bool, err error) {
-	operation := "create_calendar_period"
-	if ifAbsent {
-		operation = "create_calendar_period_if_absent"
-	}
-	err = s.run(operation, func(stats *domain.OperationStats) error {
-		var createStats domain.OperationStats
-		result, created, createStats, err = s.store.CreateCalendarPeriod(ctx, fields, ifAbsent)
-		stats.Add(createStats)
-		return err
-	})
-	return result, created, err
-}
-
-func (s *Service) UpdateCalendarPeriod(ctx context.Context, id int64, fields domain.CalendarPeriodFields) (result domain.CalendarPeriod, err error) {
-	err = s.run("update_calendar_period", func(stats *domain.OperationStats) error {
-		var updateStats domain.OperationStats
-		result, updateStats, err = s.store.UpdateCalendarPeriod(ctx, id, fields)
-		stats.Add(updateStats)
-		return err
-	})
-	return result, err
-}
-
-func (s *Service) DeleteCalendarPeriod(ctx context.Context, id int64) error {
-	return s.run("delete_calendar_period", func(stats *domain.OperationStats) error {
-		deleteStats, err := s.store.DeleteCalendarPeriod(ctx, id)
-		stats.Add(deleteStats)
-		return err
-	})
-}
-
 // --- closing days ---
-
-func (s *Service) FindClosingDay(ctx context.Context, id int64) (result domain.ClosingDay, err error) {
-	err = s.run("find_closing_day", func(stats *domain.OperationStats) error {
-		var found bool
-		var queryStats domain.OperationStats
-		result, found, queryStats, err = s.store.FindClosingDay(ctx, id)
-		stats.Add(queryStats)
-		if err == nil && !found {
-			return domain.ErrClosingDayNotFound
-		}
-		return err
-	})
-	return result, err
-}
-
-func (s *Service) ListClosingDays(ctx context.Context, filter domain.ClosingDayFilter) (result []domain.ClosingDay, err error) {
-	err = s.run("list_closing_days", func(stats *domain.OperationStats) error {
-		var queryStats domain.OperationStats
-		result, queryStats, err = s.store.ListClosingDays(ctx, filter)
-		stats.Add(queryStats)
-		return err
-	})
-	return result, err
-}
-
-func (s *Service) CreateClosingDay(ctx context.Context, fields domain.ClosingDayFields) (result domain.ClosingDay, err error) {
-	err = s.run("create_closing_day", func(stats *domain.OperationStats) error {
-		var createStats domain.OperationStats
-		result, createStats, err = s.store.CreateClosingDay(ctx, fields)
-		stats.Add(createStats)
-		return err
-	})
-	return result, err
-}
-
-func (s *Service) UpdateClosingDay(ctx context.Context, id int64, fields domain.ClosingDayFields) (result domain.ClosingDay, err error) {
-	err = s.run("update_closing_day", func(stats *domain.OperationStats) error {
-		var updateStats domain.OperationStats
-		result, updateStats, err = s.store.UpdateClosingDay(ctx, id, fields)
-		stats.Add(updateStats)
-		return err
-	})
-	return result, err
-}
-
-func (s *Service) DeleteClosingDay(ctx context.Context, id int64) error {
-	return s.run("delete_closing_day", func(stats *domain.OperationStats) error {
-		deleteStats, err := s.store.DeleteClosingDay(ctx, id)
-		stats.Add(deleteStats)
-		return err
-	})
-}
 
 // --- dateframes ---
 
-func (s *Service) FindDateframe(ctx context.Context, id int64) (result domain.Dateframe, err error) {
-	err = s.run("find_dateframe", func(stats *domain.OperationStats) error {
-		var found bool
-		var queryStats domain.OperationStats
-		result, found, queryStats, err = s.store.FindDateframe(ctx, id)
-		stats.Add(queryStats)
-		if err == nil && !found {
-			return domain.ErrDateframeNotFound
-		}
-		return err
-	})
-	return result, err
-}
-
-func (s *Service) ListDateframes(ctx context.Context, filter domain.DateframeFilter) (result []domain.Dateframe, err error) {
-	err = s.run("list_dateframes", func(stats *domain.OperationStats) error {
-		var queryStats domain.OperationStats
-		result, queryStats, err = s.store.ListDateframes(ctx, filter)
-		stats.Add(queryStats)
-		return err
-	})
-	return result, err
-}
-
-func (s *Service) CreateDateframe(ctx context.Context, fields domain.DateframeFields) (result domain.Dateframe, err error) {
-	err = s.run("create_dateframe", func(stats *domain.OperationStats) error {
-		var createStats domain.OperationStats
-		result, createStats, err = s.store.CreateDateframe(ctx, fields)
-		stats.Add(createStats)
-		return err
-	})
-	return result, err
-}
-
-func (s *Service) UpdateDateframe(ctx context.Context, id int64, fields domain.DateframeFields) (result domain.Dateframe, err error) {
-	err = s.run("update_dateframe", func(stats *domain.OperationStats) error {
-		var updateStats domain.OperationStats
-		result, updateStats, err = s.store.UpdateDateframe(ctx, id, fields)
-		stats.Add(updateStats)
-		return err
-	})
-	return result, err
-}
-
-func (s *Service) DeleteDateframe(ctx context.Context, id int64) error {
-	return s.run("delete_dateframe", func(stats *domain.OperationStats) error {
-		deleteStats, err := s.store.DeleteDateframe(ctx, id)
-		stats.Add(deleteStats)
-		return err
-	})
-}
-
 // --- holidays and calendar documents ---
-
-func (s *Service) ValidHolidayRegion(region string) bool {
-	return domain.ValidHolidayRegion(region)
-}
-
-func (s *Service) ListHolidays(_ context.Context, region, from, to string) (result []domain.Holiday, err error) {
-	err = s.run("list_holidays", func(stats *domain.OperationStats) error {
-		result, err = domain.HolidaysInRange(region, from, to)
-		stats.Rows = int64(len(result))
-		return err
-	})
-	return result, err
-}
-
-func (s *Service) HolidayDates(_ context.Context, region, from, to string) (result map[string]bool, err error) {
-	err = s.run("holiday_dates", func(stats *domain.OperationStats) error {
-		result, err = domain.HolidayDates(region, from, to)
-		stats.Rows = int64(len(result))
-		return err
-	})
-	return result, err
-}
-
-func (s *Service) RenderCalendar(_ context.Context, name string, events []domain.CalendarEvent) (result string, err error) {
-	err = s.run("render_calendar", func(stats *domain.OperationStats) error {
-		result = domain.RenderCalendar(name, events)
-		stats.Rows = int64(len(events))
-		return nil
-	})
-	return result, err
-}
-
-func (s *Service) RenderCalendarObject(_ context.Context, event domain.CalendarEvent) (result string, err error) {
-	err = s.run("render_calendar_object", func(stats *domain.OperationStats) error {
-		result = domain.RenderCalendarObject(event)
-		stats.Rows = 1
-		return nil
-	})
-	return result, err
-}
 
 // --- plumbing ---
 
-func (s *Service) run(operation string, fn func(*domain.OperationStats) error) (err error) {
+func (s *Service) run(ctx context.Context, operation string, fn func(context.Context, *domain.OperationStats) error) (err error) {
+	return s.administration.Transaction(ctx, func(txCtx context.Context) error {
+		return s.observeOperation(operation, func(_ context.Context, stats *domain.OperationStats) error { return fn(txCtx, stats) })
+	})
+}
+
+func (s *Service) observeOperation(operation string, fn func(context.Context, *domain.OperationStats) error) (err error) {
+	return observeCalendarOperation(s.observe, operation, fn)
+}
+func (s *Service) observeAdministration(operation string, fn func(context.Context, *domain.OperationStats) error) error {
+	return observeCalendarOperation(s.administration.Observe, operation, fn)
+}
+func observeCalendarOperation(observe ports.Observer, operation string, fn func(context.Context, *domain.OperationStats) error) (err error) {
 	started := time.Now()
 	stats := domain.OperationStats{}
 	defer func() {
-		s.observe(ports.Observation{Operation: operation, Duration: time.Since(started), Stats: stats, Err: err})
+		observe(ports.Observation{Operation: operation, Duration: time.Since(started), Stats: stats, Err: err})
 	}()
-	err = fn(&stats)
+	err = fn(context.Background(), &stats)
 	if err != nil {
 		stats.Rows = 0
 	}
 	return err
 }
+
+func WithAdministration(records schoolcalendar.Days, administration Administration, observe ports.Observer) (*Service, error) {
+	original, ok := records.(*Service)
+	if !ok || original == nil {
+		return nil, fmt.Errorf("school calendar compose: records must be composed by NewRecords")
+	}
+	administration.FederalState = original.administration.FederalState
+	administration.Observe = observe
+	return &Service{store: original.store, observe: original.observe, administration: administration, CalendarAlgorithms: original.CalendarAlgorithms}, nil
+}
+
+func BerlinToday() string { return time.Now().In(calendar.Berlin).Format(schoolcalendar.DateLayout) }

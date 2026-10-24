@@ -2,31 +2,30 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 
+	fileStorageCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
+	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/render"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
-	configAPI "github.com/moto-nrw/project-phoenix/api/config"
+	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
+	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
+	settingsHTTP "github.com/moto-nrw/project-phoenix/modules/settings/http"
 )
 
-func newSettingsResource(operations configAPI.Operations, homeLayouts configAPI.HomeLayoutOperations, references func(context.Context, string, string) (bool, error)) *configAPI.SettingsResource {
-	settingsRuntime := configAPI.NewRuntime(configAPI.RuntimeDependencies{
-		Protected: func(r chi.Router, fn func(chi.Router, configAPI.Middleware)) {
-			apiCommon.ProtectedTenantRoutes(r, fn)
+func newSettingsResource(db transactionruntime.Database, operations settingsHTTP.Operations, homeLayouts settingsHTTP.HomeLayoutOperations, references func(context.Context, string, string) (bool, error)) *settingsHTTP.SettingsResource {
+	settingsRuntime := settingsHTTP.NewRuntime(settingsHTTP.RuntimeDependencies{
+		DocumentCleanup: fileStorageCompose.NewUploadCleanup(db.Pool(), "enrollment-legal-documents").Queue,
+		Protected: func(r chi.Router, fn func(chi.Router, settingsHTTP.Middleware)) {
+			ProtectedTenantRoutes(r, fn)
 		},
-		Permission: func(access configAPI.Access) configAPI.Middleware {
-			switch access {
-			case configAPI.AccessRead:
-				return apiCommon.RequireConfigRead()
-			case configAPI.AccessManage:
-				return apiCommon.RequireConfigManage()
-			case configAPI.AccessReadOrWrite:
-				return apiCommon.RequireConfigReadOrWrite()
-			default:
-				return apiCommon.RequireConfigWrite()
-			}
+		Permission: func(access settingsHTTP.Access) settingsHTTP.Middleware {
+			return requireSettingsAccess(access)
 		},
 		TenantGuard: apiCommon.TenantOperationMiddleware,
 		RequestActor: func(ctx context.Context) (int64, int64, []string) {
@@ -36,13 +35,13 @@ func newSettingsResource(operations configAPI.Operations, homeLayouts configAPI.
 			}
 			return principal.TenantID(), principal.AccountID(), principal.Permissions()
 		},
-		Editable:  apiCommon.CanEditConfig,
+		Editable:  canEditConfig,
 		Success:   apiCommon.Respond,
 		NoContent: apiCommon.RespondNoContent,
 		Failure: func(w http.ResponseWriter, r *http.Request, status int, err error) {
 			switch status {
 			case http.StatusBadRequest:
-				apiCommon.RenderError(w, r, apiCommon.ErrorInvalidRequest(err))
+				apiCommon.RenderError(w, r, settingsInputError(err))
 			case http.StatusForbidden:
 				apiCommon.RenderError(w, r, apiCommon.ErrorForbidden(err))
 			case http.StatusNotFound:
@@ -51,24 +50,24 @@ func newSettingsResource(operations configAPI.Operations, homeLayouts configAPI.
 				apiCommon.RenderError(w, r, apiCommon.ErrorInternalServer(err))
 			}
 		},
-		ImageUpload: func(w http.ResponseWriter, r *http.Request, field string, maxBody int64) (*configAPI.UploadedFile, error) {
+		ImageUpload: func(w http.ResponseWriter, r *http.Request, field string, maxBody int64) (*settingsHTTP.UploadedFile, error) {
 			file, err := apiCommon.ParseImage(w, r, field, maxBody)
 			if err != nil {
 				return nil, err
 			}
-			return &configAPI.UploadedFile{File: file.File, ContentType: file.ContentType}, nil
+			return &settingsHTTP.UploadedFile{File: file.File, ContentType: file.ContentType}, nil
 		},
-		PDFUpload: func(w http.ResponseWriter, r *http.Request, field string, maxFile, maxBody int64) (*configAPI.UploadedFile, error) {
+		PDFUpload: func(w http.ResponseWriter, r *http.Request, field string, maxFile, maxBody int64) (*settingsHTTP.UploadedFile, error) {
 			file, err := apiCommon.ParsePDFWithLimits(w, r, field, maxFile, maxBody)
 			if err != nil {
 				return nil, err
 			}
-			return &configAPI.UploadedFile{File: file.File, ContentType: file.ContentType}, nil
+			return &settingsHTTP.UploadedFile{File: file.File, ContentType: file.ContentType}, nil
 		},
-		ImageSave:  apiCommon.SaveImage,
-		PDFSave:    apiCommon.SavePDF,
-		FileRemove: apiCommon.RemoveImage,
-		StoredPath: apiCommon.ResolveStoredPath,
+		ImageSave:  saveImageUpload,
+		PDFSave:    savePDFUpload,
+		FileRemove: (nativeUploads.UploadFiles{}).RemoveUpload,
+		StoredPath: nativeUploads.ResolveStoredPath,
 		LegalDocumentReference: func(ctx context.Context, storedURL string) (bool, error) {
 			publicURL := enrollmentAPI.PublicLegalDocumentURL(storedURL)
 			referenced, err := references(ctx, storedURL, publicURL)
@@ -78,5 +77,21 @@ func newSettingsResource(operations configAPI.Operations, homeLayouts configAPI.
 			return referenced, nil
 		},
 	})
-	return configAPI.NewSettingsResource(operations, homeLayouts, settingsRuntime)
+	return settingsHTTP.NewSettingsResource(operations, homeLayouts, settingsRuntime)
+}
+
+// settingsInputError renders a rejected setting value. A visible attendance
+// window longer than its retention names the window that blocks it (#3957),
+// so the person reads which value is allowed.
+func settingsInputError(err error) render.Renderer {
+	window, ok := errors.AsType[*settingsModule.AttendanceWindowError](err)
+	if !ok {
+		return apiCommon.ErrorInvalidRequest(err)
+	}
+	if window.VisibleWritten() {
+		return apiCommon.ErrorInvalidRequestWithDetails(err, apiCommon.CodeSettingsAttendanceVisibleExceedsRetention,
+			map[string]any{"retention_days": window.RetentionDays})
+	}
+	return apiCommon.ErrorInvalidRequestWithDetails(err, apiCommon.CodeSettingsAttendanceRetentionBelowVisible,
+		map[string]any{"visible_days": window.VisibleDays})
 }

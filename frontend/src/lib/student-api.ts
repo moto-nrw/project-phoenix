@@ -1,8 +1,8 @@
 import {
   ApiError,
+  apiErrorFromBody,
   apiErrorFromResponse,
   apiErrorFromText,
-  enrichApiError,
   unavailableApiError,
   transportFetch,
 } from "./api-error";
@@ -20,7 +20,6 @@ import {
 } from "./api-helpers";
 import { resolveServerApiUrl } from "./api-url";
 import {
-  mapStudentResponse,
   mapStudentsResponse,
   mapStudentDetailResponse,
   mapPrivacyConsentResponse,
@@ -28,14 +27,8 @@ import {
   type BackendStudent,
   type BackendStudentDetail,
   type BackendPrivacyConsent,
-  type BackendUpdateRequest,
   type PrivacyConsent,
 } from "./student-helpers";
-import {
-  mapGroupResponse,
-  type Group,
-  type BackendGroup,
-} from "./group-helpers";
 
 // Filter interface for searching students
 export interface StudentFilters {
@@ -50,6 +43,17 @@ export interface StudentFilters {
   page_size?: number;
   /** Adds today's effective pickup time (`pickup_time`) to every row. */
   include_pickup_times?: boolean;
+  /**
+   * Keeps the present children who booked this care offering for today and
+   * are not signed off for it (#4571). Needs `location_state: "present"`.
+   */
+  care_offering_id?: string;
+}
+
+/** An active care offering that counts as care, as a selection lists it. */
+export interface CareOfferingOption {
+  readonly id: string;
+  readonly name: string;
 }
 
 // Generic API response interface
@@ -109,7 +113,7 @@ function handleStudentApiError(error: unknown, context: string): never {
   // A structured failure keeps code, fields and request ID for the shared
   // error path (#2513); only untyped errors get the legacy wrapping.
   if (error instanceof ApiError) throw error;
-  handleDomainApiError(error, context, "STUDENT");
+  handleDomainApiError(error, context);
 }
 
 // Helper: Build URL with optional query params
@@ -138,6 +142,8 @@ async function buildStudentUrl(
     params.append("page_size", filters.page_size.toString());
   if (filters.include_pickup_times)
     params.append("include_pickup_times", "true");
+  if (filters.care_offering_id)
+    params.append("care_offering_id", filters.care_offering_id);
 
   const queryString = params.toString();
   return { url: queryString ? `${baseUrl}?${queryString}` : baseUrl, useProxy };
@@ -236,6 +242,25 @@ function extractApiData<T>(responseData: ApiResponse<T> | T): T {
   return responseData;
 }
 
+/**
+ * The school's active care offerings that count as care (#4571). Browser
+ * only: the present-children picker is its one caller.
+ */
+export async function fetchCareOfferingOptions(): Promise<
+  CareOfferingOption[]
+> {
+  try {
+    const session = await getCachedSession();
+    const responseData = await authFetch<
+      ApiResponse<CareOfferingOption[]> | CareOfferingOption[]
+    >("/api/students/care-offerings", { token: session?.user?.token });
+    const data = extractApiData(responseData);
+    return Array.isArray(data) ? data : [];
+  } catch (error) {
+    handleStudentApiError(error, "fetch care offering options");
+  }
+}
+
 // Fetch a single student by ID
 export async function fetchStudent(id: string): Promise<Student> {
   const useProxy = isBrowserContext();
@@ -288,73 +313,6 @@ export async function fetchStudentEnrollmentExtraFields(
     return response.data?.data ?? [];
   } catch (error) {
     handleStudentApiError(error, "fetch student enrollment extra fields");
-  }
-}
-
-// Create a new student
-export async function createStudent(studentData: {
-  first_name: string;
-  last_name: string;
-  school_class: string;
-  group_id?: number;
-  tag_id?: string;
-}): Promise<Student> {
-  const useProxy = isBrowserContext();
-  const url = useProxy
-    ? "/api/students"
-    : await resolveServerApiUrl("/students");
-
-  try {
-    if (useProxy) {
-      const session = await getCachedSession();
-      const responseData = await authFetch<
-        ApiResponse<BackendStudent> | BackendStudent
-      >(url, {
-        method: "POST",
-        body: studentData,
-        token: session?.user?.token,
-      });
-      const data = extractApiData<BackendStudent>(responseData);
-      return mapStudentResponse(data);
-    }
-
-    const response = await api.post<ApiResponse<BackendStudent>>(
-      url,
-      studentData,
-    );
-    return mapStudentResponse(response.data.data);
-  } catch (error) {
-    handleStudentApiError(error, "create student");
-  }
-}
-
-// Update a student
-export async function updateStudent(
-  id: string,
-  studentData: BackendUpdateRequest,
-): Promise<Student> {
-  const useProxy = isBrowserContext();
-  const url = useProxy
-    ? `/api/students/${id}`
-    : await resolveServerApiUrl(`/students/${id}`);
-
-  try {
-    if (useProxy) {
-      const session = await getCachedSession();
-      const responseData = await authFetch<
-        ApiResponse<BackendStudent> | BackendStudent
-      >(url, { method: "PUT", body: studentData, token: session?.user?.token });
-      const data = extractApiData<BackendStudent>(responseData);
-      return mapStudentResponse(data);
-    }
-
-    const response = await api.put<ApiResponse<BackendStudent>>(
-      url,
-      studentData,
-    );
-    return mapStudentResponse(response.data.data);
-  } catch (error) {
-    handleStudentApiError(error, "update student");
   }
 }
 
@@ -621,65 +579,13 @@ export interface DeleteStudentWithDataInput {
   acknowledged: true;
 }
 
-export class StudentDeletionApiError extends ApiError {
-  readonly status: number;
-
-  constructor(status: number, message: string, code?: string) {
-    super(message, status, { code });
-    this.name = "StudentDeletionApiError";
-    this.status = status;
-  }
-}
-
-interface StudentDeletionErrorPayload {
-  readonly error?: unknown;
-  readonly message?: unknown;
-  readonly code?: unknown;
-}
-
-function studentDeletionErrorDetails(payload: unknown, fallback: string) {
-  if (!payload || typeof payload !== "object") {
-    return { message: fallback, code: undefined };
-  }
-  const candidate = payload as StudentDeletionErrorPayload;
-  const raw =
-    typeof candidate.error === "string"
-      ? candidate.error
-      : typeof candidate.message === "string"
-        ? candidate.message
-        : "";
-  const embedded = raw.match(/\{.*\}$/)?.[0];
-  if (embedded) {
-    try {
-      return studentDeletionErrorDetails(JSON.parse(embedded), fallback);
-    } catch {
-      // Keep the proxy's text when it did not embed a complete JSON object.
-    }
-  }
-  if (!raw) {
-    return {
-      message: fallback,
-      code: typeof candidate.code === "string" ? candidate.code : undefined,
-    };
-  }
-
-  return {
-    message: raw,
-    code: typeof candidate.code === "string" ? candidate.code : undefined,
-  };
-}
-
 async function studentDeletionResponse<T>(
   response: Response,
   fallbackError: string,
 ): Promise<T> {
   const payload = (await response.json().catch(() => null)) as unknown;
   if (!response.ok) {
-    const error = studentDeletionErrorDetails(payload, fallbackError);
-    throw enrichApiError(
-      new StudentDeletionApiError(response.status, error.message, error.code),
-      payload,
-    );
+    throw apiErrorFromBody(fallbackError, response.status, payload);
   }
   if (payload && typeof payload === "object" && "data" in payload) {
     return (payload as { data: T }).data;
@@ -808,30 +714,6 @@ export async function deleteStudentPhoto(studentId: string): Promise<void> {
   });
 }
 
-// Fetch all groups (for filter dropdown)
-export async function fetchGroups(): Promise<Group[]> {
-  const useProxy = isBrowserContext();
-  const url = useProxy ? "/api/groups" : await resolveServerApiUrl("/groups");
-
-  try {
-    if (useProxy) {
-      const session = await getCachedSession();
-      const responseData = await authFetch<BackendGroup[]>(url, {
-        token: session?.user?.token,
-      });
-      const groups = Array.isArray(responseData) ? responseData : [];
-      return groups.map(mapGroupResponse);
-    }
-
-    const response = await api.get<{ data: BackendGroup[] }>(url);
-    const groups = response.data.data || [];
-    return groups.map(mapGroupResponse);
-  } catch (error) {
-    logger.error("failed to fetch groups", { error: String(error) });
-    return [];
-  }
-}
-
 // Fetch student's privacy consent
 export async function fetchStudentPrivacyConsent(
   studentId: string,
@@ -872,43 +754,5 @@ export async function fetchStudentPrivacyConsent(
       error: String(error),
     });
     throw error;
-  }
-}
-
-// Update or create student's privacy consent
-export async function updateStudentPrivacyConsent(
-  studentId: string,
-  consentData: {
-    policy_version: string;
-    accepted: boolean;
-    duration_days?: number;
-    data_retention_days: number;
-    details?: Record<string, unknown>;
-  },
-): Promise<PrivacyConsent> {
-  const useProxy = isBrowserContext();
-  const url = useProxy
-    ? `/api/students/${studentId}/privacy-consent`
-    : await resolveServerApiUrl(`/students/${studentId}/privacy-consent`);
-
-  try {
-    if (useProxy) {
-      const session = await getCachedSession();
-      const responseData = await authFetch<ApiResponse<BackendPrivacyConsent>>(
-        url,
-        { method: "PUT", body: consentData, token: session?.user?.token },
-      );
-      return mapPrivacyConsentResponse(responseData.data);
-    }
-
-    const session = await getCachedSession();
-    const response = await api.put<ApiResponse<BackendPrivacyConsent>>(
-      url,
-      consentData,
-      { headers: { Authorization: `Bearer ${session?.user?.token}` } },
-    );
-    return mapPrivacyConsentResponse(response.data.data);
-  } catch (error) {
-    handleStudentApiError(error, "update privacy consent");
   }
 }

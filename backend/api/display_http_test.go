@@ -1,0 +1,700 @@
+package api
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+	"time"
+
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
+	displayHTTP "github.com/moto-nrw/project-phoenix/api/display"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/modules/settings"
+	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/tenant"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
+)
+
+// init seeds JWT viper defaults before any test constructs a Resource via
+// sessiontoken.MustNewTokenAuth (CI runs without a .env, so AUTH_JWT_SECRET is unset).
+func init() {
+	testutil.SeedTestJWTConfig()
+}
+
+func newDisplayTestTenant(t *testing.T, db *bun.DB) int64 {
+	t.Helper()
+	tenantID := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, tenantID)
+	enableDisplayFeature(t, db, tenantID)
+	return tenantID
+}
+
+// displaySettings holds only Settings, not a multi-owner test service graph.
+type displaySettings struct {
+	service settingsCompose.SettingsService
+}
+
+func (s displaySettings) FeatureEnabled(ctx context.Context) (bool, error) {
+	return DisplayFeatureEnabled(s.service)(ctx)
+}
+func (s displaySettings) Enable(ctx context.Context) error {
+	return s.service.SetValue(ctx, settings.KeyDisplayEnabled, true, nil, nil)
+}
+func (s displaySettings) Reset(ctx context.Context) error {
+	return s.service.ResetValue(ctx, settings.KeyDisplayEnabled, nil, nil)
+}
+func (s displaySettings) TenantFacts(schools owners.DisplaySchoolDirectory) devicefleetCompose.TenantFacts {
+	return owners.NewDisplayTenantFacts(schools, s.service)
+}
+
+// Retain the existing fixture call sites and assertions without a mutable hook.
+type displayTestCompositions struct{}
+
+var RootCompositions displayTestCompositions
+
+func (displayTestCompositions) Settings(t *testing.T, database testpkg.Database) displaySettings {
+	t.Helper()
+	service := NewSettingsTestService(testpkg.SettingsRuntime(t, database.Pool()))
+	return displaySettings{service: service}
+}
+
+func newDisplayComposition(t *testing.T, database testpkg.Database) (devicefleetCompose.Dependencies, devicefleetCompose.DashboardDependencies, careplan.Capability, careplan.ApprovedBookingReader) {
+	t.Helper()
+	repos, _, err := NewDisplayTestRepositories(database, testpkg.SettingsRuntime(t, database.Pool()))
+	require.NoError(t, err)
+	approvedOfferings, err := NewApprovedOfferingTestProjection(database, repos.Enrollment())
+	require.NoError(t, err)
+	rooms, err := NewFacilities(database)
+	require.NoError(t, err)
+	carePlan, err := owners.NewCarePlan(database, owners.MustNewPeopleDirectory(database), repos.InstanceStudent)
+	require.NoError(t, err)
+	return devicefleetCompose.Dependencies{Rooms: rooms}, devicefleetCompose.DashboardDependencies{ActiveGroups: MustNewTimetablePresenceRows(database).ActiveGroup, Templates: owners.FleetTemplateReader(repos.NativeRecords()), Instances: owners.FleetInstanceReader(repos.NativeRecords())}, carePlan, approvedOfferings
+}
+
+// enableDisplayFeature turns on the opt-in display.enabled setting (issue
+// #1325 follow-up: the feature defaults off) for a test tenant. These
+// hermetic tests exercise the CRUD/dashboard behavior itself, not the
+// opt-in gate, so every test tenant starts with the feature already on;
+// TestDisplayFeatureGate below covers the off-by-default behavior directly.
+func enableDisplayFeature(t *testing.T, db *bun.DB, tenantID int64) {
+	t.Helper()
+	settings := RootCompositions.Settings(t, testpkg.NewDatabase(t, db))
+	ctx := testpkg.TenantContext(tenantID)
+	require.NoError(t, settings.Enable(ctx))
+}
+
+func newDisplayRouter(t *testing.T, db *bun.DB, clocks ...func() time.Time) http.Handler {
+	t.Helper()
+	fleetInputs, dashboard, carePlan, approvedOfferings := newDisplayComposition(t, testpkg.NewDatabase(t, db))
+	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
+	require.NoError(t, err)
+	settings := RootCompositions.Settings(t, testpkg.NewDatabase(t, db))
+	pickup, err := careplanCompose.NewPickupSchedules(db, carePlan, newPickupBaselineService(carePlan, approvedOfferings), nil, nil, nil)
+	require.NoError(t, err)
+	dashboard.PickupSchedule = pickup
+	dependencies := fleetInputs
+	dependencies.DB = db
+	dependencies.Presence = presence
+	dependencies.Dashboard = devicefleetCompose.NewDashboardSources(dashboard)
+	dependencies.Tenants = settings.TenantFacts(displaySchools{db: db})
+	dependencies.Now = firstClock(clocks)
+	dependencies.Observe = func(devicefleetCompose.Observation) {}
+	dependencies.APIKeys = owners.DeviceAPIKeys{}
+	fleet, err := devicefleetCompose.New(dependencies)
+	require.NoError(t, err)
+	return testpkg.TenantRuntimeMiddleware(t, db)(NewDisplayHTTPRouter(fleet, settings.FeatureEnabled))
+}
+
+// displaySchools reads the display facts straight from the seeded
+// platform.schools rows.
+type displaySchools struct{ db *bun.DB }
+
+func (d displaySchools) FindDisplaySchool(ctx context.Context, tenantID int64) (devicefleetCompose.School, bool, error) {
+	var rows []struct {
+		Name      string     `bun:"name"`
+		Active    bool       `bun:"active"`
+		DeletedAt *time.Time `bun:"deleted_at"`
+	}
+	err := d.db.NewSelect().
+		TableExpr(`platform.schools AS "school"`).
+		Column("school.name", "school.active", "school.deleted_at").
+		Where(`"school".id = ?`, tenantID).
+		Scan(ctx, &rows)
+	if err != nil || len(rows) == 0 {
+		return devicefleetCompose.School{}, false, err
+	}
+	return devicefleetCompose.School{Name: rows[0].Name, Active: rows[0].Active, Deleted: rows[0].DeletedAt != nil}, true, nil
+}
+
+func displayTestJWT(t *testing.T, accountID, tenantID int64, permissions []string) string {
+	t.Helper()
+	return testutil.MintTestJWT(t, sessiontoken.AppClaims{
+		ID:          int(accountID),
+		Sub:         fmt.Sprintf("%d", accountID),
+		Roles:       []string{"user"},
+		Permissions: permissions,
+		TenantID:    tenantID,
+	})
+}
+
+func doDisplayRequest(t *testing.T, router http.Handler, method, path, jwtToken string, body any) *httptest.ResponseRecorder {
+	t.Helper()
+	var buf bytes.Buffer
+	if body != nil {
+		require.NoError(t, json.NewEncoder(&buf).Encode(body))
+	}
+	req := httptest.NewRequest(method, path, &buf)
+	if jwtToken != "" {
+		req.Header.Set("Authorization", "Bearer "+jwtToken)
+	}
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	return rec
+}
+
+// doDashboardRequest fetches the public dashboard with the display token in
+// the X-Display-Token header — the token never travels in the URL.
+func doDashboardRequest(t *testing.T, router http.Handler, token string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodGet, "/dashboard", nil)
+	if token != "" {
+		req.Header.Set("X-Display-Token", token)
+	}
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	return rec
+}
+
+// createDisplayViaAPI creates a display through the admin endpoint and
+// returns its ID and one-time raw token.
+func createDisplayViaAPI(t *testing.T, router http.Handler, adminJWT, name string) (string, string) {
+	t.Helper()
+	rec := doDisplayRequest(t, router, http.MethodPost, "/", adminJWT, map[string]any{"name": name})
+	require.Equal(t, http.StatusCreated, rec.Code, "create display failed: %s", rec.Body.String())
+
+	var created struct {
+		Display struct {
+			ID int64 `json:"id"`
+		} `json:"display"`
+		Token string `json:"token"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &created))
+	require.NotEmpty(t, created.Token, "create must return the raw token once")
+	return fmt.Sprintf("%d", created.Display.ID), created.Token
+}
+
+func TestDisplayAdminCRUD(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+
+	tenantID := newDisplayTestTenant(t, db)
+	router := newDisplayRouter(t, db)
+	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("display-admin-%d@test.local", tenantID))
+	adminJWT := displayTestJWT(t, account.ID, tenantID, []string{"display:read", "display:manage"})
+
+	t.Run("unauthenticated list is rejected", func(t *testing.T) {
+		rec := doDisplayRequest(t, router, http.MethodGet, "/", "", nil)
+		assert.Equal(t, http.StatusUnauthorized, rec.Code)
+	})
+
+	t.Run("missing permission is rejected", func(t *testing.T) {
+		readOnlyJWT := displayTestJWT(t, account.ID, tenantID, []string{"display:read"})
+		rec := doDisplayRequest(t, router, http.MethodPost, "/", readOnlyJWT, map[string]any{"name": "Nope"})
+		assert.Equal(t, http.StatusForbidden, rec.Code)
+	})
+
+	t.Run("list accepts display:read OR display:manage", func(t *testing.T) {
+		readOnlyJWT := displayTestJWT(t, account.ID, tenantID, []string{"display:read"})
+		rec := doDisplayRequest(t, router, http.MethodGet, "/", readOnlyJWT, nil)
+		assert.Equal(t, http.StatusOK, rec.Code)
+
+		manageOnlyJWT := displayTestJWT(t, account.ID, tenantID, []string{"display:manage"})
+		rec = doDisplayRequest(t, router, http.MethodGet, "/", manageOnlyJWT, nil)
+		assert.Equal(t, http.StatusOK, rec.Code)
+	})
+
+	t.Run("create returns raw token exactly once and never the hash", func(t *testing.T) {
+		rec := doDisplayRequest(t, router, http.MethodPost, "/", adminJWT, map[string]any{"name": "Eingangsbereich"})
+		require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+		assert.NotContains(t, rec.Body.String(), "token_hash")
+
+		listRec := doDisplayRequest(t, router, http.MethodGet, "/", adminJWT, nil)
+		require.Equal(t, http.StatusOK, listRec.Code)
+		assert.NotContains(t, listRec.Body.String(), "token_hash")
+		assert.Contains(t, listRec.Body.String(), "Eingangsbereich")
+	})
+
+	t.Run("create requires a name", func(t *testing.T) {
+		rec := doDisplayRequest(t, router, http.MethodPost, "/", adminJWT, map[string]any{"name": "  "})
+		assert.Equal(t, http.StatusBadRequest, rec.Code)
+	})
+
+	t.Run("update renames and deactivates", func(t *testing.T) {
+		id, rawToken := createDisplayViaAPI(t, router, adminJWT, "Flur EG")
+
+		rec := doDisplayRequest(t, router, http.MethodPatch, "/"+id, adminJWT, map[string]any{"name": "Flur OG", "is_active": false})
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		assert.Contains(t, rec.Body.String(), "Flur OG")
+
+		dashRec := doDashboardRequest(t, router, rawToken)
+		require.Equal(t, http.StatusOK, dashRec.Code)
+		assert.Contains(t, dashRec.Body.String(), `"status":"inactive"`)
+	})
+
+	t.Run("regenerate invalidates the old token", func(t *testing.T) {
+		id, oldToken := createDisplayViaAPI(t, router, adminJWT, "Mensa")
+
+		rec := doDisplayRequest(t, router, http.MethodPost, "/"+id+"/regenerate", adminJWT, nil)
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		var regen struct {
+			Token string `json:"token"`
+		}
+		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &regen))
+		require.NotEmpty(t, regen.Token)
+		require.NotEqual(t, oldToken, regen.Token)
+
+		oldRec := doDashboardRequest(t, router, oldToken)
+		assert.Equal(t, http.StatusNotFound, oldRec.Code)
+		newRec := doDashboardRequest(t, router, regen.Token)
+		assert.Equal(t, http.StatusOK, newRec.Code)
+	})
+
+	t.Run("delete kills the dashboard", func(t *testing.T) {
+		id, rawToken := createDisplayViaAPI(t, router, adminJWT, "Turnhalle")
+
+		rec := doDisplayRequest(t, router, http.MethodDelete, "/"+id, adminJWT, nil)
+		require.Equal(t, http.StatusNoContent, rec.Code)
+
+		dashRec := doDashboardRequest(t, router, rawToken)
+		assert.Equal(t, http.StatusNotFound, dashRec.Code)
+	})
+}
+
+func TestDisplayDashboardPublic(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+
+	tenantID := newDisplayTestTenant(t, db)
+	testNow := time.Date(2026, 8, 24, 12, 0, 0, 0, calendar.Berlin)
+	router := newDisplayRouter(t, db, func() time.Time { return testNow })
+	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("display-dash-%d@test.local", tenantID))
+	adminJWT := displayTestJWT(t, account.ID, tenantID, []string{"display:manage"})
+
+	room := testpkg.CreateTestRoomForTenant(t, db, tenantID, "Bauraum")
+	activityGroup := testpkg.CreateTestActivityGroupForTenant(t, db, tenantID, "Fußball AG")
+	activeGroup := testpkg.CreateTestActiveGroupWithIDsForTenant(t, db, tenantID, activityGroup.ID, room.ID)
+	student := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Emma", "Testkind", "1a")
+	testpkg.CreateTestVisitForTenant(t, db, tenantID, student.ID, activeGroup.ID, calendar.Now().Add(-30*time.Minute), nil)
+
+	_, rawToken := createDisplayViaAPI(t, router, adminJWT, "Eingang")
+
+	t.Run("unknown token yields 404", func(t *testing.T) {
+		rec := doDashboardRequest(t, router, "definitely-not-a-token")
+		assert.Equal(t, http.StatusNotFound, rec.Code)
+	})
+
+	t.Run("missing token header yields 400", func(t *testing.T) {
+		rec := doDashboardRequest(t, router, "")
+		assert.Equal(t, http.StatusBadRequest, rec.Code)
+	})
+
+	t.Run("dashboard aggregates without exposing student data", func(t *testing.T) {
+		rec := doDashboardRequest(t, router, rawToken)
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+		var payload displayHTTP.DashboardResponse
+		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &payload))
+
+		assert.Equal(t, "active", payload.Status)
+		assert.Equal(t, fmt.Sprintf("Test School %d", tenantID), payload.SchoolName)
+		assert.Equal(t, "Eingang", payload.DisplayName)
+		assert.Equal(t, calendar.NewDate(2026, 8, 24).String(), payload.Date)
+
+		var bauraum *displayHTTP.RoomOccupancy
+		for i := range payload.RoomOccupancy {
+			if payload.RoomOccupancy[i].Name == room.Name {
+				bauraum = &payload.RoomOccupancy[i]
+			}
+		}
+		require.NotNil(t, bauraum, "room must appear in occupancy list")
+		assert.True(t, bauraum.IsOccupied)
+		assert.Equal(t, 1, bauraum.StudentCount)
+
+		require.Len(t, payload.RunningActivities, 1)
+		assert.Equal(t, fmt.Sprintf("%d", activeGroup.ID), payload.RunningActivities[0].ID)
+		assert.Equal(t, activityGroup.Name, payload.RunningActivities[0].Name)
+		assert.Equal(t, room.Name, payload.RunningActivities[0].RoomName)
+		assert.Equal(t, 1, payload.RunningActivities[0].Participants)
+		assert.Equal(t, 1, payload.Totals.ActivitiesRunning)
+		assert.Equal(t, 1, payload.Totals.RoomsOccupied)
+
+		// GDPR contract: no student identity leaves this endpoint.
+		body := rec.Body.String()
+		assert.NotContains(t, body, "Emma")
+		assert.NotContains(t, body, "Testkind")
+		assert.NotContains(t, body, "first_name")
+		assert.NotContains(t, body, "student_id")
+	})
+
+	t.Run("upcoming activities list planned instances after now", func(t *testing.T) {
+		// The upcoming filter compares wall clocks only; the fixed noon clock
+		// keeps every offset (future + the 45min instance duration, and past)
+		// on the same calendar day.
+		future := testNow.Add(3 * time.Minute)
+		past := testNow.Add(-3 * time.Minute)
+		ctx := testpkg.TenantContext(tenantID)
+		instances := []*testpkg.ActivityInstance{
+			buildInstance(tenantID, "Hausaufgaben", room.ID, future),
+			buildInstance(tenantID, "Frühsport", room.ID, past),
+		}
+		for _, inst := range instances {
+			testpkg.InsertActivityInstanceRow(t, ctx, db, inst)
+		}
+
+		rec := doDashboardRequest(t, router, rawToken)
+		require.Equal(t, http.StatusOK, rec.Code)
+
+		var payload displayHTTP.DashboardResponse
+		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &payload))
+		require.Len(t, payload.UpcomingActivities, 1, "past instance must be filtered: %s", rec.Body.String())
+		assert.Equal(t, fmt.Sprintf("%d", instances[0].ID), payload.UpcomingActivities[0].ID)
+		assert.Equal(t, "Hausaufgaben", payload.UpcomingActivities[0].Name)
+		assert.Equal(t, future.In(calendar.Berlin).Format("15:04"), payload.UpcomingActivities[0].StartTime)
+	})
+}
+
+func buildInstance(tenantID int64, title string, roomID int64, start time.Time) *testpkg.ActivityInstance {
+	inst := &testpkg.ActivityInstance{
+		Date:      calendar.DateFromTime(start),
+		Title:     title,
+		StartTime: calendar.NormalizeWallClock(start.In(calendar.Berlin)),
+		EndTime:   calendar.NormalizeWallClock(start.In(calendar.Berlin).Add(45 * time.Minute)),
+		RoomID:    roomID,
+		Status:    testpkg.ScheduleInstanceStatusPlanned,
+	}
+	inst.TenantID = tenantID
+	return inst
+}
+
+func TestDisplayDashboardCrossTenantIsolation(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+
+	tenantA := newDisplayTestTenant(t, db)
+	tenantB := newDisplayTestTenant(t, db)
+	router := newDisplayRouter(t, db)
+
+	accountA := testpkg.CreateTestAccount(t, db, fmt.Sprintf("display-a-%d@test.local", tenantA))
+	accountB := testpkg.CreateTestAccount(t, db, fmt.Sprintf("display-b-%d@test.local", tenantB))
+	jwtA := displayTestJWT(t, accountA.ID, tenantA, []string{"display:read", "display:manage"})
+	jwtB := displayTestJWT(t, accountB.ID, tenantB, []string{"display:read", "display:manage"})
+
+	_ = testpkg.CreateTestRoomForTenant(t, db, tenantB, "Geheimraum B")
+
+	_, tokenA := createDisplayViaAPI(t, router, jwtA, "Display A")
+	createDisplayViaAPI(t, router, jwtB, "Display B")
+
+	t.Run("dashboard of tenant A never shows tenant B rooms", func(t *testing.T) {
+		rec := doDashboardRequest(t, router, tokenA)
+		require.Equal(t, http.StatusOK, rec.Code)
+		assert.NotContains(t, rec.Body.String(), "Geheimraum B")
+		assert.Equal(t, fmt.Sprintf("Test School %d", tenantA), gjsonSchoolName(t, rec.Body.Bytes()))
+	})
+
+	t.Run("admin list of tenant A never shows tenant B displays", func(t *testing.T) {
+		rec := doDisplayRequest(t, router, http.MethodGet, "/", jwtA, nil)
+		require.Equal(t, http.StatusOK, rec.Code)
+		assert.Contains(t, rec.Body.String(), "Display A")
+		assert.NotContains(t, rec.Body.String(), "Display B")
+	})
+}
+
+func gjsonSchoolName(t *testing.T, body []byte) string {
+	t.Helper()
+	var payload struct {
+		SchoolName string `json:"school_name"`
+	}
+	require.NoError(t, json.Unmarshal(body, &payload))
+	return payload.SchoolName
+}
+
+func TestDisplayDashboardPickupBuckets(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+
+	// Pickup schedules only resolve Mon-Fri; 2026-08-24 is a Monday.
+	today := calendar.NewDate(2026, 8, 24)
+	testNow := today.BerlinMidnight().Add(12 * time.Hour)
+	weekday := int(today.Weekday())
+
+	tenantID := newDisplayTestTenant(t, db)
+	router := newDisplayRouter(t, db, func() time.Time { return testNow })
+	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("display-pickup-%d@test.local", tenantID))
+	adminJWT := displayTestJWT(t, account.ID, tenantID, []string{"display:manage"})
+
+	staff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Betreuer", "Test")
+	device := testpkg.CreateTestDeviceForTenant(t, db, tenantID, fmt.Sprintf("DISP-TEST-%d", tenantID))
+	present1 := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Anna", "Anwesend", "2b")
+	present2 := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Ben", "Anwesend", "2b")
+	checkedOut := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Carla", "Weg", "2b")
+
+	now := testNow
+	checkoutTime := now.Add(-10 * time.Minute)
+	createAttendanceForTenant(t, db, tenantID, present1.ID, staff.ID, device.ID, now, nil)
+	createAttendanceForTenant(t, db, tenantID, present2.ID, staff.ID, device.ID, now, nil)
+	createAttendanceForTenant(t, db, tenantID, checkedOut.ID, staff.ID, device.ID, now, &checkoutTime)
+
+	// Both present students share the 23:45 slot; the checked-out student's
+	// schedule must not count.
+	createPickupScheduleForTenant(t, db, tenantID, present1.ID, weekday, staff.ID, "23:45")
+	createPickupScheduleForTenant(t, db, tenantID, present2.ID, weekday, staff.ID, "23:45")
+	createPickupScheduleForTenant(t, db, tenantID, checkedOut.ID, weekday, staff.ID, "23:45")
+
+	_, rawToken := createDisplayViaAPI(t, router, adminJWT, "Pickup Display")
+	rec := doDashboardRequest(t, router, rawToken)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	var payload displayHTTP.DashboardResponse
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &payload))
+
+	assert.Equal(t, 2, payload.Totals.StudentsPresent)
+	require.Len(t, payload.PickupTimes, 1, "expected one bucket: %s", rec.Body.String())
+	assert.Equal(t, "23:45", payload.PickupTimes[0].Time)
+	assert.Equal(t, 2, payload.PickupTimes[0].Count)
+
+	// Counts only — never names.
+	assert.NotContains(t, rec.Body.String(), "Anna")
+	assert.NotContains(t, rec.Body.String(), "Carla")
+}
+
+func createAttendanceForTenant(t *testing.T, db *bun.DB, tenantID, studentID, staffID, deviceID int64, now time.Time, checkOut *time.Time) {
+	t.Helper()
+	testpkg.CreateTestAttendanceForTenant(t, db, tenantID, studentID, staffID, deviceID, calendar.DateFromTime(now), now.Add(-4*time.Hour), checkOut)
+}
+
+func createPickupScheduleForTenant(t *testing.T, db *bun.DB, tenantID, studentID int64, weekday int, staffID int64, pickupHHMM string) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	parsed, err := time.Parse("2006-01-02 15:04", "2000-01-01 "+pickupHHMM)
+	require.NoError(t, err)
+
+	row := &testpkg.StudentPickupSchedule{
+		TenantID:   tenantID,
+		StudentID:  studentID,
+		Weekday:    weekday,
+		PickupTime: parsed,
+		CreatedBy:  staffID,
+	}
+	_, err = db.NewInsert().Model(row).ModelTableExpr("schedule.student_pickup_schedules").Exec(ctx)
+	require.NoError(t, err, "failed to create pickup schedule")
+}
+
+// TestDisplayDashboardSchoolLifecycle ensures a display token stops serving
+// live tenant data once its school is disabled or offboarded: the dashboard
+// must 404 (dead link), not keep aggregating.
+func TestDisplayDashboardSchoolLifecycle(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+
+	router := newDisplayRouter(t, db)
+
+	setupDashboard := func(t *testing.T, label string) (int64, string) {
+		t.Helper()
+		tenantID := newDisplayTestTenant(t, db)
+		account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("display-%s-%d@test.local", label, tenantID))
+		adminJWT := displayTestJWT(t, account.ID, tenantID, []string{"display:manage"})
+		_, rawToken := createDisplayViaAPI(t, router, adminJWT, "Lifecycle "+label)
+
+		rec := doDashboardRequest(t, router, rawToken)
+		require.Equal(t, http.StatusOK, rec.Code, "dashboard must work before the school changes: %s", rec.Body.String())
+		return tenantID, rawToken
+	}
+
+	t.Run("deactivated school yields 404", func(t *testing.T) {
+		tenantID, rawToken := setupDashboard(t, "inactive")
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_, err := db.NewUpdate().
+			TableExpr("platform.schools").
+			Set("active = ?", false).
+			Where("id = ?", tenantID).
+			Exec(ctx)
+		require.NoError(t, err)
+
+		rec := doDashboardRequest(t, router, rawToken)
+		assert.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
+	})
+
+	t.Run("soft-deleted school yields 404", func(t *testing.T) {
+		tenantID, rawToken := setupDashboard(t, "deleted")
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_, err := db.NewUpdate().
+			TableExpr("platform.schools").
+			Set("deleted_at = ?", calendar.Now()).
+			Where("id = ?", tenantID).
+			Exec(ctx)
+		require.NoError(t, err)
+
+		rec := doDashboardRequest(t, router, rawToken)
+		assert.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
+	})
+}
+
+// TestDisplayMutationsTouchUpdatedAt ensures rename/deactivate and token
+// regeneration move the row's updated_at (the API otherwise keeps returning
+// the creation timestamp forever).
+func TestDisplayMutationsTouchUpdatedAt(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+
+	tenantID := newDisplayTestTenant(t, db)
+	router := newDisplayRouter(t, db)
+	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("display-touch-%d@test.local", tenantID))
+	adminJWT := displayTestJWT(t, account.ID, tenantID, []string{"display:manage"})
+
+	fetchUpdatedAt := func(t *testing.T, id string) time.Time {
+		t.Helper()
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		var updatedAt time.Time
+		err := db.NewSelect().
+			TableExpr("display.displays").
+			Column("updated_at").
+			Where("id = ?", id).
+			Scan(ctx, &updatedAt)
+		require.NoError(t, err)
+		return updatedAt
+	}
+
+	// Backdate the row so the assertion is immune to clock skew between the
+	// Postgres container (which stamps updated_at on insert) and the Go test
+	// process (which stamps it on mutation).
+	backdateUpdatedAt := func(t *testing.T, id string) {
+		t.Helper()
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_, err := db.NewUpdate().
+			TableExpr("display.displays").
+			Set("updated_at = updated_at - INTERVAL '1 hour'").
+			Where("id = ?", id).
+			Exec(ctx)
+		require.NoError(t, err)
+	}
+
+	t.Run("rename moves updated_at", func(t *testing.T) {
+		id, _ := createDisplayViaAPI(t, router, adminJWT, "Touch Rename")
+		backdateUpdatedAt(t, id)
+		before := fetchUpdatedAt(t, id)
+
+		rec := doDisplayRequest(t, router, http.MethodPatch, "/"+id, adminJWT, map[string]any{"name": "Touch Renamed"})
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+		assert.True(t, fetchUpdatedAt(t, id).After(before), "updated_at must move on rename")
+	})
+
+	t.Run("regenerate moves updated_at", func(t *testing.T) {
+		id, _ := createDisplayViaAPI(t, router, adminJWT, "Touch Regenerate")
+		backdateUpdatedAt(t, id)
+		before := fetchUpdatedAt(t, id)
+
+		rec := doDisplayRequest(t, router, http.MethodPost, "/"+id+"/regenerate", adminJWT, nil)
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+		assert.True(t, fetchUpdatedAt(t, id).After(before), "updated_at must move on token regeneration")
+	})
+}
+
+// Guard against accidental reintroduction of identity fields in the payload
+// structs themselves (compile-time-ish check via JSON round trip).
+func TestDashboardPayloadHasNoIdentityFields(t *testing.T) {
+	t.Parallel()
+
+	payload := displayHTTP.DashboardResponse{}
+	raw, err := json.Marshal(payload)
+	require.NoError(t, err)
+	lower := strings.ToLower(string(raw))
+	for _, forbidden := range []string{"first_name", "last_name", "student_id", "photo"} {
+		assert.NotContains(t, lower, forbidden)
+	}
+}
+
+// TestDisplayFeatureGate covers the opt-in gate itself (issue #1325
+// follow-up): display.enabled defaults off, so both the admin CRUD routes
+// and the public dashboard must reject a tenant that never turned it on,
+// and must resume working once the tenant enables it.
+func TestDisplayFeatureGate(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+
+	// Deliberately NOT using newDisplayTestTenant here — it enables the
+	// feature by default for the rest of this package's tests. This test
+	// needs a tenant that starts with display.enabled at its registry
+	// default (false).
+	tenantID := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, tenantID)
+
+	router := newDisplayRouter(t, db)
+	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("display-gate-%d@test.local", tenantID))
+	adminJWT := displayTestJWT(t, account.ID, tenantID, []string{"display:read", "display:manage"})
+
+	t.Run("list is forbidden while the feature is off", func(t *testing.T) {
+		rec := doDisplayRequest(t, router, http.MethodGet, "/", adminJWT, nil)
+		assert.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
+	})
+
+	t.Run("create is forbidden while the feature is off", func(t *testing.T) {
+		rec := doDisplayRequest(t, router, http.MethodPost, "/", adminJWT, map[string]any{"name": "Gate Test"})
+		assert.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
+	})
+
+	t.Run("a token minted before opt-out still 404s like an unknown token", func(t *testing.T) {
+		enableDisplayFeature(t, db, tenantID)
+		_, rawToken := createDisplayViaAPI(t, router, adminJWT, "Gate Dashboard")
+
+		rec := doDashboardRequest(t, router, rawToken)
+		require.Equal(t, http.StatusOK, rec.Code, "dashboard must work once the feature is on: %s", rec.Body.String())
+
+		ctx := tenant.WithTenantID(context.Background(), tenantID)
+		require.NoError(t, RootCompositions.Settings(t, testpkg.NewDatabase(t, db)).Reset(ctx))
+
+		rec = doDashboardRequest(t, router, rawToken)
+		assert.Equal(t, http.StatusNotFound, rec.Code, "an opted-out tenant's token must 404 like an unknown token: %s", rec.Body.String())
+	})
+}
+
+// firstClock returns the test's clock, defaulting to Berlin time: the
+// dashboard derives the rendered calendar day from it, so the owner refuses
+// to compose without one.
+func firstClock(clocks []func() time.Time) func() time.Time {
+	if len(clocks) == 0 {
+		return calendar.Now
+	}
+	return clocks[0]
+}

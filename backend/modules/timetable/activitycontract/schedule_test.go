@@ -1,0 +1,181 @@
+package activitycontract
+
+import (
+	"testing"
+)
+
+func TestIsValidWeekday(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		weekday int
+		want    bool
+	}{
+		{
+			name:    "Valid weekday - Monday",
+			weekday: WeekdayMonday,
+			want:    true,
+		},
+		{
+			name:    "Valid weekday - Tuesday",
+			weekday: WeekdayTuesday,
+			want:    true,
+		},
+		{
+			name:    "Valid weekday - Wednesday",
+			weekday: WeekdayWednesday,
+			want:    true,
+		},
+		{
+			name:    "Valid weekday - Thursday",
+			weekday: WeekdayThursday,
+			want:    true,
+		},
+		{
+			name:    "Valid weekday - Friday",
+			weekday: WeekdayFriday,
+			want:    true,
+		},
+		{
+			name:    "Valid weekday - Saturday",
+			weekday: WeekdaySaturday,
+			want:    true,
+		},
+		{
+			name:    "Valid weekday - Sunday",
+			weekday: WeekdaySunday,
+			want:    true,
+		},
+		{
+			name:    "Invalid weekday - zero",
+			weekday: 0,
+			want:    false,
+		},
+		{
+			name:    "Invalid weekday - negative",
+			weekday: -1,
+			want:    false,
+		},
+		{
+			name:    "Invalid weekday - too high",
+			weekday: 8,
+			want:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := IsValidWeekday(tt.weekday); got != tt.want {
+				t.Errorf("IsValidWeekday() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestScheduleValidate(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		schedule *Schedule
+		wantErr  bool
+	}{
+		{
+			name: "Valid schedule with timeframe",
+			schedule: &Schedule{
+				Weekday:         WeekdayMonday,
+				TimeframeID:     func() *int64 { id := int64(1); return &id }(),
+				ActivityGroupID: 1,
+			},
+			wantErr: false,
+		},
+		{
+			name: "Valid schedule without timeframe",
+			schedule: &Schedule{
+				Weekday:         WeekdayFriday,
+				ActivityGroupID: 2,
+			},
+			wantErr: false,
+		},
+		{
+			name: "Invalid weekday",
+			schedule: &Schedule{
+				Weekday:         99, // Invalid weekday value
+				ActivityGroupID: 1,
+			},
+			wantErr: true,
+		},
+		{
+			name: "Missing weekday",
+			schedule: &Schedule{
+				ActivityGroupID: 1,
+			},
+			wantErr: true,
+		},
+		{
+			name: "Missing activity group ID",
+			schedule: &Schedule{
+				Weekday: WeekdayMonday,
+			},
+			wantErr: true,
+		},
+		{
+			name: "Invalid activity group ID",
+			schedule: &Schedule{
+				Weekday:         WeekdayMonday,
+				ActivityGroupID: -1,
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.schedule.Validate()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Schedule.Validate() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestScheduleHasTimeframe(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		schedule *Schedule
+		want     bool
+	}{
+		{
+			name: "Has timeframe",
+			schedule: &Schedule{
+				TimeframeID: func() *int64 { id := int64(1); return &id }(),
+			},
+			want: true,
+		},
+		{
+			name: "Has timeframe with zero value",
+			schedule: &Schedule{
+				TimeframeID: func() *int64 { id := int64(0); return &id }(),
+			},
+			want: false,
+		},
+		{
+			name: "No timeframe",
+			schedule: &Schedule{
+				TimeframeID: nil,
+			},
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.schedule.HasTimeframe(); got != tt.want {
+				t.Errorf("Schedule.HasTimeframe() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

@@ -1,4 +1,4 @@
-import { ApiError, enrichApiError, transportFetch } from "./api-error";
+import { apiErrorFromBody, transportFetch } from "./api-error";
 /**
  * Client for the per-account notification consent API.
  *
@@ -6,7 +6,8 @@ import { ApiError, enrichApiError, transportFetch } from "./api-error";
  * on the shared error path (#2517).
  */
 
-import { z } from "zod";
+// zod/mini: the full "zod" build adds ~20 kB to every route's client bundle.
+import * as z from "zod/mini";
 
 export type PreferencePortal = "tenant" | "parent" | "school";
 
@@ -43,16 +44,6 @@ const notificationPreferencesEnvelopeSchema = z.object({
   data: notificationPreferencesSchema,
 });
 
-class PreferencesApiError extends ApiError {
-  constructor(
-    public status: number,
-    message: string,
-  ) {
-    super(message, status);
-    this.name = "PreferencesApiError";
-  }
-}
-
 function basePath(portal: PreferencePortal): string {
   switch (portal) {
     case "parent":
@@ -85,12 +76,9 @@ async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
   }
 
   if (!response.ok) {
-    const message =
-      data && typeof data === "object" && "error" in data
-        ? String((data as { error: unknown }).error)
-        : `Einstellung konnte nicht geladen werden (${response.status}).`;
-    throw enrichApiError(
-      new PreferencesApiError(response.status, message),
+    throw apiErrorFromBody(
+      `Einstellung konnte nicht geladen werden (${response.status}).`,
+      response.status,
       data,
     );
   }

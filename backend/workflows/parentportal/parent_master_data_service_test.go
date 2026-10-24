@@ -8,19 +8,15 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-
-	"github.com/moto-nrw/project-phoenix/services"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/api"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
@@ -34,12 +30,12 @@ import (
 func masterDataSettings(editEnabled, requestEnabled, guardianManagementEnabled bool) parentSettingsStub {
 	return parentSettingsStub{
 		boolValues: map[string]bool{
-			configModels.KeyParentMasterDataEditEnabled:     editEnabled,
-			configModels.KeyParentMasterDataRequestEnabled:  requestEnabled,
-			configModels.KeyParentGuardianManagementEnabled: guardianManagementEnabled,
+			parentService.KeyParentMasterDataEditEnabled:     editEnabled,
+			parentService.KeyParentMasterDataRequestEnabled:  requestEnabled,
+			parentService.KeyParentGuardianManagementEnabled: guardianManagementEnabled,
 		},
 		stringValues: map[string]string{
-			configModels.KeyGuardianParentInviteMode: configModels.ParentInviteModeDisabled,
+			parentService.KeyGuardianParentInviteMode: parentService.ParentInviteModeDisabled,
 		},
 	}
 }
@@ -47,21 +43,33 @@ func masterDataSettings(editEnabled, requestEnabled, guardianManagementEnabled b
 func buildMasterDataService(t *testing.T, editEnabled bool) (*parentService.Portal, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
-		CarePlan:            repos.CarePlan(),
-		People:              repositories.MustNewPeopleDirectory(db),
+		GuardianChanges:     owners.ParentGuardianChanges(),
+		DeparturePolicy:     owners.ParentDeparturePolicy(),
+		GuardianPolicy:      owners.NewParentGuardianPolicy(),
+		Fingerprints:        owners.SecurityFingerprints{},
+		Declarations:        owners.ParentDeclarationPolicy(),
+		Locales:             owners.ParentPortalLocales(),
+		Runtime:             owners.ParentPortalRuntime{},
+		CarePlan:            owners.NewParentCarePlanCommands(repos.CarePlan(), nil),
+		People:              owners.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:        careProfiles(t, db),
-		ChildRepo:           repos.ParentChild,
-		StudentRepo:         repos.Student,
-		GuardianProfileRepo: repos.GuardianProfile,
-		PersonRepo:          repos.Person,
-		GuardianPhoneRepo:   repos.GuardianPhoneNumber,
-		ChangeRequestRepo:   repos.StudentDataChangeRequest,
-		StudentAudit:        services.NewPeopleDirectorySuiteStudentAudit(testpkg.RequestAuditActor, repositories.NewStudentAudit(db)),
+		ChildRepo:           repos.ParentChildReads(),
+		StudentRepo:         owners.NewParentStudentReads(reposPeople.Student),
+		GuardianProfileRepo: owners.NewParentGuardianProfileReads(reposPeople.GuardianProfile),
+		PersonRepo:          owners.NewParentPersonReads(reposPeople.Person),
+		GuardianPhoneRepo:   owners.NewParentGuardianPhoneReads(reposPeople.GuardianPhoneNumber),
+		ChangeRequestRepo:   owners.NewParentDataRequestReads(repos.CarePlan()),
+		StudentAudit:        owners.NewParentStudentAudit(api.NewPeopleDirectorySuiteStudentAudit(testpkg.RequestAuditActor, api.NewStudentAudit(testpkg.NewDatabase(t, db)))),
 		Settings:            masterDataSettings(editEnabled, false, true),
-		Broadcaster:         testpkg.NewRecordingBroadcaster(),
+		StudentUpdates:      owners.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster()),
 		Logger:              slog.Default(),
+
+		DataRequests: owners.NewParentDataRequestCommands(repos.CarePlan()),
+
+		CarePlanPolicy: owners.NewParentCarePlanPolicy(),
 	})
 	return svc, db
 }
@@ -72,7 +80,7 @@ func TestUpdateMasterDataField_RecordsStudentAudit(t *testing.T) {
 	svc, db := buildMasterDataService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	ctx := context.WithValue(testpkg.WithPackageTenantRuntime(context.Background()), jwt.CtxClaims, jwt.AppClaims{
+	ctx := context.WithValue(testpkg.WithPackageTenantRuntime(context.Background()), sessiontoken.CtxClaims, sessiontoken.AppClaims{
 		ID:        int(chain.AccountID),
 		FirstName: "Petra",
 		LastName:  "Parent",
@@ -81,22 +89,18 @@ func TestUpdateMasterDataField_RecordsStudentAudit(t *testing.T) {
 		ctx,
 		chain.AccountID,
 		chain.StudentID,
-		usersModels.DataChangeTargetStudent,
+		parentService.DataChangeTargetStudent,
 		"health_info",
 		json.RawMessage(`"Neue Information"`),
 	)
 	require.NoError(t, err)
 
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	edits, err := repos.StudentFieldEdit.GetByStudentID(
-		tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID),
-		chain.StudentID,
-	)
+	edits, err := testpkg.TenantQuery1(t, tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID), db, owners.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).StudentFieldEdit.GetByStudentID, chain.StudentID)
 	require.NoError(t, err)
 	require.NotEmpty(t, edits)
 	var healthEditFound bool
 	for _, edit := range edits {
-		if edit.FieldName == auditModels.StudentFieldHealthInfo {
+		if edit.FieldName == "health_info" {
 			healthEditFound = true
 			assert.Equal(t, chain.AccountID, edit.EditedBy)
 			assert.Equal(t, "Petra Parent", edit.EditedByName)
@@ -109,34 +113,46 @@ func TestUpdateMasterDataField_GuardianManagementDisabledRejectsContactEdits(t *
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
-		CarePlan:            repos.CarePlan(),
-		People:              repositories.MustNewPeopleDirectory(db),
+		GuardianChanges:     owners.ParentGuardianChanges(),
+		DeparturePolicy:     owners.ParentDeparturePolicy(),
+		GuardianPolicy:      owners.NewParentGuardianPolicy(),
+		Fingerprints:        owners.SecurityFingerprints{},
+		Declarations:        owners.ParentDeclarationPolicy(),
+		Locales:             owners.ParentPortalLocales(),
+		Runtime:             owners.ParentPortalRuntime{},
+		CarePlan:            owners.NewParentCarePlanCommands(repos.CarePlan(), nil),
+		People:              owners.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:        careProfiles(t, db),
-		ChildRepo:           repos.ParentChild,
-		StudentRepo:         repos.Student,
-		GuardianProfileRepo: repos.GuardianProfile,
-		PersonRepo:          repos.Person,
-		GuardianPhoneRepo:   repos.GuardianPhoneNumber,
-		ChangeRequestRepo:   repos.StudentDataChangeRequest,
+		ChildRepo:           repos.ParentChildReads(),
+		StudentRepo:         owners.NewParentStudentReads(reposPeople.Student),
+		GuardianProfileRepo: owners.NewParentGuardianProfileReads(reposPeople.GuardianProfile),
+		PersonRepo:          owners.NewParentPersonReads(reposPeople.Person),
+		GuardianPhoneRepo:   owners.NewParentGuardianPhoneReads(reposPeople.GuardianPhoneNumber),
+		ChangeRequestRepo:   owners.NewParentDataRequestReads(repos.CarePlan()),
 		Settings:            masterDataSettings(true, false, false),
-		Broadcaster:         testpkg.NewRecordingBroadcaster(),
+		StudentUpdates:      owners.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster()),
 		Logger:              slog.Default(),
+
+		DataRequests: owners.NewParentDataRequestCommands(repos.CarePlan()),
+
+		CarePlanPolicy: owners.NewParentCarePlanPolicy(),
 	})
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	newEmail := fmt.Sprintf("new.parent.%d@example.test", chain.AccountID)
 
 	_, err := svc.UpdateMasterDataField(
 		testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		usersModels.DataChangeTargetGuardianProfile, "email",
+		"guardian_profile", "email",
 		json.RawMessage(strconv.Quote(newEmail)),
 	)
 	assert.ErrorIs(t, err, parentService.ErrGuardianManagementDisabled)
 
 	data, err := svc.UpdateMasterDataField(
 		testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		usersModels.DataChangeTargetStudent, "health_info",
+		parentService.DataChangeTargetStudent, "health_info",
 		json.RawMessage(`"allowed"`),
 	)
 	require.NoError(t, err)
@@ -148,12 +164,21 @@ func TestChildFeatures_SplitsMasterDataContactCapability(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
-		ChildRepo: repos.ParentChild,
-		Settings:  masterDataSettings(true, true, false),
-		MealPlan:  availableMealPlan(false),
-		Logger:    slog.Default(),
+		GuardianChanges: owners.ParentGuardianChanges(),
+		DeparturePolicy: owners.ParentDeparturePolicy(),
+		GuardianPolicy:  owners.NewParentGuardianPolicy(),
+		Fingerprints:    owners.SecurityFingerprints{},
+		Declarations:    owners.ParentDeclarationPolicy(),
+		Locales:         owners.ParentPortalLocales(),
+		Runtime:         owners.ParentPortalRuntime{},
+		ChildRepo:       repos.ParentChildReads(),
+		Settings:        masterDataSettings(true, true, false),
+		MealPlan:        availableMealPlan(false),
+		Logger:          slog.Default(),
+
+		CarePlanPolicy: owners.NewParentCarePlanPolicy(),
 	})
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
@@ -193,7 +218,7 @@ func TestMasterDataUsesSelectedChildGuardianProfile(t *testing.T) {
 	secondStudent := testpkg.CreateTestStudentForTenant(t, db, secondTenantID, "Mila", "Schneider", "2a")
 
 	secondEmail := "second-child-guardian@example.test"
-	secondProfile := &usersModels.GuardianProfile{
+	secondProfile := &testpkg.GuardianProfile{
 		FirstName:              "Sabine",
 		LastName:               "Zweite",
 		Email:                  &secondEmail,
@@ -202,17 +227,17 @@ func TestMasterDataUsesSelectedChildGuardianProfile(t *testing.T) {
 		PreferredContactMethod: "phone",
 		LanguagePreference:     "en",
 	}
-	secondProfile.SetTenantID(secondTenantID)
+	secondProfile.TenantID = secondTenantID
 	_, err := db.NewInsert().Model(secondProfile).ModelTableExpr(`users.guardian_profiles`).Exec(ctx)
 	require.NoError(t, err)
 
-	link := &usersModels.StudentGuardian{
+	link := &testpkg.StudentGuardian{
 		StudentID:         secondStudent.ID,
 		GuardianProfileID: secondProfile.ID,
 		RelationshipType:  "parent",
 	}
-	authorize.ApplyStudentGuardianRole(link, authorize.GuardianRolePrimaryGuardian)
-	link.SetTenantID(secondTenantID)
+	link.GuardianRole, link.Permissions = api.ParentGuardianRoleFixture("primary_guardian")
+	link.TenantID = secondTenantID
 	err = testpkg.InsertTestStudentGuardian(ctx, db, link)
 	require.NoError(t, err)
 
@@ -226,7 +251,7 @@ func TestMasterDataUsesSelectedChildGuardianProfile(t *testing.T) {
 
 	updated, err := svc.UpdateMasterDataField(
 		ctx, chain.AccountID, secondStudent.ID,
-		usersModels.DataChangeTargetGuardianProfile, "email",
+		"guardian_profile", "email",
 		json.RawMessage(`"selected-child@example.test"`),
 	)
 	require.NoError(t, err)
@@ -234,7 +259,7 @@ func TestMasterDataUsesSelectedChildGuardianProfile(t *testing.T) {
 	assert.Equal(t, secondProfile.ID, updated.GuardianProfileID)
 	assert.Equal(t, "selected-child@example.test", *updated.Email)
 
-	firstProfile, err := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianProfile.FindByID(ctx, chain.GuardianProfileID)
+	firstProfile, err := testpkg.TenantQuery1(t, testpkg.ContextForTenant(ctx, chain.TenantID), db, api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).GuardianProfile.FindByID, chain.GuardianProfileID)
 	require.NoError(t, err)
 	require.NotNil(t, firstProfile.Email)
 	assert.Equal(t, chain.Email, *firstProfile.Email)
@@ -245,30 +270,50 @@ func TestUpdateMasterDataField_HealthInfo_AppliesAndAudits(t *testing.T) {
 
 	svc, db := buildMasterDataService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-
-	data, err := svc.UpdateMasterDataField(
-		testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		usersModels.DataChangeTargetStudent, "health_info",
-		json.RawMessage(`"Penicillin-Allergie"`),
-	)
-	require.NoError(t, err)
-	require.NotNil(t, data.HealthInfo)
-	assert.Equal(t, "Penicillin-Allergie", *data.HealthInfo)
-
-	// The live student record was updated.
-	student, err := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student.FindByID(testpkg.WithPackageTenantRuntime(context.Background()), chain.StudentID)
-	require.NoError(t, err)
-	require.NotNil(t, student.HealthInfo)
-	assert.Equal(t, "Penicillin-Allergie", *student.HealthInfo)
-
-	// An auto_applied audit row was written.
-	var count int
-	err = db.NewRaw(
-		`SELECT count(*) FROM users.student_data_change_requests WHERE student_id = ? AND status = ?`,
-		chain.StudentID, usersModels.DataChangeStatusAutoApplied,
-	).Scan(testpkg.WithPackageTenantRuntime(context.Background()), &count)
-	require.NoError(t, err)
-	assert.Equal(t, 1, count)
+	ctx := testpkg.WithPackageTenantRuntime(context.Background())
+	steps := []struct {
+		value, oldMarker, newMarker string
+		count                       int
+	}{
+		{"synthetic-value-a", "", "Angabe hinzugefügt", 1},
+		{"synthetic-value-b", "Angabe vorhanden", "Angabe geändert", 2},
+		{"synthetic-value-b", "Angabe vorhanden", "Angabe geändert", 2},
+		{"", "Angabe vorhanden", "", 3},
+		{"", "Angabe vorhanden", "", 3},
+	}
+	for _, step := range steps {
+		data, err := svc.UpdateMasterDataField(ctx, chain.AccountID, chain.StudentID,
+			parentService.DataChangeTargetStudent, "health_info", json.RawMessage(strconv.Quote(step.value)))
+		require.NoError(t, err)
+		if step.value == "" {
+			assert.Nil(t, data.HealthInfo)
+		} else {
+			require.NotNil(t, data.HealthInfo)
+			assert.Equal(t, step.value, *data.HealthInfo)
+		}
+		// Read through the public interface again, not only the write response.
+		persisted, err := svc.GetChildMasterData(ctx, chain.AccountID, chain.StudentID)
+		require.NoError(t, err)
+		assert.Equal(t, data.HealthInfo, persisted.HealthInfo)
+		var rows []struct {
+			OldValue    json.RawMessage
+			NewValue    json.RawMessage
+			Status      string
+			TenantID    int64
+			SubmittedBy int64
+			AppliedAt   *time.Time
+		}
+		require.NoError(t, db.NewRaw(`SELECT old_value, new_value, status, tenant_id, submitted_by, applied_at
+			FROM users.student_data_change_requests WHERE student_id = ? ORDER BY id`, chain.StudentID).Scan(ctx, &rows))
+		require.Len(t, rows, step.count)
+		row := rows[len(rows)-1]
+		assert.JSONEq(t, string(json.RawMessage(strconv.Quote(step.oldMarker))), string(row.OldValue))
+		assert.JSONEq(t, string(json.RawMessage(strconv.Quote(step.newMarker))), string(row.NewValue))
+		assert.Equal(t, "auto_applied", row.Status)
+		assert.Equal(t, chain.TenantID, row.TenantID)
+		assert.Equal(t, chain.AccountID, row.SubmittedBy)
+		assert.NotNil(t, row.AppliedAt)
+	}
 }
 
 func TestUpdateMasterDataField_NormalizedNoopSkipsAudit(t *testing.T) {
@@ -279,7 +324,7 @@ func TestUpdateMasterDataField_NormalizedNoopSkipsAudit(t *testing.T) {
 
 	data, err := svc.UpdateMasterDataField(
 		testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		usersModels.DataChangeTargetGuardianProfile, "email",
+		"guardian_profile", "email",
 		json.RawMessage(strconv.Quote("  "+chain.Email+"  ")),
 	)
 	require.NoError(t, err)
@@ -289,7 +334,7 @@ func TestUpdateMasterDataField_NormalizedNoopSkipsAudit(t *testing.T) {
 	var count int
 	err = db.NewRaw(
 		`SELECT count(*) FROM users.student_data_change_requests WHERE student_id = ? AND status = ?`,
-		chain.StudentID, usersModels.DataChangeStatusAutoApplied,
+		chain.StudentID, "auto_applied",
 	).Scan(testpkg.WithPackageTenantRuntime(context.Background()), &count)
 	require.NoError(t, err)
 	assert.Equal(t, 0, count)
@@ -304,7 +349,7 @@ func TestUpdateMasterDataField_GuardianProfile_AppliesAndAudits(t *testing.T) {
 
 	data, err := svc.UpdateMasterDataField(
 		testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		usersModels.DataChangeTargetGuardianProfile, "email",
+		"guardian_profile", "email",
 		json.RawMessage(strconv.Quote("  "+newEmail+"  ")),
 	)
 	require.NoError(t, err)
@@ -313,7 +358,7 @@ func TestUpdateMasterDataField_GuardianProfile_AppliesAndAudits(t *testing.T) {
 
 	data, err = svc.UpdateMasterDataField(
 		testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		usersModels.DataChangeTargetGuardianProfile, "language_preference",
+		"guardian_profile", "language_preference",
 		json.RawMessage(`"en"`),
 	)
 	require.NoError(t, err)
@@ -330,11 +375,11 @@ func TestUpdateMasterDataField_GuardianProfile_AppliesAndAudits(t *testing.T) {
 		   FROM users.student_data_change_requests
 		  WHERE student_id = ? AND status = ?
 		  ORDER BY id`,
-		chain.StudentID, usersModels.DataChangeStatusAutoApplied,
+		chain.StudentID, "auto_applied",
 	).Scan(testpkg.WithPackageTenantRuntime(context.Background()), &rows)
 	require.NoError(t, err)
 	require.Len(t, rows, 2)
-	assert.Equal(t, usersModels.DataChangeTargetGuardianProfile, rows[0].Target)
+	assert.Equal(t, "guardian_profile", rows[0].Target)
 	assert.Equal(t, "email", rows[0].FieldKey)
 	assert.Equal(t, strconv.Quote(newEmail), rows[0].NewValue)
 	require.NotNil(t, rows[0].TargetRefID)
@@ -350,14 +395,14 @@ func TestUpdateMasterDataField_GuardianProfile_NormalizesDisplayNameEmail(t *tes
 
 	data, err := svc.UpdateMasterDataField(
 		testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		usersModels.DataChangeTargetGuardianProfile, "email",
+		"guardian_profile", "email",
 		json.RawMessage(strconv.Quote("Mom <"+newEmail+">")),
 	)
 	require.NoError(t, err)
 	require.NotNil(t, data.Email)
 	assert.Equal(t, newEmail, *data.Email)
 
-	profile, err := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianProfile.FindByID(testpkg.WithPackageTenantRuntime(context.Background()), chain.GuardianProfileID)
+	profile, err := testpkg.TenantQuery1(t, testpkg.ContextForTenant(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID), db, api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).GuardianProfile.FindByID, chain.GuardianProfileID)
 	require.NoError(t, err)
 	require.NotNil(t, profile.Email)
 	assert.Equal(t, newEmail, *profile.Email)
@@ -373,7 +418,7 @@ func TestUpdateMasterDataField_GuardianProfile_DuplicateEmailConflict(t *testing
 
 	_, err := svc.UpdateMasterDataField(
 		testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		usersModels.DataChangeTargetGuardianProfile, "email",
+		"guardian_profile", "email",
 		json.RawMessage(strconv.Quote(*other.Email)),
 	)
 	assert.ErrorIs(t, err, parentService.ErrGuardianEmailConflict)
@@ -427,7 +472,7 @@ func TestUpdateMasterDataField_GuardianProfile_AddressAndContactFields(t *testin
 		t.Run(tc.field, func(t *testing.T) {
 			data, err := svc.UpdateMasterDataField(
 				testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-				usersModels.DataChangeTargetGuardianProfile, tc.field,
+				"guardian_profile", tc.field,
 				json.RawMessage(tc.value),
 			)
 			require.NoError(t, err)
@@ -444,7 +489,7 @@ func TestUpdateMasterDataField_GuardianPhone_CreateUpdateClear(t *testing.T) {
 
 	data, err := svc.UpdateMasterDataField(
 		testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		usersModels.DataChangeTargetGuardianPhone, "primary",
+		"guardian_phone", "primary",
 		json.RawMessage(`"+49 151 12345678"`),
 	)
 	require.NoError(t, err)
@@ -455,7 +500,7 @@ func TestUpdateMasterDataField_GuardianPhone_CreateUpdateClear(t *testing.T) {
 
 	data, err = svc.UpdateMasterDataField(
 		testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		usersModels.DataChangeTargetGuardianPhone, "primary",
+		"guardian_phone", "primary",
 		json.RawMessage(`"+49 151 87654321"`),
 	)
 	require.NoError(t, err)
@@ -466,7 +511,7 @@ func TestUpdateMasterDataField_GuardianPhone_CreateUpdateClear(t *testing.T) {
 
 	data, err = svc.UpdateMasterDataField(
 		testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		usersModels.DataChangeTargetGuardianPhone, "primary",
+		"guardian_phone", "primary",
 		json.RawMessage(`""`),
 	)
 	require.NoError(t, err)
@@ -481,9 +526,9 @@ func TestUpdateMasterDataField_GuardianPhone_CreateUpdateClear(t *testing.T) {
 		  ORDER BY id DESC
 		  LIMIT 1`,
 		chain.StudentID,
-		usersModels.DataChangeTargetGuardianPhone,
+		"guardian_phone",
 		"primary",
-		usersModels.DataChangeStatusAutoApplied,
+		"auto_applied",
 	).Scan(testpkg.WithPackageTenantRuntime(context.Background()), &clearRef)
 	require.NoError(t, err)
 	require.NotNil(t, clearRef)
@@ -498,21 +543,21 @@ func TestUpdateMasterDataField_InvalidDirectValues(t *testing.T) {
 
 	_, err := svc.UpdateMasterDataField(
 		testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		usersModels.DataChangeTargetGuardianProfile, "email",
+		"guardian_profile", "email",
 		json.RawMessage(`"not-an-email"`),
 	)
 	assert.ErrorIs(t, err, parentService.ErrMasterDataInvalidValue)
 
 	_, err = svc.UpdateMasterDataField(
 		testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		usersModels.DataChangeTargetGuardianProfile, "preferred_contact_method",
+		"guardian_profile", "preferred_contact_method",
 		json.RawMessage(`""`),
 	)
 	assert.ErrorIs(t, err, parentService.ErrMasterDataInvalidValue)
 
 	_, err = svc.UpdateMasterDataField(
 		testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		usersModels.DataChangeTargetGuardianProfile, "language_preference",
+		"guardian_profile", "language_preference",
 		json.RawMessage(`"zz"`),
 	)
 	assert.ErrorIs(t, err, parentService.ErrMasterDataInvalidValue)
@@ -532,25 +577,25 @@ func TestUpdateMasterDataField_RejectsOversizedDirectValues(t *testing.T) {
 	}{
 		{
 			name:   "health info",
-			target: usersModels.DataChangeTargetStudent,
+			target: parentService.DataChangeTargetStudent,
 			field:  "health_info",
 			value:  strings.Repeat("x", 2001),
 		},
 		{
 			name:   "email",
-			target: usersModels.DataChangeTargetGuardianProfile,
+			target: "guardian_profile",
 			field:  "email",
 			value:  strings.Repeat("a", 255) + "@example.test",
 		},
 		{
 			name:   "address",
-			target: usersModels.DataChangeTargetGuardianProfile,
+			target: "guardian_profile",
 			field:  "address_street",
 			value:  strings.Repeat("x", 201),
 		},
 		{
 			name:   "phone",
-			target: usersModels.DataChangeTargetGuardianPhone,
+			target: "guardian_phone",
 			field:  "primary",
 			value:  strings.Repeat("1", 41),
 		},
@@ -579,7 +624,7 @@ func TestMasterDataField_InvalidOwnerAndPayloadRejected(t *testing.T) {
 
 	_, err = svc.UpdateMasterDataField(
 		testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		usersModels.DataChangeTargetStudent, "health_info",
+		parentService.DataChangeTargetStudent, "health_info",
 		json.RawMessage(`123`),
 	)
 	assert.ErrorIs(t, err, parentService.ErrMasterDataInvalidValue)
@@ -593,7 +638,7 @@ func TestUpdateMasterDataField_NonAllowlistedField_Rejected(t *testing.T) {
 
 	_, err := svc.UpdateMasterDataField(
 		testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		usersModels.DataChangeTargetPerson, "first_name",
+		parentService.DataChangeTargetPerson, "first_name",
 		json.RawMessage(`"Hacker"`),
 	)
 	assert.ErrorIs(t, err, parentService.ErrMasterDataFieldNotEditable)
@@ -607,7 +652,7 @@ func TestUpdateMasterDataField_FeatureDisabled_Rejected(t *testing.T) {
 
 	_, err := svc.UpdateMasterDataField(
 		testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		usersModels.DataChangeTargetStudent, "health_info",
+		parentService.DataChangeTargetStudent, "health_info",
 		json.RawMessage(`"x"`),
 	)
 	assert.ErrorIs(t, err, parentService.ErrMasterDataEditDisabled)

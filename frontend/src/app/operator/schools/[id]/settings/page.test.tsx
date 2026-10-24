@@ -507,8 +507,9 @@ describe("OperatorSchoolSettingsPage", () => {
 
     await renderPage();
 
-    const link = await screen.findByText("Zu den Schulen");
-    expect(link.closest("a")?.getAttribute("href")).toBe("/operator/schools");
+    expect(
+      await screen.findByRole("link", { name: "Zurück zu den Schulen" }),
+    ).toHaveAttribute("href", "/operator/schools");
   });
 
   it("uses ?back URL pointing back to the school drill-in", async () => {
@@ -519,8 +520,10 @@ describe("OperatorSchoolSettingsPage", () => {
 
     await renderPage();
 
-    const link = await screen.findByText("Zurück zur Schule");
-    expect(link.closest("a")?.getAttribute("href")).toBe(
+    expect(
+      await screen.findByRole("link", { name: "Zurück zur Schule" }),
+    ).toHaveAttribute(
+      "href",
       "/operator/organizations/test-org/schools/test-school",
     );
   });
@@ -533,7 +536,8 @@ describe("OperatorSchoolSettingsPage", () => {
 
     await renderPage();
 
-    const link = await screen.findByText("Zu den Schulen");
-    expect(link.closest("a")?.getAttribute("href")).toBe("/operator/schools");
+    expect(
+      await screen.findByRole("link", { name: "Zurück zu den Schulen" }),
+    ).toHaveAttribute("href", "/operator/schools");
   });
 });

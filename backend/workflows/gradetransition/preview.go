@@ -44,23 +44,7 @@ func (w *Workflow) Preview(ctx context.Context, id int64) (result Preview, err e
 			ByMapping: make([]MappingPreview, 0, len(transition.Mappings)), Warnings: make([]string, 0),
 			UnmappedClasses: make([]UnmappedClass, 0),
 		}
-		counts := countByClass(cohort)
-		mapped := make(map[string]bool, len(transition.Mappings))
-		for _, mapping := range transition.Mappings {
-			count := counts[mapping.FromClass]
-			action := schoolstructure.TransitionActionPromoted
-			if mapping.IsGraduating() {
-				action = schoolstructure.TransitionActionGraduated
-				preview.ToGraduate += count
-			} else {
-				preview.ToPromote += count
-			}
-			preview.ByMapping = append(preview.ByMapping, MappingPreview{
-				FromClass: mapping.FromClass, ToClass: mapping.ToClass, StudentCount: count, Action: action,
-			})
-			preview.TotalStudents += count
-			mapped[mapping.FromClass] = true
-		}
+		mapped := mapCohortPreview(&preview, transition.Mappings, cohort)
 		unmapped, err := w.unmappedClasses(txCtx, mapped)
 		if err != nil {
 			return err
@@ -254,4 +238,25 @@ func suggestMappings(classes []string, counts map[string]int) []SuggestedMapping
 	}
 	sort.Slice(suggestions, func(i, j int) bool { return suggestions[i].FromClass < suggestions[j].FromClass })
 	return suggestions
+}
+
+func mapCohortPreview(preview *Preview, mappings []schoolstructure.TransitionMapping, cohort []cohortStudent) map[string]bool {
+	counts := countByClass(cohort)
+	mapped := make(map[string]bool, len(mappings))
+	for _, mapping := range mappings {
+		count := counts[mapping.FromClass]
+		action := schoolstructure.TransitionActionPromoted
+		if mapping.IsGraduating() {
+			action = schoolstructure.TransitionActionGraduated
+			preview.ToGraduate += count
+		} else {
+			preview.ToPromote += count
+		}
+		preview.ByMapping = append(preview.ByMapping, MappingPreview{
+			FromClass: mapping.FromClass, ToClass: mapping.ToClass, StudentCount: count, Action: action,
+		})
+		preview.TotalStudents += count
+		mapped[mapping.FromClass] = true
+	}
+	return mapped
 }

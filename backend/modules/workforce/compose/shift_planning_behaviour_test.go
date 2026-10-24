@@ -5,12 +5,12 @@ import (
 	"database/sql"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/compose"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -26,28 +26,28 @@ import (
 // owner's public vocabulary (#3424); the calendar periods and the rooms are
 // the School Calendar and Facilities owners the root binds.
 
-type planningStaffDirectory struct{ staff *usersModels.Staff }
+type planningStaffDirectory struct{ Staff *workforce.PlanStaff }
 
-func (d planningStaffDirectory) FindByID(_ context.Context, id any) (*usersModels.Staff, error) {
-	if value, ok := id.(int64); ok && value == d.staff.ID {
-		return d.staff, nil
+func (d planningStaffDirectory) FindByID(_ context.Context, id any) (*workforce.PlanStaff, error) {
+	if value, ok := id.(int64); ok && value == d.Staff.ID {
+		return d.Staff, nil
 	}
 	return nil, sql.ErrNoRows
 }
 
-func (d planningStaffDirectory) ListAllWithPerson(context.Context) ([]*usersModels.Staff, error) {
-	return []*usersModels.Staff{d.staff}, nil
+func (d planningStaffDirectory) ListAllWithPerson(context.Context) ([]*workforce.PlanStaff, error) {
+	return []*workforce.PlanStaff{d.Staff}, nil
 }
 
-func (d planningStaffDirectory) FindWithPersonByIDs(_ context.Context, _ []int64) (map[int64]*usersModels.Staff, error) {
-	return map[int64]*usersModels.Staff{d.staff.ID: d.staff}, nil
+func (d planningStaffDirectory) FindWithPersonByIDs(_ context.Context, _ []int64) (map[int64]*workforce.PlanStaff, error) {
+	return map[int64]*workforce.PlanStaff{d.Staff.ID: d.Staff}, nil
 }
 
 // planningTimetable stands in for the Timetable owner: the Dienstplan reads
 // it, never writes it, so an empty answer is a complete one here.
 type planningTimetable struct{}
 
-func (planningTimetable) FindByTenantAndDateRange(context.Context, timezone.Date, timezone.Date) ([]*timetable.ScheduledInstance, error) {
+func (planningTimetable) FindByTenantAndDateRange(context.Context, calendar.Date, calendar.Date) ([]*timetable.ScheduledInstance, error) {
 	return nil, nil
 }
 
@@ -61,7 +61,7 @@ func (planningInstanceStaff) FindByInstanceIDs(context.Context, []int64) ([]*tim
 	return nil, nil
 }
 
-func (planningInstanceStaff) FindByStaffAndDateRange(context.Context, int64, timezone.Date, timezone.Date) ([]*timetable.InstanceStaff, error) {
+func (planningInstanceStaff) FindByStaffAndDateRange(context.Context, int64, calendar.Date, calendar.Date) ([]*timetable.InstanceStaff, error) {
 	return nil, nil
 }
 
@@ -71,7 +71,7 @@ func (planningGroups) FindByIDs(context.Context, []int64) ([]*timetable.Group, e
 	return nil, nil
 }
 
-func buildPlanningWorkforce(t *testing.T, db *bun.DB) workforce.Capability {
+func buildPlanningWorkforce(t *testing.T, db *bun.DB) compose.WorkTime {
 	t.Helper()
 	runtime := testpkg.ConfigRuntime(db)
 	capability, err := compose.New(compose.Dependencies{LockStaffAssignment: runtime.LockStaffAssignment,
@@ -83,13 +83,21 @@ func buildPlanningWorkforce(t *testing.T, db *bun.DB) workforce.Capability {
 	return capability
 }
 
-func planningDependencies(t *testing.T, db *bun.DB, capability workforce.Capability, staff *usersModels.Staff) compose.ShiftPlanningDependencies {
+// planningDependencies composes the planning over a staff directory that
+// knows the one fixture staff member, read back with its person through the
+// retained staff repository in ctx's tenant.
+func planningDependencies(t *testing.T, ctx context.Context, db *bun.DB, capability compose.WorkTime, staffID int64) compose.ShiftPlanningDependencies {
 	t.Helper()
-	owners := repositories.NewUnobservedTimetableDependencies(db)
+	ownersRooms := owners.MustNewUnobservedRooms(testpkg.NewDatabase(t, db))
+	calendarOwner := api.MustNewSchoolCalendar(testpkg.NewDatabase(t, db))
+	staffByID, err := testpkg.TenantQuery1(t, ctx, db, owners.NewPlanStaffDirectory(api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Staff).FindWithPersonByIDs, []int64{staffID})
+	require.NoError(t, err)
+	staff := staffByID[staffID]
+	require.NotNil(t, staff)
 	return compose.ShiftPlanningDependencies{
-		Workforce: capability, Staff: planningStaffDirectory{staff: staff},
-		CalendarPeriods: owners.Calendar, Instances: planningTimetable{},
-		InstanceStaff: planningInstanceStaff{}, Rooms: repositories.NewFactory(db, owners).Room, ActivityGroups: planningGroups{},
+		Workforce: capability, Staff: planningStaffDirectory{Staff: staff},
+		CalendarPeriods: calendarOwner, Instances: planningTimetable{},
+		InstanceStaff: planningInstanceStaff{}, Rooms: owners.NewTimetableRoomNames(ownersRooms), ActivityGroups: planningGroups{},
 		DB: db,
 	}
 }
@@ -100,7 +108,7 @@ func TestNewShiftPlanningRequiresTheOwnersItComposesOver(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	staff := testpkg.CreateTestStaff(t, db, "Planning", "Compose")
 	capability := buildPlanningWorkforce(t, db)
-	complete := planningDependencies(t, db, capability, staff)
+	complete := planningDependencies(t, testpkg.Ctx(t), db, capability, staff.ID)
 
 	for name, strip := range map[string]func(*compose.ShiftPlanningDependencies){
 		"workforce":        func(d *compose.ShiftPlanningDependencies) { d.Workforce = nil },
@@ -134,12 +142,12 @@ func TestShiftPlanningServesTheDienstplanOverTheCapability(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	staff := testpkg.CreateTestStaff(t, db, "Planning", "Facade")
 	capability := buildPlanningWorkforce(t, db)
-	composition, err := compose.NewShiftPlanning(planningDependencies(t, db, capability, staff))
+	composition, err := compose.NewShiftPlanning(planningDependencies(t, testpkg.Ctx(t), db, capability, staff.ID))
 	require.NoError(t, err)
 	// A composition without the printable plan still serves every route.
 	facade := composition.Planning(nil)
 
-	day := timezone.NewDate(2026, 9, 21)
+	day := calendar.NewDate(2026, 9, 21)
 	input := workforce.StaffShiftInput{
 		StaffID: staff.ID, ActorStaffID: staff.ID, Date: day.String(),
 		StartTime: "08:30:00", EndTime: "14:45:00", BreakMinutes: 30,
@@ -190,4 +198,8 @@ func TestShiftPlanningServesTheDienstplanOverTheCapability(t *testing.T) {
 		From: day.String(), To: day.String(), Template: "persons", Variant: "aushang", Format: "pdf",
 	})
 	require.EqualError(t, exportErr, "plan export is not configured")
+}
+
+func (d planningStaffDirectory) ListMembershipsWithPerson(ctx context.Context) ([]*workforce.PlanStaff, error) {
+	return d.ListAllWithPerson(ctx)
 }

@@ -1,4 +1,5 @@
 import { timetableRequiredMark } from "../timetable-style";
+import { FieldErrorHint } from "~/components/ui/field-error-hint";
 
 export function Field({
   label,
@@ -34,15 +35,7 @@ export function Field({
         labelEl
       )}
       {children}
-      {error && (
-        <p
-          id={`${htmlFor}_error`}
-          role="alert"
-          className="text-moto-red mt-1 text-xs"
-        >
-          {error}
-        </p>
-      )}
+      <FieldErrorHint id={`${htmlFor}_error`} message={error} live />
     </div>
   );
 }

@@ -2,7 +2,12 @@
 import { isBrowserContext } from "./api-url";
 import { sanitizeEndpoint } from "./log-sanitize";
 import { createLogger } from "~/lib/logger";
-import { ApiError, apiErrorFromBody, unavailableApiError } from "./api-error";
+import {
+  ApiError,
+  apiErrorFromBody,
+  unavailableApiError,
+  type ProblemBody,
+} from "./api-error";
 
 // Logger instance for API helpers
 const logger = createLogger({ component: "ApiHelpers" });
@@ -16,112 +21,33 @@ export interface ApiResponse<T> {
   data: T;
 }
 
-/**
- * Type for error response
- */
-export interface ApiErrorResponse {
-  error: string;
-  status?: number;
-  code?: string;
-  // Structured payload mirrored from the backend's ErrResponse.details.
-  // Forwarded through the proxy so codes like reopen_status_conflict can
-  // carry identifying fields (session_id, existing_status, …) to the UI.
-  details?: Record<string, unknown>;
-  errors?: { field: string; reason: string }[];
-  instance?: string;
-}
+/** The error body of an API answer: the RFC 9457 envelope (ADR 0006). */
+export type ApiErrorResponse = ProblemBody;
 
 /**
- * Typed error thrown by serverFetchWithRetry / clientAxiosRequest for non-OK
- * backend responses. Carries the HTTP status and the raw body so callers can
- * branch on either without re-parsing `.message` strings. The `message`
- * intentionally keeps the legacy `"API error (<status>): <body>"` shape so
- * existing string-based parsers (handleApiError, handleDomainApiError) and
- * any caller catching it as a plain Error continue to work unchanged.
- */
-export class ApiResponseError extends ApiError {
-  readonly status: number;
-  readonly bodyText: string;
-  // Memoized parse result — `null` means "not JSON".
-  private parsedBody: unknown | undefined;
-  private parseAttempted = false;
-
-  constructor(status: number, bodyText: string, _options?: ErrorOptions) {
-    super(`API error (${status}): ${bodyText}`, status);
-    this.cause = _options?.cause;
-    this.name = "ApiResponseError";
-    this.status = status;
-    this.bodyText = bodyText;
-    try {
-      const parsed: unknown = JSON.parse(bodyText);
-      this.parsedBody = parsed;
-      this.parseAttempted = true;
-      const structured = apiErrorFromBody(this.message, status, parsed);
-      this.code = structured.code;
-      this.details = structured.details;
-      this.errors = structured.errors;
-      this.instance = structured.instance;
-      this.requestId = structured.requestId;
-    } catch {
-      this.parsedBody = null;
-      this.parseAttempted = true;
-      // A text body still has a status-derived class code.
-    }
-  }
-
-  /**
-   * Returns the parsed JSON body, or `null` if the body isn't valid JSON.
-   * Use this instead of grepping `error.message` for backend error codes.
-   */
-  body<T = unknown>(): T | null {
-    if (!this.parseAttempted) {
-      this.parseAttempted = true;
-      try {
-        this.parsedBody = JSON.parse(this.bodyText);
-      } catch {
-        this.parsedBody = null;
-      }
-    }
-    return (this.parsedBody ?? null) as T | null;
-  }
-}
-
-/**
- * Generic domain API error handler
- * Parses API errors and throws standardized error objects with status codes
+ * Generic domain API error handler: every failure leaves as an ApiError, so
+ * the shared display path reads its status and code. An Axios failure keeps
+ * the envelope of its response; anything without a response is a server
+ * fault.
  * @param error - The caught error
  * @param context - Description of the failed operation
- * @param domain - API domain name for error code prefix (e.g., "STUDENT", "ACTIVITY")
  */
-export function handleDomainApiError(
-  error: unknown,
-  context: string,
-  domain: string,
-): never {
-  // If we have a structured error message with status code
-  if (error instanceof Error) {
-    const regex = /API error \((\d+)\):/;
-    const match = regex.exec(error.message);
-    if (match?.[1]) {
-      const status = Number.parseInt(match[1], 10);
-      const errorMessage = `Failed to ${context}: ${error.message}`;
-      throw new Error(
-        JSON.stringify({
-          status,
-          message: errorMessage,
-          code: `${domain}_API_ERROR_${status}`,
-        }),
-      );
-    }
+export function handleDomainApiError(error: unknown, context: string): never {
+  if (error instanceof ApiError) throw error;
+  const response =
+    error !== null && typeof error === "object" && "response" in error
+      ? (error as { response?: { status?: unknown; data?: unknown } }).response
+      : undefined;
+  if (response && typeof response.status === "number") {
+    throw apiErrorFromBody(
+      `Failed to ${context}`,
+      response.status,
+      response.data,
+    );
   }
-
-  // Default error response
-  throw new Error(
-    JSON.stringify({
-      status: 500,
-      message: `Failed to ${context}: ${error instanceof Error ? error.message : "Unknown error"}`,
-      code: `${domain}_API_ERROR_UNKNOWN`,
-    }),
+  throw new ApiError(
+    `Failed to ${context}: ${error instanceof Error ? error.message : "Unknown error"}`,
+    500,
   );
 }
 
@@ -237,19 +163,25 @@ interface FetchWithRetryOptions {
   getNewToken?: () => Promise<string | undefined>;
 }
 
+export interface FetchWithRetryResult<T> {
+  response: Response | null;
+  data: T | null;
+  accessDeniedStatus?: 401 | 403;
+}
+
 /**
  * Make an authenticated fetch request with 401 retry logic
  * Handles token refresh and retries the request once on 401
  * @param url - The URL to fetch
  * @param token - Current auth token
  * @param options - Fetch options including retry handlers
- * @returns Tuple of [response, data] where response is null if request failed after retry
+ * @returns Response data or the status of a denied request
  */
 export async function fetchWithRetry<T>(
   url: string,
   token: string | undefined,
   options: FetchWithRetryOptions = {},
-): Promise<{ response: Response | null; data: T | null }> {
+): Promise<FetchWithRetryResult<T>> {
   const { method = "GET", body, onAuthFailure, getNewToken } = options;
 
   const makeRequest = async (
@@ -275,7 +207,7 @@ export async function fetchWithRetry<T>(
   };
 
   // Initial request
-  const response = await makeRequest(token);
+  let response = await makeRequest(token);
 
   // Handle 401 with retry
   if (response.status === 401 && onAuthFailure && getNewToken) {
@@ -291,30 +223,33 @@ export async function fetchWithRetry<T>(
 
     if (refreshSuccessful) {
       const newToken = await getNewToken();
-      const retryResponse = await makeRequest(newToken);
+      response = await makeRequest(newToken);
 
-      if (retryResponse.ok) {
-        const data = (await retryResponse.json()) as T;
-        return { response: retryResponse, data };
+      if (response.ok) {
+        const data = (await response.json()) as T;
+        return { response, data };
       }
+    } else {
+      return { response: null, data: null, accessDeniedStatus: 401 };
     }
-
-    return { response: null, data: null };
   }
 
   if (!response.ok) {
     const errorText = await response.text();
     // Only 401/403 are expected "access denied" scenarios - return null for graceful handling
     // Other 4xx errors (400 Bad Request, 404 Not Found) indicate bugs and should throw
-    const accessDeniedStatuses = [401, 403];
-    if (accessDeniedStatuses.includes(response.status)) {
+    if (response.status === 401 || response.status === 403) {
       logger.warn("api access denied", {
         url: sanitizeEndpoint(url),
         method,
         status: response.status,
         error_text: errorText.substring(0, 200),
       });
-      return { response: null, data: null };
+      return {
+        response: null,
+        data: null,
+        accessDeniedStatus: response.status,
+      };
     }
     // All other errors (4xx bugs, 5xx server errors) should throw
     const logContext = {

@@ -147,7 +147,7 @@ describe("OwnDienstplanView", () => {
     state.mutateProjection.mockClear();
   });
 
-  it("shows the own week read-only with sums by Schichtart and the Soll", () => {
+  it("shows the own week read-only with sums by Dienstart and the Soll", () => {
     state.shifts = [
       shift(),
       shift({
@@ -277,6 +277,10 @@ describe("OwnDienstplanView", () => {
 
     render(<OwnDienstplanView />);
 
+    // Anker: die Seite meldet den Ladezustand des Dienstplans.
+    expect(
+      screen.getByRole("status", { name: /Mein Dienstplan.*wird geladen/ }),
+    ).toBeInTheDocument();
     expect(
       screen.queryByText(/Keine Schichten in dieser Woche/),
     ).not.toBeInTheDocument();
@@ -288,6 +292,10 @@ describe("OwnDienstplanView", () => {
 
     render(<OwnDienstplanView />);
 
+    // Anker: die Seite wartet sichtbar im Ladezustand auf die Berechtigung.
+    expect(
+      screen.getByRole("status", { name: /Mein Dienstplan.*wird geladen/ }),
+    ).toBeInTheDocument();
     expect(state.keys).toEqual([]);
     expect(screen.queryByText("geplant")).not.toBeInTheDocument();
   });

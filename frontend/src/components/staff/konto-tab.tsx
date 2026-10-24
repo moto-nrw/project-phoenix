@@ -25,6 +25,7 @@ import { createLogger } from "~/lib/logger";
 import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import { useClipboardCopy } from "~/lib/use-clipboard-copy";
 import type { Teacher } from "~/lib/teacher-api";
+import { FieldErrorHint } from "~/components/ui/field-error-hint";
 
 const logger = createLogger({ component: "StaffKontoTab" });
 
@@ -55,6 +56,11 @@ export interface KontoEditing {
   readonly existingPositions: readonly string[];
   /** Systemrolle (users:manage und ein verknüpftes Konto). */
   readonly canEditRole: boolean;
+  /**
+   * Die Seite zeigt im Menü der Kopfkarte „Löschen“ (users:delete). Nur dann
+   * darf der Hinweis zum Rollenwechsel einer Lehrkraft dorthin schicken.
+   */
+  readonly canDeleteStaff: boolean;
   /** Rollen des Kontos; `undefined`, solange sie laden. */
   readonly roleAssignment?: AccountRoleAssignment;
   /** Die Rollen konnten nicht geladen werden; das Feld bleibt dann aus. */
@@ -212,7 +218,7 @@ export function KontoTab({ teacher, editing }: KontoTabProps) {
       });
       const roleOnly = err instanceof KontoRoleSaveError;
       await errors.show(roleOnly ? err.cause : err, {
-        object: roleOnly ? "die Systemrolle" : "das Konto",
+        object: roleOnly ? "die Rolle" : "das Konto",
         // Der Datensatz ist bei KontoRoleSaveError bereits gespeichert. Der
         // aktuelle Rollenentwurf geht noch einmal raus, ohne Name, Position
         // oder Notizen eines anderen Bearbeitungsstands zu überschreiben.
@@ -264,7 +270,7 @@ export function KontoTab({ teacher, editing }: KontoTabProps) {
             accentColor="orange"
           >
             <DataGrid>
-              <DataField label="Systemrolle">
+              <DataField label="Rolle">
                 {displayRole ?? "Keine Rolle hinterlegt"}
               </DataField>
               <DataField label="Position">
@@ -491,6 +497,7 @@ function KontoEditForm({
               assignment={assignment}
               loadFailed={editing.roleAssignmentError === true}
               displayRole={displayRole}
+              canDeleteStaff={editing.canDeleteStaff}
               value={roleValue}
               disabled={saving}
               error={fieldError("role_id")}
@@ -498,11 +505,14 @@ function KontoEditForm({
             />
           ) : (
             <DataGrid>
-              <DataField label="Systemrolle">{displayRole}</DataField>
+              <DataField label="Rolle">{displayRole}</DataField>
             </DataGrid>
           )}
           {showPosition ? (
-            <div>
+            // Position ist Freitext für die Personalliste und hängt an keiner
+            // Berechtigung (#4574). Abgesetzt von der Rolle, damit niemand
+            // hier Rechte zu vergeben meint.
+            <div className="border-t border-gray-100 pt-3">
               <Input
                 controlSize="compact"
                 label="Position"
@@ -514,7 +524,14 @@ function KontoEditForm({
                 placeholder="z. B. Pädagogische Fachkraft, OGS-Büro"
                 disabled={saving}
                 error={fieldError("role")}
+                aria-describedby="konto-position-hint"
               />
+              <p
+                id="konto-position-hint"
+                className="mt-1 text-xs text-gray-600"
+              >
+                Nur zur Anzeige in der Personalliste. Ändert keine Rechte.
+              </p>
               {editing.existingPositions.length > 0 ? (
                 <datalist id="konto-position-suggestions">
                   {editing.existingPositions.map((position) => (
@@ -573,6 +590,7 @@ function RoleField({
   assignment,
   loadFailed,
   displayRole,
+  canDeleteStaff,
   value,
   disabled,
   error,
@@ -581,6 +599,7 @@ function RoleField({
   readonly assignment: AccountRoleAssignment | undefined;
   readonly loadFailed: boolean;
   readonly displayRole: string;
+  readonly canDeleteStaff: boolean;
   readonly value: string;
   readonly disabled: boolean;
   readonly error: string | undefined;
@@ -590,11 +609,11 @@ function RoleField({
     return (
       <div className="space-y-1">
         <DataGrid>
-          <DataField label="Systemrolle">{displayRole}</DataField>
+          <DataField label="Rolle">{displayRole}</DataField>
         </DataGrid>
         <p className="text-xs text-gray-600">
-          Die Rollen konnten nicht geladen werden. Die Systemrolle bleibt, wie
-          sie ist.
+          Die Rollen konnten nicht geladen werden. Die Rolle bleibt, wie sie
+          ist.
         </p>
       </div>
     );
@@ -603,13 +622,28 @@ function RoleField({
     return (
       <div className="space-y-1">
         <DataGrid>
-          <DataField label="Systemrolle">{displayRole}</DataField>
+          <DataField label="Rolle">{displayRole}</DataField>
         </DataGrid>
         <p className="text-xs text-gray-600">
-          Lehrkraft-Zugänge haben kein Betreuungsprofil und können hier nicht
-          umgestellt werden. Für einen Wechsel den Zugang deaktivieren und die
-          Person neu anlegen oder einladen.
+          Lehrkraft-Zugänge haben kein Betreuungsprofil. Deshalb lässt sich die
+          Rolle hier nicht ändern.
         </p>
+        {canDeleteStaff ? (
+          <div className="text-xs text-gray-600">
+            <p>So geben Sie der Person eine andere Rolle:</p>
+            <ol className="mt-1 list-decimal space-y-0.5 pl-5">
+              <li>Öffnen Sie oben rechts das Menü mit den drei Punkten.</li>
+              <li>Wählen Sie „Löschen“.</li>
+              <li>Laden Sie die Person danach neu ein.</li>
+            </ol>
+          </div>
+        ) : (
+          <p className="text-xs text-gray-600">
+            Für eine andere Rolle wird die Person gelöscht und neu eingeladen.
+            Das kann nur, wer Personal löschen darf. Fragen Sie zum Beispiel die
+            Schulleitung.
+          </p>
+        )}
       </div>
     );
   }
@@ -620,13 +654,15 @@ function RoleField({
         htmlFor="konto-role"
         className={`mb-2 block text-sm font-medium ${error ? "text-moto-red-strong" : "text-gray-700"}`}
       >
-        Systemrolle
+        Rolle
       </label>
       <CustomSelect
         id="konto-role"
         name="role_id"
         ariaLabelledBy="konto-role-label"
-        ariaDescribedBy={error ? "konto-role-error" : undefined}
+        ariaDescribedBy={
+          error ? "konto-role-hint konto-role-error" : "konto-role-hint"
+        }
         value={value}
         onChange={onChange}
         options={(assignment?.options ?? []).map((option) => ({
@@ -637,15 +673,10 @@ function RoleField({
         invalid={Boolean(error)}
         disabled={disabled || !assignment}
       />
-      {error ? (
-        <p
-          id="konto-role-error"
-          role="alert"
-          className="text-moto-red-strong mt-1 text-xs"
-        >
-          {error}
-        </p>
-      ) : null}
+      <p id="konto-role-hint" className="mt-1 text-xs text-gray-600">
+        Bestimmt, was die Person in moto darf.
+      </p>
+      <FieldErrorHint id="konto-role-error" message={error} live />
     </div>
   );
 }

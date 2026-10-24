@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
-import { useStudentData, shouldShowCheckoutSection } from "./use-student-data";
+import { useStudentData } from "./use-student-data";
 import type { ExtendedStudent } from "./use-student-data";
 
 // Mock dependencies
@@ -36,7 +36,6 @@ describe("useStudentData", () => {
     buskind: false,
     birthday: "2010-05-15",
     extra_info: "Extra info",
-    supervisor_notes: "Notes",
     health_info: "Health info",
     pickup_status: "regular",
     sick: false,
@@ -382,7 +381,6 @@ describe("useStudentData", () => {
           student: {
             ...mockStudent,
             extra_info: "Sensitive info",
-            supervisor_notes: "Private notes",
             sick: true,
             sick_since: "2024-01-10T08:00:00Z",
           },
@@ -403,7 +401,6 @@ describe("useStudentData", () => {
 
       expect(result.current.hasFullAccess).toBe(true);
       expect(result.current.student?.extra_info).toBe("Sensitive info");
-      expect(result.current.student?.supervisor_notes).toBe("Private notes");
       expect(result.current.student?.sick).toBe(true);
     });
 
@@ -746,220 +743,6 @@ describe("useStudentData", () => {
       expect(result.current.myGroups).toEqual([]);
       expect(result.current.myGroupRooms).toEqual([]);
       expect(result.current.mySupervisedRooms).toEqual([]);
-    });
-  });
-});
-
-describe("shouldShowCheckoutSection", () => {
-  const baseStudent: ExtendedStudent = {
-    id: "1",
-    first_name: "John",
-    second_name: "Doe",
-    name: "John Doe",
-    school_class: "5a",
-    group_id: "100",
-    group_name: "Group A",
-    current_location: "Room 101",
-    bus: false,
-    buskind: false,
-  };
-
-  describe("group membership checks", () => {
-    it("should return true when student is in user's group and checked in", () => {
-      const student = {
-        ...baseStudent,
-        group_id: "100",
-        current_location: "Room 101",
-      };
-
-      const result = shouldShowCheckoutSection(student, ["100", "101"], []);
-
-      expect(result).toBe(true);
-    });
-
-    it("should return true when student is checked in, regardless of group", () => {
-      const student = {
-        ...baseStudent,
-        group_id: "999",
-        current_location: "Room 101",
-      };
-
-      const result = shouldShowCheckoutSection(student, ["100", "101"], []);
-
-      // New behavior: any checked-in student can be checked out
-      expect(result).toBe(true);
-    });
-
-    it("should return true when student is checked in without group_id", () => {
-      const student = {
-        ...baseStudent,
-        group_id: undefined,
-        current_location: "Room 101",
-      };
-
-      const result = shouldShowCheckoutSection(student, ["100", "101"], []);
-
-      // New behavior: any checked-in student can be checked out
-      expect(result).toBe(true);
-    });
-  });
-
-  describe("supervised room checks", () => {
-    it("should return true when student is in supervised room and checked in", () => {
-      const student = {
-        ...baseStudent,
-        group_id: "999", // Not in user's groups
-        current_location: "Room C - Activity",
-      };
-
-      const result = shouldShowCheckoutSection(student, [], ["Room C"]);
-
-      expect(result).toBe(true);
-    });
-
-    it("should return true when student is checked in regardless of supervised room", () => {
-      const student = {
-        ...baseStudent,
-        group_id: "999",
-        current_location: "Room X",
-      };
-
-      const result = shouldShowCheckoutSection(student, [], ["Room C"]);
-
-      // New behavior: any checked-in student can be checked out
-      expect(result).toBe(true);
-    });
-
-    it("should match partial room names in supervised rooms", () => {
-      const student = {
-        ...baseStudent,
-        current_location: "Room C - Special Activity",
-      };
-
-      const result = shouldShowCheckoutSection(student, [], ["Room C"]);
-
-      expect(result).toBe(true);
-    });
-  });
-
-  describe("check-in status", () => {
-    it("should return false when student is at home (Zuhause)", () => {
-      const student = {
-        ...baseStudent,
-        group_id: "100",
-        current_location: "Zuhause",
-      };
-
-      const result = shouldShowCheckoutSection(student, ["100"], []);
-
-      expect(result).toBe(false);
-    });
-
-    it("should return false when current_location is undefined", () => {
-      const student = {
-        ...baseStudent,
-        group_id: "100",
-        current_location: "",
-      };
-
-      const result = shouldShowCheckoutSection(student, ["100"], []);
-
-      expect(result).toBe(false);
-    });
-
-    it("should handle Zuhause variations in location", () => {
-      const student = {
-        ...baseStudent,
-        group_id: "100",
-        current_location: "Zuhause - Abgeholt",
-      };
-
-      const result = shouldShowCheckoutSection(student, ["100"], []);
-
-      expect(result).toBe(false);
-    });
-  });
-
-  describe("combined conditions", () => {
-    it("should return true when both group and room conditions are met", () => {
-      const student = {
-        ...baseStudent,
-        group_id: "100",
-        current_location: "Room A",
-      };
-
-      const result = shouldShowCheckoutSection(student, ["100"], ["Room A"]);
-
-      expect(result).toBe(true);
-    });
-
-    it("should return true when checked in regardless of group or room", () => {
-      const student = {
-        ...baseStudent,
-        group_id: "999",
-        current_location: "Room X",
-      };
-
-      const result = shouldShowCheckoutSection(
-        student,
-        ["100", "101"],
-        ["Room A", "Room B"],
-      );
-
-      // New behavior: any checked-in student can be checked out
-      expect(result).toBe(true);
-    });
-
-    it("should return false when in group but not checked in", () => {
-      const student = {
-        ...baseStudent,
-        group_id: "100",
-        current_location: "Zuhause",
-      };
-
-      const result = shouldShowCheckoutSection(student, ["100"], []);
-
-      expect(result).toBe(false);
-    });
-  });
-
-  describe("edge cases", () => {
-    it("should return true when checked in with empty arrays", () => {
-      const student = {
-        ...baseStudent,
-        group_id: "100",
-        current_location: "Room 101",
-      };
-
-      const result = shouldShowCheckoutSection(student, [], []);
-
-      // New behavior: any checked-in student can be checked out
-      expect(result).toBe(true);
-    });
-
-    it("should handle null/undefined location gracefully", () => {
-      const student = {
-        ...baseStudent,
-        group_id: "100",
-        current_location: "",
-      };
-
-      const result = shouldShowCheckoutSection(student, ["100"], ["Room A"]);
-
-      expect(result).toBe(false);
-    });
-
-    it("should be case-sensitive for Zuhause check", () => {
-      const student = {
-        ...baseStudent,
-        group_id: "100",
-        current_location: "zuhause", // lowercase
-      };
-
-      const result = shouldShowCheckoutSection(student, ["100"], []);
-
-      // Should still return true because lowercase "zuhause" doesn't match "Zuhause"
-      expect(result).toBe(true);
     });
   });
 });

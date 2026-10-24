@@ -9,6 +9,7 @@ import {
   validateInvitation,
   acceptInvitation,
   createInvitation,
+  findFormerEmployment,
   listPendingInvitations,
   resendInvitation,
   revokeInvitation,
@@ -138,13 +139,13 @@ describe("invitation-api", () => {
         ok: false,
         status: 404,
         headers: new Headers({ "Content-Type": "application/json" }),
-        json: async () => ({ error: "Invitation not found" }),
+        json: async () => ({ detail: "Invitation not found" }),
       });
 
       vi.spyOn(console, "warn").mockImplementation(() => undefined);
 
       await expect(validateInvitation("invalid-token")).rejects.toThrow(
-        "Invitation not found",
+        "Einladung konnte nicht geprüft werden.",
       );
     });
 
@@ -186,7 +187,7 @@ describe("invitation-api", () => {
           "Content-Type": "application/json",
           "Retry-After": "60",
         }),
-        json: async () => ({ error: "Too many requests" }),
+        json: async () => ({ detail: "Too many requests" }),
       });
 
       vi.spyOn(console, "warn").mockImplementation(() => undefined);
@@ -214,7 +215,7 @@ describe("invitation-api", () => {
           "Content-Type": "application/json",
           "Retry-After": futureDate.toUTCString(),
         }),
-        json: async () => ({ error: "Rate limited" }),
+        json: async () => ({ detail: "Rate limited" }),
       });
 
       vi.spyOn(console, "warn").mockImplementation(() => undefined);
@@ -236,7 +237,7 @@ describe("invitation-api", () => {
         headers: new Headers({
           "Retry-After": "-10",
         }),
-        json: async () => ({ error: "Error" }),
+        json: async () => ({ detail: "Error" }),
       });
 
       vi.spyOn(console, "warn").mockImplementation(() => undefined);
@@ -259,7 +260,7 @@ describe("invitation-api", () => {
         headers: new Headers({
           "Retry-After": pastDate.toUTCString(),
         }),
-        json: async () => ({ error: "Error" }),
+        json: async () => ({ detail: "Error" }),
       });
 
       vi.spyOn(console, "warn").mockImplementation(() => undefined);
@@ -280,7 +281,7 @@ describe("invitation-api", () => {
         headers: new Headers({
           "Retry-After": "not-a-number-or-date",
         }),
-        json: async () => ({ error: "Error" }),
+        json: async () => ({ detail: "Error" }),
       });
 
       vi.spyOn(console, "warn").mockImplementation(() => undefined);
@@ -322,7 +323,7 @@ describe("invitation-api", () => {
       );
     });
 
-    it("extracts message field from JSON error response", async () => {
+    it("does not read a legacy message field as the diagnostic", async () => {
       global.fetch = vi.fn().mockResolvedValueOnce({
         ok: false,
         status: 400,
@@ -333,7 +334,7 @@ describe("invitation-api", () => {
       vi.spyOn(console, "warn").mockImplementation(() => undefined);
 
       await expect(validateInvitation("test-token")).rejects.toThrow(
-        "Invalid token format",
+        "Einladung konnte nicht geprüft werden.",
       );
     });
   });
@@ -389,14 +390,14 @@ describe("invitation-api", () => {
         ok: false,
         status: 409,
         headers: new Headers({ "Content-Type": "application/json" }),
-        json: async () => ({ error: "Account already exists" }),
+        json: async () => ({ detail: "Account already exists" }),
       });
 
       vi.spyOn(console, "warn").mockImplementation(() => undefined);
 
       await expect(
         acceptInvitation("test-token", acceptRequest),
-      ).rejects.toThrow("Account already exists");
+      ).rejects.toThrow("Einladung konnte nicht angenommen werden.");
     });
 
     it("uses fallback error message when response is empty", async () => {
@@ -461,13 +462,13 @@ describe("invitation-api", () => {
         ok: false,
         status: 409,
         headers: new Headers({ "Content-Type": "application/json" }),
-        json: async () => ({ error: "Email already has pending invitation" }),
+        json: async () => ({ detail: "Email already has pending invitation" }),
       });
 
       vi.spyOn(console, "warn").mockImplementation(() => undefined);
 
       await expect(createInvitation(createRequest)).rejects.toThrow(
-        "Email already has pending invitation",
+        "Einladung konnte nicht erstellt werden.",
       );
     });
 
@@ -483,6 +484,23 @@ describe("invitation-api", () => {
 
       await expect(createInvitation(createRequest)).rejects.toThrow(
         "Einladung konnte nicht erstellt werden.",
+      );
+    });
+  });
+
+  describe("findFormerEmployment", () => {
+    it("forwards cancellation to the former employment lookup", async () => {
+      global.fetch = vi.fn().mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ data: { former_employment: null } }),
+      });
+      const controller = new AbortController();
+
+      await findFormerEmployment("former@example.com", controller.signal);
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/invitations/former-employment",
+        expect.objectContaining({ signal: controller.signal }),
       );
     });
   });
@@ -533,12 +551,14 @@ describe("invitation-api", () => {
         ok: false,
         status: 403,
         headers: new Headers({ "Content-Type": "application/json" }),
-        json: async () => ({ error: "Forbidden" }),
+        json: async () => ({ detail: "Forbidden" }),
       });
 
       vi.spyOn(console, "warn").mockImplementation(() => undefined);
 
-      await expect(listPendingInvitations()).rejects.toThrow("Forbidden");
+      await expect(listPendingInvitations()).rejects.toThrow(
+        "Offene Einladungen konnten nicht geladen werden.",
+      );
     });
 
     it("uses fallback error message on failure", async () => {
@@ -577,13 +597,13 @@ describe("invitation-api", () => {
         ok: false,
         status: 404,
         headers: new Headers({ "Content-Type": "application/json" }),
-        json: async () => ({ error: "Invitation not found" }),
+        json: async () => ({ detail: "Invitation not found" }),
       });
 
       vi.spyOn(console, "warn").mockImplementation(() => undefined);
 
       await expect(resendInvitation(999)).rejects.toThrow(
-        "Invitation not found",
+        "Einladung konnte nicht erneut gesendet werden.",
       );
     });
 
@@ -623,13 +643,13 @@ describe("invitation-api", () => {
         ok: false,
         status: 404,
         headers: new Headers({ "Content-Type": "application/json" }),
-        json: async () => ({ error: "Invitation not found" }),
+        json: async () => ({ detail: "Invitation not found" }),
       });
 
       vi.spyOn(console, "warn").mockImplementation(() => undefined);
 
       await expect(revokeInvitation(999)).rejects.toThrow(
-        "Invitation not found",
+        "Einladung konnte nicht widerrufen werden.",
       );
     });
 
@@ -665,13 +685,13 @@ describe("invitation-api", () => {
       );
     });
 
-    it("handles response with both error and message fields (error takes precedence)", async () => {
+    it("keeps response diagnostics separate from the validation fallback", async () => {
       global.fetch = vi.fn().mockResolvedValueOnce({
         ok: false,
         status: 400,
         headers: new Headers({ "Content-Type": "application/json" }),
         json: async () => ({
-          error: "Primary error message",
+          detail: "Primary error message",
           message: "Secondary message",
         }),
       });
@@ -679,7 +699,7 @@ describe("invitation-api", () => {
       vi.spyOn(console, "warn").mockImplementation(() => undefined);
 
       await expect(validateInvitation("test-token")).rejects.toThrow(
-        "Primary error message",
+        "Einladung konnte nicht geprüft werden.",
       );
     });
 
@@ -703,7 +723,7 @@ describe("invitation-api", () => {
         ok: false,
         status: 418,
         headers: new Headers({ "Content-Type": "application/json" }),
-        json: async () => ({ error: "I'm a teapot" }),
+        json: async () => ({ detail: "I'm a teapot" }),
       });
 
       vi.spyOn(console, "warn").mockImplementation(() => undefined);

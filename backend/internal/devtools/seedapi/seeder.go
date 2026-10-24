@@ -1,0 +1,793 @@
+package api
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"maps"
+	"slices"
+	"strings"
+	"time"
+)
+
+const (
+	defaultSeedOrganizationName = "Demo Organization"
+	defaultSeedOrganizationSlug = "demo-organization"
+	defaultSeedSchoolName       = "Demo School"
+	defaultSeedSchoolSubdomain  = "demo-school"
+	seedTokenHeader             = "X-Phoenix-Seed-Token"
+	defaultSeedParentPassword   = "ParentSeed1234%"
+	seedPasswordAlphabet        = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%"
+	seedPasswordLength          = 12
+)
+
+// SeedOptions controls the API seeder. The default is the stable vollbetrieb
+// profile; Randomize is an explicit escape hatch for parallel ad-hoc stacks.
+type SeedOptions struct {
+	TenantSlug    string // Optional tenant slug override
+	StaffPassword string // Shared password for all 20 staff accounts
+	AdminEmail    string // Optional bootstrap school admin email override
+	Randomize     bool   // Append unique suffixes and generate admin credentials
+	SchoolName    string // Optional school name override
+	OnlyProfile   string // Restrict the run to one profile; empty seeds all five
+	StatePath     string // Output path; empty uses DefaultSeedStatePath
+	StandingDemo  bool   // Keep simulation devices but disable their user interface
+	// VisitorFirstName and VisitorLastName put a prospect of the public demo
+	// into the school (#3463): one caregiver with a group and one parent
+	// carry exactly this name. Only the name is taken; every account keeps
+	// its synthetic address. Both are set, or neither.
+	VisitorFirstName string
+	VisitorLastName  string
+	// AccountScope replaces the tenant slug in account emails and usernames.
+	// A repeated seed of the same slug needs a fresh one: accounts are unique
+	// across the database and the abandoned school keeps its own.
+	AccountScope string
+	// ReplaceAbandoned moves a school a broken seed left under the slug out
+	// of the way (renamed and soft-deleted) instead of failing with 409.
+	ReplaceAbandoned bool
+	// SaveState replaces file output, allowing the demo process to persist
+	// credentials in the database. A failure fails the seed workflow.
+	SaveState func(context.Context, *SeedState) error
+	// SaveBootstrap persists the created school before later seed steps can
+	// fail. It is only used by the queued public-demo provisioner.
+	SaveBootstrap func(context.Context, int64) error
+	// SaveVisitor records the visitor accounts as soon as the seed creates
+	// them, so a later failed step can still erase their copied data.
+	SaveVisitor func(context.Context, int64, int64) error
+	// DeferHistory leaves the deferred steps out of Seed: the school is usable
+	// without them, and SeedResult.Deferred runs them afterwards.
+	DeferHistory bool
+}
+
+// Seeder orchestrates the complete API-based seeding process
+type Seeder struct {
+	client     *Client
+	random     io.Reader
+	verbose    bool
+	options    SeedOptions
+	statePath  string
+	profile    string
+	definition demoProfileDefinition
+}
+
+// SeedResult contains counts of created entities
+type SeedResult struct {
+	Fixed *FixedResult
+	// Deferred seeds what DeferHistory left out; nil without it.
+	Deferred func(context.Context) error
+}
+
+type bootstrapSeedState struct {
+	OrganizationID   int64
+	OrganizationName string
+	OrganizationSlug string
+	SchoolID         int64
+	SchoolName       string
+	SchoolSlug       string
+	TenantSlug       string
+	AdminEmail       string
+	AdminPassword    string
+	AdminName        string
+	AdminPosition    string
+}
+
+type seedProfileIdentity struct {
+	organizationName string
+	organizationSlug string
+	schoolName       string
+	schoolSlug       string
+}
+
+// NewSeeder creates a new API seeder
+func NewSeeder(adapter Adapter, random io.Reader, verbose bool, options SeedOptions) *Seeder {
+	statePath := options.StatePath
+	if statePath == "" {
+		statePath = DefaultSeedStatePath
+	}
+	definition := fullOperationProfileDefinition()
+	if options.StandingDemo {
+		definition.Settings[profileSettingAttendanceNFC] = SeedSetting{Value: []byte(`false`), ManagedBy: SettingManagedByOperator}
+	}
+	return &Seeder{
+		client:     NewClientWithAdapter(newLoginCachingAdapter(adapter), verbose),
+		random:     random,
+		verbose:    verbose,
+		options:    options,
+		statePath:  statePath,
+		profile:    DefaultProfileKey,
+		definition: definition,
+	}
+}
+
+// Seed executes the complete seeding workflow
+func (s *Seeder) Seed(ctx context.Context, email, password, staffPIN string) (*SeedResult, error) {
+	if s.client == nil || s.client.adapter == nil {
+		return nil, fmt.Errorf("seed API adapter is required")
+	}
+	if s.random == nil {
+		return nil, fmt.Errorf("seed random source is required")
+	}
+	if (s.options.VisitorFirstName == "") != (s.options.VisitorLastName == "") {
+		return nil, fmt.Errorf("a demo visitor needs a first and a last name")
+	}
+	if s.options.OnlyProfile != "" && s.options.OnlyProfile != s.definition.Key {
+		return nil, fmt.Errorf("a run can only be restricted to profile %q, got %q", s.definition.Key, s.options.OnlyProfile)
+	}
+	runtime := newRuntime(s, email, password, staffPIN)
+	runtime.DeferredSeedPending = s.options.DeferHistory
+	workflow := fullDemoWorkflow(s)
+	if err := workflow.Run(ctx, runtime); err != nil {
+		var stepErr *StepError
+		if errors.As(err, &stepErr) {
+			return nil, s.formatProfileError(s.profile, stepErr.Step, stepErr.Err)
+		}
+		return nil, s.formatProfileError(s.profile, workflow.Name, err)
+	}
+	if s.options.DeferHistory {
+		steps := append(deferredDemoSteps(s), buildStateStep{seeder: s})
+		runtime.Result.Deferred = func(ctx context.Context) error {
+			for index, step := range steps {
+				if index == len(steps)-1 {
+					runtime.DeferredSeedPending = false
+				}
+				if err := step.Run(ctx, runtime); err != nil {
+					runtime.DeferredSeedPending = true
+					return s.formatProfileError(s.profile, step.Name(), err)
+				}
+			}
+			return nil
+		}
+	}
+	return runtime.Result, nil
+}
+
+// bootstrapTenant creates the demo organization, school, and admin account.
+// Stable profile values are the default, so re-running without a database
+// reset fails clearly with 409. Randomize must be requested explicitly.
+func (s *Seeder) bootstrapTenant(ctx context.Context) (*bootstrapSeedState, error) {
+	identity := s.profileIdentity()
+	orgID, err := s.createSeedOrganization(identity.organizationName, identity.organizationSlug)
+	if err != nil && s.accountScope() != "" && isConflictError(err) {
+		// Every demo school of one database hangs under the same Demo-Träger.
+		orgID, err = s.findSeedOrganization(identity.organizationSlug)
+	}
+	if err != nil {
+		return nil, wrapConflictError(err, "organization")
+	}
+	schoolID, tenantSlug, err := s.createSeedSchool(orgID, identity.schoolName, identity.schoolSlug, identity.schoolSlug)
+	if err != nil && s.options.ReplaceAbandoned && isConflictError(err) {
+		if err = s.retireAbandonedSchool(identity.schoolSlug); err == nil {
+			schoolID, tenantSlug, err = s.createSeedSchool(orgID, identity.schoolName, identity.schoolSlug, identity.schoolSlug)
+		}
+	}
+	if err != nil {
+		return nil, wrapConflictError(err, "school")
+	}
+	adminEmail, adminPassword, err := s.profileAdminCredentials()
+	if err != nil {
+		return nil, err
+	}
+	adminName := "Seed Admin"
+	adminPosition := "OGS-Büro"
+	if err := s.inviteSeedAdmin(schoolID, adminEmail, adminPassword, adminPosition); err != nil {
+		return nil, err
+	}
+	return &bootstrapSeedState{
+		OrganizationID: orgID, OrganizationName: identity.organizationName, OrganizationSlug: identity.organizationSlug,
+		SchoolID: schoolID, SchoolName: identity.schoolName, SchoolSlug: identity.schoolSlug, TenantSlug: tenantSlug,
+		AdminEmail: adminEmail, AdminPassword: adminPassword, AdminName: adminName, AdminPosition: adminPosition,
+	}, nil
+}
+
+func (s *Seeder) profileIdentity() seedProfileIdentity {
+	if s.options.Randomize {
+		suffix := fmt.Sprintf("%d", time.Now().UnixNano())
+		return seedProfileIdentity{
+			organizationName: fmt.Sprintf("%s %s", defaultSeedOrganizationName, suffix),
+			organizationSlug: fmt.Sprintf("%s-%s", defaultSeedOrganizationSlug, suffix),
+			schoolName:       fmt.Sprintf("%s %s", defaultSeedSchoolName, suffix),
+			schoolSlug:       truncateSeedSubdomain(fmt.Sprintf("%s-%s", defaultSeedSchoolSubdomain, suffix)),
+		}
+	}
+	slug := s.definition.SchoolSlug
+	if s.options.TenantSlug != "" {
+		slug = s.options.TenantSlug
+	}
+	name := s.definition.SchoolName
+	if s.options.SchoolName != "" {
+		name = s.options.SchoolName
+	}
+	return seedProfileIdentity{
+		organizationName: s.definition.OrganizationName, organizationSlug: s.definition.OrganizationSlug,
+		schoolName: name, schoolSlug: slug,
+	}
+}
+
+// accountScope is the slug every account of the school carries. Account emails
+// and usernames are unique across all schools of one database, so a school
+// seeded under a slug given from outside needs its own. The profile's own slug
+// yields no scope, which keeps the stable local credentials.
+func (s *Seeder) accountScope() string {
+	if s.options.Randomize || s.options.TenantSlug == s.definition.SchoolSlug {
+		return ""
+	}
+	if s.options.AccountScope != "" {
+		return s.options.AccountScope
+	}
+	return s.options.TenantSlug
+}
+
+// scopedEmail moves an address into the school's own demo domain, e.g.
+// julia.klein@demo-ogs-nord.moto-ogs.de. The scope keeps it unique across
+// schools; in the domain it leaves the name readable and the address
+// recognizable as one of the demo.
+func scopedEmail(email, scope string) string {
+	local, _, ok := strings.Cut(email, "@")
+	if scope == "" || !ok {
+		return email
+	}
+	return local + "@demo-" + scope + ".moto-ogs.de"
+}
+
+// emailLocalPart turns a name into the part of an address before the @.
+// Names carry real umlauts, but the canonical email pattern
+// (users.ValidateOptionalEmail) only accepts ASCII.
+func emailLocalPart(firstName, lastName string) string {
+	return strings.NewReplacer(
+		"ä", "ae",
+		"ö", "oe",
+		"ü", "ue",
+		"ß", "ss",
+		"ı", "i",
+	).Replace(strings.ReplaceAll(strings.ToLower(firstName+"."+lastName), " ", "."))
+}
+
+func (s *Seeder) profileAdminCredentials() (string, string, error) {
+	return s.profileAdminCredentialsFor(s.definition)
+}
+
+func (s *Seeder) profileAdminCredentialsFor(definition demoProfileDefinition) (string, string, error) {
+	email := definition.SchoolAdminEmail
+	if s.options.AdminEmail != "" && definition.Key == s.definition.Key {
+		email = s.options.AdminEmail
+	} else if scope := s.accountScope(); scope != "" {
+		email = scopedEmail(email, scope)
+	} else if s.options.Randomize {
+		email = fmt.Sprintf("%s-admin-%d@example.com", definition.Key, time.Now().UnixNano())
+	}
+	if s.options.StaffPassword != "" {
+		return email, s.options.StaffPassword, nil
+	}
+	if !s.options.Randomize {
+		return email, definition.SchoolAdminPassword, nil
+	}
+	password, err := GenerateSeedPassword(s.random)
+	if err != nil {
+		return "", "", fmt.Errorf("generate admin password: %w", err)
+	}
+	return email, password, nil
+}
+
+func (s *Seeder) inviteSeedAdmin(schoolID int64, email, password, position string) error {
+	inviteResp, err := s.client.PostWithHeaders(fmt.Sprintf("/operator/schools/%d/invite-admin", schoolID), map[string]any{
+		"email":      email,
+		"first_name": "Seed",
+		"last_name":  "Admin",
+		"position":   position,
+	}, map[string]string{
+		seedTokenHeader: "true",
+	})
+	if err != nil {
+		return fmt.Errorf("invite school admin: %w", err)
+	}
+	token, err := s.extractBootstrapInvitationToken(inviteResp)
+	if err != nil {
+		return err
+	}
+
+	if _, err := s.client.PostPublic(fmt.Sprintf("/auth/invitations/%s/accept", token), map[string]any{
+		"password":         password,
+		"confirm_password": password,
+	}); err != nil {
+		return fmt.Errorf("accept invitation: %w", err)
+	}
+	return nil
+}
+
+func (s *Seeder) extractBootstrapInvitationToken(inviteResp []byte) (string, error) {
+	var invitePayload struct {
+		Data struct {
+			Token string `json:"token"`
+		} `json:"data"`
+	}
+	if err := parseJSON(inviteResp, &invitePayload); err == nil && invitePayload.Data.Token != "" {
+		return invitePayload.Data.Token, nil
+	}
+	return "", fmt.Errorf("bootstrap invite token not available in operator response")
+}
+
+func (s *Seeder) createSeedOrganization(name, slug string) (int64, error) {
+	orgResp, err := s.client.Post("/operator/organizations", map[string]any{
+		"name": name,
+		"slug": slug,
+	})
+	if err != nil {
+		return 0, fmt.Errorf("create organization: %w", err)
+	}
+	var payload struct {
+		Data struct {
+			ID int64 `json:"id"`
+		} `json:"data"`
+	}
+	if err := parseJSON(orgResp, &payload); err != nil {
+		return 0, fmt.Errorf("parse organization response: %w", err)
+	}
+	return payload.Data.ID, nil
+}
+
+func (s *Seeder) findSeedOrganization(slug string) (int64, error) {
+	resp, err := s.client.Get("/operator/organizations")
+	if err != nil {
+		return 0, fmt.Errorf("list organizations: %w", err)
+	}
+	var payload struct {
+		Data []struct {
+			ID   int64  `json:"id"`
+			Slug string `json:"slug"`
+		} `json:"data"`
+	}
+	if err := parseJSON(resp, &payload); err != nil {
+		return 0, fmt.Errorf("parse organizations response: %w", err)
+	}
+	for _, organization := range payload.Data {
+		if organization.Slug == slug {
+			return organization.ID, nil
+		}
+	}
+	return 0, fmt.Errorf("organization %q not found", slug)
+}
+
+// retireAbandonedSchool frees the subdomain a broken seed occupies. Schools
+// are never hard-deleted, and a soft-deleted one keeps its unique subdomain,
+// so the school is renamed first.
+func (s *Seeder) retireAbandonedSchool(subdomain string) error {
+	resp, err := s.client.Get("/operator/schools")
+	if err != nil {
+		return fmt.Errorf("list schools: %w", err)
+	}
+	var payload struct {
+		Data []struct {
+			ID             int64  `json:"id"`
+			OrganizationID int64  `json:"organization_id"`
+			Name           string `json:"name"`
+			Subdomain      string `json:"subdomain"`
+		} `json:"data"`
+	}
+	if err := parseJSON(resp, &payload); err != nil {
+		return fmt.Errorf("parse schools response: %w", err)
+	}
+	for _, school := range payload.Data {
+		if school.Subdomain != subdomain {
+			continue
+		}
+		retired := truncateSeedSubdomain(fmt.Sprintf("x%d-%s", school.ID, subdomain))
+		path := fmt.Sprintf("/operator/schools/%d", school.ID)
+		if _, err := s.client.Put(path, map[string]any{
+			"organization_id": school.OrganizationID, "name": school.Name,
+			"slug": retired, "subdomain": retired, "active": false, "hidden": true,
+		}); err != nil {
+			return fmt.Errorf("rename abandoned school: %w", err)
+		}
+		if _, err := s.client.Delete(path); err != nil {
+			return fmt.Errorf("delete abandoned school: %w", err)
+		}
+		return nil
+	}
+	return fmt.Errorf("school with subdomain %q not found", subdomain)
+}
+
+func (s *Seeder) createSeedSchool(organizationID int64, name, slug, subdomain string) (int64, string, error) {
+	schoolResp, err := s.client.Post("/operator/schools", map[string]any{
+		"organization_id": organizationID,
+		"name":            name,
+		"slug":            slug,
+		"subdomain":       subdomain,
+	})
+	if err != nil {
+		return 0, "", fmt.Errorf("create school: %w", err)
+	}
+	var payload struct {
+		Data struct {
+			ID        int64  `json:"id"`
+			Subdomain string `json:"subdomain"`
+		} `json:"data"`
+	}
+	if err := parseJSON(schoolResp, &payload); err != nil {
+		return 0, "", fmt.Errorf("parse school response: %w", err)
+	}
+	return payload.Data.ID, payload.Data.Subdomain, nil
+}
+
+// GenerateSeedPassword creates a random password satisfying the account policy.
+// Callers supply their cryptographically secure random source.
+func GenerateSeedPassword(randomSource io.Reader) (string, error) {
+	if randomSource == nil {
+		return "", fmt.Errorf("seed random source is required")
+	}
+	// Character sets that must each appear at least once to satisfy
+	// ValidatePasswordStrength (upper, lower, digit, special).
+	required := []string{
+		"abcdefghijkmnopqrstuvwxyz",
+		"ABCDEFGHJKLMNPQRSTUVWXYZ",
+		"23456789",
+		"!@#$%",
+	}
+
+	bytes := make([]byte, seedPasswordLength)
+	random := make([]byte, seedPasswordLength)
+	if _, err := io.ReadFull(randomSource, random); err != nil {
+		return "", err
+	}
+
+	// Place one character from each required set in the first positions.
+	for i, charset := range required {
+		bytes[i] = charset[int(random[i])%len(charset)]
+	}
+
+	// Fill remaining positions from the full alphabet.
+	for i := len(required); i < seedPasswordLength; i++ {
+		bytes[i] = seedPasswordAlphabet[int(random[i])%len(seedPasswordAlphabet)]
+	}
+
+	// Shuffle using Fisher-Yates to avoid predictable positions.
+	shuffleRandom := make([]byte, seedPasswordLength)
+	if _, err := io.ReadFull(randomSource, shuffleRandom); err != nil {
+		return "", err
+	}
+	for i := seedPasswordLength - 1; i > 0; i-- {
+		j := int(shuffleRandom[i]) % (i + 1)
+		bytes[i], bytes[j] = bytes[j], bytes[i]
+	}
+
+	return string(bytes), nil
+}
+
+func truncateSeedSubdomain(subdomain string) string {
+	subdomain = strings.ToLower(strings.TrimSpace(subdomain))
+	if len(subdomain) <= 63 {
+		return subdomain
+	}
+	return subdomain[:63]
+}
+
+// wrapConflictError checks if the error is a 409 Conflict from the API and
+// returns a user-friendly message directing the developer to run migrate reset.
+func isConflictError(err error) bool {
+	var apiErr *APIError
+	return errors.As(err, &apiErr) && apiErr.StatusCode == 409
+}
+
+func wrapConflictError(err error, entity string) error {
+	if isConflictError(err) {
+		return fmt.Errorf("seed %s already exists (409 Conflict) — run 'docker compose run server go run . migrate reset' before re-seeding", entity)
+	}
+	return err
+}
+
+// collectSeedState builds SeedState from the FixedSeeder's internal maps
+func (s *Seeder) collectSeedState(fs *FixedSeeder, staffPIN string, bootstrap *bootstrapSeedState) *SeedState {
+	state := &SeedState{
+		Version:        CurrentSeedStateVersion,
+		CreatedAt:      time.Now().UTC(),
+		BaseURL:        s.client.baseURL,
+		DefaultProfile: s.definition.Key,
+		DevicePIN:      staffPIN,
+		Devices:        make(map[string]SeedDevice),
+		Rooms:          make(map[string]int64),
+		Activities:     make(map[string]int64),
+		Groups:         make(map[string]int64),
+		Settings:       cloneProfileSettings(s.definition.Settings),
+		Expected:       s.definition.Expected,
+	}
+	state.Bootstrap = makeBootstrapSeedState(bootstrap)
+
+	s.populateSeedAccounts(state, fs)
+	s.populateSeedDevices(state, fs)
+	s.populateSeedStudents(state, fs)
+	copySeedIDMap(state.Rooms, fs.roomIDs)
+	copySeedIDMap(state.Activities, fs.activityIDs)
+	copySeedIDMap(state.Groups, fs.groupIDs)
+	state.Normalize()
+
+	return state
+}
+
+func makeBootstrapSeedState(bootstrap *bootstrapSeedState) SeedStateBootstrap {
+	if bootstrap == nil {
+		return SeedStateBootstrap{}
+	}
+	return SeedStateBootstrap{
+		OrganizationID:   bootstrap.OrganizationID,
+		OrganizationName: bootstrap.OrganizationName,
+		OrganizationSlug: bootstrap.OrganizationSlug,
+		SchoolID:         bootstrap.SchoolID,
+		SchoolName:       bootstrap.SchoolName,
+		SchoolSlug:       bootstrap.SchoolSlug,
+		TenantSlug:       bootstrap.TenantSlug,
+		SchoolAdmin: BootstrapAdminCredentials{
+			Email:    bootstrap.AdminEmail,
+			Password: bootstrap.AdminPassword,
+			Name:     bootstrap.AdminName,
+			Position: bootstrap.AdminPosition,
+		},
+	}
+}
+
+func (s *Seeder) populateSeedAccounts(state *SeedState, fs *FixedSeeder) {
+	groupKeys := []string{
+		"sternengruppe", "bärengruppe", "sonnengruppe", "mondgruppe",
+		"regenbogengruppe", "blumengruppe", "schmetterlingsgruppe",
+		"waldgruppe", "meeresgruppe", "wiesengruppe",
+	}
+	betreuerIndex := 0
+	for _, cred := range fs.staffCredentials {
+		staffKey := cred.Name
+		staffID, ok := fs.staffIDs[staffKey]
+		if !ok {
+			continue
+		}
+		ac := AccountCredentials{
+			AccountID: cred.AccountID,
+			Email:     cred.Email,
+			Password:  cred.Password,
+			Name:      cred.Name,
+			StaffID:   staffID,
+		}
+		if len(DemoStaff) > 0 && cred.Name == DemoStaff[0].FirstName+" "+DemoStaff[0].LastName {
+			ac.Key = sharedDeveloperAdminKey
+		}
+		if tid, ok := fs.teacherIDs[staffKey]; ok {
+			ac.TeacherID = tid
+		}
+
+		switch cred.Position {
+		case "OGS-Büro":
+			state.Accounts.Admin = append(state.Accounts.Admin, ac)
+		case "Pädagogische Fachkraft":
+			if betreuerIndex < len(groupKeys) {
+				ac.Group = groupKeys[betreuerIndex]
+			}
+			state.Accounts.Betreuer = append(state.Accounts.Betreuer, ac)
+			betreuerIndex++
+		}
+	}
+}
+
+func (s *Seeder) populateSeedDevices(state *SeedState, fs *FixedSeeder) {
+	for _, device := range DemoDevices {
+		if apiKey, ok := fs.deviceKeys[device.DeviceID]; ok {
+			state.Devices[device.DeviceID] = SeedDevice{
+				DeviceID:   device.DeviceID,
+				DeviceType: "terminal",
+				APIKey:     apiKey,
+				Name:       device.Name,
+			}
+		}
+	}
+}
+
+func (s *Seeder) populateSeedStudents(state *SeedState, fs *FixedSeeder) {
+	for i, student := range DemoStudents {
+		if id, ok := fs.studentIDByIndex[i]; ok {
+			state.Students = append(state.Students, SeedStudent{
+				Key:       semanticKey(student.FirstName + " " + student.LastName),
+				ID:        id,
+				FirstName: student.FirstName,
+				LastName:  student.LastName,
+				GroupKey:  student.GroupKey,
+				Class:     student.Class,
+			})
+		}
+	}
+}
+
+func copySeedIDMap(dst map[string]int64, src map[string]int64) {
+	for key, id := range src {
+		dst[key] = id
+	}
+}
+
+func (s *Seeder) formatProfileError(profile, stage string, err error) error {
+	fmt.Printf("\nFailed at: %s\n", stage)
+	fmt.Printf("  Error: %v\n\n", err)
+	request := ""
+	if s.client != nil && s.client.lastMethod != "" && !strings.Contains(err.Error(), s.client.lastMethod+" "+s.client.lastPath) {
+		request = fmt.Sprintf(", last request %s %s returned status %d", s.client.lastMethod, s.client.lastPath, s.client.lastStatus)
+	}
+	return fmt.Errorf("demo school profile %q, workflow step %s failed%s: %w", profile, stage, request, err)
+}
+
+// printSuccessSummary prints the final demo-ready status with all created data
+func (s *Seeder) printSuccessSummary(email, adminPassword string, result *SeedResult, state *SeedState) {
+	fmt.Println()
+	fmt.Println("=== DEMO READY ===")
+	fmt.Println()
+
+	if state != nil && len(state.Profiles) > 0 {
+		printSeedProfiles(state)
+	} else {
+		fmt.Println("ADMIN ACCOUNT (used for seeding):")
+		fmt.Printf("  Email:    %s\n", email)
+		fmt.Printf("  Password: %s\n", adminPassword)
+		fmt.Println()
+	}
+
+	// Staff accounts with correct individual passwords
+	fmt.Println("STAFF ACCOUNTS:")
+	fmt.Println("  Name                 | Position                | Email              | Password")
+	fmt.Println("  " + "--------------------" + " | " + "-----------------------" + " | " + "------------------" + " | " + "----------")
+	for _, cred := range result.Fixed.StaffCredentials {
+		fmt.Printf("  %-20s | %-23s | %-18s | %s\n",
+			cred.Name, cred.Position, cred.Email, cred.Password)
+	}
+	fmt.Println()
+
+	if state != nil && len(state.Parents) > 0 {
+		fmt.Println("PARENT ACCOUNTS:")
+		fmt.Println("  Name                 | Email                         | Password     | Student IDs")
+		fmt.Println("  " + "--------------------" + " | " + "-----------------------------" + " | " + "------------" + " | " + "-----------")
+		for _, parent := range state.Parents {
+			fmt.Printf("  %-20s | %-29s | %-12s | %s\n",
+				parent.Name, parent.Email, parent.Password, formatSeedIDList(parent.StudentIDs))
+		}
+		fmt.Println()
+	}
+
+	// Statistics
+	fmt.Println("CREATED DATA:")
+	fmt.Printf("  Rooms:            %d\n", result.Fixed.RoomCount)
+	fmt.Printf("  Staff:            %d\n", result.Fixed.StaffCount)
+	fmt.Printf("  Accounts:         %d\n", result.Fixed.AccountCount)
+	fmt.Printf("  Groups:           %d\n", result.Fixed.GroupCount)
+	fmt.Printf("  Students:         %d\n", result.Fixed.StudentCount)
+	fmt.Printf("  Sick:             %d\n", result.Fixed.SickStudentCount)
+	fmt.Printf("  Guardians:        %d\n", result.Fixed.GuardianCount)
+	fmt.Printf("  Pickup schedules: %d\n", result.Fixed.PickupScheduleCount)
+	fmt.Printf("  Class arrival times: %d\n", result.Fixed.ClassArrivalTimeCount)
+	fmt.Printf("  Class arrival exceptions: %d\n", result.Fixed.ClassArrivalExceptionCount)
+	fmt.Printf("  Activities:       %d\n", result.Fixed.ActivityCount)
+	fmt.Printf("  IoT Devices:      %d\n", result.Fixed.DeviceCount)
+	if state != nil {
+		fmt.Printf("  Parent accounts:  %d\n", len(state.Parents))
+		if state.Enrollment.PhaseID != 0 {
+			fmt.Printf("  Enrollment phase: %d\n", state.Enrollment.PhaseID)
+		}
+		if len(state.Enrollment.Offerings) > 0 {
+			fmt.Printf("  Care offerings:   %d (%s)\n", len(state.Enrollment.Offerings), formatSortedCountMap(state.Enrollment.Offerings))
+		}
+		if len(state.Enrollment.Requests) > 0 {
+			fmt.Printf("  Enroll. requests: %d (%s)\n", len(state.Enrollment.Requests), formatEnrollmentStatusCounts(state.Enrollment.Requests))
+		}
+		if len(state.Enrollment.ParentActions) > 0 {
+			fmt.Printf("  Parent actions:   %d (%s)\n", len(state.Enrollment.ParentActions), formatParentActionCounts(state.Enrollment.ParentActions))
+		}
+	}
+	fmt.Println()
+
+	fmt.Println("OUTPUT FILES:")
+	fmt.Printf("  %s   (seed state with credentials & IDs)\n", s.statePath)
+	fmt.Println()
+}
+
+func printSeedProfiles(state *SeedState) {
+	fmt.Println("DEMO SCHOOL PROFILES:")
+	for _, key := range slices.Sorted(maps.Keys(state.Profiles)) {
+		profile := state.Profiles[key]
+		if profile == nil {
+			continue
+		}
+		fmt.Printf("  %s: %s (slug: %s)\n", profile.Key, profile.Name, profile.School.TenantSlug)
+		fmt.Printf("    School admin: %s / %s\n", profile.Credentials.SchoolAdmin.Email, profile.Credentials.SchoolAdmin.Password)
+		fmt.Printf("    Account keys: %s\n", formatAccountKeys(profile.Credentials.Accounts))
+		fmt.Printf("    Student keys: %s\n", formatSortedKeys(profile.Entities.Students))
+		fmt.Printf("    Contact keys: %s\n", formatSortedKeys(profile.Entities.Guardians))
+		fmt.Printf("    Group keys: %s\n", formatSortedKeys(profile.Entities.Groups))
+		fmt.Printf("    Device keys: %s\n", formatSortedKeys(profile.Devices))
+	}
+	fmt.Println()
+}
+
+func formatAccountKeys(accounts SeedStateAccounts) string {
+	keys := make([]string, 0, len(accounts.Admin)+len(accounts.Betreuer))
+	for _, account := range accounts.Admin {
+		keys = append(keys, account.Key)
+	}
+	for _, account := range accounts.Betreuer {
+		keys = append(keys, account.Key)
+	}
+	if len(keys) == 0 {
+		return "-"
+	}
+	slices.Sort(keys)
+	return strings.Join(keys, ", ")
+}
+
+func formatSortedKeys[V any](values map[string]V) string {
+	if len(values) == 0 {
+		return "-"
+	}
+	return strings.Join(slices.Sorted(maps.Keys(values)), ", ")
+}
+
+func formatSeedIDList(ids []int64) string {
+	if len(ids) == 0 {
+		return "-"
+	}
+	parts := make([]string, 0, len(ids))
+	for _, id := range ids {
+		parts = append(parts, fmt.Sprintf("%d", id))
+	}
+	return strings.Join(parts, ", ")
+}
+
+func formatEnrollmentStatusCounts(requests []SeedEnrollmentRequest) string {
+	return formatSortedCountMap(countBy(requests, func(request SeedEnrollmentRequest) string {
+		if status := strings.TrimSpace(request.Status); status != "" {
+			return status
+		}
+		return "submitted"
+	}))
+}
+
+func formatParentActionCounts(actions []SeedParentPortalAction) string {
+	return formatSortedCountMap(countBy(actions, func(action SeedParentPortalAction) string {
+		if actionType := strings.TrimSpace(action.Type); actionType != "" {
+			return actionType
+		}
+		return "unknown"
+	}))
+}
+
+// formatSortedCountMap renders a string->number map as "key=value" pairs sorted
+// by key, or "-" when empty.
+func formatSortedCountMap[V int | int64](values map[string]V) string {
+	if len(values) == 0 {
+		return "-"
+	}
+	keys := slices.Sorted(maps.Keys(values))
+	parts := make([]string, 0, len(keys))
+	for _, key := range keys {
+		parts = append(parts, fmt.Sprintf("%s=%d", key, values[key]))
+	}
+	return strings.Join(parts, ", ")
+}
+
+// countBy tallies items by the string key derived from each element.
+func countBy[T any](items []T, key func(T) string) map[string]int {
+	counts := make(map[string]int)
+	for _, item := range items {
+		counts[key(item)]++
+	}
+	return counts
+}

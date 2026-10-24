@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
+	api "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -22,7 +22,7 @@ import (
 func TestDetectStartConflicts_EmptyInstance_NoWarnings(t *testing.T) {
 	t.Parallel()
 
-	db, module := testutil.SetupTimetableModule(t)
+	db, module := setupTimetableModule(t)
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("SC-Room-%d", time.Now().UnixNano()))
 	instance := testpkg.CreateTestActivityInstance(t, db, calendar.NewDate(2026, time.April, 20), room.ID,
 		testpkg.ActivityInstanceOpts{Title: "Lifecycle-Test"})
@@ -37,13 +37,13 @@ func TestStaffPoolForInstance_UnknownInstanceIsNotFound(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos, err := repositories.NewTimetableTestRepositories(db)
+	repos, err := api.NewTimetableTestRepositoriesWithMembers(testpkg.NewDatabase(t, db), api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
 	require.NoError(t, err)
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("SC-Pool-Room-%d", time.Now().UnixNano()))
 	instance := testpkg.CreateTestActivityInstance(t, db, calendar.NewDate(2026, time.April, 20), room.ID,
 		testpkg.ActivityInstanceOpts{Title: "Pool-Missing"})
 
-	detection := newConflictDetection(t, repos)
+	detection := newConflictDetection(t, db, repos)
 
 	_, err = detection.StaffPoolForInstance(testpkg.Ctx(t), instance.ID)
 	require.NoError(t, err, "the block's own tenant reads its pool")
@@ -66,9 +66,10 @@ func TestStaffPoolForInstance_UnknownInstanceIsNotFound(t *testing.T) {
 func TestWindowConflicts_FingerprintsMatchPersistedAcknowledgements(t *testing.T) {
 	t.Parallel()
 
-	repos, err := repositories.NewTimetableTestRepositories(testpkg.SetupTestDB(t))
+	db := testpkg.SetupTestDB(t)
+	repos, err := api.NewTimetableTestRepositoriesWithMembers(testpkg.NewDatabase(t, db), api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
 	require.NoError(t, err)
-	detection := newConflictDetection(t, repos)
+	detection := newConflictDetection(t, db, repos)
 
 	clock := func(hour, minute int) time.Time { return time.Date(1, time.January, 1, hour, minute, 0, 0, time.UTC) }
 	date := calendar.NewDate(2026, time.September, 7)

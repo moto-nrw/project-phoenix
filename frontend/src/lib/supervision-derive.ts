@@ -19,6 +19,12 @@ export interface SupervisedRoom {
    * shared rooms visibly apart from the caller's own supervisions.
    */
   isOpenRoom?: boolean;
+  /**
+   * The caller supervises a session in this released room. Only then does the
+   * navigation list the room under „Aktuelle Aufsicht“ (#4349); every other
+   * released room is reached through „Räume“ (#4372).
+   */
+  isOwnSupervision?: boolean;
   /** Active sessions in this released room, used to mark a `?session=` link. */
   sessionIds?: readonly string[];
 }
@@ -77,6 +83,12 @@ export interface DerivedSupervision {
   supervisedRoomId?: string;
   supervisedRoomName?: string;
   supervisedRooms: SupervisedRoom[];
+  /**
+   * Laufende Aufsichten der angemeldeten Person. Anders als
+   * `supervisedRooms` bleibt diese Liste bei einer Schulübersicht auf die
+   * eigene Aufsicht beschränkt.
+   */
+  ownSupervisedRooms?: SupervisedRoom[];
   overviewEnabled: boolean;
 }
 
@@ -108,8 +120,14 @@ function hasOwnSupervision(
 function openRoomEntries(
   rooms: OpenRoomPayload[] | null,
   supervised: SupervisedGroupPayload[] | null,
+  ownSupervised: SupervisedGroupPayload[] | null,
 ): SupervisedRoom[] {
   if (!rooms) return [];
+  const ownRoomIds = new Set(
+    (ownSupervised ?? []).flatMap((session) =>
+      session.room_id ? [session.room_id.toString()] : [],
+    ),
+  );
   const sessionIdsByRoom = new Map<string, string[]>();
   for (const session of supervised ?? []) {
     if (!session.room_id) continue;
@@ -129,10 +147,68 @@ function openRoomEntries(
         // unrelated facilities id.
         groupId: "",
         isOpenRoom: true,
+        ...(ownRoomIds.has(room.id.toString())
+          ? { isOwnSupervision: true }
+          : {}),
         ...(sessionIds ? { sessionIds } : {}),
       };
     })
     .sort((a, b) => a.name.localeCompare(b.name, "de"));
+}
+
+/**
+ * Räume der eigenen laufenden Aufsichten. Bei einer Schulübersicht enthält
+ * deren Liste auch fremde Aufsichten; die zweite eigene Abfrage bleibt daher
+ * die Quelle für persönliche Räume in anderen Oberflächen.
+ */
+function ownSupervisionRoomEntries(
+  supervised: SupervisedGroupPayload[] | null,
+): SupervisedRoom[] {
+  const rooms = new Map<string, SupervisedRoom>();
+  for (const group of supervised ?? []) {
+    const roomId = group.room?.id ?? group.room_id;
+    if (!roomId || rooms.has(roomId.toString())) continue;
+    rooms.set(roomId.toString(), {
+      id: roomId.toString(),
+      name: group.room?.name ?? `Raum #${roomId}`,
+      groupId: group.id.toString(),
+      groupName: group.actual_group?.name,
+    });
+  }
+  return [...rooms.values()].sort((a, b) => a.name.localeCompare(b.name, "de"));
+}
+
+/**
+ * The room id or one of its legacy session ids names a released room in which
+ * the caller runs no supervision of their own. The navigation files such a
+ * room under „Räume“, not under „Aktuelle Aufsicht“ (#4372).
+ */
+export function isSharedOpenRoom(
+  rooms: readonly SupervisedRoom[],
+  selection: Readonly<{
+    roomId: string | null;
+    sessionId: string | null;
+  }>,
+): boolean {
+  const { roomId, sessionId } = selection;
+  if (sessionId) {
+    const selectedSession = rooms.find((room) =>
+      room.isOpenRoom
+        ? room.sessionIds?.includes(sessionId)
+        : room.groupId === sessionId,
+    );
+    if (selectedSession) {
+      return (
+        selectedSession.isOpenRoom === true && !selectedSession.isOwnSupervision
+      );
+    }
+  }
+  return (
+    roomId !== null &&
+    rooms.some(
+      (room) => room.isOpenRoom && !room.isOwnSupervision && room.id === roomId,
+    )
+  );
 }
 
 export function deriveSupervision(
@@ -141,15 +217,14 @@ export function deriveSupervision(
   overviewOk: boolean,
   ownSupervised: SupervisedGroupPayload[] | null = null,
 ): DerivedSupervision {
-  const openEntries = openRoomEntries(openRooms, supervised);
+  // Ohne Übersicht stammt jede Zeile aus /api/me/groups/supervised und ist
+  // eine eigene Aufsicht; mit Übersicht nur die zusätzliche eigene Abfrage.
+  const ownSessions = overviewOk ? ownSupervised : supervised;
+  const openEntries = openRoomEntries(openRooms, supervised, ownSessions);
   const openRoomIDs = new Set(openEntries.map((room) => room.id));
   const first = supervised?.[0];
-  // Ohne Übersicht stammt jede Zeile aus /api/me/groups/supervised und ist
-  // eine eigene Aufsicht. Mit Übersicht liefert die zusätzliche eigene
-  // Abfrage das Signal für „Aufsicht fortsetzen".
-  const ownSupervision = overviewOk
-    ? hasOwnSupervision(ownSupervised)
-    : hasOwnSupervision(supervised);
+  const ownSupervisedRooms = ownSupervisionRoomEntries(ownSessions);
+  const ownSupervision = hasOwnSupervision(ownSessions);
 
   if (!supervised || !first) {
     // No own supervision (or that request failed). Released rooms are still
@@ -160,6 +235,7 @@ export function deriveSupervision(
       isSupervising: false,
       ownSupervision,
       supervisedRooms: openEntries,
+      ownSupervisedRooms,
       overviewEnabled: supervised !== null && overviewOk,
     };
   }
@@ -203,6 +279,7 @@ export function deriveSupervision(
     // separation the criterion asks for, and isOpenRoom carries it for any
     // stronger treatment the UI wants.
     supervisedRooms: [...rooms, ...openEntries],
+    ownSupervisedRooms,
     overviewEnabled: overviewOk,
   };
 }
@@ -215,7 +292,10 @@ export function sameSupervision(
   // group id is part of the identity.
   const keys = (rooms: SupervisedRoom[]) =>
     rooms
-      .map((r) => `${r.id}:${r.groupId}:${r.sessionIds?.join(".") ?? ""}`)
+      .map(
+        (r) =>
+          `${r.id}:${r.groupId}:${r.name}:${r.sessionIds?.join(".") ?? ""}:${r.isOwnSupervision === true}`,
+      )
       .join(",");
   return (
     prev.isSupervising === next.isSupervising &&
@@ -223,7 +303,8 @@ export function sameSupervision(
     prev.supervisedRoomId === next.supervisedRoomId &&
     prev.supervisedRoomName === next.supervisedRoomName &&
     prev.overviewEnabled === next.overviewEnabled &&
-    keys(prev.supervisedRooms) === keys(next.supervisedRooms)
+    keys(prev.supervisedRooms) === keys(next.supervisedRooms) &&
+    keys(prev.ownSupervisedRooms ?? []) === keys(next.ownSupervisedRooms ?? [])
   );
 }
 
@@ -239,8 +320,10 @@ export function sameGroups(
         group.id === other?.id &&
         group.name === other.name &&
         group.room_id === other.room_id &&
+        group.room_name === other.room_name &&
         group.via_substitution === other.via_substitution &&
-        group.is_personal === other.is_personal
+        group.is_personal === other.is_personal &&
+        (group.leaders ?? []).join("\n") === (other.leaders ?? []).join("\n")
       );
     })
   );

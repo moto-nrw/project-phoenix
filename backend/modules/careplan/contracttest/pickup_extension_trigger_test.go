@@ -5,16 +5,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
+	timetable "github.com/moto-nrw/project-phoenix/modules/timetable"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/services"
+	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	api "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -33,7 +34,7 @@ type pickupExtensionHarness struct {
 	svc     careplan.PickupScheduleService
 	student int64
 	staff   int64
-	monday  timezone.Date
+	monday  calendar.Date
 }
 
 // setupPickupExtensionHarness wires the pickup service with the real
@@ -42,16 +43,18 @@ type pickupExtensionHarness struct {
 func setupPickupExtensionHarness(t *testing.T) *pickupExtensionHarness {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos, tt := autoExcusalRepositories(db)
+	repos, _, tt := autoExcusalRepositories(db)
 	baselines := newPickupBaselineService(repos.CarePlan(), approvedOfferingProjection(t))
 	syncer := newPickupExcusal(t, db, repos.CarePlan(), baselines, tt, true)
-	svc, err := services.NewPickupSchedules(db, repos.CarePlan(), repositories.MustNewPeopleDirectory(db), baselines, syncer, nil)
+	pickupStudents, err := api.PickupPlanStudents(api.MustNewPeopleDirectory(testpkg.MustDatabase(db)))
+	require.NoError(t, err)
+	svc, err := careplanCompose.NewPickupSchedules(db, repos.CarePlan(), baselines, syncer, pickupStudents, nil)
 	require.NoError(t, err)
 	student := testpkg.CreateTestStudent(t, db, "Later", "Pickup", "LP1")
 	staff := testpkg.CreateTestStaff(t, db, "Later", "Staff")
-	testpkg.CreateTestPickupSchedule(t, db, student.ID, scheduleModel.WeekdayMonday, staff.ID, "15:00")
+	testpkg.CreateTestPickupSchedule(t, db, student.ID, timetable.WeekdayMonday, staff.ID, "15:00")
 
-	monday := timezone.NewDate(2099, 1, 5)
+	monday := calendar.NewDate(2099, 1, 5)
 	require.Equal(t, time.Monday, monday.Weekday(), "fixture date must be a Monday")
 	return &pickupExtensionHarness{db: db, ctx: testpkg.Ctx(t), svc: svc, student: student.ID, staff: staff.ID, monday: monday}
 }
@@ -139,11 +142,11 @@ func TestPickupExtension_LaterWeekdayOpensTask(t *testing.T) {
 	h := setupPickupExtensionHarness(t)
 
 	require.NoError(t, h.svc.UpsertStudentPickupSchedule(h.ctx, &careplan.PickupSchedule{
-		StudentID: h.student, Weekday: scheduleModel.WeekdayMonday, PickupTime: *wallClockAt(16, 0), CreatedBy: h.staff,
+		StudentID: h.student, Weekday: timetable.WeekdayMonday, PickupTime: *wallClockAt(16, 0), CreatedBy: h.staff,
 	}))
 	rows := h.rows(t)
 	require.Len(t, rows, 1)
-	assert.Equal(t, scheduleModel.WeekdayMonday, rows[0].Weekday)
+	assert.Equal(t, timetable.WeekdayMonday, rows[0].Weekday)
 	assert.Empty(t, rows[0].TaskDate)
 	assert.Nil(t, rows[0].PickupExceptionID)
 	assert.Equal(t, "15:00", rows[0].PreviousPickup)
@@ -151,19 +154,19 @@ func TestPickupExtension_LaterWeekdayOpensTask(t *testing.T) {
 
 	// A new weekday without a previous time opens nothing.
 	require.NoError(t, h.svc.UpsertStudentPickupSchedule(h.ctx, &careplan.PickupSchedule{
-		StudentID: h.student, Weekday: scheduleModel.WeekdayWednesday, PickupTime: *wallClockAt(16, 0), CreatedBy: h.staff,
+		StudentID: h.student, Weekday: timetable.WeekdayWednesday, PickupTime: *wallClockAt(16, 0), CreatedBy: h.staff,
 	}))
 	assert.Len(t, h.rows(t), 1)
 
 	// The bulk editor path records through the same comparison.
 	require.NoError(t, h.svc.UpsertBulkStudentPickupSchedules(h.ctx, h.student, []*careplan.PickupSchedule{
-		{StudentID: h.student, Weekday: scheduleModel.WeekdayMonday, PickupTime: *wallClockAt(15, 0), CreatedBy: h.staff},
-		{StudentID: h.student, Weekday: scheduleModel.WeekdayWednesday, PickupTime: *wallClockAt(16, 0), CreatedBy: h.staff},
+		{StudentID: h.student, Weekday: timetable.WeekdayMonday, PickupTime: *wallClockAt(15, 0), CreatedBy: h.staff},
+		{StudentID: h.student, Weekday: timetable.WeekdayWednesday, PickupTime: *wallClockAt(16, 0), CreatedBy: h.staff},
 	}))
 	assert.Empty(t, h.rows(t), "back to the first time closes the task")
 
 	require.NoError(t, h.svc.UpsertStudentPickupSchedule(h.ctx, &careplan.PickupSchedule{
-		StudentID: h.student, Weekday: scheduleModel.WeekdayMonday, PickupTime: *wallClockAt(16, 15), CreatedBy: h.staff,
+		StudentID: h.student, Weekday: timetable.WeekdayMonday, PickupTime: *wallClockAt(16, 15), CreatedBy: h.staff,
 	}))
 	require.Len(t, h.rows(t), 1)
 	require.NoError(t, h.svc.DeleteAllStudentPickupSchedules(h.ctx, h.student))

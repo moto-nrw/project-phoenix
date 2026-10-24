@@ -1,10 +1,10 @@
 // Package exporttransfer is the public Export Transfer capability: sending an
 // already-produced export file to the school's configured counterpart (#3050).
 //
-// The capability deliberately does NOT produce files. It receives the finished
-// bytes and a filename from whoever built them — today the Zeitwirtschafts-/
-// DATEV export — so the transferred file cannot drift from the downloaded one:
-// there is one file, used twice.
+// The capability does not choose export content. Callers supply finished bytes
+// or their existing file producer, so transfer and download use the same
+// Zeitwirtschafts-/DATEV export implementation. A producer runs with its access
+// audit in the command transaction before the transfer intent commits.
 //
 // It is a client only; moto runs no SFTP server. There is exactly one
 // counterpart per school, and no listing, download, delete or rename of
@@ -51,6 +51,10 @@ type Request struct {
 	// download serves it.
 	Filename string
 	Data     []byte
+	// PrepareFile builds the file and records its access audit in the command
+	// transaction, before destination resolution. When set, it supplies Filename
+	// and Data; transfer acceptance still requires the synchronous transport.
+	PrepareFile func(context.Context) (filename string, data []byte, err error)
 	// ActorAccountID is 0 for a system caller; ActorName is snapshotted into
 	// the journal so the entry still reads after a rename or deletion.
 	ActorAccountID int64
@@ -95,23 +99,10 @@ type Status struct {
 	MissingSettings []string `json:"missing_settings,omitempty"`
 }
 
-type engine interface {
+// Capability is the Export Transfer capability compose.New returns.
+type Capability interface {
+	// Transfer sends the export and records the attempt.
 	Transfer(context.Context, Request) (Outcome, error)
+	// Status reports whether a transfer can be offered, and to where.
 	Status(context.Context) (Status, error)
-}
-
-// Module is the capability handle.
-type Module struct{ engine engine }
-
-// NewModule is called by the compose package; other callers use compose.New.
-func NewModule(engine engine) *Module { return &Module{engine: engine} }
-
-// Transfer sends the export and records the attempt.
-func (m *Module) Transfer(ctx context.Context, request Request) (Outcome, error) {
-	return m.engine.Transfer(ctx, request)
-}
-
-// Status reports whether a transfer can be offered, and to where.
-func (m *Module) Status(ctx context.Context) (Status, error) {
-	return m.engine.Status(ctx)
 }

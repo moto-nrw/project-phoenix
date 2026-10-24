@@ -67,6 +67,7 @@ import {
   type StatisticsStudentRow,
 } from "~/lib/statistics-api";
 import { useTenantAwarePath } from "~/lib/tenant-path";
+import { downloadBlob, filenameFromDisposition } from "~/lib/file-download";
 
 const logger = createLogger({ component: "StatisticsPage" });
 
@@ -189,19 +190,11 @@ export default function StatisticsPage() {
         if (!res.ok) {
           throw await apiErrorFromResponse(res, "statistics export failed");
         }
-        const blob = await res.blob();
-        const disposition = res.headers.get("Content-Disposition") ?? "";
-        const filename =
-          /filename="([^"]+)"/.exec(disposition)?.[1] ??
-          `${EXPORT_FILENAME_STEM[section]}-${fromISO}-${toISO}.${format}`;
-        const url = URL.createObjectURL(blob);
-        const anchor = document.createElement("a");
-        anchor.href = url;
-        anchor.download = filename;
-        document.body.appendChild(anchor);
-        anchor.click();
-        anchor.remove();
-        URL.revokeObjectURL(url);
+        downloadBlob(
+          await res.blob(),
+          filenameFromDisposition(res) ??
+            `${EXPORT_FILENAME_STEM[section]}-${fromISO}-${toISO}.${format}`,
+        );
       } catch (error) {
         logger.error("statistics_export_failed", {
           error: error instanceof Error ? error.message : String(error),
@@ -667,9 +660,10 @@ export default function StatisticsPage() {
     },
     rooms: {
       title: "Räume",
-      hint: data
-        ? `Raumdaten können höchstens ${data.room_data_days} Tage zurückreichen (ab ${formatDate(data.room_data_from)}). Je Kind kann die Frist kürzer sein.`
-        : "",
+      hint:
+        data && !data.room_history_disabled
+          ? `Raumdaten können höchstens ${data.room_data_days} Tage zurückreichen (ab ${formatDate(data.room_data_from)}). Je Kind kann die Frist kürzer sein.`
+          : "",
     },
   }[view];
 
@@ -747,7 +741,12 @@ export default function StatisticsPage() {
   // Kursbereich zusätzlich den Wechsel zwischen Kurs- und Kind-Sicht. Das ist
   // eine Wertauswahl, kein Reiter, deshalb SegmentedControl.
   let sectionActions: ReactNode;
-  if (view === "rooms" && !roomDataAllBeforeWindow) {
+  if (
+    view === "rooms" &&
+    data &&
+    !data.room_history_disabled &&
+    !roomDataAllBeforeWindow
+  ) {
     sectionActions = (
       <OverflowMenu
         items={exportMenuItems("rooms")}
@@ -981,7 +980,12 @@ export default function StatisticsPage() {
               ))}
 
             {view === "rooms" &&
-              (roomDataAllBeforeWindow ? (
+              (data.room_history_disabled ? (
+                <EmptyState
+                  title="Raumhistorie ist ausgeschaltet"
+                  description="Raumstatistiken brauchen das eingeschaltete Anwesenheitsprotokoll. Ihre Administration kann es unter Einstellungen > Datenschutz einschalten."
+                />
+              ) : roomDataAllBeforeWindow ? (
                 <EmptyState
                   title="Keine Raumdaten für diesen Zeitraum"
                   description={`Wählen Sie einen Zeitraum ab ${formatDate(data.room_data_from)}.`}

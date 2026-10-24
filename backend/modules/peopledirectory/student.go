@@ -25,6 +25,9 @@ const StudentStatusAlumnus = "alumnus"
 const (
 	StudentStatusPending = "pending"
 	StudentStatusActive  = "active"
+	// StudentStatusInactive is the status the activate-students job gives a
+	// child the day after its last care day.
+	StudentStatusInactive = "inactive"
 )
 
 // Student is the directory view of users.students that other owners may
@@ -58,6 +61,30 @@ type StudentName struct {
 }
 
 func (s Student) IsAlumnus() bool { return s.Status == StudentStatusAlumnus }
+
+// StudentStillEnrolled reports whether studentID names a child the directory
+// still holds and that has not graduated.
+func StudentStillEnrolled(ctx context.Context, students StudentQuery, studentID int64) (bool, error) {
+	values, err := students.ListStudentsByID(ctx, []int64{studentID})
+	if err != nil {
+		return false, err
+	}
+	for _, student := range values {
+		if student.ID == studentID && !student.IsAlumnus() {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// LiveAbsenceFlags are the live flags an approved absence sets on a child row
+// (People Directory's SetLiveAbsenceFlags): Sick raises the live sick flag,
+// stamped with the approval time, or clears it; ClearExcused clears the live
+// excused flag together with its time.
+type LiveAbsenceFlags struct {
+	Sick         bool
+	ClearExcused bool
+}
 
 // StudentQuery reads the student directory. Reads are scoped to the tenant
 // in context; inside an admin transaction they span every tenant.
@@ -106,95 +133,8 @@ type StudentStatusFlagCapability interface {
 	ListStudentsWithStatusFlag(context.Context, string) ([]Student, error)
 }
 
-type studentEngine interface {
-	ReadEnrollmentStudent(context.Context, int64, string) (enrollment.Record, error)
-	LockEnrollmentClassWrites(context.Context) error
-	ApplyEnrollmentProfile(context.Context, int64, enrollment.ProfilePatch) error
-	CreateEnrollmentStudent(context.Context, EnrollmentStudent) (CreatedEnrollmentStudent, error)
-	RenewEnrollmentStudent(context.Context, int64, EnrollmentStudent) error
-	ListStudentsByIDs(context.Context, []int64) ([]Student, error)
-	ListStudentNamesByIDs(context.Context, []int64) ([]StudentName, error)
-	ListStudentsAcrossTenantsByIDs(context.Context, []int64) ([]Student, error)
-	ListStudentsByClasses(context.Context, []string) ([]Student, error)
-	ListStudentsByPersonIDs(context.Context, []int64) ([]Student, error)
-	ListEnrolledStudents(context.Context) ([]Student, error)
-	ListSchoolClasses(context.Context) ([]string, error)
-	LockStudent(context.Context, int64) error
-}
-
-func (m *Module) ListStudentsByID(ctx context.Context, ids []int64) ([]Student, error) {
-	ids = uniquePositive(ids)
-	if len(ids) == 0 {
-		return []Student{}, nil
-	}
-	return m.engine.ListStudentsByIDs(ctx, ids)
-}
-
-func (m *Module) ListStudentNamesByID(ctx context.Context, ids []int64) ([]StudentName, error) {
-	ids = uniquePositive(ids)
-	if len(ids) == 0 {
-		return []StudentName{}, nil
-	}
-	return m.engine.ListStudentNamesByIDs(ctx, ids)
-}
-
-func (m *Module) ListStudentsAcrossTenantsByID(ctx context.Context, ids []int64) ([]Student, error) {
-	ids = uniquePositive(ids)
-	if len(ids) == 0 {
-		return []Student{}, nil
-	}
-	return m.engine.ListStudentsAcrossTenantsByIDs(ctx, ids)
-}
-
-func (m *Module) ListStudentsByClasses(ctx context.Context, classes []string) ([]Student, error) {
-	classes = uniqueClasses(classes)
-	if len(classes) == 0 {
-		return []Student{}, nil
-	}
-	return m.engine.ListStudentsByClasses(ctx, classes)
-}
-
-func (m *Module) ListStudentsByPersonID(ctx context.Context, personIDs []int64) ([]Student, error) {
-	personIDs = uniquePositive(personIDs)
-	if len(personIDs) == 0 {
-		return []Student{}, nil
-	}
-	return m.engine.ListStudentsByPersonIDs(ctx, personIDs)
-}
-
-func (m *Module) ListEnrolledStudents(ctx context.Context) ([]Student, error) {
-	return m.engine.ListEnrolledStudents(ctx)
-}
-
-func (m *Module) ListSchoolClasses(ctx context.Context) ([]string, error) {
-	return m.engine.ListSchoolClasses(ctx)
-}
-
-func (m *Module) LockStudent(ctx context.Context, id int64) error {
-	if id <= 0 {
-		return invalidStudent("student ID is required")
-	}
-	return m.engine.LockStudent(ctx, id)
-}
-
-func (m *Module) ListStudentsWithStatusFlag(ctx context.Context, status string) ([]Student, error) {
-	if !validStatusFlag(status) {
-		return nil, invalidStudent("student status flag is invalid")
-	}
-	engine, ok := m.engine.(interface {
-		ListStudentsWithStatusFlag(context.Context, string) ([]Student, error)
-	})
-	if !ok {
-		return nil, errors.New("student status flag capability is not configured")
-	}
-	return engine.ListStudentsWithStatusFlag(ctx, status)
-}
-
-func validStatusFlag(status string) bool {
-	return status == "sick" || status == "excused"
-}
-
-func uniqueClasses(classes []string) []string {
+// SchoolClasses trims class names and preserves their distinct order.
+func SchoolClasses(classes []string) []string {
 	result := make([]string, 0, len(classes))
 	seen := make(map[string]struct{}, len(classes))
 	for _, class := range classes {

@@ -1,8 +1,14 @@
 package presence_test
 
 import (
+	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"testing"
+
+	"github.com/go-chi/render"
+	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 
@@ -34,8 +40,7 @@ func TestErrorRenderer_NotFoundErrors(t *testing.T) {
 			resp, ok := renderer.(*common.ErrResponse)
 			assert.True(t, ok)
 			assert.Equal(t, testutil.StatusNotFound, resp.HTTPStatusCode)
-			assert.NotEmpty(t, resp.Status)
-			assert.NotEmpty(t, resp.ErrorText)
+			assertEnvelope(t, resp, "general.input")
 		})
 	}
 }
@@ -69,8 +74,7 @@ func TestErrorRenderer_BadRequestErrors(t *testing.T) {
 			resp, ok := renderer.(*common.ErrResponse)
 			assert.True(t, ok)
 			assert.Equal(t, testutil.StatusBadRequest, resp.HTTPStatusCode)
-			assert.NotEmpty(t, resp.Status)
-			assert.NotEmpty(t, resp.ErrorText)
+			assertEnvelope(t, resp, "general.input")
 		})
 	}
 }
@@ -82,7 +86,7 @@ func TestErrorRenderer_ConflictError(t *testing.T) {
 	resp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, testutil.StatusConflict, resp.HTTPStatusCode)
-	assert.Equal(t, "error", resp.Status)
+	assertEnvelope(t, resp, "general.business_rejection")
 }
 
 func TestErrorRenderer_RoomCapacityConflict(t *testing.T) {
@@ -97,7 +101,7 @@ func TestErrorRenderer_RoomCapacityConflict(t *testing.T) {
 	resp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, testutil.StatusConflict, resp.HTTPStatusCode)
-	assert.Equal(t, "error", resp.Status)
+	assertEnvelope(t, resp, "presence.room_capacity_exceeded")
 }
 
 // TestErrorRenderer_StudentAlreadyActiveConflict guards the Issue #844
@@ -113,7 +117,7 @@ func TestErrorRenderer_StudentAlreadyActiveConflict(t *testing.T) {
 	resp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, testutil.StatusConflict, resp.HTTPStatusCode)
-	assert.Equal(t, "error", resp.Status)
+	assertEnvelope(t, resp, "general.business_rejection")
 }
 
 func TestErrorRenderer_StudentsNotPresentConflict(t *testing.T) {
@@ -123,7 +127,7 @@ func TestErrorRenderer_StudentsNotPresentConflict(t *testing.T) {
 	resp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, testutil.StatusConflict, resp.HTTPStatusCode)
-	assert.Equal(t, "error", resp.Status)
+	assertEnvelope(t, resp, "general.business_rejection")
 }
 
 func TestErrorRenderer_StudentMoveForbidden(t *testing.T) {
@@ -133,7 +137,7 @@ func TestErrorRenderer_StudentMoveForbidden(t *testing.T) {
 	resp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, testutil.StatusForbidden, resp.HTTPStatusCode)
-	assert.Equal(t, "error", resp.Status)
+	assertEnvelope(t, resp, "general.permission")
 }
 
 func TestErrorRenderer_UnknownError(t *testing.T) {
@@ -144,5 +148,20 @@ func TestErrorRenderer_UnknownError(t *testing.T) {
 	resp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, testutil.StatusInternalServerError, resp.HTTPStatusCode)
-	assert.Equal(t, "error", resp.Status)
+	assertEnvelope(t, resp, "general.server")
+}
+
+// assertEnvelope renders resp and checks the wire envelope: the status
+// member is the HTTP status number and the code is the expected one.
+func assertEnvelope(t *testing.T, resp *common.ErrResponse, wantCode string) {
+	t.Helper()
+	recorder := httptest.NewRecorder()
+	require.NoError(t, render.Render(recorder, httptest.NewRequest(http.MethodGet, "/", nil), resp))
+	var body struct {
+		Status int    `json:"status"`
+		Code   string `json:"code"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &body))
+	assert.Equal(t, resp.HTTPStatusCode, body.Status)
+	assert.Equal(t, wantCode, body.Code)
 }

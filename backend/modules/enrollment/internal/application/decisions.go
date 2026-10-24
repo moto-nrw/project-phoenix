@@ -7,9 +7,8 @@ import (
 	"log/slog"
 	"strings"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -18,11 +17,11 @@ import (
 // class. It is application-owned state, not an administrator-assigned class.
 const openSchoolClassPlaceholder = "offen"
 
-var validDecisionStatuses = map[enrollment.DecisionStatus]bool{
-	enrollment.DecisionApproved:    true,
-	enrollment.DecisionWaitlisted:  true,
-	enrollment.DecisionRejected:    true,
-	enrollment.DecisionUnderReview: true,
+var validDecisionStatuses = map[enrollmentNative.DecisionStatus]bool{
+	enrollmentNative.DecisionApproved:    true,
+	enrollmentNative.DecisionWaitlisted:  true,
+	enrollmentNative.DecisionRejected:    true,
+	enrollmentNative.DecisionUnderReview: true,
 }
 
 // Decisions is Enrollment's admin decision flow: the review queue, the
@@ -34,12 +33,14 @@ type Decisions struct {
 	capacity *OfferingCapacity
 }
 
-// The public Decisions capability is served by compose.PublicDecisions,
-// which adds the owner's read state of the queue (#3778).
-var _ enrollment.ApprovedChildChanges = (*Decisions)(nil)
+// Decisions also serves the owner's read state of the queue (#3778).
+var _ enrollmentNative.ApprovedChildChanges = (*Decisions)(nil)
 
 // NewDecisions composes the decision flow over its owners.
 func NewDecisions(deps DecisionDependencies) *Decisions {
+	if deps.Settings == nil {
+		panic("enrollment decisions: settings are required")
+	}
 	if deps.Logger == nil {
 		deps.Logger = slog.Default()
 	}
@@ -63,8 +64,9 @@ func (d *Decisions) logger() *slog.Logger {
 }
 
 // DecisionRequests lists the requests of the admin queue.
-func (d *Decisions) DecisionRequests(ctx context.Context, filters enrollment.DecisionRequestFilters) ([]*enrollment.DecisionSummary, error) {
-	return d.listDecisionRequests(ctx, enrollment.RequestListFilters{
+func (d *Decisions) DecisionRequests(ctx context.Context, filters enrollmentNative.DecisionRequestFilters) (publicResult []*enrollmentNative.DecisionSummary, publicErr error) {
+	defer func() { publicErr = PublicError(publicErr) }()
+	return d.listDecisionRequests(ctx, enrollmentNative.RequestListFilters{
 		PhaseID:     filters.PhaseID,
 		ChildStatus: filters.ChildStatus,
 	}, "decision: list requests")
@@ -72,16 +74,17 @@ func (d *Decisions) DecisionRequests(ctx context.Context, filters enrollment.Dec
 
 // StudentDecisionRequests lists the requests whose children created the
 // student, keeping only those children.
-func (d *Decisions) StudentDecisionRequests(ctx context.Context, studentID int64) ([]*enrollment.DecisionSummary, error) {
+func (d *Decisions) StudentDecisionRequests(ctx context.Context, studentID int64) (publicResult []*enrollmentNative.DecisionSummary, publicErr error) {
+	defer func() { publicErr = PublicError(publicErr) }()
 	if studentID <= 0 {
 		return nil, fmt.Errorf("decision: student_id required")
 	}
-	return d.listDecisionRequests(ctx, enrollment.RequestListFilters{CreatedStudentID: studentID}, "decision: list requests by student")
+	return d.listDecisionRequests(ctx, enrollmentNative.RequestListFilters{CreatedStudentID: studentID}, "decision: list requests by student")
 }
 
 // listDecisionRequests reads the admin requests the filters select and
 // assembles them; a CreatedStudentID keeps only that student's children.
-func (d *Decisions) listDecisionRequests(ctx context.Context, filters enrollment.RequestListFilters, errPrefix string) ([]*enrollment.DecisionSummary, error) {
+func (d *Decisions) listDecisionRequests(ctx context.Context, filters enrollmentNative.RequestListFilters, errPrefix string) ([]*enrollmentNative.DecisionSummary, error) {
 	requests, err := d.deps.Requests.AdminRequests(ctx, filters)
 	if err == nil {
 		_, err = requestValues(requests)
@@ -94,8 +97,8 @@ func (d *Decisions) listDecisionRequests(ctx context.Context, filters enrollment
 
 // assembleAll assembles every request; a positive studentID keeps only the
 // children that created that student and drops requests without one.
-func (d *Decisions) assembleAll(ctx context.Context, requests []*enrollment.Request, studentID int64) ([]*enrollment.DecisionSummary, error) {
-	out := make([]*enrollment.DecisionSummary, 0, len(requests))
+func (d *Decisions) assembleAll(ctx context.Context, requests []*enrollmentNative.Request, studentID int64) ([]*enrollmentNative.DecisionSummary, error) {
+	out := make([]*enrollmentNative.DecisionSummary, 0, len(requests))
 	for _, req := range requests {
 		summary, err := d.assemble(ctx, req)
 		if err != nil {
@@ -113,7 +116,7 @@ func (d *Decisions) assembleAll(ctx context.Context, requests []*enrollment.Requ
 	return out, nil
 }
 
-func filterSummaryChildren(summary *enrollment.DecisionSummary, studentID int64) {
+func filterSummaryChildren(summary *enrollmentNative.DecisionSummary, studentID int64) {
 	if summary == nil || studentID <= 0 {
 		return
 	}
@@ -128,7 +131,8 @@ func filterSummaryChildren(summary *enrollment.DecisionSummary, studentID int64)
 
 // DecisionRequest loads one request with its children, guardians and the
 // late invite it was submitted through.
-func (d *Decisions) DecisionRequest(ctx context.Context, requestID int64) (*enrollment.DecisionSummary, error) {
+func (d *Decisions) DecisionRequest(ctx context.Context, requestID int64) (publicResult *enrollmentNative.DecisionSummary, publicErr error) {
+	defer func() { publicErr = PublicError(publicErr) }()
 	req, err := d.deps.Requests.RequestByID(ctx, requestID, false)
 	if err == nil {
 		_, err = requestValue(req)
@@ -140,12 +144,12 @@ func (d *Decisions) DecisionRequest(ctx context.Context, requestID int64) (*enro
 	if err != nil {
 		return nil, err
 	}
-	if d.deps.LateInvites == nil || enrollment.NormalizedSubmissionSource(req.SubmissionSource) != enrollmentModels.RequestSourceLateInvite {
+	if d.deps.LateInvites == nil || enrollmentNative.NormalizedSubmissionSource(req.SubmissionSource) != enrollmentNative.RequestSourceLateInvite {
 		return summary, nil
 	}
 	invite, err := d.deps.LateInvites.LateInviteByUsedRequestID(ctx, requestID)
 	if err != nil {
-		if errors.Is(err, enrollment.ErrLateInviteNotFound) {
+		if errors.Is(err, enrollmentNative.ErrLateInviteNotFound) {
 			return summary, nil
 		}
 		return nil, fmt.Errorf("decision: load late invite for request %d: %w", requestID, err)
@@ -154,7 +158,7 @@ func (d *Decisions) DecisionRequest(ctx context.Context, requestID int64) (*enro
 	return summary, nil
 }
 
-func (d *Decisions) assemble(ctx context.Context, req *enrollment.Request) (*enrollment.DecisionSummary, error) {
+func (d *Decisions) assemble(ctx context.Context, req *enrollmentNative.Request) (*enrollmentNative.DecisionSummary, error) {
 	phase, err := d.deps.Phases.Phase(ctx, req.PhaseID)
 	if err != nil {
 		// Phase may have been deleted under us - surface as "phase
@@ -172,12 +176,12 @@ func (d *Decisions) assemble(ctx context.Context, req *enrollment.Request) (*enr
 	if err != nil {
 		return nil, fmt.Errorf("decision: list children for request %d: %w", req.ID, err)
 	}
-	var guardians []*enrollment.RequestGuardian
+	var guardians []*enrollmentNative.RequestGuardian
 	if d.deps.Guardians != nil {
 		guardians, err = d.deps.Guardians.RequestGuardians(ctx, []int64{req.ID})
 		if err != nil {
 			return nil, fmt.Errorf("decision: list guardians for request %d: %w", req.ID, err)
 		}
 	}
-	return &enrollment.DecisionSummary{Request: req, Phase: phase, Children: children, Guardians: guardians}, nil
+	return &enrollmentNative.DecisionSummary{Request: req, Phase: phase, Children: children, Guardians: guardians}, nil
 }

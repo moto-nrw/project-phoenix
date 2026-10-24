@@ -4,6 +4,7 @@ import (
 	"context"
 	"slices"
 
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/ports"
 )
@@ -26,10 +27,11 @@ func NewGuardians(store ports.GuardianStore, owners ports.GuardianLinkOwners, tx
 	return &GuardianService{store: store, owners: owners, tx: tx, observe: observe}
 }
 
-func (s *GuardianService) ListLinksByAccount(ctx context.Context, accountID int64) (result []domain.GuardianLink, err error) {
+// ListLinksByAccount reads the links of several accounts in one statement.
+func (s *GuardianService) ListLinksByAccount(ctx context.Context, accountIDs []int64) (result []peopledirectory.GuardianLink, err error) {
 	err = observeRun(ctx, s.observe, "list_guardian_links_by_account", s.tx.RunRead, func(txCtx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
-		result, queryStats, err = s.store.ListLinksByAccount(txCtx, accountID)
+		result, queryStats, err = s.store.ListLinksByAccounts(txCtx, accountIDs)
 		stats.Add(queryStats)
 		return err
 	})

@@ -53,27 +53,61 @@ describe("exportEmergencySnapshot", () => {
     );
   });
 
-  it("opens and prints the emergency snapshot PDF", async () => {
+  it("opens the print tab before the fetch and prints the PDF into it", async () => {
     vi.useFakeTimers();
     const print = vi.fn();
     const focus = vi.fn();
-    window.open = vi.fn(
-      () => ({ print, focus }) as unknown as Window,
-    ) as typeof window.open;
-    globalThis.fetch = vi.fn(async () => new Response(new Blob(["pdf"])));
+    const tab = { print, focus, location: { href: "" }, opener: {} };
+    const calls: string[] = [];
+    window.open = vi.fn(() => {
+      calls.push("open");
+      return tab as unknown as Window;
+    }) as typeof window.open;
+    globalThis.fetch = vi.fn(async () => {
+      calls.push("fetch");
+      return new Response(new Blob(["pdf"]));
+    });
 
-    await exportEmergencySnapshot("print");
+    const printing = exportEmergencySnapshot("print");
     await vi.runAllTimersAsync();
+    await printing;
 
-    expect(window.open).toHaveBeenCalledWith(
-      "blob:emergency-export-url",
-      "_blank",
-    );
+    // Popup blockers refuse a tab opened after an await, so the order matters.
+    expect(calls).toEqual(["open", "fetch"]);
+    expect(window.open).toHaveBeenCalledWith("", "_blank");
+    expect(tab.opener).toBeNull();
+    expect(tab.location.href).toBe("blob:emergency-export-url");
     expect(focus).toHaveBeenCalled();
     expect(print).toHaveBeenCalled();
     expect(URL.revokeObjectURL).toHaveBeenCalledWith(
       "blob:emergency-export-url",
     );
+  });
+
+  it("closes the print tab again when the export fails", async () => {
+    const close = vi.fn();
+    window.open = vi.fn(
+      () => ({ close }) as unknown as Window,
+    ) as typeof window.open;
+    globalThis.fetch = vi.fn(async () => {
+      return new Response("kaputt", { status: 500 });
+    });
+
+    await expect(exportEmergencySnapshot("print")).rejects.toMatchObject({
+      name: "ApiError",
+      status: 500,
+    });
+    expect(close).toHaveBeenCalled();
+  });
+
+  it("fails without fetching when the browser blocks the print tab", async () => {
+    window.open = vi.fn(() => null) as typeof window.open;
+    globalThis.fetch = vi.fn();
+
+    await expect(exportEmergencySnapshot("print")).rejects.toThrow(
+      "Der Druckdialog konnte nicht geöffnet werden.",
+    );
+    expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 
   // Without a Content-Disposition the snapshot still needs a name a user can

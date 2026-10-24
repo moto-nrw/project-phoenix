@@ -12,7 +12,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -25,14 +25,14 @@ import (
 
 func setupClassListEntriesRoute(t *testing.T) (*testpkg.DB, chi.Router) {
 	t.Helper()
-	db, module := testutil.SetupClassListModule(t)
+	db, module := setupClassListModule(t)
 	return db, newClassListEntriesResource(module.Membership, slog.Default()).Router()
 }
 
-func classListEntryClaims(t *testing.T, db *testpkg.DB, prefix string) jwt.AppClaims {
+func classListEntryClaims(t *testing.T, db *testpkg.DB, prefix string) sessiontoken.AppClaims {
 	t.Helper()
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("%s-%d@test.local", prefix, time.Now().UnixNano()))
-	return jwt.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"admin"}, TenantID: testpkg.Tenant(t)}
+	return sessiontoken.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"admin"}, TenantID: testpkg.Tenant(t)}
 }
 
 func TestClassListEntriesCompositionRunsTheCRUDAndAssignFlow(t *testing.T) {
@@ -133,7 +133,14 @@ func TestClassListEntriesCompositionRunsTheCRUDAndAssignFlow(t *testing.T) {
 	req = httptest.NewRequest(http.MethodDelete, fmt.Sprintf("/%d", entryID), nil)
 	rec = testutil.ExecuteWithAuthPermissions(t, router, req, claims, []string{"users:delete"})
 	require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
-	assert.Contains(t, rec.Body.String(), "Klassenlisteneintrag nicht gefunden")
+	assert.Contains(t, rec.Body.String(), "klassenlisteneintrag nicht gefunden")
+
+	// A different school may have an audit row with the same historical entry
+	// ID. The trail below belongs only to this test's school.
+	foreignTenantID, _ := testpkg.CreateTestTenant(t, db)
+	_, err := db.NewRaw(`INSERT INTO audit.class_list_entry_changes (tenant_id, entry_id, action, changed_by)
+		VALUES (?, ?, 'assigned', ?)`, foreignTenantID, entryID, claims.ID).Exec(t.Context())
+	require.NoError(t, err)
 
 	// Entries carry children's names, so every write leaves a trace (#2382).
 	// The trail is written by the owner through the shared Audit command, in
@@ -202,6 +209,7 @@ func classListEntryTrail(t *testing.T, db *testpkg.DB, entryID int64) []classLis
 	require.NoError(t, db.NewSelect().
 		ColumnExpr(`"change".action, "change".old_value, "change".new_value, "change".matched_student_id, "change".changed_by`).
 		TableExpr(`audit.class_list_entry_changes AS "change"`).
+		Where(`"change".tenant_id = ?`, testpkg.Tenant(t)).
 		Where(`"change".entry_id = ?`, entryID).
 		OrderExpr(`"change".id ASC`).
 		Scan(testpkg.Ctx(t), &rows))

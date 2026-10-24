@@ -4,7 +4,6 @@ import (
 	"context"
 	"log/slog"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 )
 
@@ -39,9 +38,9 @@ func loggerOr(logger *slog.Logger) *slog.Logger {
 // client actually received.
 func AppendMessage(
 	ctx context.Context,
-	msgRepo usersModels.ParentMessageRepository,
-	threadRepo usersModels.ParentMessageThreadRepository,
-	msg *usersModels.ParentMessage,
+	msgRepo ParentMessageRepository,
+	threadRepo ParentMessageThreadRepository,
+	msg *ParentMessage,
 ) error {
 	if err := threadRepo.LockForMessageAppend(ctx, msg.ThreadID); err != nil {
 		return err
@@ -57,7 +56,7 @@ func AppendMessage(
 // that message, never to NOW(), never to one of the reader's OWN rows, and never
 // to a later non-counterpart row. staffReader selects which side counts as the
 // counterpart (true: the guardian side is the counterpart; false: the staff
-// side), matching usersModels.IsCounterpartMessage / the unread SQL's
+// side), matching IsCounterpartMessage / the unread SQL's
 // counterpartUnread. Both portals call this off the SAME slice they return to the
 // client.
 //
@@ -101,12 +100,12 @@ func AppendMessage(
 // from ping-ponging with the refetch it triggers on the counterpart.
 func MarkReadToNewest(
 	ctx context.Context,
-	readRepo usersModels.ParentMessageReadRepository,
+	readRepo ParentMessageReadRepository,
 	tenantID, threadID, accountID int64,
 	staffReader bool,
-	messages []*usersModels.ParentMessage,
+	messages []*ParentMessage,
 ) (bool, error) {
-	var newest *usersModels.ParentMessage
+	var newest *ParentMessage
 	for _, msg := range messages {
 		if msg == nil {
 			continue
@@ -121,7 +120,7 @@ func MarkReadToNewest(
 		// withdrawal that account triggered is attributed by side, so on the opposite
 		// portal it is genuinely unread and MUST be allowed to advance the cursor;
 		// the bare account check stranded it as permanently unread once viewed.
-		if usersModels.IsCounterpartMessage(msg, staffReader) && !usersModels.IsReaderAuthored(msg, accountID) {
+		if IsCounterpartMessage(msg, staffReader) && !IsReaderAuthored(msg, accountID) {
 			newest = msg
 		}
 	}
@@ -136,20 +135,20 @@ func MarkReadToNewest(
 // are safe no-ops, so a concurrent message can stay open but is never skipped.
 func MarkStaffHandledToVisible(
 	ctx context.Context,
-	readRepo usersModels.ParentMessageReadRepository,
+	readRepo ParentMessageReadRepository,
 	tenantID, threadID int64,
 	handledUpToMessageID int64,
-	messages []*usersModels.ParentMessage,
+	messages []*ParentMessage,
 ) error {
 	if handledUpToMessageID <= 0 {
 		return nil
 	}
-	var newest *usersModels.ParentMessage
+	var newest *ParentMessage
 	for _, msg := range messages {
 		if msg == nil {
 			continue
 		}
-		if usersModels.IsCounterpartMessage(msg, true) {
+		if IsCounterpartMessage(msg, true) {
 			newest = msg
 		}
 		if msg.ID == handledUpToMessageID {
@@ -176,10 +175,10 @@ func MarkStaffHandledToVisible(
 // membership, so a guardian's cursor never satisfies the receipt either way).
 func DecorateReadReceipts(
 	ctx context.Context,
-	readRepo usersModels.ParentMessageReadRepository,
+	readRepo ParentMessageReadRepository,
 	logger *slog.Logger,
 	threadID, otherAccountID int64,
-	messages []*usersModels.ParentMessage,
+	messages []*ParentMessage,
 ) {
 	cutoff, err := readRepo.LatestReadCursorByOther(ctx, threadID, otherAccountID)
 	if err != nil {
@@ -189,7 +188,7 @@ func DecorateReadReceipts(
 		)
 		return
 	}
-	usersModels.StampStaffReadReceipts(messages, cutoff)
+	StampStaffReadReceipts(messages, cutoff)
 }
 
 // DecorateGuardianReadReceipts is the staff-side mirror of DecorateReadReceipts:
@@ -203,10 +202,10 @@ func DecorateReadReceipts(
 // parent never needs to be told it read its own conversation.
 func DecorateGuardianReadReceipts(
 	ctx context.Context,
-	readRepo usersModels.ParentMessageReadRepository,
+	readRepo ParentMessageReadRepository,
 	logger *slog.Logger,
 	threadID int64,
-	messages []*usersModels.ParentMessage,
+	messages []*ParentMessage,
 ) {
 	cutoff, err := readRepo.GuardianReadCursor(ctx, threadID)
 	if err != nil {
@@ -216,7 +215,7 @@ func DecorateGuardianReadReceipts(
 		)
 		return
 	}
-	usersModels.StampGuardianReadReceipts(messages, cutoff)
+	StampGuardianReadReceipts(messages, cutoff)
 }
 
 // Broadcast fires the parent-OGS SSE wake-up: the addressed guardian's own tabs
@@ -271,18 +270,18 @@ func BroadcastRead(
 // stores and one broadcaster, so the parent side can call them through a
 // consumer-owned port without holding Communication's persistence itself.
 type ConversationCore struct {
-	threadRepo  usersModels.ParentMessageThreadRepository
-	messageRepo usersModels.ParentMessageRepository
-	readRepo    usersModels.ParentMessageReadRepository
+	threadRepo  ParentMessageThreadRepository
+	messageRepo ParentMessageRepository
+	readRepo    ParentMessageReadRepository
 	broadcaster realtime.Broadcaster
 	logger      *slog.Logger
 }
 
 // NewConversationCore wires the shared conversation rules to their stores.
 func NewConversationCore(
-	threadRepo usersModels.ParentMessageThreadRepository,
-	messageRepo usersModels.ParentMessageRepository,
-	readRepo usersModels.ParentMessageReadRepository,
+	threadRepo ParentMessageThreadRepository,
+	messageRepo ParentMessageRepository,
+	readRepo ParentMessageReadRepository,
 	broadcaster realtime.Broadcaster,
 	logger *slog.Logger,
 ) *ConversationCore {
@@ -293,17 +292,17 @@ func NewConversationCore(
 }
 
 // AppendMessage is the bound form of the package-level AppendMessage.
-func (c *ConversationCore) AppendMessage(ctx context.Context, msg *usersModels.ParentMessage) error {
+func (c *ConversationCore) AppendMessage(ctx context.Context, msg *ParentMessage) error {
 	return AppendMessage(ctx, c.messageRepo, c.threadRepo, msg)
 }
 
 // MarkReadToNewest is the bound form of the package-level MarkReadToNewest.
-func (c *ConversationCore) MarkReadToNewest(ctx context.Context, tenantID, threadID, accountID int64, staffReader bool, messages []*usersModels.ParentMessage) (bool, error) {
+func (c *ConversationCore) MarkReadToNewest(ctx context.Context, tenantID, threadID, accountID int64, staffReader bool, messages []*ParentMessage) (bool, error) {
 	return MarkReadToNewest(ctx, c.readRepo, tenantID, threadID, accountID, staffReader, messages)
 }
 
 // DecorateReadReceipts is the bound form of the package-level DecorateReadReceipts.
-func (c *ConversationCore) DecorateReadReceipts(ctx context.Context, threadID, otherAccountID int64, messages []*usersModels.ParentMessage) {
+func (c *ConversationCore) DecorateReadReceipts(ctx context.Context, threadID, otherAccountID int64, messages []*ParentMessage) {
 	DecorateReadReceipts(ctx, c.readRepo, c.logger, threadID, otherAccountID, messages)
 }
 

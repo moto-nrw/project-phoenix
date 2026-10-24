@@ -2,11 +2,7 @@
 // timetable slots or Ganztag pickup cohorts with three data modes
 // (Plan / Ist / Abgleich) and PDF/XLSX export.
 
-import {
-  ApiError,
-  apiErrorFromResponse,
-  transportFetch,
-} from "~/lib/api-error";
+import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
 import {
   downloadBlob,
   filenameFromDisposition,
@@ -196,27 +192,9 @@ export async function fetchSlotListPreview(
 
 export type SlotListExportMode = "download" | "print";
 
-/**
- * Error thrown by exportSlotList for a non-OK export response. Carries status,
- * code and request ID like every API error, so callers can branch on the
- * backend's 409 drift refusal (the fresh build no longer matches the reviewed
- * preview) without string-matching the message (#1565 review pass 2).
- */
-export class SlotListExportError extends ApiError {
-  constructor(source: ApiError) {
-    super(source.message, source.status, {
-      code: source.code,
-      details: source.details,
-      errors: source.errors,
-      instance: source.instance,
-    });
-    this.name = "SlotListExportError";
-  }
-}
-
 // Thrown when the caller's commitGuard reports the live selection no longer
 // matches the exported request AFTER the file has been built but BEFORE it is
-// handed out. Distinct from SlotListExportError so the caller can show a
+// handed out. Distinct from the ApiError of a failed export so the caller can show a
 // "selection changed" hint instead of logging an export failure (#1565 review
 // pass 10).
 export class SlotListExportSupersededError extends Error {
@@ -265,9 +243,10 @@ export async function exportSlotList(
       }),
     });
     if (!response.ok) {
-      throw new SlotListExportError(
-        await apiErrorFromResponse(response, "slot list export failed"),
-      );
+      // An ApiError with status and code: the caller branches on the 409
+      // drift refusal (the fresh build no longer matches the reviewed
+      // preview) without matching the message (#1565 review pass 2).
+      throw await apiErrorFromResponse(response, "slot list export failed");
     }
 
     const blob = await response.blob();
@@ -284,7 +263,7 @@ export async function exportSlotList(
     }
 
     if (printTarget) {
-      openBlobForPrint(blob, printTarget);
+      await openBlobForPrint(blob, printTarget);
       return;
     }
 

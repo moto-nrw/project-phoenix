@@ -38,10 +38,10 @@ func TestAppointmentRenderer_IntroIsOneSentence(t *testing.T) {
 	render := NewAppointmentRenderer(EmailConfig{})
 
 	for _, kind := range []string{
-		ports.EmailKindAppointmentPublished,
-		ports.EmailKindAppointmentUpdated,
-		ports.EmailKindAppointmentCancelled,
-		ports.EmailKindAppointmentReminder,
+		emailKindAppointmentPublished,
+		emailKindAppointmentUpdated,
+		emailKindAppointmentCancelled,
+		emailKindAppointmentReminder,
 	} {
 		msg, err := render(context.Background(), appointmentOutboxRow(kind))
 		require.NoError(t, err, kind)
@@ -63,10 +63,10 @@ func TestAppointmentRenderer_IntroWithoutSchoolName(t *testing.T) {
 	render := NewAppointmentRenderer(EmailConfig{})
 
 	for _, kind := range []string{
-		ports.EmailKindAppointmentPublished,
-		ports.EmailKindAppointmentUpdated,
-		ports.EmailKindAppointmentCancelled,
-		ports.EmailKindAppointmentReminder,
+		emailKindAppointmentPublished,
+		emailKindAppointmentUpdated,
+		emailKindAppointmentCancelled,
+		emailKindAppointmentReminder,
 	} {
 		row := appointmentOutboxRow(kind)
 		delete(row.Payload, "school_name")
@@ -92,10 +92,10 @@ func TestAppointmentRenderer_PerKindCopy(t *testing.T) {
 		kind    string
 		subject string
 	}{
-		{ports.EmailKindAppointmentPublished, "Neuer Termin"},
-		{ports.EmailKindAppointmentUpdated, "Termin geändert"},
-		{ports.EmailKindAppointmentCancelled, "Termin abgesagt"},
-		{ports.EmailKindAppointmentReminder, "Erinnerung"},
+		{emailKindAppointmentPublished, "Neuer Termin"},
+		{emailKindAppointmentUpdated, "Termin geändert"},
+		{emailKindAppointmentCancelled, "Termin abgesagt"},
+		{emailKindAppointmentReminder, "Erinnerung"},
 	}
 	for _, tc := range cases {
 		msg, err := render(context.Background(), appointmentOutboxRow(tc.kind))
@@ -155,7 +155,7 @@ func TestAppointmentRenderer_MissingRecipient(t *testing.T) {
 	t.Parallel()
 
 	render := NewAppointmentRenderer(EmailConfig{})
-	row := appointmentOutboxRow(ports.EmailKindAppointmentPublished)
+	row := appointmentOutboxRow(emailKindAppointmentPublished)
 	delete(row.Payload, apptPayloadRecipient)
 
 	_, err := render(context.Background(), row)
@@ -166,7 +166,7 @@ func TestAppointmentRenderer_SubjectWithoutSchool(t *testing.T) {
 	t.Parallel()
 
 	render := NewAppointmentRenderer(EmailConfig{})
-	row := appointmentOutboxRow(ports.EmailKindAppointmentPublished)
+	row := appointmentOutboxRow(emailKindAppointmentPublished)
 	delete(row.Payload, apptPayloadSchoolName)
 
 	msg, err := render(context.Background(), row)

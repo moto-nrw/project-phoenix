@@ -4,6 +4,7 @@ import { getClientForwardHeaders } from "~/lib/client-headers.server";
 import { createLogger } from "~/lib/logger";
 import { DEMO_TOKEN_COOKIE, demoBackendUrl } from "../forward";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
+import { problemResponse } from "~/lib/api-helpers.server";
 
 const logger = createLogger({ component: "DemoResetRoute" });
 
@@ -19,10 +20,7 @@ const DEMO_ROLES = new Set(["caregiver", "lead", "parent", "all"]);
 export async function POST(request: NextRequest) {
   const token = request.cookies.get(DEMO_TOKEN_COOKIE)?.value;
   if (!token) {
-    return NextResponse.json(
-      { error: "demo access is unknown" },
-      { status: 404 },
-    );
+    return problemResponse(404, "demo access is unknown", request);
   }
   let body: { role?: unknown } = {};
   try {
@@ -43,7 +41,7 @@ export async function POST(request: NextRequest) {
       },
       body: JSON.stringify({ token }),
     });
-    if (!backend.ok) return forwardBackendResponse(backend);
+    if (!backend.ok) return forwardBackendResponse(backend, request);
     const payload = (await backend.json().catch(() => ({}))) as {
       entry_url?: unknown;
     };
@@ -61,9 +59,6 @@ export async function POST(request: NextRequest) {
     logger.error("demo_reset_forward_failed", {
       error: error instanceof Error ? error.message : String(error),
     });
-    return NextResponse.json(
-      { error: "Internal Server Error" },
-      { status: 500 },
-    );
+    return problemResponse(500, "Internal Server Error", request);
   }
 }

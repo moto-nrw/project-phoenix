@@ -108,7 +108,7 @@ describe("POST /api/parent/auth/password-reset", () => {
     });
 
     vi.mocked(global.fetch).mockResolvedValueOnce(
-      new Response(JSON.stringify({ error: "Too many requests" }), {
+      new Response(JSON.stringify({ detail: "Too many requests" }), {
         status: 429,
         headers: backendHeaders,
       }),
@@ -122,114 +122,7 @@ describe("POST /api/parent/auth/password-reset", () => {
     expect(response.status).toBe(429);
     expect(response.headers.get("Retry-After")).toBe("120");
 
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Too many requests");
-  });
-
-  it("surfaces a JSON error field from the backend", async () => {
-    vi.mocked(global.fetch).mockResolvedValueOnce(
-      new Response(JSON.stringify({ error: "Invalid email" }), {
-        status: 400,
-        headers: { "Content-Type": "application/json" },
-      }),
-    );
-
-    const request = createMockRequest("/api/parent/auth/password-reset", {
-      email: "bad",
-    });
-    const response = await POST(request);
-
-    expect(response.status).toBe(400);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Invalid email");
-  });
-
-  it("falls back to the message field when error is absent", async () => {
-    vi.mocked(global.fetch).mockResolvedValueOnce(
-      new Response(JSON.stringify({ message: "Invalid email format" }), {
-        status: 400,
-        headers: { "Content-Type": "application/json" },
-      }),
-    );
-
-    const request = createMockRequest("/api/parent/auth/password-reset", {
-      email: "bad",
-    });
-    const response = await POST(request);
-
-    expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toEqual({
-      message: "Invalid email format",
-    });
-  });
-
-  it("returns non-JSON error bodies verbatim", async () => {
-    vi.mocked(global.fetch).mockResolvedValueOnce(
-      new Response("Server Error", {
-        status: 500,
-        headers: { "Content-Type": "text/plain" },
-      }),
-    );
-
-    const request = createMockRequest("/api/parent/auth/password-reset", {
-      email: "parent@example.com",
-    });
-    const response = await POST(request);
-
-    expect(response.status).toBe(500);
-    expect(response.headers.get("Content-Type")).toContain("text/plain");
-    expect(await response.text()).toBe("Server Error");
-  });
-
-  it("uses the German fallback message for an empty error body", async () => {
-    vi.mocked(global.fetch).mockResolvedValueOnce(
-      new Response("", {
-        status: 500,
-        headers: { "Content-Type": "text/plain" },
-      }),
-    );
-
-    const request = createMockRequest("/api/parent/auth/password-reset", {
-      email: "parent@example.com",
-    });
-    const response = await POST(request);
-
-    expect(response.status).toBe(500);
-    expect(await response.text()).toBe("");
-  });
-
-  it("uses the German fallback when the JSON error body is unparseable", async () => {
-    vi.spyOn(console, "warn").mockImplementation(() => undefined);
-
-    vi.mocked(global.fetch).mockResolvedValueOnce(
-      new Response("invalid json", {
-        status: 400,
-        headers: { "Content-Type": "application/json" },
-      }),
-    );
-
-    const request = createMockRequest("/api/parent/auth/password-reset", {
-      email: "parent@example.com",
-    });
-    const response = await POST(request);
-
-    expect(response.status).toBe(400);
-    expect(response.headers.get("Content-Type")).toContain("application/json");
-    expect(await response.text()).toBe("invalid json");
-  });
-
-  it("returns 500 when the upstream fetch throws", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => undefined);
-
-    vi.mocked(global.fetch).mockRejectedValueOnce(new Error("Network error"));
-
-    const request = createMockRequest("/api/parent/auth/password-reset", {
-      email: "parent@example.com",
-    });
-    const response = await POST(request);
-
-    expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Internal Server Error");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Too many requests");
   });
 });

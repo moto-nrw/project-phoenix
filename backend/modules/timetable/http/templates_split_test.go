@@ -20,9 +20,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -63,7 +62,7 @@ func splitRouter(parentCtx context.Context, res *Resource, db *bun.DB, perms []s
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 			ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(req.Context()), tenantID)
-			ctx = context.WithValue(ctx, jwt.CtxPermissions, perms)
+			ctx = context.WithValue(ctx, sessiontoken.CtxPermissions, perms)
 			principal, err := permissions.NewPrincipal(permissions.PrincipalInput{AccountID: 1, TenantID: tenantID, Permissions: perms})
 			if err != nil {
 				panic(err)
@@ -274,7 +273,7 @@ func TestTemplateUpdateHandler_EnforcesTenantGradeLevelMax(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, rejectedW.Code, "body=%s", rejectedW.Body.String())
 	require.Contains(t, rejectedW.Body.String(), "target_grade_level 7 exceeds tenant maximum 4")
 
-	group, err := mustTimetableTestRepositories(s.db).ActivityGroup.FindByID(s.ctx, created.TemplateID)
+	group, err := mustTimetableTestRepositories(s.db).Timetable.FindGroup(s.ctx, created.TemplateID)
 	require.NoError(t, err)
 	assert.Equal(t, "Tpl-GradeCap-Update-Unchanged", group.Name)
 	require.NotNil(t, group.TargetGradeLevel)
@@ -288,7 +287,7 @@ func TestTemplateUpdateHandler_EnforcesTenantGradeLevelMax(t *testing.T) {
 		fmt.Sprintf("/templates/%d", created.TemplateID), settingsFailure)
 	require.Equal(t, http.StatusInternalServerError, settingsFailureW.Code, "body=%s", settingsFailureW.Body.String())
 
-	group, err = mustTimetableTestRepositories(s.db).ActivityGroup.FindByID(s.ctx, created.TemplateID)
+	group, err = mustTimetableTestRepositories(s.db).Timetable.FindGroup(s.ctx, created.TemplateID)
 	require.NoError(t, err)
 	assert.Equal(t, "Tpl-GradeCap-Update-Unchanged", group.Name)
 }
@@ -319,7 +318,7 @@ func TestTemplateSplitHandler_EnforcesTenantGradeLevelMax(t *testing.T) {
 			fmt.Sprintf("/templates/%d/split", created.TemplateID), body)
 		require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
 		result := decodeTemplateData[splitTemplateResponse](t, w)
-		successor, err := mustTimetableTestRepositories(s.db).ActivityGroup.FindByID(s.ctx, result.NewTemplateID)
+		successor, err := mustTimetableTestRepositories(s.db).Timetable.FindGroup(s.ctx, result.NewTemplateID)
 		require.NoError(t, err)
 		require.NotNil(t, successor.TargetGradeLevel)
 		assert.EqualValues(t, 5, *successor.TargetGradeLevel)
@@ -350,7 +349,7 @@ func TestTemplateSplitHandler_EnforcesTenantGradeLevelMax(t *testing.T) {
 		for _, row := range templateSchedules(t, s, created.TemplateID) {
 			assert.Nil(t, row.ValidUntil)
 		}
-		series, err := mustTimetableTestRepositories(s.db).ActivityGroup.FindTemplateSeries(s.ctx, created.TemplateID)
+		series, err := findTemplateSeries(s.ctx, mustTimetableTestRepositories(s.db).Timetable, created.TemplateID)
 		require.NoError(t, err)
 		assert.Len(t, series, 1)
 	})
@@ -374,7 +373,7 @@ func TestTemplateSplitHandler_EnforcesTenantGradeLevelMax(t *testing.T) {
 		for _, row := range templateSchedules(t, s, created.TemplateID) {
 			assert.Nil(t, row.ValidUntil)
 		}
-		series, err := mustTimetableTestRepositories(s.db).ActivityGroup.FindTemplateSeries(s.ctx, created.TemplateID)
+		series, err := findTemplateSeries(s.ctx, mustTimetableTestRepositories(s.db).Timetable, created.TemplateID)
 		require.NoError(t, err)
 		assert.Len(t, series, 1)
 	})
@@ -387,7 +386,7 @@ func TestTemplateSplitHandler_IncompatibleCareLinkRollsBackOn400(t *testing.T) {
 	s := buildTemplateModule(t, mat)
 	defer s.cleanupFn()
 	s.res.Templates = splitTemplateAdministration(s, mat, func(context.Context, int64) error {
-		return fmt.Errorf("%w: linked care offering would become invalid", testutil.ErrCareOfferingInvalid)
+		return fmt.Errorf("%w: linked care offering would become invalid", RootCompositions.ErrCareOfferingInvalid)
 	})
 	router := splitRouter(s.ctx, s.res, s.db, []string{permissions.SchedulesManage})
 	created := createSourceTemplate(t, router, s, "Tpl-Split-Rollback-Quelle")
@@ -397,7 +396,7 @@ func TestTemplateSplitHandler_IncompatibleCareLinkRollsBackOn400(t *testing.T) {
 		splitBody(s, "Tpl-Split-Rollback-Nachfolger", calendar.TodayDate().AddDays(7)))
 	require.Equal(t, http.StatusBadRequest, w.Code, "body=%s", w.Body.String())
 	assert.Contains(t, w.Body.String(), `"code":"timetable.template_care_offering_conflict"`)
-	assert.Contains(t, w.Body.String(), "Die Änderung ist nicht möglich")
+	assert.Contains(t, w.Body.String(), "die Änderung ist nicht möglich")
 	assert.NotContains(t, w.Body.String(), "linked care offering")
 
 	schedules := templateSchedules(t, s, created.TemplateID)
@@ -406,7 +405,7 @@ func TestTemplateSplitHandler_IncompatibleCareLinkRollsBackOn400(t *testing.T) {
 		assert.Nil(t, schedule.ValidUntil,
 			"the ambient TenantTxMiddleware must roll back the provisional source cap")
 	}
-	series, err := mustTimetableTestRepositories(s.db).ActivityGroup.FindTemplateSeries(s.ctx, created.TemplateID)
+	series, err := findTemplateSeries(s.ctx, mustTimetableTestRepositories(s.db).Timetable, created.TemplateID)
 	require.NoError(t, err)
 	require.Len(t, series, 1, "the rejected successor must not commit on a 400 response")
 	assert.Equal(t, created.TemplateID, series[0].ID)
@@ -452,7 +451,7 @@ func TestTemplateSplitHandler_CareValidatorInfrastructureFailureReturnsGeneric50
 	for _, schedule := range schedules {
 		assert.Nil(t, schedule.ValidUntil)
 	}
-	series, err := mustTimetableTestRepositories(s.db).ActivityGroup.FindTemplateSeries(s.ctx, created.TemplateID)
+	series, err := findTemplateSeries(s.ctx, mustTimetableTestRepositories(s.db).Timetable, created.TemplateID)
 	require.NoError(t, err)
 	require.Len(t, series, 1)
 	assert.Equal(t, created.TemplateID, series[0].ID)
@@ -467,7 +466,7 @@ func TestTemplateUpdateHandler_IncompatibleCareLinkRollsBackOn400(t *testing.T) 
 	router := splitRouter(s.ctx, s.res, s.db, []string{permissions.SchedulesManage})
 	created := createSourceTemplate(t, router, s, "Tpl-Update-Rollback-Quelle")
 
-	beforeGroup, err := mustTimetableTestRepositories(s.db).ActivityGroup.FindByID(s.ctx, created.TemplateID)
+	beforeGroup, err := mustTimetableTestRepositories(s.db).Timetable.FindGroup(s.ctx, created.TemplateID)
 	require.NoError(t, err)
 	beforeSchedules := templateSchedules(t, s, created.TemplateID)
 	beforeEnrollments := templateEnrollments(t, s, created.TemplateID)
@@ -487,7 +486,7 @@ func TestTemplateUpdateHandler_IncompatibleCareLinkRollsBackOn400(t *testing.T) 
 		if len(provisionalTimeframes) != 1 {
 			return fmt.Errorf("expected one provisional timeframe, got %d", len(provisionalTimeframes))
 		}
-		provisionalGroup, lookupErr := mustTimetableTestRepositories(s.db).ActivityGroup.FindByID(ctx, templateID)
+		provisionalGroup, lookupErr := mustTimetableTestRepositories(s.db).Timetable.FindGroup(ctx, templateID)
 		if lookupErr != nil {
 			return lookupErr
 		}
@@ -495,7 +494,7 @@ func TestTemplateUpdateHandler_IncompatibleCareLinkRollsBackOn400(t *testing.T) 
 			return fmt.Errorf("expected provisional group name %q, got %q", updateName, provisionalGroup.Name)
 		}
 		validatorReached = true
-		return fmt.Errorf("%w: linked care offering would become invalid", testutil.ErrCareOfferingInvalid)
+		return fmt.Errorf("%w: linked care offering would become invalid", RootCompositions.ErrCareOfferingInvalid)
 	})
 
 	updateBody := createTemplateBody(s, updateName)
@@ -513,7 +512,7 @@ func TestTemplateUpdateHandler_IncompatibleCareLinkRollsBackOn400(t *testing.T) 
 
 	afterTimeframes := listTimeframesByDescription(t, s, s.ctx, updateName)
 	assert.Empty(t, afterTimeframes, "the unique timeframe created before validation must roll back")
-	afterGroup, err := mustTimetableTestRepositories(s.db).ActivityGroup.FindByID(s.ctx, created.TemplateID)
+	afterGroup, err := mustTimetableTestRepositories(s.db).Timetable.FindGroup(s.ctx, created.TemplateID)
 	require.NoError(t, err)
 	assert.Equal(t, beforeGroup.Name, afterGroup.Name)
 	assert.Equal(t, beforeGroup.Type, afterGroup.Type)
@@ -639,7 +638,7 @@ func TestTemplateUpdateHandler_RejectsInconsistentValidityEnvelopeWithoutMutatio
 	assert.Equal(t, inconsistentFrom.String(), *after[0].ValidFrom)
 	assert.Nil(t, after[1].ValidFrom)
 
-	group, err := mustTimetableTestRepositories(s.db).ActivityGroup.FindByID(s.ctx, created.TemplateID)
+	group, err := mustTimetableTestRepositories(s.db).Timetable.FindGroup(s.ctx, created.TemplateID)
 	require.NoError(t, err)
 	assert.Equal(t, "Tpl-Update-Inconsistent-Quelle", group.Name,
 		"validity validation must run before template fields change")
@@ -830,4 +829,11 @@ func TestTemplateEndHandler_ForbiddenForReadOnly(t *testing.T) {
 		fmt.Sprintf("/templates/%d/end", created.TemplateID),
 		endBody(calendar.TodayDate().AddDays(7)))
 	assert.Equal(t, http.StatusForbidden, w.Code, "body=%s", w.Body.String())
+}
+
+// findTemplateSeries lists the live segments of a template's split lineage
+// in ID order.
+func findTemplateSeries(ctx context.Context, groups timetableModule.ActivityGroupQuery, groupID int64) ([]timetableModule.Group, error) {
+	isTemplate := true
+	return groups.ListGroups(ctx, timetableModule.GroupFilter{IsTemplate: &isTemplate, ActiveOnly: true, SeriesForGroupID: &groupID, OrderByID: true})
 }

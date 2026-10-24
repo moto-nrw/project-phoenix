@@ -1,5 +1,5 @@
 {
-  "schema_version": 3,
+  "schema_version": 5,
   "policy_epoch": 1,
   "module_path": "example.test/architecture-semantic-valid",
   "shared_kernel_types": ["CorrelationID", "Date", "TenantID", "WallClock"],

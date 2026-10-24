@@ -17,8 +17,8 @@ import (
 
 // renderedError is the error body the shared renderer writes.
 type renderedError struct {
-	Status string `json:"status"`
-	Error  string `json:"error"`
+	Status int    `json:"status"`
+	Detail string `json:"detail"`
 }
 
 // renderError renders err the way the routes do and returns the status code
@@ -48,7 +48,7 @@ func TestErrorRenderer_NotFoundErrors(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			status, body := renderError(t, &education.EducationError{Err: tt.baseErr})
 			assert.Equal(t, http.StatusNotFound, status)
-			assert.Equal(t, "error", body.Status)
+			assert.Equal(t, status, body.Status)
 		})
 	}
 }
@@ -61,7 +61,7 @@ func TestErrorRenderer_ConflictErrors(t *testing.T) {
 		baseErr error
 		wantMsg string
 	}{
-		{"ErrDuplicateGroup", education.ErrDuplicateGroup, "Eine Gruppe mit diesem Namen"},
+		{"ErrDuplicateGroup", education.ErrDuplicateGroup, "eine Gruppe mit diesem Namen"},
 		{"ErrGroupHasStudents", education.ErrGroupHasStudents, ""},
 		{"ErrGroupHasHandover", education.ErrGroupHasHandover, "Übergabe muss zuerst beendet werden"},
 	}
@@ -70,11 +70,11 @@ func TestErrorRenderer_ConflictErrors(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			status, body := renderError(t, &education.EducationError{Op: "DeleteGroup", Err: tt.baseErr})
 			assert.Equal(t, http.StatusConflict, status)
-			assert.Equal(t, "error", body.Status)
+			assert.Equal(t, status, body.Status)
 			if tt.wantMsg != "" {
-				assert.Contains(t, body.Error, tt.wantMsg)
+				assert.Contains(t, body.Detail, tt.wantMsg)
 			}
-			assert.NotContains(t, body.Error, "education:",
+			assert.NotContains(t, body.Detail, "education:",
 				"renderer must surface the inner sentinel, not the EducationError wrapper prefix")
 		})
 	}
@@ -95,7 +95,7 @@ func TestErrorRenderer_InvalidRequestErrors(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			status, body := renderError(t, &education.EducationError{Err: tt.baseErr})
 			assert.Equal(t, http.StatusBadRequest, status)
-			assert.Equal(t, "error", body.Status)
+			assert.Equal(t, status, body.Status)
 		})
 	}
 }
@@ -105,7 +105,7 @@ func TestErrorRenderer_UnknownEducationError(t *testing.T) {
 
 	status, body := renderError(t, &education.EducationError{Err: errors.New("unknown error")})
 	assert.Equal(t, http.StatusInternalServerError, status)
-	assert.Equal(t, "error", body.Status)
+	assert.Equal(t, status, body.Status)
 }
 
 func TestErrorRenderer_NonEducationError(t *testing.T) {
@@ -113,5 +113,5 @@ func TestErrorRenderer_NonEducationError(t *testing.T) {
 
 	status, body := renderError(t, errors.New("generic error"))
 	assert.Equal(t, http.StatusInternalServerError, status)
-	assert.Equal(t, "error", body.Status)
+	assert.Equal(t, status, body.Status)
 }

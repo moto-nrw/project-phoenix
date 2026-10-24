@@ -16,7 +16,7 @@ export async function GET(
     `${getServerApiUrl()}/public/calendar/${encodeURIComponent(token)}`,
   );
   if (!upstream.ok) {
-    return forwardBackendResponse(upstream);
+    return forwardBackendResponse(upstream, _request);
   }
   return new Response(await upstream.text(), {
     status: 200,

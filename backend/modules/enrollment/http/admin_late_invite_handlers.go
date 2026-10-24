@@ -13,7 +13,7 @@ import (
 	"github.com/go-chi/render"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -53,7 +53,7 @@ func (rs *Resource) createLateInvite(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	createdBy := int64(claims.ID)
 	if createdBy <= 0 {
 		common.RenderError(w, r, common.ErrorUnauthorized(errors.New("no account ID in context")))
@@ -155,16 +155,15 @@ func (rs *Resource) createManualApprovedEnrollment(w http.ResponseWriter, r *htt
 			SendNotification: body.SendNotification,
 			ActorID:          actorID,
 		})
+		if createErr != nil {
+			return createErr
+		}
 		result = out
-		return createErr
+		return rs.enqueueDecisionInvite(ctx, out.PendingInvite)
 	})
 	if err != nil {
-		mapManualEnrollmentError(w, r, err)
+		rs.mapManualEnrollmentError(w, r, err)
 		return
-	}
-
-	if result.PendingInvite != nil && rs.GuardianInvitations.configured() {
-		go rs.dispatchPostDecisionInvite(r.Context(), result.PendingInvite)
 	}
 
 	common.Respond(w, r, http.StatusCreated, manualApprovedEnrollmentResponse(result), "Manual enrollment created and approved")
@@ -174,7 +173,7 @@ func (rs *Resource) createManualApprovedEnrollment(w http.ResponseWriter, r *htt
 // enrollment is created for; it answers the request itself when either is
 // missing.
 func manualEnrollmentActor(w http.ResponseWriter, r *http.Request) (actorID, tenantID int64, ok bool) {
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	actorID = int64(claims.ID)
 	if actorID <= 0 {
 		common.RenderError(w, r, common.ErrorUnauthorized(errors.New("no account ID in context")))
@@ -291,7 +290,7 @@ func mapLateInviteAdminError(w http.ResponseWriter, r *http.Request, err error) 
 	}
 }
 
-func mapManualEnrollmentError(w http.ResponseWriter, r *http.Request, err error) {
+func (rs *Resource) mapManualEnrollmentError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, capability.ErrDecisionChildNotFound),
 		errors.Is(err, capability.ErrDecisionRequestNotFound):
@@ -304,7 +303,7 @@ func mapManualEnrollmentError(w http.ResponseWriter, r *http.Request, err error)
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	case errors.Is(err, capability.ErrGuardianAccountMismatch):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeEnrollmentGuardianAccountMismatch))
-	case common.IsTransientDatabaseError(err):
+	case rs.Failures.Transient(err):
 		common.RenderError(w, r, common.ErrorServiceUnavailable(err))
 	default:
 		mapSubmitError(w, r, err)

@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"maps"
 	"slices"
 	"sort"
 	"strconv"
@@ -109,50 +108,14 @@ func (s *service) Compute(ctx context.Context, scope reminder.Scope) (*reminder.
 	// Pickup and activity scopes are resolved independently so an activity-only
 	// tenant never pays for (or fails on) student-presence resolution, and a
 	// pickup-only tenant never resolves the room filter.
-	if pickupUpcoming || pickupOverdue {
-		studentIDs, serr := s.pickupScopeStudentIDs(ctx, scope, today)
-		if serr != nil {
-			return nil, serr
-		}
-		lead, lerr := s.leadMinutes(ctx, s.Settings.PickupLeadMinutes)
-		if lerr != nil {
-			return nil, lerr
-		}
-		pickupReminders, pickupNext, perr := s.pickupReminders(ctx, scope, studentIDs, today, nowMin, lead, pickupUpcoming, pickupOverdue)
-		if perr != nil {
-			return nil, perr
-		}
-		pickupPart = pickupReminders
-		nextChange = minFuture(nextChange, pickupNext)
+	pickupPart, nextChange, err = s.computePickupPart(ctx, scope, today, nowMin, pickupUpcoming, pickupOverdue, nextChange)
+	if err != nil {
+		return nil, err
 	}
-
-	if activityStart || activityOverdue {
-		// Admins see all activities (nil filter); caregivers are limited to the
-		// rooms they supervise.
-		var roomIDs []int64
-		if !scope.IsAdmin {
-			rooms, rerr := s.supervisedRoomIDs(ctx, scope)
-			if rerr != nil {
-				return nil, rerr
-			}
-			roomIDs = rooms
-		}
-		lead, lerr := s.leadMinutes(ctx, s.Settings.ActivityLeadMinutes)
-		if lerr != nil {
-			return nil, lerr
-		}
-		overdueThreshold, oerr := s.overdueThresholdMinutes(ctx)
-		if oerr != nil {
-			return nil, oerr
-		}
-		activityReminders, activityNext, aerr := s.activityReminders(ctx, scope, roomIDs, today, nowMin, lead, overdueThreshold, activityStart, activityOverdue)
-		if aerr != nil {
-			return nil, aerr
-		}
-		activityPart = activityReminders
-		nextChange = minFuture(nextChange, activityNext)
+	activityPart, nextChange, err = s.computeActivityPart(ctx, scope, today, nowMin, activityStart, activityOverdue, nextChange)
+	if err != nil {
+		return nil, err
 	}
-
 	return assembleResult(pickupPart, activityPart, nextChange), nil
 }
 
@@ -213,99 +176,6 @@ func assembleResult(pickupPart, activityPart []reminder.Reminder, nextChange int
 //     empty even when checked-in students have due pickups). Fall back to all
 //     present students from attendance and let the read predicate in
 //     pickupReminders lock the set down to the caregiver's own education groups.
-func (s *service) pickupScopeStudentIDs(ctx context.Context, scope reminder.Scope, today string) ([]int64, error) {
-	if scope.IsAdmin {
-		return s.presentStudentIDsFromAttendance(ctx, today)
-	}
-
-	binary, err := s.binaryMode(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if binary {
-		return s.presentStudentIDsFromAttendance(ctx, today)
-	}
-
-	roomIDs, err := s.supervisedRoomIDs(ctx, scope)
-	if err != nil {
-		return nil, err
-	}
-	return s.presentStudentsInRooms(ctx, roomIDs)
-}
-
-// presentStudentIDsFromAttendance lists all students with an open attendance
-// row today. Used for admins (all present children) and for caregivers in
-// binary mode, where room-scoped visit rows do not exist.
-func (s *service) presentStudentIDsFromAttendance(ctx context.Context, today string) ([]int64, error) {
-	if s.Attendance == nil {
-		return nil, nil
-	}
-	return s.Attendance.ListOpenAttendanceStudentIDs(ctx, today)
-}
-
-// binaryMode reports whether the tenant runs the binary presence mode, in which
-// CreateVisit is a no-op and presence lives in active.attendance rather than
-// active.visits. A settings resolution error is surfaced, consistent with the
-// rest of the service — a broken read must not silently pick a presence source.
-func (s *service) binaryMode(ctx context.Context) (bool, error) {
-	if s.Settings == nil {
-		return false, nil
-	}
-	return s.Settings.BinaryPresence(ctx)
-}
-
-// supervisedRoomIDs returns the room IDs the caregiver currently supervises.
-func (s *service) supervisedRoomIDs(ctx context.Context, scope reminder.Scope) ([]int64, error) {
-	if s.Supervision == nil {
-		return nil, nil
-	}
-
-	supervisions, err := s.Supervision.GetStaffActiveSupervisions(ctx, scope.StaffID)
-	if err != nil {
-		return nil, err
-	}
-	groupIDs := make([]int64, 0, len(supervisions))
-	for _, sup := range supervisions {
-		if sup != nil {
-			groupIDs = append(groupIDs, sup.GroupID)
-		}
-	}
-	if len(groupIDs) == 0 {
-		return nil, nil
-	}
-
-	groups, err := s.Supervision.GetActiveGroupsByIDs(ctx, groupIDs)
-	if err != nil {
-		return nil, err
-	}
-	roomSet := make(map[int64]struct{}, len(groups))
-	for _, g := range groups {
-		if g != nil {
-			roomSet[g.RoomID] = struct{}{}
-		}
-	}
-	return slices.Collect(maps.Keys(roomSet)), nil
-}
-
-// presentStudentsInRooms returns the deduplicated IDs of students currently
-// present in any of the given rooms.
-func (s *service) presentStudentsInRooms(ctx context.Context, roomIDs []int64) ([]int64, error) {
-	if len(roomIDs) == 0 {
-		return nil, nil
-	}
-	byRoom, err := s.Visits.ListOpenVisitStudentIDsByRoom(ctx)
-	if err != nil {
-		return nil, err
-	}
-	studentSet := make(map[int64]struct{})
-	for _, roomID := range roomIDs {
-		for _, id := range byRoom[roomID] {
-			studentSet[id] = struct{}{}
-		}
-	}
-	return slices.Collect(maps.Keys(studentSet)), nil
-}
-
 func (s *service) pickupReminders(ctx context.Context, scope reminder.Scope, studentIDs []int64, today string, nowMin, lead int, upcoming, overdue bool) ([]reminder.Reminder, int, error) {
 	nextChange := -1
 	if len(studentIDs) == 0 || s.Pickup == nil {
@@ -355,20 +225,7 @@ func (s *service) pickupReminders(ctx context.Context, scope reminder.Scope, stu
 		return nil, nextChange, nil
 	}
 
-	dueIDs := make([]int64, len(dues))
-	for i, d := range dues {
-		dueIDs[i] = d.id
-	}
-
-	// Hydrate display names for the due students only (all already read-gated).
-	infos, err := s.hydrateNames(ctx, readable, dueIDs)
-	if err != nil {
-		return nil, nextChange, err
-	}
-
-	out, dropped := buildPickupReminders(dues, infos)
-	s.logDroppedPickups(dropped)
-	return out, nextChange, nil
+	return s.renderDuePickups(ctx, readable, dues, nextChange)
 }
 
 // pickupWindow bundles the time-window parameters of one pickup evaluation.
@@ -658,27 +515,7 @@ func buildActivityReminders(
 		endMin := minutesOfDay(inst.EndTime)
 		diff := startMin - w.nowMin
 
-		// Track the boundaries at which this instance's reminder state flips, so
-		// the frontend can refetch exactly then instead of waiting for the poll:
-		//   upcoming: enters the window at startMin-lead, leaves it at startMin+1
-		//   overdue:  appears at startMin+overdueThreshold, disappears at endMin
-		// The upcoming exit is startMin+1, NOT startMin: at exactly startMin the
-		// diff is 0, which is still "upcoming" (diff >= 0); the reminder only
-		// disappears the first minute startMin is in the past. Scheduling startMin
-		// would refetch a minute early (nothing changed) and drop the real
-		// startMin+1 boundary — same reasoning as the pickup flip below.
-		if w.upcoming {
-			nextChange = minFuture(nextChange, futureBoundary(startMin-w.lead, w.nowMin))
-			nextChange = minFuture(nextChange, futureBoundary(startMin+1, w.nowMin))
-		}
-		if w.overdue {
-			overdueStart := startMin + w.overdueThreshold
-			if overdueStart < endMin {
-				nextChange = minFuture(nextChange, futureBoundary(overdueStart, w.nowMin))
-				nextChange = minFuture(nextChange, futureBoundary(endMin, w.nowMin))
-			}
-		}
-
+		nextChange = activityNextBoundary(startMin, endMin, w, nextChange)
 		switch {
 		case w.upcoming && diff >= 0 && diff <= w.lead:
 			out = append(out, reminder.Reminder{
@@ -715,80 +552,6 @@ type studentNameInfo struct {
 //
 // A DB/RLS lookup error is propagated rather than treated as no-access, so a
 // broken read fails the request instead of silently hiding reminders.
-func (s *service) readableStudents(ctx context.Context, scope reminder.Scope, ids []int64) (map[int64]*ports.Student, error) {
-	if s.Student == nil {
-		// Without a student reader we can neither verify read access nor build a
-		// title. Fail closed (return nothing) rather than expose unverified data.
-		return map[int64]*ports.Student{}, nil
-	}
-
-	students, err := s.Student.FindReadScopeByIDs(ctx, ids)
-	if err != nil {
-		return nil, fmt.Errorf("load students: %w", err)
-	}
-
-	allowed, err := s.pickupReadPredicate(ctx, scope)
-	if err != nil {
-		return nil, err
-	}
-
-	readable := make(map[int64]*ports.Student, len(students))
-	for id, st := range students {
-		if st == nil || !allowed(st) {
-			continue
-		}
-		readable[id] = st
-	}
-	return readable, nil
-}
-
-// hydrateNames builds the display name + school class for the given (already
-// read-gated) students. Only the due subset is hydrated: the pickup-reminder API
-// contract promises a student name as the title, so a failed person read must
-// fail the request rather than emit unusable reminders with empty titles.
-func (s *service) hydrateNames(ctx context.Context, readable map[int64]*ports.Student, ids []int64) (map[int64]studentNameInfo, error) {
-	result := make(map[int64]studentNameInfo, len(ids))
-
-	personIDs := make([]int64, 0, len(ids))
-	for _, id := range ids {
-		if st := readable[id]; st != nil {
-			personIDs = append(personIDs, st.PersonID)
-		}
-	}
-
-	var persons map[int64]*ports.Person
-	if s.Person != nil && len(personIDs) > 0 {
-		var err error
-		persons, err = s.Person.FindByIDs(ctx, personIDs)
-		if err != nil {
-			return nil, fmt.Errorf("load persons for student names: %w", err)
-		}
-	}
-
-	for _, id := range ids {
-		st := readable[id]
-		if st == nil {
-			continue
-		}
-		info := studentNameInfo{class: st.SchoolClass}
-		if persons != nil {
-			if p := persons[st.PersonID]; p != nil {
-				info.name = p.Name
-			}
-		}
-		result[id] = info
-	}
-	return result, nil
-}
-
-// pickupReadPredicate returns a per-student read-access test mirroring
-// authorize.CanReadStudent for the pickup read path. Every reminder recipient
-// is staff, so since #2329 all present students are readable — per-group
-// gating is gone.
-func (s *service) pickupReadPredicate(_ context.Context, _ reminder.Scope) (func(*ports.Student) bool, error) {
-	return func(st *ports.Student) bool { return st != nil }, nil
-}
-
 // leadMinutes resolves a lead-time setting. A resolution failure is surfaced —
 // like the boolean toggle reads, a broken numeric read must fail the request
 // rather than silently compute reminders at the wrong time. A non-positive

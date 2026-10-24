@@ -1,17 +1,12 @@
 // lib/auth-helpers.ts
 // Type definitions for auth entities
 
-export interface BackendAccount {
-  ID: number;
-  Email: string;
-  Username?: string;
-  Name?: string;
-  Active: boolean;
-  Roles?: BackendRole[];
-  Permissions?: BackendPermission[];
-  CreatedAt: string;
-  UpdatedAt: string;
-}
+import {
+  SYSTEM_ROLE_LABELS,
+  isSystemRoleName,
+  systemRoleDescription,
+  systemRoleLabel,
+} from "~/lib/role-labels";
 
 export interface BackendRole {
   ID: string | number;
@@ -34,42 +29,12 @@ export interface BackendPermission {
   updated_at: string;
 }
 
-export interface BackendToken {
-  ID: number;
-  Token: string;
-  Expiry: string;
-  Mobile: boolean;
-  Identifier?: string;
-  CreatedAt: string;
-}
-
-export interface BackendParentAccount {
-  ID: number;
-  Email: string;
-  Username?: string;
-  Active: boolean;
-  CreatedAt: string;
-  UpdatedAt: string;
-}
-
 // Frontend types
-export interface Account {
-  id: string;
-  email: string;
-  username?: string;
-  name?: string;
-  active: boolean;
-  roles?: Role[];
-  permissions?: Permission[];
-  createdAt: string;
-  updatedAt: string;
-}
-
 /** German display labels for system base roles used in announcement targeting. */
 export const BASE_ROLE_LABELS: Record<string, string> = {
-  admin: "Administrator",
-  user: "Betreuer",
-  guardian: "Erziehungsberechtigte",
+  admin: SYSTEM_ROLE_LABELS.admin.name,
+  user: SYSTEM_ROLE_LABELS.user.name,
+  guardian: SYSTEM_ROLE_LABELS.guardian.name,
 };
 
 /** Returns the German display label for a base role, or a fallback for unmapped/missing values. */
@@ -84,6 +49,8 @@ export interface Role {
   description: string;
   isSystem: boolean;
   baseRole?: string;
+  /** Made from the template „Wie Lehrkraft“: works in moto schule (#4574). */
+  schoolPortal?: boolean;
   createdAt: string;
   updatedAt: string;
   permissions?: Permission[];
@@ -99,39 +66,7 @@ export interface Permission {
   updatedAt: string;
 }
 
-export interface Token {
-  id: string;
-  token: string;
-  expiry: string;
-  mobile: boolean;
-  identifier?: string;
-  createdAt: string;
-}
-
-export interface ParentAccount {
-  id: string;
-  email: string;
-  username?: string;
-  active: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
-
 // Transformation functions
-export function mapAccountResponse(backendAccount: BackendAccount): Account {
-  return {
-    id: String(backendAccount.ID),
-    email: backendAccount.Email,
-    username: backendAccount.Username,
-    name: backendAccount.Name,
-    active: backendAccount.Active,
-    roles: backendAccount.Roles?.map(mapRoleResponse),
-    permissions: backendAccount.Permissions?.map(mapPermissionResponse),
-    createdAt: backendAccount.CreatedAt,
-    updatedAt: backendAccount.UpdatedAt,
-  };
-}
-
 // Flexible role interface for handling mixed case API responses
 interface FlexibleRoleData {
   ID?: string | number;
@@ -144,6 +79,7 @@ interface FlexibleRoleData {
   is_system?: boolean;
   BaseRole?: string;
   base_role?: string;
+  school_portal?: boolean;
   CreatedAt?: string;
   created_at?: string;
   UpdatedAt?: string;
@@ -163,6 +99,7 @@ export function mapRoleResponse(
     description: roleData.Description ?? roleData.description ?? "",
     isSystem: roleData.IsSystem ?? roleData.is_system ?? false,
     baseRole: roleData.BaseRole ?? roleData.base_role,
+    schoolPortal: roleData.school_portal ?? false,
     createdAt: roleData.CreatedAt ?? roleData.created_at ?? "",
     updatedAt: roleData.UpdatedAt ?? roleData.updated_at ?? "",
     permissions:
@@ -186,65 +123,19 @@ export function mapPermissionResponse(
   };
 }
 
-export function mapTokenResponse(backendToken: BackendToken): Token {
-  return {
-    id: String(backendToken.ID),
-    token: backendToken.Token,
-    expiry: backendToken.Expiry,
-    mobile: backendToken.Mobile,
-    identifier: backendToken.Identifier,
-    createdAt: backendToken.CreatedAt,
-  };
-}
-
-export function mapParentAccountResponse(
-  backendParentAccount: BackendParentAccount,
-): ParentAccount {
-  return {
-    id: String(backendParentAccount.ID),
-    email: backendParentAccount.Email,
-    username: backendParentAccount.Username,
-    active: backendParentAccount.Active,
-    createdAt: backendParentAccount.CreatedAt,
-    updatedAt: backendParentAccount.UpdatedAt,
-  };
-}
-
-// System role display names and descriptions (German localization)
-// Backend uses English names for authorization logic, frontend displays German
-const SYSTEM_ROLE_TRANSLATIONS: Record<
-  string,
-  { name: string; description: string }
-> = {
-  admin: {
-    name: "Administrator",
-    description: "Systemadministrator mit vollem Zugriff",
-  },
-  user: {
-    name: "Betreuer",
-    description: "Pädagogische Fachkraft mit Betreuungsrechten",
-  },
-  guest: {
-    name: "Gast",
-    description: "Eingeschränkter Zugriff für nicht authentifizierte Benutzer",
-  },
-  guardian: {
-    name: "Erziehungsberechtigter",
-    description: "Eingeschränkter Zugriff auf Daten der eigenen Kinder",
-  },
-  lehrkraft: {
-    name: "Lehrkraft",
-    description: "Lesezugriff auf die Tagesansicht der zugewiesenen Klassen",
-  },
-};
-
 /**
- * Get the German display name for a system role.
+ * Get the German display name for a system role (`~/lib/role-labels`).
  * Falls back to the original name if no translation exists.
  */
 export function getRoleDisplayName(roleName: string): string {
-  return SYSTEM_ROLE_TRANSLATIONS[roleName.toLowerCase()]?.name ?? roleName;
+  return systemRoleLabel(roleName) ?? roleName;
 }
+
+/**
+ * How an external caregiver is marked in lists, badges and select options:
+ * „Extern“. An attribute of the person, not a role (ADR 0091).
+ */
+export const EXTERNAL_CAREGIVER_LABEL = "Extern";
 
 /**
  * Get the German description for a system role.
@@ -254,10 +145,7 @@ export function getRoleDisplayDescription(
   roleName: string,
   originalDescription: string,
 ): string {
-  return (
-    SYSTEM_ROLE_TRANSLATIONS[roleName.toLowerCase()]?.description ??
-    originalDescription
-  );
+  return systemRoleDescription(roleName) ?? originalDescription;
 }
 
 // Labels of school roles that are not system roles. The demo school seeds
@@ -268,19 +156,11 @@ const SCHOOL_ROLE_LABELS: Record<string, string> = {
   betreuungskraft: "Betreuungskraft",
 };
 
-// "teacher" is the retired predecessor of "user". It can no longer be
-// assigned, but existing sessions still carry it and must not be presented as
-// a school-specific role.
-const SYSTEM_ROLE_NAMES = new Set([
-  ...Object.keys(SYSTEM_ROLE_TRANSLATIONS),
-  "teacher",
-]);
-
 /**
  * The role label next to the name in the staff portal's header (#3891). An
- * administrator stays „Admin"; otherwise the school's own role names the
+ * administrator reads „Verwaltung"; otherwise the school's own role names the
  * person better than the system role behind it, so the OGS lead of the demo
- * reads „OGS-Leitung", not „Betreuer".
+ * reads „OGS-Leitung", not „Betreuung".
  */
 export function getAccountRoleLabel(
   roleNames: readonly string[],
@@ -291,12 +171,10 @@ export function getAccountRoleLabel(
     name: name.toLowerCase(),
     // Sessions issued before role origins were added retain the earlier
     // name-based display until their next refresh.
-    isSystem: hasRoleOrigins
-      ? roleIsSystem[index]!
-      : SYSTEM_ROLE_NAMES.has(name.toLowerCase()),
+    isSystem: hasRoleOrigins ? roleIsSystem[index]! : isSystemRoleName(name),
   }));
   if (roles.some((role) => role.isSystem && role.name === "admin")) {
-    return "Admin";
+    return SYSTEM_ROLE_LABELS.admin.name;
   }
   const schoolRole = roles.find((role) => !role.isSystem)?.name;
   if (schoolRole) {
@@ -308,11 +186,9 @@ export function getAccountRoleLabel(
   const systemRole = roles.find(
     (role) => role.isSystem && role.name !== "user",
   )?.name;
-  return systemRole === "teacher"
-    ? "Betreuer"
-    : systemRole
-      ? getRoleDisplayName(systemRole)
-      : "Betreuer";
+  return systemRole && systemRole !== "teacher"
+    ? getRoleDisplayName(systemRole)
+    : SYSTEM_ROLE_LABELS.user.name;
 }
 
 export interface RoleOption {
@@ -328,6 +204,7 @@ export interface RoleOption {
  * System roles that are legacy/relationship-derived and not assignable to
  * staff accounts. "lehrkraft" (#1772) is assignable: an invited Lehrkraft
  * lands in the Klassenansicht of moto schule (#2207), not in this portal.
+ * "guest" is assignable as the view-only access (ADR 0091).
  */
 const NON_ASSIGNABLE_STAFF_ROLE_NAMES = new Set(["guardian", "teacher"]);
 
@@ -364,74 +241,9 @@ export function toAssignableRoleOptions(roles: Role[]): RoleOption[] {
     }));
 }
 
-// Request/Response types
-export interface LoginRequest {
-  email: string;
-  password: string;
-}
-
-export interface RegisterRequest {
-  email: string;
-  username: string;
-  name: string;
-  password: string;
-  confirmPassword: string;
-  roleId: number;
-}
-
-export interface TokenResponse {
-  access_token: string;
-  refresh_token: string;
-}
-
-export interface ChangePasswordRequest {
-  currentPassword: string;
-  newPassword: string;
-  confirmPassword: string;
-}
-
-export interface PasswordResetRequest {
-  email: string;
-}
-
+// Request types
 export interface PasswordResetConfirmRequest {
   token: string;
   newPassword: string;
-  confirmPassword: string;
-}
-
-export interface CreateRoleRequest {
-  name: string;
-  description: string;
-}
-
-export interface UpdateRoleRequest {
-  name: string;
-  description: string;
-}
-
-export interface CreatePermissionRequest {
-  name: string;
-  description: string;
-  resource: string;
-  action: string;
-}
-
-export interface UpdatePermissionRequest {
-  name: string;
-  description: string;
-  resource: string;
-  action: string;
-}
-
-export interface UpdateAccountRequest {
-  email: string;
-  username?: string;
-}
-
-export interface CreateParentAccountRequest {
-  email: string;
-  username: string;
-  password: string;
   confirmPassword: string;
 }

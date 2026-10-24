@@ -1,26 +1,7 @@
-import { ApiError, transportFetch } from "../api-error";
+import { ApiError, apiErrorFromBody, transportFetch } from "../api-error";
 interface OperatorFetchOptions {
   method?: "GET" | "POST" | "PUT" | "DELETE";
   body?: unknown;
-}
-
-export class OperatorApiError extends ApiError {
-  status: number;
-
-  constructor(
-    message: string,
-    status: number,
-    payload?: {
-      code?: string;
-      details?: Record<string, unknown>;
-      errors?: { field: string; reason: string }[];
-      instance?: string;
-    },
-  ) {
-    super(message, status, payload);
-    this.name = "OperatorApiError";
-    this.status = status;
-  }
 }
 
 export async function operatorFetch<T>(
@@ -45,32 +26,15 @@ export async function operatorFetch<T>(
       !window.location.pathname.startsWith("/operator/login")
     ) {
       window.location.href = "/operator/login";
-      throw new OperatorApiError("Session expired", 401);
+      throw new ApiError("Session expired", 401);
     }
 
-    let errorMessage = response.statusText;
-    let payload:
-      | {
-          code?: string;
-          details?: Record<string, unknown>;
-          errors?: { field: string; reason: string }[];
-          instance?: string;
-        }
-      | undefined;
-    try {
-      const errorData = (await response.json()) as {
-        error?: string;
-        code?: string;
-        details?: Record<string, unknown>;
-        errors?: { field: string; reason: string }[];
-        instance?: string;
-      };
-      errorMessage = errorData.error ?? errorMessage;
-      payload = errorData;
-    } catch {
-      // use statusText
-    }
-    throw new OperatorApiError(errorMessage, response.status, payload);
+    const body: unknown = await response.json().catch(() => undefined);
+    throw apiErrorFromBody(
+      response.statusText || `operator request failed (${response.status})`,
+      response.status,
+      body,
+    );
   }
 
   if (response.status === 204) {
@@ -90,8 +54,4 @@ export async function operatorFetch<T>(
   }
 
   return json as T;
-}
-
-export function isOperatorApiError(error: unknown): error is OperatorApiError {
-  return error instanceof OperatorApiError;
 }

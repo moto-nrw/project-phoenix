@@ -1,6 +1,13 @@
 import type { ReactNode } from "react";
 import { cn } from "~/lib/utils";
 
+// Ganze Klassen-Literale, damit Tailwind sie beim Scannen findet.
+const GRID_COLUMNS = {
+  "16rem": "grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))]",
+  "18rem": "grid-cols-[repeat(auto-fit,minmax(min(100%,18rem),1fr))]",
+  "20rem": "grid-cols-[repeat(auto-fit,minmax(min(100%,20rem),1fr))]",
+} as const;
+
 /**
  * DAS Kachelgitter der Sammlungsseiten (Kinder, Mitarbeiter, Räume,
  * Aktivitäten, Gruppen, Bereichskacheln). Vorher deklarierte jede Seite ihr
@@ -26,11 +33,16 @@ export function CollectionGrid({
 }: Readonly<{
   /**
    * Mindestbreite einer Kachel. `20rem` trägt die Personen-Kacheln;
-   * schmale Kacheln (Bereichskarten) dürfen auf `18rem` herunter.
+   * schmale Kacheln (Bereichskarten) dürfen auf `18rem` herunter, kurze
+   * Einträge mit wenigen Zeilen (Einsätze „Heute geplant“) auf `16rem`, damit
+   * vier davon am Computer in einer Zeile stehen.
    */
-  minTileWidth?: "18rem" | "20rem";
-  /** `output` für Ladegitter, die sich selbst ankündigen. */
-  as?: "div" | "output";
+  minTileWidth?: keyof typeof GRID_COLUMNS;
+  /**
+   * `output` für Ladegitter, die sich selbst ankündigen; `ul` für ein
+   * Gitter aus Listeneinträgen (`li`-Kinder).
+   */
+  as?: "div" | "output" | "ul";
   role?: "status";
   ariaLabel?: string;
   ariaBusy?: boolean;
@@ -47,9 +59,36 @@ export function CollectionGrid({
       data-testid={testId}
       className={cn(
         "grid gap-4 max-sm:gap-3",
-        minTileWidth === "18rem"
-          ? "grid-cols-[repeat(auto-fit,minmax(min(100%,18rem),1fr))]"
-          : "grid-cols-[repeat(auto-fit,minmax(min(100%,20rem),1fr))]",
+        GRID_COLUMNS[minTileWidth],
+        className,
+      )}
+    >
+      {children}
+    </Element>
+  );
+}
+
+/**
+ * Ein Feld im `CollectionGrid`, wenn die Einträge keine eigene Karte sind:
+ * kurze Hinweise, Übergaben, Einwilligungen in einer Karte, die sonst bis
+ * zur Unterkante leer bliebe (#4365). Leicht abgesetzt statt weiß gerahmt,
+ * damit es nicht als Karte in der Karte liest. Nur Anzeige: anklickbare
+ * Kacheln nehmen `TileCard`.
+ */
+export function CollectionGridTile({
+  as = "li",
+  className,
+  children,
+}: Readonly<{
+  as?: "li" | "div";
+  className?: string;
+  children: ReactNode;
+}>) {
+  const Element = as;
+  return (
+    <Element
+      className={cn(
+        "rounded-xl border border-gray-100 bg-gray-50/70 p-4",
         className,
       )}
     >

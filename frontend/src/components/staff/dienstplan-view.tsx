@@ -231,7 +231,7 @@ function DienstplanContent() {
   useEffect(() => {
     if (shiftTypesError) {
       void showShiftTypesLoadError(shiftTypesError, {
-        object: "die Liste der Schichtarten",
+        object: "die Liste der Dienstarten",
         retry: () => void mutateShiftTypes(),
       });
     } else {
@@ -558,7 +558,7 @@ function DienstplanContent() {
             size="md"
           >
             <Settings2 className="mr-1.5 h-4 w-4 shrink-0" aria-hidden />
-            <span className="whitespace-nowrap">Schichtarten verwalten</span>
+            <span className="whitespace-nowrap">Dienstarten verwalten</span>
           </ButtonLink>
           {/* Drucken/Exportieren (#2079) meint immer die Woche, die gerade auf
               dem Bildschirm steht -- deshalb hier und nicht auf der zentralen

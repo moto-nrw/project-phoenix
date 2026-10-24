@@ -68,7 +68,11 @@ describe("POST /api/invitations/accept", () => {
     );
 
     expect(response.status).toBe(400);
-    expect(await response.json()).toEqual({ error: "Invalid JSON" });
+    expect(await response.json()).toMatchObject({
+      status: 400,
+      detail: "Invalid JSON",
+      code: "general.input",
+    });
     expect(global.fetch).not.toHaveBeenCalled();
     expect(captureException).not.toHaveBeenCalled();
   });
@@ -130,8 +134,8 @@ describe("POST /api/invitations/accept", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(400);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Missing invitation token");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Missing invitation token");
   });
 
   it("handles backend error responses", async () => {
@@ -142,7 +146,7 @@ describe("POST /api/invitations/accept", () => {
     };
 
     vi.mocked(global.fetch).mockResolvedValueOnce(
-      new Response(JSON.stringify({ error: "Token expired" }), {
+      new Response(JSON.stringify({ detail: "Token expired" }), {
         status: 410,
         headers: { "Content-Type": "application/json" },
       }),
@@ -154,11 +158,11 @@ describe("POST /api/invitations/accept", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(410);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Token expired");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Token expired");
   });
 
-  it("handles non-JSON response from backend", async () => {
+  it("replaces a non-JSON backend server error with a safe problem envelope", async () => {
     const requestPayload = {
       token: "invitation-token",
       password: "Test1234!",
@@ -178,7 +182,14 @@ describe("POST /api/invitations/accept", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(500);
-    expect(await response.text()).toBe("Server Error");
+    expect(response.headers.get("Content-Type")).toBe(
+      "application/problem+json",
+    );
+    expect(await response.json()).toMatchObject({
+      status: 500,
+      detail: "Internal Server Error",
+      code: "general.server",
+    });
   });
 
   it("returns an empty 204 response", async () => {
@@ -219,7 +230,7 @@ describe("POST /api/invitations/accept", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Internal Server Error");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
   });
 });

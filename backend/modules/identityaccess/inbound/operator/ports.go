@@ -18,6 +18,8 @@ import (
 type (
 	// Operator is one operator identity row.
 	Operator = identityaccess.Operator
+	// OperatorSession is one persisted, revocable operator refresh session.
+	OperatorSession = identityaccess.OperatorSession
 	// OperatorInvitation is one invitation link with its delivery state.
 	OperatorInvitation = identityaccess.OperatorInvitation
 	// OperatorInvitationPreview is what the public accept page may show.
@@ -69,6 +71,8 @@ type (
 	}
 	// OperatorProvisioning is the invitation and e-mail change capability.
 	OperatorProvisioning = identityaccess.OperatorProvisioning
+	// OperatorStatus deactivates and reactivates operator accounts.
+	OperatorStatus = identityaccess.OperatorStatus
 	// OperatorMFA is the operator second factor.
 	OperatorMFA = identityaccess.OperatorMFAFlows
 	// OperatorPasskeys is the operator-portal ceremony capability.
@@ -80,11 +84,12 @@ type (
 
 // OperatorAccess is what the invitation, profile and second-factor routes
 // need: the operator directory, the token mint their second factors end in,
-// and the invitation and e-mail change flows.
+// the invitation and e-mail change flows, and the account deactivation.
 type OperatorAccess interface {
 	Operators
 	OperatorSessions
 	OperatorProvisioning
+	OperatorStatus
 }
 
 // The admin-override values the operator MFA screens hand to the capability.
@@ -104,6 +109,7 @@ func IsValidMFAAdminOverride(value string) bool {
 // values, so errors.Is decides exactly what it decided before.
 var (
 	ErrOperatorNotFound               = identityaccess.ErrOperatorNotFound
+	ErrOperatorSessionNotFound        = identityaccess.ErrOperatorSessionNotFound
 	ErrOperatorInactive               = identityaccess.ErrOperatorInactive
 	ErrOperatorInvalidCredentials     = identityaccess.ErrOperatorInvalidCredentials
 	ErrOperatorPasswordMismatch       = identityaccess.ErrOperatorPasswordMismatch
@@ -114,6 +120,7 @@ var (
 	ErrOperatorEmailChangeNotFound    = identityaccess.ErrOperatorEmailChangeNotFound
 	ErrOperatorEmailChangeRateLimited = identityaccess.ErrOperatorEmailChangeRateLimited
 	ErrOperatorEmailChangeSameEmail   = identityaccess.ErrOperatorEmailChangeSameEmail
+	ErrOperatorSelfDeactivation       = identityaccess.ErrOperatorSelfDeactivation
 
 	ErrMFAChallengeTokenInvalid = identityaccess.ErrMFAChallengeTokenInvalid
 	ErrMFACodeInvalid           = identityaccess.ErrMFACodeInvalid

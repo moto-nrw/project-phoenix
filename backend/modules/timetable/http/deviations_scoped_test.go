@@ -10,6 +10,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/roots/owners"
+
+	rootAPI "github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/go-chi/chi/v5"
 	apiTest "github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
@@ -45,7 +49,7 @@ type scopedApplyResponse struct {
 
 func setupScopedDeviationsRoute(t *testing.T) *scopedDevSetup {
 	t.Helper()
-	db, serviceFactory := apiTest.SetupTimetableModule(t)
+	db, serviceFactory, _ := setupTimetableModule(t)
 	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("Scoped-Dev-Room-%d", suffix))
@@ -54,12 +58,15 @@ func setupScopedDeviationsRoute(t *testing.T) *scopedDevSetup {
 	y := testpkg.CreateTestStaff(t, db, "Replacement", fmt.Sprintf("%d", suffix+2))
 	b := testpkg.CreateTestStaff(t, db, "Planned2", fmt.Sprintf("%d", suffix+3))
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("scoped-dev-%d", suffix))
+	schoolSettings, err := owners.NewSettingsTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
+	require.NoError(t, err)
 	resource := timetableAPI.NewResource(timetableAPI.Dependencies{
+		SettingsService: schoolSettings.Settings,
 		InstanceService: serviceFactory.Instance,
 		Deviations:      serviceFactory.TimetableData.Deviations,
 	})
 	router := chi.NewRouter()
-	router.Mount("/timetable", resource.Router())
+	router.Mount("/timetable", resource.Router(rootAPI.ProtectedTenantRoutes))
 	return &scopedDevSetup{
 		db: db, ctx: ctx, router: router, claimsID: int(account.ID), roomID: room.ID,
 		staffA: a.ID, staffX: x.ID, staffY: y.ID, staffB: b.ID,
@@ -653,8 +660,11 @@ func assertStaffMissing(t *testing.T, rows []timetable.InstanceStaff, staffID in
 func stampInstanceStaffSickAbsence(t *testing.T, db *bun.DB, ctx context.Context, rowID int64, sickAbsenceID *int64) {
 	t.Helper()
 	repo := timetableAPI.BoundTimetableRepositories(db).InstanceStaff
-	stored, err := repo.FindByID(ctx, rowID)
+	stored, err := repo.FindInstanceStaff(ctx, rowID)
 	require.NoError(t, err)
-	stored.SickAbsenceID = sickAbsenceID
-	require.NoError(t, repo.Update(ctx, stored))
+	_, err = repo.UpdateInstanceStaff(ctx, stored.ID, timetable.InstanceStaffInput{
+		InstanceID: stored.InstanceID, StaffID: stored.StaffID, RoomID: stored.RoomID, IsPrimary: stored.IsPrimary,
+		IsSubstitute: stored.IsSubstitute, IsAbsent: stored.IsAbsent, AbsenceReason: stored.AbsenceReason, SickAbsenceID: sickAbsenceID,
+	})
+	require.NoError(t, err)
 }

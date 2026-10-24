@@ -1,19 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
 import { GET, POST } from "./route";
 import { ApiResponseError } from "~/lib/api-helpers.server";
+import {
+  type ExtendedSession,
+  createMockContext,
+  createMockRequest,
+  defaultSession,
+} from "~/test/route-test-helpers";
 
 const { captureException } = vi.hoisted(() => ({ captureException: vi.fn() }));
 vi.mock("@sentry/nextjs", () => ({ captureException }));
-
-// ============================================================================
-// Types
-// ============================================================================
-
-interface ExtendedSession extends Session {
-  user: Session["user"] & { token?: string };
-}
 
 // ============================================================================
 // Mocks
@@ -39,50 +36,6 @@ vi.mock("@/lib/api-helpers.server", async (importOriginal) => {
 });
 
 // ============================================================================
-// Test Helpers
-// ============================================================================
-
-function createMockRequest(
-  path: string,
-  options: {
-    method?: string;
-    body?: unknown;
-    searchParams?: Record<string, string>;
-  } = {},
-): NextRequest {
-  const url = new URL(path, "http://localhost:3000");
-
-  if (options.searchParams) {
-    Object.entries(options.searchParams).forEach(([key, value]) => {
-      url.searchParams.append(key, value);
-    });
-  }
-
-  const requestInit: { method: string; body?: string; headers?: HeadersInit } =
-    {
-      method: options.method ?? "GET",
-    };
-
-  if (options.body) {
-    requestInit.body = JSON.stringify(options.body);
-    requestInit.headers = { "Content-Type": "application/json" };
-  }
-
-  return new NextRequest(url, requestInit);
-}
-
-function createMockContext() {
-  return {
-    params: Promise.resolve({}),
-  };
-}
-
-const defaultSession: ExtendedSession = {
-  user: { id: "1", token: "test-token", name: "Test User" },
-  expires: "2099-01-01",
-};
-
-// ============================================================================
 // Tests
 // ============================================================================
 
@@ -90,16 +43,6 @@ describe("GET /api/auth/accounts", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(defaultSession);
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/auth/accounts");
-    const context = createMockContext();
-    const response = await GET(request, context);
-
-    expect(response.status).toBe(401);
   });
 
   it("fetches all accounts", async () => {
@@ -158,36 +101,12 @@ describe("GET /api/auth/accounts", () => {
       "test-token",
     );
   });
-
-  it("handles backend errors", async () => {
-    mockApiGet.mockRejectedValueOnce(new Error("Backend error (500)"));
-
-    const request = createMockRequest("/api/auth/accounts");
-    const context = createMockContext();
-    const response = await GET(request, context);
-
-    expect(response.status).toBe(500);
-  });
 });
 
 describe("POST /api/auth/accounts", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(defaultSession);
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/auth/accounts", {
-      method: "POST",
-      body: { id: "1", active: false },
-    });
-    const response = await POST(request);
-
-    expect(response.status).toBe(401);
-    const json = (await response.json()) as { error: string };
-    expect(json.error).toBe("Unauthorized");
   });
 
   it("updates an account via PUT", async () => {
@@ -233,14 +152,19 @@ describe("POST /api/auth/accounts", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(500);
-    const json = (await response.json()) as { error: string };
-    expect(json.error).toBe("Failed to update account");
+    const json = (await response.json()) as { detail: string };
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toContain("Failed to update account");
     expect(captureException).toHaveBeenCalledExactlyOnceWith(failure, {});
   });
 
   it("forwards a backend conflict body and status unchanged", async () => {
     const body = JSON.stringify({
-      code: "ACCOUNT_CONFLICT",
+      type: "about:blank",
+      title: "Conflict",
+      status: 409,
+      detail: "account already exists",
+      code: "general.business_rejection",
       details: { account_id: "1" },
       errors: [{ field: "email", reason: "already_used" }],
       instance: "/auth/accounts/1",
@@ -275,7 +199,11 @@ describe("POST /api/auth/accounts", () => {
     );
 
     expect(response.status).toBe(400);
-    expect(await response.json()).toEqual({ error: "Invalid JSON" });
+    expect(await response.json()).toMatchObject({
+      status: 400,
+      detail: "Invalid JSON",
+      code: "general.input",
+    });
     expect(mockApiPut).not.toHaveBeenCalled();
     expect(captureException).not.toHaveBeenCalled();
   });

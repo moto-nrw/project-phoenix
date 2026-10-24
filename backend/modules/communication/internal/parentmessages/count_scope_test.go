@@ -1,23 +1,30 @@
 package messaging_test
 
-// Integration tests for the personal count scope (#3673): each staff member
-// chooses which parent conversations their own counter at "Nachrichten"
-// counts. The counts run on the real projection; only the preference store
-// and the caller's groups are stand-ins, because the store has its own test in
-// the composition package and the groups come from the caller context.
-
 import (
 	"context"
 	"log/slog"
 	"sync"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api"
+	deliveryPolicy "github.com/moto-nrw/project-phoenix/modules/delivery/devices"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
+	// Integration tests for the personal count scope (#3673): each staff member
+	// chooses which parent conversations their own counter at "Nachrichten"
+	// counts. The counts run on the real projection; only the preference store
+	// and the caller's groups are stand-ins, because the store has its own test in
+	// the composition package and the groups come from the caller context.
+
 	messaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+
+	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+
+	settingsValues "github.com/moto-nrw/project-phoenix/modules/settings"
+
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -45,7 +52,7 @@ func (m *memoryCountPreferences) SetCountScope(_ context.Context, accountID int6
 type groupsByAccount map[int64][]int64
 
 func (g groupsByAccount) MyGroupIDs(ctx context.Context) ([]int64, error) {
-	return g[int64(jwt.ClaimsFromCtx(ctx).ID)], nil
+	return g[int64(sessiontoken.ClaimsFromCtx(ctx).ID)], nil
 }
 
 // newCountScopeFixture is newFixture with a count preference store and the
@@ -54,20 +61,24 @@ func (g groupsByAccount) MyGroupIDs(ctx context.Context) ([]int64, error) {
 func newCountScopeFixture(t *testing.T, groups groupsByAccount) *fixture {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	reposMessages := api.NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, db))
+	reposAccounts := api.NewAccountSuiteRepositories(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	bc := testpkg.NewRecordingBroadcaster()
 	svc := messaging.NewService(messaging.Config{
-		ThreadRepo:       repos.ParentMessageThread,
-		MessageRepo:      repos.ParentMessage,
-		ReadRepo:         repos.ParentMessageRead,
-		Persons:          newPersons(repos, db),
-		Settings:         stubSettings{messagingEnabled: true},
-		Broadcaster:      bc,
-		DB:               db,
+		UserContext: owners.StaffStudentReads{},
+		Session:     api.CommunicationSession{},
+		ThreadRepo:  messaging.NewThreadRepository(reposMessages.ParentMessageThread),
+		MessageRepo: messaging.NewMessageRepository(parentStore.NewParentMessageRepository(db)),
+		ReadRepo:    messaging.NewReadRepository(reposMessages.ParentMessageRead),
+		Persons:     newPersons(reposPeople, reposAccounts, db),
+		Settings:    settingsValues.NewParentMessagingValues(stubSettings{messagingEnabled: true}),
+		Broadcaster: bc,
+
 		Logger:           slog.Default(),
 		CountPreferences: &memoryCountPreferences{scopes: map[int64]string{}},
 		Groups:           groups,
-	})
+	}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	_, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Olivia", "Berg")
 	return &fixture{db: db, svc: svc, bc: bc, chain: chain, staffAccount: staffAccount.ID}
@@ -75,7 +86,7 @@ func newCountScopeFixture(t *testing.T, groups groupsByAccount) *fixture {
 
 func setCountScope(t *testing.T, f *fixture, accountID int64, scope string) {
 	t.Helper()
-	require.NoError(t, f.svc.SetCountScope(adminCtx(t, accountID), scope))
+	require.NoError(t, testpkg.TenantCommand1(t, adminCtx(t, accountID), f.db, f.svc.SetCountScope, scope))
 }
 
 func TestCountScope_DefaultCountsAll(t *testing.T) {
@@ -84,7 +95,7 @@ func TestCountScope_DefaultCountsAll(t *testing.T) {
 	f := newCountScopeFixture(t, groupsByAccount{})
 	startThreadWithQuestions(t, f, f.chain, "Frage 1", "Frage 2")
 
-	scope, err := f.svc.CountScope(adminCtx(t, f.staffAccount))
+	scope, err := testpkg.TenantQuery0(t, adminCtx(t, f.staffAccount), f.db, f.svc.CountScope)
 	require.NoError(t, err)
 	assert.Equal(t, messaging.CountScopeAll, scope)
 	assert.Equal(t, 2, readUnreadView(t, f, f.staffAccount).badge)
@@ -118,7 +129,7 @@ func TestCountScope_NoneSkipsTeamMark(t *testing.T) {
 	f := newCountScopeFixture(t, groupsByAccount{})
 	_, colleague := testpkg.CreateTestStaffWithAccount(t, f.db, "Miriam", "Klein")
 	threadID := startReadThread(t, f)
-	require.NoError(t, f.svc.MarkUnread(adminCtx(t, colleague.ID), threadID))
+	require.NoError(t, testpkg.TenantCommand1(t, adminCtx(t, colleague.ID), f.db, f.svc.MarkUnread, threadID))
 
 	setCountScope(t, f, f.staffAccount, messaging.CountScopeNone)
 	view := readUnreadView(t, f, f.staffAccount)
@@ -147,9 +158,9 @@ func TestCountScope_OwnGroupsCountsOnlyOwnChildren(t *testing.T) {
 	startThreadWithQuestions(t, f, f.chain, "Frage 1", "Frage 2")
 	otherThread, _ := startThreadWithQuestions(t, f, other, "Frage 3")
 	startThreadWithQuestions(t, f, ungrouped, "Frage 4")
-	require.NoError(t, f.svc.MarkUnread(adminCtx(t, colleague.ID), otherThread))
+	require.NoError(t, testpkg.TenantCommand1(t, adminCtx(t, colleague.ID), f.db, f.svc.MarkUnread, otherThread))
 
-	hasOwnGroups, err := f.svc.HasOwnGroups(adminCtx(t, f.staffAccount))
+	hasOwnGroups, err := testpkg.TenantQuery0(t, adminCtx(t, f.staffAccount), f.db, f.svc.HasOwnGroups)
 	require.NoError(t, err)
 	assert.True(t, hasOwnGroups)
 
@@ -177,7 +188,7 @@ func TestCountScope_OwnGroupsCountsTeamMarkOfOwnChild(t *testing.T) {
 	testpkg.AssignStudentToGroup(t, f.db, f.chain.StudentID, ownGroup.ID)
 	groups[f.staffAccount] = []int64{ownGroup.ID}
 	threadID := startReadThread(t, f)
-	require.NoError(t, f.svc.MarkUnread(adminCtx(t, colleague.ID), threadID))
+	require.NoError(t, testpkg.TenantCommand1(t, adminCtx(t, colleague.ID), f.db, f.svc.MarkUnread, threadID))
 
 	setCountScope(t, f, f.staffAccount, messaging.CountScopeOwnGroups)
 	assert.Equal(t, 1, readUnreadView(t, f, f.staffAccount).badge)
@@ -196,7 +207,7 @@ func TestCountScope_OwnGroupsWithoutGroupCountsNothing(t *testing.T) {
 	setCountScope(t, f, f.staffAccount, messaging.CountScopeOwnGroups)
 	assert.Zero(t, readUnreadView(t, f, f.staffAccount).badge)
 
-	hasOwnGroups, err := f.svc.HasOwnGroups(adminCtx(t, f.staffAccount))
+	hasOwnGroups, err := testpkg.TenantQuery0(t, adminCtx(t, f.staffAccount), f.db, f.svc.HasOwnGroups)
 	require.NoError(t, err)
 	assert.False(t, hasOwnGroups, "the setting can say why the counter stays empty")
 }
@@ -209,7 +220,7 @@ func TestCountScope_MarkAllReadReportsScopedCount(t *testing.T) {
 	f := newCountScopeFixture(t, groupsByAccount{})
 	_, colleague := testpkg.CreateTestStaffWithAccount(t, f.db, "Miriam", "Klein")
 	threadID := startReadThread(t, f)
-	require.NoError(t, f.svc.MarkUnread(adminCtx(t, colleague.ID), threadID))
+	require.NoError(t, testpkg.TenantCommand1(t, adminCtx(t, colleague.ID), f.db, f.svc.MarkUnread, threadID))
 
 	assert.Equal(t, 1, markAllRead(t, f, adminCtx(t, f.staffAccount)), "the team mark remains under all")
 	setCountScope(t, f, f.staffAccount, messaging.CountScopeNone)
@@ -221,10 +232,10 @@ func TestCountScope_RejectsUnknownScope(t *testing.T) {
 
 	f := newCountScopeFixture(t, groupsByAccount{})
 	for _, scope := range []string{"", "ALL", "mine", "own-groups"} {
-		err := f.svc.SetCountScope(adminCtx(t, f.staffAccount), scope)
+		err := testpkg.TenantCommand1(t, adminCtx(t, f.staffAccount), f.db, f.svc.SetCountScope, scope)
 		require.ErrorIs(t, err, messaging.ErrInvalidCountScope, "scope %q", scope)
 	}
-	scope, err := f.svc.CountScope(adminCtx(t, f.staffAccount))
+	scope, err := testpkg.TenantQuery0(t, adminCtx(t, f.staffAccount), f.db, f.svc.CountScope)
 	require.NoError(t, err)
 	assert.Equal(t, messaging.CountScopeAll, scope, "a rejected value stores nothing")
 }
@@ -238,6 +249,6 @@ func TestCountScope_DisabledSchoolCountsNothing(t *testing.T) {
 	startThreadWithQuestions(t, f, f.chain, "Frage")
 	setCountScope(t, f, f.staffAccount, messaging.CountScopeAll)
 
-	f.svc.Settings = stubSettings{messagingEnabled: false}
+	f.svc.Settings = settingsValues.NewParentMessagingValues(stubSettings{messagingEnabled: false})
 	assert.Zero(t, readUnreadView(t, f, f.staffAccount).badge)
 }

@@ -9,7 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/moto-nrw/project-phoenix/api"
+
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
@@ -19,9 +20,11 @@ import (
 // HTTP contracts have separate kiosk route tests; this is not TCP/staging.
 func TestSessionEndRuntimeEvidence(t *testing.T) {
 	t.Parallel()
+	testpkg.RequireRuntimeEvidence(t)
 	db := testpkg.SetupIsolatedTestDB(t)
-	module, err := services.NewActiveTestModule(db, testpkg.TenantRuntime(t, db))
+	_, err := api.NewActiveTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
+	moduleSessionEnd := api.NewActiveTestSessionEnd(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	ctx := testpkg.Ctx(t)
 	var postgres string
 	require.NoError(t, db.NewRaw("SHOW server_version").Scan(ctx, &postgres))
@@ -55,7 +58,7 @@ func TestSessionEndRuntimeEvidence(t *testing.T) {
 				assignment := testpkg.CreateTestInstanceStudent(t, db, instance.ID, present.ID, "present", testpkg.InstanceStudentOpts{CheckedInAt: &checkedIn})
 				testpkg.CreateTestInstanceStudent(t, db, instance.ID, expected.ID, "expected")
 				if operation == "reject-already-ended" {
-					_, err := module.SessionEnd.EndSession(ctx, group.ID)
+					_, err := moduleSessionEnd.SessionEnd.EndSession(ctx, group.ID)
 					require.NoError(t, err)
 				}
 				if iteration == 5 {
@@ -69,7 +72,7 @@ func TestSessionEndRuntimeEvidence(t *testing.T) {
 				}
 				counter.Reset()
 				before, started := db.Stats(), time.Now()
-				result, err := module.SessionEnd.EndSession(measuredCtx, group.ID)
+				result, err := moduleSessionEnd.SessionEnd.EndSession(measuredCtx, group.ID)
 				elapsed, after := time.Since(started), db.Stats()
 				if operation == "reject-already-ended" {
 					require.EqualError(t, err, "active group session already ended")

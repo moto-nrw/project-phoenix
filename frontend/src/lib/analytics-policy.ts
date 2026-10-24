@@ -51,6 +51,10 @@ export interface AnalyticsContext {
   readonly deployment: string;
   /** The portal. An unknown value gets the strictest rules. */
   readonly surface: string;
+  /** Resolved school switch. Unknown means no collection outside the demo. */
+  readonly enabled?: boolean;
+  /** Local-only route whose enrollment target has resolved; never transmitted. */
+  readonly enrollmentTargetPath?: string;
   /** Analyse-Freigabe of the school; only effective on `ogs`. */
   readonly analyseFreigabe: boolean;
   /**
@@ -72,7 +76,7 @@ const ANALYTICS_ROLES = ["admin", "staff", "lehrkraft", "guardian"] as const;
 
 export type AnalyticsRole = (typeof ANALYTICS_ROLES)[number];
 
-type Tier = "demo" | "ogs" | "ogs_freigabe" | "strict";
+type Tier = "off" | "demo" | "ogs" | "ogs_freigabe" | "strict";
 
 type Recording = "demo" | "school" | null;
 
@@ -86,6 +90,7 @@ interface TierRules {
 }
 
 const TIER_RULES: Readonly<Record<Tier, TierRules>> = {
+  off: { elementText: false, recording: null, person: false },
   // The demo shows invented data only; the element text makes the funnel
   // readable, and every session is recorded. URLs stay templates there as
   // well. The visitor is the demo access, never a person profile.
@@ -161,7 +166,44 @@ function isKnownSurface(surface: string): surface is AnalyticsSurface {
   return KNOWN_SURFACES.has(surface);
 }
 
+export function analyticsCollectionAllowed(context: AnalyticsContext): boolean {
+  return context.deployment === DEMO_DEPLOYMENT || context.enabled === true;
+}
+
+export interface AnalyticsSchoolPolicy {
+  readonly tenantSlug: string;
+  readonly enabled: boolean;
+  /** Set only by a loaded enrollment form, not by the host's provider. */
+  readonly enrollmentTargetPath?: string;
+}
+
+/** Host school owns OGS collection; embedded schools can only restrict it. */
+export function analyticsSchoolsAllowCollection(
+  context: AnalyticsContext,
+  host: string,
+  tenantDomain: string,
+  schools: readonly AnalyticsSchoolPolicy[],
+): boolean {
+  if (schools.some((school) => !school.enabled)) return false;
+  if (context.surface === "ogs" && schools.length > 0) {
+    const hostname = host.split(":")[0];
+    return schools.some(
+      (school) => hostname === `${school.tenantSlug}.${tenantDomain}`,
+    );
+  }
+  return context.enabled === true;
+}
+
+/** Embedded school contexts cannot replace the host portal's decision. */
+export function analyticsContextUpdateAllowed(
+  hostSurface: AnalyticsSurface | null,
+  sourceSurface: string,
+): boolean {
+  return hostSurface !== null && hostSurface === sourceSurface;
+}
+
 function tierOf(context: AnalyticsContext): Tier {
+  if (!analyticsCollectionAllowed(context)) return "off";
   if (!isKnownSurface(context.surface)) return "strict";
   if (context.deployment === DEMO_DEPLOYMENT) return "demo";
   if (context.surface === "ogs") {
@@ -866,8 +908,32 @@ function isAllowedEvent(
 export function filterAnalyticsEvent(
   context: AnalyticsContext,
   captureResult: CaptureResult | null,
+  currentPage?: string,
 ): CaptureResult | null {
-  if (!captureResult) return null;
+  if (!captureResult || !analyticsCollectionAllowed(context)) return null;
+  if (context.deployment !== DEMO_DEPLOYMENT) {
+    // History hooks run before React's passive effects. Check both the live
+    // page (also for snapshots without a URL) and the event's original page.
+    for (const page of [currentPage, captureResult.properties.$current_url]) {
+      if (typeof page !== "string") continue;
+      let pathname: string;
+      try {
+        pathname = new URL(page, "http://localhost").pathname;
+      } catch {
+        continue;
+      }
+      const route = resolveAnalyticsRoute(routeSurfaceOf(context), pathname);
+      if (route === "/anmeldung/status/:token") return null;
+      if (
+        (route === "/anmeldung/status/:token/edit" ||
+          route === "/anmeldung/status/:token/adjust" ||
+          (context.surface === "parents" &&
+            route === "/anmeldung/:tenantSlug/:phaseId")) &&
+        context.enrollmentTargetPath !== pathname
+      )
+        return null;
+    }
+  }
   const { event } = captureResult;
   const identity = analyticsIdentity(context);
   if (!isAllowedEvent(context, event, identity)) return null;

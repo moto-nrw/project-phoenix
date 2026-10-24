@@ -18,11 +18,14 @@ vi.mock("next/navigation", () => ({
   }),
 }));
 
-// Load errors use the real hook; the export's toast path is a spy.
-const mockShowExportError = vi.fn();
+// Der Export-Dialog ist ein SlideOver; Vaul rendert in jsdom nichts.
+vi.mock("vaul", () => import("~/test/mocks/vaul"));
+
+// Die Seite rendert hier ohne ToastProvider; der Erfolgs-Toast des Exports
+// ist für diese Tests ohne Belang.
 vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
-  useApiErrorDisplay: () => ({ show: mockShowExportError }),
+  useToast: () => ({ success: vi.fn(), error: vi.fn() }),
 }));
 
 vi.mock("next-auth/react", () => ({
@@ -283,7 +286,11 @@ describe("StudentRoomHistoryPage", () => {
       {
         ok: false,
         status: 403,
-        json: async () => ({ error: "feature_disabled" }),
+        json: async () => ({
+          status: 403,
+          detail: "feature_disabled",
+          code: "attendance.log_disabled",
+        }),
       },
       mockStudentResponse({ attendance_log_enabled: false }),
     );
@@ -356,10 +363,10 @@ describe("StudentRoomHistoryPage", () => {
       expect(screen.getByTestId("alert-error")).toBeInTheDocument();
     });
 
-    // Der Desktop-Rückweg ist die Breadcrumb; mobil bleibt der kit
-    // BackButton mit dem Referrer der Herkunftsliste.
-    fireEvent.click(screen.getByRole("button", { name: "Zurück" }));
-    expect(mockPush).toHaveBeenCalledWith("/test-tenant/students/search");
+    // Der Rückweg der Kopfkarte führt auf jeder Breite zur Herkunftsliste.
+    expect(
+      screen.getByRole("link", { name: "Zurück zur Kinderübersicht" }),
+    ).toHaveAttribute("href", "/test-tenant/students/search");
   });
 
   it("shows a failed connection as unavailable, not as a crash", async () => {
@@ -383,7 +390,9 @@ describe("StudentRoomHistoryPage", () => {
     expect(screen.queryByText(/0 Tage erfasst/)).not.toBeInTheDocument();
   });
 
-  it("handles student fetch failure without crashing", async () => {
+  // Der Name schmückt nur den Kopf: ohne Kinddatensatz zeigt die Seite das
+  // geladene Protokoll unter dem allgemeinen Titel, ohne Fehlermeldung.
+  it("shows the protocol under the generic title when the child cannot be loaded", async () => {
     mockFetch.mockImplementation((url: string) => {
       if (url.includes("/attendance-history")) {
         return Promise.resolve(mockAttendanceHistoryResponse());
@@ -394,8 +403,13 @@ describe("StudentRoomHistoryPage", () => {
     render(<StudentRoomHistoryPage />);
 
     await waitFor(() => {
-      expect(screen.queryByTestId("loading")).not.toBeInTheDocument();
+      expect(screen.getByText(/\d+ Tage? erfasst/)).toBeInTheDocument();
     });
+    expect(
+      screen.getByRole("heading", { name: "Anwesenheitsprotokoll" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Test Student")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("alert-error")).not.toBeInTheDocument();
   });
 
   // ─── Empty state ────────────────────────────────────────────────────────────
@@ -468,7 +482,9 @@ describe("StudentRoomHistoryPage", () => {
 
   // ─── Table content (uses getAllByText since desktop+mobile both render) ─────
 
-  it("hands a failed export to the toast error path with a retry", async () => {
+  // #4748: der Export fragt den Zeitraum im Export-Dialog ab (höchstens die
+  // sichtbaren Tage, keine Zukunft); ein Fehler bleibt im offenen Dialog.
+  it("exports the visible days from the dialog and keeps a failure there", async () => {
     mockFetch.mockImplementation((url: string) => {
       if (url.includes("/attendance-history/export")) {
         return Promise.resolve({ ok: false, status: 500 });
@@ -483,13 +499,22 @@ describe("StudentRoomHistoryPage", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: "Weitere Aktionen" }),
     );
-    fireEvent.click(await screen.findByRole("menuitem", { name: "PDF" }));
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Exportieren" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Herunterladen" }));
 
-    await waitFor(() =>
-      expect(mockShowExportError).toHaveBeenCalledWith(
-        expect.objectContaining({ status: 500, code: "general.server" }),
-        { object: "die Exportdatei", retry: expect.any(Function) },
+    const message = catalogText("general.server", "die Exportdatei");
+    expect(await screen.findByText(message)).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toContainElement(
+      screen.getByText(message),
+    );
+    // 30 sichtbare Tage bis heute (Testuhr 09.09.2026), im gewählten Format.
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining(
+        "/api/students/42/attendance-history/export?format=pdf&from=2026-08-11&to=2026-09-09",
       ),
+      undefined,
     );
   });
 
@@ -759,10 +784,13 @@ describe("StudentRoomHistoryPage", () => {
 
     render(<StudentRoomHistoryPage />);
 
-    // Should still render without crashing
     await waitFor(() => {
-      expect(screen.queryByTestId("loading")).not.toBeInTheDocument();
+      expect(screen.getByText(/\d+ Tage? erfasst/)).toBeInTheDocument();
     });
+    expect(
+      screen.getByRole("heading", { name: "Anwesenheitsprotokoll" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("alert-error")).not.toBeInTheDocument();
   });
 
   // ─── Bemerkung und Korrektur (#2898) ────────────────────────────────────────

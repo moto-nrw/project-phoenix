@@ -361,7 +361,6 @@ export interface DeclarationStatus {
 interface ApiResponse<T> {
   status?: string;
   data?: T;
-  error?: string;
 }
 
 /**
@@ -379,15 +378,7 @@ async function throwApiError(
   } catch {
     // Body already consumed or the stream broke: the status still classifies.
   }
-  // The backend sentence stays the message for logs; screens never show it.
-  let message = fallback;
-  try {
-    const body = text ? (JSON.parse(text) as { error?: unknown }) : undefined;
-    if (typeof body?.error === "string" && body.error) message = body.error;
-  } catch {
-    // Not JSON: keep the fallback as the diagnostic.
-  }
-  throw apiErrorFromText(message, response.status, text);
+  throw apiErrorFromText(fallback, response.status, text);
 }
 
 /** A success answer without the expected body: the API broke its contract. */

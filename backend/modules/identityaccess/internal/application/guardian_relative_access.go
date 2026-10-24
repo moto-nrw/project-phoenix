@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 )
 
@@ -32,10 +33,29 @@ type resolvedProfile struct {
 	created bool
 }
 
-// InviteToStudent resolves an email against existing data and either links an
-// existing account to the child, (re)sends an invitation, or queues a parent
-// request for staff approval. Tenant comes from context.
-func (l *AccountLifecycle) InviteToStudent(ctx context.Context, req domain.InviteToStudentRequest) (*domain.InviteToStudentResult, error) {
+func (l *AccountLifecycle) InviteToStudent(ctx context.Context, req identityaccess.InviteToStudentRequest) (value0 *identityaccess.InviteToStudentResult, err error) {
+	if l == nil {
+		return nil, errAccountLifecycleUnavailable
+	}
+	operation := func(ctx context.Context) (*identityaccess.InviteToStudentResult, error) {
+		result, err := l.inviteToStudent(bindRuntime(l.auth.attach, ctx), domain.InviteToStudentRequest(req))
+		if err != nil {
+			return nil, lifecycleError(err)
+		}
+		public := identityaccess.InviteToStudentResult{
+			Outcome: identityaccess.InviteToStudentOutcome(result.Outcome), GuardianProfileID: result.GuardianProfileID,
+			InvitationID: result.InvitationID, ExistingRole: result.ExistingRole,
+		}
+		return &public, nil
+	}
+	err = l.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, err = operation(txCtx)
+		return err
+	})
+	return
+}
+
+func (l *AccountLifecycle) inviteToStudent(ctx context.Context, req domain.InviteToStudentRequest) (*domain.InviteToStudentResult, error) {
 	if req.StudentID <= 0 {
 		return nil, invalidGuardianInvitation(opGuardianInviteToStudent, fmt.Errorf("student ID is required"))
 	}
@@ -107,7 +127,7 @@ func (l *AccountLifecycle) detectRestrictedContact(ctx context.Context, req doma
 	case domain.GuardianRoleSocialWorker:
 		// A social worker is a school-managed professional contact, never a
 		// candidate for the legal-guardian upgrade; refuse the invite outright.
-		return false, nil, failed(opGuardianInviteToStudent, domain.ErrInviteSocialWorkerManaged)
+		return false, nil, failed(opGuardianInviteToStudent, identityaccess.ErrInviteSocialWorkerManaged)
 	}
 	if !req.ConfirmRoleUpgrade {
 		return false, &domain.InviteToStudentResult{
@@ -138,7 +158,7 @@ func (l *AccountLifecycle) upgradeStudentLink(ctx context.Context, studentID, gu
 			slog.Int64("student_id", studentID),
 			slog.Int64("guardian_profile_id", guardianProfileID),
 		)
-		return failed(op, domain.ErrInviteSocialWorkerManaged)
+		return failed(op, identityaccess.ErrInviteSocialWorkerManaged)
 	}
 	if err := l.guardians.PromoteStudentGuardianLink(ctx, link.ID); err != nil {
 		return failed(op, err)
@@ -177,12 +197,12 @@ func (l *AccountLifecycle) attachExistingAccountByEmail(ctx context.Context, pro
 	}
 	account, err := l.sessions.FindAccountByEmail(ctx, email)
 	if err != nil {
-		if errors.Is(err, domain.ErrAccountNotFound) {
+		if errors.Is(err, identityaccess.ErrAccountNotFound) {
 			return nil
 		}
 		return failed(opGuardianInviteToStudent, err)
 	}
-	return l.attachExistingAccount(ctx, profile, account)
+	return l.attachExistingAccount(ctx, profile, domain.Account(account))
 }
 
 func (l *AccountLifecycle) attachExistingAccount(ctx context.Context, profile *domain.GuardianProfile, account domain.Account) error {
@@ -294,41 +314,13 @@ func (l *AccountLifecycle) createStudentInvitation(ctx context.Context, req doma
 	}
 	if len(open) > 0 {
 		openInvitation := open[0]
-		if openInvitation.ApprovalStatus == domain.GuardianInvitationApprovalPending &&
-			approvalStatus == domain.GuardianInvitationApprovalNotRequired {
-			openInvitation.ApprovalStatus = domain.GuardianInvitationApprovalNotRequired
-			openInvitation.ApprovedBy = nil
-			openInvitation.ApprovedAt = nil
-			openInvitation.ExpiresAt = time.Now().Add(l.delivery.InvitationExpiry(ctx))
-			openInvitation.EmailSentAt = nil
-			openInvitation.EmailError = nil
-			if err := l.invitations.UpdateGuardianInvitation(ctx, openInvitation); err != nil {
-				return domain.GuardianInvitation{}, failed(opGuardianInviteToStudent, err)
-			}
+		openInvitation, err = l.waiveInvitationApproval(ctx, openInvitation, approvalStatus)
+		if err != nil {
+			return domain.GuardianInvitation{}, err
 		}
-		// Reverse transition, ONLY for a confirmed role upgrade: the upgrade
-		// requires approval-gating, but the open invitation was created
-		// without it. Re-queue it as pending so the staff queue surfaces it
-		// and the outstanding token is frozen until staff decide. The
-		// roleUpgrade gate is load-bearing: a plain duplicate re-invite must
-		// not revert an already-resolved invitation.
-		if roleUpgrade &&
-			approvalStatus == domain.GuardianInvitationApprovalPending &&
-			openInvitation.ApprovalStatus != domain.GuardianInvitationApprovalPending {
-			openInvitation.ApprovalStatus = domain.GuardianInvitationApprovalPending
-			openInvitation.ApprovedBy = nil
-			openInvitation.ApprovedAt = nil
-			// Restart the window and drop the stale email tracking, exactly
-			// like the pending -> not_required branch.
-			openInvitation.ExpiresAt = time.Now().Add(l.delivery.InvitationExpiry(ctx))
-			openInvitation.EmailSentAt = nil
-			openInvitation.EmailError = nil
-			if req.RequestedByParentAccountID != nil {
-				openInvitation.RequestedByAccountID = req.RequestedByParentAccountID
-			}
-			if err := l.invitations.UpdateGuardianInvitation(ctx, openInvitation); err != nil {
-				return domain.GuardianInvitation{}, failed(opGuardianInviteToStudent, err)
-			}
+		openInvitation, err = l.requeueRoleUpgrade(ctx, req, openInvitation, approvalStatus, roleUpgrade)
+		if err != nil {
+			return domain.GuardianInvitation{}, err
 		}
 		// A re-invite that confirmed a restrictive-contact upgrade must stick
 		// the flag onto the reused row, or the approval would silently skip
@@ -374,11 +366,21 @@ func (l *AccountLifecycle) closeSupersededApprovalRequests(ctx context.Context, 
 	return nil
 }
 
-// ApproveInvitation resolves a pending parent-initiated request: it links the
-// child and either grants access to an existing account or dispatches the
-// invitation email. A promised role upgrade that can no longer be applied
-// aborts the approval: the request stays pending so staff can reject it.
-func (l *AccountLifecycle) ApproveInvitation(ctx context.Context, invitationID, approverAccountID int64) error {
+func (l *AccountLifecycle) ApproveInvitation(ctx context.Context, invitationID, approverAccountID int64) (err error) {
+	if l == nil {
+		return errAccountLifecycleUnavailable
+	}
+	operation := func(ctx context.Context) error {
+		return lifecycleError(l.approveInvitation(bindRuntime(l.auth.attach, ctx), invitationID, approverAccountID))
+	}
+	err = l.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		err = operation(txCtx)
+		return err
+	})
+	return
+}
+
+func (l *AccountLifecycle) approveInvitation(ctx context.Context, invitationID, approverAccountID int64) error {
 	invitation, err := l.pendingInvitation(ctx, opGuardianInviteApprove, invitationID)
 	if err != nil {
 		return err
@@ -391,25 +393,12 @@ func (l *AccountLifecycle) ApproveInvitation(ctx context.Context, invitationID, 
 	if !found {
 		return failed(opGuardianInviteApprove, fmt.Errorf("guardian profile not found"))
 	}
-	if !profile.HasAccount {
-		if email := strings.ToLower(strings.TrimSpace(profile.Email)); email != "" {
-			if err := l.attachExistingAccountByEmail(ctx, &profile, email); err != nil {
-				return err
-			}
-		}
+	if err := l.attachApprovalAccount(ctx, &profile); err != nil {
+		return err
 	}
-
-	if invitation.StudentID != nil {
-		if _, err := l.ensureStudentLink(ctx, *invitation.StudentID, profile.ID, defaultRelationshipType, invitation.TenantID); err != nil {
-			return err
-		}
-		if invitation.RoleUpgrade {
-			if err := l.upgradeStudentLink(ctx, *invitation.StudentID, profile.ID, opGuardianInviteApprove); err != nil {
-				return err
-			}
-		}
+	if err := l.approveInvitationStudentLink(ctx, invitation, profile); err != nil {
+		return err
 	}
-
 	now := time.Now()
 	invitation.ApprovalStatus = domain.GuardianInvitationApprovalApproved
 	invitation.ApprovedBy = &approverAccountID
@@ -430,7 +419,11 @@ func (l *AccountLifecycle) ApproveInvitation(ctx context.Context, invitationID, 
 	}
 
 	// No account yet: refresh expiry, clear stale email tracking, dispatch.
-	invitation.ExpiresAt = now.Add(l.delivery.InvitationExpiry(ctx))
+	expiry, err := l.delivery.InvitationExpiry(ctx)
+	if err != nil {
+		return failed(opGuardianInviteApprove, err)
+	}
+	invitation.ExpiresAt = now.Add(expiry)
 	invitation.EmailSentAt = nil
 	invitation.EmailError = nil
 	if err := l.invitations.UpdateGuardianInvitation(ctx, invitation); err != nil {
@@ -444,9 +437,21 @@ func (l *AccountLifecycle) ApproveInvitation(ctx context.Context, invitationID, 
 	return nil
 }
 
-// RejectInvitation marks a pending parent-initiated request as rejected. No
-// access is granted. A profile created solely for this request is cleaned up.
-func (l *AccountLifecycle) RejectInvitation(ctx context.Context, invitationID, approverAccountID int64) error {
+func (l *AccountLifecycle) RejectInvitation(ctx context.Context, invitationID, approverAccountID int64) (err error) {
+	if l == nil {
+		return errAccountLifecycleUnavailable
+	}
+	operation := func(ctx context.Context) error {
+		return lifecycleError(l.rejectInvitation(bindRuntime(l.auth.attach, ctx), invitationID, approverAccountID))
+	}
+	err = l.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		err = operation(txCtx)
+		return err
+	})
+	return
+}
+
+func (l *AccountLifecycle) rejectInvitation(ctx context.Context, invitationID, approverAccountID int64) error {
 	invitation, err := l.pendingInvitation(ctx, opGuardianInviteReject, invitationID)
 	if err != nil {
 		return err
@@ -468,18 +473,26 @@ func (l *AccountLifecycle) RejectInvitation(ctx context.Context, invitationID, a
 	return nil
 }
 
-// PendingInvitationStudentID returns the child targeted by a pending approval
-// request, for the per-student authorization gate staff handlers apply
-// before approve/reject mutates anything.
-func (l *AccountLifecycle) PendingInvitationStudentID(ctx context.Context, invitationID int64) (int64, error) {
-	invitation, err := l.pendingInvitation(ctx, opGuardianInviteApprove, invitationID)
-	if err != nil {
-		return 0, err
+func (l *AccountLifecycle) PendingInvitationStudentID(ctx context.Context, invitationID int64) (value0 int64, err error) {
+	if l == nil {
+		return 0, errAccountLifecycleUnavailable
 	}
-	if invitation.StudentID == nil || *invitation.StudentID <= 0 {
-		return 0, failed(opGuardianInviteApprove, fmt.Errorf("invitation is missing student_id"))
+	operation := func(ctx context.Context, invitationID int64) (int64, error) {
+		invitation, err := l.pendingInvitation(ctx, opGuardianInviteApprove, invitationID)
+		if err != nil {
+			return 0, err
+		}
+		if invitation.StudentID == nil || *invitation.StudentID <= 0 {
+			return 0, failed(opGuardianInviteApprove, fmt.Errorf("invitation is missing student_id"))
+		}
+		return *invitation.StudentID, nil
 	}
-	return *invitation.StudentID, nil
+	err = l.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		studentID, err := operation(bindRuntime(l.auth.attach, txCtx), invitationID)
+		value0 = studentID
+		return lifecycleError(err)
+	})
+	return
 }
 
 // pendingInvitation loads an invitation that is awaiting approval and has not
@@ -497,7 +510,7 @@ func (l *AccountLifecycle) pendingInvitation(ctx context.Context, op string, inv
 		return domain.GuardianInvitation{}, failed(op, fmt.Errorf("invitation is not awaiting approval"))
 	}
 	if guardianApprovalExpired(invitation, time.Now()) {
-		return domain.GuardianInvitation{}, failed(op, domain.ErrGuardianInvitationExpired)
+		return domain.GuardianInvitation{}, failed(op, identityaccess.ErrGuardianInvitationExpired)
 	}
 	return invitation, nil
 }
@@ -591,10 +604,29 @@ func (l *AccountLifecycle) expireInvitations(ctx context.Context, invitations []
 	return nil
 }
 
-// ListPendingApprovalsDetailed returns the approval queue with guardian,
-// child, and requester names resolved. Name resolution is best-effort: a
-// failed batch read logs and leaves the names empty.
-func (l *AccountLifecycle) ListPendingApprovalsDetailed(ctx context.Context) ([]domain.PendingApprovalView, error) {
+func (l *AccountLifecycle) ListPendingApprovalsDetailed(ctx context.Context) (value0 []identityaccess.PendingApprovalView, err error) {
+	if l == nil {
+		return nil, errAccountLifecycleUnavailable
+	}
+	operation := func(ctx context.Context) ([]identityaccess.PendingApprovalView, error) {
+		views, err := l.listPendingApprovalsDetailed(bindRuntime(l.auth.attach, ctx))
+		if err != nil {
+			return nil, lifecycleError(err)
+		}
+		result := make([]identityaccess.PendingApprovalView, 0, len(views))
+		for _, view := range views {
+			result = append(result, identityaccess.PendingApprovalView(view))
+		}
+		return result, nil
+	}
+	err = l.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, err = operation(txCtx)
+		return err
+	})
+	return
+}
+
+func (l *AccountLifecycle) listPendingApprovalsDetailed(ctx context.Context) ([]domain.PendingApprovalView, error) {
 	invitations, err := l.invitations.ListPendingGuardianApprovals(ctx)
 	if err != nil {
 		return nil, failed(opGuardianInviteApprove, err)
@@ -624,82 +656,27 @@ func (l *AccountLifecycle) ListPendingApprovalsDetailed(ctx context.Context) ([]
 		)
 		profiles = map[int64]domain.GuardianProfile{}
 	}
-	students := map[int64]domain.Student{}
-	if len(studentIDs) > 0 {
-		loaded, err := l.guardians.FindStudents(ctx, studentIDs)
-		if err != nil {
-			l.logger.Error("failed to hydrate pending guardian approvals",
-				"relation", "students",
-				"error", err,
-			)
-		} else {
-			students = loaded
-		}
-	}
-	personIDs := make([]int64, 0, len(students))
-	for _, student := range students {
-		personIDs = append(personIDs, student.PersonID)
-	}
-	persons := map[int64]domain.PersonName{}
-	if len(personIDs) > 0 {
-		loaded, err := l.guardians.FindPersonNamesByIDs(ctx, personIDs)
-		if err != nil {
-			l.logger.Error("failed to hydrate pending guardian approvals",
-				"relation", "persons",
-				"error", err,
-			)
-		} else {
-			persons = loaded
-		}
-	}
-	emails := map[int64]string{}
-	if len(accountIDs) > 0 {
-		loaded, _, err := l.store.ListAccountEmails(ctx, accountIDs)
-		if err != nil {
-			l.logger.Error("failed to hydrate pending guardian approvals",
-				"relation", "requester_emails",
-				"error", err,
-			)
-		} else {
-			emails = loaded
-		}
-	}
-
+	students, persons := l.approvalStudentNames(ctx, studentIDs)
+	emails := l.approvalRequesterEmails(ctx, accountIDs)
 	views := make([]domain.PendingApprovalView, 0, len(invitations))
 	for _, inv := range invitations {
-		view := domain.PendingApprovalView{
-			InvitationID: inv.ID, GuardianProfileID: inv.GuardianProfileID,
-			CreatedAt: inv.CreatedAt, ExpiresAt: inv.ExpiresAt, RoleUpgrade: inv.RoleUpgrade,
-		}
-		if profile, ok := profiles[inv.GuardianProfileID]; ok {
-			view.GuardianName = profile.FullName()
-			view.GuardianEmail = strings.TrimSpace(profile.Email)
-		}
-		if inv.StudentID != nil {
-			view.StudentID = *inv.StudentID
-			if student, ok := students[*inv.StudentID]; ok {
-				if person, ok := persons[student.PersonID]; ok {
-					view.StudentName = strings.TrimSpace(person.FirstName + " " + person.LastName)
-				}
-			}
-		}
-		if inv.RequestedByAccountID != nil {
-			view.RequestedByEmail = emails[*inv.RequestedByAccountID]
-		}
+		view := pendingApprovalView(inv, profiles, students, persons, emails)
 		views = append(views, view)
 	}
 	return views, nil
 }
 
-// RevokeAccess removes one account's link to one child. Parents may not
-// remove the primary guardian; staff may remove anyone. The account/profile
-// and sibling links are untouched.
-func (l *AccountLifecycle) RevokeAccess(ctx context.Context, req domain.RevokeAccessRequest) error {
+func (l *AccountLifecycle) RevokeAccess(ctx context.Context, req identityaccess.RevokeAccessRequest) (err error) {
+	if l == nil {
+		return errAccountLifecycleUnavailable
+	}
+	defer func() { err = lifecycleError(err) }()
+	ctx = bindRuntime(l.auth.attach, ctx)
 	return l.runtime.WithTenantTx(ctx, l.runtime.TenantID(ctx), func(txCtx context.Context) error {
 		if err := l.guardians.LockStudent(txCtx, req.StudentID); err != nil {
 			return failed(opGuardianRevokeAccess, err)
 		}
-		return l.revokeAccess(txCtx, req)
+		return l.revokeAccess(txCtx, domain.RevokeAccessRequest(req))
 	})
 }
 
@@ -723,47 +700,16 @@ func (l *AccountLifecycle) revokeAccess(ctx context.Context, req domain.RevokeAc
 		return failed(opGuardianRevokeAccess, fmt.Errorf("account is not linked to this child"))
 	}
 	if req.ByParent && link.IsPrimary {
-		return failed(opGuardianRevokeAccess, domain.ErrCannotRemovePrimaryGuardian)
+		return failed(opGuardianRevokeAccess, identityaccess.ErrCannotRemovePrimaryGuardian)
 	}
 	// Checked under the student lock taken by RevokeAccess, so a payer
 	// assigned concurrently cannot slip past.
 	if link.IsPayer && !req.MayClearPayer {
-		return failed(opGuardianRevokeAccess, domain.ErrCannotRemovePayerGuardian)
+		return failed(opGuardianRevokeAccess, identityaccess.ErrCannotRemovePayerGuardian)
 	}
-	deleteLink := true
-	if req.ByParent {
-		profile, found, err := l.guardians.FindGuardianProfile(ctx, req.GuardianProfileID)
-		if err != nil {
-			return failed(opGuardianRevokeAccess, err)
-		}
-		if !found {
-			return failed(opGuardianRevokeAccess, fmt.Errorf("guardian profile not found"))
-		}
-		// The parent flow manages ANOTHER account's access. A parent must not
-		// be able to revoke their own link to the child.
-		if profile.AccountID != nil && *profile.AccountID == req.ActorAccountID {
-			return failed(opGuardianRevokeAccess, domain.ErrCannotRemoveOwnAccess)
-		}
-		if !profile.HasAccount {
-			now := time.Now()
-			openInvitations, err := l.openStudentInvitations(ctx, req.GuardianProfileID, req.StudentID, now)
-			if err != nil {
-				return failed(opGuardianRevokeAccess, err)
-			}
-			if len(openInvitations) == 0 {
-				return failed(opGuardianRevokeAccess, domain.ErrCannotRemoveStaffManagedGuardian)
-			}
-			if err := l.expireInvitations(ctx, openInvitations, now); err != nil {
-				return failed(opGuardianRevokeAccess, err)
-			}
-			deleteLink = false
-			for _, inv := range openInvitations {
-				if inv.ProfileCreatedForInvitation {
-					deleteLink = true
-					break
-				}
-			}
-		}
+	deleteLink, err := l.parentRevokeDeletesLink(ctx, req)
+	if err != nil {
+		return err
 	}
 	if !deleteLink {
 		l.logger.Info("guardian pending invite cancelled without deleting staff-managed contact",
@@ -774,15 +720,9 @@ func (l *AccountLifecycle) revokeAccess(ctx context.Context, req domain.RevokeAc
 		)
 		return nil
 	}
-	if link.IsPayer {
-		if req.ActorAccountID <= 0 {
-			return failed(opGuardianRevokeAccess, fmt.Errorf("refusing to remove payer without a financial audit"))
-		}
-		if err := l.financial.RecordPayerRemoved(ctx, link.GuardianProfileID, link.StudentID, req.ActorAccountID); err != nil {
-			return failed(opGuardianRevokeAccess, fmt.Errorf("write payer removal audit: %w", err))
-		}
+	if err := l.auditRevokedPayer(ctx, link, req); err != nil {
+		return err
 	}
-
 	if err := l.guardians.DeleteStudentGuardianLink(ctx, link.ID); err != nil {
 		return failed(opGuardianRevokeAccess, err)
 	}
@@ -793,5 +733,53 @@ func (l *AccountLifecycle) revokeAccess(ctx context.Context, req domain.RevokeAc
 		slog.Int64("actor_account_id", req.ActorAccountID),
 		slog.Bool("by_parent", req.ByParent),
 	)
+	return nil
+}
+
+func (l *AccountLifecycle) approveInvitationStudentLink(ctx context.Context, invitation domain.GuardianInvitation, profile domain.GuardianProfile) error {
+	if invitation.StudentID != nil {
+		if _, err := l.ensureStudentLink(ctx, *invitation.StudentID, profile.ID, defaultRelationshipType, invitation.TenantID); err != nil {
+			return err
+		}
+		if invitation.RoleUpgrade {
+			if err := l.upgradeStudentLink(ctx, *invitation.StudentID, profile.ID, opGuardianInviteApprove); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func (l *AccountLifecycle) waiveInvitationApproval(ctx context.Context, openInvitation domain.GuardianInvitation, approvalStatus string) (domain.GuardianInvitation, error) {
+	if openInvitation.ApprovalStatus == domain.GuardianInvitationApprovalPending &&
+		approvalStatus == domain.GuardianInvitationApprovalNotRequired {
+		openInvitation.ApprovalStatus = domain.GuardianInvitationApprovalNotRequired
+		openInvitation.ApprovedBy = nil
+		openInvitation.ApprovedAt = nil
+		expiry, err := l.delivery.InvitationExpiry(ctx)
+		if err != nil {
+			return domain.GuardianInvitation{}, failed(opGuardianInviteToStudent, err)
+		}
+		openInvitation.ExpiresAt = time.Now().Add(expiry)
+		openInvitation.EmailSentAt = nil
+		openInvitation.EmailError = nil
+		if err := l.invitations.UpdateGuardianInvitation(ctx, openInvitation); err != nil {
+			return domain.GuardianInvitation{}, failed(opGuardianInviteToStudent, err)
+		}
+	}
+	return openInvitation, nil
+}
+
+func (l *AccountLifecycle) auditRevokedPayer(ctx context.Context, link *domain.StudentGuardianLink, req domain.RevokeAccessRequest) error {
+	if link.IsPayer {
+		if req.ActorAccountID <= 0 {
+			return failed(opGuardianRevokeAccess, fmt.Errorf("refusing to remove payer without a financial audit"))
+		}
+		if err := l.financial.RecordPayerRemoved(ctx, link.GuardianProfileID, link.StudentID, req.ActorAccountID); err != nil {
+			return failed(opGuardianRevokeAccess, fmt.Errorf("write payer removal audit: %w", err))
+		}
+	}
+
 	return nil
 }

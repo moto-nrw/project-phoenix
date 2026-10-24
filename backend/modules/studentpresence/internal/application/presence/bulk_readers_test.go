@@ -5,10 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,8 +21,8 @@ func TestGroupSupervisorRepository_ListActiveSupervisedRooms(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	today := timezone.NewDate(2026, 8, 24)
-	repo := sessionSupervisors(repositories.NewPresenceSessionRecords(db, func() time.Time {
+	today := calendar.NewDate(2026, 8, 24)
+	repo := sessionSupervisors(api.NewPresenceSessionRecords(testpkg.MustDatabase(db), func() time.Time {
 		return today.BerlinMidnight()
 	}))
 	ctx := testpkg.Ctx(t)
@@ -175,7 +174,7 @@ func TestGroupSupervisorRepository_ListActiveSupervisedRooms(t *testing.T) {
 			StaffID:   foreignStaff.ID,
 			GroupID:   foreignGroup.ID,
 			Role:      "primary",
-			StartDate: timezone.NewDate(2026, 8, 24),
+			StartDate: calendar.NewDate(2026, 8, 24),
 			TenantID:  otherTenant,
 		}
 		_, err := db.NewInsert().

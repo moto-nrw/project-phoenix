@@ -3,9 +3,17 @@ package api
 import (
 	"log/slog"
 
+	endbinding "github.com/moto-nrw/project-phoenix/roots/sessionendbinding"
+
+	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
+
+	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/realtime"
+
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/observability"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/workflows/sessionend"
 	sessionEndCompose "github.com/moto-nrw/project-phoenix/workflows/sessionend/compose"
 )
@@ -14,17 +22,22 @@ import (
 // facades the root already holds: Student Presence, Timetable & Activities,
 // People Directory, Facilities, the Timetable owner's bridged completion, the
 // realtime hub, and the guardian wake of parent messaging.
-func newSessionEnd(presence *studentpresence.Module, modules moduleServices, factory *services.Factory, logger *slog.Logger) (sessionend.Command, error) {
+func newSessionEnd(
+	presence studentpresence.Owner, activities timetable.Capability, completion timetable.EndedSessionCompletion,
+	students peopledirectory.Capability, rooms facilitiesModule.Capability, hub *realtime.Hub,
+	guardians eventContract.Emitter, logger *slog.Logger,
+) (sessionend.Command, error) {
 	log := logger.With("workflow", "session-end")
 	deps := sessionEndCompose.Dependencies{
-		Presence:    presence,
-		Sessions:    presence,
-		Timetable:   modules.timetable,
-		Completion:  factory.TimetableBridge,
-		Students:    modules.persons,
-		Rooms:       modules.rooms,
-		Broadcaster: factory.RealtimeHub,
-		Logger:      log,
+		Notifier: endbinding.NewNotifier(hub, guardians, log),
+
+		Presence:   presence,
+		Sessions:   presence,
+		Timetable:  activities,
+		Completion: completion,
+		Students:   students,
+		Rooms:      rooms,
+
 		Observe: func(o sessionEndCompose.Observation) {
 			observability.ObserveSessionEndOperation(o.Operation, o.Duration, o.Err)
 			log.Debug("session end operation",
@@ -36,10 +49,6 @@ func newSessionEnd(presence *studentpresence.Module, modules moduleServices, fac
 				"error", o.Err,
 			)
 		},
-	}
-	// A typed nil pointer would satisfy the interface and panic on use.
-	if factory.ParentEventEmitter != nil {
-		deps.Guardians = factory.ParentEventEmitter
 	}
 	return sessionEndCompose.New(deps)
 }

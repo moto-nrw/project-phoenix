@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"time"
-
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
 )
 
 // ErrRetentionUnresolved means the tenant's retention window could not be
@@ -76,20 +74,24 @@ func (s *Service) retentionDays(ctx context.Context) (int, error) {
 	if s.Settings == nil {
 		return 0, ErrRetentionUnresolved
 	}
-	days, err := s.Settings.ResolveInt(ctx, configModels.KeyGDPRStaffMessageRetentionDays)
+	days, err := s.Settings.StaffMessageRetentionDays(ctx)
 	if err != nil {
 		s.Logger.Error("staffmessaging: resolve retention days failed, skipping cleanup",
-			slog.String("key", configModels.KeyGDPRStaffMessageRetentionDays),
+			slog.String("key", s.Settings.StaffMessageRetentionDaysKey()),
 			slog.String("error", err.Error()),
 		)
 		return 0, fmt.Errorf("%w: %w", ErrRetentionUnresolved, err)
 	}
 	if days <= 0 {
 		s.Logger.Error("staffmessaging: retention days must be positive, skipping cleanup",
-			slog.String("key", configModels.KeyGDPRStaffMessageRetentionDays),
+			slog.String("key", s.Settings.StaffMessageRetentionDaysKey()),
 			slog.Int("days", days),
 		)
 		return 0, ErrRetentionUnresolved
 	}
 	return days, nil
+}
+
+func (r CleanupResult) CleanupCounts() (int, int, int) {
+	return r.MessagesDeleted, r.ThreadsDeleted, r.RetentionDays
 }

@@ -11,13 +11,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
+
+	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-func checkEnrollmentSubmissionGolden(t *testing.T, api *serveGraph) {
+func checkEnrollmentSubmissionGolden(t *testing.T, api *goldenRuntime) {
 	t.Helper()
 	testpkg.OwnTenant(t)
 	db := testpkg.SetupTestDB(t)
@@ -25,7 +26,7 @@ func checkEnrollmentSubmissionGolden(t *testing.T, api *serveGraph) {
 	parent := testpkg.CreateTestParentGuardianChain(t, db)
 	phase := testpkg.CreateTestEnrollmentPhase(t, db)
 	staffToken := testutil.MintTestJWT(t, testutil.AdminTestClaimsForTenant(int(staff.ID), testpkg.Tenant(t)))
-	parentToken := testutil.MintTestJWT(t, jwt.AppClaims{ID: int(parent.AccountID), Sub: parent.Email, Scope: "parent", Roles: []string{"guardian"}})
+	parentToken := testutil.MintTestJWT(t, sessiontoken.AppClaims{ID: int(parent.AccountID), Sub: parent.Email, Scope: "parent", Roles: []string{"guardian"}})
 	enabled := checkpointRequest(api, checkpointScenario{
 		Method: http.MethodPut, Path: "/api/settings/values/enrollment.enabled", Authenticated: true, Body: `{"value":true}`,
 	}, staffToken)
@@ -87,7 +88,7 @@ func checkEnrollmentSubmissionGolden(t *testing.T, api *serveGraph) {
 // flat as the live roster grows. The production router is the only graph that
 // proves all batched owner reads, including active parents-app memberships,
 // stay inside the request transaction.
-func checkPhaseResponseQueryBudget(t *testing.T, api *serveGraph) {
+func checkPhaseResponseQueryBudget(t *testing.T, api *goldenRuntime) {
 	t.Helper()
 	testpkg.OwnTenant(t)
 	db := testpkg.SetupTestDB(t)
@@ -161,7 +162,7 @@ func checkPhaseResponseQueryBudget(t *testing.T, api *serveGraph) {
 	smallStudents := addStudents(0, 3)
 	addRolloverChain(smallStudents[0], 1)
 
-	counter := testpkg.CaptureQueries(t, api.db)
+	counter := testpkg.CaptureQueries(t, api.db.Pool())
 	type queryRun struct {
 		total     []string
 		overview  []string
@@ -222,7 +223,7 @@ func checkPhaseResponseQueryBudget(t *testing.T, api *serveGraph) {
 // the parent's existing platform account guardian access to this school
 // through the Identity & Access capability instead of an invitation. The
 // response contract and the resulting rows must not change.
-func checkEnrollmentAcceptanceGolden(t *testing.T, api *serveGraph, db *testpkg.DB, staffToken string, requestID int64, parent testpkg.ParentChain) {
+func checkEnrollmentAcceptanceGolden(t *testing.T, api *goldenRuntime, db *testpkg.DB, staffToken string, requestID int64, parent testpkg.ParentChain) {
 	t.Helper()
 	tenantID := testpkg.Tenant(t)
 	var childID int64
@@ -287,7 +288,7 @@ func checkEnrollmentAcceptanceGolden(t *testing.T, api *serveGraph, db *testpkg.
 // files a correction over its status token, staff asks back, the family
 // answers, staff decides. The public list is the family's view of that
 // dialogue and must not leak reviewer identities or internal notes.
-func checkEnrollmentChangeRequestDialogueGolden(t *testing.T, api *serveGraph, db *testpkg.DB, staffToken string, phaseID, requestID int64, statusToken string) {
+func checkEnrollmentChangeRequestDialogueGolden(t *testing.T, api *goldenRuntime, db *testpkg.DB, staffToken string, phaseID, requestID int64, statusToken string) {
 	t.Helper()
 	var childID int64
 	require.NoError(t, db.NewRaw("SELECT id FROM enrollment.request_children WHERE request_id = ? AND tenant_id = ?", requestID, testpkg.Tenant(t)).Scan(context.Background(), &childID))
@@ -320,10 +321,10 @@ func checkEnrollmentChangeRequestDialogueGolden(t *testing.T, api *serveGraph, d
 	require.Equal(t, http.StatusBadRequest, early.Code, early.Body.String())
 	var earlyProblem map[string]any
 	require.NoError(t, json.Unmarshal(early.Body.Bytes(), &earlyProblem))
-	require.Equal(t, "error", earlyProblem["status"])
-	require.Equal(t, "enrollment change request has invalid status", earlyProblem["error"])
+	require.Equal(t, float64(http.StatusBadRequest), earlyProblem["status"])
+	require.Equal(t, "enrollment change request has invalid status", earlyProblem["detail"])
 	require.Equal(t, "enrollment.change_request_status_changed", earlyProblem["code"])
-	require.Equal(t, earlyProblem["error"], earlyProblem["detail"])
+	require.NotContains(t, earlyProblem, "error")
 	require.Equal(t, "Bad Request", earlyProblem["title"])
 	require.Equal(t, "https://moto-app.de/help/fehlermeldungen#anleitung-vorgang-nicht-moeglich", earlyProblem["type"])
 	require.NotEmpty(t, earlyProblem["instance"])
@@ -439,7 +440,7 @@ func normalizeContractIdentifiers(value any) any {
 	}
 }
 
-func checkEnrollmentCatalogGoldens(t *testing.T, api *serveGraph, token string, staffID int64) {
+func checkEnrollmentCatalogGoldens(t *testing.T, api *goldenRuntime, token string, staffID int64) {
 	t.Helper()
 	for _, scenario := range []struct{ name, path, body string }{
 		{"phase", "/api/enrollment/phases/", `{"name":"Contract Phase","kind":"school_year","service_start_date":"2030-08-01","service_end_date":"2031-07-31","care_overflow_mode":"waitlist","care_offering_selection_mode":"optional","is_active":true}`},

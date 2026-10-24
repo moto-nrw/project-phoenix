@@ -17,7 +17,7 @@ func NewAccountProfiles(service *Service, store ports.AccountProfileStore) *Acco
 	return &AccountProfiles{service: service, store: store}
 }
 
-func (p *AccountProfiles) FindAccountProfile(ctx context.Context, accountID int64) (result domain.AccountProfile, found bool, err error) {
+func (p *AccountProfiles) findAccountProfile(ctx context.Context, accountID int64) (result domain.AccountProfile, found bool, err error) {
 	err = p.service.run(ctx, p.service.withinSchoolRead, "find_account_profile", func(txCtx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		var queryErr error
@@ -28,7 +28,8 @@ func (p *AccountProfiles) FindAccountProfile(ctx context.Context, accountID int6
 	return result, found, err
 }
 
-func (p *AccountProfiles) SetAccountBio(ctx context.Context, accountID int64, bio string) error {
+func (p *AccountProfiles) SetAccountBio(ctx context.Context, accountID int64, bio string) (err error) {
+	defer func() { err = MapError(err) }()
 	return p.service.run(ctx, p.withinSchoolWrite, "set_account_bio", func(txCtx context.Context, stats *domain.OperationStats) error {
 		if accountID <= 0 {
 			return errors.New("identity access: account ID must be positive")
@@ -44,4 +45,9 @@ func (p *AccountProfiles) withinSchoolWrite(ctx context.Context, fn func(context
 		return domain.ErrTenantRequired
 	}
 	return p.service.tx.RunWrite(ctx, fn)
+}
+
+func (p *AccountProfiles) FindAccountProfile(ctx context.Context, accountID int64) (bio, settings string, found bool, err error) {
+	value, found, err := p.findAccountProfile(ctx, accountID)
+	return value.Bio, value.Settings, found, MapError(err)
 }

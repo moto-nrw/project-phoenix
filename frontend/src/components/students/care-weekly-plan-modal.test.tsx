@@ -190,22 +190,6 @@ describe("CareWeeklyPlanModal", () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
-  it("renders nothing while closed", () => {
-    render(
-      <CareWeeklyPlanModal
-        isOpen={false}
-        onClose={vi.fn()}
-        careDaysSource="weekly_plan"
-        initialArrivalSchedules={initialArrivalSchedules}
-        initialPickupSchedules={initialPickupSchedules}
-        onSubmit={vi.fn()}
-        successMessage="Betreuungszeiten übernommen"
-      />,
-    );
-
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-  });
-
   it("shows validation errors for invalid times", async () => {
     render(
       <CareWeeklyPlanModal

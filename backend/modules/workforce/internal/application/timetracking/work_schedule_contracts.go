@@ -1,0 +1,67 @@
+package timetracking
+
+import (
+	"context"
+
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+)
+
+// This file holds the work-schedule vocabulary the retained work-session
+// service owns. The schedule rows and the pure Soll-minute derivations over
+// them live in the Workforce public package (#3259); the names below alias
+// them for the retained callers. The rows themselves are persisted by the
+// workforce repositories behind the ports below.
+
+// Day-of-week constants (ISO: 0=Monday, 6=Sunday).
+const (
+	DayMonday    = 0
+	DayTuesday   = 1
+	DayWednesday = 2
+	DayThursday  = 3
+	DayFriday    = 4
+	DaySaturday  = 5
+	DaySunday    = 6
+)
+
+const (
+	// MaxScheduleRotation caps a schedule at four rotation weeks.
+	MaxScheduleRotation = 4
+	// MaxDailyTargetMinutes caps a single day's target working time at 12
+	// hours.
+	MaxDailyTargetMinutes = 720
+)
+
+// ScheduleEntry and ScheduleUpdateInput are the schedule PUT at the service
+// boundary.
+type (
+	ScheduleEntry         = workforce.ScheduleEntry
+	ScheduleUpdateInput   = workforce.ScheduleUpdateInput
+	WorkScheduleRow       = workforce.ScheduleRow
+	WorkTimeTemplate      = workforce.ScheduleTemplate
+	WorkTimeTemplateEntry = workforce.ScheduleTemplateEntry
+)
+
+var (
+	DailyTargetFromSchedule   = workforce.DailyTargetFromSchedule
+	DailyTargetFromTemplate   = workforce.DailyTargetFromTemplate
+	WeeklyTargetFromSchedule  = workforce.WeeklyTargetFromSchedule
+	WeeklyTargetsFromTemplate = workforce.WeeklyTargetsFromTemplate
+)
+
+// WorkSessionSchedules is the schedule capability used by work-session
+// summaries and effective-dated schedule replacement.
+type WorkSessionSchedules interface {
+	FindByStaffIDsValidInRange(context.Context, []int64, calendar.Date, calendar.Date) ([]*WorkScheduleRow, error)
+	GetCurrentByStaffID(context.Context, int64) ([]*WorkScheduleRow, error)
+	ReplaceSchedule(context.Context, int64, []*WorkScheduleRow, calendar.Date) error
+	ReplaceScheduleWithValidFrom(context.Context, int64, []*WorkScheduleRow, calendar.Date, calendar.Date) error
+}
+
+// WorkSessionTimeModels is the work-time-template capability the work-session
+// service still calls: reading one template and saving a custom schedule as a
+// new one. Template administration itself runs through the Workforce facade.
+type WorkSessionTimeModels interface {
+	FindByID(context.Context, int64) (*WorkTimeTemplate, error)
+	Create(context.Context, *WorkTimeTemplate, []*WorkTimeTemplateEntry) error
+}

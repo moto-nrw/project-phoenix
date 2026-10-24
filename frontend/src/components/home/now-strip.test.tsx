@@ -59,7 +59,7 @@ vi.mock("~/components/home/home-card-rows", () => ({
 }));
 vi.mock("~/lib/hooks/use-day-plan-href", () => ({
   useDayPlanHref: () => "/test-tenant/tagesplan",
-  useDayPlanLabel: () => "Zum Tagesplan",
+  useDayPlanLabel: () => "Heute öffnen",
 }));
 vi.mock("~/lib/tenant-path", () => ({
   useTenantAwarePath: () => (path: string) => `/test-tenant${path}`,
@@ -189,7 +189,7 @@ describe("NowStrip (#2180)", () => {
     ).toBeInTheDocument();
     // Kein Weg in den Tagesplan: „Mein Tag" steht direkt unter der Zone.
     expect(
-      screen.queryByRole("link", { name: "Zum Tagesplan" }),
+      screen.queryByRole("link", { name: "Heute öffnen" }),
     ).not.toBeInTheDocument();
     // Die eigene Gruppe steht als Baustein darunter, nicht in der Zone.
     expect(
@@ -258,6 +258,23 @@ describe("NowStrip (#2180)", () => {
     expect(router.push).not.toHaveBeenCalled();
   });
 
+  // Ein Weg in einen anderen Bereich trägt einen Pfeil (#4346); das Starten
+  // an Ort und Stelle nicht.
+  it("zeigt am Weg zu allen Kindern einen Pfeil, am Starten nicht", () => {
+    sources.own = [];
+    sources.school = [block({ id: "4", isAssigned: true, canStart: true })];
+
+    render(<NowStrip access={care} context={context(care)} />);
+
+    const link = screen.getByRole("link", { name: "Alle Kinder" });
+    expect(link.querySelector('svg[aria-hidden="true"]')).not.toBeNull();
+    expect(
+      screen
+        .getByRole("button", { name: "Aufsicht starten" })
+        .querySelector("svg"),
+    ).toBeNull();
+  });
+
   it("bietet keinen fremden oder schon laufenden Block zum Starten an", () => {
     sources.own = [];
     sources.school = [
@@ -267,6 +284,10 @@ describe("NowStrip (#2180)", () => {
 
     render(<NowStrip access={care} context={context(care)} />);
 
+    // Anker: die Aktionsleiste, in der der Starten-Knopf stünde, ist da.
+    expect(
+      screen.getByRole("link", { name: "Alle Kinder" }),
+    ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Aufsicht starten" }),
     ).not.toBeInTheDocument();
@@ -301,6 +322,7 @@ describe("NowStrip (#2180)", () => {
   });
 
   it("zeigt ohne users:read keinen Weg zur Kindersuche", () => {
+    sources.own = [];
     supervision.hasGroups = false;
     const restricted: HomeBlockAccess = {
       ...care,
@@ -310,7 +332,53 @@ describe("NowStrip (#2180)", () => {
 
     render(<NowStrip access={restricted} context={context(restricted)} />);
 
+    // Anker: die Zone ist geladen (Datumszeile statt Skelett).
+    expect(screen.getByText(/08\.09\.2026/)).toBeInTheDocument();
     expect(screen.queryAllByRole("link")).toHaveLength(0);
+  });
+
+  it("zeigt mit users:read den Weg zur Kindersuche", () => {
+    sources.own = [];
+    supervision.hasGroups = false;
+    const allowed: HomeBlockAccess = { ...care, hasOwnGroups: false };
+
+    render(<NowStrip access={allowed} context={context(allowed)} />);
+
+    expect(screen.getByText(/08\.09\.2026/)).toBeInTheDocument();
+    expect(screen.getAllByRole("link").map((link) => link.textContent)).toEqual(
+      ["Alle Kinder"],
+    );
+  });
+
+  // Auch wer betreut, sieht, wie viele Kinder da sind (#4347): neben dem
+  // eigenen Einsatz für sich, nicht in dessen Zeile.
+  it("zeigt Betreuungskräften neben dem eigenen Einsatz, wie viele Kinder da sind", () => {
+    sources.own = [assignment({ status: "active" })];
+    sources.analytics = { studentsPresent: 42, supervisorsToday: 7 };
+
+    render(<NowStrip access={care} context={context(care)} />);
+
+    expect(sources.requested).toContain("dashboard-analytics");
+    expect(screen.getByText("42")).toBeInTheDocument();
+    expect(screen.getByText(/Kinder da/)).toBeInTheDocument();
+    expect(screen.queryByText(/42 Kinder da ·/)).not.toBeInTheDocument();
+  });
+
+  it("fragt ohne groups:read keine Kinderzahl ab", () => {
+    const restricted: HomeBlockAccess = {
+      ...care,
+      has: (permission) => permission !== "groups:read",
+    };
+    sources.own = [assignment({ status: "active" })];
+    sources.analytics = { studentsPresent: 42, supervisorsToday: 7 };
+
+    render(<NowStrip access={restricted} context={context(restricted)} />);
+
+    // Anker: der eigene Einsatz steht da, neben ihm stünde die Kinderzahl.
+    expect(screen.getByText("Lernzeit Jahrgang 1")).toBeInTheDocument();
+    expect(screen.getByText("Läuft")).toBeInTheDocument();
+    expect(sources.requested).not.toContain("dashboard-analytics");
+    expect(screen.queryByText(/Kinder da/)).not.toBeInTheDocument();
   });
 
   // Die Leitung sieht die Lage der Schule: Blöcke, Kinder, Team.

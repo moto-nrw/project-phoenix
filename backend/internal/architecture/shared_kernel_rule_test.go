@@ -26,7 +26,7 @@ func TestReviewedSharedKernelRuleShape(t *testing.T) {
 		{"a source owner kind", Rule{SourceOwnerKind: "domain", TargetOwner: "shared-kernel", TargetRole: "contract", Scopes: everyScope}, false},
 		{"a source role", Rule{SourceRole: "postgres", TargetOwner: "shared-kernel", TargetRole: "contract", Scopes: everyScope}, false},
 		{"the retained date wrapper", Rule{TargetOwner: "legacy-shared", TargetRole: "domain", Scopes: everyScope}, false},
-		{"the shared HTTP runtime", Rule{TargetOwner: "inbound-common", TargetRole: "http", Scopes: everyScope}, false},
+		{"the shared HTTP runtime", Rule{TargetOwner: "tenant-runtime", TargetRole: "http", Scopes: everyScope}, false},
 		{"a target owner kind", Rule{TargetOwnerKind: "kernel", TargetRole: "contract", Scopes: everyScope}, false},
 		{"another kernel role", Rule{TargetOwner: "shared-kernel", TargetRole: "domain", Scopes: everyScope}, false},
 		{"same owner flag", Rule{TargetOwner: "shared-kernel", TargetRole: "contract", SameOwner: true, Scopes: everyScope}, false},
@@ -47,9 +47,8 @@ func repositoryPolicy(t *testing.T) *Policy {
 	return policy
 }
 
-// sharedKernelPolicies returns the repository policy as the candidate and a
-// base one epoch older without the shared-kernel rule, so the comparison runs
-// against the real owner map and package classification.
+// sharedKernelPolicies removes the shared-kernel grant from an older base.
+// Negative targets use the current, classified shared HTTP runtime.
 func sharedKernelPolicies(t *testing.T) (*Policy, *Policy) {
 	t.Helper()
 	candidate := repositoryPolicy(t)
@@ -67,13 +66,13 @@ func sharedKernelPolicies(t *testing.T) (*Policy, *Policy) {
 func TestSharedKernelRulePassesOnlyInAReviewedEpoch(t *testing.T) {
 	t.Parallel()
 	base, candidate := sharedKernelPolicies(t)
-	if err := comparePolicyStrictness(base, candidate, noCreated(), noCreated(), noCreated(), noCreated(), noCreated()); err != nil {
+	if err := comparePolicyStrictness(base, candidate, noCreated(), noCreated(), noCreated(), noCreated(), nil); err != nil {
 		t.Fatalf("reviewed shared-kernel epoch was rejected: %v", err)
 	}
 
 	unreviewed := *candidate
 	unreviewed.PolicyEpoch = base.PolicyEpoch
-	err := comparePolicyStrictness(base, &unreviewed, noCreated(), noCreated(), noCreated(), noCreated(), noCreated())
+	err := comparePolicyStrictness(base, &unreviewed, noCreated(), noCreated(), noCreated(), noCreated(), nil)
 	if err == nil || !strings.Contains(err.Error(), "rule "+sharedKernelRuleID+" ") {
 		t.Fatalf("the shared-kernel rule passed without an epoch increase: %v", err)
 	}
@@ -83,13 +82,13 @@ func TestSharedKernelEpochGrantsNothingElse(t *testing.T) {
 	t.Parallel()
 	for _, extra := range []Rule{
 		{ID: "every-role.legacy-date", Description: "test", Scopes: everyScope, TargetOwner: "legacy-shared", TargetRole: "domain"},
-		{ID: "every-role.inbound-common", Description: "test", Scopes: everyScope, TargetOwner: "inbound-common", TargetRole: "http"},
+		{ID: "every-role.tenant-http", Description: "test", Scopes: everyScope, TargetOwner: "tenant-runtime", TargetRole: "http"},
 		{ID: "every-role.domain-contracts", Description: "test", Scopes: everyScope, TargetOwnerKind: "domain", TargetRole: "contract"},
 	} {
 		base, candidate := sharedKernelPolicies(t)
 		widened := *candidate
 		widened.Rules = append(slices.Clone(candidate.Rules), extra)
-		err := comparePolicyStrictness(base, &widened, noCreated(), noCreated(), noCreated(), noCreated(), noCreated())
+		err := comparePolicyStrictness(base, &widened, noCreated(), noCreated(), noCreated(), noCreated(), nil)
 		if err == nil || !strings.Contains(err.Error(), "rule "+extra.ID+" ") {
 			t.Fatalf("%s: the reviewed epoch admitted a rule outside the shared-kernel shape: %v", extra.ID, err)
 		}

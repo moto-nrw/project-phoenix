@@ -5,14 +5,15 @@ import (
 	"testing"
 	"time"
 
-	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/services"
+	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,13 +22,13 @@ import (
 
 // classArrivalBaseline builds the projection with the booking mode off, which
 // is the default and what every school without a Halbjahresanmeldung sees.
-func classArrivalBaseline(t *testing.T, repos *repositories.Factory) careplan.ArrivalBaselineReader {
+func classArrivalBaseline(t *testing.T, repos *api.RepositoryTestFactory) careplan.ArrivalBaselineReader {
 	t.Helper()
 	classArrivalQueries, err := arrivalTimetable.NewClassArrivalQueries(testpkg.SetupTestDB(t), func(arrivalTimetable.Observation) {})
 	if err != nil {
 		panic(err)
 	}
-	baselines, err := services.NewArrivalBaselines(repos.CarePlan(), repositories.MustNewPeopleDirectory(testpkg.SetupTestDB(t)), classArrivalQueries, approvedOfferingProjection(t), func(context.Context) (bool, error) { return false, nil })
+	baselines, err := owners.NewArrivalBaselines(repos.CarePlan(), owners.MustNewPeopleDirectory(testpkg.MustDatabase(testpkg.SetupTestDB(t))), classArrivalQueries, approvedOfferingProjection(t), func(context.Context) (bool, error) { return false, nil })
 	if err != nil {
 		panic(err)
 	}
@@ -36,7 +37,7 @@ func classArrivalBaseline(t *testing.T, repos *repositories.Factory) careplan.Ar
 
 func approvedOfferingProjection(t *testing.T) careplan.ApprovedBookingReader {
 	t.Helper()
-	projection, err := services.NewOwnerApprovedOfferingTestProjection(testpkg.SetupTestDB(t))
+	projection, err := api.NewOwnerApprovedOfferingTestProjection(testpkg.NewDatabase(t, testpkg.SetupTestDB(t)))
 	require.NoError(t, err)
 	return projection
 }
@@ -56,7 +57,7 @@ func timetableClassArrivals(t *testing.T, db *bun.DB) timetable.ClassArrivals {
 }
 
 // mondayOnOrAfter keeps the assertions off weekends without pinning a date.
-func mondayOnOrAfter(from timezone.Date) timezone.Date {
+func mondayOnOrAfter(from calendar.Date) calendar.Date {
 	date := from
 	for date.Weekday() != time.Monday {
 		date = date.AddDays(1)
@@ -68,7 +69,7 @@ func TestArrivalBaselineTakesTimeFromTheClass(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	baseline := classArrivalBaseline(t, repos)
 
@@ -76,14 +77,14 @@ func TestArrivalBaselineTakesTimeFromTheClass(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, db, "Betreuung", "Person")
 	setClassArrivalTimes(t, "3b", map[string]string{"mon": "11:45", "wed": "12:45"})
 
-	monday := mondayOnOrAfter(timezone.TodayDate())
+	monday := mondayOnOrAfter(calendar.TodayDate())
 	tuesday := monday.AddDays(1)
 	wednesday := monday.AddDays(2)
 
 	// The child is in care on Monday and Wednesday. Neither row carries a
 	// time: both take it from the class.
-	testpkg.CreateTestArrivalSchedule(t, db, student.ID, scheduleModel.WeekdayMonday, staff.ID, "")
-	testpkg.CreateTestArrivalSchedule(t, db, student.ID, scheduleModel.WeekdayWednesday, staff.ID, "")
+	testpkg.CreateTestArrivalSchedule(t, db, student.ID, timetable.WeekdayMonday, staff.ID, "")
+	testpkg.CreateTestArrivalSchedule(t, db, student.ID, timetable.WeekdayWednesday, staff.ID, "")
 
 	projection, err := baseline.Project(ctx, []int64{student.ID}, monday, wednesday)
 	require.NoError(t, err)
@@ -92,7 +93,7 @@ func TestArrivalBaselineTakesTimeFromTheClass(t *testing.T) {
 		row := projection.ForDate(student.ID, monday)
 		require.NotNil(t, row)
 		assert.Equal(t, "11:45", row.ExpectedArrival.Format("15:04"))
-		assert.Equal(t, scheduleModel.ArrivalScheduleSourceClassSchedule, row.Source)
+		assert.Equal(t, careplan.ScheduleSourceClassSchedule, row.Source)
 		assert.Equal(t, "3b", row.SourceClass)
 	})
 
@@ -108,7 +109,7 @@ func TestArrivalBaselineTakesTimeFromTheClass(t *testing.T) {
 	})
 
 	t.Run("the inherited time is never written back", func(t *testing.T) {
-		stored, storeErr := repos.StudentArrivalSchedule.FindByStudentID(ctx, student.ID)
+		stored, storeErr := careplantest.NewScheduleRecords(repos.CarePlan()).StudentArrivalSchedule.FindByStudentID(ctx, student.ID)
 		require.NoError(t, storeErr)
 		require.Len(t, stored, 2)
 		for _, row := range stored {
@@ -121,15 +122,15 @@ func TestArrivalBaselineHandlesStudentWithoutClassTimetable(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	baseline := classArrivalBaseline(t, repos)
 	student := testpkg.CreateTestStudent(t, db, "Ohne", "Klasse", "3c")
 	staff := testpkg.CreateTestStaff(t, db, "Betreuung", "Person")
 	_, err := db.ExecContext(context.Background(), `UPDATE users.student_school_memberships SET school_class = '' WHERE student_profile_id = ? AND deleted_at IS NULL`, student.ID)
 	require.NoError(t, err)
-	testpkg.CreateTestArrivalSchedule(t, db, student.ID, scheduleModel.WeekdayMonday, staff.ID, "")
-	monday := mondayOnOrAfter(timezone.TodayDate())
+	testpkg.CreateTestArrivalSchedule(t, db, student.ID, timetable.WeekdayMonday, staff.ID, "")
+	monday := mondayOnOrAfter(calendar.TodayDate())
 
 	projection, err := baseline.Project(ctx, []int64{student.ID}, monday, monday)
 	require.NoError(t, err)
@@ -146,7 +147,7 @@ func TestArrivalBaselineClassTimeAloneIsNoCareDay(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	baseline := classArrivalBaseline(t, repos)
 
@@ -155,9 +156,9 @@ func TestArrivalBaselineClassTimeAloneIsNoCareDay(t *testing.T) {
 	setClassArrivalTimes(t, "3b", map[string]string{
 		"mon": "11:45", "tue": "11:45", "wed": "11:45", "thu": "11:45", "fri": "11:45",
 	})
-	testpkg.CreateTestArrivalSchedule(t, db, student.ID, scheduleModel.WeekdayMonday, staff.ID, "")
+	testpkg.CreateTestArrivalSchedule(t, db, student.ID, timetable.WeekdayMonday, staff.ID, "")
 
-	monday := mondayOnOrAfter(timezone.TodayDate())
+	monday := mondayOnOrAfter(calendar.TodayDate())
 	projection, err := baseline.Project(ctx, []int64{student.ID}, monday, monday.AddDays(4))
 	require.NoError(t, err)
 
@@ -173,15 +174,15 @@ func TestArrivalBaselineCareDayWithoutAnyClassTime(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	baseline := classArrivalBaseline(t, repos)
 
 	student := testpkg.CreateTestStudent(t, db, "Ohne", "Klassenzeit", "9z")
 	staff := testpkg.CreateTestStaff(t, db, "Betreuung", "Ohne")
-	testpkg.CreateTestArrivalSchedule(t, db, student.ID, scheduleModel.WeekdayMonday, staff.ID, "")
+	testpkg.CreateTestArrivalSchedule(t, db, student.ID, timetable.WeekdayMonday, staff.ID, "")
 
-	monday := mondayOnOrAfter(timezone.NewDate(2026, 8, 24))
+	monday := mondayOnOrAfter(calendar.NewDate(2026, 8, 24))
 	projection, err := baseline.Project(ctx, []int64{student.ID}, monday, monday)
 	require.NoError(t, err)
 
@@ -195,17 +196,17 @@ func TestArrivalBaselineManualRowOverridesClassTime(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	baseline := classArrivalBaseline(t, repos)
 
 	student := testpkg.CreateTestStudent(t, db, "Otto", "Override", "3b")
 	staff := testpkg.CreateTestStaff(t, db, "Betreuung", "Person")
 	setClassArrivalTimes(t, "3b", map[string]string{"mon": "11:45", "tue": "11:45"})
-	testpkg.CreateTestArrivalSchedule(t, db, student.ID, scheduleModel.WeekdayMonday, staff.ID, "12:15")
-	testpkg.CreateTestArrivalSchedule(t, db, student.ID, scheduleModel.WeekdayTuesday, staff.ID, "")
+	testpkg.CreateTestArrivalSchedule(t, db, student.ID, timetable.WeekdayMonday, staff.ID, "12:15")
+	testpkg.CreateTestArrivalSchedule(t, db, student.ID, timetable.WeekdayTuesday, staff.ID, "")
 
-	monday := mondayOnOrAfter(timezone.TodayDate())
+	monday := mondayOnOrAfter(calendar.TodayDate())
 	projection, err := baseline.Project(ctx, []int64{student.ID}, monday, monday.AddDays(1))
 	require.NoError(t, err)
 
@@ -213,7 +214,7 @@ func TestArrivalBaselineManualRowOverridesClassTime(t *testing.T) {
 		row := projection.ForDate(student.ID, monday)
 		require.NotNil(t, row)
 		assert.Equal(t, "12:15", row.ExpectedArrival.Format("15:04"))
-		assert.Equal(t, scheduleModel.ArrivalScheduleSourceStaff, row.Source)
+		assert.Equal(t, careplan.ScheduleSourceStaff, row.Source)
 	})
 
 	t.Run("the class time it hides stays visible underneath", func(t *testing.T) {
@@ -226,6 +227,6 @@ func TestArrivalBaselineManualRowOverridesClassTime(t *testing.T) {
 		row := projection.ForDate(student.ID, monday.AddDays(1))
 		require.NotNil(t, row)
 		assert.Equal(t, "11:45", row.ExpectedArrival.Format("15:04"))
-		assert.Equal(t, scheduleModel.ArrivalScheduleSourceClassSchedule, row.Source)
+		assert.Equal(t, careplan.ScheduleSourceClassSchedule, row.Source)
 	})
 }

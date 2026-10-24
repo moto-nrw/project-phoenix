@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // SeriesNonWorkingDays are the days of one materialization window a series
@@ -13,19 +13,19 @@ import (
 // and closing days) only for a series that did not opt in with
 // IncludeSchoolBreaks. The zero value skips nothing.
 type SeriesNonWorkingDays struct {
-	Holidays map[timezone.Date]bool
-	Breaks   map[timezone.Date]bool
+	Holidays map[calendar.Date]bool
+	Breaks   map[calendar.Date]bool
 }
 
 // skips reports whether an occurrence on day is left out.
-func (d SeriesNonWorkingDays) skips(day timezone.Date, includeSchoolBreaks bool) bool {
+func (d SeriesNonWorkingDays) skips(day calendar.Date, includeSchoolBreaks bool) bool {
 	return d.Holidays[day] || (d.Breaks[day] && !includeSchoolBreaks)
 }
 
 // SeriesNonWorkingDayReader answers the non-working days of [from, to] for a
 // series bounded by the calendar period seriesPeriodID.
 type SeriesNonWorkingDayReader interface {
-	SeriesNonWorkingDays(ctx context.Context, from, to timezone.Date, seriesPeriodID int64) (SeriesNonWorkingDays, error)
+	SeriesNonWorkingDays(ctx context.Context, from, to calendar.Date, seriesPeriodID int64) (SeriesNonWorkingDays, error)
 }
 
 // WithStaffShiftSeriesNonWorkingDays binds the reader the materializer skips
@@ -35,7 +35,7 @@ func WithStaffShiftSeriesNonWorkingDays(reader SeriesNonWorkingDayReader) StaffS
 	return func(s *staffShiftSeriesService) { s.nonWorkingDays = reader }
 }
 
-func (s *staffShiftSeriesService) loadNonWorkingDays(ctx context.Context, series *StaffShiftSeries, from, to timezone.Date) (SeriesNonWorkingDays, error) {
+func (s *staffShiftSeriesService) loadNonWorkingDays(ctx context.Context, series *StaffShiftSeries, from, to calendar.Date) (SeriesNonWorkingDays, error) {
 	if s.nonWorkingDays == nil {
 		return SeriesNonWorkingDays{}, nil
 	}
@@ -64,7 +64,7 @@ type schoolCalendarNonWorkingDays struct{ calendar SeriesCalendarReads }
 // periods once per materialization. The series' own calendar period is never
 // a break for it: a series planned over a Ferien period exists for that
 // holiday care.
-func (c schoolCalendarNonWorkingDays) SeriesNonWorkingDays(ctx context.Context, from, to timezone.Date, seriesPeriodID int64) (SeriesNonWorkingDays, error) {
+func (c schoolCalendarNonWorkingDays) SeriesNonWorkingDays(ctx context.Context, from, to calendar.Date, seriesPeriodID int64) (SeriesNonWorkingDays, error) {
 	holidays, err := c.calendar.TenantHolidayDates(ctx, from.String(), to.String())
 	if err != nil {
 		return SeriesNonWorkingDays{}, fmt.Errorf("load holidays for series: %w", err)
@@ -82,7 +82,7 @@ func (c schoolCalendarNonWorkingDays) SeriesNonWorkingDays(ctx context.Context, 
 	}
 	days := SeriesNonWorkingDays{Holidays: dateSet(holidays), Breaks: dateSet(closing)}
 	for _, period := range ferien {
-		start, end := timezone.Date(period.StartDate), timezone.Date(period.EndDate)
+		start, end := calendar.Date(period.StartDate), calendar.Date(period.EndDate)
 		if start.Before(from) {
 			start = from
 		}
@@ -96,11 +96,11 @@ func (c schoolCalendarNonWorkingDays) SeriesNonWorkingDays(ctx context.Context, 
 	return days, nil
 }
 
-func dateSet(values map[string]bool) map[timezone.Date]bool {
-	result := make(map[timezone.Date]bool, len(values))
+func dateSet(values map[string]bool) map[calendar.Date]bool {
+	result := make(map[calendar.Date]bool, len(values))
 	for day, set := range values {
 		if set {
-			result[timezone.Date(day)] = true
+			result[calendar.Date(day)] = true
 		}
 	}
 	return result

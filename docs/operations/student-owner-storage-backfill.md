@@ -1,5 +1,9 @@
 # Student owner storage Backfill (#2758)
 
+> **Historical.** The Contract migration of this move runs in every environment. The
+> backfill commands this runbook names (`backfill …`, `migrate backfill …`,
+> `migrate presence-backfill`) were removed in #4441; there is no manual step left.
+
 Migration `1.15.394` widens `platform.storage_backfill_checkpoints` with three
 student-specific columns and runs the first copy of `users.students` into
 `users.student_profiles`, `users.student_school_memberships` and

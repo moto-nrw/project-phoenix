@@ -91,7 +91,7 @@ func TestRuleIssueValidation(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			document := mutatePolicy(t, readFile(t, fixturePath(t, "vertical-allowed.json")), func(doc map[string]any) {
-				doc["schema_version"] = 3
+				doc["schema_version"] = 5
 				if tc.issue != "" {
 					doc["rules"].([]any)[0].(map[string]any)["issue"] = tc.issue
 				}
@@ -127,16 +127,29 @@ func TestRuleIssueDoesNotChangePermission(t *testing.T) {
 	}
 }
 
-func TestCheckSchema2BaseTransition(t *testing.T) {
+func TestCheckOlderPolicySchemaBaseTransition(t *testing.T) {
 	t.Parallel()
-	old := strings.Replace(readFile(t, fixturePath(t, "vertical-allowed.json")), `"schema_version": 3`, `"schema_version": 2`, 1)
-	repo, base := ratchetRepositoryWithPolicy(t, "", old)
-	writeFile(t, repo+"/architecture/policy.json", readFile(t, fixturePath(t, "vertical-allowed.json")))
-	if output, err := runRepositoryCheck(t, repo, base); err != nil {
-		t.Fatalf("base transition: %v\n%s", err, output)
-	}
-	if _, err := DecodePolicy(strings.NewReader(old)); err == nil {
-		t.Fatal("schema-2 candidate accepted")
+	for _, version := range []string{"2", "3", "4"} {
+		t.Run(version, func(t *testing.T) {
+			t.Parallel()
+			old := strings.Replace(readFile(t, fixturePath(t, "vertical-allowed.json")), `"schema_version": 5`, `"schema_version": `+version, 1)
+			repo, base := ratchetRepositoryWithPolicy(t, "", old)
+			writeFile(t, repo+"/architecture/policy.json", readFile(t, fixturePath(t, "vertical-allowed.json")))
+			if output, err := runRepositoryCheck(t, repo, base); err != nil {
+				t.Fatalf("base transition: %v\n%s", err, output)
+			}
+			if _, err := DecodePolicy(strings.NewReader(old)); err == nil {
+				t.Fatal("old-schema candidate accepted")
+			}
+			withSelector := strings.Replace(old, `"source_owner_kind": "domain"`, `"source_package": "source", "source_owner_kind": "domain"`, 1)
+			_, err := decodePolicy(strings.NewReader(withSelector), true)
+			if version != "4" && err == nil {
+				t.Fatal("old-schema base with package selector accepted")
+			}
+			if version == "4" && err != nil {
+				t.Fatalf("schema-4 base rejected its package selector: %v", err)
+			}
+		})
 	}
 }
 

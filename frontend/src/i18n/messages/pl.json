@@ -217,7 +217,9 @@
     "week": "Tydzień",
     "participationTitle": "Kiedy {name} je obiad?",
     "participationCutoff": "Zapis można zmienić tego samego dnia do godziny {time}.",
+    "participationCutoffLead": "Zapis można zmienić do godziny {time} {days, plural, one {w dniu roboczym przed posiłkiem} few {# dni robocze przed posiłkiem} many {# dni roboczych przed posiłkiem} other {# dnia roboczego przed posiłkiem}}.",
     "participationSickness": "Potwierdzone zgłoszenie choroby do godziny {time} wypisuje Państwa dziecko z obiadu. Po tej godzinie zapis pozostaje bez zmian.",
+    "participationSicknessLead": "Potwierdzone zgłoszenie choroby do godziny {time} {days, plural, one {w dniu roboczym przed posiłkiem} few {# dni robocze przed posiłkiem} many {# dni roboczych przed posiłkiem} other {# dnia roboczego przed posiłkiem}} wypisuje Państwa dziecko z obiadu. Po tym terminie zapis pozostaje bez zmian.",
     "participationLoading": "Ładowanie zapisu na obiad",
     "regularDays": "Stałe dni",
     "noRegularDays": "Brak stałych dni",
@@ -248,12 +250,46 @@
     "useRegular": "Użyj stałego zapisu",
     "errorObjectSchools": "zestawienie posiłków",
     "errorObjectWeek": "jadłospis na ten tydzień",
-    "errorObjectParticipation": "zgłoszenie na obiad"
+    "errorObjectParticipation": "zgłoszenie na obiad",
+    "participationCutoffWeekday": "Możesz zmienić zapis do {weekday}, godz. {time}, na cały następny tydzień.",
+    "participationCancellation": "Wypisać można później: do godz. {time} {days, plural, =0 {w dniu posiłku} one {w dniu roboczym przed posiłkiem} few {# dni robocze przed posiłkiem} many {# dni roboczych przed posiłkiem} other {# dnia roboczego przed posiłkiem}}.",
+    "participationSicknessWeekday": "Potwierdzone zwolnienie chorobowe do {weekday}, godz. {time}, w tygodniu przed posiłkiem wypisuje dziecko z posiłku. Później zapis pozostaje.",
+    "closedDay": "Brak posiłku: święto lub dzień zamknięcia",
+    "registerWeek": "Zapisz na cały tydzień",
+    "unregisterWeek": "Wypisz na cały tydzień",
+    "weekActionsHint": "Dotyczy wszystkich dni tego tygodnia, które możesz jeszcze zmienić.",
+    "unregisterWeekTitle": "Wypisać na cały tydzień?",
+    "unregisterWeekText": "{name} zostanie wypisane z obiadu na {count, plural, one {# dzień} few {# dni} many {# dni} other {# dnia}} tego tygodnia. Ponowny zapis jest możliwy tylko do terminu zmian."
+  },
+  "mealAllergens": {
+    "legendTitle": "Alergeny",
+    "choose": "Wybierz alergeny",
+    "marksShort": "Alergeny: {letters}",
+    "marksLabel": "Zawiera: {names}",
+    "noneThisWeek": "Na ten tydzień nie podano alergenów.",
+    "source": "Te informacje pochodzą od szkoły lub firmy cateringowej. Danie bez litery nie musi być wolne od alergenów. W razie pytań prosimy zwrócić się do OGS.",
+    "names": {
+      "gluten": "Zboża zawierające gluten",
+      "crustaceans": "Skorupiaki",
+      "eggs": "Jaja",
+      "fish": "Ryby",
+      "peanuts": "Orzeszki ziemne",
+      "soybeans": "Soja i produkty sojowe",
+      "milk": "Mleko (także laktoza)",
+      "nuts": "Orzechy",
+      "celery": "Seler",
+      "mustard": "Gorczyca",
+      "sesame": "Sezam",
+      "sulphites": "Dwutlenek siarki i siarczyny",
+      "lupin": "Łubin",
+      "molluscs": "Mięczaki"
+    }
   },
   "mealParticipantList": {
     "title": "Lista dzienna dla kuchni",
     "description": "Lista pokazuje wszystkie dzieci zapisane na obiad w tym dniu.",
     "cutoff": "Zmiany na ten dzień są możliwe do godziny {time}.",
+    "cutoffLead": "Zmiany na ten dzień są możliwe do godziny {time} {days, plural, one {w dniu roboczym przed} few {# dni robocze wcześniej} many {# dni roboczych wcześniej} other {# dnia roboczego wcześniej}}.",
     "child": "Dziecko",
     "class": "Klasa",
     "dateAria": "Data: {date}",
@@ -268,7 +304,44 @@
     "errorObject": "lista dzienna",
     "caption": "Obiad w dniu {date}",
     "emptyTitle": "Brak zapisów na ten dzień",
-    "emptyDescription": "Na ten dzień żadne dziecko nie jest na liście dla kuchni."
+    "emptyDescription": "Na ten dzień żadne dziecko nie jest na liście dla kuchni.",
+    "viewAria": "Widok listy dla kuchni",
+    "viewDay": "Dzień",
+    "viewWeek": "Tydzień",
+    "weekTitle": "Lista tygodniowa dla kuchni",
+    "weekDescription": "Lista pokazuje wszystkie dzieci zapisane na obiad w tym tygodniu.",
+    "weekCutoff": "Zmiany są możliwe do godziny {time} {days, plural, =0 {w dniu posiłku} one {w dniu roboczym przed} few {# dni robocze wcześniej} many {# dni roboczych wcześniej} other {# dnia roboczego wcześniej}}.",
+    "weekDateAria": "Tydzień od {from}",
+    "weekDownloadGroup": "Pobierz listę tygodniową",
+    "weekDownloadPdf": "Pobierz listę tygodniową jako PDF",
+    "weekDownloadExcel": "Pobierz listę tygodniową jako plik Excel",
+    "weekErrorObject": "lista tygodniowa",
+    "weekCaption": "Obiad od {from} do {to}",
+    "weekEmptyTitle": "Brak zapisów w tym tygodniu",
+    "weekEmptyDescription": "Na liście dla kuchni nie ma żadnego dziecka w tym tygodniu.",
+    "weekRegistered": "zapisane",
+    "weekNotRegistered": "niezapisane",
+    "weekCountsLabel": "Liczba posiłków na dzień",
+    "weekCount": "{count, plural, one {# dziecko} few {# dzieci} many {# dzieci} other {# dziecka}}",
+    "cutoffWeekday": "Zmiany są możliwe do {weekday} poprzedniego tygodnia, godz. {time}.",
+    "cancellationCutoff": "Wypisanie jest możliwe do godz. {time} {days, plural, =0 {w dniu posiłku} one {w dniu roboczym przed} few {# dni robocze wcześniej} many {# dni roboczych wcześniej} other {# dnia roboczego wcześniej}}.",
+    "closedTitle": "W tym dniu nie ma posiłku",
+    "closedDescription": "Ten dzień jest świętem lub dniem zamknięcia.",
+    "weekClosed": "brak posiłku",
+    "staffChangeHint": "Tutaj możesz zapisać lub wypisać dzieci także po terminie.",
+    "addChild": "Zapisz dziecko",
+    "addChildTitle": "Zapisz dziecko na {date}",
+    "addChildLabel": "Dziecko",
+    "addChildPlaceholder": "Wybierz dziecko",
+    "addChildEmpty": "Wszystkie dzieci z tego dnia są już zapisane.",
+    "addChildRequired": "Proszę wybrać dziecko.",
+    "cancel": "Anuluj",
+    "saving": "Zapisywanie…",
+    "rowActions": "Działania dla: {name}",
+    "unregister": "Wypisz",
+    "registeredToast": "{name} jest zapisane na {date}.",
+    "unregisteredToast": "{name} jest wypisane na {date}.",
+    "changeErrorObject": "zapis"
   },
   "parentDashboard": {
     "eyebrow": "Portal dla rodziców",
@@ -719,6 +792,7 @@
       "errorObjectPickup": "ustalenie dotyczące odbioru"
     },
     "back": "Wróć do sekcji Moje dzieci",
+    "backSingle": "Wróć do sekcji Moje dziecko",
     "today": {
       "title": "Dziś",
       "description": "Najważniejsze informacje i zadania na dziś.",
@@ -826,7 +900,18 @@
       "statusRejected": "Odrzucono: {reason}",
       "noDecisionReason": "Nie podano uzasadnienia",
       "submit": "Wyślij prośbę",
-      "errorObject": "godzina odbioru"
+      "errorObject": "godzina odbioru",
+      "titleWithMode": "Zmień odbiór",
+      "introWithMode": "Proszę poprosić o inną godzinę lub inny sposób odbioru na jeden dzień. Plan tygodnia pozostaje bez zmian. Zmiana obowiązuje dopiero po potwierdzeniu przez OGS.",
+      "modeLabel": "Sposób odbioru w tym dniu",
+      "modeUnchanged": "Jak w planie tygodnia",
+      "noTimeOrMode": "Proszę wpisać godzinę odbioru lub wybrać sposób odbioru.",
+      "reasonRequiredGeneric": "Proszę krótko podać, dlaczego zmienia się odbiór.",
+      "pickupOptionalHint": "Proszę zostawić puste, jeśli godzina się nie zmienia.",
+      "modeStaffSet": "OGS ustaliła już sposób odbioru na ten dzień: {mode}.",
+      "pendingMode": "Nowy sposób odbioru: {to}",
+      "statusApprovedChange": "Potwierdzono, zmiana obowiązuje.",
+      "errorStaffConflictGeneric": "OGS wpisała już zmianę na ten dzień. Proszę skontaktować się z zespołem OGS."
     },
     "actions": {
       "sick": {
@@ -985,7 +1070,8 @@
     "submitText": "Proszę przygotować dane kontaktowe, datę urodzenia, poziom klasy i wybrane oferty opieki. Pola obowiązkowe są oznaczone w formularzu.",
     "statusTitle": "Śledź status",
     "statusText": "Po wysłaniu otworzy się Państwa strona statusu. Proszę zapisać link lub e-mail z potwierdzeniem, aby móc wrócić do niej później.",
-    "backToPicker": "Wybierz inny zapis",
+    "backToPicker": "Wróć do wyboru",
+    "backToParentPicker": "Wróć do sekcji Nowy zapis",
     "backToPortal": "Wróć do portalu dla rodziców",
     "parentEmbeddedKicker": "Zapis na opiekę w OGS",
     "formEyebrow": "Wypełnij formularz",
@@ -1010,6 +1096,14 @@
     "dateRange": "od {from} do {to}"
   },
   "enrollmentForm": {
+    "attachments": {
+      "open": "Otwórz",
+      "download": "Pobierz",
+      "openLabel": "Otwórz {label}",
+      "downloadLabel": "Pobierz {label}",
+      "errorObject": "plik PDF",
+      "popupBlocked": "Zezwól na otwarcie nowego okna."
+    },
     "errorObject": "zgłoszenie",
     "loading": "Wczytywanie formularza…",
     "legalGermanNotice": "Te teksty prawne obowiązują w wersji niemieckiej.",
@@ -1081,10 +1175,12 @@
       "groupExactlyOne": "Proszę wybrać w „{group}” dokładnie jedną ofertę.",
       "groupAtLeastOne": "Proszę wybrać w „{group}” co najmniej jedną ofertę.",
       "groupAtMostOne": "Proszę wybrać w „{group}” najwyżej jedną ofertę.",
+      "groupDayConflict": "{day}: wybrano {offerings}. Wybierz tylko jedną ofertę na dzień.",
       "pickupConfirm": "Proszę potwierdzić zasady odbioru (wybrać dni lub zostawić puste).",
       "weekdayRequired": "Proszę wybrać co najmniej jeden dzień tygodnia.",
       "weekdayModeConfirm": "Proszę potwierdzić zasady powrotu do domu i odbioru.",
-      "weekdayMultiModeRequired": "Proszę wybrać dla każdego dnia opieki co najmniej jeden sposób powrotu do domu."
+      "weekdayMultiModeRequired": "Proszę wybrać dla każdego dnia opieki co najmniej jeden sposób powrotu do domu.",
+      "file": "Prześlij co najmniej jeden plik."
     },
     "actions": {
       "addChild": "Kolejne dziecko",
@@ -1119,7 +1215,10 @@
       "ruleExactlyOne": "Proszę wybrać dokładnie jedną",
       "ruleAtLeastOne": "Proszę wybrać co najmniej jedną",
       "ruleAtMostOne": "Najwyżej jedna",
-      "availabilitySelectionRemoved": "Po zmianie poziomu klasy niektóre oferty opieki nie są już dostępne. Powiązany wybór, dni opieki i automatyczne dodatkowe zapisy zostały usunięte."
+      "ruleAtMostOnePerDay": "Najwyżej jedna dziennie",
+      "availabilitySelectionRemoved": "Po zmianie poziomu klasy niektóre oferty opieki nie są już dostępne. Powiązany wybór, dni opieki i automatyczne dodatkowe zapisy zostały usunięte.",
+      "chooseGradeFirst": "Proszę najpierw wybrać klasę dziecka. Potem pojawią się tutaj pasujące oferty opieki.",
+      "noOfferingsForGrade": "Dla klasy {grade} nie ma pasujących ofert opieki. W razie pytań prosimy o kontakt z OGS."
     },
     "consent": {
       "agb": "Akceptuję regulamin szkoły.",
@@ -1131,7 +1230,7 @@
       "emailTitle": "Kontakt przez e-mail",
       "photoTitle": "Zgoda na zdjęcia"
     },
-    "captchaMisconfigured": "Zapis nie jest teraz możliwy: ochrona przed botami nie jest w pełni skonfigurowana. Proszę skontaktować się z kierownictwem OGS.",
+    "captchaMisconfigured": "Zapis online nie jest teraz możliwy. Problem nie leży po Państwa stronie. Proszę skontaktować się z OGS.",
     "structured": {
       "yes": "Tak",
       "no": "Nie",
@@ -1231,6 +1330,23 @@
       "noCare": "Nie zarezerwowano żadnych ofert.",
       "hint": "Zmiany dla dziecka {name} wprowadzają Państwo teraz w aplikacji dla rodziców.",
       "noAccess": "Nie mogą Państwo korzystać z aplikacji dla rodziców? Proszę skontaktować się z OGS."
+    },
+    "upload": {
+      "errorObject": "plik",
+      "choose": "Wybierz plik",
+      "chooseMore": "Wybierz kolejny plik",
+      "allowed": "Dozwolone: {types}, najwyżej {max} MB na plik.",
+      "upTo": "Do {count} plików.",
+      "camera": "Na telefonie możesz też zrobić zdjęcie.",
+      "uploading": "Przesyłanie …",
+      "remove": "Usuń {name}",
+      "wrongType": "Ten plik ma niewłaściwy rodzaj. Dozwolone: {types}.",
+      "tooLarge": "Ten plik jest za duży. Dozwolone jest najwyżej {max} MB.",
+      "empty": "Ten plik jest pusty. Wybierz inny plik.",
+      "onlyOne": "Tutaj możesz przesłać tylko jeden plik.",
+      "tooMany": "Tutaj możesz przesłać najwyżej {count} plików.",
+      "pendingSubmit": "Poczekaj, aż wszystkie pliki zostaną przesłane.",
+      "previewDisabled": "W podglądzie nie można przesyłać plików."
     }
   },
   "enrollmentStatus": {
@@ -1318,6 +1434,7 @@
     "changeRequestReplySending": "Wysyłanie…",
     "changeRequestReplySubmit": "Wyślij odpowiedź",
     "backToStatus": "Wróć do statusu",
+    "backToParentApp": "Wróć do aplikacji dla rodziców",
     "nameLabel": "Imię i nazwisko",
     "emailLabel": "E-mail",
     "phoneLabel": "Telefon",
@@ -1490,11 +1607,15 @@
     "requestHint": "Te zmiany sprawdza zespół, zanim zaczną obowiązywać.",
     "departureDescription": "Proszę ustalić dla każdego dnia tygodnia, czy dziecko jest odbierane, idzie samo czy jedzie autobusem. Zmiany sprawdza OGS.",
     "departureReadOnlyAccompanied": "Państwa dziecko przynajmniej jednego dnia idzie z innym dzieckiem. Nie mogą Państwo tutaj zmienić drogi do domu.",
+    "departureEdit": "Edytuj",
+    "departureCancel": "Anuluj",
+    "departureSubmitting": "Wysyłanie prośby…",
+    "departurePendingNotice": "OGS sprawdza Państwa zmianę. Do czasu potwierdzenia obowiązuje dotychczasowa droga do domu.",
     "requestButton": "Poproś o zmianę",
     "requestSubmitted": "Prośba wysłana. Zespół sprawdzi Państwa zmianę.",
     "requestEdit": "Edytuj prośbę",
     "pendingBadge": "W trakcie sprawdzania",
-    "pendingNotice": "Zmiana tego pola czeka na potwierdzenie przez zespół.",
+    "pendingTitle": "Zgłoszona zmiana",
     "editDisabled": "Edycja tych danych jest w tej OGS wyłączona.",
     "requestDisabled": "Prośby o zmianę są w tej OGS wyłączone.",
     "notSet": "Nie podano",
@@ -1623,6 +1744,7 @@
       "cancel": "Anuluj",
       "noChange": "Państwa wybór jest taki sam jak obecny zapis. Aby wysłać prośbę, proszę coś zmienić.",
       "noDaysSelected": "Dla każdej wybranej oferty proszę wybrać co najmniej jeden dzień.",
+      "dayConflict": "{day}: wybrano {offerings}. Wybierz tylko jedną ofertę na dzień.",
       "capacityFull": "W jednej z wybranych ofert nie ma już wolnych miejsc. Proszę wybrać inną ofertę lub skontaktować się ze szkołą.",
       "alreadyPending": "Dla Państwa dziecka jest już otwarta prośba. Proszę poczekać na jej rozpatrzenie.",
       "withdrawalConfirmTitle": "Całkowicie wypisać z opieki?",
@@ -1739,7 +1861,9 @@
     "eventRequestWithdrawn": "Prośba wycofana",
     "eventRequestCreatedCareOffering": "Wysłano prośbę o zmianę zapisanych ofert",
     "eventRequestConfirmedCareOffering": "Prośba potwierdzona, zapisane oferty zostaną zmienione",
-    "eventRequestConfirmedCareOfferingDated": "Prośba potwierdzona, zapisane oferty zostaną zmienione od {date}"
+    "eventRequestConfirmedCareOfferingDated": "Prośba potwierdzona, zapisane oferty zostaną zmienione od {date}",
+    "eventRequestCreatedPickupChangeWithMode": "Wysłano prośbę o zmianę odbioru",
+    "eventRequestConfirmedPickupChangeWithMode": "Prośba potwierdzona, odbiór zmieniony"
   },
   "parentFeedback": {
     "kicker": "Opinia",
@@ -1804,7 +1928,10 @@
       "pickupHint": "Zmień godzinę odbioru na jeden dzień",
       "message": "Napisz wiadomość",
       "messageCompact": "Napisz wiadomość",
-      "messageHint": "Napisz do OGS w sprawie: {name}"
+      "messageHint": "Napisz do OGS w sprawie: {name}",
+      "pickupWithMode": "Zmień odbiór: {name}",
+      "pickupCompactWithMode": "Zmień odbiór",
+      "pickupHintWithMode": "Zmień godzinę lub sposób odbioru na jeden dzień"
     }
   },
   "parentStart": {
@@ -1951,7 +2078,7 @@
     "sent": "Wysłano",
     "readByOgs": "Przeczytane przez OGS",
     "aboutChild": "Dotyczy: {name}",
-    "back": "Wstecz",
+    "back": "Wróć do wiadomości",
     "composerPlaceholder": "Napisz wiadomość do OGS",
     "composerLabel": "Wiadomość",
     "send": "Wyślij",
@@ -1962,6 +2089,25 @@
     "errorObjectConversation": "rozmowa",
     "errorObjectMessage": "wiadomość",
     "errorObjectList": "lista rozmów"
+  },
+  "parentGroupThreads": {
+    "sectionTitle": "Wiadomości grupowe od OGS",
+    "sectionDescription": "Tutaj OGS pisze do grupy, klasy lub koła zainteresowań Twojego dziecka.",
+    "closed": "Zamknięte",
+    "forChildren": "Dla {names}",
+    "privacyNote": "Twoja odpowiedź trafia tylko do OGS. Inni rodzice jej nie widzą.",
+    "replyTitle": "Odpowiedź do OGS",
+    "replyChildLabel": "Odpowiedź dla",
+    "replyPlaceholder": "Napisz odpowiedź do OGS",
+    "replyFieldLabel": "Odpowiedź",
+    "sentConfirmation": "OGS otrzymała Twoją odpowiedź.",
+    "toChat": "Do czatu z OGS",
+    "closedNote": "Ta wiadomość grupowa jest zamknięta. Nadal możesz pisać do OGS w czacie o swoim dziecku.",
+    "writingDisabled": "Nie możesz odpowiedzieć na tę wiadomość. Nadal możesz ją czytać.",
+    "answerTo": "Odpowiedź na: {title}",
+    "errorObjectThread": "wiadomość grupowa",
+    "errorObjectAnswer": "odpowiedź",
+    "errorObjectList": "wiadomości grupowe"
   },
   "parentCalendar": {
     "kicker": "Terminy w jednym miejscu",
@@ -2066,6 +2212,7 @@
     },
     "codes": {
       "attendance": {
+        "log_disabled": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
         "web_disabled": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą."
       },
       "care": {
@@ -2144,6 +2291,9 @@
         "arrival_exception_editor_required": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
         "arrival_exception_past_date": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "arrival_exception_weekend": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "morning_attendance_no_school_day": "Dziś nie ma lekcji. Obecność można wpisać tylko w dni szkolne.",
+        "morning_attendance_not_today": "Obecność można wpisać tylko na dziś. Otwórz dzisiejszy dzień.",
+        "morning_attendance_unknown_child": "Jedno dziecko nie należy już do tej klasy. Odśwież stronę.",
         "school_write_disabled": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą."
       },
       "communication": {
@@ -2158,9 +2308,13 @@
         "staff_messaging_disabled": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
         "staff_notice_outdated": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "system_announcement_immutable": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
-        "announcement_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
+        "announcement_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "group_thread_closed": "Ta wiadomość grupowa jest zamknięta. Nie można już odpowiedzieć.",
+        "group_thread_no_recipients": "Żadne dziecko w tej grupie nie ma rodziców z dostępem do moto. Wiadomość nie została wysłana."
       },
       "enrollment": {
+        "form_attachment_invalid": "Sprawdź nazwę i plik PDF.",
+        "approval_care_offering_day_conflict": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "approval_care_offering_exactly_one": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "approval_care_offering_missing": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "approval_data_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
@@ -2169,6 +2323,7 @@
         "care_offering_auto_add_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "care_offering_capacity_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "care_offering_closed": "Wybrana oferta opieki nie przyjmuje teraz zapisów. Wybierz inną ofertę.",
+        "care_offering_day_conflict": "Na ten sam dzień wybrano dwie oferty, których nie można łączyć. Wybierz tylko jedną na dzień.",
         "care_offering_days_required": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "care_offering_exactly_one": "Wybierz dokładnie jedną ofertę opieki dla każdego dziecka.",
         "care_offering_full": "Wybrana oferta opieki jest już pełna. Wybierz inną lub zapytaj szkołę.",
@@ -2240,6 +2395,11 @@
         "legal_block_key_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "legal_block_required_not_allowed": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "legal_document_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "form_field_file_options_invalid": "Sprawdź pytanie o plik. Wybierz co najmniej jeden rodzaj pliku i rozmiar od 1 do 10 MB.",
+        "upload_invalid": "Ten plik nie pasuje. Wybierz dozwolony rodzaj pliku o rozmiarze najwyżej {max_mb} MB.",
+        "upload_expired": "Przesłany plik wygasł. Prześlij go ponownie.",
+        "upload_rate_limited": "Przesłano zbyt wiele plików. Spróbuj ponownie później.",
+        "upload_not_found": "Tego pliku już nie ma. Prześlij go ponownie.",
         "message_required": "Napisz wiadomość.",
         "offering_adjustment_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "phase_care_offering_conflict": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
@@ -2276,6 +2436,7 @@
         "announcement_published": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "attachment_limit_reached": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "file_missing": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "file_name_invalid": "Nazwa pliku jest niedozwolona. Wybierz plik ponownie.",
         "file_too_large": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "file_type_not_allowed": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "file_unreadable": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
@@ -2325,6 +2486,7 @@
         "preview_token_invalid": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
         "read_only_preview": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
         "role_name_taken": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "role_platform_permission": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "session_account_inactive": "Twoje konto jest wyłączone. Skontaktuj się z dyrekcją swojej szkoły.",
         "tenant_access_denied": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
         "use_parent_portal": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
@@ -2332,10 +2494,13 @@
         "username_taken": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "password_mismatch": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "operator_invitation_invalid": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "operator_self_deactivation": "Nie możesz dezaktywować własnego konta. Poproś o to inną osobę z zespołu.",
         "invitation_rate_limited": "{object} jest teraz niedostępne. Spróbuj ponownie.",
         "email_change_rate_limited": "{object} jest teraz niedostępne. Spróbuj ponownie.",
         "email_change_same_email": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "email_change_link_invalid": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "mfa_status_unavailable": "Weryfikacja logowania jest teraz niedostępna. Spróbuj ponownie.",
+        "mfa_session_required": "Logowanie do {object} wymaga dodatkowego potwierdzenia. Przycisk wyloguje Cię i otworzy stronę logowania tej szkoły. Zaloguj się tam ponownie i potwierdź logowanie.",
         "mfa_not_enrolled": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "mfa_already_enrolled": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "passkey_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
@@ -2394,6 +2559,7 @@
         "wc_not_configured": "Nie udało się przetworzyć: {object}. Spróbuj ponownie później."
       },
       "meals": {
+        "invalid_allergens": "Nie udało się zapisać alergenów. Prosimy wybrać je ponownie.",
         "invalid_dishes": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "invalid_meal_date": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "invalid_participation": "Nieprawidłowe dane: {object}. Sprawdź wpisane dane.",
@@ -2453,6 +2619,7 @@
         "care_exit_preview_changed": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "care_exit_too_many_students": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "care_offerings_disabled": "Obecnie niedostępne tutaj: {object}. Zapytaj swoją osobę kontaktową.",
+        "care_resume_alumnus": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "care_resume_missing": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "care_resume_not_checked": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "care_resume_not_ended": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
@@ -2471,6 +2638,7 @@
         "class_list_entry_student_exists": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "class_list_entry_student_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "companion_lock_busy": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "companion_plan_conflict": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "companion_would_lose_departure": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "companions_changed": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "conflict_kind_unsupported": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
@@ -2764,7 +2932,11 @@
         "managed_by_upload": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "invalid_value": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "presence_mode_switch_blocked": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
-        "booking_authority_blocked": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
+        "booking_authority_blocked": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "attendance_visible_exceeds_retention": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "attendance_retention_below_visible": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "module_requires": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "module_required_by": "Nie udało się zapisać: {object}. Sprawdź wpisane dane."
       },
       "devices": {
         "tag_scan_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
@@ -2772,6 +2944,23 @@
       },
       "billing": {
         "invalid_key_day": "Nie udało się zapisać: {object}. Sprawdź wpisane dane."
+      },
+      "display": {
+        "disabled": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą."
+      },
+      "feedback": {
+        "disabled": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą."
+      },
+      "staff": {
+        "external_access_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "external_email_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "external_email_invited": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "external_email_required": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "external_has_account": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "not_external": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
+      },
+      "operator": {
+        "audit_unavailable": "{object} jest teraz niedostępne. Spróbuj ponownie."
       }
     },
     "actions": {

@@ -52,18 +52,18 @@ func TestFilterOverviewStudentIDsKeepsUnresolvedPeopleWithoutNameFilter(t *testi
 
 type cappedOverviewRepository struct {
 	StudentStatusDayOverviewRepository
-	total       int
-	listCalled  bool
-	listOptions *QueryOptions
+	total      int
+	listCalled bool
+	listQuery  StatusDayOverviewQuery
 }
 
-func (r *cappedOverviewRepository) CountWithOptions(context.Context, *QueryOptions) (int, error) {
+func (r *cappedOverviewRepository) CountOverview(context.Context, StatusDayOverviewQuery) (int, error) {
 	return r.total, nil
 }
 
-func (r *cappedOverviewRepository) ListOverviewWithOptions(_ context.Context, options *QueryOptions, _ []int64) ([]*absencerecords.StudentStatusDay, error) {
+func (r *cappedOverviewRepository) ListOverview(_ context.Context, query StatusDayOverviewQuery, _ []int64) ([]*absencerecords.StudentStatusDay, error) {
 	r.listCalled = true
-	r.listOptions = options
+	r.listQuery = query
 	return []*absencerecords.StudentStatusDay{{ID: 1, StudentID: 1}}, nil
 }
 
@@ -98,7 +98,6 @@ func TestGetOverviewPaginatesLargeResultSets(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, overview)
 	assert.True(t, repo.listCalled)
-	require.NotNil(t, repo.listOptions)
-	require.NotNil(t, repo.listOptions.Pagination)
-	assert.Equal(t, Pagination{Page: 1, PageSize: 100}, *repo.listOptions.Pagination)
+	assert.Equal(t, 1, repo.listQuery.Page)
+	assert.Equal(t, 100, repo.listQuery.PageSize)
 }

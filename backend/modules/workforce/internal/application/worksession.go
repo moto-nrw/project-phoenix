@@ -4,50 +4,61 @@ import (
 	"context"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/domain"
 )
 
 // --- work sessions ---
 
-func (s *Service) FindWorkSession(ctx context.Context, id int64) (result domain.WorkSession, err error) {
-	err = s.run("find_work_session", func(stats *domain.OperationStats) error {
+func (s *Service) FindWorkSession(ctx context.Context, id int64) (workforce.WorkSession, error) {
+	if id <= 0 {
+		return workforce.WorkSession{}, invalidWorkSession("work session ID is required")
+	}
+	var result workforce.WorkSession
+	var err error
+	err = s.run(ctx, "find_work_session", func(ctx context.Context, stats *domain.OperationStats) error {
 		var found bool
 		var queryStats domain.OperationStats
 		result, found, queryStats, err = s.store.FindWorkSession(ctx, id)
 		stats.Add(queryStats)
 		if err == nil && !found {
-			return domain.ErrWorkSessionNotFound
+			return workforce.ErrWorkSessionNotFound
 		}
 		return err
 	})
-	return result, err
+	return result, mapWorkSessionError(err)
 }
 
-func (s *Service) LockOpenWorkSession(ctx context.Context, id int64) (result domain.WorkSession, err error) {
-	err = s.run("lock_open_work_session", func(stats *domain.OperationStats) error {
+func (s *Service) LockOpenWorkSession(ctx context.Context, id int64) (workforce.WorkSession, error) {
+	if id <= 0 {
+		return workforce.WorkSession{}, invalidWorkSession("work session ID is required")
+	}
+	var result workforce.WorkSession
+	var err error
+	err = s.run(ctx, "lock_open_work_session", func(ctx context.Context, stats *domain.OperationStats) error {
 		var found bool
 		var queryStats domain.OperationStats
 		result, found, queryStats, err = s.store.LockOpenWorkSession(ctx, id)
 		stats.Add(queryStats)
 		if err == nil && !found {
-			return domain.ErrWorkSessionNotFound
+			return workforce.ErrWorkSessionNotFound
 		}
 		return err
 	})
-	return result, err
+	return result, mapWorkSessionError(err)
 }
 
-func (s *Service) OpenWorkSessionOn(ctx context.Context, staffID int64, date string, lock bool) (result domain.WorkSession, err error) {
+func (s *Service) openWorkSessionOn(ctx context.Context, staffID int64, date string, lock bool) (result workforce.WorkSession, err error) {
 	if validationErr := domain.ValidateDate(date, "date"); validationErr != nil {
-		return domain.WorkSession{}, &domain.InvalidWorkSessionError{Reason: validationErr.Error()}
+		return workforce.WorkSession{}, &workforce.InvalidWorkSessionError{Reason: validationErr.Error()}
 	}
-	err = s.run("open_work_session_on", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "open_work_session_on", func(ctx context.Context, stats *domain.OperationStats) error {
 		var found bool
 		var queryStats domain.OperationStats
 		result, found, queryStats, err = s.store.OpenWorkSessionOn(ctx, staffID, date, lock)
 		stats.Add(queryStats)
 		if err == nil && !found {
-			return domain.ErrWorkSessionNotFound
+			return workforce.ErrWorkSessionNotFound
 		}
 		return err
 	})
@@ -56,102 +67,135 @@ func (s *Service) OpenWorkSessionOn(ctx context.Context, staffID int64, date str
 
 // TodayOpenWorkSession resolves the running block filed on the module clock's
 // calendar day.
-func (s *Service) TodayOpenWorkSession(ctx context.Context, staffID int64) (result domain.WorkSession, err error) {
-	err = s.run("today_open_work_session", func(stats *domain.OperationStats) error {
+func (s *Service) TodayOpenWorkSession(ctx context.Context, staffID int64) (workforce.WorkSession, error) {
+	if staffID <= 0 {
+		return workforce.WorkSession{}, invalidWorkSession("staff ID is required")
+	}
+	var result workforce.WorkSession
+	var err error
+	err = s.run(ctx, "today_open_work_session", func(ctx context.Context, stats *domain.OperationStats) error {
 		var found bool
 		var queryStats domain.OperationStats
 		result, found, queryStats, err = s.store.OpenWorkSessionOn(ctx, staffID, s.clock.Today(), false)
 		stats.Add(queryStats)
 		if err == nil && !found {
-			return domain.ErrWorkSessionNotFound
+			return workforce.ErrWorkSessionNotFound
 		}
 		return err
 	})
-	return result, err
+	return result, mapWorkSessionError(err)
 }
 
 // LatestOpenWorkSession resolves the running block of a staff member inside
 // the live window as of the module clock.
-func (s *Service) LatestOpenWorkSession(ctx context.Context, staffID int64) (result domain.WorkSession, err error) {
-	err = s.run("latest_open_work_session", func(stats *domain.OperationStats) error {
+func (s *Service) LatestOpenWorkSession(ctx context.Context, staffID int64) (workforce.WorkSession, error) {
+	if staffID <= 0 {
+		return workforce.WorkSession{}, invalidWorkSession("staff ID is required")
+	}
+	var result workforce.WorkSession
+	var err error
+	err = s.run(ctx, "latest_open_work_session", func(ctx context.Context, stats *domain.OperationStats) error {
 		var found bool
 		var queryStats domain.OperationStats
 		result, found, queryStats, err = s.store.LatestOpenWorkSession(ctx, staffID, s.clock.Today(), s.clock.Now())
 		stats.Add(queryStats)
 		if err == nil && !found {
-			return domain.ErrWorkSessionNotFound
+			return workforce.ErrWorkSessionNotFound
 		}
 		return err
 	})
-	return result, err
+	return result, mapWorkSessionError(err)
 }
 
-func (s *Service) ListWorkSessions(ctx context.Context, filter domain.WorkSessionFilter) (result []domain.WorkSession, err error) {
-	if validationErr := filter.Validate(); validationErr != nil {
-		return nil, validationErr
+func (s *Service) ListWorkSessions(ctx context.Context, filter workforce.WorkSessionFilter) ([]workforce.WorkSession, error) {
+	order := make([]workforce.WorkSessionOrder, 0, len(filter.Order))
+	for _, entry := range filter.Order {
+		order = append(order, workforce.WorkSessionOrder{Field: workforce.WorkSessionOrderField(entry.Field), Descending: entry.Descending})
 	}
-	err = s.run("list_work_sessions", func(stats *domain.OperationStats) error {
+	storedFilter := workforce.WorkSessionFilter{
+		IDs: filter.IDs, StaffID: filter.StaffID, StaffIDs: filter.StaffIDs, Date: filter.Date,
+		DateFrom: filter.DateFrom, DateTo: filter.DateTo, DateBefore: filter.DateBefore, Open: filter.Open,
+		Order: order, Limit: filter.Limit, Offset: filter.Offset,
+	}
+	var result []workforce.WorkSession
+	var err error
+	if validationErr := storedFilter.Validate(); validationErr != nil {
+		return nil, mapWorkSessionError(validationErr)
+	}
+	err = s.run(ctx, "list_work_sessions", func(ctx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
-		result, queryStats, err = s.store.ListWorkSessions(ctx, filter)
+		result, queryStats, err = s.store.ListWorkSessions(ctx, storedFilter)
 		stats.Add(queryStats)
 		return err
 	})
-	return result, err
+	return result, mapWorkSessionError(err)
 }
 
-func (s *Service) ListOverlappingWorkSessions(ctx context.Context, staffIDs []int64, from time.Time, to *time.Time) (result []domain.WorkSession, err error) {
+func (s *Service) ListOverlappingWorkSessions(ctx context.Context, staffIDs []int64, from time.Time, to *time.Time) ([]workforce.WorkSession, error) {
 	if len(staffIDs) == 0 {
-		return []domain.WorkSession{}, nil
+		return []workforce.WorkSession{}, nil
 	}
-	err = s.run("list_overlapping_work_sessions", func(stats *domain.OperationStats) error {
+	var result []workforce.WorkSession
+	var err error
+	err = s.run(ctx, "list_overlapping_work_sessions", func(ctx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		result, queryStats, err = s.store.ListOverlappingWorkSessions(ctx, staffIDs, from, to)
 		stats.Add(queryStats)
 		return err
 	})
-	return result, err
+	return result, mapWorkSessionError(err)
 }
 
-func (s *Service) CountWorkSessions(ctx context.Context, filter domain.WorkSessionFilter) (result int, err error) {
-	if validationErr := filter.Validate(); validationErr != nil {
-		return 0, validationErr
+func (s *Service) CountWorkSessions(ctx context.Context, filter workforce.WorkSessionFilter) (int, error) {
+	storedFilter := workforce.WorkSessionFilter{
+		IDs: filter.IDs, StaffID: filter.StaffID, StaffIDs: filter.StaffIDs, Date: filter.Date,
+		DateFrom: filter.DateFrom, DateTo: filter.DateTo, DateBefore: filter.DateBefore, Open: filter.Open,
 	}
-	err = s.run("count_work_sessions", func(stats *domain.OperationStats) error {
+	var result int
+	var err error
+	if validationErr := storedFilter.Validate(); validationErr != nil {
+		return 0, mapWorkSessionError(validationErr)
+	}
+	err = s.run(ctx, "count_work_sessions", func(ctx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
-		result, queryStats, err = s.store.CountWorkSessions(ctx, filter)
+		result, queryStats, err = s.store.CountWorkSessions(ctx, storedFilter)
 		stats.Add(queryStats)
 		return err
 	})
-	return result, err
+	return result, mapWorkSessionError(err)
 }
 
-func (s *Service) OldestWorkSessionDate(ctx context.Context, column, before string) (result string, err error) {
-	if validationErr := domain.ValidateWorkSessionDateColumn(column); validationErr != nil {
-		return "", validationErr
+func (s *Service) OldestWorkSessionDate(ctx context.Context, column, before string) (string, error) {
+	var result string
+	var err error
+	if validationErr := validateWorkSessionDateColumn(column); validationErr != nil {
+		return "", mapWorkSessionError(validationErr)
 	}
 	if validationErr := domain.ValidateDate(before, "before"); validationErr != nil {
-		return "", &domain.InvalidWorkSessionError{Reason: validationErr.Error()}
+		return "", mapWorkSessionError(&workforce.InvalidWorkSessionError{Reason: validationErr.Error()})
 	}
-	err = s.run("oldest_work_session_date", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "oldest_work_session_date", func(ctx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		result, queryStats, err = s.store.OldestWorkSessionDate(ctx, before)
 		stats.Add(queryStats)
 		return err
 	})
-	return result, err
+	return result, mapWorkSessionError(err)
 }
 
-func (s *Service) DeleteWorkSessionsOlderThan(ctx context.Context, column, cutoff string) (result int64, err error) {
-	if validationErr := domain.ValidateWorkSessionDateColumn(column); validationErr != nil {
-		return 0, validationErr
+func (s *Service) DeleteWorkSessionsOlderThan(ctx context.Context, column, cutoff string) (int64, error) {
+	var result int64
+	var err error
+	if validationErr := validateWorkSessionDateColumn(column); validationErr != nil {
+		return 0, mapWorkSessionError(validationErr)
 	}
 	if cutoff == "" {
-		return 0, &domain.InvalidWorkSessionError{Reason: "cutoff is required"}
+		return 0, mapWorkSessionError(&workforce.InvalidWorkSessionError{Reason: "cutoff is required"})
 	}
 	if validationErr := domain.ValidateDate(cutoff, "cutoff"); validationErr != nil {
-		return 0, &domain.InvalidWorkSessionError{Reason: validationErr.Error()}
+		return 0, mapWorkSessionError(&workforce.InvalidWorkSessionError{Reason: validationErr.Error()})
 	}
-	err = s.run("delete_work_sessions_older_than", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "delete_work_sessions_older_than", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			var writeStats domain.OperationStats
 			result, writeStats, err = s.store.DeleteWorkSessionsOlderThan(txCtx, cutoff)
@@ -159,68 +203,87 @@ func (s *Service) DeleteWorkSessionsOlderThan(ctx context.Context, column, cutof
 			return err
 		})
 	})
-	return result, err
+	return result, mapWorkSessionError(err)
 }
 
-func (s *Service) WorkPresenceMap(ctx context.Context) (result map[int64]string, err error) {
-	err = s.run("work_presence_map", func(stats *domain.OperationStats) error {
+func (s *Service) WorkPresenceMap(ctx context.Context) (map[int64]string, error) {
+	var result map[int64]string
+	var err error
+	err = s.run(ctx, "work_presence_map", func(ctx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		result, queryStats, err = s.store.WorkPresenceMap(ctx, s.clock.Today(), s.clock.Now())
 		stats.Add(queryStats)
 		return err
 	})
-	return result, err
+	return result, mapWorkSessionError(err)
 }
 
-func (s *Service) CreateWorkSession(ctx context.Context, value domain.WorkSession) (result domain.WorkSession, err error) {
-	if validationErr := value.Validate(); validationErr != nil {
-		return domain.WorkSession{}, validationErr
+func (s *Service) CreateWorkSession(ctx context.Context, value workforce.WorkSession) (workforce.WorkSession, error) {
+	storedValue := value
+	var result workforce.WorkSession
+	var err error
+	if validationErr := storedValue.Validate(); validationErr != nil {
+		return workforce.WorkSession{}, mapWorkSessionError(validationErr)
 	}
-	err = s.run("create_work_session", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "create_work_session", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			var writeStats domain.OperationStats
-			result, writeStats, err = s.store.CreateWorkSession(txCtx, value)
+			result, writeStats, err = s.store.CreateWorkSession(txCtx, storedValue)
 			stats.Add(writeStats)
 			return err
 		})
 	})
-	return result, err
+	return result, mapWorkSessionError(err)
 }
 
-func (s *Service) UpdateWorkSession(ctx context.Context, value domain.WorkSession) (result domain.WorkSession, err error) {
-	if validationErr := value.Validate(); validationErr != nil {
-		return domain.WorkSession{}, validationErr
+func (s *Service) UpdateWorkSession(ctx context.Context, value workforce.WorkSession) (workforce.WorkSession, error) {
+	if value.ID <= 0 {
+		return workforce.WorkSession{}, invalidWorkSession("work session ID is required")
 	}
-	err = s.run("update_work_session", func(stats *domain.OperationStats) error {
+	storedValue := value
+	var result workforce.WorkSession
+	var err error
+	if validationErr := storedValue.Validate(); validationErr != nil {
+		return workforce.WorkSession{}, mapWorkSessionError(validationErr)
+	}
+	err = s.run(ctx, "update_work_session", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			var found bool
 			var writeStats domain.OperationStats
-			result, found, writeStats, err = s.store.UpdateWorkSession(txCtx, value)
+			result, found, writeStats, err = s.store.UpdateWorkSession(txCtx, storedValue)
 			stats.Add(writeStats)
 			if err == nil && !found {
-				return domain.ErrWorkSessionNotFound
+				return workforce.ErrWorkSessionNotFound
 			}
 			return err
 		})
 	})
-	return result, err
+	return result, mapWorkSessionError(err)
 }
 
 func (s *Service) DeleteWorkSession(ctx context.Context, id int64) error {
-	return s.run("delete_work_session", func(stats *domain.OperationStats) error {
+	if id <= 0 {
+		return invalidWorkSession("work session ID is required")
+	}
+	return mapWorkSessionError(s.run(ctx, "delete_work_session", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			writeStats, err := s.store.DeleteWorkSession(txCtx, id)
 			stats.Add(writeStats)
 			return err
 		})
-	})
+	}))
 }
 
-func (s *Service) SetWorkSessionBreakMinutes(ctx context.Context, id int64, minutes int) (result int64, err error) {
-	if minutes < 0 {
-		return 0, &domain.InvalidWorkSessionError{Reason: "break minutes cannot be negative"}
+func (s *Service) SetWorkSessionBreakMinutes(ctx context.Context, id int64, minutes int) (int64, error) {
+	if id <= 0 {
+		return 0, invalidWorkSession("work session ID is required")
 	}
-	err = s.run("set_work_session_break_minutes", func(stats *domain.OperationStats) error {
+	var result int64
+	var err error
+	if minutes < 0 {
+		return 0, mapWorkSessionError(&workforce.InvalidWorkSessionError{Reason: "break minutes cannot be negative"})
+	}
+	err = s.run(ctx, "set_work_session_break_minutes", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			var writeStats domain.OperationStats
 			result, writeStats, err = s.store.SetWorkSessionBreakMinutes(txCtx, id, minutes)
@@ -228,14 +291,19 @@ func (s *Service) SetWorkSessionBreakMinutes(ctx context.Context, id int64, minu
 			return err
 		})
 	})
-	return result, err
+	return result, mapWorkSessionError(err)
 }
 
-func (s *Service) CloseWorkSession(ctx context.Context, id int64, checkOut time.Time, autoCheckedOut bool) (result bool, err error) {
-	if checkOut.IsZero() {
-		return false, &domain.InvalidWorkSessionError{Reason: "check-out time is required"}
+func (s *Service) CloseWorkSession(ctx context.Context, id int64, checkOut time.Time, autoCheckedOut bool) (bool, error) {
+	if id <= 0 {
+		return false, invalidWorkSession("work session ID is required")
 	}
-	err = s.run("close_work_session", func(stats *domain.OperationStats) error {
+	var result bool
+	var err error
+	if checkOut.IsZero() {
+		return false, mapWorkSessionError(&workforce.InvalidWorkSessionError{Reason: "check-out time is required"})
+	}
+	err = s.run(ctx, "close_work_session", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			var writeStats domain.OperationStats
 			result, writeStats, err = s.store.CloseWorkSession(txCtx, id, checkOut, autoCheckedOut)
@@ -243,100 +311,129 @@ func (s *Service) CloseWorkSession(ctx context.Context, id int64, checkOut time.
 			return err
 		})
 	})
-	return result, err
+	return result, mapWorkSessionError(err)
 }
 
 // --- breaks ---
 
-func (s *Service) FindWorkSessionBreak(ctx context.Context, id int64) (result domain.WorkSessionBreak, err error) {
-	err = s.run("find_work_session_break", func(stats *domain.OperationStats) error {
+func (s *Service) FindWorkSessionBreak(ctx context.Context, id int64) (workforce.WorkSessionBreak, error) {
+	if id <= 0 {
+		return workforce.WorkSessionBreak{}, invalidWorkSession("work session break ID is required")
+	}
+	var result workforce.WorkSessionBreak
+	var err error
+	err = s.run(ctx, "find_work_session_break", func(ctx context.Context, stats *domain.OperationStats) error {
 		var found bool
 		var queryStats domain.OperationStats
 		result, found, queryStats, err = s.store.FindWorkSessionBreak(ctx, id)
 		stats.Add(queryStats)
 		if err == nil && !found {
-			return domain.ErrWorkSessionBreakNotFound
+			return workforce.ErrWorkSessionBreakNotFound
 		}
 		return err
 	})
-	return result, err
+	return result, mapWorkSessionError(err)
 }
 
-func (s *Service) ListWorkSessionBreaks(ctx context.Context, filter domain.WorkSessionBreakFilter) (result []domain.WorkSessionBreak, err error) {
-	if validationErr := filter.Validate(); validationErr != nil {
-		return nil, validationErr
+func (s *Service) ListWorkSessionBreaks(ctx context.Context, filter workforce.WorkSessionBreakFilter) ([]workforce.WorkSessionBreak, error) {
+	storedFilter := workforce.WorkSessionBreakFilter{
+		SessionID: filter.SessionID, SessionIDs: filter.SessionIDs, Active: filter.Active, Limit: filter.Limit, Offset: filter.Offset,
 	}
-	err = s.run("list_work_session_breaks", func(stats *domain.OperationStats) error {
+	var result []workforce.WorkSessionBreak
+	var err error
+	if validationErr := storedFilter.Validate(); validationErr != nil {
+		return nil, mapWorkSessionError(validationErr)
+	}
+	err = s.run(ctx, "list_work_session_breaks", func(ctx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
-		result, queryStats, err = s.store.ListWorkSessionBreaks(ctx, filter)
+		result, queryStats, err = s.store.ListWorkSessionBreaks(ctx, storedFilter)
 		stats.Add(queryStats)
 		return err
 	})
-	return result, err
+	return result, mapWorkSessionError(err)
 }
 
-func (s *Service) ExpiredWorkSessionBreaks(ctx context.Context, before time.Time) (result []domain.WorkSessionBreak, err error) {
-	err = s.run("expired_work_session_breaks", func(stats *domain.OperationStats) error {
+func (s *Service) ExpiredWorkSessionBreaks(ctx context.Context, before time.Time) ([]workforce.WorkSessionBreak, error) {
+	var result []workforce.WorkSessionBreak
+	var err error
+	err = s.run(ctx, "expired_work_session_breaks", func(ctx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		result, queryStats, err = s.store.ExpiredWorkSessionBreaks(ctx, before)
 		stats.Add(queryStats)
 		return err
 	})
-	return result, err
+	return result, mapWorkSessionError(err)
 }
 
-func (s *Service) CreateWorkSessionBreak(ctx context.Context, value domain.WorkSessionBreak) (result domain.WorkSessionBreak, err error) {
-	if validationErr := value.Validate(); validationErr != nil {
-		return domain.WorkSessionBreak{}, validationErr
+func (s *Service) CreateWorkSessionBreak(ctx context.Context, value workforce.WorkSessionBreak) (workforce.WorkSessionBreak, error) {
+	storedValue := value
+	var result workforce.WorkSessionBreak
+	var err error
+	if validationErr := storedValue.Validate(); validationErr != nil {
+		return workforce.WorkSessionBreak{}, mapWorkSessionError(validationErr)
 	}
-	err = s.run("create_work_session_break", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "create_work_session_break", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			var writeStats domain.OperationStats
-			result, writeStats, err = s.store.CreateWorkSessionBreak(txCtx, value)
+			result, writeStats, err = s.store.CreateWorkSessionBreak(txCtx, storedValue)
 			stats.Add(writeStats)
 			return err
 		})
 	})
-	return result, err
+	return result, mapWorkSessionError(err)
 }
 
-func (s *Service) UpdateWorkSessionBreak(ctx context.Context, value domain.WorkSessionBreak) (result domain.WorkSessionBreak, err error) {
-	if validationErr := value.Validate(); validationErr != nil {
-		return domain.WorkSessionBreak{}, validationErr
+func (s *Service) UpdateWorkSessionBreak(ctx context.Context, value workforce.WorkSessionBreak) (workforce.WorkSessionBreak, error) {
+	if value.ID <= 0 {
+		return workforce.WorkSessionBreak{}, invalidWorkSession("work session break ID is required")
 	}
-	err = s.run("update_work_session_break", func(stats *domain.OperationStats) error {
+	storedValue := value
+	var result workforce.WorkSessionBreak
+	var err error
+	if validationErr := storedValue.Validate(); validationErr != nil {
+		return workforce.WorkSessionBreak{}, mapWorkSessionError(validationErr)
+	}
+	err = s.run(ctx, "update_work_session_break", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			var found bool
 			var writeStats domain.OperationStats
-			result, found, writeStats, err = s.store.UpdateWorkSessionBreak(txCtx, value)
+			result, found, writeStats, err = s.store.UpdateWorkSessionBreak(txCtx, storedValue)
 			stats.Add(writeStats)
 			if err == nil && !found {
-				return domain.ErrWorkSessionBreakNotFound
+				return workforce.ErrWorkSessionBreakNotFound
 			}
 			return err
 		})
 	})
-	return result, err
+	return result, mapWorkSessionError(err)
 }
 
 func (s *Service) DeleteWorkSessionBreak(ctx context.Context, id int64) error {
-	return s.run("delete_work_session_break", func(stats *domain.OperationStats) error {
+	if id <= 0 {
+		return invalidWorkSession("work session break ID is required")
+	}
+	return mapWorkSessionError(s.run(ctx, "delete_work_session_break", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			writeStats, err := s.store.DeleteWorkSessionBreak(txCtx, id)
 			stats.Add(writeStats)
 			return err
 		})
-	})
+	}))
 }
 
-func (s *Service) EndWorkSessionBreak(ctx context.Context, id int64, endedAt time.Time, durationMinutes int) (result int64, err error) {
+func (s *Service) EndWorkSessionBreak(ctx context.Context, id int64, endedAt time.Time, durationMinutes int) (int64, error) {
+	if id <= 0 {
+		return 0, invalidWorkSession("work session break ID is required")
+	}
+	var result int64
+	var err error
 	if endedAt.IsZero() {
-		return 0, &domain.InvalidWorkSessionError{Reason: "ended_at is required"}
+		return 0, mapWorkSessionError(&workforce.InvalidWorkSessionError{Reason: "ended_at is required"})
 	}
 	if durationMinutes < 0 {
-		return 0, &domain.InvalidWorkSessionError{Reason: "duration_minutes cannot be negative"}
+		return 0, mapWorkSessionError(&workforce.InvalidWorkSessionError{Reason: "duration_minutes cannot be negative"})
 	}
-	err = s.run("end_work_session_break", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "end_work_session_break", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			var writeStats domain.OperationStats
 			result, writeStats, err = s.store.EndWorkSessionBreak(txCtx, id, endedAt, durationMinutes)
@@ -344,14 +441,19 @@ func (s *Service) EndWorkSessionBreak(ctx context.Context, id int64, endedAt tim
 			return err
 		})
 	})
-	return result, err
+	return result, mapWorkSessionError(err)
 }
 
-func (s *Service) SetWorkSessionBreakDuration(ctx context.Context, id int64, durationMinutes int, endedAt time.Time) (result int64, err error) {
-	if durationMinutes < 0 {
-		return 0, &domain.InvalidWorkSessionError{Reason: "duration_minutes cannot be negative"}
+func (s *Service) SetWorkSessionBreakDuration(ctx context.Context, id int64, durationMinutes int, endedAt time.Time) (int64, error) {
+	if id <= 0 {
+		return 0, invalidWorkSession("work session break ID is required")
 	}
-	err = s.run("set_work_session_break_duration", func(stats *domain.OperationStats) error {
+	var result int64
+	var err error
+	if durationMinutes < 0 {
+		return 0, mapWorkSessionError(&workforce.InvalidWorkSessionError{Reason: "duration_minutes cannot be negative"})
+	}
+	err = s.run(ctx, "set_work_session_break_duration", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			var writeStats domain.OperationStats
 			result, writeStats, err = s.store.SetWorkSessionBreakDuration(txCtx, id, durationMinutes, endedAt)
@@ -359,245 +461,334 @@ func (s *Service) SetWorkSessionBreakDuration(ctx context.Context, id int64, dur
 			return err
 		})
 	})
-	return result, err
+	return result, mapWorkSessionError(err)
 }
 
 // --- staff balance adjustments ---
 
-func (s *Service) FindStaffBalanceAdjustment(ctx context.Context, id int64) (result domain.StaffBalanceAdjustment, err error) {
-	err = s.run("find_staff_balance_adjustment", func(stats *domain.OperationStats) error {
+func (s *Service) FindStaffBalanceAdjustment(ctx context.Context, id int64) (workforce.StaffBalanceAdjustment, error) {
+	if id <= 0 {
+		return workforce.StaffBalanceAdjustment{}, invalidWorkSession("staff balance adjustment ID is required")
+	}
+	var result workforce.StaffBalanceAdjustment
+	var err error
+	err = s.run(ctx, "find_staff_balance_adjustment", func(ctx context.Context, stats *domain.OperationStats) error {
 		var found bool
 		var queryStats domain.OperationStats
 		result, found, queryStats, err = s.store.FindStaffBalanceAdjustment(ctx, id)
 		stats.Add(queryStats)
 		if err == nil && !found {
-			return domain.ErrStaffBalanceAdjustmentNotFound
+			return workforce.ErrStaffBalanceAdjustmentNotFound
 		}
 		return err
 	})
-	return result, err
+	return result, mapWorkSessionError(err)
 }
 
-func (s *Service) ListStaffBalanceAdjustments(ctx context.Context, filter domain.StaffBalanceAdjustmentFilter) (result []domain.StaffBalanceAdjustment, err error) {
-	if validationErr := filter.Validate(); validationErr != nil {
-		return nil, validationErr
+func (s *Service) ListStaffBalanceAdjustments(ctx context.Context, filter workforce.StaffBalanceAdjustmentFilter) ([]workforce.StaffBalanceAdjustment, error) {
+	storedFilter := workforce.StaffBalanceAdjustmentFilter{
+		StaffID: filter.StaffID, StaffIDs: filter.StaffIDs, Types: filter.Types,
+		EffectiveFrom: filter.EffectiveFrom, EffectiveTo: filter.EffectiveTo, Limit: filter.Limit, Offset: filter.Offset,
 	}
-	err = s.run("list_staff_balance_adjustments", func(stats *domain.OperationStats) error {
+	var result []workforce.StaffBalanceAdjustment
+	var err error
+	if validationErr := storedFilter.Validate(); validationErr != nil {
+		return nil, mapWorkSessionError(validationErr)
+	}
+	err = s.run(ctx, "list_staff_balance_adjustments", func(ctx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
-		result, queryStats, err = s.store.ListStaffBalanceAdjustments(ctx, filter)
+		result, queryStats, err = s.store.ListStaffBalanceAdjustments(ctx, storedFilter)
 		stats.Add(queryStats)
 		return err
 	})
-	return result, err
+	values, storedErr := result, err
+	if values == nil {
+		return nil, mapWorkSessionError(storedErr)
+	}
+	storedResult := make([]workforce.StaffBalanceAdjustment, 0, len(values))
+	storedResult = append(storedResult, values...)
+	return storedResult, mapWorkSessionError(storedErr)
 }
 
-func (s *Service) CreateStaffBalanceAdjustment(ctx context.Context, value domain.StaffBalanceAdjustment) (result domain.StaffBalanceAdjustment, err error) {
-	if validationErr := value.Validate(); validationErr != nil {
-		return domain.StaffBalanceAdjustment{}, validationErr
+func (s *Service) CreateStaffBalanceAdjustment(ctx context.Context, value workforce.StaffBalanceAdjustment) (workforce.StaffBalanceAdjustment, error) {
+	storedValue := value
+	var result workforce.StaffBalanceAdjustment
+	var err error
+	if validationErr := storedValue.Validate(); validationErr != nil {
+		return workforce.StaffBalanceAdjustment{}, mapWorkSessionError(validationErr)
 	}
-	err = s.run("create_staff_balance_adjustment", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "create_staff_balance_adjustment", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			var writeStats domain.OperationStats
-			result, writeStats, err = s.store.CreateStaffBalanceAdjustment(txCtx, value)
+			result, writeStats, err = s.store.CreateStaffBalanceAdjustment(txCtx, storedValue)
 			stats.Add(writeStats)
 			return err
 		})
 	})
-	return result, err
+	return result, mapWorkSessionError(err)
 }
 
-func (s *Service) UpdateStaffBalanceAdjustment(ctx context.Context, value domain.StaffBalanceAdjustment) (result domain.StaffBalanceAdjustment, err error) {
-	if validationErr := value.Validate(); validationErr != nil {
-		return domain.StaffBalanceAdjustment{}, validationErr
+func (s *Service) UpdateStaffBalanceAdjustment(ctx context.Context, value workforce.StaffBalanceAdjustment) (workforce.StaffBalanceAdjustment, error) {
+	if value.ID <= 0 {
+		return workforce.StaffBalanceAdjustment{}, invalidWorkSession("staff balance adjustment ID is required")
 	}
-	err = s.run("update_staff_balance_adjustment", func(stats *domain.OperationStats) error {
+	storedValue := value
+	var result workforce.StaffBalanceAdjustment
+	var err error
+	if validationErr := storedValue.Validate(); validationErr != nil {
+		return workforce.StaffBalanceAdjustment{}, mapWorkSessionError(validationErr)
+	}
+	err = s.run(ctx, "update_staff_balance_adjustment", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			var found bool
 			var writeStats domain.OperationStats
-			result, found, writeStats, err = s.store.UpdateStaffBalanceAdjustment(txCtx, value)
+			result, found, writeStats, err = s.store.UpdateStaffBalanceAdjustment(txCtx, storedValue)
 			stats.Add(writeStats)
 			if err == nil && !found {
-				return domain.ErrStaffBalanceAdjustmentNotFound
+				return workforce.ErrStaffBalanceAdjustmentNotFound
 			}
 			return err
 		})
 	})
-	return result, err
+	return result, mapWorkSessionError(err)
 }
 
 func (s *Service) DeleteStaffBalanceAdjustment(ctx context.Context, id int64) error {
-	return s.run("delete_staff_balance_adjustment", func(stats *domain.OperationStats) error {
+	if id <= 0 {
+		return invalidWorkSession("staff balance adjustment ID is required")
+	}
+	return mapWorkSessionError(s.run(ctx, "delete_staff_balance_adjustment", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			writeStats, err := s.store.DeleteStaffBalanceAdjustment(txCtx, id)
 			stats.Add(writeStats)
 			return err
 		})
-	})
+	}))
 }
 
 // --- staff vacation openings ---
 
-func (s *Service) FindStaffVacationOpening(ctx context.Context, id int64) (result domain.StaffVacationOpening, err error) {
-	err = s.run("find_staff_vacation_opening", func(stats *domain.OperationStats) error {
+func (s *Service) FindStaffVacationOpening(ctx context.Context, id int64) (workforce.StaffVacationOpening, error) {
+	if id <= 0 {
+		return workforce.StaffVacationOpening{}, invalidWorkSession("staff vacation opening ID is required")
+	}
+	var result domain.StaffVacationOpening
+	var err error
+	err = s.run(ctx, "find_staff_vacation_opening", func(ctx context.Context, stats *domain.OperationStats) error {
 		var found bool
 		var queryStats domain.OperationStats
 		result, found, queryStats, err = s.store.FindStaffVacationOpening(ctx, id)
 		stats.Add(queryStats)
 		if err == nil && !found {
-			return domain.ErrStaffVacationOpeningNotFound
+			return workforce.ErrStaffVacationOpeningNotFound
 		}
 		return err
 	})
-	return result, err
+	return openingToPublic(result), mapWorkSessionError(err)
 }
 
-func (s *Service) ListStaffVacationOpenings(ctx context.Context, filter domain.StaffVacationFilter) (result []domain.StaffVacationOpening, err error) {
-	if validationErr := filter.Validate(); validationErr != nil {
-		return nil, validationErr
+func (s *Service) ListStaffVacationOpenings(ctx context.Context, filter workforce.StaffVacationFilter) ([]workforce.StaffVacationOpening, error) {
+	storedFilter := filter
+	var result []domain.StaffVacationOpening
+	var err error
+	if validationErr := storedFilter.Validate(); validationErr != nil {
+		return nil, mapWorkSessionError(validationErr)
 	}
-	err = s.run("list_staff_vacation_openings", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "list_staff_vacation_openings", func(ctx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
-		result, queryStats, err = s.store.ListStaffVacationOpenings(ctx, filter)
+		result, queryStats, err = s.store.ListStaffVacationOpenings(ctx, storedFilter)
 		stats.Add(queryStats)
 		return err
 	})
-	return result, err
+	values, storedErr := result, err
+	if values == nil {
+		return nil, mapWorkSessionError(storedErr)
+	}
+	storedResult := make([]workforce.StaffVacationOpening, 0, len(values))
+	for _, value := range values {
+		storedResult = append(storedResult, openingToPublic(value))
+	}
+	return storedResult, mapWorkSessionError(storedErr)
 }
 
-func (s *Service) CreateStaffVacationOpening(ctx context.Context, value domain.StaffVacationOpening) (result domain.StaffVacationOpening, err error) {
-	if validationErr := value.Validate(); validationErr != nil {
-		return domain.StaffVacationOpening{}, validationErr
+func (s *Service) CreateStaffVacationOpening(ctx context.Context, value workforce.StaffVacationOpening) (workforce.StaffVacationOpening, error) {
+	storedValue := openingToDomain(value)
+	var result domain.StaffVacationOpening
+	var err error
+	if validationErr := storedValue.Validate(); validationErr != nil {
+		return workforce.StaffVacationOpening{}, mapWorkSessionError(validationErr)
 	}
-	err = s.run("create_staff_vacation_opening", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "create_staff_vacation_opening", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			var writeStats domain.OperationStats
-			result, writeStats, err = s.store.CreateStaffVacationOpening(txCtx, value)
+			result, writeStats, err = s.store.CreateStaffVacationOpening(txCtx, storedValue)
 			stats.Add(writeStats)
 			return err
 		})
 	})
-	return result, err
+	return openingToPublic(result), mapWorkSessionError(err)
 }
 
-func (s *Service) UpdateStaffVacationOpening(ctx context.Context, value domain.StaffVacationOpening) (result domain.StaffVacationOpening, err error) {
-	if validationErr := value.Validate(); validationErr != nil {
-		return domain.StaffVacationOpening{}, validationErr
+func (s *Service) UpdateStaffVacationOpening(ctx context.Context, value workforce.StaffVacationOpening) (workforce.StaffVacationOpening, error) {
+	if value.ID <= 0 {
+		return workforce.StaffVacationOpening{}, invalidWorkSession("staff vacation opening ID is required")
 	}
-	err = s.run("update_staff_vacation_opening", func(stats *domain.OperationStats) error {
+	storedValue := openingToDomain(value)
+	var result domain.StaffVacationOpening
+	var err error
+	if validationErr := storedValue.Validate(); validationErr != nil {
+		return workforce.StaffVacationOpening{}, mapWorkSessionError(validationErr)
+	}
+	err = s.run(ctx, "update_staff_vacation_opening", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			var found bool
 			var writeStats domain.OperationStats
-			result, found, writeStats, err = s.store.UpdateStaffVacationOpening(txCtx, value)
+			result, found, writeStats, err = s.store.UpdateStaffVacationOpening(txCtx, storedValue)
 			stats.Add(writeStats)
 			if err == nil && !found {
-				return domain.ErrStaffVacationOpeningNotFound
+				return workforce.ErrStaffVacationOpeningNotFound
 			}
 			return err
 		})
 	})
-	return result, err
+	return openingToPublic(result), mapWorkSessionError(err)
 }
 
 func (s *Service) DeleteStaffVacationOpening(ctx context.Context, id int64) error {
-	return s.run("delete_staff_vacation_opening", func(stats *domain.OperationStats) error {
+	if id <= 0 {
+		return invalidWorkSession("staff vacation opening ID is required")
+	}
+	return mapWorkSessionError(s.run(ctx, "delete_staff_vacation_opening", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			writeStats, err := s.store.DeleteStaffVacationOpening(txCtx, id)
 			stats.Add(writeStats)
 			return err
 		})
-	})
+	}))
 }
 
 // --- staff vacation quota ---
 
-func (s *Service) FindStaffVacationQuota(ctx context.Context, id int64) (result domain.StaffVacationQuota, err error) {
-	err = s.run("find_staff_vacation_quota", func(stats *domain.OperationStats) error {
+func (s *Service) FindStaffVacationQuota(ctx context.Context, id int64) (workforce.StaffVacationQuota, error) {
+	if id <= 0 {
+		return workforce.StaffVacationQuota{}, invalidWorkSession("staff vacation quota ID is required")
+	}
+	var result workforce.StaffVacationQuota
+	var err error
+	err = s.run(ctx, "find_staff_vacation_quota", func(ctx context.Context, stats *domain.OperationStats) error {
 		var found bool
 		var queryStats domain.OperationStats
 		result, found, queryStats, err = s.store.FindStaffVacationQuota(ctx, id)
 		stats.Add(queryStats)
 		if err == nil && !found {
-			return domain.ErrStaffVacationQuotaNotFound
+			return workforce.ErrStaffVacationQuotaNotFound
 		}
 		return err
 	})
-	return result, err
+	return quotaToPublic(result), mapWorkSessionError(err)
 }
 
-func (s *Service) ListStaffVacationQuotas(ctx context.Context, filter domain.StaffVacationFilter) (result []domain.StaffVacationQuota, err error) {
-	if validationErr := filter.Validate(); validationErr != nil {
-		return nil, validationErr
+func (s *Service) ListStaffVacationQuotas(ctx context.Context, filter workforce.StaffVacationFilter) ([]workforce.StaffVacationQuota, error) {
+	storedFilter := filter
+	var result []workforce.StaffVacationQuota
+	var err error
+	if validationErr := storedFilter.Validate(); validationErr != nil {
+		return nil, mapWorkSessionError(validationErr)
 	}
-	err = s.run("list_staff_vacation_quotas", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "list_staff_vacation_quotas", func(ctx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
-		result, queryStats, err = s.store.ListStaffVacationQuotas(ctx, filter)
+		result, queryStats, err = s.store.ListStaffVacationQuotas(ctx, storedFilter)
 		stats.Add(queryStats)
 		return err
 	})
-	return result, err
+	values, storedErr := result, err
+	if values == nil {
+		return nil, mapWorkSessionError(storedErr)
+	}
+	storedResult := make([]workforce.StaffVacationQuota, 0, len(values))
+	for _, value := range values {
+		storedResult = append(storedResult, quotaToPublic(value))
+	}
+	return storedResult, mapWorkSessionError(storedErr)
 }
 
-func (s *Service) CreateStaffVacationQuota(ctx context.Context, value domain.StaffVacationQuota) (result domain.StaffVacationQuota, err error) {
-	if validationErr := value.Validate(); validationErr != nil {
-		return domain.StaffVacationQuota{}, validationErr
+func (s *Service) CreateStaffVacationQuota(ctx context.Context, value workforce.StaffVacationQuota) (workforce.StaffVacationQuota, error) {
+	storedValue := value
+	var result workforce.StaffVacationQuota
+	var err error
+	if validationErr := storedValue.Validate(); validationErr != nil {
+		return quotaToPublic(workforce.StaffVacationQuota{}), mapWorkSessionError(validationErr)
 	}
-	err = s.run("create_staff_vacation_quota", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "create_staff_vacation_quota", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			var writeStats domain.OperationStats
-			result, writeStats, err = s.store.CreateStaffVacationQuota(txCtx, value)
+			result, writeStats, err = s.store.CreateStaffVacationQuota(txCtx, storedValue)
 			stats.Add(writeStats)
 			return err
 		})
 	})
-	return result, err
+	return quotaToPublic(result), mapWorkSessionError(err)
 }
 
-func (s *Service) UpdateStaffVacationQuota(ctx context.Context, value domain.StaffVacationQuota) (result domain.StaffVacationQuota, err error) {
-	if validationErr := value.Validate(); validationErr != nil {
-		return domain.StaffVacationQuota{}, validationErr
+func (s *Service) UpdateStaffVacationQuota(ctx context.Context, value workforce.StaffVacationQuota) (workforce.StaffVacationQuota, error) {
+	if value.ID <= 0 {
+		return workforce.StaffVacationQuota{}, invalidWorkSession("staff vacation quota ID is required")
 	}
-	err = s.run("update_staff_vacation_quota", func(stats *domain.OperationStats) error {
+	storedValue := value
+	var result workforce.StaffVacationQuota
+	var err error
+	if validationErr := storedValue.Validate(); validationErr != nil {
+		return quotaToPublic(workforce.StaffVacationQuota{}), mapWorkSessionError(validationErr)
+	}
+	err = s.run(ctx, "update_staff_vacation_quota", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			var found bool
 			var writeStats domain.OperationStats
-			result, found, writeStats, err = s.store.UpdateStaffVacationQuota(txCtx, value)
+			result, found, writeStats, err = s.store.UpdateStaffVacationQuota(txCtx, storedValue)
 			stats.Add(writeStats)
 			if err == nil && !found {
-				return domain.ErrStaffVacationQuotaNotFound
+				return workforce.ErrStaffVacationQuotaNotFound
 			}
 			return err
 		})
 	})
-	return result, err
+	return quotaToPublic(result), mapWorkSessionError(err)
 }
 
 func (s *Service) DeleteStaffVacationQuota(ctx context.Context, id int64) error {
-	return s.run("delete_staff_vacation_quota", func(stats *domain.OperationStats) error {
+	if id <= 0 {
+		return invalidWorkSession("staff vacation quota ID is required")
+	}
+	return mapWorkSessionError(s.run(ctx, "delete_staff_vacation_quota", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			writeStats, err := s.store.DeleteStaffVacationQuota(txCtx, id)
 			stats.Add(writeStats)
 			return err
 		})
-	})
+	}))
 }
 
-func (s *Service) UpsertStaffVacationQuota(ctx context.Context, value domain.StaffVacationQuota) error {
-	if validationErr := value.Validate(); validationErr != nil {
-		return validationErr
+func (s *Service) UpsertStaffVacationQuota(ctx context.Context, value workforce.StaffVacationQuota) error {
+	storedValue := value
+	if validationErr := storedValue.Validate(); validationErr != nil {
+		return mapWorkSessionError(validationErr)
 	}
-	return s.run("upsert_staff_vacation_quota", func(stats *domain.OperationStats) error {
+	return mapWorkSessionError(s.run(ctx, "upsert_staff_vacation_quota", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
-			writeStats, err := s.store.UpsertStaffVacationQuota(txCtx, value)
+			writeStats, err := s.store.UpsertStaffVacationQuota(txCtx, storedValue)
 			stats.Add(writeStats)
 			return err
 		})
-	})
+	}))
 }
 
 // LockStaffBalanceWrites serializes every writer that changes a staff member's
 // Stundenkonto inputs on the ambient transaction.
 func (s *Service) LockStaffBalanceWrites(ctx context.Context, staffID int64) error {
-	return s.run("lock_staff_balance_writes", func(*domain.OperationStats) error {
+	if staffID <= 0 {
+		return invalidWorkSession("staff ID is required")
+	}
+	return mapWorkSessionError(s.observeOperation("lock_staff_balance_writes", func(*domain.OperationStats) error {
 		return s.transaction.LockStaffBalance(ctx, staffID)
-	})
+	}))
 }

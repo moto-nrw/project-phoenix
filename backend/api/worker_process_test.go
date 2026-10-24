@@ -11,6 +11,15 @@ import (
 	"testing"
 	"time"
 
+	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	carePlanHTTP "github.com/moto-nrw/project-phoenix/modules/careplan/http"
+
+	"github.com/moto-nrw/project-phoenix/analytics"
+	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	"github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth"
+	"github.com/moto-nrw/project-phoenix/roots/owners"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -43,7 +52,7 @@ func TestWorkerProbesGateReadinessOnTheLease(t *testing.T) {
 
 	code, body := probe(t, handler, "/ready", "")
 	assert.Equal(t, http.StatusServiceUnavailable, code, "a standby is alive but not ready")
-	assert.Equal(t, "standby", body)
+	assert.JSONEq(t, `{"type":"https://moto-app.de/help/fehlermeldungen#anleitung-gerade-nicht-erreichbar","title":"Service Unavailable","status":503,"detail":"standby","instance":"","code":"general.unavailable"}`, body)
 	code, _ = probe(t, handler, "/health", "")
 	assert.Equal(t, http.StatusOK, code)
 
@@ -130,4 +139,30 @@ func TestStandaloneWorkerServesItsProbesAndStopsTheWorker(t *testing.T) {
 	default:
 		t.Fatal("shutdown must stop the worker")
 	}
+}
+
+// The real worker root binds every job without constructing an API router.
+func TestStandaloneWorkerComposesItsJobsWithoutTheAPIRouter(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupTestDB(t)
+	serve := testpkg.SetupServeTestDB(t)
+	t.Cleanup(func() { require.NoError(t, serve.Close()) })
+	db := testpkg.NewDatabase(t, serve)
+	logger := slog.New(slog.DiscardHandler)
+	env, err := newProductionEnvironment(logger, "http://api.invalid")
+	require.NoError(t, err)
+	hub := deliveryCompose.NewRealtimeHub(logger)
+	health, legal, fallback := carePlanHTTP.StudentDocumentPermissions()
+	tracker := analytics.NewNoop()
+	worker, err := owners.ComposeWorker(db, env, hub, newRuntimeTracer(logger), tracker,
+		newLegacyTokenAdapter, CommunicationSession{}, TimetableRequestSession{}, AttendancePrincipal,
+		deviceauth.WithAttendanceStaff, carePlanCompose.StudentDocumentPermissions{Health: health, Legal: legal, Default: fallback},
+		workerAnalytics, analyticsSchoolNames)
+	require.NoError(t, err)
+	require.NotNil(t, worker)
+	handler := workerProbeHandler(worker.Ready, "metrics-token")
+	code, _ := probe(t, handler, "/health", "")
+	require.Equal(t, http.StatusOK, code)
+	code, _ = probe(t, handler, "/api/groups", "")
+	require.Equal(t, http.StatusNotFound, code)
 }

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createTenantJsonProxy } from "~/lib/backend-proxy-route.server";
+import { problemResponse } from "~/lib/api-helpers.server";
 
 function rolePath(
   _request: Request,
@@ -7,7 +8,7 @@ function rolePath(
 ) {
   const roleId = params.roleId;
   if (typeof roleId !== "string" || !roleId) {
-    return NextResponse.json({ error: "Role ID is required" }, { status: 400 });
+    return problemResponse(400, "Role ID is required", _request);
   }
   return `/auth/roles/${encodeURIComponent(roleId)}`;
 }

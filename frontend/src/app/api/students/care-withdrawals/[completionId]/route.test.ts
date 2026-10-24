@@ -1,13 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
 
 import { ApiResponseError } from "~/lib/api-helpers.server";
 import { DELETE } from "./route";
-
-interface ExtendedSession extends Session {
-  user: Session["user"] & { token?: string };
-}
+import type { ExtendedSession } from "~/test/route-test-helpers";
 
 const { mockAuth, mockApiDelete } = vi.hoisted(() => ({
   mockAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
@@ -73,8 +69,10 @@ describe("DELETE /api/students/care-withdrawals/[completionId]", () => {
       new ApiResponseError(
         409,
         JSON.stringify({
-          status: "error",
-          error: "Vorschau veraltet",
+          type: "about:blank",
+          title: "Conflict",
+          status: 409,
+          detail: "Vorschau veraltet",
           code: "students.deletion_preview_changed",
         }),
       ),
@@ -94,8 +92,10 @@ describe("DELETE /api/students/care-withdrawals/[completionId]", () => {
 
     expect(response.status).toBe(409);
     await expect(response.json()).resolves.toEqual({
-      status: "error",
-      error: "Vorschau veraltet",
+      type: "about:blank",
+      title: "Conflict",
+      status: 409,
+      detail: "Vorschau veraltet",
       code: "students.deletion_preview_changed",
     });
   });

@@ -5,7 +5,8 @@ const { mockApiDelete, mockProxyGet } = vi.hoisted(() => ({
   mockProxyGet: vi.fn(() => vi.fn()),
 }));
 
-vi.mock("~/lib/api-helpers.server", () => ({
+vi.mock("~/lib/api-helpers.server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/api-helpers.server")>()),
   apiDelete: mockApiDelete,
 }));
 vi.mock("~/lib/route-proxy.server", () => ({

@@ -22,60 +22,71 @@ For role setup, BUN queries, soft deletion, or migrations, read
 
 ## Architecture
 
-### Active Architecture Migration (#2580) — TEMPORARY
+### Target architecture
 
-Until #2580's exit criteria are met, the capability-first target in
-`backend/architecture/policy.json` takes precedence over legacy examples.
-The Handler → Service → Repository layout is migration state, not the target.
+The capability-first target in `backend/architecture/policy.json` is the
+architecture; the principle ADRs 0066 to 0071 state its rules. Where older
+code, docs or examples show a Handler → Service → Repository layout, the
+target wins.
 
-`backend/architecture/WORKPLAN.md` holds the open ticket set: what is assignable
-today, what each carrier still owns, and the debt no ratchet counts. Read it
-before picking up or cutting a #2580 ticket.
+Apply these boundaries while implementing every backend change, including bug
+fixes and small edits, even without a PR. Existing violations are debt to remove,
+not precedents for new dependencies. Choose the owning capability and allowed
+dependency direction before writing code; keep the change within those boundaries.
 
 Before backend design, implementation, or review:
 
-1. Read `backend/architecture/README.md` and inspect affected owners, packages,
-   data objects, projections, and rules in `backend/architecture/policy.json`.
-   For a new or moved boundary, also read issue #2580.
+1. Read the matching principle ADR (table in `backend/architecture/README.md`)
+   and inspect affected owners, packages, data objects, projections, and rules
+   in `backend/architecture/policy.json`.
 2. Put new behavior behind an existing target owner's public capability.
-   Dependencies use consumer-owned ports; cross-module writes use application
-   workflows; cross-module reads use named tenant-safe projections.
-3. Treat `repositories.Factory`, `services.Factory`, scheduler setters,
-   `SetupAPITest`, and broad legacy composition as shrink-only. The root
-   mounts each route resource where it builds it; only the Worker's document
-   sweeps outlive the mount (#2745).
-   Do not add fields, setters, callers, or wrappers that still build that graph.
+   Dependencies use consumer-owned ports. For cross-owner writes, apply
+   [ADR 0067's command/workflow distinction and named exceptions](../docs/adr/0067-principle-owners-meet-through-contracts-and-write-together-in-workflows.md#addendum-2026-10-23-command-participation-and-coordination-4538).
+   Cross-owner reads use capabilities or named tenant-safe projections.
+3. Owners compose themselves, and the roots only wire (ADR 0068). A `compose`
+   package constructs and binds its owner. The root holds no service graph
+   (ADR 0059): build what a mount or job needs as local values from owner
+   compositions, in the build order of the acyclic owner graph (ADR 0058), and
+   mount each route resource where it is built. The Worker receives every
+   dependency in its constructor literal; API tests build route-sized routers.
 4. Assign new writable data objects to existing target owners in the same diff.
-   A new owner requires an architecture decision linked from #2580 first.
-5. Keep temporary dependencies out of target-allowed rules. Remove each legacy
-   edge in the cutover or track that exact edge in an open #2580 subissue.
+   A new owner requires an accepted ADR first.
+5. A policy rule states the target only (ADRs 0057, 0070). Never write a rule
+   into another owner's `application`, `domain`, `adapter`, `postgres` or `cli`
+   role, onto a foreign `models/*` package, from a platform onto a domain,
+   projection or workflow owner, or one that closes a cycle (ADRs 0058, 0071).
+   `legacy.jsonl` is empty: remove such a dependency in the same change.
 
 Before completing a backend code change:
 
-1. Run `scripts/backend-architecture.sh check` from the root. Inspect policy,
+1. Check the final code against the affected principles and policy entries,
+   including runtime access and transaction boundaries, not just imports.
+   Run `scripts/backend-architecture.sh check` from the root. Inspect policy,
    baseline, and composition-inventory diffs; green only proves detected rules.
 2. Run `scripts/test-changed.sh origin/development` without `--fast` before push.
-3. Record owner/capability and before/after counts for touched shrink-only
-   surfaces in the PR. Counts must stay equal or decrease.
+3. Fill in **Backend-Architektur** in the
+   [PR template](../.github/PULL_REQUEST_TEMPLATE.md) with the boundary rationale
+   and evidence it requires. Update it after backend fixes so it describes the
+   final diff and check results.
 
-If a feature cannot fit these boundaries, stop its structural change and
-create or link an urgent #2580 subissue for explicit review. Remove this
-section only after the migration's exit criteria are met.
+If a feature cannot fit these boundaries, stop its structural change and open
+an architecture issue for an ADR decision before continuing.
 
-### Legacy layer safety
+### Code conventions
 
-Read `.claude/rules/backend-conventions.md` for unmigrated code's layer rules,
-repository generics, model conventions, and CI ratchets. These prevent new
-legacy damage; they do not define the target module boundary.
+Read `.claude/rules/backend-conventions.md` for owner-private persistence, row
+conventions, and CI ratchets. They constrain code inside an owner; the policy
+defines the module boundary. Pass-throughs (Rule 8): the shapes that may stay
+and the floor per owner are in `docs/adr/0075-pass-throughs-keep-a-per-owner-floor.md`.
 
 **Query budgets (#2940)**: every list endpoint has a scenario in `test/query_budgets.go` and a test that counts its statements with `testpkg.CaptureQueries` and calls `testpkg.AssertQueryBudget`. The register is shrink-only; `TestQueryBudgetRatchet` rejects unreferenced entries and hand-rolled `BeforeQuery` hooks in tests. Rule 15 in `.claude/rules/backend-conventions.md` has the pattern.
 
-## Calendar Dates: timezone.Date (MANDATORY)
+## Calendar Dates: calendar.Date (MANDATORY)
 
-Every model field mapped to a `DATE` column MUST be `timezone.Date` (or `*timezone.Date`), never `time.Time` — bun binds `time.Time` as UTC and Berlin-midnight dates land one day behind. `TestDateColumnTypes` fails CI on violations. Full API and rules: `.claude/rules/calendar-dates.md`.
+Every model field mapped to a `DATE` column MUST be `calendar.Date` from `sharedkernel/calendar` (or `*calendar.Date`), never `time.Time` — bun binds `time.Time` as UTC and Berlin-midnight dates land one day behind. `TestDateColumnTypes` fails CI on violations. Full API and rules: `.claude/rules/calendar-dates.md`.
 
 Clock values mapped to PostgreSQL `TIME` must pass through
-`timezone.NormalizeWallClock()`. `TestActivityInstanceWallClockRatchet` blocks raw
+`calendar.NormalizeWallClock()`. `TestActivityInstanceWallClockRatchet` blocks raw
 current-time values in `ActivityInstance.StartTime`/`EndTime`; do not extend an
 allowlist around it.
 
@@ -90,7 +101,7 @@ Registry, permissions, and workflows: `.claude/rules/settings-system.md`.
 
 ## Request-Scoped Identity Memoization (#2099)
 
-The identity chain (Account → Person → Staff → Teacher → `MyGroupIDs`/`SubstitutedGroupIDs`/`MySchoolClasses`) of the Identity & Access caller context (`identityaccess.CallerContext`, #3501) is memoized per request, mirroring the #2065 settings cache: `RequestIdentityCacheMiddleware` (mounted router-wide in `api/base.go` and group-wide in `ProtectedTenantGroup`) attaches an empty `jwt.RequestIdentityCache` (`modules/identityaccess/legacy/jwt`), which the root binds as the caller context's memo slot; the caller context consults it keyed by `(tenant_id, account_id)`. Only successes and clean not-found outcomes are memoized — never lookup errors or partial group sets. Self-writes (`UpdateProfile`, `UpdateAvatar`) drop the caller's entry before their trailing re-read; writes to *other* accounts' chains (group transfer, admin substitutions, offboarding) are deliberately exempt. Without the cache in context (scheduler, CLI, device auth, plain tests) behavior is unchanged. Full contract: doc comment on `callerEntry` in `modules/identityaccess/internal/application/caller_memo.go`.
+The identity chain (Account → Person → Staff → Teacher → `MyGroupIDs`/`SubstitutedGroupIDs`/`MySchoolClasses`) of the Identity & Access caller context (`identityaccess.CallerContext`, #3501) is memoized per request, mirroring the #2065 settings cache: `RequestIdentityCacheMiddleware` (mounted router-wide in `api/base.go` and group-wide in `ProtectedTenantRoutes`) attaches an empty `securityruntime.RequestIdentityCache` (`modules/securityruntime`), which the root binds as the caller context's memo slot; the caller context consults it keyed by `(tenant_id, account_id)`. Only successes and clean not-found outcomes are memoized — never lookup errors or partial group sets. Self-writes (`UpdateProfile`, `UpdateAvatar`) drop the caller's entry before their trailing re-read; writes to *other* accounts' chains (group transfer, admin substitutions, offboarding) are deliberately exempt. Without the cache in context (scheduler, CLI, device auth, plain tests) behavior is unchanged. Full contract: doc comment on `callerEntry` in `modules/identityaccess/internal/application/caller_memo.go`.
 
 ## Domain Knowledge
 
@@ -110,14 +121,15 @@ repoint both to the successor. Materialization/replans never touch dates
 `<= today`.
 
 ### RFID/IoT Integration
+- Device keys: SHA-256 fingerprints only; plaintext is returned once at creation/rotation, never by reads or transfers. Operator keys are generated only. Migration/rollout contract: `docs/agents/contracts.md` Device credentials; human evidence remains separate in `docs/operations/geraete-zugang-3841.md`.
 - Two-layer auth: Device API key (`Authorization: Bearer`) + Staff PIN (`X-Staff-PIN`); devices authenticate without tenant JWTs but are scoped to one school (hence `Resolve*ForTenant` in device auth)
-- The `X-Staff-PIN` header is checked against the per-tenant `security.ogs_device_pin` setting via constant-time compare. It is the shared device PIN of the school; there is no personal staff PIN (#3310). The `X-Staff-ID` header PyrePortal sends is caller-controlled and ignored, so kiosk writes stay attributed to the authenticated device
+- The `X-Staff-PIN` header is checked against the per-tenant `security.ogs_device_pin` setting via constant-time compare. Missing settings wiring fails at construction; unreadable or empty PIN settings reject with `401 / iot.device_pin_invalid`, never an env fallback. It is the shared device PIN of the school; there is no personal staff PIN (#3310). The `X-Staff-ID` header PyrePortal sends is caller-controlled and ignored, so kiosk writes stay attributed to the authenticated device
 - Real-time location comes from `active.visits` + `active.attendance`; scheduled statuses (sick/excused/class trip) in `active.student_status_days`
-- **Error strings returned by `/api/iot/*` are a cross-repo contract** — PyrePortal maps them to German UI text (see `docs/agents/contracts.md` Ecosystem and IoT)
+- **Error codes returned by `/api/iot/*` are a cross-repo contract** — PyrePortal maps them to German UI text; the `detail` text is diagnostics (see `docs/agents/contracts.md` Ecosystem and IoT)
 
 ### GDPR/Privacy Patterns
-- Student data visibility is permission-scoped: admins and verified staff see full data for every child of the tenant (#2329 removed the per-group scope); guest/guardian accounts stay redacted. The wire keeps separate `has_full_access` (read) vs `has_write_access` (write) flags
-- Per-student retention: `DataRetentionDays int` (notnull) — 1-31 days, default 30 via the `DefaultDataRetentionDays` const (`models/users/privacy_consent.go`)
+- Student data visibility is permission-scoped: admins and verified staff see full data for every child of the tenant (#2329 removed the per-group scope); accounts without a staff record (guardians) stay redacted. Guests have a staff record, so route permissions limit them: the system role guest holds `students:read`, which opens only the child list/detail reads, never guardians, parent messages, notes or exports (ADR 0091). Child list/detail payloads additionally require `users:read` for health information and free-text notes, plus staff/admin access for addresses and day planning; `students:read` alone stays redacted, while enabled child photos remain readable. The wire keeps separate `has_full_access` (read) vs `has_write_access` (write) flags
+- Per-student retention: `DataRetentionDays int` (notnull) — 1-31 days, default 30 via `DefaultPrivacyConsentRetentionDays` (`modules/studentpresence/privacy_consent.go`); Student Presence owns the consent lifecycle
 - Automated cleanup is scheduled per tenant via the `gdpr.data_cleanup_*` settings; manual dry-run: `go run . cleanup preview|stats` (see [Cleanup CLI](../docs/agents/operations.md#cleanup-cli) for the exact CLI shapes — they differ per domain)
 - All deletions logged in `audit.data_deletions`
 - **Logging: no student names at Info level or above** (IDs only; names at Debug) — CI-enforced by `TestGDPRLogPIIRatchet` (`test/gdpr_log_pii_ratchet_test.go`): no log call at Info+ may read `FirstName`/`LastName`/`GreetingMsg`
@@ -137,26 +149,28 @@ Preserve assertion strength and report failed checks accurately.
 
 ## Seed Coverage (MANDATORY)
 
-The demo seeder (`seed/api`) plus `simulate full-day` are the widest end-to-end
+The demo seeder (`internal/devtools/seedapi`) plus `simulate full-day` are the widest end-to-end
 path in this repo, roughly a hundred real API calls across every module, and
 the only source of dev and demo data. Two rules follow from that:
 
 1. **A user-facing feature ships with seed data in the same PR.** A screen that
    is empty on every dev machine is a screen nobody reviews.
 2. **The coverage ratchet is not optional.** `TestSeedCoverageRatchet`
-   (`seed/api/coverage_ratchet_test.go`) fails when a table ends up with no
+   (`internal/devtools/seedapi/coverage_ratchet_test.go`) fails when a table ends up with no
    seeded rows and is not allowlisted, and just as loudly when an allowlisted
    table starts holding data (then delete the entry). The `seed-smoke` CI job
    runs it, and by running the seeder at all it also proves every API contract
    the seeder drives still holds.
 
-Allowlist entries reading `GAP: prod has N rows` are the measured backlog: 58
-tables that production tenants fill and the seeder does not. Shrink that list,
-never grow it.
+The test separates intentional exemptions, transient lifecycle state and
+coverage debt in `seedCoverageExemptions`, `seedCoverageTransient` and
+`seedCoverageDebt`. Inspect those current registers rather than an old table
+count. Shrink coverage debt; never grow it silently.
 
 ```bash
-# Against a seeded local stack
-docker compose exec server sh -c 'SEED_COVERAGE_DSN="$DB_DSN" go test ./seed/api/ -run TestSeedCoverageRatchet -v'
+# From the repo root, against a locally seeded stack (migrate + seed + simulate full-day)
+# SEED_COVERAGE_DSN must name that local seed database, not the test database.
+scripts/run-go-toolchain.sh scripts/dev-native.sh backend sh -c 'SEED_COVERAGE_DSN="$DB_DSN" go test -tags=testhooks ./internal/devtools/seedapi/ -run TestSeedCoverageRatchet -v'
 ```
 
 ## Logging: slog Only (MANDATORY)
@@ -167,10 +181,10 @@ All backend code uses `log/slog` via injected loggers — never logrus or `log.P
 s.logger.Info("visit recorded", "student_id", sid, "group_id", gid)  // snake_case keys
 ```
 
-- Loggers flow through the factory: `services.NewFactory(repos, db, logger)`; services scope with `logger.With("service", "active")`
+- Loggers flow from the process root (`composeProcess` in `api/server.go`) into the owner compositions; services scope with `logger.With("service", "active")`
 - Structs that tests construct bare use the nil-safe pattern: `getLogger()` returning `slog.Default()` when nil
 - **GDPR: student names never at Info level** — IDs only; names at Debug
-- Known exceptions (intentional `log.Printf`): `modules/identityaccess/legacy/jwt/tokenauth.go` startup logging; `cmd/` and `simulator/` route through slog default at WARN
+- Known exceptions (intentional `log.Printf`): `modules/identityaccess/sessiontoken/tokenauth.go` startup logging; `cmd/` and `internal/devtools/simulate/` route through slog default at WARN
 
 ## Real-time updates
 
@@ -180,7 +194,11 @@ event types, streaming endpoints, or client refetch behavior.
 
 ## Email
 
-SMTP config via `EMAIL_SMTP_*`, `EMAIL_FROM_*`, `FRONTEND_URL`/`PARENTS_URL` (link bases). With SMTP unset, local development uses `email.NewMockMailer()` to log metadata (subject/template; recipient addresses stay out of logs, #2108); staging and production fail startup. HTML templates live in `backend/templates/email/` (shared chrome: `styles.html`, `header.html`, `footer.html`; feature templates for invitations, password reset, MFA codes, enrollment notifications, operator flows). Most email sends use async `Dispatcher.Dispatch`; fail-closed sends such as MFA challenges use synchronous `Dispatcher.Deliver` and return success only after transport acceptance. Password hashing/strength helpers: `auth/authorize/credentials.go`, served to compositions through `modules/securityruntime` — reuse, don't duplicate.
+SMTP config via `EMAIL_SMTP_*`, `EMAIL_FROM_*`, `FRONTEND_URL`/`PARENTS_URL` (link bases). With SMTP unset, local development uses `email.NewMockMailer()` to log metadata (subject/template; recipient addresses stay out of logs, #2108); staging and production fail startup. HTML templates live in `backend/templates/email/` (shared chrome: `styles.html`, `header.html`, `footer.html`; feature templates for invitations, password reset, MFA codes, enrollment notifications, operator flows). Password-reset, school/operator-invitation, demo-access and absence mail is enqueued through Delivery in the same transaction as its triggering write, using the owner’s existing delivery port or a root binding. The lease-based worker renders and sends committed entries; enqueue success is not transport acceptance. Preserve the feature’s content, link lifetime, retry policy and delivery-result records. Global identity mail uses `EnqueueSystemEmail` in an administrative transaction, with no school tenant. Durable mail belongs in the outbox; in-process hooks are for losable notices such as SSE and cache invalidation. Trusted-device notices are enqueued with the device in the same administrative transaction.
+
+MFA challenges persist the initially consumed challenge and its mail in one administrative command transaction. After commit, the command leases that exact entry and sends synchronously with the existing interactive retries. Only transport acceptance activates the challenge and permits a successful response; exhausted transport failures are terminal. The worker recovers committed entries whose caller died before dispatch. Appointment reminder pushes, including recovered/deferred entries, are cancelled once the occurrence starts. They persist their existing idempotency key in the triggering transaction, then synchronously claim that exact outbox entry after commit. Transport failures remain visible to the caller and terminal (no automatic retry); the worker recovers entries left pending or with an expired pre-dispatch lease. An expired dispatch fence has an unknown outcome and is not resent. The exact, shrink-only register in `test/durable_side_effect_notices.json` records the harmless loss case for each remaining `go`, `Dispatch` and `AfterCommit` in HTTP, application and composition roles; durable writes cannot be added to those callbacks.
+
+Password hashing/strength helpers: `modules/securityruntime/credentials.go` (public root-bound capability) — reuse, don't duplicate.
 
 **Password-reset rate limit is a cross-layer contract**: 3 requests/hour per email; the backend's `429` + `Retry-After` header drives the live countdown in the frontend's password-reset modal (localStorage-persisted). Changing the window or header silently breaks that UX.
 

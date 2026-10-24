@@ -14,7 +14,7 @@ import (
 	"github.com/go-chi/render"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -41,6 +41,10 @@ func renderRequestNotFound(err error) render.Renderer {
 var updateAdminOfferingsErrorRenderer = common.RulesRenderer([]common.ErrorRule{
 	{Target: capability.ErrDecisionChildNotFound, Render: renderRequestNotFound},
 	{Target: capability.ErrDecisionRequestNotFound, Render: renderRequestNotFound},
+	// A weekday conflict is also an invalid adjustment; its own code wins.
+	{Target: capability.ErrCareOfferingDayConflict, Render: func(err error) render.Renderer {
+		return common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentCareOfferingDayConflict)
+	}},
 	{Target: capability.ErrOfferingAdjustmentInvalid, Render: func(err error) render.Renderer {
 		return common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentOfferingAdjustmentInvalid)
 	}},
@@ -100,7 +104,7 @@ func (rs *Resource) applyAdminOfferingUpdate(
 	if err != nil {
 		return nil, err
 	}
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	var updated *RequestChild
 	err = rs.runInTenantTx(r, func(ctx context.Context) error {
 		child, updateErr := rs.DecisionService.UpdateChildOfferings(ctx, UpdateChildOfferingsInput{
@@ -184,7 +188,7 @@ func optionalDateString(value *calendar.Date) string {
 
 // optionalInclusiveEndDateString renders a stored EXCLUSIVE interval end
 // as the inclusive last covered day, the shape the parent endpoint has
-// always used (modules/careplan/inbound/parent/care_offerings_handlers.go).
+// always used (workflows/parentportal/http/care_offerings_handlers.go).
 func optionalInclusiveEndDateString(value *calendar.Date) string {
 	if value == nil || value.IsZero() {
 		return ""

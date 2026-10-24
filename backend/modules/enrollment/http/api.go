@@ -15,7 +15,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 )
 
 // GuardianProfiles loads the guardian profile an account holds in one school,
@@ -26,6 +25,8 @@ type GuardianProfiles = capability.GuardianAutofillReader
 
 // Resource bundles the handler methods + their dependencies.
 type Resource struct {
+	Failures             DatabaseFailures
+	uploads              common.UploadStorage
 	FormSchemaService    capability.FormSchemaAdministration
 	CareOfferingService  CareOfferingCatalog
 	RequestService       RequestService
@@ -45,6 +46,12 @@ type Resource struct {
 	// list contract. Set as a field after construction (mirrors api/rooms),
 	// not via the constructor.
 	ListExportService lists.DocumentRenderer
+	// Uploads and UploadFiles serve the files parents attach (#4783). Set as
+	// fields after construction like ListExportService; without them the
+	// upload routes answer 500 and the detail lists no uploads.
+	Uploads     UploadService
+	UploadList  UploadListing
+	UploadFiles UploadFileStorage
 	// transactions is set by NewResource: the route steps then run in the
 	// tenant and administrative transactions of the shared tenant runtime.
 	// The bare Resource a route unit test builds runs runInTenantTx on the
@@ -74,9 +81,19 @@ func NewResource(
 	guardianInvitations GuardianInvitationRuntime,
 	guardianProfiles GuardianProfiles,
 	schoolService SchoolDirectory,
+	uploads common.UploadStorage,
+	failures DatabaseFailures,
 	legalDocumentRefs ...legalDocumentReferenceRepository,
 ) *Resource {
+	if uploads == nil {
+		panic("enrollment resource: upload storage is required")
+	}
+	if failures.Transient == nil || failures.Constraint == nil {
+		panic("enrollment resource: database failure classifiers are required")
+	}
 	rs := &Resource{
+		Failures:             failures,
+		uploads:              uploads,
 		FormSchemaService:    formSchemaSvc,
 		CareOfferingService:  careOfferingSvc,
 		RequestService:       requestSvc,
@@ -101,7 +118,7 @@ func NewResource(
 // Router returns a chi router scoped to /enrollment. PR 5 added the
 // admin form-schema endpoints; PR 6 adds care-offering admin CRUD +
 // the public open-window endpoint.
-func (rs *Resource) Router() chi.Router {
+func (rs *Resource) Router(configureSession func(chi.Router)) chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
@@ -112,10 +129,7 @@ func (rs *Resource) Router() chi.Router {
 
 	// Authenticated admin endpoints.
 	r.Group(func(r chi.Router) {
-		r.Use(jwt.Authenticator)
-		r.Use(common.ReadOnlyPreviewMiddleware)
-		r.Use(common.TenantScopeMiddleware)
-		r.Use(common.SecurityPrincipalMiddleware)
+		configureSession(r)
 
 		rs.mountConfigRoutes(r)
 		rs.mountPhaseRoutes(r)
@@ -136,6 +150,7 @@ func (rs *Resource) mountPublicRoutes(r chi.Router) {
 	r.Get("/legal/{tenantSlug}/{phaseId}", rs.publicLegalTexts)
 	r.Get("/legal/{tenantSlug}", rs.publicLegalTexts)
 	r.Post("/{tenantSlug}/submit", rs.submitEnrollment)
+	r.Post("/{tenantSlug}/uploads", rs.uploadEnrollmentFile)
 	r.Get("/requests/{statusToken}", rs.getStatus)
 	r.Get("/requests/{statusToken}/edit-bootstrap", rs.getEditBootstrap)
 	r.Patch("/requests/{statusToken}", rs.patchStatus)
@@ -254,6 +269,11 @@ func (rs *Resource) mountAdminRequestRoutes(r chi.Router) {
 		r.With(common.RequiresPermission("config:manage")).Post("/mark-all-read", rs.markAllAdminRequestsRead)
 		r.Route("/{id}", func(r chi.Router) {
 			r.With(common.RequiresPermission("config:manage")).Get("/", rs.getAdminRequest)
+			// Opening a parent's file needs its own permission on top of the
+			// detail (#4783); every open is recorded in the access log.
+			r.Route("/uploads", func(r chi.Router) {
+				r.With(common.RequiresAllPermissions(permissions.ConfigManage, permissions.EnrollmentUploadsRead)).Get("/{uploadId}", rs.openAdminRequestUpload)
+			})
 			r.With(common.RequiresPermission("config:manage")).Put("/read", rs.markAdminRequestRead)
 			r.With(common.RequiresPermission("config:manage")).Delete("/read", rs.markAdminRequestUnread)
 			r.With(common.RequiresPermission("config:manage")).Get("/delete-impact", rs.getAdminRequestDeleteImpact)

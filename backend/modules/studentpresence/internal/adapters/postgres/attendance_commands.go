@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 )
 
@@ -50,6 +51,23 @@ func (s *Store) DeleteAttendance(ctx context.Context, id int64) (ports.Stats, er
 	stats := ports.Stats{Queries: 1, StatementDuration: time.Since(started)}
 	if err != nil {
 		return stats, fmt.Errorf("delete attendance: %w", err)
+	}
+	stats.Rows, err = result.RowsAffected()
+	return stats, err
+}
+
+// DeleteAttendanceBefore deletes the tenant's attendance dated before cutoff
+// (#3957). Nothing references an attendance row, so the rows go alone.
+func (s *Store) DeleteAttendanceBefore(ctx context.Context, cutoff ports.Date) (ports.Stats, error) {
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return ports.Stats{}, err
+	}
+	started := time.Now()
+	result, err := db.NewDelete().Table("active.attendance").Where("tenant_id = ?", tenantID).Where("date < ?", cutoff).Exec(ctx)
+	stats := ports.Stats{Queries: 1, StatementDuration: time.Since(started)}
+	if err != nil {
+		return stats, fmt.Errorf("delete expired attendance: %w", err)
 	}
 	stats.Rows, err = result.RowsAffected()
 	return stats, err
@@ -114,7 +132,7 @@ func (s *Store) LockStudentAttendance(ctx context.Context, id int64) (ports.Stat
 	return stats, nil
 }
 
-func (s *Store) HasAttendance(ctx context.Context, filter ports.AttendanceFilter) (bool, ports.Stats, error) {
+func (s *Store) HasAttendance(ctx context.Context, filter studentpresence.AttendanceFilter) (bool, ports.Stats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return false, ports.Stats{}, err

@@ -3,12 +3,10 @@ package application
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sort"
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/ports"
 )
 
 // StudentWrite is one create or update of a child, as the caller submits it:
@@ -28,10 +26,6 @@ type StudentWrite struct {
 	// NoteSupplied distinguishes "the caller cleared the note" from "the caller
 	// said nothing about it", which a nil pointer alone cannot.
 	NoteSupplied bool
-	// SupervisorNotesSupplied says the legacy master-data field changed. It is
-	// separate from the value because unrelated writes carry a hydrated record
-	// and must not resurrect a deliberately removed carried-over hint.
-	SupervisorNotesSupplied bool
 }
 
 // A failed composite command must undo its own writes even when an ambient
@@ -74,10 +68,6 @@ func (s *StudentService) CreateStudent(ctx context.Context, write StudentWrite) 
 		if err != nil {
 			return err
 		}
-		if err := s.syncLegacySupervisorNotes(txCtx, stats, record.ID, record.SupervisorNotes,
-			write.SupervisorNotesSupplied && hasLegacySupervisorNotes(record.SupervisorNotes)); err != nil {
-			return err
-		}
 		result = applyPlanToRecord(record, resolved, noteToStore(resolved, write.CompanionNote))
 		return nil
 	})
@@ -110,16 +100,10 @@ func (s *StudentService) UpdateStudent(ctx context.Context, write StudentWrite) 
 			return err
 		}
 
-		stored, found, planStats, err := s.store.FindDeparturePlan(txCtx, write.Record.ID)
-		stats.Add(planStats)
+		current, err := s.currentDeparturePlan(txCtx, stats, write.Record.ID)
 		if err != nil {
 			return err
 		}
-		var current *domain.DeparturePlan
-		if found {
-			current = &stored
-		}
-
 		plan := write.Plan.Rebase(write.Baseline, current)
 		resolved := plan.Align(current)
 
@@ -133,23 +117,16 @@ func (s *StudentService) UpdateStudent(ctx context.Context, write StudentWrite) 
 		// table and is not part of the row. Derive it here, the one layer every
 		// update passes through, so a caller that knows nothing about links can
 		// still save a child whose "mit wem" is answered by one.
-		var covered map[string]bool
-		if trim != nil {
-			covered = trim.KeptDays
-		}
-		if err := domain.ValidateStudentRecord(write.Record, plan, resolved, write.CompanionNote, covered); err != nil {
+		if err := validateCompanionStudentWrite(write, plan, resolved, trim); err != nil {
 			return err
 		}
-
 		record, err := s.persistStudentWrite(txCtx, stats, write, resolved, plan.Touched() || write.NoteSupplied)
 		if err != nil {
 			return err
 		}
 
-		if trim != nil && len(trim.DropIDs) > 0 {
-			if err := s.companions.DeleteEdges(txCtx, trim.DropIDs); err != nil {
-				return err
-			}
+		if err := s.deleteCompanionTrim(txCtx, trim); err != nil {
+			return err
 		}
 		result = applyPlanToRecord(record, resolved, noteToStore(resolved, write.CompanionNote))
 		return nil
@@ -176,49 +153,23 @@ func (s *StudentService) persistStudentWrite(
 	if err := s.saveStudentOwners(ctx, record, plan, note, planTouched); err != nil {
 		return domain.StudentRecord{}, err
 	}
-	if err := s.syncLegacySupervisorNotes(ctx, stats, record.ID, record.SupervisorNotes, write.SupervisorNotesSupplied); err != nil {
-		return domain.StudentRecord{}, err
-	}
 	return record, nil
 }
 
-func (s *StudentService) syncLegacySupervisorNotes(
+// importPermanentHint writes the import's „Betreuernotizen" cell to the note
+// card. An empty cell says nothing about the child, so it never removes a hint.
+func (s *StudentService) importPermanentHint(
 	ctx context.Context,
 	stats *domain.OperationStats,
 	studentID int64,
-	supervisorNotes *string,
-	supplied bool,
+	hint *string,
 ) error {
-	if !supplied {
+	if hint == nil || strings.TrimSpace(*hint) == "" {
 		return nil
 	}
-	var deletedNoteID int64
-	if !hasLegacySupervisorNotes(supervisorNotes) {
-		legacyNote, found, findStats, err := s.notes.FindLegacySupervisorNote(ctx, studentID, "UPDATE")
-		stats.Add(findStats)
-		if err != nil {
-			return err
-		}
-		if found {
-			if s.audit == nil {
-				return ports.ErrStudentNoteDeletionAuditUnavailable
-			}
-			deletedNoteID = legacyNote.ID
-		}
-	}
-	queryStats, err := s.notes.SyncLegacySupervisorNotes(ctx, studentID, supervisorNotes)
+	queryStats, err := s.notes.ImportPermanentHint(ctx, studentID, strings.TrimSpace(*hint))
 	stats.Add(queryStats)
-	if err != nil || deletedNoteID == 0 {
-		return err
-	}
-	if err := s.audit.RecordLegacyStudentNoteDeletion(ctx, studentID, deletedNoteID); err != nil {
-		return fmt.Errorf("record legacy student note deletion: %w", err)
-	}
-	return nil
-}
-
-func hasLegacySupervisorNotes(notes *string) bool {
-	return notes != nil && strings.TrimSpace(*notes) != ""
+	return err
 }
 
 func (s *StudentService) saveStudentOwners(ctx context.Context, record domain.StudentRecord, plan domain.DeparturePlan, note *string, touched bool) error {
@@ -322,25 +273,7 @@ func (s *StudentService) reconcileCompanions(
 		return &domain.CompanionTrim{}, nil
 	}
 
-	trim := &domain.CompanionTrim{KeptDays: make(map[string]bool, len(domain.CompanionWeekdayKeys))}
-	removedDays := make(map[int64][]string, len(edges))
-	removed := make([]int64, 0, len(edges))
-	for _, edge := range edges {
-		far, ok := edge.Other(studentID)
-		if !ok {
-			continue
-		}
-		day := domain.CompanionWeekdayKeys[edge.Weekday]
-		if accompanied[day] {
-			trim.KeptDays[day] = true
-			continue
-		}
-		trim.DropIDs = append(trim.DropIDs, edge.ID)
-		if _, seen := removedDays[far]; !seen {
-			removed = append(removed, far)
-		}
-		removedDays[far] = append(removedDays[far], day)
-	}
+	trim, removed, removedDays := companionTrim(edges, studentID, accompanied)
 	if len(trim.DropIDs) == 0 {
 		return trim, nil
 	}
@@ -425,7 +358,7 @@ func (s *StudentService) decideStranding(
 	if s.companions == nil {
 		return errors.New("people directory application: companion capability is not bound")
 	}
-	covered, err := s.companions.DaysCoveredExcluding(ctx, removed, excludeID)
+	covered, err := s.companions.CompanionDaysCoveredExcluding(ctx, removed, excludeID)
 	if err != nil {
 		return err
 	}
@@ -439,6 +372,69 @@ func (s *StudentService) decideStranding(
 		byID[record.ID] = record
 	}
 
+	return requireUnstrandedCompanions(removed, byID, removedDays, covered)
+}
+
+// noteToStore answers the value the companion-note column must hold after this
+// write: the supplied note while the resolved plan still allows an accompanied
+// day, NULL otherwise. The free-text "mit wem" must never outlive the mode that
+// justifies it, whichever projection drove the change.
+func noteToStore(resolved domain.DeparturePlan, note *string) *string {
+	if resolved.AllowedDepartureModes.HasMode(domain.DepartureAccompanied) {
+		return note
+	}
+	return nil
+}
+
+// applyPlanToRecord reflects what was actually persisted back onto the row the
+// caller gets, so it renders the stored plan rather than the one it submitted.
+func applyPlanToRecord(record domain.StudentRecord, resolved domain.DeparturePlan, note *string) domain.StudentRecord {
+	record.AllowedDepartureModes = resolved.AllowedDepartureModes
+	record.DepartureDays = resolved.DepartureDays
+	record.BusDays = resolved.BusDays
+	record.PickupDays = resolved.PickupDays
+	status := resolved.AllowedDepartureModes.LegacyPickupStatus()
+	record.PickupStatus = &status
+	record.DepartureCompanionNote = note
+	return record
+}
+
+func validateCompanionStudentWrite(write StudentWrite, plan, resolved domain.DeparturePlan, trim *domain.CompanionTrim) error {
+	var covered map[string]bool
+	if trim != nil {
+		covered = trim.KeptDays
+	}
+	if err := domain.ValidateStudentRecord(write.Record, plan, resolved, write.CompanionNote, covered); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func companionTrim(edges []domain.CompanionEdge, studentID int64, accompanied map[string]bool) (*domain.CompanionTrim, []int64, map[int64][]string) {
+	trim := &domain.CompanionTrim{KeptDays: make(map[string]bool, len(domain.CompanionWeekdayKeys))}
+	removedDays := make(map[int64][]string, len(edges))
+	removed := make([]int64, 0, len(edges))
+	for _, edge := range edges {
+		far, ok := edge.Other(studentID)
+		if !ok {
+			continue
+		}
+		day := domain.CompanionWeekdayKeys[edge.Weekday]
+		if accompanied[day] {
+			trim.KeptDays[day] = true
+			continue
+		}
+		trim.DropIDs = append(trim.DropIDs, edge.ID)
+		if _, seen := removedDays[far]; !seen {
+			removed = append(removed, far)
+		}
+		removedDays[far] = append(removedDays[far], day)
+	}
+	return trim, removed, removedDays
+}
+
+func requireUnstrandedCompanions(removed []int64, byID map[int64]domain.StudentRecord, removedDays map[int64][]string, covered map[int64]map[string]bool) error {
 	for _, id := range removed {
 		record, ok := byID[id]
 		if !ok {
@@ -464,26 +460,25 @@ func (s *StudentService) decideStranding(
 	return nil
 }
 
-// noteToStore answers the value the companion-note column must hold after this
-// write: the supplied note while the resolved plan still allows an accompanied
-// day, NULL otherwise. The free-text "mit wem" must never outlive the mode that
-// justifies it, whichever projection drove the change.
-func noteToStore(resolved domain.DeparturePlan, note *string) *string {
-	if resolved.AllowedDepartureModes.HasMode(domain.DepartureAccompanied) {
-		return note
+func (s *StudentService) currentDeparturePlan(txCtx context.Context, stats *domain.OperationStats, studentID int64) (*domain.DeparturePlan, error) {
+	stored, found, planStats, err := s.store.FindDeparturePlan(txCtx, studentID)
+	stats.Add(planStats)
+	if err != nil {
+		return nil, err
 	}
-	return nil
+	var current *domain.DeparturePlan
+	if found {
+		current = &stored
+	}
+
+	return current, nil
 }
 
-// applyPlanToRecord reflects what was actually persisted back onto the row the
-// caller gets, so it renders the stored plan rather than the one it submitted.
-func applyPlanToRecord(record domain.StudentRecord, resolved domain.DeparturePlan, note *string) domain.StudentRecord {
-	record.AllowedDepartureModes = resolved.AllowedDepartureModes
-	record.DepartureDays = resolved.DepartureDays
-	record.BusDays = resolved.BusDays
-	record.PickupDays = resolved.PickupDays
-	status := resolved.AllowedDepartureModes.LegacyPickupStatus()
-	record.PickupStatus = &status
-	record.DepartureCompanionNote = note
-	return record
+func (s *StudentService) deleteCompanionTrim(txCtx context.Context, trim *domain.CompanionTrim) error {
+	if trim != nil && len(trim.DropIDs) > 0 {
+		if err := s.companions.DeleteEdges(txCtx, trim.DropIDs); err != nil {
+			return err
+		}
+	}
+	return nil
 }

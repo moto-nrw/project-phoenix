@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailbranding"
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
 
@@ -38,6 +37,8 @@ type MailOutbox interface {
 
 // NotificationDependencies bind the parent mails to their owners.
 type NotificationDependencies struct {
+	// Branding returns the school and moto logo URLs for a mail.
+	Branding func(baseURL, schoolImageURL string) (schoolLogoURL, motoLogoURL string)
 	Modes    NotificationModePin
 	Settings NotificationSettings
 	Outbox   MailOutbox
@@ -55,20 +56,25 @@ type Notifications struct {
 
 // NewNotifications binds the parent mails to their owners.
 func NewNotifications(deps NotificationDependencies) *Notifications {
+	if deps.Branding == nil {
+		panic("enrollment notifications: mail branding is required")
+	}
 	return &Notifications{deps: deps}
 }
 
-// SchoolBrand returns the tenant school's name and logo link for a mail, or
-// empty strings when the school cannot be read or is deleted.
-func (n *Notifications) SchoolBrand(ctx context.Context, tenantID int64, baseURL string) (string, string) {
+// SchoolBrand brands a mail even when the school cannot be read: only its
+// name and school logo are then empty; the moto footer remains available.
+func (n *Notifications) SchoolBrand(ctx context.Context, tenantID int64, baseURL string) (string, string, string) {
+	_, motoLogoURL := n.deps.Branding(baseURL, "")
 	if n.deps.Schools == nil || tenantID == 0 {
-		return "", ""
+		return "", "", motoLogoURL
 	}
 	school, err := n.deps.Schools.FindSchool(ctx, tenantID)
 	if err != nil || school == nil || school.Deleted {
-		return "", ""
+		return "", "", motoLogoURL
 	}
-	return school.Name, emailbranding.SchoolLogoURL(baseURL, schoolLoginImageURL(school.Settings))
+	logoURL, _ := n.deps.Branding(baseURL, schoolLoginImageURL(school.Settings))
+	return school.Name, logoURL, motoLogoURL
 }
 
 func schoolLoginImageURL(rawSettings string) string {
@@ -242,7 +248,7 @@ func decisionChildStateVector(child enrollment.DecisionChild) string {
 // decisionMailPayload is the payload every decision mail shares.
 func (n *Notifications) decisionMailPayload(ctx context.Context, notice enrollment.DecisionNotice) map[string]any {
 	request := notice.Request
-	schoolName, logoURL := n.SchoolBrand(ctx, request.TenantID, notice.ParentsURL)
+	schoolName, logoURL, footerLogoURL := n.SchoolBrand(ctx, request.TenantID, notice.ParentsURL)
 	phaseName := ""
 	if notice.Phase != nil {
 		phaseName = notice.Phase.Name
@@ -255,7 +261,7 @@ func (n *Notifications) decisionMailPayload(ctx context.Context, notice enrollme
 		enrollment.EnrollmentPayloadSchoolName:        schoolName,
 		enrollment.EnrollmentPayloadStatusURL:         enrollment.StatusURL(notice.ParentsURL, request.StatusToken),
 		enrollment.EnrollmentPayloadLogoURL:           logoURL,
-		enrollment.EnrollmentPayloadMotoLogoURL:       emailbranding.MotoLogoURL(notice.ParentsURL),
+		enrollment.EnrollmentPayloadMotoLogoURL:       footerLogoURL,
 		enrollment.EnrollmentPayloadPhaseName:         phaseName,
 	}
 }

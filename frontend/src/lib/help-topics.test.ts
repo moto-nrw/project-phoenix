@@ -241,8 +241,16 @@ describe("getParentHelpTopicForPath", () => {
       group: "einstieg",
     });
     // Am Computer, Wie die Seitenleiste geordnet ist, Auf dem Handy oder
-    // Tablet, Hilfe öffnen.
-    expect(caregiverTopics[3]?.instructionGroups).toHaveLength(4);
+    // Tablet, Die Startseite anpassen (#4347), Hilfe öffnen.
+    expect(
+      caregiverTopics[3]?.instructionGroups?.map((group) => group.title),
+    ).toEqual([
+      "Am Computer",
+      "Wie die Seitenleiste geordnet ist",
+      "Auf dem Handy oder Tablet",
+      "Die Startseite anpassen",
+      "Hilfe öffnen",
+    ]);
     expect(caregiverTopics[4]).toMatchObject({
       id: HELP_TOPICS.caregiverFirstSteps,
       group: "einstieg",
@@ -286,7 +294,14 @@ describe("getParentHelpTopicForPath", () => {
       id: HELP_TOPICS.studentSearch,
       group: "kinder",
     });
-    expect(caregiverTopics[8]?.instructionGroups).toHaveLength(4);
+    expect(caregiverTopics[8]?.instructionGroups).toHaveLength(5);
+    expect(caregiverTopics[8]?.instructionGroups?.[3]).toMatchObject({
+      title: "Ein Anwesenheitsprotokoll herunterladen",
+      steps: expect.arrayContaining([
+        "Möglich sind nur die sichtbaren Tage bis heute.",
+        "Wählen Sie das Format und danach `Herunterladen`.",
+      ]),
+    });
     expect(caregiverTopics[8]?.troubleshooting).toBe(
       HELP_TOPICS.missingChildOrGroup,
     );
@@ -315,7 +330,7 @@ describe("getParentHelpTopicForPath", () => {
       id: HELP_TOPICS.transferGroup,
     });
     // 42 seit #3821 („Eigenen Dienstplan ansehen“).
-    expect(caregiverTopics).toHaveLength(42);
+    expect(caregiverTopics).toHaveLength(43);
     expect([...new Set(caregiverTopics.map((topic) => topic.group))]).toEqual([
       "einstieg",
       "tagesplanung",
@@ -343,7 +358,7 @@ describe("getParentHelpTopicForPath", () => {
       "Prüfen Sie oben die Anwesenheit sowie die heutige Ankunft und Abholung.",
     );
     expect(detailedArticle?.result).toBe(
-      "Sie sehen jetzt die Angaben des Kindes. Auf dem Handy wählen Sie `Zurück`. Am Computer nutzen Sie die Navigation oben.",
+      "Sie sehen jetzt die Angaben des Kindes. Über dem Namen steht `Zurück zur Kinderübersicht`. Damit kommen Sie zur Liste zurück.",
     );
     expect(binaryArticle?.differences).toContain(
       "Bei einfacher Anwesenheit sehen Sie keinen Raum. Sie sehen nur, ob das Kind da ist.",
@@ -428,7 +443,7 @@ describe("getParentHelpTopicForPath", () => {
       (topic) => topic.id === HELP_TOPICS.login,
     );
 
-    expect(detailedLogin?.result).toContain("Meine Gruppen");
+    expect(detailedLogin?.result).toContain("`Gruppen`");
     expect(openCareLogin?.result).toContain("Alle Kinder");
     expect(binaryLogin?.result).toContain("Alle Kinder");
   });
@@ -463,15 +478,17 @@ describe("getParentHelpTopicForPath", () => {
       "Bei einfacher Anwesenheit zeigt die Liste `Anwesend` statt eines Raums.",
     );
     expect(article(detailedTopics, HELP_TOPICS.ownGroups)?.steps).toContain(
-      "Öffnen Sie `Meine Gruppen` oder `Weitere Gruppen` in der Seitenleiste.",
+      "Öffnen Sie `Gruppen` in der Seitenleiste.",
+    );
+    // #4351: die Auswahlseite markiert die eigene Gruppe.
+    expect(article(detailedTopics, HELP_TOPICS.ownGroups)?.steps).toContain(
+      "Wählen Sie die gewünschte Gruppe. Ihre eigene Gruppe ist mit `Meine Gruppe` markiert.",
     );
     expect(
       getHelpTopics("unknown", "unknown", true).find(
         (topic) => topic.id === HELP_TOPICS.ownGroups,
       )?.steps,
-    ).toContain(
-      "Prüfen Sie, ob `Meine Gruppen` oder `Weitere Gruppen` in der Seitenleiste steht.",
-    );
+    ).toContain("Prüfen Sie, ob `Gruppen` in der Seitenleiste steht.");
     expect(article(openCareTopics, HELP_TOPICS.ownGroups)).toBeUndefined();
     expect(article(openCareTopics, HELP_TOPICS.transferGroup)).toBeUndefined();
   });
@@ -492,7 +509,7 @@ describe("getParentHelpTopicForPath", () => {
           // unter die NFC- und die Anwesenheitsregel, wird also nur
           // einmal abgezogen.
           const expectedLength =
-            42 -
+            43 -
             (nfcEnabled ? 0 : 7) -
             (presenceMode === "binary" ? (nfcEnabled ? 5 : 4) : 0) -
             (groupMode === "open_care" ? 2 : 0);
@@ -530,7 +547,8 @@ describe("getParentHelpTopicForPath", () => {
     // des Tagesbetriebs, der Umgang mit dem NFC-Tablet und die Notizen zu
     // einem Kind.
     // 83 seit #3821: der eigene Dienstplan ist ein geteilter Artikel.
-    expect(leadTopics).toHaveLength(83);
+    // 84 seit #3727: die wichtigsten Einstellungen im Überblick.
+    expect(leadTopics).toHaveLength(85);
     expect(
       leadTopics.every(
         (topic) =>
@@ -555,7 +573,7 @@ describe("getParentHelpTopicForPath", () => {
     );
     const visible = new Set(parentTopics.map((topic) => topic.id));
 
-    expect(parentTopics).toHaveLength(22);
+    expect(parentTopics).toHaveLength(23);
     expect(
       parentTopics.every(
         (topic) =>
@@ -589,7 +607,7 @@ describe("getParentHelpTopicForPath", () => {
     ).filter((topic) => helpTopicMatchesRole(topic, "teacher"));
     const visible = new Set(teacherTopics.map((topic) => topic.id));
 
-    expect(teacherTopics).toHaveLength(16);
+    expect(teacherTopics).toHaveLength(17);
     expect(
       teacherTopics.every(
         (topic) =>

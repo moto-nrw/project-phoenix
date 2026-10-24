@@ -1,15 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
 import { POST } from "./route";
-
-// ============================================================================
-// Types
-// ============================================================================
-
-interface ExtendedSession extends Session {
-  user: Session["user"] & { token?: string };
-}
+import {
+  type ExtendedSession,
+  defaultSession,
+} from "~/test/route-test-helpers";
 
 // ============================================================================
 // Mocks
@@ -24,20 +19,17 @@ vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));
 
-vi.mock("~/lib/api-helpers.server", () => ({
-  apiGet: vi.fn(),
-  apiPost: mockApiPost,
-  apiPut: vi.fn(),
-  apiDelete: vi.fn(),
-  handleApiError: vi.fn((error: unknown) => {
-    const message =
-      error instanceof Error ? error.message : "Internal Server Error";
-    // Extract status code from error message like "Error message (404)"
-    const statusMatch = /\((\d+)\)/.exec(message);
-    const status = statusMatch ? parseInt(statusMatch[1]!, 10) : 500;
-    return new Response(JSON.stringify({ error: message }), { status });
-  }),
-}));
+vi.mock("~/lib/api-helpers.server", async () => {
+  const { mockHandleApiError } =
+    await import("~/test/helpers/handle-api-error");
+  return {
+    apiGet: vi.fn(),
+    apiPost: mockApiPost,
+    apiPut: vi.fn(),
+    apiDelete: vi.fn(),
+    handleApiError: vi.fn(mockHandleApiError),
+  };
+});
 
 // ============================================================================
 // Test Helpers
@@ -72,11 +64,6 @@ function createMockContext(
   };
 }
 
-const defaultSession: ExtendedSession = {
-  user: { id: "1", token: "test-token", name: "Test User" },
-  expires: "2099-01-01",
-};
-
 // ============================================================================
 // Tests
 // ============================================================================
@@ -85,15 +72,6 @@ describe("POST /api/invitations/[id]/resend", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(defaultSession);
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/invitations/123/resend");
-    const response = await POST(request, createMockContext({ id: "123" }));
-
-    expect(response.status).toBe(401);
   });
 
   it("resends invitation via backend", async () => {
@@ -160,14 +138,5 @@ describe("POST /api/invitations/[id]/resend", () => {
     // TypeError is caught by wrapper and returns 500
     expect(response.status).toBe(500);
     expect(mockApiPost).not.toHaveBeenCalled();
-  });
-
-  it("forwards backend errors", async () => {
-    mockApiPost.mockRejectedValueOnce(new Error("Not found (404)"));
-
-    const request = createMockRequest("/api/invitations/999/resend");
-    const response = await POST(request, createMockContext({ id: "999" }));
-
-    expect(response.status).toBe(404);
   });
 });

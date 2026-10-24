@@ -3,9 +3,9 @@ package presence
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 type ManualPartialAbsenceReader interface {
-	ManualPartialAbsenceDates(context.Context, int64, timezone.Date, timezone.Date) ([]timezone.Date, error)
+	ManualPartialAbsenceDates(context.Context, int64, calendar.Date, calendar.Date) ([]calendar.Date, error)
 }

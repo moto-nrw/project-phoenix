@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+
+	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
 
 // Care Plan owns the care-offering catalog (#3559). Enrollment's flows and
@@ -32,37 +34,47 @@ func NewCareOfferingRecords(carePlan CarePlanOfferings) *CareOfferingRecords {
 }
 
 // ListByPhase lists every offering of a phase in catalog order.
-func (r *CareOfferingRecords) ListByPhase(ctx context.Context, phaseID int64) ([]*enrollmentModels.CareOffering, error) {
+func (r *CareOfferingRecords) ListByPhase(ctx context.Context, phaseID int64) ([]*offeringContract.CareOfferingRecord, error) {
 	return r.list(ctx, careplan.CareOfferingFilter{PhaseIDs: []int64{phaseID}, Order: careplan.OfferingOrderCatalog}, "failed to list care offerings by phase")
 }
 
 // ListActiveByPhase lists the active offerings of a phase in catalog order.
-func (r *CareOfferingRecords) ListActiveByPhase(ctx context.Context, phaseID int64) ([]*enrollmentModels.CareOffering, error) {
+func (r *CareOfferingRecords) ListActiveByPhase(ctx context.Context, phaseID int64) ([]*offeringContract.CareOfferingRecord, error) {
 	return r.list(ctx, careplan.CareOfferingFilter{PhaseIDs: []int64{phaseID}, ActiveOnly: true, Order: careplan.OfferingOrderCatalog}, "failed to list active offerings by phase")
 }
 
 // ListByIDs lists the offerings with the given ids in catalog order.
-func (r *CareOfferingRecords) ListByIDs(ctx context.Context, ids []int64) ([]*enrollmentModels.CareOffering, error) {
+func (r *CareOfferingRecords) ListByIDs(ctx context.Context, ids []int64) ([]*offeringContract.CareOfferingRecord, error) {
 	if len(ids) == 0 {
-		return []*enrollmentModels.CareOffering{}, nil
+		return []*offeringContract.CareOfferingRecord{}, nil
 	}
 	return r.list(ctx, careplan.CareOfferingFilter{IDs: ids, Order: careplan.OfferingOrderCatalog}, "failed to list care offerings by ids")
 }
 
+// CareOfferingsByIDs exposes the existing decoded rows as public catalog
+// values. Reusing ListByIDs retains its empty-input, ordering and error contract.
+func (r *CareOfferingRecords) CareOfferingsByIDs(ctx context.Context, ids []int64) ([]*enrollmentNative.CareOffering, error) {
+	rows, err := r.ListByIDs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	return publicCareOfferings(rows), nil
+}
+
 // ListByIDsForUpdate locks the offerings with the given ids by ascending id.
-func (r *CareOfferingRecords) ListByIDsForUpdate(ctx context.Context, ids []int64) ([]*enrollmentModels.CareOffering, error) {
+func (r *CareOfferingRecords) ListByIDsForUpdate(ctx context.Context, ids []int64) ([]*offeringContract.CareOfferingRecord, error) {
 	if len(ids) == 0 {
-		return []*enrollmentModels.CareOffering{}, nil
+		return []*offeringContract.CareOfferingRecord{}, nil
 	}
 	return r.list(ctx, careplan.CareOfferingFilter{IDs: ids, LockForUpdate: true, Order: careplan.OfferingOrderID}, "failed to lock care offerings by ids")
 }
 
-func (r *CareOfferingRecords) list(ctx context.Context, filter careplan.CareOfferingFilter, message string) ([]*enrollmentModels.CareOffering, error) {
+func (r *CareOfferingRecords) list(ctx context.Context, filter careplan.CareOfferingFilter, message string) ([]*offeringContract.CareOfferingRecord, error) {
 	values, err := r.carePlan.ListCareOfferings(ctx, filter)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", message, err)
 	}
-	result := make([]*enrollmentModels.CareOffering, 0, len(values))
+	result := make([]*offeringContract.CareOfferingRecord, 0, len(values))
 	for _, value := range values {
 		offering, convertErr := careOfferingRow(value)
 		if convertErr != nil {
@@ -96,35 +108,35 @@ type (
 )
 
 // List lists the tenant's catalog.
-func (r *CareOfferingRows) List(ctx context.Context) ([]*enrollmentModels.CareOffering, error) {
+func (r *CareOfferingRows) List(ctx context.Context) ([]*offeringContract.CareOfferingRecord, error) {
 	return r.rows(func(catalog careplan.CareOfferingCatalog) ([]careplan.CareOffering, error) {
 		return catalog.ListCatalog(ctx)
 	})
 }
 
 // ListByPhase lists the catalog of one phase.
-func (r *CareOfferingRows) ListByPhase(ctx context.Context, phaseID int64) ([]*enrollmentModels.CareOffering, error) {
+func (r *CareOfferingRows) ListByPhase(ctx context.Context, phaseID int64) ([]*offeringContract.CareOfferingRecord, error) {
 	return r.rows(func(catalog careplan.CareOfferingCatalog) ([]careplan.CareOffering, error) {
 		return catalog.ListByPhase(ctx, phaseID)
 	})
 }
 
 // GetByID loads one offering.
-func (r *CareOfferingRows) GetByID(ctx context.Context, id int64) (*enrollmentModels.CareOffering, error) {
+func (r *CareOfferingRows) GetByID(ctx context.Context, id int64) (*offeringContract.CareOfferingRecord, error) {
 	return r.row(func(catalog careplan.CareOfferingCatalog) (careplan.CareOffering, error) {
 		return catalog.FindOffering(ctx, id)
 	})
 }
 
 // Create saves a new offering and returns the stored row.
-func (r *CareOfferingRows) Create(ctx context.Context, row *enrollmentModels.CareOffering) (*enrollmentModels.CareOffering, error) {
+func (r *CareOfferingRows) Create(ctx context.Context, row *offeringContract.CareOfferingRecord) (*offeringContract.CareOfferingRecord, error) {
 	return row, r.save(row, func(catalog careplan.CareOfferingCatalog, offering careplan.CareOffering) (careplan.CareOffering, error) {
 		return catalog.CreateOffering(ctx, offering)
 	})
 }
 
 // Update saves the offering and refreshes row with the stored state.
-func (r *CareOfferingRows) Update(ctx context.Context, row *enrollmentModels.CareOffering) error {
+func (r *CareOfferingRows) Update(ctx context.Context, row *offeringContract.CareOfferingRecord) error {
 	return r.save(row, func(catalog careplan.CareOfferingCatalog, offering careplan.CareOffering) (careplan.CareOffering, error) {
 		return catalog.UpdateOffering(ctx, offering)
 	})
@@ -139,25 +151,25 @@ func (r *CareOfferingRows) Delete(ctx context.Context, id int64) error {
 }
 
 // Clone copies an offering into a target phase.
-func (r *CareOfferingRows) Clone(ctx context.Context, sourceID, targetPhaseID int64) (*enrollmentModels.CareOffering, error) {
+func (r *CareOfferingRows) Clone(ctx context.Context, sourceID, targetPhaseID int64) (*offeringContract.CareOfferingRecord, error) {
 	return r.row(func(catalog careplan.CareOfferingCatalog) (careplan.CareOffering, error) {
 		return catalog.Clone(ctx, sourceID, targetPhaseID)
 	})
 }
 
 // ListBookingStats reports how full each offering of the phase is.
-func (r *CareOfferingRows) ListBookingStats(ctx context.Context, phaseID int64) ([]enrollment.CareOfferingBookingStat, error) {
+func (r *CareOfferingRows) ListBookingStats(ctx context.Context, phaseID int64) ([]enrollmentNative.CareOfferingBookingStat, error) {
 	return r.bookingStats(func(catalog careplan.CareOfferingCatalog) ([]careplan.CareOfferingBookingStat, error) {
 		return catalog.ListBookingStats(ctx, phaseID)
 	})
 }
 
-func (r *CareOfferingRows) rows(list catalogListing) ([]*enrollmentModels.CareOffering, error) {
+func (r *CareOfferingRows) rows(list catalogListing) ([]*offeringContract.CareOfferingRecord, error) {
 	offerings, err := careOfferingRowsOf(list(r.catalog))
 	return offerings, publicError(err)
 }
 
-func (r *CareOfferingRows) row(operation catalogOperation) (*enrollmentModels.CareOffering, error) {
+func (r *CareOfferingRows) row(operation catalogOperation) (*offeringContract.CareOfferingRecord, error) {
 	offering, err := operation(r.catalog)
 	if err != nil {
 		return nil, publicError(err)
@@ -165,7 +177,7 @@ func (r *CareOfferingRows) row(operation catalogOperation) (*enrollmentModels.Ca
 	return careOfferingRow(offering)
 }
 
-func (r *CareOfferingRows) save(row *enrollmentModels.CareOffering, write func(careplan.CareOfferingCatalog, careplan.CareOffering) (careplan.CareOffering, error)) error {
+func (r *CareOfferingRows) save(row *offeringContract.CareOfferingRecord, write func(careplan.CareOfferingCatalog, careplan.CareOffering) (careplan.CareOffering, error)) error {
 	offering, err := careOfferingFromRow(row)
 	if err != nil {
 		return err
@@ -177,14 +189,14 @@ func (r *CareOfferingRows) save(row *enrollmentModels.CareOffering, write func(c
 	return applyCareOfferingToRow(row, stored)
 }
 
-func (r *CareOfferingRows) bookingStats(list func(careplan.CareOfferingCatalog) ([]careplan.CareOfferingBookingStat, error)) ([]enrollment.CareOfferingBookingStat, error) {
+func (r *CareOfferingRows) bookingStats(list func(careplan.CareOfferingCatalog) ([]careplan.CareOfferingBookingStat, error)) ([]enrollmentNative.CareOfferingBookingStat, error) {
 	stats, err := list(r.catalog)
 	if err != nil {
 		return nil, publicError(err)
 	}
-	result := make([]enrollment.CareOfferingBookingStat, 0, len(stats))
+	result := make([]enrollmentNative.CareOfferingBookingStat, 0, len(stats))
 	for _, stat := range stats {
-		result = append(result, enrollment.CareOfferingBookingStat{
+		result = append(result, enrollmentNative.CareOfferingBookingStat{
 			OfferingID: stat.OfferingID, Capacity: stat.Capacity, Booked: stat.Booked,
 			GradeLevels: stat.GradeLevels, UnknownGradeCount: stat.UnknownGradeCount,
 		})
@@ -192,11 +204,11 @@ func (r *CareOfferingRows) bookingStats(list func(careplan.CareOfferingCatalog) 
 	return result, nil
 }
 
-func careOfferingRowsOf(offerings []careplan.CareOffering, err error) ([]*enrollmentModels.CareOffering, error) {
+func careOfferingRowsOf(offerings []careplan.CareOffering, err error) ([]*offeringContract.CareOfferingRecord, error) {
 	if err != nil {
 		return nil, err
 	}
-	rows := make([]*enrollmentModels.CareOffering, 0, len(offerings))
+	rows := make([]*offeringContract.CareOfferingRecord, 0, len(offerings))
 	for _, offering := range offerings {
 		row, convertErr := careOfferingRow(offering)
 		if convertErr != nil {
@@ -209,7 +221,7 @@ func careOfferingRowsOf(offerings []careplan.CareOffering, err error) ([]*enroll
 
 // careOfferingFromRow translates an enrollment row into the owner value. A
 // row that never set counts_as_care counts as care, the column default.
-func careOfferingFromRow(row *enrollmentModels.CareOffering) (careplan.CareOffering, error) {
+func careOfferingFromRow(row *offeringContract.CareOfferingRecord) (careplan.CareOffering, error) {
 	availabilityRule, err := marshalOptional(row.AvailabilityRule)
 	if err != nil {
 		return careplan.CareOffering{}, err
@@ -227,12 +239,12 @@ func careOfferingFromRow(row *enrollmentModels.CareOffering) (careplan.CareOffer
 	}, nil
 }
 
-func careOfferingRow(value careplan.CareOffering) (*enrollmentModels.CareOffering, error) {
-	row := new(enrollmentModels.CareOffering)
+func careOfferingRow(value careplan.CareOffering) (*offeringContract.CareOfferingRecord, error) {
+	row := new(offeringContract.CareOfferingRecord)
 	return row, applyCareOfferingToRow(row, value)
 }
 
-func applyCareOfferingToRow(target *enrollmentModels.CareOffering, value careplan.CareOffering) error {
+func applyCareOfferingToRow(target *offeringContract.CareOfferingRecord, value careplan.CareOffering) error {
 	target.ID, target.CreatedAt, target.UpdatedAt, target.TenantID = value.ID, value.CreatedAt, value.UpdatedAt, value.TenantID
 	target.PhaseID, target.ActivityGroupID = value.PhaseID, value.ActivityGroupID
 	target.Name, target.Description = value.Name, value.Description
@@ -253,8 +265,8 @@ func applyCareOfferingToRow(target *enrollmentModels.CareOffering, value carepla
 
 // publicCareOfferings describes enrollment rows in the public offering value
 // of the form loads.
-func publicCareOfferings(rows []*enrollmentModels.CareOffering) []*enrollment.CareOffering {
-	out := make([]*enrollment.CareOffering, 0, len(rows))
+func publicCareOfferings(rows []*offeringContract.CareOfferingRecord) []*enrollmentNative.CareOffering {
+	out := make([]*enrollmentNative.CareOffering, 0, len(rows))
 	for _, row := range rows {
 		if row == nil {
 			continue
@@ -263,7 +275,7 @@ func publicCareOfferings(rows []*enrollmentModels.CareOffering) []*enrollment.Ca
 		if err != nil {
 			rule = nil
 		}
-		out = append(out, &enrollment.CareOffering{
+		out = append(out, &enrollmentNative.CareOffering{
 			ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 			PhaseID: row.PhaseID, ActivityGroupID: row.ActivityGroupID, Name: row.Name, Description: row.Description,
 			DaysOfWeekMode: row.DaysOfWeekMode, AvailableDays: row.AvailableDays,
@@ -294,23 +306,23 @@ func unmarshalOptional(data json.RawMessage, target any) error {
 
 // PublicCareOffering describes one enrollment row in the public offering
 // value; a nil row stays nil.
-func PublicCareOffering(row *enrollmentModels.CareOffering) *enrollment.CareOffering {
+func PublicCareOffering(row *offeringContract.CareOfferingRecord) *enrollmentNative.CareOffering {
 	if row == nil {
 		return nil
 	}
-	return publicCareOfferings([]*enrollmentModels.CareOffering{row})[0]
+	return publicCareOfferings([]*offeringContract.CareOfferingRecord{row})[0]
 }
 
 // PublicCareOfferingList describes enrollment rows in the public offering
 // value.
-func PublicCareOfferingList(rows []*enrollmentModels.CareOffering) []*enrollment.CareOffering {
+func PublicCareOfferingList(rows []*offeringContract.CareOfferingRecord) []*enrollmentNative.CareOffering {
 	return publicCareOfferings(rows)
 }
 
 // CareOfferingRowOf builds the enrollment row of a public offering value,
 // as a route that saves the offering sets every column it carries.
-func CareOfferingRowOf(value *enrollment.CareOffering) (*enrollmentModels.CareOffering, error) {
-	row := &enrollmentModels.CareOffering{
+func CareOfferingRowOf(value *enrollmentNative.CareOffering) (*offeringContract.CareOfferingRecord, error) {
+	row := &offeringContract.CareOfferingRecord{
 		ID: value.ID, TenantID: value.TenantID, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
 		PhaseID: value.PhaseID, ActivityGroupID: value.ActivityGroupID, Name: value.Name, Description: value.Description,
 		DaysOfWeekMode: value.DaysOfWeekMode, AvailableDays: value.AvailableDays,

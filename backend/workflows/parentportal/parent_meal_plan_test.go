@@ -11,10 +11,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
@@ -25,38 +26,50 @@ import (
 // prior mealSettings behavior.
 func mealPlanSettings(enabled bool, resolveErr error) parentSettingsStub {
 	return parentSettingsStub{
-		boolValues: map[string]bool{configModels.KeyMealPlanEnabled: enabled},
+		boolValues: map[string]bool{parentService.KeyMealPlanEnabled: enabled},
 		boolErr:    resolveErr,
 		stringValues: map[string]string{
-			configModels.KeyGuardianParentInviteMode: configModels.ParentInviteModeDisabled,
+			parentService.KeyGuardianParentInviteMode: parentService.ParentInviteModeDisabled,
 		},
 	}
 }
 
 func buildMealPlanService(t *testing.T, db *bun.DB, settings parentSettingsStub, moduleOverride ...*fakeMealPlan) *parentService.Portal {
 	t.Helper()
-	enabled := settings.boolValues[configModels.KeyMealPlanEnabled]
+	enabled := settings.boolValues[parentService.KeyMealPlanEnabled]
 	mealPlan := &fakeMealPlan{available: enabled, err: settings.boolErr, entries: []mealplanModule.Entry{
-		{Date: mealplanModule.Date("2026-08-24"), Position: 0, Dish: "Spaghetti"},
+		{Date: mealplanModule.Date("2026-08-24"), Position: 0, Dish: "Spaghetti", Allergens: []mealplanModule.Allergen{mealplanModule.AllergenGluten}},
 		{Date: mealplanModule.Date("2026-08-24"), Position: 1, Dish: "Salat"},
 	}}
 	require.LessOrEqual(t, len(moduleOverride), 1)
 	if len(moduleOverride) == 1 {
 		mealPlan = moduleOverride[0]
 	}
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	return parentportalcompose.New(parentportalcompose.Dependencies{
-		CarePlan:      repos.CarePlan(),
-		People:        repositories.MustNewPeopleDirectory(db),
-		CareProfiles:  careProfiles(t, db),
-		ChildRepo:     repos.ParentChild,
-		StatusDayRepo: repos.StudentStatusDay,
-		StudentRepo:   repos.Student,
-		MealPlan:      mealPlan,
-		Settings:      settings,
-		Broadcaster:   testpkg.NewRecordingBroadcaster(),
-		Logger:        slog.Default(),
-		Now:           func() time.Time { return time.Date(2026, 8, 24, 12, 0, 0, 0, timezone.Berlin) },
+		GuardianChanges: owners.ParentGuardianChanges(),
+		DeparturePolicy: owners.ParentDeparturePolicy(),
+		GuardianPolicy:  owners.NewParentGuardianPolicy(),
+		Fingerprints:    owners.SecurityFingerprints{},
+		Declarations:    owners.ParentDeclarationPolicy(),
+		Locales:         owners.ParentPortalLocales(),
+		Runtime:         owners.ParentPortalRuntime{},
+		CarePlan:        owners.NewParentCarePlanCommands(repos.CarePlan(), nil),
+		People:          owners.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
+		CareProfiles:    careProfiles(t, db),
+		ChildRepo:       repos.ParentChildReads(),
+		StatusDayRepo:   repos.StudentStatusDay,
+		StudentRepo:     owners.NewParentStudentReads(reposPeople.Student),
+		MealPlan:        mealPlan,
+		Settings:        settings,
+		StudentUpdates:  owners.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster()),
+		Logger:          slog.Default(),
+		Now:             func() time.Time { return time.Date(2026, 8, 24, 12, 0, 0, 0, calendar.Berlin) },
+
+		DataRequests: owners.NewParentDataRequestCommands(repos.CarePlan()),
+
+		CarePlanPolicy: owners.NewParentCarePlanPolicy(),
 	})
 }
 
@@ -103,14 +116,16 @@ func TestMealPlanWeek_ReturnsCurrentWeekEntries(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	currentMonday := timezone.NewDate(2026, 8, 24)
+	currentMonday := calendar.NewDate(2026, 8, 24)
 
 	svc := buildMealPlanService(t, db, mealPlanSettings(true, nil))
 	rows, err := svc.MealPlanWeek(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, currentMonday)
 	require.NoError(t, err)
 	require.Len(t, rows, 2)
 	assert.Equal(t, "Spaghetti", rows[0].Dish)
+	assert.Equal(t, []string{"gluten"}, rows[0].Allergens, "the parent sees the dish's allergens")
 	assert.Equal(t, "Salat", rows[1].Dish)
+	assert.Empty(t, rows[1].Allergens)
 }
 
 func TestMealPlanWeek_AllowsNextWeek(t *testing.T) {
@@ -119,7 +134,7 @@ func TestMealPlanWeek_AllowsNextWeek(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	currentMonday := timezone.NewDate(2026, 8, 24)
+	currentMonday := calendar.NewDate(2026, 8, 24)
 	nextMonday := currentMonday.AddDays(7)
 
 	svc := buildMealPlanService(t, db, mealPlanSettings(true, nil))
@@ -134,7 +149,7 @@ func TestMealPlanWeek_DisabledReturnsSentinel(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	currentMonday := timezone.NewDate(2026, 8, 24)
+	currentMonday := calendar.NewDate(2026, 8, 24)
 	svc := buildMealPlanService(t, db, mealPlanSettings(false, nil))
 	_, err := svc.MealPlanWeek(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, currentMonday)
 	require.ErrorIs(t, err, parentService.ErrMealPlanDisabled)
@@ -152,10 +167,10 @@ func TestMealParticipationWrites_CareEndedChildIsRejected(t *testing.T) {
 	_, err := svc.ReplaceMealParticipationSchedule(ctx, chain.AccountID, chain.StudentID, []parentService.MealWeekday{1})
 	require.ErrorIs(t, err, parentService.ErrChildCareEnded)
 
-	err = svc.SetMealParticipationDay(ctx, chain.AccountID, chain.StudentID, timezone.NewDate(2026, 8, 25), true)
+	err = svc.SetMealParticipationDay(ctx, chain.AccountID, chain.StudentID, calendar.NewDate(2026, 8, 25), true)
 	require.ErrorIs(t, err, parentService.ErrChildCareEnded)
 
-	err = svc.ClearMealParticipationDay(ctx, chain.AccountID, chain.StudentID, timezone.NewDate(2026, 8, 25))
+	err = svc.ClearMealParticipationDay(ctx, chain.AccountID, chain.StudentID, calendar.NewDate(2026, 8, 25))
 	require.ErrorIs(t, err, parentService.ErrChildCareEnded)
 }
 
@@ -175,7 +190,7 @@ func TestMealParticipationWrites_RequireManagePermission(t *testing.T) {
 
 	svc := buildMealPlanService(t, db, mealPlanSettings(true, nil))
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
-	date := timezone.NewDate(2026, 8, 25)
+	date := calendar.NewDate(2026, 8, 25)
 
 	_, err = svc.MealParticipation(ctx, chain.AccountID, chain.StudentID, date, date)
 	require.NoError(t, err, "portal access still permits reading meal participation")
@@ -201,7 +216,7 @@ func TestClearMealParticipationDay_PassesGuardianAccountID(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	mealPlan := availableMealPlan(true)
 	svc := buildMealPlanService(t, db, mealPlanSettings(true, nil), mealPlan)
-	date := timezone.NewDate(2026, 8, 25)
+	date := calendar.NewDate(2026, 8, 25)
 
 	err := svc.ClearMealParticipationDay(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, date)
 	require.NoError(t, err)
@@ -219,7 +234,7 @@ func TestMealPlanWeek_PastWeekOutOfRange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	currentMonday := timezone.NewDate(2026, 8, 24)
+	currentMonday := calendar.NewDate(2026, 8, 24)
 	lastWeek := currentMonday.AddDays(-7)
 	svc := buildMealPlanService(t, db, mealPlanSettings(true, nil))
 	_, err := svc.MealPlanWeek(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, lastWeek)
@@ -232,7 +247,7 @@ func TestMealPlanWeek_FarFutureWeekOutOfRange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	currentMonday := timezone.NewDate(2026, 8, 24)
+	currentMonday := calendar.NewDate(2026, 8, 24)
 	weekAfterNext := currentMonday.AddDays(14)
 	svc := buildMealPlanService(t, db, mealPlanSettings(true, nil))
 	_, err := svc.MealPlanWeek(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, weekAfterNext)
@@ -246,7 +261,7 @@ func TestMealPlanWeek_NotOwnedChildRejected(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	other := testpkg.CreateTestStudent(t, db, "Mara", "Fremd", "2b")
 
-	currentMonday := timezone.NewDate(2026, 8, 24)
+	currentMonday := calendar.NewDate(2026, 8, 24)
 	svc := buildMealPlanService(t, db, mealPlanSettings(true, nil))
 	_, err := svc.MealPlanWeek(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, other.ID, currentMonday)
 	require.Error(t, err)
@@ -259,7 +274,7 @@ func TestMealPlanWeek_SettingErrorPropagates(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	currentMonday := timezone.NewDate(2026, 8, 24)
+	currentMonday := calendar.NewDate(2026, 8, 24)
 	svc := buildMealPlanService(t, db, mealPlanSettings(false, errors.New("settings down")))
 	_, err := svc.MealPlanWeek(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, currentMonday)
 	require.Error(t, err)
@@ -292,7 +307,7 @@ func TestMealParticipationRejectsChildWithoutGuardianAccess(t *testing.T) {
 	other := testpkg.CreateTestStudent(t, db, "Mara", "Fremd", "2b")
 	svc := buildMealPlanService(t, db, mealPlanSettings(true, nil))
 
-	_, err := svc.MealParticipation(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, other.ID, timezone.NewDate(2026, 8, 24), timezone.NewDate(2026, 9, 4))
+	_, err := svc.MealParticipation(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, other.ID, calendar.NewDate(2026, 8, 24), calendar.NewDate(2026, 9, 4))
 	require.Error(t, err)
 	assert.NotErrorIs(t, err, parentService.ErrMealRegistrationDisabled)
 }

@@ -13,16 +13,20 @@ import (
 	"testing"
 	"time"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
+	"github.com/moto-nrw/project-phoenix/modules/facilities"
+	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/modules/settings"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -36,8 +40,9 @@ func TestMealPlanErrorRendererContracts(t *testing.T) {
 		err                                                        error
 		status                                                     int
 	}{
-		{name: "disabled", targetCode: "meal_plan_disabled", status: http.StatusForbidden, errorText: "feature_disabled", code: "general.permission", anchor: "anleitung-zugriff-pruefen"},
+		{name: "disabled", targetCode: "meal_plan_disabled", status: http.StatusForbidden, errorText: "feature_disabled", code: "meals.plan_disabled", anchor: "anleitung-zugriff-pruefen"},
 		{name: "invalid date", targetCode: "invalid_meal_date", status: http.StatusBadRequest, errorText: "meal plan covers weekdays only (Monday-Friday)", code: "general.input", anchor: "anleitung-eingabe-pruefen"},
+		{name: "invalid allergens", targetCode: "invalid_allergens", status: http.StatusBadRequest, errorText: "allergens must be codes of the 14 main allergens", code: "meals.invalid_allergens", anchor: "anleitung-eingabe-pruefen"},
 		{name: "invalid dishes", targetCode: "invalid_dishes", status: http.StatusBadRequest, errorText: "invalid_dishes", code: "general.input", anchor: "anleitung-eingabe-pruefen"},
 		{name: "internal", err: errors.New("database unavailable"), status: http.StatusInternalServerError, internalMessage: "failed to load meal plan", errorText: "failed to load meal plan", code: "general.server", anchor: "anleitung-unerwarteter-fehler"},
 	}
@@ -64,8 +69,7 @@ func TestMealPlanErrorRendererContracts(t *testing.T) {
 			var body map[string]any
 			require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 			assert.Equal(t, map[string]any{
-				"status":   "error",
-				"error":    test.errorText,
+				"status":   float64(test.status),
 				"code":     test.code,
 				"type":     "https://moto-app.de/help/fehlermeldungen#" + test.anchor,
 				"title":    http.StatusText(test.status),
@@ -272,7 +276,7 @@ func TestParsePositiveInt_DifferentDefaults(t *testing.T) {
 	}
 }
 
-func checkCaregiverWiring(t *testing.T, graph *serveGraph) {
+func checkCaregiverWiring(t *testing.T, graph *goldenRuntime) {
 	t.Parallel()
 
 	composition := setupCaregiverCompositionModule(t, graph)
@@ -290,25 +294,29 @@ type caregiverComposition struct {
 
 // setupCaregiverCompositionModule composes the account and operator routes
 // over the golden graph with the builders the Serve root mounts them with.
-func setupCaregiverCompositionModule(t *testing.T, graph *serveGraph) *caregiverComposition {
+func setupCaregiverCompositionModule(t *testing.T, graph *goldenRuntime) *caregiverComposition {
 	t.Helper()
 	sessionAuth, err := newSessionTokenAuth()
 	require.NoError(t, err)
-	in := routeInputs{modules: moduleServices{services: graph.services}, db: graph.db, logger: slog.Default(), sessionAuth: sessionAuth}
-	auth := newAccountResource(in)
-	operator, err := newOperatorResource(in)
+	_, _, _, _, _, hub, _, _, settings, _, services, schedules, _, active, _, _, _, _, provisioning, _, _, _, deviceFleet, _, settingsWrites, _, _, err := composeTestRoot(graph.db, slog.Default(), currentTestServiceConfig())
+	require.NoError(t, err)
+	auth := newAccountResource(graph.db, nil, nil, services.CaregiverCapability, settings.Service)
+	operator, err := newOperatorRouter(graph.db, slog.Default(), sessionAuth, authRateLimiters{}, devicefleetCompose.NewIoTService(deviceFleet), nil,
+		settings.Service, hub, active, settingsWrites, nil, provisioning, services.CaregiverCapability, schedules.Lifecycle, nil)
 	require.NoError(t, err)
 	return &caregiverComposition{
 		authWired:        auth != nil,
 		operatorWired:    operator != nil,
-		sharedCapability: auth.CaregiverCapabilityService == any(graph.services.CaregiverCapabilityViews(graph.db)),
+		sharedCapability: auth.CaregiverCapabilityService == any(caregiverCapabilityViews(graph.db, services.CaregiverCapability)),
 	}
 }
 
 func setupSettingsCallbackRoute(t *testing.T) *settingsCallbackRoute {
 	t.Helper()
-	db, module := testutil.SetupSettingsCallbacksModule(t, newStudentPhotoTestBootstrap())
-	repos, err := repositories.NewEnrollmentTestRepositories(db, repositories.NewTestAuditStore(db))
+	db := testpkg.SetupTestDB(t)
+	module, hub, err := NewSettingsCallbacksTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), newStudentPhotoTestUnlinker())
+	require.NoError(t, err)
+	repos, err := NewEnrollmentTestRepositoriesWithMembers(testpkg.NewDatabase(t, db), owners.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
 	require.NoError(t, err)
 	homeLayouts, ok := module.Settings.(interface {
 		HomeLayout(context.Context, int64, int64, []string) (any, error)
@@ -317,19 +325,23 @@ func setupSettingsCallbackRoute(t *testing.T) *settingsCallbackRoute {
 		SetHomeBlockPolicies(context.Context, int64, int64, []string, map[string]string) error
 	})
 	require.True(t, ok)
-	return &settingsCallbackRoute{router: newSettingsResource(module.TenantSettings, homeLayouts, repos.Enrollment().SchemaReferencesLegalDocument).SettingsRouter(), hub: module.RealtimeHub}
+	return &settingsCallbackRoute{router: newSettingsResource(testpkg.NewDatabase(t, db), module.TenantSettings, homeLayouts, repos.Enrollment().SchemaReferencesLegalDocument).SettingsRouter(), hub: hub}
 }
 
-func setupOperatorInvitationRoute(t *testing.T, graph *serveGraph) chi.Router {
+func setupOperatorInvitationRoute(t *testing.T, graph *goldenRuntime) chi.Router {
 	t.Helper()
 	// Mount the operator routes of the golden graph again, with rate limiting
 	// enabled. The golden graph's router remains unchanged.
 	sessionAuth, err := newSessionTokenAuth()
 	require.NoError(t, err)
-	operator, err := newOperatorResource(routeInputs{modules: moduleServices{services: graph.services}, db: graph.db, logger: slog.Default(), sessionAuth: sessionAuth})
+	_, _, _, _, _, hub, _, _, settings, _, services, schedules, _, active, _, _, _, _, provisioning, _, _, _, deviceFleet, _, settingsWrites, _, _, err := composeTestRoot(graph.db, slog.Default(), currentTestServiceConfig())
+	require.NoError(t, err)
+	operator, err := newOperatorRouter(graph.db, slog.Default(), sessionAuth, buildAuthRateLimiters(nil, "5", demoLoopbackExempt()),
+		devicefleetCompose.NewIoTService(deviceFleet), nil, settings.Service, hub, active, settingsWrites, nil, provisioning,
+		services.CaregiverCapability, schedules.Lifecycle, nil)
 	require.NoError(t, err)
 	router := chi.NewRouter()
-	router.Mount("/operator", operatorRouter(operator, buildAuthRateLimiters(nil, "5", demoLoopbackExempt())))
+	router.Mount("/operator", operator)
 	return router
 }
 
@@ -337,7 +349,7 @@ func TestSyncClientIPToRemoteAddrUsesChiClientIP(t *testing.T) {
 	t.Parallel()
 
 	router := chi.NewRouter()
-	router.Use(chimiddleware.ClientIPFromXFF())
+	router.Use(chimiddleware.ClientIPFromXFFTrustedProxies(1))
 	router.Use(syncClientIPToRemoteAddr)
 	router.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "203.0.113.10", r.RemoteAddr)
@@ -354,7 +366,7 @@ func TestSyncClientIPToRemoteAddrUsesChiClientIP(t *testing.T) {
 	assert.Equal(t, http.StatusNoContent, rr.Code)
 }
 
-func checkOperatorInvitationMount(t *testing.T, graph *serveGraph) {
+func checkOperatorInvitationMount(t *testing.T, graph *goldenRuntime) {
 	t.Parallel()
 	router := setupOperatorInvitationRoute(t, graph)
 
@@ -371,14 +383,14 @@ func checkOperatorInvitationMount(t *testing.T, graph *serveGraph) {
 // claims, not by a per-token hash. Re-logins and token refreshes therefore
 // share the account's budget instead of minting a fresh one.
 
-func rateLimitTestAuth(t *testing.T) *jwt.TokenAuth {
+func rateLimitTestAuth(t *testing.T) *sessiontoken.TokenAuth {
 	t.Helper()
-	tokenAuth, err := jwt.NewTokenAuthWithDurations("rate-limit-test-secret-32-chars!!", 15*time.Minute, 24*time.Hour)
+	tokenAuth, err := sessiontoken.NewTokenAuthWithDurations("rate-limit-test-secret-32-chars!!", 15*time.Minute, 24*time.Hour)
 	require.NoError(t, err)
 	return tokenAuth
 }
 
-func mintRateLimitJWT(t *testing.T, tokenAuth *jwt.TokenAuth, claims jwt.AppClaims) string {
+func mintRateLimitJWT(t *testing.T, tokenAuth *sessiontoken.TokenAuth, claims sessiontoken.AppClaims) string {
 	t.Helper()
 	if len(claims.Roles) == 0 {
 		claims.Roles = []string{"user"}
@@ -397,169 +409,6 @@ func rateLimitRequest(token string) *http.Request {
 	return req
 }
 
-func TestIdentityRateLimitKey_TwoSessionsSameIdentityShareKey(t *testing.T) {
-	t.Parallel()
-	tokenAuth := rateLimitTestAuth(t)
-
-	// Two distinct tokens (differing payloads) for the same account/tenant —
-	// the re-login / second-browser-session scenario.
-	sessionA := mintRateLimitJWT(t, tokenAuth, jwt.AppClaims{
-		ID: 42, Sub: "user@example.com", FirstName: "SessionA", TenantID: 7,
-	})
-	sessionB := mintRateLimitJWT(t, tokenAuth, jwt.AppClaims{
-		ID: 42, Sub: "user@example.com", FirstName: "SessionB", TenantID: 7,
-	})
-	require.NotEqual(t, sessionA, sessionB,
-		"sessions must be distinct tokens for this test to prove anything")
-
-	keyFunc := identityRateLimitKey(tokenAuth)
-	assert.Equal(t, "acct:42::7", keyFunc(rateLimitRequest(sessionA)))
-	assert.Equal(t, keyFunc(rateLimitRequest(sessionA)), keyFunc(rateLimitRequest(sessionB)))
-}
-
-func TestIdentityRateLimitKey_RefreshTokenSharesAccountBudget(t *testing.T) {
-	t.Parallel()
-	tokenAuth := rateLimitTestAuth(t)
-
-	access := mintRateLimitJWT(t, tokenAuth, jwt.AppClaims{
-		ID: 42, Sub: "user@example.com", TenantID: 7,
-	})
-	refresh, err := tokenAuth.CreateRefreshJWT(jwt.RefreshClaims{
-		ID: 42, Token: "opaque-refresh-token", TenantID: 7,
-	})
-	require.NoError(t, err)
-
-	keyFunc := identityRateLimitKey(tokenAuth)
-	assert.Equal(t, keyFunc(rateLimitRequest(access)), keyFunc(rateLimitRequest(refresh)),
-		"a refresh token presented as bearer must land in the same account bucket")
-}
-
-func TestIdentityRateLimitKey_DifferentAccountsHaveDifferentKeys(t *testing.T) {
-	t.Parallel()
-	tokenAuth := rateLimitTestAuth(t)
-
-	tokenA := mintRateLimitJWT(t, tokenAuth, jwt.AppClaims{ID: 42, Sub: "user-a@example.com", TenantID: 7})
-	tokenB := mintRateLimitJWT(t, tokenAuth, jwt.AppClaims{ID: 43, Sub: "user-b@example.com", TenantID: 7})
-
-	keyFunc := identityRateLimitKey(tokenAuth)
-	assert.NotEqual(t, keyFunc(rateLimitRequest(tokenA)), keyFunc(rateLimitRequest(tokenB)))
-}
-
-func TestIdentityRateLimitKey_TenantSwitchGetsOwnBudget(t *testing.T) {
-	t.Parallel()
-	tokenAuth := rateLimitTestAuth(t)
-
-	tenant7 := mintRateLimitJWT(t, tokenAuth, jwt.AppClaims{ID: 42, Sub: "user@example.com", TenantID: 7})
-	tenant8 := mintRateLimitJWT(t, tokenAuth, jwt.AppClaims{ID: 42, Sub: "user@example.com", TenantID: 8})
-
-	keyFunc := identityRateLimitKey(tokenAuth)
-	assert.NotEqual(t, keyFunc(rateLimitRequest(tenant7)), keyFunc(rateLimitRequest(tenant8)),
-		"a tenant switch mints a new tenant_id and gets its own budget")
-}
-
-func TestIdentityRateLimitKey_ScopeSeparatesPortals(t *testing.T) {
-	t.Parallel()
-	tokenAuth := rateLimitTestAuth(t)
-
-	// Operator IDs and account IDs are different ID spaces — the same numeric
-	// ID with different scopes must never share a bucket.
-	tenantToken := mintRateLimitJWT(t, tokenAuth, jwt.AppClaims{ID: 42, Sub: "staff@example.com", TenantID: 7})
-	operatorToken := mintRateLimitJWT(t, tokenAuth, jwt.AppClaims{ID: 42, Sub: "op@example.com", Scope: "platform"})
-	parentToken := mintRateLimitJWT(t, tokenAuth, jwt.AppClaims{ID: 42, Sub: "parent@example.com", Scope: "parent"})
-
-	keyFunc := identityRateLimitKey(tokenAuth)
-	keys := map[string]bool{
-		keyFunc(rateLimitRequest(tenantToken)):   true,
-		keyFunc(rateLimitRequest(operatorToken)): true,
-		keyFunc(rateLimitRequest(parentToken)):   true,
-	}
-	assert.Len(t, keys, 3, "tenant, platform, and parent scopes must have distinct keys")
-}
-
-func TestIdentityRateLimitKey_KeyContainsNoTokenOrPII(t *testing.T) {
-	t.Parallel()
-	tokenAuth := rateLimitTestAuth(t)
-
-	token := mintRateLimitJWT(t, tokenAuth, jwt.AppClaims{
-		ID: 42, Sub: "jane.doe@example.com", Username: "jane.doe@example.com",
-		FirstName: "Jane", LastName: "Doe", TenantID: 7,
-	})
-
-	key := identityRateLimitKey(tokenAuth)(rateLimitRequest(token))
-	assert.Equal(t, "acct:42::7", key)
-	assert.NotContains(t, key, token)
-	assert.NotContains(t, key, "jane.doe@example.com")
-	assert.NotContains(t, key, "Jane")
-	assert.NotContains(t, key, "Doe")
-}
-
-func TestIdentityRateLimitKey_InvalidTokenFallsBack(t *testing.T) {
-	t.Parallel()
-	tokenAuth := rateLimitTestAuth(t)
-
-	assert.Empty(t, identityRateLimitKey(tokenAuth)(rateLimitRequest("not-a-real-token")))
-}
-
-func TestIdentityRateLimitKey_DeviceAPIKeyFallsBack(t *testing.T) {
-	t.Parallel()
-	// IoT devices send an opaque API key as bearer token. It is not a JWT and
-	// cannot be verified here, so device requests must stay on IP limiting —
-	// an unverified bearer value must never open its own bucket.
-	tokenAuth := rateLimitTestAuth(t)
-
-	assert.Empty(t, identityRateLimitKey(tokenAuth)(rateLimitRequest("phx_3f9c2d1a8b7e6f5a4d3c2b1a")))
-}
-
-func TestIdentityRateLimitKey_MissingHeaderFallsBack(t *testing.T) {
-	t.Parallel()
-	tokenAuth := rateLimitTestAuth(t)
-
-	assert.Empty(t, identityRateLimitKey(tokenAuth)(rateLimitRequest("")))
-}
-
-func TestIdentityRateLimitKey_ExpiredTokenFallsBack(t *testing.T) {
-	t.Parallel()
-	tokenAuth := rateLimitTestAuth(t)
-
-	_, token, err := tokenAuth.JwtAuth.Encode(map[string]any{
-		"id":  42,
-		"exp": time.Now().Add(-1 * time.Hour).Unix(),
-		"iat": time.Now().Add(-2 * time.Hour).Unix(),
-	})
-	require.NoError(t, err)
-
-	assert.Empty(t, identityRateLimitKey(tokenAuth)(rateLimitRequest(token)))
-}
-
-func TestIdentityRateLimitKey_TamperedTokenFallsBack(t *testing.T) {
-	t.Parallel()
-	tokenAuth := rateLimitTestAuth(t)
-	otherAuth, err := jwt.NewTokenAuthWithDurations("a-completely-different-32char-key!!", 15*time.Minute, time.Hour)
-	require.NoError(t, err)
-
-	forged := mintRateLimitJWT(t, otherAuth, jwt.AppClaims{ID: 42, Sub: "user@example.com", TenantID: 7})
-
-	assert.Empty(t, identityRateLimitKey(tokenAuth)(rateLimitRequest(forged)),
-		"a token signed with the wrong secret must not produce an identity key")
-}
-
-func TestIdentityRateLimitKey_TokenWithoutAccountIDFallsBack(t *testing.T) {
-	t.Parallel()
-	// MFA challenge/enrollment tokens carry account_id + a pending flag but
-	// no "id" claim — they must fall back to IP limiting.
-	tokenAuth := rateLimitTestAuth(t)
-
-	_, token, err := tokenAuth.JwtAuth.Encode(map[string]any{
-		"account_id":  42,
-		"mfa_pending": true,
-		"exp":         time.Now().Add(5 * time.Minute).Unix(),
-		"iat":         time.Now().Unix(),
-	})
-	require.NoError(t, err)
-
-	assert.Empty(t, identityRateLimitKey(tokenAuth)(rateLimitRequest(token)))
-}
-
 // TestRateLimiting_SameIdentitySharesBudget wires the identity key function
 // into the real limiter middleware and asserts the #2064 acceptance
 // criteria end to end: two valid sessions of one identity drain ONE budget,
@@ -571,7 +420,7 @@ func TestRateLimiting_SameIdentitySharesBudget(t *testing.T) {
 	// 1 request/minute refill with burst 3: the refill contributes no tokens
 	// within the test's runtime, so exactly 3 requests per key pass.
 	limiter := customMiddleware.NewRateLimiter(1, 3)
-	limiter.SetKeyFunc(identityRateLimitKey(tokenAuth))
+	limiter.SetKeyFunc(tokenAuth.RateLimitKey)
 
 	router := chi.NewRouter()
 	router.Use(limiter.Middleware())
@@ -579,14 +428,14 @@ func TestRateLimiting_SameIdentitySharesBudget(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	sessionA1 := mintRateLimitJWT(t, tokenAuth, jwt.AppClaims{
+	sessionA1 := mintRateLimitJWT(t, tokenAuth, sessiontoken.AppClaims{
 		ID: 42, Sub: "user@example.com", FirstName: "SessionA1", TenantID: 7,
 	})
-	sessionA2 := mintRateLimitJWT(t, tokenAuth, jwt.AppClaims{
+	sessionA2 := mintRateLimitJWT(t, tokenAuth, sessiontoken.AppClaims{
 		ID: 42, Sub: "user@example.com", FirstName: "SessionA2", TenantID: 7,
 	})
 	require.NotEqual(t, sessionA1, sessionA2)
-	otherAccount := mintRateLimitJWT(t, tokenAuth, jwt.AppClaims{
+	otherAccount := mintRateLimitJWT(t, tokenAuth, sessiontoken.AppClaims{
 		ID: 43, Sub: "other@example.com", TenantID: 7,
 	})
 
@@ -620,7 +469,7 @@ func TestRateLimiting_ConcurrentSessionsShareBudget(t *testing.T) {
 
 	const burst = 10
 	limiter := customMiddleware.NewRateLimiter(1, burst)
-	limiter.SetKeyFunc(identityRateLimitKey(tokenAuth))
+	limiter.SetKeyFunc(tokenAuth.RateLimitKey)
 
 	router := chi.NewRouter()
 	router.Use(limiter.Middleware())
@@ -629,10 +478,10 @@ func TestRateLimiting_ConcurrentSessionsShareBudget(t *testing.T) {
 	})
 
 	sessions := []string{
-		mintRateLimitJWT(t, tokenAuth, jwt.AppClaims{
+		mintRateLimitJWT(t, tokenAuth, sessiontoken.AppClaims{
 			ID: 42, Sub: "user@example.com", FirstName: "SessionA", TenantID: 7,
 		}),
-		mintRateLimitJWT(t, tokenAuth, jwt.AppClaims{
+		mintRateLimitJWT(t, tokenAuth, sessiontoken.AppClaims{
 			ID: 42, Sub: "user@example.com", FirstName: "SessionB", TenantID: 7,
 		}),
 	}
@@ -664,9 +513,7 @@ func TestOnValueSetCallback_WCEnabled(t *testing.T) {
 	t.Parallel()
 
 	route := setupSettingsCallbackRoute(t)
-
-	// Mount the SetValue handler on a tenant-aware router
-	router := route.router
+	require.False(t, tenantHasSystemActivity(t, facilities.WCActivityName))
 
 	// Set checkout.wc_enabled = true → triggers callback → creates WC infrastructure
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/values/checkout.wc_enabled",
@@ -674,8 +521,10 @@ func TestOnValueSetCallback_WCEnabled(t *testing.T) {
 		testutil.WithJWTBearer(testutil.MintTestJWT(t, adminClaimsForCallback())),
 	)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(route.router, req)
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+	assert.True(t, tenantHasSystemActivity(t, facilities.WCActivityName),
+		"enabling the WC checkout must provision the WC system activity")
 }
 
 // TestOnValueSetCallback_SchulhofEnabled tests that the callback triggers
@@ -684,16 +533,17 @@ func TestOnValueSetCallback_SchulhofEnabled(t *testing.T) {
 	t.Parallel()
 
 	route := setupSettingsCallbackRoute(t)
-
-	router := route.router
+	require.False(t, tenantHasSystemActivity(t, facilities.SchulhofActivityName))
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/values/checkout.schulhof_enabled",
 		map[string]any{"value": true},
 		testutil.WithJWTBearer(testutil.MintTestJWT(t, adminClaimsForCallback())),
 	)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(route.router, req)
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+	assert.True(t, tenantHasSystemActivity(t, facilities.SchulhofActivityName),
+		"enabling the Schulhof checkout must provision the Schulhof system activity")
 }
 
 // TestOnValueSetCallback_FalseValueSkipsInfrastructure tests that setting
@@ -703,20 +553,34 @@ func TestOnValueSetCallback_FalseValueSkipsInfrastructure(t *testing.T) {
 
 	route := setupSettingsCallbackRoute(t)
 
-	router := route.router
-
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/values/checkout.wc_enabled",
 		map[string]any{"value": false},
 		testutil.WithJWTBearer(testutil.MintTestJWT(t, adminClaimsForCallback())),
 	)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(route.router, req)
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+	assert.False(t, tenantHasSystemActivity(t, facilities.WCActivityName),
+		"disabling the WC checkout must not provision the WC system activity")
+}
+
+// tenantHasSystemActivity reports whether the test's tenant holds the system
+// activity a checkout switch provisions.
+func tenantHasSystemActivity(t *testing.T, name string) bool {
+	t.Helper()
+	exists, err := testpkg.SetupTestDB(t).NewSelect().
+		TableExpr("activities.groups").
+		Where("tenant_id = ?", testpkg.Tenant(t)).
+		Where("name = ?", name).
+		Where("is_system = TRUE").
+		Exists(testpkg.Ctx(t))
+	require.NoError(t, err)
+	return exists
 }
 
 // adminClaimsForCallback returns admin claims with config permissions
 // for testing the OnValueSet callback.
-func adminClaimsForCallback() jwt.AppClaims {
+func adminClaimsForCallback() sessiontoken.AppClaims {
 	claims := testutil.DefaultTestClaims()
 	claims.Permissions = append(claims.Permissions,
 		permissions.ConfigRead,
@@ -886,7 +750,7 @@ func TestOnValueSetCallback_TenantSettingsChangedBroadcasts(t *testing.T) {
 		testutil.WithJWTBearer(testutil.MintTestJWT(t, adminClaimsForCallback())),
 	)
 	require.Equal(t, http.StatusOK, testutil.ExecuteRequest(router, enableReq).Code)
-	awaitTenantSettings(t, configModel.KeyStudentPhotosEnabled)
+	awaitTenantSettings(t, settings.KeyStudentPhotosEnabled)
 	drainEvents(client.Channel)
 
 	// 2. Disable photo feature → tenant_settings_changed (alongside the
@@ -896,7 +760,7 @@ func TestOnValueSetCallback_TenantSettingsChangedBroadcasts(t *testing.T) {
 		testutil.WithJWTBearer(testutil.MintTestJWT(t, adminClaimsForCallback())),
 	)
 	require.Equal(t, http.StatusOK, testutil.ExecuteRequest(router, disableReq).Code)
-	awaitTenantSettings(t, configModel.KeyStudentPhotosEnabled)
+	awaitTenantSettings(t, settings.KeyStudentPhotosEnabled)
 	drainEvents(client.Channel)
 
 }
@@ -907,9 +771,9 @@ func TestOnValueSetCallback_TenantSettingsChangedBroadcasts(t *testing.T) {
 func TestRegisterRoutes_UsersRoutesRunThroughProtectedGroup(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	people, err := repositories.NewPeopleDirectory(db)
+	people, err := owners.NewPeopleDirectory(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	identity, err := repositories.NewIdentityAccessForTests(db)
+	identity, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
 	resource := newUsersResource(people, identity.ListAccountEmails, func(ctx context.Context, tagID string) (bool, error) {
 		_, _, found, err := identity.LookupRFIDCard(ctx, tagID)
@@ -956,13 +820,16 @@ type settingsCallbackRoute struct {
 // Timetable owner's conflict detection and staffing capability (#3550): the
 // conflict probes, the staff pool and the shift-coverage probe answer 500
 // when it is unwired, and the calendar list silently drops its warnings.
-func checkTimetableConflictWiring(t *testing.T, graph *serveGraph) {
+func checkTimetableConflictWiring(t *testing.T, graph *goldenRuntime) {
 	t.Parallel()
 
-	timetable := newTimetableResource(moduleServices{services: graph.services, repositories: graph.repos}, nil, slog.Default())
+	_, _, _, _, _, _, _, _, settings, _, services, schedules, requests, _, _, lifecycle, planning, materialization, _, _, _, _, _, _, _, _, _, err := composeTestRoot(graph.db, slog.Default(), currentTestServiceConfig())
+	require.NoError(t, err)
+	timetable := newTimetableResource(nil, nil, materialization, lifecycle, planning, nil, services.Users, schedules, nil, settings.Service,
+		requests.CareOfferings, ClassDayViews{}, nil, nil, slog.Default())
 	require.NotNil(t, timetable)
 	require.NotNil(t, timetable.ConflictDetection, "api/timetable must hold the owner's conflict detection")
-	assert.Same(t, graph.services.TimetableData.ConflictDetection, timetable.ConflictDetection,
+	assert.Same(t, planning.Planning.ConflictDetection, timetable.ConflictDetection,
 		"the routes and the instance lifecycle share one composed capability")
 
 	// The mounted routes reach it too: an unwired conflict probe answers 500.

@@ -11,7 +11,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // ErrClassArrivalExceptionsNotConfigured marks a deployment without the
@@ -46,21 +46,21 @@ func (s CareDay) Expected() bool {
 type CareDays interface {
 	// ResolveForDate returns the verdict of every requested child. Children
 	// without an entry are unknown.
-	ResolveForDate(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]CareDay, error)
+	ResolveForDate(ctx context.Context, studentIDs []int64, date calendar.Date) (map[int64]CareDay, error)
 }
 
 // EffectiveTimes reads the effective (plan plus day exceptions) arrival and
 // pickup clock times of the requested children on one date. A nil entry
 // means the child has no such time that day.
 type EffectiveTimes interface {
-	PickupTimes(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]*time.Time, error)
-	ArrivalTimes(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]*time.Time, error)
+	PickupTimes(ctx context.Context, studentIDs []int64, date calendar.Date) (map[int64]*time.Time, error)
+	ArrivalTimes(ctx context.Context, studentIDs []int64, date calendar.Date) (map[int64]*time.Time, error)
 }
 
 // PickupBaselines returns the recurring (exception-free) pickup time of the
 // date's weekday as "HH:MM" per child; children without a plan are absent.
 type PickupBaselines interface {
-	RegularPickupTimes(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]string, error)
+	RegularPickupTimes(ctx context.Context, studentIDs []int64, date calendar.Date) (map[int64]string, error)
 }
 
 // Settings reads the tenant configuration the lists depend on.
@@ -95,8 +95,8 @@ type RosterFacts struct {
 // StudentFacts are the student columns the enrollment rule reads.
 type StudentFacts struct {
 	Status        string
-	EnrolledFrom  *timezone.Date
-	EnrolledUntil *timezone.Date
+	EnrolledFrom  *calendar.Date
+	EnrolledUntil *calendar.Date
 }
 
 // Rules are the pure care-plan rules every reader of the roster shares, so
@@ -108,14 +108,14 @@ type Rules interface {
 	RowCareDay(instanceCompleted bool, row RosterFacts, planVerdict CareDay) CareDay
 	// EnrolledOn reports whether the student is enrolled on date, given
 	// today's calendar day for the immediate-activation exception.
-	EnrolledOn(student StudentFacts, date, today timezone.Date) bool
+	EnrolledOn(student StudentFacts, date, today calendar.Date) bool
 }
 
 // Caller resolves the authenticated account's school-portal identity.
 type Caller interface {
-	// AssignedClasses returns the school classes assigned to the caller.
-	AssignedClasses(ctx context.Context) ([]string, error)
-	// StaffID returns the caller's users.staff row;
+	// GetMySchoolClasses returns the school classes assigned to the caller.
+	GetMySchoolClasses(ctx context.Context) ([]string, error)
+	// CurrentStaffID returns the caller's users.staff row;
 	// classday.ErrStaffRecordRequired when the account has none.
-	StaffID(ctx context.Context) (int64, error)
+	CurrentStaffID(ctx context.Context) (int64, error)
 }

@@ -1,4 +1,4 @@
-import { apiErrorFromResponse } from "./api-error";
+import { ApiError, apiErrorFromResponse } from "./api-error";
 import { createLogger } from "./logger";
 import {
   sanitizeHomeBlockPlacements,
@@ -59,10 +59,7 @@ export async function fetchHomeLayout(): Promise<HomeLayoutState> {
       method: "GET",
     });
   } catch (error) {
-    if (
-      error instanceof Error &&
-      error.message === "No authentication token available"
-    ) {
+    if (error instanceof ApiError && error.status === 401) {
       return EMPTY_STATE;
     }
     logger.error("fetch_home_layout_network_error", {

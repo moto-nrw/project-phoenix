@@ -2,21 +2,20 @@ package architecture
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 )
 
-// CompareCandidatePolicyStrictness applies the strict base-policy comparison
+// compareCandidatePolicyStrictness applies the strict base-policy comparison
 // while allowing ownership declarations for tables that a new migration file
-// in this candidate actually creates, and for tables a reviewed epoch adopts
-// from recorded debt (adoptableDataObjects, judged against the candidate's
-// current violations). Without the first exception the
-// ratchet would freeze the schema: a table cannot exist in the base policy
-// before the migration that introduces it. Without the second, a live table
-// the baseline already tracks as unowned could only gain its owner through a
-// data migration. Every other ownership change remains a strict loosening.
-func CompareCandidatePolicyStrictness(project, baseRef string, base, candidate *Policy, baseManifest *LegacyManifest, violations []Violation) error {
-	createdDataObjects, err := candidateMigrationDataObjects(project, baseRef)
+// in this candidate actually creates. Without that exception the ratchet would
+// freeze the schema: a table cannot exist in the base policy before the
+// migration that introduces it. Every other ownership change remains a strict
+// loosening. The CLI passes the candidate graph it already loaded; a nil graph
+// is loaded here.
+func compareCandidatePolicyStrictness(project, baseRef string, base, candidate *Policy, graph *Graph) error {
+	createdDataObjects, renamedDataObjects, err := candidateMigrationDataObjects(project, baseRef)
 	if err != nil {
 		return err
 	}
@@ -24,212 +23,35 @@ func CompareCandidatePolicyStrictness(project, baseRef string, base, candidate *
 	if err != nil {
 		return err
 	}
-	candidateOnlyExternal, err := candidateOnlyExternalPackages(project, candidate, createdPackages)
+	moves, err := relocatedPackages(project, baseRef, base, candidate)
 	if err != nil {
 		return err
+	}
+	var candidateOnlyExternal map[string]struct{}
+	if graph != nil {
+		candidateOnlyExternal = candidateOnlyExternalPackagesFromGraph(candidate, createdPackages, graph)
+	} else {
+		candidateOnlyExternal, err = candidateOnlyExternalPackages(project, candidate, createdPackages)
+		if err != nil {
+			return err
+		}
 	}
 	deletedLegacySymbols, err := candidateDeletedLegacySymbols(project, base, candidate)
 	if err != nil {
 		return err
 	}
-	adoptedDataObjects := adoptableDataObjects(base, candidate, baseManifest, violations)
-	retiredExpressionObjects, err := adoptableFromRetiredExpressions(project, base, candidate, baseManifest, adoptedDataObjects)
-	if err != nil {
-		return err
-	}
-	for name := range retiredExpressionObjects {
-		adoptedDataObjects[name] = struct{}{}
-	}
-	return comparePolicyStrictness(base, candidate, createdDataObjects, adoptedDataObjects, createdPackages, candidateOnlyExternal, deletedLegacySymbols)
+	return comparePolicyStrictnessWithRenames(base, candidate, createdDataObjects, renamedDataObjects, createdPackages, candidateOnlyExternal, deletedLegacySymbols, moves)
 }
 
-// adoptionProbeOwner is the write owner the retired-expression probe assigns
-// to a table it examines. No policy owner has this ID, so every package that
-// names the table surfaces as a foreign read or write in the probe.
-const adoptionProbeOwner = "architecture-adoption-probe"
-
-// adoptableFromRetiredExpressions returns the candidate data objects a
-// reviewed policy epoch may adopt although the base baseline records no
-// tables.unclassified finding for them (ADR 0045): the base reached the table
-// only through a generic store whose table expression the analysis cannot
-// resolve, so the only debt the base could record is tables.unresolved.
-//
-// A table qualifies when it has no write owner at the base, is not already
-// adoptable from recorded debt, the base baseline records at least one
-// production tables.unresolved finding for a package the candidate no longer
-// classifies, and the candidate names the table statically from packages of
-// the adopting owner and from no other package. The last condition ties the
-// adoption to the access that replaced the retired expression; it is proven
-// by analysing the candidate once more with the table assigned to an owner
-// that does not exist, so every accessor surfaces as a foreign read or write.
-// The epoch must increase, as for every reviewed registration.
-func adoptableFromRetiredExpressions(project string, base, candidate *Policy, baseManifest *LegacyManifest, adopted map[string]struct{}) (map[string]struct{}, error) {
-	adoptable := make(map[string]struct{})
-	if baseManifest == nil || candidate.PolicyEpoch <= base.PolicyEpoch {
-		return adoptable, nil
-	}
-	candidatePackages := candidate.packageMap()
-	retired := false
-	recorded := make(map[string]struct{})
-	for _, entry := range baseManifest.Entries {
-		if entry.Scope != ScopeProduction {
-			continue
-		}
-		switch entry.Rule {
-		case "tables.unresolved":
-			if _, classified := candidatePackages[entry.Source]; !classified {
-				retired = true
-			}
-		case "tables.unclassified":
-			recorded[entry.Target] = struct{}{}
-		}
-	}
-	if !retired {
-		return adoptable, nil
-	}
-	baseObjects := dataObjectsByName(base)
-	pending := make(map[string]string)
-	for _, object := range candidate.DataObjects {
-		_, owned := baseObjects[object.Name]
-		_, alreadyAdopted := adopted[object.Name]
-		_, debt := recorded[object.Name]
-		if !owned && !alreadyAdopted && !debt {
-			pending[object.Name] = object.WriteOwner
-		}
-	}
-	if len(pending) == 0 {
-		return adoptable, nil
-	}
-	probe := *candidate
-	// Projection permissions must not hide foreign readers from the probe.
-	probe.ReadProjections = nil
-	probe.DataObjects = make([]DataObject, 0, len(candidate.DataObjects))
-	for _, object := range candidate.DataObjects {
-		if _, examined := pending[object.Name]; examined {
-			object.WriteOwner = adoptionProbeOwner
-		}
-		probe.DataObjects = append(probe.DataObjects, object)
-	}
-	violations, err := analyzeSemantics(project, &probe)
-	if err != nil {
-		return nil, fmt.Errorf("probe retired-expression adoption: %w", err)
-	}
-	accessors := make(map[string][]string)
-	for _, violation := range violations {
-		if violation.Scope != ScopeProduction {
-			continue
-		}
-		if _, examined := pending[violation.Target]; !examined {
-			continue
-		}
-		switch violation.Rule {
-		case "tables.foreign-read", "tables.foreign-write":
-			accessors[violation.Target] = append(accessors[violation.Target], violation.Source)
-		}
-	}
-	for name, owner := range pending {
-		sources := accessors[name]
-		if len(sources) == 0 {
-			continue
-		}
-		adopt := true
-		for _, source := range sources {
-			if pkg, classified := candidatePackages[source]; !classified || pkg.Owner != owner {
-				adopt = false
-				break
-			}
-		}
-		if adopt {
-			adoptable[name] = struct{}{}
-		}
-	}
-	return adoptable, nil
-}
-
-// adoptableDataObjects returns the candidate data objects a reviewed policy
-// epoch may adopt from recorded debt (ADR 0015, #3235). A table qualifies
-// when it has no write owner at the base, the base baseline records at least
-// one production tables.unclassified finding for it, and every package those
-// findings name is classified under the adopting owner in the candidate, no
-// longer exists there, or is proven by the candidate's own findings to reach
-// neither that table nor any table expression the analysis cannot resolve
-// (#3221: the recorded access moved to the adopting owner while the old
-// package lives on for other tables). The epoch must increase, as for every
-// reviewed registration. Transferring an owned table, adopting a table with no
-// recorded debt, and adopting while a package of another owner still
-// accesses it stay loosenings; after the adoption the ordinary foreign-read
-// and foreign-write rules guard every other accessor.
-func adoptableDataObjects(base, candidate *Policy, baseManifest *LegacyManifest, violations []Violation) map[string]struct{} {
-	adoptable := make(map[string]struct{})
-	if baseManifest == nil || candidate.PolicyEpoch <= base.PolicyEpoch {
-		return adoptable
-	}
-	sourcesByTable := make(map[string][]string)
-	for _, entry := range baseManifest.Entries {
-		if entry.Rule == "tables.unclassified" && entry.Scope == ScopeProduction {
-			sourcesByTable[entry.Target] = append(sourcesByTable[entry.Target], entry.Source)
-		}
-	}
-	candidateAccess, unresolvedSources := tableAccessBySource(violations)
-	baseObjects := dataObjectsByName(base)
-	candidatePackages := candidate.packageMap()
-	for _, object := range candidate.DataObjects {
-		if _, owned := baseObjects[object.Name]; owned {
-			continue
-		}
-		sources := sourcesByTable[object.Name]
-		if len(sources) == 0 {
-			continue
-		}
-		adopt := true
-		for _, source := range sources {
-			pkg, classified := candidatePackages[source]
-			_, named := candidateAccess[[2]string{source, object.Name}]
-			_, unresolved := unresolvedSources[source]
-			if classified && pkg.Owner != object.WriteOwner && (named || unresolved) {
-				adopt = false
-				break
-			}
-		}
-		if adopt {
-			adoptable[object.Name] = struct{}{}
-		}
-	}
-	return adoptable
-}
-
-// tableAccessBySource indexes the candidate's ownership findings by
-// (source package, table), plus the packages whose table expressions the
-// analysis could not resolve. Under the candidate policy an adopted table
-// read or written by a package of another owner surfaces as a foreign-read or
-// foreign-write finding, and a table left without an owner as unclassified,
-// so the first index is exactly the set of named accesses that block an
-// adoption. The second index blocks it as well: an unresolved expression
-// names no table, so such a package cannot prove it stopped reaching the one
-// being adopted. Migration and test-support packages produce no findings of
-// either kind.
-func tableAccessBySource(violations []Violation) (map[[2]string]struct{}, map[string]struct{}) {
-	access := make(map[[2]string]struct{})
-	unresolved := make(map[string]struct{})
-	for _, violation := range violations {
-		if violation.Scope != ScopeProduction {
-			continue
-		}
-		switch violation.Rule {
-		case "tables.foreign-read", "tables.foreign-write", "tables.unclassified":
-			access[[2]string{violation.Source, violation.Target}] = struct{}{}
-		case "tables.unresolved":
-			unresolved[violation.Source] = struct{}{}
-		}
-	}
-	return access, unresolved
-}
-
-func comparePolicyStrictness(base, candidate *Policy, createdDataObjects, adoptedDataObjects, createdPackages, candidateOnlyExternal, deletedLegacySymbols map[string]struct{}) error {
+// comparePolicyStrictnessWithRenames compares the policies, given the data
+// objects and packages a candidate creates and the tables a candidate
+// migration renames (new name -> old name).
+func comparePolicyStrictnessWithRenames(base, candidate *Policy, createdDataObjects map[string]struct{}, renamedDataObjects map[string]string, createdPackages, candidateOnlyExternal, deletedLegacySymbols map[string]struct{}, verifiedRelocations map[string]string) error {
 	problems := modulePathLoosenings(base, candidate)
-	problems = append(problems, ownershipLoosenings(base, candidate, createdDataObjects, adoptedDataObjects, createdPackages)...)
+	problems = append(problems, epochLoosenings(base, candidate)...)
+	problems = append(problems, ownershipLoosenings(base, candidate, createdDataObjects, renamedDataObjects, createdPackages)...)
 	problems = append(problems, classificationLoosenings(base, candidate, createdPackages, candidateOnlyExternal)...)
-	problems = append(problems, readProjectionLoosenings(base, candidate, createdPackages)...)
+	problems = append(problems, readProjectionLoosenings(base, candidate, createdPackages, verifiedRelocations)...)
 	problems = append(problems, compositionLoosenings(base, candidate, deletedLegacySymbols)...)
 	problems = append(problems, importLoosenings(base, candidate)...)
 	problems = append(problems, ruleLoosenings(base, candidate, candidateOnlyRolePoints(candidate, createdPackages))...)
@@ -247,7 +69,16 @@ func modulePathLoosenings(base, candidate *Policy) []string {
 	return []string{fmt.Sprintf("module_path changed from %s to %s", base.ModulePath, candidate.ModulePath)}
 }
 
-func ownershipLoosenings(base, candidate *Policy, createdDataObjects, adoptedDataObjects, createdPackages map[string]struct{}) []string {
+// epochLoosenings rejects a lower epoch: epoch-gated validation such as the
+// target-only rule check (ADR 0057) must not be switched off by stepping back.
+func epochLoosenings(base, candidate *Policy) []string {
+	if candidate.PolicyEpoch >= base.PolicyEpoch {
+		return nil
+	}
+	return []string{fmt.Sprintf("policy_epoch decreased from %d to %d", base.PolicyEpoch, candidate.PolicyEpoch)}
+}
+
+func ownershipLoosenings(base, candidate *Policy, createdDataObjects map[string]struct{}, renamedDataObjects map[string]string, createdPackages map[string]struct{}) []string {
 	var problems []string
 	candidateObjects := dataObjectsByName(candidate)
 	for name := range createdDataObjects {
@@ -282,9 +113,13 @@ func ownershipLoosenings(base, candidate *Policy, createdDataObjects, adoptedDat
 	for name, current := range candidateObjects {
 		baseObject, exists := baseObjects[name]
 		_, createdByCandidateMigration := createdDataObjects[name]
-		_, adoptedFromDebt := adoptedDataObjects[name]
 		if !exists {
-			if !createdByCandidateMigration && !adoptedFromDebt {
+			previous, renamedByCandidateMigration := renamedDataObjects[name]
+			switch {
+			case createdByCandidateMigration:
+			case renamedByCandidateMigration:
+				problems = append(problems, renamedDataObjectLoosenings(baseObjects, candidateObjects, name, previous)...)
+			default:
 				problems = append(problems, fmt.Sprintf("data object %s was newly assigned to owner %s", name, current.WriteOwner))
 			}
 			continue
@@ -362,29 +197,59 @@ func ownerPackagesAreCandidateCreated(candidate *Policy, owner string, createdPa
 	return found
 }
 
-func readProjectionLoosenings(base, candidate *Policy, createdPackages map[string]struct{}) []string {
-	baseGrants := projectionGrants(base)
-	replacements := studentProjectionReplacementGrants(base, candidate)
+func readProjectionLoosenings(base, candidate *Policy, createdPackages map[string]struct{}, verifiedRelocations map[string]string) []string {
+	baseGrants := relocatedProjectionGrants(base, candidate, verifiedRelocations)
 	baseOwners := ownersByID(base)
 	candidatePackages := candidate.packageMap()
 	candidateOwners := ownersByID(candidate)
 	var problems []string
 	for grant := range projectionGrants(candidate) {
 		if _, exists := baseGrants[grant]; !exists {
-			if _, replaced := replacements[grant]; replaced {
-				continue
-			}
 			packagePath := strings.SplitN(grant, "|", 2)[0]
 			pkg, classified := candidatePackages[packagePath]
 			_, packageCreated := createdPackages[packagePath]
 			owner, ownerExists := candidateOwners[pkg.Owner]
 			_, ownerExisted := baseOwners[pkg.Owner]
+			if classified && packageCreated && candidate.hasTenantLifecycleRead(packagePath, pkg) {
+				continue
+			}
 			if !classified || !packageCreated || !ownerExists || ownerExisted || owner.Kind != "projection" {
 				problems = append(problems, "new tenant-safe read projection grant "+grant)
 			}
 		}
 	}
 	return problems
+}
+
+func (p *Policy) hasTenantLifecycleRead(packagePath string, pkg Package) bool {
+	for _, projection := range p.ReadProjections {
+		if p.absolutePackage(projection.Package) == packagePath && p.isTenantLifecycleRead(projection, pkg) {
+			return true
+		}
+	}
+	return false
+}
+
+// ADR 0020 renames a grant only after the package's owner, all roles and
+// immutable-base file set have been verified. Every grant field except its
+// package path must remain identical; ordinary additions still fail below.
+func relocatedProjectionGrants(base, candidate *Policy, verifiedRelocations map[string]string) map[string]struct{} {
+	grants := projectionGrants(base)
+	for _, before := range base.ReadProjections {
+		to, moved := verifiedRelocations[base.absolutePackage(before.Package)]
+		if !moved {
+			continue
+		}
+		for _, after := range candidate.ReadProjections {
+			if candidate.absolutePackage(after.Package) != to || before.ID != after.ID || before.TenantSafe != after.TenantSafe || !slices.Equal(before.DataObjects, after.DataObjects) {
+				continue
+			}
+			for _, object := range before.DataObjects {
+				grants[to+"|"+object] = struct{}{}
+			}
+		}
+	}
+	return grants
 }
 
 func compositionLoosenings(base, candidate *Policy, deletedSymbols map[string]struct{}) []string {
@@ -403,14 +268,16 @@ func compositionLoosenings(base, candidate *Policy, deletedSymbols map[string]st
 func importLoosenings(base, candidate *Policy) []string {
 	basePackages := base.packageMap()
 	candidatePackages := candidate.packageMap()
+	basePermissions := newPolicyPermissionMemo(base)
+	candidatePermissions := newPolicyPermissionMemo(candidate)
 	var problems []string
 	for sourcePath, source := range candidatePackages {
 		baseSource, sourceExists := basePackages[sourcePath]
 		if !sourceExists {
 			continue
 		}
-		problems = append(problems, firstPartyImportLoosenings(base, candidate, sourcePath, baseSource, source, basePackages, candidatePackages)...)
-		problems = append(problems, externalImportLoosenings(base, candidate, sourcePath, baseSource, source)...)
+		problems = append(problems, firstPartyImportLoosenings(basePermissions, candidatePermissions, sourcePath, baseSource, source, basePackages, candidatePackages)...)
+		problems = append(problems, externalImportLoosenings(basePermissions, candidatePermissions, sourcePath, baseSource, source)...)
 	}
 	return uniqueStrings(problems)
 }
@@ -420,13 +287,16 @@ func ruleLoosenings(base, candidate *Policy, candidateOnlyPoints map[string]stru
 	roles := sortedAllowedRoles()
 	baseEvaluator := policyWithOwners(base, owners)
 	candidateEvaluator := policyWithOwners(candidate, owners)
+	candidateOwners := ownersByID(candidate)
 	var problems []string
 	for _, rule := range candidate.Rules {
 		if candidateRuleCoveredDirectly(rule, base.Rules) {
 			continue
 		}
 		if candidate.PolicyEpoch > base.PolicyEpoch &&
-			(reviewedTestInfrastructureRule(rule) || reviewedSharedFixtureRule(rule) || reviewedOwnerSuiteRule(rule) || reviewedSharedKernelRule(rule) || reviewedCommonHTTPRule(rule)) {
+			(reviewedTestInfrastructureRule(rule) || reviewedSharedFixtureRule(rule) || reviewedOwnerSuiteRule(rule) || reviewedSharedKernelRule(rule) || reviewedParentHTTPRule(rule) ||
+				reviewedCompositionReachRule(rule, candidateOwners) || reviewedHTTPHostRule(rule) || reviewedInternalReachRule(rule, base, candidateOwners) || reviewedProjectionPublicRule(rule, candidateOwners) || reviewedOwnerHTTPRule(rule, base, candidate) ||
+				reviewedSameOwnerContractRule(rule)) {
 			continue
 		}
 		if problem := uncoveredRulePermission(rule, baseEvaluator, candidateEvaluator, owners, roles); problem != "" {
@@ -476,25 +346,40 @@ const sharedFixtureOwner = "test-support"
 
 // sharedFixtureTargets are the owner/role points the shared fixture owner may
 // reach in a reviewed epoch (ADR 0039, #2748): its own tooling, the tenant
-// runtime rows are created under, the calendar-date type DATE columns are
-// mandated to use, and the permission constants tokens carry. ADR 0047
+// runtime rows are created under and the permission constants tokens carry.
+// ADR 0057 removed the calendar-date wrapper: legacy-shared is another
+// owner's private role, so the fixtures' imports of it are keys (#4081). ADR 0047
 // (#3944) adds the security and settings contracts the guardian presets,
-// student access decisions and settings double are served through. No
-// implementation role of another owner is among them.
+// student access decisions and settings double are served through. ADR 0053
+// point 7.3 (#4001) adds Identity's session token adapter: it is the HTTP
+// session runtime (ADR 0031, ADR 0046), reached for the same reason as the
+// tenant runtime, and carries Identity's http role (ADR 0057 point 3). No
+// implementation role of another owner is among them; the Transaction Runtime
+// bootstrap of sharedFixtureBootstrapTargets is the one composition point.
 var sharedFixtureTargets = map[[2]string]bool{
 	{sharedFixtureOwner, "test-support"}: true,
 	{"tenant-runtime", "public"}:         true,
-	{"legacy-shared", "domain"}:          true,
 	{"security-runtime", "contract"}:     true,
 	{"security-runtime", "public"}:       true,
 	{"settings-platform", "public"}:      true,
+	{"identity-access", "http"}:          true,
+}
+
+// sharedFixtureBootstrapTargets are the composition points the fixture package
+// itself may reach, only in its test-support role in production: the
+// Transaction Runtime bootstrap that builds the PostgreSQL tenant runtime and
+// opens the fixture pools (ADR 0047 addendum, #3970). The end-to-end suites
+// take the runtime from the fixtures, never from the bootstrap.
+var sharedFixtureBootstrapTargets = map[[2]string]bool{
+	{"transaction-runtime", "compose"}: true,
 }
 
 // reviewedSharedFixtureRule reports whether a rule has the one owner-specific
 // shape a reviewed policy epoch may add for the shared fixture owner without
 // an anchor to a candidate-created package: the fixture owner in its
 // test-support role (production) or its e2e-test role (test scopes), reaching
-// one of sharedFixtureTargets. A rule without a role would overlap the
+// one of sharedFixtureTargets, or in its test-support role reaching one of
+// sharedFixtureBootstrapTargets. A rule without a role would overlap the
 // owner-agnostic test-role rules and is refused with them; other source
 // owners, owner kinds, external classes and every other target stay under the
 // ordinary loosening guards.
@@ -519,19 +404,19 @@ func reviewedSharedFixtureRule(rule Rule) bool {
 	default:
 		return false
 	}
-	return sharedFixtureTargets[[2]string{rule.TargetOwner, rule.TargetRole}]
+	target := [2]string{rule.TargetOwner, rule.TargetRole}
+	return sharedFixtureTargets[target] || rule.SourceRole == "test-support" && sharedFixtureBootstrapTargets[target]
 }
 
-// ownerSuiteRules are the three owner-suite reaches ADR 0047 (#3944) pins for
-// the tests that leave the shared fixture package: the settings suite decides
-// the overview scope through the security contract, and the Audit
-// integration suite composes Enrollment and Care Plan through their test
-// support. Each is exact: source owner and role, target owner and role, and
-// the one scope the suite runs in.
+// ownerSuiteRules are the owner-suite reaches ADR 0047 (#3944) pins for the
+// tests that leave the shared fixture package: the settings suite decides the
+// overview scope through the security contract. It is exact: source owner and
+// role, target owner and role, and the one scope the suite runs in. ADR 0047
+// also pinned the Audit integration suite's reach into Enrollment and Care
+// Plan test support; a platform importing a domain owner is not target (ADR
+// 0057), so those imports are keys (#4072).
 var ownerSuiteRules = []Rule{
 	{SourceOwner: "settings-platform", SourceRole: "module-internal-test", TargetOwner: "security-runtime", TargetRole: "public", Scopes: []string{string(ScopeInternalTest)}},
-	{SourceOwner: "audit-platform", SourceRole: "adapter-test", TargetOwner: "enrollment", TargetRole: "test-support", Scopes: []string{string(ScopeExternalTest)}},
-	{SourceOwner: "audit-platform", SourceRole: "adapter-test", TargetOwner: "care-plan", TargetRole: "test-support", Scopes: []string{string(ScopeExternalTest)}},
 }
 
 // reviewedOwnerSuiteRule reports whether a rule is one of the pinned
@@ -650,7 +535,7 @@ func rolePointKey(direction string, scope Scope, owner, role string) string {
 
 func candidateRuleCoveredDirectly(candidate Rule, baseRules []Rule) bool {
 	for _, base := range baseRules {
-		if sameRulePermission(candidate, base) && scopesContain(base.Scopes, candidate.Scopes) {
+		if rulePermissionContains(base, candidate) && scopesContain(base.Scopes, candidate.Scopes) {
 			return true
 		}
 	}
@@ -658,7 +543,8 @@ func candidateRuleCoveredDirectly(candidate Rule, baseRules []Rule) bool {
 }
 
 func sameRulePermission(left, right Rule) bool {
-	return left.SourceOwner == right.SourceOwner && left.SourceOwnerKind == right.SourceOwnerKind && left.SourceRole == right.SourceRole &&
+	return left.SourcePackage == right.SourcePackage && left.TargetPackage == right.TargetPackage &&
+		left.SourceOwner == right.SourceOwner && left.SourceOwnerKind == right.SourceOwnerKind && left.SourceRole == right.SourceRole &&
 		left.TargetOwner == right.TargetOwner && left.TargetOwnerKind == right.TargetOwnerKind && left.TargetRole == right.TargetRole &&
 		left.TargetClass == right.TargetClass && left.SameOwner == right.SameOwner
 }
@@ -684,7 +570,7 @@ func sliceContains(values []string, want string) bool {
 func uncoveredRulePermission(rule Rule, base, candidate *Policy, owners []Owner, roles []string) string {
 	for _, rawScope := range rule.Scopes {
 		scope := Scope(rawScope)
-		for _, source := range matchingOwnerRoles(candidate, rule, owners, roles) {
+		for _, source := range matchingOwnerRoles(candidate, rule, scope, owners, roles) {
 			if rule.TargetClass != "" {
 				if !policyAllowsExternal(base, scope, rulePointPackage(source), ExternalPackage{Class: rule.TargetClass}) {
 					return fmt.Sprintf("rule %s newly allows %s %s/%s -> external class %s", rule.ID, scope, source.Owner.ID, source.Role, rule.TargetClass)
@@ -700,11 +586,19 @@ func uncoveredRulePermission(rule Rule, base, candidate *Policy, owners []Owner,
 }
 
 type ownerRole struct {
+	Path  string
 	Owner Owner
 	Role  string
 }
 
-func matchingOwnerRoles(policy *Policy, rule Rule, owners []Owner, roles []string) []ownerRole {
+func matchingOwnerRoles(policy *Policy, rule Rule, scope Scope, owners []Owner, roles []string) []ownerRole {
+	if rule.SourcePackage != "" {
+		pkg, err := policy.firstPartyPackage(policy.absolutePackage(rule.SourcePackage))
+		if err != nil || !policy.matchesSource(rule, pkg.inScope(scope)) {
+			return nil
+		}
+		return []ownerRole{{Path: pkg.Path, Owner: Owner{ID: pkg.Owner}, Role: pkg.inScope(scope).Role}}
+	}
 	var matches []ownerRole
 	for _, owner := range owners {
 		for _, candidateRole := range roles {
@@ -721,15 +615,17 @@ func uncoveredFirstPartyPermission(rule Rule, base, candidate *Policy, scope Sco
 	sourcePackage := rulePointPackage(source)
 	for _, target := range owners {
 		targetPackage := rulePointPackage(ownerRole{Owner: target, Role: rule.TargetRole})
+		if rule.TargetPackage != "" {
+			selected, err := candidate.firstPartyPackage(candidate.absolutePackage(rule.TargetPackage))
+			if err != nil || selected.Owner != target.ID {
+				continue
+			}
+			targetPackage = selected
+		}
 		if !candidate.matchesTarget(rule, sourcePackage, targetPackage) {
 			continue
 		}
-		if !policyAllowsFirstParty(base, scope, sourcePackage, targetPackage) && !careScheduleCutoverPermission(base, candidate, scope, sourcePackage, targetPackage) &&
-			!careLifecycleCutoverPermission(base, candidate, scope, sourcePackage, targetPackage) &&
-			!studentPresenceCutoverPermission(base, candidate, scope, sourcePackage, targetPackage) &&
-			!timetablePlanningCutoverPermission(base, candidate, scope, sourcePackage, targetPackage) &&
-			!shiftPlanningCutoverPermission(base, candidate, scope, sourcePackage, targetPackage) &&
-			!enrollmentApplicationCutoverPermission(base, candidate, scope, sourcePackage, targetPackage) {
+		if !policyAllowsFirstParty(base, scope, sourcePackage, targetPackage) {
 			return fmt.Sprintf("rule %s newly allows %s %s/%s -> %s/%s", rule.ID, scope, source.Owner.ID, source.Role, target.ID, rule.TargetRole)
 		}
 	}
@@ -737,7 +633,7 @@ func uncoveredFirstPartyPermission(rule Rule, base, candidate *Policy, scope Sco
 }
 
 func rulePointPackage(point ownerRole) Package {
-	return Package{Owner: point.Owner.ID, Role: point.Role, InternalTestRole: point.Role, ExternalTestRole: point.Role}
+	return Package{Path: point.Path, Owner: point.Owner.ID, Role: point.Role, InternalTestRole: point.Role, ExternalTestRole: point.Role}
 }
 
 func ruleUniverseOwners(base, candidate *Policy) []Owner {
@@ -776,7 +672,8 @@ func sortedAllowedRoles() []string {
 	return roles
 }
 
-func firstPartyImportLoosenings(base, candidate *Policy, sourcePath string, baseSource, source Package, basePackages, candidatePackages map[string]Package) []string {
+func firstPartyImportLoosenings(basePermissions, candidatePermissions *policyPermissionMemo, sourcePath string, baseSource, source Package, basePackages, candidatePackages map[string]Package) []string {
+	base, candidate := basePermissions.policy, candidatePermissions.policy
 	var problems []string
 	for targetPath, target := range candidatePackages {
 		baseTarget, exists := basePackages[targetPath]
@@ -784,15 +681,15 @@ func firstPartyImportLoosenings(base, candidate *Policy, sourcePath string, base
 			continue
 		}
 		for _, scope := range allScopes() {
-			if policyAllowsFirstParty(candidate, scope, source, target) && !policyAllowsFirstParty(base, scope, baseSource, baseTarget) &&
-				!careScheduleCutoverPermission(base, candidate, scope, baseSource, target) && !careLifecycleCutoverPermission(base, candidate, scope, baseSource, target) &&
-				!studentPresenceCutoverPermission(base, candidate, scope, baseSource, target) &&
-				!timetablePlanningCutoverPermission(base, candidate, scope, baseSource, target) &&
-				!shiftPlanningCutoverPermission(base, candidate, scope, baseSource, target) &&
-				!enrollmentApplicationCutoverPermission(base, candidate, scope, baseSource, target) &&
+			if candidatePermissions.allowsFirstParty(scope, source, target) && !basePermissions.allowsFirstParty(scope, baseSource, baseTarget) &&
 				!firstPartyAllowedByReviewedFixtureRule(base, candidate, scope, source, target) &&
 				!firstPartyAllowedByReviewedSharedKernelRule(base, candidate, scope, source, target) &&
-				!firstPartyAllowedByReviewedCommonHTTPRule(base, candidate, scope, source, target) {
+				!firstPartyAllowedByReviewedParentHTTPRule(base, candidate, scope, source, target) &&
+				!firstPartyAllowedByReviewedCompositionReach(base, candidate, scope, source, target) &&
+				!firstPartyAllowedByReviewedInternalReach(base, candidate, scope, source, target) &&
+				!firstPartyAllowedByReviewedProjectionPublicRule(base, candidate, scope, source, target) &&
+				!firstPartyAllowedByReviewedSameOwnerContractRule(base, candidate, scope, source, target) &&
+				!firstPartyAllowedByReviewedOwnerHTTPRule(base, candidate, scope, source, target) {
 				problems = append(problems, Violation{Scope: scope, Rule: "imports.forbidden", Source: sourcePath, Target: targetPath}.Key())
 			}
 		}
@@ -800,7 +697,8 @@ func firstPartyImportLoosenings(base, candidate *Policy, sourcePath string, base
 	return problems
 }
 
-func externalImportLoosenings(base, candidate *Policy, sourcePath string, baseSource, source Package) []string {
+func externalImportLoosenings(basePermissions, candidatePermissions *policyPermissionMemo, sourcePath string, baseSource, source Package) []string {
+	base, candidate := basePermissions.policy, candidatePermissions.policy
 	baseExternal := base.externalPackageMap()
 	var problems []string
 	for targetPath, target := range candidate.externalPackageMap() {
@@ -809,8 +707,9 @@ func externalImportLoosenings(base, candidate *Policy, sourcePath string, baseSo
 			continue
 		}
 		for _, scope := range allScopes() {
-			if policyAllowsExternal(candidate, scope, source, target) && !policyAllowsExternal(base, scope, baseSource, baseTarget) {
-				if candidate.PolicyEpoch > base.PolicyEpoch && externalAllowedByReviewedTestInfrastructureRule(candidate, scope, source, target) {
+			if candidatePermissions.allowsExternal(scope, source, target) && !basePermissions.allowsExternal(scope, baseSource, baseTarget) {
+				if candidate.PolicyEpoch > base.PolicyEpoch && (externalAllowedByReviewedTestInfrastructureRule(candidate, scope, source, target) ||
+					externalAllowedByReviewedHTTPHostRule(candidate, scope, source, target)) {
 					continue
 				}
 				problems = append(problems, Violation{Scope: scope, Rule: "imports.forbidden", Source: sourcePath, Target: targetPath}.Key())

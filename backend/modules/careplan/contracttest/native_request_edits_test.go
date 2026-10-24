@@ -26,7 +26,7 @@ func (e *editEvents) RecordGuardianEdit(context.Context, *carerequests.Request, 
 func TestNativeRequestEditChecksOwnershipBeforeStatusAndVersion(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	owner := careplantest.NewCarePlan(t, db)
+	owner := careplantest.NewCarePlan(t, db, testpkg.StudentDirectory{})
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "Edit", "Owner", "1a")
 	account := testpkg.CreateTestAccount(t, db, "parent")
@@ -61,10 +61,18 @@ func (p *editedPickup) PickupTime(_ context.Context, _ int64, date calendar.Date
 	return &clock, nil
 }
 
+func (p *editedPickup) DayDepartureMode(context.Context, int64, calendar.Date) (string, bool, error) {
+	return "alone", true, nil
+}
+
+func (p *editedPickup) WeeklyDepartureModes(context.Context, int64) (map[string][]string, error) {
+	return nil, nil
+}
+
 func TestNativePickupEditChecksOldCutoffAndRollsBackLedgerFailure(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	owner := careplantest.NewCarePlan(t, db)
+	owner := careplantest.NewCarePlan(t, db, testpkg.StudentDirectory{})
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "Edit", "Pickup", "1a")
 	account := testpkg.CreateTestAccount(t, db, "parent")
@@ -76,7 +84,7 @@ func TestNativePickupEditChecksOldCutoffAndRollsBackLedgerFailure(t *testing.T) 
 	pickup := &editedPickup{}
 	query, err := compose.NewRequestEdits(owner, pickup, events, func() calendar.Date { return "2026-09-20" })
 	require.NoError(t, err)
-	cutoff, err := careplan.NewSameDayCutoff("11:00", time.Date(2026, 9, 20, 12, 0, 0, 0, calendar.Berlin))
+	cutoff, err := carerequests.NewSameDayCutoff("11:00", time.Date(2026, 9, 20, 12, 0, 0, 0, calendar.Berlin))
 	require.NoError(t, err)
 	input := carerequests.EditInput{RequestID: row.ID, StudentID: student.ID, GuardianAccountID: account.ID,
 		ExpectedVersion: careplan.ParentRequestVersion(row.UpdatedAt), Date: "2026-09-21", PickupTime: time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC), Reason: "Neuer Termin", Cutoff: cutoff}
@@ -88,7 +96,7 @@ func TestNativePickupEditChecksOldCutoffAndRollsBackLedgerFailure(t *testing.T) 
 	}
 	require.ErrorIs(t, edit(), carerequests.ErrPickupChangeCutoffPassed)
 	require.Empty(t, pickup.dates)
-	input.Cutoff = nil
+	input.Cutoff = careplan.SameDayCutoff{}
 	require.ErrorIs(t, edit(), events.err)
 	unchanged, err := owner.FindCareScheduleRequest(ctx, row.ID, false)
 	require.NoError(t, err)

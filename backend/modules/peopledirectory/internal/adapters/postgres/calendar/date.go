@@ -1,9 +1,9 @@
 package calendar
 
-import "github.com/moto-nrw/project-phoenix/internal/timezone"
+import "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 
-type Date = timezone.Date
+type Date = calendar.Date
 
 func ParseDate(value string) (Date, error) {
-	return timezone.ParseDate(value)
+	return calendar.ParseDate(value)
 }

@@ -7,13 +7,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	calendarSvc "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
-	calendarRuntime "github.com/moto-nrw/project-phoenix/services"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -104,7 +104,7 @@ func (s reminderEffectsSource) ReminderEffects() calendarCompose.ReminderEffects
 func TestCalendarServiceIntegration_ReminderPreparationRollsBackEmailAndPushClaim(t *testing.T) {
 	t.Parallel()
 
-	db, module := testutil.SetupCalendarModule(t)
+	db, module := setupCalendarModule(t)
 	_, organizer := testpkg.CreateTestCalendarStaff(t, db, "Reminder", "Rollback")
 	parent := testpkg.CreateTestParentGuardianChain(t, db)
 	ctx := calendarContext(t, organizer.ID)
@@ -112,8 +112,8 @@ func TestCalendarServiceIntegration_ReminderPreparationRollsBackEmailAndPushClai
 	detail, err := module.Calendar.CreateStaffAppointment(ctx, calendarSvc.CreateAppointmentRequest{
 		Title: "Elternabend", StartDate: date, EndDate: date,
 		StartTime: wallClock(18, 0), EndTime: wallClock(19, 0),
-		DeliveryMode: calModels.DeliveryModeInformational, SendEmail: true,
-		Targets: []calendarSvc.AppointmentTarget{{Type: calModels.TargetTypeGuardianProfile, ID: &parent.GuardianProfileID}},
+		DeliveryMode: appointments.DeliveryModeInformational, SendEmail: true,
+		Targets: []calendarSvc.AppointmentTarget{{Type: appointments.TargetTypeGuardianProfile, ID: &parent.GuardianProfileID}},
 	})
 	require.NoError(t, err)
 
@@ -128,7 +128,7 @@ func TestCalendarServiceIntegration_ReminderPreparationRollsBackEmailAndPushClai
 		pushes++
 		return true, nil
 	}
-	command := testutil.ComposeCalendarReminderCommand(db, reminderEffectsSource{effects})
+	command := api.NewCalendarReminderCommand(testpkg.NewDatabase(t, db), reminderEffectsSource{effects})
 	startsAt := berlinInstant(t, date, 18, 0)
 	from, to := startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute)
 
@@ -169,7 +169,7 @@ func TestCalendarServiceIntegration_ReminderPreparationRollsBackEmailAndPushClai
 		require.NoError(t, err)
 		effects.Email = nil
 		effects.FilterEmail = nil
-		pushOnly := testutil.ComposeCalendarReminderCommand(db, reminderEffectsSource{effects})
+		pushOnly := api.NewCalendarReminderCommand(testpkg.NewDatabase(t, db), reminderEffectsSource{effects})
 		queued, err := pushOnly.EnqueueDueAppointmentReminders(ctx, from, to)
 		require.NoError(t, err)
 		assert.Zero(t, queued, "push-only delivery does not enqueue email")
@@ -203,10 +203,10 @@ func TestCalendarServiceIntegration_ReminderScanReportsStoreFailures(t *testing.
 		EndDate:      appointmentDate,
 		StartTime:    wallClock(18, 0),
 		EndTime:      wallClock(19, 0),
-		DeliveryMode: calModels.DeliveryModeInformational,
+		DeliveryMode: appointments.DeliveryModeInformational,
 		SendEmail:    true,
 		Targets: []calendarSvc.AppointmentTarget{
-			{Type: calModels.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
+			{Type: appointments.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
 		},
 	})
 	require.NoError(t, err)
@@ -214,26 +214,26 @@ func TestCalendarServiceIntegration_ReminderScanReportsStoreFailures(t *testing.
 	startsAt := berlinInstant(t, appointmentDate, 18, 0)
 	from, to := startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute)
 
-	cases := map[string]func(cfg *calendarRuntime.CalendarDependencies){
-		"the candidate scan": func(cfg *calendarRuntime.CalendarDependencies) {
+	cases := map[string]func(cfg *calendarCompose.Config){
+		"the candidate scan": func(cfg *calendarCompose.Config) {
 			cfg.Appointments = failingCandidateScan{cfg.Appointments}
 		},
-		"loading the recurrence rules": func(cfg *calendarRuntime.CalendarDependencies) {
+		"loading the recurrence rules": func(cfg *calendarCompose.Config) {
 			cfg.Appointments = failingRecurrenceList{cfg.Appointments}
 		},
-		"loading the moved occurrences": func(cfg *calendarRuntime.CalendarDependencies) {
+		"loading the moved occurrences": func(cfg *calendarCompose.Config) {
 			cfg.Appointments = failingMovedOverrides{cfg.Appointments}
 		},
-		"re-locking the appointment": func(cfg *calendarRuntime.CalendarDependencies) {
+		"re-locking the appointment": func(cfg *calendarCompose.Config) {
 			cfg.Appointments = failingCandidateLock{cfg.Appointments}
 		},
-		"re-reading the recurrence rule": func(cfg *calendarRuntime.CalendarDependencies) {
+		"re-reading the recurrence rule": func(cfg *calendarCompose.Config) {
 			cfg.Appointments = &failingRecurrenceReload{Capability: cfg.Appointments}
 		},
-		"re-reading the occurrence override": func(cfg *calendarRuntime.CalendarDependencies) {
+		"re-reading the occurrence override": func(cfg *calendarCompose.Config) {
 			cfg.Appointments = failingOccurrenceOverrides{cfg.Appointments}
 		},
-		"resolving the recipients": func(cfg *calendarRuntime.CalendarDependencies) {
+		"resolving the recipients": func(cfg *calendarCompose.Config) {
 			cfg.Appointments = failingRecipientLookup{cfg.Appointments}
 		},
 	}
@@ -246,7 +246,7 @@ func TestCalendarServiceIntegration_ReminderScanReportsStoreFailures(t *testing.
 			cfg.Logger = slog.Default()
 			breakStep(&cfg)
 
-			queued, err := testutil.ComposeCalendarReminderCommand(db, calendarRuntime.NewCalendarPortal(cfg)).EnqueueDueAppointmentReminders(ctx, from, to)
+			queued, err := api.NewCalendarReminderCommand(testpkg.NewDatabase(t, db), owners.NewCalendarPortal(cfg)).EnqueueDueAppointmentReminders(ctx, from, to)
 			require.ErrorIs(t, err, errReminderStore)
 			assert.Zero(t, queued)
 		})
@@ -261,9 +261,9 @@ func TestCalendarServiceIntegration_ReminderScanRequiresATenant(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupCalendarServiceWithOutbox(t, db, &recordingOutbox{})
-	now := timezone.Now()
+	now := calendar.Now()
 
-	queued, err := testutil.ComposeCalendarReminderCommand(db, service).EnqueueDueAppointmentReminders(context.Background(), now, now.Add(time.Hour))
+	queued, err := api.NewCalendarReminderCommand(testpkg.NewDatabase(t, db), service).EnqueueDueAppointmentReminders(context.Background(), now, now.Add(time.Hour))
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "tenant id is required")
 	assert.Zero(t, queued)

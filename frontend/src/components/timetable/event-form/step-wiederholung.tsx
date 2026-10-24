@@ -12,6 +12,7 @@ import { Field } from "./field";
 import { isoWeekday } from "./form-model";
 import type { EventFormState, RepeatMode } from "./form-model";
 import { WEEKDAYS } from "./use-event-form";
+import { FieldErrorHint } from "~/components/ui/field-error-hint";
 
 const REPEAT_OPTIONS: Array<{ value: RepeatMode; label: string }> = [
   { value: "none", label: "Nie" },
@@ -198,11 +199,11 @@ export function StepWiederholung({
             ]}
           />
           <p className="text-xs text-gray-500">{abWeekHint}</p>
-          {fieldErrors.weekPattern && (
-            <p role="alert" className="text-moto-red mt-1 text-xs">
-              {fieldErrors.weekPattern}
-            </p>
-          )}
+          <FieldErrorHint
+            id="event-week-pattern-error"
+            message={fieldErrors.weekPattern}
+            live
+          />
         </div>
       )}
 
@@ -249,11 +250,11 @@ export function StepWiederholung({
                 verschoben oder entfernt, wenn ein Werktag verbleibt.
               </p>
             )}
-            {fieldErrors.weekdays && (
-              <p role="alert" className="text-moto-red mt-1 text-xs">
-                {fieldErrors.weekdays}
-              </p>
-            )}
+            <FieldErrorHint
+              id="event-weekdays-error"
+              message={fieldErrors.weekdays}
+              live
+            />
           </div>
 
           <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2">
@@ -301,11 +302,11 @@ export function StepWiederholung({
                     </span>
                   </span>
                 </div>
-                {fieldErrors.calendarPeriodId && (
-                  <p role="alert" className="text-moto-red mt-1 text-xs">
-                    {fieldErrors.calendarPeriodId}
-                  </p>
-                )}
+                <FieldErrorHint
+                  id="event-calendar-period-error"
+                  message={fieldErrors.calendarPeriodId}
+                  live
+                />
               </div>
             )}
             {lastDayField}

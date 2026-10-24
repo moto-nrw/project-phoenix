@@ -5,9 +5,9 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // capabilityError reports a Workforce sentinel through errors.Is while keeping
@@ -68,7 +68,7 @@ func (p staffShiftPlanning) ListShifts(ctx context.Context, query workforce.Shif
 	if err != nil {
 		return nil, err
 	}
-	var shifts []*StaffShift
+	var shifts []*workforce.ShiftRecord
 	if query.StaffID > 0 {
 		shifts, err = p.deps.Shifts.ListShiftsForStaff(ctx, query.StaffID, from, to)
 	} else {
@@ -196,7 +196,7 @@ func (p staffShiftPlanning) SplitSeries(ctx context.Context, input workforce.Spl
 	if err != nil {
 		return workforce.StaffShiftSeriesResult{}, err
 	}
-	var validUntil *timezone.Date
+	var validUntil *calendar.Date
 	if input.ValidUntil != "" {
 		until, err := planningDate(input.ValidUntil, "valid_until")
 		if err != nil {
@@ -293,7 +293,7 @@ func (p staffShiftPlanning) ExportPlan(ctx context.Context, request workforce.Pl
 
 // --- mapping ---
 
-func shiftInputToModel(input workforce.StaffShiftInput) (*StaffShift, error) {
+func shiftInputToModel(input workforce.StaffShiftInput) (*workforce.ShiftRecord, error) {
 	date, err := planningDate(input.Date, "date")
 	if err != nil {
 		return nil, err
@@ -302,7 +302,7 @@ func shiftInputToModel(input workforce.StaffShiftInput) (*StaffShift, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &StaffShift{
+	return &workforce.ShiftRecord{
 		StaffID: input.StaffID, Date: date, StartTime: start, EndTime: end,
 		BreakMinutes: input.BreakMinutes, ShiftTypeID: input.ShiftTypeID, Notes: input.Notes,
 		Cancelled: input.Cancelled, ChangeReason: input.ChangeReason, OriginShiftID: input.OriginShiftID,
@@ -314,7 +314,7 @@ func seriesInputToModel(input workforce.StaffShiftSeriesInput) (*StaffShiftSerie
 	if err != nil {
 		return nil, err
 	}
-	var validUntil *timezone.Date
+	var validUntil *calendar.Date
 	if input.ValidUntil != "" {
 		until, err := planningDate(input.ValidUntil, "valid_until")
 		if err != nil {
@@ -342,7 +342,7 @@ func seriesInputToModel(input workforce.StaffShiftSeriesInput) (*StaffShiftSerie
 	}, nil
 }
 
-func plannedShiftToCapability(shift *StaffShift) workforce.PlannedShift {
+func plannedShiftToCapability(shift *workforce.ShiftRecord) workforce.PlannedShift {
 	if shift == nil {
 		return workforce.PlannedShift{}
 	}
@@ -363,7 +363,7 @@ func plannedShiftToCapability(shift *StaffShift) workforce.PlannedShift {
 	return value
 }
 
-func plannedShiftsToCapability(shifts []*StaffShift) []workforce.PlannedShift {
+func plannedShiftsToCapability(shifts []*workforce.ShiftRecord) []workforce.PlannedShift {
 	result := make([]workforce.PlannedShift, 0, len(shifts))
 	for _, shift := range shifts {
 		if shift == nil {
@@ -465,10 +465,10 @@ func overviewToCapability(overview *StaffScheduleOverview) workforce.StaffSchedu
 
 // planningDate parses a calendar day; a malformed one is the invalid-shift
 // rejection so the route renders it as a bad request.
-func planningDate(value, field string) (timezone.Date, error) {
-	date, err := timezone.ParseDate(value)
+func planningDate(value, field string) (calendar.Date, error) {
+	date, err := calendar.ParseDate(value)
 	if err != nil {
-		return timezone.Date(""), &workforce.InvalidStaffShiftError{Reason: field + " must be YYYY-MM-DD"}
+		return calendar.Date(""), &workforce.InvalidStaffShiftError{Reason: field + " must be YYYY-MM-DD"}
 	}
 	return date, nil
 }
@@ -492,11 +492,11 @@ func planningClock(value, field string) (time.Time, error) {
 	if err != nil {
 		return time.Time{}, &workforce.InvalidStaffShiftError{Reason: field + " must be " + workforce.ClockLayout}
 	}
-	return timezone.NormalizeWallClock(parsed), nil
+	return calendar.NormalizeWallClock(parsed), nil
 }
 
 func clockString(value time.Time) string {
-	return timezone.NormalizeWallClock(value).Format(workforce.ClockLayout)
+	return calendar.NormalizeWallClock(value).Format(workforce.ClockLayout)
 }
 
 var planningErrorKinds = []struct {

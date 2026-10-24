@@ -2,6 +2,7 @@ import { revalidatePath, revalidateTag } from "next/cache";
 import { createOperatorPostHandler } from "~/lib/operator/route-wrapper.server";
 import { isValidSlug } from "~/lib/operator/provisioning-helpers";
 import { createLogger } from "~/lib/logger";
+import { bffError } from "~/lib/api-response-error.server";
 
 const logger = createLogger({ component: "RevalidateTenantRoute" });
 
@@ -12,7 +13,7 @@ export const POST = createOperatorPostHandler<
   const slugs = body.slugs;
 
   if (!Array.isArray(slugs) || slugs.length === 0) {
-    throw new Error("API error (400): slugs array is required");
+    throw bffError(400, "slugs array is required");
   }
 
   for (const slug of slugs) {

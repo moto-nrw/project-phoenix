@@ -242,13 +242,19 @@ func TestPlannedSupervisorListQueryBudgetStaysFlat(t *testing.T) {
 		group := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("supervisor-owner-budget-%d", i))
 		createOwnedSupervisor(t, module, ctx, staff.ID, group.ID, i == 0)
 	}
-	counter := testpkg.CaptureQueries(t, db)
-	_, err := module.ListPlannedSupervisors(ctx, timetable.PlannedSupervisorFilter{StaffID: &staff.ID})
-	require.NoError(t, err)
-	testpkg.AssertQueryBudget(t, "modules.timetable.supervisors.list", counter.Queries())
+	// The owner read runs inside the HTTP/workflow unit of work. The budget
+	// still measures every business query, not connection/role setup.
+	require.NoError(t, tenant.WithinCurrentTenant(ctx, func(ctx context.Context) error {
+		counter := testpkg.CaptureQueries(t, db)
+		_, err := module.ListPlannedSupervisors(ctx, timetable.PlannedSupervisorFilter{StaffID: &staff.ID})
+		require.NoError(t, err)
+		testpkg.AssertQueryBudget(t, "modules.timetable.supervisors.list", counter.Queries())
+
+		return nil
+	}))
 }
 
-func createOwnedSupervisor(t *testing.T, module *timetable.Module, ctx context.Context, staffID, groupID int64, primary bool) timetable.PlannedSupervisor {
+func createOwnedSupervisor(t *testing.T, module timetable.Owner, ctx context.Context, staffID, groupID int64, primary bool) timetable.PlannedSupervisor {
 	t.Helper()
 	value, err := module.CreatePlannedSupervisor(ctx, supervisorInput(staffID, groupID, primary))
 	require.NoError(t, err)
@@ -271,28 +277,28 @@ func rollbackSupervisorWrite(t *testing.T, ctx context.Context, write func(conte
 	require.ErrorIs(t, err, wantErr)
 }
 
-func assertSupervisorPrimary(t *testing.T, module *timetable.Module, ctx context.Context, id int64, want bool) {
+func assertSupervisorPrimary(t *testing.T, module timetable.Owner, ctx context.Context, id int64, want bool) {
 	t.Helper()
 	value, err := module.FindPlannedSupervisor(ctx, id)
 	require.NoError(t, err)
 	assert.Equal(t, want, value.IsPrimary)
 }
 
-func assertSupervisorCount(t *testing.T, module *timetable.Module, ctx context.Context, staffID int64, want int) {
+func assertSupervisorCount(t *testing.T, module timetable.Owner, ctx context.Context, staffID int64, want int) {
 	t.Helper()
 	values, err := module.ListPlannedSupervisors(ctx, timetable.PlannedSupervisorFilter{StaffID: &staffID})
 	require.NoError(t, err)
 	assert.Len(t, values, want)
 }
 
-func assertSupervisorValidUntil(t *testing.T, module *timetable.Module, ctx context.Context, id int64, want *string) {
+func assertSupervisorValidUntil(t *testing.T, module timetable.Owner, ctx context.Context, id int64, want *string) {
 	t.Helper()
 	value, err := module.FindPlannedSupervisor(ctx, id)
 	require.NoError(t, err)
 	assert.Equal(t, want, value.ValidUntil)
 }
 
-func assertGroupSupervisorValidUntil(t *testing.T, module *timetable.Module, ctx context.Context, groupID int64, want *string) {
+func assertGroupSupervisorValidUntil(t *testing.T, module timetable.Owner, ctx context.Context, groupID int64, want *string) {
 	t.Helper()
 	values, err := module.ListPlannedSupervisors(ctx, timetable.PlannedSupervisorFilter{GroupIDs: []int64{groupID}})
 	require.NoError(t, err)

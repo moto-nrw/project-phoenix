@@ -3,6 +3,7 @@
  * Extracted to reduce cognitive complexity in route handlers
  */
 
+import { isApiResponseError } from "~/lib/api-response-error.server";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "StudentPrivacy" });
@@ -63,7 +64,7 @@ export async function fetchPrivacyConsent(
     // Differentiate 404 (no consent yet) and 403 (no permission) from other errors
     if (e instanceof Error) {
       const is404or403 =
-        e.message.includes("(404)") || e.message.includes("(403)");
+        isApiResponseError(e, 404) || isApiResponseError(e, 403);
       if (!is404or403) {
         logger.error("privacy_consent_fetch_failed", {
           error: e.message,

@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // The identity an account needs to be usable as personnel at a school:
@@ -16,17 +18,33 @@ import (
 // assignment and the operator-led school access. The question "is this
 // personnel?" is answered here, once, for all of them (#2222).
 
-// EnsureSchoolIdentity creates the person, staff and (for caregiver roles)
-// teacher rows the account needs to be usable at the school in ctx.
-//
-// Every step is idempotent: an account that already carries part of the chain
-// keeps it. Returns (nil, nil) for roles that need no staff record, and for an
-// account without a person when the caller passed CreatePerson=false.
-//
-// Callers must run this inside the school's tenant transaction: the
-// directory reads are tenant-filtered, and the whole chain has to commit or
-// roll back as one.
-func (l *AccountLifecycle) EnsureSchoolIdentity(ctx context.Context, in domain.SchoolIdentityInput) (*domain.SchoolIdentity, error) {
+func (l *AccountLifecycle) EnsureSchoolIdentity(ctx context.Context, input identityaccess.SchoolIdentityInput) (value0 *identityaccess.SchoolIdentity, err error) {
+	if l == nil {
+		return nil, errAccountLifecycleUnavailable
+	}
+	operation := func(ctx context.Context) (*identityaccess.SchoolIdentity, error) {
+		identity, err := l.EnsureSchoolIdentityChain(bindRuntime(l.auth.attach, ctx), domain.SchoolIdentityInput{
+			AccountID: input.AccountID, TenantID: input.TenantID, Role: roleFacts(input.Role),
+			FirstName: input.FirstName, LastName: input.LastName, TagID: input.TagID, PersonID: input.PersonID,
+			Position: input.Position, CaregiverUpgrade: input.CaregiverUpgrade, CreatePerson: input.CreatePerson,
+		})
+		if err != nil {
+			return nil, lifecycleError(err)
+		}
+		if identity == nil {
+			return nil, nil
+		}
+		result := identityaccess.SchoolIdentity(*identity)
+		return &result, nil
+	}
+	err = l.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, err = operation(txCtx)
+		return err
+	})
+	return
+}
+
+func (l *AccountLifecycle) EnsureSchoolIdentityChain(ctx context.Context, in domain.SchoolIdentityInput) (*domain.SchoolIdentity, error) {
 	if !l.roles.RoleNeedsStaffRecord(in.Role) {
 		return nil, nil
 	}
@@ -56,14 +74,6 @@ func (l *AccountLifecycle) EnsureSchoolIdentity(ctx context.Context, in domain.S
 	return identity, nil
 }
 
-// HasLiveCaregiverProfile reports whether the account's identity at the
-// tenant in ctx includes a live caregiver profile (users.teachers) — the
-// person → staff → teacher chain the staff flows maintain. Soft-deleted
-// (offboarded) records do not count.
-func (l *AccountLifecycle) HasLiveCaregiverProfile(ctx context.Context, accountID int64) (bool, error) {
-	return l.profiles.HasLiveCaregiverProfile(ctx, accountID)
-}
-
 // resolveIdentityPerson returns the account's live person at this school,
 // creating it when the caller allows it. Returns (nil, nil) when there is none
 // and the caller refused to create one.
@@ -81,13 +91,7 @@ func (l *AccountLifecycle) resolveIdentityPerson(ctx context.Context, in domain.
 	}
 
 	if found && !person.Deleted {
-		if err := l.refuseStudentPerson(ctx, person.ID); err != nil {
-			return nil, err
-		}
-		if err := l.applyIdentityTag(ctx, &person, tagID); err != nil {
-			return nil, err
-		}
-		return &person, nil
+		return l.continueAccountPerson(ctx, in, person, tagID)
 	}
 
 	adopted, err := l.adoptHintedPerson(ctx, in)
@@ -129,11 +133,48 @@ func (l *AccountLifecycle) resolveIdentityPerson(ctx context.Context, in domain.
 	return &created, nil
 }
 
+// continueAccountPerson completes the chain on the account's live person, or
+// on the import's hinted person when the account's person is former staff.
+func (l *AccountLifecycle) continueAccountPerson(ctx context.Context, in domain.SchoolIdentityInput, person domain.PersonRecord, tagID *string) (*domain.PersonRecord, error) {
+	if err := l.refuseStudentPerson(ctx, person.ID); err != nil {
+		return nil, err
+	}
+	moved, err := l.moveToHintedPerson(ctx, in, person)
+	if err != nil {
+		return nil, err
+	}
+	if moved != nil {
+		person = *moved
+	}
+	if err := l.applyIdentityTag(ctx, &person, tagID); err != nil {
+		return nil, err
+	}
+	return &person, nil
+}
+
 // adoptHintedPerson links the account to the person named by in.PersonID when
 // that person is still a free directory entry at this school: live, without
 // an account, and not a child's record. Returns (nil, nil) when there is no
 // hint or the hint does not qualify (#2600).
 func (l *AccountLifecycle) adoptHintedPerson(ctx context.Context, in domain.SchoolIdentityInput) (*domain.PersonRecord, error) {
+	person, err := l.qualifyingHint(ctx, in)
+	if err != nil || person == nil {
+		return nil, err
+	}
+	if person.AccountID == nil {
+		if err := l.staff.LinkPersonToAccount(ctx, person.ID, in.AccountID); err != nil {
+			return nil, fmt.Errorf("link imported person to account: %w", err)
+		}
+		accountID := in.AccountID
+		person.AccountID = &accountID
+	}
+	return person, nil
+}
+
+// qualifyingHint reads the person named by in.PersonID when it is a free
+// directory entry at this school or already this account's. Returns (nil, nil)
+// otherwise.
+func (l *AccountLifecycle) qualifyingHint(ctx context.Context, in domain.SchoolIdentityInput) (*domain.PersonRecord, error) {
 	if in.PersonID == nil || *in.PersonID <= 0 {
 		return nil, nil
 	}
@@ -149,20 +190,39 @@ func (l *AccountLifecycle) adoptHintedPerson(ctx context.Context, in domain.Scho
 		return nil, nil
 	}
 	isStudent, err := l.staff.IsStudentPerson(ctx, person.ID)
+	if err != nil || isStudent {
+		return nil, err
+	}
+	return &person, nil
+}
+
+// moveToHintedPerson follows the staff import's hint (#2600) when the
+// account's person is no current personnel. A former staff member keeps the
+// account link (ADR 0021, #3400); without the move, the returning person would
+// get a second live staff row next to the one the import filed. Returns
+// (nil, nil) when there is no other qualifying hint or the account's person is
+// live staff.
+func (l *AccountLifecycle) moveToHintedPerson(ctx context.Context, in domain.SchoolIdentityInput, current domain.PersonRecord) (*domain.PersonRecord, error) {
+	if in.PersonID == nil || *in.PersonID == current.ID {
+		return nil, nil
+	}
+	staff, found, err := l.staff.FindStaffByPerson(ctx, current.ID)
 	if err != nil {
 		return nil, err
 	}
-	if isStudent {
+	if !found || !staff.Deleted {
 		return nil, nil
 	}
-	if person.AccountID == nil {
-		if err := l.staff.LinkPersonToAccount(ctx, person.ID, in.AccountID); err != nil {
-			return nil, fmt.Errorf("link imported person to account: %w", err)
-		}
-		accountID := in.AccountID
-		person.AccountID = &accountID
+	hinted, err := l.qualifyingHint(ctx, in)
+	if err != nil || hinted == nil || hinted.AccountID != nil {
+		return nil, err
 	}
-	return &person, nil
+	if err := l.staff.MoveAccountLink(ctx, current.ID, hinted.ID, in.AccountID); err != nil {
+		return nil, fmt.Errorf("move account to imported person: %w", err)
+	}
+	accountID := in.AccountID
+	hinted.AccountID = &accountID
+	return hinted, nil
 }
 
 // refuseStudentPerson rejects an existing person that is a child's record:
@@ -248,11 +308,35 @@ func (l *AccountLifecycle) ensureIdentityStaff(ctx context.Context, in domain.Sc
 	if found && !staff.Deleted {
 		return staff.ID, nil
 	}
-	id, err := l.staff.CreateStaff(ctx, in.TenantID, personID)
+	var retiredStaffID *int64
+	if found && in.EmploymentAction != domain.EmploymentActionNew {
+		retiredStaffID = &staff.ID
+	}
+	id, err := l.staff.CreateStaff(ctx, in.TenantID, personID, retiredStaffID)
 	if err != nil {
 		return 0, fmt.Errorf("create staff: %w", err)
 	}
 	return id, nil
+}
+
+// FindFormerEmploymentByAccount reports the retired membership ensureIdentityStaff
+// would continue for the account at the school in context: the account's live
+// person there, with no live membership and a latest retired one the
+// automatic deletion of staff has not erased. Any other state starts a new
+// employment, so it reports nothing.
+func (l *AccountLifecycle) FindFormerEmploymentByAccount(ctx context.Context, accountID int64) (domain.FormerEmployment, bool, error) {
+	person, found, err := l.staff.FindPersonByAccount(ctx, accountID)
+	if err != nil || !found || person.Deleted {
+		return domain.FormerEmployment{}, false, err
+	}
+	staff, found, err := l.staff.FindStaffByPerson(ctx, person.ID)
+	if err != nil || !found || !staff.Deleted || staff.Erased || staff.RetiredAt == nil {
+		return domain.FormerEmployment{}, false, err
+	}
+	return domain.FormerEmployment{
+		StaffID: staff.ID, StartedOn: calendar.DateFromTime(staff.StartedAt),
+		EndedOn: calendar.DateFromTime(*staff.RetiredAt),
+	}, true, nil
 }
 
 func (l *AccountLifecycle) ensureIdentityTeacher(ctx context.Context, in domain.SchoolIdentityInput, staffID int64) (int64, error) {

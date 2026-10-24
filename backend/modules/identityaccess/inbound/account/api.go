@@ -9,20 +9,19 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
 )
 
 // Constants for permission strings, headers, route patterns, and error messages (S1192 - avoid duplicate string literals)
 const (
-	permUsersCreate  = "users:create"
-	permUsersManage  = "users:manage"
-	permUsersList    = "users:list"
-	permRolesRead    = "roles:read"
-	permUsersUpdate  = "users:update"
-	permRolesManage  = "roles:manage"
-	pathPermissionID = "/{permissionId}"
-	pathPermissions  = "/permissions"
+	permUsersCreate = "users:create"
+	permUsersManage = "users:manage"
+	permUsersList   = "users:list"
+	permRolesRead   = "roles:read"
+	permUsersUpdate = "users:update"
+	permRolesManage = "roles:manage"
+	pathPermissions = "/permissions"
 )
 
 // AccountSessions is the Identity & Access capability the login, refresh,
@@ -45,13 +44,13 @@ type AccountSessions interface {
 // name the owner's contract, as the session routes already do.
 type AccountLifecycle interface {
 	identityaccess.StaffPreview
-	identityaccess.ParentAccountAccess
 }
 
 // Resource defines the auth resource
 type Resource struct {
-	AuthService AccountLifecycle
-	Sessions    AccountSessions
+	ConstraintViolation func(error) bool
+	AuthService         AccountLifecycle
+	Sessions            AccountSessions
 	// Invitations is the Identity & Access invitation capability the
 	// invitation routes call directly (#3332).
 	Invitations Invitations
@@ -60,9 +59,7 @@ type Resource struct {
 	GuardianInvitations        identityaccess.GuardianInvitations
 	CaregiverCapabilityService Caregivers
 	SchoolService              SchoolDirectory
-	// SettingsService enriches tenant-shell metadata. Some optional feature
-	// flags retain defensive fallbacks, but resolveTenant requires this service
-	// for the grade-level validation contract and returns 500 when it is absent.
+	// SettingsService is required at construction; unreadable shell policy fails the request.
 	SettingsService settings.TenantReader
 	// RoleGrants is Security Runtime's decision whether the caller may hand
 	// out a role when creating an account (#2736). Without it every grant is
@@ -103,8 +100,16 @@ type RoleGrantPolicy interface {
 
 // NewResource creates a new auth resource. sessions is the Identity & Access
 // capability the session routes (#3251) and the RBAC routes (#3314) call.
-func NewResource(lifecycle AccountLifecycle, invitations Invitations, schoolService SchoolDirectory, sessions AccountSessions, transactions UnitOfWork) *Resource {
+func NewResource(lifecycle AccountLifecycle, invitations Invitations, schoolService SchoolDirectory, sessions AccountSessions, transactions UnitOfWork, constraintViolation func(error) bool, settingsService settings.TenantReader) *Resource {
+	if constraintViolation == nil {
+		panic("account resource: database failure classifier is required")
+	}
+	if settingsService == nil {
+		panic("account resource: settings service is required")
+	}
 	return &Resource{
+		ConstraintViolation: constraintViolation,
+		SettingsService:     settingsService,
 		AuthService:         lifecycle,
 		Sessions:            sessions,
 		Invitations:         invitations,
@@ -152,7 +157,7 @@ type Invitations interface {
 
 func requirePlatformScope(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		claims := jwt.ClaimsFromCtx(r.Context())
+		claims := sessiontoken.ClaimsFromCtx(r.Context())
 		if !claims.IsPlatformScope() {
 			common.RenderError(w, r, common.AuthorizationForbidden())
 			return
@@ -165,7 +170,7 @@ func requirePlatformScope(next http.Handler) http.Handler {
 // RouterWithAuthRateLimiter returns the auth router with the given rate
 // limiter middleware on the public login, password-reset, MFA and
 // passkey-login routes; nil mounts them unthrottled.
-func (rs *Resource) RouterWithAuthRateLimiter(authRateLimiter func(http.Handler) http.Handler) chi.Router {
+func (rs *Resource) RouterWithAuthRateLimiter(authRateLimiter func(http.Handler) http.Handler, configureSession func(chi.Router)) chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
@@ -175,7 +180,7 @@ func (rs *Resource) RouterWithAuthRateLimiter(authRateLimiter func(http.Handler)
 	rs.mountPublicRoutes(r, authRateLimiter)
 	rs.mountSessionRoutes(r)
 	// Protected routes that require access token
-	r.Group(rs.mountAuthenticatedRoutes)
+	r.Group(func(r chi.Router) { rs.mountAuthenticatedRoutes(r, configureSession) })
 
 	return r
 }
@@ -226,7 +231,7 @@ func (rs *Resource) mountPublicRoutes(r chi.Router, authRateLimiter func(http.Ha
 func (rs *Resource) mountSessionRoutes(r chi.Router) {
 	// Protected routes that require refresh token
 	r.Group(func(r chi.Router) {
-		r.Use(jwt.AuthenticateRefreshJWT)
+		r.Use(sessiontoken.AuthenticateRefreshJWT)
 		r.Post("/refresh", rs.refreshToken)
 		r.Post("/logout", rs.logout)
 	})
@@ -238,7 +243,7 @@ func (rs *Resource) mountSessionRoutes(r chi.Router) {
 	// authenticated handler. The full session is minted by
 	// mfaEnrollConfirm after successful enrollment.
 	r.Group(func(r chi.Router) {
-		r.Use(jwt.MFAEnrollmentAuthenticator)
+		r.Use(sessiontoken.MFAEnrollmentAuthenticator)
 		r.Route("/mfa/enroll", func(r chi.Router) {
 			r.Post("/start", rs.mfaEnrollStart)
 			r.Post("/confirm", rs.mfaEnrollConfirm)
@@ -249,14 +254,11 @@ func (rs *Resource) mountSessionRoutes(r chi.Router) {
 // mountAuthenticatedRoutes registers the routes that require an access token:
 // the caller's own account, tenant switch, staff-view preview, and the admin
 // routes behind the tenant transaction.
-func (rs *Resource) mountAuthenticatedRoutes(r chi.Router) {
-	r.Use(jwt.Authenticator)
+func (rs *Resource) mountAuthenticatedRoutes(r chi.Router, configureSession func(chi.Router)) {
 	// Write block for admin staff-view preview tokens (#2893): a preview
 	// token must not switch tenants, change passwords, manage roles, or
 	// start another preview. Same placement as in ProtectedTenantGroup.
-	r.Use(common.ReadOnlyPreviewMiddleware)
-	r.Use(common.TenantScopeMiddleware)
-	r.Use(common.SecurityPrincipalMiddleware)
+	configureSession(r)
 
 	// Tenant switching
 	r.Post("/switch-tenant", rs.switchTenant)
@@ -297,6 +299,13 @@ func (rs *Resource) mountAuthenticatedRoutes(r chi.Router) {
 		r.Delete("/{passkeyId}", rs.passkeyRevoke)
 	})
 
+	// Account management routes
+	r.Route("/accounts", func(r chi.Router) {
+		r.With(common.RequiresPermission(permUsersList)).Get("/", rs.listAccounts)
+		r.With(common.RequiresPermission("users:read")).Get("/by-role/{roleName}", rs.getAccountsByRole)
+		r.Route("/{accountId}", rs.mountAccountRoutes)
+	})
+
 	r.Group(rs.mountAdminRoutes)
 }
 
@@ -321,19 +330,10 @@ func (rs *Resource) mountAdminRoutes(r chi.Router) {
 
 	rs.mountRoleAndPermissionRoutes(r)
 
-	// Account management routes
-	r.Route("/accounts", func(r chi.Router) {
-		r.With(common.RequiresPermission(permUsersList)).Get("/", rs.listAccounts)
-		r.With(common.RequiresPermission("users:read")).Get("/by-role/{roleName}", rs.getAccountsByRole)
-		r.Route("/{accountId}", rs.mountAccountRoutes)
-	})
-
 	// Role permission assignments
 	r.Route("/roles/{roleId}/permissions", func(r chi.Router) {
 		r.With(common.RequiresPermission(permRolesManage)).Get("/", rs.getRolePermissions)
 		r.With(common.RequiresPermission(permRolesManage)).Put("/", rs.replaceRolePermissions)
-		r.With(common.RequiresPermission(permRolesManage)).Post(pathPermissionID, common.TwoIDAction("roleId", common.MsgInvalidRoleID, "permissionId", common.MsgInvalidPermissionID, rs.assignPermissionToRole, renderRoleMutationError))
-		r.With(common.RequiresPermission(permRolesManage)).Delete(pathPermissionID, common.TwoIDAction("roleId", common.MsgInvalidRoleID, "permissionId", common.MsgInvalidPermissionID, rs.removePermissionFromRole, renderRoleMutationError))
 	})
 
 	// Token cleanup
@@ -341,7 +341,7 @@ func (rs *Resource) mountAdminRoutes(r chi.Router) {
 		r.With(common.RequiresPermission("admin:*")).Delete("/expired", rs.cleanupExpiredTokens)
 	})
 
-	rs.mountInvitationAndParentAccountRoutes(r)
+	rs.mountInvitationRoutes(r)
 }
 
 // mountRoleAndPermissionRoutes registers the role and permission catalog
@@ -380,12 +380,14 @@ func (rs *Resource) mountRoleAndPermissionRoutes(r chi.Router) {
 // /accounts/{accountId}.
 func (rs *Resource) mountAccountRoutes(r chi.Router) {
 	// Account update operations
+	// This single-command handler lets the capability select its unit before
+	// any transaction starts, including cross-school organization updates.
 	r.With(common.RequiresPermission(permUsersUpdate)).Put("/", rs.updateAccount)
-	// Bound through the resource rather than as a method value
-	// on rs.Sessions: the router must build before the
-	// capability is wired, as it does for every other route.
-	r.With(common.RequiresPermission(permUsersUpdate)).Put("/activate", common.IDAction("accountId", common.MsgInvalidAccountID, rs.activateAccount, accountManagementErrorRenderer))
-	r.With(common.RequiresPermission(permUsersUpdate)).Put("/deactivate", common.IDAction("accountId", common.MsgInvalidAccountID, rs.deactivateAccount, accountManagementErrorRenderer))
+	r.Group(rs.mountTransactionalAccountRoutes)
+}
+
+func (rs *Resource) mountTransactionalAccountRoutes(r chi.Router) {
+	r.Use(common.TenantTxMiddleware)
 	r.With(common.RequiresPermission(permUsersManage)).Get("/caregiver-capability", rs.getCaregiverCapability)
 	r.With(common.RequiresPermission(permUsersManage)).Post("/caregiver-capability", rs.enableCaregiverCapability)
 	r.With(common.RequiresPermission(permUsersManage)).Delete("/caregiver-capability", rs.disableCaregiverCapability)
@@ -394,17 +396,6 @@ func (rs *Resource) mountAccountRoutes(r chi.Router) {
 	r.Route("/roles", func(r chi.Router) {
 		r.With(common.RequiresPermission(permUsersManage)).Get("/", rs.getAccountRoles)
 		r.With(common.RequiresPermission(permUsersManage)).Put("/", rs.replaceAccountRole)
-		r.With(common.RequiresPermission(permUsersManage)).Post("/{roleId}", rs.assignRoleToAccount)
-		r.With(common.RequiresPermission(permUsersManage)).Delete("/{roleId}", common.TwoIDAction("accountId", common.MsgInvalidAccountID, "roleId", common.MsgInvalidRoleID, rs.removeRoleFromAccount, accountRoleErrorRenderer))
-	})
-
-	// Permission assignments
-	r.Route(pathPermissions, func(r chi.Router) {
-		r.With(common.RequiresPermission(permUsersManage)).Get("/", rs.getAccountPermissions)
-		r.With(common.RequiresPermission(permUsersManage)).Get("/direct", rs.getAccountDirectPermissions)
-		r.With(common.RequiresPermission(permUsersManage)).Post(pathPermissionID+"/grant", common.TwoIDAction("accountId", common.MsgInvalidAccountID, "permissionId", common.MsgInvalidPermissionID, rs.grantPermissionToAccount, accountRoleErrorRenderer))
-		r.With(common.RequiresPermission(permUsersManage)).Post(pathPermissionID+"/deny", common.TwoIDAction("accountId", common.MsgInvalidAccountID, "permissionId", common.MsgInvalidPermissionID, rs.denyPermissionToAccount, accountRoleErrorRenderer))
-		r.With(common.RequiresPermission(permUsersManage)).Delete(pathPermissionID, common.TwoIDAction("accountId", common.MsgInvalidAccountID, "permissionId", common.MsgInvalidPermissionID, rs.removePermissionFromAccount, accountRoleErrorRenderer))
 	})
 
 	// Token management
@@ -423,9 +414,9 @@ func (rs *Resource) mountAccountRoutes(r chi.Router) {
 	})
 }
 
-// mountInvitationAndParentAccountRoutes registers the staff and guardian
-// invitation admin routes and the parent account management routes.
-func (rs *Resource) mountInvitationAndParentAccountRoutes(r chi.Router) {
+// mountInvitationRoutes registers the staff and guardian
+// invitation admin routes.
+func (rs *Resource) mountInvitationRoutes(r chi.Router) {
 	r.Route("/invitations", func(r chi.Router) {
 		// users:manage, not users:create: the "user" role carries
 		// users:create globally (migration 1.5.3, so Betreuer can
@@ -433,6 +424,9 @@ func (rs *Resource) mountInvitationAndParentAccountRoutes(r chi.Router) {
 		// The UI already gates this screen on the admin role.
 		r.With(common.RequiresPermission(permUsersManage)).Post("/", rs.createInvitation)
 		r.With(common.RequiresPermission(permUsersList)).Get("/", rs.listPendingInvitations)
+		// The Einladen dialog's question before an invitation goes out
+		// (#3402), under the permission that sends it.
+		r.With(common.RequiresPermission(permUsersManage)).Post("/former-employment", rs.findFormerEmployment)
 		r.Route("/{id}", func(r chi.Router) {
 			r.With(common.RequiresPermission(permUsersManage)).Post("/resend", rs.resendInvitation)
 			r.With(common.RequiresPermission(permUsersManage)).Delete("/", rs.revokeInvitation)
@@ -450,15 +444,4 @@ func (rs *Resource) mountInvitationAndParentAccountRoutes(r chi.Router) {
 		})
 	})
 
-	// Parent account management
-	r.Route("/parent-accounts", func(r chi.Router) {
-		r.With(common.RequiresPermission(permUsersCreate)).Post("/", rs.createParentAccount)
-		r.With(common.RequiresPermission(permUsersList)).Get("/", rs.listParentAccounts)
-		r.Route("/{id}", func(r chi.Router) {
-			r.With(common.RequiresPermission("users:read")).Get("/", rs.getParentAccountByID)
-			r.With(common.RequiresPermission(permUsersUpdate)).Put("/", rs.updateParentAccount)
-			r.With(common.RequiresPermission(permUsersUpdate)).Put("/activate", common.IDAction("id", common.MsgInvalidParentAccountID, rs.AuthService.ActivateParentAccount, common.ErrorInternalServer))
-			r.With(common.RequiresPermission(permUsersUpdate)).Put("/deactivate", common.IDAction("id", common.MsgInvalidParentAccountID, rs.AuthService.DeactivateParentAccount, common.ErrorInternalServer))
-		})
-	})
 }

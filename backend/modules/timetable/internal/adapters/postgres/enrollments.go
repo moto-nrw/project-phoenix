@@ -7,40 +7,40 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
-	enrollmentprovenance "github.com/moto-nrw/project-phoenix/modules/timetableenrollmentprovenance"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
 )
 
 type studentEnrollmentRow struct {
-	bun.BaseModel            `bun:"table:student_enrollments,alias:student_enrollment"`
-	ID                       int64     `bun:"id,pk,autoincrement"`
-	TenantID                 int64     `bun:"tenant_id,notnull"`
-	CreatedAt                time.Time `bun:"created_at,nullzero,notnull,default:current_timestamp"`
-	UpdatedAt                time.Time `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
-	StudentID                int64     `bun:"student_id,notnull"`
-	ActivityGroupID          int64     `bun:"activity_group_id,notnull"`
-	ValidFrom                string    `bun:"valid_from,notnull"`
-	ValidUntil               *string   `bun:"valid_until"`
-	CalendarPeriodID         *int64    `bun:"calendar_period_id"`
-	EnrollmentRequestChildID *int64    `bun:"enrollment_request_child_id"`
-	SelectedWeekdays         []int     `bun:"selected_weekdays,type:jsonb,nullzero"`
-	AttendanceStatus         *string   `bun:"attendance_status"`
-	Weekday                  *int      `bun:"weekday"`
+	bun.BaseModel            `bun:"table:activities.student_enrollments,alias:student_enrollment"`
+	ID                       int64          `bun:"id,pk,autoincrement"`
+	TenantID                 int64          `bun:"tenant_id,notnull"`
+	CreatedAt                time.Time      `bun:"created_at,nullzero,notnull,default:current_timestamp"`
+	UpdatedAt                time.Time      `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
+	StudentID                int64          `bun:"student_id,notnull"`
+	ActivityGroupID          int64          `bun:"activity_group_id,notnull"`
+	ValidFrom                calendar.Date  `bun:"valid_from,notnull"`
+	ValidUntil               *calendar.Date `bun:"valid_until"`
+	CalendarPeriodID         *int64         `bun:"calendar_period_id"`
+	EnrollmentRequestChildID *int64         `bun:"enrollment_request_child_id"`
+	SelectedWeekdays         []int          `bun:"selected_weekdays,type:jsonb,nullzero"`
+	AttendanceStatus         *string        `bun:"attendance_status"`
+	Weekday                  *int           `bun:"weekday"`
 }
 
-func (s *Store) FindStudentEnrollment(ctx context.Context, id int64) (domain.StudentEnrollment, bool, domain.OperationStats, error) {
+func (s *Store) FindStudentEnrollment(ctx context.Context, id int64) (timetable.StudentEnrollment, bool, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return domain.StudentEnrollment{}, false, domain.OperationStats{}, err
+		return timetable.StudentEnrollment{}, false, domain.OperationStats{}, err
 	}
 	row := studentEnrollmentRow{}
 	found, stats, err := scanOne(ctx, studentEnrollmentSelect(db, &row, tenantID).Where(`"student_enrollment".id = ?`, id), "find student enrollment")
 	return studentEnrollmentToDomain(row), found, stats, err
 }
 
-func (s *Store) ListStudentEnrollments(ctx context.Context, filter domain.StudentEnrollmentFilter) ([]domain.StudentEnrollment, domain.OperationStats, error) {
+func (s *Store) ListStudentEnrollments(ctx context.Context, filter timetable.StudentEnrollmentFilter) ([]timetable.StudentEnrollment, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
@@ -55,7 +55,7 @@ func (s *Store) ListStudentEnrollments(ctx context.Context, filter domain.Studen
 	if err != nil {
 		return nil, stats, err
 	}
-	result := make([]domain.StudentEnrollment, 0, len(rows))
+	result := make([]timetable.StudentEnrollment, 0, len(rows))
 	for _, row := range rows {
 		result = append(result, studentEnrollmentToDomain(row))
 	}
@@ -77,7 +77,7 @@ func activeOnPlanWeekday(ctx context.Context, activeOn *string) (int, error) {
 	return calendar.PlanWeekday(ctx, date)
 }
 
-func filterStudentEnrollments(query *bun.SelectQuery, filter domain.StudentEnrollmentFilter, activeOnWeekday int) *bun.SelectQuery {
+func filterStudentEnrollments(query *bun.SelectQuery, filter timetable.StudentEnrollmentFilter, activeOnWeekday int) *bun.SelectQuery {
 	if len(filter.StudentIDs) > 0 {
 		query = query.Where(`"student_enrollment".student_id IN (?)`, bun.List(filter.StudentIDs))
 	}
@@ -104,10 +104,10 @@ func activeStudentEnrollmentQuery(query *bun.SelectQuery, onDate string, weekday
 		Where(`("student_enrollment".weekday IS NULL OR "student_enrollment".weekday = ?)`, weekday)
 }
 
-func (s *Store) CreateStudentEnrollment(ctx context.Context, fields domain.StudentEnrollmentFields) (domain.StudentEnrollment, domain.OperationStats, error) {
+func (s *Store) CreateStudentEnrollment(ctx context.Context, fields timetable.StudentEnrollmentInput) (timetable.StudentEnrollment, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return domain.StudentEnrollment{}, domain.OperationStats{}, err
+		return timetable.StudentEnrollment{}, domain.OperationStats{}, err
 	}
 	row := studentEnrollmentRow{TenantID: tenantID}
 	applyStudentEnrollmentFields(&row, fields)
@@ -116,16 +116,16 @@ func (s *Store) CreateStudentEnrollment(ctx context.Context, fields domain.Stude
 	err = db.NewInsert().Model(&row).ModelTableExpr(`activities.student_enrollments`).Returning("*").Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
-		return domain.StudentEnrollment{}, stats, classifyWriteError("create student enrollment", err, &stats)
+		return timetable.StudentEnrollment{}, stats, classifyWriteError("create student enrollment", err, &stats)
 	}
 	stats.Rows = 1
 	return studentEnrollmentToDomain(row), stats, nil
 }
 
-func (s *Store) UpdateStudentEnrollment(ctx context.Context, id int64, fields domain.StudentEnrollmentFields) (domain.StudentEnrollment, bool, domain.OperationStats, error) {
+func (s *Store) UpdateStudentEnrollment(ctx context.Context, id int64, fields timetable.StudentEnrollmentInput) (timetable.StudentEnrollment, bool, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return domain.StudentEnrollment{}, false, domain.OperationStats{}, err
+		return timetable.StudentEnrollment{}, false, domain.OperationStats{}, err
 	}
 	row := studentEnrollmentRow{ID: id, TenantID: tenantID}
 	applyStudentEnrollmentFields(&row, fields)
@@ -136,10 +136,10 @@ func (s *Store) UpdateStudentEnrollment(ctx context.Context, id int64, fields do
 		Where("id = ?", id).Where("tenant_id = ?", tenantID).Returning("*").Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if errors.Is(err, sql.ErrNoRows) {
-		return domain.StudentEnrollment{}, false, stats, nil
+		return timetable.StudentEnrollment{}, false, stats, nil
 	}
 	if err != nil {
-		return domain.StudentEnrollment{}, false, stats, classifyWriteError("update student enrollment", err, &stats)
+		return timetable.StudentEnrollment{}, false, stats, classifyWriteError("update student enrollment", err, &stats)
 	}
 	stats.Rows = 1
 	return studentEnrollmentToDomain(row), true, stats, nil
@@ -153,7 +153,7 @@ func (s *Store) DeleteStudentEnrollment(ctx context.Context, id int64) (domain.O
 	return execMeasuredWrite(ctx, db.NewDelete().Table("activities.student_enrollments").Where("tenant_id = ?", tenantID).Where("id = ?", id), "delete student enrollment")
 }
 
-func (s *Store) BackfillStudentEnrollmentSource(ctx context.Context, studentID, requestChildID int64, groupIDs []int64) (int64, domain.OperationStats, error) {
+func (s *ProvenanceStore) BackfillStudentEnrollmentSource(ctx context.Context, studentID, requestChildID int64, groupIDs []int64) (int64, domain.OperationStats, error) {
 	if len(groupIDs) == 0 {
 		return 0, domain.OperationStats{}, nil
 	}
@@ -163,7 +163,7 @@ func (s *Store) BackfillStudentEnrollmentSource(ctx context.Context, studentID, 
 	}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
-	ids, err := enrollmentprovenance.EligibleEnrollmentIDs(ctx, db, tenantID, studentID, requestChildID, groupIDs)
+	ids, err := s.provenance.EligibleEnrollmentIDs(ctx, db, tenantID, studentID, requestChildID, groupIDs)
 	stats.StatementDuration = time.Since(started)
 	if err != nil || len(ids) == 0 {
 		return 0, stats, err
@@ -247,16 +247,16 @@ func studentEnrollmentSelect(db bun.IDB, model any, tenantID int64) *bun.SelectQ
 		ColumnExpr(`"student_enrollment".*`).Where(`"student_enrollment".tenant_id = ?`, tenantID)
 }
 
-func applyStudentEnrollmentFields(row *studentEnrollmentRow, fields domain.StudentEnrollmentFields) {
+func applyStudentEnrollmentFields(row *studentEnrollmentRow, fields timetable.StudentEnrollmentInput) {
 	row.StudentID, row.ActivityGroupID = fields.StudentID, fields.ActivityGroupID
-	row.ValidFrom, row.ValidUntil = fields.ValidFrom, fields.ValidUntil
+	row.ValidFrom, row.ValidUntil = calendar.Date(fields.ValidFrom), (*calendar.Date)(fields.ValidUntil)
 	row.CalendarPeriodID, row.EnrollmentRequestChildID = fields.CalendarPeriodID, fields.EnrollmentRequestChildID
 	row.SelectedWeekdays, row.AttendanceStatus, row.Weekday = fields.SelectedWeekdays, fields.AttendanceStatus, fields.Weekday
 }
 
-func studentEnrollmentToDomain(row studentEnrollmentRow) domain.StudentEnrollment {
-	return domain.StudentEnrollment{ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
-		StudentID: row.StudentID, ActivityGroupID: row.ActivityGroupID, ValidFrom: row.ValidFrom, ValidUntil: row.ValidUntil,
+func studentEnrollmentToDomain(row studentEnrollmentRow) timetable.StudentEnrollment {
+	return timetable.StudentEnrollment{ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+		StudentID: row.StudentID, ActivityGroupID: row.ActivityGroupID, ValidFrom: string(row.ValidFrom), ValidUntil: (*string)(row.ValidUntil),
 		CalendarPeriodID: row.CalendarPeriodID, EnrollmentRequestChildID: row.EnrollmentRequestChildID,
 		SelectedWeekdays: row.SelectedWeekdays, AttendanceStatus: row.AttendanceStatus, Weekday: row.Weekday}
 }

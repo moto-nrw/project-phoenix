@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -53,7 +53,7 @@ func grantTenantRole(t *testing.T, db *bun.DB, ctx context.Context, accountID, t
 func TestNativeEffectiveAdminsIncludeGrantedWildcardsWithoutSchoolLeakage(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
-	query, err := repositories.NewIdentityAccessForTests(db)
+	query, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 	home := testpkg.Tenant(t)
@@ -81,12 +81,12 @@ func TestNativeEffectiveAdminsIncludeGrantedWildcardsWithoutSchoolLeakage(t *tes
 			ids, err := query.ListEffectiveAdminAccountIDs(ctx)
 			require.NoError(t, err)
 			require.Contains(t, ids, roleAdmin.ID)
-			require.Contains(t, ids, directAdmin.ID)
+			require.NotContains(t, ids, directAdmin.ID, "a retired direct grant no longer makes an admin (#4485)")
 			require.NotContains(t, ids, denied.ID)
 			require.NotContains(t, ids, foreign.ID)
 			rollback := errors.New("rollback admin grant revocation")
-			err = tenant.WithAdminTx(ctx, db, func(txCtx context.Context, tx bun.Tx) error {
-				txCtx = tenant.WithTenantID(txCtx, home)
+			err = testpkg.WithAdminTx(t, ctx, db, func(txCtx context.Context, tx bun.Tx) error {
+				txCtx = testpkg.ContextForTenant(txCtx, home)
 				_, writeErr := tx.NewRaw("DELETE FROM auth.role_permissions WHERE role_id = ?", role.ID).Exec(txCtx)
 				require.NoError(t, writeErr)
 				_, writeErr = tx.NewRaw("UPDATE auth.account_permissions SET granted = FALSE WHERE account_id = ? AND tenant_id = ?", directAdmin.ID, home).Exec(txCtx)
@@ -103,7 +103,7 @@ func TestNativeEffectiveAdminsIncludeGrantedWildcardsWithoutSchoolLeakage(t *tes
 			require.ElementsMatch(t, ids, after)
 			global, err := query.ListEffectiveAdminAccountIDs(context.Background())
 			require.NoError(t, err)
-			require.Contains(t, global, foreign.ID, "an unscoped administrative caller retains platform reads")
+			require.NotContains(t, global, foreign.ID, "a retired direct grant counts at no school, not even for an unscoped caller (#4485)")
 		})
 	}
 }
@@ -117,7 +117,7 @@ func TestNativeEffectiveAdminAccountIDs(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo, err := repositories.NewIdentityAccessForTests(db)
+	repo, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 

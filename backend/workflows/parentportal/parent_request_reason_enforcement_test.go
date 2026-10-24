@@ -9,13 +9,13 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	"github.com/moto-nrw/project-phoenix/services"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
@@ -24,16 +24,16 @@ import (
 // reasonPolicySettings turns the absence approval gate on and serves one
 // configured value of operations.parent_request_reason_policy.
 type reasonPolicySettings struct {
-	configService.SettingsService
+	parentService.SettingsService
 	policy string
 }
 
 func (reasonPolicySettings) ResolveBoolForTenant(_ context.Context, _ int64, key string) (bool, error) {
 	switch key {
-	case configModels.KeyParentSickNoteEnabled,
-		configModels.KeyParentSickReportsEnabled, configModels.KeyParentExcusedReportsEnabled,
-		configModels.KeyParentSickRequiresApproval,
-		configModels.KeyParentExcusedRequiresApproval:
+	case parentService.KeyParentSickNoteEnabled,
+		parentService.KeyParentSickReportsEnabled, parentService.KeyParentExcusedReportsEnabled,
+		parentService.KeyParentSickRequiresApproval,
+		parentService.KeyParentExcusedRequiresApproval:
 		return true, nil
 	default:
 		return false, nil
@@ -41,7 +41,7 @@ func (reasonPolicySettings) ResolveBoolForTenant(_ context.Context, _ int64, key
 }
 
 func (s reasonPolicySettings) ResolveStringForTenant(_ context.Context, _ int64, key string) (string, error) {
-	if key == configModels.KeyParentRequestReasonPolicy {
+	if key == parentService.KeyParentRequestReasonPolicy {
 		return s.policy, nil
 	}
 	return "", nil
@@ -50,23 +50,35 @@ func (s reasonPolicySettings) ResolveStringForTenant(_ context.Context, _ int64,
 func buildReasonPolicyServices(t *testing.T, policy string) (*parentService.Portal, careplan.ExcusedAbsenceRequests, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	excused, err := services.NewTestExcusedAbsenceRequests(services.ExcusedRequestTestOptions{
-		CarePlan: repos.CarePlan(), Students: repos.Student, Persons: repos.Person, Events: repos.ParentRequestEvent, Logger: slog.Default(),
-	})
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	excused, err := api.NewTestExcusedAbsenceRequests(api.ExcusedRequestTestOptions{
+		CarePlan: repos.CarePlan(), Logger: slog.Default(),
+	}, api.ExcusedRequestTestPeople{Students: reposPeople.Student, Persons: reposPeople.Person, Events: reposPeople.ParentRequestEvent}, nil, nil)
 	require.NoError(t, err)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
-		CarePlan:           repos.CarePlan(),
-		People:             repositories.MustNewPeopleDirectory(db),
+		GuardianChanges:    owners.ParentGuardianChanges(),
+		DeparturePolicy:    owners.ParentDeparturePolicy(),
+		GuardianPolicy:     owners.NewParentGuardianPolicy(),
+		Fingerprints:       owners.SecurityFingerprints{},
+		Declarations:       owners.ParentDeclarationPolicy(),
+		Locales:            owners.ParentPortalLocales(),
+		Runtime:            owners.ParentPortalRuntime{},
+		CarePlan:           owners.NewParentCarePlanCommands(repos.CarePlan(), nil),
+		People:             owners.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:       careProfiles(t, db),
-		ChildRepo:          repos.ParentChild,
+		ChildRepo:          repos.ParentChildReads(),
 		StatusDayRepo:      repos.StudentStatusDay,
-		StudentRepo:        repos.Student,
-		CareExceptions:     repos.CarePlan(),
+		StudentRepo:        owners.NewParentStudentReads(reposPeople.Student),
+		CareExceptions:     owners.NewParentCareExceptions(repos.CarePlan()),
 		Settings:           reasonPolicySettings{policy: policy},
-		ExcusedRequests:    excused,
+		ExcusedRequests:    owners.NewParentExcusedAbsenceRequests(excused),
 		ExcusedRequestRepo: repos.ExcusedAbsenceRequest,
 		Logger:             slog.Default(),
+
+		DataRequests: owners.NewParentDataRequestCommands(repos.CarePlan()),
+
+		CarePlanPolicy: owners.NewParentCarePlanPolicy(),
 	})
 	return svc, excused, db
 }
@@ -81,10 +93,10 @@ func TestGuardianNoteFollowsReasonPolicy(t *testing.T) {
 		policy      string
 		wantRefusal bool
 	}{
-		{configModels.ReasonPolicyNobody, false},
-		{configModels.ReasonPolicyStaff, false},
-		{configModels.ReasonPolicyGuardians, true},
-		{configModels.ReasonPolicyBoth, true},
+		{parentService.ReasonPolicyNobody, false},
+		{parentService.ReasonPolicyStaff, false},
+		{parentService.ReasonPolicyGuardians, true},
+		{parentService.ReasonPolicyBoth, true},
 		{"", true}, // unknown value reads as the strictest policy
 	}
 	for _, tc := range cases {
@@ -95,7 +107,7 @@ func TestGuardianNoteFollowsReasonPolicy(t *testing.T) {
 			ctx := testpkg.WithPackageTenantRuntime(context.Background())
 
 			res, err := svc.SubmitSickNote(ctx, chain.AccountID, chain.StudentID,
-				[]timezone.Date{timezone.TodayDate().AddDays(3)}, "  ", absencerecords.StudentStatusDayExcused, nil)
+				[]calendar.Date{calendar.TodayDate().AddDays(3)}, "  ", absencerecords.StudentStatusDayExcused, nil)
 			if tc.wantRefusal {
 				require.ErrorIs(t, err, parentService.ErrEmptyNote)
 				return
@@ -116,10 +128,10 @@ func TestStaffApprovalReasonFollowsReasonPolicy(t *testing.T) {
 		policy      string
 		wantRefusal bool
 	}{
-		{configModels.ReasonPolicyNobody, false},
-		{configModels.ReasonPolicyGuardians, false},
-		{configModels.ReasonPolicyStaff, true},
-		{configModels.ReasonPolicyBoth, true},
+		{parentService.ReasonPolicyNobody, false},
+		{parentService.ReasonPolicyGuardians, false},
+		{parentService.ReasonPolicyStaff, true},
+		{parentService.ReasonPolicyBoth, true},
 	}
 	for _, tc := range cases {
 		t.Run("policy="+tc.policy, func(t *testing.T) {
@@ -129,7 +141,7 @@ func TestStaffApprovalReasonFollowsReasonPolicy(t *testing.T) {
 			ctx := testpkg.WithPackageTenantRuntime(context.Background())
 
 			res, err := svc.SubmitSickNote(ctx, chain.AccountID, chain.StudentID,
-				[]timezone.Date{timezone.TodayDate().AddDays(3)}, "Familienfeier", absencerecords.StudentStatusDayExcused, nil)
+				[]calendar.Date{calendar.TodayDate().AddDays(3)}, "Familienfeier", absencerecords.StudentStatusDayExcused, nil)
 			require.NoError(t, err)
 
 			decideErr := testpkg.WithTenantTx(t, adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
@@ -137,7 +149,7 @@ func TestStaffApprovalReasonFollowsReasonPolicy(t *testing.T) {
 					RequestID:      res.PendingRequest.ID,
 					Approve:        true,
 					ReviewedBy:     chain.AccountID,
-					ReasonRequired: configService.ReasonRequiredFor(tc.policy, true),
+					ReasonRequired: parentrequests.ReasonRequired(tc.policy, parentrequests.ReasonSideStaff),
 				})
 				return err
 			})
@@ -156,12 +168,12 @@ func TestStaffApprovalReasonFollowsReasonPolicy(t *testing.T) {
 func TestStaffRejectionAlwaysNeedsAReason(t *testing.T) {
 	t.Parallel()
 
-	svc, requests, db := buildReasonPolicyServices(t, configModels.ReasonPolicyNobody)
+	svc, requests, db := buildReasonPolicyServices(t, parentService.ReasonPolicyNobody)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 
 	res, err := svc.SubmitSickNote(ctx, chain.AccountID, chain.StudentID,
-		[]timezone.Date{timezone.TodayDate().AddDays(3)}, "Familienfeier", absencerecords.StudentStatusDayExcused, nil)
+		[]calendar.Date{calendar.TodayDate().AddDays(3)}, "Familienfeier", absencerecords.StudentStatusDayExcused, nil)
 	require.NoError(t, err)
 
 	decideErr := testpkg.WithTenantTx(t, adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {

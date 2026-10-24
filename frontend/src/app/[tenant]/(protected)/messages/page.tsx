@@ -18,6 +18,7 @@ import {
   relationshipLabel,
 } from "~/lib/parent-messages-api";
 import { NewMessageModal } from "~/components/messaging/new-message-modal";
+import { messagesTabs } from "~/components/messaging/messages-tabs";
 import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
 import { useMessagesUnread } from "~/lib/hooks/use-messages-unread";
 import { useApiErrorDisplay, useToast } from "~/contexts/ToastContext";
@@ -186,6 +187,7 @@ function MessagesInboxContent() {
   return (
     <TenantPage
       title="Nachrichten"
+      tabs={messagesTabs("conversations")}
       stats={inboxSummary}
       statsLoading={showSkeleton}
       actions={composeButton}
@@ -269,33 +271,37 @@ function MessagesInboxContent() {
             return (
               <li key={thread.thread_id}>
                 <TileCard onClick={navigate}>
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                        <h3 className="truncate text-base font-semibold text-gray-900">
-                          {thread.guardian_name}
-                        </h3>
-                        <span className="truncate text-sm text-gray-500">
-                          {relationshipLabel(thread.relationship_type)} von{" "}
-                          {thread.student_name}
-                        </span>
-                        <UnreadBadge count={thread.unread_count} />
-                      </div>
-                      {thread.last_message_body && (
-                        <p className="mt-1 truncate text-sm text-gray-600">
-                          {thread.last_sender_kind === "staff" && (
-                            <span className="text-gray-500">Sie: </span>
-                          )}
-                          {thread.last_message_body}
-                        </p>
-                      )}
-                    </div>
+                  {/* Absender und Kind tragen die Symbole aus dem
+                      Konzeptregister, wie in den Anfragen (#4361). */}
+                  <div className="flex min-w-0 items-center gap-2">
+                    <MotoConceptIcon concept="parents" size={20} />
+                    <h3 className="truncate text-base font-semibold text-gray-900">
+                      {thread.guardian_name}
+                    </h3>
+                    <UnreadBadge count={thread.unread_count} />
                     {thread.last_message_at && (
-                      <span className="flex-shrink-0 text-xs whitespace-nowrap text-gray-400">
+                      <span className="ml-auto flex-shrink-0 pl-1 text-xs whitespace-nowrap text-gray-400">
                         {formatChatDateTime(thread.last_message_at)}
                       </span>
                     )}
                   </div>
+                  <p className="mt-1 flex min-w-0 items-center gap-1.5 text-sm text-gray-500">
+                    <span className="flex-shrink-0">
+                      {relationshipLabel(thread.relationship_type)} von
+                    </span>
+                    <MotoConceptIcon concept="children" size={16} />
+                    <span className="truncate font-medium text-gray-700">
+                      {thread.student_name}
+                    </span>
+                  </p>
+                  {thread.last_message_body && (
+                    <p className="mt-1 truncate text-sm text-gray-600">
+                      {thread.last_sender_kind === "staff" && (
+                        <span className="text-gray-500">Sie: </span>
+                      )}
+                      {thread.last_message_body}
+                    </p>
+                  )}
                 </TileCard>
               </li>
             );

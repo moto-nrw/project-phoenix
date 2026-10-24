@@ -23,10 +23,11 @@ var (
 
 // AccountTenantRole is one role an account holds at one school.
 type AccountTenantRole struct {
-	ID       int64
-	Name     string
-	IsSystem bool
-	BaseRole *string
+	ID           int64
+	Name         string
+	IsSystem     bool
+	BaseRole     *string
+	SchoolPortal bool
 }
 
 // AccountTenantAccess is one school an account has (or had) access to,
@@ -74,24 +75,4 @@ type OperatorAccountAccess interface {
 	GrantAccountTenantAccess(ctx context.Context, request GrantAccountTenantAccess) ([]AccountTenantAccess, error)
 	UpdateAccountTenantRole(ctx context.Context, accountID, schoolID, roleID, operatorID int64, clientIP string) ([]AccountTenantAccess, error)
 	RevokeAccountTenantAccess(ctx context.Context, accountID, schoolID, operatorID int64, clientIP string) ([]AccountTenantAccess, error)
-}
-
-func (m *Module) ListAccountTenantAccess(ctx context.Context, accountID int64) ([]AccountTenantAccess, error) {
-	return m.engine.ListAccountTenantAccess(ctx, accountID)
-}
-
-func (m *Module) ListAssignableSchoolRoles(ctx context.Context, schoolID int64) ([]AccountTenantRole, error) {
-	return m.engine.ListAssignableSchoolRoles(ctx, schoolID)
-}
-
-func (m *Module) GrantAccountTenantAccess(ctx context.Context, request GrantAccountTenantAccess) ([]AccountTenantAccess, error) {
-	return m.engine.GrantAccountTenantAccess(ctx, request)
-}
-
-func (m *Module) UpdateAccountTenantRole(ctx context.Context, accountID, schoolID, roleID, operatorID int64, clientIP string) ([]AccountTenantAccess, error) {
-	return m.engine.UpdateAccountTenantRole(ctx, accountID, schoolID, roleID, operatorID, clientIP)
-}
-
-func (m *Module) RevokeAccountTenantAccess(ctx context.Context, accountID, schoolID, operatorID int64, clientIP string) ([]AccountTenantAccess, error) {
-	return m.engine.RevokeAccountTenantAccess(ctx, accountID, schoolID, operatorID, clientIP)
 }

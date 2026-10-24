@@ -5,12 +5,13 @@ import (
 	"testing"
 	"time"
 
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+	fixtures "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -24,11 +25,12 @@ import (
 
 func insertScenarioClosingDay(t *testing.T, s *scenarioSetup, start, end calendar.Date) {
 	t.Helper()
-	row := &scheduleModels.ClosingDay{
-		StartDate: scheduleModels.Date(start),
-		EndDate:   scheduleModels.Date(end),
-		Reason:    "Herbstferien",
-	}
+	row := fixtures.NewClosingDay(func(fixtureRow *fixtures.ClosingDay) {
+		fixtureRow.StartDate = calendar.Date(start)
+		fixtureRow.EndDate = calendar.Date(end)
+		fixtureRow.Reason = "Herbstferien"
+	})
+
 	row.TenantID = s.tenantID
 	_, err := s.db.NewInsert().Model(row).ModelTableExpr(`schedule.closing_days`).Exec(s.ctx)
 	require.NoError(t, err)
@@ -53,7 +55,7 @@ func countCancelledExceptions(t *testing.T, db *bun.DB, s *scenarioSetup, date c
 	count, err := db.NewSelect().Table("schedule.activity_exceptions").
 		Where("activity_group_id = ?", s.template.ID).
 		Where("exception_date = ?", date).
-		Where("exception_type = ?", scheduleModels.ActivityExceptionCancelled).
+		Where("exception_type = ?", fixtures.ActivityExceptionCancelled()).
 		Where("tenant_id = ?", s.tenantID).
 		Count(s.ctx)
 	require.NoError(t, err)
@@ -66,10 +68,10 @@ func TestMaterializeForTenant_SkipsHolidaysAndClosingDays(t *testing.T) {
 	easterMonday := calendar.NewDate(2026, time.April, 6)
 	closingMonday := calendar.NewDate(2026, time.April, 13)
 	regularMonday := calendar.NewDate(2026, time.April, 20)
-	s := makeScenario(t, activitiesModels.WeekdayMonday, regularMonday)
+	s := makeScenario(t, activityContract.WeekdayMonday, regularMonday)
 	insertScenarioClosingDay(t, s, closingMonday, closingMonday.AddDays(4))
 
-	result, err := s.factory.Materialization.MaterializeForTenant(s.ctx, easterMonday, regularMonday, timetable.MaterializationSourceManual)
+	result, err := s.materialization.MaterializeForTenant(s.ctx, easterMonday, regularMonday, timetable.MaterializationSourceManual)
 	require.NoError(t, err)
 
 	assert.Equal(t, 1, result.InstancesCreated, "only the regular Monday is planned")
@@ -86,12 +88,12 @@ func TestMaterializeForTenant_SeriesIncludingClosingDaysStillSkipsHolidays(t *te
 	easterMonday := calendar.NewDate(2026, time.April, 6)
 	closingMonday := calendar.NewDate(2026, time.April, 13)
 	regularMonday := calendar.NewDate(2026, time.April, 20)
-	s := makeScenario(t, activitiesModels.WeekdayMonday, regularMonday)
+	s := makeScenario(t, activityContract.WeekdayMonday, regularMonday)
 	// A holiday inside the closure: the holiday wins even for holiday care.
 	insertScenarioClosingDay(t, s, easterMonday, closingMonday)
 	setSeriesIncludesClosingDays(t, s, true)
 
-	result, err := s.factory.Materialization.MaterializeForTenant(s.ctx, easterMonday, regularMonday, timetable.MaterializationSourceManual)
+	result, err := s.materialization.MaterializeForTenant(s.ctx, easterMonday, regularMonday, timetable.MaterializationSourceManual)
 	require.NoError(t, err)
 
 	assert.Equal(t, 2, result.InstancesCreated, "closing day and regular Monday are planned")
@@ -109,7 +111,7 @@ func TestDetectEditedInWindow_FollowsClosingDaySkip(t *testing.T) {
 
 	closingMonday := calendar.NewDate(2026, time.April, 13)
 	regularMonday := calendar.NewDate(2026, time.April, 20)
-	s := makeScenario(t, activitiesModels.WeekdayMonday, regularMonday)
+	s := makeScenario(t, activityContract.WeekdayMonday, regularMonday)
 	insertScenarioClosingDay(t, s, closingMonday, closingMonday)
 
 	detect := func() []timetable.EditedOccurrence {
@@ -117,19 +119,19 @@ func TestDetectEditedInWindow_FollowsClosingDaySkip(t *testing.T) {
 		var edited []timetable.EditedOccurrence
 		err := tenant.WithTenantTx(s.ctx, s.db, s.tenantID, func(txCtx context.Context, _ bun.Tx) error {
 			var err error
-			edited, err = s.factory.Materialization.DetectEditedInWindow(txCtx, s.template.ID, closingMonday, regularMonday, false)
+			edited, err = s.materialization.DetectEditedInWindow(txCtx, s.template.ID, closingMonday, regularMonday, false)
 			return err
 		})
 		require.NoError(t, err)
 		return edited
 	}
 
-	_, err := s.factory.Materialization.MaterializeForTenant(s.ctx, closingMonday, regularMonday, timetable.MaterializationSourceManual)
+	_, err := s.materialization.MaterializeForTenant(s.ctx, closingMonday, regularMonday, timetable.MaterializationSourceManual)
 	require.NoError(t, err)
 	assert.Empty(t, detect(), "skipping the closing day is not an edit")
 
 	setSeriesIncludesClosingDays(t, s, true)
-	_, err = s.factory.Materialization.MaterializeForTenant(s.ctx, closingMonday, regularMonday, timetable.MaterializationSourceManual)
+	_, err = s.materialization.MaterializeForTenant(s.ctx, closingMonday, regularMonday, timetable.MaterializationSourceManual)
 	require.NoError(t, err)
 	require.Len(t, listInstancesForDate(t, s.db, s.template.ID, closingMonday), 1)
 	assert.Empty(t, detect(), "the closing-day occurrence of holiday care is expected")
@@ -143,9 +145,9 @@ func TestDetectEditedInWindow_OccurrencePlannedBeforeClosureIsNoEdit(t *testing.
 
 	closingMonday := calendar.NewDate(2026, time.April, 13)
 	regularMonday := calendar.NewDate(2026, time.April, 20)
-	s := makeScenario(t, activitiesModels.WeekdayMonday, closingMonday)
+	s := makeScenario(t, activityContract.WeekdayMonday, closingMonday)
 
-	_, err := s.factory.Materialization.MaterializeForTenant(s.ctx, closingMonday, regularMonday, timetable.MaterializationSourceManual)
+	_, err := s.materialization.MaterializeForTenant(s.ctx, closingMonday, regularMonday, timetable.MaterializationSourceManual)
 	require.NoError(t, err)
 	require.Len(t, listInstancesForDate(t, s.db, s.template.ID, closingMonday), 1)
 	insertScenarioClosingDay(t, s, closingMonday, closingMonday)
@@ -153,7 +155,7 @@ func TestDetectEditedInWindow_OccurrencePlannedBeforeClosureIsNoEdit(t *testing.
 	var edited []timetable.EditedOccurrence
 	err = tenant.WithTenantTx(s.ctx, s.db, s.tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		var err error
-		edited, err = s.factory.Materialization.DetectEditedInWindow(txCtx, s.template.ID, closingMonday, regularMonday, false)
+		edited, err = s.materialization.DetectEditedInWindow(txCtx, s.template.ID, closingMonday, regularMonday, false)
 		return err
 	})
 	require.NoError(t, err)
@@ -165,7 +167,7 @@ func TestDetectEditedInWindow_OccurrencePlannedBeforeClosureIsNoEdit(t *testing.
 func bulkCancelScenario(t *testing.T) (*scenarioSetup, []calendar.Date) {
 	t.Helper()
 	first := calendar.NewDate(2026, time.August, 17)
-	s := makeScenario(t, activitiesModels.WeekdayMonday, first)
+	s := makeScenario(t, activityContract.WeekdayMonday, first)
 	// Tenant transactions follow the test onto its own database when it opted
 	// into one (the query budget below); otherwise this is the package runtime.
 	s.ctx = testpkg.WithTestTenantRuntime(t, s.ctx)
@@ -173,7 +175,7 @@ func bulkCancelScenario(t *testing.T) (*scenarioSetup, []calendar.Date) {
 	for week := range 6 {
 		mondays = append(mondays, first.AddDays(7*week))
 	}
-	result, err := s.factory.Materialization.MaterializeForTenant(s.ctx, mondays[0], mondays[5], timetable.MaterializationSourceManual)
+	result, err := s.materialization.MaterializeForTenant(s.ctx, mondays[0], mondays[5], timetable.MaterializationSourceManual)
 	require.NoError(t, err)
 	require.Equal(t, 6, result.InstancesCreated)
 	return s, mondays
@@ -186,9 +188,9 @@ func TestBulkCancelPlanned_CancelsAndRemovesPlannedOccurrences(t *testing.T) {
 	past, today, active, second, third, outside := mondays[0], mondays[1], mondays[2], mondays[3], mondays[4], mondays[5]
 	activeRows := listInstancesForDate(t, s.db, s.template.ID, active)
 	require.Len(t, activeRows, 1)
-	setInstanceStatus(t, s, activeRows[0].ID, scheduleModels.InstanceStatusActive)
+	setInstanceStatus(t, s, activeRows[0].ID, fixtures.InstanceStatusActive())
 
-	preview, err := s.factory.Instance.BulkCancelPlanned(s.ctx, past, third, timetable.BulkCancelOptions{DryRun: true, IncludeClosingDaySeries: false}, nil)
+	preview, err := s.instance.BulkCancelPlanned(s.ctx, past, third, timetable.BulkCancelOptions{DryRun: true, IncludeClosingDaySeries: false}, nil)
 	require.NoError(t, err)
 	assert.True(t, preview.DryRun)
 	assert.Equal(t, 3, preview.Count, "today and the two planned Mondays ahead")
@@ -202,7 +204,7 @@ func TestBulkCancelPlanned_CancelsAndRemovesPlannedOccurrences(t *testing.T) {
 	assert.Equal(t, map[string]int{today.String(): 1, second.String(): 1, third.String(): 1}, perDay)
 	assert.Len(t, listInstancesForDate(t, s.db, s.template.ID, second), 1, "a dry run changes nothing")
 
-	done, err := s.factory.Instance.BulkCancelPlanned(s.ctx, past, third, timetable.BulkCancelOptions{DryRun: false, IncludeClosingDaySeries: false}, nil)
+	done, err := s.instance.BulkCancelPlanned(s.ctx, past, third, timetable.BulkCancelOptions{DryRun: false, IncludeClosingDaySeries: false}, nil)
 	require.NoError(t, err)
 	assert.False(t, done.DryRun)
 	assert.Equal(t, 3, done.Count)
@@ -214,10 +216,10 @@ func TestBulkCancelPlanned_CancelsAndRemovesPlannedOccurrences(t *testing.T) {
 	assert.Len(t, listInstancesForDate(t, s.db, s.template.ID, past), 1, "past occurrences stay")
 	kept := listInstancesForDate(t, s.db, s.template.ID, active)
 	require.Len(t, kept, 1, "running occurrences stay")
-	assert.Equal(t, scheduleModels.InstanceStatusActive, kept[0].Status)
+	assert.Equal(t, fixtures.InstanceStatusActive(), kept[0].Status)
 	assert.Len(t, listInstancesForDate(t, s.db, s.template.ID, outside), 1, "occurrences outside the range stay")
 
-	again, err := s.factory.Materialization.MaterializeForTenant(s.ctx, mondays[0], mondays[5], timetable.MaterializationSourceManual)
+	again, err := s.materialization.MaterializeForTenant(s.ctx, mondays[0], mondays[5], timetable.MaterializationSourceManual)
 	require.NoError(t, err)
 	assert.Zero(t, again.InstancesCreated, "materialization does not bring cancelled occurrences back")
 	assert.Equal(t, 3, again.CandidatesSkippedException)
@@ -229,7 +231,7 @@ func TestBulkCancelPlanned_KeepsSeriesThatIncludeClosingDays(t *testing.T) {
 	s, mondays := bulkCancelScenario(t)
 	setSeriesIncludesClosingDays(t, s, true)
 
-	result, err := s.factory.Instance.BulkCancelPlanned(s.ctx, mondays[1], mondays[5], timetable.BulkCancelOptions{DryRun: false, IncludeClosingDaySeries: false}, nil)
+	result, err := s.instance.BulkCancelPlanned(s.ctx, mondays[1], mondays[5], timetable.BulkCancelOptions{DryRun: false, IncludeClosingDaySeries: false}, nil)
 	require.NoError(t, err)
 	assert.Zero(t, result.Count)
 	assert.Empty(t, result.Days)
@@ -248,14 +250,14 @@ func TestBulkCancelPlanned_IncludeClosingDaySeriesRemovesThem(t *testing.T) {
 	s, mondays := bulkCancelScenario(t)
 	setSeriesIncludesClosingDays(t, s, true)
 
-	preview, err := s.factory.Instance.BulkCancelPlanned(s.ctx, mondays[1], mondays[5],
+	preview, err := s.instance.BulkCancelPlanned(s.ctx, mondays[1], mondays[5],
 		timetable.BulkCancelOptions{DryRun: true, IncludeClosingDaySeries: true}, nil)
 	require.NoError(t, err)
 	assert.Equal(t, 5, preview.Count, "the recount includes the holiday care series")
 	assert.Zero(t, preview.Kept)
 	assert.Empty(t, preview.KeptSeries)
 
-	done, err := s.factory.Instance.BulkCancelPlanned(s.ctx, mondays[1], mondays[5],
+	done, err := s.instance.BulkCancelPlanned(s.ctx, mondays[1], mondays[5],
 		timetable.BulkCancelOptions{DryRun: false, IncludeClosingDaySeries: true}, nil)
 	require.NoError(t, err)
 	assert.Equal(t, 5, done.Count)
@@ -272,7 +274,7 @@ func TestBulkCancelPlanned_StaysInsideTheTenant(t *testing.T) {
 	own, mondays := bulkCancelScenario(t)
 	other, _ := bulkCancelScenario(t)
 
-	result, err := own.factory.Instance.BulkCancelPlanned(own.ctx, mondays[1], mondays[5], timetable.BulkCancelOptions{DryRun: false, IncludeClosingDaySeries: false}, nil)
+	result, err := own.instance.BulkCancelPlanned(own.ctx, mondays[1], mondays[5], timetable.BulkCancelOptions{DryRun: false, IncludeClosingDaySeries: false}, nil)
 	require.NoError(t, err)
 	assert.Equal(t, 5, result.Count)
 	for _, monday := range mondays[1:] {
@@ -291,7 +293,7 @@ func TestBulkCancelPlanned_RejectsInvalidRanges(t *testing.T) {
 
 		"same days": {mondays[5].AddDays(1), mondays[5].AddDays(1)},
 	} {
-		_, err := s.factory.Instance.BulkCancelPlanned(s.ctx, window[0], window[1], timetable.BulkCancelOptions{DryRun: true, IncludeClosingDaySeries: false}, nil)
+		_, err := s.instance.BulkCancelPlanned(s.ctx, window[0], window[1], timetable.BulkCancelOptions{DryRun: true, IncludeClosingDaySeries: false}, nil)
 		if name == "same days" {
 			require.NoError(t, err, name)
 			continue
@@ -308,20 +310,20 @@ func TestReplanWeek_FollowsTheSeriesClosingDayFlag(t *testing.T) {
 	first := calendar.NewDate(2026, time.August, 31)
 	closing := first.AddDays(7)
 	last := first.AddDays(14)
-	s := makeScenario(t, activitiesModels.WeekdayMonday, first)
+	s := makeScenario(t, activityContract.WeekdayMonday, first)
 	insertScenarioClosingDay(t, s, closing, closing)
 	setSeriesIncludesClosingDays(t, s, true)
-	_, err := s.factory.Materialization.MaterializeForTenant(s.ctx, first, last, timetable.MaterializationSourceManual)
+	_, err := s.materialization.MaterializeForTenant(s.ctx, first, last, timetable.MaterializationSourceManual)
 	require.NoError(t, err)
 	require.Len(t, listInstancesForDate(t, s.db, s.template.ID, closing), 1)
 
 	templateID := s.template.ID
-	_, err = s.factory.Instance.ReplanWeek(s.ctx, first, last, &templateID, nil)
+	_, err = s.instance.ReplanWeek(s.ctx, first, last, &templateID, nil)
 	require.NoError(t, err)
 	assert.Len(t, listInstancesForDate(t, s.db, s.template.ID, closing), 1, "holiday care stays on the closing day")
 
 	setSeriesIncludesClosingDays(t, s, false)
-	_, err = s.factory.Instance.ReplanWeek(s.ctx, first, last, &templateID, nil)
+	_, err = s.instance.ReplanWeek(s.ctx, first, last, &templateID, nil)
 	require.NoError(t, err)
 	assert.Empty(t, listInstancesForDate(t, s.db, s.template.ID, closing), "a regular series drops the closing day")
 	assert.Len(t, listInstancesForDate(t, s.db, s.template.ID, first), 1)
@@ -338,7 +340,7 @@ func TestBulkCancelPlanned_DryRunQueryBudget(t *testing.T) {
 
 	run := func(to calendar.Date, want int) int {
 		counter.Reset()
-		result, err := s.factory.Instance.BulkCancelPlanned(s.ctx, mondays[1], to, timetable.BulkCancelOptions{DryRun: true, IncludeClosingDaySeries: false}, nil)
+		result, err := s.instance.BulkCancelPlanned(s.ctx, mondays[1], to, timetable.BulkCancelOptions{DryRun: true, IncludeClosingDaySeries: false}, nil)
 		require.NoError(t, err)
 		require.Equal(t, want, result.Count)
 		return counter.Total()

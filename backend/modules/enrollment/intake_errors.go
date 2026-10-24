@@ -3,6 +3,8 @@ package enrollment
 import (
 	"errors"
 	"fmt"
+
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
 )
 
 // The intake's refusals as the HTTP adapters classify them (#3565). Handlers
@@ -24,6 +26,7 @@ var (
 	ErrCareOfferingExactlyOneRequired = errors.New("exactly one care offering must be selected for every child")
 	ErrRequiredCareOfferingMissing    = errors.New("a required care offering was not selected for every child")
 	ErrCareOfferingRule               = fmt.Errorf("%w: care offering selection rule not satisfied", ErrInvalidSubmission)
+	ErrCareOfferingDayConflict        = fmt.Errorf("%w: more than one offering of the group on the same weekday", ErrCareOfferingRule)
 	ErrSelectedDayNotAvailable        = fmt.Errorf("%w: selected day is not available for this offering", ErrInvalidSubmission)
 	ErrDaySelectionRequired           = fmt.Errorf("%w: offering requires the parent to pick at least one day", ErrInvalidSubmission)
 	ErrDaySelectionNotAllowed         = fmt.Errorf("%w: offering does not allow parent day selection (days_of_week_mode=fixed)", ErrInvalidSubmission)
@@ -52,15 +55,15 @@ var (
 	ErrChildEnrollmentAmbiguous = fmt.Errorf("%w: child matches multiple enrolled students at this school", ErrInvalidSubmission)
 
 	// Care Plan refusals the enrollment routes map.
-	ErrCareOfferingsDisabled                  = errors.New("care offerings are disabled for this tenant")
-	ErrOfferingAdjustmentInvalid              = errors.New("offering adjustment is invalid")
-	ErrCompleteWithdrawalConfirmationRequired = errors.New("Alle Betreuungstage werden entfernt. Bitte bestätigen Sie die Komplett-Abmeldung.") //nolint:staticcheck // user-facing German message
-	ErrDecisionRequestNotFound                = errors.New("enrollment request not found")
-	ErrDecisionChildNotFound                  = errors.New("request child not found")
-	ErrCareOfferingNotFound                   = errors.New("care offering not found")
-	ErrCareOfferingInvalid                    = errors.New("invalid care offering configuration")
-	ErrCareOfferingTemplatePeriodMismatch     = errors.New("care offering phase must be within the linked timetable template period")
-	ErrCareOfferingGroupRuleConflict          = errors.New("care offerings in the same selection group must share one selection rule")
-	ErrCareOfferingDaysRequired               = errors.New("available_days must contain at least one day")
-	ErrCareOfferingPickupTimesRequired        = errors.New("active care offering requires pickup_times for every weekday")
+	ErrCareOfferingsDisabled                        = errors.New("care offerings are disabled for this tenant")
+	ErrOfferingAdjustmentInvalid                    = errors.New("offering adjustment is invalid")
+	ErrCompleteWithdrawalConfirmationRequired       = errors.New("alle Betreuungstage werden entfernt. Bitte bestätigen Sie die Komplett-Abmeldung")
+	ErrDecisionRequestNotFound                      = errors.New("enrollment request not found")
+	ErrDecisionChildNotFound                        = errors.New("request child not found")
+	ErrCareOfferingNotFound                         = errors.New("care offering not found")
+	ErrCareOfferingInvalid                          = errors.New("invalid care offering configuration")
+	ErrCareOfferingTemplatePeriodMismatch           = errors.New("care offering phase must be within the linked timetable template period")
+	ErrCareOfferingGroupRuleConflict                = errors.New("care offerings in the same selection group must share one selection rule")
+	ErrCareOfferingDaysRequired               error = offeringContract.CareOfferingDaysRequiredError{}
+	ErrCareOfferingPickupTimesRequired              = errors.New("active care offering requires pickup_times for every weekday")
 )

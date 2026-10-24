@@ -1,4 +1,4 @@
-// Package http_test drives the production Resource.Router(), so the full
+// Package http_test drives the production Resource.Router(rootAPI.ProtectedTenantRoutes), so the full
 // middleware chain (Verifier → Authenticator → TenantMiddleware →
 // RequiresPermission → TenantTxMiddleware) runs exactly as on the real server.
 //
@@ -17,6 +17,8 @@ import (
 	"testing"
 	"time"
 
+	rootAPI "github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -24,9 +26,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	birthdaysAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/birthdays"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -50,23 +53,23 @@ type birthdayTestContext struct {
 func setupBirthdaysRoute(t *testing.T, clocks ...func() time.Time) *birthdayTestContext {
 	t.Helper()
 
-	db, svc := testutil.SetupBirthdayModule(t, clocks...)
+	db, svc, userContext, settings := setupBirthdayModule(t, clocks...)
 	return &birthdayTestContext{
 		db: db,
 		resource: birthdaysAPI.NewResource(
-			svc.Birthdays, svc.ListExport, svc.UserContext, slog.Default(),
+			svc.Birthdays, lists.NewRendererService(), userContext, slog.Default(),
 		),
 		setFlag: func(ctx context.Context, key string, value bool) error {
-			return svc.Settings.SetValue(ctx, key, value, nil, nil)
+			return settings.Settings.SetValue(ctx, key, value, nil, nil)
 		},
 		resetFlag: func(ctx context.Context, key string) error {
-			return svc.Settings.ResetValue(ctx, key, nil, nil)
+			return settings.Settings.ResetValue(ctx, key, nil, nil)
 		},
 	}
 }
 
-func claimsFor(tb testing.TB, accountID int64) jwt.AppClaims {
-	return jwt.AppClaims{
+func claimsFor(tb testing.TB, accountID int64) sessiontoken.AppClaims {
+	return sessiontoken.AppClaims{
 		ID:        int(accountID),
 		Sub:       "birthday@example.com",
 		Username:  "birthday",
@@ -77,17 +80,17 @@ func claimsFor(tb testing.TB, accountID int64) jwt.AppClaims {
 	}
 }
 
-func birthdayAuthExec(t *testing.T, tc *birthdayTestContext, req *http.Request, claims jwt.AppClaims, perms []string) *httptest.ResponseRecorder {
+func birthdayAuthExec(t *testing.T, tc *birthdayTestContext, req *http.Request, claims sessiontoken.AppClaims, perms []string) *httptest.ResponseRecorder {
 	t.Helper()
 	claims.Permissions = perms
 	req.Header.Set("Authorization", "Bearer "+testutil.MintTestJWT(t, claims))
-	return testutil.ExecuteRequest(tc.resource.Router(), req)
+	return testutil.ExecuteRequest(tc.resource.Router(rootAPI.ProtectedTenantRoutes), req)
 }
 
 // setPersonBirthday stamps a birth date on an existing fixture person. The
 // fixtures create people without one, which is itself the realistic default:
 // a school that has not maintained every date must still get a working list.
-func setPersonBirthday(t *testing.T, db *bun.DB, personID int64, date timezone.Date) {
+func setPersonBirthday(t *testing.T, db *bun.DB, personID int64, date calendar.Date) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -184,7 +187,7 @@ func TestOverviewRejectsUnauthenticated(t *testing.T) {
 
 	req, err := http.NewRequest("GET", "/", nil)
 	require.NoError(t, err)
-	rr := testutil.ExecuteRequest(tc.resource.Router(), req)
+	rr := testutil.ExecuteRequest(tc.resource.Router(rootAPI.ProtectedTenantRoutes), req)
 
 	assert.Equal(t, http.StatusUnauthorized, rr.Code, rr.Body.String())
 }
@@ -195,17 +198,17 @@ func TestOverviewListsTodaysChildren(t *testing.T) {
 	t.Parallel()
 
 	tc := setupBirthdaysRoute(t, func() time.Time {
-		return timezone.NewDate(2026, 8, 24).BerlinMidnight().Add(12 * time.Hour)
+		return calendar.NewDate(2026, 8, 24).BerlinMidnight().Add(12 * time.Hour)
 	})
 	setSetting(t, tc, keyDisplayEnabled, true)
 
 	account := testpkg.CreateTestAccount(t, tc.db, "birthday-children@example.com")
 
-	today := timezone.NewDate(2026, 8, 24)
+	today := calendar.NewDate(2026, 8, 24)
 	celebrating := testpkg.CreateTestStudent(t, tc.db, "Lina", "Geburtstagskind", "1a")
 	_ = testpkg.CreateTestStudent(t, tc.db, "Ohne", "Datum", "1a")
 
-	setPersonBirthday(t, tc.db, celebrating.PersonID, timezone.NewDate(today.Year()-7, today.Month(), today.Day()))
+	setPersonBirthday(t, tc.db, celebrating.PersonID, calendar.NewDate(today.Year()-7, today.Month(), today.Day()))
 
 	rr := getOverview(t, tc, account.ID, adminPermissions())
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
@@ -236,9 +239,9 @@ func TestOverviewDisabledReturnsNothing(t *testing.T) {
 
 	account := testpkg.CreateTestAccount(t, tc.db, "birthday-off@example.com")
 
-	today := timezone.TodayDate()
+	today := calendar.TodayDate()
 	student := testpkg.CreateTestStudent(t, tc.db, "Nicht", "Sichtbar", "2b")
-	setPersonBirthday(t, tc.db, student.PersonID, timezone.NewDate(today.Year()-6, today.Month(), today.Day()))
+	setPersonBirthday(t, tc.db, student.PersonID, calendar.NewDate(today.Year()-6, today.Month(), today.Day()))
 
 	rr := getOverview(t, tc, account.ID, adminPermissions())
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
@@ -258,11 +261,11 @@ func TestOverviewStaffVisibility(t *testing.T) {
 
 	account := testpkg.CreateTestAccount(t, tc.db, "birthday-staff@example.com")
 
-	today := timezone.TodayDate()
+	today := calendar.TodayDate()
 	staff := testpkg.CreateTestStaff(t, tc.db, "Anna", "Kollegin")
 	optedOut := testpkg.CreateTestStaff(t, tc.db, "Bea", "Abgemeldet")
 
-	birthday := timezone.NewDate(today.Year()-40, today.Month(), today.Day())
+	birthday := calendar.NewDate(today.Year()-40, today.Month(), today.Day())
 	setPersonBirthday(t, tc.db, staff.PersonID, birthday)
 	setPersonBirthday(t, tc.db, optedOut.PersonID, birthday)
 
@@ -412,9 +415,9 @@ func TestOverviewAppliesStudentDataScope(t *testing.T) {
 
 	account := testpkg.CreateTestAccount(t, tc.db, "birthday-scope@example.com")
 
-	today := timezone.TodayDate()
+	today := calendar.TodayDate()
 	student := testpkg.CreateTestStudent(t, tc.db, "Fremdes", "Scopekind", "4a")
-	setPersonBirthday(t, tc.db, student.PersonID, timezone.NewDate(today.Year()-9, today.Month(), today.Day()))
+	setPersonBirthday(t, tc.db, student.PersonID, calendar.NewDate(today.Year()-9, today.Month(), today.Day()))
 
 	t.Run("plain users:read without a staff record sees no child", func(t *testing.T) {
 		rr := getOverview(t, tc, account.ID, []string{permissions.UsersRead})
@@ -449,13 +452,13 @@ func TestOverviewWeekStart(t *testing.T) {
 	t.Parallel()
 
 	tc := setupBirthdaysRoute(t, func() time.Time {
-		return timezone.NewDate(2026, 9, 29).BerlinMidnight().Add(12 * time.Hour)
+		return calendar.NewDate(2026, 9, 29).BerlinMidnight().Add(12 * time.Hour)
 	})
 	setSetting(t, tc, keyDisplayEnabled, true)
 
 	account := testpkg.CreateTestAccount(t, tc.db, "birthday-week@example.com")
 	lastWeek := testpkg.CreateTestStudent(t, tc.db, "Nora", "Vorwoche", "3a")
-	setPersonBirthday(t, tc.db, lastWeek.PersonID, timezone.NewDate(2018, 9, 24))
+	setPersonBirthday(t, tc.db, lastWeek.PersonID, calendar.NewDate(2018, 9, 24))
 
 	request := func(query string) *httptest.ResponseRecorder {
 		req, err := http.NewRequest("GET", "/"+query, nil)

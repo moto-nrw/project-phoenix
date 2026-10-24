@@ -1,6 +1,7 @@
 "use client";
 
 import { useLayoutEffect, useRef, useState } from "react";
+import { ApiError } from "~/lib/api-error";
 import { Loader2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Alert } from "~/components/ui/alert";
@@ -12,7 +13,6 @@ import { Modal } from "~/components/ui/modal";
 import { TimeField } from "~/components/ui/time-field";
 import { useApiFormError } from "~/contexts/ToastContext";
 import {
-  ParentApiError,
   type CareScheduleRequestInput,
   type ChildCareSchedule,
 } from "~/lib/parent-api";
@@ -53,7 +53,7 @@ type SubmitRequest = (payload: CareScheduleRequestInput) => Promise<void>;
  * shared error path.
  */
 function knownRequestErrorKey(error: unknown): string | null {
-  if (!(error instanceof ParentApiError)) return null;
+  if (!(error instanceof ApiError)) return null;
   if (error.code === "care.care_request_already_pending") {
     return "requestAlreadyPending";
   }

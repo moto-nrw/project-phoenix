@@ -49,7 +49,7 @@ func TestNativeBulkPickupRollsBackTheWholeSelection(t *testing.T) {
 			t.Parallel()
 			db := testpkg.SetupTestDB(t)
 			ctx := testpkg.Ctx(t)
-			owner := careplantest.NewCarePlan(t, db)
+			owner := careplantest.NewCarePlan(t, db, testpkg.StudentDirectory{})
 			first := testpkg.CreateTestStudent(t, db, "First", "Pickup", "1a")
 			second := testpkg.CreateTestStudent(t, db, "Second", "Pickup", "1a")
 			staff := testpkg.CreateTestStaff(t, db, "Pickup", "Staff")

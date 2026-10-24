@@ -311,6 +311,32 @@ describe("ResetPasswordPageContent — error display", () => {
     ).toBeInTheDocument();
   });
 
+  // The parents portal answers an expired or used link with 410. The page is
+  // unauthenticated: the link problem shows in the form, no redirect.
+  it("keeps a 410 expired link in the form and does not redirect", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const assign = vi
+      .spyOn(window.location, "assign")
+      .mockImplementation(() => undefined);
+    const confirmReset = vi.fn().mockRejectedValue(
+      new ApiError("invalid or expired reset token", 410, {
+        code: "identity.password_reset_link_invalid",
+      }),
+    );
+    renderContent({ confirmReset });
+
+    fillPasswords(VALID_PASSWORD);
+    submit();
+
+    expect(
+      await screen.findByText(
+        catalogText("identity.password_reset_link_invalid", ERROR_OBJECT),
+      ),
+    ).toBeInTheDocument();
+    expect(assign).not.toHaveBeenCalled();
+    assign.mockRestore();
+  });
+
   it("marks the password field the backend refused", async () => {
     vi.spyOn(console, "warn").mockImplementation(() => undefined);
 

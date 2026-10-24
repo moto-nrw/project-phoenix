@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/classday/internal/ports"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // classDayStatusRank orders the scheduled day statuses. The scale leaves rank
@@ -44,7 +44,7 @@ func statusRank(status string) int {
 
 // classDayStatuses loads the scheduled day statuses of the listed students
 // with the report time of the winning status.
-func (s *dayReports) classDayStatuses(ctx context.Context, studentIDs []int64, date timezone.Date) (statuses map[int64]string, reportedAt map[int64]time.Time, err error) {
+func (s *dayReports) classDayStatuses(ctx context.Context, studentIDs []int64, date calendar.Date) (statuses map[int64]string, reportedAt map[int64]time.Time, err error) {
 	out := make(map[int64]string, len(studentIDs))
 	stamps := make(map[int64]time.Time, len(studentIDs))
 	if s.statusDays == nil || len(studentIDs) == 0 {
@@ -75,7 +75,7 @@ func (s *dayReports) classDayStatuses(ctx context.Context, studentIDs []int64, d
 // plus day exceptions) — the current truth the roster's form-answer snapshot
 // may lag behind. Times only: the "kommt heute nicht" decision belongs to
 // classDayCancellations.
-func (s *dayReports) classDayEffectiveTimes(ctx context.Context, studentIDs []int64, date timezone.Date, facts *classDayFacts) error {
+func (s *dayReports) classDayEffectiveTimes(ctx context.Context, studentIDs []int64, date calendar.Date, facts *classDayFacts) error {
 	if len(studentIDs) == 0 || s.times == nil {
 		return nil
 	}
@@ -149,7 +149,7 @@ func applyClassDayPickup(facts *classDayFacts, studentID int64, entry EffectiveP
 // approved offering still lists it) is recorded separately: not an absence,
 // but the child must not be listed as staying either — every other reader
 // treats it as not-expected.
-func (s *dayReports) classDayCancellations(ctx context.Context, studentIDs []int64, date timezone.Date, facts *classDayFacts) (cancelled map[int64]bool, err error) {
+func (s *dayReports) classDayCancellations(ctx context.Context, studentIDs []int64, date calendar.Date, facts *classDayFacts) (cancelled map[int64]bool, err error) {
 	cancelled = map[int64]bool{}
 	if s.careDays == nil || len(studentIDs) == 0 {
 		return cancelled, nil
@@ -191,7 +191,7 @@ var classDayModeLabels = map[peopledirectory.DepartureMode]string{
 // Enrollment's day roster carries — the current truth, present for every
 // child, enrolled or not. Companion names are attached only for children of
 // this very class (see classDayDeparture). Empty map on weekends.
-func (s *dayReports) classDayDepartures(ctx context.Context, students []DayRosterStudent, weekday string) (map[int64]string, error) {
+func (s *dayReports) classDayDepartures(ctx context.Context, students []DayRosterStudent, date calendar.Date, weekday string) (map[int64]string, error) {
 	out := make(map[int64]string, len(students))
 	if weekday == "" || len(students) == 0 {
 		return out, nil
@@ -201,6 +201,10 @@ func (s *dayReports) classDayDepartures(ctx context.Context, students []DayRoste
 	if err != nil {
 		return nil, err
 	}
+	dayModes, err := s.dayDepartureModes(ctx, studentIDs, date)
+	if err != nil {
+		return nil, fmt.Errorf("class roster report: %w", err)
+	}
 	// The class being served IS the disclosure boundary of this view, so it
 	// is also the set of names a companion entry may mention.
 	onSheet := make(map[int64]bool, len(studentIDs))
@@ -208,9 +212,33 @@ func (s *dayReports) classDayDepartures(ctx context.Context, students []DayRoste
 		onSheet[id] = true
 	}
 	for _, student := range students {
-		out[student.ID] = classDayDeparture(student.DepartureModes, weekday, companions[student.ID], onSheet)
+		out[student.ID] = classDayDeparture(withDayDeparture(student.DepartureModes, dayModes[student.ID]), weekday, companions[student.ID], onSheet)
 	}
 	return out, nil
+}
+
+// dayDepartureModes loads the Abholart the OGS set or approved for single
+// children on date (#3945). Without the binding every child keeps the
+// weekly plan.
+func (s *dayReports) dayDepartureModes(ctx context.Context, studentIDs []int64, date calendar.Date) (map[int64]string, error) {
+	if s.times == nil || len(studentIDs) == 0 {
+		return map[int64]string{}, nil
+	}
+	modes, err := s.times.GetBulkDayDepartureModesForDate(ctx, studentIDs, date)
+	if err != nil {
+		return nil, fmt.Errorf("load day departure modes: %w", err)
+	}
+	return modes, nil
+}
+
+// withDayDeparture replaces the weekly modes by the one Abholart of the day
+// when the OGS set one; "in Begleitung" then still names the weekday's
+// companions, the only ones the sheet knows.
+func withDayDeparture(weekly []peopledirectory.DepartureMode, day string) []peopledirectory.DepartureMode {
+	if day == "" {
+		return weekly
+	}
+	return []peopledirectory.DepartureMode{peopledirectory.DepartureMode(day)}
 }
 
 // dayRosterStudentIDs lists each positive student id once.

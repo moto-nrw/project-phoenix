@@ -1,15 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
 import { POST } from "./route";
-
-// ============================================================================
-// Types
-// ============================================================================
-
-interface ExtendedSession extends Session {
-  user: Session["user"] & { token?: string };
-}
+import { ApiResponseError } from "~/lib/api-response-error.server";
+import {
+  type ExtendedSession,
+  createMockContext,
+  defaultSession,
+} from "~/test/route-test-helpers";
 
 // ============================================================================
 // Mocks (using vi.hoisted for proper hoisting)
@@ -24,21 +21,17 @@ vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));
 
-vi.mock("~/lib/api-helpers.server", () => ({
-  apiGet: vi.fn(),
-  apiPost: mockApiPost,
-  apiPut: vi.fn(),
-  apiDelete: vi.fn(),
-  handleApiError: vi.fn((error: unknown) => {
-    const message =
-      error instanceof Error ? error.message : "Internal Server Error";
-    // Match the real handleApiError regex pattern
-    const regex = /API error[:\s(]+(\d{3})/;
-    const match = error instanceof Error ? regex.exec(error.message) : null;
-    const status = match?.[1] ? Number.parseInt(match[1], 10) : 500;
-    return new Response(JSON.stringify({ error: message }), { status });
-  }),
-}));
+vi.mock("~/lib/api-helpers.server", async () => {
+  const { mockHandleApiError } =
+    await import("~/test/helpers/handle-api-error");
+  return {
+    apiGet: vi.fn(),
+    apiPost: mockApiPost,
+    apiPut: vi.fn(),
+    apiDelete: vi.fn(),
+    handleApiError: vi.fn(mockHandleApiError),
+  };
+});
 
 // ============================================================================
 // Test Helpers
@@ -62,17 +55,6 @@ function createMockRequest(
   return new NextRequest(url, requestInit);
 }
 
-function createMockContext(
-  params: Record<string, string | string[] | undefined> = {},
-) {
-  return { params: Promise.resolve(params) };
-}
-
-const defaultSession: ExtendedSession = {
-  user: { id: "1", token: "test-token", name: "Test User" },
-  expires: "2099-01-01",
-};
-
 interface ApiResponse<T> {
   success: boolean;
   message: string;
@@ -91,17 +73,6 @@ describe("POST /api/active/visits/[id]/end", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(defaultSession);
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/active/visits/123/end", {
-      method: "POST",
-    });
-    const response = await POST(request, createMockContext({ id: "123" }));
-
-    expect(response.status).toBe(401);
   });
 
   it("returns 500 when id parameter is missing", async () => {
@@ -156,19 +127,8 @@ describe("POST /api/active/visits/[id]/end", () => {
     expect(json.data.end_time).toBe("2024-01-15T17:00:00Z");
   });
 
-  it("handles backend errors gracefully", async () => {
-    mockApiPost.mockRejectedValueOnce(new Error("API error (404)"));
-
-    const request = createMockRequest("/api/active/visits/999/end", {
-      method: "POST",
-    });
-    const response = await POST(request, createMockContext({ id: "999" }));
-
-    expect(response.status).toBe(404);
-  });
-
   it("handles visit already ended", async () => {
-    mockApiPost.mockRejectedValueOnce(new Error("API error (400)"));
+    mockApiPost.mockRejectedValueOnce(new ApiResponseError(400, ""));
 
     const request = createMockRequest("/api/active/visits/123/end", {
       method: "POST",

@@ -15,6 +15,7 @@ import { withParentAuth } from "~/server/auth/parent-route";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { incomingAnalyticsSessionHeaders } from "~/lib/analytics-session-header.server";
 import { createLogger } from "~/lib/logger";
+import { problemResponse } from "~/lib/api-helpers.server";
 
 const logger = createLogger({ component: "ParentDeclarationProofPdf" });
 
@@ -26,16 +27,13 @@ async function GETHandler(
 
   const studentId = request.nextUrl.searchParams.get("student_id") ?? "";
   if (!/^\d+$/.test(studentId)) {
-    return NextResponse.json(
-      { status: "error", error: "student_id is required" },
-      { status: 400 },
-    );
+    return problemResponse(400, "student_id is required", request);
   }
 
   const session = await parentAuth();
   const token = session?.user?.token;
   if (!token) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return problemResponse(401, "Unauthorized", request);
   }
 
   const backendUrl = `${getServerApiUrl()}/parent/me/news/${encodeURIComponent(announcementId)}/declaration/proof?student_id=${encodeURIComponent(studentId)}&format=pdf`;
@@ -63,7 +61,7 @@ async function GETHandler(
       announcement_id: announcementId,
       status: upstream.status,
     });
-    return forwardBackendResponse(upstream);
+    return forwardBackendResponse(upstream, request);
   }
 
   const headers = new Headers();

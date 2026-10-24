@@ -4,13 +4,11 @@ import (
 	"context"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // stubMatchedStudentChildRepo captures the pin writes reconcileMatchedStudent
@@ -52,8 +50,8 @@ type matchedStudentFixture struct {
 	children *stubMatchedStudentChildRepo
 	requests *stubMatchLockRequestRepo
 	auth     *stubReEnrollAuthorizer
-	req      *enrollmentModels.Request
-	phase    *enrollment.Phase
+	req      *Request
+	phase    *enrollmentNative.Phase
 	row      *ChangeRequest
 }
 
@@ -61,7 +59,7 @@ func newMatchedStudentFixture(audience string, resolved *int64, collision bool) 
 	children := &stubMatchedStudentChildRepo{}
 	requests := &stubMatchLockRequestRepo{has: collision}
 	auth := &stubReEnrollAuthorizer{granted: true}
-	svc := NewChangeRequests(ChangeRequestDependencies{
+	svc := NewChangeRequests(ChangeRequestDependencies{Settings: intakeSettingsFake{},
 		Requests:           requests,
 		Children:           children,
 		Students:           &stubMatchStudentRepo{matchID: resolved, exists: resolved != nil},
@@ -70,7 +68,7 @@ func newMatchedStudentFixture(audience string, resolved *int64, collision bool) 
 	})
 
 	accountID := int64(4242)
-	req := &enrollmentModels.Request{GuardianAccountID: &accountID}
+	req := &Request{GuardianAccountID: &accountID}
 	req.TenantID = 77
 
 	return &matchedStudentFixture{
@@ -79,7 +77,7 @@ func newMatchedStudentFixture(audience string, resolved *int64, collision bool) 
 		requests: requests,
 		auth:     auth,
 		req:      req,
-		phase:    &enrollment.Phase{Audience: audience},
+		phase:    &enrollmentNative.Phase{Audience: audience},
 		row:      &ChangeRequest{},
 	}
 }
@@ -100,7 +98,7 @@ func matchedStudentChild(id int64, pin *int64) *RequestChild {
 		FirstName:        "Anna",
 		LastName:         "Müller",
 		DateOfBirth:      "2019-04-12",
-		Status:           enrollmentModels.ChildStatusUnderReview,
+		Status:           enrollmentNative.ChildStatusUnderReview,
 		MatchedStudentID: pin,
 	}
 	child.ID = id
@@ -123,7 +121,7 @@ func TestReconcileMatchedStudent_RepinsAfterIdentityEdit(t *testing.T) {
 	t.Parallel()
 
 	newStudent := int64(900)
-	f := newMatchedStudentFixture(enrollment.PhaseAudienceExistingStudents, &newStudent, false)
+	f := newMatchedStudentFixture(enrollmentNative.PhaseAudienceExistingStudents, &newStudent, false)
 	oldPin := int64(100)
 	child := matchedStudentChild(11, &oldPin)
 
@@ -144,7 +142,7 @@ func TestReconcileMatchedStudent_KeepsPinForUnchangedIdentity(t *testing.T) {
 	t.Parallel()
 
 	pin := int64(100)
-	f := newMatchedStudentFixture(enrollment.PhaseAudienceExistingStudents, &pin, false)
+	f := newMatchedStudentFixture(enrollmentNative.PhaseAudienceExistingStudents, &pin, false)
 	child := matchedStudentChild(11, &pin)
 
 	err := f.reconcile(child, matchedStudentSubmit("Anna"))
@@ -161,7 +159,7 @@ func TestReconcileMatchedStudent_KeepsPinForUnchangedIdentity(t *testing.T) {
 func TestReconcileMatchedStudent_ClearsStalePinWhenAudienceNoLongerMatches(t *testing.T) {
 	t.Parallel()
 
-	f := newMatchedStudentFixture(enrollment.PhaseAudienceOpen, nil, false)
+	f := newMatchedStudentFixture(enrollmentNative.PhaseAudienceOpen, nil, false)
 	oldPin := int64(100)
 	child := matchedStudentChild(11, &oldPin)
 
@@ -178,28 +176,28 @@ func TestReconcileMatchedStudent_ClearsStalePinWhenAudienceNoLongerMatches(t *te
 func TestReconcileMatchedStudent_RejectsUnmatchableIdentityOnExistingStudentsPhase(t *testing.T) {
 	t.Parallel()
 
-	f := newMatchedStudentFixture(enrollment.PhaseAudienceExistingStudents, nil, false)
+	f := newMatchedStudentFixture(enrollmentNative.PhaseAudienceExistingStudents, nil, false)
 	oldPin := int64(100)
 	child := matchedStudentChild(11, &oldPin)
 
 	err := f.reconcile(child, matchedStudentSubmit("Ben"))
-	require.ErrorIs(t, err, enrollment.ErrChildNotEnrolled)
+	require.ErrorIs(t, err, enrollmentNative.ErrChildNotEnrolled)
 	assert.Empty(t, f.children.writes, "a rejected reconcile must not persist anything")
 }
 
 // The re-resolved pin is only allowed to stand when the guardian holds
-// parent_portal.enrollment.submit on THAT student.
+// parent_portal.enrollmentNative.submit on THAT student.
 func TestReconcileMatchedStudent_RejectsUnpermittedNewMatch(t *testing.T) {
 	t.Parallel()
 
 	newStudent := int64(900)
-	f := newMatchedStudentFixture(enrollment.PhaseAudienceExistingStudents, &newStudent, false)
+	f := newMatchedStudentFixture(enrollmentNative.PhaseAudienceExistingStudents, &newStudent, false)
 	f.auth.granted = false
 	oldPin := int64(100)
 	child := matchedStudentChild(11, &oldPin)
 
 	err := f.reconcile(child, matchedStudentSubmit("Ben"))
-	require.ErrorIs(t, err, enrollment.ErrChildEnrollmentNotPermitted)
+	require.ErrorIs(t, err, enrollmentNative.ErrChildEnrollmentNotPermitted)
 	assert.Empty(t, f.children.writes)
 }
 
@@ -211,14 +209,14 @@ func TestReconcileMatchedStudent_RejectsReopenCollidingWithAnotherRequest(t *tes
 	t.Parallel()
 
 	pin := int64(100)
-	f := newMatchedStudentFixture(enrollment.PhaseAudienceExistingStudents, &pin, true)
+	f := newMatchedStudentFixture(enrollmentNative.PhaseAudienceExistingStudents, &pin, true)
 	child := matchedStudentChild(11, &pin)
-	child.Status = enrollmentModels.ChildStatusRejected
+	child.Status = enrollmentNative.ChildStatusRejected
 	f.row.BaseSnapshot = map[string]any{"children": []any{map[string]any{"id": int64(11), "first_name": "Anna"}}}
 	f.row.ProposedSnapshot = map[string]any{"children": []any{map[string]any{"id": int64(11), "first_name": "Anna-Lena"}}}
 
 	err := f.reconcile(child, matchedStudentSubmit("Anna"))
-	require.ErrorIs(t, err, enrollment.ErrExistingStudentAlreadyRequested)
+	require.ErrorIs(t, err, enrollmentNative.ErrExistingStudentAlreadyRequested)
 }
 
 // A rejected child whose own data did NOT change stays rejected, so it never
@@ -227,9 +225,9 @@ func TestReconcileMatchedStudent_SkipsUniquenessForChildStayingRejected(t *testi
 	t.Parallel()
 
 	pin := int64(100)
-	f := newMatchedStudentFixture(enrollment.PhaseAudienceExistingStudents, &pin, true)
+	f := newMatchedStudentFixture(enrollmentNative.PhaseAudienceExistingStudents, &pin, true)
 	child := matchedStudentChild(11, &pin)
-	child.Status = enrollmentModels.ChildStatusRejected
+	child.Status = enrollmentNative.ChildStatusRejected
 
 	err := f.reconcile(child, matchedStudentSubmit("Anna"))
 	require.NoError(t, err)
@@ -242,7 +240,7 @@ func TestReconcileMatchedStudent_SkipsMaterializedChild(t *testing.T) {
 	t.Parallel()
 
 	pin := int64(100)
-	f := newMatchedStudentFixture(enrollment.PhaseAudienceExistingStudents, &pin, true)
+	f := newMatchedStudentFixture(enrollmentNative.PhaseAudienceExistingStudents, &pin, true)
 	child := matchedStudentChild(11, &pin)
 	student := int64(555)
 	child.CreatedStudentID = &student
@@ -258,7 +256,7 @@ func TestReconcileMatchedStudent_SkipsMaterializedChild(t *testing.T) {
 func TestReconcileMatchedStudent_SkipsRolloverChild(t *testing.T) {
 	t.Parallel()
 
-	f := newMatchedStudentFixture(enrollment.PhaseAudienceExistingStudents, nil, false)
+	f := newMatchedStudentFixture(enrollmentNative.PhaseAudienceExistingStudents, nil, false)
 	child := matchedStudentChild(11, nil)
 	source := int64(9)
 	child.RolloverSourceChildID = &source
@@ -273,7 +271,7 @@ func TestReconcileMatchedStudent_SkipsRolloverChild(t *testing.T) {
 func TestReconcileMatchedStudent_NoOpForUnpinnedOrdinaryChild(t *testing.T) {
 	t.Parallel()
 
-	f := newMatchedStudentFixture(enrollment.PhaseAudienceOpen, nil, true)
+	f := newMatchedStudentFixture(enrollmentNative.PhaseAudienceOpen, nil, true)
 	child := matchedStudentChild(11, nil)
 
 	err := f.reconcile(child, matchedStudentSubmit("Ben"))
@@ -294,30 +292,30 @@ func TestPostApprovalChildStatus(t *testing.T) {
 	child := matchedStudentChild(11, nil)
 
 	t.Run("capacity override wins", func(t *testing.T) {
-		child.Status = enrollmentModels.ChildStatusUnderReview
-		assert.Equal(t, enrollmentModels.ChildStatusWaitlisted,
-			postApprovalChildStatus(row, child, map[int]string{0: enrollmentModels.ChildStatusWaitlisted}, 0))
+		child.Status = enrollmentNative.ChildStatusUnderReview
+		assert.Equal(t, enrollmentNative.ChildStatusWaitlisted,
+			postApprovalChildStatus(row, child, map[int]string{0: enrollmentNative.ChildStatusWaitlisted}, 0))
 	})
 
 	t.Run("rejected child with changed data reopens", func(t *testing.T) {
-		child.Status = enrollmentModels.ChildStatusRejected
-		assert.Equal(t, enrollmentModels.ChildStatusUnderReview,
+		child.Status = enrollmentNative.ChildStatusRejected
+		assert.Equal(t, enrollmentNative.ChildStatusUnderReview,
 			postApprovalChildStatus(row, child, map[int]string{}, 0))
 	})
 
 	t.Run("rejected child without own change stays rejected", func(t *testing.T) {
-		child.Status = enrollmentModels.ChildStatusRejected
+		child.Status = enrollmentNative.ChildStatusRejected
 		unchanged := &ChangeRequest{
 			BaseSnapshot:     row.BaseSnapshot,
 			ProposedSnapshot: row.BaseSnapshot,
 		}
-		assert.Equal(t, enrollmentModels.ChildStatusRejected,
+		assert.Equal(t, enrollmentNative.ChildStatusRejected,
 			postApprovalChildStatus(unchanged, child, map[int]string{}, 0))
 	})
 
 	t.Run("otherwise unchanged", func(t *testing.T) {
-		child.Status = enrollmentModels.ChildStatusUnderReview
-		assert.Equal(t, enrollmentModels.ChildStatusUnderReview,
+		child.Status = enrollmentNative.ChildStatusUnderReview
+		assert.Equal(t, enrollmentNative.ChildStatusUnderReview,
 			postApprovalChildStatus(row, child, map[int]string{}, 0))
 	})
 }
@@ -341,7 +339,7 @@ func TestPtrInt64Equal(t *testing.T) {
 func TestValidateChildClassEligibility(t *testing.T) {
 	t.Parallel()
 
-	phase := &enrollment.Phase{
+	phase := &enrollmentNative.Phase{
 		EligibleSchoolClasses:  []string{"2a"},
 		AvailableSchoolClasses: []string{"2a", "3b"},
 	}
@@ -354,16 +352,16 @@ func TestValidateChildClassEligibility(t *testing.T) {
 	t.Run("available but ineligible class rejected", func(t *testing.T) {
 		err := validateChildClassEligibility(phase,
 			[]SubmitChild{{FirstName: "Kim", TargetSchoolClass: classPtr("3b")}})
-		require.ErrorIs(t, err, enrollment.ErrChildClassNotEligible)
+		require.ErrorIs(t, err, enrollmentNative.ErrChildClassNotEligible)
 	})
 
 	t.Run("missing class rejected when the phase restricts", func(t *testing.T) {
 		err := validateChildClassEligibility(phase, []SubmitChild{{FirstName: "Kim"}})
-		require.ErrorIs(t, err, enrollment.ErrChildClassNotEligible)
+		require.ErrorIs(t, err, enrollmentNative.ErrChildClassNotEligible)
 	})
 
 	t.Run("unrestricted phase accepts anything", func(t *testing.T) {
-		require.NoError(t, validateChildClassEligibility(&enrollment.Phase{},
+		require.NoError(t, validateChildClassEligibility(&enrollmentNative.Phase{},
 			[]SubmitChild{{FirstName: "Kim", TargetSchoolClass: classPtr("9z")}}))
 	})
 }

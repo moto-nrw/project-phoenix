@@ -16,7 +16,7 @@ import (
 func TestSetFamilyProtectionAppendsAuditedStateChange(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	module, err := New(Dependencies{DB: db, Observe: func(Observation) {}})
+	module, err := New(Dependencies{StudentDirectory: testpkg.StudentDirectory{}, DB: db, Observe: func(Observation) {}}, nil)
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "Protection", "Append", "1a")
@@ -52,7 +52,7 @@ func TestSetFamilyProtectionAppendsAuditedStateChange(t *testing.T) {
 func TestSetFamilyProtectionDoesNotAppendUnchangedState(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	module, err := New(Dependencies{DB: db, Observe: func(Observation) {}})
+	module, err := New(Dependencies{StudentDirectory: testpkg.StudentDirectory{}, DB: db, Observe: func(Observation) {}}, nil)
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "Protection", "Unchanged", "1a")
@@ -79,7 +79,7 @@ func TestSetFamilyProtectionDoesNotAppendUnchangedState(t *testing.T) {
 func TestSetFamilyProtectionRejectsInvalidChanges(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	module, err := New(Dependencies{DB: db, Observe: func(Observation) {}})
+	module, err := New(Dependencies{StudentDirectory: testpkg.StudentDirectory{}, DB: db, Observe: func(Observation) {}}, nil)
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "Protection", "Invalid", "1a")
@@ -113,7 +113,7 @@ func TestSetFamilyProtectionRejectsInvalidChanges(t *testing.T) {
 func TestSetFamilyProtectionRefusesAlumnus(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	module, err := New(Dependencies{DB: db, Observe: func(Observation) {}})
+	module, err := New(Dependencies{StudentDirectory: testpkg.StudentDirectory{}, DB: db, Observe: func(Observation) {}}, nil)
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "Protection", "Alumnus", "1a")
@@ -134,7 +134,7 @@ func TestSetFamilyProtectionRefusesAlumnus(t *testing.T) {
 func TestSetFamilyProtectionDoesNotWriteAnotherTenant(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	module, err := New(Dependencies{DB: db, Observe: func(Observation) {}})
+	module, err := New(Dependencies{StudentDirectory: testpkg.StudentDirectory{}, DB: db, Observe: func(Observation) {}}, nil)
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 	otherTenant := testpkg.UniqueTestTenantID(t)

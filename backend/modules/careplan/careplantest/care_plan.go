@@ -5,6 +5,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	carePlanPorts "github.com/moto-nrw/project-phoenix/modules/careplan/ports"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/uptrace/bun"
@@ -16,7 +17,7 @@ type TB interface {
 }
 
 // NewStoredPickupBaselines composes fixture reads with booking authority off.
-func NewStoredPickupBaselines(records carePlanCompose.PickupBaselineRecords, links careplan.ApprovedBookingReader) careplan.PickupBaselineReader {
+func NewStoredPickupBaselines(records carePlanPorts.PickupBaselineRecords, links careplan.ApprovedBookingReader) careplan.PickupBaselineReader {
 	baselines, err := carePlanCompose.NewPickupBaselines(records, links, func(context.Context) (bool, error) { return false, nil })
 	if err != nil {
 		panic(err)
@@ -49,7 +50,11 @@ type CareParticipationResolver = carePlanCompose.CareParticipationResolver
 
 // NewCareDays binds native records and the fixture's existing participation source.
 func NewCareDays(records careplan.Capability, baselines careplan.PickupBaselineReader, participation carePlanCompose.CareParticipationResolver) careplan.CareDayQuery {
-	return carePlanCompose.NewCareDays(carePlanCompose.CareDayDependencies{Records: records, PickupBaselines: baselines, CareParticipation: participation})
+	careDays, err := carePlanCompose.NewCareDayQuery(carePlanCompose.CareDayDependencies{Records: records, PickupBaselines: baselines, CareParticipation: participation})
+	if err != nil {
+		panic(err)
+	}
+	return careDays
 }
 
 // NewOfferingBookings composes the effective-booking owner for workflow tests.
@@ -57,13 +62,15 @@ func NewOfferingBookings() *careplan.OfferingBookings {
 	return carePlanCompose.NewOfferingBookings()
 }
 
-// NewCarePlan composes the owner capability for integration tests.
-func NewCarePlan(tb TB, db *bun.DB) careplan.Capability {
+// NewCarePlan composes the owner capability for integration tests. The
+// caller supplies the student directory reader; test support may not reach
+// the projection (ADR 0058).
+func NewCarePlan(tb TB, db *bun.DB, directory StudentDirectory) careplan.Capability {
 	tb.Helper()
-	students := newStudentDirectory(tb, db)
+	students := newStudentDirectory(tb, db, directory)
 	capability, err := carePlanCompose.New(carePlanCompose.Dependencies{
 		DB: db, Observe: func(carePlanCompose.Observation) {}, AmbientDB: carePlanCompose.TenantAmbientDatabase(db),
-		StatusStudents: newStatusStudentDirectory(db, students), StatusSlots: emptyStatusSlots{},
+		StatusStudents: newStatusStudentDirectory(db, students, directory), StatusSlots: emptyStatusSlots{}, StudentDirectory: directory,
 		People:      studentNameFinder(students),
 		StudentLock: students.LockStudent, StudentNotFound: peopledirectory.ErrStudentNotFound,
 	})
@@ -79,12 +86,12 @@ type statusStudentDirectory struct {
 	care     careplan.StudentProfileCommands
 }
 
-func newStatusStudentDirectory(db *bun.DB, students peopledirectory.Capability) statusStudentDirectory {
+func newStatusStudentDirectory(db *bun.DB, students peopledirectory.Capability, directory carePlanCompose.StudentDirectory) statusStudentDirectory {
 	flags, ok := students.(peopledirectory.StudentStatusFlagCapability)
 	if !ok {
 		panic("test People Directory does not expose status flags")
 	}
-	care, err := carePlanCompose.NewStudentProfiles(db, func(carePlanCompose.Observation) {})
+	care, err := carePlanCompose.NewStudentProfiles(db, directory, func(carePlanCompose.Observation) {})
 	if err != nil {
 		panic(err)
 	}
@@ -128,29 +135,43 @@ func (emptyStatusSlots) ApplyStatusDay(context.Context, int64, careplan.Date, in
 
 func (emptyStatusSlots) ReleaseStatusDay(context.Context, int64) (int, error) { return 0, nil }
 
-func newStudentDirectory(tb TB, db *bun.DB) *peopledirectory.Module {
+// StudentDirectory is the student directory projection both Care Plan and
+// People Directory read. Test support may not reach the projection, so the
+// caller passes it.
+type StudentDirectory interface {
+	carePlanCompose.StudentDirectory
+	AllSchoolsStudentModelRows(db bun.IDB, model any) *bun.SelectQuery
+	StudentModelRows(db bun.IDB, tenantID int64, model any) *bun.SelectQuery
+}
+
+func newStudentDirectory(tb TB, db *bun.DB, directory StudentDirectory) peopledirectory.Capability {
 	tb.Helper()
 	students, err := peopleCompose.New(peopleCompose.Dependencies{
-		DB: db, Observe: func(peopleCompose.Observation) {},
-	})
+		StudentDirectory: directory,
+		DB:               db, Observe: func(peopleCompose.Observation) {},
+	}, nil)
 	if err != nil {
 		tb.Fatalf("compose test People Directory: %v", err)
 	}
-	return students
+	return students.Owner
 }
 
-func studentNameFinder(students peopledirectory.Capability) carePlanCompose.StudentNameFinder {
-	return carePlanCompose.StudentNameFinderFunc(func(ctx context.Context, ids []int64) ([]carePlanCompose.StudentName, error) {
-		values, err := students.ListStudentNamesByID(ctx, ids)
-		if err != nil {
-			return nil, err
-		}
-		result := make([]carePlanCompose.StudentName, 0, len(values))
-		for _, value := range values {
-			result = append(result, carePlanCompose.StudentName{StudentID: value.StudentID, FirstName: value.FirstName, LastName: value.LastName})
-		}
-		return result, nil
-	})
+func studentNameFinder(students peopledirectory.Capability) carePlanPorts.StudentNameFinder {
+	return studentNames{students: students}
+}
+
+type studentNames struct{ students peopledirectory.Capability }
+
+func (n studentNames) ListStudentNamesByID(ctx context.Context, ids []int64) ([]carePlanPorts.StudentName, error) {
+	values, err := n.students.ListStudentNamesByID(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]carePlanPorts.StudentName, 0, len(values))
+	for _, value := range values {
+		result = append(result, carePlanPorts.StudentName{StudentID: value.StudentID, FirstName: value.FirstName, LastName: value.LastName})
+	}
+	return result, nil
 }
 
 // ArrivalStudentRecords is the People projection arrival baselines read.

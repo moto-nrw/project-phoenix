@@ -8,7 +8,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/modules/mealplan/internal/domain"
+	"github.com/moto-nrw/project-phoenix/modules/mealplan"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -21,7 +22,7 @@ func TestStoreScopesReadsAndDeletesWithoutRLS(t *testing.T) {
 	tenantID := testpkg.Tenant(t)
 	otherTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, otherTenantID)
-	date, err := domain.ParseDate("2026-09-07")
+	date, err := calendar.ParseDate("2026-09-07")
 	require.NoError(t, err)
 
 	rows := []row{
@@ -63,4 +64,28 @@ func TestStoreScopesReadsAndDeletesWithoutRLS(t *testing.T) {
 func TestMain(m *testing.M) {
 	testpkg.PerTestTenants()
 	testpkg.Run(m)
+}
+
+func TestStoreRoundTripsAllergens(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	tenantID := testpkg.Tenant(t)
+	date, err := calendar.ParseDate("2026-09-08")
+	require.NoError(t, err)
+	store := New(func(context.Context) (bun.IDB, int64, error) {
+		return db, tenantID, nil
+	})
+
+	_, err = store.ReplaceDay(context.Background(), date, []mealplan.Dish{
+		{Dish: "Fischstäbchen", Allergens: []mealplan.Allergen{mealplan.AllergenGluten, mealplan.AllergenFish}},
+		{Dish: "Obst", Allergens: []mealplan.Allergen{}},
+	})
+	require.NoError(t, err)
+
+	entries, _, err := store.FindWeek(context.Background(), date, date)
+	require.NoError(t, err)
+	require.Len(t, entries, 2)
+	assert.Equal(t, []string{"gluten", "fish"}, entries[0].Allergens)
+	assert.Empty(t, entries[1].Allergens)
 }

@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
@@ -30,8 +30,8 @@ type StaffAbsenceFixture struct {
 	StaffID       int64
 	AbsenceType   string
 	AbsenceTypeID *int64
-	DateStart     timezone.Date `bun:"date_start,notnull,type:date"`
-	DateEnd       timezone.Date `bun:"date_end,notnull,type:date"`
+	DateStart     calendar.Date `bun:"date_start,notnull,type:date"`
+	DateEnd       calendar.Date `bun:"date_end,notnull,type:date"`
 	Status        string
 	CreatedBy     int64
 }
@@ -54,7 +54,7 @@ func CreateTestStaffAbsenceType(tb testing.TB, db *bun.DB, name string) *StaffAb
 // calendar day (today's absence label is what the staff directory shows).
 func CreateTestStaffAbsenceToday(tb testing.TB, db *bun.DB, staffID int64, absenceTypeID int64) *StaffAbsenceFixture {
 	tb.Helper()
-	day := timezone.TodayDate()
+	day := calendar.TodayDate()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 

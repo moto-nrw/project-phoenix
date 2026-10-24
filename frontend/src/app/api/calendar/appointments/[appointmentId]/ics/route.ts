@@ -8,6 +8,7 @@ import {
   isStringParam,
   type RouteContext,
 } from "~/lib/route-wrapper-utils.server";
+import { problemResponse } from "~/lib/api-helpers.server";
 
 export const runtime = "nodejs";
 
@@ -22,12 +23,12 @@ export const GET = withTenantAuth(
   async (request: NextRequest, context: RouteContext): Promise<Response> => {
     const session = await auth();
     if (!session?.user?.token) {
-      return createUnauthorizedResponse();
+      return createUnauthorizedResponse(request);
     }
     const params = await extractParams(request, context);
     const appointmentId = params.appointmentId;
     if (!isStringParam(appointmentId) || appointmentId.length === 0) {
-      return new Response("Appointment ID is required", { status: 400 });
+      return problemResponse(400, "Appointment ID is required", request);
     }
     return streamIcsDownload(
       `/api/calendar/appointments/${encodeURIComponent(appointmentId)}/ics`,

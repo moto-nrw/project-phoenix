@@ -2,8 +2,8 @@ package application
 
 import (
 	"context"
-	"log/slog"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 )
 
@@ -12,45 +12,48 @@ import (
 
 const opAssignPermissionToRole = "assign permission to role"
 
-func (r *RoleAdministration) CreatePermission(ctx context.Context, name, description, resource, action string) (domain.ManagedPermission, error) {
-	permission, err := r.store.CreatePermission(ctx, domain.ManagedPermission{
-		Name: name, Description: description, Resource: resource, Action: action,
+func (r *RoleAdministration) GetPermission(ctx context.Context, id int64) (value0 identityaccess.Permission, err error) {
+	if r == nil {
+		return identityaccess.Permission{}, errRoleAdministrationUnavailable
+	}
+	operation := func(ctx context.Context) (domain.ManagedPermission, error) {
+		permission, found, err := r.store.FindPermission(ctx, id)
+		if err != nil {
+			return domain.ManagedPermission{}, failed("get permission", err)
+		}
+		if !found {
+			return domain.ManagedPermission{}, failed("get permission", identityaccess.ErrPermissionNotFound)
+		}
+		return permission, nil
+	}
+	err = r.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		result, err := operation(bindRuntime(r.attach, txCtx))
+		value0 = identityaccess.Permission(result)
+		return roleError(err)
 	})
-	if err != nil {
-		return domain.ManagedPermission{}, failed("create permission", err)
-	}
-	return permission, nil
+	return
 }
 
-func (r *RoleAdministration) GetPermission(ctx context.Context, id int64) (domain.ManagedPermission, error) {
-	permission, found, err := r.store.FindPermission(ctx, id)
-	if err != nil {
-		return domain.ManagedPermission{}, failed("get permission", err)
+func (r *RoleAdministration) GetPermissionByName(ctx context.Context, name string) (value0 identityaccess.Permission, err error) {
+	if r == nil {
+		return identityaccess.Permission{}, errRoleAdministrationUnavailable
 	}
-	if !found {
-		return domain.ManagedPermission{}, failed("get permission", domain.ErrPermissionNotFound)
+	operation := func(ctx context.Context) (domain.ManagedPermission, error) {
+		permission, err := r.store.FindPermissionByName(ctx, name)
+		if err != nil {
+			return domain.ManagedPermission{}, failed("get permission by name", err)
+		}
+		return permission, nil
 	}
-	return permission, nil
+	err = r.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		result, err := operation(bindRuntime(r.attach, txCtx))
+		value0 = identityaccess.Permission(result)
+		return roleError(err)
+	})
+	return
 }
 
-func (r *RoleAdministration) GetPermissionByName(ctx context.Context, name string) (domain.ManagedPermission, error) {
-	permission, err := r.store.FindPermissionByName(ctx, name)
-	if err != nil {
-		return domain.ManagedPermission{}, failed("get permission by name", err)
-	}
-	return permission, nil
-}
-
-func (r *RoleAdministration) UpdatePermission(ctx context.Context, permission domain.ManagedPermission) error {
-	if err := r.store.UpdatePermission(ctx, permission); err != nil {
-		return failed("update permission", err)
-	}
-	return nil
-}
-
-// DeletePermission removes the account grants and role mappings of the
-// permission before the permission itself.
-func (r *RoleAdministration) DeletePermission(ctx context.Context, id int64) error {
+func (r *RoleAdministration) deletePermission(ctx context.Context, id int64) error {
 	if err := r.store.DeletePermissionGrants(ctx, id); err != nil {
 		return failed("delete account permissions", err)
 	}
@@ -63,91 +66,27 @@ func (r *RoleAdministration) DeletePermission(ctx context.Context, id int64) err
 	return nil
 }
 
-// GrantPermissionToAccount grants a permission directly to an account.
-func (r *RoleAdministration) GrantPermissionToAccount(ctx context.Context, accountID, permissionID int64) error {
-	return r.runtime.RunInTx(ctx, func(txCtx context.Context) error {
-		if err := r.lockManageableAccount(txCtx, accountID, "grant permission"); err != nil {
-			return err
-		}
-		if _, found, err := r.store.FindPermission(txCtx, permissionID); err != nil || !found {
-			return failed("grant permission", domain.ErrPermissionNotFound)
-		}
-		if err := r.store.GrantAccountPermission(txCtx, accountID, permissionID); err != nil {
-			return failed("grant permission to account", err)
-		}
-		return nil
-	})
-}
-
-// DenyPermissionToAccount explicitly denies a permission to an account.
-func (r *RoleAdministration) DenyPermissionToAccount(ctx context.Context, accountID, permissionID int64) error {
-	return r.runtime.RunInTx(ctx, func(txCtx context.Context) error {
-		if err := r.lockManageableAccount(txCtx, accountID, "deny permission"); err != nil {
-			return err
-		}
-		if _, found, err := r.store.FindPermission(txCtx, permissionID); err != nil || !found {
-			return failed("deny permission", domain.ErrPermissionNotFound)
-		}
-		if err := r.store.DenyAccountPermission(txCtx, accountID, permissionID); err != nil {
-			return failed("deny permission to account", err)
-		}
-		return nil
-	})
-}
-
-// RemovePermissionFromAccount removes a direct grant or denial.
-func (r *RoleAdministration) RemovePermissionFromAccount(ctx context.Context, accountID, permissionID int64) error {
-	return r.runtime.RunInTx(ctx, func(txCtx context.Context) error {
-		if err := r.lockManageableAccount(txCtx, accountID, "remove permission"); err != nil {
-			return err
-		}
-		if err := r.store.RemoveAccountPermission(txCtx, accountID, permissionID); err != nil {
-			return failed("remove permission from account", err)
-		}
-		return nil
-	})
-}
-
-// GetAccountPermissions returns the direct and the role-based permissions of
-// an account in one query.
-func (r *RoleAdministration) GetAccountPermissions(ctx context.Context, accountID int64) ([]domain.ManagedPermission, error) {
-	if _, err := r.accounts.FindManageableAccount(ctx, accountID); err != nil {
-		return nil, failed("get account permissions", domain.ErrAccountNotFound)
-	}
-	if err := r.ensureOrganizationRBACMembership(ctx, accountID, "get account permissions", false); err != nil {
-		return nil, err
-	}
-	permissions, err := r.store.ListAccountPermissions(ctx, accountID)
-	if err != nil {
-		return nil, failed("get account permissions", err)
-	}
-	return permissions, nil
-}
-
-// GetAccountDirectPermissions returns only the direct permissions of an
-// account, not the role-based ones.
-func (r *RoleAdministration) GetAccountDirectPermissions(ctx context.Context, accountID int64) ([]domain.ManagedPermission, error) {
-	if _, err := r.accounts.FindManageableAccount(ctx, accountID); err != nil {
-		return nil, failed("get account direct permissions", domain.ErrAccountNotFound)
-	}
-	if err := r.ensureOrganizationRBACMembership(ctx, accountID, "get account direct permissions", false); err != nil {
-		return nil, err
-	}
-	permissions, err := r.store.ListAccountDirectPermissions(ctx, accountID)
-	if err != nil {
-		return nil, failed("get account direct permissions", err)
-	}
-	return permissions, nil
-}
-
 // AssignPermissionToRole adds a permission to a custom role.
-func (r *RoleAdministration) AssignPermissionToRole(ctx context.Context, roleID, permissionID int64) error {
+func (r *RoleAdministration) AssignPermissionToRole(ctx context.Context, roleID, permissionID int64) (err error) {
+	if r == nil {
+		return errRoleAdministrationUnavailable
+	}
+	defer func() { err = roleError(err) }()
+	ctx = bindRuntime(r.attach, ctx)
 	return r.runtime.RunInTx(ctx, func(txCtx context.Context) error {
 		if err := r.lockMutableRole(txCtx, roleID, opAssignPermissionToRole); err != nil {
 			return err
 		}
-		if _, found, err := r.store.FindPermission(txCtx, permissionID); err != nil || !found {
-			return failed(opAssignPermissionToRole, domain.ErrPermissionNotFound)
+		permission, found, err := r.store.FindPermission(txCtx, permissionID)
+		if err != nil || !found {
+			return failed(opAssignPermissionToRole, identityaccess.ErrPermissionNotFound)
+		}
+		current, err := r.rolePermissions(txCtx, roleID, opAssignPermissionToRole)
+		if err != nil {
+			return err
+		}
+		if err := requireNoNewReservedPermission(map[int64]domain.ManagedPermission{permission.ID: permission}, current, opAssignPermissionToRole); err != nil {
+			return err
 		}
 		if err := r.store.AssignRolePermission(txCtx, roleID, permissionID); err != nil {
 			return failed(opAssignPermissionToRole, err)
@@ -168,7 +107,7 @@ func (r *RoleAdministration) lockMutableRole(ctx context.Context, roleID int64, 
 		return failed(op, domain.ErrRoleNotFound)
 	}
 	if role.IsSystem {
-		return failed(op, domain.ErrSystemRoleImmutable)
+		return failed(op, identityaccess.ErrSystemRoleImmutable)
 	}
 	return nil
 }
@@ -176,7 +115,15 @@ func (r *RoleAdministration) lockMutableRole(ctx context.Context, roleID int64, 
 // ReplaceRolePermissions applies a complete permission selection to a custom
 // role in one transaction. All requested permissions are validated before the
 // current selection is changed, so an invalid request leaves it untouched.
-func (r *RoleAdministration) ReplaceRolePermissions(ctx context.Context, roleID int64, permissionIDs []int64) error {
+// A reserved permission the role does not hold yet is refused (#4574); one it
+// already holds may stay or be removed, so a role from before the rule stays
+// editable.
+func (r *RoleAdministration) ReplaceRolePermissions(ctx context.Context, roleID int64, permissionIDs []int64) (err error) {
+	if r == nil {
+		return errRoleAdministrationUnavailable
+	}
+	defer func() { err = roleError(err) }()
+	ctx = bindRuntime(r.attach, ctx)
 	const op = "replace role permissions"
 	return r.runtime.RunInTx(ctx, func(txCtx context.Context) error {
 		// The role row serializes full replacements and the one-at-a-time
@@ -186,50 +133,52 @@ func (r *RoleAdministration) ReplaceRolePermissions(ctx context.Context, roleID 
 			return err
 		}
 
-		desired := make(map[int64]struct{}, len(permissionIDs))
-		for _, permissionID := range permissionIDs {
-			if permissionID <= 0 {
-				return failed(op, domain.ErrPermissionNotFound)
-			}
-			_, found, err := r.store.FindPermission(txCtx, permissionID)
-			if err != nil {
-				return failed(op, err)
-			}
-			if !found {
-				return failed(op, domain.ErrPermissionNotFound)
-			}
-			desired[permissionID] = struct{}{}
-		}
-
-		currentPermissions, err := r.store.ListRolePermissions(txCtx, roleID)
+		desired, err := r.desiredRolePermissions(txCtx, permissionIDs)
 		if err != nil {
-			return failed(op, err)
+			return err
 		}
-		current := make(map[int64]struct{}, len(currentPermissions))
-		for _, permission := range currentPermissions {
-			current[permission.ID] = struct{}{}
-			if _, keep := desired[permission.ID]; keep {
-				continue
-			}
-			if err := r.store.RemoveRolePermission(txCtx, roleID, permission.ID); err != nil {
-				return failed(op, err)
-			}
+		current, err := r.rolePermissions(txCtx, roleID, op)
+		if err != nil {
+			return err
 		}
-
-		for permissionID := range desired {
-			if _, assigned := current[permissionID]; assigned {
-				continue
-			}
-			if err := r.store.AssignRolePermission(txCtx, roleID, permissionID); err != nil {
-				return failed(op, err)
-			}
+		if err := requireNoNewReservedPermission(desired, current, op); err != nil {
+			return err
 		}
-		return nil
+		return r.applyRolePermissionSelection(txCtx, roleID, desired, current, op)
 	})
 }
 
+// applyRolePermissionSelection removes the current permissions the selection
+// drops, in store order, and assigns the ones it adds.
+func (r *RoleAdministration) applyRolePermissionSelection(txCtx context.Context, roleID int64, desired map[int64]domain.ManagedPermission, current []domain.ManagedPermission, op string) error {
+	assigned := make(map[int64]struct{}, len(current))
+	for _, permission := range current {
+		assigned[permission.ID] = struct{}{}
+		if _, keep := desired[permission.ID]; keep {
+			continue
+		}
+		if err := r.store.RemoveRolePermission(txCtx, roleID, permission.ID); err != nil {
+			return failed(op, err)
+		}
+	}
+	for permissionID := range desired {
+		if _, held := assigned[permissionID]; held {
+			continue
+		}
+		if err := r.store.AssignRolePermission(txCtx, roleID, permissionID); err != nil {
+			return failed(op, err)
+		}
+	}
+	return nil
+}
+
 // RemovePermissionFromRole removes a permission from a custom role.
-func (r *RoleAdministration) RemovePermissionFromRole(ctx context.Context, roleID, permissionID int64) error {
+func (r *RoleAdministration) RemovePermissionFromRole(ctx context.Context, roleID, permissionID int64) (err error) {
+	if r == nil {
+		return errRoleAdministrationUnavailable
+	}
+	defer func() { err = roleError(err) }()
+	ctx = bindRuntime(r.attach, ctx)
 	const op = "remove permission from role"
 	return r.runtime.RunInTx(ctx, func(txCtx context.Context) error {
 		if err := r.lockMutableRole(txCtx, roleID, op); err != nil {
@@ -242,52 +191,76 @@ func (r *RoleAdministration) RemovePermissionFromRole(ctx context.Context, roleI
 	})
 }
 
-func (r *RoleAdministration) GetRolePermissions(ctx context.Context, roleID int64) ([]domain.ManagedPermission, error) {
-	permissions, err := r.store.ListRolePermissions(ctx, roleID)
-	if err != nil {
-		return nil, failed("get role permissions", err)
+func (r *RoleAdministration) GetRolePermissions(ctx context.Context, roleID int64) (value0 []identityaccess.Permission, err error) {
+	if r == nil {
+		return nil, errRoleAdministrationUnavailable
 	}
-	return permissions, nil
+	operation := func(ctx context.Context) ([]domain.ManagedPermission, error) {
+		permissions, err := r.store.ListRolePermissions(ctx, roleID)
+		if err != nil {
+			return nil, failed("get role permissions", err)
+		}
+		return permissions, nil
+	}
+	err = r.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		result, err := operation(bindRuntime(r.attach, txCtx))
+		value0 = publicPermissions(result)
+		return roleError(err)
+	})
+	return
 }
 
-// GrantStaffDefaultPermission grants the default staff permission to the
-// account of a newly created staff member.
-//
-// The Lehrkraft role (#1772) is deliberately class_day:read only: groups:read
-// would open the tenant-wide group list and every group's student names, far
-// beyond the classes assigned to that Lehrkraft. The decision is made on the
-// account's actual roles, not on the teacher flag, and fails closed: an
-// unreadable role set is no licence to widen access.
-//
-// permissionName is the permission to grant; the caller passes the People
-// Directory default so this module needs no staff permission contract.
-func (r *RoleAdministration) GrantStaffDefaultPermission(ctx context.Context, accountID int64, isTeacher bool, permissionName string) {
-	role := "staff"
-	if isTeacher {
-		role = "teacher"
+func (r *RoleAdministration) desiredRolePermissions(txCtx context.Context, permissionIDs []int64) (map[int64]domain.ManagedPermission, error) {
+	desired := make(map[int64]domain.ManagedPermission, len(permissionIDs))
+	for _, permissionID := range permissionIDs {
+		if permissionID <= 0 {
+			return nil, failed("replace role permissions", identityaccess.ErrPermissionNotFound)
+		}
+		permission, found, err := r.store.FindPermission(txCtx, permissionID)
+		if err != nil {
+			return nil, failed("replace role permissions", err)
+		}
+		if !found {
+			return nil, failed("replace role permissions", identityaccess.ErrPermissionNotFound)
+		}
+		desired[permissionID] = permission
 	}
-	roles, err := r.GetAccountRoles(ctx, accountID)
+
+	return desired, nil
+}
+
+// rolePermissions loads the role's current selection in store order.
+func (r *RoleAdministration) rolePermissions(txCtx context.Context, roleID int64, op string) ([]domain.ManagedPermission, error) {
+	current, err := r.store.ListRolePermissions(txCtx, roleID)
 	if err != nil {
-		r.logger.Error("failed to resolve account roles, skipping default permission grant",
-			slog.String("role", role),
-			slog.Int64("account_id", accountID),
-			slog.String("error", err.Error()))
-		return
+		return nil, failed(op, err)
 	}
-	for _, accountRole := range roles {
-		if r.policy.IsLehrkraftSystemRole(accountRole.Facts()) {
-			r.logger.Info("skipping groups:read for lehrkraft account", slog.Int64("account_id", accountID))
-			return
+	return current, nil
+}
+
+// requireNoNewReservedPermission refuses a selection that adds a reserved
+// permission the role does not hold yet (#4574).
+func requireNoNewReservedPermission(desired map[int64]domain.ManagedPermission, current []domain.ManagedPermission, op string) error {
+	held := make(map[int64]struct{}, len(current))
+	for _, permission := range current {
+		held[permission.ID] = struct{}{}
+	}
+	for id, permission := range desired {
+		if _, ok := held[id]; ok {
+			continue
+		}
+		if name := permissionKey(permission); identityaccess.IsReservedPermission(name) {
+			return failed(op, &identityaccess.ReservedPermissionError{Permission: name})
 		}
 	}
-	permission, err := r.GetPermissionByName(ctx, permissionName)
-	if err != nil {
-		return
+	return nil
+}
+
+// permissionKey checks the canonical name before metadata so inconsistent
+// catalog entries cannot hide a reserved permission from guards or templates.
+func permissionKey(permission domain.ManagedPermission) string {
+	if identityaccess.IsReservedPermission(permission.Name) || (permission.Resource == "" && permission.Action == "") {
+		return permission.Name
 	}
-	if err := r.GrantPermissionToAccount(ctx, accountID, permission.ID); err != nil {
-		r.logger.Error("failed to grant groups:read permission",
-			slog.String("role", role),
-			slog.Int64("account_id", accountID),
-			slog.String("error", err.Error()))
-	}
+	return permission.Resource + ":" + permission.Action
 }

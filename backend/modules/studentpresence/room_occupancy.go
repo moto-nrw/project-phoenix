@@ -12,7 +12,3 @@ type RoomOccupancy struct {
 type RoomOccupancyQuery interface {
 	ListRoomOccupancy(context.Context, []int64) ([]RoomOccupancy, error)
 }
-
-func (m *Module) ListRoomOccupancy(ctx context.Context, ids []int64) ([]RoomOccupancy, error) {
-	return m.engine.ListRoomOccupancy(ctx, ids)
-}

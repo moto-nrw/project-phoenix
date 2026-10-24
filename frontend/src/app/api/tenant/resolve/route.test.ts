@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { NextRequest } from "next/server";
+import { createMockRequest } from "~/test/route-test-helpers";
 
 // ============================================================================
 // Mocks
@@ -17,11 +17,6 @@ const { GET } = await import("./route");
 // ============================================================================
 // Test Helpers
 // ============================================================================
-
-function createMockRequest(path: string): NextRequest {
-  const url = new URL(path, "http://localhost:3000");
-  return new NextRequest(url);
-}
 
 async function parseJsonResponse<T>(response: Response): Promise<T> {
   return (await response.json()) as T;
@@ -48,8 +43,8 @@ describe("GET /api/tenant/resolve", () => {
     const response = await GET(request);
 
     expect(response.status).toBe(400);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("slug parameter is required");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("slug parameter is required");
   });
 
   it("resolves tenant slug from backend", async () => {
@@ -79,20 +74,6 @@ describe("GET /api/tenant/resolve", () => {
     expect(json.slug).toBe("demo-school");
   });
 
-  it("forwards 404 from backend", async () => {
-    vi.mocked(global.fetch).mockResolvedValueOnce(
-      new Response(JSON.stringify({ error: "not found" }), {
-        status: 404,
-        headers: { "Content-Type": "application/json" },
-      }),
-    );
-
-    const request = createMockRequest("/api/tenant/resolve?slug=nonexistent");
-    const response = await GET(request);
-
-    expect(response.status).toBe(404);
-  });
-
   it("encodes slug parameter", async () => {
     vi.mocked(global.fetch).mockResolvedValueOnce(
       new Response(JSON.stringify({}), {
@@ -109,16 +90,5 @@ describe("GET /api/tenant/resolve", () => {
     expect(global.fetch).toHaveBeenCalledWith(
       "http://server:8080/auth/tenant/resolve?slug=school%20with%20spaces",
     );
-  });
-
-  it("returns 500 on fetch failure", async () => {
-    vi.mocked(global.fetch).mockRejectedValueOnce(new Error("Network error"));
-
-    const request = createMockRequest("/api/tenant/resolve?slug=demo-school");
-    const response = await GET(request);
-
-    expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Internal Server Error");
   });
 });

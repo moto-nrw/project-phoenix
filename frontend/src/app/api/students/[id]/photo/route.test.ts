@@ -2,12 +2,8 @@
 // 401 refreshes the session and retries once with the new token.
 
 import { describe, it, expect, vi, beforeEach, afterAll } from "vitest";
-import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
-
-interface ExtendedSession extends Session {
-  user: Session["user"] & { token?: string };
-}
+import type { ExtendedSession } from "~/test/route-test-helpers";
 
 const { mockAuth, mockUncachedAuth, mockFetch } = vi.hoisted(() => ({
   mockAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
@@ -65,7 +61,7 @@ describe("DELETE /api/students/[id]/photo — 401 retry", () => {
 
     // First call: stale-token → 401. Second call: fresh-token → 200.
     mockFetch
-      .mockResolvedValueOnce(jsonResponse(401, { error: "expired" }))
+      .mockResolvedValueOnce(jsonResponse(401, { detail: "expired" }))
       .mockResolvedValueOnce(
         jsonResponse(200, { status: "success", data: null }),
       );
@@ -96,7 +92,7 @@ describe("DELETE /api/students/[id]/photo — 401 retry", () => {
     // also expired). We must fall through and surface the original error
     // instead of looping the same request indefinitely.
     mockUncachedAuth.mockResolvedValue(defaultSession);
-    mockFetch.mockResolvedValueOnce(jsonResponse(401, { error: "expired" }));
+    mockFetch.mockResolvedValueOnce(jsonResponse(401, { detail: "expired" }));
 
     const { DELETE } = await import("./route");
     const response = await DELETE(createDeleteRequest("42"), {
@@ -127,18 +123,26 @@ describe("DELETE /api/students/[id]/photo — 401 retry", () => {
   });
 });
 
-// Backend failures retain their status and body through backendResponseError
-// and createDeleteHandler, including caller-shaped 4xx failures.
+// Valid backend 4xx envelopes retain their status and structured fields
+// through backendResponseError and createDeleteHandler.
 describe("DELETE /api/students/[id]/photo — backend status preservation", () => {
   it.each([
-    [403, "feature disabled"],
-    [404, "no photo"],
-    [409, "consent withdrawn"],
+    [403, "feature disabled", "Forbidden", "general.permission"],
+    [404, "no photo", "Not Found", "general.input"],
+    [409, "consent withdrawn", "Conflict", "general.business_rejection"],
   ])(
     "surfaces a backend %d as the same status code (not 500)",
-    async (status, body) => {
+    async (status, detail, title, code) => {
       mockAuth.mockResolvedValue(defaultSession);
-      mockFetch.mockResolvedValueOnce(jsonResponse(status, { error: body }));
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse(status, {
+          type: "about:blank",
+          title,
+          status,
+          detail,
+          code,
+        }),
+      );
 
       const { DELETE } = await import("./route");
       const response = await DELETE(createDeleteRequest("42"), {
@@ -146,11 +150,15 @@ describe("DELETE /api/students/[id]/photo — backend status preservation", () =
       });
 
       expect(response.status).toBe(status);
-      expect(await response.text()).toBe(JSON.stringify({ error: body }));
+      expect(await response.json()).toMatchObject({
+        status,
+        detail,
+        code,
+      });
     },
   );
 
-  it("forwards an empty backend body without inventing a message", async () => {
+  it("answers an empty backend body with the envelope, without inventing a message", async () => {
     mockAuth.mockResolvedValue(defaultSession);
     mockFetch.mockResolvedValueOnce(new Response("", { status: 502 }));
 
@@ -160,12 +168,20 @@ describe("DELETE /api/students/[id]/photo — backend status preservation", () =
     });
 
     expect(response.status).toBe(502);
-    expect(await response.text()).toBe("");
+    expect(await response.json()).toMatchObject({
+      status: 502,
+      detail: "Bad Gateway",
+      code: "general.unavailable",
+    });
   });
 
   it("forwards a 409 problem body with all structured fields", async () => {
     const body = JSON.stringify({
-      code: "PHOTO_CONFLICT",
+      type: "about:blank",
+      title: "Conflict",
+      status: 409,
+      detail: "photo conflict",
+      code: "general.business_rejection",
       details: { student_id: "42" },
       errors: [{ field: "photo", reason: "locked" }],
       instance: "/students/42/photo",
@@ -294,7 +310,7 @@ describe("POST /api/students/[id]/photo — body callback branches", () => {
     mockAuth.mockResolvedValue(defaultSession);
     mockUncachedAuth.mockResolvedValue(refreshedSession);
     mockFetch
-      .mockResolvedValueOnce(jsonResponse(401, { error: "expired" }))
+      .mockResolvedValueOnce(jsonResponse(401, { detail: "expired" }))
       .mockResolvedValueOnce(
         jsonResponse(200, {
           status: "success",

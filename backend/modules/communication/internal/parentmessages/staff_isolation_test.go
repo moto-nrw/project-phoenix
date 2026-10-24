@@ -10,7 +10,7 @@ import (
 	"github.com/uptrace/bun"
 
 	staffmessaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/staffmessages"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -45,31 +45,31 @@ func TestCrossTenantIsolation(t *testing.T) {
 
 	ctxA := func(accountID int64) context.Context {
 		ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), schoolA)
-		return context.WithValue(ctx, jwt.CtxClaims, jwt.AppClaims{ID: int(accountID)})
+		return context.WithValue(ctx, sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: int(accountID)})
 	}
 	ctxB := func(accountID int64) context.Context {
 		ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), schoolB)
-		return context.WithValue(ctx, jwt.CtxClaims, jwt.AppClaims{ID: int(accountID)})
+		return context.WithValue(ctx, sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: int(accountID)})
 	}
 
 	// A conversation inside school A.
-	thread, err := svc.OpenThread(ctxA(annaA), benA)
+	thread, err := testpkg.TenantQuery1(t, ctxA(annaA), db, svc.OpenThread, benA)
 	require.NoError(t, err)
-	_, err = svc.PostMessage(ctxA(annaA), thread.ThreadID, "Interne Absprache Schule A")
+	_, err = testpkg.TenantQuery2(t, ctxA(annaA), db, svc.PostMessage, thread.ThreadID, "Interne Absprache Schule A")
 	require.NoError(t, err)
 
 	// School B sees nothing of it.
-	inbox, err := svc.ListInbox(ctxB(outsiderB.ID), false)
+	inbox, err := testpkg.TenantQuery1(t, ctxB(outsiderB.ID), db, svc.ListInbox, false)
 	require.NoError(t, err)
 	assert.Empty(t, inbox, "school B must not see school A's conversations")
 
-	count, err := svc.UnreadMessageCount(ctxB(outsiderB.ID))
+	count, err := testpkg.TenantQuery0(t, ctxB(outsiderB.ID), db, svc.UnreadMessageCount)
 	require.NoError(t, err)
 	assert.Zero(t, count, "school A's messages must not reach school B's badge")
 
 	// Opening school A's thread id from school B must fail as "not found",
 	// never leak the conversation.
-	_, err = svc.GetThread(ctxB(outsiderB.ID), thread.ThreadID)
+	_, err = testpkg.TenantQuery1(t, ctxB(outsiderB.ID), db, svc.GetThread, thread.ThreadID)
 	require.Error(t, err)
 	assert.True(t,
 		assert.ObjectsAreEqual(staffmessaging.ErrThreadNotFound, err) ||
@@ -77,11 +77,11 @@ func TestCrossTenantIsolation(t *testing.T) {
 		"expected a not-found style error, got %v", err)
 
 	// And school A cannot address school B's staff.
-	_, err = svc.OpenThread(ctxA(annaA), outsiderB.ID)
+	_, err = testpkg.TenantQuery1(t, ctxA(annaA), db, svc.OpenThread, outsiderB.ID)
 	require.ErrorIs(t, err, staffmessaging.ErrRecipientNotAvailable)
 
 	// The picker at school A never offers school B's staff.
-	recipients, err := svc.ListMessageableStaff(ctxA(annaA))
+	recipients, err := testpkg.TenantQuery0(t, ctxA(annaA), db, svc.ListMessageableStaff)
 	require.NoError(t, err)
 	for _, r := range recipients {
 		assert.NotEqual(t, outsiderB.ID, r.AccountID, "picker must stay inside the school")
@@ -111,16 +111,16 @@ func createStaffConversation(t *testing.T, db *bun.DB, svc *staffmessaging.Servi
 	t.Helper()
 	runtimeCtx := testpkg.WithTenantRuntime(t, context.Background(), db)
 	err := tenant.WithTenantTx(runtimeCtx, db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		senderCtx := context.WithValue(txCtx, jwt.CtxClaims, jwt.AppClaims{ID: int(senderID)})
-		thread, err := svc.OpenThread(senderCtx, readerID)
+		senderCtx := context.WithValue(txCtx, sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: int(senderID)})
+		thread, err := testpkg.TenantQuery1(t, senderCtx, testpkg.SetupTestDB(t), svc.OpenThread, readerID)
 		if err != nil {
 			return err
 		}
-		if _, err = svc.PostMessage(senderCtx, thread.ThreadID, "Interne Nachricht"); err != nil {
+		if _, err = testpkg.TenantQuery2(t, senderCtx, testpkg.SetupTestDB(t), svc.PostMessage, thread.ThreadID, "Interne Nachricht"); err != nil {
 			return err
 		}
-		readerCtx := context.WithValue(txCtx, jwt.CtxClaims, jwt.AppClaims{ID: int(readerID)})
-		_, err = svc.GetThread(readerCtx, thread.ThreadID)
+		readerCtx := context.WithValue(txCtx, sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: int(readerID)})
+		_, err = testpkg.TenantQuery1(t, readerCtx, testpkg.SetupTestDB(t), svc.GetThread, thread.ThreadID)
 		return err
 	})
 	require.NoError(t, err)
@@ -160,12 +160,12 @@ func TestRetentionSweep(t *testing.T) {
 	anna, ben := twoColleagues(t, db)
 	ctx := testpkg.Ctx(t)
 
-	thread, err := svc.OpenThread(asAccount(t, anna), ben)
+	thread, err := testpkg.TenantQuery1(t, asAccount(t, anna), db, svc.OpenThread, ben)
 	require.NoError(t, err)
 
-	old, err := svc.PostMessage(asAccount(t, anna), thread.ThreadID, "Alte Nachricht")
+	old, err := testpkg.TenantQuery2(t, asAccount(t, anna), db, svc.PostMessage, thread.ThreadID, "Alte Nachricht")
 	require.NoError(t, err)
-	_, err = svc.PostMessage(asAccount(t, anna), thread.ThreadID, "Neue Nachricht")
+	_, err = testpkg.TenantQuery2(t, asAccount(t, anna), db, svc.PostMessage, thread.ThreadID, "Neue Nachricht")
 	require.NoError(t, err)
 
 	// Age the first message past the 30-day window.
@@ -176,13 +176,13 @@ func TestRetentionSweep(t *testing.T) {
 		Exec(ctx)
 	require.NoError(t, err)
 
-	result, err := svc.CleanupExpiredMessages(ctx)
+	result, err := testpkg.TenantQuery0(t, ctx, db, svc.CleanupExpiredMessages)
 	require.NoError(t, err)
 	assert.Equal(t, 1, result.MessagesDeleted)
 	assert.Equal(t, 30, result.RetentionDays)
 	assert.Zero(t, result.ThreadsDeleted, "the conversation still holds a message")
 
-	detail, err := svc.GetThread(asAccount(t, anna), thread.ThreadID)
+	detail, err := testpkg.TenantQuery1(t, asAccount(t, anna), db, svc.GetThread, thread.ThreadID)
 	require.NoError(t, err)
 	require.Len(t, detail.Messages, 1)
 	assert.Equal(t, "Neue Nachricht", detail.Messages[0].Body)
@@ -204,12 +204,12 @@ func TestRetentionSweep(t *testing.T) {
 		Exec(ctx)
 	require.NoError(t, err)
 
-	result, err = svc.CleanupExpiredMessages(ctx)
+	result, err = testpkg.TenantQuery0(t, ctx, db, svc.CleanupExpiredMessages)
 	require.NoError(t, err)
 	assert.Equal(t, 1, result.MessagesDeleted)
 	assert.Equal(t, 1, result.ThreadsDeleted, "a conversation with no messages left must not linger")
 
-	_, err = svc.GetThread(asAccount(t, anna), thread.ThreadID)
+	_, err = testpkg.TenantQuery1(t, asAccount(t, anna), db, svc.GetThread, thread.ThreadID)
 	require.ErrorIs(t, err, staffmessaging.ErrThreadNotFound)
 }
 
@@ -223,9 +223,9 @@ func TestRetentionRunsForDisabledSchool(t *testing.T) {
 	anna, ben := twoColleagues(t, db)
 	ctx := testpkg.Ctx(t)
 
-	thread, err := enabled.OpenThread(asAccount(t, anna), ben)
+	thread, err := testpkg.TenantQuery1(t, asAccount(t, anna), db, enabled.OpenThread, ben)
 	require.NoError(t, err)
-	msg, err := enabled.PostMessage(asAccount(t, anna), thread.ThreadID, "Alt")
+	msg, err := testpkg.TenantQuery2(t, asAccount(t, anna), db, enabled.PostMessage, thread.ThreadID, "Alt")
 	require.NoError(t, err)
 
 	_, err = db.NewUpdate().
@@ -236,7 +236,7 @@ func TestRetentionRunsForDisabledSchool(t *testing.T) {
 	require.NoError(t, err)
 
 	disabled := newServiceWithEnabled(t, db, false, 30)
-	result, err := disabled.CleanupExpiredMessages(ctx)
+	result, err := testpkg.TenantQuery0(t, ctx, db, disabled.CleanupExpiredMessages)
 	require.NoError(t, err)
 	assert.Equal(t, 1, result.MessagesDeleted, "retention must not depend on the feature switch")
 }
@@ -265,14 +265,14 @@ func TestGuardianAccountIsNotAddressable(t *testing.T) {
 	require.NoError(t, err)
 
 	// Never offered by the picker...
-	recipients, err := svc.ListMessageableStaff(asAccount(t, anna))
+	recipients, err := testpkg.TenantQuery0(t, asAccount(t, anna), db, svc.ListMessageableStaff)
 	require.NoError(t, err)
 	for _, r := range recipients {
 		assert.NotEqual(t, guardian.ID, r.AccountID, "picker must not offer a guardian account")
 	}
 
 	// ...and the direct API path must refuse it too, not just the UI.
-	_, err = svc.OpenThread(asAccount(t, anna), guardian.ID)
+	_, err = testpkg.TenantQuery1(t, asAccount(t, anna), db, svc.OpenThread, guardian.ID)
 	require.ErrorIs(t, err, staffmessaging.ErrRecipientNotAvailable,
 		"an account without a staff person row must not be addressable")
 }
@@ -287,15 +287,15 @@ func TestFreshEmptyThreadSurvivesSweep(t *testing.T) {
 	anna, ben := twoColleagues(t, db)
 	ctx := testpkg.Ctx(t)
 
-	thread, err := svc.OpenThread(asAccount(t, anna), ben)
+	thread, err := testpkg.TenantQuery1(t, asAccount(t, anna), db, svc.OpenThread, ben)
 	require.NoError(t, err)
 
-	result, err := svc.CleanupExpiredMessages(ctx)
+	result, err := testpkg.TenantQuery0(t, ctx, db, svc.CleanupExpiredMessages)
 	require.NoError(t, err)
 	assert.Zero(t, result.ThreadsDeleted, "a just-opened conversation must survive the sweep")
 
 	// Still there, and still writable.
-	_, err = svc.PostMessage(asAccount(t, anna), thread.ThreadID, "Doch noch was")
+	_, err = testpkg.TenantQuery2(t, asAccount(t, anna), db, svc.PostMessage, thread.ThreadID, "Doch noch was")
 	require.NoError(t, err, "the thread must still exist after the sweep")
 
 	// An OLD empty thread is a different matter and does go.
@@ -311,7 +311,7 @@ func TestFreshEmptyThreadSurvivesSweep(t *testing.T) {
 		Exec(ctx)
 	require.NoError(t, err)
 
-	result, err = svc.CleanupExpiredMessages(ctx)
+	result, err = testpkg.TenantQuery0(t, ctx, db, svc.CleanupExpiredMessages)
 	require.NoError(t, err)
 	assert.Equal(t, 1, result.ThreadsDeleted, "an aged-out empty conversation must go")
 }
@@ -331,14 +331,14 @@ func TestNonStaffPersonIsNotAddressable(t *testing.T) {
 	_, account := testpkg.CreateTestPersonWithAccount(t, db, "Mila", "Kindkonto")
 	testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
-	recipients, err := svc.ListMessageableStaff(asAccount(t, anna))
+	recipients, err := testpkg.TenantQuery0(t, asAccount(t, anna), db, svc.ListMessageableStaff)
 	require.NoError(t, err)
 	for _, r := range recipients {
 		assert.NotEqual(t, account.ID, r.AccountID,
 			"a person without a staff row must not be offered as a recipient")
 	}
 
-	_, err = svc.OpenThread(asAccount(t, anna), account.ID)
+	_, err = testpkg.TenantQuery1(t, asAccount(t, anna), db, svc.OpenThread, account.ID)
 	require.ErrorIs(t, err, staffmessaging.ErrRecipientNotAvailable,
 		"the direct API path must apply the same staff-only rule as the picker")
 }
@@ -354,9 +354,9 @@ func TestRetentionSkipsWhenWindowUnresolvable(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	enabled := newServiceWithEnabled(t, db, true, 30)
-	thread, err := enabled.OpenThread(asAccount(t, anna), ben)
+	thread, err := testpkg.TenantQuery1(t, asAccount(t, anna), db, enabled.OpenThread, ben)
 	require.NoError(t, err)
-	msg, err := enabled.PostMessage(asAccount(t, anna), thread.ThreadID, "Uralt")
+	msg, err := testpkg.TenantQuery2(t, asAccount(t, anna), db, enabled.PostMessage, thread.ThreadID, "Uralt")
 	require.NoError(t, err)
 	_, err = db.NewUpdate().
 		Table("users.staff_messages").
@@ -371,7 +371,7 @@ func TestRetentionSkipsWhenWindowUnresolvable(t *testing.T) {
 	assert.Zero(t, result.MessagesDeleted, "nothing may be deleted on an unknown window")
 
 	// Und die Nachricht ist wirklich noch da.
-	detail, err := enabled.GetThread(asAccount(t, anna), thread.ThreadID)
+	detail, err := testpkg.TenantQuery1(t, asAccount(t, anna), db, enabled.GetThread, thread.ThreadID)
 	require.NoError(t, err)
 	assert.Len(t, detail.Messages, 1)
 }
@@ -387,9 +387,9 @@ func TestDeactivatedStaffCannotSend(t *testing.T) {
 	anna, ben := twoColleagues(t, db)
 	ctx := testpkg.Ctx(t)
 
-	thread, err := svc.OpenThread(asAccount(t, anna), ben)
+	thread, err := testpkg.TenantQuery1(t, asAccount(t, anna), db, svc.OpenThread, ben)
 	require.NoError(t, err)
-	_, err = svc.PostMessage(asAccount(t, anna), thread.ThreadID, "Noch im Dienst")
+	_, err = testpkg.TenantQuery2(t, asAccount(t, anna), db, svc.PostMessage, thread.ThreadID, "Noch im Dienst")
 	require.NoError(t, err)
 
 	// Anna verlaesst die Schule - ihr Token gilt aber weiter.
@@ -400,12 +400,12 @@ func TestDeactivatedStaffCannotSend(t *testing.T) {
 		Exec(ctx)
 	require.NoError(t, err)
 
-	_, err = svc.PostMessage(asAccount(t, anna), thread.ThreadID, "Und trotzdem noch was")
+	_, err = testpkg.TenantQuery2(t, asAccount(t, anna), db, svc.PostMessage, thread.ThreadID, "Und trotzdem noch was")
 	require.ErrorIs(t, err, staffmessaging.ErrRecipientNotAvailable,
 		"a deactivated account must not be able to keep writing")
 
 	// Lesen bleibt offen: den eigenen Verlauf zu sehen ist harmlos.
-	detail, err := svc.GetThread(asAccount(t, anna), thread.ThreadID)
+	detail, err := testpkg.TenantQuery1(t, asAccount(t, anna), db, svc.GetThread, thread.ThreadID)
 	require.NoError(t, err)
 	assert.Len(t, detail.Messages, 1, "history stays readable")
 }
@@ -431,14 +431,14 @@ func TestGloballyDeactivatedAccountIsNotAddressable(t *testing.T) {
 		Exec(ctx)
 	require.NoError(t, err)
 
-	recipients, err := svc.ListMessageableStaff(asAccount(t, anna))
+	recipients, err := testpkg.TenantQuery0(t, asAccount(t, anna), db, svc.ListMessageableStaff)
 	require.NoError(t, err)
 	for _, r := range recipients {
 		assert.NotEqual(t, ben, r.AccountID,
 			"a globally deactivated account must not be offered")
 	}
 
-	_, err = svc.OpenThread(asAccount(t, anna), ben)
+	_, err = testpkg.TenantQuery1(t, asAccount(t, anna), db, svc.OpenThread, ben)
 	require.ErrorIs(t, err, staffmessaging.ErrRecipientNotAvailable,
 		"a globally deactivated account must not be addressable")
 
@@ -449,7 +449,7 @@ func TestGloballyDeactivatedAccountIsNotAddressable(t *testing.T) {
 		Where("id = ?", ben).
 		Exec(ctx)
 	require.NoError(t, err)
-	thread, err := svc.OpenThread(asAccount(t, anna), ben)
+	thread, err := testpkg.TenantQuery1(t, asAccount(t, anna), db, svc.OpenThread, ben)
 	require.NoError(t, err)
 	_, err = db.NewUpdate().
 		Table("auth.accounts").
@@ -458,7 +458,7 @@ func TestGloballyDeactivatedAccountIsNotAddressable(t *testing.T) {
 		Exec(ctx)
 	require.NoError(t, err)
 
-	_, err = svc.PostMessage(asAccount(t, ben), thread.ThreadID, "Trotzdem noch was")
+	_, err = testpkg.TenantQuery2(t, asAccount(t, ben), db, svc.PostMessage, thread.ThreadID, "Trotzdem noch was")
 	require.ErrorIs(t, err, staffmessaging.ErrRecipientNotAvailable,
 		"a globally deactivated account must not be able to keep writing")
 }
@@ -475,9 +475,9 @@ func TestCannotWriteToDepartedCounterpart(t *testing.T) {
 	anna, ben := twoColleagues(t, db)
 	ctx := testpkg.Ctx(t)
 
-	thread, err := svc.OpenThread(asAccount(t, anna), ben)
+	thread, err := testpkg.TenantQuery1(t, asAccount(t, anna), db, svc.OpenThread, ben)
 	require.NoError(t, err)
-	_, err = svc.PostMessage(asAccount(t, anna), thread.ThreadID, "Noch zu zweit")
+	_, err = testpkg.TenantQuery2(t, asAccount(t, anna), db, svc.PostMessage, thread.ThreadID, "Noch zu zweit")
 	require.NoError(t, err)
 
 	// Ben verlaesst die Schule.
@@ -488,12 +488,12 @@ func TestCannotWriteToDepartedCounterpart(t *testing.T) {
 		Exec(ctx)
 	require.NoError(t, err)
 
-	_, err = svc.PostMessage(asAccount(t, anna), thread.ThreadID, "Hallo?")
+	_, err = testpkg.TenantQuery2(t, asAccount(t, anna), db, svc.PostMessage, thread.ThreadID, "Hallo?")
 	require.ErrorIs(t, err, staffmessaging.ErrCounterpartUnavailable,
 		"writing into a conversation whose counterpart has left must stop")
 
 	// Der Verlauf bleibt lesbar - das war die bewusste Entscheidung.
-	detail, err := svc.GetThread(asAccount(t, anna), thread.ThreadID)
+	detail, err := testpkg.TenantQuery1(t, asAccount(t, anna), db, svc.GetThread, thread.ThreadID)
 	require.NoError(t, err)
 	assert.Len(t, detail.Messages, 1, "history stays readable")
 }

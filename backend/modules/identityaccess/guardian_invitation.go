@@ -19,6 +19,16 @@ const (
 	GuardianInvitationApprovalRejected    = "rejected"
 )
 
+// Delivery outbox kinds of the guardian portal-access and welcome mails and
+// the entities they relate to. The composition root enqueues the mails and
+// registers their renderers under the same kinds.
+const (
+	MailKindGuardianInvitation    = "guardian_invitation"
+	MailKindGuardianWelcome       = "guardian_welcome"
+	MailRelatedGuardianInvitation = "guardian_invitation"
+	MailRelatedGuardianProfile    = "guardian_profile"
+)
+
 // Guardian invitations (#2722): the one-time link a guardian redeems for
 // their parents-portal account. A link is never stored already expired or
 // spent, a resend never revives one, and accepting it writes the account,
@@ -46,6 +56,18 @@ type GuardianInvitation struct {
 	ProfileCreatedForInvitation bool
 	RoleUpgrade                 bool
 	CreatedAt                   time.Time
+}
+
+// ApprovalAllowsRedemption reports whether the invitation's approval state
+// lets the guardian redeem it: it needed no approval, or the approval was
+// given. A pending or rejected request is not redeemable.
+func (i GuardianInvitation) ApprovalAllowsRedemption() bool {
+	return i.ApprovalStatus == GuardianInvitationApprovalNotRequired || i.ApprovalStatus == GuardianInvitationApprovalApproved
+}
+
+// IsRejected reports whether the school rejected the invitation request.
+func (i GuardianInvitation) IsRejected() bool {
+	return i.ApprovalStatus == GuardianInvitationApprovalRejected
 }
 
 // GuardianInvitationRequest issues an invitation for a guardian contact that
@@ -86,6 +108,16 @@ type GuardianInvitations interface {
 	// AcceptGuardianInvitation returns the account the guardian signs in with.
 	AcceptGuardianInvitation(ctx context.Context, token string, registration GuardianRegistration) (Account, error)
 	ResendGuardianInvitation(ctx context.Context, invitationID, actorAccountID int64) error
+	GuardianInvitationReads
+	// GuardianInvitationSchoolSlug resolves the school of an invitation; it
+	// is best-effort and answers "" when it cannot.
+	GuardianInvitationSchoolSlug(ctx context.Context, token string) string
+}
+
+// GuardianInvitationReads are the invitation lists the People Directory
+// guardian list and the parents portal read. They need the database alone,
+// so a root can compose them before the module (#4080).
+type GuardianInvitationReads interface {
 	// ListGuardianInvitations returns every invitation of the contact.
 	ListGuardianInvitations(ctx context.Context, guardianProfileID int64) ([]GuardianInvitation, error)
 	// ListOpenGuardianInvitations returns the invitations of those contacts
@@ -94,39 +126,4 @@ type GuardianInvitations interface {
 	// ListRedeemableGuardianInvitations returns the invitations of the school
 	// in context whose link can still be spent.
 	ListRedeemableGuardianInvitations(ctx context.Context) ([]GuardianInvitation, error)
-	// GuardianInvitationSchoolSlug resolves the school of an invitation; it
-	// is best-effort and answers "" when it cannot.
-	GuardianInvitationSchoolSlug(ctx context.Context, token string) string
-}
-
-func (m *Module) CreateGuardianInvitation(ctx context.Context, request GuardianInvitationRequest) (GuardianInvitation, error) {
-	return m.engine.CreateGuardianInvitation(ctx, request)
-}
-
-func (m *Module) ValidateGuardianInvitation(ctx context.Context, token string) (GuardianInvitationPreview, error) {
-	return m.engine.ValidateGuardianInvitation(ctx, token)
-}
-
-func (m *Module) AcceptGuardianInvitation(ctx context.Context, token string, registration GuardianRegistration) (Account, error) {
-	return m.engine.AcceptGuardianInvitation(ctx, token, registration)
-}
-
-func (m *Module) ResendGuardianInvitation(ctx context.Context, invitationID, actorAccountID int64) error {
-	return m.engine.ResendGuardianInvitation(ctx, invitationID, actorAccountID)
-}
-
-func (m *Module) ListGuardianInvitations(ctx context.Context, guardianProfileID int64) ([]GuardianInvitation, error) {
-	return m.engine.ListGuardianInvitations(ctx, guardianProfileID)
-}
-
-func (m *Module) ListOpenGuardianInvitations(ctx context.Context, guardianProfileIDs []int64) ([]GuardianInvitation, error) {
-	return m.engine.ListOpenGuardianInvitations(ctx, guardianProfileIDs)
-}
-
-func (m *Module) ListRedeemableGuardianInvitations(ctx context.Context) ([]GuardianInvitation, error) {
-	return m.engine.ListRedeemableGuardianInvitations(ctx)
-}
-
-func (m *Module) GuardianInvitationSchoolSlug(ctx context.Context, token string) string {
-	return m.engine.GuardianInvitationSchoolSlug(ctx, token)
 }

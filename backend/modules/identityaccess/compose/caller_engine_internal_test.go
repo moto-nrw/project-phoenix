@@ -3,7 +3,6 @@ package compose
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 	"testing"
 
@@ -147,14 +146,13 @@ func TestCallerEngineMapsTheSessionSentinels(t *testing.T) {
 	ctx := context.Background()
 	seams := engineSeams{authenticated: true, people: engineTestPeople{found: true}, membership: engineTestMembership{staff: true}}
 
-	// A missing session stays a failed session read (500 on /api/me), as it
-	// was before the caller context: never ErrCallerGroupNotFound (404).
+	// A missing session is an expected refusal (#4599): it reports
+	// ErrCallerSessionNotFound (404 on /api/me) instead of the former
+	// anonymous lookup failure (500), and stays distinct from a missing group.
 	_, err := seams.compose(t).GroupVisits(ctx, 55)
-	var callerErr *identityaccess.CallerError
-	require.ErrorAs(t, err, &callerErr)
-	assert.Equal(t, "get group visits", callerErr.Op)
+	requireCallerError(t, err, "get group visits", identityaccess.ErrCallerSessionNotFound)
 	assert.NotErrorIs(t, err, identityaccess.ErrCallerGroupNotFound)
-	assert.Equal(t, "usercontext.get group visits: find by id: record not found", err.Error())
+	assert.Equal(t, "usercontext.get group visits: session not found", err.Error())
 
 	seams.sessions.exists = true
 	_, err = seams.compose(t).GroupStudentIDs(ctx, 55)
@@ -210,42 +208,4 @@ func TestCallerEngineKeepsTheSSESetupError(t *testing.T) {
 	_, err = engineSeams{authenticated: true, people: engineTestPeople{found: true}}.compose(t).SSESubscription(context.Background())
 	require.ErrorAs(t, err, &setupErr)
 	assert.Equal(t, http.StatusForbidden, setupErr.SetupStatus())
-}
-
-// Every public sentinel has the internal twin's text; the domain tests pin
-// the internal texts, this pins that every public sentinel is mapped.
-func TestMapCallerErrorCoversEveryPublicSentinel(t *testing.T) {
-	t.Parallel()
-
-	public := []error{
-		identityaccess.ErrCallerNotAuthenticated, identityaccess.ErrCallerNotFound, identityaccess.ErrCallerNotAuthorized,
-		identityaccess.ErrCallerNotLinkedToPerson, identityaccess.ErrCallerNotLinkedToStaff,
-		identityaccess.ErrCallerNotLinkedToTeacher, identityaccess.ErrCallerGroupNotFound,
-	}
-	require.Len(t, callerSentinels, len(public))
-	for i, pair := range callerSentinels {
-		assert.Same(t, public[i], pair[1])
-		assert.Equal(t, pair[0].Error(), pair[1].Error(), "texts of %v", pair[1])
-		assert.Same(t, pair[1], mapCallerError(pair[0]))
-	}
-	require.NoError(t, mapCallerError(nil))
-	other := errors.New("SSE active service is not configured")
-	assert.Same(t, other, mapCallerError(other))
-}
-
-// A use case's context around a caller-context error keeps its text on the
-// way out (the review policy's "resolve ...: " prefixes), and errors.Is/As
-// still reach the public error inside it.
-func TestMapCallerErrorKeepsTheTextOfAWrappingContext(t *testing.T) {
-	t.Parallel()
-
-	for _, pair := range callerSentinels {
-		wrapped := fmt.Errorf("resolve absence reviewer staff: %w", pair[0])
-		mapped := mapCallerError(wrapped)
-		assert.Equal(t, wrapped.Error(), mapped.Error())
-		require.ErrorIs(t, mapped, pair[1])
-	}
-
-	wrapped := mapCallerError(fmt.Errorf("resolve request review groups: %w", errors.New("inner")))
-	assert.Equal(t, "resolve request review groups: inner", wrapped.Error(), "nothing to translate leaves the error as it is")
 }

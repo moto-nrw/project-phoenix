@@ -39,7 +39,7 @@ import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
 import { useDebounce } from "~/lib/use-debounce";
 
 const ENDED_CARE_DESCRIPTION =
-  "Kinder, die nicht mehr in der OGS sind. Die Daten dieser Kinder bleiben erhalten. Sie stehen in keiner normalen Liste mehr und in keinem Export. Abgänge aus dem Jahrgangswechsel stehen weiterhin dort.";
+  "Kinder, die nicht mehr in der OGS sind. Die Daten dieser Kinder bleiben erhalten. Sie stehen in keiner normalen Liste mehr und in keinem Export. Abgänge aus dem Schuljahreswechsel stehen weiterhin dort.";
 
 // Der Schlüssel-Stamm. Suche und Seite hängen daran, damit jede Kombination
 // ihren eigenen Cache-Eintrag bekommt; aktualisiert wird über den Stamm.
@@ -216,6 +216,8 @@ export default function EndedCarePage() {
       loading={status === "loading"}
       error={loadError}
       back
+      backHref="/database/students"
+      backLabel="Zurück zu den Kinderdaten"
       overlays={
         <>
           {resumeTarget ? (

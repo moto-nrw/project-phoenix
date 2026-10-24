@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	postgresNative "github.com/moto-nrw/project-phoenix/modules/careplan/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -13,27 +14,34 @@ import (
 func TestTenantAmbientDatabaseJoinsTheCallersTransaction(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	resolve := TenantAmbientDatabase(db)
+	resolve := postgresNative.TenantAmbientDatabase(db)
 
-	t.Run("outside a transaction it is the shared database", func(t *testing.T) {
-		assert.Same(t, db, resolve(context.Background()))
+	t.Run("outside a transaction it fails", func(t *testing.T) {
+		resolved, err := resolve(testpkg.Ctx(t))
+		assert.Nil(t, resolved)
+		assert.ErrorContains(t, err, "transaction is required")
 	})
-	t.Run("a transaction value is joined", func(t *testing.T) {
-		tx := bun.Tx{}
-		assert.Equal(t, bun.IDB(tx), resolve(tenant.WithTransactionForTest(context.Background(), tx)))
+	t.Run("an ambient PostgreSQL transaction is joined", func(t *testing.T) {
+		err := testpkg.WithTenantTx(t, context.Background(), db, testpkg.Tenant(t), func(ctx context.Context, tx bun.Tx) error {
+			resolved, err := resolve(ctx)
+			assert.NoError(t, err)
+			assert.Equal(t, bun.IDB(tx), resolved)
+			var one int
+			return resolved.NewRaw("SELECT 1").Scan(ctx, &one)
+		})
+		assert.NoError(t, err)
 	})
-	t.Run("a transaction pointer is joined", func(t *testing.T) {
-		tx := &bun.Tx{}
-		assert.Same(t, tx, resolve(tenant.WithTransactionForTest(context.Background(), tx)))
-	})
-	t.Run("a transaction it cannot join fails loudly", func(t *testing.T) {
+	t.Run("unusable transaction values return errors", func(t *testing.T) {
 		var missing *bun.Tx
-		assert.Panics(t, func() { resolve(tenant.WithTransactionForTest(context.Background(), missing)) })
-		assert.Panics(t, func() { resolve(tenant.WithTransactionForTest(context.Background(), struct{}{})) })
+		for _, raw := range []any{missing, struct{}{}} {
+			resolved, err := resolve(tenant.WithTransactionForTest(context.Background(), raw))
+			assert.Nil(t, resolved)
+			assert.Error(t, err)
+		}
 	})
 }
 
 func TestTenantAmbientDatabaseRequiresADatabase(t *testing.T) {
 	t.Parallel()
-	assert.Panics(t, func() { TenantAmbientDatabase(nil) })
+	assert.Panics(t, func() { postgresNative.TenantAmbientDatabase(nil) })
 }

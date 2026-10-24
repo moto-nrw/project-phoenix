@@ -206,15 +206,18 @@ describe("ParentBottomNav", () => {
     await waitFor(() => expect(logoutMock).toHaveBeenCalledOnce());
   });
 
-  it("hides Elternbriefe and Essensplan when no school offers them", () => {
+  it("hides Elternbriefe and Speiseplan when no school offers them", () => {
     renderNav({ gates: { news: false, mealPlan: false } });
 
     fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
 
     expect(screen.queryByText("Elternbriefe")).not.toBeInTheDocument();
-    expect(screen.queryByText("Essensplan")).not.toBeInTheDocument();
+    // Der Eintrag heißt „Mittagessen“; „opens the Mehr sheet with the
+    // secondary targets“ findet ihn auf demselben Weg.
+    expect(screen.queryByText("Mittagessen")).not.toBeInTheDocument();
     expect(screen.getByText("Einstellungen")).toBeVisible();
   });
+
   it("uses the development drawer row density and gives targets an arrow", () => {
     renderNav();
 
@@ -225,17 +228,5 @@ describe("ParentBottomNav", () => {
     expect(newsItem!.className).toContain("px-4");
     expect(newsItem!.className).toContain("py-3");
     expect(newsItem!.querySelector("svg")).not.toBeNull();
-  });
-
-  // Teilmenge von #2326: Produktfeedback gehört nicht in eine Eltern-App.
-  it("bietet kein Produktfeedback mehr an", () => {
-    renderNav();
-
-    fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
-
-    expect(screen.queryByText(/Feedback/)).not.toBeInTheDocument();
-    expect(
-      document.querySelector('[data-parent-nav-item="feedback"]'),
-    ).toBeNull();
   });
 });

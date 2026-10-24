@@ -2,9 +2,10 @@ package careplan
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Withdrawal completion vocabulary. users.care_withdrawal_completions belongs
@@ -28,22 +29,21 @@ var ErrInvalidWithdrawal = errors.New("invalid care withdrawal completion")
 
 // WithdrawalCompletion is the owner view of one withdrawal task. The name and
 // class fields are filled only by the list queries, from the named student
-// directory projection. SourceOfferings stays raw JSON so the capability does not
-// leak a model package's types.
+// directory projection. SourceOfferings uses Care Plan's existing native values.
 type WithdrawalCompletion struct {
 	ID                      int64
 	TenantID                int64
 	CreatedAt               time.Time
 	UpdatedAt               time.Time
 	StudentID               *int64
-	FirstBookinglessDay     Date
+	FirstBookinglessDay     calendar.Date
 	Trigger                 string
 	SourceAdjustmentID      *int64
 	SourceRequestChildID    *int64
 	WithdrawalConfirmedBy   *int64
 	WithdrawalConfirmedRole string
 	WithdrawalConfirmedAt   time.Time
-	SourceOfferings         json.RawMessage
+	SourceOfferings         []CareExitSourceOffering
 	State                   string
 	Outcome                 *string
 	ObsoleteReason          *string
@@ -107,58 +107,19 @@ type WithdrawalCommand interface {
 	ReopenWithdrawalAfterCancelledExit(ctx context.Context, completionID, studentID int64, at time.Time) (bool, error)
 }
 
-func (m *Module) FindWithdrawalCompletion(ctx context.Context, id int64, lock bool) (WithdrawalCompletion, error) {
-	return m.engine.FindWithdrawalCompletion(ctx, id, lock)
-}
-
-func (m *Module) ListPendingWithdrawals(ctx context.Context, filter WithdrawalListFilter) ([]WithdrawalCompletion, int, error) {
-	return m.engine.ListPendingWithdrawals(ctx, filter)
-}
-
-func (m *Module) ListResolvedWithdrawals(ctx context.Context, filter WithdrawalListFilter) ([]WithdrawalCompletion, int, error) {
-	return m.engine.ListResolvedWithdrawals(ctx, filter)
-}
-
-func (m *Module) ListPendingWithdrawalsByStudent(ctx context.Context, studentIDs []int64) (map[int64]WithdrawalCompletion, error) {
-	if len(studentIDs) == 0 {
-		return map[int64]WithdrawalCompletion{}, nil
+// ParticipationBoundary is the first day a child no longer participates in
+// care: the day after the enrolment end or the pending completion day of a
+// withdrawal, whichever comes first. found is false when neither exists.
+func ParticipationBoundary(enrolledUntil calendar.Date, pendingCompletion *Date) (boundary calendar.Date, found bool) {
+	if !enrolledUntil.IsZero() {
+		boundary, found = enrolledUntil.AddDays(1), true
 	}
-	return m.engine.ListPendingWithdrawalsByStudent(ctx, studentIDs)
-}
-
-func (m *Module) ListPendingWithdrawalStudentIDs(ctx context.Context, studentIDs []int64) (map[int64]bool, error) {
-	if len(studentIDs) == 0 {
-		return map[int64]bool{}, nil
+	if pendingCompletion != nil {
+		completion := calendar.Date(*pendingCompletion)
+		if !found || completion.Before(boundary) {
+			boundary = completion
+		}
+		found = true
 	}
-	return m.engine.ListPendingWithdrawalStudentIDs(ctx, studentIDs)
-}
-
-func (m *Module) ListPendingWithdrawalBoundaries(ctx context.Context, studentIDs []int64, includeBookingExpired bool) (map[int64]Date, error) {
-	if len(studentIDs) == 0 {
-		return map[int64]Date{}, nil
-	}
-	return m.engine.ListPendingWithdrawalBoundaries(ctx, studentIDs, includeBookingExpired)
-}
-
-func (m *Module) UpsertPendingWithdrawal(ctx context.Context, value WithdrawalCompletion) (WithdrawalCompletion, error) {
-	if value.StudentID == nil || *value.StudentID <= 0 {
-		return WithdrawalCompletion{}, invalid(ErrInvalidWithdrawal, "care withdrawal completion requires a student")
-	}
-	return m.engine.UpsertPendingWithdrawal(ctx, value)
-}
-
-func (m *Module) ResolveWithdrawal(ctx context.Context, id, actorAccountID int64, at time.Time) (bool, error) {
-	return m.engine.ResolveWithdrawal(ctx, id, actorAccountID, at)
-}
-
-func (m *Module) MarkWithdrawalObsoleteForRebooking(ctx context.Context, studentID int64, careStartsOn Date, at time.Time) (bool, error) {
-	return m.engine.MarkWithdrawalObsoleteForRebooking(ctx, studentID, careStartsOn, at)
-}
-
-func (m *Module) MarkPendingWithdrawalsObsoleteForWeeklyPlans(ctx context.Context, at time.Time) (int, error) {
-	return m.engine.MarkPendingWithdrawalsObsoleteForWeeklyPlans(ctx, at)
-}
-
-func (m *Module) ReopenWithdrawalAfterCancelledExit(ctx context.Context, completionID, studentID int64, at time.Time) (bool, error) {
-	return m.engine.ReopenWithdrawalAfterCancelledExit(ctx, completionID, studentID, at)
+	return boundary, found
 }

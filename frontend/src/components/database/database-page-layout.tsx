@@ -3,8 +3,7 @@
 import type { ReactNode } from "react";
 import type { FormErrorDetail } from "~/components/ui/form-error";
 import { MasterDetailSkeleton } from "./master-detail-skeleton";
-import { MobileBackButton } from "~/components/ui/mobile-back-button";
-import { TenantPage } from "~/components/ui/tenant-page";
+import { TenantBackLink, TenantPage } from "~/components/ui/tenant-page";
 
 /** Kopfkarte der Seite. Der Titel ist statisch, deshalb rendert die Karte auch
  *  im Ladezustand sofort. */
@@ -73,12 +72,12 @@ export function DatabasePageLayout({
     return <MasterDetailSkeleton />;
   }
 
-  // Ohne Kopfkarte gibt es kein Gerüst, das den Zurück-Knopf trägt — die
-  // Seite braucht ihn auf dem Telefon trotzdem.
+  // Ohne Kopfkarte gibt es kein Gerüst, das den Rückweg trägt — die Seite
+  // braucht ihn trotzdem.
   if (!intro) {
     return (
       <div className={className ?? "w-full"}>
-        <MobileBackButton />
+        <TenantBackLink className="mb-3" />
         {children}
         {overlays}
       </div>

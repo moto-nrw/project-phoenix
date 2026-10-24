@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -64,7 +65,8 @@ func TestMFAEnrollConfirmRequest_BindEnforcesCodeLength(t *testing.T) {
 func TestMFAHandlers_ServiceUnavailableWhenNotWired(t *testing.T) {
 	t.Parallel()
 
-	rs := &Resource{}
+	rs := &Resource{
+		ConstraintViolation: transactionFailures.IsConstraintViolation}
 
 	cases := []struct {
 		name string

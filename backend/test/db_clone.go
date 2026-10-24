@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/internal/testdb"
+	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/spf13/viper"
 	"github.com/subosito/gotenv"
 	"github.com/uptrace/bun"
@@ -174,7 +174,7 @@ func resolvePackageTemplate(ctx context.Context, cfg *testdb.Config) (*testdb.Co
 }
 
 func openBootstrappedPackageDB(ctx context.Context, clone *testdb.CloneHandle) (*bun.DB, error) {
-	db, err := database.DBConn()
+	db, err := transactionruntime.OpenPool()
 	if err != nil {
 		return nil, fmt.Errorf("connect to package test database: %w", err)
 	}
@@ -201,7 +201,7 @@ func openBootstrappedPackageDB(ctx context.Context, clone *testdb.CloneHandle) (
 	if err := db.Close(); err != nil {
 		return nil, fmt.Errorf("close bootstrap pool: %w", err)
 	}
-	sharedDB, err := database.DBConn()
+	sharedDB, err := transactionruntime.OpenPool()
 	if err != nil {
 		return nil, fmt.Errorf("open shared package test pool: %w", err)
 	}

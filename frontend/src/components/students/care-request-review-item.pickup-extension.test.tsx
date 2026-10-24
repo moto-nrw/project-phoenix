@@ -5,6 +5,7 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
+import { ApiError } from "~/lib/api-error";
 import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -44,7 +45,6 @@ import {
 } from "~/lib/care-request-review-api";
 import {
   fetchPickupExtensions,
-  PickupExtensionApiError,
   resolvePickupExtension,
 } from "~/lib/pickup-extension-api";
 import { CareRequestReviewItem } from "./care-request-review-item";
@@ -187,11 +187,9 @@ describe("CareRequestReviewItem after a later pickup (#3261)", () => {
       .mockResolvedValueOnce([changedTask]);
     mockResolve
       .mockRejectedValueOnce(
-        new PickupExtensionApiError(
-          "gone",
-          409,
-          "timetable.pickup_extension_block_gone",
-        ),
+        new ApiError("gone", 409, {
+          code: "timetable.pickup_extension_block_gone",
+        }),
       )
       .mockResolvedValueOnce(undefined);
     render(
@@ -218,11 +216,9 @@ describe("CareRequestReviewItem after a later pickup (#3261)", () => {
     const reload = deferred<PickupExtension[]>();
     mockFetch.mockResolvedValueOnce([task]).mockReturnValueOnce(reload.promise);
     mockResolve.mockRejectedValueOnce(
-      new PickupExtensionApiError(
-        "gone",
-        409,
-        "timetable.pickup_extension_block_gone",
-      ),
+      new ApiError("gone", 409, {
+        code: "timetable.pickup_extension_block_gone",
+      }),
     );
     render(
       <PickupExtensionAccessProvider value>
@@ -281,15 +277,11 @@ describe("CareRequestReviewItem after a later pickup (#3261)", () => {
     mockFetch
       .mockResolvedValueOnce([firstTask, task])
       .mockResolvedValueOnce([changedTask]);
-    mockResolve
-      .mockResolvedValueOnce(undefined)
-      .mockRejectedValueOnce(
-        new PickupExtensionApiError(
-          "gone",
-          409,
-          "timetable.pickup_extension_block_gone",
-        ),
-      );
+    mockResolve.mockResolvedValueOnce(undefined).mockRejectedValueOnce(
+      new ApiError("gone", 409, {
+        code: "timetable.pickup_extension_block_gone",
+      }),
+    );
     render(
       <PickupExtensionAccessProvider value>
         <CareRequestReviewItem row={laterPickupRow()} onDecided={vi.fn()} />

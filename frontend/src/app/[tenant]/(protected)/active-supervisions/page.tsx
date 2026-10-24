@@ -6,6 +6,7 @@ import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { redirect } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 import {
   useAttendanceWebEnabled,
   useNFCEnabled,
@@ -17,7 +18,7 @@ import { BinaryModeGuard } from "~/components/tenant/binary-mode-guard";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { Alert } from "~/components/ui/alert";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
-import { TenantPage } from "~/components/ui/tenant-page";
+import { TenantPage, TenantPageListSearch } from "~/components/ui/tenant-page";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Button } from "~/components/ui/button";
@@ -30,7 +31,9 @@ import {
 } from "~/lib/activity-occupancy";
 import { CompleteInstanceModal } from "~/components/active-supervisions/complete-instance-modal";
 import { useMinuteClock } from "~/lib/pickup-helpers";
-import { hasPermission, isCaregiver } from "~/lib/auth-utils";
+import { canReadSupervisionData, hasPermission } from "~/lib/auth-utils";
+import { canGrantExternalViewAccess } from "~/lib/external-caregiver-access";
+import { canReadStudents } from "~/lib/student-access";
 import { UnclaimedRooms } from "~/components/active/unclaimed-rooms";
 import { SSEErrorBoundary } from "~/components/sse/SSEErrorBoundary";
 import {
@@ -49,16 +52,24 @@ import {
   hasOwnBlock,
   occupiedRoomIdsForSpontaneousStart,
   openRoomSections,
+  rosterRunState,
   schulhofHeadActionsApply,
   sessionsOutsideOpenRooms,
+  supervisionHeadFacts,
   supervisionTabLabel,
 } from "~/components/active-supervisions/view-model";
+import { SupervisionHeadFacts } from "~/components/active-supervisions/supervision-head-facts";
 import { useSupervisionDashboard } from "~/components/active-supervisions/use-supervision-dashboard";
 import { useTimetableRoster } from "~/components/active-supervisions/use-timetable-roster";
+import type { TimetableRosterRow } from "~/lib/timetable-operations-types";
 import { useStudentFilters } from "~/components/active-supervisions/use-student-filters";
-import { useReopenBanner } from "~/components/active-supervisions/use-reopen-banner";
+import {
+  reopenBannerMessage,
+  useReopenBanner,
+} from "~/components/active-supervisions/use-reopen-banner";
 import { useTimetableActions } from "~/components/active-supervisions/use-timetable-actions";
 import { useSchulhofActions } from "~/components/active-supervisions/use-schulhof-actions";
+import { AddUnplannedStudentModal } from "~/components/active-supervisions/add-unplanned-student-modal";
 import { PresentChildrenPicker } from "~/components/active-supervisions/present-children-picker";
 import { TimetableRosterContent } from "~/components/active-supervisions/timetable-roster";
 import {
@@ -80,13 +91,7 @@ import { BELOW_MD, useMediaQuery } from "~/lib/hooks/use-media-query";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { OpenRoomSections } from "~/components/active-supervisions/open-room-sections";
 import { AddSupervisorModal } from "~/components/active-supervisions/add-supervisor-modal";
-
-function reopenBannerMessage(title: string | null): string {
-  const ended = title
-    ? `„${title}“ wurde beendet.`
-    : "Die Aktivität wurde beendet.";
-  return `${ended} Sie können das fünf Minuten lang rückgängig machen.`;
-}
+import { OwnSupervisionView } from "~/components/active-supervisions/own-supervision-view";
 
 function hasSameGroupNames(
   previous: readonly string[] | undefined,
@@ -101,6 +106,7 @@ function MeinRaumPageContent() {
   const nfcEnabled = useNFCEnabled();
   const showTimetableCounts = useShowTimetableCounts();
   const router = useTenantRouter();
+  const tenantPath = useTenantAwarePath();
   const searchParams = useSearchParams();
   const { data: session, status } = useSession({
     required: true,
@@ -151,11 +157,18 @@ function MeinRaumPageContent() {
   const openRoomLayout = currentOpenRoom
     ? openRoomSections(currentOpenRoom)
     : null;
+  // Die Kinderliste eines Termins liest das Backend nur mit schedules:read.
+  // Der Gast (ADR 0091) hat es nicht und sieht die Kinder aus dem Raum.
+  // Eine Sitzung ohne Rechteliste (vor den Rechte-Claims) fragt weiter.
+  const sessionPermissions = session?.user?.permissions;
+  const canReadRosters =
+    !Array.isArray(sessionPermissions) ||
+    hasPermission(session, "schedules:read");
   const roster = useTimetableRoster({
-    selectedTimetableInstanceId: currentOpenRoom
-      ? null
-      : selectedTimetableInstanceId,
-    currentRoomId: currentOpenRoom ? undefined : currentRoom?.id,
+    selectedTimetableInstanceId:
+      currentOpenRoom || !canReadRosters ? null : selectedTimetableInstanceId,
+    currentRoomId:
+      currentOpenRoom || !canReadRosters ? undefined : currentRoom?.id,
   });
   const { currentTimetableRoster } = roster;
   const { overviewEnabled } = useOptionalSupervision();
@@ -264,9 +277,14 @@ function MeinRaumPageContent() {
   // Set breadcrumb so the header names what is open — a shared room by its
   // room name, an own supervision by its session (parallel sessions can share
   // one room, #2265).
+  // Ein offener Raum ohne eigene Aufsicht ist keine Aufsicht der Person: er
+  // gehört zu „Räume“ und führt dorthin zurück (#4372).
+  const isSharedRoomView =
+    currentOpenRoom !== null && !currentOpenRoom.isUserSupervising;
   useSetBreadcrumb({
     activeSupervisionName:
       currentOpenRoom?.name ?? currentRoom?.name ?? currentRoom?.room_name,
+    activeSupervisionIsSharedRoom: isSharedRoomView || undefined,
   });
 
   // Opening a shared room is a pure selection: its occupancy already arrived
@@ -277,7 +295,9 @@ function MeinRaumPageContent() {
       if (!room) return;
       dashboard.selectOpenRoom(roomId);
       router.push(`/active-supervisions?room=${roomId}`);
-      localStorage.removeItem("supervision-last-session");
+      if (room.isUserSupervising) {
+        localStorage.removeItem("supervision-last-session");
+      }
       localStorage.setItem("sidebar-last-room", roomId);
       localStorage.setItem("sidebar-last-room-name", room.name);
     },
@@ -334,12 +354,20 @@ function MeinRaumPageContent() {
     currentOpenRoom?.studentCount ??
     currentRoom?.student_count ??
     students.length;
-  // Beim Schulhof steht dazu, wer dort die Aufsicht hat, solange es nicht die
-  // Person selbst ist; das sagt dann das Abzeichen „Eigene Aufsicht".
-  const openRoomSupervisorNames =
-    isSchulhofOpenRoom && !currentOpenRoom?.isUserSupervising
-      ? (schulhofStatus?.supervisors.map((s) => s.name) ?? [])
-      : [];
+  // Dazu Raum und wer die Aufsicht hat, für eigene Aufsichten wie für offene
+  // Räume (#4354). Die Blockkarte darunter nennt den Raum dann nicht mehr.
+  // Fehlt der Raum im Dashboard, nennt ihn der Roster des Blocks.
+  const headFacts = supervisionHeadFacts({
+    title: supervisionName,
+    currentRoom: currentRoom && {
+      room_name:
+        currentRoom.room_name ??
+        currentTimetableRoster?.instance.roomName ??
+        undefined,
+      supervisorNames: currentRoom.supervisorNames,
+    },
+    currentOpenRoom,
+  });
   // Die Teilnehmergrenze gehört zur Sitzung, nicht zum offenen Raum: dort
   // zeigt jeder Abschnitt seine eigene (#3634).
   const supervisionOccupancy: Occupancy = {
@@ -350,21 +378,28 @@ function MeinRaumPageContent() {
     supervisionOccupancy,
     nfcEnabled,
   );
-  const supervisionSummary = supervisionName
-    ? [
+  const supervisionSummary = supervisionName ? (
+    <SupervisionHeadFacts
+      childCount={[
         formatChildCount(supervisionCount, supervisionOccupancy.limit),
         ...(supervisionOverbookedHint ? [OVERBOOKED_LABEL] : []),
-        ...(openRoomSupervisorNames.length > 0
-          ? [`Aktuelle Aufsicht: ${openRoomSupervisorNames.join(", ")}`]
-          : []),
-      ].join(" · ")
-    : "Keine Aufsicht aktiv";
+      ].join(" · ")}
+      roomName={headFacts.roomName}
+      supervisorNames={headFacts.supervisorNames}
+    />
+  ) : (
+    "Keine Aufsicht aktiv"
+  );
 
   // Reiterleiste. Am Desktop wechselt die Seitenleiste, deshalb stehen die
-  // Reiter nur darunter. Offene Räume stehen hinter den eigenen Aufsichten:
-  // sie sind gemeinsam, nicht die eigene Aufsicht der Person (#3065).
+  // Reiter nur darunter. Wie in der Seitenleiste stehen hier nur Aufsichten:
+  // ein offener Raum nur mit eigener Aufsicht (#4349) oder solange er
+  // geöffnet ist. Die übrigen offenen Räume stehen unter „Räume“ (#4372).
   const ownSessions = sessionsOutsideOpenRooms(allRooms, openRoomIds);
-  const totalSupervisions = ownSessions.length + openRooms.length;
+  const tabOpenRooms = openRooms.filter(
+    (room) => room.isUserSupervising || room.roomId === currentOpenRoom?.roomId,
+  );
+  const totalSupervisions = ownSessions.length + tabOpenRooms.length;
   const supervisionTabItems = [
     ...ownSessions.map((room) => ({
       value: `session:${room.id}`,
@@ -373,9 +408,13 @@ function MeinRaumPageContent() {
         dashboard.sessionInfoByActiveGroup.get(room.id) ?? null,
       ),
     })),
-    ...openRooms.map((room) => ({
+    // Wie bei den eigenen Reitern: läuft die eigene Aufsicht im offenen
+    // Raum, trägt sein Reiter den Hinweis (#4349).
+    ...tabOpenRooms.map((room) => ({
       value: `room:${room.roomId}`,
-      label: room.name,
+      label: room.isUserSupervising
+        ? `${room.name} · Eigene Aufsicht`
+        : room.name,
     })),
   ];
   const supervisionTabs =
@@ -388,7 +427,7 @@ function MeinRaumPageContent() {
               : "",
           onChange: handleTabChange,
           items: supervisionTabItems,
-          label: "Aufsichten und offene Räume",
+          label: "Aufsichten",
         }
       : undefined;
 
@@ -411,6 +450,7 @@ function MeinRaumPageContent() {
   const spontaneousStartBanner = dashboard.webSpontaneousActivitiesEnabled ? (
     <SpontaneousActivityStart
       canCreateExternalCaregiver={hasPermission(session, "users:create")}
+      canGrantExternalView={canGrantExternalViewAccess(session)}
       currentStaffId={currentStaffId}
       defaultRoomId={currentRoom?.room_id ?? currentOpenRoom?.roomId}
       disabled={dashboard.spontaneousStartAvailability?.available === false}
@@ -472,6 +512,15 @@ function MeinRaumPageContent() {
 
   // Abzeichen in der Kopfkarte: ein offener Raum heißt dort „Offener Raum",
   // die eigene Aufsicht „Eigene Aufsicht" (#3065). Keine Erklärzeile.
+  // Ob der geöffnete Block läuft, steht zuerst (#4354); er kommt aus dem
+  // Roster, den nur eine eigene Aufsicht hier lädt. Im offenen Raum trägt
+  // jeder Block seinen Zustand in der eigenen Karte.
+  const runState = currentTimetableRoster
+    ? rosterRunState(currentTimetableRoster.instance.status)
+    : null;
+  const runStateBadge = runState ? (
+    <StatusBadge label={runState.label} tone={runState.tone} />
+  ) : null;
   const openRoomBadge = currentOpenRoom ? (
     <StatusBadge label="Offener Raum" tone="blue" />
   ) : null;
@@ -503,6 +552,7 @@ function MeinRaumPageContent() {
       ? spontaneousStartBlockedReason
       : undefined;
   const hasHeadActions = Boolean(
+    runStateBadge ??
     openRoomBadge ??
     ownSupervisionBadge ??
     addSupervisorButton ??
@@ -516,7 +566,7 @@ function MeinRaumPageContent() {
     !isPageLoading &&
     !hasNoAccess &&
     allRooms.length === 0 &&
-    openRooms.length === 0 &&
+    currentOpenRoom === null &&
     plannedNow.length === 0;
 
   // Kacheln oder Tabelle (#3834). Die Tabelle gilt für die Kinderliste der
@@ -597,6 +647,14 @@ function MeinRaumPageContent() {
       : null,
   });
 
+  // „Profil ansehen“ in den Block-Listen (#4356). Die Kinderseite lädt
+  // GET /api/students/{id}, das `users:read` oder `students:read` verlangt;
+  // ohne beides fehlt der Link, statt auf eine Fehlerseite zu führen.
+  const studentProfileHref = canReadStudents(session)
+    ? (row: TimetableRosterRow) =>
+        tenantPath(`/students/${row.studentId}?from=/active-supervisions`)
+    : undefined;
+
   // Render helper for student grid content
   const renderStudentContent = (
     tableSelection: StudentTableSelection | null,
@@ -631,6 +689,7 @@ function MeinRaumPageContent() {
             showTimetableCounts,
             canReadPresentChildren: hasPermission(session, "users:read"),
             canExcuseRestOfDay: hasPermission(session, "users:update"),
+            studentProfileHref,
             overviewEnabled,
             onAddSupervisor: setAddSupervisorTarget,
             onRosterGroups: rememberOpenRoomRosterGroups,
@@ -652,7 +711,6 @@ function MeinRaumPageContent() {
             </div>
           )}
           <TimetableRosterContent
-            addStudentResults={actions.addStudentResults}
             addStudentSearch={actions.addStudentSearch}
             addStudentError={actions.addStudentError}
             attendanceWebEnabled={attendanceWebEnabled}
@@ -661,6 +719,8 @@ function MeinRaumPageContent() {
             isConfirmingExpected={actions.isConfirmingExpected}
             roster={currentTimetableRoster}
             showTimetableCounts={showTimetableCounts}
+            statusInPageHead
+            roomInPageHead
             occupancy={supervisionOccupancy}
             onAddStudent={actions.handleAddUnplannedStudent}
             onAddPresentStudents={
@@ -669,6 +729,7 @@ function MeinRaumPageContent() {
                 : undefined
             }
             presentChildrenPicker={PresentChildrenPicker}
+            addUnplannedStudentModal={AddUnplannedStudentModal}
             presentPickerAutoOpen={
               actions.presentPickerAutoOpenInstanceId ===
               currentTimetableRoster.instance.id
@@ -682,6 +743,7 @@ function MeinRaumPageContent() {
                 ? actions.handleExcuseRestOfDay
                 : undefined
             }
+            studentProfileHref={studentProfileHref}
             onSearchChange={actions.handleAddStudentSearchChange}
             rowFilter={filters.rosterRowFilter}
           />
@@ -710,6 +772,11 @@ function MeinRaumPageContent() {
       // nennt deshalb nur den Namen statt die Aufsicht ein zweites Mal (#3312).
       title={supervisionName ?? "Aktuelle Aufsicht"}
       stats={supervisionSummary}
+      back={isSharedRoomView}
+      backHref={
+        currentOpenRoom ? `/rooms/${currentOpenRoom.roomId}` : undefined
+      }
+      backLabel="Zurück zum Raum"
       actions={
         hasHeadActions || tableApplies ? (
           <>
@@ -724,8 +791,9 @@ function MeinRaumPageContent() {
             {/* Die Abzeichen sind eine Zeile: das Gerüst gibt unter sm jedem
                 Kopf-Element eine eigene volle Zeile, zwei gestreckte Pillen
                 untereinander läsen sich wie zwei Knöpfe. */}
-            {openRoomBadge || ownSupervisionBadge ? (
+            {runStateBadge || openRoomBadge || ownSupervisionBadge ? (
               <span className="flex items-center gap-2">
+                {runStateBadge}
                 {openRoomBadge}
                 {ownSupervisionBadge}
               </span>
@@ -756,14 +824,6 @@ function MeinRaumPageContent() {
           </>
         ) : undefined
       }
-      search={{
-        value: filters.searchTerm,
-        onChange: filters.setSearchTerm,
-        placeholder: "Name suchen…",
-      }}
-      filters={filters.filterConfigs}
-      activeFilters={filters.activeFilters}
-      onClearAllFilters={filters.clearAllFilters}
       tabs={supervisionTabs}
       statsLoading={isPageLoading}
       loading={isPageLoading}
@@ -806,6 +866,7 @@ function MeinRaumPageContent() {
                 session,
                 "users:create",
               )}
+              canGrantExternalView={canGrantExternalViewAccess(session)}
               isOpen
               onClose={() => setAddSupervisorTarget(null)}
               onAdded={mutateDashboard}
@@ -874,6 +935,22 @@ function MeinRaumPageContent() {
             </Suspense>
           ) : null}
 
+          {/* Die Suche steht direkt über den Kinderlisten, nicht in der
+              Kopfkarte: dazwischen liegen sonst Als Nächstes, Kinder
+              unterwegs und der Kopf des Blocks (#4353). Sie filtert jede
+              Liste darunter, in offenen Räumen jeden Block. */}
+          <TenantPageListSearch
+            label="Kinder suchen"
+            search={{
+              value: filters.searchTerm,
+              onChange: filters.setSearchTerm,
+              placeholder: "Name suchen…",
+            }}
+            filters={filters.filterConfigs}
+            activeFilters={filters.activeFilters}
+            onClearAllFilters={filters.clearAllFilters}
+          />
+
           {showTable ? (
             <StudentSelectionScope
               visibleStudents={filters.filteredStudents}
@@ -894,8 +971,10 @@ function MeinRaumPageContent() {
   );
 }
 
-// Gate component: allows caregivers always, everyone else only when the
-// server confirmed the school-wide overview covers them (#2380).
+// Gate component: allows callers who can read supervision data, or callers
+// covered by the server-confirmed school-wide overview (#2380). `schedules:read`
+// alone (#4573) opens only the own running supervision, without any
+// school-wide request.
 function ActiveSupervisionGate({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
@@ -918,8 +997,7 @@ function ActiveSupervisionGate({
     );
   }
 
-  // Caregivers (user/teacher role) always have access
-  if (isCaregiver(session)) {
+  if (canReadSupervisionData(session)) {
     return <>{children}</>;
   }
 
@@ -930,6 +1008,12 @@ function ActiveSupervisionGate({
   // reachable for everyone and grants no supervision (#3065).
   if (overviewEnabled) {
     return <>{children}</>;
+  }
+
+  // Ohne groups:read zeigte die volle Seite die Anwesenheit der ganzen
+  // Schule. Wer Blöcke führt (schedules:read), sieht seine eigene Aufsicht.
+  if (hasPermission(session, "schedules:read")) {
+    return <OwnSupervisionView />;
   }
 
   // Fehlendes Recht ist ein Zustand der Seite, kein Fehler: dieselbe

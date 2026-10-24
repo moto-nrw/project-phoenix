@@ -2,6 +2,7 @@ package migrations
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -73,10 +74,7 @@ func ensureBackfillPermission(t *testing.T, db *testpkg.DB, name, resource, acti
 		INSERT INTO auth.permissions (name, description, resource, action, created_at, updated_at)
 		VALUES (?, 'Backfill-Testrecht', ?, ?, NOW(), NOW())
 		RETURNING id`, name, resource, action).Scan(ctx, &id))
-	t.Cleanup(func() {
-		_, _ = db.ExecContext(context.Background(), `DELETE FROM auth.role_permissions WHERE permission_id = ?`, id)
-		_, _ = db.ExecContext(context.Background(), `DELETE FROM auth.permissions WHERE id = ?`, id)
-	})
+	testpkg.OwnTestPermission(t, db, id)
 	return id
 }
 
@@ -87,13 +85,6 @@ func grantBackfillPermission(t *testing.T, db *testpkg.DB, roleID, permissionID 
 		VALUES (?, ?, NOW(), NOW())
 		ON CONFLICT DO NOTHING`, roleID, permissionID)
 	require.NoError(t, err)
-	// The RBAC catalog is tenant-less: a grant this test writes is visible to
-	// every other test in the binary until it is taken back (#2419).
-	t.Cleanup(func() {
-		_, _ = db.ExecContext(context.Background(),
-			`DELETE FROM auth.role_permissions WHERE role_id = ? AND permission_id = ?`,
-			roleID, permissionID)
-	})
 }
 
 func baseRoleOf(t *testing.T, db *testpkg.DB, roleID int64) string {
@@ -104,4 +95,19 @@ func baseRoleOf(t *testing.T, db *testpkg.DB, roleID int64) string {
 	).Scan(context.Background(), &values))
 	require.Len(t, values, 1)
 	return values[0]
+}
+
+func strPtrValue(v string) *string { return &v }
+
+func createIdentityRepairRole(t *testing.T, db *testpkg.DB, tenantID int64, name string, baseRole *string) int64 {
+	t.Helper()
+	var id int64
+	err := db.NewRaw(`
+		INSERT INTO auth.roles (name, description, is_system, tenant_id, base_role, created_at, updated_at)
+		VALUES (?, 'Reparatur-Testrolle', FALSE, ?, ?, NOW(), NOW())
+		RETURNING id`,
+		fmt.Sprintf("%s-%d", name, tenantID), tenantID, baseRole,
+	).Scan(context.Background(), &id)
+	require.NoError(t, err)
+	return id
 }

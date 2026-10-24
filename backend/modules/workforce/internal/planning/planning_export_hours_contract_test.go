@@ -4,12 +4,10 @@ import (
 	"context"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	planning "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning"
-	"github.com/moto-nrw/project-phoenix/services/listexport"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/require"
 )
 
@@ -20,14 +18,14 @@ type hoursExport struct {
 	hours  planexport.WeeklyHours
 }
 
-func (f *hoursExport) ExportDienstplanHours(ctx context.Context, params planexport.Params, reader planexport.WeeklyHoursReader) (listexport.File, error) {
+func (f *hoursExport) ExportDienstplanHours(ctx context.Context, params planexport.Params, reader planexport.WeeklyHoursReader) (planexport.File, error) {
 	f.params = params
 	hours, err := reader.WeeklyHours(ctx, "2026-09-21", "2026-09-27")
 	if err != nil {
-		return listexport.File{}, err
+		return planexport.File{}, err
 	}
 	f.hours = hours
-	return listexport.File{Filename: "Stundenuebersicht.xlsx", Data: []byte("sheet")}, nil
+	return planexport.File{Filename: "Stundenuebersicht.xlsx", Data: []byte("sheet")}, nil
 }
 
 // The hours template (#3819) is served from the Dienstplan's own weekly
@@ -35,18 +33,18 @@ func (f *hoursExport) ExportDienstplanHours(ctx context.Context, params planexpo
 // carries the per-Schichtart split and the target unchanged.
 func TestPlanningExportsTheHoursSheetFromTheWeeklySummaries(t *testing.T) {
 	t.Parallel()
-	monday := timezone.NewDate(2026, 9, 21)
+	monday := calendar.NewDate(2026, 9, 21)
 	typeID := int64(42)
 	target, delta := 1320, -30
-	anna := &usersModel.Staff{Person: &usersModel.Person{FirstName: "Anna", LastName: "Müller"}}
+	anna := &workforce.PlanStaff{Person: &workforce.PlanStaffPerson{FirstName: "Anna", LastName: "Müller"}}
 	anna.ID = 7
 	export := &hoursExport{}
 	p := newPlanningFacade(planning.PlanningDependencies{
-		Overview: planningOverview(func(_ context.Context, from, to timezone.Date) (*planning.StaffScheduleOverview, error) {
+		Overview: planningOverview(func(_ context.Context, from, to calendar.Date) (*planning.StaffScheduleOverview, error) {
 			require.Equal(t, monday, from)
 			require.Equal(t, monday.AddDays(6), to)
 			return &planning.StaffScheduleOverview{
-				Staff: []*usersModel.Staff{anna, nil},
+				Staff: []*workforce.PlanStaff{anna, nil},
 				WeeklySummaries: []planning.StaffWeeklySummary{{
 					StaffID: 7, WeekStart: monday, PlannedMinutes: 1290, TargetMinutes: &target, DeltaMinutes: &delta,
 					ByShiftType: []planning.ShiftTypeMinutes{{ShiftTypeID: &typeID, Minutes: 1200}, {Minutes: 90}},

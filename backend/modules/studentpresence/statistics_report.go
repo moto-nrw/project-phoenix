@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // The Statistik report (#2606): attendance and absence quotas per child,
@@ -37,8 +37,8 @@ const (
 
 // StatisticsFilters selects the report window and an optional group restriction.
 type StatisticsFilters struct {
-	From     timezone.Date
-	To       timezone.Date
+	From     calendar.Date
+	To       calendar.Date
 	GroupIDs []int64
 	// Sections limits what is computed. Empty means the whole report — the
 	// screen loads every section at once so switching tabs costs no request.
@@ -158,8 +158,8 @@ type StatisticsCourseStudentRow struct {
 
 // StatisticsReport is the full statistics result.
 type StatisticsReport struct {
-	From         timezone.Date
-	To           timezone.Date
+	From         calendar.Date
+	To           calendar.Date
 	CareDays     int
 	ExcludedDays StatisticsExcludedDays
 	Students     []StatisticsStudentRow
@@ -169,8 +169,10 @@ type StatisticsReport struct {
 	// this report covers — the group filter narrows it with the population.
 	// Individual children may have shorter windows.
 	RoomDataDays int
+	// RoomHistoryDisabled distinguishes a switched-off history from an empty room list.
+	RoomHistoryDisabled bool
 	// RoomDataFrom is the earliest date room data can still exist for.
-	RoomDataFrom timezone.Date
+	RoomDataFrom calendar.Date
 	Totals       StatisticsGroupRow
 	// Courses is one row per course, CourseStudents one row per (child,
 	// course) — the two views of the participation section (#2891).
@@ -181,7 +183,7 @@ type StatisticsReport struct {
 	// occurrences older than that are deleted, so the section cannot reach
 	// behind CourseDataFrom.
 	CourseDataDays int
-	CourseDataFrom timezone.Date
+	CourseDataFrom calendar.Date
 }
 
 // StatisticsReports is the statistics use case.

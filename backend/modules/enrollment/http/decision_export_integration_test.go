@@ -6,12 +6,12 @@ import (
 	"log/slog"
 	"testing"
 
-	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
-
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
+	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,17 +30,19 @@ import (
 // data-loading repos from the env plus the supplied audit repo, so a
 // test can swap in a failing stub. Mirrors the export half of
 // setupDecisionTest's config (which omits the audit repo).
-func newExportDecisionService(env *decisionTestEnv, auditRepo testutil.EnrollmentFlowDataAccessLogs) enrollmentAPI.DecisionService {
-	return newTestDecisionService(testutil.EnrollmentDecisionSources{
-		Requests:      env.repos.Enrollment(),
-		Children:      env.repos.Enrollment(),
-		CareOfferings: testutil.NewEnrollmentCareOfferingRecords(env.repos.CarePlan()),
-		Phases:        env.repos.Enrollment(),
-		Schemas:       env.repos.Enrollment(),
-		DataAccessLog: auditRepo,
-		Students:      env.repos.Student,
-		Logger:        slog.Default(),
-	})
+func newExportDecisionService(env *decisionTestEnv, auditRepo api.EnrollmentFlowDataAccessLogs) enrollmentAPI.DecisionService {
+	return newTestDecisionService(enrollmentCompose.DecisionDependencies{
+		Requests:  env.repos.Enrollment(),
+		Children:  env.repos.Enrollment(),
+		Phases:    env.repos.Enrollment(),
+		Schemas:   env.repos.Enrollment(),
+		Offerings: enrollmentCompose.NewCareOfferingRecords(env.reposCare.CarePlan),
+		People: owners.EnrollmentDecisionPeopleDirectory(
+			nil, nil, env.repos.Student, nil, nil, nil, nil,
+		),
+		AccessLog: owners.EnrollmentDecisionAccessLog(auditRepo),
+		Logger:    slog.Default(),
+	}, nil)
 }
 
 // failingSchemaRepo wraps the owner reader but makes Schema
@@ -65,37 +67,41 @@ func (failingPhaseRepo) Phase(_ context.Context, _ int64) (*capability.Phase, er
 // newExportDecisionServiceFailingSchema mirrors newExportDecisionService
 // but swaps in a schema reader whose Schema always errors, so a test
 // can prove the export fails closed when a pinned schema cannot be loaded.
-func newExportDecisionServiceFailingSchema(env *decisionTestEnv, auditRepo testutil.EnrollmentFlowDataAccessLogs) enrollmentAPI.DecisionService {
-	return newTestDecisionService(testutil.EnrollmentDecisionSources{
-		Requests:      env.repos.Enrollment(),
-		Children:      env.repos.Enrollment(),
-		CareOfferings: testutil.NewEnrollmentCareOfferingRecords(env.repos.CarePlan()),
-		Phases:        env.repos.Enrollment(),
-		Schemas:       failingSchemaRepo{env.repos.Enrollment()},
-		DataAccessLog: auditRepo,
-		Students:      env.repos.Student,
-		Logger:        slog.Default(),
-	})
+func newExportDecisionServiceFailingSchema(env *decisionTestEnv, auditRepo api.EnrollmentFlowDataAccessLogs) enrollmentAPI.DecisionService {
+	return newTestDecisionService(enrollmentCompose.DecisionDependencies{
+		Requests:  env.repos.Enrollment(),
+		Children:  env.repos.Enrollment(),
+		Phases:    env.repos.Enrollment(),
+		Schemas:   failingSchemaRepo{env.repos.Enrollment()},
+		Offerings: enrollmentCompose.NewCareOfferingRecords(env.reposCare.CarePlan),
+		People: owners.EnrollmentDecisionPeopleDirectory(
+			nil, nil, env.repos.Student, nil, nil, nil, nil,
+		),
+		AccessLog: owners.EnrollmentDecisionAccessLog(auditRepo),
+		Logger:    slog.Default(),
+	}, nil)
 }
 
-func newExportDecisionServiceFailingPhase(env *decisionTestEnv, auditRepo testutil.EnrollmentFlowDataAccessLogs) enrollmentAPI.DecisionService {
-	return newTestDecisionService(testutil.EnrollmentDecisionSources{
-		Requests:      env.repos.Enrollment(),
-		Children:      env.repos.Enrollment(),
-		CareOfferings: testutil.NewEnrollmentCareOfferingRecords(env.repos.CarePlan()),
-		Phases:        failingPhaseRepo{env.repos.Enrollment()},
-		Schemas:       env.repos.Enrollment(),
-		DataAccessLog: auditRepo,
-		Students:      env.repos.Student,
-		Logger:        slog.Default(),
-	})
+func newExportDecisionServiceFailingPhase(env *decisionTestEnv, auditRepo api.EnrollmentFlowDataAccessLogs) enrollmentAPI.DecisionService {
+	return newTestDecisionService(enrollmentCompose.DecisionDependencies{
+		Requests:  env.repos.Enrollment(),
+		Children:  env.repos.Enrollment(),
+		Phases:    failingPhaseRepo{env.repos.Enrollment()},
+		Schemas:   env.repos.Enrollment(),
+		Offerings: enrollmentCompose.NewCareOfferingRecords(env.reposCare.CarePlan),
+		People: owners.EnrollmentDecisionPeopleDirectory(
+			nil, nil, env.repos.Student, nil, nil, nil, nil,
+		),
+		AccessLog: owners.EnrollmentDecisionAccessLog(auditRepo),
+		Logger:    slog.Default(),
+	}, nil)
 }
 
 func approveOneChildForExport(t *testing.T, env *decisionTestEnv, email, firstName, lastName string) int64 {
 	t.Helper()
 	ctx := testpkg.Ctx(t)
 	reqID, childID := submitOneChild(t, env, email, firstName, lastName)
-	outcome, err := env.decision.Decide(ctx, enrollmentAPI.DecideInput{
+	outcome, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.decision.Decide, enrollmentAPI.DecideInput{
 		RequestID:  reqID,
 		ChildID:    childID,
 		Status:     capability.DecisionApproved,
@@ -115,8 +121,7 @@ func approveOneChildForExport(t *testing.T, env *decisionTestEnv, email, firstNa
 func TestDecisionService_ExportPhase_SchemaLoadFailureBlocksDisclosure(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	// The submitted request pins the phase's active schema, so the export
@@ -135,8 +140,7 @@ func TestDecisionService_ExportPhase_SchemaLoadFailureBlocksDisclosure(t *testin
 func TestDecisionService_ExportPhase_LoadsDataAndRecordsAudit(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	submitOneChild(t, env, "export-happy@example.com", "Lina", "Export")
@@ -145,7 +149,7 @@ func TestDecisionService_ExportPhase_LoadsDataAndRecordsAudit(t *testing.T) {
 	svc := newExportDecisionService(env, audit)
 
 	const actorID = int64(4242)
-	data, err := svc.ExportPhase(ctx, env.sourcePhase.ID, actorID, "admin", "pdf", "")
+	data, err := testpkg.TenantQuery5(t, ctx, testpkg.SetupTestDB(t), svc.ExportPhase, env.sourcePhase.ID, actorID, "admin", "pdf", "")
 	require.NoError(t, err)
 	require.NotNil(t, data)
 
@@ -158,7 +162,7 @@ func TestDecisionService_ExportPhase_LoadsDataAndRecordsAudit(t *testing.T) {
 	// the counts that match the disclosed payload.
 	require.Len(t, audit.entries, 1, "ExportPhase must record exactly one audit row")
 	entry := audit.entries[0]
-	assert.Equal(t, testutil.EnrollmentFlowPhaseExportResource, entry.ResourceType)
+	assert.Equal(t, api.EnrollmentFlowPhaseExportResource, entry.ResourceType)
 	assert.Equal(t, actorID, entry.ActorAccountID)
 	md := entry.GetMetadata()
 	assert.Equal(t, env.sourcePhase.ID, md["phase_id"])
@@ -170,8 +174,7 @@ func TestDecisionService_ExportPhase_LoadsDataAndRecordsAudit(t *testing.T) {
 func TestDecisionService_ExportPhase_AuditFailureBlocksDisclosure(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	submitOneChild(t, env, "export-blocked@example.com", "Mara", "Blocked")
@@ -193,20 +196,18 @@ func TestDecisionService_ExportPhase_AuditFailureBlocksDisclosure(t *testing.T) 
 func TestDecisionService_ExportPhase_ChildStatusFilter(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	// Two submissions: both children start "submitted". Approve one so the
 	// phase holds a mixed set.
 	_, approvedChildID := submitOneChild(t, env, "filter-approved@example.com", "Ada", "Approved")
 	submitOneChild(t, env, "filter-open@example.com", "Ben", "Open")
-	require.NoError(t, env.repos.Enrollment().UpdateChildStatus(
-		ctx, approvedChildID, enrollmentModels.ChildStatusApproved, nil, 0))
+	require.NoError(t, testpkg.TenantCommand4(t, ctx, env.db, env.repos.Enrollment().UpdateChildStatus, approvedChildID, capability.ChildStatusApproved, nil, 0))
 
 	auditAll := &stubAccessLogRepo{}
-	all, err := newExportDecisionService(env, auditAll).
-		ExportPhase(ctx, env.sourcePhase.ID, 4242, "admin", "xlsx", "")
+	all, err := testpkg.TenantQuery5(t, ctx, testpkg.SetupTestDB(t), newExportDecisionService(env, auditAll).
+		ExportPhase, env.sourcePhase.ID, 4242, "admin", "xlsx", "")
 	require.NoError(t, err)
 	_, allChildren := all.Counts()
 	assert.Equal(t, 2, allChildren, "no filter exports every child")
@@ -214,7 +215,7 @@ func TestDecisionService_ExportPhase_ChildStatusFilter(t *testing.T) {
 	// Filter to approved → only Ada, and the audit child_count matches.
 	auditApproved := &stubAccessLogRepo{}
 	approved, err := newExportDecisionService(env, auditApproved).
-		ExportPhase(ctx, env.sourcePhase.ID, 4242, "admin", "xlsx", enrollmentModels.ChildStatusApproved)
+		ExportPhase(ctx, env.sourcePhase.ID, 4242, "admin", "xlsx", capability.ChildStatusApproved)
 	require.NoError(t, err)
 	reqCount, childCount := approved.Counts()
 	assert.Equal(t, 1, reqCount, "only the request with an approved child remains")
@@ -225,13 +226,13 @@ func TestDecisionService_ExportPhase_ChildStatusFilter(t *testing.T) {
 	// Audit row reflects the filtered (disclosed) scope.
 	require.Len(t, auditApproved.entries, 1)
 	md := auditApproved.entries[0].GetMetadata()
-	assert.Equal(t, enrollmentModels.ChildStatusApproved, md["status_filter"])
+	assert.Equal(t, capability.ChildStatusApproved, md["status_filter"])
 	assert.Equal(t, 1, md["child_count"])
 
 	// Filter to a status no child holds → empty export, zero counts.
 	auditRejected := &stubAccessLogRepo{}
 	rejected, err := newExportDecisionService(env, auditRejected).
-		ExportPhase(ctx, env.sourcePhase.ID, 4242, "admin", "xlsx", enrollmentModels.ChildStatusRejected)
+		ExportPhase(ctx, env.sourcePhase.ID, 4242, "admin", "xlsx", capability.ChildStatusRejected)
 	require.NoError(t, err)
 	rReq, rChild := rejected.Counts()
 	assert.Equal(t, 0, rReq, "no request has a rejected child")
@@ -241,15 +242,14 @@ func TestDecisionService_ExportPhase_ChildStatusFilter(t *testing.T) {
 func TestDecisionService_ExportStudent_LoadsDataAndRecordsAudit(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	studentID := approveOneChildForExport(t, env, "student-export@example.com", "Sina", "Export")
 	audit := &stubAccessLogRepo{}
 
-	data, err := newExportDecisionService(env, audit).
-		ExportStudent(ctx, studentID, 4242, "admin", "xlsx")
+	data, err := testpkg.TenantQuery4(t, ctx, testpkg.SetupTestDB(t), newExportDecisionService(env, audit).
+		ExportStudent, studentID, 4242, "admin", "xlsx")
 	require.NoError(t, err)
 	require.NotNil(t, data)
 	assert.Equal(t, studentID, data.StudentID)
@@ -259,7 +259,7 @@ func TestDecisionService_ExportStudent_LoadsDataAndRecordsAudit(t *testing.T) {
 
 	require.Len(t, audit.entries, 1)
 	entry := audit.entries[0]
-	assert.Equal(t, testutil.EnrollmentFlowStudentExportResource, entry.ResourceType)
+	assert.Equal(t, api.EnrollmentFlowStudentExportResource, entry.ResourceType)
 	require.NotNil(t, entry.StudentID)
 	assert.Equal(t, studentID, *entry.StudentID)
 	md := entry.GetMetadata()
@@ -271,8 +271,7 @@ func TestDecisionService_ExportStudent_LoadsDataAndRecordsAudit(t *testing.T) {
 func TestDecisionService_ExportStudent_MissingStudentBlocksAudit(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 	audit := &stubAccessLogRepo{}
 
@@ -287,8 +286,7 @@ func TestDecisionService_ExportStudent_MissingStudentBlocksAudit(t *testing.T) {
 func TestDecisionService_ExportStudent_ForeignTenantStudentBlocksAudit(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	foreignTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, env.db, foreignTenantID)
 
@@ -306,8 +304,7 @@ func TestDecisionService_ExportStudent_ForeignTenantStudentBlocksAudit(t *testin
 func TestDecisionService_ExportStudent_PhaseLoadFailureBlocksDisclosure(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	studentID := approveOneChildForExport(t, env, "student-phasefail@example.com", "Paula", "PhaseFail")

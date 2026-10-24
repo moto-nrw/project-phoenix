@@ -3,8 +3,10 @@ package application
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
 )
@@ -13,8 +15,8 @@ import (
 // sessions (#2724). Credentials belong to the account and carry no tenant,
 // and a login ceremony is completed before a tenant is known, so every
 // operation runs through RunPlatform: it joins the administrative
-// transaction a caller opened and otherwise executes on the root
-// connection.
+// transaction a caller opened and otherwise opens an administrative
+// transaction, even when the caller supplies school context.
 type AccountPasskey struct {
 	service *Service
 	store   ports.AccountPasskeyStore
@@ -28,7 +30,7 @@ func NewAccountPasskey(service *Service, store ports.AccountPasskeyStore) *Accou
 }
 
 func (p *AccountPasskey) run(ctx context.Context, operation string, fn func(context.Context, *domain.OperationStats) error) error {
-	return p.service.run(ctx, p.service.tx.RunPlatform, operation, fn)
+	return p.service.run(withGlobalCredentialScope(ctx), p.service.tx.RunPlatform, operation, fn)
 }
 
 func (p *AccountPasskey) CreateCredential(ctx context.Context, credential domain.AccountPasskeyCredential) (result domain.AccountPasskeyCredential, err error) {
@@ -63,7 +65,7 @@ func (p *AccountPasskey) ListActiveCredentials(ctx context.Context, accountID in
 func (p *AccountPasskey) FindActiveCredential(ctx context.Context, credentialID, userHandle []byte) (result domain.AccountPasskeyCredential, err error) {
 	err = p.run(ctx, "find_active_account_passkey", func(txCtx context.Context, stats *domain.OperationStats) error {
 		if len(credentialID) == 0 || len(userHandle) == 0 {
-			return domain.ErrAccountPasskeyNotFound
+			return identityaccess.ErrAccountPasskeyNotFound
 		}
 		credential, found, queryStats, findErr := p.store.FindActiveAccountPasskey(txCtx, credentialID, userHandle)
 		stats.Add(queryStats)
@@ -71,7 +73,7 @@ func (p *AccountPasskey) FindActiveCredential(ctx context.Context, credentialID,
 			return findErr
 		}
 		if !found {
-			return domain.ErrAccountPasskeyNotFound
+			return identityaccess.ErrAccountPasskeyNotFound
 		}
 		result = credential
 		return nil
@@ -88,7 +90,7 @@ func (p *AccountPasskey) RecordUse(ctx context.Context, id int64, credentialJSON
 		}
 		changed, queryStats, err := p.store.UpdateAccountPasskeyAfterUse(txCtx, id, credentialJSON, usedAt)
 		stats.Add(queryStats)
-		return stateChange(changed, err, domain.ErrAccountPasskeyNotFound)
+		return stateChange(changed, err, identityaccess.ErrAccountPasskeyNotFound)
 	})
 }
 
@@ -98,7 +100,7 @@ func (p *AccountPasskey) RevokeCredential(ctx context.Context, accountID, id int
 	return p.run(ctx, "revoke_account_passkey", func(txCtx context.Context, stats *domain.OperationStats) error {
 		changed, queryStats, err := p.store.RevokeAccountPasskey(txCtx, accountID, id, revokedAt)
 		stats.Add(queryStats)
-		return stateChange(changed, err, domain.ErrAccountPasskeyNotFound)
+		return stateChange(changed, err, identityaccess.ErrAccountPasskeyNotFound)
 	})
 }
 
@@ -124,7 +126,7 @@ func (p *AccountPasskey) CreateSession(ctx context.Context, session domain.Accou
 func (p *AccountPasskey) ConsumeSession(ctx context.Context, id, purpose string, consumedAt time.Time) (result domain.AccountPasskeySession, err error) {
 	err = p.run(ctx, "consume_account_passkey_session", func(txCtx context.Context, stats *domain.OperationStats) error {
 		if id == "" {
-			return domain.ErrAccountPasskeySessionNotFound
+			return identityaccess.ErrAccountPasskeySessionNotFound
 		}
 		session, found, queryStats, consumeErr := p.store.ConsumeAccountPasskeySession(txCtx, id, purpose, consumedAt)
 		stats.Add(queryStats)
@@ -132,10 +134,68 @@ func (p *AccountPasskey) ConsumeSession(ctx context.Context, id, purpose string,
 			return consumeErr
 		}
 		if !found {
-			return domain.ErrAccountPasskeySessionNotFound
+			return identityaccess.ErrAccountPasskeySessionNotFound
 		}
 		result = session
 		return nil
 	})
 	return result, err
+}
+
+func (p *AccountPasskey) ListActiveAccountPasskeys(ctx context.Context, accountID int64) ([]identityaccess.AccountPasskeyCredential, error) {
+	values, err := p.ListActiveCredentials(ctx, accountID)
+	if err != nil {
+		return nil, fmt.Errorf("identity access: list active account passkeys: %w", MapError(err))
+	}
+	result := make([]identityaccess.AccountPasskeyCredential, 0, len(values))
+	for _, value := range values {
+		result = append(result, identityaccess.AccountPasskeyCredential(value))
+	}
+	return result, nil
+}
+
+func (p *AccountPasskey) FindActiveAccountPasskey(ctx context.Context, credentialID, userHandle []byte) (identityaccess.AccountPasskeyCredential, error) {
+	value, err := p.FindActiveCredential(ctx, credentialID, userHandle)
+	if err != nil {
+		return identityaccess.AccountPasskeyCredential{}, fmt.Errorf("identity access: find active account passkey: %w", MapError(err))
+	}
+	return identityaccess.AccountPasskeyCredential(value), nil
+}
+
+func (p *AccountPasskey) CreateAccountPasskey(ctx context.Context, credential identityaccess.AccountPasskeyCredential) (identityaccess.AccountPasskeyCredential, error) {
+	value, err := p.CreateCredential(ctx, domain.AccountPasskeyCredential(credential))
+	if err != nil {
+		return identityaccess.AccountPasskeyCredential{}, fmt.Errorf("identity access: create account passkey: %w", MapError(err))
+	}
+	return identityaccess.AccountPasskeyCredential(value), nil
+}
+
+func (p *AccountPasskey) RecordAccountPasskeyUse(ctx context.Context, id int64, credentialJSON json.RawMessage, usedAt time.Time) error {
+	if err := p.RecordUse(ctx, id, credentialJSON, usedAt); err != nil {
+		return fmt.Errorf("identity access: record account passkey use: %w", MapError(err))
+	}
+	return nil
+}
+
+func (p *AccountPasskey) RevokeAccountPasskey(ctx context.Context, accountID, id int64, revokedAt time.Time) error {
+	if err := p.RevokeCredential(ctx, accountID, id, revokedAt); err != nil {
+		return fmt.Errorf("identity access: revoke account passkey: %w", MapError(err))
+	}
+	return nil
+}
+
+func (p *AccountPasskey) CreateAccountPasskeySession(ctx context.Context, session identityaccess.AccountPasskeySession) (identityaccess.AccountPasskeySession, error) {
+	value, err := p.CreateSession(ctx, domain.AccountPasskeySession(session))
+	if err != nil {
+		return identityaccess.AccountPasskeySession{}, fmt.Errorf("identity access: create account passkey session: %w", MapError(err))
+	}
+	return identityaccess.AccountPasskeySession(value), nil
+}
+
+func (p *AccountPasskey) ConsumeAccountPasskeySession(ctx context.Context, id, purpose string, consumedAt time.Time) (identityaccess.AccountPasskeySession, error) {
+	value, err := p.ConsumeSession(ctx, id, purpose, consumedAt)
+	if err != nil {
+		return identityaccess.AccountPasskeySession{}, fmt.Errorf("identity access: consume account passkey session: %w", MapError(err))
+	}
+	return identityaccess.AccountPasskeySession(value), nil
 }

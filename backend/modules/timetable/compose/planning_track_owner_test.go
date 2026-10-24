@@ -186,13 +186,19 @@ func TestPlanningTrackListQueryBudgetStaysFlat(t *testing.T) {
 	for i := 0; i < 8; i++ {
 		createOwnedPlanningTrack(t, module, ctx, string(rune('A'+i)), "#5080D8", i)
 	}
-	counter := testpkg.CaptureQueries(t, db)
-	_, err := module.ListPlanningTracks(ctx, timetable.PlanningTrackFilter{Ordered: true})
-	require.NoError(t, err)
-	testpkg.AssertQueryBudget(t, "modules.timetable.planning_tracks.list", counter.Queries())
+	// The owner read runs inside the HTTP/workflow unit of work. The budget
+	// still measures every business query, not connection/role setup.
+	require.NoError(t, tenant.WithinCurrentTenant(ctx, func(ctx context.Context) error {
+		counter := testpkg.CaptureQueries(t, db)
+		_, err := module.ListPlanningTracks(ctx, timetable.PlanningTrackFilter{Ordered: true})
+		require.NoError(t, err)
+		testpkg.AssertQueryBudget(t, "modules.timetable.planning_tracks.list", counter.Queries())
+
+		return nil
+	}))
 }
 
-func createOwnedPlanningTrack(t *testing.T, module *timetable.Module, ctx context.Context, name, color string, order int) timetable.PlanningTrack {
+func createOwnedPlanningTrack(t *testing.T, module timetable.Owner, ctx context.Context, name, color string, order int) timetable.PlanningTrack {
 	t.Helper()
 	value, err := module.CreatePlanningTrack(ctx, planningTrackInput(name, color, order))
 	require.NoError(t, err)
@@ -224,3 +230,50 @@ func requirePlanningTrackRollback(t *testing.T, ctx context.Context, write func(
 }
 
 func planningTrackTime(value time.Time) *time.Time { return &value }
+
+// Archived rows resolve by ID too (historical references keep their colour);
+// unknown IDs are simply absent instead of an error.
+func TestModulePlanningTracksResolveArchivedAndUnknownIDs(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildModule(t, db)
+	ctx := testpkg.Ctx(t)
+
+	active := createOwnedPlanningTrack(t, module, ctx, "Früh", "#5080D8", 0)
+	archived := createOwnedPlanningTrack(t, module, ctx, "Mittag", "#F78C10", 1)
+	_, ok, err := module.SetPlanningTrackArchivedAt(ctx, archived.ID, planningTrackTime(time.Now()))
+	require.NoError(t, err)
+	require.True(t, ok)
+
+	tracks, err := module.ListPlanningTracks(ctx, timetable.PlanningTrackFilter{IDs: []int64{active.ID, archived.ID, archived.ID + 1000}})
+	require.NoError(t, err)
+	require.Len(t, tracks, 2)
+	byID := map[int64]timetable.PlanningTrack{}
+	for _, track := range tracks {
+		byID[track.ID] = track
+	}
+	require.Contains(t, byID, active.ID)
+	require.Contains(t, byID, archived.ID)
+	assert.NotNil(t, byID[archived.ID].ArchivedAt)
+}
+
+func TestModulePlanningTrackRejectsPartialOrder(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildModule(t, db)
+	ctx := testpkg.Ctx(t)
+	first := createOwnedPlanningTrack(t, module, ctx, "Früh", "#5080D8", 0)
+	second := createOwnedPlanningTrack(t, module, ctx, "Mittag", "#F78C10", 1)
+
+	err := tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+		return module.ReorderPlanningTracks(txCtx, []int64{first.ID})
+	})
+	require.ErrorIs(t, err, timetable.ErrPlanningTrackNotFound, "partial order must report not found")
+
+	err = tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+		require.NoError(t, module.ReorderPlanningTracks(txCtx, nil))
+		return module.ReorderPlanningTracks(txCtx, []int64{first.ID, first.ID + second.ID + 1000})
+	})
+	require.Error(t, err)
+	require.Error(t, module.ReorderPlanningTracks(context.Background(), []int64{first.ID, second.ID}))
+}

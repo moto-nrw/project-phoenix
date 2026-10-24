@@ -6,9 +6,8 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 type deviceSupervisorUnavailableError struct {
@@ -38,7 +37,7 @@ func (s *service) getDeviceSupervisorID(ctx context.Context, deviceID int64) (in
 	}
 
 	// Get supervisors for the active group
-	day := timezone.TodayDate().String()
+	day := calendar.TodayDate().String()
 	supervisors, err := s.SchoolPresence.QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{GroupIDs: []int64{activeGroup.ID}, ActiveOn: &day})
 	if err != nil {
 		return 0, fmt.Errorf("failed to get supervisors for group %d: %w", activeGroup.ID, &ActiveError{Op: "FindSupervisorsByActiveGroupID", Err: ErrDatabaseOperation})
@@ -49,7 +48,7 @@ func (s *service) getDeviceSupervisorID(ctx context.Context, deviceID int64) (in
 	}
 
 	// Use first active supervisor
-	today := timezone.TodayDate()
+	today := calendar.TodayDate()
 	for _, supervisor := range supervisors {
 		running, err := supervisionRunsOn(supervisor, today)
 		if err != nil {
@@ -65,8 +64,8 @@ func (s *service) getDeviceSupervisorID(ctx context.Context, deviceID int64) (in
 
 // supervisionRunsOn reports whether the supervision has started by day and
 // ends after it. An unreadable date is a database failure.
-func supervisionRunsOn(supervisor studentpresence.GroupSupervision, day timezone.Date) (bool, error) {
-	start, err := timezone.ParseDate(supervisor.StartDate)
+func supervisionRunsOn(supervisor studentpresence.GroupSupervision, day calendar.Date) (bool, error) {
+	start, err := calendar.ParseDate(supervisor.StartDate)
 	if err != nil {
 		return false, &ActiveError{Op: "FindSupervisorsByActiveGroupID", Err: ErrDatabaseOperation}
 	}
@@ -76,7 +75,7 @@ func supervisionRunsOn(supervisor studentpresence.GroupSupervision, day timezone
 	if supervisor.EndDate == nil {
 		return true, nil
 	}
-	end, err := timezone.ParseDate(*supervisor.EndDate)
+	end, err := calendar.ParseDate(*supervisor.EndDate)
 	if err != nil {
 		return false, &ActiveError{Op: "FindSupervisorsByActiveGroupID", Err: ErrDatabaseOperation}
 	}

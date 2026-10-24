@@ -3,7 +3,6 @@
 package timetablehttp
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"testing"
@@ -19,7 +18,7 @@ import (
 
 // newPeriodsTestServer wires the periods handlers against the real service +
 // repository on a fresh, unique tenant and returns a router that injects that
-// tenant into every request context (mirroring jwt.TenantMiddleware). A fresh
+// tenant into every request context (mirroring sessiontoken.TenantMiddleware). A fresh
 // tenant keeps the assertions exact — the shared tenant 1 accumulates
 // calendar periods from parallel test packages.
 func newPeriodsTestServer(t *testing.T) chi.Router {
@@ -28,15 +27,9 @@ func newPeriodsTestServer(t *testing.T) chi.Router {
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	t.Cleanup(func() {
-		_, _ = db.NewDelete().
-			Table("schedule.calendar_periods").
-			Where("tenant_id = ?", tenantID).
-			Exec(context.Background())
-	})
 
 	repos := mustTimetableTestRepositories(db)
-	res := NewResource(Dependencies{
+	res := newResourceForTest(Dependencies{
 		CalendarPeriods:     repos.SchoolCalendar(),
 		CalendarPeriodUsage: calendarPeriodUsageFor(repos.CalendarPeriodUsage()),
 	})
@@ -48,6 +41,7 @@ func newPeriodsTestServer(t *testing.T) chi.Router {
 			next.ServeHTTP(w, req.WithContext(tenant.WithTenantID(testpkg.WithPackageTenantRuntime(req.Context()), tenantID)))
 		})
 	})
+	r.Use(testpkg.TenantTxMiddleware(db))
 	r.Post("/periods", res.createPeriod)
 	r.Post("/periods/bootstrap", res.bootstrapPeriods)
 	return r

@@ -10,6 +10,7 @@ import (
 	"go/types"
 	"io"
 	"io/fs"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -22,7 +23,11 @@ import (
 
 // CompareCompositionSurface derives both inventories from source, never from a
 // candidate-editable manifest. Locations are evidence, not declaration identity.
-func CompareCompositionSurface(project, ref string) error {
+// The policies name the root-composition packages and classify the owners of
+// the structs those hold (rootStructInventory); the CLI passes the base and
+// the candidate policy.
+func CompareCompositionSurface(project, ref string, policies ...*Policy) error {
+	ownership := newCompositionOwnership(policies...)
 	root, err := gitOutput(project, "rev-parse", "--show-toplevel")
 	if err != nil {
 		return err
@@ -58,7 +63,7 @@ func CompareCompositionSurface(project, ref string) error {
 	if err != nil {
 		return err
 	}
-	candidate := newCompositionSnapshot()
+	candidate := newCompositionSnapshotSharingSyntax(base)
 	err = filepath.WalkDir(project, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
@@ -90,6 +95,18 @@ func CompareCompositionSurface(project, ref string) error {
 	accepted := base.inventory()
 	var added []string
 	current := candidate.inventory()
+	if len(ownership.roots) != 0 {
+		baseRoots, err := baseRootStructInventory(root, prefix, sha, ownership)
+		if err != nil {
+			return fmt.Errorf("root structs at base %s: %w", sha, err)
+		}
+		candidateRoots, err := rootStructInventory(project, ownership)
+		if err != nil {
+			return fmt.Errorf("root structs of the candidate: %w", err)
+		}
+		maps.Copy(accepted, baseRoots)
+		maps.Copy(current, candidateRoots)
+	}
 	for key, location := range current {
 		if _, exists := accepted[key]; !exists {
 			added = append(added, key+" at "+location)
@@ -173,9 +190,15 @@ type compositionType struct {
 //nolint:staticcheck // Only parser-resolved local bindings are used, never field/type resolution.
 type compositionObject = ast.Object
 
+type parsedCompositionSource struct {
+	source []byte
+	syntax *ast.File
+}
+
 type compositionSnapshot struct {
 	module   string
 	fset     *token.FileSet
+	parsed   map[string]parsedCompositionSource
 	files    []*compositionFile
 	types    map[string]compositionType
 	external map[string]*types.Package
@@ -219,7 +242,18 @@ func loadCompositionExternalTypes(project string, snapshot *compositionSnapshot)
 }
 
 func newCompositionSnapshot() *compositionSnapshot {
-	return &compositionSnapshot{fset: token.NewFileSet(), types: map[string]compositionType{}}
+	return &compositionSnapshot{
+		fset: token.NewFileSet(), parsed: map[string]parsedCompositionSource{},
+		types: map[string]compositionType{},
+	}
+}
+
+func newCompositionSnapshotSharingSyntax(base *compositionSnapshot) *compositionSnapshot {
+	// Syntax is read-only; each snapshot still resolves it through its own
+	// module, import and type registries. This table lives for one comparison.
+	return &compositionSnapshot{
+		fset: base.fset, parsed: base.parsed, types: map[string]compositionType{},
+	}
 }
 
 func (s *compositionSnapshot) add(path string, source []byte) error {
@@ -233,10 +267,16 @@ func (s *compositionSnapshot) add(path string, source []byte) error {
 		}
 		return fmt.Errorf("composition source has no module declaration")
 	}
-	syntax, err := parser.ParseFile(s.fset, path, source, 0)
-	if err != nil {
-		return fmt.Errorf("parse composition source: %w", err)
+	parsed, samePath := s.parsed[path]
+	if !samePath || !bytes.Equal(parsed.source, source) {
+		syntax, err := parser.ParseFile(s.fset, path, source, 0)
+		if err != nil {
+			return fmt.Errorf("parse composition source: %w", err)
+		}
+		parsed = parsedCompositionSource{source: source, syntax: syntax}
+		s.parsed[path] = parsed
 	}
+	syntax := parsed.syntax
 	file := &compositionFile{pkg: filepath.ToSlash(filepath.Dir(path)), scope: "production", syntax: syntax, imports: map[string]string{}}
 	if strings.HasSuffix(path, "_test.go") {
 		file.scope = "internal_test"
@@ -279,6 +319,9 @@ func (s *compositionSnapshot) inventory() map[string]string {
 		add := func(kind, symbol string, pos token.Pos) {
 			result[file.scope+"|"+kind+"|"+file.pkg+"|"+symbol] = s.fset.Position(pos).String()
 		}
+		addField := func(aggregate, field string, pos token.Pos) {
+			result[file.scope+"|field|"+file.pkg+"|"+aggregate+"."+field] = s.fset.Position(pos).String()
+		}
 		for _, declaration := range file.syntax.Decls {
 			switch declaration := declaration.(type) {
 			case *ast.GenDecl:
@@ -293,10 +336,10 @@ func (s *compositionSnapshot) inventory() map[string]string {
 					}
 					for _, field := range structure.Fields.List {
 						if len(field.Names) == 0 {
-							add("field", typ.Name.Name+"."+compositionTypeName(field.Type), typ.Pos())
+							addField(typ.Name.Name, compositionTypeName(field.Type), typ.Pos())
 						}
 						for _, name := range field.Names {
-							add("field", typ.Name.Name+"."+name.Name, typ.Pos())
+							addField(typ.Name.Name, name.Name, typ.Pos())
 						}
 					}
 				}

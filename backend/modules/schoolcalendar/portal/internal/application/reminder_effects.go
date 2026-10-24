@@ -3,14 +3,17 @@ package application
 import (
 	"context"
 	"log/slog"
+	"time"
 
 	appointmentcap "github.com/moto-nrw/project-phoenix/modules/appointments"
+	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports"
 )
 
 // ReminderEffects exposes notification adapters, not delivery orchestration.
 // Nil channel or preference functions preserve deployments without that channel.
 type ReminderEffects struct {
+	Now          func() time.Time
 	Appointments appointmentcap.Capability
 	Audiences    func(context.Context, []int64) (map[int64]GuardianNotificationAudience, error)
 	Email        func(context.Context, string, int64, map[string]any) (bool, error)
@@ -26,6 +29,7 @@ type ReminderEffects struct {
 
 func (s *service) ReminderEffects() ReminderEffects {
 	result := ReminderEffects{
+		Now:          s.cfg.Now,
 		Appointments: s.cfg.Appointments, Audiences: s.GuardianNotificationAudiences,
 		ParentsURL: s.cfg.ParentsURL, Logger: s.logger(),
 		Brand: func(ctx context.Context, tenantID int64) (string, string, string) {
@@ -39,8 +43,8 @@ func (s *service) ReminderEffects() ReminderEffects {
 	if s.cfg.Outbox != nil {
 		result.Email = func(ctx context.Context, key string, appointmentID int64, payload map[string]any) (bool, error) {
 			row, err := s.cfg.Outbox.Enqueue(ctx, ports.EnqueueRequest{
-				Kind: ports.EmailKindAppointmentReminder, Payload: payload, IdempotencyKey: key,
-				RelatedEntityType: ports.EmailRelatedTypeAppointment, RelatedEntityID: appointmentID,
+				Kind: portal.EmailKindAppointmentReminder, Payload: payload, IdempotencyKey: key,
+				RelatedEntityType: portal.EmailRelatedTypeAppointment, RelatedEntityID: appointmentID,
 			})
 			if err != nil {
 				return false, err

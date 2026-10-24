@@ -8,6 +8,5 @@ import (
 )
 
 type RequestReadRecords interface {
-	PendingWeekly(context.Context, int64) (*carerequests.Request, error)
-	RecentPickup(context.Context, int64, time.Time) ([]carerequests.Request, error)
+	ListCareRequests(context.Context, int64, []string, []string, time.Time) ([]carerequests.Request, error)
 }

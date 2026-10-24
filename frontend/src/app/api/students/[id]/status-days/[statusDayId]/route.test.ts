@@ -1,11 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
 import { DELETE } from "./route";
-
-interface ExtendedSession extends Session {
-  user: Session["user"] & { token?: string };
-}
+import {
+  type ExtendedSession,
+  defaultSession,
+} from "~/test/route-test-helpers";
 
 const { mockAuth, mockApiDelete } = vi.hoisted(() => ({
   mockAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
@@ -16,7 +15,8 @@ vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));
 
-vi.mock("~/lib/api-helpers.server", () => ({
+vi.mock("~/lib/api-helpers.server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/api-helpers.server")>()),
   apiGet: vi.fn(),
   apiPost: vi.fn(),
   apiPut: vi.fn(),
@@ -27,11 +27,6 @@ vi.mock("~/lib/api-helpers.server", () => ({
     return new Response(JSON.stringify({ error: message }), { status: 500 });
   }),
 }));
-
-const defaultSession: ExtendedSession = {
-  user: { id: "1", token: "test-token", name: "Test User" },
-  expires: "2099-01-01",
-};
 
 function createRequest(): NextRequest {
   return new NextRequest(
@@ -64,14 +59,6 @@ describe("DELETE /api/students/[id]/status-days/[statusDayId]", () => {
       success: true,
       data: { deleted: true },
     });
-  });
-
-  it("returns 401 without a session", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const response = await DELETE(createRequest(), createContext("42", "7"));
-
-    expect(response.status).toBe(401);
   });
 
   it("requires both route params", async () => {

@@ -164,6 +164,13 @@ type ArrivalBaselineException struct {
 	Label       string
 }
 type ClassArrivalExceptionsByDate map[calendar.Date]*ArrivalBaselineException
+
+// ClassKey is the key the arrival baselines match a school class by: trimmed
+// and lower-case, so "1a " and "1A" are one class.
+func ClassKey(schoolClass string) string {
+	return strings.ToLower(strings.TrimSpace(schoolClass))
+}
+
 type CareDayIndex map[int64]map[calendar.Date]map[int]bool
 
 func (c CareDayIndex) Covers(studentID int64, date calendar.Date, weekday int) bool {

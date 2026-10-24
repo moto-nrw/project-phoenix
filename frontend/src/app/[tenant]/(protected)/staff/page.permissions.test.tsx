@@ -35,7 +35,10 @@ const staffListRequest = vi.hoisted(() => ({
 }));
 
 vi.mock("next-auth/react", () => ({ useSession: vi.fn() }));
-vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
+vi.mock("next/navigation", () => ({
+  useSearchParams: () => new URLSearchParams(),
+  redirect: vi.fn(),
+}));
 vi.mock("~/lib/tenant-router", () => ({
   useTenantRouter: () => ({ push: routerPush }),
 }));
@@ -255,12 +258,12 @@ describe("/staff — Berechtigungs-Split", () => {
     expect(routerPush).toHaveBeenCalledWith("/staff/42?tab=konto");
   });
 
-  it("zeigt ohne Akten-Recht die Karten als Anzeige und nennt den Grund (#3926)", () => {
+  it("öffnet mit users:read den Personal-Datensatz über die Karte", () => {
     const staff = [
       {
         id: "42",
-        name: "Anzeige Test",
-        firstName: "Anzeige",
+        name: "Lesen Test",
+        firstName: "Lesen",
         lastName: "Test",
         hasRfid: false,
         isTeacher: false,
@@ -274,16 +277,9 @@ describe("/staff — Berechtigungs-Split", () => {
 
     render(<StaffPage />);
 
-    expect(
-      screen.getByText(/Personalakten sind für Ihr Konto nicht freigegeben/),
-    ).toBeInTheDocument();
-    // Keine gesperrte Schaltfläche, sondern eine Fläche ohne Klick.
-    expect(screen.getByText("Anzeige Test")).toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: /Anzeige Test/ }),
-    ).not.toBeInTheDocument();
-    fireEvent.click(screen.getByText("Anzeige Test"));
-    expect(routerPush).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: /Lesen Test/ })).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: /Lesen Test/ }));
+    expect(routerPush).toHaveBeenCalledWith("/staff/42?tab=konto");
   });
 
   it.each([
@@ -361,6 +357,8 @@ describe("/staff — Berechtigungs-Split", () => {
 
     render(<StaffPage />);
 
+    // Anker: die Statusansicht der vollen Rechte ist geladen.
+    expect(screen.getByTestId("schul-uebersicht")).toBeInTheDocument();
     expect(
       screen.queryByText(/Wählen Sie eine Person/),
     ).not.toBeInTheDocument();
@@ -372,6 +370,8 @@ describe("/staff — Berechtigungs-Split", () => {
 
     render(<StaffPage />);
 
+    // Anker: die Statusansicht ist geladen.
+    expect(screen.getByTestId("schul-uebersicht")).toBeInTheDocument();
     expect(screen.queryByText("Zeitkonten")).not.toBeInTheDocument();
     expect(getTimeAccounts).not.toHaveBeenCalled();
     expect(swrKeys.some((key) => key?.startsWith("staff-time-accounts"))).toBe(

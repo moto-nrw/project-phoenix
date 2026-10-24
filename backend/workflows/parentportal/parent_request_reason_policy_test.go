@@ -5,11 +5,14 @@ import (
 	"log/slog"
 	"testing"
 
+	parentportal "github.com/moto-nrw/project-phoenix/workflows/parentportal"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
 )
@@ -21,7 +24,8 @@ func TestChildFeaturesReasonRequiredFollowsPolicy(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 
@@ -29,27 +33,38 @@ func TestChildFeaturesReasonRequiredFollowsPolicy(t *testing.T) {
 		policy string
 		want   bool
 	}{
-		{configModels.ReasonPolicyNobody, false},
-		{configModels.ReasonPolicyStaff, false},
-		{configModels.ReasonPolicyGuardians, true},
-		{configModels.ReasonPolicyBoth, true},
+		{parentportal.ReasonPolicyNobody, false},
+		{parentportal.ReasonPolicyStaff, false},
+		{parentportal.ReasonPolicyGuardians, true},
+		{parentportal.ReasonPolicyBoth, true},
 	} {
 		svc := parentportalcompose.New(parentportalcompose.Dependencies{
-			CarePlan:       repos.CarePlan(),
-			People:         repositories.MustNewPeopleDirectory(db),
-			CareProfiles:   careProfiles(t, db),
-			ChildRepo:      repos.ParentChild,
-			StatusDayRepo:  repos.StudentStatusDay,
-			StudentRepo:    repos.Student,
-			CareExceptions: repos.CarePlan(),
+			GuardianChanges: owners.ParentGuardianChanges(),
+			DeparturePolicy: owners.ParentDeparturePolicy(),
+			GuardianPolicy:  owners.NewParentGuardianPolicy(),
+			Fingerprints:    owners.SecurityFingerprints{},
+			Declarations:    owners.ParentDeclarationPolicy(),
+			Locales:         owners.ParentPortalLocales(),
+			Runtime:         owners.ParentPortalRuntime{},
+			CarePlan:        owners.NewParentCarePlanCommands(repos.CarePlan(), nil),
+			People:          owners.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
+			CareProfiles:    careProfiles(t, db),
+			ChildRepo:       repos.ParentChildReads(),
+			StatusDayRepo:   repos.StudentStatusDay,
+			StudentRepo:     owners.NewParentStudentReads(reposPeople.Student),
+			CareExceptions:  owners.NewParentCareExceptions(repos.CarePlan()),
 			Settings: parentSettingsStub{
 				stringValues: map[string]string{
-					configModels.KeyGuardianParentInviteMode:  configModels.ParentInviteModeDisabled,
-					configModels.KeyParentRequestReasonPolicy: tc.policy,
+					parentportal.KeyGuardianParentInviteMode:  parentportal.ParentInviteModeDisabled,
+					parentportal.KeyParentRequestReasonPolicy: tc.policy,
 				},
 			},
 			MealPlan: availableMealPlan(false),
 			Logger:   slog.Default(),
+
+			DataRequests: owners.NewParentDataRequestCommands(repos.CarePlan()),
+
+			CarePlanPolicy: owners.NewParentCarePlanPolicy(),
 		})
 
 		flags, err := svc.ChildFeatures(ctx, chain.AccountID, chain.StudentID)

@@ -8,11 +8,14 @@ import (
 	"testing"
 	"time"
 
+	rootAPI "github.com/moto-nrw/project-phoenix/api"
+	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -25,7 +28,7 @@ func TestListPublicPhasesHandler_DoesNotLeakOtherTenantPhases(t *testing.T) {
 
 	now := time.Now().UnixNano()
 	ctx := context.Background()
-	org := &platformModels.Organization{
+	org := &testpkg.Organization{
 		ID:     now,
 		Name:   "Public Phase Tenant Scope Org",
 		Slug:   fmt.Sprintf("public-phase-tenant-scope-org-%d", now),
@@ -49,11 +52,6 @@ func TestListPublicPhasesHandler_DoesNotLeakOtherTenantPhases(t *testing.T) {
 			school.ID, org.ID, school.name, school.Slug, school.Slug).Exec(ctx)
 		require.NoError(t, err)
 	}
-	t.Cleanup(func() {
-		_, _ = db.NewRaw(`DELETE FROM enrollment.phases WHERE tenant_id IN (?, ?)`, targetSchool.ID, otherSchool.ID).Exec(context.Background())
-		_, _ = db.NewRaw(`DELETE FROM platform.schools WHERE id IN (?, ?)`, targetSchool.ID, otherSchool.ID).Exec(context.Background())
-		_, _ = db.NewRaw(`DELETE FROM platform.organizations WHERE id = ?`, org.ID).Exec(context.Background())
-	})
 
 	phaseRepo := NewTestModule()
 	targetPhase := &capability.Phase{ID: now + 300, Name: "Target Tenant Phase", Kind: capability.PhaseKindSchoolYear, ServiceStartDate: "2026-09-01", ServiceEndDate: "2027-07-31", IsActive: true, CareOverflowMode: capability.PhaseCareOverflowWaitlist}
@@ -67,13 +65,13 @@ func TestListPublicPhasesHandler_DoesNotLeakOtherTenantPhases(t *testing.T) {
 
 	resource := enrollmentAPI.NewResource(
 		nil, nil, nil, nil,
-		NewTestPhases(TestPhaseDependencies{Records: NewTestModule()}),
+		NewTestPhases(TestPhaseDependencies{Records: NewTestModule(), Offerings: phaseOfferings{}, LockTemplateRecurrence: func(context.Context) error { return nil }, Resyncer: &recordingSourcedTemplateResyncer{}}),
 		nil, nil, nil, nil, nil, enrollmentAPI.GuardianInvitationRuntime{}, nil, dbPublicSchools{db: db},
-	)
+		nativeUploads.UploadFiles{}, enrollmentAPI.DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation})
 	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/phases/public/%s", targetSchool.Slug), nil)
 	req = req.WithContext(testpkg.WithPackageTenantRuntime(req.Context()))
 	w := httptest.NewRecorder()
-	resource.Router().ServeHTTP(w, req)
+	resource.Router(rootAPI.TenantSessionChain).ServeHTTP(w, req)
 	require.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), `"name":"Target Tenant Phase"`)
 	assert.NotContains(t, w.Body.String(), `"name":"Other Tenant Phase"`)

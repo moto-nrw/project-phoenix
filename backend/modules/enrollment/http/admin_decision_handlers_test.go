@@ -13,6 +13,9 @@ import (
 	"testing"
 	"time"
 
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
 	"github.com/go-chi/chi/v5"
@@ -147,6 +150,7 @@ func (m *mockDecisionService) RecordPhaseExportAudit(_ context.Context, _ int64,
 
 func buildAdminDecisionRouter(svc DecisionService) chi.Router {
 	rs := &Resource{
+		Failures:        DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation},
 		DecisionService: svc,
 		// db nil → runInTenantTx short-circuits straight to the closure.
 	}
@@ -178,13 +182,13 @@ func executeAdminJSON(t *testing.T, router chi.Router, method, path string, body
 	return w
 }
 
-// executeAdminRouteWithPermissions drives the routes rs.Router() mounts with
+// executeAdminRouteWithPermissions drives the routes rs.Router(scopeTestTenantSession(testpkg.TenantSessionGates())) mounts with
 // a signed tenant session that holds exactly the given permissions, so a test
 // pins the gate the production route carries.
 func executeAdminRouteWithPermissions(t *testing.T, rs *Resource, method, path string, permissions []string) *httptest.ResponseRecorder {
 	t.Helper()
 	claims := routetest.TenantUserTestClaims(1, 4242)
-	return routetest.ExecuteWithAuthPermissions(t, rs.Router(), httptest.NewRequest(method, path, nil), claims, permissions)
+	return routetest.ExecuteWithAuthPermissions(t, rs.Router(scopeTestTenantSession(testpkg.TenantSessionGates())), httptest.NewRequest(method, path, nil), claims, permissions)
 }
 
 // makeReqSummary builds an enrollment request summary with the supplied IDs.
@@ -250,7 +254,8 @@ func TestListAdminRequestsHandler_ConfigReadDoesNotReturnStatusToken(t *testing.
 	mock := &mockDecisionService{
 		listResult: []*RequestSummary{summary},
 	}
-	w := executeAdminRouteWithPermissions(t, &Resource{DecisionService: mock}, http.MethodGet, "/admin/requests", []string{"config:read"})
+	w := executeAdminRouteWithPermissions(t, &Resource{
+		Failures: DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation}, DecisionService: mock}, http.MethodGet, "/admin/requests", []string{"config:read"})
 	require.Equal(t, http.StatusOK, w.Code)
 
 	body := w.Body.String()
@@ -270,7 +275,8 @@ func TestAdminRequestRoutes_DetailRequiresConfigManage(t *testing.T) {
 			makeReqSummary(1234, 5678, makeChildSummary(99, "Lina", "Kind", capability.ChildStatusSubmitted)),
 		},
 	}
-	rs := &Resource{DecisionService: mock}
+	rs := &Resource{
+		Failures: DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation}, DecisionService: mock}
 
 	listReadOnly := executeAdminRouteWithPermissions(t, rs, http.MethodGet, "/admin/requests", []string{"config:read"})
 	assert.Equal(t, http.StatusOK, listReadOnly.Code)
@@ -455,7 +461,7 @@ func TestGetAdminRequestHandler_StitchesChildOfferings(t *testing.T) {
 }
 
 // #2185: valid_until goes over the wire as the INCLUSIVE last covered day,
-// the shape modules/careplan/inbound/parent/care_offerings_handlers.go has always used. One JSON
+// the shape workflows/parentportal/http/care_offerings_handlers.go has always used. One JSON
 // name must not mean two different days depending on which endpoint answered.
 func TestGetAdminRequestHandler_ReportsInclusiveOfferingEndDate(t *testing.T) {
 	t.Parallel()
@@ -699,6 +705,7 @@ func TestDecideAdminChildHandler_DoesNotRetryAfterDecisionBodySucceeded(t *testi
 		},
 	}
 	rs := &Resource{
+		Failures:        DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation},
 		DecisionService: mock,
 		runInTenantTxForTest: func(r *http.Request, fn func(ctx context.Context) error) error {
 			if err := fn(r.Context()); err != nil {

@@ -107,7 +107,7 @@ export const schoolAuthConfig = {
           if (status === 429)
             throw await createOperatorLoginError("rate_limited");
           // Backend body codes:
-          //   "care.invalid_credentials"          → wrong password OR unknown email
+          //   "identity.invalid_credentials"      → wrong password OR unknown email
           //   "identity.session_account_inactive" → account disabled
           //   "school.no_school_portal_role"      → password accepted, but no
           //                              Lehrkraft role at any school

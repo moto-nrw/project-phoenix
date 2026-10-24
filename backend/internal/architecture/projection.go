@@ -84,8 +84,8 @@ func allowedOwnerEdges(policy *Policy) []ProjectionEdge {
 		if rule.TargetClass != "" || !ruleHasScope(rule, ScopeProduction) {
 			continue
 		}
-		for _, source := range matchingOwners(policy, rule.SourceOwner, rule.SourceOwnerKind) {
-			for _, target := range targetOwners(policy, rule, source) {
+		for _, source := range policy.packageSelectedOwners(matchingOwners(policy, rule.SourceOwner, rule.SourceOwnerKind), rule.SourcePackage) {
+			for _, target := range policy.packageSelectedOwners(targetOwners(policy, rule, source), rule.TargetPackage) {
 				projectionEdge(edges, source, target, ProjectionAllowed).rules[rule.ID] = struct{}{}
 			}
 		}

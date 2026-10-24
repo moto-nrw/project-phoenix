@@ -3,7 +3,9 @@ package securityruntime
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	securitycontract "github.com/moto-nrw/project-phoenix/modules/securityruntime/ports"
+
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/application/authorize"
 )
 
 // ErrAbsenceReadRequired refuses a caller who holds users:absence without
@@ -26,6 +28,6 @@ func AbsenceReadPrerequisiteUnmet(permissions []string) bool {
 // absence statuses and decide a guardian's sick or excused request: the
 // student write gate, plus the users:read prerequisite of an absence-only
 // caller (ErrAbsenceReadRequired).
-func CanManageStudentAbsence(ctx context.Context, permissions []string, student interface{ IsAuthorizationStudent() bool }, userCtx StudentAccessUserContext) (bool, error) {
+func CanManageStudentAbsence(ctx context.Context, permissions []string, student interface{ IsAuthorizationStudent() bool }, userCtx securitycontract.StudentAccessUserContext) (bool, error) {
 	return authorize.CanManageStudentAbsence(ctx, permissions, student, userCtx)
 }

@@ -5,10 +5,9 @@ import (
 	"testing"
 	"time"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	fixtures "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -30,10 +29,10 @@ func TestTimetableOperationsCheckInStudentsChecksInTheWholeSelection(t *testing.
 	deps := newTimetableOpsDeps()
 	wireAssignedStaff(deps, 615, 616, 617, instanceID)
 	deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
-	deps.students.byID[freshStudentID] = &usersModels.Student{PersonID: 618, SchoolClass: "2a"}
-	deps.personService.people[618] = &usersModels.Person{FirstName: "Lena", LastName: "Muster"}
-	deps.students.byID[movedStudentID] = &usersModels.Student{PersonID: 619, SchoolClass: "3b"}
-	deps.personService.people[619] = &usersModels.Person{FirstName: "Tom", LastName: "Muster"}
+	deps.students.byID[freshStudentID] = &timetable.OperationStudent{PersonID: 618, SchoolClass: "2a"}
+	deps.personService.people[618] = &timetable.Person{FirstName: "Lena", LastName: "Muster"}
+	deps.students.byID[movedStudentID] = &timetable.OperationStudent{PersonID: 619, SchoolClass: "3b"}
+	deps.personService.people[619] = &timetable.Person{FirstName: "Tom", LastName: "Muster"}
 	deps.visitRepo.currentByStudent[movedStudentID] = &studentpresence.Visit{StudentID: movedStudentID, ActiveGroupID: originActiveGroupID, EntryTime: opsNow}
 	deps.activeService.moveResult = &studentpresence.StudentMoveResult{
 		Moved:                  []int64{movedStudentID},
@@ -82,7 +81,7 @@ func TestTimetableOperationsCheckInStudentsFailsAsAWhole(t *testing.T) {
 		deps := newTimetableOpsDeps()
 		wireAssignedStaff(deps, 633, 634, 635, instanceID)
 		inst := activeInstance(instanceID, 631)
-		inst.Status = scheduleModels.InstanceStatusCompleted
+		inst.Status = fixtures.InstanceStatusCompleted()
 		deps.instanceRepo.byID[instanceID] = inst
 
 		roster, err := deps.service.CheckInStudents(context.Background(), 633, false, instanceID, []int64{studentID})

@@ -3,16 +3,22 @@ package api
 import (
 	"context"
 	"log/slog"
-	"strings"
+
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
+	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
+	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
+	staffShiftsHTTP "github.com/moto-nrw/project-phoenix/modules/workforce/http/staffshifts"
 
 	exportTransferModule "github.com/moto-nrw/project-phoenix/modules/exporttransfer"
-	projectJWT "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
+	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	timeTrackingHTTP "github.com/moto-nrw/project-phoenix/modules/workforce/inbound/timetracking"
-	"github.com/moto-nrw/project-phoenix/services"
-	"github.com/uptrace/bun"
+	timeTrackingHTTP "github.com/moto-nrw/project-phoenix/modules/workforce/http/timetracking"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // The time-tracking and staff administration resources live in the Workforce
@@ -22,27 +28,23 @@ import (
 
 // timeTrackingIdentity derives the caller from the request's session claims.
 func timeTrackingIdentity(ctx context.Context) timeTrackingHTTP.Identity {
-	claims := projectJWT.ClaimsFromCtx(ctx)
-	name := strings.TrimSpace(claims.FirstName + " " + claims.LastName)
-	if name == "" {
-		name = claims.Username
-	}
+	claims := sessiontoken.ClaimsFromCtx(ctx)
 	return timeTrackingHTTP.Identity{
 		AccountID:   int64(claims.ID),
 		Roles:       claims.Roles,
-		Permissions: projectJWT.PermissionsFromCtx(ctx),
-		DisplayName: name,
+		Permissions: sessiontoken.PermissionsFromCtx(ctx),
+		DisplayName: claims.DisplayName(),
 	}
 }
 
 // exportTransferPort adapts the Export Transfer module to the resource's port.
 type exportTransferPort struct {
-	module *exportTransferModule.Module
+	module exportTransferModule.Capability
 }
 
 // newExportTransferPort returns nil when no module is wired, which the
 // resource renders as "not configured".
-func newExportTransferPort(module *exportTransferModule.Module) timeTrackingHTTP.ExportTransfer {
+func newExportTransferPort(module exportTransferModule.Capability) timeTrackingHTTP.ExportTransfer {
 	if module == nil {
 		return nil
 	}
@@ -63,7 +65,7 @@ func (p exportTransferPort) Status(ctx context.Context) (timeTrackingHTTP.Export
 func (p exportTransferPort) Transfer(ctx context.Context, request timeTrackingHTTP.ExportTransferRequest) (timeTrackingHTTP.ExportTransferOutcome, error) {
 	outcome, err := p.module.Transfer(ctx, exportTransferModule.Request{
 		Kind: request.Kind, Format: request.Format, Filename: request.Filename, Data: request.Data,
-		ActorAccountID: request.ActorAccountID, ActorName: request.ActorName,
+		ActorAccountID: request.ActorAccountID, ActorName: request.ActorName, PrepareFile: request.PrepareFile,
 	})
 	if err != nil {
 		return timeTrackingHTTP.ExportTransferOutcome{}, err
@@ -75,20 +77,32 @@ func (p exportTransferPort) Transfer(ctx context.Context, request timeTrackingHT
 }
 
 // newTimeTrackingResource composes the MA-facing /api/time-tracking surface.
-func newTimeTrackingResource(svc *services.Factory, calendar schoolcalendar.Calendar, db *bun.DB) *timeTrackingHTTP.Resource {
-	capabilities := services.NewWorkforceAdminCapabilities(svc.Users, svc.StaffDocuments, svc.WorkSession, svc.StaffAbsence, svc.WorkTimeMonth,
-		svc.StaffBalanceAdjust, svc.StaffMonthClose, svc.StaffOverview, svc.TimeTrackingAuditLog, svc.StaffTimeExport)
+func newTimeTrackingResource(
+	users peoplePorts.PersonDirectory, documents *workforceModule.StaffAdmin, timeTracking *workforceCompose.TimeTracking,
+	absenceWrites timeTrackingHTTP.OwnAbsenceWrites,
+	shifts workforceModule.StaffShiftPlanning, assignments workforceModule.StaffAssignmentQuery,
+	calendar schoolcalendar.Calendar, settings settingsCompose.SettingsService,
+) *timeTrackingHTTP.Resource {
+	capabilities := owners.NewWorkforceAdminCapabilities(users, documents, timeTracking)
 	return timeTrackingHTTP.NewResource(timeTrackingHTTP.Dependencies{
 		WorkSessions:     capabilities.WorkSessions,
 		StaffAbsences:    capabilities.StaffAbsences,
+		AbsenceWrites:    absenceWrites,
 		Staff:            capabilities.Staff,
 		WorkTimeMonth:    capabilities.WorkTimeMonth,
-		StaffShifts:      svc.StaffShifts,
-		Assignments:      svc.StaffAssignments,
-		Calendar:         services.PlanningCalendarCapability(calendar),
-		AccountStartDate: services.TimeTrackingAccountStartDate(svc.Settings),
+		StaffShifts:      shifts,
+		ShiftResponses:   timeTrackingShiftResponses,
+		Assignments:      assignments,
+		Calendar:         PlanningCalendarCapability(calendar),
+		AccountStartDate: timeTrackingAccountStartDate(settings),
 		Identity:         timeTrackingIdentity,
-		DB:               db,
+		WithinTenant: func(ctx context.Context, tenantID int64, run func(context.Context) error) error {
+			id, err := tenant.NewTenantID(tenantID)
+			if err != nil {
+				return err
+			}
+			return tenant.WithinTenant(ctx, id, run)
+		},
 	})
 }
 
@@ -96,17 +110,24 @@ func newTimeTrackingResource(svc *services.Factory, calendar schoolcalendar.Cale
 // adapted capabilities; schedules is the Workforce query the schedule views
 // read from and the Sonderarbeitszeiten are written through; notifyChanged
 // invalidates the time-account views after such a write.
-func newStaffAdminResource(capabilities services.WorkforceAdminCapabilities, schedules workforceModule.Capability, notifyChanged func(context.Context), exportTransfer *exportTransferModule.Module, db *bun.DB, logger *slog.Logger) *timeTrackingHTTP.StaffAdminResource {
-	cleanup, err := workforceCompose.NewDocumentCleanup(db, nil)
+func newStaffAdminResource(capabilities owners.WorkforceAdminCapabilities, absenceWrites timeTrackingHTTP.AdminAbsenceWrites, schedules workforceModule.Capability, notifyChanged func(context.Context), exportTransfer exportTransferModule.Capability, db transactionruntime.Database, logger *slog.Logger) *timeTrackingHTTP.StaffAdminResource {
+	cleanup, err := workforceCompose.NewDocumentCleanup(db.Pool(), nil)
+	if err != nil {
+		panic(err)
+	}
+	documentFiles, err := workforceCompose.NewStaffDocumentFileRecovery(capabilities.Documents, cleanup, nativeUploads.UploadFiles{}, logger)
 	if err != nil {
 		panic(err)
 	}
 	return timeTrackingHTTP.NewStaffAdminResource(timeTrackingHTTP.StaffAdminDependencies{
+		Uploads:            nativeUploads.UploadFiles{},
 		OffboardingCleanup: cleanup,
+		DocumentFiles:      documentFiles,
 		Staff:              capabilities.Staff,
 		Documents:          capabilities.Documents,
 		WorkSessions:       capabilities.WorkSessions,
 		StaffAbsences:      capabilities.StaffAbsences,
+		AbsenceWrites:      absenceWrites,
 		WorkTimeMonth:      capabilities.WorkTimeMonth,
 		BalanceAdjustments: capabilities.BalanceAdjustments,
 		MonthClosing:       capabilities.MonthClosing,
@@ -120,4 +141,8 @@ func newStaffAdminResource(capabilities services.WorkforceAdminCapabilities, sch
 		Identity:           timeTrackingIdentity,
 		Logger:             logger,
 	})
+}
+
+func timeTrackingShiftResponses(shifts []workforceModule.PlannedShift) any {
+	return staffShiftsHTTP.ToShiftResponses(shifts)
 }

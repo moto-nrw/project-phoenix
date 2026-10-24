@@ -2,24 +2,33 @@ package api
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"net/http"
-	"path/filepath"
+
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
+	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
+	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
+	"github.com/moto-nrw/project-phoenix/realtime"
 
 	"github.com/go-chi/chi/v5"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	exportTransferModule "github.com/moto-nrw/project-phoenix/modules/exporttransfer"
 	exportTransferCompose "github.com/moto-nrw/project-phoenix/modules/exporttransfer/compose"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	filesHTTP "github.com/moto-nrw/project-phoenix/modules/filestorage/http/files"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	schoolMembershipModule "github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	staffHTTP "github.com/moto-nrw/project-phoenix/modules/schoolmembership/http"
+	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
+	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
-	timeTrackingHTTP "github.com/moto-nrw/project-phoenix/modules/workforce/inbound/timetracking"
+	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
+	timeTrackingHTTP "github.com/moto-nrw/project-phoenix/modules/workforce/http/timetracking"
 	"github.com/moto-nrw/project-phoenix/observability"
-	"github.com/moto-nrw/project-phoenix/services"
-	"github.com/uptrace/bun"
 )
 
 // The staff surface under /api/staff is composed from two adapters (#2667):
@@ -28,17 +37,17 @@ import (
 // about working time, Stammdaten and documents. Both register on one
 // protected router so the URL surface stays exactly what the frontend calls.
 
-func staffFailureKind(kind services.StaffFailureKind) staffHTTP.FailureKind {
+func staffFailureKind(kind StaffFailureKind) staffHTTP.FailureKind {
 	switch kind {
-	case services.StaffFailureInvalidRequest:
+	case StaffFailureInvalidRequest:
 		return staffHTTP.FailureInvalidRequest
-	case services.StaffFailureUnauthorized:
+	case StaffFailureUnauthorized:
 		return staffHTTP.FailureUnauthorized
-	case services.StaffFailureForbidden:
+	case StaffFailureForbidden:
 		return staffHTTP.FailureForbidden
-	case services.StaffFailureNotFound:
+	case StaffFailureNotFound:
 		return staffHTTP.FailureNotFound
-	case services.StaffFailureConflict:
+	case StaffFailureConflict:
 		return staffHTTP.FailureConflict
 	default:
 		return staffHTTP.FailureInternal
@@ -82,14 +91,14 @@ func renderStaffFailure(w http.ResponseWriter, r *http.Request, kind staffHTTP.F
 	}
 }
 
-func toStaffHTTPPerson(person services.StaffDirectoryPerson) staffHTTP.Person {
+func toStaffHTTPPerson(person StaffDirectoryPerson) staffHTTP.Person {
 	return staffHTTP.Person{
 		ID: person.ID, FirstName: person.FirstName, LastName: person.LastName, TagID: person.TagID,
 		AccountID: person.AccountID, CreatedAt: person.CreatedAt, UpdatedAt: person.UpdatedAt,
 	}
 }
 
-func toStaffHTTPRoleRows(rows []services.StaffRoleRow) []staffHTTP.StaffWithRoleResponse {
+func toStaffHTTPRoleRows(rows []StaffRoleRow) []staffHTTP.StaffWithRoleResponse {
 	if rows == nil {
 		// A nil result stays nil: the by-role endpoint historically answered
 		// "data":null for an empty role match.
@@ -110,29 +119,37 @@ func toStaffHTTPRoleRows(rows []services.StaffRoleRow) []staffHTTP.StaffWithRole
 // newStaffComposition builds both halves of the /api/staff surface: the
 // workforce admin resource of the Workforce module and the School Membership
 // adapter bound over it.
-func newStaffComposition(module schoolMembershipModule.Capability, workforce workforceModule.Capability, svc *services.Factory, db *bun.DB, logger *slog.Logger) (*staffHTTP.Resource, *timeTrackingHTTP.StaffAdminResource, error) {
-	exportTransfer, err := newExportTransferModule(svc, db, logger)
+func newStaffComposition(
+	module schoolMembershipModule.Capability, workforce workforceModule.Capability, users peoplePorts.PersonDirectory,
+	documents *workforceModule.StaffAdmin, timeTracking *workforceCompose.TimeTracking, absenceWrites timeTrackingHTTP.AdminAbsenceWrites, education schoolstructure.GroupManagement,
+	people peopleModule.Capability, settings settingsCompose.SettingsService, hub *realtime.Hub,
+	identity identityaccess.Owner, appEnv string, db transactionruntime.Database, logger *slog.Logger,
+) (*staffHTTP.Resource, *timeTrackingHTTP.StaffAdminResource, error) {
+	exportTransfer, err := newExportTransferModule(settings, db, logger)
 	if err != nil {
 		return nil, nil, err
 	}
-	capabilities := services.NewWorkforceAdminCapabilities(svc.Users, svc.StaffDocuments, svc.WorkSession, svc.StaffAbsence, svc.WorkTimeMonth,
-		svc.StaffBalanceAdjust, svc.StaffMonthClose, svc.StaffOverview, svc.TimeTrackingAuditLog, svc.StaffTimeExport)
-	staffAdmin := newStaffAdminResource(capabilities, workforce, services.StaffTimeTrackingNotifier(svc.RealtimeHub), exportTransfer, db, logger)
-	return newStaffResource(module, svc.PeopleDirectory, func(hooks services.StaffMembershipHooks) services.StaffMembershipRuntime {
-		return svc.NewStaffMembershipRuntime(db, logger, hooks)
-	}, staffAdmin, logger), staffAdmin, nil
+	capabilities := owners.NewWorkforceAdminCapabilities(users, documents, timeTracking)
+	staffAdmin := newStaffAdminResource(capabilities, absenceWrites, workforce, staffTimeTrackingNotifier(hub), exportTransfer, db, logger)
+	resource, err := newStaffResource(module, people, identity, appEnv, func(hooks StaffMembershipHooks) StaffMembershipRuntime {
+		return NewStaffMembershipRuntime(users, education, timeTracking.StaffDay, hub, db, identity, logger, hooks)
+	}, staffAdmin, logger)
+	if err != nil {
+		return nil, nil, err
+	}
+	return resource, staffAdmin, nil
 }
 
 // newExportTransferModule wires the Export Transfer capability (#3050) over
 // the tenant settings. It is composed HERE rather than alongside the other
 // modules because it needs the settings service, which only exists once the
-// service factory is built.
-func newExportTransferModule(svc *services.Factory, db *bun.DB, logger *slog.Logger) (*exportTransferModule.Module, error) {
+// service graph is built.
+func newExportTransferModule(settings settingsCompose.SettingsService, db transactionruntime.Database, logger *slog.Logger) (exportTransferModule.Capability, error) {
 	// The setting keys stay in the settings layer next to their registry
 	// definitions; the root only passes the binding on.
-	resolvers, keys := svc.SFTPExportSettings()
+	resolvers, keys := settingsCompose.NewSFTPExportSettings(settings)
 	return exportTransferCompose.New(exportTransferCompose.Dependencies{
-		DB: db,
+		DB: db.Pool(),
 		Settings: exportTransferCompose.Settings{
 			Enabled:            resolvers.Enabled,
 			Host:               resolvers.Host,
@@ -155,31 +172,30 @@ func newExportTransferModule(svc *services.Factory, db *bun.DB, logger *slog.Log
 }
 
 // newStaffResource binds the School Membership HTTP adapter to the shared
-// renderer, the JWT identity and the legacy-service composition.
-func newStaffResource(module schoolMembershipModule.Capability, people peopleModule.Capability, buildRuntime func(services.StaffMembershipHooks) services.StaffMembershipRuntime, staffAdmin *timeTrackingHTTP.StaffAdminResource, logger *slog.Logger) *staffHTTP.Resource {
-	runtime := buildRuntime(services.StaffMembershipHooks{
-		ResolveEditorStaffID:           staffAdmin.ResolveEditorStaffID,
-		QueueOffboardedDocumentCleanup: staffAdmin.QueueOffboardedStaffDocumentCleanup,
-	})
+// renderer, the JWT identity, the legacy-service composition and the
+// external-caregiver workflow (#4573), built here as a local value. appEnv
+// gates the seed-only invitation token.
+func newStaffResource(
+	module schoolMembershipModule.Capability, people peopleModule.Capability, identity identityaccess.Owner, appEnv string,
+	buildRuntime func(StaffMembershipHooks) StaffMembershipRuntime, staffAdmin *timeTrackingHTTP.StaffAdminResource, logger *slog.Logger,
+) (*staffHTTP.Resource, error) {
+	externals, err := newExternalCaregiverBindings(module, people, identity, appEnv)
+	if err != nil {
+		return nil, err
+	}
+	runtime := buildStaffMembershipRuntime(buildRuntime, staffAdmin)
 	return staffHTTP.NewResource(module, staffHTTP.Runtime{
-		// Protected composes the shared /api/staff router: the membership
-		// routes register first, then the workforce admin routes from
-		// the Workforce module, both inside one protected tenant group.
-		Protected: func(router chi.Router, register func(chi.Router, staffHTTP.Middleware)) {
-			apiCommon.ProtectedTenantRoutes(router, func(protected chi.Router, withTx apiCommon.Middleware) {
-				register(protected, withTx)
-				staffAdmin.RegisterStaffRoutes(protected, withTx)
-			})
-		},
+		Protected:          staffProtectedRoutes(staffAdmin),
 		Permission:         staffPermissionGate,
 		Success:            apiCommon.Respond,
 		Failure:            renderStaffFailure,
 		ObserveResponse:    observability.ObserveSchoolMembershipHTTPResponse,
-		ServeAvatar:        serveStaffAvatar,
+		ParseIDParam:       apiCommon.ParseIDParam,
+		ServeAvatar:        filesHTTP.NewStaffAvatarHandler(nativeUploads.ResolveStoredPath, nativeUploads.UploadFiles{}),
 		WriteFailure:       renderStaffWriteFailure,
-		SchoolClassFailure: delegatedStaffFailure(services.ClassifyStaffSchoolClassFailure),
+		SchoolClassFailure: delegatedStaffFailure(ClassifyStaffSchoolClassFailure),
 
-		Permissions:      jwt.PermissionsFromCtx,
+		Permissions:      sessiontoken.PermissionsFromCtx,
 		HasPermission:    apiCommon.HasPermission,
 		CurrentAccountID: currentStaffAccountID,
 		CurrentUsername:  currentStaffUsername,
@@ -187,18 +203,23 @@ func newStaffResource(module schoolMembershipModule.Capability, people peopleMod
 		Person:         staffPersonLookup(runtime),
 		PersonNotFound: apiCommon.IsNotFound,
 		Persons:        staffPersonsLookup(runtime),
-		CreatePerson:   staffPersonCreate(people),
 
-		PresentStaffIDs: runtime.PresentStaffIDs,
-		WorkStatusMap:   runtime.WorkStatusMap,
-		AbsenceMap:      runtime.AbsenceMap,
-		AbsenceLabelMap: runtime.AbsenceLabelMap,
-		AccountRoles:    runtime.AccountRoles,
-		AccountEmails:   runtime.AccountEmails,
-		AccountAvatars:  runtime.AccountAvatars,
-		AccountHasRole:  runtime.AccountHasRole,
+		CreateExternalCaregiver:   externals.create,
+		InviteExternalCaregiver:   externals.invite,
+		ExternalFailure:           renderExternalCaregiverFailure,
+		ExposeSeedInvitationToken: externals.exposeSeedToken,
+		PendingInvitationPersons:  externals.pendingPersons,
 
-		GrantDefaultPermissions:     runtime.GrantDefaultPermissions,
+		PresentStaffIDs:     runtime.PresentStaffIDs,
+		WorkStatusMap:       runtime.WorkStatusMap,
+		AbsenceMap:          runtime.AbsenceMap,
+		AbsenceLabelMap:     runtime.AbsenceLabelMap,
+		AccountRoles:        runtime.AccountRoles,
+		AccountEmails:       runtime.AccountEmails,
+		AccountAvatars:      runtime.AccountAvatars,
+		AccountHasRole:      runtime.AccountHasRole,
+		AccountsHoldingRole: runtime.AccountsHoldingRole,
+
 		RetryQueuedDocumentCleanups: staffAdmin.RetryQueuedStaffDocumentCleanups,
 
 		TeacherGroups:    staffTeacherGroups(runtime),
@@ -212,7 +233,28 @@ func newStaffResource(module schoolMembershipModule.Capability, people peopleMod
 		Offboard:    runtime.Offboard,
 
 		Log: logger,
+	}), nil
+}
+
+// buildStaffMembershipRuntime builds the legacy-service runtime with the
+// Workforce hooks it calls back into.
+func buildStaffMembershipRuntime(buildRuntime func(StaffMembershipHooks) StaffMembershipRuntime, staffAdmin *timeTrackingHTTP.StaffAdminResource) StaffMembershipRuntime {
+	return buildRuntime(StaffMembershipHooks{
+		ResolveEditorStaffID:           staffAdmin.ResolveEditorStaffID,
+		QueueOffboardedDocumentCleanup: staffAdmin.QueueOffboardedStaffDocumentCleanup,
 	})
+}
+
+// staffProtectedRoutes composes the shared /api/staff router: the membership
+// routes register first, then the workforce admin routes from the Workforce
+// module, both inside one protected tenant group.
+func staffProtectedRoutes(staffAdmin *timeTrackingHTTP.StaffAdminResource) func(chi.Router, func(chi.Router, staffHTTP.Middleware)) {
+	return func(router chi.Router, register func(chi.Router, staffHTTP.Middleware)) {
+		ProtectedTenantRoutes(router, func(protected chi.Router, withTx apiCommon.Middleware) {
+			register(protected, withTx)
+			staffAdmin.RegisterStaffRoutes(protected, withTx)
+		})
+	}
 }
 
 func staffPermissionGate(required ...string) staffHTTP.Middleware {
@@ -222,28 +264,19 @@ func staffPermissionGate(required ...string) staffHTTP.Middleware {
 	return apiCommon.RequiresAnyPermission(required...)
 }
 
-func serveStaffAvatar(w http.ResponseWriter, r *http.Request, avatarPath string) {
-	filePath, err := apiCommon.ResolveStoredPath("public", avatarPath, "/uploads/avatars/")
-	if err != nil {
-		http.NotFound(w, r)
-		return
-	}
-	apiCommon.ServeImage(w, r, filepath.Dir(filePath), filepath.Base(filePath), "private, max-age=86400")
-}
-
 // renderStaffWriteFailure classifies the create/update/offboard errors: a
 // foreign-key violation on offboarding keeps its German conflict message,
 // everything else follows the service classification.
 func renderStaffWriteFailure(w http.ResponseWriter, r *http.Request, err error) {
-	if apiCommon.IsConstraintViolation(err) {
-		renderStaffFailure(w, r, staffHTTP.FailureConflict, errStaffStillReferenced)
+	if transactionFailures.IsConstraintViolation(err) {
+		renderStaffFailure(w, r, staffHTTP.FailureConflict, schoolMembershipModule.ErrStaffStillReferenced)
 		return
 	}
-	kind, rendered := services.ClassifyStaffWriteFailure(err)
+	kind, rendered := ClassifyStaffWriteFailure(err)
 	renderStaffFailure(w, r, staffFailureKind(kind), rendered)
 }
 
-func delegatedStaffFailure(classify func(error) (services.StaffFailureKind, error)) func(http.ResponseWriter, *http.Request, error) {
+func delegatedStaffFailure(classify func(error) (StaffFailureKind, error)) func(http.ResponseWriter, *http.Request, error) {
 	return func(w http.ResponseWriter, r *http.Request, err error) {
 		kind, rendered := classify(err)
 		renderStaffFailure(w, r, staffFailureKind(kind), rendered)
@@ -251,14 +284,14 @@ func delegatedStaffFailure(classify func(error) (services.StaffFailureKind, erro
 }
 
 func currentStaffAccountID(ctx context.Context) int64 {
-	return int64(jwt.ClaimsFromCtx(ctx).ID)
+	return int64(sessiontoken.ClaimsFromCtx(ctx).ID)
 }
 
 func currentStaffUsername(ctx context.Context) string {
-	return jwt.ClaimsFromCtx(ctx).Username
+	return sessiontoken.ClaimsFromCtx(ctx).Username
 }
 
-func staffPersonLookup(runtime services.StaffMembershipRuntime) func(context.Context, int64) (staffHTTP.Person, error) {
+func staffPersonLookup(runtime StaffMembershipRuntime) func(context.Context, int64) (staffHTTP.Person, error) {
 	return func(ctx context.Context, id int64) (staffHTTP.Person, error) {
 		person, err := runtime.Person(ctx, id)
 		if err != nil {
@@ -268,22 +301,7 @@ func staffPersonLookup(runtime services.StaffMembershipRuntime) func(context.Con
 	}
 }
 
-// staffPersonCreate adds an account-less People Directory entry for the
-// external caregiver flow (#3823).
-func staffPersonCreate(people peopleModule.Capability) func(context.Context, string, string) (staffHTTP.Person, error) {
-	return func(ctx context.Context, firstName, lastName string) (staffHTTP.Person, error) {
-		person, err := people.CreatePerson(ctx, peopleModule.CreatePerson{FirstName: firstName, LastName: lastName})
-		if err != nil {
-			return staffHTTP.Person{}, err
-		}
-		return staffHTTP.Person{
-			ID: person.ID, FirstName: person.FirstName, LastName: person.LastName,
-			AccountID: person.AccountID, CreatedAt: person.CreatedAt, UpdatedAt: person.UpdatedAt,
-		}, nil
-	}
-}
-
-func staffPersonsLookup(runtime services.StaffMembershipRuntime) func(context.Context, []int64) ([]staffHTTP.Person, error) {
+func staffPersonsLookup(runtime StaffMembershipRuntime) func(context.Context, []int64) ([]staffHTTP.Person, error) {
 	return func(ctx context.Context, ids []int64) ([]staffHTTP.Person, error) {
 		persons, err := runtime.Persons(ctx, ids)
 		if err != nil {
@@ -297,7 +315,7 @@ func staffPersonsLookup(runtime services.StaffMembershipRuntime) func(context.Co
 	}
 }
 
-func staffTeacherGroups(runtime services.StaffMembershipRuntime) func(context.Context, int64) ([]staffHTTP.Group, error) {
+func staffTeacherGroups(runtime StaffMembershipRuntime) func(context.Context, int64) ([]staffHTTP.Group, error) {
 	return func(ctx context.Context, teacherID int64) ([]staffHTTP.Group, error) {
 		groups, err := runtime.TeacherGroups(ctx, teacherID)
 		if err != nil {
@@ -311,7 +329,7 @@ func staffTeacherGroups(runtime services.StaffMembershipRuntime) func(context.Co
 	}
 }
 
-func staffRoleRows(list func(context.Context) ([]services.StaffRoleRow, error)) func(context.Context) ([]staffHTTP.StaffWithRoleResponse, error) {
+func staffRoleRows(list func(context.Context) ([]StaffRoleRow, error)) func(context.Context) ([]staffHTTP.StaffWithRoleResponse, error) {
 	return func(ctx context.Context) ([]staffHTTP.StaffWithRoleResponse, error) {
 		rows, err := list(ctx)
 		if err != nil {
@@ -321,7 +339,7 @@ func staffRoleRows(list func(context.Context) ([]services.StaffRoleRow, error)) 
 	}
 }
 
-func staffRoleRowsByRole(list func(context.Context, []string) ([]services.StaffRoleRow, error)) func(context.Context, []string) ([]staffHTTP.StaffWithRoleResponse, error) {
+func staffRoleRowsByRole(list func(context.Context, []string) ([]StaffRoleRow, error)) func(context.Context, []string) ([]staffHTTP.StaffWithRoleResponse, error) {
 	return func(ctx context.Context, roles []string) ([]staffHTTP.StaffWithRoleResponse, error) {
 		rows, err := list(ctx, roles)
 		if err != nil {
@@ -331,9 +349,9 @@ func staffRoleRowsByRole(list func(context.Context, []string) ([]services.StaffR
 	}
 }
 
-func staffCreate(runtime services.StaffMembershipRuntime) func(context.Context, staffHTTP.CreateStaffInput) (staffHTTP.CreateStaffResult, error) {
+func staffCreate(runtime StaffMembershipRuntime) func(context.Context, staffHTTP.CreateStaffInput) (staffHTTP.CreateStaffResult, error) {
 	return func(ctx context.Context, input staffHTTP.CreateStaffInput) (staffHTTP.CreateStaffResult, error) {
-		result, err := runtime.CreateStaff(ctx, services.StaffCreateInput{
+		result, err := runtime.CreateStaff(ctx, StaffCreateInput{
 			PersonID: input.PersonID, StaffNotes: input.StaffNotes, IsTeacher: input.IsTeacher,
 			Specialization: input.Specialization, Role: input.Role, Qualifications: input.Qualifications,
 			ActorPermissions: input.ActorPermissions,
@@ -345,9 +363,9 @@ func staffCreate(runtime services.StaffMembershipRuntime) func(context.Context, 
 	}
 }
 
-func staffUpdate(runtime services.StaffMembershipRuntime) func(context.Context, staffHTTP.UpdateStaffInput) (staffHTTP.UpdateStaffResult, error) {
+func staffUpdate(runtime StaffMembershipRuntime) func(context.Context, staffHTTP.UpdateStaffInput) (staffHTTP.UpdateStaffResult, error) {
 	return func(ctx context.Context, input staffHTTP.UpdateStaffInput) (staffHTTP.UpdateStaffResult, error) {
-		result, err := runtime.UpdateStaff(ctx, services.StaffUpdateInput{
+		result, err := runtime.UpdateStaff(ctx, StaffUpdateInput{
 			StaffID: input.StaffID, PersonID: input.PersonID, StaffNotes: input.StaffNotes, IsTeacher: input.IsTeacher,
 			Specialization: input.Specialization, Role: input.Role, Qualifications: input.Qualifications,
 		})
@@ -357,10 +375,3 @@ func staffUpdate(runtime services.StaffMembershipRuntime) func(context.Context, 
 		return staffHTTP.UpdateStaffResult{Staff: result.Staff, Teacher: result.Teacher, Action: staffHTTP.TeacherAction(result.Action)}, nil
 	}
 }
-
-// errStaffStillReferenced is the German conflict message the offboarding
-// route produced for a foreign-key violation; it is user-facing copy, so it
-// keeps its capital letter.
-//
-//nolint:staticcheck // ST1005: user-facing German message, not a Go error string
-var errStaffStillReferenced = errors.New("Personal kann nicht gelöscht werden: Mitarbeiter/in wird noch in anderen Bereichen referenziert")

@@ -1,11 +1,11 @@
 package behavior_test
 
 import (
-	"context"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,25 +18,16 @@ import (
 func TestBulkInviteToStudents_InvitesEachGuardianOnce(t *testing.T) {
 	t.Parallel()
 
-	outbox := testpkg.NewCapturingOutbox()
-	env := setupGuardianInvitationTest(t, func(_ *bun.DB, cfg *services.GuardianInvitationTestConfig) { cfg.Outbox = outbox })
-	defer env.cleanup()
+	outbox := api.NewCapturingOutbox()
+	env := setupGuardianInvitationTest(t, func(_ *bun.DB, cfg *api.GuardianInvitationTestConfig) { cfg.Outbox = outbox })
 
 	older := testpkg.CreateTestStudent(t, env.db, "Bulk", "Older", "3a")
 	younger := testpkg.CreateTestStudent(t, env.db, "Bulk", "Younger", "1a")
-	defer env.deleteStudentGuardianLinks(older.ID)
-	defer env.deleteStudentGuardianLinks(younger.ID)
 	parent := testpkg.CreateTestGuardianProfileNamed(t, env.db, "Katharina", "Brenner", "bulk-parent")
 	grandma := testpkg.CreateTestGuardianProfileNamed(t, env.db, "Oma", "Brenner", "bulk-grandma")
 	testpkg.CreateTestStudentGuardianLink(t, env.db, older.ID, parent.ID, guardianRoleLegalGuardian)
 	testpkg.CreateTestStudentGuardianLink(t, env.db, younger.ID, parent.ID, guardianRoleLegalGuardian)
 	grandmaLink := testpkg.CreateTestStudentGuardianLink(t, env.db, older.ID, grandma.ID, guardianRolePickupOnly)
-	defer func() {
-		_, _ = env.db.NewDelete().TableExpr("auth.guardian_invitations").
-			Where("guardian_profile_id IN (?)", bun.List([]int64{parent.ID, grandma.ID})).Exec(context.Background())
-		_, _ = env.db.NewDelete().TableExpr("users.guardian_profiles").
-			Where("id IN (?)", bun.List([]int64{parent.ID, grandma.ID})).Exec(context.Background())
-	}()
 
 	ctx := testpkg.Ctx(t)
 	req := identityaccess.BulkInviteRequest{StudentIDs: []int64{older.ID, younger.ID}, CreatedBy: env.inviterAccountID(t)}

@@ -37,6 +37,7 @@ import { useOptionalSupervision } from "~/lib/supervision-context";
 import {
   useAttendanceWebEnabled,
   useNFCEnabled,
+  useChildSearchOnlyNavigation,
   useOpenCareGroupMode,
   usePresenceMode,
   useTenantSlugSafe,
@@ -45,7 +46,7 @@ import {
   firstOpenStaffStep,
   STAFF_NEXT_TOPICS,
   STAFF_ONBOARDING_STEP_CONTENT,
-  STAFF_ONBOARDING_TOURS,
+  staffOnboardingTours,
   staffOnboardingSteps,
 } from "./staff-onboarding-steps";
 import { useStaffOnboarding } from "./use-staff-onboarding";
@@ -113,6 +114,7 @@ function StaffOnboardingForPerson() {
   const nfcEnabled = useNFCEnabled();
   const presenceMode = usePresenceMode();
   const openCareGroupMode = useOpenCareGroupMode();
+  const childSearchOnlyNavigation = useChildSearchOnlyNavigation();
   const webAttendance = useAttendanceWebEnabled();
   const tenantSlug = useTenantSlugSafe();
   const { groups } = useOptionalSupervision();
@@ -120,6 +122,15 @@ function StaffOnboardingForPerson() {
   const hasOwnGroup =
     !openCareGroupMode && groups.some((group) => group.is_personal !== false);
   const canSeeCalendar = hasPermission(session, "calendar:own");
+  // Jeder Schritt nur mit dem Recht, das sein Ziel verlangt (#4573).
+  const canSearchChildren = hasPermission(session, "users:read");
+  // Der Schritt lädt zum Starten ein: einen Raum übernehmen verlangt
+  // groups:update, einen geplanten Termin starten schedules:read. Ansehen
+  // allein (der Gast, ADR 0091) reicht nicht.
+  const canSupervise =
+    hasPermission(session, "groups:update") ||
+    hasPermission(session, "schedules:read");
+  const canTrackWorkTime = hasPermission(session, "time_tracking:own");
   const steps = useMemo(
     () =>
       state
@@ -128,9 +139,21 @@ function StaffOnboardingForPerson() {
             webAttendance,
             canSeeCalendar,
             roomsTracked: presenceMode !== "binary",
+            canSearchChildren,
+            canSupervise,
+            canTrackWorkTime,
           })
         : [],
-    [state, hasOwnGroup, webAttendance, canSeeCalendar, presenceMode],
+    [
+      state,
+      hasOwnGroup,
+      webAttendance,
+      canSeeCalendar,
+      presenceMode,
+      canSearchChildren,
+      canSupervise,
+      canTrackWorkTime,
+    ],
   );
 
   const run = useCallback(
@@ -178,7 +201,11 @@ function StaffOnboardingForPerson() {
     setExpandedByPerson(true);
     setNotice(TOUR_LEFT);
   }, []);
-  const tour = useSetupTour(STAFF_ONBOARDING_TOURS, onTourFinished, onTourLeft);
+  const tours = useMemo(
+    () => staffOnboardingTours(childSearchOnlyNavigation),
+    [childSearchOnlyNavigation],
+  );
+  const tour = useSetupTour(tours, onTourFinished, onTourLeft);
 
   const visible =
     state !== null && !state.dismissed && state.schoolReady && steps.length > 0;

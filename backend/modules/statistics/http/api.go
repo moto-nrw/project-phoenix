@@ -14,24 +14,21 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/services/listexport"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Resource is the statistics API resource.
 type Resource struct {
-	Service    studentpresence.StatisticsReports
-	ListExport *listexport.RendererService
+	Service studentpresence.StatisticsReports
+	Runtime Runtime
 
 	Logger *slog.Logger
 }
 
 // NewResource creates the statistics resource.
-func NewResource(service studentpresence.StatisticsReports, listExport *listexport.RendererService, logger *slog.Logger) *Resource {
-	return &Resource{Service: service, ListExport: listExport, Logger: logger}
+func NewResource(service studentpresence.StatisticsReports, runtime Runtime, logger *slog.Logger) *Resource {
+	return &Resource{Service: service, Runtime: runtime, Logger: logger}
 }
 
 func (rs *Resource) logger() *slog.Logger {
@@ -44,10 +41,10 @@ func (rs *Resource) logger() *slog.Logger {
 // Router registers the statistics routes. Both routes need config:read
 // (the report gate used by the other admin reports) AND users:read (the
 // per-child rows are personal data), mirroring the class-roster export.
-func (rs *Resource) Router() chi.Router {
+func (rs *Resource) Router(protectedTenantRoutes func(chi.Router, func(chi.Router, common.Middleware))) chi.Router {
 	r := chi.NewRouter()
-	common.ProtectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) {
-		guard := common.RequiresAllPermissions(permissions.ConfigRead, permissions.UsersRead)
+	protectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) {
+		guard := rs.Runtime.ReportGuard
 		r.With(guard, withTx).Get("/report", rs.getReport)
 		r.With(guard, withTx).Get("/export", rs.exportReport)
 	})
@@ -68,7 +65,7 @@ func (rs *Resource) getReport(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	report, err := rs.Service.Report(r.Context(), filters, actorFromRequest(r))
+	report, err := rs.Service.Report(r.Context(), filters, rs.Runtime.Actor(r))
 	if err != nil {
 		rs.logFailure("statistics report failed", err)
 		common.RenderError(w, r, renderError(err))
@@ -78,7 +75,7 @@ func (rs *Resource) getReport(w http.ResponseWriter, r *http.Request) {
 }
 
 func (rs *Resource) exportReport(w http.ResponseWriter, r *http.Request) {
-	if rs.ListExport == nil {
+	if rs.Runtime.Export == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("statistics export service is not configured")))
 		return
 	}
@@ -97,7 +94,7 @@ func (rs *Resource) exportReport(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	report, err := rs.Service.ReportForExport(r.Context(), filters, actorFromRequest(r), string(format)+"/"+section)
+	report, err := rs.Service.ReportForExport(r.Context(), filters, rs.Runtime.Actor(r), string(format)+"/"+section)
 	if err != nil {
 		rs.logFailure("statistics export failed", err)
 		common.RenderError(w, r, renderError(err))
@@ -105,7 +102,7 @@ func (rs *Resource) exportReport(w http.ResponseWriter, r *http.Request) {
 	}
 	doc, name := buildSectionDocument(report, section)
 	filename := name + "-" + report.From.String() + "-" + report.To.String()
-	file, err := rs.ListExport.Render(doc, format, filename)
+	file, err := rs.Runtime.Export(doc, format, filename)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
@@ -124,22 +121,14 @@ func (rs *Resource) logFailure(msg string, err error) {
 	rs.logger().Error(msg, slog.String("error", err.Error()))
 }
 
-func actorFromRequest(r *http.Request) studentpresence.StatisticsActor {
-	claims := jwt.ClaimsFromCtx(r.Context())
-	return studentpresence.StatisticsActor{
-		AccountID: int64(claims.ID),
-		Role:      strings.Join(claims.Roles, ","),
-	}
-}
-
 // parseFilters reads from, to (YYYY-MM-DD, required) and group_id (repeatable).
 func parseFilters(r *http.Request) (studentpresence.StatisticsFilters, error) {
 	q := r.URL.Query()
-	from, err := timezone.ParseDate(strings.TrimSpace(q.Get("from")))
+	from, err := calendar.ParseDate(strings.TrimSpace(q.Get("from")))
 	if err != nil {
 		return studentpresence.StatisticsFilters{}, fmt.Errorf("invalid from date: %w", err)
 	}
-	to, err := timezone.ParseDate(strings.TrimSpace(q.Get("to")))
+	to, err := calendar.ParseDate(strings.TrimSpace(q.Get("to")))
 	if err != nil {
 		return studentpresence.StatisticsFilters{}, fmt.Errorf("invalid to date: %w", err)
 	}
@@ -213,13 +202,13 @@ func parseReportSections(raw []string) ([]studentpresence.StatisticsSection, err
 	return sections, nil
 }
 
-func parseFormat(r *http.Request) (listexport.Format, error) {
-	format := listexport.Format(strings.TrimSpace(r.URL.Query().Get("format")))
+func parseFormat(r *http.Request) (ExportFormat, error) {
+	format := ExportFormat(strings.TrimSpace(r.URL.Query().Get("format")))
 	if format == "" {
-		format = listexport.FormatPDF
+		format = formatPDF
 	}
 	switch format {
-	case listexport.FormatPDF, listexport.FormatDOCX, listexport.FormatXLSX:
+	case formatPDF, formatDOCX, formatXLSX:
 		return format, nil
 	default:
 		return format, fmt.Errorf("unsupported export format %q", format)

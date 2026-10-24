@@ -24,7 +24,7 @@ func (rs *Resource) assignTransitStudents(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	auth, ok := rs.bulkStudentMoveAuthorization(w, r)
+	auth, ok := rs.BulkStudentMoveAuthorization(w, r)
 	if !ok {
 		return
 	}

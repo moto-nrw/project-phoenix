@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/domain"
 	"github.com/uptrace/bun"
 )
@@ -44,73 +45,76 @@ func NewUnregisteredTagScanStore(database Database) *UnregisteredTagScanStore {
 	return &UnregisteredTagScanStore{database: database}
 }
 
-func (s *UnregisteredTagScanStore) selectScans(db bun.IDB, tenantID int64, model any) *bun.SelectQuery {
+func (s *UnregisteredTagScanStore) selectScans(db bun.IDB, scope TenantScope, model any) *bun.SelectQuery {
 	query := db.NewSelect().
 		Model(model).
 		ModelTableExpr(unregisteredTagScanTableExpr).
 		ColumnExpr(`"scan".*`)
-	if tenantID > 0 {
-		query = query.Where(`"scan".tenant_id = ?`, tenantID)
+	if err := scope.Validate(); err != nil {
+		return query.Err(err)
+	}
+	if !scope.AcrossSchools {
+		query = query.Where(`"scan".tenant_id = ?`, scope.TenantID)
 	}
 	return query
 }
 
 // Insert appends one scan for the caller's tenant and returns the stored row.
-func (s *UnregisteredTagScanStore) Insert(ctx context.Context, input domain.RecordUnregisteredTagScan) (domain.UnregisteredTagScan, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+func (s *UnregisteredTagScanStore) Insert(ctx context.Context, input devicefleet.RecordUnregisteredTagScan) (devicefleet.UnregisteredTagScan, domain.OperationStats, error) {
+	db, scope, err := s.database(ctx)
 	if err != nil {
-		return domain.UnregisteredTagScan{}, domain.OperationStats{}, err
+		return devicefleet.UnregisteredTagScan{}, domain.OperationStats{}, err
 	}
-	if tenantID <= 0 {
-		return domain.UnregisteredTagScan{}, domain.OperationStats{}, domain.ErrTenantRequired
+	if scope.TenantID <= 0 {
+		return devicefleet.UnregisteredTagScan{}, domain.OperationStats{}, devicefleet.ErrTenantRequired
 	}
 	row := unregisteredTagScanRow{
-		TenantID: tenantID, TagUID: input.TagUID, DeviceID: input.DeviceID, ScannedAt: input.ScannedAt,
+		TenantID: scope.TenantID, TagUID: input.TagUID, DeviceID: input.DeviceID, ScannedAt: input.ScannedAt,
 	}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	err = db.NewInsert().Model(&row).ModelTableExpr(`audit.unregistered_tag_scans`).Returning("*").Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
-		return domain.UnregisteredTagScan{}, stats, fmt.Errorf("devicefleet postgres: record unregistered tag scan: %w", err)
+		return devicefleet.UnregisteredTagScan{}, stats, fmt.Errorf("devicefleet postgres: record unregistered tag scan: %w", err)
 	}
 	stats.Rows = 1
 	return toUnregisteredTagScanDomain(row), stats, nil
 }
 
 // FindByID reads one scan visible to the caller.
-func (s *UnregisteredTagScanStore) FindByID(ctx context.Context, id int64) (domain.UnregisteredTagScan, bool, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+func (s *UnregisteredTagScanStore) FindByID(ctx context.Context, id int64) (devicefleet.UnregisteredTagScan, bool, domain.OperationStats, error) {
+	db, scope, err := s.database(ctx)
 	if err != nil {
-		return domain.UnregisteredTagScan{}, false, domain.OperationStats{}, err
+		return devicefleet.UnregisteredTagScan{}, false, domain.OperationStats{}, err
 	}
 	row := unregisteredTagScanRow{}
-	query := s.selectScans(db, tenantID, &row).Where(`"scan".id = ?`, id)
+	query := s.selectScans(db, scope, &row).Where(`"scan".id = ?`, id)
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	err = query.Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if errors.Is(err, sql.ErrNoRows) {
-		return domain.UnregisteredTagScan{}, false, stats, nil
+		return devicefleet.UnregisteredTagScan{}, false, stats, nil
 	}
 	if err != nil {
-		return domain.UnregisteredTagScan{}, false, stats, fmt.Errorf("devicefleet postgres: find unregistered tag scan: %w", err)
+		return devicefleet.UnregisteredTagScan{}, false, stats, fmt.Errorf("devicefleet postgres: find unregistered tag scan: %w", err)
 	}
 	stats.Rows = 1
 	return toUnregisteredTagScanDomain(row), true, stats, nil
 }
 
 // List reads the scans matching filter, newest first.
-func (s *UnregisteredTagScanStore) List(ctx context.Context, filter domain.UnregisteredTagScanFilter) ([]domain.UnregisteredTagScan, domain.OperationStats, error) {
+func (s *UnregisteredTagScanStore) List(ctx context.Context, filter devicefleet.UnregisteredTagScanFilter) ([]devicefleet.UnregisteredTagScan, domain.OperationStats, error) {
 	if filter.TenantIDs != nil && len(filter.TenantIDs) == 0 {
-		return []domain.UnregisteredTagScan{}, domain.OperationStats{}, nil
+		return []devicefleet.UnregisteredTagScan{}, domain.OperationStats{}, nil
 	}
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
 	var rows []unregisteredTagScanRow
-	query := s.selectScans(db, tenantID, &rows)
+	query := s.selectScans(db, scope, &rows)
 	if filter.TenantIDs != nil {
 		query = query.Where(`"scan".tenant_id IN (?)`, bun.List(filter.TenantIDs))
 	}
@@ -130,7 +134,7 @@ func (s *UnregisteredTagScanStore) List(ctx context.Context, filter domain.Unreg
 		return nil, stats, fmt.Errorf("devicefleet postgres: list unregistered tag scans: %w", err)
 	}
 	stats.Rows = int64(len(rows))
-	scans := make([]domain.UnregisteredTagScan, 0, len(rows))
+	scans := make([]devicefleet.UnregisteredTagScan, 0, len(rows))
 	for _, row := range rows {
 		scans = append(scans, toUnregisteredTagScanDomain(row))
 	}
@@ -139,7 +143,7 @@ func (s *UnregisteredTagScanStore) List(ctx context.Context, filter domain.Unreg
 
 // Resolve stamps one still-open scan and reports how many rows matched.
 func (s *UnregisteredTagScanStore) Resolve(ctx context.Context, input domain.ResolveUnregisteredTagScan) (int64, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return 0, domain.OperationStats{}, err
 	}
@@ -152,8 +156,8 @@ func (s *UnregisteredTagScanStore) Resolve(ctx context.Context, input domain.Res
 		Set("updated_at = ?", input.ResolvedAt).
 		Where(`"scan".id = ?`, input.ID).
 		Where(`"scan".resolved_at IS NULL`)
-	if tenantID > 0 {
-		query = query.Where(`"scan".tenant_id = ?`, tenantID)
+	if !scope.AcrossSchools {
+		query = query.Where(`"scan".tenant_id = ?`, scope.TenantID)
 	}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
@@ -174,17 +178,17 @@ func (s *UnregisteredTagScanStore) Resolve(ctx context.Context, input domain.Res
 // audit.delete_expired_unregistered_tag_scans, which enforces the retention
 // window for non-superuser roles.
 func (s *UnregisteredTagScanStore) DeleteExpired(ctx context.Context, cutoff time.Time) (int64, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return 0, domain.OperationStats{}, err
 	}
-	if tenantID <= 0 {
-		return 0, domain.OperationStats{}, domain.ErrTenantRequired
+	if scope.TenantID <= 0 {
+		return 0, domain.OperationStats{}, devicefleet.ErrTenantRequired
 	}
 	var deleted int64
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
-	err = db.NewRaw(`SELECT audit.delete_expired_unregistered_tag_scans(?, ?)`, tenantID, cutoff).Scan(ctx, &deleted)
+	err = db.NewRaw(`SELECT audit.delete_expired_unregistered_tag_scans(?, ?)`, scope.TenantID, cutoff).Scan(ctx, &deleted)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
 		return 0, stats, fmt.Errorf("devicefleet postgres: delete expired unregistered tag scans: %w", err)
@@ -193,8 +197,8 @@ func (s *UnregisteredTagScanStore) DeleteExpired(ctx context.Context, cutoff tim
 	return deleted, stats, nil
 }
 
-func toUnregisteredTagScanDomain(row unregisteredTagScanRow) domain.UnregisteredTagScan {
-	return domain.UnregisteredTagScan{
+func toUnregisteredTagScanDomain(row unregisteredTagScanRow) devicefleet.UnregisteredTagScan {
+	return devicefleet.UnregisteredTagScan{
 		ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		TagUID: row.TagUID, DeviceID: row.DeviceID, ScannedAt: row.ScannedAt, ResolvedAt: row.ResolvedAt,
 		ResolvedByOperatorID: row.ResolvedByOperatorID, ResolutionNote: row.ResolutionNote,

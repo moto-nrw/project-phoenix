@@ -16,7 +16,6 @@ import { ChevronRight } from "lucide-react";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
 import { DatabaseCardGridSkeleton } from "./page-skeleton";
-import { formatCount } from "~/lib/format-utils";
 import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 
@@ -141,7 +140,7 @@ const baseDataSections: DataSection[] = [
   },
   {
     id: "groups",
-    title: "Gruppen",
+    title: "Gruppendaten",
     description: "Gruppen und Kombinationen verwalten",
     href: "/database/groups",
     concept: "groups",
@@ -188,8 +187,8 @@ const baseDataSections: DataSection[] = [
   },
   {
     id: "shiftTypes",
-    title: "Schichtarten",
-    description: "Aufgabe einer Schicht im Dienstplan benennen",
+    title: "Dienstarten",
+    description: "Aufgabe eines Dienstes im Dienstplan benennen",
     href: "/database/shift-types",
     concept: "staffPlan",
     requiresPlanning: true,
@@ -205,7 +204,7 @@ const baseDataSections: DataSection[] = [
   },
   {
     id: "gradeTransitions",
-    title: "Jahrgangswechsel",
+    title: "Schuljahreswechsel",
     description:
       "Kinder zum Schuljahreswechsel in die nächste Klasse versetzen",
     href: "/database/grade-transitions",
@@ -225,26 +224,6 @@ const baseDataSections: DataSection[] = [
 ];
 
 const NFC_ONLY_SECTION_IDS = new Set(["activities", "devices"]);
-
-/** Statuszeile des Seitenkopfs: die Bestände, die der Zugriff hergibt.
- *  Zahlen stammen aus /api/database/counts, das die Seite ohnehin lädt. */
-function buildDatabaseStatusLine(counts: DatabaseCounts): string {
-  const permissions = counts.permissions;
-  const parts: string[] = [];
-  if (permissions.canViewStudents) {
-    parts.push(`${formatCount(counts.students)} Kinder`);
-  }
-  if (permissions.canViewTeachers) {
-    parts.push(`${formatCount(counts.teachers)} Personen`);
-  }
-  if (permissions.canViewRooms) {
-    parts.push(`${formatCount(counts.rooms)} Räume`);
-  }
-  if (permissions.canViewGroups) {
-    parts.push(`${formatCount(counts.groups)} Gruppen`);
-  }
-  return parts.slice(0, 3).join(" · ");
-}
 
 function DatabaseContent() {
   const { data: session } = useSession();
@@ -284,29 +263,31 @@ function DatabaseContent() {
   }
 
   const showSkeleton = countsLoading && data === undefined;
-  const statusLine = countsMissing ? null : buildDatabaseStatusLine(counts);
 
   return (
+    // Keine Statuszeile: jede Zahl steht schon auf ihrer Kachel, der Kopf
+    // wiederholte nur drei davon (#4385).
     <TenantPage
       title="Datenverwaltung"
-      stats={statusLine}
-      statsLoading={showSkeleton}
+      info={
+        // Die Grenze zu „Alle Kinder" steht auf der Seite selbst, nicht nur
+        // in der Hilfe (ADR 0008, #2826): hier wird angelegt und gepflegt,
+        // der laufende Tag liegt im Tagesbetrieb. Wer die Seite täglich
+        // nutzt, braucht den Satz nicht mehr, deshalb liegt er hinter dem
+        // Info-Knopf statt in einer eigenen Karte (#4385).
+        <p>
+          Hier legen Sie Kinder, Personal, Räume und Gruppen an und pflegen ihre
+          Daten. Wer heute da ist, sehen Sie unter{" "}
+          <Link
+            href={tenantPath("/students/search")}
+            className="font-medium text-gray-900 underline decoration-gray-300 underline-offset-2 hover:decoration-gray-900"
+          >
+            Alle Kinder
+          </Link>
+          .
+        </p>
+      }
     >
-      {/* Die Grenze zu „Alle Kinder" steht auf der Seite selbst, nicht nur
-          in der Hilfe (ADR 0008, #2826): hier wird angelegt und gepflegt,
-          der laufende Tag liegt im Tagesbetrieb. */}
-      <p className="max-w-2xl text-sm leading-6 text-gray-600">
-        Hier legen Sie Kinder, Personal, Räume und Gruppen an und pflegen ihre
-        Daten. Wer heute da ist, sehen Sie unter{" "}
-        <Link
-          href={tenantPath("/students/search")}
-          className="font-medium text-gray-900 underline decoration-gray-300 underline-offset-2 hover:decoration-gray-900"
-        >
-          Alle Kinder
-        </Link>
-        .
-      </p>
-
       <LoadErrorAlert error={countsLoadError} />
 
       {showSkeleton ? (

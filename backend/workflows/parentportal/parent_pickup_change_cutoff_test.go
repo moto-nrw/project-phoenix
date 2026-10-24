@@ -6,16 +6,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/services"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
+	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
@@ -24,25 +23,25 @@ import (
 
 // #3163 fixtures: the service clock stands on 24 August 2026 (a Monday) at a
 // chosen Berlin wall-clock time, and the request service shares that day.
-var cutoffToday = timezone.NewDate(2026, 8, 24)
+var cutoffToday = calendar.NewDate(2026, 8, 24)
 
 func berlinClock(hour, minute int) func() time.Time {
-	return func() time.Time { return time.Date(2026, 8, 24, hour, minute, 0, 0, timezone.Berlin) }
+	return func() time.Time { return time.Date(2026, 8, 24, hour, minute, 0, 0, calendar.Berlin) }
 }
 
 func cutoffStub(enabled bool, clock string) parentSettingsStub {
 	return parentSettingsStub{
-		boolValues: map[string]bool{configModels.KeyParentPickupChangeEnabled: enabled},
+		boolValues: map[string]bool{parentService.KeyParentPickupChangeEnabled: enabled},
 		stringValues: map[string]string{
-			configModels.KeyGuardianParentInviteMode:     configModels.ParentInviteModeDisabled,
-			configModels.KeyParentPickupChangeCutoffTime: clock,
+			parentService.KeyGuardianParentInviteMode:     parentService.ParentInviteModeDisabled,
+			parentService.KeyParentPickupChangeCutoffTime: clock,
 		},
 	}
 }
 
 type cutoffServiceDeps struct {
 	db    *bun.DB
-	repos *repositories.Factory
+	repos *api.RepositoryTestFactory
 	base  parentportalcompose.Dependencies
 }
 
@@ -51,49 +50,49 @@ type cutoffServiceDeps struct {
 func newCutoffServiceDeps(t *testing.T) cutoffServiceDeps {
 	t.Helper()
 	var base parentportalcompose.Dependencies
-	pinToday := services.WithCareRequestToday(func() timezone.Date { return cutoffToday })
-	_, db, repos := buildPickupChangeServiceWithRequestOptions(t, []services.CareRequestOption{pinToday}, func(cfg *parentportalcompose.Dependencies) {
+	pinToday := owners.WithCareRequestToday(func() calendar.Date { return cutoffToday })
+	_, db, repos := buildPickupChangeServiceWithRequestOptions(t, []owners.CareRequestOption{pinToday}, func(cfg *parentportalcompose.Dependencies) {
 		base = *cfg
 	})
 	return cutoffServiceDeps{db: db, repos: repos, base: base}
 }
 
-func (d cutoffServiceDeps) service(t *testing.T, settings configService.SettingsService, now func() time.Time) *parentService.Portal {
+func (d cutoffServiceDeps) service(t *testing.T, settings parentService.SettingsService, now func() time.Time) *parentService.Portal {
 	t.Helper()
 	cfg := d.base
-	cfg.CareExceptions = d.repos.CarePlan()
+	cfg.CareExceptions = owners.NewParentCareExceptions(d.repos.CarePlan())
 	cfg.Settings = settings
 	cfg.MealPlan = availableMealPlan(false)
-	cfg.Broadcaster = testpkg.NewRecordingBroadcaster()
+	cfg.StudentUpdates = owners.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster())
 	cfg.Now = now
 	return parentportalcompose.New(cfg)
 }
 
 func cutoffPickupTime() time.Time {
-	return timezone.NormalizeWallClock(time.Date(2026, 1, 1, 14, 30, 0, 0, time.UTC))
+	return calendar.NormalizeWallClock(time.Date(2026, 1, 1, 14, 30, 0, 0, time.UTC))
 }
 
 // seedGuardianPickupException stores an already effective guardian pickup
 // exception, the state DELETE .../care-exception removes.
-func seedGuardianPickupException(t *testing.T, d cutoffServiceDeps, chain testpkg.ParentChain, date timezone.Date) {
+func seedGuardianPickupException(t *testing.T, d cutoffServiceDeps, chain testpkg.ParentChain, date calendar.Date) {
 	t.Helper()
 	ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID)
 	guardianID := chain.AccountID
-	exception := &scheduleModels.StudentPickupException{
+	exception := &careplan.PickupException{
 		StudentID:         chain.StudentID,
-		ExceptionDate:     scheduleModels.Date(date),
+		ExceptionDate:     careplan.Date(date),
 		PickupTime:        wallClock(14, 30),
-		Source:            scheduleModels.ExceptionSourceGuardian,
+		Source:            careplan.ExceptionSourceGuardian,
 		CreatedByGuardian: &guardianID,
 	}
 	exception.SetTenantID(chain.TenantID)
-	require.NoError(t, d.repos.StudentPickupException.Create(ctx, exception))
+	require.NoError(t, api.CreateParentPickupExceptionFixture(ctx, d.repos.CarePlan(), exception))
 }
 
-func guardianPickupExists(t *testing.T, d cutoffServiceDeps, chain testpkg.ParentChain, date timezone.Date) bool {
+func guardianPickupExists(t *testing.T, d cutoffServiceDeps, chain testpkg.ParentChain, date calendar.Date) bool {
 	t.Helper()
 	ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID)
-	row, err := d.repos.StudentPickupException.FindByStudentIDAndDate(ctx, chain.StudentID, scheduleModels.Date(date))
+	row, err := api.FindParentPickupExceptionFixture(ctx, d.repos.CarePlan(), chain.StudentID, date)
 	require.NoError(t, err)
 	return row != nil
 }
@@ -110,7 +109,7 @@ func TestSubmitPickupChangeRequestHonoursSameDayCutoff(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
 		now     func() time.Time
-		date    timezone.Date
+		date    calendar.Date
 		clock   string
 		enabled bool
 		wantErr error
@@ -124,7 +123,7 @@ func TestSubmitPickupChangeRequestHonoursSameDayCutoff(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			chain := testpkg.CreateTestParentGuardianChain(t, d.db)
 			svc := d.service(t, cutoffStub(tc.enabled, tc.clock), tc.now)
-			_, err := svc.SubmitPickupChangeRequest(ctx, chain.AccountID, chain.StudentID, tc.date, cutoffPickupTime(), "Arzttermin", nil)
+			_, err := svc.SubmitPickupChangeRequest(ctx, chain.AccountID, chain.StudentID, tc.date, cutoffPickupTime(), "", "Arzttermin", nil)
 			if tc.wantErr != nil {
 				require.ErrorIs(t, err, tc.wantErr)
 				return
@@ -145,7 +144,7 @@ func TestSubmitPickupChangeRequestRechecksCutoffAtWriteBoundary(t *testing.T) {
 	now := berlinClock(10, 59)
 	settings := cutoffStub(true, "11:00")
 	settings.stringInTxFn = func(key string) (string, error) {
-		if key == configModels.KeyParentPickupChangeEnabled {
+		if key == parentService.KeyParentPickupChangeEnabled {
 			now = berlinClock(11, 1)
 			return "true", nil
 		}
@@ -157,7 +156,7 @@ func TestSubmitPickupChangeRequestRechecksCutoffAtWriteBoundary(t *testing.T) {
 		chain.AccountID,
 		chain.StudentID,
 		cutoffToday,
-		cutoffPickupTime(),
+		cutoffPickupTime(), "",
 		"Arzttermin",
 		nil,
 	)
@@ -174,7 +173,7 @@ func TestSubmitPickupChangeRequestRechecksEnablementAtWriteBoundary(t *testing.T
 	lockTaken := false
 	settings := cutoffStub(true, "11:00")
 	settings.stringInTxFn = func(key string) (string, error) {
-		if key == configModels.KeyParentPickupChangeEnabled {
+		if key == parentService.KeyParentPickupChangeEnabled {
 			return "false", nil
 		}
 		return settings.stringValues[key], nil
@@ -192,7 +191,7 @@ func TestSubmitPickupChangeRequestRechecksEnablementAtWriteBoundary(t *testing.T
 		chain.AccountID,
 		chain.StudentID,
 		cutoffToday,
-		cutoffPickupTime(),
+		cutoffPickupTime(), "",
 		"Arzttermin",
 		nil,
 	)
@@ -209,7 +208,7 @@ func TestSubmitCareExceptionRechecksEnablementAtWriteBoundary(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, d.db)
 	settings := cutoffStub(true, "11:00")
 	settings.stringInTxFn = func(key string) (string, error) {
-		if key == configModels.KeyParentPickupChangeEnabled {
+		if key == parentService.KeyParentPickupChangeEnabled {
 			return "false", nil
 		}
 		return settings.stringValues[key], nil
@@ -238,16 +237,16 @@ func TestEditPickupChangeRequestHonoursSameDayCutoff(t *testing.T) {
 	settings := cutoffStub(true, "11:00")
 
 	created, err := d.service(t, settings, berlinClock(9, 30)).
-		SubmitPickupChangeRequest(ctx, chain.AccountID, chain.StudentID, cutoffToday, cutoffPickupTime(), "Arzttermin", nil)
+		SubmitPickupChangeRequest(ctx, chain.AccountID, chain.StudentID, cutoffToday, cutoffPickupTime(), "", "Arzttermin", nil)
 	require.NoError(t, err)
 
 	later := d.service(t, settings, berlinClock(11, 1))
 	_, err = later.EditPickupChangeRequest(ctx, chain.AccountID, chain.StudentID, created.ID,
-		cutoffToday, cutoffPickupTime().Add(time.Hour), "Termin verschoben", "")
+		cutoffToday, cutoffPickupTime().Add(time.Hour), "", "Termin verschoben", "")
 	require.ErrorIs(t, err, parentService.ErrPickupChangeCutoffPassed)
 
 	_, err = later.EditPickupChangeRequest(ctx, chain.AccountID, chain.StudentID, created.ID,
-		cutoffToday.AddDays(1), cutoffPickupTime(), "Termin verschoben", "")
+		cutoffToday.AddDays(1), cutoffPickupTime(), "", "Termin verschoben", "")
 	require.ErrorIs(t, err, parentService.ErrPickupChangeCutoffPassed, "moving today's request away is closed too")
 }
 
@@ -262,7 +261,7 @@ func TestDeleteCareExceptionHonoursSameDayCutoff(t *testing.T) {
 	for _, tc := range []struct {
 		name        string
 		now         func() time.Time
-		date        timezone.Date
+		date        calendar.Date
 		settings    parentSettingsStub
 		wantRefused bool
 	}{
@@ -347,13 +346,13 @@ func TestPickupChangeCutoffIsTenantScoped(t *testing.T) {
 	t.Parallel()
 
 	d := newCutoffServiceDeps(t)
-	sf, err := services.NewFactoryForTests(d.repos, d.db, slog.Default())
+	_, _, _, _, _, sfSettings, err := api.NewTestCareRequests(testpkg.NewDatabase(t, d.db), slog.Default())
 	require.NoError(t, err)
-	settings := sf.Settings
+	settings := sfSettings
 	runtimeCtx := testpkg.WithPackageTenantRuntime(context.Background())
 
 	chainA := testpkg.CreateTestParentGuardianChain(t, d.db)
-	require.NoError(t, settings.SetValue(testpkg.Ctx(t), configModels.KeyParentPickupChangeCutoffTime, "11:00", nil, nil))
+	require.NoError(t, settings.SetValue(testpkg.Ctx(t), parentService.KeyParentPickupChangeCutoffTime, "11:00", nil, nil))
 	seedGuardianPickupException(t, d, chainA, cutoffToday)
 	svc := d.service(t, settings, berlinClock(11, 1))
 

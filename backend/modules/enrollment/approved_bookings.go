@@ -1,7 +1,5 @@
 package enrollment
 
-import "context"
-
 // ApprovedBooking supplies the Enrollment facts needed by booking consistency
 // audits. Student lifecycle and care coverage remain with their respective owners.
 type ApprovedBooking struct {
@@ -12,14 +10,4 @@ type ApprovedBooking struct {
 	ServiceStartDate          Date   `json:"service_start_date"`
 	ServiceEndDate            Date   `json:"service_end_date"`
 	CareOfferingSelectionMode string `json:"care_offering_selection_mode"`
-}
-
-func (m *Module) ApprovedBookings(ctx context.Context) ([]ApprovedBooking, error) {
-	var rows []ApprovedBooking
-	err := m.transactions.RunInTx(ctx, func(txCtx context.Context) error {
-		var err error
-		rows, err = m.engine.ApprovedBookings(txCtx)
-		return err
-	})
-	return rows, err
 }

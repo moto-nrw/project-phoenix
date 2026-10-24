@@ -18,7 +18,7 @@ describe("readEnrollmentError", () => {
       jsonResponse(
         {
           status: "error",
-          error: "child quota reached: 50 of 50 places occupied",
+          detail: "child quota reached: 50 of 50 places occupied",
           code: "students.child_quota_reached",
           details: { booked_places: 50, occupied_places: 50 },
           errors: [{ field: "name", reason: "required" }],
@@ -42,7 +42,7 @@ describe("readEnrollmentError", () => {
   it("never carries the backend sentence in the message", async () => {
     const logger = { error: vi.fn(), warn: vi.fn() };
     const error = await readEnrollmentError(
-      jsonResponse({ error: "weird backend error" }, { status: 500 }),
+      jsonResponse({ detail: "weird backend error" }, { status: 500 }),
       "Phase konnte nicht gespeichert werden",
       logger,
       "test_event",
@@ -59,7 +59,7 @@ describe("readEnrollmentError", () => {
     const logger = { error: vi.fn(), warn: vi.fn() };
     await readEnrollmentError(
       jsonResponse(
-        { error: "weird backend error", instance: "req-9" },
+        { detail: "weird backend error", instance: "req-9" },
         { status: 500 },
       ),
       "Phase konnte nicht gespeichert werden",
@@ -84,7 +84,7 @@ describe("readEnrollmentError", () => {
     await readEnrollmentError(
       jsonResponse(
         {
-          error: "phase name already exists",
+          detail: "phase name already exists",
           code: "enrollment.phase_name_exists",
         },
         { status: 409 },

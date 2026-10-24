@@ -23,7 +23,7 @@ func (p *Provisioning) ListSchoolPersons(ctx context.Context, schoolID int64) ([
 		}
 		for _, school := range schools {
 			if school.ID == schoolID && school.DeletedAt == nil {
-				return p.listPersons(adminCtx, []domain.SchoolSummary{school})
+				return p.listPersons(adminCtx, []organizationtenancy.DashboardSchool{school})
 			}
 		}
 		return []organizationtenancy.OperatorPerson{}, nil
@@ -41,7 +41,7 @@ func (p *Provisioning) ListOrganizationPersons(ctx context.Context, organization
 		if err != nil {
 			return nil, err
 		}
-		live := make([]domain.SchoolSummary, 0, len(schools))
+		live := make([]organizationtenancy.DashboardSchool, 0, len(schools))
 		for _, school := range schools {
 			if school.DeletedAt == nil {
 				live = append(live, school)
@@ -51,8 +51,8 @@ func (p *Provisioning) ListOrganizationPersons(ctx context.Context, organization
 	})
 }
 
-func (p *Provisioning) listPersons(ctx context.Context, schools []domain.SchoolSummary) ([]organizationtenancy.OperatorPerson, error) {
-	byID := make(map[int64]domain.SchoolSummary, len(schools))
+func (p *Provisioning) listPersons(ctx context.Context, schools []organizationtenancy.DashboardSchool) ([]organizationtenancy.OperatorPerson, error) {
+	byID := make(map[int64]organizationtenancy.DashboardSchool, len(schools))
 	tenantIDs := make([]int64, 0, len(schools))
 	for _, school := range schools {
 		byID[school.ID] = school
@@ -79,8 +79,11 @@ func (p *Provisioning) listPersons(ctx context.Context, schools []domain.SchoolS
 
 // SoftDeletePerson anonymises and soft-deletes a person of any school: the
 // RFID card and the account are unlinked, the account is deactivated and its
-// e-mail anonymised. A staff member who still supervises a group cannot be
-// deleted.
+// e-mail anonymised. A former staff member keeps its account link for a
+// Wiederaufnahme (ADR 0021), but the offboarding already closed that login at
+// this school and the account may still serve another school or the parents
+// portal, so it is only unlinked. A staff member who still supervises a group
+// cannot be deleted.
 func (p *Provisioning) SoftDeletePerson(ctx context.Context, personID int64, operatorID int64, clientIP net.IP) error {
 	if personID <= 0 {
 		return invalidData("person id is required")
@@ -96,23 +99,21 @@ func (p *Provisioning) SoftDeletePerson(ctx context.Context, personID int64, ope
 		if err := p.ensureNoActiveSupervision(adminCtx, personID); err != nil {
 			return err
 		}
-		if person.HasRFIDCard {
-			if err := p.people.UnlinkRFIDCard(adminCtx, personID); err != nil {
-				return fmt.Errorf("SoftDeletePerson: unlink rfid: %w", err)
-			}
+		if err := p.unlinkPersonCard(adminCtx, person); err != nil {
+			return err
 		}
-		if person.AccountID != nil {
-			if err := p.retireAccount(adminCtx, personID, *person.AccountID); err != nil {
-				return err
-			}
+		if err := p.releaseAccount(adminCtx, person); err != nil {
+			return err
 		}
 		if err := p.people.AnonymizeAndSoftDelete(adminCtx, personID); err != nil {
 			return fmt.Errorf("SoftDeletePerson: anonymize and soft delete: %w", err)
 		}
-		p.logAction(adminCtx, operatorID, domain.AuditActionSoftDelete, domain.AuditResourcePerson, &personID, clientIP, map[string]any{
+		if err := p.recordAction(adminCtx, operatorID, domain.AuditActionSoftDelete, domain.AuditResourcePerson, &personID, clientIP, map[string]any{
 			"person_id": personID,
 			"school_id": person.TenantID,
-		})
+		}); err != nil {
+			return err
+		}
 		p.logger.Info("person_soft_deleted",
 			slog.Int64("person_id", personID),
 			slog.Int64("school_id", person.TenantID),
@@ -145,6 +146,22 @@ func (p *Provisioning) ensureNoActiveSupervision(ctx context.Context, personID i
 	return nil
 }
 
+// releaseAccount unlinks the person's account. A former staff member's
+// account is left as it is; any other account is retired with the person.
+func (p *Provisioning) releaseAccount(ctx context.Context, person domain.Person) error {
+	switch {
+	case person.AccountID == nil:
+		return nil
+	case person.FormerStaff:
+		if err := p.people.UnlinkAccount(ctx, person.ID); err != nil {
+			return fmt.Errorf("SoftDeletePerson: unlink account: %w", err)
+		}
+		return nil
+	default:
+		return p.retireAccount(ctx, person.ID, *person.AccountID)
+	}
+}
+
 // retireAccount deactivates the person's account, anonymises its e-mail and
 // unlinks it from the person. A failed deactivation is logged and does not
 // stop the deletion.
@@ -161,6 +178,15 @@ func (p *Provisioning) retireAccount(ctx context.Context, personID, accountID in
 	}
 	if err := p.people.UnlinkAccount(ctx, personID); err != nil {
 		return fmt.Errorf("SoftDeletePerson: unlink account: %w", err)
+	}
+	return nil
+}
+
+func (p *Provisioning) unlinkPersonCard(ctx context.Context, person domain.Person) error {
+	if person.HasRFIDCard {
+		if err := p.people.UnlinkRFIDCard(ctx, person.ID); err != nil {
+			return fmt.Errorf("SoftDeletePerson: unlink rfid: %w", err)
+		}
 	}
 	return nil
 }

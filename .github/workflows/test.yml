@@ -34,13 +34,80 @@ defaults:
 
 env:
   GOTOOLCHAIN: local
+  GOFLAGS: -tags=testhooks
 
 jobs:
+  plan-backend:
+    name: Select backend tests
+    if: ${{ inputs.run-backend && inputs.changed-scope && !inputs.full-backend-suite && inputs.base_ref != '' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      matrix: ${{ steps.packages.outputs.matrix }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          filter: blob:none
+      - name: Fetch backend comparison history
+        env:
+          BASE_REF: ${{ inputs.base_ref }}
+        run: |
+          refs=("$(git rev-parse HEAD)" "+refs/heads/development:refs/remotes/origin/development")
+          if [ -n "$BASE_REF" ] && [ "$BASE_REF" != development ]; then
+            refs+=("+refs/heads/$BASE_REF:refs/remotes/origin/$BASE_REF")
+          fi
+          git fetch --no-tags --unshallow origin "${refs[@]}"
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: backend/go.mod
+          cache: true
+          cache-dependency-path: backend/go.sum
+      - name: Test backend test scripts
+        run: |
+          scripts/backend-affected-packages_test.sh
+          scripts/backend-test-matrix_test.sh
+          scripts/test-changed_test.sh
+      - name: Select and partition backend packages
+        id: packages
+        working-directory: backend
+        env:
+          CHANGED_SCOPE: ${{ inputs.changed-scope }}
+          FULL_SUITE: ${{ inputs.full-backend-suite }}
+          BASE_REF: ${{ inputs.base_ref }}
+        run: |
+          if [ "$CHANGED_SCOPE" = true ] && [ "$FULL_SUITE" = false ] && [ -n "$BASE_REF" ]; then
+            packages=$(../scripts/backend-affected-packages.sh "origin/$BASE_REF")
+            if [ "$packages" = ./... ]; then
+              packages=$(go list ./...)
+              FULL_SUITE=true
+            fi
+          else
+            packages=$(go list ./...)
+            FULL_SUITE=true
+          fi
+          matrix=$(printf '%s\n' "$packages" | FULL_SUITE="$FULL_SUITE" ../scripts/backend-test-matrix.sh)
+          printf 'matrix=%s\n' "$matrix" >> "$GITHUB_OUTPUT"
+          printf '%s\n' "$matrix" | jq '.include | map({shard, runner, packages: (.packages | split("\n") | map(select(length > 0)) | length)})'
+
   test-backend:
-    if: ${{ inputs.run-backend }}
-    # Change-scoped runs cover only affected packages; full suites need eight
-    # vCPUs even when triggered by a pull request.
-    runs-on: ${{ inputs.changed-scope && !inputs.full-backend-suite && 'blacksmith-4vcpu-ubuntu-2404' || 'blacksmith-8vcpu-ubuntu-2404' }}
+    name: Backend tests (${{ matrix.shard }})
+    needs: plan-backend
+    if: ${{ !cancelled() && inputs.run-backend && (needs.plan-backend.result == 'success' || needs.plan-backend.result == 'skipped') }}
+    strategy:
+      fail-fast: false
+      # Size the run from the actual affected graph, not just the event type.
+      # Small PRs keep one modest runner; broad PRs use the existing full-suite
+      # budgets, without mixing architecture/migrations into application work.
+      matrix: ${{ fromJSON(needs.plan-backend.outputs.matrix || '{"include":[{"shard":0},{"shard":1},{"shard":2},{"shard":3}]}') }}
+    runs-on: ${{ matrix.runner || 'blacksmith-8vcpu-ubuntu-2404' }}
+    env:
+      # Keep sibling package clones in one run, as the local test wrappers do.
+      # Generation GC must not collect them while this shard is still running.
+      PHX_TEST_RUN_ID: ci-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard }}
     permissions:
       contents: read
       checks: write
@@ -55,7 +122,10 @@ jobs:
           TZ: Europe/Berlin
         ports:
           - 5432:5432
+        # Package database drops force checkpoints. These disposable databases
+        # need no disk persistence; tmpfs avoids the measured fsync bottleneck.
         options: >-
+          --tmpfs /var/lib/postgresql/data:rw,size=4g
           --health-cmd "pg_isready -U postgres"
           --health-interval 2s
           --health-timeout 5s
@@ -65,23 +135,68 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # PR test selection needs origin/<base_ref>. Keeping one checkout
-          # shape for both event types avoids an untested expression branch.
-          fetch-depth: 0
+          # Fetch only the checked-out revision here. The next step expands
+          # its history and comparison refs without downloading every branch
+          # and tag. Only the architecture suite needs historical blobs.
+          fetch-depth: 1
+          filter: ${{ matrix.shard != 1 && 'blob:none' || '' }}
+
+      - name: Fetch backend comparison history
+        env:
+          BASE_REF: ${{ inputs.base_ref }}
+        run: |
+          refs=("$(git rev-parse HEAD)" "+refs/heads/development:refs/remotes/origin/development")
+          if [ -n "$BASE_REF" ] && [ "$BASE_REF" != development ]; then
+            refs+=("+refs/heads/$BASE_REF:refs/remotes/origin/$BASE_REF")
+          fi
+          # Full ancestry keeps merge-base intact for the architecture
+          # comparisons. Unrelated refs and tags are not test inputs.
+          git fetch --no-tags --unshallow origin "${refs[@]}"
+
+      - name: Setup Node.js for error-code generator fixtures
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
+        with:
+          node-version: "24"
 
       - name: Setup Go
+        id: go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: backend/go.mod
           cache: true
           cache-dependency-path: backend/go.sum
 
+      # setup-go's go.sum-only key is immutable. It restores dependencies but
+      # never saves later source builds on an exact hit. Keep a source-keyed
+      # build layer per shard, with the last source build as a warm fallback.
+      - name: Compute backend build cache key
+        id: build-cache-key
+        env:
+          BACKEND_CACHE_PREFIX: backend-build-${{ runner.os }}-${{ runner.arch }}-${{ steps.go.outputs.go-version }}-${{ matrix.shard }}-${{ hashFiles('backend/go.sum', 'scripts/backend-architecture/go.sum') }}-
+          BACKEND_SOURCE_HASH: ${{ hashFiles('backend/**/*.go', 'scripts/backend-architecture/**/*.go', 'scripts/backend-test-matrix.sh') }}
+        run: |
+          echo "prefix=$BACKEND_CACHE_PREFIX" >> "$GITHUB_OUTPUT"
+          echo "key=$BACKEND_CACHE_PREFIX$BACKEND_SOURCE_HASH" >> "$GITHUB_OUTPUT"
+      - name: Restore backend build cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/go-build
+          key: ${{ steps.build-cache-key.outputs.key }}
+          restore-keys: ${{ steps.build-cache-key.outputs.prefix }}
+
       - name: Test backend test scripts
+        if: ${{ matrix.shard == 0 && (!inputs.changed-scope || inputs.full-backend-suite || inputs.base_ref == '') }}
         run: |
           scripts/backend-affected-packages_test.sh
+          scripts/backend-test-matrix_test.sh
           scripts/test-changed_test.sh
 
+      - name: Verify snapshot roles match migrations
+        if: matrix.shard == 0
+        run: node --test scripts/db-snapshot-roles.test.mjs
+
       - name: Restore migrated DB snapshot
+        if: ${{ matrix.shard != 1 }}
         id: db-snapshot
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -92,18 +207,20 @@ jobs:
           key: db-snapshot-pg17-${{ hashFiles('backend/database/migrations/*.go', 'backend/cmd/migrate.go') }}
 
       - name: Restore database from snapshot
-        if: steps.db-snapshot.outputs.cache-hit == 'true'
+        if: matrix.shard != 1 && steps.db-snapshot.outputs.cache-hit == 'true'
         env:
           PG_CONTAINER: ${{ job.services.postgres.id }}
           PHOENIX_AUTH_PASSWORD: phoenix_auth_test
           PHOENIX_DEMO_PASSWORD: phoenix_demo_test
         run: |
           # pg_dump omits global objects (roles, ALTER ROLE ... SET). Recreate
-          # them exactly as migration 001014001_create_tenant_roles.go does,
+          # them exactly as the role migrations do (001014001_create_tenant_roles.go,
+          # 001015489_tenant_export_reader.go and later),
           # BEFORE restoring the dump — it contains GRANTs and RLS policies
           # referencing these roles. If a future migration adds a role, update
-          # this block too; drift fails loudly (ON_ERROR_STOP on the restore),
-          # never silently, because new migrations also change the cache key.
+          # this block too, including role memberships such as pg_read_all_data.
+          # A role the dump references fails the restore (ON_ERROR_STOP); a role
+          # used only through SET ROLE fails later, in the tests that need it.
           # Everything runs inside the postgres:17 service container: the
           # local socket is trust-auth and the runner's psql is v16, which
           # refuses a v17 server.
@@ -112,6 +229,11 @@ jobs:
           CREATE ROLE phoenix_demo LOGIN NOINHERIT PASSWORD '${PHOENIX_DEMO_PASSWORD}';
           CREATE ROLE phoenix_tenant NOLOGIN;
           CREATE ROLE phoenix_admin NOLOGIN BYPASSRLS;
+          CREATE ROLE phoenix_diagnostics NOLOGIN NOINHERIT;
+          CREATE ROLE phoenix_school_erasure NOLOGIN NOINHERIT NOBYPASSRLS;
+          CREATE ROLE phoenix_billing_retention NOLOGIN NOINHERIT NOBYPASSRLS;
+          CREATE ROLE phoenix_tenant_export NOLOGIN BYPASSRLS;
+          GRANT pg_read_all_data TO phoenix_tenant_export;
           GRANT phoenix_tenant TO phoenix_auth;
           GRANT phoenix_admin TO phoenix_auth;
           ALTER ROLE phoenix_auth SET search_path TO public, platform;
@@ -120,7 +242,7 @@ jobs:
             < backend/.db-snapshot/dump.sql
 
       - name: Run database migrations
-        if: steps.db-snapshot.outputs.cache-hit != 'true'
+        if: matrix.shard != 1 && steps.db-snapshot.outputs.cache-hit != 'true'
         working-directory: backend
         env:
           DB_DSN: postgres://postgres:postgres@localhost:5432/phoenix_test?sslmode=disable
@@ -133,7 +255,7 @@ jobs:
         run: go run main.go migrate
 
       - name: Dump migrated database for snapshot cache
-        if: steps.db-snapshot.outputs.cache-hit != 'true'
+        if: matrix.shard != 1 && steps.db-snapshot.outputs.cache-hit != 'true'
         env:
           PG_CONTAINER: ${{ job.services.postgres.id }}
         run: |
@@ -146,6 +268,7 @@ jobs:
             > backend/.db-snapshot/dump.sql
 
       - name: Bootstrap test database template
+        if: ${{ matrix.shard != 1 }}
         working-directory: backend
         env:
           TEST_DB_DSN: postgres://postgres:postgres@localhost:5432/phoenix_test?sslmode=disable
@@ -171,50 +294,53 @@ jobs:
           SCHOOL_URL: http://schule.localhost:3000
           NEXT_PUBLIC_OPERATOR_HOSTNAME: operator.localhost:3000
           TENANT_DOMAIN: localhost
-          BASE_REF: ${{ inputs.base_ref }}
-          FULL_SUITE: ${{ inputs.full-backend-suite }}
-          CHANGED_SCOPE: ${{ inputs.changed-scope }}
+          TEST_PACKAGES: ${{ matrix.packages }}
+          PACKAGE_WORKERS: ${{ matrix.workers || 6 }}
+          FULL_SUITE: ${{ !inputs.changed-scope || inputs.full-backend-suite || inputs.base_ref == '' }}
+          SHARD_INDEX: ${{ matrix.shard }}
         run: |
-          packages=(./...)
-          if [ "$CHANGED_SCOPE" = true ] && [ "$FULL_SUITE" = false ] && [ -n "$BASE_REF" ]; then
-            affected_output=$(../scripts/backend-affected-packages.sh "origin/$BASE_REF")
-            packages=()
-            while IFS= read -r package; do
-              [ -n "$package" ] && packages+=("$package")
-            done <<< "$affected_output"
-            if [ "${#packages[@]}" -eq 0 ]; then
-              echo "No changed Go packages"
-              exit 0
-            fi
-            echo "Running ${#packages[@]} changed/affected Go packages"
+          if [ "$FULL_SUITE" = true ]; then
+            # Known full runs start immediately, without a planning runner.
+            all_packages=$(go list ./...)
+            TEST_PACKAGES=$(printf '%s\n' "$all_packages" | FULL_SUITE=true ../scripts/backend-test-matrix.sh |
+              jq -er --argjson shard "$SHARD_INDEX" '.include[] | select(.shard == $shard) | .packages')
           fi
-
-          test_args=(-parallel 8)
-          if [ "$CHANGED_SCOPE" = true ] && [ "$FULL_SUITE" = false ]; then
-            test_args+=(-p 4)
-          else
-            # The full suite compiles every package; six package binaries in
-            # flight match the eight-vCPU runner it gets.
-            test_args+=(-p 6)
+          packages=()
+          while IFS= read -r package; do
+            [ -n "$package" ] && packages+=("$package")
+          done <<< "$TEST_PACKAGES"
+          if [ "${#packages[@]}" -eq 0 ]; then
+            echo "No changed Go packages"
+            exit 0
           fi
+          echo "Running ${#packages[@]} selected Go packages"
 
           # Single pass produces junit.xml. No retries: flaky tests should fail
           # loudly, not be hidden.
           go tool gotestsum --format pkgname-and-test-fails \
-            --junitfile junit.xml -- "${test_args[@]}" "${packages[@]}"
+            --junitfile junit.xml -- -count=1 -parallel 8 -p "$PACKAGE_WORKERS" "${packages[@]}"
 
       - name: Publish backend test results
-        uses: mikepenz/action-junit-report@a9170d5795813c01ab4901ffb045b52bab4ab09d # v6.5.0
+        uses: mikepenz/action-junit-report@6ef3fdcfcd5f0b5d14df3e659ef19b8c6820f93d # v6.6.1
         if: ${{ always() && hashFiles('backend/junit.xml') != '' }}
         with:
           report_paths: backend/junit.xml
-          check_name: Backend Test Results
+          check_name: Backend Test Results (${{ matrix.shard }})
           include_passed: false
           detailed_summary: true
 
   test-frontend:
     if: ${{ inputs.run-frontend }}
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    # The existing Vitest projects are independent, but groupOrder runs Node
+    # before DOM in one process. Split them without raising worker counts or
+    # disabling isolation. Only Node needs the browser layout checks.
+    strategy:
+      fail-fast: false
+      matrix:
+        # Changed-only PRs keep one DOM job. Full suites split its files with
+        # Vitest's built-in sharding, retaining four workers per DOM runner.
+        project: ${{ fromJSON((!inputs.changed-scope || inputs.full-frontend-suite || inputs.base_ref == '') && '["node","dom-1","dom-2"]' || '["node","dom"]') }}
+    runs-on: ${{ matrix.project == 'node' && 'blacksmith-4vcpu-ubuntu-2404' || 'blacksmith-8vcpu-ubuntu-2404' }}
     permissions:
       contents: read
 
@@ -223,12 +349,13 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          filter: blob:none
 
       - name: Enable corepack
         run: corepack enable
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
         with:
           node-version: "24"
           cache: "pnpm"
@@ -239,16 +366,17 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Check frontend route invariants
-        if: ${{ inputs.changed-scope }}
+        if: ${{ inputs.changed-scope && matrix.project == 'node' }}
         working-directory: frontend
         run: >-
-          pnpm vitest run
+          pnpm vitest run --disableConsoleIntercept
           src/lib/app-route-invariants.test.ts
           src/lib/analytics-routes.test.ts
 
       # Layout needs a real browser; jsdom/happy-dom compute no boxes (#3328).
       # The binary is cached per lockfile, OS libs install every run.
       - name: Cache Playwright browsers
+        if: ${{ matrix.project == 'node' }}
         id: playwright-cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -256,6 +384,7 @@ jobs:
           key: playwright-${{ runner.os }}-${{ hashFiles('frontend/pnpm-lock.yaml') }}
 
       - name: Install Playwright Chromium
+        if: ${{ matrix.project == 'node' }}
         working-directory: frontend
         run: |
           if [ "${{ steps.playwright-cache.outputs.cache-hit }}" = "true" ]; then
@@ -265,18 +394,31 @@ jobs:
           fi
 
       - name: Run browser layout tests
+        if: ${{ matrix.project == 'node' }}
         working-directory: frontend
         run: pnpm run test:layout
 
-      - name: Run changed frontend tests
-        if: ${{ inputs.changed-scope && ! inputs.full-frontend-suite && inputs.base_ref != '' }}
+      - name: Run frontend tests
         working-directory: frontend
-        run: pnpm vitest run --changed "origin/${{ inputs.base_ref }}"
-
-      - name: Run full frontend tests
-        if: ${{ ! inputs.changed-scope || inputs.full-frontend-suite || inputs.base_ref == '' }}
-        working-directory: frontend
-        run: pnpm run test:run
+        env:
+          PROJECT: ${{ matrix.project }}
+          CHANGED_SCOPE: ${{ inputs.changed-scope }}
+          FULL_SUITE: ${{ inputs.full-frontend-suite }}
+          BASE_REF: ${{ inputs.base_ref }}
+        run: |
+          test_args=(--project app-dom)
+          if [ "$PROJECT" = node ]; then
+            test_args=(--project api-node --project logic-node)
+          fi
+          case "$PROJECT" in
+            dom-1|dom-2) test_args+=(--shard "${PROJECT#dom-}/2") ;;
+          esac
+          if [ "$CHANGED_SCOPE" = true ] && [ "$FULL_SUITE" = false ] && [ -n "$BASE_REF" ]; then
+            test_args+=(--changed "origin/$BASE_REF")
+          fi
+          # Native stdout/stderr avoids Vitest's console-RPC teardown race.
+          # Unhandled application errors still fail the run.
+          pnpm vitest run --disableConsoleIntercept "${test_args[@]}"
 
   # The seeder is the widest end-to-end path in this repo: roughly a hundred
   # real API calls across auth, enrollment, parent portal, time tracking and
@@ -285,8 +427,16 @@ jobs:
   # the parent pickup-change endpoint did exactly that in July 2026 and only
   # surfaced a month later, when a developer seeded by hand.
   seed-smoke:
-    name: Seed & simulate smoke
+    name: Seed & simulate smoke (${{ matrix.scenario }})
     if: ${{ inputs.run-seed-smoke }}
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario: [profiles, isolation, queue]
+    # Each scenario owns its database and operator MFA mailbox. The isolation
+    # scenario still seeds both schools sequentially into the SAME database;
+    # profiles retains the complete coverage ratchet after the standing demo;
+    # queue separately verifies all three prospect schools and parent access.
     # Database reads repeatedly stalled on the cached runner, including while
     # Postgres reported an active query with no lock wait (run 38232330367).
     # Use a fresh hosted VM without changing smoke coverage or read timeouts.
@@ -342,6 +492,9 @@ jobs:
       ADMIN_PASSWORD: SeedSmoke1234%
       FRONTEND_URL: http://localhost:3000
       PARENTS_URL: http://parents.localhost:3000
+      # Cloudflare's documented always-passing Turnstile test keys.
+      TURNSTILE_SITE_KEY: 1x00000000000000000000AA
+      TURNSTILE_SECRET_KEY: 1x0000000000000000000000000000000AA
       SCHOOL_URL: http://schule.localhost:3000
       # services.NewFactory refuses to build without it: the personal CalDAV
       # calendar derives its public server address from this value. Matches
@@ -355,8 +508,8 @@ jobs:
       # api/server.go refuses to build the server without it.
       METRICS_BEARER_TOKEN: ci-metrics-token
       # Device auth checks the school's security.ogs_device_pin setting, whose
-      # registry default is 1234, and uses this env var only when the setting
-      # resolves empty. The seeder writes its --pin into that setting. A PIN
+      # registry default is 1234. This is only the seeder input, never a runtime
+      # fallback. The seeder writes its --pin into that setting. A PIN
       # other than the default proves that write; with 1234 a missing write
       # stays green here and every RFID call on the public demo returns 401.
       OGS_DEVICE_PIN: "4711"
@@ -399,9 +552,11 @@ jobs:
           cache: true
           cache-dependency-path: backend/go.sum
 
-      - name: Build backend binary
+      - name: Build backend and dev tools binaries
         working-directory: backend
-        run: go build -o "${RUNNER_TEMP}/phoenix" .
+        run: |
+          go build -o "${RUNNER_TEMP}/phoenix" .
+          go build -o "${RUNNER_TEMP}/devtools" ./cmd/devtools
 
       - name: Run migrations
         working-directory: backend
@@ -467,9 +622,10 @@ jobs:
           exit 1
 
       - name: Seed all five profiles and verify enrollment, withdrawal, web and NFC flows
+        if: ${{ matrix.scenario == 'profiles' }}
         working-directory: backend
         run: |
-          "${RUNNER_TEMP}/phoenix" seed \
+          "${RUNNER_TEMP}/devtools" seed \
             --email "${OPERATOR_EMAIL}" \
             --password "${OPERATOR_PASSWORD}" \
             --pin "${OGS_DEVICE_PIN}" \
@@ -479,30 +635,34 @@ jobs:
             --admin-email vollbetrieb-admin@example.test
 
       - name: Simulate a full care day
+        if: ${{ matrix.scenario == 'profiles' }}
         working-directory: backend
         run: |
-          "${RUNNER_TEMP}/phoenix" simulate full-day --profile vollbetrieb
+          "${RUNNER_TEMP}/devtools" simulate full-day --profile vollbetrieb
 
       - name: Verify manual attendance profile
+        if: ${{ matrix.scenario == 'profiles' }}
         working-directory: backend
         run: |
-          "${RUNNER_TEMP}/phoenix" simulate status --profile manuell
+          "${RUNNER_TEMP}/devtools" simulate status --profile manuell
 
       - name: Read enrollment demo profiles
+        if: ${{ matrix.scenario == 'profiles' }}
         working-directory: backend
         run: |
-          "${RUNNER_TEMP}/phoenix" simulate status --profile anmeldung-wochenplan
-          "${RUNNER_TEMP}/phoenix" simulate status --profile anmeldung-buchungen
+          "${RUNNER_TEMP}/devtools" simulate status --profile anmeldung-wochenplan
+          "${RUNNER_TEMP}/devtools" simulate status --profile anmeldung-buchungen
 
       # The public demo (#3456) seeds one such school per visitor into a
       # database that already holds others. The duration is what a visitor
       # waits for, so it is printed per school.
       - name: Seed two demo schools into the same database and simulate their day
+        if: ${{ matrix.scenario == 'isolation' }}
         working-directory: backend
         run: |
           for slug in demo-smoke-eins demo-smoke-zwei; do
             started=$(date +%s)
-            "${RUNNER_TEMP}/phoenix" seed \
+            "${RUNNER_TEMP}/devtools" seed \
               --email "${OPERATOR_EMAIL}" \
               --password "${OPERATOR_PASSWORD}" \
               --pin "${OGS_DEVICE_PIN}" \
@@ -513,39 +673,40 @@ jobs:
               --staff-password 'SeedSmoke1234%' \
               --state "${RUNNER_TEMP}/${slug}.seed-state.json"
             seeded=$(date +%s)
-            "${RUNNER_TEMP}/phoenix" simulate full-day --profile vollbetrieb \
+            "${RUNNER_TEMP}/devtools" simulate full-day --profile vollbetrieb \
               --state "${RUNNER_TEMP}/${slug}.seed-state.json"
             finished=$(date +%s)
             echo "demo school ${slug}: seed $((seeded - started))s, full day $((finished - seeded))s"
           done
 
       - name: Provision and restart the standing demo school
+        if: ${{ matrix.scenario == 'profiles' }}
         working-directory: backend
         run: |
-          # The preceding scenarios consumed the operator's three MFA codes
-          # per 15-minute window. Reset only consumed challenge fixtures in
-          # this disposable CI database; keep production limits unchanged.
+          # Reset only consumed challenge fixtures in this disposable CI
+          # database; keep production limits unchanged.
           psql "${DB_DSN}" -v ON_ERROR_STOP=1 -c \
             'DELETE FROM platform.operator_mfa_email_challenges WHERE consumed_at IS NOT NULL'
           # The standing school is the fallback of #3463 and keeps its coverage.
-          "${RUNNER_TEMP}/phoenix" demo --url http://localhost:8080 --once --demo-standing-school
-          "${RUNNER_TEMP}/phoenix" demo --url http://localhost:8080 --once --demo-standing-school
+          "${RUNNER_TEMP}/devtools" demo --url http://localhost:8080 --once --demo-standing-school
+          "${RUNNER_TEMP}/devtools" demo --url http://localhost:8080 --once --demo-standing-school
 
       # One demo school per demo access (#3463): queue what the serving backend
       # queues for three prospects, let the demo process seed them with its
       # three workers and tick them once. A school that did not become ready
       # fails the job. The durations are what a visitor waits for.
       - name: Seed queued demo schools with the demo process
+        if: ${{ matrix.scenario == 'queue' }}
         working-directory: backend
         run: |
           psql "${DB_DSN}" -v ON_ERROR_STOP=1 -c \
             'DELETE FROM platform.operator_mfa_email_challenges WHERE consumed_at IS NOT NULL'
           psql "${DB_DSN}" -v ON_ERROR_STOP=1 -c \
             "INSERT INTO platform.demo_school_states (name, school_name, first_name, last_name)
-             SELECT 'ogs-smoke-' || i || '-k3m9x' || i, 'OGS Smoke ' || i, 'Kim', 'Beispiel' FROM generate_series(1, 3) AS i"
-          LOG_LEVEL=info "${RUNNER_TEMP}/phoenix" demo --url http://localhost:8080 --once 2>&1 | grep -E 'demo school (ready|order failed)' || true
+             SELECT 'ogs-smoke-' || i || '-k3m9x' || i, 'OGS Smoke ' || i, 'Zyxwolda', 'Quorbelt' FROM generate_series(1, 3) AS i"
+          LOG_LEVEL=info "${RUNNER_TEMP}/devtools" demo --url http://localhost:8080 --once 2>&1 | grep -E 'demo school (ready|order failed)' || true
           not_ready=$(psql "${DB_DSN}" -At -c "SELECT count(*) FROM platform.demo_school_states WHERE name LIKE 'ogs-smoke-%' AND status <> 'ready'")
-          visitors=$(psql "${DB_DSN}" -At -c "SELECT count(*) FROM users.persons p JOIN platform.demo_school_states d ON d.tenant_id = p.tenant_id JOIN users.staff_school_memberships s ON s.tenant_id = p.tenant_id AND s.person_id = p.id WHERE d.name LIKE 'ogs-smoke-%' AND p.first_name = 'Kim' AND p.last_name = 'Beispiel'")
+          visitors=$(psql "${DB_DSN}" -At -c "SELECT count(*) FROM users.persons p JOIN platform.demo_school_states d ON d.tenant_id = p.tenant_id JOIN users.staff_school_memberships s ON s.tenant_id = p.tenant_id AND s.person_id = p.id WHERE d.name LIKE 'ogs-smoke-%' AND p.first_name = 'Zyxwolda' AND p.last_name = 'Quorbelt'")
           echo "demo schools not ready: ${not_ready}, staff named after the visitor: ${visitors}"
           test "${not_ready}" = 0
           test "${visitors}" = 3
@@ -555,7 +716,7 @@ jobs:
           parents=$(psql "${DB_DSN}" -At -c "
             SELECT count(*) FROM platform.demo_school_states d
             JOIN users.guardian_profiles g ON g.account_id = d.visitor_parent_account_id AND g.tenant_id = d.tenant_id
-            WHERE d.name LIKE 'ogs-smoke-%' AND g.first_name = 'Kim' AND g.last_name = 'Beispiel'
+            WHERE d.name LIKE 'ogs-smoke-%' AND g.first_name = 'Zyxwolda' AND g.last_name = 'Quorbelt'
               AND (SELECT count(*) FROM users.student_guardian_relationships sg WHERE sg.guardian_profile_id = g.id) = 1
               AND (SELECT count(*) FROM users.student_guardian_relationships sg
                    JOIN auth.guardian_student_access sga ON sga.tenant_id = sg.tenant_id AND sga.relationship_id = sg.id
@@ -567,9 +728,51 @@ jobs:
           echo "demo schools with the visitor's parent: ${parents}"
           test "${parents}" = 3
 
-      - name: Check seed coverage ratchet
+      # Demo visitors are erased (#4048): hide the three schools as the
+      # expiry does 14 days after their last use, let the demo process run its
+      # expiry, and search every text column of the database for the visitor.
+      # A new place the seed copies the visitor's name to fails here; add it
+      # to platform.erase_closed_demo_visitors.
+      - name: Erase the visitors of retired demo schools
+        if: ${{ matrix.scenario == 'queue' }}
         working-directory: backend
-        run: go test ./seed/api/ -run TestSeedCoverageRatchet -v
+        run: |
+          psql "${DB_DSN}" -v ON_ERROR_STOP=1 -c \
+            'DELETE FROM platform.operator_mfa_email_challenges WHERE consumed_at IS NOT NULL'
+          psql "${DB_DSN}" -v ON_ERROR_STOP=1 -c \
+            "UPDATE platform.schools SET deleted_at = NOW()
+             WHERE id IN (SELECT tenant_id FROM platform.demo_school_states WHERE name LIKE 'ogs-smoke-%')"
+          "${RUNNER_TEMP}/devtools" demo --url http://localhost:8080 --once
+          orders=$(psql "${DB_DSN}" -At -c "SELECT count(*) FROM platform.demo_school_states WHERE name LIKE 'ogs-smoke-%'")
+          echo "demo orders left after the erasure: ${orders}"
+          test "${orders}" = 0
+          psql "${DB_DSN}" -v ON_ERROR_STOP=1 -c "
+            DO \$\$
+            DECLARE col RECORD; found BIGINT; traces TEXT := '';
+            BEGIN
+              FOR col IN
+                SELECT c.table_schema, c.table_name, c.column_name
+                FROM information_schema.columns AS c
+                JOIN information_schema.tables AS t USING (table_schema, table_name)
+                WHERE t.table_type = 'BASE TABLE' AND c.table_schema NOT IN ('pg_catalog', 'information_schema')
+                  AND c.data_type IN ('text', 'character varying', 'character', 'json', 'jsonb')
+              LOOP
+                EXECUTE format('SELECT count(*) FROM %I.%I WHERE %I::text ILIKE ANY (ARRAY[%L, %L])',
+                  col.table_schema, col.table_name, col.column_name, '%zyxwolda%', '%quorbelt%') INTO found;
+                IF found > 0 THEN
+                  traces := traces || format(' %s.%s.%s (%s rows)', col.table_schema, col.table_name, col.column_name, found);
+                END IF;
+              END LOOP;
+              IF traces <> '' THEN
+                RAISE EXCEPTION 'the erased demo visitor is still in:%', traces;
+              END IF;
+            END
+            \$\$"
+
+      - name: Check seed coverage ratchet
+        if: ${{ matrix.scenario == 'profiles' }}
+        working-directory: backend
+        run: go test ./internal/devtools/seedapi/ -run TestSeedCoverageRatchet -v
 
       - name: Postgres activity and socket queues
         if: failure()

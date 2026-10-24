@@ -50,7 +50,8 @@ type PhaseDeleteImpact struct {
 // "Sommerferien 2026"), and the parent landing page surfaces every
 // is_active=true phase whose window includes now.
 type PhaseAdministration interface {
-	AllPhases(ctx context.Context) ([]*Phase, error)
+	// Phases returns every phase of the tenant.
+	Phases(ctx context.Context) ([]*Phase, error)
 	ListPublicOpen(ctx context.Context, now time.Time) ([]*Phase, error)
 	PhaseByID(ctx context.Context, id int64) (*Phase, error)
 	// ResponseOverview compares the school's current children with the

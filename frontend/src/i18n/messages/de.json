@@ -200,12 +200,12 @@
     "today": "Heute",
     "noMeal": "Kein Essen eingetragen",
     "noLinkedChildrenTitle": "Noch kein Kind verknüpft",
-    "noLinkedChildren": "Sobald ein Kind mit Ihrem Konto verknüpft ist, sehen Sie hier den Essensplan der Schule.",
-    "emptyTitle": "Kein Essensplan verfügbar",
-    "empty": "Für Ihre Schule ist der Essensplan derzeit nicht freigeschaltet.",
-    "loading": "Essensplan wird geladen",
-    "emptyThisWeekTitle": "Für diese Woche ist noch kein Essensplan eingetragen",
-    "emptyNextWeekTitle": "Für nächste Woche ist noch kein Essensplan eingetragen",
+    "noLinkedChildren": "Sobald ein Kind mit Ihrem Konto verknüpft ist, sehen Sie hier den Speiseplan der Schule.",
+    "emptyTitle": "Kein Speiseplan verfügbar",
+    "empty": "Für Ihre Schule ist der Speiseplan derzeit nicht freigeschaltet.",
+    "loading": "Speiseplan wird geladen",
+    "emptyThisWeekTitle": "Für diese Woche ist noch kein Speiseplan eingetragen",
+    "emptyNextWeekTitle": "Für nächste Woche ist noch kein Speiseplan eingetragen",
     "emptyWeek": "Sobald die OGS einen Plan einträgt, sehen Sie ihn hier.",
     "weekNavigation": "Kalenderwoche wechseln",
     "previousWeek": "Vorherige Woche",
@@ -217,7 +217,9 @@
     "week": "Woche",
     "participationTitle": "Wann isst {name} mit?",
     "participationCutoff": "Sie können die Anmeldung am selben Tag bis {time} Uhr ändern.",
+    "participationCutoffLead": "Sie können die Anmeldung bis {time} Uhr {days, plural, one {am Werktag vor dem Essen} other {# Werktage vor dem Essen}} ändern.",
     "participationSickness": "Eine bestätigte Krankmeldung bis {time} Uhr meldet Ihr Kind vom Essen ab. Danach bleibt die Anmeldung bestehen.",
+    "participationSicknessLead": "Eine bestätigte Krankmeldung bis {time} Uhr {days, plural, one {am Werktag vor dem Essen} other {# Werktage vor dem Essen}} meldet Ihr Kind vom Essen ab. Danach bleibt die Anmeldung bestehen.",
     "participationLoading": "Anmeldung zum Mittagessen wird geladen",
     "regularDays": "Feste Tage",
     "noRegularDays": "Keine festen Tage",
@@ -248,12 +250,46 @@
     "useRegular": "Feste Anmeldung verwenden",
     "errorObjectSchools": "die Essensübersicht",
     "errorObjectWeek": "die Essensliste dieser Woche",
-    "errorObjectParticipation": "die Anmeldung zum Mittagessen"
+    "errorObjectParticipation": "die Anmeldung zum Mittagessen",
+    "participationCutoffWeekday": "Sie können die Anmeldung bis {weekday}, {time} Uhr, für die ganze nächste Woche ändern.",
+    "participationCancellation": "Abmelden geht länger: bis {time} Uhr {days, plural, =0 {am Essenstag} one {am Werktag vor dem Essen} other {# Werktage vor dem Essen}}.",
+    "participationSicknessWeekday": "Eine bestätigte Krankmeldung bis {weekday}, {time} Uhr, in der Woche vor dem Essen meldet Ihr Kind vom Essen ab. Danach bleibt die Anmeldung bestehen.",
+    "closedDay": "Kein Essen: Feiertag oder Schließtag",
+    "registerWeek": "Ganze Woche anmelden",
+    "unregisterWeek": "Ganze Woche abmelden",
+    "weekActionsHint": "Gilt für alle Tage dieser Woche, die Sie noch ändern können.",
+    "unregisterWeekTitle": "Ganze Woche abmelden?",
+    "unregisterWeekText": "{name} wird an {count, plural, one {# Tag} other {# Tagen}} dieser Woche vom Mittagessen abgemeldet. Wieder anmelden geht nur bis zur Änderungsfrist."
+  },
+  "mealAllergens": {
+    "legendTitle": "Allergene",
+    "choose": "Allergene wählen",
+    "marksShort": "Allergene: {letters}",
+    "marksLabel": "Enthält: {names}",
+    "noneThisWeek": "Für diese Woche sind keine Allergene angegeben.",
+    "source": "Die Angaben kommen von der Schule oder vom Caterer. Ein Gericht ohne Buchstaben ist nicht sicher frei von Allergenen. Bei Fragen hilft Ihnen die OGS.",
+    "names": {
+      "gluten": "Glutenhaltiges Getreide",
+      "crustaceans": "Krebstiere",
+      "eggs": "Eier",
+      "fish": "Fisch",
+      "peanuts": "Erdnüsse",
+      "soybeans": "Soja",
+      "milk": "Milch (auch Laktose)",
+      "nuts": "Schalenfrüchte (Nüsse)",
+      "celery": "Sellerie",
+      "mustard": "Senf",
+      "sesame": "Sesam",
+      "sulphites": "Schwefeldioxid und Sulfite",
+      "lupin": "Lupinen",
+      "molluscs": "Weichtiere"
+    }
   },
   "mealParticipantList": {
     "title": "Tagesliste für die Küche",
     "description": "Die Liste zeigt alle Kinder, die an diesem Tag zum Mittagessen angemeldet sind.",
     "cutoff": "Änderungen für diesen Tag sind bis {time} Uhr möglich.",
+    "cutoffLead": "Änderungen für diesen Tag sind bis {time} Uhr {days, plural, one {am Werktag davor} other {# Werktage vorher}} möglich.",
     "child": "Kind",
     "class": "Klasse",
     "dateAria": "Datum: {date}",
@@ -268,7 +304,44 @@
     "errorObject": "die Tagesliste",
     "caption": "Mittagessen am {date}",
     "emptyTitle": "Keine Anmeldungen für diesen Tag",
-    "emptyDescription": "Für diesen Tag steht kein Kind auf der Küchenliste."
+    "emptyDescription": "Für diesen Tag steht kein Kind auf der Küchenliste.",
+    "viewAria": "Ansicht der Küchenliste",
+    "viewDay": "Tag",
+    "viewWeek": "Woche",
+    "weekTitle": "Wochenliste für die Küche",
+    "weekDescription": "Die Liste zeigt alle Kinder, die in dieser Woche zum Mittagessen angemeldet sind.",
+    "weekCutoff": "Änderungen sind bis {time} Uhr {days, plural, =0 {am Essenstag} one {am Werktag davor} other {# Werktage vorher}} möglich.",
+    "weekDateAria": "Woche ab {from}",
+    "weekDownloadGroup": "Wochenliste herunterladen",
+    "weekDownloadPdf": "Wochenliste als PDF herunterladen",
+    "weekDownloadExcel": "Wochenliste als Excel-Datei herunterladen",
+    "weekErrorObject": "die Wochenliste",
+    "weekCaption": "Mittagessen vom {from} bis {to}",
+    "weekEmptyTitle": "Keine Anmeldungen in dieser Woche",
+    "weekEmptyDescription": "Für diese Woche steht kein Kind auf der Küchenliste.",
+    "weekRegistered": "angemeldet",
+    "weekNotRegistered": "nicht angemeldet",
+    "weekCountsLabel": "Essen pro Tag",
+    "weekCount": "{count, plural, one {# Kind} other {# Kinder}}",
+    "cutoffWeekday": "Änderungen sind bis {weekday} der Vorwoche, {time} Uhr, möglich.",
+    "cancellationCutoff": "Abmelden geht bis {time} Uhr {days, plural, =0 {am Essenstag} one {am Werktag davor} other {# Werktage vorher}}.",
+    "closedTitle": "Kein Essen an diesem Tag",
+    "closedDescription": "Dieser Tag ist ein Feiertag oder Schließtag.",
+    "weekClosed": "kein Essen",
+    "staffChangeHint": "Sie können Kinder hier auch nach der Frist an- oder abmelden.",
+    "addChild": "Kind anmelden",
+    "addChildTitle": "Kind für {date} anmelden",
+    "addChildLabel": "Kind",
+    "addChildPlaceholder": "Kind auswählen",
+    "addChildEmpty": "Alle Kinder dieses Tages sind schon angemeldet.",
+    "addChildRequired": "Bitte wählen Sie ein Kind aus.",
+    "cancel": "Abbrechen",
+    "saving": "Wird gespeichert…",
+    "rowActions": "Aktionen für {name}",
+    "unregister": "Abmelden",
+    "registeredToast": "{name} ist für {date} angemeldet.",
+    "unregisteredToast": "{name} ist für {date} abgemeldet.",
+    "changeErrorObject": "die Anmeldung"
   },
   "parentDashboard": {
     "eyebrow": "Elternportal",
@@ -719,6 +792,7 @@
       "errorObjectPickup": "die Abholregelung"
     },
     "back": "Zurück zu Meine Kinder",
+    "backSingle": "Zurück zu Mein Kind",
     "today": {
       "title": "Heute",
       "description": "Die wichtigsten Informationen und Aufgaben für heute.",
@@ -826,7 +900,18 @@
       "statusRejected": "Abgelehnt: {reason}",
       "noDecisionReason": "Keine Begründung angegeben",
       "submit": "Anfrage senden",
-      "errorObject": "die Abholzeit"
+      "errorObject": "die Abholzeit",
+      "titleWithMode": "Abholung ändern",
+      "introWithMode": "Fragen Sie für einen einzelnen Tag eine andere Abholzeit oder Abholart an. Der Wochenplan bleibt unverändert. Die Änderung gilt erst, wenn die OGS sie bestätigt.",
+      "modeLabel": "Abholart an diesem Tag",
+      "modeUnchanged": "Wie im Wochenplan",
+      "noTimeOrMode": "Bitte tragen Sie eine Abholzeit ein oder wählen Sie eine Abholart.",
+      "reasonRequiredGeneric": "Bitte geben Sie kurz an, warum sich die Abholung ändert.",
+      "pickupOptionalHint": "Leer lassen, wenn die Uhrzeit gleich bleibt.",
+      "modeStaffSet": "Die OGS hat die Abholart für diesen Tag schon festgelegt: {mode}.",
+      "pendingMode": "Neue Abholart: {to}",
+      "statusApprovedChange": "Bestätigt, die Änderung wurde übernommen.",
+      "errorStaffConflictGeneric": "Für diesen Tag hat die OGS schon eine Änderung eingetragen. Bitte wenden Sie sich an das Team."
     },
     "actions": {
       "sick": {
@@ -985,7 +1070,8 @@
     "submitText": "Halten Sie Kontaktdaten, Geburtsdatum, Klassenstufe und gewünschte Betreuungsangebote bereit. Pflichtfelder sind im Formular markiert.",
     "statusTitle": "Status verfolgen",
     "statusText": "Nach dem Absenden öffnet sich Ihre Statusseite. Speichern Sie den Link oder die Bestätigungs-E-Mail, damit Sie später wieder darauf zugreifen können.",
-    "backToPicker": "Andere Anmeldung wählen",
+    "backToPicker": "Zurück zur Auswahl",
+    "backToParentPicker": "Zurück zu Neue Anmeldung",
     "backToPortal": "Zurück zum Elternportal",
     "parentEmbeddedKicker": "Anmeldung für die OGS-Betreuung",
     "formEyebrow": "Formular ausfüllen",
@@ -1010,6 +1096,14 @@
     "dateRange": "{from} bis {to}"
   },
   "enrollmentForm": {
+    "attachments": {
+      "open": "Öffnen",
+      "download": "Herunterladen",
+      "openLabel": "{label} öffnen",
+      "downloadLabel": "{label} herunterladen",
+      "errorObject": "die PDF-Datei",
+      "popupBlocked": "Bitte erlauben Sie das Öffnen eines neuen Fensters."
+    },
     "errorObject": "die Anmeldung",
     "loading": "Formular wird geladen…",
     "legalGermanNotice": "Diese rechtlichen Texte liegen verbindlich auf Deutsch vor.",
@@ -1081,10 +1175,12 @@
       "groupExactlyOne": "Bitte bei „{group}“ genau ein Angebot wählen.",
       "groupAtLeastOne": "Bitte bei „{group}“ mindestens ein Angebot wählen.",
       "groupAtMostOne": "Bitte bei „{group}“ höchstens ein Angebot wählen.",
+      "groupDayConflict": "Am {day} sind {offerings} gewählt. Bitte wählen Sie pro Tag nur ein Angebot.",
       "pickupConfirm": "Bitte die Abholregelung bestätigen (Tage auswählen oder leer lassen).",
       "weekdayRequired": "Bitte mindestens einen Wochentag auswählen.",
       "weekdayModeConfirm": "Bitte die Geh- und Abholregelung bestätigen.",
-      "weekdayMultiModeRequired": "Bitte für jeden Betreuungstag mindestens einen Heimweg auswählen."
+      "weekdayMultiModeRequired": "Bitte für jeden Betreuungstag mindestens einen Heimweg auswählen.",
+      "file": "Bitte laden Sie mindestens eine Datei hoch."
     },
     "actions": {
       "addChild": "Weiteres Kind",
@@ -1119,7 +1215,10 @@
       "ruleExactlyOne": "Bitte genau eines wählen",
       "ruleAtLeastOne": "Bitte mindestens eines wählen",
       "ruleAtMostOne": "Höchstens eines",
-      "availabilitySelectionRemoved": "Durch die geänderte Klassenstufe sind Betreuungsangebote nicht mehr verfügbar. Die zugehörige Auswahl, Betreuungstage und automatische Mitbuchungen wurden entfernt."
+      "ruleAtMostOnePerDay": "Höchstens eines pro Tag",
+      "availabilitySelectionRemoved": "Durch die geänderte Klassenstufe sind Betreuungsangebote nicht mehr verfügbar. Die zugehörige Auswahl, Betreuungstage und automatische Mitbuchungen wurden entfernt.",
+      "chooseGradeFirst": "Wählen Sie zuerst die Klassenstufe Ihres Kindes. Danach sehen Sie hier die passenden Betreuungsangebote.",
+      "noOfferingsForGrade": "Für die {grade}. Klasse gibt es hier keine passenden Betreuungsangebote. Bei Fragen wenden Sie sich bitte an die OGS."
     },
     "consent": {
       "agb": "Ich akzeptiere die AGB der Schule.",
@@ -1131,7 +1230,7 @@
       "emailTitle": "E-Mail-Kontakt",
       "photoTitle": "Fotoeinwilligung"
     },
-    "captchaMisconfigured": "Die Anmeldung ist derzeit nicht möglich: Die Bot-Schutz-Konfiguration ist unvollständig. Bitte wenden Sie sich an die OGS-Leitung.",
+    "captchaMisconfigured": "Die Online-Anmeldung ist gerade nicht möglich. Das liegt nicht an Ihnen. Bitte wenden Sie sich an die OGS.",
     "structured": {
       "yes": "Ja",
       "no": "Nein",
@@ -1231,6 +1330,23 @@
       "noCare": "Keine Angebote gebucht.",
       "hint": "Änderungen für {name} laufen jetzt über die Eltern-App.",
       "noAccess": "Sie kommen nicht in die Eltern-App? Bitte melden Sie sich bei der OGS."
+    },
+    "upload": {
+      "errorObject": "die Datei",
+      "choose": "Datei auswählen",
+      "chooseMore": "Weitere Datei auswählen",
+      "allowed": "Erlaubt: {types}, höchstens {max} MB je Datei.",
+      "upTo": "Bis zu {count} Dateien.",
+      "camera": "Auf dem Handy können Sie auch ein Foto machen.",
+      "uploading": "Wird hochgeladen …",
+      "remove": "{name} entfernen",
+      "wrongType": "Diese Datei hat die falsche Art. Erlaubt sind: {types}.",
+      "tooLarge": "Diese Datei ist zu groß. Erlaubt sind höchstens {max} MB.",
+      "empty": "Diese Datei ist leer. Bitte wählen Sie eine andere Datei.",
+      "onlyOne": "Sie können hier nur eine Datei hochladen.",
+      "tooMany": "Sie können hier höchstens {count} Dateien hochladen.",
+      "pendingSubmit": "Bitte warten Sie, bis alle Dateien hochgeladen sind.",
+      "previewDisabled": "In der Vorschau können Sie keine Dateien hochladen."
     }
   },
   "enrollmentStatus": {
@@ -1318,6 +1434,7 @@
     "changeRequestReplySending": "Wird gesendet…",
     "changeRequestReplySubmit": "Antwort senden",
     "backToStatus": "Zurück zum Status",
+    "backToParentApp": "Zurück zur Eltern-App",
     "nameLabel": "Name",
     "emailLabel": "E-Mail",
     "phoneLabel": "Telefon",
@@ -1490,11 +1607,15 @@
     "requestHint": "Diese Änderungen prüft das Team, bevor sie übernommen werden.",
     "departureDescription": "Legen Sie für jeden Wochentag fest, ob Ihr Kind abgeholt wird, allein geht oder den Bus nimmt. Änderungen prüft die OGS.",
     "departureReadOnlyAccompanied": "Ihr Kind geht an mindestens einem Tag mit einem anderen Kind. Sie können den Heimweg hier nicht ändern.",
+    "departureEdit": "Bearbeiten",
+    "departureCancel": "Abbrechen",
+    "departureSubmitting": "Anfrage wird gesendet…",
+    "departurePendingNotice": "Die OGS prüft Ihre Änderung. Bis zur Bestätigung gilt der bisherige Heimweg.",
     "requestButton": "Änderung anfragen",
     "requestSubmitted": "Anfrage gesendet. Das Team prüft Ihre Änderung.",
     "requestEdit": "Anfrage bearbeiten",
     "pendingBadge": "In Prüfung",
-    "pendingNotice": "Eine Änderung an diesem Feld wartet auf Bestätigung durch das Team.",
+    "pendingTitle": "Beantragte Änderung",
     "editDisabled": "Das Bearbeiten dieser Angaben ist bei dieser OGS deaktiviert.",
     "requestDisabled": "Änderungsanfragen sind bei dieser OGS deaktiviert.",
     "notSet": "Nicht angegeben",
@@ -1623,6 +1744,7 @@
       "cancel": "Abbrechen",
       "noChange": "Ihre Auswahl entspricht der aktuellen Buchung. Ändern Sie etwas, um eine Anfrage zu senden.",
       "noDaysSelected": "Wählen Sie für jedes gewählte Angebot mindestens einen Tag.",
+      "dayConflict": "Am {day} sind {offerings} gewählt. Bitte wählen Sie pro Tag nur ein Angebot.",
       "capacityFull": "Für ein gewähltes Angebot ist kein Platz mehr frei. Bitte wählen Sie ein anderes Angebot oder wenden Sie sich an die Schule.",
       "alreadyPending": "Für Ihr Kind liegt bereits eine Anfrage vor. Bitte warten Sie die Prüfung ab.",
       "withdrawalConfirmTitle": "Betreuung vollständig abmelden?",
@@ -1739,7 +1861,9 @@
     "eventRequestWithdrawn": "Anfrage zurückgezogen",
     "eventRequestCreatedCareOffering": "Anfrage zur gebuchten Betreuung gestellt",
     "eventRequestConfirmedCareOffering": "Anfrage bestätigt, gebuchte Betreuung wird umgestellt",
-    "eventRequestConfirmedCareOfferingDated": "Anfrage bestätigt, gebuchte Betreuung wird ab {date} umgestellt"
+    "eventRequestConfirmedCareOfferingDated": "Anfrage bestätigt, gebuchte Betreuung wird ab {date} umgestellt",
+    "eventRequestCreatedPickupChangeWithMode": "Anfrage zur Abholung gestellt",
+    "eventRequestConfirmedPickupChangeWithMode": "Anfrage bestätigt, Abholung geändert"
   },
   "parentFeedback": {
     "kicker": "Rückmeldung",
@@ -1804,7 +1928,10 @@
       "pickupHint": "Abholzeit für einen Tag anpassen",
       "message": "Nachrichten schreiben",
       "messageCompact": "Nachricht schreiben",
-      "messageHint": "OGS für {name} kontaktieren"
+      "messageHint": "OGS für {name} kontaktieren",
+      "pickupWithMode": "Abholung für {name} ändern",
+      "pickupCompactWithMode": "Abholung ändern",
+      "pickupHintWithMode": "Abholzeit oder Abholart für einen Tag ändern"
     }
   },
   "parentStart": {
@@ -1951,7 +2078,7 @@
     "sent": "Gesendet",
     "readByOgs": "Von der OGS gelesen",
     "aboutChild": "Für {name}",
-    "back": "Zurück",
+    "back": "Zurück zu Nachrichten",
     "composerPlaceholder": "Nachricht an die OGS schreiben",
     "composerLabel": "Nachricht",
     "send": "Senden",
@@ -1962,6 +2089,25 @@
     "errorObjectConversation": "die Unterhaltung",
     "errorObjectMessage": "die Nachricht",
     "errorObjectList": "die Liste der Unterhaltungen"
+  },
+  "parentGroupThreads": {
+    "sectionTitle": "Gruppennachrichten der OGS",
+    "sectionDescription": "Die OGS schreibt hier an die Gruppe, Klasse oder AG Ihres Kindes.",
+    "closed": "Geschlossen",
+    "forChildren": "Für {names}",
+    "privacyNote": "Ihre Antwort geht nur an die OGS. Andere Eltern sehen sie nicht.",
+    "replyTitle": "Antwort an die OGS",
+    "replyChildLabel": "Antwort für",
+    "replyPlaceholder": "Antwort an die OGS schreiben",
+    "replyFieldLabel": "Antwort",
+    "sentConfirmation": "Ihre Antwort ist bei der OGS.",
+    "toChat": "Zum Chat mit der OGS",
+    "closedNote": "Diese Gruppennachricht ist geschlossen. Sie können der OGS weiter im Chat zu Ihrem Kind schreiben.",
+    "writingDisabled": "Sie können auf diese Nachricht nicht antworten. Lesen können Sie sie weiterhin.",
+    "answerTo": "Antwort auf: {title}",
+    "errorObjectThread": "die Gruppennachricht",
+    "errorObjectAnswer": "die Antwort",
+    "errorObjectList": "die Gruppennachrichten"
   },
   "parentCalendar": {
     "kicker": "Termine im Blick",
@@ -2066,6 +2212,7 @@
     },
     "codes": {
       "attendance": {
+        "log_disabled": "Der Anwesenheitsverlauf ist an dieser Schule ausgeschaltet.",
         "web_disabled": "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson."
       },
       "care": {
@@ -2144,6 +2291,9 @@
         "arrival_exception_editor_required": "Für {object} fehlt eine Angabe. Bitte ergänzen Sie das markierte Feld.",
         "arrival_exception_past_date": "Das Datum für {object} liegt in der Vergangenheit. Bitte wählen Sie ein anderes Datum.",
         "arrival_exception_weekend": "{object} konnte nicht übernommen werden. Bitte prüfen Sie Ihre Angaben.",
+        "morning_attendance_no_school_day": "Heute ist kein Schultag. Die Anwesenheit lässt sich nur an Schultagen eintragen.",
+        "morning_attendance_not_today": "Die Anwesenheit lässt sich nur für heute eintragen. Bitte öffnen Sie den heutigen Tag.",
+        "morning_attendance_unknown_child": "Ein Kind gehört nicht mehr zu dieser Klasse. Bitte laden Sie die Seite neu.",
         "school_write_disabled": "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson."
       },
       "communication": {
@@ -2158,9 +2308,13 @@
         "staff_messaging_disabled": "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
         "staff_notice_outdated": "Diese Tagesinformation hat sich inzwischen geändert. Bitte laden Sie die Seite neu.",
         "system_announcement_immutable": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand.",
-        "announcement_not_found": "Diese Ankündigung gibt es nicht mehr. Bitte laden Sie die Seite neu."
+        "announcement_not_found": "Diese Ankündigung gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+        "group_thread_closed": "Diese Gruppennachricht ist geschlossen. Eine Antwort ist nicht mehr möglich.",
+        "group_thread_no_recipients": "Niemand in dieser Gruppe hat Eltern mit Zugang zu moto. Die Nachricht wurde nicht verschickt."
       },
       "enrollment": {
+        "form_attachment_invalid": "Bitte prüfen Sie die Bezeichnung und die PDF-Datei.",
+        "approval_care_offering_day_conflict": "Für dieses Kind sind an einem Tag zwei Angebote gebucht, die nicht zusammen gehen. Bitte ändern Sie zuerst die Buchung.",
         "approval_care_offering_exactly_one": "Für dieses Kind muss genau ein Betreuungsangebot gebucht sein. Die Familie muss die Auswahl ändern.",
         "approval_care_offering_missing": "Für dieses Kind ist kein Betreuungsangebot gebucht. Die Familie muss zuerst ein Angebot ergänzen.",
         "approval_data_invalid": "Die Angaben dieser Anmeldung sind unvollständig. Bitte korrigieren Sie die Daten des Kindes.",
@@ -2169,6 +2323,7 @@
         "care_offering_auto_add_invalid": "Die automatische Zubuchung passt so nicht. Bitte prüfen Sie die auslösenden Angebote und die Tagesauswahl.",
         "care_offering_capacity_invalid": "Bitte prüfen Sie die Zahl der Plätze. Ein Pflichtangebot hat keine Platzgrenze.",
         "care_offering_closed": "Ein gewähltes Betreuungsangebot nimmt gerade keine Anmeldungen an. Bitte wählen Sie ein anderes Angebot.",
+        "care_offering_day_conflict": "An einem Tag sind zwei Angebote gewählt, die nicht zusammen gehen. Bitte wählen Sie pro Tag nur eines.",
         "care_offering_days_required": "Bitte wählen Sie mindestens einen Wochentag für das Angebot.",
         "care_offering_exactly_one": "Bitte wählen Sie für jedes Kind genau ein Betreuungsangebot.",
         "care_offering_full": "Ein gewähltes Betreuungsangebot ist schon voll. Bitte wählen Sie ein anderes Angebot oder fragen Sie die Schule.",
@@ -2240,6 +2395,11 @@
         "legal_block_key_invalid": "Dieser Rechtstext lässt sich so nicht speichern. Bitte entfernen Sie ihn und legen Sie ihn neu an.",
         "legal_block_required_not_allowed": "Hinweise und Einwilligungen dürfen keine Pflicht sein. Bitte nehmen Sie den Haken bei Pflicht heraus.",
         "legal_document_invalid": "Bitte wählen Sie eine PDF-Datei mit höchstens {max_mb} MB.",
+        "form_field_file_options_invalid": "Bitte prüfen Sie die Dateifrage. Wählen Sie mindestens eine Dateiart und eine Größe von 1 bis 10 MB.",
+        "upload_invalid": "Diese Datei passt nicht. Bitte wählen Sie eine erlaubte Dateiart mit höchstens {max_mb} MB.",
+        "upload_expired": "Eine hochgeladene Datei ist abgelaufen. Bitte laden Sie sie erneut hoch.",
+        "upload_rate_limited": "Es wurden zu viele Dateien hochgeladen. Bitte versuchen Sie es später noch einmal.",
+        "upload_not_found": "Diese Datei gibt es nicht mehr. Bitte laden Sie sie erneut hoch.",
         "message_required": "Bitte schreiben Sie eine Nachricht.",
         "offering_adjustment_invalid": "Diese Änderung der Angebote ist so nicht möglich. Bitte prüfen Sie Angebote und Datum.",
         "phase_care_offering_conflict": "Die Änderung passt nicht zu einem Betreuungsangebot der Phase. Bitte prüfen Sie die Angebote.",
@@ -2276,6 +2436,7 @@
         "announcement_published": "Die Mitteilung ist schon veröffentlicht. Ihre Anhänge lassen sich nicht mehr ändern.",
         "attachment_limit_reached": "Eine Mitteilung kann höchstens 5 Anhänge haben. Bitte entfernen Sie einen Anhang.",
         "file_missing": "Es wurde keine Datei ausgewählt. Bitte wählen Sie eine Datei aus.",
+        "file_name_invalid": "Der Name der Datei ist nicht erlaubt. Bitte wählen Sie die Datei noch einmal aus.",
         "file_too_large": "Diese Datei ist zu groß. Erlaubt sind bis zu {max_mb} MB.",
         "file_type_not_allowed": "Diese Dateiart ist hier nicht erlaubt. Bitte wählen Sie eine andere Datei.",
         "file_unreadable": "Die Datei lässt sich nicht lesen. Bitte prüfen Sie die Datei und laden Sie sie erneut hoch.",
@@ -2291,10 +2452,10 @@
         "unavailable": "{object} ist gerade nicht erreichbar. Bitte versuchen Sie es erneut."
       },
       "grade_transition": {
-        "graduates_checked_in": "Es sind noch Kinder mit Abgang eingecheckt. Bitte buchen Sie diese Kinder zuerst nach Hause. Wenden Sie den Jahrgangswechsel danach erneut an.",
-        "not_applied": "Der Jahrgangswechsel ist inzwischen schon zurückgesetzt. Die Liste ist neu geladen.",
-        "not_draft": "Der Jahrgangswechsel wurde inzwischen von einer anderen Person angewendet oder geändert. Bitte prüfen Sie die Liste.",
-        "not_latest_transition": "Inzwischen gibt es einen neueren Jahrgangswechsel. Er muss zuerst zurückgesetzt werden.",
+        "graduates_checked_in": "Es sind noch Kinder mit Abgang eingecheckt. Bitte buchen Sie diese Kinder zuerst nach Hause. Wenden Sie den Schuljahreswechsel danach erneut an.",
+        "not_applied": "Der Schuljahreswechsel ist inzwischen schon zurückgesetzt. Die Liste ist neu geladen.",
+        "not_draft": "Der Schuljahreswechsel wurde inzwischen von einer anderen Person angewendet oder geändert. Bitte prüfen Sie die Liste.",
+        "not_latest_transition": "Inzwischen gibt es einen neueren Schuljahreswechsel. Er muss zuerst zurückgesetzt werden.",
         "preview_stale": "Klassen oder Zuordnungen haben sich seit dem Öffnen geändert. Die Vorschau ist neu geladen. Bitte prüfen Sie sie noch einmal."
       },
       "identity": {
@@ -2325,6 +2486,7 @@
         "preview_token_invalid": "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
         "read_only_preview": "In der Vorschau können Sie nur lesen. Bitte beenden Sie die Vorschau, um etwas zu ändern.",
         "role_name_taken": "Eine Rolle mit diesem Namen gibt es schon. Bitte wählen Sie einen anderen Namen.",
+        "role_platform_permission": "Eigene Rollen können dieses Recht nicht bekommen.",
         "session_account_inactive": "Ihr Konto ist ausgeschaltet. Bitte wenden Sie sich an die Leitung Ihrer Schule.",
         "tenant_access_denied": "Ihr Konto hat keinen Zugang zu dieser Schule. Bitte melden Sie sich neu an.",
         "use_parent_portal": "Für {object} fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
@@ -2332,10 +2494,13 @@
         "username_taken": "Der erzeugte Benutzername war schon vergeben. Bitte versuchen Sie es noch einmal.",
         "password_mismatch": "Die beiden Passwörter stimmen nicht überein. Bitte geben Sie sie erneut ein.",
         "operator_invitation_invalid": "Dieser Einladungslink ist abgelaufen oder ungültig. Bitte lassen Sie sich neu einladen.",
+        "operator_self_deactivation": "Sie können Ihr eigenes Konto nicht deaktivieren. Bitten Sie eine andere Person aus dem Team darum.",
         "invitation_rate_limited": "Es wurden zu viele Einladungen verschickt. Bitte versuchen Sie es in einer Stunde erneut.",
         "email_change_rate_limited": "Die E-Mail-Adresse wurde zu oft geändert. Bitte versuchen Sie es in einer Stunde erneut.",
         "email_change_same_email": "Die neue E-Mail-Adresse ist dieselbe wie die bisherige. Bitte geben Sie eine andere ein.",
         "email_change_link_invalid": "Dieser Bestätigungslink ist abgelaufen oder ungültig. Bitte ändern Sie die E-Mail-Adresse erneut.",
+        "mfa_status_unavailable": "Die Sicherheitsabfrage ist gerade nicht möglich. Bitte versuchen Sie es erneut.",
+        "mfa_session_required": "Für die Anmeldung bei {object} brauchen Sie einen zweiten Anmeldenachweis. Wählen Sie „Zur Schulanmeldung“. Sie werden abgemeldet. Melden Sie sich danach dort neu an und bestätigen Sie die Anmeldung.",
         "mfa_not_enrolled": "Die Zwei-Faktor-Anmeldung ist noch nicht eingerichtet. Bitte richten Sie sie zuerst ein.",
         "mfa_already_enrolled": "Die Zwei-Faktor-Anmeldung ist schon eingerichtet. Bitte laden Sie die Seite neu.",
         "passkey_not_found": "Diesen Passkey gibt es nicht mehr. Bitte laden Sie die Seite neu.",
@@ -2394,6 +2559,7 @@
         "wc_not_configured": "{object} konnte nicht bearbeitet werden. Bitte versuchen Sie es später erneut."
       },
       "meals": {
+        "invalid_allergens": "Die Allergene konnten nicht gespeichert werden. Bitte wählen Sie sie neu aus.",
         "invalid_dishes": "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
         "invalid_meal_date": "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
         "invalid_participation": "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
@@ -2453,6 +2619,7 @@
         "care_exit_preview_changed": "Seit der Vorschau hat sich etwas geändert. Bitte prüfen Sie die Vorschau erneut.",
         "care_exit_too_many_students": "Bitte wählen Sie höchstens 500 Kinder auf einmal aus.",
         "care_offerings_disabled": "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
+        "care_resume_alumnus": "Dieses Kind wurde beim Schuljahreswechsel abgemeldet. Sie finden es unter Schuljahreswechsel, Bereich Abgänge.",
         "care_resume_missing": "Für dieses Kind ist keine beendete Betreuung hinterlegt.",
         "care_resume_not_checked": "Bitte bestätigen Sie zuerst die Prüfung. Sonst bleiben Gruppe, Angebote, Wochenplan und Zeiten ungeprüft.",
         "care_resume_not_ended": "Die Betreuung dieses Kindes läuft noch. Sie müssen sie nicht wieder aufnehmen.",
@@ -2471,6 +2638,7 @@
         "class_list_entry_student_exists": "Ein Kind mit diesem Namen ist in dieser Klasse schon in moto angelegt.",
         "class_list_entry_student_not_found": "Das gewählte Kind gibt es nicht mehr. Bitte laden Sie die Seite neu.",
         "companion_lock_busy": "Gerade ändert jemand anderes die Laufgemeinschaft. Bitte versuchen Sie es gleich noch einmal.",
+        "companion_plan_conflict": "Ein verknüpftes Kind darf an diesen Tagen noch nicht mitgehen. Bitte prüfen Sie die Laufgemeinschaft.",
         "companion_would_lose_departure": "Ein verknüpftes Kind hätte dann keinen Heimweg mehr. Bitte passen Sie zuerst dessen Heimweg an.",
         "companions_changed": "Die Laufgemeinschaft wurde inzwischen geändert. Bitte laden Sie die Seite neu.",
         "conflict_kind_unsupported": "Diese Anfragen lassen sich nicht gemeinsam entscheiden. Bitte entscheiden Sie sie einzeln.",
@@ -2716,7 +2884,7 @@
         "shift_series_no_occurrences": "Für {object} gibt es keine Termine mehr. Bitte prüfen Sie Wochentage und „Gültig bis“.",
         "shift_series_outside_period": "Die Serie liegt außerhalb des Kalenderzeitraums. Bitte prüfen Sie „Gültig ab“ und „Gültig bis“.",
         "shift_series_week_cycle_missing": "Dieser Kalenderzeitraum hat keine Woche A und B. Bitte wählen Sie „Jede Woche“.",
-        "shift_type_inactive": "Diese Schichtart ist ausgeschaltet. Bitte wählen Sie eine andere.",
+        "shift_type_inactive": "Diese Dienstart ist ausgeschaltet. Bitte wählen Sie eine andere.",
         "staff_profile_missing": "Für Ihr Konto gibt es keinen Personaldatensatz. Diese Einstellung gilt nur für Personal.",
         "stammdaten_invalid": "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
         "target_override_hours_invalid": "Die Stunden pro Tag müssen zwischen 0 und {max_hours} liegen.",
@@ -2764,7 +2932,11 @@
         "managed_by_upload": "Dieser Wert entsteht beim Hochladen der Datei. Bitte laden Sie die Datei neu hoch.",
         "invalid_value": "Der Wert für {object} ist nicht erlaubt. Bitte prüfen Sie die Eingabe.",
         "presence_mode_switch_blocked": "Der Anwesenheitsmodus kann erst nach dem Tagesabschluss gewechselt werden. Bitte beenden Sie zuerst den laufenden Tag.",
-        "booking_authority_blocked": "Der Buchungsmodus wurde nicht aktiviert: Für mindestens ein betreutes Kind ist kein Betreuungstag gebucht. Bitte prüfen Sie die Auswirkungen erneut."
+        "booking_authority_blocked": "Der Buchungsmodus wurde nicht aktiviert: Für mindestens ein betreutes Kind ist kein Betreuungstag gebucht. Bitte prüfen Sie die Auswirkungen erneut.",
+        "attendance_visible_exceeds_retention": "Das Team kann die Anwesenheit höchstens {retention_days} Tage zurück sehen. So lange bewahrt moto sie auf.",
+        "attendance_retention_below_visible": "Das Team sieht die Anwesenheit {visible_days} Tage zurück. Die Aufbewahrung muss mindestens so lang sein.",
+        "module_requires": "{module} braucht das Modul {required}. Bitte buchen Sie zuerst {required}.",
+        "module_required_by": "{module} kann nicht abbestellt werden, solange {dependents} gebucht ist. Bitte bestellen Sie zuerst {dependents} ab."
       },
       "devices": {
         "tag_scan_not_found": "Diesen Scan gibt es nicht mehr. Bitte laden Sie die Seite neu.",
@@ -2772,6 +2944,23 @@
       },
       "billing": {
         "invalid_key_day": "Der Stichtag muss zwischen dem 1. und dem 28. des Monats liegen. Bitte wählen Sie einen dieser Tage."
+      },
+      "display": {
+        "disabled": "Die Anzeigetafel ist an dieser Schule ausgeschaltet."
+      },
+      "feedback": {
+        "disabled": "Rückmeldungen sind an dieser Schule ausgeschaltet."
+      },
+      "staff": {
+        "external_access_invalid": "Bitte wählen Sie, welchen Zugang die Person bekommt.",
+        "external_email_invalid": "Diese E-Mail-Adresse ist nicht gültig. Bitte prüfen Sie sie.",
+        "external_email_invited": "Diese E-Mail-Adresse hat schon eine offene Einladung für eine andere Person. Bitte nehmen Sie eine andere Adresse.",
+        "external_email_required": "Bitte geben Sie eine E-Mail-Adresse ein.",
+        "external_has_account": "Diese Person hat schon ein Konto. Eine Einladung ist nicht nötig.",
+        "not_external": "Diese Person ist nicht als extern eingetragen. Bitte laden Sie sie wie andere Mitarbeitende ein."
+      },
+      "operator": {
+        "audit_unavailable": "Die Anfrage konnte nicht sicher protokolliert werden. Bitte versuchen Sie es später erneut."
       }
     },
     "actions": {

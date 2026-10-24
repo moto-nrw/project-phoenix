@@ -4,9 +4,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -44,7 +44,7 @@ func TestPresenceAttendance_Create(t *testing.T) {
 
 	t.Run("create valid attendance record", func(t *testing.T) {
 		now := time.Now()
-		date := timezone.TodayDate()
+		date := calendar.TodayDate()
 
 		attendance := studentpresence.Attendance{
 			StudentID:   data.Student1ID,
@@ -67,7 +67,7 @@ func TestPresenceAttendance_Create(t *testing.T) {
 
 	t.Run("create with check-out time", func(t *testing.T) {
 		now := time.Now()
-		date := timezone.TodayDate()
+		date := calendar.TodayDate()
 		checkOutTime := now.Add(2 * time.Hour)
 		checkedOutBy := data.Staff2ID
 
@@ -99,7 +99,7 @@ func TestPresenceAttendance_Create(t *testing.T) {
 
 	t.Run("preserves open and closed attendance", func(t *testing.T) {
 		now := time.Now()
-		date := timezone.TodayDate()
+		date := calendar.TodayDate()
 
 		// Use a fresh student so the partial unique index on
 		// (student_id, date) WHERE check_out_time IS NULL doesn't fight us:
@@ -154,7 +154,7 @@ func TestPresenceAttendance_ListOpenStudentIDsForDate(t *testing.T) {
 	checkOutTime := now.Add(-5 * time.Minute)
 	testpkg.CreateTestAttendance(t, db, data.Student2ID, data.Staff1ID, data.Device1ID, now.Add(-30*time.Minute), &checkOutTime)
 
-	ids, err := repo.ListOpenAttendanceStudentIDs(ctx, timezone.TodayDate().String())
+	ids, err := repo.ListOpenAttendanceStudentIDs(ctx, calendar.TodayDate().String())
 
 	require.NoError(t, err)
 	assert.Contains(t, ids, data.Student1ID)
@@ -173,7 +173,7 @@ func TestPresenceAttendance_StudentDate(t *testing.T) {
 
 	t.Run("single record for student on date", func(t *testing.T) {
 		now := time.Now()
-		date := timezone.TodayDate()
+		date := calendar.TodayDate()
 
 		attendance := &studentpresence.Attendance{
 			StudentID:   data.Student1ID,
@@ -206,7 +206,7 @@ func TestPresenceAttendance_StudentDate(t *testing.T) {
 
 	t.Run("multiple records for student on same date ordered by check-in time", func(t *testing.T) {
 		now := time.Now()
-		date := timezone.TodayDate()
+		date := calendar.TodayDate()
 
 		// Use a fresh student so we control the row count exactly. The
 		// partial unique index allows many rows per (student_id, date) as
@@ -273,7 +273,7 @@ func TestPresenceAttendance_StudentDate(t *testing.T) {
 
 	t.Run("no records for student on date", func(t *testing.T) {
 		// Use a date with no records
-		emptyDate := timezone.NewDate(2023, 1, 1)
+		emptyDate := calendar.NewDate(2023, 1, 1)
 
 		records, err := repo.ListAttendance(ctx, studentpresence.AttendanceFilter{StudentIDs: []int64{data.Student1ID}, FromDate: emptyDate.String(), UntilDate: emptyDate.String()})
 		require.NoError(t, err)
@@ -283,7 +283,7 @@ func TestPresenceAttendance_StudentDate(t *testing.T) {
 
 	t.Run("date filtering ignores time component", func(t *testing.T) {
 		now := time.Now()
-		date := timezone.TodayDate()
+		date := calendar.TodayDate()
 
 		// Isolate from prior sub-tests' open rows — partial unique index
 		// only allows one open attendance per (student_id, date).
@@ -318,7 +318,7 @@ func TestPresenceAttendance_StudentDate(t *testing.T) {
 
 	t.Run("different students on same date", func(t *testing.T) {
 		now := time.Now()
-		date := timezone.TodayDate()
+		date := calendar.TodayDate()
 
 		// Fresh students — Student1/Student2 from the shared fixture may
 		// already have open rows from earlier sub-tests, which would clash
@@ -367,7 +367,7 @@ func TestPresenceAttendance_StudentDate(t *testing.T) {
 
 	t.Run("different dates for same student", func(t *testing.T) {
 		now := time.Now()
-		date1 := timezone.TodayDate()
+		date1 := calendar.TodayDate()
 		date2 := date1.AddDays(1) // Next day
 
 		// Fresh student — Student1 already has open rows on `today` from
@@ -438,9 +438,9 @@ func TestPresenceAttendance_FindLatestByStudent(t *testing.T) {
 
 	t.Run("latest record across multiple dates", func(t *testing.T) {
 		now := time.Now()
-		date1 := timezone.TodayDate().AddDays(-2) // 2 days ago
-		date2 := timezone.TodayDate().AddDays(-1) // Yesterday
-		date3 := timezone.TodayDate()             // Today
+		date1 := calendar.TodayDate().AddDays(-2) // 2 days ago
+		date2 := calendar.TodayDate().AddDays(-1) // Yesterday
+		date3 := calendar.TodayDate()             // Today
 
 		// Different dates each, so the partial unique index isn't relevant
 		// here — but use an isolated student for clean assertions.
@@ -491,7 +491,7 @@ func TestPresenceAttendance_FindLatestByStudent(t *testing.T) {
 
 	t.Run("latest record same day with multiple check-ins", func(t *testing.T) {
 		now := time.Now()
-		date := timezone.TodayDate()
+		date := calendar.TodayDate()
 
 		// Fresh student so we own the row count. Earlier row is closed
 		// (realistic check-in/out cycle), the later row stays open — only
@@ -552,7 +552,7 @@ func TestPresenceAttendance_FindLatestByStudent(t *testing.T) {
 		singleStudent := testpkg.CreateTestStudent(t, db, "Single", "RecordStudent", "1d")
 
 		now := time.Now()
-		date := timezone.TodayDate()
+		date := calendar.TodayDate()
 
 		attendance := &studentpresence.Attendance{
 			StudentID:   singleStudent.ID,
@@ -580,7 +580,7 @@ func TestPresenceAttendance_FindLatestByStudent(t *testing.T) {
 		complexStudent := testpkg.CreateTestStudent(t, db, "Complex", "ScenarioStudent", "1e")
 
 		now := time.Now()
-		today := timezone.TodayDate()
+		today := calendar.TodayDate()
 		yesterday := today.AddDays(-1)
 
 		// Yesterday: multiple records — earlier is closed, later stays open
@@ -634,7 +634,7 @@ func TestPresenceAttendance_FindLatestByStudent(t *testing.T) {
 
 	t.Run("different students do not interfere", func(t *testing.T) {
 		now := time.Now()
-		date := timezone.TodayDate()
+		date := calendar.TodayDate()
 
 		// Fresh students — Student1/Student2 from the shared fixture may
 		// already have open rows from earlier sub-tests, which would clash
@@ -695,7 +695,7 @@ func TestPresenceAttendance_GetStudentCurrentStatus(t *testing.T) {
 		newStudent := testpkg.CreateTestStudent(t, db, "NoRecords", "Today", "2a")
 
 		// Try to get current status for student with no attendance today
-		status, err := repo.ListAttendance(ctx, studentpresence.AttendanceFilter{StudentIDs: []int64{newStudent.ID}, FromDate: timezone.TodayDate().String(), UntilDate: timezone.TodayDate().String(), NewestFirst: true, Limit: 1})
+		status, err := repo.ListAttendance(ctx, studentpresence.AttendanceFilter{StudentIDs: []int64{newStudent.ID}, FromDate: calendar.TodayDate().String(), UntilDate: calendar.TodayDate().String(), NewestFirst: true, Limit: 1})
 
 		// A student without attendance today has an empty history.
 		require.NoError(t, err)
@@ -707,7 +707,7 @@ func TestPresenceAttendance_GetStudentCurrentStatus(t *testing.T) {
 		checkedInStudent := testpkg.CreateTestStudent(t, db, "CheckedIn", "StatusTest", "2b")
 
 		now := time.Now()
-		today := timezone.TodayDate()
+		today := calendar.TodayDate()
 
 		attendance := &studentpresence.Attendance{
 			StudentID:   checkedInStudent.ID,
@@ -723,7 +723,7 @@ func TestPresenceAttendance_GetStudentCurrentStatus(t *testing.T) {
 		*attendance = record
 
 		// Get current status
-		status, err := repo.ListAttendance(ctx, studentpresence.AttendanceFilter{StudentIDs: []int64{checkedInStudent.ID}, FromDate: timezone.TodayDate().String(), UntilDate: timezone.TodayDate().String(), NewestFirst: true, Limit: 1})
+		status, err := repo.ListAttendance(ctx, studentpresence.AttendanceFilter{StudentIDs: []int64{checkedInStudent.ID}, FromDate: calendar.TodayDate().String(), UntilDate: calendar.TodayDate().String(), NewestFirst: true, Limit: 1})
 		require.NoError(t, err)
 		require.Len(t, status, 1)
 
@@ -738,7 +738,7 @@ func TestPresenceAttendance_GetStudentCurrentStatus(t *testing.T) {
 		checkedOutStudent := testpkg.CreateTestStudent(t, db, "CheckedOut", "StatusTest", "2c")
 
 		now := time.Now()
-		today := timezone.TodayDate()
+		today := calendar.TodayDate()
 		checkOutTime := now.Add(2 * time.Hour)
 		checkedOutBy := data.Staff2ID
 
@@ -757,7 +757,7 @@ func TestPresenceAttendance_GetStudentCurrentStatus(t *testing.T) {
 		*attendance = record
 
 		// Get current status
-		status, err := repo.ListAttendance(ctx, studentpresence.AttendanceFilter{StudentIDs: []int64{checkedOutStudent.ID}, FromDate: timezone.TodayDate().String(), UntilDate: timezone.TodayDate().String(), NewestFirst: true, Limit: 1})
+		status, err := repo.ListAttendance(ctx, studentpresence.AttendanceFilter{StudentIDs: []int64{checkedOutStudent.ID}, FromDate: calendar.TodayDate().String(), UntilDate: calendar.TodayDate().String(), NewestFirst: true, Limit: 1})
 		require.NoError(t, err)
 		require.Len(t, status, 1)
 
@@ -772,7 +772,7 @@ func TestPresenceAttendance_GetStudentCurrentStatus(t *testing.T) {
 		multiRecordStudent := testpkg.CreateTestStudent(t, db, "MultiRecord", "StatusTest", "2d")
 
 		now := time.Now()
-		today := timezone.TodayDate()
+		today := calendar.TodayDate()
 
 		// First check-in (earlier) — closed so it doesn't conflict with the
 		// later open row under the partial unique index on
@@ -819,7 +819,7 @@ func TestPresenceAttendance_GetStudentCurrentStatus(t *testing.T) {
 		}
 
 		// Get current status - should return the latest check-in
-		status, err := repo.ListAttendance(ctx, studentpresence.AttendanceFilter{StudentIDs: []int64{multiRecordStudent.ID}, FromDate: timezone.TodayDate().String(), UntilDate: timezone.TodayDate().String(), NewestFirst: true, Limit: 1})
+		status, err := repo.ListAttendance(ctx, studentpresence.AttendanceFilter{StudentIDs: []int64{multiRecordStudent.ID}, FromDate: calendar.TodayDate().String(), UntilDate: calendar.TodayDate().String(), NewestFirst: true, Limit: 1})
 		require.NoError(t, err)
 		require.Len(t, status, 1)
 
@@ -833,7 +833,7 @@ func TestPresenceAttendance_GetStudentCurrentStatus(t *testing.T) {
 		historicalStudent := testpkg.CreateTestStudent(t, db, "Historical", "StatusTest", "2e")
 
 		now := time.Now()
-		yesterday := timezone.TodayDate().AddDays(-1)
+		yesterday := calendar.TodayDate().AddDays(-1)
 
 		// Create attendance for yesterday
 		attendance := &studentpresence.Attendance{
@@ -850,7 +850,7 @@ func TestPresenceAttendance_GetStudentCurrentStatus(t *testing.T) {
 
 		// Get current status - should not find yesterday's record
 		require.NotZero(t, attendance.ID)
-		status, err := repo.ListAttendance(ctx, studentpresence.AttendanceFilter{StudentIDs: []int64{historicalStudent.ID}, FromDate: timezone.TodayDate().String(), UntilDate: timezone.TodayDate().String(), NewestFirst: true, Limit: 1})
+		status, err := repo.ListAttendance(ctx, studentpresence.AttendanceFilter{StudentIDs: []int64{historicalStudent.ID}, FromDate: calendar.TodayDate().String(), UntilDate: calendar.TodayDate().String(), NewestFirst: true, Limit: 1})
 
 		require.NoError(t, err)
 		assert.Empty(t, status, "Should return no rows when only historical records exist")
@@ -862,7 +862,7 @@ func TestPresenceAttendance_GetStudentCurrentStatus(t *testing.T) {
 		diffStudent2 := testpkg.CreateTestStudent(t, db, "Different2", "StatusTest", "2g")
 
 		now := time.Now()
-		today := timezone.TodayDate()
+		today := calendar.TodayDate()
 
 		// Create attendance for student1
 		attendance1 := &studentpresence.Attendance{
@@ -894,7 +894,7 @@ func TestPresenceAttendance_GetStudentCurrentStatus(t *testing.T) {
 		}
 
 		// Get status for student1 - should be checked in
-		status1, err := repo.ListAttendance(ctx, studentpresence.AttendanceFilter{StudentIDs: []int64{diffStudent1.ID}, FromDate: timezone.TodayDate().String(), UntilDate: timezone.TodayDate().String(), NewestFirst: true, Limit: 1})
+		status1, err := repo.ListAttendance(ctx, studentpresence.AttendanceFilter{StudentIDs: []int64{diffStudent1.ID}, FromDate: calendar.TodayDate().String(), UntilDate: calendar.TodayDate().String(), NewestFirst: true, Limit: 1})
 		require.NoError(t, err)
 		require.Len(t, status1, 1)
 		assert.Equal(t, diffStudent1.ID, status1[0].StudentID)
@@ -902,7 +902,7 @@ func TestPresenceAttendance_GetStudentCurrentStatus(t *testing.T) {
 		assert.Nil(t, status1[0].CheckOutTime)
 
 		// Get status for student2 - should be checked out
-		status2, err := repo.ListAttendance(ctx, studentpresence.AttendanceFilter{StudentIDs: []int64{diffStudent2.ID}, FromDate: timezone.TodayDate().String(), UntilDate: timezone.TodayDate().String(), NewestFirst: true, Limit: 1})
+		status2, err := repo.ListAttendance(ctx, studentpresence.AttendanceFilter{StudentIDs: []int64{diffStudent2.ID}, FromDate: calendar.TodayDate().String(), UntilDate: calendar.TodayDate().String(), NewestFirst: true, Limit: 1})
 		require.NoError(t, err)
 		require.Len(t, status2, 1)
 		assert.Equal(t, diffStudent2.ID, status2[0].StudentID)
@@ -914,7 +914,7 @@ func TestPresenceAttendance_GetStudentCurrentStatus(t *testing.T) {
 		// Create isolated student
 		tzStudent := testpkg.CreateTestStudent(t, db, "Timezone", "StatusTest", "2h")
 
-		today := timezone.TodayDate()
+		today := calendar.TodayDate()
 
 		// Create attendance record for today but late in the day
 		attendance := &studentpresence.Attendance{
@@ -930,7 +930,7 @@ func TestPresenceAttendance_GetStudentCurrentStatus(t *testing.T) {
 		*attendance = record
 
 		// Get current status - should find the record regardless of time
-		status, err := repo.ListAttendance(ctx, studentpresence.AttendanceFilter{StudentIDs: []int64{tzStudent.ID}, FromDate: timezone.TodayDate().String(), UntilDate: timezone.TodayDate().String(), NewestFirst: true, Limit: 1})
+		status, err := repo.ListAttendance(ctx, studentpresence.AttendanceFilter{StudentIDs: []int64{tzStudent.ID}, FromDate: calendar.TodayDate().String(), UntilDate: calendar.TodayDate().String(), NewestFirst: true, Limit: 1})
 		require.NoError(t, err)
 		require.Len(t, status, 1)
 
@@ -950,7 +950,7 @@ func TestPresenceAttendance_Update(t *testing.T) {
 
 	t.Run("updates attendance with check-out time", func(t *testing.T) {
 		now := time.Now()
-		date := timezone.TodayDate()
+		date := calendar.TodayDate()
 
 		attendance := studentpresence.Attendance{
 			StudentID:   data.Student1ID,
@@ -999,7 +999,7 @@ func TestPresenceAttendance_FindByID(t *testing.T) {
 
 	t.Run("finds existing attendance by ID", func(t *testing.T) {
 		now := time.Now()
-		date := timezone.TodayDate()
+		date := calendar.TodayDate()
 
 		attendance := studentpresence.Attendance{
 			StudentID:   data.Student1ID,
@@ -1036,7 +1036,7 @@ func TestPresenceAttendance_Delete(t *testing.T) {
 
 	t.Run("deletes existing attendance record", func(t *testing.T) {
 		now := time.Now()
-		date := timezone.TodayDate()
+		date := calendar.TodayDate()
 
 		attendance := studentpresence.Attendance{
 			StudentID:   data.Student1ID,
@@ -1069,7 +1069,7 @@ func TestPresenceAttendance_GetTodayByStudentID(t *testing.T) {
 
 	t.Run("gets today's attendance for student", func(t *testing.T) {
 		now := time.Now()
-		today := timezone.TodayDate()
+		today := calendar.TodayDate()
 
 		attendance := &studentpresence.Attendance{
 			StudentID:   data.Student1ID,
@@ -1083,7 +1083,7 @@ func TestPresenceAttendance_GetTodayByStudentID(t *testing.T) {
 		require.NoError(t, err)
 		*attendance = record
 
-		found, err := repo.ListAttendance(ctx, studentpresence.AttendanceFilter{StudentIDs: []int64{data.Student1ID}, FromDate: timezone.TodayDate().String(), UntilDate: timezone.TodayDate().String(), NewestFirst: true, Limit: 1})
+		found, err := repo.ListAttendance(ctx, studentpresence.AttendanceFilter{StudentIDs: []int64{data.Student1ID}, FromDate: calendar.TodayDate().String(), UntilDate: calendar.TodayDate().String(), NewestFirst: true, Limit: 1})
 		require.NoError(t, err)
 		assert.Equal(t, attendance.ID, found[0].ID)
 	})
@@ -1092,7 +1092,7 @@ func TestPresenceAttendance_GetTodayByStudentID(t *testing.T) {
 		// Create student with no attendance today
 		newStudent := testpkg.CreateTestStudent(t, db, "NoAttendanceToday", "Test", "3a")
 
-		found, err := repo.ListAttendance(ctx, studentpresence.AttendanceFilter{StudentIDs: []int64{newStudent.ID}, FromDate: timezone.TodayDate().String(), UntilDate: timezone.TodayDate().String(), NewestFirst: true, Limit: 1})
+		found, err := repo.ListAttendance(ctx, studentpresence.AttendanceFilter{StudentIDs: []int64{newStudent.ID}, FromDate: calendar.TodayDate().String(), UntilDate: calendar.TodayDate().String(), NewestFirst: true, Limit: 1})
 		require.NoError(t, err)
 		assert.Empty(t, found)
 	})
@@ -1110,7 +1110,7 @@ func TestPresenceAttendance_FindForDate(t *testing.T) {
 
 	t.Run("finds all attendance for specific date", func(t *testing.T) {
 		now := time.Now()
-		date := timezone.TodayDate()
+		date := calendar.TodayDate()
 
 		// Create multiple attendance records for same date
 		attendance1 := &studentpresence.Attendance{
@@ -1157,7 +1157,7 @@ func TestPresenceAttendance_FindForDate(t *testing.T) {
 	})
 
 	t.Run("returns empty for date with no attendance", func(t *testing.T) {
-		emptyDate := timezone.NewDate(2023, 1, 1)
+		emptyDate := calendar.NewDate(2023, 1, 1)
 
 		records, err := repo.ListAttendance(ctx, studentpresence.AttendanceFilter{FromDate: emptyDate.String(), UntilDate: emptyDate.String()})
 		require.NoError(t, err)
@@ -1196,7 +1196,7 @@ func TestPresenceAttendance_CreateIfNoOpenForToday(t *testing.T) {
 		now := time.Now()
 		att := studentpresence.Attendance{
 			StudentID:   student.ID,
-			Date:        timezone.TodayDate().String(),
+			Date:        calendar.TodayDate().String(),
 			CheckInTime: now,
 			CheckedInBy: data.Staff1ID,
 			DeviceID:    data.Device1ID,
@@ -1213,7 +1213,7 @@ func TestPresenceAttendance_CreateIfNoOpenForToday(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Conflict", "Race", "1y")
 
 		now := time.Now()
-		date := timezone.TodayDate()
+		date := calendar.TodayDate()
 		first := studentpresence.Attendance{
 			StudentID:   student.ID,
 			Date:        date.String(),
@@ -1241,7 +1241,7 @@ func TestPresenceAttendance_CreateIfNoOpenForToday(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Conflict", "Reentry", "1x")
 
 		now := time.Now()
-		date := timezone.TodayDate()
+		date := calendar.TodayDate()
 		closedBy := data.Staff1ID
 		closeTime := now.Add(30 * time.Minute)
 
@@ -1300,7 +1300,7 @@ func TestPresenceAttendance_CloseOpenForToday(t *testing.T) {
 		yard := now.Add(-15 * time.Minute)
 		open := studentpresence.Attendance{
 			StudentID:   student.ID,
-			Date:        timezone.NewDate(2026, 8, 24).String(),
+			Date:        calendar.NewDate(2026, 8, 24).String(),
 			CheckInTime: now.Add(-1 * time.Hour),
 			CheckedInBy: data.Staff1ID,
 			DeviceID:    data.Device1ID,
@@ -1309,7 +1309,7 @@ func TestPresenceAttendance_CloseOpenForToday(t *testing.T) {
 		open, err := repo.RecordAttendance(ctx, open)
 		require.NoError(t, err)
 
-		closed, err := repo.CloseAttendance(ctx, studentpresence.AttendanceCheckout{StudentIDs: []int64{student.ID}, At: now, Date: timezone.DateFromTime(now).String(), StaffID: data.Staff2ID, DeviceID: 0})
+		closed, err := repo.CloseAttendance(ctx, studentpresence.AttendanceCheckout{StudentIDs: []int64{student.ID}, At: now, Date: calendar.DateFromTime(now).String(), StaffID: data.Staff2ID, DeviceID: 0})
 		require.NoError(t, err)
 		require.Len(t, closed, 1, "open row must have been closed")
 		assert.Equal(t, open.ID, closed[0].ID)
@@ -1323,7 +1323,7 @@ func TestPresenceAttendance_CloseOpenForToday(t *testing.T) {
 	t.Run("no open row returns nil without error", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Close", "Idempotent", "2y")
 
-		closed, err := repo.CloseAttendance(ctx, studentpresence.AttendanceCheckout{StudentIDs: []int64{student.ID}, At: time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC), Date: timezone.NewDate(2026, 8, 24).String(), StaffID: data.Staff1ID})
+		closed, err := repo.CloseAttendance(ctx, studentpresence.AttendanceCheckout{StudentIDs: []int64{student.ID}, At: time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC), Date: calendar.NewDate(2026, 8, 24).String(), StaffID: data.Staff1ID})
 		require.NoError(t, err)
 		assert.Empty(t, closed, "no open row → idempotent success, repo returns nil")
 	})
@@ -1336,7 +1336,7 @@ func TestPresenceAttendance_CloseOpenForToday(t *testing.T) {
 		now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 		open := studentpresence.Attendance{
 			StudentID:   student.ID,
-			Date:        timezone.NewDate(2026, 8, 24).String(),
+			Date:        calendar.NewDate(2026, 8, 24).String(),
 			CheckInTime: now.Add(-1 * time.Hour),
 			CheckedInBy: data.Staff1ID,
 			DeviceID:    data.Device1ID,
@@ -1344,7 +1344,7 @@ func TestPresenceAttendance_CloseOpenForToday(t *testing.T) {
 		open, err := repo.RecordAttendance(ctx, open)
 		require.NoError(t, err)
 
-		closed, err := repo.CloseAttendance(ctx, studentpresence.AttendanceCheckout{StudentIDs: []int64{student.ID}, At: now, Date: timezone.DateFromTime(now).String(), StaffID: 0, DeviceID: data.Device1ID})
+		closed, err := repo.CloseAttendance(ctx, studentpresence.AttendanceCheckout{StudentIDs: []int64{student.ID}, At: now, Date: calendar.DateFromTime(now).String(), StaffID: 0, DeviceID: data.Device1ID})
 		require.NoError(t, err)
 		require.Len(t, closed, 1)
 		assert.Equal(t, open.ID, closed[0].ID)
@@ -1361,7 +1361,7 @@ func TestPresenceAttendance_CloseOpenForToday(t *testing.T) {
 		now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 		open := studentpresence.Attendance{
 			StudentID:   student.ID,
-			Date:        timezone.NewDate(2026, 8, 24).String(),
+			Date:        calendar.NewDate(2026, 8, 24).String(),
 			CheckInTime: now.Add(-time.Hour),
 			CheckedInBy: data.Staff1ID,
 			DeviceID:    data.Device1ID,
@@ -1369,7 +1369,7 @@ func TestPresenceAttendance_CloseOpenForToday(t *testing.T) {
 		open, err := repo.RecordAttendance(ctx, open)
 		require.NoError(t, err)
 
-		closed, err := repo.CloseAttendance(ctx, studentpresence.AttendanceCheckout{StudentIDs: []int64{student.ID}, At: now, Date: timezone.DateFromTime(now).String(), StaffID: 0, DeviceID: otherDevice.ID})
+		closed, err := repo.CloseAttendance(ctx, studentpresence.AttendanceCheckout{StudentIDs: []int64{student.ID}, At: now, Date: calendar.DateFromTime(now).String(), StaffID: 0, DeviceID: otherDevice.ID})
 		require.Error(t, err)
 		assert.Nil(t, closed)
 		unchanged, err := repo.FindAttendance(ctx, open.ID)
@@ -1396,7 +1396,7 @@ func TestPresenceAttendance_CloseOpenForTodayUsesCallerDate(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "Close", "SnapshotDay", "2w")
 
 	now := time.Now()
-	yesterday := timezone.TodayDate().AddDays(-1)
+	yesterday := calendar.TodayDate().AddDays(-1)
 	open := studentpresence.Attendance{
 		StudentID:   student.ID,
 		Date:        yesterday.String(),
@@ -1408,7 +1408,7 @@ func TestPresenceAttendance_CloseOpenForTodayUsesCallerDate(t *testing.T) {
 	require.NoError(t, err)
 
 	// A close scoped to the CURRENT day must not touch yesterday's open row.
-	closed, err := repo.CloseAttendance(ctx, studentpresence.AttendanceCheckout{StudentIDs: []int64{student.ID}, At: now, Date: timezone.TodayDate().String(), StaffID: data.Staff1ID, DeviceID: 0})
+	closed, err := repo.CloseAttendance(ctx, studentpresence.AttendanceCheckout{StudentIDs: []int64{student.ID}, At: now, Date: calendar.TodayDate().String(), StaffID: data.Staff1ID, DeviceID: 0})
 	require.NoError(t, err)
 	assert.Empty(t, closed, "a different-day close must not match the snapshot day's row")
 
@@ -1419,7 +1419,7 @@ func TestPresenceAttendance_CloseOpenForTodayUsesCallerDate(t *testing.T) {
 	assert.Equal(t, open.ID, closed[0].ID)
 }
 
-func newPresence(t *testing.T, db *testpkg.DB) *studentpresence.Module {
+func newPresence(t *testing.T, db *testpkg.DB) studentpresence.Owner {
 	t.Helper()
 	module, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)

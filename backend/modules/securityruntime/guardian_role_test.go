@@ -3,7 +3,7 @@ package securityruntime
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/application/authorize"
 )
 
 type guardianRoleRecord struct {
@@ -63,6 +63,32 @@ func TestGuardianPermissionGranted(t *testing.T) {
 	} {
 		if got := GuardianPermissionGranted(tc.value); got != tc.want {
 			t.Errorf("%s: got %v, want %v", tc.name, got, tc.want)
+		}
+	}
+}
+
+// TestClassifyGuardianRoleGroupsTheStoredRoles pins the classes the guardian
+// invitation flows act on: full presets need no upgrade, the social worker
+// preset is school-managed, every other stored role (unknown ones included)
+// is a restricted contact.
+func TestClassifyGuardianRoleGroupsTheStoredRoles(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]GuardianRoleClass{
+		GuardianRolePrimaryGuardian: GuardianRoleClassFull,
+		" Legal_Guardian ":          GuardianRoleClassFull,
+		GuardianRoleCoGuardian:      GuardianRoleClassFull,
+		GuardianRoleSocialWorker:    GuardianRoleClassSocialWorker,
+		" SOCIAL_WORKER":            GuardianRoleClassSocialWorker,
+		GuardianRoleEmergency:       GuardianRoleClassRestricted,
+		GuardianRolePickupOnly:      GuardianRoleClassRestricted,
+		GuardianRoleCustom:          GuardianRoleClassRestricted,
+		"":                          GuardianRoleClassRestricted,
+		"unknown":                   GuardianRoleClassRestricted,
+	}
+	for role, want := range cases {
+		if got := ClassifyGuardianRole(role); got != want {
+			t.Errorf("ClassifyGuardianRole(%q) = %d, want %d", role, got, want)
 		}
 	}
 }

@@ -3,7 +3,8 @@ package presence_test
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/api"
+
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
@@ -13,7 +14,7 @@ func TestGroupRoomProjectionPreservesOpenRoomFlag(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	group := testpkg.CreateTestActiveGroupForTenant(t, db, testpkg.Tenant(t))
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := api.NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db))
 	for _, open := range []bool{true, false} {
 		_, err := db.NewUpdate().Table("facilities.rooms").
 			Set("is_open_room = ?", open).

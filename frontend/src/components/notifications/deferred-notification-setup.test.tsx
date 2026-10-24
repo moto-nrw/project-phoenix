@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DeferredNotificationSetup } from "./deferred-notification-setup";
 import { setupStorageKey } from "./notification-setup-decision";
@@ -32,6 +32,15 @@ vi.mock("./notification-setup-dialog", () => ({
   },
 }));
 
+// Wartet, bis ein angestoßener Import des Dialogs geladen und gerendert wäre:
+// der Test lädt dasselbe Modul und lässt React die Folge-Updates ausführen.
+// Der sichtbare Fall findet den Dialog nach derselben Wartezeit synchron.
+async function settleDialogImport() {
+  await act(async () => {
+    await import("./notification-setup-dialog");
+  });
+}
+
 describe("DeferredNotificationSetup", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -59,20 +68,40 @@ describe("DeferredNotificationSetup", () => {
       JSON.stringify({ done: true }),
     );
 
-    render(<DeferredNotificationSetup portal="tenant" accountId="42" />);
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    const { unmount } = render(
+      <DeferredNotificationSetup portal="tenant" accountId="42" />,
+    );
+    await settleDialogImport();
 
     expect(screen.queryByTestId("setup-dialog")).not.toBeInTheDocument();
     expect(mocks.notificationSetupDialog).not.toHaveBeenCalled();
+    unmount();
+
+    localStorage.clear();
+    render(<DeferredNotificationSetup portal="tenant" accountId="42" />);
+    await settleDialogImport();
+    // Anker: ohne abgeschlossene Einrichtung findet dieselbe Abfrage den Dialog
+    // nach derselben Wartezeit.
+    expect(screen.getByTestId("setup-dialog")).toBeInTheDocument();
   });
 
   it("does not load the dialog on an unsupported device", async () => {
     mocks.isPushSupported.mockReturnValue(false);
 
-    render(<DeferredNotificationSetup portal="tenant" accountId="42" />);
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    const { unmount } = render(
+      <DeferredNotificationSetup portal="tenant" accountId="42" />,
+    );
+    await settleDialogImport();
 
     expect(screen.queryByTestId("setup-dialog")).not.toBeInTheDocument();
     expect(mocks.notificationSetupDialog).not.toHaveBeenCalled();
+    unmount();
+
+    mocks.isPushSupported.mockReturnValue(true);
+    render(<DeferredNotificationSetup portal="tenant" accountId="42" />);
+    await settleDialogImport();
+    // Anker: auf einem unterstützten Gerät findet dieselbe Abfrage den Dialog
+    // nach derselben Wartezeit.
+    expect(screen.getByTestId("setup-dialog")).toBeInTheDocument();
   });
 });

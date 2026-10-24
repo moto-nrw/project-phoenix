@@ -6,12 +6,15 @@ import (
 	"strings"
 	"time"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+	fixtures "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest"
+
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -52,32 +55,35 @@ func (notFoundError) Error() string       { return "not found" }
 func (notFoundError) RepositoryNotFound() {}
 
 func wireAssignedStaff(deps *timetableOpsTestDeps, accountID, personID, staffID, instanceID int64) {
-	deps.personService.accountPerson = &usersModels.Person{}
+	deps.personService.accountPerson = &timetable.Person{}
 	deps.personService.accountPerson.ID = personID
-	deps.personService.staffByPersonID[personID] = &usersModels.Staff{}
+	deps.personService.staffByPersonID[personID] = &timetable.StaffMember{}
 	deps.personService.staffByPersonID[personID].ID = staffID
-	deps.staffRepo.assign(instanceID, &scheduleModels.InstanceStaff{StaffID: staffID})
+	deps.staffRepo.assign(instanceID, fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
+		fixtureRow.StaffID = staffID
+	}))
 }
 
-func instanceWithTimes(id int64, status string, start, end time.Time) *scheduleModels.ActivityInstance {
+func instanceWithTimes(id int64, status string, start, end time.Time) *fixtures.ActivityInstance {
 	return instanceWithRoomAndTimes(id, 810, status, start, end)
 }
 
-func instanceWithRoomAndTimes(id, roomID int64, status string, start, end time.Time) *scheduleModels.ActivityInstance {
-	inst := &scheduleModels.ActivityInstance{
-		Date:      scheduleModels.NewDate(start.Year(), start.Month(), start.Day()),
-		Title:     "Lernzeit",
-		StartTime: start,
-		EndTime:   end,
-		RoomID:    roomID,
-		Status:    status,
-	}
+func instanceWithRoomAndTimes(id, roomID int64, status string, start, end time.Time) *fixtures.ActivityInstance {
+	inst := fixtures.NewActivityInstance(func(fixtureRow *fixtures.ActivityInstance) {
+		fixtureRow.Date = calendar.NewDate(start.Year(), start.Month(), start.Day())
+		fixtureRow.Title = "Lernzeit"
+		fixtureRow.StartTime = start
+		fixtureRow.EndTime = end
+		fixtureRow.RoomID = roomID
+		fixtureRow.Status = status
+	})
+
 	inst.ID = id
 	return inst
 }
 
-func activeInstance(id, activeGroupID int64) *scheduleModels.ActivityInstance {
-	inst := instanceWithTimes(id, scheduleModels.InstanceStatusActive, time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC), time.Date(2026, time.May, 10, 15, 0, 0, 0, time.UTC))
+func activeInstance(id, activeGroupID int64) *fixtures.ActivityInstance {
+	inst := instanceWithTimes(id, fixtures.InstanceStatusActive(), time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC), time.Date(2026, time.May, 10, 15, 0, 0, 0, time.UTC))
 	inst.ID = id
 	inst.ActiveGroupID = &activeGroupID
 	return inst
@@ -115,14 +121,14 @@ type timetableOpsTestDeps struct {
 
 func newTimetableOpsDeps() *timetableOpsTestDeps {
 	deps := &timetableOpsTestDeps{
-		instanceRepo:    &fakeOpsInstanceRepo{byID: map[int64]*scheduleModels.ActivityInstance{}},
-		staffRepo:       &fakeOpsStaffRepo{byInstance: map[int64][]*scheduleModels.InstanceStaff{}},
-		studentRepo:     &fakeOpsInstanceStudentRepo{byInstance: map[int64][]*scheduleModels.InstanceStudent{}, byInstanceStudent: map[instanceStudentKey]*scheduleModels.InstanceStudent{}},
+		instanceRepo:    &fakeOpsInstanceRepo{byID: map[int64]*fixtures.ActivityInstance{}},
+		staffRepo:       &fakeOpsStaffRepo{byInstance: map[int64][]*fixtures.InstanceStaff{}},
+		studentRepo:     &fakeOpsInstanceStudentRepo{byInstance: map[int64][]*fixtures.InstanceStudent{}, byInstanceStudent: map[instanceStudentKey]*fixtures.InstanceStudent{}},
 		instanceService: &fakeOpsLifecycle{},
 		activeGroups:    &fakeOpsSessions{lastActivity: map[int64]time.Time{}},
-		activityGroups:  &fakeOpsTemplates{byID: map[int64]*activitiesModels.Group{}, targetsByGroup: map[int64][]*activitiesModels.GroupTarget{}},
+		activityGroups:  &fakeOpsTemplates{byID: map[int64]*activityContract.Group{}, targetsByGroup: map[int64][]*activityContract.GroupTarget{}},
 		activeService:   &fakeOpsAttendance{},
-		arrivalService:  &fakeOpsArrivals{byStudent: map[int64]*compose.ExpectedArrival{}},
+		arrivalService:  &fakeOpsArrivals{byStudent: map[int64]*timetablePorts.ExpectedArrival{}},
 		pickupService:   &fakeOpsPickups{byStudent: map[int64]*time.Time{}},
 		careDayService:  &fakeOpsCareDays{byStudent: map[int64]timetable.CareDayStatus{}},
 		supervisors:     &fakeOpsSupervisions{byActiveGroup: map[int64][]*studentpresence.StaffedSupervision{}},
@@ -131,15 +137,16 @@ func newTimetableOpsDeps() *timetableOpsTestDeps {
 			currentByStudent:         map[int64]*studentpresence.Visit{},
 			currentByStudentSequence: map[int64][]*studentpresence.Visit{},
 		},
-		students:      &fakeOpsStudentRepo{byID: map[int64]*usersModels.Student{}},
+		students:      &fakeOpsStudentRepo{byID: map[int64]*timetable.OperationStudent{}},
 		groups:        &fakeOpsEducationGroups{names: map[int64]string{}},
 		rooms:         &fakeOpsRooms{names: map[int64]string{810: "Lernraum"}},
-		personService: &fakeOpsPersonService{people: map[int64]*usersModels.Person{}, staffByPersonID: map[int64]*usersModels.Staff{}, staffWithPerson: map[int64]*usersModels.Staff{}},
+		personService: &fakeOpsPersonService{people: map[int64]*timetable.Person{}, staffByPersonID: map[int64]*timetable.StaffMember{}, staffWithPerson: map[int64]*timetable.StaffMember{}},
 		tracks:        &fakeOpsPlanningTracks{byID: map[int64]timetable.PlanningTrack{}},
 		settings:      &fakeOpsSettings{attendanceScope: attendanceEditScopeOwn, startScope: blockStartScopeOwn, completeScope: blockCompleteScopeOwn, absenceScope: studentAbsenceEditScopeAllStaff},
 		announcer:     &fakeOpsAnnouncer{},
 	}
-	service, err := compose.NewOperations(deps.dependencies())
+	dependencies := deps.dependencies()
+	service, err := compose.NewOperations(dependencies, owners.TimetableOperationCaller{RequestSession: dependencies.Session})
 	if err != nil {
 		panic(err)
 	}
@@ -149,11 +156,11 @@ func newTimetableOpsDeps() *timetableOpsTestDeps {
 
 // dependencies wires every fake; the clock follows deps.now, else the wall
 // clock as in production.
-func (deps *timetableOpsTestDeps) dependencies() compose.OperationDependencies {
-	return compose.OperationDependencies{
-		Instances:            deps.instanceRepo,
+func (deps *timetableOpsTestDeps) dependencies() timetablePorts.OperationDependencies {
+	return timetablePorts.OperationDependencies{
+		Instances:            fixtures.InstanceReadsOf(deps.instanceRepo),
 		InstanceStaff:        deps.staffRepo,
-		Participants:         deps.studentRepo,
+		Participants:         fixtures.ParticipantRowsOf(deps.studentRepo, nil, opsParticipantPresence{repo: deps.studentRepo}),
 		Templates:            deps.activityGroups,
 		PlanningTracks:       deps.tracks,
 		Sessions:             deps.activeGroups,
@@ -164,11 +171,13 @@ func (deps *timetableOpsTestDeps) dependencies() compose.OperationDependencies {
 		People:               deps.personService,
 		EducationGroups:      deps.groups,
 		Rooms:                deps.rooms,
+		BlockMetadata:        fakeOpsBlockDisplay{instances: deps.instanceRepo, rooms: deps.rooms},
 		Settings:             deps.settings,
 		CareDays:             deps.careDayService,
 		Arrivals:             deps.arrivalService,
 		Pickups:              deps.pickupService,
 		Lifecycle:            deps.instanceService,
+		Session:              api.TimetableRequestSession{},
 		Announcer:            deps.announcer,
 		NormalizeSchoolClass: normalizeSchoolClass,
 		Now: func() time.Time {
@@ -181,27 +190,28 @@ func (deps *timetableOpsTestDeps) dependencies() compose.OperationDependencies {
 }
 
 type fakeOpsInstanceRepo struct {
-	byID          map[int64]*scheduleModels.ActivityInstance
-	byDate        []*scheduleModels.ActivityInstance
+	byID          map[int64]*fixtures.ActivityInstance
+	byDate        []*fixtures.ActivityInstance
 	err           error
 	findByDateErr error
 }
 
-func (r *fakeOpsInstanceRepo) FindByID(_ context.Context, id any) (*scheduleModels.ActivityInstance, error) {
+func (r *fakeOpsInstanceRepo) FindByID(_ context.Context, nativeRecordID int64) (*fixtures.ActivityInstance, error) {
+	var id any = nativeRecordID
 	if r.err != nil {
 		return nil, r.err
 	}
 	return r.byID[id.(int64)], nil
 }
 
-func (r *fakeOpsInstanceRepo) FindByTenantAndDate(_ context.Context, _ scheduleModels.Date) ([]*scheduleModels.ActivityInstance, error) {
+func (r *fakeOpsInstanceRepo) FindByTenantAndDate(_ context.Context, _ calendar.Date) ([]*fixtures.ActivityInstance, error) {
 	if r.findByDateErr != nil {
 		return nil, r.findByDateErr
 	}
 	return r.byDate, nil
 }
 
-func (r *fakeOpsInstanceRepo) FindByActiveGroupID(_ context.Context, activeGroupID int64) (*scheduleModels.ActivityInstance, error) {
+func (r *fakeOpsInstanceRepo) FindByActiveGroupID(_ context.Context, activeGroupID int64) (*fixtures.ActivityInstance, error) {
 	for _, inst := range r.byID {
 		if inst != nil && inst.ActiveGroupID != nil && *inst.ActiveGroupID == activeGroupID {
 			return inst, nil
@@ -211,36 +221,33 @@ func (r *fakeOpsInstanceRepo) FindByActiveGroupID(_ context.Context, activeGroup
 }
 
 type fakeOpsStaffRepo struct {
-	byInstance map[int64][]*scheduleModels.InstanceStaff
+	timetable.InstanceStaffQuery
+	byInstance map[int64][]*fixtures.InstanceStaff
 	err        error
 }
 
-func (r *fakeOpsStaffRepo) FindByInstanceID(_ context.Context, instanceID int64) ([]*scheduleModels.InstanceStaff, error) {
+// ListInstanceStaff answers one instance's read with its seeded rows and
+// the batched read with the seeded rows stamped with their instance, the
+// way the owner returns them.
+func (r *fakeOpsStaffRepo) ListInstanceStaff(_ context.Context, filter timetable.InstanceStaffFilter) ([]timetable.InstanceStaff, error) {
 	if r.err != nil {
 		return nil, r.err
 	}
-	return r.byInstance[instanceID], nil
-}
-
-// FindByInstanceIDs answers the batched read with the seeded rows, stamped
-// with their instance the way the repository returns them.
-func (r *fakeOpsStaffRepo) FindByInstanceIDs(_ context.Context, instanceIDs []int64) ([]*scheduleModels.InstanceStaff, error) {
-	if r.err != nil {
-		return nil, r.err
-	}
-	var rows []*scheduleModels.InstanceStaff
-	for _, instanceID := range instanceIDs {
+	var rows []timetable.InstanceStaff
+	for _, instanceID := range filter.InstanceIDs {
 		for _, row := range r.byInstance[instanceID] {
-			stamped := *row
-			stamped.InstanceID = instanceID
-			rows = append(rows, &stamped)
+			value := fixtures.PublicInstanceStaff(row)
+			if filter.OrderByInstanceAndCreated {
+				value.InstanceID = instanceID
+			}
+			rows = append(rows, value)
 		}
 	}
 	return rows, nil
 }
 
 // assign seeds the staff rows FindByInstanceID returns for one instance.
-func (r *fakeOpsStaffRepo) assign(instanceID int64, rows ...*scheduleModels.InstanceStaff) {
+func (r *fakeOpsStaffRepo) assign(instanceID int64, rows ...*fixtures.InstanceStaff) {
 	r.byInstance[instanceID] = rows
 }
 
@@ -251,21 +258,21 @@ type instanceStudentKey struct {
 
 type attendanceUpdate struct {
 	rowID int64
-	patch scheduleModels.AttendanceFieldPatch
+	patch fixtures.AttendanceFieldPatch
 }
 
 type fakeOpsInstanceStudentRepo struct {
-	byInstance           map[int64][]*scheduleModels.InstanceStudent
-	byInstanceStudent    map[instanceStudentKey]*scheduleModels.InstanceStudent
+	byInstance           map[int64][]*fixtures.InstanceStudent
+	byInstanceStudent    map[instanceStudentKey]*fixtures.InstanceStudent
 	err                  error
 	updateErr            error
 	updates              []attendanceUpdate
-	parallelPresence     []scheduleModels.ParallelPresence
+	parallelPresence     []fixtures.ParallelPresence
 	parallelPresenceErr  error
 	parallelPresenceCall int
 }
 
-func (r *fakeOpsInstanceStudentRepo) FindPresentInOtherActiveInstances(_ context.Context, excludeInstanceID int64, _ scheduleModels.Date, studentIDs []int64) ([]scheduleModels.ParallelPresence, error) {
+func (r *fakeOpsInstanceStudentRepo) FindPresentInOtherActiveInstances(_ context.Context, excludeInstanceID int64, _ calendar.Date, studentIDs []int64) ([]fixtures.ParallelPresence, error) {
 	r.parallelPresenceCall++
 	if r.parallelPresenceErr != nil {
 		return nil, r.parallelPresenceErr
@@ -274,7 +281,7 @@ func (r *fakeOpsInstanceStudentRepo) FindPresentInOtherActiveInstances(_ context
 	for _, id := range studentIDs {
 		requested[id] = true
 	}
-	rows := make([]scheduleModels.ParallelPresence, 0, len(r.parallelPresence))
+	rows := make([]fixtures.ParallelPresence, 0, len(r.parallelPresence))
 	for _, row := range r.parallelPresence {
 		if row.InstanceID != excludeInstanceID && requested[row.StudentID] {
 			rows = append(rows, row)
@@ -283,18 +290,18 @@ func (r *fakeOpsInstanceStudentRepo) FindPresentInOtherActiveInstances(_ context
 	return rows, nil
 }
 
-func (r *fakeOpsInstanceStudentRepo) FindByInstanceID(_ context.Context, instanceID int64) ([]*scheduleModels.InstanceStudent, error) {
+func (r *fakeOpsInstanceStudentRepo) FindByInstanceID(_ context.Context, instanceID int64) ([]*fixtures.InstanceStudent, error) {
 	if r.err != nil {
 		return nil, r.err
 	}
 	return r.byInstance[instanceID], nil
 }
 
-func (r *fakeOpsInstanceStudentRepo) FindByInstanceIDs(_ context.Context, instanceIDs []int64) ([]*scheduleModels.InstanceStudent, error) {
+func (r *fakeOpsInstanceStudentRepo) FindByInstanceIDs(_ context.Context, instanceIDs []int64) ([]*fixtures.InstanceStudent, error) {
 	if r.err != nil {
 		return nil, r.err
 	}
-	var rows []*scheduleModels.InstanceStudent
+	var rows []*fixtures.InstanceStudent
 	for _, instanceID := range instanceIDs {
 		for _, row := range r.byInstance[instanceID] {
 			stamped := *row
@@ -305,18 +312,28 @@ func (r *fakeOpsInstanceStudentRepo) FindByInstanceIDs(_ context.Context, instan
 	return rows, nil
 }
 
-func (r *fakeOpsInstanceStudentRepo) FindByInstanceAndStudent(_ context.Context, instanceID, studentID int64) (*scheduleModels.InstanceStudent, error) {
+func (r *fakeOpsInstanceStudentRepo) FindByInstanceAndStudent(_ context.Context, instanceID, studentID int64) (*fixtures.InstanceStudent, error) {
 	if r.err != nil {
 		return nil, r.err
 	}
 	return r.byInstanceStudent[instanceStudentKey{instanceID, studentID}], nil
 }
 
-func (r *fakeOpsInstanceStudentRepo) UpdateAttendanceFields(_ context.Context, id int64, patch scheduleModels.AttendanceFieldPatch) error {
-	if r.updateErr != nil {
-		return r.updateErr
+// opsParticipantPresence records the attendance patches the operations
+// write to Student Presence in the fake's patch shape.
+type opsParticipantPresence struct {
+	timetablePorts.ParticipantPresence
+	repo *fakeOpsInstanceStudentRepo
+}
+
+func (p opsParticipantPresence) PatchSessionAttendance(_ context.Context, id int64, written studentpresence.SessionAttendancePatch) error {
+	if p.repo.updateErr != nil {
+		return p.repo.updateErr
 	}
-	r.updates = append(r.updates, attendanceUpdate{rowID: id, patch: patch})
+	var patch fixtures.AttendanceFieldPatch
+	patch.Status, patch.Substatus, patch.SubstatusClear = written.Status, written.Substatus, written.SubstatusClear
+	patch.Note, patch.NoteClear = written.Note, written.NoteClear
+	p.repo.updates = append(p.repo.updates, attendanceUpdate{rowID: id, patch: patch})
 	return nil
 }
 
@@ -334,16 +351,16 @@ func (s *fakeOpsLifecycle) CreateSpontaneous(context.Context, timetable.Spontane
 
 func (s *fakeOpsLifecycle) Start(_ context.Context, instanceID, staffID int64, _ bool) (*timetable.StartedOperation, error) {
 	s.started = append(s.started, startCall{instanceID: instanceID, staffID: staffID})
-	return &timetable.StartedOperation{InstanceID: instanceID, Status: scheduleModels.InstanceStatusActive, ActiveGroupID: 910}, nil
+	return &timetable.StartedOperation{InstanceID: instanceID, Status: fixtures.InstanceStatusActive(), ActiveGroupID: 910}, nil
 }
 
 func (s *fakeOpsLifecycle) Complete(_ context.Context, instanceID, _ int64) (*timetable.ScheduledInstance, error) {
 	s.completed = append(s.completed, instanceID)
-	return &timetable.ScheduledInstance{ID: instanceID, Status: scheduleModels.InstanceStatusCompleted}, nil
+	return &timetable.ScheduledInstance{ID: instanceID, Status: fixtures.InstanceStatusCompleted()}, nil
 }
 
 func (s *fakeOpsLifecycle) Reopen(_ context.Context, instanceID, _ int64, _ bool) (*timetable.StartedOperation, error) {
-	return &timetable.StartedOperation{InstanceID: instanceID, Status: scheduleModels.InstanceStatusActive, ActiveGroupID: 911}, nil
+	return &timetable.StartedOperation{InstanceID: instanceID, Status: fixtures.InstanceStatusActive(), ActiveGroupID: 911}, nil
 }
 
 type fakeOpsSessions struct {
@@ -369,41 +386,66 @@ func (r *fakeOpsSessions) UpdateLastActivity(_ context.Context, id int64, lastAc
 }
 
 type fakeOpsTemplates struct {
-	byID           map[int64]*activitiesModels.Group
-	targetsByGroup map[int64][]*activitiesModels.GroupTarget
+	timetable.ActivityGroupQuery
+	byID           map[int64]*activityContract.Group
+	targetsByGroup map[int64][]*activityContract.GroupTarget
 	err            error
 }
 
-func (r *fakeOpsTemplates) FindTargetsByGroupIDs(_ context.Context, groupIDs []int64) (map[int64][]*activitiesModels.GroupTarget, error) {
-	result := make(map[int64][]*activitiesModels.GroupTarget, len(groupIDs))
+func (r *fakeOpsTemplates) ListGroupTargets(_ context.Context, groupIDs []int64) (map[int64][]timetable.GroupTarget, error) {
+	result := make(map[int64][]timetable.GroupTarget, len(groupIDs))
 	for _, groupID := range groupIDs {
-		result[groupID] = r.targetsByGroup[groupID]
+		var targets []timetable.GroupTarget
+		for _, target := range r.targetsByGroup[groupID] {
+			targets = append(targets, timetable.GroupTarget{
+				ID: target.ID, TenantID: target.TenantID, CreatedAt: target.CreatedAt, UpdatedAt: target.UpdatedAt,
+				ActivityGroupID: target.ActivityGroupID, TargetGroupType: target.TargetGroupType,
+				TargetGradeLevel: target.TargetGradeLevel, TargetSchoolClass: target.TargetSchoolClass,
+				EducationGroupID: target.EducationGroupID, EducationGroupName: target.EducationGroupName,
+			})
+		}
+		result[groupID] = targets
 	}
 	return result, nil
 }
 
-func (r *fakeOpsTemplates) FindByID(_ context.Context, id any) (*activitiesModels.Group, error) {
+// FindGroup reports a missing group with the owner's not-found sentinel.
+func (r *fakeOpsTemplates) FindGroup(_ context.Context, id int64) (timetable.Group, error) {
 	if r.err != nil {
-		return nil, r.err
+		return timetable.Group{}, r.err
 	}
-	group := r.byID[id.(int64)]
+	group := r.byID[id]
 	if group == nil {
-		return nil, notFoundError{}
+		return timetable.Group{}, timetable.ErrGroupNotFound
 	}
-	return group, nil
+	return fakeOpsGroup(group), nil
 }
 
-func (r *fakeOpsTemplates) FindByIDs(_ context.Context, ids []int64) ([]*activitiesModels.Group, error) {
+func (r *fakeOpsTemplates) ListGroups(_ context.Context, filter timetable.GroupFilter) ([]timetable.Group, error) {
 	if r.err != nil {
 		return nil, r.err
 	}
-	groups := make([]*activitiesModels.Group, 0, len(ids))
-	for _, id := range ids {
+	groups := make([]timetable.Group, 0, len(filter.IDs))
+	for _, id := range filter.IDs {
 		if group := r.byID[id]; group != nil {
-			groups = append(groups, group)
+			groups = append(groups, fakeOpsGroup(group))
 		}
 	}
 	return groups, nil
+}
+
+// fakeOpsGroup is the owner's group of a retained row.
+func fakeOpsGroup(row *activityContract.Group) timetable.Group {
+	return timetable.Group{
+		ID: row.ID, TenantID: row.GetTenantID(), CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+		Name: row.Name, MaxParticipants: row.MaxParticipants, RequiredStaff: row.RequiredStaff, IsOpen: row.IsOpen,
+		CategoryID: row.CategoryID, PlanningTrackID: row.PlanningTrackID, PlannedRoomID: row.PlannedRoomID, CreatedBy: row.CreatedBy,
+		Type: row.Type, EducationGroupID: row.EducationGroupID, ListKind: row.ListKind, IsTemplate: row.IsTemplate, IsSystem: row.IsSystem,
+		ArchivedAt: row.ArchivedAt, SeriesRootID: row.SeriesRootID, CalendarPeriodID: row.CalendarPeriodID,
+		TargetGroupType: row.TargetGroupType, TargetGradeLevel: row.TargetGradeLevel, TargetSchoolClass: row.TargetSchoolClass,
+		SourceCareOfferingIDs: row.SourceCareOfferingIDs, SourceGradeLevels: row.SourceGradeLevels, SourceSchoolClasses: row.SourceSchoolClasses,
+		Notes: row.Notes, IncludeClosingDays: row.IncludeClosingDays,
+	}
 }
 
 type opsMoveCall struct {
@@ -453,21 +495,21 @@ func (s *fakeOpsAttendance) EndVisitAs(_ context.Context, _, _, visitID int64) e
 // fakeOpsArrivals answers every asked child: a configured arrival, else an
 // entry without a time, as Care Plan's bulk read does.
 type fakeOpsArrivals struct {
-	byStudent map[int64]*compose.ExpectedArrival
+	byStudent map[int64]*timetablePorts.ExpectedArrival
 	err       error
 }
 
-func (s *fakeOpsArrivals) EffectiveArrivals(_ context.Context, studentIDs []int64, _ calendar.Date) (map[int64]*compose.ExpectedArrival, error) {
+func (s *fakeOpsArrivals) EffectiveArrivals(_ context.Context, studentIDs []int64, _ calendar.Date) (map[int64]*timetablePorts.ExpectedArrival, error) {
 	if s.err != nil {
 		return nil, s.err
 	}
-	out := make(map[int64]*compose.ExpectedArrival, len(studentIDs))
+	out := make(map[int64]*timetablePorts.ExpectedArrival, len(studentIDs))
 	for _, studentID := range studentIDs {
 		if arrival := s.byStudent[studentID]; arrival != nil {
 			out[studentID] = arrival
 			continue
 		}
-		out[studentID] = &compose.ExpectedArrival{}
+		out[studentID] = &timetablePorts.ExpectedArrival{}
 	}
 	return out, nil
 }
@@ -534,11 +576,11 @@ func (r *fakeOpsVisitRepo) ListVisits(_ context.Context, filter studentpresence.
 }
 
 type fakeOpsStudentRepo struct {
-	byID map[int64]*usersModels.Student
+	byID map[int64]*timetable.OperationStudent
 }
 
-func (r *fakeOpsStudentRepo) FindByIDs(_ context.Context, ids []int64) (map[int64]*usersModels.Student, error) {
-	out := map[int64]*usersModels.Student{}
+func (r *fakeOpsStudentRepo) FindByIDs(_ context.Context, ids []int64) (map[int64]*timetable.OperationStudent, error) {
+	out := map[int64]*timetable.OperationStudent{}
 	for _, id := range ids {
 		if st := r.byID[id]; st != nil {
 			out[id] = st
@@ -556,6 +598,32 @@ func (r *fakeOpsEducationGroups) EducationGroupNames(_ context.Context, ids []in
 	for _, id := range ids {
 		if name, ok := r.names[id]; ok {
 			out[id] = name
+		}
+	}
+	return out, nil
+}
+
+// fakeOpsBlockDisplay serves the block display projection over the fake
+// day's blocks: each block carries the name of its room, a room lookup
+// error fails the read.
+type fakeOpsBlockDisplay struct {
+	instances *fakeOpsInstanceRepo
+	rooms     *fakeOpsRooms
+}
+
+func (d fakeOpsBlockDisplay) ListBlockDisplayMetadata(ctx context.Context, instanceIDs []int64) (map[int64]timetable.BlockDisplayMetadata, error) {
+	names, err := d.rooms.AllRoomNames(ctx)
+	if err != nil {
+		return nil, err
+	}
+	wanted := make(map[int64]bool, len(instanceIDs))
+	for _, id := range instanceIDs {
+		wanted[id] = true
+	}
+	out := make(map[int64]timetable.BlockDisplayMetadata, len(instanceIDs))
+	for _, inst := range d.instances.byDate {
+		if inst != nil && wanted[inst.ID] {
+			out[inst.ID] = timetable.BlockDisplayMetadata{RoomName: names[inst.RoomID]}
 		}
 	}
 	return out, nil
@@ -586,22 +654,22 @@ func (r *fakeOpsRooms) RoomName(_ context.Context, id int64) (string, bool, erro
 }
 
 type fakeOpsPersonService struct {
-	accountPerson   *usersModels.Person
+	accountPerson   *timetable.Person
 	accountErr      error
-	people          map[int64]*usersModels.Person
-	staffByPersonID map[int64]*usersModels.Staff
-	staffWithPerson map[int64]*usersModels.Staff
+	people          map[int64]*timetable.Person
+	staffByPersonID map[int64]*timetable.StaffMember
+	staffWithPerson map[int64]*timetable.StaffMember
 }
 
-func (s *fakeOpsPersonService) FindByAccountID(context.Context, int64) (*usersModels.Person, error) {
+func (s *fakeOpsPersonService) FindByAccountID(context.Context, int64) (*timetable.Person, error) {
 	if s.accountErr != nil {
 		return nil, s.accountErr
 	}
 	return s.accountPerson, nil
 }
 
-func (s *fakeOpsPersonService) GetByIDs(_ context.Context, ids []int64) (map[int64]*usersModels.Person, error) {
-	out := map[int64]*usersModels.Person{}
+func (s *fakeOpsPersonService) GetByIDs(_ context.Context, ids []int64) (map[int64]*timetable.Person, error) {
+	out := map[int64]*timetable.Person{}
 	for _, id := range ids {
 		if person := s.people[id]; person != nil {
 			out[id] = person
@@ -610,12 +678,12 @@ func (s *fakeOpsPersonService) GetByIDs(_ context.Context, ids []int64) (map[int
 	return out, nil
 }
 
-func (s *fakeOpsPersonService) GetStaffByPersonID(_ context.Context, personID int64) (*usersModels.Staff, error) {
+func (s *fakeOpsPersonService) GetStaffByPersonID(_ context.Context, personID int64) (*timetable.StaffMember, error) {
 	return s.staffByPersonID[personID], nil
 }
 
-func (s *fakeOpsPersonService) GetStaffWithPersonByIDs(_ context.Context, ids []int64) (map[int64]*usersModels.Staff, error) {
-	out := map[int64]*usersModels.Staff{}
+func (s *fakeOpsPersonService) GetStaffWithPersonByIDs(_ context.Context, ids []int64) (map[int64]*timetable.StaffMember, error) {
+	out := map[int64]*timetable.StaffMember{}
 	for _, id := range ids {
 		if staff := s.staffWithPerson[id]; staff != nil {
 			out[id] = staff
@@ -678,11 +746,11 @@ func (s *fakeOpsSettings) ResolveString(_ context.Context, key string) (string, 
 	return s.mode, nil
 }
 
-func (s *fakeOpsSettings) ActionScopeKey(action compose.ScopedAction) (string, error) {
-	key, ok := map[compose.ScopedAction]string{
-		compose.ScopedAttendance:    attendanceEditScopeKey,
-		compose.ScopedBlockStart:    blockStartScopeKey,
-		compose.ScopedBlockComplete: blockCompleteScopeKey,
+func (s *fakeOpsSettings) ActionScopeKey(action timetablePorts.ScopedAction) (string, error) {
+	key, ok := map[timetablePorts.ScopedAction]string{
+		timetablePorts.ScopedAttendance:    attendanceEditScopeKey,
+		timetablePorts.ScopedBlockStart:    blockStartScopeKey,
+		timetablePorts.ScopedBlockComplete: blockCompleteScopeKey,
 	}[action]
 	if !ok {
 		return "", fmt.Errorf("unknown scoped action %d", action)

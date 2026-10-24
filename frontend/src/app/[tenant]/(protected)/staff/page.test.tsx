@@ -14,7 +14,10 @@ vi.mock("next-auth/react", () => ({
   useSession: vi.fn(),
 }));
 
+const listSearchParams = vi.hoisted(() => new URLSearchParams());
+
 vi.mock("next/navigation", () => ({
+  useSearchParams: () => listSearchParams,
   redirect: vi.fn(),
   useRouter: vi.fn(() => ({
     push: vi.fn(),
@@ -75,6 +78,13 @@ vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
       </button>
       <button
         type="button"
+        data-testid="filter-ehemalige"
+        onClick={() => filters?.[0]?.onChange("ehemalige")}
+      >
+        Ehemalige
+      </button>
+      <button
+        type="button"
         data-testid="clear-filters"
         onClick={onClearAllFilters}
       >
@@ -118,6 +128,8 @@ const mockStaff = [
 describe("StaffPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    listSearchParams.delete("status");
+    listSearchParams.delete("search");
     vi.mocked(useStaffPendingAbsences).mockReturnValue({
       rows: [],
       canReview: false,
@@ -261,6 +273,134 @@ describe("StaffPage", () => {
     });
   });
 
+  describe("Ehemalige (#3403)", () => {
+    const formerStaff = [
+      {
+        id: "7",
+        firstName: "Grace",
+        lastName: "Hopper",
+        startedOn: "2024-09-02",
+        endedOn: "2026-07-31",
+      },
+    ];
+    const formerKey = "staff-former-list";
+    const serveByKey = (former: unknown[]) =>
+      vi.mocked(useSWRAuth).mockImplementation(((key: string | null) =>
+        key === formerKey
+          ? { data: former, isLoading: false, error: null }
+          : {
+              data: key === "staff-list" ? mockStaff : undefined,
+              isLoading: false,
+              error: null,
+            }) as never);
+    const requestedKeys = () =>
+      vi.mocked(useSWRAuth).mock.calls.map(([key]) => key);
+
+    it("lists only current staff and loads no former employments without the filter", () => {
+      serveByKey(formerStaff);
+
+      render(<StaffPage />);
+
+      expect(screen.getByText("Anna Meyer")).toBeInTheDocument();
+      expect(screen.queryByText("Grace Hopper")).not.toBeInTheDocument();
+      expect(requestedKeys()).not.toContain(formerKey);
+    });
+
+    it("restores the former filter and search from the detail return path", () => {
+      serveByKey(formerStaff);
+      listSearchParams.set("status", "ehemalige");
+      listSearchParams.set("search", "Grace");
+      vi.mocked(useSession).mockReturnValue({
+        data: { user: { id: "1", roles: ["admin"], permissions: ["admin:*"] } },
+        status: "authenticated",
+      } as never);
+      render(<StaffPage />);
+      expect(screen.getByTestId("search-input")).toHaveValue("Grace");
+      expect(screen.queryByText("Anna Meyer")).not.toBeInTheDocument();
+      expect(
+        screen.getByRole("link", { name: /Grace Hopper/ }),
+      ).toHaveAttribute(
+        "href",
+        "/test-tenant/staff/7?from=%2Fstaff%3Fstatus%3Dehemalige%26search%3DGrace",
+      );
+      expect(requestedKeys()).toContain(formerKey);
+    });
+
+    it("shows former employments with their period instead of current staff", async () => {
+      serveByKey(formerStaff);
+
+      render(<StaffPage />);
+      fireEvent.click(screen.getByTestId("filter-ehemalige"));
+
+      expect(await screen.findByText("Grace Hopper")).toBeInTheDocument();
+      expect(screen.queryByText("Anna Meyer")).not.toBeInTheDocument();
+      expect(screen.getByText("Ehemalig")).toBeInTheDocument();
+      expect(
+        screen.getByText("In moto eingetragen vom 02.09.2024 bis 31.07.2026."),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(/Öffnen Sie eine Karte für die Angaben von damals/),
+      ).toBeInTheDocument();
+      expect(screen.getByText("1 ehemalige Person")).toBeInTheDocument();
+      expect(
+        screen.getByRole("link", { name: /Grace Hopper/ }),
+      ).toHaveAttribute(
+        "href",
+        "/test-tenant/staff/7?from=%2Fstaff%3Fstatus%3Dehemalige",
+      );
+      expect(requestedKeys()).toContain(formerKey);
+    });
+
+    it("searches former employments by name", async () => {
+      serveByKey(formerStaff);
+
+      render(<StaffPage />);
+      fireEvent.click(screen.getByTestId("filter-ehemalige"));
+      fireEvent.change(screen.getByTestId("search-input"), {
+        target: { value: "nobody" },
+      });
+
+      expect(
+        await screen.findByText("Keine Ehemaligen gefunden"),
+      ).toBeInTheDocument();
+      expect(screen.queryByText("Grace Hopper")).not.toBeInTheDocument();
+    });
+
+    it("says where former employments appear when there are none", async () => {
+      serveByKey([]);
+
+      render(<StaffPage />);
+      fireEvent.click(screen.getByTestId("filter-ehemalige"));
+
+      expect(
+        await screen.findByText(
+          "Hier erscheint, wer die Schule verlassen hat.",
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it("does not load former employments without access to the staff list", () => {
+      // Derselbe Weg wie die Gegenprobe „restores the former filter …“: der
+      // Ehemaligen-Filter steht in der URL, nur die Rechte unterscheiden sich.
+      listSearchParams.set("status", "ehemalige");
+      vi.mocked(useSession).mockReturnValue({
+        data: { user: { id: "1", permissions: ["time_tracking:manage"] } },
+        status: "authenticated",
+      } as never);
+      serveByKey(formerStaff);
+
+      render(<StaffPage />);
+
+      // Anker: die Seite steht in den Zeitkonten, der einzigen Ansicht
+      // dieses Rechts.
+      expect(
+        screen.getByRole("heading", { name: "Zeitkonten" }),
+      ).toBeInTheDocument();
+      expect(requestedKeys()).not.toContain(formerKey);
+      expect(screen.queryByText("Grace Hopper")).not.toBeInTheDocument();
+    });
+  });
+
   it("shows empty state when staff data is empty", () => {
     vi.mocked(useSWRAuth).mockReturnValue({
       data: [],
@@ -371,6 +511,8 @@ describe("StaffPage", () => {
 
     render(<StaffPage />);
 
+    // Anker: die Personalliste ist geladen, nur der Hinweis fehlt.
+    expect(screen.getByText("Anna Meyer")).toBeInTheDocument();
     expect(
       screen.queryByRole("link", { name: /Anträge von Mitarbeitenden/ }),
     ).not.toBeInTheDocument();

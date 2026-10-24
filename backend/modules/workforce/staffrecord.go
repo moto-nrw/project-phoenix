@@ -38,8 +38,6 @@ type InvalidStaffRecordError struct{ Reason string }
 func (e *InvalidStaffRecordError) Error() string { return e.Reason }
 func (e *InvalidStaffRecordError) Unwrap() error { return ErrInvalidStaffRecord }
 
-func invalidStaffRecord(reason string) error { return &InvalidStaffRecordError{Reason: reason} }
-
 // StaffMasterData is the 1:1 Stammdaten extension of a staff member (#1423).
 // Dates are calendar days in DateLayout; empty means unset.
 type StaffMasterData struct {
@@ -149,6 +147,13 @@ type StaffRecordQuery interface {
 
 // StaffRecordCommand writes the personnel record rows.
 type StaffRecordCommand interface {
+	StaffPersonnelDataCommand
+	StaffDocumentRecordCommand
+}
+
+// StaffPersonnelDataCommand writes the Stammdaten, qualification and
+// financial rows of a staff member.
+type StaffPersonnelDataCommand interface {
 	CreateStaffMasterData(context.Context, StaffMasterData) (StaffMasterData, error)
 	UpdateStaffMasterData(context.Context, StaffMasterData) (StaffMasterData, error)
 	// ReplaceStaffQualifications atomically replaces the qualification list
@@ -157,6 +162,11 @@ type StaffRecordCommand interface {
 	ReplaceStaffQualifications(ctx context.Context, staffID int64, values []StaffQualification) ([]StaffQualification, error)
 	CreateStaffFinancialData(context.Context, StaffFinancialData) (StaffFinancialData, error)
 	UpdateStaffFinancialData(context.Context, StaffFinancialData) (StaffFinancialData, error)
+}
+
+// StaffDocumentRecordCommand writes the staff document rows and the cleanup
+// intents of their stored files.
+type StaffDocumentRecordCommand interface {
 	CreateStaffDocument(context.Context, StaffDocument) (StaffDocument, error)
 	// SoftDeleteStaffDocument stamps deleted_at and deleted_by on a live row
 	// and reports how many rows changed.
@@ -171,127 +181,4 @@ type StaffRecordCommand interface {
 	CompleteStaffDocumentFileCleanupByFilename(ctx context.Context, filename string) error
 	// ActivateStaffDocumentFileCleanup makes an intent eligible right away.
 	ActivateStaffDocumentFileCleanup(ctx context.Context, filename string) error
-}
-
-type staffRecordEngine interface {
-	FindStaffMasterData(ctx context.Context, staffID int64) (StaffMasterData, error)
-	CreateStaffMasterData(context.Context, StaffMasterData) (StaffMasterData, error)
-	UpdateStaffMasterData(context.Context, StaffMasterData) (StaffMasterData, error)
-	ListStaffQualifications(ctx context.Context, staffID int64) ([]StaffQualification, error)
-	ReplaceStaffQualifications(ctx context.Context, staffID int64, values []StaffQualification) ([]StaffQualification, error)
-	FindStaffFinancialData(ctx context.Context, staffID int64) (StaffFinancialData, error)
-	CreateStaffFinancialData(context.Context, StaffFinancialData) (StaffFinancialData, error)
-	UpdateStaffFinancialData(context.Context, StaffFinancialData) (StaffFinancialData, error)
-	CreateStaffDocument(context.Context, StaffDocument) (StaffDocument, error)
-	FindStaffDocument(ctx context.Context, staffID, documentID int64, includeDeleted bool) (StaffDocument, error)
-	ListStaffDocuments(context.Context, StaffDocumentFilter) ([]StaffDocument, error)
-	SoftDeleteStaffDocument(ctx context.Context, id, deletedBy int64, at time.Time) (int64, error)
-	MarkStaffDocumentFileDeleted(ctx context.Context, id int64, at time.Time) error
-	QueueStaffDocumentFileCleanup(context.Context, StaffDocumentFileCleanup) error
-	ListQueuedStaffDocumentFileCleanups(ctx context.Context, staffID int64) ([]StaffDocumentFileCleanup, error)
-	CompleteStaffDocumentFileCleanup(ctx context.Context, id int64) error
-	CompleteStaffDocumentFileCleanupByFilename(ctx context.Context, filename string) error
-	ActivateStaffDocumentFileCleanup(ctx context.Context, filename string) error
-}
-
-func (m *Module) FindStaffMasterData(ctx context.Context, staffID int64) (StaffMasterData, error) {
-	if staffID <= 0 {
-		return StaffMasterData{}, invalidStaffRecord("staff ID is required")
-	}
-	return m.engine.FindStaffMasterData(ctx, staffID)
-}
-
-func (m *Module) CreateStaffMasterData(ctx context.Context, value StaffMasterData) (StaffMasterData, error) {
-	return m.engine.CreateStaffMasterData(ctx, value)
-}
-
-func (m *Module) UpdateStaffMasterData(ctx context.Context, value StaffMasterData) (StaffMasterData, error) {
-	if value.ID <= 0 {
-		return StaffMasterData{}, invalidStaffRecord("staff master data ID is required")
-	}
-	return m.engine.UpdateStaffMasterData(ctx, value)
-}
-
-func (m *Module) ListStaffQualifications(ctx context.Context, staffID int64) ([]StaffQualification, error) {
-	if staffID <= 0 {
-		return nil, invalidStaffRecord("staff ID is required")
-	}
-	return m.engine.ListStaffQualifications(ctx, staffID)
-}
-
-func (m *Module) ReplaceStaffQualifications(ctx context.Context, staffID int64, values []StaffQualification) ([]StaffQualification, error) {
-	if staffID <= 0 {
-		return nil, invalidStaffRecord("staff ID is required")
-	}
-	return m.engine.ReplaceStaffQualifications(ctx, staffID, values)
-}
-
-func (m *Module) FindStaffFinancialData(ctx context.Context, staffID int64) (StaffFinancialData, error) {
-	if staffID <= 0 {
-		return StaffFinancialData{}, invalidStaffRecord("staff ID is required")
-	}
-	return m.engine.FindStaffFinancialData(ctx, staffID)
-}
-
-func (m *Module) CreateStaffFinancialData(ctx context.Context, value StaffFinancialData) (StaffFinancialData, error) {
-	return m.engine.CreateStaffFinancialData(ctx, value)
-}
-
-func (m *Module) UpdateStaffFinancialData(ctx context.Context, value StaffFinancialData) (StaffFinancialData, error) {
-	if value.ID <= 0 {
-		return StaffFinancialData{}, invalidStaffRecord("staff financial data ID is required")
-	}
-	return m.engine.UpdateStaffFinancialData(ctx, value)
-}
-
-func (m *Module) CreateStaffDocument(ctx context.Context, value StaffDocument) (StaffDocument, error) {
-	return m.engine.CreateStaffDocument(ctx, value)
-}
-
-func (m *Module) FindStaffDocument(ctx context.Context, staffID, documentID int64, includeDeleted bool) (StaffDocument, error) {
-	if staffID <= 0 || documentID <= 0 {
-		return StaffDocument{}, invalidStaffRecord("staff ID and document ID are required")
-	}
-	return m.engine.FindStaffDocument(ctx, staffID, documentID, includeDeleted)
-}
-
-func (m *Module) ListStaffDocuments(ctx context.Context, filter StaffDocumentFilter) ([]StaffDocument, error) {
-	return m.engine.ListStaffDocuments(ctx, filter)
-}
-
-func (m *Module) SoftDeleteStaffDocument(ctx context.Context, id, deletedBy int64, at time.Time) (int64, error) {
-	if id <= 0 {
-		return 0, invalidStaffRecord("staff document ID is required")
-	}
-	return m.engine.SoftDeleteStaffDocument(ctx, id, deletedBy, at)
-}
-
-func (m *Module) MarkStaffDocumentFileDeleted(ctx context.Context, id int64, at time.Time) error {
-	if id <= 0 {
-		return invalidStaffRecord("staff document ID is required")
-	}
-	return m.engine.MarkStaffDocumentFileDeleted(ctx, id, at)
-}
-
-func (m *Module) QueueStaffDocumentFileCleanup(ctx context.Context, value StaffDocumentFileCleanup) error {
-	return m.engine.QueueStaffDocumentFileCleanup(ctx, value)
-}
-
-func (m *Module) ListQueuedStaffDocumentFileCleanups(ctx context.Context, staffID int64) ([]StaffDocumentFileCleanup, error) {
-	return m.engine.ListQueuedStaffDocumentFileCleanups(ctx, staffID)
-}
-
-func (m *Module) CompleteStaffDocumentFileCleanup(ctx context.Context, id int64) error {
-	if id <= 0 {
-		return invalidStaffRecord("staff document file cleanup ID is required")
-	}
-	return m.engine.CompleteStaffDocumentFileCleanup(ctx, id)
-}
-
-func (m *Module) CompleteStaffDocumentFileCleanupByFilename(ctx context.Context, filename string) error {
-	return m.engine.CompleteStaffDocumentFileCleanupByFilename(ctx, filename)
-}
-
-func (m *Module) ActivateStaffDocumentFileCleanup(ctx context.Context, filename string) error {
-	return m.engine.ActivateStaffDocumentFileCleanup(ctx, filename)
 }

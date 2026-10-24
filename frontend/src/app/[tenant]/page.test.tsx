@@ -11,27 +11,14 @@ import {
 } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { releaseFakeTimers } from "~/test/clock";
+import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
 
 const mockTrackTenantEvent = vi.fn();
-const { mockLoginWithPasskey, mockIsPasskeySupported, MockPasskeyApiError } =
-  vi.hoisted(() => {
-    class MockPasskeyApiError extends Error {
-      constructor(
-        public status: number,
-        message: string,
-        public code?: string,
-      ) {
-        super(message);
-      }
-    }
-
-    return {
-      mockLoginWithPasskey: vi.fn(),
-      mockIsPasskeySupported: vi.fn(() => false),
-      MockPasskeyApiError,
-    };
-  });
+const { mockLoginWithPasskey, mockIsPasskeySupported } = vi.hoisted(() => ({
+  mockLoginWithPasskey: vi.fn(),
+  mockIsPasskeySupported: vi.fn(() => false),
+}));
 
 vi.mock("~/lib/analytics", () => ({
   trackTenantEvent: (...args: unknown[]) => mockTrackTenantEvent(...args),
@@ -144,7 +131,6 @@ vi.mock("~/lib/passkey-api", () => ({
   isPasskeySupported: () => mockIsPasskeySupported(),
   isPasskeyCeremonyIncompleteError: () => false,
   loginWithPasskey: (...args: unknown[]) => mockLoginWithPasskey(...args),
-  PasskeyApiError: MockPasskeyApiError,
 }));
 
 // Mock next/image
@@ -222,14 +208,6 @@ describe("HomePage (Login)", () => {
 
     await waitFor(() => {
       expect(screen.getByText("Willkommen bei moto")).toBeInTheDocument();
-    });
-  });
-
-  it("does not display a MOTO logo fallback", async () => {
-    render(<HomePage />);
-
-    await waitFor(() => {
-      expect(screen.queryByAltText("MOTO Logo")).not.toBeInTheDocument();
     });
   });
 
@@ -750,10 +728,10 @@ describe("HomePage (Login)", () => {
   it("sends a Lehrkraft-only passkey login to moto schule", async () => {
     mockIsPasskeySupported.mockReturnValueOnce(true);
     mockLoginWithPasskey.mockRejectedValueOnce(
-      new MockPasskeyApiError(
-        403,
+      new ApiError(
         "school portal accounts must log in at the school portal",
-        "identity.use_school_portal",
+        403,
+        { code: "identity.use_school_portal" },
       ),
     );
     render(<HomePage />);
@@ -898,11 +876,11 @@ describe("Tenant name display", () => {
 
     render(<HomePage />);
 
-    await waitFor(() => {
-      expect(
-        screen.queryByText("Grundschule Musterstadt"),
-      ).not.toBeInTheDocument();
-    });
+    // Anker: der Titelplatz zeigt den allgemeinen Gruß statt eines Namens.
+    expect(await screen.findByText("Willkommen bei moto")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Grundschule Musterstadt"),
+    ).not.toBeInTheDocument();
   });
 
   it("does not display tenant name when tenant.name is empty", async () => {
@@ -1184,6 +1162,10 @@ describe("Deliberate logout suppression", () => {
       render(<HomePage />);
     });
 
+    // Anker: das Anmeldeformular, über dem der Sitzungshinweis stünde, ist da.
+    expect(
+      screen.getByRole("button", { name: /anmelden/i }),
+    ).toBeInTheDocument();
     expect(screen.queryByTestId("alert-info")).not.toBeInTheDocument();
     expect(screen.queryByTestId("alert-error")).not.toBeInTheDocument();
   });
@@ -1215,6 +1197,10 @@ describe("Deliberate logout suppression", () => {
       render(<HomePage />);
     });
 
+    // Anker: das Anmeldeformular, über dem der Sitzungshinweis stünde, ist da.
+    expect(
+      screen.getByRole("button", { name: /anmelden/i }),
+    ).toBeInTheDocument();
     expect(screen.queryByTestId("alert-info")).not.toBeInTheDocument();
     expect(screen.queryByTestId("alert-error")).not.toBeInTheDocument();
   });

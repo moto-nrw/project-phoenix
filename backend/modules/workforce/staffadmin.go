@@ -206,20 +206,38 @@ type CreateStaffDocumentInput struct {
 // StaffDocuments is the Dokumente tab: authority, metadata rows, audit trail
 // and the durable cleanup intents of stored files.
 type StaffDocuments interface {
+	StaffDocumentRecords
+	StaffDocumentUploadIntents
+	StaffDocumentFileCleanups
+}
+
+// StaffDocumentRecords are the document actions an actor takes on the
+// Dokumente tab; each one checks the actor's authority.
+type StaffDocumentRecords interface {
 	ListStaffDocuments(ctx context.Context, staffID int64, category string, actor StaffDocumentActor) ([]StaffDocumentInfo, []string, error)
 	CreateStaffDocument(ctx context.Context, input CreateStaffDocumentInput, actor StaffDocumentActor) (*StaffDocumentInfo, error)
 	ResolveStaffDocumentDownload(ctx context.Context, staffID, documentID int64, actor StaffDocumentActor) (*StaffDocument, error)
 	DeleteStaffDocument(ctx context.Context, staffID, documentID int64, actor StaffDocumentActor) (*StaffDocument, error)
 	ResolveStaffDocumentCleanup(ctx context.Context, staffID, documentID int64, actor StaffDocumentActor) (*StaffDocument, error)
+	ListDeletedStaffDocumentsPendingFileCleanup(ctx context.Context, staffID int64, actor StaffDocumentActor) ([]StaffDocument, error)
+}
+
+// StaffDocumentUploadIntents are the cleanup intents an upload records around
+// writing its file.
+type StaffDocumentUploadIntents interface {
+	QueueStaffDocumentFileCleanup(ctx context.Context, staffID int64, storedName string) error
+	MarkQueuedStaffDocumentFileCleanupCompleteByFilename(ctx context.Context, storedName string) error
+	ActivateQueuedStaffDocumentFileCleanup(ctx context.Context, storedName string) error
+}
+
+// StaffDocumentFileCleanups are the bookkeeping reads and writes of the
+// removal of stored document files.
+type StaffDocumentFileCleanups interface {
 	ListStaffDocumentsPendingFileCleanup(ctx context.Context, staffID int64) ([]StaffDocument, error)
 	ListOffboardedStaffDocumentsPendingFileCleanup(ctx context.Context) ([]StaffDocument, error)
 	ListDeletedStaffDocumentsPendingFileCleanups(ctx context.Context) ([]StaffDocument, error)
-	ListDeletedStaffDocumentsPendingFileCleanup(ctx context.Context, staffID int64, actor StaffDocumentActor) ([]StaffDocument, error)
 	MarkStaffDocumentFileDeleted(ctx context.Context, documentID int64) error
-	QueueStaffDocumentFileCleanup(ctx context.Context, staffID int64, storedName string) error
 	ListQueuedStaffDocumentFileCleanup(ctx context.Context, staffID int64) ([]StaffDocumentFileCleanup, error)
 	ListQueuedStaffDocumentFileCleanups(ctx context.Context) ([]StaffDocumentFileCleanup, error)
 	MarkQueuedStaffDocumentFileCleanupComplete(ctx context.Context, cleanupID int64) error
-	MarkQueuedStaffDocumentFileCleanupCompleteByFilename(ctx context.Context, storedName string) error
-	ActivateQueuedStaffDocumentFileCleanup(ctx context.Context, storedName string) error
 }

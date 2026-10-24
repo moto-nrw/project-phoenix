@@ -5,13 +5,15 @@ import (
 	"log/slog"
 	"testing"
 
-	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api"
 	enrollmentCapability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
+	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -41,34 +43,30 @@ func newCompanionSyncApplier(
 	bc *testpkg.RecordingBroadcaster,
 ) enrollmentAPI.ChangeRequestDecisionApplier {
 	t.Helper()
-	repoFactory := testRepositories(t, env.db)
+	repoFactory, repoFactoryCare, repoFactoryAudit, repoFactoryTimetable, _, _ := testRepositories(t, env.db)
 	bookings := testBookings(t, env.rolloverTestEnv, nil)
-	decisions := newTestDecisions(testutil.EnrollmentDecisionSources{
-		Requests:            repoFactory.Enrollment(),
-		Children:            repoFactory.Enrollment(),
-		Guardians:           repoFactory.Enrollment(),
-		CareBookings:        bookings,
-		CareOfferings:       testutil.NewEnrollmentCareOfferingRecords(repoFactory.CarePlan()),
-		Phases:              repoFactory.Enrollment(),
-		Schemas:             repoFactory.Enrollment(),
-		OfferingAdjustments: repoFactory.EnrollmentOfferingAdjustment,
-		Persons:             repoFactory.Person,
-		Staff:               repoFactory.Staff,
-		Students:            repoFactory.Student,
-		StudentGuardians:    repoFactory.StudentGuardian,
-		GuardianProfiles:    repoFactory.GuardianProfile,
-		GuardianPhones:      repoFactory.GuardianPhoneNumber,
-		PickupSchedules:     repositories.NewEnrollmentPickupSchedules(repoFactory.StudentPickupSchedule),
-		ArrivalSchedules:    repositories.NewEnrollmentArrivalSchedules(repoFactory.StudentArrivalSchedule),
-		GuardianAccess:      testGuardianAccess(env.db),
-		StudentEnrollment:   testStudentEnrollment(env.db),
-		Companions:          repositories.NewStudentCompanionRepository(repoFactory.CarePlan()),
-		DeleteCompanions:    repoFactory.CarePlan().DeleteCompanionEdges,
-		Broadcaster:         bc,
-		FrontendURL:         "http://localhost:3000",
-		ParentsURL:          "http://parents.localhost:3000",
-		Logger:              slog.Default(),
-	}, env.outbox)
+	studentEnrollment := testStudentEnrollment(env.db)
+	decisions := newTestDecisions(enrollmentCompose.DecisionDependencies{
+		Requests:       repoFactory.Enrollment(),
+		Children:       repoFactory.Enrollment(),
+		Guardians:      repoFactory.Enrollment(),
+		Phases:         repoFactory.Enrollment(),
+		Schemas:        repoFactory.Enrollment(),
+		Offerings:      enrollmentCompose.NewCareOfferingRecords(repoFactoryCare.CarePlan),
+		Bookings:       bookings,
+		GuardianAccess: testGuardianAccess(env.db),
+		People: owners.EnrollmentDecisionPeopleDirectory(
+			repoFactory.Person, repoFactory.Staff, repoFactory.Student, repoFactory.StudentGuardian, repoFactory.GuardianProfile, repoFactory.GuardianPhoneNumber, studentEnrollment,
+		),
+		StudentEnrollment: studentEnrollment,
+		Companions:        owners.EnrollmentDecisionCompanions(owners.NewStudentCompanionRepository(repoFactoryCare.CarePlan), repoFactoryCare.CarePlan.DeleteCompanionEdges),
+		PickupSchedules:   repoFactoryTimetable.EnrollmentPickupSchedules(),
+		ArrivalSchedules:  repoFactoryTimetable.EnrollmentArrivalSchedules(),
+		Adjustments:       owners.EnrollmentDecisionAdjustments(repoFactoryAudit.EnrollmentOfferingAdjustment),
+		Broadcasts:        owners.EnrollmentDecisionBroadcasts(bc),
+		ParentsURL:        owners.EnrollmentDecisionParentsURL("http://parents.localhost:3000", "http://localhost:3000"),
+		Logger:            slog.Default(),
+	}, nil, env.outbox)
 	return enrollmentAPI.ChangeRequestApplierForTest(decisions)
 }
 
@@ -89,7 +87,7 @@ func publishCompanionModesSchema(t *testing.T, env *decisionTestEnv, name string
 	}}, env.creatorID)
 	require.NoError(t, err)
 	env.sourcePhase.FormSchemaID = &schema.ID
-	require.NoError(t, env.repos.Enrollment().UpdatePhase(ctx, enrollmentAPI.OwnerPhaseForTest(env.sourcePhase)))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, env.db, env.repos.Enrollment().UpdatePhase, enrollmentAPI.OwnerPhaseForTest(env.sourcePhase)))
 }
 
 // approveAccompaniedTuesdayChild submits and approves one child whose plan
@@ -107,7 +105,7 @@ func approveAccompaniedTuesdayChild(
 		"allowed_modes": map[string]any{"tue": []any{"accompanied"}},
 		enrollmentCapability.TargetStudentDepartureCompanionNote: "Nachbarskind",
 	})
-	outcome, err := env.decision.Decide(ctx, enrollmentAPI.DecideInput{
+	outcome, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.decision.Decide, enrollmentAPI.DecideInput{
 		RequestID:  requestID,
 		ChildID:    childID,
 		Status:     enrollmentCapability.DecisionApproved,
@@ -115,9 +113,9 @@ func approveAccompaniedTuesdayChild(
 	})
 	require.NoError(t, err)
 	require.NotNil(t, outcome.Child.CreatedStudentID)
-	student, err := env.repos.Student.FindByID(ctx, *outcome.Child.CreatedStudentID)
+	student, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.Student.FindByID, any(*outcome.Child.CreatedStudentID))
 	require.NoError(t, err)
-	require.True(t, usersModels.AccompaniedWeekdays(student.AllowedDepartureModes, student.DepartureDays)[usersModels.PickupDayTuesday],
+	require.True(t, peopleValues.AccompaniedWeekdays(student.AllowedDepartureModes, student.DepartureDays)[peopleValues.PickupDayTuesday],
 		"the approval must leave the child accompanied on Tuesday, or the link below has no basis")
 	return requestID, childID, student.ID
 }
@@ -146,30 +144,30 @@ func linkCompanionPartnerOnTuesday(t *testing.T, env *decisionTestEnv, studentID
 	// Give the partner an accompanied Tuesday. A note is required to save that
 	// plan before any link exists; it is cleared again below when the test wants
 	// the link to be the partner's only cover.
-	stored, err := env.repos.Student.FindByID(ctx, partner.ID)
+	stored, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.Student.FindByID, any(partner.ID))
 	require.NoError(t, err)
-	stored.AllowedDepartureModes = usersModels.AllowedDepartureModes{
-		usersModels.PickupDayTuesday: []usersModels.DepartureMode{usersModels.DepartureAccompanied},
+	stored.AllowedDepartureModes = peopleValues.AllowedDepartureModes{
+		peopleValues.PickupDayTuesday: []peopleValues.DepartureMode{peopleValues.DepartureAccompanied},
 	}
 	stored.DepartureDays = nil
 	stored.BusDays = nil
 	stored.PickupDays = nil
 	note := "Nachbarskind"
 	stored.DepartureCompanionNote = &note
-	require.NoError(t, env.repos.Student.Update(ctx, stored))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), env.repos.Student.Update, stored))
 
-	edge, err := repositories.NewStudentCompanionEdge(studentID, partner.ID, 2)
+	edge, err := api.NewStudentCompanionEdge(studentID, partner.ID, 2)
 	require.NoError(t, err)
-	require.NoError(t, repositories.ReplaceStudentCompanions(ctx, repositories.NewStudentCompanionRepository(env.repos.CarePlan()), studentID,
-		[]*usersModels.StudentCompanion{edge}))
+	require.NoError(t, api.ReplaceStudentCompanions(ctx, owners.NewStudentCompanionRepository(env.reposCare.CarePlan), studentID,
+		[]*careplan.CompanionEdge{edge}))
 
 	if !withOwnNote {
 		// The link now covers the accompanied Tuesday, so the note can go — and
 		// with it the partner's only alternative detail.
-		stored, err = env.repos.Student.FindByID(ctx, partner.ID)
+		stored, err = testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.Student.FindByID, any(partner.ID))
 		require.NoError(t, err)
 		stored.DepartureCompanionNote = nil
-		require.NoError(t, env.repos.Student.Update(ctx, stored))
+		require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), env.repos.Student.Update, stored))
 	}
 	return partner.ID
 }
@@ -215,8 +213,7 @@ func syncApprovedChild(t *testing.T, env *decisionTestEnv, applier enrollmentAPI
 func TestDecisionService_SyncApprovedChildData_CompanionRefusalSurfacesWithoutReplace(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 	publishCompanionModesSchema(t, env, "Testformular Companion Refusal")
 
@@ -232,15 +229,15 @@ func TestDecisionService_SyncApprovedChildData_CompanionRefusalSurfacesWithoutRe
 	err := syncApprovedChild(t, env, applier, reqID, childID)
 
 	require.Error(t, err, "a refused departure sync must not report success")
-	assert.ErrorIs(t, err, usersModels.ErrCompanionWouldLoseDeparture,
+	assert.ErrorIs(t, err, peopleValues.TranslateStudentWriteError(peopleValues.ErrCompanionWouldLoseDeparture),
 		"the refusal has to stay reachable so the handler can answer with the actionable 4xx")
 
 	// Nothing may have landed: the plan is unchanged and the link still exists.
-	student, ferr := env.repos.Student.FindByID(ctx, studentID)
+	student, ferr := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.Student.FindByID, any(studentID))
 	require.NoError(t, ferr)
-	assert.True(t, usersModels.AccompaniedWeekdays(student.AllowedDepartureModes, student.DepartureDays)[usersModels.PickupDayTuesday],
+	assert.True(t, peopleValues.AccompaniedWeekdays(student.AllowedDepartureModes, student.DepartureDays)[peopleValues.PickupDayTuesday],
 		"the refused correction must roll back, leaving the accompanied Tuesday in place")
-	edges, eerr := repositories.NewStudentCompanionRepository(env.repos.CarePlan()).ListForStudent(ctx, studentID)
+	edges, eerr := owners.NewStudentCompanionRepository(env.reposCare.CarePlan).ListForStudent(ctx, studentID)
 	require.NoError(t, eerr)
 	require.Len(t, edges, 1, "the refused correction must not drop the link")
 	far, ok := edges[0].Other(studentID)
@@ -260,8 +257,7 @@ func TestDecisionService_SyncApprovedChildData_CompanionRefusalSurfacesWithoutRe
 func TestDecisionService_SyncApprovedChildData_CompanionEventOnlyOnEffectiveTrim(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	publishCompanionModesSchema(t, env, "Testformular Companion Event")
 
 	bc := testpkg.NewRecordingBroadcaster()
@@ -291,7 +287,7 @@ func TestDecisionService_SyncApprovedChildData_CompanionEventOnlyOnEffectiveTrim
 		assert.True(t, bc.HasEventType(realtime.EventStudentCompanionsChanged),
 			"Tuesday no longer allows 'Anderes Kind', so the link is gone from the partner's card too")
 
-		edges, err := repositories.NewStudentCompanionRepository(env.repos.CarePlan()).ListForStudent(testpkg.Ctx(t), studentID)
+		edges, err := owners.NewStudentCompanionRepository(env.reposCare.CarePlan).ListForStudent(testpkg.Ctx(t), studentID)
 		require.NoError(t, err)
 		assert.Empty(t, edges, "the announced sync must actually have trimmed the link")
 	})

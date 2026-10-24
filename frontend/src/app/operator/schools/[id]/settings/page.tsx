@@ -8,7 +8,7 @@ import {
   useMemo,
   useState,
 } from "react";
-import Link from "next/link";
+import { BackLink } from "~/components/ui/back-link";
 import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { createLogger } from "~/lib/logger";
@@ -49,6 +49,7 @@ const TAB_LABELS: Record<string, string> = {
   system: "System",
   general: "Allgemein",
   startseite: "Startseite für alle",
+  modules: "Module",
 };
 
 // Konzept je Einstellungs-Tab, fuer die Kachel im Sektions-Header. Faellt auf
@@ -85,7 +86,9 @@ function OperatorSchoolSettingsPageContent({ params }: PageProps) {
     [searchParams],
   );
   const backLabel =
-    backHref === "/operator/schools" ? "Zu den Schulen" : "Zurück zur Schule";
+    backHref === "/operator/schools"
+      ? "Zurück zu den Schulen"
+      : "Zurück zur Schule";
 
   const [schema, setSchema] = useState<SettingsSchema | null>(null);
   const [schoolName, setSchoolName] = useState<string>("");
@@ -192,25 +195,7 @@ function OperatorSchoolSettingsPageContent({ params }: PageProps) {
   return (
     <div className="mx-auto w-full max-w-4xl min-w-0 px-4 py-6 sm:px-6 lg:px-8">
       <div className="mb-6">
-        <Link
-          href={backHref}
-          className="mb-4 inline-flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900"
-        >
-          <svg
-            className="h-4 w-4"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M15 19l-7-7 7-7"
-            />
-          </svg>
-          {backLabel}
-        </Link>
+        <BackLink href={backHref} label={backLabel} className="mb-2" />
         <ConceptPageHeader
           title={`Einstellungen${schoolName ? ` · ${schoolName}` : ""}`}
           concept="settings"

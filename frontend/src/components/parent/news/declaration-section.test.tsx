@@ -5,6 +5,7 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
+import { ApiError } from "~/lib/api-error";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -23,7 +24,6 @@ import type {
   ParentDeclarationChild,
 } from "~/lib/parent-api";
 import * as parentApi from "~/lib/parent-api";
-import { ParentApiError } from "~/lib/parent-api";
 
 // Einverständnisse (#3430) in the parent portal: the portal shows exactly the
 // server's allowed actions, never preselects one, repeats child, action and
@@ -177,7 +177,7 @@ describe("isOpenDeclaration", () => {
 
 describe("declarationErrorOutcome", () => {
   function apiError(status: number, code?: string) {
-    return new ParentApiError("failed", status, code);
+    return new ApiError("failed", status, { code: code });
   }
 
   it.each([
@@ -337,7 +337,9 @@ describe("Einverständnis in the detail view", () => {
     const submit = vi
       .spyOn(parentApi, "submitDeclaration")
       .mockRejectedValueOnce(
-        new ParentApiError("wrong", 403, "care.declaration_password_incorrect"),
+        new ApiError("wrong", 403, {
+          code: "care.declaration_password_incorrect",
+        }),
       )
       .mockResolvedValueOnce(submission("declined"));
 
@@ -401,7 +403,9 @@ describe("Einverständnis in the detail view", () => {
 
   it("closes the confirmation, tells the parent and reloads when the text changed", async () => {
     vi.spyOn(parentApi, "submitDeclaration").mockRejectedValue(
-      new ParentApiError("changed", 409, "care.declaration_version_changed"),
+      new ApiError("changed", 409, {
+        code: "care.declaration_version_changed",
+      }),
     );
     const onStale = vi.fn();
 
@@ -729,7 +733,7 @@ describe("unclear submit result (#3430)", () => {
 
   it("keeps the dialog and does not reload for a plain input error", async () => {
     vi.spyOn(parentApi, "submitDeclaration").mockRejectedValue(
-      new ParentApiError("bad", 400),
+      new ApiError("bad", 400),
     );
     const onStale = vi.fn();
 

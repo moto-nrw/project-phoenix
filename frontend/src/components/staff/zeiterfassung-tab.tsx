@@ -600,7 +600,7 @@ function RangeNav({
           variant="ghost"
           size="icon"
           onClick={onPrev}
-          aria-label="Zurück"
+          aria-label="Vorheriger Zeitraum"
         >
           <ChevronLeft className="h-4 w-4" aria-hidden />
         </Button>
@@ -612,7 +612,7 @@ function RangeNav({
           variant="ghost"
           size="icon"
           onClick={onNext}
-          aria-label="Vor"
+          aria-label="Nächster Zeitraum"
         >
           <ChevronRight className="h-4 w-4" aria-hidden />
         </Button>

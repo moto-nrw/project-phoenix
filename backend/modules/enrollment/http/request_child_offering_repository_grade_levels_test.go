@@ -3,16 +3,15 @@ package enrollmenthttp_test
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	owner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // gradeCountsByOffering flattens the repository result into a lookup keyed by
@@ -41,7 +40,7 @@ func TestOwnerOffering_CountActiveGradeLevels_GroupsByGrade(t *testing.T) {
 	t.Parallel()
 
 	db, _, tenantID, childID, offeringID := setupChildOfferingTest(t, testpkg.SetupTestDB(t))
-	repo := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant)
+	repo := api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant)
 	from := calendar.NewDate(2026, 8, 24)
 	until := from.AddDays(90)
 
@@ -78,7 +77,7 @@ func TestOwnerOffering_CountActiveGradeLevels_ReportsMissingGradeSeparately(t *t
 	t.Parallel()
 
 	db, _, tenantID, childID, offeringID := setupChildOfferingTest(t, testpkg.SetupTestDB(t))
-	repo := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant)
+	repo := api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant)
 	from := calendar.NewDate(2026, 8, 24)
 	until := from.AddDays(90)
 
@@ -107,7 +106,7 @@ func TestOwnerOffering_CountActiveGradeLevels_CountsAChildOncePerOffering(t *tes
 	t.Parallel()
 
 	db, _, tenantID, childID, offeringID := setupChildOfferingTest(t, testpkg.SetupTestDB(t))
-	repo := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant)
+	repo := api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant)
 	from := calendar.NewDate(2026, 8, 24)
 	until := from.AddDays(90)
 	laterFrom := from.AddDays(30)
@@ -143,7 +142,7 @@ func TestOwnerOffering_CountActiveGradeLevels_ExcludesTerminalChildren(t *testin
 	t.Parallel()
 
 	db, _, tenantID, childID, offeringID := setupChildOfferingTest(t, testpkg.SetupTestDB(t))
-	repo := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant)
+	repo := api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant)
 	from := calendar.NewDate(2026, 8, 24)
 	until := from.AddDays(90)
 
@@ -170,7 +169,7 @@ func TestOwnerOffering_CountActiveGradeLevels_ExcludesIntervalsOutsideTheWindow(
 	t.Parallel()
 
 	db, _, tenantID, childID, offeringID := setupChildOfferingTest(t, testpkg.SetupTestDB(t))
-	repo := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant)
+	repo := api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant)
 	from := calendar.NewDate(2026, 8, 24)
 	endedAt := from.AddDays(-10)
 	startedAt := from.AddDays(-40)
@@ -198,7 +197,7 @@ func TestOwnerOffering_CountActiveGradeLevels_RejectsAnEmptyWindow(t *testing.T)
 	t.Parallel()
 
 	db, _, tenantID, _, offeringID := setupChildOfferingTest(t, testpkg.SetupTestDB(t))
-	repo := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant)
+	repo := api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant)
 	today := calendar.NewDate(2026, 8, 24)
 
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -214,7 +213,7 @@ func TestOwnerOffering_CountActiveGradeLevels_EmptyInputSkipsTheQuery(t *testing
 	t.Parallel()
 
 	db, _, tenantID, _, _ := setupChildOfferingTest(t, testpkg.SetupTestDB(t))
-	repo := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant)
+	repo := api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant)
 	today := calendar.NewDate(2026, 8, 24)
 
 	var rows []*owner.OfferingGradeCount
@@ -236,7 +235,7 @@ func TestOwnerOffering_CountMaxActiveByIDsInRange_MatchesTheSingleOfferingVarian
 	t.Parallel()
 
 	db, _, tenantID, childID, offeringID := setupChildOfferingTest(t, testpkg.SetupTestDB(t))
-	repo := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant)
+	repo := api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant)
 	from := calendar.NewDate(2026, 8, 24)
 	until := from.AddDays(90)
 	requestID := requestIDOf(t, db, tenantID, childID)
@@ -273,7 +272,7 @@ func TestOwnerOffering_CountMaxActiveByIDsInRange_SeparatesOfferings(t *testing.
 	t.Parallel()
 
 	db, _, tenantID, childID, offeringID := setupChildOfferingTest(t, testpkg.SetupTestDB(t))
-	repo := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant)
+	repo := api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant)
 	phaseID := phaseIDOfOffering(t, db, tenantID, offeringID)
 	from := calendar.NewDate(2026, 8, 24)
 	until := from.AddDays(90)
@@ -302,7 +301,7 @@ func TestOwnerOffering_CountMaxActiveByIDsInRange_GuardsItsInput(t *testing.T) {
 	t.Parallel()
 
 	db, _, tenantID, _, offeringID := setupChildOfferingTest(t, testpkg.SetupTestDB(t))
-	repo := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant)
+	repo := api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant)
 	today := calendar.NewDate(2026, 8, 24)
 
 	var empty map[int64]int
@@ -331,7 +330,7 @@ func TestOwnerOffering_Aggregates_CountEveryPhaseLikeTheGate(t *testing.T) {
 	t.Parallel()
 
 	db, _, tenantID, childID, offeringID := setupChildOfferingTest(t, testpkg.SetupTestDB(t))
-	repo := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant)
+	repo := api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant)
 	from := calendar.NewDate(2026, 8, 24)
 	until := from.AddDays(90)
 

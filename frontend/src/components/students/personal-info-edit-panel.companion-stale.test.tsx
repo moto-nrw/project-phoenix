@@ -7,7 +7,7 @@ import {
   fireEvent,
   act,
 } from "@testing-library/react";
-import { CompanionsChangedError } from "~/lib/api";
+import { ApiError } from "~/lib/api-error";
 
 /**
  * The EDITABLE Stammdaten view holds a draft plus the snapshot its dirty check
@@ -87,7 +87,6 @@ vi.mock("./student-form-fields", () => ({
     </div>
   ),
   PersonalInfoSection: () => <div />,
-  EnrollmentConsentsSection: () => <div />,
 }));
 
 import { PersonalInfoEditPanel } from "./personal-info-edit-panel";
@@ -233,12 +232,9 @@ describe("PersonalInfoEditPanel — remote companion changes", () => {
   // state a local announcement would: draft kept, save blocked, reload offered.
   it("blocks the form when the backend reports the list as stale", async () => {
     fetchStudentCompanionsMock.mockResolvedValueOnce([companion("2")]);
-    const staleError = new CompanionsChangedError(
-      JSON.stringify({
-        error: "companions changed",
-        code: "students.companions_changed",
-      }),
-    );
+    const staleError = new ApiError("companions changed", 409, {
+      code: "students.companions_changed",
+    });
     const onSave = vi.fn().mockRejectedValue(staleError);
     await renderOpenModal(onSave);
     await waitFor(() =>

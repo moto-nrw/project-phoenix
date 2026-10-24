@@ -1,0 +1,170 @@
+[
+  {
+    "module": "appointments",
+    "contract_package": "modules/appointments",
+    "test_file": "modules/appointments/public_contract_test.go",
+    "test": "TestPublicAppointmentContractPersistsNormalizedFieldsAndTargets"
+  },
+  {
+    "module": "audit-platform",
+    "contract_package": "modules/auditlog",
+    "test_file": "modules/auditlog/public_contract_test.go",
+    "test": "TestPublicAuditContractReturnsFrozenCorrectionAndCursor"
+  },
+  {
+    "module": "care-plan",
+    "contract_package": "modules/careplan",
+    "test_file": "modules/careplan/public_contract_test.go",
+    "test": "TestPublicCarePlanContractUpsertsOneObservableStatusDay"
+  },
+  {
+    "module": "communication",
+    "contract_package": "modules/communication",
+    "test_file": "modules/communication/public_contract_test.go",
+    "test": "TestPublicCommunicationContractPersistsNormalizedAnnouncement"
+  },
+  {
+    "module": "delivery-platform",
+    "contract_package": "modules/delivery/contract",
+    "test_file": "modules/delivery/runtime/public_contract_test.go",
+    "test": "TestPublicDeliveryContractDeduplicatesDurableIntent"
+  },
+  {
+    "module": "device-fleet",
+    "contract_package": "modules/devicefleet",
+    "test_file": "modules/devicefleet/public_contract_test.go",
+    "test": "TestPublicDeviceContractPersistsRoomAndMapsMissingDevice"
+  },
+  {
+    "module": "document-rendering",
+    "contract_package": "modules/planexport",
+    "test_file": "modules/planexport/public_contract_test.go",
+    "test": "TestPublicDocumentContractRendersAnActualWeeklyWorkbook"
+  },
+  {
+    "module": "enrollment",
+    "contract_package": "modules/enrollment",
+    "test_file": "modules/enrollment/public_contract_test.go",
+    "test": "TestPublicEnrollmentContractRoundTripsPhaseDatesAndUpdates"
+  },
+  {
+    "module": "export-transfer",
+    "contract_package": "modules/exporttransfer",
+    "test_file": "modules/exporttransfer/wire_format_test.go",
+    "test": "TestFailedOutcomeIsDistinguishableFromASuccessfulOne"
+  },
+  {
+    "module": "facilities",
+    "contract_package": "modules/facilities",
+    "test_file": "modules/facilities/compose/public_contract_test.go",
+    "test": "TestPublicRoomContractReturnsStoredRoom"
+  },
+  {
+    "module": "feedback",
+    "contract_package": "modules/feedback",
+    "test_file": "modules/feedback/compose/public_contract_test.go",
+    "test": "TestPublicFeedbackContractPreservesNormalizedEntry"
+  },
+  {
+    "module": "file-storage",
+    "contract_package": "modules/filestorage",
+    "test_file": "modules/filestorage/upload_compensation_test.go",
+    "test": "TestUploadDatabaseFailureKeepsIntentUntilObjectCleanupSucceeds"
+  },
+  {
+    "module": "identity-access",
+    "contract_package": "modules/identityaccess",
+    "test_file": "modules/identityaccess/public_contract_test.go",
+    "test": "TestPublicIdentityContractListsOnlyActiveAccountsOfItsSchool"
+  },
+  {
+    "module": "meal-plan",
+    "contract_package": "modules/mealplan",
+    "test_file": "modules/mealplan/compose/public_contract_test.go",
+    "test": "TestPublicMealPlanContractPersistsNormalizedDishes"
+  },
+  {
+    "module": "observability",
+    "contract_package": "observability",
+    "test_file": "observability/public_contract_test.go",
+    "test": "TestPublicObservabilityContractPropagatesAndSanitizesCorrelationIDs"
+  },
+  {
+    "module": "organization-tenancy",
+    "contract_package": "modules/organizationtenancy",
+    "test_file": "modules/organizationtenancy/organizationtenancy_test.go",
+    "test": "TestErrorCodeIsStable"
+  },
+  {
+    "module": "people-directory",
+    "contract_package": "modules/peopledirectory",
+    "test_file": "modules/peopledirectory/peopledirectory_test.go",
+    "test": "TestErrorCodeIsStable"
+  },
+  {
+    "module": "scheduler-runtime",
+    "contract_package": "modules/schedulerruntime/ports",
+    "test_file": "modules/schedulerruntime/ports/worker_lease_test.go",
+    "test": "TestNewWorkerLeaseOwnsTheTimingAndAFreshHolder"
+  },
+  {
+    "module": "school-calendar",
+    "contract_package": "modules/schoolcalendar",
+    "test_file": "modules/schoolcalendar/public_contract_test.go",
+    "test": "TestPublicCalendarContractPreservesCalendarDaysAndStoredReason"
+  },
+  {
+    "module": "school-membership",
+    "contract_package": "modules/schoolmembership",
+    "test_file": "modules/schoolmembership/schoolmembership_test.go",
+    "test": "TestErrorCodeIsStable"
+  },
+  {
+    "module": "school-structure",
+    "contract_package": "modules/schoolstructure",
+    "test_file": "modules/schoolstructure/public_contract_test.go",
+    "test": "TestPublicSchoolStructureContractReadsGroupsByID"
+  },
+  {
+    "module": "security-runtime",
+    "contract_package": "modules/securityruntime",
+    "test_file": "modules/securityruntime/config_access_test.go",
+    "test": "TestConfigAccessPermissionsKeepTheComposedGuards"
+  },
+  {
+    "module": "settings-platform",
+    "contract_package": "modules/settings",
+    "test_file": "modules/settings/public_contract_test.go",
+    "test": "TestPublicSettingsContractDistinguishesOverrideFromRegistryDefault"
+  },
+  {
+    "module": "student-presence",
+    "contract_package": "modules/studentpresence",
+    "test_file": "modules/studentpresence/location_snapshot_test.go",
+    "test": "TestStudentLocationSnapshot_ResolveStudentLocation_CheckedIn_NoVisit"
+  },
+  {
+    "module": "tenant-runtime",
+    "contract_package": "tenant",
+    "test_file": "tenant/runtime_test.go",
+    "test": "TestUnitOfWorkRunsRollbackHooksWhenCommitFails"
+  },
+  {
+    "module": "timetable-activities",
+    "contract_package": "modules/timetable",
+    "test_file": "modules/timetable/timetable_test.go",
+    "test": "TestErrorCodeIsStable"
+  },
+  {
+    "module": "transaction-runtime",
+    "contract_package": "modules/transactionruntime",
+    "test_file": "modules/transactionruntime/public_contract_test.go",
+    "test": "TestPublicTransactionContractClassifiesRealWrappedConstraintFailure"
+  },
+  {
+    "module": "workforce",
+    "contract_package": "modules/workforce",
+    "test_file": "modules/workforce/public_contract_test.go",
+    "test": "TestPublicWorkforceContractUpsertsAndReadsOneVacationQuota"
+  }
+]

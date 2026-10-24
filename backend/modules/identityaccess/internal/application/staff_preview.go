@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 )
 
@@ -27,14 +28,19 @@ import (
 // holds as previousToken; when that token proves the SAME preview instance,
 // the new token inherits its preview id and NO second started event is
 // written.
-func (l *AccountLifecycle) StartStaffPreview(ctx context.Context, adminAccountID, tenantID, targetAccountID int64, previousToken, ipAddress, userAgent string) (*domain.StaffPreviewSession, error) {
+func (l *AccountLifecycle) StartStaffPreview(ctx context.Context, adminAccountID, tenantID, targetAccountID int64, previousToken, ipAddress, userAgent string) (_ *identityaccess.StaffPreviewSession, err error) {
+	if l == nil {
+		return nil, errAccountLifecycleUnavailable
+	}
+	defer func() { err = lifecycleError(err) }()
+	ctx = bindRuntime(l.auth.attach, ctx)
 	const op = "start staff preview"
 
 	if tenantID <= 0 {
-		return nil, failed(op, domain.ErrTenantNotFound)
+		return nil, failed(op, identityaccess.ErrTenantNotFound)
 	}
 	if targetAccountID == adminAccountID {
-		return nil, failed(op, domain.ErrPreviewSelf)
+		return nil, failed(op, identityaccess.ErrPreviewSelf)
 	}
 
 	// Everything that decides whether this person may be previewed and the
@@ -52,108 +58,23 @@ func (l *AccountLifecycle) StartStaffPreview(ctx context.Context, adminAccountID
 		previewID   string
 		isRemint    bool
 	)
-	err := l.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
-		var found bool
+	err = l.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
 		var err error
-		account, found, _, err = l.logins.FindLoginAccount(txCtx, targetAccountID, true)
-		if err != nil {
-			return failed(op, err)
-		}
-		if !found {
-			// Only a genuine miss is a 404; a database failure stays a 5xx.
-			return failed(op, domain.ErrAccountNotFound)
-		}
-		if !account.Active {
-			return failed(op, domain.ErrAccountInactive)
-		}
-
-		mapped, _, err := l.logins.LockActiveTenantMappingShared(txCtx, targetAccountID, tenantID)
-		if err != nil {
-			return failed(op, err)
-		}
-		if !mapped {
-			return failed(op, domain.ErrTenantAccessDenied)
-		}
-
-		// Pin what the token is BUILT from, in the same account -> roles ->
-		// permissions order every revocation path walks, so the claims read
-		// below are provably the ones still in force at commit time.
-		if _, _, err := l.logins.ListAccountRolesAtTenant(txCtx, targetAccountID, tenantID, true); err != nil {
-			return failed(op, err)
-		}
-		if _, err := l.logins.LockAccountPermissionSources(txCtx, targetAccountID, tenantID); err != nil {
-			return failed(op, err)
-		}
-
-		claims, err = l.auth.LoadAccountClaims(txCtx, targetAccountID, tenantID)
+		account, claims, err = l.staffPreviewIdentity(txCtx, tenantID, targetAccountID)
 		if err != nil {
 			return err
 		}
-
-		// The preview shows the OGS tenant portal. Accounts without a surface
-		// there cannot be previewed meaningfully: guardians live in the
-		// parents portal, Lehrkraft-only accounts in moto schule, and an
-		// account with no role at this school could not even log in.
-		if len(claims.RoleNames) == 0 || domain.IsGuardianOnly(claims.RoleNames) {
-			return failed(op, domain.ErrPreviewTargetNotStaff)
-		}
-		if domain.IsSchoolPortalOnly(claims.Roles) {
-			return failed(op, domain.ErrMustUseSchoolPortal)
-		}
-
-		previewID, isRemint, err = l.continuedPreviewID(txCtx, previousToken, adminAccountID, tenantID, targetAccountID)
-		if err != nil {
-			return failed(op, err)
-		}
-		if !isRemint {
-			newID, err := newPreviewID()
-			if err != nil {
-				return failed(op, err)
-			}
-			previewID = newID
-		}
-
-		accessToken, err = l.codec.IssueAccessToken(domain.SessionClaims{
-			AccountID: account.ID, Email: account.Email, Username: claims.Username,
-			FirstName: claims.FirstName, LastName: claims.LastName,
-			Roles: claims.RoleNames, RoleIsSystem: domain.RoleSystemFlags(claims.Roles), Permissions: claims.Permissions, IsAdmin: claims.IsAdmin,
-			Scope: claims.Scope, TenantID: tenantID, OrgID: claims.OrgID,
-			ReadOnly: true, ActingAdminID: adminAccountID, PreviewID: previewID,
-		})
-		if err != nil {
-			return failed(op, err)
-		}
-		return nil
+		accessToken, previewID, isRemint, err = l.mintStaffPreview(txCtx, account, claims, previousToken, adminAccountID, tenantID, targetAccountID)
+		return err
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	if isRemint {
-		l.logger.Debug("staff preview token re-minted",
-			slog.Int64("admin_account_id", adminAccountID),
-			slog.Int64("target_account_id", targetAccountID),
-			slog.Int64("tenant_id", tenantID),
-		)
-	} else {
-		// Written synchronously, BEFORE the token leaves this method: if the
-		// start row cannot land, the caller gets an error and never holds a
-		// preview token. The mint transaction persisted nothing (a JWT is
-		// stateless), so there is nothing to unwind on failure.
-		if err := l.recordPreviewStart(ctx, domain.StaffPreviewEvent{
-			AdminAccountID: adminAccountID, TenantID: tenantID, TargetAccountID: targetAccountID,
-			PreviewID: previewID, IPAddress: ipAddress, UserAgent: userAgent,
-		}); err != nil {
-			return nil, failed(op, err)
-		}
-		l.logger.Info("staff preview started",
-			slog.Int64("admin_account_id", adminAccountID),
-			slog.Int64("target_account_id", targetAccountID),
-			slog.Int64("tenant_id", tenantID),
-		)
+	if err := l.recordStaffPreviewOutcome(ctx, isRemint, adminAccountID, tenantID, targetAccountID, previewID, ipAddress, userAgent); err != nil {
+		return nil, err
 	}
-
-	return &domain.StaffPreviewSession{
+	return &identityaccess.StaffPreviewSession{
 		AccessToken:     accessToken,
 		ExpiresIn:       int64(l.codec.AccessExpiry().Seconds()),
 		TargetAccountID: targetAccountID,
@@ -161,16 +82,12 @@ func (l *AccountLifecycle) StartStaffPreview(ctx context.Context, adminAccountID
 	}, nil
 }
 
-// EndStaffPreview records that the admin left the preview. The signed preview
-// token IS the credential: admin, school, target and preview instance are all
-// read from its claims, never from anything the client picks. Expiry is
-// deliberately not checked: a preview left open past the access expiry must
-// still end with an audit row. Ending is one-shot per preview instance, and
-// the database is what makes it so (partial unique index over account and
-// preview id for this event type).
-//
-// Returns the previewed account id for the caller's response and logs.
-func (l *AccountLifecycle) EndStaffPreview(ctx context.Context, previewToken, ipAddress, userAgent string) (int64, error) {
+func (l *AccountLifecycle) EndStaffPreview(ctx context.Context, previewToken, ipAddress, userAgent string) (_ int64, err error) {
+	if l == nil {
+		return 0, errAccountLifecycleUnavailable
+	}
+	defer func() { err = lifecycleError(err) }()
+	ctx = bindRuntime(l.auth.attach, ctx)
 	const op = "end staff preview"
 
 	claims, err := l.codec.ParseAccessTokenAllowExpired(previewToken)
@@ -178,12 +95,12 @@ func (l *AccountLifecycle) EndStaffPreview(ctx context.Context, previewToken, ip
 		l.logger.Warn("staff preview end: token not parseable",
 			slog.String("error", err.Error()),
 		)
-		return 0, failed(op, domain.ErrPreviewTokenInvalid)
+		return 0, failed(op, identityaccess.ErrPreviewTokenInvalid)
 	}
 	if !claims.ReadOnly || claims.ActingAdminID <= 0 ||
 		claims.TenantID <= 0 || claims.AccountID <= 0 || claims.PreviewID == "" {
 		l.logger.Warn("staff preview end: token is not a preview token")
-		return 0, failed(op, domain.ErrPreviewTokenInvalid)
+		return 0, failed(op, identityaccess.ErrPreviewTokenInvalid)
 	}
 	event := domain.StaffPreviewEvent{
 		AdminAccountID: claims.ActingAdminID, TenantID: claims.TenantID, TargetAccountID: claims.AccountID,
@@ -285,16 +202,29 @@ func newPreviewID() (string, error) {
 	return hex.EncodeToString(buf), nil
 }
 
-// ListStaffPreviewCandidates returns the staff members an admin can preview
-// at tenantID, excluding the caller. Runs inside the route's tenant
-// transaction (RLS-scoped).
-//
-// The listing carries aggregated role NAMES, and a name alone cannot tell the
-// lehrkraft SYSTEM role from a school's own custom role carrying the same
-// label. So the name check is only a prefilter: a candidate it would drop
-// gets its actual role assignments loaded and decided by the same rule the
-// start path uses, so the picker and StartStaffPreview never disagree.
-func (l *AccountLifecycle) ListStaffPreviewCandidates(ctx context.Context, tenantID, excludeAccountID int64) ([]domain.StaffPreviewCandidate, error) {
+func (l *AccountLifecycle) ListStaffPreviewCandidates(ctx context.Context, tenantID, excludeAccountID int64) (value0 []identityaccess.StaffPreviewCandidate, err error) {
+	if l == nil {
+		return nil, errAccountLifecycleUnavailable
+	}
+	operation := func(ctx context.Context) ([]identityaccess.StaffPreviewCandidate, error) {
+		candidates, err := l.listStaffPreviewCandidates(bindRuntime(l.auth.attach, ctx), tenantID, excludeAccountID)
+		if err != nil {
+			return nil, lifecycleError(err)
+		}
+		result := make([]identityaccess.StaffPreviewCandidate, 0, len(candidates))
+		for _, candidate := range candidates {
+			result = append(result, identityaccess.StaffPreviewCandidate(candidate))
+		}
+		return result, nil
+	}
+	err = l.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, err = operation(txCtx)
+		return err
+	})
+	return
+}
+
+func (l *AccountLifecycle) listStaffPreviewCandidates(ctx context.Context, tenantID, excludeAccountID int64) ([]domain.StaffPreviewCandidate, error) {
 	const op = "list staff preview candidates"
 	accounts, _, err := l.store.ListTenantAccounts(ctx, tenantID)
 	if err != nil {
@@ -304,25 +234,14 @@ func (l *AccountLifecycle) ListStaffPreviewCandidates(ctx context.Context, tenan
 	candidates := make([]domain.StaffPreviewCandidate, 0, len(accounts))
 	ids := make([]int64, 0, len(accounts))
 	for _, info := range accounts {
-		if info.AccountID == 0 || info.AccountID == excludeAccountID {
-			continue
+		allowed, err := l.canPreviewStaff(ctx, info, tenantID, excludeAccountID)
+		if err != nil {
+			return nil, err
 		}
-		if !info.Active || info.Status != "active" {
+		if !allowed {
 			continue
 		}
 		roles := info.RoleNames
-		if len(roles) == 0 || domain.IsGuardianOnly(roles) {
-			continue
-		}
-		if isLehrkraftOnlyByName(roles) {
-			schoolPortalOnly, err := l.isSchoolPortalOnlyAtTenant(ctx, info.AccountID, tenantID)
-			if err != nil {
-				return nil, failed(op, err)
-			}
-			if schoolPortalOnly {
-				continue
-			}
-		}
 		candidates = append(candidates, domain.StaffPreviewCandidate{AccountID: info.AccountID, Email: info.Email, Roles: roles})
 		ids = append(ids, info.AccountID)
 	}
@@ -376,4 +295,134 @@ func staffPreviewDisplayName(claims *domain.AccountClaimsPayload, email string) 
 		return claims.Username
 	}
 	return email
+}
+
+func (l *AccountLifecycle) canPreviewStaff(ctx context.Context, info domain.TenantAccount, tenantID, excludeAccountID int64) (bool, error) {
+	if info.AccountID == 0 || info.AccountID == excludeAccountID {
+		return false, nil
+	}
+	if !info.Active || info.Status != "active" {
+		return false, nil
+	}
+	roles := info.RoleNames
+	if len(roles) == 0 || domain.IsGuardianOnly(roles) {
+		return false, nil
+	}
+	if info.HoldsSchoolPortalCopy || isLehrkraftOnlyByName(roles) {
+		schoolPortalOnly, err := l.isSchoolPortalOnlyAtTenant(ctx, info.AccountID, tenantID)
+		if err != nil {
+			return false, failed("list staff preview candidates", err)
+		}
+		if schoolPortalOnly {
+			return false, nil
+		}
+	}
+	return true, nil
+}
+
+func (l *AccountLifecycle) staffPreviewIdentity(txCtx context.Context, tenantID, targetAccountID int64) (account domain.LoginAccount, claims *domain.AccountClaimsPayload, err error) {
+	const op = "start staff preview"
+	var found bool
+	account, found, _, err = findLoginAccount(txCtx, l.runtime, l.logins, targetAccountID, true)
+	if err != nil {
+		return account, claims, failed(op, err)
+	}
+	if !found {
+		// Only a genuine miss is a 404; a database failure stays a 5xx.
+		return account, claims, failed(op, domain.ErrAccountNotFound)
+	}
+	if !account.Active {
+		return account, claims, failed(op, identityaccess.ErrAccountInactive)
+	}
+
+	mapped, _, err := l.logins.LockActiveTenantMappingShared(txCtx, targetAccountID, tenantID)
+	if err != nil {
+		return account, claims, failed(op, err)
+	}
+	if !mapped {
+		return account, claims, failed(op, identityaccess.ErrTenantAccessDenied)
+	}
+
+	// Pin what the token is BUILT from, in the same account -> roles ->
+	// permissions order every revocation path walks, so the claims read
+	// below are provably the ones still in force at commit time.
+	if _, _, err := l.logins.ListAccountRolesAtTenant(txCtx, targetAccountID, tenantID, true); err != nil {
+		return account, claims, failed(op, err)
+	}
+	if _, err := l.logins.LockAccountPermissionSources(txCtx, targetAccountID, tenantID); err != nil {
+		return account, claims, failed(op, err)
+	}
+
+	claims, err = l.auth.loadAccountClaims(txCtx, targetAccountID, tenantID)
+	if err != nil {
+		return account, claims, err
+	}
+
+	// The preview shows the OGS tenant portal. Accounts without a surface
+	// there cannot be previewed meaningfully: guardians live in the
+	// parents portal, Lehrkraft-only accounts in moto schule, and an
+	// account with no role at this school could not even log in.
+	if len(claims.RoleNames) == 0 || domain.IsGuardianOnly(claims.RoleNames) {
+		return account, claims, failed(op, identityaccess.ErrPreviewTargetNotStaff)
+	}
+	if domain.IsSchoolPortalOnly(claims.Roles) {
+		return account, claims, failed(op, identityaccess.ErrMustUseSchoolPortal)
+	}
+
+	return account, claims, nil
+}
+
+func (l *AccountLifecycle) mintStaffPreview(txCtx context.Context, account domain.LoginAccount, claims *domain.AccountClaimsPayload, previousToken string, adminAccountID, tenantID, targetAccountID int64) (accessToken, previewID string, isRemint bool, err error) {
+	const op = "start staff preview"
+	previewID, isRemint, err = l.continuedPreviewID(txCtx, previousToken, adminAccountID, tenantID, targetAccountID)
+	if err != nil {
+		return accessToken, previewID, isRemint, failed(op, err)
+	}
+	if !isRemint {
+		newID, err := newPreviewID()
+		if err != nil {
+			return accessToken, previewID, isRemint, failed(op, err)
+		}
+		previewID = newID
+	}
+
+	accessToken, err = l.codec.IssueAccessToken(domain.SessionClaims{
+		AccountID: account.ID, Email: account.Email, Username: claims.Username,
+		FirstName: claims.FirstName, LastName: claims.LastName,
+		Roles: claims.RoleNames, RoleIsSystem: domain.RoleSystemFlags(claims.Roles), Permissions: claims.Permissions, IsAdmin: claims.IsAdmin,
+		Scope: claims.Scope, TenantID: tenantID, OrgID: claims.OrgID,
+		ReadOnly: true, ActingAdminID: adminAccountID, PreviewID: previewID,
+	})
+	if err != nil {
+		return accessToken, previewID, isRemint, failed(op, err)
+	}
+	return accessToken, previewID, isRemint, nil
+}
+
+func (l *AccountLifecycle) recordStaffPreviewOutcome(ctx context.Context, isRemint bool, adminAccountID, tenantID, targetAccountID int64, previewID, ipAddress, userAgent string) error {
+	if isRemint {
+		l.logger.Debug("staff preview token re-minted",
+			slog.Int64("admin_account_id", adminAccountID),
+			slog.Int64("target_account_id", targetAccountID),
+			slog.Int64("tenant_id", tenantID),
+		)
+	} else {
+		// Written synchronously, BEFORE the token leaves this method: if the
+		// start row cannot land, the caller gets an error and never holds a
+		// preview token. The mint transaction persisted nothing (a JWT is
+		// stateless), so there is nothing to unwind on failure.
+		if err := l.recordPreviewStart(ctx, domain.StaffPreviewEvent{
+			AdminAccountID: adminAccountID, TenantID: tenantID, TargetAccountID: targetAccountID,
+			PreviewID: previewID, IPAddress: ipAddress, UserAgent: userAgent,
+		}); err != nil {
+			return failed("start staff preview", err)
+		}
+		l.logger.Info("staff preview started",
+			slog.Int64("admin_account_id", adminAccountID),
+			slog.Int64("target_account_id", targetAccountID),
+			slog.Int64("tenant_id", tenantID),
+		)
+	}
+
+	return nil
 }

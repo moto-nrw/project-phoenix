@@ -12,7 +12,6 @@ import (
 // recorded data, not a display concern.
 const (
 	StudentFieldStatus                 = "status"
-	StudentFieldSupervisorNotes        = "supervisor_notes"
 	StudentFieldExtraInfo              = "extra_info"
 	StudentFieldHealthInfo             = "health_info"
 	StudentFieldPickupStatus           = "pickup_status"
@@ -40,7 +39,6 @@ type StudentAuditSnapshot struct {
 	// CareEnd is the last care day as a calendar date (YYYY-MM-DD), empty
 	// when the child has no recorded end of care.
 	CareEnd                string
-	SupervisorNotes        *string
 	ExtraInfo              *string
 	HealthInfo             *string
 	PickupStatus           *string
@@ -82,9 +80,22 @@ func DiffStudentFields(before, after StudentAuditSnapshot) []StudentFieldChange 
 	}
 
 	add(StudentFieldStatus, studentStatusLabel(before.Status), studentStatusLabel(after.Status))
-	add(StudentFieldSupervisorNotes, derefString(before.SupervisorNotes), derefString(after.SupervisorNotes))
 	add(StudentFieldExtraInfo, derefString(before.ExtraInfo), derefString(after.ExtraInfo))
-	add(StudentFieldHealthInfo, derefString(before.HealthInfo), derefString(after.HealthInfo))
+	// Compare the original values, not their masks: replacing a non-empty
+	// value must still produce an event without storing either free text.
+	if oldHealth, newHealth := derefString(before.HealthInfo), derefString(after.HealthInfo); oldHealth != newHealth {
+		oldValue, newValue := "", ""
+		if oldHealth != "" {
+			oldValue = "Angabe vorhanden"
+		}
+		if newHealth != "" {
+			newValue = "Angabe hinzugefügt"
+			if oldHealth != "" {
+				newValue = "Angabe geändert"
+			}
+		}
+		add(StudentFieldHealthInfo, oldValue, newValue)
+	}
 	add(StudentFieldPickupStatus, derefString(before.PickupStatus), derefString(after.PickupStatus))
 	add(StudentFieldCareEnd, careEndLabel(before.CareEnd), careEndLabel(after.CareEnd))
 	add(StudentFieldDepartureDays, departurePlanLabel(before), departurePlanLabel(after))

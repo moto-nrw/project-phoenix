@@ -3,14 +3,16 @@ package contracttest_test
 import (
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api"
+	timetable "github.com/moto-nrw/project-phoenix/modules/timetable"
+	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -206,17 +208,16 @@ func TestDeriveTemplateRosterMaintenance(t *testing.T) {
 func TestTemplateRosterMaintenanceFeeds_ResolvesSourcesLinksAndSeries(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
-	period := offeringSourcePeriod(t, env)
+	period := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) }, testpkg.NewDatabase(t, env.db), testpkg.Ctx(t), testpkg.Tenant(t), uniqueSchemaName(t.Name()), calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(-31), calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(31))
 	sourceOffering := createSourceOffering(t, env, "FeedQuelle", nil)
 	inactiveOffering := createSourceOffering(t, env, "FeedInaktiv", nil)
 	_, err := env.db.NewRaw(`UPDATE enrollment.care_offerings SET is_active = FALSE WHERE id = ?`, inactiveOffering.ID).Exec(ctx)
 	require.NoError(t, err)
 
-	sourced := createSourcedTemplate(t, env, "FeedSourced", sourceOffering.ID, []int{2}, period)
+	sourced := createSourcedTemplate(t, env, "FeedSourced", sourceOffering.ID, []int{2}, period.ID)
 	linkedRoot := createCareOfferingTemplateGroup(t, env.db, "FeedLinkedRoot")
 	successor := createCareOfferingTemplateGroup(t, env.db, "FeedLinkedSuccessor")
 	_, err = env.db.NewRaw(`UPDATE activities.groups SET series_root_id = ? WHERE id = ?`, linkedRoot.ID, successor.ID).Exec(ctx)
@@ -258,8 +259,7 @@ func TestTemplateRosterMaintenanceFeeds_ReportsSwitchedOffCareOfferings(t *testi
 	t.Parallel()
 
 	disabled := false
-	env, cleanup := setupDecisionTestWithSettings(t, stubActivationSettings{careOfferingsEnabled: &disabled})
-	defer cleanup()
+	env := setupDecisionTestWithSettings(t, stubActivationSettings{careOfferingsEnabled: &disabled})
 
 	template := createCareOfferingTemplateGroup(t, env.db, "FeedDisabled")
 	reader, ok := env.bookings.(careplan.OfferingSourceEditor)
@@ -272,14 +272,15 @@ func TestTemplateRosterMaintenanceFeeds_ReportsSwitchedOffCareOfferings(t *testi
 func TestTemplateRosterMaintenanceFeeds_RejectsSourceOutsideTemplatePeriod(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	source := createSourceOffering(t, env, "FeedAusserhalbZeitraum", nil)
-	period := createCareOfferingTestPeriod(t, env.db, "feed-too-short",
-		timezone.Date(env.sourcePhase.ServiceStartDate),
-		timezone.Date(env.sourcePhase.ServiceEndDate).AddDays(-1))
+	period := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) }, testpkg.NewDatabase(t, env.db), testpkg.Ctx(t), testpkg.Tenant(t), uniqueSchemaName("feed-too-short"+"-"+
+		t.Name()),
+
+		calendar.Date(env.sourcePhase.ServiceStartDate),
+		calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(-1))
 	reader, ok := env.bookings.(careplan.OfferingSourceEditor)
 	require.True(t, ok)
 
@@ -303,17 +304,18 @@ func TestTemplateRosterMaintenanceFeeds_RejectsSourceOutsideTemplatePeriod(t *te
 func TestTemplateRosterMaintenanceFeeds_RejectsLinkedOfferingOutsideTemplatePeriod(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
-	period := createCareOfferingTestPeriod(t, env.db, "linked-feed-too-short",
-		timezone.Date(env.sourcePhase.ServiceStartDate),
-		timezone.Date(env.sourcePhase.ServiceEndDate).AddDays(-1))
+	period := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) }, testpkg.NewDatabase(t, env.db), testpkg.Ctx(t), testpkg.Tenant(t), uniqueSchemaName("linked-feed-too-short"+"-"+
+		t.Name()),
+
+		calendar.Date(env.sourcePhase.ServiceStartDate),
+		calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(-1))
 	template := createCareOfferingTemplateGroup(t, env.db, "FeedLinkedAusserhalbZeitraum")
 	template.CalendarPeriodID = &period.ID
-	require.NoError(t, env.repos.ActivityGroup.Update(ctx, template))
-	createCareOfferingTemplateSchedule(t, env.db, template.ID, activitiesModels.WeekdayMonday, &period.ID)
+	require.NoError(t, timetableCompose.NativeGroupRecords(env.timetable.Timetable).Update(ctx, template))
+	createCareOfferingTemplateSchedule(t, env.db, template.ID, timetable.WeekdayMonday, &period.ID)
 	linked := createSourceOffering(t, env, "FeedLinkedAusserhalbZeitraum", &template.ID)
 	reader, ok := env.bookings.(careplan.OfferingSourceEditor)
 	require.True(t, ok)
@@ -334,17 +336,16 @@ func TestTemplateRosterMaintenanceFeeds_RejectsLinkedOfferingOutsideTemplatePeri
 func TestTemplateRosterMaintenanceFeeds_RejectsSourcesFromDifferentPhases(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
-	period := offeringSourcePeriod(t, env)
+	period := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) }, testpkg.NewDatabase(t, env.db), testpkg.Ctx(t), testpkg.Tenant(t), uniqueSchemaName(t.Name()), calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(-31), calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(31))
 	first := createSourceOffering(t, env, "FeedErstePhase", nil)
 	second := createSourceOffering(t, env, "FeedZweitePhase", nil)
 	otherPhase := *env.sourcePhase
 	otherPhase.ID = 0
 	otherPhase.Name = uniqueSchemaName("FeedAnderePhase-" + t.Name())
-	require.NoError(t, enrollmentTest.New().InsertPhase(ctx, &otherPhase))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), api.NewParentPortalEnrollments().Enrollment.InsertPhase, &otherPhase))
 	_, err := env.db.NewRaw(`UPDATE enrollment.care_offerings SET phase_id = ? WHERE id = ?`, otherPhase.ID, second.ID).Exec(ctx)
 	require.NoError(t, err)
 

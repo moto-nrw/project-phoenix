@@ -8,7 +8,6 @@ import {
   createStaffAppointment,
   deleteStaffAppointment,
   getCalendarRecipientOptions,
-  getParentAppointmentOverview,
   getParentCalendar,
   getParentCalendarFeed,
   getStaffAppointmentDetail,
@@ -146,35 +145,24 @@ describe("personal calendar API", () => {
     );
   });
 
-  it("loads staff and parent attendee overviews with encoded appointment ids", async () => {
-    fetchMock
-      .mockResolvedValueOnce(
-        jsonResponse({
-          data: {
-            appointment_id: "12",
-            delivery_mode: "rsvp_required",
-            overview_visibility: "all",
-            attendees: [
-              {
-                recipient_id: "1",
-                recipient_type: "staff",
-                name: "Ada",
-                status: "accepted",
-              },
-            ],
-          },
-        }),
-      )
-      .mockResolvedValueOnce(
-        jsonResponse({
-          data: {
-            appointment_id: "13",
-            delivery_mode: "informational",
-            overview_visibility: "all",
-            attendees: [],
-          },
-        }),
-      );
+  it("loads the staff attendee overview with an encoded appointment id", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        data: {
+          appointment_id: "12",
+          delivery_mode: "rsvp_required",
+          overview_visibility: "all",
+          attendees: [
+            {
+              recipient_id: "1",
+              recipient_type: "staff",
+              name: "Ada",
+              status: "accepted",
+            },
+          ],
+        },
+      }),
+    );
 
     await expect(getStaffAppointmentOverview("12/next")).resolves.toMatchObject(
       {
@@ -182,19 +170,10 @@ describe("personal calendar API", () => {
         attendees: [{ name: "Ada", status: "accepted" }],
       },
     );
-    await expect(getParentAppointmentOverview("13")).resolves.toMatchObject({
-      appointment_id: "13",
-      attendees: [],
-    });
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
       "/api/calendar/appointments/12%2Fnext/overview",
-      expect.objectContaining({ credentials: "include" }),
-    );
-    expect(fetchMock).toHaveBeenNthCalledWith(
-      2,
-      "/api/parent/calendar/appointments/13/overview",
       expect.objectContaining({ credentials: "include" }),
     );
   });
@@ -363,7 +342,7 @@ describe("personal calendar API", () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse(
         {
-          error: "calendar access forbidden",
+          detail: "calendar access forbidden",
           code: "general.permission",
           errors: [{ field: "title", reason: "required" }],
           instance: "req-42",
@@ -379,7 +358,8 @@ describe("personal calendar API", () => {
 
     expect(error).toBeInstanceOf(ApiError);
     expect(error).toMatchObject({
-      message: "calendar access forbidden",
+      message: "Anfrage fehlgeschlagen (HTTP 403)",
+      detail: "calendar access forbidden",
       status: 403,
       code: "general.permission",
       errors: [{ field: "title", reason: "required" }],

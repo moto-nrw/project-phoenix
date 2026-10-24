@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"sort"
 	"strings"
@@ -11,31 +12,56 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/analytics"
 	authAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account"
-	projectJWT "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	organizationModule "github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	"github.com/spf13/viper"
 )
+
+// newProductAnalytics builds the process's product analytics tracker
+// (PostHog); it is a no-op without POSTHOG_API_KEY. The root owns its
+// lifetime and closes it on shutdown.
+func newProductAnalytics(logger *slog.Logger) (analytics.Tracker, error) {
+	return analytics.New(
+		viper.GetString("posthog_api_key"),
+		viper.GetString("posthog_host"),
+		analyticsDeployment(viper.GetString("app_env"), viper.GetString("tenant_domain")),
+		logger.With("component", "analytics"),
+		// The pseudonymous user ID under Analyse-Freigabe (#3603) hashes with
+		// the Security Runtime's SHA-256 fingerprint, like the browser.
+		analytics.WithFingerprint(securityruntime.Fingerprint),
+	)
+}
+
+// analyticsDeployment binds the deployment property to the environment.
+func analyticsDeployment(appEnv, tenantDomain string) string {
+	return analytics.Deployment(IsDemoEnvironment(appEnv), tenantDomain)
+}
+
+// analyticsSchoolNames binds the Worker's school names (the usage
+// dashboards) to the tracker.
+func analyticsSchoolNames(tracker owners.ProductEventTracker) owners.SchoolNamesPublisher {
+	return func(schools []organizationModule.School) int {
+		named := make([]analytics.School, 0, len(schools))
+		for _, school := range schools {
+			named = append(named, analytics.School{ID: school.ID, Name: school.Name})
+		}
+		return analytics.IdentifySchools(tracker, named)
+	}
+}
 
 // coreActionAnalytics binds the core-action middleware (#3602) to the
 // session model: the request's verified session, or the session a login
 // response mints. The root mounts it after the session verifier. The school's
 // Analyse-Freigabe (#3603, settings compose NewAnalyseFreigabe) decides
 // whether an OGS account is a pseudonymous person.
-func coreActionAnalytics(tracker analytics.Tracker, sessionAuth *projectJWT.TokenAuth, analyseFreigabe func(ctx context.Context, schoolID int64) bool) func(http.Handler) http.Handler {
-	return analytics.CoreActionMiddleware(analytics.CoreActionConfig{
+func coreActionAnalytics(tracker analytics.Tracker, sessionAuth *sessiontoken.TokenAuth, analyseFreigabe func(ctx context.Context, schoolID int64) bool, policy analytics.CollectionPolicy) func(http.Handler) http.Handler {
+	cfg := analytics.CoreActionConfig{
 		Tracker:         tracker,
 		AnalyseFreigabe: analyseFreigabe,
-		RequestActor: func(r *http.Request) (analytics.Actor, bool) {
-			// The root verifier leaves a token only when its signature and
-			// expiry hold; ParseClaims rejects MFA interim tokens.
-			raw, ok := analytics.VerifiedSessionClaims(r)
-			if !ok {
-				return analytics.Actor{}, false
-			}
-			var claims projectJWT.AppClaims
-			if claims.ParseClaims(raw) != nil {
-				return analytics.Actor{}, false
-			}
-			return analyticsActor(claims)
-		},
+		Policy:          policy,
+		RequestActor:    analyticsRequestActor,
 		SessionActor: func(accessToken string) (analytics.Actor, bool) {
 			claims, err := sessionAuth.ParseAccessJWT(accessToken)
 			if err != nil {
@@ -43,32 +69,17 @@ func coreActionAnalytics(tracker analytics.Tracker, sessionAuth *projectJWT.Toke
 			}
 			return analyticsActor(*claims)
 		},
-	})
+	}
+	return analytics.CoreActionMiddleware(cfg)
 }
 
-// analyticsActor maps the token scope to the analytics surface and role, the
-// same values the frontend registers. Role names are school data, so the OGS
-// portal reports only the admin flag. Operator tokens are no portal. Only an
-// OGS session names its account, for the pseudonymous ID under
-// Analyse-Freigabe; the read-only staff preview (#2893) is an admin looking
-// at someone else's view, so it names none.
-func analyticsActor(claims projectJWT.AppClaims) (analytics.Actor, bool) {
-	switch {
-	case claims.IsPlatformScope():
-		return analytics.Actor{}, false
-	case claims.Scope == "parent":
-		return analytics.Actor{Surface: analytics.SurfaceParents, Role: analytics.RoleGuardian}, true
-	case claims.IsSchoolScope():
-		return analytics.Actor{Surface: analytics.SurfaceSchool, Role: analytics.RoleLehrkraft, SchoolID: claims.TenantID}, true
-	case claims.TenantID == 0:
-		return analytics.Actor{}, false
-	case claims.IsReadOnlyPreview():
-		return analytics.Actor{Surface: analytics.SurfaceOGS, Role: analytics.RoleAdmin, SchoolID: claims.TenantID}, true
-	case claims.IsAdmin:
-		return analytics.Actor{Surface: analytics.SurfaceOGS, Role: analytics.RoleAdmin, SchoolID: claims.TenantID, AccountID: int64(claims.ID)}, true
-	default:
-		return analytics.Actor{Surface: analytics.SurfaceOGS, Role: analytics.RoleStaff, SchoolID: claims.TenantID, AccountID: int64(claims.ID)}, true
-	}
+// analyticsActor hands the session facts of the token to the analytics
+// rule.
+func analyticsActor(claims sessiontoken.AppClaims) (analytics.Actor, bool) {
+	return analytics.ActorOf(analytics.SessionFacts{
+		Platform: claims.IsPlatformScope(), Parent: claims.IsParentScope(), School: claims.IsSchoolScope(),
+		TenantID: claims.TenantID, ReadOnlyPreview: claims.IsReadOnlyPreview(), Admin: claims.IsAdmin, AccountID: int64(claims.ID),
+	})
 }
 
 // requireCoreActionClassification refuses to start a server with a writing
@@ -119,11 +130,7 @@ func coreActionRouteGaps(router chi.Routes) (unclassified, stale []string, err e
 
 func collectWritingPortalRoutes(router chi.Routes, into map[analytics.RouteKey]bool) error {
 	return chi.Walk(router, func(method, route string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
-		switch method {
-		case http.MethodGet, http.MethodHead, http.MethodOptions:
-			return nil
-		}
-		if isCoreActionPortalRoute(route) {
+		if analytics.IsWritingMethod(method) && isCoreActionPortalRoute(route) {
 			into[analytics.RouteKey{Method: method, Pattern: route}] = true
 		}
 		return nil

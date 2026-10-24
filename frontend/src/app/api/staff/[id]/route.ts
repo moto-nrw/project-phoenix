@@ -1,17 +1,14 @@
 // app/api/staff/[id]/route.ts
 import type { NextRequest } from "next/server";
-import {
-  ApiResponseError,
-  apiGet,
-  apiPut,
-  apiDelete,
-} from "~/lib/api-helpers.server";
+import { apiGet, apiPut, apiDelete } from "~/lib/api-helpers.server";
+import { ApiResponseError } from "~/lib/api-response-error.server";
 import {
   createGetHandler,
   createPutHandler,
   createDeleteHandler,
 } from "~/lib/route-wrapper.server";
 import { createLogger } from "~/lib/logger";
+import type { ExternalAccountStatus } from "~/lib/staff-api";
 import type { WireID } from "~/lib/wire-id";
 import { toIdString } from "~/lib/wire-id";
 
@@ -21,6 +18,8 @@ const logger = createLogger({ component: "StaffDetailRoute" });
  * Type definition for staff member response from backend
  */
 interface BackendStaffResponse {
+  started_on?: string;
+  ended_on?: string | null;
   id: WireID;
   // Decimal string since #2222 — see the note on the mapping below.
   person_id: WireID;
@@ -37,11 +36,13 @@ interface BackendStaffResponse {
   absence_type?: string;
   is_external?: boolean;
   external_organization?: string;
+  external_account_status?: ExternalAccountStatus;
   person?: {
     id: number;
     first_name: string;
     last_name: string;
     email?: string;
+    avatar?: string;
     tag_id?: string;
     account_id?: WireID;
     created_at: string;
@@ -111,6 +112,8 @@ export const GET = createGetHandler(
 
       // Map the response data to match the Teacher interface from teacher-api.ts
       return {
+        started_on: staff.started_on,
+        ended_on: staff.ended_on,
         id: toIdString(staff.id), // This should be the staff ID since that's what we use for the API
         name: staff.person
           ? `${staff.person.first_name} ${staff.person.last_name}`
@@ -118,6 +121,7 @@ export const GET = createGetHandler(
         first_name: staff.person?.first_name ?? "",
         last_name: staff.person?.last_name ?? "",
         email: staff.person?.email ?? undefined, // Include email from person object
+        avatar: staff.person?.avatar ?? null,
         specialization: staff.specialization ?? null,
         role: staff.role ?? null,
         qualifications: staff.qualifications ?? null,
@@ -152,6 +156,7 @@ export const GET = createGetHandler(
         absence_type: staff.absence_type ?? null,
         is_external: staff.is_external ?? false,
         external_organization: staff.external_organization ?? null,
+        external_account_status: staff.external_account_status ?? null,
         // Include person object if available
         person: staff.person,
       };
@@ -186,6 +191,7 @@ interface TeacherResponse {
   teacher_id?: string;
   is_external?: boolean;
   external_organization?: string | null;
+  external_account_status?: ExternalAccountStatus | null;
   person?: {
     id: number;
     first_name: string;
@@ -242,6 +248,7 @@ function mapStaffResponse(response: BackendStaffResponse): TeacherResponse {
     person_id: toIdString(response.person_id),
     is_external: response.is_external ?? false,
     external_organization: response.external_organization ?? null,
+    external_account_status: response.external_account_status ?? null,
     person: response.person,
   };
 }
@@ -260,31 +267,13 @@ export const PUT = createPutHandler<TeacherResponse, StaffUpdateRequest>(
     const id = params.id as string;
     if (!id) throw new Error("Staff ID is required");
 
-    try {
-      const response = await apiPut<BackendStaffResponse>(
-        `/api/staff/${id}`,
-        token,
-        normalizeStaffBody(body),
-      );
-      return mapStaffResponse(response);
-    } catch (error) {
-      if (error instanceof ApiResponseError) throw error;
-      if (!(error instanceof Error)) throw error;
-
-      if (error.message.includes("403")) {
-        throw new Error(
-          "Sie dürfen Mitarbeiterdaten nicht ändern. Bitte wenden Sie sich an Ihre OGS-Leitung.",
-          { cause: error },
-        );
-      }
-      if (
-        error.message.includes("400") &&
-        error.message.includes("staff member not found")
-      ) {
-        throw new Error("Staff member not found", { cause: error });
-      }
-      throw error;
-    }
+    // A backend failure (403, 400, 404) keeps its envelope and status.
+    const response = await apiPut<BackendStaffResponse>(
+      `/api/staff/${id}`,
+      token,
+      normalizeStaffBody(body),
+    );
+    return mapStaffResponse(response);
   },
 );
 
@@ -304,33 +293,10 @@ export const DELETE = createDeleteHandler(
       throw new Error("Staff ID is required");
     }
 
-    try {
-      // Delete the staff member via the API
-      await apiDelete(`/api/staff/${id}`, token);
+    // A backend failure (403, 404) keeps its envelope and status.
+    await apiDelete(`/api/staff/${id}`, token);
 
-      // Return null to indicate success with no content
-      return null;
-    } catch (error) {
-      if (error instanceof ApiResponseError) throw error;
-      // Check for permission errors (403 Forbidden)
-      if (error instanceof Error && error.message.includes("403")) {
-        logger.error("permission denied when deleting staff", {
-          staff_id: id,
-          error: error instanceof Error ? error.message : String(error),
-        });
-        throw new Error(
-          "Permission denied: You need the 'users:delete' permission to delete staff members.",
-          { cause: error },
-        );
-      }
-
-      // Check for not found errors
-      if (error instanceof Error && error.message.includes("404")) {
-        throw new Error("Staff member not found", { cause: error });
-      }
-
-      // Re-throw other errors
-      throw error;
-    }
+    // Return null to indicate success with no content
+    return null;
   },
 );

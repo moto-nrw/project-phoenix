@@ -10,12 +10,11 @@ import (
 
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	ownerCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -28,22 +27,15 @@ func uniqueSchemaName(prefix string) string {
 // setupSchemaRepoTest spins up a tenant + a creator account so the
 // form_schemas FK (created_by → auth.accounts) is satisfied. Returns
 // the DB, the repo under test, the tenant id, and the creator id.
-// Cleans up the creator account on test end; schema rows are wiped
-// per-test by the caller via defer.
-func setupSchemaRepoTest(t *testing.T) (*bun.DB, *capability.Module, int64, int64) {
+func setupSchemaRepoTest(t *testing.T) (*bun.DB, capability.Owner, int64, int64) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	account := testpkg.CreateTestAccount(t, db, "schemarepo")
-	t.Cleanup(func() {
-		_, _ = db.NewDelete().TableExpr("auth.accounts").
-			Where("id = ?", account.ID).
-			Exec(context.Background())
-	})
 
-	repo := enrollmentCompose.New()
+	repo := ownerCompose.New()
 	return db, repo, tenantID, account.ID
 }
 
@@ -53,16 +45,6 @@ func setupSchemaRepoTest(t *testing.T) (*bun.DB, *capability.Module, int64, int6
 func runInTenantTx(t *testing.T, db *bun.DB, tenantID int64, fn func(ctx context.Context) error) error {
 	t.Helper()
 	return testpkg.WithinTenantContext(t, context.Background(), db, tenantID, fn)
-}
-
-// wipeSchemas removes every schema row created by the given account in
-// the given tenant. Deferred from each test so the next test starts
-// clean. Best-effort; tests don't fail on cleanup errors.
-func wipeSchemas(db *bun.DB, tenantID, createdBy int64) {
-	_, _ = db.NewDelete().
-		TableExpr("enrollment.form_schemas").
-		Where("tenant_id = ? AND created_by = ?", tenantID, createdBy).
-		Exec(context.Background())
 }
 
 func validFields() []capability.FormField {
@@ -77,7 +59,6 @@ func TestFormSchemaRepository_Create_PersistsAndReturnsID(t *testing.T) {
 	t.Parallel()
 
 	db, repo, tenantID, creator := setupSchemaRepoTest(t)
-	defer wipeSchemas(db, tenantID, creator)
 
 	schema := &capability.FormSchema{
 		Name:      uniqueSchemaName("create"),
@@ -101,7 +82,6 @@ func TestFormSchemaRepository_Create_RejectsInvalidSchema(t *testing.T) {
 	// Validate() runs before INSERT — missing name must surface as a
 	// wrapped validation error, not a DB constraint error.
 	db, repo, tenantID, creator := setupSchemaRepoTest(t)
-	defer wipeSchemas(db, tenantID, creator)
 
 	schema := &capability.FormSchema{
 		Version:   1,
@@ -119,7 +99,6 @@ func TestFormSchemaRepository_FindByID_HappyPath(t *testing.T) {
 	t.Parallel()
 
 	db, repo, tenantID, creator := setupSchemaRepoTest(t)
-	defer wipeSchemas(db, tenantID, creator)
 
 	schema := &capability.FormSchema{
 		Name:      uniqueSchemaName("find"),
@@ -171,7 +150,6 @@ func TestFormSchemaRepository_FindActive_ReturnsActiveRow(t *testing.T) {
 	t.Parallel()
 
 	db, repo, tenantID, creator := setupSchemaRepoTest(t)
-	defer wipeSchemas(db, tenantID, creator)
 
 	active := &capability.FormSchema{
 		Name:      uniqueSchemaName("findactive"),
@@ -220,7 +198,6 @@ func TestFormSchemaRepository_ListByTenant_OrdersByVersionDesc(t *testing.T) {
 	t.Parallel()
 
 	db, repo, tenantID, creator := setupSchemaRepoTest(t)
-	defer wipeSchemas(db, tenantID, creator)
 
 	name := uniqueSchemaName("list")
 	for i := 1; i <= 3; i++ {
@@ -300,7 +277,6 @@ func TestFormSchemaRepository_NextVersionForName_BumpsWithinName(t *testing.T) {
 	t.Parallel()
 
 	db, repo, tenantID, creator := setupSchemaRepoTest(t)
-	defer wipeSchemas(db, tenantID, creator)
 
 	name := uniqueSchemaName("bump")
 	otherName := uniqueSchemaName("other")
@@ -350,7 +326,6 @@ func TestFormSchemaRepository_DeactivatePrevious_FlipsEveryActiveRow(t *testing.
 	t.Parallel()
 
 	db, repo, tenantID, creator := setupSchemaRepoTest(t)
-	defer wipeSchemas(db, tenantID, creator)
 
 	for i := 1; i <= 2; i++ {
 		s := &capability.FormSchema{
@@ -389,7 +364,6 @@ func TestFormSchemaRepository_UpdateActiveFlag_TogglesSingleRow(t *testing.T) {
 	t.Parallel()
 
 	db, repo, tenantID, creator := setupSchemaRepoTest(t)
-	defer wipeSchemas(db, tenantID, creator)
 
 	schema := &capability.FormSchema{
 		Name:      uniqueSchemaName("flag"),
@@ -445,7 +419,6 @@ func TestFormSchemaRepository_DeleteUnusedSchema_RemovesEveryVersion(t *testing.
 	t.Parallel()
 
 	db, repo, tenantID, creator := setupSchemaRepoTest(t)
-	defer wipeSchemas(db, tenantID, creator)
 
 	name := uniqueSchemaName("delall")
 	var schemaID int64
@@ -518,11 +491,9 @@ func TestFormSchemaRepository_HasLegalDocumentReference(t *testing.T) {
 	t.Parallel()
 
 	db, repo, tenantID, creator := setupSchemaRepoTest(t)
-	defer wipeSchemas(db, tenantID, creator)
 
 	otherTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, otherTenantID)
-	defer wipeSchemas(db, otherTenantID, creator)
 
 	storedURL := "/uploads/enrollment-legal-documents/1_terms.pdf"
 	publicURL := "/api/public/enrollment-legal-documents/1_terms.pdf"
@@ -638,7 +609,6 @@ func TestFormSchemaRepository_RenameSchema_RenamesEveryVersion(t *testing.T) {
 	t.Parallel()
 
 	db, repo, tenantID, creator := setupSchemaRepoTest(t)
-	defer wipeSchemas(db, tenantID, creator)
 
 	oldName := uniqueSchemaName("renall")
 	var schemaID int64
@@ -729,13 +699,6 @@ func TestFormSchemaRepository_RLS_TenantIsolation(t *testing.T) {
 	tenantB := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantA)
 	testpkg.EnsureTestTenant(t, db, tenantB)
-
-	t.Cleanup(func() {
-		_, _ = db.NewDelete().
-			TableExpr("enrollment.form_schemas").
-			Where("tenant_id IN (?, ?) AND created_by = ?", tenantA, tenantB, creator).
-			Exec(context.Background())
-	})
 
 	schemaA := &capability.FormSchema{
 		Name:      uniqueSchemaName("rlsA"),

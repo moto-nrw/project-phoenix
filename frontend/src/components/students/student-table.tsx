@@ -17,6 +17,7 @@ import {
 import Link from "~/components/ui/navigation-link";
 import {
   ArrivalTimeRow,
+  type DayHomeChange,
   PickupTimeRow,
   StudentAbsenceRow,
   StudentPendingExcusedRow,
@@ -24,6 +25,7 @@ import {
 import { TrackingIndicators } from "~/components/students/tracking-indicators";
 import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
 import type { Student } from "~/lib/api";
+import type { DepartureMode } from "~/lib/student-helpers";
 
 /** A table column plus what the "Spalten" menu needs to know about it. */
 export interface StudentTableColumn<T> extends DataTableColumn<T> {
@@ -48,6 +50,24 @@ export interface StudentTableDay {
   };
   readonly arrival: ArrivalRowProps;
   readonly pickup: PickupRowProps;
+  /** The Abholart set for this day only (#3945); absent for the weekly plan. */
+  readonly dayDepartureMode?: DepartureMode;
+}
+
+/**
+ * Which one-day change the card shows (#3946): the Gehzeit, the Abholart or
+ * both. Only day exceptions set `isException` and `dayDepartureMode`; a
+ * change to the weekly plan never does, so a permanent change does not mark
+ * the card. A Gehzeit exception without a time means the child does not come,
+ * and an absence line already says so: neither marks the card as a changed
+ * way home.
+ */
+export function dayHomeChange(day: StudentTableDay): DayHomeChange | undefined {
+  if (day.absence !== undefined) return undefined;
+  const time = day.pickup.isException && Boolean(day.pickup.pickupTime);
+  const mode = day.dayDepartureMode;
+  if (!time && !mode) return undefined;
+  return mode ? { time, mode } : { time };
 }
 
 function studentFullName(student: Student): string {
@@ -150,8 +170,9 @@ export function statusColumn<T extends Student>(
     header,
     className: "whitespace-nowrap",
     stacked: "meta",
-    // One line per child on a phone: the badges side by side instead of
-    // stacked. A second badge (Krank, Ungeplant anwesend) stays visible.
+    // One line per child on a phone: the pill and its hint line (Krank,
+    // Ungeplant anwesend) side by side instead of stacked; the hint stays
+    // visible.
     stackedClassName:
       "[&>span]:flex-row [&>span]:flex-wrap [&>span]:items-center [&>span]:justify-end [&_.items-end]:flex-row [&_.items-end]:flex-wrap [&_.items-end]:justify-end [&_.items-end]:gap-1 [&_.mt-1]:mt-0 [&_span]:whitespace-nowrap",
     render: (student) => (

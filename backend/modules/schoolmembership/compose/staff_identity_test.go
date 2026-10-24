@@ -45,13 +45,13 @@ func (p failingAccountPersons) FindPersonIDByAccount(context.Context, int64) (in
 }
 
 // resolve runs the identity read through the People Directory stand-in.
-func resolve(ctx context.Context, module *schoolmembership.Module, accountID int64) (schoolmembership.StaffIdentity, error) {
+func resolve(ctx context.Context, module schoolmembership.Owner, accountID int64) (schoolmembership.StaffIdentity, error) {
 	return module.ResolveStaffIdentityByAccount(ctx, accountID, accountPersons{})
 }
 
 // createLinkedStaff gives a fresh account a person and a staff row, and a
 // teacher profile when asked to.
-func createLinkedStaff(t *testing.T, ctx context.Context, db *bun.DB, module *schoolmembership.Module, email string, teacher bool) (accountID int64, staff schoolmembership.Staff, teacherID int64) {
+func createLinkedStaff(t *testing.T, ctx context.Context, db *bun.DB, module schoolmembership.Owner, email string, teacher bool) (accountID int64, staff schoolmembership.Staff, teacherID int64) {
 	t.Helper()
 	account := testpkg.CreateTestAccount(t, db, email)
 	person := testpkg.CreateTestPersonWithAccountID(t, db, "Sam", "Stamm", account.ID)

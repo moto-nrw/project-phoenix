@@ -7,7 +7,6 @@ package me
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -58,15 +57,4 @@ func TestProfileUpdateRequest_PartialFields(t *testing.T) {
 	assert.Nil(t, req.LastName)
 	assert.Nil(t, req.Username)
 	assert.Nil(t, req.Bio)
-}
-
-// =============================================================================
-// NewResource Tests
-// =============================================================================
-
-func TestNewResource_ReturnsResource(t *testing.T) {
-	t.Parallel()
-
-	resource := NewResource(identityaccess.CallerContext{}, nil)
-	assert.NotNil(t, resource)
 }

@@ -47,8 +47,8 @@ describe("breadcrumb-utils", () => {
         expect(getPageTitle("/database/activities")).toBe("Aktivitäten");
       });
 
-      it("should return 'Gruppen' for database groups page", () => {
-        expect(getPageTitle("/database/groups")).toBe("Gruppen");
+      it("should return 'Gruppendaten' for database groups page", () => {
+        expect(getPageTitle("/database/groups")).toBe("Gruppendaten");
       });
 
       it("should return 'Kinder' for database students page", () => {
@@ -96,8 +96,12 @@ describe("breadcrumb-utils", () => {
         expect(getPageTitle("/")).toBe("Home");
       });
 
-      it("should return 'Meine Gruppen' for /ogs-groups", () => {
-        expect(getPageTitle("/ogs-groups")).toBe("Meine Gruppen");
+      it("should return 'Gruppen' for /ogs-groups", () => {
+        expect(getPageTitle("/ogs-groups")).toBe("Gruppen");
+      });
+
+      it("should return 'Gruppen' for the group selection (#4351)", () => {
+        expect(getPageTitle("/ogs-groups/overview")).toBe("Gruppen");
       });
 
       it("should return 'Aktuelle Aufsicht' for /active-supervisions", () => {
@@ -116,8 +120,8 @@ describe("breadcrumb-utils", () => {
         expect(getPageTitle("/activities")).toBe("Aktivitäten");
       });
 
-      it("should return 'Vertretungen' for /substitutions", () => {
-        expect(getPageTitle("/substitutions")).toBe("Vertretungen");
+      it("should return 'Übergaben' for /substitutions", () => {
+        expect(getPageTitle("/substitutions")).toBe("Übergaben");
       });
 
       it("titles the three planning areas and their redirect frames", () => {
@@ -132,8 +136,10 @@ describe("breadcrumb-utils", () => {
         expect(getPageTitle("/staff/dienstplan")).toBe("Dienstplan");
       });
 
-      it("should return 'Schuljahr und Ferien' for /calendar-periods", () => {
-        expect(getPageTitle("/calendar-periods")).toBe("Schuljahr und Ferien");
+      it("should return 'Schuljahr und Kalender' for /calendar-periods", () => {
+        expect(getPageTitle("/calendar-periods")).toBe(
+          "Schuljahr und Kalender",
+        );
       });
 
       it("should return 'Tageslisten' for /lists", () => {
@@ -183,7 +189,7 @@ describe("breadcrumb-utils", () => {
         expect(getPageTitle("/messages")).toBe("Nachrichten");
         expect(getPageTitle("/messages/thread-1")).toBe("Nachrichten");
         expect(getPageTitle("/parent-announcements")).toBe("Mitteilungen");
-        expect(getPageTitle("/meal-plan")).toBe("Essensplan");
+        expect(getPageTitle("/meal-plan")).toBe("Speiseplan");
       });
 
       it("should return titles for operator navigation entries", () => {
@@ -252,29 +258,18 @@ describe("breadcrumb-utils", () => {
   });
 
   describe("getBreadcrumbLabel", () => {
-    it("should return 'Meine Gruppen' for /ogs-groups referrer", () => {
-      expect(getBreadcrumbLabel("/ogs-groups")).toBe("Meine Gruppen");
+    it("should return 'Gruppen' for /ogs-groups referrer", () => {
+      expect(getBreadcrumbLabel("/ogs-groups")).toBe("Gruppen");
     });
 
-    it("should return 'Meine Gruppen' for /ogs-groups sub-path referrer", () => {
-      expect(getBreadcrumbLabel("/ogs-groups/123")).toBe("Meine Gruppen");
+    it("should return 'Gruppen' for /ogs-groups sub-path referrer", () => {
+      expect(getBreadcrumbLabel("/ogs-groups/123")).toBe("Gruppen");
     });
 
-    // #3890: ein Kind aus einer Gruppe unter „Weitere Gruppen" nennt im
-    // Breadcrumb denselben Bereich wie die Seitenleiste.
-    it("names 'Weitere Gruppen' for a group from that sidebar section", () => {
-      expect(getBreadcrumbLabel("/ogs-groups?group=2", "other")).toBe(
-        "Weitere Gruppen",
-      );
-      expect(getBreadcrumbLabel("/ogs-groups?group=1", "personal")).toBe(
-        "Meine Gruppen",
-      );
-    });
-
-    it("ignores the group section for other referrers", () => {
-      expect(getBreadcrumbLabel("/active-supervisions", "other")).toBe(
-        "Aktuelle Aufsicht",
-      );
+    // #4351: eigene und fremde Gruppen stehen unter demselben Eintrag.
+    it("names 'Gruppen' for every group", () => {
+      expect(getBreadcrumbLabel("/ogs-groups?group=2")).toBe("Gruppen");
+      expect(getBreadcrumbLabel("/ogs-groups?group=1")).toBe("Gruppen");
     });
 
     it("should return 'Aktuelle Aufsicht' for /active-supervisions referrer", () => {
@@ -406,7 +401,7 @@ describe("breadcrumb-utils", () => {
         );
         expect(getSectionBreadcrumb("/lists")?.pageLabel).toBe("Tageslisten");
         expect(getSectionBreadcrumb("/calendar-periods")?.pageLabel).toBe(
-          "Schuljahr und Ferien",
+          "Schuljahr und Kalender",
         );
       });
 
@@ -468,7 +463,7 @@ describe("breadcrumb-utils", () => {
           "Mitteilungen",
         );
         expect(getSectionBreadcrumb("/meal-plan")?.pageLabel).toBe(
-          "Essensplan",
+          "Speiseplan",
         );
       });
 

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/testdb"
+	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -109,7 +110,7 @@ func (entry *isolatedTestDatabase) open(tb testing.TB, name string) (err error) 
 	if err = initCloneBootstrap(ctx, entry.db); err != nil {
 		return err
 	}
-	entry.runtime, err = newTenantRuntime(entry.db)
+	entry.runtime, err = transactionruntime.NewTenantRuntime(entry.db)
 	if err != nil {
 		return err
 	}

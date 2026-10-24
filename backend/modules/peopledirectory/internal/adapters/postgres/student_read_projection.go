@@ -4,51 +4,51 @@ import (
 	"context"
 	"errors"
 
+	directory "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/studentdirectoryview"
 )
 
-func (s *StudentStore) ListByIDs(ctx context.Context, ids []int64) ([]domain.Student, domain.OperationStats, error) {
+func (s *StudentStore) ListByIDs(ctx context.Context, ids []int64) ([]directory.Student, domain.OperationStats, error) {
 	records, stats, err := s.reads.ListByIDs(ctx, ids)
-	result := make([]domain.Student, 0, len(records))
+	result := make([]directory.Student, 0, len(records))
 	for _, row := range records {
-		result = append(result, domain.Student(row))
+		result = append(result, directory.Student(row))
 	}
 	return result, domain.OperationStats(stats), projectionError(err)
 }
 
-func (s *StudentStore) ListNamesByIDs(ctx context.Context, ids []int64) ([]domain.StudentName, domain.OperationStats, error) {
+func (s *StudentStore) ListNamesByIDs(ctx context.Context, ids []int64) ([]directory.StudentName, domain.OperationStats, error) {
 	records, stats, err := s.reads.ListNamesByIDs(ctx, ids)
-	result := make([]domain.StudentName, 0, len(records))
+	result := make([]directory.StudentName, 0, len(records))
 	for _, row := range records {
-		result = append(result, domain.StudentName(row))
+		result = append(result, directory.StudentName(row))
 	}
 	return result, domain.OperationStats(stats), projectionError(err)
 }
 
-func (s *StudentStore) ListByClasses(ctx context.Context, classes []string) ([]domain.Student, domain.OperationStats, error) {
+func (s *StudentStore) ListByClasses(ctx context.Context, classes []string) ([]directory.Student, domain.OperationStats, error) {
 	records, stats, err := s.reads.ListByClasses(ctx, classes)
-	result := make([]domain.Student, 0, len(records))
+	result := make([]directory.Student, 0, len(records))
 	for _, row := range records {
-		result = append(result, domain.Student(row))
+		result = append(result, directory.Student(row))
 	}
 	return result, domain.OperationStats(stats), projectionError(err)
 }
 
-func (s *StudentStore) ListByPersonIDs(ctx context.Context, personIDs []int64) ([]domain.Student, domain.OperationStats, error) {
+func (s *StudentStore) ListByPersonIDs(ctx context.Context, personIDs []int64) ([]directory.Student, domain.OperationStats, error) {
 	records, stats, err := s.reads.ListByPersonIDs(ctx, personIDs)
-	result := make([]domain.Student, 0, len(records))
+	result := make([]directory.Student, 0, len(records))
 	for _, row := range records {
-		result = append(result, domain.Student(row))
+		result = append(result, directory.Student(row))
 	}
 	return result, domain.OperationStats(stats), projectionError(err)
 }
 
-func (s *StudentStore) ListEnrolled(ctx context.Context) ([]domain.Student, domain.OperationStats, error) {
+func (s *StudentStore) ListEnrolled(ctx context.Context) ([]directory.Student, domain.OperationStats, error) {
 	records, stats, err := s.reads.ListEnrolled(ctx)
-	result := make([]domain.Student, 0, len(records))
+	result := make([]directory.Student, 0, len(records))
 	for _, row := range records {
-		result = append(result, domain.Student(row))
+		result = append(result, directory.Student(row))
 	}
 	return result, domain.OperationStats(stats), projectionError(err)
 }
@@ -58,11 +58,11 @@ func (s *StudentStore) ListClasses(ctx context.Context) ([]string, domain.Operat
 	return records, domain.OperationStats(stats), projectionError(err)
 }
 
-func (s *StudentStore) ListByStatusFlag(ctx context.Context, status string) ([]domain.Student, domain.OperationStats, error) {
+func (s *StudentStore) ListByStatusFlag(ctx context.Context, status string) ([]directory.Student, domain.OperationStats, error) {
 	records, stats, err := s.reads.ListByStatusFlag(ctx, status)
-	result := make([]domain.Student, 0, len(records))
+	result := make([]directory.Student, 0, len(records))
 	for _, row := range records {
-		result = append(result, domain.Student(row))
+		result = append(result, directory.Student(row))
 	}
 	return result, domain.OperationStats(stats), projectionError(err)
 }
@@ -71,7 +71,7 @@ func (s *StudentStore) ListDirectory(
 	ctx context.Context,
 	filter domain.StudentDirectoryFilter,
 ) ([]domain.StudentRecord, domain.OperationStats, error) {
-	records, stats, err := s.reads.ListDirectory(ctx, studentdirectoryview.Filter(filter))
+	records, stats, err := s.reads.ListDirectory(ctx, directoryFilter(filter))
 	result := make([]domain.StudentRecord, 0, len(records))
 	for _, row := range records {
 		result = append(result, domain.StudentRecord(row))
@@ -83,7 +83,7 @@ func (s *StudentStore) CountDirectory(
 	ctx context.Context,
 	filter domain.StudentDirectoryFilter,
 ) (int, domain.OperationStats, error) {
-	records, stats, err := s.reads.CountDirectory(ctx, studentdirectoryview.Filter(filter))
+	records, stats, err := s.reads.CountDirectory(ctx, directoryFilter(filter))
 	return records, domain.OperationStats(stats), projectionError(err)
 }
 
@@ -219,7 +219,7 @@ func (s *StudentStore) ListRosterByGroups(
 	records, stats, err := s.reads.ListRosterByGroups(ctx, groupIDs, today)
 	result := make([]domain.StudentRosterEntry, 0, len(records))
 	for _, row := range records {
-		result = append(result, domain.StudentRosterEntry{Record: domain.StudentRecord(row.Record), FirstName: row.FirstName, LastName: row.LastName, TagID: row.TagID, AccountID: row.AccountID})
+		result = append(result, toDomainRosterEntry(row))
 	}
 	return result, domain.OperationStats(stats), projectionError(err)
 }
@@ -231,7 +231,7 @@ func (s *StudentStore) ListRoster(
 	records, stats, err := s.reads.ListRoster(ctx, today)
 	result := make([]domain.StudentRosterEntry, 0, len(records))
 	for _, row := range records {
-		result = append(result, domain.StudentRosterEntry{Record: domain.StudentRecord(row.Record), FirstName: row.FirstName, LastName: row.LastName, TagID: row.TagID, AccountID: row.AccountID})
+		result = append(result, toDomainRosterEntry(row))
 	}
 	return result, domain.OperationStats(stats), projectionError(err)
 }
@@ -243,17 +243,28 @@ func (s *StudentStore) ListRosterOverlapping(
 	records, stats, err := s.reads.ListRosterOverlapping(ctx, from, to, today)
 	result := make([]domain.StudentRosterEntry, 0, len(records))
 	for _, row := range records {
-		result = append(result, domain.StudentRosterEntry{Record: domain.StudentRecord(row.Record), FirstName: row.FirstName, LastName: row.LastName, TagID: row.TagID, AccountID: row.AccountID})
+		result = append(result, toDomainRosterEntry(row))
 	}
 	return result, domain.OperationStats(stats), projectionError(err)
 }
 
 func projectionError(err error) error {
-	if errors.Is(err, studentdirectoryview.ErrStudentLockBusy) {
+	if errors.Is(err, directory.ErrStudentLockBusy) {
 		return domain.ErrStudentLockBusy
 	}
-	if errors.Is(err, studentdirectoryview.ErrStudentNotFound) {
+	if errors.Is(err, directory.ErrStudentNotFound) {
 		return domain.ErrStudentNotFound
 	}
 	return err
+}
+
+func toDomainRosterEntry(row directory.StudentRosterEntry) domain.StudentRosterEntry {
+	// DirectoryRecord is write-oriented; roster reads also retain the stored
+	// timestamps and the hydrated departure plan.
+	record := domain.StudentRecord(row.Record.DirectoryRecord())
+	record.CreatedAt, record.UpdatedAt = row.Record.CreatedAt, row.Record.UpdatedAt
+	record.DepartureDays = row.Record.DepartureDays
+	record.AllowedDepartureModes = row.Record.AllowedDepartureModes
+	record.PickupDays, record.BusDays = row.Record.PickupDays, row.Record.BusDays
+	return domain.StudentRosterEntry{Record: record, FirstName: row.FirstName, LastName: row.LastName, TagID: row.TagID, AccountID: row.AccountID}
 }

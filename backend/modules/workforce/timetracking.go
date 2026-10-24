@@ -11,11 +11,10 @@ import (
 
 // This file is the public time-tracking contract the web adapters consume
 // (#2690): the MA-facing stamp/history/absence surface and the Leitung's
-// administration of working time. The retained work session, absence, month,
-// ledger, month-close, overview, audit-log and export services serve it
-// through the composition root until their own move into the Workforce
-// module; the wire shapes below are byte-for-byte what those services
-// rendered, so the frontend contract does not move.
+// administration of working time. The time-tracking services of the module
+// serve it (internal/timetracking, #3413); the wire shapes below are
+// byte-for-byte what those services rendered, so the frontend contract does
+// not move.
 //
 // Calendar days travel as YYYY-MM-DD strings; instants stay time.Time.
 
@@ -229,9 +228,16 @@ type ScheduleUpdateInput struct {
 	SaveAsTemplateName            string
 }
 
-// WorkSessions is the work session administration of the web app: stamps,
-// history, edits, exports and the staff work schedule.
-type WorkSessions interface {
+// WorkSessionHistory reads and exports session history for both staff and administrators.
+type WorkSessionHistory interface {
+	// HistoryIntersecting reads every block that reaches into [from, to].
+	HistoryIntersecting(ctx context.Context, staffID int64, from, to string) (*HistoryResponse, error)
+	ExportSessions(ctx context.Context, staffID int64, from, to, format string) (*ExportFile, error)
+}
+
+// OwnWorkSessions serves the staff member's own clock, breaks, edits and presence view.
+type OwnWorkSessions interface {
+	WorkSessionHistory
 	CheckIn(ctx context.Context, staffID int64, status, source, reason string) (*WorkSession, error)
 	CheckOut(ctx context.Context, staffID int64, reason string) (*WorkSession, error)
 	StartBreak(ctx context.Context, staffID int64, plannedDurationMinutes *int) (*WorkSessionBreak, error)
@@ -241,21 +247,29 @@ type WorkSessions interface {
 	LatestOpenSession(ctx context.Context, staffID int64) (*WorkSession, error)
 	SessionBreaks(ctx context.Context, staffID, sessionID int64) ([]*WorkSessionBreak, error)
 	UpdateSession(ctx context.Context, staffID, sessionID int64, updates SessionUpdateRequest) (*WorkSession, error)
+	SessionEdits(ctx context.Context, staffID, sessionID int64) ([]*WorkSessionEditView, error)
+	// GetTodayPresenceMap maps staff id to the work status of everyone
+	// clocked in right now.
+	GetTodayPresenceMap(ctx context.Context) (map[int64]string, error)
+}
+
+// AdminWorkSessions serves the manager's session corrections and schedule changes.
+type AdminWorkSessions interface {
+	WorkSessionHistory
 	UpdateSessionAsAdmin(ctx context.Context, editorStaffID, targetStaffID, sessionID int64, updates SessionUpdateRequest) (*WorkSession, error)
 	CreateSessionAsAdmin(ctx context.Context, editorStaffID, targetStaffID int64, request AdminCreateSessionRequest) (*WorkSession, error)
-	// HistoryIntersecting reads every block that reaches into [from, to].
-	HistoryIntersecting(ctx context.Context, staffID int64, from, to string) (*HistoryResponse, error)
-	SessionEdits(ctx context.Context, staffID, sessionID int64) ([]*WorkSessionEditView, error)
 	SessionEditsForStaff(ctx context.Context, staffID, sessionID int64) ([]*WorkSessionEditView, error)
-	// TodayPresenceMap maps staff id to the work status of everyone clocked
-	// in right now.
-	TodayPresenceMap(ctx context.Context) (map[int64]string, error)
-	ExportSessions(ctx context.Context, staffID int64, from, to, format string) (*ExportFile, error)
 	// UpdateStaffSchedule resolves the requested mode (template or custom),
 	// validates and applies the change; validation failures carry
 	// ErrScheduleValidation. The current schedule and the templates are read
 	// through Query.
 	UpdateStaffSchedule(ctx context.Context, staffID int64, input ScheduleUpdateInput) error
+}
+
+// WorkSessions combines the self-service and administration capabilities for composition.
+type WorkSessions interface {
+	OwnWorkSessions
+	AdminWorkSessions
 }
 
 // StaffAbsenceResponse is an absence with its derived duration. AbsenceTypeID
@@ -490,33 +504,57 @@ type RebookingVacationYear struct {
 	RemainingAfter  float64 `json:"remaining_after"`
 }
 
-// StaffAbsences is the absence and vacation administration of the web app.
-type StaffAbsences interface {
+// VacationQuotaReader reads the vacation account both the staff member and
+// the administration show.
+type VacationQuotaReader interface {
+	VacationQuotaSummary(ctx context.Context, staffID int64, year int) (*VacationQuotaSummary, error)
+}
+
+// OwnAbsences serves the staff member's own absences and vacation requests.
+// The absence writes that may cascade a sick report are SickReportWrites.
+type OwnAbsences interface {
+	VacationQuotaReader
 	ListAbsences(ctx context.Context, staffID int64, filter StaffAbsenceListFilter) ([]*StaffAbsenceResponse, error)
-	AbsencesForRange(ctx context.Context, staffID int64, from, to string) ([]*StaffAbsenceResponse, error)
-	CreateOwnAbsence(ctx context.Context, staffID int64, actorAccountID *int64, request CreateAbsenceRequest) (*StaffAbsenceResponse, error)
-	CreateAbsenceFor(ctx context.Context, subjectStaffID, createdByStaffID int64, actorAccountID *int64, request CreateAbsenceRequest) (*StaffAbsenceResponse, error)
-	UpdateAbsence(ctx context.Context, staffID int64, actorAccountID *int64, absenceID int64, request UpdateAbsenceRequest) (*StaffAbsenceResponse, error)
-	DeleteOwnAbsence(ctx context.Context, staffID int64, actorAccountID *int64, absenceID int64) error
-	DeleteAbsenceFor(ctx context.Context, subjectStaffID, actorStaffID int64, actorAccountID *int64, absenceID int64) error
-	PreviewCompTimeBalance(ctx context.Context, staffID int64, start, end string, halfDay bool) (*CompTimeBalancePreview, error)
-	// RebookAbsences changes the type of stored absences with a reason; with
-	// DryRun it only reports the effects (#3258).
-	RebookAbsences(ctx context.Context, staffID, actorAccountID int64, request RebookAbsencesRequest) (*AbsenceRebookingResult, error)
 	RequestVacation(ctx context.Context, staffID int64, request RequestVacationRequest) (*StaffAbsenceResponse, error)
 	CancelAbsence(ctx context.Context, staffID, actorAccountID, absenceID int64) error
 	ResubmitAbsence(ctx context.Context, staffID, actorAccountID, absenceID int64, note string) (*StaffAbsenceResponse, error)
+}
+
+// AbsenceRequestReview serves the manager's decisions on vacation requests.
+type AbsenceRequestReview interface {
 	ApproveAbsence(ctx context.Context, absenceID, actorAccountID, decidedByStaffID int64, note string) (*StaffAbsenceResponse, error)
 	DenyAbsence(ctx context.Context, absenceID, actorAccountID, decidedByStaffID int64, reason string) (*StaffAbsenceResponse, error)
 	QuestionAbsence(ctx context.Context, absenceID, actorAccountID int64, note string) (*StaffAbsenceResponse, error)
 	ListPendingRequests(ctx context.Context) ([]*StaffAbsenceResponse, error)
 	ListAbsenceRequests(ctx context.Context, query AbsenceRequestListQuery) ([]*StaffAbsenceRequestItem, error)
-	VacationQuotaSummary(ctx context.Context, staffID int64, year int) (*VacationQuotaSummary, error)
-	UpsertVacationQuota(ctx context.Context, staffID int64, year int, entitled, carryover float64) error
+}
+
+// AdminAbsences serves the manager's absence bookings, rebookings and
+// vacation account changes for a staff member. Creating and deleting an
+// absence on the staff member's behalf are SickReportWrites.
+type AdminAbsences interface {
+	VacationQuotaReader
+	AbsenceRequestReview
+	AbsencesForRange(ctx context.Context, staffID int64, from, to string) ([]*StaffAbsenceResponse, error)
+	PreviewCompTimeBalance(ctx context.Context, staffID int64, start, end string, halfDay bool) (*CompTimeBalancePreview, error)
+	// RebookAbsences changes the type of stored absences with a reason; with
+	// DryRun it only reports the effects (#3258).
+	RebookAbsences(ctx context.Context, staffID, actorAccountID int64, request RebookAbsencesRequest) (*AbsenceRebookingResult, error)
 	// SetVacationQuota changes the entitlement with a reason (#3256).
 	SetVacationQuota(ctx context.Context, change VacationQuotaChange) error
 	SetVacationOpening(ctx context.Context, staffID, decidedBy int64, request SetVacationOpeningRequest) (*StaffVacationOpening, error)
 	DeleteVacationOpening(ctx context.Context, staffID, deletedBy int64, year int) error
+}
+
+// StaffAbsences is the absence and vacation administration of the web app:
+// the self-service and administration capabilities for composition, the
+// sick-report writes of the shift-plan-sync workflow, plus the quota write of
+// the opening-balance import.
+type StaffAbsences interface {
+	OwnAbsences
+	AdminAbsences
+	SickReportWrites
+	UpsertVacationQuota(ctx context.Context, staffID int64, year int, entitled, carryover float64) error
 }
 
 // AdjustmentView is one Stundenkonto transaction as the Monatskarte shows it.
@@ -631,144 +669,15 @@ type MonthClosing interface {
 	ListMonthStatus(ctx context.Context, year, month int) ([]*StaffMonthBalanceSnapshot, error)
 }
 
-// Overview periods of the Leitungs-Dashboard.
-const (
-	OverviewPeriodWeek  = "week"
-	OverviewPeriodMonth = "month"
-)
-
-// DashboardPeriodTotals is the tenant-wide Soll/Ist/Delta of a period.
-type DashboardPeriodTotals struct {
-	SollMinutes  int `json:"soll_minutes"`
-	IstMinutes   int `json:"ist_minutes"`
-	DeltaMinutes int `json:"delta_minutes"`
-}
-
-// DashboardSummary is the Leitungs-Dashboard aggregate.
-type DashboardSummary struct {
-	ActiveStaffCount        int                   `json:"active_staff_count"`
-	SickToday               int                   `json:"sick_today"`
-	VacationToday           int                   `json:"vacation_today"`
-	CurrentlyClockedIn      int                   `json:"currently_clocked_in"`
-	ExpectedClockedIn       int                   `json:"expected_clocked_in"`
-	Period                  DashboardPeriodTotals `json:"period"`
-	SaldoSchoolTotalMinutes int                   `json:"saldo_school_total_minutes"`
-	PendingRequestsCount    int                   `json:"pending_requests_count"`
-}
-
-// TimeTrackingOverviewRow is one staff member's Soll/Ist/Saldo/Resturlaub.
-type TimeTrackingOverviewRow struct {
-	StaffID               int64   `json:"staff_id"`
-	FirstName             string  `json:"first_name"`
-	LastName              string  `json:"last_name"`
-	Name                  string  `json:"name"`
-	EmploymentType        string  `json:"employment_type"`
-	SollMinutes           int     `json:"soll_minutes"`
-	IstMinutes            int     `json:"ist_minutes"`
-	BalanceMinutes        int     `json:"balance_minutes"`
-	RemainingVacationDays float64 `json:"remaining_vacation_days"`
-}
-
-// TimeTrackingOverview is the cross-staff list; Rows is never nil.
-type TimeTrackingOverview struct {
-	Year  int                       `json:"year"`
-	Month int                       `json:"month"`
-	Rows  []TimeTrackingOverviewRow `json:"rows"`
-}
-
-// OverviewFilters narrows the cross-staff list. Year and Month both zero
-// select the current month.
-type OverviewFilters struct {
-	EmploymentType string
-	SaldoMin       *int
-	SaldoMax       *int
-	SortBy         string
-	Descending     bool
-	Year           int
-	Month          int
-}
-
 // StaffOverview serves the tenant-wide time-tracking views.
 type StaffOverview interface {
 	DashboardSummary(ctx context.Context, period string) (*DashboardSummary, error)
 	TimeTrackingOverview(ctx context.Context, filters OverviewFilters) (*TimeTrackingOverview, error)
 }
 
-// AuditLogPerson names a staff member in the audit feed.
-type AuditLogPerson struct {
-	ID   int64  `json:"id"`
-	Name string `json:"name"`
-}
-
-// AuditLogActor is the acting person of an audit event; StaffID is nil for
-// system actions.
-type AuditLogActor struct {
-	StaffID  *int64 `json:"staff_id,omitempty"`
-	Name     string `json:"name"`
-	IsSystem bool   `json:"is_system"`
-	IsSelf   bool   `json:"is_self"`
-}
-
-// AuditLogEvent is one feed entry: common envelope plus source-typed detail.
-type AuditLogEvent struct {
-	OccurredAt time.Time       `json:"occurred_at"`
-	Source     string          `json:"source"`
-	EntryID    int64           `json:"entry_id"`
-	Staff      *AuditLogPerson `json:"staff,omitempty"`
-	Actor      AuditLogActor   `json:"actor"`
-	Reason     string          `json:"reason"`
-	Detail     json.RawMessage `json:"detail"`
-}
-
-// AuditLogPage is one keyset page; NextCursor is empty on the last page.
-type AuditLogPage struct {
-	Events          []*AuditLogEvent `json:"events"`
-	NextCursor      string           `json:"next_cursor,omitempty"`
-	RetentionCutoff string           `json:"retention_cutoff"`
-}
-
-// AuditLogListRequest carries the parsed audit-log filters.
-type AuditLogListRequest struct {
-	From         string
-	To           string
-	StaffID      int64
-	ActorStaffID int64
-	Sources      []string
-	Cursor       string
-	Limit        int
-}
-
 // TimeTrackingAuditLog serves the cross-staff audit feed.
 type TimeTrackingAuditLog interface {
 	ListAuditLog(ctx context.Context, request AuditLogListRequest) (*AuditLogPage, error)
-}
-
-// TimeExportRequest selects what to export; Month == 0 means the whole year.
-type TimeExportRequest struct {
-	Year        int
-	Month       int
-	Granularity string
-	Format      string
-	TimeFormat  string
-}
-
-// DatevSkippedStaff is one staff member left out of a DATEV file.
-type DatevSkippedStaff struct {
-	LastName  string `json:"last_name"`
-	FirstName string `json:"first_name"`
-	Reason    string `json:"reason"`
-}
-
-// DatevExportReport is the visible companion of a DATEV file.
-type DatevExportReport struct {
-	Format                 string              `json:"format"`
-	Year                   int                 `json:"year"`
-	Month                  int                 `json:"month"`
-	LineCount              int                 `json:"line_count"`
-	StaffExported          int                 `json:"staff_exported"`
-	StaffSkipped           []DatevSkippedStaff `json:"staff_skipped"`
-	UnconfiguredCategories []string            `json:"unconfigured_categories"`
-	OpenMonth              bool                `json:"open_month"`
 }
 
 // PublicHoliday is one public holiday of the tenant's federal state.
@@ -806,4 +715,12 @@ type VacationQuotaChange struct {
 	CarryoverDays float64
 	Reason        string
 	ChangedBy     int64
+}
+
+// MonthCloseStaff is one staff member a school-wide month close may cover.
+// ExternalCaregiver marks an external caregiver (#3823), who records no
+// working time.
+type MonthCloseStaff struct {
+	ID                int64
+	ExternalCaregiver bool
 }

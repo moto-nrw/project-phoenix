@@ -226,6 +226,13 @@ describe("PhaseResponseOverview", () => {
   it("offers no announcement without the permission", () => {
     mocks.hasPermission.mockReturnValue(false);
     render(<PhaseResponseOverview overview={overview} search="" />);
+    // Anker: der Reiter „Fehlt noch“ mit der Liste der fehlenden Kinder steht da.
+    expect(
+      screen.getByRole("button", { name: "Fehlt noch (3)" }),
+    ).toBeInTheDocument();
+    expect(
+      table().getByRole("link", { name: "Mia Arslan" }),
+    ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: /erinnern/ }),
     ).not.toBeInTheDocument();
@@ -234,6 +241,13 @@ describe("PhaseResponseOverview", () => {
   it("offers no announcement when the school has parent news switched off", () => {
     mocks.parentNewsEnabled = false;
     render(<PhaseResponseOverview overview={overview} search="" />);
+    // Anker: der Reiter „Fehlt noch“ mit der Liste der fehlenden Kinder steht da.
+    expect(
+      screen.getByRole("button", { name: "Fehlt noch (3)" }),
+    ).toBeInTheDocument();
+    expect(
+      table().getByRole("link", { name: "Mia Arslan" }),
+    ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: /erinnern/ }),
     ).not.toBeInTheDocument();

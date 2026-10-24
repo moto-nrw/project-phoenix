@@ -16,7 +16,7 @@ import { EmptyDetailState } from "~/components/database/empty-detail-state";
 import { GroupedList } from "~/components/database/grouped-list";
 import { MasterDetailLayout } from "~/components/database/master-detail-layout";
 import { useGroupedItems } from "~/components/database/use-grouped-items";
-import { rolesConfig } from "~/components/database/configs/roles.config";
+import { roleEditSections } from "~/components/database/configs/roles.config";
 import { DatabaseForm } from "~/components/ui/database/database-form";
 import type { FormErrorInput } from "~/components/ui/form-error";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
@@ -280,7 +280,7 @@ function RoleStammdatenTab({
   if (editing) {
     return (
       <DatabaseForm<Partial<Role>>
-        sections={rolesConfig.form.sections}
+        sections={roleEditSections}
         initialData={role}
         onSubmit={onSaveRole}
         onCancel={onCancelEdit}
@@ -298,7 +298,7 @@ function RoleStammdatenTab({
         <div className="flex flex-wrap items-center gap-2">
           {role.isSystem ? (
             <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">
-              Systemrolle
+              Vorgegeben
             </span>
           ) : null}
           {!role.isSystem && !role.baseRole ? (
@@ -307,7 +307,8 @@ function RoleStammdatenTab({
             </span>
           ) : null}
           <span className="bg-moto-purple-soft text-moto-purple-strong rounded-full px-2.5 py-1 text-xs font-medium">
-            {role.permissions?.length ?? 0} Berechtigungen
+            {role.permissions?.length ?? 0}{" "}
+            {role.permissions?.length === 1 ? "Berechtigung" : "Berechtigungen"}
           </span>
         </div>
       </section>
@@ -328,7 +329,7 @@ function RoleStammdatenTab({
           <DataField label="Berechtigungen">
             {role.permissions?.length ?? 0}
           </DataField>
-          <DataField label="Systemrolle">
+          <DataField label="Gilt als">
             {getBaseRoleLabel(role.baseRole)}
           </DataField>
           <DataField label="Beschreibung" fullWidth>
@@ -342,7 +343,7 @@ function RoleStammdatenTab({
       {role.isSystem ? (
         <Alert
           type="info"
-          message="System-Rollen können nicht bearbeitet oder gelöscht werden."
+          message="Vorgegebene Rollen gelten für alle Schulen. Sie können nicht bearbeitet oder gelöscht werden."
         />
       ) : null}
     </div>

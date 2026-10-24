@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import {
   countAlreadyExistsRows,
-  importBatchFailureAlertType,
   importBatchFailureMessage,
   readImportBatchFailure,
   readImportBatchRejection,
@@ -87,7 +86,6 @@ describe("importBatchFailureMessage", () => {
     expect(importBatchFailureMessage(mixed)).toBe(
       "100 Zeilen sind gespeichert. Zeile 152 hat den Rest angehalten. Bitte korrigieren Sie diese Zeile. Laden Sie die Datei danach erneut hoch. Die gespeicherten Zeilen bleiben.",
     );
-    expect(importBatchFailureAlertType(mixed)).toBe("warning");
     expect(
       importBatchFailureMessage({
         ...mixed,
@@ -124,7 +122,6 @@ describe("importBatchFailureMessage", () => {
     expect(importBatchFailureMessage(firstBatch)).toBe(
       "Zeile 5 hat nicht geklappt. Bitte korrigieren Sie diese Zeile. Laden Sie die Datei danach erneut hoch.",
     );
-    expect(importBatchFailureAlertType(firstBatch)).toBe("error");
   });
 });
 

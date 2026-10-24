@@ -9,6 +9,11 @@ import (
 	"github.com/uptrace/bun/migrate"
 )
 
+// Operation is the shape of the migration commands: Migrate, Reset,
+// MigrateStatus and MigratePreflight. The commands root holds them in it and
+// runs them on its pool without naming the ORM itself (ADR 0053, point 5).
+type Operation func(ctx context.Context, db *bun.DB) error
+
 // newMigrator builds the migrator every entry point here uses, with the
 // per-migration log hooks already wired in.
 func newMigrator(db *bun.DB, runLog *runnerLog) *migrate.Migrator {

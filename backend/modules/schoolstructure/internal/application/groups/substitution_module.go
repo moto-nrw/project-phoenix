@@ -9,7 +9,6 @@ import (
 	"sort"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -49,9 +48,10 @@ type CaregiverDirectory interface {
 	ListActiveCaregivers(ctx context.Context) ([]*domain.Caregiver, error)
 }
 
-// ExternalCaregiverDirectory reads the external caregivers without a moto
-// account (#3823). They may join a running supervision as an additional
-// supervisor, never take over a group.
+// ExternalCaregiverDirectory reads the currently valid external caregivers
+// (#3823), with or without a moto account (#4573). They may join a running
+// supervision as an additional supervisor, never take over a group. A
+// placeholder without an account is offered too (ADR 0091).
 type ExternalCaregiverDirectory interface {
 	ListExternalCaregivers(ctx context.Context) ([]*domain.Caregiver, error)
 }
@@ -73,11 +73,10 @@ type SubstitutionDependencies struct {
 	Actors                  ActorResolver
 	Audit                   SubstitutionAudit
 	Runtime                 Runtime
-	Broadcaster             realtimeevents.Publisher
+	Broadcaster             GroupPublisher
 	Logger                  *slog.Logger
 	Now                     func() time.Time
 	CanSeeAll               func(ctx context.Context, assignmentBound, admin, hasStaff bool) (bool, error)
-	Schedule                ScheduleSubstitutionAdapter
 	ActiveGroups            studentpresence.SessionRecords
 	ActiveSupervisors       studentpresence.SupervisionRecords
 	ActiveSupervisorCreator ActiveSupervisorCreator
@@ -101,36 +100,6 @@ func NewSubstitutionModule(deps SubstitutionDependencies) SubstitutionModule {
 		panic("substitution module: runtime is required")
 	}
 	return &substitutionModule{deps: deps}
-}
-
-func (s *substitutionModule) Overview(ctx context.Context, caller SubstitutionCaller, query OverviewQuery) (*OverviewResult, error) {
-	scheduleRequested := query.ScheduleFrom != nil || query.ScheduleTo != nil || query.IncludeScheduleTargets
-	if scheduleRequested {
-		return s.scheduleOverview(ctx, caller, query)
-	}
-	if s.deps.Groups == nil || s.deps.Substitutions == nil || s.deps.Teachers == nil {
-		return nil, ErrInvalidTarget
-	}
-	return s.groupOverview(ctx, caller, query)
-}
-
-func (s *substitutionModule) scheduleOverview(ctx context.Context, caller SubstitutionCaller, query OverviewQuery) (*OverviewResult, error) {
-	if query.ScheduleFrom == nil || query.ScheduleTo == nil || s.deps.Schedule == nil {
-		return nil, ErrInvalidPeriod
-	}
-	if err := s.authorizeScheduleCaller(ctx, caller, "schedules:read"); err != nil {
-		return nil, err
-	}
-	overview, err := s.deps.Schedule.Overview(
-		ctx, *query.ScheduleFrom, *query.ScheduleTo, query.IncludeScheduleTargets,
-		caller.HasPermission("schedules:manage"),
-	)
-	if err != nil {
-		return nil, err
-	}
-	result := emptyOverview()
-	result.ScheduleAppointments, result.ScheduleTargets = overview.Appointments, overview.Targets
-	return result, nil
 }
 
 func (s *substitutionModule) groupOverview(ctx context.Context, caller SubstitutionCaller, query OverviewQuery) (*OverviewResult, error) {
@@ -288,84 +257,16 @@ func canViewGroup(access substitutionAccess, rows []*domain.GroupSubstitution, g
 	return false
 }
 
-func (s *substitutionModule) Assign(ctx context.Context, caller SubstitutionCaller, assignment Assignment) (*AssignmentResult, error) {
-	if assignment.Type == TargetAdditionalSupervision && assignment.AdditionalSupervision != nil && assignment.GroupHandover == nil {
-		return s.assignAdditionalSupervision(ctx, caller, assignment.AdditionalSupervision)
-	}
-	if assignment.Type == TargetScheduleSubstitution {
-		return s.assignScheduleSubstitution(ctx, caller, assignment.ScheduleSubstitution)
-	}
-	if assignment.Type != TargetGroupHandover || assignment.GroupHandover == nil || assignment.AdditionalSupervision != nil {
-		return nil, ErrInvalidTarget
-	}
-	request := assignment.GroupHandover
-	access, err := s.resolveAccess(ctx, caller)
-	if err != nil {
-		return nil, err
-	}
-	start, end, err := s.period(access.admin, request.StartDate, request.EndDate)
-	if err != nil {
-		return nil, err
-	}
-	if request.GroupID <= 0 || request.TargetStaffID <= 0 {
-		return nil, ErrInvalidTarget
-	}
-	if !access.admin && !contains(access.ownedGroupIDs, request.GroupID) {
-		return nil, ErrNotFound
-	}
-	if access.actor != nil && access.actor.StaffID == request.TargetStaffID {
-		return nil, ErrInvalidTarget
-	}
-
-	return s.assignGroupHandover(ctx, caller, access, request, start, end)
-}
-
 func (s *substitutionModule) assignGroupHandover(ctx context.Context, caller SubstitutionCaller, access substitutionAccess, request *GroupHandoverAssignment, start, end calendar.Date) (*AssignmentResult, error) {
-	var result AssignmentResult
-	err := s.deps.Runtime.RunInTx(ctx, func(txCtx context.Context) error {
-		created, group, target, createErr := s.assignLocked(txCtx, caller, access, request, start, end)
-		if createErr == nil {
-			result = projectAssignment(created, group, target)
-		}
-		return createErr
-	})
+	created, group, target, err := s.assignLocked(ctx, caller, access, request, start, end)
 	if err != nil {
 		return nil, err
 	}
-	realtimeevents.QueueGroupAccessChanged(ctx, s.deps.Broadcaster, s.deps.Logger, "substitution_assign")
+	result := projectAssignment(created, group, target)
+	if s.deps.Broadcaster != nil {
+		s.deps.Broadcaster.QueueGroupAccessChanged(ctx, "substitution_assign")
+	}
 	return &result, nil
-}
-
-func (s *substitutionModule) assignScheduleSubstitution(ctx context.Context, caller SubstitutionCaller, assignment *ScheduleSubstitutionAssignment) (*AssignmentResult, error) {
-	if assignment == nil || s.deps.Schedule == nil {
-		return nil, ErrInvalidTarget
-	}
-	if err := s.authorizeScheduleCaller(ctx, caller, "schedules:manage"); err != nil {
-		return nil, err
-	}
-	var result *ScheduleSubstitutionResult
-	err := s.deps.Runtime.RunInTx(ctx, func(txCtx context.Context) error {
-		var assignErr error
-		result, assignErr = s.deps.Schedule.Assign(txCtx, *assignment, caller.AccountID)
-		return assignErr
-	})
-	if err != nil {
-		s.deps.Runtime.MarkRollback(ctx)
-		return nil, err
-	}
-	notifyScheduleChange(ctx, result)
-	return &AssignmentResult{ScheduleSubstitution: result}, nil
-}
-
-func (s *substitutionModule) authorizeScheduleCaller(ctx context.Context, caller SubstitutionCaller, required string) error {
-	if caller.AccountID <= 0 || caller.TenantID <= 0 || caller.TenantID != s.deps.Runtime.TenantID(ctx) ||
-		(caller.Scope != "" && caller.Scope != "org") {
-		return ErrForbidden
-	}
-	if caller.HasPermission == nil || !caller.HasPermission(required) {
-		return ErrForbidden
-	}
-	return nil
 }
 
 func (s *substitutionModule) assignLocked(ctx context.Context, caller SubstitutionCaller, access substitutionAccess, request *GroupHandoverAssignment, start, end calendar.Date) (*domain.GroupSubstitution, *domain.Group, *domain.Caregiver, error) {
@@ -416,51 +317,25 @@ func (s *substitutionModule) rejectDuplicate(ctx context.Context, tenantID int64
 }
 
 func (s *substitutionModule) End(ctx context.Context, caller SubstitutionCaller, request EndRequest) error {
-	if request.Type == TargetScheduleSubstitution {
-		return s.endScheduleSubstitution(ctx, caller, request.ID)
-	}
-	if request.Type != TargetGroupHandover || request.ID <= 0 {
-		return ErrInvalidTarget
-	}
-	access, err := s.resolveAccess(ctx, caller)
-	if err != nil {
-		return err
-	}
-	err = s.deps.Runtime.RunInTx(ctx, func(txCtx context.Context) error {
-		return s.endLocked(txCtx, caller, access, request.ID)
-	})
-	if err != nil {
-		return err
-	}
-	realtimeevents.QueueGroupAccessChanged(ctx, s.deps.Broadcaster, s.deps.Logger, "substitution_end")
-	return nil
-}
+	return s.deps.Runtime.RunInTx(ctx, func(ctx context.Context) error {
 
-func (s *substitutionModule) endScheduleSubstitution(ctx context.Context, caller SubstitutionCaller, id int64) error {
-	if id <= 0 || s.deps.Schedule == nil {
-		return ErrInvalidTarget
-	}
-	if err := s.authorizeScheduleCaller(ctx, caller, "schedules:manage"); err != nil {
-		return err
-	}
-	var result *ScheduleSubstitutionResult
-	err := s.deps.Runtime.RunInTx(ctx, func(txCtx context.Context) error {
-		var endErr error
-		result, endErr = s.deps.Schedule.End(txCtx, id, caller.AccountID)
-		return endErr
-	})
-	if err != nil {
-		s.deps.Runtime.MarkRollback(ctx)
-		return err
-	}
-	notifyScheduleChange(ctx, result)
-	return nil
-}
+		if request.Type != TargetGroupHandover || request.ID <= 0 {
+			return ErrInvalidTarget
+		}
+		access, err := s.resolveAccess(ctx, caller)
+		if err != nil {
+			return err
+		}
+		err = s.endLocked(ctx, caller, access, request.ID)
+		if err != nil {
+			return err
+		}
+		if s.deps.Broadcaster != nil {
+			s.deps.Broadcaster.QueueGroupAccessChanged(ctx, "substitution_end")
+		}
+		return nil
 
-func notifyScheduleChange(ctx context.Context, result *ScheduleSubstitutionResult) {
-	if result != nil && result.AfterCommit != nil {
-		result.AfterCommit(ctx)
-	}
+	})
 }
 
 func (s *substitutionModule) canSeeAll(ctx context.Context, caller SubstitutionCaller, access substitutionAccess) (bool, error) {
@@ -722,4 +597,57 @@ func containsRole(roles []string, role string) bool {
 		}
 	}
 	return false
+}
+
+func (s *substitutionModule) Assign(ctx context.Context, caller SubstitutionCaller, assignment Assignment) (result *AssignmentResult, err error) {
+	err = s.deps.Runtime.RunInTx(ctx, func(ctx context.Context) error {
+		if assignment.Type == TargetAdditionalSupervision && assignment.AdditionalSupervision != nil && assignment.GroupHandover == nil {
+			result, err = s.assignAdditionalSupervision(ctx, caller, assignment.AdditionalSupervision)
+			return err
+		}
+		if assignment.Type != TargetGroupHandover || assignment.GroupHandover == nil || assignment.AdditionalSupervision != nil {
+			return ErrInvalidTarget
+		}
+		request := assignment.GroupHandover
+		access, err := s.resolveAccess(ctx, caller)
+		if err != nil {
+			return err
+		}
+		start, end, err := s.period(access.admin, request.StartDate, request.EndDate)
+		if err != nil {
+			return err
+		}
+		if err := validateGroupHandoverTarget(access, request); err != nil {
+			return err
+		}
+
+		result, err = s.assignGroupHandover(ctx, caller, access, request, start, end)
+		return err
+	})
+	return result, err
+}
+
+func (s *substitutionModule) Overview(ctx context.Context, caller SubstitutionCaller, query OverviewQuery) (*OverviewResult, error) {
+	// The schedule target is the shift-plan-sync workflow's entry; the root
+	// routes it there (#4825).
+	if query.ScheduleFrom != nil || query.ScheduleTo != nil || query.IncludeScheduleTargets {
+		return nil, ErrInvalidTarget
+	}
+	if s.deps.Groups == nil || s.deps.Substitutions == nil || s.deps.Teachers == nil {
+		return nil, ErrInvalidTarget
+	}
+	return s.groupOverview(ctx, caller, query)
+}
+
+func validateGroupHandoverTarget(access substitutionAccess, request *GroupHandoverAssignment) error {
+	if request.GroupID <= 0 || request.TargetStaffID <= 0 {
+		return ErrInvalidTarget
+	}
+	if !access.admin && !contains(access.ownedGroupIDs, request.GroupID) {
+		return ErrNotFound
+	}
+	if access.actor != nil && access.actor.StaffID == request.TargetStaffID {
+		return ErrInvalidTarget
+	}
+	return nil
 }

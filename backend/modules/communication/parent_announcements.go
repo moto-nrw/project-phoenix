@@ -248,23 +248,45 @@ type ParentAnnouncementAttachmentSupport interface {
 	AnnouncementEditable(context.Context, int64) (bool, error)
 	LockAnnouncementForAttachmentChange(context.Context, int64) (bool, bool, error)
 	ResetAnnouncementEngagement(context.Context, int64) error
-	SetAttachmentPurger(ParentAnnouncementAttachmentPurger)
 }
 
 type ParentAnnouncementCapability interface {
+	ParentAnnouncementQuery
+	ParentAnnouncementCommand
+	CareCancellationPublisher
+	ParentAnnouncementAttachmentSupport
+	ParentDeclarationCapability
+}
+
+// ParentAnnouncementQuery reads announcements and their engagement reports.
+type ParentAnnouncementQuery interface {
 	ListParentAnnouncements(context.Context, bool) ([]ParentAnnouncement, error)
 	GetParentAnnouncement(context.Context, int64) (*ParentAnnouncement, error)
+	ParentAnnouncementStats(context.Context, int64) (*ParentAnnouncementStats, error)
+	ParentAnnouncementRecipients(context.Context, int64) ([]ParentAnnouncementRecipient, error)
+	ParentAnnouncementPollResults(context.Context, int64) (*ParentAnnouncementPollResults, error)
+	ParentAnnouncementPollChildren(context.Context, int64) ([]ParentAnnouncementPollChild, error)
+	ParentAnnouncementLetterStatus(context.Context, int64) (*ParentAnnouncementLetterStatus, error)
+}
+
+// ParentAnnouncementCommand combines authoring and reminder commands.
+type ParentAnnouncementCommand interface {
+	ParentAnnouncementAuthoring
+	ParentAnnouncementReminders
+}
+
+// ParentAnnouncementAuthoring authors and publishes parent announcements.
+type ParentAnnouncementAuthoring interface {
 	CreateParentAnnouncement(context.Context, int64, ParentAnnouncementInput) (*ParentAnnouncement, error)
 	UpdateParentAnnouncement(context.Context, int64, ParentAnnouncementInput) (*ParentAnnouncement, error)
 	DeleteParentAnnouncement(context.Context, int64) error
 	PublishParentAnnouncement(context.Context, int64) (*ParentAnnouncement, error)
 	UnpublishParentAnnouncement(context.Context, int64) (*ParentAnnouncement, error)
-	ParentAnnouncementStats(context.Context, int64) (*ParentAnnouncementStats, error)
-	ParentAnnouncementRecipients(context.Context, int64) ([]ParentAnnouncementRecipient, error)
-	ParentAnnouncementPollResults(context.Context, int64) (*ParentAnnouncementPollResults, error)
-	ParentAnnouncementPollChildren(context.Context, int64) ([]ParentAnnouncementPollChild, error)
+}
+
+// ParentAnnouncementReminders schedules and delivers parent-announcement reminders.
+type ParentAnnouncementReminders interface {
 	RemindParentAnnouncement(context.Context, int64) (int, error)
-	ParentAnnouncementLetterStatus(context.Context, int64) (*ParentAnnouncementLetterStatus, error)
 	ResendParentAnnouncementEmails(context.Context, int64) (int, error)
 	// UpdateParentAnnouncementReminder moves, rewords or removes the scheduled
 	// reminder of a published announcement while it is unsent.
@@ -275,9 +297,6 @@ type ParentAnnouncementCapability interface {
 	// reminders in the scheduler window. The scheduler owns the window and the
 	// tenant transaction; the capability owns audience and delivery.
 	SendDueParentAnnouncementReminders(ctx context.Context, notBefore, dueBefore time.Time) (sent int, retryFrom *time.Time, err error)
-	CareCancellationPublisher
-	ParentAnnouncementAttachmentSupport
-	ParentDeclarationCapability
 }
 
 func ValidateCareCancellationText(title, body string) (string, string, error) {

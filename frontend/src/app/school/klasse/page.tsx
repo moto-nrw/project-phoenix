@@ -16,6 +16,7 @@ import { Skeleton } from "~/components/ui/skeleton";
 import {
   fetchClassDayClassesSchool,
   fetchClassDaySchool,
+  recordMorningAttendanceSchool,
 } from "~/lib/school-class-day-api";
 
 function ClassFromAddress() {
@@ -27,6 +28,7 @@ function ClassFromAddress() {
       schoolClass={schoolClass}
       fetchClassDay={fetchClassDaySchool}
       fetchClasses={fetchClassDayClassesSchool}
+      recordMorningAttendance={recordMorningAttendanceSchool}
     />
   );
 }

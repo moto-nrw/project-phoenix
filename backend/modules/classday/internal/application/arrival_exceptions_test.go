@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/classday"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 type fakeWriteScope struct {
@@ -24,7 +24,7 @@ func (f fakeWriteScope) SchoolMayWriteClassArrivalExceptions(context.Context) (b
 
 type fakeBlockStarts struct{ start string }
 
-func (f fakeBlockStarts) EarliestPlannedBlockStartForClass(context.Context, string, timezone.Date) (string, error) {
+func (f fakeBlockStarts) EarliestPlannedBlockStartForClass(context.Context, string, calendar.Date) (string, error) {
 	return f.start, nil
 }
 
@@ -73,15 +73,15 @@ func TestArrivalExceptionsMapsRows(t *testing.T) {
 	reason := "Konferenz"
 	created := time.Date(2026, 8, 3, 7, 0, 0, 0, time.UTC)
 	store := &fakeClassArrivalExceptions{rows: []ClassArrivalException{
-		{SchoolClass: "1a", Date: timezone.NewDate(2026, 8, 4), ArrivalTime: time.Date(2000, 1, 1, 9, 45, 0, 0, time.UTC), Reason: &reason, CreatedAt: created},
-		{SchoolClass: "1a", Date: timezone.NewDate(2026, 8, 5), ArrivalTime: time.Date(2000, 1, 1, 10, 0, 0, 0, time.UTC), CreatedAt: created, Origin: " school "},
+		{SchoolClass: "1a", Date: calendar.NewDate(2026, 8, 4), ArrivalTime: time.Date(2000, 1, 1, 9, 45, 0, 0, time.UTC), Reason: &reason, CreatedAt: created},
+		{SchoolClass: "1a", Date: calendar.NewDate(2026, 8, 5), ArrivalTime: time.Date(2000, 1, 1, 10, 0, 0, 0, time.UTC), CreatedAt: created, Origin: " school "},
 	}}
 	seam := arrivalExceptions{schedule: store}
 
 	got, err := seam.ArrivalExceptions(context.Background(), "1a", "2026-08-03", "2026-08-07")
 
 	require.NoError(t, err)
-	assert.Equal(t, [2]timezone.Date{timezone.NewDate(2026, 8, 3), timezone.NewDate(2026, 8, 7)}, store.listRange)
+	assert.Equal(t, [2]calendar.Date{calendar.NewDate(2026, 8, 3), calendar.NewDate(2026, 8, 7)}, store.listRange)
 	assert.Equal(t, []classday.ArrivalException{
 		// Rows older than the origin column were entered by the OGS.
 		{SchoolClass: "1a", Date: "2026-08-04", ArrivalTime: "09:45", Reason: &reason, CreatedAt: "2026-08-03T07:00:00Z", Origin: classday.ArrivalExceptionOriginOGS},
@@ -107,7 +107,7 @@ func TestSetArrivalExceptionStampsSchoolOriginAndAnnounces(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, store.upserts, 1)
 	assert.Equal(t, ClassArrivalExceptionWrite{
-		SchoolClass: "1a", Date: timezone.NewDate(2026, 8, 5), ArrivalTime: arrival,
+		SchoolClass: "1a", Date: calendar.NewDate(2026, 8, 5), ArrivalTime: arrival,
 		Origin: classday.ArrivalExceptionOriginSchool, CreatedBy: 9,
 	}, store.upserts[0])
 	assert.Equal(t, classday.ArrivalExceptionOriginSchool, got.Origin)

@@ -9,17 +9,15 @@ import (
 	"testing"
 	"time"
 
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	parentRepo "github.com/moto-nrw/project-phoenix/database/repositories/parent"
-	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/api"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	parentRepo "github.com/moto-nrw/project-phoenix/modules/careplan/internal/adapters/parentpostgres"
+	parentModels "github.com/moto-nrw/project-phoenix/modules/careplan/internal/rows"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -141,7 +139,7 @@ func listByAccount(t *testing.T, db *bun.DB, accountID int64) []*parentModels.En
 // returns the affected row count.
 func backfill(t *testing.T, db *bun.DB, accountID int64, email string) int {
 	t.Helper()
-	repo := parentRepo.NewEnrollmentRequestRepository(staticParentRuntime(db), enrollmentCompose.New(), staticAccountDirectory{db: db})
+	repo := parentRepo.NewEnrollmentRequestRepository(staticParentRuntime(db), api.NewParentPortalEnrollments(), staticAccountDirectory{db: db}, nil)
 	var n int
 	err := tenant.WithAdminTx(testpkg.WithTenantRuntime(t, context.Background(), db), db, func(ctx context.Context, _ bun.Tx) error {
 		got, bErr := repo.BackfillGuardianAccountID(ctx, accountID, email)
@@ -153,7 +151,7 @@ func backfill(t *testing.T, db *bun.DB, accountID int64, email string) int {
 }
 
 func staticParentRuntime(db *bun.DB) parentRepo.Runtime {
-	return parentRepo.RuntimeFunc(func(context.Context) bun.IDB { return db })
+	return parentRepo.RuntimeFunc(careplanCompose.TenantAmbientDatabase(db))
 }
 
 // readGuardianAccountID returns the guardian_account_id column for one
@@ -184,9 +182,6 @@ func TestEnrollmentRequestRepository_ListByAccount_BasicHappyPath(t *testing.T) 
 	tenantA := testpkg.Tenant(t)
 
 	account := testpkg.CreateTestAccount(t, db, "parentlist-basic")
-	defer func() {
-		_, _ = db.NewDelete().TableExpr("auth.accounts").Where("id = ?", account.ID).Exec(context.Background())
-	}()
 
 	phaseID := insertTestPhase(t, db, tenantA, "phase-list-basic-"+t.Name())
 
@@ -219,9 +214,6 @@ func TestEnrollmentRequestRepository_ListByAccount_OrdersBySubmittedAtDesc(t *te
 	tenantA := testpkg.Tenant(t)
 
 	account := testpkg.CreateTestAccount(t, db, "parentlist-order")
-	defer func() {
-		_, _ = db.NewDelete().TableExpr("auth.accounts").Where("id = ?", account.ID).Exec(context.Background())
-	}()
 
 	phaseID := insertTestPhase(t, db, tenantA, "phase-list-order-"+t.Name())
 
@@ -279,9 +271,6 @@ func TestEnrollmentRequestRepository_ListByAccount_CrossTenant(t *testing.T) {
 	// One account with submissions at two different tenants — the cross-
 	// tenant query must return both rows (parent dashboard is global).
 	account := testpkg.CreateTestAccount(t, db, "parentlist-cross")
-	defer func() {
-		_, _ = db.NewDelete().TableExpr("auth.accounts").Where("id = ?", account.ID).Exec(context.Background())
-	}()
 
 	t1Phase := insertTestPhase(t, db, tenantA, "phase-cross-t1-"+t.Name())
 	t2Phase := insertTestPhase(t, db, tenantB, "phase-cross-t2-"+t.Name())
@@ -323,10 +312,6 @@ func TestEnrollmentRequestRepository_ListByAccount_IgnoresOtherAccounts(t *testi
 
 	mine := testpkg.CreateTestAccount(t, db, "parentlist-mine")
 	other := testpkg.CreateTestAccount(t, db, "parentlist-other")
-	defer func() {
-		bg := context.Background()
-		_, _ = db.NewDelete().TableExpr("auth.accounts").Where("id IN (?, ?)", mine.ID, other.ID).Exec(bg)
-	}()
 
 	phaseID := insertTestPhase(t, db, tenantA, "phase-list-mine-"+t.Name())
 
@@ -375,18 +360,18 @@ func TestEnrollmentRequestRepository_ListByAccount_FiltersMaterializedChildWitho
 	profile := testpkg.CreateTestGuardianProfile(t, db, "parentlist-permission")
 	student := testpkg.CreateTestStudent(t, db, "Materialized", "Child", "1a")
 
-	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	factory := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	require.NoError(t, factory.GuardianProfile.LinkAccount(ctx, profile.ID, account.ID))
-	relationship := &usersModels.StudentGuardian{
+	relationship := &testpkg.StudentGuardian{
+		TenantID:          testpkg.Tenant(t),
 		StudentID:         student.ID,
 		GuardianProfileID: profile.ID,
 		RelationshipType:  "other",
-		GuardianRole:      authorize.GuardianRolePickupOnly,
+		GuardianRole:      testpkg.GuardianRolePickupOnly,
 		Permissions:       map[string]interface{}{},
 	}
-	relationship.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, factory.StudentGuardian.Create(ctx, relationship))
+	require.NoError(t, testpkg.InsertTestStudentGuardian(ctx, db, relationship))
 
 	phaseID := insertTestPhase(t, db, tenantA, "phase-list-permission-"+t.Name())
 	insertEnrollment(t, db, enrollmentRow{
@@ -415,20 +400,20 @@ func TestEnrollmentRequestRepository_ListByAccount_HidesMixedPermissionMateriali
 	visible := testpkg.CreateTestStudent(t, db, "Visible", "Child", "1a")
 	hidden := testpkg.CreateTestStudent(t, db, "Hidden", "Child", "1b")
 
-	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	factory := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	require.NoError(t, factory.GuardianProfile.LinkAccount(ctx, profile.ID, account.ID))
-	relationship := &usersModels.StudentGuardian{
+	relationship := &testpkg.StudentGuardian{
+		TenantID:          testpkg.Tenant(t),
 		StudentID:         visible.ID,
 		GuardianProfileID: profile.ID,
 		RelationshipType:  "parent",
-		GuardianRole:      authorize.GuardianRoleLegalGuardian,
+		GuardianRole:      testpkg.GuardianRoleLegalGuardian,
 		Permissions: map[string]interface{}{
-			authorize.GuardianPermissionEnrollmentsView: true,
+			careplan.GuardianPermissionEnrollmentsView: true,
 		},
 	}
-	relationship.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, factory.StudentGuardian.Create(ctx, relationship))
+	require.NoError(t, testpkg.InsertTestStudentGuardian(ctx, db, relationship))
 
 	phaseID := insertTestPhase(t, db, tenantA, "phase-list-mixed-permission-"+t.Name())
 	requestID := insertEnrollment(t, db, enrollmentRow{
@@ -454,9 +439,6 @@ func TestEnrollmentRequestRepository_ListByAccount_EmptyForUnknownAccount(t *tes
 
 	// Don't insert any requests for this account.
 	account := testpkg.CreateTestAccount(t, db, "parentlist-empty")
-	defer func() {
-		_, _ = db.NewDelete().TableExpr("auth.accounts").Where("id = ?", account.ID).Exec(context.Background())
-	}()
 
 	results := listByAccount(t, db, account.ID)
 	assert.NotNil(t, results)
@@ -470,9 +452,6 @@ func TestEnrollmentRequestRepository_ListByAccount_GroupsMultipleChildren(t *tes
 	tenantA := testpkg.Tenant(t)
 
 	account := testpkg.CreateTestAccount(t, db, "parentlist-multikid")
-	defer func() {
-		_, _ = db.NewDelete().TableExpr("auth.accounts").Where("id = ?", account.ID).Exec(context.Background())
-	}()
 
 	phaseID := insertTestPhase(t, db, tenantA, "phase-list-multikid-"+t.Name())
 
@@ -500,7 +479,7 @@ func TestEnrollmentRequestRepository_ListByAccount_RejectsZeroAccount(t *testing
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := parentRepo.NewEnrollmentRequestRepository(staticParentRuntime(db), enrollmentCompose.New(), staticAccountDirectory{db: db})
+	repo := parentRepo.NewEnrollmentRequestRepository(staticParentRuntime(db), api.NewParentPortalEnrollments(), staticAccountDirectory{db: db}, nil)
 	err := tenant.WithAdminTx(testpkg.WithTenantRuntime(t, context.Background(), db), db, func(ctx context.Context, _ bun.Tx) error {
 		_, listErr := repo.ListByAccount(ctx, 0)
 		return listErr
@@ -518,9 +497,6 @@ func TestEnrollmentRequestRepository_Backfill_HappyPath(t *testing.T) {
 	tenantA := testpkg.Tenant(t)
 
 	account := testpkg.CreateTestAccount(t, db, "backfill-happy")
-	defer func() {
-		_, _ = db.NewDelete().TableExpr("auth.accounts").Where("id = ?", account.ID).Exec(context.Background())
-	}()
 
 	phaseID := insertTestPhase(t, db, tenantA, "phase-backfill-happy-"+t.Name())
 
@@ -549,9 +525,6 @@ func TestEnrollmentRequestRepository_Backfill_CaseInsensitive(t *testing.T) {
 	tenantA := testpkg.Tenant(t)
 
 	account := testpkg.CreateTestAccount(t, db, "backfill-case")
-	defer func() {
-		_, _ = db.NewDelete().TableExpr("auth.accounts").Where("id = ?", account.ID).Exec(context.Background())
-	}()
 
 	phaseID := insertTestPhase(t, db, tenantA, "phase-backfill-case-"+t.Name())
 
@@ -582,10 +555,6 @@ func TestEnrollmentRequestRepository_Backfill_SkipsAlreadyStamped(t *testing.T) 
 
 	owner := testpkg.CreateTestAccount(t, db, "backfill-owner")
 	intruder := testpkg.CreateTestAccount(t, db, "backfill-intruder")
-	defer func() {
-		bg := context.Background()
-		_, _ = db.NewDelete().TableExpr("auth.accounts").Where("id IN (?, ?)", owner.ID, intruder.ID).Exec(bg)
-	}()
 
 	phaseID := insertTestPhase(t, db, tenantA, "phase-backfill-skip-"+t.Name())
 
@@ -614,9 +583,6 @@ func TestEnrollmentRequestRepository_Backfill_DoesNotTouchOtherEmails(t *testing
 	tenantA := testpkg.Tenant(t)
 
 	account := testpkg.CreateTestAccount(t, db, "backfill-other")
-	defer func() {
-		_, _ = db.NewDelete().TableExpr("auth.accounts").Where("id = ?", account.ID).Exec(context.Background())
-	}()
 
 	phaseID := insertTestPhase(t, db, tenantA, "phase-backfill-other-"+t.Name())
 
@@ -657,9 +623,6 @@ func TestEnrollmentRequestRepository_Backfill_EmptyEmailIsNoop(t *testing.T) {
 	tenantA := testpkg.Tenant(t)
 
 	account := testpkg.CreateTestAccount(t, db, "backfill-empty")
-	defer func() {
-		_, _ = db.NewDelete().TableExpr("auth.accounts").Where("id = ?", account.ID).Exec(context.Background())
-	}()
 
 	phaseID := insertTestPhase(t, db, tenantA, "phase-backfill-empty-"+t.Name())
 
@@ -691,9 +654,6 @@ func TestEnrollmentRequestRepository_Backfill_CrossTenant(t *testing.T) {
 	testpkg.EnsureTestTenant(t, db, tenantB)
 
 	account := testpkg.CreateTestAccount(t, db, "backfill-cross")
-	defer func() {
-		_, _ = db.NewDelete().TableExpr("auth.accounts").Where("id = ?", account.ID).Exec(context.Background())
-	}()
 
 	t1Phase := insertTestPhase(t, db, tenantA, "phase-backfill-cross-t1-"+t.Name())
 	t2Phase := insertTestPhase(t, db, tenantB, "phase-backfill-cross-t2-"+t.Name())
@@ -732,7 +692,7 @@ func TestEnrollmentRequestRepository_Backfill_RejectsZeroAccount(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := parentRepo.NewEnrollmentRequestRepository(staticParentRuntime(db), enrollmentCompose.New(), staticAccountDirectory{db: db})
+	repo := parentRepo.NewEnrollmentRequestRepository(staticParentRuntime(db), api.NewParentPortalEnrollments(), staticAccountDirectory{db: db}, nil)
 	err := tenant.WithAdminTx(testpkg.WithTenantRuntime(t, context.Background(), db), db, func(ctx context.Context, _ bun.Tx) error {
 		_, bErr := repo.BackfillGuardianAccountID(ctx, 0, "x@example.com")
 		return bErr

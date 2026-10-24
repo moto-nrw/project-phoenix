@@ -4,7 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -135,7 +136,7 @@ func TestVisitRepository_FindByStudentAndTimeRange(t *testing.T) {
 		visit := results[0]
 		require.NotNil(t, visit.Group, "ActiveGroup should be populated via explicit JOIN")
 		assert.Equal(t, data.Room, visit.Group.RoomID, "RoomID should match the active group's room")
-		rooms, err := repositories.NewFacilities(db)
+		rooms, err := api.NewFacilities(testpkg.NewDatabase(t, db))
 		require.NoError(t, err)
 		resolved, err := rooms.ListRoomsByID(ctx, []int64{visit.Group.RoomID})
 		require.NoError(t, err)

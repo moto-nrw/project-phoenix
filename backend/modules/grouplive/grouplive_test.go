@@ -26,6 +26,7 @@ type fakes struct {
 	tenantGroups       func(context.Context) ([]GroupRecord, error)
 	substitutedGroups  func(context.Context) (map[int64]bool, error)
 	roomNames          func(context.Context, []int64) (map[int64]string, error)
+	leaderNames        func(context.Context, []int64) (map[int64][]string, error)
 	members            func(context.Context, int64) ([]RosterStudent, error)
 	participants       func(context.Context, []int64, Date) (map[int64]bool, error)
 	snapshot           func(context.Context, []int64, Date) (PresenceSnapshot, error)
@@ -48,6 +49,7 @@ type fakes struct {
 	handoverCalls      int
 	pendingCalls       int
 	trackingCalls      int
+	leaderCalls        [][]int64
 	participantsCalled [][]int64
 	snapshotIDs        []int64
 }
@@ -91,6 +93,14 @@ func (f *fakes) GroupRoomNames(ctx context.Context, ids []int64) (map[int64]stri
 		return map[int64]string{}, nil
 	}
 	return f.roomNames(ctx, ids)
+}
+
+func (f *fakes) GroupLeaderNames(ctx context.Context, ids []int64) (map[int64][]string, error) {
+	f.leaderCalls = append(f.leaderCalls, ids)
+	if f.leaderNames == nil {
+		return map[int64][]string{}, nil
+	}
+	return f.leaderNames(ctx, ids)
 }
 
 func (f *fakes) GroupMembers(ctx context.Context, groupID int64) ([]RosterStudent, error) {
@@ -287,7 +297,7 @@ func TestCountAtSchoolToday(t *testing.T) {
 }
 
 func fullCaller(context.Context) (Caller, error) {
-	return Caller{CanReadGroups: true, CanReviewExcusedRequests: true}, nil
+	return Caller{CanReadStudentPlans: true, CanReadGroups: true, CanReviewExcusedRequests: true}, nil
 }
 
 const (
@@ -669,7 +679,7 @@ func TestGetRedactsRestrictedCallersButKeepsTheReviewersNote(t *testing.T) {
 	f := &fakes{
 		restricted: true,
 		caller: func(context.Context) (Caller, error) {
-			return Caller{CanReadGroups: true, CanReviewExcusedRequests: true}, nil
+			return Caller{CanReadStudentPlans: true, CanReadGroups: true, CanReviewExcusedRequests: true}, nil
 		},
 		supervisedGroups: func(context.Context) ([]GroupRecord, error) { return twoGroups(), nil },
 		members: func(context.Context, int64) ([]RosterStudent, error) {
@@ -876,6 +886,105 @@ func TestListGroupsToleratesMissingRoomNames(t *testing.T) {
 	empty, err := newService(&fakes{caller: fullCaller}).ListGroups(context.Background())
 	require.NoError(t, err)
 	assert.Nil(t, empty)
+}
+
+// TestListGroupsNamesTheGroupLeadership pins the selection page's leadership
+// line (#4351): every listed group carries the names of its assigned
+// Gruppenleitung from one bulk lookup, and a group without one carries none.
+func TestListGroupsNamesTheGroupLeadership(t *testing.T) {
+	t.Parallel()
+
+	f := &fakes{
+		caller:           fullCaller,
+		supervisedGroups: func(context.Context) ([]GroupRecord, error) { return twoGroups(), nil },
+		leaderNames: func(context.Context, []int64) (map[int64][]string, error) {
+			return map[int64][]string{1: {"Carla Dorn", "Anna Berg"}}, nil
+		},
+	}
+
+	got, err := New(Dependencies{
+		Access: f, Groups: f, Roster: f, Presence: f, Planning: f, Transfers: f,
+		Settings: f, Calendar: f, Collate: strings.Compare,
+	}).ListGroups(context.Background())
+	require.NoError(t, err)
+	require.Len(t, got, 2)
+	assert.Equal(t, [][]int64{{2, 1}}, f.leaderCalls, "one bulk lookup for every listed group")
+	// strings.Compare puts "Zebra" (2) ahead of "Äpfel" (1).
+	assert.Nil(t, got[0].Leaders, "a group without Gruppenleitung names nobody")
+	assert.Equal(t, []string{"Anna Berg", "Carla Dorn"}, got[1].Leaders, "names follow the collation")
+
+	raw, err := json.Marshal(got[0])
+	require.NoError(t, err)
+	assert.NotContains(t, string(raw), "leaders", "an empty leadership stays off the wire")
+}
+
+func TestListGroupsToleratesMissingLeadership(t *testing.T) {
+	t.Parallel()
+
+	f := &fakes{
+		caller:           fullCaller,
+		supervisedGroups: func(context.Context) ([]GroupRecord, error) { return twoGroups(), nil },
+		leaderNames: func(context.Context, []int64) (map[int64][]string, error) {
+			return nil, errors.New("teachers unavailable")
+		},
+	}
+
+	got, err := newService(f).ListGroups(context.Background())
+	require.NoError(t, err, "the navigation degrades to groups without leadership instead of failing")
+	require.Len(t, got, 2)
+	assert.Nil(t, got[0].Leaders)
+	assert.Nil(t, got[1].Leaders)
+}
+
+func TestLiveGroupDoesNotLoadTheLeadership(t *testing.T) {
+	t.Parallel()
+
+	f := &fakes{
+		caller:           fullCaller,
+		supervisedGroups: func(context.Context) ([]GroupRecord, error) { return twoGroups(), nil },
+	}
+
+	_, err := newService(f).LiveGroup(context.Background(), 0)
+	require.NoError(t, err)
+	assert.Empty(t, f.leaderCalls, "the live view keeps its query budget; only the navigation names the leadership")
+}
+
+// TestListGroupsSortsWithTheInjectedCollation pins that the projection, not
+// the directory, orders the visible groups: bytewise comparison puts "Zebra"
+// ahead of "Äpfel", so the directory order cannot pass for the sorted one.
+func TestListGroupsSortsWithTheInjectedCollation(t *testing.T) {
+	t.Parallel()
+
+	names := func(groups []Group) []string {
+		result := make([]string, 0, len(groups))
+		for _, group := range groups {
+			result = append(result, group.Name)
+		}
+		return result
+	}
+	withCollation := func(f *fakes) Query {
+		return New(Dependencies{
+			Access: f, Groups: f, Roster: f, Presence: f, Planning: f, Transfers: f,
+			Settings: f, Calendar: f, ExcusedRequests: f, Collate: strings.Compare,
+		})
+	}
+
+	supervised := &fakes{caller: fullCaller, supervisedGroups: func(context.Context) ([]GroupRecord, error) { return twoGroups(), nil }}
+	got, err := withCollation(supervised).ListGroups(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, []string{"Zebra", "Äpfel"}, names(got), "the supervised groups follow the collation")
+
+	overview := &fakes{
+		caller: func(context.Context) (Caller, error) {
+			return Caller{CanReadGroups: true, OperationalOverview: true}, nil
+		},
+		tenantGroups: func(context.Context) ([]GroupRecord, error) {
+			return append(twoGroups(), GroupRecord{ID: 3, Name: "Mitte"}), nil
+		},
+	}
+	got, err = withCollation(overview).ListGroups(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, []string{"Mitte", "Zebra", "Äpfel"}, names(got), "the tenant groups follow the collation")
 }
 
 func TestNewRejectsIncompleteWiring(t *testing.T) {
@@ -1088,4 +1197,19 @@ func TestBuildPhotoURLRewritesOnlyStoredUploads(t *testing.T) {
 		"non-upload URLs pass through untouched")
 	assert.Equal(t, "/api/students/5/photo/abc.jpg", buildPhotoURL(5, "/uploads/student-photos/abc.jpg"),
 		"stored upload paths are rewritten to the authenticated proxy")
+}
+
+// #3946: an Abholart set for today only reaches the Kinderkarte.
+func TestPickupTimesCarryTheDayAbholart(t *testing.T) {
+	t.Parallel()
+
+	students := []Student{{ID: 7, fullAccess: true}, {ID: 8, fullAccess: true}}
+	got := pickupTimes(students, map[int64]Pickup{
+		7: {Date: "2026-10-13", WeekdayName: "Dienstag", DayDepartureMode: "pickup"},
+		8: {Date: "2026-10-13", WeekdayName: "Dienstag"},
+	})
+
+	require.Len(t, got, 2)
+	assert.Equal(t, "pickup", got[0].DayDepartureMode)
+	assert.Empty(t, got[1].DayDepartureMode)
 }

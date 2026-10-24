@@ -339,7 +339,7 @@ Die Registry kennt **keine** Umgebungsvariablen; ein `Resolve*` liefert bei fehl
 | Einstellung | Env-Fallback | Beleg |
 |---|---|---|
 | `operations.student_daily_checkout_time` | `STUDENT_DAILY_CHECKOUT_TIME` | `backend/services/iot/checkin/checkout_gate.go:28-31` |
-| `security.ogs_device_pin` | `OGS_DEVICE_PIN` (nur wenn kein Settings-Service da ist) | `backend/auth/device/device_auth.go:235-246` |
+| `security.ogs_device_pin` | Kein Env-Fallback; Lesefehler und leere Werte lehnen ab (3841-b). | `backend/modules/devicefleet/internal/adapters/deviceauth/device_auth.go`, `validateDevicePIN` |
 | `enrollment.require_captcha`, `…captcha_secret_key`, `…captcha_site_key` | `ENROLLMENT_REQUIRE_CAPTCHA`, `ENROLLMENT_CAPTCHA_SECRET_KEY`, `ENROLLMENT_CAPTCHA_SITE_KEY` | `backend/services/enrollment/captcha_service.go:83,141,151` |
 | `invitations.guardian_token_expiry_hours` | eigene Variable | `backend/services/auth/guardian_invitation_service.go:139` |
 | Scheduler-Einstellungen | `CLEANUP_SCHEDULER_ENABLED`, `SESSION_END_SCHEDULER_ENABLED`, `SESSION_CLEANUP_*`, `STATUS_FLAG_CLEAR_ENABLED` u. a. | `backend/services/scheduler/scheduler.go:733-738,1160-1165,1272-1290,1696` |

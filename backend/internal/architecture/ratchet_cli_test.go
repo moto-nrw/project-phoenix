@@ -13,13 +13,15 @@ import (
 
 const legacyKey = "production|imports.forbidden|example.test/architecture-fixture/source|example.test/architecture-fixture/target"
 
-func TestAuditIncludesRuleIssuesAndDeduplicatesLegacyIssues(t *testing.T) {
+// Rules carry no issue (ADR 0057): the audit requests each distinct baseline
+// issue once and ignores the issue an older-epoch rule may still carry.
+func TestAuditDeduplicatesLegacyIssuesAndIgnoresRuleIssues(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name, response, want string
 		valid                bool
 	}{
-		{"open", `{"state":"open"}`, "2 open migration issue(s) cover 1 legacy violation(s) and 2 temporary rule(s)", true},
+		{"open", `{"state":"open"}`, "1 open migration issue(s) cover 2 legacy violation(s)\n", true},
 		{"closed", `{"state":"closed"}`, "is closed", false},
 		{"pull request", `{"state":"open","pull_request":{}}`, "is a pull request", false},
 		{"invalid response", `{`, "decode migration issue", false},
@@ -29,26 +31,25 @@ func TestAuditIncludesRuleIssuesAndDeduplicatesLegacyIssues(t *testing.T) {
 			requests := make(chan string, 8)
 			server := testpkg.NewHTTPTestServer(func(w testpkg.HTTPResponseWriter, r *testpkg.HTTPRequest) {
 				requests <- r.URL.Path
-				if strings.HasSuffix(r.URL.Path, "/2583") {
-					_, _ = w.Write([]byte(`{"state":"open"}`))
-				} else {
-					_, _ = w.Write([]byte(tc.response))
-				}
+				_, _ = w.Write([]byte(tc.response))
 			})
 			defer server.Close()
 			policy := mutatePolicy(t, readFile(t, fixturePath(t, "rules-stale.json")), func(doc map[string]any) {
 				rules := doc["rules"].([]any)
-				rules[0].(map[string]any)["issue"] = "https://github.com/moto-nrw/project-phoenix/issues/2583"
-				rules[1].(map[string]any)["issue"] = "https://github.com/moto-nrw/project-phoenix/issues/2736"
+				rules[0].(map[string]any)["issue"] = "https://github.com/moto-nrw/project-phoenix/issues/2736"
 			})
 			path := filepath.Join(t.TempDir(), "policy.json")
 			writeFile(t, path, policy)
-			output, err := runArchitecture(t, "audit-issues", "--policy", path, "--baseline", writeManifest(t, legacyRecord(2583)), "--api-url", server.URL)
+			manifest := legacyRecordWithTarget(2583, "example.test/architecture-fixture/other") + legacyRecord(2583)
+			output, err := runArchitecture(t, "audit-issues", "--policy", path, "--baseline", writeManifest(t, manifest), "--api-url", server.URL)
 			if (err == nil) != tc.valid || !strings.Contains(output, tc.want) {
 				t.Fatalf("audit result: %v\n%s; want %s", err, output, tc.want)
 			}
-			if len(requests) != 2 {
-				t.Fatalf("requests = %d, want one per distinct issue", len(requests))
+			if len(requests) != 1 {
+				t.Fatalf("requests = %d, want one for the one distinct baseline issue", len(requests))
+			}
+			if got := <-requests; !strings.HasSuffix(got, "/issues/2583") {
+				t.Fatalf("audit requested %s, want only the baseline issue 2583", got)
 			}
 		})
 	}
@@ -576,6 +577,69 @@ func TestCheckRequiresCandidateMigrationOwnership(t *testing.T) {
 			if tt.want == "" {
 				if err != nil {
 					t.Fatalf("valid migration rejected: %v\n%s", err, output)
+				}
+			} else if err == nil || !strings.Contains(output, tt.want) {
+				t.Fatalf("want %q, got %v\n%s", tt.want, err, output)
+			}
+		})
+	}
+}
+
+// A table a new migration renames keeps its write owner (ADR 0091). The old
+// name must be owned at the base and leave the policy, the new name must keep
+// the owner, and only a top-level ALTER TABLE ... RENAME TO counts.
+func TestCheckAcceptsARenamedTableOnlyWithItsOwner(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		name, sql, want string
+		owner           string
+		keepOld         bool
+	}{
+		{name: "rename keeps the owner", sql: `ALTER TABLE ghost.records RENAME TO entries`, owner: "module"},
+		{name: "rename with IF EXISTS and ONLY", sql: `ALTER TABLE IF EXISTS ONLY "ghost"."records" RENAME TO "entries"`, owner: "module"},
+		{name: "rename with a rollback back", sql: `ALTER TABLE ghost.records RENAME TO entries; ALTER TABLE ghost.entries RENAME TO records`, owner: "module"},
+		{name: "rename changes the owner", sql: `ALTER TABLE ghost.records RENAME TO entries`, owner: "migrations", want: "data object ghost.entries renamed from ghost.records changed write owner from module to migrations"},
+		{name: "old name stays in the policy", sql: `ALTER TABLE ghost.records RENAME TO entries`, owner: "module", keepOld: true, want: "data object ghost.entries renamed from ghost.records keeps the old name in the policy"},
+		{name: "unowned table renamed", sql: `ALTER TABLE ghost.unowned RENAME TO entries`, owner: "module", want: "renamed from ghost.unowned, which the base policy does not own"},
+		{name: "column rename", sql: `ALTER TABLE ghost.records RENAME COLUMN entries TO rows`, owner: "module", want: "data object ghost.entries was newly assigned to owner module"},
+		{name: "constraint rename", sql: `ALTER TABLE ghost.records RENAME CONSTRAINT records_pkey TO entries`, owner: "module", want: "data object ghost.entries was newly assigned to owner module"},
+		{name: "rename in a procedural body", sql: `DO $$ BEGIN ALTER TABLE ghost.records RENAME TO entries; END $$`, owner: "module", want: "data object ghost.entries was newly assigned to owner module"},
+		{name: "rename in a literal", sql: `SELECT 'ALTER TABLE ghost.records RENAME TO entries'`, owner: "module", want: "data object ghost.entries was newly assigned to owner module"},
+		{name: "unqualified rename", sql: `ALTER TABLE records RENAME TO entries`, owner: "module", want: "renamed data object must be schema-qualified"},
+		{name: "no rename", sql: `SELECT 1`, owner: "module", want: "data object ghost.entries was newly assigned to owner module"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			repo, _, migrationPolicy := ratchetRepositoryWithMigrationPackage(t, `package migrations
+ type rawDB struct{}
+ func (rawDB) NewRaw(string) {}
+ func historical(db rawDB) { db.NewRaw("CREATE TABLE ghost.records (id bigint)") }
+ `)
+			basePolicy := policyWithDataObject(t, migrationPolicy, "ghost.records", "module")
+			writeFile(t, filepath.Join(repo, "architecture", "policy.json"), basePolicy)
+			runGit(t, repo, "add", ".")
+			runGit(t, repo, "commit", "-qm", "own ghost.records")
+			baseRef := strings.TrimSpace(runGit(t, repo, "rev-parse", "HEAD"))
+
+			policy := mutatePolicy(t, basePolicy, func(document map[string]any) {
+				if tt.keepOld {
+					return
+				}
+				kept := []any{}
+				for _, object := range document["data_objects"].([]any) {
+					if object.(map[string]any)["name"] != "ghost.records" {
+						kept = append(kept, object)
+					}
+				}
+				document["data_objects"] = kept
+			})
+			policy = policyWithDataObject(t, policy, "ghost.entries", tt.owner)
+			writeFile(t, filepath.Join(repo, "architecture", "policy.json"), policy)
+			writeFile(t, filepath.Join(repo, "database", "migrations", "001_rename.go"), fmt.Sprintf("package migrations\nfunc rename(db rawDB) { db.NewRaw(%q) }\n", tt.sql))
+			output, err := runRepositoryCheck(t, repo, baseRef)
+			if tt.want == "" {
+				if err != nil {
+					t.Fatalf("rename that keeps the owner rejected: %v\n%s", err, output)
 				}
 			} else if err == nil || !strings.Contains(output, tt.want) {
 				t.Fatalf("want %q, got %v\n%s", tt.want, err, output)

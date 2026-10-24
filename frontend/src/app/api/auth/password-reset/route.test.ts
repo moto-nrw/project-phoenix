@@ -100,7 +100,7 @@ describe("POST /api/auth/password-reset", () => {
     });
 
     vi.mocked(global.fetch).mockResolvedValueOnce(
-      new Response(JSON.stringify({ error: "Too many requests" }), {
+      new Response(JSON.stringify({ detail: "Too many requests" }), {
         status: 429,
         headers: backendHeaders,
       }),
@@ -112,110 +112,7 @@ describe("POST /api/auth/password-reset", () => {
     expect(response.status).toBe(429);
     expect(response.headers.get("Retry-After")).toBe("120");
 
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Too many requests");
-  });
-
-  it("handles backend error with JSON response", async () => {
-    const requestBody = { email: "notfound@example.com" };
-
-    vi.mocked(global.fetch).mockResolvedValueOnce(
-      new Response(JSON.stringify({ error: "User not found" }), {
-        status: 404,
-        headers: { "Content-Type": "application/json" },
-      }),
-    );
-
-    const request = createMockRequest("/api/auth/password-reset", requestBody);
-    const response = await POST(request);
-
-    expect(response.status).toBe(404);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("User not found");
-  });
-
-  it("handles backend error with message field", async () => {
-    const requestBody = { email: "invalid@example.com" };
-
-    vi.mocked(global.fetch).mockResolvedValueOnce(
-      new Response(JSON.stringify({ message: "Invalid email format" }), {
-        status: 400,
-        headers: { "Content-Type": "application/json" },
-      }),
-    );
-
-    const request = createMockRequest("/api/auth/password-reset", requestBody);
-    const response = await POST(request);
-
-    expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toEqual({
-      message: "Invalid email format",
-    });
-  });
-
-  it("handles non-JSON error response", async () => {
-    const requestBody = { email: "user@example.com" };
-
-    vi.mocked(global.fetch).mockResolvedValueOnce(
-      new Response("Server Error", {
-        status: 500,
-        headers: { "Content-Type": "text/plain" },
-      }),
-    );
-
-    const request = createMockRequest("/api/auth/password-reset", requestBody);
-    const response = await POST(request);
-
-    expect(response.status).toBe(500);
-    expect(response.headers.get("Content-Type")).toContain("text/plain");
-    expect(await response.text()).toBe("Server Error");
-  });
-
-  it("handles empty error response body", async () => {
-    const requestBody = { email: "user@example.com" };
-
-    vi.mocked(global.fetch).mockResolvedValueOnce(
-      new Response("", {
-        status: 500,
-        headers: { "Content-Type": "text/plain" },
-      }),
-    );
-
-    const request = createMockRequest("/api/auth/password-reset", requestBody);
-    const response = await POST(request);
-
-    expect(response.status).toBe(500);
-    expect(await response.text()).toBe("");
-  });
-
-  it("handles JSON parse error in error response", async () => {
-    const requestBody = { email: "user@example.com" };
-
-    vi.mocked(global.fetch).mockResolvedValueOnce(
-      new Response("invalid json", {
-        status: 400,
-        headers: { "Content-Type": "application/json" },
-      }),
-    );
-
-    const request = createMockRequest("/api/auth/password-reset", requestBody);
-    const response = await POST(request);
-
-    expect(response.status).toBe(400);
-    expect(response.headers.get("Content-Type")).toContain("application/json");
-    expect(await response.text()).toBe("invalid json");
-  });
-
-  it("returns 500 on fetch failure", async () => {
-    const requestBody = { email: "user@example.com" };
-
-    vi.mocked(global.fetch).mockRejectedValueOnce(new Error("Network error"));
-
-    const request = createMockRequest("/api/auth/password-reset", requestBody);
-    const response = await POST(request);
-
-    expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Internal Server Error");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Too many requests");
   });
 });

@@ -6,7 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/moto-nrw/project-phoenix/api"
+
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -18,8 +19,9 @@ import (
 func TestSessionEndPreservesAttendanceAndStaffAcrossTenants(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	module, err := services.NewActiveTestModule(db, testpkg.TenantRuntime(t, db))
+	_, err := api.NewActiveTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
+	moduleSessionEnd := api.NewActiveTestSessionEnd(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	type fixture struct{ tenantID, groupID, instanceID int64 }
 	create := func(t *testing.T, label string) fixture {
 		t.Helper()
@@ -78,7 +80,7 @@ func TestSessionEndPreservesAttendanceAndStaffAcrossTenants(t *testing.T) {
 	}
 	abort := errors.New("abort after real session-end owners")
 	err = testpkg.WithTenantTx(t, testpkg.Ctx(t), db, own.tenantID, func(txCtx context.Context, tx bun.Tx) error {
-		result, err := module.SessionEnd.EndSession(txCtx, own.groupID)
+		result, err := moduleSessionEnd.SessionEnd.EndSession(txCtx, own.groupID)
 		require.NoError(t, err)
 		require.Equal(t, 1, result.StudentsCheckedOut)
 		var status string
@@ -90,7 +92,7 @@ func TestSessionEndPreservesAttendanceAndStaffAcrossTenants(t *testing.T) {
 	require.Equal(t, ownBefore, snapshot(own.tenantID), "all owner writes must roll back")
 	require.Equal(t, foreignBefore, snapshot(foreign.tenantID))
 
-	_, err = module.SessionEnd.EndSession(testpkg.Ctx(t), own.groupID)
+	_, err = moduleSessionEnd.SessionEnd.EndSession(testpkg.Ctx(t), own.groupID)
 	require.NoError(t, err)
 	ownAfter := snapshot(own.tenantID)
 	for _, table := range []string{"schedule.instance_staff", "active.attendance"} {
@@ -99,4 +101,12 @@ func TestSessionEndPreservesAttendanceAndStaffAcrossTenants(t *testing.T) {
 	require.Equal(t, foreignBefore, snapshot(foreign.tenantID), "successful end must preserve every foreign row")
 	require.Equal(t, "completed", testpkg.InstanceStatus(t, db, own.instanceID))
 	require.Equal(t, "active", testpkg.InstanceStatus(t, db, foreign.instanceID))
+
+	// Moved from the opt-in TestSessionEndRuntimeEvidence (#4426): ending the
+	// ended session is refused without writing a row.
+	counter := testpkg.CaptureQueriesForContext(t, db)
+	_, err = moduleSessionEnd.SessionEnd.EndSession(counter.Context(testpkg.Ctx(t)), own.groupID)
+	require.EqualError(t, err, "active group session already ended")
+	require.Zero(t, counter.WriteRows(), "a refused end must not write")
+	require.Equal(t, ownAfter, snapshot(own.tenantID))
 }

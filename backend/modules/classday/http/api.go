@@ -17,9 +17,8 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/classday"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -42,11 +41,11 @@ func NewResource(capability classday.ClassDay, logger *slog.Logger) *Resource {
 // Since the cutover (#2207 PR 3) this is the ONLY mount: the tenant-portal
 // twin under /api/class-day is gone, so a Lehrkraft reaches the view through
 // moto schule and nowhere else.
-func (rs *Resource) SchoolRouter() chi.Router {
+func (rs *Resource) SchoolRouter(protectedSchoolRoutes func(chi.Router, func(chi.Router, common.Middleware))) chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
-	common.ProtectedSchoolRoutes(r, func(r chi.Router, withTx common.Middleware) {
+	protectedSchoolRoutes(r, func(r chi.Router, withTx common.Middleware) {
 		rs.registerRoutes(r, withTx)
 	})
 
@@ -67,6 +66,11 @@ func (rs *Resource) registerRoutes(r chi.Router, withTx common.Middleware) {
 	r.With(write, withTx).Get("/arrival-exceptions/block-start", rs.getArrivalExceptionBlockStart)
 	r.With(write, withTx).Put("/arrival-exceptions/{schoolClass}/{date}", rs.putArrivalException)
 	r.With(write, withTx).Delete("/arrival-exceptions/{schoolClass}/{date}", rs.deleteArrivalException)
+
+	// Morning attendance (#4790): the Lehrkraft marks today's school morning
+	// of an assigned class; the setting and the day are checked behind it.
+	morningWrite := common.RequiresPermission(permissions.ClassDayMorningAttendanceWrite)
+	r.With(morningWrite, withTx).Put("/morning-attendance/{schoolClass}/{date}", rs.putMorningAttendance)
 }
 
 // ClassesResponse lists the caller's assigned school classes.
@@ -84,7 +88,7 @@ type ClassesResponse struct {
 
 // getMyClasses returns the school classes assigned to the caller.
 func (rs *Resource) getMyClasses(w http.ResponseWriter, r *http.Request) {
-	classes, err := rs.ClassDay.AssignedClasses(r.Context())
+	classes, err := rs.ClassDay.GetMySchoolClasses(r.Context())
 	if err != nil {
 		rs.logger.Error("class day: load assigned classes failed",
 			"error", err.Error(),
@@ -112,15 +116,15 @@ func (rs *Resource) getMyClasses(w http.ResponseWriter, r *http.Request) {
 // Query: class (optional when exactly the first assignment should be shown),
 // date (YYYY-MM-DD, default today).
 func (rs *Resource) getClassDay(w http.ResponseWriter, r *http.Request) {
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	if claims.ID == 0 {
 		common.RenderError(w, r, common.ErrorUnauthorized(errors.New("invalid token")))
 		return
 	}
 
-	date := timezone.TodayDate()
+	date := calendar.TodayDate()
 	if raw := strings.TrimSpace(r.URL.Query().Get("date")); raw != "" {
-		parsed, err := timezone.ParseDate(raw)
+		parsed, err := calendar.ParseDate(raw)
 		if err != nil {
 			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("ungültiges Datum, erwartet JJJJ-MM-TT")))
 			return
@@ -148,6 +152,10 @@ func (rs *Resource) getClassDay(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
+	// The projection says whether the day and the school allow the morning
+	// attendance; the token decides whether this caller may write it.
+	report.CanRecordMorningAttendance = report.CanRecordMorningAttendance &&
+		common.HasPermission(permissions.ClassDayMorningAttendanceWrite, sessiontoken.PermissionsFromCtx(r.Context()))
 
 	common.Respond(w, r, http.StatusOK, report, "Class day retrieved successfully")
 }

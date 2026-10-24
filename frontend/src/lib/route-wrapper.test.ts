@@ -1,25 +1,17 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
 import {
-  isStringParam,
   createGetHandler,
   createPostHandler,
   createPutHandler,
   createDeleteHandler,
 } from "./route-wrapper.server";
 import { mockSessionData } from "~/test/mocks/next-auth";
-
-// ============================================================================
-// Types
-// ============================================================================
-
-/**
- * Extended session type with token property used in this project
- */
-interface ExtendedSession extends Session {
-  user: Session["user"] & { token?: string };
-}
+import { ApiResponseError } from "./api-response-error.server";
+import {
+  type ExtendedSession,
+  createMockContext,
+} from "~/test/route-test-helpers";
 
 // ============================================================================
 // Mocks (using vi.hoisted for proper hoisting)
@@ -42,22 +34,17 @@ vi.mock("../server/auth", () => ({
 }));
 
 // Mock api-helpers module
-vi.mock("./api-helpers.server", () => ({
-  apiGet: mockApiGet,
-  apiPost: mockApiPost,
-  apiPut: mockApiPut,
-  apiDelete: mockApiDelete,
-  handleApiError: vi.fn((error: unknown) => {
-    const message =
-      error instanceof Error ? error.message : "Internal Server Error";
-    const status = message.includes("(401)")
-      ? 401
-      : message.includes("(404)")
-        ? 404
-        : 500;
-    return new Response(JSON.stringify({ error: message }), { status });
-  }),
-}));
+vi.mock("./api-helpers.server", async () => {
+  const { mockHandleApiError } =
+    await import("~/test/helpers/handle-api-error");
+  return {
+    apiGet: mockApiGet,
+    apiPost: mockApiPost,
+    apiPut: mockApiPut,
+    apiDelete: mockApiDelete,
+    handleApiError: vi.fn(mockHandleApiError),
+  };
+});
 
 // ============================================================================
 // Test Helpers
@@ -96,15 +83,6 @@ function createMockRequest(
 }
 
 /**
- * Creates a mock route context with params (Next.js 15+ pattern)
- */
-function createMockContext(
-  params: Record<string, string | string[] | undefined> = {},
-) {
-  return { params: Promise.resolve(params) };
-}
-
-/**
  * Helper to parse JSON response with proper typing
  */
 async function parseJsonResponse<T>(response: Response): Promise<T> {
@@ -121,7 +99,8 @@ interface ApiSuccessResponse<T = unknown> {
 }
 
 interface ApiErrorResponse {
-  error: string;
+  status: number;
+  detail: string;
   code?: string;
 }
 
@@ -129,40 +108,6 @@ interface ApiErrorResponse {
  * Default authenticated session mock
  */
 const defaultSession = mockSessionData() as ExtendedSession;
-
-// ============================================================================
-// Tests: isStringParam (pure function)
-// ============================================================================
-
-describe("isStringParam", () => {
-  it("returns true for string values", () => {
-    expect(isStringParam("hello")).toBe(true);
-    expect(isStringParam("")).toBe(true);
-    expect(isStringParam("123")).toBe(true);
-  });
-
-  it("returns false for numbers", () => {
-    expect(isStringParam(123)).toBe(false);
-    expect(isStringParam(0)).toBe(false);
-    expect(isStringParam(-1)).toBe(false);
-  });
-
-  it("returns false for null and undefined", () => {
-    expect(isStringParam(null)).toBe(false);
-    expect(isStringParam(undefined)).toBe(false);
-  });
-
-  it("returns false for objects and arrays", () => {
-    expect(isStringParam({})).toBe(false);
-    expect(isStringParam([])).toBe(false);
-    expect(isStringParam(["a", "b"])).toBe(false);
-  });
-
-  it("returns false for booleans", () => {
-    expect(isStringParam(true)).toBe(false);
-    expect(isStringParam(false)).toBe(false);
-  });
-});
 
 // ============================================================================
 // Tests: createGetHandler
@@ -187,7 +132,11 @@ describe("createGetHandler", () => {
 
     expect(response.status).toBe(401);
     const json = await parseJsonResponse<unknown>(response);
-    expect(json).toEqual({ error: "Unauthorized" });
+    expect(json).toMatchObject({
+      status: 401,
+      detail: "Unauthorized",
+      code: "general.permission",
+    });
   });
 
   it("returns 401 when session has no token", async () => {
@@ -295,7 +244,8 @@ describe("createGetHandler", () => {
 
     expect(response.status).toBe(500);
     const json = await parseJsonResponse<ApiErrorResponse>(response);
-    expect(json.error).toContain("Database connection failed");
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toContain("Database connection failed");
   });
 });
 
@@ -525,7 +475,7 @@ describe("Token Refresh and Retry Logic", () => {
     const mockHandler = vi.fn().mockImplementation(() => {
       callCount++;
       if (callCount === 1) {
-        throw new Error("API error (401): Unauthorized");
+        throw new ApiResponseError(401, "Unauthorized");
       }
       return { id: 1, name: "Success after retry" };
     });
@@ -547,12 +497,12 @@ describe("Token Refresh and Retry Logic", () => {
     expect(json.data.name).toBe("Success after retry");
   });
 
-  it("returns TOKEN_EXPIRED when token was not actually refreshed", async () => {
+  it("returns the 401 envelope when token was not actually refreshed", async () => {
     mockAuth.mockResolvedValueOnce(defaultSession);
 
     const mockHandler = vi
       .fn()
-      .mockRejectedValue(new Error("API error (401): Unauthorized"));
+      .mockRejectedValue(new ApiResponseError(401, "Unauthorized"));
 
     // Second auth call returns same token (not refreshed)
     mockAuth.mockResolvedValueOnce(defaultSession);
@@ -563,15 +513,19 @@ describe("Token Refresh and Retry Logic", () => {
 
     expect(response.status).toBe(401);
     const json = await parseJsonResponse<ApiErrorResponse>(response);
-    expect(json.code).toBe("TOKEN_EXPIRED");
+    expect(json).toMatchObject({
+      status: 401,
+      detail: "Token expired",
+      code: "general.permission",
+    });
   });
 
-  it("returns TOKEN_EXPIRED when retry with refreshed token also fails", async () => {
+  it("returns the 401 envelope when retry with refreshed token also fails", async () => {
     mockAuth.mockResolvedValueOnce(defaultSession);
 
     const mockHandler = vi
       .fn()
-      .mockRejectedValue(new Error("API error (401): Unauthorized"));
+      .mockRejectedValue(new ApiResponseError(401, "Unauthorized"));
 
     // Second auth call returns refreshed token
     mockAuth.mockResolvedValueOnce({
@@ -585,7 +539,68 @@ describe("Token Refresh and Retry Logic", () => {
 
     expect(response.status).toBe(401);
     const json = await parseJsonResponse<ApiErrorResponse>(response);
-    expect(json.code).toBe("TOKEN_EXPIRED");
+    expect(json).toMatchObject({
+      status: 401,
+      detail: "Token expired",
+      code: "general.permission",
+    });
+  });
+
+  it("retries a body handler (PUT) with the refreshed token and the same body", async () => {
+    mockAuth.mockResolvedValueOnce(defaultSession);
+    mockAuth.mockResolvedValueOnce({
+      user: { id: "1", token: "refreshed-token", name: "Test User" },
+      expires: "2099-01-01",
+    });
+    const mockHandler = vi
+      .fn()
+      .mockRejectedValueOnce(new ApiResponseError(401, "Unauthorized"))
+      .mockResolvedValueOnce({ id: 7, active: true });
+
+    const handler = createPutHandler(mockHandler);
+    const request = createMockRequest("/api/test/7", {
+      method: "PUT",
+      body: { active: true },
+    });
+    const response = await handler(request, createMockContext({ id: "7" }));
+
+    expect(mockHandler).toHaveBeenCalledTimes(2);
+    expect(mockHandler.mock.calls[0]?.slice(1, 3)).toEqual([
+      { active: true },
+      "test-token",
+    ]);
+    expect(mockHandler.mock.calls[1]?.slice(1, 3)).toEqual([
+      { active: true },
+      "refreshed-token",
+    ]);
+    expect(response.status).toBe(200);
+    const json =
+      await parseJsonResponse<ApiSuccessResponse<{ id: number }>>(response);
+    expect(json.data).toEqual({ id: 7, active: true });
+  });
+
+  it("returns the 401 envelope from a body handler (PUT) when the token was not refreshed", async () => {
+    mockAuth.mockResolvedValueOnce(defaultSession);
+    mockAuth.mockResolvedValueOnce(defaultSession);
+    const mockHandler = vi
+      .fn()
+      .mockRejectedValue(new ApiResponseError(401, "Unauthorized"));
+
+    const handler = createPutHandler(mockHandler);
+    const request = createMockRequest("/api/test/7", {
+      method: "PUT",
+      body: { active: true },
+    });
+    const response = await handler(request, createMockContext({ id: "7" }));
+
+    expect(mockHandler).toHaveBeenCalledOnce();
+    expect(response.status).toBe(401);
+    const json = await parseJsonResponse<ApiErrorResponse>(response);
+    expect(json).toMatchObject({
+      status: 401,
+      detail: "Token expired",
+      code: "general.permission",
+    });
   });
 
   it("does not retry for non-401 errors", async () => {
@@ -593,7 +608,7 @@ describe("Token Refresh and Retry Logic", () => {
 
     const mockHandler = vi
       .fn()
-      .mockRejectedValue(new Error("API error (500): Internal Server Error"));
+      .mockRejectedValue(new ApiResponseError(500, "Internal Server Error"));
 
     const handler = createGetHandler(mockHandler);
     const request = createMockRequest("/api/test");

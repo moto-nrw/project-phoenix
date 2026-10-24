@@ -23,7 +23,6 @@ vi.mock("~/lib/parent-api", () => ({
   // these fixtures, so the section renders nothing.
   listAnnouncementAttachments: vi.fn(() => Promise.resolve([])),
   announcementAttachmentDownloadUrl: vi.fn(() => "/download"),
-  ParentApiError: class extends Error {},
 }));
 
 const mocked = vi.mocked(listAnnouncements);

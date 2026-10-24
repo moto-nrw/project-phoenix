@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
 )
@@ -36,6 +37,7 @@ type AccountProvisioning struct {
 	profiles  ports.CaregiverProfiles
 	passwords ports.PasswordPolicy
 	runtime   ports.Runtime
+	attach    func(context.Context) context.Context
 	logger    *slog.Logger
 }
 
@@ -50,7 +52,9 @@ type AccountProvisioningDependencies struct {
 	Profiles  ports.CaregiverProfiles
 	Passwords ports.PasswordPolicy
 	Runtime   ports.Runtime
-	Logger    *slog.Logger
+	// Attach binds the composed unit of work ahead of every public flow.
+	Attach func(context.Context) context.Context
+	Logger *slog.Logger
 }
 
 func NewAccountProvisioning(deps AccountProvisioningDependencies) (*AccountProvisioning, error) {
@@ -69,7 +73,7 @@ func NewAccountProvisioning(deps AccountProvisioningDependencies) (*AccountProvi
 	return &AccountProvisioning{
 		accounts: deps.Accounts, logins: deps.Logins, roleStore: deps.RoleStore, roles: deps.Roles,
 		policy: deps.Policy, identity: deps.Identity, profiles: deps.Profiles, passwords: deps.Passwords,
-		runtime: deps.Runtime, logger: logger,
+		runtime: deps.Runtime, attach: deps.Attach, logger: logger,
 	}, nil
 }
 
@@ -79,33 +83,32 @@ func NewAccountProvisioning(deps AccountProvisioningDependencies) (*AccountProvi
 // Without a tenant only the account is created, on the administrative
 // transaction: that is the tenantless path the tests and the CLI take, and
 // there is no mapping, role or identity to write.
-func (s *AccountProvisioning) RegisterSchoolAccount(ctx context.Context, request domain.SchoolAccountRegistration) (domain.ProvisionedAccount, error) {
+func (s *AccountProvisioning) RegisterSchoolAccount(ctx context.Context, registration identityaccess.SchoolAccountRegistration) (_ identityaccess.ProvisionedAccount, err error) {
+	if s == nil {
+		return identityaccess.ProvisionedAccount{}, identityaccess.ErrAccountProvisioningUnavailable
+	}
+	defer func() { err = provisioningError(err) }()
+	ctx = bindRuntime(s.attach, ctx)
+	request := domainSchoolAccountRegistration(registration)
 	email, err := domain.NormalizeAccountEmail(request.Email)
 	if err != nil {
-		return domain.ProvisionedAccount{}, failed(opRegisterAccount, err)
+		return identityaccess.ProvisionedAccount{}, failed(opRegisterAccount, err)
 	}
 	username := strings.TrimSpace(request.Username)
 
 	if err := s.passwords.ValidatePasswordStrength(request.Password); err != nil {
-		return domain.ProvisionedAccount{}, failed(opRegisterAccount, err)
+		return identityaccess.ProvisionedAccount{}, failed(opRegisterAccount, err)
 	}
 	if err := s.ensureCredentialsFree(ctx, email, username); err != nil {
-		return domain.ProvisionedAccount{}, err
+		return identityaccess.ProvisionedAccount{}, err
 	}
-	if assignsRole(request.RoleID) && request.TenantID <= 0 {
-		return domain.ProvisionedAccount{}, failed(opRegisterAccount, domain.ErrTenantRequiredForRoleAssignment)
-	}
-	var role *domain.ManagedRole
-	if assignsRole(request.RoleID) {
-		resolved, err := s.resolveAssignableRole(ctx, *request.RoleID, request.TenantID)
-		if err != nil {
-			return domain.ProvisionedAccount{}, failed(opRegisterAccount, err)
-		}
-		role = &resolved
+	role, err := s.registrationRole(ctx, request)
+	if err != nil {
+		return identityaccess.ProvisionedAccount{}, err
 	}
 	hash, hashErr := s.passwords.HashPassword(request.Password)
 	if hashErr != nil {
-		return domain.ProvisionedAccount{}, failed(opHashPassword, hashErr)
+		return identityaccess.ProvisionedAccount{}, failed(opHashPassword, hashErr)
 	}
 	newAccount := domain.NewSchoolAccount{Email: email, Username: username, PasswordHash: hash}
 
@@ -117,9 +120,9 @@ func (s *AccountProvisioning) RegisterSchoolAccount(ctx context.Context, request
 			return err
 		})
 		if insertErr != nil {
-			return domain.ProvisionedAccount{}, insertErr
+			return identityaccess.ProvisionedAccount{}, insertErr
 		}
-		return domain.ProvisionedAccount{Account: created}, nil
+		return publicProvisionedAccount(domain.ProvisionedAccount{Account: created}), nil
 	}
 
 	var result domain.ProvisionedAccount
@@ -128,38 +131,29 @@ func (s *AccountProvisioning) RegisterSchoolAccount(ctx context.Context, request
 	// matches the transaction's tenant, so a code bug cannot silently create
 	// a cross-tenant role assignment.
 	err = s.runtime.WithTenantTx(ctx, request.TenantID, func(txCtx context.Context) error {
-		account, _, insertErr := s.accounts.InsertSchoolAccount(txCtx, newAccount)
-		if insertErr != nil {
-			return insertErr
-		}
-		if _, mappingErr := s.accounts.InsertTenantMappingIfAbsent(txCtx, account.ID, request.TenantID); mappingErr != nil {
-			return fmt.Errorf("failed to create account-tenant mapping: %w", mappingErr)
-		}
-		if assignsRole(request.RoleID) {
-			if _, _, roleErr := s.roleStore.AssignAccountRole(txCtx, account.ID, *request.RoleID, request.TenantID); roleErr != nil {
-				return fmt.Errorf("failed to assign role to account: %w", roleErr)
-			}
-		}
-		provisioned, identityErr := s.provisionIdentity(txCtx, account.ID, request.TenantID, role, request.Identity)
-		if identityErr != nil {
-			return identityErr
-		}
-		result = domain.ProvisionedAccount{Account: account, Identity: provisioned}
-		return nil
+		var err error
+		result, err = s.insertTenantAccount(txCtx, request, newAccount, role)
+		return err
 	})
 	if err != nil {
-		return domain.ProvisionedAccount{}, err
+		return identityaccess.ProvisionedAccount{}, err
 	}
-	return result, nil
+	return publicProvisionedAccount(result), nil
 }
 
 // LinkSchoolAccount gives an existing account access to the school and
 // provisions the school identity its role requires, in one transaction. The
 // credential is never touched.
-func (s *AccountProvisioning) LinkSchoolAccount(ctx context.Context, request domain.SchoolAccountLink) (domain.ProvisionedAccount, error) {
+func (s *AccountProvisioning) LinkSchoolAccount(ctx context.Context, link identityaccess.SchoolAccountLink) (_ identityaccess.ProvisionedAccount, err error) {
+	if s == nil {
+		return identityaccess.ProvisionedAccount{}, identityaccess.ErrAccountProvisioningUnavailable
+	}
+	defer func() { err = provisioningError(err) }()
+	ctx = bindRuntime(s.attach, ctx)
+	request := domainSchoolAccountLink(link)
 	email := normalizeEmail(request.Email)
 	if request.TenantID <= 0 {
-		return domain.ProvisionedAccount{}, failed(opLinkAccount, domain.ErrTenantRequiredForRoleAssignment)
+		return identityaccess.ProvisionedAccount{}, failed(opLinkAccount, domain.ErrTenantRequiredForRoleAssignment)
 	}
 
 	// Same role policy as operator-led school access: no guardian (that is
@@ -169,88 +163,66 @@ func (s *AccountProvisioning) LinkSchoolAccount(ctx context.Context, request dom
 	if assignsRole(request.RoleID) {
 		resolved, err := s.resolveAssignableRole(ctx, *request.RoleID, request.TenantID)
 		if err != nil {
-			return domain.ProvisionedAccount{}, failed(opLinkAccount, err)
+			return identityaccess.ProvisionedAccount{}, failed(opLinkAccount, err)
 		}
 		role = &resolved
 	}
 
-	account, found, _, err := s.logins.FindLoginAccountByEmail(ctx, email)
+	account, found, _, err := findLoginAccountByEmail(ctx, s.runtime, s.logins, email)
 	if err != nil || !found {
-		return domain.ProvisionedAccount{}, failed(opLinkAccount, domain.ErrAccountNotFound)
+		return identityaccess.ProvisionedAccount{}, failed(opLinkAccount, domain.ErrAccountNotFound)
 	}
 	if !account.Active {
-		return domain.ProvisionedAccount{}, failed(opLinkAccount, domain.ErrAccountInactive)
+		return identityaccess.ProvisionedAccount{}, failed(opLinkAccount, identityaccess.ErrAccountInactive)
 	}
 
 	var identity *domain.SchoolIdentity
 	err = s.runtime.WithTenantTx(ctx, request.TenantID, func(txCtx context.Context) error {
-		if _, mappingErr := s.accounts.InsertTenantMappingIfAbsent(txCtx, account.ID, request.TenantID); mappingErr != nil {
-			return fmt.Errorf("failed to create account-tenant mapping: %w", mappingErr)
-		}
-		// Unlike a registration this account already exists, and it may
-		// already carry an identity at this school — from an earlier link, or
-		// from a revoke that deliberately left person/staff/teacher behind.
-		// Handing it the Lehrkraft role while that identity holds a live
-		// caregiver profile strands users.teachers and its group supervisions
-		// under a JWT that only carries class_day permissions (#1772). The
-		// same rule the tenant RBAC endpoint and both operator paths apply,
-		// so this endpoint cannot be the way around them.
-		if role != nil && s.policy.IsLehrkraftSystemRole(role.Facts()) {
-			hasProfile, profileErr := s.profiles.HasLiveCaregiverProfile(txCtx, account.ID)
-			if profileErr != nil {
-				return profileErr
-			}
-			if hasProfile {
-				return domain.ErrRoleLehrkraftCaregiverProfile
-			}
-		}
-		if assignsRole(request.RoleID) {
-			if _, _, roleErr := s.roleStore.AssignAccountRole(txCtx, account.ID, *request.RoleID, request.TenantID); roleErr != nil {
-				return fmt.Errorf("failed to assign role to account: %w", roleErr)
-			}
-		}
-		provisioned, identityErr := s.provisionIdentity(txCtx, account.ID, request.TenantID, role, request.Identity)
-		if identityErr != nil {
-			return identityErr
-		}
-		identity = provisioned
-		return nil
+		var err error
+		identity, err = s.linkTenantAccount(txCtx, request, account.ID, role)
+		return err
 	})
 	if err != nil {
 		// Reported as the caller's own error, unwrapped: prefixing "link
 		// failed" onto a German sentence the operator is meant to read makes
 		// it noise.
-		if domain.IsSchoolIdentityRequestError(err) || errors.Is(err, domain.ErrRoleLehrkraftCaregiverProfile) {
-			return domain.ProvisionedAccount{}, failed(opLinkAccount, err)
+		if domain.IsSchoolIdentityRequestError(err) || errors.Is(err, identityaccess.ErrRoleLehrkraftCaregiverProfile) {
+			return identityaccess.ProvisionedAccount{}, failed(opLinkAccount, err)
 		}
-		return domain.ProvisionedAccount{}, failed(opLinkAccount, fmt.Errorf("link failed: %w", err))
+		return identityaccess.ProvisionedAccount{}, failed(opLinkAccount, fmt.Errorf("link failed: %w", err))
 	}
 
 	s.logger.Info("account linked to tenant",
 		slog.Int64("account_id", account.ID),
 		slog.Int64("tenant_id", request.TenantID))
 
-	return domain.ProvisionedAccount{
+	return publicProvisionedAccount(domain.ProvisionedAccount{
 		Account: domain.RegisteredAccount{
 			ID: account.ID, Email: account.Email, Username: account.Username, Active: account.Active,
 		},
 		Identity: identity,
-	}, nil
+	}), nil
 }
 
 // ensureCredentialsFree refuses a registration for an address or a name that
 // already belongs to an account, at any school: both columns are unique
 // platform-wide.
 func (s *AccountProvisioning) ensureCredentialsFree(ctx context.Context, email, username string) error {
-	if _, found, _, err := s.logins.FindLoginAccountByEmail(ctx, email); err != nil {
+	return globalIdentityRead(ctx, s.runtime, func(txCtx context.Context) error {
+		return s.ensureCredentialsFreeInTransaction(txCtx, email, username)
+	})
+}
+
+func (s *AccountProvisioning) ensureCredentialsFreeInTransaction(ctx context.Context, email, username string) error {
+	if _, found, _, err := findLoginAccountByEmail(ctx, s.runtime, s.logins, email); err != nil {
 		return failed(opRegisterAccount, err)
 	} else if found {
-		return failed(opRegisterAccount, domain.ErrEmailAlreadyExists)
+		return failed(opRegisterAccount, identityaccess.ErrEmailAlreadyExists)
 	}
 	if _, found, _, err := s.accounts.FindLoginAccountByUsername(ctx, username); err != nil {
 		return failed(opRegisterAccount, err)
 	} else if found {
-		return failed(opRegisterAccount, domain.ErrUsernameAlreadyExists)
+		return failed(opRegisterAccount, identityaccess.ErrUsernameAlreadyExists)
 	}
 	return nil
 }
@@ -300,7 +272,7 @@ func (s *AccountProvisioning) provisionIdentity(
 	if role == nil || identity == nil {
 		return nil, nil
 	}
-	provisioned, err := s.identity.EnsureSchoolIdentity(ctx, domain.SchoolIdentityInput{
+	provisioned, err := s.identity.EnsureSchoolIdentityChain(ctx, domain.SchoolIdentityInput{
 		AccountID:    accountID,
 		TenantID:     tenantID,
 		Role:         role.Facts(),
@@ -318,3 +290,146 @@ func (s *AccountProvisioning) provisionIdentity(
 func assignsRole(roleID *int64) bool { return roleID != nil && *roleID > 0 }
 
 func normalizeEmail(email string) string { return strings.TrimSpace(strings.ToLower(email)) }
+
+func (s *AccountProvisioning) insertTenantAccount(txCtx context.Context, request domain.SchoolAccountRegistration, newAccount domain.NewSchoolAccount, role *domain.ManagedRole) (result domain.ProvisionedAccount, err error) {
+	account, _, insertErr := s.accounts.InsertSchoolAccount(txCtx, newAccount)
+	if insertErr != nil {
+		return result, insertErr
+	}
+	if _, mappingErr := s.accounts.InsertTenantMappingIfAbsent(txCtx, account.ID, request.TenantID); mappingErr != nil {
+		return result, fmt.Errorf("failed to create account-tenant mapping: %w", mappingErr)
+	}
+	if assignsRole(request.RoleID) {
+		if _, _, roleErr := s.roleStore.AssignAccountRole(txCtx, account.ID, *request.RoleID, request.TenantID); roleErr != nil {
+			return result, fmt.Errorf("failed to assign role to account: %w", roleErr)
+		}
+	}
+	provisioned, identityErr := s.provisionIdentity(txCtx, account.ID, request.TenantID, role, request.Identity)
+	if identityErr != nil {
+		return result, identityErr
+	}
+	result = domain.ProvisionedAccount{Account: account, Identity: provisioned}
+	return result, nil
+}
+
+func (s *AccountProvisioning) linkTenantAccount(txCtx context.Context, request domain.SchoolAccountLink, accountID int64, role *domain.ManagedRole) (identity *domain.SchoolIdentity, err error) {
+	if _, mappingErr := s.accounts.InsertTenantMappingIfAbsent(txCtx, accountID, request.TenantID); mappingErr != nil {
+		return identity, fmt.Errorf("failed to create account-tenant mapping: %w", mappingErr)
+	}
+	// Unlike a registration this account already exists, and it may
+	// already carry an identity at this school — from an earlier link, or
+	// from a revoke that deliberately left person/staff/teacher behind.
+	// Handing it the Lehrkraft role while that identity holds a live
+	// caregiver profile strands users.teachers and its group supervisions
+	// under a JWT that only carries class_day permissions (#1772). The
+	// same rule the tenant RBAC endpoint and both operator paths apply,
+	// so this endpoint cannot be the way around them.
+	if role != nil && s.policy.IsLehrkraftRole(role.Facts()) {
+		hasProfile, profileErr := s.profiles.HasLiveCaregiverProfile(txCtx, accountID)
+		if profileErr != nil {
+			return identity, profileErr
+		}
+		if hasProfile {
+			return identity, identityaccess.ErrRoleLehrkraftCaregiverProfile
+		}
+	}
+	if assignsRole(request.RoleID) {
+		if _, _, roleErr := s.roleStore.AssignAccountRole(txCtx, accountID, *request.RoleID, request.TenantID); roleErr != nil {
+			return identity, fmt.Errorf("failed to assign role to account: %w", roleErr)
+		}
+	}
+	provisioned, identityErr := s.provisionIdentity(txCtx, accountID, request.TenantID, role, request.Identity)
+	if identityErr != nil {
+		return identity, identityErr
+	}
+	identity = provisioned
+	return identity, nil
+}
+
+func provisioningIdentity(identity *identityaccess.SchoolAccountIdentity) *domain.SchoolAccountIdentity {
+	if identity == nil {
+		return nil
+	}
+	return &domain.SchoolAccountIdentity{FirstName: identity.FirstName, LastName: identity.LastName, TagID: identity.TagID}
+}
+
+func publicProvisionedAccount(provisioned domain.ProvisionedAccount) identityaccess.ProvisionedAccount {
+	result := identityaccess.ProvisionedAccount{
+		Account: identityaccess.RegisteredAccount{
+			ID: provisioned.Account.ID, Email: provisioned.Account.Email,
+			Username: provisioned.Account.Username, Active: provisioned.Account.Active,
+			CreatedAt: provisioned.Account.CreatedAt, UpdatedAt: provisioned.Account.UpdatedAt,
+			LastLogin: provisioned.Account.LastLogin,
+		},
+	}
+	if provisioned.Identity != nil {
+		result.Identity = &identityaccess.SchoolIdentity{
+			PersonID: provisioned.Identity.PersonID, StaffID: provisioned.Identity.StaffID,
+			TeacherID: provisioned.Identity.TeacherID,
+		}
+	}
+	return result
+}
+
+var provisioningSentinels = []struct {
+	internal error
+	public   error
+}{
+	{identityaccess.ErrEmailAlreadyExists, identityaccess.ErrEmailAlreadyExists},
+	{identityaccess.ErrUsernameAlreadyExists, identityaccess.ErrUsernameAlreadyExists},
+	{domain.ErrTenantRequiredForRoleAssignment, identityaccess.ErrTenantRequiredForRoleAssignment},
+}
+
+// provisioningError translates a flow error to the public contract: the
+// operation envelope keeps its text and the registration sentinels gain
+// their public twin. Everything else falls through to the role mapping,
+// which already carries the role, account and school identity sentinels
+// these flows share.
+func provisioningError(err error) error {
+	if err == nil {
+		return nil
+	}
+	var operation *OperationError
+	if errors.As(err, &operation) && operation == err {
+		return &identityaccess.AuthenticationError{Op: operation.Op, Err: provisioningError(operation.Err)}
+	}
+	for _, sentinel := range provisioningSentinels {
+		if !errors.Is(err, sentinel.internal) {
+			continue
+		}
+		if err == sentinel.internal {
+			return sentinel.public
+		}
+		return &translatedError{text: err.Error(), public: sentinel.public, cause: err}
+	}
+	return roleError(err)
+}
+
+// registrationRole resolves the role a registration assigns; a role needs a
+// school.
+func (s *AccountProvisioning) registrationRole(ctx context.Context, request domain.SchoolAccountRegistration) (*domain.ManagedRole, error) {
+	if !assignsRole(request.RoleID) {
+		return nil, nil
+	}
+	if request.TenantID <= 0 {
+		return nil, failed(opRegisterAccount, domain.ErrTenantRequiredForRoleAssignment)
+	}
+	resolved, err := s.resolveAssignableRole(ctx, *request.RoleID, request.TenantID)
+	if err != nil {
+		return nil, failed(opRegisterAccount, err)
+	}
+	return &resolved, nil
+}
+
+func domainSchoolAccountRegistration(registration identityaccess.SchoolAccountRegistration) domain.SchoolAccountRegistration {
+	return domain.SchoolAccountRegistration{
+		TenantID: registration.TenantID, Email: registration.Email, Username: registration.Username,
+		Password: registration.Password, RoleID: registration.RoleID, Identity: provisioningIdentity(registration.Identity),
+	}
+}
+
+func domainSchoolAccountLink(link identityaccess.SchoolAccountLink) domain.SchoolAccountLink {
+	return domain.SchoolAccountLink{
+		TenantID: link.TenantID, Email: link.Email, RoleID: link.RoleID, Identity: provisioningIdentity(link.Identity),
+	}
+}

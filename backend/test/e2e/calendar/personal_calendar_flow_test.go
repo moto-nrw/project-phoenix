@@ -9,10 +9,12 @@ import (
 	"strconv"
 	"testing"
 
+	rootAPI "github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	calendarAPI "github.com/moto-nrw/project-phoenix/modules/staffcalendar/http"
+	calendarAPI "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/http"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,11 +23,11 @@ import (
 
 func setupPersonalCalendarRoute(t *testing.T) (*bun.DB, chi.Router) {
 	t.Helper()
-	db, serviceFactory := testutil.SetupCalendarModule(t)
+	db, serviceFactory := setupCalendarModule(t)
 	resource := calendarAPI.NewResource(serviceFactory.Calendar, slog.Default())
 	router := chi.NewRouter()
 	router.Use(testpkg.TenantRuntimeMiddleware(t, db))
-	router.Mount("/calendar", resource.Router())
+	router.Mount("/calendar", resource.Router(rootAPI.TenantSessionChain))
 	return db, router
 }
 

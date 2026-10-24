@@ -8,46 +8,13 @@ import {
   type RefObject,
 } from "react";
 import { Modal } from "./modal";
-import { Alert } from "./alert";
 import { FormErrorAlert } from "./form-error-alert";
 import type { DatabaseFormErrorPath } from "./database/database-form";
 import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
 import { EyeIcon, EyeOffIcon, CheckIcon, SpinnerIcon } from "./icons";
-import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "PasswordChange" });
-
-// Legacy texts for owners without `errorPath`. No owner uses this path
-// since #2519; #2520 deletes it. The shared path shows the catalog text of
-// the code instead (#2517).
-const ERROR_MAPPINGS: Array<{
-  test: (msg: string) => boolean;
-  message: string;
-}> = [
-  {
-    test: (msg) => msg.includes("invalid") && msg.includes("password"),
-    message: "Das aktuelle Passwort ist falsch. Bitte versuchen Sie es erneut.",
-  },
-  {
-    test: (msg) => msg.includes("too weak") || msg.includes("complexity"),
-    message:
-      "Das neue Passwort ist zu schwach. Verwenden Sie mindestens 8 Zeichen mit Groß-/Kleinbuchstaben, Zahlen und Sonderzeichen.",
-  },
-  {
-    test: (msg) => msg.includes("not found"),
-    message:
-      "Ihr Konto konnte nicht gefunden werden. Bitte melden Sie sich erneut an.",
-  },
-];
-
-function mapBackendError(backendError: string): string {
-  const match = ERROR_MAPPINGS.find((m) => m.test(backendError));
-  return (
-    match?.message ??
-    "Passwortänderung fehlgeschlagen. Bitte versuchen Sie es später erneut."
-  );
-}
 
 interface PasswordToggleProps {
   readonly show: boolean;
@@ -80,11 +47,11 @@ interface PasswordChangeModalProps {
   readonly apiEndpoint?: string;
   /**
    * The owner's shared API error path (`useApiFormError`), handed in because
-   * the kit may not import contexts (#2517). With it, a refused change shows
-   * the catalog text of its code in the dialog and marks the field the
-   * backend names (`current_password`, `new_password`).
+   * the kit may not import contexts (#2517). A refused change shows the
+   * catalog text of its code in the dialog and marks the field the backend
+   * names (`current_password`, `new_password`).
    */
-  readonly errorPath?: DatabaseFormErrorPath;
+  readonly errorPath: DatabaseFormErrorPath;
   /** The element `errorPath` searches for a refused field to focus. */
   readonly formRef?: RefObject<HTMLFormElement | null>;
   /**
@@ -153,40 +120,29 @@ export function PasswordChangeModal({
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-  const [errorFieldName, setErrorFieldName] = useState<string | null>(null);
-  const errorRef = useScrollToError(error);
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const latestSubmitRef = useRef<() => void>(() => undefined);
-  const clearPathError = errorPath?.clear;
+  const clearPathError = errorPath.clear;
 
-  /** The refusal of a field, from the shared path or the legacy state. */
+  /** Whether the shared path marks this field as refused. */
   const fieldInvalid = (name: string): boolean =>
-    errorPath ? Boolean(errorPath.fieldError(name)) : errorFieldName === name;
+    Boolean(errorPath.fieldError(name));
 
   const submit = async () => {
-    setError(null);
-    setErrorFieldName(null);
-
     const check = passwordChangeCheck(
       currentPassword,
       newPassword,
       confirmPassword,
     );
     if (check) {
-      if (errorPath) {
-        errorPath.invalid(check.message, { [check.field]: check.message });
-      } else {
-        setError(check.message);
-        setErrorFieldName(check.field);
-      }
+      errorPath.invalid(check.message, { [check.field]: check.message });
       return;
     }
 
-    errorPath?.clear();
+    errorPath.clear();
     setIsLoading(true);
 
     try {
@@ -201,11 +157,7 @@ export function PasswordChangeModal({
       });
 
       if (!response.ok) {
-        if (errorPath) {
-          throw await apiErrorFromResponse(response, "password change failed");
-        }
-        const data = (await response.json()) as { error?: string };
-        throw new Error(mapBackendError(data.error ?? ""));
+        throw await apiErrorFromResponse(response, "password change failed");
       }
 
       setSuccess(true);
@@ -217,18 +169,10 @@ export function PasswordChangeModal({
       logger.error("password_change_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      if (errorPath) {
-        void errorPath.show(mapError(err), {
-          object: "das Ändern des Passworts",
-          retry: () => latestSubmitRef.current(),
-        });
-      } else {
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Ein unerwarteter Fehler ist aufgetreten.",
-        );
-      }
+      void errorPath.show(mapError(err), {
+        object: "das Ändern des Passworts",
+        retry: () => latestSubmitRef.current(),
+      });
     } finally {
       setIsLoading(false);
     }
@@ -248,9 +192,7 @@ export function PasswordChangeModal({
     setCurrentPassword("");
     setNewPassword("");
     setConfirmPassword("");
-    setError(null);
-    setErrorFieldName(null);
-    clearPathError?.();
+    clearPathError();
     setSuccess(false);
     setShowCurrentPassword(false);
     setShowNewPassword(false);
@@ -279,15 +221,7 @@ export function PasswordChangeModal({
           noValidate
           className="space-y-4"
         >
-          {errorPath ? (
-            <FormErrorAlert message={errorPath.error} />
-          ) : (
-            error && (
-              <div ref={errorRef}>
-                <Alert type="error" message={error} />
-              </div>
-            )
-          )}
+          <FormErrorAlert message={errorPath.error} />
 
           {/* Current Password */}
           <div>

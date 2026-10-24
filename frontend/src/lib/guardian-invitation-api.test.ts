@@ -90,7 +90,7 @@ describe("guardian invitation API", () => {
     vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(
         jsonResponse(
-          { error: "Token abgelaufen", code: "INVITE_EXPIRED" },
+          { detail: "Token abgelaufen", code: "INVITE_EXPIRED" },
           { status: 410 },
         ),
       )
@@ -102,7 +102,8 @@ describe("guardian invitation API", () => {
       );
 
     await expect(validateGuardianInvitation("expired")).rejects.toMatchObject({
-      message: "Token abgelaufen",
+      message: "Einladung konnte nicht geprüft werden.",
+      detail: "Token abgelaufen",
       status: 410,
       code: "INVITE_EXPIRED",
     });

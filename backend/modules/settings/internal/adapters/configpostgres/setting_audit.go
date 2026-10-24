@@ -1,0 +1,46 @@
+package config
+
+import (
+	"context"
+	"fmt"
+
+	config "github.com/moto-nrw/project-phoenix/modules/settings/records"
+)
+
+const (
+	tableSettingAudit = "config.setting_audit"
+)
+
+// SettingAuditRepository implements config.SettingAuditRepository.
+type SettingAuditRepository struct {
+	runtime Runtime
+}
+
+// NewSettingAuditRepository creates a new SettingAuditRepository.
+func NewSettingAuditRepository(runtime Runtime) config.SettingAuditRepository {
+	return &SettingAuditRepository{runtime: runtime}
+}
+
+// Create appends a new audit entry.
+func (r *SettingAuditRepository) Create(ctx context.Context, entry *config.SettingAuditEntry) error {
+	if entry == nil {
+		return fmt.Errorf("audit entry cannot be nil")
+	}
+	if err := entry.Validate(); err != nil {
+		return err
+	}
+
+	ambientDB1, databaseErr1 := r.runtime.DB(ctx)
+	if databaseErr1 != nil {
+		return databaseErr1
+	}
+	_, err := ambientDB1.NewInsert().
+		Model(entry).
+		ModelTableExpr(tableSettingAudit).
+		Exec(ctx)
+
+	if err != nil {
+		return fmt.Errorf("create setting audit entry: %w", err)
+	}
+	return nil
+}

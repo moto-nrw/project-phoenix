@@ -51,65 +51,18 @@ type StudentTransitionHistory interface {
 // PurgedStudentPlaceholder is the name the ledger keeps for a deleted child.
 const PurgedStudentPlaceholder = "Gelöschtes Kind"
 
-type engine interface {
-	FindGroup(context.Context, int64) (Group, error)
-	ListGroupsByID(context.Context, []int64) ([]Group, error)
-	ListGroups(context.Context, int) ([]Group, error)
+// UnknownGroupName labels a group the caller cannot see, such as the group
+// of a supervision that blocks removing a caregiver.
+const UnknownGroupName = "Unbekannte Gruppe"
+
+// Owner is the whole School Structure surface the composition hands to the
+// roots: the group reads, the child-deletion ledger half, the grade
+// transitions and their retention.
+type Owner interface {
+	Capability
 	StudentTransitionHistory
-	transitionEngine
-}
-
-func (m *Module) CountStudentTransitionHistory(ctx context.Context, studentID int64) (int, error) {
-	if studentID <= 0 {
-		return 0, ErrInvalidStudent
-	}
-	return m.engine.CountStudentTransitionHistory(ctx, studentID)
-}
-
-func (m *Module) AnonymizeStudentTransitionHistory(ctx context.Context, studentID int64) (int64, error) {
-	if studentID <= 0 {
-		return 0, ErrInvalidStudent
-	}
-	return m.engine.AnonymizeStudentTransitionHistory(ctx, studentID)
-}
-
-type Module struct{ engine engine }
-
-func NewModule(engine engine) *Module {
-	if engine == nil {
-		panic("school structure: engine is required")
-	}
-	return &Module{engine: engine}
-}
-
-func (m *Module) FindGroup(ctx context.Context, id int64) (Group, error) {
-	if id <= 0 {
-		return Group{}, ErrInvalidGroup
-	}
-	return m.engine.FindGroup(ctx, id)
-}
-
-// ListGroups returns at most limit groups of the explicit tenant in context.
-func (m *Module) ListGroups(ctx context.Context, limit int) ([]Group, error) {
-	if limit <= 0 || limit > 1000 {
-		return nil, ErrInvalidGroup
-	}
-	return m.engine.ListGroups(ctx, limit)
-}
-
-// ListGroupsByID returns the groups visible in the caller's transaction for
-// the given IDs, sorted by name. Missing IDs are simply absent: consumers
-// rendering a display name treat absence like the former LEFT JOIN.
-func (m *Module) ListGroupsByID(ctx context.Context, ids []int64) ([]Group, error) {
-	if len(ids) == 0 {
-		return []Group{}, nil
-	}
-	for _, id := range ids {
-		if id <= 0 {
-			return nil, ErrInvalidGroup
-		}
-	}
-	return m.engine.ListGroupsByID(ctx, ids)
+	TransitionCapability
+	GradeTransitionRetention
 }
 
 func ErrorCode(err error) string {

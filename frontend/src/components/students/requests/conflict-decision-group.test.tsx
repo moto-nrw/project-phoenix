@@ -4,10 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ConflictDecisionGroup } from "./conflict-decision-group";
 import type { ConflictGroup, ReviewItem } from "./case-model";
 import { ApiError } from "~/lib/api-error";
-import {
-  ChangeRequestStaleError,
-  resolveRequestConflict,
-} from "~/lib/change-request-list-api";
+import { resolveRequestConflict } from "~/lib/change-request-list-api";
 
 vi.mock("~/lib/change-request-list-api", async () => {
   const actual = await vi.importActual<
@@ -315,7 +312,11 @@ describe("ConflictDecisionGroup", () => {
 
   it("meldet eine veraltete Gruppe und lädt neu, ohne Wiederholen", async () => {
     const onStale = vi.fn();
-    mockResolve.mockRejectedValueOnce(new ChangeRequestStaleError());
+    mockResolve.mockRejectedValueOnce(
+      new ApiError("change request stale", 409, {
+        code: "students.change_request_stale",
+      }),
+    );
     render(
       <ConflictDecisionGroup
         group={group()}

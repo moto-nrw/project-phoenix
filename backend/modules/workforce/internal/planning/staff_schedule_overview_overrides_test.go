@@ -5,10 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -28,18 +26,18 @@ func (f *fakeTargetOverrideDaysReader) StaffTargetOverrideDays(_ context.Context
 func TestAddOverrideDeltas_OnlyCorrectsResolvedWeeks(t *testing.T) {
 	t.Parallel()
 
-	member := &usersModel.Staff{}
+	member := &workforce.PlanStaff{}
 	member.ID = 7
-	resolved := timezone.NewDate(2026, time.October, 19)
-	unresolved := timezone.NewDate(2026, time.October, 26)
-	weekStarts := []timezone.Date{resolved, unresolved}
+	resolved := calendar.NewDate(2026, time.October, 19)
+	unresolved := calendar.NewDate(2026, time.October, 26)
+	weekStarts := []calendar.Date{resolved, unresolved}
 	days := map[string]int{
 		resolved.String():              510,
 		resolved.AddDays(1).String():   510,
 		unresolved.String():            510,
 		unresolved.AddDays(1).String(): 510,
 	}
-	base := func(_ *usersModel.Staff, _ timezone.Date) int { return 400 }
+	base := func(_ *workforce.PlanStaff, _ calendar.Date) int { return 400 }
 
 	targets := map[staffDateKey]int{{StaffID: member.ID, Date: resolved}: 2000}
 	addOverrideDeltas(member, days, weekStarts, base, targets)
@@ -55,35 +53,35 @@ func TestAddOverrideDeltas_OnlyCorrectsResolvedWeeks(t *testing.T) {
 func TestWeeklyTargets_OverrideReplacesTheModelDayOfAnOutdatedSchedule(t *testing.T) {
 	t.Parallel()
 
-	monday := timezone.NewDate(2026, time.October, 19)
+	monday := calendar.NewDate(2026, time.October, 19)
 	modelID := int64(22)
-	expired := workforceDate(timezone.NewDate(2026, time.January, 5))
+	expired := calendar.NewDate(2026, time.January, 5)
 	service := &staffScheduleOverviewService{deps: StaffScheduleOverviewDependencies{
-		WorkModels: &fakeOverviewWorkModelReader{models: []*configModel.WorkTimeModel{{
+		WorkModels: &fakeOverviewWorkModelReader{models: []workforce.WorkTimeModel{{
 			ID:                 modelID,
 			RotationLength:     1,
-			RotationAnchorDate: workforceDate(monday),
-			Entries: []*configModel.WorkTimeModelEntry{
-				{WeekIndex: 0, DayOfWeek: configModel.DayMonday, TargetMinutes: 400},
-				{WeekIndex: 0, DayOfWeek: configModel.DayTuesday, TargetMinutes: 400},
+			RotationAnchorDate: monday.String(),
+			Entries: []workforce.WorkTimeModelEntry{
+				{WeekIndex: 0, DayOfWeek: dayMonday, TargetMinutes: 400},
+				{WeekIndex: 0, DayOfWeek: dayTuesday, TargetMinutes: 400},
 			},
 		}}},
 		TargetOverrides: &fakeTargetOverrideDaysReader{days: workforce.TargetOverrideDays{
 			11: {monday.String(): 510},
 		}},
 	}}
-	member := &usersModel.Staff{WorkTimeModelID: &modelID}
+	member := &workforce.PlanStaff{WorkTimeModelID: &modelID}
 	member.ID = 11
 
 	targets, err := service.weeklyTargets(
 		context.Background(),
-		[]*usersModel.Staff{member},
-		[]*configModel.StaffWorkSchedule{{
+		[]*workforce.PlanStaff{member},
+		[]*workforce.ScheduleRow{{
 			StaffID: 11, WeekIndex: 0, RotationLength: 1,
-			DayOfWeek: configModel.DayMonday, TargetMinutes: 120,
-			ValidFrom: workforceDate(timezone.NewDate(2025, time.September, 1)), ValidUntil: &expired,
+			DayOfWeek: dayMonday, TargetMinutes: 120,
+			ValidFrom: calendar.NewDate(2025, time.September, 1), ValidUntil: &expired,
 		}},
-		[]timezone.Date{monday},
+		[]calendar.Date{monday},
 	)
 	require.NoError(t, err)
 

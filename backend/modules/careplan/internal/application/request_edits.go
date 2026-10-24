@@ -59,13 +59,13 @@ func (s *RequestEdits) payload(ctx context.Context, request carerequests.Request
 	if err := json.Unmarshal(request.Payload, &stored); err != nil {
 		return nil, err
 	}
-	if current, ok := stored["date"].(string); ok && input.Cutoff != nil {
+	if current, ok := stored["date"].(string); ok {
 		if day, err := calendar.ParseDate(current); err == nil && input.Cutoff.Closed(day) {
 			return nil, carerequests.ErrPickupChangeCutoffPassed
 		}
 	}
 	return pickupRequestPayload(ctx, s.Pickup, s.Today(), carerequests.PickupChangeCreateInput{
 		StudentID: input.StudentID, GuardianAccountID: input.GuardianAccountID, Date: input.Date,
-		PickupTime: input.PickupTime, Reason: input.Reason, ReasonRequired: input.ReasonRequired, Cutoff: input.Cutoff,
+		PickupTime: input.PickupTime, DepartureMode: input.DepartureMode, Reason: input.Reason, ReasonRequired: input.ReasonRequired, Cutoff: input.Cutoff,
 	})
 }

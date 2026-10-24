@@ -10,14 +10,13 @@ import (
 	"testing"
 	"time"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/tenant"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	usermodels "github.com/moto-nrw/project-phoenix/models/users"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	"github.com/moto-nrw/project-phoenix/services"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -38,11 +37,10 @@ func isProfileLockTimeout(err error) bool {
 }
 
 // setupGuardianService creates a GuardianService with real database connection
-func setupGuardianService(t *testing.T, db *bun.DB) *peopleCompose.GuardianService {
-	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
+func setupGuardianService(t *testing.T, db *bun.DB) peoplePorts.GuardianService {
+	serviceFactoryServices, _, err := api.NewTestPeopleServices(testpkg.NewDatabase(t, db), slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
-	return serviceFactory.Guardian
+	return serviceFactoryServices.Guardian
 }
 
 // =============================================================================
@@ -60,7 +58,7 @@ func TestGuardianService_CreateGuardian(t *testing.T) {
 	t.Run("creates guardian successfully", func(t *testing.T) {
 		// ARRANGE - use unique email to avoid collisions
 		email := fmt.Sprintf("test-guardian-%d@example.com", time.Now().UnixNano())
-		req := peopleCompose.GuardianCreateRequest{
+		req := peoplePorts.GuardianCreateRequest{
 			FirstName:              "Test",
 			LastName:               "Guardian",
 			Email:                  &email,
@@ -69,7 +67,7 @@ func TestGuardianService_CreateGuardian(t *testing.T) {
 		}
 
 		// ACT
-		result, err := service.CreateGuardian(ctx, req)
+		result, err := testpkg.TenantQuery1(t, ctx, db, service.CreateGuardian, req)
 		defer func() {
 		}()
 
@@ -86,13 +84,13 @@ func TestGuardianService_CreateGuardian(t *testing.T) {
 	t.Run("creates guardian with defaults", func(t *testing.T) {
 		// ARRANGE - testing default language and contact method
 		// Note: Phone numbers are now added separately via AddPhoneNumber
-		req := peopleCompose.GuardianCreateRequest{
+		req := peoplePorts.GuardianCreateRequest{
 			FirstName: "Default",
 			LastName:  "Guardian",
 		}
 
 		// ACT
-		result, err := service.CreateGuardian(ctx, req)
+		result, err := testpkg.TenantQuery1(t, ctx, db, service.CreateGuardian, req)
 		defer func() {
 		}()
 
@@ -105,13 +103,13 @@ func TestGuardianService_CreateGuardian(t *testing.T) {
 	t.Run("creates guardian without email", func(t *testing.T) {
 		// ARRANGE - guardian can be created without email
 		// Phone numbers are added separately via AddPhoneNumber
-		req := peopleCompose.GuardianCreateRequest{
+		req := peoplePorts.GuardianCreateRequest{
 			FirstName: "NoEmail",
 			LastName:  "Guardian",
 		}
 
 		// ACT
-		result, err := service.CreateGuardian(ctx, req)
+		result, err := testpkg.TenantQuery1(t, ctx, db, service.CreateGuardian, req)
 		defer func() {
 		}()
 
@@ -135,7 +133,7 @@ func TestGuardianService_CreateGuardian_DuplicateEmail(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	email := fmt.Sprintf("dup-guardian-%d@example.com", time.Now().UnixNano())
-	req := peopleCompose.GuardianCreateRequest{
+	req := peoplePorts.GuardianCreateRequest{
 		FirstName:              "First",
 		LastName:               "Guardian",
 		Email:                  &email,
@@ -144,7 +142,7 @@ func TestGuardianService_CreateGuardian_DuplicateEmail(t *testing.T) {
 	}
 
 	// First create succeeds.
-	first, err := service.CreateGuardian(ctx, req)
+	first, err := testpkg.TenantQuery1(t, ctx, db, service.CreateGuardian, req)
 	require.NoError(t, err)
 	require.NotNil(t, first)
 
@@ -152,11 +150,11 @@ func TestGuardianService_CreateGuardian_DuplicateEmail(t *testing.T) {
 	// validation error, not a DB/operational failure — and nothing is inserted.
 	dupReq := req
 	dupReq.FirstName = "Second"
-	second, err := service.CreateGuardian(ctx, dupReq)
+	second, err := testpkg.TenantQuery1(t, ctx, db, service.CreateGuardian, dupReq)
 
 	require.Error(t, err)
 	assert.Nil(t, second)
-	_, isValidation := peopleCompose.ValidationFailure(err)
+	_, isValidation := peoplePorts.ValidationFailure(err)
 	require.True(t, isValidation, "duplicate email must be a ValidationError → 400, not a 500")
 	assert.Contains(t, err.Error(), "bereits vergeben")
 	assert.Contains(t, err.Error(), "Suche")
@@ -179,7 +177,7 @@ func TestGuardianService_GetGuardianByID(t *testing.T) {
 		profile := testpkg.CreateTestGuardianProfile(t, db, "get-by-id")
 
 		// ACT
-		result, err := service.GetGuardianByID(ctx, profile.ID)
+		result, err := testpkg.TenantQuery1(t, ctx, db, service.GetGuardianByID, profile.ID)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -189,7 +187,7 @@ func TestGuardianService_GetGuardianByID(t *testing.T) {
 
 	t.Run("returns nil when not found", func(t *testing.T) {
 		// ACT
-		result, err := service.GetGuardianByID(ctx, 99999999)
+		result, err := testpkg.TenantQuery1(t, ctx, db, service.GetGuardianByID, 99999999)
 
 		// ASSERT - may return error or nil depending on repository
 		if err != nil {
@@ -218,7 +216,7 @@ func TestGuardianService_UpdateGuardian(t *testing.T) {
 
 		// Use unique email to avoid collisions
 		newEmail := fmt.Sprintf("updated-%d@example.com", time.Now().UnixNano())
-		req := peopleCompose.GuardianCreateRequest{
+		req := peoplePorts.GuardianCreateRequest{
 			FirstName:              "Updated",
 			LastName:               "Name",
 			Email:                  &newEmail,
@@ -227,13 +225,13 @@ func TestGuardianService_UpdateGuardian(t *testing.T) {
 		}
 
 		// ACT
-		err := service.UpdateGuardian(ctx, profile.ID, req)
+		err := testpkg.TenantCommand2(t, ctx, db, service.UpdateGuardian, profile.ID, req)
 
 		// ASSERT
 		require.NoError(t, err)
 
 		// Verify update
-		updated, err := service.GetGuardianByID(ctx, profile.ID)
+		updated, err := testpkg.TenantQuery1(t, ctx, db, service.GetGuardianByID, profile.ID)
 		require.NoError(t, err)
 		assert.Equal(t, "Updated", updated.FirstName)
 		assert.Equal(t, "Name", updated.LastName)
@@ -241,13 +239,13 @@ func TestGuardianService_UpdateGuardian(t *testing.T) {
 
 	t.Run("returns error when guardian not found", func(t *testing.T) {
 		// ARRANGE
-		req := peopleCompose.GuardianCreateRequest{
+		req := peoplePorts.GuardianCreateRequest{
 			FirstName: "NonExistent",
 			LastName:  "Guardian",
 		}
 
 		// ACT
-		err := service.UpdateGuardian(ctx, 99999999, req)
+		err := testpkg.TenantCommand2(t, ctx, db, service.UpdateGuardian, 99999999, req)
 
 		// ASSERT
 		require.Error(t, err)
@@ -258,7 +256,7 @@ func TestGuardianService_UpdateGuardian(t *testing.T) {
 		other := testpkg.CreateTestGuardianProfile(t, db, "update-dedup-other")
 		target := testpkg.CreateTestGuardianProfile(t, db, "update-dedup-target")
 
-		req := peopleCompose.GuardianCreateRequest{
+		req := peoplePorts.GuardianCreateRequest{
 			FirstName:              "Target",
 			LastName:               "Guardian",
 			Email:                  other.Email, // steal the other guardian's email
@@ -267,11 +265,11 @@ func TestGuardianService_UpdateGuardian(t *testing.T) {
 		}
 
 		// ACT
-		err := service.UpdateGuardian(ctx, target.ID, req)
+		err := testpkg.TenantCommand2(t, ctx, db, service.UpdateGuardian, target.ID, req)
 
 		// ASSERT — must be a ValidationError (→ 400), never a raw 500 from 23505.
 		require.Error(t, err)
-		_, isValidation := peopleCompose.ValidationFailure(err)
+		_, isValidation := peoplePorts.ValidationFailure(err)
 		require.True(t, isValidation, "duplicate email on update must be a ValidationError → 400")
 		assert.Contains(t, err.Error(), "bereits vergeben")
 	})
@@ -280,7 +278,7 @@ func TestGuardianService_UpdateGuardian(t *testing.T) {
 		// ARRANGE — a guardian kept at its own email is NOT a collision with itself.
 		profile := testpkg.CreateTestGuardianProfile(t, db, "update-self")
 
-		req := peopleCompose.GuardianCreateRequest{
+		req := peoplePorts.GuardianCreateRequest{
 			FirstName:              "Renamed",
 			LastName:               "Same-Email",
 			Email:                  profile.Email, // unchanged
@@ -289,11 +287,11 @@ func TestGuardianService_UpdateGuardian(t *testing.T) {
 		}
 
 		// ACT
-		err := service.UpdateGuardian(ctx, profile.ID, req)
+		err := testpkg.TenantCommand2(t, ctx, db, service.UpdateGuardian, profile.ID, req)
 
 		// ASSERT
 		require.NoError(t, err, "re-saving a guardian with its own email must not collide")
-		updated, err := service.GetGuardianByID(ctx, profile.ID)
+		updated, err := testpkg.TenantQuery1(t, ctx, db, service.GetGuardianByID, profile.ID)
 		require.NoError(t, err)
 		assert.Equal(t, "Renamed", updated.FirstName)
 	})
@@ -314,39 +312,39 @@ func TestGuardianService_DeleteGuardian(t *testing.T) {
 	t.Run("deletes guardian successfully", func(t *testing.T) {
 		// ARRANGE
 		profile := testpkg.CreateTestGuardianProfile(t, db, "to-delete")
-		require.NoError(t, service.UpdateGuardianPayment(ctx, profile.ID, peopleCompose.GuardianPaymentInput{
+		require.NoError(t, testpkg.TenantCommand4(t, ctx, db, service.UpdateGuardianPayment, profile.ID, peoplePorts.GuardianPaymentInput{
 			IBAN:          strPtr("DE89370400440532013000"),
 			AccountHolder: strPtr("Sabine Schneider"),
 		}, 1, ""))
 		// No defer - we're testing deletion
 
 		// ACT
-		err := service.DeleteGuardian(ctx, profile.ID, 1)
+		err := testpkg.TenantCommand2(t, ctx, db, service.DeleteGuardian, profile.ID, 1)
 
 		// ASSERT
 		require.NoError(t, err)
 
 		// Verify deletion
-		result, _ := service.GetGuardianByID(ctx, profile.ID)
+		result, _ := testpkg.TenantQuery1(t, ctx, db, service.GetGuardianByID, profile.ID)
 		assert.Nil(t, result)
 
-		var deletionAudit auditModels.GuardianFinancialChange
+		var deletionAudit testpkg.GuardianFinancialChange
 		require.NoError(t, db.NewSelect().
 			Model(&deletionAudit).
 			ModelTableExpr(`audit.guardian_financial_changes AS "guardian_financial_change"`).
 			Where(`"guardian_financial_change".guardian_profile_id = ?`, profile.ID).
-			Where(`"guardian_financial_change".field_name = ?`, auditModels.GuardianPaymentFieldIBAN).
+			Where(`"guardian_financial_change".field_name = ?`, testpkg.AuditGuardianPaymentFieldIBAN).
 			Where(`"guardian_financial_change".new_value = ?`, "").
 			Scan(ctx))
 		assert.Equal(t, "•••• 3000", deletionAudit.OldValue)
 		assert.Equal(t, "Erziehungsberechtigte Person gelöscht", deletionAudit.Note)
 
-		var accountHolderAudits []auditModels.GuardianFinancialChange
+		var accountHolderAudits []testpkg.GuardianFinancialChange
 		require.NoError(t, db.NewSelect().
 			Model(&accountHolderAudits).
 			ModelTableExpr(`audit.guardian_financial_changes AS "guardian_financial_change"`).
 			Where(`"guardian_financial_change".guardian_profile_id = ?`, profile.ID).
-			Where(`"guardian_financial_change".field_name = ?`, auditModels.GuardianPaymentFieldAccountHolder).
+			Where(`"guardian_financial_change".field_name = ?`, testpkg.AuditGuardianPaymentFieldAccountHolder).
 			Scan(ctx))
 		require.Len(t, accountHolderAudits, 2)
 		for _, audit := range accountHolderAudits {
@@ -354,12 +352,12 @@ func TestGuardianService_DeleteGuardian(t *testing.T) {
 			assert.NotContains(t, audit.NewValue, "Sabine")
 		}
 
-		var accountHolderDeletionAudit auditModels.GuardianFinancialChange
+		var accountHolderDeletionAudit testpkg.GuardianFinancialChange
 		require.NoError(t, db.NewSelect().
 			Model(&accountHolderDeletionAudit).
 			ModelTableExpr(`audit.guardian_financial_changes AS "guardian_financial_change"`).
 			Where(`"guardian_financial_change".guardian_profile_id = ?`, profile.ID).
-			Where(`"guardian_financial_change".field_name = ?`, auditModels.GuardianPaymentFieldAccountHolder).
+			Where(`"guardian_financial_change".field_name = ?`, testpkg.AuditGuardianPaymentFieldAccountHolder).
 			Where(`"guardian_financial_change".new_value = ?`, "").
 			Scan(ctx))
 		assert.Equal(t, "••••••••", accountHolderDeletionAudit.OldValue)
@@ -373,7 +371,7 @@ func TestGuardianService_DeleteGuardian(t *testing.T) {
 		// (the #819 sibling-data-loss bug).
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "restrict-linked")
 		student := testpkg.CreateTestStudent(t, db, "Restrict", "Linked", "1a")
-		_, err := service.LinkGuardianToStudent(ctx, peopleCompose.StudentGuardianCreateRequest{
+		_, err := testpkg.TenantQuery1(t, ctx, db, service.LinkGuardianToStudent, peoplePorts.StudentGuardianCreateRequest{
 			StudentID:         student.ID,
 			GuardianProfileID: guardian.ID,
 			RelationshipType:  "parent",
@@ -382,11 +380,11 @@ func TestGuardianService_DeleteGuardian(t *testing.T) {
 		require.NoError(t, err)
 
 		// ACT
-		err = service.DeleteGuardian(ctx, guardian.ID, 1)
+		err = testpkg.TenantCommand2(t, ctx, db, service.DeleteGuardian, guardian.ID, 1)
 
 		// ASSERT — the FK violation surfaces; the guardian survives.
 		require.Error(t, err, "RESTRICT FK must block deleting a linked guardian")
-		survivor, _ := service.GetGuardianByID(ctx, guardian.ID)
+		survivor, _ := testpkg.TenantQuery1(t, ctx, db, service.GetGuardianByID, guardian.ID)
 		assert.NotNil(t, survivor, "guardian must still exist after a refused delete")
 	})
 }
@@ -408,7 +406,7 @@ func TestGuardianService_DeleteGuardianWithLinks(t *testing.T) {
 	siblingA := testpkg.CreateTestStudent(t, db, "Sibling", "Aaa", "1a")
 	siblingB := testpkg.CreateTestStudent(t, db, "Sibling", "Bbb", "1a")
 	for _, s := range []int64{siblingA.ID, siblingB.ID} {
-		_, err := service.LinkGuardianToStudent(ctx, peopleCompose.StudentGuardianCreateRequest{
+		_, err := testpkg.TenantQuery1(t, ctx, db, service.LinkGuardianToStudent, peoplePorts.StudentGuardianCreateRequest{
 			StudentID:         s,
 			GuardianProfileID: guardian.ID,
 			RelationshipType:  "parent",
@@ -417,11 +415,11 @@ func TestGuardianService_DeleteGuardianWithLinks(t *testing.T) {
 		require.NoError(t, err)
 	}
 	for _, studentID := range []int64{siblingA.ID, siblingB.ID} {
-		require.NoError(t, service.SetStudentPayer(ctx, studentID, &guardian.ID, 1))
+		require.NoError(t, testpkg.TenantCommand3(t, ctx, db, service.SetStudentPayer, studentID, &guardian.ID, 1))
 	}
 
 	// The delete preview reports both children before deletion.
-	impact, err := service.GetGuardianDeleteImpact(ctx, guardian.ID)
+	impact, err := testpkg.TenantQuery1(t, ctx, db, service.GetGuardianDeleteImpact, guardian.ID)
 	require.NoError(t, err)
 	assert.Len(t, impact.StudentNames, 2, "both linked children must be reported for the 409 warning")
 	require.Len(t, impact.LinkIDs, 2, "both link IDs must be returned as the delete concurrency token")
@@ -432,23 +430,23 @@ func TestGuardianService_DeleteGuardianWithLinks(t *testing.T) {
 	// guardian ordering are only meaningful/atomic within a single tx), and the
 	// HTTP handler wraps it that way. Exercising the real contract here.
 	err = testpkg.WithTenantTx(t, ctx, db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
-		return service.DeleteGuardianWithLinks(txCtx, guardian.ID, impact.LinkIDs, 1)
+		return testpkg.TenantCommand3(t, txCtx, db, service.DeleteGuardianWithLinks, guardian.ID, impact.LinkIDs, 1)
 	})
 
 	// ASSERT — guardian gone, and no links survive.
 	require.NoError(t, err)
-	gone, _ := service.GetGuardianByID(ctx, guardian.ID)
+	gone, _ := testpkg.TenantQuery1(t, ctx, db, service.GetGuardianByID, guardian.ID)
 	assert.Nil(t, gone, "guardian must be deleted by the force path")
-	remainingImpact, err := service.GetGuardianDeleteImpact(ctx, guardian.ID)
+	remainingImpact, err := testpkg.TenantQuery1(t, ctx, db, service.GetGuardianDeleteImpact, guardian.ID)
 	require.NoError(t, err)
 	assert.Empty(t, remainingImpact.StudentNames, "all student links must be removed")
 
-	var unassignments []auditModels.GuardianFinancialChange
+	var unassignments []testpkg.GuardianFinancialChange
 	require.NoError(t, db.NewSelect().
 		Model(&unassignments).
 		ModelTableExpr(`audit.guardian_financial_changes AS "guardian_financial_change"`).
 		Where(`"guardian_financial_change".guardian_profile_id = ?`, guardian.ID).
-		Where(`"guardian_financial_change".field_name = ?`, auditModels.GuardianPaymentFieldIsPayer).
+		Where(`"guardian_financial_change".field_name = ?`, testpkg.AuditGuardianPaymentFieldIsPayer).
 		Where(`"guardian_financial_change".new_value = ?`, "false").
 		Scan(ctx))
 	assert.Len(t, unassignments, 2, "every deleted payer relationship must be audited")
@@ -465,7 +463,7 @@ func TestGuardianService_DeleteGuardianWithLinks_RejectsChangedPreview(t *testin
 	guardian := testpkg.CreateTestGuardianProfile(t, db, "force-delete-stale")
 	student := testpkg.CreateTestStudent(t, db, "Preview", "Changed", "1a")
 
-	_, err := service.LinkGuardianToStudent(ctx, peopleCompose.StudentGuardianCreateRequest{
+	_, err := testpkg.TenantQuery1(t, ctx, db, service.LinkGuardianToStudent, peoplePorts.StudentGuardianCreateRequest{
 		StudentID:         student.ID,
 		GuardianProfileID: guardian.ID,
 		RelationshipType:  "parent",
@@ -474,14 +472,14 @@ func TestGuardianService_DeleteGuardianWithLinks_RejectsChangedPreview(t *testin
 	require.NoError(t, err)
 
 	err = testpkg.WithTenantTx(t, ctx, db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
-		return service.DeleteGuardianWithLinks(txCtx, guardian.ID, []int64{999999}, 1)
+		return testpkg.TenantCommand3(t, txCtx, db, service.DeleteGuardianWithLinks, guardian.ID, []int64{999999}, 1)
 	})
 
-	require.ErrorIs(t, err, peopleCompose.ErrGuardianDeletePreviewChanged)
-	survivor, err := service.GetGuardianByID(ctx, guardian.ID)
+	require.ErrorIs(t, err, peoplePorts.ErrGuardianDeletePreviewChanged)
+	survivor, err := testpkg.TenantQuery1(t, ctx, db, service.GetGuardianByID, guardian.ID)
 	require.NoError(t, err)
 	assert.NotNil(t, survivor, "guardian must survive when preview token is stale")
-	remainingImpact, err := service.GetGuardianDeleteImpact(ctx, guardian.ID)
+	remainingImpact, err := testpkg.TenantQuery1(t, ctx, db, service.GetGuardianDeleteImpact, guardian.ID)
 	require.NoError(t, err)
 	assert.Len(t, remainingImpact.StudentNames, 1, "link must survive when preview token is stale")
 }
@@ -503,7 +501,7 @@ func TestGuardianService_LinkGuardianToStudent(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "link-to-student")
 		student := testpkg.CreateTestStudent(t, db, "Linked", "Student", "1a")
 
-		req := peopleCompose.StudentGuardianCreateRequest{
+		req := peoplePorts.StudentGuardianCreateRequest{
 			StudentID:          student.ID,
 			GuardianProfileID:  guardian.ID,
 			RelationshipType:   "parent",
@@ -514,7 +512,7 @@ func TestGuardianService_LinkGuardianToStudent(t *testing.T) {
 		}
 
 		// ACT
-		result, err := service.LinkGuardianToStudent(ctx, req)
+		result, err := testpkg.TenantQuery1(t, ctx, db, service.LinkGuardianToStudent, req)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -530,18 +528,18 @@ func TestGuardianService_LinkGuardianToStudent(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "relink")
 		student := testpkg.CreateTestStudent(t, db, "Relink", "Student", "1c")
 
-		req := peopleCompose.StudentGuardianCreateRequest{
+		req := peoplePorts.StudentGuardianCreateRequest{
 			StudentID:         student.ID,
 			GuardianProfileID: guardian.ID,
 			RelationshipType:  "parent",
 			EmergencyPriority: 1,
 		}
-		first, err := service.LinkGuardianToStudent(ctx, req)
+		first, err := testpkg.TenantQuery1(t, ctx, db, service.LinkGuardianToStudent, req)
 		require.NoError(t, err)
 		require.NotNil(t, first)
 
 		// ACT — link the SAME guardian to the SAME student again.
-		second, err := service.LinkGuardianToStudent(ctx, req)
+		second, err := testpkg.TenantQuery1(t, ctx, db, service.LinkGuardianToStudent, req)
 
 		// ASSERT — no UNIQUE-constraint error; the existing relationship is
 		// returned, and only one link exists.
@@ -549,7 +547,7 @@ func TestGuardianService_LinkGuardianToStudent(t *testing.T) {
 		require.NotNil(t, second)
 		assert.Equal(t, first.ID, second.ID, "re-link must return the existing relationship, not create a new one")
 
-		links, err := service.GetStudentGuardians(ctx, student.ID)
+		links, err := testpkg.TenantQuery1(t, ctx, db, service.GetStudentGuardians, student.ID)
 		require.NoError(t, err)
 		var count int
 		for _, l := range links {
@@ -569,7 +567,7 @@ func TestGuardianService_LinkGuardianToStudent(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "upsert")
 		student := testpkg.CreateTestStudent(t, db, "Upsert", "Student", "1d")
 
-		first, err := service.LinkGuardianToStudent(ctx, peopleCompose.StudentGuardianCreateRequest{
+		first, err := testpkg.TenantQuery1(t, ctx, db, service.LinkGuardianToStudent, peoplePorts.StudentGuardianCreateRequest{
 			StudentID:         student.ID,
 			GuardianProfileID: guardian.ID,
 			RelationshipType:  "parent",
@@ -581,7 +579,7 @@ func TestGuardianService_LinkGuardianToStudent(t *testing.T) {
 		require.NotNil(t, first)
 
 		// ACT — re-link the SAME guardian with DIFFERENT relationship flags.
-		second, err := service.LinkGuardianToStudent(ctx, peopleCompose.StudentGuardianCreateRequest{
+		second, err := testpkg.TenantQuery1(t, ctx, db, service.LinkGuardianToStudent, peoplePorts.StudentGuardianCreateRequest{
 			StudentID:          student.ID,
 			GuardianProfileID:  guardian.ID,
 			RelationshipType:   "guardian",
@@ -597,7 +595,7 @@ func TestGuardianService_LinkGuardianToStudent(t *testing.T) {
 		require.NotNil(t, second)
 		assert.Equal(t, first.ID, second.ID, "re-link must return the existing row, not create a new one")
 
-		links, err := service.GetStudentGuardians(ctx, student.ID)
+		links, err := testpkg.TenantQuery1(t, ctx, db, service.GetStudentGuardians, student.ID)
 		require.NoError(t, err)
 		var matched int
 		for _, l := range links {
@@ -619,14 +617,14 @@ func TestGuardianService_LinkGuardianToStudent(t *testing.T) {
 		// ARRANGE
 		student := testpkg.CreateTestStudent(t, db, "NoGuardian", "Student", "1b")
 
-		req := peopleCompose.StudentGuardianCreateRequest{
+		req := peoplePorts.StudentGuardianCreateRequest{
 			StudentID:         student.ID,
 			GuardianProfileID: 99999999,
 			RelationshipType:  "parent",
 		}
 
 		// ACT
-		result, err := service.LinkGuardianToStudent(ctx, req)
+		result, err := testpkg.TenantQuery1(t, ctx, db, service.LinkGuardianToStudent, req)
 
 		// ASSERT
 		require.Error(t, err)
@@ -638,14 +636,14 @@ func TestGuardianService_LinkGuardianToStudent(t *testing.T) {
 		// ARRANGE
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "orphan-guardian")
 
-		req := peopleCompose.StudentGuardianCreateRequest{
+		req := peoplePorts.StudentGuardianCreateRequest{
 			StudentID:         99999999,
 			GuardianProfileID: guardian.ID,
 			RelationshipType:  "parent",
 		}
 
 		// ACT
-		result, err := service.LinkGuardianToStudent(ctx, req)
+		result, err := testpkg.TenantQuery1(t, ctx, db, service.LinkGuardianToStudent, req)
 
 		// ASSERT
 		require.Error(t, err)
@@ -657,28 +655,28 @@ func TestGuardianService_LinkGuardianToStudent(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "link-pickup-only")
 		student := testpkg.CreateTestStudent(t, db, "PickupOnly", "Student", "4a")
 
-		result, err := service.LinkGuardianToStudent(ctx, peopleCompose.StudentGuardianCreateRequest{
+		result, err := testpkg.TenantQuery1(t, ctx, db, service.LinkGuardianToStudent, peoplePorts.StudentGuardianCreateRequest{
 			StudentID:         student.ID,
 			GuardianProfileID: guardian.ID,
 			RelationshipType:  "relative",
-			GuardianRole:      authorize.GuardianRolePickupOnly,
+			GuardianRole:      testpkg.GuardianRolePickupOnly,
 			CanPickup:         true,
 			EmergencyPriority: 1,
 		})
 
 		require.NoError(t, err)
 		require.NotNil(t, result)
-		assert.Equal(t, authorize.GuardianRolePickupOnly, result.GuardianRole)
+		assert.Equal(t, testpkg.GuardianRolePickupOnly, result.GuardianRole)
 		assert.True(t, result.CanPickup)
-		assert.False(t, authorize.StudentGuardianHasPermission(result, authorize.GuardianPermissionPortalAccess))
-		assert.False(t, authorize.StudentGuardianHasPermission(result, authorize.GuardianPermissionSickNoteSubmit))
+		assert.False(t, testpkg.GuardianPermissionsGrant(result.Permissions, testpkg.GuardianPermissionPortalAccess))
+		assert.False(t, testpkg.GuardianPermissionsGrant(result.Permissions, testpkg.GuardianPermissionSickNoteSubmit))
 	})
 
 	t.Run("defaults primary relationship to full portal permissions", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "link-primary-role")
 		student := testpkg.CreateTestStudent(t, db, "PrimaryRole", "Student", "4a")
 
-		result, err := service.LinkGuardianToStudent(ctx, peopleCompose.StudentGuardianCreateRequest{
+		result, err := testpkg.TenantQuery1(t, ctx, db, service.LinkGuardianToStudent, peoplePorts.StudentGuardianCreateRequest{
 			StudentID:         student.ID,
 			GuardianProfileID: guardian.ID,
 			RelationshipType:  "parent",
@@ -688,10 +686,10 @@ func TestGuardianService_LinkGuardianToStudent(t *testing.T) {
 
 		require.NoError(t, err)
 		require.NotNil(t, result)
-		assert.Equal(t, authorize.GuardianRolePrimaryGuardian, result.GuardianRole)
-		assert.True(t, authorize.StudentGuardianHasPermission(result, authorize.GuardianPermissionPortalAccess))
-		assert.True(t, authorize.StudentGuardianHasPermission(result, authorize.GuardianPermissionSickNoteSubmit))
-		assert.True(t, authorize.StudentGuardianHasPermission(result, authorize.GuardianPermissionNotesWrite))
+		assert.Equal(t, testpkg.GuardianRolePrimaryGuardian, result.GuardianRole)
+		assert.True(t, testpkg.GuardianPermissionsGrant(result.Permissions, testpkg.GuardianPermissionPortalAccess))
+		assert.True(t, testpkg.GuardianPermissionsGrant(result.Permissions, testpkg.GuardianPermissionSickNoteSubmit))
+		assert.True(t, testpkg.GuardianPermissionsGrant(result.Permissions, testpkg.GuardianPermissionNotesWrite))
 	})
 }
 
@@ -713,17 +711,17 @@ func TestGuardianService_GetStudentGuardians(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "HasGuardian", "Student", "2a")
 
 		// Link guardian to student
-		req := peopleCompose.StudentGuardianCreateRequest{
+		req := peoplePorts.StudentGuardianCreateRequest{
 			StudentID:         student.ID,
 			GuardianProfileID: guardian.ID,
 			RelationshipType:  "parent",
 			IsPrimary:         true,
 		}
-		_, err := service.LinkGuardianToStudent(ctx, req)
+		_, err := testpkg.TenantQuery1(t, ctx, db, service.LinkGuardianToStudent, req)
 		require.NoError(t, err)
 
 		// ACT
-		result, err := service.GetStudentGuardians(ctx, student.ID)
+		result, err := testpkg.TenantQuery1(t, ctx, db, service.GetStudentGuardians, student.ID)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -739,7 +737,7 @@ func TestGuardianService_GetStudentGuardians(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "pending-invite")
 		student := testpkg.CreateTestStudent(t, db, "PendingInvite", "Student", "2c")
 
-		_, err := service.LinkGuardianToStudent(ctx, peopleCompose.StudentGuardianCreateRequest{
+		_, err := testpkg.TenantQuery1(t, ctx, db, service.LinkGuardianToStudent, peoplePorts.StudentGuardianCreateRequest{
 			StudentID:         student.ID,
 			GuardianProfileID: guardian.ID,
 			RelationshipType:  "parent",
@@ -759,7 +757,7 @@ func TestGuardianService_GetStudentGuardians(t *testing.T) {
 		testpkg.InsertTestGuardianInvitation(t, db, invitation)
 
 		// ACT
-		result, err := service.GetStudentGuardians(ctx, student.ID)
+		result, err := testpkg.TenantQuery1(t, ctx, db, service.GetStudentGuardians, student.ID)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -773,7 +771,7 @@ func TestGuardianService_GetStudentGuardians(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "NoGuardians", "Student", "2b")
 
 		// ACT
-		result, err := service.GetStudentGuardians(ctx, student.ID)
+		result, err := testpkg.TenantQuery1(t, ctx, db, service.GetStudentGuardians, student.ID)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -799,16 +797,16 @@ func TestGuardianService_GetGuardianStudents(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "GuardianChild", "Student", "3a")
 
 		// Link guardian to student
-		req := peopleCompose.StudentGuardianCreateRequest{
+		req := peoplePorts.StudentGuardianCreateRequest{
 			StudentID:         student.ID,
 			GuardianProfileID: guardian.ID,
 			RelationshipType:  "guardian",
 		}
-		_, err := service.LinkGuardianToStudent(ctx, req)
+		_, err := testpkg.TenantQuery1(t, ctx, db, service.LinkGuardianToStudent, req)
 		require.NoError(t, err)
 
 		// ACT
-		result, err := service.GetGuardianStudents(ctx, guardian.ID)
+		result, err := testpkg.TenantQuery1(t, ctx, db, service.GetGuardianStudents, guardian.ID)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -820,7 +818,7 @@ func TestGuardianService_GetGuardianStudents(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "alumnus-child")
 		student := testpkg.CreateTestStudent(t, db, "Former", "Student", "4a")
 
-		_, err := service.LinkGuardianToStudent(ctx, peopleCompose.StudentGuardianCreateRequest{
+		_, err := testpkg.TenantQuery1(t, ctx, db, service.LinkGuardianToStudent, peoplePorts.StudentGuardianCreateRequest{
 			StudentID:         student.ID,
 			GuardianProfileID: guardian.ID,
 			RelationshipType:  "guardian",
@@ -829,12 +827,12 @@ func TestGuardianService_GetGuardianStudents(t *testing.T) {
 
 		_, err = db.NewUpdate().
 			TableExpr("users.student_school_memberships").
-			Set("status = ?", string(usermodels.StudentStatusAlumnus)).
+			Set("status = ?", string(peopleValues.StudentStatusAlumnus)).
 			Where("student_profile_id = ? AND deleted_at IS NULL", student.ID).
 			Exec(ctx)
 		require.NoError(t, err)
 
-		result, err := service.GetGuardianStudents(ctx, guardian.ID)
+		result, err := testpkg.TenantQuery1(t, ctx, db, service.GetGuardianStudents, guardian.ID)
 		require.NoError(t, err)
 		assert.Empty(t, result)
 	})
@@ -844,7 +842,7 @@ func TestGuardianService_GetGuardianStudents(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "no-students")
 
 		// ACT
-		result, err := service.GetGuardianStudents(ctx, guardian.ID)
+		result, err := testpkg.TenantQuery1(t, ctx, db, service.GetGuardianStudents, guardian.ID)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -870,16 +868,16 @@ func TestGuardianService_GetStudentGuardianRelationship(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "RelGet", "Student", "4a")
 
 		// Create relationship
-		req := peopleCompose.StudentGuardianCreateRequest{
+		req := peoplePorts.StudentGuardianCreateRequest{
 			StudentID:         student.ID,
 			GuardianProfileID: guardian.ID,
 			RelationshipType:  "parent",
 		}
-		created, err := service.LinkGuardianToStudent(ctx, req)
+		created, err := testpkg.TenantQuery1(t, ctx, db, service.LinkGuardianToStudent, req)
 		require.NoError(t, err)
 
 		// ACT
-		result, err := service.GetStudentGuardianRelationship(ctx, created.ID)
+		result, err := testpkg.TenantQuery1(t, ctx, db, service.GetStudentGuardianRelationship, created.ID)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -889,7 +887,7 @@ func TestGuardianService_GetStudentGuardianRelationship(t *testing.T) {
 
 	t.Run("returns error when not found", func(t *testing.T) {
 		// ACT
-		result, err := service.GetStudentGuardianRelationship(ctx, 99999999)
+		result, err := testpkg.TenantQuery1(t, ctx, db, service.GetStudentGuardianRelationship, 99999999)
 
 		// ASSERT
 		require.Error(t, err)
@@ -915,13 +913,13 @@ func TestGuardianService_UpdateStudentGuardianRelationship(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "RelUpdate", "Student", "5a")
 
 		// Create relationship
-		createReq := peopleCompose.StudentGuardianCreateRequest{
+		createReq := peoplePorts.StudentGuardianCreateRequest{
 			StudentID:         student.ID,
 			GuardianProfileID: guardian.ID,
 			RelationshipType:  "parent",
 			IsPrimary:         false,
 		}
-		created, err := service.LinkGuardianToStudent(ctx, createReq)
+		created, err := testpkg.TenantQuery1(t, ctx, db, service.LinkGuardianToStudent, createReq)
 		require.NoError(t, err)
 
 		// Update
@@ -931,7 +929,7 @@ func TestGuardianService_UpdateStudentGuardianRelationship(t *testing.T) {
 		canPickup := true
 		pickupNotes := "Nur mit Ausweis"
 		emergencyPriority := 2
-		updateReq := peopleCompose.StudentGuardianUpdateRequest{
+		updateReq := peoplePorts.StudentGuardianUpdateRequest{
 			RelationshipType:   &newType,
 			IsPrimary:          &isPrimary,
 			IsEmergencyContact: &isEmergencyContact,
@@ -941,13 +939,13 @@ func TestGuardianService_UpdateStudentGuardianRelationship(t *testing.T) {
 		}
 
 		// ACT
-		err = service.UpdateStudentGuardianRelationship(ctx, created.ID, updateReq)
+		err = testpkg.TenantCommand2(t, ctx, db, service.UpdateStudentGuardianRelationship, created.ID, updateReq)
 
 		// ASSERT
 		require.NoError(t, err)
 
 		// Verify update
-		updated, err := service.GetStudentGuardianRelationship(ctx, created.ID)
+		updated, err := testpkg.TenantQuery1(t, ctx, db, service.GetStudentGuardianRelationship, created.ID)
 		require.NoError(t, err)
 		assert.Equal(t, "guardian", updated.RelationshipType)
 		assert.True(t, updated.IsPrimary)
@@ -962,34 +960,34 @@ func TestGuardianService_UpdateStudentGuardianRelationship(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "rel-update-role")
 		student := testpkg.CreateTestStudent(t, db, "RelUpdateRole", "Student", "5b")
 
-		created, err := service.LinkGuardianToStudent(ctx, peopleCompose.StudentGuardianCreateRequest{
+		created, err := testpkg.TenantQuery1(t, ctx, db, service.LinkGuardianToStudent, peoplePorts.StudentGuardianCreateRequest{
 			StudentID:         student.ID,
 			GuardianProfileID: guardian.ID,
 			RelationshipType:  "parent",
-			GuardianRole:      authorize.GuardianRoleLegalGuardian,
+			GuardianRole:      testpkg.GuardianRoleLegalGuardian,
 			EmergencyPriority: 1,
 		})
 		require.NoError(t, err)
-		require.True(t, authorize.StudentGuardianHasPermission(created, authorize.GuardianPermissionPortalAccess))
+		require.True(t, testpkg.GuardianPermissionsGrant(created.Permissions, testpkg.GuardianPermissionPortalAccess))
 
-		role := authorize.GuardianRoleEmergency
-		err = service.UpdateStudentGuardianRelationship(ctx, created.ID, peopleCompose.StudentGuardianUpdateRequest{
+		role := testpkg.GuardianRoleEmergency
+		err = testpkg.TenantCommand2(t, ctx, db, service.UpdateStudentGuardianRelationship, created.ID, peoplePorts.StudentGuardianUpdateRequest{
 			GuardianRole: &role,
 		})
 		require.NoError(t, err)
 
-		updated, err := service.GetStudentGuardianRelationship(ctx, created.ID)
+		updated, err := testpkg.TenantQuery1(t, ctx, db, service.GetStudentGuardianRelationship, created.ID)
 		require.NoError(t, err)
-		assert.Equal(t, authorize.GuardianRoleEmergency, updated.GuardianRole)
-		assert.False(t, authorize.StudentGuardianHasPermission(updated, authorize.GuardianPermissionPortalAccess))
-		assert.False(t, authorize.StudentGuardianHasPermission(updated, authorize.GuardianPermissionNotesWrite))
+		assert.Equal(t, testpkg.GuardianRoleEmergency, updated.GuardianRole)
+		assert.False(t, testpkg.GuardianPermissionsGrant(updated.Permissions, testpkg.GuardianPermissionPortalAccess))
+		assert.False(t, testpkg.GuardianPermissionsGrant(updated.Permissions, testpkg.GuardianPermissionNotesWrite))
 	})
 
 	t.Run("updates every optional relationship field", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "rel-update-all")
 		student := testpkg.CreateTestStudent(t, db, "RelUpdateAll", "Student", "5b")
 
-		created, err := service.LinkGuardianToStudent(ctx, peopleCompose.StudentGuardianCreateRequest{
+		created, err := testpkg.TenantQuery1(t, ctx, db, service.LinkGuardianToStudent, peoplePorts.StudentGuardianCreateRequest{
 			StudentID:          student.ID,
 			GuardianProfileID:  guardian.ID,
 			RelationshipType:   "parent",
@@ -1007,7 +1005,7 @@ func TestGuardianService_UpdateStudentGuardianRelationship(t *testing.T) {
 		pickupNotes := "Nur mit Ausweis"
 		emergencyPriority := 3
 
-		err = service.UpdateStudentGuardianRelationship(ctx, created.ID, peopleCompose.StudentGuardianUpdateRequest{
+		err = testpkg.TenantCommand2(t, ctx, db, service.UpdateStudentGuardianRelationship, created.ID, peoplePorts.StudentGuardianUpdateRequest{
 			RelationshipType:   &newType,
 			IsPrimary:          &isPrimary,
 			IsEmergencyContact: &isEmergencyContact,
@@ -1017,7 +1015,7 @@ func TestGuardianService_UpdateStudentGuardianRelationship(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		updated, err := service.GetStudentGuardianRelationship(ctx, created.ID)
+		updated, err := testpkg.TenantQuery1(t, ctx, db, service.GetStudentGuardianRelationship, created.ID)
 		require.NoError(t, err)
 		assert.Equal(t, newType, updated.RelationshipType)
 		assert.True(t, updated.IsPrimary)
@@ -1035,7 +1033,7 @@ func TestGuardianService_UpdateStudentGuardianRelationship(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "rel-update-payer")
 		student := testpkg.CreateTestStudent(t, db, "RelUpdatePayer", "Student", "5c")
 
-		created, err := service.LinkGuardianToStudent(ctx, peopleCompose.StudentGuardianCreateRequest{
+		created, err := testpkg.TenantQuery1(t, ctx, db, service.LinkGuardianToStudent, peoplePorts.StudentGuardianCreateRequest{
 			StudentID:         student.ID,
 			GuardianProfileID: guardian.ID,
 			RelationshipType:  "parent",
@@ -1046,13 +1044,12 @@ func TestGuardianService_UpdateStudentGuardianRelationship(t *testing.T) {
 
 		// The payer is assigned AFTER the caller read the relationship, so the
 		// in-memory copy still says false — exactly the concurrent shape.
-		require.NoError(t, service.SetStudentPayer(ctx, student.ID, &guardian.ID, 1))
+		require.NoError(t, testpkg.TenantCommand3(t, ctx, db, service.SetStudentPayer, student.ID, &guardian.ID, 1))
 
 		canPickup := true
-		require.NoError(t, service.UpdateStudentGuardianRelationship(ctx, created.ID,
-			peopleCompose.StudentGuardianUpdateRequest{CanPickup: &canPickup}))
+		require.NoError(t, testpkg.TenantCommand2(t, ctx, db, service.UpdateStudentGuardianRelationship, created.ID, peoplePorts.StudentGuardianUpdateRequest{CanPickup: &canPickup}))
 
-		updated, err := service.GetStudentGuardianRelationship(ctx, created.ID)
+		updated, err := testpkg.TenantQuery1(t, ctx, db, service.GetStudentGuardianRelationship, created.ID)
 		require.NoError(t, err)
 		assert.True(t, updated.CanPickup, "the requested field must still be written")
 		assert.True(t, updated.IsPayer, "an unrelated relationship edit must not clear the payer mark")
@@ -1062,7 +1059,7 @@ func TestGuardianService_UpdateStudentGuardianRelationship(t *testing.T) {
 		missingID := time.Now().UnixNano()
 		isPrimary := true
 
-		err := service.UpdateStudentGuardianRelationship(ctx, missingID, peopleCompose.StudentGuardianUpdateRequest{
+		err := testpkg.TenantCommand2(t, ctx, db, service.UpdateStudentGuardianRelationship, missingID, peoplePorts.StudentGuardianUpdateRequest{
 			IsPrimary: &isPrimary,
 		})
 
@@ -1075,16 +1072,16 @@ func TestGuardianService_UpdateStudentGuardianRelationship(t *testing.T) {
 // New Student Guardian Batch Tests
 // =============================================================================
 
-func validNewStudentGuardian(email string) peopleCompose.NewStudentGuardian {
-	return peopleCompose.NewStudentGuardian{
-		Profile: peopleCompose.GuardianCreateRequest{
+func validNewStudentGuardian(email string) peoplePorts.NewStudentGuardian {
+	return peoplePorts.NewStudentGuardian{
+		Profile: peoplePorts.GuardianCreateRequest{
 			FirstName:              "Batch",
 			LastName:               "Guardian",
 			Email:                  &email,
 			PreferredContactMethod: "email",
 			LanguagePreference:     "de",
 		},
-		Relationship: peopleCompose.StudentGuardianRelationship{
+		Relationship: peoplePorts.StudentGuardianRelationship{
 			RelationshipType:  "parent",
 			EmergencyPriority: 1,
 		},
@@ -1106,7 +1103,7 @@ func TestGuardianService_ValidateNewGuardians(t *testing.T) {
 		req.ExistingProfileID = &profile.ID
 		req.Relationship.RelationshipType = "guardian"
 
-		err := service.ValidateNewGuardians(ctx, []peopleCompose.NewStudentGuardian{req})
+		err := testpkg.TenantCommand1(t, ctx, db, service.ValidateNewGuardians, []peoplePorts.NewStudentGuardian{req})
 		require.NoError(t, err)
 	})
 
@@ -1115,9 +1112,9 @@ func TestGuardianService_ValidateNewGuardians(t *testing.T) {
 		first := validNewStudentGuardian(email)
 		second := validNewStudentGuardian("  " + email + "  ")
 
-		err := service.ValidateNewGuardians(ctx, []peopleCompose.NewStudentGuardian{first, second})
+		err := testpkg.TenantCommand1(t, ctx, db, service.ValidateNewGuardians, []peoplePorts.NewStudentGuardian{first, second})
 		require.Error(t, err)
-		_, isValidation := peopleCompose.ValidationFailure(err)
+		_, isValidation := peoplePorts.ValidationFailure(err)
 		require.True(t, isValidation)
 		assert.Contains(t, err.Error(), "mehrfach angegeben")
 	})
@@ -1127,9 +1124,9 @@ func TestGuardianService_ValidateNewGuardians(t *testing.T) {
 
 		req := validNewStudentGuardian(*profile.Email)
 
-		err := service.ValidateNewGuardians(ctx, []peopleCompose.NewStudentGuardian{req})
+		err := testpkg.TenantCommand1(t, ctx, db, service.ValidateNewGuardians, []peoplePorts.NewStudentGuardian{req})
 		require.Error(t, err)
-		_, isValidation := peopleCompose.ValidationFailure(err)
+		_, isValidation := peoplePorts.ValidationFailure(err)
 		require.True(t, isValidation)
 		assert.Contains(t, err.Error(), "bereits vergeben")
 	})
@@ -1141,9 +1138,9 @@ func TestGuardianService_ValidateNewGuardians(t *testing.T) {
 		req.ExistingProfileID = &profile.ID
 		req.Relationship.RelationshipType = "invalid"
 
-		err := service.ValidateNewGuardians(ctx, []peopleCompose.NewStudentGuardian{req})
+		err := testpkg.TenantCommand1(t, ctx, db, service.ValidateNewGuardians, []peoplePorts.NewStudentGuardian{req})
 		require.Error(t, err)
-		_, isValidation := peopleCompose.ValidationFailure(err)
+		_, isValidation := peoplePorts.ValidationFailure(err)
 		require.True(t, isValidation)
 		assert.Contains(t, err.Error(), "ungültiger Beziehungstyp")
 	})
@@ -1155,9 +1152,9 @@ func TestGuardianService_ValidateNewGuardians(t *testing.T) {
 		req := validNewStudentGuardian("")
 		req.ExistingProfileID = &missingID
 
-		err := service.ValidateNewGuardians(ctx, []peopleCompose.NewStudentGuardian{req})
+		err := testpkg.TenantCommand1(t, ctx, db, service.ValidateNewGuardians, []peoplePorts.NewStudentGuardian{req})
 		require.Error(t, err)
-		_, isValidation := peopleCompose.ValidationFailure(err)
+		_, isValidation := peoplePorts.ValidationFailure(err)
 		require.True(t, isValidation)
 		assert.Contains(t, err.Error(), "ausgewählte Person nicht gefunden")
 	})
@@ -1167,9 +1164,9 @@ func TestGuardianService_ValidateNewGuardians(t *testing.T) {
 		req := validNewStudentGuardian(email)
 		req.Relationship.RelationshipType = "friend"
 
-		err := service.ValidateNewGuardians(ctx, []peopleCompose.NewStudentGuardian{req})
+		err := testpkg.TenantCommand1(t, ctx, db, service.ValidateNewGuardians, []peoplePorts.NewStudentGuardian{req})
 		require.Error(t, err)
-		_, isValidation := peopleCompose.ValidationFailure(err)
+		_, isValidation := peoplePorts.ValidationFailure(err)
 		require.True(t, isValidation)
 		assert.Contains(t, err.Error(), "ungültiger Beziehungstyp")
 	})
@@ -1179,9 +1176,9 @@ func TestGuardianService_ValidateNewGuardians(t *testing.T) {
 		req := validNewStudentGuardian(email)
 		req.Relationship.EmergencyPriority = 0
 
-		err := service.ValidateNewGuardians(ctx, []peopleCompose.NewStudentGuardian{req})
+		err := testpkg.TenantCommand1(t, ctx, db, service.ValidateNewGuardians, []peoplePorts.NewStudentGuardian{req})
 		require.Error(t, err)
-		_, isValidation := peopleCompose.ValidationFailure(err)
+		_, isValidation := peoplePorts.ValidationFailure(err)
 		require.True(t, isValidation)
 		assert.Contains(t, err.Error(), "Notfall-Priorität")
 	})
@@ -1190,9 +1187,9 @@ func TestGuardianService_ValidateNewGuardians(t *testing.T) {
 		email := "not-an-email"
 		req := validNewStudentGuardian(email)
 
-		err := service.ValidateNewGuardians(ctx, []peopleCompose.NewStudentGuardian{req})
+		err := testpkg.TenantCommand1(t, ctx, db, service.ValidateNewGuardians, []peoplePorts.NewStudentGuardian{req})
 		require.Error(t, err)
-		_, isValidation := peopleCompose.ValidationFailure(err)
+		_, isValidation := peoplePorts.ValidationFailure(err)
 		require.True(t, isValidation)
 		assert.Contains(t, err.Error(), "ungültiges E-Mail-Format")
 	})
@@ -1200,14 +1197,14 @@ func TestGuardianService_ValidateNewGuardians(t *testing.T) {
 	t.Run("rejects invalid phone number", func(t *testing.T) {
 		email := fmt.Sprintf("bad-phone-%d@example.com", time.Now().UnixNano())
 		req := validNewStudentGuardian(email)
-		req.PhoneNumbers = []peopleCompose.PhoneNumberCreateRequest{{
+		req.PhoneNumbers = []peoplePorts.PhoneNumberCreateRequest{{
 			PhoneNumber: "12",
 			PhoneType:   "mobile",
 		}}
 
-		err := service.ValidateNewGuardians(ctx, []peopleCompose.NewStudentGuardian{req})
+		err := testpkg.TenantCommand1(t, ctx, db, service.ValidateNewGuardians, []peoplePorts.NewStudentGuardian{req})
 		require.Error(t, err)
-		_, isValidation := peopleCompose.ValidationFailure(err)
+		_, isValidation := peoplePorts.ValidationFailure(err)
 		require.True(t, isValidation)
 		assert.Contains(t, err.Error(), "Telefonnummer")
 	})
@@ -1226,16 +1223,16 @@ func TestGuardianService_AddGuardiansToStudent(t *testing.T) {
 
 		email := fmt.Sprintf("batch-add-%d@example.com", time.Now().UnixNano())
 		req := validNewStudentGuardian(email)
-		req.PhoneNumbers = []peopleCompose.PhoneNumberCreateRequest{{
+		req.PhoneNumbers = []peoplePorts.PhoneNumberCreateRequest{{
 			PhoneNumber: "+49 221 123456",
 			PhoneType:   "mobile",
 			IsPrimary:   true,
 		}}
 
-		err := service.AddGuardiansToStudent(ctx, student.ID, []peopleCompose.NewStudentGuardian{req})
+		err := testpkg.TenantCommand2(t, ctx, db, service.AddGuardiansToStudent, student.ID, []peoplePorts.NewStudentGuardian{req})
 		require.NoError(t, err)
 
-		guardians, err := service.GetStudentGuardians(ctx, student.ID)
+		guardians, err := testpkg.TenantQuery1(t, ctx, db, service.GetStudentGuardians, student.ID)
 		require.NoError(t, err)
 		require.Len(t, guardians, 1)
 		assert.Equal(t, "Batch", guardians[0].Profile.FirstName)
@@ -1252,10 +1249,10 @@ func TestGuardianService_AddGuardiansToStudent(t *testing.T) {
 		second.ExistingProfileID = &profile.ID
 		second.Relationship.IsEmergencyContact = true
 
-		err := service.AddGuardiansToStudent(ctx, student.ID, []peopleCompose.NewStudentGuardian{first, second})
+		err := testpkg.TenantCommand2(t, ctx, db, service.AddGuardiansToStudent, student.ID, []peoplePorts.NewStudentGuardian{first, second})
 		require.NoError(t, err)
 
-		guardians, err := service.GetStudentGuardians(ctx, student.ID)
+		guardians, err := testpkg.TenantQuery1(t, ctx, db, service.GetStudentGuardians, student.ID)
 		require.NoError(t, err)
 		require.Len(t, guardians, 1)
 		assert.Equal(t, profile.ID, guardians[0].Profile.ID)
@@ -1269,10 +1266,10 @@ func TestGuardianService_AddGuardiansToStudent(t *testing.T) {
 		req := validNewStudentGuardian(fmt.Sprintf("batch-invalid-%d@example.com", time.Now().UnixNano()))
 		req.Relationship.RelationshipType = "friend"
 
-		err := service.AddGuardiansToStudent(ctx, student.ID, []peopleCompose.NewStudentGuardian{req})
+		err := testpkg.TenantCommand2(t, ctx, db, service.AddGuardiansToStudent, student.ID, []peoplePorts.NewStudentGuardian{req})
 
 		require.Error(t, err)
-		_, isValidation := peopleCompose.ValidationFailure(err)
+		_, isValidation := peoplePorts.ValidationFailure(err)
 		require.True(t, isValidation)
 		assert.Contains(t, err.Error(), "ungültiger Beziehungstyp")
 	})
@@ -1282,11 +1279,7 @@ func TestGuardianService_AddGuardiansToStudent(t *testing.T) {
 		email := fmt.Sprintf("batch-link-missing-%d@example.com", missingStudentID)
 		req := validNewStudentGuardian(email)
 
-		err := service.AddGuardiansToStudent(ctx, missingStudentID, []peopleCompose.NewStudentGuardian{req})
-		t.Cleanup(func() {
-			_, _ = db.NewDelete().TableExpr("users.guardian_profiles").
-				Where("email = ?", email).Exec(context.Background())
-		})
+		err := testpkg.TenantCommand2(t, ctx, db, service.AddGuardiansToStudent, missingStudentID, []peoplePorts.NewStudentGuardian{req})
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to link guardian at index 0")
@@ -1306,7 +1299,7 @@ func TestGuardianService_SearchGuardiansForPicker(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, token)
 		student := testpkg.CreateTestStudent(t, db, "Picker", "Child", "8a")
 
-		_, err := service.LinkGuardianToStudent(ctx, peopleCompose.StudentGuardianCreateRequest{
+		_, err := testpkg.TenantQuery1(t, ctx, db, service.LinkGuardianToStudent, peoplePorts.StudentGuardianCreateRequest{
 			StudentID:          student.ID,
 			GuardianProfileID:  guardian.ID,
 			RelationshipType:   "parent",
@@ -1315,7 +1308,7 @@ func TestGuardianService_SearchGuardiansForPicker(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		matches, err := service.SearchGuardiansForPicker(ctx, token, 10)
+		matches, err := testpkg.TenantQuery2(t, ctx, db, service.SearchGuardiansForPicker, token, 10)
 		require.NoError(t, err)
 		require.Len(t, matches, 1)
 		assert.Equal(t, guardian.ID, matches[0].Profile.ID)
@@ -1327,7 +1320,7 @@ func TestGuardianService_SearchGuardiansForPicker(t *testing.T) {
 		token := fmt.Sprintf("picker-unlinked-%d", time.Now().UnixNano())
 		guardian := testpkg.CreateTestGuardianProfile(t, db, token)
 
-		matches, err := service.SearchGuardiansForPicker(ctx, token, 10)
+		matches, err := testpkg.TenantQuery2(t, ctx, db, service.SearchGuardiansForPicker, token, 10)
 		require.NoError(t, err)
 		require.Len(t, matches, 1)
 		assert.Equal(t, guardian.ID, matches[0].Profile.ID)
@@ -1335,7 +1328,7 @@ func TestGuardianService_SearchGuardiansForPicker(t *testing.T) {
 	})
 
 	t.Run("returns empty slice for no matches", func(t *testing.T) {
-		matches, err := service.SearchGuardiansForPicker(ctx, fmt.Sprintf("missing-%d", time.Now().UnixNano()), 10)
+		matches, err := testpkg.TenantQuery2(t, ctx, db, service.SearchGuardiansForPicker, fmt.Sprintf("missing-%d", time.Now().UnixNano()), 10)
 		require.NoError(t, err)
 		assert.NotNil(t, matches)
 		assert.Empty(t, matches)
@@ -1345,7 +1338,7 @@ func TestGuardianService_SearchGuardiansForPicker(t *testing.T) {
 		canceledCtx, cancel := context.WithCancel(ctx)
 		cancel()
 
-		matches, err := service.SearchGuardiansForPicker(canceledCtx, "picker", 10)
+		matches, err := testpkg.TenantQuery2(t, canceledCtx, db, service.SearchGuardiansForPicker, "picker", 10)
 
 		require.Error(t, err)
 		assert.Nil(t, matches)
@@ -1370,32 +1363,32 @@ func TestGuardianService_RemoveGuardianFromStudent(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "RemoveGuardian", "Student", "6a")
 
 		// Create relationship
-		req := peopleCompose.StudentGuardianCreateRequest{
+		req := peoplePorts.StudentGuardianCreateRequest{
 			StudentID:         student.ID,
 			GuardianProfileID: guardian.ID,
 			RelationshipType:  "parent",
 		}
-		_, err := service.LinkGuardianToStudent(ctx, req)
+		_, err := testpkg.TenantQuery1(t, ctx, db, service.LinkGuardianToStudent, req)
 		require.NoError(t, err)
-		require.NoError(t, service.SetStudentPayer(ctx, student.ID, &guardian.ID, 1))
+		require.NoError(t, testpkg.TenantCommand3(t, ctx, db, service.SetStudentPayer, student.ID, &guardian.ID, 1))
 
 		// ACT
-		err = service.RemoveGuardianFromStudent(ctx, student.ID, guardian.ID, 1, true)
+		err = testpkg.TenantCommand4(t, ctx, db, service.RemoveGuardianFromStudent, student.ID, guardian.ID, 1, true)
 
 		// ASSERT
 		require.NoError(t, err)
 
 		// Verify removal
-		guardians, err := service.GetStudentGuardians(ctx, student.ID)
+		guardians, err := testpkg.TenantQuery1(t, ctx, db, service.GetStudentGuardians, student.ID)
 		require.NoError(t, err)
 		assert.Empty(t, guardians)
 
 		count, err := db.NewSelect().
-			Model((*auditModels.GuardianFinancialChange)(nil)).
+			Model((*testpkg.GuardianFinancialChange)(nil)).
 			ModelTableExpr(`audit.guardian_financial_changes AS "guardian_financial_change"`).
 			Where(`"guardian_financial_change".guardian_profile_id = ?`, guardian.ID).
 			Where(`"guardian_financial_change".student_id = ?`, student.ID).
-			Where(`"guardian_financial_change".field_name = ?`, auditModels.GuardianPaymentFieldIsPayer).
+			Where(`"guardian_financial_change".field_name = ?`, testpkg.AuditGuardianPaymentFieldIsPayer).
 			Where(`"guardian_financial_change".new_value = ?`, "false").
 			Count(ctx)
 		require.NoError(t, err)
@@ -1406,30 +1399,30 @@ func TestGuardianService_RemoveGuardianFromStudent(t *testing.T) {
 		// ARRANGE
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "payer-keep")
 		student := testpkg.CreateTestStudent(t, db, "KeepPayer", "Student", "6c")
-		_, err := service.LinkGuardianToStudent(ctx, peopleCompose.StudentGuardianCreateRequest{
+		_, err := testpkg.TenantQuery1(t, ctx, db, service.LinkGuardianToStudent, peoplePorts.StudentGuardianCreateRequest{
 			StudentID:         student.ID,
 			GuardianProfileID: guardian.ID,
 			RelationshipType:  "parent",
 		})
 		require.NoError(t, err)
-		require.NoError(t, service.SetStudentPayer(ctx, student.ID, &guardian.ID, 1))
+		require.NoError(t, testpkg.TenantCommand3(t, ctx, db, service.SetStudentPayer, student.ID, &guardian.ID, 1))
 
 		// ACT
-		err = service.RemoveGuardianFromStudent(ctx, student.ID, guardian.ID, 1, false)
+		err = testpkg.TenantCommand4(t, ctx, db, service.RemoveGuardianFromStudent, student.ID, guardian.ID, 1, false)
 
 		// ASSERT
-		require.ErrorIs(t, err, peopleCompose.ErrPayerRemovalRequiresFinancial)
-		guardians, err := service.GetStudentGuardians(ctx, student.ID)
+		require.ErrorIs(t, err, peoplePorts.ErrPayerRemovalRequiresFinancial)
+		guardians, err := testpkg.TenantQuery1(t, ctx, db, service.GetStudentGuardians, student.ID)
 		require.NoError(t, err)
 		require.Len(t, guardians, 1, "the relationship must survive the refusal")
 		assert.True(t, guardians[0].Relationship.IsPayer, "the payer mark must survive the refusal")
 
 		count, err := db.NewSelect().
-			Model((*auditModels.GuardianFinancialChange)(nil)).
+			Model((*testpkg.GuardianFinancialChange)(nil)).
 			ModelTableExpr(`audit.guardian_financial_changes AS "guardian_financial_change"`).
 			Where(`"guardian_financial_change".guardian_profile_id = ?`, guardian.ID).
 			Where(`"guardian_financial_change".student_id = ?`, student.ID).
-			Where(`"guardian_financial_change".field_name = ?`, auditModels.GuardianPaymentFieldIsPayer).
+			Where(`"guardian_financial_change".field_name = ?`, testpkg.AuditGuardianPaymentFieldIsPayer).
 			Where(`"guardian_financial_change".new_value = ?`, "false").
 			Count(ctx)
 		require.NoError(t, err)
@@ -1440,7 +1433,7 @@ func TestGuardianService_RemoveGuardianFromStudent(t *testing.T) {
 		// ARRANGE
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "not-payer")
 		student := testpkg.CreateTestStudent(t, db, "NotPayer", "Student", "6d")
-		_, err := service.LinkGuardianToStudent(ctx, peopleCompose.StudentGuardianCreateRequest{
+		_, err := testpkg.TenantQuery1(t, ctx, db, service.LinkGuardianToStudent, peoplePorts.StudentGuardianCreateRequest{
 			StudentID:         student.ID,
 			GuardianProfileID: guardian.ID,
 			RelationshipType:  "parent",
@@ -1448,11 +1441,11 @@ func TestGuardianService_RemoveGuardianFromStudent(t *testing.T) {
 		require.NoError(t, err)
 
 		// ACT
-		err = service.RemoveGuardianFromStudent(ctx, student.ID, guardian.ID, 1, false)
+		err = testpkg.TenantCommand4(t, ctx, db, service.RemoveGuardianFromStudent, student.ID, guardian.ID, 1, false)
 
 		// ASSERT
 		require.NoError(t, err)
-		guardians, err := service.GetStudentGuardians(ctx, student.ID)
+		guardians, err := testpkg.TenantQuery1(t, ctx, db, service.GetStudentGuardians, student.ID)
 		require.NoError(t, err)
 		assert.Empty(t, guardians)
 	})
@@ -1462,7 +1455,7 @@ func TestGuardianService_RemoveGuardianFromStudent(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "NoRel", "Student", "6b")
 
 		// ACT
-		err := service.RemoveGuardianFromStudent(ctx, student.ID, 99999999, 1, true)
+		err := testpkg.TenantCommand4(t, ctx, db, service.RemoveGuardianFromStudent, student.ID, 99999999, 1, true)
 
 		// ASSERT
 		require.Error(t, err)
@@ -1487,7 +1480,7 @@ func TestGuardianService_ListGuardians(t *testing.T) {
 		testpkg.CreateTestGuardianProfile(t, db, "list-2")
 
 		// ACT
-		result, err := service.ListGuardians(ctx, nil)
+		result, err := testpkg.TenantQuery1(t, ctx, db, service.ListGuardians, nil)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -1512,7 +1505,7 @@ func TestGuardianService_GetGuardiansWithoutAccount(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "no-account")
 
 		// ACT
-		result, err := service.GetGuardiansWithoutAccount(ctx)
+		result, err := testpkg.TenantQuery0(t, ctx, db, service.GuardianProfiles().FindWithoutAccount)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -1546,7 +1539,7 @@ func TestGuardianService_GetInvitableGuardians(t *testing.T) {
 		testpkg.CreateTestGuardianProfile(t, db, "invitable")
 
 		// ACT
-		result, err := service.GetInvitableGuardians(ctx)
+		result, err := testpkg.TenantQuery0(t, ctx, db, service.GuardianProfiles().FindInvitable)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -1584,7 +1577,7 @@ func TestGuardianService_GetPendingInvitations(t *testing.T) {
 		AcceptedAt:        &spent,
 	})
 
-	result, err := service.GetPendingInvitations(ctx)
+	result, err := testpkg.TenantQuery0(t, ctx, db, service.GuardianInvitationReads().ListRedeemable)
 	require.NoError(t, err)
 
 	ids := make([]int64, 0, len(result))
@@ -1611,19 +1604,19 @@ func TestGuardianService_AddPhoneNumber_Success(t *testing.T) {
 		// ARRANGE
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "first-phone")
 
-		req := peopleCompose.PhoneNumberCreateRequest{
+		req := peoplePorts.PhoneNumberCreateRequest{
 			PhoneNumber: "+49 123 456789",
 			PhoneType:   "mobile",
 		}
 
 		// ACT
-		result, err := service.AddPhoneNumber(ctx, guardian.ID, req)
+		result, err := testpkg.TenantQuery2(t, ctx, db, service.AddPhoneNumber, guardian.ID, req)
 
 		// ASSERT
 		require.NoError(t, err)
 		assert.NotNil(t, result)
 		assert.Equal(t, "+49 123 456789", result.PhoneNumber)
-		assert.Equal(t, usermodels.PhoneTypeMobile, result.PhoneType)
+		assert.Equal(t, peopleValues.PhoneTypeMobile, result.PhoneType)
 		assert.True(t, result.IsPrimary, "First phone should be primary")
 		assert.Equal(t, 1, result.Priority)
 	})
@@ -1633,20 +1626,20 @@ func TestGuardianService_AddPhoneNumber_Success(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "second-phone")
 
 		// Add first phone
-		_, err := service.AddPhoneNumber(ctx, guardian.ID, peopleCompose.PhoneNumberCreateRequest{
+		_, err := testpkg.TenantQuery2(t, ctx, db, service.AddPhoneNumber, guardian.ID, peoplePorts.PhoneNumberCreateRequest{
 			PhoneNumber: "+49 111 111111",
 			PhoneType:   "mobile",
 		})
 		require.NoError(t, err)
 
 		// Add second phone
-		req := peopleCompose.PhoneNumberCreateRequest{
+		req := peoplePorts.PhoneNumberCreateRequest{
 			PhoneNumber: "+49 222 222222",
 			PhoneType:   "work",
 		}
 
 		// ACT
-		result, err := service.AddPhoneNumber(ctx, guardian.ID, req)
+		result, err := testpkg.TenantQuery2(t, ctx, db, service.AddPhoneNumber, guardian.ID, req)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -1661,7 +1654,7 @@ func TestGuardianService_AddPhoneNumber_Success(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "explicit-primary")
 
 		// Add first phone
-		_, err := service.AddPhoneNumber(ctx, guardian.ID, peopleCompose.PhoneNumberCreateRequest{
+		_, err := testpkg.TenantQuery2(t, ctx, db, service.AddPhoneNumber, guardian.ID, peoplePorts.PhoneNumberCreateRequest{
 			PhoneNumber: "+49 111 111111",
 			PhoneType:   "mobile",
 		})
@@ -1669,7 +1662,7 @@ func TestGuardianService_AddPhoneNumber_Success(t *testing.T) {
 
 		// Add second phone as primary
 		label := "Hauptnummer"
-		req := peopleCompose.PhoneNumberCreateRequest{
+		req := peoplePorts.PhoneNumberCreateRequest{
 			PhoneNumber: "+49 333 333333",
 			PhoneType:   "home",
 			Label:       &label,
@@ -1677,7 +1670,7 @@ func TestGuardianService_AddPhoneNumber_Success(t *testing.T) {
 		}
 
 		// ACT
-		result, err := service.AddPhoneNumber(ctx, guardian.ID, req)
+		result, err := testpkg.TenantQuery2(t, ctx, db, service.AddPhoneNumber, guardian.ID, req)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -1685,7 +1678,7 @@ func TestGuardianService_AddPhoneNumber_Success(t *testing.T) {
 		assert.Equal(t, &label, result.Label)
 
 		// Verify first phone is no longer primary
-		phones, err := service.GetGuardianPhoneNumbers(ctx, guardian.ID)
+		phones, err := testpkg.TenantQuery1(t, ctx, db, service.GuardianPhoneNumbers().FindByGuardianID, guardian.ID)
 		require.NoError(t, err)
 		for _, phone := range phones {
 			if phone.PhoneNumber == "+49 111 111111" {
@@ -1698,17 +1691,17 @@ func TestGuardianService_AddPhoneNumber_Success(t *testing.T) {
 		// ARRANGE
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "invalid-type")
 
-		req := peopleCompose.PhoneNumberCreateRequest{
+		req := peoplePorts.PhoneNumberCreateRequest{
 			PhoneNumber: "+49 444 444444",
 			PhoneType:   "invalid_type",
 		}
 
 		// ACT
-		result, err := service.AddPhoneNumber(ctx, guardian.ID, req)
+		result, err := testpkg.TenantQuery2(t, ctx, db, service.AddPhoneNumber, guardian.ID, req)
 
 		// ASSERT
 		require.NoError(t, err)
-		assert.Equal(t, usermodels.PhoneTypeMobile, result.PhoneType, "Should default to mobile")
+		assert.Equal(t, peopleValues.PhoneTypeMobile, result.PhoneType, "Should default to mobile")
 	})
 }
 
@@ -1722,13 +1715,13 @@ func TestGuardianService_AddPhoneNumber_Errors(t *testing.T) {
 
 	t.Run("returns error when guardian not found", func(t *testing.T) {
 		// ARRANGE
-		req := peopleCompose.PhoneNumberCreateRequest{
+		req := peoplePorts.PhoneNumberCreateRequest{
 			PhoneNumber: "+49 555 555555",
 			PhoneType:   "mobile",
 		}
 
 		// ACT
-		result, err := service.AddPhoneNumber(ctx, 99999999, req)
+		result, err := testpkg.TenantQuery2(t, ctx, db, service.AddPhoneNumber, 99999999, req)
 
 		// ASSERT
 		require.Error(t, err)
@@ -1753,7 +1746,7 @@ func TestGuardianService_UpdatePhoneNumber_Success(t *testing.T) {
 		// ARRANGE
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "update-fields")
 
-		phone, err := service.AddPhoneNumber(ctx, guardian.ID, peopleCompose.PhoneNumberCreateRequest{
+		phone, err := testpkg.TenantQuery2(t, ctx, db, service.AddPhoneNumber, guardian.ID, peoplePorts.PhoneNumberCreateRequest{
 			PhoneNumber: "+49 666 666666",
 			PhoneType:   "mobile",
 		})
@@ -1762,23 +1755,23 @@ func TestGuardianService_UpdatePhoneNumber_Success(t *testing.T) {
 		newNumber := "+49 777 777777"
 		newType := "work"
 		newLabel := "Büro"
-		req := peopleCompose.PhoneNumberUpdateRequest{
+		req := peoplePorts.PhoneNumberUpdateRequest{
 			PhoneNumber: &newNumber,
 			PhoneType:   &newType,
 			Label:       &newLabel,
 		}
 
 		// ACT
-		err = service.UpdatePhoneNumber(ctx, phone.ID, req)
+		err = testpkg.TenantCommand2(t, ctx, db, service.UpdatePhoneNumber, phone.ID, req)
 
 		// ASSERT
 		require.NoError(t, err)
 
 		// Verify update
-		updated, err := service.GetPhoneNumberByID(ctx, phone.ID)
+		updated, err := testpkg.TenantQuery1(t, ctx, db, service.GuardianPhoneNumbers().FindByID, phone.ID)
 		require.NoError(t, err)
 		assert.Equal(t, newNumber, updated.PhoneNumber)
-		assert.Equal(t, usermodels.PhoneTypeWork, updated.PhoneType)
+		assert.Equal(t, peopleValues.PhoneTypeWork, updated.PhoneType)
 		assert.Equal(t, &newLabel, updated.Label)
 	})
 
@@ -1787,13 +1780,13 @@ func TestGuardianService_UpdatePhoneNumber_Success(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "set-primary")
 
 		// Create two phones
-		phone1, err := service.AddPhoneNumber(ctx, guardian.ID, peopleCompose.PhoneNumberCreateRequest{
+		phone1, err := testpkg.TenantQuery2(t, ctx, db, service.AddPhoneNumber, guardian.ID, peoplePorts.PhoneNumberCreateRequest{
 			PhoneNumber: "+49 111 111111",
 			PhoneType:   "mobile",
 		})
 		require.NoError(t, err)
 
-		phone2, err := service.AddPhoneNumber(ctx, guardian.ID, peopleCompose.PhoneNumberCreateRequest{
+		phone2, err := testpkg.TenantQuery2(t, ctx, db, service.AddPhoneNumber, guardian.ID, peoplePorts.PhoneNumberCreateRequest{
 			PhoneNumber: "+49 222 222222",
 			PhoneType:   "work",
 		})
@@ -1801,23 +1794,23 @@ func TestGuardianService_UpdatePhoneNumber_Success(t *testing.T) {
 
 		// Make phone2 primary
 		isPrimary := true
-		req := peopleCompose.PhoneNumberUpdateRequest{
+		req := peoplePorts.PhoneNumberUpdateRequest{
 			IsPrimary: &isPrimary,
 		}
 
 		// ACT
-		err = service.UpdatePhoneNumber(ctx, phone2.ID, req)
+		err = testpkg.TenantCommand2(t, ctx, db, service.UpdatePhoneNumber, phone2.ID, req)
 
 		// ASSERT
 		require.NoError(t, err)
 
 		// Verify phone2 is primary
-		updated2, err := service.GetPhoneNumberByID(ctx, phone2.ID)
+		updated2, err := testpkg.TenantQuery1(t, ctx, db, service.GuardianPhoneNumbers().FindByID, phone2.ID)
 		require.NoError(t, err)
 		assert.True(t, updated2.IsPrimary)
 
 		// Verify phone1 is not primary
-		updated1, err := service.GetPhoneNumberByID(ctx, phone1.ID)
+		updated1, err := testpkg.TenantQuery1(t, ctx, db, service.GuardianPhoneNumbers().FindByID, phone1.ID)
 		require.NoError(t, err)
 		assert.False(t, updated1.IsPrimary, "Old primary should be unset")
 	})
@@ -1826,7 +1819,7 @@ func TestGuardianService_UpdatePhoneNumber_Success(t *testing.T) {
 		// ARRANGE
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "unset-primary")
 
-		phone, err := service.AddPhoneNumber(ctx, guardian.ID, peopleCompose.PhoneNumberCreateRequest{
+		phone, err := testpkg.TenantQuery2(t, ctx, db, service.AddPhoneNumber, guardian.ID, peoplePorts.PhoneNumberCreateRequest{
 			PhoneNumber: "+49 888 888888",
 			PhoneType:   "mobile",
 			IsPrimary:   true,
@@ -1834,17 +1827,17 @@ func TestGuardianService_UpdatePhoneNumber_Success(t *testing.T) {
 		require.NoError(t, err)
 
 		isPrimary := false
-		req := peopleCompose.PhoneNumberUpdateRequest{
+		req := peoplePorts.PhoneNumberUpdateRequest{
 			IsPrimary: &isPrimary,
 		}
 
 		// ACT
-		err = service.UpdatePhoneNumber(ctx, phone.ID, req)
+		err = testpkg.TenantCommand2(t, ctx, db, service.UpdatePhoneNumber, phone.ID, req)
 
 		// ASSERT
 		require.NoError(t, err)
 
-		updated, err := service.GetPhoneNumberByID(ctx, phone.ID)
+		updated, err := testpkg.TenantQuery1(t, ctx, db, service.GuardianPhoneNumbers().FindByID, phone.ID)
 		require.NoError(t, err)
 		assert.False(t, updated.IsPrimary)
 	})
@@ -1853,24 +1846,24 @@ func TestGuardianService_UpdatePhoneNumber_Success(t *testing.T) {
 		// ARRANGE
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "update-priority")
 
-		phone, err := service.AddPhoneNumber(ctx, guardian.ID, peopleCompose.PhoneNumberCreateRequest{
+		phone, err := testpkg.TenantQuery2(t, ctx, db, service.AddPhoneNumber, guardian.ID, peoplePorts.PhoneNumberCreateRequest{
 			PhoneNumber: "+49 999 999999",
 			PhoneType:   "mobile",
 		})
 		require.NoError(t, err)
 
 		newPriority := 5
-		req := peopleCompose.PhoneNumberUpdateRequest{
+		req := peoplePorts.PhoneNumberUpdateRequest{
 			Priority: &newPriority,
 		}
 
 		// ACT
-		err = service.UpdatePhoneNumber(ctx, phone.ID, req)
+		err = testpkg.TenantCommand2(t, ctx, db, service.UpdatePhoneNumber, phone.ID, req)
 
 		// ASSERT
 		require.NoError(t, err)
 
-		updated, err := service.GetPhoneNumberByID(ctx, phone.ID)
+		updated, err := testpkg.TenantQuery1(t, ctx, db, service.GuardianPhoneNumbers().FindByID, phone.ID)
 		require.NoError(t, err)
 		assert.Equal(t, 5, updated.Priority)
 	})
@@ -1887,12 +1880,12 @@ func TestGuardianService_UpdatePhoneNumber_Errors(t *testing.T) {
 	t.Run("returns error when phone not found", func(t *testing.T) {
 		// ARRANGE
 		newNumber := "+49 000 000000"
-		req := peopleCompose.PhoneNumberUpdateRequest{
+		req := peoplePorts.PhoneNumberUpdateRequest{
 			PhoneNumber: &newNumber,
 		}
 
 		// ACT
-		err := service.UpdatePhoneNumber(ctx, 99999999, req)
+		err := testpkg.TenantCommand2(t, ctx, db, service.UpdatePhoneNumber, 99999999, req)
 
 		// ASSERT
 		require.Error(t, err)
@@ -1916,30 +1909,30 @@ func TestGuardianService_DeletePhoneNumber_Success(t *testing.T) {
 		// ARRANGE
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "delete-non-primary")
 
-		phone1, err := service.AddPhoneNumber(ctx, guardian.ID, peopleCompose.PhoneNumberCreateRequest{
+		phone1, err := testpkg.TenantQuery2(t, ctx, db, service.AddPhoneNumber, guardian.ID, peoplePorts.PhoneNumberCreateRequest{
 			PhoneNumber: "+49 111 111111",
 			PhoneType:   "mobile",
 		})
 		require.NoError(t, err)
 
-		phone2, err := service.AddPhoneNumber(ctx, guardian.ID, peopleCompose.PhoneNumberCreateRequest{
+		phone2, err := testpkg.TenantQuery2(t, ctx, db, service.AddPhoneNumber, guardian.ID, peoplePorts.PhoneNumberCreateRequest{
 			PhoneNumber: "+49 222 222222",
 			PhoneType:   "work",
 		})
 		require.NoError(t, err)
 
 		// ACT - delete non-primary phone
-		err = service.DeletePhoneNumber(ctx, phone2.ID)
+		err = testpkg.TenantCommand1(t, ctx, db, service.DeletePhoneNumber, phone2.ID)
 
 		// ASSERT
 		require.NoError(t, err)
 
 		// Verify phone2 is deleted
-		_, err = service.GetPhoneNumberByID(ctx, phone2.ID)
+		_, err = testpkg.TenantQuery1(t, ctx, db, service.GuardianPhoneNumbers().FindByID, phone2.ID)
 		assert.Error(t, err, "Deleted phone should not be found")
 
 		// Verify phone1 still exists and is still primary
-		phone1After, err := service.GetPhoneNumberByID(ctx, phone1.ID)
+		phone1After, err := testpkg.TenantQuery1(t, ctx, db, service.GuardianPhoneNumbers().FindByID, phone1.ID)
 		require.NoError(t, err)
 		assert.True(t, phone1After.IsPrimary)
 	})
@@ -1948,13 +1941,13 @@ func TestGuardianService_DeletePhoneNumber_Success(t *testing.T) {
 		// ARRANGE
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "delete-primary")
 
-		phone1, err := service.AddPhoneNumber(ctx, guardian.ID, peopleCompose.PhoneNumberCreateRequest{
+		phone1, err := testpkg.TenantQuery2(t, ctx, db, service.AddPhoneNumber, guardian.ID, peoplePorts.PhoneNumberCreateRequest{
 			PhoneNumber: "+49 333 333333",
 			PhoneType:   "mobile",
 		})
 		require.NoError(t, err)
 
-		phone2, err := service.AddPhoneNumber(ctx, guardian.ID, peopleCompose.PhoneNumberCreateRequest{
+		phone2, err := testpkg.TenantQuery2(t, ctx, db, service.AddPhoneNumber, guardian.ID, peoplePorts.PhoneNumberCreateRequest{
 			PhoneNumber: "+49 444 444444",
 			PhoneType:   "work",
 		})
@@ -1964,17 +1957,17 @@ func TestGuardianService_DeletePhoneNumber_Success(t *testing.T) {
 		assert.True(t, phone1.IsPrimary)
 
 		// ACT - delete primary phone
-		err = service.DeletePhoneNumber(ctx, phone1.ID)
+		err = testpkg.TenantCommand1(t, ctx, db, service.DeletePhoneNumber, phone1.ID)
 
 		// ASSERT
 		require.NoError(t, err)
 
 		// Verify phone1 is deleted
-		_, err = service.GetPhoneNumberByID(ctx, phone1.ID)
+		_, err = testpkg.TenantQuery1(t, ctx, db, service.GuardianPhoneNumbers().FindByID, phone1.ID)
 		assert.Error(t, err)
 
 		// Verify phone2 was promoted to primary
-		phone2After, err := service.GetPhoneNumberByID(ctx, phone2.ID)
+		phone2After, err := testpkg.TenantQuery1(t, ctx, db, service.GuardianPhoneNumbers().FindByID, phone2.ID)
 		require.NoError(t, err)
 		assert.True(t, phone2After.IsPrimary, "Next phone should be promoted to primary")
 	})
@@ -1983,20 +1976,20 @@ func TestGuardianService_DeletePhoneNumber_Success(t *testing.T) {
 		// ARRANGE
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "delete-last")
 
-		phone, err := service.AddPhoneNumber(ctx, guardian.ID, peopleCompose.PhoneNumberCreateRequest{
+		phone, err := testpkg.TenantQuery2(t, ctx, db, service.AddPhoneNumber, guardian.ID, peoplePorts.PhoneNumberCreateRequest{
 			PhoneNumber: "+49 555 555555",
 			PhoneType:   "mobile",
 		})
 		require.NoError(t, err)
 
 		// ACT
-		err = service.DeletePhoneNumber(ctx, phone.ID)
+		err = testpkg.TenantCommand1(t, ctx, db, service.DeletePhoneNumber, phone.ID)
 
 		// ASSERT
 		require.NoError(t, err)
 
 		// Verify guardian has no phones
-		phones, err := service.GetGuardianPhoneNumbers(ctx, guardian.ID)
+		phones, err := testpkg.TenantQuery1(t, ctx, db, service.GuardianPhoneNumbers().FindByGuardianID, guardian.ID)
 		require.NoError(t, err)
 		assert.Empty(t, phones)
 	})
@@ -2012,7 +2005,7 @@ func TestGuardianService_DeletePhoneNumber_Errors(t *testing.T) {
 
 	t.Run("returns error when phone not found", func(t *testing.T) {
 		// ACT
-		err := service.DeletePhoneNumber(ctx, 99999999)
+		err := testpkg.TenantCommand1(t, ctx, db, service.DeletePhoneNumber, 99999999)
 
 		// ASSERT
 		require.Error(t, err)
@@ -2036,31 +2029,31 @@ func TestGuardianService_SetPrimaryPhone_Success(t *testing.T) {
 		// ARRANGE
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "set-primary")
 
-		phone1, err := service.AddPhoneNumber(ctx, guardian.ID, peopleCompose.PhoneNumberCreateRequest{
+		phone1, err := testpkg.TenantQuery2(t, ctx, db, service.AddPhoneNumber, guardian.ID, peoplePorts.PhoneNumberCreateRequest{
 			PhoneNumber: "+49 111 111111",
 			PhoneType:   "mobile",
 		})
 		require.NoError(t, err)
 
-		phone2, err := service.AddPhoneNumber(ctx, guardian.ID, peopleCompose.PhoneNumberCreateRequest{
+		phone2, err := testpkg.TenantQuery2(t, ctx, db, service.AddPhoneNumber, guardian.ID, peoplePorts.PhoneNumberCreateRequest{
 			PhoneNumber: "+49 222 222222",
 			PhoneType:   "work",
 		})
 		require.NoError(t, err)
 
 		// ACT - set phone2 as primary
-		err = service.SetPrimaryPhone(ctx, phone2.ID)
+		err = testpkg.TenantCommand1(t, ctx, db, service.SetPrimaryPhone, phone2.ID)
 
 		// ASSERT
 		require.NoError(t, err)
 
 		// Verify phone2 is now primary
-		phone2After, err := service.GetPhoneNumberByID(ctx, phone2.ID)
+		phone2After, err := testpkg.TenantQuery1(t, ctx, db, service.GuardianPhoneNumbers().FindByID, phone2.ID)
 		require.NoError(t, err)
 		assert.True(t, phone2After.IsPrimary)
 
 		// Verify phone1 is no longer primary
-		phone1After, err := service.GetPhoneNumberByID(ctx, phone1.ID)
+		phone1After, err := testpkg.TenantQuery1(t, ctx, db, service.GuardianPhoneNumbers().FindByID, phone1.ID)
 		require.NoError(t, err)
 		assert.False(t, phone1After.IsPrimary)
 	})
@@ -2076,7 +2069,7 @@ func TestGuardianService_SetPrimaryPhone_Errors(t *testing.T) {
 
 	t.Run("returns error when phone not found", func(t *testing.T) {
 		// ACT
-		err := service.SetPrimaryPhone(ctx, 99999999)
+		err := testpkg.TenantCommand1(t, ctx, db, service.SetPrimaryPhone, 99999999)
 
 		// ASSERT
 		require.Error(t, err)
@@ -2101,26 +2094,26 @@ func TestGuardianService_GetGuardianPhoneNumbers_Success(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "get-phones")
 
 		// Add three phones
-		_, err := service.AddPhoneNumber(ctx, guardian.ID, peopleCompose.PhoneNumberCreateRequest{
+		_, err := testpkg.TenantQuery2(t, ctx, db, service.AddPhoneNumber, guardian.ID, peoplePorts.PhoneNumberCreateRequest{
 			PhoneNumber: "+49 111 111111",
 			PhoneType:   "mobile",
 		})
 		require.NoError(t, err)
 
-		_, err = service.AddPhoneNumber(ctx, guardian.ID, peopleCompose.PhoneNumberCreateRequest{
+		_, err = testpkg.TenantQuery2(t, ctx, db, service.AddPhoneNumber, guardian.ID, peoplePorts.PhoneNumberCreateRequest{
 			PhoneNumber: "+49 222 222222",
 			PhoneType:   "work",
 		})
 		require.NoError(t, err)
 
-		_, err = service.AddPhoneNumber(ctx, guardian.ID, peopleCompose.PhoneNumberCreateRequest{
+		_, err = testpkg.TenantQuery2(t, ctx, db, service.AddPhoneNumber, guardian.ID, peoplePorts.PhoneNumberCreateRequest{
 			PhoneNumber: "+49 333 333333",
 			PhoneType:   "home",
 		})
 		require.NoError(t, err)
 
 		// ACT
-		phones, err := service.GetGuardianPhoneNumbers(ctx, guardian.ID)
+		phones, err := testpkg.TenantQuery1(t, ctx, db, service.GuardianPhoneNumbers().FindByGuardianID, guardian.ID)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -2141,7 +2134,7 @@ func TestGuardianService_GetGuardianPhoneNumbers_Success(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "no-phones")
 
 		// ACT
-		phones, err := service.GetGuardianPhoneNumbers(ctx, guardian.ID)
+		phones, err := testpkg.TenantQuery1(t, ctx, db, service.GuardianPhoneNumbers().FindByGuardianID, guardian.ID)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -2166,7 +2159,7 @@ func TestGuardianService_GetPhoneNumberByID_Success(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "get-by-id")
 
 		label := "Hauptnummer"
-		phone, err := service.AddPhoneNumber(ctx, guardian.ID, peopleCompose.PhoneNumberCreateRequest{
+		phone, err := testpkg.TenantQuery2(t, ctx, db, service.AddPhoneNumber, guardian.ID, peoplePorts.PhoneNumberCreateRequest{
 			PhoneNumber: "+49 444 444444",
 			PhoneType:   "mobile",
 			Label:       &label,
@@ -2174,14 +2167,14 @@ func TestGuardianService_GetPhoneNumberByID_Success(t *testing.T) {
 		require.NoError(t, err)
 
 		// ACT
-		result, err := service.GetPhoneNumberByID(ctx, phone.ID)
+		result, err := testpkg.TenantQuery1(t, ctx, db, service.GuardianPhoneNumbers().FindByID, phone.ID)
 
 		// ASSERT
 		require.NoError(t, err)
 		assert.NotNil(t, result)
 		assert.Equal(t, phone.ID, result.ID)
 		assert.Equal(t, "+49 444 444444", result.PhoneNumber)
-		assert.Equal(t, usermodels.PhoneTypeMobile, result.PhoneType)
+		assert.Equal(t, peopleValues.PhoneTypeMobile, result.PhoneType)
 		assert.Equal(t, &label, result.Label)
 	})
 }
@@ -2196,7 +2189,7 @@ func TestGuardianService_GetPhoneNumberByID_Errors(t *testing.T) {
 
 	t.Run("returns error when phone not found", func(t *testing.T) {
 		// ACT
-		result, err := service.GetPhoneNumberByID(ctx, 99999999)
+		result, err := testpkg.TenantQuery1(t, ctx, db, service.GuardianPhoneNumbers().FindByID, 99999999)
 
 		// ASSERT
 		require.Error(t, err)
@@ -2226,12 +2219,8 @@ func TestGetStudentGuardians_NonOpenInvitationsNotPending(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			guardian := testpkg.CreateTestGuardianProfile(t, db, "inv-"+c.name)
 			student := testpkg.CreateTestStudent(t, db, "Inv", "State", "1a")
-			defer func() {
-				_, _ = db.NewDelete().TableExpr("users.student_guardian_relationships").Where("student_id = ?", student.ID).Exec(ctx)
-				_, _ = db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", guardian.ID).Exec(ctx)
-			}()
 
-			_, err := service.LinkGuardianToStudent(ctx, peopleCompose.StudentGuardianCreateRequest{
+			_, err := testpkg.TenantQuery1(t, ctx, db, service.LinkGuardianToStudent, peoplePorts.StudentGuardianCreateRequest{
 				StudentID: student.ID, GuardianProfileID: guardian.ID, RelationshipType: "parent",
 			})
 			require.NoError(t, err)
@@ -2247,7 +2236,7 @@ func TestGetStudentGuardians_NonOpenInvitationsNotPending(t *testing.T) {
 			inv.TenantID = testpkg.Tenant(t)
 			testpkg.InsertTestGuardianInvitation(t, db, inv)
 
-			res, err := service.GetStudentGuardians(ctx, student.ID)
+			res, err := testpkg.TenantQuery1(t, ctx, db, service.GetStudentGuardians, student.ID)
 			require.NoError(t, err)
 			require.Len(t, res, 1)
 			assert.False(t, res[0].InvitationPending, c.name+" invitation must not count as pending")
@@ -2275,14 +2264,9 @@ func TestGuardianService_ContactWritersShareProfileLock(t *testing.T) {
 
 	email := fmt.Sprintf("lock-guardian-%d@example.com", time.Now().UnixNano())
 	profile := testpkg.CreateTestGuardianProfile(t, db, email)
-	defer func() {
-		bg := context.Background()
-		_, _ = db.NewDelete().TableExpr("users.guardian_phone_numbers").Where("guardian_profile_id = ?", profile.ID).Exec(bg)
-		_, _ = db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(bg)
-	}()
 
 	// Seed one phone so the update/delete writers have a live target.
-	seedPhone, err := service.AddPhoneNumber(ctx, profile.ID, peopleCompose.PhoneNumberCreateRequest{
+	seedPhone, err := testpkg.TenantQuery2(t, ctx, db, service.AddPhoneNumber, profile.ID, peoplePorts.PhoneNumberCreateRequest{
 		PhoneNumber: "0151 1234567",
 		PhoneType:   "mobile",
 	})
@@ -2295,29 +2279,29 @@ func TestGuardianService_ContactWritersShareProfileLock(t *testing.T) {
 		run  func(runCtx context.Context) error
 	}{
 		{"UpdateGuardian", func(runCtx context.Context) error {
-			return service.UpdateGuardian(runCtx, profile.ID, peopleCompose.GuardianCreateRequest{
+			return testpkg.TenantCommand2(t, runCtx, db, service.UpdateGuardian, profile.ID, peoplePorts.GuardianCreateRequest{
 				FirstName: "Locked", LastName: "Name",
 			})
 		}},
 		{"AddPhoneNumber", func(runCtx context.Context) error {
-			_, e := service.AddPhoneNumber(runCtx, profile.ID, peopleCompose.PhoneNumberCreateRequest{
+			_, e := testpkg.TenantQuery2(t, runCtx, db, service.AddPhoneNumber, profile.ID, peoplePorts.PhoneNumberCreateRequest{
 				PhoneNumber: "0151 7654321", PhoneType: "mobile",
 			})
 			return e
 		}},
 		{"UpdatePhoneNumber", func(runCtx context.Context) error {
 			label := "Aktualisiert"
-			return service.UpdatePhoneNumber(runCtx, seedPhone.ID, peopleCompose.PhoneNumberUpdateRequest{Label: &label})
+			return testpkg.TenantCommand2(t, runCtx, db, service.UpdatePhoneNumber, seedPhone.ID, peoplePorts.PhoneNumberUpdateRequest{Label: &label})
 		}},
 		{"SetPrimaryPhone", func(runCtx context.Context) error {
-			return service.SetPrimaryPhone(runCtx, seedPhone.ID)
+			return testpkg.TenantCommand1(t, runCtx, db, service.SetPrimaryPhone, seedPhone.ID)
 		}},
 		{"DeletePhoneNumber", func(runCtx context.Context) error {
-			return service.DeletePhoneNumber(runCtx, seedPhone.ID)
+			return testpkg.TenantCommand1(t, runCtx, db, service.DeletePhoneNumber, seedPhone.ID)
 		}},
 	}
 
-	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repoFactory := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	for _, w := range writers {
 		t.Run(w.name+" blocks on a held profile lock", func(t *testing.T) {
 			// Hold the profile FOR UPDATE lock from an uncommitted tx.
@@ -2358,25 +2342,19 @@ func TestGetStudentGuardians_AccountHolderPendingUpgradeApproval(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	service := setupGuardianService(t, db)
 	ctx := testpkg.Ctx(t)
-	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repoFactory := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 
 	guardian := testpkg.CreateTestGuardianProfile(t, db, "acct-pending")
 	student := testpkg.CreateTestStudent(t, db, "AcctPending", "Student", "1a")
 	sibling := testpkg.CreateTestStudent(t, db, "AcctPending", "Sibling", "1a")
 	_, account := testpkg.CreateTestPersonWithAccount(t, db, "AcctPending", "Account")
-	defer func() {
-		_, _ = db.NewDelete().TableExpr("auth.guardian_invitations").Where("guardian_profile_id = ?", guardian.ID).Exec(context.Background())
-		_, _ = db.NewDelete().TableExpr("users.student_guardian_relationships").Where("guardian_profile_id = ?", guardian.ID).Exec(context.Background())
-		_, _ = db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", guardian.ID).Exec(context.Background())
-		_, _ = db.NewDelete().TableExpr("users.student_profiles").Where("id IN (?, ?)", student.ID, sibling.ID).Exec(context.Background())
-	}()
 
 	require.NoError(t, repoFactory.GuardianProfile.LinkAccount(ctx, guardian.ID, account.ID))
-	_, err := service.LinkGuardianToStudent(ctx, peopleCompose.StudentGuardianCreateRequest{
+	_, err := testpkg.TenantQuery1(t, ctx, db, service.LinkGuardianToStudent, peoplePorts.StudentGuardianCreateRequest{
 		StudentID:         student.ID,
 		GuardianProfileID: guardian.ID,
 		RelationshipType:  "other",
-		GuardianRole:      authorize.GuardianRoleEmergency,
+		GuardianRole:      testpkg.GuardianRoleEmergency,
 	})
 	require.NoError(t, err)
 
@@ -2395,7 +2373,7 @@ func TestGetStudentGuardians_AccountHolderPendingUpgradeApproval(t *testing.T) {
 	inv.TenantID = testpkg.Tenant(t)
 	testpkg.InsertTestGuardianInvitation(t, db, inv)
 
-	res, err := service.GetStudentGuardians(ctx, student.ID)
+	res, err := testpkg.TenantQuery1(t, ctx, db, service.GetStudentGuardians, student.ID)
 	require.NoError(t, err)
 	require.Len(t, res, 1)
 	assert.False(t, res[0].InvitationPending,
@@ -2411,7 +2389,7 @@ func TestGetStudentGuardians_AccountHolderPendingUpgradeApproval(t *testing.T) {
 		Exec(ctx)
 	require.NoError(t, err)
 
-	res, err = service.GetStudentGuardians(ctx, student.ID)
+	res, err = testpkg.TenantQuery1(t, ctx, db, service.GetStudentGuardians, student.ID)
 	require.NoError(t, err)
 	require.Len(t, res, 1)
 	assert.True(t, res[0].InvitationPending,
@@ -2430,9 +2408,9 @@ func TestGuardianService_UpdateGuardianPayment_MaskedAuditCollisions(t *testing.
 	service := setupGuardianService(t, db)
 	ctx := testpkg.Ctx(t)
 
-	loadAudits := func(t *testing.T, profileID int64, field string) []auditModels.GuardianFinancialChange {
+	loadAudits := func(t *testing.T, profileID int64, field string) []testpkg.GuardianFinancialChange {
 		t.Helper()
-		var rows []auditModels.GuardianFinancialChange
+		var rows []testpkg.GuardianFinancialChange
 		require.NoError(t, db.NewSelect().
 			Model(&rows).
 			ModelTableExpr(`audit.guardian_financial_changes AS "guardian_financial_change"`).
@@ -2446,24 +2424,24 @@ func TestGuardianService_UpdateGuardianPayment_MaskedAuditCollisions(t *testing.
 	t.Run("new IBAN with the same last four digits", func(t *testing.T) {
 		profile := testpkg.CreateTestGuardianProfile(t, db, "same-tail")
 
-		require.NoError(t, service.UpdateGuardianPayment(ctx, profile.ID, peopleCompose.GuardianPaymentInput{
+		require.NoError(t, testpkg.TenantCommand4(t, ctx, db, service.UpdateGuardianPayment, profile.ID, peoplePorts.GuardianPaymentInput{
 			IBAN: strPtr("DE89370400440532013000"),
 		}, 1, ""))
 
 		// ACT: valid IBAN, same "3000" tail, different account.
-		err := service.UpdateGuardianPayment(ctx, profile.ID, peopleCompose.GuardianPaymentInput{
+		err := testpkg.TenantCommand4(t, ctx, db, service.UpdateGuardianPayment, profile.ID, peoplePorts.GuardianPaymentInput{
 			IBAN: strPtr("DE84120300000000203000"),
 		}, 1, "")
 
 		// ASSERT
 		require.NoError(t, err)
-		stored, err := service.GuardianFinancialRepo.FindByGuardianProfileID(ctx, profile.ID)
+		stored, err := testpkg.TenantQuery1(t, ctx, db, peopleCompose.NewGuardianFinancialDataRepository(db).FindByGuardianProfileID, profile.ID)
 		require.NoError(t, err)
 		require.NotNil(t, stored)
 		require.NotNil(t, stored.IBAN)
 		assert.Equal(t, "DE84120300000000203000", *stored.IBAN)
 
-		audits := loadAudits(t, profile.ID, auditModels.GuardianPaymentFieldIBAN)
+		audits := loadAudits(t, profile.ID, testpkg.AuditGuardianPaymentFieldIBAN)
 		require.Len(t, audits, 2)
 		assert.Equal(t, "•••• 3000", audits[1].OldValue)
 		assert.Equal(t, "•••• 3000 (geändert)", audits[1].NewValue)
@@ -2473,26 +2451,26 @@ func TestGuardianService_UpdateGuardianPayment_MaskedAuditCollisions(t *testing.
 	t.Run("renamed account holder behind the fixed mask", func(t *testing.T) {
 		profile := testpkg.CreateTestGuardianProfile(t, db, "holder-rename")
 
-		require.NoError(t, service.UpdateGuardianPayment(ctx, profile.ID, peopleCompose.GuardianPaymentInput{
+		require.NoError(t, testpkg.TenantCommand4(t, ctx, db, service.UpdateGuardianPayment, profile.ID, peoplePorts.GuardianPaymentInput{
 			IBAN:          strPtr("DE89370400440532013000"),
 			AccountHolder: strPtr("Sabine Schneider"),
 		}, 1, ""))
 
 		// ACT
-		err := service.UpdateGuardianPayment(ctx, profile.ID, peopleCompose.GuardianPaymentInput{
+		err := testpkg.TenantCommand4(t, ctx, db, service.UpdateGuardianPayment, profile.ID, peoplePorts.GuardianPaymentInput{
 			IBAN:          strPtr("DE89370400440532013000"),
 			AccountHolder: strPtr("Peter Schneider"),
 		}, 1, "")
 
 		// ASSERT
 		require.NoError(t, err)
-		stored, err := service.GuardianFinancialRepo.FindByGuardianProfileID(ctx, profile.ID)
+		stored, err := testpkg.TenantQuery1(t, ctx, db, peopleCompose.NewGuardianFinancialDataRepository(db).FindByGuardianProfileID, profile.ID)
 		require.NoError(t, err)
 		require.NotNil(t, stored)
 		require.NotNil(t, stored.AccountHolder)
 		assert.Equal(t, "Peter Schneider", *stored.AccountHolder)
 
-		audits := loadAudits(t, profile.ID, auditModels.GuardianPaymentFieldAccountHolder)
+		audits := loadAudits(t, profile.ID, testpkg.AuditGuardianPaymentFieldAccountHolder)
 		require.Len(t, audits, 2)
 		assert.Equal(t, "••••••••", audits[1].OldValue)
 		assert.Equal(t, "•••••••• (geändert)", audits[1].NewValue)
@@ -2501,6 +2479,6 @@ func TestGuardianService_UpdateGuardianPayment_MaskedAuditCollisions(t *testing.
 			assert.NotContains(t, row.NewValue, "Schneider")
 		}
 		// The unchanged IBAN produced no extra row.
-		assert.Len(t, loadAudits(t, profile.ID, auditModels.GuardianPaymentFieldIBAN), 1)
+		assert.Len(t, loadAudits(t, profile.ID, testpkg.AuditGuardianPaymentFieldIBAN), 1)
 	})
 }

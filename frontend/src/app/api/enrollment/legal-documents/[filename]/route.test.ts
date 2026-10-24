@@ -1,11 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
 import { DELETE } from "./route";
-
-interface ExtendedSession extends Session {
-  user: Session["user"] & { token?: string };
-}
+import { ApiResponseError } from "~/lib/api-response-error.server";
+import type { ExtendedSession } from "~/test/route-test-helpers";
 
 const { mockAuth, mockUncachedAuth, mockApiDelete } = vi.hoisted(() => ({
   mockAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
@@ -23,15 +20,18 @@ vi.mock("../../../../../server/auth", () => ({
   uncachedAuth: mockUncachedAuth,
 }));
 
-vi.mock("~/lib/api-helpers.server", () => ({
-  apiDelete: mockApiDelete,
-  handleApiError: vi.fn((error: unknown) => {
-    const message =
-      error instanceof Error ? error.message : "Internal Server Error";
-    const status = message.includes("(401)") ? 401 : 500;
-    return new Response(JSON.stringify({ error: message }), { status });
-  }),
-}));
+vi.mock("~/lib/api-helpers.server", async () => {
+  const { mockHandleApiError } =
+    await import("~/test/helpers/handle-api-error");
+  const actual = await vi.importActual<
+    typeof import("~/lib/api-helpers.server")
+  >("~/lib/api-helpers.server");
+  return {
+    apiDelete: mockApiDelete,
+    handleApiError: vi.fn(mockHandleApiError),
+    problemResponse: actual.problemResponse,
+  };
+});
 
 const session = (token: string): ExtendedSession => ({
   user: { id: "1", token, name: "Test User" },
@@ -80,7 +80,7 @@ describe("DELETE /api/enrollment/legal-documents/[filename]", () => {
 
   it("retries with uncachedAuth when the backend token is stale", async () => {
     mockApiDelete
-      .mockRejectedValueOnce(new Error("API error (401): Unauthorized"))
+      .mockRejectedValueOnce(new ApiResponseError(401, "Unauthorized"))
       .mockResolvedValueOnce(undefined);
 
     const response = await DELETE(request(), context("1_terms.pdf"));
@@ -99,17 +99,18 @@ describe("DELETE /api/enrollment/legal-documents/[filename]", () => {
     );
   });
 
-  it("returns TOKEN_EXPIRED when the refreshed token is unchanged", async () => {
+  it("answers token expired when the refreshed token is unchanged", async () => {
     mockUncachedAuth.mockResolvedValueOnce(session("old-token"));
     mockApiDelete.mockRejectedValueOnce(
-      new Error("API error (401): Unauthorized"),
+      new ApiResponseError(401, "Unauthorized"),
     );
 
     const response = await DELETE(request(), context("1_terms.pdf"));
-    const body = (await response.json()) as { code?: string };
+    const body = (await response.json()) as { code?: string; detail?: string };
 
     expect(response.status).toBe(401);
-    expect(body.code).toBe("TOKEN_EXPIRED");
+    expect(body.code).toBe("general.permission");
+    expect(body.detail).toBe("Token expired");
     expect(mockApiDelete).toHaveBeenCalledTimes(1);
   });
 });

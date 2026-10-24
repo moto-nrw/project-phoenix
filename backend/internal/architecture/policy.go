@@ -50,9 +50,10 @@ type LegacyReference struct {
 }
 
 type Build struct {
-	GOOS       string `json:"goos"`
-	GOARCH     string `json:"goarch"`
-	CGOEnabled *bool  `json:"cgo_enabled"`
+	GOOS       string   `json:"goos"`
+	GOARCH     string   `json:"goarch"`
+	CGOEnabled *bool    `json:"cgo_enabled"`
+	Tags       []string `json:"tags,omitempty"`
 }
 
 type Owner struct {
@@ -74,13 +75,18 @@ type ExternalPackage struct {
 }
 
 type Rule struct {
+	// Issue is accepted only in immutable base policies before
+	// targetOnlyRulesEpoch. From that epoch a rule states the target and a
+	// temporary allowance is an exact legacy.jsonl key (ADR 0057).
 	Issue           string   `json:"issue,omitempty"`
 	ID              string   `json:"id"`
 	Description     string   `json:"description"`
 	Scopes          []string `json:"scopes"`
+	SourcePackage   string   `json:"source_package,omitempty"`
 	SourceOwner     string   `json:"source_owner"`
 	SourceOwnerKind string   `json:"source_owner_kind"`
 	SourceRole      string   `json:"source_role"`
+	TargetPackage   string   `json:"target_package,omitempty"`
 	TargetOwner     string   `json:"target_owner"`
 	TargetOwnerKind string   `json:"target_owner_kind"`
 	TargetRole      string   `json:"target_role"`
@@ -88,14 +94,17 @@ type Rule struct {
 	SameOwner       bool     `json:"same_owner"`
 }
 
-// Presence marks a temporary permission, so an explicit empty/null issue is
-// invalid, while an omitted issue denotes an ordinary target permission.
+// Older bases mark a temporary permission by the presence of issue, so an
+// explicit empty/null issue stays invalid there; validation rejects the field
+// from targetOnlyRulesEpoch on.
 func (r *Rule) UnmarshalJSON(data []byte) error {
 	type ruleJSON Rule
 	var decoded ruleJSON
 	wire := struct {
 		*ruleJSON
-		Issue json.RawMessage `json:"issue"`
+		Issue         json.RawMessage `json:"issue"`
+		SourcePackage json.RawMessage `json:"source_package"`
+		TargetPackage json.RawMessage `json:"target_package"`
 	}{ruleJSON: &decoded}
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.DisallowUnknownFields()
@@ -110,20 +119,39 @@ func (r *Rule) UnmarshalJSON(data []byte) error {
 			return err
 		}
 	}
+	for _, selector := range []struct {
+		name   string
+		value  json.RawMessage
+		target *string
+	}{
+		{"source_package", wire.SourcePackage, &decoded.SourcePackage},
+		{"target_package", wire.TargetPackage, &decoded.TargetPackage},
+	} {
+		if selector.value == nil {
+			continue
+		}
+		if err := json.Unmarshal(selector.value, selector.target); err != nil {
+			return err
+		}
+		if strings.TrimSpace(*selector.target) == "" {
+			return fmt.Errorf("rule %q %s must name a package when present", decoded.ID, selector.name)
+		}
+	}
 	*r = Rule(decoded)
 	return nil
 }
 
 var (
+	buildTagPattern   = regexp.MustCompile(`^[A-Za-z0-9_.]+$`)
 	identifierPattern = regexp.MustCompile(`^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$`)
 	allowedOwnerKinds = map[string]bool{
 		"domain": true, "platform": true, "workflow": true, "projection": true,
-		"inbound": true, "composition": true, "kernel": true, "migration": true, "test-support": true,
+		"tool": true, "composition": true, "kernel": true, "migration": true, "test-support": true,
 	}
 	allowedRoles = map[string]bool{
 		"public": true, "contract": true, "domain": true, "application": true,
 		"port": true, "adapter": true, "postgres": true, "compose": true,
-		"http": true, "worker": true, "cli": true, "migration": true, "test-support": true,
+		"http": true, "worker": true, "cli": true, "migration": true, "test-support": true, legacyModelRole: true,
 		"module-internal-test": true, "module-behavior-test": true,
 		"workflow-decision-test": true, "workflow-integration-test": true,
 		"adapter-test": true, "e2e-test": true,
@@ -146,7 +174,7 @@ func DecodePolicy(reader io.Reader) (*Policy, error) {
 	return decodePolicy(reader, false)
 }
 
-func decodePolicy(reader io.Reader, allowSchema2 bool) (*Policy, error) {
+func decodePolicy(reader io.Reader, allowOlderSchema bool) (*Policy, error) {
 	decoder := json.NewDecoder(reader)
 	decoder.DisallowUnknownFields()
 	var policy Policy
@@ -156,9 +184,29 @@ func decodePolicy(reader io.Reader, allowSchema2 bool) (*Policy, error) {
 	if err := requireJSONEnd(decoder); err != nil {
 		return nil, err
 	}
-	// Only immutable base policies may cross the schema-2 transition.
-	if allowSchema2 && policy.SchemaVersion == 2 {
-		policy.SchemaVersion = 3
+	// Only immutable bases may cross a wire-schema transition. Schema 2/3
+	// cannot carry package selectors; schema 4 cannot carry the tool kind.
+	if allowOlderSchema && (policy.SchemaVersion == 2 || policy.SchemaVersion == 3) {
+		for _, rule := range policy.Rules {
+			if rule.SourcePackage != "" || rule.TargetPackage != "" {
+				return nil, fmt.Errorf("package selectors require policy schema 4")
+			}
+		}
+		policy.SchemaVersion = 4
+	}
+	if allowOlderSchema && policy.SchemaVersion == 4 {
+		kinds := make(map[string]bool, len(allowedOwnerKinds))
+		for kind := range allowedOwnerKinds {
+			if kind != "tool" {
+				kinds[kind] = true
+			}
+		}
+		kinds["inbound"] = true
+		if err := policy.validate(4, kinds); err != nil {
+			return nil, fmt.Errorf("validate base policy: %w", err)
+		}
+		policy.upgradeToolingBase()
+		return &policy, nil
 	}
 	if err := policy.Validate(); err != nil {
 		return nil, fmt.Errorf("validate policy: %w", err)
@@ -167,10 +215,14 @@ func decodePolicy(reader io.Reader, allowSchema2 bool) (*Policy, error) {
 }
 
 func (p *Policy) Validate() error {
-	if err := p.validateHeader(); err != nil {
+	return p.validate(5, allowedOwnerKinds)
+}
+
+func (p *Policy) validate(schema int, ownerKinds map[string]bool) error {
+	if err := p.validateHeader(schema); err != nil {
 		return err
 	}
-	owners, err := p.validateOwners()
+	owners, err := p.validateOwners(ownerKinds)
 	if err != nil {
 		return err
 	}
@@ -188,6 +240,11 @@ func (p *Policy) Validate() error {
 	if err := p.validatePackages(owners, roles); err != nil {
 		return err
 	}
+	if p.PolicyEpoch >= targetOnlyRulesEpoch {
+		if err := p.validateLegacyModelPackages(); err != nil {
+			return err
+		}
+	}
 	dataObjects, err := p.validateDataObjects(owners)
 	if err != nil {
 		return err
@@ -204,12 +261,18 @@ func (p *Policy) Validate() error {
 	if err := p.validateRelocations(); err != nil {
 		return err
 	}
-	return p.validateRules(owners, roles, classes)
+	if err := p.validateRules(owners, roles, classes, ownerKinds); err != nil {
+		return err
+	}
+	if p.PolicyEpoch >= acyclicTargetEpoch {
+		return p.validateAcyclicTarget()
+	}
+	return nil
 }
 
-func (p *Policy) validateHeader() error {
-	if p.SchemaVersion != 3 {
-		return fmt.Errorf("schema_version must be 3, got %d", p.SchemaVersion)
+func (p *Policy) validateHeader(schema int) error {
+	if p.SchemaVersion != schema {
+		return fmt.Errorf("schema_version must be %d, got %d", schema, p.SchemaVersion)
 	}
 	if p.PolicyEpoch < 1 {
 		return fmt.Errorf("policy_epoch must be a positive integer")
@@ -225,6 +288,11 @@ func (p *Policy) validateHeader() error {
 	}
 	if p.Build.CGOEnabled == nil || *p.Build.CGOEnabled {
 		return fmt.Errorf("build.cgo_enabled must be explicitly false")
+	}
+	for _, tag := range p.Build.Tags {
+		if !buildTagPattern.MatchString(tag) {
+			return fmt.Errorf("build.tags contains invalid Go build tag %q", tag)
+		}
 	}
 	if p.Owners == nil || p.Roles == nil || p.Packages == nil || p.DataObjects == nil || p.ReadProjections == nil || p.LegacyComposition == nil || p.SharedKernelTypes == nil || p.ExternalClasses == nil || p.ExternalPackages == nil || p.Rules == nil {
 		return fmt.Errorf("owners, roles, packages, data_objects, read_projections, legacy_composition, shared_kernel_types, external_classes, external_packages, and rules are required")
@@ -281,7 +349,7 @@ func (p *Policy) validateReadProjections(owners map[string]Owner, objects map[st
 		if !ok {
 			return fmt.Errorf("read projection %q references unknown package %q", projection.ID, projection.Package)
 		}
-		if owners[pkg.Owner].Kind != "projection" {
+		if !p.readProjectionOwnerAllowed(projection, pkg, owners) {
 			return fmt.Errorf("read projection %q package %q is not owned by a projection", projection.ID, projection.Package)
 		}
 		if pkg.Role != "adapter" && pkg.Role != "postgres" {
@@ -353,7 +421,7 @@ func isDataObjectName(name string) bool {
 	return len(parts) == 2 && identifierPattern.MatchString(parts[0]) && identifierPattern.MatchString(parts[1])
 }
 
-func (p *Policy) validateOwners() (map[string]Owner, error) {
+func (p *Policy) validateOwners(ownerKinds map[string]bool) (map[string]Owner, error) {
 	owners := make(map[string]Owner, len(p.Owners))
 	for _, owner := range p.Owners {
 		if !identifierPattern.MatchString(owner.ID) {
@@ -362,7 +430,7 @@ func (p *Policy) validateOwners() (map[string]Owner, error) {
 		if _, exists := owners[owner.ID]; exists {
 			return nil, fmt.Errorf("owner %q is declared more than once", owner.ID)
 		}
-		if !allowedOwnerKinds[owner.Kind] {
+		if !ownerKinds[owner.Kind] {
 			return nil, fmt.Errorf("owner %q has invalid kind %q", owner.ID, owner.Kind)
 		}
 		owners[owner.ID] = owner
@@ -377,17 +445,12 @@ func (p *Policy) validateCanonicalOwners() error {
 		return nil
 	}
 	platformOwners := []string{
-		"audit-platform", "delivery-platform", "document-rendering", "observability",
-		"scheduler-runtime", "security-runtime", "settings-platform",
+		"audit-platform", "delivery-platform", "document-rendering", "export-transfer",
+		"observability", "scheduler-runtime", "security-runtime", "settings-platform",
 		"tenant-runtime", "transaction-runtime",
 	}
-	decision := "ADR 0010"
-	if p.PolicyEpoch >= 2 {
-		platformOwners = append(platformOwners, "export-transfer")
-		slices.Sort(platformOwners)
-		decision = "ADRs 0010 and 0012"
-	}
-	for _, canonical := range []struct {
+	const decision = "ADRs 0010 and 0012"
+	canonicalOwners := []struct {
 		kind string
 		ids  []string
 	}{
@@ -399,7 +462,14 @@ func (p *Policy) validateCanonicalOwners() error {
 			"timetable-activities", "workforce",
 		}},
 		{kind: "platform", ids: platformOwners},
-	} {
+	}
+	if p.SchemaVersion >= 5 {
+		canonicalOwners = append(canonicalOwners, struct {
+			kind string
+			ids  []string
+		}{kind: "tool", ids: []string{"architecture-check", "dev-tools"}})
+	}
+	for _, canonical := range canonicalOwners {
 		var actual []string
 		for _, owner := range p.Owners {
 			if owner.Kind == canonical.kind {
@@ -475,15 +545,28 @@ func (p *Policy) validateExternalPackages(classes map[string]struct{}) error {
 	return nil
 }
 
-func (p *Policy) validateRules(owners map[string]Owner, roles, classes map[string]struct{}) error {
+func (p *Policy) validateRules(owners map[string]Owner, roles, classes map[string]struct{}, ownerKinds map[string]bool) error {
 	seenIDs := make(map[string]struct{}, len(p.Rules))
 	validated := make([]Rule, 0, len(p.Rules))
 	for _, rule := range p.Rules {
-		if err := validateRule(rule, seenIDs, owners, roles, classes); err != nil {
+		if err := validateRule(rule, seenIDs, owners, roles, classes, ownerKinds); err != nil {
 			return err
 		}
+		if err := p.validateRulePackages(rule); err != nil {
+			return err
+		}
+		if p.PolicyEpoch >= targetOnlyRulesEpoch {
+			if err := validateTargetOnlyRule(rule, owners); err != nil {
+				return err
+			}
+		}
+		if p.PolicyEpoch >= domainProjectionRulesEpoch {
+			if err := validateDomainProjectionRule(rule, owners); err != nil {
+				return err
+			}
+		}
 		for _, previous := range validated {
-			if scope, overlaps := overlappingScope(previous, rule, owners); overlaps {
+			if scope, overlaps := p.overlappingScope(previous, rule, owners); overlaps {
 				return fmt.Errorf("rule %q overlaps rule %q for scope %q", rule.ID, previous.ID, scope)
 			}
 		}
@@ -492,7 +575,7 @@ func (p *Policy) validateRules(owners map[string]Owner, roles, classes map[strin
 	return nil
 }
 
-func validateRule(rule Rule, seenIDs map[string]struct{}, owners map[string]Owner, roles, classes map[string]struct{}) error {
+func validateRule(rule Rule, seenIDs map[string]struct{}, owners map[string]Owner, roles, classes map[string]struct{}, ownerKinds map[string]bool) error {
 	if rule.Issue != "" {
 		if _, err := ParseGitHubIssue(rule.Issue); err != nil {
 			return err
@@ -508,7 +591,7 @@ func validateRule(rule Rule, seenIDs map[string]struct{}, owners map[string]Owne
 	if strings.TrimSpace(rule.Description) == "" {
 		return fmt.Errorf("rule %q has no description", rule.ID)
 	}
-	if err := validateOwnerSelector(rule.ID, "source", rule.SourceOwner, rule.SourceOwnerKind, owners); err != nil {
+	if err := validateOwnerSelector(rule.ID, "source", rule.SourceOwner, rule.SourceOwnerKind, owners, ownerKinds); err != nil {
 		return err
 	}
 	if rule.SourceRole != "" {
@@ -516,7 +599,7 @@ func validateRule(rule Rule, seenIDs map[string]struct{}, owners map[string]Owne
 			return fmt.Errorf("rule %q has invalid source role %q", rule.ID, rule.SourceRole)
 		}
 	}
-	if err := validateRuleTarget(rule, owners, roles, classes); err != nil {
+	if err := validateRuleTarget(rule, owners, roles, classes, ownerKinds); err != nil {
 		return err
 	}
 	if len(rule.Scopes) == 0 {
@@ -531,6 +614,9 @@ func validateRule(rule Rule, seenIDs map[string]struct{}, owners map[string]Owne
 }
 
 func overlappingScope(left, right Rule, owners map[string]Owner) (string, bool) {
+	if !packageSelectorsOverlap(left.SourcePackage, right.SourcePackage) || !packageSelectorsOverlap(left.TargetPackage, right.TargetPackage) {
+		return "", false
+	}
 	if left.TargetClass != right.TargetClass || (left.TargetClass == "" && left.TargetRole != right.TargetRole) {
 		return "", false
 	}
@@ -598,7 +684,7 @@ func rolesOverlap(left, right string) bool {
 	return left == "" || right == "" || left == right
 }
 
-func validateOwnerSelector(ruleID, side, ownerID, ownerKind string, owners map[string]Owner) error {
+func validateOwnerSelector(ruleID, side, ownerID, ownerKind string, owners map[string]Owner, ownerKinds map[string]bool) error {
 	if ownerID != "" && ownerKind != "" {
 		return fmt.Errorf("rule %q sets both %s_owner and %s_owner_kind", ruleID, side, side)
 	}
@@ -607,13 +693,13 @@ func validateOwnerSelector(ruleID, side, ownerID, ownerKind string, owners map[s
 			return fmt.Errorf("rule %q references unknown %s owner %q", ruleID, side, ownerID)
 		}
 	}
-	if ownerKind != "" && !allowedOwnerKinds[ownerKind] {
+	if ownerKind != "" && !ownerKinds[ownerKind] {
 		return fmt.Errorf("rule %q has invalid %s owner kind %q", ruleID, side, ownerKind)
 	}
 	return nil
 }
 
-func validateRuleTarget(rule Rule, owners map[string]Owner, roles, classes map[string]struct{}) error {
+func validateRuleTarget(rule Rule, owners map[string]Owner, roles, classes map[string]struct{}, ownerKinds map[string]bool) error {
 	if rule.TargetClass != "" {
 		if rule.TargetOwner != "" || rule.TargetOwnerKind != "" || rule.TargetRole != "" || rule.SameOwner {
 			return fmt.Errorf("rule %q mixes first-party and external targets", rule.ID)
@@ -629,7 +715,7 @@ func validateRuleTarget(rule Rule, owners map[string]Owner, roles, classes map[s
 	if _, ok := roles[rule.TargetRole]; !ok {
 		return fmt.Errorf("rule %q has invalid target role %q", rule.ID, rule.TargetRole)
 	}
-	if err := validateOwnerSelector(rule.ID, "target", rule.TargetOwner, rule.TargetOwnerKind, owners); err != nil {
+	if err := validateOwnerSelector(rule.ID, "target", rule.TargetOwner, rule.TargetOwnerKind, owners, ownerKinds); err != nil {
 		return err
 	}
 	if rule.TargetOwner == "" && rule.TargetOwnerKind == "" && !rule.SameOwner {

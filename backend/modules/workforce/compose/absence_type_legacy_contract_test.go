@@ -148,7 +148,7 @@ func TestUpdateAbsenceTypeRejectsRenamingUsedType(t *testing.T) {
 	created, err := svc.CreateAbsenceType(ctx, workforce.CreateAbsenceType{Name: "Regenerationstag"})
 	require.NoError(t, err)
 	staff := testpkg.CreateTestStaff(t, db, "Used", "Type")
-	_, err = svc.CreateStaffAbsence(ctx, workforce.StaffAbsence{StaffID: staff.ID, CreatedBy: staff.ID, AbsenceType: workforce.AbsenceTypeOther, AbsenceTypeID: &created.ID, Status: workforce.AbsenceStatusReported, DateStart: "2026-09-07", DateEnd: "2026-09-07"})
+	_, err = svc.CreateStaffAbsence(ctx, &workforce.StaffAbsence{StaffID: staff.ID, CreatedBy: staff.ID, AbsenceType: workforce.AbsenceTypeOther, AbsenceTypeID: &created.ID, Status: workforce.AbsenceStatusReported, DateStart: "2026-09-07", DateEnd: "2026-09-07"})
 	require.NoError(t, err)
 
 	renamed := "Gesundheitstag"

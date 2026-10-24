@@ -76,6 +76,7 @@ function CopyValueRow({
   secret = false,
 }: CopyValueRowProps) {
   const toast = useToast();
+  const { showMessage } = useApiErrorDisplay();
   const { copied, copy } = useClipboardCopy(
     `CalendarSubscribePanel-${id}`,
     2000,
@@ -85,7 +86,7 @@ function CopyValueRow({
     if (await copy(value)) {
       toast.success(copiedMessage);
     } else {
-      toast.error(copyFailedMessage);
+      showMessage(copyFailedMessage);
     }
   };
 

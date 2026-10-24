@@ -35,7 +35,7 @@ func (p *conflictPlanBoundary) UpsertStudentPickupSchedule(ctx context.Context, 
 func TestNativeConflictStaffPickupWritesOnlyRequestedDay(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	owner := careplantest.NewCarePlan(t, db)
+	owner := careplantest.NewCarePlan(t, db, testpkg.StudentDirectory{})
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "Conflict", "Pickup", "1a")
 	staff, reviewer := testpkg.CreateTestStaffWithAccount(t, db, "Conflict", "Reviewer")
@@ -48,7 +48,7 @@ func TestNativeConflictStaffPickupWritesOnlyRequestedDay(t *testing.T) {
 	require.NoError(t, err)
 	decisionPort := &decisionBoundary{owner: owner, student: compose.ReviewStudent{ID: student.ID}, staffID: staff.ID, guardianAccess: true}
 	decisions, err := compose.NewRequestDecisions(compose.RequestDecisionDependencies{
-		Records: owner, People: decisionPort, Plans: decisionPort, Effects: decisionPort, Today: today,
+		Records: owner, People: decisionPort, Guardians: decisionPort, Plans: decisionPort, Effects: decisionPort, Today: today,
 	})
 	require.NoError(t, err)
 	exceptions, err := compose.NewPickupApprovalExceptions(owner)
@@ -60,7 +60,7 @@ func TestNativeConflictStaffPickupWritesOnlyRequestedDay(t *testing.T) {
 	})
 	require.NoError(t, err)
 	plans := &conflictPlanBoundary{pickupApprovalFixture: probe, PickupApprovals: approvals, owner: owner}
-	conflicts, err := compose.NewRequestConflicts(owner, plans, decisions, today)
+	conflicts, err := compose.NewRequestConflicts(owner, decisionPort, plans, decisions, today)
 	require.NoError(t, err)
 	err = testpkg.WithTenantTx(t, ctx, db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		candidate, err := conflicts.ConflictCandidate(txCtx, request.ID)

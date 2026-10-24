@@ -120,53 +120,6 @@ export function createCrudService<T>(config: EntityConfig<T>): CrudService<T> {
     return session?.user?.token;
   };
 
-  // Extract a clean error message from potentially nested JSON error responses.
-  // The route handler wraps backend errors as: {"error":"API error (409): {\"status\":\"error\",\"error\":\"...\"}"}
-  // This function digs through the layers to find the original backend error text.
-  const extractErrorMessage = (
-    responseText: string,
-    status: number,
-  ): string => {
-    const fallback = `API error: ${status} - ${responseText}`;
-    try {
-      const parsed: unknown = JSON.parse(responseText);
-      if (
-        typeof parsed === "object" &&
-        parsed !== null &&
-        "error" in parsed &&
-        typeof (parsed as { error: string }).error === "string"
-      ) {
-        const innerError = (parsed as { error: string }).error;
-        // Try to extract nested backend JSON from "API error (409): {json}"
-        const innerMatch = /:\s*(\{.*\})\s*$/s.exec(innerError);
-        if (innerMatch?.[1]) {
-          try {
-            const backendError: unknown = JSON.parse(innerMatch[1]);
-            if (
-              typeof backendError === "object" &&
-              backendError !== null &&
-              "error" in backendError &&
-              typeof (backendError as { error: string }).error === "string"
-            ) {
-              // Strip Go service prefix like "education: DeleteGroup: "
-              return (backendError as { error: string }).error.replace(
-                /^\w+:\s*\w+:\s*/,
-                "",
-              );
-            }
-          } catch {
-            // Inner JSON parse failed, use the outer error string
-          }
-        }
-        // No nested JSON, just return the error field directly
-        return innerError;
-      }
-    } catch {
-      // Not JSON at all
-    }
-    return fallback;
-  };
-
   // Helper to make fetch requests with auth
   const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
     const token = await getToken();
@@ -207,22 +160,16 @@ export function createCrudService<T>(config: EntityConfig<T>): CrudService<T> {
         });
       }
 
-      // Try to extract a clean error message from the nested JSON response.
-      // The error chain is: backend → route handler → this fetch, each wrapping the previous.
-      const userMessage = extractErrorMessage(errorText, response.status);
-      // Carry the HTTP status on the thrown error so callers can distinguish a
-      // client-side validation error (4xx, message is user-facing) from a
-      // network/server error (5xx, message is technical noise). Additive: the
-      // message and `instanceof Error` are unchanged for existing consumers.
-      // An ApiError also keeps code, field errors and request ID for the
-      // shared error path (#2513).
+      // An ApiError keeps status, code, field errors and request ID for the
+      // shared error path (#2513); its message is the envelope's diagnostic
+      // `detail`.
       const apiError: ApiError & { body?: string } = apiErrorFromText(
-        userMessage,
+        `API error: ${response.status}`,
         response.status,
         errorText,
       );
-      // Carry the RAW response body too. extractErrorMessage reduces the
-      // response to one human sentence, which silently drops every structured
+      // Carry the RAW response body too. The ApiError keeps only the
+      // envelope's standard members, which silently drops every structured
       // sibling field the proxy forwards — notably the companion-plan 409's
       // top-level `conflicts` array. Without it the student Stammdaten form
       // cannot name what the user confirmed, so "Ergänzen und speichern"
@@ -490,21 +437,4 @@ export function createCrudService<T>(config: EntityConfig<T>): CrudService<T> {
       return true;
     },
   };
-}
-
-// Export helper to create services with custom methods
-export function createExtendedService<T>(
-  config: EntityConfig<T>,
-): CrudService<T> {
-  const baseService = createCrudService(config);
-
-  // Add custom methods if defined
-  if (config.service?.customMethods) {
-    return {
-      ...baseService,
-      ...config.service.customMethods,
-    } as CrudService<T>;
-  }
-
-  return baseService;
 }

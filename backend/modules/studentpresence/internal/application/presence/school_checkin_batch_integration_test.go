@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -59,7 +59,7 @@ func TestProcessSchoolCheckinBatch_CheckOutEndsOpenVisits(t *testing.T) {
 	// the day-scope guard (#895). One open visit per student is enforced by a
 	// partial unique index, so this scenario needs its own student.
 	testpkg.CreateTestAttendance(t, db, lateStudent.ID, staff.ID, device.ID, checkIn, nil)
-	tomorrowEntry := timezone.TodayDate().AddDays(1).BerlinMidnight().Add(8 * time.Hour)
+	tomorrowEntry := calendar.TodayDate().AddDays(1).BerlinMidnight().Add(8 * time.Hour)
 	tomorrowVisit := testpkg.CreateTestVisit(t, db, lateStudent.ID, activeGroup.ID, tomorrowEntry, nil)
 
 	// Duplicate ids collapse to one result at the service layer too.
@@ -115,7 +115,7 @@ func TestProcessSchoolCheckinBatch_CheckInClearsPlannedStatusDay(t *testing.T) {
 	setGroupID(t, db, student.ID, eduGroup.ID)
 	staff := testpkg.CreateTestStaff(t, db, "BatchClear", "Staff")
 
-	statusDay := testpkg.CreateTestStudentStatusDay(t, db, student.ID, timezone.TodayDate(), "sick")
+	statusDay := testpkg.CreateTestStudentStatusDay(t, db, student.ID, calendar.TodayDate(), "sick")
 	// The batch clear targets scheduled-ahead rows; the fixture writes
 	// source=manual, so flip it to the planned shape under test.
 	_, err := db.NewUpdate().

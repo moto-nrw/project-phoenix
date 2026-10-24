@@ -81,8 +81,8 @@ func (a *Announcement) Validate() error {
 	if !IsValidSeverity(a.Severity) {
 		return errors.New("invalid severity")
 	}
-	if a.CreatedBy <= 0 {
-		return errors.New("created_by is required")
+	if a.CreatedBy < 0 {
+		return errors.New("created_by must not be negative")
 	}
 	if a.Version != nil && len(*a.Version) > maxVersionLen {
 		return fmt.Errorf("version must not exceed %d characters", maxVersionLen)
@@ -144,23 +144,6 @@ type AnnouncementViewDetail struct {
 	Dismissed    bool
 }
 
-type engine interface {
-	CreateAnnouncement(context.Context, *Announcement, int64, net.IP) error
-	GetAnnouncement(context.Context, int64) (*Announcement, error)
-	UpdateAnnouncement(context.Context, *Announcement, int64, net.IP) error
-	DeleteAnnouncement(context.Context, int64, int64, net.IP) error
-	ListAnnouncements(context.Context, bool) ([]*Announcement, error)
-	PublishAnnouncement(context.Context, int64, int64, net.IP) error
-	UnpublishAnnouncement(context.Context, int64, int64, net.IP) error
-	GetUnreadForUser(context.Context, int64, []string, int64, int64) ([]*Announcement, error)
-	CountUnread(context.Context, int64, []string, int64, int64) (int, error)
-	MarkSeen(context.Context, int64, int64) error
-	MarkDismissed(context.Context, int64, int64) error
-	GetStats(context.Context, int64) (*AnnouncementStats, error)
-	GetViewDetails(context.Context, int64) ([]*AnnouncementViewDetail, error)
-	ObserveRejection(string, time.Duration, error)
-}
-
 // Query exposes platform-announcement reads without write authority.
 type Query interface {
 	GetAnnouncement(context.Context, int64) (*Announcement, error)
@@ -186,81 +169,6 @@ type Command interface {
 type Capability interface {
 	Query
 	Command
-}
-
-type Module struct{ engine engine }
-
-func NewModule(engine engine) *Module {
-	if engine == nil {
-		panic("communication: engine is required")
-	}
-	return &Module{engine: engine}
-}
-
-func (m *Module) CreateAnnouncement(ctx context.Context, value *Announcement, operatorID int64, clientIP net.IP) error {
-	started := time.Now()
-	if value == nil {
-		err := &InvalidDataError{Err: errors.New("announcement cannot be nil")}
-		m.engine.ObserveRejection("create", time.Since(started), err)
-		return err
-	}
-	value.CreatedBy = operatorID
-	if err := value.Validate(); err != nil {
-		wrapped := &InvalidDataError{Err: err}
-		m.engine.ObserveRejection("create", time.Since(started), wrapped)
-		return wrapped
-	}
-	return m.engine.CreateAnnouncement(ctx, value, operatorID, clientIP)
-}
-
-func (m *Module) GetAnnouncement(ctx context.Context, id int64) (*Announcement, error) {
-	return m.engine.GetAnnouncement(ctx, id)
-}
-
-func (m *Module) UpdateAnnouncement(ctx context.Context, value *Announcement, operatorID int64, clientIP net.IP) error {
-	started := time.Now()
-	if value == nil {
-		err := &InvalidDataError{Err: errors.New("announcement cannot be nil")}
-		m.engine.ObserveRejection("update", time.Since(started), err)
-		return err
-	}
-	if err := value.Validate(); err != nil {
-		wrapped := &InvalidDataError{Err: err}
-		m.engine.ObserveRejection("update", time.Since(started), wrapped)
-		return wrapped
-	}
-	return m.engine.UpdateAnnouncement(ctx, value, operatorID, clientIP)
-}
-
-func (m *Module) DeleteAnnouncement(ctx context.Context, id, operatorID int64, clientIP net.IP) error {
-	return m.engine.DeleteAnnouncement(ctx, id, operatorID, clientIP)
-}
-func (m *Module) ListAnnouncements(ctx context.Context, includeInactive bool) ([]*Announcement, error) {
-	return m.engine.ListAnnouncements(ctx, includeInactive)
-}
-func (m *Module) PublishAnnouncement(ctx context.Context, id, operatorID int64, clientIP net.IP) error {
-	return m.engine.PublishAnnouncement(ctx, id, operatorID, clientIP)
-}
-func (m *Module) UnpublishAnnouncement(ctx context.Context, id, operatorID int64, clientIP net.IP) error {
-	return m.engine.UnpublishAnnouncement(ctx, id, operatorID, clientIP)
-}
-func (m *Module) GetUnreadForUser(ctx context.Context, userID int64, roles []string, tenantID, orgID int64) ([]*Announcement, error) {
-	return m.engine.GetUnreadForUser(ctx, userID, roles, tenantID, orgID)
-}
-func (m *Module) CountUnread(ctx context.Context, userID int64, roles []string, tenantID, orgID int64) (int, error) {
-	return m.engine.CountUnread(ctx, userID, roles, tenantID, orgID)
-}
-func (m *Module) MarkSeen(ctx context.Context, userID, announcementID int64) error {
-	return m.engine.MarkSeen(ctx, userID, announcementID)
-}
-func (m *Module) MarkDismissed(ctx context.Context, userID, announcementID int64) error {
-	return m.engine.MarkDismissed(ctx, userID, announcementID)
-}
-func (m *Module) GetStats(ctx context.Context, announcementID int64) (*AnnouncementStats, error) {
-	return m.engine.GetStats(ctx, announcementID)
-}
-func (m *Module) GetViewDetails(ctx context.Context, announcementID int64) ([]*AnnouncementViewDetail, error) {
-	return m.engine.GetViewDetails(ctx, announcementID)
 }
 
 func ErrorCode(err error) string {
@@ -299,5 +207,3 @@ func ErrorCode(err error) string {
 		return "internal_error"
 	}
 }
-
-var _ Capability = (*Module)(nil)

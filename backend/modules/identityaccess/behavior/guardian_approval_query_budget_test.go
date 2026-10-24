@@ -14,7 +14,6 @@ import (
 func TestPendingGuardianApprovalsQueryBudget(t *testing.T) {
 	t.Parallel()
 	env := setupGuardianInvitationTest(t)
-	defer env.cleanup()
 	requester := testpkg.CreateTestAccount(t, env.db, "guardian-approval-budget")
 	add := func(from, to int) {
 		for i := from; i < to; i++ {

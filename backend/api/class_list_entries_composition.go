@@ -7,10 +7,13 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	peopleRouteValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/students"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+
 	schoolMembershipModule "github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+
 	classListHTTP "github.com/moto-nrw/project-phoenix/modules/schoolmembership/http/classlistentries"
 	"github.com/moto-nrw/project-phoenix/observability"
 )
@@ -26,7 +29,7 @@ import (
 func newClassListEntriesResource(entries schoolMembershipModule.ClassListEntries, logger *slog.Logger) *classListHTTP.Resource {
 	return classListHTTP.NewResource(entries, classListHTTP.Runtime{
 		Protected: func(router chi.Router, register func(chi.Router, classListHTTP.Middleware)) {
-			apiCommon.ProtectedTenantRoutes(router, func(protected chi.Router, withTx apiCommon.Middleware) {
+			ProtectedTenantRoutes(router, func(protected chi.Router, withTx apiCommon.Middleware) {
 				register(protected, withTx)
 			})
 		},
@@ -34,7 +37,8 @@ func newClassListEntriesResource(entries schoolMembershipModule.ClassListEntries
 		Success:          apiCommon.Respond,
 		Failure:          renderClassListEntryFailure,
 		ObserveResponse:  observability.ObserveSchoolMembershipHTTPResponse,
-		CurrentAccountID: func(ctx context.Context) int64 { return int64(jwt.ClaimsFromCtx(ctx).ID) },
+		ParseIDParam:     apiCommon.ParseIDParam,
+		CurrentAccountID: func(ctx context.Context) int64 { return int64(sessiontoken.ClaimsFromCtx(ctx).ID) },
 
 		Log: logger,
 	})
@@ -87,14 +91,14 @@ type classListEntryStudentsReader struct {
 	entries schoolMembershipModule.ClassListEntries
 }
 
-func (r classListEntryStudentsReader) ListClassListEntriesInDisplayOrder(ctx context.Context) ([]students.ClassListEntry, error) {
+func (r classListEntryStudentsReader) ListClassListEntriesInDisplayOrder(ctx context.Context) ([]peopleRouteValues.StudentClassListEntry, error) {
 	values, err := r.entries.ListClassListEntriesInDisplayOrder(ctx, schoolMembershipModule.ClassListEntryFilter{})
 	if err != nil {
 		return nil, err
 	}
-	result := make([]students.ClassListEntry, 0, len(values))
+	result := make([]peopleRouteValues.StudentClassListEntry, 0, len(values))
 	for _, value := range values {
-		result = append(result, students.ClassListEntry{
+		result = append(result, peopleRouteValues.StudentClassListEntry{
 			ID: value.ID, FirstName: value.FirstName, LastName: value.LastName, SchoolClass: value.SchoolClass,
 		})
 	}

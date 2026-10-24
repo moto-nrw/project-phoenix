@@ -2,11 +2,8 @@ package compose
 
 import (
 	"context"
-	"errors"
-	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories/base"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/adapters/postgres"
 	"github.com/uptrace/bun"
 )
 
@@ -20,18 +17,6 @@ import (
 // against the planning routes on the same advisory key.
 func NewStaffShiftLock(db *bun.DB) func(ctx context.Context, staffID int64) error {
 	return func(ctx context.Context, staffID int64) error {
-		return lockStaffShiftWrites(ctx, db, staffID)
+		return postgres.LockStaffShiftWrites(ctx, db, staffID)
 	}
-}
-
-func lockStaffShiftWrites(ctx context.Context, db *bun.DB, staffID int64) error {
-	tenantID := tenant.FromContext(ctx)
-	if tenantID <= 0 {
-		return errors.New("tenant id is required")
-	}
-	key := fmt.Sprintf("staff-shift:%d:%d", tenantID, staffID)
-	if err := base.AcquireXactLock(ctx, db, key); err != nil {
-		return fmt.Errorf("lock staff shift writes: %w", err)
-	}
-	return nil
 }

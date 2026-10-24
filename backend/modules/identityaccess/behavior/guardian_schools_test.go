@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -15,7 +15,7 @@ import (
 func TestGuardianSchoolsEligibilityAndTransaction(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	identity, err := repositories.NewIdentityAccessForTests(db)
+	identity, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
 	account := testpkg.CreateTestAccount(t, db, "guardian-schools")
 	ctx := testpkg.Ctx(t)
@@ -40,7 +40,7 @@ func TestGuardianSchoolsEligibilityAndTransaction(t *testing.T) {
 	read := func(ctx context.Context) []int64 {
 		t.Helper()
 		var result []int64
-		require.NoError(t, tenant.WithAdminTx(ctx, db, func(txCtx context.Context, _ bun.Tx) error {
+		require.NoError(t, testpkg.WithAdminTx(t, ctx, db, func(txCtx context.Context, _ bun.Tx) error {
 			var readErr error
 			result, readErr = identity.ListGuardianSchoolIDs(txCtx, account.ID)
 			return readErr
@@ -51,7 +51,7 @@ func TestGuardianSchoolsEligibilityAndTransaction(t *testing.T) {
 	// an inactive membership is excluded even with the guardian role.
 	require.Equal(t, []int64{ids[0], ids[3]}, read(ctx))
 	rollback := errors.New("roll back guardian offboarding")
-	err = tenant.WithAdminTx(ctx, db, func(txCtx context.Context, tx bun.Tx) error {
+	err = testpkg.WithAdminTx(t, ctx, db, func(txCtx context.Context, tx bun.Tx) error {
 		_, writeErr := tx.NewRaw(`DELETE FROM auth.account_roles WHERE account_id = ? AND tenant_id = ?`, account.ID, ids[0]).Exec(txCtx)
 		require.NoError(t, writeErr)
 		actual, readErr := identity.ListGuardianSchoolIDs(txCtx, account.ID)
@@ -69,7 +69,7 @@ func TestGuardianSchoolsEligibilityAndTransaction(t *testing.T) {
 func TestGuardianSchoolsDatabaseFailure(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupClosableTestDB(t)
-	identity, err := repositories.NewIdentityAccessForTests(db)
+	identity, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
 	require.NoError(t, db.Close())
 	_, err = identity.ListGuardianSchoolIDs(context.Background(), 1)

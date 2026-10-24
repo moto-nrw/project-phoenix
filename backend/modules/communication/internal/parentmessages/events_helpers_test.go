@@ -1,13 +1,16 @@
 package messaging_test
 
 import (
+	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
+	settingsValues "github.com/moto-nrw/project-phoenix/modules/settings"
+	api "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"log/slog"
 	"testing"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/communication/internal/application/parentmessaging"
 	messaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/uptrace/bun"
 )
@@ -15,13 +18,17 @@ import (
 func newMockEmitter(
 	t testing.TB,
 	db *bun.DB,
-	threadRepo usersModels.ParentMessageThreadRepository,
-	messageRepo usersModels.ParentMessageRepository,
-	settings parentmessaging.TenantSettingsResolver,
+	threadRepo messaging.ParentMessageThreadRepository,
+	messageRepo messaging.ParentMessageRepository,
+	settings eventContract.TenantSettingsResolver,
 	broadcaster realtime.Broadcaster,
 	logger *slog.Logger,
-) *parentmessaging.Emitter {
+	decisions ...eventContract.DecisionNotifier,
+) eventContract.Emitter {
 	t.Helper()
-	emitter := parentmessaging.NewEmitter(messaging.NewEventEmitter(db, testpkg.TenantRuntime(t, db), threadRepo, messageRepo, settings, broadcaster, logger))
-	return emitter
+	var notifier eventContract.DecisionNotifier
+	if len(decisions) > 0 {
+		notifier = decisions[0]
+	}
+	return parentmessaging.NewEmitterWithDecisions(messaging.NewEventEmitter(api.NewCommunicationEventRuntime(db != nil, testpkg.TenantRuntime(t, db)), threadRepo, messageRepo, settingsValues.NewParentEventValues(settings), broadcaster, logger), notifier)
 }

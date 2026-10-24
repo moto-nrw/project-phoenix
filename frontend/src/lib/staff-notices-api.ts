@@ -73,13 +73,12 @@ export interface StaffNoticeAcknowledger {
 interface ApiResponse<T> {
   status?: string;
   data?: T;
-  error?: string;
 }
 
 /**
  * Wirft die gescheiterte Antwort als ApiError mit Code, Feldfehlern und
- * Vorgangskennung aus der Hülle (#2517). Die Meldung bleibt der Backend-Satz,
- * weil die Tagesinformationen-Verwaltung ihn bis #2520 noch anzeigt.
+ * Vorgangskennung aus der Hülle (#2517). Die Meldung ist Diagnose; angezeigt
+ * wird der Katalogtext des Codes.
  */
 async function throwApiError(
   response: Response,
@@ -91,14 +90,7 @@ async function throwApiError(
   } catch {
     // Körper nicht lesbar: der Status klassifiziert trotzdem.
   }
-  let message = fallback;
-  try {
-    const body = (text ? JSON.parse(text) : {}) as { error?: string };
-    if (body.error) message = body.error;
-  } catch {
-    // Kein JSON im Körper — beim deutschen Ersatztext bleiben.
-  }
-  throw apiErrorFromText(message, response.status, text);
+  throw apiErrorFromText(fallback, response.status, text);
 }
 
 /** Erfolgsantwort ohne die erwarteten Daten. */

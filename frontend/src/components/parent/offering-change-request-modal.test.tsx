@@ -16,7 +16,6 @@ import {
   getRequestSharingOptions,
   listParentRequestEvents,
   updateOfferingChangeRequest,
-  ParentApiError,
   type OfferingCatalog,
 } from "~/lib/parent-api";
 
@@ -202,11 +201,9 @@ describe("OfferingChangeRequestModal", () => {
     const onSubmit = vi
       .fn()
       .mockRejectedValueOnce(
-        new ParentApiError(
-          "confirmation required",
-          409,
-          "enrollment.complete_withdrawal_confirmation_required",
-        ),
+        new ApiError("confirmation required", 409, {
+          code: "enrollment.complete_withdrawal_confirmation_required",
+        }),
       )
       .mockResolvedValueOnce(undefined);
     render(
@@ -470,6 +467,63 @@ describe("OfferingChangeRequestModal", () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
+  it("names a weekday shared by two variants of a per-day group and keeps both (#4514)", async () => {
+    const variant = (id: string, name: string, days: string[]) => ({
+      id,
+      name,
+      days_of_week_mode: "parent_choice",
+      available_days: ["mon", "tue", "wed", "thu", "fri"],
+      selection_group: "Betreuungszeit",
+      selection_rule: "at_most_one_per_day",
+      is_required: false,
+      includes_lunch: false,
+      includes_holiday_care: false,
+      selected: true,
+      selected_days: days,
+    });
+    mockCatalog.mockResolvedValue(
+      catalog({
+        items: [
+          variant("8", "bis 13 Uhr", ["mon"]),
+          variant("9", "bis 17 Uhr", ["tue"]),
+        ],
+      }),
+    );
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    render(
+      <OfferingChangeRequestModal
+        studentId="42"
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+        reasonRequired={false}
+      />,
+    );
+    const conflict =
+      "Am Montag sind „bis 13 Uhr“ und „bis 17 Uhr“ gewählt. Bitte wählen Sie pro Tag nur ein Angebot.";
+
+    expect(await screen.findByText("bis 17 Uhr")).toBeInTheDocument();
+    expect(screen.queryByText(conflict)).not.toBeInTheDocument();
+    const longCard = screen.getByText("bis 17 Uhr").closest("div.rounded-xl");
+    fireEvent.click(
+      within(longCard as HTMLElement).getByRole("checkbox", { name: "Mo" }),
+    );
+
+    expect(screen.getByText(conflict)).toBeInTheDocument();
+    expect(
+      within(longCard as HTMLElement).getByRole("checkbox", { name: "Mo" }),
+    ).toBeChecked();
+    await clickSubmit();
+    expect(await screen.findByRole("alert")).toHaveTextContent(conflict);
+    expect(onSubmit).not.toHaveBeenCalled();
+
+    fireEvent.click(
+      within(longCard as HTMLElement).getByRole("checkbox", { name: "Mo" }),
+    );
+    expect(screen.queryByText(conflict)).not.toBeInTheDocument();
+    await clickSubmit();
+    await waitFor(() => expect(onSubmit).toHaveBeenCalled());
+  });
+
   it("blocks selecting an offering that is full", async () => {
     mockCatalog.mockResolvedValue(
       catalog({
@@ -535,7 +589,7 @@ describe("OfferingChangeRequestModal", () => {
     const onSubmit = vi
       .fn()
       .mockRejectedValue(
-        new ParentApiError("backend sentence", 500, "general.server"),
+        new ApiError("backend sentence", 500, { code: "general.server" }),
       );
     render(
       <OfferingChangeRequestModal
@@ -558,15 +612,11 @@ describe("OfferingChangeRequestModal", () => {
   });
 
   it("tells parents to contact the school when the enrollment is gone", async () => {
-    const onSubmit = vi
-      .fn()
-      .mockRejectedValue(
-        new ParentApiError(
-          "no enrollment",
-          403,
-          "students.offering_changes_no_enrollment",
-        ),
-      );
+    const onSubmit = vi.fn().mockRejectedValue(
+      new ApiError("no enrollment", 403, {
+        code: "students.offering_changes_no_enrollment",
+      }),
+    );
     render(
       <OfferingChangeRequestModal
         studentId="42"
@@ -586,15 +636,11 @@ describe("OfferingChangeRequestModal", () => {
   });
 
   it("asks parents to choose another offering when one is full", async () => {
-    const onSubmit = vi
-      .fn()
-      .mockRejectedValue(
-        new ParentApiError(
-          "full",
-          409,
-          "students.offering_change_capacity_full",
-        ),
-      );
+    const onSubmit = vi.fn().mockRejectedValue(
+      new ApiError("full", 409, {
+        code: "students.offering_change_capacity_full",
+      }),
+    );
     render(
       <OfferingChangeRequestModal
         studentId="42"

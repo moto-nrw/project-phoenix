@@ -1,17 +1,17 @@
 package students
 
 import (
-	"encoding/json"
-	"errors"
-	"net/http"
-	"strconv"
-	"strings"
+	json "encoding/json"
+	errors "errors"
+	http "net/http"
+	strconv "strconv"
+	strings "strings"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	common "github.com/moto-nrw/project-phoenix/api/common"
+	permissions "github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	sessiontoken "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	securityruntime "github.com/moto-nrw/project-phoenix/modules/securityruntime"
 )
 
 type setFamilyProtectionBody struct {
@@ -64,11 +64,11 @@ func (rs *Resource) setFamilyProtection(w http.ResponseWriter, r *http.Request) 
 	// Re-check the route's own gate inside the handler: the privacy ledger is
 	// an admin decision, and the owner capability deliberately does not decide
 	// who may ask.
-	if !securityruntime.HasPermission(permissions.ConfigManage, jwt.PermissionsFromCtx(r.Context())) {
+	if !securityruntime.HasPermission(permissions.ConfigManage, sessiontoken.PermissionsFromCtx(r.Context())) {
 		renderError(w, r, common.ErrorForbidden(errors.New("family protection requires configuration permission")))
 		return
 	}
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	enabled, err := rs.FamilyProtection.SetFamilyProtection(r.Context(), peopleModule.SetFamilyProtection{
 		StudentID: studentID, Enabled: *body.Enabled, Reason: body.Reason, ActorAccountID: int64(claims.ID),
 	})

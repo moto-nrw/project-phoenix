@@ -28,7 +28,7 @@ func (s *Store) FindAccountMetadata(ctx context.Context, accountID int64) (domai
 	var rows []accountMetadataRow
 	started := time.Now()
 	err = db.NewRaw(`SELECT id, created_at, updated_at, email, username, avatar, active, is_password_otp, last_login
-		FROM auth.accounts WHERE id = ?`, accountID).Scan(ctx, &rows)
+		FROM auth.accounts WHERE id = ? AND personal_data_erased_at IS NULL`, accountID).Scan(ctx, &rows)
 	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started), Rows: int64(len(rows))}
 	if err != nil {
 		return domain.AccountMetadata{}, false, stats, fmt.Errorf("identity access postgres: find account metadata: %w", err)
@@ -45,7 +45,8 @@ func (s *Store) SetAccountUsername(ctx context.Context, accountID int64, usernam
 		return false, domain.OperationStats{}, err
 	}
 	started := time.Now()
-	result, err := db.NewRaw(`UPDATE auth.accounts SET username = NULLIF(?, '') WHERE id = ?`, username, accountID).Exec(ctx)
+	result, err := db.NewRaw(`UPDATE auth.accounts SET username = NULLIF(?, '')
+		WHERE id = ? AND personal_data_erased_at IS NULL`, username, accountID).Exec(ctx)
 	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}
 	if err != nil {
 		return false, stats, fmt.Errorf("identity access postgres: set account username: %w", err)
@@ -60,7 +61,8 @@ func (s *Store) SetAccountAvatar(ctx context.Context, accountID int64, avatar st
 		return false, domain.OperationStats{}, err
 	}
 	started := time.Now()
-	result, err := db.NewRaw(`UPDATE auth.accounts SET avatar = ? WHERE id = ?`, avatar, accountID).Exec(ctx)
+	result, err := db.NewRaw(`UPDATE auth.accounts SET avatar = ?
+		WHERE id = ? AND personal_data_erased_at IS NULL`, avatar, accountID).Exec(ctx)
 	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}
 	if err != nil {
 		return false, stats, fmt.Errorf("identity access postgres: set account avatar: %w", err)

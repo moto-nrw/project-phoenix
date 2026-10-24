@@ -11,7 +11,6 @@ import (
 // stored discriminators of the trail, so consumers filter and render by them.
 const (
 	StudentFieldStatus                 = "status"
-	StudentFieldSupervisorNotes        = "supervisor_notes"
 	StudentFieldExtraInfo              = "extra_info"
 	StudentFieldHealthInfo             = "health_info"
 	StudentFieldPickupStatus           = "pickup_status"
@@ -37,7 +36,6 @@ type StudentAuditSnapshot struct {
 	StudentID              int64
 	Status                 string
 	CareEnd                string
-	SupervisorNotes        *string
 	ExtraInfo              *string
 	HealthInfo             *string
 	PickupStatus           *string
@@ -77,34 +75,11 @@ type StudentAuditCommand interface {
 	RecordStudentPickupPlan(ctx context.Context, studentID int64, before, after, result, reason string, editedBy int64, editedByName string) error
 }
 
-func (m *Module) ListStudentChangeHistory(ctx context.Context, studentID int64) ([]StudentFieldEdit, error) {
-	if studentID <= 0 {
-		return nil, invalidStudent("student ID is required")
-	}
-	return m.engine.ListStudentChangeHistory(ctx, studentID)
-}
+// StudentAuditError reports that an audited student write stored the row but
+// could not append its change history. It reads as the recorder's error, so a
+// caller that names the failed step keeps the recorder's text and chain.
+type StudentAuditError struct{ Err error }
 
-func (m *Module) RecordStudentChanges(
-	ctx context.Context,
-	before, after StudentAuditSnapshot,
-	editedBy int64,
-	editedByName string,
-) error {
-	if after.StudentID <= 0 {
-		return invalidStudent("student ID is required")
-	}
-	return m.engine.RecordStudentChanges(ctx, before, after, editedBy, editedByName)
-}
+func (e *StudentAuditError) Error() string { return e.Err.Error() }
 
-func (m *Module) RecordStudentPickupPlan(
-	ctx context.Context,
-	studentID int64,
-	before, after, result, reason string,
-	editedBy int64,
-	editedByName string,
-) error {
-	if studentID <= 0 {
-		return invalidStudent("student ID is required")
-	}
-	return m.engine.RecordStudentPickupPlan(ctx, studentID, before, after, result, reason, editedBy, editedByName)
-}
+func (e *StudentAuditError) Unwrap() error { return e.Err }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -17,6 +18,7 @@ var (
 	ErrCallerNotLinkedToStaff   = errors.New("user not linked to a staff member")
 	ErrCallerNotLinkedToTeacher = errors.New("user not linked to a teacher")
 	ErrCallerGroupNotFound      = errors.New("group not found")
+	ErrCallerSessionNotFound    = errors.New("session not found")
 )
 
 // CallerError names the failed caller-context operation.
@@ -178,7 +180,7 @@ type CallerIdentities interface {
 // CallerReach answers which groups, room sessions and live-update topics
 // the caller reaches. A caller who is no staff member reaches none; room
 // session reads of another caller's session fail with
-// ErrCallerNotAuthorized, of a missing one with ErrCallerGroupNotFound.
+// ErrCallerNotAuthorized, of a missing one with ErrCallerSessionNotFound.
 type CallerReach interface {
 	MyGroupIDs(context.Context) ([]int64, error)
 	MyTeacherGroupIDs(context.Context) ([]int64, error)
@@ -240,4 +242,33 @@ type ParentRequestReviews interface {
 	ReviewScope(ctx context.Context, permissions []string) (schoolWide bool, groupIDs []int64, err error)
 	AbsenceReviewScope(ctx context.Context, permissions []string) (schoolWide bool, groupIDs []int64, err error)
 	ReviewAccessLevel(ctx context.Context, permissions []string) (string, error)
+}
+
+// ReviewReachesGroup applies a review scope to the group of a child:
+// school-wide reaches every child, a group scope exactly the children of its
+// groups, and a child without a group lies outside every group scope.
+func ReviewReachesGroup(schoolWide bool, groupIDs []int64) func(groupID *int64) bool {
+	if schoolWide {
+		return func(*int64) bool { return true }
+	}
+	groups := make(map[int64]struct{}, len(groupIDs))
+	for _, id := range groupIDs {
+		groups[id] = struct{}{}
+	}
+	return func(groupID *int64) bool {
+		if groupID == nil {
+			return false
+		}
+		_, ok := groups[*groupID]
+		return ok
+	}
+}
+
+// AuditActorName is the name an audit records the acting account under: its
+// person's full name, or the username when the account carries no name.
+func AuditActorName(firstName, lastName, username string) string {
+	if name := strings.TrimSpace(firstName + " " + lastName); name != "" {
+		return name
+	}
+	return strings.TrimSpace(username)
 }

@@ -1,6 +1,5 @@
 "use client";
 
-import { BackButton } from "~/components/ui/back-button";
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { ThreadSkeleton, ThreadComposerSkeleton } from "./page-skeleton";
@@ -11,9 +10,13 @@ import { ThreadSkeleton, ThreadComposerSkeleton } from "./page-skeleton";
  */
 export default function MessageThreadLoading() {
   return (
-    <TenantPage title="Unterhaltung" statsLoading>
-      <BackButton referrer="/messages" />
-
+    <TenantPage
+      title="Unterhaltung"
+      statsLoading
+      back
+      backHref="/messages"
+      backLabel="Zurück zu Nachrichten"
+    >
       <div className="flex min-h-[20rem] w-full flex-col overflow-hidden">
         <SectionCard
           className="flex min-h-0 flex-1 flex-col"

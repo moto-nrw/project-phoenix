@@ -84,6 +84,8 @@ describe("PermissionsMasterDetail", () => {
       />,
     );
 
+    // Anker: das Detail der gewählten Berechtigung steht.
+    expect(screen.getByText("Berechtigungsdetails")).toBeInTheDocument();
     expect(screen.queryByText("Bearbeiten")).not.toBeInTheDocument();
     expect(screen.queryByText("Löschen")).not.toBeInTheDocument();
   });
@@ -123,6 +125,10 @@ describe("PermissionsMasterDetail", () => {
     const permissionWithoutDescription: Permission = {
       ...readPermission,
       id: "9",
+      // An action without a catalog label: the fallback, not a known
+      // description, must fill the subtitle.
+      name: "students:archive",
+      action: "archive",
       description: "   ",
     };
 

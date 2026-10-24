@@ -12,7 +12,7 @@ import (
 )
 
 // isCanonicalDateAlias accepts the canonical shared-kernel Date and Go
-// aliases of it or timezone.Date, not new named types or timestamp aliases.
+// aliases of it, not new named types or timestamp aliases.
 // The import path and declaration establish type identity; the caller's choice
 // of package qualifier does not.
 func isCanonicalDateAlias(root, source, spelling string) bool {
@@ -63,7 +63,7 @@ func isCanonicalDateAlias(root, source, spelling string) bool {
 					return false
 				}
 				aliasPath := dateAliasImportPath(decls, qualifier.Name)
-				return aliasPath == modulePrefix+"internal/timezone" || aliasPath == modulePrefix+"sharedkernel/calendar"
+				return aliasPath == modulePrefix+"sharedkernel/calendar"
 			}
 		}
 	}
@@ -93,10 +93,8 @@ func TestCalendarDateAliasTypeIdentity(t *testing.T) {
 		name, imported, declaration string
 		want                        bool
 	}{
-		{"legacy canonical alias", "github.com/moto-nrw/project-phoenix/internal/timezone", "type Date = clock.Date", true},
 		{"shared kernel alias", "github.com/moto-nrw/project-phoenix/sharedkernel/calendar", "type Date = clock.Date", true},
 		{"shared kernel named type", "github.com/moto-nrw/project-phoenix/sharedkernel/calendar", "type Date clock.Date", false},
-		{"new named type", "github.com/moto-nrw/project-phoenix/internal/timezone", "type Date clock.Date", false},
 		{"timestamp alias", "time", "type Date = clock.Time", false},
 		{"lookalike package", "example.com/timezone", "type Date = clock.Date", false},
 	} {

@@ -3,6 +3,7 @@ import {
   screen,
   fireEvent,
   waitFor,
+  within,
 } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -139,6 +140,15 @@ import { catalogText } from "~/test/error-catalog-text";
 
 function render(ui: ReactElement) {
   return rtlRender(ui, { wrapper: ToastProvider });
+}
+
+/** Der Abschnitt einer Raumgruppe, gefunden über seine Überschrift. */
+function roomGroup(title: string): HTMLElement {
+  const section = screen
+    .getByRole("heading", { name: title })
+    .closest("section");
+  if (!section) throw new Error(`no section for ${title}`);
+  return section;
 }
 
 const mockRooms = [
@@ -492,20 +502,6 @@ describe("RoomsPage", () => {
     expect(screen.getByText("Kapazität: 25 Plätze")).toBeInTheDocument();
   });
 
-  it("traegt keine Tipp-Hinweiszeile mehr auf den Raumkacheln", () => {
-    vi.mocked(useSWRAuth).mockReturnValue({
-      data: mockRooms,
-      isLoading: false,
-      error: null,
-    } as never);
-
-    render(<RoomsPage />);
-
-    // Die Zeile stand auf jeder Kachel, war am Rechner falsch („Tippen") und
-    // sagte nichts, was die Kachel nicht schon zeigt.
-    expect(screen.queryByText("Tippen für mehr Infos")).not.toBeInTheDocument();
-  });
-
   it("displays singular 'Kind' when only one student", () => {
     const roomsWithOneStudent = [
       {
@@ -630,5 +626,91 @@ describe("RoomsPage", () => {
         screen.queryByTestId("remove-filter-occupied"),
       ).not.toBeInTheDocument();
     });
+  });
+
+  it("lists open rooms first in their own group, the rest below", () => {
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: [
+        ...mockRooms,
+        { id: "3", name: "Kreativraum", isOccupied: false, isOpenRoom: true },
+        { id: "4", name: "Aula", isOccupied: true, isOpenRoom: true },
+      ],
+      isLoading: false,
+      error: null,
+    } as never);
+
+    render(<RoomsPage />);
+
+    const openGroup = roomGroup("Offene Räume");
+    const otherGroup = roomGroup("Weitere Räume");
+    // Offene Räume stehen vor den übrigen, beide alphabetisch.
+    expect(
+      openGroup.compareDocumentPosition(otherGroup) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      within(openGroup)
+        .getAllByRole("link")
+        .map((link) => link.getAttribute("aria-label")),
+    ).toEqual(["Aula", "Kreativraum"]);
+    expect(
+      within(otherGroup)
+        .getAllByRole("link")
+        .map((link) => link.getAttribute("aria-label")),
+    ).toEqual(["Musikraum", "Raum 101"]);
+  });
+
+  it("collapses and expands each room group on its own", () => {
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: [
+        ...mockRooms,
+        { id: "3", name: "Kreativraum", isOccupied: false, isOpenRoom: true },
+      ],
+      isLoading: false,
+      error: null,
+    } as never);
+
+    render(<RoomsPage />);
+
+    const collapseOpen = screen.getByRole("button", {
+      name: "Offene Räume einklappen",
+    });
+    expect(collapseOpen).toHaveAttribute("aria-expanded", "true");
+
+    fireEvent.click(collapseOpen);
+
+    expect(screen.queryByText("Kreativraum")).not.toBeInTheDocument();
+    expect(screen.getByText("Musikraum")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Offene Räume ausklappen" }),
+    ).toHaveAttribute("aria-expanded", "false");
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weitere Räume einklappen" }),
+    );
+    expect(screen.queryByText("Musikraum")).not.toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Offene Räume ausklappen" }),
+    );
+    expect(screen.getByText("Kreativraum")).toBeInTheDocument();
+  });
+
+  it("keeps one plain grid when no room is open", () => {
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: mockRooms,
+      isLoading: false,
+      error: null,
+    } as never);
+
+    render(<RoomsPage />);
+
+    expect(
+      screen.queryByRole("heading", { name: "Offene Räume" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Weitere Räume" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("Musikraum")).toBeInTheDocument();
   });
 });

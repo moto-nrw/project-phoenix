@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -27,35 +27,38 @@ func TestGetDashboardAnalytics(t *testing.T) {
 
 	t.Run("returns dashboard analytics without error", func(t *testing.T) {
 		// ACT
-		analytics, err := service.GetDashboardAnalytics(ctx)
+		analytics, err := testpkg.TenantQuery0(t, ctx, db, service.GetDashboardAnalytics)
 
 		// ASSERT
 		require.NoError(t, err)
 		require.NotNil(t, analytics)
 		assert.False(t, analytics.LastUpdated.IsZero(), "LastUpdated should be set")
-		assert.GreaterOrEqual(t, analytics.TotalRooms, 0)
 	})
 
 	t.Run("includes active groups in analytics", func(t *testing.T) {
 		// ARRANGE
+		before, err := testpkg.TenantQuery0(t, ctx, db, service.GetDashboardAnalytics)
+		require.NoError(t, err)
+
 		activity := testpkg.CreateTestActivityGroup(t, db, "dashboard-active")
 		room := testpkg.CreateTestRoom(t, db, "Dashboard Room")
 		testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 
 		// ACT
-		analytics, err := service.GetDashboardAnalytics(ctx)
+		analytics, err := testpkg.TenantQuery0(t, ctx, db, service.GetDashboardAnalytics)
 
 		// ASSERT
 		require.NoError(t, err)
-		assert.GreaterOrEqual(t, analytics.ActiveActivities, 1, "Should have at least 1 active activity")
+		assert.Equal(t, before.TotalRooms+1, analytics.TotalRooms, "the new room is counted")
+		assert.Equal(t, before.ActiveActivities+1, analytics.ActiveActivities, "the new session is counted")
 	})
 
 	t.Run("counts planned excused students for today", func(t *testing.T) {
 		// ARRANGE
-		before, err := service.GetDashboardAnalytics(ctx)
+		before, err := testpkg.TenantQuery0(t, ctx, db, service.GetDashboardAnalytics)
 		require.NoError(t, err)
 
-		statusRepo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentStatusDay
+		statusRepo := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).StudentStatusDay
 		plannedExcusedStudent := testpkg.CreateTestStudent(t, db, "PlannedExcused", "Dashboard", "PE1")
 		legacyOverlapStudent := testpkg.CreateTestStudent(t, db, "LegacyOverlap", "Dashboard", "PE2")
 
@@ -71,7 +74,7 @@ func TestGetDashboardAnalytics(t *testing.T) {
 		for _, studentID := range []int64{plannedExcusedStudent.ID, legacyOverlapStudent.ID} {
 			require.NoError(t, statusRepo.UpsertReported(ctx, &absencerecords.StudentStatusDay{
 				StudentID:  studentID,
-				Date:       timezone.NewDate(2026, 8, 24),
+				Date:       calendar.NewDate(2026, 8, 24),
 				Status:     absencerecords.StudentStatusDayExcused,
 				ReportedAt: now,
 				Source:     absencerecords.StudentStatusSourcePlanned,
@@ -79,7 +82,7 @@ func TestGetDashboardAnalytics(t *testing.T) {
 		}
 
 		// ACT
-		after, err := service.GetDashboardAnalytics(ctx)
+		after, err := testpkg.TenantQuery0(t, ctx, db, service.GetDashboardAnalytics)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -88,7 +91,7 @@ func TestGetDashboardAnalytics(t *testing.T) {
 
 	t.Run("counts class trip students as excused without counting sick overlaps", func(t *testing.T) {
 		// ARRANGE
-		before, err := service.GetDashboardAnalytics(ctx)
+		before, err := testpkg.TenantQuery0(t, ctx, db, service.GetDashboardAnalytics)
 		require.NoError(t, err)
 
 		classTripStudent := testpkg.CreateTestStudent(t, db, "ClassTrip", "Dashboard", "CT1")
@@ -116,12 +119,12 @@ func TestGetDashboardAnalytics(t *testing.T) {
 					(tenant_id, student_id, date, status, reported_at, source, created_at, updated_at)
 				VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 			`,
-				classTripStudent.GetTenantID(),
+				classTripStudent.TenantID,
 				studentID,
 				// The DATE column must hold the Berlin calendar date; the driver
 				// binds raw time.Time values as UTC, which is one day behind
 				// Berlin between 00:00 and 02:00 local time.
-				timezone.NewDate(2026, 8, 24),
+				calendar.NewDate(2026, 8, 24),
 				absencerecords.StudentStatusDayClassTrip,
 				now,
 				absencerecords.StudentStatusSourcePlanned,
@@ -132,7 +135,7 @@ func TestGetDashboardAnalytics(t *testing.T) {
 		}
 
 		// ACT
-		after, err := service.GetDashboardAnalytics(ctx)
+		after, err := testpkg.TenantQuery0(t, ctx, db, service.GetDashboardAnalytics)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -146,30 +149,30 @@ func TestGetDashboardAnalytics(t *testing.T) {
 		testpkg.EnsureTestTenant(t, db, tenantB)
 		ctxA := testpkg.TenantContext(tenantA)
 		ctxB := testpkg.TenantContext(tenantB)
-		before, err := service.GetDashboardAnalytics(ctxA)
+		before, err := testpkg.TenantQuery0(t, ctxA, db, service.GetDashboardAnalytics)
 		require.NoError(t, err)
 
 		studentA := testpkg.CreateTestStudentForTenant(t, db, tenantA, "TenantA", "ClassTrip", "CTA")
 		studentB := testpkg.CreateTestStudentForTenant(t, db, tenantB, "TenantB", "ClassTrip", "CTB")
 
-		statusRepo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentStatusDay
+		statusRepo := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).StudentStatusDay
 		now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 		require.NoError(t, statusRepo.UpsertReported(ctxA, &absencerecords.StudentStatusDay{
 			StudentID:  studentA.ID,
-			Date:       timezone.DateFromTime(now),
+			Date:       calendar.DateFromTime(now),
 			Status:     absencerecords.StudentStatusDayClassTrip,
 			ReportedAt: now,
 			Source:     absencerecords.StudentStatusSourcePlanned,
 		}))
 		require.NoError(t, statusRepo.UpsertReported(ctxB, &absencerecords.StudentStatusDay{
 			StudentID:  studentB.ID,
-			Date:       timezone.DateFromTime(now),
+			Date:       calendar.DateFromTime(now),
 			Status:     absencerecords.StudentStatusDayClassTrip,
 			ReportedAt: now,
 			Source:     absencerecords.StudentStatusSourcePlanned,
 		}))
 
-		after, err := service.GetDashboardAnalytics(ctxA)
+		after, err := testpkg.TenantQuery0(t, ctxA, db, service.GetDashboardAnalytics)
 		require.NoError(t, err)
 		assert.Equal(t, before.StudentsExcused+1, after.StudentsExcused)
 	})

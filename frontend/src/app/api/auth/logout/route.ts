@@ -1,11 +1,12 @@
 import { captureBffException } from "~/lib/sentry-bff.server";
-import { type NextRequest, NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 import { auth } from "~/server/auth";
 import { withTenantAuth } from "~/server/auth/tenant-route";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { getClientForwardHeaders } from "~/lib/client-headers.server";
 import { createLogger } from "~/lib/logger";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
+import { problemResponse } from "~/lib/api-helpers.server";
 
 const logger = createLogger({ component: "AuthLogoutRoute" });
 
@@ -15,7 +16,7 @@ async function POSTHandler(request: NextRequest) {
 
     const refreshToken = session?.user?.refreshToken;
     if (!refreshToken) {
-      return NextResponse.json({ error: "No active session" }, { status: 401 });
+      return problemResponse(401, "No active session", request);
     }
 
     // Forward the refresh token to the backend. The backend /auth/logout route
@@ -30,7 +31,7 @@ async function POSTHandler(request: NextRequest) {
       },
     });
 
-    return forwardBackendResponse(response);
+    return forwardBackendResponse(response, request);
   } catch (error) {
     captureBffException(error, request);
     logger.error("logout failed", {
@@ -38,7 +39,7 @@ async function POSTHandler(request: NextRequest) {
     });
     // There is no backend response to forward. The browser still clears its
     // local session after this request, independently of this status.
-    return NextResponse.json({ error: "Backend unavailable" }, { status: 502 });
+    return problemResponse(502, "Backend unavailable", request);
   }
 }
 

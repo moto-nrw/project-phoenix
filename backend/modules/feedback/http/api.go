@@ -15,6 +15,10 @@ import (
 
 type Middleware = func(http.Handler) http.Handler
 
+// ErrFeatureDisabled refuses the feedback of a school that has switched it
+// off; the root answers it with its registered code.
+var ErrFeatureDisabled = feedbackModule.ErrFeatureDisabled
+
 // Failure is a refused request: its HTTP status and the error whose text the
 // shared error envelope carries.
 type Failure struct {
@@ -28,15 +32,18 @@ type Runtime struct {
 	Success         func(http.ResponseWriter, *http.Request, int, any, string)
 	Failure         func(http.ResponseWriter, *http.Request, Failure)
 	ObserveResponse func(int, string)
+	// ParseIDParam reads an int64 path parameter: api/common.ParseIDParam.
+	ParseIDParam func(*http.Request, string) (int64, error)
 }
 
 type Resource struct {
-	module  *feedbackModule.Module
+	module  feedbackModule.Capability
 	runtime Runtime
 }
 
-func NewResource(module *feedbackModule.Module, runtime Runtime) *Resource {
-	if module == nil || runtime.Protected == nil || runtime.Permission == nil || runtime.Success == nil || runtime.Failure == nil || runtime.ObserveResponse == nil {
+func NewResource(module feedbackModule.Capability, runtime Runtime) *Resource {
+	if module == nil || runtime.Protected == nil || runtime.Permission == nil || runtime.Success == nil || runtime.Failure == nil || runtime.ObserveResponse == nil ||
+		runtime.ParseIDParam == nil {
 		panic("feedback HTTP: all dependencies are required")
 	}
 	return &Resource{module: module, runtime: runtime}
@@ -148,7 +155,7 @@ func (rs *Resource) listFeedback(w http.ResponseWriter, r *http.Request) {
 }
 
 func (rs *Resource) getFeedback(w http.ResponseWriter, r *http.Request) {
-	id, err := parseID(r)
+	id, err := rs.parseID(r)
 	if err != nil {
 		rs.invalid(w, r, errors.New("invalid feedback ID"))
 		return
@@ -162,16 +169,7 @@ func (rs *Resource) getFeedback(w http.ResponseWriter, r *http.Request) {
 }
 
 func (rs *Resource) getStudentFeedback(w http.ResponseWriter, r *http.Request) {
-	enabled, err := rs.module.Available(r.Context())
-	if err != nil {
-		rs.moduleFailure(w, r, err)
-		return
-	}
-	if !enabled {
-		rs.failure(w, r, Failure{Status: http.StatusForbidden, Err: errors.New("feature_disabled")}, "feature_disabled")
-		return
-	}
-	studentID, err := parseID(r)
+	studentID, err := rs.parseID(r)
 	if err != nil {
 		rs.invalid(w, r, errors.New("invalid student ID"))
 		return
@@ -279,7 +277,7 @@ func (rs *Resource) createBatchFeedback(w http.ResponseWriter, r *http.Request) 
 }
 
 func (rs *Resource) deleteFeedback(w http.ResponseWriter, r *http.Request) {
-	id, err := parseID(r)
+	id, err := rs.parseID(r)
 	if err != nil {
 		rs.invalid(w, r, errors.New("invalid feedback ID"))
 		return
@@ -298,8 +296,8 @@ func (request FeedbackRequest) toInput() feedbackModule.CreateEntry {
 	}
 }
 
-func parseID(r *http.Request) (int64, error) {
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+func (rs *Resource) parseID(r *http.Request) (int64, error) {
+	id, err := rs.runtime.ParseIDParam(r, "id")
 	if err != nil || id <= 0 {
 		return 0, errors.New("invalid ID")
 	}
@@ -349,6 +347,8 @@ func (rs *Resource) failure(w http.ResponseWriter, r *http.Request, failure Fail
 
 func moduleErrorStatus(err error) int {
 	switch {
+	case errors.Is(err, feedbackModule.ErrFeatureDisabled):
+		return http.StatusForbidden
 	case errors.Is(err, feedbackModule.ErrEntryNotFound), errors.Is(err, feedbackModule.ErrStudentNotFound):
 		return http.StatusNotFound
 	case errors.Is(err, feedbackModule.ErrInvalidEntryData), errors.Is(err, feedbackModule.ErrInvalidDateRange):

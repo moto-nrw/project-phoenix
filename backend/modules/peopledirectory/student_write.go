@@ -45,9 +45,6 @@ type StudentWrite struct {
 	// NoteSupplied says the caller spoke about the note at all, which a nil
 	// pointer alone cannot express.
 	NoteSupplied bool
-	// SupervisorNotesSupplied distinguishes a legacy-field update from the
-	// value merely included in a hydrated record.
-	SupervisorNotesSupplied bool
 }
 
 // StudentWriteCommand is the child row's own lifecycle. Each call is one flow:
@@ -70,37 +67,4 @@ type StudentWriteCommand interface {
 	// ListStudentCareEnds projects the enrolment upper bound of the given
 	// children; a child without one is absent from the result.
 	ListStudentCareEnds(context.Context, []int64) (map[int64]string, error)
-}
-
-func (m *Module) CreateStudent(ctx context.Context, write StudentWrite) (StudentRecord, error) {
-	if write.Record.PersonID <= 0 {
-		return StudentRecord{}, invalidStudent("person ID is required")
-	}
-	return m.engine.CreateStudent(ctx, write)
-}
-
-func (m *Module) UpdateStudent(ctx context.Context, write StudentWrite) (StudentRecord, error) {
-	if write.Record.ID <= 0 {
-		return StudentRecord{}, invalidStudent("student ID is required")
-	}
-	return m.engine.UpdateStudent(ctx, write)
-}
-
-func (m *Module) DeleteStudentRecord(ctx context.Context, studentID int64) error {
-	if studentID <= 0 {
-		return invalidStudent("student ID is required")
-	}
-	return m.engine.DeleteStudentRecord(ctx, studentID)
-}
-
-func (m *Module) VerifyStudentStrandingBatch(ctx context.Context) error {
-	return m.engine.VerifyStudentStrandingBatch(ctx)
-}
-
-func (m *Module) ListStudentCareEnds(ctx context.Context, ids []int64) (map[int64]string, error) {
-	ids = uniquePositive(ids)
-	if len(ids) == 0 {
-		return map[int64]string{}, nil
-	}
-	return m.engine.ListStudentCareEnds(ctx, ids)
 }

@@ -6,7 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api"
+	rootowners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/moto-nrw/project-phoenix/workflows/gradetransition"
@@ -40,21 +42,25 @@ func newTransitionFixture(t *testing.T, db *bun.DB) *transitionFixture {
 	t.Helper()
 	f := &transitionFixture{db: db, tenantID: testpkg.Tenant(t), now: time.Date(2026, 8, 24, 12, 0, 0, 0, calendar.Berlin)}
 	clock := func() time.Time { return f.now }
-	owners, err := testutil.NewGradeTransitionSuiteOwners(db, clock)
+	owners, people, membership, err := api.NewGradeTransitionSuiteOwners(testpkg.NewDatabase(t, db), clock)
 	require.NoError(t, err)
-	f.people = owners.People
-	f.membership = owners.Membership
+	f.people = people
+	f.membership = membership
 	actor := testpkg.CreateTestAccount(t, db, fmt.Sprintf("grade-transition-actor-%d", f.tenantID))
 	f.actorID = actor.ID
-	deps, err := gradetransitioncompose.Assemble(gradetransitioncompose.Dependencies{
-		DB: db, Directory: f.people, Membership: f.membership,
+	structure, presence, err := api.NewGradeTransitionOwners(testpkg.NewDatabase(t, db))
+	require.NoError(t, err)
+	deps, err := rootowners.AssembleGradeTransition(gradetransitioncompose.Dependencies{
+		DB: db, Structure: structure, Presence: presence, Directory: f.people, Membership: f.membership,
 		Rosters:              owners.Rosters,
 		LockRecurrenceWrites: owners.LockRecurrenceWrites,
 		ResyncOfferingRosters: func(_ context.Context, effectiveFrom calendar.Date) error {
 			f.resyncCalls = append(f.resyncCalls, effectiveFrom)
 			return nil
 		},
-		Clock: clock,
+		Audit:                api.MustNewWorkflowAuditCommand(testpkg.NewDatabase(t, db), "grade transition audit append failed"),
+		ClassListEntryRecord: api.GradeTransitionClassListRecord,
+		Clock:                clock,
 	})
 	require.NoError(t, err)
 	deps.Authorize = func(context.Context, string) (gradetransition.Actor, error) {

@@ -16,7 +16,7 @@ import (
 func setupDatabaseStatsRoute(t *testing.T) chi.Router {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	resource, err := newDatabaseStatsTestRouter(db)
+	resource, err := newDatabaseStatsTestRouter(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	router := chi.NewRouter()
 	router.Use(testpkg.TenantRuntimeMiddleware(t, db))

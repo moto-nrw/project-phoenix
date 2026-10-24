@@ -9,6 +9,7 @@
  */
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { ApiError } from "~/lib/api-error";
 import { Download } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
@@ -26,7 +27,6 @@ import {
 import { formatChatDateTime } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import {
-  ParentApiError,
   declarationProofAttachmentDownloadUrl,
   downloadDeclarationProofPdf,
   fetchDeclarationProof,
@@ -75,9 +75,9 @@ export function DeclarationProofPage({
       .catch((err: unknown) => {
         if (!active) return;
         logger.warn("parent_declaration_proof_load_failed", {
-          status: err instanceof ParentApiError ? err.status : undefined,
+          status: err instanceof ApiError ? err.status : undefined,
         });
-        if (err instanceof ParentApiError && err.status === 404) {
+        if (err instanceof ApiError && err.status === 404) {
           setNotFound(true);
           return;
         }
@@ -97,7 +97,7 @@ export function DeclarationProofPage({
       await downloadDeclarationProofPdf(announcementId, studentId);
     } catch (err: unknown) {
       logger.warn("parent_declaration_proof_pdf_failed", {
-        status: err instanceof ParentApiError ? err.status : undefined,
+        status: err instanceof ApiError ? err.status : undefined,
       });
       void showDownloadError(err, {
         object: t("errorObjectPdf"),

@@ -11,6 +11,7 @@
 package birthdays
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -21,14 +22,21 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
+// Service is the HTTP entry surface. The root binds display reads to People
+// Directory and the opt-out command to the staff lifecycle workflow.
+type Service interface {
+	peopledirectory.Birthdays
+	SetOptOut(context.Context, int64, bool) error
+}
+
 // Resource is the birthdays API resource.
 type Resource struct {
-	BirthdayService    peopledirectory.Birthdays
+	BirthdayService    Service
 	ListExportService  lists.Renderer
 	UserContextService common.StudentAccessSource
 	logger             *slog.Logger
@@ -38,7 +46,7 @@ type Resource struct {
 // applied inside the birthday service, so the resource takes no settings
 // dependency of its own.
 func NewResource(
-	birthdayService peopledirectory.Birthdays,
+	birthdayService Service,
 	listExportService lists.Renderer,
 	userContextService common.StudentAccessSource,
 	logger *slog.Logger,
@@ -52,11 +60,11 @@ func NewResource(
 }
 
 // Router returns the configured router.
-func (rs *Resource) Router() chi.Router {
+func (rs *Resource) Router(protectedTenantRoutes func(chi.Router, func(chi.Router, common.Middleware))) chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
-	common.ProtectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) {
+	protectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) {
 		// users:read is the permission that already grants the child directory
 		// this list is a narrow slice of, and the handler additionally applies
 		// the caller's student data scope so the list never reaches past that
@@ -206,7 +214,7 @@ func (rs *Resource) updateOptOut(w http.ResponseWriter, r *http.Request) {
 // callerAccountID resolves the acting account from the JWT. A request without
 // one cannot be answered — the opt-out has no meaning without an owner.
 func (rs *Resource) callerAccountID(w http.ResponseWriter, r *http.Request) (int64, bool) {
-	accountID := jwt.ActorAccountIDFromCtx(r.Context())
+	accountID := sessiontoken.ActorAccountIDFromCtx(r.Context())
 	if accountID == nil {
 		common.RenderError(w, r, common.ErrorUnauthorized(errors.New("no account in token")))
 		return 0, false

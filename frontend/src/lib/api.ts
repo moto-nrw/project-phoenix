@@ -1,21 +1,16 @@
 import type { ErrorCode } from "~/lib/error-codes.generated";
-import type { AxiosError } from "axios";
 import {
   ApiError,
-  apiErrorFromBody,
   apiErrorFromText,
   enrichApiError,
+  problemDetail,
   transportFetch,
 } from "./api-error";
 import { clearSessionCache, getCachedSession } from "./session-cache";
 import { createLogger } from "~/lib/logger";
 import api from "./api-transport";
 import { resolveApiUrl } from "./api-url";
-import {
-  convertToBackendRoom,
-  fetchWithRetry,
-  type ApiErrorResponse,
-} from "./api-helpers";
+import { convertToBackendRoom, fetchWithRetry } from "./api-helpers";
 import {
   mapSingleStudentResponse,
   mapStudentsResponse,
@@ -34,7 +29,6 @@ import {
   mapGroupsResponse,
 } from "./group-helpers";
 
-// Re-export for external consumers
 export { mapGroupResponse } from "./group-helpers";
 import type { BackendGroup, Group as ImportedGroup } from "./group-helpers";
 import {
@@ -43,8 +37,6 @@ import {
   mapRoomsResponse,
 } from "./room-helpers";
 
-// Re-export for external consumers
-export { mapRoomResponse } from "./room-helpers";
 import type { BackendRoom } from "./room-helpers";
 import { handleAuthFailure } from "./auth-failure";
 import { encodeMultiValueParam } from "./multi-value-param";
@@ -120,7 +112,6 @@ function studentUpdateMayChangeCompanions(
 function handleApiError(error: unknown, context: string): Error {
   // Extract error details
   const errorMessage = error instanceof Error ? error.message : String(error);
-  const statusMatch = /API error[:\s(]+(\d{3})/.exec(errorMessage);
   const directStatus =
     error &&
     typeof error === "object" &&
@@ -137,10 +128,7 @@ function handleApiError(error: unknown, context: string): Error {
     "status" in error.response
       ? (error.response.status as number)
       : undefined;
-  const status =
-    directStatus ??
-    responseStatus ??
-    (statusMatch?.[1] ? Number.parseInt(statusMatch[1], 10) : undefined);
+  const status = directStatus ?? responseStatus;
 
   const logContext = {
     context,
@@ -155,6 +143,8 @@ function handleApiError(error: unknown, context: string): Error {
   }
 
   const handled = new ApiError(`${context}: ${errorMessage}`, status);
+  // The 503 of a transport failure is a stand-in, not an answer (#2512).
+  if (error instanceof ApiError && error.noResponse) handled.noResponse = true;
   if (error && typeof error === "object") {
     const structured = error as {
       code?: unknown;
@@ -437,6 +427,14 @@ async function getNewTokenFromSession(): Promise<string | undefined> {
   return getSessionToken();
 }
 
+function accessDeniedApiError(status?: 401 | 403): ApiError {
+  const accessDeniedStatus = status ?? 401;
+  return new ApiError(
+    accessDeniedStatus === 403 ? "Access denied" : "Authentication failed",
+    accessDeniedStatus,
+  );
+}
+
 /**
  * Validate required fields for student creation
  * @throws Error if required fields are missing
@@ -454,67 +452,14 @@ function validateStudentForCreation(student: Omit<Student, "id">): void {
 }
 
 /**
- * Parse API error response text to extract detailed error message
- * @returns Error message or null if parsing fails
+ * A failed browser call as an ApiError: status, code, field errors and
+ * request ID from the envelope, the `detail` as diagnostic message, and the
+ * raw body for callers that read extension members (companion-plan 409).
  */
-function parseApiErrorMessage(errorText: string): string | null {
-  try {
-    const errorJson = JSON.parse(errorText) as { error?: string };
-    return errorJson.error ?? null;
-  } catch {
-    return null;
-  }
-}
-
 function browserApiError(status: number, body: string): Error {
-  const message = parseApiErrorMessage(body);
-  let payload: unknown;
-  try {
-    payload = JSON.parse(body) as ApiErrorResponse;
-  } catch {
-    // Non-JSON legacy responses still retain their raw body.
-  }
-  const error = apiErrorFromBody(
-    message ? `API error: ${message}` : `API error: ${status}`,
-    status,
-    payload,
-  );
+  const error = apiErrorFromText(`API error: ${status}`, status, body);
   Object.assign(error, { body });
   return error;
-}
-
-/**
- * Extract error message from API error response with fallback patterns.
- * Tries JSON parsing first, then checks for known error patterns in raw text.
- */
-function extractApiError(
-  errorText: string,
-  fallbackPatterns: string[] = [],
-): string | null {
-  // Try JSON parsing first
-  const jsonError = parseApiErrorMessage(errorText);
-  if (jsonError) return jsonError;
-
-  // Check for known error patterns in raw text
-  for (const pattern of fallbackPatterns) {
-    if (errorText.includes(pattern)) {
-      return pattern;
-    }
-  }
-
-  return null;
-}
-
-/**
- * Extract error from Axios error response.
- */
-function extractAxiosError(error: unknown): string | null {
-  const axiosErr = error as AxiosError;
-  if (axiosErr.response?.data) {
-    const errorData = axiosErr.response.data as { error?: string };
-    return errorData.error ?? null;
-  }
-  return null;
 }
 
 /**
@@ -831,81 +776,49 @@ export const COMPANION_WOULD_LOSE_DEPARTURE_CODE: ErrorCode =
  */
 export const COMPANIONS_CHANGED_CODE: ErrorCode = "students.companions_changed";
 
-/**
- * Raised when the submitted companion list no longer describes the stored one.
- *
- * Typed rather than folded into the generic error path because the retry is
- * different from every other failure: re-sending the SAME list is exactly what
- * the refusal prevents — it would delete the change it is protecting. The form
- * has to reload first and let the user redo the edit on the current state.
- */
-export class CompanionsChangedError extends ApiError {
-  /** The untouched response body — see CompanionPlanConflictError.body. */
-  readonly body: string;
-
-  constructor(body: string) {
-    super(parseBackendMessage(body, "companions changed"), 409);
-    enrichApiError(this, parsedBody(body), 409);
-    this.name = "CompanionsChangedError";
-    this.body = body;
-  }
-}
-
 /** Reports whether a response body carries the stale-list code. */
 export function isCompanionsChangedBody(body: string): boolean {
   return bodyHasCode(body, COMPANIONS_CHANGED_CODE);
 }
 
 /**
- * Reports whether an error is that refusal, in whichever wrapping it arrived —
- * the typed error from studentService.updateStudent, or the plain Error the
- * generic CRUD service throws with the untouched body attached. Keyed off the
- * CODE, never the status: the student PUT answers 409 for the companion-plan
- * question and the lock collision too.
+ * Reports whether an error is the refusal of a companion list that no longer
+ * describes the stored one, in whichever wrapping it arrived: the ApiError
+ * from studentService.updateStudent, or the one the generic CRUD service
+ * throws with the untouched body attached. Keyed off the CODE, never the
+ * status: the student PUT answers 409 for the companion-plan question and the
+ * lock collision too. The retry differs from every other failure: re-sending
+ * the SAME list is exactly what the refusal prevents, so the form reloads
+ * first and lets the user redo the edit on the current state.
  */
 export function isCompanionsChanged(err: unknown): boolean {
-  if (err instanceof CompanionsChangedError) return true;
-  if (!(err instanceof Error)) return false;
-  const body = (err as Error & { body?: string }).body;
-  if (body && isCompanionsChangedBody(body)) return true;
-  const match = embeddedJsonObject(err.message);
-  return match ? isCompanionsChangedBody(match) : false;
-}
-
-/**
- * Raised when a student write was refused because it would strand a linked
- * child. Typed like the plan conflict so the form can point at the Heimweg
- * instead of reporting a blanket failure; the text comes from the catalog via
- * the code (#2513), the message is diagnosis only.
- */
-export class CompanionDepartureRefusedError extends ApiError {
-  /** The untouched response body — see CompanionPlanConflictError.body. */
-  readonly body: string;
-
-  constructor(body: string) {
-    super(parseBackendMessage(body, "companion would lose departure"), 400);
-    enrichApiError(this, parsedBody(body), 400);
-    this.name = "CompanionDepartureRefusedError";
-    this.body = body;
+  if (err instanceof ApiError && err.code === COMPANIONS_CHANGED_CODE) {
+    return true;
   }
+  const body = attachedBody(err);
+  return body ? isCompanionsChangedBody(body) : false;
 }
 
 /**
- * Reports whether an error is that refusal, in whichever wrapping it arrived:
- * the typed error from studentService.updateStudent, or the plain Error the
- * generic CRUD service throws with the untouched body attached (and, for
- * callers that lost the body, the JSON embedded in the message).
+ * Reports whether a student write was refused because it would strand a
+ * linked child, in whichever wrapping it arrived: the ApiError from
+ * studentService.updateStudent, or the one the generic CRUD service throws
+ * with the untouched body attached. The form points at the Heimweg instead of
+ * reporting a blanket failure; the text comes from the catalog via the code
+ * (#2513).
  *
  * Keyed off the CODE, never the status: the student PUT answers 400 for every
  * other rejected field too, and those keep their own generic handling.
  */
 export function isCompanionDepartureRefusal(err: unknown): boolean {
-  if (err instanceof CompanionDepartureRefusedError) return true;
-  if (!(err instanceof Error)) return false;
-  const body = (err as Error & { body?: string }).body;
-  if (body && isCompanionDepartureBody(body)) return true;
-  const match = embeddedJsonObject(err.message);
-  return match ? isCompanionDepartureBody(match) : false;
+  if (
+    err instanceof ApiError &&
+    err.code === COMPANION_WOULD_LOSE_DEPARTURE_CODE
+  ) {
+    return true;
+  }
+  const body = attachedBody(err);
+  return body ? isCompanionDepartureBody(body) : false;
 }
 
 /** Reports whether a response body carries the stranded-companion code. */
@@ -940,49 +853,20 @@ export function isPrivacyConsentSaved(err: unknown): boolean {
   if (err instanceof ApiError && err.details?.privacy_consent_saved === true) {
     return true;
   }
-  if (!(err instanceof Error)) return false;
-  const body = (err as Error & { body?: string }).body;
-  if (body && isPrivacyConsentSavedBody(body)) return true;
-  const match = embeddedJsonObject(err.message);
-  return match ? isPrivacyConsentSavedBody(match) : false;
+  const body = attachedBody(err);
+  return body ? isPrivacyConsentSavedBody(body) : false;
 }
 
-/**
- * Cuts the JSON object out of an error MESSAGE — first "{" to last "}" — for
- * the callers that no longer hold the response body and have to read the
- * backend envelope back out of the text the CRUD service built from it.
- *
- * Written with indexOf/lastIndexOf rather than the obvious /\{.*\}/s: the
- * greedy match backtracks over the whole message once per candidate closing
- * brace, which is quadratic on a long unterminated message. The result is
- * identical, the scan is linear.
- */
-export function embeddedJsonObject(message: string): string | null {
-  const start = message.indexOf("{");
-  if (start === -1) return null;
-  const end = message.lastIndexOf("}");
-  if (end < start) return null;
-  return message.substring(start, end + 1);
+/** The untouched response body some clients attach to their error. */
+function attachedBody(err: unknown): string | undefined {
+  if (!(err instanceof Error)) return undefined;
+  const body = (err as Error & { body?: unknown }).body;
+  return typeof body === "string" ? body : undefined;
 }
 
-/** Reads the backend error envelope's message, falling back when unreadable. */
+/** Reads the error envelope's diagnostic `detail`, with a fallback. */
 function parseBackendMessage(body: string, fallback: string): string {
-  const jsonStart = body.indexOf("{");
-  if (jsonStart === -1) return fallback;
-  try {
-    const parsed = JSON.parse(body.substring(jsonStart)) as {
-      error?: string;
-      message?: string;
-    };
-    for (const candidate of [parsed.error, parsed.message]) {
-      if (typeof candidate === "string" && candidate.trim()) {
-        return candidate.trim();
-      }
-    }
-    return fallback;
-  } catch {
-    return fallback;
-  }
+  return problemDetail(parsedBody(body))?.trim() ?? fallback;
 }
 
 /**
@@ -1034,15 +918,7 @@ function bodyHasCode(body: string, code: string): boolean {
 }
 
 function parseConflictMessage(body: string): string {
-  try {
-    const parsed = JSON.parse(body) as { error?: string };
-    return (
-      parsed.error ??
-      "Der Heimweg des verknüpften Kindes erlaubt diese Tage noch nicht."
-    );
-  } catch {
-    return "Der Heimweg des verknüpften Kindes erlaubt diese Tage noch nicht.";
-  }
+  return parseBackendMessage(body, "companion plan conflict");
 }
 
 export const studentService = {
@@ -1085,13 +961,17 @@ export const studentService = {
           authToken = await getSessionToken();
         }
 
-        const { data } = await fetchWithRetry<unknown>(url, authToken, {
-          onAuthFailure: handleAuthFailure,
-          getNewToken: getNewTokenFromSession,
-        });
+        const { data, accessDeniedStatus } = await fetchWithRetry<unknown>(
+          url,
+          authToken,
+          {
+            onAuthFailure: handleAuthFailure,
+            getNewToken: getNewTokenFromSession,
+          },
+        );
 
         if (data === null) {
-          throw new Error("Authentication failed");
+          throw accessDeniedApiError(accessDeniedStatus);
         }
 
         return parseStudentsPaginatedResponse(data);
@@ -1121,13 +1001,17 @@ export const studentService = {
           authToken = await getSessionToken();
         }
 
-        const { data } = await fetchWithRetry<unknown>(url, authToken, {
-          onAuthFailure: handleAuthFailure,
-          getNewToken: getNewTokenFromSession,
-        });
+        const { data, accessDeniedStatus } = await fetchWithRetry<unknown>(
+          url,
+          authToken,
+          {
+            onAuthFailure: handleAuthFailure,
+            getNewToken: getNewTokenFromSession,
+          },
+        );
 
         if (data === null) {
-          throw new Error("Authentication failed");
+          throw accessDeniedApiError(accessDeniedStatus);
         }
 
         return parseSchoolClassesResponse(data);
@@ -1151,13 +1035,17 @@ export const studentService = {
         // Browser environment: use fetchWithRetry for automatic 401 handling
         // Route handler already maps response, so applyMapping=false
         const token = await getSessionToken();
-        const { data } = await fetchWithRetry<unknown>(url, token, {
-          onAuthFailure: handleAuthFailure,
-          getNewToken: getNewTokenFromSession,
-        });
+        const { data, accessDeniedStatus } = await fetchWithRetry<unknown>(
+          url,
+          token,
+          {
+            onAuthFailure: handleAuthFailure,
+            getNewToken: getNewTokenFromSession,
+          },
+        );
 
         if (data === null) {
-          throw new Error("Authentication failed");
+          throw accessDeniedApiError(accessDeniedStatus);
         }
 
         return parseSingleStudentResponse(data, false);
@@ -1263,28 +1151,12 @@ export const studentService = {
             throw new CompanionPlanConflictError(errorText);
           }
 
-          // The OTHER expected 409: the submitted "läuft mit" list was built on
-          // a snapshot someone else has since replaced. Typed because the retry
-          // must NOT re-send the same list — that is precisely the write this
-          // refusal exists to stop. The form reloads and lets the user redo the
-          // edit on the current links.
-          if (response.status === 409 && isCompanionsChangedBody(errorText)) {
-            throw new CompanionsChangedError(errorText);
-          }
-
-          // A 400 CARRYING THE STRANDED-COMPANION CODE is the other expected
-          // companion refusal: removing a link would leave the linked child
-          // with an accompanied plan and nothing that says who it walks home
-          // with. Nothing was written and the message names what has to be
-          // fixed first, so it is typed too — the generic branch below folds
-          // the body into "API error 400: …", which the forms then replace
-          // with an opaque "Fehler beim Speichern" the user cannot act on.
-          if (response.status === 400 && isCompanionDepartureBody(errorText)) {
-            throw new CompanionDepartureRefusedError(errorText);
-          }
-
-          // Every other refusal keeps code, field errors and request ID for
-          // the shared error path (#2513).
+          // The other two companion refusals (the stale "läuft mit" list, 409
+          // students.companions_changed, and the stranded linked child, 400
+          // students.companion_would_lose_departure) and every other refusal
+          // keep code, field errors, request ID and the untouched body for
+          // the shared error path (#2513). isCompanionsChanged and
+          // isCompanionDepartureRefusal recognise them by code.
           throw browserApiError(response.status, errorText);
         }
 
@@ -1335,10 +1207,10 @@ export const studentService = {
       // Same reasoning for the stranded-companion refusal: it is an instruction
       // for the user, and handleApiError would strip it down to a generic
       // message.
-      if (error instanceof CompanionDepartureRefusedError) throw error;
+      if (isCompanionDepartureRefusal(error)) throw error;
       // Same reasoning for the stale-list refusal: the form has to reload
       // rather than retry, and handleApiError would hide that instruction.
-      if (error instanceof CompanionsChangedError) throw error;
+      if (isCompanionsChanged(error)) throw error;
       throw handleApiError(error, `Error updating student ${id}`);
     }
   },
@@ -1396,13 +1268,14 @@ export const groupService = {
       if (useProxyApi) {
         // Browser environment: use fetchWithRetry for automatic 401 handling
         const token = await getSessionToken();
-        const { response, data } = await fetchWithRetry<unknown>(url, token, {
-          onAuthFailure: handleAuthFailure,
-          getNewToken: getNewTokenFromSession,
-        });
+        const { response, data, accessDeniedStatus } =
+          await fetchWithRetry<unknown>(url, token, {
+            onAuthFailure: handleAuthFailure,
+            getNewToken: getNewTokenFromSession,
+          });
 
         if (response === null) {
-          throw new Error("Authentication failed");
+          throw accessDeniedApiError(accessDeniedStatus);
         }
 
         const groupData = extractBackendGroup(data);
@@ -1450,16 +1323,7 @@ export const groupService = {
             status: response.status,
             error_text: errorText.substring(0, 200), // Truncate long errors
           });
-          // Try to parse error for more detailed message
-          try {
-            const errorJson = JSON.parse(errorText) as { error?: string };
-            if (errorJson.error) {
-              throw new Error(`API error: ${errorJson.error}`);
-            }
-          } catch {
-            // If parsing fails, use status code
-          }
-          throw new Error(`API error: ${response.status}`);
+          throw browserApiError(response.status, errorText);
         }
 
         const data = (await response.json()) as BackendGroup;
@@ -1528,8 +1392,6 @@ export const groupService = {
     const useProxyApi = globalThis.window !== undefined;
     const url = await resolveApiUrl(`/api/groups/${id}`);
 
-    const knownErrorPatterns = ["cannot delete group with students"];
-
     try {
       if (useProxyApi) {
         // Browser environment: use fetch with our Next.js API route
@@ -1545,22 +1407,13 @@ export const groupService = {
             status: response.status,
             error_text: errorText.substring(0, 200), // Truncate long errors
           });
-          const detailedError = extractApiError(errorText, knownErrorPatterns);
-          throw new Error(detailedError ?? `API error: ${response.status}`);
+          throw browserApiError(response.status, errorText);
         }
         return;
       }
 
       // Server-side: use axios with the API URL directly
-      try {
-        await api.delete(url);
-      } catch (axiosError) {
-        const detailedError = extractAxiosError(axiosError);
-        if (detailedError) {
-          throw new Error(detailedError, { cause: axiosError });
-        }
-        throw axiosError;
-      }
+      await api.delete(url);
     } catch (error) {
       logger.error("failed to delete group", {
         group_id: id,
@@ -1589,7 +1442,7 @@ export const groupService = {
             status: response.status,
             error_text: errorText.substring(0, 200), // Truncate long errors
           });
-          throw new Error(`API error: ${response.status}`);
+          throw browserApiError(response.status, errorText);
         }
 
         // Type assertion to avoid unsafe assignment
@@ -1649,7 +1502,7 @@ export const groupService = {
             status: response.status,
             error_text: errorText.substring(0, 200), // Truncate long errors
           });
-          throw new Error(`API error: ${response.status}`);
+          throw browserApiError(response.status, errorText);
         }
 
         return;
@@ -1695,7 +1548,7 @@ export const groupService = {
             status: response.status,
             error_text: errorText.substring(0, 200), // Truncate long errors
           });
-          throw new Error(`API error: ${response.status}`);
+          throw browserApiError(response.status, errorText);
         }
 
         return;
@@ -1740,7 +1593,7 @@ export const groupService = {
             status: response.status,
             error_text: errorText.substring(0, 200), // Truncate long errors
           });
-          throw new Error(`API error: ${response.status}`);
+          throw browserApiError(response.status, errorText);
         }
 
         return;
@@ -1815,13 +1668,14 @@ export const roomService = {
       if (useProxyApi) {
         // Browser environment: use fetchWithRetry for automatic 401 handling
         const token = await getSessionToken();
-        const { response, data } = await fetchWithRetry<unknown>(url, token, {
-          onAuthFailure: handleAuthFailure,
-          getNewToken: getNewTokenFromSession,
-        });
+        const { response, data, accessDeniedStatus } =
+          await fetchWithRetry<unknown>(url, token, {
+            onAuthFailure: handleAuthFailure,
+            getNewToken: getNewTokenFromSession,
+          });
 
         if (response === null) {
-          throw new Error("Authentication failed");
+          throw accessDeniedApiError(accessDeniedStatus);
         }
 
         const roomData = extractBackendRoom(data);
@@ -1867,12 +1721,7 @@ export const roomService = {
             status: response.status,
             error_text: errorText.substring(0, 200), // Truncate long errors
           });
-          const errorMessage = parseApiErrorMessage(errorText);
-          throw new Error(
-            errorMessage
-              ? `API error: ${errorMessage}`
-              : `API error: ${response.status}`,
-          );
+          throw browserApiError(response.status, errorText);
         }
 
         const data = (await response.json()) as BackendRoom;
@@ -1998,7 +1847,7 @@ export const roomService = {
             status: response.status,
             error_text: errorText.substring(0, 200), // Truncate long errors
           });
-          throw new Error(`API error: ${response.status}`);
+          throw browserApiError(response.status, errorText);
         }
 
         const data = (await response.json()) as Record<string, BackendRoom[]>;

@@ -39,7 +39,7 @@ func (s *MasterDataDecisions) bulkCandidate(ctx context.Context, requestID int64
 	if row.Status != masterdatarequests.StatusPending {
 		return nil, masterdatarequests.ErrReviewNotFound
 	}
-	facts, err := s.people.ReviewFields(ctx, []ports.MasterDataFieldChange{{
+	facts, err := s.people.ReviewFields(ctx, []careplan.MasterDataFieldChange{{
 		RequestID: row.ID, StudentID: row.StudentID, Target: row.Target, Field: row.FieldKey,
 		OldValue: row.OldValue, NewValue: row.NewValue,
 	}})
@@ -69,9 +69,8 @@ func (s *MasterDataDecisions) LockBulkRequest(ctx context.Context, requestID int
 	return err
 }
 
-// LockBulkStudents establishes one canonical student-lock frontier after all
-// request rows have been locked in request-kind/id order. Single decisions
-// use the same request-before-student order.
+// LockBulkStudents takes all children in ascending ID order BEFORE any request
+// rows. Per-request helpers may safely reacquire these locks afterwards.
 func (s *MasterDataDecisions) LockBulkStudents(ctx context.Context, studentIDs []int64) error {
 	for _, studentID := range studentIDs {
 		if err := s.lockStudent(ctx, studentID); err != nil {

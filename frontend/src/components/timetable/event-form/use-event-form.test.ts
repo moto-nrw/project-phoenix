@@ -56,7 +56,23 @@ describe("reconcileCategoryId", () => {
 });
 
 describe("useEventForm staff selection", () => {
-  it("leaves external caregivers out of planned rosters", async () => {
+  const baseParams: UseEventFormParams = {
+    isOpen: true,
+    onClose: vi.fn(),
+    onSaved: vi.fn(),
+    defaultDate: "2026-08-03",
+    calendarPeriods: [],
+    defaultCalendarPeriodId: null,
+    planningPeriods: null,
+    initialInstance: null,
+    initialSeries: null,
+    convertInstance: null,
+    defaultRepeat: "none",
+    variant: "full",
+    canCheckShiftCoverage: false,
+  };
+
+  function mockReferences(staff: Staff[]) {
     vi.spyOn(plannerReferenceApi, "fetchPlannerRooms").mockResolvedValue([]);
     vi.spyOn(plannerReferenceApi, "fetchPlannerGroups").mockResolvedValue([]);
     vi.spyOn(
@@ -64,38 +80,104 @@ describe("useEventForm staff selection", () => {
       "fetchPlannerActivityCategories",
     ).mockResolvedValue([]);
     vi.spyOn(formModel, "fetchAllStudentOptions").mockResolvedValue([]);
-    vi.spyOn(staffService, "getAllStaff").mockResolvedValue([
+    vi.spyOn(staffService, "getAllStaff").mockResolvedValue(staff);
+  }
+
+  // ADR 0091 changes the contract of #4573: an external without account
+  // („Kein Zugang“) is a placeholder for planning and is offered like the
+  // others, with its mark in the name.
+  it("offers externals with every access, also those without account", async () => {
+    mockReferences([
       plannerStaff("1", "Interne Kraft", false),
-      plannerStaff("2", "Externe Kraft", true),
+      plannerStaff("2", "Konto Kraft", true, "account", "Musikschule"),
+      plannerStaff("3", "Eingeladene Kraft", true, "invitation_pending"),
+      plannerStaff("4", "Ohne Konto", true, "none"),
     ]);
 
+    const { result } = renderHook(() => useEventForm(baseParams));
+
+    await waitFor(() =>
+      expect(result.current.staff).toEqual([
+        { id: "3", name: "Eingeladene Kraft (Extern, Einladung offen)" },
+        { id: "1", name: "Interne Kraft" },
+        { id: "2", name: "Konto Kraft (Extern · Musikschule)" },
+        { id: "4", name: "Ohne Konto (Extern, Kein Konto)" },
+      ]),
+    );
+  });
+
+  it("keeps an already assigned external without account in the options", async () => {
+    mockReferences([
+      plannerStaff("1", "Interne Kraft", false),
+      plannerStaff("4", "Ohne Konto", true, "none"),
+    ]);
+    const series: TimetableTemplate = {
+      id: "9",
+      name: "Trommel-AG",
+      type: "care",
+      categoryId: "1",
+      categoryName: "AG",
+      roomId: "7",
+      isOpen: true,
+      maxParticipants: 20,
+      targetGroupType: "none",
+      enrollmentCount: 0,
+      supervisorCount: 1,
+      requiredStaffCount: 1,
+      assignedStaffCount: 1,
+      studentIds: [],
+      staffIds: ["4"],
+      weekdayAssignments: [],
+      schedules: [
+        {
+          id: "1",
+          weekday: 1,
+          startTime: "14:00",
+          endTime: "15:00",
+          weekPattern: 0,
+          calendarPeriodId: "5",
+        },
+      ],
+    };
+
     const { result } = renderHook(() =>
-      useEventForm({
-        isOpen: true,
-        onClose: vi.fn(),
-        onSaved: vi.fn(),
-        defaultDate: "2026-08-03",
-        calendarPeriods: [],
-        defaultCalendarPeriodId: null,
-        planningPeriods: null,
-        initialInstance: null,
-        initialSeries: null,
-        convertInstance: null,
-        defaultRepeat: "none",
-        variant: "full",
-        canCheckShiftCoverage: false,
-      }),
+      useEventForm({ ...baseParams, initialSeries: series }),
     );
 
     await waitFor(() =>
       expect(result.current.staff).toEqual([
         { id: "1", name: "Interne Kraft" },
+        { id: "4", name: "Ohne Konto (Extern, Kein Konto)" },
       ]),
     );
   });
+
+  it("offers a just recorded external person right away", async () => {
+    mockReferences([plannerStaff("1", "Interne Kraft", false)]);
+
+    const { result } = renderHook(() => useEventForm(baseParams));
+    await waitFor(() => expect(result.current.staff).toHaveLength(1));
+
+    act(() => {
+      result.current.addStaffOption(
+        plannerStaff("9", "Lea Gast", true, "invitation_pending"),
+      );
+    });
+
+    expect(result.current.staff).toEqual([
+      { id: "1", name: "Interne Kraft" },
+      { id: "9", name: "Lea Gast (Extern, Einladung offen)" },
+    ]);
+  });
 });
 
-function plannerStaff(id: string, name: string, isExternal: boolean): Staff {
+function plannerStaff(
+  id: string,
+  name: string,
+  isExternal: boolean,
+  externalAccountStatus: Staff["externalAccountStatus"] = null,
+  externalOrganization?: string,
+): Staff {
   const [firstName, lastName] = name.split(" ");
   return {
     id,
@@ -107,6 +189,8 @@ function plannerStaff(id: string, name: string, isExternal: boolean): Staff {
     isSupervising: false,
     supervisions: [],
     isExternal,
+    externalAccountStatus,
+    externalOrganization,
   };
 }
 

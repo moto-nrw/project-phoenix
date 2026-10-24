@@ -34,8 +34,6 @@ type lifecycleStore struct {
 
 	cards                     map[string]bool
 	grants                    map[mappingKey][]domain.PermissionGrant
-	parents                   map[int64]domain.ParentAccount
-	nextID                    int64
 	granted                   []int64
 	findAccountsByEmailsCalls int
 }
@@ -43,7 +41,7 @@ type lifecycleStore struct {
 func newLifecycleStore() *lifecycleStore {
 	return &lifecycleStore{
 		fakeStore: newFakeStore(),
-		cards:     map[string]bool{}, grants: map[mappingKey][]domain.PermissionGrant{}, parents: map[int64]domain.ParentAccount{},
+		cards:     map[string]bool{}, grants: map[mappingKey][]domain.PermissionGrant{},
 	}
 }
 
@@ -90,58 +88,6 @@ func (s *lifecycleStore) ListAccountEmails(_ context.Context, accountIDs []int64
 		}
 	}
 	return emails, stats(), nil
-}
-
-func (s *lifecycleStore) FindParentAccount(_ context.Context, id int64) (domain.ParentAccount, bool, domain.OperationStats, error) {
-	account, ok := s.parents[id]
-	return account, ok, stats(), nil
-}
-
-func (s *lifecycleStore) findParent(match func(domain.ParentAccount) bool) (domain.ParentAccount, bool, domain.OperationStats, error) {
-	for _, account := range s.parents {
-		if match(account) {
-			return account, true, stats(), nil
-		}
-	}
-	return domain.ParentAccount{}, false, stats(), nil
-}
-
-func (s *lifecycleStore) FindParentAccountByEmail(_ context.Context, email string) (domain.ParentAccount, bool, domain.OperationStats, error) {
-	return s.findParent(func(a domain.ParentAccount) bool { return strings.EqualFold(a.Email, email) })
-}
-
-func (s *lifecycleStore) FindParentAccountByUsername(_ context.Context, username string) (domain.ParentAccount, bool, domain.OperationStats, error) {
-	return s.findParent(func(a domain.ParentAccount) bool { return strings.EqualFold(a.Username, username) })
-}
-
-func (s *lifecycleStore) InsertParentAccount(_ context.Context, account domain.ParentAccount) (domain.ParentAccount, domain.OperationStats, error) {
-	s.nextID++
-	account.ID = s.nextID
-	s.parents[account.ID] = account
-	return account, stats(), nil
-}
-
-func (s *lifecycleStore) UpdateParentAccount(_ context.Context, account domain.ParentAccount) (bool, domain.OperationStats, error) {
-	if _, ok := s.parents[account.ID]; !ok {
-		return false, stats(), nil
-	}
-	s.parents[account.ID] = account
-	return true, stats(), nil
-}
-
-func (s *lifecycleStore) ListParentAccounts(_ context.Context, filter domain.ParentAccountFilter) ([]domain.ParentAccount, domain.OperationStats, error) {
-	var result []domain.ParentAccount
-	for _, account := range s.parents {
-		if filter.Email != "" && !strings.EqualFold(account.Email, filter.Email) {
-			continue
-		}
-		if filter.Active != nil && account.Active != *filter.Active {
-			continue
-		}
-		result = append(result, account)
-	}
-	sort.Slice(result, func(i, j int) bool { return result[i].ID < result[j].ID })
-	return result, stats(), nil
 }
 
 // ports.Store overrides the relative access and school identity flows reach.
@@ -203,6 +149,7 @@ type lifecycleStaff struct {
 	mu       sync.Mutex
 	persons  map[int64]domain.PersonRecord
 	staff    map[int64]domain.StaffMember
+	rehired  map[int64]int64
 	teachers map[int64]domain.CaregiverProfile
 	students map[int64]bool
 	nextID   int64
@@ -216,7 +163,7 @@ type lifecycleStaff struct {
 
 func newLifecycleStaff() *lifecycleStaff {
 	return &lifecycleStaff{
-		persons: map[int64]domain.PersonRecord{}, staff: map[int64]domain.StaffMember{},
+		persons: map[int64]domain.PersonRecord{}, staff: map[int64]domain.StaffMember{}, rehired: map[int64]int64{},
 		teachers: map[int64]domain.CaregiverProfile{}, students: map[int64]bool{}, nextID: 100,
 	}
 }
@@ -309,6 +256,13 @@ func (d *lifecycleStaff) LinkPersonToAccount(_ context.Context, personID, accoun
 	return nil
 }
 
+func (d *lifecycleStaff) MoveAccountLink(ctx context.Context, fromPersonID, toPersonID, accountID int64) error {
+	from := d.persons[fromPersonID]
+	from.AccountID = nil
+	d.persons[fromPersonID] = from
+	return d.LinkPersonToAccount(ctx, toPersonID, accountID)
+}
+
 func (d *lifecycleStaff) LinkPersonToRFIDCard(_ context.Context, personID int64, tagID string) error {
 	person := d.persons[personID]
 	person.TagID = &tagID
@@ -321,21 +275,36 @@ func (d *lifecycleStaff) IsStudentPerson(_ context.Context, personID int64) (boo
 }
 
 func (d *lifecycleStaff) FindStaffByPerson(_ context.Context, personID int64) (domain.StaffMember, bool, error) {
+	var retired domain.StaffMember
+	retiredFound := false
 	for _, member := range d.staff {
-		if member.PersonID == personID {
+		if member.PersonID != personID {
+			continue
+		}
+		if !member.Deleted {
 			return member, true, nil
 		}
+		if !retiredFound || member.ID > retired.ID {
+			retired = member
+			retiredFound = true
+		}
+	}
+	if retiredFound {
+		return retired, true, nil
 	}
 	return domain.StaffMember{}, false, nil
 }
 
-func (d *lifecycleStaff) CreateStaff(_ context.Context, tenantID, personID int64) (int64, error) {
+func (d *lifecycleStaff) CreateStaff(_ context.Context, tenantID, personID int64, retiredStaffID *int64) (int64, error) {
 	if d.createStaffErr != nil {
 		return 0, d.createStaffErr
 	}
 	member := d.addStaff(personID)
 	member.TenantID = tenantID
 	d.staff[member.ID] = member
+	if retiredStaffID != nil {
+		d.rehired[member.ID] = *retiredStaffID
+	}
 	return member.ID, nil
 }
 
@@ -526,12 +495,13 @@ func (a *lifecycleAdmin) DeactivateAccount(_ context.Context, accountID int64) e
 // --- guardian directory, invitations, delivery -----------------------------------
 
 type lifecycleGuardians struct {
-	profiles map[int64]domain.GuardianProfile
-	links    map[int64]domain.StudentGuardianLink
-	students map[int64]domain.Student
-	names    map[int64]domain.PersonName
-	locked   []int64
-	nextID   int64
+	profiles       map[int64]domain.GuardianProfile
+	links          map[int64]domain.StudentGuardianLink
+	students       map[int64]domain.Student
+	names          map[int64]domain.PersonName
+	locked         []int64
+	lockedProfiles []int64
+	nextID         int64
 
 	findProfileErr   error
 	createProfileErr error
@@ -594,6 +564,12 @@ func (g *lifecycleGuardians) FindGuardianProfile(_ context.Context, id int64) (d
 	}
 	profile, ok := g.profiles[id]
 	return profile, ok, nil
+}
+
+func (g *lifecycleGuardians) LockGuardianProfile(_ context.Context, id int64) (domain.GuardianProfile, bool, error) {
+	g.lockedProfiles = append(g.lockedProfiles, id)
+	profile, found := g.profiles[id]
+	return profile, found, nil
 }
 
 func (g *lifecycleGuardians) FindGuardianProfiles(_ context.Context, ids []int64) (map[int64]domain.GuardianProfile, error) {
@@ -881,8 +857,10 @@ type lifecycleDelivery struct {
 	existingAccountQueued bool
 }
 
-func (lifecycleDelivery) InvitationExpiry(context.Context) time.Duration { return 48 * time.Hour }
-func (lifecycleDelivery) SchoolName(context.Context, int64) string       { return "OGS Musterschule" }
+func (lifecycleDelivery) InvitationExpiry(context.Context) (time.Duration, error) {
+	return 48 * time.Hour, nil
+}
+func (lifecycleDelivery) SchoolName(context.Context, int64) string { return "OGS Musterschule" }
 func (d *lifecycleDelivery) EnqueueInvitationEmail(_ context.Context, invitation domain.GuardianInvitation, _ domain.GuardianProfile, _ string) (int64, bool) {
 	d.emails = append(d.emails, invitation)
 	return int64(len(d.emails)), d.invitationMailQueued
@@ -937,7 +915,7 @@ func newLifecycleFixture(t *testing.T) *lifecycleFixture {
 	schools.add(lifecycleTenant, lifecycleTenant*10, "lifecycle", true, false)
 	persons := newFakePersons(runtime)
 	auth, err := NewAccountAuthentication(sessions, AccountAuthenticationDependencies{
-		Store: store, Schools: schools, Persons: persons, Passwords: fakePasswords{}, Codec: fakeCodec{},
+		Store: store, Schools: schools, Persons: persons, Passwords: fakePasswords{}, PasswordPolicy: testPasswordLoginPolicy, Codec: fakeCodec{},
 		MFA: &fakeMFA{}, MFALock: &fakeMFALock{store: store.fakeStore}, Audit: &fakeAudit{}, Push: &fakePush{},
 		Runtime: runtime, Rotation: fakeRotation{}, Logger: logger,
 	})

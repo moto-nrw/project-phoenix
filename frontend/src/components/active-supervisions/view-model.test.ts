@@ -10,7 +10,9 @@ import {
   openRoomSections,
   schulhofHeadActionsApply,
   resolveSupervisionSelection,
+  rosterRunState,
   sessionsOutsideOpenRooms,
+  supervisionHeadFacts,
   supervisionTabLabel,
   additionalSupervisionTarget,
   occupiedRoomIdsForSpontaneousStart,
@@ -556,9 +558,27 @@ describe("active-supervisions view model", () => {
 
 describe("resolveSupervisionSelection (#2265)", () => {
   const rooms = [
-    { id: "group-a", name: "GT 1", room_name: "Raum 54", room_id: "54" },
-    { id: "group-b", name: "GT 2", room_name: "Raum 54", room_id: "54" },
-    { id: "group-c", name: "Kreativ", room_name: "Atelier", room_id: "55" },
+    {
+      id: "group-a",
+      name: "GT 1",
+      room_name: "Raum 54",
+      room_id: "54",
+      isCurrentUserSupervising: true,
+    },
+    {
+      id: "group-b",
+      name: "GT 2",
+      room_name: "Raum 54",
+      room_id: "54",
+      isCurrentUserSupervising: true,
+    },
+    {
+      id: "group-c",
+      name: "Kreativ",
+      room_name: "Atelier",
+      room_id: "55",
+      isCurrentUserSupervising: true,
+    },
   ];
   const base = {
     sessionParam: null,
@@ -700,14 +720,42 @@ describe("resolveSupervisionSelection (#2265)", () => {
     ).toEqual({ kind: "session", sessionId: "group-c" });
   });
 
-  it("opens the shared view when every available session is in a released room", () => {
+  it("opens no shared view when every available session belongs to others", () => {
     expect(
       resolveSupervisionSelection({
         ...base,
-        rooms: rooms.slice(0, 2),
+        rooms: rooms.slice(0, 2).map((room) => ({
+          ...room,
+          isCurrentUserSupervising: false,
+        })),
         openRoomIds: new Set(["54"]),
       }),
-    ).toEqual({ kind: "open-room", roomId: "54" });
+    ).toEqual({ kind: "persist-first" });
+  });
+
+  it("selects the caller's released room instead of a foreign regular room", () => {
+    expect(
+      resolveSupervisionSelection({
+        ...base,
+        rooms: [
+          {
+            id: "foreign",
+            name: "Fremde Aufsicht",
+            room_name: "Gruppenraum",
+            room_id: "1",
+            isCurrentUserSupervising: false,
+          },
+          {
+            id: "own-open",
+            name: "Eigene Aufsicht",
+            room_name: "Sporthalle",
+            room_id: "2",
+            isCurrentUserSupervising: true,
+          },
+        ],
+        openRoomIds: new Set(["2"]),
+      }),
+    ).toEqual({ kind: "open-room", roomId: "2" });
   });
 
   it("opens the caller's supervised released room, not the first released room by name", () => {
@@ -723,6 +771,7 @@ describe("resolveSupervisionSelection (#2265)", () => {
             name: "Fußball",
             room_name: "Sporthalle",
             room_id: "2",
+            isCurrentUserSupervising: true,
           },
         ],
         openRoomIds: new Set(["1", "2"]),
@@ -730,14 +779,16 @@ describe("resolveSupervisionSelection (#2265)", () => {
     ).toEqual({ kind: "open-room", roomId: "2" });
   });
 
-  it("opens the first released room when the caller has no own session", () => {
+  // Seit #4372 öffnet ohne eigene Sitzung kein offener Raum von selbst: er
+  // gehört zu „Räume“. Die Seite bleibt im Leerzustand.
+  it("opens no released room when the caller has no own session", () => {
     expect(
       resolveSupervisionSelection({
         ...base,
         rooms: [],
         openRoomIds: new Set(["1", "2"]),
       }),
-    ).toEqual({ kind: "open-room", roomId: "1" });
+    ).toEqual({ kind: "persist-first" });
   });
 
   it("falls back to the saved legacy room without switching within the room", () => {
@@ -916,5 +967,81 @@ describe("supervision tab identity (#2265)", () => {
         openRooms: [{ roomId: "sporthalle", hasOccupyingSession: true }],
       }),
     ).toEqual(["sporthalle"]);
+  });
+});
+
+describe("run state in the page head (#4354)", () => {
+  it("says a block with an open roster is running", () => {
+    expect(rosterRunState("active")).toEqual({ label: "Aktiv", tone: "green" });
+  });
+
+  it("says a completed block is finished, as in the reopen window", () => {
+    expect(rosterRunState("completed")).toEqual({
+      label: "Beendet",
+      tone: "gray",
+    });
+  });
+});
+
+describe("room and supervisors in the page head (#4354)", () => {
+  it("names an own session's room and supervisors", () => {
+    expect(
+      supervisionHeadFacts({
+        title: "Lese-AG",
+        currentRoom: {
+          room_name: "Raum 101",
+          supervisorNames: ["Anna Alt", "Ben Bauer"],
+        },
+        currentOpenRoom: null,
+      }),
+    ).toEqual({
+      roomName: "Raum 101",
+      supervisorNames: ["Anna Alt", "Ben Bauer"],
+    });
+  });
+
+  it("leaves the room out when it already is the title", () => {
+    expect(
+      supervisionHeadFacts({
+        title: "Raum 101",
+        currentRoom: { room_name: "Raum 101", supervisorNames: [] },
+        currentOpenRoom: null,
+      }),
+    ).toEqual({ roomName: null, supervisorNames: [] });
+  });
+
+  it("names everyone supervising in a released room once, without the room", () => {
+    expect(
+      supervisionHeadFacts({
+        title: "Schulhof",
+        currentRoom: null,
+        currentOpenRoom: {
+          sessions: [
+            { supervisorNames: ["Ben Bauer", "Anna Alt"] },
+            { supervisorNames: ["Anna Alt"] },
+            { supervisorNames: [] },
+          ],
+        },
+      }),
+    ).toEqual({ roomName: null, supervisorNames: ["Anna Alt", "Ben Bauer"] });
+  });
+
+  it("names nobody for a released room from an older backend", () => {
+    expect(
+      supervisionHeadFacts({
+        title: "Schulhof",
+        currentRoom: null,
+        currentOpenRoom: {},
+      }),
+    ).toEqual({ roomName: null, supervisorNames: [] });
+  });
+
+  it("keeps the supervisors of a session tab", () => {
+    expect(
+      mapSupervisedGroupsToRooms([
+        { id: "1", name: "Lese-AG", supervisorNames: ["Anna Alt"] },
+        { id: "2", name: "Werken" },
+      ]).map((room) => room.supervisorNames),
+    ).toEqual([["Anna Alt"], []]);
   });
 });

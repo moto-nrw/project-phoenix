@@ -5,12 +5,11 @@ import (
 	"errors"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -33,7 +32,7 @@ type ScheduleDeviations interface {
 // ScheduleInstances reads the appointments of a period with the execution
 // state of their sessions, which decides whether one is still changeable.
 type ScheduleInstances interface {
-	FindByTenantAndDateRange(ctx context.Context, from, to timezone.Date) ([]*timetable.ScheduledInstance, error)
+	FindByTenantAndDateRange(ctx context.Context, from, to calendar.Date) ([]*timetable.ScheduledInstance, error)
 }
 
 // ScheduleInstanceStaff reads the staff assignments of appointments. A
@@ -43,19 +42,26 @@ type ScheduleInstanceStaff interface {
 	FindByInstanceIDs(ctx context.Context, instanceIDs []int64) ([]*timetable.InstanceStaff, error)
 }
 
+// ScheduleStaff reads the staff members with their persons the overview
+// names.
+type ScheduleStaff interface {
+	FindWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*workforce.PlanStaff, error)
+	ListAllWithPerson(ctx context.Context) ([]*workforce.PlanStaff, error)
+}
+
 type SubstitutionAdapterDependencies struct {
 	Instances     ScheduleInstances
 	InstanceStaff ScheduleInstanceStaff
-	Staff         userModels.StaffRepository
+	Staff         ScheduleStaff
 	Engine        ScheduleDeviations
 	Broadcaster   realtime.Broadcaster
 	Logger        *slog.Logger
 }
 
-// SubstitutionAdapter serves the schedule half of the substitution module: the
-// appointment overview, the deviation writes and ending one substitution. It
-// implements education.ScheduleAdapter directly, so the composition root needs
-// no mapping bridge of its own.
+// SubstitutionAdapter serves the schedule writes of the Terminvertretung
+// entry: the appointment overview, the deviation writes and ending one
+// substitution, in School Structure's substitution vocabulary, so the
+// composition root needs no mapping bridge of its own.
 type SubstitutionAdapter struct {
 	deps SubstitutionAdapterDependencies
 }
@@ -74,7 +80,7 @@ type substitutionMutation struct {
 
 func (a *SubstitutionAdapter) Overview(
 	ctx context.Context,
-	from, to timezone.Date,
+	from, to calendar.Date,
 	includeTargets, canManage bool,
 ) (*education.ScheduleOverview, error) {
 	overview, err := a.overview(ctx, from, to, includeTargets, canManage)
@@ -86,7 +92,7 @@ func (a *SubstitutionAdapter) Overview(
 
 func (a *SubstitutionAdapter) overview(
 	ctx context.Context,
-	from, to timezone.Date,
+	from, to calendar.Date,
 	includeTargets, canManage bool,
 ) (*education.ScheduleOverview, error) {
 	if from.IsZero() || to.IsZero() || to.Before(from) || from.DaysUntil(to) >= 56 {
@@ -110,7 +116,7 @@ func (a *SubstitutionAdapter) overview(
 	}, nil
 }
 
-func (a *SubstitutionAdapter) loadOverviewStaff(ctx context.Context, instances []*timetable.ScheduledInstance) (map[int64][]*timetable.InstanceStaff, map[int64]*userModels.Staff, error) {
+func (a *SubstitutionAdapter) loadOverviewStaff(ctx context.Context, instances []*timetable.ScheduledInstance) (map[int64][]*timetable.InstanceStaff, map[int64]*workforce.PlanStaff, error) {
 	instanceIDs := make([]int64, 0, len(instances))
 	for _, instance := range instances {
 		if instance != nil {
@@ -141,7 +147,7 @@ func (a *SubstitutionAdapter) loadOverviewStaff(ctx context.Context, instances [
 	return deviationsByInstance, staffByID, nil
 }
 
-func projectSubstitutionAppointments(instances []*timetable.ScheduledInstance, deviations map[int64][]*timetable.InstanceStaff, staffByID map[int64]*userModels.Staff, canManage bool) []education.ScheduleAppointmentOverview {
+func projectSubstitutionAppointments(instances []*timetable.ScheduledInstance, deviations map[int64][]*timetable.InstanceStaff, staffByID map[int64]*workforce.PlanStaff, canManage bool) []education.ScheduleAppointmentOverview {
 	appointments := make([]education.ScheduleAppointmentOverview, 0, len(deviations))
 	for _, instance := range instances {
 		rows := deviations[instance.ID]
@@ -149,12 +155,12 @@ func projectSubstitutionAppointments(instances []*timetable.ScheduledInstance, d
 			continue
 		}
 		staff := make([]education.ScheduleAppointmentStaff, 0, len(rows))
-		canChange := canManage && !instance.Date.Before(timezone.TodayDate()) && isPlannableInstance(instance)
+		canChange := canManage && !instance.Date.Before(calendar.TodayDate()) && isPlannableInstance(instance)
 		for _, row := range rows {
 			member := staffByID[row.StaffID]
 			name := ""
 			if member != nil {
-				name = member.GetFullName()
+				name = member.FullName()
 			}
 			staff = append(staff, education.ScheduleAppointmentStaff{
 				AssignmentID: row.ID,
@@ -183,9 +189,11 @@ func (a *SubstitutionAdapter) loadTargets(ctx context.Context, include bool) ([]
 	if err != nil {
 		return nil, err
 	}
+	// An external caregiver may be marked absent but never substitutes
+	// (#4573 D6); the mark lets the pickers leave them out.
 	for _, member := range members {
 		if member != nil {
-			targets = append(targets, education.StaffRef{ID: member.ID, FullName: member.GetFullName()})
+			targets = append(targets, education.StaffRef{ID: member.ID, FullName: member.FullName(), IsExternal: member.IsExternalCaregiver})
 		}
 	}
 	return targets, nil
@@ -265,7 +273,7 @@ func (a *SubstitutionAdapter) End(
 func (a *SubstitutionAdapter) end(ctx context.Context, substitutionID, actorAccountID int64) (*substitutionMutation, error) {
 	row, err := a.deps.InstanceStaff.FindByID(ctx, substitutionID)
 	if err != nil {
-		if modelBase.IsNoRows(err) {
+		if isRecordNotFound(err) {
 			return nil, errSubstitutionNotFound
 		}
 		return nil, err

@@ -7,11 +7,10 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/collation"
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/collation"
 )
 
 // buildCareUsageExport dispatches on the requested layout: "compact" renders
@@ -32,84 +31,43 @@ func careUsageExportFilename(report *capability.CareUsageReport) string {
 }
 
 func buildCareUsageExportFile(svc lists.DocumentRenderer, report *capability.CareUsageReport, format lists.Format) (lists.File, error) {
-	filename := careUsageExportFilename(report)
-	switch format {
-	case lists.FormatDOCX:
-		return svc.RenderRecordsDOCX(buildCareUsageRecordDocument(report), filename)
-	case lists.FormatPDF:
-		return svc.RenderRecords(buildCareUsageRecordDocument(report), filename)
-	case lists.FormatXLSX:
-		return svc.Render(buildCareUsageTableDocument(report), lists.FormatXLSX, filename)
-	default:
-		return lists.File{}, fmt.Errorf("unsupported export format %q", format)
-	}
+	return renderEnrollmentExport(svc, format, careUsageExportFilename(report),
+		func() lists.RecordDocument { return buildCareUsageRecordDocument(report) },
+		func() lists.Document { return buildCareUsageTableDocument(report) },
+	)
 }
 
 // buildCareUsageCompactTableDocument renders the filtered care-usage report in
-// the compact class-roster layout (#2215): one row per child with weekday
-// pickup columns. Rows are sorted by target class; when the result spans more
-// than one class, each class gets a heading row (a new page in the PDF),
-// mirroring the "Alle Klassen" roster behavior.
+// the class-list table of the enrollment Klassenliste (#2215, #4750): one row
+// per child with weekday pickup cells. Rows are sorted by target class; when
+// the result spans more than one class, each class gets a heading row (a new
+// page in the PDF), mirroring the "Alle Klassen" roster behavior.
 func buildCareUsageCompactTableDocument(report *capability.CareUsageReport) lists.Document {
-	cols := []lists.Column{
-		{ID: lists.ColumnName, Label: "Name"},
-		{ID: lists.ColumnSchoolClass, Label: "Zielklasse"},
-		{ID: lists.ColumnWeeklyMonday, Label: "Montag"},
-		{ID: lists.ColumnWeeklyTuesday, Label: "Dienstag"},
-		{ID: lists.ColumnWeeklyWednesday, Label: "Mittwoch"},
-		{ID: lists.ColumnWeeklyThursday, Label: "Donnerstag"},
-		{ID: lists.ColumnWeeklyFriday, Label: "Freitag"},
-		{ID: lists.ColumnGuardianContacts, Label: "Erziehungsberechtigte"},
-	}
 	sorted := slices.Clone(report.Rows)
 	// The service sorts by child name; the stable re-sort keeps that order
 	// within each class section.
 	sort.SliceStable(sorted, func(i, j int) bool {
 		return collation.CompareSchoolClasses(careUsageClassLabel(sorted[i]), careUsageClassLabel(sorted[j])) < 0
 	})
-	grouped := careUsageSpansMultipleClasses(sorted)
-	rows := make([]lists.Row, 0, len(sorted))
-	currentClass := ""
-	for i, row := range sorted {
-		class := careUsageClassLabel(row)
-		if grouped && (i == 0 || collation.CompareSchoolClasses(class, currentClass) != 0) {
-			currentClass = class
-			rows = append(rows, lists.Row{GroupTitle: careUsageGroupTitle(class)})
+	children := make([]lists.ClassRosterChild, 0, len(sorted))
+	for _, row := range sorted {
+		child := lists.ClassRosterChild{
+			Name:        row.ChildFirstName + " " + row.ChildLastName,
+			SchoolClass: careUsageClassLabel(row),
+			Extra: map[lists.ColumnID]string{
+				lists.ColumnGuardianContacts: classRosterGuardianContactsLabel(careUsageGuardians(row)),
+			},
 		}
-		rows = append(rows, lists.Row{Values: map[lists.ColumnID]string{
-			lists.ColumnName:             strings.TrimSpace(row.ChildFirstName + " " + row.ChildLastName),
-			lists.ColumnSchoolClass:      class,
-			lists.ColumnWeeklyMonday:     careUsageWeeklyCell(row, "mon"),
-			lists.ColumnWeeklyTuesday:    careUsageWeeklyCell(row, "tue"),
-			lists.ColumnWeeklyWednesday:  careUsageWeeklyCell(row, "wed"),
-			lists.ColumnWeeklyThursday:   careUsageWeeklyCell(row, "thu"),
-			lists.ColumnWeeklyFriday:     careUsageWeeklyCell(row, "fri"),
-			lists.ColumnGuardianContacts: classRosterGuardianContactsLabel(careUsageGuardians(row)),
-		}})
+		for i, day := range weekdayOrder {
+			child.Days[i] = careUsageRosterDay(row, day)
+		}
+		children = append(children, child)
 	}
-	return lists.Document{
-		Title:       careUsageTitle(report),
-		Subtitle:    careUsageSubtitle(report),
-		GeneratedAt: time.Now(),
-		Filters:     careUsageFilterLabels(report),
-		Columns:     cols,
-		Rows:        rows,
-		Footer:      exportConfidentialityNote,
-	}
+	return enrollmentClassRosterDocument(careUsageHead(report), "Zielklasse", children, careUsageSpansMultipleClasses(sorted))
 }
 
 func careUsageClassLabel(row capability.CareUsageRow) string {
 	return schoolClassLabel(row.TargetSchoolClass, row.TargetGradeLevel)
-}
-
-// careUsageGroupTitle avoids "Klasse 1. Klasse" headings: grade-only labels
-// from gradeLabel already carry the word "Klasse" as a suffix, which the
-// shared prefix-based ClassGroupTitle helper cannot detect.
-func careUsageGroupTitle(class string) string {
-	if strings.Contains(strings.ToLower(class), "klasse") {
-		return class
-	}
-	return lists.ClassGroupTitle(class)
 }
 
 // careUsageSpansMultipleClasses reports whether the class-sorted rows cover
@@ -124,17 +82,23 @@ func careUsageSpansMultipleClasses(sorted []capability.CareUsageRow) bool {
 	return false
 }
 
-func careUsageWeeklyCell(row capability.CareUsageRow, day string) string {
+// careUsageRosterDay reads one weekday of a report row for the class-list
+// cell. The maintained Kind-Gehzeit outranks the form snapshot, as on the
+// Klassenliste; the compact export carries no Geh-/Abholregelung.
+func careUsageRosterDay(row capability.CareUsageRow, day string) lists.ClassRosterDay {
 	careDays := row.CareDays
 	if careDays == nil {
 		careDays = row.EffectiveDays
 	}
-	return weeklyPickupCell(
-		containsReportDay(careDays, day),
-		row.SchedulePickupByDay[day],
-		row.PickupByDay[day],
-		careUsageDailyOfferingNames(row, day),
-	)
+	pickup := strings.TrimSpace(row.SchedulePickupByDay[day])
+	if pickup == "" {
+		pickup = strings.TrimSpace(row.PickupByDay[day])
+	}
+	return lists.ClassRosterDay{
+		Care:      containsReportDay(careDays, day),
+		Pickup:    pickup,
+		Offerings: careUsageDailyOfferingNames(row, day),
+	}
 }
 
 func careUsageDailyOfferingNames(row capability.CareUsageRow, day string) []string {
@@ -155,37 +119,23 @@ func careUsageGuardians(row capability.CareUsageRow) []capability.ClassRosterGua
 		return row.Guardians
 	}
 	return []capability.ClassRosterGuardian{{
-		Name:  strings.TrimSpace(row.GuardianFirstName + " " + row.GuardianLastName),
+		Name:  careUsageGuardianName(row),
 		Email: row.GuardianEmail,
 		Phone: deref(row.GuardianPhone),
 	}}
 }
 
 func buildCareUsageTableDocument(report *capability.CareUsageReport) lists.Document {
-	cols := []lists.Column{
-		{ID: "child_last_name", Label: "Kind Nachname"},
-		{ID: "child_first_name", Label: "Kind Vorname"},
-		{ID: "child_grade", Label: "Zielklasse"},
-		{ID: "child_status", Label: "Status"},
-		{ID: "offerings", Label: "Betreuungsangebote"},
-		{ID: "offering_days", Label: "Tage je Angebot"},
-		{ID: "effective_days", Label: "Effektive Betreuungstage"},
-		{ID: "day_count", Label: "Anzahl Tage"},
-		{ID: "pickup_mon", Label: "Mo Gehzeit"},
-		{ID: "pickup_tue", Label: "Di Gehzeit"},
-		{ID: "pickup_wed", Label: "Mi Gehzeit"},
-		{ID: "pickup_thu", Label: "Do Gehzeit"},
-		{ID: "pickup_fri", Label: "Fr Gehzeit"},
-		{ID: "guardian_name", Label: "Eltern"},
-		{ID: "guardian_email", Label: "E-Mail"},
-		{ID: "guardian_phone", Label: "Telefon"},
-	}
+	cols := enrollmentColumns("child_last_name", "child_first_name", "child_grade", "child_status",
+		"offerings", "offering_days", "effective_days", "day_count",
+		"pickup_mon", "pickup_tue", "pickup_wed", "pickup_thu", "pickup_fri",
+		"guardian_name", "guardian_email", "guardian_phone")
 	rows := make([]lists.Row, 0, len(report.Rows))
 	for _, row := range report.Rows {
 		rows = append(rows, lists.Row{Values: map[lists.ColumnID]string{
 			"child_last_name":  row.ChildLastName,
 			"child_first_name": row.ChildFirstName,
-			"child_grade":      schoolClassLabel(row.TargetSchoolClass, row.TargetGradeLevel),
+			"child_grade":      careUsageClassLabel(row),
 			"child_status":     statusLabelDE(row.Status),
 			"offerings":        careUsageOfferingNames(row.Offerings),
 			"offering_days":    careUsageOfferingDayDetails(row.Offerings),
@@ -196,20 +146,12 @@ func buildCareUsageTableDocument(report *capability.CareUsageReport) lists.Docum
 			"pickup_wed":       row.PickupByDay["wed"],
 			"pickup_thu":       row.PickupByDay["thu"],
 			"pickup_fri":       row.PickupByDay["fri"],
-			"guardian_name":    strings.TrimSpace(row.GuardianFirstName + " " + row.GuardianLastName),
+			"guardian_name":    careUsageGuardianName(row),
 			"guardian_email":   row.GuardianEmail,
 			"guardian_phone":   deref(row.GuardianPhone),
 		}})
 	}
-	return lists.Document{
-		Title:       careUsageTitle(report),
-		Subtitle:    careUsageSubtitle(report),
-		GeneratedAt: time.Now(),
-		Filters:     careUsageFilterLabels(report),
-		Columns:     cols,
-		Rows:        rows,
-		Footer:      exportConfidentialityNote,
-	}
+	return careUsageHead(report).table(cols, rows)
 }
 
 func buildCareUsageRecordDocument(report *capability.CareUsageReport) lists.RecordDocument {
@@ -219,28 +161,37 @@ func buildCareUsageRecordDocument(report *capability.CareUsageReport) lists.Reco
 		Fields: careUsagePickupPlanningFields(report),
 	})
 	for _, row := range report.Rows {
-		records = append(records, lists.Record{
-			Title: strings.TrimSpace(row.ChildFirstName + " " + row.ChildLastName),
-			Fields: []lists.Field{
-				{Label: "Zielklasse", Value: schoolClassLabel(row.TargetSchoolClass, row.TargetGradeLevel)},
-				{Label: "Status", Value: statusLabelDE(row.Status)},
-				{Label: "Betreuungsangebote", Value: careUsageOfferingDayDetails(row.Offerings)},
-				{Label: "Effektive Betreuungstage", Value: formatDayCodes(row.EffectiveDays)},
-				{Label: "Anzahl Tage", Value: strconv.Itoa(row.DayCount)},
-				{Label: "Gehzeiten", Value: careUsagePickupDayDetails(row.PickupByDay)},
-				{Label: "Eltern", Value: strings.TrimSpace(row.GuardianFirstName + " " + row.GuardianLastName)},
-				{Label: "E-Mail", Value: row.GuardianEmail},
-				{Label: "Telefon", Value: deref(row.GuardianPhone)},
-			},
-		})
+		records = append(records, enrollmentChildBlock{
+			Name:     strings.TrimSpace(row.ChildFirstName + " " + row.ChildLastName),
+			Child:    careUsageChildFields(row),
+			Guardian: guardianContactFields(careUsageGuardianName(row), row.GuardianEmail, deref(row.GuardianPhone)),
+		}.record())
 	}
-	return lists.RecordDocument{
-		Title:       careUsageTitle(report),
-		Subtitle:    careUsageSubtitle(report),
-		GeneratedAt: time.Now(),
-		Footer:      exportConfidentialityNote,
-		Filters:     careUsageFilterLabels(report),
-		Records:     records,
+	return careUsageHead(report).blocks(records, nil)
+}
+
+// careUsageChildFields is what the Auswertung reports about one child: target
+// class, status, offerings with their days, and the pickup times.
+func careUsageChildFields(row capability.CareUsageRow) []lists.Field {
+	return []lists.Field{
+		{Label: "Zielklasse", Value: careUsageClassLabel(row)},
+		{Label: "Status", Value: statusLabelDE(row.Status)},
+		{Label: "Betreuungsangebote", Value: careUsageOfferingDayDetails(row.Offerings)},
+		{Label: "Effektive Betreuungstage", Value: formatDayCodes(row.EffectiveDays)},
+		{Label: "Anzahl Tage", Value: strconv.Itoa(row.DayCount)},
+		{Label: "Gehzeiten", Value: careUsagePickupDayDetails(row.PickupByDay)},
+	}
+}
+
+func careUsageGuardianName(row capability.CareUsageRow) string {
+	return strings.TrimSpace(row.GuardianFirstName + " " + row.GuardianLastName)
+}
+
+func careUsageHead(report *capability.CareUsageReport) enrollmentExportHead {
+	return enrollmentExportHead{
+		Title:    careUsageTitle(report),
+		Subtitle: careUsageSubtitle(report),
+		Filters:  careUsageFilterLabels(report),
 	}
 }
 

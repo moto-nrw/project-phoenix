@@ -17,7 +17,6 @@ package application
 
 import (
 	"context"
-	"fmt"
 	"strconv"
 
 	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
@@ -94,38 +93,10 @@ func (s *service) ComputeBatch(ctx context.Context, scopes []reminder.BatchScope
 		return nil, err
 	}
 
-	// Per-staff pass one: which pickups are due, and the soonest boundary. Both
-	// are per person by construction — a shared next-change would leak the
-	// earliest pickup minute in the school to everyone.
-	type staffPickups struct {
-		dues       []duePickup
-		nextChange int
+	pickupsByRecipient, dueIDSet, err := s.batchDuePickups(ctx, recipients, cfg, in)
+	if err != nil {
+		return nil, err
 	}
-	pickupsByRecipient := make(map[int64]staffPickups, len(recipients))
-	dueIDSet := make(map[int64]struct{})
-
-	for _, sc := range recipients {
-		resultKey := resultKey(sc)
-		if !cfg.anyPickup() {
-			pickupsByRecipient[resultKey] = staffPickups{nextChange: -1}
-			continue
-		}
-		readable, rerr := s.batchReadableStudents(sc, cfg, in)
-		if rerr != nil {
-			return nil, rerr
-		}
-		dues, next := duePickups(in.presenceByStaff[sc.StaffID], in.pickupTimes, readable, pickupWindow{
-			nowMin:   in.nowMin,
-			lead:     cfg.pickupLead,
-			upcoming: cfg.pickupUpcoming,
-			overdue:  cfg.pickupOverdue,
-		})
-		pickupsByRecipient[resultKey] = staffPickups{dues: dues, nextChange: next}
-		for _, d := range dues {
-			dueIDSet[d.id] = struct{}{}
-		}
-	}
-
 	// One name hydration for the union of everyone's due students. Deliberately
 	// not derived from the admin set: in detailed mode a caregiver's presence
 	// comes from active.visits while an admin's comes from active.attendance,
@@ -136,51 +107,7 @@ func (s *service) ComputeBatch(ctx context.Context, scopes []reminder.BatchScope
 		return nil, err
 	}
 
-	// Per-staff pass two: render.
-	for _, sc := range recipients {
-		sp := pickupsByRecipient[resultKey(sc)]
-
-		pickupPart, dropped := buildPickupReminders(sp.dues, names)
-		s.logDroppedPickups(dropped)
-		nextChange := sp.nextChange
-
-		var activityPart []reminder.Reminder
-		if cfg.anyActivity() {
-			roomFilter := activityRoomFilter(sc.Scope, in.roomsByStaff[sc.StaffID])
-			part, next := buildActivityReminders(in.instances,
-				activityScopeFilter(roomFilter, nil), activityWindow{
-					nowMin:           in.nowMin,
-					lead:             cfg.activityLead,
-					overdueThreshold: cfg.overdueThreshold,
-					upcoming:         cfg.activityStart,
-					overdue:          cfg.activityOverdue,
-				})
-			if sc.IncludeAssignedActivityStart {
-				assignedPart, assignedNext := buildActivityReminders(
-					in.instances,
-					assignedUpcomingFilter(
-						in.assignedInstances[sc.StaffID],
-						roomFilter,
-						cfg.activityStart,
-					),
-					activityWindow{
-						nowMin:   in.nowMin,
-						lead:     cfg.activityLead,
-						upcoming: true,
-					},
-				)
-				part = append(part, assignedPart...)
-				next = minFuture(next, assignedNext)
-			}
-			activityPart = part
-			nextChange = minFuture(nextChange, next)
-		}
-
-		result := assembleResult(pickupPart, activityPart, nextChange)
-		result.AssignedActivityInstanceIDs = assignedIDStrings(in.assignedInstances[sc.StaffID])
-		results[resultKey(sc)] = result
-	}
-
+	results = s.renderBatchResults(recipients, pickupsByRecipient, names, cfg, in)
 	return results, nil
 }
 
@@ -278,17 +205,9 @@ func (s *service) loadBatchConfig(ctx context.Context, recipients []reminder.Bat
 
 	caregivers := hasCaregiver(recipients)
 
-	if cfg.anyPickup() {
-		if cfg.pickupLead, err = s.leadMinutes(ctx, s.Settings.PickupLeadMinutes); err != nil {
-			return cfg, err
-		}
-		if caregivers {
-			if cfg.binaryPresence, err = s.binaryMode(ctx); err != nil {
-				return cfg, err
-			}
-		}
+	if err := s.loadBatchPickupConfig(ctx, &cfg, caregivers); err != nil {
+		return cfg, err
 	}
-
 	if cfg.activityStart || cfg.assignedStart {
 		if cfg.activityLead, err = s.leadMinutes(ctx, s.Settings.ActivityLeadMinutes); err != nil {
 			return cfg, err
@@ -318,14 +237,6 @@ func (s *service) loadBatchInputs(ctx context.Context, cfg batchConfig, recipien
 		assignedInstances: map[int64]map[int64]struct{}{},
 	}
 
-	caregivers := hasCaregiver(recipients)
-	recipientStaffIDs := make(map[int64]struct{}, len(recipients))
-	for _, sc := range recipients {
-		if sc.StaffID > 0 {
-			recipientStaffIDs[sc.StaffID] = struct{}{}
-		}
-	}
-
 	// Seed an empty entry for every caregiver BEFORE the bulk reads. The readers
 	// only return rows for people who have something, and a missing key that is
 	// later read as "no restriction" is exactly how a room filter turns into
@@ -336,115 +247,23 @@ func (s *service) loadBatchInputs(ctx context.Context, cfg batchConfig, recipien
 		}
 	}
 
-	needsAttendance := cfg.anyPickup() && (!caregivers || cfg.binaryPresence || hasAdmin(recipients))
-	if needsAttendance {
-		ids, err := s.presentStudentIDsFromAttendance(ctx, in.today)
-		if err != nil {
+	caregivers := hasCaregiver(recipients)
+	if err := s.loadBatchPresence(ctx, cfg, recipients, caregivers, in); err != nil {
+		return nil, err
+	}
+	if err := s.loadBatchSupervision(ctx, cfg, caregivers, in); err != nil {
+		return nil, err
+	}
+	if cfg.anyPickup() {
+		if err := s.loadBatchPickups(ctx, cfg, recipients, in); err != nil {
 			return nil, err
 		}
-		in.attendanceIDs = ids
 	}
-
-	if caregivers && cfg.anyPickup() && !cfg.binaryPresence {
-		byRoom, err := s.Visits.ListOpenVisitStudentIDsByRoom(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("load open visits by room: %w", err)
-		}
-		in.visitsByRoom = byRoom
-	}
-
-	if caregivers && (cfg.anyActivity() || (cfg.anyPickup() && !cfg.binaryPresence)) {
-		if s.BulkSupervision != nil {
-			rows, err := s.BulkSupervision.ListActiveSupervisedRooms(ctx)
-			if err != nil {
-				return nil, fmt.Errorf("load supervised rooms: %w", err)
-			}
-			for _, row := range rows {
-				if _, wanted := in.roomsByStaff[row.StaffID]; wanted {
-					in.roomsByStaff[row.StaffID] = append(in.roomsByStaff[row.StaffID], row.RoomID)
-				}
-			}
-		}
-	}
-
-	// Presence per person, reproducing pickupScopeStudentIDs branch for branch.
-	if cfg.anyPickup() {
-		for _, sc := range recipients {
-			in.presenceByStaff[sc.StaffID] = s.batchPresence(sc, cfg, in)
-		}
-	}
-
-	if cfg.anyPickup() {
-		union := unionOf(in.presenceByStaff)
-		if len(union) > 0 {
-			if s.Student != nil {
-				students, err := s.Student.FindReadScopeByIDs(ctx, union)
-				if err != nil {
-					return nil, fmt.Errorf("load students: %w", err)
-				}
-				in.students = students
-			}
-			if s.Pickup != nil {
-				times, err := s.Pickup.GetBulkEffectivePickupTimesForDate(ctx, union, in.today)
-				if err != nil {
-					return nil, err
-				}
-				in.pickupTimes = times
-			}
-		}
-	}
-
 	if cfg.anyActivity() && s.Instance != nil {
-		instances, err := s.Instance.FindByTenantAndDate(ctx, in.today)
-		if err != nil {
+		if err := s.loadBatchActivities(ctx, cfg, recipients, in); err != nil {
 			return nil, err
 		}
-		in.instances = instances
-
-		if cfg.activityOverdue {
-			if s.Room == nil {
-				return nil, errActivityRoomReaderMissing
-			}
-			wanted := plannedInstanceRoomIDs(instances)
-			rooms, roomErr := s.Room.FindByIDs(ctx, sortedIDs(wanted))
-			if roomErr != nil {
-				return nil, fmt.Errorf("load activity reminder rooms: %w", roomErr)
-			}
-			if resolveErr := resolveActivityRooms(rooms, wanted); resolveErr != nil {
-				return nil, resolveErr
-			}
-		}
-
-		// Planned assignments, one query for the whole day. Absent rows are
-		// skipped: someone who called in sick must not be pinged about the
-		// slot they were relieved of. Substitutes are kept — they are the ones
-		// who have to show up.
-		if s.BulkInstanceStaff != nil {
-			instanceIDs := make([]int64, 0, len(instances))
-			for _, inst := range instances {
-				if inst != nil && inst.Status == ports.InstanceStatusPlanned {
-					instanceIDs = append(instanceIDs, inst.ID)
-				}
-			}
-			rows, staffErr := s.BulkInstanceStaff.FindByInstanceIDs(ctx, instanceIDs)
-			if staffErr != nil {
-				return nil, fmt.Errorf("load planned activity staff: %w", staffErr)
-			}
-			for _, row := range rows {
-				if row == nil || row.IsAbsent {
-					continue
-				}
-				if _, wanted := recipientStaffIDs[row.StaffID]; !wanted {
-					continue
-				}
-				if in.assignedInstances[row.StaffID] == nil {
-					in.assignedInstances[row.StaffID] = map[int64]struct{}{}
-				}
-				in.assignedInstances[row.StaffID][row.InstanceID] = struct{}{}
-			}
-		}
 	}
-
 	return in, nil
 }
 
@@ -525,4 +344,112 @@ func unionOf(byStaff map[int64][]int64) []int64 {
 		}
 	}
 	return sortedIDs(set)
+}
+
+type staffPickups struct {
+	dues       []duePickup
+	nextChange int
+}
+
+func (s *service) batchDuePickups(ctx context.Context, recipients []reminder.BatchScope, cfg batchConfig, in *batchInputs) (map[int64]staffPickups, map[int64]struct{}, error) {
+	// Per-staff pass one: which pickups are due, and the soonest boundary. Both
+	// are per person by construction — a shared next-change would leak the
+	// earliest pickup minute in the school to everyone.
+	pickupsByRecipient := make(map[int64]staffPickups, len(recipients))
+	dueIDSet := make(map[int64]struct{})
+
+	for _, sc := range recipients {
+		resultKey := resultKey(sc)
+		if !cfg.anyPickup() {
+			pickupsByRecipient[resultKey] = staffPickups{nextChange: -1}
+			continue
+		}
+		readable, rerr := s.batchReadableStudents(sc, cfg, in)
+		if rerr != nil {
+			return nil, nil, rerr
+		}
+		dues, next := duePickups(in.presenceByStaff[sc.StaffID], in.pickupTimes, readable, pickupWindow{
+			nowMin:   in.nowMin,
+			lead:     cfg.pickupLead,
+			upcoming: cfg.pickupUpcoming,
+			overdue:  cfg.pickupOverdue,
+		})
+		pickupsByRecipient[resultKey] = staffPickups{dues: dues, nextChange: next}
+		for _, d := range dues {
+			dueIDSet[d.id] = struct{}{}
+		}
+	}
+
+	return pickupsByRecipient, dueIDSet, nil
+}
+
+func batchActivityResult(sc reminder.BatchScope, cfg batchConfig, in *batchInputs, nextChange int) ([]reminder.Reminder, int) {
+	var activityPart []reminder.Reminder
+	if cfg.anyActivity() {
+		roomFilter := activityRoomFilter(sc.Scope, in.roomsByStaff[sc.StaffID])
+		part, next := buildActivityReminders(in.instances,
+			activityScopeFilter(roomFilter, nil), activityWindow{
+				nowMin:           in.nowMin,
+				lead:             cfg.activityLead,
+				overdueThreshold: cfg.overdueThreshold,
+				upcoming:         cfg.activityStart,
+				overdue:          cfg.activityOverdue,
+			})
+		if sc.IncludeAssignedActivityStart {
+			assignedPart, assignedNext := buildActivityReminders(
+				in.instances,
+				assignedUpcomingFilter(
+					in.assignedInstances[sc.StaffID],
+					roomFilter,
+					cfg.activityStart,
+				),
+				activityWindow{
+					nowMin:   in.nowMin,
+					lead:     cfg.activityLead,
+					upcoming: true,
+				},
+			)
+			part = append(part, assignedPart...)
+			next = minFuture(next, assignedNext)
+		}
+		activityPart = part
+		nextChange = minFuture(nextChange, next)
+	}
+
+	return activityPart, nextChange
+}
+
+func (s *service) loadBatchPickupConfig(ctx context.Context, cfg *batchConfig, caregivers bool) error {
+	var err error
+	if cfg.anyPickup() {
+		if cfg.pickupLead, err = s.leadMinutes(ctx, s.Settings.PickupLeadMinutes); err != nil {
+			return err
+		}
+		if caregivers {
+			if cfg.binaryPresence, err = s.binaryMode(ctx); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func (s *service) renderBatchResults(recipients []reminder.BatchScope, pickupsByRecipient map[int64]staffPickups, names map[int64]studentNameInfo, cfg batchConfig, in *batchInputs) map[int64]*reminder.Result {
+	results := make(map[int64]*reminder.Result, len(recipients))
+	// Per-staff pass two: render.
+	for _, sc := range recipients {
+		sp := pickupsByRecipient[resultKey(sc)]
+
+		pickupPart, dropped := buildPickupReminders(sp.dues, names)
+		s.logDroppedPickups(dropped)
+		nextChange := sp.nextChange
+
+		activityPart, nextChange := batchActivityResult(sc, cfg, in, nextChange)
+		result := assembleResult(pickupPart, activityPart, nextChange)
+		result.AssignedActivityInstanceIDs = assignedIDStrings(in.assignedInstances[sc.StaffID])
+		results[resultKey(sc)] = result
+	}
+
+	return results
 }

@@ -8,18 +8,16 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/api"
 	active "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 func createActiveServiceWithCrossTenant(t *testing.T, db *testpkg.DB) active.Service {
 	t.Helper()
-	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
+	serviceFactoryActive, err := api.NewTestActivePresence(testpkg.NewDatabase(t, db), slog.Default())
 	require.NoError(t, err)
-	return composedEngine(t, serviceFactory.Active)
+	return composedEngine(t, serviceFactoryActive)
 }
 
 func TestCrossTenantStudents(t *testing.T) {
@@ -130,9 +128,10 @@ func TestCrossTenantRepository_Direct(t *testing.T) {
 
 	// Visitor names come from the People Directory composition (#2661), so
 	// the test drives the composed repository the service graph uses.
-	factory, err := repositories.NewFactoryWithPeopleDirectory(db, repositories.NewUnobservedTimetableDependencies(db))
+	_, err := api.NewRepositoryTestFactoryWithPeopleDirectory(testpkg.NewDatabase(t, db))
+	factoryPresence := api.NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	repo := factory.CrossTenant
+	repo := factoryPresence.CrossTenant
 
 	t.Run("rejects a hosting tenant outside the caller context", func(t *testing.T) {
 		results, err := repo.FindCrossTenantStudents(testpkg.TenantContext(tenantVisitor), tenantHost)

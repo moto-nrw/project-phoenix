@@ -6,16 +6,17 @@ import (
 	"testing"
 	"time"
 
+	parentportal "github.com/moto-nrw/project-phoenix/workflows/parentportal"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
 )
@@ -29,37 +30,52 @@ func TestSubmitCareException_EmitsSelfServiceMirrorPill(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposMessages := api.NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 
-	emitter := communicationtest.NewParentEventEmitter(db, testpkg.TenantRuntime(t, db), repos.ParentMessageThread, repos.ParentMessage,
+	emitter := api.NewParentEventEmitter(testpkg.MustDatabase(db), testpkg.TenantRuntime(t, db), reposMessages.ParentMessageThread, communicationtest.NewParentMessageRepository(db),
 		parentSettingsStub{boolDefault: true}, testpkg.NewRecordingBroadcaster(), slog.Default())
-	svc := parentportalcompose.New(parentportalcompose.Dependencies{
-		CarePlan:       repos.CarePlan(),
-		People:         repositories.MustNewPeopleDirectory(db),
-		CareProfiles:   careProfiles(t, db),
-		ChildRepo:      repos.ParentChild,
-		StatusDayRepo:  repos.StudentStatusDay,
-		StudentRepo:    repos.Student,
-		CareExceptions: repos.CarePlan(),
-		Settings: parentSettingsStub{
-			boolValues: map[string]bool{
-				configModels.KeyParentPickupChangeEnabled: true,
-				configModels.KeyParentNotesEnabled:        true,
-			},
+	settings := parentSettingsStub{
+		boolValues: map[string]bool{
+			parentportal.KeyParentPickupChangeEnabled: true,
+			parentportal.KeyParentNotesEnabled:        true,
 		},
-		Broadcaster:       testpkg.NewRecordingBroadcaster(),
-		MessageThreadRepo: repos.ParentMessageThread,
-		MessageRepo:       repos.ParentMessage,
-		MessageReadRepo:   repos.ParentMessageRead,
-		Conversations:     communicationtest.NewParentConversationCore(repos.ParentMessageThread, repos.ParentMessage, repos.ParentMessageRead, testpkg.NewRecordingBroadcaster(), slog.Default()),
-		Emitter:           emitter,
+	}
+	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		GuardianChanges:   owners.ParentGuardianChanges(),
+		DeparturePolicy:   owners.ParentDeparturePolicy(),
+		GuardianPolicy:    owners.NewParentGuardianPolicy(),
+		Fingerprints:      owners.SecurityFingerprints{},
+		Declarations:      owners.ParentDeclarationPolicy(),
+		Locales:           owners.ParentPortalLocales(),
+		Runtime:           owners.ParentPortalRuntime{},
+		MessagingEnabled:  owners.BindParentMessagingGate(settings, slog.Default()),
+		CarePlan:          owners.NewParentCarePlanCommands(repos.CarePlan(), nil),
+		People:            owners.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
+		CareProfiles:      careProfiles(t, db),
+		ChildRepo:         repos.ParentChildReads(),
+		StatusDayRepo:     repos.StudentStatusDay,
+		StudentRepo:       owners.NewParentStudentReads(reposPeople.Student),
+		CareExceptions:    owners.NewParentCareExceptions(repos.CarePlan()),
+		Settings:          settings,
+		StudentUpdates:    owners.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster()),
+		MessageThreadRepo: owners.BindParentMessageThreadAccess(reposMessages.ParentMessageThread),
+		MessageRepo:       owners.BindParentMessageReads(communicationtest.NewParentMessageRepository(db)),
+		MessageReadRepo:   owners.BindParentMessageInboxReads(reposMessages.ParentMessageRead),
+		Conversations:     api.NewParentConversationCore(reposMessages.ParentMessageThread, communicationtest.NewParentMessageRepository(db), reposMessages.ParentMessageRead, testpkg.NewRecordingBroadcaster(), slog.Default()),
+		Emitter:           owners.BindParentChildEvents(emitter),
 		Logger:            slog.Default(),
+
+		DataRequests: owners.NewParentDataRequestCommands(repos.CarePlan()),
+
+		CarePlanPolicy: owners.NewParentCarePlanPolicy(),
 	})
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	// A future in-window date; a fixed clock time is fine (wall-clock only).
-	today := timezone.TodayDate()
+	today := calendar.TodayDate()
 	date := today.AddDays(3)
 	pickup := time.Date(2000, 1, 1, 15, 30, 0, 0, time.UTC)
 
@@ -68,13 +84,13 @@ func TestSubmitCareException_EmitsSelfServiceMirrorPill(t *testing.T) {
 	require.NotNil(t, exc)
 
 	// The mirror pill (care_exception) must be in the thread's timeline.
-	_, msgs := loadThreadPills(t, db, repos, chain)
+	_, msgs := loadThreadPills(t, db, reposMessages, chain)
 	assert.GreaterOrEqual(t, countCareExceptionPills(msgs), 1,
 		"a submitted care exception drops a self-service mirror pill")
 
 	// Deleting the exception drops a correction pill (self-service mirror again).
 	require.NoError(t, svc.DeleteCareException(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, date))
-	_, msgs = loadThreadPills(t, db, repos, chain)
+	_, msgs = loadThreadPills(t, db, reposMessages, chain)
 	assert.GreaterOrEqual(t, len(msgs), 2,
 		"deleting the exception drops a correction pill onto the thread")
 }
@@ -90,39 +106,54 @@ func TestSubmitCareException_WakesEveryGuardian(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposMessages := api.NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 
 	// Capture the EMITTER's broadcaster (distinct from the service's own): the
 	// guardian fan-out rides BroadcastChildUpdateToGuardians on the emitter.
 	emitterBC := testpkg.NewRecordingBroadcaster()
-	emitter := communicationtest.NewParentEventEmitter(db, testpkg.TenantRuntime(t, db), repos.ParentMessageThread, repos.ParentMessage,
+	emitter := api.NewParentEventEmitter(testpkg.MustDatabase(db), testpkg.TenantRuntime(t, db), reposMessages.ParentMessageThread, communicationtest.NewParentMessageRepository(db),
 		parentSettingsStub{boolDefault: true}, emitterBC, slog.Default())
-	svc := parentportalcompose.New(parentportalcompose.Dependencies{
-		CarePlan:       repos.CarePlan(),
-		People:         repositories.MustNewPeopleDirectory(db),
-		CareProfiles:   careProfiles(t, db),
-		ChildRepo:      repos.ParentChild,
-		StatusDayRepo:  repos.StudentStatusDay,
-		StudentRepo:    repos.Student,
-		CareExceptions: repos.CarePlan(),
-		Settings: parentSettingsStub{
-			boolValues: map[string]bool{
-				configModels.KeyParentPickupChangeEnabled: true,
-				configModels.KeyParentNotesEnabled:        true,
-			},
+	settings := parentSettingsStub{
+		boolValues: map[string]bool{
+			parentportal.KeyParentPickupChangeEnabled: true,
+			parentportal.KeyParentNotesEnabled:        true,
 		},
-		Broadcaster:       testpkg.NewRecordingBroadcaster(),
-		MessageThreadRepo: repos.ParentMessageThread,
-		MessageRepo:       repos.ParentMessage,
-		MessageReadRepo:   repos.ParentMessageRead,
-		Conversations:     communicationtest.NewParentConversationCore(repos.ParentMessageThread, repos.ParentMessage, repos.ParentMessageRead, testpkg.NewRecordingBroadcaster(), slog.Default()),
-		Emitter:           emitter,
+	}
+	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		GuardianChanges:   owners.ParentGuardianChanges(),
+		DeparturePolicy:   owners.ParentDeparturePolicy(),
+		GuardianPolicy:    owners.NewParentGuardianPolicy(),
+		Fingerprints:      owners.SecurityFingerprints{},
+		Declarations:      owners.ParentDeclarationPolicy(),
+		Locales:           owners.ParentPortalLocales(),
+		Runtime:           owners.ParentPortalRuntime{},
+		MessagingEnabled:  owners.BindParentMessagingGate(settings, slog.Default()),
+		CarePlan:          owners.NewParentCarePlanCommands(repos.CarePlan(), nil),
+		People:            owners.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
+		CareProfiles:      careProfiles(t, db),
+		ChildRepo:         repos.ParentChildReads(),
+		StatusDayRepo:     repos.StudentStatusDay,
+		StudentRepo:       owners.NewParentStudentReads(reposPeople.Student),
+		CareExceptions:    owners.NewParentCareExceptions(repos.CarePlan()),
+		Settings:          settings,
+		StudentUpdates:    owners.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster()),
+		MessageThreadRepo: owners.BindParentMessageThreadAccess(reposMessages.ParentMessageThread),
+		MessageRepo:       owners.BindParentMessageReads(communicationtest.NewParentMessageRepository(db)),
+		MessageReadRepo:   owners.BindParentMessageInboxReads(reposMessages.ParentMessageRead),
+		Conversations:     api.NewParentConversationCore(reposMessages.ParentMessageThread, communicationtest.NewParentMessageRepository(db), reposMessages.ParentMessageRead, testpkg.NewRecordingBroadcaster(), slog.Default()),
+		Emitter:           owners.BindParentChildEvents(emitter),
 		Logger:            slog.Default(),
+
+		DataRequests: owners.NewParentDataRequestCommands(repos.CarePlan()),
+
+		CarePlanPolicy: owners.NewParentCarePlanPolicy(),
 	})
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	date := timezone.TodayDate().AddDays(3)
+	date := calendar.TodayDate().AddDays(3)
 	pickup := time.Date(2000, 1, 1, 15, 30, 0, 0, time.UTC)
 
 	_, err := svc.SubmitCareExceptionWithReason(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, date, &pickup, "Arzttermin")
@@ -146,17 +177,17 @@ func TestSubmitCareException_WakesEveryGuardian(t *testing.T) {
 
 // loadThreadPills reads the (student, guardian) thread messages under the tenant
 // tx (RLS), returning an empty slice when no thread exists.
-func loadThreadPills(t *testing.T, db *bun.DB, repos *repositories.Factory, c testpkg.ParentChain) (int64, []*usersModels.ParentMessage) {
+func loadThreadPills(t *testing.T, db *bun.DB, repos *api.ParentMessagingSuiteRepositories, c testpkg.ParentChain) (int64, []*parentportal.ParentMessage) {
 	t.Helper()
 	var threadID int64
-	var msgs []*usersModels.ParentMessage
+	var msgs []*parentportal.ParentMessage
 	err := testpkg.WithTenantTx(t, testpkg.WithPackageTenantRuntime(context.Background()), db, c.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		th, ferr := repos.ParentMessageThread.FindByStudentGuardian(txCtx, c.StudentID, c.AccountID)
 		if ferr != nil || th == nil {
 			return ferr
 		}
 		threadID = th.ID
-		ms, merr := repos.ParentMessage.ListByThread(txCtx, th.ID, 100)
+		ms, merr := api.ParentConversationMessagesFixture(txCtx, communicationtest.NewParentMessageRepository(db), th.ID, 100)
 		msgs = ms
 		return merr
 	})
@@ -164,7 +195,7 @@ func loadThreadPills(t *testing.T, db *bun.DB, repos *repositories.Factory, c te
 	return threadID, msgs
 }
 
-func countCareExceptionPills(msgs []*usersModels.ParentMessage) int {
+func countCareExceptionPills(msgs []*parentportal.ParentMessage) int {
 	n := 0
 	for _, m := range msgs {
 		if m.EventType == "care_exception" || m.EventType == "care_exception_correction" {

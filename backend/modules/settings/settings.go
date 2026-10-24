@@ -8,21 +8,19 @@ package settings
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"log/slog"
 
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	configSvc "github.com/moto-nrw/project-phoenix/services/config"
+	configSvc "github.com/moto-nrw/project-phoenix/modules/settings/internal/application"
+	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
 )
 
 // Keys of the tenant settings other owners read.
 const (
+	KeyAnalyticsEnabled                      = configModel.KeyAnalyticsEnabled
 	KeyAnalyticsFreigabe                     = configModel.KeyAnalyticsFreigabe
 	KeyAnalyticsRecordingSamplePercent       = configModel.KeyAnalyticsRecordingSamplePercent
 	KeyAttendanceEditScope                   = configModel.KeyAttendanceEditScope
 	KeyAttendanceLogEnabled                  = configModel.KeyAttendanceLogEnabled
-	KeyAttendanceNFCEnabled                  = configModel.KeyAttendanceNFCEnabled
 	KeyAttendanceVisibleDays                 = configModel.KeyAttendanceVisibleDays
 	KeyAttendanceWebEnabled                  = configModel.KeyAttendanceWebEnabled
 	KeyCalendarCalDAVEnabled                 = configModel.KeyCalendarCalDAVEnabled
@@ -33,23 +31,50 @@ const (
 	KeyEarlyCheckoutNoteEnabled              = configModel.KeyEarlyCheckoutNoteEnabled
 	KeyEarlyCheckoutNoteToleranceMinutes     = configModel.KeyEarlyCheckoutNoteToleranceMinutes
 	KeyEnrollmentBookingsAuthoritative       = configModel.KeyEnrollmentBookingsAuthoritative
+	KeyEnrollmentAutoInviteGuardianOnApprove = configModel.KeyEnrollmentAutoInviteGuardianOnApprove
 	KeyEnrollmentCareOfferingsEnabled        = configModel.KeyEnrollmentCareOfferingsEnabled
+	KeyEnrollmentCollectGradeLevel           = configModel.KeyEnrollmentCollectGradeLevel
+	KeyEnrollmentDuplicateHandling           = configModel.KeyEnrollmentDuplicateHandling
 	KeyEnrollmentGradeLevelMax               = configModel.KeyEnrollmentGradeLevelMax
 	KeyEnrollmentLegalAGBDocumentURL         = configModel.KeyEnrollmentLegalAGBDocumentURL
+	KeyEnrollmentNotifyPerDecision           = configModel.KeyEnrollmentNotifyPerDecision
+	KeyEnrollmentRejectedRetentionDays       = configModel.KeyEnrollmentRejectedRetentionDays
 	KeyEnrollmentWaitlistEnabled             = configModel.KeyEnrollmentWaitlistEnabled
+	KeyChildSearchOnlyNavigation             = configModel.KeyChildSearchOnlyNavigation
 	KeyFeedbackEnabled                       = configModel.KeyFeedbackEnabled
 	KeyGroupMode                             = configModel.KeyGroupMode
+	KeyOGSDevicePIN                          = configModel.KeyOGSDevicePIN
+	KeyGDPRParentMessageRetentionDays        = configModel.KeyGDPRParentMessageRetentionDays
+	KeyGDPRWithdrawnEnrollmentRetentionDays  = configModel.KeyGDPRWithdrawnEnrollmentRetentionDays
+	KeyGDPRStatusDayRetentionDays            = configModel.KeyGDPRStatusDayRetentionDays
+	KeyGDPRAttendanceRetentionDays           = configModel.KeyGDPRAttendanceRetentionDays
+	KeyGDPRMorningAttendanceRetentionDays    = configModel.KeyGDPRMorningAttendanceRetentionDays
+	KeyGDPRStaffSickNoteRetentionDays        = configModel.KeyGDPRStaffSickNoteRetentionDays
+	KeyGDPRStudentRetentionDays              = configModel.KeyGDPRStudentRetentionDays
+	KeyGDPRTimetableRetentionDays            = configModel.KeyGDPRTimetableRetentionDays
+	KeyGDPRGuardianRetentionDays             = configModel.KeyGDPRGuardianRetentionDays
+	KeyGDPRTimeTrackingRetentionDays         = configModel.KeyGDPRTimeTrackingRetentionDays
+	KeyGuardianParentCanRemove               = configModel.KeyGuardianParentCanRemove
+	KeyGuardianParentInviteMode              = configModel.KeyGuardianParentInviteMode
 	KeyOperationalOverviewScope              = configModel.KeyOperationalOverviewScope
 	KeyParentAbsenceReviewScope              = configModel.KeyParentAbsenceReviewScope
+	KeyParentCareModeRequestEnabled          = configModel.KeyParentCareModeRequestEnabled
+	KeyParentCarePickupRequestEnabled        = configModel.KeyParentCarePickupRequestEnabled
+	KeyParentExcusedRequiresApproval         = configModel.KeyParentExcusedRequiresApproval
 	KeyParentNotesEnabled                    = configModel.KeyParentNotesEnabled
+	KeyParentPickupChangeCutoffTime          = configModel.KeyParentPickupChangeCutoffTime
+	KeyParentPickupChangeEnabled             = configModel.KeyParentPickupChangeEnabled
 	KeyParentRequestGroupLeaderReviewEnabled = configModel.KeyParentRequestGroupLeaderReviewEnabled
 	KeyParentRequestReasonPolicy             = configModel.KeyParentRequestReasonPolicy
 	KeyParentRequestReviewScope              = configModel.KeyParentRequestReviewScope
+	KeyParentSickRequiresApproval            = configModel.KeyParentSickRequiresApproval
 	KeyPresenceMode                          = configModel.KeyPresenceMode
 	KeyPrivacyConsentRetentionDays           = configModel.KeyPrivacyConsentRetentionDays
 	KeyRequirePickupOfferingReview           = configModel.KeyRequirePickupOfferingReview
 	KeyRoomDetailVisibleDays                 = configModel.KeyRoomDetailVisibleDays
 	KeySessionEndTime                        = configModel.KeySessionEndTime
+	KeySlotListLongDayCutoff                 = configModel.KeySlotListLongDayCutoff
+	KeySlotListShortDayCutoff                = configModel.KeySlotListShortDayCutoff
 	KeyStaffMessagingEnabled                 = configModel.KeyStaffMessagingEnabled
 	KeyStudentAbsenceEditScope               = configModel.KeyStudentAbsenceEditScope
 	KeyStudentPhotosEnabled                  = configModel.KeyStudentPhotosEnabled
@@ -77,6 +102,9 @@ const (
 	OverviewScopeAdmins   = configModel.OverviewScopeAdmins
 	OverviewScopeAllStaff = configModel.OverviewScopeAllStaff
 	OverviewScopeOwn      = configModel.OverviewScopeOwn
+
+	ParentInviteModeDirect   = configModel.ParentInviteModeDirect
+	ParentInviteModeDisabled = configModel.ParentInviteModeDisabled
 
 	PresenceModeBinary   = configModel.PresenceModeBinary
 	PresenceModeDetailed = configModel.PresenceModeDetailed
@@ -118,7 +146,7 @@ type TenantReader interface {
 
 // Resolver resolves the request tenant's settings inside its tenant
 // middleware: the tenant override, else the registry default.
-// HasTenantOverride tells the two apart for the Resolve*OrDefault helpers.
+// HasTenantOverride distinguishes explicit choices from registry defaults.
 type Resolver interface {
 	HasTenantOverride(ctx context.Context, key string) (bool, error)
 	ResolveBool(ctx context.Context, key string) (bool, error)
@@ -126,17 +154,9 @@ type Resolver interface {
 	ResolveString(ctx context.Context, key string) (string, error)
 }
 
-// ResolveBoolOrDefault returns the tenant override of a boolean setting, or
-// fallback when the tenant has none, the resolver is missing or the read
-// fails. Failures are logged, never returned.
-func ResolveBoolOrDefault(ctx context.Context, resolver interface {
-	HasTenantOverride(context.Context, string) (bool, error)
-	ResolveBool(context.Context, string) (bool, error)
-}, key string, fallback bool, logger *slog.Logger) bool {
-	return configSvc.ResolveBoolOrDefault(ctx, resolver, key, fallback, logger)
-}
-
-// ResolveIntOrDefault is ResolveBoolOrDefault for an integer setting.
+// ResolveIntOrDefault resolves the tenant override or registry default.
+// Only unavailable reads use fallback. Privacy and authorization callers use
+// the typed resolver directly so they can propagate errors. Missing wiring panics.
 func ResolveIntOrDefault(ctx context.Context, resolver Resolver, key string, fallback int, logger *slog.Logger) int {
 	return configSvc.ResolveIntOrDefault(ctx, resolver, key, fallback, logger)
 }
@@ -144,32 +164,36 @@ func ResolveIntOrDefault(ctx context.Context, resolver Resolver, key string, fal
 // Snapshot is a batch of one tenant's resolved settings. A reader that
 // resolves many keys at once returns it from
 // ResolveManyForTenant(ctx, tenantID, keys).
-type Snapshot = configSvc.SettingsSnapshot
-
-// ResolvePresenceModeForTenant returns the tenant's presence mode, or the
-// detailed mode when the reader is missing or fails.
-func ResolvePresenceModeForTenant(ctx context.Context, reader TenantReader, tenantID int64) string {
-	if reader == nil {
-		return PresenceModeDetailed
-	}
-	return configSvc.ResolvePresenceModeForTenant(ctx, reader, tenantID, nil)
-}
+type Snapshot = configModel.SettingsSnapshot
 
 // The settings errors the operator routes map to responses.
 type (
-	SettingsError           = configSvc.SettingsError
-	DefinitionNotFoundError = configSvc.DefinitionNotFoundError
-	InvalidValueError       = configSvc.InvalidValueError
-	PermissionDeniedError   = configSvc.PermissionDeniedError
+	SettingsError           = configModel.SettingsError
+	DefinitionNotFoundError = configModel.DefinitionNotFoundError
+	InvalidValueError       = configModel.InvalidValueError
+	PermissionDeniedError   = configModel.PermissionDeniedError
 )
+
+// AttendanceWindowError rejects a visible attendance window longer than the
+// attendance retention window (#3957).
+type AttendanceWindowError = configModel.AttendanceWindowError
 
 // ErrPresenceModeSwitchBlocked reports a presence-mode switch while
 // attendance of the day is still open.
-var ErrPresenceModeSwitchBlocked = configSvc.ErrPresenceModeSwitchBlocked
+var ErrPresenceModeSwitchBlocked = configModel.ErrPresenceModeSwitchBlocked
 
-// ErrBookingAuthorityImpactUnavailable reports a deployment composed without
-// the Care Plan booking authority.
-var ErrBookingAuthorityImpactUnavailable = errors.New("booking authority impact is not configured")
+// BookingAuthorityBlockedError reports that the side effect of enabling
+// booking-led care (KeyEnrollmentBookingsAuthoritative) refused the write
+// because a cared-for child has no care day. The root's side-effect binding
+// wraps the owner's refusal in it, so Settings Platform needs no domain
+// vocabulary to answer the conflict; Error is the owner's message.
+type BookingAuthorityBlockedError struct {
+	Reason error
+}
+
+func (e *BookingAuthorityBlockedError) Error() string { return e.Reason.Error() }
+
+func (e *BookingAuthorityBlockedError) Unwrap() error { return e.Reason }
 
 // OperatorSchoolSettings is the operator's management of one school's
 // settings. Operators bypass the per-setting permission checks except for
@@ -188,19 +212,16 @@ type OperatorSchoolSettings interface {
 	SetValue(ctx context.Context, schoolID int64, key string, value any, changedBy int64, force bool) error
 	// ResetValue removes a school's override.
 	ResetValue(ctx context.Context, schoolID int64, key string, changedBy int64) error
-	// BookingAuthorityImpact previews enabling booking-led care for the
-	// school today.
-	BookingAuthorityImpact(ctx context.Context, schoolID int64) (*careplan.BookingAuthorityImpact, error)
 }
 
 // WithSettingsSnapshot attaches the immutable read snapshot used by this owner's
 // resolver. Writes must not prefetch the keys they change.
 func WithSettingsSnapshot(ctx context.Context, snapshot *Snapshot) context.Context {
-	return configSvc.WithSettingsSnapshot(ctx, snapshot)
+	return configModel.WithSettingsSnapshot(ctx, snapshot)
 }
 
 // WithSettingsRequestCache attaches the tenant-keyed memo used by the resolver.
 // Repeated attachment keeps the same cache; successful writes evict its entries.
 func WithSettingsRequestCache(ctx context.Context) context.Context {
-	return configSvc.WithSettingsRequestCache(ctx)
+	return configModel.WithSettingsRequestCache(ctx)
 }

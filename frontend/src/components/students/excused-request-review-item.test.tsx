@@ -4,6 +4,7 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
+import { ApiError } from "~/lib/api-error";
 import type { ReactElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -24,13 +25,12 @@ async function expectErrorToast(expected: RegExp | string) {
 
 import { ExcusedRequestReviewItem } from "./excused-request-review-item";
 import {
-  ExcusedRequestApiError,
   decideExcusedAbsenceRequest,
   type StaffExcusedRequest,
 } from "~/lib/excused-request-review-api";
 
-// Mock only the network function; keep the real ExcusedRequestApiError so the
-// component's `err instanceof ExcusedRequestApiError` code-branch resolves
+// Mock only the network function; keep the real ApiError so the
+// component's `err instanceof ApiError` code-branch resolves
 // against the actual class instead of an undefined stub.
 vi.mock("~/lib/excused-request-review-api", async (importActual) => {
   const actual =
@@ -161,10 +161,9 @@ describe("ExcusedRequestReviewItem", () => {
 
   it("surfaces the recovery action on the excused_request_status_conflict 409", async () => {
     mockDecide.mockRejectedValueOnce(
-      new ExcusedRequestApiError(
-        "students: excused request status conflict",
-        "students.excused_request_status_conflict",
-      ),
+      new ApiError("students: excused request status conflict", 409, {
+        code: "students.excused_request_status_conflict",
+      }),
     );
     const onDecided = vi.fn();
 

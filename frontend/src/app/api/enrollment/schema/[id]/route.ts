@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
 import { createTenantJsonProxy } from "~/lib/backend-proxy-route.server";
+import { problemResponse } from "~/lib/api-helpers.server";
 
 const path = (
   _request: Request,
@@ -7,7 +7,7 @@ const path = (
 ) => {
   const id = params.id;
   if (typeof id !== "string" || !id) {
-    return NextResponse.json({ error: "Invalid id" }, { status: 400 });
+    return problemResponse(400, "Invalid id", _request);
   }
   return `/api/enrollment/schema/${encodeURIComponent(id)}`;
 };

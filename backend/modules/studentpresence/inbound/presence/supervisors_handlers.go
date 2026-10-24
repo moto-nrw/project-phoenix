@@ -221,7 +221,7 @@ func (rs *Resource) deleteSupervisor(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Delete supervisor
-	if err := rs.Operations.RemoveSupervisionRecord(r.Context(), id); err != nil {
+	if err := rs.Operations.DeleteGroupSupervisor(r.Context(), id); err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
@@ -270,8 +270,7 @@ func (rs *Resource) getAllActiveSupervisions(w http.ResponseWriter, r *http.Requ
 		common.RenderError(w, r, common.ErrorForbidden(errors.New("operational group overview is not available")))
 		return
 	}
-	if !rs.operationalOverview(ctx) {
-		common.RenderError(w, r, common.ErrorForbidden(errors.New("all-group operational access is not enabled for this school")))
+	if !rs.requireOperationalOverview(w, r, "all-group operational access is not enabled for this school") {
 		return
 	}
 

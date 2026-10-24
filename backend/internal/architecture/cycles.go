@@ -142,7 +142,7 @@ func cycleEdges(projectionEdges []ProjectionEdge, kinds map[string]string) []Cyc
 	return edges
 }
 
-func sortedKeys(values map[string]struct{}) []string {
+func sortedKeys[V any](values map[string]V) []string {
 	result := make([]string, 0, len(values))
 	for value := range values {
 		result = append(result, value)

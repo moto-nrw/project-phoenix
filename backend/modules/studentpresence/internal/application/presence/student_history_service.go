@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // StudentHistoryService exposes the attendance and visit reads behind the
@@ -16,15 +16,15 @@ import (
 type StudentHistoryService interface {
 	// GetAttendanceByStudentAndDateRange returns a student's attendance rows
 	// between two dates (inclusive).
-	GetAttendanceByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate timezone.Date) ([]*studentpresence.Attendance, error)
+	GetAttendanceByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate calendar.Date) ([]*studentpresence.Attendance, error)
 
 	// GetAttendanceForDate returns every attendance row of the tenant for one
 	// calendar date (group day log reads the whole day at once).
-	GetAttendanceForDate(ctx context.Context, date timezone.Date) ([]*studentpresence.Attendance, error)
+	GetAttendanceForDate(ctx context.Context, date calendar.Date) ([]*studentpresence.Attendance, error)
 
 	// GetAttendanceForDateByStudentIDs returns attendance rows for the supplied
 	// students on one calendar date.
-	GetAttendanceForDateByStudentIDs(ctx context.Context, date timezone.Date, studentIDs []int64) ([]*studentpresence.Attendance, error)
+	GetAttendanceForDateByStudentIDs(ctx context.Context, date calendar.Date, studentIDs []int64) ([]*studentpresence.Attendance, error)
 
 	// GetVisitsByStudentAndTimeRange returns a student's visits (active or
 	// ended) entered within the inclusive time range.
@@ -41,8 +41,8 @@ type HistoryRoomReader func(context.Context, []int64) (map[int64]string, error)
 // HistorySlotReader supplies the student's slot history and the tenant-wide
 // signal that planned care is in use. Reads retain the caller's tenant context.
 type HistorySlotReader interface {
-	Slots(context.Context, int64, timezone.Date, timezone.Date) ([]*HistorySlot, error)
-	HasPlannedSlots(context.Context, timezone.Date, timezone.Date) (bool, error)
+	GetSlotAttendanceByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate calendar.Date) ([]*HistorySlot, error)
+	HasPlannedSlotsInRange(ctx context.Context, startDate, endDate calendar.Date) (bool, error)
 }
 
 type studentHistoryService struct {
@@ -58,15 +58,15 @@ func NewStudentHistoryService(presence AttendanceHistoryReader, rooms HistoryRoo
 	}
 }
 
-func (s *studentHistoryService) GetAttendanceByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate timezone.Date) ([]*studentpresence.Attendance, error) {
+func (s *studentHistoryService) GetAttendanceByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate calendar.Date) ([]*studentpresence.Attendance, error) {
 	return s.attendanceRows(ctx, studentpresence.AttendanceFilter{StudentIDs: []int64{studentID}, FromDate: startDate.String(), UntilDate: endDate.String(), NewestFirst: true})
 }
 
-func (s *studentHistoryService) GetAttendanceForDate(ctx context.Context, date timezone.Date) ([]*studentpresence.Attendance, error) {
+func (s *studentHistoryService) GetAttendanceForDate(ctx context.Context, date calendar.Date) ([]*studentpresence.Attendance, error) {
 	return s.attendanceRows(ctx, studentpresence.AttendanceFilter{FromDate: date.String(), UntilDate: date.String(), StudentOrder: true})
 }
 
-func (s *studentHistoryService) GetAttendanceForDateByStudentIDs(ctx context.Context, date timezone.Date, studentIDs []int64) ([]*studentpresence.Attendance, error) {
+func (s *studentHistoryService) GetAttendanceForDateByStudentIDs(ctx context.Context, date calendar.Date, studentIDs []int64) ([]*studentpresence.Attendance, error) {
 	if len(studentIDs) == 0 {
 		return []*studentpresence.Attendance{}, nil
 	}

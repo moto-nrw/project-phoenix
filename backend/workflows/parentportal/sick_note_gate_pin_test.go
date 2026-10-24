@@ -7,8 +7,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -26,9 +26,9 @@ func TestSickNoteStaysImmediateWhenApprovalDisabled(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 
-	day := timezone.NewDate(2026, 8, 24)
+	day := calendar.NewDate(2026, 8, 24)
 	res, err := svc.SubmitSickNote(ctx, chain.AccountID, chain.StudentID,
-		[]timezone.Date{day}, "Fieber", absencerecords.StudentStatusDaySick, nil)
+		[]calendar.Date{day}, "Fieber", absencerecords.StudentStatusDaySick, nil)
 	require.NoError(t, err)
 
 	assert.Nil(t, res.PendingRequest, "no approval gate means no request row")
@@ -54,9 +54,9 @@ func TestSickNoteGatedCreatesRequest(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 
-	day := timezone.TodayDate()
+	day := calendar.TodayDate()
 	res, err := svc.SubmitSickNote(ctx, chain.AccountID, chain.StudentID,
-		[]timezone.Date{day}, "Fieber", absencerecords.StudentStatusDaySick, nil)
+		[]calendar.Date{day}, "Fieber", absencerecords.StudentStatusDaySick, nil)
 	require.NoError(t, err)
 
 	require.NotNil(t, res.PendingRequest, "the gate turns the sick note into a request")

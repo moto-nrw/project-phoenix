@@ -22,29 +22,29 @@ var (
 
 	// ErrRoleNotAssignable is returned when the requested role does not exist
 	// (or is not a role that may be handed out for a school at all).
-	ErrRoleNotAssignable = errors.New("Die angegebene Rolle existiert nicht") //nolint:staticcheck // ST1005: user-facing German message
+	ErrRoleNotAssignable = newCopyError("Die angegebene Rolle existiert nicht")
 	// ErrRoleForeignTenant is returned when a tenant-scoped role belongs to a
 	// different school than the one being granted.
-	ErrRoleForeignTenant = errors.New("Diese Rolle existiert an der Zielschule nicht") //nolint:staticcheck // ST1005: user-facing German message
+	ErrRoleForeignTenant = newCopyError("Diese Rolle existiert an der Zielschule nicht")
 	// ErrRoleGuardianNotAssignable is returned for the guardian role, which is
 	// granted exclusively through the guardian invitation flow.
-	ErrRoleGuardianNotAssignable = errors.New("Sorgeberechtigten-Zugänge werden über den Einladungs-Flow für Sorgeberechtigte vergeben") //nolint:staticcheck // ST1005: user-facing German message
+	ErrRoleGuardianNotAssignable = newCopyError("Sorgeberechtigten-Zugänge werden über den Einladungs-Flow für Sorgeberechtigte vergeben")
 	// ErrRoleLegacyTeacherNotAssignable is returned for the retired teacher
 	// role; caregiver accounts use the user role instead.
-	ErrRoleLegacyTeacherNotAssignable = errors.New("Die alte Rolle 'teacher' wird nicht mehr vergeben; bitte die Rolle 'user' verwenden") //nolint:staticcheck // ST1005: user-facing German message
+	ErrRoleLegacyTeacherNotAssignable = newCopyError("Die alte Rolle 'teacher' wird nicht mehr vergeben; bitte die Rolle 'user' verwenden")
 
 	// ErrRoleCaregiverNeedsProfile refuses a caregiver role on a Lehrkraft
 	// account: it has person and staff records but deliberately no caregiver
 	// profile, so the caregiver permissions would own no groups (#1772).
-	ErrRoleCaregiverNeedsProfile = errors.New("Ein Lehrkraft-Konto hat kein Betreuungsprofil und kann nicht auf eine Betreuer-Rolle umgestellt werden") //nolint:staticcheck // ST1005: user-facing German message
+	ErrRoleCaregiverNeedsProfile = errors.New("ein Lehrkraft-Konto hat kein Betreuungsprofil und kann nicht auf eine Betreuer-Rolle umgestellt werden")
 	// ErrLehrkraftRoleImmutable keeps a Lehrkraft account from receiving any
 	// other role. Changing it goes through offboarding plus a new account.
-	ErrLehrkraftRoleImmutable = errors.New("Ein Lehrkraft-Konto kann nicht umgestellt werden") //nolint:staticcheck // ST1005: user-facing German message
+	ErrLehrkraftRoleImmutable = errors.New("ein Lehrkraft-Konto kann nicht umgestellt werden")
 	// ErrRoleLehrkraftCaregiverProfile refuses the Lehrkraft role on an
 	// account whose identity at the school still carries a live caregiver
 	// profile: the swap would strand the profile and its group supervisions
 	// under class_day-only permissions (#1772).
-	ErrRoleLehrkraftCaregiverProfile = errors.New("Das Konto hat ein Betreuungsprofil an dieser Schule und kann nicht auf Lehrkraft umgestellt werden") //nolint:staticcheck // ST1005: user-facing German message
+	ErrRoleLehrkraftCaregiverProfile = errors.New("das Konto hat ein Betreuungsprofil an dieser Schule und kann nicht auf Lehrkraft umgestellt werden")
 
 	// ErrRoleAdministrationUnavailable reports a module composed without the
 	// account-lifecycle dependencies the role administration needs.
@@ -96,8 +96,11 @@ type Role struct {
 	Description string
 	IsSystem    bool
 	BaseRole    *string
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	// SchoolPortal marks a school role made from the Lehrkraft template: it
+	// opens moto schule like the system role lehrkraft (#4574).
+	SchoolPortal bool
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
 }
 
 // AssignableSchoolRole is a role the policy allows for a school, with the
@@ -153,6 +156,9 @@ type RoleQuery interface {
 	// role is reported as is.
 	ResolveAssignableSchoolRole(ctx context.Context, roleID, tenantID int64) (*AssignableSchoolRole, error)
 	GetAccountRoles(ctx context.Context, accountID int64) ([]Role, error)
+	// AccountsHoldingRole maps the given accounts that hold roleName at the
+	// tenant in context. Accounts without that role are absent from the map.
+	AccountsHoldingRole(ctx context.Context, accountIDs []int64, roleName string) (map[int64]bool, error)
 	// AccountHoldsLehrkraftRole reports whether the account holds the
 	// Lehrkraft system role at the tenant in context.
 	AccountHoldsLehrkraftRole(ctx context.Context, accountID int64) (bool, error)
@@ -166,8 +172,12 @@ type RoleQuery interface {
 // change revokes the account's sessions at the school.
 type RoleCommand interface {
 	// CreateRole creates a custom role of the tenant in context; baseRole maps
-	// it to a system role for announcement targeting and is required.
-	CreateRole(ctx context.Context, name, description string, baseRole *string) (Role, error)
+	// it to a system role for announcement targeting and is required. With a
+	// template instead (#4574), baseRole is nil and the role starts with the
+	// template system role's tier and permissions, without the platform
+	// permissions. The copy is taken once; later changes to the template do
+	// not reach the role.
+	CreateRole(ctx context.Context, name, description string, baseRole *string, template ...RoleTemplate) (Role, error)
 	// UpdateRole writes name, description and base role of a custom role.
 	UpdateRole(ctx context.Context, role Role) error
 	DeleteRole(ctx context.Context, id int64) error
@@ -180,35 +190,26 @@ type RoleCommand interface {
 	RemoveRoleFromAccount(ctx context.Context, accountID, roleID int64) error
 }
 
-// PermissionQuery reads permissions, role selections and account grants.
+// PermissionQuery reads permissions and role selections.
 type PermissionQuery interface {
 	GetPermission(ctx context.Context, id int64) (Permission, error)
 	GetPermissionByName(ctx context.Context, name string) (Permission, error)
 	ListPermissions(ctx context.Context, filter PermissionFilter) ([]Permission, error)
 	GetRolePermissions(ctx context.Context, roleID int64) ([]Permission, error)
-	// GetAccountPermissions returns the direct and the role-based permissions.
-	GetAccountPermissions(ctx context.Context, accountID int64) ([]Permission, error)
-	GetAccountDirectPermissions(ctx context.Context, accountID int64) ([]Permission, error)
 }
 
-// PermissionCommand changes permissions, direct account grants and role
-// selections. Role selections of system roles are immutable.
+// PermissionCommand changes permissions and role selections. Role selections of system roles are immutable.
 type PermissionCommand interface {
 	CreatePermission(ctx context.Context, name, description, resource, action string) (Permission, error)
 	UpdatePermission(ctx context.Context, permission Permission) error
 	DeletePermission(ctx context.Context, id int64) error
-	GrantPermissionToAccount(ctx context.Context, accountID, permissionID int64) error
-	DenyPermissionToAccount(ctx context.Context, accountID, permissionID int64) error
-	RemovePermissionFromAccount(ctx context.Context, accountID, permissionID int64) error
 	AssignPermissionToRole(ctx context.Context, roleID, permissionID int64) error
 	// ReplaceRolePermissions applies a complete selection atomically; an
-	// invalid request leaves the current selection untouched.
+	// invalid request leaves the current selection untouched. A reserved
+	// permission the role does not hold yet is refused with
+	// ErrReservedPermissionNotAllowed; one it already holds may stay or go.
 	ReplaceRolePermissions(ctx context.Context, roleID int64, permissionIDs []int64) error
 	RemovePermissionFromRole(ctx context.Context, roleID, permissionID int64) error
-	// GrantStaffDefaultPermission grants permissionName to the account of a
-	// newly created staff member unless the account holds the Lehrkraft role.
-	// Failures are logged, never returned: the staff record stands either way.
-	GrantStaffDefaultPermission(ctx context.Context, accountID int64, isTeacher bool, permissionName string)
 }
 
 // RoleAdministration is the capability the RBAC routes, the staff membership
@@ -221,122 +222,24 @@ type RoleAdministration interface {
 	PermissionCommand
 }
 
-func (m *Module) GetRole(ctx context.Context, id int64) (Role, error) {
-	return m.engine.GetRole(ctx, id)
+// SystemRoles are the system roles among roles, in their order.
+func SystemRoles(roles []Role) []Role {
+	result := make([]Role, 0, len(roles))
+	for _, role := range roles {
+		if role.IsSystem {
+			result = append(result, role)
+		}
+	}
+	return result
 }
 
-func (m *Module) ListRoles(ctx context.Context, filter RoleFilter) ([]Role, error) {
-	return m.engine.ListRoles(ctx, filter)
-}
-
-func (m *Module) ResolveAssignableSchoolRole(ctx context.Context, roleID, tenantID int64) (*AssignableSchoolRole, error) {
-	return m.engine.ResolveAssignableSchoolRole(ctx, roleID, tenantID)
-}
-
-func (m *Module) GetAccountRoles(ctx context.Context, accountID int64) ([]Role, error) {
-	return m.engine.GetAccountRoles(ctx, accountID)
-}
-
-func (m *Module) AccountHoldsLehrkraftRole(ctx context.Context, accountID int64) (bool, error) {
-	return m.engine.AccountHoldsLehrkraftRole(ctx, accountID)
-}
-
-func (m *Module) GetAccountRoleNames(ctx context.Context, accountIDs []int64) (map[int64]string, error) {
-	return m.engine.GetAccountRoleNames(ctx, accountIDs)
-}
-
-func (m *Module) GetAccountEmails(ctx context.Context, accountIDs []int64) (map[int64]string, error) {
-	return m.engine.GetAccountEmails(ctx, accountIDs)
-}
-
-func (m *Module) GetAccountAvatars(ctx context.Context, accountIDs []int64) (map[int64]string, error) {
-	return m.engine.GetAccountAvatars(ctx, accountIDs)
-}
-
-func (m *Module) CreateRole(ctx context.Context, name, description string, baseRole *string) (Role, error) {
-	return m.engine.CreateRole(ctx, name, description, baseRole)
-}
-
-func (m *Module) UpdateRole(ctx context.Context, role Role) error {
-	return m.engine.UpdateRole(ctx, role)
-}
-
-func (m *Module) DeleteRole(ctx context.Context, id int64) error {
-	return m.engine.DeleteRole(ctx, id)
-}
-
-func (m *Module) AssignRoleToAccount(ctx context.Context, accountID, roleID int64) error {
-	return m.engine.AssignRoleToAccount(ctx, accountID, roleID)
-}
-
-func (m *Module) ReplaceAccountRole(ctx context.Context, accountID, roleID int64) error {
-	return m.engine.ReplaceAccountRole(ctx, accountID, roleID)
-}
-
-func (m *Module) RemoveRoleFromAccount(ctx context.Context, accountID, roleID int64) error {
-	return m.engine.RemoveRoleFromAccount(ctx, accountID, roleID)
-}
-
-func (m *Module) GetPermission(ctx context.Context, id int64) (Permission, error) {
-	return m.engine.GetPermission(ctx, id)
-}
-
-func (m *Module) GetPermissionByName(ctx context.Context, name string) (Permission, error) {
-	return m.engine.GetPermissionByName(ctx, name)
-}
-
-func (m *Module) ListPermissions(ctx context.Context, filter PermissionFilter) ([]Permission, error) {
-	return m.engine.ListPermissions(ctx, filter)
-}
-
-func (m *Module) GetRolePermissions(ctx context.Context, roleID int64) ([]Permission, error) {
-	return m.engine.GetRolePermissions(ctx, roleID)
-}
-
-func (m *Module) GetAccountPermissions(ctx context.Context, accountID int64) ([]Permission, error) {
-	return m.engine.GetAccountPermissions(ctx, accountID)
-}
-
-func (m *Module) GetAccountDirectPermissions(ctx context.Context, accountID int64) ([]Permission, error) {
-	return m.engine.GetAccountDirectPermissions(ctx, accountID)
-}
-
-func (m *Module) CreatePermission(ctx context.Context, name, description, resource, action string) (Permission, error) {
-	return m.engine.CreatePermission(ctx, name, description, resource, action)
-}
-
-func (m *Module) UpdatePermission(ctx context.Context, permission Permission) error {
-	return m.engine.UpdatePermission(ctx, permission)
-}
-
-func (m *Module) DeletePermission(ctx context.Context, id int64) error {
-	return m.engine.DeletePermission(ctx, id)
-}
-
-func (m *Module) GrantPermissionToAccount(ctx context.Context, accountID, permissionID int64) error {
-	return m.engine.GrantPermissionToAccount(ctx, accountID, permissionID)
-}
-
-func (m *Module) DenyPermissionToAccount(ctx context.Context, accountID, permissionID int64) error {
-	return m.engine.DenyPermissionToAccount(ctx, accountID, permissionID)
-}
-
-func (m *Module) RemovePermissionFromAccount(ctx context.Context, accountID, permissionID int64) error {
-	return m.engine.RemovePermissionFromAccount(ctx, accountID, permissionID)
-}
-
-func (m *Module) AssignPermissionToRole(ctx context.Context, roleID, permissionID int64) error {
-	return m.engine.AssignPermissionToRole(ctx, roleID, permissionID)
-}
-
-func (m *Module) ReplaceRolePermissions(ctx context.Context, roleID int64, permissionIDs []int64) error {
-	return m.engine.ReplaceRolePermissions(ctx, roleID, permissionIDs)
-}
-
-func (m *Module) RemovePermissionFromRole(ctx context.Context, roleID, permissionID int64) error {
-	return m.engine.RemovePermissionFromRole(ctx, roleID, permissionID)
-}
-
-func (m *Module) GrantStaffDefaultPermission(ctx context.Context, accountID int64, isTeacher bool, permissionName string) {
-	m.engine.GrantStaffDefaultPermission(ctx, accountID, isTeacher, permissionName)
+// PlatformSystemRole finds the platform system role with that name,
+// matching case-insensitively; a school's own role never matches.
+func PlatformSystemRole(roles []Role, name string) (Role, bool) {
+	for _, role := range roles {
+		if role.IsSystem && role.TenantID == nil && strings.EqualFold(role.Name, name) {
+			return role, true
+		}
+	}
+	return Role{}, false
 }

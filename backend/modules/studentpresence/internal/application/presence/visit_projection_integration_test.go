@@ -41,23 +41,12 @@ func TestPresenceProjection_ActiveGroupStudentDisplay(t *testing.T) {
 		Where("student_profile_id = ? AND deleted_at IS NULL", data.Student1).
 		Exec(ctx)
 	require.NoError(t, err)
-	defer func() {
-		_, _ = db.NewUpdate().
-			Table("users.student_school_memberships").
-			Set("group_id = NULL").
-			Where("student_profile_id = ? AND deleted_at IS NULL", data.Student1).
-			Exec(ctx)
-		_, _ = db.NewDelete().
-			Table("education.groups").
-			Where("id = ?", educationGroup.ID).
-			Exec(ctx)
-	}()
 
 	activeVisit := testpkg.CreateTestVisit(t, db, data.Student1, data.GroupID, time.Now().Add(-10*time.Minute), nil)
 	exitTime := time.Now().Add(-5 * time.Minute)
 	testpkg.CreateTestVisit(t, db, data.Student2, data.GroupID, time.Now().Add(-20*time.Minute), &exitTime)
 
-	results, err := repo.GetActiveGroupVisitsWithDisplay(ctx, data.GroupID)
+	results, err := testpkg.TenantQuery1(t, ctx, db, repo.GetActiveGroupVisitsWithDisplay, data.GroupID)
 
 	require.NoError(t, err)
 	require.Len(t, results, 1)

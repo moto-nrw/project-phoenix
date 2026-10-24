@@ -1,27 +1,22 @@
 package students
 
 import (
-	"context"
-	"encoding/json"
-	"errors"
-	"net/http"
-	"strconv"
-	"time"
+	context "context"
+	json "encoding/json"
+	errors "errors"
+	http "net/http"
+	strconv "strconv"
+	time "time"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	securitycontract "github.com/moto-nrw/project-phoenix/modules/securityruntime/ports"
+
+	common "github.com/moto-nrw/project-phoenix/api/common"
+	sessiontoken "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	securityruntime "github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	tenant "github.com/moto-nrw/project-phoenix/tenant"
 )
-
-// Child note card ("Notizen", Kartei): the durable hints that replaced the
-// Betreuernotizen field and the dated entries of the chronicle.
-//
-// Reading is gated by users:read plus the per-child read predicate every other
-// child surface uses; WHICH notes come back is then decided by the audience
-// (securityruntime.ResolveStudentNoteAudience), not by the route.
 
 type studentNoteResponse struct {
 	ID         string `json:"id"`
@@ -76,6 +71,47 @@ func (rs *Resource) listStudentNotes(w http.ResponseWriter, r *http.Request) {
 	}
 	common.Respond(w, r, http.StatusOK,
 		rs.renderNotes(r, notes, audience, student), "Student notes retrieved")
+}
+
+// noteSubjectActivity is one activity a new note may refer to.
+type noteSubjectActivity struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+// noteSubjectsResponse lists what a new note of this child may refer to
+// besides the child itself. The OGS group is already on the child's file.
+type noteSubjectsResponse struct {
+	Activities []noteSubjectActivity `json:"activities"`
+}
+
+// listStudentNoteSubjects serves the reference picker of the note form. It
+// answers from the same enrollment read the create route validates against.
+func (rs *Resource) listStudentNoteSubjects(w http.ResponseWriter, r *http.Request) {
+	student, ok := rs.parseAndGetStudent(w, r)
+	if !ok {
+		return
+	}
+	if !rs.checkStudentReadAccess(r, student) {
+		renderError(w, r, common.ErrorForbidden(errors.New("read access required to view notes")))
+		return
+	}
+	activities, err := rs.noteActivities(r.Context(), student.ID)
+	if err != nil {
+		renderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, buildNoteSubjectsResponse(activities), "Student note subjects retrieved")
+}
+
+func buildNoteSubjectsResponse(activities []peopleModule.StudentActivityGroup) noteSubjectsResponse {
+	response := noteSubjectsResponse{Activities: make([]noteSubjectActivity, 0, len(activities))}
+	for _, group := range activities {
+		response.Activities = append(response.Activities, noteSubjectActivity{
+			ID: strconv.FormatInt(group.ID, 10), Name: group.Name,
+		})
+	}
+	return response
 }
 
 func (rs *Resource) createStudentNote(w http.ResponseWriter, r *http.Request) {
@@ -212,7 +248,7 @@ func (rs *Resource) currentNoteDeleteAuthorization(
 	if err != nil {
 		return peopleModule.StudentNoteDeleteAuthorization{}, err
 	}
-	if cache := jwt.RequestIdentityCacheFrom(ctx); cache != nil {
+	if cache := securityruntime.RequestIdentityCacheFrom(ctx); cache != nil {
 		cache.Evict(tenant.FromContext(ctx), accountID)
 	}
 	reader, err := rs.noteReader(ctx)
@@ -224,7 +260,7 @@ func (rs *Resource) currentNoteDeleteAuthorization(
 		return peopleModule.StudentNoteDeleteAuthorization{}, err
 	}
 	audience := securityruntime.ResolveStudentNoteAudience(
-		jwt.PermissionsFromCtx(ctx), reader, child)
+		sessiontoken.PermissionsFromCtx(ctx), reader, child)
 	return peopleModule.StudentNoteDeleteAuthorization{
 		Admin:                 audience.Admin,
 		LedActivityGroupIDs:   audience.LedActivityGroupIDs,
@@ -239,23 +275,23 @@ func (rs *Resource) currentNoteDeleteAuthorization(
 // which of THIS child's notes they may see.
 func (rs *Resource) resolveNoteReader(
 	w http.ResponseWriter, r *http.Request,
-) (*Student, securityruntime.StudentNoteChild, securityruntime.StudentNoteAudience, bool) {
+) (*peopleModule.StudentState, securitycontract.StudentNoteChild, securitycontract.StudentNoteAudience, bool) {
 	if rs.StudentNotes == nil {
 		renderError(w, r, common.ErrorInternalServer(errors.New("student notes capability is not configured")))
-		return nil, securityruntime.StudentNoteChild{}, securityruntime.StudentNoteAudience{}, false
+		return nil, securitycontract.StudentNoteChild{}, securitycontract.StudentNoteAudience{}, false
 	}
 	student, ok := rs.parseAndGetStudent(w, r)
 	if !ok {
-		return nil, securityruntime.StudentNoteChild{}, securityruntime.StudentNoteAudience{}, false
+		return nil, securitycontract.StudentNoteChild{}, securitycontract.StudentNoteAudience{}, false
 	}
 	if !rs.checkStudentReadAccess(r, student) {
 		renderError(w, r, common.ErrorForbidden(errors.New("read access required to view notes")))
-		return nil, securityruntime.StudentNoteChild{}, securityruntime.StudentNoteAudience{}, false
+		return nil, securitycontract.StudentNoteChild{}, securitycontract.StudentNoteAudience{}, false
 	}
 	child, err := rs.noteChild(r.Context(), student)
 	if err != nil {
 		renderError(w, r, common.ErrorInternalServer(err))
-		return nil, securityruntime.StudentNoteChild{}, securityruntime.StudentNoteAudience{}, false
+		return nil, securitycontract.StudentNoteChild{}, securitycontract.StudentNoteAudience{}, false
 	}
 	reader, err := rs.noteReader(r.Context())
 	if err != nil {
@@ -263,38 +299,38 @@ func (rs *Resource) resolveNoteReader(
 		// would leak, the empty one would render the child's card as empty —
 		// both are worse than an error the caller can retry.
 		renderError(w, r, common.ErrorInternalServer(err))
-		return nil, securityruntime.StudentNoteChild{}, securityruntime.StudentNoteAudience{}, false
+		return nil, securitycontract.StudentNoteChild{}, securitycontract.StudentNoteAudience{}, false
 	}
 	return student, child, securityruntime.ResolveStudentNoteAudience(
-		jwt.PermissionsFromCtx(r.Context()), reader, child), true
+		sessiontoken.PermissionsFromCtx(r.Context()), reader, child), true
 }
 
 // noteReader gathers the caller's assignments for the audience policy, which
 // takes facts rather than fetching them. The school classes are normalized
 // here because the child's class is too, and both sides must use the rule the
 // class-scoped reads and their LOWER(BTRIM(...)) index already use.
-func (rs *Resource) noteReader(ctx context.Context) (securityruntime.StudentNoteReader, error) {
+func (rs *Resource) noteReader(ctx context.Context) (securitycontract.StudentNoteReader, error) {
 	groupIDs, err := rs.UserContextService.MyGroupIDs(ctx)
 	if err != nil {
-		return securityruntime.StudentNoteReader{}, err
+		return securitycontract.StudentNoteReader{}, err
 	}
 	ledGroupIDs, err := rs.UserContextService.MyTeacherGroupIDs(ctx)
 	if err != nil {
-		return securityruntime.StudentNoteReader{}, err
+		return securitycontract.StudentNoteReader{}, err
 	}
 	activityIDs, err := rs.UserContextService.MyActivityGroupIDs(ctx)
 	if err != nil {
-		return securityruntime.StudentNoteReader{}, err
+		return securitycontract.StudentNoteReader{}, err
 	}
 	classes, err := rs.UserContextService.MySchoolClasses(ctx)
 	if err != nil {
-		return securityruntime.StudentNoteReader{}, err
+		return securitycontract.StudentNoteReader{}, err
 	}
 	normalized := make([]string, 0, len(classes))
 	for _, class := range classes {
 		normalized = append(normalized, schoolClassKey(class))
 	}
-	return securityruntime.StudentNoteReader{
+	return securitycontract.StudentNoteReader{
 		GroupIDs: groupIDs, LedEducationGroupIDs: ledGroupIDs,
 		ActivityGroupIDs: activityIDs, Classes: normalized,
 	}, nil
@@ -303,22 +339,33 @@ func (rs *Resource) noteReader(ctx context.Context) (securityruntime.StudentNote
 // noteChild reads the child side of the audience question. The activity
 // enrollments are read for today: a note audience follows who has the child
 // now, not who had it last term.
-func (rs *Resource) noteChild(ctx context.Context, student *Student) (securityruntime.StudentNoteChild, error) {
-	child := securityruntime.StudentNoteChild{
+func (rs *Resource) noteChild(ctx context.Context, student *peopleModule.StudentState) (securitycontract.StudentNoteChild, error) {
+	child := securitycontract.StudentNoteChild{
 		GroupID: student.GroupID, SchoolClass: schoolClassKey(student.SchoolClass),
 	}
-	if rs.ActiveEnrollments == nil {
-		return child, nil
-	}
-	groupsByStudent, err := rs.ActiveEnrollments.ActiveEnrollmentGroups(
-		ctx, []int64{student.ID}, timezone.TodayDate())
+	activities, err := rs.noteActivities(ctx, student.ID)
 	if err != nil {
-		return securityruntime.StudentNoteChild{}, err
+		return securitycontract.StudentNoteChild{}, err
 	}
-	for _, group := range groupsByStudent[student.ID] {
+	for _, group := range activities {
 		child.ActivityGroupIDs = append(child.ActivityGroupIDs, group.ID)
 	}
 	return child, nil
+}
+
+// noteActivities is the one read of the activities a note may refer to: the
+// child's enrollments today. The audience, the reference check and the picker
+// all use it, so the picker never offers an activity the write would refuse.
+func (rs *Resource) noteActivities(ctx context.Context, studentID int64) ([]peopleModule.StudentActivityGroup, error) {
+	if rs.ActiveEnrollments == nil {
+		return nil, nil
+	}
+	groupsByStudent, err := rs.ActiveEnrollments.ActiveEnrollmentGroups(
+		ctx, []int64{studentID}, calendar.TodayDate())
+	if err != nil {
+		return nil, err
+	}
+	return groupsByStudent[studentID], nil
 }
 
 func decodeStudentNoteBody(w http.ResponseWriter, r *http.Request) (studentNoteRequestBody, bool) {
@@ -345,11 +392,11 @@ func decodeStudentNoteBody(w http.ResponseWriter, r *http.Request) (studentNoteR
 func parseNoteSubject(body studentNoteRequestBody) (peopleModule.StudentNoteSubject, error) {
 	subject := peopleModule.StudentNoteSubject{}
 	if body.SubjectDate != nil && *body.SubjectDate != "" {
-		date, err := timezone.ParseDate(*body.SubjectDate)
+		date, err := calendar.ParseDate(*body.SubjectDate)
 		if err != nil {
 			return subject, errors.New("subject_date must be a YYYY-MM-DD date")
 		}
-		if date.After(timezone.TodayDate()) {
+		if date.After(calendar.TodayDate()) {
 			return subject, errors.New("subject_date must not be in the future")
 		}
 		subject.Date = &date
@@ -374,7 +421,7 @@ func parseNoteSubject(body studentNoteRequestBody) (peopleModule.StudentNoteSubj
 // the audience decision, so this adds no second cross-owner lookup.
 func validateNoteSubjectForChild(
 	subject peopleModule.StudentNoteSubject,
-	child securityruntime.StudentNoteChild,
+	child securitycontract.StudentNoteChild,
 ) error {
 	if subject.EducationGroupID != nil &&
 		(child.GroupID == nil || *subject.EducationGroupID != *child.GroupID) {
@@ -403,13 +450,13 @@ func parseOptionalID(value *string, field string) (*int64, error) {
 }
 
 func callerAccountID(r *http.Request) int64 {
-	return int64(jwt.ClaimsFromCtx(r.Context()).ID)
+	return int64(sessiontoken.ClaimsFromCtx(r.Context()).ID)
 }
 
 // toModuleAudience turns the policy's facts into the owner's filter. The
 // visibility values are named here, in the one package that holds both sides,
 // so the policy never keeps a second copy of the owner's enum.
-func toModuleAudience(audience securityruntime.StudentNoteAudience, accountID int64) peopleModule.StudentNoteAudience {
+func toModuleAudience(audience securitycontract.StudentNoteAudience, accountID int64) peopleModule.StudentNoteAudience {
 	visibilities := []string{peopleModule.StudentNoteVisibilityAllStaff}
 	if audience.CareTeam {
 		visibilities = append(visibilities, peopleModule.StudentNoteVisibilityCareTeam)
@@ -428,8 +475,8 @@ func toModuleAudience(audience securityruntime.StudentNoteAudience, accountID in
 func (rs *Resource) renderNotes(
 	r *http.Request,
 	notes []peopleModule.StudentNote,
-	audience securityruntime.StudentNoteAudience,
-	student *Student,
+	audience securitycontract.StudentNoteAudience,
+	student *peopleModule.StudentState,
 ) []studentNoteResponse {
 	reader := callerAccountID(r)
 	result := make([]studentNoteResponse, 0, len(notes))
@@ -442,16 +489,16 @@ func (rs *Resource) renderNotes(
 func (rs *Resource) renderNote(
 	r *http.Request,
 	note peopleModule.StudentNote,
-	audience securityruntime.StudentNoteAudience,
-	student *Student,
+	audience securitycontract.StudentNoteAudience,
+	student *peopleModule.StudentState,
 ) studentNoteResponse {
 	return buildNoteResponse(note, audience, student, callerAccountID(r))
 }
 
 func buildNoteResponse(
 	note peopleModule.StudentNote,
-	audience securityruntime.StudentNoteAudience,
-	student *Student,
+	audience securitycontract.StudentNoteAudience,
+	student *peopleModule.StudentState,
 	readerAccountID int64,
 ) studentNoteResponse {
 	response := studentNoteResponse{
@@ -496,7 +543,7 @@ func noteCanBeEdited(note peopleModule.StudentNote) bool {
 // original audience; only administration may remove the retained record.
 func noteCanBeDeleted(
 	note peopleModule.StudentNote,
-	audience securityruntime.StudentNoteAudience,
+	audience securitycontract.StudentNoteAudience,
 	childEducationGroupID *int64,
 ) bool {
 	if note.Visibility == peopleModule.StudentNoteVisibilityGroupLeads &&

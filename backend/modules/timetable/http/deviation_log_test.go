@@ -10,11 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -77,9 +75,9 @@ func TestApplyDeviations_WritesAbsenceAndSubstitutionEvents(t *testing.T) {
 	var absence, substitution *deviationEventRow
 	for _, ev := range events {
 		switch ev.EventType {
-		case timetableCompose.DeviationEventAbsence:
+		case timetablePorts.DeviationEventAbsence:
 			absence = ev
-		case timetableCompose.DeviationEventSubstitution:
+		case timetablePorts.DeviationEventSubstitution:
 			substitution = ev
 		}
 	}
@@ -120,7 +118,7 @@ func TestApplyDeviations_PresenceWritesReturnEvent(t *testing.T) {
 
 	events := loadEventsForInstance(t, s.db, s.ctx, inst.ID)
 	require.Len(t, events, 1)
-	assert.Equal(t, timetableCompose.DeviationEventReturnToPresence, events[0].EventType)
+	assert.Equal(t, timetablePorts.DeviationEventReturnToPresence, events[0].EventType)
 	require.NotNil(t, events[0].SubjectStaffID)
 	assert.Equal(t, s.staffA, *events[0].SubjectStaffID)
 }
@@ -158,7 +156,7 @@ func TestApplyDeviations_ActiveInstance_EndsAndCreatesSupervisor(t *testing.T) {
 	router := devRouter(s.ctx, s.res, s.db)
 	_, date := futureSubDate(1)
 
-	sessions := testutil.NewPresenceSessionRecords(s.db)
+	sessions := RootCompositions.SessionRecords(s.db)
 	now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 	ag := &studentpresence.LiveGroup{
 		StartTime:      now,

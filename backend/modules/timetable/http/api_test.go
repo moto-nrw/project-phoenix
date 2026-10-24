@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -191,26 +192,6 @@ func newTestPeriod() schoolcalendar.CalendarPeriod {
 }
 
 // =============================================================================
-// NewResource / Router Tests
-// =============================================================================
-
-func TestNewResource(t *testing.T) {
-	t.Parallel()
-
-	res := NewResource(Dependencies{})
-	assert.NotNil(t, res)
-}
-
-func TestResource_Router(t *testing.T) {
-	t.Parallel()
-
-	mock := &mockCalendarPeriodService{}
-	res := NewResource(periodDependencies(mock))
-	router := res.Router()
-	assert.NotNil(t, router)
-}
-
-// =============================================================================
 // Bind Validation Tests
 // =============================================================================
 
@@ -386,7 +367,7 @@ func TestListPeriods(t *testing.T) {
 		p1.Name = "Period A"
 
 		mock := &mockCalendarPeriodService{periods: []schoolcalendar.CalendarPeriod{p1}}
-		res := NewResource(periodDependencies(mock))
+		res := newResourceForTest(periodDependencies(mock))
 		router := setupTestRouter(res.listPeriods, http.MethodGet, false)
 
 		w := executeRequest(router, http.MethodGet, "/", nil)
@@ -397,7 +378,7 @@ func TestListPeriods(t *testing.T) {
 
 	t.Run("returns empty list", func(t *testing.T) {
 		mock := &mockCalendarPeriodService{periods: []schoolcalendar.CalendarPeriod{}}
-		res := NewResource(periodDependencies(mock))
+		res := newResourceForTest(periodDependencies(mock))
 		router := setupTestRouter(res.listPeriods, http.MethodGet, false)
 
 		w := executeRequest(router, http.MethodGet, "/", nil)
@@ -407,7 +388,7 @@ func TestListPeriods(t *testing.T) {
 
 	t.Run("returns 500 on service error", func(t *testing.T) {
 		mock := &mockCalendarPeriodService{err: errors.New("db error: password=calendar-secret")}
-		res := NewResource(periodDependencies(mock))
+		res := newResourceForTest(periodDependencies(mock))
 		router := setupTestRouter(res.listPeriods, http.MethodGet, false)
 
 		w := executeRequest(router, http.MethodGet, "/", nil)
@@ -438,7 +419,7 @@ func TestListPeriods_UsageCounts(t *testing.T) {
 				},
 			},
 		}
-		res := NewResource(periodDependencies(mock))
+		res := newResourceForTest(periodDependencies(mock))
 		router := setupTestRouter(res.listPeriods, http.MethodGet, false)
 
 		w := executeRequest(router, http.MethodGet, "/", nil)
@@ -457,7 +438,7 @@ func TestListPeriods_UsageCounts(t *testing.T) {
 			periods:  []schoolcalendar.CalendarPeriod{p1},
 			usageErr: errors.New("count failed: relation internal_usage_table does not exist"),
 		}
-		res := NewResource(periodDependencies(mock))
+		res := newResourceForTest(periodDependencies(mock))
 		router := setupTestRouter(res.listPeriods, http.MethodGet, false)
 
 		w := executeRequest(router, http.MethodGet, "/", nil)
@@ -481,7 +462,7 @@ func TestGetPeriod(t *testing.T) {
 		p.Name = "Found Period"
 
 		mock := &mockCalendarPeriodService{period: p}
-		res := NewResource(periodDependencies(mock))
+		res := newResourceForTest(periodDependencies(mock))
 		router := setupTestRouter(res.getPeriod, http.MethodGet, true)
 
 		w := executeRequest(router, http.MethodGet, "/42", nil)
@@ -492,7 +473,7 @@ func TestGetPeriod(t *testing.T) {
 
 	t.Run("returns 400 for invalid ID", func(t *testing.T) {
 		mock := &mockCalendarPeriodService{}
-		res := NewResource(periodDependencies(mock))
+		res := newResourceForTest(periodDependencies(mock))
 		router := setupTestRouter(res.getPeriod, http.MethodGet, true)
 
 		w := executeRequest(router, http.MethodGet, "/abc", nil)
@@ -502,7 +483,7 @@ func TestGetPeriod(t *testing.T) {
 
 	t.Run("returns 404 when not found", func(t *testing.T) {
 		mock := &mockCalendarPeriodService{err: schoolcalendar.ErrCalendarPeriodNotFound}
-		res := NewResource(periodDependencies(mock))
+		res := newResourceForTest(periodDependencies(mock))
 		router := setupTestRouter(res.getPeriod, http.MethodGet, true)
 
 		w := executeRequest(router, http.MethodGet, "/999", nil)
@@ -512,7 +493,7 @@ func TestGetPeriod(t *testing.T) {
 
 	t.Run("returns 500 on internal error", func(t *testing.T) {
 		mock := &mockCalendarPeriodService{err: errors.New("db connection failed")}
-		res := NewResource(periodDependencies(mock))
+		res := newResourceForTest(periodDependencies(mock))
 		router := setupTestRouter(res.getPeriod, http.MethodGet, true)
 
 		w := executeRequest(router, http.MethodGet, "/42", nil)
@@ -525,7 +506,7 @@ func TestGetPeriod(t *testing.T) {
 			period:   newTestPeriod(),
 			usageErr: errors.New("usage failed: private query details"),
 		}
-		res := NewResource(periodDependencies(mock))
+		res := newResourceForTest(periodDependencies(mock))
 		router := setupTestRouter(res.getPeriod, http.MethodGet, true)
 
 		w := executeRequest(router, http.MethodGet, "/42", nil)
@@ -546,7 +527,7 @@ func TestCreatePeriod(t *testing.T) {
 
 	t.Run("creates period successfully", func(t *testing.T) {
 		mock := &mockCalendarPeriodService{}
-		res := NewResource(periodDependencies(mock))
+		res := newResourceForTest(periodDependencies(mock))
 		router := setupTestRouter(res.createPeriod, http.MethodPost, false)
 
 		body := CalendarPeriodRequest{
@@ -568,7 +549,7 @@ func TestCreatePeriod(t *testing.T) {
 
 	t.Run("creates period with week cycle anchor", func(t *testing.T) {
 		mock := &mockCalendarPeriodService{}
-		res := NewResource(periodDependencies(mock))
+		res := newResourceForTest(periodDependencies(mock))
 		router := setupTestRouter(res.createPeriod, http.MethodPost, false)
 
 		anchor := "2025-09-01"
@@ -591,7 +572,7 @@ func TestCreatePeriod(t *testing.T) {
 
 	t.Run("defaults week cycle length to 1", func(t *testing.T) {
 		mock := &mockCalendarPeriodService{}
-		res := NewResource(periodDependencies(mock))
+		res := newResourceForTest(periodDependencies(mock))
 		router := setupTestRouter(res.createPeriod, http.MethodPost, false)
 
 		body := CalendarPeriodRequest{
@@ -612,7 +593,7 @@ func TestCreatePeriod(t *testing.T) {
 
 	t.Run("returns 400 for missing required fields", func(t *testing.T) {
 		mock := &mockCalendarPeriodService{}
-		res := NewResource(periodDependencies(mock))
+		res := newResourceForTest(periodDependencies(mock))
 		router := setupTestRouter(res.createPeriod, http.MethodPost, false)
 
 		body := CalendarPeriodRequest{Name: "Only Name"}
@@ -624,7 +605,7 @@ func TestCreatePeriod(t *testing.T) {
 
 	t.Run("returns 400 for invalid period_type", func(t *testing.T) {
 		mock := &mockCalendarPeriodService{}
-		res := NewResource(periodDependencies(mock))
+		res := newResourceForTest(periodDependencies(mock))
 		router := setupTestRouter(res.createPeriod, http.MethodPost, false)
 
 		body := CalendarPeriodRequest{
@@ -642,7 +623,7 @@ func TestCreatePeriod(t *testing.T) {
 
 	t.Run("returns 400 for invalid start_date format", func(t *testing.T) {
 		mock := &mockCalendarPeriodService{}
-		res := NewResource(periodDependencies(mock))
+		res := newResourceForTest(periodDependencies(mock))
 		router := setupTestRouter(res.createPeriod, http.MethodPost, false)
 
 		body := CalendarPeriodRequest{
@@ -660,7 +641,7 @@ func TestCreatePeriod(t *testing.T) {
 
 	t.Run("returns 400 for invalid end_date format", func(t *testing.T) {
 		mock := &mockCalendarPeriodService{}
-		res := NewResource(periodDependencies(mock))
+		res := newResourceForTest(periodDependencies(mock))
 		router := setupTestRouter(res.createPeriod, http.MethodPost, false)
 
 		body := CalendarPeriodRequest{
@@ -678,7 +659,7 @@ func TestCreatePeriod(t *testing.T) {
 
 	t.Run("returns 400 for invalid week_cycle_anchor format", func(t *testing.T) {
 		mock := &mockCalendarPeriodService{}
-		res := NewResource(periodDependencies(mock))
+		res := newResourceForTest(periodDependencies(mock))
 		router := setupTestRouter(res.createPeriod, http.MethodPost, false)
 
 		badAnchor := "not-a-date"
@@ -699,7 +680,7 @@ func TestCreatePeriod(t *testing.T) {
 
 	t.Run("returns 400 for end_date before start_date", func(t *testing.T) {
 		mock := &mockCalendarPeriodService{}
-		res := NewResource(periodDependencies(mock))
+		res := newResourceForTest(periodDependencies(mock))
 		router := setupTestRouter(res.createPeriod, http.MethodPost, false)
 
 		body := CalendarPeriodRequest{
@@ -717,7 +698,7 @@ func TestCreatePeriod(t *testing.T) {
 
 	t.Run("returns 400 for cycle > 1 without anchor", func(t *testing.T) {
 		mock := &mockCalendarPeriodService{}
-		res := NewResource(periodDependencies(mock))
+		res := newResourceForTest(periodDependencies(mock))
 		router := setupTestRouter(res.createPeriod, http.MethodPost, false)
 
 		body := CalendarPeriodRequest{
@@ -736,7 +717,7 @@ func TestCreatePeriod(t *testing.T) {
 
 	t.Run("returns 409 for duplicate name", func(t *testing.T) {
 		mock := &mockCalendarPeriodService{err: schoolcalendar.ErrCalendarPeriodNameConflict}
-		res := NewResource(periodDependencies(mock))
+		res := newResourceForTest(periodDependencies(mock))
 		router := setupTestRouter(res.createPeriod, http.MethodPost, false)
 
 		body := CalendarPeriodRequest{
@@ -757,7 +738,7 @@ func TestCreatePeriod(t *testing.T) {
 		mock := &mockCalendarPeriodService{
 			err: &scheduleSvcErr{op: "create calendar period", inner: schoolcalendar.ErrCalendarPeriodNameConflict},
 		}
-		res := NewResource(periodDependencies(mock))
+		res := newResourceForTest(periodDependencies(mock))
 		router := setupTestRouter(res.createPeriod, http.MethodPost, false)
 
 		body := CalendarPeriodRequest{
@@ -776,7 +757,7 @@ func TestCreatePeriod(t *testing.T) {
 		mock := &mockCalendarPeriodService{
 			err: &scheduleSvcErr{op: "check same-type period overlap", inner: schoolcalendar.ErrCalendarPeriodOverlapConflict},
 		}
-		res := NewResource(periodDependencies(mock))
+		res := newResourceForTest(periodDependencies(mock))
 		router := setupTestRouter(res.createPeriod, http.MethodPost, false)
 
 		body := CalendarPeriodRequest{
@@ -803,7 +784,7 @@ func TestCreatePeriod(t *testing.T) {
 				inner: &schoolcalendar.CalendarPeriodOverlapError{Overlaps: []schoolcalendar.CalendarPeriod{conflicting}},
 			},
 		}
-		res := NewResource(periodDependencies(mock))
+		res := newResourceForTest(periodDependencies(mock))
 		router := setupTestRouter(res.createPeriod, http.MethodPost, false)
 
 		body := CalendarPeriodRequest{
@@ -827,7 +808,7 @@ func TestCreatePeriod(t *testing.T) {
 
 	t.Run("returns 500 on service error", func(t *testing.T) {
 		mock := &mockCalendarPeriodService{err: errors.New("create failed: duplicate detail from postgres")}
-		res := NewResource(periodDependencies(mock))
+		res := newResourceForTest(periodDependencies(mock))
 		router := setupTestRouter(res.createPeriod, http.MethodPost, false)
 
 		body := CalendarPeriodRequest{
@@ -867,7 +848,7 @@ func TestCreatePeriodOverlapWarnings(t *testing.T) {
 		other.EndDate = "2031-07-31"
 
 		mock := &mockCalendarPeriodService{overlaps: []schoolcalendar.CalendarPeriod{other}}
-		res := NewResource(periodDependencies(mock))
+		res := newResourceForTest(periodDependencies(mock))
 		router := setupTestRouter(res.createPeriod, http.MethodPost, false)
 
 		w := executeRequest(router, http.MethodPost, "/", validBody)
@@ -890,7 +871,7 @@ func TestCreatePeriodOverlapWarnings(t *testing.T) {
 
 	t.Run("omits warnings field when nothing overlaps", func(t *testing.T) {
 		mock := &mockCalendarPeriodService{}
-		res := NewResource(periodDependencies(mock))
+		res := newResourceForTest(periodDependencies(mock))
 		router := setupTestRouter(res.createPeriod, http.MethodPost, false)
 
 		w := executeRequest(router, http.MethodPost, "/", validBody)
@@ -901,7 +882,7 @@ func TestCreatePeriodOverlapWarnings(t *testing.T) {
 
 	t.Run("overlap check failure never breaks the create", func(t *testing.T) {
 		mock := &mockCalendarPeriodService{overlapsErr: errors.New("overlap lookup exploded")}
-		res := NewResource(periodDependencies(mock))
+		res := newResourceForTest(periodDependencies(mock))
 		router := setupTestRouter(res.createPeriod, http.MethodPost, false)
 
 		w := executeRequest(router, http.MethodPost, "/", validBody)
@@ -922,7 +903,7 @@ func TestUpdatePeriodOverlapWarnings(t *testing.T) {
 			period:   newTestPeriod(),
 			overlaps: []schoolcalendar.CalendarPeriod{other},
 		}
-		res := NewResource(periodDependencies(mock))
+		res := newResourceForTest(periodDependencies(mock))
 
 		r := chi.NewRouter()
 		r.Use(render.SetContentType(render.ContentTypeJSON))
@@ -965,7 +946,7 @@ func TestBootstrapPeriods(t *testing.T) {
 				p.ID: {ActivityGroups: 3},
 			},
 		}
-		res := NewResource(periodDependencies(mock))
+		res := newResourceForTest(periodDependencies(mock))
 		router := setupTestRouter(res.bootstrapPeriods, http.MethodPost, false)
 
 		w := executeRequest(router, http.MethodPost, "/", nil)
@@ -986,7 +967,7 @@ func TestBootstrapPeriods(t *testing.T) {
 			bootstrapPeriods: []schoolcalendar.CalendarPeriod{newTestPeriod()},
 			bootstrapCreated: false,
 		}
-		res := NewResource(periodDependencies(mock))
+		res := newResourceForTest(periodDependencies(mock))
 		router := setupTestRouter(res.bootstrapPeriods, http.MethodPost, false)
 
 		w := executeRequest(router, http.MethodPost, "/", nil)
@@ -1001,7 +982,7 @@ func TestBootstrapPeriods(t *testing.T) {
 
 	t.Run("returns 500 on service error", func(t *testing.T) {
 		mock := &mockCalendarPeriodService{bootstrapErr: errors.New("bootstrap failed: db host 10.0.0.8")}
-		res := NewResource(periodDependencies(mock))
+		res := newResourceForTest(periodDependencies(mock))
 		router := setupTestRouter(res.bootstrapPeriods, http.MethodPost, false)
 
 		w := executeRequest(router, http.MethodPost, "/", nil)
@@ -1016,7 +997,7 @@ func TestBootstrapPeriods(t *testing.T) {
 			bootstrapPeriods: []schoolcalendar.CalendarPeriod{newTestPeriod()},
 			usageErr:         errors.New("usage failed: SELECT secret_usage"),
 		}
-		res := NewResource(periodDependencies(mock))
+		res := newResourceForTest(periodDependencies(mock))
 		router := setupTestRouter(res.bootstrapPeriods, http.MethodPost, false)
 
 		w := executeRequest(router, http.MethodPost, "/", nil)
@@ -1039,7 +1020,7 @@ func TestUpdatePeriod(t *testing.T) {
 
 	t.Run("updates period successfully", func(t *testing.T) {
 		mock := &mockCalendarPeriodService{period: existingPeriod}
-		res := NewResource(periodDependencies(mock))
+		res := newResourceForTest(periodDependencies(mock))
 
 		r := chi.NewRouter()
 		r.Use(render.SetContentType(render.ContentTypeJSON))
@@ -1064,7 +1045,7 @@ func TestUpdatePeriod(t *testing.T) {
 			period:    existingPeriod,
 			updateErr: &scheduleSvcErr{op: "check same-type period overlap", inner: schoolcalendar.ErrCalendarPeriodOverlapConflict},
 		}
-		res := NewResource(periodDependencies(mock))
+		res := newResourceForTest(periodDependencies(mock))
 
 		r := chi.NewRouter()
 		r.Use(render.SetContentType(render.ContentTypeJSON))
@@ -1095,7 +1076,7 @@ func TestUpdatePeriod(t *testing.T) {
 				inner: &schoolcalendar.CalendarPeriodOverlapError{Overlaps: []schoolcalendar.CalendarPeriod{conflicting}},
 			},
 		}
-		res := NewResource(periodDependencies(mock))
+		res := newResourceForTest(periodDependencies(mock))
 
 		r := chi.NewRouter()
 		r.Use(render.SetContentType(render.ContentTypeJSON))
@@ -1119,7 +1100,7 @@ func TestUpdatePeriod(t *testing.T) {
 
 	t.Run("updates period with anchor", func(t *testing.T) {
 		mock := &mockCalendarPeriodService{period: existingPeriod}
-		res := NewResource(periodDependencies(mock))
+		res := newResourceForTest(periodDependencies(mock))
 
 		r := chi.NewRouter()
 		r.Use(render.SetContentType(render.ContentTypeJSON))
@@ -1147,7 +1128,7 @@ func TestUpdatePeriod(t *testing.T) {
 		anchoredPeriod.WeekCycleAnchor = "2025-09-01"
 
 		mock := &mockCalendarPeriodService{period: anchoredPeriod}
-		res := NewResource(periodDependencies(mock))
+		res := newResourceForTest(periodDependencies(mock))
 
 		r := chi.NewRouter()
 		r.Use(render.SetContentType(render.ContentTypeJSON))
@@ -1170,7 +1151,7 @@ func TestUpdatePeriod(t *testing.T) {
 
 	t.Run("defaults week cycle length to 1", func(t *testing.T) {
 		mock := &mockCalendarPeriodService{period: existingPeriod}
-		res := NewResource(periodDependencies(mock))
+		res := newResourceForTest(periodDependencies(mock))
 
 		r := chi.NewRouter()
 		r.Use(render.SetContentType(render.ContentTypeJSON))
@@ -1194,7 +1175,7 @@ func TestUpdatePeriod(t *testing.T) {
 
 	t.Run("returns 400 for invalid ID", func(t *testing.T) {
 		mock := &mockCalendarPeriodService{}
-		res := NewResource(periodDependencies(mock))
+		res := newResourceForTest(periodDependencies(mock))
 
 		r := chi.NewRouter()
 		r.Use(render.SetContentType(render.ContentTypeJSON))
@@ -1207,7 +1188,7 @@ func TestUpdatePeriod(t *testing.T) {
 
 	t.Run("returns 404 when period not found", func(t *testing.T) {
 		mock := &mockCalendarPeriodService{err: schoolcalendar.ErrCalendarPeriodNotFound}
-		res := NewResource(periodDependencies(mock))
+		res := newResourceForTest(periodDependencies(mock))
 
 		r := chi.NewRouter()
 		r.Use(render.SetContentType(render.ContentTypeJSON))
@@ -1220,7 +1201,7 @@ func TestUpdatePeriod(t *testing.T) {
 
 	t.Run("returns 500 on get internal error", func(t *testing.T) {
 		mock := &mockCalendarPeriodService{err: errors.New("db connection failed")}
-		res := NewResource(periodDependencies(mock))
+		res := newResourceForTest(periodDependencies(mock))
 
 		r := chi.NewRouter()
 		r.Use(render.SetContentType(render.ContentTypeJSON))
@@ -1235,7 +1216,7 @@ func TestUpdatePeriod(t *testing.T) {
 
 	t.Run("returns 400 for invalid start_date in update", func(t *testing.T) {
 		mock := &mockCalendarPeriodService{period: existingPeriod}
-		res := NewResource(periodDependencies(mock))
+		res := newResourceForTest(periodDependencies(mock))
 
 		r := chi.NewRouter()
 		r.Use(render.SetContentType(render.ContentTypeJSON))
@@ -1255,7 +1236,7 @@ func TestUpdatePeriod(t *testing.T) {
 
 	t.Run("returns 400 for invalid end_date in update", func(t *testing.T) {
 		mock := &mockCalendarPeriodService{period: existingPeriod}
-		res := NewResource(periodDependencies(mock))
+		res := newResourceForTest(periodDependencies(mock))
 
 		r := chi.NewRouter()
 		r.Use(render.SetContentType(render.ContentTypeJSON))
@@ -1275,7 +1256,7 @@ func TestUpdatePeriod(t *testing.T) {
 
 	t.Run("returns 400 for invalid anchor in update", func(t *testing.T) {
 		mock := &mockCalendarPeriodService{period: existingPeriod}
-		res := NewResource(periodDependencies(mock))
+		res := newResourceForTest(periodDependencies(mock))
 
 		r := chi.NewRouter()
 		r.Use(render.SetContentType(render.ContentTypeJSON))
@@ -1298,7 +1279,7 @@ func TestUpdatePeriod(t *testing.T) {
 
 	t.Run("returns 400 for end_date before start_date in update", func(t *testing.T) {
 		mock := &mockCalendarPeriodService{period: existingPeriod}
-		res := NewResource(periodDependencies(mock))
+		res := newResourceForTest(periodDependencies(mock))
 
 		r := chi.NewRouter()
 		r.Use(render.SetContentType(render.ContentTypeJSON))
@@ -1322,7 +1303,7 @@ func TestUpdatePeriod(t *testing.T) {
 			period:    existingPeriod,
 			updateErr: schoolcalendar.ErrCalendarPeriodNameConflict,
 		}
-		res := NewResource(periodDependencies(mock))
+		res := newResourceForTest(periodDependencies(mock))
 
 		r := chi.NewRouter()
 		r.Use(render.SetContentType(render.ContentTypeJSON))
@@ -1346,7 +1327,7 @@ func TestUpdatePeriod(t *testing.T) {
 			period:    existingPeriod,
 			updateErr: schoolcalendar.ErrCalendarPeriodRequiredByCareOffering,
 		}
-		res := NewResource(periodDependencies(mock))
+		res := newResourceForTest(periodDependencies(mock))
 
 		r := chi.NewRouter()
 		r.Use(render.SetContentType(render.ContentTypeJSON))
@@ -1371,7 +1352,7 @@ func TestUpdatePeriod(t *testing.T) {
 			period:    existingPeriod,
 			updateErr: errors.New("db write failed"),
 		}
-		res := NewResource(periodDependencies(mock))
+		res := newResourceForTest(periodDependencies(mock))
 
 		r := chi.NewRouter()
 		r.Use(render.SetContentType(render.ContentTypeJSON))
@@ -1401,7 +1382,7 @@ func TestDeletePeriod(t *testing.T) {
 
 	t.Run("deletes period successfully", func(t *testing.T) {
 		mock := &mockCalendarPeriodService{period: newTestPeriod()}
-		res := NewResource(periodDependencies(mock))
+		res := newResourceForTest(periodDependencies(mock))
 		router := setupTestRouter(res.deletePeriod, http.MethodDelete, true)
 
 		w := executeRequest(router, http.MethodDelete, "/42", nil)
@@ -1412,7 +1393,7 @@ func TestDeletePeriod(t *testing.T) {
 
 	t.Run("returns 400 for invalid ID", func(t *testing.T) {
 		mock := &mockCalendarPeriodService{}
-		res := NewResource(periodDependencies(mock))
+		res := newResourceForTest(periodDependencies(mock))
 		router := setupTestRouter(res.deletePeriod, http.MethodDelete, true)
 
 		w := executeRequest(router, http.MethodDelete, "/abc", nil)
@@ -1422,7 +1403,7 @@ func TestDeletePeriod(t *testing.T) {
 
 	t.Run("returns 404 when period not found", func(t *testing.T) {
 		mock := &mockCalendarPeriodService{err: schoolcalendar.ErrCalendarPeriodNotFound}
-		res := NewResource(periodDependencies(mock))
+		res := newResourceForTest(periodDependencies(mock))
 		router := setupTestRouter(res.deletePeriod, http.MethodDelete, true)
 
 		w := executeRequest(router, http.MethodDelete, "/999", nil)
@@ -1432,12 +1413,10 @@ func TestDeletePeriod(t *testing.T) {
 
 	t.Run("returns 409 when roster links cannot be unscoped", func(t *testing.T) {
 		mock := &mockCalendarPeriodService{
-			period: newTestPeriod(),
-			deleteErr: errors.New(
-				`delete calendar period: duplicate key value violates unique constraint "idx_student_enrollments_active"`,
-			),
+			period:    newTestPeriod(),
+			deleteErr: fmt.Errorf("delete calendar period: %w", schoolcalendar.ErrCalendarPeriodRosterConflict),
 		}
-		res := NewResource(periodDependencies(mock))
+		res := newResourceForTest(periodDependencies(mock))
 		router := setupTestRouter(res.deletePeriod, http.MethodDelete, true)
 
 		w := executeRequest(router, http.MethodDelete, "/42", nil)
@@ -1451,7 +1430,7 @@ func TestDeletePeriod(t *testing.T) {
 			period:    newTestPeriod(),
 			deleteErr: schoolcalendar.ErrCalendarPeriodRequiredByCareOffering,
 		}
-		res := NewResource(periodDependencies(mock))
+		res := newResourceForTest(periodDependencies(mock))
 		router := setupTestRouter(res.deletePeriod, http.MethodDelete, true)
 
 		w := executeRequest(router, http.MethodDelete, "/42", nil)
@@ -1466,7 +1445,7 @@ func TestDeletePeriod(t *testing.T) {
 			period:    newTestPeriod(),
 			deleteErr: errors.New("delete failed"),
 		}
-		res := NewResource(periodDependencies(mock))
+		res := newResourceForTest(periodDependencies(mock))
 		router := setupTestRouter(res.deletePeriod, http.MethodDelete, true)
 
 		w := executeRequest(router, http.MethodDelete, "/42", nil)
@@ -1490,12 +1469,10 @@ func TestDeletePeriod_RosterConflictMarksTenantRollback(t *testing.T) {
 			require.Equal(t, int64(42), id)
 			require.NoError(t, probe.Write(ctx))
 			require.True(t, probe.Written(), "probe insert must happen inside the tenant tx")
-			return errors.New(
-				`delete calendar period: duplicate key value violates unique constraint "idx_student_enrollments_active"`,
-			)
+			return fmt.Errorf("delete calendar period: %w", schoolcalendar.ErrCalendarPeriodRosterConflict)
 		},
 	}
-	res := NewResource(periodDependencies(mock))
+	res := newResourceForTest(periodDependencies(mock))
 
 	router := chi.NewRouter()
 	router.Use(render.SetContentType(render.ContentTypeJSON))
@@ -1545,7 +1522,7 @@ func TestDeletePeriod_CareOfferingConflictMarksTenantRollback(t *testing.T) {
 			return schoolcalendar.ErrCalendarPeriodRequiredByCareOffering
 		},
 	}
-	res := NewResource(periodDependencies(mock))
+	res := newResourceForTest(periodDependencies(mock))
 
 	router := chi.NewRouter()
 	router.Use(render.SetContentType(render.ContentTypeJSON))

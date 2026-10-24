@@ -20,11 +20,11 @@ import (
 // through the assembled production router: real device authentication, the
 // device-scan workflow, the open-room move and Student Presence over the
 // test's own tenant.
-func checkOpenRoomKioskBooking(t *testing.T, api *serveGraph) {
+func checkOpenRoomKioskBooking(t *testing.T, api *goldenRuntime) {
 	t.Helper()
 	testpkg.OwnTenant(t)
 	db := testpkg.SetupTestDB(t)
-	kiosk := openRoomKiosk{api: api, apiKey: *testpkg.CreateTestDevice(t, db, "open-room-kiosk").APIKey}
+	apiKey := *testpkg.CreateTestDevice(t, db, "open-room-kiosk").APIKey
 
 	source := testpkg.CreateTestRoom(t, db, "Klassenraum")
 	sourceActivity := testpkg.CreateTestActivityGroup(t, db, "Hausaufgaben")
@@ -37,12 +37,12 @@ func checkOpenRoomKioskBooking(t *testing.T, api *serveGraph) {
 	foreignGym := testpkg.CreateTestOpenRoomForTenant(t, db, foreignTenant, "Fremde Turnhalle")
 
 	tag, studentID := openRoomKioskChild(t, db, "Kiosk")
-	checkin := kiosk.post(t, "/api/iot/checkin", map[string]any{"student_rfid": tag, "action": "checkin", "room_id": source.ID}, "1234")
+	checkin := postOpenRoomKiosk(t, api, apiKey, "/api/iot/checkin", map[string]any{"student_rfid": tag, "action": "checkin", "room_id": source.ID}, "1234")
 	require.Equal(t, http.StatusOK, checkin.Code, checkin.Body.String())
 
 	// The stay is booked in the gym's own session: no device, second scan or
 	// supervision there, and no participation in the football running there.
-	booked := kiosk.post(t, "/api/iot/move-to-room", map[string]any{"student_rfid": tag, "room_id": gym.ID}, "1234")
+	booked := postOpenRoomKiosk(t, api, apiKey, "/api/iot/move-to-room", map[string]any{"student_rfid": tag, "room_id": gym.ID}, "1234")
 	require.Equal(t, http.StatusOK, booked.Code, booked.Body.String())
 	stay := openRoomKioskData(t, booked)
 	assert.Equal(t, "open_room_stay", stay["action"])
@@ -58,7 +58,7 @@ func checkOpenRoomKioskBooking(t *testing.T, api *serveGraph) {
 	assert.Nil(t, sessionDevice, "the gym's own session belongs to no device")
 
 	// A repeated booking records no second stay.
-	again := kiosk.post(t, "/api/iot/move-to-room", map[string]any{"student_rfid": tag, "room_id": gym.ID}, "1234")
+	again := postOpenRoomKiosk(t, api, apiKey, "/api/iot/move-to-room", map[string]any{"student_rfid": tag, "room_id": gym.ID}, "1234")
 	require.Equal(t, http.StatusOK, again.Code, again.Body.String())
 	assert.Equal(t, false, openRoomKioskData(t, again)["moved"])
 	assert.Equal(t, []int64{roomSession}, openVisitSessions(t, db, studentID))
@@ -74,42 +74,48 @@ func checkOpenRoomKioskBooking(t *testing.T, api *serveGraph) {
 		{"foreign tenant's released room", foreignGym.ID, http.StatusNotFound, "iot.room_not_found"},
 		{"unknown room", 999_999_999, http.StatusNotFound, "iot.room_not_found"},
 	} {
-		refused := kiosk.post(t, "/api/iot/move-to-room", map[string]any{"student_rfid": tag, "room_id": refusal.roomID}, "1234")
+		refused := postOpenRoomKiosk(t, api, apiKey, "/api/iot/move-to-room", map[string]any{"student_rfid": tag, "room_id": refusal.roomID}, "1234")
 		assert.Equal(t, refusal.status, refused.Code, "%s: %s", refusal.name, refused.Body.String())
 		assert.Contains(t, refused.Body.String(), `"code":"`+refusal.code+`"`, refusal.name)
 		assert.Equal(t, []int64{roomSession}, openVisitSessions(t, db, studentID), refusal.name)
 	}
 
 	absentTag, absentID := openRoomKioskChild(t, db, "Absent")
-	absent := kiosk.post(t, "/api/iot/move-to-room", map[string]any{"student_rfid": absentTag, "room_id": gym.ID}, "1234")
+	absent := postOpenRoomKiosk(t, api, apiKey, "/api/iot/move-to-room", map[string]any{"student_rfid": absentTag, "room_id": gym.ID}, "1234")
 	assert.Equal(t, http.StatusConflict, absent.Code, absent.Body.String())
 	assert.Contains(t, absent.Body.String(), `"code":"iot.student_not_present"`)
 	assert.Empty(t, openVisitSessions(t, db, absentID))
 
 	// The kiosk's device key and the school PIN stay required.
-	wrongPIN := kiosk.post(t, "/api/iot/move-to-room", map[string]any{"student_rfid": tag, "room_id": gym.ID}, "0000")
+	wrongPIN := postOpenRoomKiosk(t, api, apiKey, "/api/iot/move-to-room", map[string]any{"student_rfid": tag, "room_id": gym.ID}, "0000")
 	assert.Equal(t, http.StatusUnauthorized, wrongPIN.Code, wrongPIN.Body.String())
-	anonymous := openRoomKiosk{api: api}.post(t, "/api/iot/move-to-room", map[string]any{"student_rfid": tag, "room_id": gym.ID}, "1234")
+	anonymous := postOpenRoomKiosk(t, api, "", "/api/iot/move-to-room", map[string]any{"student_rfid": tag, "room_id": gym.ID}, "1234")
 	assert.Equal(t, http.StatusUnauthorized, anonymous.Code, anonymous.Body.String())
+	assert.Equal(t, []int64{roomSession}, openVisitSessions(t, db, studentID), "failed authentication leaves the stay unchanged")
+
+	// KioskActor is school-wide, not cross-school: a valid device in another
+	// school cannot resolve this child's scanned card, even with the right PIN.
+	foreignKey := *testpkg.CreateTestDeviceForTenant(t, db, foreignTenant, "foreign-open-room-kiosk").APIKey
+	foreignCard := postOpenRoomKiosk(t, api, foreignKey, "/api/iot/move-to-room", map[string]any{"student_rfid": tag, "room_id": foreignGym.ID}, "1234")
+	assert.Equal(t, http.StatusNotFound, foreignCard.Code, foreignCard.Body.String())
+	assert.Contains(t, foreignCard.Body.String(), `"code":"iot.rfid_tag_not_found"`)
+	assert.Equal(t, []int64{roomSession}, openVisitSessions(t, db, studentID), "foreign device cannot move the child")
 }
 
-type openRoomKiosk struct {
-	api    *serveGraph
-	apiKey string
-}
-
-func (k openRoomKiosk) post(t *testing.T, path string, body map[string]any, pin string) *httptest.ResponseRecorder {
+// postOpenRoomKiosk sends one kiosk request to handler, authenticated with
+// the device key when apiKey is set.
+func postOpenRoomKiosk(t *testing.T, handler http.Handler, apiKey, path string, body map[string]any, pin string) *httptest.ResponseRecorder {
 	t.Helper()
 	payload, err := json.Marshal(body)
 	require.NoError(t, err)
 	request := httptest.NewRequest(http.MethodPost, "http://localhost"+path, strings.NewReader(string(payload)))
 	request.Header.Set("Content-Type", "application/json")
-	if k.apiKey != "" {
-		request.Header.Set("Authorization", "Bearer "+k.apiKey)
+	if apiKey != "" {
+		request.Header.Set("Authorization", "Bearer "+apiKey)
 	}
 	request.Header.Set("X-Staff-PIN", pin)
 	response := httptest.NewRecorder()
-	k.api.ServeHTTP(response, request)
+	handler.ServeHTTP(response, request)
 	return response
 }
 

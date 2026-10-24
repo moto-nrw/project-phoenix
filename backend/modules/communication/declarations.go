@@ -7,8 +7,7 @@ import (
 )
 
 // Erklärungen (#3430): the public staff view of a declaration and the German
-// wording of its values. The rules that derive a child's state live with the
-// flows that apply them (services/parentmessaging).
+// wording of its values. The public value policy is shared by both portals.
 
 // Declaration vocabulary. The strings are the database values.
 const (

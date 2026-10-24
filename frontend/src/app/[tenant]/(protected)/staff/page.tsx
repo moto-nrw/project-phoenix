@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useMemo, type ReactNode } from "react";
+import { Suspense, useState, useMemo, type ReactNode } from "react";
 import { useSession } from "next-auth/react";
-import { redirect } from "next/navigation";
+import { redirect, useSearchParams } from "next/navigation";
 import { BellSimpleRingingIcon, CaretRightIcon } from "@phosphor-icons/react";
 import { CollectionGrid } from "~/components/ui/collection-grid";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
@@ -26,6 +26,7 @@ import {
   staffService,
   type StaffDocumentDirectoryEntry,
   type Staff,
+  type FormerStaff,
 } from "~/lib/staff-api";
 import {
   getStaffDisplayType,
@@ -42,6 +43,7 @@ import { isAdmin, hasPermission } from "~/lib/auth-utils";
 import { useStaffPendingAbsences } from "~/lib/hooks/use-staff-pending-absences";
 import { SchoolOverviewSection } from "~/components/staff/school-overview-section";
 import { StaffAuditLog } from "~/components/staff/staff-audit-log";
+import { FormerStaffCards } from "~/components/staff/former-staff-cards";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import {
   StaffTimeAccountsTable,
@@ -216,16 +218,22 @@ function StaffPageContent() {
     !canManageTimeTracking;
   // Die Personenkarte führt nur dann weiter, wenn dort auch etwas
   // freigeschaltet ist: das Profil mit Unterlagen oder Stammdaten, oder der
-  // Personal-Datensatz (Reiter „Konto", staff:manage, #2906). Seit #3115 ist
-  // die Personalakte die einzige Objektansicht; das Pane der Datenverwaltung
-  // gibt es nicht mehr.
+  // Personal-Datensatz (Reiter „Konto", users:read oder staff:manage,
+  // #2906). Seit #3115 ist die Personalakte die einzige Objektansicht; das
+  // Pane der Datenverwaltung gibt es nicht mehr.
   const profileTabAvailable =
     userIsAdmin || canAccessDocuments || canEditStammdaten;
-  const canNavigateToStaff = profileTabAvailable || canManageStaffRecords;
+  const canNavigateToStaff =
+    canReadUsers || profileTabAvailable || canManageStaffRecords;
 
+  const searchParams = useSearchParams();
   // State variables for filters
-  const [searchTerm, setSearchTerm] = useState("");
-  const [locationFilter, setLocationFilter] = useState("all");
+  const [searchTerm, setSearchTerm] = useState(
+    searchParams.get("search") ?? "",
+  );
+  const [locationFilter, setLocationFilter] = useState(
+    searchParams.get("status") === "ehemalige" ? "ehemalige" : "all",
+  );
   const [selectedView, setSelectedView] = useState<
     "status" | "accounts" | "audit" | "documents"
   >("status");
@@ -285,6 +293,36 @@ function StaffPageContent() {
     staffError,
     "die Personalliste",
     mutateStaff,
+  );
+
+  // Ehemalige (#3403): eine Option im Status-Filter statt einer zweiten
+  // Liste. Geladen wird nur, wenn sie gewählt ist; ohne sie zeigt die Liste
+  // wie bisher nur aktives Personal.
+  const showFormer = view === "status" && locationFilter === "ehemalige";
+  const {
+    data: formerData,
+    isLoading: isFormerLoading,
+    error: formerError,
+    mutate: mutateFormer,
+  } = useSWRAuth<FormerStaff[]>(
+    canListStaff && showFormer ? "staff-former-list" : null,
+    async () =>
+      (await staffService.getFormerStaff()).sort(
+        (a, b) =>
+          a.lastName.localeCompare(b.lastName, "de-DE") ||
+          a.firstName.localeCompare(b.firstName, "de-DE"),
+      ),
+    { revalidateOnFocus: false },
+  );
+  const formerLoadError = useSwrLoadError(
+    formerError,
+    "die Liste der Ehemaligen",
+    mutateFormer,
+  );
+  const filteredFormer = (formerData ?? []).filter((member) =>
+    `${member.firstName} ${member.lastName}`
+      .toLocaleLowerCase("de-DE")
+      .includes(searchTerm.trim().toLocaleLowerCase("de-DE")),
   );
 
   const {
@@ -457,7 +495,6 @@ function StaffPageContent() {
     "Anwesend",
     "Schulhof",
     "Unterwegs",
-    "Homeoffice",
     "Krank",
     "Urlaub",
     "Fortbildung",
@@ -481,7 +518,7 @@ function StaffPageContent() {
     if (filter === "abwesend_nicht_eingecheckt")
       return location === "Zuhause" || location === "Abwesend";
     if (filter === "anwesend") return location === "Anwesend";
-    if (filter === "homeoffice") return location === "Homeoffice";
+    if (filter === "homeoffice") return location === "Unterwegs";
     // "abwesend" - all absence types.
     if (filter === "abwesend") return absenceLocations.has(location);
     if (filter === "im_raum") {
@@ -558,13 +595,18 @@ function StaffPageContent() {
         },
         {
           value: "homeoffice",
-          label: "Homeoffice",
+          label: "Unterwegs",
           icon: "M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z",
         },
         {
           value: "abwesend",
           label: "Krank/Urlaub",
           icon: "M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636",
+        },
+        {
+          value: "ehemalige",
+          label: "Ehemalige",
+          icon: "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z",
         },
       ],
     }),
@@ -625,8 +667,9 @@ function StaffPageContent() {
         anwesend: "Anwesend",
         abwesend_nicht_eingecheckt: "Abwesend",
         im_raum: "Im Raum",
-        homeoffice: "Homeoffice",
+        homeoffice: "Unterwegs",
         abwesend: "Krank/Urlaub",
+        ehemalige: "Ehemalige",
       };
       filters.push({
         id: "location",
@@ -652,6 +695,11 @@ function StaffPageContent() {
     // also die Zahl der Personen mit Unterlagen, nicht die Personalliste.
     // Ohne geladene Daten gibt es nichts zu zählen: „0 Personen“ läse sich
     // wie eine leere Schule, der Ladefehler steht darunter (#2514).
+    if (showFormer) {
+      if (formerError || formerData === undefined) return undefined;
+      const count = filteredFormer.length;
+      return `${count} ehemalige ${count === 1 ? "Person" : "Personen"}`;
+    }
     if (
       (view === "status" && staffError) ||
       (view === "documents" && documentDirectoryError) ||
@@ -724,8 +772,33 @@ function StaffPageContent() {
   // wo Mitarbeitende entstehen. Eine noch nicht geladene
   // Liste (staffData === undefined) ist kein Leerzustand.
   const staffFilterActive = searchTerm !== "" || locationFilter !== "all";
+  const formerEmptyState =
+    showFormer &&
+    !showSkeleton &&
+    !formerError &&
+    formerData !== undefined &&
+    filteredFormer.length === 0
+      ? {
+          title: "Keine Ehemaligen gefunden",
+          description: searchTerm
+            ? "Zu dieser Suche gibt es keine Person. Setzen Sie die Suche zurück, um alle zu sehen."
+            : "Hier erscheint, wer die Schule verlassen hat.",
+          icon: <MotoConceptIcon concept="staff" size={48} />,
+          action: searchTerm ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              onClick={() => setSearchTerm("")}
+            >
+              Suche zurücksetzen
+            </Button>
+          ) : undefined,
+        }
+      : null;
   const statusEmptyState =
     view === "status" &&
+    !showFormer &&
     !showSkeleton &&
     !staffError &&
     staffData !== undefined &&
@@ -818,7 +891,9 @@ function StaffPageContent() {
       // Der Ladefehler der Personalliste gehört ins Gerüst. Ihr Leerzustand
       // bleibt dagegen bei den Karten, damit unabhängige Bereiche sichtbar
       // bleiben.
-      error={view === "status" ? staffLoadError : null}
+      error={
+        showFormer ? formerLoadError : view === "status" ? staffLoadError : null
+      }
       overlays={
         <>
           {showCloseModal && (
@@ -953,6 +1028,7 @@ function StaffPageContent() {
           {/* Ohne Recht auf die Personalakte sind die Karten reine Anzeige. Der
               Grund steht einmal über der Liste statt auf jeder Karte (#3926). */}
           {view === "status" &&
+            !showFormer &&
             !canNavigateToStaff &&
             !staffError &&
             filteredStaff.length > 0 && (
@@ -963,8 +1039,34 @@ function StaffPageContent() {
               />
             )}
 
+          {/* Frühere Beschäftigungen öffnen dieselbe Personalakte im Lesemodus. */}
+          {showFormer &&
+            (isFormerLoading && !formerData ? (
+              <StaffCardsSkeleton />
+            ) : formerEmptyState ? (
+              <EmptyState {...formerEmptyState} />
+            ) : filteredFormer.length > 0 ? (
+              <>
+                <Alert
+                  type="info"
+                  announce="off"
+                  message={
+                    canNavigateToStaff
+                      ? "Hier stehen Personen, die früher bei Ihnen gearbeitet haben. Öffnen Sie eine Karte für die Angaben von damals."
+                      : "Hier stehen Personen, die früher bei Ihnen gearbeitet haben. Personalakten sind für Ihr Konto nicht freigegeben."
+                  }
+                />
+                <FormerStaffCards
+                  members={filteredFormer}
+                  referrer={`/staff?${new URLSearchParams({ status: "ehemalige", ...(searchTerm ? { search: searchTerm } : {}) })}`}
+                  canOpen={canNavigateToStaff}
+                />
+              </>
+            ) : null)}
+
           {/* Staff Grid */}
           {view === "status" &&
+            !showFormer &&
             (statusEmptyState ? (
               <EmptyState {...statusEmptyState} />
             ) : filteredStaff.length > 0 ? (
@@ -1096,5 +1198,15 @@ function StaffPageContent() {
 }
 
 export default function StaffPage() {
-  return <StaffPageContent />;
+  return (
+    <Suspense
+      fallback={
+        <TenantPage title="Mitarbeiter" statsLoading>
+          <StaffCardsSkeleton />
+        </TenantPage>
+      }
+    >
+      <StaffPageContent />
+    </Suspense>
+  );
 }

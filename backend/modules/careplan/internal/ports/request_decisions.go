@@ -3,6 +3,8 @@ package ports
 import (
 	"context"
 
+	careplanNative "github.com/moto-nrw/project-phoenix/modules/careplan"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 )
 
@@ -13,15 +15,14 @@ type RequestDecisionRecords interface {
 }
 
 type RequestDecisionPeople interface {
-	LockStudent(context.Context, int64) (ReviewStudent, error)
-	CanReview(context.Context, ReviewStudent) (bool, error)
-	GuardianHasAccess(context.Context, int64, int64) (bool, error)
+	LockStudent(context.Context, int64) (careplanNative.ReviewStudent, error)
+	CanReview(context.Context, careplanNative.ReviewStudent) (bool, error)
 }
 
 type RequestDecisionPlans interface {
 	Snapshot(context.Context, *carerequests.Request) *carerequests.DecisionSnapshot
 	ApplyWeekly(context.Context, *carerequests.Request, int64) (bool, error)
-	ApplyPickup(context.Context, *carerequests.Request, *string, bool) (int64, error)
+	ApplyPickup(context.Context, *carerequests.Request, *string, bool) (carerequests.PickupApplied, error)
 }
 
 type RequestDecisionEffects interface {

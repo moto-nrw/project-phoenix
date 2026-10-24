@@ -12,6 +12,7 @@ import (
 	"time"
 
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -44,7 +45,7 @@ type mockPhaseService struct {
 	deleteImpactErr   error
 }
 
-func (m *mockPhaseService) AllPhases(_ context.Context) ([]*capability.Phase, error) {
+func (m *mockPhaseService) Phases(_ context.Context) ([]*capability.Phase, error) {
 	return m.listResult, m.listErr
 }
 func (m *mockPhaseService) ListPublicOpen(_ context.Context, _ time.Time) ([]*capability.Phase, error) {
@@ -80,7 +81,8 @@ func (m *mockPhaseService) DeleteImpact(_ context.Context, id int64) (*capabilit
 }
 
 func buildPhaseRouter(svc capability.PhaseAdministration) chi.Router {
-	rs := &Resource{PhaseService: svc}
+	rs := &Resource{
+		Failures: DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation}, PhaseService: svc}
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 	r.Get("/enrollment/phases", rs.listPhases)
@@ -303,7 +305,7 @@ func TestCreatePhaseHandler_DuplicateNameReturns409(t *testing.T) {
 func TestCreatePhaseHandler_DuplicateNameCarriesCodeWithoutSQLDetail(t *testing.T) {
 	t.Parallel()
 
-	wrapped := fmt.Errorf("%w: %v", capability.ErrPhaseDuplicateName,
+	wrapped := fmt.Errorf("%w: %w", capability.ErrPhaseDuplicateName,
 		errors.New(`ERROR: duplicate key value violates unique constraint "enrollment_phases_unique_name" (SQLSTATE 23505)`))
 	mock := &mockPhaseService{createErr: wrapped}
 	router := buildPhaseRouter(mock)
@@ -311,13 +313,13 @@ func TestCreatePhaseHandler_DuplicateNameCarriesCodeWithoutSQLDetail(t *testing.
 	assert.Equal(t, http.StatusConflict, w.Code)
 
 	var body struct {
-		Code  string `json:"code"`
-		Error string `json:"error"`
+		Code   string `json:"code"`
+		Detail string `json:"detail"`
 	}
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
 	assert.Equal(t, "enrollment.phase_name_exists", body.Code)
-	assert.Equal(t, capability.ErrPhaseDuplicateName.Error(), body.Error)
-	assert.NotContains(t, body.Error, "SQLSTATE")
+	assert.Equal(t, capability.ErrPhaseDuplicateName.Error(), body.Detail)
+	assert.NotContains(t, body.Detail, "SQLSTATE")
 }
 
 func TestCreatePhaseHandler_ServiceErrorReturns500(t *testing.T) {

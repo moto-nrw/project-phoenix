@@ -2,9 +2,15 @@ package presence
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/go-chi/render"
+	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 
@@ -562,9 +568,6 @@ func TestExportedHandlers_NotNil(t *testing.T) {
 
 	// Checkout Handler
 	assert.NotNil(t, rs.checkoutStudent)
-
-	// Checkin Handler
-	assert.NotNil(t, rs.checkinStudent)
 }
 
 // =============================================================================
@@ -580,7 +583,7 @@ func TestErrorRenderer_ActiveGroupNotFound(t *testing.T) {
 	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 404, errResp.HTTPStatusCode)
-	assert.Equal(t, "error", errResp.Status)
+	assertEnvelope(t, errResp, "general.input")
 }
 
 func TestErrorRenderer_VisitNotFound(t *testing.T) {
@@ -592,7 +595,7 @@ func TestErrorRenderer_VisitNotFound(t *testing.T) {
 	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 404, errResp.HTTPStatusCode)
-	assert.Equal(t, "error", errResp.Status)
+	assertEnvelope(t, errResp, "general.input")
 }
 
 func TestErrorRenderer_GroupSupervisorNotFound(t *testing.T) {
@@ -604,7 +607,7 @@ func TestErrorRenderer_GroupSupervisorNotFound(t *testing.T) {
 	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 404, errResp.HTTPStatusCode)
-	assert.Equal(t, "error", errResp.Status)
+	assertEnvelope(t, errResp, "general.input")
 }
 
 func TestErrorRenderer_CombinedGroupNotFound(t *testing.T) {
@@ -616,7 +619,7 @@ func TestErrorRenderer_CombinedGroupNotFound(t *testing.T) {
 	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 404, errResp.HTTPStatusCode)
-	assert.Equal(t, "error", errResp.Status)
+	assertEnvelope(t, errResp, "general.input")
 }
 
 func TestErrorRenderer_GroupMappingNotFound(t *testing.T) {
@@ -628,7 +631,7 @@ func TestErrorRenderer_GroupMappingNotFound(t *testing.T) {
 	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 404, errResp.HTTPStatusCode)
-	assert.Equal(t, "error", errResp.Status)
+	assertEnvelope(t, errResp, "general.input")
 }
 
 func TestErrorRenderer_InvalidData(t *testing.T) {
@@ -640,7 +643,7 @@ func TestErrorRenderer_InvalidData(t *testing.T) {
 	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 400, errResp.HTTPStatusCode)
-	assert.Equal(t, "error", errResp.Status)
+	assertEnvelope(t, errResp, "general.input")
 }
 
 func TestErrorRenderer_ActiveGroupAlreadyEnded(t *testing.T) {
@@ -652,7 +655,7 @@ func TestErrorRenderer_ActiveGroupAlreadyEnded(t *testing.T) {
 	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 400, errResp.HTTPStatusCode)
-	assert.Equal(t, "error", errResp.Status)
+	assertEnvelope(t, errResp, "general.input")
 }
 
 func TestErrorRenderer_VisitAlreadyEnded(t *testing.T) {
@@ -664,7 +667,7 @@ func TestErrorRenderer_VisitAlreadyEnded(t *testing.T) {
 	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 400, errResp.HTTPStatusCode)
-	assert.Equal(t, "error", errResp.Status)
+	assertEnvelope(t, errResp, "general.input")
 }
 
 func TestErrorRenderer_SupervisionAlreadyEnded(t *testing.T) {
@@ -676,7 +679,7 @@ func TestErrorRenderer_SupervisionAlreadyEnded(t *testing.T) {
 	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 400, errResp.HTTPStatusCode)
-	assert.Equal(t, "error", errResp.Status)
+	assertEnvelope(t, errResp, "general.input")
 }
 
 func TestErrorRenderer_CombinedGroupAlreadyEnded(t *testing.T) {
@@ -688,7 +691,7 @@ func TestErrorRenderer_CombinedGroupAlreadyEnded(t *testing.T) {
 	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 400, errResp.HTTPStatusCode)
-	assert.Equal(t, "error", errResp.Status)
+	assertEnvelope(t, errResp, "general.input")
 }
 
 func TestErrorRenderer_GroupAlreadyInCombination(t *testing.T) {
@@ -700,7 +703,7 @@ func TestErrorRenderer_GroupAlreadyInCombination(t *testing.T) {
 	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 400, errResp.HTTPStatusCode)
-	assert.Equal(t, "error", errResp.Status)
+	assertEnvelope(t, errResp, "general.input")
 }
 
 func TestErrorRenderer_StudentAlreadyInGroup(t *testing.T) {
@@ -712,7 +715,7 @@ func TestErrorRenderer_StudentAlreadyInGroup(t *testing.T) {
 	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 400, errResp.HTTPStatusCode)
-	assert.Equal(t, "error", errResp.Status)
+	assertEnvelope(t, errResp, "general.input")
 }
 
 func TestErrorRenderer_StudentAlreadyActive(t *testing.T) {
@@ -731,7 +734,7 @@ func TestErrorRenderer_StudentAlreadyActive(t *testing.T) {
 	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, testutil.StatusConflict, errResp.HTTPStatusCode)
-	assert.Equal(t, "error", errResp.Status)
+	assertEnvelope(t, errResp, "general.business_rejection")
 }
 
 func TestErrorRenderer_StaffAlreadySupervising(t *testing.T) {
@@ -743,7 +746,7 @@ func TestErrorRenderer_StaffAlreadySupervising(t *testing.T) {
 	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 400, errResp.HTTPStatusCode)
-	assert.Equal(t, "error", errResp.Status)
+	assertEnvelope(t, errResp, "general.input")
 }
 
 func TestErrorRenderer_CannotDeleteActiveGroup(t *testing.T) {
@@ -755,7 +758,7 @@ func TestErrorRenderer_CannotDeleteActiveGroup(t *testing.T) {
 	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 400, errResp.HTTPStatusCode)
-	assert.Equal(t, "error", errResp.Status)
+	assertEnvelope(t, errResp, "general.input")
 }
 
 func TestErrorRenderer_InvalidTimeRange(t *testing.T) {
@@ -767,7 +770,7 @@ func TestErrorRenderer_InvalidTimeRange(t *testing.T) {
 	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 400, errResp.HTTPStatusCode)
-	assert.Equal(t, "error", errResp.Status)
+	assertEnvelope(t, errResp, "general.input")
 }
 
 func TestErrorRenderer_RoomConflict(t *testing.T) {
@@ -779,7 +782,7 @@ func TestErrorRenderer_RoomConflict(t *testing.T) {
 	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 409, errResp.HTTPStatusCode)
-	assert.Equal(t, "error", errResp.Status)
+	assertEnvelope(t, errResp, "general.business_rejection")
 }
 
 func TestErrorRenderer_UnknownError(t *testing.T) {
@@ -791,6 +794,21 @@ func TestErrorRenderer_UnknownError(t *testing.T) {
 	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 500, errResp.HTTPStatusCode)
-	assert.Equal(t, "error", errResp.Status)
-	assert.Equal(t, "unknown error", errResp.ErrorText)
+	assertEnvelope(t, errResp, "general.server")
+	assert.Equal(t, "unknown error", errResp.Detail)
+}
+
+// assertEnvelope renders resp and checks the wire envelope: the status
+// member is the HTTP status number and the code is the expected one.
+func assertEnvelope(t *testing.T, resp *common.ErrResponse, wantCode string) {
+	t.Helper()
+	recorder := httptest.NewRecorder()
+	require.NoError(t, render.Render(recorder, httptest.NewRequest(http.MethodGet, "/", nil), resp))
+	var body struct {
+		Status int    `json:"status"`
+		Code   string `json:"code"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &body))
+	assert.Equal(t, resp.HTTPStatusCode, body.Status)
+	assert.Equal(t, wantCode, body.Code)
 }

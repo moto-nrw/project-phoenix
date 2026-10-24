@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/classday"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -35,7 +34,7 @@ type renderedError struct {
 	Code    string           `json:"code"`
 	Errors  []fieldErrorBody `json:"errors"`
 	Details map[string]any   `json:"details"`
-	Error   string           `json:"error"`
+	Detail  string           `json:"detail"`
 }
 
 func renderError(t *testing.T, renderer render.Renderer) renderedError {
@@ -383,7 +382,7 @@ func TestDeviationRefusalCodes(t *testing.T) {
 	assert.Equal(t, "timetable.substitute_absent_on_date", body.Code)
 	assert.Equal(t, map[string]any{"date": "2026-10-06"}, body.Details)
 	assert.Equal(t, []string{"substitute_staff_id"}, fieldNames(body.Errors))
-	assert.Equal(t, "die Ersatzperson ist am 06.10.2026 selbst abwesend", body.Error)
+	assert.Equal(t, "die Ersatzperson ist am 06.10.2026 selbst abwesend", body.Detail)
 
 	assertRecorded(t, []recordedCase{
 		{"not found", renderErr(timetable.DeviationNotFound("der Termin wurde nicht gefunden").WithCode(timetable.CodeDeviationInstanceNotFound)),
@@ -422,19 +421,6 @@ func TestWindowAndRangeCodes(t *testing.T) {
 	require.ErrorIs(t, bulkTooLong, timetable.ErrInvalidBulkCancelRange)
 }
 
-// TestSlotListRefusalCodes pins the codes of the daily lists (#2516).
-func TestSlotListRefusalCodes(t *testing.T) {
-	t.Parallel()
-
-	assertCodeCases(t, []codeCase{
-		{"pickup list in the past", slotListRefusal(classday.ErrPickupCohortPastDate), http.StatusBadRequest, "timetable.slot_list_pickup_past_date", "", nil},
-		{"reconciliation in the future", slotListRefusal(classday.ErrReconciliationFutureDate), http.StatusBadRequest, "timetable.slot_list_reconciliation_future_date", "", nil},
-		{"drifted", slotListRefusal(fmt.Errorf("render: %w", classday.ErrListDrifted)), http.StatusConflict, "timetable.slot_list_drifted", "", nil},
-		{"disabled", slotListRefusal(classday.ErrTimetableDisabled), http.StatusForbidden, "timetable.slot_lists_disabled", "", nil},
-	})
-	assert.Nil(t, slotListRefusal(errors.New("db down")))
-}
-
 // TestAttendanceCorrectionCodes pins the correction refusals.
 func TestAttendanceCorrectionCodes(t *testing.T) {
 	t.Parallel()
@@ -452,4 +438,13 @@ func TestAttendanceCorrectionCodes(t *testing.T) {
 		{"cancelled", renderErr(timetable.ErrCorrectionCancelled), http.StatusConflict, "timetable.correction_cancelled"},
 		{"entry missing", renderErr(timetable.ErrAttendanceEntryNotFound), http.StatusNotFound, "timetable.attendance_entry_not_found"},
 	})
+}
+
+func TestOperationalSettingsFailureHidesPrivateDetails(t *testing.T) {
+	t.Parallel()
+	response := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/operations/planned-now", nil)
+	require.NoError(t, render.Render(response, req, operationErrorRenderer(fmt.Errorf("%w: private operational settings failure", timetable.ErrLifecycleSettings))))
+	assert.Equal(t, http.StatusInternalServerError, response.Code, response.Body.String())
+	assert.NotContains(t, response.Body.String(), "private operational settings failure")
 }

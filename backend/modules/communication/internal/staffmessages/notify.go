@@ -2,20 +2,17 @@ package staffmessaging
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
+	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // notifyAfterCommit wakes the conversation's participants and pushes to the
 // recipient's devices. Both are side effects of a successful send: never let
 // either fail the send itself.
-func (s *Service) notifyAfterCommit(ctx context.Context, thread *usersModels.StaffMessageThread, message *usersModels.StaffMessage, senderAccountID int64) {
+func (s *Service) notifyAfterCommit(ctx context.Context, thread *StaffMessageThread, message *StaffMessage, senderAccountID int64) {
 	if thread == nil || message == nil {
 		return
 	}
@@ -32,7 +29,7 @@ func (s *Service) notifyAfterCommit(ctx context.Context, thread *usersModels.Sta
 // The fan-out addresses the thread's participants only. Staff and school
 // portal clients use separate indexes, so a chat refresh reaches both
 // immediately and never depends on notification consent or delivery hours.
-func (s *Service) broadcastAfterCommit(ctx context.Context, thread *usersModels.StaffMessageThread, senderAccountID int64) {
+func (s *Service) broadcastAfterCommit(ctx context.Context, thread *StaffMessageThread, senderAccountID int64) {
 	if s.Broadcaster == nil {
 		return
 	}
@@ -48,7 +45,7 @@ func (s *Service) broadcastAfterCommit(ctx context.Context, thread *usersModels.
 		return
 	}
 
-	tenant.RegisterAfterCommit(ctx, func() {
+	s.runtime.RegisterAfterCommit(ctx, func() {
 		event := realtime.NewStaffMessageEvent(senderAccountID, threadID)
 		if err := s.Broadcaster.BroadcastToStaffAccounts(tenantID, participants, event); err != nil {
 			s.Logger.Warn("staffmessaging: broadcast failed",
@@ -75,7 +72,7 @@ func (s *Service) broadcastAfterCommit(ctx context.Context, thread *usersModels.
 // The copy names neither the sender nor the message. A push payload leaves the
 // backend and is rendered on a lock screen; the conversation behind the deep
 // link is authenticated, and that is where the content belongs.
-func (s *Service) notifyRecipients(ctx context.Context, thread *usersModels.StaffMessageThread, messageID, senderAccountID int64) {
+func (s *Service) notifyRecipients(ctx context.Context, thread *StaffMessageThread, messageID, senderAccountID int64) {
 	if s.Notifier == nil || s.Preferences == nil {
 		return
 	}
@@ -89,6 +86,30 @@ func (s *Service) notifyRecipients(ctx context.Context, thread *usersModels.Staf
 		return
 	}
 
+	candidates := s.reachablePushRecipients(ctx, thread, participants, senderAccountID)
+	if len(candidates) == 0 {
+		return
+	}
+
+	// The single enforcement point for "nothing without consent": build the
+	// relation-based candidate set first, then narrow it here — never the other
+	// way round.
+	optedIn, err := s.Preferences.FilterOptedIn(ctx, deliveryPorts.TypeStaffMessage, candidates)
+	if err != nil {
+		s.Logger.Warn("staffmessaging: filter opted-in recipients failed",
+			slog.Int64("thread_id", thread.ID),
+			slog.String("error", err.Error()),
+		)
+		return
+	}
+	if len(optedIn) == 0 {
+		return
+	}
+
+	s.sendStaffMessagePush(ctx, thread, messageID, optedIn)
+}
+
+func (s *Service) reachablePushRecipients(ctx context.Context, thread *StaffMessageThread, participants []int64, senderAccountID int64) []int64 {
 	// Zusaetzlich zur Einwilligung: nur an erreichbares Personal. Der Sendepfad
 	// prueft das bereits, aber eine Zustellung an ein inzwischen deaktiviertes
 	// Konto waere der teuerste Weg, das zu bemerken - ein Push landet auf einem
@@ -110,27 +131,12 @@ func (s *Service) notifyRecipients(ctx context.Context, thread *usersModels.Staf
 			candidates = append(candidates, id)
 		}
 	}
-	if len(candidates) == 0 {
-		return
-	}
+	return candidates
+}
 
-	// The single enforcement point for "nothing without consent": build the
-	// relation-based candidate set first, then narrow it here — never the other
-	// way round.
-	optedIn, err := s.Preferences.FilterOptedIn(ctx, notifications.TypeStaffMessage, candidates)
-	if err != nil {
-		s.Logger.Warn("staffmessaging: filter opted-in recipients failed",
-			slog.Int64("thread_id", thread.ID),
-			slog.String("error", err.Error()),
-		)
-		return
-	}
-	if len(optedIn) == 0 {
-		return
-	}
-
-	err = s.Notifier.Notify(ctx, notifications.Event{
-		Type:           notifications.TypeStaffMessage,
+func (s *Service) sendStaffMessagePush(ctx context.Context, thread *StaffMessageThread, messageID int64, optedIn []int64) {
+	err := s.Notifier.Notify(ctx, deliveryPorts.NotificationEvent{
+		Type:           deliveryPorts.TypeStaffMessage,
 		IdempotencyKey: fmt.Sprintf("staff-message:%d:%d", thread.ID, messageID),
 		RelatedType:    "staff_message_thread", RelatedID: thread.ID,
 		Title:    "Neue Nachricht aus dem Team",
@@ -139,15 +145,15 @@ func (s *Service) notifyRecipients(ctx context.Context, thread *usersModels.Staf
 		// The same conversation in "moto schule" (#2208); the school host
 		// strips the /school prefix itself.
 		SchoolDeepLink: fmt.Sprintf("/school/nachrichten/%d", thread.ID),
-		Priority:       notifications.PriorityNormal,
-		Audience: notifications.Audience{
+		Priority:       deliveryPorts.PriorityNormal,
+		Audience: deliveryPorts.NotificationAudience{
 			TenantID:        thread.TenantID,
-			Scope:           notifications.ScopeStaff,
+			Scope:           deliveryPorts.ScopeStaff,
 			StaffAccountIDs: optedIn,
 		},
-	})
+	}.Public())
 	switch {
-	case errors.Is(err, notifications.ErrDisabled), errors.Is(err, notifications.ErrOutsideActiveWindow):
+	case s.deliveryPolicy.IsNotificationsDisabled(err), s.deliveryPolicy.IsOutsideActiveWindow(err):
 		s.Logger.Info("staffmessaging: push suppressed by tenant notification gate",
 			slog.Int64("thread_id", thread.ID),
 			slog.String("reason", err.Error()),

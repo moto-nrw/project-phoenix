@@ -8,11 +8,10 @@
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
-import { Download, Info, ListChecks, X } from "lucide-react";
+import { Download, Info, ListChecks } from "lucide-react";
 import { SkeletonRegion, FormSkeleton } from "~/components/ui/page-skeletons";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
-import { Alert } from "~/components/ui/alert";
 import { SectionCard } from "~/components/ui/section-card";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { TenantPage } from "~/components/ui/tenant-page";
@@ -32,7 +31,6 @@ import {
 import { useRequirePermission } from "~/lib/hooks/use-require-permission";
 import {
   countAlreadyExistsRows,
-  importBatchFailureAlertType,
   importBatchFailureMessage,
   importBatchSavedCount,
   readImportBatchFailure,
@@ -113,8 +111,8 @@ export default function ClassListImportPage() {
   const [importInterrupted, setImportInterrupted] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   // Fehler der Datei und des Imports stehen im Kasten über der Vorlage,
-  // mit Wiederholen (#2517). Ein angehaltener Stapel ist kein Fehler des
-  // Ablaufs, sondern ein Stand: er steht als eigener Hinweis.
+  // mit Wiederholen (#2517). Ein angehaltener Stapel steht dort auch, mit
+  // oder ohne gespeicherte Zeilen: der Import als Ganzes ist gescheitert.
   const importErrors = useApiFormError();
   const { show: showTemplateError } = useApiErrorDisplay();
   const [batchNotice, setBatchNotice] = useState<string | null>(null);
@@ -374,7 +372,13 @@ export default function ClassListImportPage() {
 
   if (status === "loading" || !isReady) {
     return (
-      <TenantPage title="Klassenliste importieren" stats={statusLine} back>
+      <TenantPage
+        title="Klassenliste importieren"
+        stats={statusLine}
+        back
+        backHref="/database/students/class-list"
+        backLabel="Zurück zur Klassenliste"
+      >
         <SkeletonRegion label="Klassenlisten-Import wird geladen…">
           <FormSkeleton fields={2} />
         </SkeletonRegion>
@@ -383,7 +387,13 @@ export default function ClassListImportPage() {
   }
 
   return (
-    <TenantPage title="Klassenliste importieren" stats={statusLine} back>
+    <TenantPage
+      title="Klassenliste importieren"
+      stats={statusLine}
+      back
+      backHref="/database/students/class-list"
+      backLabel="Zurück zur Klassenliste"
+    >
       {/* Info Section */}
       <SectionCard title="Sammelimport für Klassenlisteneinträge" icon={Info}>
         <ul className="list-inside list-disc space-y-1 text-sm text-gray-600">
@@ -401,25 +411,7 @@ export default function ClassListImportPage() {
         </ul>
       </SectionCard>
 
-      <FormErrorAlert message={importErrors.error} />
-      {batchNotice && importResult ? (
-        <div className="relative">
-          <Alert
-            type={importBatchFailureAlertType(importResult)}
-            message={batchNotice}
-          />
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={() => setBatchNotice(null)}
-            className="text-moto-red hover:text-moto-red-strong absolute top-1/2 right-2 -translate-y-1/2"
-            aria-label="Hinweis schließen"
-          >
-            <X className="h-4 w-4" aria-hidden="true" />
-          </Button>
-        </div>
-      ) : null}
+      <FormErrorAlert message={importErrors.error ?? batchNotice} />
 
       {/* Download Template */}
       <SectionCard title="Vorlage herunterladen" icon={Download}>

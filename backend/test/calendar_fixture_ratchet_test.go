@@ -32,7 +32,7 @@ func TestCalendarFixtureClockRatchet(t *testing.T) {
 	}
 	t.Errorf("Calendar fixture wall-clock ratchet failed (%d finding(s)):\n\n%s\n\n"+
 		"These fixtures can cross a Berlin date or ISO-week boundary depending on when CI runs. "+
-		"Use timezone.NewDate(...), BerlinMidnight(), or time.Date(...) with a fixed instant. "+
+		"Use calendar.NewDate(...), BerlinMidnight(), or time.Date(...) with a fixed instant. "+
 		"If the behavior must observe the live clock, inject it or add the exact file:test key to "+
 		"calendarFixtureClockExceptions with a reviewed, non-empty reason.",
 		len(findings), strings.Join(formatCalendarClockFindings(findings), "\n"))
@@ -45,7 +45,7 @@ func TestCalendarFixtureRatchetDetectsEnrollmentPattern(t *testing.T) {
 
 import (
 	stdtime "time"
-	tz "github.com/moto-nrw/project-phoenix/internal/timezone"
+	tz "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 func TestHistoryPeriod(t *testing.T) {
@@ -70,15 +70,15 @@ func TestCalendarFixtureRatchetDetectsWorkSessionPattern(t *testing.T) {
 
 import (
 	"time"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 type liveClock struct{}
 func (liveClock) Now() time.Time { return time.Now() }
 
 func TestHistorySummary(t *testing.T) {
 	t.Parallel()
-	from := timezone.TodayDate().AddDays(-7)
-	to := timezone.TodayDate()
+	from := calendar.TodayDate().AddDays(-7)
+	to := calendar.TodayDate()
 	checkIn := time.Now().Add(-8 * time.Hour)
 	checkOut := time.Now().Add(-2 * time.Hour)
 	session := WorkSession{CheckInTime: checkIn, CheckOutTime: &checkOut}
@@ -132,7 +132,7 @@ func TestCalendarFixtureRatchetDetectsLiveDateRange(t *testing.T) {
 	root := writeCalendarFixtureSource(t, "sample/history_test.go", `package sample
 import (
 	"testing"
-	tz "github.com/moto-nrw/project-phoenix/internal/timezone"
+	tz "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 type DateRange struct { From, To tz.Date }
 func TestHistoryRange(t *testing.T) {
@@ -172,7 +172,7 @@ func ExampleHistoryRange() { _ = GetHistory(tz.TodayDate(), tz.NewDate(2026, 8, 
 const liveEffectiveBoundaryFixture = `package enrollment
 import (
 	"testing"
-	tz "github.com/moto-nrw/project-phoenix/internal/timezone"
+	tz "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 type ResyncInput struct { EffectiveFrom tz.Date }
 type PositionalInput struct {
@@ -257,7 +257,7 @@ func TestCalendarFixtureRatchetFollowsLiveDateHelperIntoAssertion(t *testing.T) 
 import (
 	"testing"
 	assertpkg "github.com/stretchr/testify/assert"
-	tz "github.com/moto-nrw/project-phoenix/internal/timezone"
+	tz "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 type fixtureClock struct{}
 func fixtureDate() tz.Date {
@@ -273,7 +273,7 @@ func TestCalendarExpectation(t *testing.T) {
 }
 `)
 	writeCalendarFixtureSourceAt(t, root, "sample/date_helpers_test.go", `package sample
-import tz "github.com/moto-nrw/project-phoenix/internal/timezone"
+import tz "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 func crossFileDate() tz.Date {
 	today := tz.TodayDate()
 	return today
@@ -291,7 +291,7 @@ func TestCalendarFixtureRatchetRequiresReviewedExceptionReason(t *testing.T) {
 	t.Parallel()
 
 	root := writeCalendarFixtureSource(t, "sample/range_test.go", `package sample
-import tz "github.com/moto-nrw/project-phoenix/internal/timezone"
+import tz "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 func TestLiveRange(t *testing.T) {
 	t.Parallel()
 	from := tz.TodayDate().AddDays(-7)
@@ -340,7 +340,7 @@ func TestCalendarFixtureRatchetIgnoresFixedAndNonCodePatterns(t *testing.T) {
 import (
 	"time"
 	"testing"
-	tz "github.com/moto-nrw/project-phoenix/internal/timezone"
+	tz "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 type fakeClock struct{}
 type suite struct{}
@@ -370,13 +370,13 @@ func TestFixedFixtures(t *testing.T) {
 	helperHistory := GetHistory(freshnessSession())
 	time := fakeClock{}
 	_ = []any{base, from, to, checkIn, elapsedStart, history.WeeklySummaries, freshHistory.WeeklySummaries, helperHistory.WeeklySummaries, time.Now(), "time.Now().Add(-2h)"}
-	// timezone.TodayDate().AddDays(-7) is documentation, not syntax.
+	// calendar.TodayDate().AddDays(-7) is documentation, not syntax.
 }
 `)
 	assertNoCalendarFindings(t, safeRoot)
 
 	productionRoot := writeCalendarFixtureSource(t, "sample/production.go", `package sample
-import tz "github.com/moto-nrw/project-phoenix/internal/timezone"
+import tz "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 func production() { _ = tz.TodayDate().AddDays(-7).Weekday() }
 `)
 	assertNoCalendarFindings(t, productionRoot)
@@ -390,7 +390,7 @@ func TestCalendarFixtureRatchetIgnoresUnixNanoUsedForFixtureUniqueness(t *testin
 import (
 	"fmt"
 	"time"
-	tz "github.com/moto-nrw/project-phoenix/internal/timezone"
+	tz "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 type fixture struct {
@@ -432,7 +432,7 @@ func TestCalendarFixtureRatchetDetectsUnixNanoUsedForCalendarOffset(t *testing.T
 import (
 	"testing"
 	"time"
-	tz "github.com/moto-nrw/project-phoenix/internal/timezone"
+	tz "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 func TestWeeklyFixtureWithUnixNanoOffset(t *testing.T) {
@@ -461,7 +461,7 @@ func TestCalendarFixtureRatchetDetectsInstantReconstructedFromLiveUnixScalar(t *
 import (
 	"testing"
 	"time"
-	tz "github.com/moto-nrw/project-phoenix/internal/timezone"
+	tz "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 func TestDateReconstructedFromLiveUnixScalar(t *testing.T) {
@@ -515,7 +515,7 @@ func TestCalendarFixtureRatchetFollowsUnixScalarHelpersAcrossFiles(t *testing.T)
 
 import (
 	"testing"
-	tz "github.com/moto-nrw/project-phoenix/internal/timezone"
+	tz "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 func TestDateOffsetFromLiveScalarHelper(t *testing.T) {
@@ -643,7 +643,7 @@ import (
 	. "time"
 	. "github.com/stretchr/testify/assert"
 	assertpkg "github.com/stretchr/testify/assert"
-	tz "github.com/moto-nrw/project-phoenix/internal/timezone"
+	tz "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 type Date = tz.Date
 var fixedDate = tz.NewDate(2026, 8, 30)

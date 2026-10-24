@@ -232,7 +232,7 @@ export function GroupTransferModal({
                 heute zusätzlich zuständig
               </strong>{" "}
               für diese Gruppe. Die Gruppe erscheint für diese Person unter
-              „Meine Gruppen“.
+              „Gruppen“ als „Vertretung“.
             </p>
           </InfoSection>
 

@@ -8,6 +8,7 @@ import {
 } from "~/lib/route-wrapper.server";
 import { TENANT_RESOLVE_AFFECTING_KEYS } from "~/lib/settings-keys";
 import { tenantSlugFromHost } from "~/lib/tenant-host";
+import { bffError } from "~/lib/api-response-error.server";
 
 const logger = createLogger({ component: "SettingsValuesRoute" });
 
@@ -43,7 +44,7 @@ export const PUT = createPutHandler(
   ) => {
     const key = params.key as string;
     if (!VALID_KEY_PATTERN.test(key)) {
-      throw new Error("API error (400): Invalid settings key format");
+      throw bffError(400, "Invalid settings key format");
     }
     const result = await apiPut(`/api/settings/values/${key}`, token, body);
     revalidateTenantIfNeeded(request, key);
@@ -59,7 +60,7 @@ export const DELETE = createDeleteHandler(
   ) => {
     const key = params.key as string;
     if (!VALID_KEY_PATTERN.test(key)) {
-      throw new Error("API error (400): Invalid settings key format");
+      throw bffError(400, "Invalid settings key format");
     }
     const result = await apiDelete(`/api/settings/values/${key}`, token);
     revalidateTenantIfNeeded(request, key);

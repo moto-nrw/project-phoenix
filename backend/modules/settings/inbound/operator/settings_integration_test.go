@@ -13,8 +13,6 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
 	settingsoperator "github.com/moto-nrw/project-phoenix/modules/settings/inbound/operator"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -22,21 +20,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
-
-// operatorTestClaims returns JWT claims for a platform-scoped operator.
-// Operators have empty permissions — access is gated by RequiresOperatorScope
-// middleware at the route level, not by per-setting permission checks.
-func operatorTestClaims() jwt.AppClaims {
-	return jwt.AppClaims{
-		ID:          1,
-		Sub:         "operator@example.com",
-		Username:    "operator",
-		FirstName:   "Test",
-		LastName:    "Operator",
-		Scope:       "platform",
-		Permissions: []string{},
-	}
-}
 
 // bookingsAuthoritativeKey is the registry key of booking-led care.
 const bookingsAuthoritativeKey = "enrollment.bookings_authoritative"
@@ -47,17 +30,16 @@ type operatorSettingsHook func(ctx context.Context, tenantID int64, key string, 
 
 // operatorSettingsTestContext holds dependencies for operator settings tests.
 type operatorSettingsTestContext struct {
-	db *bun.DB
-	// enableBookingsAuthoritative writes the tenant setting directly through
-	// the settings service, without the operator's hook and guard.
-	enableBookingsAuthoritative func(ctx context.Context) error
-	careWithdrawals             testpkg.CareWithdrawalWriter
-	careLifecycle               careplan.CareLifecycle
-	resource                    *settingsoperator.SettingsResource
-	router                      chi.Router
+	db       *bun.DB
+	resource *settingsoperator.SettingsResource
+	router   chi.Router
 	// onValueSet is the side-effect hook the resource runs on each write.
 	// A test replaces it before the request whose hook call it observes.
 	onValueSet operatorSettingsHook
+	// settings reads a school's resolved values outside its request.
+	settings interface {
+		ResolveBoolForTenant(ctx context.Context, tenantID int64, key string) (bool, error)
+	}
 }
 
 // runValueSetHook is the hook the resource is built with; it runs the
@@ -72,28 +54,24 @@ func (c *operatorSettingsTestContext) runValueSetHook(ctx context.Context, tenan
 func setupOperatorSettingsRoute(t *testing.T) *operatorSettingsTestContext {
 	t.Helper()
 
-	db, svc := testutil.SetupOperatorSettingsModule(t)
+	db, svc := setupOperatorSettingsModule(t)
 	tc := &operatorSettingsTestContext{
-		db: db,
-		enableBookingsAuthoritative: func(ctx context.Context) error {
-			return svc.Settings.SetValue(ctx, bookingsAuthoritativeKey, true, nil, nil)
-		},
-		careWithdrawals: svc.CareWithdrawals,
-		careLifecycle:   svc.CareLifecycle,
-		onValueSet:      svc.SettingsSideEffects.Dispatch,
+		db:         db,
+		onValueSet: svc.SettingsSideEffects.Dispatch,
+		settings:   svc.Settings,
 	}
 	// Pass nil schoolRepo: the integration tests cover the mutation contract
 	// (set/reset/permissions/hooks). Slug-resolution wiring is exercised end
 	// to end via the platform-level integration suite.
 	resource := settingsoperator.NewSettingsResource(settingsoperator.SettingsConfig{
-		Settings: svc.OperatorSchoolSettings(tc.runValueSetHook),
+		Settings:   svc.OperatorSchoolSettings(tc.runValueSetHook),
+		OperatorID: operatorAccount(t, db),
 	})
 
 	// Operator routes do not use TenantTxMiddleware — the operator settings
 	// capability opens the tenant transaction of the school ID from the URL path.
 	router := chi.NewRouter()
 	router.Get("/schools/{id}/settings/schema", resource.GetSchoolSettingsSchema)
-	router.Get("/schools/{id}/settings/booking-authority-impact", resource.GetBookingAuthorityImpact)
 	router.Get("/schools/{id}/settings/values/{key}/reveal", resource.RevealSchoolSettingValue)
 	router.Put("/schools/{id}/settings/values/{key}", resource.SetSchoolSettingValue)
 	router.Delete("/schools/{id}/settings/values/{key}", resource.ResetSchoolSettingValue)
@@ -103,11 +81,21 @@ func setupOperatorSettingsRoute(t *testing.T) *operatorSettingsTestContext {
 	return tc
 }
 
-// newOperatorRequest builds a request with platform-scope operator claims.
-// Uses testutil.WithClaims for consistency (injects claims into context).
+// operatorAccount returns the operator the routes record as the author of
+// a write: a real account, because config.setting_values.updated_by
+// references auth.accounts.
+func operatorAccount(t *testing.T, db *bun.DB) settingsoperator.OperatorIdentity {
+	t.Helper()
+	account := testpkg.CreateTestAccount(t, db, "operator")
+	return func(context.Context) int64 { return account.ID }
+}
+
+// newOperatorRequest builds an operator request. The routes take the
+// operator from the OperatorID port, not from the session (#4072); the
+// operator session chain in front of them is the router's.
 func newOperatorRequest(t *testing.T, method, target string, body any) *http.Request {
 	t.Helper()
-	return testutil.NewAuthenticatedRequest(t, method, target, body, testutil.WithClaims(t, operatorTestClaims()))
+	return testutil.NewAuthenticatedRequest(t, method, target, body)
 }
 
 // schoolPath builds an operator settings path for the school this test owns.
@@ -186,13 +174,9 @@ func TestOperatorSetSchoolSettingValue_Success(t *testing.T) {
 	rr := testutil.ExecuteRequest(ctx.router, req)
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 
-	previewReq := newOperatorRequest(t, http.MethodGet, schoolPath(t, "/settings/booking-authority-impact"), nil)
-	preview := testutil.ExecuteRequest(ctx.router, previewReq)
-	testutil.AssertSuccessResponse(t, preview, http.StatusOK)
-	assert.Contains(t, preview.Body.String(), `"blocking_children":[]`)
-
-	// The preview is advisory. A child can enter the unsafe set before the
-	// operator confirms; the locked write must evaluate the current rows again.
+	// The locked write evaluates the current rows: a child without a care
+	// day blocks the switch to booking-led care. The advisory preview before
+	// it is Care Plan's route (api: TestOperatorBookingAuthorityReview*).
 	student := testpkg.CreateTestStudent(t, ctx.db, "Ohne", "Buchung", "2a")
 	body = map[string]interface{}{"value": true}
 	setReq := newOperatorRequest(t, http.MethodPut, schoolPath(t, "/settings/values/enrollment.bookings_authoritative"), body)
@@ -252,8 +236,6 @@ func TestOperatorSetSchoolSettingValue_InvalidJSON(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPut, schoolPath(t, "/settings/values/operations.session_end_time"), bytes.NewReader([]byte("{not-json")))
 	req.Header.Set("Content-Type", "application/json")
-	// Apply operator claims option directly.
-	testutil.WithClaims(t, operatorTestClaims())(req)
 
 	rr := testutil.ExecuteRequest(ctx.router, req)
 	testutil.AssertErrorResponse(t, rr, http.StatusBadRequest)
@@ -273,28 +255,6 @@ func TestOperatorSetSchoolSettingValue_InvalidSchoolID(t *testing.T) {
 // =============================================================================
 // DELETE /schools/{id}/settings/values/{key}
 // =============================================================================
-
-func TestOperatorResetSchoolSettingValue_Success(t *testing.T) {
-	t.Parallel()
-	ctx := setupOperatorSettingsRoute(t)
-	tenantCtx := testpkg.Ctx(t)
-	require.NoError(t, ctx.enableBookingsAuthoritative(tenantCtx))
-	student := testpkg.CreateTestStudent(t, ctx.db, "Reset", "Buchungsmodus", "2c")
-	studentID := student.ID
-	testpkg.CreateTestBookingExpiredCareWithdrawal(t, ctx.careWithdrawals, studentID)
-	pendingFilter := careplan.CareWithdrawalFilter{StudentID: studentID, Page: 1, PageSize: 1}
-	_, pending, err := ctx.careLifecycle.ListPendingWithdrawals(tenantCtx, pendingFilter)
-	require.NoError(t, err)
-	require.Equal(t, 1, pending, "the booking-expired task must be pending before the reset")
-
-	req := newOperatorRequest(t, http.MethodDelete, schoolPath(t, "/settings/values/enrollment.bookings_authoritative"), nil)
-	rr := testutil.ExecuteRequest(ctx.router, req)
-	testutil.AssertSuccessResponse(t, rr, http.StatusNoContent)
-
-	_, pending, err = ctx.careLifecycle.ListPendingWithdrawals(tenantCtx, pendingFilter)
-	require.NoError(t, err)
-	assert.Zero(t, pending)
-}
 
 func TestOperatorResetSchoolSettingValue_UnknownKey(t *testing.T) {
 	t.Parallel()
@@ -537,7 +497,7 @@ func TestOperatorSetSchoolSettingValue_PresenceMode_BlockedByOpenAttendance(t *t
 	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	assert.Equal(t, http.StatusConflict, rr.Code)
-	assert.Contains(t, rr.Body.String(), "Moduswechsel")
+	assert.Contains(t, rr.Body.String(), "moduswechsel")
 }
 
 func TestOperatorSetSchoolSettingValue_PresenceMode_ForceBypassesOpenAttendance(t *testing.T) {

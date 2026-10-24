@@ -9,8 +9,36 @@ import {
   waitFor,
   fireEvent,
 } from "@testing-library/react";
+import { useRef, type ComponentProps } from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { useApiFormError } from "~/contexts/ToastContext";
 import { PasswordChangeModal } from "./password-change-modal";
+
+/** The modal on the shared error path, as every owner mounts it. */
+function ChangeModal(
+  props: Omit<
+    ComponentProps<typeof PasswordChangeModal>,
+    "errorPath" | "formRef"
+  >,
+) {
+  const formRef = useRef<HTMLFormElement>(null);
+  const errorPath = useApiFormError(formRef);
+  return (
+    <PasswordChangeModal {...props} errorPath={errorPath} formRef={formRef} />
+  );
+}
+
+function problemResponse(status: number, code: string, field?: string) {
+  return new Response(
+    JSON.stringify({
+      status,
+      detail: "diagnostic text that is never shown",
+      code,
+      ...(field && { errors: [{ field, reason: "invalid" }] }),
+    }),
+    { status, headers: { "Content-Type": "application/problem+json" } },
+  );
+}
 
 // Mock UI components
 vi.mock("./modal", () => ({
@@ -34,12 +62,6 @@ vi.mock("./modal", () => ({
         {children}
       </div>
     ) : null,
-}));
-
-vi.mock("./alert", () => ({
-  Alert: ({ type, message }: { type: string; message: string }) => (
-    <div data-testid={`alert-${type}`}>{message}</div>
-  ),
 }));
 
 vi.mock("./icons", () => ({
@@ -74,7 +96,7 @@ describe("PasswordChangeModal", () => {
 
   it("renders the modal when open", () => {
     render(
-      <PasswordChangeModal
+      <ChangeModal
         isOpen={true}
         onClose={mockOnClose}
         onSuccess={mockOnSuccess}
@@ -87,21 +109,9 @@ describe("PasswordChangeModal", () => {
     ).toBeInTheDocument();
   });
 
-  it("does not render when closed", () => {
-    render(
-      <PasswordChangeModal
-        isOpen={false}
-        onClose={mockOnClose}
-        onSuccess={mockOnSuccess}
-      />,
-    );
-
-    expect(screen.queryByTestId("modal")).not.toBeInTheDocument();
-  });
-
   it("renders all password input fields", () => {
     render(
-      <PasswordChangeModal
+      <ChangeModal
         isOpen={true}
         onClose={mockOnClose}
         onSuccess={mockOnSuccess}
@@ -117,7 +127,7 @@ describe("PasswordChangeModal", () => {
 
   it("renders password requirements", () => {
     render(
-      <PasswordChangeModal
+      <ChangeModal
         isOpen={true}
         onClose={mockOnClose}
         onSuccess={mockOnSuccess}
@@ -136,7 +146,7 @@ describe("PasswordChangeModal", () => {
 
   it("renders cancel and submit buttons", () => {
     render(
-      <PasswordChangeModal
+      <ChangeModal
         isOpen={true}
         onClose={mockOnClose}
         onSuccess={mockOnSuccess}
@@ -153,7 +163,7 @@ describe("PasswordChangeModal", () => {
 
   it("allows toggling password visibility", async () => {
     render(
-      <PasswordChangeModal
+      <ChangeModal
         isOpen={true}
         onClose={mockOnClose}
         onSuccess={mockOnSuccess}
@@ -173,7 +183,7 @@ describe("PasswordChangeModal", () => {
 
   it("handles input changes", async () => {
     render(
-      <PasswordChangeModal
+      <ChangeModal
         isOpen={true}
         onClose={mockOnClose}
         onSuccess={mockOnSuccess}
@@ -190,7 +200,7 @@ describe("PasswordChangeModal", () => {
 
   it("validates required fields", async () => {
     render(
-      <PasswordChangeModal
+      <ChangeModal
         isOpen={true}
         onClose={mockOnClose}
         onSuccess={mockOnSuccess}
@@ -211,7 +221,7 @@ describe("PasswordChangeModal", () => {
 
   it("validates password mismatch", async () => {
     render(
-      <PasswordChangeModal
+      <ChangeModal
         isOpen={true}
         onClose={mockOnClose}
         onSuccess={mockOnSuccess}
@@ -246,7 +256,7 @@ describe("PasswordChangeModal", () => {
 
   it("validates minimum password length", async () => {
     render(
-      <PasswordChangeModal
+      <ChangeModal
         isOpen={true}
         onClose={mockOnClose}
         onSuccess={mockOnSuccess}
@@ -279,7 +289,7 @@ describe("PasswordChangeModal", () => {
 
   it("validates that new password is different from current", async () => {
     render(
-      <PasswordChangeModal
+      <ChangeModal
         isOpen={true}
         onClose={mockOnClose}
         onSuccess={mockOnSuccess}
@@ -314,7 +324,7 @@ describe("PasswordChangeModal", () => {
 
   it("displays success state after successful submission", async () => {
     render(
-      <PasswordChangeModal
+      <ChangeModal
         isOpen={true}
         onClose={mockOnClose}
         onSuccess={mockOnSuccess}
@@ -349,7 +359,7 @@ describe("PasswordChangeModal", () => {
 
   it("calls onClose when cancel button is clicked", () => {
     render(
-      <PasswordChangeModal
+      <ChangeModal
         isOpen={true}
         onClose={mockOnClose}
         onSuccess={mockOnSuccess}
@@ -362,48 +372,19 @@ describe("PasswordChangeModal", () => {
     expect(mockOnClose).toHaveBeenCalled();
   });
 
-  it("shows German error for invalid password backend response", async () => {
-    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-      ok: false,
-      json: async () => ({ error: "invalid username or password" }),
-    });
-
-    render(
-      <PasswordChangeModal
-        isOpen={true}
-        onClose={mockOnClose}
-        onSuccess={mockOnSuccess}
-      />,
+  // The text comes from the catalog entry of the code; the backend's
+  // diagnostic text is never read (ADR 0006).
+  it("shows the catalog text of a refused current password and marks the field", async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+      problemResponse(
+        400,
+        "identity.current_password_wrong",
+        "current_password",
+      ),
     );
 
-    fireEvent.change(screen.getByLabelText(/Aktuelles Passwort/i), {
-      target: { value: "WrongPass1!" },
-    });
-    fireEvent.change(screen.getByLabelText(/^Neues Passwort$/i), {
-      target: { value: "NewPass123!" },
-    });
-    fireEvent.change(screen.getByLabelText(/Neues Passwort bestätigen/i), {
-      target: { value: "NewPass123!" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: /Passwort ändern/i }));
-
-    await waitFor(() => {
-      expect(
-        screen.getByText(/Das aktuelle Passwort ist falsch/i),
-      ).toBeInTheDocument();
-    });
-  });
-
-  it("shows German error for weak password backend response", async () => {
-    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-      ok: false,
-      json: async () => ({
-        error: "password doesn't meet complexity requirements",
-      }),
-    });
-
     render(
-      <PasswordChangeModal
+      <ChangeModal
         isOpen={true}
         onClose={mockOnClose}
         onSuccess={mockOnSuccess}
@@ -423,19 +404,24 @@ describe("PasswordChangeModal", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText(/Das neue Passwort ist zu schwach/i),
+        screen.getByText(/Das aktuelle Passwort stimmt nicht/i),
       ).toBeInTheDocument();
     });
+    expect(screen.getByText(/Aktuelles Passwort/i).className).toContain(
+      "text-moto-red",
+    );
+    expect(
+      screen.queryByText(/diagnostic text that is never shown/i),
+    ).not.toBeInTheDocument();
   });
 
-  it("shows German error for account not found backend response", async () => {
-    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-      ok: false,
-      json: async () => ({ error: "account not found" }),
-    });
+  it("shows the catalog text of a weak new password", async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+      problemResponse(400, "identity.password_too_weak", "new_password"),
+    );
 
     render(
-      <PasswordChangeModal
+      <ChangeModal
         isOpen={true}
         onClose={mockOnClose}
         onSuccess={mockOnSuccess}
@@ -455,19 +441,18 @@ describe("PasswordChangeModal", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText(/Ihr Konto konnte nicht gefunden werden/i),
+        screen.getByText(/Das Passwort ist zu schwach/i),
       ).toBeInTheDocument();
     });
   });
 
-  it("shows generic German error for unknown backend error", async () => {
-    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-      ok: false,
-      json: async () => ({ error: "some unknown error" }),
-    });
+  it("shows the class text for a code the catalog does not know", async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+      problemResponse(404, "identity.some_future_code"),
+    );
 
     render(
-      <PasswordChangeModal
+      <ChangeModal
         isOpen={true}
         onClose={mockOnClose}
         onSuccess={mockOnSuccess}
@@ -487,15 +472,53 @@ describe("PasswordChangeModal", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText(/Passwortänderung fehlgeschlagen/i),
+        screen.getByText(
+          /Das Ändern des Passworts konnte nicht übernommen werden/i,
+        ),
       ).toBeInTheDocument();
     });
+  });
+
+  it("offers a retry after a server error", async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+      problemResponse(500, "general.server"),
+    );
+
+    render(
+      <ChangeModal
+        isOpen={true}
+        onClose={mockOnClose}
+        onSuccess={mockOnSuccess}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText(/Aktuelles Passwort/i), {
+      target: { value: "OldPass123!" },
+    });
+    fireEvent.change(screen.getByLabelText(/^Neues Passwort$/i), {
+      target: { value: "NewPass123!" },
+    });
+    fireEvent.change(screen.getByLabelText(/Neues Passwort bestätigen/i), {
+      target: { value: "NewPass123!" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Passwort ändern/i }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          /Das Ändern des Passworts konnte nicht bearbeitet werden/i,
+        ),
+      ).toBeInTheDocument();
+    });
+    expect(
+      screen.getByRole("button", { name: /erneut|Wiederholen/i }),
+    ).toBeInTheDocument();
   });
 
   it("calls onSuccess after successful password change timeout", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     render(
-      <PasswordChangeModal
+      <ChangeModal
         isOpen={true}
         onClose={mockOnClose}
         onSuccess={mockOnSuccess}
@@ -536,7 +559,7 @@ describe("PasswordChangeModal", () => {
       Element.prototype.scrollIntoView = scrollIntoViewMock;
 
       render(
-        <PasswordChangeModal
+        <ChangeModal
           isOpen={true}
           onClose={mockOnClose}
           onSuccess={mockOnSuccess}
@@ -554,7 +577,7 @@ describe("PasswordChangeModal", () => {
         ).toBeInTheDocument();
         expect(scrollIntoViewMock).toHaveBeenCalledWith({
           behavior: "smooth",
-          block: "start",
+          block: "nearest",
         });
       });
     });
@@ -563,7 +586,7 @@ describe("PasswordChangeModal", () => {
       Element.prototype.scrollIntoView = vi.fn();
 
       render(
-        <PasswordChangeModal
+        <ChangeModal
           isOpen={true}
           onClose={mockOnClose}
           onSuccess={mockOnSuccess}

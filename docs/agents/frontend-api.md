@@ -68,7 +68,7 @@ success wrapper. Their **backend errors still use the shared error path**:
 | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
 | `api/sse/events`, `api/parent/sse/events`, `api/school/sse/events`                                                                                                                                                                                         | `proxySSEStream` preserves a live event stream and abort propagation; a buffered JSON wrapper would prevent streaming.      |
 | `api/meal-plan/participants/export`, `api/students/export`, `api/statistics/export`, `api/students/day-log/export`, `api/students/[id]/attendance-history/export`                                                                                          | CSV/PDF export bytes and download headers must remain intact.                                                               |
-| `api/time-tracking/export`, `api/staff/time-tracking/export`, `api/staff/[id]/time-tracking/export`, `api/birthdays/staff-export`, `api/emergency/snapshot/export`, `api/guardians/payment-overview/export`, `api/operator/billing/key-date-counts/export` | CSV/PDF export bytes and download headers must remain intact; portal auth stays distinct.                                   |
+| `api/staff/time-tracking/export`, `api/staff/[id]/time-tracking/export`, `api/birthdays/staff-export`, `api/emergency/snapshot/export`, `api/guardians/payment-overview/export`, `api/operator/billing/key-date-counts/export` | CSV/PDF export bytes and download headers must remain intact; portal auth stays distinct.                                   |
 | `api/enrollment/phases/[id]/export`, `api/enrollment/admin/reports/care-usage/export`, `api/enrollment/admin/reports/class-roster/export`, `api/enrollment/admin/students/[studentId]/requests/export`                                                     | Enrollment export formats and filenames come from backend headers.                                                          |
 | `api/import/{students,teachers,class-list-entries,opening-balances}/template`                                                                                                                                                                              | Template file bytes and backend filenames cannot be JSON-wrapped.                                                           |
 | `api/announcement-attachments/[announcementId]/[attachmentId]/download`, `api/files/folders/[folderId]/files/[fileId]/download`, `api/staff/[id]/documents/[documentId]/download`, `api/students/[id]/documents/[documentId]/download`                     | Attachment bytes, MIME types, and dispositions are passed through.                                                          |
@@ -79,7 +79,7 @@ success wrapper. Their **backend errors still use the shared error path**:
 
 ### Audited direct-fetch exceptions
 
-The API tree has 737 route files. The 56 files below still call `fetch` directly
+The routes below still call `fetch` directly
 because they stream non-JSON content, use the shared file-upload wrapper, or
 perform a route-specific business/session adaptation. Client-visible backend
 errors use `forwardBackendResponse` or `backendResponseError`; the demo
@@ -89,7 +89,7 @@ A direct fetch outside this inventory needs a reason and a shared proxy path.
 
 | Route under `app/api/` | Reason the transparent JSON factory is not used |
 | --- | --- |
-| `activities/[id]/supervisors/[supervisorId]` | Performs session refresh and the documented TOKEN_EXPIRED mapping before forwarding. |
+| `activities/[id]/supervisors/[supervisorId]` | Refreshes the session before forwarding; an exhausted refresh answers 401 with `general.permission`. |
 | `announcement-attachments/[announcementId]` | Multipart attachment upload uses the shared file-upload validator. |
 | `announcement-attachments/[announcementId]/[attachmentId]/download` | Streams attachment bytes and disposition for a browser download. |
 | `auth/login` | Relays login response cookies as well as the backend body. |
@@ -146,7 +146,6 @@ A direct fetch outside this inventory needs a reason and a shared proxy path.
 | `students/[id]/photo/[filename]` | Serves student photo bytes with MIME and cache headers. |
 | `students/day-log/export` | Streams day-log export bytes with no-store caching. |
 | `students/export` | Streams the student export file and backend disposition. |
-| `time-tracking/export` | Streams time-tracking export bytes without JSON buffering. |
 
 The three SSE routes (`sse/events`, `parent/sse/events`, and
 `school/sse/events`) use `proxySSEStream` separately: each must keep its own
@@ -172,8 +171,8 @@ Business adapters are not transparent proxies: room history maps the
 documented 404 and `feature_disabled` 403 to an empty/disabled view;
 student privacy-consent GET maps an absent consent to its default model, and
 student PUT marks a consent write that succeeded before a later student write
-failed. Demo handoff produces a redirect after checking readiness. Auth
-refresh/retry and `TOKEN_EXPIRED` follow the session contract. All other
+failed. Demo handoff produces a redirect after checking readiness. An exhausted
+auth refresh/retry answers 401 with `general.permission`. All other
 backend errors in those routes retain the shared error contract. Logout
 forwards backend errors unchanged even though the browser always clears its
 local session.

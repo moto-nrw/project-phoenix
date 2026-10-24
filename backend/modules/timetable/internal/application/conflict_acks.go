@@ -3,11 +3,17 @@ package application
 import (
 	"context"
 
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 )
 
 func (s *Service) ListConflictAcks(ctx context.Context, accountID int64) (result []string, err error) {
-	err = s.run("list_conflict_acks", func(stats *domain.OperationStats) error {
+	if accountID <= 0 {
+		return nil, s.reject("list_conflict_acks", timetable.ErrInvalidConflictAck)
+	}
+
+	err = s.run(ctx, "list_conflict_acks", func(ctx context.Context, stats *domain.OperationStats) error {
 		values, queryStats, listErr := s.store.ListConflictAckFingerprints(ctx, accountID)
 		stats.Add(queryStats)
 		result = values
@@ -21,6 +27,10 @@ func (s *Service) ListConflictAcks(ctx context.Context, accountID int64) (result
 // domain.MaxConflictAcksPerAccount inside the same unit of work; a repeated
 // acknowledgement cannot grow the set and skips the prune.
 func (s *Service) AcknowledgeConflict(ctx context.Context, accountID int64, fingerprint string) error {
+	if accountID <= 0 || !timetable.ValidConflictAckFingerprint(fingerprint) {
+		return s.reject("acknowledge_conflict", timetable.ErrInvalidConflictAck)
+	}
+
 	return s.runWrite(ctx, "acknowledge_conflict", true, func(txCtx context.Context, stats *domain.OperationStats) error {
 		inserted, insertStats, err := s.store.InsertConflictAck(txCtx, accountID, fingerprint)
 		stats.Add(insertStats)
@@ -34,6 +44,10 @@ func (s *Service) AcknowledgeConflict(ctx context.Context, accountID int64, fing
 }
 
 func (s *Service) UnacknowledgeConflict(ctx context.Context, accountID int64, fingerprint string) error {
+	if accountID <= 0 || !timetable.ValidConflictAckFingerprint(fingerprint) {
+		return s.reject("unacknowledge_conflict", timetable.ErrInvalidConflictAck)
+	}
+
 	return s.runWrite(ctx, "unacknowledge_conflict", true, func(txCtx context.Context, stats *domain.OperationStats) error {
 		queryStats, err := s.store.DeleteConflictAck(txCtx, accountID, fingerprint)
 		stats.Add(queryStats)

@@ -1,15 +1,18 @@
 "use client";
 
 import { ChevronRight } from "lucide-react";
+import { Fragment, type ReactNode } from "react";
 
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import Link from "~/components/ui/navigation-link";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { BlockState } from "~/components/home/day-flow-block";
+import { blockStaffNames } from "~/components/timetable/block-row-parts";
 import { HOME_CARD_BODY, HomeCardIcon } from "~/components/home/home-card";
 import {
   HomeCardLink,
@@ -175,8 +178,8 @@ export function MyDayBlock() {
             <HomeMoreRow
               hidden={hidden}
               href={dayPlanHref}
-              label="Einsätze im Tagesplan"
-              singular="Einsatz im Tagesplan"
+              label="Einsätze"
+              singular="Einsatz"
             />
           </>
         );
@@ -249,26 +252,37 @@ function BlockRow({
     : isDuty
       ? "Dienst"
       : blockChildrenLabel(block);
-  const staff = (block.staffNames ?? [])
-    .map((entry) =>
-      entry.isSubstitute
-        ? `${entry.displayName} (Vertretung)`
-        : entry.displayName,
-    )
-    .join(", ");
+  const staff = blockStaffNames(block);
   // Was vorbei ist, steht als Wort in der Zeile, nicht als Marke rechts:
   // auf dem Handy nähme die Marke dem Namen den Platz, und „Beendet" muss
   // niemandem ins Auge springen. Rechts steht nur, was JETZT zählt.
-  const meta = [
+  // Raum und Personal tragen ihre Konzeptsymbole wie im Tagesplan (#4350).
+  const meta: ReactNode[] = [
     block.status === "completed" ? "Beendet" : null,
     missed ? "Nicht gestartet" : null,
-    room,
+    room ? (
+      <Fragment key="room">
+        <MotoConceptIcon
+          concept="rooms"
+          size={14}
+          className="mr-1 inline-block align-[-2px]"
+        />
+        {room}
+      </Fragment>
+    ) : null,
     block.groupName,
     children,
-    staff || null,
-  ]
-    .filter(Boolean)
-    .join(" · ");
+    staff ? (
+      <Fragment key="staff">
+        <MotoConceptIcon
+          concept="staff"
+          size={14}
+          className="mr-1 inline-block align-[-2px]"
+        />
+        {staff}
+      </Fragment>
+    ) : null,
+  ].filter(Boolean);
 
   return (
     <li>
@@ -284,7 +298,7 @@ function BlockRow({
       >
         <Link
           href={href}
-          aria-label={`${block.title} ${hasOpenEnd(block) ? `seit ${block.startTime}` : `${block.startTime} bis ${block.endTime}`}: ${running ? "Kinderliste öffnen" : "im Tagesplan öffnen"}`}
+          aria-label={`${block.title} ${hasOpenEnd(block) ? `seit ${block.startTime}` : `${block.startTime} bis ${block.endTime}`}: ${running ? "Kinderliste öffnen" : "unter Heute öffnen"}`}
           className="flex min-w-0 flex-1 items-center gap-3"
         >
           <span className="w-14 shrink-0 sm:w-16">
@@ -309,7 +323,9 @@ function BlockRow({
             <span className="block truncate text-xs text-gray-500">
               {cancelled && block.cancelReason
                 ? `Fällt aus · ${block.cancelReason}`
-                : meta}
+                : meta.flatMap((part, index) =>
+                    index === 0 ? [part] : [" · ", part],
+                  )}
             </span>
           </span>
         </Link>

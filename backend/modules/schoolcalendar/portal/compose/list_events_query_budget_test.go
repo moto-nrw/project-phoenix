@@ -1,10 +1,11 @@
 package compose_test
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
-	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
+	calModels "github.com/moto-nrw/project-phoenix/modules/appointments"
 	calendarSvc "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -44,25 +45,28 @@ func TestListMyStaffEventsQueryBudget(t *testing.T) {
 		}
 	}
 
-	counter := testpkg.CaptureQueries(t, db)
+	require.NoError(t, testpkg.WithinTenantContext(t, calendarContext(t, invitedAccount.ID), db, testpkg.TenantIDFromContext(calendarContext(t, invitedAccount.ID)), func(ctx context.Context) error {
+		counter := testpkg.CaptureQueries(t, db)
 
-	run := func() int {
-		counter.Reset()
-		events, err := service.ListMyStaffEvents(calendarContext(t, invitedAccount.ID), weekStart, weekStart.AddDays(6))
-		require.NoError(t, err)
-		require.Len(t, eventDates(events, calModels.EventSourceAppointment), created)
-		return counter.Total()
-	}
+		run := func() int {
+			counter.Reset()
+			events, err := service.ListMyStaffEvents(ctx, weekStart, weekStart.AddDays(6))
+			require.NoError(t, err)
+			require.Len(t, eventDates(events, calendarSvc.EventSourceAppointment), created)
+			return counter.Total()
+		}
 
-	addAppointments(3)
-	smallCount := run()
+		addAppointments(3)
+		smallCount := run()
 
-	addAppointments(5)
-	largeCount := run()
+		addAppointments(5)
+		largeCount := run()
 
-	t.Logf("query budget: 3 appointments → %d queries, 8 appointments → %d queries", smallCount, largeCount)
+		t.Logf("query budget: 3 appointments → %d queries, 8 appointments → %d queries", smallCount, largeCount)
 
-	assert.Equal(t, smallCount, largeCount,
-		"query count must be independent of the appointment count (no per-appointment N+1)")
-	testpkg.AssertQueryBudget(t, "services.calendar.list_my_staff_events", counter.Queries())
+		assert.Equal(t, smallCount, largeCount,
+			"query count must be independent of the appointment count (no per-appointment N+1)")
+		testpkg.AssertQueryBudget(t, "services.calendar.list_my_staff_events", counter.Queries())
+		return nil
+	}))
 }

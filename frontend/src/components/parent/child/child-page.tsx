@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   CalendarDotsIcon,
   IdentificationCardIcon,
-  UsersThreeIcon,
+  UsersIcon,
 } from "@phosphor-icons/react/ssr";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -74,6 +74,7 @@ export function ChildPage({
 }>) {
   const t = useTranslations("parentChild");
   const navT = useTranslations("parentNav");
+  const backT = useTranslations("parentChildDetail");
   const [children, setChildren] = useState<Child[]>([]);
   const [selectionToday, setSelectionToday] = useState<
     Readonly<Record<string, ChildToday>>
@@ -193,9 +194,7 @@ export function ChildPage({
         <ParentPageHeader
           title={navT(children.length > 1 ? "childrenMultiple" : "childSingle")}
           backHref={parentPath("/parents/children")}
-          backLabel={navT(
-            children.length > 1 ? "childrenMultiple" : "childSingle",
-          )}
+          backLabel={backT(children.length > 1 ? "back" : "backSingle")}
         />
         <p className="moto-content-surface rounded-2xl border p-5 text-sm leading-6 text-gray-600 shadow-sm backdrop-blur-md">
           {t("notFound")}
@@ -225,7 +224,7 @@ export function ChildPage({
         backHref={
           children.length > 1 ? parentPath("/parents/children") : undefined
         }
-        backLabel={children.length > 1 ? navT("childrenMultiple") : undefined}
+        backLabel={children.length > 1 ? backT("back") : undefined}
       />
       {/* key: ein Kindwechsel setzt alle Abschnitte zurueck, damit nie Daten
           des vorigen Kindes unter dem neuen Namen stehen. */}
@@ -383,6 +382,9 @@ function ChildSections({ child }: Readonly<{ child: Child }>) {
         careEnded={careEnded}
         sickDays={care.sickDays}
         excusedRequests={care.excusedRequests}
+        canEditAbsenceRequests={
+          care.features.absence_request_edit_enabled === true
+        }
         reasonRequired={requiresGuardianReason(care.features)}
         onCareRefresh={care.refresh}
       />
@@ -410,6 +412,9 @@ function ChildSections({ child }: Readonly<{ child: Child }>) {
           careExceptionsLoaded={care.careExceptionsLoaded}
           pickupChangeRequestsLoaded={care.pickupChangeRequestsLoaded}
           pickupChangeEnabled={care.features.pickup_change_enabled}
+          departureModeEnabled={
+            care.features.pickup_change_mode_enabled === true
+          }
           childFirstName={child.first_name}
           today={today ?? undefined}
           onClose={() => setModal(null)}
@@ -435,6 +440,7 @@ function ChildAreaTabs({
   careEnded,
   sickDays,
   excusedRequests,
+  canEditAbsenceRequests,
   reasonRequired,
   onCareRefresh,
 }: Readonly<{
@@ -447,6 +453,7 @@ function ChildAreaTabs({
   careEnded: boolean;
   sickDays: import("~/lib/parent-api").StatusDay[];
   excusedRequests: import("~/lib/parent-api").ExcusedRequest[];
+  canEditAbsenceRequests: boolean;
   reasonRequired: boolean;
   onCareRefresh: () => void;
 }>) {
@@ -484,7 +491,7 @@ function ChildAreaTabs({
             value="kontakte"
             label={t("areas.contacts.title")}
             shortLabel={t("areas.contacts.shortTitle")}
-            icon={UsersThreeIcon}
+            icon={UsersIcon}
             tourId="child-contacts-tab"
           />
         </TabsList>
@@ -502,6 +509,7 @@ function ChildAreaTabs({
               studentId={child.student_id}
               sickDays={sickDays}
               excusedRequests={excusedRequests}
+              canEdit={canEditAbsenceRequests}
               reasonRequired={reasonRequired}
               onEdited={onCareRefresh}
             />

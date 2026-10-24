@@ -27,10 +27,10 @@ import (
 
 func setupShiftCoverageRoute(t *testing.T) chi.Router {
 	t.Helper()
-	_, services := testutil.SetupTimetableModule(t)
-	resource := NewResource(Dependencies{Templates: services.TimetableData.Templates, TimetableData: services.TimetableData.Data, ConflictDetection: services.ConflictDetection})
+	_, services := RootCompositions.Module(t)
+	resource := newResourceForTest(Dependencies{Templates: services.Templates, TimetableData: services.Data, ConflictDetection: services.ConflictDetection})
 	router := chi.NewRouter()
-	router.Mount("/timetable", resource.Router())
+	router.Mount("/timetable", resource.Router(scopeTestTenantRoutes(testpkg.TenantSessionGatesWithCaches(scopeTestSettingsCache))))
 	return router
 }
 
@@ -212,18 +212,18 @@ func TestShiftCoverage_ValidationAndStableErrors(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			recorder := postShiftCoverage(t, router, test.body)
 			assert.Equal(t, http.StatusBadRequest, recorder.Code, recorder.Body.String())
-			assert.Contains(t, recorder.Body.String(), `"error":"invalid shift coverage request"`)
+			assert.Contains(t, recorder.Body.String(), `"detail":"invalid shift coverage request"`)
 		})
 	}
 
 	t.Run("internal cause is hidden", func(t *testing.T) {
-		resource := NewResource(Dependencies{ConflictDetection: failingShiftCoverage{err: errors.New("dependencies are not wired")}})
+		resource := newResourceForTest(Dependencies{ConflictDetection: failingShiftCoverage{err: errors.New("dependencies are not wired")}})
 		failureRouter := shiftCoverageRouter(s.ctx, resource)
 		recorder := postShiftCoverage(t, failureRouter, ShiftCoverageRequest{
 			Dates: []string{validDate.String()}, StartTime: "09:00", EndTime: "10:00", StaffIDs: []int64{99},
 		})
 		assert.Equal(t, http.StatusInternalServerError, recorder.Code)
-		assert.Contains(t, recorder.Body.String(), `"error":"shift coverage could not be checked"`)
+		assert.Contains(t, recorder.Body.String(), `"detail":"shift coverage could not be checked"`)
 		assert.NotContains(t, recorder.Body.String(), "dependencies are not wired")
 	})
 }

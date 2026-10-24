@@ -11,6 +11,7 @@ import {
   waitFor,
   cleanup,
   fireEvent,
+  within,
 } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
@@ -33,6 +34,8 @@ const defaultSupervisionState = vi.hoisted(() => ({
 // Mock auth-utils with hasRole that reads session roles
 vi.mock("~/lib/auth-utils", () => ({
   hasPermission: () => false,
+  canReadSupervisionData: (session: { user?: { isAdmin?: boolean } } | null) =>
+    !(session?.user?.isAdmin ?? false),
   isAdmin: (session: { user?: { isAdmin?: boolean } } | null) =>
     session?.user?.isAdmin ?? false,
   isCaregiver: (session: { user?: { isAdmin?: boolean } } | null) =>
@@ -227,16 +230,6 @@ vi.mock("~/lib/location-helper", async (importOriginal) => {
 // Mock pickup-helpers
 vi.mock("~/lib/pickup-helpers", () => ({
   useMinuteClock: () => new Date("2026-01-15T12:00:00"),
-}));
-
-// Mock pickup-schedule-api
-vi.mock("~/lib/pickup-schedule-api", () => ({
-  fetchBulkPickupTimes: vi.fn(() => Promise.resolve(new Map())),
-}));
-
-// Mock student-arrival-api
-vi.mock("~/lib/student-arrival-api", () => ({
-  fetchBulkArrivalTimes: vi.fn(() => Promise.resolve(new Map())),
 }));
 
 // Mock StudentCard components
@@ -457,6 +450,7 @@ function rosterKeysRequested(): string[] {
 }
 
 beforeEach(() => {
+  navigationMockState.roomParam = null;
   navigationMockState.sessionParam = null;
   vi.mocked(useSession)
     .mockReset()
@@ -480,6 +474,13 @@ beforeEach(() => {
       isValidating: false,
     } as never);
 });
+
+// Die Statuszeile steht in der Kopfkarte der Seite (#4354: mit Symbolen).
+function pageHead(): HTMLElement {
+  const head = document.querySelector("header");
+  if (!head) throw new Error("page head missing");
+  return head;
+}
 
 describe("Action button click handlers", () => {
   const mockMutate = vi.fn();
@@ -516,6 +517,8 @@ describe("Action button click handlers", () => {
   });
 
   it("clicking release supervision button opens the modal", async () => {
+    // Den offenen Raum öffnet seine Raumseite per Raum-ID (#4372).
+    navigationMockState.roomParam = "schulhof-r1";
     vi.mocked(useSWRAuth)
       .mockReturnValueOnce({
         data: {
@@ -587,6 +590,8 @@ describe("Action button click handlers", () => {
   });
 
   it("clicking the release action opens the modal", async () => {
+    // Den offenen Raum öffnet seine Raumseite per Raum-ID (#4372).
+    navigationMockState.roomParam = "schulhof-r1";
     vi.mocked(useSWRAuth)
       .mockReturnValueOnce({
         data: {
@@ -655,6 +660,8 @@ describe("Action button click handlers", () => {
   });
 
   it("clicking Beaufsichtigen claims the open Schulhof session", async () => {
+    // Den offenen Raum öffnet seine Raumseite per Raum-ID (#4372).
+    navigationMockState.roomParam = "schulhof-r1";
     const { activeService } = await import("~/lib/active-api");
     vi.mocked(activeService.claimActiveGroup).mockResolvedValue(
       undefined as never,
@@ -724,6 +731,8 @@ describe("Action button click handlers", () => {
   });
 
   it("clicking Beaufsichtigen shows loading state", async () => {
+    // Den offenen Raum öffnet seine Raumseite per Raum-ID (#4372).
+    navigationMockState.roomParam = "schulhof-r1";
     const { activeService } = await import("~/lib/active-api");
     // Make the claim take time
     vi.mocked(activeService.claimActiveGroup).mockImplementation(
@@ -856,7 +865,7 @@ describe("open-room tab onTabChange callback", () => {
     });
   });
 
-  it("clicking a released room's tab opens it by its real room id", async () => {
+  it("keeps the last own supervision when selecting a shared room tab", async () => {
     const { activeService } = await import("~/lib/active-api");
     vi.mocked(activeService.getActiveGroupVisitsWithDisplay).mockResolvedValue(
       [] as never,
@@ -883,17 +892,17 @@ describe("open-room tab onTabChange callback", () => {
         roomId: "schulhof-r1",
         roomName: "Schulhof",
         activityGroupId: "ag-1",
-        activeGroupId: "active-schulhof",
-        isUserSupervising: true,
-        supervisionId: "sup-1",
+        activeGroupId: null,
+        isUserSupervising: false,
+        supervisionId: null,
         supervisorCount: 1,
         studentCount: 5,
         supervisors: [
           {
             id: "sup-1",
-            staffId: "staff-1",
-            name: "Test Teacher",
-            isCurrentUser: true,
+            staffId: "staff-2",
+            name: "Andere Betreuungskraft",
+            isCurrentUser: false,
           },
         ],
       },
@@ -901,8 +910,8 @@ describe("open-room tab onTabChange callback", () => {
         {
           roomId: "schulhof-r1",
           name: "Schulhof",
-          isUserSupervising: true,
-          activeGroupIds: ["active-schulhof"],
+          isUserSupervising: false,
+          activeGroupIds: [],
           studentCount: 5,
           students: [],
         },
@@ -929,6 +938,10 @@ describe("open-room tab onTabChange callback", () => {
             isValidating: false,
           } as never)) as never);
 
+    navigationMockState.roomParam = "schulhof-r1";
+    localStorage.setItem("supervision-last-session", "room-1");
+    const removeItem = vi.spyOn(localStorage, "removeItem");
+
     render(<MeinRaumPage />);
 
     // Wait for tabs to render
@@ -946,6 +959,8 @@ describe("open-room tab onTabChange callback", () => {
         "/test-tenant/active-supervisions?room=schulhof-r1",
       );
     });
+    expect(removeItem).not.toHaveBeenCalledWith("supervision-last-session");
+    expect(localStorage.getItem("supervision-last-session")).toBe("room-1");
 
     // The room's occupancy already arrived with the dashboard, so opening it
     // starts no visits request of its own.
@@ -991,6 +1006,9 @@ describe("open-room tab onTabChange callback", () => {
         },
       ],
     };
+    // Ohne eigene Aufsicht steht der offene Raum nur als Reiter, solange er
+    // geöffnet ist (#4372): über seine Raumseite, also per Raum-ID.
+    navigationMockState.roomParam = "1";
 
     vi.mocked(useSWRAuth).mockImplementation(((key: unknown) =>
       typeof key === "string" && key.startsWith("active-supervision-dashboard")
@@ -1324,7 +1342,7 @@ describe("open-room tab onTabChange callback", () => {
       screen.getByText("13:00–14:00 Uhr · Sie sind hier nicht eingeplant."),
     ).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Sporthalle" })).toBeVisible();
-    expect(screen.getByText("1 Kind", { selector: "div" })).toBeVisible();
+    expect(within(pageHead()).getByText("1 Kind")).toBeVisible();
   });
 
   it("shows a released room the caller does not supervise", async () => {
@@ -1386,19 +1404,26 @@ describe("open-room tab onTabChange callback", () => {
         isValidating: false,
       } as never);
 
+    // Ohne eigene Aufsicht öffnet die Raumseite den offenen Raum per
+    // Raum-ID (#4372); einen Reiter hat er nur, solange er geöffnet ist.
+    navigationMockState.roomParam = "schulhof-r1";
+    // Die zuletzt gewählte eigene Aufsicht bleibt gemerkt: dorthin führt
+    // „Aktuelle Aufsicht“ zurück.
+    const removeItem = vi.spyOn(localStorage, "removeItem");
+
     render(<MeinRaumPage />);
 
     await waitFor(() => {
-      expect(screen.getByRole("tab", { name: "Schulhof" })).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByRole("tab", { name: "Schulhof" }));
-
-    await waitFor(() => {
-      expect(mockPush).toHaveBeenCalledWith(
-        "/test-tenant/active-supervisions?room=schulhof-r1",
+      expect(screen.getByRole("tab", { name: "Schulhof" })).toHaveAttribute(
+        "aria-selected",
+        "true",
       );
     });
+    // Der Rückweg führt auf die Raumseite, von der aus er geöffnet wurde.
+    expect(
+      screen.getByRole("link", { name: /Zurück zum Raum/ }),
+    ).toHaveAttribute("href", expect.stringContaining("/rooms/schulhof-r1"));
+    expect(removeItem).not.toHaveBeenCalledWith("supervision-last-session");
 
     // The head card names the room an open room and carries no "Eigene
     // Aufsicht" — and the room stays open anyway. Hiding it from everyone but
@@ -1412,6 +1437,59 @@ describe("open-room tab onTabChange callback", () => {
     expect(
       activeService.getActiveGroupVisitsWithDisplay,
     ).not.toHaveBeenCalled();
+  });
+
+  it("opens no released room on its own without an own supervision (#4372)", async () => {
+    // „Aktuelle Aufsicht“ zeigt nur Aufsichten. Ein offener Raum ohne eigene
+    // Aufsicht öffnet sich erst über seine Raumseite (`?room=`).
+    const dashboardData = {
+      supervisedGroups: [],
+      unclaimedGroups: [],
+      currentStaff: { id: "staff-1" },
+      educationalGroups: [],
+      firstRoomVisits: [],
+      firstRoomId: null,
+      selectedGroupId: null,
+      capabilities: { webSpontaneousActivitiesEnabled: false },
+      schulhofStatus: null,
+      openRooms: [
+        {
+          roomId: "kreativ-r1",
+          name: "Kreativraum",
+          isUserSupervising: false,
+          activeGroupIds: ["active-other"],
+          studentCount: 4,
+          students: [],
+        },
+      ],
+    };
+
+    vi.mocked(useSWRAuth).mockImplementation(((key: unknown) =>
+      typeof key === "string" && key.startsWith("active-supervision-dashboard")
+        ? ({
+            data: dashboardData,
+            isLoading: false,
+            error: null,
+            mutate: mockMutate,
+            isValidating: false,
+          } as never)
+        : ({
+            data: null,
+            isLoading: false,
+            error: null,
+            mutate: mockMutate,
+            isValidating: false,
+          } as never)) as never);
+
+    render(<MeinRaumPage />);
+
+    expect(
+      await screen.findByText("Sie beaufsichtigen aktuell keinen Raum."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Offener Raum")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Kreativraum" }),
+    ).not.toBeInTheDocument();
   });
 
   it("switching from a released room back to an own session", async () => {
@@ -1645,7 +1723,7 @@ describe("released room with running blocks (#3281)", () => {
     // The head counts every child in the room once: the blocks' and the
     // independent stay.
     expect(screen.getByRole("heading", { name: "Schulhof" })).toBeVisible();
-    expect(screen.getByText("5 Kinder", { selector: "div" })).toBeVisible();
+    expect(within(pageHead()).getByText("5 Kinder")).toBeVisible();
     // Block children live in the rosters; only the independent stay is a card.
     expect(screen.getByRole("heading", { name: "Ohne Angebot" })).toBeVisible();
     expect(
@@ -1750,7 +1828,7 @@ describe("released room with running blocks (#3281)", () => {
     ).toHaveAttribute("aria-expanded", "true");
     expect(rosterKeysRequested()).toEqual([]);
     expect(screen.getByRole("heading", { name: "Schulhof" })).toBeVisible();
-    expect(screen.getByText("1 Kind", { selector: "div" })).toBeVisible();
+    expect(within(pageHead()).getByText("1 Kind")).toBeVisible();
   });
 
   it("lets an admin operate and staff every block", async () => {

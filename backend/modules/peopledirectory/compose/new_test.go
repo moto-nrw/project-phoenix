@@ -14,15 +14,15 @@ import (
 	"github.com/uptrace/bun"
 )
 
-func buildModule(t *testing.T, db *bun.DB, observations ...func(Observation)) *peopledirectory.Module {
+func buildModule(t *testing.T, db *bun.DB, observations ...func(Observation)) peopledirectory.Owner {
 	t.Helper()
 	observe := func(Observation) {}
 	if len(observations) > 0 {
 		observe = observations[0]
 	}
-	module, err := NewWithGuardianMemberships(Dependencies{DB: db, Observe: observe, GuardianLinkOwners: testGuardianLinkOwners{db: db}}, testPortalMemberships(db))
+	module, err := New(Dependencies{StudentDirectory: testpkg.StudentDirectory{}, DB: db, Observe: observe, GuardianLinkOwners: testGuardianLinkOwners{Db: db}, GuardianLinkRows: testpkg.GuardianLinks{}}, testPortalMemberships(db))
 	require.NoError(t, err)
-	return module
+	return module.Owner
 }
 
 func testPortalMemberships(db *bun.DB) GuardianMembershipQuery {
@@ -55,13 +55,20 @@ func testPortalMemberships(db *bun.DB) GuardianMembershipQuery {
 // Access's portal access of a link in the caller's transaction, as the
 // composition root's owner commands do (#2756). The module's own contracts are
 // under test here; the owners are tested with their modules.
-type testGuardianLinkOwners struct{ db *bun.DB }
+type testGuardianLinkOwners struct{ Db *bun.DB }
 
 func (o testGuardianLinkOwners) queryDB(ctx context.Context) bun.IDB {
 	if transaction, ok := tenant.TransactionFromContext(ctx); ok {
 		return transaction.(bun.Tx)
 	}
-	return o.db
+	return o.Db
+}
+
+func (o testGuardianLinkOwners) LockLiveGuardianAccount(ctx context.Context, accountID int64) (bool, error) {
+	var ids []int64
+	err := o.queryDB(ctx).NewRaw(`SELECT id FROM auth.accounts
+		WHERE id = ? AND personal_data_erased_at IS NULL FOR KEY SHARE`, accountID).Scan(ctx, &ids)
+	return len(ids) == 1, err
 }
 
 func (o testGuardianLinkOwners) CreateGuardianPickupPermission(ctx context.Context, tenantID, relationshipID int64, canPickup bool, notes *string) error {
@@ -88,6 +95,16 @@ func (o testGuardianLinkOwners) GrantGuardianStudentAccess(ctx context.Context, 
 	_, err := o.queryDB(ctx).NewRaw(`INSERT INTO auth.guardian_student_access (tenant_id, relationship_id, account_id, permissions)
 		VALUES (?, ?, ?, ?::jsonb)`, tenantID, relationshipID, accountID, string(permissions)).Exec(ctx)
 	return err
+}
+
+func (o testGuardianLinkOwners) SetGuardianStudentPermissions(ctx context.Context, tenantID, relationshipID int64, permissions json.RawMessage) (bool, error) {
+	result, err := o.queryDB(ctx).NewRaw(`UPDATE auth.guardian_student_access SET permissions = ?::jsonb
+		WHERE tenant_id = ? AND relationship_id = ?`, string(permissions), tenantID, relationshipID).Exec(ctx)
+	if err != nil {
+		return false, err
+	}
+	affected, err := result.RowsAffected()
+	return affected > 0, err
 }
 
 func otherTenantContext(t *testing.T, db *bun.DB) (context.Context, int64) {
@@ -407,4 +424,25 @@ func TestModuleRestoreTagKeepsABraceletGivenInTheMeantime(t *testing.T) {
 	assert.Equal(t, person.ID, holder.ID)
 	_, err = module.FindPersonByTag(ctx, oldCard.ID)
 	require.ErrorIs(t, err, peopledirectory.ErrPersonNotFound, "the ledgered bracelet stays free")
+}
+
+func TestDirectoryReadRequiresTenantAndEnforcesRLS(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildModule(t, db)
+	own := testpkg.CreateTestPerson(t, db, "Tenant", "Own")
+	otherCtx, otherTenant := otherTenantContext(t, db)
+	foreign := testpkg.CreateTestPersonForTenant(t, db, otherTenant, "Tenant", "Foreign")
+	ctx := testpkg.Ctx(t)
+	for _, side := range []struct {
+		ctx     context.Context
+		visible int64
+	}{{ctx, own.ID}, {otherCtx, foreign.ID}} {
+		people, err := module.ListPersonsByID(side.ctx, []int64{own.ID, foreign.ID})
+		require.NoError(t, err)
+		require.Len(t, people, 1)
+		require.Equal(t, side.visible, people[0].ID)
+	}
+	_, err := module.ListPersonsByID(tenant.ContextWithoutTenant(ctx), []int64{own.ID, foreign.ID})
+	require.ErrorIs(t, err, tenant.ErrTenantRequired)
 }

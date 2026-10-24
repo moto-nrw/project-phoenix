@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	directoryPorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -32,8 +34,8 @@ func TestOperationalDateEditRejectsAssignmentsAddedAfterDiscovery(t *testing.T) 
 			instance := createOwnedActivityInstance(t, module, ctx, fixture, past, "08:00:00", "History")
 			createOwnedInstanceStaff(t, module, ctx, instance.ID, first.ID, true, false)
 			interleaved := false
-			editor, err := New(Dependencies{DB: db,
-				Students: StudentDirectoryFunc(func(context.Context) ([]TargetStudent, error) { return nil, nil }),
+			editor, err := New(Dependencies{Provenance: testpkg.EnrollmentProvenance{}, DB: db,
+				Students: directoryPorts.StudentDirectoryFunc(func(context.Context) ([]directoryPorts.TargetStudent, error) { return nil, nil }),
 				Rooms:    testRooms(), Sessions: &fixedSessions{},
 				Observe: func(Observation) {},
 				LockStaffAssignment: func(context.Context, int64) error {

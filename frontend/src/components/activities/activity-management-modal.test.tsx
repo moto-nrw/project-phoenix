@@ -240,9 +240,9 @@ describe("ActivityManagementModal", () => {
       />,
     );
 
-    await waitFor(() => {
-      expect(screen.queryByText("Speichern")).not.toBeInTheDocument();
-    });
+    // Anker: die Fußzeile, in der „Speichern“ neben „Abbrechen“ stünde, ist da.
+    expect(await screen.findByText("Abbrechen")).toBeInTheDocument();
+    expect(screen.queryByText("Speichern")).not.toBeInTheDocument();
   });
 
   it("renders delete button when not read-only", async () => {

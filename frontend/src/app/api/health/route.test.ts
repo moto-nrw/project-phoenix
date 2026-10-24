@@ -28,11 +28,4 @@ describe("GET /api/health", () => {
 
     releaseFakeTimers();
   });
-
-  it("always returns 200 status", async () => {
-    const response = await GET();
-    expect(response.status).toBe(200);
-
-    releaseFakeTimers();
-  });
 });

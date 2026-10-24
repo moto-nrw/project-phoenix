@@ -23,6 +23,10 @@ All paths below are relative to the repository root.
 
 ## Safety and cross-stack invariants
 
+- **Backend architecture is an implementation constraint.** Follow the
+  [target architecture](backend/CLAUDE.md#target-architecture) for every backend
+  change, including bug fixes and small edits, whether or not a PR is requested.
+  Choose compliant boundaries before coding; the PR records the evidence.
 - **School ID is the tenant boundary.** Preserve tenant-scoped transactions,
   RLS, and isolation between tenant, operator, parents, and school sessions.
   Parent-child access requires relationship-level permissions, not membership alone.
@@ -37,7 +41,7 @@ All paths below are relative to the repository root.
   School-admin runtime configuration uses tenant overrides and registry defaults
   only; consumers must not add env fallbacks, including for legacy compatibility.
   Exact exceptions and sync steps: [.claude/rules/env-docker-sync.md](.claude/rules/env-docker-sync.md).
-- **Dates and IDs:** calendar dates are `timezone.Date` / `YYYY-MM-DD`, instants
+- **Dates and IDs:** calendar dates are `calendar.Date` (`sharedkernel/calendar`) / `YYYY-MM-DD`, instants
   are timestamps, and clock times use wall-clock normalization. Backend `int64`
   IDs map to frontend strings. Load the date rule before changing date logic.
 - **API contracts:** paths use kebab-case; migrate touched legacy snake_case
@@ -53,17 +57,18 @@ path-scoped rules automatically.
 
 | Task or affected surface | Required guidance |
 |---|---|
-| Any backend change | [backend/CLAUDE.md](backend/CLAUDE.md), including Active Architecture Migration #2580; inspect affected policy entries before choosing a boundary |
+| Any backend change | [backend/CLAUDE.md](backend/CLAUDE.md), including its target architecture; inspect affected policy entries before choosing a boundary |
 | Any frontend change | [frontend/AGENTS.md](frontend/AGENTS.md) and [frontend/CLAUDE.md](frontend/CLAUDE.md) |
 | Login, MFA, refresh, sessions, routing, tenant scoping, enrollment, IoT | [docs/agents/contracts.md](docs/agents/contracts.md); check affected session mint/renew paths and wrong-portal rejection |
 | Auth, permissions, crypto, certificates, uploads, sensitive data | [.claude/rules/security/project-security.md](.claude/rules/security/project-security.md); parent-child access also requires [.claude/rules/guardian-parent-permissions.md](.claude/rules/guardian-parent-permissions.md) |
 | Dates, attendance days, recurrence, clock times | [.claude/rules/calendar-dates.md](.claude/rules/calendar-dates.md); shifts/timetables also require backend Domain Knowledge |
+| Error responses, error codes, error display | [.claude/rules/error-path.md](.claude/rules/error-path.md) |
 | Tenant settings | [.claude/rules/settings-system.md](.claude/rules/settings-system.md) and the `settings` skill |
 | Env vars, Docker, SOPS, deployment | [.claude/rules/env-docker-sync.md](.claude/rules/env-docker-sync.md) and [docs/agents/operations.md](docs/agents/operations.md) |
 | User-visible UI, emails, kiosk, help | [.claude/rules/verstaendlichkeit.md](.claude/rules/verstaendlichkeit.md); load `moto-einfache-sprache` before German copy, [.claude/rules/frontend-ui-kit.md](.claude/rules/frontend-ui-kit.md) before frontend UI |
 | New/changed tenant feature flow or help content | [.claude/rules/help-guide-sync.md](.claude/rules/help-guide-sync.md); update guide and affected screenshots in the same PR (exemptions in the rule) |
 | New page, new writing route, new portal surface, analytics events, or PostHog dashboards | [.claude/rules/usage-analytics.md](.claude/rules/usage-analytics.md); the page guard in `analytics-routes.test.ts` and the route guard in `TestFullProductionRouterGolden` enforce it |
-| Failing or changing tests | [.claude/rules/no-test-modifications.md](.claude/rules/no-test-modifications.md); [backend fixture rules](docs/agents/backend-testing.md); [frontend test clock](docs/agents/frontend-testing.md) for date- or timer-sensitive Vitest tests |
+| Failing or changing tests | [.claude/rules/no-test-modifications.md](.claude/rules/no-test-modifications.md); [backend fixture rules](docs/agents/backend-testing.md); [frontend tests](docs/agents/frontend-testing.md) for date- or timer-sensitive or absence-asserting Vitest tests |
 | Domain terminology or architecture decisions | [CONTEXT.md](CONTEXT.md), relevant `docs/adr/`, [docs/agents/domain.md](docs/agents/domain.md) |
 | Issues or labels | [docs/agents/issue-tracker.md](docs/agents/issue-tracker.md), [docs/agents/triage-labels.md](docs/agents/triage-labels.md) |
 | PR screenshots or service/test-DB commands | [docs/agents/operations.md](docs/agents/operations.md) |
@@ -72,14 +77,18 @@ path-scoped rules automatically.
 
 ## Completion and commands
 
-Run the app with `scripts/dev-native.sh up` (infra in Compose, app native; `--profile full` for containers).
+Start app servers only when the task needs a running UI or API. Use the smallest
+native mode: `scripts/dev-native.sh up backend`, `up frontend`, or `up` for both.
+Tests initialize their own test database and need no app servers. Use the full
+container stack only for an explicit container task; commands and lifecycle:
+[operations](docs/agents/operations.md).
 Tools belong in Devbox; do not depend on unrecorded global installations.
 
 | Change | Required verification |
 |---|---|
 | Frontend | `cd frontend && pnpm run check` — zero warnings; relevant behavior tests |
 | Backend | Relevant tests via `scripts/run-go-toolchain.sh`; architecture migration checks in backend/CLAUDE.md |
-| Code before push | `scripts/test-changed.sh origin/development` without `--fast` |
+| Code before push | `scripts/run-go-toolchain.sh scripts/test-changed.sh origin/development` without `--fast` |
 | User-visible | Verständlichkeit checklist recorded in PR; UI screenshot and help-guide requirements from the matching rules |
 | Docs/hooks only | `node scripts/check-agent-context.mjs` and `node --test scripts/check-agent-context.test.mjs`; verify changed hook behavior |
 
@@ -92,7 +101,12 @@ a missing tool or failed command is not a passed check.
 PRs target `development`, or the branch of the PR below them when stacking;
 the `stacked-pr` skill owns that flow. Commit types: `feat`, `fix`,
 `refactor`, `chore`, `docs`, `test`, `style`. Use descriptive titles and names,
-without AI/tool branding or `Co-Authored-By: Claude`.
+without AI/tool branding or `Co-Authored-By: Claude`. PR bodies follow
+[the PR template](.github/PULL_REQUEST_TEMPLATE.md) also with `gh pr create --body`;
+they open with its user TL;DR: who notices what, or „Keine Änderung für Nutzer“.
+Every PR description, including CLI-created PRs and updates, must fill in the
+template's **Backend-Architektur** section with concrete evidence of adherence
+to the backend target architecture, or explain why the backend is unaffected.
 
 Use named and task-relevant skills; load their `SKILL.md` through the available
 skill tool or read the file directly. The runtime catalog is the discovery

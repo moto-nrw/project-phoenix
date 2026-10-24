@@ -2,6 +2,7 @@ package compose
 
 import (
 	"github.com/moto-nrw/project-phoenix/modules/dataimport"
+	binding "github.com/moto-nrw/project-phoenix/modules/dataimport/internal/adapters/runtimebinding"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 )
 
@@ -23,10 +24,9 @@ func (schoolRolePolicy) NeedsCaregiver(role *dataimport.SchoolRole) bool {
 // These policies consume only classification and tenancy facts, not loaded
 // permission relations. Grant checks consume SchoolRole directly elsewhere.
 func assignmentFacts(role *dataimport.SchoolRole) *identityaccess.RoleFacts {
-	if role == nil {
-		return nil
-	}
-	return &identityaccess.RoleFacts{
-		ID: role.ID, TenantID: role.TenantID, Name: role.Name, IsSystem: role.IsSystem, BaseRole: role.BaseRole,
-	}
+	return binding.AssignmentFacts(role, newAssignmentFacts)
+}
+
+func newAssignmentFacts(id int64, school *int64, name string, system bool, base *string, schoolPortal bool) identityaccess.RoleFacts {
+	return identityaccess.RoleFacts{ID: id, TenantID: school, Name: name, IsSystem: system, BaseRole: base, SchoolPortal: schoolPortal}
 }

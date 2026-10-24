@@ -113,10 +113,17 @@ export function isCaregiver(session: Session | null): boolean {
 }
 
 /**
- * Check if the user is authenticated
+ * Whether this session can load the group data that powers active
+ * supervisions. Sessions minted before permission claims existed retain the
+ * caregiver fallback; an explicit permission list is authoritative.
  */
-export function isAuthenticated(session: Session | null): boolean {
-  return !!session?.user?.token;
+export function canReadSupervisionData(session: Session | null): boolean {
+  const permissions = session?.user?.permissions;
+  return (
+    hasEffectiveAdminScope(session) ||
+    hasPermission(session, "groups:read") ||
+    (!Array.isArray(permissions) && isCaregiver(session))
+  );
 }
 
 /**
@@ -130,22 +137,4 @@ export function getUserDisplayName(session: Session | null): string {
   }
 
   return session.user.name ?? session.user.email ?? "User";
-}
-
-/**
- * Get the user's roles as a comma-separated string
- */
-export function getUserRolesDisplay(session: Session | null): string {
-  if (!session?.user?.roles || session.user.roles.length === 0) {
-    return "No roles";
-  }
-
-  return session.user.roles.join(", ");
-}
-
-/**
- * Check if the session has an error that requires re-authentication
- */
-export function requiresReauth(session: Session | null): boolean {
-  return session?.error === "RefreshTokenExpired";
 }

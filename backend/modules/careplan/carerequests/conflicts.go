@@ -30,3 +30,14 @@ type Conflicts interface {
 	DecideConflictRequest(context.Context, DecideInput) error
 	WriteStaffValue(context.Context, StaffValueWrite) error
 }
+
+// StaffPickupValue reads the pickup time a staff member entered for a
+// conflict group, the "value" of {"value": "HH:MM"}. Anything but a string
+// is an invalid payload.
+func StaffPickupValue(value any) (string, error) {
+	pickup, ok := value.(string)
+	if !ok {
+		return "", ErrInvalidPayload
+	}
+	return pickup, nil
+}

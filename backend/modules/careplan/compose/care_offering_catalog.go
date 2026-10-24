@@ -2,6 +2,7 @@ package compose
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -38,19 +39,10 @@ type PickupResyncer = ports.PickupResyncer
 // CatalogRowNotFound marks an owner's not-found error for the catalog: a
 // phase, activity group or calendar period that does not exist in the
 // tenant. The error keeps its text.
-func CatalogRowNotFound(err error) error {
-	return &catalogRowNotFound{err: err}
-}
+func CatalogRowNotFound(err error) error { return ports.CatalogRowNotFound(err) }
 
-type catalogRowNotFound struct{ err error }
-
-func (e *catalogRowNotFound) Error() string { return e.err.Error() }
-
-func (e *catalogRowNotFound) Unwrap() []error { return []error{e.err, ports.ErrCatalogRowNotFound} }
-
-// CareOfferingCatalogDependencies bind the catalog to its owners. The
-// resolvers are called on every edit, so the composition can bind the
-// Enrollment decision service after the catalog exists.
+// CareOfferingCatalogDependencies bind the catalog to its owners and the
+// resyncers an edit keeps in step.
 type CareOfferingCatalogDependencies struct {
 	Records      CatalogRecords
 	Phases       CatalogPhases
@@ -61,17 +53,25 @@ type CareOfferingCatalogDependencies struct {
 	Translations CatalogTranslations
 	SourceRules  OfferingSourceRules
 
-	SourcedTemplates func() SourcedTemplateResyncer
-	Pickup           func() PickupResyncer
+	SourcedTemplates SourcedTemplateResyncer
+	Pickup           PickupResyncer
 
 	LockTemplateRecurrence func(context.Context) error
 	Today                  func() calendar.Date
 	Logger                 *slog.Logger
 }
 
-// NewCareOfferingCatalog composes the Care Plan care-offering catalog.
-func NewCareOfferingCatalog(deps CareOfferingCatalogDependencies) (careplan.CareOfferingCatalogCapability, error) {
-	return application.NewCareOfferingCatalog(application.CareOfferingCatalogDependencies{
+// NewCareOfferingCatalogWithBookings composes the catalog and the booking
+// materialization it resyncs through; their mutual references must be unset.
+func NewCareOfferingCatalogWithBookings(catalog CareOfferingCatalogDependencies, bookings BookingMaterializationDependencies) (careplan.CareOfferingCatalogCapability, careplan.BookingMaterializationCapability, error) {
+	if bookings.Catalog != nil {
+		return nil, nil, errors.New("care offering catalog with bookings: the catalog is composed here and must be unset")
+	}
+	return application.NewCareOfferingCatalogWithBookings(catalogDependencies(catalog), bookingDependencies(bookings, nil))
+}
+
+func catalogDependencies(deps CareOfferingCatalogDependencies) application.CareOfferingCatalogDependencies {
+	return application.CareOfferingCatalogDependencies{
 		Records: deps.Records, Phases: deps.Phases, Timetable: deps.Timetable, Calendar: deps.Calendar,
 		Bookings: deps.Bookings, Settings: deps.Settings, Translations: deps.Translations, SourceRules: deps.SourceRules,
 		SourcedTemplates: deps.SourcedTemplates, Pickup: deps.Pickup,
@@ -79,5 +79,17 @@ func NewCareOfferingCatalog(deps CareOfferingCatalogDependencies) (careplan.Care
 		MarkRollback:           tenant.MarkRollback,
 		Today:                  deps.Today,
 		Logger:                 deps.Logger,
-	})
+	}
+}
+
+// NewCareOfferings serves the catalog, the booking materialization it feeds,
+// the offering-change review and the pickup adjustments as one Care Plan
+// capability.
+func NewCareOfferings(
+	catalog careplan.CareOfferingCatalogCapability,
+	bookings careplan.BookingMaterializationCapability,
+	changes careplan.OfferingChangeCapability,
+	adjustments careplan.PickupAdjustments,
+) careplan.CareOfferingCapability {
+	return application.CareOfferings{CareOfferingCatalogCapability: catalog, BookingMaterializationCapability: bookings, OfferingChangeCapability: changes, PickupAdjustments: adjustments}
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -146,7 +145,7 @@ func (s *service) emitRoomlessAttendanceChange(
 
 	// Broadcast to educational (OGS) group topic so the "Meine Gruppe" page
 	// updates. The source is always carried, even when empty.
-	realtimeevents.PublishRoomlessAttendanceChange(ctx, s.Broadcaster, s.getLogger(), checkIn, realtimeevents.VisitChange{
+	s.Broadcaster.RoomlessAttendanceChanged(ctx, checkIn, studentpresence.LiveVisitChange{
 		StudentID:        fmt.Sprintf("%d", studentID),
 		EducationGroupID: educationGroupID,
 		Source:           source,

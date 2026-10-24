@@ -3,7 +3,6 @@ package identityaccess
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 )
 
@@ -80,6 +79,12 @@ type OperatorTokenQuery interface {
 // The creates validate the link and return it with its identity and
 // timestamps.
 type OperatorTokenCommand interface {
+	OperatorInvitationCommand
+	OperatorEmailChangeCommand
+}
+
+// OperatorInvitationCommand issues, redeems and retires operator invitations.
+type OperatorInvitationCommand interface {
 	CreateOperatorInvitation(ctx context.Context, invitation OperatorInvitation) (OperatorInvitation, error)
 	// RedeemOperatorInvitation spends a redeemable invitation exactly once.
 	RedeemOperatorInvitation(ctx context.Context, token string) (OperatorInvitation, error)
@@ -93,7 +98,10 @@ type OperatorTokenCommand interface {
 	ExtendOperatorInvitation(ctx context.Context, id int64, expiresAt time.Time) error
 	RecordOperatorInvitationDelivery(ctx context.Context, id int64, delivery TokenDelivery) error
 	DeleteExpiredOperatorInvitations(ctx context.Context) (int, error)
+}
 
+// OperatorEmailChangeCommand issues and redeems operator e-mail changes.
+type OperatorEmailChangeCommand interface {
 	CreateOperatorEmailChange(ctx context.Context, change OperatorEmailChange) (OperatorEmailChange, error)
 	// RedeemOperatorEmailChange spends a redeemable link exactly once.
 	RedeemOperatorEmailChange(ctx context.Context, token string) (OperatorEmailChange, error)
@@ -108,6 +116,13 @@ type OperatorTokenCommand interface {
 	DeleteStaleOperatorEmailChanges(ctx context.Context) (int, error)
 }
 
+// OperatorLinkDeliveryRecorder records how the mail of an operator invitation
+// or e-mail change link fared; the root's mail delivery reports through it.
+type OperatorLinkDeliveryRecorder interface {
+	RecordOperatorInvitationDelivery(ctx context.Context, id int64, delivery TokenDelivery) error
+	RecordOperatorEmailChangeDelivery(ctx context.Context, id int64, delivery TokenDelivery) error
+}
+
 // OperatorTokens is the capability the operator invitation and e-mail
 // change flows consume.
 type OperatorTokens interface {
@@ -115,141 +130,18 @@ type OperatorTokens interface {
 	OperatorTokenCommand
 }
 
-func (m *Module) FindOperatorInvitation(ctx context.Context, id int64) (OperatorInvitation, error) {
-	invitation, err := m.engine.FindOperatorInvitation(ctx, id)
-	if err != nil {
-		return OperatorInvitation{}, fmt.Errorf("identity access: find operator invitation: %w", err)
-	}
-	return invitation, nil
-}
+// minimumOperatorEmailChangeExpiry accounts for mail delivery latency and the
+// time the operator needs to open the link.
+const minimumOperatorEmailChangeExpiry = 15 * time.Minute
 
-func (m *Module) FindRedeemableOperatorInvitation(ctx context.Context, token string) (OperatorInvitation, error) {
-	invitation, err := m.engine.FindRedeemableOperatorInvitation(ctx, token)
-	if err != nil {
-		return OperatorInvitation{}, fmt.Errorf("identity access: find redeemable operator invitation: %w", err)
+// OperatorEmailChangeExpiry is the lifetime of an operator e-mail change
+// link. It deliberately reuses the password reset lifetime: both are
+// one-time verification links with the same delivery constraints and
+// security profile, floored at 15 minutes. If the two ever need to diverge,
+// introduce EMAIL_CHANGE_TOKEN_EXPIRY_MINUTES.
+func OperatorEmailChangeExpiry(passwordResetExpiry time.Duration) time.Duration {
+	if passwordResetExpiry >= minimumOperatorEmailChangeExpiry {
+		return passwordResetExpiry
 	}
-	return invitation, nil
-}
-
-func (m *Module) ListRedeemableOperatorInvitations(ctx context.Context) ([]OperatorInvitation, error) {
-	invitations, err := m.engine.ListRedeemableOperatorInvitations(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("identity access: list redeemable operator invitations: %w", err)
-	}
-	return invitations, nil
-}
-
-func (m *Module) CountOperatorInvitationsCreatedAfter(ctx context.Context, createdBy int64, since time.Time) (int, error) {
-	count, err := m.engine.CountOperatorInvitationsCreatedAfter(ctx, createdBy, since)
-	if err != nil {
-		return 0, fmt.Errorf("identity access: count operator invitations: %w", err)
-	}
-	return count, nil
-}
-
-func (m *Module) CountOperatorEmailChangesCreatedAfter(ctx context.Context, operatorID int64, since time.Time) (int, error) {
-	count, err := m.engine.CountOperatorEmailChangesCreatedAfter(ctx, operatorID, since)
-	if err != nil {
-		return 0, fmt.Errorf("identity access: count operator email changes: %w", err)
-	}
-	return count, nil
-}
-
-func (m *Module) CreateOperatorInvitation(ctx context.Context, invitation OperatorInvitation) (OperatorInvitation, error) {
-	stored, err := m.engine.CreateOperatorInvitation(ctx, invitation)
-	if err != nil {
-		return OperatorInvitation{}, fmt.Errorf("identity access: create operator invitation: %w", err)
-	}
-	return stored, nil
-}
-
-func (m *Module) RedeemOperatorInvitation(ctx context.Context, token string) (OperatorInvitation, error) {
-	invitation, err := m.engine.RedeemOperatorInvitation(ctx, token)
-	if err != nil {
-		return OperatorInvitation{}, fmt.Errorf("identity access: redeem operator invitation: %w", err)
-	}
-	return invitation, nil
-}
-
-func (m *Module) RevokeOperatorInvitation(ctx context.Context, id int64) error {
-	if err := m.engine.RevokeOperatorInvitation(ctx, id); err != nil {
-		return fmt.Errorf("identity access: revoke operator invitation: %w", err)
-	}
-	return nil
-}
-
-func (m *Module) RevokeOperatorInvitationsForEmail(ctx context.Context, email string) (int, error) {
-	revoked, err := m.engine.RevokeOperatorInvitationsForEmail(ctx, email)
-	if err != nil {
-		return 0, fmt.Errorf("identity access: revoke operator invitations for email: %w", err)
-	}
-	return revoked, nil
-}
-
-func (m *Module) ExtendOperatorInvitation(ctx context.Context, id int64, expiresAt time.Time) error {
-	if err := m.engine.ExtendOperatorInvitation(ctx, id, expiresAt); err != nil {
-		return fmt.Errorf("identity access: extend operator invitation: %w", err)
-	}
-	return nil
-}
-
-func (m *Module) RecordOperatorInvitationDelivery(ctx context.Context, id int64, delivery TokenDelivery) error {
-	if err := m.engine.RecordOperatorInvitationDelivery(ctx, id, delivery); err != nil {
-		return fmt.Errorf("identity access: record operator invitation delivery: %w", err)
-	}
-	return nil
-}
-
-func (m *Module) DeleteExpiredOperatorInvitations(ctx context.Context) (int, error) {
-	deleted, err := m.engine.DeleteExpiredOperatorInvitations(ctx)
-	if err != nil {
-		return 0, fmt.Errorf("identity access: delete expired operator invitations: %w", err)
-	}
-	return deleted, nil
-}
-
-func (m *Module) CreateOperatorEmailChange(ctx context.Context, change OperatorEmailChange) (OperatorEmailChange, error) {
-	stored, err := m.engine.CreateOperatorEmailChange(ctx, change)
-	if err != nil {
-		return OperatorEmailChange{}, fmt.Errorf("identity access: create operator email change: %w", err)
-	}
-	return stored, nil
-}
-
-func (m *Module) RedeemOperatorEmailChange(ctx context.Context, token string) (OperatorEmailChange, error) {
-	change, err := m.engine.RedeemOperatorEmailChange(ctx, token)
-	if err != nil {
-		return OperatorEmailChange{}, fmt.Errorf("identity access: redeem operator email change: %w", err)
-	}
-	return change, nil
-}
-
-func (m *Module) RevokeOperatorEmailChanges(ctx context.Context, operatorID int64) error {
-	if err := m.engine.RevokeOperatorEmailChanges(ctx, operatorID); err != nil {
-		return fmt.Errorf("identity access: revoke operator email changes: %w", err)
-	}
-	return nil
-}
-
-func (m *Module) RecordOperatorEmailChangeDelivery(ctx context.Context, id int64, delivery TokenDelivery) error {
-	if err := m.engine.RecordOperatorEmailChangeDelivery(ctx, id, delivery); err != nil {
-		return fmt.Errorf("identity access: record operator email change delivery: %w", err)
-	}
-	return nil
-}
-
-func (m *Module) RevokeExpiredOperatorEmailChanges(ctx context.Context) (int, error) {
-	revoked, err := m.engine.RevokeExpiredOperatorEmailChanges(ctx)
-	if err != nil {
-		return 0, fmt.Errorf("identity access: revoke expired operator email changes: %w", err)
-	}
-	return revoked, nil
-}
-
-func (m *Module) DeleteStaleOperatorEmailChanges(ctx context.Context) (int, error) {
-	deleted, err := m.engine.DeleteStaleOperatorEmailChanges(ctx)
-	if err != nil {
-		return 0, fmt.Errorf("identity access: delete stale operator email changes: %w", err)
-	}
-	return deleted, nil
+	return minimumOperatorEmailChangeExpiry
 }

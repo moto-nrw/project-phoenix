@@ -44,6 +44,9 @@ const (
 
 	StudentStatusSourceManual = "manual"
 	StudentStatusSourceParent = "parent"
+	// StudentStatusSourceEndOfDay marks a live flag the end-of-day run
+	// archived as a status day.
+	StudentStatusSourceEndOfDay = "end_of_day"
 )
 
 // Request statuses. Only pending rows accept a staff decision or a guardian
@@ -304,8 +307,18 @@ type StaffValueWrite struct {
 }
 
 // Service is the student excused-absence request workflow. Every method runs
-// inside the caller's ambient tenant transaction.
+// inside the caller's ambient tenant transaction. Consumers that need one
+// side of it depend on the narrow facade it embeds.
 type Service interface {
+	GuardianRequests
+	Review
+	BulkApproval
+	ConflictResolution
+}
+
+// GuardianRequests is the guardian side of the workflow: filing, editing and
+// reading the requests of one child.
+type GuardianRequests interface {
 	// CreateRequest stores a guardian's pending excused request with a
 	// mandatory note.
 	CreateRequest(ctx context.Context, studentID, guardianAccountID int64, dates []Date, note string) (*Request, error)
@@ -320,6 +333,11 @@ type Service interface {
 	// ListForStudent returns the child's pending requests plus any decided
 	// since recentSince, newest-first.
 	ListForStudent(ctx context.Context, studentID int64, recentSince time.Time) ([]*Request, error)
+}
+
+// Review is the staff side of the workflow: the review queues and the
+// decisions taken on one request.
+type Review interface {
 	// ListPending returns pending requests for the current tenant, newest
 	// submission first, enriched with child names and scoped to the caller's
 	// review reach.
@@ -338,11 +356,18 @@ type Service interface {
 	MarkDone(ctx context.Context, requestID int64, expectedVersion, reason string, reviewedBy int64) error
 	// Correct rewrites a decision staff already took.
 	Correct(ctx context.Context, requestID int64, approve bool, expectedVersion, reason string, reviewedBy int64) error
+}
 
+// BulkApproval is the excused-request part of the cross-kind bulk approval.
+type BulkApproval interface {
 	GetExcusedBulkCandidate(ctx context.Context, requestID int64) (*BulkCandidate, error)
 	LockExcusedBulkRequest(ctx context.Context, requestID int64) error
 	ApproveExcusedBulk(ctx context.Context, requestID int64, reason string, reviewerID int64, expectedVersion string) error
+}
 
+// ConflictResolution is the excused-request part of the cross-kind conflict
+// resolution and the staff-entered value written when one is resolved.
+type ConflictResolution interface {
 	ConflictCandidate(ctx context.Context, requestID int64) (*ConflictCandidate, error)
 	LockConflictRequest(ctx context.Context, requestID int64) error
 	DecideConflictRequest(ctx context.Context, decision ConflictDecision) error

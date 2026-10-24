@@ -1,14 +1,17 @@
 package timetablehttp
 
 import (
+	"testing"
+
 	"context"
 	"time"
 
-	"github.com/uptrace/bun"
-
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+
+	"github.com/uptrace/bun"
 )
 
 // testTimetable bundles what the composition root hands the timetable routes
@@ -77,20 +80,20 @@ func testTimetableDataWithOfferingCallbacks(
 	}, clocks...)
 }
 
-// testTimetableWith composes the owner through the shared test composition
-// (services.NewTimetableHTTPTestModule), with the suite's collaborators.
+// testTimetableWith composes the owner through the root's test composition,
+// with the suite's collaborators.
 func testTimetableWith(db *bun.DB, options testTimetableOptions, clocks ...func() time.Time) *testTimetable {
-	composed := []testutil.TimetableHTTPOption{
-		testutil.WithCareOfferingSeriesValidator(options.validateCareOfferingSeries),
-		testutil.WithOfferingSourceValidator(options.validateOfferingSource),
-		testutil.WithOfferingRosterResync(options.resyncOfferingRoster),
-		testutil.WithTimetableMaterialization(options.materialization),
-		testutil.WithTimetableInstances(options.instances),
+	composed := TimetableOptions{
+		ValidateCareOfferingSeries: options.validateCareOfferingSeries,
+		ValidateOfferingSource:     options.validateOfferingSource,
+		ResyncOfferingRoster:       options.resyncOfferingRoster,
+		Materialization:            options.materialization,
+		Instances:                  options.instances,
 	}
 	if len(clocks) > 0 && clocks[0] != nil {
-		composed = append(composed, testutil.WithTimetableClock(clocks[0]))
+		composed.Clock = clocks[0]
 	}
-	module, err := testutil.NewTimetableHTTP(db, composed...)
+	module, err := RootCompositions.TimetableHTTP(db, composed)
 	if err != nil {
 		panic(err)
 	}
@@ -101,6 +104,98 @@ func testTimetableWith(db *bun.DB, options testTimetableOptions, clocks ...func(
 		lock:                   module.RecurrenceLock,
 		corrections:            module.AttendanceCorrections,
 	}
+}
+
+// TimetableOptions are the collaborators a suite replaces in the root's
+// Timetable composition: Enrollment's care-offering checks and roster resync,
+// the materialization, the instance lifecycle and the clock.
+type TimetableOptions struct {
+	ValidateCareOfferingSeries func(context.Context, int64) error
+	ValidateOfferingSource     func(context.Context, []int64, []int64, *int64) error
+	ResyncOfferingRoster       func(context.Context, timetableModule.OfferingRosterResyncInput) error
+	Materialization            timetableModule.MaterializationCapability
+	Instances                  timetableModule.InstanceLifecycleCapability
+	Clock                      func() time.Time
+}
+
+// TimetableHTTPModule is what the root hands the timetable routes from the
+// owner: the template writes, the planner reads, the conflict detection, the
+// attendance correction and the recurrence gate.
+type TimetableHTTPModule struct {
+	Templates             timetableModule.TemplateAdministration
+	Data                  timetableModule.TimetableDataCapability
+	ConflictDetection     timetableModule.ConflictDetectionCapability
+	AttendanceCorrections timetableModule.AttendanceCorrections
+	RecurrenceLock        timetableModule.RecurrenceWriteLock
+}
+
+// TimetableModule is what the route suites take from the root's timetable
+// graph: the instance lifecycle and the owner's planning surfaces.
+type TimetableModule struct {
+	Instance          timetableModule.InstanceLifecycleCapability
+	Templates         timetableModule.TemplateAdministration
+	Data              timetableModule.TimetableDataCapability
+	Deviations        timetableModule.StaffDeviations
+	ConflictDetection timetableModule.ConflictDetectionCapability
+}
+
+// TimetableRows are the retained repositories the composition root binds to
+// the Timetable owner, with the school calendar's periods, their usage and the
+// room store the suites arrange through.
+type TimetableRows struct {
+	timetableCompose.Repositories
+	Timetable timetableModule.Capability
+	ShiftType timetablePorts.WorkforceShiftTypeRows
+	Room      interface {
+		Delete(ctx context.Context, rawID any) error
+	}
+	CalendarPeriods CalendarPeriods
+	PeriodUsage     timetablePorts.CalendarPeriodUsageRepository
+}
+
+// SchoolCalendar serves the calendar periods the template routes read.
+func (r TimetableRows) SchoolCalendar() CalendarPeriods { return r.CalendarPeriods }
+
+// CalendarPeriodUsage counts the planning owners' references per period.
+func (r TimetableRows) CalendarPeriodUsage() timetablePorts.CalendarPeriodUsageRepository {
+	return r.PeriodUsage
+}
+
+// SessionRecords are Student Presence's live sessions and supervisions the
+// deviation suites arrange and read back.
+type SessionRecords interface {
+	CreateSession(ctx context.Context, group *studentpresence.LiveGroup) error
+	CreateSupervision(ctx context.Context, supervision *studentpresence.GroupSupervision) error
+	FindActiveByStaffID(ctx context.Context, staffID int64) ([]*studentpresence.GroupSupervision, error)
+}
+
+// RootCompositions are the typed root's compositions the internal suites run
+// over. The root imports this package, so these internal tests cannot import
+// it; root_composition_test.go (package timetablehttp_test) binds them.
+var RootCompositions struct {
+	// Module composes the timetable graph over a fresh test database.
+	Module func(t *testing.T, clocks ...func() time.Time) (*bun.DB, TimetableModule)
+	// TimetableHTTP composes the owner the timetable routes drive over db.
+	TimetableHTTP func(db *bun.DB, options TimetableOptions) (TimetableHTTPModule, error)
+	// Rows composes the retained repositories over db.
+	Rows func(db *bun.DB, clocks ...func() time.Time) (TimetableRows, error)
+	// People serves the People port of the timetable routes over db.
+	People func(db *bun.DB) (People, error)
+	// RecurrenceLock is the owner's tenant recurrence gate over db.
+	RecurrenceLock func(db *bun.DB) (timetableModule.RecurrenceWriteLock, error)
+	// SessionRecords are Student Presence's live sessions over db.
+	SessionRecords func(db *bun.DB) SessionRecords
+	// OfferingSources serve the offering-source support of the routes over db.
+	OfferingSources func(t *testing.T, db *bun.DB) (timetableModule.OfferingSourceSupport, error)
+	// StaffAccountPeople is the operations' person port for an acting account
+	// that is this person and staff member.
+	StaffAccountPeople func(personID, staffID int64, session timetablePorts.RequestSession) interface {
+		timetablePorts.OperationPeople
+		timetablePorts.OperationCaller
+	}
+	// ErrCareOfferingInvalid is what Care Plan's care-offering checks return
+	// for an offering a template change would invalidate.
+	ErrCareOfferingInvalid error
 }
 
 // must returns a composed fixture or panics on its error, as the suites'
@@ -126,7 +221,9 @@ func mustComposed[T any](compose func(*bun.DB, ...func() time.Time) (T, error)) 
 
 // mustTimetableTestRepositories composes the retained repositories the
 // composition root binds to the Timetable owner.
-var mustTimetableTestRepositories = mustComposed(testutil.NewTimetableRepositories)
+var mustTimetableTestRepositories = mustComposed(func(db *bun.DB, clocks ...func() time.Time) (TimetableRows, error) {
+	return RootCompositions.Rows(db, clocks...)
+})
 
 // BoundTimetableRepositories hands the external suites the retained
 // repositories the composition root binds to the Timetable owner, so their
@@ -135,7 +232,7 @@ var BoundTimetableRepositories = mustTimetableTestRepositories
 
 // calendarPeriodUsageFor serves the usage port from the planning owners'
 // per-period reference counts, converting by shape.
-func calendarPeriodUsageFor(usage *timetableCompose.CalendarPeriodUsageRepository) CalendarPeriodUsage {
+func calendarPeriodUsageFor(usage timetablePorts.CalendarPeriodUsageRepository) CalendarPeriodUsage {
 	return usageFunc(func(ctx context.Context) (map[int64]CalendarPeriodUsageCounts, error) {
 		values, err := usage.Usage(ctx)
 		if err != nil {

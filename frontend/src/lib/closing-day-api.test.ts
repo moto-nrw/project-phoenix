@@ -104,13 +104,14 @@ describe("closingDayService", () => {
     );
   });
 
-  it("surfaces backend error messages and generic non-JSON failures", async () => {
+  it("keeps backend diagnostics separate from generic failures", async () => {
     fetchMock.mockResolvedValueOnce(
-      jsonResponse({ error: "Zeitraum überlappt" }, { status: 409 }),
+      jsonResponse({ detail: "Zeitraum überlappt" }, { status: 409 }),
     );
     await expect(closingDayService.list()).rejects.toMatchObject({
-      message: "Zeitraum überlappt",
-      httpStatus: 409,
+      message: "Anfrage fehlgeschlagen (HTTP 409)",
+      detail: "Zeitraum überlappt",
+      status: 409,
     });
 
     fetchMock.mockResolvedValueOnce(
@@ -121,15 +122,16 @@ describe("closingDayService", () => {
     );
     await expect(closingDayService.delete("7")).rejects.toMatchObject({
       message: "Anfrage fehlgeschlagen (HTTP 502)",
-      httpStatus: 502,
+      status: 502,
     });
 
     fetchMock.mockResolvedValueOnce(
-      jsonResponse({ error: "Grund fehlt" }, { status: 400 }),
+      jsonResponse({ detail: "Grund fehlt" }, { status: 400 }),
     );
     await expect(closingDayService.delete("7")).rejects.toMatchObject({
-      message: "Grund fehlt",
-      httpStatus: 400,
+      message: "Anfrage fehlgeschlagen (HTTP 400)",
+      detail: "Grund fehlt",
+      status: 400,
     });
   });
 });

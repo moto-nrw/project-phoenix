@@ -4,10 +4,10 @@
 package presenceservice
 
 import (
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -25,7 +25,8 @@ type (
 	AttendanceStaff                    = presence.AttendanceStaff
 	AttendanceStaffNames               = presence.AttendanceStaffNames
 	AttendanceRooms                    = presence.AttendanceRooms
-	SessionRoom                        = ports.SessionRoom
+	SessionRoom                        = studentpresence.SessionRoom
+	AttendanceActivityGroups           = presence.AttendanceActivityGroups
 	AttendanceActivityCategories       = presence.AttendanceActivityCategories
 	AttendanceEducationGroups          = presence.AttendanceEducationGroups
 	EducationGroupRoom                 = presence.EducationGroupRoom
@@ -66,22 +67,19 @@ func WithGuardianWaker(waker GuardianWaker) PresenceOption {
 
 // NewPresence builds the presence capability from explicit dependencies.
 func NewPresence(deps PresenceDependencies, options ...PresenceOption) studentpresence.Presence {
-	return newPresenceFacade(presence.NewService(deps, options...), deps)
-}
-
-// presenceEngineOf returns the application service a composed presence value
-// runs on.
-func presenceEngineOf(value studentpresence.Presence) (presence.Service, bool) {
-	facade, ok := value.(*presenceFacade)
-	if !ok {
-		return nil, false
-	}
-	return facade.engine, true
+	return presence.NewPresenceFacade(presence.NewService(deps, options...), deps)
 }
 
 // NewPresenceCleanup builds the data-retention cleanup. settings supplies the
 // visit retention window for children without an accepted consent; the
 // optional clock fixes the calendar day stale records are compared against.
-func NewPresenceCleanup(presenceRetention PresenceRetention, supervisors ports.GroupSupervisorRepository, deletions DeletionAudit, settings VisitRetentionSettings, today ...func() timezone.Date) studentpresence.PresenceCleanup {
+func NewPresenceCleanup(presenceRetention PresenceRetention, supervisors ports.GroupSupervisorRepository, deletions DeletionAudit, settings VisitRetentionSettings, today ...func() calendar.Date) studentpresence.PresenceCleanup {
 	return presence.NewCleanupService(presenceRetention, supervisors, deletions, settings, today...)
 }
+
+// The student display and visitor reads the root binds over the People
+// Directory and School Structure (#4007).
+type (
+	StudentDisplayReader = presence.StudentDisplayReader
+	CrossTenantRepo      = presence.CrossTenantRepo
+)

@@ -11,11 +11,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
@@ -23,27 +23,39 @@ import (
 
 // buildEditableMasterDataService is buildRequestService plus the event
 // recorder, so the guardian_edited entry the edit writes is observable.
-func buildEditableMasterDataService(t *testing.T) (*parentService.Portal, usersModels.ParentRequestEventRepository, *bun.DB) {
+func buildEditableMasterDataService(t *testing.T) (*parentService.Portal, api.ParentRequestEventFixtureReads, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	reposCare := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	events := repos.ParentRequestEvent
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
-		CarePlan:            repos.CarePlan(),
-		People:              repositories.MustNewPeopleDirectory(db),
+		GuardianChanges:     owners.ParentGuardianChanges(),
+		DeparturePolicy:     owners.ParentDeparturePolicy(),
+		GuardianPolicy:      owners.NewParentGuardianPolicy(),
+		Fingerprints:        owners.SecurityFingerprints{},
+		Declarations:        owners.ParentDeclarationPolicy(),
+		Locales:             owners.ParentPortalLocales(),
+		Runtime:             owners.ParentPortalRuntime{},
+		CarePlan:            owners.NewParentCarePlanCommands(reposCare.CarePlan(), nil),
+		People:              owners.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:        careProfiles(t, db),
-		ChildRepo:           repos.ParentChild,
-		StudentRepo:         repos.Student,
-		GuardianProfileRepo: repos.GuardianProfile,
-		PersonRepo:          repos.Person,
-		GuardianPhoneRepo:   repos.GuardianPhoneNumber,
-		ChangeRequestRepo:   repos.StudentDataChangeRequest,
-		ParentRequestEvents: events,
+		ChildRepo:           reposCare.ParentChildReads(),
+		StudentRepo:         owners.NewParentStudentReads(repos.Student),
+		GuardianProfileRepo: owners.NewParentGuardianProfileReads(repos.GuardianProfile),
+		PersonRepo:          owners.NewParentPersonReads(repos.Person),
+		GuardianPhoneRepo:   owners.NewParentGuardianPhoneReads(repos.GuardianPhoneNumber),
+		ChangeRequestRepo:   owners.NewParentDataRequestReads(reposCare.CarePlan()),
+		ParentRequestEvents: owners.NewParentRequestEvents(events),
 		Settings:            masterDataSettings(false, true, false),
-		Broadcaster:         testpkg.NewRecordingBroadcaster(),
+		StudentUpdates:      owners.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster()),
 		Logger:              slog.Default(),
+
+		DataRequests: owners.NewParentDataRequestCommands(reposCare.CarePlan()),
+
+		CarePlanPolicy: owners.NewParentCarePlanPolicy(),
 	})
-	return svc, events, db
+	return svc, api.NewParentRequestEventFixtureReads(events), db
 }
 
 // TestEditExcusedRequestReplacesWithdrawal is the core of story 37: the
@@ -55,28 +67,28 @@ func TestEditExcusedRequestReplacesWithdrawal(t *testing.T) {
 	svc, _, events, db := buildLedgerServices(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
-	day := timezone.NewDate(2026, 8, 24).AddDays(5)
+	day := calendar.NewDate(2026, 8, 24).AddDays(5)
 
 	res, err := svc.SubmitSickNote(ctx, chain.AccountID, chain.StudentID,
-		[]timezone.Date{day}, "Familienfeier", absencerecords.StudentStatusDayExcused, nil)
+		[]calendar.Date{day}, "Familienfeier", absencerecords.StudentStatusDayExcused, nil)
 	require.NoError(t, err)
 	original := res.PendingRequest
 	version := careplan.ParentRequestVersion(original.UpdatedAt)
 
 	corrected := day.AddDays(1)
 	edited, err := svc.EditExcusedRequest(ctx, chain.AccountID, chain.StudentID, original.ID,
-		[]timezone.Date{corrected}, "Doch einen Tag später", version)
+		[]calendar.Date{corrected}, "Doch einen Tag später", version)
 	require.NoError(t, err)
 	assert.Equal(t, original.ID, edited.ID, "an edit keeps the request id, so the share survives")
 	require.Len(t, edited.Dates, 1)
-	assert.Equal(t, careplan.Date(corrected), edited.Dates[0])
+	assert.Equal(t, corrected, edited.Dates[0])
 	assert.Equal(t, "Doch einen Tag später", edited.Note)
 	assert.Equal(t, absencerecords.ExcusedRequestStatusPending, edited.Status)
 	assert.NotEqual(t, version, careplan.ParentRequestVersion(edited.UpdatedAt), "an edit bumps the version")
 
 	rows := listLedger(t, db, events, chain.TenantID, original.ID)
 	require.Len(t, rows, 2)
-	assert.Equal(t, usersModels.ParentRequestEventGuardianEdit, rows[1].EventType)
+	assert.Equal(t, "guardian_edited", rows[1].EventType)
 	require.NotNil(t, rows[1].ActorAccountID)
 	assert.Equal(t, chain.AccountID, *rows[1].ActorAccountID)
 }
@@ -90,19 +102,19 @@ func TestEditExcusedRequestRefusesStaleVersion(t *testing.T) {
 	svc, _, _, db := buildLedgerServices(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
-	day := timezone.TodayDate().AddDays(6)
+	day := calendar.TodayDate().AddDays(6)
 
 	res, err := svc.SubmitSickNote(ctx, chain.AccountID, chain.StudentID,
-		[]timezone.Date{day}, "Familienfeier", absencerecords.StudentStatusDayExcused, nil)
+		[]calendar.Date{day}, "Familienfeier", absencerecords.StudentStatusDayExcused, nil)
 	require.NoError(t, err)
 	stale := careplan.ParentRequestVersion(res.PendingRequest.UpdatedAt)
 
 	_, err = svc.EditExcusedRequest(ctx, chain.AccountID, chain.StudentID, res.PendingRequest.ID,
-		[]timezone.Date{day.AddDays(1)}, "Erste Korrektur", stale)
+		[]calendar.Date{day.AddDays(1)}, "Erste Korrektur", stale)
 	require.NoError(t, err)
 
 	_, err = svc.EditExcusedRequest(ctx, chain.AccountID, chain.StudentID, res.PendingRequest.ID,
-		[]timezone.Date{day.AddDays(2)}, "Zweite Korrektur", stale)
+		[]calendar.Date{day.AddDays(2)}, "Zweite Korrektur", stale)
 	require.ErrorIs(t, err, careplan.ErrParentRequestStale)
 }
 
@@ -114,14 +126,14 @@ func TestEditExcusedRequestRevalidatesPayload(t *testing.T) {
 	svc, _, _, db := buildLedgerServices(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
-	day := timezone.TodayDate().AddDays(7)
+	day := calendar.TodayDate().AddDays(7)
 
 	res, err := svc.SubmitSickNote(ctx, chain.AccountID, chain.StudentID,
-		[]timezone.Date{day}, "Familienfeier", absencerecords.StudentStatusDayExcused, nil)
+		[]calendar.Date{day}, "Familienfeier", absencerecords.StudentStatusDayExcused, nil)
 	require.NoError(t, err)
 
 	_, err = svc.EditExcusedRequest(ctx, chain.AccountID, chain.StudentID, res.PendingRequest.ID,
-		[]timezone.Date{day}, "   ", "")
+		[]calendar.Date{day}, "   ", "")
 	require.Error(t, err, "an edit may not produce a request the create path would refuse")
 }
 
@@ -134,10 +146,10 @@ func TestEditDecidedExcusedRequestIsRefused(t *testing.T) {
 	svc, requests, _, db := buildLedgerServices(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
-	day := timezone.TodayDate().AddDays(10)
+	day := calendar.TodayDate().AddDays(10)
 
 	res, err := svc.SubmitSickNote(ctx, chain.AccountID, chain.StudentID,
-		[]timezone.Date{day}, "Familienfeier", absencerecords.StudentStatusDayExcused, nil)
+		[]calendar.Date{day}, "Familienfeier", absencerecords.StudentStatusDayExcused, nil)
 	require.NoError(t, err)
 
 	require.NoError(t, testpkg.WithTenantTx(t, adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
@@ -148,7 +160,7 @@ func TestEditDecidedExcusedRequestIsRefused(t *testing.T) {
 	}))
 
 	_, err = svc.EditExcusedRequest(ctx, chain.AccountID, chain.StudentID, res.PendingRequest.ID,
-		[]timezone.Date{day.AddDays(1)}, "Zu spät", "")
+		[]calendar.Date{day.AddDays(1)}, "Zu spät", "")
 	require.ErrorIs(t, err, parentService.ErrExcusedRequestNotPending)
 }
 
@@ -161,14 +173,14 @@ func TestEditExcusedRequestOfAnotherFamilyIsNotFound(t *testing.T) {
 	mine := testpkg.CreateTestParentGuardianChain(t, db)
 	theirs := testpkg.CreateTestParentGuardianChain(t, db)
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
-	day := timezone.TodayDate().AddDays(8)
+	day := calendar.TodayDate().AddDays(8)
 
 	res, err := svc.SubmitSickNote(ctx, theirs.AccountID, theirs.StudentID,
-		[]timezone.Date{day}, "Familienfeier", absencerecords.StudentStatusDayExcused, nil)
+		[]calendar.Date{day}, "Familienfeier", absencerecords.StudentStatusDayExcused, nil)
 	require.NoError(t, err)
 
 	_, err = svc.EditExcusedRequest(ctx, mine.AccountID, mine.StudentID, res.PendingRequest.ID,
-		[]timezone.Date{day}, "Fremd", "")
+		[]calendar.Date{day}, "Fremd", "")
 	require.ErrorIs(t, err, parentService.ErrExcusedRequestNotFound)
 }
 
@@ -184,7 +196,7 @@ func TestEditMasterDataRequestRewritesProposedValue(t *testing.T) {
 
 	rows, err := svc.SubmitMasterDataChangeRequest(ctx, chain.AccountID, chain.StudentID,
 		[]parentService.MasterDataFieldChange{
-			{Target: usersModels.DataChangeTargetPerson, FieldKey: "first_name", Value: json.RawMessage(`"Maximilian"`)},
+			{Target: parentService.DataChangeTargetPerson, FieldKey: "first_name", Value: json.RawMessage(`"Maximilian"`)},
 		}, nil)
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
@@ -195,18 +207,18 @@ func TestEditMasterDataRequestRewritesProposedValue(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, rows[0].ID, edited.ID)
 	assert.JSONEq(t, `"Maxi"`, string(edited.NewValue))
-	assert.Equal(t, usersModels.DataChangeStatusPending, edited.Status)
-	assert.Equal(t, usersModels.DataChangeTargetPerson, edited.Target)
+	assert.Equal(t, parentService.DataChangeStatusPending, edited.Status)
+	assert.Equal(t, parentService.DataChangeTargetPerson, edited.Target)
 
-	var ledger []*usersModels.ParentRequestEvent
+	var ledger []*api.ParentRequestEventFixture
 	require.NoError(t, testpkg.WithTenantTx(t, context.Background(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		var listErr error
-		ledger, listErr = events.ListForRequest(txCtx, usersModels.ParentRequestTypeMasterData, rows[0].ID)
+		ledger, listErr = events.ListForRequest(txCtx, "master_data", rows[0].ID)
 		return listErr
 	}))
 	require.Len(t, ledger, 2)
-	assert.Equal(t, usersModels.ParentRequestEventSubmitted, ledger[0].EventType)
-	assert.Equal(t, usersModels.ParentRequestEventGuardianEdit, ledger[1].EventType)
+	assert.Equal(t, "submitted", ledger[0].EventType)
+	assert.Equal(t, "guardian_edited", ledger[1].EventType)
 }
 
 // TestEditMasterDataRequestRefusesUnchangedValue pins that an edit whose value
@@ -221,11 +233,11 @@ func TestEditMasterDataRequestRefusesUnchangedValue(t *testing.T) {
 
 	rows, err := svc.SubmitMasterDataChangeRequest(ctx, chain.AccountID, chain.StudentID,
 		[]parentService.MasterDataFieldChange{
-			{Target: usersModels.DataChangeTargetPerson, FieldKey: "first_name", Value: json.RawMessage(`"Maximilian"`)},
+			{Target: parentService.DataChangeTargetPerson, FieldKey: "first_name", Value: json.RawMessage(`"Maximilian"`)},
 		}, nil)
 	require.NoError(t, err)
 
-	person, err := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Person.FindByID(ctx, chain.PersonID)
+	person, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), db, api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Person.FindByID, any(chain.PersonID))
 	require.NoError(t, err)
 	live, err := json.Marshal(person.FirstName)
 	require.NoError(t, err)
@@ -243,21 +255,21 @@ func TestListRequestEventsIsSubmitterOnly(t *testing.T) {
 	mine := testpkg.CreateTestParentGuardianChain(t, db)
 	theirs := testpkg.CreateTestParentGuardianChain(t, db)
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
-	day := timezone.TodayDate().AddDays(9)
+	day := calendar.TodayDate().AddDays(9)
 
 	res, err := svc.SubmitSickNote(ctx, mine.AccountID, mine.StudentID,
-		[]timezone.Date{day}, "Familienfeier", absencerecords.StudentStatusDayExcused, nil)
+		[]calendar.Date{day}, "Familienfeier", absencerecords.StudentStatusDayExcused, nil)
 	require.NoError(t, err)
 
 	history, err := svc.ListRequestEvents(ctx, mine.AccountID, mine.StudentID,
-		usersModels.ParentRequestTypeExcusedAbsence, res.PendingRequest.ID)
+		"excused", res.PendingRequest.ID)
 	require.NoError(t, err)
 	require.Len(t, history, 1)
-	assert.Equal(t, usersModels.ParentRequestEventSubmitted, history[0].EventType)
+	assert.Equal(t, "submitted", history[0].EventType)
 	assert.False(t, history[0].CreatedAt.IsZero())
 
 	_, err = svc.ListRequestEvents(ctx, theirs.AccountID, theirs.StudentID,
-		usersModels.ParentRequestTypeExcusedAbsence, res.PendingRequest.ID)
+		"excused", res.PendingRequest.ID)
 	require.Error(t, err)
 	assert.True(t,
 		errors.Is(err, parentService.ErrRequestSharingNotFound) || errors.Is(err, parentService.ErrChildNotLinked),

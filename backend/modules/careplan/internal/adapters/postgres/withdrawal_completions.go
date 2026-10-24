@@ -2,14 +2,13 @@ package postgres
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/studentdirectoryview"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
 )
 
@@ -21,25 +20,25 @@ import (
 const tableExprWithdrawalCompletions = `users.care_withdrawal_completions AS "care_withdrawal_completion"`
 
 type withdrawalCompletionRow struct {
-	bun.BaseModel           `bun:"table:care_withdrawal_completions,alias:care_withdrawal_completion"`
-	ID                      int64           `bun:"id,pk,autoincrement"`
-	CreatedAt               time.Time       `bun:"created_at,nullzero,notnull,default:current_timestamp"`
-	UpdatedAt               time.Time       `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
-	TenantID                int64           `bun:"tenant_id,notnull"`
-	StudentID               *int64          `bun:"student_id"`
-	FirstBookinglessDay     calendarDate    `bun:"first_bookingless_day,type:date,notnull"`
-	Trigger                 string          `bun:"trigger,notnull"`
-	SourceAdjustmentID      *int64          `bun:"source_adjustment_id"`
-	SourceRequestChildID    *int64          `bun:"source_request_child_id"`
-	WithdrawalConfirmedBy   *int64          `bun:"withdrawal_confirmed_by"`
-	WithdrawalConfirmedRole string          `bun:"withdrawal_confirmed_role,notnull"`
-	WithdrawalConfirmedAt   time.Time       `bun:"withdrawal_confirmed_at,notnull"`
-	SourceOfferings         json.RawMessage `bun:"source_offerings,type:jsonb,notnull"`
-	State                   string          `bun:"state,notnull"`
-	Outcome                 *string         `bun:"outcome"`
-	ObsoleteReason          *string         `bun:"obsolete_reason"`
-	ResolvedBy              *int64          `bun:"resolved_by"`
-	ResolvedAt              *time.Time      `bun:"resolved_at"`
+	bun.BaseModel           `bun:"table:users.care_withdrawal_completions,alias:care_withdrawal_completion"`
+	ID                      int64                             `bun:"id,pk,autoincrement"`
+	CreatedAt               time.Time                         `bun:"created_at,nullzero,notnull,default:current_timestamp"`
+	UpdatedAt               time.Time                         `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
+	TenantID                int64                             `bun:"tenant_id,notnull"`
+	StudentID               *int64                            `bun:"student_id"`
+	FirstBookinglessDay     calendarDate                      `bun:"first_bookingless_day,type:date,notnull"`
+	Trigger                 string                            `bun:"trigger,notnull"`
+	SourceAdjustmentID      *int64                            `bun:"source_adjustment_id"`
+	SourceRequestChildID    *int64                            `bun:"source_request_child_id"`
+	WithdrawalConfirmedBy   *int64                            `bun:"withdrawal_confirmed_by"`
+	WithdrawalConfirmedRole string                            `bun:"withdrawal_confirmed_role,notnull"`
+	WithdrawalConfirmedAt   time.Time                         `bun:"withdrawal_confirmed_at,notnull"`
+	SourceOfferings         []careplan.CareExitSourceOffering `bun:"source_offerings,type:jsonb,notnull"`
+	State                   string                            `bun:"state,notnull"`
+	Outcome                 *string                           `bun:"outcome"`
+	ObsoleteReason          *string                           `bun:"obsolete_reason"`
+	ResolvedBy              *int64                            `bun:"resolved_by"`
+	ResolvedAt              *time.Time                        `bun:"resolved_at"`
 
 	FirstName   string `bun:"first_name,scanonly"`
 	LastName    string `bun:"last_name,scanonly"`
@@ -49,7 +48,7 @@ type withdrawalCompletionRow struct {
 func withdrawalCompletionToDomain(row withdrawalCompletionRow) domain.WithdrawalCompletion {
 	return domain.WithdrawalCompletion{
 		ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
-		StudentID: row.StudentID, FirstBookinglessDay: careplan.Date(row.FirstBookinglessDay), Trigger: row.Trigger,
+		StudentID: row.StudentID, FirstBookinglessDay: calendar.Date(row.FirstBookinglessDay), Trigger: row.Trigger,
 		SourceAdjustmentID: row.SourceAdjustmentID, SourceRequestChildID: row.SourceRequestChildID,
 		WithdrawalConfirmedBy: row.WithdrawalConfirmedBy, WithdrawalConfirmedRole: row.WithdrawalConfirmedRole,
 		WithdrawalConfirmedAt: row.WithdrawalConfirmedAt, SourceOfferings: row.SourceOfferings,
@@ -114,7 +113,7 @@ func (s *Store) UpsertPendingWithdrawal(ctx context.Context, value domain.Withdr
 		row.TenantID = tenantID
 	}
 	if len(row.SourceOfferings) == 0 {
-		row.SourceOfferings = json.RawMessage(`[]`)
+		row.SourceOfferings = []careplan.CareExitSourceOffering{}
 	}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
@@ -171,7 +170,7 @@ func (s *Store) FindWithdrawalCompletion(ctx context.Context, id int64, lock boo
 // former inner joins did; resolved tasks stay visible without one. The search
 // and the page window apply inside the joined statement, so a request reads
 // one page of tasks and their children, never the tenant's whole queue.
-func (s *Store) ListWithdrawals(ctx context.Context, state string, filter domain.WithdrawalListFilter) ([]domain.WithdrawalCompletion, int, domain.OperationStats, error) {
+func (s *DirectoryStore) ListWithdrawals(ctx context.Context, state string, filter domain.WithdrawalListFilter) ([]domain.WithdrawalCompletion, int, domain.OperationStats, error) {
 	if state != careplan.WithdrawalStatePending && state != careplan.WithdrawalStateResolved {
 		return nil, 0, domain.OperationStats{}, fmt.Errorf("care plan postgres: unsupported withdrawal list state %q", state)
 	}
@@ -180,54 +179,15 @@ func (s *Store) ListWithdrawals(ctx context.Context, state string, filter domain
 		return nil, 0, domain.OperationStats{}, err
 	}
 	pending := state == careplan.WithdrawalStatePending
-	build := func() *bun.SelectQuery {
-		query := db.NewSelect().TableExpr(tableExprWithdrawalCompletions)
-		directory := studentdirectoryview.StudentDisplayQuery(db, tenantID)
-		if pending {
-			query = query.Join(`JOIN (?) AS "student" ON "student".tenant_id = "care_withdrawal_completion".tenant_id AND "student".id = "care_withdrawal_completion".student_id AND "student".first_name IS NOT NULL`, directory)
-		} else {
-			query = query.Join(`LEFT JOIN (?) AS "student" ON "student".tenant_id = "care_withdrawal_completion".tenant_id AND "student".id = "care_withdrawal_completion".student_id`, directory)
-		}
-		query = withTenant(query.Where(`"care_withdrawal_completion".state = ?`, state), "care_withdrawal_completion", tenantID)
-		if search := filter.Search; search != "" {
-			pattern := "%" + strings.ToLower(search) + "%"
-			query = query.Where(`(LOWER("student".first_name) LIKE ? OR LOWER("student".last_name) LIKE ? OR LOWER("student".school_class) LIKE ?)`, pattern, pattern, pattern)
-		}
-		if filter.StudentID > 0 {
-			query = query.Where(`"care_withdrawal_completion".student_id = ?`, filter.StudentID)
-		}
-		return query
-	}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
-	total, err := build().Count(ctx)
+	total, err := s.withdrawalListQuery(db, tenantID, state, filter).Count(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
 		return nil, 0, stats, fmt.Errorf("care plan postgres: count %s care withdrawal completions: %w", state, err)
 	}
 	rows := make([]withdrawalCompletionRow, 0)
-	query := build().ColumnExpr(`"care_withdrawal_completion".*`)
-	if pending {
-		query = query.
-			ColumnExpr(`"student".first_name AS first_name`).
-			ColumnExpr(`"student".last_name AS last_name`).
-			ColumnExpr(`"student".school_class AS school_class`).
-			OrderExpr(`"care_withdrawal_completion".first_bookingless_day ASC, "care_withdrawal_completion".id ASC`)
-		if filter.PageSize > 0 {
-			query = query.Limit(int64(filter.PageSize))
-			if filter.Page > 1 {
-				query = query.Offset(int64((filter.Page - 1) * filter.PageSize))
-			}
-		}
-	} else {
-		query = query.
-			ColumnExpr(`COALESCE("student".first_name, '') AS first_name`).
-			ColumnExpr(`COALESCE("student".last_name, '') AS last_name`).
-			ColumnExpr(`COALESCE("student".school_class, '') AS school_class`).
-			OrderExpr(`"care_withdrawal_completion".resolved_at DESC, "care_withdrawal_completion".id DESC`).
-			Limit(int64(filter.PageSize)).
-			Offset(int64((filter.Page - 1) * filter.PageSize))
-	}
+	query := withdrawalListPage(s.withdrawalListQuery(db, tenantID, state, filter).ColumnExpr(`"care_withdrawal_completion".*`), pending, filter)
 	stats.Queries++
 	started = time.Now()
 	err = query.Scan(ctx, &rows)
@@ -241,6 +201,55 @@ func (s *Store) ListWithdrawals(ctx context.Context, state string, filter domain
 		values = append(values, withdrawalCompletionToDomain(row))
 	}
 	return values, int(total), stats, nil
+}
+
+// withdrawalListQuery is the filtered, joined statement both the count and
+// the page read of ListWithdrawals start from. Pending tasks inner-join a
+// directory row with a live person; resolved tasks left-join it.
+func (s *DirectoryStore) withdrawalListQuery(db bun.IDB, tenantID int64, state string, filter domain.WithdrawalListFilter) *bun.SelectQuery {
+	query := db.NewSelect().TableExpr(tableExprWithdrawalCompletions)
+	directory := s.directory.StudentDisplayRows(db, tenantID)
+	if state == careplan.WithdrawalStatePending {
+		query = query.Join(`JOIN (?) AS "student" ON "student".tenant_id = "care_withdrawal_completion".tenant_id AND "student".id = "care_withdrawal_completion".student_id AND "student".first_name IS NOT NULL`, directory)
+	} else {
+		query = query.Join(`LEFT JOIN (?) AS "student" ON "student".tenant_id = "care_withdrawal_completion".tenant_id AND "student".id = "care_withdrawal_completion".student_id`, directory)
+	}
+	query = withTenant(query.Where(`"care_withdrawal_completion".state = ?`, state), "care_withdrawal_completion", tenantID)
+	if search := filter.Search; search != "" {
+		pattern := "%" + strings.ToLower(search) + "%"
+		query = query.Where(`(LOWER("student".first_name) LIKE ? OR LOWER("student".last_name) LIKE ? OR LOWER("student".school_class) LIKE ?)`, pattern, pattern, pattern)
+	}
+	if filter.StudentID > 0 {
+		query = query.Where(`"care_withdrawal_completion".student_id = ?`, filter.StudentID)
+	}
+	return query
+}
+
+// withdrawalListPage adds the child columns, the queue order and the page
+// window. The pending queue pages only with a positive page size; the
+// resolved queue always applies the window.
+func withdrawalListPage(query *bun.SelectQuery, pending bool, filter domain.WithdrawalListFilter) *bun.SelectQuery {
+	if !pending {
+		return query.
+			ColumnExpr(`COALESCE("student".first_name, '') AS first_name`).
+			ColumnExpr(`COALESCE("student".last_name, '') AS last_name`).
+			ColumnExpr(`COALESCE("student".school_class, '') AS school_class`).
+			OrderExpr(`"care_withdrawal_completion".resolved_at DESC, "care_withdrawal_completion".id DESC`).
+			Limit(int64(filter.PageSize)).
+			Offset(int64((filter.Page - 1) * filter.PageSize))
+	}
+	query = query.
+		ColumnExpr(`"student".first_name AS first_name`).
+		ColumnExpr(`"student".last_name AS last_name`).
+		ColumnExpr(`"student".school_class AS school_class`).
+		OrderExpr(`"care_withdrawal_completion".first_bookingless_day ASC, "care_withdrawal_completion".id ASC`)
+	if filter.PageSize > 0 {
+		query = query.Limit(int64(filter.PageSize))
+		if filter.Page > 1 {
+			query = query.Offset(int64((filter.Page - 1) * filter.PageSize))
+		}
+	}
+	return query
 }
 
 func (s *Store) ListPendingWithdrawalsByStudent(ctx context.Context, studentIDs []int64) (map[int64]domain.WithdrawalCompletion, domain.OperationStats, error) {

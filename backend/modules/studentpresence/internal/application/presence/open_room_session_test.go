@@ -40,7 +40,7 @@ func presentChild(t *testing.T, db *bun.DB, label string, staffID, deviceID, ses
 	return student.ID
 }
 
-func openVisitSessions(t *testing.T, presence *studentpresence.Module, studentIDs []int64) map[int64]int64 {
+func openVisitSessions(t *testing.T, presence studentpresence.Owner, studentIDs []int64) map[int64]int64 {
 	t.Helper()
 	visits, err := presence.ListVisits(testpkg.Ctx(t), studentpresence.VisitFilter{StudentIDs: studentIDs, OpenOnly: true})
 	require.NoError(t, err)
@@ -53,7 +53,7 @@ func openVisitSessions(t *testing.T, presence *studentpresence.Module, studentID
 	return sessions
 }
 
-func assertStillAttending(t *testing.T, presence *studentpresence.Module, studentIDs []int64) {
+func assertStillAttending(t *testing.T, presence studentpresence.Owner, studentIDs []int64) {
 	t.Helper()
 	attendance, err := presence.ListAttendance(testpkg.Ctx(t), studentpresence.AttendanceFilter{StudentIDs: studentIDs})
 	require.NoError(t, err)
@@ -325,7 +325,7 @@ func TestEndingAnActivityLeavesIndependentRoomStays(t *testing.T) {
 	assertStillAttending(t, presence, all)
 
 	// The global daily close ends the room stays as well, not the attendance.
-	_, err = svc.EndDailySessions(ctx)
+	_, err = testpkg.TenantQuery0(t, ctx, db, svc.EndDailySessions)
 	require.NoError(t, err)
 	assert.Empty(t, openVisitSessions(t, presence, all), "the daily close must not keep yesterday's room stays")
 	assertStillAttending(t, presence, all)

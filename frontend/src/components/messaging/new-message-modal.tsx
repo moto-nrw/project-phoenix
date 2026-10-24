@@ -1,12 +1,21 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import {
+  StudentChoiceList,
+  type StudentChoicesLoad,
+  matchStudentChoices,
+  useStudentChoices,
+} from "~/components/students/student-choice-list";
+import { Button } from "~/components/ui/button";
+import {
   SlideOver,
+  SlideOverBody,
   SlideOverCloseButton,
   SlideOverContent,
   SlideOverDescription,
+  SlideOverFooter,
   SlideOverHeader,
   SlideOverTitle,
 } from "~/components/ui/slide-over";
@@ -15,14 +24,12 @@ import {
   FormErrorAlert,
   LoadErrorAlert,
 } from "~/components/ui/form-error-alert";
-import { Input } from "~/components/ui/input";
 import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
-import { fetchStudents } from "~/lib/student-api";
-import type { Student } from "~/lib/student-helpers";
 import {
   type Guardian,
   type ThreadDetail,
   fetchGuardians,
+  fetchReachableStudentIds,
   openThread,
   relationshipLabel,
 } from "~/lib/parent-messages-api";
@@ -30,15 +37,52 @@ import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "NewMessageModal" });
 
+const NO_PARENT_ACCESS = "Kein Eltern-Zugang";
+const NO_STUDENT_IDS: ReadonlySet<string> = new Set();
+
+/**
+ * The children with a guardian who can receive a message (#4362): undefined
+ * while loading, null when the answer is unknown.
+ */
+function useReachableStudentIds(
+  enabled: boolean,
+): ReadonlySet<string> | null | undefined {
+  const [ids, setIds] = useState<ReadonlySet<string> | null | undefined>(
+    undefined,
+  );
+  useEffect(() => {
+    if (!enabled) return;
+    let active = true;
+    fetchReachableStudentIds()
+      .then((result) => {
+        if (active) setIds(result);
+      })
+      .catch((err) => {
+        // The mark is an extra: without it the list works as before and the
+        // parents step still says when a child has no parent access.
+        logger.warn("new_message_reachable_students_load_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (active) setIds(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [enabled]);
+  return ids;
+}
+
 interface PickedStudent {
   id: string;
   name: string;
-  school_class?: string;
-  group_name?: string;
+  /** Klasse · Gruppe, empty for a preset child. */
+  detail?: string;
 }
 
 /**
- * Lets staff start a conversation: (1) search for a child, (2) pick the
+ * Lets staff start a conversation: (1) pick a child from the alphabetical
+ * list of all children, filtered by the search field (#4362); a child without
+ * a guardian who can receive a message is marked and cannot be picked, (2) pick the
  * recipient guardian — then the chat opens directly (WhatsApp-style), no
  * compose step in the modal. The backend get-or-creates the conversation
  * (history shown if one already exists) and `onOpened` receives the
@@ -60,16 +104,35 @@ export function NewMessageModal({
 }) {
   const hasPreset = Boolean(presetStudentId);
 
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState<Student[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
-  // A failed search is not "Kein Kind gefunden": it shows its own error with
-  // a retry (#2517).
-  const [searchFailed, setSearchFailed] = useState(false);
-  const [searchReloadKey, setSearchReloadKey] = useState(0);
-  const searchError = useApiLoadError();
-  const showSearchError = searchError.show;
-  const clearSearchError = searchError.clear;
+  const [search, setSearch] = useState("");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const { load: choicesLoad, error: loadError } = useStudentChoices(!hasPreset);
+  const reachableIds = useReachableStudentIds(!hasPreset);
+  // Both answers arrive together, so no mark appears after the list stands.
+  const load: StudentChoicesLoad =
+    reachableIds === undefined && choicesLoad.kind === "loaded"
+      ? { kind: "loading" }
+      : choicesLoad;
+  const unreachableIds = useMemo(
+    () =>
+      reachableIds && choicesLoad.kind === "loaded"
+        ? new Set(
+            choicesLoad.choices
+              .filter((child) => !reachableIds.has(child.id))
+              .map((child) => child.id),
+          )
+        : NO_STUDENT_IDS,
+    [reachableIds, choicesLoad],
+  );
+  const { target, visible } = matchStudentChoices(
+    load,
+    search,
+    selectedId,
+    unreachableIds,
+  );
+  const showsUnreachable = visible.some((child) =>
+    unreachableIds.has(child.id),
+  );
 
   const [student, setStudent] = useState<PickedStudent | null>(
     presetStudentId
@@ -91,48 +154,6 @@ export function NewMessageModal({
   // Opening the chat fails inside the open panel; the error stays there.
   const openError = useApiFormError();
   const latestPickRef = useRef<(guardian: Guardian) => void>(() => undefined);
-
-  // Debounced child search (only while no child is picked).
-  useEffect(() => {
-    if (student) return;
-    const term = query.trim();
-    if (term.length < 2) {
-      setResults([]);
-      setSearchFailed(false);
-      clearSearchError();
-      return;
-    }
-    let active = true;
-    setIsSearching(true);
-    const handle = setTimeout(() => {
-      fetchStudents({ search: term, page_size: 20 })
-        .then((res) => {
-          if (!active) return;
-          setResults(res.students);
-          setSearchFailed(false);
-          clearSearchError();
-        })
-        .catch((err) => {
-          logger.warn("new_message_student_search_failed", {
-            error: err instanceof Error ? err.message : String(err),
-          });
-          if (!active) return;
-          setResults([]);
-          setSearchFailed(true);
-          void showSearchError(err, {
-            object: "die Suche nach Kindern",
-            retry: () => setSearchReloadKey((key) => key + 1),
-          });
-        })
-        .finally(() => {
-          if (active) setIsSearching(false);
-        });
-    }, 250);
-    return () => {
-      active = false;
-      clearTimeout(handle);
-    };
-  }, [query, student, searchReloadKey, showSearchError, clearSearchError]);
 
   // Load the guardians of the picked child for the recipient step.
   useEffect(() => {
@@ -172,6 +193,11 @@ export function NewMessageModal({
     };
   }, [student, guardiansReloadKey, showGuardiansError, clearGuardiansError]);
 
+  const handlePickStudent = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (target) setStudent(target);
+  };
+
   const resetToStudentStep = () => {
     setStudent(null);
     openError.clear();
@@ -207,9 +233,7 @@ export function NewMessageModal({
   });
 
   // The catalog text loads on demand; until it is there the failed list
-  // keeps its loading line, never "Kein Kind gefunden" / no guardians.
-  const searchErrorPending =
-    searchFailed && formErrorMessage(searchError.error) === null;
+  // keeps its loading line, never "no guardians".
   const guardiansErrorPending =
     guardiansFailed && formErrorMessage(guardiansError.error) === null;
 
@@ -232,70 +256,51 @@ export function NewMessageModal({
           </div>
           <SlideOverCloseButton />
         </SlideOverHeader>
-        <div className="flex-1 overflow-y-auto px-5 py-4">
-          {/* STEP 1 — pick a child (skipped when a preset child is given) */}
-          {!student && (
-            <div className="space-y-3">
-              <Input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Kind suchen..."
+        {/* STEP 1 — pick a child (skipped when a preset child is given) */}
+        {!student && (
+          <form
+            onSubmit={handlePickStudent}
+            className="flex min-h-0 flex-1 flex-col"
+          >
+            <SlideOverBody className="flex min-h-0 flex-col gap-3">
+              <StudentChoiceList
+                load={load}
+                loadError={loadError}
+                search={search}
+                onSearchChange={setSearch}
+                searchLabel="Kind suchen"
+                radioName="new-message-student"
+                selectedId={selectedId}
+                onSelectedIdChange={setSelectedId}
+                unavailableIds={unreachableIds}
+                unavailableLabel={NO_PARENT_ACCESS}
                 autoFocus
+                fillHeight
               />
-              <div className="max-h-72 space-y-1 overflow-y-auto">
-                {(isSearching || searchErrorPending) && (
-                  <p className="py-3 text-center text-sm text-gray-500">
-                    Suche...
-                  </p>
-                )}
-                {!isSearching && searchFailed && (
-                  <LoadErrorAlert error={searchError.error} />
-                )}
-                {!isSearching &&
-                  !searchFailed &&
-                  query.trim().length >= 2 &&
-                  results.length === 0 && (
-                    <p className="py-3 text-center text-sm text-gray-500">
-                      Kein Kind gefunden.
-                    </p>
-                  )}
-                {results.map((s) => (
-                  <button
-                    key={s.id}
-                    type="button"
-                    onClick={() => {
-                      setStudent({
-                        id: s.id,
-                        name: s.name,
-                        school_class: s.school_class,
-                        group_name: s.group_name,
-                      });
-                      setResults([]);
-                      setQuery("");
-                    }}
-                    className="flex w-full items-center justify-between rounded-lg border border-gray-200 px-3 py-2 text-left hover:bg-gray-50"
-                  >
-                    <span className="truncate text-sm font-medium text-gray-900">
-                      {s.name}
-                    </span>
-                    <span className="ml-2 flex-shrink-0 text-xs text-gray-500">
-                      {[s.school_class, s.group_name]
-                        .filter(Boolean)
-                        .join(" • ")}
-                    </span>
-                  </button>
-                ))}
-                {query.trim().length < 2 && (
-                  <p className="py-3 text-center text-sm text-gray-400">
-                    Mindestens 2 Zeichen eingeben.
-                  </p>
-                )}
-              </div>
-            </div>
-          )}
+              {showsUnreachable ? (
+                <p className="text-sm text-gray-500">
+                  Bei „{NO_PARENT_ACCESS}“ kann niemand die Nachricht in der
+                  Eltern-App lesen. Den Zugang der Eltern legen Sie beim Kind
+                  fest.
+                </p>
+              ) : null}
+            </SlideOverBody>
+            <SlideOverFooter className="flex-row justify-end">
+              <Button
+                type="submit"
+                variant="success"
+                size="md"
+                disabled={!target}
+              >
+                Weiter
+              </Button>
+            </SlideOverFooter>
+          </form>
+        )}
 
-          {/* STEP 2 — pick the recipient guardian → opens the chat */}
-          {student && (
+        {/* STEP 2 — pick the recipient guardian → opens the chat */}
+        {student && (
+          <div className="flex-1 overflow-y-auto px-5 py-4">
             <div className="space-y-3">
               {!hasPreset && (
                 <button
@@ -310,14 +315,9 @@ export function NewMessageModal({
                 <p className="text-sm font-semibold text-gray-900">
                   {student.name}
                 </p>
-                {[student.school_class, student.group_name].filter(Boolean)
-                  .length > 0 && (
-                  <p className="text-xs text-gray-500">
-                    {[student.school_class, student.group_name]
-                      .filter(Boolean)
-                      .join(" • ")}
-                  </p>
-                )}
+                {student.detail ? (
+                  <p className="text-xs text-gray-500">{student.detail}</p>
+                ) : null}
               </div>
               <p className="text-sm font-medium text-gray-700">Eltern wählen</p>
               <FormErrorAlert message={openError.error} />
@@ -366,8 +366,8 @@ export function NewMessageModal({
                 </div>
               )}
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </SlideOverContent>
     </SlideOver>
   );

@@ -7,35 +7,48 @@ import (
 	"time"
 
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	auditModel "github.com/moto-nrw/project-phoenix/models/audit"
-	enrollmentModel "github.com/moto-nrw/project-phoenix/models/enrollment"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
 
-var bookingAuditMonday = timezone.NewDate(2026, time.January, 5)
+var bookingAuditMonday = calendar.NewDate(2026, time.January, 5)
 
 // The VerifyBookingConsistencyAudit* scenarios arrange their rows here and
 // assert the report of the repository the Audit integration suite composes
 // (database/repositories/audit/integration).
 
+// BookingConsistencyAudit runs the Audit Platform's booking consistency audit
+// for the tenant in ctx on auditDate (YYYY-MM-DD). The Audit integration
+// suite adapts its repository to it, so the scenarios need not name the Audit
+// Platform's report type (#2748).
+type BookingConsistencyAudit func(ctx context.Context, auditDate string) (BookingConsistencyFindings, error)
+
+// BookingConsistencyFindings carries the report fields the scenarios assert;
+// TotalFindings is the report's own count.
+type BookingConsistencyFindings struct {
+	TenantID                        int64
+	PickupProjectionMissingDays     int
+	ApprovedWithoutRequiredOffering int
+	ApprovedWithoutOptionalOffering int
+	TotalFindings                   int
+}
+
 // VerifyBookingConsistencyAuditIgnoresRuntimeFilteredPlanningRows: raw arrival
 // rows on unbooked days and broad class rosters are deliberate in booking-led
 // care. This fixture includes both and pins that only actionable
 // pickup/offering violations contribute to the report.
-func VerifyBookingConsistencyAuditIgnoresRuntimeFilteredPlanningRows(t *testing.T, db *bun.DB, repository any) {
+func VerifyBookingConsistencyAuditIgnoresRuntimeFilteredPlanningRows(t *testing.T, db *bun.DB, runAudit BookingConsistencyAudit) {
 	ctx := Ctx(t)
-	repo := repository.(auditModel.BookingConsistencyRepository)
 	auditDate := bookingAuditMonday
 
 	bookedStudent := CreateTestStudent(t, db, "Gebucht", "Audit", "1a")
 	bookedChild := createApprovedBookingAuditChild(t, ctx, db, auditDate, bookedStudent.ID,
-		enrollmentModel.PhaseCareOfferingSelectionAtLeastOne)
+		enrollmentOwner.PhaseCareOfferingSelectionAtLeastOne)
 	offering := CreateTestCareOffering(t, db, bookedChild.phase.ID, "Betreuung")
-	offering.DaysOfWeekMode = enrollmentModel.DaysOfWeekModeParentChoice
+	offering.DaysOfWeekMode = enrollmentOwner.DaysOfWeekModeParentChoice
 	offering.PickupTimes = map[string]string{"mon": "14:30"}
 	updateBookingAuditModel(t, db, ctx, offering, "days_of_week_mode", "pickup_times")
 	link := &auditOfferingSelection{
@@ -44,7 +57,7 @@ func VerifyBookingConsistencyAuditIgnoresRuntimeFilteredPlanningRows(t *testing.
 		SelectedDays:   []string{"mon", "tue"},
 		ValidFrom:      &auditDate,
 	}
-	insertAuditOfferingSelection(t, db, ctx, auditModel.TenantIDFromContext(ctx), link)
+	insertAuditOfferingSelection(t, db, ctx, tenant.FromContext(ctx), link)
 
 	staff := CreateTestStaff(t, db, "Audit", "Planung")
 	arrivalMonday := &StudentArrivalSchedule{
@@ -82,64 +95,62 @@ func VerifyBookingConsistencyAuditIgnoresRuntimeFilteredPlanningRows(t *testing.
 
 	missingRequiredStudent := CreateTestStudent(t, db, "Pflicht", "Audit", "1b")
 	createApprovedBookingAuditChild(t, ctx, db, auditDate, missingRequiredStudent.ID,
-		enrollmentModel.PhaseCareOfferingSelectionAtLeastOne)
+		enrollmentOwner.PhaseCareOfferingSelectionAtLeastOne)
 	optionalStudent := CreateTestStudent(t, db, "Optional", "Audit", "1c")
 	createApprovedBookingAuditChild(t, ctx, db, auditDate, optionalStudent.ID,
-		enrollmentModel.PhaseCareOfferingSelectionOptional)
+		enrollmentOwner.PhaseCareOfferingSelectionOptional)
 	otherTenant := NewTenantScope(t, db)
 	otherStudent := CreateTestStudentForTenant(t, db, otherTenant.TenantID, "Fremd", "Audit", "1d")
 	createApprovedBookingAuditChild(t, otherTenant.Context(), db, auditDate, otherStudent.ID,
-		enrollmentModel.PhaseCareOfferingSelectionAtLeastOne)
+		enrollmentOwner.PhaseCareOfferingSelectionAtLeastOne)
 
-	report, err := repo.Audit(ctx, auditModel.Date(auditDate.String()))
+	report, err := TenantQuery1(t, ctx, db, runAudit, auditDate.String())
 	require.NoError(t, err)
 	assert.Equal(t, Tenant(t), report.TenantID)
 	assert.Equal(t, 1, report.PickupProjectionMissingDays)
 	assert.Equal(t, 1, report.ApprovedWithoutRequiredOffering)
 	assert.Equal(t, 1, report.ApprovedWithoutOptionalOffering)
-	assert.Equal(t, 2, report.TotalFindings())
+	assert.Equal(t, 2, report.TotalFindings)
 }
 
 // VerifyBookingConsistencyAuditRequiresDateAndTenant pins the refusals of an
 // audit without a tenant context or date.
-func VerifyBookingConsistencyAuditRequiresDateAndTenant(t *testing.T, repository any) {
-	repo := repository.(auditModel.BookingConsistencyRepository)
-	_, err := repo.Audit(context.Background(), auditModel.Date(timezone.TodayDate().String()))
+func VerifyBookingConsistencyAuditRequiresDateAndTenant(t *testing.T, runAudit BookingConsistencyAudit) {
+	_, err := runAudit(context.Background(), calendar.TodayDate().String())
 	require.ErrorContains(t, err, "requires a tenant context")
 
-	_, err = repo.Audit(Ctx(t), auditModel.Date(""))
+	_, err = runAudit(Ctx(t), "")
 	require.ErrorContains(t, err, "date is required")
 }
 
 // VerifyBookingConsistencyAuditUsesEffectiveDatesAndExceptions pins that
 // arrival exceptions and links valid only later do not count as findings.
-func VerifyBookingConsistencyAuditUsesEffectiveDatesAndExceptions(t *testing.T, db *bun.DB, repository any) {
+func VerifyBookingConsistencyAuditUsesEffectiveDatesAndExceptions(t *testing.T, db *bun.DB, runAudit BookingConsistencyAudit) {
 	ctx := Ctx(t)
-	repo := repository.(auditModel.BookingConsistencyRepository)
 	auditDate := bookingAuditMonday
 	staff := CreateTestStaff(t, db, "Audit", "Ausnahme")
 
 	withArrivalException := CreateTestStudent(t, db, "Ankunft", "Ausnahme", "1a")
 	child := createApprovedBookingAuditChild(t, ctx, db, auditDate, withArrivalException.ID,
-		enrollmentModel.PhaseCareOfferingSelectionAtLeastOne)
+		enrollmentOwner.PhaseCareOfferingSelectionAtLeastOne)
 	offering := CreateTestCareOffering(t, db, child.phase.ID, "Montagsbetreuung")
-	offering.DaysOfWeekMode = enrollmentModel.DaysOfWeekModeParentChoice
+	offering.DaysOfWeekMode = enrollmentOwner.DaysOfWeekModeParentChoice
 	offering.PickupTimes = map[string]string{"mon": "14:30"}
 	updateBookingAuditModel(t, db, ctx, offering, "days_of_week_mode", "pickup_times")
 	arrivalLink := &auditOfferingSelection{
 		RequestChildID: child.child.ID, CareOfferingID: offering.ID, SelectedDays: []string{"mon"}, ValidFrom: &auditDate,
 	}
-	insertAuditOfferingSelection(t, db, ctx, auditModel.TenantIDFromContext(ctx), arrivalLink)
+	insertAuditOfferingSelection(t, db, ctx, tenant.FromContext(ctx), arrivalLink)
 	arrivalException := &StudentArrivalException{
-		StudentID: withArrivalException.ID, ExceptionDate: timezone.Date(auditDate), CreatedBy: staff.ID,
+		StudentID: withArrivalException.ID, ExceptionDate: calendar.Date(auditDate), CreatedBy: staff.ID,
 	}
 	insertTenantBookingAuditModel(t, db, ctx, arrivalException, &arrivalException.TenantID)
 
 	futureStudent := CreateTestStudent(t, db, "Zukunft", "Ausnahme", "1c")
 	futureChild := createApprovedBookingAuditChild(t, ctx, db, auditDate, futureStudent.ID,
-		enrollmentModel.PhaseCareOfferingSelectionAtLeastOne)
+		enrollmentOwner.PhaseCareOfferingSelectionAtLeastOne)
 	futureOffering := CreateTestCareOffering(t, db, futureChild.phase.ID, "Spätere Betreuung")
-	futureOffering.DaysOfWeekMode = enrollmentModel.DaysOfWeekModeParentChoice
+	futureOffering.DaysOfWeekMode = enrollmentOwner.DaysOfWeekModeParentChoice
 	futureOffering.PickupTimes = map[string]string{"mon": "14:30"}
 	updateBookingAuditModel(t, db, ctx, futureOffering, "days_of_week_mode", "pickup_times")
 	futureDate := auditDate.AddDays(1)
@@ -147,9 +158,9 @@ func VerifyBookingConsistencyAuditUsesEffectiveDatesAndExceptions(t *testing.T, 
 		RequestChildID: futureChild.child.ID, CareOfferingID: futureOffering.ID,
 		SelectedDays: []string{"mon"}, ValidFrom: &futureDate,
 	}
-	insertAuditOfferingSelection(t, db, ctx, auditModel.TenantIDFromContext(ctx), futureLink)
+	insertAuditOfferingSelection(t, db, ctx, tenant.FromContext(ctx), futureLink)
 
-	report, err := repo.Audit(ctx, auditModel.Date(auditDate.String()))
+	report, err := TenantQuery1(t, ctx, db, runAudit, auditDate.String())
 	require.NoError(t, err)
 	assert.Equal(t, 0, report.PickupProjectionMissingDays)
 	assert.Equal(t, 1, report.ApprovedWithoutRequiredOffering)
@@ -157,38 +168,37 @@ func VerifyBookingConsistencyAuditUsesEffectiveDatesAndExceptions(t *testing.T, 
 
 // VerifyBookingConsistencyAuditAcceptsContinuousSplitOfferingLinks pins that
 // two contiguous links of one offering cover the required offering.
-func VerifyBookingConsistencyAuditAcceptsContinuousSplitOfferingLinks(t *testing.T, db *bun.DB, repository any) {
+func VerifyBookingConsistencyAuditAcceptsContinuousSplitOfferingLinks(t *testing.T, db *bun.DB, runAudit BookingConsistencyAudit) {
 	ctx := Ctx(t)
-	repo := repository.(auditModel.BookingConsistencyRepository)
 	auditDate := bookingAuditMonday
 	staff := CreateTestStaff(t, db, "Audit", "Split")
 	student := CreateTestStudent(t, db, "Geteilt", "Audit", "1a")
 	child := createApprovedBookingAuditChild(t, ctx, db, auditDate, student.ID,
-		enrollmentModel.PhaseCareOfferingSelectionAtLeastOne)
+		enrollmentOwner.PhaseCareOfferingSelectionAtLeastOne)
 	offering := CreateTestCareOffering(t, db, child.phase.ID, "Geteilte Betreuung")
-	offering.DaysOfWeekMode = enrollmentModel.DaysOfWeekModeParentChoice
+	offering.DaysOfWeekMode = enrollmentOwner.DaysOfWeekModeParentChoice
 	offering.PickupTimes = map[string]string{"mon": "14:30"}
 	updateBookingAuditModel(t, db, ctx, offering, "days_of_week_mode", "pickup_times")
 
 	splitDate := auditDate.AddDays(15)
-	phaseEndExclusive := timezone.Date(child.phase.ServiceEndDate).AddDays(1)
+	phaseEndExclusive := calendar.Date(child.phase.ServiceEndDate).AddDays(1)
 	firstLink := &auditOfferingSelection{
 		RequestChildID: child.child.ID, CareOfferingID: offering.ID,
 		SelectedDays: []string{"mon"}, ValidFrom: &auditDate, ValidUntil: &splitDate,
 	}
-	insertAuditOfferingSelection(t, db, ctx, auditModel.TenantIDFromContext(ctx), firstLink)
+	insertAuditOfferingSelection(t, db, ctx, tenant.FromContext(ctx), firstLink)
 	secondLink := &auditOfferingSelection{
 		RequestChildID: child.child.ID, CareOfferingID: offering.ID,
 		SelectedDays: []string{"mon"}, ValidFrom: &splitDate, ValidUntil: &phaseEndExclusive,
 	}
-	insertAuditOfferingSelection(t, db, ctx, auditModel.TenantIDFromContext(ctx), secondLink)
+	insertAuditOfferingSelection(t, db, ctx, tenant.FromContext(ctx), secondLink)
 	arrival := &StudentArrivalSchedule{
 		StudentID: student.ID, Weekday: ScheduleWeekdayMonday,
 		ExpectedArrival: bookingAuditWallClock(11, 45), CreatedBy: staff.ID,
 	}
 	insertTenantBookingAuditModel(t, db, ctx, arrival, &arrival.TenantID)
 
-	report, err := repo.Audit(ctx, auditModel.Date(auditDate.String()))
+	report, err := TenantQuery1(t, ctx, db, runAudit, auditDate.String())
 	require.NoError(t, err)
 	assert.Equal(t, 0, report.ApprovedWithoutRequiredOffering)
 }
@@ -202,23 +212,23 @@ func createApprovedBookingAuditChild(
 	t *testing.T,
 	ctx context.Context,
 	db *bun.DB,
-	auditDate timezone.Date,
+	auditDate calendar.Date,
 	studentID int64,
 	selectionMode string,
 ) approvedBookingAuditChild {
 	t.Helper()
-	tenantID := auditModel.TenantIDFromContext(ctx)
+	tenantID := tenant.FromContext(ctx)
 	phase := &enrollmentOwner.Phase{
 		Name:                      fmt.Sprintf("Audit-%d", studentID),
-		Kind:                      enrollmentModel.PhaseKindSchoolYear,
+		Kind:                      enrollmentOwner.PhaseKindSchoolYear,
 		ServiceStartDate:          enrollmentOwner.Date(auditDate),
 		ServiceEndDate:            enrollmentOwner.Date(auditDate.AddDays(30)),
-		CareOverflowMode:          enrollmentModel.PhaseCareOverflowWaitlist,
+		CareOverflowMode:          enrollmentOwner.PhaseCareOverflowWaitlist,
 		CareOfferingSelectionMode: selectionMode,
 		IsActive:                  true,
 	}
 	phase.TenantID = tenantID
-	require.NoError(t, enrollmentOwner.New().InsertPhase(WithTenantRuntime(t, ctx, db), phase))
+	require.NoError(t, insertEnrollmentPhase(t, ctx, db, phase))
 	request := &enrollmentOwner.Request{
 		PhaseID:           phase.ID,
 		GuardianFirstName: "Audit",
@@ -226,34 +236,27 @@ func createApprovedBookingAuditChild(
 		GuardianEmail:     fmt.Sprintf("booking-audit-request-%d@example.test", studentID),
 		ConsentFlags:      []byte(`{}`),
 		CustomData:        []byte(`{}`),
-		SubmissionSource:  enrollmentModel.RequestSourceAdminManual,
+		SubmissionSource:  enrollmentOwner.RequestSourceAdminManual,
 		SourceMetadata:    []byte(`{}`),
 		StatusToken:       fmt.Sprintf("booking-audit-%d-%d", studentID, time.Now().UnixNano()),
 		SubmittedAt:       time.Now(),
 	}
-	owner := enrollmentOwner.New()
 	ownerCtx := WithTenantRuntime(t, ctx, db)
-	require.NoError(t, owner.InsertRequest(ownerCtx, request))
+	require.NoError(t, insertEnrollmentRequest(t, ownerCtx, db, request))
 	child := &enrollmentOwner.RequestChild{
 		RequestID: request.ID, FirstName: "Audit", LastName: "Kind",
 		DateOfBirth: "2018-01-01", CustomData: []byte(`{}`),
-		Status: enrollmentModel.ChildStatusApproved, ActivationMode: enrollmentModel.ChildActivationImmediate,
+		Status: enrollmentOwner.ChildStatusApproved, ActivationMode: enrollmentOwner.ChildActivationImmediate,
 		CreatedStudentID: &studentID,
 	}
-	require.NoError(t, owner.InsertChild(ownerCtx, child))
+	require.NoError(t, insertEnrollmentChild(t, ownerCtx, db, child))
 	require.Equal(t, tenantID, child.TenantID)
 	return approvedBookingAuditChild{phase: phase, child: child}
 }
 
-// AuditTenantIDFromContext reads the tenant the Audit Platform binds to a
-// context, for repositories composed in tests.
-func AuditTenantIDFromContext(ctx context.Context) int64 {
-	return auditModel.TenantIDFromContext(ctx)
-}
-
 func insertTenantBookingAuditModel(t *testing.T, db *bun.DB, ctx context.Context, model any, tenantID *int64) {
 	t.Helper()
-	*tenantID = auditModel.TenantIDFromContext(ctx)
+	*tenantID = tenant.FromContext(ctx)
 	insertBookingAuditModel(t, db, ctx, model)
 }
 
@@ -265,13 +268,8 @@ func insertBookingAuditModel(t *testing.T, db *bun.DB, ctx context.Context, mode
 
 func updateBookingAuditModel(t *testing.T, db *bun.DB, ctx context.Context, model any, columns ...string) {
 	t.Helper()
-	query := db.NewUpdate().Model(model).ModelTableExpr(auditFixtureUpdateTable(model)).Column(columns...)
-	if offering, ok := model.(*enrollmentModel.CareOffering); ok {
-		query = query.Where("id = ?", offering.ID)
-	} else {
-		query = query.WherePK()
-	}
-	_, err := query.Exec(ctx)
+	_, err := db.NewUpdate().Model(model).ModelTableExpr(auditFixtureUpdateTable(model)).Column(columns...).
+		WherePK().Exec(ctx)
 	require.NoError(t, err)
 }
 
@@ -279,7 +277,7 @@ func auditFixtureUpdateTable(model any) string {
 	switch model.(type) {
 	case *enrollmentOwner.Phase:
 		return `enrollment.phases AS "phase"`
-	case *enrollmentModel.CareOffering:
+	case *CareOffering:
 		return `enrollment.care_offerings AS "care_offering"`
 	case *ActivityGroup:
 		return `activities.groups AS "group"`
@@ -292,7 +290,7 @@ func auditFixtureTable(model any) string {
 	switch model.(type) {
 	case *enrollmentOwner.Phase:
 		return "enrollment.phases"
-	case *enrollmentModel.CareOffering:
+	case *CareOffering:
 		return "enrollment.care_offerings"
 	case *auditOfferingSelection:
 		return "enrollment.care_offering_bookings"

@@ -23,10 +23,10 @@ func renderOperatorError(t *testing.T, renderer render.Renderer) (int, string) {
 	rr := httptest.NewRecorder()
 	require.NoError(t, render.Render(rr, httptest.NewRequest(http.MethodGet, "/", nil), renderer))
 	var body struct {
-		Error string `json:"error"`
+		Detail string `json:"detail"`
 	}
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body), rr.Body.String())
-	return rr.Code, body.Error
+	return rr.Code, body.Detail
 }
 
 func TestAuthErrorRenderer_InvalidCredentials(t *testing.T) {

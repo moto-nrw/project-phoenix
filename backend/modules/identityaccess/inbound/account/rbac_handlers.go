@@ -18,13 +18,14 @@ import (
 // toRoleResponse maps a role to its API response representation.
 func toRoleResponse(role identityaccess.Role) *RoleResponse {
 	return &RoleResponse{
-		ID:          role.ID,
-		Name:        role.Name,
-		Description: role.Description,
-		IsSystem:    role.IsSystem,
-		BaseRole:    role.BaseRole,
-		CreatedAt:   role.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:   role.UpdatedAt.Format(time.RFC3339),
+		ID:           role.ID,
+		Name:         role.Name,
+		Description:  role.Description,
+		IsSystem:     role.IsSystem,
+		BaseRole:     role.BaseRole,
+		SchoolPortal: role.SchoolPortal,
+		CreatedAt:    role.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:    role.UpdatedAt.Format(time.RFC3339),
 	}
 }
 
@@ -57,8 +58,14 @@ func (rs *Resource) createRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	role, err := rs.Sessions.CreateRole(r.Context(), req.Name, req.Description, req.BaseRole)
+	var templates []identityaccess.RoleTemplate
+	if req.Template != nil {
+		templates = append(templates, identityaccess.RoleTemplate(*req.Template))
+	}
+	role, err := rs.Sessions.CreateRole(r.Context(), req.Name, req.Description, req.BaseRole, templates...)
 	if err != nil {
+		// The template copy writes the role and its permissions together.
+		rs.markRollback(r.Context())
 		common.RenderError(w, r, renderRoleMutationError(err))
 		return
 	}
@@ -135,7 +142,7 @@ func (rs *Resource) deleteRole(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := rs.Sessions.DeleteRole(r.Context(), int64(id)); err != nil {
-		if common.IsConstraintViolation(err) {
+		if rs.ConstraintViolation(err) {
 			common.RenderError(w, r, common.ErrorConflictMessage("Rolle kann nicht gelöscht werden: Rolle ist aktuell Konten zugewiesen"))
 			return
 		}
@@ -150,6 +157,10 @@ func (rs *Resource) deleteRole(w http.ResponseWriter, r *http.Request) {
 func renderRoleMutationError(err error) render.Renderer {
 	if errors.Is(err, identityaccess.ErrRoleNameTaken) {
 		return common.ErrorConflictOnField(err, common.CodeIdentityRoleNameTaken, "name")
+	}
+	var reservedErr *identityaccess.ReservedPermissionError
+	if errors.As(err, &reservedErr) {
+		return common.ErrorInvalidRequestWithDetails(err, common.CodeIdentityRolePlatformPermission, map[string]any{"permission": reservedErr.Permission})
 	}
 	var roleErr *identityaccess.AuthenticationError
 	if errors.As(err, &roleErr) {
@@ -217,34 +228,6 @@ func (rs *Resource) getAccountRoles(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, responses, "Account roles retrieved successfully")
 }
 
-// assignRoleToAccount applies the same school-role assignment policy as
-// invitations and registration before creating an account-role mapping. The
-// guardian invitation flow remains the only path that may grant guardian
-// access.
-func (rs *Resource) assignRoleToAccount(w http.ResponseWriter, r *http.Request) {
-	accountID, ok := common.ParseIntIDWithError(w, r, "accountId", common.MsgInvalidAccountID)
-	if !ok {
-		return
-	}
-	roleID, ok := common.ParseIntIDWithError(w, r, "roleId", common.MsgInvalidRoleID)
-	if !ok {
-		return
-	}
-
-	requestedRoleID := int64(roleID)
-	approvedRoleID, _, abort := rs.authorizeRoleAssignment(w, r, &requestedRoleID)
-	if abort {
-		return
-	}
-
-	if err := rs.Sessions.AssignRoleToAccount(r.Context(), int64(accountID), *approvedRoleID); err != nil {
-		rs.renderAccountRoleMutationError(w, r, err)
-		return
-	}
-
-	common.RespondNoContent(w, r)
-}
-
 // replaceAccountRole makes one approved target role the account's only staff
 // role at this school; guardian access stays. The role administration
 // executes assignment and removals in the request transaction.
@@ -291,33 +274,6 @@ func (rs *Resource) renderAccountRoleMutationError(w http.ResponseWriter, r *htt
 		return
 	}
 	common.RenderError(w, r, accountRoleErrorRenderer(err))
-}
-
-// The pass-through account and role mutations read the capability at request
-// time, so a resource composed without it still builds its router.
-
-func (rs *Resource) removeRoleFromAccount(ctx context.Context, accountID, roleID int64) error {
-	return rs.Sessions.RemoveRoleFromAccount(ctx, accountID, roleID)
-}
-
-func (rs *Resource) grantPermissionToAccount(ctx context.Context, accountID, permissionID int64) error {
-	return rs.Sessions.GrantPermissionToAccount(ctx, accountID, permissionID)
-}
-
-func (rs *Resource) denyPermissionToAccount(ctx context.Context, accountID, permissionID int64) error {
-	return rs.Sessions.DenyPermissionToAccount(ctx, accountID, permissionID)
-}
-
-func (rs *Resource) removePermissionFromAccount(ctx context.Context, accountID, permissionID int64) error {
-	return rs.Sessions.RemovePermissionFromAccount(ctx, accountID, permissionID)
-}
-
-func (rs *Resource) assignPermissionToRole(ctx context.Context, roleID, permissionID int64) error {
-	return rs.Sessions.AssignPermissionToRole(ctx, roleID, permissionID)
-}
-
-func (rs *Resource) removePermissionFromRole(ctx context.Context, roleID, permissionID int64) error {
-	return rs.Sessions.RemovePermissionFromRole(ctx, roleID, permissionID)
 }
 
 // createPermission handles creating a new permission
@@ -402,7 +358,7 @@ func (rs *Resource) deletePermission(w http.ResponseWriter, r *http.Request) {
 	if err := rs.withinAdmin(r.Context(), func(ctx context.Context) error {
 		return rs.Sessions.DeletePermission(ctx, int64(id))
 	}); err != nil {
-		if common.IsConstraintViolation(err) {
+		if rs.ConstraintViolation(err) {
 			common.RenderError(w, r, common.ErrorConflictMessage("Berechtigung kann nicht gelöscht werden: Berechtigung ist aktuell Rollen oder Konten zugewiesen"))
 			return
 		}
@@ -427,38 +383,6 @@ func (rs *Resource) listPermissions(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.Respond(w, r, http.StatusOK, toPermissionResponses(permissions), "Permissions retrieved successfully")
-}
-
-// getAccountPermissions handles getting permissions for an account
-func (rs *Resource) getAccountPermissions(w http.ResponseWriter, r *http.Request) {
-	accountID, ok := common.ParseIntIDWithError(w, r, "accountId", common.MsgInvalidAccountID)
-	if !ok {
-		return
-	}
-
-	permissions, err := rs.Sessions.GetAccountPermissions(r.Context(), int64(accountID))
-	if err != nil {
-		common.RenderError(w, r, accountRoleErrorRenderer(err))
-		return
-	}
-
-	common.Respond(w, r, http.StatusOK, toPermissionResponses(permissions), "Account permissions retrieved successfully")
-}
-
-// getAccountDirectPermissions handles getting only direct permissions for an account (not role-based)
-func (rs *Resource) getAccountDirectPermissions(w http.ResponseWriter, r *http.Request) {
-	accountID, ok := common.ParseIntIDWithError(w, r, "accountId", common.MsgInvalidAccountID)
-	if !ok {
-		return
-	}
-
-	permissions, err := rs.Sessions.GetAccountDirectPermissions(r.Context(), int64(accountID))
-	if err != nil {
-		common.RenderError(w, r, accountRoleErrorRenderer(err))
-		return
-	}
-
-	common.Respond(w, r, http.StatusOK, toPermissionResponses(permissions), "Account direct permissions retrieved successfully")
 }
 
 // getRolePermissions handles getting permissions for a role

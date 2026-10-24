@@ -23,7 +23,7 @@ import (
 // transaction so a failure after any command rolls all of them back.
 
 type sessionStorageFixture struct {
-	module      *studentpresence.Module
+	module      studentpresence.Owner
 	instanceID  int64
 	groupID     int64
 	participant int64
@@ -67,7 +67,7 @@ func TestActivitySessionStartsOncePerBlock(t *testing.T) {
 	assert.Empty(t, notScheduled)
 }
 
-func sessionExecution(ctx context.Context, module *studentpresence.Module, instanceIDs, participantIDs []int64) ([]int64, []int64, error) {
+func sessionExecution(ctx context.Context, module studentpresence.Owner, instanceIDs, participantIDs []int64) ([]int64, []int64, error) {
 	result, err := module.SessionExecution(ctx, studentpresence.SessionExecutionFilter{InstanceIDs: instanceIDs, ParticipantIDs: participantIDs})
 	return result.CompletedInstanceIDs, result.NotScheduledParticipantIDs, err
 }

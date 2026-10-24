@@ -7,7 +7,9 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/exporttransfer"
 	"github.com/moto-nrw/project-phoenix/modules/exporttransfer/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/exporttransfer/internal/ports"
 )
@@ -21,15 +23,15 @@ var ErrUnavailable = errors.New("export transfer unavailable")
 // feature is a manual action, and a silent background retry of a payroll file
 // is exactly the behaviour nobody asked for.
 type Service struct {
-	targets   ports.TargetResolver
-	uploader  ports.Uploader
-	journal   ports.Journal
-	lifecycle ports.TransactionLifecycle
-	logger    *slog.Logger
+	targets  ports.TargetResolver
+	uploader ports.Uploader
+	journal  ports.Journal
+	runtime  ports.CommandRuntime
+	logger   *slog.Logger
 }
 
-func New(targets ports.TargetResolver, uploader ports.Uploader, journal ports.Journal, lifecycle ports.TransactionLifecycle, logger *slog.Logger) *Service {
-	return &Service{targets: targets, uploader: uploader, journal: journal, lifecycle: lifecycle, logger: logger}
+func New(targets ports.TargetResolver, uploader ports.Uploader, journal ports.Journal, runtime ports.CommandRuntime, logger *slog.Logger) *Service {
+	return &Service{targets: targets, uploader: uploader, journal: journal, runtime: runtime, logger: logger}
 }
 
 func (s *Service) log() *slog.Logger {
@@ -39,86 +41,69 @@ func (s *Service) log() *slog.Logger {
 	return s.logger
 }
 
-func (s *Service) State(ctx context.Context) (domain.TargetState, error) {
+// Status reports the credential-free configuration view.
+func (s *Service) Status(ctx context.Context) (exporttransfer.Status, error) {
 	state, err := s.targets.State(ctx)
 	if err != nil {
-		return domain.TargetState{}, fmt.Errorf("%w: %w", ErrUnavailable, err)
+		return exporttransfer.Status{}, fmt.Errorf("%w: %w", ErrUnavailable, err)
 	}
-	return state, nil
+	return exporttransfer.Status{Enabled: state.Enabled, Ready: state.Ready(), Host: state.Host, Port: state.Port,
+		RemoteDirectory: state.RemoteDirectory, MissingSettings: state.MissingSettings}, nil
 }
 
-func (s *Service) Transfer(ctx context.Context, request domain.Request) (domain.Result, error) {
-	target, err := s.targets.Resolve(ctx)
+func (s *Service) Transfer(ctx context.Context, request exporttransfer.Request) (exporttransfer.Outcome, error) {
+	if !s.runtime.Active(ctx) {
+		return s.unscopedTransferResult(ctx, request)
+	}
+	// The command, not the response middleware, owns the commit boundary.
+	detached := s.runtime.Detached(ctx)
+	id, entry, target, err := s.beginIntent(detached, &request)
 	if err != nil {
-		if errors.Is(err, domain.ErrNotConfigured) {
-			// No journal entry: nothing was attempted, nothing left the
-			// school, and there is no destination to record. The trail
-			// answers "which files went where" — a form that was never
-			// filled in is not an answer to that question.
-			return domain.Result{Filename: request.Filename, Reason: domain.ReasonNotConfigured}, nil
-		}
-		return domain.Result{}, fmt.Errorf("%w: %w", ErrUnavailable, err)
+		return exporttransfer.Outcome{}, fmt.Errorf("%w: record intent: %w", ErrUnavailable, err)
 	}
-	if !s.lifecycle.Active(ctx) {
-		return domain.Result{}, fmt.Errorf("%w: transaction lifecycle is required", ErrUnavailable)
+	// File production has the same precedence as before. Even an unconfigured
+	// transfer commits the existing access audit, but never creates an intent.
+	if id == 0 {
+		return exporttransfer.Outcome{Filename: request.Filename, Reason: domain.ReasonNotConfigured}, nil
 	}
-
-	commitUpload, rollbackUpload, uploadErr := s.uploader.Prepare(ctx, target, request.Filename, request.Data)
+	// Bound the whole dispatch from before its claim commit. A paused caller
+	// cannot resume past the two-minute fence and start a fresh upload.
+	dispatchCtx, stopDispatch := context.WithTimeout(detached, time.Minute)
+	defer stopDispatch()
+	var token string
+	if err := s.runtime.WithinTenant(dispatchCtx, func(txCtx context.Context) error {
+		var err error
+		token, err = s.journal.Claim(txCtx, id)
+		return err
+	}); err != nil {
+		return exporttransfer.Outcome{}, fmt.Errorf("%w: claim intent: %w", ErrUnavailable, err)
+	}
+	// No remote operation can happen until both commits above have succeeded.
+	commit, _, uploadErr := s.uploader.Prepare(dispatchCtx, target, request.Filename, request.Data)
 	if uploadErr == nil {
-		// The remote replacement stays reversible until the surrounding audit
-		// transaction has a final outcome. A failed insert, handler rollback or
-		// commit failure restores the prior file; a commit only discards the
-		// rollback copy.
-		s.lifecycle.AfterCommit(ctx, func() {
-			if err := commitUpload(); err != nil {
-				s.log().Error("failed to finalize export transfer", "error", err.Error())
-			}
-		})
-		s.lifecycle.AfterRollback(ctx, func() {
-			if err := rollbackUpload(); err != nil {
-				s.log().Error("failed to roll back export transfer", "error", err.Error())
-			}
-		})
+		// Prepare has already atomically replaced the file. Commit only discards
+		// its rollback copy; a cleanup failure must not misreport a failed upload.
+		if err := commit(); err != nil {
+			s.log().Error("failed to finalize export transfer", "error", err.Error())
+		}
 	}
-
-	result := domain.Result{
-		Success:         uploadErr == nil,
-		Filename:        request.Filename,
-		ByteSize:        int64(len(request.Data)),
-		TargetHost:      target.Host,
-		TargetDirectory: target.RemoteDirectory,
-	}
+	result := exporttransfer.Outcome{Transferred: uploadErr == nil, Filename: request.Filename,
+		ByteSize: entry.ByteSize, TargetHost: target.Host, TargetDirectory: target.RemoteDirectory}
+	entry.Success = result.Transferred
+	entry.Reason = ""
 	if uploadErr != nil {
 		result.Reason = failureReason(uploadErr)
-		// The transport's own text stays in the log and goes nowhere near the
-		// response or the journal.
-		s.log().Warn("export transfer failed",
-			"export_kind", request.Kind,
-			"format", request.Format,
-			"target_host", target.Host,
-			"reason", result.Reason,
-			"error", uploadErr.Error(),
-		)
+		entry.Reason = result.Reason
+		s.logTransferFailure(request, result, uploadErr)
 	}
-
-	entry := domain.JournalEntry{
-		ActorAccountID:  request.ActorAccountID,
-		ActorName:       request.ActorName,
-		Kind:            request.Kind,
-		Format:          request.Format,
-		Filename:        result.Filename,
-		ByteSize:        result.ByteSize,
-		TargetHost:      target.Host,
-		TargetPort:      target.Port,
-		TargetDirectory: target.RemoteDirectory,
-		Success:         result.Success,
-		Reason:          result.Reason,
-	}
-	if err := s.journal.Record(ctx, entry); err != nil {
-		// Returning an error makes the surrounding transaction roll back;
-		// its rollback hook restores the previous remote state, so an
-		// unrecorded transfer is never reported as a success.
-		return domain.Result{}, fmt.Errorf("%w: record attempt: %w", ErrUnavailable, err)
+	// A cancelled request must still persist the transport result. A crash or
+	// unavailable database leaves the committed attempt for unknown settlement.
+	finalizeCtx, cancel := context.WithTimeout(context.WithoutCancel(detached), 5*time.Second)
+	defer cancel()
+	if err := s.runtime.WithinTenant(finalizeCtx, func(txCtx context.Context) error {
+		return s.journal.Complete(txCtx, id, token, entry)
+	}); err != nil {
+		return exporttransfer.Outcome{}, fmt.Errorf("%w: record outcome: %w", ErrUnavailable, err)
 	}
 	return result, nil
 }
@@ -132,4 +117,64 @@ func failureReason(err error) string {
 		return reasoned.TransferReason()
 	}
 	return domain.ReasonInternal
+}
+
+func (s *Service) logTransferFailure(request exporttransfer.Request, result exporttransfer.Outcome, err error) {
+	s.log().Warn("export transfer failed",
+		"export_kind", request.Kind,
+		"format", request.Format,
+		"target_host", result.TargetHost,
+		"reason", result.Reason,
+		"error", err.Error(),
+	)
+}
+
+func transferIntent(request exporttransfer.Request, target domain.Target) domain.JournalEntry {
+	return domain.JournalEntry{
+		ActorAccountID: request.ActorAccountID, ActorName: request.ActorName,
+		Kind: request.Kind, Format: request.Format, Filename: request.Filename,
+		ByteSize: int64(len(request.Data)), TargetHost: target.Host, TargetPort: target.Port,
+		TargetDirectory: target.RemoteDirectory, Reason: domain.ReasonInternal,
+	}
+}
+
+func (s *Service) beginIntent(ctx context.Context, request *exporttransfer.Request) (int64, domain.JournalEntry, domain.Target, error) {
+	var target domain.Target
+	var entry domain.JournalEntry
+	var id int64
+	err := s.runtime.WithinTenant(ctx, func(txCtx context.Context) error {
+		var err error
+		if request.PrepareFile != nil {
+			request.Filename, request.Data, err = request.PrepareFile(txCtx)
+			if err != nil {
+				return err
+			}
+		}
+		target, err = s.targets.Resolve(txCtx)
+		if errors.Is(err, domain.ErrNotConfigured) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		entry = transferIntent(*request, target)
+		id, err = s.journal.Begin(txCtx, entry)
+		return err
+	})
+	return id, entry, target, err
+}
+
+// A prebuilt file may report a missing configuration outside a transaction,
+// as before. Producers and actual transfers always require a command scope.
+func (s *Service) unscopedTransferResult(ctx context.Context, request exporttransfer.Request) (exporttransfer.Outcome, error) {
+	if request.PrepareFile == nil {
+		_, err := s.targets.Resolve(ctx)
+		if errors.Is(err, domain.ErrNotConfigured) {
+			return exporttransfer.Outcome{Filename: request.Filename, Reason: domain.ReasonNotConfigured}, nil
+		}
+		if err != nil {
+			return exporttransfer.Outcome{}, fmt.Errorf("%w: %w", ErrUnavailable, err)
+		}
+	}
+	return exporttransfer.Outcome{}, fmt.Errorf("%w: transaction lifecycle is required", ErrUnavailable)
 }

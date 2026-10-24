@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -15,7 +14,7 @@ import (
 func TestAccountAnonymizationPreservesTransactionAndOtherAccountState(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	accounts := setupAuthFactory(t, db).AccountAuthentication()
+	accounts := setupAuthFactory(t, db)
 	account := testpkg.CreateTestAccount(t, db, "anonymize-account")
 	other := testpkg.CreateTestAccount(t, db, "anonymize-other")
 	ctx := testpkg.Ctx(t)
@@ -24,7 +23,7 @@ func TestAccountAnonymizationPreservesTransactionAndOtherAccountState(t *testing
 	require.NoError(t, err)
 	placeholder := fmt.Sprintf("deleted-%d@anonymized.local", account.ID)
 	rollback := errors.New("rollback account anonymization")
-	err = tenant.WithAdminTx(ctx, db, func(txCtx context.Context, tx bun.Tx) error {
+	err = testpkg.WithAdminTx(t, ctx, db, func(txCtx context.Context, tx bun.Tx) error {
 		require.NoError(t, accounts.AnonymizeAccountForDeletion(txCtx, account.ID, placeholder))
 		var changed struct {
 			Email    string
@@ -54,7 +53,7 @@ func TestAccountAnonymizationPreservesTransactionAndOtherAccountState(t *testing
 	require.Equal(t, other.Email, untouched.Email)
 	require.NoError(t, accounts.AnonymizeAccountForDeletion(ctx, 0, placeholder), "an already absent account remains a no-op")
 
-	err = tenant.WithAdminTx(ctx, db, func(txCtx context.Context, _ bun.Tx) error {
+	err = testpkg.WithAdminTx(t, ctx, db, func(txCtx context.Context, _ bun.Tx) error {
 		return accounts.AnonymizeAccountForDeletion(txCtx, account.ID, other.Email)
 	})
 	require.Error(t, err, "a conflicting placeholder must fail the deletion transaction")

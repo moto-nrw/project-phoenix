@@ -5,16 +5,16 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // dashboardBaseData holds the raw data fetched for dashboard analytics
 type dashboardBaseData struct {
 	activeVisits             []studentpresence.Visit
 	todaysAttendance         []studentpresence.Attendance
-	allRooms                 []*ports.SessionRoom
+	allRooms                 []*studentpresence.SessionRoom
 	activeGroups             []*ports.ActiveGroup
 	allEducationGroups       []*EducationGroupRoom
 	allActivityGroups        []*ports.SessionActivity
@@ -29,7 +29,7 @@ type dashboardBaseData struct {
 
 // dashboardRoomData holds room-related lookup maps
 type dashboardRoomData struct {
-	roomByID          map[int64]*ports.SessionRoom
+	roomByID          map[int64]*studentpresence.SessionRoom
 	roomCapacityTotal int
 	occupiedRooms     map[int64]bool
 	roomStudentsMap   map[int64]map[int64]struct{} // roomID -> set of unique student IDs
@@ -50,7 +50,7 @@ type locationMetrics struct {
 }
 
 // fetchDashboardBaseData retrieves all raw data needed for dashboard analytics
-func (s *service) fetchDashboardBaseData(ctx context.Context, today timezone.Date) (*dashboardBaseData, error) {
+func (s *service) fetchDashboardBaseData(ctx context.Context, today calendar.Date) (*dashboardBaseData, error) {
 	data := &dashboardBaseData{
 		studentsWithActiveVisits: make(map[int64]bool),
 		studentsWithAttendance:   make(map[int64]bool),
@@ -105,7 +105,7 @@ func (s *service) fetchDashboardBaseData(ctx context.Context, today timezone.Dat
 
 // loadDashboardPresence reads the open visits and today's attendance and
 // derives who is present: open attendance or an open visit.
-func (s *service) loadDashboardPresence(ctx context.Context, today timezone.Date, data *dashboardBaseData) error {
+func (s *service) loadDashboardPresence(ctx context.Context, today calendar.Date, data *dashboardBaseData) error {
 	// Get active visits
 	activeVisits, err := s.SchoolPresence.ListVisits(ctx, studentpresence.VisitFilter{OpenOnly: true})
 	if err != nil {
@@ -170,9 +170,9 @@ func (s *service) countSupervisorsToday(ctx context.Context) (int, error) {
 }
 
 // buildRoomLookupMaps creates room-related lookup structures
-func (s *service) buildRoomLookupMaps(allRooms []*ports.SessionRoom) *dashboardRoomData {
+func (s *service) buildRoomLookupMaps(allRooms []*studentpresence.SessionRoom) *dashboardRoomData {
 	data := &dashboardRoomData{
-		roomByID:        make(map[int64]*ports.SessionRoom),
+		roomByID:        make(map[int64]*studentpresence.SessionRoom),
 		occupiedRooms:   make(map[int64]bool),
 		roomStudentsMap: make(map[int64]map[int64]struct{}),
 	}
@@ -297,7 +297,7 @@ func processActiveGroups(activeGroups []*ports.ActiveGroup, visitsByGroupID map[
 }
 
 // isPlaygroundRoom checks if a room is a playground/outdoor area
-func isPlaygroundRoom(room *ports.SessionRoom) bool {
+func isPlaygroundRoom(room *studentpresence.SessionRoom) bool {
 	if room == nil || room.Category == nil {
 		return false
 	}
@@ -576,7 +576,7 @@ func resolveGroupNameAndType(groupID *int64, activityGroupsByID map[int64]*ports
 }
 
 // resolveRoomName gets the display name for a room
-func resolveRoomName(roomID int64, roomByID map[int64]*ports.SessionRoom) string {
+func resolveRoomName(roomID int64, roomByID map[int64]*studentpresence.SessionRoom) string {
 	if room, ok := roomByID[roomID]; ok {
 		return room.Name
 	}

@@ -1,4 +1,4 @@
-import { ApiError, enrichApiError, transportFetch } from "./api-error";
+import { apiErrorFromBody, transportFetch } from "./api-error";
 // Calendar period API client. Talks to the Next.js proxy at
 // /api/timetable/periods, which forwards to the Go backend
 // /api/timetable/periods (CRUD via SchedulesRead/Create/Update/Delete).
@@ -22,33 +22,12 @@ interface ApiEnvelope<T> {
   data: T;
 }
 
-class CalendarPeriodApiError extends ApiError {
-  readonly httpStatus: number;
-
-  constructor(message: string, httpStatus: number, code?: string) {
-    super(message, httpStatus, { code });
-    this.name = "CalendarPeriodApiError";
-    this.httpStatus = httpStatus;
-  }
-}
-
 async function unwrap<T>(response: Response): Promise<T> {
   if (!response.ok) {
-    let message = `Anfrage fehlgeschlagen (HTTP ${response.status})`;
-    let code: string | undefined;
-    let payload: unknown;
-    try {
-      const body = (await response.json()) as { error?: string; code?: string };
-      payload = body;
-      if (body.error) message = body.error;
-      code = body.code;
-    } catch {
-      // Body wasn't JSON — keep the generic message.
-    }
-    throw enrichApiError(
-      new CalendarPeriodApiError(message, response.status, code),
-      payload,
+    throw apiErrorFromBody(
+      `Anfrage fehlgeschlagen (HTTP ${response.status})`,
       response.status,
+      await response.json().catch(() => undefined),
     );
   }
 
@@ -158,18 +137,10 @@ class CalendarPeriodService {
       credentials: "include",
     });
     if (!response.ok && response.status !== 204) {
-      let message = `Anfrage fehlgeschlagen (HTTP ${response.status})`;
-      let payload: unknown;
-      try {
-        const body = (await response.json()) as { error?: string };
-        payload = body;
-        if (body.error) message = body.error;
-      } catch {
-        // not JSON
-      }
-      throw enrichApiError(
-        new CalendarPeriodApiError(message, response.status),
-        payload,
+      throw apiErrorFromBody(
+        `Anfrage fehlgeschlagen (HTTP ${response.status})`,
+        response.status,
+        await response.json().catch(() => undefined),
       );
     }
     logger.info("period_deleted", { period_id: id });

@@ -15,17 +15,16 @@
 package presence_test
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	active "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -47,31 +46,35 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	reposStructure := owners.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db))
+	reposPresence := api.NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db))
+	timetableRepos := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db))
+	mirrorRepos := api.NewAttendanceSyncTestRepositories(testpkg.MustDatabase(db), owners.MustNewUnobservedTimetable(testpkg.NewDatabase(t, db)))
 	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
 
 	// Real attendance syncer, wired the same way services.NewFactory does.
-	syncer := newAttendanceMirror(t,
-		repos.ActivityInstance,
-		repos.InstanceStudent,
-		slog.Default(),
-	)
+	syncer := newAttendanceMirror(t, api.TimetableOwnerRows{Instances: mirrorRepos.Instances, Participants: mirrorRepos.Participants}, slog.Default())
 	broadcaster := testpkg.NewRecordingBroadcaster()
 
-	svc := active.NewService(active.ServiceDependencies{PrincipalReader: services.AttendancePrincipal,
-		GroupRepo:          sessionGroups(repos.ActiveGroup),
-		SupervisorRepo:     sessionSupervisors(repos.ActiveGroup),
+	devices, err := api.NewDeviceRepository(testpkg.NewDatabase(t, db))
+	require.NoError(t, err)
+	rooms, err := api.NewFacilities(testpkg.NewDatabase(t, db))
+	require.NoError(t, err)
+	svc := active.NewService(active.ServiceDependencies{PrincipalReader: api.AttendancePrincipal,
+		GroupRepo:          sessionGroups(reposPresence.ActiveGroup),
+		SupervisorRepo:     sessionSupervisors(reposPresence.ActiveGroup),
 		SchoolPresence:     testSchoolPresence(t, db),
-		StudentRepo:        services.PresenceStudents(db, repos.Student),
-		StaffRepo:          services.NewAttendanceStaffDirectory(repos.Staff),
-		RoomRepo:           services.NewAttendanceRooms(repos.Room),
-		ActivityGroupRepo:  repositories.NewSessionActivities(repos.ActivityGroup),
-		ActivityCatRepo:    services.NewAttendanceActivityCategories(repos.ActivityCategory),
-		EducationGroupRepo: services.NewAttendanceEducationGroups(repos.Group, repos.Student),
-		DeviceRepo:         services.NewSessionDeviceDirectory(repos.Device, nil, nil),
+		StudentRepo:        owners.PresenceStudents(testpkg.MustDatabase(db), repos.Student),
+		StaffRepo:          owners.NewAttendanceStaffDirectory(repos.Staff),
+		RoomRepo:           api.NewAttendanceRooms(api.NewRoomRepository(rooms)),
+		ActivityGroupRepo:  owners.NewSessionActivities(timetableRepos.GroupReads()),
+		ActivityCatRepo:    api.NewAttendanceActivityCategories(timetableRepos.ActivityCategory),
+		EducationGroupRepo: owners.NewAttendanceEducationGroups(reposStructure.Group, repos.Student),
+		DeviceRepo:         owners.NewSessionDeviceDirectory(devices, &settingsDouble{ResolveIntFn: func(context.Context, string) (int, error) { return 5, nil }}, nil),
 		DB:                 db,
-		Broadcaster:        broadcaster,
+		Broadcaster:        owners.NewPresenceEvents(broadcaster, nil),
 		AttendanceSyncer:   syncer,
 		Logger:             slog.Default(),
 	})
@@ -95,24 +98,23 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 		StartTime:       time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
 		EndTime:         time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
 		RoomID:          room.ID,
-		Status:          scheduleModels.InstanceStatusActive,
+		Status:          studentpresence.ActivitySessionActive,
 		ActiveGroupID:   &activeGroup.ID,
 	}
 	instance.TenantID = testpkg.Tenant(t)
 	testpkg.InsertActivityInstanceRow(t, ctx, db, instance)
 
-	isRepo := repos.InstanceStudent
-	row := &scheduleModels.InstanceStudent{
-		InstanceID: instance.ID,
-		StudentID:  student.ID,
-		Status:     scheduleModels.AttendanceStatusExpected,
-	}
-	row.SetTenantID(testpkg.Tenant(t))
+	isRepo := mirrorRepos.Participants
+	row := api.NewAttendanceMirrorParticipant()
+	row.InstanceID = instance.ID
+	row.StudentID = student.ID
+	row.Status = studentpresence.SessionAttendanceExpected
+	row.TenantID = testpkg.Tenant(t)
 	require.NoError(t, isRepo.Create(ctx, row))
 
 	// ACT: drive a check-in through the service.
-	staffCtx := services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
-	deviceCtx := services.WithAttendanceDevice(staffCtx, iotDevice.ID, iotDevice.TenantID)
+	staffCtx := api.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
+	deviceCtx := api.WithAttendanceDevice(staffCtx, iotDevice.ID, iotDevice.TenantID)
 
 	visit := &studentpresence.Visit{
 		StudentID:     student.ID,
@@ -128,7 +130,7 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 	require.NotNil(t, ev, "expected student_checkin event to be broadcast")
 	require.NotNil(t, ev.Data.AttendanceStatus,
 		"attendance_status must be populated when the visit bridges to an instance_students row")
-	assert.Equal(t, scheduleModels.AttendanceStatusPresent, *ev.Data.AttendanceStatus)
+	assert.Equal(t, studentpresence.SessionAttendancePresent, *ev.Data.AttendanceStatus)
 	// Substatus/note are null for a first-time flip — the column defaults
 	// are NULL and no PATCH has happened.
 	assert.Nil(t, ev.Data.AttendanceSubstatus)
@@ -137,7 +139,7 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 	// DB post-condition: the mirrored row flipped to 'present'.
 	updated, err := isRepo.FindByID(ctx, row.ID)
 	require.NoError(t, err)
-	assert.Equal(t, scheduleModels.AttendanceStatusPresent, updated.Status)
+	assert.Equal(t, studentpresence.SessionAttendancePresent, updated.Status)
 	require.NotNil(t, updated.CheckedInAt, "checked_in_at must be stamped by the mirror write")
 
 	// Create a second bridged care slot, then move the same visit. The source
@@ -154,18 +156,17 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 		StartTime:       time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
 		EndTime:         time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC),
 		RoomID:          targetRoom.ID,
-		Status:          scheduleModels.InstanceStatusActive,
+		Status:          studentpresence.ActivitySessionActive,
 		ActiveGroupID:   &targetGroup.ID,
 	}
 	targetInstance.TenantID = testpkg.Tenant(t)
 	testpkg.InsertActivityInstanceRow(t, ctx, db, targetInstance)
 
-	targetRow := &scheduleModels.InstanceStudent{
-		InstanceID: targetInstance.ID,
-		StudentID:  student.ID,
-		Status:     scheduleModels.AttendanceStatusExpected,
-	}
-	targetRow.SetTenantID(testpkg.Tenant(t))
+	targetRow := api.NewAttendanceMirrorParticipant()
+	targetRow.InstanceID = targetInstance.ID
+	targetRow.StudentID = student.ID
+	targetRow.Status = studentpresence.SessionAttendanceExpected
+	targetRow.TenantID = testpkg.Tenant(t)
 	require.NoError(t, isRepo.Create(ctx, targetRow))
 
 	visit.ActiveGroupID = targetGroup.ID
@@ -179,7 +180,7 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 
 	targetAfterTransfer, err := isRepo.FindByID(ctx, targetRow.ID)
 	require.NoError(t, err)
-	assert.Equal(t, scheduleModels.AttendanceStatusPresent, targetAfterTransfer.Status)
+	assert.Equal(t, studentpresence.SessionAttendancePresent, targetAfterTransfer.Status)
 	require.NotNil(t, targetAfterTransfer.CheckedInAt, "transfer must open the target slot")
 	assert.Nil(t, targetAfterTransfer.CheckedOutAt, "transfer must not immediately close the target slot")
 	assert.WithinDuration(t, *sourceAfterTransfer.CheckedOutAt, *targetAfterTransfer.CheckedInAt, time.Millisecond)
@@ -204,28 +205,32 @@ func TestCreateVisit_WalkInLeavesAttendanceFieldsUnset(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	reposStructure := owners.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db))
+	reposPresence := api.NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db))
+	timetableRepos := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db))
+	mirrorRepos := api.NewAttendanceSyncTestRepositories(testpkg.MustDatabase(db), owners.MustNewUnobservedTimetable(testpkg.NewDatabase(t, db)))
 	suffix := time.Now().UnixNano()
-	syncer := newAttendanceMirror(t,
-		repos.ActivityInstance,
-		repos.InstanceStudent,
-		slog.Default(),
-	)
+	syncer := newAttendanceMirror(t, api.TimetableOwnerRows{Instances: mirrorRepos.Instances, Participants: mirrorRepos.Participants}, slog.Default())
 	broadcaster := testpkg.NewRecordingBroadcaster()
 
-	svc := active.NewService(active.ServiceDependencies{PrincipalReader: services.AttendancePrincipal,
-		GroupRepo:          sessionGroups(repos.ActiveGroup),
-		SupervisorRepo:     sessionSupervisors(repos.ActiveGroup),
+	devices, err := api.NewDeviceRepository(testpkg.NewDatabase(t, db))
+	require.NoError(t, err)
+	rooms, err := api.NewFacilities(testpkg.NewDatabase(t, db))
+	require.NoError(t, err)
+	svc := active.NewService(active.ServiceDependencies{PrincipalReader: api.AttendancePrincipal,
+		GroupRepo:          sessionGroups(reposPresence.ActiveGroup),
+		SupervisorRepo:     sessionSupervisors(reposPresence.ActiveGroup),
 		SchoolPresence:     testSchoolPresence(t, db),
-		StudentRepo:        services.PresenceStudents(db, repos.Student),
-		StaffRepo:          services.NewAttendanceStaffDirectory(repos.Staff),
-		RoomRepo:           services.NewAttendanceRooms(repos.Room),
-		ActivityGroupRepo:  repositories.NewSessionActivities(repos.ActivityGroup),
-		ActivityCatRepo:    services.NewAttendanceActivityCategories(repos.ActivityCategory),
-		EducationGroupRepo: services.NewAttendanceEducationGroups(repos.Group, repos.Student),
-		DeviceRepo:         services.NewSessionDeviceDirectory(repos.Device, nil, nil),
+		StudentRepo:        owners.PresenceStudents(testpkg.MustDatabase(db), repos.Student),
+		StaffRepo:          owners.NewAttendanceStaffDirectory(repos.Staff),
+		RoomRepo:           api.NewAttendanceRooms(api.NewRoomRepository(rooms)),
+		ActivityGroupRepo:  owners.NewSessionActivities(timetableRepos.GroupReads()),
+		ActivityCatRepo:    api.NewAttendanceActivityCategories(timetableRepos.ActivityCategory),
+		EducationGroupRepo: owners.NewAttendanceEducationGroups(reposStructure.Group, repos.Student),
+		DeviceRepo:         owners.NewSessionDeviceDirectory(devices, &settingsDouble{ResolveIntFn: func(context.Context, string) (int, error) { return 5, nil }}, nil),
 		DB:                 db,
-		Broadcaster:        broadcaster,
+		Broadcaster:        owners.NewPresenceEvents(broadcaster, nil),
 		AttendanceSyncer:   syncer,
 		Logger:             slog.Default(),
 	})
@@ -240,8 +245,8 @@ func TestCreateVisit_WalkInLeavesAttendanceFieldsUnset(t *testing.T) {
 	iotDevice := testpkg.CreateTestDevice(t, db, fmt.Sprintf("e2e-walk-%d", suffix))
 
 	ctx := testpkg.Ctx(t)
-	staffCtx := services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
-	deviceCtx := services.WithAttendanceDevice(staffCtx, iotDevice.ID, iotDevice.TenantID)
+	staffCtx := api.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
+	deviceCtx := api.WithAttendanceDevice(staffCtx, iotDevice.ID, iotDevice.TenantID)
 
 	visit := &studentpresence.Visit{
 		StudentID:     student.ID,

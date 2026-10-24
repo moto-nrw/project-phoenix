@@ -6,10 +6,8 @@ import (
 	"testing"
 	"time"
 
-	repoFactory "github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/models/audit"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/services"
+	api "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -58,7 +56,7 @@ func countChangeLogDeletions(tb testing.TB, db *bun.DB, studentID int64) int {
 	count, err := db.NewSelect().
 		ModelTableExpr(`audit.data_deletions`).
 		Where(`student_id = ?`, studentID).
-		Where(`deletion_type = ?`, audit.DeletionTypeStudentChangeLogRetention).
+		Where(`deletion_type = ?`, testpkg.AuditDeletionTypeStudentChangeLogRetention).
 		Count(ctx)
 	require.NoError(tb, err)
 	return int(count)
@@ -67,7 +65,7 @@ func countChangeLogDeletions(tb testing.TB, db *bun.DB, studentID int64) int {
 func changeLogSettings(retentionDays int) *settingsDouble {
 	return &settingsDouble{
 		ResolveIntFn: func(_ context.Context, key string) (int, error) {
-			if key != configModel.KeyGDPRStudentChangeLogRetentionDays {
+			if key != settingStudentChangeLogRetentionDays {
 				return 0, fmt.Errorf("unexpected setting key %q", key)
 			}
 			return retentionDays, nil
@@ -88,15 +86,14 @@ func TestStudentChangeLogCleanup_DeletesOldEdits(t *testing.T) {
 	insertFieldEdit(t, db, student.ID, daysAgo(400))
 	insertFieldEdit(t, db, student.ID, daysAgo(10))
 
-	repos := repoFactory.NewFactory(db, repoFactory.NewUnobservedTimetableDependencies(db))
-	svc := services.NewStudentChangeLogCleanup(
-		repos.StudentFieldEdit,
-		repos.DataDeletion,
+	svc := api.NewStudentChangeLogCleanup(
+		api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).StudentFieldEdit,
+		api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).DataDeletion,
 		changeLogSettings(90),
 		nil,
 	)
 
-	result, err := svc.CleanupExpiredChangeLog(ctx)
+	result, err := testpkg.TenantQuery0(t, ctx, db, svc.CleanupExpiredChangeLog)
 	require.NoError(t, err)
 	assert.True(t, result.Success)
 	assert.Equal(t, 2, result.EditsDeleted, "two expired edits deleted")
@@ -118,15 +115,14 @@ func TestStudentChangeLogCleanup_NoOpWhenNothingExpired(t *testing.T) {
 	insertFieldEdit(t, db, student.ID, daysAgo(5))
 	insertFieldEdit(t, db, student.ID, daysAgo(30))
 
-	repos := repoFactory.NewFactory(db, repoFactory.NewUnobservedTimetableDependencies(db))
-	svc := services.NewStudentChangeLogCleanup(
-		repos.StudentFieldEdit,
-		repos.DataDeletion,
+	svc := api.NewStudentChangeLogCleanup(
+		api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).StudentFieldEdit,
+		api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).DataDeletion,
 		changeLogSettings(90),
 		nil,
 	)
 
-	result, err := svc.CleanupExpiredChangeLog(ctx)
+	result, err := testpkg.TenantQuery0(t, ctx, db, svc.CleanupExpiredChangeLog)
 	require.NoError(t, err)
 	assert.True(t, result.Success)
 	assert.Equal(t, 0, result.EditsDeleted)

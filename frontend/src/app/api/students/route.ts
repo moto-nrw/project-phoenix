@@ -1,11 +1,7 @@
 // app/api/students/route.ts
 import type { NextRequest } from "next/server";
-import {
-  apiGet,
-  apiPost,
-  apiPut,
-  ApiResponseError,
-} from "~/lib/api-helpers.server";
+import { apiGet, apiPost, apiPut } from "~/lib/api-helpers.server";
+import { isApiResponseError } from "~/lib/api-response-error.server";
 import {
   createGetHandler,
   createPostHandler,
@@ -28,7 +24,6 @@ import {
   buildBackendStudentRequest,
   handlePrivacyConsentCreation,
   buildStudentResponse,
-  handleStudentCreationError,
 } from "~/lib/student-request-helpers";
 import type { StudentGuardianPayload } from "~/lib/guardian-helpers";
 import type { ArrivalScheduleFormEntry } from "~/lib/arrival-schedule-helpers";
@@ -174,7 +169,7 @@ export const GET = createGetHandler(
         error instanceof Error ? error.message : String(error);
       const logContext = {
         error: errorMessage,
-        ...(errorMessage.includes("API error (429)") && {
+        ...(isApiResponseError(error, 429) && {
           rate_limited: true,
         }),
       };
@@ -221,41 +216,37 @@ export const POST = createPostHandler<
 
     const backendRequest = buildBackendStudentRequest(validated, body);
 
-    try {
-      // Create the student via the simplified API endpoint
-      const rawResponse = await apiPost<{
-        status: string;
-        data: StudentResponseFromBackend;
-        message: string;
-      }>("/api/students", token, backendRequest as StudentResponseFromBackend);
+    // A backend failure keeps its envelope and status.
+    // Create the student via the simplified API endpoint
+    const rawResponse = await apiPost<{
+      status: string;
+      data: StudentResponseFromBackend;
+      message: string;
+    }>("/api/students", token, backendRequest as StudentResponseFromBackend);
 
-      const response = rawResponse.data;
+    const response = rawResponse.data;
 
-      // Handle privacy consent (non-critical, errors are logged but not thrown)
-      if (response?.id) {
-        await handlePrivacyConsentCreation(
-          response.id,
-          privacy_consent_accepted,
-          data_retention_days,
-          apiPut,
-          token,
-          shouldCreatePrivacyConsent,
-          updatePrivacyConsent,
-        );
-      }
-
-      // Map response and fetch privacy consent data
-      const mappedStudent = mapStudentResponse(response);
-      return await buildStudentResponse(
-        mappedStudent,
-        response?.id,
-        apiGet,
+    // Handle privacy consent (non-critical, errors are logged but not thrown)
+    if (response?.id) {
+      await handlePrivacyConsentCreation(
+        response.id,
+        privacy_consent_accepted,
+        data_retention_days,
+        apiPut,
         token,
-        fetchPrivacyConsent,
+        shouldCreatePrivacyConsent,
+        updatePrivacyConsent,
       );
-    } catch (error) {
-      if (error instanceof ApiResponseError) throw error;
-      handleStudentCreationError(error);
     }
+
+    // Map response and fetch privacy consent data
+    const mappedStudent = mapStudentResponse(response);
+    return await buildStudentResponse(
+      mappedStudent,
+      response?.id,
+      apiGet,
+      token,
+      fetchPrivacyConsent,
+    );
   },
 );

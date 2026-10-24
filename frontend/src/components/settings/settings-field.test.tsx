@@ -33,6 +33,195 @@ function makeSetting(
 }
 
 describe("SettingsField", () => {
+  it("explains attendance history without prescribing a legal basis before saving", async () => {
+    const onSave = vi.fn().mockResolvedValue(null);
+    const { getByRole } = renderWithProviders(
+      <SettingsField
+        setting={makeSetting({
+          key: "gdpr.attendance_log_enabled",
+          label: "Anwesenheitsprotokoll",
+          type: "boolean",
+          value: false,
+        })}
+        onSave={onSave}
+        onReset={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(getByRole("switch", { name: "Anwesenheitsprotokoll" }));
+    const dialog = getByRole("dialog", {
+      name: "Anwesenheitsprotokoll einschalten?",
+    });
+    expect(dialog).toHaveTextContent(
+      "Das Team sieht Anwesenheitszeiten und Raumverläufe der Kinder. Ausgeschaltet bleiben frühere Raumbesuche nur für den heutigen Tag. Ältere abgeschlossene Raumbesuche werden beim Ausschalten und nachts gelöscht. Der aktuelle Raum bleibt sichtbar. Vor dem Einschalten prüft die Schule die Rechtsgrundlage.",
+    );
+    expect(onSave).not.toHaveBeenCalled();
+
+    fireEvent.click(getByRole("button", { name: "Abbrechen" }));
+    expect(
+      getByRole("switch", { name: "Anwesenheitsprotokoll" }),
+    ).toHaveAttribute("aria-checked", "false");
+    expect(onSave).not.toHaveBeenCalled();
+
+    fireEvent.click(getByRole("switch", { name: "Anwesenheitsprotokoll" }));
+    fireEvent.click(getByRole("button", { name: "Einschalten" }));
+    await waitFor(() =>
+      expect(onSave).toHaveBeenCalledExactlyOnceWith(
+        "gdpr.attendance_log_enabled",
+        true,
+      ),
+    );
+  });
+
+  it.each([
+    ["admin", "switch"],
+    ["operator", "switch"],
+    ["admin", "reset"],
+    ["operator", "reset"],
+  ] as const)(
+    "confirms irreversible room history deletion for %s %s",
+    async (audience, action) => {
+      const onSave = vi.fn().mockResolvedValue(undefined);
+      const onReset = vi.fn().mockResolvedValue(undefined);
+      const { getByRole } = renderWithProviders(
+        <SettingsField
+          audience={audience}
+          setting={makeSetting({
+            key: "gdpr.attendance_log_enabled",
+            label: "Anwesenheitsprotokoll",
+            type: "boolean",
+            value: true,
+            default: false,
+          })}
+          onSave={onSave}
+          onReset={onReset}
+        />,
+      );
+      const trigger = () =>
+        fireEvent.click(
+          action === "switch"
+            ? getByRole("switch", { name: "Anwesenheitsprotokoll" })
+            : getByRole("button", { name: "Zurücksetzen" }),
+        );
+      trigger();
+      // Anker: The destructive dialog is open, not an empty field render.
+      expect(
+        getByRole("dialog", { name: "Anwesenheitsprotokoll ausschalten?" }),
+      ).toHaveTextContent(
+        "Alle abgeschlossenen Raumbesuche vor heute werden sofort gelöscht.",
+      );
+      expect(onSave).not.toHaveBeenCalled();
+      expect(onReset).not.toHaveBeenCalled();
+      expect(
+        getByRole("button", { name: "Ausschalten und löschen" }),
+      ).toBeDisabled();
+      fireEvent.change(getByRole("textbox"), { target: { value: "LÖSCHEN" } });
+      fireEvent.click(getByRole("button", { name: "Abbrechen" }));
+      // Anker: Cancel keeps the persisted switch on.
+      expect(
+        getByRole("switch", { name: "Anwesenheitsprotokoll" }),
+      ).toHaveAttribute("aria-checked", "true");
+      expect(onSave).not.toHaveBeenCalled();
+      expect(onReset).not.toHaveBeenCalled();
+      trigger();
+      expect(
+        getByRole("button", { name: "Ausschalten und löschen" }),
+      ).toBeDisabled();
+      fireEvent.change(getByRole("textbox"), { target: { value: "LÖSCHEN" } });
+      fireEvent.click(getByRole("button", { name: "Ausschalten und löschen" }));
+      await waitFor(() => {
+        if (action === "switch")
+          expect(onSave).toHaveBeenCalledExactlyOnceWith(
+            "gdpr.attendance_log_enabled",
+            false,
+          );
+        else
+          expect(onReset).toHaveBeenCalledExactlyOnceWith(
+            "gdpr.attendance_log_enabled",
+          );
+      });
+      expect(
+        getByRole("switch", { name: "Anwesenheitsprotokoll" }),
+      ).toHaveAttribute("aria-checked", "false");
+      expect(action === "switch" ? onReset : onSave).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["switch", "reset"] as const)(
+    "keeps a failed history deletion open for %s",
+    async (action) => {
+      const failure = new ApiError("boom", 500);
+      const onSave = vi
+        .fn()
+        .mockRejectedValueOnce(failure)
+        .mockResolvedValue(undefined);
+      const onReset = vi
+        .fn()
+        .mockRejectedValueOnce(failure)
+        .mockResolvedValue(undefined);
+      const { getByRole } = renderWithProviders(
+        <SettingsField
+          setting={makeSetting({
+            key: "gdpr.attendance_log_enabled",
+            label: "Anwesenheitsprotokoll",
+            type: "boolean",
+            value: true,
+            default: false,
+          })}
+          onSave={onSave}
+          onReset={onReset}
+        />,
+      );
+      fireEvent.click(
+        action === "switch"
+          ? getByRole("switch")
+          : getByRole("button", { name: "Zurücksetzen" }),
+      );
+      fireEvent.change(getByRole("textbox"), { target: { value: "LÖSCHEN" } });
+      fireEvent.click(getByRole("button", { name: "Ausschalten und löschen" }));
+      const dialog = getByRole("dialog", {
+        name: "Anwesenheitsprotokoll ausschalten?",
+      });
+      await waitFor(() =>
+        expect(dialog).toHaveTextContent(
+          catalogText(
+            "general.server",
+            "die Einstellung „Anwesenheitsprotokoll“",
+          ),
+        ),
+      );
+      expect(getByRole("switch")).toHaveAttribute("aria-checked", "true");
+      fireEvent.click(getByRole("button", { name: "Ausschalten und löschen" }));
+      await waitFor(() =>
+        expect(getByRole("switch")).toHaveAttribute("aria-checked", "false"),
+      );
+      expect(action === "switch" ? onSave : onReset).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  it("resets to an enabled default without deleting room history", async () => {
+    const onReset = vi.fn().mockResolvedValue(undefined);
+    const { getByRole } = renderWithProviders(
+      <SettingsField
+        setting={makeSetting({
+          key: "gdpr.attendance_log_enabled",
+          label: "Anwesenheitsprotokoll",
+          type: "boolean",
+          value: true,
+          default: true,
+        })}
+        onSave={vi.fn()}
+        onReset={onReset}
+      />,
+    );
+    fireEvent.click(getByRole("button", { name: "Zurücksetzen" }));
+    await waitFor(() =>
+      expect(onReset).toHaveBeenCalledExactlyOnceWith(
+        "gdpr.attendance_log_enabled",
+      ),
+    );
+  });
+
   const visibilityKey = "operations.operational_overview_scope";
   const attendanceKey = "operations.attendance_edit_scope";
 
@@ -423,7 +612,7 @@ describe("SettingsField", () => {
   });
 
   it("renders nothing when not visible", () => {
-    const { container } = renderWithProviders(
+    const { container, unmount } = renderWithProviders(
       <SettingsField
         setting={makeSetting({ visible: false })}
         onSave={vi.fn().mockResolvedValue(null)}
@@ -432,6 +621,17 @@ describe("SettingsField", () => {
     );
     expect(container.querySelector("label")).toBeNull();
     expect(container.querySelector("input")).toBeNull();
+    unmount();
+
+    const { container: visible } = renderWithProviders(
+      <SettingsField
+        setting={makeSetting({ visible: true })}
+        onSave={vi.fn().mockResolvedValue(null)}
+        onReset={vi.fn().mockResolvedValue(null)}
+      />,
+    );
+    // Anker: dieselbe Einstellung, nur sichtbar, rendert ihr Eingabefeld.
+    expect(visible.querySelector("input")).toBeInTheDocument();
   });
 
   it("shows reset button when not default", () => {
@@ -447,21 +647,43 @@ describe("SettingsField", () => {
   });
 
   it("hides reset button when is_default", () => {
-    const { container } = renderWithProviders(
+    const { container, getByText } = renderWithProviders(
       <SettingsField
         setting={makeSetting({ is_default: true })}
         onSave={vi.fn().mockResolvedValue(null)}
         onReset={vi.fn().mockResolvedValue(null)}
       />,
     );
+    // Anker: die Einstellung ist gerendert.
+    expect(getByText("Test Setting")).toBeInTheDocument();
     const resetBtn = container.querySelector(
       "button[title='Auf Standard zurücksetzen']",
     );
     expect(resetBtn).toBeNull();
   });
 
+  it("shows reset button for a regular textarea field", () => {
+    const { container, getByText } = renderWithProviders(
+      <SettingsField
+        setting={makeSetting({
+          key: "test.textarea",
+          type: "textarea",
+          value: "Datenschutz Text",
+          is_default: false,
+        })}
+        onSave={vi.fn().mockResolvedValue(null)}
+        onReset={vi.fn().mockResolvedValue(null)}
+      />,
+    );
+
+    expect(getByText("Test Setting")).toBeInTheDocument();
+    expect(
+      container.querySelector("button[title='Auf Standard zurücksetzen']"),
+    ).toBeInTheDocument();
+  });
+
   it("hides reset button for enrollment legal text fields", () => {
-    const { container } = renderWithProviders(
+    const { container, getByText } = renderWithProviders(
       <SettingsField
         setting={makeSetting({
           key: "enrollment.legal_dsgvo_text",
@@ -474,6 +696,8 @@ describe("SettingsField", () => {
       />,
     );
 
+    // Anker: das Rechtstext-Feld ist gerendert.
+    expect(getByText("Test Setting")).toBeInTheDocument();
     const resetBtn = container.querySelector(
       "button[title='Auf Standard zurücksetzen']",
     );
@@ -488,7 +712,7 @@ describe("SettingsField", () => {
         onReset={vi.fn().mockResolvedValue(null)}
       />,
     );
-    expect(getByRole("switch")).toBeDefined();
+    expect(getByRole("switch", { name: "Test Setting" })).toBeDefined();
   });
 
   it("renders number field", () => {

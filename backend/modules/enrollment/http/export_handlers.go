@@ -12,14 +12,13 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"time"
 
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // phaseExportRequest is the (optional) JSON body:
@@ -63,7 +62,7 @@ func (rs *Resource) exportPhaseRegistrations(w http.ResponseWriter, r *http.Requ
 	// disclosure event: ExportPhase loads the data AND records it on the
 	// same tenant tx, and a failed audit write refuses the export (no
 	// trail, no disclosure).
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	actorAccountID := int64(claims.ID)
 	actorRole := strings.Join(claims.Roles, ",")
 
@@ -180,17 +179,10 @@ func buildPhaseExportFile(svc lists.DocumentRenderer, data *PhaseExport, format 
 	// punctuation); "Anmeldungen" lives in the subtitle counts + the
 	// download filename. The filename base stays descriptive regardless.
 	heading := phaseExportHeading(data)
-	filename := phaseExportFilename(data)
-	switch format {
-	case lists.FormatDOCX:
-		return svc.RenderRecordsDOCX(buildPhaseExportRecords(data, heading, childStatus), filename)
-	case lists.FormatXLSX:
-		return svc.Render(buildPhaseExportTable(data, heading, childStatus), lists.FormatXLSX, filename)
-	case lists.FormatPDF:
-		return svc.RenderRecords(buildPhaseExportRecords(data, heading, childStatus), filename)
-	default:
-		return lists.File{}, fmt.Errorf("unsupported export format %q", format)
-	}
+	return renderEnrollmentExport(svc, format, phaseExportFilename(data),
+		func() lists.RecordDocument { return buildPhaseExportRecords(data, heading, childStatus) },
+		func() lists.Document { return buildPhaseExportTable(data, heading, childStatus) },
+	)
 }
 
 func (rs *Resource) exportStudentEnrollmentRequests(w http.ResponseWriter, r *http.Request) {
@@ -212,7 +204,7 @@ func (rs *Resource) exportStudentEnrollmentRequests(w http.ResponseWriter, r *ht
 		return
 	}
 
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	actorAccountID := int64(claims.ID)
 	actorRole := strings.Join(claims.Roles, ",")
 
@@ -249,17 +241,10 @@ func (rs *Resource) exportStudentEnrollmentRequests(w http.ResponseWriter, r *ht
 
 func buildStudentEnrollmentExportFile(svc lists.DocumentRenderer, data *StudentEnrollmentExport, format lists.Format) (lists.File, error) {
 	heading := studentEnrollmentExportHeading(data)
-	filename := heading
-	switch format {
-	case lists.FormatDOCX:
-		return svc.RenderRecordsDOCX(buildStudentEnrollmentExportRecords(data, heading), filename)
-	case lists.FormatXLSX:
-		return svc.Render(buildStudentEnrollmentExportTable(data, heading), lists.FormatXLSX, filename)
-	case lists.FormatPDF:
-		return svc.RenderRecords(buildStudentEnrollmentExportRecords(data, heading), filename)
-	default:
-		return lists.File{}, fmt.Errorf("unsupported export format %q", format)
-	}
+	return renderEnrollmentExport(svc, format, heading,
+		func() lists.RecordDocument { return buildStudentEnrollmentExportRecords(data, heading) },
+		func() lists.Document { return buildStudentEnrollmentExportTable(data, heading) },
+	)
 }
 
 func studentEnrollmentExportHeading(data *StudentEnrollmentExport) string {
@@ -299,34 +284,19 @@ func buildStudentEnrollmentExportRecords(data *StudentEnrollmentExport, title st
 			records = append(records, studentEnrollmentRecord(row.Request, data.Phases[row.Request.PhaseID], child, guardianCustoms, childCustoms))
 		}
 	}
-	return lists.RecordDocument{
-		Title:       title,
-		Subtitle:    studentEnrollmentExportSubtitle(data),
-		GeneratedAt: time.Now(),
-		Footer:      exportConfidentialityNote,
-		Records:     records,
-	}
+	return studentEnrollmentExportHead(data, title).blocks(records, nil)
 }
 
+// studentEnrollmentRecord is one enrollment of the child. The export is about
+// one child, so the block names the enrollment instead of repeating the
+// guardian's contact.
 func studentEnrollmentRecord(req *Request, phase *capability.Phase, ch ExportChildRow, guardianCustoms, childCustoms []capability.FormField) lists.Record {
-	rec := lists.Record{
-		Title:  childFullName(ch.Child),
-		Fields: childFields(ch, childCustoms),
-	}
-	rec.Fields = append(rec.Fields,
-		lists.Field{Label: "Anmeldung", Value: phaseNameForExport(phase)},
-		lists.Field{Label: "Eingereicht am", Value: req.SubmittedAt.Format("02.01.2006 15:04")},
-	)
-	if req.WithdrawnAt != nil {
-		rec.Fields = append(rec.Fields, lists.Field{Label: "Zurückgezogen am", Value: timeOrEmpty(req.WithdrawnAt)})
-	}
-	rec.Fields = append(rec.Fields, lists.Field{Label: "Zustimmungen", Value: consentSummary(req.ConsentFlags)})
-	for _, cf := range guardianCustoms {
-		if v, ok := req.CustomData[cf.Key]; ok {
-			rec.Fields = append(rec.Fields, lists.Field{Label: cf.Label, Value: formatCustomValue(cf, v)})
-		}
-	}
-	return rec
+	return enrollmentChildBlock{
+		Name:  childFullName(ch.Child),
+		Child: childFields(ch, childCustoms),
+		Submission: append([]lists.Field{{Label: "Anmeldung", Value: phaseNameForExport(phase)}},
+			submissionFields(req, guardianCustoms)...),
+	}.record()
 }
 
 func phaseNameForExport(phase *capability.Phase) string {
@@ -338,34 +308,9 @@ func phaseNameForExport(phase *capability.Phase) string {
 
 func buildStudentEnrollmentExportTable(data *StudentEnrollmentExport, title string) lists.Document {
 	guardianCustoms, childCustoms := collectCustomFields(data.Schemas)
-	cols := []lists.Column{
-		{ID: "phase", Label: "Anmeldung"},
-		{ID: "submitted_at", Label: "Eingereicht am"},
-		{ID: "withdrawn_at", Label: "Zurückgezogen am"},
-		{ID: "child_last_name", Label: "Kind Nachname"},
-		{ID: "child_first_name", Label: "Kind Vorname"},
-		{ID: "child_dob", Label: "Geburtsdatum"},
-		{ID: "child_grade", Label: "Zielklasse"},
-		{ID: "child_status", Label: "Status"},
-		{ID: "child_status_reason", Label: "Status-Grund"},
-		{ID: "child_activation", Label: "Aktivierung"},
-		{ID: "child_offerings", Label: "Betreuungsangebote"},
-	}
-	for _, cf := range childCustoms {
-		cols = append(cols, lists.Column{ID: lists.ColumnID("custom_c_" + cf.Key), Label: cf.Label})
-	}
-	// Coupled accompanied-mode note (#1694): a reserved key, not a schema field,
-	// so it needs its own dedicated column rather than a custom_c_ one.
-	cols = append(cols, lists.Column{ID: "child_companion_note", Label: departureCompanionLabelDE})
-	for _, cf := range guardianCustoms {
-		cols = append(cols, lists.Column{ID: lists.ColumnID("custom_g_" + cf.Key), Label: cf.Label})
-	}
-	cols = append(cols,
-		lists.Column{ID: "consent_agb", Label: "Zustimmung AGB"},
-		lists.Column{ID: "consent_data_processing", Label: "Zustimmung Datenverarbeitung"},
-		lists.Column{ID: "consent_email_contact", Label: "Zustimmung E-Mail-Kontakt"},
-		lists.Column{ID: "consent_photo", Label: "Zustimmung Foto"},
-	)
+	cols := enrollmentColumns("phase", "submitted_at", "withdrawn_at")
+	cols = append(cols, childColumns(childCustoms)...)
+	cols = append(cols, answerColumns(guardianCustoms)...)
 
 	rows := make([]lists.Row, 0, len(data.Rows))
 	for _, row := range data.Rows {
@@ -375,36 +320,17 @@ func buildStudentEnrollmentExportTable(data *StudentEnrollmentExport, title stri
 			})
 		}
 	}
+	return studentEnrollmentExportHead(data, title).table(cols, rows)
+}
 
-	return lists.Document{
-		Title:       title,
-		Subtitle:    studentEnrollmentExportSubtitle(data),
-		GeneratedAt: time.Now(),
-		Columns:     cols,
-		Rows:        rows,
-		Footer:      exportConfidentialityNote,
-	}
+func studentEnrollmentExportHead(data *StudentEnrollmentExport, title string) enrollmentExportHead {
+	return enrollmentExportHead{Title: title, Subtitle: studentEnrollmentExportSubtitle(data)}
 }
 
 func studentEnrollmentRowValues(req *Request, phase *capability.Phase, ch ExportChildRow, guardianCustoms, childCustoms []capability.FormField) map[lists.ColumnID]string {
-	values := map[lists.ColumnID]string{
-		"phase":                   phaseNameForExport(phase),
-		"submitted_at":            req.SubmittedAt.Format("02.01.2006 15:04"),
-		"consent_agb":             consentLabel(req.ConsentFlags, capability.ConsentKeyAGB),
-		"consent_data_processing": consentLabel(req.ConsentFlags, capability.ConsentKeyDataProcessing),
-		"consent_email_contact":   consentLabel(req.ConsentFlags, capability.ConsentKeyEmailContact),
-		"consent_photo":           consentLabel(req.ConsentFlags, capability.ConsentKeyPhoto),
-	}
-	if req.WithdrawnAt != nil {
-		values["withdrawn_at"] = timeOrEmpty(req.WithdrawnAt)
-	}
-	for _, cf := range guardianCustoms {
-		if v, ok := req.CustomData[cf.Key]; ok {
-			values[lists.ColumnID("custom_g_"+cf.Key)] = formatCustomValue(cf, v)
-		}
-	}
-	childValues := childRowValues(values, ch, childCustoms)
-	return childValues
+	values := submissionRowValues(req, guardianCustoms)
+	values["phase"] = phaseNameForExport(phase)
+	return childRowValues(values, ch, childCustoms)
 }
 
 // enrollmentExportFilterLabels turns the applied child-status filter into
@@ -449,14 +375,17 @@ func phaseExportSubtitle(data *PhaseExport) string {
 
 func buildPhaseExportTable(data *PhaseExport, title, childStatus string) lists.Document {
 	guardianCustoms, childCustoms := collectCustomFields(data.Schemas)
-	return lists.Document{
-		Title:       title,
-		Subtitle:    phaseExportSubtitle(data),
-		GeneratedAt: time.Now(),
-		Filters:     enrollmentExportFilterLabels(childStatus),
-		Columns:     phaseExportColumns(guardianCustoms, childCustoms),
-		Rows:        phaseExportRows(data, guardianCustoms, childCustoms),
-		Footer:      exportConfidentialityNote,
+	return phaseExportHead(data, title, childStatus).table(
+		phaseExportColumns(guardianCustoms, childCustoms),
+		phaseExportRows(data, guardianCustoms, childCustoms),
+	)
+}
+
+func phaseExportHead(data *PhaseExport, title, childStatus string) enrollmentExportHead {
+	return enrollmentExportHead{
+		Title:    title,
+		Subtitle: phaseExportSubtitle(data),
+		Filters:  enrollmentExportFilterLabels(childStatus),
 	}
 }
 
@@ -464,45 +393,13 @@ func buildPhaseExportTable(data *PhaseExport, title, childStatus string) lists.D
 func phaseExportColumns(guardianCustoms, childCustoms []capability.FormField) []lists.Column {
 	// Child-first column order, mirroring the PDF block: every child
 	// column up front (the child is the subject), then the Eltern/contact
-	// block. Row values are keyed by column ID, so only this slice's order
-	// changes — guardianRowValues/childRowValues are untouched.
-	cols := []lists.Column{
-		{ID: "child_last_name", Label: "Kind Nachname"},
-		{ID: "child_first_name", Label: "Kind Vorname"},
-		{ID: "child_dob", Label: "Geburtsdatum"},
-		{ID: "child_grade", Label: "Zielklasse"},
-		{ID: "child_status", Label: "Status"},
-		{ID: "child_status_reason", Label: "Status-Grund"},
-		{ID: "child_activation", Label: "Aktivierung"},
-		{ID: "child_offerings", Label: "Betreuungsangebote"},
-	}
-	for _, cf := range childCustoms {
-		cols = append(cols, lists.Column{ID: lists.ColumnID("custom_c_" + cf.Key), Label: cf.Label})
-	}
-	// Coupled accompanied-mode note (#1694): a reserved key, not a schema field,
-	// so it needs its own dedicated column rather than a custom_c_ one.
-	cols = append(cols, lists.Column{ID: "child_companion_note", Label: departureCompanionLabelDE})
-	// Eltern / contact block, after the child — same field order as the
-	// PDF guardian block (name, contact, dates, custom answers, consents).
-	cols = append(cols,
-		lists.Column{ID: "guardian_last_name", Label: "Eltern Nachname"},
-		lists.Column{ID: "guardian_first_name", Label: "Eltern Vorname"},
-		lists.Column{ID: "guardian_email", Label: "E-Mail"},
-		lists.Column{ID: "guardian_phone", Label: "Telefon"},
-		lists.Column{ID: "submitted_at", Label: "Eingereicht am"},
-		lists.Column{ID: "withdrawn_at", Label: "Zurückgezogen am"},
-	)
-	for _, cf := range guardianCustoms {
-		cols = append(cols, lists.Column{ID: lists.ColumnID("custom_g_" + cf.Key), Label: cf.Label})
-	}
-	cols = append(cols,
-		lists.Column{ID: "consent_agb", Label: "Zustimmung AGB"},
-		lists.Column{ID: "consent_data_processing", Label: "Zustimmung Datenverarbeitung"},
-		lists.Column{ID: "consent_email_contact", Label: "Zustimmung E-Mail-Kontakt"},
-		lists.Column{ID: "consent_photo", Label: "Zustimmung Foto"},
-		lists.Column{ID: "additional_guardians", Label: "Weitere Erziehungsberechtigte"},
-	)
-	return cols
+	// block in the PDF guardian block's order (name, contact, dates,
+	// custom answers, consents).
+	cols := childColumns(childCustoms)
+	cols = append(cols, enrollmentColumns("guardian_last_name", "guardian_first_name",
+		"guardian_email", "guardian_phone", "submitted_at", "withdrawn_at")...)
+	cols = append(cols, answerColumns(guardianCustoms)...)
+	return append(cols, enrollmentColumns("additional_guardians")...)
 }
 
 // phaseExportRows lists the XLSX rows of a phase export.
@@ -526,24 +423,12 @@ func phaseExportRows(data *PhaseExport, guardianCustoms, childCustoms []capabili
 }
 
 func guardianRowValues(req *Request, guardians []*capability.RequestGuardian, guardianCustoms []capability.FormField) map[lists.ColumnID]string {
-	values := map[lists.ColumnID]string{
-		"guardian_last_name":      req.GuardianLastName,
-		"guardian_first_name":     req.GuardianFirstName,
-		"guardian_email":          req.GuardianEmail,
-		"guardian_phone":          deref(req.GuardianPhone),
-		"submitted_at":            req.SubmittedAt.Format("02.01.2006 15:04"),
-		"withdrawn_at":            timeOrEmpty(req.WithdrawnAt),
-		"consent_agb":             consentLabel(req.ConsentFlags, capability.ConsentKeyAGB),
-		"consent_data_processing": consentLabel(req.ConsentFlags, capability.ConsentKeyDataProcessing),
-		"consent_email_contact":   consentLabel(req.ConsentFlags, capability.ConsentKeyEmailContact),
-		"consent_photo":           consentLabel(req.ConsentFlags, capability.ConsentKeyPhoto),
-		"additional_guardians":    formatAdditionalGuardians(guardians),
-	}
-	for _, cf := range guardianCustoms {
-		if v, ok := req.CustomData[cf.Key]; ok {
-			values[lists.ColumnID("custom_g_"+cf.Key)] = formatCustomValue(cf, v)
-		}
-	}
+	values := submissionRowValues(req, guardianCustoms)
+	values["guardian_last_name"] = req.GuardianLastName
+	values["guardian_first_name"] = req.GuardianFirstName
+	values["guardian_email"] = req.GuardianEmail
+	values["guardian_phone"] = deref(req.GuardianPhone)
+	values["additional_guardians"] = formatAdditionalGuardians(guardians)
 	return values
 }
 

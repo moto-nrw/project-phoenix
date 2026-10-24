@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/mealplan"
 	"github.com/moto-nrw/project-phoenix/modules/mealplan/internal/domain"
 	"github.com/stretchr/testify/assert"
 )
@@ -16,6 +17,31 @@ func TestSickAtCutoffTreatsClearanceAtCutoffAsEffective(t *testing.T) {
 	clearedAt := cutoff.UTC()
 
 	assert.False(t, sickAtCutoff(reportedAt, &clearedAt, cutoff))
+}
+
+func TestEffectiveCutoffsOnlyExposeLaterCancellationDeadline(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name             string
+		cancellationTime string
+		wantCancellation string
+	}{
+		{name: "earlier cancellation uses registration cutoff", cancellationTime: "08:00", wantCancellation: ""},
+		{name: "later cancellation stays visible", cancellationTime: "10:00", wantCancellation: "10:00"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			cutoffs := mealplan.Cutoffs{CutoffTime: "09:00", CancellationCutoffTime: test.cancellationTime}
+			rules := domain.Rules{
+				Registration: domain.Deadline{Time: cutoffs.CutoffTime},
+				Cancellation: domain.Deadline{Time: cutoffs.CancellationCutoffTime},
+			}
+
+			got := effectiveCutoffs(cutoffs, rules, "2026-09-07", "2026-09-07")
+			assert.Equal(t, test.wantCancellation, got.CancellationCutoffTime)
+		})
+	}
 }
 
 func TestResolveParticipationUsesScheduleForNextEffectiveDate(t *testing.T) {
@@ -56,7 +82,7 @@ func TestResolveParticipationUsesScheduleForNextEffectiveDate(t *testing.T) {
 				data,
 				domain.Date("2026-09-07"),
 				domain.Date("2026-09-11"),
-				"09:00",
+				domain.Rules{Registration: domain.Deadline{Time: "09:00"}},
 			)
 
 			assert.Equal(t, test.wantEffective, plan.EffectiveFrom)

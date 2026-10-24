@@ -47,8 +47,6 @@ type InvalidWorkTimeError struct{ Reason string }
 func (e *InvalidWorkTimeError) Error() string { return e.Reason }
 func (e *InvalidWorkTimeError) Unwrap() error { return ErrInvalidWorkTime }
 
-func invalid(reason string) error { return &InvalidWorkTimeError{Reason: reason} }
-
 // ErrorCode maps a capability error to the stable operation code used by the
 // runtime evidence and the HTTP adapters.
 func ErrorCode(err error) string {
@@ -189,6 +187,7 @@ type Query interface {
 	// StaffSchedulesInRange returns every version of the given staff members
 	// whose validity window intersects [from, to]; valid_until is exclusive.
 	StaffSchedulesInRange(ctx context.Context, staffIDs []int64, from, to string) ([]StaffWorkSchedule, error)
+	StaffPlanningProfiles(ctx context.Context, staffIDs []int64, from, to string) ([]StaffPlanningProfile, error)
 	// HasStaffScheduleHistory reports whether a staff member ever had a
 	// schedule version, closed-out ones included. It separates "no schedule
 	// was ever written", where the assigned template may stand in, from "no
@@ -226,119 +225,6 @@ type Capability interface {
 	Command
 }
 
-type engine interface {
-	monthSnapshotEngine
-	absenceEngine
-	substitutionEngine
-	shiftEngine
-	workSessionEngine
-	staffRecordEngine
-	targetOverrideEngine
-
-	ListWorkTimeModels(context.Context) ([]WorkTimeModel, error)
-	FindWorkTimeModel(context.Context, int64) (WorkTimeModel, error)
-	ListWorkTimeModelsByIDs(context.Context, []int64) ([]WorkTimeModel, error)
-	CreateWorkTimeModel(context.Context, CreateWorkTimeModel) (WorkTimeModel, error)
-	UpdateWorkTimeModel(context.Context, UpdateWorkTimeModel) (WorkTimeModel, error)
-	DeleteWorkTimeModel(context.Context, int64) error
-
-	ReplaceStaffSchedule(context.Context, ReplaceStaffSchedule) error
-	CurrentStaffSchedule(context.Context, int64) ([]StaffWorkSchedule, error)
-	StaffScheduleOn(ctx context.Context, staffID int64, date string) ([]StaffWorkSchedule, error)
-	StaffSchedulesInRange(ctx context.Context, staffIDs []int64, from, to string) ([]StaffWorkSchedule, error)
-	HasStaffScheduleHistory(context.Context, int64) (bool, error)
-	StaffIDsWithScheduleHistory(context.Context, []int64) (map[int64]bool, error)
-}
-
-// Module is the one Workforce work-time facade. It guards the arguments every
-// caller must get right and delegates the rest to the composed engine.
-type Module struct{ engine engine }
-
-func NewModule(engine engine) *Module {
-	if engine == nil {
-		panic("workforce: engine is required")
-	}
-	return &Module{engine: engine}
-}
-
 // --- work-time templates ---
 
-func (m *Module) ListWorkTimeModels(ctx context.Context) ([]WorkTimeModel, error) {
-	return m.engine.ListWorkTimeModels(ctx)
-}
-
-func (m *Module) FindWorkTimeModel(ctx context.Context, id int64) (WorkTimeModel, error) {
-	if id <= 0 {
-		return WorkTimeModel{}, invalid("work time model ID is required")
-	}
-	return m.engine.FindWorkTimeModel(ctx, id)
-}
-
-func (m *Module) ListWorkTimeModelsByIDs(ctx context.Context, ids []int64) ([]WorkTimeModel, error) {
-	if len(ids) == 0 {
-		return nil, nil
-	}
-	return m.engine.ListWorkTimeModelsByIDs(ctx, ids)
-}
-
-func (m *Module) CreateWorkTimeModel(ctx context.Context, input CreateWorkTimeModel) (WorkTimeModel, error) {
-	return m.engine.CreateWorkTimeModel(ctx, input)
-}
-
-func (m *Module) UpdateWorkTimeModel(ctx context.Context, input UpdateWorkTimeModel) (WorkTimeModel, error) {
-	if input.ID <= 0 {
-		return WorkTimeModel{}, invalid("work time model ID is required")
-	}
-	return m.engine.UpdateWorkTimeModel(ctx, input)
-}
-
-func (m *Module) DeleteWorkTimeModel(ctx context.Context, id int64) error {
-	if id <= 0 {
-		return invalid("work time model ID is required")
-	}
-	return m.engine.DeleteWorkTimeModel(ctx, id)
-}
-
 // --- staff schedules ---
-
-func (m *Module) ReplaceStaffSchedule(ctx context.Context, input ReplaceStaffSchedule) error {
-	if input.StaffID <= 0 {
-		return invalid("staff ID is required")
-	}
-	return m.engine.ReplaceStaffSchedule(ctx, input)
-}
-
-func (m *Module) CurrentStaffSchedule(ctx context.Context, staffID int64) ([]StaffWorkSchedule, error) {
-	if staffID <= 0 {
-		return nil, invalid("staff ID is required")
-	}
-	return m.engine.CurrentStaffSchedule(ctx, staffID)
-}
-
-func (m *Module) StaffScheduleOn(ctx context.Context, staffID int64, date string) ([]StaffWorkSchedule, error) {
-	if staffID <= 0 {
-		return nil, invalid("staff ID is required")
-	}
-	return m.engine.StaffScheduleOn(ctx, staffID, date)
-}
-
-func (m *Module) StaffSchedulesInRange(ctx context.Context, staffIDs []int64, from, to string) ([]StaffWorkSchedule, error) {
-	if len(staffIDs) == 0 {
-		return nil, nil
-	}
-	return m.engine.StaffSchedulesInRange(ctx, staffIDs, from, to)
-}
-
-func (m *Module) HasStaffScheduleHistory(ctx context.Context, staffID int64) (bool, error) {
-	if staffID <= 0 {
-		return false, invalid("staff ID is required")
-	}
-	return m.engine.HasStaffScheduleHistory(ctx, staffID)
-}
-
-func (m *Module) StaffIDsWithScheduleHistory(ctx context.Context, staffIDs []int64) (map[int64]bool, error) {
-	if len(staffIDs) == 0 {
-		return map[int64]bool{}, nil
-	}
-	return m.engine.StaffIDsWithScheduleHistory(ctx, staffIDs)
-}

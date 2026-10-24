@@ -8,6 +8,37 @@ import test from 'node:test';
 
 const source = dirname(fileURLToPath(import.meta.url));
 
+test('Go imports hook preserves tool failures and rejects formatting diffs', async t => {
+  const hooks = readFileSync(join(source, '../lefthook.yml'), 'utf8');
+  const block = hooks.match(/    go-imports:\n[\s\S]*?      run: \|\n((?:        .*\n|\n)*)/);
+  assert.ok(block, 'Go imports run block must exist');
+  const command = block[1].replace(/^        /gm, '').replaceAll('{staged_files}', 'backend/example.go');
+  for (const [name, extra, status] of [
+    ['stderr-only tool failure', { TOOL_STATUS: '2', TOOL_ERROR: 'parse error\n' }, 2],
+    ['tool failure with output', { TOOL_STATUS: '7', TOOL_OUTPUT: 'partial diff\n', TOOL_ERROR: 'tool failed\n' }, 7],
+    ['clean run', {}, 0],
+    ['formatting diff', { TOOL_OUTPUT: 'formatting diff\n' }, 1],
+  ]) {
+    await t.test(name, t => {
+      const f = fixture(t);
+      f.write('backend/example.go', 'package example\n');
+      f.write('scripts/run-go-toolchain.sh', `#!/bin/sh
+printf '%s\\n' "$@" > ../tool-args
+printf '%s' "\${TOOL_OUTPUT:-}"
+printf '%s' "\${TOOL_ERROR:-}" >&2
+exit "\${TOOL_STATUS:-0}"
+`);
+      const result = f.run('sh', ['-c', command], { env: { ...f.env, ...extra } });
+      assert.equal(result.status, status, result.stdout + result.stderr);
+      assert.deepEqual(readFileSync(join(f.root, 'tool-args'), 'utf8').trim().split('\n'), ['go', 'tool', 'goimports', '-d', 'example.go']);
+      assert.equal(result.stderr, extra.TOOL_ERROR ?? '');
+      if (extra.TOOL_STATUS) assert.doesNotMatch(result.stdout, /Go imports not organized/);
+      else if (extra.TOOL_OUTPUT) assert.match(result.stdout, /Go imports not organized/);
+      else assert.equal(result.stdout, '');
+    });
+  }
+});
+
 test('Lefthook forwards every push to the runner and CI shares its quality commands', () => {
   const hooks = readFileSync(join(source, '../lefthook.yml'), 'utf8');
   const push = hooks.split('\npre-push:\n')[1].split('\npost-merge:')[0];
@@ -60,11 +91,11 @@ printf '%s\\n' "$*"
 if [[ "$*" == *check-quality.sh* && "\${FAIL_QUALITY:-}" == 1 ]]; then exit 9; fi
 if [[ "$*" == *check-quality.sh* && "\${MUTATE_SOURCE:-}" == 1 ]]; then echo changed >> backend/example.go; fi
 `);
-  write('.devbox/nix/profile/default/bin/git-secrets', '#!/bin/bash\nexit "${FAIL_SECRETS:-0}"\n');
+  write('.devbox/nix/profile/default/bin/gitleaks', '#!/bin/bash\nexit "${FAIL_SECRETS:-0}"\n');
   symlinkSync(process.execPath, join(root, '.devbox/nix/profile/default/bin/node'));
   write('.devbox/nix/profile/default/bin/go', '#!/bin/bash\nif [[ "$*" == *-json* ]]; then echo \'{"GOVERSION":"go1.27.0","GOWORK":"off"}\'; else echo go1.27.0; fi\n');
   for (const tool of ['gofmt', 'golangci-lint', 'govulncheck']) write(`.devbox/nix/profile/default/bin/${tool}`, '#!/bin/bash\nexit 0\n');
-  for (const file of ['check-agent-context.mjs', 'check-agent-context.test.mjs', 'pre-push.test.mjs']) write(`scripts/${file}`, '// fixture\n');
+  for (const file of ['check-agent-context.mjs', 'check-agent-context.test.mjs', 'pre-push.test.mjs', 'check-secrets.test.mjs']) write(`scripts/${file}`, '// fixture\n');
   write('.devbox/nix/profile/default/bin/pnpm', '#!/bin/bash\necho "pnpm $*"\n');
   write('.devbox/nix/profile/default/bin/npx', '#!/bin/bash\nexit 0\n');
   write('scripts/check-quality.sh', '#!/bin/bash\necho "quality $*"\n');
@@ -109,14 +140,18 @@ test('hook stdin validates the whole branch even if only the docs tip is pushed'
   assert.equal(result.status, 9, result.stdout + result.stderr);
 });
 
-test('runner-only changes run regression checks without selecting either stack', t => {
-  const f = fixture(t);
-  f.commit('lefthook.yml', 'changed hook configuration\n');
-  const result = f.check();
-  assert.equal(result.status, 0, result.stdout + result.stderr);
-  assert.match(result.stdout, /backend=false frontend=false/);
-  assert.match(result.stdout, /\[hook-tests\]/);
-  assert.doesNotMatch(result.stdout, /\[backend-quality\]|\[frontend-quality\]/);
+test('runner-only changes run regression checks without selecting either stack', async t => {
+  for (const path of ['lefthook.yml', 'scripts/dev-native.sh', 'scripts/go-package-workers.sh', 'scripts/total-memory-gb.sh']) {
+    await t.test(path, t => {
+      const f = fixture(t);
+      f.commit(path, 'changed runner configuration\n');
+      const result = f.check();
+      assert.equal(result.status, 0, result.stdout + result.stderr);
+      assert.match(result.stdout, /backend=false frontend=false/);
+      assert.match(result.stdout, /\[hook-tests\]/);
+      assert.doesNotMatch(result.stdout, /\[backend-quality\]|\[frontend-quality\]/);
+    });
+  }
 });
 
 test('missing pinned frontend package manager fails closed', t => {
@@ -148,14 +183,15 @@ test('deleted backend files still trigger quality but not integration tests', t 
 test('missing pinned secret scanner fails closed', t => {
   const f = fixture(t);
   f.commit('README.md', 'docs\n');
-  rmSync(join(f.root, '.devbox/nix/profile/default/bin/git-secrets'));
+  rmSync(join(f.root, '.devbox/nix/profile/default/bin/gitleaks'));
   const result = f.check();
   assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /Pinned git-secrets is missing/);
+  assert.match(result.stderr, /Pinned gitleaks is missing/);
 });
 
 test('secret findings fail the push', t => {
   const f = fixture(t);
+  f.commit('README.md', 'branch change\n');
   const result = f.check({ FAIL_SECRETS: '7' });
   assert.equal(result.status, 7);
 });
@@ -194,6 +230,75 @@ test('native-shell Go calls inherit the Devbox CGO default but permit an explici
     const result = f.run('bash', ['scripts/run-go-toolchain.sh', 'inspect-cgo'], { env: config });
     assert.equal(result.status, 0, result.stderr);
     assert.equal(result.stdout.trim(), expected);
+  }
+});
+
+function goBudgetFixture(t) {
+  const f = fixture(t);
+  copyFileSync(join(source, 'run-go-toolchain.sh'), join(f.root, 'scripts/run-go-toolchain.sh'));
+  const inspect = 'printf "GOFLAGS=%s\\nGOMAXPROCS=%s\\n" "${GOFLAGS-}" "${GOMAXPROCS-}"\n';
+  f.write('.devbox/nix/profile/default/bin/go', `#!/bin/bash
+if [[ "$*" == 'env GOVERSION' ]]; then echo go1.27.0; exit 0; fi
+${inspect}`);
+  f.write('.devbox/nix/profile/default/bin/inspect-budget', `#!/bin/bash\n${inspect}go inspect-budget\n`);
+  f.write('scripts/delegate.sh', '#!/bin/bash\nexec go inspect-budget\n');
+  delete f.env.GOFLAGS;
+  delete f.env.GOMAXPROCS;
+  return {
+    ...f,
+    inspect: (command, overrides = {}) => f.run('bash', ['scripts/run-go-toolchain.sh', command], {
+      env: { ...f.env, ...overrides },
+    }),
+  };
+}
+
+test('the pinned runner bounds Go processes outside a Devbox shell', t => {
+  const f = goBudgetFixture(t);
+  const result = f.inspect('go');
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout, 'GOFLAGS=-p=4\nGOMAXPROCS=4\n');
+});
+
+test('pinned tools and delegated scripts inherit the same budget in nested Go calls', t => {
+  const f = goBudgetFixture(t);
+  for (const [command, copies] of [['inspect-budget', 2], ['scripts/delegate.sh', 1]]) {
+    const result = f.inspect(command);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout, 'GOFLAGS=-p=4\nGOMAXPROCS=4\n'.repeat(copies));
+  }
+});
+
+test('caller resource settings remain explicit, including an empty GOFLAGS', t => {
+  const f = goBudgetFixture(t);
+  for (const GOFLAGS of ['-p=1 -tags=fixture', '']) {
+    const result = f.inspect('inspect-budget', { GOFLAGS, GOMAXPROCS: '1' });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout, `GOFLAGS=${GOFLAGS}\nGOMAXPROCS=1\n`.repeat(2));
+  }
+});
+
+test('pre-push exports Go budgets before computing cache inputs and preserves overrides', t => {
+  const f = fixture(t);
+  delete f.env.GOFLAGS;
+  delete f.env.GOMAXPROCS;
+  f.write('.devbox/nix/profile/default/bin/go', `#!/bin/bash
+if [[ "$*" == *-json* ]]; then
+  printf '%s|%s\\n' "\${GOFLAGS-}" "\${GOMAXPROCS-}" >> .devbox-budgets
+  echo '{"GOVERSION":"go1.27.0","GOWORK":"off"}'
+else
+  echo go1.27.0
+fi
+`);
+  f.write('.gitignore', '.devbox/\nbackend/.devbox-budgets\n');
+  f.commit('backend/example.go', 'package example\n');
+  for (const [overrides, expected] of [[{}, '-p=4|4'], [{ GOFLAGS: '-p=1', GOMAXPROCS: '1' }, '-p=1|1']]) {
+    const budgetFile = join(f.root, 'backend/.devbox-budgets');
+    rmSync(budgetFile, { force: true });
+    const result = f.check(overrides);
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    const budgets = readFileSync(budgetFile, 'utf8').trim().split('\n');
+    assert.ok(budgets.length > 0);
+    assert.ok(budgets.every(budget => budget === expected), JSON.stringify(budgets));
   }
 });
 
@@ -341,4 +446,26 @@ test('frontend cached results survive docs but invalidate on source and generate
   assert.match(f.check().stdout, /\[frontend-quality\] cache miss/);
   f.commit('frontend/example.ts', 'export const changed = true;\n');
   assert.match(f.check().stdout, /\[frontend-quality\] cache miss/);
+});
+
+test('architecture decision changes invalidate architecture evidence without rerunning unrelated checks', t => {
+  const f = fixture(t);
+  f.commit('backend/example.go', 'package example\n');
+  f.commit('docs/adr/0083-effects.md', '# Accepted effects decision\n');
+  assert.equal(f.check().status, 0);
+  f.commit('docs/adr/0083-effects.md', '# Changed effects decision\n');
+  const result = f.check();
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.match(result.stdout, /\[architecture\] cache miss/);
+  for (const stage of ['backend-quality', 'backend-lint']) assert.match(result.stdout, new RegExp(`\\[${stage}\\] cache hit`));
+});
+
+test('pass-through register changes invalidate architecture evidence', t => {
+  const f = fixture(t);
+  f.commit('backend/architecture/passthrough.json', '{"sites":[]}\n');
+  assert.equal(f.check().status, 0);
+  f.commit('backend/architecture/passthrough.json', '{"sites":[{"id":"changed"}]}\n');
+  const result = f.check();
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.match(result.stdout, /\[architecture\] cache miss/);
 });

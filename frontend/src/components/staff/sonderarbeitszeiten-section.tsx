@@ -37,6 +37,7 @@ import {
   isStaleAfterModelSave,
   parseDecimalHours,
 } from "./arbeitszeit-hours";
+import { FieldErrorHint } from "~/components/ui/field-error-hint";
 
 const logger = createLogger({ component: "SonderarbeitszeitenSection" });
 
@@ -525,11 +526,11 @@ export function SonderarbeitszeitenSection({
                     );
                   })}
                 </div>
-                {formErrors.fieldError("weekday_minutes") && (
-                  <p role="alert" className="text-moto-red-strong mt-1 text-xs">
-                    {formErrors.fieldError("weekday_minutes")}
-                  </p>
-                )}
+                <FieldErrorHint
+                  id="sonderarbeitszeit-weekday-minutes-error"
+                  message={formErrors.fieldError("weekday_minutes")}
+                  live
+                />
                 <p className="mt-2 text-xs text-gray-500">
                   {weekSum === null
                     ? "Bei 0 hat die Person an diesem Tag frei."

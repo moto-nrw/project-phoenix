@@ -273,13 +273,19 @@ func TestStudentEnrollmentListQueryBudgetStaysFlat(t *testing.T) {
 		group := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("enrollment-owner-budget-%d", i))
 		createOwnedEnrollment(t, module, ctx, student.ID, group.ID, "2026-09-01")
 	}
-	counter := testpkg.CaptureQueries(t, db)
-	_, err := module.ListStudentEnrollments(ctx, timetable.StudentEnrollmentFilter{StudentIDs: []int64{student.ID}})
-	require.NoError(t, err)
-	testpkg.AssertQueryBudget(t, "modules.timetable.enrollments.list", counter.Queries())
+	// The owner read runs inside the HTTP/workflow unit of work. The budget
+	// still measures every business query, not connection/role setup.
+	require.NoError(t, tenant.WithinCurrentTenant(ctx, func(ctx context.Context) error {
+		counter := testpkg.CaptureQueries(t, db)
+		_, err := module.ListStudentEnrollments(ctx, timetable.StudentEnrollmentFilter{StudentIDs: []int64{student.ID}})
+		require.NoError(t, err)
+		testpkg.AssertQueryBudget(t, "modules.timetable.enrollments.list", counter.Queries())
+
+		return nil
+	}))
 }
 
-func createOwnedEnrollment(t *testing.T, module *timetable.Module, ctx context.Context, studentID, groupID int64, validFrom string) timetable.StudentEnrollment {
+func createOwnedEnrollment(t *testing.T, module timetable.Owner, ctx context.Context, studentID, groupID int64, validFrom string) timetable.StudentEnrollment {
 	t.Helper()
 	value, err := module.CreateStudentEnrollment(ctx, enrollmentInput(studentID, groupID, validFrom))
 	require.NoError(t, err)
@@ -302,28 +308,28 @@ func rollbackEnrollmentWrite(t *testing.T, ctx context.Context, write func(conte
 	require.ErrorIs(t, err, wantErr)
 }
 
-func assertEnrollmentValidFrom(t *testing.T, module *timetable.Module, ctx context.Context, id int64, want string) {
+func assertEnrollmentValidFrom(t *testing.T, module timetable.Owner, ctx context.Context, id int64, want string) {
 	t.Helper()
 	value, err := module.FindStudentEnrollment(ctx, id)
 	require.NoError(t, err)
 	assert.Equal(t, want, value.ValidFrom)
 }
 
-func assertEnrollmentValidUntil(t *testing.T, module *timetable.Module, ctx context.Context, id int64, want *string) {
+func assertEnrollmentValidUntil(t *testing.T, module timetable.Owner, ctx context.Context, id int64, want *string) {
 	t.Helper()
 	value, err := module.FindStudentEnrollment(ctx, id)
 	require.NoError(t, err)
 	assert.Equal(t, want, value.ValidUntil)
 }
 
-func assertEnrollmentCount(t *testing.T, module *timetable.Module, ctx context.Context, groupID int64, want int) {
+func assertEnrollmentCount(t *testing.T, module timetable.Owner, ctx context.Context, groupID int64, want int) {
 	t.Helper()
 	values, err := module.ListStudentEnrollments(ctx, timetable.StudentEnrollmentFilter{ActivityGroupIDs: []int64{groupID}})
 	require.NoError(t, err)
 	assert.Len(t, values, want)
 }
 
-func assertEnrollmentSource(t *testing.T, module *timetable.Module, ctx context.Context, id int64, want *int64) {
+func assertEnrollmentSource(t *testing.T, module timetable.Owner, ctx context.Context, id int64, want *int64) {
 	t.Helper()
 	value, err := module.FindStudentEnrollment(ctx, id)
 	require.NoError(t, err)
@@ -344,12 +350,5 @@ func createEnrollmentSource(t *testing.T, db *bun.DB, ctx context.Context, stude
 		date_of_birth, status, activation_mode, created_student_id, reviewed_at, sort_order, custom_data)
 		VALUES (?, ?, 'Owner', 'Child', '2018-01-01', 'approved', 'scheduled', ?, NOW(), 0, '{}'::jsonb) RETURNING id`,
 		testpkg.Tenant(t), requestID, studentID).Scan(ctx, &childID))
-	tenantID := testpkg.Tenant(t)
-	t.Cleanup(func() {
-		cleanupCtx := context.Background()
-		_, _ = db.NewDelete().Table("enrollment.request_children").Where("tenant_id = ?", tenantID).Where("id = ?", childID).Exec(cleanupCtx)
-		_, _ = db.NewDelete().Table("enrollment.requests").Where("tenant_id = ?", tenantID).Where("id = ?", requestID).Exec(cleanupCtx)
-		_, _ = db.NewDelete().Table("enrollment.phases").Where("tenant_id = ?", tenantID).Where("id = ?", phaseID).Exec(cleanupCtx)
-	})
 	return childID
 }

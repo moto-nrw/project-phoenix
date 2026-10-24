@@ -8,9 +8,6 @@ package common
 import (
 	"context"
 	"net/http"
-
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 )
 
 // StudentAccessContext caches the per-request access decision so
@@ -49,13 +46,5 @@ type StudentAccessSource interface {
 // through the caller context.
 func DetermineStudentAccess(r *http.Request, source StudentAccessSource) *StudentAccessContext {
 	admin, staff := source.StudentAccessFacts(r.Context())
-	return &StudentAccessContext{IsAdmin: admin, IsStaff: staff}
-}
-
-// DetermineStudentAccessWithStaffLookup applies the same rules to a projected
-// staff lookup: admin status comes from the JWT permissions, and the staff
-// record is looked up only for non-admin callers.
-func DetermineStudentAccessWithStaffLookup(r *http.Request, lookup func(context.Context) (bool, error)) *StudentAccessContext {
-	admin, staff := securityruntime.StudentDataAccess(r.Context(), jwt.PermissionsFromCtx(r.Context()), lookup)
 	return &StudentAccessContext{IsAdmin: admin, IsStaff: staff}
 }

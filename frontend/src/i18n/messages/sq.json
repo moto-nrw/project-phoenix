@@ -217,7 +217,9 @@
     "week": "Java",
     "participationTitle": "Kur ha drekë {name}?",
     "participationCutoff": "Mund ta ndryshoni regjistrimin po atë ditë deri në orën {time}.",
+    "participationCutoffLead": "Mund ta ndryshoni regjistrimin deri në orën {time} {days, plural, one {një ditë pune para drekës} other {# ditë pune para drekës}}.",
     "participationSickness": "Një njoftim i konfirmuar për sëmundje deri në orën {time} e anulon drekën. Pas kësaj, regjistrimi mbetet i pandryshuar.",
+    "participationSicknessLead": "Një njoftim i konfirmuar për sëmundje deri në orën {time} {days, plural, one {një ditë pune para drekës} other {# ditë pune para drekës}} e anulon drekën. Pas kësaj, regjistrimi mbetet i pandryshuar.",
     "participationLoading": "Regjistrimi për drekë po ngarkohet",
     "regularDays": "Ditë të rregullta",
     "noRegularDays": "Asnjë ditë e rregullt",
@@ -248,12 +250,46 @@
     "useRegular": "Përdor regjistrimin e rregullt",
     "errorObjectSchools": "përmbledhja e ushqimit",
     "errorObjectWeek": "lista e ushqimeve për këtë javë",
-    "errorObjectParticipation": "regjistrimi për drekë"
+    "errorObjectParticipation": "regjistrimi për drekë",
+    "participationCutoffWeekday": "Mund ta ndryshoni regjistrimin deri të {weekday}, ora {time}, për gjithë javën e ardhshme.",
+    "participationCancellation": "Çregjistrimi mund të bëhet më vonë: deri në orën {time} {days, plural, =0 {në ditën e vaktit} one {një ditë pune para vaktit} other {# ditë pune para vaktit}}.",
+    "participationSicknessWeekday": "Një njoftim sëmundjeje i konfirmuar deri të {weekday}, ora {time}, në javën para vaktit e çregjistron fëmijën tuaj nga vakti. Pas kësaj regjistrimi mbetet.",
+    "closedDay": "Nuk ka vakt: festë ose ditë pushimi",
+    "registerWeek": "Regjistro për gjithë javën",
+    "unregisterWeek": "Çregjistro për gjithë javën",
+    "weekActionsHint": "Vlen për të gjitha ditët e kësaj jave që mund t’i ndryshoni ende.",
+    "unregisterWeekTitle": "Të çregjistrohet për gjithë javën?",
+    "unregisterWeekText": "{name} do të çregjistrohet nga dreka për {count, plural, one {# ditë} other {# ditë}} të kësaj jave. Regjistrimi sërish është i mundur vetëm deri në afatin e ndryshimeve."
+  },
+  "mealAllergens": {
+    "legendTitle": "Alergjenët",
+    "choose": "Zgjidhni alergjenët",
+    "marksShort": "Alergjenët: {letters}",
+    "marksLabel": "Përmban: {names}",
+    "noneThisWeek": "Për këtë javë nuk janë dhënë alergjenë.",
+    "source": "Këto të dhëna vijnë nga shkolla ose nga furnizuesi i ushqimit. Një gjellë pa shkronjë nuk është patjetër pa alergjenë. Për pyetje drejtohuni te OGS.",
+    "names": {
+      "gluten": "Drithëra me gluten",
+      "crustaceans": "Krustace",
+      "eggs": "Vezë",
+      "fish": "Peshk",
+      "peanuts": "Kikirikë",
+      "soybeans": "Sojë",
+      "milk": "Qumësht (përfshirë laktozën)",
+      "nuts": "Arra",
+      "celery": "Selino",
+      "mustard": "Mustardë",
+      "sesame": "Susam",
+      "sulphites": "Dioksid squfuri dhe sulfite",
+      "lupin": "Lupinë",
+      "molluscs": "Molusqe"
+    }
   },
   "mealParticipantList": {
     "title": "Lista ditore për kuzhinën",
     "description": "Lista tregon të gjithë fëmijët e regjistruar për drekë në këtë ditë.",
     "cutoff": "Ndryshimet për këtë ditë mund të bëhen deri në orën {time}.",
+    "cutoffLead": "Ndryshimet për këtë ditë janë të mundura deri në orën {time} {days, plural, one {një ditë pune më parë} other {# ditë pune më parë}}.",
     "child": "Fëmija",
     "class": "Klasa",
     "dateAria": "Data: {date}",
@@ -268,7 +304,44 @@
     "errorObject": "lista ditore",
     "caption": "Dreka më {date}",
     "emptyTitle": "Asnjë regjistrim për këtë ditë",
-    "emptyDescription": "Asnjë fëmijë nuk është në listën e kuzhinës për këtë ditë."
+    "emptyDescription": "Asnjë fëmijë nuk është në listën e kuzhinës për këtë ditë.",
+    "viewAria": "Pamja e listës për kuzhinën",
+    "viewDay": "Dita",
+    "viewWeek": "Java",
+    "weekTitle": "Lista javore për kuzhinën",
+    "weekDescription": "Lista tregon të gjithë fëmijët e regjistruar për drekë këtë javë.",
+    "weekCutoff": "Ndryshimet janë të mundura deri në orën {time} {days, plural, =0 {në ditën e drekës} one {një ditë pune më parë} other {# ditë pune më parë}}.",
+    "weekDateAria": "Java nga {from}",
+    "weekDownloadGroup": "Shkarko listën javore",
+    "weekDownloadPdf": "Shkarko listën javore si PDF",
+    "weekDownloadExcel": "Shkarko listën javore si skedar Excel",
+    "weekErrorObject": "lista javore",
+    "weekCaption": "Dreka nga {from} deri më {to}",
+    "weekEmptyTitle": "Asnjë regjistrim këtë javë",
+    "weekEmptyDescription": "Asnjë fëmijë nuk është në listën e kuzhinës për këtë javë.",
+    "weekRegistered": "i regjistruar",
+    "weekNotRegistered": "i paregjistruar",
+    "weekCountsLabel": "Numri i drekave për ditë",
+    "weekCount": "{count, plural, one {# fëmijë} other {# fëmijë}}",
+    "cutoffWeekday": "Ndryshimet janë të mundshme deri të {weekday} e javës së kaluar, ora {time}.",
+    "cancellationCutoff": "Çregjistrimi është i mundur deri në orën {time} {days, plural, =0 {në ditën e vaktit} one {një ditë pune më parë} other {# ditë pune më parë}}.",
+    "closedTitle": "Nuk ka vakt këtë ditë",
+    "closedDescription": "Kjo ditë është festë ose ditë pushimi e shkollës.",
+    "weekClosed": "pa vakt",
+    "staffChangeHint": "Këtu mund t’i regjistroni ose çregjistroni fëmijët edhe pas afatit.",
+    "addChild": "Regjistro fëmijën",
+    "addChildTitle": "Regjistro një fëmijë për {date}",
+    "addChildLabel": "Fëmija",
+    "addChildPlaceholder": "Zgjidhni fëmijën",
+    "addChildEmpty": "Të gjithë fëmijët e kësaj dite janë regjistruar tashmë.",
+    "addChildRequired": "Ju lutemi zgjidhni një fëmijë.",
+    "cancel": "Anulo",
+    "saving": "Po ruhet…",
+    "rowActions": "Veprime për {name}",
+    "unregister": "Çregjistro",
+    "registeredToast": "{name} është regjistruar për {date}.",
+    "unregisteredToast": "{name} është çregjistruar për {date}.",
+    "changeErrorObject": "regjistrimi"
   },
   "parentDashboard": {
     "eyebrow": "Portali i prindërve",
@@ -719,6 +792,7 @@
       "errorObjectPickup": "rregullimi i marrjes"
     },
     "back": "Kthehu te Fëmijët e mi",
+    "backSingle": "Kthehu te Fëmija im",
     "today": {
       "title": "Sot",
       "description": "Informacionet dhe detyrat më të rëndësishme për sot.",
@@ -826,7 +900,18 @@
       "statusRejected": "U refuzua: {reason}",
       "noDecisionReason": "Nuk u dha arsye",
       "submit": "Dërgo kërkesën",
-      "errorObject": "ora e marrjes"
+      "errorObject": "ora e marrjes",
+      "titleWithMode": "Ndryshoni marrjen",
+      "introWithMode": "Kërkoni për një ditë një orë tjetër ose një mënyrë tjetër marrjeje. Plani javor nuk ndryshon. Ndryshimi vlen pasi ta konfirmojë OGS-ja.",
+      "modeLabel": "Mënyra e marrjes në këtë ditë",
+      "modeUnchanged": "Si në planin javor",
+      "noTimeOrMode": "Ju lutemi shkruani një orë ose zgjidhni një mënyrë marrjeje.",
+      "reasonRequiredGeneric": "Ju lutemi shkruani shkurt pse ndryshon marrja.",
+      "pickupOptionalHint": "Lëreni bosh nëse ora mbetet e njëjtë.",
+      "modeStaffSet": "OGS-ja e ka caktuar tashmë mënyrën e marrjes për këtë ditë: {mode}.",
+      "pendingMode": "Mënyra e re e marrjes: {to}",
+      "statusApprovedChange": "U konfirmua, ndryshimi u ruajt.",
+      "errorStaffConflictGeneric": "OGS-ja ka regjistruar tashmë një ndryshim për këtë ditë. Ju lutemi kontaktoni ekipin."
     },
     "actions": {
       "sick": {
@@ -979,7 +1064,8 @@
       "holiday": "Përkujdesje gjatë pushimeve",
       "custom": "Tjetër"
     },
-    "backToPicker": "Zgjidh regjistrim tjetër",
+    "backToPicker": "Kthehu te zgjedhja",
+    "backToParentPicker": "Kthehu te Regjistrim i ri",
     "backToPortal": "Kthehu te portali i prindërve",
     "parentEmbeddedKicker": "Regjistrimi për kujdesin pas shkollës",
     "formEyebrow": "Plotësoni formularin",
@@ -1010,6 +1096,14 @@
     "dateRange": "{from} deri {to}"
   },
   "enrollmentForm": {
+    "attachments": {
+      "open": "Hap",
+      "download": "Shkarko",
+      "openLabel": "Hap {label}",
+      "downloadLabel": "Shkarko {label}",
+      "errorObject": "skedarin PDF",
+      "popupBlocked": "Ju lutemi lejoni hapjen e një dritareje të re."
+    },
     "errorObject": "regjistrimi",
     "loading": "Formulari po ngarkohet…",
     "legalGermanNotice": "Këto tekste ligjore janë detyruese në gjermanisht.",
@@ -1102,10 +1196,12 @@
       "groupExactlyOne": "Ju lutemi zgjidhni saktësisht një ofertë te “{group}”.",
       "groupAtLeastOne": "Ju lutemi zgjidhni të paktën një ofertë te “{group}”.",
       "groupAtMostOne": "Ju lutemi zgjidhni më së shumti një ofertë te “{group}”.",
+      "groupDayConflict": "{day}: janë zgjedhur {offerings}. Ju lutemi zgjidhni vetëm një ofertë në ditë.",
       "pickupConfirm": "Ju lutemi konfirmoni rregullimin e marrjes (zgjidhni ditët ose lëreni bosh).",
       "weekdayRequired": "Ju lutemi zgjidhni të paktën një ditë të javës.",
       "weekdayModeConfirm": "Ju lutemi konfirmoni rregullimin e largimit.",
-      "weekdayMultiModeRequired": "Ju lutemi zgjidhni të paktën një mënyrë kthimi për çdo ditë kujdesi."
+      "weekdayMultiModeRequired": "Ju lutemi zgjidhni të paktën një mënyrë kthimi për çdo ditë kujdesi.",
+      "file": "Ngarkoni të paktën një skedar."
     },
     "care": {
       "requiredTitle": "Oferta të detyrueshme",
@@ -1129,9 +1225,12 @@
       "ruleExactlyOne": "Ju lutemi zgjidhni saktësisht një",
       "ruleAtLeastOne": "Ju lutemi zgjidhni të paktën një",
       "ruleAtMostOne": "Më së shumti një",
-      "availabilitySelectionRemoved": "Disa oferta kujdesi nuk janë më të disponueshme për klasën e zgjedhur. Zgjedhjet, ditët dhe shtesat automatike u hoqën."
+      "ruleAtMostOnePerDay": "Më së shumti një në ditë",
+      "availabilitySelectionRemoved": "Disa oferta kujdesi nuk janë më të disponueshme për klasën e zgjedhur. Zgjedhjet, ditët dhe shtesat automatike u hoqën.",
+      "chooseGradeFirst": "Zgjidhni fillimisht klasën e fëmijës suaj. Më pas do të shihni këtu ofertat e përshtatshme të kujdesit.",
+      "noOfferingsForGrade": "Për klasën {grade} nuk ka oferta të përshtatshme kujdesi. Për pyetje, ju lutemi kontaktoni OGS-në."
     },
-    "captchaMisconfigured": "Regjistrimi aktualisht nuk është i mundur: konfigurimi i mbrojtjes kundër botëve është i paplotë. Ju lutemi kontaktoni drejtimin e OGS-së.",
+    "captchaMisconfigured": "Regjistrimi online nuk është i mundur tani. Nuk është faji juaj. Ju lutemi kontaktoni OGS-në.",
     "structured": {
       "yes": "Po",
       "no": "Jo",
@@ -1231,6 +1330,23 @@
       "noCare": "Asnjë ofertë e rezervuar.",
       "hint": "Ndryshimet për {name} tani bëhen përmes aplikacionit për prindër.",
       "noAccess": "Nuk mund të hyni në aplikacionin për prindër? Ju lutemi kontaktoni OGS-në."
+    },
+    "upload": {
+      "errorObject": "skedari",
+      "choose": "Zgjidhni skedarin",
+      "chooseMore": "Zgjidhni një skedar tjetër",
+      "allowed": "Të lejuara: {types}, më së shumti {max} MB për skedar.",
+      "upTo": "Deri në {count} skedarë.",
+      "camera": "Në telefon mund të bëni edhe një foto.",
+      "uploading": "Po ngarkohet …",
+      "remove": "Hiq {name}",
+      "wrongType": "Ky skedar ka llojin e gabuar. Të lejuara: {types}.",
+      "tooLarge": "Ky skedar është shumë i madh. Lejohen më së shumti {max} MB.",
+      "empty": "Ky skedar është bosh. Zgjidhni një skedar tjetër.",
+      "onlyOne": "Këtu mund të ngarkoni vetëm një skedar.",
+      "tooMany": "Këtu mund të ngarkoni më së shumti {count} skedarë.",
+      "pendingSubmit": "Prisni derisa të ngarkohen të gjithë skedarët.",
+      "previewDisabled": "Në pamjen paraprake nuk mund të ngarkoni skedarë."
     }
   },
   "enrollmentStatus": {
@@ -1318,6 +1434,7 @@
     "changeRequestReplySending": "Duke dërguar…",
     "changeRequestReplySubmit": "Dërgo përgjigje",
     "backToStatus": "Kthehu te statusi",
+    "backToParentApp": "Kthehu te aplikacioni për prindër",
     "nameLabel": "Emri",
     "emailLabel": "E-mail",
     "phoneLabel": "Telefoni",
@@ -1490,11 +1607,15 @@
     "requestHint": "Ekipi i kontrollon këto ndryshime para se të zbatohen.",
     "departureDescription": "Përcaktoni për çdo ditë të javës nëse fëmija merret, shkon vetëm apo udhëton me autobus. OGS-ja i kontrollon ndryshimet.",
     "departureReadOnlyAccompanied": "Fëmija juaj shkon në shtëpi me një fëmijë tjetër të paktën një ditë. Këtu nuk mund ta ndryshoni rrugën për në shtëpi.",
+    "departureEdit": "Ndrysho",
+    "departureCancel": "Anulo",
+    "departureSubmitting": "Kërkesa po dërgohet…",
+    "departurePendingNotice": "OGS-ja po e kontrollon ndryshimin tuaj. Deri në konfirmim vlen rruga e deritanishme për në shtëpi.",
     "requestButton": "Kërko ndryshim",
     "requestSubmitted": "Kërkesa u dërgua. Ekipi do ta kontrollojë ndryshimin.",
     "requestEdit": "Ndrysho kërkesën",
     "pendingBadge": "Në shqyrtim",
-    "pendingNotice": "Një ndryshim në këtë fushë pret konfirmimin e ekipit.",
+    "pendingTitle": "Ndryshimi i kërkuar",
     "editDisabled": "Ndryshimi i këtyre të dhënave është çaktivizuar për këtë OGS.",
     "requestDisabled": "Kërkesat për ndryshim janë çaktivizuar për këtë OGS.",
     "notSet": "Nuk është dhënë",
@@ -1623,6 +1744,7 @@
       "cancel": "Anulo",
       "noChange": "Zgjedhja juaj përputhet me rezervimin aktual. Ndryshoni diçka për të dërguar kërkesën.",
       "noDaysSelected": "Zgjidhni të paktën një ditë për çdo ofertë të zgjedhur.",
+      "dayConflict": "{day}: janë zgjedhur {offerings}. Ju lutemi zgjidhni vetëm një ofertë në ditë.",
       "capacityFull": "Një nga ofertat e zgjedhura nuk ka më vende të lira. Ju lutemi zgjidhni një ofertë tjetër ose kontaktoni shkollën.",
       "alreadyPending": "Ka tashmë një kërkesë për fëmijën tuaj. Prisni shqyrtimin e saj.",
       "withdrawalConfirmTitle": "Të çregjistrohet plotësisht nga përkujdesja?",
@@ -1739,7 +1861,9 @@
     "eventRequestWithdrawn": "Kërkesa u tërhoq",
     "eventRequestCreatedCareOffering": "U kërkua ndryshimi i kujdesit të rezervuar",
     "eventRequestConfirmedCareOffering": "Kërkesa u miratua, kujdesi i rezervuar do të ndryshohet",
-    "eventRequestConfirmedCareOfferingDated": "Kërkesa u miratua, kujdesi i rezervuar do të ndryshohet nga {date}"
+    "eventRequestConfirmedCareOfferingDated": "Kërkesa u miratua, kujdesi i rezervuar do të ndryshohet nga {date}",
+    "eventRequestCreatedPickupChangeWithMode": "Kërkesa për marrjen u dërgua",
+    "eventRequestConfirmedPickupChangeWithMode": "Kërkesa u konfirmua, marrja u ndryshua"
   },
   "parentFeedback": {
     "kicker": "Reagim",
@@ -1804,7 +1928,10 @@
       "pickupHint": "Përshtat orën e marrjes për një ditë",
       "message": "Shkruaj një mesazh",
       "messageCompact": "Shkruaj një mesazh",
-      "messageHint": "Kontakto OGS-në për {name}"
+      "messageHint": "Kontakto OGS-në për {name}",
+      "pickupWithMode": "Ndrysho marrjen për {name}",
+      "pickupCompactWithMode": "Ndrysho marrjen",
+      "pickupHintWithMode": "Ndrysho orën ose mënyrën e marrjes për një ditë"
     }
   },
   "parentStart": {
@@ -1951,7 +2078,7 @@
     "sent": "Dërguar",
     "readByOgs": "Lexuar nga OGS-ja",
     "aboutChild": "Për {name}",
-    "back": "Kthehu",
+    "back": "Kthehu te mesazhet",
     "composerPlaceholder": "Shkruani një mesazh për OGS-në",
     "composerLabel": "Mesazh",
     "send": "Dërgo",
@@ -1962,6 +2089,25 @@
     "errorObjectConversation": "biseda",
     "errorObjectMessage": "mesazhi",
     "errorObjectList": "lista e bisedave"
+  },
+  "parentGroupThreads": {
+    "sectionTitle": "Mesazhe grupi nga OGS",
+    "sectionDescription": "Këtu OGS i shkruan grupit, klasës ose kursit të fëmijës suaj.",
+    "closed": "Mbyllur",
+    "forChildren": "Për {names}",
+    "privacyNote": "Përgjigjja juaj shkon vetëm te OGS. Prindërit e tjerë nuk e shohin.",
+    "replyTitle": "Përgjigje për OGS",
+    "replyChildLabel": "Përgjigje për",
+    "replyPlaceholder": "Shkruani një përgjigje për OGS",
+    "replyFieldLabel": "Përgjigje",
+    "sentConfirmation": "OGS e ka marrë përgjigjen tuaj.",
+    "toChat": "Te biseda me OGS",
+    "closedNote": "Ky mesazh grupi është mbyllur. Mund t'i shkruani akoma OGS në bisedën për fëmijën tuaj.",
+    "writingDisabled": "Nuk mund t'i përgjigjeni këtij mesazhi. Mund ta lexoni akoma.",
+    "answerTo": "Përgjigje për: {title}",
+    "errorObjectThread": "mesazhi i grupit",
+    "errorObjectAnswer": "përgjigjja",
+    "errorObjectList": "mesazhet e grupit"
   },
   "parentCalendar": {
     "kicker": "Terminet me një vështrim",
@@ -2066,6 +2212,7 @@
     },
     "codes": {
       "attendance": {
+        "log_disabled": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
         "web_disabled": "Nuk keni qasje te: {object}. Kontaktoni shkollën."
       },
       "care": {
@@ -2144,6 +2291,9 @@
         "arrival_exception_editor_required": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
         "arrival_exception_past_date": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "arrival_exception_weekend": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "morning_attendance_no_school_day": "Sot nuk është ditë shkolle. Prania shënohet vetëm në ditë shkolle.",
+        "morning_attendance_not_today": "Prania shënohet vetëm për sot. Hapni ditën e sotme.",
+        "morning_attendance_unknown_child": "Një fëmijë nuk i përket më kësaj klase. Ringarkoni faqen.",
         "school_write_disabled": "Nuk keni qasje te: {object}. Kontaktoni shkollën."
       },
       "communication": {
@@ -2158,9 +2308,13 @@
         "staff_messaging_disabled": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
         "staff_notice_outdated": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "system_announcement_immutable": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
-        "announcement_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
+        "announcement_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "group_thread_closed": "Ky mesazh grupi është mbyllur. Nuk mund të përgjigjeni më.",
+        "group_thread_no_recipients": "Asnjë fëmijë në këtë grup nuk ka prindër me qasje në moto. Mesazhi nuk u dërgua."
       },
       "enrollment": {
+        "form_attachment_invalid": "Ju lutemi kontrolloni emrin dhe skedarin PDF.",
+        "approval_care_offering_day_conflict": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "approval_care_offering_exactly_one": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "approval_care_offering_missing": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "approval_data_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
@@ -2169,6 +2323,7 @@
         "care_offering_auto_add_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "care_offering_capacity_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "care_offering_closed": "Një ofertë kujdesi e zgjedhur nuk pranon regjistrime tani. Ju lutemi zgjidhni një tjetër.",
+        "care_offering_day_conflict": "Për të njëjtën ditë janë zgjedhur dy oferta që nuk shkojnë bashkë. Ju lutemi zgjidhni vetëm një për ditë.",
         "care_offering_days_required": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "care_offering_exactly_one": "Ju lutemi zgjidhni saktësisht një ofertë kujdesi për çdo fëmijë.",
         "care_offering_full": "Një ofertë kujdesi e zgjedhur është plot. Zgjidhni një tjetër ose pyesni shkollën.",
@@ -2240,6 +2395,11 @@
         "legal_block_key_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "legal_block_required_not_allowed": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "legal_document_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "form_field_file_options_invalid": "Kontrolloni pyetjen për skedarin. Zgjidhni të paktën një lloj skedari dhe një madhësi nga 1 deri në 10 MB.",
+        "upload_invalid": "Ky skedar nuk përshtatet. Zgjidhni një lloj skedari të lejuar me më së shumti {max_mb} MB.",
+        "upload_expired": "Një skedar i ngarkuar ka skaduar. Ngarkojeni përsëri.",
+        "upload_rate_limited": "U ngarkuan shumë skedarë. Provoni përsëri më vonë.",
+        "upload_not_found": "Ky skedar nuk ekziston më. Ngarkojeni përsëri.",
         "message_required": "Ju lutemi shkruani një mesazh.",
         "offering_adjustment_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "phase_care_offering_conflict": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
@@ -2276,6 +2436,7 @@
         "announcement_published": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "attachment_limit_reached": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "file_missing": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "file_name_invalid": "Emri i skedarit nuk lejohet. Ju lutemi zgjidhni skedarin përsëri.",
         "file_too_large": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "file_type_not_allowed": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "file_unreadable": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
@@ -2325,6 +2486,7 @@
         "preview_token_invalid": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
         "read_only_preview": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
         "role_name_taken": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "role_platform_permission": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "session_account_inactive": "Llogaria juaj është e çaktivizuar. Kontaktoni drejtimin e shkollës suaj.",
         "tenant_access_denied": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
         "use_parent_portal": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
@@ -2332,10 +2494,13 @@
         "username_taken": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "password_mismatch": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "operator_invitation_invalid": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "operator_self_deactivation": "Nuk mund ta çaktivizoni llogarinë tuaj. Kërkojini një personi tjetër nga ekipi ta bëjë këtë.",
         "invitation_rate_limited": "{object} nuk është i disponueshëm tani. Provoni përsëri.",
         "email_change_rate_limited": "{object} nuk është i disponueshëm tani. Provoni përsëri.",
         "email_change_same_email": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "email_change_link_invalid": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "mfa_status_unavailable": "Verifikimi i hyrjes nuk është i disponueshëm tani. Provoni përsëri.",
+        "mfa_session_required": "Hyrja në {object} kërkon një verifikim të dytë. Butoni ju nxjerr nga llogaria dhe hap hyrjen e asaj shkolle. Hyni atje përsëri dhe konfirmoni hyrjen.",
         "mfa_not_enrolled": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "mfa_already_enrolled": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "passkey_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
@@ -2394,6 +2559,7 @@
         "wc_not_configured": "Nuk u përpunua: {object}. Provoni përsëri më vonë."
       },
       "meals": {
+        "invalid_allergens": "Alergjenët nuk u ruajtën. Ju lutemi zgjidhini përsëri.",
         "invalid_dishes": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "invalid_meal_date": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "invalid_participation": "Ka të dhëna të pavlefshme: {object}. Kontrolloni çfarë keni shkruar.",
@@ -2453,6 +2619,7 @@
         "care_exit_preview_changed": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "care_exit_too_many_students": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "care_offerings_disabled": "Për momentin nuk është i disponueshëm këtu: {object}. Pyetni personin tuaj të kontaktit.",
+        "care_resume_alumnus": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "care_resume_missing": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "care_resume_not_checked": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "care_resume_not_ended": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
@@ -2471,6 +2638,7 @@
         "class_list_entry_student_exists": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "class_list_entry_student_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "companion_lock_busy": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "companion_plan_conflict": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "companion_would_lose_departure": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "companions_changed": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "conflict_kind_unsupported": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
@@ -2764,7 +2932,11 @@
         "managed_by_upload": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "invalid_value": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "presence_mode_switch_blocked": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
-        "booking_authority_blocked": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
+        "booking_authority_blocked": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "attendance_visible_exceeds_retention": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "attendance_retention_below_visible": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "module_requires": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "module_required_by": "Nuk u ruajt: {object}. Kontrolloni të dhënat."
       },
       "devices": {
         "tag_scan_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
@@ -2772,6 +2944,23 @@
       },
       "billing": {
         "invalid_key_day": "Nuk u ruajt: {object}. Kontrolloni të dhënat."
+      },
+      "display": {
+        "disabled": "Nuk keni qasje te: {object}. Kontaktoni shkollën."
+      },
+      "feedback": {
+        "disabled": "Nuk keni qasje te: {object}. Kontaktoni shkollën."
+      },
+      "staff": {
+        "external_access_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "external_email_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "external_email_invited": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "external_email_required": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "external_has_account": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "not_external": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
+      },
+      "operator": {
+        "audit_unavailable": "{object} nuk është i disponueshëm tani. Provoni përsëri."
       }
     },
     "actions": {

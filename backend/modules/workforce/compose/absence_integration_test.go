@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,8 +18,8 @@ import (
 // of row into two tenants and assert that reads, locks and deletes through
 // the capability never cross that boundary.
 
-func testAbsence(staffID int64, absenceType, status string, day timezone.Date) workforce.StaffAbsence {
-	return workforce.StaffAbsence{
+func testAbsence(staffID int64, absenceType, status string, day calendar.Date) *workforce.StaffAbsence {
+	return &workforce.StaffAbsence{
 		StaffID: staffID, AbsenceType: absenceType, Status: status,
 		DateStart: day.String(), DateEnd: day.String(), CreatedBy: staffID,
 	}
@@ -36,7 +36,7 @@ func TestStaffAbsencesAreTenantIsolated(t *testing.T) {
 
 	local := testpkg.CreateTestStaff(t, db, "Absence", "Local")
 	foreign := testpkg.CreateTestStaffForTenant(t, db, foreignTenantID, "Absence", "Foreign")
-	day := timezone.NewDate(2026, 3, 9)
+	day := calendar.NewDate(2026, 3, 9)
 	capability := buildWorkforce(t, db)
 
 	localAbsence, err := capability.CreateStaffAbsence(ctx, testAbsence(local.ID, workforce.AbsenceTypeSick, workforce.AbsenceStatusReported, day))
@@ -77,7 +77,7 @@ func TestStaffAbsenceMapForDatePrefersSickOverVacation(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	staff := testpkg.CreateTestStaff(t, db, "Priority", "Staff")
-	day := timezone.NewDate(2026, 3, 10)
+	day := calendar.NewDate(2026, 3, 10)
 	capability := buildWorkforce(t, db)
 
 	absenceType, err := capability.CreateStaffAbsenceType(ctx, workforce.StaffAbsenceTypeFields{Name: "Prioritätstag", IsActive: true})
@@ -138,7 +138,7 @@ func TestStaffAbsenceTypesAreTenantIsolated(t *testing.T) {
 	assert.Equal(t, "Regenerationstag", unchanged.Name)
 
 	staff := testpkg.CreateTestStaff(t, db, "Type", "User")
-	absence := testAbsence(staff.ID, workforce.AbsenceTypeOther, workforce.AbsenceStatusReported, timezone.NewDate(2026, 3, 11))
+	absence := testAbsence(staff.ID, workforce.AbsenceTypeOther, workforce.AbsenceStatusReported, calendar.NewDate(2026, 3, 11))
 	absence.AbsenceTypeID = &local.ID
 	_, err = capability.CreateStaffAbsence(ctx, absence)
 	require.NoError(t, err)
@@ -162,7 +162,7 @@ func TestStaffAbsenceAuditIsTenantIsolated(t *testing.T) {
 
 	local, localAccount := testpkg.CreateTestStaffWithAccount(t, db, "Audit", "Local")
 	foreign, foreignAccount := testpkg.CreateTestStaffWithAccountForTenant(t, db, foreignTenantID, "Audit", "Foreign")
-	day := timezone.NewDate(2026, 3, 12)
+	day := calendar.NewDate(2026, 3, 12)
 	localAbsence, err := capability.CreateStaffAbsence(ctx, testAbsence(local.ID, workforce.AbsenceTypeVacation, workforce.AbsenceStatusRequested, day))
 	require.NoError(t, err)
 	foreignAbsence, err := capability.CreateStaffAbsence(foreignCtx, testAbsence(foreign.ID, workforce.AbsenceTypeVacation, workforce.AbsenceStatusRequested, day))
@@ -199,7 +199,7 @@ func TestGroupSubstitutionsAreTenantIsolated(t *testing.T) {
 	localStaff := testpkg.CreateTestStaff(t, db, "Substitute", "Local")
 	foreignGroup := testpkg.CreateTestEducationGroupForTenant(t, db, foreignTenantID, "Substitution Foreign")
 	foreignStaff := testpkg.CreateTestStaffForTenant(t, db, foreignTenantID, "Substitute", "Foreign")
-	day := timezone.NewDate(2026, 3, 13)
+	day := calendar.NewDate(2026, 3, 13)
 
 	local, err := capability.CreateGroupSubstitution(ctx, workforce.GroupSubstitution{
 		TargetType: workforce.GroupSubstitutionTypeGroupHandover, GroupID: localGroup.ID, SubstituteStaffID: localStaff.ID,
@@ -218,7 +218,7 @@ func TestGroupSubstitutionsAreTenantIsolated(t *testing.T) {
 	require.Len(t, listed, 1)
 	assert.Equal(t, local.ID, listed[0].ID)
 
-	explicitForeign, err := capability.ListGroupSubstitutions(ctx, workforce.GroupSubstitutionFilter{TenantID: foreignTenantID})
+	explicitForeign, err := capability.ListGroupSubstitutions(ctx, workforce.GroupSubstitutionFilter{TenantID: &foreignTenantID})
 	require.NoError(t, err)
 	assert.Empty(t, explicitForeign, "an explicit tenant predicate never widens the ambient tenant")
 
@@ -250,7 +250,7 @@ func TestAbsenceDecisionRollsBackAfterEachWriteAndRetriesCleanly(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	staff, account := testpkg.CreateTestStaffWithAccount(t, db, "Rollback", "Absence")
-	day := timezone.NewDate(2026, 3, 16)
+	day := calendar.NewDate(2026, 3, 16)
 	capability := buildWorkforce(t, db)
 	injected := errors.New("injected failure")
 

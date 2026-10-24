@@ -11,14 +11,14 @@ import (
 )
 
 func (s *Store) TransitionStudentStatus(ctx context.Context, id int64, expected, next string) (bool, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return false, domain.OperationStats{}, err
 	}
-	if err := requireStudentWriteTenant(tenantID); err != nil {
+	if err := requireStudentWriteTenant(scope.TenantID); err != nil {
 		return false, domain.OperationStats{}, err
 	}
-	query := withStudentTenant(studentUpdate(db), tenantID).
+	query := withStudentTenant(studentUpdate(db), scope).
 		Set("status = ?", next).Where("student.student_profile_id = ?", id).
 		Where("student.status <> 'alumnus'")
 	if expected != "" {
@@ -29,26 +29,26 @@ func (s *Store) TransitionStudentStatus(ctx context.Context, id int64, expected,
 }
 
 func (s *Store) GraduateStudents(ctx context.Context, ids []int64) (int64, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return 0, domain.OperationStats{}, err
 	}
-	if err := requireStudentWriteTenant(tenantID); err != nil {
+	if err := requireStudentWriteTenant(scope.TenantID); err != nil {
 		return 0, domain.OperationStats{}, err
 	}
 	query := withStudentTenant(studentUpdate(db).
 		Set(`status = ?`, "alumnus").
 		Where(`"student".student_profile_id IN (?)`, bun.List(ids)).
-		Where(`"student".status <> ?`, "alumnus"), tenantID)
+		Where(`"student".status <> ?`, "alumnus"), scope)
 	return execStudents(ctx, query, "graduate students by id")
 }
 
 func (s *Store) ReactivateStudents(ctx context.Context, ids []int64, status string) ([]int64, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
-	if err := requireStudentWriteTenant(tenantID); err != nil {
+	if err := requireStudentWriteTenant(scope.TenantID); err != nil {
 		return nil, domain.OperationStats{}, err
 	}
 	type idRow struct {
@@ -58,7 +58,7 @@ func (s *Store) ReactivateStudents(ctx context.Context, ids []int64, status stri
 	query := withStudentTenant(studentUpdate(db).
 		Set(`status = ?`, status).
 		Where(`"student".student_profile_id IN (?)`, bun.List(ids)).
-		Where(`"student".status = ?`, "alumnus"), tenantID).
+		Where(`"student".status = ?`, "alumnus"), scope).
 		Returning(`"student".student_profile_id AS id`)
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
@@ -96,18 +96,18 @@ func studentUpdate(db bun.IDB) *bun.UpdateQuery {
 }
 
 func (s *Store) EndStudentCare(ctx context.Context, ids []int64, until string) (int64, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return 0, domain.OperationStats{}, err
 	}
-	if err := requireStudentWriteTenant(tenantID); err != nil {
+	if err := requireStudentWriteTenant(scope.TenantID); err != nil {
 		return 0, domain.OperationStats{}, err
 	}
 	day, err := optionalDate(until, "care end")
 	if err != nil {
 		return 0, domain.OperationStats{}, err
 	}
-	query := withStudentTenant(studentUpdate(db), tenantID).
+	query := withStudentTenant(studentUpdate(db), scope).
 		Set("enrolled_until = ?", day).
 		Where("student.student_profile_id IN (?)", bun.List(ids)).
 		Where("student.status <> 'alumnus'")
@@ -115,11 +115,11 @@ func (s *Store) EndStudentCare(ctx context.Context, ids []int64, until string) (
 }
 
 func (s *Store) ResumeStudentCare(ctx context.Context, id int64, from, status, on string) (bool, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return false, domain.OperationStats{}, err
 	}
-	if err := requireStudentWriteTenant(tenantID); err != nil {
+	if err := requireStudentWriteTenant(scope.TenantID); err != nil {
 		return false, domain.OperationStats{}, err
 	}
 	start, err := optionalDate(from, "care start")
@@ -130,7 +130,7 @@ func (s *Store) ResumeStudentCare(ctx context.Context, id int64, from, status, o
 	if err != nil {
 		return false, domain.OperationStats{}, err
 	}
-	query := withStudentTenant(studentUpdate(db), tenantID).
+	query := withStudentTenant(studentUpdate(db), scope).
 		Set("enrolled_from = ?", start).Set("enrolled_until = NULL").Set("status = ?", status).
 		Where("student.student_profile_id = ?", id).
 		Where("student.status <> 'alumnus'").
@@ -138,8 +138,8 @@ func (s *Store) ResumeStudentCare(ctx context.Context, id int64, from, status, o
 	changed, stats, err := execStudents(ctx, query, "resume student care")
 	return changed == 1, stats, err
 }
-func withStudentTenant(query *bun.UpdateQuery, tenantID int64) *bun.UpdateQuery {
-	return query.Where("student.tenant_id = ?", tenantID)
+func withStudentTenant(query *bun.UpdateQuery, scope TenantScope) *bun.UpdateQuery {
+	return query.Where("student.tenant_id = ?", scope.TenantID)
 }
 func requireStudentWriteTenant(tenantID int64) error {
 	if tenantID <= 0 {

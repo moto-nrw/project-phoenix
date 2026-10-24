@@ -16,12 +16,9 @@ import { useSession } from "next-auth/react";
 import { getDayData as getArrivalDayData } from "~/lib/arrival-schedule-helpers";
 import { useWeekendFollowsFriday } from "~/lib/tenant-context";
 import { setTestClock } from "~/test/clock";
+import { fetchStudentPickupData } from "~/lib/pickup-schedule-api";
 
-const {
-  mockSWRMutate,
-  MockStudentStatusDayConflictError,
-  MockStudentStatusDayPartialAbsenceConflictError,
-} = vi.hoisted(() => ({
+const { mockSWRMutate, MockStudentStatusDayConflictError } = vi.hoisted(() => ({
   mockSWRMutate: vi.fn(),
   MockStudentStatusDayConflictError: class extends Error {
     conflicts: unknown[];
@@ -32,14 +29,6 @@ const {
       this.name = "StudentStatusDayConflictError";
       this.conflicts = conflicts;
       this.totalCount = totalCount ?? conflicts.length;
-    }
-  },
-  MockStudentStatusDayPartialAbsenceConflictError: class extends Error {
-    constructor() {
-      super(
-        "Für diesen Tag liegt bereits eine Abmeldung ab einer Uhrzeit vor. Bitte zuerst die Teilabwesenheit entfernen.",
-      );
-      this.name = "StudentStatusDayPartialAbsenceConflictError";
     }
   },
 }));
@@ -54,8 +43,15 @@ vi.mock("swr", async (importOriginal) => {
 // Mock next-auth/react
 vi.mock("next-auth/react", () => ({
   getSession: vi.fn(() => Promise.resolve({ user: { token: "test-token" } })),
+  // Staff reads parent data with users:read; the role „Gast“ holds only
+  // students:read (ADR 0091, see „students:read only“ below).
   useSession: vi.fn(() => ({
-    data: { user: { token: "test-token", permissions: ["config:manage"] } },
+    data: {
+      user: {
+        token: "test-token",
+        permissions: ["config:manage", "users:read"],
+      },
+    },
     status: "authenticated",
   })),
 }));
@@ -102,12 +98,12 @@ vi.mock("~/components/ui/alert", () => ({
   ),
 }));
 
-// TenantPage owns the mobile back button.
-vi.mock("~/components/ui/mobile-back-button", () => ({
-  MobileBackButton: ({ href }: { href?: string }) => (
-    <button type="button" data-testid="back-button" data-referrer={href}>
-      Zurück
-    </button>
+// Der Rückweg der Kopfkarte (TenantPage) als Link mit seinem Ziel.
+vi.mock("~/components/ui/back-link", () => ({
+  BackLink: ({ href, label }: { href: string; label: string }) => (
+    <a data-testid="back-button" href={href} data-referrer={href}>
+      {label}
+    </a>
   ),
 }));
 
@@ -431,6 +427,28 @@ vi.mock("~/components/students/student-enrollments-tab", () => ({
   StudentEnrollmentsTab: () => <div data-testid="student-enrollments-tab" />,
 }));
 
+// These child panels are real here; isolate their read APIs as well. Otherwise
+// mounts and SWR retries outlive the page test and hit localhost:3000.
+vi.mock("~/lib/change-request-list-api", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("~/lib/change-request-list-api")>();
+  return {
+    ...actual,
+    getFamilyProtection: vi.fn(async (studentId: string) => ({
+      student_id: studentId,
+      enabled: false,
+    })),
+  };
+});
+
+vi.mock("~/lib/student-notes-api", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("~/lib/student-notes-api")>();
+  vi.spyOn(actual.studentNotesService, "list").mockResolvedValue([]);
+  vi.spyOn(actual.studentNotesService, "listActivities").mockResolvedValue([]);
+  return actual;
+});
+
 // Mock pickup schedule API
 vi.mock("~/lib/pickup-schedule-api", () => ({
   fetchStudentPickupData: vi.fn().mockResolvedValue({
@@ -491,7 +509,6 @@ interface MockStudent {
   buskind: boolean;
   birthday: string;
   health_info: string;
-  supervisor_notes: string;
   extra_info: string;
   pickup_status: string;
   sick: boolean;
@@ -540,8 +557,6 @@ const mockCreateStudentStatusDays = vi.fn();
 const mockFetchStudentStatusDays = vi.fn();
 vi.mock("~/lib/student-status-days-api", () => ({
   StudentStatusDayConflictError: MockStudentStatusDayConflictError,
-  StudentStatusDayPartialAbsenceConflictError:
-    MockStudentStatusDayPartialAbsenceConflictError,
   createStudentStatusDays: (
     studentId: string,
     status: "sick" | "excused" | "class_trip",
@@ -594,7 +609,6 @@ const mockStudent = {
   address_postal_code: "50667",
   address_city: "Köln",
   health_info: "",
-  supervisor_notes: "",
   extra_info: "",
   pickup_status: "",
   sick: false,
@@ -614,7 +628,14 @@ describe("StudentDetailPage", () => {
       data: {
         user: {
           token: "test-token",
-          permissions: ["config:manage", "users:checkin"],
+          // Staff with absence rights; the route of every absence write
+          // checks users:update or users:absence (ADR 0091 gate).
+          permissions: [
+            "config:manage",
+            "users:checkin",
+            "users:read",
+            "users:absence",
+          ],
         },
       },
       status: "authenticated",
@@ -678,7 +699,7 @@ describe("StudentDetailPage", () => {
       ).toBeInTheDocument();
       expect(screen.getByTestId("back-button")).toHaveAttribute(
         "data-referrer",
-        "/students/search",
+        "/test-tenant/students/search",
       );
       expect(screen.getByRole("tablist")).toBeInTheDocument();
     });
@@ -777,7 +798,7 @@ describe("StudentDetailPage", () => {
       // den Referrer der Herkunftsliste.
       expect(screen.getByTestId("back-button")).toHaveAttribute(
         "data-referrer",
-        "/students/search",
+        "/test-tenant/students/search",
       );
     });
   });
@@ -967,9 +988,22 @@ describe("StudentDetailPage", () => {
     it("hides the notes tab because its endpoint requires full child read access", () => {
       render(<StudentDetailPage />);
 
+      // Anker: die eingeschränkte Ansicht ist geladen, nicht das Skelett.
+      expect(screen.getByTestId("supervisors-card")).toBeInTheDocument();
       expect(
         screen.queryByRole("tab", { name: "Notizen" }),
       ).not.toBeInTheDocument();
+    });
+
+    it("shows the notes tab in the full access view", () => {
+      mockUseStudentData.mockReturnValue({
+        ...mockUseStudentData(),
+        hasFullAccess: true,
+      });
+
+      render(<StudentDetailPage />);
+
+      expect(screen.getByRole("tab", { name: "Notizen" })).toBeInTheDocument();
     });
 
     it("renders guardian manager in read-only mode in limited view", () => {
@@ -1327,7 +1361,10 @@ describe("StudentDetailPage", () => {
       render(<StudentDetailPage />);
 
       const backButton = screen.getByTestId("back-button");
-      expect(backButton).toHaveAttribute("data-referrer", "/students/search");
+      expect(backButton).toHaveAttribute(
+        "data-referrer",
+        "/test-tenant/students/search",
+      );
     });
 
     it("falls back for an external referrer from URL params", () => {
@@ -1336,7 +1373,10 @@ describe("StudentDetailPage", () => {
       render(<StudentDetailPage />);
 
       const backButton = screen.getByTestId("back-button");
-      expect(backButton).toHaveAttribute("data-referrer", "/students/search");
+      expect(backButton).toHaveAttribute(
+        "data-referrer",
+        "/test-tenant/students/search",
+      );
     });
 
     it.each(["/messages", "/absences", "/ogs-groups"])(
@@ -1348,7 +1388,7 @@ describe("StudentDetailPage", () => {
 
         expect(screen.getByTestId("back-button")).toHaveAttribute(
           "data-referrer",
-          referrer,
+          `/test-tenant${referrer}`,
         );
       },
     );
@@ -1633,6 +1673,8 @@ describe("StudentDetailPage", () => {
 
       render(<StudentDetailPage />);
 
+      // Anker: die eingeschränkte Ansicht ist geladen, nicht das Skelett.
+      expect(screen.getByTestId("supervisors-card")).toBeInTheDocument();
       expect(
         screen.queryByTestId("sick-report-section"),
       ).not.toBeInTheDocument();
@@ -1741,6 +1783,8 @@ describe("StudentDetailPage", () => {
         </SWRConfig>,
       );
 
+      // Anker: die eingeschränkte Ansicht ist geladen, nicht das Skelett.
+      expect(screen.getByTestId("supervisors-card")).toBeInTheDocument();
       expect(mockFetchStudentStatusDays).not.toHaveBeenCalled();
     });
 
@@ -1777,7 +1821,7 @@ describe("StudentDetailPage", () => {
         data: {
           user: {
             token: "test-token",
-            permissions: ["config:manage", "users:update"],
+            permissions: ["config:manage", "users:update", "users:read"],
           },
         },
         status: "authenticated",
@@ -2184,6 +2228,8 @@ describe("StudentDetailPage", () => {
 
       render(<StudentDetailPage />);
 
+      // Anker: die Aktionsleiste ist geladen, nur Ein-/Auschecken fehlt.
+      expect(screen.getByTestId("sick-report-section")).toBeInTheDocument();
       expect(screen.queryByTestId("checkout-section")).not.toBeInTheDocument();
       expect(screen.queryByTestId("checkin-section")).not.toBeInTheDocument();
     });
@@ -2286,12 +2332,84 @@ describe("StudentDetailPage", () => {
       expect(getTab("Historie")).toBeInTheDocument();
     });
 
+    // ADR 0091: the role „Gast“ opens the child with students:read only.
+    // Parent data, notes and messages stay on users:read, so those tabs and
+    // the guardian manager are absent instead of answering 403.
+    it.each([
+      ["full", true],
+      ["limited", false],
+    ])(
+      "hides parent data, notes and messages with students:read only (%s view)",
+      (_view, hasFullAccess) => {
+        vi.mocked(useSession).mockReturnValue({
+          data: {
+            user: { token: "test-token", permissions: ["students:read"] },
+          },
+          status: "authenticated",
+        } as ReturnType<typeof useSession>);
+        mockUseStudentData.mockReturnValue({
+          ...limitedAccess,
+          hasFullAccess,
+        });
+
+        render(<StudentDetailPage />);
+
+        expect(getTab("Stammdaten")).toBeInTheDocument();
+        expect(getTab("Historie")).toBeInTheDocument();
+        for (const name of [
+          "Erziehungsberechtigte",
+          "Notizen",
+          "Nachrichten",
+        ]) {
+          expect(queryTab(name)).not.toBeInTheDocument();
+        }
+        expect(
+          screen.queryByTestId("guardian-manager"),
+        ).not.toBeInTheDocument();
+      },
+    );
+
+    // ADR 0091: the backend may report full access and absence write for
+    // the Gast, but the routes behind Betreuungszeiten, pickup, arrival and
+    // status days need users:read, absence writes users:update or
+    // users:absence. Without them the page asks for nothing and offers no
+    // action: no tab, no request, no „Klassenfahrt planen“, no empty row.
+    it("loads and offers nothing a students:read session cannot use", () => {
+      vi.mocked(useSession).mockReturnValue({
+        data: {
+          user: { token: "test-token", permissions: ["students:read"] },
+        },
+        status: "authenticated",
+      } as ReturnType<typeof useSession>);
+      vi.mocked(fetchStudentPickupData).mockClear();
+      mockUseStudentData.mockReturnValue({
+        ...limitedAccess,
+        hasFullAccess: true,
+        hasAbsenceWriteAccess: true,
+        hasSickExcusedWriteAccess: false,
+      });
+
+      render(<StudentDetailPage />);
+
+      // Anker: die Akte ist geladen.
+      expect(getTab("Stammdaten")).toBeInTheDocument();
+      expect(queryTab("Betreuungszeiten")).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId("care-schedule-manager"),
+      ).not.toBeInTheDocument();
+      expect(screen.queryByText("Klassenfahrt planen")).not.toBeInTheDocument();
+      expect(
+        screen.queryByLabelText("Schnellaktionen"),
+      ).not.toBeInTheDocument();
+      expect(fetchStudentPickupData).not.toHaveBeenCalled();
+    });
+
     it("shows the Änderungsprotokoll tab with users:update", () => {
       vi.mocked(useSession).mockReturnValue({
         data: {
           user: {
             token: "test-token",
-            permissions: ["config:manage", "users:update"],
+            permissions: ["config:manage", "users:update", "users:read"],
           },
         },
         status: "authenticated",
@@ -2303,21 +2421,41 @@ describe("StudentDetailPage", () => {
     });
 
     it("hides the Änderungsprotokoll tab without users:update or users:absence", () => {
-      // Die Vorgabe-Sitzung hat nur config:manage — der Aggregations-Endpunkt
-      // würde 403 antworten, also gibt es den Reiter gar nicht erst (#2437).
+      // Ohne users:update und users:absence würde der Aggregations-Endpunkt
+      // 403 antworten, also gibt es den Reiter gar nicht erst (#2437).
+      vi.mocked(useSession).mockReturnValue({
+        data: {
+          user: {
+            token: "test-token",
+            permissions: ["config:manage", "users:read"],
+          },
+        },
+        status: "authenticated",
+      } as ReturnType<typeof useSession>);
       render(<StudentDetailPage />);
 
+      // Anker: die geladene volle Ansicht. Nur sie rendert die
+      // Betreuungszeiten; das Skelett zeigt alle Reiter, aber keinen Inhalt,
+      // und die eingeschränkte Ansicht hat keine Betreuungszeiten.
+      expect(screen.getByTestId("care-schedule-manager")).toBeInTheDocument();
       expect(queryTab("Änderungsprotokoll")).not.toBeInTheDocument();
     });
 
     it("hides the enrollment tab without config:manage", () => {
       vi.mocked(useSession).mockReturnValue({
-        data: { user: { token: "test-token", permissions: ["config:read"] } },
+        data: {
+          user: {
+            token: "test-token",
+            permissions: ["config:read", "users:read"],
+          },
+        },
         status: "authenticated",
       } as ReturnType<typeof useSession>);
 
       render(<StudentDetailPage />);
 
+      // Anker: die geladene volle Ansicht (Betreuungszeiten).
+      expect(screen.getByTestId("care-schedule-manager")).toBeInTheDocument();
       expect(queryTab("Anmeldungen")).not.toBeInTheDocument();
     });
 
@@ -2325,6 +2463,8 @@ describe("StudentDetailPage", () => {
       // Default mock session is config:manage only -> no schedules:read.
       render(<StudentDetailPage />);
 
+      // Anker: die geladene volle Ansicht (Betreuungszeiten).
+      expect(screen.getByTestId("care-schedule-manager")).toBeInTheDocument();
       expect(
         screen.queryByRole("tab", { name: "Betreuungsplan" }),
       ).not.toBeInTheDocument();
@@ -2335,7 +2475,7 @@ describe("StudentDetailPage", () => {
         data: {
           user: {
             token: "test-token",
-            permissions: ["config:manage", "schedules:read"],
+            permissions: ["config:manage", "schedules:read", "users:read"],
           },
         },
         status: "authenticated",
@@ -2360,7 +2500,7 @@ describe("StudentDetailPage", () => {
         data: {
           user: {
             token: "test-token",
-            permissions: ["config:manage", "schedules:read"],
+            permissions: ["config:manage", "schedules:read", "users:read"],
           },
         },
         status: "authenticated",
@@ -2368,6 +2508,8 @@ describe("StudentDetailPage", () => {
 
       render(<StudentDetailPage />);
 
+      // Anker: Inhalt der geladenen eingeschränkten Ansicht.
+      expect(screen.getByTestId("supervisors-card")).toBeInTheDocument();
       expect(
         screen.queryByRole("tab", { name: "Betreuungsplan" }),
       ).not.toBeInTheDocument();
@@ -2392,7 +2534,7 @@ describe("StudentDetailPage", () => {
         data: {
           user: {
             token: "test-token",
-            permissions: ["schedules:read"],
+            permissions: ["schedules:read", "users:read"],
           },
         },
         status: "authenticated",

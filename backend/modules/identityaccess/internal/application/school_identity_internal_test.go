@@ -50,7 +50,7 @@ func identityInputWithTag(role *domain.RoleFacts, tagID string) domain.SchoolIde
 
 func ensureIdentity(t *testing.T, f *lifecycleFixture, in domain.SchoolIdentityInput) (*domain.SchoolIdentity, error) {
 	t.Helper()
-	return f.lifecycle.EnsureSchoolIdentity(tenantContext(), in)
+	return f.lifecycle.EnsureSchoolIdentityChain(tenantContext(), in)
 }
 
 func (f *lifecycleFixture) seedAccountPerson(first, last string, tagID *string) domain.PersonRecord {
@@ -387,6 +387,100 @@ func TestEnsureSchoolIdentity_AdoptsHintedImportedPerson(t *testing.T) {
 	require.NotZero(t, identity.TeacherID, "the caregiver profile is completed on acceptance")
 }
 
+func TestEnsureSchoolIdentity_RehiresFromRetiredStaff(t *testing.T) {
+	t.Parallel()
+	f := newLifecycleFixture(t)
+	former := f.seedAccountPerson("Frühere", "Kraft", nil)
+	retired := f.staff.addStaff(former.ID)
+	retired.Deleted = true
+	f.staff.staff[retired.ID] = retired
+
+	identity, err := ensureIdentity(t, f, identityInput(customRole("Betreuung", tierUser)))
+
+	require.NoError(t, err)
+	require.Equal(t, retired.ID, f.staff.rehired[identity.StaffID], "the new membership must inherit the retired employment profile")
+}
+
+// A former staff member keeps its account link (ADR 0021, #3400). When the
+// staff import files the returning person anew, the import's hint still wins:
+// the link moves to the imported person instead of a second live staff row
+// growing on the former one.
+func TestEnsureSchoolIdentity_HintWinsOverFormerStaffPerson(t *testing.T) {
+	t.Parallel()
+	f := newLifecycleFixture(t)
+	former := f.seedAccountPerson("Frühere", "Kraft", nil)
+	retiredRow := f.staff.addStaff(former.ID)
+	retiredRow.Deleted = true
+	f.staff.staff[retiredRow.ID] = retiredRow
+	imported := f.staff.addPerson(domain.PersonRecord{FirstName: "Importierte", LastName: "Kraft"})
+	staffRow := f.staff.addStaff(imported.ID)
+
+	in := identityInput(customRole("Betreuung", "user"))
+	in.PersonID = &imported.ID
+
+	identity, err := ensureIdentity(t, f, in)
+	require.NoError(t, err)
+	require.Equal(t, imported.ID, identity.PersonID, "the import's person carries the account")
+	require.Equal(t, staffRow.ID, identity.StaffID)
+	require.Len(t, f.staff.staffRows(), 2, "the retired row stays retired and no second live staff row is created")
+	require.Nil(t, f.staff.persons[former.ID].AccountID, "the link moved off the former person")
+	require.Equal(t, in.AccountID, *f.staff.persons[imported.ID].AccountID)
+}
+
+// A live staff member stays where it is: the hint never moves the account off
+// a person who is current personnel.
+func TestEnsureSchoolIdentity_HintNeverMovesLiveStaff(t *testing.T) {
+	t.Parallel()
+	f := newLifecycleFixture(t)
+	current := f.seedAccountPerson("Aktive", "Kraft", nil)
+	liveRow := f.staff.addStaff(current.ID)
+	imported := f.staff.addPerson(domain.PersonRecord{FirstName: "Importierte", LastName: "Kraft"})
+
+	in := identityInput(customRole("Betreuung", "user"))
+	in.PersonID = &imported.ID
+
+	identity, err := ensureIdentity(t, f, in)
+	require.NoError(t, err)
+	require.Equal(t, current.ID, identity.PersonID)
+	require.Equal(t, liveRow.ID, identity.StaffID)
+	require.Nil(t, f.staff.persons[imported.ID].AccountID)
+}
+
+func TestEnsureSchoolIdentity_HintNeverMovesStudentPerson(t *testing.T) {
+	t.Parallel()
+	f := newLifecycleFixture(t)
+	student := f.seedAccountPerson("Kind", "Datensatz", nil)
+	f.staff.students[student.ID] = true
+	imported := f.staff.addPerson(domain.PersonRecord{FirstName: "Importierte", LastName: "Kraft"})
+	f.staff.addStaff(imported.ID)
+
+	in := identityInput(customRole("Betreuung", "user"))
+	in.PersonID = &imported.ID
+
+	_, err := ensureIdentity(t, f, in)
+	require.ErrorIs(t, err, domain.ErrSchoolIdentityPersonIsStudent)
+	require.Equal(t, in.AccountID, *f.staff.persons[student.ID].AccountID)
+	require.Nil(t, f.staff.persons[imported.ID].AccountID)
+}
+
+func TestEnsureSchoolIdentity_HintNeverMovesPersonWithoutRetiredStaff(t *testing.T) {
+	t.Parallel()
+	f := newLifecycleFixture(t)
+	current := f.seedAccountPerson("Bestehende", "Person", nil)
+	imported := f.staff.addPerson(domain.PersonRecord{FirstName: "Importierte", LastName: "Kraft"})
+	staffRow := f.staff.addStaff(imported.ID)
+
+	in := identityInput(customRole("Betreuung", "user"))
+	in.PersonID = &imported.ID
+
+	identity, err := ensureIdentity(t, f, in)
+	require.NoError(t, err)
+	require.Equal(t, current.ID, identity.PersonID)
+	require.NotEqual(t, staffRow.ID, identity.StaffID)
+	require.Equal(t, in.AccountID, *f.staff.persons[current.ID].AccountID)
+	require.Nil(t, f.staff.persons[imported.ID].AccountID)
+}
+
 func TestEnsureSchoolIdentity_IgnoresHintOwnedByAnotherAccount(t *testing.T) {
 	t.Parallel()
 	f := newLifecycleFixture(t)
@@ -448,7 +542,39 @@ func TestEnsureSchoolIdentity_CaregiverUpgradeProvisionsProfile(t *testing.T) {
 	in := identityInput(customRole("OGS-Leitung", tierAdmin))
 	in.CaregiverUpgrade = true
 
-	identity, err := f.lifecycle.EnsureSchoolIdentity(context.Background(), in)
+	identity, err := f.lifecycle.EnsureSchoolIdentityChain(context.Background(), in)
 	require.NoError(t, err)
 	require.NotZero(t, identity.TeacherID)
+}
+
+func TestEnsureSchoolIdentity_NewEmploymentKeepsFormerEmployment(t *testing.T) {
+	t.Parallel()
+	f := newLifecycleFixture(t)
+	person := f.seedAccountPerson("Returning", "Member", nil)
+	former := f.staff.addStaff(person.ID)
+	former.Deleted = true
+	f.staff.staff[former.ID] = former
+	in := identityInput(customRole("OGS-Kraft", tierUser))
+	in.EmploymentAction = domain.EmploymentActionNew
+	identity, err := ensureIdentity(t, f, in)
+	require.NoError(t, err)
+	require.NotEqual(t, former.ID, identity.StaffID)
+	require.Equal(t, person.ID, identity.PersonID)
+	require.True(t, f.staff.staff[former.ID].Deleted)
+	require.Empty(t, f.staff.rehired)
+	require.Len(t, f.staff.persons, 1)
+}
+
+func TestEnsureSchoolIdentity_AlreadyActiveOverridesNewEmployment(t *testing.T) {
+	t.Parallel()
+	f := newLifecycleFixture(t)
+	person := f.seedAccountPerson("Active", "Member", nil)
+	active := f.staff.addStaff(person.ID)
+	in := identityInput(customRole("OGS-Kraft", tierUser))
+	in.EmploymentAction = domain.EmploymentActionNew
+	identity, err := ensureIdentity(t, f, in)
+	require.NoError(t, err)
+	require.Equal(t, active.ID, identity.StaffID)
+	require.Len(t, f.staff.staffRows(), 1)
+	require.Len(t, f.staff.persons, 1)
 }

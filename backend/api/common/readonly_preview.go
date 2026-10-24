@@ -1,10 +1,9 @@
 package common
 
 import (
+	"context"
 	"net/http"
 	"strings"
-
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 )
 
 // msgReadOnlyPreview is shown verbatim when a write slips past the disabled
@@ -36,8 +35,6 @@ var readOnlyPOSTAllowlist = []string{
 	"/api/enrollment/phases/{id}/export",
 	"/api/guardians/payment-overview/export",
 	"/api/rooms/export",
-	"/api/schedules/check-conflict",
-	"/api/schedules/find-available-slots",
 	"/api/staff-shifts/export",
 	"/api/students/arrival-schedules/status",
 	"/api/students/arrival-times/bulk",
@@ -63,23 +60,18 @@ var readOnlyGETDenylist = []string{
 	"/api/calendar/feed",
 }
 
-// ReadOnlyPreviewMiddleware enforces the write block for admin staff-view
-// preview tokens (#2893). Requests without a read-only claim pass untouched;
-// with one, only safe methods (GET/HEAD/OPTIONS, minus the denylisted
-// state-changing GETs) and the allowlisted
-// read-only POST routes go through. Mounted group-wide right after
-// jwt.Authenticator: it reads only the parsed claims, does no DB work, and
-// rejecting here means no tenant transaction is ever opened for a blocked
-// write.
-func ReadOnlyPreviewMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		claims := jwt.ClaimsFromCtx(r.Context())
-		if !claims.IsReadOnlyPreview() || isReadOnlySafeRequest(r) {
-			next.ServeHTTP(w, r)
-			return
-		}
-		RenderError(w, r, ErrorForbiddenMessageWithCode(msgReadOnlyPreview, CodeIdentityReadOnlyPreview))
-	})
+// ReadOnlyPreviewGuard enforces the preview write block using a session fact
+// supplied by the composition root. It interprets only HTTP methods and paths.
+func ReadOnlyPreviewGuard(isPreview func(context.Context) bool) Middleware {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if !isPreview(r.Context()) || isReadOnlySafeRequest(r) {
+				next.ServeHTTP(w, r)
+				return
+			}
+			RenderError(w, r, ErrorForbiddenMessageWithCode(msgReadOnlyPreview, CodeIdentityReadOnlyPreview))
+		})
+	}
 }
 
 // isReadOnlySafeRequest reports whether the request cannot change state:

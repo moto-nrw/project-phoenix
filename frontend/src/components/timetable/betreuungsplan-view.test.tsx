@@ -1042,15 +1042,31 @@ describe("BetreuungsplanView", () => {
   it("hides export without the permission to read staff names", () => {
     mockUseSession.mockReturnValue({
       status: "authenticated",
-      data: { user: { permissions: ["schedules:read"] } },
+      data: { user: { permissions: ["schedules:read", "schedules:manage"] } },
     });
     render(<BetreuungsplanView />);
 
+    fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
+    // Anker: das Menü ist offen und zeigt seine übrigen Einträge.
+    expect(screen.getByText("Termine im Zeitraum absagen")).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", {
-        name: "Betreuungsplan drucken oder exportieren",
-      }),
+      screen.queryByText("Drucken oder exportieren"),
     ).not.toBeInTheDocument();
+  });
+
+  it("offers export with the permission to read staff names", () => {
+    mockUseSession.mockReturnValue({
+      status: "authenticated",
+      data: {
+        user: {
+          permissions: ["schedules:read", "schedules:manage", "users:read"],
+        },
+      },
+    });
+    render(<BetreuungsplanView />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
+    expect(screen.getByText("Drucken oder exportieren")).toBeInTheDocument();
   });
 
   // --- Leseansicht (#2283): schedules:read ohne schedules:manage ---
@@ -1144,10 +1160,11 @@ describe("BetreuungsplanView", () => {
     });
     render(<BetreuungsplanView />);
 
+    // Anker: die geladene Leseansicht mit ihrem Hinweis steht da.
+    expect(screen.getByText("Nur ansehen")).toBeInTheDocument();
+    expect(screen.getByText("week-grid")).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", {
-        name: "Betreuungsplan drucken oder exportieren",
-      }),
+      screen.queryByRole("button", { name: "Weitere Aktionen" }),
     ).not.toBeInTheDocument();
     const swrKeys = mockUseSWRAuth.mock.calls.map((call) => call[0]);
     expect(
@@ -1626,6 +1643,8 @@ describe("BetreuungsplanView", () => {
     setupSWR({ phasesState: "error" });
     render(<BetreuungsplanView />);
 
+    // Anker: die Kontextzeile mit dem Zeitraum-Umschalter steht da.
+    expect(screen.getByTestId("period-switcher")).toBeInTheDocument();
     expect(screen.queryByText(/^Bedarf/)).not.toBeInTheDocument();
   });
 
@@ -2143,6 +2162,8 @@ describe("BetreuungsplanView", () => {
     setupSWR({ periods: [] });
     render(<BetreuungsplanView />);
 
+    // Anker: die geladene Fläche zeigt den Hinweis ohne Planungszeitraum.
+    expect(screen.getByText("Noch kein Planungszeitraum")).toBeInTheDocument();
     expect(screen.queryByTestId("period-switcher")).not.toBeInTheDocument();
   });
 
@@ -2193,9 +2214,7 @@ describe("BetreuungsplanView", () => {
 
   it("logs a warning when the bootstrap fails with 403", async () => {
     setupSWR({ periods: [] });
-    mockBootstrap.mockRejectedValue(
-      Object.assign(new Error("permission denied"), { httpStatus: 403 }),
-    );
+    mockBootstrap.mockRejectedValue(new ApiError("permission denied", 403));
 
     render(<BetreuungsplanView />);
 

@@ -3,13 +3,13 @@ package ports
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 func TestGroupSupervisorValidate(t *testing.T) {
 	t.Parallel()
 
-	nowDate := timezone.TodayDate()
+	nowDate := calendar.TodayDate()
 	futureDate := nowDate.AddDays(30) // 30 days in the future
 	pastDate := nowDate.AddDays(-30)  // 30 days in the past
 
@@ -121,14 +121,14 @@ func TestGroupSupervisorValidate(t *testing.T) {
 func TestGroupSupervisorSetEndDate(t *testing.T) {
 	t.Parallel()
 
-	nowDate := timezone.TodayDate()
+	nowDate := calendar.TodayDate()
 	futureDate := nowDate.AddDays(30) // 30 days in the future
 	pastDate := nowDate.AddDays(-30)  // 30 days in the past
 
 	tests := []struct {
 		name            string
 		groupSupervisor *GroupSupervisor
-		endDate         timezone.Date
+		endDate         calendar.Date
 		wantErr         bool
 	}{
 		{

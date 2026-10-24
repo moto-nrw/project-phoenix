@@ -13,22 +13,59 @@ React). The Phoenix backend runs on the server, never on the Pi. PRs target
 PyrePortal consumes `/api/iot/*` using a device API key and staff PIN.
 `../PyrePortal/src/services/apiErrors.ts` maps registry error codes (its
 `errorCodes.generated.ts` comes from `error-registry.json` via
-`pnpm run sync:error-codes`) and, until #2508, backend error strings to German
-UI text. Coordinate endpoint, error-string,
-and auth-header changes across repos. Changing a mapped string or code is a
-two-repo change: `backend/api/testdata/iot_error_strings.golden`
-(`TestFullProductionRouterGolden`) and `TestPyrePortalErrorStringsGuard`
-(`backend/api/iot/pyreportal_error_strings_test.go`) fail until both sides
-and the golden move together.
+`pnpm run sync:error-codes`) to German UI text. Since #2508 the kiosk matches
+no backend text; the refusal body is the RFC 9457 envelope of ADR 0006 with
+`status` as the HTTP status number, the diagnostic text in `detail` and the
+identity in `code` (#2520). Coordinate endpoint, code and auth-header changes
+across repos. Changing a code the kiosk branches on is a two-repo change.
+PyrePortal's `CODE_MESSAGES` maps 35 codes; the backend pins them in two
+places. `backend/api/testdata/iot_error_codes.golden` pins the 15 check-in
+conflict, staff-clock and open-room codes to the declaration that emits them
+(`TestFullProductionRouterGolden/contracts/IoT_error_code_declarations`). The
+21 codes of the table below are pinned on the wire (see after the table);
+`iot.rfid_tag_not_found` appears in both lists. These tests fail until the
+backend and its pin move together; the PyrePortal side is a manual
+coordination step.
 Backend header and attribution rules: `backend/CLAUDE.md` RFID/IoT Integration.
+
+### Device credentials (#3841, slice 3841-a)
+
+Device Fleet stores SHA-256 fingerprints and a masked suffix, never raw keys.
+Migration 1.15.474 hashes existing values exactly (no trimming) and drops the
+plaintext column; old bearer credentials keep working. New operator keys are
+server-generated only. Creation and rotation return `api_key` once;
+operator lists, details and school transfers omit it and expose only
+`masked_api_key`. Transfers move the fingerprint, preserving kiosk access.
+Deploy the matching backend and operator frontend together; do not run an old
+backend against the migrated schema. Migration rollback requires a forward fix.
+
+PyrePortal imports `#key=` into localStorage and removes it with
+`history.replaceState`. It temporarily accepts and scrubs `?key=` too;
+fragments take precedence when both are present. Restarts contain no key.
+The backend still accepts the same Bearer header, never a URL key. HTTP
+statuses, staff PIN headers and `iot.*` codes are unchanged.
+
+Human slice 3841-g switches configured start URLs, rotates all legacy keys and
+cleans up old kiosk-host access logs. Follow-up 3841-k removes query import
+only after that inventory is complete. Implementation is not production
+evidence: [rollout and recovery](../operations/geraete-zugang-3841.md).
+
+### Device PIN resolution (slice 3841-b)
+
+The school setting `security.ogs_device_pin` is authoritative, including its
+unchanged registry default. Settings read errors and explicit empty values reject
+PIN-protected requests with the existing `401 / iot.device_pin_invalid` envelope;
+no `OGS_DEVICE_PIN` fallback exists. Missing resolver wiring fails at construction.
+Device-only routes remain PIN-free. Already deployed kiosks handle the same code
+and headers, so no wire transition or compatibility-removal slice is needed.
 
 ### Kiosk error codes
 
-Each kiosk refusal answers with its own `iot.*` code (#3939). Status, text and
-error class did not change. PyrePortal moves its text patterns to these
-codes in #2508; until then the golden and the guard list only the codes it maps.
+Each kiosk refusal answers with its own `iot.*` code (#3939). The text in
+`detail` is diagnostics and may change. PyrePortal branches on every code
+in this table; the tests named after the table pin them.
 
-| Code | Status | Text |
+| Code | Status | Detail |
 |---|---|---|
 | `iot.device_api_key_required` | 401 | device API key is required |
 | `iot.device_api_key_format_invalid` | 401 | invalid API key format - use Bearer token |
@@ -52,14 +89,15 @@ codes in #2508; until then the golden and the guard list only the codes it maps.
 | `iot.staff_not_found` | 404 | staff not found |
 | `iot.staff_rfid_tag_unassigned` | 404 | staff has no RFID tag assigned |
 
-Device authentication codes come from `backend/auth/device/errors.go`, the
+Device authentication codes come from `backend/modules/devicefleet/internal/adapters/deviceauth/errors.go`, the
 others from `backend/modules/devicescan/scan.go`.
-`checkIoTErrorCodes` (`backend/api/iot_error_codes_contract_test.go`) drives
-them through the production router. The Schulhof, WC and unassigned-card codes
+`checkIoTErrorCodes` (`backend/api/iot_error_codes_contract_test.go`, run as
+`TestFullProductionRouterGolden/contracts/IoT_error_codes`) drives 17 of them
+through the production router. The Schulhof, WC and unassigned-card codes
 need a missing system activity or a card without a person behind it;
-`TestWireFormat_ClassifiedFailures` (`backend/api/iot/checkin/wire_test.go`)
-pins them. Other kiosk programming errors and 5xx faults
-keep their class code. `device is already running an activity session` has
+`TestWireFormat_ClassifiedFailures`
+(`backend/modules/devicescan/http/checkin/wire_test.go`) pins these four.
+Other kiosk programming errors and 5xx faults keep their class code. `device is already running an activity session` has
 no code: no backend path returns it, and a second start answers the session
 conflict instead.
 
@@ -76,7 +114,7 @@ device's `device_id`) and `school_id` into every event item, replacing what
 the kiosk sent under these keys, and posts the envelope to that project's
 envelope endpoint, never to a host the envelope names. The device key does not
 leave the backend. Code: `backend/api/iot/error_reports.go` (handler and
-texts), `backend/api/iot/compose/error_reports.go` (forwarding),
+texts), `backend/api/iot_error_report_composition.go` (forwarding),
 `backend/observability/sentry_envelope.go` (envelope check and tags).
 
 | Status | `error` | When |
@@ -93,8 +131,7 @@ texts), `backend/api/iot/compose/error_reports.go` (forwarding),
 The 502 is the only 5xx that `ServerErrorReporting` does not report
 (`common.SkipServerErrorReport`); reporting it could only loop. PyrePortal's
 SDK transport consumes these answers and shows no text, so they are not part
-of `ERROR_MESSAGE_MAPPINGS` or `iot_error_strings.golden`. Changing a status or
-text is still a two-repo change. `serve` refuses to start with `SENTRY_DSN` set
+of `iot_error_codes.golden`. Changing a status is still a two-repo change. `serve` refuses to start with `SENTRY_DSN` set
 and `SENTRY_PYREPORTAL_DSN` empty, and a malformed DSN stops the start.
 With `SENTRY_DSN` set, `APP_ENV` must be `production`, `staging`, `demo` or
 `development`; it is the Sentry environment of backend events.
@@ -129,7 +166,7 @@ Refusals carry stable codes PyrePortal maps:
 - `iot.open_room_binary_mode` (409)
 - the check-in capacity and `iot.student_already_active` bodies
 
-`backend/api/iot/pyreportal_error_strings_test.go` pins the codes. Deploy the
+`backend/api/testdata/iot_error_codes.golden` pins the codes. Deploy the
 backend first. A kiosk that finds neither flag nor route (404) keeps the old
 Schulhof/WC buttons.
 
@@ -144,12 +181,25 @@ pending → active → inactive.
 |---|---|
 | JWT | `tenant_id`, `org_id`, `scope`: `""` tenant, `org`, `platform`, `parent`, `school` |
 | Context | `tenant.WithTenantID(ctx, id)` / `tenant.FromContext(ctx)` |
-| Database | `TenantTxMiddleware` sets local role and RLS configuration; rolls back on 5xx |
-| Models | `base.TenantModel` and `TenantScoped` |
-| Repositories | `base.GetDB(ctx, db)` uses the context transaction; `base.EnsureTenantID` populates tenant ID |
+| Database | `common.TenantTxMiddleware` (`backend/api/common/tenant_middleware.go`) runs the request through the root-bound `tenant.UnitOfWork`; rolls back on 5xx or a rollback marker. `PostgresUnitOfWork.WithinTenant` (`backend/modules/transactionruntime/internal/adapters/postgres/tenant_runtime.go`) sets `SET LOCAL ROLE phoenix_tenant` and transaction-local `app.current_tenant_id` |
+| RLS | `provisionTenantRLS` (`backend/database/migrations/rls_provisioning.go`) enables and forces RLS; `USING` and `WITH CHECK` match `tenant_id` to `app.current_tenant_id` |
+| Rows | Owner-local tenant fields, e.g. `TenantModel.TenantID` with `bun:"tenant_id,notnull"` in `backend/modules/peopledirectory/internal/rows/model.go`; no shared model base |
+| Repositories | Owner-private bindings consume `tenant.TransactionFromContext`. People Directory's `NewDatabase` and `ResolveDatabase` validate the ambient transaction and school scope (`backend/modules/peopledirectory/internal/adapters/postgres/native_compose_bindings_callback_database.go`, `scope.go` in that package); `StudentStore.InsertRecord` / `UpdateRecord` in `student_write.go` require a positive tenant, attribute inserts from scope and filter updates by tenant ID |
 
 Parents' child access also requires relationship-level permissions; read
 `.claude/rules/guardian-parent-permissions.md`. Membership alone is insufficient.
+
+`TestEveryTenantTableHasRLS` in `backend/database/migrations/rls_coverage_test.go`
+checks all non-system, non-partition-leaf tables with a live `tenant_id` column
+after migrations: RLS enabled and forced, a policy, and a policy applicable to
+`phoenix_tenant` (including PUBLIC/inherited roles). Its shrink-only exceptions
+name administrative tables and their access boundary; effective table or column
+privileges for `phoenix_tenant`, missing tables and repaired exceptions fail.
+The guard checks coverage, not arbitrary SQL predicate semantics: text matching
+cannot prove isolation across OR clauses, functions and combined policies.
+Keep behavioral cross-school tests alongside policies. The code/test evidence
+does not prove the deployed catalog; human verification is described in
+[RLS coverage verification](../operations/rls-coverage-3842.md).
 
 ## Portal session isolation
 
@@ -183,8 +233,59 @@ Backend paths in this section are relative to `backend/`:
   `TestSchoolScopeRejectedOnAllAPIRoutes` checks school-token rejection under `/api`.
 - MFA can insert a challenge between credentials and session. Inspect
   `modules/identityaccess/account_mfa.go`, `modules/identityaccess/inbound/account/mfa_handlers.go`, `modules/identityaccess/inbound/operator/mfa.go`,
-  the challenge/enrollment claims in `modules/identityaccess/legacy/jwt/`, and trusted-device settings
+  the challenge/enrollment claims in `modules/identityaccess/sessiontoken/`, and trusted-device settings
   `security.mfa_*`. Include the school frontend's MFA chain when changing its login.
+
+#### Privileged MFA floor (#3841, slice 3841-f)
+
+Effective school permissions, not role names, impose the MFA minimum in
+`modules/identityaccess/internal/domain/mfa_privilege.go`: administrative
+account/role/auth/security/system/staff rights, health permissions and
+`staff:financial` and `enrollment_uploads:read` (parents’ income documents),
+including matching wildcards. `off` and `required_admins`
+cannot lower it. No new `force_off` exemption is accepted for privileged
+targets, even from operators; existing exemptions lose to the runtime floor.
+
+Every account session mint and refresh rechecks policy and permissions under
+policy/account locks. Migration 1.15.484 marks existing refresh sessions
+unverified; their next refresh refuses privileged access and requires login.
+Completed email/passkey exchanges and valid school-bound trusted devices
+produce `auth.tokens.mfa_verified`; rotation and bounded hand-off recovery
+preserve it. MFA reset clears proof across existing sessions. Password reset
+issues no session. Tenant switching preserves proof only from the presented
+account's live same-portal session family, read under the account lock shared with
+MFA reset. Missing, expired, revoked, unverified or foreign-portal families
+cannot satisfy target-school MFA. Such a switch returns 401 (`identity.mfa_session_required`)
+and requires direct login at the target school; MFA lookup failures return 503.
+School-portal switching uses the same live-family proof, restricted to school scope;
+it cannot reuse a tenant-portal family. The staff switcher shows the refusal without
+expiring the source session. Its explicit target-login action first requests
+revocation of the source refresh family through `/api/auth/logout`, then deletes
+the shared domain Auth.js cookie via `signOut({ callbackUrl: targetLoginUrl })`. Auth.js itself
+then navigates to the target school’s existing login page before notifying local
+required-session consumers; manual navigation after `redirect: false` can race
+their source-school redirects. Navigation alone is not reauthentication:
+the domain cookie would reach the target guard unchanged. The guard handles the
+same MFA refusal without SessionExpired redirects or automatic retries and
+offers this same explicit logout-and-login action. An HTTP error returned by
+the logout BFF stays visible and prevents navigation; 401 is treated as already
+unauthenticated. This does not confirm database revocation: the existing backend
+`/auth/logout` logs `LogoutWithAudit` failures, including database revocation
+failures, and still responds 204. The browser cannot distinguish that failure
+from success.
+If Auth.js fails to clear the cookie, the target guard still blocks access and
+offers explicit reauthentication instead of redirecting in a loop.
+School-portal cookies remain host-only and are neither used nor cleared by the tenant action; the school portal currently has no
+frontend school-switch/auto-switch consumer. Its backend switch still requires
+school-scoped live-family proof.
+Parent-scope sessions remain separate and carry no staff permissions.
+
+Enrollment uses the existing email-code flow in tenant and school portals;
+mail delivery/verification failures issue no completed session. Passkeys for
+school personnel already require verified email registration and WebAuthn user
+verification at login. Local seed tools complete the same email flow through
+local Mailpit, with no production bypass. Human rollout/recovery and count-only
+inventory: [MFA runbook](../operations/mfa-pflicht-3841.md).
 
 Token lifetimes come from `AUTH_JWT_EXPIRY` / `AUTH_JWT_REFRESH_EXPIRY`;
 do not infer them from stale examples. Check credentials, challenge completion,
@@ -197,6 +298,14 @@ refresh, tenant switching, and wrong-portal rejection for affected flows.
 `[tenant]/layout.tsx` resolves slugs through `/auth/tenant/resolve?slug=...`
 (cached five minutes). `POST /auth/switch-tenant` returns a tenant-session JWT
 for the target school, not a `scope=school` portal token.
+Verified MFA belongs to the live tenant-session family of the same account,
+not its school or organization. A permitted switch across organizations preserves
+that proof while rechecking the target school's permissions and MFA policy.
+After reset, logout, expiry or elapsed switch-retirement grace, a privileged
+target requires a fresh MFA login: 401 `identity.mfa_session_required`. Clients
+must replace the presented session with the returned tokens; login caches must
+invalidate the retired login after a successful switch. See
+[ADR 0093](../adr/0093-privilegierte-rechte-erzwingen-einen-zweiten-anmeldenachweis.md).
 A switch to a school the account cannot access answers 401 with the code
 `identity.tenant_access_denied`, which `frontend/src/lib/tenant-api.ts` reads;
 coordinate producer and consumer changes.
@@ -214,7 +323,7 @@ counterpart. Portal hostnames use the variables in the table above.
 and must use HTTPS in production. Env change checklist:
 `.claude/rules/env-docker-sync.md`.
 
-Reserved slug lists in `backend/models/platform/organization.go` and
+Reserved slug lists in `backend/modules/organizationtenancy/internal/domain/organization.go` and
 `frontend/src/lib/reserved-slugs.ts` must stay in sync; verify both when changed.
 
 ### Demo access (public demo, #3462)
@@ -277,7 +386,7 @@ and reports `demo_restarted` instead of `demo_entered`. Every access of the
 old school moves to the new one (`school_slug`), so earlier links of the
 address lead there too, and the old school's `account_id` and
 `parent_account_id` are forgotten. Expiry runs in the demo process once an
-hour on an injected clock (`cmd/demo_expiry.go`): accesses past `expires_at`
+hour on an injected clock (`cmd/devtools/demo_expiry.go`): accesses past `expires_at`
 are deleted, and a demo school no remaining access enters is soft-deleted
 through its owner. The standing school is never hidden. A hidden school
 holds no place against the capacity, gets no ticker, and cannot be entered:
@@ -329,7 +438,7 @@ for the expiry (#3470), may read `id`, `school_slug` and `expires_at` of
 `platform.schools`; it never sees an address or a name (migration 1.15.412).
 
 Mails (#3465): the entry link leaves by mail only (`demo-access.html`,
-Reply-To `kontakt@moto.nrw`), and the answer is the same for every address,
+Reply-To `kontakt@moto-ogs.de`), and the answer is the same for every address,
 so it neither hands a demo to somebody who typed a foreign address nor tells
 who asked before. The mail carries nothing the form submitted. Every request
 stores its own access with the submitted details; earlier links stay valid

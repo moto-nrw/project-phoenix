@@ -5,9 +5,11 @@ deployment, or PR screenshots. Commands start at the repo root unless noted.
 
 ## Service commands
 
-Run the app with `scripts/dev-native.sh up`: `postgres` and `mailpit` run in
-Docker Compose, backend and frontend natively (see Native dev loop). The
-`server` and `frontend` containers sit behind the `full` Compose profile.
+When a task needs a running UI or API, use the smallest native mode below:
+`postgres` and `mailpit` run in Compose, the selected apps natively. Tests start
+their own test database and need neither app server. Use the full container
+stack for explicit container work; `server` and `frontend` otherwise stay behind
+the `full` Compose profile.
 Go uses the repo toolchain.
 Add tools through `devbox search <tool>` / `devbox add <tool>@latest`, not a global install.
 
@@ -18,17 +20,20 @@ through `devbox run` when the current process has not loaded the project environ
 | Task | Command |
 |---|---|
 | Start infra + backend + frontend | `scripts/dev-native.sh up` |
+| Start infra + backend only | `scripts/dev-native.sh up backend` |
+| Start infra + frontend only | `scripts/dev-native.sh up frontend` |
 | After go.mod changes | restart `scripts/dev-native.sh up` (air reloads plain Go edits) |
 | Migrate | `scripts/dev-native.sh backend go run . migrate` |
 | Reset local DB | `scripts/dev-native.sh backend go run . migrate reset` (seed credentials: `docs/getting-started.md`) |
 | Logs | `tmp/dev-native/backend.log`, `tmp/dev-native/frontend.log` |
 | Full container stack | `docker compose --profile full up -d`, logs via `docker compose logs -f server` |
 | Frontend quality | `cd frontend && pnpm run check` |
+| Frontend E2E flows | seeded native stack, then `scripts/dev-native.sh frontend pnpm run test:e2e` |
 | Backend suite | `cd backend && ../scripts/run-go-toolchain.sh go test ./...` |
 | Backend suite with immediate sweep | `scripts/run-go-toolchain.sh scripts/test-backend.sh` |
 | Backend unit-only loop | `cd backend && ../scripts/run-go-toolchain.sh go test -short ./...` (skips DB tests) |
-| Changed-code tests | `scripts/test-changed.sh origin/development` |
-| Fast inner loop | `scripts/test-changed.sh --fast origin/development` (run without `--fast` before push) |
+| Changed-code tests | `scripts/run-go-toolchain.sh scripts/test-changed.sh origin/development` |
+| Fast inner loop | `scripts/run-go-toolchain.sh scripts/test-changed.sh --fast origin/development` (run without `--fast` before push) |
 | Generate route docs | `scripts/dev-native.sh backend go run . gendoc --routes` |
 | Standalone background jobs | `scripts/dev-native.sh backend go run . worker` with a free `PORT`; it waits in standby while `serve` leads (lease, cutover and rollback: [worker lease runbook](../operations/worker-lease-2726.md)) |
 
@@ -44,6 +49,8 @@ are rewritten to localhost with the published ports. Nothing else changes, so
 | Task | Command |
 |---|---|
 | Start infra + backend + frontend (foreground) | `scripts/dev-native.sh up` |
+| Start infra + backend only (foreground) | `scripts/dev-native.sh up backend` |
+| Start infra + frontend only (foreground) | `scripts/dev-native.sh up frontend` |
 | Stop native processes (infra keeps running) | `scripts/dev-native.sh down` |
 | Status | `scripts/dev-native.sh status` |
 | Backend CLI with the native env | `scripts/dev-native.sh backend go run . migrate` |
@@ -52,7 +59,12 @@ are rewritten to localhost with the published ports. Nothing else changes, so
 
 Logs land in `tmp/dev-native/backend.log` and `tmp/dev-native/frontend.log`.
 `up` stops the `server` and `frontend` containers first and refuses to start
-when a published port is taken. After `go.mod` changes restart `up`; plain Go
+when a selected app's published port is taken. Each `up` replaces both
+previously managed native app processes, then starts only the selected apps.
+All modes keep Postgres and Mailpit; frontend-only mode skips Go and migrations
+and expects a separately running backend for API calls. Backend children default
+to `GOFLAGS=-p=4` and `GOMAXPROCS=4`, preserving explicit caller values.
+After `go.mod` changes restart `up`; plain Go
 edits reload through air. Worktrees created with `wt` carry their own ports in
 the copied `.env`, so several native loops run side by side; on 16 GB
 machines run one at a time ([low-memory machines](../development-environment.md#low-memory-machines)).
@@ -71,8 +83,19 @@ The seeder is **dev-only**. Staging/production infrastructure belongs in data
 migrations or the admin UI, never the seeder. The one deployed exception is the
 public demo environment (`APP_ENV=demo`, ADR 0029): `seed`, `simulate`,
 `seed-parents`, and the seed-token exposure name `demo` in their allow-lists;
-`staging` and `production` stay rejected. See Cleanup CLI below for cleanup
+`staging` and `production` stay rejected. `seed`, `simulate` and `demo` live
+in the dev tools binary `cmd/devtools` (ADR 0060): run them with
+`go run ./cmd/devtools <cmd>`. The production image does not contain it; only
+the demo image does. See Cleanup CLI below for cleanup
 command shapes: some commands delete data and silently ignore extra arguments.
+
+Seed and simulation commands keep refresh sessions in `.seed-sessions/` in
+their working directory (normally `backend/`, gitignored, private files).
+Separate commands renew the verified MFA session and switch schools through
+the regular API. Expired or revoked proof falls back to a real login using
+Mailpit. Delete that directory to force fresh logins; it is local credential
+state and must not be uploaded. Keep the same working directory between seed
+and simulation commands.
 
 ## Cleanup CLI
 
@@ -83,15 +106,11 @@ does not make it a dry-run.
 ```bash
 # CLI (run inside the container via `docker compose run server go run . <cmd>`)
 go run . migrate status|validate|reset
-go run . migrate backfill request-child-storage [--tenant ID] [--verify-only] [--restart]  # resumable #2713 copy; see docs/operations/enrollment-storage-backfill-2713.md
-go run . seed --email <op-email> --password <pw> --pin 1234   # flags required; seeds via the HTTP API, server must be running
+go run ./cmd/devtools seed --email <op-email> --password <pw> --pin 1234   # flags required; seeds via the HTTP API, server must be running
 go run . cleanup preview|stats      # visit-retention dry-run / statistics
 go run . cleanup visits             # REAL deletion — there is no `cleanup visits preview`; extra args are silently ignored
 go run . cleanup timetable|time-tracking [preview|stats]      # nested dry-runs exist only for these two
 go run . cleanup tokens|invitations|rate-limits|attendance|sessions|supervisors
-go run . backfill staff-owner [status|reset]   # resumable users.staff → Membership/Workforce copy (#2752); exits 1 while unstable
-go run . backfill student-owner [status|reset] # resumable users.students → People/Membership/Care Plan copy (#2758); exits 1 while unstable
-go run . backfill guardian-owner [status|reset] # resumable users.students_guardians → People/Care Plan/Identity copy (#2755); exits 1 while unstable; refused after Cutover #2756 (runbook: docs/operations/guardian-owner-storage-cutover.md)
 go run . gendoc                     # Generates routes.md + docs/openapi.yaml
 ```
 
@@ -168,7 +187,8 @@ keys through 1Password/Signal, never Slack/email.
    concurrently on one host, so they never share a script directory; demo runs
    on its own VM with the same layout.
 4. Deployment pulls images, runs `migrate preflight`, backs up the DB, migrates,
-   starts, and healthchecks; failures after the backup trigger rollback.
+   starts, and healthchecks; failures after the backup trigger rollback. A
+   healthy release finally prunes unused images; a failed prune only warns.
 
 The preflight runs while the previous release is still serving and runs no
 migration. It asks every pending migration that declares a `Precondition` whether
@@ -192,7 +212,10 @@ receives the privileged DSN. Read [runtime environment boundaries](../operations
 before changing deployment environments or maintenance jobs.
 
 CI uses `SOPS_AGE_KEY`, `STAGING_SSH_*`, `PRODUCTION_SSH_*`, and `DEMO_SSH_*` secrets;
-failure recipients are in the `DEPLOY_NOTIFY_EMAILS` repository variable.
+failure recipients are in the `DEPLOY_NOTIFY_EMAILS` repository variable. The
+PostHog dashboards use `POSTHOG_READ_API_KEY` (repository) and
+`POSTHOG_PERSONAL_API_KEY` (environment `posthog`); see
+[Nutzungsanalyse](../operations/nutzungsanalyse.md#dashboards-3604).
 Server layout on each host is `~/{staging,production,demo}/` (`.env`, `docker-compose.yml`,
 `.deploy-state`) and `~/backups/{env}/` (3 staging / 7 production / 3 demo complete
 snapshot sets). See [complete release backup and rollback](../operations/release-backup-rollback.md)
@@ -200,6 +223,54 @@ for snapshot contents, verification, manual recovery and data-loss boundaries.
 Rollbacks restore matching images, configuration, roles, database and uploads;
 an old image alone is not compatible with every newer schema.
 For env changes, read `.claude/rules/env-docker-sync.md` before editing.
+
+## GitGuardian findings
+
+The hosted **GitGuardian Security Checks** GitHub App scans every commit in a
+PR, not just its final diff. Editing or deleting a literal in a later commit
+does not remove its earlier occurrence. Local configuration does not change
+its detectors or clear its historical incidents.
+
+### Local prevention
+
+Lefthook runs the pinned gitleaks scanner through `scripts/check-secrets.sh`.
+It works offline and needs no account or token; `devbox install` installs it.
+
+1. Pre-commit scans the staged changes. Pre-push scans every commit from the
+   merge-base with the comparison branch through HEAD. Both redact secrets and
+   fail on findings or a missing scanner. Pre-push never uses its success
+   cache to skip secret scanning.
+2. `.gitleaks.toml` extends the gitleaks default rules. It skips test files
+   (`*_test.go`, `*.test.ts(x)`, `testdata/`, `*test/` directories) so
+   throwaway fixture credentials do not block commits.
+3. For a verified false positive elsewhere, add a `gitleaks:allow` comment to
+   the line or its fingerprint from the scan output to `.gitleaksignore`.
+
+### Existing hosted findings
+
+For a failing hosted check:
+
+1. Open the check's findings table. Inspect the flagged commit, file, callers,
+   and credential use. A test filename alone does not prove a value is safe.
+2. For a verified test-only credential, open its linked GitGuardian incident
+   and choose **Ignore → Test credential**. For a detector match that is not a
+   credential, choose **Ignore → False positive**. Closed incidents no longer
+   appear in check runs. Keep real credentials on the revoke/rotate path.
+3. Re-run the check and verify it succeeds. If it still fails, inspect the new
+   findings rather than assuming the same incident caused it.
+
+A **Neutral** result with **Pull request too large to scan** means GitGuardian
+skipped scanning, not that it found no secrets. Report this coverage gap; do not
+describe the rerun as a clean scan.
+
+For backend password fixtures, use `testpkg.NewTestPassword()`; the
+[fixture guide](backend-testing.md#credential-fixtures) distinguishes generated
+credentials, mapping placeholders and deliberately invalid input. Rewriting
+shared history is not needed to classify an intentional test credential.
+
+References: [hosted check behavior and incident handling](https://docs.gitguardian.com/internal-monitoring/prevent/detect-secrets-in-real-time-in-github),
+[gitleaks configuration](https://github.com/gitleaks/gitleaks#configuration),
+[dashboard exclusion settings](https://docs.gitguardian.com/secrets-detection/customize-detection/exclusion-rules).
 
 ## Rollback window of a storage cutover
 
@@ -245,6 +316,10 @@ cd frontend && pnpm run test:screenshots        # pipeline test against the runn
   `backend/.seed-state.json`. Seed and capture must happen on the same Berlin
   calendar day, or the command asks for a fresh seed instead of showing stale
   attendance. Only `*.localhost` hosts are photographed.
+- Tenant screenshot and E2E logins complete the real MFA flow through local
+  `MAILPIT_URL` before saving a browser session. The disappearance of the
+  password form is not proof of a completed login. Sessions are reused within
+  the browser worker; MFA policy and email-code limits remain unchanged.
 - Output per shot: `roh-<device>.png`, `<device>.png` (mockup, transparent
   background) and both as WebP in 640/960/1280/1600/2400/3200 px, plus
   `manifest.json` (format marker, version, time, shots, files, sizes). The output
@@ -254,8 +329,10 @@ cd frontend && pnpm run test:screenshots        # pipeline test against the runn
 - The browser clock stands at 10:15 Berlin of today's weekday
   (`reference-time.ts`); the seed derives its schedules from the same time. The
   server renders with its real clock, so the reference day must be the server's
-  day; on a weekend the run aborts on the resulting hydration error instead of
-  printing an inconsistent image. Live presence follows the server clock too.
+  day; on a weekend a local run aborts on the resulting hydration error instead
+  of printing an inconsistent image. The workflow instead sets the runner's
+  clock back to the Friday after its downloads and restores it before uploading.
+  Live presence follows the server clock too.
   Text that depends on the time of day must therefore not be rendered on the
   server: the home greeting uses `useTimeBasedGreeting` (`src/lib/greeting.ts`).
 - Adding a shot: the list follows the help flows and PostHog usage (#3764),
@@ -270,6 +347,10 @@ cd frontend && pnpm run test:screenshots        # pipeline test against the runn
 - A broken shot (HTTP error, error page, silent redirect away from its `pfad`,
   login redirect, unexpected dialog, loading state after the timeout, console
   error) aborts the whole run before anything is written.
+- `warten_auf` and the wait for loading indicators keep waiting while the page
+  has requests to the stack open (`next dev` on CI needs 20-40 s for the
+  parents child page). They give up after 30 s / 20 s without an open request,
+  and after 2 minutes at the latest (`network-activity.ts`).
 - Bezels live unchanged in `frontend/scripts/product-screenshots/bezels/`; the
   README there explains how to add one.
 

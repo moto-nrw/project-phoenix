@@ -5,10 +5,7 @@ import { RequestDecisionRow } from "./request-decision-row";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import type { AggregatedOpenRequest } from "~/lib/change-request-list-api";
-import {
-  ChangeRequestStaleError,
-  markRequestDone,
-} from "~/lib/change-request-list-api";
+import { markRequestDone } from "~/lib/change-request-list-api";
 
 vi.mock("~/lib/change-request-list-api", async () => {
   const actual = await vi.importActual<
@@ -95,6 +92,35 @@ describe("RequestDecisionRow", () => {
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
   });
 
+  it("nennt, wer die Anfrage eingereicht hat, mit hinterlegter Beziehung", () => {
+    renderRow(
+      item({
+        submitted_by_name: "Sabine Schneider",
+        submitted_by_relationship: "parent",
+      }),
+    );
+
+    expect(
+      screen.getByText("Eingereicht von Sabine Schneider (Elternteil)"),
+    ).toBeInTheDocument();
+  });
+
+  it("nennt ohne hinterlegte Beziehung nur den Namen", () => {
+    renderRow(item({ submitted_by_name: "Sabine Schneider" }));
+
+    expect(
+      screen.getByText("Eingereicht von Sabine Schneider"),
+    ).toBeInTheDocument();
+  });
+
+  it("nennt niemanden, wenn die Schule die Person nicht kennt", () => {
+    renderRow(item());
+
+    // Anker: der Kopf der geladenen Anfrage steht, nur der Name fehlt.
+    expect(screen.getByText("Anfrage 1 von 1")).toBeInTheDocument();
+    expect(screen.queryByText(/Eingereicht von/)).toBeNull();
+  });
+
   it("nennt den Namen im Namen der Auswahl", () => {
     renderRow(item());
     expect(
@@ -156,7 +182,11 @@ describe("RequestDecisionRow", () => {
 
   it("lädt bei einer veralteten Anfrage neu und meldet den Code-Text", async () => {
     const onStale = vi.fn();
-    mockMarkDone.mockRejectedValueOnce(new ChangeRequestStaleError());
+    mockMarkDone.mockRejectedValueOnce(
+      new ApiError("change request stale", 409, {
+        code: "students.change_request_stale",
+      }),
+    );
     renderRow(item({ past: true, bulk_eligible: false }), { onStale });
 
     fireEvent.click(

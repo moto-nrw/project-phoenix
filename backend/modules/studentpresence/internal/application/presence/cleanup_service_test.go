@@ -24,10 +24,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/api"
 	active "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
-	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -35,10 +34,11 @@ import (
 
 // setupCleanupService creates a cleanup service with real database connection
 func setupCleanupService(t *testing.T, db *testpkg.DB, clocks ...func() time.Time) active.CleanupService {
-	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default(), clocks...)
+	_, err := db.NewRaw(`INSERT INTO config.setting_values (tenant_id, setting_key, value) VALUES (?, 'gdpr.attendance_log_enabled', 'true'::jsonb) ON CONFLICT (tenant_id, setting_key) DO UPDATE SET value = EXCLUDED.value`, testpkg.Tenant(t)).Exec(testpkg.Ctx(t))
+	require.NoError(t, err)
+	serviceFactoryCleanup, err := api.NewTestPresenceCleanup(testpkg.NewDatabase(t, db), slog.Default(), clocks...)
 	require.NoError(t, err, "Failed to create service factory")
-	return serviceFactory.ActiveCleanup
+	return serviceFactoryCleanup
 }
 
 // =============================================================================
@@ -62,7 +62,7 @@ func TestCleanupStaleAttendance_NoStaleRecords(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	assert.True(t, result.Success)
-	assert.GreaterOrEqual(t, result.RecordsClosed, 0) // May have cleaned other test data
+	assert.Equal(t, 0, result.RecordsClosed)
 	assert.False(t, result.StartedAt.IsZero())
 	assert.False(t, result.CompletedAt.IsZero())
 }
@@ -83,7 +83,7 @@ func TestCleanupStaleAttendance_ClosesStaleRecords(t *testing.T) {
 	device := testpkg.CreateTestDevice(t, db, "cleanup-device-001")
 
 	// Create a stale attendance record (yesterday, no checkout)
-	yesterday := timezone.Today().AddDate(0, 0, -1)
+	yesterday := calendar.Today().AddDate(0, 0, -1)
 	checkInTime := yesterday.Add(8 * time.Hour) // 8:00 AM yesterday
 
 	var attendanceID int64
@@ -127,9 +127,12 @@ func TestPreviewAttendanceCleanup_NoStaleRecords(t *testing.T) {
 	// ASSERT
 	require.NoError(t, err)
 	require.NotNil(t, preview)
-	// May have other test data, so just check structure
 	assert.NotNil(t, preview.StudentRecords)
 	assert.NotNil(t, preview.RecordsByDate)
+	assert.Equal(t, 0, preview.TotalRecords)
+	assert.Empty(t, preview.StudentRecords)
+	assert.Empty(t, preview.RecordsByDate)
+	assert.Nil(t, preview.OldestRecord)
 }
 
 // TestPreviewAttendanceCleanup_ShowsStaleRecords tests that preview correctly
@@ -148,7 +151,7 @@ func TestPreviewAttendanceCleanup_ShowsStaleRecords(t *testing.T) {
 	device := testpkg.CreateTestDevice(t, db, "preview-device-001")
 
 	// Create a stale attendance record (2 days ago, no checkout)
-	twoDaysAgo := timezone.Today().AddDate(0, 0, -2)
+	twoDaysAgo := calendar.Today().AddDate(0, 0, -2)
 	checkInTime := twoDaysAgo.Add(9 * time.Hour) // 9:00 AM
 
 	var attendanceID int64
@@ -186,7 +189,7 @@ func TestGetRetentionStatistics_EmptyDatabase(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	// ACT: Get statistics when there may be no expired visits
-	stats, err := cleanupService.GetRetentionStatistics(ctx)
+	stats, err := testpkg.TenantQuery0(t, ctx, db, cleanupService.GetRetentionStatistics)
 
 	// ASSERT
 	require.NoError(t, err)
@@ -253,7 +256,7 @@ func TestGetRetentionStatistics_WithData(t *testing.T) {
 	// IMPORTANT: Clean up in correct order (FK constraints)
 
 	// ACT: Get statistics
-	stats, err := cleanupService.GetRetentionStatistics(ctx)
+	stats, err := testpkg.TenantQuery0(t, ctx, db, cleanupService.GetRetentionStatistics)
 
 	// ASSERT
 	require.NoError(t, err)
@@ -278,7 +281,7 @@ func TestPreviewCleanup_EmptyDatabase(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	// ACT: Preview cleanup
-	preview, err := cleanupService.PreviewCleanup(ctx)
+	preview, err := testpkg.TenantQuery0(t, ctx, db, cleanupService.PreviewCleanup)
 
 	// ASSERT
 	require.NoError(t, err)
@@ -301,7 +304,7 @@ func TestCleanupExpiredVisits_NoExpiredVisits(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	// ACT: Run cleanup when there are no expired visits
-	result, err := cleanupService.CleanupExpiredVisits(ctx)
+	result, err := testpkg.TenantQuery0(t, ctx, db, cleanupService.CleanupExpiredVisits)
 
 	// ASSERT
 	require.NoError(t, err)
@@ -371,7 +374,7 @@ func TestCleanupExpiredVisits_WithExpiredData(t *testing.T) {
 	// IMPORTANT: Clean up in correct order (FK constraints)
 
 	// ACT: Run batch cleanup
-	result, err := cleanupService.CleanupExpiredVisits(ctx)
+	result, err := testpkg.TenantQuery0(t, ctx, db, cleanupService.CleanupExpiredVisits)
 
 	// ASSERT
 	require.NoError(t, err)
@@ -520,7 +523,7 @@ func TestCleanupStaleAttendance_CheckInAfterEndOfDay(t *testing.T) {
 	// Create a stale attendance record with check_in_time AFTER end-of-day
 	// Set date to 2 days ago, but check_in_time to 2 days ago at 23:59:59 + 10 seconds
 	// This simulates a data integrity issue where check-in happened after midnight
-	twoDaysAgo := timezone.Today().AddDate(0, 0, -2)
+	twoDaysAgo := calendar.Today().AddDate(0, 0, -2)
 	checkInTime := twoDaysAgo.Add(23*time.Hour + 59*time.Minute + 59*time.Second + 10*time.Second)
 
 	var attendanceID int64
@@ -574,7 +577,7 @@ func TestCleanupStaleAttendance_CheckOutTimeIsBerlinEndOfDay(t *testing.T) {
 
 	// Create a stale attendance record (yesterday, no checkout). The DATE
 	// column takes a timezone.Date, which binds as a calendar-day literal.
-	yesterday := timezone.NewDate(2026, 8, 24).AddDays(-1)
+	yesterday := calendar.NewDate(2026, 8, 24).AddDays(-1)
 	checkInTime := yesterday.UTCMidnight().Add(8 * time.Hour) // 8:00 UTC yesterday
 
 	var attendanceID int64
@@ -607,7 +610,7 @@ func TestCleanupStaleAttendance_CheckOutTimeIsBerlinEndOfDay(t *testing.T) {
 	// record.Date comes back as UTC midnight from the DATE column.
 	// The fix converts to Berlin before building 23:59:59, so the checkout
 	// must be 23:59:59 Berlin on the correct calendar date.
-	checkOutInBerlin := checkOutTime.In(timezone.Berlin)
+	checkOutInBerlin := checkOutTime.In(calendar.Berlin)
 
 	assert.Equal(t, 23, checkOutInBerlin.Hour(), "hour should be 23 in Berlin time")
 	assert.Equal(t, 59, checkOutInBerlin.Minute(), "minute should be 59")
@@ -636,10 +639,9 @@ func TestPreviewSupervisorCleanup_NoStaleRecords(t *testing.T) {
 	// ASSERT
 	require.NoError(t, err)
 	require.NotNil(t, preview)
-	// May have other test data, so just check structure
 	assert.NotNil(t, preview.StaffRecords)
 	assert.NotNil(t, preview.RecordsByDate)
-	assert.GreaterOrEqual(t, preview.TotalRecords, 0)
+	assert.Equal(t, 0, preview.TotalRecords)
 }
 
 // =============================================================================

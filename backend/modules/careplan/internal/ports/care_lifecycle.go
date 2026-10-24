@@ -17,6 +17,9 @@ import (
 // CareStudentDirectory is the People Directory half: the child rows and the
 // reversible membership commands the care-exit transaction runs.
 type CareStudentDirectory interface {
+	// LockCareStudentWrites takes the shared class-writes gate before the
+	// recurrence gate and any child row locks (ADR 0067 point 5).
+	LockCareStudentWrites(ctx context.Context) error
 	// FindCareStudents reads the tenant's rows of the given children, FOR
 	// UPDATE when lock is set. A missing child is absent from the map.
 	FindCareStudents(ctx context.Context, studentIDs []int64, lock bool) (map[int64]domain.CareStudent, error)
@@ -27,13 +30,12 @@ type CareStudentDirectory interface {
 	ListDueForDeactivation(ctx context.Context, lastCareDay calendar.Date) ([]int64, error)
 	// ListStudentIDs lists every child id of the tenant.
 	ListStudentIDs(ctx context.Context) ([]int64, error)
-	// EndCare sets the last care day of every given child; nil clears it.
-	// It fails with careplan.ErrCareExitPreviewChanged when a row moved.
-	EndCare(ctx context.Context, studentIDs []int64, lastCareDay *calendar.Date) error
-	// ResumeCare reopens one child's interval from start with status, frozen
-	// on the given day. It fails with careplan.ErrCareResumeNotEnded when the
-	// care did not end.
-	ResumeCare(ctx context.Context, studentID int64, start calendar.Date, status string, on calendar.Date) error
+	// EndCare sets the last care day of every given child; nil clears it. It
+	// reports how many rows it changed.
+	EndCare(ctx context.Context, studentIDs []int64, lastCareDay *calendar.Date) (changed int64, err error)
+	// ResumeCare is consumed by the root's resumption workflow binding, not
+	// the Care Plan application. resumed is false when care had not ended.
+	ResumeCare(ctx context.Context, studentID int64, start calendar.Date, status string, on calendar.Date) (resumed bool, err error)
 }
 
 // CareExitRoster is the Timetable half of the roster: the planned rows a care
@@ -60,15 +62,14 @@ type CareExitBookings interface {
 }
 
 // CareExitEnrollment is the Enrollment half: the applications that created
-// the children and the source bookings a care exit ends and restores. The
-// booking commands join the caller's transaction.
+// the children and the snapshots and restores of the source bookings, which
+// carry Enrollment's application data. The restore joins the caller's
+// transaction. Care Plan locks and ends its own source bookings (ADR 0075).
 type CareExitEnrollment interface {
 	CreatedStudentRequestChildIDs(ctx context.Context, studentIDs []int64) ([]int64, error)
 	CareExitApplicationLinks(ctx context.Context, studentIDs []int64) ([]domain.CareExitApplication, error)
 	CareExitOfferingLinks(ctx context.Context, studentIDs []int64) ([]domain.CareExitOfferingLink, error)
-	LockCareExitOfferingLinks(ctx context.Context, requestChildIDs []int64, from calendar.Date) error
 	CareExitOfferingSnapshots(ctx context.Context, studentIDs []int64, validUntil calendar.Date, sourceRequestChildID *int64) ([]domain.CareExitOfferingSnapshot, error)
-	EndCareExitOfferingLinks(ctx context.Context, requestChildIDs []int64, sourceRequestChildID *int64, validUntil calendar.Date) (int64, error)
 	RestoreCareExitOfferingLinks(ctx context.Context, restores []domain.CareExitOfferingRestore) (int64, error)
 }
 

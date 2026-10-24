@@ -11,14 +11,13 @@ import (
 	usersHTTP "github.com/moto-nrw/project-phoenix/modules/peopledirectory/http"
 )
 
-// Both blank names travel as fields (#2511) while the diagnostic text stays the
-// one the not yet migrated clients still compare against until #2520.
+// Both blank names travel as fields (#2511); the text is diagnostics (#2520).
 func TestPersonRequestReportsEveryBlankNameAsField(t *testing.T) {
 	t.Parallel()
 
 	err := (&usersHTTP.PersonRequest{}).Bind(nil)
 
-	require.EqualError(t, err, "first name is required")
+	require.Error(t, err)
 	fields, ok := errors.AsType[validation.Errors](err)
 	require.True(t, ok)
 	assert.Len(t, fields, 2)
@@ -31,7 +30,7 @@ func TestPersonRequestReportsOnlyTheMissingLastName(t *testing.T) {
 
 	err := (&usersHTTP.PersonRequest{FirstName: "Ada"}).Bind(nil)
 
-	require.EqualError(t, err, "last name is required")
+	require.Error(t, err)
 	fields, ok := errors.AsType[validation.Errors](err)
 	require.True(t, ok)
 	assert.Len(t, fields, 1)

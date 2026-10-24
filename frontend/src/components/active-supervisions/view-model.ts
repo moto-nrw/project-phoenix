@@ -1,4 +1,6 @@
+import type { StatusBadgeTone } from "~/components/ui/status-badge";
 import type { Student } from "~/lib/student-helpers";
+import type { TimetableRoster } from "~/lib/timetable-operations-types";
 
 export const SCHULHOF_ROOM_NAME = "Schulhof";
 
@@ -24,7 +26,8 @@ export interface ActiveSupervisionRoom {
   student_count?: number;
   /** The started activity's limit; null without one (#3634). */
   participant_limit?: number | null;
-  supervisor_name?: string;
+  /** Wer die Sitzung gerade beaufsichtigt (#4354). */
+  supervisorNames?: readonly string[];
   isCurrentUserSupervising?: boolean;
   canAssign?: boolean;
   students?: ActiveSupervisionStudent[];
@@ -97,6 +100,8 @@ export interface OpenRoomSessionView {
    * accepts no further child (#3634).
    */
   readonly participantLimit?: number | null;
+  /** Who supervises the session now; absent from an older backend (#4354). */
+  readonly supervisorNames?: readonly string[];
   /**
    * The timetable block running in the session. Null for a kiosk session,
    * the room's own session, and callers who may not read schedules.
@@ -345,29 +350,26 @@ export function resolveSupervisionSelection(options: {
   }
 
   // With no explicit target, prefer an own session that does not already sit
-  // in a released room. The navigation has one entry for a released room, not
-  // one per session in it, so selecting such a session by default would leave
-  // the sidebar without a matching entry. If every running session is in a
-  // released room, select that session's room — the matching sidebar row —
-  // not the first released room by name. Home "Zur Aufsicht" lands here with
-  // no query.
+  // in a released room. The overview can also contain foreign sessions, which
+  // must never become the caller's default selection. The navigation has one
+  // entry for a released room, not one per session in it, so an own session in
+  // such a room selects the room rather than the session. Without an own
+  // session no released room opens: it belongs to „Räume“, not to the caller's
+  // supervision (#4372).
   if (openRoomIds.size > 0) {
     const ownSession = rooms.find(
-      (room) => !room.room_id || !openRoomIds.has(room.room_id),
+      (room) =>
+        room.isCurrentUserSupervising === true &&
+        (!room.room_id || !openRoomIds.has(room.room_id)),
     );
     if (ownSession) return sessionTarget(ownSession);
-    const firstOwn = rooms[0];
-    if (firstOwn) return sessionTarget(firstOwn);
-    const firstOpenRoomId = openRoomIds.values().next().value as
-      string | undefined;
-    if (firstOpenRoomId) {
-      return (
-        roomTarget(firstOpenRoomId) ?? {
-          kind: "open-room",
-          roomId: firstOpenRoomId,
-        }
-      );
-    }
+    const ownOpenRoomSession = rooms.find(
+      (room) =>
+        room.isCurrentUserSupervising === true &&
+        room.room_id !== undefined &&
+        openRoomIds.has(room.room_id),
+    );
+    if (ownOpenRoomSession) return sessionTarget(ownOpenRoomSession);
   }
   return { kind: "persist-first" };
 }
@@ -458,6 +460,7 @@ interface SupervisedGroupLike {
   isCurrentUserSupervising?: boolean;
   canAssign?: boolean;
   participantLimit?: number | null;
+  supervisorNames?: readonly string[];
 }
 
 interface EducationalGroupLike {
@@ -490,7 +493,7 @@ export function mapSupervisedGroupsToRooms(
       room_color: group.room?.color ?? undefined,
       student_count: undefined,
       participant_limit: group.participantLimit ?? null,
-      supervisor_name: undefined,
+      supervisorNames: group.supervisorNames ?? [],
       isCurrentUserSupervising: group.isCurrentUserSupervising === true,
       canAssign: group.canAssign === true,
     }))
@@ -536,6 +539,56 @@ export function supervisionTabLabel(
         : (sessionName ?? roomName ?? "Aufsicht");
   }
   return room.isCurrentUserSupervising ? `${label} · Eigene Aufsicht` : label;
+}
+
+/**
+ * Whether the opened block runs, for the page head (#4354). It follows the
+ * roster, not a fixed "running": in the reopen window the roster of a
+ * completed block stays open (#2527).
+ */
+export function rosterRunState(status: TimetableRoster["instance"]["status"]): {
+  label: string;
+  tone: StatusBadgeTone;
+} {
+  return status === "completed"
+    ? { label: "Beendet", tone: "gray" }
+    : { label: "Aktiv", tone: "green" };
+}
+
+/**
+ * Raum und Betreuung der geöffneten Aufsicht für die Statuszeile (#4354).
+ *
+ * Ein offener Raum heißt im Titel schon wie der Raum; er nennt jeden, der in
+ * einer seiner Sitzungen Aufsicht hat, einmal. Eine eigene Aufsicht nennt
+ * ihren Raum, solange er nicht schon der Titel ist.
+ */
+export function supervisionHeadFacts(options: {
+  readonly title: string | null;
+  readonly currentRoom: Pick<
+    ActiveSupervisionRoom,
+    "room_name" | "supervisorNames"
+  > | null;
+  readonly currentOpenRoom: {
+    readonly sessions?: readonly Pick<OpenRoomSessionView, "supervisorNames">[];
+  } | null;
+}): { roomName: string | null; supervisorNames: string[] } {
+  const { title, currentRoom, currentOpenRoom } = options;
+  if (currentOpenRoom) {
+    const names = new Set(
+      (currentOpenRoom.sessions ?? []).flatMap(
+        (session) => session.supervisorNames ?? [],
+      ),
+    );
+    return {
+      roomName: null,
+      supervisorNames: [...names].sort((a, b) => a.localeCompare(b, "de")),
+    };
+  }
+  const roomName = currentRoom?.room_name ?? null;
+  return {
+    roomName: roomName && roomName !== title ? roomName : null,
+    supervisorNames: [...(currentRoom?.supervisorNames ?? [])],
+  };
 }
 
 /**

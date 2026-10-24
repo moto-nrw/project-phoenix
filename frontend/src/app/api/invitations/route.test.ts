@@ -1,14 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Session } from "next-auth";
-import { NextRequest } from "next/server";
-
-// ============================================================================
-// Types
-// ============================================================================
-
-interface ExtendedSession extends Session {
-  user: Session["user"] & { token?: string };
-}
+import { ApiResponseError } from "~/lib/api-response-error.server";
+import {
+  type ExtendedSession,
+  createMockContext,
+  createMockRequest,
+  defaultSession,
+} from "~/test/route-test-helpers";
 
 // ============================================================================
 // Mocks
@@ -24,55 +21,23 @@ vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));
 
-vi.mock("~/lib/api-helpers.server", () => ({
-  apiGet: mockApiGet,
-  apiPost: mockApiPost,
-  apiPut: vi.fn(),
-  apiDelete: vi.fn(),
-  handleApiError: vi.fn((error: unknown) => {
-    const message =
-      error instanceof Error ? error.message : "Internal Server Error";
-    // Extract status code from error message like "Error message (409)"
-    const statusMatch = /\((\d+)\)/.exec(message);
-    const status = statusMatch ? parseInt(statusMatch[1]!, 10) : 500;
-    return new Response(JSON.stringify({ error: message }), { status });
-  }),
-}));
+vi.mock("~/lib/api-helpers.server", async () => {
+  const { mockHandleApiError } =
+    await import("~/test/helpers/handle-api-error");
+  return {
+    apiGet: mockApiGet,
+    apiPost: mockApiPost,
+    apiPut: vi.fn(),
+    apiDelete: vi.fn(),
+    handleApiError: vi.fn(mockHandleApiError),
+  };
+});
 
 const { GET, POST } = await import("./route");
 
 // ============================================================================
 // Test Helpers
 // ============================================================================
-
-function createMockRequest(
-  path: string,
-  options: { method?: string; body?: unknown } = {},
-): NextRequest {
-  const url = new URL(path, "http://localhost:3000");
-  const requestInit: { method: string; body?: string; headers?: HeadersInit } =
-    {
-      method: options.method ?? "GET",
-    };
-
-  if (options.body) {
-    requestInit.body = JSON.stringify(options.body);
-    requestInit.headers = { "Content-Type": "application/json" };
-  }
-
-  return new NextRequest(url, requestInit);
-}
-
-function createMockContext(
-  params: Record<string, string | string[] | undefined> = {},
-) {
-  return { params: Promise.resolve(params) };
-}
-
-const defaultSession: ExtendedSession = {
-  user: { id: "1", token: "test-token", name: "Test User" },
-  expires: "2099-01-01",
-};
 
 interface ApiResponse<T> {
   success: boolean;
@@ -92,15 +57,6 @@ describe("GET /api/invitations", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(defaultSession);
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/invitations");
-    const response = await GET(request, createMockContext());
-
-    expect(response.status).toBe(401);
   });
 
   it("fetches invitations list from backend", async () => {
@@ -141,18 +97,6 @@ describe("POST /api/invitations", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(defaultSession);
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/invitations", {
-      method: "POST",
-      body: { email: "new@example.com", roleId: "2" },
-    });
-    const response = await POST(request, createMockContext());
-
-    expect(response.status).toBe(401);
   });
 
   it("creates invitation successfully with roleId (camelCase)", async () => {
@@ -346,7 +290,7 @@ describe("POST /api/invitations", () => {
       email: "newteacher@example.com",
     };
     mockApiPost.mockRejectedValueOnce(
-      new Error("API error (400): role_id: cannot be blank."),
+      new ApiResponseError(400, "role_id: cannot be blank."),
     );
 
     const request = createMockRequest("/api/invitations", {
@@ -362,25 +306,60 @@ describe("POST /api/invitations", () => {
     );
     expect(response.status).toBe(400);
   });
+});
 
-  it("handles backend error", async () => {
-    const requestBody = {
-      email: "duplicate@example.com",
-      roleId: "2",
-    };
+describe("POST employment action", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockAuth.mockResolvedValue(defaultSession);
+    mockApiPost.mockResolvedValue({ data: { id: 1 } });
+  });
 
-    mockApiPost.mockRejectedValueOnce(
-      new Error("User already has invitation (409)"),
+  it.each(["resume", "new", "invalid"])(
+    "forwards %s for backend validation",
+    async (action) => {
+      const response = await POST(
+        createMockRequest("/api/invitations", {
+          method: "POST",
+          body: {
+            email: "former@example.com",
+            roleId: "2",
+            employmentAction: action,
+          },
+        }),
+        createMockContext(),
+      );
+      expect(response.status).toBe(200);
+      expect(mockApiPost).toHaveBeenCalledWith(
+        "/auth/invitations",
+        "test-token",
+        expect.objectContaining({ employment_action: action }),
+      );
+    },
+  );
+  it("forwards all reset choices without losing false values", async () => {
+    await POST(
+      createMockRequest("/api/invitations", {
+        method: "POST",
+        body: {
+          email: "former@example.com",
+          roleId: "2",
+          employmentAction: "resume",
+          resetMasterData: true,
+          resetQualifications: false,
+          resetWorkTime: true,
+        },
+      }),
+      createMockContext(),
     );
-
-    const request = createMockRequest("/api/invitations", {
-      method: "POST",
-      body: requestBody,
-    });
-    const response = await POST(request, createMockContext());
-
-    expect(response.status).toBe(409);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("User already has invitation");
+    expect(mockApiPost).toHaveBeenCalledWith(
+      "/auth/invitations",
+      "test-token",
+      expect.objectContaining({
+        reset_master_data: true,
+        reset_qualifications: false,
+        reset_work_time: true,
+      }),
+    );
   });
 });

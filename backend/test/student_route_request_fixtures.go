@@ -8,8 +8,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
-
-	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // Parent-request and guardian fixtures for the student route suites (#2731).
@@ -66,7 +64,7 @@ func InsertTestMasterDataChangeRequest(tb testing.TB, db bun.IDB, request *Maste
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	row := &users.StudentDataChangeRequest{
+	row := &masterDataChangeRequestInsert{
 		StudentID:    request.StudentID,
 		SubmittedBy:  request.SubmittedBy,
 		Target:       request.Target,
@@ -139,23 +137,45 @@ type GuardianProfileWithEmail struct {
 // CreateTestGuardianProfileWithExactEmail stores a guardian profile in
 // tenantID without making the email unique, unlike
 // CreateTestGuardianProfileForTenant, and returns the stored profile.
-func CreateTestGuardianProfileWithExactEmail(tb testing.TB, db bun.IDB, tenantID int64, profile GuardianProfileWithEmail) *users.GuardianProfile {
+func CreateTestGuardianProfileWithExactEmail(tb testing.TB, db bun.IDB, tenantID int64, profile GuardianProfileWithEmail) *GuardianProfile {
 	tb.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	email := profile.Email
-	row := &users.GuardianProfile{
+	row := &GuardianProfile{
 		FirstName:              profile.FirstName,
 		LastName:               profile.LastName,
 		Email:                  &email,
 		PreferredContactMethod: profile.PreferredContactMethod,
 		LanguagePreference:     profile.LanguagePreference,
 	}
-	row.SetTenantID(tenantID)
+	row.TenantID = tenantID
 	_, err := db.NewInsert().Model(row).Exec(ctx)
 	require.NoError(tb, err, "Failed to create test guardian profile")
 	return row
+}
+
+// masterDataChangeRequestInsert is the users.student_data_change_requests row
+// InsertTestMasterDataChangeRequest writes.
+type masterDataChangeRequestInsert struct {
+	bun.BaseModel `bun:"table:users.student_data_change_requests,alias:student_data_change_request"`
+	ID            int64           `bun:"id,pk,autoincrement"`
+	CreatedAt     time.Time       `bun:"created_at,nullzero,notnull,default:current_timestamp"`
+	UpdatedAt     time.Time       `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
+	TenantID      int64           `bun:"tenant_id,notnull"`
+	StudentID     int64           `bun:"student_id,notnull"`
+	SubmittedBy   int64           `bun:"submitted_by,notnull"`
+	Target        string          `bun:"target,notnull"`
+	TargetRefID   *int64          `bun:"target_ref_id"`
+	FieldKey      string          `bun:"field_key,notnull"`
+	OldValue      json.RawMessage `bun:"old_value,type:jsonb"`
+	NewValue      json.RawMessage `bun:"new_value,type:jsonb,notnull"`
+	Status        string          `bun:"status,notnull,default:'pending'"`
+	ReviewReason  *string         `bun:"review_reason"`
+	ReviewedBy    *int64          `bun:"reviewed_by"`
+	ReviewedAt    *time.Time      `bun:"reviewed_at"`
+	AppliedAt     *time.Time      `bun:"applied_at"`
 }
 
 // careScheduleChangeRequestInsert is the schedule.care_schedule_change_requests

@@ -7,10 +7,15 @@ import type { StaffMasterDataHistoryEntry } from "~/lib/master-data-review-api";
 
 function masterDataItem(
   overrides: Partial<StaffMasterDataHistoryEntry> = {},
+  submitter: {
+    submitted_by_name?: string;
+    submitted_by_relationship?: string;
+  } = {},
 ): AggregatedHistoryRequest {
   return {
     request_type: "master_data",
     occurred_at: "2026-08-20T10:00:00Z",
+    ...submitter,
     data: {
       id: "1",
       student_id: "42",
@@ -40,6 +45,38 @@ function aufklappen() {
 }
 
 describe("RequestHistoryItem", () => {
+  it.each([
+    ["", "Angabe hinzugefügt", "leer → Angabe hinzugefügt"],
+    [
+      "Angabe vorhanden",
+      "Angabe geändert",
+      "Angabe vorhanden → Angabe geändert",
+    ],
+    ["Angabe vorhanden", "", "Angabe vorhanden → leer"],
+  ])(
+    "zeigt Gesundheitsänderungen ohne Freitext: %s → %s",
+    (oldValue, newValue, expected) => {
+      render(
+        <RequestHistoryItem
+          item={masterDataItem({
+            target: "student",
+            field_key: "health_info",
+            old_value: oldValue,
+            new_value: newValue,
+            status: "auto_applied",
+            decided_by_name: undefined,
+            review_reason: undefined,
+          })}
+        />,
+      );
+      aufklappen();
+
+      expect(screen.getByText("Gesundheitshinweise")).toBeInTheDocument();
+      expect(screen.getByText(expected)).toBeInTheDocument();
+      expect(screen.getByText("Automatisch übernommen")).toBeInTheDocument();
+    },
+  );
+
   it("zeigt bei Stammdaten Status, Person, Begründung und alt → neu", () => {
     render(<RequestHistoryItem item={masterDataItem()} />);
     aufklappen();
@@ -51,6 +88,27 @@ describe("RequestHistoryItem", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("„zu kurz“")).toBeInTheDocument();
     expect(screen.getByText(/Lara → Clara/)).toBeInTheDocument();
+  });
+
+  it("nennt, wer die Anfrage eingereicht hat (#4359)", () => {
+    render(
+      <RequestHistoryItem
+        item={masterDataItem(
+          {},
+          {
+            submitted_by_name: "Sabine Schneider",
+            submitted_by_relationship: "guardian",
+          },
+        )}
+      />,
+    );
+    aufklappen();
+
+    expect(
+      screen.getByText(
+        /Eingereicht am 17\.08\.2026 von Sabine Schneider \(Vormund\)/,
+      ),
+    ).toBeInTheDocument();
   });
 
   it("lässt bei automatisch übernommenen Änderungen die Person weg", () => {

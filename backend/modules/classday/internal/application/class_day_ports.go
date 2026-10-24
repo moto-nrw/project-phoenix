@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // DayRoster is Enrollment's roster of one class on one calendar day: the
@@ -69,7 +69,7 @@ type EffectiveArrival struct {
 // ClassArrivalException is one class-wide arrival day exception.
 type ClassArrivalException struct {
 	SchoolClass string
-	Date        timezone.Date
+	Date        calendar.Date
 	// ArrivalTime is a wall-clock value; only hour and minute are used.
 	ArrivalTime time.Time
 	Reason      *string
@@ -82,7 +82,7 @@ type ClassArrivalException struct {
 // store, attributed to a users.staff row.
 type ClassArrivalExceptionWrite struct {
 	SchoolClass string
-	Date        timezone.Date
+	Date        calendar.Date
 	ArrivalTime time.Time
 	Reason      *string
 	Origin      string
@@ -135,27 +135,31 @@ type AccessRecord struct {
 type (
 	// DayRosters reads Enrollment's class roster of a day.
 	DayRosters interface {
-		ClassRosterDay(ctx context.Context, schoolClass string, date timezone.Date) (*DayRoster, error)
+		ClassRosterDay(ctx context.Context, schoolClass string, date calendar.Date) (*DayRoster, error)
 	}
 	// StatusDays reads the active scheduled day statuses of many students.
 	StatusDays interface {
-		ActiveStatusDays(ctx context.Context, studentIDs []int64, date timezone.Date) ([]StatusDayEntry, error)
+		ActiveStatusDays(ctx context.Context, studentIDs []int64, date calendar.Date) ([]StatusDayEntry, error)
 	}
 	// EffectiveDayTimes reads the effective pickup and arrival times (weekly
 	// plan plus day exceptions) of many students. A child without an entry
 	// has no plan that day.
 	EffectiveDayTimes interface {
-		EffectivePickups(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]EffectivePickup, error)
-		EffectiveArrivals(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]EffectiveArrival, error)
+		EffectivePickups(ctx context.Context, studentIDs []int64, date calendar.Date) (map[int64]EffectivePickup, error)
+		EffectiveArrivals(ctx context.Context, studentIDs []int64, date calendar.Date) (map[int64]EffectiveArrival, error)
+		// GetBulkDayDepartureModesForDate maps each child with an Abholart
+		// for this one day (#3945) to it; a missing entry keeps the weekly
+		// plan.
+		GetBulkDayDepartureModesForDate(ctx context.Context, studentIDs []int64, date calendar.Date) (map[int64]string, error)
 	}
 	// ClassArrivalExceptions reads and writes the class-wide arrival day
 	// exceptions (#2962). Refusals answer errors.Is for the classday
 	// sentinels; a deployment without the store answers
 	// ports.ErrClassArrivalExceptionsNotConfigured.
 	ClassArrivalExceptions interface {
-		ListClassArrivalExceptions(ctx context.Context, schoolClass string, from, to timezone.Date) ([]ClassArrivalException, error)
+		ListClassArrivalExceptions(ctx context.Context, schoolClass string, from, to calendar.Date) ([]ClassArrivalException, error)
 		UpsertClassArrivalException(ctx context.Context, in ClassArrivalExceptionWrite) (ClassArrivalException, error)
-		DeleteClassArrivalException(ctx context.Context, schoolClass string, date timezone.Date) error
+		DeleteClassArrivalException(ctx context.Context, schoolClass string, date calendar.Date) error
 	}
 	// Companions reads the "läuft mit" links of many students.
 	Companions interface {
@@ -184,7 +188,7 @@ type (
 	}
 	// BlockStarts answers the "Unterricht fällt aus" preset.
 	BlockStarts interface {
-		EarliestPlannedBlockStartForClass(ctx context.Context, schoolClass string, date timezone.Date) (string, error)
+		EarliestPlannedBlockStartForClass(ctx context.Context, schoolClass string, date calendar.Date) (string, error)
 	}
 	// ArrivalScheduleAnnouncer tells the OGS live views, once the caller's
 	// transaction committed, that a class-wide arrival exception changed.

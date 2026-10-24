@@ -12,6 +12,7 @@ import { RemindersBlock } from "~/components/home/reminders-block";
 import { StaffNoticesBlock } from "~/components/home/staff-notices-block";
 import { StaffTodayBlock } from "~/components/home/staff-today-block";
 import { EmptyState } from "~/components/ui/empty-state";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import Link from "~/components/ui/navigation-link";
 import { SectionCard } from "~/components/ui/section-card";
@@ -301,6 +302,82 @@ function ActiveGroupsCard({ data }: { readonly data: HomeBlockData }) {
   );
 }
 
+/**
+ * Die fünf Zeilen des Bausteins „Kinder" (#4347). Zusammen zählen sie jedes
+ * Kind des Tages genau einmal: wer da ist, wer noch in der Schule sitzt, wer
+ * zuhause ist und wer krank oder entschuldigt fehlt. Jede Zeile öffnet
+ * „Alle Kinder" mit dem Statusfilter ihrer Zeile.
+ *
+ */
+const STUDENT_STATUS_ROWS: readonly {
+  readonly label: string;
+  readonly concept: MotoConceptKey;
+  readonly status: string;
+  readonly count: (analytics: DashboardAnalytics) => number;
+}[] = [
+  {
+    label: "Anwesend",
+    concept: "present",
+    status: "anwesend",
+    count: (a) => a.studentsPresent,
+  },
+  {
+    label: "Schule",
+    concept: "atSchool",
+    status: "schule",
+    count: (a) => a.studentsAtSchool,
+  },
+  {
+    label: "Zuhause",
+    concept: "home",
+    status: "abwesend",
+    count: (a) => a.studentsHome,
+  },
+  {
+    label: "Krank",
+    concept: "sick",
+    status: "krank",
+    count: (a) => a.studentsSick,
+  },
+  {
+    label: "Entschuldigt",
+    concept: "excused",
+    status: "entschuldigt-klassenfahrt",
+    count: (a) => a.studentsExcused,
+  },
+];
+
+function StudentsCard({ data }: { readonly data: HomeBlockData }) {
+  const analytics = data.analytics;
+  return (
+    <ListCard
+      title="Kinder"
+      concept="children"
+      href={data.tenantPath("/students/search")}
+      linkText="Alle Kinder"
+    >
+      <div className="space-y-2">
+        {STUDENT_STATUS_ROWS.map((row) => {
+          // Ohne Zahlen ein Strich: eine Null hieße „kein Kind krank".
+          const count = analytics ? row.count(analytics) : "–";
+          return (
+            <StatCard
+              key={row.status}
+              variant="row"
+              label={row.label}
+              value={count}
+              tone="neutral"
+              icon={<MotoConceptIcon concept={row.concept} size={18} />}
+              href={data.tenantPath(`/students/search?status=${row.status}`)}
+              loading={data.analyticsLoading}
+            />
+          );
+        })}
+      </div>
+    </ListCard>
+  );
+}
+
 /** Kennzahl-Kacheln: Beschriftung, Wert, Symbol und wohin sie führen. */
 function StatBlock({
   blockKey,
@@ -442,6 +519,8 @@ export function HomeBlockContent({
       return <CurrentActivitiesCard data={data} />;
     case "section.active_groups":
       return <ActiveGroupsCard data={data} />;
+    case "section.students":
+      return <StudentsCard data={data} />;
     case "section.birthdays":
       return (
         <BirthdaysBlock

@@ -3,8 +3,8 @@ package compose
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,7 +18,7 @@ func TestCustomAbsenceAllowanceSummarizesOnlyItsOwnType(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, db, "Rena", "Generation")
 	admin := testpkg.CreateTestStaff(t, db, "Lea", "Leitung")
 
-	svc := buildWorkforce(t, db)
+	svc := buildWorkforceAt(t, db, allowanceNow)
 
 	absenceType, err := svc.CreateAbsenceType(ctx, workforce.CreateAbsenceType{Name: "Regenerationstag"})
 	require.NoError(t, err)
@@ -64,23 +64,23 @@ func TestCustomAbsenceAllowanceSummarizesOnlyItsOwnType(t *testing.T) {
 		{
 			StaffID: staff.ID, AbsenceType: workforce.AbsenceTypeOther,
 			AbsenceTypeID: &typeID, Status: workforce.AbsenceStatusReported,
-			DateStart: timezone.NewDate(2026, 9, 7).String(), DateEnd: timezone.NewDate(2026, 9, 7).String(),
+			DateStart: calendar.NewDate(2026, 9, 7).String(), DateEnd: calendar.NewDate(2026, 9, 7).String(),
 			HalfDay: true, CreatedBy: admin.ID,
 		},
 		{
 			StaffID: staff.ID, AbsenceType: workforce.AbsenceTypeOther,
 			AbsenceTypeID: &typeID, Status: workforce.AbsenceStatusRequested,
-			DateStart: timezone.NewDate(2026, 10, 5).String(), DateEnd: timezone.NewDate(2026, 10, 5).String(),
+			DateStart: calendar.NewDate(2026, 10, 5).String(), DateEnd: calendar.NewDate(2026, 10, 5).String(),
 			CreatedBy: staff.ID,
 		},
 		{
 			StaffID: staff.ID, AbsenceType: workforce.AbsenceTypeVacation,
 			Status:    workforce.AbsenceStatusApproved,
-			DateStart: timezone.NewDate(2026, 11, 2).String(), DateEnd: timezone.NewDate(2026, 11, 2).String(),
+			DateStart: calendar.NewDate(2026, 11, 2).String(), DateEnd: calendar.NewDate(2026, 11, 2).String(),
 			CreatedBy: staff.ID,
 		},
 	} {
-		_, err := svc.CreateStaffAbsence(ctx, absence)
+		_, err := svc.CreateStaffAbsence(ctx, &absence)
 		require.NoError(t, err)
 	}
 

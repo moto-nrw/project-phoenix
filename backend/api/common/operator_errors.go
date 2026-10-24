@@ -6,7 +6,6 @@ import (
 	"net/http"
 
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 )
 
 // Operator error bodies. The operator router in api/operator and the operator
@@ -18,20 +17,20 @@ import (
 // 5xx neither logs it as one nor hands it to Sentry. ServerErrorReporting
 // reports the status as before.
 func operatorError(status int, message string) render.Renderer {
-	return &ErrResponse{HTTPStatusCode: status, Status: "error", ErrorText: message}
+	return &ErrResponse{HTTPStatusCode: status, Detail: message}
 }
 
 // OperatorRejection renders an operator outcome with its registered code
 // (#2519). The message is developer diagnostics; the operator portal shows
 // the catalog text of the code.
 func OperatorRejection(status int, code, message string) render.Renderer {
-	return &ErrResponse{HTTPStatusCode: status, Status: "error", ErrorText: message, Code: code}
+	return &ErrResponse{HTTPStatusCode: status, Detail: message, Code: code}
 }
 
 // OperatorRejectionWithDetails is OperatorRejection with the structured
 // values the catalog text of the code interpolates.
 func OperatorRejectionWithDetails(status int, code, message string, details map[string]any) render.Renderer {
-	return &ErrResponse{HTTPStatusCode: status, Status: "error", ErrorText: message, Code: code, Details: details}
+	return &ErrResponse{HTTPStatusCode: status, Detail: message, Code: code, Details: details}
 }
 
 // OperatorInvalidRequest renders a 400 with the error's text. The field
@@ -54,8 +53,7 @@ func OperatorInvalidRequestWithCode(err error, code string) render.Renderer {
 func OperatorRejectionOnField(status int, code, field, message string) render.Renderer {
 	return &ErrResponse{
 		HTTPStatusCode: status,
-		Status:         "error",
-		ErrorText:      message,
+		Detail:         message,
 		Code:           code,
 		Errors:         []FieldError{{Field: field, Reason: message}},
 	}
@@ -69,7 +67,7 @@ func OperatorInvalidField(code, field, message string) render.Renderer {
 // OperatorInvalidInput renders a 400 with a fixed text: the cause may carry
 // adapter text, so only its field errors and InputRejection code go along.
 func OperatorInvalidInput(cause error, message string) render.Renderer {
-	resp := &ErrResponse{HTTPStatusCode: http.StatusBadRequest, Status: "error", ErrorText: message}
+	resp := &ErrResponse{HTTPStatusCode: http.StatusBadRequest, Detail: message}
 	resp.Errors = validationFieldErrors(cause)
 	applyInputRejection(resp, cause)
 	return resp
@@ -113,11 +111,9 @@ func OperatorServiceUnavailable(message string) render.Renderer {
 }
 
 // OperatorAuditedIDAction parses one int64 id parameter and invokes an
-// operator-audited action (operator ID from the JWT claims plus the client
+// operator-audited action (the authenticated operator ID plus the client
 // IP), responding 200 with no payload on success.
-func OperatorAuditedIDAction(w http.ResponseWriter, r *http.Request, param, invalidMsg string, fn func(ctx context.Context, id, operatorID int64, clientIP net.IP) error, renderErr func(error) render.Renderer, successMsg string) {
-	operatorID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
-
+func OperatorAuditedIDAction(w http.ResponseWriter, r *http.Request, operatorID int64, param, invalidMsg string, fn func(ctx context.Context, id, operatorID int64, clientIP net.IP) error, renderErr func(error) render.Renderer, successMsg string) {
 	id, ok := ParseInt64IDWithError(w, r, param, invalidMsg)
 	if !ok {
 		return

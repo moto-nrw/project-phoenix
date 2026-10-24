@@ -8,6 +8,7 @@ import type {
   SubmitEnrollmentPayload,
   SubmitEnrollmentResult,
 } from "~/lib/enrollment-submission-api";
+import { downloadBlob, filenameFromDisposition } from "~/lib/file-download";
 
 const logger = createLogger({ component: "EnrollmentAdminAPI" });
 
@@ -199,6 +200,16 @@ export interface AdminRequestSchemaField {
   options?: Array<{ label: string; value: string }>;
 }
 
+/** One proof file a parent attached to the request (#4783). */
+export interface AdminRequestUpload {
+  id: string;
+  field_key: string;
+  filename: string;
+  size_bytes: number;
+  content_type: string;
+  uploaded_at: string;
+}
+
 export interface AdminRequestSummary {
   id: string;
   phase_id: string;
@@ -234,6 +245,16 @@ export interface AdminRequestSummary {
    * only.
    */
   schema_legal_blocks?: Array<{ key: string; title: string }>;
+  /**
+   * The caller may open proof files (enrollment_uploads:read). Detail
+   * endpoint only; absent on endpoints that do not report uploads.
+   */
+  can_view_uploads?: boolean;
+  /**
+   * Proof files still stored for this request. An upload_id in custom_data
+   * that is missing here was deleted after the retention period.
+   */
+  uploads?: AdminRequestUpload[];
   children: AdminRequestChild[];
   /**
    * Co-guardians the parent added beyond the primary guardian above.
@@ -288,7 +309,6 @@ export interface AdminRequestGuardian {
 interface BackendEnvelope<T> {
   status?: string;
   data?: T;
-  error?: string;
   message?: string;
 }
 
@@ -613,15 +633,10 @@ export async function exportStudentEnrollmentRequests(
     throw await readError(response, "Export konnte nicht erstellt werden");
   }
 
-  const blob = await response.blob();
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filenameFromDisposition(response) ?? `anmeldungen.${format}`;
-  document.body.append(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
+  downloadBlob(
+    await response.blob(),
+    filenameFromDisposition(response) ?? `anmeldungen.${format}`,
+  );
 }
 
 export async function decideAdminChild(
@@ -825,10 +840,4 @@ export async function rejectEnrollmentChangeRequest(
     );
   }
   return readJSON<AdminEnrollmentChangeRequest>(response);
-}
-
-function filenameFromDisposition(response: Response): string | null {
-  const disposition = response.headers.get("content-disposition");
-  const match = /filename="([^"]+)"/.exec(disposition ?? "");
-  return match?.[1] ?? null;
 }

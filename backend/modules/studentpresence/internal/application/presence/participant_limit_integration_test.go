@@ -1,15 +1,15 @@
 package presence_test
 
 import (
-	"context"
 	"errors"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -32,10 +32,6 @@ func forbidWebOverbooking(t *testing.T, db *testpkg.DB) {
 		DO UPDATE SET value = EXCLUDED.value, updated_at = now()
 	`, testpkg.Tenant(t), webExceedParticipantLimitKey).Exec(ctx)
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		_, _ = db.NewRaw(`DELETE FROM config.setting_values WHERE tenant_id = ? AND setting_key = ?`,
-			testpkg.Tenant(t), webExceedParticipantLimitKey).Exec(context.Background())
-	})
 }
 
 // limitFixture is one running session of a limited activity with some
@@ -234,7 +230,7 @@ func TestWebParticipantLimit_ManualCheckIn(t *testing.T) {
 	service := setupActiveService(t, db)
 	ctx := testpkg.Ctx(t)
 	fixture := newLimitFixture(t, db, "limit-manual", 1, 1, 1)
-	staffCtx := services.WithAttendanceStaff(ctx, fixture.staff, testpkg.Tenant(t))
+	staffCtx := api.WithAttendanceStaff(ctx, fixture.staff, testpkg.Tenant(t))
 
 	visit := &studentpresence.Visit{StudentID: fixture.inTransit[0], ActiveGroupID: fixture.session.ID, EntryTime: time.Now()}
 	err := service.CreateVisit(staffCtx, visit)
@@ -254,8 +250,8 @@ func TestWebParticipantLimit_TerminalUnchanged(t *testing.T) {
 	service := setupActiveService(t, db)
 	ctx := testpkg.Ctx(t)
 	fixture := newLimitFixture(t, db, "limit-terminal", 1, 1, 1)
-	staffCtx := services.WithAttendanceStaff(ctx, fixture.staff, testpkg.Tenant(t))
-	deviceCtx := services.WithAttendanceDevice(staffCtx, fixture.device, testpkg.Tenant(t))
+	staffCtx := api.WithAttendanceStaff(ctx, fixture.staff, testpkg.Tenant(t))
+	deviceCtx := api.WithAttendanceDevice(staffCtx, fixture.device, testpkg.Tenant(t))
 
 	visit := &studentpresence.Visit{StudentID: fixture.inTransit[0], ActiveGroupID: fixture.session.ID, EntryTime: time.Now()}
 	require.NoError(t, service.CreateVisit(deviceCtx, visit))

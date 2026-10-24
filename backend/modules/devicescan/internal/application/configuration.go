@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/modules/devicescan"
-	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/ports"
 )
 
 // ConfigurationSource loads one consistent settings snapshot for a tenant.
@@ -14,10 +13,10 @@ type ConfigurationSource interface {
 
 type configurationQuery struct {
 	source     ConfigurationSource
-	principals ports.Principals
+	principals devicescan.PrincipalReader
 }
 
-func NewConfiguration(source ConfigurationSource, principals ports.Principals) devicescan.ConfigurationQuery {
+func NewConfiguration(source ConfigurationSource, principals devicescan.PrincipalReader) devicescan.ConfigurationQuery {
 	return configurationQuery{source: source, principals: principals}
 }
 

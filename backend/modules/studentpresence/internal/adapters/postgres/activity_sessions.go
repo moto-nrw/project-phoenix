@@ -8,9 +8,11 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
+	"github.com/uptrace/bun/driver/pgdriver"
 )
 
 type activitySessionRow struct {
@@ -30,8 +32,8 @@ type activitySessionRow struct {
 	CompletionSnapshot json.RawMessage `bun:"completion_snapshot,type:jsonb"`
 }
 
-func (row *activitySessionRow) record() ports.ActivitySession {
-	return ports.ActivitySession{ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+func (row *activitySessionRow) record() studentpresence.ActivitySession {
+	return studentpresence.ActivitySession{ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		InstanceID: row.InstanceID, Status: row.Status, ActiveGroupID: row.ActiveGroupID, StartedBy: row.StartedBy,
 		StartedAt: row.StartedAt, CompletedAt: row.CompletedAt, CompletedBy: row.CompletedBy, ReopenUntil: row.ReopenUntil,
 		CompletionSnapshot: []byte(row.CompletionSnapshot)}
@@ -48,26 +50,26 @@ func activitySessionSelect(db bun.IDB, model any, tenantID int64) *bun.SelectQue
 		Where(`"session".tenant_id = ?`, tenantID)
 }
 
-func (s *Store) FindActivitySession(ctx context.Context, instanceID int64) (ports.ActivitySession, bool, ports.Stats, error) {
+func (s *Store) FindActivitySession(ctx context.Context, instanceID int64) (studentpresence.ActivitySession, bool, ports.Stats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return ports.ActivitySession{}, false, ports.Stats{}, err
+		return studentpresence.ActivitySession{}, false, ports.Stats{}, err
 	}
 	row := activitySessionRow{}
 	started := time.Now()
 	err = activitySessionSelect(db, &row, tenantID).Where(`"session".schedule_instance_id = ?`, instanceID).Scan(ctx)
 	stats := ports.Stats{Queries: 1, StatementDuration: time.Since(started)}
 	if errors.Is(err, sql.ErrNoRows) {
-		return ports.ActivitySession{}, false, stats, nil
+		return studentpresence.ActivitySession{}, false, stats, nil
 	}
 	if err != nil {
-		return ports.ActivitySession{}, false, stats, fmt.Errorf("find activity session: %w", err)
+		return studentpresence.ActivitySession{}, false, stats, fmt.Errorf("find activity session: %w", err)
 	}
 	stats.Rows = 1
 	return row.record(), true, stats, nil
 }
 
-func (s *Store) ListActivitySessions(ctx context.Context, filter ports.ActivitySessionFilter) ([]ports.ActivitySession, ports.Stats, error) {
+func (s *Store) ListActivitySessions(ctx context.Context, filter studentpresence.ActivitySessionFilter) ([]studentpresence.ActivitySession, ports.Stats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, ports.Stats{}, err
@@ -89,7 +91,7 @@ func (s *Store) ListActivitySessions(ctx context.Context, filter ports.ActivityS
 	if err != nil {
 		return nil, stats, fmt.Errorf("list activity sessions: %w", err)
 	}
-	result := make([]ports.ActivitySession, 0, len(rows))
+	result := make([]studentpresence.ActivitySession, 0, len(rows))
 	for i := range rows {
 		result = append(result, rows[i].record())
 	}
@@ -99,10 +101,10 @@ func (s *Store) ListActivitySessions(ctx context.Context, filter ports.ActivityS
 // SessionExecution reads both owned tables in one statement: the sessions
 // that ended among the instances, the attendance rows carrying the
 // non-booking marker among the participants.
-func (s *Store) SessionExecution(ctx context.Context, filter ports.SessionExecutionFilter) (ports.SessionExecution, ports.Stats, error) {
+func (s *Store) SessionExecution(ctx context.Context, filter studentpresence.SessionExecutionFilter) (studentpresence.SessionExecution, ports.Stats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return ports.SessionExecution{}, ports.Stats{}, err
+		return studentpresence.SessionExecution{}, ports.Stats{}, err
 	}
 	instanceIDs, participantIDs := filter.InstanceIDs, filter.ParticipantIDs
 	if instanceIDs == nil {
@@ -126,9 +128,9 @@ func (s *Store) SessionExecution(ctx context.Context, filter ports.SessionExecut
 		tenantID, pgdialect.Array(instanceIDs), tenantID, pgdialect.Array(participantIDs)).Scan(ctx, &rows)
 	stats := ports.Stats{Queries: 1, Rows: int64(len(rows)), StatementDuration: time.Since(started)}
 	if err != nil {
-		return ports.SessionExecution{}, stats, fmt.Errorf("session execution: %w", err)
+		return studentpresence.SessionExecution{}, stats, fmt.Errorf("session execution: %w", err)
 	}
-	result := ports.SessionExecution{CompletedInstanceIDs: []int64{}, NotScheduledParticipantIDs: []int64{}}
+	result := studentpresence.SessionExecution{CompletedInstanceIDs: []int64{}, NotScheduledParticipantIDs: []int64{}}
 	for _, row := range rows {
 		if row.Kind == "completed" {
 			result.CompletedInstanceIDs = append(result.CompletedInstanceIDs, row.ID)
@@ -139,27 +141,47 @@ func (s *Store) SessionExecution(ctx context.Context, filter ports.SessionExecut
 	return result, stats, nil
 }
 
-func (s *Store) StartActivitySession(ctx context.Context, start ports.ActivitySessionStart) (ports.ActivitySession, ports.Stats, error) {
+func (s *Store) StartActivitySession(ctx context.Context, start studentpresence.ActivitySessionStart) (studentpresence.ActivitySession, ports.Stats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return ports.ActivitySession{}, ports.Stats{}, err
+		return studentpresence.ActivitySession{}, ports.Stats{}, err
 	}
 	row := activitySessionRow{TenantID: tenantID, InstanceID: start.InstanceID, Status: "active",
 		ActiveGroupID: &start.ActiveGroupID, StartedBy: start.StartedBy, StartedAt: &start.StartedAt}
 	started := time.Now()
 	err = db.NewInsert().Model(&row).ModelTableExpr(`active.activity_sessions`).Returning(activitySessionColumns).Scan(ctx)
 	stats := ports.Stats{Queries: 1, StatementDuration: time.Since(started)}
+	if isUniqueViolationOn(err, "uq_activity_sessions_instance", "uq_activity_sessions_active_group") {
+		// One session per instance and live group: a second start races the first.
+		return studentpresence.ActivitySession{}, stats, fmt.Errorf("start activity session: %w", errors.Join(studentpresence.ErrActivitySessionExists, err))
+	}
 	if err != nil {
-		return ports.ActivitySession{}, stats, fmt.Errorf("start activity session: %w", err)
+		return studentpresence.ActivitySession{}, stats, fmt.Errorf("start activity session: %w", err)
 	}
 	stats.Rows = 1
 	return row.record(), stats, nil
 }
 
-func (s *Store) CompleteActivitySession(ctx context.Context, completion ports.ActivitySessionCompletion) (ports.ActivitySession, bool, ports.Stats, error) {
+// isUniqueViolationOn reports that the driver refused a write on one of the
+// named unique constraints or indexes.
+func isUniqueViolationOn(err error, constraints ...string) bool {
+	var postgresError pgdriver.Error
+	if !errors.As(err, &postgresError) || !postgresError.IntegrityViolation() {
+		return false
+	}
+	name := postgresError.Field('n')
+	for _, constraint := range constraints {
+		if name == constraint {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *Store) CompleteActivitySession(ctx context.Context, completion studentpresence.ActivitySessionCompletion) (studentpresence.ActivitySession, bool, ports.Stats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return ports.ActivitySession{}, false, ports.Stats{}, err
+		return studentpresence.ActivitySession{}, false, ports.Stats{}, err
 	}
 	row := activitySessionRow{}
 	started := time.Now()
@@ -171,10 +193,10 @@ func (s *Store) CompleteActivitySession(ctx context.Context, completion ports.Ac
 		Returning(activitySessionColumns).Scan(ctx)
 	stats := ports.Stats{Queries: 1, StatementDuration: time.Since(started)}
 	if errors.Is(err, sql.ErrNoRows) {
-		return ports.ActivitySession{}, false, stats, nil
+		return studentpresence.ActivitySession{}, false, stats, nil
 	}
 	if err != nil {
-		return ports.ActivitySession{}, false, stats, fmt.Errorf("complete activity session: %w", err)
+		return studentpresence.ActivitySession{}, false, stats, fmt.Errorf("complete activity session: %w", err)
 	}
 	stats.Rows = 1
 	return row.record(), true, stats, nil
@@ -200,10 +222,10 @@ func (s *Store) RecordActivitySessionCompleted(ctx context.Context, instanceID i
 	return stats, err
 }
 
-func (s *Store) ReopenActivitySession(ctx context.Context, instanceID, activeGroupID int64) (ports.ActivitySession, bool, ports.Stats, error) {
+func (s *Store) ReopenActivitySession(ctx context.Context, instanceID, activeGroupID int64) (studentpresence.ActivitySession, bool, ports.Stats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return ports.ActivitySession{}, false, ports.Stats{}, err
+		return studentpresence.ActivitySession{}, false, ports.Stats{}, err
 	}
 	row := activitySessionRow{}
 	started := time.Now()
@@ -214,10 +236,10 @@ func (s *Store) ReopenActivitySession(ctx context.Context, instanceID, activeGro
 		Returning(activitySessionColumns).Scan(ctx)
 	stats := ports.Stats{Queries: 1, StatementDuration: time.Since(started)}
 	if errors.Is(err, sql.ErrNoRows) {
-		return ports.ActivitySession{}, false, stats, nil
+		return studentpresence.ActivitySession{}, false, stats, nil
 	}
 	if err != nil {
-		return ports.ActivitySession{}, false, stats, fmt.Errorf("reopen activity session: %w", err)
+		return studentpresence.ActivitySession{}, false, stats, fmt.Errorf("reopen activity session: %w", err)
 	}
 	stats.Rows = 1
 	return row.record(), true, stats, nil

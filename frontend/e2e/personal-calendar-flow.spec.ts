@@ -1,11 +1,18 @@
-import { expect, type Page, test } from "@playwright/test";
+import { expect, test } from "@playwright/test";
+
+import {
+  loginToTenant,
+  MISSING_SEED_ACCESS,
+  pickDate,
+  seedAccess as access,
+  tenantBase as base,
+  waitForAnimations,
+} from "./tenant-session";
 import { toISODate } from "../src/lib/date-helpers";
 
-// Test credentials from environment variables (never commit real credentials!).
-// No fallback defaults per the repo no-fallback policy — the suite skips when
-// either is unset (see beforeEach) rather than substituting an empty string.
-const TEST_EMAIL = process.env.E2E_TEST_EMAIL;
-const TEST_PASSWORD = process.env.E2E_TEST_PASSWORD;
+// Login und Tenant-Herkunft: e2e/tenant-session.ts.
+// Relative page.goto-Ziele laufen gegen die Tenant-Herkunft.
+if (access) test.use({ baseURL: base });
 
 function addDays(date: Date, days: number): Date {
   const next = new Date(date);
@@ -13,37 +20,51 @@ function addDays(date: Date, days: number): Date {
   return next;
 }
 
-async function login(page: Page, email: string, password: string) {
-  await page.goto("/");
-  await page.waitForSelector('input[type="email"]');
-  await page.fill('input[type="email"]', email);
-  await page.fill('input[type="password"]', password);
-  await page.click('button:has-text("Anmelden")');
-  await page.waitForURL(
-    (url) => !url.pathname.includes("login") && url.pathname !== "/",
-    { timeout: 15000 },
-  );
+function weekdayInCurrentWeek(date: Date): Date {
+  const weekday = new Date(date);
+  const day = weekday.getDay();
+  if (day === 6) weekday.setDate(weekday.getDate() - 1);
+  else if (day === 0) weekday.setDate(weekday.getDate() - 2);
+  return weekday;
 }
+
+// Der angelegte Termin wird wieder gelöscht. Sonst stapeln sich bei
+// wiederholten Läufen gleichzeitige Blöcke im Wochenraster und überdecken
+// einander.
+let createdAppointmentId: string | null = null;
 
 test.describe("Personal calendar flow", () => {
   test.beforeEach(async ({ page }) => {
-    // Skip if no credentials configured
-    test.skip(
-      !TEST_EMAIL || !TEST_PASSWORD,
-      "E2E_TEST_EMAIL and E2E_TEST_PASSWORD must be set",
+    test.skip(access === null, MISSING_SEED_ACCESS);
+    if (!access) return;
+    await loginToTenant(page, access);
+  });
+
+  test.afterEach(async ({ page }) => {
+    if (!createdAppointmentId) return;
+    const id = createdAppointmentId;
+    createdAppointmentId = null;
+    const res = await page.request.delete(
+      `${base}/api/calendar/appointments/${id}`,
     );
-    // Redundant at runtime (test.skip already aborted) but narrows the
-    // string | undefined env reads to string for the login call.
-    if (!TEST_EMAIL || !TEST_PASSWORD) return;
-    await login(page, TEST_EMAIL, TEST_PASSWORD);
+    expect(
+      res.ok(),
+      `Termin ${id} löschen fehlgeschlagen (${res.status()})`,
+    ).toBe(true);
   });
 
   test("staff creates, accepts, and sees a recurring all-staff appointment", async ({
     page,
   }) => {
-    const today = new Date();
-    const startDate = toISODate(today);
-    const recurrenceEnd = toISODate(addDays(today, 7));
+    // Kalt kompiliert der Next-Dev-Server /calendar und die Detailansicht
+    // spürbar langsam; gleiches Budget wie die übrigen Tenant-Flows.
+    test.setTimeout(90000);
+    // Der Kalender blendet Wochenenden zunächst aus. Der Termin liegt daher
+    // auch am Wochenende auf einem sichtbaren Wochentag der aktuell
+    // angezeigten Woche, damit er nach dem Speichern im Raster erscheint.
+    const start = weekdayInCurrentWeek(new Date());
+    const startDate = toISODate(start);
+    const recurrenceEnd = toISODate(addDays(start, 7));
     const title = `Playwright Kalendertermin ${Date.now()}`;
 
     await page.goto("/calendar");
@@ -52,22 +73,47 @@ test.describe("Personal calendar flow", () => {
     ).toBeVisible();
 
     await page.getByRole("button", { name: "Neuer Termin" }).click();
-    await expect(
-      page.getByRole("heading", { name: "Termin erstellen" }),
-    ).toBeVisible();
+    const createHeading = page.getByRole("heading", {
+      name: "Termin erstellen",
+    });
+    await expect(createHeading).toBeVisible();
+    await waitForAnimations(
+      page.getByRole("dialog").filter({ has: createHeading }),
+    );
 
-    await page.getByLabel("Titel").fill(title);
-    await page.getByLabel("Ort").fill("E2E Raum");
-    await page.getByLabel("Startdatum").fill(startDate);
-    await page.getByLabel("Enddatum").fill(startDate);
+    // Rolle statt getByLabel: die Checkbox "Eltern per E-Mail benachrichtigen"
+    // trägt "Titel" in ihrer Beschreibung, "Ort" steckt in weiteren Labels.
+    await page.getByRole("textbox", { name: "Titel", exact: true }).fill(title);
+    await page
+      .getByRole("textbox", { name: "Ort", exact: true })
+      .fill("E2E Raum");
+    await pickDate(
+      page,
+      page.getByRole("button", { name: "Startdatum", exact: true }),
+      startDate,
+    );
+    await pickDate(
+      page,
+      page.getByRole("button", { name: "Enddatum", exact: true }),
+      startDate,
+    );
     await page.getByLabel("Startzeit").fill("09:00");
     await page.getByLabel("Endzeit").fill("10:00");
-    await page.getByLabel("Alle Mitarbeitenden", { exact: true }).check();
+    // Kit-Checkbox: das <input> ist sr-only, klickbar ist das umschließende
+    // Label. Danach derselbe Endzustand wie zuvor mit .check().
+    const allStaff = page.getByLabel("Alle Mitarbeitenden", { exact: true });
+    await page.locator("label", { has: allStaff }).click();
+    await expect(allStaff).toBeChecked();
     await expect(
       page.getByText("Alle Mitarbeitenden: Alle Mitarbeitenden"),
     ).toBeVisible();
-    await page.getByLabel("Wiederholung").selectOption("weekly");
-    await page.getByLabel("Endet am").fill(recurrenceEnd);
+    await page.getByRole("combobox", { name: "Wiederholung" }).click();
+    await page.getByRole("option", { name: "Wöchentlich" }).click();
+    await pickDate(
+      page,
+      page.getByRole("button", { name: "Endet am", exact: true }),
+      recurrenceEnd,
+    );
 
     const createResponse = page.waitForResponse(
       (response) =>
@@ -75,12 +121,27 @@ test.describe("Personal calendar flow", () => {
         response.request().method() === "POST",
     );
     await page.getByRole("button", { name: "Termin speichern" }).click();
-    await expect((await createResponse).ok()).toBeTruthy();
+    const created = await createResponse;
+    await expect(created.ok()).toBeTruthy();
+    // Antwort: Termin-Detail ({ appointment: { id, … }, … }).
+    const createdJson = (await created.json()) as {
+      data?: { appointment?: { id?: string | number } };
+    };
+    const createdId = createdJson.data?.appointment?.id;
+    expect(createdId, "Termin-Anlage muss eine ID liefern").toBeTruthy();
+    createdAppointmentId = String(createdId);
 
-    const currentWeekEvent = page.locator("article").filter({ hasText: title });
+    // Seit 0fccd5815c ("tap-to-detail") ist ein Termin im Raster ein
+    // kompakter Block; Antwortstatus, Ort und Zusagen/Absagen trägt die
+    // Detailansicht "Termin", die ein Klick auf den Block öffnet.
+    const currentWeekEvent = page.getByRole("button", { name: title });
     await expect(currentWeekEvent).toBeVisible();
-    await expect(currentWeekEvent).toContainText("Offen");
-    await expect(currentWeekEvent).toContainText("E2E Raum");
+    await currentWeekEvent.click();
+    const eventDetail = page.getByRole("dialog", { name: "Termin" });
+    await expect(eventDetail).toContainText(title);
+    await expect(eventDetail).toContainText("Offen");
+    await expect(eventDetail).toContainText("E2E Raum");
+    await waitForAnimations(eventDetail);
 
     const responseUpdate = page.waitForResponse(
       (response) =>
@@ -88,13 +149,25 @@ test.describe("Personal calendar flow", () => {
         response.url().includes("/response") &&
         response.request().method() === "POST",
     );
-    await currentWeekEvent.getByRole("button", { name: "Zusagen" }).click();
+    await eventDetail.getByRole("button", { name: "Zusagen" }).click();
     await expect((await responseUpdate).ok()).toBeTruthy();
-    await expect(currentWeekEvent).toContainText("Zugesagt");
+    // Zusagen schließt die Detailansicht; der neue Status steht nach erneutem
+    // Öffnen darin, ohne Neuladen der Seite.
+    await expect(eventDetail).toBeHidden();
+    await currentWeekEvent.click();
+    await expect(eventDetail).toContainText("Zugesagt");
+    await waitForAnimations(eventDetail);
 
+    // Gespeichert im Backend: nach frischem Laden der Seite steht die Zusage
+    // weiterhin im Termin.
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await expect(currentWeekEvent).toBeVisible();
+    await currentWeekEvent.click();
+    await expect(eventDetail).toContainText("Zugesagt");
+    await waitForAnimations(eventDetail);
+
+    await eventDetail.getByRole("button", { name: "Schließen" }).click();
     await page.getByRole("button", { name: "Nächste Woche" }).click();
-    await expect(
-      page.locator("article").filter({ hasText: title }),
-    ).toBeVisible();
+    await expect(page.getByRole("button", { name: title })).toBeVisible();
   });
 });

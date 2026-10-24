@@ -14,7 +14,7 @@ import (
 
 type scheduleReviewDirectoryFixture struct{ reviewDirectoryFixture }
 
-func (scheduleReviewDirectoryFixture) DepartureModes(context.Context, []int64) (map[int64]map[string][]string, error) {
+func (scheduleReviewDirectoryFixture) ListStudentDepartureModes(context.Context, []int64) (map[int64]map[string][]string, error) {
 	return map[int64]map[string][]string{}, nil
 }
 
@@ -63,7 +63,7 @@ func TestScheduleNativeQueueDiffScopeHistoryAndPreviewFailure(t *testing.T) {
 		names:    map[int64]PersonName{student.PersonID: {FirstName: "Care", LastName: "Review"}},
 	}}
 	blocks := &failingPickupReviewBlocks{}
-	deps := ScheduleReviewDependencies{People: directory, Bookings: scheduleReviewBookingsFixture{}, Classes: scheduleReviewClassesFixture{},
+	deps := ScheduleReviewDependencies{StudentDirectory: testpkg.StudentDirectory{}, People: directory, Bookings: scheduleReviewBookingsFixture{}, Classes: scheduleReviewClassesFixture{},
 		Scope:                 func(context.Context) (ReviewScope, error) { return ReviewScope{GroupIDs: []int64{group.ID}}, nil },
 		BookingsAuthoritative: func(context.Context) (bool, error) { return false, nil }, Today: func() careplan.Date { return "2026-03-30" }, Blocks: blocks,
 		Fingerprint: func([]byte) string { t.Fatal("failed block preview must not produce an impact token"); return "" },

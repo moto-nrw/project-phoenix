@@ -40,7 +40,7 @@ func (rs *Resource) listVisits(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get visits
-	visits, err := rs.Presence.ListVisits(r.Context(), filter)
+	visits, err := rs.listReadableVisits(r.Context(), filter)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(presenceQueryError("ListVisits", err)))
 		return
@@ -109,7 +109,7 @@ func (rs *Resource) getStudentVisits(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get visits for student
-	visits, err := rs.Presence.ListVisits(r.Context(), studentpresence.VisitFilter{StudentIDs: []int64{studentID}, OpenOnly: true})
+	visits, err := rs.listReadableVisits(r.Context(), studentpresence.VisitFilter{StudentIDs: []int64{studentID}, OpenOnly: true})
 	if err != nil {
 		common.RenderError(w, r, ErrorRenderer(presenceQueryError("FindVisitsByStudentID", err)))
 		return
@@ -162,7 +162,7 @@ func (rs *Resource) getVisitsByGroup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get visits for active group
-	visits, err := rs.Presence.ListVisits(r.Context(), studentpresence.VisitFilter{ActiveGroupIDs: []int64{groupID}})
+	visits, err := rs.listReadableVisits(r.Context(), studentpresence.VisitFilter{ActiveGroupIDs: []int64{groupID}})
 	if err != nil {
 		common.RenderError(w, r, ErrorRenderer(presenceQueryError("FindVisitsByActiveGroupID", err)))
 		return
@@ -203,7 +203,7 @@ func (rs *Resource) createVisit(w http.ResponseWriter, r *http.Request) {
 
 	// Binary mode deliberately succeeds without creating a room visit.
 	if admitted.ID == 0 {
-		mode, err := rs.Operations.PresenceMode(r.Context())
+		mode, err := rs.Operations.GetPresenceMode(r.Context())
 		if err != nil {
 			common.RenderError(w, r, common.ErrorInternalServer(presenceQueryError("GetPresenceMode", err)))
 			return
@@ -283,7 +283,7 @@ func (rs *Resource) deleteVisit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Delete visit
-	if err := rs.Operations.RemoveVisit(r.Context(), id); err != nil {
+	if err := rs.Operations.DeleteVisit(r.Context(), id); err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}

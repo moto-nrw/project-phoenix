@@ -14,10 +14,10 @@ import (
 type StudentCompanions interface {
 	// ListForStudent returns every stored edge touching the child.
 	ListForStudent(ctx context.Context, studentID int64) ([]domain.CompanionEdge, error)
-	// DaysCoveredExcluding answers, per child, the weekdays on which a link
-	// other than the excluded child's still covers them. Passing 0 excludes
-	// nobody, which is what the deferred batch verdict needs.
-	DaysCoveredExcluding(ctx context.Context, studentIDs []int64, excludeID int64) (map[int64]map[string]bool, error)
+	// CompanionDaysCoveredExcluding answers, per child, the weekdays on which
+	// a link other than the excluded child's still covers them. Passing 0
+	// excludes nobody, which is what the deferred batch verdict needs.
+	CompanionDaysCoveredExcluding(ctx context.Context, studentIDs []int64, excludeID int64) (map[int64]map[string]bool, error)
 	// DeleteEdges removes the given edges.
 	DeleteEdges(ctx context.Context, edgeIDs []int64) error
 }

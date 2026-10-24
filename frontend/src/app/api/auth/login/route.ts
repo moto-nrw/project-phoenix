@@ -1,9 +1,10 @@
 import { captureBffException } from "~/lib/sentry-bff.server";
-import { type NextRequest, NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { getClientForwardHeaders } from "~/lib/client-headers.server";
 import { createLogger } from "~/lib/logger";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
+import { problemResponse } from "~/lib/api-helpers.server";
 
 const logger = createLogger({ component: "AuthLoginRoute" });
 
@@ -13,7 +14,7 @@ export async function POST(request: NextRequest) {
     try {
       body = await request.json();
     } catch {
-      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+      return problemResponse(400, "Invalid JSON", request);
     }
 
     const cookieHeader = request.headers.get("cookie");
@@ -29,7 +30,7 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify(body),
     });
 
-    const out = forwardBackendResponse(response);
+    const out = forwardBackendResponse(response, request);
     for (const cookie of response.headers.getSetCookie()) {
       out.headers.append("set-cookie", cookie);
     }
@@ -39,9 +40,6 @@ export async function POST(request: NextRequest) {
     logger.error("login proxy failed", {
       error: error instanceof Error ? error.message : String(error),
     });
-    return NextResponse.json(
-      { error: "Internal Server Error" },
-      { status: 500 },
-    );
+    return problemResponse(500, "Internal Server Error", request);
   }
 }

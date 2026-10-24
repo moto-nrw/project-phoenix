@@ -4,6 +4,8 @@ import (
 	"errors"
 	"net/http"
 
+	settingsFacts "github.com/moto-nrw/project-phoenix/modules/settings"
+
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 )
@@ -35,6 +37,6 @@ func (rs *Resource) requireWebAttendanceForActiveInstance(next http.Handler) htt
 			next.ServeHTTP(w, r)
 			return
 		}
-		common.RequireWebAttendanceEnabled(rs.SettingsService)(next).ServeHTTP(w, r)
+		common.RequireWebAttendanceEnabled(settingsFacts.WebAttendanceEnabledReader(rs.SettingsService))(next).ServeHTTP(w, r)
 	})
 }

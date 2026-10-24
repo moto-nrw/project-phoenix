@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
+	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 type RequestDiffs struct {
@@ -84,28 +85,36 @@ func (s *RequestDiffs) pickup(ctx context.Context, request *carerequests.Request
 	if err := json.Unmarshal(request.Payload, &payload); err != nil {
 		return nil, err
 	}
-	date, pickupTime, _, err := carerequests.ParsePickup(request.Payload)
+	change, err := carerequests.ParsePickup(request.Payload)
 	if err != nil {
 		return nil, err
 	}
-	old, _ := payload["previous_pickup_time"].(string)
-	if old == "" {
-		value, findErr := s.Pickups.ExceptionPickupTime(ctx, request.StudentID, careplan.Date(date))
-		if findErr != nil {
-			return nil, findErr
-		}
-		if value != nil {
-			old = value.Format("15:04")
+	old := ""
+	if change.PickupTime != nil {
+		if old, err = s.oldPickup(ctx, request.StudentID, change.Date, payload); err != nil {
+			return nil, err
 		}
 	}
-	if old == "" {
-		value, findErr := s.Pickups.EffectivePickupTime(ctx, request.StudentID, careplan.Date(date))
-		if findErr != nil {
-			return nil, findErr
-		}
-		if value != nil {
-			old = value.Format("15:04")
+	// The Abholart before the request was recorded at submission (#3945);
+	// the snapshot freezes that, not a plan the decision itself changes.
+	return carerequests.PickupChangeEntries(change, old, carerequests.StoredPickupTerms(request.Payload).PreviousDepartureModes), nil
+}
+
+func (s *RequestDiffs) oldPickup(ctx context.Context, studentID int64, date calendar.Date, payload map[string]any) (string, error) {
+	if old, _ := payload["previous_pickup_time"].(string); old != "" {
+		return old, nil
+	}
+	value, err := s.Pickups.ExceptionPickupTime(ctx, studentID, careplan.Date(date))
+	if err != nil {
+		return "", err
+	}
+	if value == nil {
+		if value, err = s.Pickups.EffectivePickupTime(ctx, studentID, careplan.Date(date)); err != nil {
+			return "", err
 		}
 	}
-	return []carerequests.DiffEntry{{Label: date.Format("02.01.2006") + " · Abholzeit", Old: old, New: pickupTime.Format("15:04"), CareKind: carerequests.KindPickup}}, nil
+	if value == nil {
+		return "", nil
+	}
+	return value.Format("15:04"), nil
 }

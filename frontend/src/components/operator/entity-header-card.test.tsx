@@ -37,6 +37,9 @@ describe("EntityHeaderCard", () => {
   it("does not render 'Seit' when createdAt is invalid (covers NaN branch)", () => {
     render(<EntityHeaderCard title="Org" active createdAt="not-a-date" />);
 
+    // Anker: der Kopf mit Titel und Status ist gerendert.
+    expect(screen.getByRole("heading", { name: "Org" })).toBeInTheDocument();
+    expect(screen.getByText("Aktiv")).toBeInTheDocument();
     expect(screen.queryByText("Seit")).not.toBeInTheDocument();
   });
 
@@ -68,8 +71,38 @@ describe("EntityHeaderCard", () => {
   it("renders no concept icon tile when concept is omitted", () => {
     const { container } = render(<EntityHeaderCard title="Org" active />);
 
+    // Anker: der Kopf mit Titel ist gerendert.
+    expect(screen.getByRole("heading", { name: "Org" })).toBeInTheDocument();
     expect(
       container.querySelector("[data-moto-duotone-tone]"),
     ).not.toBeInTheDocument();
+  });
+
+  it("puts the back link above the title, named after its target", () => {
+    render(
+      <EntityHeaderCard
+        title="Grundschule am Berg"
+        active
+        back={{
+          href: "/operator/organizations/traeger",
+          label: "Zurück zum Träger",
+        }}
+      />,
+    );
+
+    const link = screen.getByRole("link", { name: "Zurück zum Träger" });
+    expect(link).toHaveAttribute("href", "/operator/organizations/traeger");
+    expect(
+      link.compareDocumentPosition(screen.getByRole("heading", { level: 1 })) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("renders no back link without a target", () => {
+    render(<EntityHeaderCard title="Org" active />);
+
+    // Anker: der Kopf mit Titel ist gerendert.
+    expect(screen.getByRole("heading", { name: "Org" })).toBeInTheDocument();
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
 });

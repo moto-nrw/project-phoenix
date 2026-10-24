@@ -2,11 +2,35 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/timetableprojection"
+	"github.com/uptrace/bun"
 )
+
+// SourceEnrollmentCount is the timetable legacy view's count of the
+// enrollments a request (childID nil) or one of its children sourced. The
+// root binds it; Enrollment never reads activities.student_enrollments.
+type SourceEnrollmentCount func(ctx context.Context, db bun.IDB, tenantID, requestID int64, childID *int64) (int, error)
+
+// SourceEnrollments resolves rows on the caller's existing unit of work.
+func (r *Store) SourceEnrollments(count SourceEnrollmentCount) func(context.Context, int64, *int64) (int, error) {
+	return func(ctx context.Context, requestID int64, childID *int64) (int, error) {
+		if count == nil {
+			return 0, errors.New("enrollment postgres: source enrollment count is required")
+		}
+		tenantID, err := r.tenantID(ctx)
+		if err != nil {
+			return 0, err
+		}
+		db, err := r.resolve(ctx)
+		if err != nil {
+			return 0, err
+		}
+		return count(ctx, db, tenantID, requestID, childID)
+	}
+}
 
 func (r *Store) DeletionRequestCounts(ctx context.Context, requestID int64) (*enrollment.DeletionRequestCounts, error) {
 	tenantID, err := r.tenantID(ctx)
@@ -52,10 +76,6 @@ func (r *Store) DeletionRequestCounts(ctx context.Context, requestID int64) (*en
 		requestID, tenantID,
 		tenantID,
 	).Scan(ctx, row)
-	if err != nil {
-		return nil, fmt.Errorf("preview enrollment request deletion: %w", err)
-	}
-	row.StudentSourceLinksCleared, err = timetableprojection.CountRequestSourceEnrollments(ctx, db, tenantID, requestID)
 	if err != nil {
 		return nil, fmt.Errorf("preview enrollment request deletion: %w", err)
 	}
@@ -107,10 +127,6 @@ func (r *Store) DeletionChildCounts(ctx context.Context, requestID, childID int6
 			(SELECT COUNT(*) FROM enrollment.request_children WHERE rollover_source_child_id IN (SELECT id FROM target_child) AND tenant_id = ?)::int AS rollover_links,
 			0::int AS student_source_links
 	`, requestID, childID, tenantID, requestID, tenantID, tenantID, tenantID).Scan(ctx, row)
-	if err != nil {
-		return nil, fmt.Errorf("preview enrollment child deletion: %w", err)
-	}
-	row.StudentSourceLinks, err = timetableprojection.CountChildSourceEnrollments(ctx, db, tenantID, requestID, childID)
 	if err != nil {
 		return nil, fmt.Errorf("preview enrollment child deletion: %w", err)
 	}

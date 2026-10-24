@@ -15,22 +15,20 @@ const (
 	anonymizedLastName  = "Benutzer"
 )
 
-func (s *StudentStore) CountGuardianLinks(ctx context.Context, studentID, personID int64) (int, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+func (s *StudentStore) CountGuardianLinks(ctx context.Context, studentID int64) (int, domain.OperationStats, error) {
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return 0, domain.OperationStats{}, err
 	}
-	if err := requireStudentWriteTenant(tenantID); err != nil {
+	if err := requireStudentWriteTenant(scope.TenantID); err != nil {
 		return 0, domain.OperationStats{}, err
 	}
 	var count int
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	err = db.NewRaw(`
-		SELECT (
-			(SELECT COUNT(*) FROM users.student_guardian_relationships WHERE tenant_id = ? AND student_id = ?) +
-			(SELECT COUNT(*) FROM users.persons_guardians WHERE tenant_id = ? AND person_id = ?)
-		)::int`, tenantID, studentID, tenantID, personID).Scan(ctx, &count)
+		SELECT COUNT(*)::int FROM users.student_guardian_relationships
+		WHERE tenant_id = ? AND student_id = ?`, scope.TenantID, studentID).Scan(ctx, &count)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
 		return 0, stats, fmt.Errorf("people directory postgres: count student guardian links: %w", err)
@@ -39,43 +37,18 @@ func (s *StudentStore) CountGuardianLinks(ctx context.Context, studentID, person
 	return count, stats, nil
 }
 
-func (s *StudentStore) DeleteLegacyGuardianLinks(ctx context.Context, personID int64) (int64, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
-	if err != nil {
-		return 0, domain.OperationStats{}, err
-	}
-	if err := requireStudentWriteTenant(tenantID); err != nil {
-		return 0, domain.OperationStats{}, err
-	}
-	stats := domain.OperationStats{Queries: 1}
-	started := time.Now()
-	result, err := db.NewDelete().TableExpr(`users.persons_guardians AS "person_guardian"`).
-		Where(`"person_guardian".tenant_id = ?`, tenantID).
-		Where(`"person_guardian".person_id = ?`, personID).
-		Exec(ctx)
-	stats.StatementDuration = time.Since(started)
-	if err != nil {
-		return 0, stats, fmt.Errorf("people directory postgres: delete legacy guardian links: %w", err)
-	}
-	stats.Rows, err = result.RowsAffected()
-	if err != nil {
-		return 0, stats, fmt.Errorf("people directory postgres: delete legacy guardian links: count rows: %w", err)
-	}
-	return stats.Rows, stats, nil
-}
-
 func (s *StudentStore) Delete(ctx context.Context, id int64) (int64, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return 0, domain.OperationStats{}, err
 	}
-	if err := requireStudentWriteTenant(tenantID); err != nil {
+	if err := requireStudentWriteTenant(scope.TenantID); err != nil {
 		return 0, domain.OperationStats{}, err
 	}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	result, err := db.NewDelete().TableExpr(`users.student_profiles AS "student"`).
-		Where(`"student".tenant_id = ?`, tenantID).
+		Where(`"student".tenant_id = ?`, scope.TenantID).
 		Where(`"student".id = ?`, id).
 		Exec(ctx)
 	stats.StatementDuration = time.Since(started)
@@ -93,11 +66,11 @@ func (s *StudentStore) Delete(ctx context.Context, id int64) (int64, domain.Oper
 // updated_at predicate closes the race between the previewed name the actor
 // confirmed and a concurrent person edit; a moved row leaves zero rows.
 func (s *Store) AnonymizeIfUnchanged(ctx context.Context, personID int64, updatedAt time.Time) (bool, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return false, domain.OperationStats{}, err
 	}
-	if tenantID <= 0 {
+	if scope.TenantID <= 0 {
 		return false, domain.OperationStats{}, fmt.Errorf("people directory postgres: tenant is required to anonymize a person")
 	}
 	stats := domain.OperationStats{Queries: 1}
@@ -112,7 +85,7 @@ func (s *Store) AnonymizeIfUnchanged(ctx context.Context, personID int64, update
 		Set(`deleted_at = NOW()`).
 		Where(`"person".id = ?`, personID).
 		Where(`"person".updated_at = ?`, updatedAt).
-		Where(`"person".deleted_at IS NULL`), tenantID).
+		Where(`"person".deleted_at IS NULL`), scope).
 		Exec(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {

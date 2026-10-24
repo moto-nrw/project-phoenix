@@ -373,6 +373,8 @@ describe("ParentLoginPage i18n", () => {
     it("shows no hand-over banner on a plain visit", () => {
       render(<ParentLoginPage />);
 
+      // Anker: das Anmeldeformular des Elternportals ist gerendert.
+      expect(screen.getByLabelText("Email address")).toBeInTheDocument();
       expect(
         screen.queryByText(/Parent accounts sign in here/),
       ).not.toBeInTheDocument();

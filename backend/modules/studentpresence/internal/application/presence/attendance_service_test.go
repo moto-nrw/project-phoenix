@@ -23,11 +23,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/api"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -57,14 +56,14 @@ func TestGetStudentAttendanceStatus_NotCheckedIn(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "NotCheckedIn", "Student", "2a")
 
 	// ACT: Get attendance status for student without check-in
-	result, err := service.GetStudentAttendanceStatus(ctx, student.ID)
+	result, err := testpkg.TenantQuery1(t, ctx, db, service.GetStudentAttendanceStatus, student.ID)
 
 	// ASSERT
 	require.NoError(t, err)
 	assert.Equal(t, student.ID, result.StudentID)
 	assert.Equal(t, "not_checked_in", result.Status)
 	// Service uses timezone.TodayDate() — today's Berlin calendar day
-	expectedDate := timezone.NewDate(2026, 8, 24)
+	expectedDate := calendar.NewDate(2026, 8, 24)
 	assert.Equal(t, expectedDate, result.Date)
 	assert.Nil(t, result.CheckInTime)
 	assert.Nil(t, result.CheckOutTime)
@@ -83,7 +82,7 @@ func TestGetStudentAttendanceStatus_ReadFailureReturnsError(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "AttendanceRead", "Failure", "2a")
 	require.NoError(t, db.Close())
 
-	result, err := service.GetStudentAttendanceStatus(ctx, student.ID)
+	result, err := testpkg.TenantQuery1(t, ctx, db, service.GetStudentAttendanceStatus, student.ID)
 
 	require.Error(t, err)
 	assert.Nil(t, result)
@@ -109,7 +108,7 @@ func TestGetStudentAttendanceStatus_CheckedIn(t *testing.T) {
 	testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, checkInTime, nil)
 
 	// ACT: Get attendance status
-	result, err := service.GetStudentAttendanceStatus(ctx, student.ID)
+	result, err := testpkg.TenantQuery1(t, ctx, db, service.GetStudentAttendanceStatus, student.ID)
 
 	// ASSERT
 	require.NoError(t, err)
@@ -140,7 +139,7 @@ func TestGetStudentAttendanceStatus_CheckedOut(t *testing.T) {
 	testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, checkInTime, &checkOutTime)
 
 	// ACT: Get attendance status
-	result, err := service.GetStudentAttendanceStatus(ctx, student.ID)
+	result, err := testpkg.TenantQuery1(t, ctx, db, service.GetStudentAttendanceStatus, student.ID)
 
 	// ASSERT
 	require.NoError(t, err)
@@ -179,7 +178,7 @@ func TestGetStudentsAttendanceStatuses(t *testing.T) {
 
 	// ACT: Get statuses for all three students
 	studentIDs := []int64{studentNotCheckedIn.ID, studentCheckedIn.ID, studentCheckedOut.ID}
-	statuses, err := service.GetStudentsAttendanceStatuses(ctx, studentIDs)
+	statuses, err := testpkg.TenantQuery1(t, ctx, db, service.GetStudentsAttendanceStatuses, studentIDs)
 
 	// ASSERT
 	require.NoError(t, err)
@@ -218,7 +217,7 @@ func TestGetStudentsAttendanceStatuses_EmptyInput(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	// ACT: Get statuses with empty input
-	statuses, err := service.GetStudentsAttendanceStatuses(ctx, []int64{})
+	statuses, err := testpkg.TenantQuery1(t, ctx, db, service.GetStudentsAttendanceStatuses, []int64{})
 
 	// ASSERT
 	require.NoError(t, err)
@@ -245,7 +244,7 @@ func TestToggleStudentAttendance_CheckIn(t *testing.T) {
 
 	// ACT: Toggle attendance (should check in)
 	// skipAuthCheck=true to bypass authorization for testing
-	result, err := service.ToggleStudentAttendance(ctx, student.ID, staff.ID, device.ID, true)
+	result, err := testpkg.TenantQuery4(t, ctx, db, service.ToggleStudentAttendance, student.ID, staff.ID, device.ID, true)
 
 	// ASSERT
 	require.NoError(t, err)
@@ -270,7 +269,7 @@ func TestToggleStudentAttendance_CheckInWithZeroStaffID(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "DeviceOnly", "CheckIn", "4d")
 	testDevice := testpkg.CreateTestDevice(t, db, "toggle-device-without-staff")
 
-	result, err := service.ToggleStudentAttendance(ctx, student.ID, 0, testDevice.ID, true)
+	result, err := testpkg.TenantQuery4(t, ctx, db, service.ToggleStudentAttendance, student.ID, 0, testDevice.ID, true)
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -307,7 +306,7 @@ func TestToggleStudentAttendance_CheckOut(t *testing.T) {
 	testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, checkInTime, nil)
 
 	// ACT: Toggle attendance (should check out)
-	result, err := service.ToggleStudentAttendance(ctx, student.ID, staff.ID, device.ID, true)
+	result, err := testpkg.TenantQuery4(t, ctx, db, service.ToggleStudentAttendance, student.ID, staff.ID, device.ID, true)
 
 	// ASSERT
 	require.NoError(t, err)
@@ -329,19 +328,19 @@ func TestToggleStudentAttendance_CareEndedChildCanOnlyCheckOut(t *testing.T) {
 
 	_, err := db.NewUpdate().
 		TableExpr("users.student_school_memberships").
-		Set("enrolled_until = ?", timezone.TodayDate().AddDays(-1)).
+		Set("enrolled_until = ?", calendar.TodayDate().AddDays(-1)).
 		Where("student_profile_id = ? AND deleted_at IS NULL", student.ID).
 		Exec(ctx)
 	require.NoError(t, err)
 
 	// A new attendance row remains forbidden once care has ended.
-	_, err = service.ToggleStudentAttendance(ctx, student.ID, staff.ID, device.ID, true)
+	_, err = testpkg.TenantQuery4(t, ctx, db, service.ToggleStudentAttendance, student.ID, staff.ID, device.ID, true)
 	require.ErrorIs(t, err, activeService.ErrStudentCareEnded)
 
 	// An already-open presence must still be closable; otherwise the child is
 	// stranded as present until asynchronous cleanup catches up.
 	testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, time.Now().Add(-time.Hour), nil)
-	result, err := service.ToggleStudentAttendance(ctx, student.ID, staff.ID, device.ID, true)
+	result, err := testpkg.TenantQuery4(t, ctx, db, service.ToggleStudentAttendance, student.ID, staff.ID, device.ID, true)
 	require.NoError(t, err)
 	assert.Equal(t, "checked_out", result.Action)
 }
@@ -367,7 +366,7 @@ func TestToggleStudentAttendance_CheckOutWithZeroStaffID(t *testing.T) {
 
 	// ACT: Toggle attendance with staffID=0, skipAuthCheck=true
 	// This triggers performCheckOut with staffID=0, exercising the guard
-	result, err := service.ToggleStudentAttendance(ctx, student.ID, 0, testDevice.ID, true)
+	result, err := testpkg.TenantQuery4(t, ctx, db, service.ToggleStudentAttendance, student.ID, 0, testDevice.ID, true)
 
 	// ASSERT
 	require.NoError(t, err)
@@ -376,7 +375,7 @@ func TestToggleStudentAttendance_CheckOutWithZeroStaffID(t *testing.T) {
 	assert.Equal(t, student.ID, result.StudentID)
 
 	// Verify the attendance record has nil CheckedOutBy (staffID=0 should NOT be written)
-	status, err := service.GetStudentAttendanceStatus(ctx, student.ID)
+	status, err := testpkg.TenantQuery1(t, ctx, db, service.GetStudentAttendanceStatus, student.ID)
 	require.NoError(t, err)
 	assert.Equal(t, "checked_out", status.Status)
 	assert.Empty(t, status.CheckedOutBy, "CheckedOutBy should be empty when staffID is 0")
@@ -402,7 +401,7 @@ func TestToggleStudentAttendance_ReCheckIn(t *testing.T) {
 	testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, checkInTime, &checkOutTime)
 
 	// ACT: Toggle attendance (should re-check in)
-	result, err := service.ToggleStudentAttendance(ctx, student.ID, staff.ID, device.ID, true)
+	result, err := testpkg.TenantQuery4(t, ctx, db, service.ToggleStudentAttendance, student.ID, staff.ID, device.ID, true)
 
 	// ASSERT
 	require.NoError(t, err)
@@ -436,7 +435,7 @@ func TestToggleStudentAttendance_WebAuthorizationPath(t *testing.T) {
 
 		// ACT: Toggle attendance without skipAuthCheck
 		// In a normal (non-IoT) context, this triggers the web toggle path
-		result, err := service.ToggleStudentAttendance(ctx, student.ID, staff.ID, 0, false)
+		result, err := testpkg.TenantQuery4(t, ctx, db, service.ToggleStudentAttendance, student.ID, staff.ID, 0, false)
 
 		// ASSERT: The toggle checks the student in, attributed to the staff member
 		require.NoError(t, err)
@@ -465,7 +464,7 @@ func TestGetUnclaimedActiveGroups(t *testing.T) {
 		testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 
 		// ACT
-		groups, err := service.GetUnclaimedActiveGroups(ctx)
+		groups, err := testpkg.TenantQuery0(t, ctx, db, service.GetUnclaimedActiveGroups)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -499,7 +498,7 @@ func TestClaimActiveGroup(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Claim", "Staff")
 
 		// ACT
-		supervisor, err := service.ClaimActiveGroup(ctx, activeGroup.ID, staff.ID, "supervisor")
+		supervisor, err := testpkg.TenantQuery3(t, ctx, db, service.ClaimActiveGroup, activeGroup.ID, staff.ID, "supervisor")
 
 		// ASSERT
 		require.NoError(t, err)
@@ -517,7 +516,7 @@ func TestClaimActiveGroup(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "DefaultRole", "Staff")
 
 		// ACT - pass empty role
-		supervisor, err := service.ClaimActiveGroup(ctx, activeGroup.ID, staff.ID, "")
+		supervisor, err := testpkg.TenantQuery3(t, ctx, db, service.ClaimActiveGroup, activeGroup.ID, staff.ID, "")
 
 		// ASSERT
 		require.NoError(t, err)
@@ -530,10 +529,11 @@ func TestClaimActiveGroup(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "NotFound", "Staff")
 
 		// ACT
-		_, err := service.ClaimActiveGroup(ctx, 99999999, staff.ID, "supervisor")
+		supervisor, err := testpkg.TenantQuery3(t, ctx, db, service.ClaimActiveGroup, 99999999, staff.ID, "supervisor")
 
 		// ASSERT
 		require.Error(t, err)
+		assert.Nil(t, supervisor)
 		assert.Contains(t, err.Error(), "not found")
 	})
 
@@ -545,11 +545,11 @@ func TestClaimActiveGroup(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "EndedGroup", "Staff")
 
 		// End the group
-		err := service.EndActivitySession(ctx, activeGroup.ID)
+		err := testpkg.TenantCommand1(t, ctx, db, service.EndActivitySession, activeGroup.ID)
 		require.NoError(t, err)
 
 		// ACT - try to claim ended group
-		_, err = service.ClaimActiveGroup(ctx, activeGroup.ID, staff.ID, "supervisor")
+		_, err = testpkg.TenantQuery3(t, ctx, db, service.ClaimActiveGroup, activeGroup.ID, staff.ID, "supervisor")
 
 		// ASSERT
 		require.Error(t, err)
@@ -564,11 +564,11 @@ func TestClaimActiveGroup(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Duplicate", "Staff")
 
 		// First claim
-		_, err := service.ClaimActiveGroup(ctx, activeGroup.ID, staff.ID, "supervisor")
+		_, err := testpkg.TenantQuery3(t, ctx, db, service.ClaimActiveGroup, activeGroup.ID, staff.ID, "supervisor")
 		require.NoError(t, err)
 
 		// ACT - try to claim again
-		_, err = service.ClaimActiveGroup(ctx, activeGroup.ID, staff.ID, "supervisor")
+		_, err = testpkg.TenantQuery3(t, ctx, db, service.ClaimActiveGroup, activeGroup.ID, staff.ID, "supervisor")
 
 		// ASSERT
 		require.Error(t, err)
@@ -609,7 +609,7 @@ func TestCheckRoomSupervisorAccess(t *testing.T) {
 
 		// ACT: Try to toggle attendance without skipAuthCheck
 		// This will exercise the checkRoomSupervisorAccess path
-		result, err := service.ToggleStudentAttendance(ctx, student.ID, staff.ID, device.ID, false)
+		result, err := testpkg.TenantQuery4(t, ctx, db, service.ToggleStudentAttendance, student.ID, staff.ID, device.ID, false)
 
 		// ASSERT: Should succeed because staff is supervising the room
 		require.NoError(t, err)
@@ -657,11 +657,11 @@ func TestToggleStudentAttendance_IoTDevice(t *testing.T) {
 		testpkg.CreateTestGroupSupervisor(t, db, staff.ID, activeGroup.ID, "supervisor")
 
 		// Create IoT device context using device package constants
-		ctx := services.WithIoTAttendanceRequest(testpkg.Ctx(t))
-		ctx = services.WithAttendanceDevice(ctx, testDevice.ID, testDevice.TenantID)
+		ctx := api.WithIoTAttendanceRequest(testpkg.Ctx(t))
+		ctx = api.WithAttendanceDevice(ctx, testDevice.ID, testDevice.TenantID)
 
 		// ACT: Toggle attendance (check-in)
-		result, err := service.ToggleStudentAttendance(ctx, student.ID, 0, testDevice.ID, false)
+		result, err := testpkg.TenantQuery4(t, ctx, db, service.ToggleStudentAttendance, student.ID, 0, testDevice.ID, false)
 
 		// ASSERT: Should succeed - IoT device with active group and supervisor
 		require.NoError(t, err)
@@ -675,11 +675,11 @@ func TestToggleStudentAttendance_IoTDevice(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "IoTNoGroup", "Student", "12b")
 
 		// Create IoT device context using device package constants
-		ctx := services.WithIoTAttendanceRequest(testpkg.Ctx(t))
-		ctx = services.WithAttendanceDevice(ctx, testDevice.ID, testDevice.TenantID)
+		ctx := api.WithIoTAttendanceRequest(testpkg.Ctx(t))
+		ctx = api.WithAttendanceDevice(ctx, testDevice.ID, testDevice.TenantID)
 
 		// ACT: Toggle attendance
-		_, err := service.ToggleStudentAttendance(ctx, student.ID, 0, testDevice.ID, false)
+		_, err := testpkg.TenantQuery4(t, ctx, db, service.ToggleStudentAttendance, student.ID, 0, testDevice.ID, false)
 
 		// ASSERT: Should fail - no active group for device
 		require.Error(t, err)
@@ -720,7 +720,7 @@ func TestGetStudentAttendanceStatus_WithStaffNames(t *testing.T) {
 		require.NoError(t, err)
 
 		// ACT
-		result, err := service.GetStudentAttendanceStatus(ctx, student.ID)
+		result, err := testpkg.TenantQuery1(t, ctx, db, service.GetStudentAttendanceStatus, student.ID)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -757,7 +757,7 @@ func TestCheckInStudent_FreshCheckIn(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, db, "Action", "Staff")
 	device := testpkg.CreateTestDevice(t, db, "action-device-001")
 
-	result, err := service.CheckInStudent(ctx, student.ID, staff.ID, device.ID, true)
+	result, err := testpkg.TenantQuery4(t, ctx, db, service.CheckInStudent, student.ID, staff.ID, device.ID, true)
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -787,7 +787,7 @@ func TestCheckInStudent_AlreadyCheckedIn_ReturnsExistingRow(t *testing.T) {
 
 	// Second "in" call must NOT flip to checkout — it must return success
 	// pointing at the already-open row.
-	result, err := service.CheckInStudent(ctx, student.ID, staff.ID, device.ID, true)
+	result, err := testpkg.TenantQuery4(t, ctx, db, service.CheckInStudent, student.ID, staff.ID, device.ID, true)
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -811,7 +811,7 @@ func TestCheckOutStudent_ClosesOpenRow(t *testing.T) {
 	checkInTime := time.Now().Add(-1 * time.Hour)
 	open := testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, checkInTime, nil)
 
-	result, err := service.CheckOutStudent(ctx, student.ID, staff.ID, true)
+	result, err := testpkg.TenantQuery3(t, ctx, db, service.CheckOutStudent, student.ID, staff.ID, true)
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -819,7 +819,7 @@ func TestCheckOutStudent_ClosesOpenRow(t *testing.T) {
 	assert.Equal(t, open.ID, result.AttendanceID, "should point at the row we closed")
 
 	// Confirm the row is actually closed in the DB now.
-	status, err := service.GetStudentAttendanceStatus(ctx, student.ID)
+	status, err := testpkg.TenantQuery1(t, ctx, db, service.GetStudentAttendanceStatus, student.ID)
 	require.NoError(t, err)
 	assert.Equal(t, "checked_out", status.Status)
 	assert.NotNil(t, status.CheckOutTime)
@@ -853,7 +853,7 @@ func TestCheckOutStudentFromDevice_ClosesOpenRowWithSupervisor(t *testing.T) {
 	checkInTime := time.Now().Add(-1 * time.Hour)
 	open := testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, checkInTime, nil)
 
-	result, err := service.CheckOutStudentFromDevice(ctx, student.ID, device.ID)
+	result, err := testpkg.TenantQuery2(t, ctx, db, service.CheckOutStudentFromDevice, student.ID, device.ID)
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -902,7 +902,7 @@ func TestCheckOutStudentFromDevice_ClosesOpenRowWithoutActiveSupervisor(t *testi
 					_, err = db.NewUpdate().
 						Model(supervisor).
 						ModelTableExpr(`active.group_supervisors`).
-						Set("end_date = ?", timezone.TodayDate().AddDays(-1)).
+						Set("end_date = ?", calendar.TodayDate().AddDays(-1)).
 						Where("id = ?", supervisor.ID).
 						Exec(context.Background())
 					require.NoError(t, err)
@@ -910,7 +910,7 @@ func TestCheckOutStudentFromDevice_ClosesOpenRowWithoutActiveSupervisor(t *testi
 			}
 
 			open := testpkg.CreateTestAttendance(t, db, student.ID, checkInStaff.ID, deviceRec.ID, time.Now().Add(-time.Hour), nil)
-			result, err := service.CheckOutStudentFromDevice(ctx, student.ID, deviceRec.ID)
+			result, err := testpkg.TenantQuery2(t, ctx, db, service.CheckOutStudentFromDevice, student.ID, deviceRec.ID)
 
 			require.NoError(t, err)
 			require.NotNil(t, result)
@@ -940,9 +940,9 @@ func TestCheckOutStudentFromDevice_PrefersAuthenticatedStaff(t *testing.T) {
 	checkInStaff := testpkg.CreateTestStaff(t, db, "Device", "InitialStaff")
 	authenticatedStaff := testpkg.CreateTestStaff(t, db, "Device", "AuthenticatedStaff")
 	open := testpkg.CreateTestAttendance(t, db, student.ID, checkInStaff.ID, deviceRec.ID, time.Now().Add(-time.Hour), nil)
-	ctx = services.WithAttendanceStaff(ctx, authenticatedStaff.ID, authenticatedStaff.TenantID)
+	ctx = api.WithAttendanceStaff(ctx, authenticatedStaff.ID, authenticatedStaff.TenantID)
 
-	result, err := service.CheckOutStudentFromDevice(ctx, student.ID, deviceRec.ID)
+	result, err := testpkg.TenantQuery2(t, ctx, db, service.CheckOutStudentFromDevice, student.ID, deviceRec.ID)
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -966,14 +966,18 @@ func TestCheckOutStudentFromDevice_DoesNotSwallowSupervisorLookupFailure(t *test
 	student := testpkg.CreateTestStudent(t, db, "Device", "LookupError", "5k")
 	staff := testpkg.CreateTestStaff(t, db, "Device", "LookupErrorStaff")
 	open := testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, deviceRec.ID, time.Now().Add(-time.Hour), nil)
-	ctx, cancel := context.WithCancel(testpkg.Ctx(t))
-	cancel()
+	require.NoError(t, testpkg.WithinTenantContext(t, testpkg.Ctx(t), db, testpkg.Tenant(t), func(txCtx context.Context) error {
+		ctx, cancel := context.WithCancel(txCtx)
+		cancel()
 
-	result, err := service.CheckOutStudentFromDevice(ctx, student.ID, deviceRec.ID)
+		result, err := service.CheckOutStudentFromDevice(ctx, student.ID, deviceRec.ID)
 
-	require.Error(t, err)
-	assert.Nil(t, result)
-	assert.Contains(t, err.Error(), "resolve daily checkout staff attribution")
+		require.Error(t, err)
+		assert.Nil(t, result)
+		assert.Contains(t, err.Error(), "resolve daily checkout staff attribution")
+
+		return nil
+	}))
 
 	row, err := testSchoolPresence(t, db).FindAttendance(testpkg.Ctx(t), open.ID)
 	require.NoError(t, err)
@@ -997,7 +1001,7 @@ func TestCheckOutStudent_NoOpenRow_IsIdempotent(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, db, "Action", "Staff4")
 
 	// Student has no attendance row at all today.
-	result, err := service.CheckOutStudent(ctx, student.ID, staff.ID, true)
+	result, err := testpkg.TenantQuery3(t, ctx, db, service.CheckOutStudent, student.ID, staff.ID, true)
 
 	require.NoError(t, err, "no open row must be a successful no-op, not an error")
 	require.NotNil(t, result)
@@ -1026,7 +1030,7 @@ func TestCheckOutStudent_AlreadyCheckedOut_IsIdempotent(t *testing.T) {
 	checkOutTime := time.Now().Add(-30 * time.Minute)
 	testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, checkInTime, &checkOutTime)
 
-	result, err := service.CheckOutStudent(ctx, student.ID, staff.ID, true)
+	result, err := testpkg.TenantQuery3(t, ctx, db, service.CheckOutStudent, student.ID, staff.ID, true)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	assert.Equal(t, "checked_out", result.Action)
@@ -1061,14 +1065,14 @@ func TestCheckOutStudent_EndsOpenVisit(t *testing.T) {
 	testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, checkInTime, nil)
 	visit := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, checkInTime, nil)
 
-	result, err := service.CheckOutStudent(ctx, student.ID, staff.ID, true)
+	result, err := testpkg.TenantQuery3(t, ctx, db, service.CheckOutStudent, student.ID, staff.ID, true)
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	assert.Equal(t, "checked_out", result.Action)
 
 	// Attendance is closed AND the visit is ended in the same operation.
-	status, err := service.GetStudentAttendanceStatus(ctx, student.ID)
+	status, err := testpkg.TenantQuery1(t, ctx, db, service.GetStudentAttendanceStatus, student.ID)
 	require.NoError(t, err)
 	assert.Equal(t, "checked_out", status.Status)
 
@@ -1102,7 +1106,7 @@ func TestCheckOutStudent_NoOpenAttendance_HealsOrphanVisit(t *testing.T) {
 	testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, checkInTime, &checkOutTime)
 	visit := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, checkInTime, nil)
 
-	result, err := service.CheckOutStudent(ctx, student.ID, staff.ID, true)
+	result, err := testpkg.TenantQuery3(t, ctx, db, service.CheckOutStudent, student.ID, staff.ID, true)
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -1136,7 +1140,7 @@ func TestToggleStudentAttendance_CheckOut_EndsOpenVisit(t *testing.T) {
 	testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, checkInTime, nil)
 	visit := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, checkInTime, nil)
 
-	result, err := service.ToggleStudentAttendance(ctx, student.ID, staff.ID, device.ID, true)
+	result, err := testpkg.TenantQuery4(t, ctx, db, service.ToggleStudentAttendance, student.ID, staff.ID, device.ID, true)
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -1160,7 +1164,7 @@ func TestConfirmDailyCheckout_NoAttendanceRecord(t *testing.T) {
 
 	student := testpkg.CreateTestStudent(t, db, "DailyCheckout", "NoRecord", "7a")
 
-	result, err := service.ConfirmDailyCheckout(ctx, student.ID, 0, "zuhause")
+	result, err := testpkg.TenantQuery3(t, ctx, db, service.ConfirmDailyCheckout, student.ID, 0, "zuhause")
 
 	require.Error(t, err)
 	require.ErrorIs(t, err, activeService.ErrNoAttendanceRecordForCheckout)
@@ -1185,14 +1189,14 @@ func TestConfirmDailyCheckout_Unterwegs(t *testing.T) {
 	checkInTime := time.Now().Add(-1 * time.Hour)
 	testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, checkInTime, nil)
 
-	result, err := service.ConfirmDailyCheckout(ctx, student.ID, device.ID, "unterwegs")
+	result, err := testpkg.TenantQuery3(t, ctx, db, service.ConfirmDailyCheckout, student.ID, device.ID, "unterwegs")
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	assert.Equal(t, "checked_out", result.Action)
 
 	// Attendance must remain checked in — "unterwegs" performs no write.
-	status, err := service.GetStudentAttendanceStatus(ctx, student.ID)
+	status, err := testpkg.TenantQuery1(t, ctx, db, service.GetStudentAttendanceStatus, student.ID)
 	require.NoError(t, err)
 	assert.Equal(t, "checked_in", status.Status)
 }

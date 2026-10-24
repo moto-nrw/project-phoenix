@@ -7,9 +7,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/classday"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Enrollment's day roster no longer carries the roster's per-day departure
@@ -49,7 +49,7 @@ func TestBuildClassDayReportProjection(t *testing.T) {
 	}
 	statuses := map[int64]string{3: statusDaySick}
 
-	report := buildClassDayReport("1a", timezone.NewDate(2026, 8, 5), "Schuljahr 2026/27", rows, classDayFacts{
+	report := buildClassDayReport("1a", calendar.NewDate(2026, 8, 5), "Schuljahr 2026/27", rows, classDayFacts{
 		statuses:   statuses,
 		departures: map[int64]string{1: "Abholung"},
 		pickups:    map[int64]string{1: "16:00"},
@@ -91,7 +91,7 @@ func TestBuildClassDayReportWeekend(t *testing.T) {
 		OfferingsByDay: map[string][]string{"mon": {"Ganztag"}},
 	}}
 
-	report := buildClassDayReport("1a", timezone.NewDate(2026, 8, 8), "", rows, classDayFacts{
+	report := buildClassDayReport("1a", calendar.NewDate(2026, 8, 8), "", rows, classDayFacts{
 		// Even a departure fact must not reach a weekend row.
 		departures: map[int64]string{1: "Bus"},
 	})
@@ -117,7 +117,7 @@ func TestBuildClassDayReportNotScheduledOverridesOffering(t *testing.T) {
 		OfferingsByDay: map[string][]string{"wed": {"Ganztag"}},
 	}}
 
-	report := buildClassDayReport("1a", timezone.NewDate(2026, 8, 5), "Schuljahr", rows, classDayFacts{notScheduled: map[int64]bool{1: true}})
+	report := buildClassDayReport("1a", calendar.NewDate(2026, 8, 5), "Schuljahr", rows, classDayFacts{notScheduled: map[int64]bool{1: true}})
 
 	require.Len(t, report.Rows, 1)
 	// The approved offering still lists Wednesday, but the parents struck
@@ -146,7 +146,7 @@ func TestClassDayReportRendersUnknownForUnplannedDay(t *testing.T) {
 		2: classDayDeparture(weekdayDepartureModes(nil, nil, "wed"), "wed", nil, nil),
 	}
 
-	report := buildClassDayReport("1a", timezone.NewDate(2026, 8, 5), "Schuljahr", rows, classDayFacts{departures: departures})
+	report := buildClassDayReport("1a", calendar.NewDate(2026, 8, 5), "Schuljahr", rows, classDayFacts{departures: departures})
 
 	require.Len(t, report.Rows, 2)
 	// A Wednesday sheet must neither print a Monday-only plan value nor
@@ -166,7 +166,7 @@ func TestBuildClassDayReportCarriesPickupDeviation(t *testing.T) {
 		{StudentID: 2, LastName: "Bosch", Registered: true, OfferingsByDay: map[string][]string{"wed": {"Ganztag"}}},
 	}
 
-	report := buildClassDayReport("1a", timezone.NewDate(2026, 8, 5), "Schuljahr", rows, classDayFacts{
+	report := buildClassDayReport("1a", calendar.NewDate(2026, 8, 5), "Schuljahr", rows, classDayFacts{
 		pickups:         map[int64]string{1: "12:15", 2: "15:00"},
 		pickupChanged:   map[int64]bool{1: true},
 		pickupRegular:   map[int64]string{1: "15:00"},
@@ -197,7 +197,7 @@ func TestBuildClassDayReportReportedAtFollowsStatus(t *testing.T) {
 	pickupStamp := time.Date(2026, 8, 4, 16, 0, 0, 0, time.UTC)
 	rows := []DayRosterRow{{StudentID: 1, Registered: true, OfferingsByDay: map[string][]string{"wed": {"Ganztag"}}}}
 
-	report := buildClassDayReport("1a", timezone.NewDate(2026, 8, 5), "Schuljahr", rows, classDayFacts{
+	report := buildClassDayReport("1a", calendar.NewDate(2026, 8, 5), "Schuljahr", rows, classDayFacts{
 		statuses:         map[int64]string{1: statusDaySick},
 		statusReportedAt: map[int64]time.Time{1: statusStamp},
 		pickupChanged:    map[int64]bool{1: true},
@@ -217,7 +217,7 @@ func TestBuildClassDayReportListEntryHasNoDeviation(t *testing.T) {
 
 	rows := []DayRosterRow{{ListEntry: true, ListEntryID: 42, LastName: "Cole"}}
 
-	report := buildClassDayReport("1a", timezone.NewDate(2026, 8, 5), "Schuljahr", rows, classDayFacts{
+	report := buildClassDayReport("1a", calendar.NewDate(2026, 8, 5), "Schuljahr", rows, classDayFacts{
 		pickupChanged: map[int64]bool{0: true},
 		pickupRegular: map[int64]string{0: "15:00"},
 	})
@@ -248,7 +248,7 @@ func TestBuildClassDayReportListEntryProjection(t *testing.T) {
 		},
 	}
 
-	report := buildClassDayReport("1a", timezone.NewDate(2026, 8, 5), "Schuljahr", rows, newClassDayFacts())
+	report := buildClassDayReport("1a", calendar.NewDate(2026, 8, 5), "Schuljahr", rows, newClassDayFacts())
 
 	require.Len(t, report.Rows, 2)
 	entryRow := report.Rows[1]

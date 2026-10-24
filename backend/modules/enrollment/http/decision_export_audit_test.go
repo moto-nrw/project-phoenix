@@ -6,11 +6,11 @@ import (
 	"testing"
 	"time"
 
-	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
-
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-
+	"github.com/moto-nrw/project-phoenix/api"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
+	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -18,11 +18,11 @@ import (
 // captures the rows written, so the export-audit unit tests assert the
 // shape of the row without a database.
 type stubAccessLogRepo struct {
-	entries []*testutil.EnrollmentFlowDataAccessLog
+	entries []*api.EnrollmentFlowDataAccessLog
 	err     error
 }
 
-func (s *stubAccessLogRepo) Create(_ context.Context, entry *testutil.EnrollmentFlowDataAccessLog) error {
+func (s *stubAccessLogRepo) Create(_ context.Context, entry *api.EnrollmentFlowDataAccessLog) error {
 	if s.err != nil {
 		return s.err
 	}
@@ -46,10 +46,10 @@ func samplePhaseForAudit() *enrollmentModels.Phase {
 	return p
 }
 
-func newAuditDecisionService(repo testutil.EnrollmentFlowDataAccessLogs) enrollmentAPI.DecisionService {
-	return newTestDecisionService(testutil.EnrollmentDecisionSources{
-		DataAccessLog: repo,
-	})
+func newAuditDecisionService(repo api.EnrollmentFlowDataAccessLogs) enrollmentAPI.DecisionService {
+	return enrollmentAPI.NewDecisionService(enrollmentCompose.PublicDecisions(newTestDecisions(enrollmentCompose.DecisionDependencies{
+		AccessLog: owners.EnrollmentDecisionAccessLog(repo),
+	}, nil)))
 }
 
 func TestRecordPhaseExportAudit_WritesRowWithPhaseWindowAndMetadata(t *testing.T) {
@@ -68,8 +68,8 @@ func TestRecordPhaseExportAudit_WritesRowWithPhaseWindowAndMetadata(t *testing.T
 	}
 	e := repo.entries[0]
 
-	if e.ResourceType != testutil.EnrollmentFlowPhaseExportResource {
-		t.Errorf("resource_type = %q, want %q", e.ResourceType, testutil.EnrollmentFlowPhaseExportResource)
+	if e.ResourceType != api.EnrollmentFlowPhaseExportResource {
+		t.Errorf("resource_type = %q, want %q", e.ResourceType, api.EnrollmentFlowPhaseExportResource)
 	}
 	if e.ActorAccountID != 4242 {
 		t.Errorf("actor_account_id = %d, want 4242", e.ActorAccountID)

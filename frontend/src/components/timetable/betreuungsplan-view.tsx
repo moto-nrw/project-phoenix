@@ -79,6 +79,7 @@ import { resolveDemandOrigin } from "~/components/timetable/demand-origin";
 import { WeeklyCalendarGrid } from "~/components/timetable/weekly-calendar-grid";
 import { staffNamesFromOverview } from "~/components/timetable/block-staff-names";
 import { hasPermission } from "~/lib/auth-utils";
+import { canGrantExternalViewAccess } from "~/lib/external-caregiver-access";
 import { useClosingDaysState } from "~/lib/hooks/use-closing-days";
 import { useTimetableDayHours } from "~/lib/hooks/use-timetable-day-hours";
 import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
@@ -107,6 +108,7 @@ import {
 import { timetableService } from "~/lib/timetable-api";
 import {
   DENSITY_TO_HOUR_HEIGHT_PX,
+  DENSITY_TO_LANE_MIN_WIDTH_PX,
   chunkDateRange,
   firstSchoolDayInPeriod,
   formatFullDayLabel,
@@ -237,6 +239,10 @@ function TimetablesContent() {
   // Perioden-Bootstrap an schedules:create — keine Proxy-Permissions.
   const canReadEnrollmentPhases = hasPermission(session, "config:read");
   const canBootstrapPeriods = hasPermission(session, "schedules:create");
+  // Externe Person im Schritt „Personal“ eintragen (#4573): dasselbe Recht
+  // wie POST /api/staff/externals.
+  const canCreateExternalCaregiver = hasPermission(session, "users:create");
+  const canGrantExternalView = canGrantExternalViewAccess(session);
   const canManageCategories = hasPermission(
     session,
     "activities:manage_categories",
@@ -314,10 +320,12 @@ function TimetablesContent() {
   // bootstrap POST from firing twice per mount.
   const bootstrapAttemptedRef = useRef(false);
   // Density picker for the week grid (Kompakt/Normal/Komfortabel maps to
-  // 60/90/120 px per hour). Local-only, never synced to URL (06 §2.1). Der
+  // 60/90/120 px per hour and to the lane width: Kompakt fits the week into
+  // the screen, Normal and Komfortabel keep blocks readable and scroll). Local-only, never synced to URL (06 §2.1). Der
   // Bedienknopf sitzt als Kebab-Menü in der PlanningContextBar-Aktionszeile.
   const [density, setDensity] = useState<WeekDensity>("normal");
   const hourHeightPx = DENSITY_TO_HOUR_HEIGHT_PX[density];
+  const laneMinWidthPx = DENSITY_TO_LANE_MIN_WIDTH_PX[density];
   const { dayStartHour, dayEndHour } = useTimetableDayHours();
 
   const openPeriodCreate = useCallback(() => {
@@ -619,15 +627,15 @@ function TimetablesContent() {
         // mit dem Weg zum Anlegen; ein zusätzlicher Fehler hülfe niemandem.
         // 403 (missing SchedulesCreate permission) is expected for
         // non-admin staff opening the planner — warn instead of error.
-        const httpStatus =
-          typeof err === "object" && err !== null && "httpStatus" in err
-            ? (err as { httpStatus?: unknown }).httpStatus
+        const status =
+          typeof err === "object" && err !== null && "status" in err
+            ? (err as { status?: unknown }).status
             : undefined;
         const context = {
           error: err instanceof Error ? err.message : String(err),
-          ...(typeof httpStatus === "number" ? { status: httpStatus } : {}),
+          ...(typeof status === "number" ? { status } : {}),
         };
-        if (httpStatus === 403) {
+        if (status === 403) {
           logger.warn("periods_bootstrap_failed", context);
         } else {
           logger.error("periods_bootstrap_failed", context);
@@ -1511,10 +1519,11 @@ function TimetablesContent() {
     );
 
   // Dichte-Umschalter als kleines Kebab-Menü in der Aktionszeile (nur in der
-  // Wochenansicht, weil nur das Wochenraster Zeilenhöhen kennt). Reiner
+  // Wochenansicht, weil nur das Wochenraster Zeilenhöhen kennt). Die
+  // Zoomstufe setzt Höhe UND Breite der Blöcke, daher „Darstellung“. Reiner
   // Component-State, kein URL-Parameter (06 §2.1).
   const densityMenuItems: OverflowMenuEntry[] = [
-    { kind: "header", label: "Zeilenhöhe" },
+    { kind: "header", label: "Darstellung" },
     ...DENSITY_OPTIONS.map((opt) => ({
       kind: "radio" as const,
       label: opt.label,
@@ -1722,6 +1731,8 @@ function TimetablesContent() {
         canCheckShiftCoverage={canCheckShiftCoverage}
         canManageCategories={canManageCategories}
         canManagePlanningTracks={canManageSchedules}
+        canCreateExternalCaregiver={canCreateExternalCaregiver}
+        canGrantExternalView={canGrantExternalView}
         isOpen={eventModalOpen}
         onClose={() => {
           setEventModalOpen(false);
@@ -2025,6 +2036,7 @@ function TimetablesContent() {
           dayStartHour={dayStartHour}
           dayEndHour={dayEndHour}
           hourHeightPx={hourHeightPx}
+          laneMinWidthPx={laneMinWidthPx}
           staffNames={blockStaffNames}
           showDayHeader
           emptyState={
@@ -2070,6 +2082,7 @@ function TimetablesContent() {
           dayStartHour={dayStartHour}
           dayEndHour={dayEndHour}
           hourHeightPx={hourHeightPx}
+          laneMinWidthPx={laneMinWidthPx}
           staffNames={blockStaffNames}
           showDayHeader
           emptyState={weekEmptyState}

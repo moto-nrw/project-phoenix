@@ -30,9 +30,9 @@ func (s *RequestCorrections) Correct(ctx context.Context, id int64, approve bool
 	if err != nil {
 		return err
 	}
-	var exceptionID int64
+	var applied carerequests.PickupApplied
 	if approve {
-		exceptionID, err = s.Plans.ApplyPickup(ctx, request, nil, false)
+		applied, err = s.Plans.ApplyPickup(ctx, request, nil, false)
 	} else {
 		err = s.revertPickup(ctx, request)
 	}
@@ -57,9 +57,7 @@ func (s *RequestCorrections) Correct(ctx context.Context, id int64, approve bool
 	if request.DecisionReason != nil {
 		payload["prior_reason"] = *request.DecisionReason
 	}
-	if exceptionID > 0 {
-		payload["pickup_exception_id"] = exceptionID
-	}
+	appliedLedgerPayload(payload, applied)
 	if err := s.Effects.RecordCorrection(ctx, request, actorID, payload); err != nil {
 		return err
 	}
@@ -67,22 +65,11 @@ func (s *RequestCorrections) Correct(ctx context.Context, id int64, approve bool
 }
 
 func (s *RequestCorrections) loadCorrection(ctx context.Context, id int64, version string) (*carerequests.Request, error) {
-	request, err := s.Records.Find(ctx, id, true)
+	request, student, err := lockCareRequestStudent(ctx, s.Records, s.People, id, func(row carerequests.Request) error {
+		return validateCareCorrection(row, version)
+	})
 	if err != nil {
 		return nil, err
-	}
-	if request.Status != "approved" && request.Status != "rejected" {
-		return nil, careplan.ErrParentRequestNotDecided
-	}
-	if version != "" && careplan.ParentRequestVersion(request.UpdatedAt) != version {
-		return nil, careplan.ErrParentRequestStale
-	}
-	if request.RequestKind != "pickup_change" {
-		return nil, fmt.Errorf("%w: Betreuungszeiten speichern keinen Stand von vor der Entscheidung. Bitte ändern Sie den Wochenplan des Kindes direkt", careplan.ErrParentRequestCorrectionUnsupported)
-	}
-	student, err := s.People.LockStudent(ctx, request.StudentID)
-	if err != nil {
-		return nil, fmt.Errorf("schedule: load student for care request correction: %w", err)
 	}
 	allowed, err := s.People.CanReview(ctx, student)
 	if err != nil {
@@ -102,20 +89,37 @@ func (s *RequestCorrections) revertPickup(ctx context.Context, request *carerequ
 	if err != nil {
 		return fmt.Errorf("schedule: read care request ledger: %w", err)
 	}
-	var exceptionID int64
+	// The newest decision names the rows it wrote: a time, a day Abholart
+	// (#3945), or both.
+	var applied carerequests.PickupApplied
 	var found bool
 	for _, event := range events {
 		if event.Type != "decided" {
 			continue
 		}
-		if id, ok := correctionExceptionID(event.Payload["pickup_exception_id"]); ok {
-			exceptionID, found = id, true
+		pickupID, pickupOK := correctionExceptionID(event.Payload["pickup_exception_id"])
+		departureID, departureOK := correctionExceptionID(event.Payload["departure_exception_id"])
+		if pickupOK || departureOK {
+			applied = carerequests.PickupApplied{PickupExceptionID: pickupID, DepartureExceptionID: departureID}
+			found = true
 		}
 	}
 	if !found {
-		return fmt.Errorf("%w: zu dieser Entscheidung ist kein Eintrag gespeichert, der zurückgenommen werden kann. Bitte ändern Sie die Abholzeit direkt", careplan.ErrParentRequestCorrectionUnsupported)
+		return fmt.Errorf("%w: zu dieser Entscheidung ist kein Eintrag gespeichert, der zurückgenommen werden kann. Bitte ändern Sie die Abholung direkt", careplan.ErrParentRequestCorrectionUnsupported)
 	}
-	row, err := s.Records.FindException(ctx, exceptionID)
+	if applied.PickupExceptionID > 0 {
+		if err := s.revertPickupException(ctx, request, applied.PickupExceptionID); err != nil {
+			return err
+		}
+	}
+	if applied.DepartureExceptionID > 0 {
+		return s.revertDepartureException(ctx, request, applied.DepartureExceptionID)
+	}
+	return nil
+}
+
+func (s *RequestCorrections) revertPickupException(ctx context.Context, request *carerequests.Request, id int64) error {
+	row, err := s.Records.FindException(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -128,6 +132,20 @@ func (s *RequestCorrections) revertPickup(ctx context.Context, request *carerequ
 	return s.Records.DeleteException(ctx, row.ID)
 }
 
+func (s *RequestCorrections) revertDepartureException(ctx context.Context, request *carerequests.Request, id int64) error {
+	row, err := s.Records.FindDepartureException(ctx, id)
+	if err != nil {
+		return err
+	}
+	if row == nil {
+		return nil
+	}
+	if request.ReviewedAt != nil && row.UpdatedAt.After(*request.ReviewedAt) {
+		return fmt.Errorf("%w: die Abholart am %s wurde nach der Entscheidung geändert", careplan.ErrParentRequestCorrectionUnsupported, row.ExceptionDate.Format("02.01.2006"))
+	}
+	return s.Records.DeleteDepartureException(ctx, row.ID)
+}
+
 func correctionExceptionID(value any) (int64, bool) {
 	switch id := value.(type) {
 	case float64:
@@ -137,4 +155,17 @@ func correctionExceptionID(value any) (int64, bool) {
 	default:
 		return 0, false
 	}
+}
+
+func validateCareCorrection(request carerequests.Request, version string) error {
+	if request.Status != "approved" && request.Status != "rejected" {
+		return careplan.ErrParentRequestNotDecided
+	}
+	if version != "" && careplan.ParentRequestVersion(request.UpdatedAt) != version {
+		return careplan.ErrParentRequestStale
+	}
+	if request.RequestKind != "pickup_change" {
+		return fmt.Errorf("%w: Betreuungszeiten speichern keinen Stand von vor der Entscheidung. Bitte ändern Sie den Wochenplan des Kindes direkt", careplan.ErrParentRequestCorrectionUnsupported)
+	}
+	return nil
 }

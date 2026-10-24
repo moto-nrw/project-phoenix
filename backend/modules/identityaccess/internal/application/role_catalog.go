@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
 )
@@ -11,13 +12,14 @@ import (
 // account-lifecycle dependencies. Mutations still use RoleAdministration.
 type RoleCatalog struct {
 	store ports.RoleCatalogStore
+	run   func(context.Context, func(context.Context) error) error
 }
 
-func NewRoleCatalog(store ports.RoleCatalogStore) *RoleCatalog {
-	return &RoleCatalog{store: store}
+func NewRoleCatalog(store ports.RoleCatalogStore, run func(context.Context, func(context.Context) error) error) *RoleCatalog {
+	return &RoleCatalog{store: store, run: run}
 }
 
-func (r *RoleCatalog) ListRoles(ctx context.Context, filter domain.RoleFilter) ([]domain.ManagedRole, error) {
+func (r *RoleCatalog) inUnitListRoles(ctx context.Context, filter domain.RoleFilter) ([]domain.ManagedRole, error) {
 	roles, err := r.store.ListRoles(ctx, filter)
 	if err != nil {
 		return nil, failed("list roles", err)
@@ -25,10 +27,26 @@ func (r *RoleCatalog) ListRoles(ctx context.Context, filter domain.RoleFilter) (
 	return roles, nil
 }
 
-func (r *RoleCatalog) ListPermissions(ctx context.Context, filter domain.PermissionFilter) ([]domain.ManagedPermission, error) {
+func (r *RoleCatalog) inUnitListPermissions(ctx context.Context, filter domain.PermissionFilter) ([]domain.ManagedPermission, error) {
 	permissions, err := r.store.ListPermissions(ctx, filter)
 	if err != nil {
 		return nil, failed("list permissions", err)
 	}
 	return permissions, nil
+}
+
+func (q *AccountRoleQueries) ListRoles(ctx context.Context, filter identityaccess.RoleFilter) ([]identityaccess.Role, error) {
+	if q == nil {
+		return nil, errRoleAdministrationUnavailable
+	}
+	roles, err := q.listRoles(ctx, domain.RoleFilter(filter))
+	return publicRoles(roles), roleError(err)
+}
+
+func (q *AccountRoleQueries) ListPermissions(ctx context.Context, filter identityaccess.PermissionFilter) ([]identityaccess.Permission, error) {
+	if q == nil {
+		return nil, errRoleAdministrationUnavailable
+	}
+	permissions, err := q.listPermissions(ctx, domain.PermissionFilter(filter))
+	return publicPermissions(permissions), roleError(err)
 }

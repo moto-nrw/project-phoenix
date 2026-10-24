@@ -25,7 +25,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -464,7 +464,7 @@ func (rs *Resource) completionAvailability(ctx context.Context, inst timetable.S
 }
 
 func reopenEligibility(ctx context.Context, inst timetable.ScheduledInstance, attendance []timetable.ScheduledParticipant) bool {
-	claims := jwt.ClaimsFromCtx(ctx)
+	claims := sessiontoken.ClaimsFromCtx(ctx)
 	return timetable.CanReopenInstance(inst, int64(claims.ID), common.HasEffectiveAdminScope(ctx), time.Now()) &&
 		timetable.AttendanceUnchangedSinceCompletion(inst, attendance)
 }

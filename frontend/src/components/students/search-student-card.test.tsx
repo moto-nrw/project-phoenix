@@ -95,6 +95,69 @@ describe("SearchStudentCard", () => {
   // #2975: the card is memoised so that a page render — a filter toggle, a
   // check-in tap on ANOTHER child, a minute tick — stops at the card boundary
   // instead of rebuilding all 100 Kinderkarten.
+  it("marks the card when today's pickup time is a one-day change (#3946)", () => {
+    render(
+      renderCard({
+        student: { ...student, pickup_is_exception: true } as Student,
+      }),
+    );
+
+    expect(screen.getByText("Gehzeit heute geändert")).toBeInTheDocument();
+  });
+
+  it("marks the card when today's Abholart is a one-day change (#3946)", () => {
+    render(
+      renderCard({
+        student: {
+          ...student,
+          departure_modes: ["bus"],
+          departure_is_exception: true,
+        } as Student,
+      }),
+    );
+
+    expect(
+      screen.getByRole("button", {
+        name: /Abholart heute geändert: Fährt Bus/,
+      }),
+    ).toHaveAttribute("data-day-home-change", "mode");
+  });
+
+  it("does not mark the card for another planning day", () => {
+    render(
+      renderCard({
+        student: { ...student, pickup_is_exception: true } as Student,
+        isToday: false,
+      }),
+    );
+
+    // Anker: die Karte zeigt die Gehzeit-Zeile, an der die Markierung hinge.
+    expect(screen.getByText(/Gehzeit: 16:00 Uhr/)).toBeInTheDocument();
+    expect(
+      screen.queryByText("Gehzeit heute geändert"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("does not mark an absent child", () => {
+    render(
+      renderCard({
+        student: {
+          ...student,
+          pickup_is_exception: true,
+          sick: true,
+        } as Student,
+      }),
+    );
+
+    // Anker: die Karte zeigt die Abwesenheit des Kindes.
+    expect(
+      screen.getByText("Kommt heute nicht (krank gemeldet)"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Gehzeit heute geändert"),
+    ).not.toBeInTheDocument();
+  });
+
   it("does not re-render when the surrounding page renders for other reasons", () => {
     const noop = vi.fn();
 

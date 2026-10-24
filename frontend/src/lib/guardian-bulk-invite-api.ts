@@ -49,7 +49,6 @@ interface BackendBulkInviteResult {
 interface BulkInviteResponse {
   status?: string;
   data?: BackendBulkInviteResult;
-  error?: string;
 }
 
 /**
@@ -80,7 +79,7 @@ export async function bulkInviteGuardians(
   }
 
   const result = (await response.json()) as BulkInviteResponse;
-  if (result.status === "error" || !result.data) {
+  if (!result.data) {
     // A 200 without data is a broken answer, so it counts as a server error.
     throw apiErrorFromBody("Failed to bulk invite guardians", 500, result);
   }

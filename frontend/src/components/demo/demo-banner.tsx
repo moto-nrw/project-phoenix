@@ -9,7 +9,7 @@ import { ButtonLink } from "~/components/ui/button";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { StatusBadge } from "~/components/ui/status-badge";
-import { useApiErrorDisplay, useToast } from "~/contexts/ToastContext";
+import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { registerDemoVisit, trackDemoEvent } from "~/lib/analytics";
 import {
   DEMO_RESTART_CONFIRM,
@@ -87,10 +87,9 @@ function ActiveDemoBanner() {
   const tenantName = useTenantSafe()?.tenant?.name;
   const inParentsApp = useShellAuthSafe()?.mode === "parent";
   const startPath = useTenantAwarePath()("/");
-  const toast = useToast();
   // Rollenwechsel und Neustart sind Aktionen ohne Formular: Toast mit
   // Katalogtext und Wiederholen (#2517).
-  const { show: showActionError } = useApiErrorDisplay();
+  const { show: showActionError, showMessage } = useApiErrorDisplay();
   const latestChooseRoleRef = useRef<(role: DemoRole) => void>(() => undefined);
   const latestRestartRef = useRef<() => void>(() => undefined);
   // Undefined until mounted: the server knows no stored visit, so reading it
@@ -135,7 +134,7 @@ function ActiveDemoBanner() {
     try {
       const session = await switchDemoRole(role);
       if (!session) {
-        toast.error(OPEN_MAILED_LINK);
+        showMessage(OPEN_MAILED_LINK);
         return;
       }
       if (!(await startDemoSession(session, "demo_role_switched"))) {
@@ -169,7 +168,7 @@ function ActiveDemoBanner() {
       if (!entryUrl) {
         setRestarting(false);
         setRestartAsked(false);
-        toast.error(OPEN_MAILED_LINK);
+        showMessage(OPEN_MAILED_LINK);
         return;
       }
       globalThis.location.assign(entryUrl);
@@ -261,7 +260,9 @@ function ActiveDemoBanner() {
         rel="noopener noreferrer"
         variant="success"
         size="compact"
-        className="ml-auto shrink-0 text-sm"
+        // Radius wie die Knöpfe der Startseite (`md`), Höhe bleibt die des
+        // schmalen Streifens (#4346).
+        className="ml-auto shrink-0 rounded-lg text-sm"
         onClick={() => trackDemoEvent("demo_start_clicked", visit ?? null)}
       >
         Kostenlos starten

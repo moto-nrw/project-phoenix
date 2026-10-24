@@ -8,6 +8,7 @@ script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 case "${DEPLOY_DIR:-}" in staging|production|demo) ;; *) echo 'Invalid DEPLOY_DIR' >&2; exit 1;; esac
 [[ "${DEPLOY_SHA:-}" =~ ^[a-f0-9]{7,40}$ ]] || { echo 'Invalid DEPLOY_SHA' >&2; exit 1; }
 [[ "${BACKUP_RETENTION:-}" =~ ^[1-9][0-9]*$ ]] || { echo 'Invalid BACKUP_RETENTION' >&2; exit 1; }
+[[ "${RELEASE_SNAPSHOT_MAX_AGE_DAYS:-}" =~ ^([1-9]|[1-8][0-9]|90)$ ]] || { echo 'RELEASE_SNAPSHOT_MAX_AGE_DAYS must be 1 to 90' >&2; exit 1; }
 deployment_directory=${1:-"$HOME/$DEPLOY_DIR"}
 [[ "$deployment_directory" = /* ]] || { echo 'Deployment directory must be absolute' >&2; exit 1; }
 cd "$deployment_directory"
@@ -19,9 +20,9 @@ trap cleanup_operation EXIT
 [ -s .env.new ] && [ -s docker-compose.yml.new ] || { echo 'New configuration is missing' >&2; exit 1; }
 
 # Pull before stopping the old application. Its configuration remains intact.
-frontend_tag="$DEPLOY_SHA"
-if [[ "$DEPLOY_DIR" = demo ]]; then frontend_tag="demo-$DEPLOY_SHA"; fi
-sed "s|phoenix-server:[^ ]*|phoenix-server:${DEPLOY_SHA}|; s|phoenix-frontend:[^ ]*|phoenix-frontend:${frontend_tag}|" docker-compose.yml.new > docker-compose.yml.pinned
+image_tag="$DEPLOY_SHA"
+if [[ "$DEPLOY_DIR" = demo ]]; then image_tag="demo-$DEPLOY_SHA"; fi
+sed "s|phoenix-server:[^ ]*|phoenix-server:${image_tag}|; s|phoenix-frontend:[^ ]*|phoenix-frontend:${image_tag}|" docker-compose.yml.new > docker-compose.yml.pinned
 mv docker-compose.yml.pinned docker-compose.yml.new
 if ! bash "$script_dir/release-backup.sh" keep-images; then
   echo 'Keeping the running images failed; the running release was not touched' >&2
@@ -111,13 +112,13 @@ start_app_services --remove-orphans
 mv .deploy-state.new .deploy-state
 trap - ERR
 
-# Retain whole completed sets; never delete individual components or this snapshot.
-snapshots=()
-for path in "$backup_root"/release-*; do
-  [ -f "$path/complete" ] && snapshots+=("$path")
-done
-remove_count=$((${#snapshots[@]} - BACKUP_RETENTION))
-for ((index=0; index<remove_count; index++)); do
-  [ "${snapshots[$index]}" = "$bundle" ] || rm -rf -- "${snapshots[$index]}"
-done
+# Same policy as the independent daily timer, under our existing release lock.
+# A cleanup error must not trigger a rollback of a healthy, recorded release.
+bash "$script_dir/release-backup.sh" prune "$backup_root" "$BACKUP_RETENTION" "$RELEASE_SNAPSHOT_MAX_AGE_DAYS" "$bundle"
+
+# Free the disk only once the release is healthy and recorded. Snapshots name
+# their images by digest and verification pulls missing ones before a restore
+# stops anything; Compose pulls missing images for another environment's pending
+# start. A failed prune never changes the deployment's result.
+docker image prune -af || echo 'WARNING: image prune failed; the release itself is healthy' >&2
 echo "Deployment complete; rollback backup: $backup_id"

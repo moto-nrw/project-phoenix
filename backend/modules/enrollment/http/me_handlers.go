@@ -6,7 +6,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -20,7 +20,7 @@ func (rs *Resource) getMyProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	if claims.ID == 0 {
 		common.RenderError(w, r, common.ErrorForbidden(errors.New("not authenticated")))
 		return
@@ -38,7 +38,7 @@ func (rs *Resource) getMyProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	common.Respond(w, r, http.StatusOK, common.BuildGuardianProfileResponse(claims, guardianProfileData(profile)), "Profile retrieved")
+	common.Respond(w, r, http.StatusOK, common.BuildGuardianProfileResponse(common.GuardianProfileDefaults{FirstName: claims.FirstName, LastName: claims.LastName, Email: claims.Sub}, guardianProfileData(profile)), "Profile retrieved")
 }
 
 // guardianProfileData maps the already-authorized profile to the shared

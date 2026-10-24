@@ -3,7 +3,6 @@ import { suppressConsole } from "~/test/helpers/console";
 import { createAxiosResponse } from "~/test/helpers/axios";
 import { mockSessionData } from "~/test/mocks/next-auth";
 import { buildBackendStudent, buildStudent } from "~/test/fixtures/students";
-import { buildBackendGroup } from "~/test/fixtures/groups";
 
 // Mock dependencies before importing the module
 vi.mock("next-auth/react", () => ({
@@ -39,17 +38,12 @@ import { ApiError } from "./api-error";
 import {
   fetchStudents,
   fetchStudent,
-  createStudent,
-  updateStudent,
-  fetchGroups,
   fetchStudentPrivacyConsent,
   fetchStudentEnrollmentExtraFields,
-  updateStudentPrivacyConsent,
   uploadStudentPhoto,
   deleteStudentPhoto,
   fetchStudentDeletionImpact,
   deleteStudentWithData,
-  StudentDeletionApiError,
   type StudentFilters,
 } from "./student-api";
 
@@ -74,12 +68,6 @@ const sampleStudent = buildStudent({
   school_class: "3a",
   current_location: "Schule",
   group_id: "10",
-});
-
-const sampleBackendGroup = buildBackendGroup({
-  id: 1,
-  name: "Class 3A",
-  room_id: 10,
 });
 
 // Type for mocked functions
@@ -259,57 +247,6 @@ describe("student-api", () => {
     });
   });
 
-  describe("createStudent", () => {
-    describe("client-side (browser)", () => {
-      beforeEach(() => {
-        mockedIsBrowserContext.mockReturnValue(true);
-      });
-
-      it("creates a new student", async () => {
-        mockedAuthFetch.mockResolvedValueOnce({ data: sampleBackendStudent });
-
-        const studentData = {
-          first_name: "Max",
-          last_name: "Mustermann",
-          school_class: "3a",
-          guardian_name: "Hans Mustermann",
-          guardian_contact: "hans@example.com",
-        };
-
-        const result = await createStudent(studentData);
-
-        expect(mockedAuthFetch).toHaveBeenCalledWith("/api/students", {
-          method: "POST",
-          body: studentData,
-          token: "test-token",
-        });
-        expect(result.first_name).toBe("Max");
-      });
-    });
-  });
-
-  describe("updateStudent", () => {
-    describe("client-side (browser)", () => {
-      beforeEach(() => {
-        mockedIsBrowserContext.mockReturnValue(true);
-      });
-
-      it("updates a student", async () => {
-        mockedAuthFetch.mockResolvedValueOnce({ data: sampleBackendStudent });
-
-        const updateData = { first_name: "Updated" };
-        const result = await updateStudent("123", updateData);
-
-        expect(mockedAuthFetch).toHaveBeenCalledWith("/api/students/123", {
-          method: "PUT",
-          body: updateData,
-          token: "test-token",
-        });
-        expect(result.id).toBe("1");
-      });
-    });
-  });
-
   describe("guarded student deletion", () => {
     const originalFetch = global.fetch;
     const fetchMock = vi.fn();
@@ -409,11 +346,11 @@ describe("student-api", () => {
       });
     });
 
-    it("preserves the status and original backend message on conflicts", async () => {
+    it("preserves the status and keeps conflict diagnostics separate", async () => {
       fetchMock.mockResolvedValueOnce(
         new Response(
           JSON.stringify({
-            error: "Vorschau veraltet",
+            detail: "Vorschau veraltet",
             code: "students.deletion_preview_changed",
           }),
           {
@@ -430,22 +367,22 @@ describe("student-api", () => {
         acknowledged: true,
       }).catch((caught: unknown) => caught);
 
-      expect(error).toBeInstanceOf(StudentDeletionApiError);
+      expect(error).toBeInstanceOf(ApiError);
       expect(error).toMatchObject({
         status: 409,
-        message: "Vorschau veraltet",
+        message: "Das Kind konnte nicht gelöscht werden.",
+        detail: "Vorschau veraltet",
         code: "students.deletion_preview_changed",
       });
     });
 
-    it("extracts conflict codes embedded by the deletion proxy", async () => {
+    it("reads the conflict code from the forwarded envelope", async () => {
       fetchMock.mockResolvedValueOnce(
         new Response(
           JSON.stringify({
-            error: JSON.stringify({
-              error: "Vorschau veraltet",
-              code: "students.deletion_preview_changed",
-            }),
+            status: 409,
+            detail: "Vorschau veraltet",
+            code: "students.deletion_preview_changed",
           }),
           { status: 409, headers: { "Content-Type": "application/json" } },
         ),
@@ -460,78 +397,9 @@ describe("student-api", () => {
 
       expect(error).toMatchObject({
         status: 409,
-        message: "Vorschau veraltet",
+        message: "Das Kind konnte nicht gelöscht werden.",
+        detail: "Vorschau veraltet",
         code: "students.deletion_preview_changed",
-      });
-    });
-  });
-
-  describe("fetchGroups", () => {
-    describe("client-side (browser)", () => {
-      beforeEach(() => {
-        mockedIsBrowserContext.mockReturnValue(true);
-      });
-
-      it("fetches groups and maps them", async () => {
-        mockedAuthFetch.mockResolvedValueOnce([sampleBackendGroup]);
-
-        const result = await fetchGroups();
-
-        expect(mockedAuthFetch).toHaveBeenCalledWith("/api/groups", {
-          token: "test-token",
-        });
-        expect(result).toHaveLength(1);
-        expect(result[0]?.id).toBe("1");
-        expect(result[0]?.name).toBe("Class 3A");
-      });
-
-      it("returns empty array when response is not an array", async () => {
-        mockedAuthFetch.mockResolvedValueOnce({ invalid: "response" });
-
-        const result = await fetchGroups();
-
-        expect(result).toEqual([]);
-      });
-
-      it("returns empty array on error", async () => {
-        mockedAuthFetch.mockRejectedValueOnce(new Error("Network error"));
-
-        const result = await fetchGroups();
-
-        expect(result).toEqual([]);
-        expect(consoleSpies.error).toHaveBeenCalledWith(
-          "failed to fetch groups",
-          {
-            error: expect.any(String),
-          },
-        );
-      });
-    });
-
-    describe("server-side (SSR)", () => {
-      beforeEach(() => {
-        mockedIsBrowserContext.mockReturnValue(false);
-      });
-
-      it("fetches groups using axios", async () => {
-        const mockGet = vi.mocked(api.get);
-        mockGet.mockResolvedValueOnce(
-          createAxiosResponse({ data: [sampleBackendGroup] }),
-        );
-
-        const result = await fetchGroups();
-
-        expect(mockGet).toHaveBeenCalledWith("http://server:8080/groups");
-        expect(result).toHaveLength(1);
-      });
-
-      it("returns empty array when data is missing", async () => {
-        const mockGet = vi.mocked(api.get);
-        mockGet.mockResolvedValueOnce(createAxiosResponse({}));
-
-        const result = await fetchGroups();
-
-        expect(result).toEqual([]);
       });
     });
   });
@@ -632,104 +500,6 @@ describe("student-api", () => {
     });
   });
 
-  describe("updateStudentPrivacyConsent", () => {
-    describe("client-side (browser)", () => {
-      beforeEach(() => {
-        mockedIsBrowserContext.mockReturnValue(true);
-      });
-
-      it("updates privacy consent", async () => {
-        const backendConsent = {
-          id: 1,
-          student_id: 123,
-          policy_version: "1.0",
-          accepted: true,
-          data_retention_days: 30,
-          renewal_required: false,
-          accepted_at: "2024-01-15T10:00:00Z",
-          created_at: "2024-01-15T10:00:00Z",
-          updated_at: "2024-01-15T10:00:00Z",
-        };
-        mockedAuthFetch.mockResolvedValueOnce({ data: backendConsent });
-
-        const consentData = {
-          policy_version: "1.0",
-          accepted: true,
-          data_retention_days: 30,
-        };
-
-        const result = await updateStudentPrivacyConsent("123", consentData);
-
-        expect(mockedAuthFetch).toHaveBeenCalledWith(
-          "/api/students/123/privacy-consent",
-          {
-            method: "PUT",
-            body: consentData,
-            token: "test-token",
-          },
-        );
-        expect(result.accepted).toBe(true);
-      });
-    });
-
-    describe("server-side (SSR)", () => {
-      beforeEach(() => {
-        mockedIsBrowserContext.mockReturnValue(false);
-      });
-
-      it("updates privacy consent with the bearer token", async () => {
-        const backendConsent = {
-          id: 1,
-          student_id: 123,
-          policy_version: "1.0",
-          accepted: true,
-          data_retention_days: 30,
-          renewal_required: false,
-          accepted_at: "2024-01-15T10:00:00Z",
-          created_at: "2024-01-15T10:00:00Z",
-          updated_at: "2024-01-15T10:00:00Z",
-        };
-        const mockPut = vi.mocked(api.put);
-        mockPut.mockResolvedValueOnce(
-          createAxiosResponse({ data: backendConsent }),
-        );
-
-        const consentData = {
-          policy_version: "1.0",
-          accepted: true,
-          data_retention_days: 30,
-        };
-
-        const result = await updateStudentPrivacyConsent("123", consentData);
-
-        expect(mockPut).toHaveBeenCalledWith(
-          expect.stringContaining("/students/123/privacy-consent"),
-          consentData,
-          { headers: { Authorization: "Bearer test-token" } },
-        );
-        expect(result.accepted).toBe(true);
-      });
-
-      it("uses the shared student error handler when server update fails", async () => {
-        const mockPut = vi.mocked(api.put);
-        mockPut.mockRejectedValueOnce(new Error("Network error"));
-
-        await expect(
-          updateStudentPrivacyConsent("123", {
-            policy_version: "1.0",
-            accepted: false,
-            data_retention_days: 30,
-          }),
-        ).rejects.toThrow("Mocked error");
-        expect(mockedHandleDomainApiError).toHaveBeenCalledWith(
-          expect.any(Error),
-          "update privacy consent",
-          "STUDENT",
-        );
-      });
-    });
-  });
-
   describe("fetchStudentEnrollmentExtraFields", () => {
     const enrollmentExtraGroups = [
       {
@@ -814,7 +584,6 @@ describe("student-api", () => {
       expect(mockedHandleDomainApiError).toHaveBeenCalledWith(
         expect.any(Error),
         "fetch student enrollment extra fields",
-        "STUDENT",
       );
     });
   });
@@ -841,7 +610,6 @@ describe("student-api", () => {
       expect(mockedHandleDomainApiError).toHaveBeenCalledWith(
         expect.any(Error),
         "fetch students",
-        "STUDENT",
       );
     });
 
@@ -853,7 +621,6 @@ describe("student-api", () => {
       expect(mockedHandleDomainApiError).toHaveBeenCalledWith(
         expect.any(Error),
         "fetch student",
-        "STUDENT",
       );
     });
     it("passes a structured ApiError through unchanged", async () => {

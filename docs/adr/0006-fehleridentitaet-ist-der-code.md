@@ -19,7 +19,7 @@ Messung am 22.08.2026:
   `errors.New("Diese Klasse ist Ihnen nicht zugewiesen")`.
 - Der Tenant-Client wirft `new Error("API error 409: ...")`. Code und Details
   werden an dieser Grenze zu einem String plattgemacht.
-  `getApiErrorMessage()` rät sie danach über `message.includes("403")` zurück.
+  `getApiErrorMessage()` rät sie danach per Substring-Vergleich auf `"403"` im Meldungstext zurück.
 - PyrePortal hält 61 Textmuster in `src/services/apiErrors.ts`, die auf die
   heutigen Backend-Strings passen. Jede Textänderung im Backend bricht den
   Kiosk still.

@@ -3,17 +3,27 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Mail } from "lucide-react";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
+import { EmploymentCarryover } from "./invitation-employment-carryover";
+import { Alert } from "~/components/ui/alert";
+import { SegmentedControl } from "~/components/ui/segmented-control";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { authService } from "~/lib/auth-service";
 import { toAssignableRoleOptions, type RoleOption } from "~/lib/auth-helpers";
-import { createInvitation } from "~/lib/invitation-api";
-import type {
-  CreateInvitationRequest,
-  PendingInvitation,
+import { formatDate } from "~/lib/date-helpers";
+import { createInvitation, findFormerEmployment } from "~/lib/invitation-api";
+import {
+  FORMER_EMPLOYMENT_PART_LABELS,
+  type CreateInvitationRequest,
+  type EmploymentAction,
+  type FormerEmployment,
+  type FormerEmploymentPart,
+  type PendingInvitation,
 } from "~/lib/invitation-helpers";
 import { createLogger } from "~/lib/logger";
+import { useDebounce } from "~/lib/use-debounce";
+import { FieldErrorHint } from "~/components/ui/field-error-hint";
 
 const logger = createLogger({ component: "InvitationForm" });
 
@@ -23,6 +33,136 @@ interface InvitationFormProps {
 }
 
 const EMPTY_POSITIONS: readonly string[] = [];
+
+// Only an address that could be complete is worth a lookup; a half-typed one
+// would ask once per keystroke pause.
+const COMPLETE_ADDRESS = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const FORMER_EMPLOYMENT_DEBOUNCE_MS = 400;
+const FORMER_EMPLOYMENT_LOOKUP_TIMEOUT_MS = 5_000;
+
+/**
+ * The former employment an invitation to the typed address would continue
+ * at this school (ADR 0021, #3402), or null. A result belongs to the address
+ * it was asked for, so it disappears as soon as the address changes.
+ */
+function useFormerEmployment(email: string): {
+  formerEmployment: FormerEmployment | null;
+  pending: boolean;
+} {
+  const current = email.trim().toLowerCase();
+  const address = useDebounce(current, FORMER_EMPLOYMENT_DEBOUNCE_MS);
+  const [answer, setAnswer] = useState<{
+    address: string;
+    formerEmployment: FormerEmployment | null;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!COMPLETE_ADDRESS.test(address)) return;
+    let cancelled = false;
+    setAnswer(null);
+    const controller = new AbortController();
+    const timeoutID = window.setTimeout(
+      () => controller.abort(),
+      FORMER_EMPLOYMENT_LOOKUP_TIMEOUT_MS,
+    );
+    findFormerEmployment(address, controller.signal)
+      .then((formerEmployment) => {
+        if (!cancelled) setAnswer({ address, formerEmployment });
+      })
+      .catch((err: unknown) => {
+        // Without a successful lookup there is no choice to offer. Keep the
+        // existing invitation behavior; sending reports its own form errors.
+        if (cancelled) return;
+        setAnswer({ address, formerEmployment: null });
+        logger.warn("former_employment_lookup_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      })
+      .finally(() => window.clearTimeout(timeoutID));
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutID);
+      controller.abort();
+    };
+  }, [address]);
+
+  return {
+    formerEmployment:
+      answer?.address === current ? answer.formerEmployment : null,
+    pending: COMPLETE_ADDRESS.test(current) && answer?.address !== current,
+  };
+}
+
+function formerEmploymentParts(parts: readonly FormerEmploymentPart[]): string {
+  return parts.map((part) => FORMER_EMPLOYMENT_PART_LABELS[part]).join(", ");
+}
+
+function FormerEmploymentHint({
+  formerEmployment,
+  action,
+  onActionChange,
+  reset,
+  onResetChange,
+  disabled,
+}: {
+  readonly formerEmployment: FormerEmployment;
+  readonly action: EmploymentAction;
+  readonly onActionChange: (action: EmploymentAction) => void;
+  readonly disabled: boolean;
+  readonly reset: CreateInvitationRequest;
+  readonly onResetChange: (
+    key: "resetMasterData" | "resetQualifications" | "resetWorkTime",
+    value: boolean,
+  ) => void;
+}) {
+  const notReturning = formerEmploymentParts(formerEmployment.notReturning);
+  return (
+    <Alert
+      type="info"
+      title="Diese Person war schon bei Ihnen beschäftigt"
+      message={`In moto eingetragen vom ${formatDate(formerEmployment.startedOn)} bis ${formatDate(formerEmployment.endedOn)}.`}
+      details={
+        <div className="mt-2 space-y-2">
+          <SegmentedControl
+            ariaLabel="Beschäftigung bei Rückkehr"
+            className="max-sm:grid-flow-row"
+            value={action}
+            onChange={onActionChange}
+            fullWidth
+            items={[
+              { value: "resume", label: "Wiederaufnahme", disabled },
+              { value: "new", label: "Neuaufnahme", disabled },
+            ]}
+          />
+          <p>
+            {action === "resume"
+              ? "Die frühere Beschäftigung wird fortgeführt."
+              : "Eine neue Beschäftigung beginnt. Die frühere bleibt beendet."}
+          </p>
+          {action === "new" ? (
+            <p>
+              Stammdaten, Qualifikationen, Stundenkonto und Urlaub beginnen neu.
+            </p>
+          ) : null}
+          {action === "resume" ? (
+            <EmploymentCarryover
+              value={reset}
+              onChange={onResetChange}
+              disabled={disabled}
+            />
+          ) : null}
+          {notReturning ? (
+            <p>
+              <span className="font-semibold">Kommt nicht zurück:</span>{" "}
+              <span>{notReturning}</span>
+            </p>
+          ) : null}
+          <p>Gruppen, Klassen und Vertretungen legen Sie danach neu fest.</p>
+        </div>
+      }
+    />
+  );
+}
 
 const initialForm: CreateInvitationRequest = {
   email: "",
@@ -47,6 +187,10 @@ export function InvitationForm({
   const errors = useApiFormError(formRef);
   const showError = errors.show;
   const clearErrors = errors.clear;
+
+  const { formerEmployment, pending: checkingAddress } = useFormerEmployment(
+    form.email,
+  );
 
   const [successInfo, setSuccessInfo] = useState<{
     email: string;
@@ -98,7 +242,18 @@ export function InvitationForm({
 
   const handleChange =
     (key: keyof CreateInvitationRequest) => (value: string | undefined) => {
-      setForm((prev) => ({ ...prev, [key]: value }));
+      setForm((prev) => ({
+        ...prev,
+        ...(key === "email"
+          ? {
+              employmentAction: undefined,
+              resetMasterData: undefined,
+              resetQualifications: undefined,
+              resetWorkTime: undefined,
+            }
+          : {}),
+        [key]: value,
+      }));
     };
 
   const toOptional = (value?: string): string | undefined => {
@@ -118,6 +273,18 @@ export function InvitationForm({
         firstName: toOptional(form.firstName),
         lastName: toOptional(form.lastName),
         position: toOptional(form.position),
+        ...(formerEmployment
+          ? {
+              employmentAction: form.employmentAction ?? "resume",
+              ...((form.employmentAction ?? "resume") === "resume"
+                ? {
+                    resetMasterData: form.resetMasterData ?? false,
+                    resetQualifications: form.resetQualifications ?? false,
+                    resetWorkTime: form.resetWorkTime ?? false,
+                  }
+                : {}),
+            }
+          : {}),
       });
 
       const link = inviteBaseUrl
@@ -146,7 +313,7 @@ export function InvitationForm({
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
-    void sendInvitation();
+    if (!checkingAddress) void sendInvitation();
   };
 
   const roleError = errors.fieldError("role_id");
@@ -200,6 +367,21 @@ export function InvitationForm({
           error={errors.fieldError("email")}
         />
 
+        {formerEmployment ? (
+          <FormerEmploymentHint
+            formerEmployment={formerEmployment}
+            action={form.employmentAction ?? "resume"}
+            reset={form}
+            onResetChange={(key, value) =>
+              setForm((prev) => ({ ...prev, [key]: value }))
+            }
+            onActionChange={(employmentAction) =>
+              setForm((prev) => ({ ...prev, employmentAction }))
+            }
+            disabled={isSubmitting}
+          />
+        ) : null}
+
         <div>
           <label
             id="invitation-role-label"
@@ -223,15 +405,7 @@ export function InvitationForm({
             invalid={Boolean(roleError)}
             disabled={isSubmitting || isLoadingRoles}
           />
-          {roleError ? (
-            <p
-              id="invitation-role-error"
-              role="alert"
-              className="text-moto-red-strong mt-1 text-xs"
-            >
-              {roleError}
-            </p>
-          ) : null}
+          <FieldErrorHint id="invitation-role-error" message={roleError} live />
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -287,10 +461,14 @@ export function InvitationForm({
         <button
           type="submit"
           data-setup-tour="invite-submit"
-          disabled={isSubmitting || isLoadingRoles}
+          disabled={isSubmitting || isLoadingRoles || checkingAddress}
           className="w-full rounded-xl bg-gray-900 py-2.5 text-sm font-semibold text-white transition-all duration-200 hover:bg-gray-800 active:scale-98 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {isSubmitting ? "Wird gesendet…" : "Einladung senden"}
+          {isSubmitting
+            ? "Wird gesendet…"
+            : checkingAddress
+              ? "Adresse wird geprüft…"
+              : "Einladung senden"}
         </button>
       </form>
     </div>

@@ -7,31 +7,14 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/moto-nrw/project-phoenix/api/testutil"
 )
-
-// =============================================================================
-// Auth module setup tests
-// =============================================================================
-
-func TestSetupAuthModule(t *testing.T) {
-	t.Parallel()
-
-	db, services := testutil.SetupAuthModule(t)
-	require.NotNil(t, db)
-	require.NotNil(t, services)
-
-	// Verify services are available
-	assert.NotNil(t, services.Auth)
-	assert.NotNil(t, services.MFA)
-}
 
 // =============================================================================
 // Request Option Tests
@@ -352,7 +335,7 @@ func TestAssertErrorResponse(t *testing.T) {
 
 	rr := httptest.NewRecorder()
 	rr.WriteHeader(http.StatusBadRequest)
-	_, _ = rr.WriteString(`{"status":"error","error":"bad request"}`)
+	_, _ = rr.WriteString(`{"status":400,"detail":"bad request","code":"general.input"}`)
 
 	testutil.AssertErrorResponse(t, rr, http.StatusBadRequest)
 }
@@ -362,7 +345,7 @@ func TestAssertUnauthorized(t *testing.T) {
 
 	rr := httptest.NewRecorder()
 	rr.WriteHeader(http.StatusUnauthorized)
-	_, _ = rr.WriteString(`{"status":"error","error":"refused"}`)
+	_, _ = rr.WriteString(`{"status":401,"detail":"refused","code":"general.permission"}`)
 
 	testutil.AssertUnauthorized(t, rr)
 }
@@ -372,7 +355,7 @@ func TestAssertForbidden(t *testing.T) {
 
 	rr := httptest.NewRecorder()
 	rr.WriteHeader(http.StatusForbidden)
-	_, _ = rr.WriteString(`{"status":"error","error":"refused"}`)
+	_, _ = rr.WriteString(`{"status":403,"detail":"refused","code":"general.permission"}`)
 
 	testutil.AssertForbidden(t, rr)
 }
@@ -382,7 +365,7 @@ func TestAssertNotFound(t *testing.T) {
 
 	rr := httptest.NewRecorder()
 	rr.WriteHeader(http.StatusNotFound)
-	_, _ = rr.WriteString(`{"status":"error","error":"refused"}`)
+	_, _ = rr.WriteString(`{"status":404,"detail":"refused","code":"general.input"}`)
 
 	testutil.AssertNotFound(t, rr)
 }
@@ -392,7 +375,7 @@ func TestAssertBadRequest(t *testing.T) {
 
 	rr := httptest.NewRecorder()
 	rr.WriteHeader(http.StatusBadRequest)
-	_, _ = rr.WriteString(`{"status":"error","error":"refused"}`)
+	_, _ = rr.WriteString(`{"status":400,"detail":"refused","code":"general.input"}`)
 
 	testutil.AssertBadRequest(t, rr)
 }

@@ -1,69 +1,58 @@
 // Package compose binds the guardian portal workflow to the owners it
-// coordinates (#3420): the retained read models of the child, its school and
-// its guardians, the owners' commands, and the platform's live events, meal
-// plan and language catalog. It holds no database: every flow runs in the
-// tenant unit of work of the request context.
+// coordinates (#3420), including its read, command and pure policy ports.
+// It holds no database; every flow joins the request's tenant unit of work.
 package compose
 
 import (
 	"log/slog"
 	"time"
 
-	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	auditcompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
+	"github.com/moto-nrw/project-phoenix/modules/auditlog"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	careplancompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	notificationsSvc "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
-	"github.com/moto-nrw/project-phoenix/realtime"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
-	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal/messaging"
+	"github.com/moto-nrw/project-phoenix/workflows/parentportal/internal/care"
+	"github.com/moto-nrw/project-phoenix/workflows/parentportal/internal/messaging"
 )
 
-// CarePeriod and OfferingBooking are the Enrollment values the root binds
-// behind CarePeriods and OfferingHistory.
-type (
-	CarePeriod      = care.CarePeriod
-	OfferingBooking = care.OfferingBooking
-)
-
-// Dependencies are the collaborators of the guardian portal. Optional
-// notifiers may be nil; tests set only what their flows reach.
+// Dependencies are the collaborators of the guardian portal. Runtime is
+// required; optional notifiers may be nil. Tests bind the ports their flows reach.
 type Dependencies struct {
-	Logger *slog.Logger
-	Now    func() time.Time
+	GuardianChanges auditlog.GuardianChangeLog
+	CarePlanPolicy  care.CarePlanPolicy
+	GuardianPolicy  care.GuardianPolicy
+	DeparturePolicy care.DeparturePolicy
+	Fingerprints    messaging.ContentFingerprints
+	Declarations    messaging.DeclarationPolicy
+	Locales         care.Locales
+	Runtime         care.Runtime
+	Logger          *slog.Logger
+	Now             func() time.Time
 
-	ChildRepo             parentModels.ChildRepository
-	EnrollablePhaseRepo   parentModels.EnrollablePhaseRepository
+	ChildRepo             care.ChildReads
+	EnrollablePhaseRepo   care.EnrollablePhaseReads
 	EnrollmentSettings    care.EnrollmentSettings
-	EnrollmentRequestRepo parentModels.EnrollmentRequestRepository
-	Settings              configService.SettingsService
+	EnrollmentRequestRepo care.EnrollmentRequestReads
+	Settings              care.SettingsService
 
-	StudentRepo         usersModels.StudentRepository
-	PersonRepo          usersModels.PersonRepository
-	GuardianProfileRepo usersModels.GuardianProfileRepository
-	GuardianPhoneRepo   usersModels.GuardianPhoneNumberRepository
-	StudentGuardianRepo usersModels.StudentGuardianRepository
-	ChangeRequestRepo   usersModels.StudentDataChangeRequestRepository
+	StudentRepo         care.StudentReads
+	PersonRepo          care.PersonReads
+	GuardianProfileRepo messaging.GuardianProfiles
+	GuardianPhoneRepo   care.GuardianPhoneReads
+	StudentGuardianRepo care.StudentGuardianReads
+	ChangeRequestRepo   care.DataRequestReads
+	DataRequests        care.StudentDataRequestCommands
 	StatusDayRepo       care.StatusDayReads
 	Attendance          care.AttendanceReader
 
-	ArrivalSchedules careplan.ArrivalScheduleService
-	PickupSchedules  careplan.PickupScheduleService
+	ArrivalSchedules care.ArrivalSchedules
+	PickupSchedules  care.PickupSchedules
 	CareRequests     carerequests.Service
-	ExcusedRequests  careplan.ExcusedAbsenceRequests
-	// CarePlan is the Care Plan capability: the day exceptions, the status
-	// days and the Stammdaten requests the flows read and command.
-	CarePlan careplan.Capability
-	// CareExceptions overrides the day-exception reads and locks; nil uses
-	// CarePlan.
-	CareExceptions    care.CareExceptions
-	PickupAutoExcusal careplan.PickupAutoExcusal
+	ExcusedRequests  care.ExcusedAbsenceRequests
+	// CarePlan supplies native day locks, absence reports and pickup commands.
+	CarePlan parentportal.CarePlanCommands
+	// CareExceptions overrides the day-exception reads and locks (nil: CarePlan).
+	CareExceptions care.CareExceptions
 
 	CarePeriods      care.CarePeriodReads
 	OfferingHistory  care.OfferingHistoryReads
@@ -79,30 +68,32 @@ type Dependencies struct {
 
 	StudentAudit        care.StudentChangeRecorder
 	StudentConsents     care.StudentConsentService
-	StudentPhotos       func() care.StudentPhotoUnlinker
-	ParentRequestEvents usersModels.ParentRequestEventRepository
+	StudentPhotos       care.StudentPhotoUnlinker
+	ParentRequestEvents messaging.RequestEvents
 	GuardianInvites     care.GuardianAccess
 	GuardianInvitations care.GuardianInvitationReads
 
 	// Messaging: the parent-OGS conversation, announcements, and the reads the
 	// request-sharing ledger joins.
-	MessageThreadRepo         usersModels.ParentMessageThreadRepository
-	MessageRepo               usersModels.ParentMessageRepository
-	MessageReadRepo           usersModels.ParentMessageReadRepository
+	MessageThreadRepo         messaging.MessageThreadAccess
+	MessageRepo               messaging.MessageReads
+	MessageReadRepo           messaging.MessageInboxReads
 	Conversations             messaging.ConversationCore
-	AnnouncementRepo          usersModels.ParentAnnouncementRepository
-	CareRequestRepo           scheduleModels.CareScheduleChangeRequestRepository
+	MessagingEnabled          messaging.MessagingGate
+	GroupThreads              messaging.GroupThreads
+	AnnouncementRepo          messaging.AnnouncementAccess
+	CareRequestRepo           messaging.CareRequestReads
 	ExcusedRequestRepo        messaging.ExcusedRequestReads
 	OfferingChangeRequestRepo messaging.OfferingChangeRequestReads
-	FamilyProtectionEvents    usersModels.FamilyProtectionEventRepository
-	ParentRequestShares       usersModels.ParentRequestShareEventRepository
+	FamilyProtectionEvents    messaging.FamilyProtectionReads
+	ParentRequestShares       messaging.RequestShareRecords
 
 	// Platform: the meal plan, live events and notifiers.
 	MealPlan              MealPlanProvider
-	Broadcaster           realtime.Broadcaster
-	AbsenceNotifier       notificationsSvc.AbsenceNotifier
-	ParentMessageNotifier notificationsSvc.StaffParentMessageNotifier
-	Emitter               *parentmessaging.Emitter
+	StudentUpdates        care.StudentUpdates
+	AbsenceNotifier       care.AbsenceNotifier
+	ParentMessageNotifier care.StaffParentMessageNotifier
+	Emitter               care.ChildEvents
 }
 
 // New composes the guardian portal. messaging resolves children through the
@@ -110,18 +101,17 @@ type Dependencies struct {
 // resolver reaches the child flows once both exist.
 func New(deps Dependencies) *parentportal.Portal {
 	var childFlows *care.Service
-	messagingFlows := messaging.New(messagingConfig(deps, children{flows: &childFlows}))
-	childFlows = care.New(careConfig(deps, messagingFlows))
+	messagingFlows := parentportal.NewMessagingFlows(messagingConfig(deps, messaging.NewChildResolver(&childFlows))).MessagingFlows
+	childFlows = parentportal.NewChildFlows(careConfig(deps, bindOwners(deps), messagingFlows))
 	return &parentportal.Portal{ChildFlows: childFlows, MessagingFlows: messagingFlows}
 }
 
-func careConfig(deps Dependencies, messagingFlows *messaging.Service) care.Config {
-	bound := bindOwners(deps)
+func careConfig(deps Dependencies, bound owners, messagingFlows *messaging.Service) care.Config {
 	cfg := care.Config{
-		CareExceptions: bound.careExceptions, DataRequests: bound.dataRequests,
+		CareExceptions: bound.careExceptions, DataRequests: deps.DataRequests,
 		GuardianAbsences: bound.guardianAbsences, GuardianPickups: bound.guardianPickups,
 		Guardians: bound.guardians, Students: bound.students,
-		Logger: deps.Logger, Now: deps.Now,
+		Logger: deps.Logger, Now: deps.Now, Runtime: deps.Runtime,
 		ChildRepo: deps.ChildRepo, EnrollablePhaseRepo: deps.EnrollablePhaseRepo,
 		EnrollmentSettings: deps.EnrollmentSettings, EnrollmentRequestRepo: deps.EnrollmentRequestRepo,
 		StudentRepo: deps.StudentRepo, PersonRepo: deps.PersonRepo, GuardianProfileRepo: deps.GuardianProfileRepo,
@@ -129,35 +119,32 @@ func careConfig(deps Dependencies, messagingFlows *messaging.Service) care.Confi
 		ChangeRequestRepo: deps.ChangeRequestRepo, StatusDayRepo: deps.StatusDayRepo, Settings: deps.Settings,
 		Attendance:       deps.Attendance,
 		ArrivalSchedules: deps.ArrivalSchedules, PickupSchedules: deps.PickupSchedules, CareRequests: deps.CareRequests,
-		ExcusedRequests: deps.ExcusedRequests, PickupAutoExcusal: deps.PickupAutoExcusal,
+		ExcusedRequests: deps.ExcusedRequests, CarePlanPolicy: deps.CarePlanPolicy,
 		CarePeriods: deps.CarePeriods, OfferingHistory: deps.OfferingHistory,
 		CareOfferingRepo: deps.CareOfferingRepo, OfferingChanges: deps.OfferingChanges,
 		StudentAudit: deps.StudentAudit, StudentConsents: deps.StudentConsents, StudentPhotos: deps.StudentPhotos,
 		ParentRequestEvents: deps.ParentRequestEvents,
-		GuardianChanges:     guardianChanges{log: auditcompose.NewGuardianChangeLog()},
+		GuardianChanges:     newGuardianChanges(deps.GuardianChanges),
 		GuardianInvites:     deps.GuardianInvites, GuardianInvitations: deps.GuardianInvitations,
-		Locales:         locales{},
+		Locales: deps.Locales, StudentUpdates: deps.StudentUpdates, GuardianPolicy: deps.GuardianPolicy, DeparturePolicy: deps.DeparturePolicy,
 		AbsenceNotifier: deps.AbsenceNotifier, Emitter: deps.Emitter,
 		SelfService:    messagingFlows,
-		RequestSharing: requestSharing{messaging: messagingFlows},
+		RequestSharing: messagingFlows.ChildFlowSharing(),
 	}
 	if deps.MealPlan != nil {
-		cfg.MealPlan = mealPlan{provider: deps.MealPlan}
-	}
-	if deps.Broadcaster != nil {
-		cfg.StudentUpdates = studentUpdates{broadcaster: deps.Broadcaster}
+		cfg.MealPlan = newMealPlan(deps.MealPlan)
 	}
 	return cfg
 }
 
 func messagingConfig(deps Dependencies, resolver messaging.ChildResolver) messaging.Config {
 	return messaging.Config{
-		Logger: deps.Logger, Now: deps.Now, Children: resolver,
+		SharePolicy: NewRequestSharePolicy(), Logger: deps.Logger, Now: deps.Now, Runtime: deps.Runtime, Children: resolver, GuardianPolicy: deps.GuardianPolicy, Fingerprints: deps.Fingerprints, Declarations: deps.Declarations,
 		ChildRepo: deps.ChildRepo, EnrollmentRequestRepo: deps.EnrollmentRequestRepo, Settings: deps.Settings,
 		StudentRepo: deps.StudentRepo, StudentGuardianRepo: deps.StudentGuardianRepo, GuardianProfileRepo: deps.GuardianProfileRepo,
 		AnnouncementRepo:  deps.AnnouncementRepo,
 		MessageThreadRepo: deps.MessageThreadRepo, MessageRepo: deps.MessageRepo, MessageReadRepo: deps.MessageReadRepo,
-		Conversations: deps.Conversations, ParentMessageNotifier: deps.ParentMessageNotifier, Emitter: deps.Emitter,
+		Conversations: deps.Conversations, MessagingEnabled: deps.MessagingEnabled, GroupThreads: deps.GroupThreads, ParentMessageNotifier: deps.ParentMessageNotifier, Emitter: deps.Emitter,
 		ChangeRequestRepo: deps.ChangeRequestRepo, CareRequestRepo: deps.CareRequestRepo,
 		ExcusedRequestRepo: deps.ExcusedRequestRepo, OfferingChangeRequestRepo: deps.OfferingChangeRequestRepo,
 		FamilyProtectionEvents: deps.FamilyProtectionEvents, ParentRequestShares: deps.ParentRequestShares,
@@ -165,14 +152,11 @@ func messagingConfig(deps Dependencies, resolver messaging.ChildResolver) messag
 	}
 }
 
-// owners are the owners' commands the flows write through. Care Plan
-// constructs its guardian commands over its own capability; the pickup
-// excusal stays optional, as in the flows.
+// owners are native command ports, bound to the same owner capabilities at Root.
 type owners struct {
 	careExceptions   care.CareExceptions
-	dataRequests     care.StudentDataRequestCommands
-	guardianAbsences careplan.GuardianAbsenceReports
-	guardianPickups  careplan.GuardianPickupExceptions
+	guardianAbsences care.GuardianAbsenceReports
+	guardianPickups  care.GuardianPickupExceptions
 	guardians        care.GuardianRecords
 	students         care.StudentRecords
 }
@@ -182,28 +166,18 @@ func bindOwners(deps Dependencies) owners {
 	if deps.CarePlan != nil {
 		bound = owners{
 			careExceptions:   deps.CarePlan,
-			dataRequests:     deps.CarePlan,
-			guardianAbsences: mustOwner(careplancompose.NewGuardianAbsences(deps.CarePlan)),
-			guardianPickups:  mustOwner(careplancompose.NewGuardianPickupExceptions(deps.CarePlan, deps.PickupAutoExcusal)),
+			guardianAbsences: deps.CarePlan,
+			guardianPickups:  deps.CarePlan,
 		}
 	}
 	if deps.CareExceptions != nil {
 		bound.careExceptions = deps.CareExceptions
 	}
 	if deps.People != nil {
-		bound.guardians = guardianRecords{people: deps.People}
+		bound.guardians = newGuardianRecords(deps.People)
 	}
 	if deps.People != nil || deps.CareProfiles != nil {
-		bound.students = studentRecords{care: deps.CareProfiles, people: deps.People}
+		bound.students = newStudentRecords(deps.CareProfiles, deps.People)
 	}
 	return bound
-}
-
-// mustOwner unwraps an owner constructor whose only failure is a missing
-// dependency, which bindOwners has already ruled out.
-func mustOwner[T any](value T, err error) T {
-	if err != nil {
-		panic(err)
-	}
-	return value
 }

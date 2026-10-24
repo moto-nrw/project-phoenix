@@ -56,13 +56,14 @@ type Dependencies struct {
 	Presence Presence
 	Planning Planning
 	Settings Settings
+	Staff    Staff
 	Calendar Calendar
 	Now      func() time.Time
 }
 
 func (d Dependencies) complete() bool {
 	return d.Access != nil && d.Sessions != nil && d.Yard != nil && d.Groups != nil &&
-		d.Schedule != nil && d.Presence != nil && d.Planning != nil && d.Settings != nil && d.Calendar != nil
+		d.Schedule != nil && d.Presence != nil && d.Planning != nil && d.Settings != nil && d.Staff != nil && d.Calendar != nil
 }
 
 type service struct{ deps Dependencies }
@@ -95,6 +96,9 @@ type Group struct {
 	// ParticipantLimit is the started activity's limit; nil without one.
 	// The page compares it with the session's children (#3634).
 	ParticipantLimit *int `json:"participant_limit,omitempty"`
+	// Supervisors names who supervises the session now (#4354); absent
+	// without one.
+	Supervisors []SessionSupervisor `json:"supervisors,omitempty"`
 }
 
 type UnclaimedGroup struct {
@@ -280,6 +284,9 @@ type PickupTime struct {
 	IsException bool      `json:"is_exception"`
 	Notes       string    `json:"notes,omitempty"`
 	DayNotes    []DayNote `json:"day_notes,omitempty"`
+
+	// DayDepartureMode is the Abholart set for this day only (#3946).
+	DayDepartureMode string `json:"day_departure_mode,omitempty"`
 }
 
 type ArrivalTime struct {
@@ -587,30 +594,12 @@ func (s *service) loadScheduleSections(ctx context.Context, projection *Projecti
 	return nil
 }
 
-func redactPlannedPickupTimes(instances []PlannedInstance) {
-	for i := range instances {
-		instances[i].PickupTimesLoaded = false
-		instances[i].PickupTimesRedacted = true
-		for j := range instances[i].RosterPreview {
-			instances[i].RosterPreview[j].PickupTime = nil
-		}
-	}
-}
-
 // loadPresenceSections projects the selected session and every released room
 // together. Student-specific reads therefore run once over their union.
 func (s *service) loadPresenceSections(ctx context.Context, projection *Projection, caller Caller, selectedGroupID *int64, openRooms openRoomInputs, staffID *int64, businessDay Date) error {
-	selectedRows := make([]VisitRecord, 0)
-	if selectedGroupID != nil {
-		rows, err := s.deps.Presence.GroupVisits(ctx, *selectedGroupID)
-		if err != nil {
-			return fmt.Errorf("load group visits: %w", err)
-		}
-		for _, row := range rows {
-			if row.ExitTime == nil {
-				selectedRows = append(selectedRows, row)
-			}
-		}
+	selectedRows, err := s.selectedGroupVisits(ctx, selectedGroupID)
+	if err != nil {
+		return err
 	}
 	studentIDs := unionStudentIDs(selectedRows, openRooms.studentIDs())
 
@@ -636,6 +625,12 @@ func (s *service) loadPresenceSections(ctx context.Context, projection *Projecti
 	}
 	projection.Visits = s.buildVisits(selectedRows, attendance, fullAccess, photosEnabled)
 	projection.OpenRooms = s.assembleOpenRooms(openRooms, attendance, fullAccess, photosEnabled, staffID, caller.AdminScope)
+	if !caller.CanReadStudents {
+		redactAbsenceStatuses(projection)
+	}
+	if err := s.nameSupervisors(ctx, projection, openRooms); err != nil {
+		return err
+	}
 
 	tracking, err := s.loadTracking(ctx, studentIDs)
 	if err != nil {
@@ -765,7 +760,7 @@ func pickupTimeFromEffective(studentID int64, effective Pickup) PickupTime {
 	return PickupTime{
 		StudentID: studentID, Date: string(effective.Date), WeekdayName: effective.WeekdayName,
 		PickupTime: effective.PickupTime, IsException: effective.IsException, Notes: effective.Notes,
-		DayNotes: effective.DayNotes,
+		DayNotes: effective.DayNotes, DayDepartureMode: effective.DayDepartureMode,
 	}
 }
 
@@ -775,4 +770,20 @@ func arrivalTimeFromEffective(studentID int64, effective Arrival) ArrivalTime {
 		ExpectedArrival: effective.ArrivalTime, IsException: effective.IsException, Notes: effective.Notes,
 		DayNotes: effective.DayNotes,
 	}
+}
+
+func (s *service) selectedGroupVisits(ctx context.Context, selectedGroupID *int64) ([]VisitRecord, error) {
+	selectedRows := make([]VisitRecord, 0)
+	if selectedGroupID != nil {
+		rows, err := s.deps.Presence.GroupVisits(ctx, *selectedGroupID)
+		if err != nil {
+			return nil, fmt.Errorf("load group visits: %w", err)
+		}
+		for _, row := range rows {
+			if row.ExitTime == nil {
+				selectedRows = append(selectedRows, row)
+			}
+		}
+	}
+	return selectedRows, nil
 }

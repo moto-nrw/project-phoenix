@@ -69,8 +69,8 @@ import {
 import type { Icon as PhosphorIcon, IconProps } from "@phosphor-icons/react";
 import type { MotoDuotoneTone } from "~/lib/location-helper";
 
-export type MotoConceptKind = "core" | "status" | "function";
-export type MotoConceptSection =
+type MotoConceptKind = "core" | "status" | "function";
+type MotoConceptSection =
   | "people"
   | "presence"
   | "planning"
@@ -330,7 +330,7 @@ export const MOTO_CONCEPTS = {
     "communication",
   ),
   mealPlan: concept(
-    "Essensplan",
+    "Speiseplan",
     ForkKnifeIcon,
     "greenDeep",
     "function",
@@ -404,7 +404,7 @@ export const MOTO_CONCEPTS = {
     "system",
   ),
   gradeTransitions: concept(
-    "Jahrgangswechsel",
+    "Schuljahreswechsel",
     TrendUpIcon,
     "gold",
     "function",

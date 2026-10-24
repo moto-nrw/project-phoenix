@@ -9,6 +9,9 @@ import (
 	"testing"
 	"time"
 
+	rootAPI "github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/go-chi/chi/v5"
 	apiTest "github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
@@ -31,21 +34,24 @@ type idempotentCreateSetup struct {
 
 func setupIdempotentCreateRoute(t *testing.T) *idempotentCreateSetup {
 	t.Helper()
-	db, serviceFactory := apiTest.SetupTimetableModule(t)
+	db, serviceFactory, schoolCalendar := setupTimetableModule(t)
 	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("Create-Idempotent-Room-%d", suffix))
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("create-idempotent-%d", suffix))
 	period := testpkg.CreateTestCalendarPeriod(t, db, fmt.Sprintf("Create-Idempotent-Period-%d", suffix), calendar.TodayDate().AddDays(-1), calendar.TodayDate().AddDays(7))
 	testpkg.SetCalendarPeriodActive(t, db, period, true)
+	schoolSettings, err := owners.NewSettingsTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
+	require.NoError(t, err)
 	resource := timetableAPI.NewResource(timetableAPI.Dependencies{
-		CalendarPeriods: serviceFactory.SchoolCalendar,
+		CalendarPeriods: schoolCalendar,
+		SettingsService: schoolSettings.Settings,
 		Templates:       serviceFactory.TimetableData.Templates,
 		TimetableData:   serviceFactory.TimetableData.Data,
 		InstanceService: serviceFactory.Instance,
 	})
 	router := chi.NewRouter()
-	router.Mount("/timetable", resource.Router())
+	router.Mount("/timetable", resource.Router(rootAPI.ProtectedTenantRoutes))
 	return &idempotentCreateSetup{
 		db: db, router: router, claimsID: int(account.ID),
 		tenantID: tenant.FromContext(ctx), roomID: room.ID,

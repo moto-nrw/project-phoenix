@@ -5,8 +5,10 @@ import (
 	"errors"
 	"log/slog"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
+	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 )
 
 const (
@@ -205,4 +207,124 @@ func isExpectedLinkageError(err error) bool {
 // isNotStaff reports the two outcomes that mean "the caller is no staff".
 func isNotStaff(err error) bool {
 	return errors.Is(err, domain.ErrCallerNotLinkedToStaff) || errors.Is(err, domain.ErrCallerNotLinkedToPerson)
+}
+
+type ReviewEngine struct {
+	Review *ParentRequestReview
+}
+
+func (e ReviewEngine) ReviewScope(ctx context.Context, permissions []string) (bool, []int64, error) {
+	schoolWide, groups, err := e.Review.Scope(ctx, permissions)
+	return schoolWide, groups, mapCallerError(err)
+}
+
+func (e ReviewEngine) AbsenceReviewScope(ctx context.Context, permissions []string) (bool, []int64, error) {
+	schoolWide, groups, err := e.Review.AbsenceScope(ctx, permissions)
+	return schoolWide, groups, mapCallerError(err)
+}
+
+func (e ReviewEngine) ReviewAccessLevel(ctx context.Context, permissions []string) (string, error) {
+	level, err := e.Review.AccessLevel(ctx, permissions)
+	return level, mapCallerError(err)
+}
+
+type CallerAccounts struct {
+	identityaccess.AccountProfiles
+}
+
+func (a CallerAccounts) FindAccountMetadata(ctx context.Context, accountID int64) (domain.AccountMetadata, error) {
+	value, err := a.AccountProfiles.FindAccountMetadata(ctx, accountID)
+	return domain.AccountMetadata(value), err
+}
+
+func (a CallerAccounts) FindAccountProfile(ctx context.Context, accountID int64) (domain.AccountProfile, bool, error) {
+	bio, settings, found, err := a.AccountProfiles.FindAccountProfile(ctx, accountID)
+	return domain.AccountProfile{Bio: bio, Settings: settings}, found, err
+}
+
+type CallerPeople struct{ identityPorts.CallerPeople }
+
+func (p CallerPeople) FindPersonByAccount(ctx context.Context, accountID int64) (domain.CallerPerson, bool, error) {
+	person, found, err := p.CallerPeople.FindPersonByAccount(ctx, accountID)
+	return domain.CallerPerson(person), found, err
+}
+
+type CallerSessions struct{ identityPorts.CallerSessions }
+
+func (s CallerSessions) SessionVisits(ctx context.Context, sessionID int64) ([]domain.CallerVisit, error) {
+	visits, err := s.CallerSessions.SessionVisits(ctx, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]domain.CallerVisit, 0, len(visits))
+	for _, visit := range visits {
+		result = append(result, domain.CallerVisit(visit))
+	}
+	return result, nil
+}
+
+// mappedCallerError keeps the text of a wrapped caller-context error while
+// its cause is the public error.
+type mappedCallerError struct {
+	text  string
+	cause error
+}
+
+func (e *mappedCallerError) Error() string { return e.text }
+
+func (e *mappedCallerError) Unwrap() error { return e.cause }
+
+var callerSentinels = [][2]error{
+	{domain.ErrCallerNotAuthenticated, identityaccess.ErrCallerNotAuthenticated},
+	{domain.ErrCallerNotFound, identityaccess.ErrCallerNotFound},
+	{domain.ErrCallerNotAuthorized, identityaccess.ErrCallerNotAuthorized},
+	{domain.ErrCallerNotLinkedToPerson, identityaccess.ErrCallerNotLinkedToPerson},
+	{domain.ErrCallerNotLinkedToStaff, identityaccess.ErrCallerNotLinkedToStaff},
+	{domain.ErrCallerNotLinkedToTeacher, identityaccess.ErrCallerNotLinkedToTeacher},
+	{domain.ErrCallerGroupNotFound, identityaccess.ErrCallerGroupNotFound},
+	{domain.ErrCallerSessionNotFound, identityaccess.ErrCallerSessionNotFound},
+}
+
+// mapCallerError turns the application's caller-context errors into the
+// public ones, keeping the failed operation and the wrapped cause.
+// A context a use case wraps around such an error keeps its text, and
+// errors.Is/As reach the public error inside it.
+func mapCallerError(err error) error {
+	if err == nil {
+		return nil
+	}
+	if mapped, ok := mapCallerErrorValue(err); ok {
+		return mapped
+	}
+	inner := errors.Unwrap(err)
+	if inner == nil {
+		return err
+	}
+	mappedInner := mapCallerError(inner)
+	if mappedInner == inner {
+		return err
+	}
+	return &mappedCallerError{text: err.Error(), cause: mappedInner}
+}
+
+// mapCallerErrorValue translates one of the application's caller-context
+// errors itself, not an error wrapping one.
+func mapCallerErrorValue(err error) (error, bool) {
+	switch e := err.(type) {
+	case *domain.CallerError:
+		return &identityaccess.CallerError{Op: e.Op, Err: mapCallerError(e.Err)}, true
+	case *domain.CallerGroupsPartialError:
+		return &identityaccess.CallerGroupsPartialError{
+			Op: e.Op, SuccessCount: e.SuccessCount, FailureCount: e.FailureCount,
+			FailedIDs: e.FailedIDs, LastErr: e.LastErr,
+		}, true
+	case *domain.SSESetupError:
+		return &identityaccess.SSESetupError{Message: e.Message, Status: e.Status}, true
+	}
+	for _, pair := range callerSentinels {
+		if err == pair[0] {
+			return pair[1], true
+		}
+	}
+	return nil, false
 }

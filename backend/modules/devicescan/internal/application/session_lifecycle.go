@@ -5,46 +5,20 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/devicescan"
-	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/ports"
+	"github.com/moto-nrw/project-phoenix/modules/devicescan/ports"
 )
 
-// LifecycleSession is the session projection needed by the manual kiosk controls.
-type LifecycleSession struct {
-	ID, RoomID             int64
-	ActivityID             *int64
-	StartTime              time.Time
-	ActivityName, RoomName *string
-	Supervisors            []LifecycleSupervisor
-}
-
-type LifecycleSupervisor struct {
-	StaffID int64
-	Role    string
-	Ended   bool
-}
-
-// SessionStartConflict preserves the start outcomes that require a second
-// conflict lookup. Its cause retains the ordinary fallback classification.
-type SessionStartConflict struct{ Cause error }
-
-func (e *SessionStartConflict) Error() string { return e.Cause.Error() }
-func (e *SessionStartConflict) Unwrap() error { return e.Cause }
-
-// ErrLifecycleSessionAbsent distinguishes the normal no-session state.
-var ErrLifecycleSessionAbsent = errors.New("kiosk session absent")
-
 // LifecycleStore is the consumer-owned session seam. Current wraps
-// ErrLifecycleSessionAbsent when absent and preserves the service wire text.
+// ports.ErrLifecycleSessionAbsent when absent and preserves the service wire text.
 type LifecycleStore interface {
-	Start(context.Context, int64, devicescan.StartSessionCommand) (LifecycleSession, error)
-	Current(context.Context, int64) (*LifecycleSession, error)
+	Start(context.Context, int64, devicescan.StartSessionCommand) (ports.LifecycleSession, error)
+	Current(context.Context, int64) (*ports.LifecycleSession, error)
 	Conflict(context.Context, int64, int64) (devicescan.ConflictInfoResponse, error)
-	Supervisors(context.Context, int64) ([]LifecycleSupervisor, error)
-	ReplaceSupervisors(context.Context, int64, []int64) (LifecycleSession, error)
-	CountStudents(context.Context, int64) (int, error)
+	Supervisors(context.Context, int64) ([]ports.LifecycleSupervisor, error)
+	ReplaceSupervisors(context.Context, int64, []int64) (ports.LifecycleSession, error)
+	CountActiveVisitsByActiveGroupID(context.Context, int64) (int, error)
 	Touch(context.Context, int64) error
 	Timeout(context.Context, int64) (devicescan.SessionTimeoutResponse, error)
 	ValidateTimeout(context.Context, int64, int) error
@@ -58,7 +32,7 @@ type LifecyclePeople interface {
 // SessionMirror owns the optional best-effort timetable mirror and its
 // post-commit notification. A nil mirror leaves the session command unchanged.
 type SessionMirror interface {
-	MirrorSession(context.Context, LifecycleSession, []int64)
+	MirrorSession(context.Context, ports.LifecycleSession, []int64)
 }
 
 type SessionHeartbeat interface {
@@ -68,21 +42,21 @@ type SessionHeartbeat interface {
 type sessionLifecycle struct {
 	store      LifecycleStore
 	people     LifecyclePeople
-	principals ports.Principals
+	principals devicescan.PrincipalReader
 	heartbeat  SessionHeartbeat
 	mirror     SessionMirror
 	clock      ports.Clock
 	logger     *slog.Logger
 }
 
-func NewSessionLifecycle(store LifecycleStore, people LifecyclePeople, principals ports.Principals, heartbeat SessionHeartbeat, mirror SessionMirror, clock ports.Clock, logger *slog.Logger) devicescan.SessionLifecycle {
+func NewSessionLifecycle(store LifecycleStore, people LifecyclePeople, principals devicescan.PrincipalReader, heartbeat SessionHeartbeat, mirror SessionMirror, clock ports.Clock, logger *slog.Logger) devicescan.SessionLifecycle {
 	if logger == nil {
 		logger = slog.Default()
 	}
 	return &sessionLifecycle{store: store, people: people, principals: principals, heartbeat: heartbeat, mirror: mirror, clock: clock, logger: logger}
 }
 
-func (s *sessionLifecycle) device(ctx context.Context) (*ports.Device, error) {
+func (s *sessionLifecycle) device(ctx context.Context) (*devicescan.PrincipalDevice, error) {
 	device, ok := s.principals.Device(ctx)
 	if !ok || device == nil {
 		return nil, devicescan.ErrDeviceUnauthorized
@@ -100,7 +74,7 @@ func (s *sessionLifecycle) StartSession(ctx context.Context, command devicescan.
 	}
 	group, err := s.store.Start(ctx, device.ID, command)
 	if err != nil {
-		var conflict *SessionStartConflict
+		var conflict *ports.SessionStartConflict
 		if errors.As(err, &conflict) {
 			info, lookupErr := s.store.Conflict(ctx, command.ActivityID, device.ID)
 			if lookupErr == nil && info.HasConflict {
@@ -119,7 +93,7 @@ func (s *sessionLifecycle) StartSession(ctx context.Context, command devicescan.
 	return response, nil
 }
 
-func (s *sessionLifecycle) supervisorInfos(ctx context.Context, supervisors []LifecycleSupervisor) []devicescan.SupervisorInfo {
+func (s *sessionLifecycle) supervisorInfos(ctx context.Context, supervisors []ports.LifecycleSupervisor) []devicescan.SupervisorInfo {
 	result := make([]devicescan.SupervisorInfo, 0, len(supervisors))
 	if len(supervisors) == 0 {
 		return result
@@ -158,7 +132,7 @@ func (s *sessionLifecycle) CurrentSession(ctx context.Context) (devicescan.Sessi
 	}
 	response := devicescan.SessionCurrentResponse{DeviceID: device.ID}
 	group, err := s.store.Current(ctx, device.ID)
-	if err != nil && !errors.Is(err, ErrLifecycleSessionAbsent) {
+	if err != nil && !errors.Is(err, ports.ErrLifecycleSessionAbsent) {
 		return response, classifyPresenceFailure(err)
 	}
 	if group == nil {
@@ -175,7 +149,7 @@ func (s *sessionLifecycle) CurrentSession(ctx context.Context) (devicescan.Sessi
 	response.ActiveGroupID, response.ActivityID, response.RoomID = &group.ID, group.ActivityID, &group.RoomID
 	response.StartTime, response.Duration = &group.StartTime, &duration
 	response.ActivityName, response.RoomName = group.ActivityName, group.RoomName
-	if count, countErr := s.store.CountStudents(ctx, group.ID); countErr == nil {
+	if count, countErr := s.store.CountActiveVisitsByActiveGroupID(ctx, group.ID); countErr == nil {
 		response.ActiveStudents = &count
 	} else {
 		s.logger.WarnContext(ctx, "failed to get active student count",
@@ -202,7 +176,7 @@ func (s *sessionLifecycle) SessionToEnd(ctx context.Context) (devicescan.Session
 		return devicescan.SessionToEnd{}, err
 	}
 	group, err := s.store.Current(ctx, device.ID)
-	if err != nil && !errors.Is(err, ErrLifecycleSessionAbsent) {
+	if err != nil && !errors.Is(err, ports.ErrLifecycleSessionAbsent) {
 		return devicescan.SessionToEnd{}, classifyPresenceFailure(err)
 	}
 	if group == nil {
@@ -219,7 +193,7 @@ func (s *sessionLifecycle) ReplaceSessionSupervisors(ctx context.Context, sessio
 	if err != nil {
 		return devicescan.UpdateSupervisorsResponse{}, classifyPresenceFailure(err)
 	}
-	active := make([]LifecycleSupervisor, 0, len(group.Supervisors))
+	active := make([]ports.LifecycleSupervisor, 0, len(group.Supervisors))
 	for _, supervisor := range group.Supervisors {
 		if !supervisor.Ended && supervisor.StaffID > 0 {
 			active = append(active, supervisor)

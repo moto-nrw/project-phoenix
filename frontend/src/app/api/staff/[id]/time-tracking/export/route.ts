@@ -5,23 +5,24 @@ import { auth } from "~/server/auth";
 import { withTenantAuth } from "~/server/auth/tenant-route";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { createLogger } from "~/lib/logger";
+import { problemResponse } from "~/lib/api-helpers.server";
 
 const logger = createLogger({ component: "StaffTimeTrackingExportRoute" });
 
-// Admin export proxy. Streams CSV/XLSX binary from the backend as a file
-// download. Mirrors /api/time-tracking/export but for a specific staff ID.
+// Streams one person’s PDF/CSV/XLSX time report. The backend checks manage
+// permission or time_tracking:own for the signed-in person’s staff ID.
 async function GETHandler(
   request: NextRequest,
   context: { params: Promise<{ id: string }> },
 ) {
   const session = await auth();
   if (!session?.user?.token) {
-    return new Response("Unauthorized", { status: 401 });
+    return problemResponse(401, "Unauthorized", request);
   }
 
   const { id } = await context.params;
   if (!/^\d+$/.test(id)) {
-    return new Response("Invalid staff id", { status: 400 });
+    return problemResponse(400, "Invalid staff id", request);
   }
 
   try {
@@ -34,10 +35,11 @@ async function GETHandler(
       },
     );
 
-    if (!backendResponse.ok) return forwardBackendResponse(backendResponse);
+    if (!backendResponse.ok)
+      return forwardBackendResponse(backendResponse, request);
 
     if (!backendResponse.body) {
-      return new Response("No response body from backend", { status: 502 });
+      return problemResponse(502, "No response body from backend", request);
     }
 
     const headers = new Headers();
@@ -58,7 +60,7 @@ async function GETHandler(
       staff_id: id,
       error: error instanceof Error ? error.message : String(error),
     });
-    return new Response("Internal server error", { status: 500 });
+    return problemResponse(500, "Internal server error", request);
   }
 }
 

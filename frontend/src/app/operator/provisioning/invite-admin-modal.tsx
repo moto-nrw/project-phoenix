@@ -237,10 +237,10 @@ export function InviteAdminModal({
                 htmlFor="invite-admin-caregiver-enabled"
                 className="text-sm font-medium text-gray-900"
               >
-                Auch als Betreuer einsetzen
+                Auch in der Betreuung einsetzen
               </label>
               <p className="text-sm text-gray-600">
-                Vergibt zusätzlich die Betreuer-Rolle und legt das nötige
+                Vergibt zusätzlich die Rolle Betreuung und legt das nötige
                 Staff-/Teacher-Profil an.
               </p>
             </div>

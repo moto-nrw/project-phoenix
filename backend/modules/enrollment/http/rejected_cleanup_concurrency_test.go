@@ -9,14 +9,10 @@ import (
 	"testing"
 	"time"
 
-	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
-
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
+	api "github.com/moto-nrw/project-phoenix/roots/owners"
 
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -25,7 +21,7 @@ import (
 )
 
 type cleanupLockSignalRepository struct {
-	testutil.EnrollmentDeletionOwner
+	api.EnrollmentDeletionOwner
 	targetRequestID int64
 	lockStarted     chan struct{}
 	once            sync.Once
@@ -48,7 +44,7 @@ func (s cleanupRetentionSettings) ResolveString(context.Context, string) (string
 }
 
 func (s cleanupRetentionSettings) ResolveInt(_ context.Context, key string) (int, error) {
-	if key != configModel.KeyEnrollmentRejectedRetentionDays {
+	if key != settingKeyRejectedRetentionDays {
 		return 0, fmt.Errorf("unexpected setting key %q", key)
 	}
 	return s.days, nil
@@ -67,11 +63,11 @@ func TestRejectedEnrollmentCleanup_ConcurrentReopenPreservesRequestAndOutbox(t *
 	db := testpkg.SetupTestDB(t)
 	scope := testpkg.NewTenantScope(t, db)
 	ctx := scope.Context()
-	repos := flowRepositories(t, db)
+	repos, _, _, _, _, _ := flowRepositories(t, db)
 
 	phase := &capability.Phase{
 		Name:             fmt.Sprintf("cleanup-concurrency-%d", scope.TenantID),
-		Kind:             enrollmentModels.PhaseKindSchoolYear,
+		Kind:             capability.PhaseKindSchoolYear,
 		ServiceStartDate: capability.Date(calendar.NewDate(2026, 9, 1)),
 		ServiceEndDate:   capability.Date(calendar.NewDate(2027, 7, 31)),
 		IsActive:         true,
@@ -86,7 +82,7 @@ func TestRejectedEnrollmentCleanup_ConcurrentReopenPreservesRequestAndOutbox(t *
 		GuardianEmail:     fmt.Sprintf("cleanup-%d@example.invalid", scope.TenantID),
 		ConsentFlags:      map[string]any{},
 		CustomData:        map[string]any{},
-		SubmissionSource:  enrollmentModels.RequestSourcePublic,
+		SubmissionSource:  capability.RequestSourcePublic,
 		SourceMetadata:    map[string]any{},
 		StatusToken:       fmt.Sprintf("cleanup-token-%d", scope.TenantID),
 		SubmittedAt:       time.Now(),
@@ -101,8 +97,8 @@ func TestRejectedEnrollmentCleanup_ConcurrentReopenPreservesRequestAndOutbox(t *
 		LastName:       "Child",
 		DateOfBirth:    "2018-04-15",
 		CustomData:     map[string]any{},
-		Status:         enrollmentModels.ChildStatusRejected,
-		ActivationMode: enrollmentModels.ChildActivationScheduled,
+		Status:         capability.ChildStatusRejected,
+		ActivationMode: capability.ChildActivationScheduled,
 		ReviewedAt:     &oldReview,
 	}
 	child.TenantID = scope.TenantID
@@ -128,7 +124,7 @@ func TestRejectedEnrollmentCleanup_ConcurrentReopenPreservesRequestAndOutbox(t *
 		UPDATE enrollment.request_children
 		SET status = ?, reviewed_at = ?
 		WHERE id = ?
-	`, enrollmentModels.ChildStatusUnderReview, time.Now(), child.ID)
+	`, capability.ChildStatusUnderReview, time.Now(), child.ID)
 	require.NoError(t, err)
 
 	lockStarted := make(chan struct{})
@@ -137,7 +133,7 @@ func TestRejectedEnrollmentCleanup_ConcurrentReopenPreservesRequestAndOutbox(t *
 		targetRequestID:         request.ID,
 		lockStarted:             lockStarted,
 	}
-	cleaner := testutil.NewEnrollmentDeletionModule(testutil.EnrollmentDeletionSources{
+	cleaner := api.NewEnrollmentDeletionModule(api.EnrollmentDeletionSources{
 		Owner:    requestRepo,
 		Delivery: newTestEnrollmentDelivery(t, db),
 		Settings: cleanupRetentionSettings{days: 30},
@@ -173,9 +169,9 @@ func TestRejectedEnrollmentCleanup_ConcurrentReopenPreservesRequestAndOutbox(t *
 	storedRequest, err := enrollmentAPI.ReadOwnerRequestForTest(ctx, repos.Enrollment(), request.ID)
 	require.NoError(t, err)
 	assert.Equal(t, request.ID, storedRequest.ID)
-	storedChild, err := repos.Enrollment().ChildByID(ctx, child.ID)
+	storedChild, err := testpkg.TenantQuery1(t, ctx, db, repos.Enrollment().ChildByID, child.ID)
 	require.NoError(t, err)
-	assert.Equal(t, enrollmentModels.ChildStatusUnderReview, storedChild.Status)
+	assert.Equal(t, capability.ChildStatusUnderReview, storedChild.Status)
 	assert.Equal(t, 1, tableCount(t, db, "platform.email_outbox", "id = ? AND status = 'pending'", outboxRow.ID))
 }
 
@@ -184,19 +180,16 @@ func TestRejectedEnrollmentCleanup_TenantRoleDeletesLateInviteOutboxAndRequest(t
 	testpkg.SetupIsolatedTestDB(t)
 	db := testpkg.SetupTestDB(t)
 	scope := testpkg.NewTenantScope(t, db)
-	repos := flowRepositories(t, db)
+	repos, _, _, _, _, _ := flowRepositories(t, db)
 	creator := testpkg.CreateTestAccount(t, db, "rejected-cleanup-late-invite")
 	var _, requestID, outboxID, linkedInviteID, unrelatedInviteID int64
-	defer func() {
-		_, _ = db.NewDelete().TableExpr("enrollment.late_invites").Where("tenant_id = ?", scope.TenantID).Exec(context.Background())
-	}()
 	deliveryPort := newTestEnrollmentDelivery(t, db)
 
 	oldReview := time.Now().Add(-60 * 24 * time.Hour)
 	require.NoError(t, testpkg.WithTenantTx(t, context.Background(), db, scope.TenantID, func(ctx context.Context, _ bun.Tx) error {
 		phase := &capability.Phase{
 			Name:             fmt.Sprintf("cleanup-late-invite-%d", scope.TenantID),
-			Kind:             enrollmentModels.PhaseKindSchoolYear,
+			Kind:             capability.PhaseKindSchoolYear,
 			ServiceStartDate: capability.Date(calendar.NewDate(2026, 9, 1)),
 			ServiceEndDate:   capability.Date(calendar.NewDate(2027, 7, 31)),
 			IsActive:         true,
@@ -212,7 +205,7 @@ func TestRejectedEnrollmentCleanup_TenantRoleDeletesLateInviteOutboxAndRequest(t
 			GuardianEmail:     fmt.Sprintf("cleanup-late-invite-%d@example.invalid", scope.TenantID),
 			ConsentFlags:      map[string]any{},
 			CustomData:        map[string]any{},
-			SubmissionSource:  enrollmentModels.RequestSourceLateInvite,
+			SubmissionSource:  capability.RequestSourceLateInvite,
 			SourceMetadata:    map[string]any{},
 			StatusToken:       fmt.Sprintf("cleanup-late-invite-token-%d", scope.TenantID),
 			SubmittedAt:       time.Now(),
@@ -228,8 +221,8 @@ func TestRejectedEnrollmentCleanup_TenantRoleDeletesLateInviteOutboxAndRequest(t
 			LastName:       "Child",
 			DateOfBirth:    "2018-04-15",
 			CustomData:     map[string]any{},
-			Status:         enrollmentModels.ChildStatusRejected,
-			ActivationMode: enrollmentModels.ChildActivationScheduled,
+			Status:         capability.ChildStatusRejected,
+			ActivationMode: capability.ChildActivationScheduled,
 			ReviewedAt:     &oldReview,
 		}
 		if err := enrollmentAPI.InsertOwnerChildForTest(ctx, repos.Enrollment(), child); err != nil {
@@ -246,11 +239,11 @@ func TestRejectedEnrollmentCleanup_TenantRoleDeletesLateInviteOutboxAndRequest(t
 			CreatedBy:         creator.ID,
 			Reason:            testpkg.StrPtr("Contains enrollment PII"),
 		}
-		if err := repos.Enrollment().InsertLateInvite(ctx, linkedInvite); err != nil {
+		if err := testpkg.TenantCommand1(t, ctx, db, repos.Enrollment().InsertLateInvite, linkedInvite); err != nil {
 			return err
 		}
 		linkedInviteID = linkedInvite.ID
-		if err := repos.Enrollment().MarkLateInviteUsed(ctx, linkedInvite.ID, request.ID, time.Now()); err != nil {
+		if err := testpkg.TenantCommand3(t, ctx, db, repos.Enrollment().MarkLateInviteUsed, linkedInvite.ID, request.ID, time.Now()); err != nil {
 			return err
 		}
 
@@ -261,7 +254,7 @@ func TestRejectedEnrollmentCleanup_TenantRoleDeletesLateInviteOutboxAndRequest(t
 			ExpiresAt:     time.Now().Add(24 * time.Hour),
 			CreatedBy:     creator.ID,
 		}
-		if err := repos.Enrollment().InsertLateInvite(ctx, unrelatedInvite); err != nil {
+		if err := testpkg.TenantCommand1(t, ctx, db, repos.Enrollment().InsertLateInvite, unrelatedInvite); err != nil {
 			return err
 		}
 		unrelatedInviteID = unrelatedInvite.ID
@@ -278,7 +271,7 @@ func TestRejectedEnrollmentCleanup_TenantRoleDeletesLateInviteOutboxAndRequest(t
 		return nil
 	}))
 
-	cleaner := testutil.NewEnrollmentDeletionModule(testutil.EnrollmentDeletionSources{
+	cleaner := api.NewEnrollmentDeletionModule(api.EnrollmentDeletionSources{
 		Owner:    repos.Enrollment(),
 		Delivery: deliveryPort,
 		Settings: cleanupRetentionSettings{days: 30},

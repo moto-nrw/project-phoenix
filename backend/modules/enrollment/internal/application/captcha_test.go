@@ -47,27 +47,22 @@ func (s *captchaProviderStub) SiteVerify(_ context.Context, secret, token, remot
 func TestCaptchaDisabledAcceptsEveryToken(t *testing.T) {
 	t.Parallel()
 	provider := &captchaProviderStub{}
-	svc := newCaptchaForTest(captchaSettingsStub{}, provider)
+	svc := newCaptchaForTest(captchaSettingsStub{siteKey: "platform-site", secret: "platform-secret"}, provider)
 
 	enabled, err := svc.IsEnabled(context.Background())
 	assert.NoError(t, err)
 	assert.False(t, enabled)
+	siteKey, err := svc.SiteKey(context.Background())
+	assert.NoError(t, err)
+	assert.Empty(t, siteKey)
 	// Even a blank token + IP must not error when captcha is off.
 	assert.NoError(t, svc.Verify(context.Background(), "", ""))
 	assert.Zero(t, provider.calls)
 }
 
-func TestCaptchaWithoutSettingsIsDisabled(t *testing.T) {
+func TestCaptchaWithoutSettingsIsRejected(t *testing.T) {
 	t.Parallel()
-	svc := newCaptchaForTest(nil, &captchaProviderStub{})
-
-	enabled, err := svc.IsEnabled(context.Background())
-	assert.NoError(t, err)
-	assert.False(t, enabled)
-	assert.NoError(t, svc.Verify(context.Background(), "", ""))
-	siteKey, err := svc.SiteKey(context.Background())
-	assert.NoError(t, err)
-	assert.Empty(t, siteKey)
+	assert.Panics(t, func() { newCaptchaForTest(nil, &captchaProviderStub{}) })
 }
 
 func TestCaptchaRequiresASecret(t *testing.T) {
@@ -122,7 +117,7 @@ func TestCaptchaProviderErrorsBubbleUp(t *testing.T) {
 
 func TestCaptchaSiteKeyComesFromTheSettings(t *testing.T) {
 	t.Parallel()
-	svc := newCaptchaForTest(captchaSettingsStub{siteKey: "site"}, &captchaProviderStub{})
+	svc := newCaptchaForTest(captchaSettingsStub{required: true, siteKey: "site"}, &captchaProviderStub{})
 
 	siteKey, err := svc.SiteKey(context.Background())
 	assert.NoError(t, err)

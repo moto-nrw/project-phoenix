@@ -283,10 +283,16 @@ func TestActivityInstanceListQueryBudgetStaysFlat(t *testing.T) {
 	for day := 17; day <= 24; day++ {
 		createOwnedActivityInstance(t, module, ctx, fixture, fmt.Sprintf("2027-09-%02d", day), "08:00:00", "Budget")
 	}
-	counter := testpkg.CaptureQueries(t, db)
-	_, err := module.ListActivityInstances(ctx, timetable.ActivityInstanceFilter{ActivityGroupID: &fixture.groupID})
-	require.NoError(t, err)
-	testpkg.AssertQueryBudget(t, "modules.timetable.activity_instances.list", counter.Queries())
+	// The owner read runs inside the HTTP/workflow unit of work. The budget
+	// still measures every business query, not connection/role setup.
+	require.NoError(t, tenant.WithinCurrentTenant(ctx, func(ctx context.Context) error {
+		counter := testpkg.CaptureQueries(t, db)
+		_, err := module.ListActivityInstances(ctx, timetable.ActivityInstanceFilter{ActivityGroupID: &fixture.groupID})
+		require.NoError(t, err)
+		testpkg.AssertQueryBudget(t, "modules.timetable.activity_instances.list", counter.Queries())
+
+		return nil
+	}))
 }
 
 func newOwnedActivityInstanceFixture(t *testing.T, db *bun.DB, suffix string) ownedActivityInstanceFixture {
@@ -296,7 +302,7 @@ func newOwnedActivityInstanceFixture(t *testing.T, db *bun.DB, suffix string) ow
 	return ownedActivityInstanceFixture{roomID: room.ID, groupID: group.ID}
 }
 
-func createOwnedActivityInstance(t *testing.T, module *timetable.Module, ctx context.Context, fixture ownedActivityInstanceFixture, date, start, title string) timetable.ActivityInstance {
+func createOwnedActivityInstance(t *testing.T, module timetable.Owner, ctx context.Context, fixture ownedActivityInstanceFixture, date, start, title string) timetable.ActivityInstance {
 	t.Helper()
 	value, err := module.CreateActivityInstance(ctx, ownedActivityInstanceInput(fixture, date, start, title))
 	require.NoError(t, err)
@@ -341,7 +347,7 @@ func createOwnerCalendarPeriod(t *testing.T, db *bun.DB, start, end string) int6
 	return id
 }
 
-func assertActivityInstanceListKind(t *testing.T, module *timetable.Module, ctx context.Context, id int64, want *string) {
+func assertActivityInstanceListKind(t *testing.T, module timetable.Owner, ctx context.Context, id int64, want *string) {
 	t.Helper()
 	value, err := module.FindActivityInstance(ctx, id)
 	require.NoError(t, err)

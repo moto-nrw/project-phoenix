@@ -5,8 +5,9 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/domain"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/ports"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 type DocumentCleanup struct {
@@ -26,7 +27,10 @@ func (s *DocumentCleanup) Enqueue(ctx context.Context, staffID int64) error {
 	return s.transaction.RunWrite(ctx, func(txCtx context.Context) error { return s.store.EnqueueDocumentCleanup(txCtx, staffID, s.now()) })
 }
 
-func (s *DocumentCleanup) Claim(ctx context.Context, limit int) (result []domain.DocumentCleanupClaim, err error) {
+func (s *DocumentCleanup) Claim(ctx context.Context, limit int) (result []workforce.DocumentCleanupClaim, err error) {
+	if _, active := tenant.TransactionFromContext(ctx); active {
+		return nil, errors.New("document cleanup: claim must commit independently")
+	}
 	if limit < 1 || limit > 100 {
 		return nil, errors.New("document cleanup: limit must be between 1 and 100")
 	}
@@ -37,10 +41,13 @@ func (s *DocumentCleanup) Claim(ctx context.Context, limit int) (result []domain
 	if err != nil {
 		return nil, err
 	}
+	if result == nil {
+		result = []workforce.DocumentCleanupClaim{}
+	}
 	return result, nil
 }
 
-func (s *DocumentCleanup) Finish(ctx context.Context, claim domain.DocumentCleanupClaim, success bool) (finished bool, err error) {
+func (s *DocumentCleanup) Finish(ctx context.Context, claim workforce.DocumentCleanupClaim, success bool) (finished bool, err error) {
 	if claim.StaffID <= 0 || claim.Token == "" {
 		return false, errors.New("document cleanup: claim is required")
 	}
@@ -51,7 +58,7 @@ func (s *DocumentCleanup) Finish(ctx context.Context, claim domain.DocumentClean
 	return finished, err
 }
 
-func (s *DocumentCleanup) Backlog(ctx context.Context) (result domain.DocumentCleanupBacklog, err error) {
+func (s *DocumentCleanup) Backlog(ctx context.Context) (result workforce.DocumentCleanupBacklog, err error) {
 	err = s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 		result, err = s.store.DocumentCleanupBacklog(txCtx, s.now())
 		return err

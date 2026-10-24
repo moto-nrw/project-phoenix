@@ -18,14 +18,15 @@ import (
 
 // TestIdentityPersistenceRuntimeEvidence measures the school account flows whose
 // persistence #3226 rewrote natively, through the auth router: login, refresh
-// rotation, the own-account reads, the administrative account, role and
-// permission reads, and one role assignment round trip. The harness only uses
-// the router and fixtures that exist before and after the cutover, so the same
-// file ran against the merge base; the numbers are recorded in
-// docs/runtime-checkpoints/identity-persistence-3226.md. Fixtures are outside
-// the timer.
+// rotation, the own-account reads and the administrative account and role
+// reads. The harness only uses the router and fixtures that exist before and
+// after the cutover, so the same file ran against the merge base; the numbers
+// are recorded in docs/runtime-checkpoints/identity-persistence-3226.md, whose
+// measured permission reads and role assignment round trip are retired routes
+// since #4485 and #4431. Fixtures are outside the timer.
 func TestIdentityPersistenceRuntimeEvidence(t *testing.T) {
 	t.Parallel()
+	testpkg.RequireRuntimeEvidence(t)
 
 	tc, router := setupProtectedRouter(t)
 	db := tc.db
@@ -40,12 +41,6 @@ func TestIdentityPersistenceRuntimeEvidence(t *testing.T) {
 	_, err := db.NewRaw("INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)",
 		account.ID, adminRole.ID, testpkg.Tenant(t)).Exec(ctx)
 	require.NoError(t, err)
-	assignedRole := testpkg.GetOrCreateTestRole(t, db, "user")
-	t.Cleanup(func() {
-		cleanupCtx := context.Background()
-		_, _ = db.NewDelete().TableExpr("auth.account_roles").Where("account_id = ?", account.ID).Exec(cleanupCtx)
-		_, _ = db.NewDelete().TableExpr("auth.tokens").Where("account_id = ?", account.ID).Exec(cleanupCtx)
-	})
 
 	var postgres string
 	require.NoError(t, db.NewRaw("SHOW server_version").Scan(ctx, &postgres))
@@ -91,10 +86,6 @@ func TestIdentityPersistenceRuntimeEvidence(t *testing.T) {
 		{"own_account_tenants", http.MethodGet, "/auth/account/tenants", nil, access, http.StatusOK, keep},
 		{"accounts_list", http.MethodGet, "/auth/accounts?email=identity-runtime", nil, access, http.StatusOK, keep},
 		{"account_roles", http.MethodGet, accountPath + "/roles", nil, access, http.StatusOK, keep},
-		{"account_permissions", http.MethodGet, accountPath + "/permissions", nil, access, http.StatusOK, keep},
-		{"account_direct_permissions", http.MethodGet, accountPath + "/permissions/direct", nil, access, http.StatusOK, keep},
-		{"role_assign", http.MethodPost, fmt.Sprintf("%s/roles/%d", accountPath, assignedRole.ID), nil, access, 0, keep},
-		{"role_unassign", http.MethodDelete, fmt.Sprintf("%s/roles/%d", accountPath, assignedRole.ID), nil, access, 0, keep},
 	}
 
 	samples := make(map[string][]testpkg.RuntimeCheckpointSample, len(operations))

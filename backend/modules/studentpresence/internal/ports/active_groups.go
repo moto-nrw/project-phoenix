@@ -3,6 +3,8 @@ package ports
 import (
 	"errors"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
 
 // ActiveGroup is a room session (one active.groups row) together with the
@@ -26,9 +28,9 @@ type ActiveGroup struct {
 	ActualGroup *SessionActivity `json:"actual_group,omitempty"`
 	// Device is resolved through the Device Fleet owner (#2676), never by a
 	// join this module owns.
-	Device      *SessionDevice     `json:"device,omitempty"`
-	Room        *SessionRoom       `json:"room,omitempty"`
-	Supervisors []*GroupSupervisor `json:"supervisors,omitempty"`
+	Device      *SessionDevice               `json:"device,omitempty"`
+	Room        *studentpresence.SessionRoom `json:"room,omitempty"`
+	Supervisors []*GroupSupervisor           `json:"supervisors,omitempty"`
 }
 
 // SessionDevice is the device information projected onto a presence session.

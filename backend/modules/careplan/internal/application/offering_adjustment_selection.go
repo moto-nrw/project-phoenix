@@ -11,7 +11,7 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment/selection"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/selection"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -44,7 +44,7 @@ func (m *BookingMaterialization) materializeOfferingAdjustment(ctx context.Conte
 		[]selection.Child{child}, catalog, work.phase.CareOfferingSelectionMode, grandfathered, allowWithdrawal,
 	)
 	if err != nil {
-		return fmt.Errorf("%w: %v", careplan.ErrOfferingAdjustmentInvalid, err)
+		return selectionRefusal(careplan.ErrOfferingAdjustmentInvalid, err)
 	}
 	work.selections, work.overridden = offeringSelections(materialized[0]), overridden
 	work.afterHasCareDays = selectionsHaveCareDays(work.selections, work.offeringByID)
@@ -161,7 +161,7 @@ func appliedOfferingOverrides(
 	child.ExcludedAutoAddTargetIDs = nil
 	base, err := selection.MaterializeAdjustments([]selection.Child{child}, catalog, selectionMode, grandfathered, false)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", careplan.ErrOfferingAdjustmentInvalid, err)
+		return nil, selectionRefusal(careplan.ErrOfferingAdjustmentInvalid, err)
 	}
 	excludedIDs := make([]int64, 0, len(excluded))
 	for offeringID := range excluded {

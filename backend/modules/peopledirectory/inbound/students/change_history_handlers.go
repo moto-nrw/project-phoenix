@@ -1,18 +1,13 @@
 package students
 
 import (
-	"context"
-	"errors"
-	"log/slog"
-	"net/http"
-	"strconv"
-	"strings"
-	"time"
+	errors "errors"
+	http "net/http"
+	strconv "strconv"
+	time "time"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
-
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	common "github.com/moto-nrw/project-phoenix/api/common"
+	sessiontoken "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // changeHistoryEntry is the per-child change-history row returned to the
@@ -25,66 +20,6 @@ type changeHistoryEntry struct {
 	NewValue  string    `json:"new_value"`
 	EditedBy  string    `json:"edited_by"`
 	ChangedAt time.Time `json:"changed_at"`
-}
-
-// recordStudentChanges appends the per-child change history for an update.
-// Atomic with the edit: the audit write runs on the caller's transaction, so a
-// failed insert poisons that transaction (PostgreSQL 25P02) and any later
-// COMMIT fails anyway. We therefore propagate the error and let the edit roll
-// back rather than commit an unlogged change — a recorded edit must always have
-// its audit row.
-func (rs *Resource) recordStudentChanges(ctx context.Context, before, after *Student) error {
-	if rs.StudentAuditService == nil {
-		return nil
-	}
-
-	editedBy := int64(jwt.ClaimsFromCtx(ctx).ID)
-	if err := rs.StudentAuditService.RecordStudentChanges(ctx, before.auditSnapshot(), after.auditSnapshot(), editedBy, auditActorName(ctx, editedBy)); err != nil {
-		if rs.Logger != nil {
-			rs.Logger.Warn("failed to record student change history",
-				slog.Int64("student_id", after.ID),
-				slog.String("error", err.Error()),
-			)
-		}
-		return err
-	}
-	return nil
-}
-
-// auditActorName is the display name the change history records for the
-// authenticated editor: the name on the session, else its username. A context
-// whose account is not the editor is attributed to nobody rather than to the
-// wrong person; the owner stores its own stand-in for that.
-func auditActorName(ctx context.Context, editedBy int64) string {
-	claims := jwt.ClaimsFromCtx(ctx)
-	if int64(claims.ID) != editedBy {
-		return ""
-	}
-	name := strings.TrimSpace(claims.FirstName + " " + claims.LastName)
-	if name == "" {
-		name = strings.TrimSpace(claims.Username)
-	}
-	return name
-}
-
-func normalizeDeparturePlanForAudit(student *Student) {
-	if student == nil {
-		return
-	}
-	if allowed := student.AllowedDepartureModes.Normalize(); allowed.HasAny() {
-		student.AllowedDepartureModes = allowed
-		student.DepartureDays = allowed.DepartureDays()
-		return
-	}
-	student.DepartureDays = departure.DepartureDaysFromLegacy(student.BusDays, student.PickupDays)
-}
-
-func studentAuditBeforeImage(student *Student, normalizeDeparture bool) Student {
-	before := *student
-	if normalizeDeparture {
-		normalizeDeparturePlanForAudit(&before)
-	}
-	return before
 }
 
 // getStudentChangeHistory returns the per-child change history. Gated on full
@@ -117,7 +52,7 @@ func (rs *Resource) getStudentChangeHistory(w http.ResponseWriter, r *http.Reque
 	// Dokumente tab gates health and custody paperwork behind their own
 	// permissions, and a history that showed them anyway would simply be the
 	// way around that gate.
-	userPermissions := jwt.PermissionsFromCtx(r.Context())
+	userPermissions := sessiontoken.PermissionsFromCtx(r.Context())
 
 	entries := make([]changeHistoryEntry, 0, len(edits))
 	for _, e := range edits {

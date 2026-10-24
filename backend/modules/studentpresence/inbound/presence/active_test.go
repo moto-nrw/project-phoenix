@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	rootAPI "github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -41,18 +43,21 @@ type recordingEndActiveGroupService struct {
 	endCalls int
 }
 
-func (s *recordingEndActiveGroupService) EndSession(ctx context.Context, id int64) error {
+func (s *recordingEndActiveGroupService) EndActiveGroupSession(ctx context.Context, id int64) error {
 	s.endCalls++
-	return s.PresenceOperations.EndSession(ctx, id)
+	return s.PresenceOperations.EndActiveGroupSession(ctx, id)
 }
 
 // setupActiveRoute creates test resources for active handler tests
-func setupActiveRoute(t *testing.T) *testContext {
+func setupActiveRoute(t *testing.T, settingReaders ...presenceAPI.Settings) *testContext {
 	t.Helper()
 
-	db, svc := testutil.SetupActiveModule(t)
-	resource := presenceAPI.NewResource(svc.PresenceOperations(), activePeople{source: svc.AttendancePeople()}, svc.TeacherGroupIDs, svc.Schulhof, activeStaffAccess{source: svc.AttendanceStaff()}, svc.Settings, common.ProtectedTenantRoutes, slog.Default(), testPresenceQueries(t, db), requestRuntimeForTest(svc.WithAttendanceStaff), authorizationForTest(), nil)
-	resource.SupervisionDashboardService = svc.SupervisionDashboard
+	db, svc, svcPresence, svcPeople, svcEducation, svcCaller, svcCare := setupActiveModule(t)
+	var settingsReader presenceAPI.Settings = svc.Settings
+	if len(settingReaders) > 0 {
+		settingsReader = settingReaders[0]
+	}
+	resource := presenceAPI.NewResource(svcPresence.PresenceOperations(), activePeople{source: svcPeople.AttendancePeople()}, svcEducation.TeacherGroupIDs, activeStaffAccess{source: rootAPI.NewActiveTestAttendanceStaff(svcCaller)}, settingsReader, rootAPI.ProtectedTenantRoutes, slog.Default(), testPresenceQueries(t, db), requestRuntimeForTest(svcCare.WithAttendanceStaff), authorizationForTest(), tenantsettings.NewDisplaySettings(settingsReader))
 
 	return &testContext{
 		db:       db,
@@ -80,7 +85,7 @@ func setupActiveRoute(t *testing.T) *testContext {
 // production — which is the wrong number to hold a budget against.
 func mountActiveRouter(tc *testContext) testutil.Router {
 	r := testutil.NewRouter()
-	r.Use(common.RequestIdentityCacheMiddleware)
+	r.Use(rootAPI.RequestIdentityCacheMiddleware)
 	r.Mount("/active", tc.resource.Router())
 	return r
 }
@@ -277,16 +282,13 @@ func TestEndActiveGroup(t *testing.T) {
 			recordingService,
 			tc.resource.PersonService,
 			tc.resource.EducationService,
-			tc.resource.SchulhofService,
 			tc.resource.UserContextService,
 			disabledSettings,
-			common.ProtectedTenantRoutes,
+			rootAPI.ProtectedTenantRoutes,
 			slog.Default(),
 			tc.resource.Presence,
 			requestRuntimeForTest(func(context.Context, int64, int64) context.Context { panic("disabled attendance must not bind staff") }),
-			authorizationForTest(),
-			nil,
-		)
+			authorizationForTest(), tenantsettings.NewDisplaySettings(disabledSettings))
 		disabledRouter := testutil.NewRouter()
 		disabledRouter.Mount("/active", disabledResource.Router())
 		settingCtx := testpkg.Ctx(t)
@@ -1448,9 +1450,7 @@ func TestGetActiveGroupSupervisors(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/active/groups/99999/supervisors", nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
 
-		// May return 200 with empty array or 404
-		assert.True(t, rr.Code == testutil.StatusOK || rr.Code == testutil.StatusNotFound,
-			"Expected 200 or 404, got %d: %s", rr.Code, rr.Body.String())
+		assert.Equal(t, testutil.StatusNotFound, rr.Code, rr.Body.String())
 	})
 
 	t.Run("bad request with invalid group id format", func(t *testing.T) {
@@ -1656,25 +1656,55 @@ func TestRouter_ReturnsValidRouter(t *testing.T) {
 
 func TestListCombinedGroupsFilters(t *testing.T) {
 	t.Parallel()
-	_, router := setupExtendedProtectedRouter(t)
+	tc, router := setupExtendedProtectedRouter(t)
 	adminClaims := testutil.AdminTestClaims(1)
 
-	// Test that the route exists and accepts filters
-	// The endpoint may return 200 or 500 depending on service state
-	t.Run("with room_id filter - route exists", func(t *testing.T) {
-		req := testutil.NewJSONRequest(t, "GET", "/active/combined?room_id=1", nil)
-		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
+	open := createTestCombinedGroup(t, tc.db)
+	endedAt := time.Now().Add(-time.Hour)
+	ended, err := testPresenceQueries(t, tc.db).RecordCombination(testpkg.Ctx(t), endedAt.Add(-time.Hour), &endedAt)
+	require.NoError(t, err)
 
-		// Route exists (not 404) - may succeed or have database issues
-		assert.NotEqual(t, testutil.StatusNotFound, rr.Code, "Route should exist")
+	// The tenant is keyed by the test name, so a repeated run (-count=2) also
+	// lists the rows of earlier runs. Assert on this run's own rows and on
+	// the active state of every listed row instead of the whole list.
+	listed := func(t *testing.T, query string) map[int64]bool {
+		t.Helper()
+		req := testutil.NewJSONRequest(t, "GET", "/active/combined"+query, nil)
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
+		testutil.AssertSuccessResponse(t, rr, testutil.StatusOK)
+		var response struct {
+			Data []presenceAPI.CombinedGroupResponse `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &response))
+		active := make(map[int64]bool, len(response.Data))
+		for _, group := range response.Data {
+			active[group.ID] = group.IsActive
+		}
+		return active
+	}
+
+	t.Run("without filter lists open and ended combinations", func(t *testing.T) {
+		rows := listed(t, "")
+		assert.Contains(t, rows, open.ID)
+		assert.Contains(t, rows, ended.ID)
 	})
 
-	t.Run("with active filter - route exists", func(t *testing.T) {
-		req := testutil.NewJSONRequest(t, "GET", "/active/combined?active=true", nil)
-		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
+	t.Run("active=true lists only open combinations", func(t *testing.T) {
+		rows := listed(t, "?active=true")
+		assert.Contains(t, rows, open.ID)
+		assert.NotContains(t, rows, ended.ID)
+		for id, isActive := range rows {
+			assert.True(t, isActive, "combination %d is listed as active", id)
+		}
+	})
 
-		// Route exists (not 404) - may succeed or have database issues
-		assert.NotEqual(t, testutil.StatusNotFound, rr.Code, "Route should exist")
+	t.Run("active=false lists only ended combinations", func(t *testing.T) {
+		rows := listed(t, "?active=false")
+		assert.Contains(t, rows, ended.ID)
+		assert.NotContains(t, rows, open.ID)
+		for id, isActive := range rows {
+			assert.False(t, isActive, "combination %d is listed as ended", id)
+		}
 	})
 }
 
@@ -1760,69 +1790,6 @@ func TestUpdateCombinedGroupValidation(t *testing.T) {
 		// Should either return 404 (not found), 500 (database error), or 400 (more validation)
 		assert.True(t, rr.Code == testutil.StatusNotFound || rr.Code == testutil.StatusInternalServerError || rr.Code == testutil.StatusBadRequest,
 			"Expected 404, 500, or 400, got %d: %s", rr.Code, rr.Body.String())
-	})
-}
-
-// =============================================================================
-// GROUP VISITS AND SUPERVISORS TESTS (0% coverage functions)
-// =============================================================================
-
-func TestGetVisitsByGroup(t *testing.T) {
-	t.Parallel()
-	tc, router := setupExtendedProtectedRouter(t)
-	adminClaims := testutil.AdminTestClaims(1)
-
-	// Create fixtures
-	room := testpkg.CreateTestRoom(t, tc.db, fmt.Sprintf("VisitsByGroup Room %d", time.Now().UnixNano()))
-	group := testpkg.CreateTestActivityGroup(t, tc.db, fmt.Sprintf("VisitsByGroup Activity %d", time.Now().UnixNano()))
-	activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, group.ID, room.ID)
-
-	t.Run("get visits for active group", func(t *testing.T) {
-		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/groups/%d/visits", activeGroup.ID), nil)
-		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
-
-		// Route should exist and return valid response
-		assert.NotEqual(t, testutil.StatusNotFound, rr.Code, "Route should exist")
-		t.Logf("Response: %d - %s", rr.Code, rr.Body.String())
-	})
-
-	t.Run("get visits for non-existent group", func(t *testing.T) {
-		req := testutil.NewJSONRequest(t, "GET", "/active/groups/999999/visits", nil)
-		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
-
-		// Should return 404 or 500 for non-existent group
-		assert.True(t, rr.Code == testutil.StatusNotFound || rr.Code == testutil.StatusInternalServerError || rr.Code == testutil.StatusOK,
-			"Should return valid response, got %d", rr.Code)
-		t.Logf("Response: %d - %s", rr.Code, rr.Body.String())
-	})
-}
-
-func TestGetSupervisorsByGroup(t *testing.T) {
-	t.Parallel()
-	tc, router := setupExtendedProtectedRouter(t)
-	adminClaims := testutil.AdminTestClaims(1)
-
-	// Create fixtures
-	room := testpkg.CreateTestRoom(t, tc.db, fmt.Sprintf("SupervisorsByGroup Room %d", time.Now().UnixNano()))
-	group := testpkg.CreateTestActivityGroup(t, tc.db, fmt.Sprintf("SupervisorsByGroup Activity %d", time.Now().UnixNano()))
-	activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, group.ID, room.ID)
-
-	t.Run("get supervisors for active group", func(t *testing.T) {
-		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/groups/%d/supervisors", activeGroup.ID), nil)
-		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
-
-		// Route should exist and return valid response
-		assert.NotEqual(t, testutil.StatusNotFound, rr.Code, "Route should exist")
-		t.Logf("Response: %d - %s", rr.Code, rr.Body.String())
-	})
-
-	t.Run("get supervisors for non-existent group", func(t *testing.T) {
-		req := testutil.NewJSONRequest(t, "GET", "/active/groups/999999/supervisors", nil)
-		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
-
-		// Should return 404 for non-existent group (expected behavior)
-		assert.Equal(t, testutil.StatusNotFound, rr.Code, "Should return 404 for non-existent group")
-		t.Logf("Response: %d - %s", rr.Code, rr.Body.String())
 	})
 }
 
@@ -1949,10 +1916,7 @@ func TestCheckoutStudent_StudentNotCheckedIn(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "POST", fmt.Sprintf("/active/visits/student/%d/checkout", student.ID), nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, teacherClaims, []string{permissions.VisitsUpdate})
 
-		// Should return 404 or similar error when student is not checked in
-		assert.True(t, rr.Code == testutil.StatusNotFound || rr.Code == testutil.StatusInternalServerError,
-			"Expected 404 or 500 when student not checked in, got %d", rr.Code)
-		t.Logf("Response: %d - %s", rr.Code, rr.Body.String())
+		assert.Equal(t, testutil.StatusNotFound, rr.Code, rr.Body.String())
 	})
 }
 
@@ -1988,93 +1952,6 @@ func TestCheckoutStudent_Unauthorized(t *testing.T) {
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
 
 		testutil.AssertForbidden(t, rr)
-	})
-}
-
-func TestCheckoutStudent_AuthorizedAsRoomSupervisor(t *testing.T) {
-	t.Parallel()
-	tc, router := setupCheckoutRouter(t)
-
-	// Create room, activity group, and active group
-	room := testpkg.CreateTestRoom(t, tc.db, fmt.Sprintf("Checkout Room %d", time.Now().UnixNano()))
-	activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, fmt.Sprintf("Checkout Activity %d", time.Now().UnixNano()))
-	activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
-
-	// Create supervisor (staff with account)
-	supervisor, supervisorAccount := testpkg.CreateTestStaffWithAccount(t, tc.db, "Room", "Supervisor")
-
-	// Create supervision record
-	_ = testpkg.CreateTestGroupSupervisor(t, tc.db, supervisor.ID, activeGroup.ID, "supervisor")
-
-	// Create student and check them in
-	student := testpkg.CreateTestStudent(t, tc.db, "CheckedIn", "Student", "2a")
-
-	// Create attendance (checked in)
-	device := testpkg.CreateTestDevice(t, tc.db, "checkout-device")
-
-	_ = testpkg.CreateTestAttendance(t, tc.db, student.ID, supervisor.ID, device.ID, time.Now(), nil)
-
-	// Create visit (student is in the room)
-	_ = testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, time.Now(), nil)
-
-	supervisorClaims := testutil.Claims{
-		ID:          int(supervisorAccount.ID),
-		TenantID:    testpkg.Tenant(t),
-		Sub:         "supervisor@example.com",
-		Roles:       []string{"staff"},
-		Permissions: []string{permissions.VisitsUpdate},
-	}
-
-	t.Run("success when authorized as room supervisor", func(t *testing.T) {
-		req := testutil.NewJSONRequest(t, "POST", fmt.Sprintf("/active/visits/student/%d/checkout", student.ID), nil)
-		rr := testutil.ExecuteWithAuthPermissions(t, router, req, supervisorClaims, []string{permissions.VisitsUpdate})
-
-		// Should succeed with 200 OK
-		t.Logf("Response: %d - %s", rr.Code, rr.Body.String())
-		// Note: This may succeed or fail depending on the full authorization flow
-		// The test validates the route exists and responds appropriately
-	})
-}
-
-func TestCheckoutStudent_AuthorizedAsGroupTeacher(t *testing.T) {
-	t.Parallel()
-	tc, router := setupCheckoutRouter(t)
-
-	// Create education group
-	eduGroup := testpkg.CreateTestEducationGroup(t, tc.db, "Checkout Class")
-
-	// Create teacher with account
-	teacher, teacherAccount := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Class", "Teacher")
-
-	// Assign teacher to group
-	_ = testpkg.CreateTestGroupTeacher(t, tc.db, eduGroup.ID, teacher.ID)
-
-	// Create student and assign to group
-	student := testpkg.CreateTestStudent(t, tc.db, "GroupStudent", "Student", "3a")
-	testpkg.AssignStudentToGroup(t, tc.db, student.ID, eduGroup.ID)
-
-	// Create attendance (checked in)
-	otherStaff := testpkg.CreateTestStaff(t, tc.db, "Other", "Staff")
-	device := testpkg.CreateTestDevice(t, tc.db, "teacher-checkout-device")
-
-	_ = testpkg.CreateTestAttendance(t, tc.db, student.ID, otherStaff.ID, device.ID, time.Now(), nil)
-
-	teacherClaims := testutil.Claims{
-		ID:          int(teacherAccount.ID),
-		TenantID:    testpkg.Tenant(t),
-		Sub:         "teacher@example.com",
-		Roles:       []string{"staff"},
-		Permissions: []string{permissions.VisitsUpdate},
-	}
-
-	t.Run("success when authorized as group teacher", func(t *testing.T) {
-		req := testutil.NewJSONRequest(t, "POST", fmt.Sprintf("/active/visits/student/%d/checkout", student.ID), nil)
-		rr := testutil.ExecuteWithAuthPermissions(t, router, req, teacherClaims, []string{permissions.VisitsUpdate})
-
-		// Log response for debugging
-		t.Logf("Response: %d - %s", rr.Code, rr.Body.String())
-		// Note: This may succeed or fail depending on the full authorization flow
-		// The test validates the route exists and responds appropriately
 	})
 }
 
@@ -2140,9 +2017,7 @@ func TestGetGroupMappings(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/mappings/group/%d", activeGroup.ID), nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
 
-		// Should return 200 OK with mappings data
-		assert.True(t, rr.Code == testutil.StatusOK || rr.Code == testutil.StatusNotFound,
-			"Expected 200 OK or 404, got %d: %s", rr.Code, rr.Body.String())
+		testutil.AssertSuccessResponse(t, rr, testutil.StatusOK)
 	})
 
 	t.Run("returns empty for non-existent group id", func(t *testing.T) {
@@ -2192,19 +2067,14 @@ func TestClaimGroup(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "POST", fmt.Sprintf("/active/groups/%d/claim", activeGroup.ID), nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, staffClaims, []string{permissions.GroupsUpdate})
 
-		// Should return success or appropriate error
-		t.Logf("Claim response: %d - %s", rr.Code, rr.Body.String())
-		assert.True(t, rr.Code == testutil.StatusOK || rr.Code == testutil.StatusCreated || rr.Code == testutil.StatusConflict || rr.Code == testutil.StatusInternalServerError,
-			"Expected success or conflict, got %d", rr.Code)
+		testutil.AssertSuccessResponse(t, rr, testutil.StatusOK)
 	})
 
 	t.Run("error with non-existent group id", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "POST", "/active/groups/99999/claim", nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, staffClaims, []string{permissions.GroupsUpdate})
 
-		// The API returns 500 for non-existent groups (service layer returns "active group not found" error)
-		assert.True(t, rr.Code == testutil.StatusInternalServerError || rr.Code == testutil.StatusNotFound,
-			"Expected 500 or 404 for non-existent group, got %d", rr.Code)
+		assert.Equal(t, testutil.StatusNotFound, rr.Code, rr.Body.String())
 	})
 
 	t.Run("bad request with invalid id format", func(t *testing.T) {

@@ -127,11 +127,6 @@ export function isColorLockedRoom(room: Room | null | undefined): boolean {
   return isToiletRoom(room);
 }
 
-/** Returns true if the room is the canonical Schulhof (schoolyard). */
-export function isSchulhofRoom(room: Room | null | undefined): boolean {
-  return room?.name === SCHULHOF_ROOM_NAME;
-}
-
 // Mapping functions
 export function mapRoomResponse(backendRoom: BackendRoom): Room {
   return {
@@ -244,56 +239,4 @@ export function formatFloor(floor: number | undefined): string {
   if (floor === undefined) return "Etage nicht angegeben";
   if (floor === 0) return "Erdgeschoss";
   return `Etage ${floor}`;
-}
-
-export function formatRoomName(room: Room): string {
-  let name = room.name;
-
-  if (room.building) {
-    name = `${room.building} - ${name}`;
-  }
-
-  return name;
-}
-
-export function formatRoomLocation(room: Room): string {
-  return formatFloor(room.floor);
-}
-
-export function formatRoomCategory(room: Room): string {
-  if (!room.category) return "Keine Kategorie";
-
-  const categories: Record<string, string> = {
-    standard: "Standard",
-    classroom: "Classroom",
-    lab: "Laboratory",
-    gym: "Gymnasium",
-    cafeteria: "Cafeteria",
-    office: "Office",
-    meeting: "Meeting Room",
-    bathroom: "Bathroom",
-    storage: "Storage",
-    other: "Other",
-  };
-
-  return categories[room.category.toLowerCase()] ?? room.category;
-}
-
-export function formatRoomCapacity(room: Room): string {
-  if (room.capacity === undefined) return "Kapazität nicht angegeben";
-  return `${room.studentCount ?? 0}/${room.capacity} students`;
-}
-
-export function getRoomUtilization(room: Room): number {
-  if (room.capacity === undefined || room.capacity === 0) return 0;
-  return ((room.studentCount ?? 0) / room.capacity) * 100;
-}
-
-export function getRoomStatusColor(room: Room): string {
-  if (!room.isOccupied) return "green";
-
-  const utilization = getRoomUtilization(room);
-  if (utilization < 50) return "green";
-  if (utilization < 80) return "yellow";
-  return "red";
 }

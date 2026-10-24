@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 import {
-  DisplayDashboardError,
   fetchDisplayDashboard,
   listDisplays,
   createDisplay,
@@ -62,11 +61,11 @@ describe("fetchDisplayDashboard", () => {
     expect(init?.cache).toBe("no-store");
   });
 
-  it("throws DisplayDashboardError with the status on non-OK responses", async () => {
+  it("throws an ApiError with the status on non-OK responses", async () => {
     mockFetch(() => Promise.resolve(jsonResponse({}, { status: 404 })));
 
-    await expect(fetchDisplayDashboard("revoked")).rejects.toThrow(
-      DisplayDashboardError,
+    await expect(fetchDisplayDashboard("revoked")).rejects.toBeInstanceOf(
+      ApiError,
     );
     mockFetch(() => Promise.resolve(jsonResponse({}, { status: 404 })));
     await expect(fetchDisplayDashboard("revoked")).rejects.toMatchObject({

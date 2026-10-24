@@ -31,7 +31,7 @@ export async function compressAvatar(file: File): Promise<File> {
   const options = {
     maxSizeMB: 0.3, // Max 300KB (perfect balance of size/quality)
     maxWidthOrHeight: 512, // 512px is plenty for avatars (displayed at 32-128px)
-    useWebWorker: true, // Uses Web Worker (no UI freeze during compression)
+    useWebWorker: false, // Keep compression local; the default worker imports a CDN script.
     fileType: "image/jpeg", // JPEG optimal for photos
   };
 

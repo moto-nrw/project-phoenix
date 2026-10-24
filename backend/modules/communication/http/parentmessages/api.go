@@ -21,18 +21,20 @@ import (
 // Resource is the staff messaging HTTP resource.
 type Resource struct {
 	Service communication.ParentMessagingCapability
+	// Groups serves the group threads (#4784); nil leaves them unmounted.
+	Groups communication.ParentGroupThreadCapability
 }
 
 // NewResource wires the staff messaging resource.
-func NewResource(service communication.ParentMessagingCapability) *Resource {
-	return &Resource{Service: service}
+func NewResource(service communication.ParentMessagingCapability, groups communication.ParentGroupThreadCapability) *Resource {
+	return &Resource{Service: service, Groups: groups}
 }
 
 // Router returns the chi router scoped to /messages.
-func (rs *Resource) Router() chi.Router {
+func (rs *Resource) Router(protectedTenantRoutes func(chi.Router, func(chi.Router, common.Middleware))) chi.Router {
 	r := chi.NewRouter()
 
-	common.ProtectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) {
+	protectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) {
 
 		// users:read is the coarse gate; per-child access is enforced in the
 		// service via authorize.CanReadStudent. Starting/sending a thread
@@ -55,7 +57,9 @@ func (rs *Resource) Router() chi.Router {
 		r.With(read, withTx).Post("/threads/{threadId}", rs.postMessage)
 		r.With(read, withTx).Post("/threads/{threadId}/unread", rs.markThreadUnread)
 		r.With(read, withTx).Get("/students/{studentId}/guardians", rs.listGuardians)
+		r.With(read, withTx).Get("/reachable-students", rs.listReachableStudents)
 		r.With(read, withTx).Get("/students/{studentId}/threads", rs.listStudentThreads)
+		rs.mountGroupThreadRoutes(r, read, withTx)
 	})
 
 	return r
@@ -95,6 +99,10 @@ type MessageResponse struct {
 	DecisionReason string          `json:"decision_reason,omitempty"`
 	ReadByStaff    bool            `json:"read_by_staff,omitempty"`
 	ReadByGuardian bool            `json:"read_by_guardian,omitempty"`
+	// GroupThreadID and GroupThreadTitle name the group thread a guardian's
+	// message answers (#4784).
+	GroupThreadID    string `json:"group_thread_id,omitempty"`
+	GroupThreadTitle string `json:"group_thread_title,omitempty"`
 }
 
 type ThreadDetailResponse struct {
@@ -104,6 +112,12 @@ type ThreadDetailResponse struct {
 	GuardianName     string            `json:"guardian_name"`
 	RelationshipType string            `json:"relationship_type,omitempty"`
 	Messages         []MessageResponse `json:"messages"`
+}
+
+// ReachableStudentsResponse lists the children with at least one guardian
+// the recipient step would offer.
+type ReachableStudentsResponse struct {
+	StudentIDs []string `json:"student_ids"`
 }
 
 type GuardianResponse struct {
@@ -141,26 +155,35 @@ func toMessageResponses(messages []communication.ParentMessage) []MessageRespons
 			appliedBy = strconv.FormatInt(*m.AppliedBy, 10)
 		}
 		out = append(out, MessageResponse{
-			ID:             strconv.FormatInt(m.ID, 10),
-			SenderKind:     m.SenderKind,
-			SenderName:     m.SenderName,
-			Body:           m.Body,
-			CreatedAt:      m.CreatedAt,
-			Kind:           m.Kind,
-			EventType:      m.EventType,
-			RequestType:    m.RequestType,
-			RequestStatus:  m.RequestStatus,
-			Payload:        m.Payload,
-			RefTable:       m.RefTable,
-			RefID:          refID,
-			AppliedAt:      m.AppliedAt,
-			AppliedBy:      appliedBy,
-			DecisionReason: m.DecisionReason,
-			ReadByStaff:    m.ReadByStaff,
-			ReadByGuardian: m.ReadByGuardian,
+			ID:               strconv.FormatInt(m.ID, 10),
+			SenderKind:       m.SenderKind,
+			SenderName:       m.SenderName,
+			Body:             m.Body,
+			CreatedAt:        m.CreatedAt,
+			Kind:             m.Kind,
+			EventType:        m.EventType,
+			RequestType:      m.RequestType,
+			RequestStatus:    m.RequestStatus,
+			Payload:          m.Payload,
+			RefTable:         m.RefTable,
+			RefID:            refID,
+			AppliedAt:        m.AppliedAt,
+			AppliedBy:        appliedBy,
+			DecisionReason:   m.DecisionReason,
+			ReadByStaff:      m.ReadByStaff,
+			ReadByGuardian:   m.ReadByGuardian,
+			GroupThreadID:    optionalIDString(m.GroupThreadID),
+			GroupThreadTitle: m.GroupThreadTitle,
 		})
 	}
 	return out
+}
+
+func optionalIDString(id *int64) string {
+	if id == nil {
+		return ""
+	}
+	return strconv.FormatInt(*id, 10)
 }
 
 func toThreadDetail(d *communication.ParentMessageThread) ThreadDetailResponse {
@@ -399,6 +422,19 @@ func (rs *Resource) listGuardians(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	common.Respond(w, r, http.StatusOK, out, "Guardians retrieved")
+}
+
+func (rs *Resource) listReachableStudents(w http.ResponseWriter, r *http.Request) {
+	ids, err := rs.Service.ListParentMessageReachableStudents(r.Context())
+	if err != nil {
+		renderMessagingError(w, r, err)
+		return
+	}
+	out := ReachableStudentsResponse{StudentIDs: make([]string, 0, len(ids))}
+	for _, id := range ids {
+		out.StudentIDs = append(out.StudentIDs, strconv.FormatInt(id, 10))
+	}
+	common.Respond(w, r, http.StatusOK, out, "Reachable students retrieved")
 }
 
 func parseInt64Param(w http.ResponseWriter, r *http.Request, param, label string) (int64, bool) {

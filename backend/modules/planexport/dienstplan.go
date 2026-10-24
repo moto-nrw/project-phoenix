@@ -8,13 +8,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/services/listexport"
+	listexport "github.com/moto-nrw/project-phoenix/modules/documentrendering/records"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // areaWithoutShiftType labels shifts that carry no Schichtart, so they still
 // have a row in the Einsatzbereich view instead of quietly disappearing.
-const areaWithoutShiftType = "Dienst ohne Schichtart"
+const areaWithoutShiftType = "Ohne Dienstart"
 
 // ExportDienstplan renders the staff week: who works when, where, on what.
 //
@@ -347,7 +347,6 @@ func (d *dienstplanData) assignmentLines(assignment Assignment) []listexport.Lin
 // is double counted here either — no minutes are summed on this sheet.
 func (d *dienstplanData) rowsByArea(w week) []listexport.Row {
 	areas := map[areaKey]*areaRow{}
-
 	for _, member := range d.staff {
 		if member == nil {
 			continue
@@ -355,62 +354,86 @@ func (d *dienstplanData) rowsByArea(w week) []listexport.Row {
 		name := d.staffName(member.ID)
 		for i, day := range w.days {
 			key := staffDay{staffID: member.ID, date: dayKey(day)}
-			assignments := d.assignments[key]
-
-			for _, assignment := range assignments {
-				if assignment.IsAbsent && !d.variant.internal() {
-					continue
-				}
-				label := name
-				if assignment.IsSubstitute {
-					label += " (Vertretung)"
-				}
-				if assignment.IsAbsent {
-					label += " (abwesend)"
-				}
-				// Block rows deliberately carry no colour bar here: on the
-				// staff plan the bar means "this is a Dienst", which is the
-				// distinction the sheet exists to make. The care plan colours
-				// its blocks by Kategorie, where that is the useful axis.
-				area := areaFor(areas, areaOffering, derefID(assignment.ActivityGroupID),
-					assignment.ActivityTitle, assignment.StartTime)
-				area.add(i, assignment.StartTime, assignment.EndTime,
-					distinctRoom(assignment.ActivityTitle, assignment.RoomName), label, "")
-			}
-
-			for _, shift := range d.shifts[key] {
-				info := d.shiftTypes[derefID(shift.ShiftTypeID)]
-				title := info.name
-				if title == "" {
-					title = areaWithoutShiftType
-				}
-				label := name
-				if shift.OriginShiftID != nil {
-					label += " (Vertretung)"
-				}
-				if shift.Cancelled {
-					label += " (entfällt)"
-				}
-				detail := ""
-				if d.variant.internal() && shift.Cancelled && shift.ChangeReason != nil && strings.TrimSpace(*shift.ChangeReason) != "" {
-					detail = "Grund: " + strings.TrimSpace(*shift.ChangeReason)
-				}
-				// Schichtarten need no id in the key: their name is unique per
-				// tenant (uniq_shift_types_tenant_name), so two rows of the
-				// same name are the same Schichtart.
-				area := areaFor(areas, areaShift, 0, title, shift.StartTime)
-				area.color = info.color
-				area.add(i, shift.StartTime, shift.EndTime, "", label, detail)
-			}
+			d.addAssignmentAreas(areas, i, name, d.assignments[key])
+			d.addShiftAreas(areas, i, name, d.shifts[key])
 		}
 	}
+	return d.areaSheetRows(sortedAreaRows(areas), w)
+}
 
+// addAssignmentAreas files a staff member's timetable blocks of one day under
+// the rows of their Angebote.
+func (d *dienstplanData) addAssignmentAreas(areas map[areaKey]*areaRow, dayIndex int, name string, assignments []Assignment) {
+	for _, assignment := range assignments {
+		if assignment.IsAbsent && !d.variant.internal() {
+			continue
+		}
+		label := name
+		if assignment.IsSubstitute {
+			label += " (Vertretung)"
+		}
+		if assignment.IsAbsent {
+			label += " (abwesend)"
+		}
+		// Block rows deliberately carry no colour bar here: on the
+		// staff plan the bar means "this is a Dienst", which is the
+		// distinction the sheet exists to make. The care plan colours
+		// its blocks by Kategorie, where that is the useful axis.
+		area := areaFor(areas, areaOffering, derefID(assignment.ActivityGroupID),
+			assignment.ActivityTitle, assignment.StartTime)
+		area.add(dayIndex, assignment.StartTime, assignment.EndTime,
+			distinctRoom(assignment.ActivityTitle, assignment.RoomName), label, "")
+	}
+}
+
+// addShiftAreas files a staff member's shifts of one day under the rows of
+// their Schichtarten.
+func (d *dienstplanData) addShiftAreas(areas map[areaKey]*areaRow, dayIndex int, name string, shifts []*Shift) {
+	for _, shift := range shifts {
+		info := d.shiftTypes[derefID(shift.ShiftTypeID)]
+		title := info.name
+		if title == "" {
+			title = areaWithoutShiftType
+		}
+		// Schichtarten need no id in the key: their name is unique per
+		// tenant (uniq_shift_types_tenant_name), so two rows of the
+		// same name are the same Schichtart.
+		area := areaFor(areas, areaShift, 0, title, shift.StartTime)
+		area.color = info.color
+		area.add(dayIndex, shift.StartTime, shift.EndTime, "", shiftAreaLabel(name, shift), d.shiftAreaDetail(shift))
+	}
+}
+
+// shiftAreaLabel names the staff member with the shift's cover and
+// cancellation markers.
+func shiftAreaLabel(name string, shift *Shift) string {
+	label := name
+	if shift.OriginShiftID != nil {
+		label += " (Vertretung)"
+	}
+	if shift.Cancelled {
+		label += " (entfällt)"
+	}
+	return label
+}
+
+// shiftAreaDetail is the cancellation reason, printed on the internal
+// variant only.
+func (d *dienstplanData) shiftAreaDetail(shift *Shift) string {
+	if d.variant.internal() && shift.Cancelled && shift.ChangeReason != nil && strings.TrimSpace(*shift.ChangeReason) != "" {
+		return "Grund: " + strings.TrimSpace(*shift.ChangeReason)
+	}
+	return ""
+}
+
+// sortedAreaRows orders the rows earliest start first, so the sheet reads
+// down the day the way the hand-kept Excel does (Randstunde at the top,
+// Angebote at the bottom).
+func sortedAreaRows(areas map[areaKey]*areaRow) []*areaRow {
 	ordered := make([]*areaRow, 0, len(areas))
 	for _, row := range areas {
 		ordered = append(ordered, row)
 	}
-	// Earliest start first, so the sheet reads down the day the way the
-	// hand-kept Excel does (Randstunde at the top, Angebote at the bottom).
 	sort.SliceStable(ordered, func(i, j int) bool {
 		if ordered[i].earliest != ordered[j].earliest {
 			return ordered[i].earliest < ordered[j].earliest
@@ -425,7 +448,12 @@ func (d *dienstplanData) rowsByArea(w week) []listexport.Row {
 		// order, or the sheet swaps their rows between two exports.
 		return ordered[i].id < ordered[j].id
 	})
+	return ordered
+}
 
+// areaSheetRows renders the ordered rows with the closed-day lines on top of
+// every day cell.
+func (d *dienstplanData) areaSheetRows(ordered []*areaRow, w week) []listexport.Row {
 	rows := make([]listexport.Row, 0, len(ordered))
 	for _, row := range ordered {
 		cells := newDayCells(row.title, w)

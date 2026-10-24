@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -16,13 +18,26 @@ import (
 
 var errDB = errors.New("database is down")
 
+func TestPasswordLoginRefusesUnavailableProtectionPolicy(t *testing.T) {
+	t.Parallel()
+	f := newAuthFixture(t)
+	f.seedStaff(1, 10, "user")
+	f.auth.passwordPolicy = func() (int, time.Duration, error) { return 0, 0, errDB }
+	result, err := f.auth.LoginWithMFAGate(context.Background(), f.store.accounts[1].Email, "", "", "", "", "")
+	require.Error(t, err)
+	require.NotErrorIs(t, err, identityaccess.ErrInvalidCredentials)
+	require.True(t, result == nil)
+	require.Zero(t, len(f.store.sessionsOf(1)))
+	require.Empty(t, f.store.passwordStates, "unavailable protection cannot accept uncounted guesses")
+}
+
 func TestResolveAccountTenantBySlug_UnknownSlugIsTenantNotFound(t *testing.T) {
 	t.Parallel()
 	f := newAuthFixture(t)
 	f.seedStaff(1, 10, "user")
 
 	_, _, err := f.auth.resolveAccountTenantBySlug(context.Background(), 1, "nowhere")
-	require.ErrorIs(t, err, domain.ErrTenantNotFound)
+	require.ErrorIs(t, err, identityaccess.ErrTenantNotFound)
 }
 
 func TestResolveAccountTenantBySlug_PropagatesLookupErrors(t *testing.T) {
@@ -33,7 +48,7 @@ func TestResolveAccountTenantBySlug_PropagatesLookupErrors(t *testing.T) {
 
 	_, _, err := f.auth.resolveAccountTenantBySlug(context.Background(), 1, "school-10")
 	require.ErrorIs(t, err, errDB)
-	require.NotErrorIs(t, err, domain.ErrTenantNotFound)
+	require.NotErrorIs(t, err, identityaccess.ErrTenantNotFound)
 }
 
 func TestResolveAccountTenantBySlug_DeletedOrInactiveSchoolIsTenantNotFound(t *testing.T) {
@@ -47,7 +62,7 @@ func TestResolveAccountTenantBySlug_DeletedOrInactiveSchoolIsTenantNotFound(t *t
 			f.schools.add(10, 100, "school-10", live[0], live[1])
 
 			_, _, err := f.auth.resolveAccountTenantBySlug(context.Background(), 1, "school-10")
-			require.ErrorIs(t, err, domain.ErrTenantNotFound)
+			require.ErrorIs(t, err, identityaccess.ErrTenantNotFound)
 		})
 	}
 }
@@ -59,11 +74,11 @@ func TestResolveAccountTenantBySlug_RequiresActiveMappingForTenantScope(t *testi
 	f.schools.add(11, 110, "school-11", true, false)
 
 	_, _, err := f.auth.resolveAccountTenantBySlug(context.Background(), 1, "school-11")
-	require.ErrorIs(t, err, domain.ErrTenantAccessDenied)
+	require.ErrorIs(t, err, identityaccess.ErrTenantAccessDenied)
 
 	f.store.hasMappingErr = errDB
 	_, _, err = f.auth.resolveAccountTenantBySlug(context.Background(), 1, "school-10")
-	require.ErrorIs(t, err, domain.ErrTenantAccessDenied, "a mapping lookup failure denies rather than grants")
+	require.ErrorIs(t, err, identityaccess.ErrTenantAccessDenied, "a mapping lookup failure denies rather than grants")
 }
 
 func TestResolveAccountTenantBySlug_OrgScopeReachesOwnOrganizationOnly(t *testing.T) {
@@ -80,7 +95,7 @@ func TestResolveAccountTenantBySlug_OrgScopeReachesOwnOrganizationOnly(t *testin
 	assert.Equal(t, int64(100), orgID)
 
 	_, _, err = f.auth.resolveAccountTenantBySlug(ctx, 1, "school-11")
-	require.ErrorIs(t, err, domain.ErrTenantAccessDenied)
+	require.ErrorIs(t, err, identityaccess.ErrTenantAccessDenied)
 }
 
 func TestResolveAccountTenantDefault_SkipsDeadSchoolsInMappingOrder(t *testing.T) {
@@ -108,10 +123,10 @@ func TestResolveAccountTenantDefault_NoLiveSchoolIsTenantNotFound(t *testing.T) 
 	f.schools.add(10, 100, "school-10", true, true)
 
 	_, _, err := f.auth.resolveAccountTenantDefault(context.Background(), 1)
-	require.ErrorIs(t, err, domain.ErrTenantNotFound)
+	require.ErrorIs(t, err, identityaccess.ErrTenantNotFound)
 
 	_, _, err = f.auth.resolveAccountTenantDefault(context.Background(), 2)
-	require.ErrorIs(t, err, domain.ErrTenantNotFound, "an account without mappings has no default tenant")
+	require.ErrorIs(t, err, identityaccess.ErrTenantNotFound, "an account without mappings has no default tenant")
 }
 
 func TestResolveAccountTenantDefault_PropagatesLookupErrors(t *testing.T) {
@@ -150,10 +165,10 @@ func TestLoadAccountMetadataForTenant(t *testing.T) {
 
 	f.schools.add(11, 110, "school-11", true, true)
 	_, err = f.auth.loadAccountMetadataForTenant(context.Background(), account, 11)
-	require.ErrorIs(t, err, domain.ErrTenantNotFound, "a deleted school answers with re-login")
+	require.ErrorIs(t, err, identityaccess.ErrTenantNotFound, "a deleted school answers with re-login")
 
 	_, err = f.auth.loadAccountMetadataForTenant(context.Background(), account, 99)
-	require.ErrorIs(t, err, domain.ErrTenantNotFound, "an unknown school answers with re-login")
+	require.ErrorIs(t, err, identityaccess.ErrTenantNotFound, "an unknown school answers with re-login")
 
 	payload, err = f.auth.loadAccountMetadataForTenant(context.Background(), account, 0)
 	require.NoError(t, err, "tenantless claims skip the school lookup")
@@ -233,7 +248,7 @@ func TestValidateTenantAccess(t *testing.T) {
 		},
 		"missing mapping is terminal": {
 			arrange: func(f *authFixture) { f.store.inactive[mappingKey{1, 10}] = true },
-			want:    domain.ErrTenantAccessDenied,
+			want:    identityaccess.ErrTenantAccessDenied,
 		},
 		"school lookup failure propagates": {
 			arrange: func(f *authFixture) { f.schools.findErr = errDB },
@@ -241,15 +256,15 @@ func TestValidateTenantAccess(t *testing.T) {
 		},
 		"unknown school is tenant not found": {
 			arrange: func(f *authFixture) { delete(f.schools.schools, 10) },
-			want:    domain.ErrTenantNotFound,
+			want:    identityaccess.ErrTenantNotFound,
 		},
 		"deleted school is tenant not found": {
 			arrange: func(f *authFixture) { f.schools.add(10, 100, "school-10", true, true) },
-			want:    domain.ErrTenantNotFound,
+			want:    identityaccess.ErrTenantNotFound,
 		},
 		"inactive school is tenant not found": {
 			arrange: func(f *authFixture) { f.schools.add(10, 100, "school-10", false, false) },
-			want:    domain.ErrTenantNotFound,
+			want:    identityaccess.ErrTenantNotFound,
 		},
 		"live mapping and school pass": {arrange: func(*authFixture) {}},
 	}
@@ -266,8 +281,8 @@ func TestValidateTenantAccess(t *testing.T) {
 			}
 			require.ErrorIs(t, err, tc.want)
 			if errors.Is(tc.want, errDB) {
-				require.NotErrorIs(t, err, domain.ErrTenantAccessDenied)
-				require.NotErrorIs(t, err, domain.ErrTenantNotFound)
+				require.NotErrorIs(t, err, identityaccess.ErrTenantAccessDenied)
+				require.NotErrorIs(t, err, identityaccess.ErrTenantNotFound)
 			}
 		})
 	}

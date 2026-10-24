@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/moto-nrw/project-phoenix/internal/passthrough"
 )
 
 // TestModulePassthroughRatchet enforces .claude/rules/backend-conventions.md
@@ -75,6 +77,27 @@ import (
 // scanned here — it has its own migration track, and the application layer is
 // the surface the module boundary is supposed to make deep.
 //
+// The owner compositions are scanned too (#4071, ADR 0057 point 5): every
+// non-test .go file below a directory named compose or composition under
+// modules/ or workflows/, legacy/ excluded as above. A composition is where
+// forwarding moved when the application layer shrank — identityaccess.Module
+// alone forwards hundreds of methods — so a register that stopped at the
+// application layer measured where code left, not where it went.
+//
+// Code #4084 moved into other owner packages stays scanned (ADR 0064):
+// modulePassthroughMovedTrees lists them, keyed to their module like the two
+// trees above.
+//
+// Since ADR 0061 (#4084) one register counts both trees per module:
+// modulePassthroughOwnerBudgets replaces the application register
+// modulePassthroughBudgets and the composition register
+// modulePassthroughComposeBudgets, and modulePassthroughOwnerBudgetTotal
+// replaces their totals modulePassthroughBudgetTotal and
+// modulePassthroughComposeBudgetTotal. #4084 moves code from the compositions
+// into the application layers; moving a method within one module must not
+// count as growth, so both trees share one entry. A method moved to another
+// module still raises that module's entry.
+//
 // Form: a budget per module, like test/query_budgets.go, not an allowlist per
 // method. The key is the module directory relative to the backend root
 // ("modules/identityaccess", "workflows/reminderdelivery"); the value is the
@@ -88,6 +111,13 @@ import (
 //     entry with today's count and shrink from there.
 //   - Budget with no hits → the entry is stale; remove it.
 //
+// Which counted shapes may stay is ADR 0075: a floor per owner of five
+// shapes (transaction and observation wrapper, consumer-port adapter, the
+// #4480 section 5 Timetable adapters, known limitation 5 below, owner-edge
+// translation) and four named exceptions. Since its amendment every budget
+// equals its floor; a pure forward or a binding without translation is no
+// floor shape.
+//
 // Seed: measured 2026-09-18 at commit 19feca2822 by the scan below, over 203
 // non-test files: 704 pass-throughs in 21 modules. Re-measure with
 //
@@ -96,6 +126,14 @@ import (
 //
 // A red run prints the measured count for every module, so the register can
 // always be rebuilt from the failure output. Numbers only ever go down.
+//
+// The register has a total (modulePassthroughOwnerBudgetTotal) that must
+// equal the sum of its entries. Raising an entry therefore means raising the
+// total as well, and a raise of either against the pull request's base fails
+// `scripts/backend-architecture.sh check` (ratchet budgets, #4071); a raise
+// needs an ADR added in the same change (ADR 0057 point 5). The application
+// register's total was 718 when the total was introduced; it had grown from
+// the 704 seeded below through the four raises recorded in the entries.
 //
 // Known limitations — conditions 1-4 describe a shape, not an intent. Five
 // gaps survive this version and are recorded rather than patched, because a
@@ -143,129 +181,98 @@ import (
 //     into a convention; that trade was declined.
 const modulePassthroughMaxBodyLines = 14
 
+// modulePassthroughMovedTrees are owner packages outside the application
+// layers and the compositions that #4084 moved composition code into (ADR
+// 0064). A method that leaves a counted tree keeps being counted where it
+// lands, so a move cannot lower a budget: the Workforce Dienstplan rows went
+// into internal/planning (#4240), and the root-facing seam and record types
+// into the owners' ports packages (#4174, #4182, #4210, #4227, #4236, #4238).
+var modulePassthroughMovedTrees = []struct{ path, owner string }{
+	{"roots/devicescanbinding/", "modules/devicescan"},
+	{"modules/devicescan/ports/", "modules/devicescan"},
+	{"workflows/parentportal/internal/care/owner_record_adapters.go", "workflows/parentportal"},
+	{"workflows/parentportal/internal/care/meal_plan_adapter.go", "workflows/parentportal"},
+	{"workflows/parentportal/internal/messaging/child_resolver.go", "workflows/parentportal"},
+	{"modules/communication/internal/adapters/parentpostgres/composition_parent_database.go", "modules/communication"},
+	{"roots/openroommovebinding/", "workflows/openroommove"},
+	{"roots/sessionendbinding/", "workflows/sessionend"},
+	{"roots/requestreviewbinding/", "modules/requestreview"},
+	{"modules/communication/internal/adapters/parentpostgres/notification_consent.go", "modules/communication"},
+	{"modules/communication/internal/adapters/postgres/message_observation.go", "modules/communication"},
+	{"modules/schoolcalendar/internal/adapters/postgres/native_feed_history.go", "modules/schoolcalendar"},
+	{"modules/devicefleet/internal/adapters/repositoryadapter/", "modules/devicefleet"},
+	{"modules/schoolstructure/internal/adapters/postgres/runtime/", "modules/schoolstructure"},
+	{"modules/peopledirectory/internal/adapters/postgres/runtime/", "modules/peopledirectory"},
+	// ADR 0064: consumer glue moved to the root, but its delegations stay
+	// attributed to the consumer. These entries expand the scan, not allowances.
+	{"api/device_scan_catalog.go", "modules/devicescan"},
+	{"api/import_staff_invitation.go", "modules/dataimport"},
+	{"api/kiosk_timetable.go", "modules/devicescan"},
+	{"modules/careplan/ports/", "modules/careplan"},
+	{"modules/identityaccess/ports/", "modules/identityaccess"},
+	{"modules/peopledirectory/ports/", "modules/peopledirectory"},
+	{"modules/timetable/ports/", "modules/timetable"},
+	{"modules/workforce/internal/planning/", "modules/workforce"},
+}
+
 // modulePassthroughApplicationSegment selects the scanned tree: every path
 // under a module that reaches into its application layer, at any nesting
 // depth.
 const modulePassthroughApplicationSegment = "/internal/application/"
 
-// modulePassthroughBudgets is the register: module directory → pass-throughs
-// measured there. Sorted alphabetically so later diffs stay readable.
-// Shrink-only — see the header.
-var modulePassthroughBudgets = map[string]int{
-	// Appointment, recipient, recurrence-rule and occurrence-override CRUD,
-	// all of it one s.store call inside s.run; service.go alone.
-	"modules/appointments": 29,
-	// The widest register: student_schedules.go (45) and records.go (29)
-	// forward one store call per schedule and record operation, plus
-	// withdrawals (12), the care-exit/companion service surface (15) and the
-	// student-deletion and excused-request entry points.
-	//
-	// The one raise in this register, 105 → 112 with #3427: the care-lifecycle
-	// adapter (5,278 LOC, never scanned because it sat under legacy/) became
-	// native Care Plan application code, and eight of its methods keep the
-	// counted shape while each carries a rule of its own — GetPendingWithdrawal
-	// (state check and error mapping), LockStudentsForUpdateBelow (the
-	// no-wait lock order), CompanionIDsForWeekday and ListCompanionsForStudents
-	// (weekday and empty-set validation), QueueStudentDocumentFileCleanup
-	// (intent validation and delay), ResolveStudentDocumentCleanup,
-	// ListDeletedStudentDocumentsPendingFileCleanup and
-	// CanSeeStudentDocumentCategory (category authority). The same change
-	// removed nine counted forwarders: three file-sweep reads and marks folded
-	// into one owner command, three File Storage port methods bound in
-	// composition, the dead ListWithdrawalCompletionKeys, the People stranding
-	// forward and the internal-only AdministrativelyVisibleStudentIDs.
-	// Shrink-only from here like every other entry.
-	"modules/careplan": 111,
-	// The caller and arrival-exception ports reached straight through, most
-	// of them behind a nil-port guard and a date parse. 9 → 6 with #3563: the
-	// day report is built in the projection instead of forwarded to the
-	// retained enrollment report.
-	"modules/classday": 6,
-	// Announcement and feed writes, each one store call behind the shared
-	// mutateExisting/run helpers.
-	"modules/communication": 6,
-	// Email outbox and backlog reads/writes forwarded to the store, and the
-	// worker's Backlog.
-	"modules/delivery": 7,
-	// device.go carries 12 (registration, last-seen, status, listings); the
-	// display, online-window, service and unregistered-tag-scan files one each.
-	"modules/devicefleet": 16,
-	// Session lifecycle (6) plus the school-name lookup and the service
-	// facade's device read.
-	"modules/devicescan": 8,
-	// First measured with #3562, when phases, form schemas, captcha and the
-	// parent mails moved out of services/enrollment. form_schemas.go carries
-	// 11: the transactional wrapper runs each schema write in one tenant
-	// transaction, and the reads forward to the owner's records. Phases (3:
-	// the listings and the lookup that maps a miss to ErrPhaseNotFound),
-	// captcha (2: the tenant settings reads), the school brand and the
-	// approved-offering read by care offering follow.
-	"modules/enrollment": 17,
-	// The target-state read, which only maps the port error to ErrUnavailable.
-	"modules/exporttransfer": 1,
-	// Room and toilet reads/writes in service.go.
-	"modules/facilities": 4,
-	// Feedback submission and listing, one store call each.
-	"modules/feedback": 6,
-	// CountAttachments, the only attachment method short enough to qualify.
-	"modules/filestorage": 1,
-	// Spread over 32 files, led by operator_tokens.go (18), account_session.go
-	// (12), operator.go (10) and operator_mfa.go (9): session/operator
-	// lookups and their ForUpdate twins, MFA and passkey credential and
-	// challenge stores, permission and role administration reads.
-	"modules/identityaccess": 117,
-	// Menu, participation and week reads forwarded to the store.
-	"modules/mealplan": 8,
-	// The provisioning listings (organisations, accounts, devices, dashboard)
-	// and the school read/soft-delete/restore surface.
-	"modules/organizationtenancy": 21,
-	// student.go (15), service.go (13) and student_records.go (12) lead;
-	// guardian links, enrollment, directory, deletion and photo reads follow,
-	// each one observeRun around a single s.store call.
-	"modules/peopledirectory": 52,
-	// Calendar-period, closing-day and dateframe CRUD in service.go. The
-	// holiday and iCal methods are NOT in this number — they call a domain
-	// function, see known limitation 1.
-	"modules/schoolcalendar": 15,
-	// Membership service reads (17), teaching assignments (11) and the
-	// class-list-entry surface (5).
-	"modules/schoolmembership": 28,
-	// Hiding the wizard is personal state with no rule of its own, so the
-	// service hands it to the store (#2832).
-	"modules/schoolsetup": 1,
-	// School-year transition (9) plus the transition history and service reads.
-	"modules/schoolstructure": 13,
-	// Attendance, visit, supervision, group-mapping and room reads/writes
-	// across 18 files, each one store call inside the operation wrapper (64).
-	// internal/application/presence (#3422) adds 12 that map a single read or
-	// write onto the capability's contract: presence-mode validation, the
-	// visit and session lookups that turn port failures and misses into the
-	// public sentinels (ErrVisitNotFound, ErrNoActiveSession), the room and
-	// present-today projections, the combined-group validation and the
-	// status-day upsert guarded by the exception-day lock.
-	//
-	// The second raise in this register, 76 → 89 with #2762, has the same
-	// shape as the #3427 one above: the activity-session and session-attendance
-	// commands used to live in database/repositories/student_presence.go
-	// (legacy composition, never scanned) and are now the owner's native
-	// application code. Thirteen of them keep the counted shape while each
-	// carries its own rule: the session reads and SessionExecution validate the
-	// id sets and the status filter; the attendance reads and the participant
-	// commands (check-in, checkout, close, interval reconciliation, manual
-	// patch, non-booking marker, excusal reconnection) validate the ids, the
-	// instants and the patch shape before the one store call inside the
-	// tenant transaction. The same cutover removed the four reads and the
-	// reinstate command no consumer called. Shrink-only from here like every
-	// other entry.
-	"modules/studentpresence": 89,
-	// The largest block, and the one the previous version could not see at
-	// all: service.go (23), instance_students.go (21), activity_instances.go
-	// (14) and 19 more files, every one of them s.run around a single
-	// s.store call.
-	"modules/timetable": 100,
-	// Work sessions (15), the service facade (7), absences, shifts, staff
-	// records, month snapshots, offboarding and substitutions.
-	"modules/workforce": 47,
+// modulePassthroughOwnerBudgetTotal is the sum of
+// modulePassthroughOwnerBudgets: 3109 under ADR 0061, the 717 of
+// modulePassthroughBudgetTotal and the 2392 of
+// modulePassthroughComposeBudgetTotal. Shrink-only, like every entry; raised
+// by ADR 0063 and by ADR 0064 (3,011 to 3,091), and by ADR 0073 (one each
+// for modules/communication and modules/schoolcalendar).
+// Raised by ADR 0079: the reachable-children read of modules/communication (+1).
+const modulePassthroughOwnerBudgetTotal = 1401
+
+// modulePassthroughOwnerBudgets is the register: module directory →
+// pass-throughs measured in its application layer and its compositions
+// together (ADR 0061). Each entry started as the sum of the module's entries
+// in modulePassthroughBudgets and modulePassthroughComposeBudgets; the
+// composition counts were first measured on 2026-10-15 on top of development
+// c49b81c3a9 (2394 in 34 compositions). #4084 carries the compositions that
+// still hold more than construction. Sorted alphabetically so later diffs stay
+// readable. Shrink-only — an entry may fall or go, never rise, and no module
+// gets a new entry.
+var modulePassthroughOwnerBudgets = map[string]int{
+	"modules/appointments": 21,
+	"modules/auditlog":     1,
+	"modules/careplan":     159,
+	"modules/classday":     14,
+	// Raised by ADR 0073: the composition forwards the parent announcement
+	// retention to its service.
+	// Raised by ADR 0079: the facade observes the reachable-children read.
+	"modules/communication":       58,
+	"modules/dataimport":          1,
+	"modules/delivery":            5,
+	"modules/devicefleet":         33,
+	"modules/devicescan":          35,
+	"modules/enrollment":          24,
+	"modules/exporttransfer":      1,
+	"modules/facilities":          13,
+	"modules/feedback":            2,
+	"modules/filestorage":         6,
+	"modules/identityaccess":      213,
+	"modules/mealplan":            3,
+	"modules/organizationtenancy": 11,
+	"modules/peopledirectory":     208,
+	"modules/requestreview":       15,
+	"modules/schedulerruntime":    4,
+	// Raised by ADR 0073: the feed cleanup keeps only the staff feed tombstones.
+	"modules/schoolcalendar":   16,
+	"modules/schoolmembership": 16,
+	"modules/schoolsetup":      1,
+	"modules/schoolstructure":  43,
+	"modules/settings":         17,
+	"modules/studentpresence":  120,
+	"modules/timetable":        204,
+	"modules/workforce":        139,
+	"workflows/openroommove":   1,
+	"workflows/parentportal":   17,
 }
 
 func TestModulePassthroughRatchet(t *testing.T) {
@@ -277,12 +284,13 @@ func TestModulePassthroughRatchet(t *testing.T) {
 		return
 	}
 
-	counts, err := modulePassthroughScan(backendRoot)
+	counts, err := modulePassthroughScan(backendRoot, modulePassthroughOwnerKey)
 	if err != nil {
 		t.Fatalf("module-passthrough scan failed: %v", err)
 	}
 
-	violations := modulePassthroughViolations(counts, modulePassthroughBudgets)
+	violations := modulePassthroughViolations(counts, modulePassthroughOwnerBudgets)
+	violations = append(violations, modulePassthroughTotalViolations("modulePassthroughOwnerBudgetTotal", modulePassthroughOwnerBudgets, modulePassthroughOwnerBudgetTotal)...)
 	if len(violations) > 0 {
 		sort.Strings(violations)
 		t.Errorf("Module-passthrough ratchet check failed (%d issue(s)):\n\n%s\n\n"+
@@ -306,7 +314,8 @@ func modulePassthroughViolations(counts, budgets map[string]int) []string {
 		case !ok:
 			violations = append(violations, fmt.Sprintf(
 				"[module passthrough] %s: %d single-call delegation(s), but the module has no budget.\n"+
-					"  New application package — add the entry with today's count and shrink it from there (Rule 8).",
+					"  New application package or composition — a new application package gets an entry with today's count\n"+
+					"  and shrinks from there (Rule 8); code moved out of a counted tree keeps its delegations counted.",
 				module, got))
 		case got > budget:
 			violations = append(violations, fmt.Sprintf(
@@ -331,13 +340,43 @@ func modulePassthroughViolations(counts, budgets map[string]int) []string {
 	return violations
 }
 
-// modulePassthroughScan counts pass-through methods per module in the
-// application layers of modules/ and workflows/. Modules without a single hit
-// do not appear in the result, which is what makes a stale budget detectable.
-func modulePassthroughScan(backendRoot string) (map[string]int, error) {
+// modulePassthroughTotalViolations pins a register's total to the sum of its
+// entries, so that raising an entry shows up as a raised constant as well.
+func modulePassthroughTotalViolations(name string, budgets map[string]int, total int) []string {
+	sum := 0
+	for _, budget := range budgets {
+		sum += budget
+	}
+	switch {
+	case sum > total:
+		return []string{fmt.Sprintf(
+			"[module passthrough] %s: the entries sum to %d, the total is %d.\n"+
+				"  An entry was raised. Never raise a budget; a raise needs an ADR (ADR 0057 point 5).",
+			name, sum, total)}
+	case sum < total:
+		return []string{fmt.Sprintf(
+			"[module passthrough] %s: the entries sum to %d, the total is %d.\n"+
+				"  Nice — lower %s to %d so the reduction cannot regress.",
+			name, sum, total, name, sum)}
+	}
+	return nil
+}
+
+// modulePassthroughScan counts pass-through methods per register key in
+// modules/ and workflows/. key maps a backend-relative file path to its
+// register entry, or "" when the file is outside the register's tree. Keys
+// without a single hit do not appear in the result, which is what makes a
+// stale budget detectable.
+func modulePassthroughScan(backendRoot string, key func(string) string) (map[string]int, error) {
 	counts := make(map[string]int)
-	for _, tree := range []string{"modules", "workflows"} {
+	for _, tree := range []string{"modules", "workflows", "api", "roots"} {
 		root := filepath.Join(backendRoot, tree)
+		// Synthetic module/workflow fixtures need not contain a root package.
+		if tree == "api" || tree == "roots" {
+			if _, err := os.Stat(root); os.IsNotExist(err) {
+				continue
+			}
+		}
 		err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
 			if err != nil {
 				return err
@@ -356,13 +395,10 @@ func modulePassthroughScan(backendRoot string) (map[string]int, error) {
 				return relErr
 			}
 			rel = filepath.ToSlash(rel)
-			if !strings.Contains(rel, modulePassthroughApplicationSegment) {
-				return nil
-			}
 			if strings.Contains(rel, "/legacy/") {
 				return nil
 			}
-			module := modulePassthroughModuleKey(rel)
+			module := key(rel)
 			if module == "" {
 				return nil
 			}
@@ -389,100 +425,36 @@ func modulePassthroughScan(backendRoot string) (map[string]int, error) {
 	return counts, nil
 }
 
-// modulePassthroughModuleKey maps "modules/careplan/requestfeed/internal/
-// application/x.go" to its owning module directory, "modules/careplan".
-func modulePassthroughModuleKey(rel string) string {
+// modulePassthroughOwnerKey maps a file in an application layer or below an
+// owner composition to its module directory, and every other file to "":
+// "modules/careplan/requestfeed/internal/application/x.go" and
+// "modules/careplan/requestfeed/compose/x.go" to "modules/careplan",
+// "modules/communication/composition/x.go" to "modules/communication". A
+// composition is a directory named compose or composition below the module
+// directory (ADR 0061).
+func modulePassthroughOwnerKey(rel string) string {
+	for _, tree := range modulePassthroughMovedTrees {
+		if strings.HasPrefix(rel, tree.path) {
+			return tree.owner
+		}
+	}
 	parts := strings.Split(rel, "/")
-	if len(parts) < 2 {
+	if len(parts) < 3 {
 		return ""
 	}
-	return parts[0] + "/" + parts[1]
+	if strings.Contains(rel, modulePassthroughApplicationSegment) {
+		return parts[0] + "/" + parts[1]
+	}
+	for index, part := range parts[:len(parts)-1] {
+		if index >= 2 && (part == "compose" || part == "composition") {
+			return parts[0] + "/" + parts[1]
+		}
+	}
+	return ""
 }
 
 // modulePassthroughIsDelegation applies the four conditions from the header,
 // in that order.
 func modulePassthroughIsDelegation(fn *ast.FuncDecl, fset *token.FileSet) bool {
-	// (1) a method, not a free function.
-	if fn.Recv == nil || len(fn.Recv.List) == 0 || fn.Body == nil {
-		return false
-	}
-	// (2) exported.
-	if fn.Name == nil || !fn.Name.IsExported() {
-		return false
-	}
-	// The receiver must be named; an unnamed or blank receiver cannot be the
-	// root of the forwarded call.
-	receiver := modulePassthroughReceiverName(fn)
-	if receiver == "" {
-		return false
-	}
-	// (3) body line span.
-	span := fset.Position(fn.Body.Rbrace).Line - fset.Position(fn.Body.Lbrace).Line + 1
-	if span > modulePassthroughMaxBodyLines {
-		return false
-	}
-	// (4) exactly one call through a field of the receiver. Sister-method
-	// calls (s.helper(...)) and free functions (fmt.Errorf, domain.X, len)
-	// are ignored: neither leaves the module. A second field call means the
-	// method combines two collaborators, which is orchestration.
-	return modulePassthroughFieldCalls(fn.Body, receiver) == 1
-}
-
-// modulePassthroughFieldCalls counts the calls in body whose Fun is a selector
-// chain of at least two steps bottoming out in the receiver identifier —
-// s.store.Find(...), s.ports.Y(...), s.deps.Clock.Now(...). A one-step chain
-// (s.Helper(...)) is a sister method and is not counted; so is every call that
-// does not start at the receiver at all. Function literals are inspected as
-// part of the body, so a store call wrapped in s.run("…", func(){…}) counts.
-func modulePassthroughFieldCalls(body *ast.BlockStmt, receiver string) int {
-	count := 0
-	ast.Inspect(body, func(n ast.Node) bool {
-		call, ok := n.(*ast.CallExpr)
-		if !ok {
-			return true
-		}
-		selector, ok := call.Fun.(*ast.SelectorExpr)
-		if !ok {
-			return true
-		}
-		// The method name is one step; at least one field must sit between it
-		// and the receiver.
-		field, ok := selector.X.(*ast.SelectorExpr)
-		if !ok {
-			return true
-		}
-		if root := modulePassthroughSelectorRoot(field); root != nil && root.Name == receiver {
-			count++
-		}
-		return true
-	})
-	return count
-}
-
-// modulePassthroughReceiverName returns the receiver's identifier, or "" when
-// the method has none (`func (*Service) X()`) or discards it (`func (_ *S) X()`).
-func modulePassthroughReceiverName(fn *ast.FuncDecl) string {
-	names := fn.Recv.List[0].Names
-	if len(names) == 0 || names[0] == nil || names[0].Name == "_" {
-		return ""
-	}
-	return names[0].Name
-}
-
-// modulePassthroughSelectorRoot peels a selector chain down to its innermost
-// expression: r.store.Find → r, s.Helper → s. It returns nil when the chain
-// does not bottom out in a plain identifier (a call, an index or a literal).
-func modulePassthroughSelectorRoot(expr ast.Expr) *ast.Ident {
-	for {
-		selector, ok := expr.(*ast.SelectorExpr)
-		if !ok {
-			break
-		}
-		expr = selector.X
-	}
-	ident, ok := expr.(*ast.Ident)
-	if !ok {
-		return nil
-	}
-	return ident
+	return passthrough.IsDelegation(fn, fset)
 }

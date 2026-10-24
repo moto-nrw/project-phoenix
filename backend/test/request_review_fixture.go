@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
@@ -15,6 +15,8 @@ type RequestReviewSchool struct {
 	Context   context.Context
 	TenantID  int64
 	StudentID int64
+	// AccountID files every request of the school.
+	AccountID int64
 	GroupName string
 	Rows      map[string]int64
 }
@@ -29,7 +31,7 @@ func CreateTestRequestReviewSchool(t *testing.T, db *bun.DB, side string) Reques
 	CreateTestGroupTeacher(t, db, group.ID, teacher.ID)
 	student := CreateTestStudent(t, db, "ReviewRLS", side, "RR1")
 	AssignStudentToGroup(t, db, student.ID, group.ID)
-	result := RequestReviewSchool{TenantID: tenantID, StudentID: student.ID, GroupName: group.Name, Rows: map[string]int64{}}
+	result := RequestReviewSchool{TenantID: tenantID, StudentID: student.ID, AccountID: account.ID, GroupName: group.Name, Rows: map[string]int64{}}
 	var id int64
 	require.NoError(t, db.NewRaw(`INSERT INTO users.student_data_change_requests
  (tenant_id,student_id,submitted_by,target,field_key,new_value,status)
@@ -41,7 +43,7 @@ func CreateTestRequestReviewSchool(t *testing.T, db *bun.DB, side string) Reques
 	result.Rows["schedule.care_schedule_change_requests"] = id
 	require.NoError(t, db.NewRaw(`INSERT INTO active.excused_absence_requests
  (tenant_id,student_id,submitted_by,dates,note,absence_status,status)
- VALUES (?,?,?,?::jsonb,'Arzttermin','excused','pending') RETURNING id`, tenantID, student.ID, account.ID, fmt.Sprintf(`["%s"]`, timezone.TodayDate().AddDays(3))).Scan(ctx, &id))
+ VALUES (?,?,?,?::jsonb,'Arzttermin','excused','pending') RETURNING id`, tenantID, student.ID, account.ID, fmt.Sprintf(`["%s"]`, calendar.TodayDate().AddDays(3))).Scan(ctx, &id))
 	result.Rows["active.excused_absence_requests"] = id
 	phase := CreateTestEnrollmentPhase(t, db)
 	care := CreateTestCareOffering(t, db, phase.ID, "Ganztag "+side)
@@ -62,9 +64,9 @@ func CreateTestRequestReviewSchool(t *testing.T, db *bun.DB, side string) Reques
 	}
 	require.NoError(t, db.NewRaw(`INSERT INTO enrollment.offering_change_requests
  (tenant_id,student_id,request_child_id,submitted_by,payload,effective_from,status)
- VALUES (?,?,?,?,?::jsonb,?::date,'pending') RETURNING id`, tenantID, student.ID, childID, account.ID, fmt.Sprintf(`{"offerings":[{"offering_id":%d}]}`, care.ID), timezone.TodayDate().AddDays(30).String()).Scan(ctx, &id))
+ VALUES (?,?,?,?,?::jsonb,?::date,'pending') RETURNING id`, tenantID, student.ID, childID, account.ID, fmt.Sprintf(`{"offerings":[{"offering_id":%d}]}`, care.ID), calendar.TodayDate().AddDays(30).String()).Scan(ctx, &id))
 	result.Rows["enrollment.offering_change_requests"] = id
-	result.Context = context.WithValue(ctx, jwt.CtxClaims, jwt.AppClaims{ID: int(account.ID)})
-	result.Context = context.WithValue(result.Context, jwt.CtxPermissions, []string{"admin:*", "users:read", "users:update", "users:absence"})
+	result.Context = context.WithValue(ctx, sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: int(account.ID)})
+	result.Context = context.WithValue(result.Context, sessiontoken.CtxPermissions, []string{"admin:*", "users:read", "users:update", "users:absence"})
 	return result
 }

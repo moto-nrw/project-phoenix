@@ -6,16 +6,6 @@ import (
 	"time"
 )
 
-var (
-	// ErrAccountPasskeyNotFound reports a lookup that matched no active
-	// credential, or a use or revocation that found no active credential of
-	// that account.
-	ErrAccountPasskeyNotFound = errors.New("account passkey not found")
-	// ErrAccountPasskeySessionNotFound reports a consumption that found no
-	// unconsumed, unexpired ceremony with that ID and purpose.
-	ErrAccountPasskeySessionNotFound = errors.New("account passkey session not found")
-)
-
 // AccountPasskeyCredential is one WebAuthn credential a school-portal
 // account registered. Credentials belong to the account, not to a school;
 // only unrevoked credentials verify assertions.

@@ -468,11 +468,11 @@ export function PersonalCalendar({
   busyAppointmentId,
   icsHrefBase,
 }: PersonalCalendarProps) {
-  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(
-    null,
-  );
+  const [clicked, setClicked] = useState<CalendarEvent | null>(null);
+  const selectedEvent =
+    clicked && (events.find((event) => event.id === clicked.id) ?? clicked);
   const actions: CalendarEventActions = {
-    onSelect: setSelectedEvent,
+    onSelect: setClicked,
     onShowOverview,
     onRespond,
     respondingRecipientId,
@@ -604,7 +604,7 @@ export function PersonalCalendar({
       <SlideOver
         open={selectedEvent !== null}
         onOpenChange={(open) => {
-          if (!open) setSelectedEvent(null);
+          if (!open) setClicked(null);
         }}
       >
         <SlideOverContent widthClass="sm:w-[520px]">
@@ -619,7 +619,7 @@ export function PersonalCalendar({
               <CalendarEventDetail
                 event={selectedEvent}
                 actions={actions}
-                onClose={() => setSelectedEvent(null)}
+                onClose={() => setClicked(null)}
               />
             ) : null}
           </div>

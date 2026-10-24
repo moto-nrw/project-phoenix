@@ -3,7 +3,9 @@ package groups_test
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	api "github.com/moto-nrw/project-phoenix/roots/owners"
+
+	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -13,7 +15,7 @@ import (
 // staffIDsFor collapses the flat pair list into the staff set of one group,
 // which is what a producer looking for "who is responsible for this child"
 // consumes.
-func staffIDsFor(pairs []testutil.SchoolStructureStaffGroupID, groupID int64) map[int64]struct{} {
+func staffIDsFor(pairs []schoolStructureCompose.StaffGroupID, groupID int64) map[int64]struct{} {
 	out := make(map[int64]struct{})
 	for _, pair := range pairs {
 		if pair.GroupID == groupID {
@@ -31,7 +33,7 @@ func TestGroupRepository_ListStaffIDsByEducationGroupIDs(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := testutil.NewSchoolStructureRepositorySuiteFactory(db).Group
+	repo := api.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db)).Group
 	ctx := testpkg.Ctx(t)
 	today := calendar.TodayDate()
 
@@ -43,7 +45,7 @@ func TestGroupRepository_ListStaffIDsByEducationGroupIDs(t *testing.T) {
 		testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID,
 			today.AddDays(-1), today.AddDays(1))
 
-		pairs, err := repo.ListStaffIDsByEducationGroupIDs(ctx, []int64{group.ID}, today)
+		pairs, err := testpkg.TenantQuery2(t, ctx, db, repo.ListStaffIDsByEducationGroupIDs, []int64{group.ID}, today)
 		require.NoError(t, err)
 
 		staff := staffIDsFor(pairs, group.ID)
@@ -57,14 +59,14 @@ func TestGroupRepository_ListStaffIDsByEducationGroupIDs(t *testing.T) {
 		testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID,
 			today.AddDays(-10), today.AddDays(-5))
 
-		pairs, err := repo.ListStaffIDsByEducationGroupIDs(ctx, []int64{group.ID}, today)
+		pairs, err := testpkg.TenantQuery2(t, ctx, db, repo.ListStaffIDsByEducationGroupIDs, []int64{group.ID}, today)
 		require.NoError(t, err)
 		assert.NotContains(t, staffIDsFor(pairs, group.ID), substitute.ID,
 			"a substitution that ended last week says nothing about today")
 	})
 
 	t.Run("no groups means no staff", func(t *testing.T) {
-		pairs, err := repo.ListStaffIDsByEducationGroupIDs(ctx, nil, today)
+		pairs, err := testpkg.TenantQuery2(t, ctx, db, repo.ListStaffIDsByEducationGroupIDs, nil, today)
 		require.NoError(t, err)
 		assert.Empty(t, pairs, "an empty request must not resolve to everybody")
 	})
@@ -75,7 +77,7 @@ func TestGroupRepository_ListStaffIDsByEducationGroupIDs(t *testing.T) {
 
 		foreignGroup := testpkg.CreateTestEducationGroupForTenant(t, db, otherTenant, "ByGroupForeign")
 
-		pairs, err := repo.ListStaffIDsByEducationGroupIDs(ctx, []int64{foreignGroup.ID}, today)
+		pairs, err := testpkg.TenantQuery2(t, ctx, db, repo.ListStaffIDsByEducationGroupIDs, []int64{foreignGroup.ID}, today)
 		require.NoError(t, err)
 		assert.Empty(t, staffIDsFor(pairs, foreignGroup.ID))
 	})

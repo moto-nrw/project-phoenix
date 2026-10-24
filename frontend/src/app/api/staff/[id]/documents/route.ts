@@ -1,4 +1,4 @@
-import { backendResponseError } from "~/lib/api-helpers.server";
+import { backendResponseError } from "~/lib/api-response-error.server";
 // Staff documents (#1424): list + multipart upload proxy. The backend owns
 // the authoritative magic-number validation and the per-category permission
 // checks; this route mirrors the size/MIME gate so oversized or obviously
@@ -32,11 +32,19 @@ export const POST = createFileUploadHandler<unknown>(
 
     const file = formData.get("file");
     if (!file || !(file instanceof File)) {
-      throw new FileValidationError("No document file provided", 400);
+      throw new FileValidationError(
+        "No document file provided",
+        400,
+        "files.file_missing",
+      );
     }
     const category = formData.get("category");
     if (typeof category !== "string" || category === "") {
-      throw new FileValidationError("No document category provided", 400);
+      throw new FileValidationError(
+        "No document category provided",
+        400,
+        "general.input",
+      );
     }
 
     const backendUrl = `${getServerApiUrl()}/api/staff/${staffId}/documents`;

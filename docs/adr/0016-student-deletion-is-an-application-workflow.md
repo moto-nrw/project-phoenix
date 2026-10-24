@@ -59,3 +59,9 @@ tombstoned rather than removed on both the ordinary and the purge path, so a
 deployment rollback never restores a name, tag or account link; deleted
 credentials and files are never resurrected implicitly. Audit tombstones,
 prior deletion audits and anonymized grade-transition history are retained.
+
+## Subsequent change
+
+Migration 1.15.471 (#4329) removes `users.persons_guardians`. The workflow
+now deletes current guardian relationships; the adoption described above is
+historical.

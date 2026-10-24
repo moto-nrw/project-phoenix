@@ -94,6 +94,7 @@ const mocks = vi.hoisted(() => ({
     warning: vi.fn(),
   },
   showActionError: vi.fn(),
+  showActionMessage: vi.fn(),
 }));
 
 // The date and datetime fields moved from native inputs to the kit pickers;
@@ -130,7 +131,10 @@ vi.mock("~/lib/tenant-context", () => ({
 vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
   ...(await importOriginal<object>()),
   useToast: () => mocks.toast,
-  useApiErrorDisplay: () => ({ show: mocks.showActionError }),
+  useApiErrorDisplay: () => ({
+    show: mocks.showActionError,
+    showMessage: mocks.showActionMessage,
+  }),
 }));
 
 vi.mock("~/lib/swr", async (importOriginal) => ({
@@ -578,7 +582,7 @@ describe("CareOfferingsEditor", () => {
     );
 
     expect(
-      screen.getByText("Bedingung 1: Wähle mindestens eine Klassenstufe."),
+      screen.getByText("Bedingung 1: Wählen Sie mindestens eine Klassenstufe."),
     ).toBeVisible();
     expect(screen.getByRole("button", { name: "Erstellen" })).toBeDisabled();
     const availabilityFields = within(
@@ -885,7 +889,8 @@ describe("CareOfferingsEditor", () => {
     }
     await chooseOption("Regeltermin", /Lernzeit/);
 
-    // Der Hinweis steht als Kit-Alert am Feld (Bauart 2 Regel 5, #3113).
+    // Der Hinweis steht am Feld und wird sofort vorgelesen (Bauart 2
+    // Regel 5, #3113).
     expect(screen.getByRole("alert")).toHaveTextContent(
       /Regeltermin deckt die Angebotstage Di, Mi, Do, Fr nicht ab/,
     );
@@ -1020,6 +1025,121 @@ describe("CareOfferingsEditor", () => {
     expect(await screen.findByText("Regelbetreuung")).toBeInTheDocument();
     expect(screen.queryByText(/^Nur für Klasse/)).not.toBeInTheDocument();
     expect(screen.queryByText(/^Nicht für Klasse/)).not.toBeInTheDocument();
+  });
+
+  // #4782: free places per offering at a glance.
+  it("shows occupancy, free places and the full status in the list", async () => {
+    mocks.listPhases.mockResolvedValue([phase()]);
+    mocks.listCareOfferings.mockResolvedValue([
+      offering({ id: "offer-1", name: "Regelbetreuung", capacity: 10 }),
+      offering({ id: "offer-2", name: "Randstunde", capacity: 5 }),
+      offering({ id: "offer-3", name: "Frühbetreuung", capacity: null }),
+    ]);
+    mocks.fetchCareOfferingBookingStats.mockResolvedValue({
+      "offer-1": {
+        offering_id: "offer-1",
+        capacity: 10,
+        booked: 7,
+        grade_levels: {},
+        unknown_grade_count: 0,
+      },
+      "offer-2": {
+        offering_id: "offer-2",
+        capacity: 5,
+        booked: 5,
+        grade_levels: {},
+        unknown_grade_count: 0,
+      },
+      "offer-3": {
+        offering_id: "offer-3",
+        capacity: null,
+        booked: 4,
+        grade_levels: {},
+        unknown_grade_count: 0,
+      },
+    });
+
+    render(<CareOfferingsEditor />);
+
+    const regular = within(
+      (await screen.findByText("7 von 10")).closest("tr") as HTMLElement,
+    );
+    expect(screen.getByRole("button", { name: /^Belegt/ })).toBeInTheDocument();
+    expect(regular.getByText("Regelbetreuung")).toBeInTheDocument();
+    expect(regular.getByText("3 frei")).toBeInTheDocument();
+    expect(regular.queryByText("Voll")).not.toBeInTheDocument();
+
+    const full = within(
+      screen.getByText("5 von 5").closest("tr") as HTMLElement,
+    );
+    expect(full.getByText("Randstunde")).toBeInTheDocument();
+    expect(full.getByText("Keine frei")).toBeInTheDocument();
+    expect(full.getByText("Voll")).toBeInTheDocument();
+
+    // Without a capacity limit only the occupancy.
+    const unlimited = within(
+      screen.getByText("Frühbetreuung").closest("tr") as HTMLElement,
+    );
+    expect(unlimited.getByText("4")).toBeInTheDocument();
+    expect(unlimited.getByText("Unbegrenzt")).toBeInTheDocument();
+
+    // The capacity tile labels the free places as active offers: 3 + 0.
+    expect(screen.getByText("· 3 frei (aktive Angebote)")).toBeInTheDocument();
+    expect(
+      screen.getByText("· 3 frei (aktive Angebote)").parentElement,
+    ).toHaveTextContent("15 · 3 frei (aktive Angebote)");
+  });
+
+  it("shows a zero capacity instead of treating it as unlimited", async () => {
+    mocks.listPhases.mockResolvedValue([phase()]);
+    mocks.listCareOfferings.mockResolvedValue([
+      offering({ id: "offer-1", capacity: 0 }),
+    ]);
+    mocks.fetchCareOfferingBookingStats.mockResolvedValue({
+      "offer-1": {
+        offering_id: "offer-1",
+        capacity: 0,
+        booked: 0,
+        grade_levels: {},
+        unknown_grade_count: 0,
+      },
+    });
+
+    render(<CareOfferingsEditor />);
+
+    expect(await screen.findByText("0 von 0")).toBeInTheDocument();
+    const freePlaces = screen.getByText("· 0 frei (aktive Angebote)");
+    expect(freePlaces.parentElement).toHaveTextContent(
+      "0 · 0 frei (aktive Angebote)",
+    );
+  });
+
+  it("hides the occupancy when it fails to load and keeps the list usable", async () => {
+    mocks.listPhases.mockResolvedValue([phase()]);
+    mocks.listCareOfferings.mockResolvedValue([
+      offering({ id: "offer-1", name: "Regelbetreuung", capacity: 10 }),
+    ]);
+    mocks.fetchCareOfferingBookingStats.mockRejectedValue(
+      new Error("stats down"),
+    );
+
+    render(<CareOfferingsEditor />);
+
+    expect(await screen.findByText("Regelbetreuung")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(mocks.fetchCareOfferingBookingStats).toHaveBeenCalled(),
+    );
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("button", { name: /^Belegt/ }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(screen.getByRole("button", { name: /^Preis/ })).toBeInTheDocument();
+    expect(screen.getByText("10 Plätze")).toBeInTheDocument();
+    expect(screen.queryByText(/frei$/)).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Neues Betreuungsangebot" }),
+    ).toBeEnabled();
   });
 
   // #2186: tightening a rule leaves contradicting bookings in place
@@ -2108,7 +2228,9 @@ describe("CareOfferingsEditor", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       catalogText("general.server", "die Liste der Betreuungsangebote"),
     );
-    expect(onSummaryChange).toHaveBeenLastCalledWith("unavailable");
+    await waitFor(() =>
+      expect(onSummaryChange).toHaveBeenLastCalledWith("unavailable"),
+    );
     expect(onSummaryChange).not.toHaveBeenCalledWith({ total: 0, active: 0 });
   });
   it("keeps a failed offering delete in the open dialog (#2515)", async () => {
@@ -2805,6 +2927,46 @@ describe("EnrollmentFormEditor", () => {
     expect(
       await screen.findByRole("link", { name: "Vorschau" }),
     ).toHaveAttribute("href", "/demo/anmeldung/preview?base=1");
+  });
+
+  it("scrolls to an added question and focuses its text (#4328)", async () => {
+    mocks.listSchemas.mockResolvedValue([schema()]);
+    mocks.listPhases.mockResolvedValue([]);
+    const scrollIntoView = vi.fn();
+    const original = HTMLElement.prototype.scrollIntoView;
+    HTMLElement.prototype.scrollIntoView = scrollIntoView;
+
+    try {
+      render(<EnrollmentFormEditor />);
+
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Neue Vorlage" }),
+      );
+      fireEvent.click(
+        screen.getByRole("button", { name: "Freie Zusatzfrage" }),
+      );
+
+      const questionInput = screen.getByLabelText("Frage im Elternformular");
+      await waitFor(() => expect(questionInput).toHaveFocus());
+      expect(scrollIntoView).toHaveBeenCalledTimes(1);
+      expect(scrollIntoView.mock.contexts[0]).toBe(
+        questionInput.closest("article"),
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: "Infotext" }));
+      await waitFor(() =>
+        expect(
+          screen.getByPlaceholderText("z. B. Wichtiger Hinweis"),
+        ).toHaveFocus(),
+      );
+      expect(scrollIntoView).toHaveBeenCalledTimes(2);
+
+      // Typing into the new row must not pull the view back again.
+      fireEvent.change(questionInput, { target: { value: "Allergien" } });
+      expect(scrollIntoView).toHaveBeenCalledTimes(2);
+    } finally {
+      HTMLElement.prototype.scrollIntoView = original;
+    }
   });
 
   it("creates, previews, updates, and deletes schemas", async () => {
@@ -4500,5 +4662,377 @@ describe("prepareFieldsForSave — fixed pickup times", () => {
   it("leaves allowed_times undefined when none configured", () => {
     const [out] = prepareFieldsForSave([pickupField()]);
     expect(out?.allowed_times).toBeUndefined();
+  });
+});
+
+describe("information PDF attachments in the form editor", () => {
+  const firstURL = "/uploads/enrollment-form-legal-documents/1_information.pdf";
+  const secondURL = "/uploads/enrollment-form-legal-documents/1_pickup.pdf";
+  const replacementURL =
+    "/uploads/enrollment-form-legal-documents/1_replacement.pdf";
+
+  async function newNotice() {
+    mocks.listSchemas.mockResolvedValue([]);
+    mocks.listPhases.mockResolvedValue([]);
+    mocks.deleteEnrollmentLegalDocument.mockResolvedValue(undefined);
+    const view = render(<EnrollmentFormEditor />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Neue Vorlage" }),
+    );
+    fireEvent.change(
+      screen.getByPlaceholderText("z. B. Ferienbetreuung Sommer 2026"),
+      { target: { value: "Informationen" } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Infotext" }));
+    fireEvent.change(screen.getByPlaceholderText("z. B. Wichtiger Hinweis"), {
+      target: { value: "Schulstart" },
+    });
+    fireEvent.change(screen.getByLabelText("Infotext für Eltern"), {
+      target: { value: "Bitte lesen Sie beide Informationen." },
+    });
+    return view;
+  }
+
+  async function upload(name: string, url: string, index: number) {
+    mocks.uploadEnrollmentLegalDocument.mockResolvedValueOnce(url);
+    const file = new File(["%PDF-1.4"], name, { type: "application/pdf" });
+    fireEvent.change(screen.getByLabelText("PDF-Dateien auswählen"), {
+      target: { files: [file] },
+    });
+    await waitFor(() =>
+      expect(
+        screen.getByRole("textbox", {
+          name: `Bezeichnung für Eltern: PDF ${index}`,
+        }),
+      ).toHaveValue(name.replace(/\.pdf$/, "")),
+    );
+    return file;
+  }
+
+  it("adds both PDFs from one selection and saves their separate labels", async () => {
+    await newNotice();
+    expect(
+      screen.getByRole("button", { name: "PDFs hinzufügen" }),
+    ).toBeInTheDocument();
+    const picker = screen.getByLabelText("PDF-Dateien auswählen");
+    expect(picker).toHaveAttribute("multiple");
+    expect(screen.getByLabelText("Ersatz-PDF auswählen")).not.toHaveAttribute(
+      "multiple",
+    );
+    mocks.uploadEnrollmentLegalDocument
+      .mockResolvedValueOnce(firstURL)
+      .mockResolvedValueOnce(secondURL);
+    const files = [
+      new File(["%PDF first"], "Schulstart.pdf", { type: "application/pdf" }),
+      new File(["%PDF second"], "Abholen.pdf", { type: "application/pdf" }),
+    ];
+    fireEvent.change(picker, { target: { files } });
+    await waitFor(() =>
+      expect(
+        screen.getByRole("textbox", { name: "Bezeichnung für Eltern: PDF 2" }),
+      ).toHaveValue("Abholen"),
+    );
+    expect(
+      screen.getByRole("textbox", { name: "Bezeichnung für Eltern: PDF 1" }),
+    ).toHaveValue("Schulstart");
+    expect(
+      screen.getByRole("button", { name: "Weitere PDFs hinzufügen" }),
+    ).toBeEnabled();
+    expect(mocks.uploadEnrollmentLegalDocument.mock.calls).toEqual([
+      [files[0]],
+      [files[1]],
+    ]);
+    mocks.createSchema.mockResolvedValueOnce(schema({ name: "Informationen" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Formularvorlage erstellen" }),
+    );
+    await waitFor(() => expect(mocks.createSchema).toHaveBeenCalledOnce());
+    expect(mocks.createSchema.mock.calls[0]![1]).toEqual([
+      expect.objectContaining({
+        attachments: [
+          { label: "Schulstart", document_url: firstURL },
+          { label: "Abholen", document_url: secondURL },
+        ],
+      }),
+    ]);
+  });
+
+  it("keeps successful PDFs when one file in a selection fails", async () => {
+    await newNotice();
+    const failure = new Error("upload failed");
+    mocks.uploadEnrollmentLegalDocument
+      .mockResolvedValueOnce(firstURL)
+      .mockRejectedValueOnce(failure)
+      .mockResolvedValueOnce(secondURL);
+    fireEvent.change(screen.getByLabelText("PDF-Dateien auswählen"), {
+      target: {
+        files: [
+          new File(["%PDF one"], "Schulstart.pdf", { type: "application/pdf" }),
+          new File(["%PDF two"], "Fehler.pdf", { type: "application/pdf" }),
+          new File(["%PDF three"], "Abholen.pdf", { type: "application/pdf" }),
+        ],
+      },
+    });
+    await waitFor(() =>
+      expect(
+        screen.getByRole("textbox", { name: "Bezeichnung für Eltern: PDF 2" }),
+      ).toHaveValue("Abholen"),
+    );
+    expect(
+      screen.getByRole("textbox", { name: "Bezeichnung für Eltern: PDF 1" }),
+    ).toHaveValue("Schulstart");
+    expect(mocks.showActionError).toHaveBeenCalledWith(failure, {
+      object: "die PDF-Datei",
+      messageSuffix: "Datei: Fehler.pdf",
+    });
+    expect(mocks.deleteEnrollmentLegalDocument).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("button", { name: "Weitere PDFs hinzufügen" }),
+    ).toBeEnabled();
+  });
+
+  it("saves two named PDFs on an information field without adding consent", async () => {
+    await newNotice();
+    const first = await upload("Schulstart.pdf", firstURL, 1);
+    const second = await upload("Abholen.pdf", secondURL, 2);
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "Bezeichnung für Eltern: PDF 2" }),
+      { target: { value: "Abholen und Kontakt" } },
+    );
+    mocks.createSchema.mockResolvedValueOnce(schema({ name: "Informationen" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Formularvorlage erstellen" }),
+    );
+    await waitFor(() => expect(mocks.createSchema).toHaveBeenCalledOnce());
+    expect(mocks.uploadEnrollmentLegalDocument.mock.calls).toEqual([
+      [first],
+      [second],
+    ]);
+    expect(mocks.createSchema.mock.calls[0]![1]).toEqual([
+      expect.objectContaining({
+        type: "information",
+        attachments: [
+          { label: "Schulstart", document_url: firstURL },
+          { label: "Abholen und Kontakt", document_url: secondURL },
+        ],
+      }),
+    ]);
+    expect(
+      (mocks.createSchema.mock.calls[0]![1] as FormField[])[0]!.required,
+    ).not.toBe(true);
+    expect(mocks.deleteEnrollmentLegalDocument).not.toHaveBeenCalled();
+  });
+
+  it("preserves the name when replacing a PDF and cleans removed drafts on discard", async () => {
+    await newNotice();
+    await upload("Schulstart.pdf", firstURL, 1);
+    await upload("Abholen.pdf", secondURL, 2);
+    fireEvent.click(screen.getByRole("button", { name: "PDF 1 ersetzen" }));
+    mocks.uploadEnrollmentLegalDocument.mockResolvedValueOnce(replacementURL);
+    fireEvent.change(screen.getByLabelText("Ersatz-PDF auswählen"), {
+      target: {
+        files: [
+          new File(["%PDF replaced"], "new.pdf", { type: "application/pdf" }),
+        ],
+      },
+    });
+    await waitFor(() =>
+      expect(mocks.uploadEnrollmentLegalDocument).toHaveBeenCalledTimes(3),
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "PDF 1 ersetzen" }),
+      ).toBeEnabled(),
+    );
+    expect(
+      screen.getByRole("textbox", { name: "Bezeichnung für Eltern: PDF 1" }),
+    ).toHaveValue("Schulstart");
+    fireEvent.click(screen.getByRole("button", { name: "PDF 2 entfernen" }));
+    expect(
+      screen.queryByRole("textbox", { name: "Bezeichnung für Eltern: PDF 2" }),
+    ).not.toBeInTheDocument();
+    expect(mocks.deleteEnrollmentLegalDocument).not.toHaveBeenCalled();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Zurück zur Übersicht" }),
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Verwerfen" }));
+    await waitFor(() =>
+      expect(mocks.deleteEnrollmentLegalDocument).toHaveBeenCalledTimes(3),
+    );
+    for (const url of [firstURL, secondURL, replacementURL]) {
+      expect(mocks.deleteEnrollmentLegalDocument).toHaveBeenCalledWith(
+        url,
+        expect.any(Object),
+      );
+    }
+    expect(mocks.createSchema).not.toHaveBeenCalled();
+  });
+
+  it("preserves both existing PDFs for saving after a replacement upload fails", async () => {
+    await newNotice();
+    await upload("Schulstart.pdf", firstURL, 1);
+    await upload("Abholen.pdf", secondURL, 2);
+    fireEvent.click(screen.getByRole("button", { name: "PDF 1 ersetzen" }));
+    const failure = new Error("offline");
+    mocks.uploadEnrollmentLegalDocument.mockRejectedValueOnce(failure);
+    fireEvent.change(screen.getByLabelText("Ersatz-PDF auswählen"), {
+      target: {
+        files: [new File(["%PDF"], "new.pdf", { type: "application/pdf" })],
+      },
+    });
+    await waitFor(() =>
+      expect(mocks.showActionError).toHaveBeenCalledWith(failure, {
+        object: "die PDF-Datei",
+        messageSuffix: "Datei: new.pdf",
+      }),
+    );
+    expect(
+      screen.getByRole("textbox", { name: "Bezeichnung für Eltern: PDF 1" }),
+    ).toHaveValue("Schulstart");
+    expect(
+      screen.getByRole("textbox", { name: "Bezeichnung für Eltern: PDF 2" }),
+    ).toHaveValue("Abholen");
+    expect(
+      screen.getByRole("button", { name: "Weitere PDFs hinzufügen" }),
+    ).toBeEnabled();
+    expect(mocks.deleteEnrollmentLegalDocument).not.toHaveBeenCalled();
+    mocks.createSchema.mockResolvedValueOnce(schema({ name: "Informationen" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Formularvorlage erstellen" }),
+    );
+    await waitFor(() => expect(mocks.createSchema).toHaveBeenCalledOnce());
+    expect(mocks.createSchema.mock.calls[0]![1]).toEqual([
+      expect.objectContaining({
+        attachments: [
+          { label: "Schulstart", document_url: firstURL },
+          { label: "Abholen", document_url: secondURL },
+        ],
+      }),
+    ]);
+  });
+
+  it("saves a replacement and removal while cleaning only unreferenced drafts", async () => {
+    await newNotice();
+    await upload("Schulstart.pdf", firstURL, 1);
+    await upload("Abholen.pdf", secondURL, 2);
+    fireEvent.click(screen.getByRole("button", { name: "PDF 1 ersetzen" }));
+    mocks.uploadEnrollmentLegalDocument.mockResolvedValueOnce(replacementURL);
+    fireEvent.change(screen.getByLabelText("Ersatz-PDF auswählen"), {
+      target: {
+        files: [
+          new File(["%PDF replacement"], "replacement.pdf", {
+            type: "application/pdf",
+          }),
+        ],
+      },
+    });
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "PDF 2 entfernen" }),
+      ).toBeEnabled(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "PDF 2 entfernen" }));
+    mocks.createSchema.mockResolvedValueOnce(schema({ name: "Informationen" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Formularvorlage erstellen" }),
+    );
+    await waitFor(() => expect(mocks.createSchema).toHaveBeenCalledOnce());
+    expect(mocks.createSchema.mock.calls[0]![1]).toEqual([
+      expect.objectContaining({
+        attachments: [{ label: "Schulstart", document_url: replacementURL }],
+      }),
+    ]);
+    await waitFor(() =>
+      expect(mocks.deleteEnrollmentLegalDocument).toHaveBeenCalledTimes(2),
+    );
+    expect(mocks.deleteEnrollmentLegalDocument).toHaveBeenCalledWith(
+      firstURL,
+      expect.any(Object),
+    );
+    expect(mocks.deleteEnrollmentLegalDocument).toHaveBeenCalledWith(
+      secondURL,
+      expect.any(Object),
+    );
+    expect(mocks.deleteEnrollmentLegalDocument).not.toHaveBeenCalledWith(
+      replacementURL,
+      expect.anything(),
+    );
+  });
+
+  it("prevents saving an unnamed PDF and keeps the error at its label field", async () => {
+    await newNotice();
+    await upload("Schulstart.pdf", firstURL, 1);
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "Bezeichnung für Eltern: PDF 1" }),
+      { target: { value: " " } },
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Formularvorlage erstellen" }),
+    );
+    expect(mocks.createSchema).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("textbox", { name: "Bezeichnung für Eltern: PDF 1" }),
+    ).toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("blocks saving during an upload and cleans a late result after unmount", async () => {
+    const pending = deferred<string>();
+    const view = await newNotice();
+    mocks.uploadEnrollmentLegalDocument.mockReturnValueOnce(pending.promise);
+    fireEvent.change(screen.getByLabelText("PDF-Dateien auswählen"), {
+      target: {
+        files: [
+          new File(["%PDF"], "draft.pdf", { type: "application/pdf" }),
+          new File(["%PDF"], "unstarted.pdf", { type: "application/pdf" }),
+        ],
+      },
+    });
+    expect(
+      screen.getByRole("button", { name: "Formularvorlage erstellen" }),
+    ).toBeDisabled();
+    view.unmount();
+    await act(async () => pending.resolve(firstURL));
+    await waitFor(() =>
+      expect(mocks.deleteEnrollmentLegalDocument).toHaveBeenCalledWith(
+        firstURL,
+        { keepalive: true },
+      ),
+    );
+    expect(mocks.uploadEnrollmentLegalDocument).toHaveBeenCalledOnce();
+    expect(mocks.createSchema).not.toHaveBeenCalled();
+  });
+});
+
+describe("information PDF validation", () => {
+  it("rejects wrong extensions and oversized PDFs before sending any upload", async () => {
+    mocks.listSchemas.mockResolvedValue([]);
+    mocks.listPhases.mockResolvedValue([]);
+    mocks.showActionMessage.mockReset();
+    render(<EnrollmentFormEditor />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Neue Vorlage" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Infotext" }));
+    const picker = screen.getByLabelText("PDF-Dateien auswählen");
+    fireEvent.change(picker, {
+      target: {
+        files: [new File(["image"], "image.png", { type: "image/png" })],
+      },
+    });
+    expect(mocks.showActionMessage).toHaveBeenLastCalledWith(
+      "Bitte wählen Sie nur PDF-Dateien aus.",
+    );
+    const oversized = new File(["%PDF"], "large.pdf", {
+      type: "application/pdf",
+    });
+    Object.defineProperty(oversized, "size", { value: 10 * 1024 * 1024 + 1 });
+    fireEvent.change(picker, { target: { files: [oversized] } });
+    expect(mocks.showActionMessage).toHaveBeenLastCalledWith(
+      "Eine Datei ist größer als 10 MB. Bitte wählen Sie kleinere Dateien.",
+    );
+    expect(mocks.uploadEnrollmentLegalDocument).not.toHaveBeenCalled();
+    expect(
+      screen.queryByRole("textbox", { name: "Bezeichnung für Eltern: PDF 1" }),
+    ).not.toBeInTheDocument();
   });
 });

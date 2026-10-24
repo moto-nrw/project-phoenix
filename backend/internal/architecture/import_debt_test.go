@@ -19,6 +19,18 @@ func TestCheckConvertsExistingAllowedImportToDebt(t *testing.T) {
 	}
 }
 
+// A key converts a deleted rule's import (ADR 0057). Without the deletion the
+// import stays allowed, so an added key is stale and the ratchet stays red.
+func TestDebtConversionRequiresTheDeletedRule(t *testing.T) {
+	t.Parallel()
+	repo, baseRef := ratchetRepositoryWithPolicy(t, "", readFile(t, fixturePath(t, "vertical-allowed.json")))
+	writeFile(t, filepath.Join(repo, "architecture", "legacy.jsonl"), legacyRecord(2743))
+	output, err := runRepositoryCheck(t, repo, baseRef)
+	if err == nil || !strings.Contains(output, "stale legacy entries (1)") {
+		t.Fatalf("key without a deleted rule was accepted: %v\n%s", err, output)
+	}
+}
+
 func TestCheckRejectsNewImportDuringDebtConversion(t *testing.T) {
 	t.Parallel()
 	repo, baseRef := ratchetRepositoryWithPolicy(t, "", readFile(t, fixturePath(t, "vertical-allowed.json")))
@@ -115,29 +127,5 @@ func TestConvertedImportProjectsAsDebtNotTargetPermission(t *testing.T) {
 	}
 	if !bytes.Equal(jsonBefore, jsonAfter) {
 		t.Fatal("debt JSON depends on import order")
-	}
-}
-
-func TestCarePlanCompatibilityHasNoTargetPermissions(t *testing.T) {
-	t.Parallel()
-	policy, err := LoadPolicy(filepath.Join("..", "..", "architecture", "policy.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, rule := range policy.Rules {
-		if (rule.SourceOwner == "care-plan" && rule.SourceRole == "adapter") || (rule.TargetOwner == "care-plan" && rule.TargetRole == "adapter") {
-			t.Errorf("temporary Care Plan adapter permission %s belongs in exact debt", rule.ID)
-		}
-	}
-	baseline, err := LoadLegacyManifest(filepath.Join("..", "..", "architecture", "legacy.jsonl"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, entry := range baseline.Entries {
-		if entry.Rule == "imports.forbidden" && (strings.HasSuffix(entry.Source, "/modules/careplan/legacy") || strings.HasSuffix(entry.Target, "/modules/careplan/legacy")) {
-			if importAllowed(policy, Edge{Scope: entry.Scope, Source: entry.Source, Target: entry.Target}) {
-				t.Errorf("debt also has target permission: %s", entry.Key())
-			}
-		}
 	}
 }

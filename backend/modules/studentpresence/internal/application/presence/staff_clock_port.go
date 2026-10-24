@@ -3,26 +3,26 @@ package presence
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
 
 // The stamp channels the presence services pass to EnsureCheckedIn: web
 // requests stamp as app, kiosk-driven requests as nfc.
 const (
-	stampSourceApp = workforce.WorkSessionSourceApp
-	stampSourceNFC = workforce.WorkSessionSourceNFC
+	stampSourceApp = studentpresence.StampApp
+	stampSourceNFC = studentpresence.StampNFC
 )
 
 // WorkSessionService is the presence-owned port to the Workforce time clock.
 // Kiosk-driven attendance toggles and supervision takeovers best-effort-open
 // the acting staff member's work session so they show as "Anwesend"
-// (#1439). The composition root binds the retained Workforce time-tracking
-// service; the presence services never import it.
+// (#1439). The composition root binds the Workforce composition's auto
+// check-in; the presence services never import it (Student Presence sits
+// below Workforce, ADR 0058).
 type WorkSessionService interface {
 	// EnsureCheckedIn opens today's session if the staff member has no active
-	// one and returns nil when they already checked out today.
-	EnsureCheckedIn(ctx context.Context, staffID int64, source string) (*timerecords.WorkSession, error)
+	// one. checkedIn is false when they already checked out today.
+	EnsureCheckedIn(ctx context.Context, staffID int64, source studentpresence.StampSource) (checkedIn bool, err error)
 }
 
 // PlannedStartNotReachedError classifies the time clock's refusal to open a

@@ -2,7 +2,9 @@ package ports
 
 import (
 	"context"
+	"errors"
 	"log/slog"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
 )
@@ -50,7 +52,30 @@ type GuardianAudience struct {
 	StudentsByGuardian map[int64][]int64
 }
 
+// ReminderPushSnapshot retains the exact claim and scan window until the
+// Delivery worker revalidates the appointment and guardian access.
+type ReminderPushSnapshot struct {
+	Appointment appointments.Appointment
+	Occurrence  appointments.Date
+	AccountID   int64
+	ProfileIDs  []int64
+	Locale      string
+	From, To    time.Time
+	MaxAttempts int `json:"delivery_max_attempts"`
+}
+
+var ErrReminderAudienceUnavailable = errors.New("reminder push has no subscribed audience")
+
+var ErrReminderSkipped = errors.New("reminder push no longer deliverable")
+
+type ReminderPushOutbox interface {
+	Enqueue(context.Context, string, ReminderPushSnapshot) (int64, error)
+	Deliver(context.Context, int64, int64) error
+}
+
 type DeliveryDependencies struct {
+	Now          func() time.Time
+	Outbox       ReminderPushOutbox
 	Appointments appointments.Capability
 	Audiences    func(context.Context, []int64) (map[int64]GuardianAudience, error)
 	Email        func(context.Context, string, int64, map[string]any) (bool, error)

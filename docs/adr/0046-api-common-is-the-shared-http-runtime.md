@@ -88,3 +88,38 @@ change bounded. The generated caller inventory records zero references to the
 retired wrappers/provider. The migration record supplies results and the latest
 accepted runtime checkpoint. Revert the code-only change if a hidden caller is
 found; no data migration or cleanup job is required.
+
+## Amendment of 2026-10-17: dissolve Common's inbound owner
+
+[#4078](https://github.com/moto-nrw/project-phoenix/issues/4078) replaces the
+single `inbound-common` owner with the existing concern owners. This supersedes
+"Keep api/common and its existing owner and role" above, not its runtime
+contracts or tenant boundaries.
+
+- Response rendering, the error envelope, pagination and request parsing belong
+  to Tenant Runtime's `http` role, which already owns the hosting middleware
+  (`middleware`, ADR 0056 point 3).
+- Session and claims interpretation belong to Identity & Access and Security
+  Runtime's public capabilities. Their HTTP consumers declare narrow ports;
+  the root binds the native session adapter to them. Session facts cross the
+  port as values, never as a context service locator or an alias of JWT types.
+- Settings, byte storage and observation remain the concerns of Settings
+  Platform, Delivery Platform and Observability respectively. Cross-owner
+  bindings stay in the root; HTTP adaptation does not absorb their providers.
+
+ADR 0053 point 2 already admits a platform's `http` role from the root. No
+shared-HTTP or hosting owner is introduced: ADR 0056 rejects that catch-all.
+The cutover may retain only standing rules or same-or-narrower successors,
+using exact package selectors where an owner/role selector would widen reach.
+
+The first ports make the existing permission source explicit: the root binds
+projected staff access to Security Runtime with the native session permission
+lookup. Plan-export authorization takes those same permission values directly.
+Middleware order, authorization results and response bodies stay unchanged.
+
+The request identity memo moves to Security Runtime's existing `public` role.
+It is a request-scoped security-context slot, keyed by tenant and account;
+Identity still owns entry contents, and the root still binds its consumer
+memo port. Attachment, eviction, locking and idempotence stay unchanged.
+The shared fixture adapter binds the same capability for Identity's behavior
+suites; it adds no test permission or alternate cache.

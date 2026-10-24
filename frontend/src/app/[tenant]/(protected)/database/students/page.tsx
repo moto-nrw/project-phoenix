@@ -25,7 +25,7 @@ import type {
 } from "~/components/ui/page-header/types";
 import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
-import { useToast } from "~/contexts/ToastContext";
+import { useApiErrorDisplay, useToast } from "~/contexts/ToastContext";
 import {
   StudentCreateModal,
   type CreateStudentSchedules,
@@ -136,7 +136,8 @@ function StudentsPageContent() {
     [collectionReferrer, tenantPath],
   );
 
-  const { success: toastSuccess, error: toastError } = useToast();
+  const { success: toastSuccess } = useToast();
+  const { showMessage } = useApiErrorDisplay();
 
   const { data: session, status } = useSession({
     required: true,
@@ -191,7 +192,7 @@ function StudentsPageContent() {
         if (next.has(studentId)) {
           next.delete(studentId);
         } else if (next.size >= 500) {
-          toastError("Maximal 500 Kinder können ausgewählt werden");
+          showMessage("Maximal 500 Kinder können ausgewählt werden");
           return previous;
         } else {
           next.add(studentId);
@@ -199,7 +200,7 @@ function StudentsPageContent() {
         return next;
       });
     },
-    [toastError],
+    [showMessage],
   );
 
   const finishSelection = useCallback(() => {
@@ -212,13 +213,13 @@ function StudentsPageContent() {
   const selectAllVisible = useCallback(
     (studentIds: string[]) => {
       if (studentIds.length > 500) {
-        toastError("Maximal 500 Kinder können ausgewählt werden");
+        showMessage("Maximal 500 Kinder können ausgewählt werden");
         setSelectedStudentIds(new Set(studentIds.slice(0, 500)));
         return;
       }
       setSelectedStudentIds(new Set(studentIds));
     },
-    [toastError],
+    [showMessage],
   );
 
   const { data: allGroups = [] } = useSWRAuth<
@@ -583,7 +584,7 @@ function StudentsPageContent() {
                 ...(hasPermission(session, "grade_transitions:read")
                   ? [
                       {
-                        label: "Jahrgangswechsel",
+                        label: "Schuljahreswechsel",
                         icon: <GraduationCap className="h-4 w-4" aria-hidden />,
                         href: tenantPath("/database/grade-transitions"),
                         // Navigation only: OverflowMenu verlangt onClick auch bei href.

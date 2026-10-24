@@ -289,6 +289,10 @@ describe("DatePicker", () => {
   it("does not render clear button when no date is selected", () => {
     render(<DatePicker value={null} onChange={mockOnChange} />);
 
+    // Anker: das Datumsfeld steht da, nur ohne gewähltes Datum.
+    expect(
+      screen.getByRole("button", { name: /datum auswählen/i }),
+    ).toBeInTheDocument();
     const clearButton = screen.queryByRole("button", {
       name: /datum löschen/i,
     });

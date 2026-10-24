@@ -61,6 +61,10 @@
   },
   {
     "resource": "class_day",
+    "action": "morning_attendance_write"
+  },
+  {
+    "resource": "class_day",
     "action": "read"
   },
   {
@@ -81,6 +85,10 @@
   },
   {
     "resource": "display",
+    "action": "read"
+  },
+  {
+    "resource": "enrollment_uploads",
     "action": "read"
   },
   {
@@ -282,6 +290,10 @@
   {
     "resource": "student_documents",
     "action": "legal"
+  },
+  {
+    "resource": "students",
+    "action": "read"
   },
   {
     "resource": "substitutions",

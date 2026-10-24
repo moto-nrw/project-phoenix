@@ -76,3 +76,23 @@ func TestDemoSchoolLeaseIsReleasedAfterCancellation(t *testing.T) {
 	require.ErrorIs(t, err, context.Canceled)
 	require.NoError(t, demo.WithDemoLease(t.Context(), name, func(context.Context) error { return nil }))
 }
+
+func TestDemoSchoolStateIsSavedFromItsFields(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	schoolID := testpkg.Tenant(t)
+	name := fmt.Sprintf("demo-fields-%d", schoolID)
+	schools, err := NewDemoSchools(db)
+	require.NoError(t, err)
+	ctx := t.Context()
+
+	require.NoError(t, schools.RememberDemoSchoolFields(ctx, name, schoolID, []byte(`{"profile":"vollbetrieb"}`), 0, 0))
+	require.Error(t, schools.RememberDemoSchoolFields(ctx, name, schoolID, []byte(`{}`), 0, 0), "must not overwrite existing credentials")
+	require.NoError(t, schools.UpdateDemoSchoolFields(ctx, name, schoolID, []byte(`{"profile":"vollbetrieb","round":2}`), 0, 0))
+
+	state, err := schools.LoadDemoSchool(ctx, name)
+	require.NoError(t, err)
+	require.NotNil(t, state)
+	assert.Equal(t, schoolID, state.SchoolID)
+	assert.JSONEq(t, `{"profile":"vollbetrieb","round":2}`, string(state.SeedJSON))
+}

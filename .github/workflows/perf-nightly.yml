@@ -48,7 +48,9 @@ jobs:
   perf-nightly:
     name: Perf trace and render counters
     if: github.event_name != 'pull_request' || !github.event.pull_request.draft
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    # Standard-Runner sind für dieses öffentliche Repository kostenlos. Die
+    # Zähler hängen nicht vom Runner ab, nur die absoluten Zeiten.
+    runs-on: ubuntu-latest
     timeout-minutes: 90
     permissions:
       contents: read
@@ -101,11 +103,15 @@ jobs:
       ADMIN_PASSWORD: PerfNightly1234%
       FRONTEND_URL: http://localhost:3000
       PARENTS_URL: http://parents.localhost:3000
+      # Cloudflare's documented always-passing Turnstile test keys.
+      TURNSTILE_SITE_KEY: 1x00000000000000000000AA
+      TURNSTILE_SECRET_KEY: 1x0000000000000000000000000000000AA
       SCHOOL_URL: http://schule.localhost:3000
       TENANT_DOMAIN: localhost
       # Same token for backend and the Next proxy: measure.perf.ts scrapes
       # /api/internal/metrics on the frontend with it.
       METRICS_BEARER_TOKEN: ci-metrics-token
+      # Seeder input for security.ogs_device_pin only; no runtime fallback.
       OGS_DEVICE_PIN: "1234"
       EMAIL_SMTP_HOST: localhost
       EMAIL_SMTP_PORT: 1025
@@ -137,9 +143,11 @@ jobs:
           cache: true
           cache-dependency-path: backend/go.sum
 
-      - name: Build backend binary
+      - name: Build backend and dev tools binaries
         working-directory: backend
-        run: go build -o "${RUNNER_TEMP}/phoenix" .
+        run: |
+          go build -o "${RUNNER_TEMP}/phoenix" .
+          go build -o "${RUNNER_TEMP}/devtools" ./cmd/devtools
 
       - name: Run migrations
         working-directory: backend
@@ -166,7 +174,7 @@ jobs:
       - name: Seed demo data
         working-directory: backend
         run: |
-          "${RUNNER_TEMP}/phoenix" seed \
+          "${RUNNER_TEMP}/devtools" seed \
             --email "${OPERATOR_EMAIL}" \
             --password "${OPERATOR_PASSWORD}" \
             --pin 1234 \
@@ -178,13 +186,13 @@ jobs:
       - name: Simulate a full care day
         working-directory: backend
         run: |
-          "${RUNNER_TEMP}/phoenix" simulate full-day --profile vollbetrieb
+          "${RUNNER_TEMP}/devtools" simulate full-day --profile vollbetrieb
 
       - name: Enable corepack
         run: corepack enable
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
         with:
           node-version: "24"
           cache: "pnpm"
@@ -258,7 +266,7 @@ jobs:
 
       - name: Upload perf results
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: perf-results-${{ github.run_id }}
           path: |

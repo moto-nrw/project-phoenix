@@ -9,7 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { CalendarRange, Download, Search } from "lucide-react";
+import { CalendarRange, Download, FileText, Search } from "lucide-react";
 // SSE is handled globally by TenantAuthWrapper - real-time updates work automatically
 import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
@@ -51,7 +51,6 @@ import {
   LOCATION_STATUSES,
   parseLocation,
   isAtSchoolLocation,
-  isHomeLocation,
   isNotCheckedInLocation,
   isPresentLocation,
   isSchoolyardLocation,
@@ -105,6 +104,13 @@ import { useBulkCheckinActions } from "~/components/students/use-bulk-checkin-ac
 import { StudentCardGridSkeleton } from "~/components/students/student-card-skeleton";
 import { SchoolCheckinFab } from "~/components/students/school-checkin-fab";
 import { SchoolCheckinModeMobile } from "~/components/students/school-checkin-mode-mobile";
+import { canCheckInChildren, canExportStudents } from "~/lib/student-access";
+import { useParentAnnouncementsAvailable } from "~/lib/hooks/use-parent-announcements-available";
+import {
+  announcementPrefillPath,
+  stashAnnouncementStudents,
+} from "~/lib/announcement-prefill";
+import { KIND_PARAM } from "~/components/announcements/announcement-meta";
 import { SchoolCheckinSelectionBar } from "~/components/students/school-checkin-selection-bar";
 import {
   checkoutConfirmationRoom,
@@ -112,7 +118,10 @@ import {
   useSchoolCheckinMode,
 } from "~/lib/hooks/use-school-checkin-mode";
 import { useEarlyCheckoutDialog } from "~/components/students/early-checkout-note";
-import { useAttendanceWebEnabled } from "~/lib/tenant-context";
+import {
+  useAttendanceWebEnabled,
+  useTenantSlugSafe,
+} from "~/lib/tenant-context";
 import { useSWRAuth, useImmutableSWR } from "~/lib/swr";
 import { SEARCH_ROOMS_LIST_CACHE_KEY } from "~/lib/swr/room-derived-caches";
 import {
@@ -148,6 +157,7 @@ import {
 } from "./tracking-filter";
 import { StudentSearchPageSkeleton } from "./page-skeleton";
 import { useSamePageLinkClick } from "./use-same-page-link-click";
+import { useChildScopeTabs } from "./use-child-scope-tabs";
 
 const logger = createLogger({ component: "StudentSearchPage" });
 const EMPTY_STRING_ARRAY: string[] = [];
@@ -162,7 +172,8 @@ type StatusFilter =
   | "schulhof"
   | "krank"
   | "klassenfahrt"
-  | "entschuldigt";
+  | "entschuldigt"
+  | "entschuldigt-klassenfahrt";
 type BooleanFilter = "all" | "yes" | "no";
 type PickupStatusFilter = "all" | "self" | "pickedUp" | "none";
 type DayStatusFilter = "all" | "comes_today" | "not_coming_today";
@@ -180,10 +191,14 @@ const STATUS_FILTER_OPTIONS: Array<{ value: StatusFilter; label: string }> = [
   { value: "all", label: "Alle" },
   { value: "anwesend", label: "Anwesend" },
   { value: "schule", label: "Schule" },
-  { value: "abwesend", label: "Abwesend" },
+  { value: "abwesend", label: "Zuhause" },
   { value: "krank", label: "Krank" },
   { value: "klassenfahrt", label: "Klassenfahrt" },
   { value: "entschuldigt", label: "Entschuldigt" },
+  {
+    value: "entschuldigt-klassenfahrt",
+    label: "Entschuldigt oder Klassenfahrt",
+  },
   { value: "unterwegs", label: "Unterwegs" },
   { value: "schulhof", label: "Schulhof" },
 ];
@@ -329,7 +344,7 @@ const STATUS_GROUP_ORDER = new Map([
   ["Krank", 3],
   ["Entschuldigt", 4],
   ["Schule", 5],
-  ["Abwesend", 6],
+  ["Zuhause", 6],
 ]);
 
 const BOOLEAN_FILTER_VALUES: readonly BooleanFilter[] = ["all", "yes", "no"];
@@ -371,7 +386,7 @@ const PICKUP_STATUS_FILTER_OPTIONS: Array<{
 const LIVE_STATUS_FILTER_OPTIONS = [
   { value: "anwesend", label: "Anwesend" },
   { value: "schule", label: "Schule" },
-  { value: "abwesend", label: "Abwesend" },
+  { value: "abwesend", label: "Zuhause" },
   { value: "unterwegs", label: "Unterwegs" },
   { value: "schulhof", label: "Schulhof" },
 ] as const;
@@ -380,6 +395,10 @@ const PLANNED_ABSENCE_STATUS_FILTER_OPTIONS = [
   { value: "krank", label: "Krank" },
   { value: "klassenfahrt", label: "Klassenfahrt" },
   { value: "entschuldigt", label: "Entschuldigt" },
+  {
+    value: "entschuldigt-klassenfahrt",
+    label: "Entschuldigt oder Klassenfahrt",
+  },
 ] as const;
 
 function isPlannedAbsenceStatusFilter(filter: StatusFilter): boolean {
@@ -393,12 +412,13 @@ const STATUS_FILTER_LABELS: Record<
   string
 > = {
   schule: "Schule",
-  abwesend: "Abwesend",
+  abwesend: "Zuhause",
   unterwegs: "Unterwegs",
   schulhof: "Schulhof",
   krank: "Krank",
   klassenfahrt: "Klassenfahrt",
   entschuldigt: "Entschuldigt",
+  "entschuldigt-klassenfahrt": "Entschuldigt oder Klassenfahrt",
 };
 
 // Keeps only school years the dropdown actually offers, so a hand-edited
@@ -639,6 +659,16 @@ function compareByName(a: Student, b: Student) {
   return (a.first_name ?? "").localeCompare(b.first_name ?? "", "de");
 }
 
+// Ohne offenen Check-in zählt ein Kind als zuhause, wie in der Betriebszahl
+// „Zuhause“ der Startseite (#4588): ein Kind ohne bekannten Ort oder mit
+// „Kommt heute nicht“ ist nicht in der OGS. Statuszeile, Statusfilter und
+// „Gruppieren nach Status“ lesen diese eine Definition.
+const HOME_STATUSES: ReadonlySet<string> = new Set([
+  LOCATION_STATUSES.HOME,
+  LOCATION_STATUSES.UNKNOWN,
+  LOCATION_STATUSES.NOT_ARRIVAL,
+]);
+
 function statusLabelForStudent(student: Student): string {
   if (student.sick) return "Krank";
   if (student.class_trip) return "Klassenfahrt";
@@ -646,7 +676,9 @@ function statusLabelForStudent(student: Student): string {
   if (isSchoolyardLocation(student.current_location)) return "Schulhof";
   if (isTransitLocation(student.current_location)) return "Unterwegs";
   if (isAtSchoolLocation(student.current_location)) return "Schule";
-  if (isHomeLocation(student.current_location)) return "Abwesend";
+  if (HOME_STATUSES.has(parseLocation(student.current_location).status)) {
+    return "Zuhause";
+  }
   return "Anwesend";
 }
 
@@ -1365,7 +1397,9 @@ function SearchPageContent() {
   // wrappers (mobile spacing, the grid's bottom padding) out of the tree when
   // the school has web attendance switched off.
   const attendanceWebEnabled = useAttendanceWebEnabled();
-  const checkinModeAvailable = isToday && attendanceWebEnabled;
+  // Ohne users:checkin (etwa als Gast, ADR 0091) scheiterte jeder Tipp.
+  const checkinModeAvailable =
+    isToday && attendanceWebEnabled && canCheckInChildren(session);
   const schoolCheckin = useSchoolCheckinMode();
   // A checkout well before today's pickup time asks for an optional reason
   // (#3324); every other checkout keeps its current behaviour.
@@ -1492,6 +1526,7 @@ function SearchPageContent() {
   const {
     data: studentsData,
     isLoading: isSearching,
+    isValidating: isSearchResultValidating,
     error: studentsError,
     mutate: mutateStudents,
   } = useSWRAuth<{
@@ -1661,6 +1696,17 @@ function SearchPageContent() {
     },
     [updateUrlParams],
   );
+
+  // Meine Gruppe und Aktuelle Aufsicht als Reiter, wenn die Schule Kinder nur
+  // hier finden lässt (#1321). Ohne die Einstellung bleibt beides leer.
+  const childScope = useChildScopeTabs({
+    selectedGroupIds,
+    roomId: effectiveRoomId,
+    isToday,
+    setGroupIds: updateSelectedGroupIds,
+    setRoom: updateRoomFilter,
+    clearRoom: clearRoomFilter,
+  });
 
   const updateAttendanceFilter = useCallback(
     (value: StatusFilter) => {
@@ -2421,12 +2467,13 @@ function SearchPageContent() {
       const statusLabels: Record<Exclude<StatusFilter, "all">, string> = {
         anwesend: "Anwesend",
         schule: "Schule",
-        abwesend: "Abwesend",
+        abwesend: "Zuhause",
         unterwegs: "Unterwegs",
         schulhof: "Schulhof",
         krank: "Krank",
         klassenfahrt: "Klassenfahrt",
         entschuldigt: "Entschuldigt",
+        "entschuldigt-klassenfahrt": "Entschuldigt oder Klassenfahrt",
       };
       filters.push({
         id: "attendance",
@@ -2623,14 +2670,25 @@ function SearchPageContent() {
         isTransitLocation(student.current_location) ||
         isSchoolyardLocation(student.current_location);
 
-      if (effectiveAttendanceFilter === "anwesend" && !isOnSite) {
+      // Ein Ort, den keine andere Statusgruppe kennt, zählt wie in
+      // statusLabelForStudent als anwesend; sonst fiele das Kind durch jeden
+      // Statusfilter (#4588).
+      if (
+        effectiveAttendanceFilter === "anwesend" &&
+        !isOnSite &&
+        statusLabelForStudent(student) !== "Anwesend"
+      ) {
         return false;
       }
 
       if (
         effectiveAttendanceFilter !== "anwesend" &&
-        statusLabelForStudent(student) !==
-          STATUS_FILTER_LABELS[effectiveAttendanceFilter]
+        (effectiveAttendanceFilter === "entschuldigt-klassenfahrt"
+          ? !["Entschuldigt", "Klassenfahrt"].includes(
+              statusLabelForStudent(student),
+            )
+          : statusLabelForStudent(student) !==
+            STATUS_FILTER_LABELS[effectiveAttendanceFilter])
       ) {
         return false;
       }
@@ -2753,6 +2811,11 @@ function SearchPageContent() {
     // (#3260). Ohne eingecheckten Aufenthaltsort ist es deshalb zuhause, auch
     // wenn der Status noch unbekannt ist.
     let sick = 0;
+    // In der OGS: in einem Raum, auf dem Schulhof oder unterwegs. Ohne diese
+    // Zahl stünde unter „Meine Aufsicht“ „7 Kinder · 0 in der Schule ·
+    // 0 zuhause“, obwohl alle sieben im Raum sind (#1321); die frühere
+    // Gruppenseite zeigte sie als „X von Y da“.
+    let inCare = 0;
     let atSchool = 0;
     let atHome = 0;
     for (const student of students) {
@@ -2777,14 +2840,19 @@ function SearchPageContent() {
         continue;
       }
       if (
-        status === LOCATION_STATUSES.HOME ||
-        status === LOCATION_STATUSES.UNKNOWN ||
-        status === LOCATION_STATUSES.NOT_ARRIVAL
+        status === LOCATION_STATUSES.PRESENT ||
+        status === LOCATION_STATUSES.UNPLANNED_PRESENT ||
+        status === LOCATION_STATUSES.SCHOOLYARD ||
+        status === LOCATION_STATUSES.TRANSIT
       ) {
+        inCare += 1;
+        continue;
+      }
+      if (HOME_STATUSES.has(status)) {
         atHome += 1;
       }
     }
-    return `${total} ${total === 1 ? "Kind" : "Kinder"} · ${atSchool} in der Schule · ${atHome} zuhause · ${sick} krank`;
+    return `${total} ${total === 1 ? "Kind" : "Kinder"} · ${inCare} in der OGS · ${atSchool} in der Schule · ${atHome} zuhause · ${sick} krank`;
   }, [isToday, students, rowsLoaded]);
 
   const selectedStudentsForBulk = useMemo(
@@ -2794,6 +2862,25 @@ function SearchPageContent() {
       ),
     [filteredStudents, schoolCheckin.selectedIds],
   );
+
+  // „Elternbrief schreiben" (#4779): übernimmt die gefilterte Liste als
+  // einzelne Kinder in den Verfasser. Die Auswahl ist ein Schnappschuss dieses
+  // Moments, kein mitlaufender Filter; ändert sich später ein Merkmal, bleibt
+  // der Brief bei diesen Kindern. Namen reisen über die Ablage, nie in der URL.
+  const parentAnnouncementsAvailable = useParentAnnouncementsAvailable();
+  const tenantSlug = useTenantSlugSafe();
+  const writeParentLetter = () => {
+    const token = tenantSlug
+      ? stashAnnouncementStudents(
+          tenantSlug,
+          filteredStudents.map((student) => ({
+            id: student.id.toString(),
+            name: student.name,
+          })),
+        )
+      : null;
+    router.push(announcementPrefillPath(token, KIND_PARAM.letter));
+  };
 
   const bulkCheckin = useBulkCheckinActions(
     schoolCheckin,
@@ -2996,6 +3083,7 @@ function SearchPageContent() {
           darunter Suche und Filter. */}
       <TenantPage
         title="Alle Kinder"
+        tabs={childScope.tabs}
         stats={studentSummary}
         statsLoading={!hasFetchedOnce || isDateTransition}
         actions={
@@ -3006,41 +3094,76 @@ function SearchPageContent() {
                 onChange={changeView}
               />
             </div>
-            <OverflowMenu
-              items={[
-                {
-                  // Abwesenheits-Übersicht (#2288): bewusst kein eigener
-                  // Seitenleisten-Eintrag; der Einstieg liegt hier, wo das Team
-                  // ohnehin nach einem Kind sucht.
-                  label: "Abwesenheiten",
-                  icon: <CalendarRange className="h-4 w-4" aria-hidden />,
-                  onClick: () => router.push("/absences"),
-                },
-                {
-                  label: "Exportieren",
-                  icon: <Download className="h-4 w-4" aria-hidden />,
-                  onClick: () => setIsExportOpen(true),
-                  badge: rowsLoaded ? filteredStudents.length : undefined,
-                },
-                // Die Spaltenwahl der Liste (#3834) steht hier und nicht
-                // als eigener Knopf neben dem Umschalter.
-                ...(showTable && !isPhone
-                  ? columnMenuEntries(
-                      tableColumns,
-                      collectionView.hiddenColumns,
-                      collectionView.setColumnVisible,
-                    )
-                  : []),
-                ...(showTable && isPhone
-                  ? phoneDetailMenuEntries(
-                      tableColumns,
-                      collectionView.phoneDetail,
-                      collectionView.setPhoneDetail,
-                    )
-                  : []),
-              ]}
-              ariaLabel="Weitere Aktionen"
-            />
+            {/* Der Rahmen gibt der Einstiegs-Tour ein eindeutiges Ziel: über
+                dieses Menü erreicht man die Aufsicht, wenn die Schule Kinder
+                nur hier finden lässt (#1321). */}
+            <div
+              className="contents"
+              data-icon-only=""
+              data-setup-tour="child-search-menu"
+            >
+              <OverflowMenu
+                items={[
+                  ...childScope.menuItems,
+                  {
+                    // Abwesenheits-Übersicht (#2288): bewusst kein eigener
+                    // Seitenleisten-Eintrag; der Einstieg liegt hier, wo das Team
+                    // ohnehin nach einem Kind sucht.
+                    label: "Abwesenheiten",
+                    icon: <CalendarRange className="h-4 w-4" aria-hidden />,
+                    onClick: () => router.push("/absences"),
+                  },
+                  // Der Export verlangt users:read; der Gast hat es nicht.
+                  ...(canExportStudents(session)
+                    ? [
+                        {
+                          label: "Exportieren",
+                          icon: <Download className="h-4 w-4" aria-hidden />,
+                          onClick: () => setIsExportOpen(true),
+                          badge: rowsLoaded
+                            ? filteredStudents.length
+                            : undefined,
+                        },
+                      ]
+                    : []),
+                  // Nur mit vollständig geladenen, sichtbaren Kindern: ein
+                  // Brief an eine abgeschnittene Liste würde Empfänger
+                  // auslassen.
+                  ...(parentAnnouncementsAvailable &&
+                  rowsLoaded &&
+                  !isSearchResultValidating &&
+                  !hasLoadError &&
+                  truncatedTotal === null &&
+                  filteredStudents.length > 0
+                    ? [
+                        {
+                          label: "Elternbrief schreiben",
+                          icon: <FileText className="h-4 w-4" aria-hidden />,
+                          onClick: writeParentLetter,
+                          badge: filteredStudents.length,
+                        },
+                      ]
+                    : []),
+                  // Die Spaltenwahl der Liste (#3834) steht hier und nicht
+                  // als eigener Knopf neben dem Umschalter.
+                  ...(showTable && !isPhone
+                    ? columnMenuEntries(
+                        tableColumns,
+                        collectionView.hiddenColumns,
+                        collectionView.setColumnVisible,
+                      )
+                    : []),
+                  ...(showTable && isPhone
+                    ? phoneDetailMenuEntries(
+                        tableColumns,
+                        collectionView.phoneDetail,
+                        collectionView.setPhoneDetail,
+                      )
+                    : []),
+                ]}
+                ariaLabel="Weitere Aktionen"
+              />
+            </div>
           </>
         }
         // Der Zähler ändert sich mit der Filterung und gehört deshalb in
@@ -3177,6 +3300,7 @@ function SearchPageContent() {
               <StudentExportModal
                 isOpen={isExportOpen}
                 filters={exportFilters}
+                appliedFilters={activeFilters.map((filter) => filter.label)}
                 resultCount={filteredStudents.length}
                 onClose={() => setIsExportOpen(false)}
               />
@@ -3264,12 +3388,15 @@ function SearchPageContent() {
           )}
 
           {/* Student Grid. Bottom padding reserves room for the mobile sticky
-          bar / tablet floating FAB; desktop has neither. */}
+          bar / tablet floating FAB; desktop has neither. The active mobile bar
+          is taller (mode line + switcher, plus the bulk row in "Mehrere"). */}
           <div
             className={
               checkinModeAvailable
-                ? schoolCheckin.isActive && schoolCheckin.selectionActive
-                  ? "pb-32 md:pb-24 lg:pb-0"
+                ? schoolCheckin.isActive
+                  ? schoolCheckin.selectionActive
+                    ? "pb-44 md:pb-24 lg:pb-0"
+                    : "pb-36 md:pb-24 lg:pb-0"
                   : "pb-24 lg:pb-0"
                 : undefined
             }

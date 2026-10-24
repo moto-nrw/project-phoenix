@@ -1,0 +1,89 @@
+// Compare-and-set lifecycle status writes (#405 review).
+//
+// The activate-students tick selects due rows and then updates them one at a
+// time. An unconditional update by id resurrects a student whose status changed
+// in that window: a grade transition graduating the child commits "alumnus", the
+// pending update waits on the same row lock and then replaces it with
+// active/inactive — a departed child back in every staff list, past the alumnus
+// read filters and without any of apply's guards. The write therefore compares
+// against the status the caller actually saw.
+package contracttest_test
+
+import (
+	"testing"
+
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
+	"github.com/moto-nrw/project-phoenix/api"
+
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
+)
+
+func TestStudentRepository_TransitionStatus_GraduationRaces(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+
+	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Student
+	ctx := testpkg.Ctx(t)
+
+	readStatus := func(t *testing.T, db *bun.DB, studentID int64) string {
+		t.Helper()
+		var status string
+		require.NoError(t, db.NewSelect().
+			TableExpr("users.student_school_memberships").
+			Column("status").
+			Where("student_profile_id = ? AND deleted_at IS NULL", studentID).
+			Scan(ctx, &status))
+		return status
+	}
+
+	t.Run("updates while the row still holds the expected status", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, db, "CasPending", "Lifecycle", "1a")
+		testpkg.SetStudentLifecycle(t, db, student.ID, testpkg.StudentStatusPending, nil, nil)
+
+		updated, err := testpkg.TenantQuery3(t, ctx, db, repo.TransitionStatus, student.ID, peopleValues.StudentStatusPending, peopleValues.StudentStatusActive)
+		require.NoError(t, err)
+		assert.True(t, updated)
+		assert.Equal(t, string(peopleValues.StudentStatusActive), readStatus(t, db, student.ID))
+	})
+
+	t.Run("skips a graduated row instead of resurrecting it", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, db, "CasAlumnus", "Lifecycle", "4a")
+		// The tick selected this row as active; a grade transition graduated it
+		// before the update landed.
+		testpkg.SetStudentLifecycle(t, db, student.ID, testpkg.StudentStatusAlumnus, nil, nil)
+
+		updated, err := testpkg.TenantQuery3(t, ctx, db, repo.TransitionStatus, student.ID, peopleValues.StudentStatusActive, peopleValues.StudentStatusInactive)
+		require.NoError(t, err)
+		assert.False(t, updated, "a status that moved on must not be overwritten")
+		assert.Equal(t, string(peopleValues.StudentStatusAlumnus), readStatus(t, db, student.ID),
+			"the graduation must survive the concurrent lifecycle write")
+	})
+
+	t.Run("second run is a no-op, not an error", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, db, "CasIdempotent", "Lifecycle", "1a")
+		testpkg.SetStudentLifecycle(t, db, student.ID, testpkg.StudentStatusPending, nil, nil)
+
+		first, err := testpkg.TenantQuery3(t, ctx, db, repo.TransitionStatus, student.ID, peopleValues.StudentStatusPending, peopleValues.StudentStatusActive)
+		require.NoError(t, err)
+		require.True(t, first)
+
+		second, err := testpkg.TenantQuery3(t, ctx, db, repo.TransitionStatus, student.ID, peopleValues.StudentStatusPending, peopleValues.StudentStatusActive)
+		require.NoError(t, err)
+		assert.False(t, second)
+	})
+
+	t.Run("does not write across tenants", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, db, "CasTenant", "Lifecycle", "1a")
+		testpkg.SetStudentLifecycle(t, db, student.ID, testpkg.StudentStatusPending, nil, nil)
+
+		updated, err := testpkg.TenantQuery3(t, testpkg.TenantContext(2), db, repo.TransitionStatus, student.ID, peopleValues.StudentStatusPending, peopleValues.StudentStatusActive)
+		require.NoError(t, err)
+		assert.False(t, updated)
+		assert.Equal(t, string(peopleValues.StudentStatusPending), readStatus(t, db, student.ID))
+	})
+}

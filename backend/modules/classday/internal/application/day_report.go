@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/classday"
 	"github.com/moto-nrw/project-phoenix/modules/classday/internal/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -30,6 +29,7 @@ type dayReports struct {
 	students          SheetStudents
 	emergencyContacts EmergencyContacts
 	accessLog         AccessLog
+	morning           morningAttendance
 }
 
 func newDayReports(deps ClassDayDependencies) *dayReports {
@@ -37,7 +37,7 @@ func newDayReports(deps ClassDayDependencies) *dayReports {
 		rosters: deps.Rosters, statusDays: deps.StatusDays, times: deps.Times, careDays: deps.CareDays,
 		classExceptions: deps.ClassArrivalExceptions, companions: deps.Companions,
 		students: deps.Students, emergencyContacts: deps.EmergencyContacts,
-		accessLog: deps.AccessLog,
+		accessLog: deps.AccessLog, morning: newMorningAttendance(deps),
 	}
 }
 
@@ -76,7 +76,7 @@ func newClassDayFacts() classDayFacts {
 // classDayPlanKey is the day key ("mon".."fri") whose plans apply on date:
 // Friday's for a weekend that follows Friday's plan (#3921), else the date's
 // own; "" for a weekend that does not.
-func classDayPlanKey(ctx context.Context, date timezone.Date) (string, error) {
+func classDayPlanKey(ctx context.Context, date calendar.Date) (string, error) {
 	weekday, err := calendar.PlanWeekday(ctx, date)
 	if err != nil {
 		return "", fmt.Errorf("class day report: resolve weekend plan: %w", err)
@@ -107,7 +107,7 @@ func classDayKeyOf(isoWeekday int) string {
 // offerings apply, the arrival/pickup times, and the departure plan. Caller
 // scoping (which classes the account may see) happens before; this method
 // only knows the class name. Every call records the access in the GDPR log.
-func (s *dayReports) classDay(ctx context.Context, schoolClass string, date timezone.Date, actor classday.Actor) (*classday.DayReport, error) {
+func (s *dayReports) classDay(ctx context.Context, schoolClass string, date calendar.Date, actor classday.Actor) (*classday.DayReport, error) {
 	schoolClass = strings.TrimSpace(schoolClass)
 	if schoolClass == "" {
 		return nil, fmt.Errorf("class day report: school class required: %w", errInvalidFilter)
@@ -141,6 +141,9 @@ func (s *dayReports) classDay(ctx context.Context, schoolClass string, date time
 			return nil, err
 		}
 	}
+	if err := s.morning.applyMorningAttendance(ctx, report, date); err != nil {
+		return nil, err
+	}
 	if !report.EnrollmentKnown {
 		// Without a covering phase the stays/leaves split is unknowable —
 		// zero the counters so no consumer can print "alle gehen nach Hause".
@@ -155,7 +158,7 @@ func (s *dayReports) classDay(ctx context.Context, schoolClass string, date time
 
 // classDaySchoolDayFacts loads the day facts of a school day: statuses,
 // departures, effective times and the "kommt heute nicht" cancellations.
-func (s *dayReports) classDaySchoolDayFacts(ctx context.Context, roster *DayRoster, date timezone.Date, weekday string) (classDayFacts, error) {
+func (s *dayReports) classDaySchoolDayFacts(ctx context.Context, roster *DayRoster, date calendar.Date, weekday string) (classDayFacts, error) {
 	facts := newClassDayFacts()
 	studentIDs := make([]int64, 0, len(roster.Rows))
 	for _, row := range roster.Rows {
@@ -167,7 +170,7 @@ func (s *dayReports) classDaySchoolDayFacts(ctx context.Context, roster *DayRost
 	if facts.statuses, facts.statusReportedAt, err = s.classDayStatuses(ctx, studentIDs, date); err != nil {
 		return facts, err
 	}
-	if facts.departures, err = s.classDayDepartures(ctx, roster.Students, weekday); err != nil {
+	if facts.departures, err = s.classDayDepartures(ctx, roster.Students, date, weekday); err != nil {
 		return facts, err
 	}
 	if err := s.classDayEffectiveTimes(ctx, studentIDs, date, &facts); err != nil {
@@ -200,7 +203,7 @@ func (s *dayReports) classDaySchoolDayFacts(ctx context.Context, roster *DayRost
 // date (#2962), nil when there is none. It is read from the exception rows
 // rather than derived from the children's effective times: the line belongs
 // to the class, and it stays visible on a day no enrolled child has care.
-func (s *dayReports) classDayArrivalException(ctx context.Context, schoolClass string, date timezone.Date) (*classday.DayArrivalException, error) {
+func (s *dayReports) classDayArrivalException(ctx context.Context, schoolClass string, date calendar.Date) (*classday.DayArrivalException, error) {
 	if s.classExceptions == nil {
 		return nil, nil
 	}
@@ -246,8 +249,8 @@ func (s *dayReports) recordClassDayViewAudit(ctx context.Context, report *classd
 		return nil
 	}
 	const errPrefix = "class day view audit"
-	date := timezone.Date(report.Date)
-	seen, err := s.accessLog.ClassDayViewSeenSince(ctx, actorAccountID, report.SchoolClass, date.String(), timezone.TodayDate().BerlinMidnight())
+	date := calendar.Date(report.Date)
+	seen, err := s.accessLog.ClassDayViewSeenSince(ctx, actorAccountID, report.SchoolClass, date.String(), calendar.TodayDate().BerlinMidnight())
 	if err != nil {
 		return fmt.Errorf("class day view audit dedupe: %w", err)
 	}

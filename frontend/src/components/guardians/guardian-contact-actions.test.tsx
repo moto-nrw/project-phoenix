@@ -95,12 +95,16 @@ describe("GuardianContactActions", () => {
   it("hides email button when email not provided", () => {
     render(<GuardianContactActions phone="0123456789" />);
 
+    // Anker: der Nachbarknopf „Anrufen“ steht da.
+    expect(screen.getByText("Anrufen")).toBeInTheDocument();
     expect(screen.queryByText("E-Mail")).not.toBeInTheDocument();
   });
 
   it("hides phone button when phone not provided", () => {
     render(<GuardianContactActions email="test@example.com" />);
 
+    // Anker: der Nachbarknopf „E-Mail“ steht da.
+    expect(screen.getByText("E-Mail")).toBeInTheDocument();
     expect(screen.queryByText("Anrufen")).not.toBeInTheDocument();
   });
 

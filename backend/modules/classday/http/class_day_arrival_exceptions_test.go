@@ -17,6 +17,8 @@ import (
 	"testing"
 	"time"
 
+	rootAPI "github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,7 +26,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/classday"
 	classdayhttp "github.com/moto-nrw/project-phoenix/modules/classday/http"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -46,7 +48,7 @@ const (
 type arrivalExceptionFixture struct {
 	db        *testpkg.DB
 	router    chi.Router
-	claims    jwt.AppClaims
+	claims    sessiontoken.AppClaims
 	staffID   int64
 	class     string
 	openWrite func(t *testing.T)
@@ -61,16 +63,16 @@ type arrivalExceptionFixture struct {
 // reader of the day report the capability builds.
 func setupArrivalExceptionRoute(t *testing.T) (*testpkg.DB, func(t *testing.T, class string, accountID int64) []byte, chi.Router) {
 	t.Helper()
-	db, factory := testutil.SetupClassDayModule(t)
+	db, factory := setupClassDayModule(t)
 	retainedMondayReport := func(t *testing.T, class string, accountID int64) []byte {
 		t.Helper()
-		report, err := factory.ClassDay.DayReport(testpkg.Ctx(t), class, classday.Date(arrivalExceptionMonday), classday.Actor{AccountID: accountID, Roles: "lehrkraft"})
+		report, err := testpkg.TenantQuery3(t, testpkg.Ctx(t), db, factory.ClassDay.DayReport, class, classday.Date(arrivalExceptionMonday), classday.Actor{AccountID: accountID, Roles: "lehrkraft"})
 		require.NoError(t, err)
 		body, err := json.Marshal(report)
 		require.NoError(t, err)
 		return body
 	}
-	return db, retainedMondayReport, classdayhttp.NewResource(factory.ClassDay, nil).SchoolRouter()
+	return db, retainedMondayReport, classdayhttp.NewResource(factory.ClassDay, nil).SchoolRouter(rootAPI.ProtectedSchoolRoutes)
 }
 
 // setupArrivalExceptionFixture builds one Lehrkraft with an assigned class
@@ -91,7 +93,7 @@ func setupArrivalExceptionFixture(t *testing.T) *arrivalExceptionFixture {
 		router:  router,
 		staffID: staff.ID,
 		class:   className,
-		claims: jwt.AppClaims{
+		claims: sessiontoken.AppClaims{
 			ID: int(account.ID), Sub: account.Email,
 			Roles: []string{"lehrkraft"}, TenantID: tenantID,
 			Scope: tenant.ScopeSchool,

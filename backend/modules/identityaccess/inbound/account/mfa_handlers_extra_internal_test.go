@@ -11,13 +11,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-
 	"github.com/go-chi/render"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -105,7 +106,8 @@ func withEnrollmentClaims(r *http.Request, accountID int64, tenantID int64) *htt
 func TestMFAVerify_InvalidJSONReturns400(t *testing.T) {
 	t.Parallel()
 
-	rs := &Resource{MFAService: newStubMFAService()}
+	rs := &Resource{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, MFAService: newStubMFAService()}
 
 	r := httptest.NewRequest(http.MethodPost, "/mfa/verify", strings.NewReader("not-json"))
 	r.Header.Set("Content-Type", "application/json")
@@ -118,7 +120,8 @@ func TestMFAVerify_InvalidJSONReturns400(t *testing.T) {
 func TestMFAVerify_BindRejectsMissingFields(t *testing.T) {
 	t.Parallel()
 
-	rs := &Resource{MFAService: newStubMFAService()}
+	rs := &Resource{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, MFAService: newStubMFAService()}
 
 	r := jsonReq(t, http.MethodPost, "/mfa/verify", MFAVerifyRequest{}) // empty fields fail Bind
 	rr := httptest.NewRecorder()
@@ -134,7 +137,8 @@ func TestMFAVerify_ServiceErrorMapsTo401(t *testing.T) {
 	svc.VerifyMFAChallengeFn = func(context.Context, string, string) (identityaccess.VerifiedMFAChallenge, error) {
 		return identityaccess.VerifiedMFAChallenge{}, identityaccess.ErrMFACodeInvalid
 	}
-	rs := &Resource{MFAService: svc}
+	rs := &Resource{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, MFAService: svc}
 
 	r := jsonReq(t, http.MethodPost, "/mfa/verify", MFAVerifyRequest{
 		ChallengeToken: "tok",
@@ -153,7 +157,8 @@ func TestMFAVerify_ServiceErrorMapsTo429ForLockout(t *testing.T) {
 	svc.VerifyMFAChallengeFn = func(context.Context, string, string) (identityaccess.VerifiedMFAChallenge, error) {
 		return identityaccess.VerifiedMFAChallenge{}, identityaccess.ErrMFALocked
 	}
-	rs := &Resource{MFAService: svc}
+	rs := &Resource{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, MFAService: svc}
 
 	r := jsonReq(t, http.MethodPost, "/mfa/verify", MFAVerifyRequest{
 		ChallengeToken: "tok",
@@ -175,7 +180,8 @@ func TestMFAResend_Success_ReturnsRenewedToken(t *testing.T) {
 
 	svc := newStubMFAService()
 	svc.ResendMFAChallengeFn = func(context.Context, string, net.IP) (string, error) { return "renewed-tok", nil }
-	rs := &Resource{MFAService: svc}
+	rs := &Resource{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, MFAService: svc}
 
 	r := jsonReq(t, http.MethodPost, "/mfa/resend", MFAResendRequest{ChallengeToken: "tok"})
 	rr := httptest.NewRecorder()
@@ -190,7 +196,8 @@ func TestMFAResend_Success_ReturnsRenewedToken(t *testing.T) {
 func TestMFAResend_BindRejectsEmptyToken(t *testing.T) {
 	t.Parallel()
 
-	rs := &Resource{MFAService: newStubMFAService()}
+	rs := &Resource{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, MFAService: newStubMFAService()}
 
 	r := jsonReq(t, http.MethodPost, "/mfa/resend", MFAResendRequest{}) // empty token fails Bind
 	rr := httptest.NewRecorder()
@@ -206,7 +213,8 @@ func TestMFAResend_ServiceErrorPropagates(t *testing.T) {
 	svc.ResendMFAChallengeFn = func(context.Context, string, net.IP) (string, error) {
 		return "", identityaccess.ErrMFARateLimited
 	}
-	rs := &Resource{MFAService: svc}
+	rs := &Resource{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, MFAService: svc}
 
 	r := jsonReq(t, http.MethodPost, "/mfa/resend", MFAResendRequest{ChallengeToken: "tok"})
 	rr := httptest.NewRecorder()
@@ -218,7 +226,8 @@ func TestMFAResend_ServiceErrorPropagates(t *testing.T) {
 func TestMFAEnrollStart_RequiresEnrollmentClaim(t *testing.T) {
 	t.Parallel()
 
-	rs := &Resource{MFAService: newStubMFAService()}
+	rs := &Resource{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, MFAService: newStubMFAService()}
 
 	r := jsonReq(t, http.MethodPost, "/mfa/enroll/start", nil) // no enrollment claim
 	rr := httptest.NewRecorder()
@@ -234,7 +243,8 @@ func TestMFAEnrollStart_Success_Returns204(t *testing.T) {
 	svc := newStubMFAService()
 	svc.EnrollMFAFn = func(context.Context, int64) error { return nil }
 	svc.StartMFAChallengeFn = func(context.Context, int64, int64, string, net.IP) (string, error) { return "ch", nil }
-	rs := &Resource{MFAService: svc}
+	rs := &Resource{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, MFAService: svc}
 
 	r := withEnrollmentClaims(jsonReq(t, http.MethodPost, "/mfa/enroll/start", nil), 42, 70010001)
 	rr := httptest.NewRecorder()
@@ -253,7 +263,8 @@ func TestMFAEnrollStart_StartChallengeErrorMapped(t *testing.T) {
 	svc.StartMFAChallengeFn = func(context.Context, int64, int64, string, net.IP) (string, error) {
 		return "", identityaccess.ErrMFARateLimited
 	}
-	rs := &Resource{MFAService: svc}
+	rs := &Resource{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, MFAService: svc}
 
 	r := withEnrollmentClaims(jsonReq(t, http.MethodPost, "/mfa/enroll/start", nil), 42, 70010001)
 	rr := httptest.NewRecorder()
@@ -275,8 +286,9 @@ func TestMFAEnrollConfirm_AlreadyEnrolledMintsSession(t *testing.T) {
 	svc.VerifyMFACodeForAccountFn = func(context.Context, int64, int64, string, string) error { return nil }
 	svc.EnrollMFAFn = func(context.Context, int64) error { return identityaccess.ErrMFAAlreadyEnrolled }
 	rs := &Resource{
-		MFAService: svc,
-		Sessions:   &completeMFAExchangeStub{access: "access-tok", refresh: "refresh-tok"},
+		ConstraintViolation: transactionFailures.IsConstraintViolation,
+		MFAService:          svc,
+		Sessions:            &completeMFAExchangeStub{access: "access-tok", refresh: "refresh-tok"},
 	}
 
 	r := withEnrollmentClaims(jsonReq(t, http.MethodPost, "/mfa/enroll/confirm",
@@ -297,7 +309,8 @@ func TestMFAEnrollConfirm_EnrollErrorPropagates(t *testing.T) {
 	svc := newStubMFAService()
 	svc.VerifyMFACodeForAccountFn = func(context.Context, int64, int64, string, string) error { return nil }
 	svc.EnrollMFAFn = func(context.Context, int64) error { return errors.New("db down") }
-	rs := &Resource{MFAService: svc}
+	rs := &Resource{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, MFAService: svc}
 
 	r := withEnrollmentClaims(jsonReq(t, http.MethodPost, "/mfa/enroll/confirm",
 		MFAEnrollConfirmRequest{Code: "123456"}), 42, 70010001)
@@ -331,9 +344,10 @@ func TestMFAEnrollConfirm_InjectsTenantFromClaims(t *testing.T) {
 	// The tenant reaches the context through the tenant runtime the root
 	// binds (#2736); without one the handler cannot scope the context.
 	rs := &Resource{
-		MFAService:   svc,
-		Sessions:     &completeMFAExchangeStub{access: "access-tok", refresh: "refresh-tok"},
-		transactions: testutil.AccountRouteTenantRuntime(),
+		ConstraintViolation: transactionFailures.IsConstraintViolation,
+		MFAService:          svc,
+		Sessions:            &completeMFAExchangeStub{access: "access-tok", refresh: "refresh-tok"},
+		transactions:        identityaccessCompose.TenantUnitOfWork{},
 	}
 
 	r := withEnrollmentClaims(jsonReq(t, http.MethodPost, "/mfa/enroll/confirm",
@@ -355,7 +369,8 @@ func TestMFAEnrollConfirm_RequiresEnrollmentClaim(t *testing.T) {
 	// closed — this also covers the case where a regular AppClaims token
 	// (CtxClaims) was set instead. Renamed from RequiresAccountClaim to
 	// reflect the post-#1430 shape.
-	rs := &Resource{MFAService: newStubMFAService()}
+	rs := &Resource{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, MFAService: newStubMFAService()}
 
 	r := jsonReq(t, http.MethodPost, "/mfa/enroll/confirm",
 		MFAEnrollConfirmRequest{Code: "123456"})
@@ -392,7 +407,8 @@ func TestMFAEnrollStart_RejectsPlatformScopeToken(t *testing.T) {
 		t.Fatal("StartChallenge must not run on a platform-scope token")
 		return "", nil
 	}
-	rs := &Resource{MFAService: svc}
+	rs := &Resource{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, MFAService: svc}
 
 	r := withPlatformEnrollmentClaims(jsonReq(t, http.MethodPost, "/mfa/enroll/start", nil), 42)
 	rr := httptest.NewRecorder()
@@ -412,7 +428,8 @@ func TestMFAEnrollConfirm_RejectsPlatformScopeToken(t *testing.T) {
 		t.Fatal("VerifyCodeForAccount must not run on a platform-scope token")
 		return nil
 	}
-	rs := &Resource{MFAService: svc}
+	rs := &Resource{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, MFAService: svc}
 
 	r := withPlatformEnrollmentClaims(jsonReq(t, http.MethodPost, "/mfa/enroll/confirm",
 		MFAEnrollConfirmRequest{Code: "123456"}), 42)
@@ -434,7 +451,8 @@ func TestMFAEnrollStart_RejectsMissingTenantID(t *testing.T) {
 		t.Fatal("StartChallenge must not run without a tenant_id")
 		return "", nil
 	}
-	rs := &Resource{MFAService: svc}
+	rs := &Resource{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, MFAService: svc}
 
 	r := jsonReq(t, http.MethodPost, "/mfa/enroll/start", nil)
 	ctx := testutil.WithEnrollmentClaims(r.Context(), testutil.MFAEnrollmentClaims{
@@ -453,7 +471,8 @@ func TestMFAEnrollStart_RejectsMissingTenantID(t *testing.T) {
 func TestMFAEnrollConfirm_BindRejectsShortCode(t *testing.T) {
 	t.Parallel()
 
-	rs := &Resource{MFAService: newStubMFAService()}
+	rs := &Resource{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, MFAService: newStubMFAService()}
 
 	r := withEnrollmentClaims(jsonReq(t, http.MethodPost, "/mfa/enroll/confirm",
 		MFAEnrollConfirmRequest{Code: "12"}), 42, 70010001)
@@ -468,7 +487,8 @@ func TestMFAEnrollConfirm_WrongCodeReturns401(t *testing.T) {
 
 	svc := newStubMFAService()
 	svc.VerifyMFACodeForAccountFn = func(context.Context, int64, int64, string, string) error { return identityaccess.ErrMFACodeInvalid }
-	rs := &Resource{MFAService: svc}
+	rs := &Resource{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, MFAService: svc}
 
 	r := withEnrollmentClaims(jsonReq(t, http.MethodPost, "/mfa/enroll/confirm",
 		MFAEnrollConfirmRequest{Code: "654321"}), 42, 70010001)
@@ -486,7 +506,8 @@ func TestMFAListTrustedDevices_EmptyOK(t *testing.T) {
 	svc.ListTrustedDevicesFn = func(context.Context, int64, int64) ([]identityaccess.AccountTrustedDevice, error) {
 		return []identityaccess.AccountTrustedDevice{}, nil
 	}
-	rs := &Resource{MFAService: svc}
+	rs := &Resource{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, MFAService: svc}
 
 	r := withClaims(httptest.NewRequest(http.MethodGet, "/mfa/trusted-devices", nil), 42)
 	rr := httptest.NewRecorder()
@@ -501,7 +522,8 @@ func TestMFAListTrustedDevices_EmptyOK(t *testing.T) {
 func TestMFAListTrustedDevices_RequiresClaim(t *testing.T) {
 	t.Parallel()
 
-	rs := &Resource{MFAService: newStubMFAService()}
+	rs := &Resource{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, MFAService: newStubMFAService()}
 
 	r := httptest.NewRequest(http.MethodGet, "/mfa/trusted-devices", nil)
 	rr := httptest.NewRecorder()
@@ -517,7 +539,8 @@ func TestMFAListTrustedDevices_ServiceErrorReturns500(t *testing.T) {
 	svc.ListTrustedDevicesFn = func(context.Context, int64, int64) ([]identityaccess.AccountTrustedDevice, error) {
 		return nil, errors.New("db down")
 	}
-	rs := &Resource{MFAService: svc}
+	rs := &Resource{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, MFAService: svc}
 
 	r := withClaims(httptest.NewRequest(http.MethodGet, "/mfa/trusted-devices", nil), 42)
 	rr := httptest.NewRecorder()

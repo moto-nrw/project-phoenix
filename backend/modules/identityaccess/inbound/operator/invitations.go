@@ -7,11 +7,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/gofrs/uuid"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // InvitationsResource handles operator invitation endpoints. Depends on the
@@ -129,14 +131,21 @@ type OperatorListItem struct {
 	DisplayName string     `json:"display_name"`
 	Active      bool       `json:"active"`
 	LastLogin   *time.Time `json:"last_login,omitempty"`
-	CreatedAt   time.Time  `json:"created_at"`
+	// DeactivatedAt is set while the account is deactivated (#4047);
+	// DeletionDueAt is when the hourly cleanup deletes it.
+	DeactivatedAt *time.Time `json:"deactivated_at,omitempty"`
+	DeletionDueAt *time.Time `json:"deletion_due_at,omitempty"`
+	CreatedAt     time.Time  `json:"created_at"`
+	// IsSelf marks the signed-in operator, whose account the dashboard
+	// offers no deactivation for.
+	IsSelf bool `json:"is_self"`
 }
 
 // --- Handlers ---
 
 // CreateInvitation handles creating a new operator invitation
 func (rs *InvitationsResource) CreateInvitation(w http.ResponseWriter, r *http.Request) {
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	operatorID := int64(claims.ID)
 
 	req := &CreateInvitationRequest{}
@@ -192,16 +201,12 @@ func (rs *InvitationsResource) ListInvitations(w http.ResponseWriter, r *http.Re
 		invitations = append(invitations, inv)
 	}
 
+	signedIn := int64(sessiontoken.ClaimsFromCtx(r.Context()).ID)
 	operatorList := make([]*OperatorListItem, 0, len(operators))
 	for _, op := range operators {
-		operatorList = append(operatorList, &OperatorListItem{
-			ID:          op.ID,
-			Email:       op.Email,
-			DisplayName: op.DisplayName,
-			Active:      op.Active,
-			LastLogin:   op.LastLogin,
-			CreatedAt:   op.CreatedAt,
-		})
+		item := operatorListItem(op)
+		item.IsSelf = op.ID == signedIn
+		operatorList = append(operatorList, item)
 	}
 
 	common.Respond(w, r, http.StatusOK, &InvitationsListResponse{
@@ -212,7 +217,7 @@ func (rs *InvitationsResource) ListInvitations(w http.ResponseWriter, r *http.Re
 
 // ResendInvitation handles re-sending an invitation email
 func (rs *InvitationsResource) ResendInvitation(w http.ResponseWriter, r *http.Request) {
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	operatorID := int64(claims.ID)
 
 	idStr := chi.URLParam(r, "id")
@@ -232,7 +237,7 @@ func (rs *InvitationsResource) ResendInvitation(w http.ResponseWriter, r *http.R
 
 // RevokeInvitation handles revoking an invitation
 func (rs *InvitationsResource) RevokeInvitation(w http.ResponseWriter, r *http.Request) {
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	operatorID := int64(claims.ID)
 
 	idStr := chi.URLParam(r, "id")
@@ -296,29 +301,18 @@ func (rs *InvitationsResource) AcceptInvitation(w http.ResponseWriter, r *http.R
 
 // --- Error translation ---
 
-// operatorInputRejections names the field and code of the validation
-// messages the operator identity service raises, so the operator portal can
-// mark the field (#2519). passwordField is filled in per endpoint.
-var operatorInputRejections = map[string]struct{ field, code string }{
-	"invalid email format":                          {"email", common.CodeGeneralInput},
-	"email address too long":                        {"email", common.CodeGeneralInput},
-	"password doesn't meet complexity requirements": {"", common.CodeIdentityPasswordTooWeak},
-	"display name is required":                      {"display_name", common.CodeGeneralInput},
-	"display name must not exceed 100 characters":   {"display_name", common.CodeGeneralInput},
-}
-
+// operatorInputField maps the owner's typed input failures to fields.
 func operatorInputField(err error, passwordField string) (field, code string, ok bool) {
-	if err == nil {
+	switch {
+	case errors.Is(err, identityaccess.ErrOperatorEmailInvalid), errors.Is(err, identityaccess.ErrOperatorEmailTooLong):
+		return "email", common.CodeGeneralInput, true
+	case errors.Is(err, identityaccess.ErrOperatorPasswordTooWeak):
+		return passwordField, common.CodeIdentityPasswordTooWeak, true
+	case errors.Is(err, identityaccess.ErrOperatorDisplayNameRequired), errors.Is(err, identityaccess.ErrOperatorDisplayNameTooLong):
+		return "display_name", common.CodeGeneralInput, true
+	default:
 		return "", "", false
 	}
-	rejection, ok := operatorInputRejections[err.Error()]
-	if !ok {
-		return "", "", false
-	}
-	if rejection.field == "" {
-		return passwordField, rejection.code, true
-	}
-	return rejection.field, rejection.code, true
 }
 
 // --- Error renderers ---

@@ -7,10 +7,10 @@ import {
   useRef,
   useState,
 } from "react";
-import Link from "next/link";
 import { XIcon } from "@phosphor-icons/react/ssr";
 import { useLocale, useTranslations } from "next-intl";
-import { ArrowLeft } from "lucide-react";
+import { BackLink } from "~/components/ui/back-link";
+import NavigationLink from "~/components/ui/navigation-link";
 import { parentPath } from "~/lib/parent-url";
 import {
   FormErrorAlert,
@@ -271,10 +271,9 @@ export function OgsConversation({
       ref={containerRef}
       className="flex min-h-[20rem] w-full flex-col gap-3 overflow-hidden"
     >
-      {showBack ? <BackBar /> : null}
-
       <section className="moto-content-surface flex min-h-0 flex-1 flex-col rounded-2xl border shadow-sm">
         <div className="border-b border-gray-100 px-4 py-3 sm:px-5">
+          {showBack ? <BackBar /> : null}
           {loading ? (
             <div
               className="flex min-h-7 items-center justify-between gap-3"
@@ -360,40 +359,49 @@ export function OgsConversation({
                   locale={locale}
                 />
               ) : (
-                <ChatBubble
-                  key={message.id}
-                  body={message.body}
-                  own={message.sender_kind === "guardian"}
-                  senderName={
-                    message.sender_kind === "staff" &&
-                    message.sender_name === counterpart &&
-                    thread?.school_name
-                      ? tm("ogsTeam", { school: thread.school_name })
-                      : message.sender_name
-                  }
-                  createdAt={message.created_at}
-                  locale={locale}
-                  // The parent's own bubbles are always the logged-in guardian
-                  // (one guardian account per thread), so drop the redundant name
-                  // and keep just the time. Staff bubbles still show "Vorname N.".
-                  showOwnSenderName={false}
-                  showSenderName={!genericStaffSender && !sameSenderAsPrevious}
-                  tone="parent"
-                  deliveryStatus={
-                    message.sender_kind === "guardian"
-                      ? message.read_by_staff
-                        ? "read"
-                        : "sent"
-                      : undefined
-                  }
-                  deliveryStatusLabel={
-                    message.sender_kind === "guardian"
-                      ? message.read_by_staff
-                        ? tm("readByOgs")
-                        : tm("sent")
-                      : undefined
-                  }
-                />
+                <div key={message.id}>
+                  {message.group_thread_id && (
+                    <GroupThreadReference
+                      groupThreadId={message.group_thread_id}
+                      title={message.group_thread_title}
+                    />
+                  )}
+                  <ChatBubble
+                    body={message.body}
+                    own={message.sender_kind === "guardian"}
+                    senderName={
+                      message.sender_kind === "staff" &&
+                      message.sender_name === counterpart &&
+                      thread?.school_name
+                        ? tm("ogsTeam", { school: thread.school_name })
+                        : message.sender_name
+                    }
+                    createdAt={message.created_at}
+                    locale={locale}
+                    // The parent's own bubbles are always the logged-in guardian
+                    // (one guardian account per thread), so drop the redundant name
+                    // and keep just the time. Staff bubbles still show "Vorname N.".
+                    showOwnSenderName={false}
+                    showSenderName={
+                      !genericStaffSender && !sameSenderAsPrevious
+                    }
+                    tone="parent"
+                    deliveryStatus={
+                      message.sender_kind === "guardian"
+                        ? message.read_by_staff
+                          ? "read"
+                          : "sent"
+                        : undefined
+                    }
+                    deliveryStatusLabel={
+                      message.sender_kind === "guardian"
+                        ? message.read_by_staff
+                          ? tm("readByOgs")
+                          : tm("sent")
+                        : undefined
+                    }
+                  />
+                </div>
               );
             })
           ) : loadError ? (
@@ -475,6 +483,9 @@ export function OgsConversation({
           careExceptionsLoaded={care.careExceptionsLoaded}
           pickupChangeRequestsLoaded={care.pickupChangeRequestsLoaded}
           pickupChangeEnabled={care.features.pickup_change_enabled}
+          departureModeEnabled={
+            care.features.pickup_change_mode_enabled === true
+          }
           childFirstName={thread?.student_name?.split(/\s+/)[0]}
           today={today}
           onClose={() => setActiveModal(null)}
@@ -566,6 +577,7 @@ function QuickActions({
           key={action.key}
           action={action}
           childName={childName}
+          withMode={features.pickup_change_mode_enabled === true}
           onPick={onPick}
         />
       ))}
@@ -576,10 +588,13 @@ function QuickActions({
 function QuickActionPill({
   action,
   childName,
+  withMode,
   onPick,
 }: Readonly<{
   action: ReturnType<typeof getOgsActions>[number];
   childName?: string;
+  /** Die Abholung darf auch die Abholart ändern (#3945). */
+  withMode: boolean;
   onPick: (key: OgsActionKey) => void;
 }>) {
   const careT = useTranslations("parentChildCare");
@@ -588,7 +603,9 @@ function QuickActionPill({
   const label = firstName
     ? action.key === "sick"
       ? todayT("actions.sick", { name: firstName })
-      : todayT("actions.pickup", { name: firstName })
+      : todayT(withMode ? "actions.pickupWithMode" : "actions.pickup", {
+          name: firstName,
+        })
     : careT(`actions.${action.key}.shortLabel`);
   return (
     <button
@@ -610,11 +627,32 @@ function QuickActionPill({
         {todayT(
           action.key === "sick"
             ? "actions.sickCompact"
-            : "actions.pickupCompact",
+            : withMode
+              ? "actions.pickupCompactWithMode"
+              : "actions.pickupCompact",
         )}
       </span>
       <span className="hidden sm:inline">{label}</span>
     </button>
+  );
+}
+
+// Eine Antwort auf eine Gruppennachricht (#4784) traegt den Verweis auf die
+// Gruppennachricht, damit klar ist, worauf sie sich bezieht.
+function GroupThreadReference({
+  groupThreadId,
+  title,
+}: Readonly<{ groupThreadId: string; title?: string }>) {
+  const t = useTranslations("parentGroupThreads");
+  return (
+    <div className="mb-1 flex justify-end">
+      <NavigationLink
+        href={parentPath(`/parents/messages/group/${groupThreadId}`)}
+        className="text-moto-blue max-w-[85%] truncate text-xs font-medium underline-offset-2 hover:underline"
+      >
+        {t("answerTo", { title: title ?? "" })}
+      </NavigationLink>
+    </div>
   );
 }
 
@@ -657,20 +695,15 @@ function ConversationComposerSkeleton() {
   );
 }
 
-// Always-visible parents-portal back link. The kit BackButton/MobileBackButton
-// don't fit here: BackButton routes via useTenantRouter (the tenant portal) and
-// both are mobile-only by design, whereas this affordance must work on desktop in
-// the parents portal too. A plain Link to the portal-absolute path is the correct
-// primitive; the kit has no desktop, portal-agnostic back component to reuse.
+// Rückweg zum Posteingang der Elternnachrichten, auf jeder Breite. Er sitzt
+// in der Kopfkarte über dem Titel, wie auf jeder anderen Unterseite.
 function BackBar() {
   const tm = useTranslations("parentMessages");
   return (
-    <Link
+    <BackLink
       href={parentPath("/parents/messages")}
-      className="inline-flex h-8 w-fit items-center gap-2 rounded-lg px-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-    >
-      <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-      {tm("back")}
-    </Link>
+      label={tm("back")}
+      className="mb-2"
+    />
   );
 }

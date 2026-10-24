@@ -78,7 +78,8 @@ describe("bulkInviteGuardians", () => {
       bulkInviteGuardians(["4"], { dryRun: false, resendOpen: false }),
     ).rejects.toMatchObject({ status: 403, code: "general.permission" });
 
-    mockFetch(200, { status: "error", error: "nope" });
+    // A success answer without data is a broken answer.
+    mockFetch(200, { status: "success" });
     await expect(
       bulkInviteGuardians(["4"], { dryRun: false, resendOpen: false }),
     ).rejects.toMatchObject({ status: 500, code: "general.server" });

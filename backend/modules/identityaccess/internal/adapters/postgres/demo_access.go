@@ -94,6 +94,24 @@ func (s *Store) FindDemoAccessByTokenHash(ctx context.Context, tokenHash string)
 	}, true, nil
 }
 
+// LockDemoSchool shares Organization & Tenancy's per-school lock. It keeps a
+// redemption, a reset and the expiry worker from changing the access and its
+// school state halfway through one another.
+func (s *Store) LockDemoSchool(ctx context.Context, schoolSlug string) error {
+	db, err := s.database(ctx)
+	if err != nil {
+		return err
+	}
+	return lockDemoSchool(ctx, db, schoolSlug)
+}
+
+func lockDemoSchool(ctx context.Context, db bun.IDB, schoolSlug string) error {
+	if _, err := db.NewRaw(`SELECT pg_advisory_xact_lock(hashtextextended('platform.demo_school_states:' || ?, 0))`, schoolSlug).Exec(ctx); err != nil {
+		return fmt.Errorf("identity access postgres: lock demo school: %w", err)
+	}
+	return nil
+}
+
 // RecordDemoAccessUse notes one redemption, the account it signed in and the
 // school's parent the role parent signs in (#3468). A redemption without such
 // a parent keeps the one noted before: an earlier parent session of the same
@@ -104,13 +122,20 @@ func (s *Store) RecordDemoAccessUse(ctx context.Context, id, accountID, parentAc
 	if err != nil {
 		return err
 	}
-	_, err = db.NewRaw(`UPDATE auth.demo_accesses
+	result, err := db.NewRaw(`UPDATE auth.demo_accesses
 		SET use_count = use_count + 1, last_used_at = ?, expires_at = ?, account_id = ?,
 			parent_account_id = COALESCE(NULLIF(?, 0::BIGINT), parent_account_id)
-		WHERE id = ?`,
-		usedAt, expiresAt, accountID, parentAccountID, id).Exec(ctx)
+		WHERE id = ? AND expires_at > ?`,
+		usedAt, expiresAt, accountID, parentAccountID, id, usedAt).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("identity access postgres: record demo access use: %w", err)
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("identity access postgres: count recorded demo access use: %w", err)
+	}
+	if rows != 1 {
+		return domain.ErrDemoAccessExpired
 	}
 	return nil
 }
@@ -223,14 +248,33 @@ func (s *DemoAccessExpiryStore) DeleteExpiredDemoAccesses(ctx context.Context, n
 		SchoolSlug string `bun:"school_slug"`
 		Orphaned   bool   `bun:"orphaned"`
 	}
-	// The sub-select reads the table as it was when the statement began, so
-	// it must ask for accesses that survive, not for rows that are left.
-	err := s.db.NewRaw(`WITH expired AS (
+	tx, ok := s.db.(bun.Tx)
+	if !ok {
+		return 0, nil, errors.New("identity access demo expiry: transaction is required")
+	}
+	err := func() error {
+		// Take every school key in the same order as retirement. A redemption
+		// that already holds one key extends its access before expiry can test
+		// it; a redemption that follows an expiry revalidates after this lock.
+		var schoolSlugs []string
+		if err := tx.NewRaw(`SELECT DISTINCT school_slug FROM auth.demo_accesses
+			WHERE expires_at <= ? ORDER BY school_slug`, now).Scan(ctx, &schoolSlugs); err != nil {
+			return fmt.Errorf("list expired demo school accesses: %w", err)
+		}
+		for _, schoolSlug := range schoolSlugs {
+			if err := lockDemoSchool(ctx, tx, schoolSlug); err != nil {
+				return err
+			}
+		}
+		// The sub-select reads the table as it was when the statement began, so
+		// it must ask for accesses that survive, not for rows that are left.
+		return tx.NewRaw(`WITH expired AS (
 			DELETE FROM auth.demo_accesses WHERE expires_at <= ? RETURNING school_slug)
 		SELECT school_slug,
 			NOT EXISTS (SELECT 1 FROM auth.demo_accesses AS remaining
 				WHERE remaining.school_slug = expired.school_slug AND remaining.expires_at > ?) AS orphaned
 		FROM expired ORDER BY school_slug`, now, now).Scan(ctx, &rows)
+	}()
 	if err != nil {
 		return 0, nil, fmt.Errorf("identity access postgres: delete expired demo accesses: %w", err)
 	}

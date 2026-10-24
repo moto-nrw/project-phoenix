@@ -18,10 +18,11 @@ import (
 	"testing"
 	"time"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/moto-nrw/project-phoenix/workflows/gradetransition"
-	gradetransitioncompose "github.com/moto-nrw/project-phoenix/workflows/gradetransition/compose"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -349,7 +350,7 @@ func TestGradeTransitionWorkflow_AuthorizationAndTenantIsolation(t *testing.T) {
 
 	t.Run("the composed gate refuses a request without a tenant principal", func(t *testing.T) {
 		for _, operation := range []string{gradetransition.OperationRead, gradetransition.OperationApply, "unknown"} {
-			_, err := gradetransitioncompose.Authorize(ctx, operation)
+			_, err := owners.AuthorizeGradeTransition(ctx, operation)
 			require.ErrorIs(t, err, gradetransition.ErrUnauthorized, operation)
 		}
 	})
@@ -561,6 +562,7 @@ func TestGradeTransitionWorkflow_IdempotentRetryAndHistoryRetention(t *testing.T
 // unit-of-work outcomes and the deadlock counter over the real composition.
 func TestGradeTransitionRuntimeEvidence(t *testing.T) {
 	t.Parallel()
+	testpkg.RequireRuntimeEvidence(t)
 	db := testpkg.SetupIsolatedTestDB(t)
 	f := newTransitionFixture(t, db)
 	workflow := f.workflow(t)

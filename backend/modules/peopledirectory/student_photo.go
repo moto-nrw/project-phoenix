@@ -18,6 +18,50 @@ var (
 	ErrPhotoNotSet             = errors.New("no photo set for this student")
 )
 
+// StudentPhotosSwitchedOff reports whether a new value of the school's photo
+// feature setting turns the feature off, which detaches every photo. Only an
+// explicit false does; any other value leaves the photos in place.
+func StudentPhotosSwitchedOff(value any) bool {
+	enabled, ok := value.(bool)
+	return ok && !enabled
+}
+
+// Source labels of the tenant-wide photo broadcast a new photo feature
+// setting causes.
+const (
+	StudentPhotoSourceFeatureDisabled = "tenant_photos_disabled"
+	StudentPhotoSourceFeatureEnabled  = "tenant_photos_enabled"
+)
+
+// StudentPhotoPurge detaches every photo of the tenant (the
+// PurgeStudentPhotos of StudentPhotoCommand).
+type StudentPhotoPurge interface {
+	PurgeStudentPhotos(ctx context.Context) ([]string, error)
+}
+
+// StudentPhotoFeatureChange is what a new photo feature setting did inside the
+// caller's transaction: the stored references it detached, whose files the
+// caller removes after the commit, and the source label of the tenant-wide
+// photo broadcast that follows it.
+type StudentPhotoFeatureChange struct {
+	Purged          []string
+	BroadcastSource string
+}
+
+// ApplyPhotoFeatureSetting applies a new value of the school's photo feature
+// setting. Switching the feature off detaches every photo; any other value
+// leaves the photos in place (StudentPhotosSwitchedOff).
+func ApplyPhotoFeatureSetting(ctx context.Context, photos StudentPhotoPurge, value any) (StudentPhotoFeatureChange, error) {
+	if !StudentPhotosSwitchedOff(value) {
+		return StudentPhotoFeatureChange{BroadcastSource: StudentPhotoSourceFeatureEnabled}, nil
+	}
+	purged, err := photos.PurgeStudentPhotos(ctx)
+	if err != nil {
+		return StudentPhotoFeatureChange{}, err
+	}
+	return StudentPhotoFeatureChange{Purged: append([]string(nil), purged...), BroadcastSource: StudentPhotoSourceFeatureDisabled}, nil
+}
+
 // StudentPhotoState is the photo slice of a child's row: where the image is
 // stored and whether the voluntary consent behind it is on record.
 type StudentPhotoState struct {
@@ -55,48 +99,8 @@ type StudentPhotoCommand interface {
 	// stamps it, a withdrawal clears the consent and the photo together, and
 	// a repeated grant keeps the original timestamp. The file a withdrawal
 	// detaches is removed after the caller's commit.
-	ApplyStudentPhotoConsent(ctx context.Context, current StudentPhotoState, requestedConsent *bool) StudentPhotoState
+	ApplyStudentPhotoConsent(ctx context.Context, current StudentPhotoState, requestedConsent *bool) (StudentPhotoState, error)
 	// ScheduleStudentPhotoUnlink removes a detached file after the caller's
 	// transaction commits; an empty URL is a no-op.
-	ScheduleStudentPhotoUnlink(ctx context.Context, storedURL string)
-}
-
-func (m *Module) FindStudentPhoto(ctx context.Context, studentID int64, filename string) (string, error) {
-	if studentID <= 0 {
-		return "", invalidStudent("student ID is required")
-	}
-	return m.engine.FindStudentPhoto(ctx, studentID, filename)
-}
-
-func (m *Module) CommitStudentPhoto(ctx context.Context, studentID int64, storedURL string, consentAck bool) error {
-	if studentID <= 0 {
-		return invalidStudent("student ID is required")
-	}
-	if storedURL == "" {
-		return invalidStudent("a stored photo URL is required")
-	}
-	return m.engine.CommitStudentPhoto(ctx, studentID, storedURL, consentAck)
-}
-
-func (m *Module) ClearStudentPhoto(ctx context.Context, studentID int64) (string, error) {
-	if studentID <= 0 {
-		return "", invalidStudent("student ID is required")
-	}
-	return m.engine.ClearStudentPhoto(ctx, studentID)
-}
-
-func (m *Module) PurgeStudentPhotos(ctx context.Context) ([]string, error) {
-	return m.engine.PurgeStudentPhotos(ctx)
-}
-
-func (m *Module) ApplyStudentPhotoConsent(
-	ctx context.Context,
-	current StudentPhotoState,
-	requestedConsent *bool,
-) StudentPhotoState {
-	return m.engine.ApplyStudentPhotoConsent(ctx, current, requestedConsent)
-}
-
-func (m *Module) ScheduleStudentPhotoUnlink(ctx context.Context, storedURL string) {
-	m.engine.ScheduleStudentPhotoUnlink(ctx, storedURL)
+	ScheduleStudentPhotoUnlink(ctx context.Context, storedURL string) error
 }

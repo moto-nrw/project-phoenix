@@ -38,8 +38,8 @@ func assertRenderedStatus(t *testing.T, err error, want int) {
 	t.Helper()
 	status, body := renderedError(t, ErrorRenderer(err))
 	assert.Equal(t, want, status)
-	assert.Equal(t, "error", body["status"])
-	assert.Equal(t, err.Error(), body["error"])
+	assert.Equal(t, float64(want), body["status"])
+	assert.Equal(t, err.Error(), body["detail"])
 }
 
 func TestErrorRenderer_UserNotAuthenticated(t *testing.T) {
@@ -75,6 +75,11 @@ func TestErrorRenderer_UserNotLinkedToTeacher(t *testing.T) {
 func TestErrorRenderer_GroupNotFound(t *testing.T) {
 	t.Parallel()
 	assertRenderedStatus(t, wrapError(identityaccess.ErrCallerGroupNotFound), http.StatusNotFound)
+}
+
+func TestErrorRenderer_SessionNotFound(t *testing.T) {
+	t.Parallel()
+	assertRenderedStatus(t, wrapError(identityaccess.ErrCallerSessionNotFound), http.StatusNotFound)
 }
 
 // The old TestErrorRenderer_NoActiveGroups (404) and

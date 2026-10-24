@@ -8,17 +8,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
+	"github.com/moto-nrw/project-phoenix/api"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
@@ -77,25 +75,37 @@ func (s *stubInvites) RevokeAccess(_ context.Context, revocation parentService.G
 func buildRelAcctService(t *testing.T, inviteMode string, canRemove bool) (*parentService.Portal, *stubInvites, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	invites := &stubInvites{}
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
-		CarePlan:      repos.CarePlan(),
-		People:        repositories.MustNewPeopleDirectory(db),
-		CareProfiles:  careProfiles(t, db),
-		ChildRepo:     repos.ParentChild,
-		StatusDayRepo: repos.StudentStatusDay,
-		StudentRepo:   repos.Student,
+		GuardianChanges: owners.ParentGuardianChanges(),
+		DeparturePolicy: owners.ParentDeparturePolicy(),
+		GuardianPolicy:  owners.NewParentGuardianPolicy(),
+		Fingerprints:    owners.SecurityFingerprints{},
+		Declarations:    owners.ParentDeclarationPolicy(),
+		Locales:         owners.ParentPortalLocales(),
+		Runtime:         owners.ParentPortalRuntime{},
+		CarePlan:        owners.NewParentCarePlanCommands(repos.CarePlan(), nil),
+		People:          owners.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
+		CareProfiles:    careProfiles(t, db),
+		ChildRepo:       repos.ParentChildReads(),
+		StatusDayRepo:   repos.StudentStatusDay,
+		StudentRepo:     owners.NewParentStudentReads(reposPeople.Student),
 		Settings: parentSettingsStub{
-			boolValues:   map[string]bool{configModels.KeyGuardianParentCanRemove: canRemove},
-			stringValues: map[string]string{configModels.KeyGuardianParentInviteMode: inviteMode},
+			boolValues:   map[string]bool{parentService.KeyGuardianParentCanRemove: canRemove},
+			stringValues: map[string]string{parentService.KeyGuardianParentInviteMode: inviteMode},
 		},
 		MealPlan:            availableMealPlan(false),
 		GuardianInvites:     invites,
 		GuardianInvitations: guardianInvitationReads{db: db},
-		StudentGuardianRepo: repos.StudentGuardian,
-		GuardianProfileRepo: repos.GuardianProfile,
+		StudentGuardianRepo: owners.NewParentStudentGuardianReads(reposPeople.StudentGuardian),
+		GuardianProfileRepo: owners.NewParentGuardianProfileReads(reposPeople.GuardianProfile),
 		Logger:              slog.Default(),
+
+		DataRequests: owners.NewParentDataRequestCommands(repos.CarePlan()),
+
+		CarePlanPolicy: owners.NewParentCarePlanPolicy(),
 	})
 	return svc, invites, db
 }
@@ -103,7 +113,7 @@ func buildRelAcctService(t *testing.T, inviteMode string, canRemove bool) (*pare
 func TestListRelatedAccounts_ReturnsLinkedWithStatus(t *testing.T) {
 	t.Parallel()
 
-	svc, _, db := buildRelAcctService(t, configModels.ParentInviteModeDirect, false)
+	svc, _, db := buildRelAcctService(t, parentService.ParentInviteModeDirect, false)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
@@ -119,23 +129,20 @@ func TestListRelatedAccounts_ReturnsLinkedWithStatus(t *testing.T) {
 func TestListRelatedAccounts_NoAccountWithoutInviteIsNotPending(t *testing.T) {
 	t.Parallel()
 
-	svc, _, db := buildRelAcctService(t, configModels.ParentInviteModeDirect, false)
+	svc, _, db := buildRelAcctService(t, parentService.ParentInviteModeDirect, false)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	profile := testpkg.CreateTestGuardianProfile(t, db, "staff-contact")
-	defer func() {
-		_, _ = db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(testpkg.WithPackageTenantRuntime(context.Background()))
-	}()
-	link := &userModels.StudentGuardian{
+	link := &peopledirectory.GuardianLinkFixture{
 		StudentID:         chain.StudentID,
 		GuardianProfileID: profile.ID,
 		RelationshipType:  "guardian",
 		EmergencyPriority: 1,
 	}
-	link.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, repos.StudentGuardian.Create(ctx, link))
+	link.TenantID = testpkg.Tenant(t)
+	require.NoError(t, repos.CreateGuardianLinkFixture(ctx, link))
 
 	accounts, err := svc.ListRelatedAccounts(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
@@ -153,24 +160,20 @@ func TestListRelatedAccounts_NoAccountWithoutInviteIsNotPending(t *testing.T) {
 func TestListRelatedAccounts_NoAccountWithOpenInviteIsPending(t *testing.T) {
 	t.Parallel()
 
-	svc, _, db := buildRelAcctService(t, configModels.ParentInviteModeDirect, false)
+	svc, _, db := buildRelAcctService(t, parentService.ParentInviteModeDirect, false)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	profile := testpkg.CreateTestGuardianProfile(t, db, "pending-contact")
-	defer func() {
-		_, _ = db.NewDelete().TableExpr("auth.guardian_invitations").Where("guardian_profile_id = ?", profile.ID).Exec(testpkg.WithPackageTenantRuntime(context.Background()))
-		_, _ = db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(testpkg.WithPackageTenantRuntime(context.Background()))
-	}()
-	link := &userModels.StudentGuardian{
+	link := &peopledirectory.GuardianLinkFixture{
 		StudentID:         chain.StudentID,
 		GuardianProfileID: profile.ID,
 		RelationshipType:  "guardian",
 		EmergencyPriority: 1,
 	}
-	link.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, repos.StudentGuardian.Create(ctx, link))
+	link.TenantID = testpkg.Tenant(t)
+	require.NoError(t, repos.CreateGuardianLinkFixture(ctx, link))
 	studentID := chain.StudentID
 	invitation := &testpkg.GuardianInvitation{
 		Token:             fmt.Sprintf("pending-parent-status-test-%d", time.Now().UnixNano()),
@@ -199,27 +202,21 @@ func TestListRelatedAccounts_NoAccountWithOpenInviteIsPending(t *testing.T) {
 func TestListRelatedAccounts_OpenInviteForAnotherChildIsNotPending(t *testing.T) {
 	t.Parallel()
 
-	svc, _, db := buildRelAcctService(t, configModels.ParentInviteModeDirect, false)
+	svc, _, db := buildRelAcctService(t, parentService.ParentInviteModeDirect, false)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	profile := testpkg.CreateTestGuardianProfile(t, db, "sibling-pending-contact")
 	otherStudent := testpkg.CreateTestStudent(t, db, "Other", "Child", "9z")
-	defer func() {
-		_, _ = db.NewDelete().TableExpr("auth.guardian_invitations").Where("guardian_profile_id = ?", profile.ID).Exec(testpkg.WithPackageTenantRuntime(context.Background()))
-		_, _ = db.NewDelete().TableExpr("users.student_guardian_relationships").Where("guardian_profile_id = ?", profile.ID).Exec(testpkg.WithPackageTenantRuntime(context.Background()))
-		_, _ = db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(testpkg.WithPackageTenantRuntime(context.Background()))
-		_, _ = db.NewDelete().TableExpr("users.student_profiles").Where("id = ?", otherStudent.ID).Exec(testpkg.WithPackageTenantRuntime(context.Background()))
-	}()
-	link := &userModels.StudentGuardian{
+	link := &peopledirectory.GuardianLinkFixture{
 		StudentID:         chain.StudentID,
 		GuardianProfileID: profile.ID,
 		RelationshipType:  "guardian",
 		EmergencyPriority: 1,
 	}
-	link.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, repos.StudentGuardian.Create(ctx, link))
+	link.TenantID = testpkg.Tenant(t)
+	require.NoError(t, repos.CreateGuardianLinkFixture(ctx, link))
 	otherStudentID := otherStudent.ID
 	invitation := &testpkg.GuardianInvitation{
 		Token:             fmt.Sprintf("sibling-pending-parent-status-test-%d", time.Now().UnixNano()),
@@ -248,7 +245,7 @@ func TestListRelatedAccounts_OpenInviteForAnotherChildIsNotPending(t *testing.T)
 func TestInviteRelatedAccount_DisabledIsRejected(t *testing.T) {
 	t.Parallel()
 
-	svc, invites, db := buildRelAcctService(t, configModels.ParentInviteModeDisabled, false)
+	svc, invites, db := buildRelAcctService(t, parentService.ParentInviteModeDisabled, false)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
@@ -261,7 +258,7 @@ func TestInviteRelatedAccount_DisabledIsRejected(t *testing.T) {
 func TestInviteRelatedAccount_DirectDelegatesWithoutApproval(t *testing.T) {
 	t.Parallel()
 
-	svc, invites, db := buildRelAcctService(t, configModels.ParentInviteModeDirect, false)
+	svc, invites, db := buildRelAcctService(t, parentService.ParentInviteModeDirect, false)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
@@ -276,7 +273,7 @@ func TestInviteRelatedAccount_DirectDelegatesWithoutApproval(t *testing.T) {
 func TestInviteRelatedAccount_StaffApprovalRequiresApproval(t *testing.T) {
 	t.Parallel()
 
-	svc, invites, db := buildRelAcctService(t, configModels.ParentInviteModeStaffApproval, false)
+	svc, invites, db := buildRelAcctService(t, parentService.ParentInviteModeStaffApproval, false)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
@@ -289,14 +286,11 @@ func TestInviteRelatedAccount_StaffApprovalRequiresApproval(t *testing.T) {
 func TestInviteRelatedAccount_UnownedChildIsRejected(t *testing.T) {
 	t.Parallel()
 
-	svc, invites, db := buildRelAcctService(t, configModels.ParentInviteModeDirect, false)
+	svc, invites, db := buildRelAcctService(t, parentService.ParentInviteModeDirect, false)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	// A student the account is NOT a guardian of.
 	other := testpkg.CreateTestStudent(t, db, "Not", "Mine", "9z")
-	defer func() {
-		_, _ = db.NewDelete().TableExpr("users.student_profiles").Where("id = ?", other.ID).Exec(testpkg.WithPackageTenantRuntime(context.Background()))
-	}()
 
 	_, err := svc.InviteRelatedAccount(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, other.ID, "x@example.test", "", "", false)
 	require.Error(t, err)
@@ -310,7 +304,7 @@ func TestInviteRelatedAccount_UnownedChildIsRejected(t *testing.T) {
 func TestInviteRelatedAccount_AfterCareEndedIsRejected(t *testing.T) {
 	t.Parallel()
 
-	svc, invites, db := buildRelAcctService(t, configModels.ParentInviteModeDirect, false)
+	svc, invites, db := buildRelAcctService(t, parentService.ParentInviteModeDirect, false)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	endCareFor(t, db, chain.StudentID)
@@ -324,7 +318,7 @@ func TestInviteRelatedAccount_AfterCareEndedIsRejected(t *testing.T) {
 func TestRemoveRelatedAccount_AfterCareEndedIsRejected(t *testing.T) {
 	t.Parallel()
 
-	svc, invites, db := buildRelAcctService(t, configModels.ParentInviteModeDirect, true)
+	svc, invites, db := buildRelAcctService(t, parentService.ParentInviteModeDirect, true)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	endCareFor(t, db, chain.StudentID)
@@ -338,7 +332,7 @@ func TestRemoveRelatedAccount_AfterCareEndedIsRejected(t *testing.T) {
 func TestRemoveRelatedAccount_DisabledIsRejected(t *testing.T) {
 	t.Parallel()
 
-	svc, invites, db := buildRelAcctService(t, configModels.ParentInviteModeDirect, false)
+	svc, invites, db := buildRelAcctService(t, parentService.ParentInviteModeDirect, false)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
@@ -351,7 +345,7 @@ func TestRemoveRelatedAccount_DisabledIsRejected(t *testing.T) {
 func TestRemoveRelatedAccount_DisabledInviteModeRejectsStaleRemoveFlag(t *testing.T) {
 	t.Parallel()
 
-	svc, invites, db := buildRelAcctService(t, configModels.ParentInviteModeDisabled, true)
+	svc, invites, db := buildRelAcctService(t, parentService.ParentInviteModeDisabled, true)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
@@ -364,7 +358,7 @@ func TestRemoveRelatedAccount_DisabledInviteModeRejectsStaleRemoveFlag(t *testin
 func TestRemoveRelatedAccount_EnabledDelegatesAsParent(t *testing.T) {
 	t.Parallel()
 
-	svc, invites, db := buildRelAcctService(t, configModels.ParentInviteModeDirect, true)
+	svc, invites, db := buildRelAcctService(t, parentService.ParentInviteModeDirect, true)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
@@ -383,7 +377,7 @@ func TestChildFeatures_ExposesRelatedAccountsFlags(t *testing.T) {
 	t.Parallel()
 
 	t.Run("invite enabled + remove on", func(t *testing.T) {
-		svc, _, db := buildRelAcctService(t, configModels.ParentInviteModeStaffApproval, true)
+		svc, _, db := buildRelAcctService(t, parentService.ParentInviteModeStaffApproval, true)
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 		flags, err := svc.ChildFeatures(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
@@ -393,7 +387,7 @@ func TestChildFeatures_ExposesRelatedAccountsFlags(t *testing.T) {
 	})
 
 	t.Run("invite disabled + remove off", func(t *testing.T) {
-		svc, _, db := buildRelAcctService(t, configModels.ParentInviteModeDisabled, false)
+		svc, _, db := buildRelAcctService(t, parentService.ParentInviteModeDisabled, false)
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 		flags, err := svc.ChildFeatures(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
@@ -403,7 +397,7 @@ func TestChildFeatures_ExposesRelatedAccountsFlags(t *testing.T) {
 	})
 
 	t.Run("invite disabled + stale remove on", func(t *testing.T) {
-		svc, _, db := buildRelAcctService(t, configModels.ParentInviteModeDisabled, true)
+		svc, _, db := buildRelAcctService(t, parentService.ParentInviteModeDisabled, true)
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 		flags, err := svc.ChildFeatures(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
@@ -411,25 +405,66 @@ func TestChildFeatures_ExposesRelatedAccountsFlags(t *testing.T) {
 		assert.False(t, flags.RelatedAccountsInviteEnabled)
 		assert.False(t, flags.RelatedAccountsRemoveEnabled, "disabled invite mode must suppress stale remove flag")
 	})
+
+	// #4603: the school switches alone no longer decide; the guardian needs
+	// parent_portal.related_accounts.manage, and editing an open absence
+	// request needs parent_portal.sick_note.submit.
+	t.Run("guardian without manage and submit permission", func(t *testing.T) {
+		svc, _, db := buildRelAcctService(t, parentService.ParentInviteModeDirect, true)
+		chain := testpkg.CreateTestParentGuardianChain(t, db)
+		ctx := testpkg.WithPackageTenantRuntime(context.Background())
+
+		flags, err := svc.ChildFeatures(ctx, chain.AccountID, chain.StudentID)
+		require.NoError(t, err)
+		assert.True(t, flags.RelatedAccountsInviteEnabled, "the full guardian preset carries the manage permission")
+		assert.True(t, flags.AbsenceRequestEditEnabled, "the full guardian preset carries sick_note.submit")
+
+		_, err = db.ExecContext(ctx, `
+			UPDATE auth.guardian_student_access AS a
+			SET permissions = '{"parent_portal.access": true}'::jsonb
+			FROM users.student_guardian_relationships AS r
+			WHERE r.tenant_id = a.tenant_id AND r.id = a.relationship_id
+			  AND r.tenant_id = ? AND r.student_id = ? AND r.guardian_profile_id = ?
+		`, chain.TenantID, chain.StudentID, chain.GuardianProfileID)
+		require.NoError(t, err)
+
+		flags, err = svc.ChildFeatures(ctx, chain.AccountID, chain.StudentID)
+		require.NoError(t, err)
+		assert.False(t, flags.RelatedAccountsInviteEnabled, "no manage permission → invite hidden")
+		assert.False(t, flags.RelatedAccountsRemoveEnabled, "no manage permission → remove hidden")
+		assert.False(t, flags.AbsenceRequestEditEnabled, "no sick_note.submit → edit hidden")
+	})
 }
 
-func buildRelAcctServiceWith(t *testing.T, settings configService.SettingsService) (*parentService.Portal, *bun.DB) {
+func buildRelAcctServiceWith(t *testing.T, settings parentService.SettingsService) (*parentService.Portal, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
-		CarePlan:            repos.CarePlan(),
-		People:              repositories.MustNewPeopleDirectory(db),
+		GuardianChanges:     owners.ParentGuardianChanges(),
+		DeparturePolicy:     owners.ParentDeparturePolicy(),
+		GuardianPolicy:      owners.NewParentGuardianPolicy(),
+		Fingerprints:        owners.SecurityFingerprints{},
+		Declarations:        owners.ParentDeclarationPolicy(),
+		Locales:             owners.ParentPortalLocales(),
+		Runtime:             owners.ParentPortalRuntime{},
+		CarePlan:            owners.NewParentCarePlanCommands(repos.CarePlan(), nil),
+		People:              owners.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:        careProfiles(t, db),
-		ChildRepo:           repos.ParentChild,
+		ChildRepo:           repos.ParentChildReads(),
 		StatusDayRepo:       repos.StudentStatusDay,
-		StudentRepo:         repos.Student,
+		StudentRepo:         owners.NewParentStudentReads(reposPeople.Student),
 		Settings:            settings,
 		MealPlan:            availableMealPlan(false),
 		GuardianInvites:     &stubInvites{},
-		StudentGuardianRepo: repos.StudentGuardian,
-		GuardianProfileRepo: repos.GuardianProfile,
+		StudentGuardianRepo: owners.NewParentStudentGuardianReads(reposPeople.StudentGuardian),
+		GuardianProfileRepo: owners.NewParentGuardianProfileReads(reposPeople.GuardianProfile),
 		Logger:              slog.Default(),
+
+		DataRequests: owners.NewParentDataRequestCommands(repos.CarePlan()),
+
+		CarePlanPolicy: owners.NewParentCarePlanPolicy(),
 	})
 	return svc, db
 }
@@ -437,7 +472,7 @@ func buildRelAcctServiceWith(t *testing.T, settings configService.SettingsServic
 func TestInviteRelatedAccount_EmptyEmailRejected(t *testing.T) {
 	t.Parallel()
 
-	svc, invites, db := buildRelAcctService(t, configModels.ParentInviteModeDirect, false)
+	svc, invites, db := buildRelAcctService(t, parentService.ParentInviteModeDirect, false)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	_, err := svc.InviteRelatedAccount(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, "   ", "", "", false)
@@ -449,7 +484,7 @@ func TestInviteRelatedAccount_EmptyEmailRejected(t *testing.T) {
 func TestInviteRelatedAccount_InvalidEmailRejected(t *testing.T) {
 	t.Parallel()
 
-	svc, invites, db := buildRelAcctService(t, configModels.ParentInviteModeDirect, false)
+	svc, invites, db := buildRelAcctService(t, parentService.ParentInviteModeDirect, false)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	_, err := svc.InviteRelatedAccount(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, "not-an-email", "", "", false)
@@ -488,23 +523,35 @@ func (failingInvites) RevokeAccess(_ context.Context, _ parentService.GuardianAc
 func buildRelAcctServiceInvites(t *testing.T, inviteMode string, canRemove bool, invites parentService.GuardianAccess) (*parentService.Portal, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
-		CarePlan:      repos.CarePlan(),
-		People:        repositories.MustNewPeopleDirectory(db),
-		CareProfiles:  careProfiles(t, db),
-		ChildRepo:     repos.ParentChild,
-		StatusDayRepo: repos.StudentStatusDay,
-		StudentRepo:   repos.Student,
+		GuardianChanges: owners.ParentGuardianChanges(),
+		DeparturePolicy: owners.ParentDeparturePolicy(),
+		GuardianPolicy:  owners.NewParentGuardianPolicy(),
+		Fingerprints:    owners.SecurityFingerprints{},
+		Declarations:    owners.ParentDeclarationPolicy(),
+		Locales:         owners.ParentPortalLocales(),
+		Runtime:         owners.ParentPortalRuntime{},
+		CarePlan:        owners.NewParentCarePlanCommands(repos.CarePlan(), nil),
+		People:          owners.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
+		CareProfiles:    careProfiles(t, db),
+		ChildRepo:       repos.ParentChildReads(),
+		StatusDayRepo:   repos.StudentStatusDay,
+		StudentRepo:     owners.NewParentStudentReads(reposPeople.Student),
 		Settings: parentSettingsStub{
-			boolValues:   map[string]bool{configModels.KeyGuardianParentCanRemove: canRemove},
-			stringValues: map[string]string{configModels.KeyGuardianParentInviteMode: inviteMode},
+			boolValues:   map[string]bool{parentService.KeyGuardianParentCanRemove: canRemove},
+			stringValues: map[string]string{parentService.KeyGuardianParentInviteMode: inviteMode},
 		},
 		GuardianInvites:     invites,
 		GuardianInvitations: guardianInvitationReads{db: db},
-		StudentGuardianRepo: repos.StudentGuardian,
-		GuardianProfileRepo: repos.GuardianProfile,
+		StudentGuardianRepo: owners.NewParentStudentGuardianReads(reposPeople.StudentGuardian),
+		GuardianProfileRepo: owners.NewParentGuardianProfileReads(reposPeople.GuardianProfile),
 		Logger:              slog.Default(),
+
+		DataRequests: owners.NewParentDataRequestCommands(repos.CarePlan()),
+
+		CarePlanPolicy: owners.NewParentCarePlanPolicy(),
 	})
 	return svc, db
 }
@@ -512,12 +559,9 @@ func buildRelAcctServiceInvites(t *testing.T, inviteMode string, canRemove bool,
 func TestListRelatedAccounts_UnownedChildErrors(t *testing.T) {
 	t.Parallel()
 
-	svc, _, db := buildRelAcctService(t, configModels.ParentInviteModeDirect, false)
+	svc, _, db := buildRelAcctService(t, parentService.ParentInviteModeDirect, false)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	other := testpkg.CreateTestStudent(t, db, "Not", "Owned", "9z")
-	defer func() {
-		_, _ = db.NewDelete().TableExpr("users.student_profiles").Where("id = ?", other.ID).Exec(testpkg.WithPackageTenantRuntime(context.Background()))
-	}()
 
 	_, err := svc.ListRelatedAccounts(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, other.ID)
 	require.Error(t, err, "listing an unowned child must be rejected")
@@ -527,7 +571,7 @@ func TestRelatedAccounts_DelegateErrorsSurface(t *testing.T) {
 	t.Parallel()
 
 	t.Run("invite delegate error", func(t *testing.T) {
-		svc, db := buildRelAcctServiceInvites(t, configModels.ParentInviteModeDirect, true, failingInvites{})
+		svc, db := buildRelAcctServiceInvites(t, parentService.ParentInviteModeDirect, true, failingInvites{})
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 		_, err := svc.InviteRelatedAccount(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, "x@example.test", "", "", false)
@@ -535,7 +579,7 @@ func TestRelatedAccounts_DelegateErrorsSurface(t *testing.T) {
 	})
 
 	t.Run("revoke delegate error", func(t *testing.T) {
-		svc, db := buildRelAcctServiceInvites(t, configModels.ParentInviteModeDirect, true, failingInvites{})
+		svc, db := buildRelAcctServiceInvites(t, parentService.ParentInviteModeDirect, true, failingInvites{})
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 		err := svc.RemoveRelatedAccount(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, chain.GuardianProfileID)
@@ -546,27 +590,24 @@ func TestRelatedAccounts_DelegateErrorsSurface(t *testing.T) {
 func TestListRelatedAccounts_AccountWithoutAccessIsActiveNoAccess(t *testing.T) {
 	t.Parallel()
 
-	svc, _, db := buildRelAcctService(t, configModels.ParentInviteModeDirect, false)
+	svc, _, db := buildRelAcctService(t, parentService.ParentInviteModeDirect, false)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	profile := testpkg.CreateTestGuardianProfile(t, db, "active-no-access")
 	_, account := testpkg.CreateTestPersonWithAccount(t, db, "NoAccess", "Account")
-	defer func() {
-		_, _ = db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(testpkg.WithPackageTenantRuntime(context.Background()))
-	}()
 	require.NoError(t, repos.GuardianProfile.LinkAccount(ctx, profile.ID, account.ID))
 	// Restrictive contact role → empty permission set, no parent_portal.access.
-	link := &userModels.StudentGuardian{
+	link := &peopledirectory.GuardianLinkFixture{
 		StudentID:         chain.StudentID,
 		GuardianProfileID: profile.ID,
 		RelationshipType:  "other",
 		EmergencyPriority: 1,
 	}
-	authorize.ApplyStudentGuardianRole(link, authorize.GuardianRoleEmergency)
-	link.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, repos.StudentGuardian.Create(ctx, link))
+	link.GuardianRole, link.Permissions = api.ParentGuardianRoleFixtureJSON("emergency_contact")
+	link.TenantID = testpkg.Tenant(t)
+	require.NoError(t, repos.CreateGuardianLinkFixture(ctx, link))
 
 	accounts, err := svc.ListRelatedAccounts(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
@@ -585,27 +626,23 @@ func TestListRelatedAccounts_AccountWithoutAccessIsActiveNoAccess(t *testing.T) 
 func TestListRelatedAccounts_AccountWithoutAccessWithOpenInviteIsPending(t *testing.T) {
 	t.Parallel()
 
-	svc, _, db := buildRelAcctService(t, configModels.ParentInviteModeDirect, false)
+	svc, _, db := buildRelAcctService(t, parentService.ParentInviteModeDirect, false)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	profile := testpkg.CreateTestGuardianProfile(t, db, "no-access-pending")
 	_, account := testpkg.CreateTestPersonWithAccount(t, db, "NoAccessPending", "Account")
-	defer func() {
-		_, _ = db.NewDelete().TableExpr("auth.guardian_invitations").Where("guardian_profile_id = ?", profile.ID).Exec(testpkg.WithPackageTenantRuntime(context.Background()))
-		_, _ = db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(testpkg.WithPackageTenantRuntime(context.Background()))
-	}()
 	require.NoError(t, repos.GuardianProfile.LinkAccount(ctx, profile.ID, account.ID))
-	link := &userModels.StudentGuardian{
+	link := &peopledirectory.GuardianLinkFixture{
 		StudentID:         chain.StudentID,
 		GuardianProfileID: profile.ID,
 		RelationshipType:  "other",
 		EmergencyPriority: 1,
 	}
-	authorize.ApplyStudentGuardianRole(link, authorize.GuardianRoleEmergency)
-	link.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, repos.StudentGuardian.Create(ctx, link))
+	link.GuardianRole, link.Permissions = api.ParentGuardianRoleFixtureJSON("emergency_contact")
+	link.TenantID = testpkg.Tenant(t)
+	require.NoError(t, repos.CreateGuardianLinkFixture(ctx, link))
 	studentID := chain.StudentID
 	invitation := &testpkg.GuardianInvitation{
 		Token:             fmt.Sprintf("no-access-pending-%d", time.Now().UnixNano()),

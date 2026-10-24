@@ -8,12 +8,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/tenant"
+
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -34,11 +37,11 @@ func uniqueSchemaName(prefix string) string {
 	return strings.ReplaceAll(prefix, " ", "-") + "-" + time.Now().Format("150405.000000")
 }
 
-func makeOffering(phaseID int64, name string) *enrollmentModels.CareOffering {
-	return &enrollmentModels.CareOffering{
+func makeOffering(phaseID int64, name string) *offeringContract.CareOfferingRecord {
+	return &offeringContract.CareOfferingRecord{
 		PhaseID:        phaseID,
 		Name:           name,
-		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
+		DaysOfWeekMode: offeringContract.DaysOfWeekModeFixed,
 		AvailableDays:  []string{"mon", "tue", "wed", "thu", "fri"},
 		IsActive:       true,
 	}
@@ -46,9 +49,9 @@ func makeOffering(phaseID int64, name string) *enrollmentModels.CareOffering {
 
 func makeOwnerEligibilityPhase(name string) *enrollmentTest.Phase {
 	return &enrollmentTest.Phase{
-		Name: name, Kind: enrollmentModels.PhaseKindSchoolYear,
+		Name: name, Kind: enrollmentTest.PhaseKindSchoolYear,
 		ServiceStartDate: enrollmentTest.Date("2026-09-01"), ServiceEndDate: enrollmentTest.Date("2027-07-31"),
-		IsActive: true, CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
+		IsActive: true, CareOverflowMode: enrollmentTest.PhaseCareOverflowWaitlist,
 	}
 }
 
@@ -57,7 +60,7 @@ func makeOwnerEligibilityPhase(name string) *enrollmentTest.Phase {
 func insertOwnerPhaseForTest(ctx context.Context, owner interface {
 	InsertPhase(context.Context, *enrollmentTest.Phase) error
 }, phase *enrollmentTest.Phase) error {
-	return owner.InsertPhase(ctx, phase)
+	return fixtureEnrollmentCommand(ctx, func(txCtx context.Context) error { return owner.InsertPhase(txCtx, phase) })
 }
 
 // ownerPhaseForTest copies a phase for an isolated fixture update.
@@ -73,21 +76,23 @@ func ownerPhaseForTest(phase *enrollmentTest.Phase) *enrollmentTest.Phase {
 func readOwnerChildForTest(ctx context.Context, owner interface {
 	ChildByID(context.Context, int64) (*enrollmentTest.RequestChild, error)
 }, id int64) (*enrollmentTest.RequestChild, error) {
-	return owner.ChildByID(ctx, id)
+	return fixtureEnrollmentQuery(ctx, func(txCtx context.Context) (*enrollmentTest.RequestChild, error) { return owner.ChildByID(txCtx, id) })
 }
 
 // updateOwnerChildForTest writes a request child's data through the owner.
 func updateOwnerChildForTest(ctx context.Context, owner interface {
 	UpdateChildData(context.Context, *enrollmentTest.RequestChild) error
 }, child *enrollmentTest.RequestChild) error {
-	return owner.UpdateChildData(ctx, child)
+	return fixtureEnrollmentCommand(ctx, func(txCtx context.Context) error { return owner.UpdateChildData(txCtx, child) })
 }
 
 // readOwnerRequestForTest loads a request through the owner query.
 func readOwnerRequestForTest(ctx context.Context, owner interface {
 	RequestByID(context.Context, int64, bool) (*enrollmentTest.Request, error)
 }, id int64) (*enrollmentTest.Request, error) {
-	return owner.RequestByID(ctx, id, false)
+	return fixtureEnrollmentQuery(ctx, func(txCtx context.Context) (*enrollmentTest.Request, error) {
+		return owner.RequestByID(txCtx, id, false)
+	})
 }
 
 // rawJSON encodes a fixture value for the owner's raw JSON fields.
@@ -119,12 +124,12 @@ type recordingSourcedTemplateResyncer struct {
 	err                 error
 }
 
-func (r *recordingSourcedTemplateResyncer) ResyncTemplatesSourcedFromOffering(_ context.Context, offeringID int64, _ timezone.Date) error {
+func (r *recordingSourcedTemplateResyncer) ResyncTemplatesSourcedFromOffering(_ context.Context, offeringID int64, _ calendar.Date) error {
 	r.offeringIDs = append(r.offeringIDs, offeringID)
 	return r.err
 }
 
-func (r *recordingSourcedTemplateResyncer) DetachTemplatesSourcedFromOffering(_ context.Context, offeringID int64, _ timezone.Date) error {
+func (r *recordingSourcedTemplateResyncer) DetachTemplatesSourcedFromOffering(_ context.Context, offeringID int64, _ calendar.Date) error {
 	r.detachedOfferingIDs = append(r.detachedOfferingIDs, offeringID)
 	return nil
 }
@@ -147,4 +152,17 @@ func (o phaseOfferings) OfferingIDsForPhase(ctx context.Context, phaseID int64) 
 
 func (o phaseOfferings) CountOfferingsForPhase(ctx context.Context, phaseID int64) (int, error) {
 	return o.carePlan.CountCareOfferingsByPhase(ctx, phaseID)
+}
+
+// These are fixture roots, not owner persistence fallbacks. Tests that inspect
+// the ambient-only contract call the native owner directly.
+func fixtureEnrollmentCommand(ctx context.Context, call func(context.Context) error) error {
+	return tenant.NewTransactionRunner().RunInTx(ctx, call)
+}
+func fixtureEnrollmentQuery[T any](ctx context.Context, call func(context.Context) (T, error)) (value T, err error) {
+	err = tenant.NewTransactionRunner().RunInTx(ctx, func(txCtx context.Context) error {
+		value, err = call(txCtx)
+		return err
+	})
+	return value, err
 }

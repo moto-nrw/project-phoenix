@@ -1,13 +1,9 @@
 package operator
 
-import (
-	"context"
+import "context"
 
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-)
-
-// SchoolLookup reads one school for the operator settings routes. The
-// Organisation & Tenancy capability satisfies it.
+// SchoolLookup reads the slug of one school for the operator settings
+// routes. The root binds it to Organisation & Tenancy.
 type SchoolLookup interface {
-	FindSchool(ctx context.Context, id int64) (organizationtenancy.School, error)
+	SchoolSlug(ctx context.Context, schoolID int64) (string, error)
 }

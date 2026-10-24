@@ -162,7 +162,9 @@ export function PhaseExpiryWarnings({
         return (
           <Alert
             key={warning.source_phase_id}
-            type={warning.overdue ? "error" : "warning"}
+            // A hint about the phase, not a failure of the user's action:
+            // amber in both states, an overdue one is read out at once.
+            type="warning"
             announce={warning.overdue ? "assertive" : "polite"}
             title={copy.title}
             message={copy.message}

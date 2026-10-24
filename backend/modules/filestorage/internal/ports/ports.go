@@ -8,6 +8,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/filestorage"
 	"github.com/moto-nrw/project-phoenix/modules/filestorage/internal/domain"
 )
 
@@ -15,7 +16,7 @@ import (
 // (documents.folder_roles, documents.folder_accounts).
 type FolderStore interface {
 	Create(ctx context.Context, folder domain.Folder) (domain.Folder, domain.OperationStats, error)
-	// Update rewrites name and visibility; a missing folder is domain.ErrNotFound.
+	// Update rewrites name and visibility; a missing folder is filestorage.ErrNotFound.
 	Update(ctx context.Context, folder domain.Folder) (domain.Folder, domain.OperationStats, error)
 	// Delete removes the folder row; its files and share lists cascade. The
 	// caller queues cleanup intents for the bytes BEFORE calling this.
@@ -53,7 +54,7 @@ type DocumentStore interface {
 	// at domain.RequestCleanupRetryLimit.
 	ListDeletedPendingCleanupByOwner(ctx context.Context, ownerID int64) ([]domain.Document, domain.OperationStats, error)
 	// SoftDelete stamps deleted_at/deleted_by on a live row and returns it; a
-	// row that is missing or already deleted is domain.ErrNotFound.
+	// row that is missing or already deleted is filestorage.ErrNotFound.
 	SoftDelete(ctx context.Context, documentID, deletedBy int64) (domain.Document, domain.OperationStats, error)
 	// MarkBytesDeleted records that the stored object is gone.
 	MarkBytesDeleted(ctx context.Context, documentID int64) (domain.OperationStats, error)
@@ -88,7 +89,7 @@ type Object = interface {
 // {kind}/{tenant}/{stored name}; the adapter owns the layout.
 type Objects interface {
 	Save(ctx context.Context, tenantID int64, storedName string, source io.Reader) (int64, error)
-	// Open returns domain.ErrObjectNotFound when the bytes are gone.
+	// Open returns filestorage.ErrObjectNotFound when the bytes are gone.
 	Open(ctx context.Context, tenantID int64, storedName string) (Object, error)
 	// Remove deletes the object; a missing object counts as removed.
 	Remove(ctx context.Context, tenantID int64, storedName string) error
@@ -96,17 +97,17 @@ type Objects interface {
 
 // Identity supplies the account and role facts of the school in context.
 type Identity interface {
-	// HasActiveMembership reports whether the account still holds an active
-	// mapping to the school.
-	HasActiveMembership(ctx context.Context, accountID int64) (bool, error)
+	// HasActiveSchoolMembership reports whether the account still holds an
+	// active mapping to the school.
+	HasActiveSchoolMembership(ctx context.Context, accountID int64) (bool, error)
 	// ListAccountRoleIDs returns the roles the account holds at this school.
 	ListAccountRoleIDs(ctx context.Context, accountID int64) ([]int64, error)
 	// ListShareableRoles returns the roles a folder can be shared with, by
 	// name: the school's own roles plus the system roles, without the
 	// guardian tier.
-	ListShareableRoles(ctx context.Context) ([]domain.AudienceRole, error)
-	// ListActiveAccountIDs returns every account with an active mapping.
-	ListActiveAccountIDs(ctx context.Context) ([]int64, error)
+	ListShareableRoles(ctx context.Context) ([]filestorage.AudienceRole, error)
+	// ListActiveSchoolAccountIDs returns every account with an active mapping.
+	ListActiveSchoolAccountIDs(ctx context.Context) ([]int64, error)
 }
 
 // PersonName is the display name behind an account.
@@ -168,17 +169,6 @@ type Announcements interface {
 	ResetAnnouncementEngagement(ctx context.Context, announcementID int64) error
 }
 
-// GuardianAudience is the parent-side question: is this guardian account in
-// the audience of this announcement right now, and which school does the
-// announcement belong to. Tenant id 0 with no error means "not for you".
-type GuardianAudience interface {
-	GuardianAnnouncementTenant(ctx context.Context, accountID, announcementID int64) (int64, error)
-	// GuardianDeclarationProofAttachmentTenant returns the school that owns an
-	// attachment frozen in this account's declaration proof, or 0 when it may
-	// not download that historical proof attachment.
-	GuardianDeclarationProofAttachmentTenant(ctx context.Context, accountID, announcementID, studentID, attachmentID int64) (int64, error)
-}
-
 // Transaction is the tenant-runtime seam.
 type Transaction interface {
 	// TenantID returns the tenant in context, 0 when absent.
@@ -221,4 +211,13 @@ type Logger interface {
 	Info(msg string, args ...any)
 	Warn(msg string, args ...any)
 	Error(msg string, args ...any)
+}
+
+// CleanupRetentionStore deletes a school's finished cleanup intents after the
+// retention window (#4046). Every statement uses the school's tenant transaction
+// and the database clock.
+type CleanupRetentionStore interface {
+	DeleteFinishedFileCleanups(ctx context.Context, window time.Duration) (int, error)
+	DeleteFinishedAttachmentCleanups(ctx context.Context, window time.Duration) (int, error)
+	DeleteRemovedFiles(ctx context.Context, window time.Duration) (int, error)
 }

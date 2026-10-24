@@ -37,6 +37,8 @@ var (
 	// ErrMFAPermissionDenied refuses an admin action the actor may not take,
 	// and a device or account it may not reach.
 	ErrMFAPermissionDenied = errors.New("permission denied")
+	// ErrOperatorAuditUnavailable refuses an unaudited privileged operation.
+	ErrOperatorAuditUnavailable = errors.New("operator audit unavailable")
 	// ErrMFAInvalidOverride refuses an override value outside the allow
 	// list.
 	ErrMFAInvalidOverride = errors.New("invalid mfa override value")
@@ -114,16 +116,17 @@ type MFAAdminState struct {
 // VerifiedMFAChallenge is what a redeemed challenge hands the caller, so the
 // session mint needs no second look at the challenge JWT.
 type VerifiedMFAChallenge struct {
-	AccountID int64
-	Scope     string
-	TenantID  int64
+	MFAResetGeneration int64
+	AccountID          int64
+	Scope              string
+	TenantID           int64
 }
 
 // AccountMFAGate is the read side every login path consults.
 type AccountMFAGate interface {
-	// IsRequired applies the resolved policy to the account's roles.
-	IsRequired(ctx context.Context, accountID int64, roleNames []string, tenantID int64) (bool, error)
-	// ResolveMFAPolicy performs the reads and leaves the role predicate
+	// IsRequired applies the resolved policy to the account's effective permissions.
+	IsRequired(ctx context.Context, accountID int64, permissions []string, tenantID int64) (bool, error)
+	// ResolveMFAPolicy performs the reads and leaves the permission predicate
 	// unapplied.
 	ResolveMFAPolicy(ctx context.Context, accountID, tenantID int64) (MFAPolicy, error)
 	// ResolveMFAPolicyInTx re-reads the policy on the caller's transaction,
@@ -156,7 +159,7 @@ type AccountMFAChallenges interface {
 	// authenticated the user out of band. The scope and school are required:
 	// without a challenge id they are what keeps the lookup inside its own
 	// portal.
-	VerifyMFACodeForAccount(ctx context.Context, accountID, tenantID int64, code, expectedScope string) error
+	VerifyMFACodeForAccount(ctx context.Context, accountID, tenantID int64, code, expectedScope string) (VerifiedMFAChallenge, error)
 	// ResendMFAChallengeForScope re-issues a code for a challenge of this
 	// portal and returns the renewed JWT.
 	ResendMFAChallengeForScope(ctx context.Context, challengeToken string, ip net.IP, expectedScope string) (string, error)
@@ -173,8 +176,17 @@ type AccountMFAEnrollment interface {
 	DisableMFA(ctx context.Context, accountID int64) error
 }
 
+// TrustedDeviceIssue persists a device using the policy resolved at preparation.
+// Call it only after session issuance succeeds.
+type TrustedDeviceIssue = func(context.Context) (cookieValue string, expiresAt time.Time, err error)
+
 // AccountTrustedDevices is the remember-device cookie.
 type AccountTrustedDevices interface {
+	// PrepareTrustedDevice resolves policy without writes. A nil operation
+	// means the feature is disabled. Either policy read can return an error;
+	// login callers then skip remembering the device, not the verified login.
+	// The operation does not re-read settings.
+	PrepareTrustedDevice(ctx context.Context, accountID, tenantID int64, userAgent string, ip net.IP) (TrustedDeviceIssue, error)
 	// IssueTrustedDevice answers an empty cookie value without persisting a
 	// row when the school turned the feature off; the caller then writes no
 	// Set-Cookie header.
@@ -214,116 +226,4 @@ type AccountMFA interface {
 	AccountMFAEnrollment
 	AccountTrustedDevices
 	AccountMFAAdministration
-}
-
-func (m *Module) IsRequired(ctx context.Context, accountID int64, roleNames []string, tenantID int64) (bool, error) {
-	return m.engine.IsRequired(ctx, accountID, roleNames, tenantID)
-}
-
-func (m *Module) ResolveMFAPolicy(ctx context.Context, accountID, tenantID int64) (MFAPolicy, error) {
-	return m.engine.ResolveMFAPolicy(ctx, accountID, tenantID)
-}
-
-func (m *Module) ResolveMFAPolicyInTx(ctx context.Context, accountID, tenantID int64) (MFAPolicy, error) {
-	return m.engine.ResolveMFAPolicyInTx(ctx, accountID, tenantID)
-}
-
-func (m *Module) HasMFAEnrollment(ctx context.Context, accountID int64) (bool, error) {
-	return m.engine.HasMFAEnrollment(ctx, accountID)
-}
-
-func (m *Module) AccountBelongsToSchool(ctx context.Context, accountID, tenantID int64) (bool, error) {
-	return m.engine.AccountBelongsToSchool(ctx, accountID, tenantID)
-}
-
-func (m *Module) IsTrustedDeviceEnabled(ctx context.Context, tenantID int64) bool {
-	return m.engine.IsTrustedDeviceEnabled(ctx, tenantID)
-}
-
-func (m *Module) TrustedDeviceDays(ctx context.Context, tenantID int64) int {
-	return m.engine.TrustedDeviceDays(ctx, tenantID)
-}
-
-func (m *Module) StartMFAChallenge(ctx context.Context, accountID, tenantID int64, scope string, ip net.IP) (string, error) {
-	return m.engine.StartMFAChallenge(ctx, accountID, tenantID, scope, ip)
-}
-
-func (m *Module) VerifyMFAChallenge(ctx context.Context, challengeToken, code string) (VerifiedMFAChallenge, error) {
-	return m.engine.VerifyMFAChallenge(ctx, challengeToken, code)
-}
-
-func (m *Module) VerifyMFAChallengeForScope(ctx context.Context, challengeToken, code, expectedScope string) (VerifiedMFAChallenge, error) {
-	return m.engine.VerifyMFAChallengeForScope(ctx, challengeToken, code, expectedScope)
-}
-
-func (m *Module) VerifyMFAChallengeForOwner(ctx context.Context, challengeToken, code, expectedScope string, accountID, tenantID int64) (VerifiedMFAChallenge, error) {
-	return m.engine.VerifyMFAChallengeForOwner(ctx, challengeToken, code, expectedScope, accountID, tenantID)
-}
-
-func (m *Module) VerifyMFACodeForAccount(ctx context.Context, accountID, tenantID int64, code, expectedScope string) error {
-	return m.engine.VerifyMFACodeForAccount(ctx, accountID, tenantID, code, expectedScope)
-}
-
-func (m *Module) ResendMFAChallengeForScope(ctx context.Context, challengeToken string, ip net.IP, expectedScope string) (string, error) {
-	return m.engine.ResendMFAChallengeForScope(ctx, challengeToken, ip, expectedScope)
-}
-
-func (m *Module) ResendMFAChallenge(ctx context.Context, challengeToken string, ip net.IP) (string, error) {
-	return m.engine.ResendMFAChallenge(ctx, challengeToken, ip)
-}
-
-func (m *Module) EnrollMFA(ctx context.Context, accountID int64) error {
-	return m.engine.EnrollMFA(ctx, accountID)
-}
-
-func (m *Module) DisableMFA(ctx context.Context, accountID int64) error {
-	return m.engine.DisableMFA(ctx, accountID)
-}
-
-func (m *Module) IssueTrustedDevice(ctx context.Context, accountID, tenantID int64, userAgent string, ip net.IP) (string, time.Time, error) {
-	return m.engine.IssueTrustedDevice(ctx, accountID, tenantID, userAgent, ip)
-}
-
-func (m *Module) VerifyTrustedDevice(ctx context.Context, accountID, tenantID int64, signedCookie string) (bool, error) {
-	return m.engine.VerifyTrustedDevice(ctx, accountID, tenantID, signedCookie)
-}
-
-func (m *Module) ListTrustedDevices(ctx context.Context, accountID, tenantID int64) ([]AccountTrustedDevice, error) {
-	return m.engine.ListTrustedDevices(ctx, accountID, tenantID)
-}
-
-func (m *Module) RevokeTrustedDevice(ctx context.Context, accountID, tenantID, deviceID int64) error {
-	return m.engine.RevokeTrustedDevice(ctx, accountID, tenantID, deviceID)
-}
-
-func (m *Module) AdminDisableMFA(ctx context.Context, actorID, actorTenantID, targetAccountID int64, reason string, actorPermissions []string) error {
-	return m.engine.AdminDisableMFA(ctx, actorID, actorTenantID, targetAccountID, reason, actorPermissions)
-}
-
-func (m *Module) SetMFAOverride(ctx context.Context, actorID, actorTenantID, targetAccountID int64, override, reason string, actorPermissions []string) error {
-	return m.engine.SetMFAOverride(ctx, actorID, actorTenantID, targetAccountID, override, reason, actorPermissions)
-}
-
-func (m *Module) GetTenantMFAOverride(ctx context.Context, accountID, tenantID int64) (string, error) {
-	return m.engine.GetTenantMFAOverride(ctx, accountID, tenantID)
-}
-
-func (m *Module) GetMFAAdminState(ctx context.Context, actorID, actorTenantID, targetAccountID int64, actorPermissions []string) (MFAAdminState, error) {
-	return m.engine.GetMFAAdminState(ctx, actorID, actorTenantID, targetAccountID, actorPermissions)
-}
-
-func (m *Module) OperatorDisableMFA(ctx context.Context, operatorID, schoolID, targetAccountID int64, reason string) error {
-	return m.engine.OperatorDisableMFA(ctx, operatorID, schoolID, targetAccountID, reason)
-}
-
-func (m *Module) OperatorSetMFAOverride(ctx context.Context, operatorID, schoolID, targetAccountID int64, override, reason string) error {
-	return m.engine.OperatorSetMFAOverride(ctx, operatorID, schoolID, targetAccountID, override, reason)
-}
-
-func (m *Module) OperatorSetGlobalMFAOverride(ctx context.Context, operatorID, targetAccountID int64, override, reason string) error {
-	return m.engine.OperatorSetGlobalMFAOverride(ctx, operatorID, targetAccountID, override, reason)
-}
-
-func (m *Module) GetGlobalMFAOverride(ctx context.Context, accountID int64) (string, error) {
-	return m.engine.GetGlobalMFAOverride(ctx, accountID)
 }

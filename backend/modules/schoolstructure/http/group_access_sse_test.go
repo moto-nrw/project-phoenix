@@ -94,7 +94,7 @@ func TestUpdateGroupTeachers_Unchanged_BroadcastsNothing(t *testing.T) {
 	tc, router, broadcaster := setupRecordingRouter(t)
 	groupID, _ := groupLeader(t, tc, "SSESameTeachers")
 
-	teachers, err := tc.resource.EducationService.GetGroupTeachers(testpkg.Ctx(t), groupID)
+	teachers, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), tc.db, tc.resource.EducationService.GetGroupTeachers, groupID)
 	require.NoError(t, err)
 	require.Len(t, teachers, 1)
 
@@ -122,9 +122,9 @@ func TestUpdateGroupTeachers_PartialFailureRollsBack(t *testing.T) {
 	groupID, _ := groupLeader(t, tc, "SSETeacherRollback")
 
 	ctx := testpkg.Ctx(t)
-	originalGroup, err := tc.resource.EducationService.GetGroup(ctx, groupID)
+	originalGroup, err := testpkg.TenantQuery1(t, ctx, tc.db, tc.resource.EducationService.GetGroup, groupID)
 	require.NoError(t, err)
-	originalTeachers, err := tc.resource.EducationService.GetGroupTeachers(ctx, groupID)
+	originalTeachers, err := testpkg.TenantQuery1(t, ctx, tc.db, tc.resource.EducationService.GetGroupTeachers, groupID)
 	require.NoError(t, err)
 	require.Len(t, originalTeachers, 1)
 
@@ -141,11 +141,11 @@ func TestUpdateGroupTeachers_PartialFailureRollsBack(t *testing.T) {
 	rr := testutil.ExecuteRequest(router, req)
 	testutil.AssertBadRequest(t, rr)
 
-	updatedGroup, err := tc.resource.EducationService.GetGroup(ctx, groupID)
+	updatedGroup, err := testpkg.TenantQuery1(t, ctx, tc.db, tc.resource.EducationService.GetGroup, groupID)
 	require.NoError(t, err)
 	assert.Equal(t, originalGroup.Name, updatedGroup.Name, "the group update must roll back with its teacher set")
 
-	updatedTeachers, err := tc.resource.EducationService.GetGroupTeachers(ctx, groupID)
+	updatedTeachers, err := testpkg.TenantQuery1(t, ctx, tc.db, tc.resource.EducationService.GetGroupTeachers, groupID)
 	require.NoError(t, err)
 	require.Len(t, updatedTeachers, 1)
 	assert.Equal(t, originalTeachers[0].ID, updatedTeachers[0].ID)
@@ -174,10 +174,7 @@ func TestCreateGroupTeachers_PartialFailureRollsBack(t *testing.T) {
 	rr := testutil.ExecuteRequest(router, req)
 	testutil.AssertBadRequest(t, rr)
 
-	groupCount, err := tc.resource.EducationService.CountGroups(
-		testpkg.Ctx(t),
-		&contract.GroupListQuery{Name: groupName},
-	)
+	groupCount, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), tc.db, tc.resource.EducationService.CountGroups, &contract.GroupListQuery{Name: groupName})
 	require.NoError(t, err)
 	assert.Zero(t, groupCount, "the new group must roll back with its partial teacher set")
 	assert.False(t, broadcaster.HasEventType(realtime.EventGroupAccessChanged),

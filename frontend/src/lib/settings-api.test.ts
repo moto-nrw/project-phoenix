@@ -14,8 +14,6 @@ const {
   fetchSettingsSchema,
   saveSettingValue,
   clearSettingValue,
-  setSettingValue,
-  resetSettingValue,
   revealSettingValue,
   applyOptimisticSchemaUpdate,
   getSettingValue,
@@ -119,69 +117,6 @@ describe("fetchSettingsSchema", () => {
   });
 });
 
-describe("setSettingValue", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it("returns null on success", async () => {
-    mockSessionFetch.mockResolvedValue(
-      mockResponse(200, { status: "success" }),
-    );
-
-    const result = await setSettingValue("test.key", "value");
-
-    expect(result).toBeNull();
-    expect(mockSessionFetch).toHaveBeenCalledWith(
-      "/api/settings/values/test.key",
-      expect.objectContaining({
-        method: "PUT",
-        body: JSON.stringify({ value: "value" }),
-      }),
-    );
-  });
-
-  it("returns German error on 404", async () => {
-    mockSessionFetch.mockResolvedValue(
-      mockResponse(404, { error: "setting not found" }),
-    );
-
-    const result = await setSettingValue("bad.key", "value");
-
-    expect(result).toBe("Einstellung nicht gefunden.");
-  });
-
-  it("returns validation error on 400", async () => {
-    mockSessionFetch.mockResolvedValue(
-      mockResponse(400, {
-        error: "invalid value for setting test.key: below minimum 10",
-      }),
-    );
-
-    const result = await setSettingValue("test.key", 5);
-
-    expect(result).toContain("Minimum");
-  });
-
-  it("returns generic error on 500", async () => {
-    mockSessionFetch.mockResolvedValue(
-      mockResponse(500, { error: "internal server error" }),
-    );
-
-    const result = await setSettingValue("test.key", "value");
-
-    expect(result).toBe("Einstellung konnte nicht gespeichert werden.");
-  });
-
-  it("returns network error message on fetch failure", async () => {
-    mockSessionFetch.mockRejectedValue(new Error("network error"));
-
-    const result = await setSettingValue("test.key", "value");
-
-    expect(result).toContain("Netzwerkfehler");
-  });
-});
-
 describe("saveSettingValue", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -234,48 +169,6 @@ describe("clearSettingValue", () => {
       status: 500,
       code: "general.server",
     });
-  });
-});
-
-describe("resetSettingValue", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it("returns null on 204", async () => {
-    mockSessionFetch.mockResolvedValue(mockResponse(204));
-
-    const result = await resetSettingValue("test.key");
-
-    expect(result).toBeNull();
-    expect(mockSessionFetch).toHaveBeenCalledWith(
-      "/api/settings/values/test.key",
-      { method: "DELETE" },
-    );
-  });
-
-  it("returns null on 200", async () => {
-    mockSessionFetch.mockResolvedValue(mockResponse(200));
-
-    const result = await resetSettingValue("test.key");
-
-    expect(result).toBeNull();
-  });
-
-  it("returns error on 500", async () => {
-    mockSessionFetch.mockResolvedValue(mockResponse(500));
-
-    const result = await resetSettingValue("test.key");
-
-    expect(result).toContain("zurückgesetzt");
-  });
-
-  it("returns network error on fetch failure", async () => {
-    mockSessionFetch.mockRejectedValue(new Error("network error"));
-
-    const result = await resetSettingValue("test.key");
-
-    expect(result).toContain("Netzwerkfehler");
   });
 });
 

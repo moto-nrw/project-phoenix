@@ -3,9 +3,10 @@ package application
 import (
 	"testing"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment/selection"
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+
+	"github.com/moto-nrw/project-phoenix/modules/careplan/selection"
+	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -28,24 +29,24 @@ func TestMaterializeCareOfferingsEnforcesAvailabilityPerChild(t *testing.T) {
 	t.Parallel()
 
 	grade := func(value int16) *int16 { return &value }
-	conditional := &enrollmentModels.CareOffering{
-		Name: "Randstunde", DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed, AvailableDays: []string{"mon"}, AvailabilityRule: testGradeAvailabilityRule(enrollmentModels.AvailabilityOperatorIn, 1, 2),
+	conditional := &offeringContract.CareOfferingRecord{
+		Name: "Randstunde", DaysOfWeekMode: offeringContract.DaysOfWeekModeFixed, AvailableDays: []string{"mon"}, AvailabilityRule: testGradeAvailabilityRule(offeringContract.AvailabilityOperatorIn, 1, 2),
 	}
 	conditional.ID = 10
-	unconditional := &enrollmentModels.CareOffering{Name: "Alle Klassen", DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed, AvailableDays: []string{"mon"}}
+	unconditional := &offeringContract.CareOfferingRecord{Name: "Alle Klassen", DaysOfWeekMode: offeringContract.DaysOfWeekModeFixed, AvailableDays: []string{"mon"}}
 	unconditional.ID = 20
-	catalog := map[int64]*enrollmentModels.CareOffering{10: conditional, 20: unconditional}
+	catalog := map[int64]*offeringContract.CareOfferingRecord{10: conditional, 20: unconditional}
 
 	children := []SubmitChild{
 		{TargetGradeLevel: grade(2), OfferingIDs: []int64{10, 20}},
 		{TargetGradeLevel: grade(3), OfferingIDs: []int64{20}},
 	}
-	_, err := materializeChildrenOfferingSelections(children, catalog, enrollmentModels.PhaseCareOfferingSelectionOptional)
+	_, err := materializeChildrenOfferingSelections(children, catalog, enrollmentNative.PhaseCareOfferingSelectionOptional)
 	require.NoError(t, err)
 
 	children[1].OfferingIDs = []int64{10}
-	_, err = materializeChildrenOfferingSelections(children, catalog, enrollmentModels.PhaseCareOfferingSelectionOptional)
-	requireSelectionError(t, err, selection.ErrCareOfferingUnavailable, enrollment.ErrCareOfferingUnavailable)
+	_, err = materializeChildrenOfferingSelections(children, catalog, enrollmentNative.PhaseCareOfferingSelectionOptional)
+	requireSelectionError(t, err, selection.ErrCareOfferingUnavailable, enrollmentNative.ErrCareOfferingUnavailable)
 }
 
 func TestChangeRequestCareOfferingsUseEachChildsGradeIndependently(t *testing.T) {
@@ -53,23 +54,23 @@ func TestChangeRequestCareOfferingsUseEachChildsGradeIndependently(t *testing.T)
 
 	grade2 := int16(2)
 	grade3 := int16(3)
-	forGradesOneAndTwo := &enrollmentModels.CareOffering{
-		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
+	forGradesOneAndTwo := &offeringContract.CareOfferingRecord{
+		DaysOfWeekMode: offeringContract.DaysOfWeekModeFixed,
 		AvailableDays:  []string{"mon"},
 		AvailabilityRule: testGradeAvailabilityRule(
-			enrollmentModels.AvailabilityOperatorIn, 1, 2,
+			offeringContract.AvailabilityOperatorIn, 1, 2,
 		),
 	}
 	forGradesOneAndTwo.ID = 10
-	forGradesThreeAndFour := &enrollmentModels.CareOffering{
-		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
+	forGradesThreeAndFour := &offeringContract.CareOfferingRecord{
+		DaysOfWeekMode: offeringContract.DaysOfWeekModeFixed,
 		AvailableDays:  []string{"tue"},
 		AvailabilityRule: testGradeAvailabilityRule(
-			enrollmentModels.AvailabilityOperatorIn, 3, 4,
+			offeringContract.AvailabilityOperatorIn, 3, 4,
 		),
 	}
 	forGradesThreeAndFour.ID = 20
-	catalog := map[int64]*enrollmentModels.CareOffering{
+	catalog := map[int64]*offeringContract.CareOfferingRecord{
 		10: forGradesOneAndTwo,
 		20: forGradesThreeAndFour,
 	}
@@ -80,8 +81,8 @@ func TestChangeRequestCareOfferingsUseEachChildsGradeIndependently(t *testing.T)
 			{TargetGradeLevel: &grade3, OfferingIDs: []int64{20}},
 		},
 		[]*RequestChild{{}, {}},
-		[]map[int64]*enrollmentModels.CareOffering{catalog, catalog},
-		enrollmentModels.PhaseCareOfferingSelectionOptional,
+		[]map[int64]*offeringContract.CareOfferingRecord{catalog, catalog},
+		enrollmentNative.PhaseCareOfferingSelectionOptional,
 		false,
 	)
 	require.NoError(t, err)
@@ -89,19 +90,75 @@ func TestChangeRequestCareOfferingsUseEachChildsGradeIndependently(t *testing.T)
 	require.Equal(t, int64(20), selections[1][0].OfferingID)
 }
 
+func TestChangeRequestCareOfferingsRejectSameDayVariants(t *testing.T) {
+	t.Parallel()
+
+	variant := func(id int64) *offeringContract.CareOfferingRecord {
+		return &offeringContract.CareOfferingRecord{
+			ID: id, DaysOfWeekMode: offeringContract.DaysOfWeekModeParentChoice, AvailableDays: []string{"mon"},
+			SelectionGroup: "Betreuungszeit", SelectionRule: selection.SelectionRuleAtMostOnePerDay,
+		}
+	}
+	first, second := variant(10), variant(20)
+	children := []SubmitChild{{
+		OfferingIDs: []int64{first.ID, second.ID},
+		OfferingDays: []SubmitOfferingDays{
+			{OfferingID: first.ID, SelectedDays: []string{"mon"}},
+			{OfferingID: second.ID, SelectedDays: []string{"mon"}},
+		},
+	}}
+
+	_, err := materializeChangeRequestChildren(
+		children,
+		[]*RequestChild{{}},
+		[]map[int64]*offeringContract.CareOfferingRecord{{first.ID: first, second.ID: second}},
+		enrollmentNative.PhaseCareOfferingSelectionOptional,
+		false,
+	)
+
+	requireSelectionError(t, err, selection.ErrCareOfferingDayConflict, enrollmentNative.ErrCareOfferingDayConflict)
+}
+
+func TestInitialEnrollmentCareOfferingsRejectSameDayVariants(t *testing.T) {
+	t.Parallel()
+
+	variant := func(id int64) *offeringContract.CareOfferingRecord {
+		return &offeringContract.CareOfferingRecord{
+			ID: id, DaysOfWeekMode: offeringContract.DaysOfWeekModeParentChoice, AvailableDays: []string{"mon"},
+			SelectionGroup: "Betreuungszeit", SelectionRule: selection.SelectionRuleAtMostOnePerDay,
+		}
+	}
+	first, second := variant(10), variant(20)
+	children := []SubmitChild{{
+		OfferingIDs: []int64{first.ID, second.ID},
+		OfferingDays: []SubmitOfferingDays{
+			{OfferingID: first.ID, SelectedDays: []string{"mon"}},
+			{OfferingID: second.ID, SelectedDays: []string{"mon"}},
+		},
+	}}
+
+	_, err := materializeChildrenOfferingSelections(
+		children,
+		map[int64]*offeringContract.CareOfferingRecord{first.ID: first, second.ID: second},
+		enrollmentNative.PhaseCareOfferingSelectionOptional,
+	)
+
+	requireSelectionError(t, err, selection.ErrCareOfferingDayConflict, enrollmentNative.ErrCareOfferingDayConflict)
+}
+
 func TestMaterializeCareOfferingsMissingGradeRejectsPositiveAndNegativeRules(t *testing.T) {
 	t.Parallel()
 
-	for _, operator := range []string{enrollmentModels.AvailabilityOperatorIn, enrollmentModels.AvailabilityOperatorNotIn} {
+	for _, operator := range []string{offeringContract.AvailabilityOperatorIn, offeringContract.AvailabilityOperatorNotIn} {
 		t.Run(operator, func(t *testing.T) {
-			offering := &enrollmentModels.CareOffering{AvailabilityRule: testGradeAvailabilityRule(operator, 1, 2)}
+			offering := &offeringContract.CareOfferingRecord{AvailabilityRule: testGradeAvailabilityRule(operator, 1, 2)}
 			offering.ID = 10
 			_, err := materializeChildrenOfferingSelections(
 				[]SubmitChild{{OfferingIDs: []int64{10}}},
-				map[int64]*enrollmentModels.CareOffering{10: offering},
-				enrollmentModels.PhaseCareOfferingSelectionOptional,
+				map[int64]*offeringContract.CareOfferingRecord{10: offering},
+				enrollmentNative.PhaseCareOfferingSelectionOptional,
 			)
-			requireSelectionError(t, err, selection.ErrCareOfferingUnavailable, enrollment.ErrCareOfferingUnavailable)
+			requireSelectionError(t, err, selection.ErrCareOfferingUnavailable, enrollmentNative.ErrCareOfferingUnavailable)
 		})
 	}
 }
@@ -110,22 +167,22 @@ func TestConditionalRequiredAndSelectionModeOnlyApplyWhenAvailable(t *testing.T)
 	t.Parallel()
 
 	grade3 := int16(3)
-	required := &enrollmentModels.CareOffering{
-		IsRequired: true, AvailabilityRule: testGradeAvailabilityRule(enrollmentModels.AvailabilityOperatorIn, 1, 2),
+	required := &offeringContract.CareOfferingRecord{
+		IsRequired: true, AvailabilityRule: testGradeAvailabilityRule(offeringContract.AvailabilityOperatorIn, 1, 2),
 	}
 	required.ID = 10
-	catalog := map[int64]*enrollmentModels.CareOffering{10: required}
+	catalog := map[int64]*offeringContract.CareOfferingRecord{10: required}
 
 	_, err := materializeChildrenOfferingSelections(
-		[]SubmitChild{{TargetGradeLevel: &grade3}}, catalog, enrollmentModels.PhaseCareOfferingSelectionExactlyOne,
+		[]SubmitChild{{TargetGradeLevel: &grade3}}, catalog, enrollmentNative.PhaseCareOfferingSelectionExactlyOne,
 	)
 	require.NoError(t, err)
 
 	grade2 := int16(2)
 	_, err = materializeChildrenOfferingSelections(
-		[]SubmitChild{{TargetGradeLevel: &grade2}}, catalog, enrollmentModels.PhaseCareOfferingSelectionExactlyOne,
+		[]SubmitChild{{TargetGradeLevel: &grade2}}, catalog, enrollmentNative.PhaseCareOfferingSelectionExactlyOne,
 	)
-	requireSelectionError(t, err, selection.ErrRequiredCareOfferingMissing, enrollment.ErrRequiredCareOfferingMissing)
+	requireSelectionError(t, err, selection.ErrRequiredCareOfferingMissing, enrollmentNative.ErrRequiredCareOfferingMissing)
 }
 
 func TestSelectionModeStillRejectsAnEmptyCatalog(t *testing.T) {
@@ -133,40 +190,40 @@ func TestSelectionModeStillRejectsAnEmptyCatalog(t *testing.T) {
 
 	_, err := materializeChildrenOfferingSelections(
 		[]SubmitChild{{}},
-		map[int64]*enrollmentModels.CareOffering{},
-		enrollmentModels.PhaseCareOfferingSelectionExactlyOne,
+		map[int64]*offeringContract.CareOfferingRecord{},
+		enrollmentNative.PhaseCareOfferingSelectionExactlyOne,
 	)
-	requireSelectionError(t, err, selection.ErrCareOfferingExactlyOneRequired, enrollment.ErrCareOfferingExactlyOneRequired)
+	requireSelectionError(t, err, selection.ErrCareOfferingExactlyOneRequired, enrollmentNative.ErrCareOfferingExactlyOneRequired)
 }
 
 func TestSelectionGroupsIgnoreUnavailableOfferings(t *testing.T) {
 	t.Parallel()
 
 	grade3 := int16(3)
-	conditional := &enrollmentModels.CareOffering{
-		SelectionGroup: "randstunde", SelectionRule: enrollmentModels.SelectionRuleExactlyOne,
-		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed, AvailableDays: []string{"mon"},
-		AvailabilityRule: testGradeAvailabilityRule(enrollmentModels.AvailabilityOperatorIn, 1, 2),
+	conditional := &offeringContract.CareOfferingRecord{
+		SelectionGroup: "randstunde", SelectionRule: offeringContract.SelectionRuleExactlyOne,
+		DaysOfWeekMode: offeringContract.DaysOfWeekModeFixed, AvailableDays: []string{"mon"},
+		AvailabilityRule: testGradeAvailabilityRule(offeringContract.AvailabilityOperatorIn, 1, 2),
 	}
 	conditional.ID = 10
-	available := &enrollmentModels.CareOffering{
-		SelectionGroup: "randstunde", SelectionRule: enrollmentModels.SelectionRuleExactlyOne,
-		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed, AvailableDays: []string{"mon"},
+	available := &offeringContract.CareOfferingRecord{
+		SelectionGroup: "randstunde", SelectionRule: offeringContract.SelectionRuleExactlyOne,
+		DaysOfWeekMode: offeringContract.DaysOfWeekModeFixed, AvailableDays: []string{"mon"},
 	}
 	available.ID = 20
-	catalog := map[int64]*enrollmentModels.CareOffering{10: conditional, 20: available}
+	catalog := map[int64]*offeringContract.CareOfferingRecord{10: conditional, 20: available}
 
 	_, err := materializeChildrenOfferingSelections(
 		[]SubmitChild{{TargetGradeLevel: &grade3, OfferingIDs: []int64{20}}},
 		catalog,
-		enrollmentModels.PhaseCareOfferingSelectionOptional,
+		enrollmentNative.PhaseCareOfferingSelectionOptional,
 	)
 	require.NoError(t, err)
 
 	_, err = materializeChildrenOfferingSelections(
 		[]SubmitChild{{TargetGradeLevel: &grade3}},
-		map[int64]*enrollmentModels.CareOffering{10: conditional},
-		enrollmentModels.PhaseCareOfferingSelectionOptional,
+		map[int64]*offeringContract.CareOfferingRecord{10: conditional},
+		enrollmentNative.PhaseCareOfferingSelectionOptional,
 	)
 	require.NoError(t, err)
 }
@@ -175,18 +232,18 @@ func TestUnavailableOfferingCannotBeAutoAdded(t *testing.T) {
 	t.Parallel()
 
 	grade3 := int16(3)
-	trigger := &enrollmentModels.CareOffering{Name: "Trigger", DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed, AvailableDays: []string{"mon"}}
+	trigger := &offeringContract.CareOfferingRecord{Name: "Trigger", DaysOfWeekMode: offeringContract.DaysOfWeekModeFixed, AvailableDays: []string{"mon"}}
 	trigger.ID = 10
-	target := &enrollmentModels.CareOffering{
+	target := &offeringContract.CareOfferingRecord{
 		Name:                      "Auto",
-		DaysOfWeekMode:            enrollmentModels.DaysOfWeekModeParentChoice,
+		DaysOfWeekMode:            offeringContract.DaysOfWeekModeParentChoice,
 		AvailableDays:             []string{"mon"},
 		AutoAddTriggerOfferingIDs: []int64{10},
-		AvailabilityRule:          testGradeAvailabilityRule(enrollmentModels.AvailabilityOperatorIn, 1, 2),
+		AvailabilityRule:          testGradeAvailabilityRule(offeringContract.AvailabilityOperatorIn, 1, 2),
 	}
 	target.ID = 20
 	children := []SubmitChild{{TargetGradeLevel: &grade3, OfferingIDs: []int64{10}}}
-	selections, err := materializeChildrenOfferingSelections(children, map[int64]*enrollmentModels.CareOffering{10: trigger, 20: target}, enrollmentModels.PhaseCareOfferingSelectionOptional)
+	selections, err := materializeChildrenOfferingSelections(children, map[int64]*offeringContract.CareOfferingRecord{10: trigger, 20: target}, enrollmentNative.PhaseCareOfferingSelectionOptional)
 	require.NoError(t, err)
 	require.Len(t, selections[0], 1)
 	require.Equal(t, int64(10), selections[0][0].OfferingID)
@@ -196,16 +253,16 @@ func TestUnknownOfferingStillUsesClosedError(t *testing.T) {
 	t.Parallel()
 
 	_, err := materializeChildrenOfferingSelections(
-		[]SubmitChild{{OfferingIDs: []int64{999}}}, map[int64]*enrollmentModels.CareOffering{}, enrollmentModels.PhaseCareOfferingSelectionOptional,
+		[]SubmitChild{{OfferingIDs: []int64{999}}}, map[int64]*offeringContract.CareOfferingRecord{}, enrollmentNative.PhaseCareOfferingSelectionOptional,
 	)
-	requireSelectionError(t, err, selection.ErrCareOfferingClosed, enrollment.ErrCareOfferingClosed)
+	requireSelectionError(t, err, selection.ErrCareOfferingClosed, enrollmentNative.ErrCareOfferingClosed)
 }
 
-func testGradeAvailabilityRule(operator string, values ...int) *enrollmentModels.CareOfferingAvailabilityRule {
-	return &enrollmentModels.CareOfferingAvailabilityRule{
-		Match: enrollmentModels.AvailabilityMatchAll,
-		Conditions: []enrollmentModels.CareOfferingAvailabilityCondition{{
-			Source: enrollmentModels.AvailabilitySourceGradeLevel, Operator: operator, Value: values,
+func testGradeAvailabilityRule(operator string, values ...int) *offeringContract.CareOfferingAvailabilityRule {
+	return &offeringContract.CareOfferingAvailabilityRule{
+		Match: offeringContract.AvailabilityMatchAll,
+		Conditions: []offeringContract.CareOfferingAvailabilityCondition{{
+			Source: offeringContract.AvailabilitySourceGradeLevel, Operator: operator, Value: values,
 		}},
 	}
 }
@@ -215,24 +272,24 @@ func TestMaterializeAndValidateChildrenOfferingSelectionsValidatesFinalAutoAdded
 
 	manualOfferingID := int64(1001)
 	automaticOfferingID := int64(1002)
-	openByID := map[int64]*enrollmentModels.CareOffering{
+	openByID := map[int64]*offeringContract.CareOfferingRecord{
 		manualOfferingID: {
 			ID:             manualOfferingID,
 			Name:           "Frühbetreuung",
-			DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice,
+			DaysOfWeekMode: offeringContract.DaysOfWeekModeParentChoice,
 			AvailableDays:  []string{"mon"},
 			SelectionGroup: "randzeiten",
-			SelectionRule:  enrollmentModels.SelectionRuleAtMostOne,
+			SelectionRule:  offeringContract.SelectionRuleAtMostOne,
 			SortOrder:      1,
 		},
 		automaticOfferingID: {
 			ID:                        automaticOfferingID,
 			Name:                      "Spätbetreuung",
-			DaysOfWeekMode:            enrollmentModels.DaysOfWeekModeParentChoice,
+			DaysOfWeekMode:            offeringContract.DaysOfWeekModeParentChoice,
 			AvailableDays:             []string{"mon"},
 			AutoAddTriggerOfferingIDs: []int64{manualOfferingID},
 			SelectionGroup:            "randzeiten",
-			SelectionRule:             enrollmentModels.SelectionRuleAtMostOne,
+			SelectionRule:             offeringContract.SelectionRuleAtMostOne,
 			SortOrder:                 2,
 		},
 	}
@@ -241,9 +298,9 @@ func TestMaterializeAndValidateChildrenOfferingSelectionsValidatesFinalAutoAdded
 		OfferingDays: []SubmitOfferingDays{{OfferingID: manualOfferingID, SelectedDays: []string{"mon"}}},
 	}}
 
-	_, err := materializeChildrenOfferingSelections(children, openByID, enrollmentModels.PhaseCareOfferingSelectionOptional)
+	_, err := materializeChildrenOfferingSelections(children, openByID, enrollmentNative.PhaseCareOfferingSelectionOptional)
 
-	requireSelectionError(t, err, selection.ErrCareOfferingRule, enrollment.ErrCareOfferingRule)
+	requireSelectionError(t, err, selection.ErrCareOfferingRule, enrollmentNative.ErrCareOfferingRule)
 }
 
 func TestMaterializeAndValidateChildrenOfferingSelectionsIgnoresAutoAddedOfferingForExactlyOne(t *testing.T) {
@@ -251,18 +308,18 @@ func TestMaterializeAndValidateChildrenOfferingSelectionsIgnoresAutoAddedOfferin
 
 	manualOfferingID := int64(1101)
 	automaticOfferingID := int64(1102)
-	openByID := map[int64]*enrollmentModels.CareOffering{
+	openByID := map[int64]*offeringContract.CareOfferingRecord{
 		manualOfferingID: {
 			ID:             manualOfferingID,
 			Name:           "Ganztag",
-			DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice,
+			DaysOfWeekMode: offeringContract.DaysOfWeekModeParentChoice,
 			AvailableDays:  []string{"mon", "wed"},
 			SortOrder:      1,
 		},
 		automaticOfferingID: {
 			ID:                        automaticOfferingID,
 			Name:                      "Randstunde",
-			DaysOfWeekMode:            enrollmentModels.DaysOfWeekModeParentChoice,
+			DaysOfWeekMode:            offeringContract.DaysOfWeekModeParentChoice,
 			AvailableDays:             []string{"mon", "wed"},
 			AutoAddTriggerOfferingIDs: []int64{manualOfferingID},
 			SortOrder:                 2,
@@ -273,7 +330,7 @@ func TestMaterializeAndValidateChildrenOfferingSelectionsIgnoresAutoAddedOfferin
 		OfferingDays: []SubmitOfferingDays{{OfferingID: manualOfferingID, SelectedDays: []string{"mon", "wed"}}},
 	}}
 
-	selections, err := materializeChildrenOfferingSelections(children, openByID, enrollmentModels.PhaseCareOfferingSelectionExactlyOne)
+	selections, err := materializeChildrenOfferingSelections(children, openByID, enrollmentNative.PhaseCareOfferingSelectionExactlyOne)
 
 	require.NoError(t, err)
 	require.Len(t, selections, 1)
@@ -287,18 +344,18 @@ func TestMaterializeAndValidateChildrenOfferingSelectionsCountsManualAutoTargetF
 
 	manualOfferingID := int64(1201)
 	automaticOfferingID := int64(1202)
-	openByID := map[int64]*enrollmentModels.CareOffering{
+	openByID := map[int64]*offeringContract.CareOfferingRecord{
 		manualOfferingID: {
 			ID:             manualOfferingID,
 			Name:           "Ganztag",
-			DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice,
+			DaysOfWeekMode: offeringContract.DaysOfWeekModeParentChoice,
 			AvailableDays:  []string{"mon"},
 			SortOrder:      1,
 		},
 		automaticOfferingID: {
 			ID:                        automaticOfferingID,
 			Name:                      "Randstunde",
-			DaysOfWeekMode:            enrollmentModels.DaysOfWeekModeParentChoice,
+			DaysOfWeekMode:            offeringContract.DaysOfWeekModeParentChoice,
 			AvailableDays:             []string{"mon"},
 			AutoAddTriggerOfferingIDs: []int64{manualOfferingID},
 			SortOrder:                 2,
@@ -312,9 +369,9 @@ func TestMaterializeAndValidateChildrenOfferingSelectionsCountsManualAutoTargetF
 		},
 	}}
 
-	_, err := materializeChildrenOfferingSelections(children, openByID, enrollmentModels.PhaseCareOfferingSelectionExactlyOne)
+	_, err := materializeChildrenOfferingSelections(children, openByID, enrollmentNative.PhaseCareOfferingSelectionExactlyOne)
 
-	requireSelectionError(t, err, selection.ErrCareOfferingExactlyOneRequired, enrollment.ErrCareOfferingExactlyOneRequired)
+	requireSelectionError(t, err, selection.ErrCareOfferingExactlyOneRequired, enrollmentNative.ErrCareOfferingExactlyOneRequired)
 }
 
 // TestOrdinarySaveStillEnforcesRequiredCare pins that the complete
@@ -322,20 +379,20 @@ func TestMaterializeAndValidateChildrenOfferingSelectionsCountsManualAutoTargetF
 // ordinary enrollment save: required care and the minimum selection hold.
 func TestOrdinarySaveStillEnforcesRequiredCare(t *testing.T) {
 	t.Parallel()
-	care := &enrollmentModels.CareOffering{
+	care := &offeringContract.CareOfferingRecord{
 		ID: 1, Name: "Ganztag", CountsAsCare: true,
-		IsRequired: true, DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
+		IsRequired: true, DaysOfWeekMode: offeringContract.DaysOfWeekModeFixed,
 		AvailableDays: []string{"mon", "tue"},
 	}
-	lunch := &enrollmentModels.CareOffering{
+	lunch := &offeringContract.CareOfferingRecord{
 		ID: 2, Name: "Mittagessen", CountsAsCare: false,
-		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed, AvailableDays: []string{"mon"},
+		DaysOfWeekMode: offeringContract.DaysOfWeekModeFixed, AvailableDays: []string{"mon"},
 	}
-	catalog := map[int64]*enrollmentModels.CareOffering{care.ID: care, lunch.ID: lunch}
+	catalog := map[int64]*offeringContract.CareOfferingRecord{care.ID: care, lunch.ID: lunch}
 	children := []SubmitChild{{OfferingIDs: []int64{lunch.ID}}}
 
 	_, err := materializeChildrenOfferingSelections(
-		children, catalog, enrollmentModels.PhaseCareOfferingSelectionAtLeastOne,
+		children, catalog, enrollmentNative.PhaseCareOfferingSelectionAtLeastOne,
 	)
 	require.Error(t, err, "ordinary saves must still enforce required care and minimum selection")
 }

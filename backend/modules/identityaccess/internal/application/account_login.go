@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 )
 
@@ -17,7 +18,7 @@ import (
 // refresh token pair. tenantSlug is optional: when non-empty the account is
 // resolved to the matching school; when empty the first active mapping is
 // used.
-func (s *AccountAuthentication) LoginWithAudit(ctx context.Context, email, password, ipAddress, userAgent, tenantSlug string) (string, string, error) {
+func (s *AccountAuthentication) loginWithAudit(ctx context.Context, email, password, ipAddress, userAgent, tenantSlug string) (string, string, error) {
 	account, err := s.validateLoginCredentials(ctx, email, password, ipAddress, userAgent)
 	if err != nil {
 		return "", "", err
@@ -34,11 +35,11 @@ func (s *AccountAuthentication) LoginWithAudit(ctx context.Context, email, passw
 	// Dual-role accounts pass through unchanged.
 	if domain.IsGuardianOnly(metadata.RoleNames) {
 		s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "Guardian-only account at tenant login")
-		return "", "", failed("login", domain.ErrParentMustUseParentPortal)
+		return "", "", failed("login", identityaccess.ErrParentMustUseParentPortal)
 	}
 	if domain.IsSchoolPortalOnly(metadata.Roles) {
 		s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "School-portal-only account at tenant login")
-		return "", "", failed("login", domain.ErrMustUseSchoolPortal)
+		return "", "", failed("login", identityaccess.ErrMustUseSchoolPortal)
 	}
 	session, err := s.createRefreshSession(ctx, account, metadata.TenantID, metadata.Scope)
 	if err != nil {
@@ -52,7 +53,7 @@ func (s *AccountAuthentication) LoginWithAudit(ctx context.Context, email, passw
 // successful credential check it consults the MFA gate and returns either a
 // token pair, a challenge token or an enrollment token. trustedDeviceCookie
 // may be empty; when set and verifiable, MFA is skipped.
-func (s *AccountAuthentication) LoginWithMFAGate(ctx context.Context, email, password, ipAddress, userAgent, tenantSlug, trustedDeviceCookie string) (*domain.LoginResult, error) {
+func (s *AccountAuthentication) loginWithMFAGate(ctx context.Context, email, password, ipAddress, userAgent, tenantSlug, trustedDeviceCookie string) (*domain.LoginResult, error) {
 	account, err := s.validateLoginCredentials(ctx, email, password, ipAddress, userAgent)
 	if err != nil {
 		return nil, err
@@ -63,11 +64,11 @@ func (s *AccountAuthentication) LoginWithMFAGate(ctx context.Context, email, pas
 	}
 	if domain.IsGuardianOnly(metadata.RoleNames) {
 		s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "Guardian-only account at tenant login")
-		return nil, failed("login", domain.ErrParentMustUseParentPortal)
+		return nil, failed("login", identityaccess.ErrParentMustUseParentPortal)
 	}
 	if domain.IsSchoolPortalOnly(metadata.Roles) {
 		s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "School-portal-only account at tenant login")
-		return nil, failed("login", domain.ErrMustUseSchoolPortal)
+		return nil, failed("login", identityaccess.ErrMustUseSchoolPortal)
 	}
 
 	mfaRequired, enrolled, err := s.resolveTenantMFAGate(ctx, account, metadata)
@@ -83,7 +84,11 @@ func (s *AccountAuthentication) LoginWithMFAGate(ctx context.Context, email, pas
 		return s.mfaChallengeResult(ctx, account, metadata.TenantID, domain.ScopeTenant, ipAddress)
 	}
 
-	session, err := s.createRefreshSession(ctx, account, metadata.TenantID, metadata.Scope)
+	var guard mintGuard
+	if mfaRequired && enrolled {
+		guard = s.trustedDeviceMintGuard(account.ID, metadata.TenantID, trustedDeviceCookie, nil)
+	}
+	session, err := s.createRefreshSessionGuarded(ctx, account, metadata.TenantID, metadata.Scope, guard, "", mfaRequired && enrolled)
 	if err != nil {
 		return nil, err
 	}
@@ -102,13 +107,13 @@ func (s *AccountAuthentication) resolveTenantMFAGate(ctx context.Context, accoun
 	if !s.mfa.Configured() {
 		return false, false, nil
 	}
-	required, err = s.mfa.IsRequired(ctx, account.ID, account.Email, metadata.RoleNames, metadata.TenantID)
+	required, err = s.mfa.IsRequired(ctx, account.ID, account.Email, metadata.Permissions, metadata.TenantID)
 	if err != nil {
-		return false, false, failed("check mfa required", domain.ErrMFAStatusUnavailable)
+		return false, false, failed("check mfa required", identityaccess.ErrMFAStatusUnavailable)
 	}
 	enrolled, err = s.mfa.HasEnrollment(ctx, account.ID)
 	if err != nil {
-		return false, false, failed("check mfa enrollment", domain.ErrMFAStatusUnavailable)
+		return false, false, failed("check mfa enrollment", identityaccess.ErrMFAStatusUnavailable)
 	}
 	return required, enrolled, nil
 }
@@ -166,6 +171,19 @@ func (s *AccountAuthentication) mfaChallengeResult(ctx context.Context, account 
 // pipeline, so the session is indistinguishable from a password login.
 // tenantID is the school carried in the MFA challenge.
 func (s *AccountAuthentication) IssueTokensForAuthenticatedAccount(ctx context.Context, accountID, tenantID int64, ipAddress, userAgent string) (string, string, error) {
+	return s.issueAuthenticatedTokens(ctx, accountID, tenantID, ipAddress, userAgent, nil)
+}
+
+func (s *AccountAuthentication) IssueTokensForVerifiedMFA(ctx context.Context, proof identityaccess.VerifiedMFAChallenge, ipAddress, userAgent string) (string, string, error) {
+	return s.issueAuthenticatedTokens(ctx, proof.AccountID, proof.TenantID, ipAddress, userAgent, &proof)
+}
+
+func (s *AccountAuthentication) issueAuthenticatedTokens(ctx context.Context, accountID, tenantID int64, ipAddress, userAgent string, proof *identityaccess.VerifiedMFAChallenge) (_ string, _ string, err error) {
+	if s == nil {
+		return "", "", errAccountAuthenticationUnavailable
+	}
+	defer func() { err = authenticationError(err) }()
+	ctx = bindRuntime(s.attach, ctx)
 	account, err := s.authenticatedAccount(ctx, "issue tokens", accountID)
 	if err != nil {
 		return "", "", err
@@ -176,13 +194,13 @@ func (s *AccountAuthentication) IssueTokensForAuthenticatedAccount(ctx context.C
 	}
 	if domain.IsGuardianOnly(metadata.RoleNames) {
 		s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "Guardian-only account at tenant token issue")
-		return "", "", failed("issue tokens", domain.ErrParentMustUseParentPortal)
+		return "", "", failed("issue tokens", identityaccess.ErrParentMustUseParentPortal)
 	}
 	if domain.IsSchoolPortalOnly(metadata.Roles) {
 		s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "School-portal-only account at tenant token issue")
-		return "", "", failed("issue tokens", domain.ErrMustUseSchoolPortal)
+		return "", "", failed("issue tokens", identityaccess.ErrMustUseSchoolPortal)
 	}
-	session, err := s.createRefreshSession(ctx, account, metadata.TenantID, metadata.Scope)
+	session, err := s.createRefreshSessionGuarded(ctx, account, metadata.TenantID, metadata.Scope, s.verifiedMFAMintGuard(proof, identityaccess.MFAChallengeScopeTenant, nil), "", true)
 	if err != nil {
 		return "", "", err
 	}
@@ -194,12 +212,12 @@ func (s *AccountAuthentication) IssueTokensForAuthenticatedAccount(ctx context.C
 // non-password channel proved. A missing account and a failed lookup both
 // read as not found, as they always did at the token issue sites.
 func (s *AccountAuthentication) authenticatedAccount(ctx context.Context, operation string, accountID int64) (domain.LoginAccount, error) {
-	account, found, _, err := s.store.FindLoginAccount(ctx, accountID, false)
+	account, found, _, err := findLoginAccount(ctx, s.runtime, s.store, accountID, false)
 	if err != nil || !found {
 		return domain.LoginAccount{}, failed(operation, domain.ErrAccountNotFound)
 	}
 	if !account.Active {
-		return domain.LoginAccount{}, failed(operation, domain.ErrAccountInactive)
+		return domain.LoginAccount{}, failed(operation, identityaccess.ErrAccountInactive)
 	}
 	return account, nil
 }
@@ -216,37 +234,48 @@ func (s *AccountAuthentication) authenticatedAccount(ctx context.Context, operat
 // (#3376).
 func (s *AccountAuthentication) validateLoginCredentials(ctx context.Context, email, password, ipAddress, userAgent string) (domain.LoginAccount, error) {
 	email = strings.TrimSpace(strings.ToLower(email))
-	account, found, _, err := s.store.FindLoginAccountByEmail(ctx, email)
-	if err != nil || !found {
-		s.logFailedLogin(ctx, 0, ipAddress, userAgent, "Account not found")
-		return domain.LoginAccount{}, failed("login", domain.ErrAccountNotFound)
+	var account domain.LoginAccount
+	var accepted bool
+	err := globalIdentityRead(ctx, s.runtime, func(txCtx context.Context) error {
+		var found bool
+		var err error
+		account, found, _, err = s.store.LockLoginAccountByEmail(txCtx, email)
+		if err != nil {
+			return err
+		}
+		if !found {
+			account = domain.LoginAccount{}
+		}
+		accepted, err = checkPasswordLogin(txCtx, s.store, s.passwords, s.passwordPolicy, account.ID, account.PasswordHash, password, false)
+		return err
+	})
+	if err != nil {
+		return domain.LoginAccount{}, failed("password login protection", err)
 	}
-	if err := s.verifyPassword(account, password); err != nil {
-		s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "Invalid password")
-		return domain.LoginAccount{}, err
+	if !accepted {
+		s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "Password login refused")
+		return domain.LoginAccount{}, failed("login", identityaccess.ErrInvalidCredentials)
 	}
+
 	if !account.Active {
 		s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "Account inactive")
-		return domain.LoginAccount{}, failed("login", domain.ErrAccountInactive)
+		return domain.LoginAccount{}, failed("login", identityaccess.ErrAccountInactive)
 	}
 	return account, nil
 }
 
 func (s *AccountAuthentication) verifyPassword(account domain.LoginAccount, password string) error {
-	if account.PasswordHash == "" {
-		return failed("login", domain.ErrInvalidCredentials)
-	}
 	valid, err := s.passwords.VerifyPassword(password, account.PasswordHash)
-	if err != nil || !valid {
-		return failed("login", domain.ErrInvalidCredentials)
+	if err != nil || !valid || account.PasswordHash == "" {
+		return failed("login", identityaccess.ErrInvalidCredentials)
 	}
 	return nil
 }
 
 // createRefreshSession mints a refresh session with retry logic for
 // concurrent logins that collide on the token family.
-func (s *AccountAuthentication) createRefreshSession(ctx context.Context, account domain.LoginAccount, tenantID int64, scope string) (domain.AccountSession, error) {
-	return s.createRefreshSessionGuarded(ctx, account, tenantID, scope, nil, "")
+func (s *AccountAuthentication) createRefreshSession(ctx context.Context, account domain.LoginAccount, tenantID int64, scope string, verified ...bool) (domain.AccountSession, error) {
+	return s.createRefreshSessionGuarded(ctx, account, tenantID, scope, nil, "", verified...)
 }
 
 // createRefreshSessionGuarded is createRefreshSession with an authorization
@@ -254,8 +283,9 @@ func (s *AccountAuthentication) createRefreshSession(ctx context.Context, accoun
 // the retry loop exists for token-family collisions only. retireFamilyID
 // names the caller's current family, retired in the same transaction before
 // the session cap runs so the new session replaces it (tenant switch, #2952).
-func (s *AccountAuthentication) createRefreshSessionGuarded(ctx context.Context, account domain.LoginAccount, tenantID int64, scope string, guard mintGuard, retireFamilyID string) (domain.AccountSession, error) {
+func (s *AccountAuthentication) createRefreshSessionGuarded(ctx context.Context, account domain.LoginAccount, tenantID int64, scope string, guard mintGuard, retireFamilyID string, verified ...bool) (domain.AccountSession, error) {
 	session := s.newRefreshSession(account.ID, scope)
+	session.MFAVerified = len(verified) > 0 && verified[0]
 	const maxRetries = 3
 	for attempt := 0; attempt < maxRetries; attempt++ {
 		stored, err := s.persistSessionInTransaction(ctx, account, session, tenantID, guard, retireFamilyID)
@@ -305,28 +335,21 @@ func (s *AccountAuthentication) newRefreshSession(accountID int64, scope string)
 func (s *AccountAuthentication) persistSessionInTransaction(ctx context.Context, account domain.LoginAccount, session domain.AccountSession, tenantID int64, guard mintGuard, retireFamilyID string) (domain.AccountSession, error) {
 	var stored domain.AccountSession
 	err := s.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
-		if guard != nil {
-			if err := guard(txCtx, account); err != nil {
-				return &mintGuardError{err: err}
-			}
+		loginTime, err := s.prepareSessionMint(txCtx, account, &session, tenantID, guard, retireFamilyID)
+		if err != nil {
+			return err
 		}
-		loginTime := time.Now()
-		if _, err := s.store.RecordAccountLogin(txCtx, account.ID, loginTime); err != nil {
-			return fmt.Errorf("update last login before token issuance: %w", err)
-		}
-		if retireFamilyID != "" {
-			if err := s.sessions.RetireAccountSessionFamily(txCtx, account.ID, retireFamilyID, loginTime.Add(s.rotation.RecoveryGrace())); err != nil {
-				return fmt.Errorf("retire replaced refresh-token family: %w", err)
-			}
+		if err := s.retireReplacedFamily(txCtx, account.ID, retireFamilyID, loginTime); err != nil {
+			return err
 		}
 		// The tenant comes from the database resolution, never from the
 		// context: login is a public route.
 		session.TenantID = tenantID
-		created, err := s.sessions.CreateAccountSession(txCtx, session)
+		created, err := s.sessions.CreateAccountSession(txCtx, identityaccess.AccountSession(session))
 		if err != nil {
 			return err
 		}
-		stored = created
+		stored = domain.AccountSession(created)
 		if err := s.sessions.DeleteExpiredRotatedAccountSessions(txCtx, account.ID, time.Now()); err != nil {
 			s.logger.Warn("failed to clean up refresh-token handoffs",
 				slog.Int64("account_id", account.ID),
@@ -362,10 +385,11 @@ func (s *AccountAuthentication) capSessionsUnlessDemo(ctx context.Context, accou
 // enforcePortalSessionCap keeps at most five active sessions in this portal
 // group; other portals keep their own sessions.
 func (s *AccountAuthentication) enforcePortalSessionCap(ctx context.Context, accountID int64, portalScope string) ([]domain.AccountSession, error) {
-	evicted, err := s.sessions.EnforceAccountSessionCap(ctx, accountID, portalScope, domain.MaxActiveSessionsPerPortal)
+	capped, err := s.sessions.EnforceAccountSessionCap(ctx, accountID, portalScope, domain.MaxActiveSessionsPerPortal)
 	if err != nil {
 		return nil, fmt.Errorf("enforce active session cap: %w", err)
 	}
+	evicted := domainAccountSessions(capped)
 	if err := s.auditRevokedSessions(ctx, evicted, "session_cap", "", ""); err != nil {
 		return nil, err
 	}
@@ -432,7 +456,7 @@ func (s *AccountAuthentication) loadAccountMetadataForTenantInTx(ctx context.Con
 		// A school hard-deleted between issuance and this load answers with
 		// re-login, not retry.
 		if !found || school.Deleted {
-			return nil, failed("load metadata for tenant", domain.ErrTenantNotFound)
+			return nil, failed("load metadata for tenant", identityaccess.ErrTenantNotFound)
 		}
 		orgID = school.OrganizationID
 	}
@@ -532,13 +556,7 @@ func (s *AccountAuthentication) loadPersonNamesFromMappedTenants(ctx context.Con
 	if err != nil {
 		return "", "", fmt.Errorf("list active tenants of account %d for person lookup: %w", accountID, err)
 	}
-	candidates := make([]int64, 0, len(tenantIDs))
-	for _, mappedTenantID := range tenantIDs {
-		if mappedTenantID != excludeTenantID && mappedTenantID > 0 {
-			candidates = append(candidates, mappedTenantID)
-		}
-	}
-	slices.Sort(candidates)
+	candidates := otherMappedTenants(tenantIDs, excludeTenantID)
 	var firstName, lastName string
 	for _, mappedTenantID := range candidates {
 		candidateFirst, candidateLast, err := s.loadPersonNames(s.runtime.WithTenantID(ctx, mappedTenantID), accountID)
@@ -587,21 +605,21 @@ func (s *AccountAuthentication) resolveAccountTenantBySlug(ctx context.Context, 
 		s.logger.Warn("tenant slug not found",
 			slog.Int64("account_id", accountID),
 			slog.String("tenant_slug", tenantSlug))
-		return 0, 0, failed("resolve tenant", domain.ErrTenantNotFound)
+		return 0, 0, failed("resolve tenant", identityaccess.ErrTenantNotFound)
 	}
 	if school.Deleted {
 		s.logger.Warn("tenant is soft-deleted",
 			slog.Int64("account_id", accountID),
 			slog.String("tenant_slug", tenantSlug),
 			slog.Int64("tenant_id", school.ID))
-		return 0, 0, failed("resolve tenant", domain.ErrTenantNotFound)
+		return 0, 0, failed("resolve tenant", identityaccess.ErrTenantNotFound)
 	}
 	if !school.Active {
 		s.logger.Warn("tenant is inactive",
 			slog.Int64("account_id", accountID),
 			slog.String("tenant_slug", tenantSlug),
 			slog.Int64("tenant_id", school.ID))
-		return 0, 0, failed("resolve tenant", domain.ErrTenantNotFound)
+		return 0, 0, failed("resolve tenant", identityaccess.ErrTenantNotFound)
 	}
 	callerScope := s.runtime.Scope(ctx)
 	callerOrgID := s.runtime.OrgID(ctx)
@@ -614,7 +632,7 @@ func (s *AccountAuthentication) resolveAccountTenantBySlug(ctx context.Context, 
 			slog.Int64("school_org_id", school.OrganizationID),
 			slog.Int64("caller_org_id", callerOrgID),
 			slog.String("tenant_slug", tenantSlug))
-		return 0, 0, failed("resolve tenant", domain.ErrTenantAccessDenied)
+		return 0, 0, failed("resolve tenant", identityaccess.ErrTenantAccessDenied)
 	}
 	exists, _, err := s.store.HasActiveAccountTenant(ctx, accountID, school.ID)
 	if err != nil {
@@ -622,21 +640,21 @@ func (s *AccountAuthentication) resolveAccountTenantBySlug(ctx context.Context, 
 			slog.Int64("account_id", accountID),
 			slog.Int64("tenant_id", school.ID),
 			slog.Any("error", err))
-		return 0, 0, failed("resolve tenant", domain.ErrTenantAccessDenied)
+		return 0, 0, failed("resolve tenant", identityaccess.ErrTenantAccessDenied)
 	}
 	if !exists {
 		s.logger.Warn("account does not have access to requested tenant",
 			slog.Int64("account_id", accountID),
 			slog.Int64("tenant_id", school.ID),
 			slog.String("tenant_slug", tenantSlug))
-		return 0, 0, failed("resolve tenant", domain.ErrTenantAccessDenied)
+		return 0, 0, failed("resolve tenant", identityaccess.ErrTenantAccessDenied)
 	}
 	return school.ID, school.OrganizationID, nil
 }
 
 // resolveAccountTenantDefault picks the first active mapping whose school is
 // alive and active, in mapping order.
-func (s *AccountAuthentication) resolveAccountTenantDefault(ctx context.Context, accountID int64) (int64, int64, error) {
+func (s *AccountAuthentication) resolveAccountTenantDefaultInTransaction(ctx context.Context, accountID int64) (int64, int64, error) {
 	tenantIDs, _, err := s.store.ListActiveTenantIDs(ctx, accountID)
 	if err != nil {
 		s.logger.Warn("failed to resolve account tenant",
@@ -645,7 +663,7 @@ func (s *AccountAuthentication) resolveAccountTenantDefault(ctx context.Context,
 		return 0, 0, fmt.Errorf("resolve account tenants: %w", err)
 	}
 	if len(tenantIDs) == 0 {
-		return 0, 0, failed("resolve tenant", domain.ErrTenantNotFound)
+		return 0, 0, failed("resolve tenant", identityaccess.ErrTenantNotFound)
 	}
 	schools, err := s.schools.ListActiveSchoolsByID(ctx, tenantIDs)
 	if err != nil {
@@ -660,7 +678,7 @@ func (s *AccountAuthentication) resolveAccountTenantDefault(ctx context.Context,
 			return tenantID, organizationID, nil
 		}
 	}
-	return 0, 0, failed("resolve tenant", domain.ErrTenantNotFound)
+	return 0, 0, failed("resolve tenant", identityaccess.ErrTenantNotFound)
 }
 
 // buildClaims constructs the access and refresh claims from the account, the
@@ -741,4 +759,32 @@ func (s *AccountAuthentication) logAuthEvent(ctx context.Context, accountID int6
 	return s.runtime.WithTenantTx(s.runtime.WithTenantID(ctx, tenantID), tenantID, func(txCtx context.Context) error {
 		return s.audit.RecordAuthEvent(txCtx, event)
 	})
+}
+
+func (s *AccountAuthentication) resolveAccountTenantDefault(ctx context.Context, accountID int64) (schoolID, organizationID int64, err error) {
+	err = globalIdentityRead(ctx, s.runtime, func(txCtx context.Context) error {
+		schoolID, organizationID, err = s.resolveAccountTenantDefaultInTransaction(txCtx, accountID)
+		return err
+	})
+	return schoolID, organizationID, err
+}
+
+func otherMappedTenants(tenantIDs []int64, excludeTenantID int64) []int64 {
+	candidates := make([]int64, 0, len(tenantIDs))
+	for _, mappedTenantID := range tenantIDs {
+		if mappedTenantID != excludeTenantID && mappedTenantID > 0 {
+			candidates = append(candidates, mappedTenantID)
+		}
+	}
+	slices.Sort(candidates)
+	return candidates
+}
+
+func (s *AccountAuthentication) retireReplacedFamily(txCtx context.Context, accountID int64, retireFamilyID string, loginTime time.Time) error {
+	if retireFamilyID != "" {
+		if err := s.sessions.RetireAccountSessionFamily(txCtx, accountID, retireFamilyID, loginTime.Add(s.rotation.RecoveryGrace())); err != nil {
+			return fmt.Errorf("retire replaced refresh-token family: %w", err)
+		}
+	}
+	return nil
 }

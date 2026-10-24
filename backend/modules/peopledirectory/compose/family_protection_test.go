@@ -12,7 +12,7 @@ import (
 func TestFamilyProtectionReadsLatestEventForRequestedChildren(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	module, err := New(Dependencies{DB: db, Observe: func(Observation) {}})
+	module, err := New(Dependencies{StudentDirectory: testpkg.StudentDirectory{}, DB: db, Observe: func(Observation) {}}, nil)
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 	protected := testpkg.CreateTestStudent(t, db, "Protected", "Child", "1a")
@@ -44,7 +44,7 @@ func TestFamilyProtectionReadsLatestEventForRequestedChildren(t *testing.T) {
 func TestFamilyProtectionDoesNotReadAnotherTenant(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	module, err := New(Dependencies{DB: db, Observe: func(Observation) {}})
+	module, err := New(Dependencies{StudentDirectory: testpkg.StudentDirectory{}, DB: db, Observe: func(Observation) {}}, nil)
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 	otherTenant := testpkg.UniqueTestTenantID(t)

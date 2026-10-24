@@ -7,9 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	planning "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning"
+	api "github.com/moto-nrw/project-phoenix/roots/owners"
+	calendarpkg "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -27,21 +28,21 @@ type unificationDayCalendar struct {
 // shapes are test setup only and keep the Workforce behavior test on its
 // allowed dependency boundary.
 type breakClosingDayRow struct {
-	TenantID  int64         `bun:"tenant_id,notnull"`
-	StartDate timezone.Date `bun:"start_date,notnull,type:date"`
-	EndDate   timezone.Date `bun:"end_date,notnull,type:date"`
-	Reason    string        `bun:"reason,notnull"`
+	TenantID  int64            `bun:"tenant_id,notnull"`
+	StartDate calendarpkg.Date `bun:"start_date,notnull,type:date"`
+	EndDate   calendarpkg.Date `bun:"end_date,notnull,type:date"`
+	Reason    string           `bun:"reason,notnull"`
 }
 
 type breakHolidayPeriodRow struct {
-	ID              int64         `bun:"id,pk,autoincrement"`
-	TenantID        int64         `bun:"tenant_id,notnull"`
-	Name            string        `bun:"name,notnull"`
-	PeriodType      string        `bun:"period_type,notnull"`
-	StartDate       timezone.Date `bun:"start_date,notnull,type:date"`
-	EndDate         timezone.Date `bun:"end_date,notnull,type:date"`
-	WeekCycleLength int           `bun:"week_cycle_length,notnull"`
-	IsActive        bool          `bun:"is_active,notnull"`
+	ID              int64            `bun:"id,pk,autoincrement"`
+	TenantID        int64            `bun:"tenant_id,notnull"`
+	Name            string           `bun:"name,notnull"`
+	PeriodType      string           `bun:"period_type,notnull"`
+	StartDate       calendarpkg.Date `bun:"start_date,notnull,type:date"`
+	EndDate         calendarpkg.Date `bun:"end_date,notnull,type:date"`
+	WeekCycleLength int              `bun:"week_cycle_length,notnull"`
+	IsActive        bool             `bun:"is_active,notnull"`
 }
 
 func setupBreakSeriesTest(t *testing.T) *seriesTestEnv {
@@ -63,11 +64,11 @@ func (unificationDayCalendar) TenantHolidayDates(_ context.Context, from, to str
 // School Calendar answers holidays, closing days and Ferien periods.
 func (e *seriesTestEnv) breakSeriesService() planning.StaffShiftSeriesService {
 	calendar := e.repos.SchoolCalendar()
-	today := timezone.CalendarDateClock(func() time.Time {
+	today := calendarpkg.CalendarDateClock(func() time.Time {
 		return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 	})
 	return planning.NewStaffShiftSeriesService(
-		e.seriesRows, e.exceptionRows, e.shiftRows, e.repos.Staff, planning.SchoolCalendarPeriods(calendar),
+		e.seriesRows.Capability, e.exceptionRows.Capability, e.shiftRows.Capability, api.NewPlanStaffDirectory(e.reposPeople.Staff), planning.SchoolCalendarPeriods(calendar),
 		nil, workforceCompose.NewStaffShiftLock(e.db), slog.Default(), e.shifts,
 		planning.WithStaffShiftSeriesToday(today),
 		planning.WithStaffShiftSeriesNonWorkingDays(planning.SchoolCalendarNonWorkingDays(unificationDayCalendar{SeriesCalendarReads: calendar})),
@@ -85,7 +86,7 @@ func (e *seriesTestEnv) createBreakSeries(t *testing.T, series *planning.StaffSh
 	return result
 }
 
-func (e *seriesTestEnv) createClosingDay(t *testing.T, start, end timezone.Date, reason string) {
+func (e *seriesTestEnv) createClosingDay(t *testing.T, start, end calendarpkg.Date, reason string) {
 	t.Helper()
 
 	_, err := e.db.NewInsert().
@@ -100,7 +101,7 @@ func (e *seriesTestEnv) createClosingDay(t *testing.T, start, end timezone.Date,
 	require.NoError(t, err)
 }
 
-func (e *seriesTestEnv) createHolidayPeriod(t *testing.T, name string, start, end timezone.Date) *breakHolidayPeriodRow {
+func (e *seriesTestEnv) createHolidayPeriod(t *testing.T, name string, start, end calendarpkg.Date) *breakHolidayPeriodRow {
 	t.Helper()
 
 	period := &breakHolidayPeriodRow{
@@ -126,7 +127,7 @@ func (e *seriesTestEnv) createHolidayPeriod(t *testing.T, name string, start, en
 func TestStaffShiftSeries_SkipsSchoolBreaksUnlessIncluded(t *testing.T) {
 	t.Parallel()
 
-	periodStart, periodEnd := timezone.NewDate(2026, 9, 28), timezone.NewDate(2026, 10, 11)
+	periodStart, periodEnd := calendarpkg.NewDate(2026, 9, 28), calendarpkg.NewDate(2026, 10, 11)
 	tests := []struct {
 		name    string
 		include bool
@@ -152,8 +153,8 @@ func TestStaffShiftSeries_SkipsSchoolBreaksUnlessIncluded(t *testing.T) {
 			t.Parallel()
 
 			env := setupBreakSeriesTest(t)
-			closingDay := timezone.Date("2026-10-01")
-			ferienStart, ferienEnd := timezone.Date("2026-10-05"), timezone.Date("2026-10-17")
+			closingDay := calendarpkg.Date("2026-10-01")
+			ferienStart, ferienEnd := calendarpkg.Date("2026-10-05"), calendarpkg.Date("2026-10-17")
 			env.createClosingDay(t, closingDay, closingDay, "Pädagogischer Tag")
 			env.createHolidayPeriod(t, fmt.Sprintf("Herbstferien-%d", env.scope.TenantID), ferienStart, ferienEnd)
 			periodID := env.createPeriod(t, periodStart, periodEnd, 1, nil)
@@ -182,7 +183,7 @@ func TestStaffShiftSeries_FerienSeriesKeepsItsOwnPeriod(t *testing.T) {
 	t.Parallel()
 
 	env := setupBreakSeriesTest(t)
-	start, end := timezone.NewDate(2026, 10, 5), timezone.NewDate(2026, 10, 9)
+	start, end := calendarpkg.NewDate(2026, 10, 5), calendarpkg.NewDate(2026, 10, 9)
 	period := env.createHolidayPeriod(t, fmt.Sprintf("Ferienbetreuung-%d", env.scope.TenantID), start, end)
 	series := env.buildSeries(t, period.ID, start, nil, planning.WeekPatternEvery)
 

@@ -1,21 +1,3 @@
-// Package students_test exercises photo-related branches of
-// updateStudent and deleteStudent in api/students/api.go that the
-// existing students_test.go does not reach. The diff for the
-// student-photo-avatar feature added several branches to these two
-// handlers:
-//
-//   - updateStudent: photo-consent withdrawal triggers an after-commit
-//     file unlink + tenant broadcast.
-//   - updateStudent: photo-consent grant stamps photo_consent_given_at
-//     and photo_consent_given_by from JWT claims.
-//   - updateStudent: response payload includes photo_url only when the
-//     tenant has opted into the feature.
-//   - deleteStudent: the photo URL is captured from the locked row and
-//     the file is unlinked after the OUTER tx commits.
-//
-// All tests here go through tc.resource.Router() via authExec so they
-// reuse the same hermetic plumbing as students_test.go (real DB, real
-// service factory, testpkg.RecordingBroadcaster).
 package students_test
 
 import (
@@ -25,13 +7,13 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // seedPhotoFile creates a real file under public/uploads/student-photos/
@@ -42,7 +24,7 @@ import (
 func seedPhotoFile(t *testing.T, tc *testContext, studentID int64) (storedURL, onDisk string) {
 	t.Helper()
 
-	pubDir, err := common.ResolvePublicDir()
+	pubDir, err := nativeUploads.ResolvePublicDir()
 	require.NoError(t, err, "resolve public dir")
 	dir := filepath.Join(pubDir, "uploads", "student-photos")
 	require.NoError(t, os.MkdirAll(dir, 0o755), "mkdir student-photos")
@@ -119,10 +101,6 @@ func readConsentTimestamp(t *testing.T, tc *testContext, studentID int64) bool {
 	return stamped
 }
 
-// =============================================================================
-// updateStudent — photo consent withdrawal
-// =============================================================================
-
 // TestUpdateStudent_PhotoConsentWithdrawal_DeletesFile pins the
 // after-commit unlink hook on the consent-withdrawal branch. Starting
 // state: student has a photo + consent. PUT with
@@ -170,10 +148,6 @@ func TestUpdateStudent_PhotoConsentWithdrawal_DeletesFile(t *testing.T) {
 	require.GreaterOrEqual(t, len(tc.broadcaster.Events()), eventCount+1,
 		"consent withdrawal must emit at least one broadcast event")
 }
-
-// =============================================================================
-// updateStudent — photo consent grant
-// =============================================================================
 
 // TestUpdateStudent_PhotoConsentGrant_StampsAuditFields verifies that
 // transitioning a student from no-consent to consent_given=true through
@@ -255,10 +229,6 @@ func TestUpdateStudent_PhotoConsentNoChange_NoOp(t *testing.T) {
 		"omitted photo_consent_given must not unstamp the audit timestamp")
 }
 
-// =============================================================================
-// deleteStudent — photo file removal
-// =============================================================================
-
 // TestDeleteStudent_RemovesPhotoFile pins the deleteStudent branch that
 // captures the photo URL from the LOCKED row inside the tx and unlinks
 // the file via tenant.RegisterAfterCommit. Without this, deleting a
@@ -318,10 +288,6 @@ func TestDeleteStudent_NoPhotoSucceeds(t *testing.T) {
 	assert.Equal(t, 0, count)
 }
 
-// =============================================================================
-// updateStudent — feature-flag-gated response payload
-// =============================================================================
-
 // TestUpdateStudent_PhotoEnabled_ResponseIncludesPhotoURL verifies that
 // when operations.student_photos_enabled is true and the student has a
 // photo, the response payload includes a photo_url field. This pins
@@ -377,17 +343,3 @@ func TestUpdateStudent_PhotoDisabled_ResponseOmitsPhotoURL(t *testing.T) {
 	// file is registered for removal by seedPhotoFile; nothing else is
 	// needed here.
 }
-
-// =============================================================================
-// updateStudent — sentinel: 404 when student is deleted between
-// snapshot and lock. We don't need to engineer a real race; we just
-// invoke updateStudent with an ID for a row that was never created
-// after the parseAndGetStudent gate would pass — but parseAndGetStudent
-// itself rejects unknown IDs with 404, so the in-tx
-// errStudentNotFoundUnderLock branch is hard to exercise without a
-// concurrent delete. Skip this case — students_test.go's
-// not_found_for_nonexistent_student already covers the pre-tx 404.
-// =============================================================================
-
-// noop — placeholder so context.Context import is used should we add
-// a future test that needs ctx without other plumbing.

@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Fixtures of the kiosk scan flows (#2698): rooms with exact names, the
@@ -122,7 +122,7 @@ func CreateTestRunningBlock(tb testing.TB, db *bun.DB, roomID int64, name string
 	tb.Helper()
 	activity := CreateTestActivityGroup(tb, db, name)
 	session := CreateTestActiveGroup(tb, db, activity.ID, roomID)
-	instance := CreateTestActivityInstance(tb, db, timezone.TodayDate(), roomID, ActivityInstanceOpts{
+	instance := CreateTestActivityInstance(tb, db, calendar.TodayDate(), roomID, ActivityInstanceOpts{
 		Status: ScheduleInstanceStatusActive, ActivityGroupID: &activity.ID, ActiveGroupID: &session.ID, Title: name,
 	})
 	for _, studentID := range rosterStudentIDs {
@@ -137,7 +137,7 @@ func CreateTestPickupNote(tb testing.TB, db *bun.DB, studentID int64, date Calen
 	ctx, cancel := fixtureCtx()
 	defer cancel()
 
-	row := &StudentPickupNote{StudentID: studentID, NoteDate: timezone.Date(date.String()), Content: content, CreatedBy: staffID}
+	row := &StudentPickupNote{StudentID: studentID, NoteDate: calendar.Date(date.String()), Content: content, CreatedBy: staffID}
 	row.TenantID = fixtureTenantID(tb)
 	_, err := db.NewInsert().Model(row).ModelTableExpr(`schedule.student_pickup_notes`).Exec(ctx)
 	require.NoError(tb, err, "Failed to create test pickup note")
@@ -156,7 +156,7 @@ func CreateTestPickupScheduleWithNote(tb testing.TB, db *bun.DB, studentID int64
 
 // NewCalendarDate builds a fixed calendar day for fixture setup.
 func NewCalendarDate(year int, month time.Month, day int) CalendarDate {
-	return timezone.NewDate(year, month, day)
+	return calendar.NewDate(year, month, day)
 }
 
 // LatestActiveGroupInRoom returns the newest open session of a room.

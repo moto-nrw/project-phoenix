@@ -21,7 +21,7 @@ vi.mock("~/lib/tenant-path", () => ({
 // Wohin „der Tag" führt, hängt an der Rolle und hat einen eigenen Test.
 vi.mock("~/lib/hooks/use-day-plan-href", () => ({
   useDayPlanHref: () => "/test-tenant/tagesplan",
-  useDayPlanLabel: () => "Zum Tagesplan",
+  useDayPlanLabel: () => "Heute öffnen",
 }));
 vi.mock("~/lib/timetable-operations-api", () => ({
   timetableOperationsApi: { plannedNow: vi.fn() },
@@ -33,6 +33,12 @@ vi.mock("~/components/home/home-card-rows", async (importOriginal) => ({
     typeof import("~/components/home/home-card-rows")
   >()),
   useBerlinClock: () => "07:00",
+}));
+
+const overviewScope = vi.hoisted(() => ({ current: "all_staff" }));
+vi.mock("~/lib/tenant-context", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/tenant-context")>()),
+  useOperationalOverviewScope: () => overviewScope.current,
 }));
 
 import { DayFlowBlock } from "./day-flow-block";
@@ -69,6 +75,51 @@ describe("DayFlowBlock (#2180)", () => {
     swr.data = undefined;
     swr.error = undefined;
     swr.isLoading = false;
+    overviewScope.current = "all_staff";
+  });
+
+  // #4350: dieselbe Markierung wie im Tagesplan. Der eigene Block ist in
+  // seiner Farbe hinterlegt, der Raum trägt sein Symbol.
+  it("hinterlegt eigene Blöcke in ihrer Farbe und zeigt das Raumsymbol (#4350)", () => {
+    swr.data = [
+      block({
+        id: "1",
+        title: "Basteln",
+        isAssigned: true,
+        planningTrackColor: "#5080D8",
+      }),
+      block({ id: "2", title: "Fußball-AG", startTime: "14:00" }),
+    ];
+
+    render(<DayFlowBlock />);
+
+    const own = screen.getByRole("link", {
+      name: "Basteln (Mein Block): unter Heute öffnen",
+    });
+    const other = screen.getByRole("link", {
+      name: "Fußball-AG: unter Heute öffnen",
+    });
+    expect(own).toHaveStyle({ backgroundColor: "#5080D81A" });
+    expect(own).not.toHaveClass("border-l-4");
+    expect(own.style.borderLeftColor).toBe("");
+    expect(other.style.backgroundColor).toBe("");
+    expect(
+      own
+        .querySelector("[data-moto-duotone-tone]")
+        ?.getAttribute("aria-hidden"),
+    ).toBe("true");
+  });
+
+  it("hinterlegt nichts, wenn nur die eigene Einteilung zu sehen ist (#4350)", () => {
+    overviewScope.current = "own";
+    swr.data = [block({ title: "Basteln", isAssigned: true })];
+
+    render(<DayFlowBlock />);
+
+    const own = screen.getByRole("link", {
+      name: "Basteln: unter Heute öffnen",
+    });
+    expect(own.style.backgroundColor).toBe("");
   });
 
   it("zeigt Zeit, Name, Ort und Belegung eines Blocks", () => {
@@ -192,7 +243,7 @@ describe("DayFlowBlock (#2180)", () => {
     render(<DayFlowBlock />);
 
     expect(
-      screen.getByRole("link", { name: "Lernzeit: im Tagesplan öffnen" }),
+      screen.getByRole("link", { name: "Lernzeit: unter Heute öffnen" }),
     ).toHaveAttribute("href", "/test-tenant/tagesplan");
   });
 

@@ -18,10 +18,10 @@ import (
 
 // checkIoTErrorCodes drives the kiosk refusals of #3939 through the assembled
 // production router: the device middleware, the IoT resources and their
-// composition-root renderers. Each refusal keeps its status and text and
-// answers with its own iot.* code, so PyrePortal can stop matching the text
-// (#2508).
-func checkIoTErrorCodes(t *testing.T, api *serveGraph) {
+// composition-root renderers. Each refusal keeps its status, answers in the
+// RFC 9457 envelope with its own iot.* code and carries its diagnostic text
+// in detail (#2508, #2520).
+func checkIoTErrorCodes(t *testing.T, api *goldenRuntime) {
 	t.Helper()
 	testpkg.OwnTenant(t)
 	db := testpkg.SetupTestDB(t)
@@ -110,7 +110,7 @@ func checkIoTErrorCodes(t *testing.T, api *serveGraph) {
 	})
 }
 
-func iotCodeRequest(t *testing.T, api *serveGraph, method, path, authorization, pin string, body map[string]any) *httptest.ResponseRecorder {
+func iotCodeRequest(t *testing.T, api *goldenRuntime, method, path, authorization, pin string, body map[string]any) *httptest.ResponseRecorder {
 	t.Helper()
 	payload := ""
 	if body != nil {
@@ -131,18 +131,18 @@ func iotCodeRequest(t *testing.T, api *serveGraph, method, path, authorization, 
 	return response
 }
 
-// assertIoTRefusal checks status, code and that the pinned text PyrePortal
-// still matches is part of the answer's error text.
+// assertIoTRefusal checks the HTTP status, that the envelope repeats it as
+// its status number, the code, and the diagnostic text in detail; the
+// pre-#2520 `error` member is gone.
 func assertIoTRefusal(t *testing.T, response *httptest.ResponseRecorder, status int, code, text, name string) {
 	t.Helper()
-	var problem struct {
-		Code  string `json:"code"`
-		Error string `json:"error"`
-	}
+	var problem map[string]any
 	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &problem), "%s: %s", name, response.Body.String())
 	assert.Equal(t, status, response.Code, "%s: %s", name, response.Body.String())
-	assert.Equal(t, code, problem.Code, "%s: %s", name, response.Body.String())
-	assert.Contains(t, problem.Error, text, name)
+	assert.Equal(t, float64(status), problem["status"], "%s: %s", name, response.Body.String())
+	assert.Equal(t, code, problem["code"], "%s: %s", name, response.Body.String())
+	assert.Contains(t, problem["detail"], text, name)
+	assert.NotContains(t, problem, "error", name)
 }
 
 // iotCodeTag links a fresh card to the person.

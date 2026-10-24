@@ -35,7 +35,8 @@ func (r *AccountMFARecords) FindAccountIdentity(ctx context.Context, accountID i
 		return domain.AccountIdentity{}, false, err
 	}
 	var row domain.AccountIdentity
-	err = db.NewRaw("SELECT id, email, active, mfa_attempts, mfa_locked_until FROM auth.accounts WHERE id = ?", accountID).Scan(ctx, &row)
+	err = db.NewRaw(`SELECT id, email, active, mfa_attempts, mfa_locked_until, mfa_reset_generation
+		FROM auth.accounts WHERE id = ? AND personal_data_erased_at IS NULL`, accountID).Scan(ctx, &row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return domain.AccountIdentity{}, false, nil
 	}
@@ -48,7 +49,12 @@ func (r *AccountMFARecords) AccountBelongsToTenant(ctx context.Context, accountI
 		return false, err
 	}
 	var exists bool
-	err = db.NewRaw("SELECT EXISTS (SELECT 1 FROM auth.account_tenants WHERE account_id = ? AND tenant_id = ? AND status = 'active')", accountID, tenantID).Scan(ctx, &exists)
+	err = db.NewRaw(`SELECT EXISTS (
+		SELECT 1 FROM auth.account_tenants AS membership
+		JOIN auth.accounts AS account ON account.id = membership.account_id
+		WHERE membership.account_id = ? AND membership.tenant_id = ? AND membership.status = 'active'
+			AND account.personal_data_erased_at IS NULL
+	)`, accountID, tenantID).Scan(ctx, &exists)
 	return exists, err
 }
 
@@ -59,7 +65,8 @@ func (r *AccountMFARecords) LockAccountForOverrideWrite(ctx context.Context, acc
 		return err
 	}
 	var id int64
-	err = db.NewRaw("SELECT id FROM auth.accounts WHERE id = ? FOR UPDATE", accountID).Scan(ctx, &id)
+	err = db.NewRaw(`SELECT id FROM auth.accounts
+		WHERE id = ? AND personal_data_erased_at IS NULL FOR UPDATE`, accountID).Scan(ctx, &id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil
 	}
@@ -75,7 +82,8 @@ func (r *AccountMFARecords) IncrementMFAAttempts(ctx context.Context, accountID 
 	// Compute the deadline with the same application clock that evaluates it.
 	err = db.NewRaw(`UPDATE auth.accounts SET mfa_attempts = mfa_attempts + 1,
  mfa_locked_until = CASE WHEN mfa_attempts + 1 >= ? THEN ? ELSE mfa_locked_until END
- WHERE id = ? RETURNING mfa_attempts AS attempts, mfa_locked_until AS locked_until`,
+ WHERE id = ? AND personal_data_erased_at IS NULL
+ RETURNING mfa_attempts AS attempts, mfa_locked_until AS locked_until`,
 		threshold, time.Now().Add(duration), accountID).Scan(ctx, &lockout)
 	return lockout, err
 }
@@ -85,7 +93,8 @@ func (r *AccountMFARecords) ResetMFAAttempts(ctx context.Context, accountID int6
 	if err != nil {
 		return err
 	}
-	_, err = db.NewRaw("UPDATE auth.accounts SET mfa_attempts = 0, mfa_locked_until = NULL WHERE id = ?", accountID).Exec(ctx)
+	_, err = db.NewRaw(`UPDATE auth.accounts SET mfa_attempts = 0, mfa_locked_until = NULL
+		WHERE id = ? AND personal_data_erased_at IS NULL`, accountID).Exec(ctx)
 	return err
 }
 
@@ -153,4 +162,36 @@ func requireMFATransition(result sql.Result, err error) error {
 		return fmt.Errorf("mfa transition: expected one affected row, got %d", rows)
 	}
 	return nil
+}
+
+func (r *AccountMFARecords) MFAAccountPermissions(ctx context.Context, accountID, tenantID int64) ([]string, error) {
+	tenantIDs := []int64{tenantID}
+	if tenantID == 0 {
+		var err error
+		tenantIDs, _, err = r.store.ListActiveTenantIDs(ctx, accountID)
+		if err != nil {
+			return nil, err
+		}
+	}
+	var grants []string
+	for _, id := range tenantIDs {
+		permissions, _, err := r.store.ListAccountPermissionsAtTenant(ctx, accountID, id)
+		if err != nil {
+			return nil, err
+		}
+		grants = append(grants, permissions...)
+	}
+	return grants, nil
+}
+
+func (r *AccountMFARecords) InvalidateSessionMFA(ctx context.Context, accountID int64) error {
+	db, err := r.store.database(ctx)
+	if err != nil {
+		return err
+	}
+	if _, err = db.NewRaw(`UPDATE auth.accounts SET mfa_reset_generation = mfa_reset_generation + 1 WHERE id = ?`, accountID).Exec(ctx); err != nil {
+		return err
+	}
+	_, err = db.NewUpdate().Model((*accountSessionRow)(nil)).Set("mfa_verified = FALSE").Where("account_id = ?", accountID).Exec(ctx)
+	return err
 }

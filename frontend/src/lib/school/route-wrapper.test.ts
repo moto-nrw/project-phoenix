@@ -36,7 +36,7 @@ describe("school proxy backend errors", () => {
     "forwards a %s conflict with its exact body and content type",
     async (method) => {
       const body =
-        '{"code":"school_conflict","details":{"id":"42"},"errors":[{"field":"name"}],"instance":"/school/items/42"}';
+        '{"type":"about:blank","title":"Conflict","status":409,"detail":"school conflict","code":"general.business_rejection","details":{"id":"42"},"errors":[{"field":"name","reason":"duplicate"}],"instance":"/school/items/42"}';
       mockFetch.mockResolvedValueOnce(
         new Response(body, {
           status: 409,

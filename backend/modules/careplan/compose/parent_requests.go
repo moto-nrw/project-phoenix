@@ -1,17 +1,14 @@
 package compose
 
 import (
-	"context"
 	"errors"
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // Consumer-owned ports of the Stammdaten decision and the cross-kind parent
@@ -19,7 +16,7 @@ import (
 // implement them without reaching into the module.
 type (
 	MasterDataRecords        = ports.MasterDataRecords
-	MasterDataFieldReviews   = ports.MasterDataFieldReviews
+	MasterDataFieldReviews   = careplan.MasterDataFieldReviews
 	MasterDataStudent        = ports.MasterDataStudent
 	MasterDataPerson         = ports.MasterDataPerson
 	MasterDataStudentChange  = ports.MasterDataStudentChange
@@ -71,7 +68,7 @@ func NewMasterDataDecisions(deps MasterDataDecisionDependencies) (*MasterDataDec
 	}
 	return application.NewMasterDataDecisions(application.MasterDataDecisionDependencies{
 		Requests: deps.CarePlan, People: deps.People, Records: deps.Records, Scope: deps.Scope,
-		Hooks: tenantHooks{}, Today: deps.Today, Logger: deps.Logger, Messenger: deps.Messenger,
+		Hooks: TenantHooks{}, Today: deps.Today, Logger: deps.Logger, Messenger: deps.Messenger,
 		Broadcaster: deps.Broadcaster, Ledger: deps.Ledger, Shares: deps.Shares,
 	})
 }
@@ -105,104 +102,10 @@ func NewParentRequestCoordinator(deps ParentRequestCoordinatorDependencies) (par
 	if deps.Rights == nil || deps.MasterData == nil || deps.Excused == nil || deps.Care == nil || deps.Offering == nil {
 		return nil, errors.New("care plan parent request coordinator: rights and all four request queues are required")
 	}
-	excused := excusedParentRequests{requests: deps.Excused}
+	excused := application.ExcusedParentRequests{Requests: deps.Excused}
 	return application.NewParentRequestCoordinator(application.ParentRequestCoordinatorDependencies{
-		Rights: deps.Rights, Rollback: tenantHooks{}, MasterData: deps.MasterData, Excused: excused,
+		Rights: deps.Rights, Rollback: TenantHooks{}, MasterData: deps.MasterData, Excused: excused,
 		MasterDataConflicts: deps.MasterData, ExcusedConflicts: excused,
 		CareConflicts: deps.Care, OfferingConflicts: deps.Offering, Ledger: deps.Ledger,
 	})
-}
-
-// MarkRollback asks the ambient tenant transaction to roll back.
-func (tenantHooks) MarkRollback(ctx context.Context) { tenant.MarkRollback(ctx) }
-
-// excusedParentRequests presents the excused-absence workflow to the
-// cross-kind commands in the coordinator's vocabulary.
-type excusedParentRequests struct {
-	requests careplan.ExcusedAbsenceRequests
-}
-
-func (p excusedParentRequests) GetExcusedBulkCandidate(ctx context.Context, requestID int64) (*ports.ExcusedBulkCandidate, error) {
-	candidate, err := p.requests.GetExcusedBulkCandidate(ctx, requestID)
-	if err != nil || candidate == nil {
-		return nil, excusedParentRequestError(err)
-	}
-	return &ports.ExcusedBulkCandidate{ID: candidate.ID, StudentID: candidate.StudentID, UpdatedAt: candidate.UpdatedAt, Eligible: candidate.Eligible}, nil
-}
-
-func (p excusedParentRequests) LockExcusedBulkRequest(ctx context.Context, requestID int64) error {
-	return excusedParentRequestError(p.requests.LockExcusedBulkRequest(ctx, requestID))
-}
-
-func (p excusedParentRequests) ApproveExcusedBulk(ctx context.Context, requestID int64, reason string, reviewerID int64, expectedVersion string) error {
-	return excusedParentRequestError(p.requests.ApproveExcusedBulk(ctx, requestID, reason, reviewerID, expectedVersion))
-}
-
-func (p excusedParentRequests) ConflictCandidate(ctx context.Context, requestID int64) (*ports.ConflictCandidate, error) {
-	candidate, err := p.requests.ConflictCandidate(ctx, requestID)
-	if err != nil {
-		return nil, excusedParentRequestError(err)
-	}
-	return &ports.ConflictCandidate{StudentID: candidate.StudentID, UpdatedAt: candidate.UpdatedAt}, nil
-}
-
-func (p excusedParentRequests) LockConflictRequest(ctx context.Context, requestID int64) error {
-	return excusedParentRequestError(p.requests.LockConflictRequest(ctx, requestID))
-}
-
-func (p excusedParentRequests) DecideConflictRequest(ctx context.Context, decision ports.ConflictDecision) error {
-	return excusedParentRequestError(p.requests.DecideConflictRequest(ctx, careplan.ExcusedConflictDecision{
-		RequestID: decision.RequestID, Approve: decision.Approve, Reason: decision.Reason,
-		ReviewerID: decision.ReviewerID, ExpectedVersion: decision.ExpectedVersion,
-	}))
-}
-
-// WriteStaffValue reads {"value": "<status>"} from the resolve payload;
-// anything else is the workflow's invalid-status sentinel, never a 500.
-func (p excusedParentRequests) WriteStaffValue(ctx context.Context, write ports.StaffValueWrite) error {
-	status, ok := write.Value["value"].(string)
-	if !ok {
-		return careplan.ErrAbsenceRequestInvalidStatus
-	}
-	return excusedParentRequestError(p.requests.WriteStaffValue(ctx, careplan.ExcusedStaffValueWrite{
-		StudentID: write.StudentID, RequestIDs: write.RequestIDs, Reason: write.Reason, Status: status,
-	}))
-}
-
-// excusedParentRequestError translates the workflow's sentinels into the ones
-// the cross-kind commands and their routes match on. Domain-specific
-// sentinels pass through unchanged.
-func excusedParentRequestError(err error) error {
-	switch {
-	case err == nil:
-		return nil
-	case errors.Is(err, careplan.ErrExcusedRequestNotFound):
-		return absencerecords.ErrExcusedRequestNotFound
-	case errors.Is(err, careplan.ErrExcusedRequestNotPending):
-		return absencerecords.ErrExcusedRequestNotPending
-	case errors.Is(err, careplan.ErrExcusedRequestNotDecided):
-		return absencerecords.ErrExcusedRequestNotDecided
-	default:
-		return parentRequestLifecycleError(err)
-	}
-}
-
-// parentRequestLifecycleError maps Care Plan's cross-kind lifecycle
-// sentinels onto the parent-request contract.
-func parentRequestLifecycleError(err error) error {
-	for _, pair := range [][2]error{
-		{careplan.ErrParentRequestStale, parentrequests.ErrStale},
-		{careplan.ErrParentRequestDecisionRace, parentrequests.ErrDecisionRace},
-		{careplan.ErrParentRequestReasonRequired, parentrequests.ErrReasonRequired},
-		{careplan.ErrParentRequestPast, parentrequests.ErrPast},
-		{careplan.ErrParentRequestNotPast, parentrequests.ErrNotPast},
-		{careplan.ErrParentRequestNotDecided, parentrequests.ErrNotDecided},
-		{careplan.ErrParentRequestCorrectionUnsupported, parentrequests.ErrCorrectionUnsupported},
-		{careplan.ErrStaffValueUnsupported, parentrequests.ErrStaffValueUnsupported},
-	} {
-		if errors.Is(err, pair[0]) {
-			return pair[1]
-		}
-	}
-	return err
 }

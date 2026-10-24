@@ -581,7 +581,10 @@ describe.concurrent("bauart rules", () => {
       expect(output).toContain("bauart(no-toast-form-error)");
     });
 
-    it("accepts a success toast and an error toast outside a submit handler", async () => {
+    // The rule treats toast.error and toast.warning alike. The probe uses
+    // the warning: a hand-written toast.error fails error-path/no-raw-error-toast
+    // on its own (#2520).
+    it("accepts a success toast and a warning toast outside a submit handler", async () => {
       const { status, output } = await lintSource(
         `import { useToast } from "~/contexts/ToastContext";
       export function Probe({ save, load }: { save: () => Promise<void>; load: () => Promise<void> }) {
@@ -594,7 +597,7 @@ describe.concurrent("bauart rules", () => {
           try {
             await load();
           } catch {
-            toast.error("Laden fehlgeschlagen.");
+            toast.warning("Laden dauert länger.");
           }
         };
         return (

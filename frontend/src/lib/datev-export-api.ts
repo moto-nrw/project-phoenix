@@ -3,7 +3,7 @@
 // (time_tracking:manage); the file build and this report share one backend
 // code path, so they cannot disagree.
 
-import { ApiError, apiErrorFromResponse } from "./api-error";
+import { apiErrorFromResponse } from "./api-error";
 import { sessionFetch } from "./session-cache";
 
 export type DatevFormat = "datev_lodas" | "datev_lug";
@@ -39,17 +39,6 @@ export interface DatevExportReport {
   openMonth: boolean;
 }
 
-/** Thrown for the 409 "payroll configuration incomplete" preflight answer. */
-export class DatevConfigIncompleteError extends ApiError {
-  constructor(requestId?: string) {
-    super("payroll_config_incomplete", 409, {
-      code: "workforce.payroll_config_incomplete",
-      instance: requestId,
-    });
-    this.name = "DatevConfigIncompleteError";
-  }
-}
-
 function mapDatevExportReport(
   data: BackendDatevExportReport,
 ): DatevExportReport {
@@ -79,13 +68,6 @@ export async function fetchDatevExportReport(
   const response = await sessionFetch(
     `/api/staff/time-tracking/export/datev-report?${params.toString()}`,
   );
-  if (response.status === 409) {
-    const wire = await apiErrorFromResponse(
-      response,
-      "payroll_config_incomplete",
-    );
-    throw new DatevConfigIncompleteError(wire.requestId);
-  }
   if (!response.ok) {
     throw await apiErrorFromResponse(
       response,

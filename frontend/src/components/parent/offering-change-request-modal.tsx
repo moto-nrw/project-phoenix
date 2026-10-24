@@ -26,13 +26,17 @@ import { ISODatePicker } from "~/components/ui/date-picker";
 import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
 import {
   getChildOfferingCatalog,
-  ParentApiError,
   updateOfferingChangeRequest,
   type OfferingCatalog,
   type OfferingCatalogItem,
   type OfferingChangeSelectionInput,
 } from "~/lib/parent-api";
 import { ApiError } from "~/lib/api-error";
+import {
+  type CareOfferingDayConflict,
+  careOfferingDayConflicts,
+  conflictOfferingList,
+} from "~/lib/care-offering-day-conflicts";
 import { createLogger } from "~/lib/logger";
 import { formatDate } from "~/lib/date-helpers";
 
@@ -50,6 +54,16 @@ const DAY_TO_ISO: Record<string, number> = {
   sat: 6,
   sun: 7,
 };
+
+// weekdayLong names a stored day ("mon") in full, in the parent's language.
+// 2024-01-01 was a Monday.
+function weekdayLong(day: string, locale: string): string {
+  const iso = DAY_TO_ISO[day];
+  if (!iso) return day;
+  return new Intl.DateTimeFormat(locale, { weekday: "long" }).format(
+    new Date(2024, 0, iso),
+  );
+}
 
 interface OfferingDraft {
   selected: boolean;
@@ -237,7 +251,9 @@ export function OfferingChangeRequestModal({
     [t],
   );
 
+  // A changed selection answers the last refusal; it may no longer apply.
   const toggleOffering = (item: OfferingCatalogItem) => {
+    if (form.error) form.clear();
     editedOfferingIDs.current.add(item.id);
     setDraft((prev) => {
       const row = prev[item.id] ?? { selected: false, days: new Set<string>() };
@@ -254,6 +270,7 @@ export function OfferingChangeRequestModal({
   };
 
   const toggleDay = (offeringId: string, day: string) => {
+    if (form.error) form.clear();
     editedOfferingIDs.current.add(offeringId);
     setDraft((prev) => {
       const row = prev[offeringId];
@@ -271,8 +288,35 @@ export function OfferingChangeRequestModal({
   const items = useMemo(() => catalog?.items ?? [], [catalog]);
   const emptyCatalog = catalog !== null && items.length === 0;
 
+  // Variants of a per-day group may not share a weekday (#4514). The dialog
+  // names the conflict and leaves the choice to the family.
+  const dayConflicts = useMemo(() => {
+    const selectedIds = new Set(
+      items.filter((item) => draft[item.id]?.selected).map((item) => item.id),
+    );
+    const days = Object.fromEntries(
+      items.map((item) => [item.id, draft[item.id]?.days]),
+    );
+    return careOfferingDayConflicts(items, selectedIds, days);
+  }, [items, draft]);
+  const dayConflictText = (conflict: CareOfferingDayConflict) =>
+    t("careOfferingsModal.dayConflict", {
+      day: weekdayLong(conflict.day, locale),
+      offerings: conflictOfferingList(
+        conflict.offeringIds.map(
+          (id) => items.find((item) => item.id === id)?.name ?? id,
+        ),
+        locale,
+      ),
+    });
+
   const handleSubmit = async (completeWithdrawalConfirmed = false) => {
     if (!catalog) return;
+    const [dayConflict] = dayConflicts;
+    if (dayConflict) {
+      form.invalid(dayConflictText(dayConflict));
+      return;
+    }
     const offerings: OfferingChangeSelectionInput[] = [];
     for (const item of items) {
       const row = draft[item.id];
@@ -328,14 +372,14 @@ export function OfferingChangeRequestModal({
       onClose();
     } catch (err) {
       if (
-        err instanceof ParentApiError &&
+        err instanceof ApiError &&
         err.code === "enrollment.complete_withdrawal_confirmation_required"
       ) {
         setConfirmCompleteWithdrawal(true);
         return;
       }
       if (
-        err instanceof ParentApiError &&
+        err instanceof ApiError &&
         err.code === "students.change_request_stale"
       ) {
         form.invalid(t("careOfferingsModal.staleError"));
@@ -540,6 +584,14 @@ export function OfferingChangeRequestModal({
                     </div>
                   );
                 })}
+                {dayConflicts.map((conflict) => (
+                  <p
+                    key={`${conflict.group}-${conflict.day}`}
+                    className="text-parent-red-strong text-sm"
+                  >
+                    {dayConflictText(conflict)}
+                  </p>
+                ))}
               </div>
 
               <div>

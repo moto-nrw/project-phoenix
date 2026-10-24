@@ -42,11 +42,11 @@ func (s *StudentStore) InsertRecord(
 	ctx context.Context,
 	record domain.StudentRecord,
 ) (domain.StudentRecord, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.StudentRecord{}, domain.OperationStats{}, err
 	}
-	if err := requireStudentWriteTenant(tenantID); err != nil {
+	if err := requireStudentWriteTenant(scope.TenantID); err != nil {
 		return domain.StudentRecord{}, domain.OperationStats{}, err
 	}
 	// An unset status means the column's default, which a check constraint
@@ -56,7 +56,7 @@ func (s *StudentStore) InsertRecord(
 		record.Status = domain.StudentStatusActive
 	}
 
-	row := newStudentWriteRow(record, tenantID)
+	row := newStudentWriteRow(record, scope.TenantID)
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	_, err = db.NewInsert().Model(&row).
@@ -80,15 +80,15 @@ func (s *StudentStore) UpdateRecord(
 	ctx context.Context,
 	record domain.StudentRecord,
 ) (domain.StudentRecord, bool, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.StudentRecord{}, false, domain.OperationStats{}, err
 	}
-	if err := requireStudentWriteTenant(tenantID); err != nil {
+	if err := requireStudentWriteTenant(scope.TenantID); err != nil {
 		return domain.StudentRecord{}, false, domain.OperationStats{}, err
 	}
 
-	row := newStudentWriteRow(record, tenantID)
+	row := newStudentWriteRow(record, scope.TenantID)
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	result, err := db.NewUpdate().Model(&row).
@@ -96,7 +96,7 @@ func (s *StudentStore) UpdateRecord(
 		Column(studentWritableColumnList()...).
 		Set(`updated_at = NOW()`).
 		Where(`"student".id = ?`, record.ID).
-		Where(`"student".tenant_id = ?`, tenantID).
+		Where(`"student".tenant_id = ?`, scope.TenantID).
 		Returning(studentReturningColumns).
 		Exec(ctx, &row)
 	stats.StatementDuration = time.Since(started)
@@ -124,11 +124,11 @@ func (s *StudentStore) DeleteRecord(
 	ctx context.Context,
 	studentID int64,
 ) (bool, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return false, domain.OperationStats{}, err
 	}
-	if err := requireStudentWriteTenant(tenantID); err != nil {
+	if err := requireStudentWriteTenant(scope.TenantID); err != nil {
 		return false, domain.OperationStats{}, err
 	}
 	stats := domain.OperationStats{Queries: 1}
@@ -136,7 +136,7 @@ func (s *StudentStore) DeleteRecord(
 	result, err := db.NewDelete().
 		TableExpr(`users.student_profiles AS "student"`).
 		Where(`"student".id = ?`, studentID).
-		Where(`"student".tenant_id = ?`, tenantID).
+		Where(`"student".tenant_id = ?`, scope.TenantID).
 		Exec(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
@@ -183,7 +183,7 @@ func newStudentWriteRow(record domain.StudentRecord, tenantID int64) studentWrit
 	row.EnrolledUntil = studentDateParam(record.EnrolledUntil)
 	row.AddressStreet, row.AddressCity = record.AddressStreet, record.AddressCity
 	row.AddressPostalCode = record.AddressPostalCode
-	row.ExtraInfo, row.SupervisorNotes = record.ExtraInfo, record.SupervisorNotes
+	row.ExtraInfo = record.ExtraInfo
 	row.HealthInfo, row.PickupStatus = record.HealthInfo, record.PickupStatus
 	row.Sick, row.SickSince = record.Sick, record.SickSince
 	row.Excused, row.ExcusedSince = record.Excused, record.ExcusedSince

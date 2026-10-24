@@ -7,10 +7,10 @@ import (
 	"strings"
 	"testing"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	fixtures "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -45,30 +45,30 @@ func (n lifecycleGuardianNotices) ValidateNoticeText(title, message string) erro
 	return err
 }
 
-func (n lifecycleGuardianNotices) NoticeReach(ctx context.Context, studentIDs []int64) (compose.GuardianNoticeAudience, error) {
+func (n lifecycleGuardianNotices) NoticeReach(ctx context.Context, studentIDs []int64) (timetablePorts.GuardianNoticeAudience, error) {
 	reach, err := n.publisher.CareCancellationReachFor(ctx, studentIDs)
 	if err != nil {
-		return compose.GuardianNoticeAudience{}, err
+		return timetablePorts.GuardianNoticeAudience{}, err
 	}
-	return compose.GuardianNoticeAudience{FamilyCount: reach.FamilyCount}, nil
+	return timetablePorts.GuardianNoticeAudience{FamilyCount: reach.FamilyCount}, nil
 }
 
-func (n lifecycleGuardianNotices) PublishNotice(ctx context.Context, notice compose.GuardianNoticePublication) (compose.GuardianNoticePublished, error) {
+func (n lifecycleGuardianNotices) PublishNotice(ctx context.Context, notice timetablePorts.GuardianNoticePublication) (timetablePorts.GuardianNoticePublished, error) {
 	published, err := n.publisher.PublishCareCancellation(ctx, communication.CareCancellationInput{
 		StudentIDs: notice.StudentIDs, Title: notice.Title, Body: notice.Body, CreatedBy: notice.CreatedBy,
 	})
 	switch {
 	case errors.Is(err, communication.ErrParentAnnouncementValidation):
-		return compose.GuardianNoticePublished{}, fmt.Errorf("%w: %w", timetable.ErrGuardianNoticeInvalid, err)
+		return timetablePorts.GuardianNoticePublished{}, fmt.Errorf("%w: %w", timetable.ErrGuardianNoticeInvalid, err)
 	case err != nil:
-		return compose.GuardianNoticePublished{}, err
+		return timetablePorts.GuardianNoticePublished{}, err
 	}
-	return compose.GuardianNoticePublished{AnnouncementID: published.AnnouncementID, RecipientCount: published.RecipientCount}, nil
+	return timetablePorts.GuardianNoticePublished{AnnouncementID: published.AnnouncementID, RecipientCount: published.RecipientCount}, nil
 }
 
 // instanceServiceWithGuardianNotices builds the lifecycle service with the
 // given notice publisher, the way the composition root wires it.
-func instanceServiceWithGuardianNotices(t *testing.T, s *lifecycleSetup, publisher communication.CareCancellationPublisher) *compose.InstanceLifecycleService {
+func instanceServiceWithGuardianNotices(t *testing.T, s *lifecycleSetup, publisher communication.CareCancellationPublisher) fixtures.InstanceLifecycle {
 	t.Helper()
 	deps := lifecycleDependencies(s, nil)
 	deps.GuardianNotices = lifecycleGuardianNotices{publisher: publisher}
@@ -80,11 +80,10 @@ func instanceServiceWithGuardianNotices(t *testing.T, s *lifecycleSetup, publish
 func seedNoticeInstance(t *testing.T, s *lifecycleSetup, date calendar.Date) (*testpkg.ActivityInstance, int64, int64) {
 	t.Helper()
 	instance := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{Title: "Fußball-AG"})
-	testpkg.CreateTestInstanceStudent(t, s.db, instance.ID, s.student1, scheduleModels.AttendanceStatusExpected)
-	testpkg.CreateTestInstanceStudent(t, s.db, instance.ID, s.student2, scheduleModels.AttendanceStatusExpected)
+	testpkg.CreateTestInstanceStudent(t, s.db, instance.ID, s.student1, fixtures.AttendanceStatusExpected())
+	testpkg.CreateTestInstanceStudent(t, s.db, instance.ID, s.student2, fixtures.AttendanceStatusExpected())
 	unbooked := testpkg.CreateTestStudent(t, s.db, "Nie", "Gebucht", "2b")
-	testpkg.CreateTestInstanceStudent(t, s.db, instance.ID, unbooked.ID, scheduleModels.AttendanceStatusExpected,
-		testpkg.InstanceStudentOpts{NotScheduled: true})
+	testpkg.CreateTestInstanceStudent(t, s.db, instance.ID, unbooked.ID, fixtures.AttendanceStatusExpected(), testpkg.InstanceStudentOpts{NotScheduled: true})
 	return instance, s.student1, s.student2
 }
 
@@ -109,7 +108,7 @@ func TestCancelWithNotice_PublishesForBookedChildrenOnly(t *testing.T) {
 		Message: "Die Fußball-AG morgen fällt aus.",
 	}))
 	require.NoError(t, err)
-	assert.Equal(t, scheduleModels.InstanceStatusCancelled, result.Instance.Status)
+	assert.Equal(t, fixtures.InstanceStatusCancelled(), result.Instance.Status)
 	require.NotNil(t, result.GuardianNotice)
 	assert.Equal(t, 2, result.GuardianNotice.ChildCount)
 	assert.Equal(t, 2, result.GuardianNotice.FamilyCount)
@@ -131,7 +130,7 @@ func TestCancelWithNotice_NilNoticeCancelsSilently(t *testing.T) {
 
 	result, err := svc.CancelWithNotice(s.ctx, noticeInput(instance.ID, actor.ID, nil))
 	require.NoError(t, err)
-	assert.Equal(t, scheduleModels.InstanceStatusCancelled, result.Instance.Status)
+	assert.Equal(t, fixtures.InstanceStatusCancelled(), result.Instance.Status)
 	assert.Nil(t, result.GuardianNotice)
 	assert.Empty(t, publisher.published)
 }
@@ -147,27 +146,27 @@ func TestCancelWithNotice_RefusesBeforeCancellingWhenInvalid(t *testing.T) {
 		instance, _, _ := seedNoticeInstance(t, s, calendar.TodayDate().AddDays(1))
 		_, err := svc.CancelWithNotice(s.ctx, noticeInput(instance.ID, actor.ID, &timetable.GuardianNoticeInput{Title: "x"}))
 		require.ErrorIs(t, err, timetable.ErrGuardianNoticeInvalid)
-		reloaded, err := s.repos.ActivityInstance.FindByID(s.ctx, instance.ID)
+		reloaded, err := fixtures.FromActivityInstanceRecords(s.timetable.NativeInstances()).FindByID(s.ctx, instance.ID)
 		require.NoError(t, err)
-		assert.Equal(t, scheduleModels.InstanceStatusPlanned, reloaded.Status, "a refused notice must not cancel the block")
+		assert.Equal(t, fixtures.InstanceStatusPlanned(), reloaded.Status, "a refused notice must not cancel the block")
 	})
 
 	t.Run("whitespace-only text", func(t *testing.T) {
 		instance, _, _ := seedNoticeInstance(t, s, calendar.TodayDate().AddDays(1))
 		_, err := svc.CancelWithNotice(s.ctx, noticeInput(instance.ID, actor.ID, &timetable.GuardianNoticeInput{Title: "  ", Message: "\t"}))
 		require.ErrorIs(t, err, timetable.ErrGuardianNoticeInvalid)
-		reloaded, err := s.repos.ActivityInstance.FindByID(s.ctx, instance.ID)
+		reloaded, err := fixtures.FromActivityInstanceRecords(s.timetable.NativeInstances()).FindByID(s.ctx, instance.ID)
 		require.NoError(t, err)
-		assert.Equal(t, scheduleModels.InstanceStatusPlanned, reloaded.Status)
+		assert.Equal(t, fixtures.InstanceStatusPlanned(), reloaded.Status)
 	})
 
 	t.Run("overlong text", func(t *testing.T) {
 		instance, _, _ := seedNoticeInstance(t, s, calendar.TodayDate().AddDays(1))
 		_, err := svc.CancelWithNotice(s.ctx, noticeInput(instance.ID, actor.ID, &timetable.GuardianNoticeInput{Title: strings.Repeat("x", 201), Message: "Text"}))
 		require.ErrorIs(t, err, timetable.ErrGuardianNoticeInvalid)
-		reloaded, err := s.repos.ActivityInstance.FindByID(s.ctx, instance.ID)
+		reloaded, err := fixtures.FromActivityInstanceRecords(s.timetable.NativeInstances()).FindByID(s.ctx, instance.ID)
 		require.NoError(t, err)
-		assert.Equal(t, scheduleModels.InstanceStatusPlanned, reloaded.Status)
+		assert.Equal(t, fixtures.InstanceStatusPlanned(), reloaded.Status)
 	})
 
 	t.Run("past block", func(t *testing.T) {
@@ -226,7 +225,7 @@ func TestCancelWithNotice_WithoutPublisherRefusesBeforeCancelling(t *testing.T) 
 	_, err := svc.CancelWithNotice(s.ctx, noticeInput(instance.ID, actor.ID, &timetable.GuardianNoticeInput{Title: "x", Message: "y"}))
 	require.Error(t, err)
 	assert.NotErrorIs(t, err, timetable.ErrGuardianNoticeInvalid)
-	reloaded, err := s.repos.ActivityInstance.FindByID(s.ctx, instance.ID)
+	reloaded, err := fixtures.FromActivityInstanceRecords(s.timetable.NativeInstances()).FindByID(s.ctx, instance.ID)
 	require.NoError(t, err)
-	assert.Equal(t, scheduleModels.InstanceStatusPlanned, reloaded.Status)
+	assert.Equal(t, fixtures.InstanceStatusPlanned(), reloaded.Status)
 }

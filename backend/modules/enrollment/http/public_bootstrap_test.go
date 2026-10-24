@@ -7,7 +7,6 @@ import (
 
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -16,8 +15,7 @@ import (
 func TestRequestService_LoadPublicFormBootstrap_AssemblesPhaseSchemaCapabilities(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupRequestTest(t)
-	defer cleanup()
+	env := setupRequestTest(t)
 
 	ctx := testpkg.Ctx(t)
 	data, err := env.svc.LoadPublicFormBootstrap(ctx, env.phaseID, time.Now(), "")
@@ -34,10 +32,9 @@ func TestRequestService_LoadPublicFormBootstrap_AssemblesPhaseSchemaCapabilities
 func TestRequestService_LoadPublicFormBootstrap_ReturnsValidLateInvitePrefill(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupRequestTest(t)
-	defer cleanup()
+	env := setupRequestTest(t)
 	ctx := testpkg.Ctx(t)
-	repos := flowRepositories(t, env.db)
+	repos, _, _, _, _, _ := flowRepositories(t, env.db)
 	config := env.config
 	config.LateInviteRepo = repos.Enrollment()
 	svc := newTestRequestService(config)
@@ -66,10 +63,9 @@ func TestRequestService_LoadPublicFormBootstrap_ReturnsValidLateInvitePrefill(t 
 func TestRequestService_LoadPublicFormBootstrap_CapabilityFailureIsStageError(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupRequestTest(t)
-	defer cleanup()
+	env := setupRequestTest(t)
 
-	env.settings.boolErrors[configModel.KeyEnrollmentCollectGradeLevel] = errors.New("boom")
+	env.settings.boolErrors[settingKeyCollectGradeLevel] = errors.New("boom")
 
 	ctx := testpkg.Ctx(t)
 	_, err := env.svc.LoadPublicFormBootstrap(ctx, env.phaseID, time.Now(), "")
@@ -83,10 +79,9 @@ func TestRequestService_LoadPublicFormBootstrap_CapabilityFailureIsStageError(t 
 func TestRequestService_LoadManualEnrollmentBootstrap_CapabilityFailureIsRaw(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupRequestTest(t)
-	defer cleanup()
+	env := setupRequestTest(t)
 
-	env.settings.boolErrors[configModel.KeyEnrollmentCollectGradeLevel] = errors.New("boom")
+	env.settings.boolErrors[settingKeyCollectGradeLevel] = errors.New("boom")
 
 	ctx := testpkg.Ctx(t)
 	_, err := env.svc.LoadManualEnrollmentBootstrap(ctx, env.phaseID)

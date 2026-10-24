@@ -23,40 +23,96 @@ type PickupApprovals struct {
 
 var _ carerequests.PickupApprovals = (*PickupApprovals)(nil)
 
-func (s *PickupApprovals) ApplyPickupApproval(ctx context.Context, input carerequests.PickupApproval) (int64, error) {
-	date, pickup, reason, err := carerequests.ParsePickup(input.Payload)
+func (s *PickupApprovals) ApplyPickupApproval(ctx context.Context, input carerequests.PickupApproval) (carerequests.PickupApplied, error) {
+	change, err := carerequests.ParsePickup(input.Payload)
 	if err != nil {
-		return 0, err
+		return carerequests.PickupApplied{}, err
 	}
+	if change.DepartureMode != "" {
+		careDay, careDayErr := calendar.IsCareWeekday(ctx, change.Date)
+		if careDayErr != nil {
+			return carerequests.PickupApplied{}, fmt.Errorf("schedule: resolve weekend plan for pickup request decision: %w", careDayErr)
+		}
+		if !careDay {
+			return carerequests.PickupApplied{}, careplan.ErrDepartureExceptionNotCareDay
+		}
+	}
+	if err := s.lockApprovalDay(ctx, input, change); err != nil {
+		return carerequests.PickupApplied{}, err
+	}
+	return s.applyLegs(ctx, input, change)
+}
+
+// lockApprovalDay refuses a past or post-enrollment day, takes the care-day
+// lock and runs the checks that need it: the reviewed impact of a new time,
+// and that the child has not already gone home today.
+func (s *PickupApprovals) lockApprovalDay(ctx context.Context, input carerequests.PickupApproval, change carerequests.PickupChange) error {
+	date := change.Date
 	if date.Before(s.Today()) {
-		return 0, carerequests.ErrPickupChangeExpired
+		return carerequests.ErrPickupChangeExpired
 	}
 	until, err := s.People.EnrolledUntil(ctx, input.StudentID)
 	if err != nil {
-		return 0, fmt.Errorf("schedule: reload student for pickup request decision: %w", err)
+		return fmt.Errorf("schedule: reload student for pickup request decision: %w", err)
 	}
 	if until != nil && date.After(*until) {
-		return 0, careplan.ErrCareScheduleRequestNotFound
+		return careplan.ErrCareScheduleRequestNotFound
 	}
 	if err := s.Locker.LockStudentAndExceptionDay(ctx, input.StudentID, date.String()); err != nil {
-		return 0, fmt.Errorf("schedule: lock pickup request care day: %w", err)
+		return fmt.Errorf("schedule: lock pickup request care day: %w", err)
 	}
-	if err := s.verifyImpact(ctx, input, date, pickup); err != nil {
-		return 0, err
+	if change.PickupTime != nil {
+		if err := s.verifyImpact(ctx, input, date, *change.PickupTime); err != nil {
+			return err
+		}
 	}
-	if err := s.ensureNotCompleted(ctx, input.StudentID, date); err != nil {
-		return 0, err
-	}
-	staffID, err := s.People.ActingStaffID(ctx)
+	return s.ensureNotCompleted(ctx, input.StudentID, date)
+}
+
+// applyLegs writes the requested Gehzeit and Abholart (#3945) of the day in
+// the name of the deciding staff member.
+func (s *PickupApprovals) applyLegs(ctx context.Context, input carerequests.PickupApproval, change carerequests.PickupChange) (carerequests.PickupApplied, error) {
+	var applied carerequests.PickupApplied
+	staffID, err := actingStaffID(ctx, s.People, pickupRequestStaff)
 	if err != nil {
-		return 0, err
+		return applied, err
 	}
-	id, err := s.SaveApprovedException(ctx, input.TenantID, input.StudentID, date, pickup, reason, staffID)
+	if change.PickupTime != nil {
+		id, err := s.SaveApprovedException(ctx, input.TenantID, input.StudentID, change.Date, *change.PickupTime, change.Reason, staffID)
+		if err != nil {
+			return applied, err
+		}
+		if err := s.Excusal.Sync(ctx, id); err != nil {
+			return applied, fmt.Errorf("schedule: sync approved pickup exception: %w", err)
+		}
+		applied.PickupExceptionID = id
+	}
+	if change.DepartureMode != "" {
+		id, err := s.saveApprovedDeparture(ctx, input.StudentID, change.Date, change.DepartureMode, change.Reason, staffID)
+		if err != nil {
+			return applied, err
+		}
+		applied.DepartureExceptionID = id
+	}
+	return applied, nil
+}
+
+// saveApprovedDeparture writes the requested Abholart of the day. A value the
+// OGS already set for that day wins, exactly like a staff pickup exception:
+// the parent's request may not silently replace it.
+func (s *PickupApprovals) saveApprovedDeparture(ctx context.Context, studentID int64, date calendar.Date, mode, reason string, staffID int64) (int64, error) {
+	existing, err := s.Exceptions.FindDepartureForDate(ctx, studentID, date)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("schedule: load departure exception for request: %w", err)
 	}
-	if err := s.Excusal.Sync(ctx, id); err != nil {
-		return 0, fmt.Errorf("schedule: sync approved pickup exception: %w", err)
+	if existing != nil {
+		return 0, carerequests.ErrPickupChangeConflict
+	}
+	id, err := s.Exceptions.SaveDeparture(ctx, careplan.DepartureException{
+		StudentID: studentID, ExceptionDate: careplan.Date(date), DepartureMode: mode, Reason: &reason, CreatedBy: &staffID,
+	})
+	if err != nil {
+		return 0, fmt.Errorf("schedule: save approved departure exception: %w", err)
 	}
 	return id, nil
 }

@@ -1,0 +1,30 @@
+package care
+
+import (
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+)
+
+type carePlanFixturePolicy struct{}
+
+func (carePlanFixturePolicy) BookingViewDate(today, end calendar.Date) calendar.Date {
+	return careplan.BookingViewDate(today, end)
+}
+func (carePlanFixturePolicy) Error(kind CarePlanError) error {
+	switch kind {
+	case CarePlanCourseRequestsDisabled:
+		return careplan.ErrCourseRequestsDisabled
+	case CarePlanOfferingChangeDisabled:
+		return careplan.ErrOfferingChangeDisabled
+	case CarePlanManualPartialAbsenceConflict:
+		return careplan.ErrManualPartialAbsenceConflict
+	case CarePlanGuardianPickupExceptionRaced:
+		return careplan.ErrGuardianPickupExceptionRaced
+	case CarePlanPickupExceptionStaffOwned:
+		return careplan.ErrPickupExceptionStaffOwned
+	case CarePlanStudentDataRequestFieldPending:
+		return careplan.ErrStudentDataRequestFieldPending
+	default:
+		panic("unknown Care Plan error")
+	}
+}

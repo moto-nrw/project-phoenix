@@ -30,6 +30,10 @@ type pickupApprovalFixture struct {
 	open        bool
 	existing    *careplan.PickupException
 	written     *careplan.PickupException
+	// The day Abholart (#3945).
+	departureID       int64
+	existingDeparture *careplan.DepartureException
+	writtenDeparture  *careplan.DepartureException
 }
 
 func (f *pickupApprovalFixture) step(name string) error {
@@ -42,8 +46,8 @@ func (f *pickupApprovalFixture) step(name string) error {
 func (f *pickupApprovalFixture) EnrolledUntil(context.Context, int64) (*calendar.Date, error) {
 	return nil, f.step("enrollment")
 }
-func (f *pickupApprovalFixture) ActingStaffID(context.Context) (int64, error) {
-	return f.staffID, f.step("staff")
+func (f *pickupApprovalFixture) CurrentStaffID(context.Context) (int64, bool, error) {
+	return f.staffID, true, f.step("staff")
 }
 func (f *pickupApprovalFixture) LockStudentAndExceptionDay(context.Context, int64, string) error {
 	return f.step("student-day-lock")
@@ -70,6 +74,13 @@ func (f *pickupApprovalFixture) Update(_ context.Context, row careplan.PickupExc
 	return f.step("update")
 }
 func (*pickupApprovalFixture) IsUniqueViolation(error) bool { return false }
+func (f *pickupApprovalFixture) FindDepartureForDate(context.Context, int64, calendar.Date) (*careplan.DepartureException, error) {
+	return f.existingDeparture, f.step("departure")
+}
+func (f *pickupApprovalFixture) SaveDeparture(_ context.Context, row careplan.DepartureException) (int64, error) {
+	f.writtenDeparture = &row
+	return f.departureID, f.step("save-departure")
+}
 
 func newPickupApprovalFixture(t *testing.T) *pickupApprovalFixture {
 	t.Helper()
@@ -99,9 +110,10 @@ func approvalService(t *testing.T, fixture *pickupApprovalFixture) carerequests.
 func TestNativePickupApprovalLocksBeforeWritingAndSyncing(t *testing.T) {
 	t.Parallel()
 	f := newPickupApprovalFixture(t)
-	id, err := approvalService(t, f).ApplyPickupApproval(context.Background(), f.input)
+	applied, err := approvalService(t, f).ApplyPickupApproval(context.Background(), f.input)
 	require.NoError(t, err)
-	require.Equal(t, f.exceptionID, id)
+	require.Equal(t, f.exceptionID, applied.PickupExceptionID)
+	require.Zero(t, applied.DepartureExceptionID)
 	require.Equal(t, []string{"enrollment", "student-day-lock", "preview", "attendance-lock", "attendance", "staff", "exception", "create", "sync"}, f.calls)
 	require.Equal(t, f.input.TenantID, f.written.TenantID)
 	require.Equal(t, f.input.StudentID, f.written.StudentID)
@@ -190,9 +202,9 @@ func TestNativePickupApprovalReclaimsGuardianExceptionWithoutLosingAutoExcusal(t
 		ID: f.exceptionID, TenantID: f.input.TenantID, StudentID: f.input.StudentID, ExceptionDate: "2026-09-21", Source: careplan.ExceptionSourceGuardian,
 		CreatedByGuardian: &guardian, ExcusedAuto: true, ExcusedFrom: &clock,
 	}
-	id, err := approvalService(t, f).ApplyPickupApproval(context.Background(), f.input)
+	applied, err := approvalService(t, f).ApplyPickupApproval(context.Background(), f.input)
 	require.NoError(t, err)
-	require.Equal(t, f.exceptionID, id)
+	require.Equal(t, f.exceptionID, applied.PickupExceptionID)
 	require.Equal(t, f.staffID, f.written.CreatedBy)
 	require.Nil(t, f.written.CreatedByGuardian)
 	require.True(t, f.written.ExcusedAuto)
@@ -200,4 +212,58 @@ func TestNativePickupApprovalReclaimsGuardianExceptionWithoutLosingAutoExcusal(t
 	require.Contains(t, f.calls, "update")
 	require.NotContains(t, f.calls, "create")
 	require.Equal(t, "sync", f.calls[len(f.calls)-1])
+}
+
+// #3945: a request that changes only the Abholart writes the day value under
+// the same lock and never touches the pickup exception, its impact or the
+// auto excusal.
+func TestNativePickupApprovalWritesOnlyTheDayDeparture(t *testing.T) {
+	t.Parallel()
+	f := newPickupApprovalFixture(t)
+	f.departureID = 91
+	f.input.Payload = json.RawMessage(`{"date":"2026-09-21","departure_mode":"bus","reason":"Ausflug"}`)
+	applied, err := approvalService(t, f).ApplyPickupApproval(context.Background(), f.input)
+	require.NoError(t, err)
+	require.Equal(t, carerequests.PickupApplied{DepartureExceptionID: 91}, applied)
+	require.Equal(t, []string{"enrollment", "student-day-lock", "attendance-lock", "attendance", "staff", "departure", "save-departure"}, f.calls)
+	require.Nil(t, f.written)
+	require.Equal(t, "bus", f.writtenDeparture.DepartureMode)
+	require.Equal(t, careplan.Date("2026-09-21"), f.writtenDeparture.ExceptionDate)
+	require.Equal(t, f.staffID, *f.writtenDeparture.CreatedBy)
+	require.Equal(t, "Ausflug", *f.writtenDeparture.Reason)
+}
+
+func TestNativePickupApprovalRefusesDayDepartureOnNonCareWeekend(t *testing.T) {
+	t.Parallel()
+	f := newPickupApprovalFixture(t)
+	f.input.Payload = json.RawMessage(`{"date":"2026-09-26","departure_mode":"bus","reason":"Ausflug"}`)
+
+	_, err := approvalService(t, f).ApplyPickupApproval(context.Background(), f.input)
+	require.ErrorIs(t, err, careplan.ErrDepartureExceptionNotCareDay)
+	require.Empty(t, f.calls)
+	require.Nil(t, f.writtenDeparture)
+}
+
+// Both legs: the time first (with its impact and excusal), then the mode.
+func TestNativePickupApprovalWritesTimeAndDayDeparture(t *testing.T) {
+	t.Parallel()
+	f := newPickupApprovalFixture(t)
+	f.departureID = 92
+	f.input.Payload = json.RawMessage(`{"date":"2026-09-21","pickup_time":"14:30","departure_mode":"pickup","reason":"Termin"}`)
+	applied, err := approvalService(t, f).ApplyPickupApproval(context.Background(), f.input)
+	require.NoError(t, err)
+	require.Equal(t, carerequests.PickupApplied{PickupExceptionID: f.exceptionID, DepartureExceptionID: 92}, applied)
+	require.Equal(t, []string{"enrollment", "student-day-lock", "preview", "attendance-lock", "attendance", "staff", "exception", "create", "sync", "departure", "save-departure"}, f.calls)
+}
+
+// A day Abholart the OGS already set wins over the parent's request, like a
+// staff pickup exception.
+func TestNativePickupApprovalRefusesOverAnOGSDayDeparture(t *testing.T) {
+	t.Parallel()
+	f := newPickupApprovalFixture(t)
+	f.existingDeparture = &careplan.DepartureException{ID: 5, DepartureMode: "alone"}
+	f.input.Payload = json.RawMessage(`{"date":"2026-09-21","departure_mode":"bus","reason":"Ausflug"}`)
+	_, err := approvalService(t, f).ApplyPickupApproval(context.Background(), f.input)
+	require.ErrorIs(t, err, carerequests.ErrPickupChangeConflict)
+	require.Nil(t, f.writtenDeparture)
 }

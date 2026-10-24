@@ -10,20 +10,20 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
+	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -39,7 +39,6 @@ type takeoverLockEnv struct {
 	phaseID  int64
 	token    string
 	request  *enrollmentAPI.SubmitResult
-	students []*usersModels.Student
 }
 
 // stubTakeoverSettings answers the enrollment settings the public status and
@@ -61,10 +60,10 @@ func (stubTakeoverSettings) HasTenantOverride(_ context.Context, key string) (bo
 
 func (stubTakeoverSettings) ResolveBool(_ context.Context, key string) (bool, error) {
 	switch key {
-	case configModel.KeyEnrollmentEnabled,
-		configModel.KeyEnrollmentAllowSubmissionEdit,
-		configModel.KeyEnrollmentCollectGradeLevel,
-		configModel.KeyEnrollmentWaitlistEnabled:
+	case settingKeyEnrollmentEnabled,
+		settingKeyAllowSubmissionEdit,
+		settingKeyCollectGradeLevel,
+		settingKeyWaitlistEnabled:
 		return true, nil
 	default:
 		return false, nil
@@ -72,17 +71,17 @@ func (stubTakeoverSettings) ResolveBool(_ context.Context, key string) (bool, er
 }
 
 func (stubTakeoverSettings) ResolveString(_ context.Context, key string) (string, error) {
-	if key == configModel.KeyEnrollmentDuplicateHandling {
-		return configModel.EnrollmentDuplicateHandlingWarn, nil
+	if key == settingKeyDuplicateHandling {
+		return settingValueDuplicateWarn, nil
 	}
 	return "", nil
 }
 
 func (stubTakeoverSettings) ResolveInt(_ context.Context, key string) (int, error) {
 	switch key {
-	case configModel.KeyEnrollmentGradeLevelMax:
+	case settingKeyGradeLevelMax:
 		return 4, nil
-	case configModel.KeyEnrollmentStatusTokenTTLDays:
+	case settingKeyStatusTokenTTLDays:
 		return 365, nil
 	default:
 		return 0, nil
@@ -91,7 +90,7 @@ func (stubTakeoverSettings) ResolveInt(_ context.Context, key string) (int, erro
 
 type discardingOutbox struct{}
 
-func (discardingOutbox) EnqueueOutbox(context.Context, platformModels.OutboxEnqueueRequest) error {
+func (discardingOutbox) EnqueueMail(context.Context, TestMail) error {
 	return nil
 }
 
@@ -104,10 +103,10 @@ type notifyModeSettings struct {
 }
 
 func (s notifyModeSettings) NotifyPerDecision(ctx context.Context) (string, error) {
-	return s.settings.ResolveString(ctx, configModel.KeyEnrollmentNotifyPerDecision)
+	return s.settings.ResolveString(ctx, settingKeyNotifyPerDecision)
 }
 
-func setupTakeoverLockTest(t *testing.T, redeemableInvitation ...bool) (*takeoverLockEnv, func()) {
+func setupTakeoverLockTest(t *testing.T, redeemableInvitation ...bool) *takeoverLockEnv {
 	t.Helper()
 	invitationAvailable := true
 	if len(redeemableInvitation) > 0 {
@@ -117,18 +116,20 @@ func setupTakeoverLockTest(t *testing.T, redeemableInvitation ...bool) (*takeove
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	ctx := testpkg.TenantContext(tenantID)
-	repos, repoErr := repositories.NewEnrollmentTestRepositories(db, repositories.NewTestAuditStore(db))
+	repos, repoErr := api.NewEnrollmentTestRepositories(testpkg.NewDatabase(t, db), owners.NewTestAuditStore(testpkg.NewDatabase(t, db)))
+	reposCare := api.NewEnrollmentCarePlanRows(testpkg.NewDatabase(t, db))
+	reposSchools := api.NewOrganizationTestRows(testpkg.NewDatabase(t, db))
 	require.NoError(t, repoErr)
 	settings := stubTakeoverSettings{}
 
 	account := testpkg.CreateTestAccount(t, db, "takeover-lock")
-	person := &usersModels.Person{
+	person := &peopleValues.DirectoryPersonSnapshot{
 		FirstName: "Takeover",
 		LastName:  "Tester",
 		AccountID: &account.ID,
 	}
 	person.SetTenantID(tenantID)
-	require.NoError(t, db.NewInsert().Model(person).ModelTableExpr("users.persons").Scan(ctx))
+	require.NoError(t, db.NewInsert().Model(person).ModelTableExpr("users.persons").Column("tenant_id", "first_name", "last_name", "account_id").Returning("*").Scan(ctx))
 	schemaSvc := NewTestFormSchemas(repos.Enrollment())
 	schema, err := schemaSvc.CreateSchema(ctx, "Testformular "+t.Name(), []capability.FormField{
 		{Key: "allergies", Label: "Allergien", Type: capability.FormFieldText, SortOrder: 0},
@@ -137,25 +138,25 @@ func setupTakeoverLockTest(t *testing.T, redeemableInvitation ...bool) (*takeove
 
 	phase := &capability.Phase{
 		Name:             "takeover-lock-" + t.Name(),
-		Kind:             enrollmentModels.PhaseKindSchoolYear,
+		Kind:             capability.PhaseKindSchoolYear,
 		ServiceStartDate: capability.Date(calendar.NewDate(2026, 9, 1)),
 		ServiceEndDate:   capability.Date(calendar.NewDate(2027, 7, 31)),
 		IsActive:         true,
 		FormSchemaID:     &schema.ID,
-		CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
+		CareOverflowMode: capability.PhaseCareOverflowWaitlist,
 	}
 	phase.TenantID = tenantID
-	require.NoError(t, repos.Enrollment().InsertPhase(ctx, phase))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repos.Enrollment().InsertPhase, phase))
 
-	requestSvc := enrollmentAPI.NewRequestService(testutil.NewEnrollmentIntake(testutil.EnrollmentIntakeSources{
+	requestSvc := newFixtureRequestRoot(owners.NewEnrollmentIntake(owners.EnrollmentIntakeSources{
 		Requests:         repos.Enrollment(),
 		Children:         repos.Enrollment(),
 		Guardians:        repos.Enrollment(),
-		CareOfferingRepo: testutil.NewEnrollmentCareOfferingRecords(repos.CarePlan),
-		Capacity:         testutil.NewEnrollmentOfferingCapacity(testutil.NewEnrollmentCareOfferingRecords(repos.CarePlan), repos.Enrollment(), settings),
+		CareOfferingRepo: enrollmentCompose.NewCareOfferingRecords(reposCare.CarePlan),
+		Capacity:         owners.NewEnrollmentOfferingCapacity(enrollmentCompose.NewCareOfferingRecords(reposCare.CarePlan), repos.Enrollment(), settings),
 		Catalog:          repos.Enrollment(),
-		SchoolRepo:       capabilitySchools{schools: repos.School},
-		Notifications:    NewTestNotifications(repos.Enrollment(), notifyModeSettings{settings: settings}, discardingOutbox{}, capabilitySchools{schools: repos.School}),
+		SchoolRepo:       capabilitySchools{schools: reposSchools.School},
+		Notifications:    NewTestNotifications(repos.Enrollment(), notifyModeSettings{settings: settings}, discardingOutbox{}, capabilitySchools{schools: reposSchools.School}),
 		RateLimitRepo:    repos.Enrollment(),
 		OutboxEnqueuer:   discardingOutbox{},
 		Settings:         settings,
@@ -163,15 +164,15 @@ func setupTakeoverLockTest(t *testing.T, redeemableInvitation ...bool) (*takeove
 		ParentsURL:       "http://parents.localhost:3000",
 		Logger:           slog.Default(),
 	}))
-	changeRequestSvc := enrollmentAPI.NewChangeRequestService(testutil.NewEnrollmentChangeRequests(testutil.EnrollmentChangeRequestSources{
+	changeRequestSvc := enrollmentAPI.NewChangeRequestService(owners.NewEnrollmentChangeRequests(owners.EnrollmentChangeRequestSources{
 		Requests:            repos.Enrollment(),
 		Children:            repos.Enrollment(),
 		Guardians:           repos.Enrollment(),
 		LateInviteRepo:      repos.Enrollment(),
-		CareOfferingRepo:    testutil.NewEnrollmentCareOfferingRecords(repos.CarePlan),
-		Capacity:            testutil.NewEnrollmentOfferingCapacity(testutil.NewEnrollmentCareOfferingRecords(repos.CarePlan), repos.Enrollment(), settings),
+		CareOfferingRepo:    enrollmentCompose.NewCareOfferingRecords(reposCare.CarePlan),
+		Capacity:            owners.NewEnrollmentOfferingCapacity(enrollmentCompose.NewCareOfferingRecords(reposCare.CarePlan), repos.Enrollment(), settings),
 		Catalog:             repos.Enrollment(),
-		Notifications:       NewTestNotifications(repos.Enrollment(), notifyModeSettings{settings: settings}, discardingOutbox{}, capabilitySchools{schools: repos.School}),
+		Notifications:       NewTestNotifications(repos.Enrollment(), notifyModeSettings{settings: settings}, discardingOutbox{}, capabilitySchools{schools: reposSchools.School}),
 		GuardianProfileRepo: repos.GuardianProfile,
 		GuardianPhoneRepo:   repos.GuardianPhoneNumber,
 		GuardianInvitations: staticGuardianInvitationAvailability{redeemable: invitationAvailable},
@@ -187,7 +188,7 @@ func setupTakeoverLockTest(t *testing.T, redeemableInvitation ...bool) (*takeove
 	resource := enrollmentAPI.NewResource(
 		nil, nil, requestSvc, nil, nil, nil, nil, nil, changeRequestSvc,
 		nil, enrollmentAPI.GuardianInvitationRuntime{}, nil, nil,
-	)
+		nativeUploads.UploadFiles{}, enrollmentAPI.DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation})
 
 	submitted, err := requestSvc.Submit(ctx, enrollmentAPI.SubmitRequest{
 		TenantID:          tenantID,
@@ -221,30 +222,13 @@ func setupTakeoverLockTest(t *testing.T, redeemableInvitation ...bool) (*takeove
 
 	env := &takeoverLockEnv{
 		db:       db,
-		router:   testpkg.TenantRuntimeMiddleware(t, db)(resource.Router()),
+		router:   testpkg.TenantRuntimeMiddleware(t, db)(resource.Router(api.TenantSessionChain)),
 		tenantID: tenantID,
 		phaseID:  phase.ID,
 		token:    submitted.Request.StatusToken,
 		request:  submitted,
 	}
-	cleanup := func() {
-		bg := context.Background()
-		for _, table := range []string{
-			"enrollment.submission_rate_limits",
-		} {
-			_, _ = db.NewDelete().TableExpr(table).Where("tenant_id = ?", tenantID).Exec(bg)
-		}
-		_, _ = db.NewDelete().TableExpr("enrollment.requests").Where("phase_id = ?", phase.ID).Exec(bg)
-		_, _ = db.NewDelete().TableExpr("enrollment.phases").Where("id = ?", phase.ID).Exec(bg)
-		_, _ = db.NewDelete().TableExpr("enrollment.form_schemas").Where("created_by = ?", account.ID).Exec(bg)
-		for _, student := range env.students {
-			_, _ = db.NewDelete().TableExpr("users.student_profiles").Where("id = ?", student.ID).Exec(bg)
-			_, _ = db.NewDelete().TableExpr("users.persons").Where("id = ?", student.PersonID).Exec(bg)
-		}
-		_, _ = db.NewDelete().TableExpr("users.persons").Where("id = ?", person.ID).Exec(bg)
-		_, _ = db.NewDelete().TableExpr("auth.accounts").Where("id = ?", account.ID).Exec(bg)
-	}
-	return env, cleanup
+	return env
 }
 
 // takeOver puts the child into the state an approval leaves behind: approved
@@ -252,10 +236,9 @@ func setupTakeoverLockTest(t *testing.T, redeemableInvitation ...bool) (*takeove
 func (env *takeoverLockEnv) takeOver(t *testing.T, childID int64, firstName string) {
 	t.Helper()
 	student := testpkg.CreateTestStudentForTenant(t, env.db, env.tenantID, firstName, "Beispiel", "1a")
-	env.students = append(env.students, student)
 	_, err := env.db.NewUpdate().
 		TableExpr("enrollment.request_children").
-		Set("status = ?", enrollmentModels.ChildStatusApproved).
+		Set("status = ?", capability.ChildStatusApproved).
 		Set("created_student_id = ?", student.ID).
 		Where("id = ?", childID).
 		Exec(testpkg.TenantContext(env.tenantID))
@@ -319,8 +302,7 @@ func decodeStatus(t *testing.T, rec *httptest.ResponseRecorder) statusEnvelope {
 
 func TestPublicStatus_TakenOverChildIsLockedAndSiblingStaysChangeable(t *testing.T) {
 	t.Parallel()
-	env, cleanup := setupTakeoverLockTest(t)
-	defer cleanup()
+	env := setupTakeoverLockTest(t)
 	env.takeOver(t, env.request.Children[0].ID, "Lina")
 
 	rec := env.get(t, "/requests/"+env.token)
@@ -358,14 +340,39 @@ func TestPublicStatus_TakenOverChildIsLockedAndSiblingStaysChangeable(t *testing
 	env.router.ServeHTTP(withdrawn, withdrawReq)
 	require.Equal(t, http.StatusNoContent, withdrawn.Code, withdrawn.Body.String())
 	withdrawnStatus := decodeStatus(t, env.get(t, "/requests/"+env.token))
-	assert.Equal(t, enrollmentModels.ChildStatusApproved, withdrawnStatus.Data.Children[0].Status)
-	assert.Equal(t, enrollmentModels.ChildStatusWithdrawn, withdrawnStatus.Data.Children[1].Status)
+	assert.Equal(t, capability.ChildStatusApproved, withdrawnStatus.Data.Children[0].Status)
+	assert.Equal(t, capability.ChildStatusWithdrawn, withdrawnStatus.Data.Children[1].Status)
+}
+
+// #4601: a child_id that does not belong to the request behind the token is
+// refused as not found. It used to change nothing and still answer 204.
+func TestPublicWithdraw_ForeignChildIDAnswersNotFound(t *testing.T) {
+	t.Parallel()
+	env := setupTakeoverLockTest(t)
+	other := setupTakeoverLockTest(t)
+
+	withdrawReq := httptest.NewRequest(
+		http.MethodPost,
+		fmt.Sprintf("/requests/%s/withdraw", env.token),
+		strings.NewReader(fmt.Sprintf(`{"child_id":"%d"}`, other.request.Children[0].ID)),
+	)
+	withdrawReq.Header.Set("Content-Type", "application/json")
+	withdrawn := httptest.NewRecorder()
+	env.router.ServeHTTP(withdrawn, withdrawReq)
+	require.Equal(t, http.StatusNotFound, withdrawn.Code, withdrawn.Body.String())
+
+	for _, current := range []*takeoverLockEnv{env, other} {
+		status := decodeStatus(t, current.get(t, "/requests/"+current.token))
+		require.NotEmpty(t, status.Data.Children)
+		for _, child := range status.Data.Children {
+			assert.NotEqual(t, capability.ChildStatusWithdrawn, child.Status, "no child may be withdrawn")
+		}
+	}
 }
 
 func TestPublicStatus_AllChildrenTakenOverLeavesNoChangeForm(t *testing.T) {
 	t.Parallel()
-	env, cleanup := setupTakeoverLockTest(t)
-	defer cleanup()
+	env := setupTakeoverLockTest(t)
 	env.takeOver(t, env.request.Children[0].ID, "Lina")
 	env.takeOver(t, env.request.Children[1].ID, "Timo")
 
@@ -419,7 +426,7 @@ func assertParentPortalAccess(t *testing.T, status parentAccountEnvelope, hasAcc
 // account when accountID is set.
 func insertGuardianProfile(t *testing.T, db *bun.DB, tenantID int64, email string, accountID *int64) {
 	t.Helper()
-	profile := &usersModels.GuardianProfile{
+	profile := &peopleValues.GuardianProfileSnapshot{
 		FirstName:              "Anna",
 		LastName:               "Beispiel",
 		Email:                  &email,
@@ -432,6 +439,7 @@ func insertGuardianProfile(t *testing.T, db *bun.DB, tenantID int64, email strin
 	require.NoError(t, db.NewInsert().
 		Model(profile).
 		ModelTableExpr(`users.guardian_profiles`).
+		ExcludeColumn("id", "created_at", "updated_at", "phone_numbers").Returning("*").
 		Scan(testpkg.TenantContext(tenantID)))
 }
 
@@ -450,8 +458,7 @@ func makeParentAccountReachable(t *testing.T, db *bun.DB, accountID, tenantID in
 
 func TestPublicStatus_ParentAccountFlagOnlyWhileAChildIsTakenOver(t *testing.T) {
 	t.Parallel()
-	env, cleanup := setupTakeoverLockTest(t)
-	defer cleanup()
+	env := setupTakeoverLockTest(t)
 
 	status := env.statusParentAccount(t)
 	assert.Nil(t, status.Data.HasParentAccount,
@@ -461,8 +468,7 @@ func TestPublicStatus_ParentAccountFlagOnlyWhileAChildIsTakenOver(t *testing.T) 
 
 func TestPublicStatus_ParentAccountFlagFalseWithoutAccount(t *testing.T) {
 	t.Parallel()
-	env, cleanup := setupTakeoverLockTest(t)
-	defer cleanup()
+	env := setupTakeoverLockTest(t)
 	insertGuardianProfile(t, env.db, env.tenantID, takeoverLockGuardianEmail, nil)
 	env.takeOver(t, env.request.Children[0].ID, "Lina")
 
@@ -471,8 +477,7 @@ func TestPublicStatus_ParentAccountFlagFalseWithoutAccount(t *testing.T) {
 
 func TestPublicStatus_ParentAccountFlagContactsOGSWithoutRedeemableInvitation(t *testing.T) {
 	t.Parallel()
-	env, cleanup := setupTakeoverLockTest(t, false)
-	defer cleanup()
+	env := setupTakeoverLockTest(t, false)
 	insertGuardianProfile(t, env.db, env.tenantID, takeoverLockGuardianEmail, nil)
 	env.takeOver(t, env.request.Children[0].ID, "Lina")
 
@@ -481,8 +486,7 @@ func TestPublicStatus_ParentAccountFlagContactsOGSWithoutRedeemableInvitation(t 
 
 func TestPublicStatus_ParentAccountFlagTrueWithLinkedAccount(t *testing.T) {
 	t.Parallel()
-	env, cleanup := setupTakeoverLockTest(t)
-	defer cleanup()
+	env := setupTakeoverLockTest(t)
 	account := testpkg.CreateTestAccount(t, env.db, "status-parent-account")
 	makeParentAccountReachable(t, env.db, account.ID, env.tenantID)
 	insertGuardianProfile(t, env.db, env.tenantID, takeoverLockGuardianEmail, &account.ID)
@@ -493,8 +497,7 @@ func TestPublicStatus_ParentAccountFlagTrueWithLinkedAccount(t *testing.T) {
 
 func TestPublicStatus_ParentAccountFlagFalseWithInactiveAccount(t *testing.T) {
 	t.Parallel()
-	env, cleanup := setupTakeoverLockTest(t)
-	defer cleanup()
+	env := setupTakeoverLockTest(t)
 	account := testpkg.CreateTestAccount(t, env.db, "status-parent-account-inactive")
 	makeParentAccountReachable(t, env.db, account.ID, env.tenantID)
 	_, err := env.db.NewRaw("UPDATE auth.accounts SET active = false WHERE id = ?", account.ID).Exec(context.Background())
@@ -507,8 +510,7 @@ func TestPublicStatus_ParentAccountFlagFalseWithInactiveAccount(t *testing.T) {
 
 func TestPublicStatus_ParentAccountFlagFalseWithInactiveTenantMapping(t *testing.T) {
 	t.Parallel()
-	env, cleanup := setupTakeoverLockTest(t)
-	defer cleanup()
+	env := setupTakeoverLockTest(t)
 	account := testpkg.CreateTestAccount(t, env.db, "status-parent-account-inactive-mapping")
 	makeParentAccountReachable(t, env.db, account.ID, env.tenantID)
 	_, err := env.db.NewRaw(
@@ -525,8 +527,7 @@ func TestPublicStatus_ParentAccountFlagFalseWithInactiveTenantMapping(t *testing
 
 func TestPublicStatus_ParentAccountFlagFalseWithoutGuardianRole(t *testing.T) {
 	t.Parallel()
-	env, cleanup := setupTakeoverLockTest(t)
-	defer cleanup()
+	env := setupTakeoverLockTest(t)
 	account := testpkg.CreateTestAccount(t, env.db, "status-parent-account-no-guardian-role")
 	testpkg.EnsureAccountTenant(t, env.db, account.ID, env.tenantID)
 	insertGuardianProfile(t, env.db, env.tenantID, takeoverLockGuardianEmail, &account.ID)
@@ -537,8 +538,7 @@ func TestPublicStatus_ParentAccountFlagFalseWithoutGuardianRole(t *testing.T) {
 
 func TestPublicStatus_ParentAccountWithoutPasswordContactsOGS(t *testing.T) {
 	t.Parallel()
-	env, cleanup := setupTakeoverLockTest(t)
-	defer cleanup()
+	env := setupTakeoverLockTest(t)
 	account := testpkg.CreateTestAccount(t, env.db, "status-parent-account-no-password")
 	makeParentAccountReachable(t, env.db, account.ID, env.tenantID)
 	_, err := env.db.NewRaw("UPDATE auth.accounts SET password_hash = NULL WHERE id = ?", account.ID).Exec(context.Background())
@@ -554,8 +554,7 @@ func TestPublicStatus_ParentAccountWithoutPasswordContactsOGS(t *testing.T) {
 // this one.
 func TestPublicStatus_ParentAccountFlagIgnoresOtherSchools(t *testing.T) {
 	t.Parallel()
-	env, cleanup := setupTakeoverLockTest(t)
-	defer cleanup()
+	env := setupTakeoverLockTest(t)
 	otherTenant := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, env.db, otherTenant)
 	account := testpkg.CreateTestAccount(t, env.db, "status-parent-account-other")

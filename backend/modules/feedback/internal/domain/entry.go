@@ -1,17 +1,14 @@
 package domain
 
 import (
-	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-var ErrEntryNotFound = errors.New("feedback entry not found")
+type Date = calendar.Date
 
-type Date = timezone.Date
-
-func ParseDate(value string) (Date, error) { return timezone.ParseDate(value) }
+func ParseDate(value string) (Date, error) { return calendar.ParseDate(value) }
 
 type Entry struct {
 	ID              int64

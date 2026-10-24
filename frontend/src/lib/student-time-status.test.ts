@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  areStudentDayTimesResolved,
   combineTimeNotes,
   comesOnlyIfLessonCancelled,
   earlyCheckoutMinutes,
@@ -424,26 +423,6 @@ describe("student-time-status helpers", () => {
       reason: "class_trip",
       label: "Klassenfahrt",
     });
-  });
-
-  it("marks a student closed out only when both rows are resolved", () => {
-    const arrival = getStudentTimeStatus({
-      plannedTime: "08:00",
-      actualTime: "07:58",
-      now: new Date("2025-01-15T10:00:00"),
-    });
-    const pickup = getStudentTimeStatus({
-      plannedTime: "15:00",
-      actualTime: "15:12",
-      now: new Date("2025-01-15T16:00:00"),
-    });
-    const unresolvedPickup = getStudentTimeStatus({
-      plannedTime: "15:00",
-      now: new Date("2025-01-15T14:00:00"),
-    });
-
-    expect(areStudentDayTimesResolved(arrival, pickup)).toBe(true);
-    expect(areStudentDayTimesResolved(arrival, unresolvedPickup)).toBe(false);
   });
 
   it("sorts the most urgent unresolved states first", () => {

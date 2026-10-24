@@ -26,6 +26,8 @@ function CommitProbe({
 
 // Mock auth-utils with hasRole that reads session roles
 vi.mock("~/lib/auth-utils", () => ({
+  canReadSupervisionData: (session: { user?: { isAdmin?: boolean } } | null) =>
+    !(session?.user?.isAdmin ?? false),
   isAdmin: (session: { user?: { isAdmin?: boolean } } | null) =>
     session?.user?.isAdmin ?? false,
   isCaregiver: (session: { user?: { isAdmin?: boolean } } | null) =>
@@ -189,16 +191,6 @@ vi.mock("~/lib/location-helper", async (importOriginal) => {
 // Mock pickup-helpers
 vi.mock("~/lib/pickup-helpers", () => ({
   useMinuteClock: () => new Date("2026-01-15T12:00:00"),
-}));
-
-// Mock pickup-schedule-api
-vi.mock("~/lib/pickup-schedule-api", () => ({
-  fetchBulkPickupTimes: vi.fn(() => Promise.resolve(new Map())),
-}));
-
-// Mock student-arrival-api
-vi.mock("~/lib/student-arrival-api", () => ({
-  fetchBulkArrivalTimes: vi.fn(() => Promise.resolve(new Map())),
 }));
 
 // Mock StudentCard components
@@ -640,6 +632,7 @@ describe("MeinRaumPage (Active Supervisions) (4/5)", () => {
 
     await waitFor(() => {
       expect(screen.getByText("Kreativ AG")).toBeInTheDocument();
+      // Der Zustand des Blocks steht im Seitenkopf, nicht in der Karte (#4354).
       expect(screen.getByText("Aktiv")).toBeInTheDocument();
       expect(
         screen.getByRole("button", { name: "1 erwartete bestätigen" }),
@@ -651,9 +644,9 @@ describe("MeinRaumPage (Active Supervisions) (4/5)", () => {
       ).toBeInTheDocument();
       expect(screen.getByText("Nicht mehr im Raum (1)")).toBeInTheDocument();
       expect(screen.getByText("Ungeplant (1)")).toBeInTheDocument();
-      expect(
-        screen.getByText("1b · OGS Gruppe A · ungeplant"),
-      ).toBeInTheDocument();
+      expect(screen.getByText("ungeplant").parentElement).toHaveTextContent(
+        /Klasse 1b\s*Gruppe OGS Gruppe A\s*ungeplant/,
+      );
       expect(screen.getByText("Krank · Abgemeldet")).toBeInTheDocument();
       expect(
         screen.getByRole("button", { name: "Einchecken" }),
@@ -871,7 +864,7 @@ describe("AddUnplannedStudentForm selection flow (#2387)", () => {
     const { rerender } = render(<MeinRaumPage />);
     await searchFor("Marie");
 
-    const beierCard = await screen.findByRole("button", {
+    const beierCard = await screen.findByRole("radio", {
       name: /Marie Beier/,
     });
     const addButton = screen.getByRole("button", { name: "Hinzufügen" });
@@ -884,7 +877,7 @@ describe("AddUnplannedStudentForm selection flow (#2387)", () => {
     fireEvent.click(beierCard);
 
     expect(timetableOperationsApi.checkIn).not.toHaveBeenCalled();
-    expect(beierCard).toHaveAttribute("aria-pressed", "true");
+    expect(beierCard).toBeChecked();
     expect(addButton).toBeEnabled();
     expect(
       screen.queryByText("Bitte ein Kind aus der Liste antippen."),
@@ -896,17 +889,27 @@ describe("AddUnplannedStudentForm selection flow (#2387)", () => {
     };
     rerender(<MeinRaumPage />);
 
-    expect(screen.queryByRole("button", { name: /Marie Beier/ })).toBeNull();
+    expect(screen.queryByRole("radio", { name: /Marie Beier/ })).toBeNull();
     expect(screen.getByRole("button", { name: "Hinzufügen" })).toBeDisabled();
 
     expect(
-      await screen.findByRole("button", { name: /Marie Beier/ }),
-    ).toHaveAttribute("aria-pressed", "false");
+      await screen.findByRole("radio", { name: /Marie Beier/ }),
+    ).not.toBeChecked();
     expect(screen.getByRole("button", { name: "Hinzufügen" })).toBeDisabled();
 
-    await searchFor("Lara");
+    fireEvent.click(screen.getByRole("radio", { name: /Marie Beier/ }));
+    expect(screen.getByRole("button", { name: "Hinzufügen" })).toBeEnabled();
 
-    expect(screen.queryByRole("button", { name: /Marie Beier/ })).toBeNull();
+    // Die Liste filtert ab dem ersten Zeichen (#4355); jede Eingabe verwirft
+    // die Auswahl, auch wenn das Kind sichtbar bleibt.
+    await searchFor("Marie B");
+
+    expect(
+      screen.getByRole("radio", { name: /Marie Beier/ }),
+    ).not.toBeChecked();
+    expect(
+      screen.queryByRole("radio", { name: /Marie Garschagen/ }),
+    ).toBeNull();
     expect(screen.getByRole("button", { name: "Hinzufügen" })).toBeDisabled();
     expect(timetableOperationsApi.checkIn).not.toHaveBeenCalled();
   });
@@ -922,17 +925,17 @@ describe("AddUnplannedStudentForm selection flow (#2387)", () => {
     const { rerender } = render(<MeinRaumPage />);
     await searchFor("Marie");
 
-    const beierCard = await screen.findByRole("button", {
+    const beierCard = await screen.findByRole("radio", {
       name: /Marie Beier/,
     });
     fireEvent.click(beierCard);
-    const garschagenCard = screen.getByRole("button", {
+    const garschagenCard = screen.getByRole("radio", {
       name: /Marie Garschagen/,
     });
     fireEvent.click(garschagenCard);
 
-    expect(beierCard).toHaveAttribute("aria-pressed", "false");
-    expect(garschagenCard).toHaveAttribute("aria-pressed", "true");
+    expect(beierCard).not.toBeChecked();
+    expect(garschagenCard).toBeChecked();
 
     vi.mocked(timetableOperationsApi.checkIn).mockRejectedValueOnce(
       new ApiError("check-in failed", 500, { code: "general.server" }),
@@ -942,7 +945,7 @@ describe("AddUnplannedStudentForm selection flow (#2387)", () => {
     await waitFor(() => {
       expect(screen.getByText(ADD_FAILED)).toBeInTheDocument();
     });
-    expect(garschagenCard).toHaveAttribute("aria-pressed", "true");
+    expect(garschagenCard).toBeChecked();
     expect(screen.getByRole("button", { name: "Hinzufügen" })).toBeEnabled();
 
     fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
@@ -956,7 +959,7 @@ describe("AddUnplannedStudentForm selection flow (#2387)", () => {
 
     await searchFor("Marie");
     fireEvent.click(
-      await screen.findByRole("button", { name: /Marie Garschagen/ }),
+      await screen.findByRole("radio", { name: /Marie Garschagen/ }),
     );
     vi.mocked(timetableOperationsApi.checkIn).mockRejectedValueOnce(
       new ApiError("check-in failed", 500, { code: "general.server" }),
@@ -974,7 +977,7 @@ describe("AddUnplannedStudentForm selection flow (#2387)", () => {
     );
 
     fireEvent.click(
-      await screen.findByRole("button", { name: /Marie Garschagen/ }),
+      await screen.findByRole("radio", { name: /Marie Garschagen/ }),
     );
     fireEvent.click(screen.getByRole("button", { name: "Hinzufügen" }));
     await waitFor(() => {
@@ -993,7 +996,7 @@ describe("AddUnplannedStudentForm selection flow (#2387)", () => {
 
     const unsafeCommits: boolean[] = [];
     const recordCommit = () => {
-      const result = screen.queryByRole("button", { name: /Marie Beier/ });
+      const result = screen.queryByRole("radio", { name: /Marie Beier/ });
       const addButton = screen.queryByRole("button", { name: "Hinzufügen" });
       unsafeCommits.push(
         result !== null &&
@@ -1009,7 +1012,7 @@ describe("AddUnplannedStudentForm selection flow (#2387)", () => {
     const { rerender } = render(renderPage());
     await searchFor("Marie Beier");
 
-    await screen.findByRole("button", { name: /Marie Beier/ });
+    await screen.findByRole("radio", { name: /Marie Beier/ });
     const addButton = screen.getByRole("button", { name: "Hinzufügen" });
 
     expect(addButton).toBeEnabled();
@@ -1025,10 +1028,10 @@ describe("AddUnplannedStudentForm selection flow (#2387)", () => {
     rerender(renderPage());
 
     expect(unsafeCommits).not.toContain(true);
-    expect(screen.queryByRole("button", { name: /Marie Beier/ })).toBeNull();
+    expect(screen.queryByRole("radio", { name: /Marie Beier/ })).toBeNull();
     expect(screen.getByRole("button", { name: "Hinzufügen" })).toBeDisabled();
 
-    await screen.findByRole("button", { name: /Marie Beier/ });
+    await screen.findByRole("radio", { name: /Marie Beier/ });
     fireEvent.click(screen.getByRole("button", { name: "Hinzufügen" }));
 
     await waitFor(() => {

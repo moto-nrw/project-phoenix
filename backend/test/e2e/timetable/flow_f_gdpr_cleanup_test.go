@@ -12,8 +12,8 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -30,7 +30,7 @@ const deletionTypeTimetableRetention = "timetable_retention"
 func TestFlowF_GDPRCleanup(t *testing.T) {
 	t.Parallel()
 
-	today := timezone.NewDate(2030, 8, 30)
+	today := calendar.NewDate(2030, 8, 30)
 	s := setupTimetableScenarioModule(t, func() time.Time {
 		return today.BerlinMidnight().Add(12 * time.Hour)
 	})

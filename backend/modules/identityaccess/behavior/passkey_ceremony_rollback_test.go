@@ -8,12 +8,10 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/moto-nrw/project-phoenix/services"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // Completing a passkey ceremony writes twice: it consumes the ceremony row and
@@ -39,7 +37,7 @@ func TestPasskeyRegistration_RefusedAttestationSpendsTheCeremony(t *testing.T) {
 
 	// The registration is gated on an e-mail code of this school's portal.
 	const code = "246813"
-	seedTenantChallenge(t, nativeMFARecords(t, db), account.ID, tenantID, code)
+	seedTenantChallenge(t, mfaRecordRows(t, db), account.ID, tenantID, code)
 
 	options, err := module.Passkeys.BeginAccountPasskeyRegistration(ctx, identityaccess.AccountPasskeyRegistrationStart{
 		AccountID:       account.ID,
@@ -80,7 +78,7 @@ func TestPasskeyRegistration_RefusedAttestationSpendsTheCeremony(t *testing.T) {
 
 // seedTenantChallenge writes an active tenant-portal challenge with a known
 // code, so a test can drive a flow that redeems one.
-func seedTenantChallenge(t *testing.T, repo services.AccountMFARecords, accountID, tenantID int64, code string) identityaccess.AccountMFAChallenge {
+func seedTenantChallenge(t *testing.T, repo mfaRows, accountID, tenantID int64, code string) identityaccess.AccountMFAChallenge {
 	t.Helper()
 	hash := testpkg.HashTestPassword(t, code)
 	challenge := identityaccess.AccountMFAChallenge{

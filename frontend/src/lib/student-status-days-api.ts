@@ -30,7 +30,6 @@ interface ApiResponse<T> {
   /** Full conflict count when `conflicts` is a capped sample. */
   conflict_count?: number;
   message?: string;
-  error?: string;
   /** Stable backend conflict code (e.g. students.partial_absence_conflict). */
   code?: string;
   instance?: string;
@@ -79,27 +78,11 @@ export class StudentStatusDayConflictError extends ApiError {
   }
 }
 
-/** Full-day status write refused because a partial-day excusal already exists. */
-export class StudentStatusDayPartialAbsenceConflictError extends ApiError {
-  constructor(instance?: string) {
-    // Message stays readable for callers that still show it directly.
-    super(
-      "Für diesen Tag liegt bereits eine Abmeldung ab einer Uhrzeit vor. Bitte zuerst die Teilabwesenheit entfernen.",
-      409,
-      {
-        code: PARTIAL_ABSENCE_CONFLICT_CODE,
-        instance,
-      },
-    );
-    this.name = "StudentStatusDayPartialAbsenceConflictError";
-  }
-}
-
 function parseConflictError(
   result: ApiResponse<BackendStudentStatusDay[]>,
 ): Error {
   if (result.code === PARTIAL_ABSENCE_CONFLICT_CODE) {
-    return new StudentStatusDayPartialAbsenceConflictError(result.instance);
+    return apiErrorFromBody("partial absence conflict", 409, result);
   }
   const conflicts = (result.conflicts ?? result.data ?? []).map(mapStatusDay);
   const totalCount =
@@ -118,7 +101,7 @@ async function parseApiResult<T>(
   fallback: string,
 ): Promise<T> {
   const result = (await response.json()) as ApiResponse<T>;
-  if (result.status === "error" || !result.data) {
+  if (!result.data) {
     throw apiErrorFromBody(fallback, response.status, result);
   }
   return result.data;

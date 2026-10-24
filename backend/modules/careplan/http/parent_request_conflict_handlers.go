@@ -1,0 +1,151 @@
+package careplanhttp
+
+import (
+	json "encoding/json"
+	errors "errors"
+	http "net/http"
+	strconv "strconv"
+	strings "strings"
+
+	render "github.com/go-chi/render"
+	common "github.com/moto-nrw/project-phoenix/api/common"
+	careplan "github.com/moto-nrw/project-phoenix/modules/careplan"
+	carerequests "github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
+	excusedrequests "github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
+	masterdatarequests "github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
+	parentrequests "github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
+	sessiontoken "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	tenant "github.com/moto-nrw/project-phoenix/tenant"
+)
+
+type resolveConflictBody struct {
+	Kind string `json:"kind"`
+	// RequestIDs and ExpectedVersions are positional pairs, echoed back from
+	// the list. Ids travel as strings like every other int64 on this API.
+	RequestIDs       []string       `json:"request_ids"`
+	ExpectedVersions []string       `json:"expected_versions"`
+	ChosenRequestID  string         `json:"chosen_request_id"`
+	StaffValue       map[string]any `json:"staff_value"`
+	None             bool           `json:"none"`
+	// ConflictKey is the group's key from the list. It pins WHICH part of a
+	// multi-key request (a weekly plan touching several weekdays) a staff
+	// value is written against.
+	ConflictKey string `json:"conflict_key"`
+	Reason      string `json:"reason"`
+}
+
+// resolveRequestConflict decides a whole conflict group at once.
+func (rs *Resource) resolveRequestConflict(w http.ResponseWriter, r *http.Request) {
+	if rs.ParentRequestConflictService == nil {
+		renderError(w, r, common.ErrorInternalServer(errors.New("parent request conflict service not configured")))
+		return
+	}
+	var body resolveConflictBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		renderError(w, r, common.ErrorInvalidRequest(errors.New("invalid request body")))
+		return
+	}
+	input, err := body.toInput()
+	if err != nil {
+		renderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
+	input.ReviewerID = int64(claims.ID)
+	input.ActorRole = strings.Join(claims.Roles, ",")
+	if err := rs.ParentRequestConflictService.ResolveConflict(r.Context(), input); err != nil {
+		tenant.MarkRollback(r.Context())
+		renderError(w, r, resolveConflictErrorRenderer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, map[string]int{"resolved_count": len(input.RequestIDs)}, "Conflict resolved")
+}
+
+// toInput parses the wire body. Only shape errors are decided here — whether
+// the command makes sense (one outcome, versions matching, one child) is the
+// coordinator's call, so the rules cannot drift between the two.
+func (b *resolveConflictBody) toInput() (parentrequests.ResolveConflictInput, error) {
+	requestIDs, err := parseConflictIDs(b.RequestIDs)
+	if err != nil {
+		return parentrequests.ResolveConflictInput{}, err
+	}
+	var chosen int64
+	if strings.TrimSpace(b.ChosenRequestID) != "" {
+		chosen, err = strconv.ParseInt(b.ChosenRequestID, 10, 64)
+		if err != nil || chosen <= 0 {
+			return parentrequests.ResolveConflictInput{}, errors.New("invalid chosen request id")
+		}
+	}
+	// The typed result travels to the request kind unread; an absent or null
+	// value means none was typed.
+	var staffValue json.RawMessage
+	if b.StaffValue != nil {
+		if staffValue, err = json.Marshal(b.StaffValue); err != nil {
+			return parentrequests.ResolveConflictInput{}, errors.New("invalid staff value")
+		}
+	}
+	return parentrequests.ResolveConflictInput{
+		Kind:             parentrequests.Kind(b.Kind),
+		RequestIDs:       requestIDs,
+		ExpectedVersions: b.ExpectedVersions,
+		ChosenRequestID:  chosen,
+		StaffValue:       staffValue,
+		None:             b.None,
+		ConflictKey:      strings.TrimSpace(b.ConflictKey),
+		Reason:           strings.TrimSpace(b.Reason),
+	}, nil
+}
+
+func parseConflictIDs(raw []string) ([]int64, error) {
+	ids := make([]int64, 0, len(raw))
+	for _, value := range raw {
+		id, err := strconv.ParseInt(value, 10, 64)
+		if err != nil || id <= 0 {
+			return nil, errors.New("invalid request id")
+		}
+		ids = append(ids, id)
+	}
+	return ids, nil
+}
+
+// resolveConflictErrorRenderer answers for five domains at once, so it carries
+// the union of their sentinels next to the shared parent-request codes.
+var resolveConflictErrorRenderer = common.RulesRenderer(parentRequestRules(
+	common.ErrorRule{Target: parentrequests.ErrInvalidConflictResolution, Render: common.ErrorInvalidRequest},
+	common.ErrorRule{Target: parentrequests.ErrConflictKindUnsupported, Render: func(error) render.Renderer {
+		return common.ErrorInvalidRequestMessageWithCode(
+			"Für diese Art von Anfrage kann kein gemeinsames Ergebnis festgelegt werden.",
+			common.CodeStudentsConflictKindUnsupported,
+		)
+	}},
+	common.ErrorRule{Target: parentrequests.ErrStaffValueUnsupported, Render: func(error) render.Renderer {
+		return common.ErrorInvalidRequestMessageWithCode(
+			"Für diese Anfragen können Sie keinen eigenen Wert eintragen.",
+			common.CodeStudentsStaffValueUnsupported,
+		)
+	}},
+	common.ErrorRule{Target: careplan.ErrCareOfferingDayConflict, Render: func(err error) render.Renderer {
+		return common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentCareOfferingDayConflict)
+	}},
+	common.ErrorRule{Match: isConflictStaffValueInvalid, Render: func(error) render.Renderer {
+		return common.ErrorInvalidRequestMessageWithCode(
+			"Der eingetragene Wert passt nicht zu diesen Anfragen. Bitte prüfen Sie ihn.",
+			common.CodeStudentsStaffValueInvalid,
+		)
+	}},
+	common.ErrorRule{Target: parentrequests.ErrNotFound, Render: common.ErrorNotFound},
+	common.ErrorRule{Match: isParentRequestMissing, Render: common.ErrorNotFound},
+	common.ErrorRule{Match: isParentRequestNotPending, Render: conflictWithCode(common.CodeStudentsChangeRequestNotPending)},
+	common.ErrorRule{Match: isParentRequestForbidden, Render: common.ErrorForbidden},
+	common.ErrorRule{Target: parentrequests.ErrForbidden, Render: common.ErrorForbidden},
+), common.ErrorInternalServer)
+
+// isConflictStaffValueInvalid matches the five domains' "the value you typed
+// is not usable" sentinels. They are client errors, never 500s.
+func isConflictStaffValueInvalid(err error) bool {
+	return errors.Is(err, masterdatarequests.ErrReviewInvalidValue) ||
+		errors.Is(err, masterdatarequests.ErrReviewInvalidTarget) ||
+		errors.Is(err, excusedrequests.ErrAbsenceRequestInvalidStatus) ||
+		errors.Is(err, carerequests.ErrInvalidPayload) ||
+		errors.Is(err, careplan.ErrOfferingChangeInvalid)
+}

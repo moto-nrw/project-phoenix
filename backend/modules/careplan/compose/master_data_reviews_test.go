@@ -64,7 +64,7 @@ func TestMasterDataNativeQueuePreservesCursorScopeAndCareEnd(t *testing.T) {
 		},
 		names: map[int64]PersonName{visible.PersonID: {FirstName: "Visible", LastName: "Review"}},
 	}
-	reads, err := NewStudentDataRequestQueries(db, func(Observation) {})
+	reads, err := NewStudentDataRequestQueries(db, testpkg.StudentDirectory{}, func(Observation) {})
 	require.NoError(t, err)
 	queue, err := NewMasterDataReviews(MasterDataReviewDependencies{
 		Requests: reads, People: directory,

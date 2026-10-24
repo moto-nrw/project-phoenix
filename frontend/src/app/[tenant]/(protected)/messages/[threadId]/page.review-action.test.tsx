@@ -90,8 +90,8 @@ vi.mock("~/lib/hooks/use-chat-viewport-lock", () => ({
   useChatViewportLock: () => ({ current: null }),
 }));
 
-vi.mock("~/components/ui/back-button", () => ({
-  BackButton: () => null,
+vi.mock("~/components/ui/back-link", () => ({
+  BackLink: () => null,
 }));
 
 vi.mock("~/components/messaging/pickup-request-detail-modal", () => ({
@@ -156,6 +156,8 @@ describe("Anfrage-Aktionen im Nachrichtenverlauf (#3886)", () => {
 
     render(<MessageThreadPage />);
 
+    // Anker: der Verlauf mit der Anfrage ist geladen.
+    expect(screen.getByText(/Abholzeit angefragt/)).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Anfrage ansehen" }),
     ).not.toBeInTheDocument();
@@ -195,6 +197,8 @@ describe("Anfrage-Aktionen im Nachrichtenverlauf (#3886)", () => {
 
     render(<MessageThreadPage />);
 
+    // Anker: der Verlauf mit der Anfrage ist geladen.
+    expect(screen.getByText(/Abholzeit angefragt/)).toBeInTheDocument();
     expect(mockUseSWRAuth).toHaveBeenCalledWith(
       null,
       expect.any(Function),

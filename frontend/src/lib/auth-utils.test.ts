@@ -6,11 +6,9 @@ import {
   hasPermission,
   isAdmin,
   hasEffectiveAdminScope,
+  canReadSupervisionData,
   isCaregiver,
-  isAuthenticated,
   getUserDisplayName,
-  getUserRolesDisplay,
-  requiresReauth,
 } from "./auth-utils";
 
 describe("auth-utils", () => {
@@ -338,55 +336,34 @@ describe("auth-utils", () => {
     });
   });
 
-  describe("isAuthenticated", () => {
-    it("should return true when user has a token", () => {
-      const session: Session = {
+  describe("canReadSupervisionData", () => {
+    it("denies a caregiver whose explicit permissions omit groups:read", () => {
+      const session = {
         user: {
           id: "1",
-          email: "test@example.com",
-          isAdmin: false,
-          token: "valid-token-123",
+          email: "caregiver@example.com",
+          roles: ["user"],
+          permissions: ["rooms:read"],
+          token: "token",
         },
         expires: "2024-12-31",
-      };
+      } satisfies Session;
 
-      expect(isAuthenticated(session)).toBe(true);
+      expect(canReadSupervisionData(session)).toBe(false);
     });
 
-    it("should return false when session is null", () => {
-      expect(isAuthenticated(null)).toBe(false);
-    });
-
-    it("should return false when user is undefined", () => {
-      const session = { expires: "2024-12-31" } as Session;
-      expect(isAuthenticated(session)).toBe(false);
-    });
-
-    it("should return false when token is undefined", () => {
-      const session: Session = {
+    it("keeps the caregiver fallback only for sessions without permissions", () => {
+      const session = {
         user: {
           id: "1",
-          email: "test@example.com",
-          isAdmin: false,
+          email: "caregiver@example.com",
+          roles: ["user"],
+          token: "token",
         },
         expires: "2024-12-31",
-      };
+      } satisfies Session;
 
-      expect(isAuthenticated(session)).toBe(false);
-    });
-
-    it("should return false when token is empty string", () => {
-      const session: Session = {
-        user: {
-          id: "1",
-          email: "test@example.com",
-          isAdmin: false,
-          token: "",
-        },
-        expires: "2024-12-31",
-      };
-
-      expect(isAuthenticated(session)).toBe(false);
+      expect(canReadSupervisionData(session)).toBe(true);
     });
   });
 
@@ -475,157 +452,6 @@ describe("auth-utils", () => {
       };
 
       expect(getUserDisplayName(session)).toBe("John");
-    });
-  });
-
-  describe("getUserRolesDisplay", () => {
-    it("should return comma-separated roles when roles exist", () => {
-      const session: Session = {
-        user: {
-          id: "1",
-          email: "test@example.com",
-          roles: ["admin", "teacher", "moderator"],
-          isAdmin: true,
-          token: "token",
-        },
-        expires: "2024-12-31",
-      };
-
-      expect(getUserRolesDisplay(session)).toBe("admin, teacher, moderator");
-    });
-
-    it("should return single role when only one role exists", () => {
-      const session: Session = {
-        user: {
-          id: "1",
-          email: "test@example.com",
-          roles: ["teacher"],
-          isAdmin: false,
-          token: "token",
-        },
-        expires: "2024-12-31",
-      };
-
-      expect(getUserRolesDisplay(session)).toBe("teacher");
-    });
-
-    it('should return "No roles" when session is null', () => {
-      expect(getUserRolesDisplay(null)).toBe("No roles");
-    });
-
-    it('should return "No roles" when user is undefined', () => {
-      const session = { expires: "2024-12-31" } as Session;
-      expect(getUserRolesDisplay(session)).toBe("No roles");
-    });
-
-    it('should return "No roles" when roles is undefined', () => {
-      const session: Session = {
-        user: {
-          id: "1",
-          email: "test@example.com",
-          isAdmin: false,
-          token: "token",
-        },
-        expires: "2024-12-31",
-      };
-
-      expect(getUserRolesDisplay(session)).toBe("No roles");
-    });
-
-    it('should return "No roles" when roles array is empty', () => {
-      const session: Session = {
-        user: {
-          id: "1",
-          email: "test@example.com",
-          roles: [],
-          isAdmin: false,
-          token: "token",
-        },
-        expires: "2024-12-31",
-      };
-
-      expect(getUserRolesDisplay(session)).toBe("No roles");
-    });
-
-    it("should handle roles with special characters", () => {
-      const session: Session = {
-        user: {
-          id: "1",
-          email: "test@example.com",
-          roles: ["super-admin", "teacher_level_2"],
-          isAdmin: true,
-          token: "token",
-        },
-        expires: "2024-12-31",
-      };
-
-      expect(getUserRolesDisplay(session)).toBe("super-admin, teacher_level_2");
-    });
-  });
-
-  describe("requiresReauth", () => {
-    it("should return true when error is RefreshTokenExpired", () => {
-      const session: Session = {
-        user: {
-          id: "1",
-          email: "test@example.com",
-          isAdmin: false,
-          token: "token",
-        },
-        expires: "2024-12-31",
-        error: "RefreshTokenExpired",
-      };
-
-      expect(requiresReauth(session)).toBe(true);
-    });
-
-    it("should return false when error is RefreshTokenError", () => {
-      const session: Session = {
-        user: {
-          id: "1",
-          email: "test@example.com",
-          isAdmin: false,
-          token: "token",
-        },
-        expires: "2024-12-31",
-        error: "RefreshTokenError",
-      };
-
-      expect(requiresReauth(session)).toBe(false);
-    });
-
-    it("should return false when session is null", () => {
-      expect(requiresReauth(null)).toBe(false);
-    });
-
-    it("should return false when error is undefined", () => {
-      const session: Session = {
-        user: {
-          id: "1",
-          email: "test@example.com",
-          isAdmin: false,
-          token: "token",
-        },
-        expires: "2024-12-31",
-      };
-
-      expect(requiresReauth(session)).toBe(false);
-    });
-
-    it("should only match exact RefreshTokenExpired string", () => {
-      // Test with RefreshTokenError (the other valid error type)
-      const session: Session = {
-        user: {
-          id: "1",
-          email: "test@example.com",
-          isAdmin: false,
-          token: "token",
-        },
-        expires: "2024-12-31",
-        error: "RefreshTokenError",
-      };
-
-      expect(requiresReauth(session)).toBe(false);
     });
   });
 });

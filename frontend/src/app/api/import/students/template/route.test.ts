@@ -1,15 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Session } from "next-auth";
-import { NextRequest } from "next/server";
 import { GET } from "./route";
-
-// ============================================================================
-// Types
-// ============================================================================
-
-interface ExtendedSession extends Session {
-  user: Session["user"] & { token?: string };
-}
+import {
+  type ExtendedSession,
+  createMockRequest,
+  defaultSession,
+} from "~/test/route-test-helpers";
 
 // ============================================================================
 // Mocks
@@ -36,16 +31,6 @@ vi.mock("~/env", () => ({
 // ============================================================================
 // Test Helpers
 // ============================================================================
-
-function createMockRequest(path: string): NextRequest {
-  const url = new URL(path, "http://localhost:3000");
-  return new NextRequest(url);
-}
-
-const defaultSession: ExtendedSession = {
-  user: { id: "1", token: "test-token", name: "Test User" },
-  expires: "2099-01-01",
-};
 
 async function parseJsonResponse<T>(response: Response): Promise<T> {
   return (await response.json()) as T;
@@ -138,7 +123,7 @@ describe("GET /api/import/students/template", () => {
     expect(response.status).toBe(200);
   });
 
-  it("handles backend errors", async () => {
+  it("replaces a backend server error with a safe problem envelope", async () => {
     mockFetch.mockResolvedValueOnce(
       new Response("Template generation failed", {
         status: 500,
@@ -150,17 +135,25 @@ describe("GET /api/import/students/template", () => {
     const response = await GET(request);
 
     expect(response.status).toBe(500);
-    expect(await response.text()).toBe("Template generation failed");
+    expect(await response.json()).toMatchObject({
+      status: 500,
+      detail: "Internal Server Error",
+      code: "general.server",
+    });
   });
 
-  it("handles empty error text from backend", async () => {
+  it("replaces an empty backend server error with a safe problem envelope", async () => {
     mockFetch.mockResolvedValueOnce(new Response("", { status: 503 }));
 
     const request = createMockRequest("/api/import/students/template");
     const response = await GET(request);
 
     expect(response.status).toBe(503);
-    expect(await response.text()).toBe("");
+    expect(await response.json()).toMatchObject({
+      status: 503,
+      detail: "Service Unavailable",
+      code: "general.unavailable",
+    });
   });
 
   it("handles fetch errors", async () => {
@@ -170,8 +163,8 @@ describe("GET /api/import/students/template", () => {
     const response = await GET(request);
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Internal server error");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
   });
 
   it("uses default headers when backend doesn't provide them", async () => {

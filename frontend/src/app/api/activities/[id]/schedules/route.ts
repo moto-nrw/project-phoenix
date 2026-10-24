@@ -1,6 +1,7 @@
 // app/api/activities/[id]/schedules/route.ts
 import type { NextRequest } from "next/server";
-import { apiGet, apiPost, ApiResponseError } from "~/lib/api-helpers.server";
+import { apiGet, apiPost } from "~/lib/api-helpers.server";
+import { ApiResponseError } from "~/lib/api-response-error.server";
 import {
   createGetHandler,
   createPostHandler,

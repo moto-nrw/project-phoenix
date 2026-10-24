@@ -28,7 +28,7 @@ func TestDecisionErrorTexts(t *testing.T) {
 		{careplan.ErrOfferingChangeAlreadyPending, "enrollment: offering change request already pending"},
 		{careplan.ErrCareOfferingsDisabled, "care offerings are disabled for this tenant"},
 		{careplan.ErrOfferingAdjustmentInvalid, "offering adjustment is invalid"},
-		{careplan.ErrCompleteWithdrawalConfirmationRequired, "Alle Betreuungstage werden entfernt. Bitte bestätigen Sie die Komplett-Abmeldung."},
+		{careplan.ErrCompleteWithdrawalConfirmationRequired, "alle Betreuungstage werden entfernt. Bitte bestätigen Sie die Komplett-Abmeldung"},
 		{careplan.ErrCourseRequestsDisabled, "enrollment: parent course requests are disabled"},
 		{careplan.ErrCourseNotFound, "enrollment: course not found"},
 		{careplan.ErrCourseAlreadyBooked, "enrollment: course is already booked"},

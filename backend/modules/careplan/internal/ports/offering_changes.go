@@ -9,7 +9,7 @@ import (
 )
 
 // OfferingChangeRows reads and writes enrollment.offering_change_requests in
-// the caller's tenant transaction. FindForUpdate reports a missing row as
+// the caller's tenant transaction. Find and FindForUpdate report a missing row as
 // careplan.ErrOfferingChangeNotFound; the guarded writes report a decided row
 // as careplan.ErrOfferingChangeNotPending. Every other failure keeps the
 // shape the staff and parent routes render.
@@ -81,9 +81,9 @@ type OfferingChangeEnrollment interface {
 // OfferingChangeStudents reads the People Directory students an offering
 // change authorizes against.
 type OfferingChangeStudents interface {
-	FindStudent(ctx context.Context, id int64) (*ReviewStudent, error)
+	FindStudent(ctx context.Context, id int64) (*careplan.ReviewStudent, error)
 	// LockStudent takes the student row FOR UPDATE.
-	LockStudent(ctx context.Context, id int64) (*ReviewStudent, error)
+	LockStudent(ctx context.Context, id int64) (*careplan.ReviewStudent, error)
 	// HasPendingWithdrawalCompletion reports an open complete-withdrawal
 	// follow-up of the student.
 	HasPendingWithdrawalCompletion(ctx context.Context, studentID int64) (bool, error)

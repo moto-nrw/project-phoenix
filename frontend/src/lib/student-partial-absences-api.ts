@@ -21,7 +21,6 @@ export interface StudentPartialAbsence {
 interface ApiResponse<T> {
   status: string;
   data?: T;
-  error?: string;
 }
 
 interface BackendPartialAbsence {
@@ -60,7 +59,7 @@ async function parseData<T>(response: Response, fallback: string): Promise<T> {
     // Not JSON (proxy or gateway page): the status still classifies it.
     body = undefined;
   }
-  if (!response.ok || body?.status === "error" || body?.data === undefined) {
+  if (!response.ok || body?.data === undefined) {
     throw apiErrorFromBody(fallback, response.status, body);
   }
   return body.data;

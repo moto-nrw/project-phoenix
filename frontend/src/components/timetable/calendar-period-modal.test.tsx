@@ -426,7 +426,7 @@ describe("CalendarPeriodModal", () => {
     );
     expect(
       screen.getByText(
-        "Ferien allein sagen keine Termine ab. Hat die OGS geschlossen? Dann legen Sie unten auf der Seite „Zeiträume“ einen Schließtag an.",
+        "Ferien allein sagen keine Termine ab. Hat die OGS geschlossen? Dann legen Sie auf der Seite „Schuljahr und Kalender“ einen Schließtag an.",
       ),
     ).toBeInTheDocument();
   });
@@ -451,6 +451,8 @@ describe("CalendarPeriodModal", () => {
       />,
     );
 
+    // Anker: der Dialog steht im Anlege-Modus.
+    expect(screen.getByText("Kalenderzeitraum anlegen")).toBeInTheDocument();
     expect(
       screen.queryByText("Verknüpfte Anmeldephasen"),
     ).not.toBeInTheDocument();

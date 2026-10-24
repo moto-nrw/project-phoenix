@@ -8,48 +8,31 @@ import (
 
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	ownerCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // setupRequestRepoTest gives us a request repo + a real phase row to
 // reference. The (request_id → phase_id) FK requires a phase to exist
 // before a request can be inserted.
-func setupRequestRepoTest(t *testing.T) (*bun.DB, *capability.Module, int64, int64) {
+func setupRequestRepoTest(t *testing.T) (*bun.DB, capability.Owner, int64, int64) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
-	phaseRepo := enrollmentCompose.New()
+	phaseRepo := ownerCompose.New()
 	phaseName := uniquePhaseName("request-test")
 	phase := makeOwnerEligibilityPhase(phaseName)
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		return phaseRepo.InsertPhase(ctx, phase)
 	}))
-	t.Cleanup(func() { wipePhases(db, tenantID, phaseName) })
 
-	return db, enrollmentCompose.New(), tenantID, phase.ID
-}
-
-// wipeRequests removes every request + child row for the tenant whose
-// status_token starts with the given prefix. Per-test isolation.
-func wipeRequests(db *bun.DB, tenantID int64, tokenPrefix string) {
-	bg := context.Background()
-	_, _ = db.NewDelete().
-		TableExpr("enrollment.request_children rc").
-		Where(`rc.tenant_id = ? AND rc.request_id IN (SELECT id FROM enrollment.requests WHERE tenant_id = ? AND status_token LIKE ?)`,
-			tenantID, tenantID, tokenPrefix+"%").
-		Exec(bg)
-	_, _ = db.NewDelete().
-		TableExpr("enrollment.requests").
-		Where("tenant_id = ? AND status_token LIKE ?", tenantID, tokenPrefix+"%").
-		Exec(bg)
+	return db, ownerCompose.New(), tenantID, phase.ID
 }
 
 func uniqueToken(prefix string) string {
@@ -85,7 +68,6 @@ func TestRequestRepository_Create_PersistsAndReturnsID(t *testing.T) {
 
 	db, repo, tenantID, phaseID := setupRequestRepoTest(t)
 	token := uniqueToken("create")
-	defer wipeRequests(db, tenantID, token)
 
 	req := makeOwnerRequest(phaseID, token, "anna@example.test")
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -101,7 +83,6 @@ func TestRequestRepository_FindByID_HappyPath(t *testing.T) {
 
 	db, repo, tenantID, phaseID := setupRequestRepoTest(t)
 	token := uniqueToken("find")
-	defer wipeRequests(db, tenantID, token)
 
 	req := makeOwnerRequest(phaseID, token, "anna@example.test")
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -111,7 +92,7 @@ func TestRequestRepository_FindByID_HappyPath(t *testing.T) {
 	var got *capability.Request
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var fbErr error
-		got, fbErr = enrollmentCompose.New().RequestByID(ctx, req.ID, false)
+		got, fbErr = ownerCompose.New().RequestByID(ctx, req.ID, false)
 		return fbErr
 	})
 	require.NoError(t, err)
@@ -128,7 +109,7 @@ func TestRequestRepository_FindByID_NotFound(t *testing.T) {
 	var got *capability.Request
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var fbErr error
-		got, fbErr = enrollmentCompose.New().RequestByID(ctx, 9_999_999, false)
+		got, fbErr = ownerCompose.New().RequestByID(ctx, 9_999_999, false)
 		return fbErr
 	})
 	require.Error(t, err)
@@ -140,7 +121,6 @@ func TestRequestRepository_PinDecisionNotificationMode_FirstPinWins(t *testing.T
 
 	db, repo, tenantID, phaseID := setupRequestRepoTest(t)
 	token := uniqueToken("pinNotificationMode")
-	defer wipeRequests(db, tenantID, token)
 
 	req := makeOwnerRequest(phaseID, token, "anna@example.test")
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -150,12 +130,12 @@ func TestRequestRepository_PinDecisionNotificationMode_FirstPinWins(t *testing.T
 	var first, second string
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var err error
-		first, err = enrollmentCompose.New().PinDecisionNotificationMode(ctx, req.ID, notifyPerDecisionDigest)
+		first, err = ownerCompose.New().PinDecisionNotificationMode(ctx, req.ID, notifyPerDecisionDigest)
 		return err
 	}))
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var err error
-		second, err = enrollmentCompose.New().PinDecisionNotificationMode(ctx, req.ID, notifyPerDecisionImmediate)
+		second, err = ownerCompose.New().PinDecisionNotificationMode(ctx, req.ID, notifyPerDecisionImmediate)
 		return err
 	}))
 
@@ -164,7 +144,7 @@ func TestRequestRepository_PinDecisionNotificationMode_FirstPinWins(t *testing.T
 	var stored *capability.Request
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var err error
-		stored, err = enrollmentCompose.New().RequestByID(ctx, req.ID, false)
+		stored, err = ownerCompose.New().RequestByID(ctx, req.ID, false)
 		return err
 	}))
 	require.NotNil(t, stored.DecisionNotificationMode)
@@ -176,7 +156,6 @@ func TestRequestRepository_PinDecisionNotificationMode_RejectsInvalidMode(t *tes
 
 	db, repo, tenantID, phaseID := setupRequestRepoTest(t)
 	token := uniqueToken("invalidNotificationMode")
-	defer wipeRequests(db, tenantID, token)
 
 	req := makeOwnerRequest(phaseID, token, "anna@example.test")
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -184,7 +163,7 @@ func TestRequestRepository_PinDecisionNotificationMode_RejectsInvalidMode(t *tes
 	}))
 
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		_, pinErr := enrollmentCompose.New().PinDecisionNotificationMode(ctx, req.ID, "batch")
+		_, pinErr := ownerCompose.New().PinDecisionNotificationMode(ctx, req.ID, "batch")
 		return pinErr
 	})
 	require.Error(t, err)
@@ -198,7 +177,6 @@ func TestRequestRepository_FindByStatusToken_HappyPath(t *testing.T) {
 
 	db, repo, tenantID, phaseID := setupRequestRepoTest(t)
 	token := uniqueToken("findtoken")
-	defer wipeRequests(db, tenantID, token)
 
 	req := makeOwnerRequest(phaseID, token, "anna@example.test")
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -208,7 +186,7 @@ func TestRequestRepository_FindByStatusToken_HappyPath(t *testing.T) {
 	var got *capability.Request
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var fbErr error
-		got, fbErr = enrollmentCompose.New().RequestByToken(ctx, token, false)
+		got, fbErr = ownerCompose.New().RequestByToken(ctx, token, false)
 		return fbErr
 	})
 	require.NoError(t, err)
@@ -224,7 +202,7 @@ func TestRequestRepository_FindByStatusToken_UnknownTokenErrors(t *testing.T) {
 	var got *capability.Request
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var fbErr error
-		got, fbErr = enrollmentCompose.New().RequestByToken(ctx, "no-such-token-"+t.Name(), false)
+		got, fbErr = ownerCompose.New().RequestByToken(ctx, "no-such-token-"+t.Name(), false)
 		return fbErr
 	})
 	require.Error(t, err)
@@ -238,7 +216,6 @@ func TestRequestRepository_ListAdmin_NoFiltersReturnsAll(t *testing.T) {
 
 	db, repo, tenantID, phaseID := setupRequestRepoTest(t)
 	token := uniqueToken("listAll")
-	defer wipeRequests(db, tenantID, token)
 
 	r1 := makeOwnerRequest(phaseID, token+"-a", "anna@example.test")
 	r2 := makeOwnerRequest(phaseID, token+"-b", "bert@example.test")
@@ -254,7 +231,7 @@ func TestRequestRepository_ListAdmin_NoFiltersReturnsAll(t *testing.T) {
 	var list []*capability.Request
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var lErr error
-		list, lErr = enrollmentCompose.New().AdminRequests(ctx, capability.RequestListFilters{})
+		list, lErr = ownerCompose.New().AdminRequests(ctx, capability.RequestListFilters{})
 		return lErr
 	})
 	require.NoError(t, err)
@@ -276,17 +253,15 @@ func TestRequestRepository_ListAdmin_PhaseFilter(t *testing.T) {
 
 	db, repo, tenantID, phaseID := setupRequestRepoTest(t)
 	token := uniqueToken("listPhase")
-	defer wipeRequests(db, tenantID, token)
 
 	// A second phase so we can verify the filter actually narrows.
-	phaseRepo := enrollmentCompose.New()
+	phaseRepo := ownerCompose.New()
 	otherPhase := makeOwnerEligibilityPhase(uniquePhaseName("other"))
 	otherPhase.ServiceStartDate = "2027-09-01"
 	otherPhase.ServiceEndDate = "2028-07-31"
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		return phaseRepo.InsertPhase(ctx, otherPhase)
 	}))
-	t.Cleanup(func() { wipePhases(db, tenantID, otherPhase.Name) })
 
 	reqMain := makeOwnerRequest(phaseID, token+"-main", "anna@example.test")
 	reqOther := makeOwnerRequest(otherPhase.ID, token+"-other", "bert@example.test")
@@ -299,14 +274,19 @@ func TestRequestRepository_ListAdmin_PhaseFilter(t *testing.T) {
 	var list []*capability.Request
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var lErr error
-		list, lErr = enrollmentCompose.New().AdminRequests(ctx, capability.RequestListFilters{PhaseID: phaseID})
+		list, lErr = ownerCompose.New().AdminRequests(ctx, capability.RequestListFilters{PhaseID: phaseID})
 		return lErr
 	}))
 
+	ids := make([]int64, 0, len(list))
 	for _, r := range list {
 		assert.Equal(t, phaseID, r.PhaseID,
 			"phase filter must exclude every other phase (saw request %d with phase %d)", r.ID, r.PhaseID)
+		ids = append(ids, r.ID)
 	}
+	// Counter-check: an empty list would pass the loop above.
+	assert.Contains(t, ids, reqMain.ID, "the request in the filtered phase must appear")
+	assert.NotContains(t, ids, reqOther.ID)
 }
 
 func TestRequestRepository_ListAdmin_ChildStatusFilter(t *testing.T) {
@@ -314,7 +294,6 @@ func TestRequestRepository_ListAdmin_ChildStatusFilter(t *testing.T) {
 
 	db, repo, tenantID, phaseID := setupRequestRepoTest(t)
 	token := uniqueToken("listChildStatus")
-	defer wipeRequests(db, tenantID, token)
 
 	// Two requests, each with one child. One child is approved, the
 	// other waitlisted. Filter on waitlisted → only one should come
@@ -332,7 +311,7 @@ func TestRequestRepository_ListAdmin_ChildStatusFilter(t *testing.T) {
 	var list []*capability.Request
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var lErr error
-		list, lErr = enrollmentCompose.New().AdminRequests(ctx, capability.RequestListFilters{
+		list, lErr = ownerCompose.New().AdminRequests(ctx, capability.RequestListFilters{
 			ChildStatus: capability.ChildStatusWaitlisted,
 		})
 		return lErr
@@ -357,7 +336,6 @@ func TestRequestRepository_FindActiveDuplicate_BlocksRepeatSubmission(t *testing
 
 	db, repo, tenantID, phaseID := setupRequestRepoTest(t)
 	token := uniqueToken("dupe")
-	defer wipeRequests(db, tenantID, token)
 
 	req := makeOwnerRequest(phaseID, token+"-orig", "Anna@Example.test")
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -370,7 +348,7 @@ func TestRequestRepository_FindActiveDuplicate_BlocksRepeatSubmission(t *testing
 	var dupes []capability.DuplicateChildKey
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var dErr error
-		dupes, dErr = enrollmentCompose.New().ActiveDuplicateChildren(ctx, phaseID, "  anna@example.TEST  ",
+		dupes, dErr = ownerCompose.New().ActiveDuplicateChildren(ctx, phaseID, "  anna@example.TEST  ",
 			[]capability.DuplicateChildKey{{FirstName: "LARA", LastName: " beispiel "}}, 0)
 		return dErr
 	})
@@ -385,7 +363,6 @@ func TestRequestRepository_FindActiveDuplicate_IgnoresWithdrawnAndRejected(t *te
 
 	db, repo, tenantID, phaseID := setupRequestRepoTest(t)
 	token := uniqueToken("dupeTerminal")
-	defer wipeRequests(db, tenantID, token)
 
 	// Two prior requests: one withdrawn, one rejected. A fresh
 	// submission with the same name + same email must NOT match either
@@ -401,7 +378,7 @@ func TestRequestRepository_FindActiveDuplicate_IgnoresWithdrawnAndRejected(t *te
 	var dupes []capability.DuplicateChildKey
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var dErr error
-		dupes, dErr = enrollmentCompose.New().ActiveDuplicateChildren(ctx, phaseID, "anna@example.test",
+		dupes, dErr = ownerCompose.New().ActiveDuplicateChildren(ctx, phaseID, "anna@example.test",
 			[]capability.DuplicateChildKey{{FirstName: "Lara", LastName: "Beispiel"}}, 0)
 		return dErr
 	}))
@@ -416,7 +393,6 @@ func TestRequestRepository_FindActiveDuplicate_DifferentParentSameChildOK(t *tes
 	// able to enrol.
 	db, repo, tenantID, phaseID := setupRequestRepoTest(t)
 	token := uniqueToken("dupeOtherParent")
-	defer wipeRequests(db, tenantID, token)
 
 	r := makeOwnerRequest(phaseID, token+"-orig", "anna@example.test")
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -427,7 +403,7 @@ func TestRequestRepository_FindActiveDuplicate_DifferentParentSameChildOK(t *tes
 	var dupes []capability.DuplicateChildKey
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var dErr error
-		dupes, dErr = enrollmentCompose.New().ActiveDuplicateChildren(ctx, phaseID, "bert@example.test",
+		dupes, dErr = ownerCompose.New().ActiveDuplicateChildren(ctx, phaseID, "bert@example.test",
 			[]capability.DuplicateChildKey{{FirstName: "Lara", LastName: "Beispiel"}}, 0)
 		return dErr
 	}))
@@ -440,7 +416,6 @@ func TestRequestRepository_FindActiveDuplicate_DifferentPhaseSameChildOK(t *test
 	// A child enrolled in phase A should be allowed to enrol in phase B.
 	db, repo, tenantID, phaseID := setupRequestRepoTest(t)
 	token := uniqueToken("dupeOtherPhase")
-	defer wipeRequests(db, tenantID, token)
 
 	r := makeOwnerRequest(phaseID, token+"-orig", "anna@example.test")
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -453,7 +428,7 @@ func TestRequestRepository_FindActiveDuplicate_DifferentPhaseSameChildOK(t *test
 	var dupes []capability.DuplicateChildKey
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var dErr error
-		dupes, dErr = enrollmentCompose.New().ActiveDuplicateChildren(ctx, otherPhaseID, "anna@example.test",
+		dupes, dErr = ownerCompose.New().ActiveDuplicateChildren(ctx, otherPhaseID, "anna@example.test",
 			[]capability.DuplicateChildKey{{FirstName: "Lara", LastName: "Beispiel"}}, 0)
 		return dErr
 	}))
@@ -465,7 +440,7 @@ func TestRequestRepository_FindActiveDuplicate_RejectsZeroPhase(t *testing.T) {
 
 	db, _, tenantID, _ := setupRequestRepoTest(t)
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		_, dErr := enrollmentCompose.New().ActiveDuplicateChildren(ctx, 0, "x@y.z", nil, 0)
+		_, dErr := ownerCompose.New().ActiveDuplicateChildren(ctx, 0, "x@y.z", nil, 0)
 		return dErr
 	})
 	require.Error(t, err)
@@ -478,7 +453,7 @@ func TestRequestRepository_FindActiveDuplicate_EmptyEmailIsNotADuplicate(t *test
 	var dupes []capability.DuplicateChildKey
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var dErr error
-		dupes, dErr = enrollmentCompose.New().ActiveDuplicateChildren(ctx, phaseID, "  ",
+		dupes, dErr = ownerCompose.New().ActiveDuplicateChildren(ctx, phaseID, "  ",
 			[]capability.DuplicateChildKey{{FirstName: "Lara", LastName: "Beispiel"}}, 0)
 		return dErr
 	})
@@ -493,7 +468,7 @@ func TestRequestRepository_FindActiveDuplicate_EmptyChildListIsNotADuplicate(t *
 	var dupes []capability.DuplicateChildKey
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var dErr error
-		dupes, dErr = enrollmentCompose.New().ActiveDuplicateChildren(ctx, phaseID, "a@b.c", nil, 0)
+		dupes, dErr = ownerCompose.New().ActiveDuplicateChildren(ctx, phaseID, "a@b.c", nil, 0)
 		return dErr
 	})
 	require.NoError(t, err)
@@ -507,7 +482,6 @@ func TestRequestRepository_ExistsByPhaseID_TrueWhenReferenced(t *testing.T) {
 
 	db, repo, tenantID, phaseID := setupRequestRepoTest(t)
 	token := uniqueToken("existsByPhase")
-	defer wipeRequests(db, tenantID, token)
 
 	req := makeOwnerRequest(phaseID, token, "anna@example.test")
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -517,7 +491,7 @@ func TestRequestRepository_ExistsByPhaseID_TrueWhenReferenced(t *testing.T) {
 	var count int
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var eErr error
-		count, eErr = enrollmentCompose.New().CountPhaseRequests(ctx, phaseID)
+		count, eErr = ownerCompose.New().CountPhaseRequests(ctx, phaseID)
 		return eErr
 	})
 	require.NoError(t, err)
@@ -531,7 +505,7 @@ func TestRequestRepository_ExistsByPhaseID_FalseWhenUnreferenced(t *testing.T) {
 	var count int
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var eErr error
-		count, eErr = enrollmentCompose.New().CountPhaseRequests(ctx, 9_999_999)
+		count, eErr = ownerCompose.New().CountPhaseRequests(ctx, 9_999_999)
 		return eErr
 	})
 	require.NoError(t, err)
@@ -543,15 +517,10 @@ func TestRequestRepository_ExistsBySchemaID_TrueWhenReferenced(t *testing.T) {
 
 	db, repo, tenantID, phaseID := setupRequestRepoTest(t)
 	token := uniqueToken("existsBySchema")
-	defer wipeRequests(db, tenantID, token)
 
 	// Need a real schema row first.
 	account := testpkg.CreateTestAccount(t, db, "req-exists-schema")
-	t.Cleanup(func() {
-		_, _ = db.NewDelete().TableExpr("auth.accounts").
-			Where("id = ?", account.ID).Exec(context.Background())
-	})
-	schemaRepo := enrollmentCompose.New()
+	schemaRepo := ownerCompose.New()
 	schema := &capability.FormSchema{
 		Name: uniqueSchemaName("req-exists-schema"), Version: 1,
 		Fields: validFields(), IsActive: true, CreatedBy: account.ID,
@@ -559,7 +528,6 @@ func TestRequestRepository_ExistsBySchemaID_TrueWhenReferenced(t *testing.T) {
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		return schemaRepo.InsertSchemaVersion(ctx, schema)
 	}))
-	t.Cleanup(func() { wipeSchemas(db, tenantID, account.ID) })
 
 	req := makeOwnerRequest(phaseID, token, "anna@example.test")
 	req.SchemaID = &schema.ID
@@ -570,7 +538,7 @@ func TestRequestRepository_ExistsBySchemaID_TrueWhenReferenced(t *testing.T) {
 	var exists bool
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var eErr error
-		exists, eErr = enrollmentCompose.New().HasSchemaRequests(ctx, schema.ID)
+		exists, eErr = ownerCompose.New().HasSchemaRequests(ctx, schema.ID)
 		return eErr
 	})
 	require.NoError(t, err)
@@ -584,7 +552,7 @@ func TestRequestRepository_ExistsBySchemaID_FalseWhenUnreferenced(t *testing.T) 
 	var exists bool
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var eErr error
-		exists, eErr = enrollmentCompose.New().HasSchemaRequests(ctx, 9_999_999)
+		exists, eErr = ownerCompose.New().HasSchemaRequests(ctx, 9_999_999)
 		return eErr
 	})
 	require.NoError(t, err)
@@ -608,15 +576,10 @@ func insertRequestChildMatched(t *testing.T, db *bun.DB, tenantID, requestID, ma
 }
 
 // createMatchTestStudent creates a real enrolled student (matched_student_id
-// has a FK to users.students) and registers hard-delete cleanup.
+// has a FK to users.students).
 func createMatchTestStudent(t *testing.T, db *bun.DB, tenantID int64) int64 {
 	t.Helper()
 	student := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Lara", "Beispiel", "1a")
-	t.Cleanup(func() {
-		bg := context.Background()
-		_, _ = db.NewDelete().TableExpr("users.student_profiles").Where("id = ?", student.ID).Exec(bg)
-		_, _ = db.NewDelete().TableExpr("users.persons").Where("id = ?", student.PersonID).Exec(bg)
-	})
 	return student.ID
 }
 
@@ -625,7 +588,6 @@ func TestRequestRepository_HasActiveRequestForMatchedStudent_TrueForActivePin(t 
 
 	db, repo, tenantID, phaseID := setupRequestRepoTest(t)
 	token := uniqueToken("matchActive")
-	defer wipeRequests(db, tenantID, token)
 
 	studentID := createMatchTestStudent(t, db, tenantID)
 	r := makeOwnerRequest(phaseID, token, "anna@example.test")
@@ -637,7 +599,7 @@ func TestRequestRepository_HasActiveRequestForMatchedStudent_TrueForActivePin(t 
 	var has bool
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var hErr error
-		has, hErr = enrollmentCompose.New().HasActiveRequestForMatchedStudent(ctx, phaseID, studentID, 0)
+		has, hErr = ownerCompose.New().HasActiveRequestForMatchedStudent(ctx, phaseID, studentID, 0)
 		return hErr
 	}))
 	assert.True(t, has, "an active request pinned to the student must be detected")
@@ -645,7 +607,7 @@ func TestRequestRepository_HasActiveRequestForMatchedStudent_TrueForActivePin(t 
 	// A different student id in the same phase is not a collision.
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var hErr error
-		has, hErr = enrollmentCompose.New().HasActiveRequestForMatchedStudent(ctx, phaseID, studentID+1, 0)
+		has, hErr = ownerCompose.New().HasActiveRequestForMatchedStudent(ctx, phaseID, studentID+1, 0)
 		return hErr
 	}))
 	assert.False(t, has, "an unrelated student id must not be flagged")
@@ -656,7 +618,6 @@ func TestRequestRepository_HasActiveRequestForMatchedStudent_IgnoresTerminalAndO
 
 	db, repo, tenantID, phaseID := setupRequestRepoTest(t)
 	token := uniqueToken("matchTerminal")
-	defer wipeRequests(db, tenantID, token)
 
 	studentID := createMatchTestStudent(t, db, tenantID)
 	// Withdrawn + rejected pins for the same student must NOT block: those
@@ -672,7 +633,7 @@ func TestRequestRepository_HasActiveRequestForMatchedStudent_IgnoresTerminalAndO
 	var has bool
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var hErr error
-		has, hErr = enrollmentCompose.New().HasActiveRequestForMatchedStudent(ctx, phaseID, studentID, 0)
+		has, hErr = ownerCompose.New().HasActiveRequestForMatchedStudent(ctx, phaseID, studentID, 0)
 		return hErr
 	}))
 	assert.False(t, has, "withdrawn + rejected pins must not block re-enrollment")
@@ -680,7 +641,7 @@ func TestRequestRepository_HasActiveRequestForMatchedStudent_IgnoresTerminalAndO
 	// A different phase never collides with this phase's pins.
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var hErr error
-		has, hErr = enrollmentCompose.New().HasActiveRequestForMatchedStudent(ctx, phaseID+99_999_999, studentID, 0)
+		has, hErr = ownerCompose.New().HasActiveRequestForMatchedStudent(ctx, phaseID+99_999_999, studentID, 0)
 		return hErr
 	}))
 	assert.False(t, has, "a different phase must not be flagged")
@@ -695,7 +656,6 @@ func TestRequestRepository_HasActiveRequestForMatchedStudent_ExcludesGivenChild(
 
 	db, repo, tenantID, phaseID := setupRequestRepoTest(t)
 	token := uniqueToken("matchExclude")
-	defer wipeRequests(db, tenantID, token)
 
 	studentID := createMatchTestStudent(t, db, tenantID)
 	own := makeOwnerRequest(phaseID, token, "anna@example.test")
@@ -712,7 +672,7 @@ func TestRequestRepository_HasActiveRequestForMatchedStudent_ExcludesGivenChild(
 	var has bool
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var hErr error
-		has, hErr = enrollmentCompose.New().HasActiveRequestForMatchedStudent(ctx, phaseID, studentID, ownChildID)
+		has, hErr = ownerCompose.New().HasActiveRequestForMatchedStudent(ctx, phaseID, studentID, ownChildID)
 		return hErr
 	}))
 	assert.False(t, has, "a row must not collide with its own pin")
@@ -727,7 +687,7 @@ func TestRequestRepository_HasActiveRequestForMatchedStudent_ExcludesGivenChild(
 
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var hErr error
-		has, hErr = enrollmentCompose.New().HasActiveRequestForMatchedStudent(ctx, phaseID, studentID, ownChildID)
+		has, hErr = ownerCompose.New().HasActiveRequestForMatchedStudent(ctx, phaseID, studentID, ownChildID)
 		return hErr
 	}))
 	assert.True(t, has, "another guardian's active pin must still collide")
@@ -738,7 +698,7 @@ func TestRequestRepository_AcquireExistingStudentMatchLock_RejectsBadPhase(t *te
 
 	db, _, tenantID, _ := setupRequestRepoTest(t)
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return enrollmentCompose.New().AcquireExistingStudentMatchLock(ctx, 0)
+		return ownerCompose.New().AcquireExistingStudentMatchLock(ctx, 0)
 	})
 	require.Error(t, err, "a non-positive phase id is out of advisory-lock range")
 }
@@ -748,7 +708,7 @@ func TestRequestRepository_AcquireExistingStudentMatchLock_SucceedsInTx(t *testi
 
 	db, _, tenantID, phaseID := setupRequestRepoTest(t)
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return enrollmentCompose.New().AcquireExistingStudentMatchLock(ctx, phaseID)
+		return ownerCompose.New().AcquireExistingStudentMatchLock(ctx, phaseID)
 	})
 	require.NoError(t, err)
 }

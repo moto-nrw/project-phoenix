@@ -1,34 +1,39 @@
 package messaging_test
 
-// Integration tests for the staff-side parent-OGS messaging service. They run
-// against the real test DB through the real repositories, the real person
-// directory (for staff-name resolution and the read-access student load), the shared
-// parentmessaging core, and a capturing broadcaster, so the inbox / thread /
-// reply / new-conversation flows and their authorization and feature-flag gates
-// are exercised end to end exactly as the HTTP handlers drive them.
-//
-// Most reads/writes run on the ADMIN read path (perms "admin:*"), which is how a
-// school admin sees every child's inbox; the forbidden test drops to a
-// permissionless caller to pin the CanReadStudent gate.
-
 import (
 	"context"
 	"log/slog"
 	"strings"
 	"testing"
 
+	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
+
+	"github.com/moto-nrw/project-phoenix/api"
+	deliveryPolicy "github.com/moto-nrw/project-phoenix/modules/delivery/devices"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	// Integration tests for the staff-side parent-OGS messaging service. They run
+	// against the real test DB through the real repositories, the real person
+	// directory (for staff-name resolution and the read-access student load), the shared
+	// parentmessaging core, and a capturing broadcaster, so the inbox / thread /
+	// reply / new-conversation flows and their authorization and feature-flag gates
+	// are exercised end to end exactly as the HTTP handlers drive them.
+	//
+	// Most reads/writes run on the ADMIN read path (perms "admin:*"), which is how a
+	// school admin sees every child's inbox; the forbidden test drops to a
+	// permissionless caller to pin the CanReadStudent gate.
+
 	messaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+
+	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/services"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
+
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -36,11 +41,11 @@ import (
 
 // stubSettings answers only the lookups the messaging service makes: the
 // parent-messaging feature flag and the staff-name visibility flag. Every other
-// SettingsService method is inherited from the embedded nil interface and would
+// settings method is inherited from the embedded nil interface and would
 // panic if unexpectedly called — student read access no longer consults any
 // setting (#2329), it follows from the caller's staff record alone.
 type stubSettings struct {
-	configService.SettingsService
+	eventContract.SettingsResolver
 	messagingEnabled bool
 	// staffNameVisible answers operations.parent_message_staff_name_visible, the
 	// flag the send path freezes onto each staff message. Defaults false so
@@ -91,27 +96,32 @@ type fixture struct {
 	staffAccount int64
 }
 
-func newPersons(repos *repositories.Factory, db *bun.DB) messaging.PersonLookup {
-	return services.NewTestPersonDirectory(db, services.TestPersonDirectorySources{
-		Persons: repos.Person, Students: repos.Student, AccountExists: repositories.AccountExists(repos.Profile),
-	})
+func newPersons(repos *api.PeopleRepositorySuiteFactory, reposAccounts *api.AccountSuiteRepositories, db *bun.DB) messaging.PersonLookup {
+	return owners.BindParentMessagePeople(api.NewTestPersonDirectory(testpkg.MustDatabase(db), api.TestPersonDirectorySources{
+		Persons: repos.Person, Students: repos.Student, AccountExists: api.AccountExists(reposAccounts.Profile),
+	}))
 }
 
-func buildMessagingWithSettings(t *testing.T, settings stubSettings) (*messaging.Service, *testpkg.RecordingBroadcaster, *repositories.Factory, *bun.DB) {
+func buildMessagingWithSettings(t *testing.T, settings stubSettings) (*messaging.Service, *testpkg.RecordingBroadcaster, *api.RepositoryTestFactory, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposMessages := api.NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, db))
+	reposAccounts := api.NewAccountSuiteRepositories(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	bc := testpkg.NewRecordingBroadcaster()
 	svc := messaging.NewService(messaging.Config{
-		ThreadRepo:  repos.ParentMessageThread,
-		MessageRepo: repos.ParentMessage,
-		ReadRepo:    repos.ParentMessageRead,
-		Persons:     newPersons(repos, db),
-		Settings:    settings,
+		UserContext: owners.StaffStudentReads{},
+		Session:     api.CommunicationSession{},
+		ThreadRepo:  messaging.NewThreadRepository(reposMessages.ParentMessageThread),
+		MessageRepo: messaging.NewMessageRepository(parentStore.NewParentMessageRepository(db)),
+		ReadRepo:    messaging.NewReadRepository(reposMessages.ParentMessageRead),
+		Persons:     newPersons(reposPeople, reposAccounts, db),
+		Settings:    configModels.NewParentMessagingValues(settings),
 		Broadcaster: bc,
-		DB:          db,
-		Logger:      slog.Default(),
-	})
+
+		Logger: slog.Default(),
+	}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 	return svc, bc, repos, db
 }
 
@@ -123,8 +133,8 @@ func adminCtx(tb testing.TB, accountID int64) context.Context {
 
 func claimsCtx(tb testing.TB, accountID int64, perms []string) context.Context {
 	ctx := testpkg.Ctx(tb)
-	ctx = context.WithValue(ctx, jwt.CtxClaims, jwt.AppClaims{ID: int(accountID)})
-	ctx = context.WithValue(ctx, jwt.CtxPermissions, perms)
+	ctx = context.WithValue(ctx, sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: int(accountID)})
+	ctx = context.WithValue(ctx, sessiontoken.CtxPermissions, perms)
 	return ctx
 }
 
@@ -144,18 +154,18 @@ func newFixtureWithSettings(t *testing.T, settings stubSettings) *fixture {
 
 // createGuardianMessage inserts a guardian-authored message straight through the
 // repo, simulating the parent side so a staff-facing unread exists.
-func createGuardianMessage(t *testing.T, db *bun.DB, chain testpkg.ParentChain, threadID int64, body string) *usersModels.ParentMessage {
+func createGuardianMessage(t *testing.T, db *bun.DB, chain testpkg.ParentChain, threadID int64, body string) *messaging.ParentMessage {
 	t.Helper()
-	gm := &usersModels.ParentMessage{
+	gm := &messaging.ParentMessage{
 		ThreadID:        threadID,
 		StudentID:       chain.StudentID,
 		SenderAccountID: chain.AccountID,
-		SenderKind:      usersModels.ParentMessageSenderGuardian,
+		SenderKind:      messaging.ParentMessageSenderGuardian,
 		SenderName:      "Sabine Schneider",
 		Body:            body,
 	}
 	gm.SetTenantID(chain.TenantID)
-	require.NoError(t, repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ParentMessage.Create(testpkg.Ctx(t), gm))
+	require.NoError(t, testpkg.TenantCommand1(t, testpkg.Ctx(t), db, messaging.NewMessageRepository(parentStore.NewParentMessageRepository(db)).Create, gm))
 	return gm
 }
 
@@ -171,7 +181,7 @@ func TestStartThread_CreatesConversationAndBroadcasts(t *testing.T) {
 	f := newFixture(t, true)
 	ctx := adminCtx(t, f.staffAccount)
 
-	detail, err := f.svc.StartThread(ctx, f.chain.StudentID, f.chain.AccountID, "Guten Tag, bitte um Rückruf")
+	detail, err := testpkg.TenantQuery3(t, ctx, f.db, f.svc.StartThread, f.chain.StudentID, f.chain.AccountID, "Guten Tag, bitte um Rückruf")
 	require.NoError(t, err)
 	require.NotNil(t, detail)
 	assert.Positive(t, detail.ThreadID)
@@ -181,7 +191,7 @@ func TestStartThread_CreatesConversationAndBroadcasts(t *testing.T) {
 	assert.Equal(t, "Sabine Schneider", detail.GuardianName)
 	assert.Equal(t, "parent", detail.RelationshipType)
 	require.Len(t, detail.Messages, 1)
-	assert.Equal(t, usersModels.ParentMessageSenderStaff, detail.Messages[0].SenderKind)
+	assert.Equal(t, messaging.ParentMessageSenderStaff, detail.Messages[0].SenderKind)
 	assert.Equal(t, "Olivia Berg", detail.Messages[0].SenderName, "staff display name is denormalized onto the message")
 	assert.Equal(t, "Guten Tag, bitte um Rückruf", detail.Messages[0].Body)
 
@@ -198,7 +208,7 @@ func TestStartThread_StampsStaffNameVisibleFromSetting(t *testing.T) {
 
 	t.Run("setting on -> stamped visible", func(t *testing.T) {
 		f := newFixtureWithSettings(t, stubSettings{messagingEnabled: true, staffNameVisible: true})
-		detail, err := f.svc.StartThread(adminCtx(t, f.staffAccount), f.chain.StudentID, f.chain.AccountID, "Hallo")
+		detail, err := testpkg.TenantQuery3(t, adminCtx(t, f.staffAccount), f.db, f.svc.StartThread, f.chain.StudentID, f.chain.AccountID, "Hallo")
 		require.NoError(t, err)
 		require.Len(t, detail.Messages, 1)
 		assert.True(t, detail.Messages[0].StaffNameVisible, "reply sent while the setting is on must be stamped visible")
@@ -206,7 +216,7 @@ func TestStartThread_StampsStaffNameVisibleFromSetting(t *testing.T) {
 
 	t.Run("setting off -> stamped hidden", func(t *testing.T) {
 		f := newFixtureWithSettings(t, stubSettings{messagingEnabled: true, staffNameVisible: false})
-		detail, err := f.svc.StartThread(adminCtx(t, f.staffAccount), f.chain.StudentID, f.chain.AccountID, "Hallo")
+		detail, err := testpkg.TenantQuery3(t, adminCtx(t, f.staffAccount), f.db, f.svc.StartThread, f.chain.StudentID, f.chain.AccountID, "Hallo")
 		require.NoError(t, err)
 		require.Len(t, detail.Messages, 1)
 		assert.False(t, detail.Messages[0].StaffNameVisible, "reply sent while the setting is off stays anonymous")
@@ -222,9 +232,9 @@ func TestStartThread_IsGetOrCreate(t *testing.T) {
 	f := newFixture(t, true)
 	ctx := adminCtx(t, f.staffAccount)
 
-	first, err := f.svc.StartThread(ctx, f.chain.StudentID, f.chain.AccountID, "Erste")
+	first, err := testpkg.TenantQuery3(t, ctx, f.db, f.svc.StartThread, f.chain.StudentID, f.chain.AccountID, "Erste")
 	require.NoError(t, err)
-	second, err := f.svc.StartThread(ctx, f.chain.StudentID, f.chain.AccountID, "Zweite")
+	second, err := testpkg.TenantQuery3(t, ctx, f.db, f.svc.StartThread, f.chain.StudentID, f.chain.AccountID, "Zweite")
 	require.NoError(t, err)
 	assert.Equal(t, first.ThreadID, second.ThreadID, "same pair must resolve to one conversation")
 	require.Len(t, second.Messages, 2)
@@ -238,11 +248,11 @@ func TestPostMessage_AppendsAndBroadcasts(t *testing.T) {
 	f := newFixture(t, true)
 	ctx := adminCtx(t, f.staffAccount)
 
-	started, err := f.svc.StartThread(ctx, f.chain.StudentID, f.chain.AccountID, "Hallo")
+	started, err := testpkg.TenantQuery3(t, ctx, f.db, f.svc.StartThread, f.chain.StudentID, f.chain.AccountID, "Hallo")
 	require.NoError(t, err)
 	f.bc.Reset() // reset to isolate the reply's broadcast
 
-	msgs, err := f.svc.PostMessage(ctx, started.ThreadID, "Noch eine Info", 0)
+	msgs, err := testpkg.TenantQuery3(t, ctx, f.db, f.svc.PostMessage, started.ThreadID, "Noch eine Info", 0)
 	require.NoError(t, err)
 	require.Len(t, msgs, 2)
 	assert.Equal(t, "Noch eine Info", msgs[1].Body)
@@ -259,17 +269,17 @@ func TestPostMessage_ClearsTeamUnreadForColleagues(t *testing.T) {
 	f := newFixture(t, true)
 	_, colleagueAccount := testpkg.CreateTestStaffWithAccount(t, f.db, "Miriam", "Klein")
 
-	started, err := f.svc.StartThread(adminCtx(t, f.staffAccount), f.chain.StudentID, f.chain.AccountID, "Hallo")
+	started, err := testpkg.TenantQuery3(t, adminCtx(t, f.staffAccount), f.db, f.svc.StartThread, f.chain.StudentID, f.chain.AccountID, "Hallo")
 	require.NoError(t, err)
 	firstGuardianMessage := createGuardianMessage(t, f.db, f.chain, started.ThreadID, "Erste Frage")
 
 	assertStaffUnread := func(accountID int64, expected int) {
 		t.Helper()
-		count, countErr := f.svc.UnreadMessageCount(adminCtx(t, accountID))
+		count, countErr := testpkg.TenantQuery0(t, adminCtx(t, accountID), f.db, f.svc.UnreadMessageCount)
 		require.NoError(t, countErr)
 		assert.Equal(t, expected, count)
 
-		inbox, inboxErr := f.svc.ListInbox(adminCtx(t, accountID), true)
+		inbox, inboxErr := testpkg.TenantQuery1(t, adminCtx(t, accountID), f.db, f.svc.ListInbox, true)
 		require.NoError(t, inboxErr)
 		if expected == 0 {
 			assert.Empty(t, inbox)
@@ -278,7 +288,7 @@ func TestPostMessage_ClearsTeamUnreadForColleagues(t *testing.T) {
 			assert.Equal(t, expected, inbox[0].UnreadCount)
 		}
 
-		threads, threadsErr := f.svc.ListStudentThreads(adminCtx(t, accountID), f.chain.StudentID)
+		threads, threadsErr := testpkg.TenantQuery1(t, adminCtx(t, accountID), f.db, f.svc.ListStudentThreads, f.chain.StudentID)
 		require.NoError(t, threadsErr)
 		require.Len(t, threads, 1)
 		assert.Equal(t, expected, threads[0].UnreadCount)
@@ -287,7 +297,7 @@ func TestPostMessage_ClearsTeamUnreadForColleagues(t *testing.T) {
 	assertStaffUnread(f.staffAccount, 1)
 	assertStaffUnread(colleagueAccount.ID, 1)
 
-	_, err = f.svc.PostMessage(adminCtx(t, f.staffAccount), started.ThreadID, "Team-Antwort", firstGuardianMessage.ID)
+	_, err = testpkg.TenantQuery3(t, adminCtx(t, f.staffAccount), f.db, f.svc.PostMessage, started.ThreadID, "Team-Antwort", firstGuardianMessage.ID)
 	require.NoError(t, err)
 	assertStaffUnread(f.staffAccount, 0)
 	assertStaffUnread(colleagueAccount.ID, 0)
@@ -299,20 +309,23 @@ func TestPostMessage_ClearsTeamUnreadForColleagues(t *testing.T) {
 	`, started.ThreadID, colleagueAccount.ID).Scan(context.Background(), &colleagueReadRows))
 	assert.Zero(t, colleagueReadRows, "team handling must not forge a colleague's personal read receipt")
 
-	allMessages, err := repositories.NewFactory(f.db, repositories.NewUnobservedTimetableDependencies(f.db)).ParentMessage.ListByThread(adminCtx(t, f.staffAccount), started.ThreadID, 0)
+	allMessages, err := testpkg.TenantQuery2(t, adminCtx(t, f.staffAccount), testpkg.SetupTestDB(t), messaging.NewMessageRepository(parentStore.NewParentMessageRepository(f.db)).ListByThread, started.ThreadID, 0)
 	require.NoError(t, err)
-	messaging.DecorateReadReceipts(adminCtx(t, f.chain.AccountID), repositories.NewFactory(f.db, repositories.NewUnobservedTimetableDependencies(f.db)).ParentMessageRead, nil, started.ThreadID, f.chain.AccountID, allMessages)
+	require.NoError(t, testpkg.WithinTenantContext(t, adminCtx(t, f.chain.AccountID), f.db, f.chain.TenantID, func(txCtx context.Context) error {
+		messaging.DecorateReadReceipts(txCtx, messaging.NewReadRepository(api.NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, f.db)).ParentMessageRead), nil, started.ThreadID, f.chain.AccountID, allMessages)
+		return nil
+	}))
 	assert.True(t, allMessages[1].ReadByStaff, "the guardian receipt remains tied to the responding staff account's personal cursor")
 
 	createGuardianMessage(t, f.db, f.chain, started.ThreadID, "Neue Frage")
 	assertStaffUnread(f.staffAccount, 1)
 	assertStaffUnread(colleagueAccount.ID, 1)
 
-	readRepo := repositories.NewFactory(f.db, repositories.NewUnobservedTimetableDependencies(f.db)).ParentMessageRead
-	count, err := readRepo.UnreadMessageCountForStaff(adminCtx(t, colleagueAccount.ID), colleagueAccount.ID, true)
+	readRepo := api.NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, f.db)).ParentMessageRead
+	count, err := testpkg.TenantQuery2(t, adminCtx(t, colleagueAccount.ID), testpkg.SetupTestDB(t), readRepo.UnreadMessageCountForStaff, colleagueAccount.ID, true)
 	require.NoError(t, err)
 	assert.Equal(t, 1, count, "authorized staff must see the new open message")
-	count, err = readRepo.UnreadMessageCountForStaff(adminCtx(t, colleagueAccount.ID), colleagueAccount.ID, false)
+	count, err = testpkg.TenantQuery2(t, adminCtx(t, colleagueAccount.ID), testpkg.SetupTestDB(t), readRepo.UnreadMessageCountForStaff, colleagueAccount.ID, false)
 	require.NoError(t, err)
 	assert.Zero(t, count, "the team boundary must not broaden student access beyond the caller's own scope")
 }
@@ -321,20 +334,20 @@ func TestPostMessage_RejectsLegacyReplyWithoutVisibleBoundary(t *testing.T) {
 	t.Parallel()
 
 	f := newFixture(t, true)
-	started, err := f.svc.StartThread(adminCtx(t, f.staffAccount), f.chain.StudentID, f.chain.AccountID, "Hallo")
+	started, err := testpkg.TenantQuery3(t, adminCtx(t, f.staffAccount), f.db, f.svc.StartThread, f.chain.StudentID, f.chain.AccountID, "Hallo")
 	require.NoError(t, err)
 	createGuardianMessage(t, f.db, f.chain, started.ThreadID, "Frage")
 
-	_, err = f.svc.PostMessage(adminCtx(t, f.staffAccount), started.ThreadID, "Antwort", 0)
+	_, err = testpkg.TenantQuery3(t, adminCtx(t, f.staffAccount), f.db, f.svc.PostMessage, started.ThreadID, "Antwort", 0)
 	require.ErrorIs(t, err, messaging.ErrHandledBoundaryRequired)
 
-	messages, err := repositories.NewFactory(f.db, repositories.NewUnobservedTimetableDependencies(f.db)).ParentMessage.ListByThread(adminCtx(t, f.staffAccount), started.ThreadID, 0)
+	messages, err := testpkg.TenantQuery2(t, adminCtx(t, f.staffAccount), testpkg.SetupTestDB(t), messaging.NewMessageRepository(parentStore.NewParentMessageRepository(f.db)).ListByThread, started.ThreadID, 0)
 	require.NoError(t, err)
 	assert.Len(t, messages, 2, "the rejected legacy reply must not be inserted")
 
-	_, err = f.svc.PostMessage(adminCtx(t, f.staffAccount), started.ThreadID, "Antwort", 999999999)
+	_, err = testpkg.TenantQuery3(t, adminCtx(t, f.staffAccount), f.db, f.svc.PostMessage, started.ThreadID, "Antwort", 999999999)
 	require.ErrorIs(t, err, messaging.ErrHandledBoundaryRequired)
-	messages, err = repositories.NewFactory(f.db, repositories.NewUnobservedTimetableDependencies(f.db)).ParentMessage.ListByThread(adminCtx(t, f.staffAccount), started.ThreadID, 0)
+	messages, err = testpkg.TenantQuery2(t, adminCtx(t, f.staffAccount), testpkg.SetupTestDB(t), messaging.NewMessageRepository(parentStore.NewParentMessageRepository(f.db)).ListByThread, started.ThreadID, 0)
 	require.NoError(t, err)
 	assert.Len(t, messages, 2, "a reply with a foreign boundary must not be inserted")
 }
@@ -346,13 +359,13 @@ func TestPostMessage_EmptyAndTooLong(t *testing.T) {
 
 	f := newFixture(t, true)
 	ctx := adminCtx(t, f.staffAccount)
-	started, err := f.svc.StartThread(ctx, f.chain.StudentID, f.chain.AccountID, "Hallo")
+	started, err := testpkg.TenantQuery3(t, ctx, f.db, f.svc.StartThread, f.chain.StudentID, f.chain.AccountID, "Hallo")
 	require.NoError(t, err)
 
-	_, err = f.svc.PostMessage(ctx, started.ThreadID, "   \n\t ", 0)
+	_, err = testpkg.TenantQuery3(t, ctx, f.db, f.svc.PostMessage, started.ThreadID, "   \n\t ", 0)
 	require.ErrorIs(t, err, messaging.ErrEmptyBody)
 
-	_, err = f.svc.PostMessage(ctx, started.ThreadID, strings.Repeat("x", 2001), 0)
+	_, err = testpkg.TenantQuery3(t, ctx, f.db, f.svc.PostMessage, started.ThreadID, strings.Repeat("x", 2001), 0)
 	require.ErrorIs(t, err, messaging.ErrBodyTooLong)
 }
 
@@ -367,27 +380,27 @@ func TestGetThread_MarksReadAndBroadcastsReceipt(t *testing.T) {
 	f := newFixture(t, true)
 	staffCtx := adminCtx(t, f.staffAccount)
 
-	started, err := f.svc.StartThread(staffCtx, f.chain.StudentID, f.chain.AccountID, "Hallo")
+	started, err := testpkg.TenantQuery3(t, staffCtx, f.db, f.svc.StartThread, f.chain.StudentID, f.chain.AccountID, "Hallo")
 	require.NoError(t, err)
 	createGuardianMessage(t, f.db, f.chain, started.ThreadID, "Danke!")
 
-	before, err := f.svc.UnreadMessageCount(staffCtx)
+	before, err := testpkg.TenantQuery0(t, staffCtx, f.db, f.svc.UnreadMessageCount)
 	require.NoError(t, err)
 	assert.Equal(t, 1, before, "guardian reply is unread to staff before opening")
 
 	f.bc.Reset()
-	detail, err := f.svc.GetThread(staffCtx, started.ThreadID)
+	detail, err := testpkg.TenantQuery1(t, staffCtx, f.db, f.svc.GetThread, started.ThreadID)
 	require.NoError(t, err)
 	require.Len(t, detail.Messages, 2)
 
-	after, err := f.svc.UnreadMessageCount(staffCtx)
+	after, err := testpkg.TenantQuery0(t, staffCtx, f.db, f.svc.UnreadMessageCount)
 	require.NoError(t, err)
 	assert.Equal(t, 0, after, "GetThread advances the staff read cursor")
 	assert.Equal(t, 1, parentEventCount(f.bc, realtime.EventParentMessageRead), "advancing the cursor wakes the guardian's receipts")
 
 	// Re-open: nothing new to read, so no second receipt event.
 	f.bc.Reset()
-	_, err = f.svc.GetThread(staffCtx, started.ThreadID)
+	_, err = testpkg.TenantQuery1(t, staffCtx, f.db, f.svc.GetThread, started.ThreadID)
 	require.NoError(t, err)
 	assert.Equal(t, 0, parentEventCount(f.bc, realtime.EventParentMessageRead), "a no-op read must not ping-pong a receipt event")
 }
@@ -398,7 +411,7 @@ func TestGetThread_NotFound(t *testing.T) {
 	t.Parallel()
 
 	f := newFixture(t, true)
-	_, err := f.svc.GetThread(adminCtx(t, f.staffAccount), 999999999)
+	_, err := testpkg.TenantQuery1(t, adminCtx(t, f.staffAccount), f.db, f.svc.GetThread, 999999999)
 	require.ErrorIs(t, err, messaging.ErrThreadNotFound)
 }
 
@@ -414,12 +427,12 @@ func TestOpenThread_EmptyConversationStaysHiddenFromInbox(t *testing.T) {
 	f := newFixture(t, true)
 	ctx := adminCtx(t, f.staffAccount)
 
-	detail, err := f.svc.OpenThread(ctx, f.chain.StudentID, f.chain.AccountID)
+	detail, err := testpkg.TenantQuery2(t, ctx, f.db, f.svc.OpenThread, f.chain.StudentID, f.chain.AccountID)
 	require.NoError(t, err)
 	assert.Positive(t, detail.ThreadID)
 	assert.Empty(t, detail.Messages)
 
-	inbox, err := f.svc.ListInbox(ctx, false)
+	inbox, err := testpkg.TenantQuery1(t, ctx, f.db, f.svc.ListInbox, false)
 	require.NoError(t, err)
 	assert.Empty(t, inbox, "an opened-but-unwritten conversation must stay out of the inbox")
 }
@@ -432,18 +445,18 @@ func TestOpenThread_ExistingWithUnreadMarksReadAndBroadcasts(t *testing.T) {
 
 	f := newFixture(t, true)
 	ctx := adminCtx(t, f.staffAccount)
-	started, err := f.svc.StartThread(ctx, f.chain.StudentID, f.chain.AccountID, "Hallo")
+	started, err := testpkg.TenantQuery3(t, ctx, f.db, f.svc.StartThread, f.chain.StudentID, f.chain.AccountID, "Hallo")
 	require.NoError(t, err)
 	createGuardianMessage(t, f.db, f.chain, started.ThreadID, "Antwort")
 
 	f.bc.Reset()
-	detail, err := f.svc.OpenThread(ctx, f.chain.StudentID, f.chain.AccountID)
+	detail, err := testpkg.TenantQuery2(t, ctx, f.db, f.svc.OpenThread, f.chain.StudentID, f.chain.AccountID)
 	require.NoError(t, err)
 	assert.Equal(t, started.ThreadID, detail.ThreadID, "OpenThread resolves the existing conversation")
 	require.Len(t, detail.Messages, 2)
 	assert.Equal(t, 1, parentEventCount(f.bc, realtime.EventParentMessageRead), "opening with unread fires a read receipt")
 
-	cnt, err := f.svc.UnreadMessageCount(ctx)
+	cnt, err := testpkg.TenantQuery0(t, ctx, f.db, f.svc.UnreadMessageCount)
 	require.NoError(t, err)
 	assert.Equal(t, 0, cnt, "opening the thread cleared the unread badge")
 }
@@ -459,26 +472,26 @@ func TestListInbox_ShowsConversationWithUnread(t *testing.T) {
 	f := newFixture(t, true)
 	ctx := adminCtx(t, f.staffAccount)
 
-	started, err := f.svc.StartThread(ctx, f.chain.StudentID, f.chain.AccountID, "Hallo")
+	started, err := testpkg.TenantQuery3(t, ctx, f.db, f.svc.StartThread, f.chain.StudentID, f.chain.AccountID, "Hallo")
 	require.NoError(t, err)
 	createGuardianMessage(t, f.db, f.chain, started.ThreadID, "Frage eins")
 	createGuardianMessage(t, f.db, f.chain, started.ThreadID, "Frage zwei")
 
-	inbox, err := f.svc.ListInbox(ctx, false)
+	inbox, err := testpkg.TenantQuery1(t, ctx, f.db, f.svc.ListInbox, false)
 	require.NoError(t, err)
 	require.Len(t, inbox, 1)
 	assert.Equal(t, "Felix Schneider", inbox[0].StudentName)
 	assert.Equal(t, "Sabine Schneider", inbox[0].GuardianName)
 	assert.Equal(t, 2, inbox[0].UnreadCount, "badge counts unread messages, not threads")
 
-	onlyUnread, err := f.svc.ListInbox(ctx, true)
+	onlyUnread, err := testpkg.TenantQuery1(t, ctx, f.db, f.svc.ListInbox, true)
 	require.NoError(t, err)
 	require.Len(t, onlyUnread, 1)
 
 	// Read it: onlyUnread now drops the row.
-	_, err = f.svc.GetThread(ctx, started.ThreadID)
+	_, err = testpkg.TenantQuery1(t, ctx, f.db, f.svc.GetThread, started.ThreadID)
 	require.NoError(t, err)
-	onlyUnread, err = f.svc.ListInbox(ctx, true)
+	onlyUnread, err = testpkg.TenantQuery1(t, ctx, f.db, f.svc.ListInbox, true)
 	require.NoError(t, err)
 	assert.Empty(t, onlyUnread, "a fully-read conversation leaves the onlyUnread filter")
 }
@@ -491,12 +504,12 @@ func TestListInboxQueryBudgetStaysFlat(t *testing.T) {
 
 	for range 3 {
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
-		_, err := svc.StartThread(ctx, chain.StudentID, chain.AccountID, "Hallo")
+		_, err := testpkg.TenantQuery3(t, ctx, db, svc.StartThread, chain.StudentID, chain.AccountID, "Hallo")
 		require.NoError(t, err)
 	}
 
 	counter := testpkg.CaptureQueriesForContext(t, db)
-	inbox, err := svc.ListInbox(counter.Context(ctx), false)
+	inbox, err := testpkg.MeasuredTenantQuery1(t, counter.Context(ctx), db, counter, svc.ListInbox, false)
 	require.NoError(t, err)
 	require.Len(t, inbox, 3)
 	testpkg.AssertQueryBudget(t, "modules.communication.parent_messages.list_inbox", counter.Queries())
@@ -509,12 +522,51 @@ func TestListGuardians_ReturnsAccountHoldingGuardian(t *testing.T) {
 	t.Parallel()
 
 	f := newFixture(t, true)
-	guardians, err := f.svc.ListGuardians(adminCtx(t, f.staffAccount), f.chain.StudentID)
+	guardians, err := testpkg.TenantQuery1(t, adminCtx(t, f.staffAccount), f.db, f.svc.ListGuardians, f.chain.StudentID)
 	require.NoError(t, err)
 	require.Len(t, guardians, 1)
 	assert.Equal(t, f.chain.AccountID, guardians[0].AccountID)
 	assert.Equal(t, "Sabine Schneider", guardians[0].Name)
 	assert.True(t, guardians[0].IsPrimary)
+}
+
+// TestListReachableStudentIDs_OnlyChildrenWithRecipient: the child list of
+// „Neue Nachricht“ marks every child the recipient step would offer nobody
+// for (#4362).
+func TestListReachableStudentIDs_OnlyChildrenWithRecipient(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t, true)
+	withoutGuardian := testpkg.CreateTestStudent(t, f.db, "Ohne", "Eltern", "3a")
+	ids, err := testpkg.TenantQuery0(t, adminCtx(t, f.staffAccount), f.db, f.svc.ListReachableStudentIDs)
+	require.NoError(t, err)
+	assert.Contains(t, ids, f.chain.StudentID)
+	assert.NotContains(t, ids, withoutGuardian.ID)
+}
+
+func TestListReachableStudentIDsQueryBudgetStaysFlat(t *testing.T) {
+	t.Parallel()
+	svc, _, _, db := buildMessagingWithSettings(t, stubSettings{messagingEnabled: true})
+	_, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Olivia", "Berg")
+	ctx := adminCtx(t, staffAccount.ID)
+	measure := func(chainCount int) int {
+		t.Helper()
+		chains := make([]testpkg.ParentChain, 0, chainCount)
+		for range chainCount {
+			chains = append(chains, testpkg.CreateTestParentGuardianChain(t, db))
+		}
+		counter := testpkg.CaptureQueriesForContext(t, db)
+		ids, err := testpkg.MeasuredTenantQuery0(t, counter.Context(ctx), db, counter, svc.ListReachableStudentIDs)
+		require.NoError(t, err)
+		for _, chain := range chains {
+			assert.Contains(t, ids, chain.StudentID)
+		}
+		testpkg.AssertQueryBudget(t, "modules.communication.parent_messages.list_reachable_students", counter.Queries())
+		return len(counter.Queries())
+	}
+
+	atThree := measure(3)
+	assert.Equal(t, atThree, measure(3), "six children with guardians cost as many statements as three")
 }
 
 // TestListStudentThreads_FiltersToChild: the student-detail card sees the child's
@@ -524,10 +576,10 @@ func TestListStudentThreads_FiltersToChild(t *testing.T) {
 
 	f := newFixture(t, true)
 	ctx := adminCtx(t, f.staffAccount)
-	_, err := f.svc.StartThread(ctx, f.chain.StudentID, f.chain.AccountID, "Hallo")
+	_, err := testpkg.TenantQuery3(t, ctx, f.db, f.svc.StartThread, f.chain.StudentID, f.chain.AccountID, "Hallo")
 	require.NoError(t, err)
 
-	rows, err := f.svc.ListStudentThreads(ctx, f.chain.StudentID)
+	rows, err := testpkg.TenantQuery1(t, ctx, f.db, f.svc.ListStudentThreads, f.chain.StudentID)
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
 	assert.Equal(t, f.chain.StudentID, rows[0].StudentID)
@@ -543,11 +595,8 @@ func TestStartThread_InvalidGuardian(t *testing.T) {
 
 	f := newFixture(t, true)
 	stranger := testpkg.CreateTestAccount(t, f.db, "stranger")
-	t.Cleanup(func() {
-		_, _ = f.db.ExecContext(context.Background(), `DELETE FROM auth.accounts WHERE id = ?`, stranger.ID)
-	})
 
-	_, err := f.svc.StartThread(adminCtx(t, f.staffAccount), f.chain.StudentID, stranger.ID, "Hallo")
+	_, err := testpkg.TenantQuery3(t, adminCtx(t, f.staffAccount), f.db, f.svc.StartThread, f.chain.StudentID, stranger.ID, "Hallo")
 	require.ErrorIs(t, err, messaging.ErrInvalidGuardian)
 }
 
@@ -559,18 +608,17 @@ func TestMessaging_Forbidden(t *testing.T) {
 	t.Parallel()
 
 	f := newFixture(t, true)
-	started, err := f.svc.StartThread(adminCtx(t, f.staffAccount), f.chain.StudentID, f.chain.AccountID, "Hallo")
+	started, err := testpkg.TenantQuery3(t, adminCtx(t, f.staffAccount), f.db, f.svc.StartThread, f.chain.StudentID, f.chain.AccountID, "Hallo")
 	require.NoError(t, err)
 
 	outsider := testpkg.CreateTestAccount(t, f.db, "outsider")
-	t.Cleanup(func() {
-		_, _ = f.db.ExecContext(context.Background(), `DELETE FROM auth.accounts WHERE id = ?`, outsider.ID)
-	})
 	ctx := claimsCtx(t, outsider.ID, []string{"users:read"})
 
-	_, err = f.svc.GetThread(ctx, started.ThreadID)
+	_, err = testpkg.TenantQuery1(t, ctx, f.db, f.svc.GetThread, started.ThreadID)
 	require.ErrorIs(t, err, messaging.ErrForbidden)
-	_, err = f.svc.ListGuardians(ctx, f.chain.StudentID)
+	_, err = testpkg.TenantQuery1(t, ctx, f.db, f.svc.ListGuardians, f.chain.StudentID)
+	require.ErrorIs(t, err, messaging.ErrForbidden)
+	_, err = testpkg.TenantQuery0(t, ctx, f.db, f.svc.ListReachableStudentIDs)
 	require.ErrorIs(t, err, messaging.ErrForbidden)
 }
 
@@ -583,9 +631,9 @@ func TestMessaging_MissingStudentIsForbidden(t *testing.T) {
 
 	f := newFixture(t, true)
 	ctx := adminCtx(t, f.staffAccount)
-	_, err := f.svc.ListGuardians(ctx, 999999999)
+	_, err := testpkg.TenantQuery1(t, ctx, f.db, f.svc.ListGuardians, 999999999)
 	require.ErrorIs(t, err, messaging.ErrForbidden)
-	_, err = f.svc.ListStudentThreads(ctx, 999999999)
+	_, err = testpkg.TenantQuery1(t, ctx, f.db, f.svc.ListStudentThreads, 999999999)
 	require.ErrorIs(t, err, messaging.ErrForbidden)
 }
 
@@ -594,22 +642,22 @@ func TestMessaging_GraduatedStudentIsForbidden(t *testing.T) {
 
 	f := newFixture(t, true)
 	ctx := adminCtx(t, f.staffAccount)
-	started, err := f.svc.StartThread(ctx, f.chain.StudentID, f.chain.AccountID, "Hallo")
+	started, err := testpkg.TenantQuery3(t, ctx, f.db, f.svc.StartThread, f.chain.StudentID, f.chain.AccountID, "Hallo")
 	require.NoError(t, err)
 
 	_, err = f.db.ExecContext(context.Background(), `
 		UPDATE users.student_school_memberships SET status = ? WHERE student_profile_id = ? AND deleted_at IS NULL
-	`, usersModels.StudentStatusAlumnus, f.chain.StudentID)
+	`, "alumnus", f.chain.StudentID)
 	require.NoError(t, err)
 
-	_, err = f.svc.GetThread(ctx, started.ThreadID)
+	_, err = testpkg.TenantQuery1(t, ctx, f.db, f.svc.GetThread, started.ThreadID)
 	require.ErrorIs(t, err, messaging.ErrForbidden)
-	_, err = f.svc.PostMessage(ctx, started.ThreadID, "Reply", 0)
+	_, err = testpkg.TenantQuery3(t, ctx, f.db, f.svc.PostMessage, started.ThreadID, "Reply", 0)
 	require.ErrorIs(t, err, messaging.ErrForbidden)
-	_, err = f.svc.ListStudentThreads(ctx, f.chain.StudentID)
+	_, err = testpkg.TenantQuery1(t, ctx, f.db, f.svc.ListStudentThreads, f.chain.StudentID)
 	require.ErrorIs(t, err, messaging.ErrForbidden)
 
-	inbox, err := f.svc.ListInbox(ctx, false)
+	inbox, err := testpkg.TenantQuery1(t, ctx, f.db, f.svc.ListInbox, false)
 	require.NoError(t, err)
 	assert.Empty(t, inbox)
 }
@@ -623,7 +671,7 @@ func TestPostMessage_GuardianAccessRevoked(t *testing.T) {
 
 	f := newFixture(t, true)
 	ctx := adminCtx(t, f.staffAccount)
-	started, err := f.svc.StartThread(ctx, f.chain.StudentID, f.chain.AccountID, "Hallo")
+	started, err := testpkg.TenantQuery3(t, ctx, f.db, f.svc.StartThread, f.chain.StudentID, f.chain.AccountID, "Hallo")
 	require.NoError(t, err)
 
 	// Downgrade the guardian relationship to read-only (no parent_portal.access).
@@ -634,11 +682,11 @@ func TestPostMessage_GuardianAccessRevoked(t *testing.T) {
 	`, f.chain.TenantID, f.chain.StudentID, f.chain.GuardianProfileID)
 	require.NoError(t, err)
 
-	_, err = f.svc.PostMessage(ctx, started.ThreadID, "Reply", 0)
+	_, err = testpkg.TenantQuery3(t, ctx, f.db, f.svc.PostMessage, started.ThreadID, "Reply", 0)
 	require.ErrorIs(t, err, messaging.ErrGuardianAccessRevoked)
 
 	// Read still works — history stays visible.
-	_, err = f.svc.GetThread(ctx, started.ThreadID)
+	_, err = testpkg.TenantQuery1(t, ctx, f.db, f.svc.GetThread, started.ThreadID)
 	require.NoError(t, err)
 }
 
@@ -651,32 +699,36 @@ func TestMessaging_DisabledFeature(t *testing.T) {
 
 	f := newFixture(t, true)
 	ctx := adminCtx(t, f.staffAccount)
-	started, err := f.svc.StartThread(ctx, f.chain.StudentID, f.chain.AccountID, "Hallo")
+	started, err := testpkg.TenantQuery3(t, ctx, f.db, f.svc.StartThread, f.chain.StudentID, f.chain.AccountID, "Hallo")
 	require.NoError(t, err)
 	createGuardianMessage(t, f.db, f.chain, started.ThreadID, "Frage")
 
 	// Rebuild the service with the feature OFF, same DB.
-	repos := repositories.NewFactory(f.db, repositories.NewUnobservedTimetableDependencies(f.db))
+	reposMessages := api.NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, f.db))
+	reposAccounts := api.NewAccountSuiteRepositories(testpkg.NewDatabase(t, f.db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, f.db))
 	disabled := messaging.NewService(messaging.Config{
-		ThreadRepo: repos.ParentMessageThread, MessageRepo: repos.ParentMessage, ReadRepo: repos.ParentMessageRead,
-		Persons:     newPersons(repos, f.db),
-		Settings:    stubSettings{messagingEnabled: false},
-		Broadcaster: f.bc, DB: f.db, Logger: slog.Default(),
-	})
+		UserContext: owners.StaffStudentReads{},
+		Session:     api.CommunicationSession{},
+		ThreadRepo:  messaging.NewThreadRepository(reposMessages.ParentMessageThread), MessageRepo: messaging.NewMessageRepository(parentStore.NewParentMessageRepository(f.db)), ReadRepo: messaging.NewReadRepository(reposMessages.ParentMessageRead),
+		Persons:     newPersons(reposPeople, reposAccounts, f.db),
+		Settings:    configModels.NewParentMessagingValues(stubSettings{messagingEnabled: false}),
+		Broadcaster: f.bc, Logger: slog.Default(),
+	}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 
-	_, err = disabled.PostMessage(ctx, started.ThreadID, "Reply", 0)
+	_, err = testpkg.TenantQuery3(t, ctx, testpkg.SetupTestDB(t), disabled.PostMessage, started.ThreadID, "Reply", 0)
 	require.ErrorIs(t, err, messaging.ErrMessagingDisabled)
 
-	count, err := disabled.UnreadMessageCount(ctx)
+	count, err := testpkg.TenantQuery0(t, ctx, testpkg.SetupTestDB(t), disabled.UnreadMessageCount)
 	require.NoError(t, err)
 	assert.Equal(t, 0, count, "disabled feature darkens the staff badge")
 
-	inbox, err := disabled.ListInbox(ctx, false)
+	inbox, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), disabled.ListInbox, false)
 	require.NoError(t, err)
 	require.Len(t, inbox, 1)
 	assert.Equal(t, 0, inbox[0].UnreadCount, "disabled feature suppresses the row unread pill")
 
-	onlyUnread, err := disabled.ListInbox(ctx, true)
+	onlyUnread, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), disabled.ListInbox, true)
 	require.NoError(t, err)
 	assert.Empty(t, onlyUnread)
 }

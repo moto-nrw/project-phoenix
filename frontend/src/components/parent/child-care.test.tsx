@@ -7,7 +7,7 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   PickupTimeModal,
   resolveTodayPickup,
@@ -324,6 +324,97 @@ describe("PickupTimeModal — failed preload guard", () => {
     });
   });
 
+  // #3945: with the Abholart allowed, a request may change only the way
+  // home of the day. The time then stays empty.
+  it("submits only an Abholart for the day when the school allows it", () => {
+    const { onSubmit, reasonInput } = renderModal({
+      departureModeEnabled: true,
+    });
+
+    expect(screen.getByText("Abholung ändern")).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("combobox", { name: "Abholart an diesem Tag" }),
+    );
+    fireEvent.click(screen.getByRole("option", { name: "Wird abgeholt" }));
+    fireEvent.change(reasonInput!, { target: { value: "Oma holt ab" } });
+    fireEvent.click(screen.getByRole("button", { name: "Anfrage senden" }));
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pickupTime: "",
+        departureMode: "pickup",
+        reason: "Oma holt ab",
+      }),
+    );
+  });
+
+  it("asks for a time or an Abholart when neither is given", () => {
+    const { onSubmit, reasonInput } = renderModal({
+      departureModeEnabled: true,
+    });
+
+    fireEvent.change(reasonInput!, { target: { value: "Termin" } });
+    fireEvent.click(screen.getByRole("button", { name: "Anfrage senden" }));
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Bitte tragen Sie eine Abholzeit ein oder wählen Sie eine Abholart.",
+    );
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("shows the Abholart the OGS already set instead of the choice", () => {
+    renderModal({
+      departureModeEnabled: true,
+      careExceptions: [
+        {
+          date: todayISO(),
+          departure_mode: "bus",
+          source: "staff",
+          pickup_source: "",
+          updated_at: "2026-09-08T09:00:00Z",
+        },
+      ],
+    });
+
+    expect(
+      screen.getByText(
+        "Die OGS hat die Abholart für diesen Tag schon festgelegt: Bus.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("combobox", { name: "Abholart an diesem Tag" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("names a pending Abholart in the request status", () => {
+    render(
+      <PickupTimeModal
+        careExceptions={[]}
+        careExceptionsLoaded
+        pickupChangeEnabled
+        departureModeEnabled
+        pickupChangeRequests={[
+          {
+            id: "7",
+            date: todayISO(),
+            pickup_time: null,
+            departure_mode: "pickup",
+            previous_departure_modes: ["alone"],
+            reason: "Oma holt ab",
+            status: "pending",
+            created_at: "2026-09-08T09:00:00Z",
+          },
+        ]}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        onRemove={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Geht allein → Wird abgeholt")).toBeInTheDocument();
+    expect(screen.queryByText(/Neue Abholzeit/)).not.toBeInTheDocument();
+  });
+
   it("requires a reason for a changed pickup time", () => {
     const { onSubmit, pickupInput, reasonInput } = renderModal();
 
@@ -494,7 +585,7 @@ describe("PickupTimeModal — Änderung zurücknehmen", () => {
     const onRemove = vi
       .fn()
       .mockRejectedValue(
-        new parentApi.ParentApiError("x", 409, "students.care_exception_raced"),
+        new ApiError("x", 409, { code: "students.care_exception_raced" }),
       );
     const { onClose, dialog } = openResetDialog({ onRemove });
 
@@ -598,44 +689,70 @@ describe("PickupTimeModal — Änderungsfrist für heute", () => {
     ).toBeDisabled();
   });
 
-  it("bietet nach der Frist kein Zurücknehmen einer heutigen Änderung an", () => {
-    renderLocked({
-      careExceptions: [
-        {
-          date: todayISO(),
-          pickup_time: "14:00",
-          source: "guardian",
-          pickup_source: "guardian",
-          updated_at: "2026-09-09T08:00:00Z",
-        },
-      ],
-    });
+  const todayGuardianChange: CareException = {
+    date: todayISO(),
+    pickup_time: "14:00",
+    source: "guardian",
+    pickup_source: "guardian",
+    updated_at: "2026-09-09T08:00:00Z",
+  };
 
+  const todayPendingRequest = {
+    id: "41",
+    date: todayISO(),
+    pickup_time: "14:00",
+    reason: "Arzttermin",
+    status: "pending" as const,
+    created_at: "2026-09-09T08:00:00Z",
+    is_self: true,
+  };
+
+  const LOCK_NOTICE =
+    "Für heute geht das nur bis 11:00 Uhr. Bitte wenden Sie sich an die OGS. Andere Tage können Sie weiter ändern.";
+
+  it("bietet nach der Frist kein Zurücknehmen einer heutigen Änderung an", () => {
+    renderLocked({ careExceptions: [todayGuardianChange] });
+
+    // Anker: der Dialog steht in der gesperrten Ansicht für heute.
+    expect(screen.getByText(LOCK_NOTICE)).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Änderung zurücknehmen" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("bietet vor der Frist das Zurücknehmen einer heutigen Änderung an", () => {
+    renderLocked({ careExceptions: [todayGuardianChange], todayClosed: false });
+
+    expect(
+      screen.getByRole("button", { name: "Änderung zurücknehmen" }),
+    ).toBeInTheDocument();
   });
 
   it("bietet nach der Frist kein Bearbeiten einer offenen heutigen Anfrage an", () => {
     vi.spyOn(parentApi, "listParentRequestEvents").mockResolvedValue([]);
     renderLocked({
       studentId: "7",
-      pickupChangeRequests: [
-        {
-          id: "41",
-          date: todayISO(),
-          pickup_time: "14:00",
-          reason: "Arzttermin",
-          status: "pending",
-          created_at: "2026-09-09T08:00:00Z",
-          is_self: true,
-        },
-      ],
+      pickupChangeRequests: [todayPendingRequest],
     });
 
+    // Anker: der Dialog steht in der gesperrten Ansicht für heute.
+    expect(screen.getByText(LOCK_NOTICE)).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Anfrage bearbeiten" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("bietet vor der Frist das Bearbeiten einer offenen heutigen Anfrage an", () => {
+    vi.spyOn(parentApi, "listParentRequestEvents").mockResolvedValue([]);
+    renderLocked({
+      studentId: "7",
+      pickupChangeRequests: [todayPendingRequest],
+      todayClosed: false,
+    });
+
+    expect(
+      screen.getByRole("button", { name: "Anfrage bearbeiten" }),
+    ).toBeInTheDocument();
   });
 
   it("lässt nach der Frist einen anderen Tag zu", async () => {
@@ -669,11 +786,7 @@ describe("PickupTimeModal — Änderungsfrist für heute", () => {
     const onSubmit = vi
       .fn()
       .mockRejectedValue(
-        new parentApi.ParentApiError(
-          "x",
-          409,
-          "care.pickup_change_cutoff_passed",
-        ),
+        new ApiError("x", 409, { code: "care.pickup_change_cutoff_passed" }),
       );
     const { pickupInput, reasonInput } = renderModal({
       cutoffTime: "11:00",
@@ -1037,6 +1150,57 @@ describe("SickStatusSummary — date rendering", () => {
     expect(excusedLines[0]!.textContent).not.toContain(de(today));
     // today is shown as sick instead.
     expect(screen.getByText(/^Krank:/).textContent).toContain(de(today));
+  });
+});
+
+// #4603: changing an open absence request needs the permission to report
+// one. Without it the request stays visible, but the edit action is gone.
+describe("SickStatusSummary — edit action", () => {
+  const ownPending = makeRequest({
+    id: "20",
+    dates: ["2026-03-16"],
+    is_self: true,
+  });
+
+  beforeEach(() => {
+    vi.spyOn(parentApi, "getRequestSharing").mockReturnValue(
+      new Promise(() => undefined),
+    );
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("offers editing an own pending request when the guardian may report absences", () => {
+    render(
+      <SickStatusSummary
+        studentId="1"
+        sickDays={[]}
+        excusedRequests={[ownPending]}
+        canEdit
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Anfrage bearbeiten" }),
+    ).toBeInTheDocument();
+  });
+
+  it("hides editing when the guardian may not report absences", () => {
+    render(
+      <SickStatusSummary
+        studentId="1"
+        sickDays={[]}
+        excusedRequests={[ownPending]}
+        canEdit={false}
+      />,
+    );
+
+    expect(screen.getByText("Freigabe ausstehend")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Anfrage bearbeiten" }),
+    ).not.toBeInTheDocument();
   });
 });
 
@@ -1656,7 +1820,7 @@ describe("Fehlerweg der Dialoge (#2518)", () => {
     const onSubmit = vi
       .fn()
       .mockRejectedValue(
-        new parentApi.ParentApiError("backend sentence", 500, "general.server"),
+        new ApiError("backend sentence", 500, { code: "general.server" }),
       );
     render(<SickNoteModal onClose={vi.fn()} onSubmit={onSubmit} />);
 
@@ -1681,11 +1845,7 @@ describe("Fehlerweg der Dialoge (#2518)", () => {
     const onSubmit = vi
       .fn()
       .mockRejectedValue(
-        new parentApi.ParentApiError(
-          "overlap",
-          409,
-          "care.excused_request_overlap",
-        ),
+        new ApiError("overlap", 409, { code: "care.excused_request_overlap" }),
       );
     render(<SickNoteModal onClose={vi.fn()} onSubmit={onSubmit} />);
 

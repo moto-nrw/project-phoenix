@@ -43,6 +43,7 @@ import {
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
 import { useCurrentTimestamp } from "~/lib/hooks/use-current-timestamp";
+import { Alert } from "~/components/ui/alert";
 
 const logger = createLogger({ component: "OperatorAnnouncementsPage" });
 
@@ -891,82 +892,78 @@ export default function OperatorAnnouncementsPage() {
               reference soft-deleted entities so the operator sees them before
               saving. These IDs are preserved verbatim to avoid widening scope. */}
           {hasStaleTargets && (
-            <div
-              role="alert"
-              className="border-moto-orange/40 bg-moto-orange/10 rounded-lg border p-3 text-sm text-gray-800"
-            >
-              <p className="font-medium">
-                Diese Ankündigung enthält gelöschte Ziele
-              </p>
-              <p className="mt-1 text-xs text-gray-700">
-                Die folgenden Organisationen/Schulen wurden gelöscht und sind in
-                den Auswahllisten ausgeblendet. Sie bleiben als Ziel erhalten,
-                damit die Ankündigung nicht versehentlich global sichtbar wird,
-                und tauchen wieder auf, falls das Ziel wiederhergestellt wird.
-                Entfernen Sie ein Ziel explizit, wenn die Ankündigung nach einer
-                Wiederherstellung nicht mehr für dieses Ziel gelten soll.
-              </p>
-              {staleOrgTargets.length > 0 && (
-                <div className="mt-2 text-xs">
-                  <span className="font-medium">Gelöschte Organisationen:</span>
-                  <ul className="mt-1 space-y-1">
-                    {staleOrgTargets.map((t) => (
-                      <li
-                        key={t.id}
-                        className="flex items-center justify-between gap-2"
-                      >
-                        <span>{t.name}</span>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setFormData((prev) => ({
-                              ...prev,
-                              targetOrgIds: prev.targetOrgIds.filter(
-                                (id) => id !== t.id,
-                              ),
-                            }))
-                          }
-                          className="text-moto-orange hover:bg-moto-orange/20 rounded px-2 py-0.5 text-xs font-medium"
-                          aria-label={`${t.name} aus Zielen entfernen`}
-                        >
-                          Entfernen
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
+            <Alert
+              type="warning"
+              title="Diese Ankündigung enthält gelöschte Ziele"
+              message="Die folgenden Organisationen/Schulen wurden gelöscht und sind in den Auswahllisten ausgeblendet. Sie bleiben als Ziel erhalten, damit die Ankündigung nicht versehentlich global sichtbar wird, und tauchen wieder auf, falls das Ziel wiederhergestellt wird. Entfernen Sie ein Ziel explizit, wenn die Ankündigung nach einer Wiederherstellung nicht mehr für dieses Ziel gelten soll."
+              actionLayout="stacked"
+              action={
+                <div>
+                  {staleOrgTargets.length > 0 && (
+                    <div className="mt-2 text-xs">
+                      <span className="font-medium">
+                        Gelöschte Organisationen:
+                      </span>
+                      <ul className="mt-1 space-y-1">
+                        {staleOrgTargets.map((t) => (
+                          <li
+                            key={t.id}
+                            className="flex items-center justify-between gap-2"
+                          >
+                            <span>{t.name}</span>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setFormData((prev) => ({
+                                  ...prev,
+                                  targetOrgIds: prev.targetOrgIds.filter(
+                                    (id) => id !== t.id,
+                                  ),
+                                }))
+                              }
+                              className="text-moto-orange hover:bg-moto-orange/20 rounded px-2 py-0.5 text-xs font-medium"
+                              aria-label={`${t.name} aus Zielen entfernen`}
+                            >
+                              Entfernen
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {staleTenantTargets.length > 0 && (
+                    <div className="mt-2 text-xs">
+                      <span className="font-medium">Gelöschte Schulen:</span>
+                      <ul className="mt-1 space-y-1">
+                        {staleTenantTargets.map((t) => (
+                          <li
+                            key={t.id}
+                            className="flex items-center justify-between gap-2"
+                          >
+                            <span>{t.name}</span>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setFormData((prev) => ({
+                                  ...prev,
+                                  targetTenantIds: prev.targetTenantIds.filter(
+                                    (id) => id !== t.id,
+                                  ),
+                                }))
+                              }
+                              className="text-moto-orange hover:bg-moto-orange/20 rounded px-2 py-0.5 text-xs font-medium"
+                              aria-label={`${t.name} aus Zielen entfernen`}
+                            >
+                              Entfernen
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
-              )}
-              {staleTenantTargets.length > 0 && (
-                <div className="mt-2 text-xs">
-                  <span className="font-medium">Gelöschte Schulen:</span>
-                  <ul className="mt-1 space-y-1">
-                    {staleTenantTargets.map((t) => (
-                      <li
-                        key={t.id}
-                        className="flex items-center justify-between gap-2"
-                      >
-                        <span>{t.name}</span>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setFormData((prev) => ({
-                              ...prev,
-                              targetTenantIds: prev.targetTenantIds.filter(
-                                (id) => id !== t.id,
-                              ),
-                            }))
-                          }
-                          className="text-moto-orange hover:bg-moto-orange/20 rounded px-2 py-0.5 text-xs font-medium"
-                          aria-label={`${t.name} aus Zielen entfernen`}
-                        >
-                          Entfernen
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
+              }
+            />
           )}
 
           {/* Target Organizations */}

@@ -138,9 +138,3 @@ export function importBatchFailureMessage(
   }
   return `${savedSentence} Zeile ${blockingRow} hat den Rest angehalten. Bitte korrigieren Sie diese Zeile. Laden Sie die Datei danach erneut hoch. Die gespeicherten Zeilen bleiben.`;
 }
-
-export function importBatchFailureAlertType(
-  result: ImportBatchResult,
-): "warning" | "error" {
-  return importBatchSavedCount(result) > 0 ? "warning" : "error";
-}

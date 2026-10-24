@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   getActivities: vi.fn(),
   getAllStaff: vi.fn(),
   createExternal: vi.fn(),
+  inviteExternal: vi.fn(),
 }));
 
 vi.mock("~/lib/activity-service", () => ({
@@ -20,6 +21,7 @@ vi.mock("~/lib/staff-api", () => ({
   staffService: {
     getAllStaff: mocks.getAllStaff,
     createExternal: mocks.createExternal,
+    inviteExternal: mocks.inviteExternal,
   },
 }));
 
@@ -90,7 +92,7 @@ function submitForm(): void {
   fireEvent.submit(form);
 }
 
-// #3823: externe Betreuungskräfte ohne Konto beim Start eintragen.
+// #3823/#4573: externe Betreuungskräfte beim Start eintragen und einladen.
 describe("SpontaneousActivityStart external caregivers", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -104,6 +106,16 @@ describe("SpontaneousActivityStart external caregivers", () => {
         lastName: "Becker",
         isExternal: true,
         externalOrganization: "Musikschule",
+        externalAccountStatus: "invitation_pending",
+      },
+      {
+        id: "75",
+        name: "Elli Alt",
+        firstName: "Elli",
+        lastName: "Alt",
+        isExternal: true,
+        externalOrganization: "Sportverein",
+        externalAccountStatus: "none",
       },
     ]);
     mocks.createExternal.mockResolvedValue({
@@ -132,6 +144,118 @@ describe("SpontaneousActivityStart external caregivers", () => {
     await openModalAndWaitForRefs();
 
     expect(screen.getByText("Extern · Musikschule")).toBeInTheDocument();
+    expect(screen.getByText("Einladung offen")).toBeInTheDocument();
+  });
+
+  // ADR 0091: „Kein Zugang“ ist ein Platzhalter für die Planung. Wer weder
+  // Konto noch offene Einladung hat, steht wieder zur Wahl, mit Vermerk.
+  it("offers an external person without account, marked as such", async () => {
+    render(
+      <SpontaneousActivityStart
+        canCreateExternalCaregiver
+        currentStaffId="11"
+        onStart={vi.fn()}
+      />,
+    );
+    await openModalAndWaitForRefs();
+
+    expect(screen.getByLabelText(/Jonas Becker/)).toBeInTheDocument();
+    expect(
+      screen.getByLabelText(/Elli Alt/).closest("label"),
+    ).toHaveTextContent("Kein Konto");
+  });
+
+  // #4573 decision: the quick entry always records a new person. The
+  // namesake without account may be someone else; inviting that person goes
+  // only through „Konto einladen“ in the Personalverwaltung.
+  it("records a namesake of an external without account as a new person", async () => {
+    mocks.createExternal.mockResolvedValue({
+      id: "90",
+      name: "Elli Alt",
+      firstName: "Elli",
+      lastName: "Alt",
+      isExternal: true,
+      externalOrganization: "Sportverein",
+      externalAccountStatus: "invitation_pending",
+    });
+    render(
+      <SpontaneousActivityStart
+        canCreateExternalCaregiver
+        currentStaffId="11"
+        onStart={vi.fn()}
+      />,
+    );
+    await openModalAndWaitForRefs();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Externe Person eintragen" }),
+    );
+    fireEvent.change(screen.getByLabelText("Vorname"), {
+      target: { value: "Elli" },
+    });
+    fireEvent.change(screen.getByLabelText("Nachname"), {
+      target: { value: "Alt" },
+    });
+    fireEvent.click(
+      screen.getByRole("radio", { name: /Eigene Termine betreuen/ }),
+    );
+    fireEvent.change(screen.getByLabelText("E-Mail-Adresse"), {
+      target: { value: "elli@example.test" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Eintragen" }));
+
+    // Die vorhandene Elli Alt ohne Konto und die neue stehen beide da; nur
+    // die neue ist angehakt.
+    await waitFor(() =>
+      expect(screen.getAllByLabelText(/Elli Alt/)).toHaveLength(2),
+    );
+    expect(
+      screen
+        .getAllByLabelText(/Elli Alt/)
+        .map((box) => (box as HTMLInputElement).checked),
+    ).toEqual([false, true]);
+    expect(mocks.createExternal).toHaveBeenCalledWith({
+      firstName: "Elli",
+      lastName: "Alt",
+      email: "elli@example.test",
+      organization: "",
+      access: "supervise",
+    });
+    expect(mocks.inviteExternal).not.toHaveBeenCalled();
+  });
+
+  // The dashboard poll hands over a new occupied-room array every few
+  // seconds. That must not reload the lists: the reload hid the staff section
+  // and threw away a half-typed external person.
+  it("keeps a half-typed external person when the room occupancy refreshes", async () => {
+    const view = render(
+      <SpontaneousActivityStart
+        canCreateExternalCaregiver
+        currentStaffId="11"
+        occupiedRoomIds={[]}
+        onStart={vi.fn()}
+      />,
+    );
+    await openModalAndWaitForRefs();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Externe Person eintragen" }),
+    );
+    fireEvent.change(screen.getByLabelText("Vorname"), {
+      target: { value: "Lea" },
+    });
+
+    view.rerender(
+      <SpontaneousActivityStart
+        canCreateExternalCaregiver
+        currentStaffId="11"
+        occupiedRoomIds={["5"]}
+        onStart={vi.fn()}
+      />,
+    );
+
+    await waitFor(() => expect(getRoomCombobox()).toBeEnabled());
+    expect(screen.getByLabelText("Vorname")).toHaveValue("Lea");
+    expect(mocks.getAllStaff).toHaveBeenCalledTimes(1);
   });
 
   it("records a new external person, ticks it and starts with it", async () => {
@@ -153,6 +277,12 @@ describe("SpontaneousActivityStart external caregivers", () => {
     });
     fireEvent.change(screen.getByLabelText("Nachname"), {
       target: { value: "Gast" },
+    });
+    fireEvent.click(
+      screen.getByRole("radio", { name: /Eigene Termine betreuen/ }),
+    );
+    fireEvent.change(screen.getByLabelText("E-Mail-Adresse"), {
+      target: { value: "lea@example.test" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Eintragen" }));
 

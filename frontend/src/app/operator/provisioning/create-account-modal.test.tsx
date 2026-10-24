@@ -67,6 +67,7 @@ vi.mock("~/lib/auth-helpers", async (importOriginal) => {
 vi.mock("~/lib/logger", () => ({
   createLogger: () => ({
     error: mockLoggerError,
+    warn: vi.fn(),
   }),
 }));
 
@@ -149,11 +150,6 @@ describe("CreateAccountModal", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockListSystemRoles.mockResolvedValue(defaultRoles);
-  });
-
-  it("does not render when isOpen is false", () => {
-    renderModal({ isOpen: false });
-    expect(screen.queryByTestId("modal")).not.toBeInTheDocument();
   });
 
   it("renders modal with school name in title when isOpen", () => {
@@ -242,10 +238,12 @@ describe("CreateAccountModal", () => {
     });
     selectCustomOption(/System-Rolle/, "admin");
 
-    expect(screen.getByText("Auch als Betreuer einsetzen")).toBeInTheDocument();
+    expect(
+      screen.getByText("Auch in der Betreuung einsetzen"),
+    ).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Vergibt zusätzlich die Betreuer-Rolle und legt das nötige Staff-/Teacher-Profil an.",
+        "Vergibt zusätzlich die Rolle Betreuung und legt das nötige Staff-/Teacher-Profil an.",
       ),
     ).toBeInTheDocument();
   });

@@ -12,8 +12,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 
-	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -25,6 +24,10 @@ import (
 // teardown query hit an already-closed pool and left its schools, accounts and
 // audit rows behind in the shared test database.
 
+// schoolScope is the wire value of the school-portal token scope
+// (tenant.ScopeSchool); the suite pins it as the token carries it.
+const schoolScope = "school"
+
 // decodeTokenClaims decodes a minted JWT and returns scope + tenant_id.
 func decodeTokenClaims(t *testing.T, token string) (scope string, tenantID int64) {
 	t.Helper()
@@ -34,7 +37,7 @@ func decodeTokenClaims(t *testing.T, token string) (scope string, tenantID int64
 // decodeTokenClaimsWith decodes with the signer that minted the token. The
 // composed module signs with the process configuration, the retained factory
 // with this file's test configuration, so a caller names which one applies.
-func decodeTokenClaimsWith(t *testing.T, tokenAuth *authjwt.TokenAuth, token string) (scope string, tenantID int64) {
+func decodeTokenClaimsWith(t *testing.T, tokenAuth *sessiontoken.TokenAuth, token string) (scope string, tenantID int64) {
 	t.Helper()
 	decoded, err := tokenAuth.JwtAuth.Decode(token)
 	require.NoError(t, err, "minted token must decode")
@@ -51,10 +54,10 @@ func decodeTokenClaimsWith(t *testing.T, tokenAuth *authjwt.TokenAuth, token str
 	return scope, tenantID
 }
 
-func schoolTokenAuth(t *testing.T) *authjwt.TokenAuth {
+func schoolTokenAuth(t *testing.T) *sessiontoken.TokenAuth {
 	t.Helper()
 	cfg := authTestFactoryConfig(false)
-	tokenAuth, err := authjwt.NewTokenAuthWithDurations(cfg.JWTSecret, cfg.JWTExpiry, cfg.JWTRefreshExpiry)
+	tokenAuth, err := sessiontoken.NewTokenAuthWithDurations(cfg.JWTSecret, cfg.JWTExpiry, cfg.JWTRefreshExpiry)
 	require.NoError(t, err)
 	return tokenAuth
 }
@@ -188,11 +191,11 @@ func TestLoginSchool_Lehrkraft_IssuesSchoolScopedTokens(t *testing.T) {
 	require.NotEmpty(t, result.RefreshToken)
 
 	scope, tokenTenantID := decodeTokenClaims(t, result.AccessToken)
-	assert.Equal(t, tenant.ScopeSchool, scope, "access token must carry the school scope")
+	assert.Equal(t, schoolScope, scope, "access token must carry the school scope")
 	assert.Equal(t, tenantID, tokenTenantID, "school token must be pinned to the resolved school")
 
 	refreshScope, refreshTenantID := decodeTokenClaims(t, result.RefreshToken)
-	assert.Equal(t, tenant.ScopeSchool, refreshScope, "refresh token must carry the school scope for the refresh round-trip")
+	assert.Equal(t, schoolScope, refreshScope, "refresh token must carry the school scope for the refresh round-trip")
 	assert.Equal(t, tenantID, refreshTenantID)
 }
 
@@ -226,12 +229,12 @@ func TestRefreshToken_SchoolScope_Preserved(t *testing.T) {
 	login, err := service.LoginSchoolWithMFAGate(context.Background(), email, testPassword, "", "", "")
 	require.NoError(t, err)
 
-	accessToken, refreshToken, err := service.RefreshTokenWithAudit(context.Background(), login.RefreshToken, "", "")
+	accessToken, refreshToken, err := service.RefreshTokenWithAudit(context.Background(), login.RefreshToken, "", "", "")
 	require.NoError(t, err, "school-scope refresh must succeed while the role exists")
 	require.NotEmpty(t, refreshToken)
 
 	scope, tokenTenantID := decodeTokenClaims(t, accessToken)
-	assert.Equal(t, tenant.ScopeSchool, scope, "refreshed access token must stay school-scope")
+	assert.Equal(t, schoolScope, scope, "refreshed access token must stay school-scope")
 	assert.Equal(t, tenantID, tokenTenantID)
 }
 
@@ -258,14 +261,14 @@ func TestRefreshToken_SchoolScopeWithoutTenant_RejectedBeforeRotation(t *testing
 	require.NoError(t, err)
 	var sessionToken string
 	require.NoError(t, decoded.Get("token", &sessionToken))
-	tenantlessRefresh, err := tokenAuth.CreateRefreshJWT(authjwt.RefreshClaims{
+	tenantlessRefresh, err := tokenAuth.CreateRefreshJWT(sessiontoken.RefreshClaims{
 		ID:    int(accountID),
 		Token: sessionToken,
-		Scope: tenant.ScopeSchool,
+		Scope: schoolScope,
 	})
 	require.NoError(t, err)
 
-	_, _, err = service.RefreshTokenWithAudit(context.Background(), tenantlessRefresh, "", "")
+	_, _, err = service.RefreshTokenWithAudit(context.Background(), tenantlessRefresh, "", "", "")
 	require.Error(t, err, "a school token without a school must not refresh")
 	var authErr *identityaccess.AuthenticationError
 	require.ErrorAs(t, err, &authErr)
@@ -273,10 +276,10 @@ func TestRefreshToken_SchoolScopeWithoutTenant_RejectedBeforeRotation(t *testing
 
 	// The session itself is untouched: nothing rotated, so its own refresh
 	// token still works and still carries the school.
-	accessToken, _, err := service.RefreshTokenWithAudit(context.Background(), login.RefreshToken, "", "")
+	accessToken, _, err := service.RefreshTokenWithAudit(context.Background(), login.RefreshToken, "", "", "")
 	require.NoError(t, err, "the rejected refresh must not have consumed the session's token")
 	scope, tokenTenantID := decodeTokenClaims(t, accessToken)
-	assert.Equal(t, tenant.ScopeSchool, scope)
+	assert.Equal(t, schoolScope, scope)
 	assert.Equal(t, tenantID, tokenTenantID)
 }
 
@@ -301,7 +304,7 @@ func TestRefreshToken_SchoolScope_RoleRevoked_Rejected(t *testing.T) {
 		Exec(context.Background())
 	require.NoError(t, err)
 
-	_, _, err = service.RefreshTokenWithAudit(context.Background(), login.RefreshToken, "", "")
+	_, _, err = service.RefreshTokenWithAudit(context.Background(), login.RefreshToken, "", "", "")
 	require.Error(t, err, "refresh must be rejected once the school-portal role is gone")
 	var authErr *identityaccess.AuthenticationError
 	require.ErrorAs(t, err, &authErr)
@@ -324,7 +327,7 @@ func TestSwitchSchool_PortalRoleRequiredAtTarget(t *testing.T) {
 	testpkg.MapAccountToTenant(t, db, accountID, tenantB)
 
 	t.Run("mapping without portal role at target is refused", func(t *testing.T) {
-		_, _, err := service.SwitchSchool(context.Background(), accountID, slugB, switchIP, switchUserAgent)
+		_, _, err := service.SwitchSchool(context.Background(), accountID, slugB, switchIP, switchUserAgent, "")
 		require.Error(t, err)
 		var authErr *identityaccess.AuthenticationError
 		require.ErrorAs(t, err, &authErr)
@@ -334,12 +337,12 @@ func TestSwitchSchool_PortalRoleRequiredAtTarget(t *testing.T) {
 	t.Run("portal role at target switches the pinned school", func(t *testing.T) {
 		testpkg.AssignLehrkraftSystemRole(t, db, accountID, tenantB)
 
-		accessToken, refreshToken, err := service.SwitchSchool(context.Background(), accountID, slugB, switchIP, switchUserAgent)
+		accessToken, refreshToken, err := service.SwitchSchool(context.Background(), accountID, slugB, switchIP, switchUserAgent, "")
 		require.NoError(t, err)
 		require.NotEmpty(t, refreshToken)
 
 		scope, tokenTenantID := decodeTokenClaims(t, accessToken)
-		assert.Equal(t, tenant.ScopeSchool, scope)
+		assert.Equal(t, schoolScope, scope)
 		assert.Equal(t, tenantB, tokenTenantID)
 
 		// The switch must leave a trace at the TARGET school. Without the
@@ -376,7 +379,7 @@ func TestLoginSchool_MFARequiredEnrolled_StartsSchoolScopedChallenge(t *testing.
 	require.NoError(t, err)
 	require.Equal(t, identityaccess.LoginStatusMFARequired, result.Status)
 	assert.Equal(t, "school-challenge-token", result.ChallengeToken)
-	assert.Equal(t, authjwt.MFAChallengeScopeSchool, startedScope,
+	assert.Equal(t, sessiontoken.MFAChallengeScopeSchool, startedScope,
 		"school login must start the challenge with the school scope")
 	assert.Equal(t, tenantID, startedTenantID)
 }
@@ -486,7 +489,7 @@ func TestLoginSchool_TrustedDevice_SkipsChallenge(t *testing.T) {
 	assert.Equal(t, tenantID, verifiedTenantID, "the trusted device must be checked against the resolved school")
 
 	scope, tokenTenantID := decodeTokenClaimsWith(t, service.TokenAuth, result.AccessToken)
-	assert.Equal(t, tenant.ScopeSchool, scope)
+	assert.Equal(t, schoolScope, scope)
 	assert.Equal(t, tenantID, tokenTenantID)
 }
 
@@ -575,11 +578,11 @@ func TestIssueSchoolTokens_Lehrkraft_MintsSchoolScopedPair(t *testing.T) {
 	require.NotEmpty(t, refreshToken)
 
 	scope, tokenTenantID := decodeTokenClaims(t, accessToken)
-	assert.Equal(t, tenant.ScopeSchool, scope)
+	assert.Equal(t, schoolScope, scope)
 	assert.Equal(t, tenantID, tokenTenantID)
 
 	refreshScope, refreshTenantID := decodeTokenClaims(t, refreshToken)
-	assert.Equal(t, tenant.ScopeSchool, refreshScope)
+	assert.Equal(t, schoolScope, refreshScope)
 	assert.Equal(t, tenantID, refreshTenantID)
 }
 
@@ -642,7 +645,7 @@ func TestSwitchSchool_AccountStateAndSlugGates(t *testing.T) {
 	_, accountID := createLehrkraftAccount(t, db, service, "school-switch-gates", tenantID)
 
 	t.Run("unknown account", func(t *testing.T) {
-		_, _, err := service.SwitchSchool(context.Background(), missingAccountID, slug, switchIP, switchUserAgent)
+		_, _, err := service.SwitchSchool(context.Background(), missingAccountID, slug, switchIP, switchUserAgent, "")
 
 		require.Error(t, err)
 		var authErr *identityaccess.AuthenticationError
@@ -654,7 +657,7 @@ func TestSwitchSchool_AccountStateAndSlugGates(t *testing.T) {
 		setAccountActive(t, db, accountID, false)
 		defer setAccountActive(t, db, accountID, true)
 
-		_, _, err := service.SwitchSchool(context.Background(), accountID, slug, switchIP, switchUserAgent)
+		_, _, err := service.SwitchSchool(context.Background(), accountID, slug, switchIP, switchUserAgent, "")
 
 		require.Error(t, err)
 		var authErr *identityaccess.AuthenticationError
@@ -663,7 +666,7 @@ func TestSwitchSchool_AccountStateAndSlugGates(t *testing.T) {
 	})
 
 	t.Run("unknown slug", func(t *testing.T) {
-		_, _, err := service.SwitchSchool(context.Background(), accountID, "definitely-no-such-school", switchIP, switchUserAgent)
+		_, _, err := service.SwitchSchool(context.Background(), accountID, "definitely-no-such-school", switchIP, switchUserAgent, "")
 
 		require.Error(t, err)
 		var authErr *identityaccess.AuthenticationError
@@ -695,7 +698,7 @@ func TestLoginSchool_MFAEnrollmentRequired_MintsSchoolScopedEnrollmentToken(t *t
 
 	claims, err := service.TokenAuth.ParseMFAEnrollmentJWT(result.AccessToken)
 	require.NoError(t, err)
-	assert.Equal(t, authjwt.MFAEnrollmentScopeSchool, claims.Scope,
+	assert.Equal(t, sessiontoken.MFAEnrollmentScopeSchool, claims.Scope,
 		"school login must mint a school-scope enrollment token")
 	assert.Equal(t, tenantID, claims.TenantID)
 }
@@ -742,7 +745,7 @@ func TestSchoolTokenMints_RevokedMembership_Refused(t *testing.T) {
 	})
 
 	t.Run("school switch", func(t *testing.T) {
-		_, _, switchErr := service.SwitchSchool(context.Background(), accountID, slug, switchIP, switchUserAgent)
+		_, _, switchErr := service.SwitchSchool(context.Background(), accountID, slug, switchIP, switchUserAgent, "")
 
 		require.Error(t, switchErr)
 		var authErr *identityaccess.AuthenticationError
@@ -751,7 +754,7 @@ func TestSchoolTokenMints_RevokedMembership_Refused(t *testing.T) {
 	})
 
 	t.Run("refresh", func(t *testing.T) {
-		_, _, refreshErr := service.RefreshTokenWithAudit(context.Background(), login.RefreshToken, "", "")
+		_, _, refreshErr := service.RefreshTokenWithAudit(context.Background(), login.RefreshToken, "", "", "")
 
 		require.Error(t, refreshErr)
 		var authErr *identityaccess.AuthenticationError
@@ -889,7 +892,7 @@ func TestLoginSchool_MFARequirementAppearingMidLogin_ChallengesInsteadOfMinting(
 	require.Equal(t, identityaccess.LoginStatusMFARequired, result.Status,
 		"the guard must send the login back to the second factor instead of minting")
 	assert.Equal(t, "school-race-challenge", result.ChallengeToken)
-	assert.Equal(t, authjwt.MFAChallengeScopeSchool, startedScope)
+	assert.Equal(t, sessiontoken.MFAChallengeScopeSchool, startedScope)
 	assert.Empty(t, result.RefreshToken, "no session may be issued for a login that owes a second factor")
 
 	count, err := db.NewSelect().

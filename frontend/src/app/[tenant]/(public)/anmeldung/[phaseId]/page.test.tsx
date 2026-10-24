@@ -42,13 +42,6 @@ vi.mock("~/components/enrollment/enrollment-form", () => ({
 }));
 
 vi.mock("~/components/enrollment/public-enrollment-shell", () => ({
-  PublicEnrollmentBackLink: ({
-    children,
-    href,
-  }: {
-    children: React.ReactNode;
-    href: string;
-  }) => <a href={href}>{children}</a>,
   PublicEnrollmentBrand: () => null,
   PublicEnrollmentLocaleSwitcher: () => null,
   PublicEnrollmentPageShell: ({ children }: { children: React.ReactNode }) => (
@@ -124,10 +117,9 @@ describe("EnrollPhaseFormPage", () => {
       );
     });
 
-    expect(await screen.findByRole("link")).toHaveAttribute(
-      "href",
-      "/demo/anmeldung",
-    );
+    expect(
+      await screen.findByRole("link", { name: "Zurück zur Auswahl" }),
+    ).toHaveAttribute("href", "/demo/anmeldung");
   });
 
   it("names a closed window from the catalog where the form would be (#2515)", async () => {

@@ -14,7 +14,7 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 )
 
@@ -101,7 +101,7 @@ func (rs *BillingResource) UpdateKeyDay(w http.ResponseWriter, r *http.Request) 
 		common.RenderError(w, r, common.OperatorInvalidRequest(err))
 		return
 	}
-	operatorID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
+	operatorID := int64(sessiontoken.ClaimsFromCtx(r.Context()).ID)
 	keyDay, err := rs.service.SetBillingKeyDay(r.Context(), *req.KeyDay, operatorID)
 	if err != nil {
 		common.RenderError(w, r, rs.billingError(r, err))

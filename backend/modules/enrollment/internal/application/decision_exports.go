@@ -6,8 +6,9 @@ import (
 	"log/slog"
 	"time"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+
+	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -15,7 +16,8 @@ import (
 // GDPR access-log row before returning, so the two are inseparable: a
 // caller cannot obtain the PII without the audit, and a failed audit
 // write fails the whole call. Both halves run on the caller's tenant tx.
-func (d *Decisions) ExportPhase(ctx context.Context, phaseID, actorAccountID int64, actorRole, format, childStatusFilter string) (*enrollment.PhaseExport, error) {
+func (d *Decisions) ExportPhase(ctx context.Context, phaseID, actorAccountID int64, actorRole, format, childStatusFilter string) (publicResult *enrollmentNative.PhaseExport, publicErr error) {
+	defer func() { publicErr = PublicError(publicErr) }()
 	data, err := d.exportData(ctx, phaseID, childStatusFilter)
 	if err != nil {
 		return nil, err
@@ -29,7 +31,8 @@ func (d *Decisions) ExportPhase(ctx context.Context, phaseID, actorAccountID int
 
 // ExportStudent exports the requests of one student's kartei tab and
 // records the GDPR access-log row.
-func (d *Decisions) ExportStudent(ctx context.Context, studentID, actorAccountID int64, actorRole, format string) (*enrollment.StudentEnrollmentExport, error) {
+func (d *Decisions) ExportStudent(ctx context.Context, studentID, actorAccountID int64, actorRole, format string) (publicResult *enrollmentNative.StudentEnrollmentExport, publicErr error) {
+	defer func() { publicErr = PublicError(publicErr) }()
 	data, err := d.exportStudentData(ctx, studentID)
 	if err != nil {
 		return nil, err
@@ -45,7 +48,7 @@ func (d *Decisions) ExportStudent(ctx context.Context, studentID, actorAccountID
 // the in-memory payload: the renderers assemble the whole document at once,
 // so a pathologically large set is rejected up front rather than allocating
 // an unbounded file. The cap is well above any real OGS phase.
-func (d *Decisions) exportRequests(ctx context.Context, filters enrollment.RequestListFilters) ([]*enrollment.Request, []*enrollmentModels.Request, error) {
+func (d *Decisions) exportRequests(ctx context.Context, filters enrollmentNative.RequestListFilters) ([]*enrollmentNative.Request, []*Request, error) {
 	requests, err := d.deps.Requests.AdminRequests(ctx, filters)
 	if err != nil {
 		return nil, nil, err
@@ -58,7 +61,7 @@ func (d *Decisions) exportRequests(ctx context.Context, filters enrollment.Reque
 }
 
 // exportChildren lists and decodes the children of the exported requests.
-func (d *Decisions) exportChildren(ctx context.Context, requestIDs []int64) ([]*enrollment.RequestChild, error) {
+func (d *Decisions) exportChildren(ctx context.Context, requestIDs []int64) ([]*enrollmentNative.RequestChild, error) {
 	children, err := d.deps.Children.ChildrenForRequests(ctx, requestIDs)
 	if err != nil {
 		return nil, err
@@ -75,23 +78,23 @@ func (d *Decisions) exportChildren(ctx context.Context, requestIDs []int64) ([]*
 // distinct form-schema version. Everything else is in-memory grouping — no
 // query runs inside a loop. Unexported: the only way to obtain export data is
 // via ExportPhase, which always records the GDPR audit row.
-func (d *Decisions) exportData(ctx context.Context, phaseID int64, childStatusFilter string) (*enrollment.PhaseExport, error) {
+func (d *Decisions) exportData(ctx context.Context, phaseID int64, childStatusFilter string) (*enrollmentNative.PhaseExport, error) {
 	if phaseID <= 0 {
 		return nil, fmt.Errorf("decision: export: phase_id required")
 	}
-	requests, decoded, err := d.exportRequests(ctx, enrollment.RequestListFilters{PhaseID: phaseID})
+	requests, decoded, err := d.exportRequests(ctx, enrollmentNative.RequestListFilters{PhaseID: phaseID})
 	if err != nil {
 		return nil, fmt.Errorf("decision: export list requests: %w", err)
 	}
 	if len(requests) > maxExportRequests {
 		return nil, fmt.Errorf("decision: export phase %d has %d requests (max %d): %w",
-			phaseID, len(requests), maxExportRequests, enrollment.ErrExportTooLarge)
+			phaseID, len(requests), maxExportRequests, enrollmentNative.ErrExportTooLarge)
 	}
 	phase, err := d.deps.Phases.Phase(ctx, phaseID)
 	if err != nil {
 		// Map a missing/unreachable phase to the not-found sentinel so the
 		// handler can answer 404 rather than 500, like the phase lookup does.
-		return nil, fmt.Errorf("decision: export load phase %d: %w", phaseID, enrollment.ErrPhaseNotFound)
+		return nil, fmt.Errorf("decision: export load phase %d: %w", phaseID, enrollmentNative.ErrPhaseNotFound)
 	}
 	reqIDs := requestIDsOf(requests)
 	children, err := d.exportChildren(ctx, reqIDs)
@@ -118,13 +121,13 @@ func (d *Decisions) exportData(ctx context.Context, phaseID int64, childStatusFi
 		return nil, fmt.Errorf("decision: export load schemas: %w", err)
 	}
 	rows := phaseExportRows(requests, groupChildrenByRequest(children, len(reqIDs)), offeringsByChild, guardiansByRequest, childStatusFilter)
-	return &enrollment.PhaseExport{Phase: phase, Schemas: schemas, Rows: rows}, nil
+	return &enrollmentNative.PhaseExport{Phase: phase, Schemas: schemas, Rows: rows}, nil
 }
 
 // phaseExportOfferings resolves the children's selections effective on the
 // report date against the phase's offering catalog.
-func (d *Decisions) phaseExportOfferings(ctx context.Context, phase *enrollment.Phase, childIDs []int64) (map[int64][]enrollment.ChildOfferingRow, error) {
-	links, err := enrollment.OfferingSelectionRecordsForChildrenAt(ctx, d.deps.Children, childIDs, enrollment.ReportOfferingDate(d.todayDate(), phase))
+func (d *Decisions) phaseExportOfferings(ctx context.Context, phase *enrollmentNative.Phase, childIDs []int64) (map[int64][]enrollmentNative.ChildOfferingRow, error) {
+	links, err := enrollmentNative.OfferingSelectionRecordsForChildrenAt(ctx, d.deps.Children, childIDs, enrollmentNative.ReportOfferingDate(d.todayDate(), phase))
 	if err != nil {
 		return nil, fmt.Errorf("decision: export load offerings: %w", err)
 	}
@@ -132,7 +135,7 @@ func (d *Decisions) phaseExportOfferings(ctx context.Context, phase *enrollment.
 	if err != nil {
 		return nil, fmt.Errorf("decision: export load care offerings: %w", err)
 	}
-	offeringByID := make(map[int64]*enrollmentModels.CareOffering, len(offerings))
+	offeringByID := make(map[int64]*offeringContract.CareOfferingRecord, len(offerings))
 	for _, off := range offerings {
 		offeringByID[off.ID] = off
 	}
@@ -142,8 +145,8 @@ func (d *Decisions) phaseExportOfferings(ctx context.Context, phase *enrollment.
 // exportGuardians loads and groups the additional guardians (co-guardians)
 // so the export carries every submitted contact, matching the admin detail
 // and the public status page. Defensive against an unwired port.
-func (d *Decisions) exportGuardians(ctx context.Context, requestIDs []int64) (map[int64][]*enrollment.RequestGuardian, error) {
-	guardiansByRequest := make(map[int64][]*enrollment.RequestGuardian)
+func (d *Decisions) exportGuardians(ctx context.Context, requestIDs []int64) (map[int64][]*enrollmentNative.RequestGuardian, error) {
+	guardiansByRequest := make(map[int64][]*enrollmentNative.RequestGuardian)
 	if d.deps.Guardians == nil {
 		return guardiansByRequest, nil
 	}
@@ -162,26 +165,26 @@ func (d *Decisions) exportGuardians(ctx context.Context, requestIDs []int64) (ma
 // child's own status); under an active filter, a request with no matching
 // child is omitted entirely — the list shows children, not registrations.
 func phaseExportRows(
-	requests []*enrollment.Request,
-	childrenByRequest map[int64][]*enrollment.RequestChild,
-	offeringsByChild map[int64][]enrollment.ChildOfferingRow,
-	guardiansByRequest map[int64][]*enrollment.RequestGuardian,
+	requests []*enrollmentNative.Request,
+	childrenByRequest map[int64][]*enrollmentNative.RequestChild,
+	offeringsByChild map[int64][]enrollmentNative.ChildOfferingRow,
+	guardiansByRequest map[int64][]*enrollmentNative.RequestGuardian,
 	childStatusFilter string,
-) []enrollment.ExportRequestRow {
-	rows := make([]enrollment.ExportRequestRow, 0, len(requests))
+) []enrollmentNative.ExportRequestRow {
+	rows := make([]enrollmentNative.ExportRequestRow, 0, len(requests))
 	for _, req := range requests {
 		kids := childrenByRequest[req.ID]
-		childRows := make([]enrollment.ExportChildRow, 0, len(kids))
+		childRows := make([]enrollmentNative.ExportChildRow, 0, len(kids))
 		for _, c := range kids {
 			if childStatusFilter != "" && c.Status != childStatusFilter {
 				continue
 			}
-			childRows = append(childRows, enrollment.ExportChildRow{Child: c, Offerings: offeringsByChild[c.ID]})
+			childRows = append(childRows, enrollmentNative.ExportChildRow{Child: c, Offerings: offeringsByChild[c.ID]})
 		}
 		if childStatusFilter != "" && len(childRows) == 0 {
 			continue
 		}
-		rows = append(rows, enrollment.ExportRequestRow{Request: req, Children: childRows, Guardians: guardiansByRequest[req.ID]})
+		rows = append(rows, enrollmentNative.ExportRequestRow{Request: req, Children: childRows, Guardians: guardiansByRequest[req.ID]})
 	}
 	return rows
 }
@@ -189,17 +192,17 @@ func phaseExportRows(
 // exportStudentData assembles the requests whose children created the
 // student, keeping only those children, with the offerings effective on each
 // phase's report date.
-func (d *Decisions) exportStudentData(ctx context.Context, studentID int64) (*enrollment.StudentEnrollmentExport, error) {
+func (d *Decisions) exportStudentData(ctx context.Context, studentID int64) (*enrollmentNative.StudentEnrollmentExport, error) {
 	if err := d.checkExportStudent(ctx, studentID); err != nil {
 		return nil, err
 	}
-	requests, decoded, err := d.exportRequests(ctx, enrollment.RequestListFilters{CreatedStudentID: studentID})
+	requests, decoded, err := d.exportRequests(ctx, enrollmentNative.RequestListFilters{CreatedStudentID: studentID})
 	if err != nil {
 		return nil, fmt.Errorf("decision: export student list requests: %w", err)
 	}
 	if len(requests) > maxExportRequests {
 		return nil, fmt.Errorf("decision: export student %d has %d requests (max %d): %w",
-			studentID, len(requests), maxExportRequests, enrollment.ErrExportTooLarge)
+			studentID, len(requests), maxExportRequests, enrollmentNative.ErrExportTooLarge)
 	}
 	reqIDs := requestIDsOf(requests)
 	children, err := d.exportChildren(ctx, reqIDs)
@@ -221,7 +224,7 @@ func (d *Decisions) exportStudentData(ctx context.Context, studentID int64) (*en
 	if err != nil {
 		return nil, fmt.Errorf("decision: export student load schemas: %w", err)
 	}
-	return &enrollment.StudentEnrollmentExport{
+	return &enrollmentNative.StudentEnrollmentExport{
 		StudentID: studentID,
 		Schemas:   schemas,
 		Phases:    phases,
@@ -238,15 +241,15 @@ func (d *Decisions) checkExportStudent(ctx context.Context, studentID int64) err
 	}
 	if err := d.deps.People.Students.FindStudent(ctx, studentID); err != nil {
 		if d.deps.Runtime.NotFound(err) {
-			return fmt.Errorf("decision: export student load student %d: %w", studentID, enrollment.ErrDecisionStudentNotFound)
+			return fmt.Errorf("decision: export student load student %d: %w", studentID, enrollmentNative.ErrDecisionStudentNotFound)
 		}
 		return fmt.Errorf("decision: export student load student %d: %w", studentID, err)
 	}
 	return nil
 }
 
-func childrenOfStudent(children []*enrollment.RequestChild, studentID int64) []*enrollment.RequestChild {
-	filtered := make([]*enrollment.RequestChild, 0, len(children))
+func childrenOfStudent(children []*enrollmentNative.RequestChild, studentID int64) []*enrollmentNative.RequestChild {
+	filtered := make([]*enrollmentNative.RequestChild, 0, len(children))
 	for _, child := range children {
 		if child.CreatedStudentID != nil && *child.CreatedStudentID == studentID {
 			filtered = append(filtered, child)
@@ -257,7 +260,7 @@ func childrenOfStudent(children []*enrollment.RequestChild, studentID int64) []*
 
 // exportStudentPhases loads the phases of the exported requests; a missing
 // phase fails the export.
-func (d *Decisions) exportStudentPhases(ctx context.Context, requests []*enrollment.Request) (map[int64]*enrollment.Phase, error) {
+func (d *Decisions) exportStudentPhases(ctx context.Context, requests []*enrollmentNative.Request) (map[int64]*enrollmentNative.Phase, error) {
 	phaseIDs := make(map[int64]struct{}, len(requests))
 	for _, req := range requests {
 		phaseIDs[req.PhaseID] = struct{}{}
@@ -266,7 +269,7 @@ func (d *Decisions) exportStudentPhases(ctx context.Context, requests []*enrollm
 	if err != nil {
 		return nil, fmt.Errorf("decision: export student load phases: %w", err)
 	}
-	phases := make(map[int64]*enrollment.Phase, len(phaseRows))
+	phases := make(map[int64]*enrollmentNative.Phase, len(phaseRows))
 	for _, row := range phaseRows {
 		if row != nil {
 			phases[row.ID] = row
@@ -282,12 +285,12 @@ func (d *Decisions) exportStudentPhases(ctx context.Context, requests []*enrollm
 
 // studentExportLinks reads the children's offering history and the catalog
 // entries behind it.
-func (d *Decisions) studentExportLinks(ctx context.Context, children []*enrollment.RequestChild) ([]*enrollment.RequestChildOfferingRecord, map[int64]*enrollmentModels.CareOffering, error) {
+func (d *Decisions) studentExportLinks(ctx context.Context, children []*enrollmentNative.RequestChild) ([]*enrollmentNative.RequestChildOfferingRecord, map[int64]*offeringContract.CareOfferingRecord, error) {
 	childIDs := make([]int64, 0, len(children))
 	for _, child := range children {
 		childIDs = append(childIDs, child.ID)
 	}
-	links, err := enrollment.OfferingHistoryRecordsForChildren(ctx, d.deps.Children, childIDs)
+	links, err := enrollmentNative.OfferingHistoryRecordsForChildren(ctx, d.deps.Children, childIDs)
 	if err != nil {
 		return nil, nil, fmt.Errorf("decision: export student load offerings: %w", err)
 	}
@@ -298,16 +301,16 @@ func (d *Decisions) studentExportLinks(ctx context.Context, children []*enrollme
 	return links, careOfferingsByID(offerings), nil
 }
 
-func childrenByIDOf(children []*enrollment.RequestChild) map[int64]*enrollment.RequestChild {
-	byID := make(map[int64]*enrollment.RequestChild, len(children))
+func childrenByIDOf(children []*enrollmentNative.RequestChild) map[int64]*enrollmentNative.RequestChild {
+	byID := make(map[int64]*enrollmentNative.RequestChild, len(children))
 	for _, child := range children {
 		byID[child.ID] = child
 	}
 	return byID
 }
 
-func requestsByIDOf(requests []*enrollment.Request) map[int64]*enrollment.Request {
-	byID := make(map[int64]*enrollment.Request, len(requests))
+func requestsByIDOf(requests []*enrollmentNative.Request) map[int64]*enrollmentNative.Request {
+	byID := make(map[int64]*enrollmentNative.Request, len(requests))
 	for _, request := range requests {
 		byID[request.ID] = request
 	}
@@ -315,38 +318,38 @@ func requestsByIDOf(requests []*enrollment.Request) map[int64]*enrollment.Reques
 }
 
 func studentExportRows(
-	requests []*enrollment.Request,
-	childrenByRequest map[int64][]*enrollment.RequestChild,
-	offeringsByChild map[int64][]enrollment.ChildOfferingRow,
-) []enrollment.ExportRequestRow {
-	rows := make([]enrollment.ExportRequestRow, 0, len(requests))
+	requests []*enrollmentNative.Request,
+	childrenByRequest map[int64][]*enrollmentNative.RequestChild,
+	offeringsByChild map[int64][]enrollmentNative.ChildOfferingRow,
+) []enrollmentNative.ExportRequestRow {
+	rows := make([]enrollmentNative.ExportRequestRow, 0, len(requests))
 	for _, req := range requests {
-		childRows := make([]enrollment.ExportChildRow, 0, len(childrenByRequest[req.ID]))
+		childRows := make([]enrollmentNative.ExportChildRow, 0, len(childrenByRequest[req.ID]))
 		for _, child := range childrenByRequest[req.ID] {
-			childRows = append(childRows, enrollment.ExportChildRow{Child: child, Offerings: offeringsByChild[child.ID]})
+			childRows = append(childRows, enrollmentNative.ExportChildRow{Child: child, Offerings: offeringsByChild[child.ID]})
 		}
 		if len(childRows) == 0 {
 			continue
 		}
-		rows = append(rows, enrollment.ExportRequestRow{Request: req, Children: childRows})
+		rows = append(rows, enrollmentNative.ExportRequestRow{Request: req, Children: childRows})
 	}
 	return rows
 }
 
 func filterOfferingsAtPhaseDate(
 	today calendar.Date,
-	links []*enrollment.RequestChildOfferingRecord,
-	childrenByID map[int64]*enrollment.RequestChild,
-	requestsByID map[int64]*enrollment.Request,
-	phases map[int64]*enrollment.Phase,
-) []*enrollment.RequestChildOfferingRecord {
-	filtered := make([]*enrollment.RequestChildOfferingRecord, 0, len(links))
+	links []*enrollmentNative.RequestChildOfferingRecord,
+	childrenByID map[int64]*enrollmentNative.RequestChild,
+	requestsByID map[int64]*enrollmentNative.Request,
+	phases map[int64]*enrollmentNative.Phase,
+) []*enrollmentNative.RequestChildOfferingRecord {
+	filtered := make([]*enrollmentNative.RequestChildOfferingRecord, 0, len(links))
 	for _, link := range links {
 		phase := linkPhase(link, childrenByID, requestsByID, phases)
 		if phase == nil {
 			continue
 		}
-		onDate := enrollment.ReportOfferingDate(today, phase)
+		onDate := enrollmentNative.ReportOfferingDate(today, phase)
 		if (link.ValidFrom == nil || !link.ValidFrom.After(onDate)) &&
 			(link.ValidUntil == nil || link.ValidUntil.After(onDate)) {
 			filtered = append(filtered, link)
@@ -358,11 +361,11 @@ func filterOfferingsAtPhaseDate(
 // linkPhase resolves the phase of an offering link through its child and
 // request, or nil.
 func linkPhase(
-	link *enrollment.RequestChildOfferingRecord,
-	childrenByID map[int64]*enrollment.RequestChild,
-	requestsByID map[int64]*enrollment.Request,
-	phases map[int64]*enrollment.Phase,
-) *enrollment.Phase {
+	link *enrollmentNative.RequestChildOfferingRecord,
+	childrenByID map[int64]*enrollmentNative.RequestChild,
+	requestsByID map[int64]*enrollmentNative.Request,
+	phases map[int64]*enrollmentNative.Phase,
+) *enrollmentNative.Phase {
 	if link == nil {
 		return nil
 	}
@@ -380,10 +383,10 @@ func linkPhase(
 // groupOfferingsByChild resolves each child->offering link against the
 // offering catalog and groups the rows per request child. Shared by the
 // phase export and the per-student export.
-func groupOfferingsByChild(links []*enrollment.RequestChildOfferingRecord, offeringByID map[int64]*enrollmentModels.CareOffering, childCount int) map[int64][]enrollment.ChildOfferingRow {
-	offeringsByChild := make(map[int64][]enrollment.ChildOfferingRow, childCount)
+func groupOfferingsByChild(links []*enrollmentNative.RequestChildOfferingRecord, offeringByID map[int64]*offeringContract.CareOfferingRecord, childCount int) map[int64][]enrollmentNative.ChildOfferingRow {
+	offeringsByChild := make(map[int64][]enrollmentNative.ChildOfferingRow, childCount)
 	for _, link := range links {
-		row := enrollment.ChildOfferingRow{
+		row := enrollmentNative.ChildOfferingRow{
 			OfferingID:            link.CareOfferingID,
 			SelectedDays:          link.SelectedDays,
 			ManualSelectedDays:    link.ManualSelectedDays,
@@ -400,15 +403,15 @@ func groupOfferingsByChild(links []*enrollment.RequestChildOfferingRecord, offer
 }
 
 // groupChildrenByRequest groups request children per request id.
-func groupChildrenByRequest(children []*enrollment.RequestChild, requestCount int) map[int64][]*enrollment.RequestChild {
-	childrenByRequest := make(map[int64][]*enrollment.RequestChild, requestCount)
+func groupChildrenByRequest(children []*enrollmentNative.RequestChild, requestCount int) map[int64][]*enrollmentNative.RequestChild {
+	childrenByRequest := make(map[int64][]*enrollmentNative.RequestChild, requestCount)
 	for _, c := range children {
 		childrenByRequest[c.RequestID] = append(childrenByRequest[c.RequestID], c)
 	}
 	return childrenByRequest
 }
 
-func requestIDsOf(requests []*enrollment.Request) []int64 {
+func requestIDsOf(requests []*enrollmentNative.Request) []int64 {
 	ids := make([]int64, 0, len(requests))
 	for _, req := range requests {
 		ids = append(ids, req.ID)
@@ -429,7 +432,8 @@ func int64SetKeys(values map[int64]struct{}) []int64 {
 // file when this errors. range_start/range_end carry the phase's service
 // window — the temporal span of the disclosed data — and metadata carries
 // phase_id, format, status_filter and the row counts.
-func (d *Decisions) RecordPhaseExportAudit(ctx context.Context, actorAccountID int64, actorRole string, phase *enrollment.Phase, format, statusFilter string, requestCount, childCount int) error {
+func (d *Decisions) RecordPhaseExportAudit(ctx context.Context, actorAccountID int64, actorRole string, phase *enrollmentNative.Phase, format, statusFilter string, requestCount, childCount int) (publicErr error) {
+	defer func() { publicErr = PublicError(publicErr) }()
 	const errPrefix = "decision: export audit"
 	if d.deps.AccessLog == nil {
 		return fmt.Errorf("%s: data access log repo not configured", errPrefix)
@@ -459,7 +463,7 @@ func (d *Decisions) RecordPhaseExportAudit(ctx context.Context, actorAccountID i
 	return nil
 }
 
-func (d *Decisions) recordStudentExportAudit(ctx context.Context, actorAccountID int64, actorRole string, data *enrollment.StudentEnrollmentExport, format string, requestCount, childCount int) error {
+func (d *Decisions) recordStudentExportAudit(ctx context.Context, actorAccountID int64, actorRole string, data *enrollmentNative.StudentEnrollmentExport, format string, requestCount, childCount int) error {
 	const errPrefix = "decision: student export audit"
 	if d.deps.AccessLog == nil {
 		return fmt.Errorf("%s: data access log repo not configured", errPrefix)
@@ -484,7 +488,7 @@ func (d *Decisions) recordStudentExportAudit(ctx context.Context, actorAccountID
 
 // studentExportRange spans the service windows of the exported phases, or
 // the export instant when there are none.
-func studentExportRange(phases map[int64]*enrollment.Phase, now time.Time) (time.Time, time.Time) {
+func studentExportRange(phases map[int64]*enrollmentNative.Phase, now time.Time) (time.Time, time.Time) {
 	rangeStart, rangeEnd := now, now
 	for _, phase := range phases {
 		if phase == nil {

@@ -5,28 +5,27 @@ package compose
 import (
 	"context"
 	"errors"
-	"fmt"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
+	internalports "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
+	identityBindingPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
-type Observation = ports.Observation
+type Observation = internalports.Observation
 
 type Dependencies struct {
-	DB      *bun.DB
-	Observe func(Observation)
+	RemoveErasedAvatarFile func(string) error // Nil uses rooted local avatar storage.
+	DB                     *bun.DB
+	Observe                func(Observation)
 	// Sessions composes the account-authentication flows (#3251): tenant,
 	// parent and school login, refresh, switching, logout, session validation,
 	// cleanup and revocation. Compositions that only read identity facts
 	// leave it nil; the flows then report ErrAccountAuthenticationUnavailable.
-	Sessions *SessionDependencies
+	Sessions *identityBindingPorts.SessionDependencies
 	// Operators composes the operator flows (#3252): operator login, the
 	// MFA-proven token issue, refresh, profile and password changes, and
 	// the operator-led school access of accounts. It requires Sessions;
@@ -45,18 +44,20 @@ type Dependencies struct {
 	// Invitations composes the school invitation flows (#2722). They require
 	// Sessions and Lifecycle; compositions without it report
 	// ErrSchoolInvitationUnavailable.
-	Invitations *SchoolInvitationDependencies
+	Invitations *identityBindingPorts.SchoolInvitationDependencies
 	// MFA composes the account and operator second factor and, with its
 	// relying-party facts, both portals' passkey ceremonies (#3331). It
 	// requires Sessions; compositions without it report
 	// ErrAccountMFAUnavailable and ErrOperatorMFAUnavailable.
-	MFA *MFADependencies
+	MFA *identityBindingPorts.MFADependencies
 	// OperatorProvisioning composes the operator invitation and e-mail
 	// change flows (#3332). They require Sessions and Operators;
 	// compositions without it report ErrOperatorProvisioningUnavailable.
 	OperatorProvisioning *OperatorProvisioningDependencies
 	// Demo composes public demo access only in the demo environment.
-	Demo *DemoDependencies
+	Demo *identityBindingPorts.DemoDependencies
+	// TenantRuntime binds transactions; a zero value keeps the sessions' own runtime.
+	TenantRuntime tenant.UnitOfWork
 }
 
 // New composes the Identity & Access module. Guardian operations run on the
@@ -69,22 +70,15 @@ type Dependencies struct {
 // administrative transaction their rotation and audit evidence must commit
 // in before a tenant is known. Account-session statements apply the tenant
 // filter the runtime scoped the caller to.
-func New(dependencies Dependencies) (*identityaccess.Module, error) {
+func New(dependencies Dependencies) (identityaccess.Owner, error) {
 	if dependencies.DB == nil || dependencies.Observe == nil {
 		return nil, errors.New("identity access compose: all dependencies are required")
 	}
-	runtime := tenant.NewRuntimeRef(nil)
-	if dependencies.Sessions != nil {
-		sessions := *dependencies.Sessions
-		runtime = tenant.NewRuntimeRef(sessions.TenantRuntime)
-		sessions.TenantRuntime = runtime.Attach
-		dependencies.Sessions = &sessions
-	}
-	store := newStore(dependencies.DB)
-	service := application.New(store, store, store, transaction{}, tenant.FromContext, func(observation Observation) {
-		observation.Err = mapError(observation.Err)
-		dependencies.Observe(observation)
-	})
+	sessions, attach := application.BindTenantRuntime(dependencies.Sessions, dependencies.TenantRuntime)
+	dependencies.Sessions = sessions
+	store := postgres.NewStore(dependencies.DB)
+	runAdmin := newCommandTransactions(attach).RunAdmin
+	service := application.New(store, store, store, newCommandTransactions(attach), tenant.FromContext, application.NewObserver(dependencies.Observe))
 	operatorMFARecords := application.NewOperatorMFA(service, store)
 	// The second factor is composed first: every login path consults its
 	// gate, and the passkey ceremonies below need the sessions it gates.
@@ -92,36 +86,24 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 	if err != nil {
 		return nil, err
 	}
-	auth, err := newAccountAuthentication(service, store, dependencies.Sessions, capabilityGate{flows.capability})
+	auth, err := newAccountAuthentication(service, store, dependencies.Sessions, application.CapabilityGate{Capability: flows.Capability})
 	if err != nil {
 		return nil, err
 	}
-	administration, err := newAccountAdministration(store, auth, dependencies.Sessions, dependencies.Lifecycle)
+	administration, lifecycle, roles, err := newLifecycleAndRoles(service, auth, store, dependencies)
 	if err != nil {
 		return nil, err
 	}
-	lifecycle, roles, err := newAccountLifecycle(service, auth, store, dependencies.Sessions, dependencies.Lifecycle, administration)
-	if err != nil {
-		return nil, err
-	}
-	resets, err := newPasswordReset(auth, store, dependencies.Sessions, dependencies.Resets)
-	if err != nil {
-		return nil, err
-	}
-	invitations, err := newSchoolInvitation(store, roles, lifecycle, dependencies.Sessions, dependencies.Lifecycle, dependencies.Invitations)
-	if err != nil {
-		return nil, err
-	}
-	provisioning, err := newAccountProvisioning(store, lifecycle, dependencies.Sessions, dependencies.Lifecycle)
+	resets, invitations, provisioning, err := newRegistrationFlows(auth, store, lifecycle, roles, dependencies)
 	if err != nil {
 		return nil, err
 	}
 	tokens := application.NewOperatorTokens(service, store)
-	operatorAuth, accountAccess, err := newOperatorFlows(service, store, tokens, auth, dependencies.Sessions, dependencies.Operators, lifecycle, operatorLoginGate(flows, dependencies.Demo))
+	operatorAuth, accountAccess, err := newOperatorFlows(service, store, tokens, auth, dependencies.Sessions, dependencies.Operators, lifecycle, application.OperatorLoginGate(flows, dependencies.Demo))
 	if err != nil {
 		return nil, err
 	}
-	operatorPasskeys, accountPasskeys := newPasskeyRecords(service, store)
+	operatorPasskeys, accountPasskeys := application.NewOperatorPasskey(service, store), application.NewAccountPasskey(service, store)
 	flows, err = withPasskeyFlows(flows, service, auth, operatorAuth, accountPasskeys, operatorPasskeys,
 		dependencies.Sessions, dependencies.MFA)
 	if err != nil {
@@ -135,372 +117,61 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 	if err != nil {
 		return nil, err
 	}
-	e := engine{
-		calendarFeeds: newCalendarFeeds(service, store),
-		profiles:      application.NewAccountProfiles(service, store), guardianSchools: application.NewGuardianSchools(service, store),
-		service: service, mfa: operatorMFARecords, tokens: tokens, rfidCards: application.NewRFIDCards(service, store),
-		passkeys: operatorPasskeys, accountPasskeys: accountPasskeys, accountRoleQueries: application.NewAccountRoleQueries(service, store, postgres.NewRoleStore(store)),
-		auth: auth, operatorAuth: operatorAuth, accountAccess: accountAccess, lifecycle: lifecycle, roles: roles,
-		resets: resets, invitations: invitations, provisioning: provisioning, administration: administration,
-		mfaFlows: flows, operatorProvisioning: operatorProvisioning,
-		invitationMaintenance: application.NewSchoolInvitationMaintenance(store, invitationLogger(dependencies.Invitations)),
-	}
-	e.runtime = runtime.Attach
-	return identityaccess.NewDemoModule(e, runtime, demoAccess), nil
-}
-
-func newPasskeyRecords(service *application.Service, store *postgres.Store) (*application.OperatorPasskey, *application.AccountPasskey) {
-	return application.NewOperatorPasskey(service, store), application.NewAccountPasskey(service, store)
-}
-
-type transaction struct{}
-
-func (transaction) RunWrite(ctx context.Context, callback func(context.Context) error) error {
-	if _, ok := tenant.TransactionFromContext(ctx); ok {
-		return callback(ctx)
-	}
-	if _, err := tenant.TenantFromContext(ctx); err != nil {
-		return fmt.Errorf("%w: %w", identityaccess.ErrTenantRequired, err)
-	}
-	return tenant.WithinCurrentTenant(ctx, callback)
-}
-
-func (transaction) RunRead(ctx context.Context, callback func(context.Context) error) error {
-	if _, ok := tenant.TransactionFromContext(ctx); ok {
-		return callback(ctx)
-	}
-	if _, err := tenant.TenantFromContext(ctx); err == nil {
-		return tenant.WithinCurrentTenant(ctx, callback)
-	}
-	return tenant.WithinAdmin(ctx, callback)
-}
-
-// RunPlatform never opens a transaction: the operator flows open their own
-// administrative transaction where several statements must commit together
-// and run single statements on the root connection otherwise.
-func (transaction) RunPlatform(ctx context.Context, callback func(context.Context) error) error {
-	return callback(ctx)
-}
-
-type engine struct {
-	calendarFeeds
-	rfidCards          *application.RFIDCards
-	accountRoleQueries *application.AccountRoleQueries
-	guardianSchools    *application.GuardianSchools
-	profiles           *application.AccountProfiles
-	service            *application.Service
-	mfa                *application.OperatorMFA
-	tokens             *application.OperatorTokens
-	passkeys           *application.OperatorPasskey
-	accountPasskeys    *application.AccountPasskey
-	// auth is nil when the module was composed without session dependencies.
-	auth *application.AccountAuthentication
-	// operatorAuth and accountAccess are nil when the module was composed
-	// without operator dependencies.
-	operatorAuth  *application.OperatorAuthentication
-	accountAccess *application.OperatorAccountAccess
-	// lifecycle is nil when the module was composed without lifecycle
-	// dependencies.
-	lifecycle *application.AccountLifecycle
-	// roles is nil when the module was composed without lifecycle
-	// dependencies.
-	roles *application.RoleAdministration
-	// resets is nil when the module was composed without password reset
-	// dependencies.
-	resets *application.PasswordReset
-	// invitations is nil when the module was composed without the school
-	// invitation dependencies.
-	invitations *application.SchoolInvitation
-	// provisioning is nil when the module was composed without lifecycle
-	// dependencies.
-	provisioning *application.AccountProvisioning
-	// administration is nil when the module was composed without lifecycle
-	// dependencies.
-	administration *application.AccountAdministration
-	// operatorProvisioning is nil when the module was composed without the
-	// operator provisioning dependencies.
-	operatorProvisioning *application.OperatorProvisioning
-	// invitationMaintenance is always composed: spending a deleted school's
-	// invitations and deleting expired ones need no flow dependencies.
-	invitationMaintenance *application.SchoolInvitationMaintenance
-	// mfaFlows carries the second factor and the passkey ceremonies. Its
-	// members are nil when the module was composed without them.
-	mfaFlows mfaFlows
-	// runtime attaches the composed unit of work ahead of every session flow.
-	runtime func(context.Context) context.Context
-}
-
-func (e engine) FindAccount(ctx context.Context, id int64) (identityaccess.Account, error) {
-	value, err := e.service.FindAccount(ctx, id)
-	return identityaccess.Account(value), mapError(err)
-}
-
-func (e engine) FindAccountByEmail(ctx context.Context, email string) (identityaccess.Account, error) {
-	value, err := e.service.FindAccountByEmail(ctx, email)
-	return identityaccess.Account(value), mapError(err)
-}
-
-func (e engine) GrantGuardianTenantAccess(ctx context.Context, accountID int64) (identityaccess.GuardianTenantAccess, error) {
-	value, err := e.service.GrantGuardianTenantAccess(ctx, accountID)
-	return identityaccess.GuardianTenantAccess(value), mapError(err)
-}
-
-func (e engine) FindOperator(ctx context.Context, id int64) (identityaccess.Operator, error) {
-	value, err := e.service.FindOperator(ctx, id)
-	return identityaccess.Operator(value), mapError(err)
-}
-
-func (e engine) FindOperatorForUpdate(ctx context.Context, id int64) (identityaccess.Operator, error) {
-	value, err := e.service.FindOperatorForUpdate(ctx, id)
-	return identityaccess.Operator(value), mapError(err)
-}
-
-func (e engine) FindOperatorByEmail(ctx context.Context, email string) (identityaccess.Operator, error) {
-	value, err := e.service.FindOperatorByEmail(ctx, email)
-	return identityaccess.Operator(value), mapError(err)
-}
-
-func (e engine) ListOperators(ctx context.Context) ([]identityaccess.Operator, error) {
-	values, err := e.service.ListOperators(ctx)
-	if err != nil {
-		return nil, mapError(err)
-	}
-	result := make([]identityaccess.Operator, 0, len(values))
-	for _, value := range values {
-		result = append(result, identityaccess.Operator(value))
-	}
-	return result, nil
-}
-
-func (e engine) CreateOperator(ctx context.Context, operator identityaccess.Operator) (identityaccess.Operator, error) {
-	value, err := e.service.CreateOperator(ctx, domain.Operator(operator))
-	return identityaccess.Operator(value), mapError(err)
-}
-
-func (e engine) UpdateOperator(ctx context.Context, operator identityaccess.Operator) (identityaccess.Operator, error) {
-	value, err := e.service.UpdateOperator(ctx, domain.Operator(operator))
-	return identityaccess.Operator(value), mapError(err)
-}
-
-func (e engine) DeleteOperator(ctx context.Context, id int64) error {
-	return mapError(e.service.DeleteOperator(ctx, id))
-}
-
-func (e engine) RecordOperatorLogin(ctx context.Context, id int64) error {
-	return mapError(e.service.RecordOperatorLogin(ctx, id))
-}
-
-func (e engine) IncrementOperatorMFAAttempts(ctx context.Context, id int64, threshold int, lockout time.Duration) (identityaccess.OperatorMFAAttempts, error) {
-	value, err := e.service.IncrementOperatorMFAAttempts(ctx, id, threshold, lockout)
-	return identityaccess.OperatorMFAAttempts(value), mapError(err)
-}
-
-func (e engine) ResetOperatorMFAAttempts(ctx context.Context, id int64) error {
-	return mapError(e.service.ResetOperatorMFAAttempts(ctx, id))
-}
-
-func (e engine) FindOperatorSessionForUpdate(ctx context.Context, token string) (identityaccess.OperatorSession, error) {
-	value, err := e.service.FindOperatorSessionForUpdate(ctx, token)
-	return identityaccess.OperatorSession(value), mapError(err)
-}
-
-func (e engine) LatestOperatorSessionInFamily(ctx context.Context, familyID string) (identityaccess.OperatorSession, error) {
-	value, err := e.service.LatestOperatorSessionInFamily(ctx, familyID)
-	return identityaccess.OperatorSession(value), mapError(err)
-}
-
-func (e engine) CreateOperatorSession(ctx context.Context, session identityaccess.OperatorSession) (identityaccess.OperatorSession, error) {
-	value, err := e.service.CreateOperatorSession(ctx, domain.OperatorSession(session))
-	return identityaccess.OperatorSession(value), mapError(err)
-}
-
-func (e engine) MarkOperatorSessionRotated(ctx context.Context, id int64, replacementToken string, recoveryProofHash []byte, rotatedAt time.Time) error {
-	return mapError(e.service.MarkOperatorSessionRotated(ctx, id, replacementToken, recoveryProofHash, rotatedAt))
-}
-
-func (e engine) DeleteExpiredRotatedOperatorSessions(ctx context.Context, familyID string, now time.Time) error {
-	return mapError(e.service.DeleteExpiredRotatedOperatorSessions(ctx, familyID, now))
-}
-
-func (e engine) DeleteOperatorSession(ctx context.Context, id int64) error {
-	return mapError(e.service.DeleteOperatorSession(ctx, id))
-}
-
-func (e engine) RevokeOperatorSessions(ctx context.Context, operatorID int64) ([]identityaccess.OperatorSession, error) {
-	values, err := e.service.RevokeOperatorSessions(ctx, operatorID)
-	return operatorSessions(values), mapError(err)
-}
-
-func (e engine) RevokeOperatorSessionFamily(ctx context.Context, familyID string) ([]identityaccess.OperatorSession, error) {
-	values, err := e.service.RevokeOperatorSessionFamily(ctx, familyID)
-	return operatorSessions(values), mapError(err)
-}
-
-func (e engine) DeleteExpiredOperatorSessions(ctx context.Context, now time.Time) (int, error) {
-	deleted, err := e.service.DeleteExpiredOperatorSessions(ctx, now)
-	return deleted, mapError(err)
-}
-
-func (e engine) FindAccountSession(ctx context.Context, token string) (identityaccess.AccountSession, error) {
-	value, err := e.service.FindAccountSession(ctx, token)
-	return identityaccess.AccountSession(value), mapError(err)
-}
-
-func (e engine) FindAccountSessionForUpdate(ctx context.Context, token string) (identityaccess.AccountSession, error) {
-	value, err := e.service.FindAccountSessionForUpdate(ctx, token)
-	return identityaccess.AccountSession(value), mapError(err)
-}
-
-func (e engine) LatestAccountSessionInFamily(ctx context.Context, familyID string) (identityaccess.AccountSession, error) {
-	value, err := e.service.LatestAccountSessionInFamily(ctx, familyID)
-	return identityaccess.AccountSession(value), mapError(err)
-}
-
-func (e engine) ListAccountSessions(ctx context.Context, filter identityaccess.AccountSessionFilter) ([]identityaccess.AccountSession, error) {
-	values, err := e.service.ListAccountSessions(ctx, domain.AccountSessionFilter{
-		AccountID: filter.AccountID, FamilyID: filter.FamilyID, Mobile: filter.Mobile, Liveness: domain.AccountSessionLiveness(filter.Liveness),
+	owner := application.NewOwner(application.OwnerParts{
+		CalendarFeeds: application.NewCalendarFeeds(application.NewStaffCalendarFeeds(service, store), application.NewParentCalendarFeeds(service, store)),
+		Profiles:      application.NewAccountProfiles(service, store), GuardianSchools: application.NewGuardianSchools(service, store),
+		Service: service, MFA: operatorMFARecords, Tokens: tokens, RFIDCards: application.NewRFIDCards(service, store),
+		Passkeys: operatorPasskeys, AccountPasskeys: accountPasskeys, AccountRoleQueries: application.NewAccountRoleQueries(service, store, postgres.NewRoleStore(store)),
+		Auth: auth, OperatorAuth: operatorAuth, AccountAccess: accountAccess, Lifecycle: lifecycle, Roles: roles,
+		Resets: resets, Invitations: invitations, Provisioning: provisioning, Administration: administration,
+		MFAFlows: flows, OperatorProvisioning: operatorProvisioning, SignInRetention: application.NewSignInDataRetention(store, application.InvitationLogger(dependencies.Invitations), runAdmin), AccountRetention: application.NewAccountRetention(store, attach, runAdmin, dependencies.RemoveErasedAvatarFile, application.InvitationLogger(dependencies.Invitations)),
+		InvitationMaintenance: application.NewSchoolInvitationMaintenance(store, application.InvitationLogger(dependencies.Invitations), newCommandTransactions(attach).RunPlatform),
+		DemoAccess:            demoAccess,
 	})
-	return accountSessions(values), mapError(err)
+	return owner, nil
 }
 
-func (e engine) CountExpiredAccountSessions(ctx context.Context) (int, error) {
-	count, err := e.service.CountExpiredAccountSessions(ctx)
-	return count, mapError(err)
-}
-
-func (e engine) ListInactiveAccountIDsWithLiveSessions(ctx context.Context) ([]int64, error) {
-	ids, err := e.service.ListInactiveAccountIDsWithLiveSessions(ctx)
-	return ids, mapError(err)
-}
-
-func (e engine) HasLiveAccountSessionsCreatedAfter(ctx context.Context, accountID int64, since time.Time) (bool, error) {
-	exists, err := e.service.HasLiveAccountSessionsCreatedAfter(ctx, accountID, since)
-	return exists, mapError(err)
-}
-
-func (e engine) CreateAccountSession(ctx context.Context, session identityaccess.AccountSession) (identityaccess.AccountSession, error) {
-	value, err := e.service.CreateAccountSession(ctx, domain.AccountSession(session))
-	return identityaccess.AccountSession(value), mapError(err)
-}
-
-func (e engine) MarkAccountSessionRotated(ctx context.Context, id int64, replacementToken string, recoveryProofHash []byte, rotatedAt time.Time) error {
-	return mapError(e.service.MarkAccountSessionRotated(ctx, id, replacementToken, recoveryProofHash, rotatedAt))
-}
-
-func (e engine) DeleteExpiredRotatedAccountSessions(ctx context.Context, accountID int64, now time.Time) error {
-	return mapError(e.service.DeleteExpiredRotatedAccountSessions(ctx, accountID, now))
-}
-
-func (e engine) RetireAccountSessionFamily(ctx context.Context, accountID int64, familyID string, expiry time.Time) error {
-	return mapError(e.service.RetireAccountSessionFamily(ctx, accountID, familyID, expiry))
-}
-
-func (e engine) EnforceAccountSessionCap(ctx context.Context, accountID int64, portalScope string, keep int) ([]identityaccess.AccountSession, error) {
-	values, err := e.service.EnforceAccountSessionCap(ctx, accountID, portalScope, keep)
-	return accountSessions(values), mapError(err)
-}
-
-func (e engine) DeleteAccountSession(ctx context.Context, id int64) error {
-	return mapError(e.service.DeleteAccountSession(ctx, id))
-}
-
-func (e engine) RevokeAccountSessionFamily(ctx context.Context, familyID string) ([]identityaccess.AccountSession, error) {
-	values, err := e.service.RevokeAccountSessionFamily(ctx, familyID)
-	return accountSessions(values), mapError(err)
-}
-
-func (e engine) RevokeAccountSessionsInTenant(ctx context.Context, accountID int64) ([]identityaccess.AccountSession, error) {
-	values, err := e.service.RevokeAccountSessionsInTenant(ctx, accountID)
-	return accountSessions(values), mapError(err)
-}
-
-func (e engine) RevokeAllAccountSessions(ctx context.Context, accountID int64) ([]identityaccess.AccountSession, error) {
-	values, err := e.service.RevokeAllAccountSessions(ctx, accountID)
-	return accountSessions(values), mapError(err)
-}
-
-func (e engine) RevokeAccountSessionsCreatedAtOrBefore(ctx context.Context, accountID int64, cutoff time.Time) ([]identityaccess.AccountSession, error) {
-	values, err := e.service.RevokeAccountSessionsCreatedAtOrBefore(ctx, accountID, cutoff)
-	return accountSessions(values), mapError(err)
-}
-
-func (e engine) RevokeTenantAccountSessions(ctx context.Context, tenantID int64) ([]identityaccess.AccountSession, error) {
-	values, err := e.service.RevokeTenantAccountSessions(ctx, tenantID)
-	return accountSessions(values), mapError(err)
-}
-
-func (e engine) DeleteExpiredAccountSessions(ctx context.Context) (int, error) {
-	deleted, err := e.service.DeleteExpiredAccountSessions(ctx)
-	return deleted, mapError(err)
-}
-
-func accountSessions(values []domain.AccountSession) []identityaccess.AccountSession {
-	if values == nil {
-		return nil
+// NewGuardianInvitationReads composes the guardian invitation lists over the
+// database alone, for a root that needs them before it composes the module.
+// They run on the caller's ambient transaction like the module's reads.
+func NewGuardianInvitationReads(db *bun.DB) (identityaccess.GuardianInvitationReads, error) {
+	if db == nil {
+		return nil, errors.New("identity access compose: the guardian invitation reads need the database")
 	}
-	result := make([]identityaccess.AccountSession, 0, len(values))
-	for _, value := range values {
-		result = append(result, identityaccess.AccountSession(value))
-	}
-	return result
+	return application.NewGuardianInvitationReads(postgres.NewStore(db), newCommandTransactions(nil).RunRead), nil
 }
 
-func operatorSessions(values []domain.OperatorSession) []identityaccess.OperatorSession {
-	if values == nil {
-		return nil
+func newCommandTransactions(attach func(context.Context) context.Context) application.CommandTransactions {
+	if attach == nil {
+		attach = func(ctx context.Context) context.Context { return ctx }
 	}
-	result := make([]identityaccess.OperatorSession, 0, len(values))
-	for _, value := range values {
-		result = append(result, identityaccess.OperatorSession(value))
-	}
-	return result
+	return application.NewCommandTransactions(attach, tenant.TransactionFromContext, tenant.FromContext, tenant.WithinCurrentTenant, tenant.WithinAdmin)
 }
 
-func mapError(err error) error {
-	switch {
-	case err == nil:
-		return nil
-	case errors.Is(err, domain.ErrAccountNotFound):
-		return identityaccess.ErrAccountNotFound
-	case errors.Is(err, domain.ErrRoleNotFound):
-		return identityaccess.ErrRoleNotFound
-	case errors.Is(err, domain.ErrTenantRequired):
-		return identityaccess.ErrTenantRequired
-	case errors.Is(err, domain.ErrGuardianRoleMissing):
-		return identityaccess.ErrGuardianRoleMissing
-	case errors.Is(err, domain.ErrGuardianStudentAccessTenantMismatch):
-		return fmt.Errorf("%w: %w", identityaccess.ErrGuardianStudentAccessTenantMismatch, err)
-	case errors.Is(err, domain.ErrOperatorNotFound):
-		return identityaccess.ErrOperatorNotFound
-	case errors.Is(err, domain.ErrOperatorSessionNotFound):
-		return identityaccess.ErrOperatorSessionNotFound
-	case errors.Is(err, domain.ErrOperatorSessionRotated):
-		return identityaccess.ErrOperatorSessionRotated
-	case errors.Is(err, domain.ErrAccountSessionNotFound):
-		return identityaccess.ErrAccountSessionNotFound
-	case errors.Is(err, domain.ErrAccountSessionRotated):
-		return identityaccess.ErrAccountSessionRotated
-	case errors.Is(err, domain.ErrOperatorMFACredentialNotFound):
-		return identityaccess.ErrOperatorMFACredentialNotFound
-	case errors.Is(err, domain.ErrOperatorMFAChallengeNotFound):
-		return identityaccess.ErrOperatorMFAChallengeNotFound
-	case errors.Is(err, domain.ErrOperatorMFAChallengeStateChanged):
-		return identityaccess.ErrOperatorMFAChallengeStateChanged
-	case errors.Is(err, domain.ErrOperatorTrustedDeviceNotFound):
-		return identityaccess.ErrOperatorTrustedDeviceNotFound
-	case errors.Is(err, domain.ErrOperatorInvitationNotFound):
-		return identityaccess.ErrOperatorInvitationNotFound
-	case errors.Is(err, domain.ErrOperatorEmailChangeNotFound):
-		return identityaccess.ErrOperatorEmailChangeNotFound
-	case errors.Is(err, domain.ErrOperatorPasskeyNotFound):
-		return identityaccess.ErrOperatorPasskeyNotFound
-	case errors.Is(err, domain.ErrOperatorPasskeySessionNotFound):
-		return identityaccess.ErrOperatorPasskeySessionNotFound
-	case errors.Is(err, domain.ErrAccountPasskeyNotFound):
-		return identityaccess.ErrAccountPasskeyNotFound
-	case errors.Is(err, domain.ErrAccountPasskeySessionNotFound):
-		return identityaccess.ErrAccountPasskeySessionNotFound
-	default:
-		return err
+func newLifecycleAndRoles(service *application.Service, auth *application.AccountAuthentication, store *postgres.Store, dependencies Dependencies) (*application.AccountAdministration, *application.AccountLifecycle, *application.RoleAdministration, error) {
+	administration, err := newAccountAdministration(store, auth, dependencies.Sessions, dependencies.Lifecycle)
+	if err != nil {
+		return nil, nil, nil, err
 	}
+	lifecycle, roles, err := newAccountLifecycle(service, auth, store, dependencies.Sessions, dependencies.Lifecycle, administration)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	return administration, lifecycle, roles, nil
+}
+
+func newRegistrationFlows(auth *application.AccountAuthentication, store *postgres.Store, lifecycle *application.AccountLifecycle, roles *application.RoleAdministration, dependencies Dependencies) (*application.PasswordReset, *application.SchoolInvitation, *application.AccountProvisioning, error) {
+	resets, err := newPasswordReset(auth, store, dependencies.Sessions, dependencies.Resets)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	invitations, err := newSchoolInvitation(store, roles, lifecycle, dependencies.Sessions, dependencies.Lifecycle, dependencies.Invitations)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	provisioning, err := newAccountProvisioning(store, lifecycle, dependencies.Sessions, dependencies.Lifecycle)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	return resets, invitations, provisioning, nil
 }

@@ -6,6 +6,7 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
+import { ApiError } from "~/lib/api-error";
 import type React from "react";
 import Link from "next/link";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -16,11 +17,11 @@ import { ChildMasterDataView } from "./child-master-data";
 import {
   getChildFeatures,
   getChildMasterData,
+  getRequestSharing,
   getRequestSharingOptions,
   setRequestSharing,
   submitMasterDataRequest,
   updateMasterDataField,
-  ParentApiError,
   type ChildFeatures,
   type ChildMasterData,
 } from "~/lib/parent-api";
@@ -75,6 +76,7 @@ vi.mock("~/lib/parent-api", async (importOriginal) => {
     }),
     submitMasterDataRequest: vi.fn(),
     updateMasterDataField: vi.fn(),
+    getRequestSharing: vi.fn(),
     getRequestSharingOptions: vi.fn(),
     setRequestSharing: vi.fn(),
   };
@@ -83,13 +85,14 @@ vi.mock("~/lib/parent-api", async (importOriginal) => {
 // #2518: failures go through the shared error path, so the sentences come
 // from the error catalog instead of component texts.
 const unavailable = () =>
-  new ParentApiError("diag", 503, "general.unavailable");
+  new ApiError("diag", 503, { code: "general.unavailable" });
 const REQUEST_ERROR = catalogText("general.unavailable", "die Anfrage");
 
 const mockGetFeatures = vi.mocked(getChildFeatures);
 const mockGetMasterData = vi.mocked(getChildMasterData);
 const mockSubmit = vi.mocked(submitMasterDataRequest);
 const mockUpdateField = vi.mocked(updateMasterDataField);
+const mockSharing = vi.mocked(getRequestSharing);
 const mockSharingOptions = vi.mocked(getRequestSharingOptions);
 const mockSetRequestSharing = vi.mocked(setRequestSharing);
 
@@ -150,6 +153,12 @@ async function submitIdentityRequest() {
   fireEvent.click(button);
 }
 
+/** Der Text eines Wochentags in der Heimweg-Übersicht (oder der Anfrage). */
+function departureDayText(day: string, container: HTMLElement = document.body) {
+  return within(container).getByText(day, { selector: "dt" }).nextElementSibling
+    ?.textContent;
+}
+
 describe("ChildMasterDataView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -157,6 +166,7 @@ describe("ChildMasterDataView", () => {
     mockGetMasterData.mockResolvedValue(masterData());
     mockUpdateField.mockResolvedValue(masterData({ health_info: "Neue Info" }));
     mockSubmit.mockResolvedValue([]);
+    mockSharing.mockResolvedValue({ family_protected: false, recipients: [] });
     mockSharingOptions.mockResolvedValue({
       family_protected: false,
       recipients: [],
@@ -208,9 +218,19 @@ describe("ChildMasterDataView", () => {
         ?.querySelector('[data-parent-tour="child-departure"]'),
     ).toBeInTheDocument();
     expect(screen.queryByDisplayValue("Lara")).not.toBeInTheDocument();
-    // The matrix IS the saved state: every checked box is a stored mode.
+    // #4368: without Bearbeiten the section is a read-only overview.
     // Fixture: Mo = pickup, Di = bus + alone, Mi = nothing.
+    expect(screen.queryAllByRole("checkbox")).toHaveLength(0);
+    expect(departureDayText("Montag")).toBe("Wird abgeholt");
+    expect(departureDayText("Dienstag")).toBe("Geht allein, Bus");
+    expect(departureDayText("Mittwoch")).toBe("Keine Angabe");
+    expect(departureDayText("Freitag")).toBe("Keine Angabe");
+
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+    // The edit matrix starts from the saved state: every checked box is a
+    // stored mode.
     expect(screen.getByLabelText("Mo Wird abgeholt")).toBeChecked();
+    expect(screen.getByLabelText("Mo Geht allein")).toHaveFocus();
     expect(screen.getByLabelText("Di Bus")).toBeChecked();
     expect(screen.getByLabelText("Di Geht allein")).toBeChecked();
     expect(screen.getByLabelText("Di Wird abgeholt")).not.toBeChecked();
@@ -405,6 +425,9 @@ describe("ChildMasterDataView", () => {
     const section = departureSection.closest("section");
     if (!section) throw new Error("departure section not found");
 
+    fireEvent.click(
+      within(section).getByRole("button", { name: "Bearbeiten" }),
+    );
     fireEvent.click(screen.getByLabelText("Mi Wird abgeholt"));
     fireEvent.click(
       within(section).getByRole("button", { name: "Änderung anfragen" }),
@@ -440,6 +463,9 @@ describe("ChildMasterDataView", () => {
     const section = departureSection.closest("section");
     if (!section) throw new Error("departure section not found");
 
+    fireEvent.click(
+      within(section).getByRole("button", { name: "Bearbeiten" }),
+    );
     const departureCheckbox = screen.getByLabelText("Mi Wird abgeholt");
     fireEvent.click(departureCheckbox);
     fireEvent.click(
@@ -835,6 +861,72 @@ describe("ChildMasterDataView", () => {
     expect(screen.queryByText(REQUEST_ERROR)).not.toBeInTheDocument();
   });
 
+  it("shows the valid first name apart from the requested one", async () => {
+    mockGetMasterData.mockResolvedValue(
+      masterData({
+        pending_changes: [
+          {
+            id: "900",
+            target: "person",
+            field_key: "first_name",
+            old_value: "Lara",
+            new_value: "Lara Marie",
+            status: "pending",
+            created_at: "2026-06-24T12:00:00Z",
+            is_self: true,
+          },
+        ],
+      }),
+    );
+
+    render(<ChildMasterDataView studentId="42" childName="Lina Muster" />);
+
+    const label = await screen.findByText("Vorname");
+    const field = label.closest("div");
+    if (!field) throw new Error("first name field missing");
+    const valid = within(field).getByText("Lara");
+    expect(valid.tagName).toBe("DD");
+
+    const request = within(field).getByRole("group", {
+      name: "Beantragte Änderung",
+    });
+    expect(within(request).getByText("Lara Marie")).toBeInTheDocument();
+    expect(within(request).getByText("In Prüfung")).toBeInTheDocument();
+    expect(
+      await within(request).findByRole("button", { name: "Anfrage teilen" }),
+    ).toBeInTheDocument();
+    expect(
+      within(request).getByRole("button", { name: "Anfrage bearbeiten" }),
+    ).toBeInTheDocument();
+    expect(label).not.toContainElement(within(request).getByText("In Prüfung"));
+  });
+
+  it("formats a requested birthday as a date", async () => {
+    mockGetMasterData.mockResolvedValue(
+      masterData({
+        pending_changes: [
+          {
+            id: "901",
+            target: "person",
+            field_key: "birthday",
+            old_value: "2018-03-04",
+            new_value: "2018-04-03",
+            status: "pending",
+            created_at: "2026-06-24T12:00:00Z",
+          },
+        ],
+      }),
+    );
+
+    render(<ChildMasterDataView studentId="42" childName="Lina Muster" />);
+
+    const request = await screen.findByRole("group", {
+      name: "Beantragte Änderung",
+    });
+    expect(within(request).getByText("03.04.2018")).toBeInTheDocument();
+    expect(screen.getByText("04.03.2018")).toBeInTheDocument();
+  });
+
   it("submits departure mode changes for review", async () => {
     mockGetMasterData.mockResolvedValueOnce(masterData()).mockResolvedValueOnce(
       masterData({
@@ -872,6 +964,9 @@ describe("ChildMasterDataView", () => {
       throw new Error("departure section not found");
     }
 
+    fireEvent.click(
+      within(section).getByRole("button", { name: "Bearbeiten" }),
+    );
     const departureCheckbox = screen.getByLabelText("Mi Wird abgeholt");
     fireEvent.click(departureCheckbox.nextElementSibling as HTMLElement);
     fireEvent.click(
@@ -895,6 +990,21 @@ describe("ChildMasterDataView", () => {
         [],
       ),
     );
+
+    // Back on the overview: the valid way home and the request stand apart.
+    const request = (
+      await within(section).findByRole("heading", {
+        name: "Beantragte Änderung",
+      })
+    ).closest("section");
+    if (!request) throw new Error("pending request not found");
+    expect(within(request).getByText("In Prüfung")).toBeInTheDocument();
+    expect(departureDayText("Mittwoch", request)).toBe("Wird abgeholt");
+    expect(screen.getAllByText("Mittwoch", { selector: "dt" })).toHaveLength(2);
+    expect(within(section).queryAllByRole("checkbox")).toHaveLength(0);
+    expect(
+      within(section).queryByRole("button", { name: "Bearbeiten" }),
+    ).not.toBeInTheDocument();
   });
 
   it("requests only Monday to change from pickup to walking", async () => {
@@ -926,6 +1036,9 @@ describe("ChildMasterDataView", () => {
       throw new Error("departure section not found");
     }
 
+    fireEvent.click(
+      within(section).getByRole("button", { name: "Bearbeiten" }),
+    );
     fireEvent.click(screen.getByLabelText("Mo Geht allein"));
     fireEvent.click(screen.getByLabelText("Mo Wird abgeholt"));
     fireEvent.click(
@@ -985,6 +1098,9 @@ describe("ChildMasterDataView", () => {
       throw new Error("departure section not found");
     }
 
+    fireEvent.click(
+      within(section).getByRole("button", { name: "Bearbeiten" }),
+    );
     fireEvent.click(screen.getByLabelText("Mi Wird abgeholt"));
     fireEvent.click(
       within(section).getByRole("button", { name: "Änderung anfragen" }),
@@ -997,8 +1113,11 @@ describe("ChildMasterDataView", () => {
     ).toBeInTheDocument();
     expect(await screen.findByText("In Prüfung")).toBeInTheDocument();
     expect(
-      within(section).getByRole("button", { name: "Änderung anfragen" }),
-    ).toBeDisabled();
+      within(section).queryByRole("button", { name: "Änderung anfragen" }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(section).queryByRole("button", { name: "Bearbeiten" }),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText(REQUEST_ERROR)).not.toBeInTheDocument();
   });
 
@@ -1073,6 +1192,7 @@ describe("ChildMasterDataView", () => {
     await screen.findByRole("heading", {
       name: "So geht Lina Muster nach Hause",
     });
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
     const wedPickup = screen.getByLabelText("Mi Wird abgeholt");
     fireEvent.click(wedPickup);
     expect(wedPickup).toBeChecked();
@@ -1112,20 +1232,133 @@ describe("ChildMasterDataView", () => {
       throw new Error("departure section not found");
     }
 
-    expect(screen.getByLabelText("Mo Geht mit anderem Kind")).toBeChecked();
-    expect(screen.getByLabelText("Mo Geht mit anderem Kind")).toBeDisabled();
-    expect(screen.getByLabelText("Mo Geht allein")).toBeDisabled();
+    expect(departureDayText("Montag")).toBe("Geht mit anderem Kind");
+    expect(departureDayText("Dienstag")).toBe("Keine Angabe");
+    expect(within(section).queryAllByRole("checkbox")).toHaveLength(0);
     expect(
       screen.getByText(
         "Ihr Kind geht an mindestens einem Tag mit einem anderen Kind. Sie können den Heimweg hier nicht ändern.",
       ),
     ).toBeInTheDocument();
-    expect(
-      screen.getByLabelText("Mo Geht allein").closest("label"),
-    ).toHaveClass("cursor-default");
+    expect(within(section).queryByRole("button")).not.toBeInTheDocument();
+  });
+
+  it("discards the departure draft on Abbrechen and returns to the overview", async () => {
+    render(
+      <ChildMasterDataView
+        studentId="42"
+        childName="Lina Muster"
+        area="departure"
+      />,
+    );
+
+    const departureSection = await screen.findByRole("heading", {
+      name: "So geht Lina Muster nach Hause",
+    });
+    const section = departureSection.closest("section");
+    if (!section) throw new Error("departure section not found");
+
+    fireEvent.click(
+      within(section).getByRole("button", { name: "Bearbeiten" }),
+    );
+    fireEvent.click(screen.getByLabelText("Mi Wird abgeholt"));
+    fireEvent.click(within(section).getByRole("button", { name: "Abbrechen" }));
+
+    expect(within(section).queryAllByRole("checkbox")).toHaveLength(0);
+    expect(departureDayText("Mittwoch")).toBe("Keine Angabe");
+    const edit = within(section).getByRole("button", { name: "Bearbeiten" });
+    expect(edit).toHaveFocus();
+
+    fireEvent.click(edit);
+    expect(screen.getByLabelText("Mi Wird abgeholt")).not.toBeChecked();
     expect(
       within(section).getByRole("button", { name: "Änderung anfragen" }),
     ).toBeDisabled();
+    expect(mockSubmit).not.toHaveBeenCalled();
+  });
+
+  it("shows an open departure request apart from the valid way home", async () => {
+    mockGetMasterData.mockResolvedValue(
+      masterData({
+        pending_changes: [
+          {
+            id: "901",
+            target: "departure",
+            field_key: "allowed_departure_modes",
+            old_value: { mon: ["pickup"], tue: ["bus", "alone"] },
+            new_value: { mon: ["alone"], tue: ["bus", "alone"] },
+            status: "pending",
+            created_at: "2026-06-24T12:00:00Z",
+            is_self: true,
+          },
+        ],
+      }),
+    );
+
+    render(
+      <ChildMasterDataView
+        studentId="42"
+        childName="Lina Muster"
+        area="departure"
+      />,
+    );
+
+    const departureSection = await screen.findByRole("heading", {
+      name: "So geht Lina Muster nach Hause",
+    });
+    const section = departureSection.closest("section");
+    if (!section) throw new Error("departure section not found");
+    const request = within(section)
+      .getByRole("heading", { name: "Beantragte Änderung" })
+      .closest("section");
+    if (!request) throw new Error("pending request not found");
+
+    // The overview keeps the valid state; the request shows the asked one.
+    const overview = section.querySelector<HTMLElement>(
+      '[data-parent-tour="child-departure"]',
+    );
+    if (!overview) throw new Error("departure overview not found");
+    expect(departureDayText("Montag", overview)).toBe("Wird abgeholt");
+    expect(departureDayText("Montag", request)).toBe("Geht allein");
+    expect(within(request).getByText("In Prüfung")).toBeInTheDocument();
+    expect(
+      within(request).getByText(
+        "Die OGS prüft Ihre Änderung. Bis zur Bestätigung gilt der bisherige Heimweg.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(section).queryByRole("button", { name: "Bearbeiten" }),
+    ).not.toBeInTheDocument();
+    expect(within(section).queryAllByRole("checkbox")).toHaveLength(0);
+  });
+
+  it("offers no Bearbeiten for the way home when the school turned requests off", async () => {
+    mockGetFeatures.mockResolvedValue(
+      features({ master_data_request_enabled: false }),
+    );
+
+    render(
+      <ChildMasterDataView
+        studentId="42"
+        childName="Lina Muster"
+        area="departure"
+      />,
+    );
+
+    const departureSection = await screen.findByRole("heading", {
+      name: "So geht Lina Muster nach Hause",
+    });
+    const section = departureSection.closest("section");
+    if (!section) throw new Error("departure section not found");
+
+    expect(departureDayText("Montag")).toBe("Wird abgeholt");
+    expect(
+      within(section).getByText(
+        "Änderungsanfragen sind bei dieser OGS deaktiviert.",
+      ),
+    ).toBeInTheDocument();
+    expect(within(section).queryByRole("button")).not.toBeInTheDocument();
+    expect(within(section).queryAllByRole("checkbox")).toHaveLength(0);
   });
 
   it("shows disabled messaging when feature flags are off", async () => {

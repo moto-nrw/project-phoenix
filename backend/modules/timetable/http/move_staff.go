@@ -28,7 +28,7 @@ import (
 	"net/http"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -74,7 +74,7 @@ func (rs *Resource) moveStaff(w http.ResponseWriter, r *http.Request) {
 	result, err := rs.InstanceService.MoveStaffBetweenBlocks(ctx, id, timetable.MoveStaffInput{
 		StaffID:          req.StaffID,
 		SourceInstanceID: req.SourceInstanceID,
-		ActorAccountID:   jwt.ActorAccountIDFromCtx(ctx),
+		ActorAccountID:   sessiontoken.ActorAccountIDFromCtx(ctx),
 	})
 	if err != nil {
 		renderDeviationError(w, r, err)

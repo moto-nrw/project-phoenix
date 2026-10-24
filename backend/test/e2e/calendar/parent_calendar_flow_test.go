@@ -8,11 +8,12 @@ import (
 	"strconv"
 	"testing"
 
+	rootAPI "github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	parentAPI "github.com/moto-nrw/project-phoenix/modules/careplan/inbound/parent"
-	calendarAPI "github.com/moto-nrw/project-phoenix/modules/staffcalendar/http"
+	calendarAPI "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/http"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,18 +25,14 @@ import (
 // router, so a single test can drive the full staff→parent flow over HTTP.
 func setupParentCalendarRoute(t *testing.T) (*bun.DB, chi.Router) {
 	t.Helper()
-	db, factory := testutil.SetupCalendarModule(t)
+	db, factory := setupCalendarModule(t)
 
 	staffResource := calendarAPI.NewResource(factory.Calendar, slog.Default())
-	parentResource := parentAPI.NewResource(parentAPI.ResourceConfig{
-		Calendar: factory.Calendar,
-		DB:       db,
-	})
 
 	router := chi.NewRouter()
 	router.Use(testpkg.TenantRuntimeMiddleware(t, db))
-	router.Mount("/calendar", staffResource.Router())
-	router.Mount("/parent", parentResource.Router())
+	router.Mount("/calendar", staffResource.Router(rootAPI.TenantSessionChain))
+	router.Mount("/parent", factory.ParentCalendarRouter())
 	return db, router
 }
 

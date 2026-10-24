@@ -2,7 +2,7 @@
 //
 // PostgreSQL TIME columns carry a clock value, not an instant. ActivityInstance
 // uses time.Time for those columns, so assignments derived from time.Now or
-// timezone.Now must pass through timezone.NormalizeWallClock before persistence.
+// calendar.Now must pass through calendar.NormalizeWallClock before persistence.
 package test
 
 import (
@@ -33,7 +33,7 @@ func TestActivityInstanceWallClockRatchet(t *testing.T) {
 	if len(violations) > 0 {
 		t.Errorf("Found %d ActivityInstance wall-clock assignment(s) derived from a current instant:\n\n%s\n\n"+
 			"schedule.activity_instances.start_time/end_time are PostgreSQL TIME columns. "+
-			"Normalize dynamic values with timezone.NormalizeWallClock, or use a fixed UTC-anchored clock in tests.",
+			"Normalize dynamic values with calendar.NormalizeWallClock, or use a fixed UTC-anchored clock in tests.",
 			len(violations), strings.Join(violations, "\n"))
 	}
 }
@@ -46,7 +46,7 @@ func TestActivityInstanceWallClockRatchetDetectsAliasedInstantSources(t *testing
 
 import (
 	stdtime "time"
-	tz "github.com/moto-nrw/project-phoenix/internal/timezone"
+	tz "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 )
 
@@ -68,7 +68,7 @@ func examples() {
 		t.Fatal(err)
 	}
 	if len(violations) != 2 {
-		t.Fatalf("expected raw time.Now and timezone.Now assignments to fail while normalized/fixed clocks pass; got %v", violations)
+		t.Fatalf("expected raw time.Now and calendar.Now assignments to fail while normalized/fixed clocks pass; got %v", violations)
 	}
 }
 
@@ -128,7 +128,7 @@ func wallClockViolations(body *ast.BlockStmt, rel string, fset *token.FileSet, i
 			if expressionUsesCurrentInstant(field.Value, instantVars, timePackages, timezonePackages) {
 				pos := fset.Position(field.Value.Pos())
 				violations = append(violations, formatViolation(rel, pos.Line,
-					name.Name+" must normalize the current instant with timezone.NormalizeWallClock"))
+					name.Name+" must normalize the current instant with calendar.NormalizeWallClock"))
 			}
 		}
 		return true
@@ -233,7 +233,7 @@ func timeImportNames(file *ast.File) (map[string]bool, map[string]bool) {
 		switch {
 		case importPath == "time":
 			timePackages[name] = true
-		case strings.HasSuffix(importPath, "/internal/timezone"):
+		case strings.HasSuffix(importPath, "/sharedkernel/calendar"):
 			timezonePackages[name] = true
 		}
 	}

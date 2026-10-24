@@ -8,12 +8,15 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/spf13/cobra"
-	"github.com/uptrace/bun"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
+	api "github.com/moto-nrw/project-phoenix/roots/owners"
 
-	"github.com/moto-nrw/project-phoenix/database"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/services"
+	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+
+	"github.com/spf13/cobra"
+
+	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -58,7 +61,7 @@ Usage:
 			log.Fatal("seed-parents: no password provided — pass --password or set SEED_PARENT_PASSWORD")
 		}
 
-		db, err := database.DBConn()
+		db, err := transactionruntime.OpenDatabase()
 		if err != nil {
 			log.Fatalf("seed-parents: database connection failed: %v", err)
 		}
@@ -85,6 +88,19 @@ func assertLocalDevEnv(appEnv string) error {
 	)
 }
 
+// isDevOnlyEnv is the allow-list of the dev-only commands. Unset APP_ENV is
+// the local-dev default; demo is the public demo environment (ADR 0027), which
+// holds synthetic data only. The dev tools binary (cmd/devtools) keeps the
+// same list for seed, simulate and demo.
+func isDevOnlyEnv(appEnv string) bool {
+	switch strings.ToLower(strings.TrimSpace(appEnv)) {
+	case "", "local", "development", "dev", "test", "demo":
+		return true
+	default:
+		return false
+	}
+}
+
 func init() {
 	RootCmd.AddCommand(seedParentsCmd)
 	seedParentsCmd.Flags().Int("count", 5, "How many demo guardians to promote into parent accounts")
@@ -100,34 +116,30 @@ type parentCandidate struct {
 	LastName  string
 }
 
-func seedParentAccounts(ctx context.Context, db *bun.DB, count int, password string) error {
+func seedParentAccounts(ctx context.Context, db transactionruntime.Database, count int, password string) error {
 	if count <= 0 {
 		count = 5
 	}
 
-	passwordHash, err := services.HashPassword(password)
+	passwordHash, err := securityruntime.HashPassword(password)
 	if err != nil {
 		return fmt.Errorf("hash password: %w", err)
 	}
 
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := guardianSeedRepositories{GuardianProfile: api.NewGuardianProfileRepository(db), StudentGuardian: api.NewStudentGuardianRepository(db)}
 
-	seedAccount, err := services.NewGuardianSeedAccess(db)
+	seedAccount, err := identityaccessCompose.NewGuardianSeedAccess(db.Pool())
 	if err != nil {
 		return fmt.Errorf("compose guardian access: %w", err)
 	}
-	postgresRuntime, err := database.NewPostgresUnitOfWork(db, tenant.ObservePoolWait)
-	if err != nil {
-		return err
-	}
-	runtime, err := services.BindTenantRuntime(postgresRuntime.WithinTenant, postgresRuntime.WithinAdmin,
-		postgresRuntime, database.IsRetryableTransactionError)
-	if err != nil {
-		return err
-	}
-	ctx = tenant.WithUnitOfWork(ctx, runtime)
+	ctx = tenant.WithUnitOfWork(ctx, db.UnitOfWork())
 
-	candidates, err := promotableGuardians(ctx, repos, count)
+	var candidates []parentCandidate
+	err = tenant.WithinAdmin(ctx, func(txCtx context.Context) error {
+		var readErr error
+		candidates, readErr = promotableGuardians(txCtx, repos, count)
+		return readErr
+	})
 	if err != nil {
 		return err
 	}
@@ -167,7 +179,7 @@ func seedParentAccounts(ctx context.Context, db *bun.DB, count int, password str
 // superuser connection sees every tenant, so the invitable list spans the
 // whole demo database; the guardian rows belong to the People Directory
 // owner and are read through its repositories (#2663).
-func promotableGuardians(ctx context.Context, repos *repositories.Factory, count int) ([]parentCandidate, error) {
+func promotableGuardians(ctx context.Context, repos guardianSeedRepositories, count int) ([]parentCandidate, error) {
 	profiles, err := repos.GuardianProfile.FindInvitable(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("find promotable guardians: %w", err)
@@ -186,7 +198,7 @@ func promotableGuardians(ctx context.Context, repos *repositories.Factory, count
 		if email == "" {
 			continue
 		}
-		links, err := repos.StudentGuardian.FindByGuardianProfileID(ctx, profile.ID)
+		links, err := repos.StudentGuardian.FindByGuardianProfileID(tenant.WithTenantID(ctx, profile.GetTenantID()), profile.ID)
 		if err != nil {
 			return nil, fmt.Errorf("find student links of guardian %d: %w", profile.ID, err)
 		}
@@ -210,7 +222,7 @@ func promotableGuardians(ctx context.Context, repos *repositories.Factory, count
 // reused (in which case its password is left untouched).
 func promoteGuardian(
 	ctx context.Context,
-	repos *repositories.Factory,
+	repos guardianSeedRepositories,
 	seedAccount func(context.Context, string, string) (int64, bool, error),
 	c parentCandidate,
 	passwordHash string,
@@ -226,4 +238,11 @@ func promoteGuardian(
 	}
 
 	return reused, nil
+}
+
+// guardianSeedRepositories are the guardian rows the parent-portal seed
+// command promotes to portal accounts.
+type guardianSeedRepositories struct {
+	GuardianProfile peoplePorts.GuardianProfileRepository
+	StudentGuardian peoplePorts.StudentGuardianRepository
 }

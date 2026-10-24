@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -126,7 +125,7 @@ func (s *service) schoolWideAttendanceMoveAllowed(ctx context.Context, staffID i
 		return false, ErrStudentMoveForbidden
 	}
 	staffTenantID, err := s.StaffRepo.StaffTenantID(ctx, staffID)
-	if modelBase.IsNoRows(err) {
+	if IsNoRows(err) {
 		return false, ErrStudentMoveForbidden
 	}
 	if err != nil {

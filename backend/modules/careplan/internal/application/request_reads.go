@@ -16,10 +16,11 @@ type RequestReads struct {
 }
 
 func (s *RequestReads) GetPendingForStudent(ctx context.Context, studentID int64) (*carerequests.Request, []carerequests.DiffEntry, error) {
-	request, err := s.Records.PendingWeekly(ctx, studentID)
-	if err != nil || request == nil {
+	rows, err := s.Records.ListCareRequests(ctx, studentID, []string{"weekly_schedule"}, []string{"pending"}, time.Time{})
+	if err != nil || len(rows) == 0 {
 		return nil, nil, err
 	}
+	request := &rows[0]
 	diff, err := s.Diffs.Weekly(ctx, studentID, request.Payload)
 	if err != nil {
 		s.Logger.Warn("schedule: build care request diff failed",
@@ -32,5 +33,5 @@ func (s *RequestReads) GetPendingForStudent(ctx context.Context, studentID int64
 }
 
 func (s *RequestReads) ListPickupChangeRequests(ctx context.Context, studentID int64, since time.Time) ([]carerequests.Request, error) {
-	return s.Records.RecentPickup(ctx, studentID, since)
+	return s.Records.ListCareRequests(ctx, studentID, []string{"pickup_change"}, nil, since)
 }

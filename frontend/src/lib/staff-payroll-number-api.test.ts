@@ -20,7 +20,7 @@ function jsonResponse(data: unknown): Response {
 function errorResponse(code: string, message = "backend error"): Response {
   return {
     ok: false,
-    text: () => Promise.resolve(JSON.stringify({ code, error: message })),
+    text: () => Promise.resolve(JSON.stringify({ code, detail: message })),
   } as Response;
 }
 
@@ -84,11 +84,11 @@ describe("staffPayrollNumberService", () => {
     await expect(failure).rejects.toMatchObject({ code });
   });
 
-  it("keeps the backend message of an uncoded update error", async () => {
+  it("uses the update fallback for an uncoded error", async () => {
     mockedSessionFetch.mockResolvedValue(errorResponse("other"));
 
     await expect(
       staffPayrollNumberService.update("42", "90002", ""),
-    ).rejects.toThrow("backend error");
+    ).rejects.toThrow("Personalnummer konnte nicht gespeichert werden");
   });
 });

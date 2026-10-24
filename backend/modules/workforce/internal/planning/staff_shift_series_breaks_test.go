@@ -10,7 +10,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -19,10 +21,10 @@ type fakeNonWorkingDays struct {
 	days     SeriesNonWorkingDays
 	err      error
 	periodID int64
-	from, to timezone.Date
+	from, to calendar.Date
 }
 
-func (f *fakeNonWorkingDays) SeriesNonWorkingDays(_ context.Context, from, to timezone.Date, seriesPeriodID int64) (SeriesNonWorkingDays, error) {
+func (f *fakeNonWorkingDays) SeriesNonWorkingDays(_ context.Context, from, to calendar.Date, seriesPeriodID int64) (SeriesNonWorkingDays, error) {
 	f.from, f.to, f.periodID = from, to, seriesPeriodID
 	return f.days, f.err
 }
@@ -30,17 +32,17 @@ func (f *fakeNonWorkingDays) SeriesNonWorkingDays(_ context.Context, from, to ti
 // The series test window runs from 2026-08-25 (tomorrow) to 2026-09-23.
 func newBreakDays() *fakeNonWorkingDays {
 	return &fakeNonWorkingDays{days: SeriesNonWorkingDays{
-		Holidays: map[timezone.Date]bool{"2026-08-27": true},
-		Breaks: map[timezone.Date]bool{
+		Holidays: map[calendar.Date]bool{"2026-08-27": true},
+		Breaks: map[calendar.Date]bool{
 			"2026-08-28": true,                                                             // closing day
 			"2026-09-01": true, "2026-09-02": true, "2026-09-03": true, "2026-09-04": true, // Ferien
 		},
 	}}
 }
 
-type plannedDates struct{ dates []timezone.Date }
+type plannedDates struct{ dates []calendar.Date }
 
-func (p *plannedDates) bulkCreate(_ context.Context, created []*StaffShift) error {
+func (p *plannedDates) bulkCreate(_ context.Context, created []*workforce.ShiftRecord) error {
 	for _, shift := range created {
 		p.dates = append(p.dates, shift.Date)
 	}
@@ -65,17 +67,17 @@ func TestCreateSeries_SkipsHolidaysFerienAndClosingDays(t *testing.T) {
 	result, err := newBreakSeriesService(reader, planned, nil).CreateSeries(context.Background(), series)
 	require.NoError(t, err)
 
-	for _, day := range []timezone.Date{"2026-08-27", "2026-08-28", "2026-09-01", "2026-09-02", "2026-09-03", "2026-09-04"} {
+	for _, day := range []calendar.Date{"2026-08-27", "2026-08-28", "2026-09-01", "2026-09-02", "2026-09-03", "2026-09-04"} {
 		assert.NotContains(t, planned.dates, day, "%s must stay free", day)
 	}
-	assert.Contains(t, planned.dates, timezone.Date("2026-08-26"))
-	assert.Contains(t, planned.dates, timezone.Date("2026-09-05"))
+	assert.Contains(t, planned.dates, calendar.Date("2026-08-26"))
+	assert.Contains(t, planned.dates, calendar.Date("2026-09-05"))
 	assert.Equal(t, 6, result.SkippedNonWorkingDays, "1 holiday, 1 closing day, 4 Ferien days")
 	assert.Equal(t, 30-6, result.Created)
 	assert.Empty(t, result.SkippedDates, "non-working days are not overlap collisions")
 
-	assert.Equal(t, timezone.Date("2026-08-25"), reader.from, "the window starts tomorrow")
-	assert.Equal(t, timezone.Date("2026-09-23"), reader.to)
+	assert.Equal(t, calendar.Date("2026-08-25"), reader.from, "the window starts tomorrow")
+	assert.Equal(t, calendar.Date("2026-09-23"), reader.to)
 	assert.Equal(t, series.CalendarPeriodID, reader.periodID, "the series' own period is passed so it is never its own break")
 }
 
@@ -89,8 +91,8 @@ func TestCreateSeries_IncludeSchoolBreaksStillSkipsHolidays(t *testing.T) {
 	result, err := newBreakSeriesService(newBreakDays(), planned, nil).CreateSeries(context.Background(), series)
 	require.NoError(t, err)
 
-	assert.NotContains(t, planned.dates, timezone.Date("2026-08-27"), "a statutory holiday stays free")
-	for _, day := range []timezone.Date{"2026-08-28", "2026-09-01", "2026-09-04"} {
+	assert.NotContains(t, planned.dates, calendar.Date("2026-08-27"), "a statutory holiday stays free")
+	for _, day := range []calendar.Date{"2026-08-28", "2026-09-01", "2026-09-04"} {
 		assert.Contains(t, planned.dates, day)
 	}
 	assert.Equal(t, 1, result.SkippedNonWorkingDays)

@@ -7,7 +7,6 @@ import {
   fetchStatusDayOverview,
   fetchStudentStatusDays,
   StudentStatusDayConflictError,
-  StudentStatusDayPartialAbsenceConflictError,
 } from "./student-status-days-api";
 
 const backendDay = {
@@ -77,7 +76,6 @@ describe("student-status-days-api", () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
       Response.json(
         {
-          status: "error",
           code: "students.sick_excused_conflict",
           instance: "req-409",
           conflicts: [backendDay],
@@ -99,10 +97,7 @@ describe("student-status-days-api", () => {
 
   it("returns conflicting rows from an atomic create rejection", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
-      Response.json(
-        { status: "error", conflicts: [backendDay] },
-        { status: 409 },
-      ),
+      Response.json({ conflicts: [backendDay] }, { status: 409 }),
     );
 
     const error = await createStudentStatusDays("42", "sick", [
@@ -123,8 +118,7 @@ describe("student-status-days-api", () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
       Response.json(
         {
-          status: "error",
-          error: "student status day conflicts with a partial absence",
+          detail: "student status day conflicts with a partial absence",
           code: "students.partial_absence_conflict",
         },
         { status: 409 },
@@ -135,8 +129,11 @@ describe("student-status-days-api", () => {
       "2026-05-26",
     ]).catch((caught: unknown) => caught);
 
-    expect(error).toBeInstanceOf(StudentStatusDayPartialAbsenceConflictError);
-    expect((error as Error).message).toMatch(/Abmeldung ab einer Uhrzeit/);
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).toMatchObject({
+      status: 409,
+      code: "students.partial_absence_conflict",
+    });
   });
 
   it("deletes a planned status day", async () => {
@@ -225,8 +222,7 @@ describe("student-status-days-api", () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
       Response.json(
         {
-          status: "error",
-          error: "existing student status days were not overwritten",
+          detail: "existing student status days were not overwritten",
           conflicts: [backendDay],
           conflict_count: 48,
         },
@@ -256,8 +252,7 @@ describe("student-status-days-api", () => {
   it("throws backend errors from successful HTTP responses as ApiError with their code", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
       Response.json({
-        status: "error",
-        error: "Bereits geplant",
+        detail: "Bereits geplant",
         code: "general.business_rejection",
       }),
     );
@@ -276,7 +271,7 @@ describe("student-status-days-api", () => {
   it("keeps code and request ID of a failed write", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
       Response.json(
-        { status: "error", code: "general.server", instance: "req-7" },
+        { code: "general.server", instance: "req-7" },
         { status: 500 },
       ),
     );
@@ -367,8 +362,7 @@ describe("student-status-days-api", () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
       new Response(
         JSON.stringify({
-          status: "error",
-          error: "no permitted groups",
+          detail: "no permitted groups",
           code: "general.permission",
         }),
         { status: 403 },

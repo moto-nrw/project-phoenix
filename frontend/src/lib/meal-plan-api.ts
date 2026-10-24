@@ -6,6 +6,11 @@ import { apiErrorFromResponse } from "./api-error";
 import { sessionFetch } from "./session-cache";
 import { parseISODate, toISODate } from "./date-helpers";
 import { createLogger } from "~/lib/logger";
+import { downloadBlob } from "~/lib/file-download";
+import {
+  normalizeMealAllergens,
+  type MealAllergen,
+} from "~/lib/meal-allergens";
 
 const logger = createLogger({ component: "MealPlanAPI" });
 
@@ -15,6 +20,7 @@ export interface BackendMealPlanEntry {
   position: number;
   dish: string;
   note?: string | null;
+  allergens?: string[] | null;
 }
 
 /** One dish on a day of the meal plan as used by the UI. */
@@ -23,12 +29,16 @@ export interface MealPlanEntry {
   position: number;
   dish: string;
   note: string | null;
+  /** Codes of the main allergens, in legend order; empty when unmarked. */
+  allergens: MealAllergen[];
 }
 
 /** One dish in a day submission. */
 export interface DishInput {
   dish: string;
   note: string | null;
+  /** Omitted means no marking. */
+  allergens?: MealAllergen[];
 }
 
 export interface DailyMealParticipant {
@@ -38,10 +48,74 @@ export interface DailyMealParticipant {
   schoolClass: string;
 }
 
-export interface DailyMealList {
-  date: string;
+/** Die Fristen der Schule für das Mittagessen. */
+export interface MealCutoffs {
   cutoffTime: string;
+  /** Werktage vor dem Essenstag, an denen die Frist gilt; 0 = am selben Tag. */
+  cutoffLeadDays: number;
+  /**
+   * 1-5 (Mo-Fr): Die Frist der ganzen Woche endet an diesem Wochentag der
+   * Vorwoche; 0 = Vorlauf in Werktagen.
+   */
+  cutoffWeekday: number;
+  /** Spätere Abmeldefrist; leer, wenn sie der Änderungsfrist entspricht. */
+  cancellationCutoffTime: string;
+  cancellationCutoffLeadDays: number;
+}
+
+export interface DailyMealList extends MealCutoffs {
+  date: string;
+  /** Feiertag oder Schließtag: kein Essen. */
+  closed: boolean;
   participants: DailyMealParticipant[];
+  /** Kinder des Tages ohne Anmeldung; das Team kann sie anmelden. */
+  available: DailyMealParticipant[];
+}
+
+export interface WeeklyMealList extends MealCutoffs {
+  weekStart: string;
+  days: Array<{
+    date: string;
+    closed: boolean;
+    participants: DailyMealParticipant[];
+  }>;
+}
+
+/** Wire shape of the cutoffs (snake_case). */
+interface BackendMealCutoffs {
+  cutoff_time: string;
+  cutoff_lead_days?: number;
+  cutoff_weekday?: number;
+  cancellation_cutoff_time?: string;
+  cancellation_cutoff_lead_days?: number;
+}
+
+function mapMealCutoffs(data: BackendMealCutoffs): MealCutoffs {
+  return {
+    cutoffTime: data.cutoff_time,
+    cutoffLeadDays: data.cutoff_lead_days ?? 0,
+    cutoffWeekday: data.cutoff_weekday ?? 0,
+    cancellationCutoffTime: data.cancellation_cutoff_time ?? "",
+    cancellationCutoffLeadDays: data.cancellation_cutoff_lead_days ?? 0,
+  };
+}
+
+interface BackendMealParticipant {
+  student_id: string;
+  first_name: string;
+  last_name: string;
+  school_class: string;
+}
+
+function mapParticipant(
+  participant: BackendMealParticipant,
+): DailyMealParticipant {
+  return {
+    studentId: participant.student_id,
+    firstName: participant.first_name,
+    lastName: participant.last_name,
+    schoolClass: participant.school_class,
+  };
 }
 
 function mapEntry(entry: BackendMealPlanEntry): MealPlanEntry {
@@ -50,6 +124,7 @@ function mapEntry(entry: BackendMealPlanEntry): MealPlanEntry {
     position: entry.position,
     dish: entry.dish,
     note: entry.note?.trim() ? entry.note : null,
+    allergens: normalizeMealAllergens(entry.allergens),
   };
 }
 
@@ -104,54 +179,123 @@ export async function getDailyMealParticipants(
     throw await apiErrorFromResponse(response, "meal participants load failed");
   }
   const json = (await response.json()) as {
-    data?: {
+    data?: BackendMealCutoffs & {
       date: string;
-      cutoff_time: string;
-      participants: Array<{
-        student_id: string;
-        first_name: string;
-        last_name: string;
-        school_class: string;
-      }>;
+      closed?: boolean;
+      participants: BackendMealParticipant[];
+      available?: BackendMealParticipant[];
     };
   };
   const data = json.data;
   if (!data) throw new Error("Meal participant response is missing data");
   return {
+    ...mapMealCutoffs(data),
     date: data.date,
-    cutoffTime: data.cutoff_time,
-    participants: data.participants.map((participant) => ({
-      studentId: participant.student_id,
-      firstName: participant.first_name,
-      lastName: participant.last_name,
-      schoolClass: participant.school_class,
+    closed: data.closed ?? false,
+    participants: data.participants.map(mapParticipant),
+    available: (data.available ?? []).map(mapParticipant),
+  };
+}
+
+/** Kitchen list of every school day in the week containing weekStart. */
+export async function getWeeklyMealParticipants(
+  weekStart: string,
+): Promise<WeeklyMealList> {
+  const response = await sessionFetch(
+    `/api/meal-plan/participants/week?week_start=${encodeURIComponent(weekStart)}`,
+    { credentials: "include" },
+  );
+  if (!response.ok) {
+    throw await apiErrorFromResponse(
+      response,
+      "weekly meal participants load failed",
+    );
+  }
+  const json = (await response.json()) as {
+    data?: BackendMealCutoffs & {
+      week_start: string;
+      days: Array<{
+        date: string;
+        closed?: boolean;
+        participants: BackendMealParticipant[];
+      }>;
+    };
+  };
+  const data = json.data;
+  if (!data)
+    throw new Error("Weekly meal participant response is missing data");
+  return {
+    ...mapMealCutoffs(data),
+    weekStart: data.week_start,
+    days: data.days.map((day) => ({
+      date: day.date,
+      closed: day.closed ?? false,
+      participants: day.participants.map(mapParticipant),
     })),
   };
 }
 
-export async function downloadDailyMealParticipants(
+/**
+ * Das Team meldet ein Kind für einen Tag an (true) oder ab (false), auch
+ * nach der Frist; null setzt den Tag auf die festen Tage des Kindes zurück.
+ */
+export async function setMealParticipantDay(
+  studentId: string,
   date: string,
-  format: "pdf" | "xlsx",
+  participating: boolean | null,
 ): Promise<void> {
+  const path = `/api/meal-plan/participants/${encodeURIComponent(studentId)}/${encodeURIComponent(date)}`;
   const response = await sessionFetch(
-    `/api/meal-plan/participants/export?date=${encodeURIComponent(date)}&format=${format}`,
-    { credentials: "include" },
+    path,
+    participating === null
+      ? { method: "DELETE", credentials: "include" }
+      : {
+          method: "PUT",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ participating }),
+        },
   );
+  if (!response.ok) {
+    logger.error("meal_participant_day_change_failed", {
+      status: response.status,
+    });
+    throw await apiErrorFromResponse(
+      response,
+      "meal participant day change failed",
+    );
+  }
+}
+
+async function downloadMealList(path: string, filename: string): Promise<void> {
+  const response = await sessionFetch(path, { credentials: "include" });
   if (!response.ok) {
     throw await apiErrorFromResponse(
       response,
       "meal participants export failed",
     );
   }
-  const blob = await response.blob();
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `mittagessen-${date}.${format}`;
-  document.body.append(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
+  downloadBlob(await response.blob(), filename);
+}
+
+export async function downloadDailyMealParticipants(
+  date: string,
+  format: "pdf" | "xlsx",
+): Promise<void> {
+  await downloadMealList(
+    `/api/meal-plan/participants/export?date=${encodeURIComponent(date)}&format=${format}`,
+    `mittagessen-${date}.${format}`,
+  );
+}
+
+export async function downloadWeeklyMealParticipants(
+  weekStart: string,
+  format: "pdf" | "xlsx",
+): Promise<void> {
+  await downloadMealList(
+    `/api/meal-plan/participants/week/export?week_start=${encodeURIComponent(weekStart)}&format=${format}`,
+    `mittagessen-woche-${weekStart}.${format}`,
+  );
 }
 
 /** Monday (ISO) of the week containing the given Date. */

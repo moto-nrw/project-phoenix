@@ -132,7 +132,7 @@ function save() {
 // umgezogen ist (#1837): eine leere Liste würde bestehende Zuordnungen
 // löschen, also darf `category_ids` nur mitgehen, wenn die Kategorien
 // wirklich geladen sind.
-describe("Schichtarten — Kategorie-Zuordnung (#1837, #3114)", () => {
+describe("Dienstarten — Kategorie-Zuordnung (#1837, #3114)", () => {
   it("shows an unavailable state when the care plan is switched off", () => {
     vi.mocked(useTimetableEnabled).mockReturnValue(false);
 
@@ -142,7 +142,7 @@ describe("Schichtarten — Kategorie-Zuordnung (#1837, #3114)", () => {
       screen.getByTestId("shift-types-disabled-state"),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "Schichtart anlegen" }),
+      screen.queryByRole("button", { name: "Dienstart anlegen" }),
     ).not.toBeInTheDocument();
   });
 
@@ -264,11 +264,11 @@ describe("Schichtarten — Kategorie-Zuordnung (#1837, #3114)", () => {
     const { rerender } = render(<ShiftTypesPage />);
 
     fireEvent.click(
-      screen.getAllByRole("button", { name: "Schichtart anlegen" })[0]!,
+      screen.getAllByRole("button", { name: "Dienstart anlegen" })[0]!,
     );
     const modal = within(screen.getByRole("dialog"));
     fireEvent.change(modal.getByLabelText("Name*"), {
-      target: { value: "Neue Schichtart" },
+      target: { value: "Neue Dienstart" },
     });
     fireEvent.change(modal.getByLabelText("Beschreibung"), {
       target: { value: "Bleibt erhalten" },
@@ -277,7 +277,7 @@ describe("Schichtarten — Kategorie-Zuordnung (#1837, #3114)", () => {
     setCategories({ data: CATEGORIES });
     rerender(<ShiftTypesPage />);
 
-    expect(screen.getByDisplayValue("Neue Schichtart")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Neue Dienstart")).toBeInTheDocument();
     expect(screen.getByDisplayValue("Bleibt erhalten")).toBeInTheDocument();
   });
 

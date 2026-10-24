@@ -14,8 +14,10 @@ import (
 )
 
 // CareOfferingCatalogDependencies are the ports the catalog reads and the
-// collaborators it keeps in step. SourcedTemplates and Pickup resolve late:
-// the composition binds Enrollment's decision service after the catalog.
+// collaborators it keeps in step: SourcedTemplates and Pickup resync the
+// sourced rosters and the pickup projection after an offering edit.
+// NewCareOfferingCatalogWithBookings binds both to the booking
+// materialization it builds.
 type CareOfferingCatalogDependencies struct {
 	Records      ports.CatalogRecords
 	Phases       ports.CatalogPhases
@@ -26,8 +28,8 @@ type CareOfferingCatalogDependencies struct {
 	Translations ports.CatalogTranslations
 	SourceRules  ports.OfferingSourceRules
 
-	SourcedTemplates func() ports.SourcedTemplateResyncer
-	Pickup           func() ports.PickupResyncer
+	SourcedTemplates ports.SourcedTemplateResyncer
+	Pickup           ports.PickupResyncer
 
 	// LockTemplateRecurrence serializes link validation and writes with
 	// template split/end. Focused tests may leave it nil.
@@ -46,8 +48,7 @@ type CareOfferingCatalog struct {
 
 var _ careplan.CareOfferingCatalogCapability = (*CareOfferingCatalog)(nil)
 
-// NewCareOfferingCatalog builds the catalog over its ports.
-func NewCareOfferingCatalog(deps CareOfferingCatalogDependencies) (*CareOfferingCatalog, error) {
+func newCareOfferingCatalog(deps CareOfferingCatalogDependencies) (*CareOfferingCatalog, error) {
 	if deps.Records == nil || deps.Phases == nil || deps.Timetable == nil || deps.Calendar == nil ||
 		deps.Bookings == nil || deps.Settings == nil || deps.Translations == nil || deps.SourceRules == nil ||
 		deps.MarkRollback == nil {
@@ -359,11 +360,7 @@ func (c *CareOfferingCatalog) lockTemplateRecurrence(ctx context.Context) error 
 }
 
 func (c *CareOfferingCatalog) resyncPickupProjection(ctx context.Context, offeringID int64) error {
-	resyncer := c.pickupResyncer()
-	if resyncer == nil {
-		return errors.New("care offering update: pickup resyncer not configured")
-	}
-	if err := resyncer.ReconcileOfferingPickupForOffering(ctx, offeringID); err != nil {
+	if err := c.deps.Pickup.ReconcileOfferingPickupForOffering(ctx, offeringID); err != nil {
 		return fmt.Errorf("care offering update: resync pickup projection: %w", err)
 	}
 	return nil
@@ -376,15 +373,7 @@ func (c *CareOfferingCatalog) resyncPickupProjection(ctx context.Context, offeri
 // template's planning period is rejected (#2147 review round 7). Runs under
 // the recurrence lock the update holds; history before today stays untouched.
 func (c *CareOfferingCatalog) resyncSourcedTemplates(ctx context.Context, offeringID int64) error {
-	resyncer := c.sourcedTemplateResyncer()
-	if resyncer == nil {
-		// Focused tests may run without the decision wiring; the
-		// composition always binds it.
-		c.deps.Logger.Warn("care offering update: sourced-template resyncer not configured; sourced rosters may be stale",
-			slog.Int64("offering_id", offeringID))
-		return nil
-	}
-	if err := resyncer.ResyncTemplatesSourcedFromOffering(ctx, offeringID, c.todayDate()); err != nil {
+	if err := c.deps.SourcedTemplates.ResyncTemplatesSourcedFromOffering(ctx, offeringID, c.todayDate()); err != nil {
 		if c.deps.SourceRules.IsRejection(err) {
 			// The tenant transaction commits ordinary 4xx responses. Mark it
 			// so the already-written offering update is discarded together
@@ -400,28 +389,8 @@ func (c *CareOfferingCatalog) resyncSourcedTemplates(ctx context.Context, offeri
 // detachSourcedTemplates retires the rosters of every template sourcing the
 // offering ahead of its deletion.
 func (c *CareOfferingCatalog) detachSourcedTemplates(ctx context.Context, offeringID int64) error {
-	resyncer := c.sourcedTemplateResyncer()
-	if resyncer == nil {
-		c.deps.Logger.Warn("care offering delete: sourced-template resyncer not configured; sourced rosters may be orphaned",
-			slog.Int64("offering_id", offeringID))
-		return nil
-	}
-	if err := resyncer.DetachTemplatesSourcedFromOffering(ctx, offeringID, c.todayDate()); err != nil {
+	if err := c.deps.SourcedTemplates.DetachTemplatesSourcedFromOffering(ctx, offeringID, c.todayDate()); err != nil {
 		return fmt.Errorf("care offering delete: detach sourced templates: %w", err)
 	}
 	return nil
-}
-
-func (c *CareOfferingCatalog) sourcedTemplateResyncer() ports.SourcedTemplateResyncer {
-	if c.deps.SourcedTemplates == nil {
-		return nil
-	}
-	return c.deps.SourcedTemplates()
-}
-
-func (c *CareOfferingCatalog) pickupResyncer() ports.PickupResyncer {
-	if c.deps.Pickup == nil {
-		return nil
-	}
-	return c.deps.Pickup()
 }

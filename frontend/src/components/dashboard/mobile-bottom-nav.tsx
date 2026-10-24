@@ -13,26 +13,38 @@ import { NavLink } from "~/components/ui/nav-link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useOptionalSupervision } from "~/lib/supervision-context";
+import { isSharedOpenRoom } from "~/lib/supervision-derive";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import {
+  canReadSupervisionData,
   hasEffectiveAdminScope,
   hasPermission,
   hasRole,
   isCaregiver,
   leadsSchool,
 } from "~/lib/auth-utils";
+import {
+  canReadStudents,
+  STUDENT_READ_PERMISSIONS,
+} from "~/lib/student-access";
+import { canOpenActiveSupervision } from "~/lib/active-supervision-access";
 import { canReviewGuardianApprovals } from "~/lib/guardian-approval-access";
 import { useChangeRequestAccess } from "~/lib/hooks/use-change-request-access";
 import { useHelpHref } from "~/lib/hooks/use-help-href";
 import { useEnrollmentsUnread } from "~/lib/hooks/use-enrollments-unread";
 import { UnreadBadge } from "~/components/messaging/unread-badge";
 import { navigationIcons } from "~/lib/navigation-icons";
+import {
+  navigationEntryTarget,
+  OGS_GROUPS_LABEL,
+} from "~/lib/ogs-groups-navigation";
 import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { operatorPath } from "~/lib/operator-url";
 import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import {
   useAttendanceLogEnabled,
+  useChildSearchOnlyNavigation,
   useDisplayEnabled,
   useNFCEnabled,
   useOpenCareGroupMode,
@@ -212,7 +224,7 @@ const STAFF_MAIN_ITEMS: NavItem[] = [
     // Eine Seite, auf der man landet, muss die Leiste unten auch kennen,
     // sonst findet man nicht zurück. Die Aktivitäten wandern dafür ins
     // Mehr-Menü: fünf Reiter sind die Grenze, und der laufende Tag (Tagesplan,
-    // Gruppe, Aufsicht, Suchen) steht näher am Alltag.
+    // Gruppe, Suchen, Aufsicht) steht näher am Alltag.
     href: "/home",
     label: "Start",
     iconKey: "home",
@@ -222,17 +234,27 @@ const STAFF_MAIN_ITEMS: NavItem[] = [
   {
     // Tagesplan (#2383): der Einstieg in den laufenden Betreuungstag. Gating
     // (binary-Modus, timetable.enabled) unten in filteredMainItemsByMode.
-    href: "/tagesplan",
-    label: "Tagesplan",
+    // Name aus dem Katalog, damit Leiste und Seitenleiste gleich heißen (#4348).
+    href: STAFF_FLAT_PAGES.tagesplan.href,
+    label: STAFF_FLAT_PAGES.tagesplan.label,
     iconKey: "betreuungsplan",
     concept: "carePlan",
     alwaysShow: true,
   },
   {
+    // Führt auf die Auswahlseite (navigationEntryTarget), der Schlüssel
+    // bleibt der Bereich /ogs-groups (#4351).
     href: "/ogs-groups",
-    label: "Gruppe",
+    label: OGS_GROUPS_LABEL,
     iconKey: "group",
     concept: "groups",
+    alwaysShow: true,
+  },
+  {
+    // Wie in der Seitenleiste direkt nach der Gruppe (#4348).
+    href: "/students/search",
+    label: "Suchen",
+    iconKey: "search",
     alwaysShow: true,
   },
   {
@@ -240,12 +262,6 @@ const STAFF_MAIN_ITEMS: NavItem[] = [
     label: "Aufsicht",
     iconKey: "supervision",
     concept: "supervision",
-    alwaysShow: true,
-  },
-  {
-    href: "/students/search",
-    label: "Suchen",
-    iconKey: "search",
     alwaysShow: true,
   },
 ];
@@ -383,28 +399,34 @@ const PAGE_ITEMS: readonly AdditionalNavItem[] = [
     hideForAdmin: true,
   },
   {
+    // Wie in der Seitenleiste: das Recht des Schülerverzeichnisses (#4573,
+    // ADR 0091).
     ...STAFF_FLAT_PAGES.studentSearch,
     iconKey: "search",
     concept: "children",
-    alwaysShow: true,
+    requiresPermission: STUDENT_READ_PERMISSIONS,
   },
   {
+    // Wie in der Seitenleiste: das Recht von GET /api/rooms (#4573).
     ...STAFF_FLAT_PAGES.rooms,
     iconKey: "rooms",
     concept: "rooms",
-    alwaysShow: true,
+    requiresPermission: "rooms:read",
   },
   {
+    // Wie in der Seitenleiste: das Recht von GET /api/activities (#4573).
     ...STAFF_FLAT_PAGES.activities,
     iconKey: "activities",
     concept: "activities",
-    alwaysShow: true,
+    requiresPermission: ["activities:list", "activities:read"],
   },
   {
-    // Gemeinsame Übersicht für alle drei Vertretungsvorgänge.
+    // Gemeinsame Übersicht für alle drei Vertretungsvorgänge; die Seite
+    // öffnet nur mit substitutions:read (#4573).
     ...STAFF_FLAT_PAGES.substitutions,
     iconKey: "substitutions",
     concept: "groupAccess",
+    requiresPermission: "substitutions:read",
   },
   {
     // Anfragen-Modul (#2429). Gating unten in isHrefEnabled über
@@ -423,10 +445,11 @@ const PAGE_ITEMS: readonly AdditionalNavItem[] = [
     concept: STAFF_NAV_CONCEPTS[page.href],
   })),
   {
+    // Wie in der Seitenleiste: die Route liest nur mit time_tracking:own.
     ...STAFF_FLAT_PAGES.timeTracking,
     iconKey: "clock",
     concept: "timeTracking",
-    alwaysShow: true,
+    requiresPermission: "time_tracking:own",
   },
   {
     // Eigener Dienstplan (#3821); Schulschalter in isHrefEnabled.
@@ -443,10 +466,11 @@ const PAGE_ITEMS: readonly AdditionalNavItem[] = [
     requiresPermission: "calendar:own",
   },
   {
+    // Wie in der Seitenleiste: dasselbe Recht wie GET /api/staff (#4573).
     ...STAFF_FLAT_PAGES.staff,
     iconKey: "staff",
     concept: "staff",
-    alwaysShow: true,
+    requiresPermission: ["users:read", "staff:manage", "staff:stammdaten"],
   },
   // Team-Chat (#2598) ist Opt-in (isHrefEnabled); die Tagesinformationen
   // (#2180) sind wie die Route an users:read gebunden. Auf kleinen
@@ -500,10 +524,11 @@ const PAGE_ITEMS: readonly AdditionalNavItem[] = [
     requiresPermission: ["display:read", "display:manage"],
   },
   {
+    // Wie in der Seitenleiste: der Export verlangt users:read (#4573).
     ...STAFF_FLAT_PAGES.emergency,
     iconKey: "emergency",
     concept: "emergency",
-    alwaysShow: true,
+    requiresPermission: "users:read",
   },
   {
     ...STAFF_FLAT_PAGES.help,
@@ -534,7 +559,7 @@ const DATABASE_PAGE_PERMISSION_LIST = [
 ];
 
 /**
- * Die Akkordeon-Bereiche der Seitenleiste als je eine Zeile: Meine Gruppen
+ * Die Akkordeon-Bereiche der Seitenleiste als je eine Zeile: Gruppen
  * und Aktuelle Aufsicht führen auf ihre Übersicht, Datenverwaltung und
  * Anmeldungen auf ihre Hub-Seite; die Unterseiten erreicht man dort über
  * die Kacheln.
@@ -542,7 +567,7 @@ const DATABASE_PAGE_PERMISSION_LIST = [
 const SECTION_ITEMS: Readonly<Record<StaffNavSectionKey, AdditionalNavItem>> = {
   groups: {
     href: "/ogs-groups",
-    label: "Meine Gruppen",
+    label: OGS_GROUPS_LABEL,
     iconKey: "group",
     concept: "groups",
     alwaysShow: true,
@@ -612,6 +637,14 @@ const BINARY_HIDDEN_HREFS = new Set<string>([
   "/active-supervisions",
 ]);
 
+// Seiten, die bei „Kinder nur über Alle Kinder“ (#1321) keinen eigenen
+// Eintrag mehr haben. Sie bleiben über Links erreichbar und zählen dann zu
+// „Suchen“.
+const CHILD_SEARCH_MERGED_HREFS = new Set<string>([
+  "/ogs-groups",
+  "/active-supervisions",
+]);
+
 interface MobileBottomNavProps {
   readonly className?: string;
 }
@@ -667,7 +700,16 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
     isLoadingGroups,
     isLoadingSupervision,
     overviewEnabled,
+    supervisedRooms,
   } = useOptionalSupervision();
+  // Ein offener Raum ohne eigene Aufsicht gehört zu „Räume“, nicht zur
+  // Aufsicht (#4372), wie in der Seitenleiste.
+  const isViewingSharedOpenRoom =
+    pathname.startsWith("/active-supervisions") &&
+    isSharedOpenRoom(supervisedRooms, {
+      roomId: searchParams.get("room"),
+      sessionId: searchParams.get("session"),
+    });
 
   // Get shell auth mode
   const { mode, isSessionExpired, canStartStaffPreview, profileUrl } =
@@ -685,6 +727,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
       if (href === "/home") {
         return pathname === "/home" || pathname === "/";
       }
+      if (isViewingSharedOpenRoom) return href === "/rooms";
       // Check if we came from this page via the 'from' query parameter. Grouped
       // items (e.g. Eltern) own several routes via activePaths, so a child page
       // reached with ?from=/messages must still highlight the Eltern entry —
@@ -715,7 +758,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
       }
       return pathname.startsWith(href);
     },
-    [pathname, searchParams],
+    [pathname, searchParams, isViewingSharedOpenRoom],
   );
 
   const closeOverflowMenu = () => {
@@ -760,14 +803,15 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   // supervisions.
   // STAFF_MAIN_ITEMS already contains /active-supervisions, so only inject
   // when it is missing (i.e. for admin-only users whose baseline is
-  // ADMIN_MAIN_ITEMS) to avoid duplicate React keys.
+  // ADMIN_MAIN_ITEMS) to avoid duplicate React keys. It goes after Start and
+  // Suchen, matching the sidebar order (#4348).
   const alreadyHasSupervisionTab = baseMain.some(
     (item) => item.href === "/active-supervisions",
   );
   const filteredMainItems =
     !isLoadingSupervision && overviewEnabled && !alreadyHasSupervisionTab
       ? [
-          ...baseMain.slice(0, 1),
+          ...baseMain.slice(0, 2),
           {
             href: "/active-supervisions",
             label: "Aufsicht",
@@ -775,7 +819,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
             concept: "supervision" as const,
             alwaysShow: true,
           },
-          ...baseMain.slice(1),
+          ...baseMain.slice(2),
         ]
       : baseMain;
 
@@ -783,6 +827,10 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   const userIsAdmin = hasRole(session, "admin");
   const userHasEffectiveAdminScope = hasEffectiveAdminScope(session);
   const userIsCaregiver = isCaregiver(session);
+  const canReadSupervisions = canReadSupervisionData(session);
+  // Aufsicht am Recht der Seite, nicht am Rollennamen (#4573): mit
+  // `schedules:read` allein die eigene laufende Aufsicht.
+  const userCanOpenSupervision = canOpenActiveSupervision(session);
   const nfcEnabled = useNFCEnabled();
   const presenceMode = usePresenceMode();
   const showActivityNav = nfcEnabled && presenceMode !== "binary";
@@ -792,6 +840,9 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
 
   // Gruppenübergaben (#1940) sind nur bei festen Gruppen sinnvoll.
   const openCareGroupMode = useOpenCareGroupMode();
+  // Kinder nur über „Alle Kinder“ (#1321): Gruppe und Aufsicht verlassen die
+  // Leiste wie in der Seitenleiste; „Suchen“ steht dann auch für ihre Seiten.
+  const childSearchOnlyNavigation = useChildSearchOnlyNavigation();
   const staffMessagingEnabled = useStaffMessagingEnabled();
   // Betreuungsplan-Flag für den Tagesplan-Eintrag (#2383): vom Tenant-Resolve,
   // damit es auch ohne config:read aufgelöst ist.
@@ -833,29 +884,56 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   const canAnnounce = hasPermission(session, "admin:*");
 
   // Filter additional navigation items based on permissions
-  const filteredMainItemsByMode = filteredMainItems.filter(
-    (item) =>
-      (showActivityNav || !NFC_ONLY_HREFS.has(item.href)) &&
-      // Binärer Anwesenheitsmodus (#2915): dieselbe Sichtbarkeitsregel wie in
-      // der Desktop-Sidebar.
-      !(isBinaryMode && BINARY_HIDDEN_HREFS.has(item.href)) &&
-      (item.href !== "/ogs-groups" ||
-        userIsCaregiver ||
-        userHasEffectiveAdminScope) &&
-      // Bei offener Betreuung gibt es keine "meine Gruppe" — der
-      // gruppenbasierte Einstieg entfällt (#1544).
-      !(openCareGroupMode && item.href === "/ogs-groups") &&
-      // Tagesplan (#2383): nur im detaillierten Modus, nur an Schulen mit
-      // aktiviertem Betreuungsplan (Flag vom Tenant-Resolve, ohne
-      // config:read) und nur mit schedules:read — das Gate der Route
-      // (/timetable/operations/planned-now), sonst wäre der Tab ein 403.
-      !(
-        item.href === "/tagesplan" &&
-        (presenceMode === "binary" ||
-          !tagesplanEnabled ||
-          !hasPermission(session, "schedules:read"))
-      ),
-  );
+  const filteredMainItemsByMode = filteredMainItems
+    .filter(
+      (item) =>
+        !(
+          childSearchOnlyNavigation && CHILD_SEARCH_MERGED_HREFS.has(item.href)
+        ),
+    )
+    .map((item) =>
+      childSearchOnlyNavigation && item.href === "/students/search"
+        ? { ...item, activePaths: [...CHILD_SEARCH_MERGED_HREFS] }
+        : item,
+    )
+    .filter(
+      (item) =>
+        (showActivityNav || !NFC_ONLY_HREFS.has(item.href)) &&
+        // Binärer Anwesenheitsmodus (#2915): dieselbe Sichtbarkeitsregel wie in
+        // der Desktop-Sidebar.
+        !(isBinaryMode && BINARY_HIDDEN_HREFS.has(item.href)) &&
+        (item.href !== "/ogs-groups" ||
+          canReadSupervisions ||
+          userHasEffectiveAdminScope) &&
+        // Bei offener Betreuung gibt es keine "meine Gruppe" — der
+        // gruppenbasierte Einstieg entfällt (#1544).
+        !(openCareGroupMode && item.href === "/ogs-groups") &&
+        // Suchen führt auf Alle Kinder und braucht wie dort users:read oder
+        // students:read (ADR 0091); ohne beides stünde dort eine Sackgasse.
+        // Die Aufsicht hängt wie in der Seitenleiste am Recht der Seite
+        // (groups:read oder schedules:read), nicht am Rollennamen.
+        !(
+          item.href === "/students/search" &&
+          !userIsAdmin &&
+          !canReadStudents(session)
+        ) &&
+        !(
+          item.href === "/active-supervisions" &&
+          !userCanOpenSupervision &&
+          !overviewEnabled &&
+          !userHasEffectiveAdminScope
+        ) &&
+        // Tagesplan (#2383): nur im detaillierten Modus, nur an Schulen mit
+        // aktiviertem Betreuungsplan (Flag vom Tenant-Resolve, ohne
+        // config:read) und nur mit schedules:read — das Gate der Route
+        // (/timetable/operations/planned-now), sonst wäre der Tab ein 403.
+        !(
+          item.href === "/tagesplan" &&
+          (presenceMode === "binary" ||
+            !tagesplanEnabled ||
+            !hasPermission(session, "schedules:read"))
+        ),
+    );
 
   // Laufzeit-Regeln je Seite (Schulschalter, Anwesenheitsmodus, Rolle) —
   // dieselben wie in der Desktop-Sidebar, damit beide dieselben Seiten
@@ -867,19 +945,24 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
     // Anfragen (#2429/#2911): dieselbe effektive Regel wie in Sidebar,
     // Seiten-Guard und Badge.
     if (href === "/anfragen") return changeRequestAccess.canOpenRequestsPage;
+    if (childSearchOnlyNavigation && CHILD_SEARCH_MERGED_HREFS.has(href)) {
+      return false;
+    }
     if (href === "/ogs-groups") {
       // Bei offener Betreuung gibt es keine "meine Gruppe" (#1544). Wie in der
       // Seitenleiste zählt auch die schulweite Übersicht (#2380): eine
       // Betreuungsrolle der Schule heißt nicht `user` (#3469).
       return (
-        (userIsCaregiver || overviewEnabled || userHasEffectiveAdminScope) &&
+        (canReadSupervisions ||
+          overviewEnabled ||
+          userHasEffectiveAdminScope) &&
         !openCareGroupMode
       );
     }
-    // Aufsicht wie in der Seitenleiste: eigene Aufsicht der Betreuungskräfte
-    // oder die schulweite Übersicht (#2380); im binären Modus ohne Bedeutung.
+    // Aufsicht wie in der Seitenleiste: das Recht der Seite (#4573) oder die
+    // schulweite Übersicht (#2380); im binären Modus ohne Bedeutung.
     if (href === "/active-supervisions") {
-      return (userIsCaregiver || overviewEnabled) && !isBinaryMode;
+      return (userCanOpenSupervision || overviewEnabled) && !isBinaryMode;
     }
     if (
       href === "/tagesplan" &&
@@ -911,6 +994,9 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
     if (href === "/info-displays" && !displayEnabled) return false;
     if (href === "/day-log" && !attendanceLogEnabled) return false;
     // Eltern-Seiten: dieselben Regeln wie die Sidebar-Gruppe.
+    if (href === "/messages") {
+      return userIsAdmin || hasPermission(session, "users:read");
+    }
     if (href === "/admin/guardian-approvals") {
       return canReviewGuardianApprovals(session);
     }
@@ -1122,8 +1208,8 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                         item.href === STAFF_FLAT_PAGES.help.href
                           ? helpHref
                           : TENANT_SCOPED_HREFS.has(item.href)
-                            ? tenantPath(item.href)
-                            : item.href;
+                            ? tenantPath(navigationEntryTarget(item.href))
+                            : navigationEntryTarget(item.href);
 
                       // Coming soon items are not clickable
                       if (item.comingSoon) {
@@ -1349,7 +1435,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                 return (
                   <NavLink
                     key={item.href}
-                    href={item.href}
+                    href={navigationEntryTarget(item.href)}
                     ref={(el: HTMLAnchorElement | null) => {
                       navRefs.current[index] = el;
                     }}

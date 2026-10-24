@@ -1,0 +1,223 @@
+package api
+
+import "encoding/json"
+
+// These are HTTP contract values, kept at the dev-tool boundary because the
+// architecture policy forbids CLI packages from importing a domain model.
+const (
+	profileSettingAnalyticsEnabled      = "analytics.enabled"
+	profileSettingPresenceMode          = "operations.presence_mode"
+	profileSettingAttendanceNFC         = "module.nfc_anwesenheit"
+	profileSettingModuleTraeger         = "module.traeger_uebersicht"
+	profileSettingModuleFerien          = "module.ferienbetreuung"
+	profileSettingModuleVertraege       = "module.vertraege"
+	profileSettingModuleBeitraege       = "module.elternbeitraege"
+	profileSettingAttendanceWeb         = "attendance.web_enabled"
+	profileSettingSessionEndTime        = "operations.session_end_time"
+	profileSettingOverviewScope         = "operations.operational_overview_scope"
+	profileSettingAttendanceScope       = "operations.attendance_edit_scope"
+	profileSettingBlockStartScope       = "operations.block_start_scope"
+	profileSettingBlockCompleteScope    = "operations.block_complete_scope"
+	profileSettingAbsenceScope          = "operations.student_absence_edit_scope"
+	profileSettingParentSickMode        = "operations.parent_sick_reports_enabled"
+	profileSettingParentExcusedMode     = "operations.parent_excused_reports_enabled"
+	profileSettingAbsenceReviewScope    = "operations.parent_absence_review_scope"
+	profileSettingRequestReviewScope    = "operations.parent_request_review_scope"
+	profileSettingGroupMode             = "operations.group_mode"
+	profileSettingWebSpontaneous        = "attendance.web_spontaneous_activities_enabled"
+	profileSettingEnrollmentEnabled     = "enrollment.enabled"
+	profileSettingCareOfferingsEnabled  = "enrollment.care_offerings_enabled"
+	profileSettingBookingsAuthoritative = "enrollment.bookings_authoritative"
+	profileSettingDevicePIN             = "security.ogs_device_pin"
+	profileSettingStudentPhotos         = "operations.student_photos_enabled"
+	profileSettingWeekendFollowsFriday  = "operations.weekend_follows_friday"
+	profileSettingBirthdayIncludeStaff  = "operations.birthday_display_include_staff"
+	profilePresenceDetailed             = "detailed"
+	profilePresenceBinary               = "binary"
+	profileGroupModeFixed               = "fixed_groups"
+	profileGroupModeOpenCare            = "open_care"
+)
+
+type demoProfileDefinition struct {
+	Key                 string
+	OrganizationName    string
+	OrganizationSlug    string
+	SchoolName          string
+	SchoolSlug          string
+	SchoolAdminEmail    string
+	SchoolAdminPassword string
+	Settings            map[string]SeedSetting
+	Expected            SeedExpectedState
+}
+
+func fullOperationProfileDefinition() demoProfileDefinition {
+	return demoProfileDefinition{
+		Key:                 DefaultProfileKey,
+		OrganizationName:    "Demo-Träger Nord",
+		OrganizationSlug:    "demo-traeger-nord",
+		SchoolName:          "Demo-Schule Vollbetrieb",
+		SchoolSlug:          DefaultProfileKey,
+		SchoolAdminEmail:    "vollbetrieb-admin@example.test",
+		SchoolAdminPassword: "Vollbetrieb1234%",
+		Settings:            fullOperationSettings(),
+		Expected:            fullOperationExpectedState(),
+	}
+}
+
+func fullOperationSettings() map[string]SeedSetting {
+	settings := fullOperationFeatureSettings()
+	for key, setting := range notOfferedModuleSettings() {
+		settings[key] = setting
+	}
+	return settings
+}
+
+// notOfferedModuleSettings cancels the modules moto does not offer yet, so
+// the Module tab shows booked and not booked switches (#4892). Writes run in
+// key order: Elternbeiträge goes before the Verträge it requires.
+func notOfferedModuleSettings() map[string]SeedSetting {
+	cancelled := SeedSetting{Value: json.RawMessage(`false`), ManagedBy: SettingManagedByOperator}
+	return map[string]SeedSetting{
+		profileSettingModuleTraeger:   cancelled,
+		profileSettingModuleFerien:    cancelled,
+		profileSettingModuleVertraege: cancelled,
+		profileSettingModuleBeitraege: cancelled,
+	}
+}
+
+func fullOperationFeatureSettings() map[string]SeedSetting {
+	return map[string]SeedSetting{
+		profileSettingOverviewScope:      {Value: json.RawMessage(`"all_staff"`), ManagedBy: SettingManagedByTenant},
+		profileSettingAttendanceScope:    {Value: json.RawMessage(`"all_staff"`), ManagedBy: SettingManagedByTenant},
+		profileSettingBlockStartScope:    {Value: json.RawMessage(`"all_staff"`), ManagedBy: SettingManagedByTenant},
+		profileSettingBlockCompleteScope: {Value: json.RawMessage(`"all_staff"`), ManagedBy: SettingManagedByTenant},
+		profileSettingAbsenceScope:       {Value: json.RawMessage(`"all_staff"`), ManagedBy: SettingManagedByTenant},
+		profileSettingParentSickMode:     {Value: json.RawMessage(`"immediate"`), ManagedBy: SettingManagedByTenant},
+		profileSettingParentExcusedMode:  {Value: json.RawMessage(`"approval"`), ManagedBy: SettingManagedByTenant},
+		profileSettingAbsenceReviewScope: {Value: json.RawMessage(`"group_leaders"`), ManagedBy: SettingManagedByTenant},
+		// The Betreuungskraft of the demo leads the group of the demo parents'
+		// child, so she reviews their requests too, not only their sick notes
+		// (#3894). Without it the request scope inherits "admins".
+		profileSettingRequestReviewScope: {Value: json.RawMessage(`"group_leaders"`), ManagedBy: SettingManagedByTenant},
+		profileSettingPresenceMode: {
+			Value: json.RawMessage(`"` + profilePresenceDetailed + `"`), ManagedBy: SettingManagedByOperator,
+		},
+		profileSettingAttendanceNFC: {
+			Value: json.RawMessage(`true`), ManagedBy: SettingManagedByOperator,
+		},
+		profileSettingAttendanceWeb: {
+			Value: json.RawMessage(`true`), ManagedBy: SettingManagedByOperator,
+		},
+		// The seeded arrival plans leave several children expected but not
+		// checked in. Keeping the demo care day open until 23:59 makes the
+		// dashboard's "Schule" tile reviewable throughout the seed day.
+		profileSettingSessionEndTime: {
+			Value: json.RawMessage(`"23:59"`), ManagedBy: SettingManagedByOperator,
+		},
+		profileSettingGroupMode: {
+			Value: json.RawMessage(`"` + profileGroupModeFixed + `"`), ManagedBy: SettingManagedByTenant,
+		},
+		profileSettingWebSpontaneous: {
+			Value: json.RawMessage(`false`), ManagedBy: SettingManagedByTenant,
+		},
+		profileSettingEnrollmentEnabled: {
+			Value: json.RawMessage(`true`), ManagedBy: SettingManagedByTenant,
+		},
+		profileSettingCareOfferingsEnabled: {
+			Value: json.RawMessage(`true`), ManagedBy: SettingManagedByTenant,
+		},
+		profileSettingBookingsAuthoritative: {
+			Value: json.RawMessage(`false`), ManagedBy: SettingManagedByOperator,
+		},
+		// The public demo must look like a care day at any time (#3921): on
+		// Saturday and Sunday the school runs Friday's plan.
+		profileSettingWeekendFollowsFriday: {
+			Value: json.RawMessage(`true`), ManagedBy: SettingManagedByOperator,
+		},
+		// The birthday card shows a colleague next to the children (#3922);
+		// the seed gives one a birthday on the seed day.
+		profileSettingBirthdayIncludeStaff: {Value: json.RawMessage(`true`), ManagedBy: SettingManagedByTenant},
+	}
+}
+
+func fullOperationExpectedState() SeedExpectedState {
+	return SeedExpectedState{
+		Students:        len(DemoStudents),
+		Rooms:           len(DemoRooms),
+		Groups:          10,
+		Staff:           len(DemoStaff),
+		Contacts:        len(DemoGuardians),
+		ParentAccounts:  6,
+		PhysicalDevices: len(DemoDevices),
+		HasEnrollment:   true,
+		HasAttendance:   true,
+		HasHistory:      true,
+		ScheduledActivities: SeedScheduledActivityState{
+			Minimum: 1, Rooms: true, Students: true, Staff: true,
+		},
+	}
+}
+
+func manualProfileDefinition() demoProfileDefinition {
+	return demoProfileDefinition{
+		Key:                 ManualProfileKey,
+		OrganizationName:    "Demo-Träger Nord",
+		OrganizationSlug:    "demo-traeger-nord",
+		SchoolName:          "Demo-Schule Manuell",
+		SchoolSlug:          ManualProfileKey,
+		SchoolAdminEmail:    "manuell-admin@example.test",
+		SchoolAdminPassword: "Manuell1234%",
+		Settings:            manualProfileSettings(),
+		Expected: SeedExpectedState{
+			Students: 12, Groups: 2, Staff: 2, Contacts: 12,
+			PhysicalDevices: 0, HasAttendance: true, HasHistory: true,
+			PresentStudents: 4, CheckedOutStudents: 4, WeeklyPlans: 12,
+		},
+	}
+}
+
+func manualProfileSettings() map[string]SeedSetting {
+	return map[string]SeedSetting{
+		profileSettingAnalyticsEnabled:   {Value: json.RawMessage(`false`), ManagedBy: SettingManagedByTenant},
+		profileSettingOverviewScope:      {Value: json.RawMessage(`"own"`), ManagedBy: SettingManagedByTenant},
+		profileSettingAttendanceScope:    {Value: json.RawMessage(`"own"`), ManagedBy: SettingManagedByTenant},
+		profileSettingBlockStartScope:    {Value: json.RawMessage(`"own"`), ManagedBy: SettingManagedByTenant},
+		profileSettingBlockCompleteScope: {Value: json.RawMessage(`"own"`), ManagedBy: SettingManagedByTenant},
+		profileSettingAbsenceScope:       {Value: json.RawMessage(`"admins"`), ManagedBy: SettingManagedByTenant},
+		profileSettingParentSickMode:     {Value: json.RawMessage(`"approval"`), ManagedBy: SettingManagedByTenant},
+		profileSettingParentExcusedMode:  {Value: json.RawMessage(`"immediate"`), ManagedBy: SettingManagedByTenant},
+		profileSettingAbsenceReviewScope: {Value: json.RawMessage(`"admins"`), ManagedBy: SettingManagedByTenant},
+		profileSettingPresenceMode: {
+			Value: json.RawMessage(`"` + profilePresenceBinary + `"`), ManagedBy: SettingManagedByOperator,
+		},
+		profileSettingAttendanceNFC: {
+			Value: json.RawMessage(`false`), ManagedBy: SettingManagedByOperator,
+		},
+		profileSettingAttendanceWeb: {
+			Value: json.RawMessage(`true`), ManagedBy: SettingManagedByOperator,
+		},
+		profileSettingGroupMode: {
+			Value: json.RawMessage(`"` + profileGroupModeOpenCare + `"`), ManagedBy: SettingManagedByTenant,
+		},
+		profileSettingWebSpontaneous: {
+			Value: json.RawMessage(`true`), ManagedBy: SettingManagedByTenant,
+		},
+		profileSettingEnrollmentEnabled: {
+			Value: json.RawMessage(`false`), ManagedBy: SettingManagedByTenant,
+		},
+		profileSettingCareOfferingsEnabled: {
+			Value: json.RawMessage(`false`), ManagedBy: SettingManagedByTenant,
+		},
+		profileSettingBookingsAuthoritative: {
+			Value: json.RawMessage(`false`), ManagedBy: SettingManagedByOperator,
+		},
+	}
+}
+
+func cloneProfileSettings(settings map[string]SeedSetting) map[string]SeedSetting {
+	cloned := make(map[string]SeedSetting, len(settings))
+	for key, setting := range settings {
+		cloned[key] = setting
+	}
+	return cloned
+}

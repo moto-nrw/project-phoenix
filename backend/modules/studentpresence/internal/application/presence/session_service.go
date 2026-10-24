@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -266,14 +265,16 @@ func sessionActivityMissError(session *ports.ActiveGroup, findErr error) error {
 }
 
 func isUpdateLastActivitySessionMiss(err error) bool {
-	if errors.Is(err, ports.ErrGroupNotOpen) {
+	if errors.Is(err, studentpresence.ErrGroupNotOpen) {
 		return true
 	}
-	var dbErr *modelBase.DatabaseError
+	var dbErr *DatabaseError
 	return errors.As(err, &dbErr) && dbErr.Op == "update last activity - session not found"
 }
 
+// isFindByIDNoRows reports the session lookup's missing row. The lookup
+// reports nothing else as not found, so the repository not-found marker
+// decides it, whichever store's error carries it.
 func isFindByIDNoRows(err error) bool {
-	var dbErr *modelBase.DatabaseError
-	return errors.As(err, &dbErr) && dbErr.Op == "find by id" && modelBase.IsNoRows(dbErr.Err)
+	return IsNoRows(err)
 }

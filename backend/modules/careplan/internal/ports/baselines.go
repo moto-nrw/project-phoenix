@@ -9,8 +9,8 @@ import (
 )
 
 type BookingBaselineSource interface {
+	careplan.ApprovedBookingReader
 	BookingsAuthoritative(context.Context) (bool, error)
-	BookingRows(context.Context, []int64, calendar.Date, calendar.Date) ([]*careplan.ApprovedBooking, error)
 	OfferingRows(context.Context, []*careplan.ApprovedBooking) (map[int64]*careplan.CareOffering, error)
 }
 type ArrivalBaselineSource interface {

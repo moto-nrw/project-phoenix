@@ -120,9 +120,9 @@ func ParentResolvedStatus(status string) bool {
 // Notifications is Enrollment's side of the parent and admin mails: the
 // school branding every mail carries and the decision notifications.
 type Notifications interface {
-	// SchoolBrand returns the name and logo link of the tenant's school, or
-	// empty strings when the school cannot be read.
-	SchoolBrand(ctx context.Context, tenantID int64, baseURL string) (schoolName, logoURL string)
+	// SchoolBrand returns the school name, school logo and moto footer logo.
+	// An unreadable school leaves its name and logo empty, not the footer.
+	SchoolBrand(ctx context.Context, tenantID int64, baseURL string) (schoolName, logoURL, motoLogoURL string)
 	// NotifyDecisions routes one decision generation through the request's
 	// pinned notification mode: immediate mails per child, or one digest
 	// once every child is resolved. It pins the mode at the first

@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -15,7 +15,7 @@ import (
 func TestActiveAccountSchoolIDsPreservesMembershipSemantics(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	query, err := repositories.NewIdentityAccessForTests(db)
+	query, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 	home := testpkg.Tenant(t)
@@ -38,7 +38,7 @@ func TestActiveAccountSchoolIDsPreservesMembershipSemantics(t *testing.T) {
 	require.Empty(t, empty, "an unknown account must not enumerate another account's memberships")
 
 	rollback := errors.New("rollback membership change")
-	err = tenant.WithAdminTx(ctx, db, func(txCtx context.Context, tx bun.Tx) error {
+	err = testpkg.WithAdminTx(t, ctx, db, func(txCtx context.Context, tx bun.Tx) error {
 		_, updateErr := tx.NewRaw("UPDATE auth.account_tenants SET status = 'inactive' WHERE account_id = ? AND tenant_id = ?", account.ID, other).Exec(txCtx)
 		require.NoError(t, updateErr)
 		inside, readErr := query.ListActiveAccountSchoolIDs(txCtx, account.ID)
@@ -55,7 +55,7 @@ func TestActiveAccountSchoolIDsPreservesMembershipSemantics(t *testing.T) {
 func TestActiveSchoolMembershipsAreBoundedAndUseAmbientTransaction(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	query, err := repositories.NewIdentityAccessForTests(db)
+	query, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 	home := testpkg.Tenant(t)
@@ -74,7 +74,7 @@ func TestActiveSchoolMembershipsAreBoundedAndUseAmbientTransaction(t *testing.T)
 	require.Equal(t, map[int64][]int64{account.ID: {home}}, read(ctx), "exclude unselected accounts and schools, without inferring account activation")
 	for _, status := range []string{"pending", "inactive"} {
 		rollback := errors.New("rollback membership status")
-		err = tenant.WithAdminTx(ctx, db, func(txCtx context.Context, tx bun.Tx) error {
+		err = testpkg.WithAdminTx(t, ctx, db, func(txCtx context.Context, tx bun.Tx) error {
 			_, updateErr := tx.NewRaw("UPDATE auth.account_tenants SET status = ? WHERE account_id = ? AND tenant_id = ?", status, account.ID, home).Exec(txCtx)
 			require.NoError(t, updateErr)
 			require.Empty(t, read(txCtx), "another school's active membership must not authorize this school")

@@ -3,7 +3,6 @@ import * as sessionCache from "./session-cache";
 import {
   fetchStaffOnboarding,
   mapStaffOnboardingState,
-  StaffOnboardingError,
 } from "./staff-onboarding-api";
 
 describe("fetchStaffOnboarding", () => {
@@ -14,9 +13,10 @@ describe("fetchStaffOnboarding", () => {
       }),
     );
 
-    await expect(fetchStaffOnboarding()).rejects.toBeInstanceOf(
-      StaffOnboardingError,
-    );
+    await expect(fetchStaffOnboarding()).rejects.toMatchObject({
+      status: 500,
+      code: "general.server",
+    });
   });
 
   it("has no checklist without a school account", async () => {

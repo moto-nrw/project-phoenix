@@ -13,14 +13,16 @@ import (
 	"testing"
 	"time"
 
+	rootAPI "github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	staffmessaging "github.com/moto-nrw/project-phoenix/modules/communication/http/staffmessages"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/modules/settings"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -38,17 +40,17 @@ func decodeData[T any](t *testing.T, body []byte) T {
 
 func TestSchoolStaffMessagesCrossPortal(t *testing.T) {
 	t.Parallel()
-	db, serviceFactory := testutil.SetupStaffMessagingModule(t)
+	db, serviceFactory, setSetting := setupStaffMessagingModule(t)
 	staffMessages := staffmessaging.NewResource(serviceFactory.StaffMessaging)
 	schoolRouter := chi.NewRouter()
-	schoolRouter.Mount("/staff-messages", staffMessages.SchoolRouter())
-	tenantRouter := staffMessages.Router()
+	schoolRouter.Mount("/staff-messages", staffMessages.SchoolRouter(rootAPI.ProtectedSchoolRoutes))
+	tenantRouter := staffMessages.Router(rootAPI.ProtectedTenantRoutes)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
 
 	// Pin the chat on explicitly so the test does not hang on the registry
 	// default (opt-out since #3254).
-	require.NoError(t, serviceFactory.Settings.SetValue(
-		testpkg.TenantContext(tenantID), configModel.KeyStaffMessagingEnabled, true, nil, nil,
+	require.NoError(t, setSetting(
+		testpkg.TenantContext(tenantID), settings.KeyStaffMessagingEnabled, true,
 	))
 
 	unique := time.Now().UnixNano()
@@ -60,11 +62,11 @@ func TestSchoolStaffMessagesCrossPortal(t *testing.T) {
 	_, ogsAccount := testpkg.CreateTestStaffWithAccountForTenant(t, db, tenantID, "Ben", fmt.Sprintf("Betreuung-%d", unique))
 	testpkg.EnsureAccountTenant(t, db, ogsAccount.ID, tenantID)
 
-	teacherClaims := jwt.AppClaims{
+	teacherClaims := sessiontoken.AppClaims{
 		ID: int(teacherAccount.ID), Sub: teacherAccount.Email,
 		Roles: []string{"lehrkraft"}, TenantID: tenantID, Scope: tenant.ScopeSchool,
 	}
-	ogsClaims := jwt.AppClaims{
+	ogsClaims := sessiontoken.AppClaims{
 		ID: int(ogsAccount.ID), Sub: ogsAccount.Email,
 		Roles: []string{"user"}, TenantID: tenantID, Scope: tenant.ScopeTenant,
 	}
@@ -134,7 +136,7 @@ func TestSchoolStaffMessagesCrossPortal(t *testing.T) {
 	// 5. Scope isolation: the same account with a tenant token is refused on
 	//    the school mount, and the school token is refused on the tenant mount.
 	req = httptest.NewRequest(http.MethodGet, "/staff-messages/", nil)
-	rec = testutil.ExecuteWithAuth(t, schoolRouter, req, jwt.AppClaims{
+	rec = testutil.ExecuteWithAuth(t, schoolRouter, req, sessiontoken.AppClaims{
 		ID: int(teacherAccount.ID), Sub: teacherAccount.Email, TenantID: tenantID, Scope: tenant.ScopeTenant,
 	})
 	require.Equal(t, http.StatusUnauthorized, rec.Code, rec.Body.String())
@@ -146,16 +148,16 @@ func TestSchoolStaffMessagesCrossPortal(t *testing.T) {
 
 func TestSchoolStaffMessagesDisabledSchool(t *testing.T) {
 	t.Parallel()
-	db, serviceFactory := testutil.SetupStaffMessagingModule(t)
+	db, serviceFactory, setSetting := setupStaffMessagingModule(t)
 	schoolRouter := chi.NewRouter()
-	schoolRouter.Mount("/staff-messages", staffmessaging.NewResource(serviceFactory.StaffMessaging).SchoolRouter())
+	schoolRouter.Mount("/staff-messages", staffmessaging.NewResource(serviceFactory.StaffMessaging).SchoolRouter(rootAPI.ProtectedSchoolRoutes))
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
 
 	_, teacherAccount := testpkg.CreateTestStaffWithAccountForTenant(t, db, tenantID, "Off", fmt.Sprintf("Lehrkraft-%d", time.Now().UnixNano()))
 	testpkg.EnsureAccountTenant(t, db, teacherAccount.ID, tenantID)
 	testpkg.AssignLehrkraftSystemRole(t, db, teacherAccount.ID, tenantID)
 
-	claims := jwt.AppClaims{
+	claims := sessiontoken.AppClaims{
 		ID: int(teacherAccount.ID), Sub: teacherAccount.Email,
 		Roles: []string{"lehrkraft"}, TenantID: tenantID, Scope: tenant.ScopeSchool,
 	}
@@ -167,8 +169,8 @@ func TestSchoolStaffMessagesDisabledSchool(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
 	// The school switches it off.
-	require.NoError(t, serviceFactory.Settings.SetValue(
-		testpkg.TenantContext(tenantID), configModel.KeyStaffMessagingEnabled, false, nil, nil,
+	require.NoError(t, setSetting(
+		testpkg.TenantContext(tenantID), settings.KeyStaffMessagingEnabled, false,
 	))
 
 	req = httptest.NewRequest(http.MethodGet, "/staff-messages/", nil)

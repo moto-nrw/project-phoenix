@@ -3,53 +3,24 @@ package api
 import (
 	"context"
 	"errors"
-	"time"
 
-	parentAPI "github.com/moto-nrw/project-phoenix/modules/careplan/inbound/parent"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth"
+	presenceprojectionOwnerHTTP "github.com/moto-nrw/project-phoenix/modules/presenceprojection/http"
+
 	tagScanOperatorAPI "github.com/moto-nrw/project-phoenix/modules/devicefleet/inbound/operator"
+
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
+
 	authAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account"
+
 	organizationModule "github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	studentsAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/students"
+
+	parentAPI "github.com/moto-nrw/project-phoenix/workflows/parentportal/http"
 )
 
 // Organisation & Tenancy owns platform.schools (#3253). The HTTP resources
 // and the worker read schools through their own ports; the adapters below
 // bind those ports to the public capability.
-
-// schedulerTenantDirectory lists the tenant IDs the worker iterates and
-// captures the billing key-date counts (#2791), both owned by Organisation &
-// Tenancy.
-type schedulerTenantDirectory struct {
-	schools organizationModule.Query
-	billing organizationModule.BillingReport
-}
-
-func (d schedulerTenantDirectory) RecordDueBillingKeyDates(ctx context.Context, now time.Time) (int, error) {
-	if d.billing == nil {
-		return 0, errors.New("billing report is not composed")
-	}
-	return d.billing.RecordDueBillingKeyDates(ctx, now)
-}
-
-func (d schedulerTenantDirectory) ListActiveTenantIDs(ctx context.Context) ([]int64, error) {
-	schools, err := d.schools.ListActiveSchools(ctx)
-	return schoolIDs(schools), err
-}
-
-func (d schedulerTenantDirectory) ListNonDeletedTenantIDs(ctx context.Context) ([]int64, error) {
-	schools, err := d.schools.ListNonDeletedSchools(ctx)
-	return schoolIDs(schools), err
-}
-
-func schoolIDs(schools []organizationModule.School) []int64 {
-	ids := make([]int64, 0, len(schools))
-	for _, school := range schools {
-		ids = append(ids, school.ID)
-	}
-	return ids
-}
 
 // deviceSchoolDirectory answers the device school guard.
 type deviceSchoolDirectory struct {
@@ -77,7 +48,9 @@ func schoolName(schools organizationModule.Query) func(context.Context, int64) (
 
 // accountSchoolMemberships lists the schools an account holds an active
 // membership in.
-type accountSchoolMemberships func(ctx context.Context, accountID int64) ([]int64, error)
+type accountSchoolMemberships interface {
+	ListActiveAccountSchoolIDs(ctx context.Context, accountID int64) ([]int64, error)
+}
 
 // authSchoolDirectory answers the auth routes.
 type authSchoolDirectory struct {
@@ -118,7 +91,7 @@ func (d authSchoolDirectory) ListActiveSchoolsByAccountID(ctx context.Context, a
 	if d.memberships == nil {
 		return nil, errors.New("auth school directory: membership query is required")
 	}
-	ids, err := d.memberships(ctx, accountID)
+	ids, err := d.memberships.ListActiveAccountSchoolIDs(ctx, accountID)
 	if err != nil || len(ids) == 0 {
 		return []authAPI.TenantSchool{}, err
 	}
@@ -128,7 +101,7 @@ func (d authSchoolDirectory) ListActiveSchoolsByAccountID(ctx context.Context, a
 	}
 	active := make([]organizationModule.School, 0, len(schools))
 	for _, school := range schools {
-		if school.Active && !school.IsDeleted() {
+		if school.Operational() {
 			active = append(active, school)
 		}
 	}
@@ -200,12 +173,12 @@ type studentSchoolDirectory struct {
 	schools organizationModule.Query
 }
 
-func (d studentSchoolDirectory) GetSchoolByID(ctx context.Context, id int64) (*studentsAPI.ExportSchool, error) {
+func (d studentSchoolDirectory) GetSchoolByID(ctx context.Context, id int64) (*presenceprojectionOwnerHTTP.ExportSchool, error) {
 	school, err := findSchool(ctx, d.schools.FindSchool, id)
 	if err != nil || school == nil {
 		return nil, err
 	}
-	return &studentsAPI.ExportSchool{Name: school.Name}, nil
+	return &presenceprojectionOwnerHTTP.ExportSchool{Name: school.Name}, nil
 }
 
 // findSchool runs one school lookup and reports a missing school as nil.
@@ -257,4 +230,18 @@ func tagScanSchools(schools []organizationModule.School) []tagScanOperatorAPI.Sc
 		result = append(result, tagScanOperatorAPI.School{ID: school.ID, OrganizationID: school.OrganizationID, Name: school.Name})
 	}
 	return result
+}
+
+// operatorSettingsSchools names the school slug the operator settings routes
+// return so the frontend can bust its tenant cache (#4072).
+type operatorSettingsSchools struct {
+	schools organizationModule.Query
+}
+
+func (d operatorSettingsSchools) SchoolSlug(ctx context.Context, schoolID int64) (string, error) {
+	school, err := d.schools.FindSchool(ctx, schoolID)
+	if err != nil {
+		return "", err
+	}
+	return school.Slug, nil
 }

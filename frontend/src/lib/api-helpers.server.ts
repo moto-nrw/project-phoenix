@@ -1,6 +1,5 @@
 // lib/api-helpers.server.ts
 import type { NextRequest } from "next/server";
-import { NextResponse } from "next/server";
 import { recordBackendProxyMetric } from "./backend-proxy-metrics";
 import { analyticsSessionHeaders } from "./analytics-session-header.server";
 import {
@@ -9,7 +8,8 @@ import {
 } from "./client-headers.server";
 import { sanitizeEndpoint } from "./log-sanitize";
 import { createLogger } from "~/lib/logger";
-import { captureBffException } from "~/lib/sentry-bff.server";
+import type { ProblemBody } from "./api-error";
+import { ApiResponseError } from "./api-response-error.server";
 
 // Logger instance for API helpers
 const logger = createLogger({ component: "ApiHelpers" });
@@ -24,97 +24,23 @@ export interface ApiResponse<T> {
 }
 
 /**
- * Type for error response
+ * The error body the frontend's API routes answer with: the backend's
+ * RFC 9457 envelope (ADR 0006), forwarded or built by `problemResponse`.
  */
-export interface ApiErrorResponse {
-  error: string;
-  status?: number;
-  code?: string;
-  // Structured payload mirrored from the backend's ErrResponse.details.
-  // Forwarded through the proxy so codes like reopen_status_conflict can
-  // carry identifying fields (session_id, existing_status, …) to the UI.
-  details?: Record<string, unknown>;
-  // Top-level conflict list of the companion-plan 409 (student PUT). The
-  // browser's CompanionPlanConflictError reads it to build the confirmation it
-  // re-sends as confirmed_companion_extensions — dropping it here would make
-  // "Ergänzen und speichern" loop on the same 409 forever.
-  conflicts?: unknown[];
-}
+export type ApiErrorResponse = ProblemBody;
+
+export {
+  ApiResponseError,
+  backendResponseError,
+  bffError,
+  handleApiError,
+  problemResponse,
+} from "./api-response-error.server";
 
 /**
  * HTTP methods supported by the API helpers
  */
 type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
-
-type JsonBody = Record<string, unknown> | unknown[] | string | number | boolean;
-
-interface BackendErrorPayload {
-  error?: string;
-  code?: string;
-  details?: Record<string, unknown>;
-  conflicts?: unknown[];
-}
-
-/**
- * Typed error thrown by serverFetchWithRetry / clientAxiosRequest for non-OK
- * backend responses. Carries the HTTP status and the raw body so callers can
- * branch on either without re-parsing `.message` strings. The `message`
- * intentionally keeps the legacy `"API error (<status>): <body>"` shape so
- * existing string-based parsers (handleApiError) and any caller catching it as
- * a plain Error continue to work unchanged.
- */
-export class ApiResponseError extends Error {
-  readonly status: number;
-  readonly bodyText: string;
-  readonly retryAfter: string | null;
-  readonly contentType: string | null;
-  // Memoized parse result — `null` means "not JSON". Lazy so callers that
-  // only check status never pay the JSON.parse cost.
-  private parsedBody: JsonBody | null = null;
-  private parseAttempted = false;
-
-  constructor(
-    status: number,
-    bodyText: string,
-    options?: ErrorOptions & {
-      retryAfter?: string | null;
-      contentType?: string | null;
-    },
-  ) {
-    super(`API error (${status}): ${bodyText}`, options);
-    this.name = "ApiResponseError";
-    this.status = status;
-    this.bodyText = bodyText;
-    this.retryAfter = options?.retryAfter ?? null;
-    this.contentType = options?.contentType ?? null;
-  }
-
-  /**
-   * Returns the parsed JSON body, or `null` if the body isn't valid JSON.
-   * Use this instead of grepping `error.message` for backend error codes.
-   */
-  body<T = unknown>(): T | null {
-    if (!this.parseAttempted) {
-      this.parseAttempted = true;
-      try {
-        this.parsedBody = JSON.parse(this.bodyText) as JsonBody;
-      } catch {
-        this.parsedBody = null;
-      }
-    }
-    return (this.parsedBody ?? null) as T | null;
-  }
-}
-
-/** Preserve a direct fetch's error body for the shared route wrappers. */
-export async function backendResponseError(
-  response: Response,
-): Promise<ApiResponseError> {
-  return new ApiResponseError(response.status, await response.text(), {
-    contentType: response.headers.get("Content-Type"),
-    retryAfter: response.headers.get("Retry-After"),
-  });
-}
 
 /**
  * Options for server-side fetch requests
@@ -145,25 +71,6 @@ async function getIncomingForwardHeaders(): Promise<Record<string, string>> {
   } catch {
     return {};
   }
-}
-
-/**
- * Check authentication from inside a response-aware route wrapper.
- *
- * New route handlers should normally use the shared route factories instead;
- * those factories guarantee that a refreshed session cookie reaches the
- * browser. This helper remains for compatibility with existing callers and
- * must not be used by an unwrapped route handler.
- */
-export async function checkAuth(): Promise<Response | null> {
-  const { auth } = await import("../server/auth");
-  const session = await auth();
-
-  if (!session?.user?.token) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  return null;
 }
 
 /**
@@ -394,175 +301,6 @@ export async function apiDelete<T, B = unknown>(
     body,
     returnVoidOn204: true,
   });
-}
-
-/**
- * Handler for API errors
- * @param error Error object
- * @returns Response with error message and status
- */
-export function handleApiError(
-  error: unknown,
-  request?: Request,
-): NextResponse<ApiErrorResponse> {
-  if (error instanceof ApiResponseError) {
-    const code = error.body<BackendErrorPayload>()?.code;
-    logApiRouteError(error.status, error.message, code);
-    const headers = new Headers();
-    if (error.contentType) headers.set("Content-Type", error.contentType);
-    if (error.retryAfter) headers.set("Retry-After", error.retryAfter);
-    return new NextResponse<ApiErrorResponse>(error.bodyText, {
-      status: error.status,
-      headers,
-    });
-  }
-
-  const status = getApiErrorStatus(error);
-  if (error instanceof Error && status !== null) {
-    const response = buildApiErrorResponse(error.message);
-    logApiRouteError(status, error.message, response.code);
-    const headers =
-      error instanceof ApiResponseError && error.retryAfter
-        ? { "Retry-After": error.retryAfter }
-        : undefined;
-    return NextResponse.json(response, {
-      status,
-      headers,
-    });
-  }
-
-  // Unknown errors are logged as errors and return 500
-  captureBffException(error, request);
-  logger.error("api route error without status", {
-    error: error instanceof Error ? error.message : String(error),
-  });
-  const errorMessage =
-    error instanceof Error ? error.message : "Internal Server Error";
-  return NextResponse.json({ error: errorMessage }, { status: 500 });
-}
-
-function getApiErrorStatus(error: unknown): number | null {
-  if (!(error instanceof Error)) {
-    return null;
-  }
-
-  // Match both "API error: 403" and "API error (403):" formats (exactly 3 digits)
-  const regex = /API error[:\s(]+(\d{3})/;
-  const match = regex.exec(error.message);
-  return match?.[1] ? Number.parseInt(match[1], 10) : null;
-}
-
-function logApiRouteError(
-  status: number,
-  errorMessage: string,
-  errorCode: string | undefined,
-): void {
-  // Free-text fields like sick-note content must not land in server logs even
-  // when a 4xx body still carries them. Redact before any level logs the body.
-  const safeErrorMessage = redactSensitiveApiErrorFields(errorMessage);
-
-  // Only log server errors (5xx) to avoid Next.js error overlay for expected 4xx.
-  // Backend 5xx responses stay in logs; the backend owns their Sentry event.
-  if (status >= 500) {
-    logger.error("api route error", {
-      status,
-      error: safeErrorMessage,
-      ...(errorCode && { error_code: errorCode }),
-    });
-    return;
-  }
-
-  if (status === 429) {
-    logger.warn("api route rate limited", {
-      status,
-      error: safeErrorMessage,
-      rate_limited: true,
-    });
-    return;
-  }
-
-  logger.warn("api route error", {
-    status,
-    error: safeErrorMessage,
-  });
-}
-
-/** JSON keys whose free-text values must not appear in server logs. */
-const SENSITIVE_API_ERROR_KEYS = new Set(["note"]);
-
-function redactSensitiveApiErrorFields(errorMessage: string): string {
-  const jsonStart = errorMessage.indexOf("{");
-  if (jsonStart === -1) {
-    return errorMessage;
-  }
-
-  try {
-    const payload = JSON.parse(errorMessage.substring(jsonStart)) as unknown;
-    return (
-      errorMessage.substring(0, jsonStart) +
-      JSON.stringify(redactSensitiveApiErrorValue(payload))
-    );
-  } catch {
-    return errorMessage;
-  }
-}
-
-function redactSensitiveApiErrorValue(value: unknown): unknown {
-  if (Array.isArray(value)) {
-    return value.map((entry) => redactSensitiveApiErrorValue(entry));
-  }
-  if (value === null || typeof value !== "object") {
-    return value;
-  }
-
-  const redacted: Record<string, unknown> = {};
-  for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
-    if (SENSITIVE_API_ERROR_KEYS.has(key) && entry != null && entry !== "") {
-      redacted[key] = "[REDACTED]";
-      continue;
-    }
-    redacted[key] = redactSensitiveApiErrorValue(entry);
-  }
-  return redacted;
-}
-
-function buildApiErrorResponse(errorMessage: string): ApiErrorResponse {
-  // Try to extract structured fields from embedded backend JSON response.
-  // Mirror the wire shape: error, code, AND details — the proxy must not
-  // silently drop details, or codes like reopen_status_conflict that carry
-  // identifying fields lose them between backend and browser (Issue #1368).
-  const response: ApiErrorResponse = { error: errorMessage };
-  const parsed = parseBackendErrorPayload(errorMessage);
-
-  if (parsed?.error) {
-    response.error = parsed.error;
-  }
-  if (parsed?.code) {
-    response.code = parsed.code;
-  }
-  if (parsed?.details) {
-    response.details = parsed.details;
-  }
-  if (Array.isArray(parsed?.conflicts)) {
-    response.conflicts = parsed.conflicts;
-  }
-
-  return response;
-}
-
-function parseBackendErrorPayload(
-  errorMessage: string,
-): BackendErrorPayload | null {
-  const jsonStart = errorMessage.indexOf("{");
-  if (jsonStart === -1) {
-    return null;
-  }
-
-  try {
-    return JSON.parse(errorMessage.substring(jsonStart)) as BackendErrorPayload;
-  } catch {
-    return null;
-  }
 }
 
 /**

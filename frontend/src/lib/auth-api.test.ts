@@ -458,13 +458,13 @@ describe("auth-api", () => {
           "Content-Type": "application/json",
           "Retry-After": "60",
         }),
-        json: () => Promise.resolve({ error: "Rate limit exceeded" }),
+        json: () => Promise.resolve({ detail: "Rate limit exceeded" }),
       });
 
       vi.spyOn(console, "error").mockImplementation(() => {});
 
       await expect(requestPasswordReset("test@example.com")).rejects.toThrow(
-        "Rate limit exceeded",
+        "Fehler beim Senden der Passwort-Zurücksetzen-E-Mail",
       );
     });
 
@@ -493,7 +493,7 @@ describe("auth-api", () => {
           "Content-Type": "application/json",
           "Retry-After": "120",
         }),
-        json: () => Promise.resolve({ error: "Too many requests" }),
+        json: () => Promise.resolve({ detail: "Too many requests" }),
       });
 
       vi.spyOn(console, "error").mockImplementation(() => {});
@@ -518,7 +518,7 @@ describe("auth-api", () => {
           "Content-Type": "application/json",
           "Retry-After": futureDate.toUTCString(),
         }),
-        json: () => Promise.resolve({ error: "Too many requests" }),
+        json: () => Promise.resolve({ detail: "Too many requests" }),
       });
 
       vi.spyOn(console, "error").mockImplementation(() => {});
@@ -656,7 +656,7 @@ describe("auth-api", () => {
         ok: false,
         status: 410,
         headers: new Headers({ "Content-Type": "application/json" }),
-        json: () => Promise.resolve({ error: "Token expired" }),
+        json: () => Promise.resolve({ detail: "Token expired" }),
       });
 
       vi.spyOn(console, "error").mockImplementation(() => {});
@@ -671,7 +671,8 @@ describe("auth-api", () => {
       } catch (error) {
         const apiError = error as ApiError;
         expect(apiError.status).toBe(410);
-        expect(apiError.message).toBe("Token expired");
+        expect(apiError.message).toBe("Fehler beim Zurücksetzen des Passworts");
+        expect(apiError.detail).toBe("Token expired");
       }
     });
   });
@@ -684,7 +685,7 @@ describe("auth-api", () => {
         headers: new Headers({
           "Content-Type": "application/json",
         }),
-        json: () => Promise.resolve({ error: "Too many requests" }),
+        json: () => Promise.resolve({ detail: "Too many requests" }),
       });
 
       vi.spyOn(console, "error").mockImplementation(() => {});
@@ -706,7 +707,7 @@ describe("auth-api", () => {
           "Content-Type": "application/json",
           "Retry-After": "-10",
         }),
-        json: () => Promise.resolve({ error: "Too many requests" }),
+        json: () => Promise.resolve({ detail: "Too many requests" }),
       });
 
       vi.spyOn(console, "error").mockImplementation(() => {});
@@ -730,7 +731,7 @@ describe("auth-api", () => {
           "Content-Type": "application/json",
           "Retry-After": pastDate.toUTCString(),
         }),
-        json: () => Promise.resolve({ error: "Too many requests" }),
+        json: () => Promise.resolve({ detail: "Too many requests" }),
       });
 
       vi.spyOn(console, "error").mockImplementation(() => {});
@@ -752,7 +753,7 @@ describe("auth-api", () => {
           "Content-Type": "application/json",
           "Retry-After": "invalid-value",
         }),
-        json: () => Promise.resolve({ error: "Too many requests" }),
+        json: () => Promise.resolve({ detail: "Too many requests" }),
       });
 
       vi.spyOn(console, "error").mockImplementation(() => {});
@@ -775,7 +776,7 @@ describe("auth-api", () => {
         headers: new Headers({ "Content-Type": "application/problem+json" }),
         json: () =>
           Promise.resolve({
-            error: "Conflict",
+            detail: "Conflict",
             code: "identity.email_conflict",
             details: { account_id: "42" },
             errors: [{ field: "email", reason: "duplicate" }],
@@ -802,17 +803,17 @@ describe("auth-api", () => {
         headers: new Headers({
           "Content-Type": "application/json",
         }),
-        json: () => Promise.resolve({ error: "Validation failed" }),
+        json: () => Promise.resolve({ detail: "Validation failed" }),
       });
 
       vi.spyOn(console, "error").mockImplementation(() => {});
 
       await expect(requestPasswordReset("test@example.com")).rejects.toThrow(
-        "Validation failed",
+        "Fehler beim Senden der Passwort-Zurücksetzen-E-Mail",
       );
     });
 
-    it("extracts message from JSON response with message field", async () => {
+    it("does not read a legacy message field as the diagnostic", async () => {
       global.fetch = vi.fn().mockResolvedValue({
         ok: false,
         status: 400,
@@ -825,7 +826,7 @@ describe("auth-api", () => {
       vi.spyOn(console, "error").mockImplementation(() => {});
 
       await expect(requestPasswordReset("test@example.com")).rejects.toThrow(
-        "Email not found",
+        "Fehler beim Senden der Passwort-Zurücksetzen-E-Mail",
       );
     });
 
@@ -878,7 +879,7 @@ describe("auth-api", () => {
         }),
         json: () =>
           Promise.resolve({
-            error: "reopen status conflict",
+            detail: "reopen status conflict",
             code: "reopen_status_conflict",
           }),
       });
@@ -909,7 +910,7 @@ describe("auth-api", () => {
         }),
         json: () =>
           Promise.resolve({
-            error: "reopen status conflict",
+            detail: "reopen status conflict",
             code: "reopen_status_conflict",
             details: {
               session_id: "42",

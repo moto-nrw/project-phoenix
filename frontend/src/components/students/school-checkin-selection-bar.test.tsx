@@ -33,6 +33,26 @@ describe("SchoolCheckinSelectionBar", () => {
     expect(screen.queryByText("Abmelden")).not.toBeInTheDocument();
   });
 
+  it.each([false, true])(
+    "names the active mode visibly (selectionActive=%s)",
+    (selectionActive) => {
+      renderBar({ selectionActive });
+      expect(
+        screen.getByText("An- und Abmelde-Modus aktiv"),
+      ).toBeInTheDocument();
+    },
+  );
+
+  it.each([false, true])(
+    "renders Fertig as the dark primary action (selectionActive=%s)",
+    (selectionActive) => {
+      renderBar({ selectionActive });
+      const finish = screen.getByRole("button", { name: "Fertig" });
+      expect(finish).toHaveClass("bg-gray-900", "text-white");
+      expect(finish).not.toHaveClass("rounded-full");
+    },
+  );
+
   it("switches to the selection sub-mode via the segmented control", () => {
     const props = renderBar();
     fireEvent.click(screen.getByRole("button", { name: "Mehrere" }));

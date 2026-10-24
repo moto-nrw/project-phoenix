@@ -252,7 +252,7 @@ type fakeCredentialCleanup struct {
 	err         error
 }
 
-func (c *fakeCredentialCleanup) InvalidateEmailChangeTokens(_ context.Context, operatorID int64) error {
+func (c *fakeCredentialCleanup) RevokeEmailChanges(_ context.Context, operatorID int64) error {
 	if c.err != nil {
 		return c.err
 	}
@@ -292,7 +292,7 @@ func newOperatorFixture(t *testing.T) *operatorFixture {
 	audit := &fakeOperatorAudit{}
 	credentials := &fakeCredentialCleanup{}
 	auth, err := NewOperatorAuthentication(operators, OperatorAuthenticationDependencies{
-		Passwords: fakePasswords{}, Hasher: fakeHasher{}, Codec: fakeCodec{}, MFA: mfa, Audit: audit,
+		Passwords: fakePasswords{}, PasswordPolicy: testPasswordLoginPolicy, Hasher: fakeHasher{}, Codec: fakeCodec{}, MFA: mfa, Audit: audit,
 		Credentials: credentials, Runtime: runtime, Rotation: fakeRotation{},
 		Logger: slog.New(slog.NewTextHandler(testWriter{t}, nil)),
 	})

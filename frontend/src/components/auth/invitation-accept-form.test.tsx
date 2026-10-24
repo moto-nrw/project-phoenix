@@ -347,6 +347,46 @@ describe("InvitationAcceptForm", () => {
     });
   });
 
+  // An invitation for an existing account answers 401 with
+  // identity.invitation_account_login_required. Nobody is logged in on this
+  // page, so it is a refusal shown in the form, never "session expired".
+  it("keeps the login-required refusal in the form and does not redirect", async () => {
+    const assign = vi
+      .spyOn(window.location, "assign")
+      .mockImplementation(() => undefined);
+    mockAcceptInvitation.mockRejectedValueOnce(
+      new ApiError("login required", 401, {
+        code: "identity.invitation_account_login_required",
+      }),
+    );
+
+    render(
+      <InvitationAcceptForm token="test-token" invitation={mockInvitation} />,
+    );
+
+    const passwordInput = await screen.findByLabelText(/^Passwort$/);
+    const confirmInput = await screen.findByLabelText(/Passwort bestätigen/);
+    fireEvent.change(passwordInput, { target: { value: "Test1234%" } });
+    fireEvent.change(confirmInput, { target: { value: "Test1234%" } });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /Einladung akzeptieren/i }),
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          catalogText(
+            "identity.invitation_account_login_required",
+            "die Einladung",
+          ),
+        ),
+      ).toBeInTheDocument();
+    });
+    expect(assign).not.toHaveBeenCalled();
+    assign.mockRestore();
+  });
+
   it("shows error for 409 email conflict", async () => {
     mockAcceptInvitation.mockRejectedValueOnce(new ApiError("Conflict", 409));
 

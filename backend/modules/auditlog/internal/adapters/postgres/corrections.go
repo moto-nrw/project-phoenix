@@ -12,11 +12,16 @@ import (
 
 type Database func(context.Context) (bun.IDB, int64, error)
 
-type Corrections struct{ database Database }
+type Corrections struct {
+	database Database
+	observe  func(auditlog.Observation)
+}
 
-func NewCorrections(database Database) *Corrections { return &Corrections{database: database} }
+func NewCorrections(database Database, observe func(auditlog.Observation)) *Corrections {
+	return &Corrections{database: database, observe: observe}
+}
 
-func (s *Corrections) ListDirectCorrections(ctx context.Context, filter auditlog.CorrectionFilter) ([]auditlog.DirectCorrection, auditlog.Observation, error) {
+func (s *Corrections) listDirectCorrections(ctx context.Context, filter auditlog.CorrectionFilter) ([]auditlog.DirectCorrection, auditlog.Observation, error) {
 	observation := auditlog.Observation{Operation: "list_direct_corrections"}
 	if filter.Limit <= 0 {
 		return []auditlog.DirectCorrection{}, observation, nil
@@ -54,4 +59,13 @@ func (s *Corrections) ListDirectCorrections(ctx context.Context, filter auditlog
 	}
 	observation.Rows = int64(len(result))
 	return result, observation, nil
+}
+
+// ListDirectCorrections reads and observes one direct-correction query.
+func (s *Corrections) ListDirectCorrections(ctx context.Context, filter auditlog.CorrectionFilter) ([]auditlog.DirectCorrection, error) {
+	started := time.Now()
+	rows, observation, err := s.listDirectCorrections(ctx, filter)
+	observation.Duration, observation.Err = time.Since(started), err
+	s.observe(observation)
+	return rows, err
 }

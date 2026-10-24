@@ -1,6 +1,13 @@
 # Lefthook - Git hooks manager
 # https://github.com/evilmartians/lefthook
 
+# Every worktree shares the hooks in the main .git directory. Without this,
+# lefthook bakes the binary path of whichever worktree last synced the hooks
+# into them, and the hooks break once that worktree is removed. devbox run
+# resolves the lefthook pinned in the checkout that runs the hook, and sets up
+# Devbox there first if the checkout has none yet.
+lefthook: devbox run -q -- lefthook
+
 # Pre-commit: Quick checks on staged files
 pre-commit:
   parallel: true
@@ -10,8 +17,8 @@ pre-commit:
       run: node scripts/check-agent-context.mjs && node --test scripts/check-agent-context.test.mjs
 
     # Fail closed if the pinned secret scanner is unavailable.
-    git-secrets:
-      run: bash scripts/check-secrets.sh --pre_commit_hook
+    secrets:
+      run: bash scripts/check-secrets.sh pre-commit
 
     # Frontend lint-staged (prettier + oxlint with auto-fix)
     frontend-lint:
@@ -50,7 +57,7 @@ pre-commit:
 
     # Go imports check (formatting and organization)
     go-imports:
-      glob: "backend/**/*.go"
+      glob: "{backend/*.go,backend/**/*.go}"
       run: |
         # Only the staged files. `goimports -d .` walks every package, which
         # takes ~10 minutes on a WSL checkout, and it reads the WORKING TREE:
@@ -61,11 +68,11 @@ pre-commit:
         # because `go tool` needs the module directory as its working directory.
         FILES=$(for f in {staged_files}; do [ -f "$f" ] && printf '%s\n' "${f#backend/}"; done)
         [ -n "$FILES" ] || exit 0
-        cd backend
+        cd backend || exit $?
         # stderr is deliberately NOT folded into DIFF: a parse error would
-        # otherwise look like a formatting diff. It stays on the terminal, and
-        # goimports' own non-zero exit fails the hook.
-        DIFF=$(../scripts/run-go-toolchain.sh go tool goimports -d $FILES)
+        # otherwise look like a formatting diff. Keep it on the terminal and
+        # explicitly propagate goimports' non-zero exit before checking DIFF.
+        DIFF=$(../scripts/run-go-toolchain.sh go tool goimports -d $FILES) || exit $?
         if [ -n "$DIFF" ]; then
           echo "❌ Go imports not organized. Run: cd backend && ../scripts/run-go-toolchain.sh go tool goimports -w ."
           echo "$DIFF"

@@ -39,7 +39,6 @@ var (
 	NewTenantRouter               = routetest.NewTenantRouter
 	NewJSONRouter                 = routetest.NewJSONRouter
 	ExecuteRequest                = routetest.ExecuteRequest
-	ExecuteRequestForTest         = routetest.ExecuteRequestForTest
 	ParseResponse                 = routetest.ParseResponse
 	ParseJSONResponse             = routetest.ParseJSONResponse
 	AssertSuccessResponse         = routetest.AssertSuccessResponse
@@ -52,10 +51,7 @@ var (
 	WithAuthenticatedContext      = routetest.WithAuthenticatedContext
 	WithPermissions               = routetest.WithPermissions
 	WithClaims                    = routetest.WithClaims
-	MintTestJWT                   = routetest.MintTestJWT
 	AuthenticationContext         = routetest.AuthenticationContext
-	ExecuteWithAuth               = routetest.ExecuteWithAuth
-	ExecuteWithAuthPermissions    = routetest.ExecuteWithAuthPermissions
 	DefaultTestClaims             = routetest.DefaultTestClaims
 	TeacherTestClaims             = routetest.TeacherTestClaims
 	AdminTestClaims               = routetest.AdminTestClaims

@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/facilities"
+
 	"github.com/moto-nrw/project-phoenix/modules/facilities/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/facilities/internal/ports"
 )
@@ -16,79 +18,45 @@ type Service struct {
 	store        ports.Store
 	tx           ports.Transaction
 	lockDeletion ports.DeletionLock
-	guard        ports.DeletionGuard
+	usage        ports.RoomUsage
 	observe      ports.Observer
 }
 
-func New(store ports.Store, tx ports.Transaction, lockDeletion ports.DeletionLock, guard ports.DeletionGuard, observe ports.Observer) *Service {
-	if store == nil || tx == nil || lockDeletion == nil || guard == nil || observe == nil {
+func New(store ports.Store, tx ports.Transaction, lockDeletion ports.DeletionLock, usage ports.RoomUsage, observe ports.Observer) *Service {
+	if lockDeletion == nil || usage == nil {
 		panic("facilities application: all dependencies are required")
 	}
-	return &Service{store: store, tx: tx, lockDeletion: lockDeletion, guard: guard, observe: observe}
+	service := NewRooms(store, tx, observe)
+	service.lockDeletion, service.usage = lockDeletion, usage
+	return service
 }
 
-func (s *Service) Create(ctx context.Context, input domain.CreateRoom) (result domain.Room, err error) {
-	err = s.runWrite(ctx, "create_room", func(txCtx context.Context, stats *domain.OperationStats) error {
-		if err := s.lockRoomName(txCtx, input.Name); err != nil {
-			return err
-		}
-		existing, found, queryStats, findErr := s.store.FindByName(txCtx, input.Name)
-		stats.Add(queryStats)
-		if findErr != nil {
-			return findErr
-		}
-		if found {
-			return duplicateRoomError(input.Name, existing.Name)
-		}
-		result, queryStats, err = s.store.Create(txCtx, input)
-		stats.Add(queryStats)
-		return err
-	})
-	return result, err
+// NewRooms wires the service for every room operation except Delete, which
+// needs the deletion lock and guard of New. Only facilities.Rooms, which has
+// no deletion, may serve it.
+func NewRooms(store ports.Store, tx ports.Transaction, observe ports.Observer) *Service {
+	if store == nil || tx == nil || observe == nil {
+		panic("facilities application: all dependencies are required")
+	}
+	return &Service{store: store, tx: tx, observe: observe}
 }
 
 func roomNameLock(name string) string {
 	return "facilities:room-name:" + strings.ToLower(name)
 }
 
-func (s *Service) Update(ctx context.Context, input domain.UpdateRoom) (result domain.Room, err error) {
-	err = s.runWrite(ctx, "update_room", func(txCtx context.Context, stats *domain.OperationStats) error {
-		if err := s.lockRoomName(txCtx, input.Name); err != nil {
-			return err
-		}
-		existing, found, queryStats, findErr := s.store.FindByID(txCtx, input.ID, "UPDATE")
-		stats.Add(queryStats)
-		if findErr != nil {
-			return findErr
-		}
-		if !found {
-			return domain.ErrNotFound
-		}
-		if err := validateRoomUpdate(existing, &input); err != nil {
-			return err
-		}
-		if err := s.ensureUpdateNameAvailable(txCtx, existing, input, stats); err != nil {
-			return err
-		}
-		result, queryStats, err = s.store.Update(txCtx, input)
-		stats.Add(queryStats)
-		return err
-	})
-	return result, err
-}
-
-func validateRoomUpdate(existing domain.Room, input *domain.UpdateRoom) error {
+func validateRoomUpdate(existing facilities.Room, input *facilities.UpdateRoom) error {
 	if isSystemRoomName(existing.Name) && input.Name != existing.Name {
-		return domain.ErrSystemProtected
+		return facilities.ErrSystemRoomProtected
 	}
 	if existing.Name != input.Name && strings.EqualFold(input.Name, domain.SchulhofRoomName) {
-		return domain.ErrSystemNameReserved
+		return facilities.ErrSystemRoomNameReserved
 	}
 	if !isWCRoomName(existing.Name) {
 		return nil
 	}
 	if input.Color != nil && !equalStringPointer(input.Color, existing.Color) {
-		return domain.ErrSystemProtected
+		return facilities.ErrSystemRoomProtected
 	}
 	input.Color = existing.Color
 	return nil
@@ -96,8 +64,8 @@ func validateRoomUpdate(existing domain.Room, input *domain.UpdateRoom) error {
 
 func (s *Service) ensureUpdateNameAvailable(
 	ctx context.Context,
-	existing domain.Room,
-	input domain.UpdateRoom,
+	existing facilities.Room,
+	input facilities.UpdateRoom,
 	stats *domain.OperationStats,
 ) error {
 	if existing.Name == input.Name {
@@ -116,37 +84,29 @@ func (s *Service) ensureUpdateNameAvailable(
 
 func duplicateRoomError(name, duplicate string) error {
 	if isWCRoomName(name) && isWCRoomName(duplicate) {
-		return domain.ErrDuplicateToilet
+		return facilities.ErrDuplicateToiletRoom
 	}
-	return domain.ErrDuplicate
+	return facilities.ErrDuplicateRoom
 }
 
-func (s *Service) Delete(ctx context.Context, id int64) (err error) {
-	return s.runWrite(ctx, "delete_room", func(txCtx context.Context, stats *domain.OperationStats) error {
-		// Timetable writers take the recurrence lock before room FK locks. Keep
-		// deletion in the same order so concurrent template creation cannot
-		// deadlock with a room delete.
-		if err := s.lockDeletion(txCtx); err != nil {
-			return err
-		}
-		existing, found, queryStats, findErr := s.store.FindByID(txCtx, id, "UPDATE")
-		stats.Add(queryStats)
-		if findErr != nil {
-			return findErr
-		}
-		if !found {
-			return domain.ErrNotFound
-		}
-		if isSystemRoomName(existing.Name) {
-			return domain.ErrSystemProtected
-		}
-		if err := s.guard(txCtx, id); err != nil {
-			return err
-		}
-		queryStats, err = s.store.Delete(txCtx, id)
-		stats.Add(queryStats)
+// refuseUsedRoom keeps a room while a session runs in it or a care offering
+// needs it. The running session is asked first.
+func (s *Service) refuseUsedRoom(ctx context.Context, id int64) error {
+	active, err := s.usage.HasActiveSessions(ctx, id)
+	if err != nil {
 		return err
-	})
+	}
+	if active {
+		return facilities.ErrRoomInUse
+	}
+	required, err := s.usage.RequiredByCareOffering(ctx, id)
+	if err != nil {
+		return err
+	}
+	if required {
+		return facilities.ErrRoomRequiredByOffering
+	}
+	return nil
 }
 
 func isSystemRoomName(name string) bool {
@@ -174,108 +134,17 @@ func (s *Service) lockRoomName(ctx context.Context, name string) error {
 	return nil
 }
 
-func (s *Service) FindByID(ctx context.Context, id int64) (result domain.Room, err error) {
-	err = s.run("find_room", func(stats *domain.OperationStats) error {
-		room, found, queryStats, findErr := s.store.FindByID(ctx, id, "")
-		stats.Add(queryStats)
-		if findErr != nil {
-			return findErr
-		}
-		if !found {
-			return domain.ErrNotFound
-		}
-		result = room
-		return nil
-	})
-	return result, err
-}
-
-func (s *Service) FindByIDForUpdate(ctx context.Context, id int64) (result domain.Room, err error) {
-	err = s.run("find_room_for_update", func(stats *domain.OperationStats) error {
-		room, found, queryStats, findErr := s.store.FindByID(ctx, id, "UPDATE")
-		stats.Add(queryStats)
-		if findErr != nil {
-			return findErr
-		}
-		if !found {
-			return domain.ErrNotFound
-		}
-		result = room
-		return nil
-	})
-	return result, err
-}
-
-func (s *Service) FindByName(ctx context.Context, name string) (result domain.Room, err error) {
-	err = s.run("find_room_by_name", func(stats *domain.OperationStats) error {
-		room, found, queryStats, findErr := s.store.FindByName(ctx, name)
-		stats.Add(queryStats)
-		if findErr != nil {
-			return findErr
-		}
-		if !found {
-			return domain.ErrNotFound
-		}
-		result = room
-		return nil
-	})
-	return result, err
-}
-
-func (s *Service) FindToilet(ctx context.Context, excludeRoomID int64) (result domain.Room, err error) {
-	err = s.run("find_toilet_room", func(stats *domain.OperationStats) error {
-		room, found, queryStats, findErr := s.store.FindToilet(ctx, excludeRoomID)
-		stats.Add(queryStats)
-		if findErr != nil {
-			return findErr
-		}
-		if !found {
-			return domain.ErrNotFound
-		}
-		result = room
-		return nil
-	})
-	return result, err
-}
-
-func (s *Service) List(ctx context.Context, filter domain.RoomFilter) (result []domain.Room, err error) {
-	err = s.run("list_rooms", func(stats *domain.OperationStats) error {
-		rooms, queryStats, listErr := s.store.List(ctx, filter)
-		stats.Add(queryStats)
-		result = rooms
-		return listErr
-	})
-	return result, err
-}
-
-func (s *Service) ListPage(ctx context.Context, filter domain.RoomFilter, offset, limit int) (result []domain.Room, total int, err error) {
-	err = s.run("list_rooms_page", func(stats *domain.OperationStats) error {
-		var queryStats domain.OperationStats
-		result, total, queryStats, err = s.store.ListPage(ctx, filter, offset, limit)
-		stats.Add(queryStats)
-		return err
-	})
-	return result, total, err
-}
-
-func (s *Service) ListByIDs(ctx context.Context, ids []int64) (result []domain.Room, err error) {
-	err = s.run("list_rooms_by_id", func(stats *domain.OperationStats) error {
-		rooms, queryStats, listErr := s.store.ListByIDs(ctx, ids)
-		stats.Add(queryStats)
-		result = rooms
-		return listErr
-	})
-	return result, err
-}
-
-func (s *Service) LockByIDs(ctx context.Context, ids []int64) (result []domain.Room, err error) {
-	err = s.run("lock_rooms_by_id", func(stats *domain.OperationStats) error {
-		rooms, queryStats, lockErr := s.store.LockByIDs(ctx, ids)
-		stats.Add(queryStats)
-		result = rooms
-		return lockErr
-	})
-	return result, err
+func (s *Service) runWrite(ctx context.Context, operation string, fn func(context.Context, *domain.OperationStats) error) (err error) {
+	started := time.Now()
+	stats := domain.OperationStats{}
+	defer func() {
+		s.observe(ports.Observation{Operation: operation, Duration: time.Since(started), Stats: stats, Err: err})
+	}()
+	err = s.tx.RunWrite(ctx, func(txCtx context.Context) error { return fn(txCtx, &stats) })
+	if err != nil {
+		stats.Rows = 0
+	}
+	return err
 }
 
 func (s *Service) run(operation string, fn func(*domain.OperationStats) error) (err error) {
@@ -285,19 +154,6 @@ func (s *Service) run(operation string, fn func(*domain.OperationStats) error) (
 		s.observe(ports.Observation{Operation: operation, Duration: time.Since(started), Stats: stats, Err: err})
 	}()
 	err = fn(&stats)
-	if err != nil {
-		stats.Rows = 0
-	}
-	return err
-}
-
-func (s *Service) runWrite(ctx context.Context, operation string, fn func(context.Context, *domain.OperationStats) error) (err error) {
-	started := time.Now()
-	stats := domain.OperationStats{}
-	defer func() {
-		s.observe(ports.Observation{Operation: operation, Duration: time.Since(started), Stats: stats, Err: err})
-	}()
-	err = s.tx.RunWrite(ctx, func(txCtx context.Context) error { return fn(txCtx, &stats) })
 	if err != nil {
 		stats.Rows = 0
 	}

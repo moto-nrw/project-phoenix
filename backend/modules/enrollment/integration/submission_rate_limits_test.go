@@ -24,7 +24,7 @@ func uniqueKeyValue(prefix string) string {
 	return fmt.Sprintf("%s-%d", prefix, time.Now().UnixNano())
 }
 
-func setupRateLimitTest(t *testing.T) (*bun.DB, *enrollmentCapability.Module, int64) {
+func setupRateLimitTest(t *testing.T) (*bun.DB, enrollmentCapability.Owner, int64) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.Tenant(t)
@@ -45,13 +45,13 @@ func runUnscoped(t *testing.T, db *bun.DB, fn func(ctx context.Context) error) e
 	})
 }
 
-// wipeRateLimitsForKey best-effort removes the rows we created so the
-// next test starts clean.
-func wipeRateLimitsForKey(db *bun.DB, tenantID int64, keyValuePrefix string) {
-	_, _ = db.NewDelete().
-		Table("enrollment.submission_rate_limits").
-		Where("tenant_id = ? AND key_value LIKE ?", tenantID, keyValuePrefix+"%").
-		Exec(context.Background())
+// runInSchool runs a closure in the school's tenant transaction, the way the
+// nightly retention calls the cleanup (#4046).
+func runInSchool(t *testing.T, db *bun.DB, tenantID int64, fn func(ctx context.Context) error) error {
+	t.Helper()
+	return testpkg.WithTenantTx(t, testpkg.Ctx(t), db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return fn(ctx)
+	})
 }
 
 // --- IncrementAttempts -----------------------------------------------
@@ -103,7 +103,7 @@ func TestSubmissionRateLimitRequiresTransaction(t *testing.T) {
 	module := enrollmentCompose.New()
 	_, err := module.IncrementAttempts(context.Background(), testpkg.Tenant(t), enrollmentCapability.SubmissionRateLimitKeyTypeIP, "missing-transaction", time.Hour)
 	require.EqualError(t, err, "enrollment postgres: transaction is required")
-	_, err = module.CleanupExpired(context.Background())
+	_, _, err = module.DeleteExpiredSubmissionRateLimits(context.Background())
 	require.EqualError(t, err, "enrollment postgres: transaction is required")
 }
 
@@ -124,7 +124,6 @@ func TestSubmissionRateLimitRepository_IncrementAttempts_FirstCallReturnsOne(t *
 
 	db, repo, tenantID := setupRateLimitTest(t)
 	key := uniqueKeyValue("first")
-	defer wipeRateLimitsForKey(db, tenantID, key)
 
 	var state *enrollmentCapability.SubmissionRateLimitState
 	err := runUnscoped(t, db, func(ctx context.Context) error {
@@ -144,7 +143,6 @@ func TestSubmissionRateLimitRepository_IncrementAttempts_RepeatHitsAccumulate(t 
 
 	db, repo, tenantID := setupRateLimitTest(t)
 	key := uniqueKeyValue("accumulate")
-	defer wipeRateLimitsForKey(db, tenantID, key)
 
 	for expected := 1; expected <= 3; expected++ {
 		var state *enrollmentCapability.SubmissionRateLimitState
@@ -168,7 +166,6 @@ func TestSubmissionRateLimitRepository_IncrementAttempts_ExpiredWindowResetsToOn
 	// MUST detect the expired window and reset attempts back to 1.
 	db, repo, tenantID := setupRateLimitTest(t)
 	key := uniqueKeyValue("expired")
-	defer wipeRateLimitsForKey(db, tenantID, key)
 
 	// Pre-seed an existing row with attempts=5 + ancient window. Raw
 	// SQL because the bun builder needs a Model().
@@ -203,8 +200,6 @@ func TestSubmissionRateLimitRepository_IncrementAttempts_SeparateKeysSeparateBuc
 	db, repo, tenantID := setupRateLimitTest(t)
 	keyA := uniqueKeyValue("bucketA")
 	keyB := uniqueKeyValue("bucketB")
-	defer wipeRateLimitsForKey(db, tenantID, keyA)
-	defer wipeRateLimitsForKey(db, tenantID, keyB)
 
 	for i := 0; i < 3; i++ {
 		_, err := repoIncrement(t, db, repo, tenantID, enrollmentCapability.SubmissionRateLimitKeyTypeIP, keyA, time.Hour)
@@ -222,7 +217,6 @@ func TestSubmissionRateLimitRepository_IncrementAttempts_SeparateKeyTypesSeparat
 	// share a counter — UNIQUE is on (tenant, type, value).
 	db, repo, tenantID := setupRateLimitTest(t)
 	key := uniqueKeyValue("keytypeshare")
-	defer wipeRateLimitsForKey(db, tenantID, key)
 
 	for i := 0; i < 3; i++ {
 		_, err := repoIncrement(t, db, repo, tenantID, enrollmentCapability.SubmissionRateLimitKeyTypeIP, key, time.Hour)
@@ -245,8 +239,6 @@ func TestSubmissionRateLimitRepository_IncrementAttempts_SeparateTenantsSeparate
 	testpkg.EnsureTestTenant(t, db, tenantA)
 	testpkg.EnsureTestTenant(t, db, tenantB)
 	key := uniqueKeyValue("tenantshare")
-	defer wipeRateLimitsForKey(db, tenantA, key)
-	defer wipeRateLimitsForKey(db, tenantB, key)
 
 	for i := 0; i < 3; i++ {
 		_, err := repoIncrement(t, db, repo, tenantA, enrollmentCapability.SubmissionRateLimitKeyTypeIP, key, time.Hour)
@@ -291,7 +283,6 @@ func TestSubmissionRateLimitRepository_IncrementAttempts_RetryAtIsWindowStartPlu
 	// want to leak more (or less) than the actual reset time.
 	db, repo, tenantID := setupRateLimitTest(t)
 	key := uniqueKeyValue("retryat")
-	defer wipeRateLimitsForKey(db, tenantID, key)
 
 	state, err := repoIncrement(t, db, repo, tenantID,
 		enrollmentCapability.SubmissionRateLimitKeyTypeIP, key, time.Hour)
@@ -320,8 +311,6 @@ func TestSubmissionRateLimitRepository_CleanupExpired_RemovesAncientRows(t *test
 	db, repo, tenantID := setupRateLimitTest(t)
 	ancientKey := uniqueKeyValue("ancient")
 	freshKey := uniqueKeyValue("fresh")
-	defer wipeRateLimitsForKey(db, tenantID, ancientKey)
-	defer wipeRateLimitsForKey(db, tenantID, freshKey)
 
 	// Insert an ancient row (>24h) and a fresh row. Raw SQL because
 	// the bun builder needs a Model() and we want to backdate
@@ -344,17 +333,35 @@ func TestSubmissionRateLimitRepository_CleanupExpired_RemovesAncientRows(t *test
 		require.NoError(t, err)
 	}
 
-	var n int
-	err := runUnscoped(t, db, func(ctx context.Context) error {
+	otherTenantID := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, otherTenantID)
+	_, err := db.NewRaw(`
+		INSERT INTO enrollment.submission_rate_limits
+		  (tenant_id, key_type, key_value, attempts, window_start)
+		VALUES (?, ?, ?, 1, ?)
+	`, otherTenantID, enrollmentCapability.SubmissionRateLimitKeyTypeIP, ancientKey, ancient).
+		Exec(context.Background())
+	require.NoError(t, err)
+
+	var n, days int
+	err = runInSchool(t, db, tenantID, func(ctx context.Context) error {
 		var cErr error
-		n, cErr = repo.CleanupExpired(ctx)
+		n, days, cErr = repo.DeleteExpiredSubmissionRateLimits(ctx)
 		return cErr
 	})
 	require.NoError(t, err)
-	assert.GreaterOrEqual(t, n, 1, "at least the ancient row must be deleted")
+	assert.Equal(t, 1, n, "only the school's ancient row is deleted")
+	assert.Equal(t, 1, days, "the window is the longest submission window, one day")
+
+	c, err := db.NewSelect().
+		Table("enrollment.submission_rate_limits").
+		Where("tenant_id = ? AND key_value = ?", otherTenantID, ancientKey).
+		Count(context.Background())
+	require.NoError(t, err)
+	assert.EqualValues(t, 1, c, "the run of one school never touches another")
 
 	// Confirm the ancient row is gone, the fresh row remains.
-	c, err := db.NewSelect().
+	c, err = db.NewSelect().
 		Table("enrollment.submission_rate_limits").
 		Where("tenant_id = ? AND key_value = ?", tenantID, ancientKey).
 		Count(context.Background())
@@ -385,8 +392,8 @@ func TestSubmissionRateLimitCleanupRollbackAndIdempotentRetry(t *testing.T) {
 		Where("tenant_id = ? AND key_value = ?", tenantID, expiredKey).Exec(testpkg.Ctx(t))
 	require.NoError(t, err)
 	failure := errors.New("after rate-limit cleanup")
-	err = runUnscoped(t, db, func(ctx context.Context) error {
-		deleted, err := owner.CleanupExpired(ctx)
+	err = runInSchool(t, db, tenantID, func(ctx context.Context) error {
+		deleted, _, err := owner.DeleteExpiredSubmissionRateLimits(ctx)
 		if err != nil {
 			return err
 		}
@@ -398,8 +405,8 @@ func TestSubmissionRateLimitCleanupRollbackAndIdempotentRetry(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 2, int(count), "failed cleanup must restore the expired bucket")
 	for _, expected := range []int{1, 0} {
-		require.NoError(t, runUnscoped(t, db, func(ctx context.Context) error {
-			deleted, err := owner.CleanupExpired(ctx)
+		require.NoError(t, runInSchool(t, db, tenantID, func(ctx context.Context) error {
+			deleted, _, err := owner.DeleteExpiredSubmissionRateLimits(ctx)
 			require.Equal(t, expected, deleted, "committed cleanup retry must be idempotent")
 			return err
 		}))
@@ -416,11 +423,11 @@ func TestSubmissionRateLimitRepository_CleanupExpired_ZeroAffectedIsNoError(t *t
 	// Running CleanupExpired on an empty (or all-fresh) table must
 	// return (0, nil) — scheduler-callable, must not error out when
 	// there's nothing to clean.
-	db, repo, _ := setupRateLimitTest(t)
+	db, repo, tenantID := setupRateLimitTest(t)
 	var n int
-	err := runUnscoped(t, db, func(ctx context.Context) error {
+	err := runInSchool(t, db, tenantID, func(ctx context.Context) error {
 		var cErr error
-		n, cErr = repo.CleanupExpired(ctx)
+		n, _, cErr = repo.DeleteExpiredSubmissionRateLimits(ctx)
 		return cErr
 	})
 	require.NoError(t, err)
@@ -433,7 +440,7 @@ func TestSubmissionRateLimitRepository_CleanupExpired_ZeroAffectedIsNoError(t *t
 // tests by wrapping the runUnscoped + IncrementAttempts dance.
 func repoIncrement(
 	t *testing.T, db *bun.DB,
-	repo *enrollmentCapability.Module,
+	repo enrollmentCapability.Owner,
 	tenantID int64, keyType, keyValue string, window time.Duration,
 ) (*enrollmentCapability.SubmissionRateLimitState, error) {
 	t.Helper()

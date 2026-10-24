@@ -54,6 +54,7 @@ vi.mock("~/lib/school-setup-api", async (importOriginal) => ({
 }));
 
 import { SchoolSetupWizard } from "./school-setup-wizard";
+import { ApiError } from "~/lib/api-error";
 
 function newSchool(): SchoolSetupState {
   return {
@@ -237,18 +238,38 @@ describe("SchoolSetupWizard", () => {
   });
 
   it("stays hidden for a finished school, a hidden wizard and without an account", () => {
-    setupState = { ...newSchool(), completed: true };
-    const { rerender } = render(<SchoolSetupWizard />);
-    expect(screen.queryByText(/Erste Schritte/)).not.toBeInTheDocument();
+    // Jede verdeckte Zeile weicht von der sichtbaren Ausgangslage (neue
+    // Schule, angemeldetes Konto) nur in einem Punkt ab.
+    const showVisible = () => {
+      setupState = newSchool();
+      shellUser = { id: "73" };
+    };
+    const hiddenRows = [
+      () => {
+        setupState = { ...newSchool(), completed: true };
+      },
+      () => {
+        setupState = { ...newSchool(), dismissed: true };
+      },
+      () => {
+        shellUser = null;
+      },
+    ];
 
-    setupState = { ...newSchool(), dismissed: true };
-    rerender(<SchoolSetupWizard />);
-    expect(screen.queryByText(/Erste Schritte/)).not.toBeInTheDocument();
+    for (const hide of hiddenRows) {
+      showVisible();
+      hide();
+      const hidden = render(<SchoolSetupWizard />);
+      expect(screen.queryByText(/Erste Schritte/)).not.toBeInTheDocument();
+      hidden.unmount();
 
-    setupState = newSchool();
-    shellUser = null;
-    rerender(<SchoolSetupWizard />);
-    expect(screen.queryByText(/Erste Schritte/)).not.toBeInTheDocument();
+      sessionStorage.clear();
+      showVisible();
+      const visible = render(<SchoolSetupWizard />);
+      // Anker: dieselbe Abfrage findet den Assistenten in der sichtbaren Ausgangslage.
+      expect(screen.getByText(/Erste Schritte/)).toBeInTheDocument();
+      visible.unmount();
+    }
   });
 
   it("shows the checklist with progress and the next open step expanded", () => {
@@ -794,6 +815,10 @@ describe("SchoolSetupWizard", () => {
     const create = visibleTarget("create");
 
     fireEvent.click(screen.getByRole("button", { name: "Zeig es mir" }));
+    // Ausgangszustand: die Sprechblase zum Knopf steht da.
+    expect(
+      await screen.findByRole("dialog", { name: "Personal einladen" }),
+    ).toBeInTheDocument();
     await waitForHighlight();
     fireEvent.click(create);
 
@@ -856,9 +881,10 @@ describe("SchoolSetupWizard", () => {
   });
 
   it("says so when a step could not be saved", async () => {
-    const { SchoolSetupError } = await import("~/lib/school-setup-api");
     api.setSchoolSetupStepSkipped.mockRejectedValue(
-      new SchoolSetupError(409, { code: "school.setup_completed" }),
+      new ApiError("school setup already completed", 409, {
+        code: "school.setup_completed",
+      }),
     );
     render(<SchoolSetupWizard />);
 

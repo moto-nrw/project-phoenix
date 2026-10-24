@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Group substitution target types. A group handover hands a whole education
@@ -27,8 +29,6 @@ type InvalidGroupSubstitutionError struct{ Reason string }
 func (e *InvalidGroupSubstitutionError) Error() string { return e.Reason }
 func (e *InvalidGroupSubstitutionError) Unwrap() error { return ErrInvalidGroupSubstitution }
 
-func invalidSubstitution(reason string) error { return &InvalidGroupSubstitutionError{Reason: reason} }
-
 // GroupSubstitution is a temporary assignment of a substitute staff member to
 // an education group. Dates are calendar days in DateLayout, inclusive.
 type GroupSubstitution struct {
@@ -51,7 +51,7 @@ type GroupSubstitution struct {
 // TenantID is an explicit tenant predicate on top of the ambient tenant; a
 // value for another tenant therefore matches nothing.
 type GroupSubstitutionFilter struct {
-	TenantID          int64
+	TenantID          *int64
 	GroupID           int64
 	GroupIDs          []int64
 	SubstituteStaffID int64
@@ -91,58 +91,6 @@ type SubstitutionCommand interface {
 	LockGroupSubstitutions(context.Context) error
 }
 
-type substitutionEngine interface {
-	SubstitutionQuery
-	SubstitutionCommand
-}
-
-func (m *Module) FindGroupSubstitution(ctx context.Context, id int64) (GroupSubstitution, error) {
-	if id <= 0 {
-		return GroupSubstitution{}, invalidSubstitution("group substitution ID is required")
-	}
-	return m.engine.FindGroupSubstitution(ctx, id)
-}
-
-func (m *Module) LockGroupSubstitution(ctx context.Context, id int64) (GroupSubstitution, error) {
-	if id <= 0 {
-		return GroupSubstitution{}, invalidSubstitution("group substitution ID is required")
-	}
-	return m.engine.LockGroupSubstitution(ctx, id)
-}
-
-func (m *Module) ListGroupSubstitutions(ctx context.Context, filter GroupSubstitutionFilter) ([]GroupSubstitution, error) {
-	return m.engine.ListGroupSubstitutions(ctx, filter)
-}
-
-func (m *Module) CreateGroupSubstitution(ctx context.Context, value GroupSubstitution) (GroupSubstitution, error) {
-	return m.engine.CreateGroupSubstitution(ctx, value)
-}
-
-func (m *Module) UpdateGroupSubstitution(ctx context.Context, value GroupSubstitution) (GroupSubstitution, error) {
-	if value.ID <= 0 {
-		return GroupSubstitution{}, invalidSubstitution("group substitution ID is required")
-	}
-	return m.engine.UpdateGroupSubstitution(ctx, value)
-}
-
-func (m *Module) DeleteGroupSubstitution(ctx context.Context, id int64) error {
-	if id <= 0 {
-		return invalidSubstitution("group substitution ID is required")
-	}
-	return m.engine.DeleteGroupSubstitution(ctx, id)
-}
-
-func (m *Module) DeleteGroupSubstitutionsForStaff(ctx context.Context, staffID int64, from string) (int64, error) {
-	if staffID <= 0 {
-		return 0, invalidSubstitution("staff ID is required")
-	}
-	return m.engine.DeleteGroupSubstitutionsForStaff(ctx, staffID, from)
-}
-
-func (m *Module) LockGroupSubstitutions(ctx context.Context) error {
-	return m.engine.LockGroupSubstitutions(ctx)
-}
-
 // --- substitution operations contract ---
 
 // SubstitutionTargetType names what a substitution assignment addresses.
@@ -177,6 +125,17 @@ type SubstitutionOperationError struct {
 	Details SubstitutionRefusalValues
 	Field   string
 }
+
+// InvalidSubstitutionPeriod refuses a period whose day the caller sent
+// malformed or empty, with the German message the substitution page shows.
+func InvalidSubstitutionPeriod(cause error) *SubstitutionOperationError {
+	return &SubstitutionOperationError{
+		Target: ErrSubstitutionInvalidPeriod, Code: codeSubstitutionInvalidPeriod, Message: "Der Zeitraum ist ungültig.", Cause: cause,
+	}
+}
+
+// codeSubstitutionInvalidPeriod is the registered error code of the refusal.
+const codeSubstitutionInvalidPeriod = "substitutions.invalid_period"
 
 // SubstitutionRefusalValues are the values a refused schedule substitution
 // names: the failing day (YYYY-MM-DD) or a cap. Unset values stay off the wire.
@@ -213,9 +172,15 @@ type GroupRef struct {
 type StaffRef struct {
 	ID       int64  `json:"id,string"`
 	FullName string `json:"full_name"`
-	// IsExternal marks an external caregiver without a moto account (#3823);
-	// only the additional supervision targets carry it.
-	IsExternal bool `json:"is_external,omitempty"`
+	// IsExternal marks an external caregiver, with or without a moto account
+	// (#3823, #4573), and ExternalAccountStatus is then "account" |
+	// "invitation_pending" | "none", ExternalOrganization the organization
+	// of the external caregiver record (empty when none is recorded). The running
+	// supervisions' targets and supervisors carry all three; the schedule
+	// targets carry IsExternal only.
+	IsExternal            bool   `json:"is_external,omitempty"`
+	ExternalAccountStatus string `json:"external_account_status,omitempty"`
+	ExternalOrganization  string `json:"external_organization,omitempty"`
 }
 
 type Period struct {
@@ -326,6 +291,24 @@ type ScheduleWholeDayAssignment struct {
 	Reason            *string
 }
 
+// Days parses the whole days of the assignment. A whole-day absence names
+// each of its days: an empty or malformed day refuses the period
+// (InvalidSubstitutionPeriod).
+func (a ScheduleWholeDayAssignment) Days() ([]calendar.Date, error) {
+	days := make([]calendar.Date, 0, len(a.Dates))
+	for _, raw := range a.Dates {
+		if raw == "" {
+			return nil, InvalidSubstitutionPeriod(nil)
+		}
+		day, err := calendar.ParseDate(raw)
+		if err != nil {
+			return nil, InvalidSubstitutionPeriod(err)
+		}
+		days = append(days, day)
+	}
+	return days, nil
+}
+
 type ScheduleSubstitutionAssignment struct {
 	InstanceID           int64
 	UnderstaffedAck      *bool
@@ -388,14 +371,4 @@ type SubstitutionAssignmentResult struct {
 type SubstitutionEndRequest struct {
 	Type SubstitutionTargetType
 	ID   int64
-}
-
-// Substitutions is the operations capability behind /api/substitutions: the
-// overview of running handovers and supervisions, assigning a substitute, and
-// ending an assignment. Every operation runs for the given caller and
-// enforces that caller's access itself.
-type Substitutions interface {
-	Overview(context.Context, SubstitutionCaller, SubstitutionOverviewQuery) (*SubstitutionOverviewResult, error)
-	Assign(context.Context, SubstitutionCaller, SubstitutionAssignment) (*SubstitutionAssignmentResult, error)
-	End(context.Context, SubstitutionCaller, SubstitutionEndRequest) error
 }

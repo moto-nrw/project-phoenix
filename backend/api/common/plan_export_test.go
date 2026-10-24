@@ -1,11 +1,9 @@
 package common
 
 import (
-	"context"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 )
 
 func TestCanExportInternalPlanRequiresScheduleManagement(t *testing.T) {
@@ -21,8 +19,7 @@ func TestCanExportInternalPlanRequiresScheduleManagement(t *testing.T) {
 		{name: "platform administrator", permissions: []string{"admin:*"}, want: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			ctx := context.WithValue(context.Background(), jwt.CtxPermissions, tc.permissions)
-			if got := CanExportInternalPlan(ctx); got != tc.want {
+			if got := CanExportInternalPlan(tc.permissions); got != tc.want {
 				t.Fatalf("CanExportInternalPlan() = %v, want %v", got, tc.want)
 			}
 		})

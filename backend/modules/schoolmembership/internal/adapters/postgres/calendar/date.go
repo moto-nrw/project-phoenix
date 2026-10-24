@@ -5,20 +5,20 @@ package calendar
 import (
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-type Date = timezone.Date
+type Date = calendar.Date
 
 func ParseDate(value string) (Date, error) {
-	return timezone.ParseDate(value)
+	return calendar.ParseDate(value)
 }
 
 func TodayDate() Date {
-	return timezone.TodayDate()
+	return calendar.TodayDate()
 }
 
 // DateFromTime maps an instant to its Berlin calendar date for DATE queries.
 func DateFromTime(value time.Time) Date {
-	return timezone.DateFromTime(value)
+	return calendar.DateFromTime(value)
 }

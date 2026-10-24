@@ -27,7 +27,7 @@ const (
 )
 
 // ErrDeclarationVersionConflict reports a version number written concurrently.
-var ErrDeclarationVersionConflict = errors.New("parent declaration version already exists")
+var ErrDeclarationVersionConflict = errors.New("users: declaration version already exists")
 
 // declarationColumns is embedded in parentAnnouncementRow. NULL kind/signers
 // is every non-declaration announcement.
@@ -155,7 +155,7 @@ func (s *AnnouncementStore) LatestDeclarationVersion(ctx context.Context, tenant
 		Where(`"pdv".announcement_id = ?`, announcementID).
 		OrderExpr(`"pdv".version_no DESC`).
 		Limit(1)
-	query = withTenant(query, declarationVersionAlias, firstTenant(tenantID, ambient))
+	query = withTenant(query, declarationVersionAlias, TenantScope{TenantID: firstTenant(tenantID, ambient.TenantID)})
 	if err := query.Scan(ctx); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -175,7 +175,7 @@ func (s *AnnouncementStore) ListDeclarationVersions(ctx context.Context, tenantI
 	query := db.NewSelect().Model(&rows).ModelTableExpr(declarationVersionTableExpr).
 		Where(`"pdv".announcement_id = ?`, announcementID).
 		OrderExpr(`"pdv".version_no DESC`)
-	query = withTenant(query, declarationVersionAlias, firstTenant(tenantID, ambient))
+	query = withTenant(query, declarationVersionAlias, TenantScope{TenantID: firstTenant(tenantID, ambient.TenantID)})
 	if err := query.Scan(ctx); err != nil {
 		return nil, fmt.Errorf("list declaration versions: %w", err)
 	}
@@ -227,7 +227,7 @@ func (s *AnnouncementStore) InsertDeclarationVersion(ctx context.Context, versio
 		attachments = append(attachments, declarationAttachmentDigestJSON(a))
 	}
 	row := &declarationVersionRow{
-		TenantID: firstTenant(version.TenantID, ambient), AnnouncementID: version.AnnouncementID,
+		TenantID: firstTenant(version.TenantID, ambient.TenantID), AnnouncementID: version.AnnouncementID,
 		VersionNo: version.VersionNo, Title: version.Title, Body: version.Body, Kind: version.Kind,
 		Attachments: attachments, ContentHash: version.ContentHash, PublishedAt: version.PublishedAt,
 	}
@@ -283,7 +283,7 @@ func (s *AnnouncementStore) CountDeclarationSubmissions(ctx context.Context, ten
 	}
 	query := db.NewSelect().TableExpr(declarationSubmissionTableExpr).
 		Where(`"pds".announcement_id = ?`, announcementID)
-	query = withTenant(query, declarationSubmissionAlias, firstTenant(tenantID, ambient))
+	query = withTenant(query, declarationSubmissionAlias, TenantScope{TenantID: firstTenant(tenantID, ambient.TenantID)})
 	count, err := query.Count(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("count declaration submissions: %w", err)
@@ -309,7 +309,7 @@ func (s *AnnouncementStore) ListDeclarationSubmissions(ctx context.Context, tena
 		Join(declarationSubmissionVersionJoin).
 		Where(`"pds".announcement_id = ?`, announcementID).
 		OrderExpr(`"pds".submitted_at DESC, "pds".id DESC`)
-	query = withTenant(query, declarationSubmissionAlias, firstTenant(tenantID, ambient))
+	query = withTenant(query, declarationSubmissionAlias, TenantScope{TenantID: firstTenant(tenantID, ambient.TenantID)})
 	if err := query.Scan(ctx); err != nil {
 		return nil, fmt.Errorf("list declaration submissions: %w", err)
 	}
@@ -419,7 +419,7 @@ func (s *AnnouncementStore) InsertDeclarationSubmission(ctx context.Context, sub
 		return err
 	}
 	row := &declarationSubmissionRow{
-		TenantID: firstTenant(submission.TenantID, ambient), AnnouncementID: submission.AnnouncementID,
+		TenantID: firstTenant(submission.TenantID, ambient.TenantID), AnnouncementID: submission.AnnouncementID,
 		VersionID: submission.VersionID, StudentID: submission.StudentID, AccountID: submission.AccountID,
 		GuardianProfileID: submission.GuardianProfileID, SignerName: submission.SignerName,
 		GuardianRole: submission.GuardianRole, Action: submission.Action, Method: submission.Method,

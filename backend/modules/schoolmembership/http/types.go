@@ -12,6 +12,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // JSONID accepts a JSON number or a decimal string. Person ids are bigints,
@@ -75,6 +76,8 @@ type PersonResponse struct {
 
 // StaffResponse represents a staff response.
 type StaffResponse struct {
+	StartedOn calendar.Date  `json:"started_on"`
+	EndedOn   *calendar.Date `json:"ended_on"`
 	// ID goes out as a decimal STRING for the same reason as PersonID: staff
 	// IDs are bigints, and the Next.js proxy parses every JSON number before
 	// the mapper can preserve it. A rounded staff ID could address a different
@@ -99,13 +102,16 @@ type StaffResponse struct {
 	AbsenceTypeLabel string  `json:"absence_type_label,omitempty"`
 	AccountRole      string  `json:"account_role,omitempty"`
 	EmploymentType   *string `json:"employment_type,omitempty"`
-	// IsExternal marks an external caregiver without a moto account (#3823)
-	// and ExternalOrganization names where they come from. Every colleague
-	// sees both on purpose: the supervision pickers label these people.
-	IsExternal           bool      `json:"is_external"`
-	ExternalOrganization string    `json:"external_organization,omitempty"`
-	CreatedAt            time.Time `json:"created_at"`
-	UpdatedAt            time.Time `json:"updated_at"`
+	// IsExternal marks an external caregiver, with or without a moto account
+	// (#3823, #4573), and ExternalOrganization names where they come from.
+	// ExternalAccountStatus is set for external caregivers only: "account" |
+	// "invitation_pending" | "none". Every colleague sees all three on
+	// purpose: the pickers label these people.
+	IsExternal            bool      `json:"is_external"`
+	ExternalOrganization  string    `json:"external_organization,omitempty"`
+	ExternalAccountStatus string    `json:"external_account_status,omitempty"`
+	CreatedAt             time.Time `json:"created_at"`
+	UpdatedAt             time.Time `json:"updated_at"`
 }
 
 // TeacherResponse represents a teacher response (extends staff).
@@ -167,19 +173,27 @@ const (
 	maxExternalOrganizationLength = 150
 )
 
-// ExternalStaffRequest records an external caregiver without a moto account
-// (#3823): only a name and, optionally, the organization they come from.
+// ExternalStaffRequest records an external caregiver (#3823) with an access
+// level (#4573, ADR 0091): name, optionally the organization they come from,
+// the access ("none" | "view" | "supervise") and, for view and supervise,
+// the e-mail address the invitation goes to. The workflow validates access
+// and address, so its refusals carry the field codes
+// (staff.external_access_invalid, staff.external_email_*).
 type ExternalStaffRequest struct {
 	FirstName    string `json:"first_name"`
 	LastName     string `json:"last_name"`
+	Email        string `json:"email,omitempty"`
 	Organization string `json:"organization,omitempty"`
+	Access       string `json:"access"`
 }
 
 // Bind trims and validates the external caregiver request.
 func (req *ExternalStaffRequest) Bind(*http.Request) error {
 	req.FirstName = strings.TrimSpace(req.FirstName)
 	req.LastName = strings.TrimSpace(req.LastName)
+	req.Email = strings.TrimSpace(req.Email)
 	req.Organization = strings.TrimSpace(req.Organization)
+	req.Access = strings.TrimSpace(req.Access)
 	switch {
 	case req.FirstName == "":
 		return errors.New("first name is required")
@@ -190,6 +204,20 @@ func (req *ExternalStaffRequest) Bind(*http.Request) error {
 	case len([]rune(req.Organization)) > maxExternalOrganizationLength:
 		return fmt.Errorf("organization must not exceed %d characters", maxExternalOrganizationLength)
 	}
+	return nil
+}
+
+// ExternalInvitationRequest is the body of „Konto einladen“ (#4573): the
+// address and the access ("view" | "supervise").
+type ExternalInvitationRequest struct {
+	Email  string `json:"email"`
+	Access string `json:"access"`
+}
+
+// Bind trims address and access; the workflow validates both.
+func (req *ExternalInvitationRequest) Bind(*http.Request) error {
+	req.Email = strings.TrimSpace(req.Email)
+	req.Access = strings.TrimSpace(req.Access)
 	return nil
 }
 
@@ -253,6 +281,9 @@ type enrichment struct {
 	accountRole      string
 	email            string
 	avatar           string
+	// invitationPending: an open invitation names the staff member's person
+	// (#4573); only read for external caregivers without an account.
+	invitationPending bool
 }
 
 func newPersonResponse(person *Person, email, avatar string) *PersonResponse {
@@ -277,9 +308,11 @@ func newPersonResponse(person *Person, email, avatar string) *PersonResponse {
 // single constructor every staff response goes through, so a new endpoint
 // cannot forget it.
 func buildStaffResponse(access staffFieldAccess, staff schoolmembership.Staff, person *Person, isTeacher bool, data enrichment) StaffResponse {
-	isExternal := staff.IsGuest && person != nil && person.AccountID == nil
+	isExternal := schoolmembership.ExternalCaregiver(staff.HasExternalCaregiverRecord, person != nil)
 	response := StaffResponse{
 		ID:               staff.ID,
+		StartedOn:        calendar.DateFromTime(staff.CreatedAt),
+		EndedOn:          staffEndedOn(staff),
 		PersonID:         staff.PersonID,
 		StaffNotes:       staff.StaffNotes,
 		IsTeacher:        isTeacher,
@@ -294,7 +327,8 @@ func buildStaffResponse(access staffFieldAccess, staff schoolmembership.Staff, p
 		UpdatedAt:        staff.UpdatedAt,
 	}
 	if isExternal {
-		response.ExternalOrganization = staff.GuestOrganization
+		response.ExternalOrganization = staff.ExternalOrganization
+		response.ExternalAccountStatus = schoolmembership.ExternalAccountStatus(person.AccountID != nil, data.invitationPending)
 	}
 	if person != nil {
 		response.Person = newPersonResponse(person, data.email, data.avatar)
@@ -343,4 +377,12 @@ func buildResponse(access staffFieldAccess, staff schoolmembership.Staff, person
 		return buildTeacherResponse(access, staff, person, *teacher, data)
 	}
 	return buildStaffResponse(access, staff, person, false, data)
+}
+
+func staffEndedOn(staff schoolmembership.Staff) *calendar.Date {
+	if staff.DeletedAt == nil {
+		return nil
+	}
+	date := calendar.DateFromTime(*staff.DeletedAt)
+	return &date
 }

@@ -4,7 +4,6 @@
  * Tests:
  * - useStudentData hook
  * - mapStudentResponse helper
- * - shouldShowCheckoutSection helper
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -42,11 +41,7 @@ vi.mock("~/lib/usercontext-api", () => ({
 }));
 
 // Import after mocking
-import {
-  useStudentData,
-  shouldShowCheckoutSection,
-  type ExtendedStudent,
-} from "../use-student-data";
+import { useStudentData } from "../use-student-data";
 import { useSWRAuth } from "~/lib/swr";
 
 describe("useStudentData", () => {
@@ -150,155 +145,6 @@ describe("useStudentData", () => {
         expect.any(Object),
       );
     });
-  });
-});
-
-describe("shouldShowCheckoutSection", () => {
-  const createStudent = (
-    overrides: Partial<ExtendedStudent> = {},
-  ): ExtendedStudent => ({
-    id: "1",
-    first_name: "Max",
-    second_name: "Mustermann",
-    name: "Max Mustermann",
-    school_class: "3a",
-    group_id: "group1",
-    group_name: "Group 1",
-    current_location: "Anwesend - Raum 101",
-    bus: false,
-    ...overrides,
-  });
-
-  it("returns true when student is in user's group and checked in", () => {
-    const student = createStudent({
-      group_id: "group1",
-      current_location: "Anwesend - Raum 101",
-    });
-    const myGroups = ["group1"];
-    const mySupervisedRooms: string[] = [];
-
-    expect(
-      shouldShowCheckoutSection(student, myGroups, mySupervisedRooms),
-    ).toBe(true);
-  });
-
-  it("returns true when student is in supervised room and checked in", () => {
-    const student = createStudent({
-      group_id: "other-group",
-      current_location: "Anwesend - Raum 101",
-    });
-    const myGroups: string[] = [];
-    const mySupervisedRooms = ["Raum 101"];
-
-    expect(
-      shouldShowCheckoutSection(student, myGroups, mySupervisedRooms),
-    ).toBe(true);
-  });
-
-  it("returns false when student is at home", () => {
-    const student = createStudent({
-      group_id: "group1",
-      current_location: "Zuhause",
-    });
-    const myGroups = ["group1"];
-    const mySupervisedRooms: string[] = [];
-
-    expect(
-      shouldShowCheckoutSection(student, myGroups, mySupervisedRooms),
-    ).toBe(false);
-  });
-
-  it("returns true when student is checked in, regardless of group", () => {
-    // Any authenticated staff can checkout any checked-in student
-    const student = createStudent({
-      group_id: "other-group",
-      current_location: "Anwesend - Other Room",
-    });
-    const myGroups = ["group1"];
-    const mySupervisedRooms = ["Raum 101"];
-
-    expect(
-      shouldShowCheckoutSection(student, myGroups, mySupervisedRooms),
-    ).toBe(true);
-  });
-
-  it("returns true when student is checked in without group_id", () => {
-    // Any authenticated staff can checkout any checked-in student
-    const student = createStudent({
-      group_id: undefined,
-      current_location: "Anwesend - Raum 101",
-    });
-    const myGroups = ["group1"];
-    const mySupervisedRooms: string[] = [];
-
-    expect(
-      shouldShowCheckoutSection(student, myGroups, mySupervisedRooms),
-    ).toBe(true);
-  });
-
-  it("returns false when student has no current_location", () => {
-    const student = createStudent({
-      group_id: "group1",
-      current_location: undefined,
-    });
-    const myGroups = ["group1"];
-    const mySupervisedRooms: string[] = [];
-
-    expect(
-      shouldShowCheckoutSection(student, myGroups, mySupervisedRooms),
-    ).toBe(false);
-  });
-
-  it("returns true when student is both in group and supervised room", () => {
-    const student = createStudent({
-      group_id: "group1",
-      current_location: "Anwesend - Raum 101",
-    });
-    const myGroups = ["group1"];
-    const mySupervisedRooms = ["Raum 101"];
-
-    expect(
-      shouldShowCheckoutSection(student, myGroups, mySupervisedRooms),
-    ).toBe(true);
-  });
-
-  it("handles multiple groups correctly", () => {
-    const student = createStudent({
-      group_id: "group2",
-      current_location: "Anwesend - Raum 202",
-    });
-    const myGroups = ["group1", "group2", "group3"];
-    const mySupervisedRooms: string[] = [];
-
-    expect(
-      shouldShowCheckoutSection(student, myGroups, mySupervisedRooms),
-    ).toBe(true);
-  });
-
-  it("handles multiple supervised rooms correctly", () => {
-    const student = createStudent({
-      group_id: "other-group",
-      current_location: "Anwesend - Schulhof",
-    });
-    const myGroups: string[] = [];
-    const mySupervisedRooms = ["Raum 101", "Schulhof", "Mensa"];
-
-    expect(
-      shouldShowCheckoutSection(student, myGroups, mySupervisedRooms),
-    ).toBe(true);
-  });
-
-  it("returns false when location starts with Zuhause with additional text", () => {
-    const student = createStudent({
-      group_id: "group1",
-      current_location: "Zuhause - Abgeholt",
-    });
-    const myGroups = ["group1"];
-    const mySupervisedRooms: string[] = [];
-
-    expect(
-      shouldShowCheckoutSection(student, myGroups, mySupervisedRooms),
-    ).toBe(false);
   });
 });
 
@@ -510,7 +356,6 @@ describe("mapStudentResponse helper logic", () => {
       bus: true,
       location_since: "2024-01-15T10:00:00Z",
       extra_info: "Some notes",
-      supervisor_notes: "Teacher notes",
       sick: true,
       sick_since: "2024-01-14",
     };
@@ -522,14 +367,12 @@ describe("mapStudentResponse helper logic", () => {
       ...response,
       location_since: hasAccess ? response.location_since : undefined,
       extra_info: hasAccess ? response.extra_info : undefined,
-      supervisor_notes: hasAccess ? response.supervisor_notes : undefined,
       sick: hasAccess ? response.sick : false,
       sick_since: hasAccess ? response.sick_since : undefined,
     };
 
     expect(mapped.location_since).toBe("2024-01-15T10:00:00Z");
     expect(mapped.extra_info).toBe("Some notes");
-    expect(mapped.supervisor_notes).toBe("Teacher notes");
     expect(mapped.sick).toBe(true);
     expect(mapped.sick_since).toBe("2024-01-14");
   });
@@ -547,7 +390,6 @@ describe("mapStudentResponse helper logic", () => {
       bus: true,
       location_since: "2024-01-15T10:00:00Z",
       extra_info: "Some notes",
-      supervisor_notes: "Teacher notes",
       sick: true,
       sick_since: "2024-01-14",
     };
@@ -559,14 +401,12 @@ describe("mapStudentResponse helper logic", () => {
       ...response,
       location_since: hasAccess ? response.location_since : undefined,
       extra_info: hasAccess ? response.extra_info : undefined,
-      supervisor_notes: hasAccess ? response.supervisor_notes : undefined,
       sick: hasAccess ? response.sick : false,
       sick_since: hasAccess ? response.sick_since : undefined,
     };
 
     expect(mapped.location_since).toBeUndefined();
     expect(mapped.extra_info).toBeUndefined();
-    expect(mapped.supervisor_notes).toBeUndefined();
     expect(mapped.sick).toBe(false);
     expect(mapped.sick_since).toBeUndefined();
   });

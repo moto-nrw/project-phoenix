@@ -1,4 +1,5 @@
-import { ApiError, enrichApiError, transportFetch } from "./api-error";
+import type { DepartureMode } from "~/lib/student-helpers";
+import { ApiError, apiErrorFromBody, transportFetch } from "./api-error";
 /**
  * Staff client for the parent care-schedule change-request review queue
  * (#1803). Calls the Next.js proxy routes under
@@ -52,47 +53,28 @@ function unwrap<T>(json: Envelope<T>): T {
 }
 
 /**
- * Error thrown by the care-request client. Carries the backend's stable 409
- * `code` (e.g. "students.guardian_access_revoked",
- * "students.change_request_not_pending") so the review UI can name the concrete recovery
- * action instead of collapsing every failure into one generic message. The raw
- * `error` string stays the Error message for logging.
+ * Turns a failed response into an ApiError. The backend's stable 409 `code`
+ * (e.g. "students.guardian_access_revoked", "students.change_request_not_pending")
+ * lets the review UI name the concrete recovery action, and `status` tells
+ * "gone" from "no access"; `detail` stays diagnostics for the log.
  */
-export class CareRequestApiError extends ApiError {
-  /** HTTP status of the failed response, so a reader can tell "weg" from "kein Zugriff". */
-  readonly status?: number;
-  constructor(message: string, code?: string, status?: number) {
-    super(message, status, { code });
-    this.name = "CareRequestApiError";
-    this.status = status;
-  }
-}
-
 async function readError(
   response: Response,
   fallback: string,
-): Promise<CareRequestApiError> {
-  let message = fallback;
-  let code: string | undefined;
+): Promise<ApiError> {
   let payload: unknown;
   try {
-    const body = (await response.json()) as { error?: string; code?: string };
-    payload = body;
-    if (body.error) message = body.error;
-    if (body.code) code = body.code;
+    payload = await response.json();
   } catch {
     // not JSON
   }
+  const error = apiErrorFromBody(fallback, response.status, payload);
   logger.error("care_request_review_request_failed", {
     status: response.status,
-    message,
-    ...(code ? { code } : {}),
+    message: error.message,
+    ...(error.code ? { code: error.code } : {}),
   });
-  return enrichApiError(
-    new CareRequestApiError(message, code, response.status),
-    payload,
-    response.status,
-  );
+  return error;
 }
 
 /** Approves (applies the weekly plan) or rejects one care-schedule request. */
@@ -177,15 +159,19 @@ export interface StaffCareRequestDetail {
    */
   readonly pickup_change?: {
     readonly date: string;
-    readonly pickup_time: string;
+    /** Absent when the request leaves the Gehzeit of the day (#3945). */
+    readonly pickup_time?: string;
     readonly previous_pickup_time?: string;
+    /** The Abholart asked for the day, absent when it stays (#3945). */
+    readonly departure_mode?: DepartureMode;
+    readonly previous_departure_modes?: readonly DepartureMode[];
   };
 }
 
 /**
  * Loads one care-schedule request by its row id, whatever its status. The
  * backend answers 404 for a removed or foreign row and 403 for a child the
- * reader may not review; both arrive as CareRequestApiError with `status`.
+ * reader may not review; both arrive as ApiError with `status`.
  */
 export async function fetchCareScheduleChangeRequest(
   requestId: string,

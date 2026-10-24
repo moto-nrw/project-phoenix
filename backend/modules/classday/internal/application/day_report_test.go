@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/classday"
 	"github.com/moto-nrw/project-phoenix/modules/classday/internal/ports"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -22,18 +21,18 @@ type fakeClassDayCaller struct {
 	classes []string
 }
 
-func (f fakeClassDayCaller) AssignedClasses(context.Context) ([]string, error) {
+func (f fakeClassDayCaller) GetMySchoolClasses(context.Context) ([]string, error) {
 	return f.classes, nil
 }
 
-func (fakeClassDayCaller) StaffID(context.Context) (int64, error) { return 0, nil }
+func (fakeClassDayCaller) CurrentStaffID(context.Context) (int64, error) { return 0, nil }
 
 // fakeDayRosters serves a fixed Enrollment day roster.
 type fakeDayRosters struct {
 	roster *DayRoster
 }
 
-func (f fakeDayRosters) ClassRosterDay(context.Context, string, timezone.Date) (*DayRoster, error) {
+func (f fakeDayRosters) ClassRosterDay(context.Context, string, calendar.Date) (*DayRoster, error) {
 	if f.roster == nil {
 		return &DayRoster{}, nil
 	}
@@ -45,7 +44,7 @@ type fakeClassDayStatusDays struct {
 	entries []StatusDayEntry
 }
 
-func (f fakeClassDayStatusDays) ActiveStatusDays(context.Context, []int64, timezone.Date) ([]StatusDayEntry, error) {
+func (f fakeClassDayStatusDays) ActiveStatusDays(context.Context, []int64, calendar.Date) ([]StatusDayEntry, error) {
 	return f.entries, nil
 }
 
@@ -54,22 +53,27 @@ type fakeCareDays struct {
 	statuses map[int64]ports.CareDay
 }
 
-func (f fakeCareDays) ResolveForDate(context.Context, []int64, timezone.Date) (map[int64]ports.CareDay, error) {
+func (f fakeCareDays) ResolveForDate(context.Context, []int64, calendar.Date) (map[int64]ports.CareDay, error) {
 	return f.statuses, nil
 }
 
 // fakeDayTimes serves fixed effective times for the bulk read the class day
 // view uses.
 type fakeDayTimes struct {
-	pickups  map[int64]EffectivePickup
-	arrivals map[int64]EffectiveArrival
+	pickups    map[int64]EffectivePickup
+	arrivals   map[int64]EffectiveArrival
+	departures map[int64]string
 }
 
-func (f fakeDayTimes) EffectivePickups(context.Context, []int64, timezone.Date) (map[int64]EffectivePickup, error) {
+func (f fakeDayTimes) GetBulkDayDepartureModesForDate(context.Context, []int64, calendar.Date) (map[int64]string, error) {
+	return f.departures, nil
+}
+
+func (f fakeDayTimes) EffectivePickups(context.Context, []int64, calendar.Date) (map[int64]EffectivePickup, error) {
 	return f.pickups, nil
 }
 
-func (f fakeDayTimes) EffectiveArrivals(context.Context, []int64, timezone.Date) (map[int64]EffectiveArrival, error) {
+func (f fakeDayTimes) EffectiveArrivals(context.Context, []int64, calendar.Date) (map[int64]EffectiveArrival, error) {
 	return f.arrivals, nil
 }
 
@@ -118,11 +122,11 @@ type fakeClassArrivalExceptions struct {
 	writeErr  error
 	upserts   []ClassArrivalExceptionWrite
 	deletes   []string
-	listRange [2]timezone.Date
+	listRange [2]calendar.Date
 }
 
-func (f *fakeClassArrivalExceptions) ListClassArrivalExceptions(_ context.Context, _ string, from, to timezone.Date) ([]ClassArrivalException, error) {
-	f.listRange = [2]timezone.Date{from, to}
+func (f *fakeClassArrivalExceptions) ListClassArrivalExceptions(_ context.Context, _ string, from, to calendar.Date) ([]ClassArrivalException, error) {
+	f.listRange = [2]calendar.Date{from, to}
 	return f.rows, f.listErr
 }
 
@@ -137,7 +141,7 @@ func (f *fakeClassArrivalExceptions) UpsertClassArrivalException(_ context.Conte
 	}, nil
 }
 
-func (f *fakeClassArrivalExceptions) DeleteClassArrivalException(_ context.Context, schoolClass string, date timezone.Date) error {
+func (f *fakeClassArrivalExceptions) DeleteClassArrivalException(_ context.Context, schoolClass string, date calendar.Date) error {
 	if f.writeErr != nil {
 		return f.writeErr
 	}
@@ -148,13 +152,13 @@ func (f *fakeClassArrivalExceptions) DeleteClassArrivalException(_ context.Conte
 func TestClassDayWeekdayKey(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, "mon", classDayWeekdayKey(timezone.NewDate(2026, 8, 3)))
-	assert.Equal(t, "tue", classDayWeekdayKey(timezone.NewDate(2026, 8, 4)))
-	assert.Equal(t, "wed", classDayWeekdayKey(timezone.NewDate(2026, 8, 5)))
-	assert.Equal(t, "thu", classDayWeekdayKey(timezone.NewDate(2026, 8, 6)))
-	assert.Equal(t, "fri", classDayWeekdayKey(timezone.NewDate(2026, 8, 7)))
-	assert.Equal(t, "", classDayWeekdayKey(timezone.NewDate(2026, 8, 8)))
-	assert.Equal(t, "", classDayWeekdayKey(timezone.NewDate(2026, 8, 9)))
+	assert.Equal(t, "mon", classDayWeekdayKey(calendar.NewDate(2026, 8, 3)))
+	assert.Equal(t, "tue", classDayWeekdayKey(calendar.NewDate(2026, 8, 4)))
+	assert.Equal(t, "wed", classDayWeekdayKey(calendar.NewDate(2026, 8, 5)))
+	assert.Equal(t, "thu", classDayWeekdayKey(calendar.NewDate(2026, 8, 6)))
+	assert.Equal(t, "fri", classDayWeekdayKey(calendar.NewDate(2026, 8, 7)))
+	assert.Equal(t, "", classDayWeekdayKey(calendar.NewDate(2026, 8, 8)))
+	assert.Equal(t, "", classDayWeekdayKey(calendar.NewDate(2026, 8, 9)))
 }
 
 func TestClassDayRequiresConfiguredDependencies(t *testing.T) {
@@ -249,13 +253,13 @@ func TestClassDayRequiresSchoolClass(t *testing.T) {
 func TestClassDayArrivalExceptionLine(t *testing.T) {
 	t.Parallel()
 
-	date := timezone.NewDate(2026, 8, 5)
+	date := calendar.NewDate(2026, 8, 5)
 	reason := "  Lehrerkonferenz  "
 
 	t.Run("row of the date", func(t *testing.T) {
 		t.Parallel()
 		store := &fakeClassArrivalExceptions{rows: []ClassArrivalException{
-			{SchoolClass: "1a", Date: timezone.NewDate(2026, 8, 4), ArrivalTime: time.Date(2000, 1, 1, 8, 0, 0, 0, time.UTC)},
+			{SchoolClass: "1a", Date: calendar.NewDate(2026, 8, 4), ArrivalTime: time.Date(2000, 1, 1, 8, 0, 0, 0, time.UTC)},
 			{SchoolClass: "1a", Date: date, ArrivalTime: time.Date(2000, 1, 1, 9, 45, 0, 0, time.UTC), Reason: &reason},
 		}}
 		svc := newDayReports(ClassDayDependencies{ClassArrivalExceptions: store})
@@ -263,7 +267,7 @@ func TestClassDayArrivalExceptionLine(t *testing.T) {
 		line, err := svc.classDayArrivalException(context.Background(), "1a", date)
 
 		require.NoError(t, err)
-		assert.Equal(t, [2]timezone.Date{date, date}, store.listRange)
+		assert.Equal(t, [2]calendar.Date{date, date}, store.listRange)
 		assert.Equal(t, &classday.DayArrivalException{ArrivalTime: "09:45", Reason: "Lehrerkonferenz", Origin: classday.ArrivalExceptionOriginOGS}, line)
 	})
 
@@ -293,7 +297,7 @@ func TestClassDayArrivalExceptionLine(t *testing.T) {
 func TestClassDayPlanKeyFollowsFridayOnTheWeekend(t *testing.T) {
 	t.Parallel()
 
-	saturday := timezone.NewDate(2026, 8, 8)
+	saturday := calendar.NewDate(2026, 8, 8)
 	following := func(follows bool) context.Context {
 		return calendar.WithWeekendPlan(context.Background(), func(context.Context) (bool, error) { return follows, nil })
 	}
@@ -303,7 +307,7 @@ func TestClassDayPlanKeyFollowsFridayOnTheWeekend(t *testing.T) {
 	key, err = classDayPlanKey(following(false), saturday)
 	require.NoError(t, err)
 	assert.Equal(t, "", key)
-	key, err = classDayPlanKey(following(true), timezone.NewDate(2026, 8, 4))
+	key, err = classDayPlanKey(following(true), calendar.NewDate(2026, 8, 4))
 	require.NoError(t, err)
 	assert.Equal(t, "tue", key)
 }

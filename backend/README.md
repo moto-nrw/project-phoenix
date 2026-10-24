@@ -6,7 +6,7 @@ GDPR-compliant RFID student attendance and room management system for educationa
 
 | Component | Version / Library |
 |-----------|-------------------|
-| Language | Go 1.27.2 |
+| Language | Go 1.27.3 |
 | Router | chi/v5 |
 | ORM | bun (pgdialect, pgdriver) |
 | Database | PostgreSQL 17+ (multi-schema, SSL) |
@@ -31,8 +31,10 @@ Handler -> Service -> Repository -> Database
 | Repositories | `database/repositories/{domain}/` | Data access (Bun ORM) |
 | Models | `models/{domain}/` | Domain entities, shared across layers |
 
-Factory pattern for dependency injection:
-`repositories.NewFactory(db)` -> `services.NewFactory(repoFactory, db, logger)`
+Composition: the root (`api`) builds the owners and composes the retained
+services over them in `newServiceGraph` (`api/service_graph*.go`). There is
+no service Factory (#2747) and no repository Factory (#2743); each retained
+repository is built where it is used, in its owner composition.
 
 ### Architecture checks
 
@@ -72,12 +74,12 @@ docker compose run server go run . migrate
 docker compose run server go run . migrate reset
 docker compose run server go run . migrate status
 docker compose run server go run . migrate validate
-docker compose run server go run . seed --email <op-email> --password '<pw>' --pin 1234 --url http://server:8080
+docker compose run server go run ./cmd/devtools seed --email <op-email> --password '<pw>' --pin 1234 --url http://server:8080
 docker compose run server go run . cleanup visits
 docker compose run server go run . cleanup preview
 docker compose run server go run . cleanup stats
 docker compose run server go run . gendoc
-docker compose run server go run . simulate live --profile vollbetrieb
+docker compose run server go run ./cmd/devtools simulate live --profile vollbetrieb
 ```
 
 ## Setup

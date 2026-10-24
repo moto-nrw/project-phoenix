@@ -22,7 +22,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -53,7 +52,7 @@ func buildCreateSetup(t *testing.T) *createSetup {
 	}
 
 	mock := &mockInstanceService{}
-	res := NewResource(Dependencies{
+	res := newResourceForTest(Dependencies{
 		TimetableData:   testTimetableData(db).TimetableData(),
 		InstanceService: mock,
 		SettingsService: &settingsDouble{
@@ -298,13 +297,6 @@ func TestCreateInstance_DuplicateTemplateBoundReturnsConflict(t *testing.T) {
 	period := testpkg.CreateTestCalendarPeriod(t, db, fmt.Sprintf("Create-Dupe-Period-%d", suffix),
 		instanceDate.AddDays(-1), instanceDate.AddDays(7))
 	testpkg.SetCalendarPeriodActive(t, db, period, true)
-	t.Cleanup(func() {
-		_, _ = db.NewDelete().
-			TableExpr("schedule.activity_instances").
-			Where("activity_group_id = ?", template.ID).
-			Where("tenant_id = ?", tenant.FromContext(ctx)).
-			Exec(ctx)
-	})
 
 	router := setupDuplicateInstanceRoute(t, db, ctx, clock)
 
@@ -330,9 +322,10 @@ func setupDuplicateInstanceRoute(
 ) chi.Router {
 	t.Helper()
 
-	_, serviceFactory := testutil.SetupTimetableModule(t)
-	resource := NewResource(Dependencies{
+	_, serviceFactory := RootCompositions.Module(t)
+	resource := newResourceForTest(Dependencies{
 		TimetableData:   testTimetableData(db, clock).TimetableData(),
+		SettingsService: &settingsDouble{ResolveIntFn: func(context.Context, string) (int, error) { return 12, nil }},
 		InstanceService: serviceFactory.Instance,
 	})
 	return createRouter(ctx, resource)
@@ -343,7 +336,7 @@ func TestCreateInstance_UnwiredResource(t *testing.T) {
 
 	s := buildCreateSetup(t)
 	defer s.cleanupFn()
-	router := createRouter(s.ctx, NewResource(Dependencies{InstanceService: s.mock}))
+	router := createRouter(s.ctx, newResourceForTest(Dependencies{InstanceService: s.mock}))
 
 	body := map[string]any{
 		"date":       nextTimetableWorkday().String(),

@@ -42,13 +42,6 @@ func (s *Store) DeletePickupExceptionsByStudent(ctx context.Context, id int64) (
 	}
 	return execAny(ctx, db.NewDelete().TableExpr(`schedule.student_pickup_exceptions AS "student_pickup_exception"`).Where(`"student_pickup_exception".tenant_id = ?`, tid).Where(`"student_pickup_exception".student_id = ?`, id), "delete pickup exceptions by student")
 }
-func (s *Store) DeletePickupExceptionsBefore(ctx context.Context, d careplan.Date) (domain.OperationStats, error) {
-	db, tid, err := s.databaseForWrite(ctx, "delete old pickup exceptions")
-	if err != nil {
-		return domain.OperationStats{}, err
-	}
-	return execAny(ctx, db.NewDelete().TableExpr(`schedule.student_pickup_exceptions AS "student_pickup_exception"`).Where(`"student_pickup_exception".tenant_id = ?`, tid).Where(`"student_pickup_exception".exception_date < ?`, calendarDate(d)), "delete past pickup exceptions")
-}
 
 func pickupExceptionFromPublic(v careplan.PickupException) pickupExceptionRow {
 	v.NormalizeWallClockTimes()

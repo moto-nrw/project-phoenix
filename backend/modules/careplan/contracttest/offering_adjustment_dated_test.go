@@ -5,14 +5,16 @@ import (
 	"strconv"
 	"testing"
 
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+
+	timetable "github.com/moto-nrw/project-phoenix/modules/timetable"
+
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -26,7 +28,7 @@ func submitApprovedAdjustmentChild(
 	t *testing.T,
 	env *decisionTestEnv,
 	email, lastName string,
-	offerings []*enrollmentModels.CareOffering,
+	offerings []*offeringContract.CareOfferingRecord,
 ) (requestID, childID, studentID int64) {
 	t.Helper()
 	ctx := testpkg.Ctx(t)
@@ -41,7 +43,7 @@ func submitApprovedAdjustmentChild(
 		})
 	}
 
-	submitted, err := env.requestSvc.Submit(ctx, enrollmentTest.SubmitRequest{
+	submitted, err := testpkg.TenantQuery1(t, ctx, env.db, env.requestSvc.Submit, enrollmentTest.SubmitRequest{
 		TenantID:          testpkg.Tenant(t),
 		PhaseID:           env.sourcePhase.ID,
 		GuardianFirstName: "Eltern",
@@ -57,7 +59,7 @@ func submitApprovedAdjustmentChild(
 			{
 				FirstName:        "Kind",
 				LastName:         lastName,
-				DateOfBirth:      timezone.NewDate(2018, 4, 15),
+				DateOfBirth:      calendar.NewDate(2018, 4, 15),
 				TargetGradeLevel: testpkg.Int16Ptr(2),
 				OfferingIDs:      offeringIDs,
 				OfferingDays:     offeringDays,
@@ -67,7 +69,7 @@ func submitApprovedAdjustmentChild(
 	require.NoError(t, err)
 	require.Len(t, submitted.Children, 1)
 
-	outcome, err := env.decision.Decide(ctx, enrollmentTest.DecideInput{
+	outcome, err := testpkg.TenantQuery1(t, ctx, env.db, env.decision.Decide, enrollmentTest.DecideInput{
 		RequestID:  submitted.Request.ID,
 		ChildID:    submitted.Children[0].ID,
 		Status:     enrollmentTest.DecisionApproved,
@@ -80,9 +82,9 @@ func submitApprovedAdjustmentChild(
 }
 
 func rowsByGroupForAdjustmentTest(
-	rows []activitiesModels.StudentEnrollment,
-) map[int64]activitiesModels.StudentEnrollment {
-	byGroup := make(map[int64]activitiesModels.StudentEnrollment, len(rows))
+	rows []timetable.StudentEnrollment,
+) map[int64]timetable.StudentEnrollment {
+	byGroup := make(map[int64]timetable.StudentEnrollment, len(rows))
 	for _, row := range rows {
 		byGroup[row.ActivityGroupID] = row
 	}
@@ -92,26 +94,25 @@ func rowsByGroupForAdjustmentTest(
 func TestDecisionService_UpdateChildOfferings_DatedSwitchCapsOldAndStartsNewGroup(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	oldGroup := testpkg.CreateTestActivityGroup(t, env.db, "DatedSwitchOld")
 	newGroup := testpkg.CreateTestActivityGroup(t, env.db, "DatedSwitchNew")
-	oldOffering := createAdjustmentCareOfferingWith(t, env, "Frühbetreuung", func(o *enrollmentModels.CareOffering) {
+	oldOffering := createAdjustmentCareOfferingWith(t, env, "Frühbetreuung", func(o *offeringContract.CareOfferingRecord) {
 		o.ActivityGroupID = &oldGroup.ID
 		o.SortOrder = 101
 	})
-	newOffering := createAdjustmentCareOfferingWith(t, env, "Spätbetreuung", func(o *enrollmentModels.CareOffering) {
+	newOffering := createAdjustmentCareOfferingWith(t, env, "Spätbetreuung", func(o *offeringContract.CareOfferingRecord) {
 		o.ActivityGroupID = &newGroup.ID
 		o.SortOrder = 102
 	})
 
 	requestID, childID, studentID := submitApprovedAdjustmentChild(
 		t, env, "dated-switch@example.com", "DatedSwitch",
-		[]*enrollmentModels.CareOffering{oldOffering},
+		[]*offeringContract.CareOfferingRecord{oldOffering},
 	)
-	submittedBefore, err := env.repos.Enrollment().SubmittedOfferingChoices(ctx, []int64{childID})
+	submittedBefore, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.reposEnrollment.Enrollment().SubmittedOfferingChoices, []int64{childID})
 	require.NoError(t, err)
 	require.Len(t, submittedBefore, 1)
 
@@ -123,9 +124,9 @@ func TestDecisionService_UpdateChildOfferings_DatedSwitchCapsOldAndStartsNewGrou
 
 	// Mid-phase switch date: the phase starts in the future, so this is both
 	// after the materialized valid_from and not in the past.
-	switchDate := timezone.Date(env.sourcePhase.ServiceStartDate).AddDays(150)
+	switchDate := calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(150)
 
-	_, err = env.decision.UpdateChildOfferings(ctx, enrollmentTest.UpdateChildOfferingsInput{
+	_, err = testpkg.TenantQuery1(t, ctx, env.db, env.decision.UpdateChildOfferings, enrollmentTest.UpdateChildOfferingsInput{
 		RequestID:      requestID,
 		ChildID:        childID,
 		ActorAccountID: env.creatorID,
@@ -144,35 +145,35 @@ func TestDecisionService_UpdateChildOfferings_DatedSwitchCapsOldAndStartsNewGrou
 
 	oldRow, ok := byGroup[oldGroup.ID]
 	require.True(t, ok, "row of the group attended before the switch must survive")
-	assert.Equal(t, activitiesModels.Date(env.sourcePhase.ServiceStartDate), oldRow.ValidFrom)
+	assert.Equal(t, string(env.sourcePhase.ServiceStartDate), oldRow.ValidFrom)
 	require.NotNil(t, oldRow.ValidUntil)
-	assert.Equal(t, activitiesModels.Date(switchDate), *oldRow.ValidUntil, "old row ends exclusively on the switch date")
+	assert.Equal(t, string(switchDate), *oldRow.ValidUntil, "old row ends exclusively on the switch date")
 
 	newRow, ok := byGroup[newGroup.ID]
 	require.True(t, ok, "new selection must be materialized")
-	assert.Equal(t, activitiesModels.Date(switchDate), newRow.ValidFrom, "new row starts on the switch date")
+	assert.Equal(t, string(switchDate), newRow.ValidFrom, "new row starts on the switch date")
 	require.NotNil(t, newRow.ValidUntil)
-	assert.Equal(t, activitiesModels.Date(*originalValidUntil), *newRow.ValidUntil, "new row runs to the end of the care period")
+	assert.Equal(t, string(*originalValidUntil), *newRow.ValidUntil, "new row runs to the end of the care period")
 	require.NotNil(t, newRow.EnrollmentRequestChildID)
 	assert.Equal(t, childID, *newRow.EnrollmentRequestChildID)
 
-	currentLinks, err := env.repos.Enrollment().RequestChildOfferingsAtDate(ctx, childID, enrollmentTest.Date(decisionTestToday))
+	currentLinks, err := testpkg.TenantQuery2(t, ctx, testpkg.SetupTestDB(t), env.reposEnrollment.Enrollment().RequestChildOfferingsAtDate, childID, enrollmentTest.Date(decisionTestToday))
 	require.NoError(t, err)
 	require.Len(t, currentLinks, 1)
 	assert.Equal(t, oldOffering.ID, currentLinks[0].CareOfferingID,
 		"the parent-facing booking remains the old offering before the switch")
-	futureLinks, err := env.repos.Enrollment().RequestChildOfferingsAtDate(ctx, childID, enrollmentTest.Date(switchDate))
+	futureLinks, err := testpkg.TenantQuery2(t, ctx, testpkg.SetupTestDB(t), env.reposEnrollment.Enrollment().RequestChildOfferingsAtDate, childID, enrollmentTest.Date(switchDate))
 	require.NoError(t, err)
 	require.Len(t, futureLinks, 1)
 	assert.Equal(t, newOffering.ID, futureLinks[0].CareOfferingID)
 
-	oldTaken, err := env.repos.Enrollment().OfferingCapacityPeak(ctx, oldOffering.ID, nil, enrollmentTest.Date(switchDate), enrollmentTest.Date(switchDate.AddDays(1)))
+	oldTaken, err := testpkg.TenantQuery4(t, ctx, testpkg.SetupTestDB(t), env.reposEnrollment.Enrollment().OfferingCapacityPeak, oldOffering.ID, nil, enrollmentTest.Date(switchDate), enrollmentTest.Date(switchDate.AddDays(1)))
 	require.NoError(t, err)
 	assert.Zero(t, oldTaken)
-	newTaken, err := env.repos.Enrollment().OfferingCapacityPeak(ctx, newOffering.ID, nil, enrollmentTest.Date(switchDate), enrollmentTest.Date(switchDate.AddDays(1)))
+	newTaken, err := testpkg.TenantQuery4(t, ctx, testpkg.SetupTestDB(t), env.reposEnrollment.Enrollment().OfferingCapacityPeak, newOffering.ID, nil, enrollmentTest.Date(switchDate), enrollmentTest.Date(switchDate.AddDays(1)))
 	require.NoError(t, err)
 	assert.Equal(t, 1, newTaken)
-	submittedAfter, err := env.repos.Enrollment().SubmittedOfferingChoices(ctx, []int64{childID})
+	submittedAfter, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.reposEnrollment.Enrollment().SubmittedOfferingChoices, []int64{childID})
 	require.NoError(t, err)
 	assert.Equal(t, submittedBefore, submittedAfter, "a care switch must not rewrite or append original submission choices")
 }
@@ -180,33 +181,32 @@ func TestDecisionService_UpdateChildOfferings_DatedSwitchCapsOldAndStartsNewGrou
 func TestDecisionService_UpdateChildOfferings_DatedSwitchKeepsUnchangedOffering(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	keptGroup := testpkg.CreateTestActivityGroup(t, env.db, "DatedKeptGroup")
 	addedGroup := testpkg.CreateTestActivityGroup(t, env.db, "DatedAddedGroup")
-	keptOffering := createAdjustmentCareOfferingWith(t, env, "Bleibt", func(o *enrollmentModels.CareOffering) {
+	keptOffering := createAdjustmentCareOfferingWith(t, env, "Bleibt", func(o *offeringContract.CareOfferingRecord) {
 		o.ActivityGroupID = &keptGroup.ID
 		o.SortOrder = 111
 	})
-	addedOffering := createAdjustmentCareOfferingWith(t, env, "Kommt dazu", func(o *enrollmentModels.CareOffering) {
+	addedOffering := createAdjustmentCareOfferingWith(t, env, "Kommt dazu", func(o *offeringContract.CareOfferingRecord) {
 		o.ActivityGroupID = &addedGroup.ID
 		o.SortOrder = 112
 	})
 
 	requestID, childID, studentID := submitApprovedAdjustmentChild(
 		t, env, "dated-keep@example.com", "DatedKeep",
-		[]*enrollmentModels.CareOffering{keptOffering},
+		[]*offeringContract.CareOfferingRecord{keptOffering},
 	)
 
 	rows := listStudentEnrollmentRowsForDecisionTest(t, env, studentID)
 	require.Len(t, rows, 1)
 	keptRowID := rows[0].ID
 
-	switchDate := timezone.Date(env.sourcePhase.ServiceStartDate).AddDays(150)
+	switchDate := calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(150)
 
-	_, err := env.decision.UpdateChildOfferings(ctx, enrollmentTest.UpdateChildOfferingsInput{
+	_, err := testpkg.TenantQuery1(t, ctx, env.db, env.decision.UpdateChildOfferings, enrollmentTest.UpdateChildOfferingsInput{
 		RequestID:      requestID,
 		ChildID:        childID,
 		ActorAccountID: env.creatorID,
@@ -227,92 +227,90 @@ func TestDecisionService_UpdateChildOfferings_DatedSwitchKeepsUnchangedOffering(
 	keptRow, ok := byGroup[keptGroup.ID]
 	require.True(t, ok)
 	assert.Equal(t, keptRowID, keptRow.ID, "unchanged offering keeps its original row")
-	assert.Equal(t, activitiesModels.Date(env.sourcePhase.ServiceStartDate), keptRow.ValidFrom)
+	assert.Equal(t, string(env.sourcePhase.ServiceStartDate), keptRow.ValidFrom)
 
 	addedRow, ok := byGroup[addedGroup.ID]
 	require.True(t, ok)
-	assert.Equal(t, activitiesModels.Date(switchDate), addedRow.ValidFrom)
+	assert.Equal(t, string(switchDate), addedRow.ValidFrom)
 }
 
 func TestDecisionService_UpdateChildOfferings_CurrentCorrectionPreservesScheduledSwitch(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	oldGroup := testpkg.CreateTestActivityGroup(t, env.db, "CorrectionOld")
 	correctedGroup := testpkg.CreateTestActivityGroup(t, env.db, "CorrectionNow")
 	scheduledGroup := testpkg.CreateTestActivityGroup(t, env.db, "CorrectionLater")
-	oldOffering := createAdjustmentCareOfferingWith(t, env, "Bisher", func(o *enrollmentModels.CareOffering) {
+	oldOffering := createAdjustmentCareOfferingWith(t, env, "Bisher", func(o *offeringContract.CareOfferingRecord) {
 		o.ActivityGroupID = &oldGroup.ID
 		o.SortOrder = 141
 	})
-	correctedOffering := createAdjustmentCareOfferingWith(t, env, "Korrektur", func(o *enrollmentModels.CareOffering) {
+	correctedOffering := createAdjustmentCareOfferingWith(t, env, "Korrektur", func(o *offeringContract.CareOfferingRecord) {
 		o.ActivityGroupID = &correctedGroup.ID
 		o.SortOrder = 142
 	})
-	scheduledOffering := createAdjustmentCareOfferingWith(t, env, "Geplant", func(o *enrollmentModels.CareOffering) {
+	scheduledOffering := createAdjustmentCareOfferingWith(t, env, "Geplant", func(o *offeringContract.CareOfferingRecord) {
 		o.ActivityGroupID = &scheduledGroup.ID
 		o.SortOrder = 143
 	})
 
 	requestID, childID, studentID := submitApprovedAdjustmentChild(
-		t, env, "current-correction@example.com", "CurrentCorrection", []*enrollmentModels.CareOffering{oldOffering},
+		t, env, "current-correction@example.com", "CurrentCorrection", []*offeringContract.CareOfferingRecord{oldOffering},
 	)
-	switchDate := timezone.Date(env.sourcePhase.ServiceStartDate).AddDays(150)
-	_, err := env.decision.UpdateChildOfferings(ctx, enrollmentTest.UpdateChildOfferingsInput{
+	switchDate := calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(150)
+	_, err := testpkg.TenantQuery1(t, ctx, env.db, env.decision.UpdateChildOfferings, enrollmentTest.UpdateChildOfferingsInput{
 		RequestID: requestID, ChildID: childID, ActorAccountID: env.creatorID, ActorRole: "admin",
 		Reason: "Geplante Änderung", EffectiveFrom: &switchDate,
 		Offerings: []enrollmentTest.OfferingAdjustmentSelection{{OfferingID: scheduledOffering.ID, SelectedDays: []string{"mon"}}},
 	})
 	require.NoError(t, err)
 
-	_, err = env.decision.UpdateChildOfferings(ctx, enrollmentTest.UpdateChildOfferingsInput{
+	_, err = testpkg.TenantQuery1(t, ctx, env.db, env.decision.UpdateChildOfferings, enrollmentTest.UpdateChildOfferingsInput{
 		RequestID: requestID, ChildID: childID, ActorAccountID: env.creatorID, ActorRole: "admin",
 		Reason:    "Korrektur für heute",
 		Offerings: []enrollmentTest.OfferingAdjustmentSelection{{OfferingID: correctedOffering.ID, SelectedDays: []string{"mon"}}},
 	})
 	require.NoError(t, err)
 
-	futureLinks, err := env.repos.Enrollment().RequestChildOfferingsAtDate(ctx, childID, enrollmentTest.Date(switchDate))
+	futureLinks, err := testpkg.TenantQuery2(t, ctx, testpkg.SetupTestDB(t), env.reposEnrollment.Enrollment().RequestChildOfferingsAtDate, childID, enrollmentTest.Date(switchDate))
 	require.NoError(t, err)
 	require.Len(t, futureLinks, 1)
 	assert.Equal(t, scheduledOffering.ID, futureLinks[0].CareOfferingID)
 
 	rows := rowsByGroupForAdjustmentTest(listStudentEnrollmentRowsForDecisionTest(t, env, studentID))
-	assert.Equal(t, activitiesModels.Date(switchDate), rows[scheduledGroup.ID].ValidFrom)
+	assert.Equal(t, string(switchDate), rows[scheduledGroup.ID].ValidFrom)
 }
 
 func TestDecisionService_UpdateChildOfferings_DatedSwitchExtendsRetainedOfferingPastSupersededSwitch(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	keptGroup := testpkg.CreateTestActivityGroup(t, env.db, "DatedExtendedKeptGroup")
 	firstAddedGroup := testpkg.CreateTestActivityGroup(t, env.db, "DatedExtendedFirstGroup")
 	secondAddedGroup := testpkg.CreateTestActivityGroup(t, env.db, "DatedExtendedSecondGroup")
-	keptOffering := createAdjustmentCareOfferingWith(t, env, "Bleibt durchgehend", func(o *enrollmentModels.CareOffering) {
+	keptOffering := createAdjustmentCareOfferingWith(t, env, "Bleibt durchgehend", func(o *offeringContract.CareOfferingRecord) {
 		o.ActivityGroupID = &keptGroup.ID
 		o.SortOrder = 114
 	})
-	firstAddedOffering := createAdjustmentCareOfferingWith(t, env, "Erste Planung", func(o *enrollmentModels.CareOffering) {
+	firstAddedOffering := createAdjustmentCareOfferingWith(t, env, "Erste Planung", func(o *offeringContract.CareOfferingRecord) {
 		o.ActivityGroupID = &firstAddedGroup.ID
 		o.SortOrder = 115
 	})
-	secondAddedOffering := createAdjustmentCareOfferingWith(t, env, "Neue Planung", func(o *enrollmentModels.CareOffering) {
+	secondAddedOffering := createAdjustmentCareOfferingWith(t, env, "Neue Planung", func(o *offeringContract.CareOfferingRecord) {
 		o.ActivityGroupID = &secondAddedGroup.ID
 		o.SortOrder = 116
 	})
 
 	requestID, childID, studentID := submitApprovedAdjustmentChild(
 		t, env, "dated-extend@example.com", "DatedExtend",
-		[]*enrollmentModels.CareOffering{keptOffering},
+		[]*offeringContract.CareOfferingRecord{keptOffering},
 	)
-	firstSwitch := timezone.Date(env.sourcePhase.ServiceStartDate).AddDays(150)
-	_, err := env.decision.UpdateChildOfferings(ctx, enrollmentTest.UpdateChildOfferingsInput{
+	firstSwitch := calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(150)
+	_, err := testpkg.TenantQuery1(t, ctx, env.db, env.decision.UpdateChildOfferings, enrollmentTest.UpdateChildOfferingsInput{
 		RequestID: requestID, ChildID: childID, ActorAccountID: env.creatorID, ActorRole: "admin",
 		Reason: "Erste geplante Änderung", EffectiveFrom: &firstSwitch,
 		Offerings: []enrollmentTest.OfferingAdjustmentSelection{
@@ -322,8 +320,8 @@ func TestDecisionService_UpdateChildOfferings_DatedSwitchExtendsRetainedOffering
 	})
 	require.NoError(t, err)
 
-	secondSwitch := timezone.Date(env.sourcePhase.ServiceStartDate).AddDays(80)
-	_, err = env.decision.UpdateChildOfferings(ctx, enrollmentTest.UpdateChildOfferingsInput{
+	secondSwitch := calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(80)
+	_, err = testpkg.TenantQuery1(t, ctx, env.db, env.decision.UpdateChildOfferings, enrollmentTest.UpdateChildOfferingsInput{
 		RequestID: requestID, ChildID: childID, ActorAccountID: env.creatorID, ActorRole: "admin",
 		Reason: "Erste Planung ersetzt", EffectiveFrom: &secondSwitch,
 		Offerings: []enrollmentTest.OfferingAdjustmentSelection{
@@ -337,43 +335,42 @@ func TestDecisionService_UpdateChildOfferings_DatedSwitchExtendsRetainedOffering
 	kept, ok := rows[keptGroup.ID]
 	require.True(t, ok)
 	require.NotNil(t, kept.ValidUntil)
-	assert.Equal(t, activitiesModels.Date(timezone.Date(env.sourcePhase.ServiceEndDate).AddDays(1)), *kept.ValidUntil,
+	assert.Equal(t, string(calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(1)), *kept.ValidUntil,
 		"the retained offering must not end at the superseded switch date")
 	_, firstStillPlanned := rows[firstAddedGroup.ID]
 	assert.False(t, firstStillPlanned)
-	assert.Equal(t, activitiesModels.Date(secondSwitch), rows[secondAddedGroup.ID].ValidFrom)
+	assert.Equal(t, string(secondSwitch), rows[secondAddedGroup.ID].ValidFrom)
 }
 
 func TestDecisionService_UpdateChildOfferings_DatedSwitchBeforePhaseStartDropsUnstartedRow(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	oldGroup := testpkg.CreateTestActivityGroup(t, env.db, "DatedUnstartedOld")
 	newGroup := testpkg.CreateTestActivityGroup(t, env.db, "DatedUnstartedNew")
-	oldOffering := createAdjustmentCareOfferingWith(t, env, "Vorher gewählt", func(o *enrollmentModels.CareOffering) {
+	oldOffering := createAdjustmentCareOfferingWith(t, env, "Vorher gewählt", func(o *offeringContract.CareOfferingRecord) {
 		o.ActivityGroupID = &oldGroup.ID
 		o.SortOrder = 121
 	})
-	newOffering := createAdjustmentCareOfferingWith(t, env, "Stattdessen", func(o *enrollmentModels.CareOffering) {
+	newOffering := createAdjustmentCareOfferingWith(t, env, "Stattdessen", func(o *offeringContract.CareOfferingRecord) {
 		o.ActivityGroupID = &newGroup.ID
 		o.SortOrder = 122
 	})
 
 	requestID, childID, studentID := submitApprovedAdjustmentChild(
 		t, env, "dated-unstarted@example.com", "DatedUnstarted",
-		[]*enrollmentModels.CareOffering{oldOffering},
+		[]*offeringContract.CareOfferingRecord{oldOffering},
 	)
 
 	// A switch that lands before the care period even starts: nothing was
 	// attended yet, so the superseded row has no interval worth keeping.
-	switchDate := timezone.NewDate(2026, 8, 24)
-	require.True(t, switchDate.Before(timezone.Date(env.sourcePhase.ServiceStartDate)),
+	switchDate := calendar.NewDate(2026, 8, 24)
+	require.True(t, switchDate.Before(calendar.Date(env.sourcePhase.ServiceStartDate)),
 		"fixture phase must still lie in the future for this case")
 
-	_, err := env.decision.UpdateChildOfferings(ctx, enrollmentTest.UpdateChildOfferingsInput{
+	_, err := testpkg.TenantQuery1(t, ctx, env.db, env.decision.UpdateChildOfferings, enrollmentTest.UpdateChildOfferingsInput{
 		RequestID:      requestID,
 		ChildID:        childID,
 		ActorAccountID: env.creatorID,
@@ -389,36 +386,35 @@ func TestDecisionService_UpdateChildOfferings_DatedSwitchBeforePhaseStartDropsUn
 	rows := listStudentEnrollmentRowsForDecisionTest(t, env, studentID)
 	require.Len(t, rows, 1, "a row that never took effect is dropped, not capped")
 	assert.Equal(t, newGroup.ID, rows[0].ActivityGroupID)
-	assert.Equal(t, activitiesModels.Date(env.sourcePhase.ServiceStartDate), rows[0].ValidFrom,
+	assert.Equal(t, string(env.sourcePhase.ServiceStartDate), rows[0].ValidFrom,
 		"an effective date before the care period must not widen the window")
 }
 
 func TestDecisionService_UpdateChildOfferings_RejectsEffectiveFromOutsideWindow(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	group := testpkg.CreateTestActivityGroup(t, env.db, "DatedRejectGroup")
-	offering := createAdjustmentCareOfferingWith(t, env, "Egal", func(o *enrollmentModels.CareOffering) {
+	offering := createAdjustmentCareOfferingWith(t, env, "Egal", func(o *offeringContract.CareOfferingRecord) {
 		o.ActivityGroupID = &group.ID
 		o.SortOrder = 131
 	})
 
 	requestID, childID, _ := submitApprovedAdjustmentChild(
 		t, env, "dated-reject@example.com", "DatedReject",
-		[]*enrollmentModels.CareOffering{offering},
+		[]*offeringContract.CareOfferingRecord{offering},
 	)
 
-	cases := map[string]timezone.Date{
-		"past":            timezone.NewDate(2026, 8, 24).AddDays(-1),
-		"after care ends": timezone.Date(env.sourcePhase.ServiceEndDate).AddDays(1),
+	cases := map[string]calendar.Date{
+		"past":            calendar.NewDate(2026, 8, 24).AddDays(-1),
+		"after care ends": calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(1),
 	}
 	for name, switchDate := range cases {
 		t.Run(name, func(t *testing.T) {
 			effectiveFrom := switchDate
-			_, err := env.decision.UpdateChildOfferings(ctx, enrollmentTest.UpdateChildOfferingsInput{
+			_, err := testpkg.TenantQuery1(t, ctx, env.db, env.decision.UpdateChildOfferings, enrollmentTest.UpdateChildOfferingsInput{
 				RequestID:      requestID,
 				ChildID:        childID,
 				ActorAccountID: env.creatorID,
@@ -443,7 +439,7 @@ func startRunningCarePeriodForTest(t *testing.T, env *decisionTestEnv) {
 	ctx := testpkg.Ctx(t)
 	env.sourcePhase.ServiceStartDate = enrollmentTest.Date(decisionTestToday.AddDays(-60))
 	env.sourcePhase.ServiceEndDate = enrollmentTest.Date(decisionTestToday.AddDays(240))
-	require.NoError(t, env.repos.Enrollment().UpdatePhase(ctx, ownerPhaseForTest(env.sourcePhase)))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), env.reposEnrollment.Enrollment().UpdatePhase, ownerPhaseForTest(env.sourcePhase)))
 }
 
 // A dated switch splits the child's offering links into intervals. Everything
@@ -453,29 +449,28 @@ func startRunningCarePeriodForTest(t *testing.T, env *decisionTestEnv) {
 func TestChangeRequestService_ApproveKeepsAppliedOfferingSwitch(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 	startRunningCarePeriodForTest(t, env)
 
 	oldGroup := testpkg.CreateTestActivityGroup(t, env.db, "ChangeRequestOld")
 	newGroup := testpkg.CreateTestActivityGroup(t, env.db, "ChangeRequestNew")
-	oldOffering := createAdjustmentCareOfferingWith(t, env, "Bisheriges Angebot", func(o *enrollmentModels.CareOffering) {
+	oldOffering := createAdjustmentCareOfferingWith(t, env, "Bisheriges Angebot", func(o *offeringContract.CareOfferingRecord) {
 		o.ActivityGroupID = &oldGroup.ID
 		o.SortOrder = 151
 	})
-	newOffering := createAdjustmentCareOfferingWith(t, env, "Neues Angebot", func(o *enrollmentModels.CareOffering) {
+	newOffering := createAdjustmentCareOfferingWith(t, env, "Neues Angebot", func(o *offeringContract.CareOfferingRecord) {
 		o.ActivityGroupID = &newGroup.ID
 		o.SortOrder = 152
 	})
 
 	requestID, childID, studentID := submitApprovedAdjustmentChild(
 		t, env, "change-request-switch@example.com", "SwitchKeeper",
-		[]*enrollmentModels.CareOffering{oldOffering},
+		[]*offeringContract.CareOfferingRecord{oldOffering},
 	)
 
 	switchDate := decisionTestToday
-	_, err := env.decision.UpdateChildOfferings(ctx, enrollmentTest.UpdateChildOfferingsInput{
+	_, err := testpkg.TenantQuery1(t, ctx, env.db, env.decision.UpdateChildOfferings, enrollmentTest.UpdateChildOfferingsInput{
 		RequestID:      requestID,
 		ChildID:        childID,
 		ActorAccountID: env.creatorID,
@@ -488,7 +483,7 @@ func TestChangeRequestService_ApproveKeepsAppliedOfferingSwitch(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	requestRow, err := readOwnerRequestForTest(ctx, env.repos.Enrollment(), requestID)
+	requestRow, err := readOwnerRequestForTest(ctx, env.reposEnrollment.Enrollment(), requestID)
 	require.NoError(t, err)
 
 	// The reopened form and the change request below predate the takeover
@@ -517,7 +512,7 @@ func TestChangeRequestService_ApproveKeepsAppliedOfferingSwitch(t *testing.T) {
 				ID:               childID,
 				FirstName:        "Kind",
 				LastName:         "SwitchKeeper",
-				DateOfBirth:      timezone.NewDate(2018, 4, 15),
+				DateOfBirth:      calendar.NewDate(2018, 4, 15),
 				TargetGradeLevel: testpkg.Int16Ptr(2),
 				OfferingIDs:      []int64{draftLinks[0].CareOfferingID},
 				OfferingDays: []enrollmentTest.SubmitOfferingDays{
@@ -550,14 +545,14 @@ func TestChangeRequestService_ApproveKeepsAppliedOfferingSwitch(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, []any{strconv.FormatInt(newOffering.ID, 10)}, baseChild["offering_ids"])
 
-	_, err = changeRequests.Approve(ctx, created.ChangeRequest.ID, enrollmentTest.ReviewChangeRequestInput{
+	_, err = testpkg.TenantQuery2(t, ctx, testpkg.SetupTestDB(t), changeRequests.Approve, created.ChangeRequest.ID, enrollmentTest.ReviewChangeRequestInput{
 		Note:           "Freigegeben.",
 		ActorAccountID: env.creatorID,
 		ActorRole:      "admin",
 	})
 	require.NoError(t, err)
 
-	currentLinks, err := env.repos.Enrollment().RequestChildOfferingsAtDate(ctx, childID, enrollmentTest.Date(decisionTestToday))
+	currentLinks, err := testpkg.TenantQuery2(t, ctx, testpkg.SetupTestDB(t), env.reposEnrollment.Enrollment().RequestChildOfferingsAtDate, childID, enrollmentTest.Date(decisionTestToday))
 	require.NoError(t, err)
 	require.Len(t, currentLinks, 1)
 	assert.Equal(t, newOffering.ID, currentLinks[0].CareOfferingID,

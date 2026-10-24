@@ -34,7 +34,7 @@ func TestAnnouncementValidateRejectsInvalidBoundaryValues(t *testing.T) {
 		"content":       {Title: "title", Type: TypeAnnouncement, Severity: SeverityInfo, CreatedBy: 1},
 		"type":          {Title: "title", Content: "body", Type: "unknown", Severity: SeverityInfo, CreatedBy: 1},
 		"severity":      {Title: "title", Content: "body", Type: TypeAnnouncement, Severity: "unknown", CreatedBy: 1},
-		"creator":       {Title: "title", Content: "body", Type: TypeAnnouncement, Severity: SeverityInfo},
+		"creator":       {Title: "title", Content: "body", Type: TypeAnnouncement, Severity: SeverityInfo, CreatedBy: -1},
 		"version":       {Title: "title", Content: "body", Type: TypeAnnouncement, Severity: SeverityInfo, CreatedBy: 1, Version: stringPointer(strings.Repeat("v", 51))},
 		"organizations": {Title: "title", Content: "body", Type: TypeAnnouncement, Severity: SeverityInfo, CreatedBy: 1, TargetOrgIDs: make([]int64, MaxTargetIDs+1)},
 		"schools":       {Title: "title", Content: "body", Type: TypeAnnouncement, Severity: SeverityInfo, CreatedBy: 1, TargetTenantIDs: make([]int64, MaxTargetIDs+1)},

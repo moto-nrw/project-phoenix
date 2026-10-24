@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,7 +21,7 @@ func TestTrackingIndicatorsResolveTodaysActivityAndRoomNames(t *testing.T) {
 	require.Empty(t, result)
 
 	data := newVisitProjectionFixture(t, db)
-	testpkg.CreateTestVisit(t, db, data.Student1, data.GroupID, timezone.Today().Add(30*time.Minute), nil)
+	testpkg.CreateTestVisit(t, db, data.Student1, data.GroupID, calendar.Today().Add(30*time.Minute), nil)
 	result, err = svc.GetTrackingIndicators(ctx, []int64{data.Student1, data.Student1}, labels)
 	require.NoError(t, err)
 	require.Contains(t, result, data.Student1)

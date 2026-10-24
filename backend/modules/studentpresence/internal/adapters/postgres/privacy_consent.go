@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 	"github.com/uptrace/bun"
 )
@@ -28,15 +29,15 @@ type privacyConsentRow struct {
 	Details           json.RawMessage `bun:"details,type:jsonb"`
 }
 
-func (r privacyConsentRow) toPort() ports.PrivacyConsent {
-	return ports.PrivacyConsent{
+func (r privacyConsentRow) toPort() studentpresence.PrivacyConsent {
+	return studentpresence.PrivacyConsent{
 		ID: r.ID, TenantID: r.TenantID, StudentID: r.StudentID, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
 		PolicyVersion: r.PolicyVersion, Accepted: r.Accepted, AcceptedAt: r.AcceptedAt, ExpiresAt: r.ExpiresAt,
 		DurationDays: r.DurationDays, RenewalRequired: r.RenewalRequired, DataRetentionDays: r.DataRetentionDays, Details: r.Details,
 	}
 }
 
-func (s *Store) ListPrivacyConsents(ctx context.Context, studentID int64) ([]ports.PrivacyConsent, ports.Stats, error) {
+func (s *Store) ListPrivacyConsents(ctx context.Context, studentID int64) ([]studentpresence.PrivacyConsent, ports.Stats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, ports.Stats{}, err
@@ -50,14 +51,14 @@ func (s *Store) ListPrivacyConsents(ctx context.Context, studentID int64) ([]por
 	if err != nil {
 		return nil, stats, fmt.Errorf("list privacy consents: %w", err)
 	}
-	result := make([]ports.PrivacyConsent, 0, len(rows))
+	result := make([]studentpresence.PrivacyConsent, 0, len(rows))
 	for _, row := range rows {
 		result = append(result, row.toPort())
 	}
 	return result, stats, nil
 }
 
-func (s *Store) RecordPrivacyConsent(ctx context.Context, value *ports.PrivacyConsent) (ports.Stats, error) {
+func (s *Store) RecordPrivacyConsent(ctx context.Context, value *studentpresence.PrivacyConsent) (ports.Stats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return ports.Stats{}, err
@@ -80,7 +81,7 @@ func (s *Store) RecordPrivacyConsent(ctx context.Context, value *ports.PrivacyCo
 	return stats, nil
 }
 
-func (s *Store) RevisePrivacyConsent(ctx context.Context, value *ports.PrivacyConsent) (ports.Stats, error) {
+func (s *Store) RevisePrivacyConsent(ctx context.Context, value *studentpresence.PrivacyConsent) (ports.Stats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return ports.Stats{}, err

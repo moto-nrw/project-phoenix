@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -19,8 +19,8 @@ import (
 // reads, updates, deletes and caps through the capability never cross that
 // boundary, and that the row rules the legacy repositories enforced hold.
 
-func testShift(staffID int64, day timezone.Date, start, end string) workforce.StaffShift {
-	return workforce.StaffShift{
+func testShift(staffID int64, day calendar.Date, start, end string) *workforce.StaffShift {
+	return &workforce.StaffShift{
 		StaffID: staffID, Date: day.String(), StartTime: start, EndTime: end, CreatedBy: staffID,
 	}
 }
@@ -36,7 +36,7 @@ func TestStaffShiftsAreTenantIsolated(t *testing.T) {
 
 	local := testpkg.CreateTestStaff(t, db, "Shift", "Local")
 	foreign := testpkg.CreateTestStaffForTenant(t, db, foreignTenantID, "Shift", "Foreign")
-	day := timezone.NewDate(2026, 7, 6)
+	day := calendar.NewDate(2026, 7, 6)
 	capability := buildWorkforce(t, db)
 
 	localShift, err := capability.CreateStaffShift(ctx, testShift(local.ID, day, "08:00:00", "16:30:00"))
@@ -95,7 +95,7 @@ func TestStaffShiftRowRulesMatchTheLegacyRepository(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	staff := testpkg.CreateTestStaff(t, db, "Shift", "Rules")
 	other := testpkg.CreateTestStaff(t, db, "Shift", "Batch")
-	monday := timezone.NewDate(2026, 7, 6)
+	monday := calendar.NewDate(2026, 7, 6)
 	capability := buildWorkforce(t, db)
 
 	created, err := capability.CreateStaffShift(ctx, testShift(staff.ID, monday, "08:00:00", "16:30:00"))
@@ -149,10 +149,10 @@ func TestStaffShiftRowRulesMatchTheLegacyRepository(t *testing.T) {
 	cancelledOnly := testShift(staff.ID, thirdMonday, "08:00:00", "12:00:00")
 	cancelledOnly.Cancelled = true
 	rows, err := capability.CreateStaffShifts(ctx, []workforce.StaffShift{
-		testShift(staff.ID, saturday, "08:00:00", "12:00:00"),
-		testShift(staff.ID, nextMonday, "08:00:00", "12:00:00"),
-		testShift(other.ID, monday, "08:00:00", "12:00:00"),
-		cancelledOnly,
+		*testShift(staff.ID, saturday, "08:00:00", "12:00:00"),
+		*testShift(staff.ID, nextMonday, "08:00:00", "12:00:00"),
+		*testShift(other.ID, monday, "08:00:00", "12:00:00"),
+		*cancelledOnly,
 	})
 	require.NoError(t, err)
 	require.Len(t, rows, 4)
@@ -195,8 +195,8 @@ func TestStaffShiftSeriesLifecycleStaysInTheTenant(t *testing.T) {
 	foreignCtx := testpkg.TenantContext(foreignTenantID)
 
 	staff := testpkg.CreateTestStaff(t, db, "Series", "Owner")
-	periodStart := timezone.NewDate(2026, 9, 1)
-	periodEnd := timezone.NewDate(2027, 6, 30)
+	periodStart := calendar.NewDate(2026, 9, 1)
+	periodEnd := calendar.NewDate(2027, 6, 30)
 	period := testpkg.CreateTestCalendarPeriod(t, db, "Serienjahr", periodStart, periodEnd)
 	capability := buildWorkforce(t, db)
 
@@ -216,15 +216,15 @@ func TestStaffShiftSeriesLifecycleStaysInTheTenant(t *testing.T) {
 	require.ErrorIs(t, err, workforce.ErrInvalidShiftSeries)
 
 	// The materialized rows carry the series and their source slot.
-	firstMonday := timezone.NewDate(2026, 9, 7)
+	firstMonday := calendar.NewDate(2026, 9, 7)
 	secondMonday := firstMonday.AddDays(7)
 	seriesID := series.ID
 	materialized := make([]workforce.StaffShift, 0, 2)
-	for _, day := range []timezone.Date{firstMonday, secondMonday} {
+	for _, day := range []calendar.Date{firstMonday, secondMonday} {
 		shift := testShift(staff.ID, day, "09:00:00", "12:00:00")
 		shift.SeriesID = &seriesID
 		shift.SeriesOccurrenceDate = day.String()
-		materialized = append(materialized, shift)
+		materialized = append(materialized, *shift)
 	}
 	rows, err := capability.CreateStaffShifts(ctx, materialized)
 	require.NoError(t, err)
@@ -374,7 +374,7 @@ func TestShiftTypesAreTenantIsolatedAndNormalized(t *testing.T) {
 
 	// Deleting a type keeps the shifts that carried it and clears the label.
 	staff := testpkg.CreateTestStaff(t, db, "Type", "Bearer")
-	shift := testShift(staff.ID, timezone.NewDate(2026, 7, 6), "08:00:00", "12:00:00")
+	shift := testShift(staff.ID, calendar.NewDate(2026, 7, 6), "08:00:00", "12:00:00")
 	shift.ShiftTypeID = &alpha.ID
 	labelled, err := capability.CreateStaffShift(ctx, shift)
 	require.NoError(t, err)
@@ -393,10 +393,10 @@ func TestSeriesPlanRollsBackWithTheCallerTransaction(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	staff := testpkg.CreateTestStaff(t, db, "Rollback", "Series")
-	periodStart := timezone.NewDate(2026, 9, 1)
-	period := testpkg.CreateTestCalendarPeriod(t, db, "Rollbackjahr", periodStart, timezone.NewDate(2027, 6, 30))
+	periodStart := calendar.NewDate(2026, 9, 1)
+	period := testpkg.CreateTestCalendarPeriod(t, db, "Rollbackjahr", periodStart, calendar.NewDate(2027, 6, 30))
 	capability := buildWorkforce(t, db)
-	monday := timezone.NewDate(2026, 9, 7)
+	monday := calendar.NewDate(2026, 9, 7)
 	failure := errors.New("materialization aborted after an authoritative write")
 
 	// plan performs the three authoritative writes of a series materialization
@@ -415,7 +415,7 @@ func TestSeriesPlanRollsBackWithTheCallerTransaction(t *testing.T) {
 		shift := testShift(staff.ID, monday, "09:00:00", "12:00:00")
 		shift.SeriesID = &series.ID
 		shift.SeriesOccurrenceDate = monday.String()
-		if _, err := capability.CreateStaffShifts(txCtx, []workforce.StaffShift{shift}); err != nil {
+		if _, err := capability.CreateStaffShifts(txCtx, []workforce.StaffShift{*shift}); err != nil {
 			return 0, err
 		}
 		if failAfter == "shifts" {
@@ -481,7 +481,7 @@ func TestStaffShiftSickAbsencePreservesOtherFieldsAndRollsBack(t *testing.T) {
 	absenceType := testpkg.CreateTestStaffAbsenceType(t, db, "Shift association")
 	absence := testpkg.CreateTestStaffAbsenceToday(t, db, staff.ID, absenceType.ID)
 	capability := buildWorkforce(t, db)
-	shift := testShift(staff.ID, timezone.NewDate(2026, 9, 7), "08:00:00", "16:00:00")
+	shift := testShift(staff.ID, calendar.NewDate(2026, 9, 7), "08:00:00", "16:00:00")
 	shift.Notes = "Preserve notes and cancellation"
 	shift.Cancelled = true
 	created, err := capability.CreateStaffShift(ctx, shift)

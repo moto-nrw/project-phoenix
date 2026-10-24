@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { logDisplayedCrash } from "~/lib/error-log";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "SSEErrorBoundary" });
@@ -32,6 +33,7 @@ export class SSEErrorBoundary extends React.Component<
       error: error instanceof Error ? error.message : String(error),
       error_info: String(errorInfo),
     });
+    logDisplayedCrash(error);
   }
 
   render() {

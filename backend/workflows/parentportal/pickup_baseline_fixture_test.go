@@ -8,7 +8,7 @@ import (
 )
 
 // newPickupBaselineService binds native records in the fixture's legacy booking mode.
-func newPickupBaselineService(records compose.PickupBaselineRecords, links careplan.ApprovedBookingReader) careplan.PickupBaselineReader {
+func newPickupBaselineService(records careplan.Capability, links careplan.ApprovedBookingReader) careplan.PickupBaselineReader {
 	baselines, err := compose.NewPickupBaselines(records, links, func(context.Context) (bool, error) { return false, nil })
 	if err != nil {
 		panic(err)

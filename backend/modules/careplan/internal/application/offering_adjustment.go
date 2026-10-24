@@ -31,12 +31,6 @@ type offeringAdjustmentWork struct {
 	isCompleteWithdrawal                   bool
 }
 
-// AdjustOfferings performs a booking switch of an approved child and records
-// it. The source tells the two entry points apart: a direct correction by the
-// office is subject to the live care-offerings setting and shows up in the
-// central history as its own row kind (#2436), while a request-applied change
-// carries the capability frozen when the parent submitted and is already
-// visible there as the decided request.
 func (m *BookingMaterialization) AdjustOfferings(ctx context.Context, in careplan.OfferingAdjustment) (*careplan.OfferingAdjustmentResult, error) {
 	work, err := m.prepareOfferingAdjustment(ctx, in)
 	if err != nil {
@@ -116,7 +110,8 @@ func (m *BookingMaterialization) loadOfferingAdjustmentSubject(ctx context.Conte
 		return fmt.Errorf("%w: only approved children with a linked student can be adjusted", careplan.ErrOfferingAdjustmentInvalid)
 	}
 	work.child = child
-	if err := m.lockTemplateRecurrence(ctx); err != nil {
+	// All callers, including the admin correction, acquire gates before rows.
+	if err := m.LockOfferingDerivedWrites(ctx); err != nil {
 		return err
 	}
 	student, err := m.deps.Students.Student(ctx, *child.CreatedStudentID, true)

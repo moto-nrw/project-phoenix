@@ -9,7 +9,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // Operator endpoints for managing which schools an existing account may
@@ -24,6 +24,8 @@ type AccountTenantRole struct {
 	Name     string  `json:"name"`
 	IsSystem bool    `json:"is_system"`
 	BaseRole *string `json:"base_role,omitempty"`
+	// SchoolPortal marks a school role made from the Lehrkraft template (#4574).
+	SchoolPortal bool `json:"school_portal"`
 }
 
 // AccountTenantAccessEntry is one school an account has (or had) access to,
@@ -48,6 +50,8 @@ type RoleOption struct {
 	ID       int64  `json:"id,string"`
 	Name     string `json:"name"`
 	IsSystem bool   `json:"is_system"`
+	// SchoolPortal marks a school role made from the Lehrkraft template (#4574).
+	SchoolPortal bool `json:"school_portal"`
 }
 
 type grantAccountTenantAccessRequest struct {
@@ -109,7 +113,7 @@ func (rs *Resource) ListAssignableSchoolRoles(w http.ResponseWriter, r *http.Req
 	}
 	options := make([]RoleOption, 0, len(roles))
 	for _, role := range roles {
-		options = append(options, RoleOption{ID: role.ID, Name: role.Name, IsSystem: role.IsSystem})
+		options = append(options, RoleOption{ID: role.ID, Name: role.Name, IsSystem: role.IsSystem, SchoolPortal: role.SchoolPortal})
 	}
 	common.Respond(w, r, http.StatusOK, options, "Assignable school roles retrieved successfully")
 }
@@ -177,7 +181,7 @@ func accessEntries(entries []identityaccess.AccountTenantAccess) []AccountTenant
 	for _, entry := range entries {
 		roles := make([]AccountTenantRole, 0, len(entry.Roles))
 		for _, role := range entry.Roles {
-			roles = append(roles, AccountTenantRole{ID: role.ID, Name: role.Name, IsSystem: role.IsSystem, BaseRole: role.BaseRole})
+			roles = append(roles, AccountTenantRole{ID: role.ID, Name: role.Name, IsSystem: role.IsSystem, BaseRole: role.BaseRole, SchoolPortal: role.SchoolPortal})
 		}
 		result = append(result, AccountTenantAccessEntry{
 			TenantID: entry.TenantID, SchoolName: entry.SchoolName, SchoolSlug: entry.SchoolSlug, SchoolActive: entry.SchoolActive,
@@ -202,7 +206,7 @@ func parseAccountTenantParams(w http.ResponseWriter, r *http.Request) (int64, in
 }
 
 func operatorIDFromContext(r *http.Request) int64 {
-	return int64(jwt.ClaimsFromCtx(r.Context()).ID)
+	return int64(sessiontoken.ClaimsFromCtx(r.Context()).ID)
 }
 
 // clientIP renders the request address for the operator audit ledger; an

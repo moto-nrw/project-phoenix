@@ -5,9 +5,11 @@ import (
 	"log/slog"
 	"time"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+
+	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	peopleEnrollment "github.com/moto-nrw/project-phoenix/modules/peopledirectory/enrollment"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -17,61 +19,61 @@ import (
 type (
 	// DecisionRequests reads and locks the requests a decision works on.
 	DecisionRequests interface {
-		RequestByID(context.Context, int64, bool) (*enrollment.Request, error)
-		AdminRequests(context.Context, enrollment.RequestListFilters) ([]*enrollment.Request, error)
+		RequestByID(context.Context, int64, bool) (*enrollmentNative.Request, error)
+		AdminRequests(context.Context, enrollmentNative.RequestListFilters) ([]*enrollmentNative.Request, error)
 		SetRequestWithdrawal(context.Context, int64, *time.Time) error
 		AcquireSubmissionDedupLock(context.Context, int64, uint64) error
 		AcquireExistingStudentMatchLock(context.Context, int64) error
-		ActiveDuplicateChildren(context.Context, int64, string, []enrollment.DuplicateChildKey, int64) ([]enrollment.DuplicateChildKey, error)
+		ActiveDuplicateChildren(context.Context, int64, string, []enrollmentNative.DuplicateChildKey, int64) ([]enrollmentNative.DuplicateChildKey, error)
 		HasActiveRequestForMatchedStudent(context.Context, int64, int64, int64) (bool, error)
 	}
 	// DecisionChildren reads the request children with their offering
 	// selections and writes the decision state.
 	DecisionChildren interface {
-		OfferingCapacityPeak(context.Context, int64, []int64, enrollment.Date, enrollment.Date) (int, error)
-		RequestChildOfferingsAtDate(context.Context, int64, enrollment.Date) ([]*enrollment.RequestChildOffering, error)
-		RequestChildOfferingHistoryForChildren(context.Context, []int64) ([]*enrollment.RequestChildOffering, error)
-		RequestChildOfferingsForChildrenAtDate(context.Context, []int64, enrollment.Date) ([]*enrollment.RequestChildOffering, error)
-		ChildByID(context.Context, int64) (*enrollment.RequestChild, error)
-		ChildrenForRequest(context.Context, int64, bool) ([]*enrollment.RequestChild, error)
-		ChildrenForRequests(context.Context, []int64) ([]*enrollment.RequestChild, error)
+		OfferingCapacityPeak(context.Context, int64, []int64, enrollmentNative.Date, enrollmentNative.Date) (int, error)
+		RequestChildOfferingsAtDate(context.Context, int64, enrollmentNative.Date) ([]*enrollmentNative.RequestChildOffering, error)
+		RequestChildOfferingHistoryForChildren(context.Context, []int64) ([]*enrollmentNative.RequestChildOffering, error)
+		RequestChildOfferingsForChildrenAtDate(context.Context, []int64, enrollmentNative.Date) ([]*enrollmentNative.RequestChildOffering, error)
+		ChildByID(context.Context, int64) (*enrollmentNative.RequestChild, error)
+		ChildrenForRequest(context.Context, int64, bool) ([]*enrollmentNative.RequestChild, error)
+		ChildrenForRequests(context.Context, []int64) ([]*enrollmentNative.RequestChild, error)
 		RestoreWithdrawnChildren(context.Context, int64, []int64) ([]int64, error)
 		UpdateChildStatus(context.Context, int64, string, *string, int64) error
-		UpdateChildActivationPlan(context.Context, int64, string, *enrollment.Date) error
+		UpdateChildActivationPlan(context.Context, int64, string, *enrollmentNative.Date) error
 		LinkCreatedStudent(context.Context, int64, int64) error
 		// The planned class switch of an approved re-enrollment (#3917).
-		SetChildClassSwitch(context.Context, int64, *enrollment.ClassSwitch) error
-		ChildClassSwitch(context.Context, int64) (*enrollment.ClassSwitch, error)
-		DueClassSwitches(context.Context, enrollment.Date) ([]enrollment.DueClassSwitch, error)
+		SetChildClassSwitch(context.Context, int64, *enrollmentNative.ClassSwitch) error
+		ChildClassSwitch(context.Context, int64) (*enrollmentNative.ClassSwitch, error)
+		DueClassSwitches(context.Context, enrollmentNative.Date) ([]enrollmentNative.DueClassSwitch, error)
 	}
 	// DecisionGuardians reads the co-guardians of a request and stamps the
 	// guardian profile an approval resolved for one of them.
 	DecisionGuardians interface {
-		RequestGuardians(context.Context, []int64) ([]*enrollment.RequestGuardian, error)
+		RequestGuardians(context.Context, []int64) ([]*enrollmentNative.RequestGuardian, error)
 		StampRequestGuardianProfile(context.Context, int64, int64) error
 	}
 	// DecisionLateInvites reads the late invite a request was submitted
 	// through.
 	DecisionLateInvites interface {
-		LateInviteByUsedRequestID(context.Context, int64) (*enrollment.LateInvite, error)
+		LateInviteByUsedRequestID(context.Context, int64) (*enrollmentNative.LateInvite, error)
 	}
 	// DecisionPhases reads the phases of the requests.
 	DecisionPhases interface {
-		Phase(context.Context, int64) (*enrollment.Phase, error)
-		PhasesByID(context.Context, []int64) ([]*enrollment.Phase, error)
+		Phase(context.Context, int64) (*enrollmentNative.Phase, error)
+		PhasesByID(context.Context, []int64) ([]*enrollmentNative.Phase, error)
 	}
 	// DecisionSchemas reads the immutable form-schema versions requests are
 	// pinned to.
 	DecisionSchemas interface {
-		Schema(context.Context, int64) (*enrollment.FormSchema, error)
-		Schemas(context.Context, []int64) ([]*enrollment.FormSchema, error)
+		Schema(context.Context, int64) (*enrollmentNative.FormSchema, error)
+		Schemas(context.Context, []int64) ([]*enrollmentNative.FormSchema, error)
 	}
 	// CareOfferingCatalog reads Care Plan's offering catalog in Enrollment's
 	// offering rows.
 	CareOfferingCatalog interface {
-		ListByIDs(ctx context.Context, ids []int64) ([]*enrollmentModels.CareOffering, error)
-		ListByIDsForUpdate(ctx context.Context, ids []int64) ([]*enrollmentModels.CareOffering, error)
-		ListByPhase(ctx context.Context, phaseID int64) ([]*enrollmentModels.CareOffering, error)
+		ListByIDs(ctx context.Context, ids []int64) ([]*offeringContract.CareOfferingRecord, error)
+		ListByIDsForUpdate(ctx context.Context, ids []int64) ([]*offeringContract.CareOfferingRecord, error)
+		ListByPhase(ctx context.Context, phaseID int64) ([]*offeringContract.CareOfferingRecord, error)
 	}
 )
 
@@ -107,7 +109,7 @@ type DecisionSettings interface {
 	WaitlistEnabled(ctx context.Context) (bool, error)
 	AutoInviteGuardianOnApprove(ctx context.Context) (bool, error)
 	CareOfferingsEnabled(ctx context.Context) (bool, error)
-	// DefaultActivationMode returns enrollment.default_activation_mode:
+	// DefaultActivationMode returns enrollmentNative.default_activation_mode:
 	// "immediate" or "scheduled".
 	DefaultActivationMode(ctx context.Context) (string, error)
 }
@@ -117,7 +119,7 @@ type (
 	// OfferingAdjustmentTrail lists the audited offering adjustments of one
 	// request child.
 	OfferingAdjustmentTrail interface {
-		ListOfferingAdjustments(ctx context.Context, requestChildID int64) ([]*enrollment.OfferingAdjustmentRecord, error)
+		ListOfferingAdjustments(ctx context.Context, requestChildID int64) ([]*enrollmentNative.OfferingAdjustmentRecord, error)
 	}
 	// RestorationAudit appends the trail of an admin restore (#2157).
 	RestorationAudit interface {
@@ -191,14 +193,14 @@ type WeeklyPickupHooks struct {
 type DecisionDependencies struct {
 	Requests DecisionRequests
 	// Reads is the per-account read state of the admin queue (#3778).
-	Reads             enrollment.RequestReads
+	Reads             enrollmentNative.RequestReads
 	Children          DecisionChildren
 	Guardians         DecisionGuardians
 	LateInvites       DecisionLateInvites
 	Phases            DecisionPhases
 	Schemas           DecisionSchemas
 	Offerings         CareOfferingCatalog
-	Notifications     enrollment.Notifications
+	Notifications     enrollmentNative.Notifications
 	Bookings          DecisionBookings
 	GuardianAccess    DecisionGuardianAccess
 	StudentEnrollment DecisionStudentEnrollment

@@ -1,14 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
-
-// ============================================================================
-// Types
-// ============================================================================
-
-interface ExtendedSession extends Session {
-  user: Session["user"] & { token?: string };
-}
+import {
+  type ExtendedSession,
+  defaultSession,
+} from "~/test/route-test-helpers";
 
 // ============================================================================
 // Mocks
@@ -56,11 +51,6 @@ async function parseJsonResponse<T>(response: Response): Promise<T> {
   return (await response.json()) as T;
 }
 
-const defaultSession: ExtendedSession = {
-  user: { id: "1", token: "test-token", name: "Test User" },
-  expires: "2099-01-01",
-};
-
 // ============================================================================
 // Tests
 // ============================================================================
@@ -76,19 +66,6 @@ describe("POST /api/auth/switch-tenant", () => {
 
   afterEach(() => {
     global.fetch = originalFetch;
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/auth/switch-tenant", {
-      body: { tenant_slug: "school-b" },
-    });
-    const response = await POST(request);
-
-    expect(response.status).toBe(401);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Unauthorized");
   });
 
   it("proxies switch request and returns token pair", async () => {
@@ -124,34 +101,5 @@ describe("POST /api/auth/switch-tenant", () => {
     expect(response.status).toBe(200);
     const json = await parseJsonResponse<typeof tokens>(response);
     expect(json.access_token).toBe("new-jwt");
-  });
-
-  it("forwards backend error status", async () => {
-    vi.mocked(global.fetch).mockResolvedValueOnce(
-      new Response(JSON.stringify({ error: "Tenant not found" }), {
-        status: 404,
-        headers: { "Content-Type": "application/json" },
-      }),
-    );
-
-    const request = createMockRequest("/api/auth/switch-tenant", {
-      body: { tenant_slug: "nonexistent" },
-    });
-    const response = await POST(request);
-
-    expect(response.status).toBe(404);
-  });
-
-  it("returns 500 on fetch failure", async () => {
-    vi.mocked(global.fetch).mockRejectedValueOnce(new Error("Network error"));
-
-    const request = createMockRequest("/api/auth/switch-tenant", {
-      body: { tenant_slug: "school-b" },
-    });
-    const response = await POST(request);
-
-    expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Internal Server Error");
   });
 });

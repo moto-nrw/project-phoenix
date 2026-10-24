@@ -6,12 +6,14 @@ import (
 	"net/http"
 	"strings"
 
+	settingsFacts "github.com/moto-nrw/project-phoenix/modules/settings"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -23,7 +25,7 @@ import (
 // drives — a Lehrkraft runs her Lernzeit exactly the way a Betreuungskraft
 // runs hers. What differs is the mantle, and it differs in four ways:
 //
-//  1. jwt.SchoolMiddleware (via ProtectedSchoolRoutes) admits only school-scope
+//  1. sessiontoken.SchoolMiddleware (via ProtectedSchoolRoutes) admits only school-scope
 //     tokens, so a tenant token cannot reach these routes and a school token
 //     still reaches nothing under /api (TestSchoolScopeRejectedOnAllAPIRoutes).
 //  2. permissions.SupervisionOwn instead of SchedulesRead: the permission says
@@ -39,13 +41,13 @@ import (
 // what the Betreuungsplan gave her, she does not invent blocks), reopen (a
 // correction on a finished block is office work), and active-sessions /
 // roster-by-active-group (both answer for the whole school).
-func (rs *Resource) SchoolSupervisionRouter() chi.Router {
+func (rs *Resource) SchoolSupervisionRouter(protectedSchoolRoutes func(chi.Router, func(chi.Router, common.Middleware))) chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
-	common.ProtectedSchoolRoutes(r, func(r chi.Router, withTx common.Middleware) {
+	protectedSchoolRoutes(r, func(r chi.Router, withTx common.Middleware) {
 		own := common.RequiresPermission(permissions.SupervisionOwn)
-		attendance := common.RequireWebAttendanceEnabled(rs.SettingsService)
+		attendance := common.RequireWebAttendanceEnabled(settingsFacts.WebAttendanceEnabledReader(rs.SettingsService))
 
 		r.With(own, withTx).Get("/", rs.schoolMySupervisions)
 		r.With(own, withTx).Get("/{id}/roster", rs.operationsRoster)
@@ -118,12 +120,12 @@ func (rs *Resource) schoolStudentSheet(w http.ResponseWriter, r *http.Request) {
 	}
 	if !onRoster {
 		common.RenderError(w, r, common.ErrorForbidden(
-			errors.New("Dieses Kind gehört nicht zu dieser Aufsicht"), //nolint:staticcheck // ST1005: user-facing German message
+			errors.New("dieses Kind gehört nicht zu dieser Aufsicht"),
 		))
 		return
 	}
 
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	sheet, err := rs.SupervisionSheets.SupervisionStudentSheet(
 		r.Context(), studentID, rs.todayDate(), boundary, accountID, strings.Join(claims.Roles, ","),
 	)

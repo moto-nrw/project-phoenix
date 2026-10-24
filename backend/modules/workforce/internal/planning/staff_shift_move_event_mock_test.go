@@ -7,20 +7,19 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// shiftMoveEventRepo captures Create calls; the read/delete methods are unused
-// by MoveShift.
+// shiftMoveEventRepo captures the recorded shift_moved entries.
 type shiftMoveEventRepo struct {
-	created   []*auditModels.DeviationEvent
+	created   []workforce.ShiftMovedEvent
 	createErr error
 }
 
-func (m *shiftMoveEventRepo) Create(_ context.Context, event *auditModels.DeviationEvent) error {
+func (m *shiftMoveEventRepo) record(_ context.Context, event workforce.ShiftMovedEvent) error {
 	if m.createErr != nil {
 		return m.createErr
 	}
@@ -28,34 +27,26 @@ func (m *shiftMoveEventRepo) Create(_ context.Context, event *auditModels.Deviat
 	return nil
 }
 
-func (*shiftMoveEventRepo) ListByRange(context.Context, auditModels.Date, auditModels.Date, *int64, *string) ([]*auditModels.DeviationEvent, error) {
-	return nil, nil
-}
-
-func (*shiftMoveEventRepo) DeleteOlderThan(context.Context, auditModels.Date) (int64, error) {
-	return 0, nil
-}
-
 func TestMoveShift_LogsShiftMovedEvent(t *testing.T) {
 	t.Parallel()
 
 	svc, repo, _ := shiftServiceFixture()
 	events := &shiftMoveEventRepo{}
-	svc.(*staffShiftService).deviationEventRepo = events
+	svc.(*staffShiftService).shiftMoveAudit = events.record
 
 	existing := validShift(7)
 	existing.ID = 5
-	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
+	repo.findByIDFunc = func(_ context.Context, _ any) (*workforce.ShiftRecord, error) {
 		return existing, nil
 	}
-	repo.updateFunc = func(_ context.Context, _ *StaffShift) error { return nil }
+	repo.updateFunc = func(_ context.Context, _ *workforce.ShiftRecord) error { return nil }
 
 	actor := int64(99)
 	moved, err := svc.MoveShift(context.Background(), MoveShiftInput{
 		ShiftID:        existing.ID,
 		SourceStaffID:  7,
 		TargetStaffID:  8,
-		Date:           timezone.Date(existing.Date),
+		Date:           calendar.Date(existing.Date),
 		StartTime:      existing.StartTime,
 		EndTime:        existing.EndTime,
 		BreakMinutes:   existing.BreakMinutes,
@@ -66,20 +57,16 @@ func TestMoveShift_LogsShiftMovedEvent(t *testing.T) {
 
 	require.Len(t, events.created, 1, "exactly one protocol entry per move")
 	ev := events.created[0]
-	assert.Equal(t, auditModels.DeviationEventShiftMoved, ev.EventType)
-	require.NotNil(t, ev.StaffShiftID)
-	assert.Equal(t, moved.ID, *ev.StaffShiftID, "anchored on the shift row")
-	assert.Nil(t, ev.ActivityGroupID)
-	assert.Nil(t, ev.InstanceID)
-	require.NotNil(t, ev.SubjectStaffID)
-	assert.Equal(t, int64(7), *ev.SubjectStaffID)
+	assert.Equal(t, moved.ID, ev.StaffShiftID, "anchored on the shift row")
+	assert.Equal(t, moved.Date, ev.OccurrenceDate, "the occurrence is the new slot's day")
+	assert.False(t, ev.OccurrenceDate.IsZero())
+	assert.Equal(t, int64(7), ev.SubjectStaffID)
 	require.NotNil(t, ev.RelatedStaffID)
 	assert.Equal(t, int64(8), *ev.RelatedStaffID)
 	require.NotNil(t, ev.ActorAccountID)
 	assert.Equal(t, actor, *ev.ActorAccountID)
 	assert.Contains(t, string(ev.OldValue), `"staff_id":7`)
 	assert.Contains(t, string(ev.NewValue), `"staff_id":8`)
-	require.NoError(t, ev.Validate(), "shift-anchored event passes model validation")
 }
 
 func TestMoveShift_NoOpMoveLogsNothing(t *testing.T) {
@@ -87,11 +74,11 @@ func TestMoveShift_NoOpMoveLogsNothing(t *testing.T) {
 
 	svc, repo, _ := shiftServiceFixture()
 	events := &shiftMoveEventRepo{}
-	svc.(*staffShiftService).deviationEventRepo = events
+	svc.(*staffShiftService).shiftMoveAudit = events.record
 
 	existing := validShift(7)
 	existing.ID = 5
-	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
+	repo.findByIDFunc = func(_ context.Context, _ any) (*workforce.ShiftRecord, error) {
 		return existing, nil
 	}
 
@@ -99,7 +86,7 @@ func TestMoveShift_NoOpMoveLogsNothing(t *testing.T) {
 		ShiftID:       existing.ID,
 		SourceStaffID: 7,
 		TargetStaffID: 7,
-		Date:          timezone.Date(existing.Date),
+		Date:          calendar.Date(existing.Date),
 		StartTime:     existing.StartTime,
 		EndTime:       existing.EndTime,
 		BreakMinutes:  existing.BreakMinutes,
@@ -114,20 +101,20 @@ func TestMoveShift_EventWriteFailureAbortsMove(t *testing.T) {
 
 	svc, repo, _ := shiftServiceFixture()
 	events := &shiftMoveEventRepo{createErr: errors.New("audit down")}
-	svc.(*staffShiftService).deviationEventRepo = events
+	svc.(*staffShiftService).shiftMoveAudit = events.record
 
 	existing := validShift(7)
 	existing.ID = 5
-	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
+	repo.findByIDFunc = func(_ context.Context, _ any) (*workforce.ShiftRecord, error) {
 		return existing, nil
 	}
-	repo.updateFunc = func(_ context.Context, _ *StaffShift) error { return nil }
+	repo.updateFunc = func(_ context.Context, _ *workforce.ShiftRecord) error { return nil }
 
 	_, err := svc.MoveShift(context.Background(), MoveShiftInput{
 		ShiftID:       existing.ID,
 		SourceStaffID: 7,
 		TargetStaffID: 8,
-		Date:          timezone.Date(existing.Date),
+		Date:          calendar.Date(existing.Date),
 		StartTime:     existing.StartTime,
 		EndTime:       existing.EndTime,
 		BreakMinutes:  existing.BreakMinutes,

@@ -20,12 +20,11 @@ import {
   type PlannerRoomReference,
 } from "~/lib/planner-reference-api";
 import { staffService, type Staff } from "~/lib/staff-api";
+import { externalAccountMark } from "~/lib/staff-helpers";
 import { ExternalBadge } from "~/components/staff/external-badge";
+import { StatusBadge } from "~/components/ui/status-badge";
 
-import {
-  ExternalCaregiverEntry,
-  type ExternalCaregiverResult,
-} from "./external-caregiver-entry";
+import { ExternalCaregiverEntry } from "~/components/staff/external-caregiver-entry";
 
 const logger = createLogger({ component: "SpontaneousActivityStart" });
 const EMPTY_OCCUPIED_ROOM_IDS: readonly string[] = [];
@@ -45,6 +44,8 @@ export interface SpontaneousActivityStartPayload {
 
 interface SpontaneousActivityStartProps {
   readonly canCreateExternalCaregiver?: boolean;
+  /** Offer „Nur ansehen“ in the external entry (users:manage, ADR 0091). */
+  readonly canGrantExternalView?: boolean;
   readonly currentStaffId?: string;
   readonly defaultRoomId?: string;
   readonly disabled?: boolean;
@@ -99,6 +100,7 @@ function isRoomOccupied(
 
 export function SpontaneousActivityStart({
   canCreateExternalCaregiver = false,
+  canGrantExternalView = false,
   currentStaffId,
   defaultRoomId,
   disabled = false,
@@ -112,8 +114,8 @@ export function SpontaneousActivityStart({
   const [activities, setActivities] = useState<Activity[]>([]);
   const [rooms, setRooms] = useState<RoomOption[]>([]);
   const [staff, setStaff] = useState<Staff[]>([]);
-  // Without the staff list the name check of a new external entry cannot
-  // run, so the section stays hidden after a failed load.
+  // Without the staff list the section has nobody to offer, so it stays
+  // hidden after a failed load; the load error in the dialog says why.
   const [staffLoaded, setStaffLoaded] = useState(false);
   const [activityInput, setActivityInput] = useState("");
   const [roomId, setRoomId] = useState("");
@@ -136,6 +138,15 @@ export function SpontaneousActivityStart({
     () => new Set(occupiedRoomIds),
     [occupiedRoomIds],
   );
+  // The dashboard poll hands over a new occupancy every few seconds. The
+  // load below only needs it to preselect a free room, so it reads the latest
+  // value instead of reloading on every poll: a reload hid the staff section
+  // and discarded a half-typed external person. The room list itself marks
+  // occupied rooms from the live value.
+  const occupiedRoomIdSetRef = useRef(occupiedRoomIdSet);
+  useEffect(() => {
+    occupiedRoomIdSetRef.current = occupiedRoomIdSet;
+  }, [occupiedRoomIdSet]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -193,18 +204,15 @@ export function SpontaneousActivityStart({
             .filter((item) => item.id !== currentStaffId)
             .sort((a, b) => staffLabel(a).localeCompare(staffLabel(b), "de")),
         );
+        const occupied = occupiedRoomIdSetRef.current;
         setRoomId((prev) => {
           const firstAvailableRoom =
-            spontaneousRooms.find(
-              (room) => !isRoomOccupied(room, occupiedRoomIdSet),
-            ) ?? null;
+            spontaneousRooms.find((room) => !isRoomOccupied(room, occupied)) ??
+            null;
           const previousRoom = spontaneousRooms.find(
             (room) => room.id === prev,
           );
-          if (
-            previousRoom &&
-            !isRoomOccupied(previousRoom, occupiedRoomIdSet)
-          ) {
+          if (previousRoom && !isRoomOccupied(previousRoom, occupied)) {
             return prev;
           }
           const configuredDefaultRoom = spontaneousRooms.find(
@@ -212,7 +220,7 @@ export function SpontaneousActivityStart({
           );
           if (
             configuredDefaultRoom &&
-            !isRoomOccupied(configuredDefaultRoom, occupiedRoomIdSet)
+            !isRoomOccupied(configuredDefaultRoom, occupied)
           ) {
             return configuredDefaultRoom.id;
           }
@@ -229,7 +237,6 @@ export function SpontaneousActivityStart({
     currentStaffId,
     defaultRoomId,
     isOpen,
-    occupiedRoomIdSet,
     loadAttempt,
     clearFormErrors,
     clearLoadError,
@@ -306,17 +313,17 @@ export function SpontaneousActivityStart({
     );
   }
 
-  function addExternalCaregiver(result: ExternalCaregiverResult) {
-    const id = result.kind === "created" ? result.staff.id : result.id;
-    if (result.kind === "created") {
-      const created = result.staff;
-      setStaff((prev) =>
-        [...prev.filter((item) => item.id !== created.id), created].sort(
-          (a, b) => staffLabel(a).localeCompare(staffLabel(b), "de"),
-        ),
-      );
-    }
-    setAdditionalStaffIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
+  function addExternalCaregiver(saved: Staff) {
+    // The new record carries its open invitation and is offered like
+    // everyone else.
+    setStaff((prev) =>
+      [...prev.filter((item) => item.id !== saved.id), saved].sort((a, b) =>
+        staffLabel(a).localeCompare(staffLabel(b), "de"),
+      ),
+    );
+    setAdditionalStaffIds((prev) =>
+      prev.includes(saved.id) ? prev : [...prev, saved.id],
+    );
   }
 
   function resetAndClose() {
@@ -606,35 +613,45 @@ export function SpontaneousActivityStart({
               </div>
               {staff.length > 0 ? (
                 <div className="grid max-h-44 gap-2 overflow-y-auto rounded-lg border border-gray-200 bg-gray-50 p-2">
-                  {staff.map((item) => (
-                    <label
-                      key={item.id}
-                      className="flex min-h-10 cursor-pointer items-center gap-3 rounded-md bg-white px-3 py-2 text-sm text-gray-800"
-                    >
-                      <Checkbox
-                        checked={additionalStaffIds.includes(item.id)}
-                        onChange={() => toggleStaff(item.id)}
-                      />
-                      <span className="min-w-0 truncate">
-                        {staffLabel(item)}
-                      </span>
-                      {item.isExternal ? (
-                        <ExternalBadge
-                          organization={item.externalOrganization}
+                  {staff.map((item) => {
+                    const accountMark = item.isExternal
+                      ? externalAccountMark(item.externalAccountStatus)
+                      : null;
+                    return (
+                      <label
+                        key={item.id}
+                        className="flex min-h-10 cursor-pointer items-center gap-3 rounded-md bg-white px-3 py-2 text-sm text-gray-800"
+                      >
+                        <Checkbox
+                          checked={additionalStaffIds.includes(item.id)}
+                          onChange={() => toggleStaff(item.id)}
                         />
-                      ) : null}
-                    </label>
-                  ))}
+                        <span className="min-w-0 flex-1">
+                          <span className="block break-words">
+                            {staffLabel(item)}
+                          </span>
+                          {item.isExternal ? (
+                            <span className="mt-1 flex flex-wrap gap-1">
+                              <span className="max-w-full min-w-0 [overflow-wrap:anywhere] [&>span]:whitespace-normal">
+                                <ExternalBadge
+                                  organization={item.externalOrganization}
+                                />
+                              </span>
+                              {accountMark ? (
+                                <StatusBadge {...accountMark} compact />
+                              ) : null}
+                            </span>
+                          ) : null}
+                        </span>
+                      </label>
+                    );
+                  })}
                 </div>
               ) : null}
               {canCreateExternalCaregiver ? (
                 <ExternalCaregiverEntry
-                  existing={staff.map((item) => ({
-                    id: item.id,
-                    fullName: staffLabel(item),
-                    isExternal: item.isExternal === true,
-                  }))}
                   onAdded={addExternalCaregiver}
+                  canGrantView={canGrantExternalView}
                 />
               ) : null}
             </div>

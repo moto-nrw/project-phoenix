@@ -1,7 +1,11 @@
 // app/api/students/[id]/attendance-history/route.ts
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { apiGet, handleApiError } from "~/lib/api-helpers.server";
+import {
+  apiGet,
+  handleApiError,
+  problemResponse,
+} from "~/lib/api-helpers.server";
 import { auth } from "~/server/auth";
 import { withTenantAuth } from "~/server/auth/tenant-route";
 
@@ -17,7 +21,7 @@ async function GETHandler(request: NextRequest): Promise<NextResponse> {
   const session = await auth();
 
   if (!session?.user?.token) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return problemResponse(401, "Unauthorized", request);
   }
 
   const pathParts = request.nextUrl.pathname.split("/");
@@ -26,10 +30,7 @@ async function GETHandler(request: NextRequest): Promise<NextResponse> {
     studentsIndex >= 0 ? pathParts[studentsIndex + 1] : undefined;
 
   if (!studentId) {
-    return NextResponse.json(
-      { error: "Invalid id parameter" },
-      { status: 400 },
-    );
+    return problemResponse(400, "Invalid id parameter", request);
   }
 
   const queryParams = new URLSearchParams();
@@ -56,7 +57,7 @@ async function GETHandler(request: NextRequest): Promise<NextResponse> {
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch (apiError) {
-    return handleApiError(apiError);
+    return handleApiError(apiError, request);
   }
 }
 

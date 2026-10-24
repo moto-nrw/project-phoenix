@@ -7,30 +7,10 @@ import (
 	"time"
 )
 
-// Account authentication errors. The messages are the wire and log contract
-// the retained auth service established; the HTTP layers switch on the
-// sentinels and the frontend maps ErrTenantAccessDenied's text.
+// Account authentication errors. The login and session sentinels are the
+// public Identity & Access ones: the HTTP layers switch on them and the
+// frontend maps ErrTenantAccessDenied's text.
 var (
-	ErrInvalidCredentials = errors.New("invalid username or password")
-	ErrAccountInactive    = errors.New("account is inactive")
-	ErrTenantNotFound     = errors.New("tenant not found")
-	ErrTenantAccessDenied = errors.New("account does not have access to this tenant")
-	// ErrParentMustUseParentPortal refuses a guardian-only account at the
-	// tenant login; ErrAccountNoGuardianRole refuses an account without a
-	// guardian role at the parents login.
-	ErrParentMustUseParentPortal = errors.New("guardian accounts must log in at the parents portal")
-	ErrAccountNoGuardianRole     = errors.New("account is not a guardian at any school")
-	// ErrAccountNoSchoolPortalRole refuses an account without a school-portal
-	// role at the school login; ErrMustUseSchoolPortal refuses a
-	// school-portal-only account at the tenant login (#2207).
-	ErrAccountNoSchoolPortalRole = errors.New("account has no school portal role at any school")
-	ErrMustUseSchoolPortal       = errors.New("school portal accounts must log in at the school portal")
-	ErrInvalidToken              = errors.New("invalid token format")
-	ErrTokenExpired              = errors.New("token has expired")
-	ErrTokenNotFound             = errors.New("token not found")
-	// ErrMFAStatusUnavailable refuses a login whose MFA gate could not be
-	// decided: the second factor is never dropped on an infrastructure error.
-	ErrMFAStatusUnavailable = errors.New("mfa status unavailable, please retry")
 	// ErrAccountAuthenticationUnavailable reports a module composed without
 	// the account-authentication dependencies.
 	ErrAccountAuthenticationUnavailable = errors.New("account authentication is not composed")
@@ -67,21 +47,23 @@ const RefreshTokenIdentifier = "Service login"
 // LoginAccount is the platform account a login authenticates. PasswordHash is
 // empty for accounts without a password.
 type LoginAccount struct {
-	ID           int64
-	Email        string
-	Username     string
-	PasswordHash string
-	Active       bool
-	UpdatedAt    time.Time
+	MFAResetGeneration int64
+	ID                 int64
+	Email              string
+	Username           string
+	PasswordHash       string
+	Active             bool
+	UpdatedAt          time.Time
 }
 
 // RoleAssignment is one role an account holds at a school, with the facts the
 // login decisions read.
 type RoleAssignment struct {
-	RoleID   int64
-	Name     string
-	IsSystem bool
-	TenantID *int64
+	RoleID       int64
+	Name         string
+	IsSystem     bool
+	TenantID     *int64
+	SchoolPortal bool
 }
 
 // School is the tenant fact login resolves: alive, active and its organization.
@@ -214,11 +196,11 @@ func IsGuardianOnly(roleNames []string) bool {
 }
 
 // IsSchoolPortalRole reports whether the role grants access to the school
-// portal (#2207): today exactly the lehrkraft system role. A tenant-scoped
-// custom role that merely shares the label carries arbitrary permissions and
-// keeps its tenant-portal access.
+// portal (#2207): the lehrkraft system role and the school roles made from
+// its template (#4574). A school role that merely shares the label carries
+// arbitrary permissions and keeps its tenant-portal access.
 func IsSchoolPortalRole(role RoleAssignment) bool {
-	return role.IsSystem && strings.EqualFold(strings.TrimSpace(role.Name), LehrkraftRoleName)
+	return role.SchoolPortal || (role.IsSystem && strings.EqualFold(strings.TrimSpace(role.Name), LehrkraftRoleName))
 }
 
 // IsSchoolPortalOnly reports whether every role the account holds is a

@@ -13,7 +13,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-mkdir -p "$fixture/backend"/{architecture,core,consumer,consumerwithouttests,corex,internal/architecture,localeconsumer,localization,exportconsumer,services/listexport/assets,templates/email,test}
+mkdir -p "$fixture/backend"/{architecture,core,consumer,consumerwithouttests,corex,internal/architecture,modules/delivery/localeconsumer,modules/delivery/internal/adapters/localization,modules/documentrendering/exportconsumer,modules/documentrendering/internal/application/listrenderer/assets,templates/email,test}
 printf 'module example.test/project\n\ngo 1.25\n' >"$fixture/backend/go.mod"
 printf '{}\n' >"$fixture/backend/architecture/policy.json"
 printf 'package architecture\n' >"$fixture/backend/internal/architecture/architecture.go"
@@ -40,26 +40,26 @@ const Value = core.Value
 EOF
 printf 'package corex\n' >"$fixture/backend/corex/corex.go"
 printf 'package corex\n' >"$fixture/backend/corex/corex_test.go"
-printf 'package localization\n\nconst Value = 1\n' >"$fixture/backend/localization/locales.go"
-printf 'package listexport\n\nconst Value = 1\n' >"$fixture/backend/services/listexport/export.go"
+printf 'package localization\n\nconst Value = 1\n' >"$fixture/backend/modules/delivery/internal/adapters/localization/locales.go"
+printf 'package listrenderer\n\nconst Value = 1\n' >"$fixture/backend/modules/documentrendering/internal/application/listrenderer/service.go"
 printf 'package email\n' >"$fixture/backend/templates/email/template_test.go"
 printf 'package test\n' >"$fixture/backend/test/test.go"
-cat >"$fixture/backend/localeconsumer/consumer.go" <<'EOF'
+cat >"$fixture/backend/modules/delivery/localeconsumer/consumer.go" <<'EOF'
 package localeconsumer
 
-import "example.test/project/localization"
+import "example.test/project/modules/delivery/internal/adapters/localization"
 
 const Value = localization.Value
 EOF
-printf 'package localeconsumer\n' >"$fixture/backend/localeconsumer/consumer_test.go"
-cat >"$fixture/backend/exportconsumer/consumer.go" <<'EOF'
+printf 'package localeconsumer\n' >"$fixture/backend/modules/delivery/localeconsumer/consumer_test.go"
+cat >"$fixture/backend/modules/documentrendering/exportconsumer/consumer.go" <<'EOF'
 package exportconsumer
 
-import "example.test/project/services/listexport"
+import "example.test/project/modules/documentrendering/internal/application/listrenderer"
 
-const Value = listexport.Value
+const Value = listrenderer.Value
 EOF
-printf 'package exportconsumer\n' >"$fixture/backend/exportconsumer/consumer_test.go"
+printf 'package exportconsumer\n' >"$fixture/backend/modules/documentrendering/exportconsumer/consumer_test.go"
 # Depth-2 import chain for the --direct (depth 1) mode, deliberately separate
 # from the core chain so the existing closure assertions stay untouched.
 mkdir -p "$fixture/backend"/{chainbase,chainmid,chainleaf}
@@ -78,6 +78,28 @@ package chainleaf
 import "example.test/project/chainmid"
 
 const Value = chainmid.Value
+EOF
+
+# A real main package may legitimately end in .test. Keep it in the graph,
+# while excluding generated .test mains. Also cover test-only importers.
+mkdir -p "$fixture/backend"/{graphbase,legitimate.test,testonly}
+mkdir -p "$fixture/backend/retired"
+printf 'package retired\n' >"$fixture/backend/retired/retired.go"
+printf 'package graphbase\n\nconst Value = 1\n' >"$fixture/backend/graphbase/base.go"
+printf 'package graphbase\n' >"$fixture/backend/graphbase/base_test.go"
+cat >"$fixture/backend/legitimate.test/main.go" <<'EOF'
+package main
+
+import "example.test/project/graphbase"
+
+func main() { _ = graphbase.Value }
+EOF
+printf 'package main\n' >"$fixture/backend/legitimate.test/main_test.go"
+printf 'package testonly\n' >"$fixture/backend/testonly/consumer.go"
+cat >"$fixture/backend/testonly/consumer_test.go" <<'EOF'
+package testonly_test
+
+import _ "example.test/project/graphbase"
 EOF
 
 git -C "$fixture" init -q
@@ -206,13 +228,21 @@ printf 'template\n' >"$fixture/backend/templates/email/probe.html"
 assert_output $'example.test/project/templates/email\nexample.test/project/test'
 rm "$fixture/backend/templates/email/probe.html"
 
-printf '{}\n' >"$fixture/backend/localization/locales.json"
-assert_output $'example.test/project/localeconsumer\nexample.test/project/localization\nexample.test/project/test'
-rm "$fixture/backend/localization/locales.json"
+printf '{}\n' >"$fixture/backend/modules/delivery/internal/adapters/localization/locales.json"
+assert_output $'example.test/project/modules/delivery/internal/adapters/localization\nexample.test/project/modules/delivery/localeconsumer\nexample.test/project/test'
+rm "$fixture/backend/modules/delivery/internal/adapters/localization/locales.json"
 
-printf 'asset\n' >"$fixture/backend/services/listexport/assets/probe.txt"
-assert_output $'example.test/project/exportconsumer\nexample.test/project/services/listexport\nexample.test/project/test'
-rm "$fixture/backend/services/listexport/assets/probe.txt"
+printf 'asset\n' >"$fixture/backend/modules/documentrendering/internal/application/listrenderer/assets/probe.txt"
+assert_output $'example.test/project/modules/documentrendering/exportconsumer\nexample.test/project/modules/documentrendering/internal/application/listrenderer\nexample.test/project/test'
+rm "$fixture/backend/modules/documentrendering/internal/application/listrenderer/assets/probe.txt"
+
+# Shrink-only registers feed the ratchets in ./test, which no import edge can
+# reveal. A register-only change must still run them.
+for register in transaction_boundaries durable_side_effect_notices module_contract_inventory; do
+  printf '[]\n' >"$fixture/backend/test/$register.json"
+  assert_output 'example.test/project/test'
+  rm "$fixture/backend/test/$register.json"
+done
 
 printf '{"changed":true}\n' >"$fixture/backend/architecture/policy.json"
 assert_output $'example.test/project/internal/architecture\nexample.test/project/test'
@@ -232,6 +262,28 @@ git -C "$fixture" restore backend/chainbase/chainbase.go
 printf '\n// changed\n' >>"$fixture/backend/chainbase/chainbase_test.go"
 assert_output_direct 'example.test/project/chainbase'
 git -C "$fixture" restore backend/chainbase/chainbase_test.go
+
+printf '\n// changed\n' >>"$fixture/backend/graphbase/base.go"
+assert_output $'example.test/project/graphbase\nexample.test/project/legitimate.test\nexample.test/project/test\nexample.test/project/testonly'
+assert_output_direct $'example.test/project/graphbase\nexample.test/project/legitimate.test\nexample.test/project/testonly'
+git -C "$fixture" restore backend/graphbase/base.go
+
+# Removing an unused package must validate imports without compiling the whole
+# backend first. A cold cache makes accidental export builds observable even
+# when this test is run repeatedly on a developer's warm Go cache.
+cat >"$fixture/no-compile" <<'EOF'
+#!/usr/bin/env bash
+echo 'package selection unexpectedly invoked the Go compiler' >&2
+exit 1
+EOF
+chmod +x "$fixture/no-compile"
+mv "$fixture/backend/retired/retired.go" "$fixture/retired.go"
+actual=$(GOCACHE="$fixture/cold-cache" GOFLAGS="${GOFLAGS:-} -toolexec=$fixture/no-compile" select_packages)
+if [ -n "$actual" ]; then
+  echo "deleted unused package unexpectedly selected packages: $actual" >&2
+  exit 1
+fi
+mv "$fixture/retired.go" "$fixture/backend/retired/retired.go"
 
 mv "$fixture/backend/corex/corex.go" "$fixture/corex.go"
 if select_packages >/dev/null 2>&1; then
@@ -254,6 +306,8 @@ assert_workflow_filter backend-lint 'scripts/backend-affected-packages_test.sh' 
 assert_workflow_filter backend-lint 'scripts/backend-lint-packages.sh' present
 assert_workflow_filter backend-test-infra 'scripts/backend-lint-packages.sh' present
 assert_workflow_filter backend-test-infra 'scripts/test-run-id.sh' present
+assert_workflow_filter backend-test-infra 'scripts/backend-test-matrix.sh' present
+assert_workflow_filter backend-test-infra 'scripts/backend-test-matrix_test.sh' present
 for filter in backend-tests backend-lint backend-architecture; do
   assert_workflow_filter "$filter" 'scripts/backend-architecture.sh' present
   assert_workflow_filter "$filter" 'scripts/backend-architecture/**' present
@@ -269,10 +323,23 @@ for pattern in \
 done
 for pattern in \
   'backend/templates/email/**' \
-  'backend/localization/locales.json' \
-  'backend/services/listexport/assets/**'; do
+  'backend/modules/delivery/internal/adapters/localization/locales.json' \
+  'backend/modules/documentrendering/internal/application/listrenderer/assets/**'; do
   assert_workflow_filter backend-tests "$pattern" present
   assert_workflow_filter backend-production "$pattern" present
+done
+assert_workflow_filter backend-tests 'backend/test/*.json' present
+assert_workflow_filter backend-production 'backend/test/*.json' absent
+# Every literal path the selector maps must still exist in the repository.
+for path in \
+  backend/architecture/policy.json \
+  backend/templates/email \
+  backend/modules/delivery/internal/adapters/localization/locales.json \
+  backend/modules/documentrendering/internal/application/listrenderer/assets \
+  backend/test/transaction_boundaries.json \
+  backend/test/durable_side_effect_notices.json \
+  backend/test/module_contract_inventory.json; do
+  [ -e "$repo_root/$path" ] || { echo "selector path no longer exists: $path" >&2; exit 1; }
 done
 
 assert_workflow_output_contains run-backend '${{ github.event_name == '\''push'\'' ||'
@@ -280,6 +347,41 @@ assert_workflow_output_contains run-frontend '${{ github.event_name == '\''push'
 assert_workflow_output_contains run-backend-lint '${{ github.event_name == '\''push'\'' ||'
 assert_workflow_output_contains full-backend-lint '${{ github.event_name == '\''push'\'' ||'
 assert_workflow_output_contains run-backend-architecture '${{ github.event_name == '\''push'\'' ||'
+assert_workflow_output_contains full-backend-suite "steps.backend-size.outputs.full == 'true'"
+
+# Exercise the real cheap guard, including deduplication and non-Go files. A
+# broad refactor must enter the fast full-suite path before scheduling tests.
+size_script=$(awk '
+  /^      - name: Size backend test scope$/ { active = 1; next }
+  active && /^        run: \|$/ { script = 1; next }
+  script && /^  [a-z-]+:$/ { exit }
+  script { sub(/^          /, ""); print }
+' "$repo_root/.github/workflows/main.yml")
+[ -n "$size_script" ] || { echo 'backend scope size guard missing' >&2; exit 1; }
+for count in 63 64; do
+  files=$(jq -cn --argjson count "$count" '[range(0; $count) | "backend/package\(.)/source.go", "backend/package\(.)/source_test.go", "backend/notes\(.)/README.md"]')
+  CHANGED_COUNT=$((count * 3)) CHANGED_FILES="$files" GITHUB_OUTPUT="$fixture/scope-size" bash -euo pipefail <<<"$size_script"
+  expected=false
+  [ "$count" -lt 64 ] || expected=true
+  grep -qx "full=$expected" "$fixture/scope-size"
+  rm "$fixture/scope-size"
+done
+for manifest in go.mod go.sum; do
+  CHANGED_COUNT=1 CHANGED_FILES="[\"backend/$manifest\"]" GITHUB_OUTPUT="$fixture/scope-size" bash -euo pipefail <<<"$size_script"
+  grep -qx 'full=true' "$fixture/scope-size"
+  rm "$fixture/scope-size"
+done
+# A release-sized list never reaches the environment (128 KiB per value), so
+# the guard decides from the count alone and must not read the empty list.
+for count in 499 500; do
+  CHANGED_COUNT="$count" CHANGED_FILES='[]' GITHUB_OUTPUT="$fixture/scope-size" bash -euo pipefail <<<"$size_script"
+  expected=false
+  [ "$count" -lt 500 ] || expected=true
+  grep -qx "full=$expected" "$fixture/scope-size"
+  rm "$fixture/scope-size"
+done
+grep -qF "fromJSON(steps.filter.outputs.backend-tests_count) < 500 && steps.filter.outputs.backend-tests_files || '[]'" "$repo_root/.github/workflows/main.yml" ||
+  { echo 'backend scope size guard must keep long file lists out of the environment' >&2; exit 1; }
 
 # Execute the actual workflow guard: architecture-only changes may skip both
 # reusable jobs, but each independently requested job must run.

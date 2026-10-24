@@ -5,12 +5,12 @@ import (
 	"testing"
 
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	ownerCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -18,7 +18,7 @@ import (
 // row so children can be inserted against a real FK chain.
 func setupRequestChildRepoTest(t *testing.T) (
 	*bun.DB,
-	*capability.Module,
+	capability.Owner,
 	int64,
 	int64,
 	int64,
@@ -28,26 +28,21 @@ func setupRequestChildRepoTest(t *testing.T) (
 	tenantID := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
-	phaseRepo := enrollmentCompose.New()
+	phaseRepo := ownerCompose.New()
 	phaseName := uniquePhaseName("child-test")
 	phase := makeOwnerEligibilityPhase(phaseName)
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		return phaseRepo.InsertPhase(ctx, phase)
 	}))
 
-	requestRepo := enrollmentCompose.New()
+	requestRepo := ownerCompose.New()
 	token := uniqueToken("child-test")
 	req := makeOwnerRequest(phase.ID, token, "anna@example.test")
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		return requestRepo.InsertRequest(ctx, req)
 	}))
 
-	t.Cleanup(func() {
-		wipeRequests(db, tenantID, token)
-		wipePhases(db, tenantID, phaseName)
-	})
-
-	return db, enrollmentCompose.New(), tenantID, phase.ID, req.ID
+	return db, ownerCompose.New(), tenantID, phase.ID, req.ID
 }
 
 func makeChild(requestID int64, firstName, lastName string) *capability.RequestChild {
@@ -79,13 +74,12 @@ func TestRequestChildRepository_ListByRequestIDs_BatchesAcrossRequests(t *testin
 	}
 
 	// A second request in the same phase, with one child.
-	reqRepo := enrollmentCompose.New()
+	reqRepo := ownerCompose.New()
 	token2 := uniqueToken("child-test-2")
 	req2 := makeOwnerRequest(phaseID, token2, "bea@example.test")
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		return reqRepo.InsertRequest(ctx, req2)
 	}))
-	t.Cleanup(func() { wipeRequests(db, tenantID, token2) })
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		return repo.InsertChild(ctx, makeChild(req2.ID, "Solo", "Zwei"))
 	}))
@@ -93,7 +87,7 @@ func TestRequestChildRepository_ListByRequestIDs_BatchesAcrossRequests(t *testin
 	var list []*capability.RequestChild
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var lErr error
-		list, lErr = enrollmentCompose.New().ChildrenForRequests(ctx, []int64{requestID, req2.ID})
+		list, lErr = ownerCompose.New().ChildrenForRequests(ctx, []int64{requestID, req2.ID})
 		return lErr
 	}))
 
@@ -114,7 +108,7 @@ func TestRequestChildRepository_ListByRequestIDs_EmptyInputShortCircuits(t *test
 	var list []*capability.RequestChild
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var lErr error
-		list, lErr = enrollmentCompose.New().ChildrenForRequests(ctx, nil)
+		list, lErr = ownerCompose.New().ChildrenForRequests(ctx, nil)
 		return lErr
 	})
 	require.NoError(t, err)
@@ -150,7 +144,7 @@ func TestRequestChildRepository_FindByID_HappyPath(t *testing.T) {
 	var got *capability.RequestChild
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var fbErr error
-		got, fbErr = enrollmentCompose.New().ChildByID(ctx, child.ID)
+		got, fbErr = ownerCompose.New().ChildByID(ctx, child.ID)
 		return fbErr
 	})
 	require.NoError(t, err)
@@ -183,7 +177,7 @@ func TestRequestChildRepository_ListByRequestID_OrdersBySortOrder(t *testing.T) 
 	var list []*capability.RequestChild
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var lErr error
-		list, lErr = enrollmentCompose.New().ChildrenForRequest(ctx, requestID, false)
+		list, lErr = ownerCompose.New().ChildrenForRequest(ctx, requestID, false)
 		return lErr
 	}))
 	require.Len(t, list, 3)
@@ -200,7 +194,7 @@ func TestRequestChildRepository_ListByRequestID_EmptyResultNoError(t *testing.T)
 	var list []*capability.RequestChild
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var lErr error
-		list, lErr = enrollmentCompose.New().ChildrenForRequest(ctx, 9_999_999, false)
+		list, lErr = ownerCompose.New().ChildrenForRequest(ctx, 9_999_999, false)
 		return lErr
 	})
 	require.NoError(t, err)
@@ -216,10 +210,6 @@ func TestRequestChildRepository_UpdateStatus_StampsReviewerAndReason(t *testing.
 
 	// Need a real reviewer account so the FK passes.
 	account := testpkg.CreateTestAccount(t, db, "reviewer")
-	t.Cleanup(func() {
-		_, _ = db.NewDelete().TableExpr("auth.accounts").
-			Where("id = ?", account.ID).Exec(context.Background())
-	})
 
 	child := makeChild(requestID, "Lara", "B")
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -228,13 +218,13 @@ func TestRequestChildRepository_UpdateStatus_StampsReviewerAndReason(t *testing.
 
 	reason := "Kapazität überschritten"
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return enrollmentCompose.New().UpdateChildStatus(ctx, child.ID, capability.ChildStatusWaitlisted, &reason, account.ID)
+		return ownerCompose.New().UpdateChildStatus(ctx, child.ID, capability.ChildStatusWaitlisted, &reason, account.ID)
 	}))
 
 	var got *capability.RequestChild
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var fbErr error
-		got, fbErr = enrollmentCompose.New().ChildByID(ctx, child.ID)
+		got, fbErr = ownerCompose.New().ChildByID(ctx, child.ID)
 		return fbErr
 	}))
 	assert.Equal(t, capability.ChildStatusWaitlisted, got.Status)
@@ -258,13 +248,13 @@ func TestRequestChildRepository_UpdateStatus_ParentInitiatedNullsReviewer(t *tes
 	}))
 
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return enrollmentCompose.New().UpdateChildStatus(ctx, child.ID, capability.ChildStatusWithdrawn, nil, 0)
+		return ownerCompose.New().UpdateChildStatus(ctx, child.ID, capability.ChildStatusWithdrawn, nil, 0)
 	}))
 
 	var got *capability.RequestChild
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var fbErr error
-		got, fbErr = enrollmentCompose.New().ChildByID(ctx, child.ID)
+		got, fbErr = ownerCompose.New().ChildByID(ctx, child.ID)
 		return fbErr
 	}))
 	assert.Equal(t, capability.ChildStatusWithdrawn, got.Status)
@@ -277,7 +267,7 @@ func TestRequestChildRepository_UpdateStatus_MissingIDErrors(t *testing.T) {
 
 	db, _, tenantID, _, _ := setupRequestChildRepoTest(t)
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return enrollmentCompose.New().UpdateChildStatus(ctx, 9_999_999, capability.ChildStatusApproved, nil, 0)
+		return ownerCompose.New().UpdateChildStatus(ctx, 9_999_999, capability.ChildStatusApproved, nil, 0)
 	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not found")
@@ -292,10 +282,6 @@ func TestRequestChildRepository_LinkCreatedStudent_StampsBackLink(t *testing.T) 
 
 	// Need a real student row for the FK on created_student_id.
 	student := testpkg.CreateTestStudent(t, db, "Lara", "Beispiel", "1a")
-	t.Cleanup(func() {
-		_, _ = db.NewDelete().TableExpr("users.student_profiles").Where("id = ?", student.ID).Exec(context.Background())
-		_, _ = db.NewDelete().TableExpr("users.persons").Where("id = ?", student.PersonID).Exec(context.Background())
-	})
 
 	child := makeChild(requestID, "Lara", "Beispiel")
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -303,13 +289,13 @@ func TestRequestChildRepository_LinkCreatedStudent_StampsBackLink(t *testing.T) 
 	}))
 
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return enrollmentCompose.New().LinkCreatedStudent(ctx, child.ID, student.ID)
+		return ownerCompose.New().LinkCreatedStudent(ctx, child.ID, student.ID)
 	}))
 
 	var got *capability.RequestChild
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var fbErr error
-		got, fbErr = enrollmentCompose.New().ChildByID(ctx, child.ID)
+		got, fbErr = ownerCompose.New().ChildByID(ctx, child.ID)
 		return fbErr
 	}))
 	require.NotNil(t, got.CreatedStudentID)
@@ -321,7 +307,7 @@ func TestRequestChildRepository_LinkCreatedStudent_MissingChildErrors(t *testing
 
 	db, _, tenantID, _, _ := setupRequestChildRepoTest(t)
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return enrollmentCompose.New().LinkCreatedStudent(ctx, 9_999_999, 12345)
+		return ownerCompose.New().LinkCreatedStudent(ctx, 9_999_999, 12345)
 	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not found")
@@ -338,13 +324,13 @@ func TestRequestChildRepository_UpdateActivationPlan_StampsImmediate(t *testing.
 	}))
 
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return enrollmentCompose.New().UpdateChildActivationPlan(ctx, child.ID, capability.ChildActivationImmediate, nil)
+		return ownerCompose.New().UpdateChildActivationPlan(ctx, child.ID, capability.ChildActivationImmediate, nil)
 	}))
 
 	var got *capability.RequestChild
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var findErr error
-		got, findErr = enrollmentCompose.New().ChildByID(ctx, child.ID)
+		got, findErr = ownerCompose.New().ChildByID(ctx, child.ID)
 		return findErr
 	}))
 	assert.Equal(t, capability.ChildActivationImmediate, got.ActivationMode)
@@ -363,13 +349,13 @@ func TestRequestChildRepository_UpdateActivationPlan_StampsScheduledDate(t *test
 
 	activateOn := capability.Date("2027-09-01")
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return enrollmentCompose.New().UpdateChildActivationPlan(ctx, child.ID, capability.ChildActivationScheduled, &activateOn)
+		return ownerCompose.New().UpdateChildActivationPlan(ctx, child.ID, capability.ChildActivationScheduled, &activateOn)
 	}))
 
 	var got *capability.RequestChild
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var findErr error
-		got, findErr = enrollmentCompose.New().ChildByID(ctx, child.ID)
+		got, findErr = ownerCompose.New().ChildByID(ctx, child.ID)
 		return findErr
 	}))
 	assert.Equal(t, capability.ChildActivationScheduled, got.ActivationMode)
@@ -382,7 +368,7 @@ func TestRequestChildRepository_UpdateActivationPlan_MissingChildErrors(t *testi
 
 	db, _, tenantID, _, _ := setupRequestChildRepoTest(t)
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return enrollmentCompose.New().UpdateChildActivationPlan(ctx, 9_999_999, capability.ChildActivationImmediate, nil)
+		return ownerCompose.New().UpdateChildActivationPlan(ctx, 9_999_999, capability.ChildActivationImmediate, nil)
 	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not found")
@@ -411,7 +397,7 @@ func TestRequestChildRepository_ListByPhaseAndStatuses_Filters(t *testing.T) {
 	var list []*capability.RequestChild
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var lErr error
-		list, lErr = enrollmentCompose.New().ChildrenByPhaseStatuses(ctx, phaseID,
+		list, lErr = ownerCompose.New().ChildrenByPhaseStatuses(ctx, phaseID,
 			[]string{capability.ChildStatusPendingAdminReview})
 		return lErr
 	}))
@@ -428,7 +414,7 @@ func TestRequestChildRepository_ListByPhaseAndStatuses_EmptyStatusesShortCircuit
 	var list []*capability.RequestChild
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var lErr error
-		list, lErr = enrollmentCompose.New().ChildrenByPhaseStatuses(ctx, phaseID, nil)
+		list, lErr = ownerCompose.New().ChildrenByPhaseStatuses(ctx, phaseID, nil)
 		return lErr
 	})
 	require.NoError(t, err)
@@ -440,7 +426,7 @@ func TestRequestChildRepository_ListByPhaseAndStatuses_RejectsZeroPhase(t *testi
 
 	db, _, tenantID, _, _ := setupRequestChildRepoTest(t)
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		_, lErr := enrollmentCompose.New().ChildrenByPhaseStatuses(ctx, 0,
+		_, lErr := ownerCompose.New().ChildrenByPhaseStatuses(ctx, 0,
 			[]string{capability.ChildStatusApproved})
 		return lErr
 	})
@@ -471,7 +457,7 @@ func TestRequestChildRepository_BulkUpdateStatusByPhaseAndStatus_TransitionsAll(
 	var n int
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var bErr error
-		n, bErr = enrollmentCompose.New().TransitionPhaseChildren(ctx, phaseID,
+		n, bErr = ownerCompose.New().TransitionPhaseChildren(ctx, phaseID,
 			capability.ChildStatusPendingRenewal,
 			capability.ChildStatusWithdrawn)
 		return bErr
@@ -482,7 +468,7 @@ func TestRequestChildRepository_BulkUpdateStatusByPhaseAndStatus_TransitionsAll(
 	var list []*capability.RequestChild
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var lErr error
-		list, lErr = enrollmentCompose.New().ChildrenByPhaseStatuses(ctx, phaseID,
+		list, lErr = ownerCompose.New().ChildrenByPhaseStatuses(ctx, phaseID,
 			[]string{capability.ChildStatusAutoRenewed})
 		return lErr
 	}))
@@ -494,7 +480,7 @@ func TestRequestChildRepository_BulkUpdateStatusByPhaseAndStatus_RejectsZeroPhas
 
 	db, _, tenantID, _, _ := setupRequestChildRepoTest(t)
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		_, bErr := enrollmentCompose.New().TransitionPhaseChildren(ctx, 0,
+		_, bErr := ownerCompose.New().TransitionPhaseChildren(ctx, 0,
 			capability.ChildStatusPendingRenewal,
 			capability.ChildStatusWithdrawn)
 		return bErr
@@ -507,12 +493,12 @@ func TestRequestChildRepository_BulkUpdateStatusByPhaseAndStatus_RejectsBlankSta
 
 	db, _, tenantID, phaseID, _ := setupRequestChildRepoTest(t)
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		_, bErr := enrollmentCompose.New().TransitionPhaseChildren(ctx, phaseID, "", "withdrawn")
+		_, bErr := ownerCompose.New().TransitionPhaseChildren(ctx, phaseID, "", "withdrawn")
 		return bErr
 	})
 	require.Error(t, err)
 	err = runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		_, bErr := enrollmentCompose.New().TransitionPhaseChildren(ctx, phaseID, "pending_renewal", "")
+		_, bErr := ownerCompose.New().TransitionPhaseChildren(ctx, phaseID, "pending_renewal", "")
 		return bErr
 	})
 	require.Error(t, err)
@@ -525,7 +511,7 @@ func TestRequestChildRepository_BulkUpdateStatusByPhaseAndStatus_ZeroAffectedNoE
 	var n int
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var bErr error
-		n, bErr = enrollmentCompose.New().TransitionPhaseChildren(ctx, phaseID,
+		n, bErr = ownerCompose.New().TransitionPhaseChildren(ctx, phaseID,
 			capability.ChildStatusPendingRenewal,
 			capability.ChildStatusWithdrawn)
 		return bErr
@@ -542,10 +528,6 @@ func TestRequestChildRepository_UpdateRolloverReview_HappyPath(t *testing.T) {
 	db, repo, tenantID, _, requestID := setupRequestChildRepoTest(t)
 
 	account := testpkg.CreateTestAccount(t, db, "rolloverreviewer")
-	t.Cleanup(func() {
-		_, _ = db.NewDelete().TableExpr("auth.accounts").
-			Where("id = ?", account.ID).Exec(context.Background())
-	})
 
 	// Start in pending_admin_review with a review_reason set.
 	c := makeChild(requestID, "Lara", "B")
@@ -559,13 +541,13 @@ func TestRequestChildRepository_UpdateRolloverReview_HappyPath(t *testing.T) {
 	// "Behalten" with a grade override.
 	newGrade := int16(2)
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return enrollmentCompose.New().ReviewRolloverChild(ctx, c.ID, capability.ChildStatusSubmitted, nil, &newGrade, account.ID)
+		return ownerCompose.New().ReviewRolloverChild(ctx, c.ID, capability.ChildStatusSubmitted, nil, &newGrade, account.ID)
 	}))
 
 	var got *capability.RequestChild
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var fbErr error
-		got, fbErr = enrollmentCompose.New().ChildByID(ctx, c.ID)
+		got, fbErr = ownerCompose.New().ChildByID(ctx, c.ID)
 		return fbErr
 	}))
 	assert.Equal(t, capability.ChildStatusSubmitted, got.Status)
@@ -592,13 +574,13 @@ func TestRequestChildRepository_UpdateRolloverReview_NilGradePreservesExisting(t
 
 	// Decide without overriding grade.
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return enrollmentCompose.New().ReviewRolloverChild(ctx, c.ID, capability.ChildStatusSubmitted, nil, nil, 0)
+		return ownerCompose.New().ReviewRolloverChild(ctx, c.ID, capability.ChildStatusSubmitted, nil, nil, 0)
 	}))
 
 	var got *capability.RequestChild
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var fbErr error
-		got, fbErr = enrollmentCompose.New().ChildByID(ctx, c.ID)
+		got, fbErr = ownerCompose.New().ChildByID(ctx, c.ID)
 		return fbErr
 	}))
 	require.NotNil(t, got.TargetGradeLevel)
@@ -622,7 +604,7 @@ func TestRequestChildRepository_HoldAutoRenewedChild(t *testing.T) {
 		var got *capability.RequestChild
 		require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 			var err error
-			got, err = enrollmentCompose.New().ChildByID(ctx, c.ID)
+			got, err = ownerCompose.New().ChildByID(ctx, c.ID)
 			return err
 		}))
 		return got
@@ -631,7 +613,7 @@ func TestRequestChildRepository_HoldAutoRenewedChild(t *testing.T) {
 		var held bool
 		require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 			var err error
-			held, err = enrollmentCompose.New().HoldAutoRenewedChild(ctx, c.ID, capability.ReviewReasonChildQuotaReached)
+			held, err = ownerCompose.New().HoldAutoRenewedChild(ctx, c.ID, capability.ReviewReasonChildQuotaReached)
 			return err
 		}))
 		return held
@@ -646,14 +628,14 @@ func TestRequestChildRepository_HoldAutoRenewedChild(t *testing.T) {
 	assert.False(t, hold(), "a child that is no longer auto_renewed is left alone")
 
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return enrollmentCompose.New().UpdateChildStatus(ctx, c.ID, capability.ChildStatusUnderReview, nil, 0)
+		return ownerCompose.New().UpdateChildStatus(ctx, c.ID, capability.ChildStatusUnderReview, nil, 0)
 	}))
 	got = read()
 	require.NotNil(t, got.ReviewReason, "an enrollment that stays open keeps its review reason")
 	assert.Equal(t, capability.ReviewReasonChildQuotaReached, *got.ReviewReason)
 
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return enrollmentCompose.New().UpdateChildStatus(ctx, c.ID, capability.ChildStatusWaitlisted, nil, 0)
+		return ownerCompose.New().UpdateChildStatus(ctx, c.ID, capability.ChildStatusWaitlisted, nil, 0)
 	}))
 	got = read()
 	assert.Equal(t, capability.ChildStatusWaitlisted, got.Status)
@@ -665,7 +647,7 @@ func TestRequestChildRepository_UpdateRolloverReview_MissingIDErrors(t *testing.
 
 	db, _, tenantID, _, _ := setupRequestChildRepoTest(t)
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return enrollmentCompose.New().ReviewRolloverChild(ctx, 9_999_999,
+		return ownerCompose.New().ReviewRolloverChild(ctx, 9_999_999,
 			capability.ChildStatusSubmitted, nil, nil, 0)
 	})
 	require.Error(t, err)

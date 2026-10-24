@@ -57,6 +57,12 @@ func candidateOnlyExternalPackages(project string, candidate *Policy, createdPac
 	if err != nil {
 		return nil, err
 	}
+	return candidateOnlyExternalPackagesFromGraph(candidate, createdPackages, graph), nil
+}
+
+// Classify every import scope from the same graph the CLI used for its check.
+// Any existing consumer disqualifies a dependency, regardless of edge order.
+func candidateOnlyExternalPackagesFromGraph(candidate *Policy, createdPackages map[string]struct{}, graph *Graph) map[string]struct{} {
 	classified := candidate.externalPackageMap()
 	result := make(map[string]struct{})
 	disqualified := make(map[string]struct{})
@@ -73,7 +79,7 @@ func candidateOnlyExternalPackages(project string, candidate *Policy, createdPac
 			result[edge.Target] = struct{}{}
 		}
 	}
-	return result, nil
+	return result
 }
 
 func goPackageDirs(root string, args ...string) (map[string]struct{}, error) {

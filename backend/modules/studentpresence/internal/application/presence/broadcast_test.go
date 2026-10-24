@@ -7,12 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	active "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 
@@ -46,24 +44,31 @@ func newServiceWithBroadcaster(
 func newServiceWithPresenceSync(t *testing.T, db *testpkg.DB, presence active.StudentPresence, syncer active.AttendanceSyncer, now ...func() time.Time) (active.Service, *testpkg.RecordingBroadcaster) {
 	t.Helper()
 
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	reposStructure := owners.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db))
+	reposPresence := api.NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db))
+	timetableRepos := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db))
 	broadcaster := testpkg.NewRecordingBroadcaster()
 
-	deps := active.ServiceDependencies{PrincipalReader: services.AttendancePrincipal,
-		GroupRepo:          sessionGroups(repos.ActiveGroup),
-		SessionStartLock:   repos.SessionStartLock,
-		SupervisorRepo:     sessionSupervisors(repos.ActiveGroup),
+	devices, err := api.NewDeviceRepository(testpkg.NewDatabase(t, db))
+	require.NoError(t, err)
+	rooms, err := api.NewFacilities(testpkg.NewDatabase(t, db))
+	require.NoError(t, err)
+	deps := active.ServiceDependencies{PrincipalReader: api.AttendancePrincipal,
+		GroupRepo:          sessionGroups(reposPresence.ActiveGroup),
+		SessionStartLock:   reposPresence.SessionStartLock,
+		SupervisorRepo:     sessionSupervisors(reposPresence.ActiveGroup),
 		SchoolPresence:     presence,
 		AttendanceSyncer:   syncer,
-		StudentRepo:        services.PresenceStudents(db, repos.Student),
-		StaffRepo:          services.NewAttendanceStaffDirectory(repos.Staff),
-		RoomRepo:           services.NewAttendanceRooms(repos.Room),
-		ActivityGroupRepo:  repositories.NewSessionActivities(repos.ActivityGroup),
-		ActivityCatRepo:    services.NewAttendanceActivityCategories(repos.ActivityCategory),
-		EducationGroupRepo: services.NewAttendanceEducationGroups(repos.Group, repos.Student),
-		DeviceRepo:         services.NewSessionDeviceDirectory(repos.Device, nil, nil),
+		StudentRepo:        owners.PresenceStudents(testpkg.MustDatabase(db), repos.Student),
+		StaffRepo:          owners.NewAttendanceStaffDirectory(repos.Staff),
+		RoomRepo:           api.NewAttendanceRooms(api.NewRoomRepository(rooms)),
+		ActivityGroupRepo:  owners.NewSessionActivities(timetableRepos.GroupReads()),
+		ActivityCatRepo:    api.NewAttendanceActivityCategories(timetableRepos.ActivityCategory),
+		EducationGroupRepo: owners.NewAttendanceEducationGroups(reposStructure.Group, repos.Student),
+		DeviceRepo:         owners.NewSessionDeviceDirectory(devices, &settingsDouble{ResolveIntFn: func(context.Context, string) (int, error) { return 5, nil }}, nil),
 		DB:                 db,
-		Broadcaster:        broadcaster,
+		Broadcaster:        owners.NewPresenceEvents(broadcaster, nil),
 		Logger:             slog.Default(),
 	}
 	if len(now) > 0 {
@@ -92,8 +97,8 @@ func TestBroadcast_CreateVisitSendsOnePreciseRefresh(t *testing.T) {
 	// Students before their education group (FK ON DELETE SET NULL nulls
 	// students.tenant_id otherwise — see the edu-batch test below).
 
-	staffCtx := services.WithAttendanceStaff(testpkg.Ctx(t), staff.ID, staff.TenantID)
-	deviceCtx := services.WithAttendanceDevice(staffCtx, iotDevice.ID, iotDevice.TenantID)
+	staffCtx := api.WithAttendanceStaff(testpkg.Ctx(t), staff.ID, staff.TenantID)
+	deviceCtx := api.WithAttendanceDevice(staffCtx, iotDevice.ID, iotDevice.TenantID)
 
 	visit := &studentpresence.Visit{
 		StudentID:     student.ID,
@@ -217,21 +222,28 @@ func TestBroadcast_UpdateVisitMoveSendsMovementEvents(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	reposStructure := owners.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db))
+	reposPresence := api.NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db))
+	timetableRepos := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db))
 	broadcaster := testpkg.NewRecordingBroadcaster()
-	svc := active.NewService(active.ServiceDependencies{PrincipalReader: services.AttendancePrincipal,
-		GroupRepo:          sessionGroups(repos.ActiveGroup),
-		SupervisorRepo:     sessionSupervisors(repos.ActiveGroup),
+	devices, err := api.NewDeviceRepository(testpkg.NewDatabase(t, db))
+	require.NoError(t, err)
+	rooms, err := api.NewFacilities(testpkg.NewDatabase(t, db))
+	require.NoError(t, err)
+	svc := active.NewService(active.ServiceDependencies{PrincipalReader: api.AttendancePrincipal,
+		GroupRepo:          sessionGroups(reposPresence.ActiveGroup),
+		SupervisorRepo:     sessionSupervisors(reposPresence.ActiveGroup),
 		SchoolPresence:     testSchoolPresence(t, db),
-		StudentRepo:        services.PresenceStudents(db, repos.Student),
-		StaffRepo:          services.NewAttendanceStaffDirectory(repos.Staff),
-		RoomRepo:           services.NewAttendanceRooms(repos.Room),
-		ActivityGroupRepo:  repositories.NewSessionActivities(repos.ActivityGroup),
-		ActivityCatRepo:    services.NewAttendanceActivityCategories(repos.ActivityCategory),
-		EducationGroupRepo: services.NewAttendanceEducationGroups(repos.Group, repos.Student),
-		DeviceRepo:         services.NewSessionDeviceDirectory(repos.Device, nil, nil),
+		StudentRepo:        owners.PresenceStudents(testpkg.MustDatabase(db), repos.Student),
+		StaffRepo:          owners.NewAttendanceStaffDirectory(repos.Staff),
+		RoomRepo:           api.NewAttendanceRooms(api.NewRoomRepository(rooms)),
+		ActivityGroupRepo:  owners.NewSessionActivities(timetableRepos.GroupReads()),
+		ActivityCatRepo:    api.NewAttendanceActivityCategories(timetableRepos.ActivityCategory),
+		EducationGroupRepo: owners.NewAttendanceEducationGroups(reposStructure.Group, repos.Student),
+		DeviceRepo:         owners.NewSessionDeviceDirectory(devices, &settingsDouble{ResolveIntFn: func(context.Context, string) (int, error) { return 5, nil }}, nil),
 		DB:                 db,
-		Broadcaster:        broadcaster,
+		Broadcaster:        owners.NewPresenceEvents(broadcaster, nil),
 		Logger:             slog.Default(),
 	})
 
@@ -247,7 +259,7 @@ func TestBroadcast_UpdateVisitMoveSendsMovementEvents(t *testing.T) {
 	broadcaster.Reset()
 
 	visit.ActiveGroupID = targetGroup.ID
-	err := svc.UpdateVisit(testpkg.Ctx(t), visit)
+	err = svc.UpdateVisit(testpkg.Ctx(t), visit)
 	require.NoError(t, err)
 
 	checkouts := broadcaster.EventsOfType(active.EventStudentCheckOut)

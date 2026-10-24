@@ -4,11 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"text/tabwriter"
 
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-nrw/project-phoenix/modules/settings"
+	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
+	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/spf13/cobra"
 )
@@ -27,17 +30,17 @@ var settingsOverridesCmd = &cobra.Command{
 }
 
 var activationSettingKeys = []string{
-	configModel.KeyAttendanceWebEnabled,
-	configModel.KeyGroupMode,
-	configModel.KeyOperationalOverviewScope,
-	configModel.KeyTimetableShowExpectedChildrenCount,
-	configModel.KeyEnrollmentCollectGradeLevel,
-	configModel.KeyEnrollmentCareOfferingsEnabled,
-	configModel.KeyEnrollmentNotifyPerDecision,
-	configModel.KeyEnrollmentDuplicateHandling,
-	configModel.KeyEnrollmentRejectedRetentionDays,
-	configModel.KeyEnrollmentWaitlistEnabled,
-	configModel.KeyEnrollmentAutoInviteGuardianOnApprove,
+	settings.KeyAttendanceWebEnabled,
+	settings.KeyGroupMode,
+	settings.KeyOperationalOverviewScope,
+	settings.KeyTimetableShowExpectedChildrenCount,
+	settings.KeyEnrollmentCollectGradeLevel,
+	settings.KeyEnrollmentCareOfferingsEnabled,
+	settings.KeyEnrollmentNotifyPerDecision,
+	settings.KeyEnrollmentDuplicateHandling,
+	settings.KeyEnrollmentRejectedRetentionDays,
+	settings.KeyEnrollmentWaitlistEnabled,
+	settings.KeyEnrollmentAutoInviteGuardianOnApprove,
 }
 
 type settingOverrideRow struct {
@@ -48,40 +51,58 @@ type settingOverrideRow struct {
 	Value      json.RawMessage `json:"value"`
 }
 
-type settingsCommandContext struct {
-	*cleanupContext
-	schools services.SchoolQuery
-	values  configModel.SettingValueRepository
+// storedOverrides reads the overrides a school stored, without defaults.
+type storedOverrides interface {
+	StoredOverride(ctx context.Context, tenantID int64, key string) (json.RawMessage, bool, error)
 }
 
-func newSettingsCommandContext() (*settingsCommandContext, error) {
-	base, err := newCleanupContext()
+// openSettingsOverrides opens the database with the schools and the stored
+// overrides the command reads. The caller must close the database.
+func openSettingsOverrides() (transactionruntime.Database, organizationtenancy.Query, storedOverrides, error) {
+	db, err := defaultCleanupRoot.open()
 	if err != nil {
-		return nil, err
+		return transactionruntime.Database{}, nil, nil, err
 	}
-	return &settingsCommandContext{
-		cleanupContext: base,
-		schools:        base.Schools,
-		values:         services.NewSettingsCommandRepository(base.DB),
-	}, nil
+	schools, err := newCleanupSchools(db)
+	if err != nil {
+		return transactionruntime.Database{}, nil, nil, err
+	}
+	runtime := settingsCompose.NewTenantSettingsRuntime(db.Pool(), nil)
+	return db, schools, settingOverrideRoot{settingsCompose.NewStoredOverrideReader(runtime)}, nil
+}
+
+// settingOverrideRoot owns the CLI's explicit per-school read unit. The SQL
+// adapter remains ambient-only, just as it is in the authenticated HTTP root.
+type settingOverrideRoot struct{ storedOverrides }
+
+func (r settingOverrideRoot) StoredOverride(ctx context.Context, schoolID int64, key string) (value json.RawMessage, found bool, err error) {
+	id, err := tenant.NewTenantID(schoolID)
+	if err != nil {
+		return nil, false, err
+	}
+	err = tenant.WithinTenant(ctx, id, func(txCtx context.Context) error {
+		value, found, err = r.storedOverrides.StoredOverride(txCtx, schoolID, key)
+		return err
+	})
+	return value, found, err
 }
 
 func runSettingsOverrides(_ *cobra.Command, _ []string) error {
-	commandContext, err := newSettingsCommandContext()
+	db, schools, values, err := openSettingsOverrides()
 	if err != nil {
 		return err
 	}
-	defer commandContext.Close()
-	return runSettingsOverridesWithContext(commandContext)
+	defer closeCleanupDatabase(db, log.Default())
+	return listSettingOverrides(db, schools, values)
 }
 
-func runSettingsOverridesWithContext(commandContext *settingsCommandContext) error {
-	ctx := tenant.WithUnitOfWork(context.Background(), commandContext.TenantRuntime)
-	schools, err := commandContext.schools.ListSchools(ctx)
+func listSettingOverrides(db transactionruntime.Database, schools organizationtenancy.Query, values storedOverrides) error {
+	ctx := tenant.WithUnitOfWork(context.Background(), db.UnitOfWork())
+	listed, err := schools.ListSchools(ctx)
 	if err != nil {
 		return fmt.Errorf("list schools: %w", err)
 	}
-	rows, err := collectSettingOverrideRows(ctx, schools, selectedSettingOverrideKeys(), commandContext.values)
+	rows, err := collectSettingOverrideRows(ctx, listed, selectedSettingOverrideKeys(), values)
 	if err != nil {
 		return err
 	}
@@ -95,18 +116,18 @@ func selectedSettingOverrideKeys() []string {
 	return activationSettingKeys
 }
 
-func collectSettingOverrideRows(ctx context.Context, schools []services.School, keys []string, values configModel.SettingValueRepository) ([]settingOverrideRow, error) {
+func collectSettingOverrideRows(ctx context.Context, schools []organizationtenancy.School, keys []string, values storedOverrides) ([]settingOverrideRow, error) {
 	rows := []settingOverrideRow{}
 	for _, school := range schools {
 		for _, key := range keys {
-			value, findErr := values.FindByTenantAndKey(ctx, school.ID, key)
+			value, found, findErr := values.StoredOverride(ctx, school.ID, key)
 			if findErr != nil {
 				return nil, fmt.Errorf("read override for tenant %d key %s: %w", school.ID, key, findErr)
 			}
-			if value == nil {
+			if !found {
 				continue
 			}
-			rows = append(rows, settingOverrideRow{TenantID: school.ID, TenantSlug: school.Slug, TenantName: school.Name, Key: key, Value: value.Value})
+			rows = append(rows, settingOverrideRow{TenantID: school.ID, TenantSlug: school.Slug, TenantName: school.Name, Key: key, Value: value})
 		}
 	}
 	return rows, nil

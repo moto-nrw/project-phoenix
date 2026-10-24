@@ -18,7 +18,11 @@ import type { ChatMessage } from "~/lib/messaging-status";
 import { getRelationshipTypeLabel } from "~/lib/guardian-helpers";
 
 // The wire message shape is shared with the parent client; see ChatMessage.
-export type Message = ChatMessage;
+// A guardian's answer to a Gruppennachricht (#4784) names that thread.
+export type Message = ChatMessage & {
+  readonly group_thread_id?: string;
+  readonly group_thread_title?: string;
+};
 
 export interface InboxThread {
   thread_id: string;
@@ -54,7 +58,6 @@ interface ApiResponse<T> {
   status?: string;
   success?: boolean;
   data?: T;
-  error?: string;
 }
 
 /**
@@ -74,14 +77,7 @@ async function throwApiError(
   } catch {
     // Body unreadable: the status still classifies the error.
   }
-  let message = fallback;
-  try {
-    const body = (text ? JSON.parse(text) : {}) as { error?: string };
-    if (body.error) message = body.error;
-  } catch {
-    // Body was not JSON — keep the German fallback.
-  }
-  throw apiErrorFromText(message, response.status, text);
+  throw apiErrorFromText(fallback, response.status, text);
 }
 
 /** A success response without the expected payload. */
@@ -320,6 +316,21 @@ export async function openThread(input: {
     throw missingData(fallback);
   }
   return result.data;
+}
+
+/**
+ * IDs of the school's children with at least one guardian fetchGuardians
+ * would offer. „Neue Nachricht“ marks every other child (#4362).
+ */
+export async function fetchReachableStudentIds(): Promise<ReadonlySet<string>> {
+  const result = await getEnvelope<{ student_ids: string[] }>(
+    "/api/messages/reachable-students",
+    "Erreichbare Kinder konnten nicht geladen werden",
+  );
+  if (!result.data) {
+    throw missingData("Erreichbare Kinder konnten nicht geladen werden");
+  }
+  return new Set(result.data.student_ids);
 }
 
 /**

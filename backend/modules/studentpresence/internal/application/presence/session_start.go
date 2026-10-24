@@ -9,9 +9,9 @@ import (
 	"slices"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -31,7 +31,7 @@ func (s *service) broadcastActivityStartEvent(ctx context.Context, group *ports.
 		supervisorIDStrs[i] = fmt.Sprintf("%d", id)
 	}
 
-	realtimeevents.PublishActivityStart(ctx, s.Broadcaster, s.getLogger(), realtimeevents.ActivitySession{
+	s.Broadcaster.SessionStarted(ctx, studentpresence.LiveSessionChange{
 		ActiveGroupID: activeGroupID,
 		ActivityName:  s.getActivityName(ctx, group.GroupID),
 		RoomID:        roomIDStr,
@@ -244,7 +244,7 @@ func (s *service) assignMultipleSupervisorsNonCritical(ctx context.Context, grou
 func (s *service) assignSupervisorNonCritical(ctx context.Context, groupID, staffID int64, startDate time.Time) {
 	supervisor := &ports.GroupSupervisor{
 		StaffID: staffID, GroupID: groupID, Role: "supervisor",
-		StartDate: timezone.DateFromTime(startDate),
+		StartDate: calendar.DateFromTime(startDate),
 	}
 	supervisor.SetTenantID(tenant.FromContext(ctx))
 	s.runBestEffortDB(ctx, "assign_supervisor", func() error {
@@ -274,7 +274,7 @@ func (s *service) ensureNFCAutoCheckInNonCritical(ctx context.Context, groupID, 
 }
 
 func (s *service) ensureNFCAutoCheckIn(ctx context.Context, groupID, staffID int64) error {
-	session, err := s.WorkSessionService.EnsureCheckedIn(ctx, staffID, stampSourceNFC)
+	checkedIn, err := s.WorkSessionService.EnsureCheckedIn(ctx, staffID, stampSourceNFC)
 	var plannedStart PlannedStartNotReachedError
 	if errors.As(err, &plannedStart) {
 		plannedStartTime, currentTime := plannedStart.PlannedStartNotReached()
@@ -289,7 +289,7 @@ func (s *service) ensureNFCAutoCheckIn(ctx context.Context, groupID, staffID int
 	if err != nil {
 		return err
 	}
-	if session == nil {
+	if !checkedIn {
 		s.getLogger().InfoContext(ctx, "NFC auto-check-in skipped: staff already checked out today",
 			slog.Int64("staff_id", staffID),
 			slog.Int64("group_id", groupID),

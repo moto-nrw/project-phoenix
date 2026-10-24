@@ -165,20 +165,20 @@ describe("student-companion-api", () => {
   });
 
   describe("error handling", () => {
-    it("surfaces the German error field from the backend envelope", async () => {
+    it("keeps the backend diagnostic separate from the status fallback", async () => {
       fetchSpy.mockResolvedValueOnce(
         mockFetchResponse(null, {
           ok: false,
           status: 400,
           text: JSON.stringify({
             status: "Invalid request",
-            error: "Ein Kind kann nicht mit sich selbst laufen.",
+            detail: "Ein Kind kann nicht mit sich selbst laufen.",
           }),
         }),
       );
 
       await expect(fetchStudentCompanions("42")).rejects.toThrow(
-        "Ein Kind kann nicht mit sich selbst laufen.",
+        "Anfrage fehlgeschlagen (400)",
       );
     });
 
@@ -189,7 +189,7 @@ describe("student-companion-api", () => {
           status: 503,
           text: JSON.stringify({
             status: "error",
-            error: "unavailable",
+            detail: "unavailable",
             code: "general.unavailable",
             instance: "req-companions",
           }),
@@ -207,21 +207,23 @@ describe("student-companion-api", () => {
       });
     });
 
-    it("falls back to the status field when error is missing", async () => {
+    it("falls back to the status code when the envelope has no detail", async () => {
       fetchSpy.mockResolvedValueOnce(
         mockFetchResponse(null, {
           ok: false,
           status: 404,
-          text: JSON.stringify({ status: "Kind nicht gefunden" }),
+          text: JSON.stringify({ status: 404, code: "general.input" }),
         }),
       );
 
-      await expect(fetchStudentCompanions("42")).rejects.toThrow(
-        "Kind nicht gefunden",
-      );
+      await expect(fetchStudentCompanions("42")).rejects.toMatchObject({
+        message: "Anfrage fehlgeschlagen (404)",
+        status: 404,
+        code: "general.input",
+      });
     });
 
-    it("uses the raw body when it is not JSON", async () => {
+    it("classifies a body that is not JSON by its status", async () => {
       fetchSpy.mockResolvedValueOnce(
         mockFetchResponse(null, {
           ok: false,
@@ -230,9 +232,10 @@ describe("student-companion-api", () => {
         }),
       );
 
-      await expect(fetchStudentCompanions("42")).rejects.toThrow(
-        "server exploded",
-      );
+      await expect(fetchStudentCompanions("42")).rejects.toMatchObject({
+        message: "Anfrage fehlgeschlagen (500)",
+        code: "general.server",
+      });
     });
 
     it("falls back to the status code when there is no body", async () => {

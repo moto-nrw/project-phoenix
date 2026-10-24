@@ -7,16 +7,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
-	modelsBase "github.com/moto-nrw/project-phoenix/models/base"
-	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // stubEnrollmentRequestRepo captures inputs to the repo and replays
@@ -27,7 +26,7 @@ import (
 type stubEnrollmentRequestRepo struct {
 	gotAccountID int64
 
-	listResult []*parentModels.EnrollmentRequestSummary
+	listResult []*parentService.EnrollmentRequestSummary
 	listErr    error
 
 	backfillResult int
@@ -37,7 +36,7 @@ type stubEnrollmentRequestRepo struct {
 	gotBackfillEmail     string
 }
 
-func (s *stubEnrollmentRequestRepo) ListByAccount(_ context.Context, accountID int64) ([]*parentModels.EnrollmentRequestSummary, error) {
+func (s *stubEnrollmentRequestRepo) ListByAccount(_ context.Context, accountID int64) ([]*parentService.EnrollmentRequestSummary, error) {
 	s.gotAccountID = accountID
 	return s.listResult, s.listErr
 }
@@ -49,7 +48,7 @@ func (s *stubEnrollmentRequestRepo) BackfillGuardianAccountID(_ context.Context,
 }
 
 // buildService wires the parent service with stubs for the two other
-// repos (ChildRepository, EnrollablePhaseRepository) — they're not
+// repos (ChildReads, EnrollablePhaseReads) — they're not
 // exercised by these tests but the service struct requires non-nil
 // fields nowhere; the constructor only logs the missing repo at call
 // time, so leaving them nil here is fine.
@@ -57,8 +56,17 @@ func buildParentService(t *testing.T, repo *stubEnrollmentRequestRepo) *parentSe
 	t.Helper()
 	testpkg.SetupTestDB(t)
 	return parentportalcompose.New(parentportalcompose.Dependencies{
+		GuardianChanges:       owners.ParentGuardianChanges(),
+		DeparturePolicy:       owners.ParentDeparturePolicy(),
+		GuardianPolicy:        owners.NewParentGuardianPolicy(),
+		Fingerprints:          owners.SecurityFingerprints{},
+		Declarations:          owners.ParentDeclarationPolicy(),
+		Locales:               owners.ParentPortalLocales(),
+		Runtime:               owners.ParentPortalRuntime{},
 		EnrollmentRequestRepo: repo,
 		Logger:                slog.Default(),
+
+		CarePlanPolicy: owners.NewParentCarePlanPolicy(),
 	})
 }
 
@@ -66,7 +74,7 @@ func TestService_ListEnrollmentsForAccount_PassesAccountIDThrough(t *testing.T) 
 	t.Parallel()
 
 	repo := &stubEnrollmentRequestRepo{
-		listResult: []*parentModels.EnrollmentRequestSummary{
+		listResult: []*parentService.EnrollmentRequestSummary{
 			{RequestID: 42, TenantID: 7, SubmittedAt: time.Now()},
 		},
 	}
@@ -80,27 +88,17 @@ func TestService_ListEnrollmentsForAccount_PassesAccountIDThrough(t *testing.T) 
 		"service must forward account_id to the repo unmodified")
 }
 
-func TestService_ListEnrollmentsForAccount_RejectsZeroAccount(t *testing.T) {
+func TestService_ListEnrollmentsForAccount_RejectsNonPositiveAccount(t *testing.T) {
 	t.Parallel()
 
-	repo := &stubEnrollmentRequestRepo{}
-	svc := buildParentService(t, repo)
+	for _, accountID := range []int64{0, -5} {
+		repo := &stubEnrollmentRequestRepo{}
+		svc := buildParentService(t, repo)
 
-	_, err := svc.ListEnrollmentsForAccount(testpkg.WithPackageTenantRuntime(context.Background()), 0)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "account_id must be positive")
-	assert.Equal(t, int64(0), repo.gotAccountID, "repo must not be called for invalid input")
-}
-
-func TestService_ListEnrollmentsForAccount_RejectsNegativeAccount(t *testing.T) {
-	t.Parallel()
-
-	repo := &stubEnrollmentRequestRepo{}
-	svc := buildParentService(t, repo)
-
-	_, err := svc.ListEnrollmentsForAccount(testpkg.WithPackageTenantRuntime(context.Background()), -5)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "account_id must be positive")
+		_, err := svc.ListEnrollmentsForAccount(testpkg.WithPackageTenantRuntime(context.Background()), accountID)
+		require.ErrorContains(t, err, "account_id must be positive", "account %d", accountID)
+		assert.Zero(t, repo.gotAccountID, "repo must not be called for account %d", accountID)
+	}
 }
 
 func TestService_ListEnrollmentsForAccount_PropagatesRepoError(t *testing.T) {
@@ -120,8 +118,17 @@ func TestService_ListEnrollmentsForAccount_NilRepoReturnsError(t *testing.T) {
 
 	testpkg.SetupTestDB(t)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		GuardianChanges:       owners.ParentGuardianChanges(),
+		DeparturePolicy:       owners.ParentDeparturePolicy(),
+		GuardianPolicy:        owners.NewParentGuardianPolicy(),
+		Fingerprints:          owners.SecurityFingerprints{},
+		Declarations:          owners.ParentDeclarationPolicy(),
+		Locales:               owners.ParentPortalLocales(),
+		Runtime:               owners.ParentPortalRuntime{},
 		EnrollmentRequestRepo: nil,
 		Logger:                slog.Default(),
+
+		CarePlanPolicy: owners.NewParentCarePlanPolicy(),
 	})
 
 	_, err := svc.ListEnrollmentsForAccount(testpkg.WithPackageTenantRuntime(context.Background()), 1)
@@ -133,7 +140,7 @@ func TestService_ListEnrollmentsForAccount_EmptyResultPropagates(t *testing.T) {
 	t.Parallel()
 
 	repo := &stubEnrollmentRequestRepo{
-		listResult: []*parentModels.EnrollmentRequestSummary{},
+		listResult: []*parentService.EnrollmentRequestSummary{},
 	}
 	svc := buildParentService(t, repo)
 
@@ -151,12 +158,12 @@ func TestService_ListEnrollmentsForAccount_RedactsReasonWhenPhaseDisablesIt(t *t
 
 	reason := "intern: Kapazität voll"
 	repo := &stubEnrollmentRequestRepo{
-		listResult: []*parentModels.EnrollmentRequestSummary{
+		listResult: []*parentService.EnrollmentRequestSummary{
 			{
 				RequestID:                42,
 				TenantID:                 7,
 				ShowStatusReasonToParent: false,
-				Children: []parentModels.EnrollmentRequestChildSummary{
+				Children: []parentService.EnrollmentRequestChildSummary{
 					{ChildID: 100, FirstName: "Lina", Status: "rejected", StatusReason: &reason},
 				},
 			},
@@ -178,12 +185,12 @@ func TestService_ListEnrollmentsForAccount_KeepsReasonWhenPhaseEnablesIt(t *test
 
 	reason := "Leider kein Platz"
 	repo := &stubEnrollmentRequestRepo{
-		listResult: []*parentModels.EnrollmentRequestSummary{
+		listResult: []*parentService.EnrollmentRequestSummary{
 			{
 				RequestID:                43,
 				TenantID:                 7,
 				ShowStatusReasonToParent: true,
-				Children: []parentModels.EnrollmentRequestChildSummary{
+				Children: []parentService.EnrollmentRequestChildSummary{
 					{ChildID: 101, FirstName: "Tom", Status: "rejected", StatusReason: &reason},
 				},
 			},
@@ -201,11 +208,11 @@ func TestService_ListEnrollmentsForAccount_KeepsReasonWhenPhaseEnablesIt(t *test
 
 // --- portal locale profile -----------------------------------------------
 
-// stubGuardianProfileRepo implements userModels.GuardianProfileRepository.
+// stubGuardianProfileRepo implements the guardian profile repository.
 // Only FindByAccountID and UpdatePortalLocaleByAccountID carry behaviour; the
 // rest satisfy the interface and are never exercised by the profile tests.
 type stubGuardianProfileRepo struct {
-	findResult *userModels.GuardianProfile
+	findResult *peopledirectory.GuardianProfileFixture
 	findErr    error
 
 	updateErr           error
@@ -215,7 +222,7 @@ type stubGuardianProfileRepo struct {
 	gotFindAccountIDArg int64
 }
 
-func (s *stubGuardianProfileRepo) FindByAccountID(_ context.Context, accountID int64) (*userModels.GuardianProfile, error) {
+func (s *stubGuardianProfileRepo) FindByAccountID(_ context.Context, accountID int64) (*peopledirectory.GuardianProfileFixture, error) {
 	s.gotFindAccountIDArg = accountID
 	return s.findResult, s.findErr
 }
@@ -246,7 +253,7 @@ func (p portalLocalePeople) ListGuardiansByAccount(context.Context, []int64) ([]
 
 func (p portalLocalePeople) SetGuardianPortalLocale(ctx context.Context, accountID int64, locale string) (int64, error) {
 	err := p.repo.UpdatePortalLocaleByAccountID(ctx, accountID, locale)
-	if errors.Is(err, userModels.ErrGuardianProfileNotFound) {
+	if errors.Is(err, parentService.ErrGuardianProfileNotFound) {
 		return 0, nil
 	}
 	if err != nil {
@@ -255,62 +262,22 @@ func (p portalLocalePeople) SetGuardianPortalLocale(ctx context.Context, account
 	return 1, nil
 }
 
-func (s *stubGuardianProfileRepo) Create(context.Context, *userModels.GuardianProfile) error {
-	return nil
-}
-func (s *stubGuardianProfileRepo) FindByID(context.Context, int64) (*userModels.GuardianProfile, error) {
-	return nil, nil
-}
-func (s *stubGuardianProfileRepo) LockByIDForUpdate(context.Context, int64) error { return nil }
-func (s *stubGuardianProfileRepo) FindByEmail(context.Context, string) (*userModels.GuardianProfile, error) {
-	return nil, nil
-}
-func (s *stubGuardianProfileRepo) FindByEmails(context.Context, []string) ([]*userModels.GuardianProfile, error) {
-	return nil, nil
-}
-func (s *stubGuardianProfileRepo) FindWithoutAccount(context.Context) ([]*userModels.GuardianProfile, error) {
-	return nil, nil
-}
-func (s *stubGuardianProfileRepo) FindInvitable(context.Context) ([]*userModels.GuardianProfile, error) {
-	return nil, nil
-}
-func (s *stubGuardianProfileRepo) ListWithOptions(context.Context, *modelsBase.QueryOptions) ([]*userModels.GuardianProfile, error) {
-	return nil, nil
-}
-func (s *stubGuardianProfileRepo) SearchByText(context.Context, string, int) ([]*userModels.GuardianProfile, error) {
-	return nil, nil
-}
-func (s *stubGuardianProfileRepo) FindByIDs(context.Context, []int64) (map[int64]*userModels.GuardianProfile, error) {
-	return nil, nil
-}
-func (s *stubGuardianProfileRepo) FindActivePortalProfilesByIDs(context.Context, []int64) (map[int64]*userModels.GuardianProfile, error) {
-	return nil, nil
-}
-
-func (s *stubGuardianProfileRepo) FindLoginReadyPortalProfilesByIDs(context.Context, []int64) (map[int64]*userModels.GuardianProfile, error) {
-	return nil, nil
-}
-func (s *stubGuardianProfileRepo) Count(context.Context) (int, error) { return 0, nil }
-func (s *stubGuardianProfileRepo) Update(context.Context, *userModels.GuardianProfile) error {
-	return nil
-}
-func (s *stubGuardianProfileRepo) Delete(context.Context, int64) error             { return nil }
-func (s *stubGuardianProfileRepo) LinkAccount(context.Context, int64, int64) error { return nil }
-func (s *stubGuardianProfileRepo) UnlinkAccount(context.Context, int64) error      { return nil }
-func (s *stubGuardianProfileRepo) GetStudentCount(context.Context, int64) (int, error) {
-	return 0, nil
-}
-func (s *stubGuardianProfileRepo) LoadProfileWithChildren(context.Context, int64) (*userModels.GuardianProfileWithChildren, error) {
-	return nil, nil
-}
-
 func buildParentServiceWithGuardian(t *testing.T, repo *stubGuardianProfileRepo) *parentService.Portal {
 	t.Helper()
 	testpkg.SetupTestDB(t)
 	return parentportalcompose.New(parentportalcompose.Dependencies{
+		GuardianChanges:     owners.ParentGuardianChanges(),
+		DeparturePolicy:     owners.ParentDeparturePolicy(),
+		GuardianPolicy:      owners.NewParentGuardianPolicy(),
+		Fingerprints:        owners.SecurityFingerprints{},
+		Declarations:        owners.ParentDeclarationPolicy(),
+		Locales:             owners.ParentPortalLocales(),
+		Runtime:             owners.ParentPortalRuntime{},
 		People:              portalLocalePeople{repo: repo, tenantIDs: []int64{testpkg.Tenant(t)}},
-		GuardianProfileRepo: repo,
+		GuardianProfileRepo: api.NewParentGuardianProfileReadFixture(repo.FindByAccountID),
 		Logger:              slog.Default(),
+
+		CarePlanPolicy: owners.NewParentCarePlanPolicy(),
 	})
 }
 
@@ -320,7 +287,7 @@ func TestService_GetProfile_ExplicitLocale(t *testing.T) {
 	t.Parallel()
 
 	repo := &stubGuardianProfileRepo{
-		findResult: &userModels.GuardianProfile{
+		findResult: &peopledirectory.GuardianProfileFixture{
 			FirstName:    "Karin",
 			LastName:     "Klein",
 			PortalLocale: localePtr("en"),
@@ -342,7 +309,7 @@ func TestService_GetProfile_NormalizesRegionSubtag(t *testing.T) {
 	t.Parallel()
 
 	repo := &stubGuardianProfileRepo{
-		findResult: &userModels.GuardianProfile{PortalLocale: localePtr("en-US")},
+		findResult: &peopledirectory.GuardianProfileFixture{PortalLocale: localePtr("en-US")},
 	}
 	svc := buildParentServiceWithGuardian(t, repo)
 
@@ -356,7 +323,7 @@ func TestService_GetProfile_NullLocaleIsNotExplicit(t *testing.T) {
 	t.Parallel()
 
 	repo := &stubGuardianProfileRepo{
-		findResult: &userModels.GuardianProfile{PortalLocale: nil},
+		findResult: &peopledirectory.GuardianProfileFixture{PortalLocale: nil},
 	}
 	svc := buildParentServiceWithGuardian(t, repo)
 
@@ -372,7 +339,7 @@ func TestService_GetProfile_EmptyLocaleIsNotExplicit(t *testing.T) {
 	t.Parallel()
 
 	repo := &stubGuardianProfileRepo{
-		findResult: &userModels.GuardianProfile{PortalLocale: localePtr("")},
+		findResult: &peopledirectory.GuardianProfileFixture{PortalLocale: localePtr("")},
 	}
 	svc := buildParentServiceWithGuardian(t, repo)
 
@@ -386,7 +353,7 @@ func TestService_GetProfile_MissingProfileIsBenign(t *testing.T) {
 	t.Parallel()
 
 	repo := &stubGuardianProfileRepo{
-		findErr: userModels.ErrGuardianProfileNotFound,
+		findErr: parentService.ErrGuardianProfileNotFound,
 	}
 	svc := buildParentServiceWithGuardian(t, repo)
 
@@ -426,8 +393,17 @@ func TestService_GetProfile_NilRepoReturnsError(t *testing.T) {
 
 	testpkg.SetupTestDB(t)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		GuardianChanges:     owners.ParentGuardianChanges(),
+		DeparturePolicy:     owners.ParentDeparturePolicy(),
+		GuardianPolicy:      owners.NewParentGuardianPolicy(),
+		Fingerprints:        owners.SecurityFingerprints{},
+		Declarations:        owners.ParentDeclarationPolicy(),
+		Locales:             owners.ParentPortalLocales(),
+		Runtime:             owners.ParentPortalRuntime{},
 		GuardianProfileRepo: nil,
 		Logger:              slog.Default(),
+
+		CarePlanPolicy: owners.NewParentCarePlanPolicy(),
 	})
 
 	_, err := svc.GetProfile(testpkg.WithPackageTenantRuntime(context.Background()), 1234)
@@ -461,9 +437,18 @@ func TestService_UpdatePortalLocale_WritesEverySchool(t *testing.T) {
 	otherTenant, _ := testpkg.CreateTestTenant(t, db)
 	repo := &stubGuardianProfileRepo{}
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		GuardianChanges:     owners.ParentGuardianChanges(),
+		DeparturePolicy:     owners.ParentDeparturePolicy(),
+		GuardianPolicy:      owners.NewParentGuardianPolicy(),
+		Fingerprints:        owners.SecurityFingerprints{},
+		Declarations:        owners.ParentDeclarationPolicy(),
+		Locales:             owners.ParentPortalLocales(),
+		Runtime:             owners.ParentPortalRuntime{},
 		People:              portalLocalePeople{repo: repo, tenantIDs: []int64{testpkg.Tenant(t), otherTenant}},
-		GuardianProfileRepo: repo,
+		GuardianProfileRepo: api.NewParentGuardianProfileReadFixture(repo.FindByAccountID),
 		Logger:              slog.Default(),
+
+		CarePlanPolicy: owners.NewParentCarePlanPolicy(),
 	})
 
 	profile, err := svc.UpdatePortalLocale(testpkg.WithPackageTenantRuntime(context.Background()), 1234, "en-US")
@@ -502,8 +487,17 @@ func TestService_UpdatePortalLocale_NilRepoReturnsError(t *testing.T) {
 
 	testpkg.SetupTestDB(t)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		GuardianChanges:     owners.ParentGuardianChanges(),
+		DeparturePolicy:     owners.ParentDeparturePolicy(),
+		GuardianPolicy:      owners.NewParentGuardianPolicy(),
+		Fingerprints:        owners.SecurityFingerprints{},
+		Declarations:        owners.ParentDeclarationPolicy(),
+		Locales:             owners.ParentPortalLocales(),
+		Runtime:             owners.ParentPortalRuntime{},
 		GuardianProfileRepo: nil,
 		Logger:              slog.Default(),
+
+		CarePlanPolicy: owners.NewParentCarePlanPolicy(),
 	})
 
 	_, err := svc.UpdatePortalLocale(testpkg.WithPackageTenantRuntime(context.Background()), 1234, "en")
@@ -531,10 +525,10 @@ func TestService_UpdatePortalLocale_SurfacesMissingProfile(t *testing.T) {
 	// rows (account has no guardian_profiles row). The service must surface it,
 	// not report the locale as saved — a preference that never persisted cannot
 	// masquerade as success.
-	repo := &stubGuardianProfileRepo{updateErr: userModels.ErrGuardianProfileNotFound}
+	repo := &stubGuardianProfileRepo{updateErr: parentService.ErrGuardianProfileNotFound}
 	svc := buildParentServiceWithGuardian(t, repo)
 
 	_, err := svc.UpdatePortalLocale(testpkg.WithPackageTenantRuntime(context.Background()), 1234, "en")
 	require.Error(t, err)
-	assert.ErrorIs(t, err, userModels.ErrGuardianProfileNotFound)
+	assert.ErrorIs(t, err, parentService.ErrGuardianProfileNotFound)
 }

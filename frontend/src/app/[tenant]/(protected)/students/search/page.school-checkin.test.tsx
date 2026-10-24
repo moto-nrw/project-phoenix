@@ -59,6 +59,8 @@ vi.mock("~/lib/supervision-context", () => ({
 }));
 
 vi.mock("~/lib/tenant-context", () => ({
+  useTenantRoutingModeSafe: () => "subdomain",
+  useChildSearchOnlyNavigation: () => false,
   useOpenCareGroupMode: () => false,
   useTenant: vi.fn(() => ({ tenantSlug: "test-tenant", tenant: null })),
   useTenantSafe: vi.fn(() => ({
@@ -258,6 +260,7 @@ vi.mock("~/lib/swr", () => ({
   useTenantMutate: () => vi.fn(),
 }));
 
+import { useSession } from "next-auth/react";
 import { useImmutableSWR, useSWRAuth } from "~/lib/swr";
 import StudentSearchPage from "./page";
 
@@ -328,6 +331,33 @@ describe("StudentSearchPage — school check-in wiring", () => {
     });
 
     expect(screen.getByTestId("school-checkin-fab")).toBeInTheDocument();
+  });
+
+  // ADR 0091: the role „Gast“ lacks users:checkin, the gate of
+  // POST /students/{id}/school-checkin; every tap would fail.
+  it("offers no check-in mode without users:checkin", async () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: { token: "t", permissions: ["students:read", "groups:read"] },
+      },
+      status: "authenticated",
+    } as unknown as ReturnType<typeof useSession>);
+    try {
+      render(<StudentSearchPage />);
+
+      // Anker: die Kinder sind geladen.
+      await waitFor(() => {
+        expect(screen.getByTestId("student-card-7")).toBeInTheDocument();
+      });
+      expect(
+        screen.queryByTestId("school-checkin-fab"),
+      ).not.toBeInTheDocument();
+    } finally {
+      vi.mocked(useSession).mockReturnValue({
+        data: { user: { token: "t" } },
+        status: "authenticated",
+      } as unknown as ReturnType<typeof useSession>);
+    }
   });
 
   it("clicking the FAB fires hook.toggleActive", async () => {

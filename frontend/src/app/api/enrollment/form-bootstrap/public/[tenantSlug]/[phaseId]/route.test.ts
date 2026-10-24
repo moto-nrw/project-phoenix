@@ -156,8 +156,10 @@ describe("GET /api/enrollment/form-bootstrap/public/[tenantSlug]/[phaseId]", () 
     );
 
     expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toEqual({
-      error: "Invalid request host",
+    await expect(response.json()).resolves.toMatchObject({
+      status: 400,
+      detail: "Invalid request host",
+      code: "general.input",
     });
     expect(mockAuth).not.toHaveBeenCalled();
     expect(fetchMock).not.toHaveBeenCalled();

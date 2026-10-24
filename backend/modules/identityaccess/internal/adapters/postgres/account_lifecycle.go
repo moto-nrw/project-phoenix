@@ -12,7 +12,7 @@ import (
 
 // Identity-owned reads and writes behind the account lifecycle flows (#3225):
 // the school's account listing with role names, the direct permission grants,
-// the school mapping deactivation, account e-mails and auth.accounts_parents.
+// the school mapping deactivation and account e-mails.
 // Every statement runs on the connection the caller's context carries.
 
 type tenantAccountRow struct {
@@ -21,6 +21,9 @@ type tenantAccountRow struct {
 	Active    bool   `bun:"active"`
 	Status    string `bun:"status"`
 	RoleNames string `bun:"role_names"`
+	// HoldsSchoolPortalCopy reports a school role made from the Lehrkraft
+	// template among the roles (#4574).
+	HoldsSchoolPortalCopy bool `bun:"holds_school_portal_copy"`
 }
 
 // ListTenantAccounts returns every mapped account of the school with the
@@ -40,6 +43,7 @@ func (s *Store) ListTenantAccounts(ctx context.Context, tenantID int64) ([]domai
 		ColumnExpr(`"a".active`).
 		ColumnExpr(`"at".status`).
 		ColumnExpr(`COALESCE(string_agg(DISTINCT "r".name, ', ' ORDER BY "r".name), '') AS role_names`).
+		ColumnExpr(`COALESCE(bool_or("r".school_portal), false) AS holds_school_portal_copy`).
 		Join(`INNER JOIN auth.accounts AS "a" ON "a".id = "at".account_id`).
 		Join(`LEFT JOIN auth.account_roles AS "ar" ON "ar".account_id = "at".account_id AND "ar".tenant_id = ?`, tenantID).
 		Join(`LEFT JOIN auth.roles AS "r" ON "r".id = "ar".role_id`).
@@ -55,6 +59,7 @@ func (s *Store) ListTenantAccounts(ctx context.Context, tenantID int64) ([]domai
 	for _, row := range rows {
 		accounts = append(accounts, domain.TenantAccount{
 			AccountID: row.AccountID, Email: row.Email, Active: row.Active, Status: row.Status, RoleNames: splitRoleNames(row.RoleNames),
+			HoldsSchoolPortalCopy: row.HoldsSchoolPortalCopy,
 		})
 	}
 	return accounts, stats, nil
@@ -148,164 +153,4 @@ func (s *Store) ListAccountEmails(ctx context.Context, accountIDs []int64) (map[
 		emails[row.ID] = row.Email
 	}
 	return emails, stats, nil
-}
-
-// --- parent accounts -------------------------------------------------------
-
-type parentAccountRow struct {
-	bun.BaseModel `bun:"table:auth.accounts_parents,alias:account_parent"`
-	ID            int64     `bun:"id,pk,autoincrement"`
-	TenantID      int64     `bun:"tenant_id"`
-	Email         string    `bun:"email"`
-	Username      *string   `bun:"username"`
-	Active        bool      `bun:"active"`
-	PasswordHash  *string   `bun:"password_hash"`
-	CreatedAt     time.Time `bun:"created_at"`
-	UpdatedAt     time.Time `bun:"updated_at"`
-}
-
-func (r parentAccountRow) toDomain() domain.ParentAccount {
-	account := domain.ParentAccount{
-		ID: r.ID, TenantID: r.TenantID, Email: r.Email, Active: r.Active, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
-	}
-	if r.Username != nil {
-		account.Username = *r.Username
-	}
-	if r.PasswordHash != nil {
-		account.PasswordHash = *r.PasswordHash
-	}
-	return account
-}
-
-const parentAccountColumns = `"account_parent".id, "account_parent".tenant_id, "account_parent".email, "account_parent".username, "account_parent".active, "account_parent".password_hash, "account_parent".created_at, "account_parent".updated_at`
-
-func (s *Store) parentAccountSelect(ctx context.Context, db bun.IDB) *bun.SelectQuery {
-	query := db.NewSelect().
-		TableExpr(`auth.accounts_parents AS "account_parent"`).
-		ColumnExpr(parentAccountColumns)
-	if scope := s.scope(ctx); scope.TenantID > 0 {
-		query = query.Where(`"account_parent".tenant_id = ?`, scope.TenantID)
-	}
-	return query
-}
-
-func (s *Store) findParentAccount(ctx context.Context, operation string, where func(*bun.SelectQuery) *bun.SelectQuery) (domain.ParentAccount, bool, domain.OperationStats, error) {
-	db, err := s.database(ctx)
-	if err != nil {
-		return domain.ParentAccount{}, false, domain.OperationStats{}, err
-	}
-	var rows []parentAccountRow
-	started := time.Now()
-	err = where(s.parentAccountSelect(ctx, db)).Limit(1).Scan(ctx, &rows)
-	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started), Rows: int64(len(rows))}
-	if err != nil {
-		return domain.ParentAccount{}, false, stats, fmt.Errorf("identity access postgres: %s: %w", operation, err)
-	}
-	if len(rows) == 0 {
-		return domain.ParentAccount{}, false, stats, nil
-	}
-	return rows[0].toDomain(), true, stats, nil
-}
-
-func (s *Store) FindParentAccount(ctx context.Context, id int64) (domain.ParentAccount, bool, domain.OperationStats, error) {
-	return s.findParentAccount(ctx, "find parent account", func(query *bun.SelectQuery) *bun.SelectQuery {
-		return query.Where(`"account_parent".id = ?`, id)
-	})
-}
-
-func (s *Store) FindParentAccountByEmail(ctx context.Context, email string) (domain.ParentAccount, bool, domain.OperationStats, error) {
-	return s.findParentAccount(ctx, "find parent account by email", func(query *bun.SelectQuery) *bun.SelectQuery {
-		return query.Where(`LOWER("account_parent".email) = LOWER(?)`, email)
-	})
-}
-
-func (s *Store) FindParentAccountByUsername(ctx context.Context, username string) (domain.ParentAccount, bool, domain.OperationStats, error) {
-	return s.findParentAccount(ctx, "find parent account by username", func(query *bun.SelectQuery) *bun.SelectQuery {
-		return query.Where(`LOWER("account_parent".username) = LOWER(?)`, username)
-	})
-}
-
-func (s *Store) InsertParentAccount(ctx context.Context, account domain.ParentAccount) (domain.ParentAccount, domain.OperationStats, error) {
-	db, err := s.database(ctx)
-	if err != nil {
-		return domain.ParentAccount{}, domain.OperationStats{}, err
-	}
-	now := time.Now()
-	row := parentAccountRow{TenantID: account.TenantID, Email: account.Email, Active: account.Active, CreatedAt: now, UpdatedAt: now}
-	if account.Username != "" {
-		username := account.Username
-		row.Username = &username
-	}
-	if account.PasswordHash != "" {
-		hash := account.PasswordHash
-		row.PasswordHash = &hash
-	}
-	started := time.Now()
-	_, err = db.NewInsert().Model(&row).ModelTableExpr(`auth.accounts_parents`).Returning("id, created_at, updated_at").Exec(ctx)
-	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started), Rows: 1}
-	if err != nil {
-		return domain.ParentAccount{}, stats, fmt.Errorf("identity access postgres: insert parent account: %w", err)
-	}
-	return row.toDomain(), stats, nil
-}
-
-func (s *Store) UpdateParentAccount(ctx context.Context, account domain.ParentAccount) (bool, domain.OperationStats, error) {
-	db, err := s.database(ctx)
-	if err != nil {
-		return false, domain.OperationStats{}, err
-	}
-	var username, hash *string
-	if account.Username != "" {
-		value := account.Username
-		username = &value
-	}
-	if account.PasswordHash != "" {
-		value := account.PasswordHash
-		hash = &value
-	}
-	query := db.NewUpdate().
-		TableExpr(`auth.accounts_parents AS "account_parent"`).
-		Set("email = ?", account.Email).
-		Set("username = ?", username).
-		Set("active = ?", account.Active).
-		Set("password_hash = ?", hash).
-		Set("updated_at = NOW()").
-		Where(`"account_parent".id = ?`, account.ID)
-	if scope := s.scope(ctx); scope.TenantID > 0 {
-		query = query.Where(`"account_parent".tenant_id = ?`, scope.TenantID)
-	}
-	started := time.Now()
-	result, err := query.Exec(ctx)
-	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}
-	if err != nil {
-		return false, stats, fmt.Errorf("identity access postgres: update parent account: %w", err)
-	}
-	stats.Rows, _ = result.RowsAffected()
-	return stats.Rows > 0, stats, nil
-}
-
-func (s *Store) ListParentAccounts(ctx context.Context, filter domain.ParentAccountFilter) ([]domain.ParentAccount, domain.OperationStats, error) {
-	db, err := s.database(ctx)
-	if err != nil {
-		return nil, domain.OperationStats{}, err
-	}
-	query := s.parentAccountSelect(ctx, db)
-	if filter.Email != "" {
-		query = query.Where(`LOWER("account_parent".email) = LOWER(?)`, filter.Email)
-	}
-	if filter.Active != nil {
-		query = query.Where(`"account_parent".active = ?`, *filter.Active)
-	}
-	var rows []parentAccountRow
-	started := time.Now()
-	err = query.OrderExpr(`"account_parent".id ASC`).Scan(ctx, &rows)
-	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started), Rows: int64(len(rows))}
-	if err != nil {
-		return nil, stats, fmt.Errorf("identity access postgres: list parent accounts: %w", err)
-	}
-	accounts := make([]domain.ParentAccount, 0, len(rows))
-	for _, row := range rows {
-		accounts = append(accounts, row.toDomain())
-	}
-	return accounts, stats, nil
 }

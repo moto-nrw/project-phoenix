@@ -53,6 +53,9 @@ func GodaQuery(policy *Policy, graph *Graph, rawFocus string) (string, error) {
 	}
 	selected := godaUnion(packages)
 	expression := fmt.Sprintf("add(%s:+import,incoming(./...:module,%s))", selected, selected)
+	for index := len(policy.Build.Tags) - 1; index >= 0; index-- {
+		expression = fmt.Sprintf("%s=1(%s)", policy.Build.Tags[index], expression)
+	}
 	return fmt.Sprintf("cgo_enabled=0(goarch=%s(goos=%s(%s)))\n", policy.Build.GOARCH, policy.Build.GOOS, expression), nil
 }
 

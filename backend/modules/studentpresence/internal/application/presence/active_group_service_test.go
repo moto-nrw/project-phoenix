@@ -8,13 +8,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	active "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
-	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,10 +20,9 @@ import (
 
 // createActiveService creates an Active Service with real database connection
 func createActiveService(t *testing.T, db *testpkg.DB) active.Service {
-	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
+	serviceFactoryActive, err := api.NewTestActivePresence(testpkg.NewDatabase(t, db), slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
-	return composedEngine(t, serviceFactory.Active)
+	return composedEngine(t, serviceFactoryActive)
 }
 
 // =============================================================================
@@ -47,7 +44,7 @@ func TestActiveService_GetActiveGroup(t *testing.T) {
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activityGroup.ID, room.ID)
 
 		// ACT
-		result, err := service.GetActiveGroup(ctx, activeGroup.ID)
+		result, err := testpkg.TenantQuery1(t, ctx, db, service.GetActiveGroup, activeGroup.ID)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -60,7 +57,7 @@ func TestActiveService_GetActiveGroup(t *testing.T) {
 
 	t.Run("returns error when not found", func(t *testing.T) {
 		// ACT
-		result, err := service.GetActiveGroup(ctx, 99999999)
+		result, err := testpkg.TenantQuery1(t, ctx, db, service.GetActiveGroup, 99999999)
 
 		// ASSERT
 		require.Error(t, err)
@@ -69,7 +66,7 @@ func TestActiveService_GetActiveGroup(t *testing.T) {
 
 	t.Run("returns error for invalid ID", func(t *testing.T) {
 		// ACT
-		result, err := service.GetActiveGroup(ctx, 0)
+		result, err := testpkg.TenantQuery1(t, ctx, db, service.GetActiveGroup, 0)
 
 		// ASSERT
 		require.Error(t, err)
@@ -98,7 +95,7 @@ func TestActiveService_GetActiveGroupsByIDs(t *testing.T) {
 		group2 := testpkg.CreateTestActiveGroup(t, db, activity2.ID, room.ID)
 
 		// ACT
-		result, err := service.GetActiveGroupsByIDs(ctx, []int64{group1.ID, group2.ID})
+		result, err := testpkg.TenantQuery1(t, ctx, db, service.GetActiveGroupsByIDs, []int64{group1.ID, group2.ID})
 
 		// ASSERT
 		require.NoError(t, err)
@@ -109,7 +106,7 @@ func TestActiveService_GetActiveGroupsByIDs(t *testing.T) {
 
 	t.Run("returns empty map for empty input", func(t *testing.T) {
 		// ACT
-		result, err := service.GetActiveGroupsByIDs(ctx, []int64{})
+		result, err := testpkg.TenantQuery1(t, ctx, db, service.GetActiveGroupsByIDs, []int64{})
 
 		// ASSERT
 		require.NoError(t, err)
@@ -123,7 +120,7 @@ func TestActiveService_GetActiveGroupsByIDs(t *testing.T) {
 		group := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 
 		// ACT
-		result, err := service.GetActiveGroupsByIDs(ctx, []int64{group.ID, 99999999})
+		result, err := testpkg.TenantQuery1(t, ctx, db, service.GetActiveGroupsByIDs, []int64{group.ID, 99999999})
 
 		// ASSERT
 		require.NoError(t, err)
@@ -160,7 +157,7 @@ func TestActiveService_CreateActiveGroup(t *testing.T) {
 		}
 
 		// ACT
-		err := service.CreateActiveGroup(ctx, group)
+		err := testpkg.TenantCommand1(t, ctx, db, service.CreateActiveGroup, group)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -169,7 +166,7 @@ func TestActiveService_CreateActiveGroup(t *testing.T) {
 
 	t.Run("returns error for nil group", func(t *testing.T) {
 		// ACT
-		err := service.CreateActiveGroup(ctx, nil)
+		err := testpkg.TenantCommand1(t, ctx, db, service.CreateActiveGroup, nil)
 
 		// ASSERT
 		require.Error(t, err)
@@ -198,20 +195,20 @@ func TestActiveService_UpdateActiveGroup(t *testing.T) {
 		group.TimeoutMinutes = 60
 
 		// ACT
-		err := service.UpdateActiveGroup(ctx, sessionOf(group))
+		err := testpkg.TenantCommand1(t, ctx, db, service.UpdateActiveGroup, sessionOf(group))
 
 		// ASSERT
 		require.NoError(t, err)
 
 		// Verify update persisted
-		updated, err := service.GetActiveGroup(ctx, group.ID)
+		updated, err := testpkg.TenantQuery1(t, ctx, db, service.GetActiveGroup, group.ID)
 		require.NoError(t, err)
 		assert.Equal(t, 60, updated.TimeoutMinutes)
 	})
 
 	t.Run("returns error for nil group", func(t *testing.T) {
 		// ACT
-		err := service.UpdateActiveGroup(ctx, nil)
+		err := testpkg.TenantCommand1(t, ctx, db, service.UpdateActiveGroup, nil)
 
 		// ASSERT
 		require.Error(t, err)
@@ -223,7 +220,7 @@ func TestActiveService_UpdateActiveGroup(t *testing.T) {
 		group.ID = 0
 
 		// ACT
-		err := service.UpdateActiveGroup(ctx, group)
+		err := testpkg.TenantCommand1(t, ctx, db, service.UpdateActiveGroup, group)
 
 		// ASSERT
 		require.Error(t, err)
@@ -244,10 +241,10 @@ func TestActiveService_UpdateActiveGroup(t *testing.T) {
 		testpkg.CreateTestVisit(t, db, studentB.ID, group.ID, time.Now().Add(-time.Hour), nil)
 
 		group.RoomID = targetRoom.ID
-		err = service.UpdateActiveGroup(ctx, sessionOf(group))
+		err = testpkg.TenantCommand1(t, ctx, db, service.UpdateActiveGroup, sessionOf(group))
 
 		require.ErrorIs(t, err, active.ErrRoomCapacityExceeded)
-		persisted, findErr := service.GetActiveGroup(ctx, group.ID)
+		persisted, findErr := testpkg.TenantQuery1(t, ctx, db, service.GetActiveGroup, group.ID)
 		require.NoError(t, findErr)
 		assert.Equal(t, sourceRoom.ID, persisted.RoomID)
 	})
@@ -272,19 +269,19 @@ func TestActiveService_DeleteActiveGroup(t *testing.T) {
 		group := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 
 		// ACT
-		err := service.DeleteActiveGroup(ctx, group.ID)
+		err := testpkg.TenantCommand1(t, ctx, db, service.DeleteActiveGroup, group.ID)
 
 		// ASSERT
 		require.NoError(t, err)
 
 		// Verify deletion
-		_, err = service.GetActiveGroup(ctx, group.ID)
+		_, err = testpkg.TenantQuery1(t, ctx, db, service.GetActiveGroup, group.ID)
 		require.Error(t, err)
 	})
 
 	t.Run("returns error when not found", func(t *testing.T) {
 		// ACT
-		err := service.DeleteActiveGroup(ctx, 99999999)
+		err := testpkg.TenantCommand1(t, ctx, db, service.DeleteActiveGroup, 99999999)
 
 		// ASSERT
 		require.Error(t, err)
@@ -292,25 +289,28 @@ func TestActiveService_DeleteActiveGroup(t *testing.T) {
 
 	t.Run("returns error for invalid ID", func(t *testing.T) {
 		// ACT
-		err := service.DeleteActiveGroup(ctx, 0)
+		err := testpkg.TenantCommand1(t, ctx, db, service.DeleteActiveGroup, 0)
 
 		// ASSERT
 		require.Error(t, err)
 	})
 
 	t.Run("returns error on database failure", func(t *testing.T) {
-		// ARRANGE - use canceled context to trigger DB error
-		canceledCtx, cancel := context.WithCancel(ctx)
-		cancel() // Cancel immediately
+		require.NoError(t, testpkg.WithinTenantContext(t, ctx, db, testpkg.Tenant(t), func(txCtx context.Context) error {
+			// ARRANGE - use canceled context to trigger DB error
+			canceledCtx, cancel := context.WithCancel(txCtx)
+			cancel() // Cancel immediately
 
-		// ACT
-		err := service.DeleteActiveGroup(canceledCtx, 1)
+			// ACT
+			err := service.DeleteActiveGroup(canceledCtx, 1)
 
-		// ASSERT
-		require.Error(t, err)
-		// Should be a database error, not "not found"
-		var activeErr *active.ActiveError
-		require.ErrorAs(t, err, &activeErr)
+			// ASSERT
+			require.Error(t, err)
+			// Should be a database error, not "not found"
+			var activeErr *active.ActiveError
+			require.ErrorAs(t, err, &activeErr)
+			return nil
+		}))
 	})
 }
 
@@ -333,7 +333,7 @@ func TestPresence_QueryLiveGroups(t *testing.T) {
 		testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 
 		// ACT
-		result, err := presence.QueryLiveGroups(ctx, studentpresence.LiveGroupFilter{})
+		result, err := testpkg.TenantQuery1(t, ctx, db, presence.QueryLiveGroups, studentpresence.LiveGroupFilter{})
 
 		// ASSERT
 		require.NoError(t, err)
@@ -348,7 +348,7 @@ func TestPresence_QueryLiveGroups(t *testing.T) {
 		cancel() // Cancel immediately
 
 		// ACT
-		result, err := presence.QueryLiveGroups(canceledCtx, studentpresence.LiveGroupFilter{})
+		result, err := testpkg.TenantQuery1(t, canceledCtx, db, presence.QueryLiveGroups, studentpresence.LiveGroupFilter{})
 
 		// ASSERT
 		require.Error(t, err)
@@ -365,7 +365,7 @@ func TestPresence_QueryLiveGroups(t *testing.T) {
 		options := studentpresence.LiveGroupFilter{Limit: 10}
 
 		// ACT
-		result, err := presence.QueryLiveGroups(ctx, options)
+		result, err := testpkg.TenantQuery1(t, ctx, db, presence.QueryLiveGroups, options)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -393,7 +393,7 @@ func TestPresence_QueryOpenRoomSessions(t *testing.T) {
 		testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 
 		// ACT
-		result, err := presence.QueryLiveGroups(ctx, studentpresence.LiveGroupFilter{RoomID: &room.ID, OpenOnly: true})
+		result, err := testpkg.TenantQuery1(t, ctx, db, presence.QueryLiveGroups, studentpresence.LiveGroupFilter{RoomID: &room.ID, OpenOnly: true})
 
 		// ASSERT
 		require.NoError(t, err)
@@ -412,7 +412,7 @@ func TestPresence_QueryOpenRoomSessions(t *testing.T) {
 	t.Run("returns empty list for non-existent room", func(t *testing.T) {
 		// ACT
 		roomID := int64(99999999)
-		result, err := presence.QueryLiveGroups(ctx, studentpresence.LiveGroupFilter{RoomID: &roomID, OpenOnly: true})
+		result, err := testpkg.TenantQuery1(t, ctx, db, presence.QueryLiveGroups, studentpresence.LiveGroupFilter{RoomID: &roomID, OpenOnly: true})
 
 		// ASSERT
 		require.NoError(t, err)
@@ -426,7 +426,7 @@ func TestPresence_QueryOpenRoomSessions(t *testing.T) {
 
 		// ACT
 		roomID := testpkg.CreateTestRoom(t, db, "Cancelled Query Room").ID
-		result, err := presence.QueryLiveGroups(canceledCtx, studentpresence.LiveGroupFilter{RoomID: &roomID, OpenOnly: true})
+		result, err := testpkg.TenantQuery1(t, canceledCtx, db, presence.QueryLiveGroups, studentpresence.LiveGroupFilter{RoomID: &roomID, OpenOnly: true})
 
 		// ASSERT
 		require.Error(t, err)
@@ -454,7 +454,7 @@ func TestPresence_QueryOpenActivitySessions(t *testing.T) {
 		testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 
 		// ACT
-		result, err := presence.QueryLiveGroups(ctx, studentpresence.LiveGroupFilter{ActivityGroupIDs: []int64{activity.ID}, OpenOnly: true})
+		result, err := testpkg.TenantQuery1(t, ctx, db, presence.QueryLiveGroups, studentpresence.LiveGroupFilter{ActivityGroupIDs: []int64{activity.ID}, OpenOnly: true})
 
 		// ASSERT
 		require.NoError(t, err)
@@ -473,7 +473,7 @@ func TestPresence_QueryOpenActivitySessions(t *testing.T) {
 
 	t.Run("returns empty list for non-existent group", func(t *testing.T) {
 		// ACT
-		result, err := presence.QueryLiveGroups(ctx, studentpresence.LiveGroupFilter{ActivityGroupIDs: []int64{99999999}, OpenOnly: true})
+		result, err := testpkg.TenantQuery1(t, ctx, db, presence.QueryLiveGroups, studentpresence.LiveGroupFilter{ActivityGroupIDs: []int64{99999999}, OpenOnly: true})
 
 		// ASSERT
 		require.NoError(t, err)
@@ -503,9 +503,9 @@ func TestActiveService_FindDeviceActiveGroupInRoom(t *testing.T) {
 			LastActivity:   time.Now(),
 			TimeoutMinutes: 30,
 		}
-		require.NoError(t, service.CreateActiveGroup(ctx, activeGroup))
+		require.NoError(t, testpkg.TenantCommand1(t, ctx, db, service.CreateActiveGroup, activeGroup))
 
-		found, err := service.FindDeviceActiveGroupInRoom(ctx, room.ID, device.ID)
+		found, err := testpkg.TenantQuery2(t, ctx, db, service.FindDeviceActiveGroupInRoom, room.ID, device.ID)
 		require.NoError(t, err)
 		require.NotNil(t, found)
 		assert.Equal(t, activeGroup.ID, found.ID)
@@ -515,7 +515,7 @@ func TestActiveService_FindDeviceActiveGroupInRoom(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, "No Match Device Room")
 		device := testpkg.CreateTestDevice(t, db, "svc-device-room-miss")
 
-		found, err := service.FindDeviceActiveGroupInRoom(ctx, room.ID, device.ID)
+		found, err := testpkg.TenantQuery2(t, ctx, db, service.FindDeviceActiveGroupInRoom, room.ID, device.ID)
 		require.NoError(t, err)
 		assert.Nil(t, found)
 	})
@@ -540,20 +540,20 @@ func TestActiveService_EndActiveGroupSession(t *testing.T) {
 		group := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 
 		// ACT
-		err := service.EndActiveGroupSession(ctx, group.ID)
+		err := testpkg.TenantCommand1(t, ctx, db, service.EndActiveGroupSession, group.ID)
 
 		// ASSERT
 		require.NoError(t, err)
 
 		// Verify session ended (end_time set)
-		ended, err := service.GetActiveGroup(ctx, group.ID)
+		ended, err := testpkg.TenantQuery1(t, ctx, db, service.GetActiveGroup, group.ID)
 		require.NoError(t, err)
 		assert.NotNil(t, ended.EndTime)
 	})
 
 	t.Run("returns error for non-existent group", func(t *testing.T) {
 		// ACT
-		err := service.EndActiveGroupSession(ctx, 99999999)
+		err := testpkg.TenantCommand1(t, ctx, db, service.EndActiveGroupSession, 99999999)
 
 		// ASSERT
 		require.Error(t, err)
@@ -581,7 +581,7 @@ func TestPresence_ListSessionVisits(t *testing.T) {
 		visit := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now().UTC().Truncate(time.Microsecond), nil)
 
 		// ACT
-		result, err := presence.ListVisits(ctx, studentpresence.VisitFilter{ActiveGroupIDs: []int64{activeGroup.ID}})
+		result, err := testpkg.TenantQuery1(t, ctx, db, presence.ListVisits, studentpresence.VisitFilter{ActiveGroupIDs: []int64{activeGroup.ID}})
 
 		// ASSERT
 		require.NoError(t, err)
@@ -616,8 +616,8 @@ func TestPresence_QuerySessionSupervisions(t *testing.T) {
 		_ = testpkg.CreateTestGroupSupervisor(t, db, staff.ID, activeGroup.ID, "supervisor")
 
 		// ACT
-		day := timezone.TodayDate().String()
-		result, err := presence.QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{GroupIDs: []int64{activeGroup.ID}, ActiveOn: &day})
+		day := calendar.TodayDate().String()
+		result, err := testpkg.TenantQuery1(t, ctx, db, presence.QueryGroupSupervisions, studentpresence.GroupSupervisionFilter{GroupIDs: []int64{activeGroup.ID}, ActiveOn: &day})
 
 		// ASSERT
 		require.NoError(t, err)
@@ -629,7 +629,7 @@ func TestPresence_QuerySessionSupervisions(t *testing.T) {
 
 	t.Run("returns no supervisions for missing group", func(t *testing.T) {
 		// ACT
-		result, err := presence.QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{GroupIDs: []int64{99999999}})
+		result, err := testpkg.TenantQuery1(t, ctx, db, presence.QueryGroupSupervisions, studentpresence.GroupSupervisionFilter{GroupIDs: []int64{99999999}})
 
 		// ASSERT
 		require.NoError(t, err)
@@ -651,20 +651,20 @@ func TestActiveService_GetDashboardAnalytics(t *testing.T) {
 
 	t.Run("returns dashboard analytics", func(t *testing.T) {
 		// ACT
-		result, err := service.GetDashboardAnalytics(ctx)
+		result, err := testpkg.TenantQuery0(t, ctx, db, service.GetDashboardAnalytics)
 
 		// ASSERT
 		require.NoError(t, err)
 		assert.NotNil(t, result)
-		// Verify structure has required fields
-		assert.GreaterOrEqual(t, result.StudentsPresent, 0)
-		assert.GreaterOrEqual(t, result.ActiveActivities, 0)
+		// The test's own tenant has no attendance and no sessions yet.
+		assert.Equal(t, 0, result.StudentsPresent)
+		assert.Equal(t, 0, result.ActiveActivities)
 		assert.NotZero(t, result.LastUpdated)
 	})
 
 	t.Run("counts excused students", func(t *testing.T) {
 		// ARRANGE
-		before, err := service.GetDashboardAnalytics(ctx)
+		before, err := testpkg.TenantQuery0(t, ctx, db, service.GetDashboardAnalytics)
 		require.NoError(t, err)
 
 		student := testpkg.CreateTestStudent(t, db, "Excused", "Dashboard", "ED1")
@@ -678,108 +678,11 @@ func TestActiveService_GetDashboardAnalytics(t *testing.T) {
 		require.NoError(t, err)
 
 		// ACT
-		after, err := service.GetDashboardAnalytics(ctx)
+		after, err := testpkg.TenantQuery0(t, ctx, db, service.GetDashboardAnalytics)
 
 		// ASSERT
 		require.NoError(t, err)
 		assert.Equal(t, before.StudentsExcused+1, after.StudentsExcused)
-	})
-}
-
-// =============================================================================
-// Unclaimed Groups Tests
-// =============================================================================
-
-func TestActiveService_GetUnclaimedActiveGroups(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := createActiveService(t, db)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("returns unclaimed groups", func(t *testing.T) {
-		// ARRANGE - create group without supervisors (unclaimed)
-		activity := testpkg.CreateTestActivityGroup(t, db, "unclaimed")
-		room := testpkg.CreateTestRoom(t, db, "Unclaimed Room")
-		testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-
-		// ACT
-		_, err := service.GetUnclaimedActiveGroups(ctx)
-
-		// ASSERT
-		require.NoError(t, err)
-		// Result may be nil or empty slice if no unclaimed groups exist
-		// Just verify no error - the repository correctly handles this case
-	})
-}
-
-func TestActiveService_ClaimActiveGroup(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := createActiveService(t, db)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("claims group successfully", func(t *testing.T) {
-		// ARRANGE
-		activity := testpkg.CreateTestActivityGroup(t, db, "claim-group")
-		room := testpkg.CreateTestRoom(t, db, "Claim Room")
-		group := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-		staff := testpkg.CreateTestStaff(t, db, "Claim", "Staff")
-
-		// ACT
-		supervisor, err := service.ClaimActiveGroup(ctx, group.ID, staff.ID, "supervisor")
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.NotNil(t, supervisor)
-		assert.Equal(t, staff.ID, supervisor.StaffID)
-		assert.Equal(t, group.ID, supervisor.GroupID)
-	})
-
-	t.Run("returns error for non-existent group", func(t *testing.T) {
-		// ARRANGE
-		staff := testpkg.CreateTestStaff(t, db, "Claim", "NoGroup")
-
-		// ACT
-		result, err := service.ClaimActiveGroup(ctx, 99999999, staff.ID, "supervisor")
-
-		// ASSERT
-		require.Error(t, err)
-		assert.Nil(t, result)
-	})
-}
-
-// =============================================================================
-// CleanupAbandonedSessions Tests
-// =============================================================================
-
-func TestActiveService_CleanupAbandonedSessions(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := createActiveService(t, db)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("cleans up old sessions", func(t *testing.T) {
-		// ACT - cleanup sessions older than 24 hours
-		count, err := service.CleanupAbandonedSessions(ctx, 24*time.Hour)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.GreaterOrEqual(t, count, 0)
-	})
-
-	t.Run("handles no abandoned sessions", func(t *testing.T) {
-		// ACT - use very short threshold (nothing should match)
-		count, err := service.CleanupAbandonedSessions(ctx, 1*time.Nanosecond)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.GreaterOrEqual(t, count, 0)
 	})
 }
 
@@ -811,7 +714,7 @@ func TestActiveService_StartActivitySessionWithSupervisors(t *testing.T) {
 		roomID := room.ID
 
 		// ACT
-		result, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, device.ID, []int64{staff1.ID, staff2.ID}, &roomID)
+		result, err := testpkg.TenantQuery4(t, ctx, db, service.StartActivitySessionWithSupervisors, activity.ID, device.ID, []int64{staff1.ID, staff2.ID}, &roomID)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -825,7 +728,7 @@ func TestActiveService_StartActivitySessionWithSupervisors(t *testing.T) {
 		device := testpkg.CreateTestDevice(t, db, uniqueName("empty-device"))
 
 		// ACT
-		result, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, device.ID, []int64{}, nil)
+		result, err := testpkg.TenantQuery4(t, ctx, db, service.StartActivitySessionWithSupervisors, activity.ID, device.ID, []int64{}, nil)
 
 		// ASSERT - at least one supervisor required
 		require.Error(t, err)
@@ -838,170 +741,11 @@ func TestActiveService_StartActivitySessionWithSupervisors(t *testing.T) {
 		device := testpkg.CreateTestDevice(t, db, uniqueName("bad-device"))
 
 		// ACT
-		result, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, device.ID, []int64{99999999}, nil)
+		result, err := testpkg.TenantQuery4(t, ctx, db, service.StartActivitySessionWithSupervisors, activity.ID, device.ID, []int64{99999999}, nil)
 
 		// ASSERT
 		require.Error(t, err)
 		assert.Nil(t, result)
-	})
-}
-
-// =============================================================================
-// Session Timeout Tests
-// =============================================================================
-
-func TestActiveService_ProcessSessionTimeout(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := createActiveService(t, db)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("returns error when device has no active session", func(t *testing.T) {
-		// ARRANGE
-		device := testpkg.CreateTestDevice(t, db, uniqueName("timeout-no-session"))
-
-		// ACT
-		result, err := service.ProcessSessionTimeout(ctx, device.ID)
-
-		// ASSERT
-		require.Error(t, err)
-		assert.Nil(t, result)
-	})
-
-	t.Run("processes timeout for active session", func(t *testing.T) {
-		// ARRANGE
-		activity := testpkg.CreateTestActivityGroup(t, db, uniqueName("timeout-activity"))
-		room := testpkg.CreateTestRoom(t, db, uniqueName("Timeout Room"))
-		device := testpkg.CreateTestDevice(t, db, uniqueName("timeout-device"))
-		staff := testpkg.CreateTestStaff(t, db, "Timeout", "Supervisor")
-
-		roomID := room.ID
-
-		// Start a session
-		session, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, device.ID, []int64{staff.ID}, &roomID)
-		require.NoError(t, err)
-		require.NotNil(t, session)
-
-		// ACT
-		result, err := service.ProcessSessionTimeout(ctx, device.ID)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.NotNil(t, result)
-	})
-}
-
-// =============================================================================
-// Session Timeout Validation Tests
-// =============================================================================
-
-func TestActiveService_ValidateSessionTimeout(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := createActiveService(t, db)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("returns error when device has no active session", func(t *testing.T) {
-		// ARRANGE
-		iotDevice := testpkg.CreateTestDevice(t, db, uniqueName("validate-no-session"))
-
-		// ACT
-		err := service.ValidateSessionTimeout(ctx, iotDevice.ID, 30)
-
-		// ASSERT
-		require.Error(t, err)
-	})
-
-	t.Run("returns error when session has not timed out yet", func(t *testing.T) {
-		// ARRANGE
-		activity := testpkg.CreateTestActivityGroup(t, db, uniqueName("validate-timeout"))
-		room := testpkg.CreateTestRoom(t, db, uniqueName("Validate Room"))
-		iotDevice := testpkg.CreateTestDevice(t, db, uniqueName("validate-device"))
-		staff := testpkg.CreateTestStaff(t, db, "Validate", "Supervisor")
-
-		roomID := room.ID
-
-		// Start a session (fresh session - not timed out)
-		session, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, iotDevice.ID, []int64{staff.ID}, &roomID)
-		require.NoError(t, err)
-		require.NotNil(t, session)
-
-		// ACT - validate with a 30 minute timeout (fresh session won't be timed out)
-		err = service.ValidateSessionTimeout(ctx, iotDevice.ID, 30)
-
-		// ASSERT - should error because session is active (not timed out)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "not yet timed out")
-	})
-}
-
-func TestActiveService_GetSessionTimeoutInfo(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := createActiveService(t, db)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("returns error when device has no active session", func(t *testing.T) {
-		// ARRANGE
-		iotDevice := testpkg.CreateTestDevice(t, db, uniqueName("info-no-session"))
-
-		// ACT
-		info, err := service.GetSessionTimeoutInfo(ctx, iotDevice.ID)
-
-		// ASSERT
-		require.Error(t, err)
-		assert.Nil(t, info)
-	})
-
-	t.Run("returns timeout info for active session", func(t *testing.T) {
-		// ARRANGE
-		activity := testpkg.CreateTestActivityGroup(t, db, uniqueName("info-timeout"))
-		room := testpkg.CreateTestRoom(t, db, uniqueName("Info Room"))
-		iotDevice := testpkg.CreateTestDevice(t, db, uniqueName("info-device"))
-		staff := testpkg.CreateTestStaff(t, db, "Info", "Supervisor")
-
-		roomID := room.ID
-
-		// Start a session
-		session, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, iotDevice.ID, []int64{staff.ID}, &roomID)
-		require.NoError(t, err)
-		require.NotNil(t, session)
-
-		// ACT
-		info, err := service.GetSessionTimeoutInfo(ctx, iotDevice.ID)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.NotNil(t, info)
-		assert.Equal(t, session.ID, info.SessionID)
-	})
-}
-
-// =============================================================================
-// Daily Session Cleanup Tests
-// =============================================================================
-
-func TestActiveService_EndDailySessions(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := createActiveService(t, db)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("ends daily sessions successfully", func(t *testing.T) {
-		// ACT
-		result, err := service.EndDailySessions(ctx)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.NotNil(t, result)
 	})
 }
 
@@ -1027,7 +771,7 @@ func TestActiveService_ForceStartActivitySession(t *testing.T) {
 		roomID := room.ID
 
 		// ACT
-		result, err := service.ForceStartActivitySessionWithSupervisors(ctx, activity.ID, iotDevice.ID, []int64{staff.ID}, &roomID)
+		result, err := testpkg.TenantQuery4(t, ctx, db, service.ForceStartActivitySessionWithSupervisors, activity.ID, iotDevice.ID, []int64{staff.ID}, &roomID)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -1046,12 +790,12 @@ func TestActiveService_ForceStartActivitySession(t *testing.T) {
 		roomID := room.ID
 
 		// Start first session
-		session1, err := service.StartActivitySessionWithSupervisors(ctx, activity1.ID, iotDevice.ID, []int64{staff.ID}, &roomID)
+		session1, err := testpkg.TenantQuery4(t, ctx, db, service.StartActivitySessionWithSupervisors, activity1.ID, iotDevice.ID, []int64{staff.ID}, &roomID)
 		require.NoError(t, err)
 		require.NotNil(t, session1)
 
 		// ACT - Force start a new session (should end the first one)
-		result, err := service.ForceStartActivitySessionWithSupervisors(ctx, activity2.ID, iotDevice.ID, []int64{staff.ID}, &roomID)
+		result, err := testpkg.TenantQuery4(t, ctx, db, service.ForceStartActivitySessionWithSupervisors, activity2.ID, iotDevice.ID, []int64{staff.ID}, &roomID)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -1084,20 +828,20 @@ func TestActiveService_EndActivitySession_WithActiveVisits(t *testing.T) {
 		roomID := room.ID
 
 		// Start session with supervisors
-		session, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, iotDevice.ID, []int64{staff.ID}, &roomID)
+		session, err := testpkg.TenantQuery4(t, ctx, db, service.StartActivitySessionWithSupervisors, activity.ID, iotDevice.ID, []int64{staff.ID}, &roomID)
 		require.NoError(t, err)
 		require.NotNil(t, session)
 
 		// Create visits for students using context with device/staff
-		staffCtx := services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
-		deviceCtx := services.WithAttendanceDevice(staffCtx, iotDevice.ID, iotDevice.TenantID)
+		staffCtx := api.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
+		deviceCtx := api.WithAttendanceDevice(staffCtx, iotDevice.ID, iotDevice.TenantID)
 
 		visit1 := &studentpresence.Visit{
 			StudentID:     student1.ID,
 			ActiveGroupID: session.ID,
 			EntryTime:     time.Now(),
 		}
-		err = service.CreateVisit(deviceCtx, visit1)
+		err = testpkg.TenantCommand1(t, deviceCtx, db, service.CreateVisit, visit1)
 		require.NoError(t, err)
 
 		visit2 := &studentpresence.Visit{
@@ -1105,7 +849,7 @@ func TestActiveService_EndActivitySession_WithActiveVisits(t *testing.T) {
 			ActiveGroupID: session.ID,
 			EntryTime:     time.Now(),
 		}
-		err = service.CreateVisit(deviceCtx, visit2)
+		err = testpkg.TenantCommand1(t, deviceCtx, db, service.CreateVisit, visit2)
 		require.NoError(t, err)
 
 		// Verify visits are active (no exit time)
@@ -1120,13 +864,13 @@ func TestActiveService_EndActivitySession_WithActiveVisits(t *testing.T) {
 		assert.Equal(t, 2, activeCount, "Should have 2 active visits before ending")
 
 		// ACT - End the activity session
-		err = service.EndActivitySession(ctx, session.ID)
+		err = testpkg.TenantCommand1(t, ctx, db, service.EndActivitySession, session.ID)
 
 		// ASSERT
 		require.NoError(t, err)
 
 		// Verify session ended
-		endedSession, err := service.GetActiveGroup(ctx, session.ID)
+		endedSession, err := testpkg.TenantQuery1(t, ctx, db, service.GetActiveGroup, session.ID)
 		require.NoError(t, err)
 		assert.NotNil(t, endedSession.EndTime, "Session should have end time set")
 
@@ -1148,17 +892,17 @@ func TestActiveService_EndActivitySession_WithActiveVisits(t *testing.T) {
 		roomID := room.ID
 
 		// Start session
-		session, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, iotDevice.ID, []int64{staff.ID}, &roomID)
+		session, err := testpkg.TenantQuery4(t, ctx, db, service.StartActivitySessionWithSupervisors, activity.ID, iotDevice.ID, []int64{staff.ID}, &roomID)
 		require.NoError(t, err)
 
 		// ACT - End session without any visits
-		err = service.EndActivitySession(ctx, session.ID)
+		err = testpkg.TenantCommand1(t, ctx, db, service.EndActivitySession, session.ID)
 
 		// ASSERT
 		require.NoError(t, err)
 
 		// Verify session ended
-		endedSession, err := service.GetActiveGroup(ctx, session.ID)
+		endedSession, err := testpkg.TenantQuery1(t, ctx, db, service.GetActiveGroup, session.ID)
 		require.NoError(t, err)
 		assert.NotNil(t, endedSession.EndTime)
 	})
@@ -1173,14 +917,14 @@ func TestActiveService_EndActivitySession_WithActiveVisits(t *testing.T) {
 		roomID := room.ID
 
 		// Start and end session
-		session, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, iotDevice.ID, []int64{staff.ID}, &roomID)
+		session, err := testpkg.TenantQuery4(t, ctx, db, service.StartActivitySessionWithSupervisors, activity.ID, iotDevice.ID, []int64{staff.ID}, &roomID)
 		require.NoError(t, err)
 
-		err = service.EndActivitySession(ctx, session.ID)
+		err = testpkg.TenantCommand1(t, ctx, db, service.EndActivitySession, session.ID)
 		require.NoError(t, err)
 
 		// ACT - Try to end again
-		err = service.EndActivitySession(ctx, session.ID)
+		err = testpkg.TenantCommand1(t, ctx, db, service.EndActivitySession, session.ID)
 
 		// ASSERT
 		require.Error(t, err)
@@ -1199,11 +943,11 @@ func TestActiveService_EndActivitySession_WithActiveVisits(t *testing.T) {
 		roomID := room.ID
 
 		// Start session with multiple supervisors
-		session, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, iotDevice.ID, []int64{staff1.ID, staff2.ID}, &roomID)
+		session, err := testpkg.TenantQuery4(t, ctx, db, service.StartActivitySessionWithSupervisors, activity.ID, iotDevice.ID, []int64{staff1.ID, staff2.ID}, &roomID)
 		require.NoError(t, err)
 
 		// Verify supervisors are active
-		supervisors, err := testSchoolPresence(t, db).QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{GroupIDs: []int64{session.ID}, ActiveOn: new(timezone.TodayDate().String())})
+		supervisors, err := testSchoolPresence(t, db).QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{GroupIDs: []int64{session.ID}, ActiveOn: new(calendar.TodayDate().String())})
 		require.NoError(t, err)
 		activeCount := 0
 		for _, sup := range supervisors {
@@ -1214,13 +958,13 @@ func TestActiveService_EndActivitySession_WithActiveVisits(t *testing.T) {
 		assert.Equal(t, 2, activeCount, "Should have 2 active supervisors")
 
 		// ACT
-		err = service.EndActivitySession(ctx, session.ID)
+		err = testpkg.TenantCommand1(t, ctx, db, service.EndActivitySession, session.ID)
 
 		// ASSERT
 		require.NoError(t, err)
 
 		// Verify all supervisors have ended
-		endedSupervisors, err := testSchoolPresence(t, db).QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{GroupIDs: []int64{session.ID}, ActiveOn: new(timezone.TodayDate().String())})
+		endedSupervisors, err := testSchoolPresence(t, db).QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{GroupIDs: []int64{session.ID}, ActiveOn: new(calendar.TodayDate().String())})
 		require.NoError(t, err)
 		for _, sup := range endedSupervisors {
 			assert.NotNil(t, sup.EndDate, "Supervisor should have end time after session ends")
@@ -1255,25 +999,25 @@ func TestActiveService_EndDailySessions_WithActiveData(t *testing.T) {
 		roomID2 := room2.ID
 
 		// Start two sessions in different rooms
-		session1, err := service.StartActivitySessionWithSupervisors(ctx, activity1.ID, device1.ID, []int64{staff.ID}, &roomID1)
+		session1, err := testpkg.TenantQuery4(t, ctx, db, service.StartActivitySessionWithSupervisors, activity1.ID, device1.ID, []int64{staff.ID}, &roomID1)
 		require.NoError(t, err)
 
-		session2, err := service.StartActivitySessionWithSupervisors(ctx, activity2.ID, device2.ID, []int64{staff.ID}, &roomID2)
+		session2, err := testpkg.TenantQuery4(t, ctx, db, service.StartActivitySessionWithSupervisors, activity2.ID, device2.ID, []int64{staff.ID}, &roomID2)
 		require.NoError(t, err)
 
 		// Add a visit to session1
-		staffCtx := services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
-		deviceCtx := services.WithAttendanceDevice(staffCtx, device1.ID, device1.TenantID)
+		staffCtx := api.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
+		deviceCtx := api.WithAttendanceDevice(staffCtx, device1.ID, device1.TenantID)
 		visit := &studentpresence.Visit{
 			StudentID:     student.ID,
 			ActiveGroupID: session1.ID,
 			EntryTime:     time.Now(),
 		}
-		err = service.CreateVisit(deviceCtx, visit)
+		err = testpkg.TenantCommand1(t, deviceCtx, db, service.CreateVisit, visit)
 		require.NoError(t, err)
 
 		// ACT
-		result, err := service.EndDailySessions(ctx)
+		result, err := testpkg.TenantQuery0(t, ctx, db, service.EndDailySessions)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -1282,8 +1026,8 @@ func TestActiveService_EndDailySessions_WithActiveData(t *testing.T) {
 		assert.GreaterOrEqual(t, result.SessionsEnded, 2)
 
 		// Verify sessions are ended
-		ended1, _ := service.GetActiveGroup(ctx, session1.ID)
-		ended2, _ := service.GetActiveGroup(ctx, session2.ID)
+		ended1, _ := testpkg.TenantQuery1(t, ctx, db, service.GetActiveGroup, session1.ID)
+		ended2, _ := testpkg.TenantQuery1(t, ctx, db, service.GetActiveGroup, session2.ID)
 		assert.NotNil(t, ended1.EndTime)
 		assert.NotNil(t, ended2.EndTime)
 	})
@@ -1306,7 +1050,7 @@ func TestFindUnclaimedKeepsOnlySchulhofGroups(t *testing.T) {
 	testpkg.CreateTestActiveGroup(t, db, activity.ID, other.ID)
 
 	err = testpkg.WithinTenantContext(t, context.Background(), db, tenantID, func(ctx context.Context) error {
-		groups, err := service.GetUnclaimedActiveGroups(ctx)
+		groups, err := testpkg.TenantQuery0(t, ctx, db, service.GetUnclaimedActiveGroups)
 		require.NoError(t, err)
 		require.Len(t, groups, 1)
 		assert.Equal(t, yard.ID, groups[0].ID)

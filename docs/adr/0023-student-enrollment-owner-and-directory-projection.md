@@ -4,6 +4,18 @@ status: accepted
 
 # Student enrollment is School Membership's, the directory read is a projection
 
+> Amended on 2026-10-15: the reversibility criterion in "The care exit is a
+> port, not a workflow" is withdrawn. A write across owners belongs in a
+> workflow whether or not it can be undone (#2580; ADR 0017 itself applies
+> and reverts a grade transition). The later
+> [ADR 0067 #4538 addendum](0067-principle-owners-meet-through-contracts-and-write-together-in-workflows.md#addendum-2026-10-23-command-participation-and-coordination-4538)
+> distinguishes participating commands from coordinators: care resumption now
+> runs in `workflows/careexit`; confirm/cancel/due/withdrawal coordination stays
+> as its named E2 exception. #4076 closed after retiring import debt in PR
+> #4338, not after moving this lifecycle. #4531/PR #4619 subsequently cut the
+> source-booking lock/end round trip only. The historical section below is
+> superseded on these points, including its reversibility criterion.
+
 [#3386](https://github.com/moto-nrw/project-phoenix/issues/3386) asks where the
 student enrollment queries and commands live after
 [#2759](https://github.com/moto-nrw/project-phoenix/issues/2759) split

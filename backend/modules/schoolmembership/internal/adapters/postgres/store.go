@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/adapters/postgres/calendar"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/domain"
 	"github.com/uptrace/bun"
@@ -18,16 +19,15 @@ import (
 // that created them. Migration 1.15.409 gave the membership's live-person index
 // the name users.staff carried.
 const (
-	staffPersonIndex       = "idx_staff_tenant_person"
-	teacherStaffIndex      = "idx_teachers_tenant_staff"
-	teacherStaffConstraint = "teachers_staff_id_key"
-	guestStaffIndex        = "idx_guests_tenant_staff"
-	guestStaffConstraint   = "guests_staff_id_key"
+	staffPersonIndex                  = "idx_staff_tenant_person"
+	teacherStaffIndex                 = "idx_teachers_tenant_staff"
+	teacherStaffConstraint            = "teachers_staff_id_key"
+	externalCaregiverRecordStaffIndex = "idx_external_caregivers_tenant_staff"
 )
 
 // Database resolves the connection and the tenant of the current request.
-// A zero tenant means an admin (cross-tenant) transaction.
-type Database func(context.Context) (bun.IDB, int64, error)
+// Cross-school administrative access is an explicit scope, never tenant 0.
+type Database func(context.Context) (bun.IDB, TenantScope, error)
 
 type Store struct{ database Database }
 
@@ -49,10 +49,15 @@ type staffRow struct {
 	TenantID      int64      `bun:"tenant_id,notnull"`
 	PersonID      int64      `bun:"person_id,notnull"`
 	DeletedAt     *time.Time `bun:"deleted_at"`
-	// IsGuest and GuestOrganization come from the staff member's guest
-	// profile (users.guests, #3823); reads fill them, writes never send them.
-	IsGuest           bool   `bun:"is_guest,scanonly"`
-	GuestOrganization string `bun:"guest_organization,scanonly"`
+	// PersonalDataErasedAt marks a tombstone the automatic deletion of
+	// staff erased (#3963). The "staff".* reads return it, so the row maps
+	// it; scanonly keeps inserts and updates from overwriting the marker.
+	PersonalDataErasedAt *time.Time `bun:"personal_data_erased_at,scanonly"`
+	// HasExternalCaregiverRecord and ExternalOrganization come from the staff
+	// member's external caregiver record (users.external_caregivers, #3823);
+	// reads fill them, writes never send them.
+	HasExternalCaregiverRecord bool   `bun:"has_external_caregiver_record,scanonly"`
+	ExternalOrganization       string `bun:"external_organization,scanonly"`
 }
 
 type teacherRow struct {
@@ -68,8 +73,8 @@ type teacherRow struct {
 	DeletedAt      *time.Time `bun:"deleted_at"`
 }
 
-type guestRow struct {
-	bun.BaseModel     `bun:"table:guests,alias:guest"`
+type externalCaregiverRecordRow struct {
+	bun.BaseModel     `bun:"table:external_caregivers,alias:external_caregiver"`
 	ID                int64          `bun:"id,pk,autoincrement"`
 	CreatedAt         time.Time      `bun:"created_at,nullzero,notnull,default:current_timestamp"`
 	UpdatedAt         time.Time      `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
@@ -86,13 +91,13 @@ type guestRow struct {
 
 // --- staff ---
 
-func (s *Store) FindStaff(ctx context.Context, id int64, lock string, includeDeleted bool) (domain.Staff, bool, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+func (s *Store) FindStaff(ctx context.Context, id int64, lock string, includeDeleted bool) (schoolmembership.Staff, bool, domain.OperationStats, error) {
+	db, scope, err := s.database(ctx)
 	if err != nil {
-		return domain.Staff{}, false, domain.OperationStats{}, err
+		return schoolmembership.Staff{}, false, domain.OperationStats{}, err
 	}
 	row := &staffRow{}
-	query := withTenant(staffSelect(db, row).Where(`"staff".id = ?`, id), "staff", tenantID)
+	query := withTenant(staffSelect(db, row, false).Where(`"staff".id = ?`, id), "staff", scope)
 	if !includeDeleted {
 		query = query.Where(`"staff".deleted_at IS NULL`)
 	}
@@ -101,54 +106,54 @@ func (s *Store) FindStaff(ctx context.Context, id int64, lock string, includeDel
 	}
 	found, stats, err := scanOne(ctx, query, "find staff")
 	if err != nil || !found {
-		return domain.Staff{}, found, stats, err
+		return schoolmembership.Staff{}, found, stats, err
 	}
-	return staffToDomain(*row), true, stats, nil
+	return staffToPublic(*row), true, stats, nil
 }
 
-func (s *Store) FindStaffByPerson(ctx context.Context, personID int64) (domain.Staff, bool, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+func (s *Store) FindStaffByPerson(ctx context.Context, personID int64) (schoolmembership.Staff, bool, domain.OperationStats, error) {
+	db, scope, err := s.database(ctx)
 	if err != nil {
-		return domain.Staff{}, false, domain.OperationStats{}, err
+		return schoolmembership.Staff{}, false, domain.OperationStats{}, err
 	}
 	row := &staffRow{}
-	query := withTenant(staffSelect(db, row).
+	query := withTenant(staffSelect(db, row, false).
 		Where(`"staff".person_id = ?`, personID).
 		Where(`"staff".deleted_at IS NULL`).
 		OrderExpr(`"staff".id ASC`).
-		Limit(1), "staff", tenantID)
+		Limit(1), "staff", scope)
 	found, stats, err := scanOne(ctx, query, "find staff by person")
 	if err != nil || !found {
-		return domain.Staff{}, found, stats, err
+		return schoolmembership.Staff{}, found, stats, err
 	}
-	return staffToDomain(*row), true, stats, nil
+	return staffToPublic(*row), true, stats, nil
 }
 
-func (s *Store) ListStaff(ctx context.Context, filter domain.StaffFilter) ([]domain.Staff, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+func (s *Store) ListStaff(ctx context.Context, filter schoolmembership.StaffFilter) ([]schoolmembership.Staff, domain.OperationStats, error) {
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
 	rows := []staffRow{}
-	query := withTenant(staffSelect(db, &rows), "staff", tenantID)
+	query := withTenant(staffSelect(db, &rows, filter.IncludeInactiveExternalCaregiverRecords), "staff", scope)
 	if !filter.IncludeDeleted {
 		query = query.Where(`"staff".deleted_at IS NULL`)
 	}
 	if filter.IDs != nil {
 		if len(filter.IDs) == 0 {
-			return []domain.Staff{}, domain.OperationStats{}, nil
+			return []schoolmembership.Staff{}, domain.OperationStats{}, nil
 		}
 		query = query.Where(`"staff".id IN (?)`, bun.List(filter.IDs))
 	}
 	if filter.PersonIDs != nil {
 		if len(filter.PersonIDs) == 0 {
-			return []domain.Staff{}, domain.OperationStats{}, nil
+			return []schoolmembership.Staff{}, domain.OperationStats{}, nil
 		}
 		query = query.Where(`"staff".person_id IN (?)`, bun.List(filter.PersonIDs))
 	}
 	if filter.TenantIDs != nil {
 		if len(filter.TenantIDs) == 0 {
-			return []domain.Staff{}, domain.OperationStats{}, nil
+			return []schoolmembership.Staff{}, domain.OperationStats{}, nil
 		}
 		query = query.Where(`"staff".tenant_id IN (?)`, bun.List(filter.TenantIDs))
 	}
@@ -156,38 +161,45 @@ func (s *Store) ListStaff(ctx context.Context, filter domain.StaffFilter) ([]dom
 	if err != nil {
 		return nil, stats, err
 	}
-	result := make([]domain.Staff, 0, len(rows))
+	result := make([]schoolmembership.Staff, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, staffToDomain(row))
+		result = append(result, staffToPublic(row))
 	}
 	stats.Rows = int64(len(result))
 	return result, stats, nil
 }
 
-func (s *Store) CreateStaff(ctx context.Context, personID int64) (domain.Staff, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+func (s *Store) CreateStaff(ctx context.Context, personID int64) (schoolmembership.Staff, domain.OperationStats, error) {
+	db, scope, err := s.database(ctx)
 	if err != nil {
-		return domain.Staff{}, domain.OperationStats{}, err
+		return schoolmembership.Staff{}, domain.OperationStats{}, err
 	}
-	if tenantID <= 0 {
-		return domain.Staff{}, domain.OperationStats{}, errors.New("school membership postgres: tenant is required to create a staff member")
+	if scope.TenantID <= 0 {
+		return schoolmembership.Staff{}, domain.OperationStats{}, errors.New("school membership postgres: tenant is required to create a staff member")
 	}
-	row := staffRow{TenantID: tenantID, PersonID: personID}
+	row := staffRow{TenantID: scope.TenantID, PersonID: personID}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
-	err = db.NewInsert().Model(&row).ModelTableExpr(`users.staff_school_memberships`).Returning("*").Scan(ctx)
+	if _, err = db.NewRaw("SELECT pg_advisory_xact_lock_shared(hashtextextended(?, 0))", staffPersonMergeLockKey(scope.TenantID)).Exec(ctx); err != nil {
+		stats.StatementDuration = time.Since(started)
+		return schoolmembership.Staff{}, stats, fmt.Errorf("school membership postgres: acquire staff person merge lock: %w", err)
+	}
+	stats.Queries++
+	err = db.NewInsert().Model(&row).ModelTableExpr(`users.staff_school_memberships`).
+		Value("person_id", `(SELECT "person".id FROM users.persons AS "person" WHERE "person".tenant_id = ? AND "person".id = ? AND "person".deleted_at IS NULL)`, row.TenantID, row.PersonID).
+		Returning("*").Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
-		return domain.Staff{}, stats, wrapStaffWriteError("create", err)
+		return schoolmembership.Staff{}, stats, wrapStaffWriteError("create", err)
 	}
 	stats.Rows = 1
-	return staffToDomain(row), stats, nil
+	return staffToPublic(row), stats, nil
 }
 
-func (s *Store) UpdateStaff(ctx context.Context, id, personID int64) (domain.Staff, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+func (s *Store) UpdateStaff(ctx context.Context, id, personID int64) (schoolmembership.Staff, domain.OperationStats, error) {
+	db, scope, err := s.database(ctx)
 	if err != nil {
-		return domain.Staff{}, domain.OperationStats{}, err
+		return schoolmembership.Staff{}, domain.OperationStats{}, err
 	}
 	row := staffRow{ID: id, PersonID: personID}
 	query := withTenant(db.NewUpdate().Model(&row).
@@ -195,23 +207,23 @@ func (s *Store) UpdateStaff(ctx context.Context, id, personID int64) (domain.Sta
 		Column("person_id").
 		Set(`updated_at = NOW()`).
 		Where(`"staff".id = ?`, id).
-		Where(`"staff".deleted_at IS NULL`), "staff", tenantID)
+		Where(`"staff".deleted_at IS NULL`), "staff", scope)
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	err = query.Returning("*").Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if errors.Is(err, sql.ErrNoRows) {
-		return domain.Staff{}, stats, domain.ErrStaffNotFound
+		return schoolmembership.Staff{}, stats, schoolmembership.ErrStaffNotFound
 	}
 	if err != nil {
-		return domain.Staff{}, stats, wrapStaffWriteError("update", err)
+		return schoolmembership.Staff{}, stats, wrapStaffWriteError("update", err)
 	}
 	stats.Rows = 1
-	return staffToDomain(row), stats, nil
+	return staffToPublic(row), stats, nil
 }
 
 func (s *Store) SoftDeleteStaff(ctx context.Context, id int64) (domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
@@ -220,109 +232,111 @@ func (s *Store) SoftDeleteStaff(ctx context.Context, id int64) (domain.Operation
 		Set(`deleted_at = NOW()`).
 		Set(`updated_at = NOW()`).
 		Where(`"staff".id = ?`, id).
-		Where(`"staff".deleted_at IS NULL`), "staff", tenantID)
-	return execOne(ctx, query, "soft delete staff", domain.ErrStaffNotFound)
+		Where(`"staff".deleted_at IS NULL`), "staff", scope)
+	return execOne(ctx, query, "soft delete staff", schoolmembership.ErrStaffNotFound)
+}
+
+// ReinstateStaff lifts the soft delete of a retired membership (ADR 0021). A
+// tombstone the automatic deletion of staff already erased stays retired: the
+// condition is re-checked on the locked row, so a concurrent erasure wins.
+func (s *Store) ReinstateStaff(ctx context.Context, id int64) (schoolmembership.Staff, domain.OperationStats, error) {
+	db, scope, err := s.database(ctx)
+	if err != nil {
+		return schoolmembership.Staff{}, domain.OperationStats{}, err
+	}
+	row := staffRow{}
+	query := withTenant(db.NewUpdate().Model(&row).
+		ModelTableExpr(`users.staff_school_memberships AS "staff"`).
+		Set(`deleted_at = NULL`).
+		Set(`updated_at = NOW()`).
+		Where(`"staff".id = ?`, id).
+		Where(`"staff".deleted_at IS NOT NULL`).
+		Where(`"staff".personal_data_erased_at IS NULL`), "staff", scope)
+	stats := domain.OperationStats{Queries: 1}
+	started := time.Now()
+	err = query.Returning("*").Scan(ctx)
+	stats.StatementDuration = time.Since(started)
+	if errors.Is(err, sql.ErrNoRows) {
+		return schoolmembership.Staff{}, stats, schoolmembership.ErrStaffNotFound
+	}
+	if err != nil {
+		return schoolmembership.Staff{}, stats, wrapStaffWriteError("reinstate", err)
+	}
+	stats.Rows = 1
+	return staffToPublic(row), stats, nil
 }
 
 // --- teachers ---
 
-func (s *Store) FindTeacher(ctx context.Context, id int64, lock string) (domain.Teacher, bool, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+func (s *Store) FindTeacher(ctx context.Context, id int64, lock string) (schoolmembership.Teacher, bool, domain.OperationStats, error) {
+	db, scope, err := s.database(ctx)
 	if err != nil {
-		return domain.Teacher{}, false, domain.OperationStats{}, err
+		return schoolmembership.Teacher{}, false, domain.OperationStats{}, err
 	}
 	row := &teacherRow{}
 	query := withTenant(teacherSelect(db, row).
 		Where(`"teacher".id = ?`, id).
-		Where(`"teacher".deleted_at IS NULL`), "teacher", tenantID)
+		Where(`"teacher".deleted_at IS NULL`), "teacher", scope)
 	if lock != "" {
 		query = query.For(lock)
 	}
 	found, stats, err := scanOne(ctx, query, "find teacher")
 	if err != nil || !found {
-		return domain.Teacher{}, found, stats, err
+		return schoolmembership.Teacher{}, found, stats, err
 	}
-	return teacherToDomain(*row), true, stats, nil
+	return teacherToPublic(*row), true, stats, nil
 }
 
-func (s *Store) FindTeacherByStaff(ctx context.Context, staffID int64) (domain.Teacher, bool, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+func (s *Store) FindTeacherByStaff(ctx context.Context, staffID int64) (schoolmembership.Teacher, bool, domain.OperationStats, error) {
+	db, scope, err := s.database(ctx)
 	if err != nil {
-		return domain.Teacher{}, false, domain.OperationStats{}, err
+		return schoolmembership.Teacher{}, false, domain.OperationStats{}, err
 	}
 	row := &teacherRow{}
 	query := withTenant(teacherSelect(db, row).
 		Where(`"teacher".staff_id = ?`, staffID).
 		Where(`"teacher".deleted_at IS NULL`).
 		OrderExpr(`"teacher".id ASC`).
-		Limit(1), "teacher", tenantID)
+		Limit(1), "teacher", scope)
 	found, stats, err := scanOne(ctx, query, "find teacher by staff")
 	if err != nil || !found {
-		return domain.Teacher{}, found, stats, err
+		return schoolmembership.Teacher{}, found, stats, err
 	}
-	return teacherToDomain(*row), true, stats, nil
+	return teacherToPublic(*row), true, stats, nil
 }
 
-func (s *Store) ListTeachers(ctx context.Context, filter domain.TeacherFilter) ([]domain.Teacher, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+func (s *Store) ListTeachers(ctx context.Context, filter schoolmembership.TeacherFilter) ([]schoolmembership.Teacher, domain.OperationStats, error) {
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
 	rows := []teacherRow{}
-	query := withTenant(teacherSelect(db, &rows), "teacher", tenantID)
-	if !filter.IncludeDeleted {
-		query = query.Where(`"teacher".deleted_at IS NULL`)
-	}
-	if filter.IDs != nil {
-		if len(filter.IDs) == 0 {
-			return []domain.Teacher{}, domain.OperationStats{}, nil
-		}
-		query = query.Where(`"teacher".id IN (?)`, bun.List(filter.IDs))
-	}
-	if filter.StaffIDs != nil {
-		if len(filter.StaffIDs) == 0 {
-			return []domain.Teacher{}, domain.OperationStats{}, nil
-		}
-		query = query.Where(`"teacher".staff_id IN (?)`, bun.List(filter.StaffIDs))
-	}
-	if filter.Specialization != "" {
-		query = query.Where(`LOWER("teacher".specialization) = LOWER(?)`, filter.Specialization)
-	}
-	if filter.SpecializationContains != "" {
-		query = query.Where(`"teacher".specialization ILIKE ?`, "%"+escapeLike(filter.SpecializationContains)+"%")
-	}
-	if filter.RoleContains != "" {
-		query = query.Where(`"teacher".role ILIKE ?`, "%"+escapeLike(filter.RoleContains)+"%")
-	}
-	if filter.HasQualifications != nil {
-		if *filter.HasQualifications {
-			query = query.Where(`"teacher".qualifications IS NOT NULL AND "teacher".qualifications <> ''`)
-		} else {
-			query = query.Where(`("teacher".qualifications IS NULL OR "teacher".qualifications = '')`)
-		}
+	query, ok := teacherListQuery(withTenant(teacherSelect(db, &rows), "teacher", scope), filter)
+	if !ok {
+		return []schoolmembership.Teacher{}, domain.OperationStats{}, nil
 	}
 	stats, err := scanAll(ctx, query.OrderExpr(`"teacher".id ASC`), "list teachers")
 	if err != nil {
 		return nil, stats, err
 	}
-	result := make([]domain.Teacher, 0, len(rows))
+	result := make([]schoolmembership.Teacher, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, teacherToDomain(row))
+		result = append(result, teacherToPublic(row))
 	}
 	stats.Rows = int64(len(result))
 	return result, stats, nil
 }
 
-func (s *Store) CreateTeacher(ctx context.Context, fields domain.TeacherFields) (domain.Teacher, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+func (s *Store) CreateTeacher(ctx context.Context, fields schoolmembership.TeacherFields) (schoolmembership.Teacher, domain.OperationStats, error) {
+	db, scope, err := s.database(ctx)
 	if err != nil {
-		return domain.Teacher{}, domain.OperationStats{}, err
+		return schoolmembership.Teacher{}, domain.OperationStats{}, err
 	}
-	if tenantID <= 0 {
-		return domain.Teacher{}, domain.OperationStats{}, errors.New("school membership postgres: tenant is required to create a teacher")
+	if scope.TenantID <= 0 {
+		return schoolmembership.Teacher{}, domain.OperationStats{}, errors.New("school membership postgres: tenant is required to create a teacher")
 	}
 	row := teacherRow{
-		TenantID: tenantID, StaffID: fields.StaffID, Specialization: fields.Specialization,
+		TenantID: scope.TenantID, StaffID: fields.StaffID, Specialization: fields.Specialization,
 		Role: fields.Role, Qualifications: fields.Qualifications,
 	}
 	stats := domain.OperationStats{Queries: 1}
@@ -330,16 +344,16 @@ func (s *Store) CreateTeacher(ctx context.Context, fields domain.TeacherFields) 
 	err = db.NewInsert().Model(&row).ModelTableExpr(`users.teachers`).Returning("*").Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
-		return domain.Teacher{}, stats, wrapTeacherWriteError("create", err)
+		return schoolmembership.Teacher{}, stats, wrapTeacherWriteError("create", err)
 	}
 	stats.Rows = 1
-	return teacherToDomain(row), stats, nil
+	return teacherToPublic(row), stats, nil
 }
 
-func (s *Store) UpdateTeacher(ctx context.Context, id int64, fields domain.TeacherFields) (domain.Teacher, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+func (s *Store) UpdateTeacher(ctx context.Context, id int64, fields schoolmembership.TeacherFields) (schoolmembership.Teacher, domain.OperationStats, error) {
+	db, scope, err := s.database(ctx)
 	if err != nil {
-		return domain.Teacher{}, domain.OperationStats{}, err
+		return schoolmembership.Teacher{}, domain.OperationStats{}, err
 	}
 	row := teacherRow{
 		ID: id, StaffID: fields.StaffID, Specialization: fields.Specialization,
@@ -350,23 +364,23 @@ func (s *Store) UpdateTeacher(ctx context.Context, id int64, fields domain.Teach
 		Column("staff_id", "specialization", "role", "qualifications").
 		Set(`updated_at = NOW()`).
 		Where(`"teacher".id = ?`, id).
-		Where(`"teacher".deleted_at IS NULL`), "teacher", tenantID)
+		Where(`"teacher".deleted_at IS NULL`), "teacher", scope)
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	err = query.Returning("*").Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if errors.Is(err, sql.ErrNoRows) {
-		return domain.Teacher{}, stats, domain.ErrTeacherNotFound
+		return schoolmembership.Teacher{}, stats, schoolmembership.ErrTeacherNotFound
 	}
 	if err != nil {
-		return domain.Teacher{}, stats, wrapTeacherWriteError("update", err)
+		return schoolmembership.Teacher{}, stats, wrapTeacherWriteError("update", err)
 	}
 	stats.Rows = 1
-	return teacherToDomain(row), stats, nil
+	return teacherToPublic(row), stats, nil
 }
 
 func (s *Store) SoftDeleteTeacher(ctx context.Context, id int64) (domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
@@ -375,171 +389,172 @@ func (s *Store) SoftDeleteTeacher(ctx context.Context, id int64) (domain.Operati
 		Set(`deleted_at = NOW()`).
 		Set(`updated_at = NOW()`).
 		Where(`"teacher".id = ?`, id).
-		Where(`"teacher".deleted_at IS NULL`), "teacher", tenantID)
-	return execOne(ctx, query, "soft delete teacher", domain.ErrTeacherNotFound)
+		Where(`"teacher".deleted_at IS NULL`), "teacher", scope)
+	return execOne(ctx, query, "soft delete teacher", schoolmembership.ErrTeacherNotFound)
 }
 
-// --- guests ---
-
-func (s *Store) FindGuest(ctx context.Context, id int64, lock string) (domain.Guest, bool, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+// ReinstateTeacher lifts the soft delete of a retired caregiver profile whose
+// staff membership is live again (ADR 0021).
+func (s *Store) ReinstateTeacher(ctx context.Context, id int64) (schoolmembership.Teacher, domain.OperationStats, error) {
+	db, scope, err := s.database(ctx)
 	if err != nil {
-		return domain.Guest{}, false, domain.OperationStats{}, err
+		return schoolmembership.Teacher{}, domain.OperationStats{}, err
 	}
-	row := &guestRow{}
-	query := withTenant(guestSelect(db, row).Where(`"guest".id = ?`, id), "guest", tenantID)
-	if lock != "" {
-		query = query.For(lock)
-	}
-	found, stats, err := scanOne(ctx, query, "find guest")
-	if err != nil || !found {
-		return domain.Guest{}, found, stats, err
-	}
-	return guestToDomain(*row), true, stats, nil
-}
-
-func (s *Store) FindGuestByStaff(ctx context.Context, staffID int64) (domain.Guest, bool, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
-	if err != nil {
-		return domain.Guest{}, false, domain.OperationStats{}, err
-	}
-	row := &guestRow{}
-	query := withTenant(guestSelect(db, row).
-		Where(`"guest".staff_id = ?`, staffID).
-		OrderExpr(`"guest".id ASC`).
-		Limit(1), "guest", tenantID)
-	found, stats, err := scanOne(ctx, query, "find guest by staff")
-	if err != nil || !found {
-		return domain.Guest{}, found, stats, err
-	}
-	return guestToDomain(*row), true, stats, nil
-}
-
-func (s *Store) ListGuests(ctx context.Context, filter domain.GuestFilter) ([]domain.Guest, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
-	if err != nil {
-		return nil, domain.OperationStats{}, err
-	}
-	rows := []guestRow{}
-	query := withTenant(guestSelect(db, &rows), "guest", tenantID)
-	if filter.IDs != nil {
-		if len(filter.IDs) == 0 {
-			return []domain.Guest{}, domain.OperationStats{}, nil
-		}
-		query = query.Where(`"guest".id IN (?)`, bun.List(filter.IDs))
-	}
-	if filter.StaffIDs != nil {
-		if len(filter.StaffIDs) == 0 {
-			return []domain.Guest{}, domain.OperationStats{}, nil
-		}
-		query = query.Where(`"guest".staff_id IN (?)`, bun.List(filter.StaffIDs))
-	}
-	if filter.ActiveOn != "" {
-		activeOn, err := optionalDate(filter.ActiveOn, "active-on date")
-		if err != nil {
-			return nil, domain.OperationStats{}, err
-		}
-		query = query.Where(`("guest".start_date IS NULL OR "guest".start_date <= ?)`, activeOn).
-			Where(`("guest".end_date IS NULL OR "guest".end_date >= ?)`, activeOn)
-	}
-	if filter.OrganizationContains != "" {
-		query = query.Where(`"guest".organization ILIKE ?`, "%"+escapeLike(filter.OrganizationContains)+"%")
-	}
-	if filter.ExpertiseContains != "" {
-		query = query.Where(`"guest".activity_expertise ILIKE ?`, "%"+escapeLike(filter.ExpertiseContains)+"%")
-	}
-	if filter.HasOrganization != nil {
-		if *filter.HasOrganization {
-			query = query.Where(`"guest".organization IS NOT NULL`)
-		} else {
-			query = query.Where(`"guest".organization IS NULL`)
-		}
-	}
-	stats, err := scanAll(ctx, query.OrderExpr(`"guest".id ASC`), "list guests")
-	if err != nil {
-		return nil, stats, err
-	}
-	result := make([]domain.Guest, 0, len(rows))
-	for _, row := range rows {
-		result = append(result, guestToDomain(row))
-	}
-	stats.Rows = int64(len(result))
-	return result, stats, nil
-}
-
-func (s *Store) CreateGuest(ctx context.Context, fields domain.GuestFields) (domain.Guest, domain.OperationStats, error) {
-	row, err := guestRowFrom(0, fields)
-	if err != nil {
-		return domain.Guest{}, domain.OperationStats{}, err
-	}
-	db, tenantID, err := s.database(ctx)
-	if err != nil {
-		return domain.Guest{}, domain.OperationStats{}, err
-	}
-	if tenantID <= 0 {
-		return domain.Guest{}, domain.OperationStats{}, errors.New("school membership postgres: tenant is required to create a guest")
-	}
-	row.TenantID = tenantID
-	stats := domain.OperationStats{Queries: 1}
-	started := time.Now()
-	err = db.NewInsert().Model(&row).ModelTableExpr(`users.guests`).Returning("*").Scan(ctx)
-	stats.StatementDuration = time.Since(started)
-	if err != nil {
-		return domain.Guest{}, stats, wrapGuestWriteError("create", err)
-	}
-	stats.Rows = 1
-	return guestToDomain(row), stats, nil
-}
-
-func (s *Store) UpdateGuest(ctx context.Context, id int64, fields domain.GuestFields) (domain.Guest, domain.OperationStats, error) {
-	row, err := guestRowFrom(id, fields)
-	if err != nil {
-		return domain.Guest{}, domain.OperationStats{}, err
-	}
-	db, tenantID, err := s.database(ctx)
-	if err != nil {
-		return domain.Guest{}, domain.OperationStats{}, err
-	}
+	row := teacherRow{}
 	query := withTenant(db.NewUpdate().Model(&row).
-		ModelTableExpr(`users.guests AS "guest"`).
-		Column("staff_id", "organization", "contact_email", "contact_phone", "activity_expertise", "start_date", "end_date", "notes").
+		ModelTableExpr(`users.teachers AS "teacher"`).
+		Set(`deleted_at = NULL`).
 		Set(`updated_at = NOW()`).
-		Where(`"guest".id = ?`, id), "guest", tenantID)
+		Where(`"teacher".id = ?`, id).
+		Where(`"teacher".deleted_at IS NOT NULL`), "teacher", scope)
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	err = query.Returning("*").Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if errors.Is(err, sql.ErrNoRows) {
-		return domain.Guest{}, stats, domain.ErrGuestNotFound
+		return schoolmembership.Teacher{}, stats, schoolmembership.ErrTeacherNotFound
 	}
 	if err != nil {
-		return domain.Guest{}, stats, wrapGuestWriteError("update", err)
+		return schoolmembership.Teacher{}, stats, wrapTeacherWriteError("reinstate", err)
 	}
 	stats.Rows = 1
-	return guestToDomain(row), stats, nil
+	return teacherToPublic(row), stats, nil
 }
 
-func (s *Store) DeleteGuest(ctx context.Context, id int64) (domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+// --- external caregiver records ---
+
+func (s *Store) FindExternalCaregiverRecord(ctx context.Context, id int64, lock string) (schoolmembership.ExternalCaregiverRecord, bool, domain.OperationStats, error) {
+	db, scope, err := s.database(ctx)
+	if err != nil {
+		return schoolmembership.ExternalCaregiverRecord{}, false, domain.OperationStats{}, err
+	}
+	row := &externalCaregiverRecordRow{}
+	query := withTenant(externalCaregiverRecordSelect(db, row).Where(`"external_caregiver".id = ?`, id), "external_caregiver", scope)
+	if lock != "" {
+		query = query.For(lock)
+	}
+	found, stats, err := scanOne(ctx, query, "find external caregiver record")
+	if err != nil || !found {
+		return schoolmembership.ExternalCaregiverRecord{}, found, stats, err
+	}
+	return externalCaregiverRecordToPublic(*row), true, stats, nil
+}
+
+func (s *Store) FindExternalCaregiverRecordByStaff(ctx context.Context, staffID int64) (schoolmembership.ExternalCaregiverRecord, bool, domain.OperationStats, error) {
+	db, scope, err := s.database(ctx)
+	if err != nil {
+		return schoolmembership.ExternalCaregiverRecord{}, false, domain.OperationStats{}, err
+	}
+	row := &externalCaregiverRecordRow{}
+	query := withTenant(externalCaregiverRecordSelect(db, row).
+		Where(`"external_caregiver".staff_id = ?`, staffID).
+		OrderExpr(`"external_caregiver".id ASC`).
+		Limit(1), "external_caregiver", scope)
+	found, stats, err := scanOne(ctx, query, "find external caregiver record by staff")
+	if err != nil || !found {
+		return schoolmembership.ExternalCaregiverRecord{}, found, stats, err
+	}
+	return externalCaregiverRecordToPublic(*row), true, stats, nil
+}
+
+func (s *Store) ListExternalCaregiverRecords(ctx context.Context, filter schoolmembership.ExternalCaregiverRecordFilter) ([]schoolmembership.ExternalCaregiverRecord, domain.OperationStats, error) {
+	db, scope, err := s.database(ctx)
+	if err != nil {
+		return nil, domain.OperationStats{}, err
+	}
+	rows := []externalCaregiverRecordRow{}
+	query, ok, err := externalCaregiverRecordListQuery(withTenant(externalCaregiverRecordSelect(db, &rows), "external_caregiver", scope), filter)
+	if err != nil {
+		return nil, domain.OperationStats{}, err
+	}
+	if !ok {
+		return []schoolmembership.ExternalCaregiverRecord{}, domain.OperationStats{}, nil
+	}
+	stats, err := scanAll(ctx, query.OrderExpr(`"external_caregiver".id ASC`), "list external caregiver records")
+	if err != nil {
+		return nil, stats, err
+	}
+	result := make([]schoolmembership.ExternalCaregiverRecord, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, externalCaregiverRecordToPublic(row))
+	}
+	stats.Rows = int64(len(result))
+	return result, stats, nil
+}
+
+func (s *Store) CreateExternalCaregiverRecord(ctx context.Context, fields schoolmembership.ExternalCaregiverRecordFields) (schoolmembership.ExternalCaregiverRecord, domain.OperationStats, error) {
+	row, err := externalCaregiverRecordRowFrom(0, fields)
+	if err != nil {
+		return schoolmembership.ExternalCaregiverRecord{}, domain.OperationStats{}, err
+	}
+	db, scope, err := s.database(ctx)
+	if err != nil {
+		return schoolmembership.ExternalCaregiverRecord{}, domain.OperationStats{}, err
+	}
+	if scope.TenantID <= 0 {
+		return schoolmembership.ExternalCaregiverRecord{}, domain.OperationStats{}, errors.New("school membership postgres: tenant is required to create an external caregiver record")
+	}
+	row.TenantID = scope.TenantID
+	stats := domain.OperationStats{Queries: 1}
+	started := time.Now()
+	err = db.NewInsert().Model(&row).ModelTableExpr(`users.external_caregivers`).Returning("*").Scan(ctx)
+	stats.StatementDuration = time.Since(started)
+	if err != nil {
+		return schoolmembership.ExternalCaregiverRecord{}, stats, wrapExternalCaregiverRecordWriteError("create", err)
+	}
+	stats.Rows = 1
+	return externalCaregiverRecordToPublic(row), stats, nil
+}
+
+func (s *Store) UpdateExternalCaregiverRecord(ctx context.Context, id int64, fields schoolmembership.ExternalCaregiverRecordFields) (schoolmembership.ExternalCaregiverRecord, domain.OperationStats, error) {
+	row, err := externalCaregiverRecordRowFrom(id, fields)
+	if err != nil {
+		return schoolmembership.ExternalCaregiverRecord{}, domain.OperationStats{}, err
+	}
+	db, scope, err := s.database(ctx)
+	if err != nil {
+		return schoolmembership.ExternalCaregiverRecord{}, domain.OperationStats{}, err
+	}
+	query := withTenant(db.NewUpdate().Model(&row).
+		ModelTableExpr(`users.external_caregivers AS "external_caregiver"`).
+		Column("staff_id", "organization", "contact_email", "contact_phone", "activity_expertise", "start_date", "end_date", "notes").
+		Set(`updated_at = NOW()`).
+		Where(`"external_caregiver".id = ?`, id), "external_caregiver", scope)
+	stats := domain.OperationStats{Queries: 1}
+	started := time.Now()
+	err = query.Returning("*").Scan(ctx)
+	stats.StatementDuration = time.Since(started)
+	if errors.Is(err, sql.ErrNoRows) {
+		return schoolmembership.ExternalCaregiverRecord{}, stats, schoolmembership.ErrExternalCaregiverRecordNotFound
+	}
+	if err != nil {
+		return schoolmembership.ExternalCaregiverRecord{}, stats, wrapExternalCaregiverRecordWriteError("update", err)
+	}
+	stats.Rows = 1
+	return externalCaregiverRecordToPublic(row), stats, nil
+}
+
+func (s *Store) DeleteExternalCaregiverRecord(ctx context.Context, id int64) (domain.OperationStats, error) {
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
-	query := withTenant(db.NewDelete().Model((*guestRow)(nil)).
-		ModelTableExpr(`users.guests AS "guest"`).
-		Where(`"guest".id = ?`, id), "guest", tenantID)
+	query := withTenant(db.NewDelete().Model((*externalCaregiverRecordRow)(nil)).
+		ModelTableExpr(`users.external_caregivers AS "external_caregiver"`).
+		Where(`"external_caregiver".id = ?`, id), "external_caregiver", scope)
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	result, err := query.Exec(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
-		return stats, fmt.Errorf("school membership postgres: delete guest: %w", err)
+		return stats, fmt.Errorf("school membership postgres: delete external caregiver record: %w", err)
 	}
 	rows, err := result.RowsAffected()
 	if err != nil {
-		return stats, fmt.Errorf("school membership postgres: delete guest: count rows: %w", err)
+		return stats, fmt.Errorf("school membership postgres: delete external caregiver record: count rows: %w", err)
 	}
 	if rows != 1 {
-		return stats, domain.ErrGuestNotFound
+		return stats, schoolmembership.ErrExternalCaregiverRecordNotFound
 	}
 	stats.Rows = rows
 	return stats, nil
@@ -547,30 +562,45 @@ func (s *Store) DeleteGuest(ctx context.Context, id int64) (domain.OperationStat
 
 // --- helpers ---
 
-// staffSelect reads the membership row together with its guest marker. The
-// guest columns are correlated subqueries rather than a join, so FOR UPDATE
-// locks stay on the membership row alone.
-func staffSelect(db bun.IDB, model any) *bun.SelectQuery {
+// staffSelect reads the membership row together with its external caregiver
+// record marker. The marker normally follows the record's activity window;
+// historical readers may retain it after that window ended. The record
+// columns are correlated
+// subqueries rather than a join, so FOR UPDATE locks stay on the membership
+// row alone.
+func staffSelect(db bun.IDB, model any, includeInactiveExternalCaregiverRecords bool) *bun.SelectQuery {
+	query := db.NewSelect().Model(model).ModelTableExpr(`users.staff_school_memberships AS "staff"`).
+		ColumnExpr(`"staff".*`)
+	if includeInactiveExternalCaregiverRecords {
+		return query.
+			ColumnExpr(`EXISTS (SELECT 1 FROM users.external_caregivers AS "external_caregiver" WHERE "external_caregiver".tenant_id = "staff".tenant_id AND "external_caregiver".staff_id = "staff".id) AS has_external_caregiver_record`).
+			ColumnExpr(`COALESCE((SELECT "external_caregiver".organization FROM users.external_caregivers AS "external_caregiver" WHERE "external_caregiver".tenant_id = "staff".tenant_id AND "external_caregiver".staff_id = "staff".id), '') AS external_organization`)
+	}
 	today := calendar.TodayDate()
-	return db.NewSelect().Model(model).ModelTableExpr(`users.staff_school_memberships AS "staff"`).
-		ColumnExpr(`"staff".*`).
-		ColumnExpr(`EXISTS (SELECT 1 FROM users.guests AS "guest" WHERE "guest".tenant_id = "staff".tenant_id AND "guest".staff_id = "staff".id AND ("guest".start_date IS NULL OR "guest".start_date <= ?) AND ("guest".end_date IS NULL OR "guest".end_date >= ?)) AS is_guest`, today, today).
-		ColumnExpr(`COALESCE((SELECT "guest".organization FROM users.guests AS "guest" WHERE "guest".tenant_id = "staff".tenant_id AND "guest".staff_id = "staff".id AND ("guest".start_date IS NULL OR "guest".start_date <= ?) AND ("guest".end_date IS NULL OR "guest".end_date >= ?)), '') AS guest_organization`, today, today)
+	return query.
+		ColumnExpr(`EXISTS (SELECT 1 FROM users.external_caregivers AS "external_caregiver" WHERE "external_caregiver".tenant_id = "staff".tenant_id AND "external_caregiver".staff_id = "staff".id AND ("external_caregiver".start_date IS NULL OR "external_caregiver".start_date <= ?) AND ("external_caregiver".end_date IS NULL OR "external_caregiver".end_date >= ?)) AS has_external_caregiver_record`, today, today).
+		ColumnExpr(`COALESCE((SELECT "external_caregiver".organization FROM users.external_caregivers AS "external_caregiver" WHERE "external_caregiver".tenant_id = "staff".tenant_id AND "external_caregiver".staff_id = "staff".id AND ("external_caregiver".start_date IS NULL OR "external_caregiver".start_date <= ?) AND ("external_caregiver".end_date IS NULL OR "external_caregiver".end_date >= ?)), '') AS external_organization`, today, today)
 }
 
 func teacherSelect(db bun.IDB, model any) *bun.SelectQuery {
 	return db.NewSelect().Model(model).ModelTableExpr(`users.teachers AS "teacher"`)
 }
 
-func guestSelect(db bun.IDB, model any) *bun.SelectQuery {
-	return db.NewSelect().Model(model).ModelTableExpr(`users.guests AS "guest"`)
+func externalCaregiverRecordSelect(db bun.IDB, model any) *bun.SelectQuery {
+	return db.NewSelect().Model(model).ModelTableExpr(`users.external_caregivers AS "external_caregiver"`)
 }
 
-func withTenant[Q interface{ Where(string, ...any) Q }](query Q, alias string, tenantID int64) Q {
-	if tenantID > 0 {
-		return query.Where(`"`+alias+`".tenant_id = ?`, tenantID)
+func withTenant[Q interface {
+	Where(string, ...any) Q
+	Err(error) Q
+}](query Q, alias string, scope TenantScope) Q {
+	if err := scope.Validate(); err != nil {
+		return query.Err(err)
 	}
-	return query
+	if scope.AcrossSchools {
+		return query
+	}
+	return query.Where(`"`+alias+`".tenant_id = ?`, scope.TenantID)
 }
 
 func scanOne(ctx context.Context, query *bun.SelectQuery, operation string) (bool, domain.OperationStats, error) {
@@ -618,40 +648,40 @@ func execOne(ctx context.Context, query *bun.UpdateQuery, operation string, notF
 	return stats, nil
 }
 
-func guestRowFrom(id int64, fields domain.GuestFields) (guestRow, error) {
+func externalCaregiverRecordRowFrom(id int64, fields schoolmembership.ExternalCaregiverRecordFields) (externalCaregiverRecordRow, error) {
 	start, err := optionalDate(fields.StartDate, "start date")
 	if err != nil {
-		return guestRow{}, err
+		return externalCaregiverRecordRow{}, err
 	}
 	end, err := optionalDate(fields.EndDate, "end date")
 	if err != nil {
-		return guestRow{}, err
+		return externalCaregiverRecordRow{}, err
 	}
-	return guestRow{
+	return externalCaregiverRecordRow{
 		ID: id, StaffID: fields.StaffID, Organization: fields.Organization,
 		ContactEmail: fields.ContactEmail, ContactPhone: fields.ContactPhone,
 		ActivityExpertise: fields.ActivityExpertise, StartDate: start, EndDate: end, Notes: fields.Notes,
 	}, nil
 }
 
-func staffToDomain(row staffRow) domain.Staff {
-	return domain.Staff{
+func staffToPublic(row staffRow) schoolmembership.Staff {
+	return schoolmembership.Staff{
 		ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
-		PersonID: row.PersonID, DeletedAt: row.DeletedAt,
-		IsGuest: row.IsGuest, GuestOrganization: row.GuestOrganization,
+		PersonID: row.PersonID, DeletedAt: row.DeletedAt, PersonalDataErasedAt: row.PersonalDataErasedAt,
+		HasExternalCaregiverRecord: row.HasExternalCaregiverRecord, ExternalOrganization: row.ExternalOrganization,
 	}
 }
 
-func teacherToDomain(row teacherRow) domain.Teacher {
-	return domain.Teacher{
+func teacherToPublic(row teacherRow) schoolmembership.Teacher {
+	return schoolmembership.Teacher{
 		ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		StaffID: row.StaffID, Specialization: row.Specialization, Role: row.Role,
 		Qualifications: row.Qualifications, DeletedAt: row.DeletedAt,
 	}
 }
 
-func guestToDomain(row guestRow) domain.Guest {
-	return domain.Guest{
+func externalCaregiverRecordToPublic(row externalCaregiverRecordRow) schoolmembership.ExternalCaregiverRecord {
+	return schoolmembership.ExternalCaregiverRecord{
 		ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		StaffID: row.StaffID, Organization: row.Organization, ContactEmail: row.ContactEmail,
 		ContactPhone: row.ContactPhone, ActivityExpertise: row.ActivityExpertise,
@@ -683,23 +713,28 @@ func escapeLike(value string) string {
 
 func wrapStaffWriteError(operation string, err error) error {
 	if isUniqueViolationOn(err, staffPersonIndex) {
-		return domain.ErrStaffPersonConflict
+		return schoolmembership.ErrStaffPersonConflict
 	}
 	return fmt.Errorf("school membership postgres: %s staff: %w", operation, err)
 }
 
+func staffPersonMergeLockKey(schoolID int64) string {
+	// This matches the People Directory's gate for the same school.
+	return fmt.Sprintf("staff-person-merge:%d", schoolID)
+}
+
 func wrapTeacherWriteError(operation string, err error) error {
 	if isUniqueViolationOn(err, teacherStaffIndex, teacherStaffConstraint) {
-		return domain.ErrTeacherStaffConflict
+		return schoolmembership.ErrTeacherStaffConflict
 	}
 	return fmt.Errorf("school membership postgres: %s teacher: %w", operation, err)
 }
 
-func wrapGuestWriteError(operation string, err error) error {
-	if isUniqueViolationOn(err, guestStaffIndex, guestStaffConstraint) {
-		return domain.ErrGuestStaffConflict
+func wrapExternalCaregiverRecordWriteError(operation string, err error) error {
+	if isUniqueViolationOn(err, externalCaregiverRecordStaffIndex) {
+		return schoolmembership.ErrExternalCaregiverRecordStaffConflict
 	}
-	return fmt.Errorf("school membership postgres: %s guest: %w", operation, err)
+	return fmt.Errorf("school membership postgres: %s external caregiver record: %w", operation, err)
 }
 
 func isUniqueViolationOn(err error, names ...string) bool {

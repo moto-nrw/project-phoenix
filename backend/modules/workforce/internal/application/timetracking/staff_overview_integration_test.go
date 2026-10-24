@@ -1,0 +1,735 @@
+package timetracking_test
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	"github.com/moto-nrw/project-phoenix/api"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
+	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+type recordingAbsenceRepository struct {
+	timetracking.AbsenceRecords
+	requestedDate calendar.Date
+}
+
+func (r *recordingAbsenceRepository) StaffAbsenceMapForDate(
+	ctx context.Context,
+	date string,
+) (map[int64]string, error) {
+	r.requestedDate = calendar.Date(date)
+	return r.AbsenceRecords.StaffAbsenceMapForDate(ctx, date)
+}
+
+// overviewFixture arranges a tenant with N staff members, each with a contract
+// on every weekday, a worked session today, and (optionally) a planned shift.
+type overviewFixture struct {
+	tenantID        int64
+	db              *testpkg.DB
+	repos           *api.PeopleRepositorySuiteFactory
+	reposMembership *api.SchoolMembershipSuiteRepositories
+	reposAbsences   *api.StaffAbsenceSuiteRepositories
+	reposPresence   *api.PresenceSuiteRepositories
+	workforce       workforce.Capability
+	ctx             context.Context
+	staff           []int64
+	svc             timetracking.StaffOverviewService
+	monthSvc        timetracking.WorkTimeMonthService
+	today           calendar.Date
+}
+
+// newOverviewFixture builds `count` staff members. The account start is the
+// first of the current month, so every fixture row sits inside the window.
+func newOverviewFixture(t *testing.T, count int) *overviewFixture {
+	t.Helper()
+
+	db := testpkg.SetupIsolatedTestDB(t)
+
+	tenantID := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, tenantID)
+	workTime := owners.MustNewWorkforce(testpkg.NewDatabase(t, db))
+	reposAbsences := api.NewStaffAbsenceSuiteRepositories(testpkg.NewDatabase(t, db))
+	reposPresence := api.NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	reposPeopleMembership := api.NewSchoolMembershipSuiteRepositories(testpkg.NewDatabase(t, db))
+	ctx := testpkg.WithTestTenantRuntime(t, testpkg.TenantContext(tenantID))
+	today := calendar.TodayDate()
+
+	f := &overviewFixture{
+		tenantID: tenantID, db: db, repos: reposPeople, reposMembership: reposPeopleMembership,
+		reposAbsences: reposAbsences,
+		reposPresence: reposPresence, workforce: workTime, ctx: ctx, today: today,
+	}
+
+	for i := range count {
+		staff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Ueber", "Sicht")
+		f.staff = append(f.staff, staff.ID)
+		f.addSchedule(t, staff.ID, 480)
+		f.addSession(t, staff.ID, today, 4*time.Hour)
+		if i == 0 {
+			f.addShift(t, staff.ID, today)
+		}
+	}
+
+	monthStart := calendar.NewDate(today.Year(), today.Month(), 1)
+	settings := wtmIntSettings{accountStart: monthStart.String()}
+	f.monthSvc = timetracking.NewWorkTimeMonthService(
+		workTime, workTime, reposAbsences.StaffAbsence, workforceCompose.StaffScheduleAssignments(api.MustNewStaffEmployment(testpkg.NewDatabase(t, db))),
+		owners.NewWorkScheduleTargets(owners.NewStaffWorkScheduleRepository(workTime)), owners.NewWorkTimeTargetModels(owners.NewWorkTimeModelRepository(workTime)), workforceCompose.NewTimeTrackingShifts(workTime),
+		settings, nil,
+		timetracking.WithMonthAdjustments(workTime),
+		timetracking.WithMonthSnapshots(timetracking.MonthSnapshotCapability(workTime)),
+	)
+
+	f.svc = f.newOverviewService(settings)
+	return f
+}
+
+func (f *overviewFixture) newOverviewService(settings wtmIntSettings) timetracking.StaffOverviewService {
+	return timetracking.NewStaffOverviewService(
+		owners.OverviewStaff(f.repos.Staff), f.workforce, f.workforce, f.reposAbsences.StaffAbsence,
+		f.workforce, f.workforce, timetracking.MonthSnapshotCapability(f.workforce),
+		owners.NewWorkScheduleTargets(owners.NewStaffWorkScheduleRepository(f.workforce)), owners.NewWorkTimeTargetModels(owners.NewWorkTimeModelRepository(f.workforce)), workforceCompose.NewTimeTrackingShifts(f.workforce),
+		settings, nil,
+	)
+}
+
+// scheduleValidFrom is the start of every scheduled contract in these tests:
+// far enough in the past that no fixture month falls outside it.
+var scheduleValidFrom = calendar.NewDate(2020, time.January, 1)
+
+// addSchedule gives the staff member the same contractual Soll on all seven
+// weekdays, so the expected values do not depend on which day the test runs.
+func (f *overviewFixture) addSchedule(t *testing.T, staffID int64, targetMinutes int) {
+	t.Helper()
+	for day := range 7 {
+		testpkg.CreateTestStaffWorkScheduleForTenant(t, f.db, f.tenantID, staffID, day, targetMinutes, scheduleValidFrom)
+	}
+}
+
+func (f *overviewFixture) addSession(t *testing.T, staffID int64, date calendar.Date, duration time.Duration) *timetracking.WorkSession {
+	t.Helper()
+	checkIn := time.Date(date.Year(), date.Month(), date.Day(), 8, 0, 0, 0, time.UTC)
+	checkOut := checkIn.Add(duration)
+	// A check-out in the future is a still-open block for the balance code: its
+	// Ist then grows with the clock, so two identical requests disagree. Before
+	// 08:00 + duration UTC that is every run, which is why this fixture has to
+	// anchor the block behind the current instant instead of the day's start.
+	if latest := time.Now().Add(-time.Minute); checkOut.After(latest) {
+		checkOut = latest
+		checkIn = checkOut.Add(-duration)
+	}
+	session := &timetracking.WorkSession{
+		StaffID:     staffID,
+		Date:        date,
+		Status:      workforce.WorkSessionStatusPresent,
+		Source:      workforce.WorkSessionSourceApp,
+		CheckInTime: checkIn, CheckOutTime: &checkOut,
+		CreatedBy: staffID,
+	}
+	session.SetTenantID(f.tenantID)
+	createSessionFixture(t, f.workforce, f.ctx, session)
+	return session
+}
+
+// reopenSession clears check-out on the staff member's session for that day —
+// the staff member is currently at work. It updates the fixture's existing row
+// because work_sessions is unique per staff and date.
+func (f *overviewFixture) reopenSession(t *testing.T, staffID int64, date calendar.Date) {
+	t.Helper()
+	res, err := f.db.NewUpdate().
+		Table("active.work_sessions").
+		Set("check_out_time = NULL").
+		Where("staff_id = ? AND date = ? AND tenant_id = ?", staffID, date, f.tenantID).
+		Exec(f.ctx)
+	require.NoError(t, err)
+	affected, err := res.RowsAffected()
+	require.NoError(t, err)
+	require.EqualValues(t, 1, affected)
+}
+
+// addShift plans a shift that covers the whole day, so it also covers "now".
+func (f *overviewFixture) addShift(t *testing.T, staffID int64, date calendar.Date) {
+	t.Helper()
+	_, err := f.workforce.CreateStaffShift(f.ctx, &workforce.StaffShift{
+		TenantID: f.tenantID, StaffID: staffID, Date: date.String(),
+		StartTime: "00:00:00", EndTime: "23:59:59", CreatedBy: staffID,
+	})
+	require.NoError(t, err)
+}
+
+func (f *overviewFixture) addAbsence(t *testing.T, staffID int64, absenceType, status string, start, end calendar.Date) {
+	t.Helper()
+	absence := &timetracking.StaffAbsence{
+		StaffID:     staffID,
+		AbsenceType: absenceType,
+		Status:      status,
+		DateStart:   start,
+		DateEnd:     end,
+		CreatedBy:   staffID,
+	}
+	absence.SetTenantID(f.tenantID)
+	absenceCommand1 := timetracking.StaffAbsenceToCapability(absence)
+	createdTimeRecord1, err := f.reposAbsences.StaffAbsence.CreateStaffAbsence(f.ctx, &absenceCommand1)
+	require.NoError(t, err)
+	*absence = *timetracking.AbsenceRecord(createdTimeRecord1)
+}
+
+func (f *overviewFixture) setEmploymentType(t *testing.T, staffID int64, employmentType string) {
+	t.Helper()
+	_, err := f.db.NewUpdate().
+		Table("users.staff_employment_profiles").
+		Set("employment_type = ?", employmentType).
+		Where("membership_id = ?", staffID).
+		Exec(f.ctx)
+	require.NoError(t, err)
+}
+
+// TestTimeTrackingOverview_MatchesMonthSummary is the anti-drift guarantee: the
+// cross-staff row must equal what the per-staff Monatskarte reports, because
+// both run the same math. Without this the aggregate view could quietly
+// contradict the detail view a school admin drills into.
+func TestTimeTrackingOverview_MatchesMonthSummary(t *testing.T) {
+	t.Parallel()
+
+	f := newOverviewFixture(t, 3)
+
+	// Make the three staff members genuinely different: a part-time contract,
+	// a sick day, a payout booking, and one with no schedule at all.
+	f.addSchedule(t, f.staff[1], 240)
+	yesterday := f.today.AddDays(-1)
+	if monthOfDate(yesterday) == monthOfDate(f.today) {
+		f.addAbsence(t, f.staff[1], workforce.AbsenceTypeSick, workforce.AbsenceStatusReported, yesterday, yesterday)
+	}
+	adjustment := &timetracking.StaffBalanceAdjustment{
+		StaffID:       f.staff[2],
+		Type:          workforce.BalanceAdjustmentTypePayout,
+		MinutesDelta:  -30,
+		EffectiveDate: f.today,
+		Note:          "Auszahlung",
+		DecidedBy:     f.staff[0],
+		DecidedAt:     time.Now(),
+	}
+	adjustment.SetTenantID(f.tenantID)
+	createdTimeRecord2, err := f.workforce.CreateStaffBalanceAdjustment(f.ctx, timetracking.StaffBalanceAdjustmentToCapability(adjustment))
+	require.NoError(t, err)
+	*adjustment = *balanceAdjustmentRecord(createdTimeRecord2)
+
+	overview, err := testpkg.TenantQuery1(t, f.ctx, f.db, f.svc.GetTimeTrackingOverview, timetracking.OverviewFilters{})
+	require.NoError(t, err)
+	require.Len(t, overview.Rows, 3)
+
+	byStaff := make(map[int64]timetracking.TimeTrackingOverviewRow, len(overview.Rows))
+	for _, row := range overview.Rows {
+		byStaff[row.StaffID] = row
+	}
+	for _, staffID := range f.staff {
+		row, ok := byStaff[staffID]
+		require.True(t, ok, "staff %d missing from the overview", staffID)
+
+		expected, err := f.monthSvc.GetMonthSummary(f.ctx, staffID, f.today.Year(), int(f.today.Month()))
+		require.NoError(t, err)
+		assert.Equal(t, expected.TargetMinutesToDate, row.SollMinutes, "soll for staff %d", staffID)
+		assert.Equal(t, expected.ActualMinutes, row.IstMinutes, "ist for staff %d", staffID)
+		assert.Equal(t, expected.ClosingBalanceMinutes, row.BalanceMinutes, "saldo for staff %d", staffID)
+	}
+}
+
+func TestTimeTrackingOverview_AccountStartAfterRequestedMonthMatchesDetail(t *testing.T) {
+	t.Parallel()
+
+	f := newOverviewFixture(t, 1)
+	// Use a completed historical month so the production now-clamp cannot
+	// treat the fixture's fixed 08:00 session as future work before 10:00
+	// Berlin. The account starts in the following month, preserving the
+	// standalone pre-account-month case this test covers.
+	requestedDate := calendar.NewDate(f.today.Year(), f.today.Month(), 1).AddDays(-1)
+	f.addSession(t, f.staff[0], requestedDate, 4*time.Hour)
+	settings := wtmIntSettings{
+		accountStart: calendar.NewDate(f.today.Year(), f.today.Month(), 1).String(),
+	}
+	svc := f.newOverviewService(settings)
+	monthSvc := timetracking.NewWorkTimeMonthService(
+		f.workforce, f.workforce, f.reposAbsences.StaffAbsence, workforceCompose.StaffScheduleAssignments(api.MustNewStaffEmployment(testpkg.NewDatabase(t, f.db))),
+		owners.NewWorkScheduleTargets(owners.NewStaffWorkScheduleRepository(f.workforce)), owners.NewWorkTimeTargetModels(owners.NewWorkTimeModelRepository(f.workforce)), workforceCompose.NewTimeTrackingShifts(f.workforce),
+		settings, nil,
+		timetracking.WithMonthAdjustments(f.workforce),
+		timetracking.WithMonthSnapshots(timetracking.MonthSnapshotCapability(f.workforce)),
+	)
+
+	overview, err := testpkg.TenantQuery1(t, f.ctx, testpkg.SetupTestDB(t), svc.GetTimeTrackingOverview, timetracking.OverviewFilters{
+		Year:  requestedDate.Year(),
+		Month: int(requestedDate.Month()),
+	})
+	require.NoError(t, err)
+	require.Len(t, overview.Rows, 1)
+	expected, err := monthSvc.GetMonthSummary(f.ctx, f.staff[0], requestedDate.Year(), int(requestedDate.Month()))
+	require.NoError(t, err)
+
+	assert.Equal(t, expected.TargetMinutesToDate, overview.Rows[0].SollMinutes)
+	assert.Equal(t, expected.ActualMinutes, overview.Rows[0].IstMinutes,
+		"the standalone month must retain the elapsed portion of its worked session")
+	assert.Equal(t, expected.ClosingBalanceMinutes, overview.Rows[0].BalanceMinutes)
+}
+
+// TestTimeTrackingOverview_VacationMatchesQuotaEndpoint pins Resturlaub against
+// the per-staff endpoint it mirrors.
+func TestTimeTrackingOverview_VacationMatchesQuotaEndpoint(t *testing.T) {
+	t.Parallel()
+
+	f := newOverviewFixture(t, 2)
+
+	// An approved vacation day earlier this year plus a still-requested one:
+	// the requested days must be reserved, not counted as taken.
+	yearStart := calendar.NewDate(f.today.Year(), time.January, 5)
+	f.addAbsence(t, f.staff[0], workforce.AbsenceTypeVacation, workforce.AbsenceStatusApproved, yearStart, yearStart.AddDays(2))
+	future := calendar.NewDate(f.today.Year(), time.December, 1)
+	f.addAbsence(t, f.staff[0], workforce.AbsenceTypeVacation, workforce.AbsenceStatusRequested, future, future)
+
+	absenceSvc := timetracking.NewStaffAbsenceService(
+		f.reposAbsences.StaffAbsence, f.workforce, f.workforce,
+		f.workforce, wtmIntSettings{}, f.monthSvc, timetracking.WithAbsenceUnitOfWork(testpkg.
+			RunInTenantTransaction,
+		),
+	)
+
+	overview, err := testpkg.TenantQuery1(t, f.ctx, f.db, f.svc.GetTimeTrackingOverview, timetracking.OverviewFilters{})
+	require.NoError(t, err)
+
+	for _, row := range overview.Rows {
+		expected, err := absenceSvc.GetVacationQuotaSummary(f.ctx, row.StaffID, f.today.Year())
+		require.NoError(t, err)
+		assert.InDelta(t, expected.RemainingDays, row.RemainingVacationDays, 0.001,
+			"Resturlaub for staff %d must match the per-staff endpoint", row.StaffID)
+	}
+}
+
+func TestTimeTrackingOverview_HistoricalVacationStopsAtMonthEnd(t *testing.T) {
+	t.Parallel()
+
+	f := newOverviewFixture(t, 1)
+	historicalYear := f.today.Year() - 1
+
+	// Each seven-day range contains exactly five weekdays. The March view
+	// spends the February vacation, but must not subtract the November range.
+	f.addAbsence(
+		t,
+		f.staff[0],
+		workforce.AbsenceTypeVacation,
+		workforce.AbsenceStatusApproved,
+		calendar.NewDate(historicalYear, time.February, 1),
+		calendar.NewDate(historicalYear, time.February, 7),
+	)
+	f.addAbsence(
+		t,
+		f.staff[0],
+		workforce.AbsenceTypeVacation,
+		workforce.AbsenceStatusApproved,
+		calendar.NewDate(historicalYear, time.November, 1),
+		calendar.NewDate(historicalYear, time.November, 7),
+	)
+
+	overview, err := testpkg.TenantQuery1(t, f.ctx, f.db, f.svc.GetTimeTrackingOverview, timetracking.OverviewFilters{
+		Year: historicalYear, Month: int(time.March),
+	})
+	require.NoError(t, err)
+	require.Len(t, overview.Rows, 1)
+	assert.InDelta(t, 25, overview.Rows[0].RemainingVacationDays, 0.001)
+}
+
+// TestTimeTrackingOverview_QueryCountIsConstant is the only test that protects
+// the performance property. Without it the prefetch adapters could silently
+// regress to per-staff reads and nothing would fail.
+func TestTimeTrackingOverview_QueryCountIsConstant(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
+	small := newOverviewFixture(t, 1)
+	hook := testpkg.CaptureQueries(t, small.db)
+	_, err := testpkg.TenantQuery1(t, small.ctx, testpkg.SetupTestDB(t), small.svc.GetTimeTrackingOverview, timetracking.OverviewFilters{})
+	require.NoError(t, err)
+	oneStaff := hook.Total()
+	hook.Stop()
+
+	large := newOverviewFixture(t, 8)
+	hookLarge := testpkg.CaptureQueries(t, large.db)
+	_, err = testpkg.TenantQuery1(t, large.ctx, testpkg.SetupTestDB(t), large.svc.GetTimeTrackingOverview, timetracking.OverviewFilters{})
+	require.NoError(t, err)
+	eightStaff := hookLarge.Total()
+
+	assert.Equal(t, oneStaff, eightStaff,
+		"query count must not grow with the number of staff members (1 staff: %d, 8 staff: %d)",
+		oneStaff, eightStaff)
+}
+
+// TestDashboardSummary_KPIs checks each counter, including the priority collapse
+// that keeps sick and vacation from double-counting the same person.
+func TestDashboardSummary_KPIs(t *testing.T) {
+	t.Parallel()
+
+	f := newOverviewFixture(t, 4)
+
+	f.reopenSession(t, f.staff[0], f.today)
+	f.addAbsence(t, f.staff[1], workforce.AbsenceTypeSick, workforce.AbsenceStatusReported, f.today, f.today)
+	f.addAbsence(t, f.staff[2], workforce.AbsenceTypeVacation, workforce.AbsenceStatusApproved, f.today, f.today)
+	// Overlapping sick + vacation on the same person: counts as sick only.
+	f.addAbsence(t, f.staff[3], workforce.AbsenceTypeSick, workforce.AbsenceStatusReported, f.today, f.today)
+	f.addAbsence(t, f.staff[3], workforce.AbsenceTypeVacation, workforce.AbsenceStatusApproved, f.today, f.today)
+	// A pending request must be counted but must not affect sick/vacation.
+	f.addAbsence(t, f.staff[2], workforce.AbsenceTypeVacation, workforce.AbsenceStatusRequested,
+		f.today.AddDays(30), f.today.AddDays(31))
+
+	summary, err := testpkg.TenantQuery1(t, f.ctx, f.db, f.svc.GetDashboardSummary, timetracking.OverviewPeriodMonth)
+	require.NoError(t, err)
+
+	assert.Equal(t, 4, summary.ActiveStaffCount)
+	assert.Equal(t, 2, summary.SickToday, "staff[1] and staff[3]")
+	assert.Equal(t, 1, summary.VacationToday, "staff[3] counts as sick, not vacation")
+	assert.Equal(t, 1, summary.CurrentlyClockedIn, "only staff[0] has an open session")
+	assert.Equal(t, 1, summary.ExpectedClockedIn, "only staff[0] has a shift covering now")
+	assert.Equal(t, 1, summary.PendingRequestsCount)
+}
+
+func TestDashboardSummary_AbsenceKPIsUseBerlinToday(t *testing.T) {
+	t.Parallel()
+
+	f := newOverviewFixture(t, 1)
+	absenceRepo := &recordingAbsenceRepository{AbsenceRecords: f.reposAbsences.StaffAbsence}
+	settings := wtmIntSettings{
+		accountStart: calendar.NewDate(f.today.Year(), f.today.Month(), 1).String(),
+	}
+	svc := timetracking.NewStaffOverviewService(
+		owners.OverviewStaff(f.repos.Staff), f.workforce, f.workforce, absenceRepo,
+		f.workforce, f.workforce, timetracking.MonthSnapshotCapability(f.workforce),
+		owners.NewWorkScheduleTargets(owners.NewStaffWorkScheduleRepository(f.workforce)), owners.NewWorkTimeTargetModels(owners.NewWorkTimeModelRepository(f.workforce)), workforceCompose.NewTimeTrackingShifts(f.workforce),
+		settings, nil,
+	)
+
+	_, err := testpkg.TenantQuery1(t, f.ctx, testpkg.SetupTestDB(t), svc.GetDashboardSummary, timetracking.OverviewPeriodMonth)
+	require.NoError(t, err)
+	assert.Equal(t, f.today, absenceRepo.requestedDate)
+}
+
+// TestDashboardSummary_WeekVsMonth — the saldo is an account balance and must
+// not change with the selected period; Soll and Ist must.
+func TestDashboardSummary_WeekVsMonth(t *testing.T) {
+	t.Parallel()
+
+	f := newOverviewFixture(t, 2)
+
+	month, err := testpkg.TenantQuery1(t, f.ctx, f.db, f.svc.GetDashboardSummary, timetracking.OverviewPeriodMonth)
+	require.NoError(t, err)
+	week, err := testpkg.TenantQuery1(t, f.ctx, f.db, f.svc.GetDashboardSummary, timetracking.OverviewPeriodWeek)
+	require.NoError(t, err)
+
+	assert.Equal(t, month.SaldoSchoolTotalMinutes, week.SaldoSchoolTotalMinutes,
+		"the Stundenkonto is not a period quantity")
+	assert.LessOrEqual(t, week.Period.SollMinutes, month.Period.SollMinutes,
+		"a week inside the month cannot carry more Soll than the month")
+
+	// The default is month.
+	def, err := testpkg.TenantQuery1(t, f.ctx, f.db, f.svc.GetDashboardSummary, "")
+	require.NoError(t, err)
+	assert.Equal(t, month.Period, def.Period)
+}
+
+func TestDashboardSummary_WeekExcludesAdjustmentsOutsideRange(t *testing.T) {
+	t.Parallel()
+
+	f := newOverviewFixture(t, 1)
+
+	before, err := testpkg.TenantQuery1(t, f.ctx, f.db, f.svc.GetDashboardSummary, timetracking.OverviewPeriodWeek)
+	require.NoError(t, err)
+
+	weekStart := f.today.StartOfISOWeek()
+	effectiveDate := calendar.NewDate(f.today.Year(), f.today.Month(), 1)
+	if !effectiveDate.Before(weekStart) {
+		effectiveDate = f.today.AddDays(1)
+	}
+	require.Equal(t, f.today.Month(), effectiveDate.Month(),
+		"fixture must place the adjustment inside the prefetched month")
+	require.True(t, effectiveDate.Before(weekStart) || effectiveDate.After(f.today),
+		"fixture adjustment must lie outside the requested week")
+
+	adjustment := &timetracking.StaffBalanceAdjustment{
+		StaffID:       f.staff[0],
+		Type:          workforce.BalanceAdjustmentTypePayout,
+		MinutesDelta:  -60,
+		EffectiveDate: effectiveDate,
+		Note:          "Außerhalb der Woche",
+		DecidedBy:     f.staff[0],
+		DecidedAt:     time.Now(),
+	}
+	adjustment.SetTenantID(f.tenantID)
+	createdTimeRecord3, err := f.workforce.CreateStaffBalanceAdjustment(f.ctx, timetracking.StaffBalanceAdjustmentToCapability(adjustment))
+	require.NoError(t, err)
+	*adjustment = *balanceAdjustmentRecord(createdTimeRecord3)
+
+	after, err := testpkg.TenantQuery1(t, f.ctx, f.db, f.svc.GetDashboardSummary, timetracking.OverviewPeriodWeek)
+	require.NoError(t, err)
+
+	assert.Equal(t, before.Period, after.Period,
+		"an adjustment outside [weekStart, today] must not alter the week aggregate")
+}
+
+func TestDashboardSummary_RejectsUnknownPeriod(t *testing.T) {
+	t.Parallel()
+
+	f := newOverviewFixture(t, 1)
+
+	_, err := f.svc.GetDashboardSummary(f.ctx, "quarter")
+	require.ErrorIs(t, err, timetracking.ErrOverviewInvalid)
+}
+
+// TestTimeTrackingOverview_Filters — the employment filter narrows the rows
+// before the computation, the saldo range narrows them after it, and neither
+// changes the values of the surviving rows.
+func TestTimeTrackingOverview_Filters(t *testing.T) {
+	t.Parallel()
+
+	f := newOverviewFixture(t, 3)
+	f.setEmploymentType(t, f.staff[0], timetracking.EmploymentTypeFullTime)
+	f.setEmploymentType(t, f.staff[1], timetracking.EmploymentTypePartTime)
+
+	all, err := testpkg.TenantQuery1(t, f.ctx, f.db, f.svc.GetTimeTrackingOverview, timetracking.OverviewFilters{})
+	require.NoError(t, err)
+	require.Len(t, all.Rows, 3)
+	unfiltered := make(map[int64]int, 3)
+	for _, row := range all.Rows {
+		unfiltered[row.StaffID] = row.BalanceMinutes
+	}
+
+	fullTime, err := testpkg.TenantQuery1(t, f.ctx, f.db, f.svc.GetTimeTrackingOverview, timetracking.OverviewFilters{
+		EmploymentType: timetracking.EmploymentTypeFullTime,
+	})
+	require.NoError(t, err)
+	require.Len(t, fullTime.Rows, 1)
+	assert.Equal(t, f.staff[0], fullTime.Rows[0].StaffID)
+	assert.Equal(t, unfiltered[f.staff[0]], fullTime.Rows[0].BalanceMinutes,
+		"filtering must not change the computed values")
+
+	// Every fixture staff member worked less than their Soll, so the balance is
+	// negative; a floor of 0 must exclude everybody.
+	zero := 0
+	none, err := testpkg.TenantQuery1(t, f.ctx, f.db, f.svc.GetTimeTrackingOverview, timetracking.OverviewFilters{SaldoMin: &zero})
+	require.NoError(t, err)
+	assert.Empty(t, none.Rows)
+	assert.NotNil(t, none.Rows, "rows must serialize as [] and never null")
+
+	max := 0
+	everyone, err := testpkg.TenantQuery1(t, f.ctx, f.db, f.svc.GetTimeTrackingOverview, timetracking.OverviewFilters{SaldoMax: &max})
+	require.NoError(t, err)
+	assert.Len(t, everyone.Rows, 3)
+}
+
+func TestTimeTrackingOverview_RejectsBadFilters(t *testing.T) {
+	t.Parallel()
+
+	f := newOverviewFixture(t, 1)
+	low, high := 100, 10
+
+	_, err := f.svc.GetTimeTrackingOverview(f.ctx, timetracking.OverviewFilters{EmploymentType: "bogus"})
+	require.ErrorIs(t, err, timetracking.ErrOverviewInvalid)
+
+	_, err = f.svc.GetTimeTrackingOverview(f.ctx, timetracking.OverviewFilters{SortBy: "bogus"})
+	require.ErrorIs(t, err, timetracking.ErrOverviewInvalid)
+
+	_, err = f.svc.GetTimeTrackingOverview(f.ctx, timetracking.OverviewFilters{SaldoMin: &low, SaldoMax: &high})
+	require.ErrorIs(t, err, timetracking.ErrOverviewInvalid)
+}
+
+// TestTimeTrackingOverview_ExplicitMonth pins the ?year=&month= selection
+// against the per-staff Monatskarte for the SAME month — the anti-drift
+// guarantee has to survive the month becoming a parameter.
+func TestTimeTrackingOverview_ExplicitMonth(t *testing.T) {
+	t.Parallel()
+
+	f := newOverviewFixture(t, 1)
+	previous := f.today.AddDays(-int(f.today.Day()) - 5) // safely inside last month
+
+	overview, err := testpkg.TenantQuery1(t, f.ctx, f.db, f.svc.GetTimeTrackingOverview, timetracking.OverviewFilters{
+		Year: previous.Year(), Month: int(previous.Month()),
+	})
+	require.NoError(t, err)
+	assert.Equal(t, previous.Year(), overview.Year)
+	assert.Equal(t, int(previous.Month()), overview.Month)
+	require.Len(t, overview.Rows, 1)
+
+	expected, err := f.monthSvc.GetMonthSummary(f.ctx, f.staff[0], previous.Year(), int(previous.Month()))
+	require.NoError(t, err)
+	assert.Equal(t, expected.TargetMinutesToDate, overview.Rows[0].SollMinutes)
+	assert.Equal(t, expected.ActualMinutes, overview.Rows[0].IstMinutes)
+	assert.Equal(t, expected.ClosingBalanceMinutes, overview.Rows[0].BalanceMinutes)
+
+	// Omitting both still means the current month.
+	current, err := testpkg.TenantQuery1(t, f.ctx, f.db, f.svc.GetTimeTrackingOverview, timetracking.OverviewFilters{})
+	require.NoError(t, err)
+	assert.Equal(t, f.today.Year(), current.Year)
+	assert.Equal(t, int(f.today.Month()), current.Month)
+}
+
+// TestTimeTrackingOverview_RejectsFutureMonth — a future month would report the
+// full month Soll against zero Ist, i.e. a large minus for work nobody has
+// missed yet.
+func TestTimeTrackingOverview_RejectsFutureMonth(t *testing.T) {
+	t.Parallel()
+
+	f := newOverviewFixture(t, 1)
+	next := f.today.AddDays(40)
+
+	_, err := f.svc.GetTimeTrackingOverview(f.ctx, timetracking.OverviewFilters{
+		Year: next.Year(), Month: int(next.Month()),
+	})
+	require.ErrorIs(t, err, timetracking.ErrOverviewInvalid)
+
+	_, err = f.svc.GetTimeTrackingOverview(f.ctx, timetracking.OverviewFilters{Year: f.today.Year(), Month: 13})
+	require.ErrorIs(t, err, timetracking.ErrOverviewInvalid)
+}
+
+// TestTimeTrackingOverview_SortIsStable — ListAllWithPerson has no ORDER BY, so
+// without an explicit staff-ID tiebreak equal balances would swap places
+// between identical requests.
+func TestTimeTrackingOverview_SortIsStable(t *testing.T) {
+	t.Parallel()
+
+	f := newOverviewFixture(t, 4)
+
+	first, err := testpkg.TenantQuery1(t, f.ctx, f.db, f.svc.GetTimeTrackingOverview, timetracking.OverviewFilters{SortBy: timetracking.OverviewSortBalance})
+	require.NoError(t, err)
+	for range 3 {
+		again, err := testpkg.TenantQuery1(t, f.ctx, f.db, f.svc.GetTimeTrackingOverview, timetracking.OverviewFilters{SortBy: timetracking.OverviewSortBalance})
+		require.NoError(t, err)
+		require.Equal(t, first.Rows, again.Rows, "repeated requests must return the same order")
+	}
+
+	desc, err := testpkg.TenantQuery1(t, f.ctx, f.db, f.svc.GetTimeTrackingOverview, timetracking.OverviewFilters{
+		SortBy: timetracking.OverviewSortBalance, Descending: true,
+	})
+	require.NoError(t, err)
+	require.Len(t, desc.Rows, 4)
+	for i := 1; i < len(desc.Rows); i++ {
+		assert.GreaterOrEqual(t, desc.Rows[i-1].BalanceMinutes, desc.Rows[i].BalanceMinutes)
+	}
+}
+
+// TestTimeTrackingOverview_EmptyAndDegenerate covers the shapes that would
+// otherwise 500 or return null.
+func TestTimeTrackingOverview_EmptyAndDegenerate(t *testing.T) {
+	t.Parallel()
+
+	f := newOverviewFixture(t, 0)
+
+	overview, err := f.svc.GetTimeTrackingOverview(f.ctx, timetracking.OverviewFilters{})
+	require.NoError(t, err)
+	assert.NotNil(t, overview.Rows)
+	assert.Empty(t, overview.Rows)
+
+	summary, err := f.svc.GetDashboardSummary(f.ctx, timetracking.OverviewPeriodMonth)
+	require.NoError(t, err)
+	assert.Equal(t, 0, summary.ActiveStaffCount)
+	assert.Equal(t, 0, summary.SaldoSchoolTotalMinutes)
+
+	// A staff member with neither a schedule nor a work-time model: Soll 0,
+	// Ist 0, no error.
+	bare := testpkg.CreateTestStaffForTenant(t, f.db, f.tenantID, "Ohne", "Plan")
+	f.staff = append(f.staff, bare.ID)
+	overview, err = testpkg.TenantQuery1(t, f.ctx, f.db, f.svc.GetTimeTrackingOverview, timetracking.OverviewFilters{})
+	require.NoError(t, err)
+	require.Len(t, overview.Rows, 1)
+	assert.Equal(t, 0, overview.Rows[0].SollMinutes)
+	assert.Equal(t, 0, overview.Rows[0].IstMinutes)
+	assert.Equal(t, 0, overview.Rows[0].BalanceMinutes)
+}
+
+// TestTimeTrackingOverview_RespectsFrozenMonths ties the two halves of #1417
+// together: a closed past month must shape the overview's saldo exactly as it
+// shapes the detail card.
+func TestTimeTrackingOverview_RespectsFrozenMonths(t *testing.T) {
+	t.Parallel()
+
+	f := newOverviewFixture(t, 1)
+	staffID := f.staff[0]
+
+	// Account start in the previous month so there is something to freeze.
+	prevMonth := calendar.NewDate(f.today.Year(), f.today.Month(), 1).AddDays(-1)
+	settings := wtmIntSettings{accountStart: calendar.NewDate(prevMonth.Year(), prevMonth.Month(), 1).String()}
+	monthSvc := timetracking.NewWorkTimeMonthService(
+		f.workforce, f.workforce, f.reposAbsences.StaffAbsence, workforceCompose.StaffScheduleAssignments(api.MustNewStaffEmployment(testpkg.NewDatabase(t, f.db))),
+		owners.NewWorkScheduleTargets(owners.NewStaffWorkScheduleRepository(f.workforce)), owners.NewWorkTimeTargetModels(owners.NewWorkTimeModelRepository(f.workforce)), workforceCompose.NewTimeTrackingShifts(f.workforce),
+		settings, nil,
+		timetracking.WithMonthAdjustments(f.workforce),
+		timetracking.WithMonthSnapshots(timetracking.MonthSnapshotCapability(f.workforce)),
+	)
+	closeSvc := timetracking.NewStaffMonthCloseService(timetracking.MonthSnapshotCapability(f.workforce), monthSvc, owners.MonthCloseStaff(f.repos.Staff), settings, nil, timetracking.WithMonthCloseUnitOfWork(testpkg.RunInTenantTransaction))
+	svc := f.newOverviewService(settings)
+
+	_, err := closeSvc.CloseMonth(f.ctx, staffID, prevMonth.Year(), int(prevMonth.Month()), "Abschluss")
+	require.NoError(t, err)
+
+	overview, err := testpkg.TenantQuery1(t, f.ctx, testpkg.SetupTestDB(t), svc.GetTimeTrackingOverview, timetracking.OverviewFilters{})
+	require.NoError(t, err)
+	require.Len(t, overview.Rows, 1)
+
+	expected, err := monthSvc.GetMonthSummary(f.ctx, staffID, f.today.Year(), int(f.today.Month()))
+	require.NoError(t, err)
+	require.True(t, expected.CarryInFrozen, "the previous month is frozen")
+	assert.Equal(t, expected.ClosingBalanceMinutes, overview.Rows[0].BalanceMinutes,
+		"the overview must splice at the frozen month just like the detail card")
+}
+
+func TestTimeTrackingOverview_ClosedMonthUsesFrozenBalance(t *testing.T) {
+	t.Parallel()
+
+	f := newOverviewFixture(t, 1)
+	staffID := f.staff[0]
+	closedMonth := calendar.NewDate(f.today.Year(), f.today.Month(), 1).AddDays(-1)
+	settings := wtmIntSettings{
+		accountStart: calendar.NewDate(closedMonth.Year(), closedMonth.Month(), 1).String(),
+	}
+	monthSvc := timetracking.NewWorkTimeMonthService(
+		f.workforce, f.workforce, f.reposAbsences.StaffAbsence, workforceCompose.StaffScheduleAssignments(api.MustNewStaffEmployment(testpkg.NewDatabase(t, f.db))),
+		owners.NewWorkScheduleTargets(owners.NewStaffWorkScheduleRepository(f.workforce)), owners.NewWorkTimeTargetModels(owners.NewWorkTimeModelRepository(f.workforce)), workforceCompose.NewTimeTrackingShifts(f.workforce),
+		settings, nil,
+		timetracking.WithMonthAdjustments(f.workforce),
+		timetracking.WithMonthSnapshots(timetracking.MonthSnapshotCapability(f.workforce)),
+	)
+	closeSvc := timetracking.NewStaffMonthCloseService(timetracking.MonthSnapshotCapability(f.workforce), monthSvc, owners.MonthCloseStaff(f.repos.Staff), settings, nil, timetracking.WithMonthCloseUnitOfWork(testpkg.RunInTenantTransaction))
+	svc := f.newOverviewService(settings)
+
+	closeResult, err := closeSvc.CloseMonth(f.ctx, staffID, closedMonth.Year(), int(closedMonth.Month()), "Abschluss")
+	require.NoError(t, err)
+	require.Len(t, closeResult.Snapshots, 1)
+	frozenBalance := closeResult.Snapshots[0].ClosingBalanceMinutes
+
+	// A retroactive session changes the live calculation after the close.
+	f.addSession(t, staffID, closedMonth, 4*time.Hour)
+	detail, err := monthSvc.GetMonthSummary(f.ctx, staffID, closedMonth.Year(), int(closedMonth.Month()))
+	require.NoError(t, err)
+	require.NotNil(t, detail.FrozenClosingBalanceMinutes)
+	assert.Equal(t, frozenBalance, *detail.FrozenClosingBalanceMinutes)
+	assert.NotEqual(t, frozenBalance, detail.ClosingBalanceMinutes)
+
+	overview, err := testpkg.TenantQuery1(t, f.ctx, testpkg.SetupTestDB(t), svc.GetTimeTrackingOverview, timetracking.OverviewFilters{
+		Year: closedMonth.Year(), Month: int(closedMonth.Month()),
+	})
+	require.NoError(t, err)
+	require.Len(t, overview.Rows, 1)
+	assert.Equal(t, frozenBalance, overview.Rows[0].BalanceMinutes)
+
+	// Saldo filters use the same frozen value that the table displays.
+	aboveFrozen := frozenBalance + 1
+	filtered, err := testpkg.TenantQuery1(t, f.ctx, testpkg.SetupTestDB(t), svc.GetTimeTrackingOverview, timetracking.OverviewFilters{
+		Year: closedMonth.Year(), Month: int(closedMonth.Month()), SaldoMin: &aboveFrozen,
+	})
+	require.NoError(t, err)
+	assert.Empty(t, filtered.Rows)
+}
+
+func monthOfDate(d calendar.Date) int { return d.Year()*12 + int(d.Month()) }

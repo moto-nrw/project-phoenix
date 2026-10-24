@@ -23,9 +23,16 @@ type PartialAbsencePreview interface {
 	FindPartialAbsenceBlocks(context.Context, int64, calendar.Date, time.Time) ([]carerequests.Block, error)
 }
 type PickupExcusalLocker interface {
+	WithinTenant(context.Context, func(context.Context) error) error
 	LockStudent(context.Context, int64) error
 	LockStudentAndExceptionDay(context.Context, int64, string) error
 	IsNotFound(error) bool
+}
+
+// PickupStudentLocks takes the student row lock of the People Directory.
+// found is false for a student that no longer exists.
+type PickupStudentLocks interface {
+	LockStudent(ctx context.Context, studentID int64) (found bool, err error)
 }
 type PickupDayExtension struct {
 	StudentID         int64

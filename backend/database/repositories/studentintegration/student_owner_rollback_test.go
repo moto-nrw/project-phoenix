@@ -5,19 +5,20 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
+	api "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	careCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/enrollment"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
 
 type failingStudentOwner struct {
-	peopleCompose.StudentOwners
+	peoplePorts.StudentOwners
 	stage   string
 	failure error
 }
@@ -56,15 +57,16 @@ func TestStudentOwnerWritesRollbackWhenCallerCatchesFailure(t *testing.T) {
 			db := testpkg.SetupTestDB(t)
 			ctx := testpkg.Ctx(t)
 			person := testpkg.CreateTestPerson(t, db, "Atomic", stage)
-			membership, err := repositories.NewSchoolMembership(db)
+			membership, err := api.NewSchoolMembership(testpkg.NewDatabase(t, db))
 			require.NoError(t, err)
-			care, err := careCompose.NewStudentProfiles(db, func(careCompose.Observation) {})
+			care, err := careCompose.NewStudentProfiles(db, testpkg.StudentDirectory{}, func(careCompose.Observation) {})
 			require.NoError(t, err)
 			failure := errors.New("failure after owner write")
 			module, err := peopleCompose.New(peopleCompose.Dependencies{
-				DB: db, Observe: func(peopleCompose.Observation) {},
-				StudentOwners: failingStudentOwner{StudentOwners: repositories.NewStudentOwners(membership, care), stage: stage, failure: failure},
-			})
+				StudentDirectory: testpkg.StudentDirectory{},
+				DB:               db, Observe: func(peopleCompose.Observation) {},
+				StudentOwners: failingStudentOwner{StudentOwners: api.NewStudentOwners(membership, care), stage: stage, failure: failure},
+			}, nil)
 			require.NoError(t, err)
 			require.NoError(t, tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
 				_, createErr := module.CreateStudent(txCtx, peopledirectory.StudentWrite{Record: peopledirectory.StudentRecord{
@@ -89,15 +91,16 @@ func TestStudentOwnerUpdatesRollbackWhenCallerCatchesFailure(t *testing.T) {
 				db := testpkg.SetupTestDB(t)
 				ctx := testpkg.Ctx(t)
 				student := testpkg.CreateTestStudent(t, db, "Atomic", command, "1a")
-				membership, err := repositories.NewSchoolMembership(db)
+				membership, err := api.NewSchoolMembership(testpkg.NewDatabase(t, db))
 				require.NoError(t, err)
-				care, err := careCompose.NewStudentProfiles(db, func(careCompose.Observation) {})
+				care, err := careCompose.NewStudentProfiles(db, testpkg.StudentDirectory{}, func(careCompose.Observation) {})
 				require.NoError(t, err)
 				failure := errors.New("failure after owner update")
 				module, err := peopleCompose.New(peopleCompose.Dependencies{
-					DB: db, Observe: func(peopleCompose.Observation) {},
-					StudentOwners: failingStudentOwner{StudentOwners: repositories.NewStudentOwners(membership, care), stage: stage, failure: failure},
-				})
+					StudentDirectory: testpkg.StudentDirectory{},
+					DB:               db, Observe: func(peopleCompose.Observation) {},
+					StudentOwners: failingStudentOwner{StudentOwners: api.NewStudentOwners(membership, care), stage: stage, failure: failure},
+				}, nil)
 				require.NoError(t, err)
 				before, err := module.FindStudentRecord(ctx, student.ID)
 				require.NoError(t, err)

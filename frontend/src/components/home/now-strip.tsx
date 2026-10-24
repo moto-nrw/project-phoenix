@@ -1,7 +1,9 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
+import { ArrowRight } from "lucide-react";
 import { Button, ButtonLink } from "~/components/ui/button";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { StatusBadge } from "~/components/ui/status-badge";
@@ -76,7 +78,10 @@ export function NowStrip({
   // Schulansicht daraus bleibt der Leitung vorbehalten; wer betreut, bekommt
   // aus diesen Daten nur den Knopf.
   const wantsDay = context.timetableEnabled && access.has("schedules:read");
-  const wantsAnalytics = access.isAdminScope && access.has("groups:read");
+  // Wie viele Kinder da sind: für alle mit dem Recht hinter den Kennzahlen,
+  // auch für Betreuungskräfte (#4347). Dieselbe Abfrage wie die Kachel
+  // „Kinder anwesend".
+  const wantsAnalytics = access.has("groups:read");
 
   const own = useSWRAuth<OwnAssignment[]>(
     wantsOwn ? `time-tracking-own-assignments-today-${today}` : null,
@@ -142,6 +147,12 @@ export function NowStrip({
     canReadUsers: access.has("users:read"),
     tenantPath,
   });
+  // Lage der Schule und Datum nennen die Zahl schon im Text. Neben dem
+  // eigenen Einsatz steht sie für sich, damit niemand sie dem Block zuordnet.
+  const presentCount =
+    !loading && state.kind.startsWith("own_")
+      ? analytics.data?.studentsPresent
+      : undefined;
 
   return (
     <SectionCard testId="home-now">
@@ -169,8 +180,19 @@ export function NowStrip({
             in voller Breite waren die zwei Wege größer als die Uhr, um die es
             in der Zone geht, und in Knopfgröße blieb rechts ein toter Rest
             stehen. Ab sm stehen sie in Knopfgröße neben dem Text. */}
-        {actions.length > 0 && (
-          <div className="flex shrink-0 flex-wrap gap-2">
+        {(actions.length > 0 || presentCount !== undefined) && (
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+            {presentCount !== undefined && (
+              <p className="flex items-center gap-1.5 pr-2 text-sm whitespace-nowrap text-gray-600">
+                <MotoConceptIcon concept="present" size={18} />
+                <span>
+                  <span className="font-semibold text-gray-900 tabular-nums">
+                    {presentCount}
+                  </span>{" "}
+                  {presentCount === 1 ? "Kind da" : "Kinder da"}
+                </span>
+              </p>
+            )}
             {actions.map((action, index) => {
               const variant = index === 0 ? "primary" : "outline";
               return action.kind === "start" ? (
@@ -186,14 +208,18 @@ export function NowStrip({
                   {busyId === action.block.id ? "Startet..." : action.label}
                 </Button>
               ) : (
+                // Ein Weg in einen anderen Bereich trägt den Pfeil (#4346):
+                // man sieht, dass der Knopf weiterführt. „Aufsicht starten"
+                // wechselt nicht, sondern startet an Ort und Stelle.
                 <ButtonLink
                   key={action.href}
                   href={action.href}
                   variant={variant}
                   size="md"
-                  className="whitespace-nowrap max-sm:flex-1"
+                  className="gap-2 whitespace-nowrap max-sm:flex-1"
                 >
                   {action.label}
+                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
                 </ButtonLink>
               );
             })}
@@ -237,7 +263,16 @@ function NowText({
             </>
           }
           detail={[
-            block.roomName,
+            block.roomName ? (
+              <Fragment key="room">
+                <MotoConceptIcon
+                  concept="rooms"
+                  size={14}
+                  className="mr-1 inline-block align-[-2px]"
+                />
+                {block.roomName}
+              </Fragment>
+            ) : null,
             blockEndLine(block),
             next
               ? `danach ${next.startTime} ${next.title}`
@@ -262,7 +297,19 @@ function NowText({
               )}
             </>
           }
-          detail={[blockTimeRange(block), block.roomName]}
+          detail={[
+            blockTimeRange(block),
+            block.roomName ? (
+              <Fragment key="room">
+                <MotoConceptIcon
+                  concept="rooms"
+                  size={14}
+                  className="mr-1 inline-block align-[-2px]"
+                />
+                {block.roomName}
+              </Fragment>
+            ) : null,
+          ]}
         />
       );
     }
@@ -347,9 +394,14 @@ function Lines({
 }: {
   readonly headline: string;
   readonly badges?: ReactNode;
-  readonly detail: readonly string[];
+  // Raumangaben tragen ihr Symbol wie in den Blockzeilen (#4350).
+  readonly detail: readonly ReactNode[];
 }) {
-  const text = detail.filter(Boolean).join(" · ");
+  const parts = detail.filter(Boolean);
+  const text =
+    parts.length > 0
+      ? parts.flatMap((part, index) => (index === 0 ? [part] : [" · ", part]))
+      : null;
   return (
     <div className="min-w-0 flex-1">
       {/* Auf dem Handy darf der Satz umbrechen; erst nebeneinander mit den

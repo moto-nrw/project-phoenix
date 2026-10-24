@@ -96,8 +96,7 @@ describe("student-partial-absences-api", () => {
       vi.fn().mockResolvedValue(
         Response.json(
           {
-            status: "error",
-            error: "from_time invalid",
+            detail: "from_time invalid",
             code: "general.input",
             errors: [{ field: "from_time", reason: "invalid" }],
           },

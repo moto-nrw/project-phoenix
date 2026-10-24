@@ -6,11 +6,15 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	api "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
+
+	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 type careExitOfferingSchool struct {
@@ -23,13 +27,16 @@ type careExitOfferingSchool struct {
 }
 
 // TestCareExitOfferingLinksTenantScopeRollbackAndRestore covers the offering
-// link projection, lock, snapshot, end and restore composed from Enrollment
-// identity and Care Plan's target-only bookings (#2714).
+// link projection, snapshot and restore composed from Enrollment identity and
+// Care Plan's target-only bookings (#2714), and the lock and end the care
+// lifecycle takes on Care Plan's own bookings (ADR 0075).
 func TestCareExitOfferingLinksTenantScopeRollbackAndRestore(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	module := repositories.NewEnrollmentBookingProjection(enrollmentTest.New())
+	module := api.NewEnrollmentBookingProjection(api.NewEnrollmentBookings())
+	bookings := carePlanCompose.NewOfferingBookings()
 	const validUntil = enrollmentTest.Date("2031-02-01")
+	const careUntil = careplan.Date(validUntil)
 	schools := make([]careExitOfferingSchool, 0, 2)
 	for _, school := range []string{"first", "second"} {
 		t.Run(school, func(t *testing.T) {
@@ -81,7 +88,7 @@ func TestCareExitOfferingLinksTenantScopeRollbackAndRestore(t *testing.T) {
 		ctx := testpkg.ContextForTenant(testpkg.Ctx(t), school.schoolID)
 		foreignCtx := testpkg.ContextForTenant(testpkg.Ctx(t), schools[1-i].schoolID)
 
-		audit, err := module.ApprovedBookingOfferingLinks(ctx)
+		audit, err := testpkg.TenantQuery0(t, ctx, db, module.ApprovedBookingOfferingLinks)
 		require.NoError(t, err)
 		require.Len(t, audit, 3, "the audit projection holds every link of the approved child")
 		for _, link := range audit {
@@ -93,17 +100,17 @@ func TestCareExitOfferingLinksTenantScopeRollbackAndRestore(t *testing.T) {
 		require.Equal(t, enrollmentTest.Date("2031-03-01"), *audit[1].ValidFrom)
 		require.Equal(t, enrollmentTest.Date("2031-01-01"), *audit[2].ValidUntil)
 
-		links, err := module.CareExitOfferingLinks(ctx, []int64{school.studentID, schools[1-i].studentID})
+		links, err := testpkg.TenantQuery1(t, ctx, db, module.CareExitOfferingLinks, []int64{school.studentID, schools[1-i].studentID})
 		require.NoError(t, err)
 		require.Len(t, links, 3, "selected students are filtered to the caller's school")
-		all, err := module.CareExitOfferingLinks(ctx, nil)
+		all, err := testpkg.TenantQuery1(t, ctx, db, module.CareExitOfferingLinks, nil)
 		require.NoError(t, err)
 		require.Len(t, all, 3, "the scheduled evaluation sees the whole school and nothing else")
-		foreign, err := module.CareExitOfferingLinks(foreignCtx, []int64{school.studentID})
+		foreign, err := testpkg.TenantQuery1(t, foreignCtx, db, module.CareExitOfferingLinks, []int64{school.studentID})
 		require.NoError(t, err)
 		require.Empty(t, foreign, "another school's students have no links here")
 
-		snapshots, err := module.CareExitOfferingSnapshots(ctx, []int64{school.studentID}, validUntil, nil)
+		snapshots, err := testpkg.TenantQuery3(t, ctx, db, module.CareExitOfferingSnapshots, []int64{school.studentID}, validUntil, (*int64)(nil))
 		require.NoError(t, err)
 		require.Len(t, snapshots, 2, "links that already ended are not part of the exit")
 		require.Equal(t, school.running, snapshots[0].SourceRowID)
@@ -116,35 +123,35 @@ func TestCareExitOfferingLinksTenantScopeRollbackAndRestore(t *testing.T) {
 			require.Equal(t, school.requestChildID, snapshot.RequestChildID)
 			require.Contains(t, string(snapshot.Snapshot), `"care_offering_id"`)
 		}
-		none, err := module.CareExitOfferingSnapshots(ctx, []int64{school.studentID}, validUntil, new(school.requestChildID+1_000_000))
+		none, err := testpkg.TenantQuery3(t, ctx, db, module.CareExitOfferingSnapshots, []int64{school.studentID}, validUntil, new(school.requestChildID+1_000_000))
 		require.NoError(t, err)
 		require.Empty(t, none, "a source application filter narrows the snapshot")
-		foreignSnapshots, err := module.CareExitOfferingSnapshots(foreignCtx, []int64{school.studentID}, validUntil, nil)
+		foreignSnapshots, err := testpkg.TenantQuery3(t, foreignCtx, db, module.CareExitOfferingSnapshots, []int64{school.studentID}, validUntil, nil)
 		require.NoError(t, err)
 		require.Empty(t, foreignSnapshots)
 
 		endFailure := errors.New("after ending offering links")
 		err = testpkg.WithTenantTx(t, ctx, db, school.schoolID, func(txCtx context.Context, _ bun.Tx) error {
-			require.NoError(t, module.LockCareExitOfferingLinks(txCtx, []int64{school.requestChildID}, validUntil))
-			changed, err := module.EndCareExitOfferingLinks(txCtx, []int64{school.requestChildID}, nil, validUntil)
+			require.NoError(t, testpkg.TenantCommand1(t, txCtx, db, bookings.LockCareOfferingBookings, []int64{school.requestChildID}))
+			changed, err := testpkg.TenantQuery2(t, txCtx, db, bookings.EndCareOfferingBookings, []int64{school.requestChildID}, careUntil)
 			require.NoError(t, err)
 			require.EqualValues(t, 2, changed)
 			return endFailure
 		})
 		require.ErrorIs(t, err, endFailure)
-		afterRollback, err := module.CareExitOfferingLinks(ctx, []int64{school.studentID})
+		afterRollback, err := testpkg.TenantQuery1(t, ctx, db, module.CareExitOfferingLinks, []int64{school.studentID})
 		require.NoError(t, err)
 		require.Len(t, afterRollback, 3, "a failed workflow keeps every link")
 		require.Nil(t, afterRollback[0].ValidUntil)
 
-		foreignChanged, err := module.EndCareExitOfferingLinks(foreignCtx, []int64{school.requestChildID}, nil, validUntil)
+		foreignChanged, err := testpkg.TenantQuery2(t, foreignCtx, db, bookings.EndCareOfferingBookings, []int64{school.requestChildID}, careUntil)
 		require.NoError(t, err)
 		require.Zero(t, foreignChanged, "another school cannot end these links")
 
-		changed, err := module.EndCareExitOfferingLinks(ctx, []int64{school.requestChildID}, nil, validUntil)
+		changed, err := testpkg.TenantQuery2(t, ctx, db, bookings.EndCareOfferingBookings, []int64{school.requestChildID}, careUntil)
 		require.NoError(t, err)
 		require.EqualValues(t, 2, changed)
-		afterEnd, err := module.CareExitOfferingLinks(ctx, []int64{school.studentID})
+		afterEnd, err := testpkg.TenantQuery1(t, ctx, db, module.CareExitOfferingLinks, []int64{school.studentID})
 		require.NoError(t, err)
 		require.Len(t, afterEnd, 2, "the future link is deleted")
 		require.Equal(t, school.running, afterEnd[0].ID)
@@ -155,63 +162,63 @@ func TestCareExitOfferingLinksTenantScopeRollbackAndRestore(t *testing.T) {
 		for _, snapshot := range snapshots {
 			restores = append(restores, enrollmentTest.CareExitOfferingSnapshotRestore{SourceRowID: snapshot.SourceRowID, WasDeleted: snapshot.WasDeleted, Snapshot: snapshot.Snapshot})
 		}
-		foreignRestored, err := module.RestoreCareExitOfferingLinks(foreignCtx, restores)
+		foreignRestored, err := testpkg.TenantQuery1(t, foreignCtx, db, module.RestoreCareExitOfferingLinks, restores)
 		require.NoError(t, err)
 		require.Zero(t, foreignRestored, "another school cannot replay this ledger")
-		stillEnded, err := module.CareExitOfferingLinks(ctx, []int64{school.studentID})
+		stillEnded, err := testpkg.TenantQuery1(t, ctx, db, module.CareExitOfferingLinks, []int64{school.studentID})
 		require.NoError(t, err)
 		require.Len(t, stillEnded, 2)
 		require.Equal(t, validUntil, *stillEnded[0].ValidUntil)
 
 		restoreFailure := errors.New("after restoring offering links")
 		err = testpkg.WithTenantTx(t, ctx, db, school.schoolID, func(txCtx context.Context, _ bun.Tx) error {
-			restored, err := module.RestoreCareExitOfferingLinks(txCtx, restores)
+			restored, err := testpkg.TenantQuery1(t, txCtx, db, module.RestoreCareExitOfferingLinks, restores)
 			require.NoError(t, err)
 			require.EqualValues(t, 1, restored)
 			return restoreFailure
 		})
 		require.ErrorIs(t, err, restoreFailure)
-		stillEnded, err = module.CareExitOfferingLinks(ctx, []int64{school.studentID})
+		stillEnded, err = testpkg.TenantQuery1(t, ctx, db, module.CareExitOfferingLinks, []int64{school.studentID})
 		require.NoError(t, err)
 		require.Len(t, stillEnded, 2, "a failed restore persists nothing")
 
-		restored, err := module.RestoreCareExitOfferingLinks(ctx, restores)
+		restored, err := testpkg.TenantQuery1(t, ctx, db, module.RestoreCareExitOfferingLinks, restores)
 		require.NoError(t, err)
 		require.EqualValues(t, 1, restored, "the deleted link is recreated")
-		afterRestore, err := module.CareExitOfferingLinks(ctx, []int64{school.studentID})
+		afterRestore, err := testpkg.TenantQuery1(t, ctx, db, module.CareExitOfferingLinks, []int64{school.studentID})
 		require.NoError(t, err)
 		require.Len(t, afterRestore, 3)
 		require.Equal(t, school.running, afterRestore[0].ID)
 		require.Nil(t, afterRestore[0].ValidUntil, "the capped link recovers its open end")
 		require.Equal(t, school.future, afterRestore[1].ID, "the deleted link keeps its original id")
 		require.Equal(t, enrollmentTest.Date("2031-03-01"), *afterRestore[1].ValidFrom)
-		restored, err = module.RestoreCareExitOfferingLinks(ctx, restores)
+		restored, err = testpkg.TenantQuery1(t, ctx, db, module.RestoreCareExitOfferingLinks, restores)
 		require.NoError(t, err)
 		require.Zero(t, restored, "replaying the ledger again is a no-op")
 	}
 
 	ctx := testpkg.ContextForTenant(testpkg.Ctx(t), schools[0].schoolID)
-	beforeFailure, err := module.CareExitOfferingSnapshots(ctx, []int64{schools[0].studentID}, validUntil, nil)
+	beforeFailure, err := testpkg.TenantQuery3(t, ctx, db, module.CareExitOfferingSnapshots, []int64{schools[0].studentID}, validUntil, nil)
 	require.NoError(t, err)
 	require.NotEmpty(t, beforeFailure)
 	err = testpkg.WithTenantTx(t, ctx, db, schools[0].schoolID, func(txCtx context.Context, tx bun.Tx) error {
 		_, err := tx.NewRaw("SELECT 1 / 0").Exec(txCtx)
 		require.Error(t, err)
-		_, auditErr := module.ApprovedBookingOfferingLinks(txCtx)
+		_, auditErr := testpkg.TenantQuery0(t, txCtx, db, module.ApprovedBookingOfferingLinks)
 		require.Error(t, auditErr)
-		_, linksErr := module.CareExitOfferingLinks(txCtx, nil)
+		_, linksErr := testpkg.TenantQuery1(t, txCtx, db, module.CareExitOfferingLinks, nil)
 		require.Error(t, linksErr)
-		require.Error(t, module.LockCareExitOfferingLinks(txCtx, []int64{schools[0].requestChildID}, validUntil))
-		_, snapshotErr := module.CareExitOfferingSnapshots(txCtx, []int64{schools[0].studentID}, validUntil, nil)
+		require.Error(t, testpkg.TenantCommand1(t, txCtx, db, bookings.LockCareOfferingBookings, []int64{schools[0].requestChildID}))
+		_, snapshotErr := testpkg.TenantQuery3(t, txCtx, db, module.CareExitOfferingSnapshots, []int64{schools[0].studentID}, validUntil, nil)
 		require.Error(t, snapshotErr)
-		_, endErr := module.EndCareExitOfferingLinks(txCtx, []int64{schools[0].requestChildID}, nil, validUntil)
+		_, endErr := testpkg.TenantQuery2(t, txCtx, db, bookings.EndCareOfferingBookings, []int64{schools[0].requestChildID}, careUntil)
 		require.Error(t, endErr)
-		_, restoreErr := module.RestoreCareExitOfferingLinks(txCtx, []enrollmentTest.CareExitOfferingSnapshotRestore{{SourceRowID: beforeFailure[0].SourceRowID, WasDeleted: beforeFailure[0].WasDeleted, Snapshot: beforeFailure[0].Snapshot}})
+		_, restoreErr := testpkg.TenantQuery1(t, txCtx, db, module.RestoreCareExitOfferingLinks, []enrollmentTest.CareExitOfferingSnapshotRestore{{SourceRowID: beforeFailure[0].SourceRowID, WasDeleted: beforeFailure[0].WasDeleted, Snapshot: beforeFailure[0].Snapshot}})
 		require.Error(t, restoreErr)
 		return err
 	})
 	require.Error(t, err)
-	links, err := module.CareExitOfferingLinks(ctx, []int64{schools[0].studentID})
+	links, err := testpkg.TenantQuery1(t, ctx, db, module.CareExitOfferingLinks, []int64{schools[0].studentID})
 	require.NoError(t, err)
 	require.Len(t, links, 3, "retry succeeds after the failed transaction rolls back")
 }

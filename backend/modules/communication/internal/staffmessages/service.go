@@ -18,12 +18,8 @@ import (
 	"log/slog"
 	"strings"
 
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/uptrace/bun"
 )
 
 // maxMessageLen caps one message in runes. Mirrors the parent-OGS chat limit so
@@ -64,59 +60,67 @@ type ThreadDetail struct {
 	ThreadID             int64
 	CounterpartAccountID int64
 	CounterpartName      string
-	// CounterpartRoleKind: one of the usersModels.StaffRoleKind constants.
+	// CounterpartRoleKind: one of the existing coarse colleague-role values.
 	CounterpartRoleKind string
-	Messages            []*usersModels.StaffMessage
+	Messages            []*StaffMessage
 }
 
 // PersonLookup resolves the person behind a sender's account for display.
 type PersonLookup interface {
-	FindByAccountID(ctx context.Context, accountID int64) (*usersModels.Person, error)
+	deliveryPorts.StaffSenderNames
 }
 
 // Settings resolves the messaging feature flag and the retention period of the
 // current tenant.
 type Settings interface {
-	ResolveBool(ctx context.Context, key string) (bool, error)
-	ResolveInt(ctx context.Context, key string) (int, error)
+	StaffMessagingEnabled(ctx context.Context) (bool, error)
+	StaffMessagingEnabledKey() string
+	StaffMessageRetentionDays(ctx context.Context) (int, error)
+	StaffMessageRetentionDaysKey() string
 }
 
 // Service is the OGS-internal messaging service.
 type Service struct {
 	Config
+	runtime        Runtime
+	deliveryPolicy deliveryPorts.NotificationErrors
 }
 
 // Config is the dependency-injection bundle.
 type Config struct {
-	ThreadRepo  usersModels.StaffMessageThreadRepository
-	MessageRepo usersModels.StaffMessageRepository
-	ReadRepo    usersModels.StaffMessageReadRepository
+	ThreadRepo  StaffMessageThreadRepository
+	MessageRepo StaffMessageRepository
+	ReadRepo    StaffMessageReadRepository
 	Persons     PersonLookup
 	Settings    Settings
+	// Session reads the authenticated account of the request.
+	Session     deliveryPorts.RequestAccount
 	Broadcaster realtime.Broadcaster
-	DB          *bun.DB
 	Logger      *slog.Logger
 
 	// Notifier and Preferences push a message to the recipient's devices. Both
 	// optional and both required together: without the preference service there
 	// is nobody who consented, so the push is skipped rather than sent past
 	// consent.
-	Notifier    notifications.Service
-	Preferences notifications.PreferenceService
+	Notifier    deliveryPorts.NotificationSender
+	Preferences deliveryPorts.NotificationOptIns
 }
 
 // NewService wires an internal messaging service.
-func NewService(cfg Config) *Service {
+func NewService(cfg Config, runtime Runtime, policy deliveryPorts.NotificationErrors) *Service {
+	if cfg.Session == nil {
+		panic("staff messaging: the request session is required")
+	}
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
 	}
-	return &Service{Config: cfg}
+	return &Service{Config: cfg, runtime: runtime, deliveryPolicy: policy}
 }
 
 // actor returns the authenticated account id for the request.
 func (s *Service) actor(ctx context.Context) (int64, error) {
-	if id := jwt.ActorAccountIDFromCtx(ctx); id != nil && *id != 0 {
-		return *id, nil
+	if id := s.Session.AccountID(ctx); id != 0 {
+		return id, nil
 	}
 	return 0, ErrNoActor
 }
@@ -133,10 +137,10 @@ func (s *Service) requireEnabled(ctx context.Context) error {
 	if s.Settings == nil {
 		return ErrMessagingDisabled
 	}
-	enabled, err := s.Settings.ResolveBool(ctx, configModels.KeyStaffMessagingEnabled)
+	enabled, err := s.Settings.StaffMessagingEnabled(ctx)
 	if err != nil {
 		s.Logger.Warn("staffmessaging: resolve enabled failed, failing closed",
-			slog.String("key", configModels.KeyStaffMessagingEnabled),
+			slog.String("key", s.Settings.StaffMessagingEnabledKey()),
 			slog.String("error", err.Error()),
 		)
 		return ErrMessagingDisabled
@@ -148,7 +152,7 @@ func (s *Service) requireEnabled(ctx context.Context) error {
 }
 
 // ListInbox returns the caller's conversations, newest activity first.
-func (s *Service) ListInbox(ctx context.Context, onlyUnread bool) ([]*usersModels.StaffInboxThread, error) {
+func (s *Service) ListInbox(ctx context.Context, onlyUnread bool) ([]*StaffInboxThread, error) {
 	if err := s.requireEnabled(ctx); err != nil {
 		return nil, err
 	}
@@ -187,7 +191,7 @@ func (s *Service) UnreadMessageCount(ctx context.Context) (int, error) {
 }
 
 // ListMessageableStaff returns the colleagues the caller may write to.
-func (s *Service) ListMessageableStaff(ctx context.Context) ([]*usersModels.MessageableStaff, error) {
+func (s *Service) ListMessageableStaff(ctx context.Context) ([]*MessageableStaff, error) {
 	if err := s.requireEnabled(ctx); err != nil {
 		return nil, err
 	}
@@ -215,7 +219,7 @@ func (s *Service) ListMessageableStaff(ctx context.Context) ([]*usersModels.Mess
 
 // authorizeThread loads a thread and verifies the caller takes part in it.
 // Both "no such thread" and "not yours" surface as the same 404 upstream.
-func (s *Service) authorizeThread(ctx context.Context, threadID, accountID int64) (*usersModels.StaffMessageThread, error) {
+func (s *Service) authorizeThread(ctx context.Context, threadID, accountID int64) (*StaffMessageThread, error) {
 	thread, err := s.ThreadRepo.FindByID(ctx, threadID)
 	if err != nil {
 		return nil, err
@@ -332,7 +336,7 @@ func (s *Service) GetThread(ctx context.Context, threadID int64) (*ThreadDetail,
 }
 
 // PostMessage appends a message to a conversation the caller takes part in.
-func (s *Service) PostMessage(ctx context.Context, threadID int64, body string) (*usersModels.StaffMessage, error) {
+func (s *Service) PostMessage(ctx context.Context, threadID int64, body string) (*StaffMessage, error) {
 	if err := s.requireEnabled(ctx); err != nil {
 		return nil, err
 	}
@@ -371,24 +375,10 @@ func (s *Service) PostMessage(ctx context.Context, threadID int64, body string) 
 		return nil, err
 	}
 
-	// Serialize appends for this thread so message order matches commit order.
-	if err := s.ThreadRepo.LockForMessageAppend(ctx, threadID); err != nil {
+	message, err := s.appendMessage(ctx, threadID, accountID, trimmed)
+	if err != nil {
 		return nil, err
 	}
-
-	message := &usersModels.StaffMessage{
-		ThreadID:        threadID,
-		SenderAccountID: accountID,
-		SenderName:      s.resolveSenderName(ctx, accountID),
-		Body:            trimmed,
-	}
-	if err := s.MessageRepo.Create(ctx, message); err != nil {
-		return nil, err
-	}
-	if err := s.ThreadRepo.TouchLastMessage(ctx, threadID, message.CreatedAt, message.ID, accountID, trimmed); err != nil {
-		return nil, err
-	}
-
 	// Deliberately NO read-cursor advance here.
 	//
 	// The tempting version ("you have read what you just wrote") is both
@@ -423,7 +413,7 @@ func (s *Service) resolveSenderName(ctx context.Context, accountID int64) string
 	if s.Persons == nil {
 		return fallback
 	}
-	person, err := s.Persons.FindByAccountID(ctx, accountID)
+	person, err := s.Persons.FindStaffSenderName(ctx, accountID)
 	if err != nil || person == nil {
 		return fallback
 	}
@@ -434,7 +424,7 @@ func (s *Service) resolveSenderName(ctx context.Context, accountID int64) string
 }
 
 // buildDetail assembles the chat window payload for one viewer.
-func (s *Service) buildDetail(ctx context.Context, thread *usersModels.StaffMessageThread, viewerAccountID int64) (*ThreadDetail, error) {
+func (s *Service) buildDetail(ctx context.Context, thread *StaffMessageThread, viewerAccountID int64) (*ThreadDetail, error) {
 	messages, err := s.MessageRepo.ListByThread(ctx, thread.ID)
 	if err != nil {
 		return nil, err
@@ -460,4 +450,26 @@ func (s *Service) buildDetail(ctx context.Context, thread *usersModels.StaffMess
 		detail.CounterpartRoleKind = kinds[detail.CounterpartAccountID]
 	}
 	return detail, nil
+}
+
+func (s *Service) appendMessage(ctx context.Context, threadID, accountID int64, trimmed string) (*StaffMessage, error) {
+	// Serialize appends for this thread so message order matches commit order.
+	if err := s.ThreadRepo.LockForMessageAppend(ctx, threadID); err != nil {
+		return nil, err
+	}
+
+	message := &StaffMessage{
+		ThreadID:        threadID,
+		SenderAccountID: accountID,
+		SenderName:      s.resolveSenderName(ctx, accountID),
+		Body:            trimmed,
+	}
+	if err := s.MessageRepo.Create(ctx, message); err != nil {
+		return nil, err
+	}
+	if err := s.ThreadRepo.TouchLastMessage(ctx, threadID, message.CreatedAt, message.ID, accountID, trimmed); err != nil {
+		return nil, err
+	}
+
+	return message, nil
 }

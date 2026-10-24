@@ -1,8 +1,15 @@
 ---
-status: accepted
+status: historical
 ---
 
 # Timetable planning dissolution may replace its legacy permissions slice by slice
+
+> Historical record of a completed cutover. The rules that still hold
+> are in [ADR 0070](0070-principle-only-the-target-is-a-rule-and-debt-leaves-with-evidence.md).
+
+> Amended on 2026-10-15 by [ADR 0057](0057-only-the-target-is-a-rule.md): the
+> replacement rules this decision allowed are not target. #4070 converts the
+> reach they still grant into exact debt under its carriers (#4076 and others).
 
 Accepted for #3424 in the implementing change of its first slice, following
 the precedent of ADR 0030, ADR 0035, ADR 0036 and ADR 0037. The pull request review is

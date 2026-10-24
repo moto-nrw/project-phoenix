@@ -53,7 +53,7 @@ describe("GET /api/operator/announcements", () => {
     expect(response.status).toBe(200);
     const json = (await response.json()) as {
       data?: unknown;
-      error?: string;
+      detail?: string;
       status?: string;
     };
     expect(json.data).toEqual(announcements);
@@ -93,10 +93,10 @@ describe("GET /api/operator/announcements", () => {
     expect(response.status).toBe(401);
     const json = (await response.json()) as {
       data?: unknown;
-      error?: string;
+      detail?: string;
       status?: string;
     };
-    expect(json.error).toBe("Unauthorized");
+    expect(json.detail).toBe("Unauthorized");
   });
 });
 
@@ -137,7 +137,7 @@ describe("POST /api/operator/announcements", () => {
     expect(response.status).toBe(200);
     const json = (await response.json()) as {
       data?: unknown;
-      error?: string;
+      detail?: string;
       status?: string;
     };
     expect(json.data).toEqual(createdAnnouncement);
@@ -168,7 +168,7 @@ describe("POST /api/operator/announcements", () => {
   it("handles validation errors from backend", async () => {
     mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
     mockFetch.mockResolvedValue(
-      new Response(JSON.stringify({ error: "Title is required" }), {
+      new Response(JSON.stringify({ detail: "Title is required" }), {
         status: 400,
         headers: { "Content-Type": "application/json" },
       }),

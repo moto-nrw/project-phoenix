@@ -177,7 +177,7 @@ package schedules
 import (
     "github.com/go-chi/chi/v5"
     "github.com/moto-nrw/project-phoenix/auth/authorize"
-    "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+    "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
     "github.com/moto-nrw/project-phoenix/services"
 )
 
@@ -193,7 +193,7 @@ func (rs *Resource) Router() chi.Router {
     r := chi.NewRouter()
 
     // Apply JWT authentication to all routes
-    r.Use(jwt.Authenticator)
+    r.Use(sessiontoken.Authenticator)
 
     // Permission-based routes
     r.With(authorize.RequiresPermission("schedules.read")).

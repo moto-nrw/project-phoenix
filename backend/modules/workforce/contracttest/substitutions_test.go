@@ -6,11 +6,10 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/api"
 	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
@@ -36,10 +35,10 @@ func TestSubstitutionCapabilityPreservesCallerAndOverview(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	staff := testpkg.CreateTestStaff(t, db, "Substitution", "Contract")
 	ctx := testpkg.Ctx(t)
-	day := timezone.NewDate(2026, 9, 21)
+	day := calendar.NewDate(2026, 9, 21)
 	caller := workforce.SubstitutionCaller{AccountID: staff.ID, TenantID: testpkg.Tenant(t), Scope: "staff", Roles: []string{"teacher"}, HasPermission: func(p string) bool { return p == "substitutions:read" }}
 	calls := 0
-	capability := services.SubstitutionCapability(substitutionContract{overview: func(c context.Context, a education.Caller, q education.OverviewQuery) (*education.OverviewResult, error) {
+	capability := api.SubstitutionCapability(substitutionContract{overview: func(c context.Context, a education.Caller, q education.OverviewQuery) (*education.OverviewResult, error) {
 		require.Equal(t, ctx, c)
 		require.Equal(t, caller.TenantID, a.TenantID)
 		require.Equal(t, caller.AccountID, a.AccountID)
@@ -84,7 +83,7 @@ func TestSubstitutionCapabilityPreservesAssignmentPresenceAndWholeDays(t *testin
 	db := testpkg.SetupTestDB(t)
 	staff := testpkg.CreateTestStaff(t, db, "Assignment", "Contract")
 	ctx := testpkg.Ctx(t)
-	day := timezone.NewDate(2026, 9, 21)
+	day := calendar.NewDate(2026, 9, 21)
 	for _, populated := range []bool{false, true} {
 		t.Run(fmt.Sprint(populated), func(t *testing.T) {
 			input := workforce.SubstitutionAssignment{GroupHandover: &workforce.GroupHandoverAssignment{GroupID: staff.ID, TargetStaffID: staff.ID, StartDate: day.String(), EndDate: day.String()}, AdditionalSupervision: &workforce.AdditionalSupervisionAssignment{ActiveGroupID: staff.ID, TargetStaffID: staff.ID}, ScheduleSubstitution: &workforce.ScheduleSubstitutionAssignment{InstanceID: staff.ID}}
@@ -95,7 +94,7 @@ func TestSubstitutionCapabilityPreservesAssignmentPresenceAndWholeDays(t *testin
 				input.ScheduleSubstitution.Presences = []workforce.SchedulePresenceChange{{StaffID: staff.ID}}
 				input.ScheduleSubstitution.WholeDays = &workforce.ScheduleWholeDayAssignment{AbsentStaffID: staff.ID, SubstituteStaffID: &staff.ID, Dates: []string{day.String()}}
 			}
-			capability := services.SubstitutionCapability(substitutionContract{assign: func(c context.Context, _ education.Caller, a education.Assignment) (*education.AssignmentResult, error) {
+			capability := api.SubstitutionCapability(substitutionContract{assign: func(c context.Context, _ education.Caller, a education.Assignment) (*education.AssignmentResult, error) {
 				require.Equal(t, ctx, c)
 				require.Equal(t, staff.ID, a.GroupHandover.GroupID)
 				require.Equal(t, day, *a.GroupHandover.StartDate)
@@ -106,7 +105,7 @@ func TestSubstitutionCapabilityPreservesAssignmentPresenceAndWholeDays(t *testin
 					require.Equal(t, staff.ID, a.ScheduleSubstitution.Substitutions[0].SubstituteStaffID)
 					require.Equal(t, staff.ID, a.ScheduleSubstitution.SubstitutionRemovals[0].StaffID)
 					require.Equal(t, staff.ID, a.ScheduleSubstitution.Presences[0].StaffID)
-					require.Equal(t, []timezone.Date{day}, a.ScheduleSubstitution.WholeDays.Dates)
+					require.Equal(t, []calendar.Date{day}, a.ScheduleSubstitution.WholeDays.Dates)
 				} else {
 					require.Nil(t, a.ScheduleSubstitution.Absences)
 					require.Nil(t, a.ScheduleSubstitution.Substitutions)
@@ -144,7 +143,7 @@ func TestSubstitutionCapabilityPreservesAssignmentPresenceAndWholeDays(t *testin
 
 func TestSubstitutionCapabilityRejectsDatesBeforeCallingModule(t *testing.T) {
 	t.Parallel()
-	capability := services.SubstitutionCapability(substitutionContract{})
+	capability := api.SubstitutionCapability(substitutionContract{})
 	ctx := context.Background()
 	caller := workforce.SubstitutionCaller{}
 	for _, query := range []workforce.SubstitutionOverviewQuery{{On: "bad"}, {ScheduleFrom: "bad"}, {ScheduleTo: "bad"}} {
@@ -172,7 +171,7 @@ func TestSubstitutionCapabilityPreservesOperationErrors(t *testing.T) {
 			if structured {
 				failure = &education.OperationError{Target: pair[0], Code: "detail", Message: "operation failed", Cause: cause}
 			}
-			capability := services.SubstitutionCapability(substitutionContract{end: func(context.Context, education.Caller, education.EndRequest) error { return failure }, assign: func(context.Context, education.Caller, education.Assignment) (*education.AssignmentResult, error) {
+			capability := api.SubstitutionCapability(substitutionContract{end: func(context.Context, education.Caller, education.EndRequest) error { return failure }, assign: func(context.Context, education.Caller, education.Assignment) (*education.AssignmentResult, error) {
 				return nil, failure
 			}, overview: func(context.Context, education.Caller, education.OverviewQuery) (*education.OverviewResult, error) {
 				return nil, failure

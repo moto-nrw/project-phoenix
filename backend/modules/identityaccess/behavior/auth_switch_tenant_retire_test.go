@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/auth/rotation"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -69,7 +68,7 @@ func TestSwitchTenantRetiredFamilyRefreshKeepsDeadline(t *testing.T) {
 	}
 	require.NotNil(t, retired.FamilyExpiryCap)
 	require.WithinDuration(t, *retired.FamilyExpiryCap, retired.Expiry, time.Second)
-	require.False(t, retired.Expiry.After(time.Now().Add(rotation.RecoveryGrace)), "refresh successors stay within the retirement grace")
+	require.False(t, retired.Expiry.After(time.Now().Add(recoveryGrace)), "refresh successors stay within the retirement grace")
 }
 
 // TestSwitchTenantRetiresPresentedFamily pins #2952: the family behind the
@@ -103,7 +102,7 @@ func TestSwitchTenantRetiresPresentedFamily(t *testing.T) {
 	require.True(t, rows[0].Expiry.After(before.Add(time.Hour)), "successor keeps the full refresh lifetime")
 	require.Equal(t, presentedFamily, rows[1].FamilyID)
 	require.True(t, rows[1].Expiry.After(before), "retired family is not dead yet")
-	require.False(t, rows[1].Expiry.After(time.Now().Add(rotation.RecoveryGrace)), "retired family expires within the recovery grace")
+	require.False(t, rows[1].Expiry.After(time.Now().Add(recoveryGrace)), "retired family expires within the recovery grace")
 
 	// Within the grace an in-flight request holding the old cookie still refreshes.
 	_, _, err = service.RefreshToken(ctx, presentedRefresh)

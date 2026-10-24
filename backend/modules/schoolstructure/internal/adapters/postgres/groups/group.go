@@ -62,14 +62,14 @@ type GroupRepository struct {
 	rooms func() RoomDirectory
 	// supervisionStaff resolves the raw supervision references of a group to
 	// the staff members behind them, through School Membership (#2667).
-	supervisionStaff func(ctx context.Context, pairs GroupMembershipPairs) ([]domain.StaffGroupID, error)
+	supervisionStaff func(ctx context.Context, pairs domain.GroupMembershipPairs) ([]domain.StaffGroupID, error)
 	// assignments resolves education.group_teacher through composition. This
 	// Postgres adapter stays independent of the sibling School Membership owner.
-	assignments func(context.Context, []int64, []int64) ([]TeacherGroupID, error)
+	assignments func(context.Context, []int64, []int64) ([]domain.TeacherGroupID, error)
 }
 
 // NewGroupRepository creates a new GroupRepository on the tenant runtime.
-func NewGroupRepository(runtime Runtime, rooms func() RoomDirectory, assignments func(context.Context, []int64, []int64) ([]TeacherGroupID, error), supervisionStaff func(context.Context, GroupMembershipPairs) ([]domain.StaffGroupID, error)) *GroupRepository {
+func NewGroupRepository(runtime Runtime, rooms func() RoomDirectory, assignments func(context.Context, []int64, []int64) ([]domain.TeacherGroupID, error), supervisionStaff func(context.Context, domain.GroupMembershipPairs) ([]domain.StaffGroupID, error)) *GroupRepository {
 	return &GroupRepository{runtime: requireRuntime(runtime), rooms: rooms, assignments: assignments, supervisionStaff: supervisionStaff}
 }
 
@@ -85,7 +85,11 @@ func (r *GroupRepository) Create(ctx context.Context, group *domain.Group) error
 		group.TenantID = r.runtime.TenantID(ctx)
 	}
 	row := newGroupRow(group)
-	if _, err := r.runtime.DB(ctx).NewInsert().
+	ambientDB1, databaseErr1 := r.runtime.DB(ctx)
+	if databaseErr1 != nil {
+		return databaseErr1
+	}
+	if _, err := ambientDB1.NewInsert().
 		Model(row).
 		ModelTableExpr(`education.groups`).
 		Exec(ctx); err != nil {
@@ -108,7 +112,11 @@ func (r *GroupRepository) FindByIDForUpdate(ctx context.Context, id any) (*domai
 
 func (r *GroupRepository) findByID(ctx context.Context, id any, op string, lock bool) (*domain.Group, error) {
 	row := new(groupRow)
-	query := r.runtime.DB(ctx).NewSelect().
+	ambientDB2, databaseErr2 := r.runtime.DB(ctx)
+	if databaseErr2 != nil {
+		return *new(*domain.Group), databaseErr2
+	}
+	query := ambientDB2.NewSelect().
 		Model(row).
 		ModelTableExpr(groupTableExpr).
 		Where(`"group".id = ?`, id)
@@ -132,7 +140,11 @@ func (r *GroupRepository) Update(ctx context.Context, group *domain.Group) error
 		return err
 	}
 	row := newGroupRow(group)
-	query := r.runtime.DB(ctx).NewUpdate().
+	ambientDB3, databaseErr3 := r.runtime.DB(ctx)
+	if databaseErr3 != nil {
+		return databaseErr3
+	}
+	query := ambientDB3.NewUpdate().
 		Model(row).
 		ModelTableExpr(groupTableExpr).
 		WherePK()
@@ -150,7 +162,11 @@ func (r *GroupRepository) Update(ctx context.Context, group *domain.Group) error
 
 // Delete removes a group of the caller's school.
 func (r *GroupRepository) Delete(ctx context.Context, id any) error {
-	query := r.runtime.DB(ctx).NewDelete().
+	ambientDB4, databaseErr4 := r.runtime.DB(ctx)
+	if databaseErr4 != nil {
+		return databaseErr4
+	}
+	query := ambientDB4.NewDelete().
 		Model((*groupRow)(nil)).
 		ModelTableExpr(groupTableExpr).
 		Where(`"group".id = ?`, id)
@@ -164,7 +180,11 @@ func (r *GroupRepository) Delete(ctx context.Context, id any) error {
 // FindByName retrieves a group by its name
 func (r *GroupRepository) FindByName(ctx context.Context, name string) (*domain.Group, error) {
 	row := new(groupRow)
-	query := r.runtime.DB(ctx).NewSelect().
+	ambientDB5, databaseErr5 := r.runtime.DB(ctx)
+	if databaseErr5 != nil {
+		return *new(*domain.Group), databaseErr5
+	}
+	query := ambientDB5.NewSelect().
 		Model(row).
 		ModelTableExpr(groupTableExpr).
 		Where("LOWER(name) = LOWER(?)", name)
@@ -189,7 +209,11 @@ func (r *GroupRepository) FindByIDs(ctx context.Context, ids []int64) (map[int64
 	}
 
 	var rows []*groupRow
-	query := r.runtime.DB(ctx).NewSelect().
+	ambientDB6, databaseErr6 := r.runtime.DB(ctx)
+	if databaseErr6 != nil {
+		return *new(map[int64]*domain.Group), databaseErr6
+	}
+	query := ambientDB6.NewSelect().
 		Model(&rows).
 		ModelTableExpr(groupTableExpr).
 		Where(`"group".id IN (?)`, bun.List(ids))
@@ -243,29 +267,6 @@ func (r *GroupRepository) FindByTeacher(ctx context.Context, teacherID int64) ([
 	return groups, nil
 }
 
-// TeacherGroupID pairs a teacher profile with one education group they are
-// assigned to. The teacher is resolved to a staff member by the composition
-// layer.
-type TeacherGroupID struct {
-	TeacherID int64 `bun:"teacher_id"`
-	GroupID   int64 `bun:"group_id"`
-}
-
-// GroupMembershipPairs are the raw supervision references of a set of
-// education groups: the teacher assignments, unresolved, plus the groups and
-// day the substitutions must be read for. The composition layer turns them
-// into (staff, group) pairs through School Membership and Workforce, dropping
-// references to offboarded teachers and staff (#2667, #2688).
-type GroupMembershipPairs struct {
-	// Assigned pairs a group with the teacher assigned to it.
-	Assigned []TeacherGroupID
-	// GroupIDs and On name the substitutions to add: whoever substitutes in
-	// one of these groups on that day. education.group_substitution belongs
-	// to Workforce, so this repository does not read it.
-	GroupIDs []int64
-	On       calendar.Date
-}
-
 // listGroupMembershipPairs returns the unresolved supervision references of
 // the given groups on the given day.
 //
@@ -273,18 +274,18 @@ type GroupMembershipPairs struct {
 // teacher assignments come from School Membership through the injected query,
 // the substitutions active on the day from Workforce through the supervision
 // resolver installed by the composition root.
-func (r *GroupRepository) listGroupMembershipPairs(ctx context.Context, groupIDs []int64, on calendar.Date) (GroupMembershipPairs, error) {
-	var pairs GroupMembershipPairs
+func (r *GroupRepository) listGroupMembershipPairs(ctx context.Context, groupIDs []int64, on calendar.Date) (domain.GroupMembershipPairs, error) {
+	var pairs domain.GroupMembershipPairs
 	if len(groupIDs) == 0 {
 		return pairs, nil
 	}
 
 	if r.assignments == nil {
-		return GroupMembershipPairs{}, errors.New("group repository resolves teacher assignments through School Membership")
+		return domain.GroupMembershipPairs{}, errors.New("group repository resolves teacher assignments through School Membership")
 	}
 	assignments, err := r.assignments(ctx, groupIDs, nil)
 	if err != nil {
-		return GroupMembershipPairs{}, &domain.StoreError{
+		return domain.GroupMembershipPairs{}, &domain.StoreError{
 			Op:  "list staff IDs by education group IDs (assigned)",
 			Err: err,
 		}
@@ -318,7 +319,11 @@ func (r *GroupRepository) ListStaffIDsByEducationGroupIDs(ctx context.Context, g
 // FindWithRoom retrieves a group with its associated room
 func (r *GroupRepository) FindWithRoom(ctx context.Context, groupID int64) (*domain.Group, error) {
 	row := new(groupRow)
-	query := r.runtime.DB(ctx).NewSelect().
+	ambientDB7, databaseErr7 := r.runtime.DB(ctx)
+	if databaseErr7 != nil {
+		return *new(*domain.Group), databaseErr7
+	}
+	query := ambientDB7.NewSelect().
 		Model(row).
 		ModelTableExpr(groupTableExpr).
 		Where(`"group".id = ?`, groupID)
@@ -349,7 +354,11 @@ func (r *GroupRepository) FindByIDsWithRooms(ctx context.Context, ids []int64) (
 	}
 
 	var rows []*groupRow
-	query := r.runtime.DB(ctx).NewSelect().
+	ambientDB8, databaseErr8 := r.runtime.DB(ctx)
+	if databaseErr8 != nil {
+		return *new(map[int64]*domain.Group), databaseErr8
+	}
+	query := ambientDB8.NewSelect().
 		Model(&rows).
 		ModelTableExpr(groupTableExpr).
 		Where(`"group".id IN (?)`, bun.List(ids))
@@ -378,7 +387,11 @@ func (r *GroupRepository) FindByIDsWithRooms(ctx context.Context, ids []int64) (
 // groups with or without a room, and any other key an equality on that column.
 func (r *GroupRepository) List(ctx context.Context, filters map[string]any) ([]*domain.Group, error) {
 	rows := make([]*groupRow, 0)
-	query := r.runtime.DB(ctx).NewSelect().
+	ambientDB9, databaseErr9 := r.runtime.DB(ctx)
+	if databaseErr9 != nil {
+		return *new([]*domain.Group), databaseErr9
+	}
+	query := ambientDB9.NewSelect().
 		Model(&rows).
 		ModelTableExpr(groupTableExpr)
 	query = withTenantFilter(ctx, r.runtime, query, "group")
@@ -437,7 +450,11 @@ func applyGroupListQuery(query *bun.SelectQuery, params *domain.GroupListQuery) 
 // groups from this owner, the rooms from Facilities (#2665).
 func (r *GroupRepository) ListWithRooms(ctx context.Context, params *domain.GroupListQuery) ([]*domain.Group, error) {
 	rows := make([]*groupRow, 0)
-	query := r.runtime.DB(ctx).NewSelect().
+	ambientDB10, databaseErr10 := r.runtime.DB(ctx)
+	if databaseErr10 != nil {
+		return *new([]*domain.Group), databaseErr10
+	}
+	query := ambientDB10.NewSelect().
 		Model(&rows).
 		ModelTableExpr(groupTableExpr)
 	query = withTenantFilter(ctx, r.runtime, query, "group")
@@ -467,7 +484,11 @@ func (r *GroupRepository) ListWithRooms(ctx context.Context, params *domain.Grou
 // CountGroups counts the groups matching the overview's filters, ignoring
 // ordering and pagination.
 func (r *GroupRepository) CountGroups(ctx context.Context, params *domain.GroupListQuery) (int, error) {
-	query := r.runtime.DB(ctx).NewSelect().
+	ambientDB11, databaseErr11 := r.runtime.DB(ctx)
+	if databaseErr11 != nil {
+		return *new(int), databaseErr11
+	}
+	query := ambientDB11.NewSelect().
 		Model((*groupRow)(nil)).
 		ModelTableExpr(groupTableExpr).
 		Column("group.id")
@@ -485,7 +506,11 @@ func (r *GroupRepository) CountGroups(ctx context.Context, params *domain.GroupL
 // Custom method (Rule 2): the generic shape has no EXISTS projection — going
 // through List/Count would fetch or aggregate rows just to learn a boolean.
 func (r *GroupRepository) Exists(ctx context.Context, id int64) (bool, error) {
-	return r.runtime.DB(ctx).NewSelect().
+	ambientDB12, databaseErr12 := r.runtime.DB(ctx)
+	if databaseErr12 != nil {
+		return *new(bool), databaseErr12
+	}
+	return ambientDB12.NewSelect().
 		TableExpr(groupTableExpr).
 		Where(`"group".tenant_id = ?`, r.runtime.TenantID(ctx)).
 		Where(`"group".id = ?`, id).

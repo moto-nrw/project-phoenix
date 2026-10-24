@@ -268,6 +268,8 @@ describe("SchoolCheckinFab", () => {
         />,
       );
 
+      // Anker: der aktive Knopf mit dem Erfolgszähler ist gerendert.
+      expect(screen.getByText("· 1")).toBeInTheDocument();
       expect(screen.queryByLabelText(/Aktionen laufen/i)).toBeNull();
     });
   });

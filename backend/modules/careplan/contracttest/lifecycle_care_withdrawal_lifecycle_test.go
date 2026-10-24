@@ -7,15 +7,17 @@ import (
 	"testing"
 	"time"
 
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	studentpresence "github.com/moto-nrw/project-phoenix/modules/studentpresence"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/api"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -26,10 +28,10 @@ func TestCareWithdrawalLifecycle_AllowsRetroactiveExitButNotBeforeAttendance(t *
 	svc := newCareLifecycleService(t, db)
 	actorID := careActor(t, db)
 	student := testpkg.CreateTestStudent(t, db, "Lina", "Rueckwirkend", "2a")
-	today := timezone.NewDate(2026, 8, 24)
+	today := calendar.NewDate(2026, 8, 24)
 	_, err := db.NewUpdate().TableExpr("users.student_school_memberships").
 		Set("enrolled_from = ?", today.AddDays(-10)).
-		Set("status = ?", userModels.StudentStatusActive).
+		Set("status = ?", peopleValues.StudentStatusActive).
 		Where("student_profile_id = ? AND deleted_at IS NULL", student.ID).Exec(ctx)
 	require.NoError(t, err)
 	staff := testpkg.CreateTestStaff(t, db, "Erika", "Betreuung")
@@ -45,8 +47,8 @@ func TestCareWithdrawalLifecycle_AllowsRetroactiveExitButNotBeforeAttendance(t *
 		testpkg.ActivityInstanceOpts{ActivityGroupID: &activityGroup.ID})
 	checkedInAt := today.AddDays(-1).BerlinMidnight().Add(9 * time.Hour)
 	testpkg.CreateTestInstanceStudent(t, db, instance.ID, student.ID,
-		scheduleModels.AttendanceStatusPresent, testpkg.InstanceStudentOpts{CheckedInAt: &checkedInAt})
-	completion := testpkg.CreateTestCareWithdrawalCompletion(t, careWithdrawals(db), student.ID, actorID, today)
+		studentpresence.SessionAttendancePresent, testpkg.InstanceStudentOpts{CheckedInAt: &checkedInAt})
+	completion := testpkg.CreateTestCareWithdrawalCompletion(t, db, student.ID, actorID, today)
 
 	_, err = svc.PreviewWithdrawalCareEnd(ctx, completion.ID, careplan.CareExitInput{
 		LastCareDay: today.AddDays(-2), Reason: careplan.CareExitReasonNoCareNeed,
@@ -80,17 +82,17 @@ func TestCareWithdrawalLifecycle_CompletionEndsBookingsFromEveryEnrollmentReques
 	require.NoError(t, err)
 	require.Len(t, requestChildIDs, 2)
 	studentID := student.ID
-	firstGap := timezone.NewDate(2026, 8, 24).AddDays(1)
-	completion := &userModels.CareWithdrawalCompletion{
+	firstGap := calendar.NewDate(2026, 8, 24).AddDays(1)
+	completion := &careplan.WithdrawalCompletion{
 		StudentID: &studentID, FirstBookinglessDay: firstGap,
-		Trigger:               userModels.CareWithdrawalTriggerDirectSchool,
+		Trigger:               careplan.WithdrawalTriggerDirectSchool,
 		SourceRequestChildID:  &requestChildIDs[0],
 		WithdrawalConfirmedBy: &actorID, WithdrawalConfirmedRole: "admin", WithdrawalConfirmedAt: time.Now(),
 	}
-	require.NoError(t, repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CareWithdrawal.UpsertPending(ctx, completion))
+	require.NoError(t, api.SeedPendingCareWithdrawal(ctx, api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).CareWithdrawal, completion))
 
 	input := careplan.CareExitInput{
-		LastCareDay: timezone.NewDate(2026, 8, 24), Reason: careplan.CareExitReasonNoCareNeed,
+		LastCareDay: calendar.NewDate(2026, 8, 24), Reason: careplan.CareExitReasonNoCareNeed,
 	}
 	svc := newCareLifecycleService(t, db)
 	preview, err := svc.PreviewWithdrawalCareEnd(ctx, completion.ID, input)
@@ -98,20 +100,20 @@ func TestCareWithdrawalLifecycle_CompletionEndsBookingsFromEveryEnrollmentReques
 	_, err = svc.ConfirmWithdrawalCareEnd(ctx, completion.ID, preview.Token, input, actorID)
 	require.NoError(t, err)
 
-	assert.Equal(t, []timezone.Date{firstGap, firstGap}, bookingEndDates(t, db, ctx, student.ID))
+	assert.Equal(t, []calendar.Date{firstGap, firstGap}, bookingEndDates(t, db, ctx, student.ID))
 }
 
-func bookingEndDates(t *testing.T, db *bun.DB, ctx context.Context, studentID int64) []timezone.Date {
+func bookingEndDates(t *testing.T, db *bun.DB, ctx context.Context, studentID int64) []calendar.Date {
 	t.Helper()
 	var rows []struct {
-		ValidUntil timezone.Date `bun:"valid_until"`
+		ValidUntil calendar.Date `bun:"valid_until"`
 	}
 	err := db.NewSelect().TableExpr("enrollment.care_offering_bookings AS rco").
 		Column("rco.valid_until").
 		Join("JOIN enrollment.request_children AS rc ON rc.id = rco.request_child_id").
 		Where("rc.created_student_id = ?", studentID).Order("rco.id ASC").Scan(ctx, &rows)
 	require.NoError(t, err)
-	result := make([]timezone.Date, len(rows))
+	result := make([]calendar.Date, len(rows))
 	for i, row := range rows {
 		result[i] = row.ValidUntil
 	}
@@ -125,8 +127,8 @@ func TestCareWithdrawalLifecycle_ConcurrentCompletionWritesOneResult(t *testing.
 	svc := newCareLifecycleService(t, db)
 	actorID := careActor(t, db)
 	student := testpkg.CreateTestStudent(t, db, "Mika", "Parallel", "3a")
-	completion := testpkg.CreateTestCareWithdrawalCompletion(t, careWithdrawals(db), student.ID, actorID, timezone.TodayDate().AddDays(1))
-	input := careplan.CareExitInput{LastCareDay: timezone.TodayDate(), Reason: careplan.CareExitReasonNoCareNeed}
+	completion := testpkg.CreateTestCareWithdrawalCompletion(t, db, student.ID, actorID, calendar.TodayDate().AddDays(1))
+	input := careplan.CareExitInput{LastCareDay: calendar.TodayDate(), Reason: careplan.CareExitReasonNoCareNeed}
 	preview, err := svc.PreviewWithdrawalCareEnd(ctx, completion.ID, input)
 	require.NoError(t, err)
 
@@ -170,8 +172,8 @@ func TestCareWithdrawalLifecycle_ResolvedCompletionIsAConflict(t *testing.T) {
 	svc := newCareLifecycleService(t, db)
 	actorID := careActor(t, db)
 	student := testpkg.CreateTestStudent(t, db, "Mila", "Erledigt", "3a")
-	completion := testpkg.CreateTestCareWithdrawalCompletion(t, careWithdrawals(db), student.ID, actorID, timezone.TodayDate())
-	changed, err := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CareWithdrawal.MarkResolved(ctx, completion.ID, actorID, time.Now())
+	completion := testpkg.CreateTestCareWithdrawalCompletion(t, db, student.ID, actorID, calendar.TodayDate())
+	changed, err := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).CareWithdrawal.MarkResolved(ctx, completion.ID, actorID, time.Now())
 	require.NoError(t, err)
 	require.True(t, changed)
 
@@ -184,15 +186,15 @@ func TestCareWithdrawalLifecycle_CancellingPlannedExitRestoresTask(t *testing.T)
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	bookingGateCalls := 0
-	today := timezone.NewDate(2026, 8, 24)
+	today := calendar.NewDate(2026, 8, 24)
 	svc := newCareLifecycleServiceWithLockAt(t, db, func(context.Context) error {
 		bookingGateCalls++
 		return nil
-	}, func() timezone.Date { return today })
+	}, func() calendar.Date { return today })
 	actorID := careActor(t, db)
 	student := testpkg.CreateTestStudent(t, db, "Nele", "Storno", "2b")
 	firstGap := today.AddDays(2)
-	completion := testpkg.CreateTestCareWithdrawalCompletion(t, careWithdrawals(db), student.ID, actorID, firstGap)
+	completion := testpkg.CreateTestCareWithdrawalCompletion(t, db, student.ID, actorID, firstGap)
 	input := careplan.CareExitInput{
 		LastCareDay: firstGap.AddDays(-1), Reason: careplan.CareExitReasonNoCareNeed,
 	}
@@ -225,8 +227,8 @@ func TestCareWithdrawalLifecycle_CancellingLaterOrdinaryExitDoesNotRestoreOldTas
 	svc := newCareLifecycleService(t, db)
 	actorID := careActor(t, db)
 	student := testpkg.CreateTestStudent(t, db, "Nele", "Neuer Austritt", "2b")
-	firstGap := timezone.TodayDate().AddDays(2)
-	completion := testpkg.CreateTestCareWithdrawalCompletion(t, careWithdrawals(db), student.ID, actorID, firstGap)
+	firstGap := calendar.TodayDate().AddDays(2)
+	completion := testpkg.CreateTestCareWithdrawalCompletion(t, db, student.ID, actorID, firstGap)
 	withdrawal := careplan.CareExitInput{
 		LastCareDay: firstGap.AddDays(-1), Reason: careplan.CareExitReasonNoCareNeed,
 	}

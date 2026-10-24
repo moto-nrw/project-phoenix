@@ -3,7 +3,9 @@ package groups_test
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -14,18 +16,18 @@ func TestClassTeacherRepository_Create(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := testutil.NewSchoolStructureRepositorySuiteFactory(db).ClassTeacher
+	repo := owners.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db)).ClassTeacher
 	ctx := testpkg.Ctx(t)
 
 	t.Run("creates class assignment", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "CTCreate", "Staff")
 
-		ct := &testutil.SchoolStructureClassTeacher{
+		ct := &api.SchoolStructureSuiteClassTeacher{
 			StaffID:     staff.ID,
 			SchoolClass: "1a",
 		}
 
-		err := repo.Create(ctx, ct)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, ct)
 		require.NoError(t, err)
 		assert.NotZero(t, ct.ID)
 
@@ -36,11 +38,11 @@ func TestClassTeacherRepository_Create(t *testing.T) {
 
 		testpkg.CreateTestClassTeacher(t, db, staff.ID, "1a")
 
-		dupe := &testutil.SchoolStructureClassTeacher{
+		dupe := &api.SchoolStructureSuiteClassTeacher{
 			StaffID:     staff.ID,
 			SchoolClass: " 1A ",
 		}
-		err := repo.Create(ctx, dupe)
+		err := testpkg.TenantCommand1(t, ctx, db, repo.Create, dupe)
 		require.Error(t, err, "LOWER(BTRIM(...)) unique index must treat 1a and 1A as the same class")
 	})
 }
@@ -50,7 +52,7 @@ func TestClassTeacherRepository_FindByStaff(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := testutil.NewSchoolStructureRepositorySuiteFactory(db).ClassTeacher
+	repo := owners.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db)).ClassTeacher
 	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "CTFind", "Staff")
@@ -60,7 +62,7 @@ func TestClassTeacherRepository_FindByStaff(t *testing.T) {
 	testpkg.CreateTestClassTeacher(t, db, staff.ID, "1a")
 	testpkg.CreateTestClassTeacher(t, db, other.ID, "3c")
 
-	assignments, err := repo.FindByStaff(ctx, staff.ID)
+	assignments, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByStaff, staff.ID)
 	require.NoError(t, err)
 	require.Len(t, assignments, 2, "must not see the other staff member's assignment")
 	assert.Equal(t, "1a", assignments[0].SchoolClass, "assignments are ordered by normalized class")
@@ -72,7 +74,7 @@ func TestClassTeacherRepository_DeleteByStaffID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	factory, dependencies := testutil.NewSchoolStructureRepositorySuiteGraph(db)
+	factory := owners.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db))
 	repo := factory.ClassTeacher
 	ctx := testpkg.Ctx(t)
 
@@ -83,11 +85,11 @@ func TestClassTeacherRepository_DeleteByStaffID(t *testing.T) {
 	testpkg.CreateTestClassTeacher(t, db, staff.ID, "2b")
 	testpkg.CreateTestClassTeacher(t, db, other.ID, "1a")
 
-	affected, err := dependencies.Membership.DeleteClassAssignmentsByStaff(ctx, staff.ID)
+	affected, err := owners.MustNewSchoolMembership(testpkg.NewDatabase(t, db)).DeleteClassAssignmentsByStaff(ctx, staff.ID)
 	require.NoError(t, err)
 	assert.Equal(t, int64(2), affected)
 
-	remaining, err := repo.FindByStaff(ctx, other.ID)
+	remaining, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByStaff, other.ID)
 	require.NoError(t, err)
 	assert.Len(t, remaining, 1, "the other staff member's assignment must survive")
 }

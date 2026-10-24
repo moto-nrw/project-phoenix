@@ -35,7 +35,7 @@ func TestSeedParentAccounts(t *testing.T) {
 				chain.AccountID, chain.TenantID)
 			require.NoError(t, err)
 
-			require.NoError(t, seedParentAccounts(context.Background(), db, 1, "Seed-parent-test-9!"))
+			require.NoError(t, seedParentAccounts(context.Background(), testpkg.NewDatabase(t, db), 1, "Seed-parent-test-9!"))
 			var accountID int64
 			require.NoError(t, db.NewRaw("SELECT account_id FROM users.guardian_profiles WHERE id = ?", chain.GuardianProfileID).Scan(ctx, &accountID))
 			testpkg.OwnTestAccount(t, db, accountID)
@@ -56,7 +56,7 @@ func TestSeedParentAccounts(t *testing.T) {
 			require.NoError(t, db.NewRaw(`SELECT COUNT(*) FROM auth.account_roles ar JOIN auth.roles r ON r.id = ar.role_id
 				WHERE ar.account_id = ? AND ar.tenant_id = ? AND r.name = 'guardian'`, accountID, chain.TenantID).Scan(ctx, &assignments))
 			require.Equal(t, 1, assignments)
-			require.NoError(t, seedParentAccounts(context.Background(), db, 1, "Different-seed-test-9!"))
+			require.NoError(t, seedParentAccounts(context.Background(), testpkg.NewDatabase(t, db), 1, "Different-seed-test-9!"))
 			var afterHash string
 			require.NoError(t, db.NewRaw("SELECT password_hash FROM auth.accounts WHERE id = ?", accountID).Scan(ctx, &afterHash))
 			require.Equal(t, hash, afterHash)
@@ -80,7 +80,7 @@ func TestSeedParentAccountsRollsBackMissingRole(t *testing.T) {
 		_, restoreErr := db.ExecContext(context.Background(), "UPDATE auth.roles SET name = 'guardian' WHERE name = 'seed-test-missing-guardian'")
 		require.NoError(t, restoreErr)
 	})
-	require.ErrorContains(t, seedParentAccounts(context.Background(), db, 1, "Seed-rollback-test-9!"), "grant guardian access")
+	require.ErrorContains(t, seedParentAccounts(context.Background(), testpkg.NewDatabase(t, db), 1, "Seed-rollback-test-9!"), "grant guardian access")
 	var accounts int
 	require.NoError(t, db.NewRaw("SELECT COUNT(*) FROM auth.accounts WHERE email = ?", email).Scan(ctx, &accounts))
 	require.Zero(t, accounts)

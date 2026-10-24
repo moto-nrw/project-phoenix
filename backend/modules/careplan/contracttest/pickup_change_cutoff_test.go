@@ -4,31 +4,32 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // #3163: the fixture's today is 24 August 2026, a Monday.
-var cutoffFixtureToday = timezone.NewDate(2026, 8, 24)
+var cutoffFixtureToday = calendar.NewDate(2026, 8, 24)
 
 func cutoffAt(t *testing.T, hour, minute int) careplan.SameDayCutoff {
 	t.Helper()
-	cutoff, err := careplan.NewSameDayCutoff("11:00",
-		time.Date(2026, 8, 24, hour, minute, 0, 0, timezone.Berlin))
+	cutoff, err := carerequests.NewSameDayCutoff("11:00",
+		time.Date(2026, 8, 24, hour, minute, 0, 0, calendar.Berlin))
 	require.NoError(t, err)
 	return cutoff
 }
 
 func createPickupChangeWithCutoff(
-	t *testing.T, f *careFixture, date timezone.Date, cutoff careplan.SameDayCutoff,
+	t *testing.T, f *careFixture, date calendar.Date, cutoff careplan.SameDayCutoff,
 ) (*carerequests.Request, error) {
 	t.Helper()
-	return f.svc.CreatePickupChange(f.staffCtx(f.staffAccount), carerequests.PickupChangeCreateInput{
+	return testpkg.TenantQuery1(t, f.staffCtx(f.staffAccount), f.db, f.svc.CreatePickupChange, carerequests.PickupChangeCreateInput{
 		StudentID:         f.chain.StudentID,
 		GuardianAccountID: f.chain.AccountID,
 		Date:              date,
@@ -62,8 +63,7 @@ func TestCreatePickupChangeHonoursSameDayCutoff(t *testing.T) {
 		_, err := createPickupChangeWithCutoff(t, f, cutoffFixtureToday, cutoffAt(t, 11, 1))
 		require.ErrorIs(t, err, careplan.ErrPickupChangeCutoffPassed)
 
-		pending, err := f.svc.ListPickupChangeRequests(
-			f.staffCtx(f.staffAccount), f.chain.StudentID, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC))
+		pending, err := testpkg.TenantQuery2(t, f.staffCtx(f.staffAccount), f.db, f.svc.ListPickupChangeRequests, f.chain.StudentID, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC))
 		require.NoError(t, err)
 		assert.Empty(t, pending, "a refused request leaves no row behind")
 	})
@@ -78,7 +78,7 @@ func TestCreatePickupChangeHonoursSameDayCutoff(t *testing.T) {
 	t.Run("ohne Frist spät am Tag", func(t *testing.T) {
 		t.Parallel()
 		f := newPickupChangeFixture(t)
-		none, err := careplan.NewSameDayCutoff("", time.Date(2026, 8, 24, 23, 0, 0, 0, timezone.Berlin))
+		none, err := carerequests.NewSameDayCutoff("", time.Date(2026, 8, 24, 23, 0, 0, 0, calendar.Berlin))
 		require.NoError(t, err)
 		_, err = createPickupChangeWithCutoff(t, f, cutoffFixtureToday, none)
 		require.NoError(t, err)
@@ -91,9 +91,9 @@ func TestCreatePickupChangeHonoursSameDayCutoff(t *testing.T) {
 func TestEditPickupChangeHonoursSameDayCutoff(t *testing.T) {
 	t.Parallel()
 
-	edit := func(t *testing.T, f *careFixture, req *carerequests.Request, date timezone.Date, cutoff careplan.SameDayCutoff) error {
+	edit := func(t *testing.T, f *careFixture, req *carerequests.Request, date calendar.Date, cutoff careplan.SameDayCutoff) error {
 		t.Helper()
-		_, err := f.svc.EditRequest(f.staffCtx(f.staffAccount), carerequests.EditInput{
+		_, err := testpkg.TenantQuery1(t, f.staffCtx(f.staffAccount), f.db, f.svc.EditRequest, carerequests.EditInput{
 			RequestID:         req.ID,
 			StudentID:         f.chain.StudentID,
 			GuardianAccountID: f.chain.AccountID,
@@ -115,10 +115,10 @@ func TestEditPickupChangeHonoursSameDayCutoff(t *testing.T) {
 		require.NoError(t, edit(t, f, req, cutoffFixtureToday, cutoffAt(t, 11, 0)), "exactly at the cutoff is still open")
 		require.ErrorIs(t, edit(t, f, req, cutoffFixtureToday, cutoffAt(t, 11, 1)), careplan.ErrPickupChangeCutoffPassed)
 
-		row, err := f.repos.CareScheduleChangeRequest.FindByID(f.staffCtx(f.staffAccount), req.ID)
+		row, err := careplantest.NewScheduleRecords(f.reposCare.CarePlan()).CareScheduleChangeRequest.FindByID(f.staffCtx(f.staffAccount), req.ID)
 		require.NoError(t, err)
-		assert.Equal(t, "13:30", row.Payload["pickup_time"], "the refused edit left the 11:00 state untouched")
-		assert.Equal(t, scheduleModels.CareRequestStatusPending, row.Status)
+		assert.Equal(t, "13:30", testpkg.FixtureJSONObject(t, row.Payload)["pickup_time"], "the refused edit left the 11:00 state untouched")
+		assert.Equal(t, carerequests.StatusPending, row.Status)
 	})
 
 	t.Run("heutige Anfrage auf morgen verschieben", func(t *testing.T) {
@@ -158,17 +158,17 @@ func TestStaffDecidesTodaysPickupChangeAfterCutoff(t *testing.T) {
 	req, err := createPickupChangeWithCutoff(t, f, cutoffFixtureToday, cutoffAt(t, 10, 30))
 	require.NoError(t, err)
 
-	decided, err := f.svc.Decide(f.staffCtx(f.staffAccount), carerequests.DecideInput{
+	decided, err := testpkg.TenantQuery1(t, f.staffCtx(f.staffAccount), f.db, f.svc.Decide, carerequests.DecideInput{
 		RequestID:  req.ID,
 		Approve:    true,
 		ReviewedBy: f.staffAccount,
 	})
 	require.NoError(t, err)
-	assert.Equal(t, scheduleModels.CareRequestStatusApproved, decided.Request.Status)
+	assert.Equal(t, carerequests.StatusApproved, decided.Request.Status)
 
-	applied, err := f.repos.StudentPickupException.FindByStudentIDAndDate(
-		f.staffCtx(f.staffAccount), f.chain.StudentID, scheduleModels.Date(cutoffFixtureToday))
+	applied, err := careplantest.NewScheduleRecords(f.reposCare.CarePlan()).StudentPickupException.FindByStudentIDAndDate(
+		f.staffCtx(f.staffAccount), f.chain.StudentID, careplan.Date(cutoffFixtureToday))
 	require.NoError(t, err)
 	require.NotNil(t, applied)
-	assert.Equal(t, scheduleModels.ExceptionSourceStaff, applied.Source)
+	assert.Equal(t, careplan.ExceptionSourceStaff, applied.Source)
 }

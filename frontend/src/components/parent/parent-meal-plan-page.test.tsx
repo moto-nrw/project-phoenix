@@ -79,7 +79,7 @@ describe("ParentMealPlanPage", () => {
       screen.getByRole("heading", { name: "Mittagessen", level: 1 }),
     ).toBeInTheDocument();
     const loadingStatus = screen.getByRole("status", {
-      name: "Essensplan wird geladen",
+      name: "Speiseplan wird geladen",
     });
     const skeleton = screen.getByTestId("meal-plan-week-skeleton");
     const desktopGrid = skeleton.querySelector(".grid-cols-5");
@@ -111,7 +111,7 @@ describe("ParentMealPlanPage", () => {
     expect(previousWeek).toBeDisabled();
     expect(
       await screen.findByText(
-        "Für diese Woche ist noch kein Essensplan eingetragen",
+        "Für diese Woche ist noch kein Speiseplan eingetragen",
       ),
     ).toBeInTheDocument();
     expect(nextWeek).toBeEnabled();
@@ -169,10 +169,12 @@ describe("ParentMealPlanPage", () => {
       await waitFor(() => {
         expect(weekStatus).toHaveTextContent(/KW 34\s*· Nächste Woche/);
       });
-      expect(mocks.getChildMealPlan).toHaveBeenLastCalledWith(
-        "child-1",
-        "2026-08-17",
-      );
+      await waitFor(() => {
+        expect(mocks.getChildMealPlan).toHaveBeenLastCalledWith(
+          "child-1",
+          "2026-08-17",
+        );
+      });
 
       // Die Familie kann danach in diese Woche zurück; die Seite springt
       // nicht erneut.
@@ -270,7 +272,7 @@ describe("ParentMealPlanPage", () => {
 
     expect(
       await screen.findByText(
-        "Für diese Woche ist noch kein Essensplan eingetragen",
+        "Für diese Woche ist noch kein Speiseplan eingetragen",
       ),
     ).toBeInTheDocument();
     const navigation = screen.getByRole("navigation", {
@@ -300,7 +302,7 @@ describe("ParentMealPlanPage", () => {
 
     expect(
       await screen.findByText(
-        "Für diese Woche ist noch kein Essensplan eingetragen",
+        "Für diese Woche ist noch kein Speiseplan eingetragen",
       ),
     ).toBeInTheDocument();
     expect(
@@ -331,9 +333,48 @@ describe("ParentMealPlanPage", () => {
     expect(screen.getAllByText("mit Salat")).not.toHaveLength(0);
     expect(
       screen.queryByText(
-        "Für diese Woche ist noch kein Essensplan eingetragen",
+        "Für diese Woche ist noch kein Speiseplan eingetragen",
       ),
     ).not.toBeInTheDocument();
+  });
+
+  it("marks each dish with its allergens and explains the letters (#4777)", async () => {
+    mocks.getChildMealPlan.mockResolvedValue([
+      {
+        date: "2026-08-12",
+        position: 0,
+        dish: "Gemüse-Lasagne",
+        note: "mit Salat",
+        allergens: ["gluten", "milk"],
+      },
+      { date: "2026-08-12", position: 1, dish: "Obst", allergens: [] },
+    ]);
+
+    render(<ParentMealPlanPage />);
+
+    // Letters for the eye, full names for screen readers.
+    expect(
+      (await screen.findAllByText("Allergene: A, G")).length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText(
+        "Enthält: Glutenhaltiges Getreide, Milch (auch Laktose)",
+      ).length,
+    ).toBeGreaterThan(0);
+    // The unmarked dish carries no marks: only the Lasagne's appear.
+    expect(screen.getAllByText(/^Allergene: /)).toHaveLength(
+      screen.getAllByText("Allergene: A, G").length,
+    );
+    const legend = screen.getByLabelText("Allergene");
+    // Only the letters used this week, each with its name.
+    expect(
+      within(legend)
+        .getAllByRole("listitem")
+        .map((item) => item.textContent),
+    ).toEqual(["A Glutenhaltiges Getreide", "G Milch (auch Laktose)"]);
+    expect(
+      screen.getByText(/Die Angaben kommen von der Schule oder vom Caterer\./),
+    ).toBeInTheDocument();
   });
 
   it("combines meals and participation while keeping regular days compact", async () => {
@@ -514,6 +555,135 @@ describe("ParentMealPlanPage", () => {
     });
   });
 
+  it("names the lead days of the school's cutoff", async () => {
+    mocks.getChildFeatures.mockResolvedValue({
+      meal_plan_enabled: true,
+      meal_registration_enabled: true,
+    });
+    mocks.getMealParticipation.mockResolvedValue({
+      weekdays: [1],
+      effective_from: "2026-08-10",
+      cutoff_time: "14:00",
+      cutoff_lead_days: 1,
+      days: [
+        {
+          date: "2026-08-10",
+          participating: true,
+          source: "regular",
+          changeable: false,
+        },
+      ],
+    });
+
+    render(<ParentMealPlanPage />);
+
+    // The global next-intl mock leaves ICU plurals unformatted; the wording
+    // per count is pinned in src/i18n/meal-cutoff-messages.test.ts.
+    expect(
+      await screen.findByText(
+        /^Sie können die Anmeldung bis 14:00 Uhr .*ändern\.$/,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /^Eine bestätigte Krankmeldung bis 14:00 Uhr .*Danach bleibt die Anmeldung bestehen\.$/,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        "Sie können die Anmeldung am selben Tag bis 14:00 Uhr ändern.",
+      ),
+    ).not.toBeInTheDocument();
+  });
+
+  it("marks each participation state with its own icon next to the text", async () => {
+    mocks.getChildFeatures.mockResolvedValue({
+      meal_plan_enabled: true,
+      meal_registration_enabled: true,
+    });
+    mocks.getMealParticipation.mockResolvedValue({
+      weekdays: [1, 2, 3],
+      effective_from: "2026-08-10",
+      cutoff_time: "09:00",
+      days: [
+        {
+          date: "2026-08-10",
+          participating: true,
+          source: "regular",
+          changeable: false,
+        },
+        {
+          date: "2026-08-11",
+          participating: false,
+          source: "sick",
+          changeable: false,
+        },
+        {
+          date: "2026-08-14",
+          participating: false,
+          source: "none",
+          changeable: true,
+        },
+      ],
+    });
+
+    render(<ParentMealPlanPage />);
+
+    const badgeFor = async (label: string) => {
+      const badge = await screen.findByText(label);
+      expect(badge).toHaveTextContent(new RegExp(`^${label}$`));
+      const icons = badge.querySelectorAll("svg");
+      expect(icons).toHaveLength(1);
+      expect(icons[0]).toHaveAttribute("aria-hidden", "true");
+      return icons[0];
+    };
+
+    expect(await badgeFor("Zum Mittagessen angemeldet")).toHaveClass(
+      "lucide-check",
+    );
+    expect(await badgeFor("Durch die Krankmeldung abgemeldet")).toHaveClass(
+      "lucide-ban",
+    );
+    expect(await badgeFor("Nicht zum Mittagessen angemeldet")).toHaveClass(
+      "lucide-minus",
+    );
+  });
+
+  it("switches the icon with the draft while a day is being changed", async () => {
+    mocks.getChildFeatures.mockResolvedValue({
+      meal_plan_enabled: true,
+      meal_registration_enabled: true,
+    });
+    mocks.getMealParticipation.mockResolvedValue({
+      weekdays: [],
+      effective_from: "2026-08-10",
+      cutoff_time: "09:00",
+      days: [
+        {
+          date: "2026-08-14",
+          participating: false,
+          source: "none",
+          changeable: true,
+        },
+      ],
+    });
+
+    render(<ParentMealPlanPage />);
+
+    const before = await screen.findByText("Nicht zum Mittagessen angemeldet");
+    expect(before.querySelector("svg")).toHaveClass("lucide-minus");
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Anmeldung ändern: Freitag, 14. August",
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Anmelden" }));
+
+    const after = screen.getByText("Zum Mittagessen angemeldet");
+    expect(after.querySelector("svg")).toHaveClass("lucide-check");
+  });
+
   it("distinguishes missing children from a disabled school meal plan", async () => {
     mocks.listMyChildren.mockResolvedValue([]);
 
@@ -524,7 +694,7 @@ describe("ParentMealPlanPage", () => {
     ).toBeInTheDocument();
     expect(
       screen.queryByText(
-        "Für Ihre Schule ist der Essensplan derzeit nicht freigeschaltet.",
+        "Für Ihre Schule ist der Speiseplan derzeit nicht freigeschaltet.",
       ),
     ).not.toBeInTheDocument();
 
@@ -543,7 +713,7 @@ describe("ParentMealPlanPage", () => {
 
     expect(
       await screen.findByText(
-        "Für Ihre Schule ist der Essensplan derzeit nicht freigeschaltet.",
+        "Für Ihre Schule ist der Speiseplan derzeit nicht freigeschaltet.",
       ),
     ).toBeInTheDocument();
   });
@@ -557,7 +727,7 @@ describe("ParentMealPlanPage", () => {
     expect(screen.getByRole("button", { name: "Wiederholen" })).toBeVisible();
     expect(
       screen.queryByText(
-        "Für diese Woche ist noch kein Essensplan eingetragen",
+        "Für diese Woche ist noch kein Speiseplan eingetragen",
       ),
     ).not.toBeInTheDocument();
   });
@@ -570,7 +740,7 @@ describe("ParentMealPlanPage", () => {
     expect(await screen.findByText(WEEK_ERROR)).toBeInTheDocument();
     expect(
       screen.queryByText(
-        "Für diese Woche ist noch kein Essensplan eingetragen",
+        "Für diese Woche ist noch kein Speiseplan eingetragen",
       ),
     ).not.toBeInTheDocument();
   });
@@ -644,7 +814,7 @@ describe("ParentMealPlanPage", () => {
     render(<ParentMealPlanPage key="empty-week" />);
     expect(
       await screen.findByText(
-        "Für diese Woche ist noch kein Essensplan eingetragen",
+        "Für diese Woche ist noch kein Speiseplan eingetragen",
       ),
     ).toBeInTheDocument();
     expect(screen.queryByText(SUBTITLE_MEALS_ONLY)).not.toBeInTheDocument();
@@ -689,7 +859,7 @@ describe("ParentMealPlanPage", () => {
     rerender(<ParentMealPlanPage key="disabled-school" />);
     expect(
       await screen.findByText(
-        "Für Ihre Schule ist der Essensplan derzeit nicht freigeschaltet.",
+        "Für Ihre Schule ist der Speiseplan derzeit nicht freigeschaltet.",
       ),
     ).toBeInTheDocument();
     expect(screen.queryByText(SUBTITLE_MEALS_ONLY)).not.toBeInTheDocument();
@@ -712,7 +882,7 @@ describe("ParentMealPlanPage", () => {
 
     expect(
       await screen.findByText(
-        "Für diese Woche ist noch kein Essensplan eingetragen",
+        "Für diese Woche ist noch kein Speiseplan eingetragen",
       ),
     ).toBeInTheDocument();
     expect(screen.queryByText(SCHOOLS_ERROR)).not.toBeInTheDocument();
@@ -728,7 +898,7 @@ describe("ParentMealPlanPage", () => {
 
     expect(
       await screen.findByText(
-        "Für diese Woche ist noch kein Essensplan eingetragen",
+        "Für diese Woche ist noch kein Speiseplan eingetragen",
       ),
     ).toBeInTheDocument();
     expect(screen.queryByText(WEEK_ERROR)).not.toBeInTheDocument();
@@ -777,6 +947,18 @@ describe("ParentMealPlanPage", () => {
       expect(
         await screen.findByText("Montag und Mittwoch"),
       ).toBeInTheDocument();
+    });
+
+    it("shows no state icon while the participation could not be loaded", async () => {
+      mocks.getMealParticipation.mockRejectedValue(unavailable());
+
+      render(<ParentMealPlanPage />);
+
+      const badges = await screen.findAllByText("Anmeldung nicht geladen");
+      expect(badges).toHaveLength(5);
+      for (const badge of badges) {
+        expect(badge.querySelector("svg")).toBeNull();
+      }
     });
 
     it("keeps the regular-days draft open and shows the save error in it", async () => {
@@ -852,6 +1034,153 @@ describe("ParentMealPlanPage", () => {
         "2026-08-12",
         true,
       );
+    });
+  });
+
+  describe("#3164 weekday cutoff, closed days and the whole week", () => {
+    const plan = () => ({
+      weekdays: [4],
+      effective_from: "2026-08-10",
+      cutoff_time: "16:00",
+      cutoff_lead_days: 0,
+      cutoff_weekday: 3,
+      cancellation_cutoff_time: "09:00",
+      cancellation_cutoff_lead_days: 0,
+      days: [
+        {
+          date: "2026-08-10",
+          participating: false,
+          source: "none",
+          changeable: false,
+        },
+        {
+          date: "2026-08-11",
+          participating: false,
+          source: "none",
+          changeable: false,
+        },
+        {
+          date: "2026-08-12",
+          participating: false,
+          source: "none",
+          changeable: true,
+        },
+        {
+          date: "2026-08-13",
+          participating: true,
+          source: "regular",
+          changeable: true,
+        },
+        {
+          date: "2026-08-14",
+          participating: false,
+          source: "closed",
+          changeable: false,
+        },
+      ],
+    });
+
+    beforeEach(() => {
+      mocks.getChildFeatures.mockResolvedValue({
+        meal_plan_enabled: true,
+        meal_registration_enabled: true,
+      });
+      mocks.getMealParticipation.mockResolvedValue(plan());
+      mocks.setMealParticipationDay.mockResolvedValue(undefined);
+    });
+
+    it("names the weekday cutoff, the later cancellation and closed days", async () => {
+      render(<ParentMealPlanPage />);
+
+      expect(
+        await screen.findByText(
+          "Sie können die Anmeldung bis Mittwoch, 16:00 Uhr, für die ganze nächste Woche ändern.",
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(/^Abmelden geht länger: bis 09:00 Uhr/),
+      ).toBeInTheDocument();
+      // A sick note counts until the cancellation cutoff.
+      expect(
+        screen.getByText(
+          "Eine bestätigte Krankmeldung bis 09:00 Uhr meldet Ihr Kind vom Essen ab. Danach bleibt die Anmeldung bestehen.",
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText("Kein Essen: Feiertag oder Schließtag"),
+      ).toBeInTheDocument();
+      // Monday and Tuesday are past, Friday is closed: only past days say so.
+      expect(screen.getAllByText("Nicht mehr änderbar")).toHaveLength(2);
+    });
+
+    it("signs the child up for every open day of the week", async () => {
+      render(<ParentMealPlanPage />);
+
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Ganze Woche anmelden" }),
+      );
+
+      await waitFor(() => {
+        expect(mocks.setMealParticipationDay).toHaveBeenCalledTimes(1);
+      });
+      expect(mocks.setMealParticipationDay).toHaveBeenCalledWith(
+        "child-1",
+        "2026-08-12",
+        true,
+      );
+      await waitFor(() => {
+        expect(mocks.getMealParticipation).toHaveBeenCalledTimes(2);
+      });
+    });
+
+    it("asks before signing the child off for the whole week", async () => {
+      render(<ParentMealPlanPage />);
+
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Ganze Woche abmelden" }),
+      );
+      const dialog = await screen.findByRole("dialog", {
+        name: "Ganze Woche abmelden?",
+      });
+      expect(mocks.setMealParticipationDay).not.toHaveBeenCalled();
+      // The global next-intl mock leaves the plural unformatted; the
+      // wording per count is pinned in meal-cutoff-messages.test.ts.
+      expect(dialog).toHaveTextContent(
+        /Mia Muster wird an .* dieser Woche vom Mittagessen abgemeldet\./,
+      );
+
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Ganze Woche abmelden" }),
+      );
+
+      await waitFor(() => {
+        expect(mocks.setMealParticipationDay).toHaveBeenCalledWith(
+          "child-1",
+          "2026-08-13",
+          false,
+        );
+      });
+      expect(mocks.setMealParticipationDay).toHaveBeenCalledTimes(1);
+    });
+
+    it("shows a failed week change and reloads what was saved", async () => {
+      mocks.setMealParticipationDay.mockRejectedValue(unavailable());
+      render(<ParentMealPlanPage />);
+
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Ganze Woche anmelden" }),
+      );
+
+      expect(
+        await screen.findByText(
+          catalogText(
+            "general.unavailable",
+            deMessages.parentMealPlan.errorObjectParticipation,
+          ),
+          { exact: false },
+        ),
+      ).toBeInTheDocument();
+      expect(mocks.getMealParticipation).toHaveBeenCalledTimes(2);
     });
   });
 });

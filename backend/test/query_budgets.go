@@ -33,6 +33,13 @@ type queryBudget struct {
 // The counts are what the fixture-sized scenario in the referenced test
 // issues; small fixtures are enough because N+1 shows up at N=3 already.
 var queryBudgets = map[string]queryBudget{
+	// modules/mealplan — GET /api/meal-plan/participants/week (#3164): the
+	// tenant settings, then per school day one candidate read and the
+	// participation reads of the Tagesliste. Flat in the number of children.
+	"modules.mealplan.weekly_participants": {max: 24},
+	// Operator-reviewed staff person repairs read all school people and
+	// employments in two bulk queries, independent of the number of cases.
+	"api.operator.staff_person_merge.preview": {max: 2, exact: true},
 	// services — the operator device listing, organizationtenancy
 	// Provisioning.ListAllDevices (#2676, #3253), inside the request's
 	// administrative transaction. Three statements: school summaries,
@@ -51,7 +58,7 @@ var queryBudgets = map[string]queryBudget{
 	// each in production. Both stay flat in the number of schools.
 	"modules.organizationtenancy.billing.key_date_counts": {max: 1, exact: true},
 	"modules.organizationtenancy.billing.capture":         {max: 3, exact: true},
-	// modules/careplan/inbound/parent — GET /me/children/{studentId}/courses resolves the catalog,
+	// workflows/parentportal/http — GET /me/children/{studentId}/courses resolves the catalog,
 	// capacity and pending-request queue through this bounded service scenario.
 	"api.parent.child_courses": {max: 14},
 	// modules/enrollment/http — GET /phases/{id}/responses: phase plus four batched
@@ -76,6 +83,13 @@ var queryBudgets = map[string]queryBudget{
 	// departure plans in the same statement the rows come from, where the
 	// retained repository needed a second one to reach the scan-only columns.
 	"api.students.list": {max: 30},
+	// api/students — GET /students?location_state=present&care_offering_id=
+	// (#4571), 10 booked present children: the offering filter reads its
+	// bookings, exceptions and status days once per request.
+	"api.students.list.care_offering": {max: 26},
+	// api/students — GET /students/care-offerings (#4571), 10 offerings:
+	// the request frame plus one catalog read for the picker selection.
+	"api.students.care_offerings.list": {max: 6},
 	// api/students — GET /care-withdrawals, page_size=1 over four pending
 	// withdrawals (#3412). The count and the page each run as one Care Plan
 	// statement that joins the named student directory projection; the
@@ -104,6 +118,10 @@ var queryBudgets = map[string]queryBudget{
 	"workflows.studentdeletion.execute.companions_4.student_rows": {max: 10},
 	// api/students — #2056: aggregated OGS group view, 10 students.
 	"api.students.ogs_group_live": {max: 41},
+	// api/students — GET /students/ogs-group-navigation over every tenant
+	// group: the group list, rooms, substitutions and one bulk Gruppenleitung
+	// lookup (#4351), independent of the number of groups and teachers.
+	"api.students.ogs_group_navigation": {max: 19},
 	// api/students — #2099: identity chain resolved once per request.
 	"api.students.ogs_group_live.identity.person":        {max: 1, exact: true},
 	"api.students.ogs_group_live.identity.staff":         {max: 1, exact: true},
@@ -126,14 +144,27 @@ var queryBudgets = map[string]queryBudget{
 	//
 	// Reviewer approval for the raise is recorded in the #3065 pull request,
 	// per the deviation clause in .claude/rules/backend-conventions.md.
-	"api.active.supervision_dashboard": {max: 41},
+	//
+	// 42 since #3946: the Kinderkarte marks an Abholart set for today only,
+	// read for all listed children in one statement. The same 3-vs-10 check
+	// above holds; approval is recorded in the #3946 pull request.
+	//
+	// 45 since #4354: the page head names who supervises the open session or
+	// room. One read of the sessions' current supervisors and one bulk name
+	// read for them (staff, profile, person) serve every tab and every
+	// released room together, so the cost stays fixed: the 3-vs-10 check
+	// above and the rooms/blocks check below hold unchanged. Approval for the
+	// raise belongs in the #4354 pull request.
+	"api.active.supervision_dashboard": {max: 45},
 	// api/active — the same aggregate with released rooms running timetable
 	// blocks (#3281): three rooms, five blocks, every block supervised. The
 	// block rows cost four fixed statements on top of the shared view (the
 	// day's instances, their plan entries, the caller's person and staff
 	// rows); TestOpenRooms_BlockCostDoesNotGrowWithRoomsOrBlocks asserts the
-	// count is identical for one room with one block.
-	"api.active.supervision_dashboard.open_room_blocks": {max: 50},
+	// count is identical for one room with one block. 51 since #3946: the
+	// shared view's one read of today's Abholart (see above). 54 since #4354:
+	// the supervisors' names (see above).
+	"api.active.supervision_dashboard.open_room_blocks": {max: 54},
 	// api/active — GET /active/groups list, 8 active groups with visits.
 	"api.active.groups.list": {max: 9},
 	// #2941: formerly one identity query per supervisor / teacher.
@@ -163,7 +194,8 @@ var queryBudgets = map[string]queryBudget{
 	// here instead of at a runtime checkpoint (#3020).
 	"api.timetable.periods.list": {max: 7, exact: true},
 	// modules/timetable/compose operational day (#3551) — GET /planned-now backing list, 8 eligible instances:
-	// instance list + rooms + staff batch + student batch (#2941).
+	// instance list + staff batch + student batch (#2941) + block display
+	// batch, which names the room and the planning track (#4413).
 	"services.schedule.planned_now": {max: 4},
 	// modules/timetable/compose — POST /instances/bulk-cancel
 	// dry run (#3594): tenant transaction (BEGIN, SET LOCAL ROLE, set_config,
@@ -179,7 +211,7 @@ var queryBudgets = map[string]queryBudget{
 	"services.calendar.caldav_snapshot": {max: 24},
 	// #2941: list/read enrichment stays flat as result rows grow.
 	"services.active.work_session_history.reads":           {max: 7},
-	"services.active.future_comp_time_commitment.reads":    {max: 4, exact: true},
+	"services.active.future_comp_time_commitment.reads":    {max: 3, exact: true},
 	"services.auth.pending_guardian_approvals.reads":       {max: 6},
 	"services.auth.pending_invitations.reads":              {max: 1, exact: true},
 	"services.platform.pending_operator_invitations.reads": {max: 1, exact: true},
@@ -204,6 +236,14 @@ var queryBudgets = map[string]queryBudget{
 	// modules/schoolmembership — assignment lists, 8 rows each.
 	"modules.schoolmembership.list_class_assignments": {max: 5},
 	"modules.schoolmembership.list_group_assignments": {max: 5},
+	// modules/schoolmembership/http — GET /staff?employment=former, the
+	// Ehemalige filter (#3403): the school transaction's setup, the
+	// memberships with the retired ones, then one batch of their persons.
+	// Flat in the number of former employments.
+	"modules.schoolmembership.staff.list_former": {max: 6},
+	// The role-filtered Ehemalige variant adds one auth.account_roles batch;
+	// it stays flat in the number of former employments.
+	"modules.schoolmembership.staff.list_former.role": {max: 7},
 	// modules/schoolstructure — staff-keyed group reads (#3499): teacher
 	// groups, substituted groups and school classes in one pass, 1 and then
 	// 4 rows each, on the caller's tenant transaction. Every read resolves
@@ -220,7 +260,6 @@ var queryBudgets = map[string]queryBudget{
 	"modules.timetable.enrollments.list":         {max: 1, exact: true},
 	"modules.timetable.timeframes.list":          {max: 1, exact: true},
 	"modules.timetable.planning_tracks.list":     {max: 1, exact: true},
-	"modules.timetable.recurrence_rules.list":    {max: 1, exact: true},
 	"modules.timetable.activity_exceptions.list": {max: 1, exact: true},
 	"modules.timetable.activity_instances.list":  {max: 1, exact: true},
 	"modules.timetable.instance_staff.list":      {max: 1, exact: true},
@@ -228,6 +267,9 @@ var queryBudgets = map[string]queryBudget{
 	"modules.timetable.schedules.list":           {max: 1, exact: true},
 	"modules.timetable.supervisors.list":         {max: 1, exact: true},
 	"modules.timetable.target_students.list":     {max: 1, exact: true},
+	// The child's activities on one day (#4268): the enrollments, then their
+	// groups in one batch. The note form's reference picker reads it.
+	"modules.timetable.active_enrollments.list": {max: 2, exact: true},
 	// modules/peopledirectory — one child's note card (#3632). Two statements,
 	// whatever the timeline holds: the notes, and one bulk read that resolves
 	// every author's name. Exact, because a count of one would mean the name
@@ -236,17 +278,25 @@ var queryBudgets = map[string]queryBudget{
 	// modules/communication — inbox reads remain fixed as thread count grows.
 	"modules.communication.parent_messages.list_inbox": {max: 1, exact: true},
 	"modules.communication.staff_messages.list_inbox":  {max: 2, exact: true},
+	// The children with a reachable guardian (#4362): the portal links of the
+	// whole school, then one batched membership check for their accounts.
+	"modules.communication.parent_messages.list_reachable_students": {max: 2, exact: true},
+	// The group threads (#4784): the OGS list and a guardian's list read the
+	// threads with their newest message, counts and read state in one
+	// statement each, however many threads exist.
+	"modules.communication.parent_group_threads.list":              {max: 1, exact: true},
+	"modules.communication.parent_group_threads.list_for_guardian": {max: 1, exact: true},
 	// database/repositories/users — due announcement reminders read their rows
 	// and targets in two batches, regardless of the number due in one tick.
 	"repositories.parent_announcements.due_reminders": {max: 2, exact: true},
-	// modules/workforce/inbound/timetracking — GET
+	// modules/workforce/http/timetracking — GET
 	// /api/staff-notices/{id}/acknowledgements (#2208): four tenant-transaction
 	// statements (BEGIN, SET ROLE, set_config, COMMIT) plus one notice read, one
 	// acknowledgement list and ONE batched People-Directory name lookup for the
 	// whole list. Flat at three acknowledgements — a per-row lookup would show
 	// as N+1 here.
 	"api.staff_notices.acknowledgements": {max: 7, exact: true},
-	// modules/workforce/inbound/timetracking — GET
+	// modules/workforce/http/timetracking — GET
 	// /api/staff/{id}/target-overrides (#3259): the tenant-transaction
 	// statements, the two staff lookups (membership, employment profile) and
 	// ONE read of the staff member's
@@ -283,6 +333,18 @@ var queryBudgets = map[string]queryBudget{
 	// the same statement as the row, where the retained repository needed a
 	// second one to reach the scan-only columns.
 	"modules.emergencysnapshot.snapshot": {max: 9, exact: true},
+	// modules/dataimport/importtest — one ten-row student file after two
+	// warmups, the bounds TestDataImportRuntimeEvidence asserted until it
+	// became opt-in (#4426). The preview is exact; the import is a ceiling
+	// (six owner statements per guardian link, three lock statements per
+	// child since #3567).
+	"modules.dataimport.student_batch.preview": {max: 16, exact: true},
+	"modules.dataimport.student_batch.import":  {max: 324},
+	// The same file at 110 rows. The preview reads one person per row
+	// (6 + 1 per row), the import grows by about 31 statements per row; a
+	// further per-row statement moves these counts by 110.
+	"modules.dataimport.student_batch.preview_110": {max: 116, exact: true},
+	"modules.dataimport.student_batch.import_110":  {max: 3432},
 	// modules/requestreview/compose — #3179: the open review page of one
 	// child with one request in each of the four native queues (the RLS
 	// proof fixture), inside one tenant transaction: the urgent and the

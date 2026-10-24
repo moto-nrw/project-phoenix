@@ -10,8 +10,9 @@ import (
 	"strings"
 	"time"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+
+	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
 
 // errSettingsNotConfigured is the configuration error of an intake composed
@@ -26,24 +27,22 @@ func (s *Intake) IsEnrollmentEnabled(ctx context.Context) bool {
 }
 
 func (s *Intake) isEnrollmentEnabled(ctx context.Context) bool {
-	if s.deps.Settings == nil {
-		return false
-	}
 	return s.deps.Settings.EnrollmentEnabled(ctx)
 }
 
-func (s *Intake) allowSubmissionEdit(ctx context.Context) bool {
-	if s.deps.Settings == nil {
-		return true
+func (s *Intake) requireSubmissionEdit(ctx context.Context) error {
+	allowed, err := s.deps.Settings.AllowSubmissionEdit(ctx)
+	if err != nil {
+		return fmt.Errorf("resolve enrollment.allow_submission_edit: %w", err)
 	}
-	return s.deps.Settings.AllowSubmissionEdit(ctx)
+	if !allowed {
+		return enrollmentNative.ErrEditNotAllowed
+	}
+	return nil
 }
 
 // collectsSchoolClass resolves the effective school-class capability.
 func (s *Intake) collectsSchoolClass(ctx context.Context) (bool, error) {
-	if s.deps.Settings == nil {
-		return false, errSettingsNotConfigured
-	}
 	collectGrade, err := s.deps.Settings.CollectGradeLevel(ctx)
 	if err != nil {
 		return false, fmt.Errorf("resolve %s: %w", settingCollectGradeLevel, err)
@@ -58,23 +57,20 @@ func (s *Intake) collectsSchoolClass(ctx context.Context) (bool, error) {
 // formCapabilities resolves the three settings that govern the form's core
 // inputs. collect_school_class is ineffective while grade collection is off,
 // because a class without its grade is ambiguous.
-func (s *Intake) formCapabilities(ctx context.Context) (enrollment.FormCapabilities, error) {
-	if s.deps.Settings == nil {
-		return enrollment.FormCapabilities{}, errSettingsNotConfigured
-	}
+func (s *Intake) formCapabilities(ctx context.Context) (enrollmentNative.FormCapabilities, error) {
 	collectGrade, err := s.deps.Settings.CollectGradeLevel(ctx)
 	if err != nil {
-		return enrollment.FormCapabilities{}, fmt.Errorf("resolve %s: %w", settingCollectGradeLevel, err)
+		return enrollmentNative.FormCapabilities{}, fmt.Errorf("resolve %s: %w", settingCollectGradeLevel, err)
 	}
 	collectClass, err := s.deps.Settings.CollectSchoolClass(ctx)
 	if err != nil {
-		return enrollment.FormCapabilities{}, fmt.Errorf("resolve %s: %w", settingCollectSchoolClass, err)
+		return enrollmentNative.FormCapabilities{}, fmt.Errorf("resolve %s: %w", settingCollectSchoolClass, err)
 	}
 	offeringsEnabled, err := s.deps.Settings.CareOfferingsEnabled(ctx)
 	if err != nil {
-		return enrollment.FormCapabilities{}, fmt.Errorf("resolve %s: %w", settingCareOfferingsEnabled, err)
+		return enrollmentNative.FormCapabilities{}, fmt.Errorf("resolve %s: %w", settingCareOfferingsEnabled, err)
 	}
-	return enrollment.FormCapabilities{
+	return enrollmentNative.FormCapabilities{
 		CollectGradeLevel:    collectGrade,
 		CollectSchoolClass:   collectGrade && collectClass,
 		CareOfferingsEnabled: offeringsEnabled,
@@ -83,7 +79,7 @@ func (s *Intake) formCapabilities(ctx context.Context) (enrollment.FormCapabilit
 
 // effectiveFormCapabilities additionally collects the grade when an active
 // offering's availability depends on it.
-func effectiveFormCapabilities(capabilities enrollment.FormCapabilities, offerings []*enrollmentModels.CareOffering) enrollment.FormCapabilities {
+func effectiveFormCapabilities(capabilities enrollmentNative.FormCapabilities, offerings []*offeringContract.CareOfferingRecord) enrollmentNative.FormCapabilities {
 	if capabilities.CareOfferingsEnabled {
 		for _, offering := range offerings {
 			if offering != nil && offering.AvailabilityRule.RequiresGradeLevel() {
@@ -100,9 +96,6 @@ func effectiveFormCapabilities(capabilities enrollment.FormCapabilities, offerin
 // resolver, a read failure or an out-of-range value is a configuration
 // error and must not silently change which grades the form accepts.
 func (s *Intake) resolveGradeMax(ctx context.Context) (int, error) {
-	if s.deps.Settings == nil {
-		return 0, errors.New("resolve enrollment.grade_level_max: settings service is not configured")
-	}
 	value, err := s.deps.Settings.GradeLevelMax(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("resolve enrollment.grade_level_max: %w", err)
@@ -118,35 +111,31 @@ func (s *Intake) resolveGradeMax(ctx context.Context) (int, error) {
 	return value, nil
 }
 
-func (s *Intake) resolveStatusTokenExpiry(ctx context.Context) time.Duration {
-	const defaultDays = 365
-	days := defaultDays
-	if s.deps.Settings != nil {
-		days = s.deps.Settings.StatusTokenTTLDays(ctx)
+func (s *Intake) resolveStatusTokenExpiry(ctx context.Context) (time.Duration, error) {
+	days, err := s.deps.Settings.StatusTokenTTLDays(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("resolve enrollment.status_token_ttl_days: %w", err)
 	}
 	if days <= 0 {
-		days = defaultDays
+		return 0, errors.New("enrollment.status_token_ttl_days must be positive")
 	}
-	return time.Duration(days) * 24 * time.Hour
+	return time.Duration(days) * 24 * time.Hour, nil
 }
 
 // LegalTexts resolves the tenant's legal Markdown and derives the public
 // blocks. A resolve failure is propagated, never swallowed: these texts sit
 // behind legally relevant blocks, so the endpoint fails rather than let the
 // form collect an incomplete legal state.
-func (s *Intake) LegalTexts(ctx context.Context) (enrollment.LegalTexts, error) {
+func (s *Intake) LegalTexts(ctx context.Context) (enrollmentNative.LegalTexts, error) {
 	return s.legalTexts(ctx)
 }
 
-func (s *Intake) legalTexts(ctx context.Context) (enrollment.LegalTexts, error) {
-	if s.deps.Settings == nil {
-		return enrollment.LegalTexts{}, nil
-	}
+func (s *Intake) legalTexts(ctx context.Context) (enrollmentNative.LegalTexts, error) {
 	settings, err := s.deps.Settings.LegalSettings(ctx)
 	if err != nil {
-		return enrollment.LegalTexts{}, err
+		return enrollmentNative.LegalTexts{}, err
 	}
-	texts := enrollment.LegalTexts{
+	texts := enrollmentNative.LegalTexts{
 		AGB:                 strings.TrimSpace(settings.AGB),
 		AGBDocumentURL:      strings.TrimSpace(settings.AGBDocumentURL),
 		AGBDisplayMode:      legalAGBDisplayMode(strings.TrimSpace(settings.AGBDisplayMode)),
@@ -165,38 +154,38 @@ func (s *Intake) legalTexts(ctx context.Context) (enrollment.LegalTexts, error) 
 // LegalTextsForPhaseWithLateInvite returns the legal contract of a phase
 // behind the public phase gate: the template's enabled blocks win,
 // otherwise the tenant-wide ones apply.
-func (s *Intake) LegalTextsForPhaseWithLateInvite(ctx context.Context, phaseID int64, lateInviteToken string) (enrollment.LegalTexts, error) {
+func (s *Intake) LegalTextsForPhaseWithLateInvite(ctx context.Context, phaseID int64, lateInviteToken string) (enrollmentNative.LegalTexts, error) {
 	phase, err := s.loadPublicPhaseWithLateInvite(ctx, phaseID, time.Now(), lateInviteToken)
 	if err != nil {
-		return enrollment.LegalTexts{}, err
+		return enrollmentNative.LegalTexts{}, err
 	}
 	return s.legalTextsForLoadedPhase(ctx, phase)
 }
 
-func (s *Intake) legalTextsForEnrolleePhase(ctx context.Context, phaseID int64, lateInviteToken string, access enrollment.EnrolleeAudienceAccess) (enrollment.LegalTexts, error) {
+func (s *Intake) legalTextsForEnrolleePhase(ctx context.Context, phaseID int64, lateInviteToken string, access enrollmentNative.EnrolleeAudienceAccess) (enrollmentNative.LegalTexts, error) {
 	phase, err := s.loadEditablePhaseWithLateInvite(ctx, phaseID, time.Now(), lateInviteToken, access)
 	if err != nil {
-		return enrollment.LegalTexts{}, err
+		return enrollmentNative.LegalTexts{}, err
 	}
 	return s.legalTextsForLoadedPhase(ctx, phase)
 }
 
-func (s *Intake) legalTextsForManualEnrollmentPhase(ctx context.Context, phaseID int64) (enrollment.LegalTexts, error) {
+func (s *Intake) legalTextsForManualEnrollmentPhase(ctx context.Context, phaseID int64) (enrollmentNative.LegalTexts, error) {
 	phase, err := s.loadPhaseForEditableRequest(ctx, phaseID)
 	if err != nil {
-		return enrollment.LegalTexts{}, err
+		return enrollmentNative.LegalTexts{}, err
 	}
 	return s.legalTextsForLoadedPhase(ctx, phase)
 }
 
-func (s *Intake) legalTextsForLoadedPhase(ctx context.Context, phase *enrollment.Phase) (enrollment.LegalTexts, error) {
+func (s *Intake) legalTextsForLoadedPhase(ctx context.Context, phase *enrollmentNative.Phase) (enrollmentNative.LegalTexts, error) {
 	texts, err := s.legalTexts(ctx)
 	if err != nil {
-		return enrollment.LegalTexts{}, err
+		return enrollmentNative.LegalTexts{}, err
 	}
 	schema, err := s.resolveSubmissionSchema(ctx, phase)
 	if err != nil {
-		return enrollment.LegalTexts{}, err
+		return enrollmentNative.LegalTexts{}, err
 	}
 	return applyTemplateLegalBlocks(texts, schema), nil
 }
@@ -204,7 +193,7 @@ func (s *Intake) legalTextsForLoadedPhase(ctx context.Context, phase *enrollment
 // applyTemplateLegalBlocks replaces the settings-derived blocks with the
 // template's blocks when at least one of them is enabled: an all-disabled
 // template must not erase the tenant's consent contract.
-func applyTemplateLegalBlocks(texts enrollment.LegalTexts, schema *enrollment.FormSchema) enrollment.LegalTexts {
+func applyTemplateLegalBlocks(texts enrollmentNative.LegalTexts, schema *enrollmentNative.FormSchema) enrollmentNative.LegalTexts {
 	if schema != nil && len(schema.LegalBlocks) > 0 {
 		if blocks := buildTemplateLegalBlocks(schema.LegalBlocks); len(blocks) > 0 {
 			texts.Blocks = blocks
@@ -216,7 +205,7 @@ func applyTemplateLegalBlocks(texts enrollment.LegalTexts, schema *enrollment.Fo
 // resolveSubmissionLegalBlocks returns the blocks a submission is validated
 // and stored against: the template's enabled blocks, otherwise the
 // tenant-wide ones.
-func (s *Intake) resolveSubmissionLegalBlocks(ctx context.Context, schema *enrollment.FormSchema) ([]enrollment.LegalBlock, error) {
+func (s *Intake) resolveSubmissionLegalBlocks(ctx context.Context, schema *enrollmentNative.FormSchema) ([]enrollmentNative.LegalBlock, error) {
 	if schema != nil && len(schema.LegalBlocks) > 0 {
 		if blocks := buildTemplateLegalBlocks(schema.LegalBlocks); len(blocks) > 0 {
 			return blocks, nil
@@ -229,34 +218,34 @@ func (s *Intake) resolveSubmissionLegalBlocks(ctx context.Context, schema *enrol
 	return texts.Blocks, nil
 }
 
-func buildLegalBlocks(texts enrollment.LegalTexts) []enrollment.LegalBlock {
-	blocks := make([]enrollment.LegalBlock, 0, 4)
+func buildLegalBlocks(texts enrollmentNative.LegalTexts) []enrollmentNative.LegalBlock {
+	blocks := make([]enrollmentNative.LegalBlock, 0, 4)
 	if agbText := legalAGBBlockText(texts); texts.TermsEnabled && agbText != "" {
-		blocks = append(blocks, enrollment.LegalBlock{
-			Key: enrollmentModels.ConsentKeyAGB, Kind: "terms", Title: "AGB / Teilnahmebedingungen",
+		blocks = append(blocks, enrollmentNative.LegalBlock{
+			Key: enrollmentNative.ConsentKeyAGB, Kind: "terms", Title: "AGB / Teilnahmebedingungen",
 			Label: "Ich akzeptiere die AGB / Teilnahmebedingungen / den Ganztag Info-Brief.",
-			Text:  agbText, Required: true, SortOrder: 10, Source: enrollment.LegalBlockSourceStandard,
+			Text:  agbText, Required: true, SortOrder: 10, Source: enrollmentNative.LegalBlockSourceStandard,
 		})
 	}
 	if texts.DSGVOEnabled && texts.DSGVO != "" {
-		blocks = append(blocks, enrollment.LegalBlock{
-			Key: enrollmentModels.ConsentKeyDataProcessing, Kind: "privacy_notice", Title: "Datenschutzinformation",
+		blocks = append(blocks, enrollmentNative.LegalBlock{
+			Key: enrollmentNative.ConsentKeyDataProcessing, Kind: "privacy_notice", Title: "Datenschutzinformation",
 			Label: "Ich habe die Datenschutzinformation der Schule zur Kenntnis genommen.",
-			Text:  texts.DSGVO, Required: true, SortOrder: 20, Source: enrollment.LegalBlockSourceStandard,
+			Text:  texts.DSGVO, Required: true, SortOrder: 20, Source: enrollmentNative.LegalBlockSourceStandard,
 		})
 	}
 	if texts.PhotoEnabled && texts.Photo != "" {
-		blocks = append(blocks, enrollment.LegalBlock{
-			Key: enrollmentModels.ConsentKeyPhoto, Kind: "consent", Title: "Fotoeinwilligung",
+		blocks = append(blocks, enrollmentNative.LegalBlock{
+			Key: enrollmentNative.ConsentKeyPhoto, Kind: "consent", Title: "Fotoeinwilligung",
 			Label: "Mein Kind darf bei Schulveranstaltungen fotografiert werden. Diese Einwilligung ist freiwillig und jederzeit mit Wirkung für die Zukunft widerrufbar.",
-			Text:  texts.Photo, Required: false, SortOrder: 30, Source: enrollment.LegalBlockSourceStandard,
+			Text:  texts.Photo, Required: false, SortOrder: 30, Source: enrollmentNative.LegalBlockSourceStandard,
 		})
 	}
 	if texts.EmailContactEnabled && texts.EmailContact != "" {
-		blocks = append(blocks, enrollment.LegalBlock{
-			Key: enrollmentModels.ConsentKeyEmailContact, Kind: "notice", Title: "E-Mail-Kontakt",
+		blocks = append(blocks, enrollmentNative.LegalBlock{
+			Key: enrollmentNative.ConsentKeyEmailContact, Kind: "notice", Title: "E-Mail-Kontakt",
 			Label: "Die Schule nutzt Ihre E-Mail-Adresse für Rückfragen und Status-Benachrichtigungen zu dieser Anmeldung.",
-			Text:  texts.EmailContact, Required: false, SortOrder: 40, Source: enrollment.LegalBlockSourceStandard,
+			Text:  texts.EmailContact, Required: false, SortOrder: 40, Source: enrollmentNative.LegalBlockSourceStandard,
 		})
 	}
 	return blocks
@@ -269,25 +258,26 @@ func legalAGBDisplayMode(mode string) string {
 	return legalAGBDisplayModeText
 }
 
-func legalAGBBlockText(texts enrollment.LegalTexts) string {
+func legalAGBBlockText(texts enrollmentNative.LegalTexts) string {
 	if legalAGBDisplayMode(texts.AGBDisplayMode) != legalAGBDisplayModePDF {
 		return texts.AGB
 	}
 	if texts.AGBDocumentURL == "" {
 		return ""
 	}
-	return fmt.Sprintf("Die AGB / Teilnahmebedingungen sind als PDF-Datei hinterlegt: [AGB-Dokument öffnen](%s)", enrollment.PublicEnrollmentLegalDocumentURL(texts.AGBDocumentURL))
+	return fmt.Sprintf("Die AGB / Teilnahmebedingungen sind als PDF-Datei hinterlegt: [AGB-Dokument öffnen](%s)", enrollmentNative.PublicEnrollmentLegalDocumentURL(texts.AGBDocumentURL))
 }
 
-func buildTemplateLegalBlocks(configured []enrollment.FormLegalBlock) []enrollment.LegalBlock {
-	blocks := make([]enrollment.LegalBlock, 0, len(configured))
+func buildTemplateLegalBlocks(configured []enrollmentNative.FormLegalBlock) []enrollmentNative.LegalBlock {
+	blocks := make([]enrollmentNative.LegalBlock, 0, len(configured))
 	for _, block := range configured {
 		if !block.Enabled {
 			continue
 		}
-		blocks = append(blocks, enrollment.LegalBlock{
+		blocks = append(blocks, enrollmentNative.LegalBlock{
 			Key: block.Key, Kind: block.Kind, Title: block.Title, Label: block.Label,
-			Text: templateLegalBlockText(block), Required: block.Required, SortOrder: block.SortOrder,
+			Attachments: enrollmentNative.PublicFormAttachments(block.Attachments),
+			Text:        templateLegalBlockText(block), Required: block.Required, SortOrder: block.SortOrder,
 			Source: block.Source, Translations: block.PublicTranslations(),
 		})
 	}
@@ -299,11 +289,11 @@ func buildTemplateLegalBlocks(configured []enrollment.FormLegalBlock) []enrollme
 	return blocks
 }
 
-func templateLegalBlockText(block enrollment.FormLegalBlock) string {
-	if block.Key == enrollmentModels.ConsentKeyAGB &&
-		block.DisplayMode == enrollment.LegalBlockDisplayModePDF &&
+func templateLegalBlockText(block enrollmentNative.FormLegalBlock) string {
+	if block.Key == enrollmentNative.ConsentKeyAGB &&
+		block.DisplayMode == enrollmentNative.LegalBlockDisplayModePDF &&
 		strings.TrimSpace(block.DocumentURL) != "" {
-		return fmt.Sprintf("Die AGB / Teilnahmebedingungen sind als PDF-Datei hinterlegt: [AGB-Dokument öffnen](%s)", enrollment.PublicEnrollmentLegalDocumentURL(block.DocumentURL))
+		return fmt.Sprintf("Die AGB / Teilnahmebedingungen sind als PDF-Datei hinterlegt: [AGB-Dokument öffnen](%s)", enrollmentNative.PublicEnrollmentLegalDocumentURL(block.DocumentURL))
 	}
 	return block.Text
 }
@@ -311,23 +301,23 @@ func templateLegalBlockText(block enrollment.FormLegalBlock) string {
 // loadPhaseForSubmission fetches the selected phase and checks it is active.
 // An unknown id is an invalid submission; the window check stays with the
 // caller so the handler's error mapping stays specific.
-func (s *Intake) loadPhaseForSubmission(ctx context.Context, phaseID int64) (*enrollment.Phase, error) {
+func (s *Intake) loadPhaseForSubmission(ctx context.Context, phaseID int64) (*enrollmentNative.Phase, error) {
 	if s.deps.Catalog == nil {
 		return nil, fmt.Errorf("submit: phase repo not wired")
 	}
 	phase, err := s.intakePhase(ctx, phaseID)
 	if err != nil {
-		return nil, fmt.Errorf("%w: phase %d not found", enrollment.ErrInvalidSubmission, phaseID)
+		return nil, fmt.Errorf("%w: phase %d not found", enrollmentNative.ErrInvalidSubmission, phaseID)
 	}
 	if !phase.IsActive {
-		return nil, enrollment.ErrEnrollmentDisabled
+		return nil, enrollmentNative.ErrEnrollmentDisabled
 	}
 	return phase, nil
 }
 
-func (s *Intake) loadPhaseForEditableRequest(ctx context.Context, phaseID int64) (*enrollment.Phase, error) {
+func (s *Intake) loadPhaseForEditableRequest(ctx context.Context, phaseID int64) (*enrollmentNative.Phase, error) {
 	if !s.isEnrollmentEnabled(ctx) {
-		return nil, enrollment.ErrEnrollmentDisabled
+		return nil, enrollmentNative.ErrEnrollmentDisabled
 	}
 	return s.loadPhaseForSubmission(ctx, phaseID)
 }
@@ -335,7 +325,7 @@ func (s *Intake) loadPhaseForEditableRequest(ctx context.Context, phaseID int64)
 // resolveSubmissionSchema returns the phase's pinned schema, or nil for a
 // Basis phase. A Basis phase never inherits the tenant's active schema; a
 // pinned schema deleted under the phase submits as Basis too.
-func (s *Intake) resolveSubmissionSchema(ctx context.Context, phase *enrollment.Phase) (*enrollment.FormSchema, error) {
+func (s *Intake) resolveSubmissionSchema(ctx context.Context, phase *enrollmentNative.Phase) (*enrollmentNative.FormSchema, error) {
 	if phase.FormSchemaID == nil {
 		return nil, nil
 	}
@@ -355,18 +345,18 @@ func (s *Intake) resolveSubmissionSchema(ctx context.Context, phase *enrollment.
 // PublicActiveSchema resolves the schema a public parent form renders. A
 // Basis phase and a pinned-but-deleted schema return ErrNoActiveSchema, so
 // a custom form never leaks into a Basis phase.
-func (s *Intake) PublicActiveSchema(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*enrollment.FormSchema, error) {
+func (s *Intake) PublicActiveSchema(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*enrollmentNative.FormSchema, error) {
 	phase, err := s.loadPublicPhaseWithLateInvite(ctx, phaseID, now, lateInviteToken)
 	if err != nil {
 		return nil, err
 	}
 	if phase.FormSchemaID == nil {
-		return nil, enrollment.ErrNoActiveSchema
+		return nil, enrollmentNative.ErrNoActiveSchema
 	}
 	schema, err := s.intakeSchema(ctx, *phase.FormSchemaID)
 	if err != nil {
 		if s.deps.Runtime.NotFound(err) {
-			return nil, enrollment.ErrNoActiveSchema
+			return nil, enrollmentNative.ErrNoActiveSchema
 		}
 		return nil, err
 	}
@@ -375,8 +365,8 @@ func (s *Intake) PublicActiveSchema(ctx context.Context, phaseID int64, now time
 
 // loadPublicPhaseWithLateInvite is the anonymous public form-load gate: it
 // rejects every audience-restricted phase.
-func (s *Intake) loadPublicPhaseWithLateInvite(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*enrollment.Phase, error) {
-	return s.loadEditablePhaseWithLateInvite(ctx, phaseID, now, lateInviteToken, enrollment.EnrolleeAudienceAccess{})
+func (s *Intake) loadPublicPhaseWithLateInvite(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*enrollmentNative.Phase, error) {
+	return s.loadEditablePhaseWithLateInvite(ctx, phaseID, now, lateInviteToken, enrollmentNative.EnrolleeAudienceAccess{})
 }
 
 // loadEditablePhaseWithLateInvite is the shared form-load phase gate. It
@@ -384,7 +374,7 @@ func (s *Intake) loadPublicPhaseWithLateInvite(ctx context.Context, phaseID int6
 // does not cover — before the window check, so a restricted phase always
 // answers the same 404 — and enforces the window, honouring a valid late
 // invite (#1663).
-func (s *Intake) loadEditablePhaseWithLateInvite(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string, access enrollment.EnrolleeAudienceAccess) (*enrollment.Phase, error) {
+func (s *Intake) loadEditablePhaseWithLateInvite(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string, access enrollmentNative.EnrolleeAudienceAccess) (*enrollmentNative.Phase, error) {
 	phase, err := s.loadPhaseForEditableRequest(ctx, phaseID)
 	if err != nil {
 		return nil, err
@@ -394,14 +384,14 @@ func (s *Intake) loadEditablePhaseWithLateInvite(ctx context.Context, phaseID in
 		return nil, err
 	}
 	if !hasValidLateInvite && !access.AllowsAudience(phase.Audience) {
-		return nil, enrollment.ErrPhaseAudienceRestricted
+		return nil, enrollmentNative.ErrPhaseAudienceRestricted
 	}
 	if !phase.EnrollmentWindowOpen(now) {
 		if strings.TrimSpace(lateInviteToken) == "" {
-			return nil, enrollment.ErrEnrollmentWindowClosed
+			return nil, enrollmentNative.ErrEnrollmentWindowClosed
 		}
 		if !hasValidLateInvite {
-			return nil, enrollment.ErrLateInviteInvalid
+			return nil, enrollmentNative.ErrLateInviteInvalid
 		}
 	}
 	// Only offer classes the submit-time eligibility gate will accept. A
@@ -427,7 +417,7 @@ func (s *Intake) hasValidLateInvite(ctx context.Context, phaseID int64, now time
 	switch {
 	case err == nil:
 		return true, nil
-	case errors.Is(err, enrollment.ErrLateInviteNotFound):
+	case errors.Is(err, enrollmentNative.ErrLateInviteNotFound):
 		return false, nil
 	default:
 		return false, fmt.Errorf("resolve late invite: %w", err)
@@ -439,7 +429,7 @@ func (s *Intake) hasValidLateInvite(ctx context.Context, phaseID int64, now time
 // not apply to: a valid late invite, or a trusted-source or
 // rollover-generated edit draft. Presentation only; the submission reloads
 // the phase (#1663).
-func clearGradeRestrictionForEligibilityExemptForm(phase *enrollment.Phase) {
+func clearGradeRestrictionForEligibilityExemptForm(phase *enrollmentNative.Phase) {
 	if phase == nil {
 		return
 	}
@@ -449,7 +439,7 @@ func clearGradeRestrictionForEligibilityExemptForm(phase *enrollment.Phase) {
 // narrowOfferedClassesToEligibleForForm restricts the offered classes of a
 // self-service form load to the eligible ones, so a parent never picks a
 // class the submission then rejects. Presentation only (#1663).
-func narrowOfferedClassesToEligibleForForm(phase *enrollment.Phase) {
+func narrowOfferedClassesToEligibleForForm(phase *enrollmentNative.Phase) {
 	if phase == nil || len(phase.EligibleSchoolClasses) == 0 {
 		return
 	}
@@ -473,7 +463,7 @@ func narrowOfferedClassesToEligibleForForm(phase *enrollment.Phase) {
 // options from a class-only eligibility restriction. It only narrows: an
 // explicit grade list stays, and a prefixless eligible class keeps every
 // grade satisfiable (#1663). Presentation only.
-func narrowOfferedGradesToEligibleClassesForForm(phase *enrollment.Phase) {
+func narrowOfferedGradesToEligibleClassesForForm(phase *enrollmentNative.Phase) {
 	if phase == nil || len(phase.EligibleGradeLevels) > 0 {
 		return
 	}

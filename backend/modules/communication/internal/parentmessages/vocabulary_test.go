@@ -4,11 +4,14 @@ import (
 	"context"
 	"testing"
 
+	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
+
+	messaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
+
 	"github.com/stretchr/testify/assert"
 
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
+	"github.com/moto-nrw/project-phoenix/modules/communication/internal/application/parentmessaging"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings"
 )
 
 // TestParentEventVocabularyMatchesOwner pins the consumer-facing pill
@@ -19,14 +22,14 @@ import (
 func TestParentEventVocabularyMatchesOwner(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, usersModels.ParentMessageEventRequestCreated, parentmessaging.EventRequestCreated)
-	assert.Equal(t, usersModels.ParentMessageEventRequestStatus, parentmessaging.EventRequestStatus)
-	assert.Equal(t, usersModels.ParentMessageSenderGuardian, parentmessaging.ActorGuardian)
-	assert.Equal(t, usersModels.ParentMessageSenderStaff, parentmessaging.ActorStaff)
-	assert.Equal(t, usersModels.ParentMessageRequestStatusOpen, parentmessaging.RequestStatusOpen)
-	assert.Equal(t, usersModels.ParentMessageRequestStatusDone, parentmessaging.RequestStatusDone)
-	assert.Equal(t, usersModels.ParentMessageRequestStatusRejected, parentmessaging.RequestStatusRejected)
-	assert.Equal(t, usersModels.ParentMessageRequestStatusWithdrawn, parentmessaging.RequestStatusWithdrawn)
+	assert.Equal(t, messaging.ParentMessageEventRequestCreated, eventContract.EventRequestCreated)
+	assert.Equal(t, messaging.ParentMessageEventRequestStatus, eventContract.EventRequestStatus)
+	assert.Equal(t, messaging.ParentMessageSenderGuardian, eventContract.ActorGuardian)
+	assert.Equal(t, messaging.ParentMessageSenderStaff, eventContract.ActorStaff)
+	assert.Equal(t, messaging.ParentMessageRequestStatusOpen, eventContract.RequestStatusOpen)
+	assert.Equal(t, messaging.ParentMessageRequestStatusDone, eventContract.RequestStatusDone)
+	assert.Equal(t, messaging.ParentMessageRequestStatusRejected, eventContract.RequestStatusRejected)
+	assert.Equal(t, messaging.ParentMessageRequestStatusWithdrawn, eventContract.RequestStatusWithdrawn)
 
 	// The gate resolves the registry's key: a renamed setting must fail here,
 	// not silently fail open in production.

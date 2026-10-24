@@ -12,6 +12,7 @@ import (
 	"time"
 
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 
@@ -76,6 +77,7 @@ func (m *mockRolloverService) RunDeadlineWorker(_ context.Context, _ time.Time) 
 // the mock service handles the business logic.
 func buildRolloverRouter(svc RolloverService) chi.Router {
 	rs := &Resource{
+		Failures:        DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation},
 		RolloverService: svc,
 		// db: nil so runInTenantTx skips the tenant.WithTenantTx wrap.
 	}

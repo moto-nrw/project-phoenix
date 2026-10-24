@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -26,18 +26,14 @@ func TestClassListEntriesAppearInClassDay(t *testing.T) {
 
 	staff, account := testpkg.CreateTestStaffWithAccount(t, db, "CleDay", fmt.Sprintf("API-%d", time.Now().UnixNano()))
 	className := fmt.Sprintf("cled%d", time.Now().UnixNano()%100000)
-	assignment := testpkg.CreateTestClassTeacher(t, db, staff.ID, className)
+	testpkg.CreateTestClassTeacher(t, db, staff.ID, className)
 	_ = testpkg.CreateTestStudent(t, db, "Klara", "Klassentag", className)
 	entry := testpkg.CreateTestClassListEntry(t, db, "Nico", "NurListe", className)
-	t.Cleanup(func() {
-		tenantCtx := testpkg.Ctx(t)
-		_, _ = db.NewDelete().TableExpr("education.class_teachers").Where("id = ?", assignment.ID).Exec(tenantCtx)
-	})
 
 	// Since the cutover (#2207 PR 3) the class-day sheet is reachable only
 	// through the school portal, so this drives SchoolRouter with school-scope
 	// claims.
-	claims := jwt.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"lehrkraft"}, TenantID: testpkg.Tenant(t), Scope: tenant.ScopeSchool}
+	claims := sessiontoken.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"lehrkraft"}, TenantID: testpkg.Tenant(t), Scope: tenant.ScopeSchool}
 
 	req := httptest.NewRequest(http.MethodGet, "/?date=2026-08-05", nil)
 	rec := testutil.ExecuteWithAuthPermissions(t, router, req, claims, []string{"class_day:read"})

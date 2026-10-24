@@ -16,8 +16,12 @@ import (
 const maxDecisionReasonRunes = 2000
 
 type RequestDecisions struct {
-	Records     ports.RequestDecisionRecords
-	People      ports.RequestDecisionPeople
+	Records ports.RequestDecisionRecords
+	People  ports.RequestDecisionPeople
+	// Guardians answers whether the submitting guardian still holds the
+	// child. Nil skips the check: a graph without parent messaging has no
+	// portal guardians, as in the excused-absence twin.
+	Guardians   ports.GuardianAccess
 	Plans       ports.RequestDecisionPlans
 	Effects     ports.RequestDecisionEffects
 	Transaction ports.RequestDecisionTransaction
@@ -59,19 +63,9 @@ func validateRequestDecision(input carerequests.DecideInput) (string, error) {
 }
 
 func (s *RequestDecisions) loadAuthorized(ctx context.Context, id int64, version string) (*carerequests.Request, error) {
-	request, err := s.Records.Find(ctx, id, true)
+	request, student, err := lockCareRequestStudent(ctx, s.Records, s.People, id, func(row carerequests.Request) error { return validatePendingCareRequest(row, version) })
 	if err != nil {
 		return nil, err
-	}
-	if request.Status != "pending" {
-		return nil, careplan.ErrCareScheduleRequestNotPending
-	}
-	if version != "" && careplan.ParentRequestVersion(request.UpdatedAt) != version {
-		return nil, careplan.ErrParentRequestStale
-	}
-	student, err := s.People.LockStudent(ctx, request.StudentID)
-	if err != nil {
-		return nil, fmt.Errorf("schedule: load student for care request decision: %w", err)
 	}
 	if student.Alumnus || student.CareEndedOn(domain.Date(s.Today())) {
 		return nil, careplan.ErrCareScheduleRequestNotFound
@@ -92,7 +86,7 @@ func (s *RequestDecisions) decide(ctx context.Context, input carerequests.Decide
 		return nil, err
 	}
 	snapshot := s.Plans.Snapshot(ctx, request)
-	companionsChanged, exceptionID, err := s.apply(ctx, request, input)
+	companionsChanged, applied, err := s.apply(ctx, request, input)
 	if err != nil {
 		return nil, err
 	}
@@ -120,30 +114,86 @@ func (s *RequestDecisions) decide(ctx context.Context, input carerequests.Decide
 		return nil, err
 	}
 	payload := map[string]any{"approve": input.Approve, "reason": reason}
-	if exceptionID > 0 {
-		payload["pickup_exception_id"] = exceptionID
-	}
+	appliedLedgerPayload(payload, applied)
 	if err := s.Effects.RecordDecision(ctx, item.Request, input.ReviewedBy, payload); err != nil {
 		return nil, err
 	}
 	return item, nil
 }
 
-func (s *RequestDecisions) apply(ctx context.Context, request *carerequests.Request, input carerequests.DecideInput) (bool, int64, error) {
+// appliedLedgerPayload records the rows an approval wrote; a correction
+// reads them back from the ledger to take exactly those back.
+func appliedLedgerPayload(payload map[string]any, applied carerequests.PickupApplied) {
+	if applied.PickupExceptionID > 0 {
+		payload["pickup_exception_id"] = applied.PickupExceptionID
+	}
+	if applied.DepartureExceptionID > 0 {
+		payload["departure_exception_id"] = applied.DepartureExceptionID
+	}
+}
+
+func (s *RequestDecisions) apply(ctx context.Context, request *carerequests.Request, input carerequests.DecideInput) (bool, carerequests.PickupApplied, error) {
+	var none carerequests.PickupApplied
 	if !input.Approve {
-		return false, 0, nil
+		return false, none, nil
 	}
-	allowed, err := s.People.GuardianHasAccess(ctx, request.StudentID, request.SubmittedBy)
-	if err != nil {
-		return false, 0, fmt.Errorf("schedule: care request guardian link check: %w", err)
-	}
-	if !allowed {
-		return false, 0, carerequests.ErrGuardianAccessRevoked
+	if err := s.guardianStillHoldsChild(ctx, request); err != nil {
+		return false, none, err
 	}
 	if request.RequestKind == "pickup_change" {
-		id, err := s.Plans.ApplyPickup(ctx, request, input.ExpectedImpactToken, input.RequireImpactToken)
-		return false, id, err
+		applied, err := s.Plans.ApplyPickup(ctx, request, input.ExpectedImpactToken, input.RequireImpactToken)
+		return false, applied, err
 	}
 	changed, err := s.Plans.ApplyWeekly(ctx, request, input.ReviewedBy)
-	return changed, 0, err
+	return changed, none, err
+}
+
+// guardianStillHoldsChild refuses to apply a request whose guardian lost the
+// child since filing: approving would write a plan and post a pill for a
+// recipient the parent APIs now hide. Staff wind such a request down by
+// rejecting it.
+func (s *RequestDecisions) guardianStillHoldsChild(ctx context.Context, request *carerequests.Request) error {
+	if s.Guardians == nil {
+		return nil
+	}
+	allowed, err := s.Guardians.GuardianHasChildAccess(ctx, request.StudentID, request.SubmittedBy)
+	if err != nil {
+		return fmt.Errorf("schedule: care request guardian link check: %w", err)
+	}
+	if !allowed {
+		return carerequests.ErrGuardianAccessRevoked
+	}
+	return nil
+}
+
+// lockCareRequestStudent acquires class(shared) -> child -> request, matching
+// care end. The unlocked read supplies only the immutable child ID. Callers
+// check status, version and authorization against the locked state.
+func lockCareRequestStudent(ctx context.Context, records ports.RequestConflictRecords, people ports.RequestDecisionPeople, id int64, validate func(carerequests.Request) error) (carerequests.Request, careplan.ReviewStudent, error) {
+	snapshot, err := records.Find(ctx, id, false)
+	if err != nil {
+		return carerequests.Request{}, careplan.ReviewStudent{}, err
+	}
+	if err := validate(snapshot); err != nil {
+		return carerequests.Request{}, careplan.ReviewStudent{}, err
+	}
+	student, err := people.LockStudent(ctx, snapshot.StudentID)
+	if err != nil {
+		return carerequests.Request{}, careplan.ReviewStudent{}, fmt.Errorf("schedule: lock care request student: %w", err)
+	}
+	row, err := records.Find(ctx, id, true)
+	if err != nil {
+		return carerequests.Request{}, careplan.ReviewStudent{}, err
+	}
+	return row, student, validate(row)
+}
+
+func validatePendingCareRequest(row carerequests.Request, version string) error {
+	if row.Status != "pending" {
+		return careplan.ErrCareScheduleRequestNotPending
+	}
+	if version != "" && careplan.ParentRequestVersion(row.UpdatedAt) != version {
+		return careplan.ErrParentRequestStale
+	}
+	return nil
 }

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
@@ -27,10 +28,10 @@ type instanceStaffRow struct {
 	SickAbsenceID *int64    `bun:"sick_absence_id"`
 }
 
-func (s *Store) FindInstanceStaff(ctx context.Context, id int64) (domain.InstanceStaff, bool, domain.OperationStats, error) {
+func (s *Store) FindInstanceStaff(ctx context.Context, id int64) (timetable.InstanceStaff, bool, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return domain.InstanceStaff{}, false, domain.OperationStats{}, err
+		return timetable.InstanceStaff{}, false, domain.OperationStats{}, err
 	}
 	row := instanceStaffRow{}
 	found, stats, err := scanOne(ctx, instanceStaffSelect(db, &row, tenantID).
@@ -38,7 +39,7 @@ func (s *Store) FindInstanceStaff(ctx context.Context, id int64) (domain.Instanc
 	return instanceStaffToDomain(row), found, stats, err
 }
 
-func (s *Store) ListInstanceStaff(ctx context.Context, filter domain.InstanceStaffFilter) ([]domain.InstanceStaff, domain.OperationStats, error) {
+func (s *Store) ListInstanceStaff(ctx context.Context, filter timetable.InstanceStaffFilter) ([]timetable.InstanceStaff, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
@@ -49,7 +50,7 @@ func (s *Store) ListInstanceStaff(ctx context.Context, filter domain.InstanceSta
 	if err != nil {
 		return nil, stats, err
 	}
-	result := make([]domain.InstanceStaff, 0, len(rows))
+	result := make([]timetable.InstanceStaff, 0, len(rows))
 	for _, row := range rows {
 		result = append(result, instanceStaffToDomain(row))
 	}
@@ -57,7 +58,7 @@ func (s *Store) ListInstanceStaff(ctx context.Context, filter domain.InstanceSta
 	return result, stats, nil
 }
 
-func filterInstanceStaff(query *bun.SelectQuery, filter domain.InstanceStaffFilter) *bun.SelectQuery {
+func filterInstanceStaff(query *bun.SelectQuery, filter timetable.InstanceStaffFilter) *bun.SelectQuery {
 	if needsActivityInstanceJoin(filter) {
 		query = query.Join(`INNER JOIN schedule.activity_instances AS "activity_instance"
 			ON "activity_instance".id = "instance_staff".instance_id
@@ -72,12 +73,12 @@ func filterInstanceStaff(query *bun.SelectQuery, filter domain.InstanceStaffFilt
 	return query
 }
 
-func needsActivityInstanceJoin(filter domain.InstanceStaffFilter) bool {
+func needsActivityInstanceJoin(filter timetable.InstanceStaffFilter) bool {
 	return filter.Date != nil || filter.FromDate != nil || filter.ToDate != nil ||
 		filter.OrderByActivityTime || filter.OrderByActivityDateTime
 }
 
-func filterInstanceStaffIDs(query *bun.SelectQuery, filter domain.InstanceStaffFilter) *bun.SelectQuery {
+func filterInstanceStaffIDs(query *bun.SelectQuery, filter timetable.InstanceStaffFilter) *bun.SelectQuery {
 	if len(filter.IDs) > 0 {
 		query = query.Where(`"instance_staff".id IN (?)`, bun.List(filter.IDs))
 	}
@@ -93,7 +94,7 @@ func filterInstanceStaffIDs(query *bun.SelectQuery, filter domain.InstanceStaffF
 	return query
 }
 
-func filterInstanceStaffDates(query *bun.SelectQuery, filter domain.InstanceStaffFilter) *bun.SelectQuery {
+func filterInstanceStaffDates(query *bun.SelectQuery, filter timetable.InstanceStaffFilter) *bun.SelectQuery {
 	if filter.Date != nil {
 		query = query.Where(`"activity_instance".date = ?::date`, *filter.Date)
 	}
@@ -106,7 +107,7 @@ func filterInstanceStaffDates(query *bun.SelectQuery, filter domain.InstanceStaf
 	return query
 }
 
-func orderInstanceStaff(query *bun.SelectQuery, filter domain.InstanceStaffFilter) *bun.SelectQuery {
+func orderInstanceStaff(query *bun.SelectQuery, filter timetable.InstanceStaffFilter) *bun.SelectQuery {
 	switch {
 	case filter.OrderByCreated:
 		return query.OrderExpr(`"instance_staff".created_at ASC, "instance_staff".id ASC`)
@@ -152,10 +153,10 @@ type instanceStaffCount struct {
 	Count      int   `bun:"count"`
 }
 
-func (s *Store) CreateInstanceStaff(ctx context.Context, fields domain.InstanceStaffFields) (domain.InstanceStaff, domain.OperationStats, error) {
+func (s *Store) CreateInstanceStaff(ctx context.Context, fields timetable.InstanceStaffInput) (timetable.InstanceStaff, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return domain.InstanceStaff{}, domain.OperationStats{}, err
+		return timetable.InstanceStaff{}, domain.OperationStats{}, err
 	}
 	row := newInstanceStaffRow(tenantID, fields)
 	stats := domain.OperationStats{Queries: 1}
@@ -164,16 +165,16 @@ func (s *Store) CreateInstanceStaff(ctx context.Context, fields domain.InstanceS
 		Returning(instanceStaffColumns).Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
-		return domain.InstanceStaff{}, stats, classifyWriteError("create instance staff", err, &stats)
+		return timetable.InstanceStaff{}, stats, classifyWriteError("create instance staff", err, &stats)
 	}
 	stats.Rows = 1
 	return instanceStaffToDomain(row), stats, nil
 }
 
-func (s *Store) UpdateInstanceStaff(ctx context.Context, id int64, fields domain.InstanceStaffFields) (domain.InstanceStaff, bool, domain.OperationStats, error) {
+func (s *Store) UpdateInstanceStaff(ctx context.Context, id int64, fields timetable.InstanceStaffInput) (timetable.InstanceStaff, bool, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return domain.InstanceStaff{}, false, domain.OperationStats{}, err
+		return timetable.InstanceStaff{}, false, domain.OperationStats{}, err
 	}
 	row := instanceStaffRow{}
 	stats := domain.OperationStats{Queries: 1}
@@ -186,16 +187,16 @@ func (s *Store) UpdateInstanceStaff(ctx context.Context, id int64, fields domain
 		Where("id = ?", id).Where("tenant_id = ?", tenantID).Returning(instanceStaffColumns).Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if errors.Is(err, sql.ErrNoRows) {
-		return domain.InstanceStaff{}, false, stats, nil
+		return timetable.InstanceStaff{}, false, stats, nil
 	}
 	if err != nil {
-		return domain.InstanceStaff{}, false, stats, classifyWriteError("update instance staff", err, &stats)
+		return timetable.InstanceStaff{}, false, stats, classifyWriteError("update instance staff", err, &stats)
 	}
 	stats.Rows = 1
 	return instanceStaffToDomain(row), true, stats, nil
 }
 
-func (s *Store) PatchInstanceStaff(ctx context.Context, id int64, fields domain.InstanceStaffFields, columns []string) (int64, domain.OperationStats, error) {
+func (s *Store) PatchInstanceStaff(ctx context.Context, id int64, fields timetable.InstanceStaffInput, columns []string) (int64, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return 0, domain.OperationStats{}, err
@@ -228,6 +229,16 @@ func (s *Store) DeleteInstanceStaffByInstance(ctx context.Context, instanceID in
 	}
 	return execMeasuredWrite(ctx, db.NewDelete().Table("schedule.instance_staff").
 		Where("tenant_id = ?", tenantID).Where("instance_id = ?", instanceID), "delete instance staff by instance")
+}
+
+func (s *Store) DeleteInstanceStaffByStaff(ctx context.Context, staffID int64) (int64, domain.OperationStats, error) {
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return 0, domain.OperationStats{}, err
+	}
+	stats, err := execMeasuredWrite(ctx, db.NewDelete().Table("schedule.instance_staff").
+		Where("tenant_id = ?", tenantID).Where("staff_id = ?", staffID), "delete instance staff by staff")
+	return stats.Rows, stats, err
 }
 
 func (s *Store) DeleteUpcomingInstanceStaff(ctx context.Context, staffID int64, after string, excludedInstanceIDs []int64) (int64, domain.OperationStats, error) {
@@ -264,7 +275,7 @@ func instanceStaffSelect(db bun.IDB, model any, tenantID int64) *bun.SelectQuery
 		Where(`"instance_staff".tenant_id = ?`, tenantID)
 }
 
-func newInstanceStaffRow(tenantID int64, fields domain.InstanceStaffFields) instanceStaffRow {
+func newInstanceStaffRow(tenantID int64, fields timetable.InstanceStaffInput) instanceStaffRow {
 	return instanceStaffRow{
 		TenantID: tenantID, InstanceID: fields.InstanceID, StaffID: fields.StaffID, RoomID: fields.RoomID,
 		IsPrimary: fields.IsPrimary, IsSubstitute: fields.IsSubstitute, IsAbsent: fields.IsAbsent,
@@ -272,8 +283,8 @@ func newInstanceStaffRow(tenantID int64, fields domain.InstanceStaffFields) inst
 	}
 }
 
-func instanceStaffToDomain(row instanceStaffRow) domain.InstanceStaff {
-	return domain.InstanceStaff{
+func instanceStaffToDomain(row instanceStaffRow) timetable.InstanceStaff {
+	return timetable.InstanceStaff{
 		ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		InstanceID: row.InstanceID, StaffID: row.StaffID, RoomID: row.RoomID, IsPrimary: row.IsPrimary,
 		IsSubstitute: row.IsSubstitute, IsAbsent: row.IsAbsent, AbsenceReason: row.AbsenceReason,

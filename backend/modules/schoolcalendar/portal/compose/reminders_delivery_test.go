@@ -6,14 +6,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/email"
-	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 	calendarSvc "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
-	calendarRuntime "github.com/moto-nrw/project-phoenix/services"
+	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -26,7 +23,7 @@ import (
 // landing exactly between a reminder's push claim and the push itself.
 type revisingCandidateLock struct {
 	appointments.Capability
-	db    *bun.DB
+	Db    *bun.DB
 	on    int
 	mu    sync.Mutex
 	calls int
@@ -40,7 +37,7 @@ func (r *revisingCandidateLock) FindReminderCandidateForUpdate(ctx context.Conte
 	if revise {
 		// Deliberately on its own connection and before the row lock is taken:
 		// this is another request editing the appointment, not this scan.
-		if _, err := r.db.ExecContext(context.Background(),
+		if _, err := r.Db.ExecContext(context.Background(),
 			`UPDATE calendar.appointments SET revision = revision + 1 WHERE id = ?`, id); err != nil {
 			return nil, err
 		}
@@ -66,8 +63,8 @@ func TestCalendarServiceIntegration_ReminderPushSurvivesAnEditBeforeDispatch(t *
 	cfg.ReminderNotifier = notifier
 	cfg.Preferences = reminderPreferences{}
 	baseRepo := cfg.Appointments
-	cfg.Appointments = &revisingCandidateLock{Capability: baseRepo, db: db, on: 2}
-	service := calendarRuntime.NewCalendarPortal(cfg)
+	cfg.Appointments = &revisingCandidateLock{Capability: baseRepo, Db: db, on: 2}
+	service := owners.NewCalendarPortal(cfg)
 
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Reminder", "Revised")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -80,10 +77,10 @@ func TestCalendarServiceIntegration_ReminderPushSurvivesAnEditBeforeDispatch(t *
 		EndDate:      appointmentDate,
 		StartTime:    wallClock(18, 0),
 		EndTime:      wallClock(19, 0),
-		DeliveryMode: calModels.DeliveryModeInformational,
+		DeliveryMode: appointments.DeliveryModeInformational,
 		SendEmail:    true,
 		Targets: []calendarSvc.AppointmentTarget{
-			{Type: calModels.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
+			{Type: appointments.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
 		},
 	})
 	require.NoError(t, err)
@@ -92,7 +89,7 @@ func TestCalendarServiceIntegration_ReminderPushSurvivesAnEditBeforeDispatch(t *
 	startsAt := berlinInstant(t, appointmentDate, 18, 0)
 	from, to := startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute)
 
-	queued, err := testutil.ComposeCalendarReminderCommand(db, service).EnqueueDueAppointmentReminders(ctx, from, to)
+	queued, err := api.NewCalendarReminderCommand(testpkg.NewDatabase(t, db), service).EnqueueDueAppointmentReminders(ctx, from, to)
 	require.NoError(t, err)
 	assert.Equal(t, 1, queued)
 
@@ -109,7 +106,7 @@ func TestCalendarServiceIntegration_ReminderPushSurvivesAnEditBeforeDispatch(t *
 	// The replacement claim has to hold, or the same occurrence would be pushed
 	// a second time by any scan that sees this window again — which is exactly
 	// what the scheduler does after a failed tenant pass.
-	_, err = testutil.ComposeCalendarReminderCommand(db, service).EnqueueDueAppointmentReminders(ctx, from, to)
+	_, err = api.NewCalendarReminderCommand(testpkg.NewDatabase(t, db), service).EnqueueDueAppointmentReminders(ctx, from, to)
 	require.NoError(t, err)
 	assert.Len(t, notifier.events, 1, "the re-taken claim must suppress a repeat push")
 }
@@ -136,35 +133,34 @@ func TestCalendarServiceIntegration_QueuedAppointmentMailStopsAtRevokedChildAcce
 		EndDate:      appointmentDate,
 		StartTime:    wallClock(18, 0),
 		EndTime:      wallClock(19, 0),
-		DeliveryMode: calModels.DeliveryModeInformational,
+		DeliveryMode: appointments.DeliveryModeInformational,
 		SendEmail:    true,
 		Targets: []calendarSvc.AppointmentTarget{
-			{Type: calModels.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
+			{Type: appointments.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
 		},
 	})
 	require.NoError(t, err)
 
 	startsAt := berlinInstant(t, appointmentDate, 18, 0)
-	queued, err := testutil.ComposeCalendarReminderCommand(db, service).EnqueueDueAppointmentReminders(ctx, startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute))
+	queued, err := api.NewCalendarReminderCommand(testpkg.NewDatabase(t, db), service).EnqueueDueAppointmentReminders(ctx, startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute))
 	require.NoError(t, err)
 	require.Equal(t, 1, queued)
 
 	reminder := outbox.enqueued[len(outbox.enqueued)-1]
-	require.Equal(t, platformModels.EmailKindAppointmentReminder, reminder.Kind)
+	require.Equal(t, emailKindAppointmentReminder, reminder.Kind)
 	require.Contains(t, reminder.Payload, "guardian_account_id",
 		"without the scope the renderer has nothing to re-check")
 	require.Contains(t, reminder.Payload, "student_ids")
 
-	row := &emailoutbox.Intent{TenantID: parentChain.TenantID, Kind: reminder.Kind, Payload: reminder.Payload}
-	render := calendarRuntime.NewCalendarAppointmentRenderer(calendarRuntime.CalendarEmailDependencies{
-		DefaultFrom: email.NewEmail("moto", "no-reply@example.com"),
-		DB:          db,
-		Guardians:   calendarTestRepositories(t, db).StudentGuardian,
-	})
+	runtime := calendarCompose.NewTenantRuntime(db)
+	guardians := owners.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)).StudentGuardian
+	render := func() (bool, error) {
+		return api.RenderCalendarMailForTest(testpkg.WithPackageTenantRuntime(context.Background()), runtime, guardians, parentChain.TenantID, reminder.Kind, reminder.Payload)
+	}
 
-	msg, err := render(testpkg.WithPackageTenantRuntime(context.Background()), row)
+	rendered, err := render()
 	require.NoError(t, err, "the guardian still has access to the child")
-	require.NotNil(t, msg)
+	require.True(t, rendered)
 
 	_, err = db.ExecContext(context.Background(), `
 		UPDATE auth.guardian_student_access AS a SET permissions = '{}'::jsonb
@@ -173,7 +169,7 @@ func TestCalendarServiceIntegration_QueuedAppointmentMailStopsAtRevokedChildAcce
 	`, parentChain.TenantID, parentChain.StudentID, parentChain.GuardianProfileID)
 	require.NoError(t, err)
 
-	_, err = render(testpkg.WithPackageTenantRuntime(context.Background()), row)
-	require.ErrorIs(t, err, emailoutbox.ErrRenderCancelled,
+	_, err = render()
+	require.ErrorIs(t, err, api.CalendarRenderCancelled(),
 		"a revoked guardian must not be mailed, and retrying cannot change that")
 }

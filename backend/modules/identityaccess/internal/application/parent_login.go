@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 )
 
@@ -11,7 +12,7 @@ import (
 // with no tenant binding: the token works against parent-scoped endpoints
 // regardless of which school the children attend. Accounts without a
 // guardian role on at least one active mapping are refused.
-func (s *AccountAuthentication) LoginParentWithAudit(ctx context.Context, email, password, ipAddress, userAgent string) (string, string, error) {
+func (s *AccountAuthentication) loginParentWithAudit(ctx context.Context, email, password, ipAddress, userAgent string) (string, string, error) {
 	account, err := s.validateLoginCredentials(ctx, email, password, ipAddress, userAgent)
 	if err != nil {
 		return "", "", err
@@ -41,7 +42,7 @@ func (s *AccountAuthentication) issueParentTokens(ctx context.Context, account d
 	}
 	if !hasGuardianRole {
 		s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "Not a guardian at any school")
-		return "", "", failed("parent login", domain.ErrAccountNoGuardianRole)
+		return "", "", failed("parent login", identityaccess.ErrAccountNoGuardianRole)
 	}
 	// The refresh session row is pinned to the first guardian tenant for the
 	// foreign key and RLS; the token itself is cross-tenant on read.
@@ -99,7 +100,7 @@ func (s *AccountAuthentication) findGuardianTenantForAccount(ctx context.Context
 // FindGuardianTenant is findGuardianTenantForAccount for the retained
 // password-reset flow, which routes guardian accounts to the parents reset
 // link.
-func (s *AccountAuthentication) FindGuardianTenant(ctx context.Context, accountID int64) (bool, int64, error) {
+func (s *AccountAuthentication) findGuardianTenant(ctx context.Context, accountID int64) (bool, int64, error) {
 	return s.findGuardianTenantForAccount(ctx, accountID)
 }
 
@@ -123,8 +124,8 @@ func (s *AccountAuthentication) isGuardianOnlyAccountInTx(ctx context.Context, a
 // family is retired instead, with a short grace, because the browser
 // replaces its session with the returned pair (#2952). An empty
 // presentedFamilyID skips the retirement.
-func (s *AccountAuthentication) SwitchTenant(ctx context.Context, accountID int64, tenantSlug, presentedFamilyID string) (string, string, error) {
-	account, found, _, err := s.store.FindLoginAccount(ctx, accountID, false)
+func (s *AccountAuthentication) switchTenant(ctx context.Context, accountID int64, tenantSlug, presentedFamilyID string) (string, string, error) {
+	account, found, _, err := findLoginAccount(ctx, s.runtime, s.store, accountID, false)
 	if err != nil || !found {
 		s.logger.Warn("switch-tenant: account not found",
 			slog.Int64("account_id", accountID),
@@ -132,7 +133,7 @@ func (s *AccountAuthentication) SwitchTenant(ctx context.Context, accountID int6
 		return "", "", failed("switch tenant", domain.ErrAccountNotFound)
 	}
 	if !account.Active {
-		return "", "", failed("switch tenant", domain.ErrAccountInactive)
+		return "", "", failed("switch tenant", identityaccess.ErrAccountInactive)
 	}
 	metadata, err := s.loadAccountMetadata(ctx, account, tenantSlug)
 	if err != nil {
@@ -141,7 +142,7 @@ func (s *AccountAuthentication) SwitchTenant(ctx context.Context, accountID int6
 	// A school where the account is Lehrkraft-only has no reachable
 	// tenant-portal surface, even for a still-valid tenant session.
 	if domain.IsSchoolPortalOnly(metadata.Roles) {
-		return "", "", failed("switch tenant", domain.ErrMustUseSchoolPortal)
+		return "", "", failed("switch tenant", identityaccess.ErrMustUseSchoolPortal)
 	}
 	session, err := s.createRefreshSessionGuarded(ctx, account, metadata.TenantID, metadata.Scope, s.demoTenantLock, presentedFamilyID)
 	if err != nil {
@@ -156,7 +157,16 @@ func (s *AccountAuthentication) SwitchTenant(ctx context.Context, accountID int6
 
 // VerifyAccountTenantMembership reports whether the account has an active
 // mapping for the school.
-func (s *AccountAuthentication) VerifyAccountTenantMembership(ctx context.Context, accountID, tenantID int64) (bool, error) {
-	exists, _, err := s.store.HasActiveAccountTenant(ctx, accountID, tenantID)
+func (s *AccountAuthentication) VerifyAccountTenantMembership(ctx context.Context, accountID, tenantID int64) (_ bool, err error) {
+	if s == nil {
+		return false, errAccountAuthenticationUnavailable
+	}
+	ctx = bindRuntime(s.attach, ctx)
+	var exists bool
+	err = globalIdentityRead(ctx, s.runtime, func(txCtx context.Context) error {
+		var err error
+		exists, _, err = s.store.HasActiveAccountTenant(txCtx, accountID, tenantID)
+		return err
+	})
 	return exists, err
 }

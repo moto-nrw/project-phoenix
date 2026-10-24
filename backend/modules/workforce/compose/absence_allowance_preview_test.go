@@ -29,7 +29,7 @@ func TestCustomAbsenceAllowanceRejectsOverrun(t *testing.T) {
 	require.NoError(t, err, "half a day fits the half-day claim exactly")
 	require.Len(t, preview, 1)
 	assert.Zero(t, preview[0].RemainingDays)
-	_, err = svc.CreateStaffAbsence(ctx, workforce.StaffAbsence{StaffID: staff.ID, CreatedBy: staff.ID, AbsenceType: workforce.AbsenceTypeOther, AbsenceTypeID: &typ.ID, Status: workforce.AbsenceStatusReported, DateStart: "2026-09-07", DateEnd: "2026-09-07", HalfDay: true})
+	_, err = svc.CreateStaffAbsence(ctx, &workforce.StaffAbsence{StaffID: staff.ID, CreatedBy: staff.ID, AbsenceType: workforce.AbsenceTypeOther, AbsenceTypeID: &typ.ID, Status: workforce.AbsenceStatusReported, DateStart: "2026-09-07", DateEnd: "2026-09-07", HalfDay: true})
 	require.NoError(t, err)
 	preview, err = svc.PreviewAllowanceBooking(ctx, staff.ID, typ.ID, "2026-09-07", "2026-09-07", true)
 	require.NoError(t, err)

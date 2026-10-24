@@ -36,7 +36,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -73,7 +74,7 @@ func TestEndDailySessionsVisitLookupFailure(t *testing.T) {
 	require.NotNil(t, session)
 
 	// Create a visit for this group using real student ID
-	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repoFactory := api.NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db))
 	presence := testSchoolPresence(t, db)
 
 	visit := studentpresence.Visit{
@@ -96,7 +97,7 @@ func TestEndDailySessionsVisitLookupFailure(t *testing.T) {
 	assert.True(t, visitBefore.ExitTime == nil, "Visit should be active before cleanup")
 
 	// ACT: Run a normal cleanup and verify it works correctly
-	result, err := service.EndDailySessions(ctx)
+	result, err := testpkg.TenantQuery0(t, ctx, db, service.EndDailySessions)
 
 	// ASSERT: Verify cleanup succeeded
 	// Note: EndDailySessions cleans ALL active sessions, not just our test fixture
@@ -157,7 +158,7 @@ func TestEndDailySessionsConsistency(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create visits for both groups using real student IDs
-	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repoFactory := api.NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db))
 	presence := testSchoolPresence(t, db)
 
 	visit1 := studentpresence.Visit{
@@ -177,7 +178,7 @@ func TestEndDailySessionsConsistency(t *testing.T) {
 	require.NoError(t, err)
 
 	// ACT: Run cleanup
-	result, err := service.EndDailySessions(ctx)
+	result, err := testpkg.TenantQuery0(t, ctx, db, service.EndDailySessions)
 
 	// ASSERT: Verify cleanup succeeded
 	require.NoError(t, err)

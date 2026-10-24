@@ -17,8 +17,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
-
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // TestClassListEntryForeignTenantWriteRejected pins the fail-closed write
@@ -34,14 +32,14 @@ func TestClassListEntryForeignTenantWriteRejected(t *testing.T) {
 	EnsureTestTenant(t, db, tenantA)
 	EnsureTestTenant(t, db, tenantB)
 
-	smuggled := &userModels.ClassListEntry{
+	smuggled := &ClassListEntry{
 		FirstName:   "Fritz",
 		LastName:    "Fremdschule",
 		SchoolClass: "iso2b",
 	}
 	// The preset foreign id travels straight to the INSERT — exactly the
 	// write the policy's WITH CHECK must reject.
-	smuggled.SetTenantID(tenantB)
+	smuggled.TenantID = tenantB
 
 	err := WithTenantTx(t, context.Background(), db, tenantA, func(txCtx context.Context, tx bun.Tx) error {
 		_, err := tx.NewInsert().Model(smuggled).ModelTableExpr(`users.class_list_entries AS "class_list_entry"`).Exec(txCtx)

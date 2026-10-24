@@ -1,21 +1,17 @@
 import { NextRequest } from "next/server";
-import type { Session } from "next-auth";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { captureException } = vi.hoisted(() => ({ captureException: vi.fn() }));
 vi.mock("@sentry/nextjs", () => ({ captureException }));
 
 import { createFileExportRoute } from "./export-proxy.server";
+import type { ExtendedSession } from "~/test/route-test-helpers";
 
 // The shared body of the export routes that answer with a file. It bypasses
 // the JSON route wrapper (that one cannot stream bytes), so the auth, the
 // refresh-and-retry, and the pass-through of Content-Disposition are this
 // module's own responsibility — and every export route inherits whatever it
 // gets wrong.
-
-interface ExtendedSession extends Session {
-  user: Session["user"] & { token?: string };
-}
 
 const { mockAuth, mockUncachedAuth } = vi.hoisted(() => ({
   mockAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
@@ -128,7 +124,7 @@ describe("createFileExportRoute", () => {
     expect(captureException).not.toHaveBeenCalled();
   });
 
-  it("forwards a backend 5xx without a BFF event", async () => {
+  it("replaces a backend 5xx without a BFF event", async () => {
     globalThis.fetch = vi
       .fn()
       .mockResolvedValue(
@@ -138,7 +134,11 @@ describe("createFileExportRoute", () => {
     const response = await route(exportRequest());
 
     expect(response.status).toBe(503);
-    expect(await response.text()).toBe("backend down");
+    expect(await response.json()).toMatchObject({
+      status: 503,
+      detail: "Service Unavailable",
+      code: "general.unavailable",
+    });
     expect(captureException).not.toHaveBeenCalled();
   });
 
@@ -238,7 +238,13 @@ describe("createFileExportRoute", () => {
     const response = await route(request);
 
     expect(response.status).toBe(500);
-    expect(await response.json()).toEqual({ error: "connect ECONNREFUSED" });
+    const body = await response.text();
+    expect(JSON.parse(body)).toMatchObject({
+      status: 500,
+      detail: "Internal Server Error",
+      code: "general.server",
+    });
+    expect(body).not.toContain("ECONNREFUSED");
     expect(captureException).toHaveBeenCalledExactlyOnceWith(failure, {
       tags: { request_id: "0b6f3f4e-5c1d-4a52-9d57-2d3c1b5e8f10" },
     });

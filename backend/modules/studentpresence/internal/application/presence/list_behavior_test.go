@@ -4,10 +4,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,11 +18,11 @@ func TestPresenceSupervisionQueryUsesCalendarDateAtBoundary(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	now := time.Date(2026, time.August, 30, 12, 0, 0, 0, time.UTC)
-	repo := sessionSupervisors(repositories.NewPresenceSessionRecords(db, func() time.Time { return now }))
+	repo := sessionSupervisors(api.NewPresenceSessionRecords(testpkg.MustDatabase(db), func() time.Time { return now }))
 	ctx := testpkg.Ctx(t)
 	data := createSupervisorTestData(t, db)
-	today := timezone.NewDate(2026, 8, 30)
-	tomorrow := timezone.NewDate(2026, 8, 31)
+	today := calendar.NewDate(2026, 8, 30)
+	tomorrow := calendar.NewDate(2026, 8, 31)
 	endedToday := &ports.GroupSupervisor{GroupID: data.ActiveGroup.ID, StaffID: data.Staff1ID, StartDate: today, EndDate: &today, Role: "today"}
 	endsTomorrow := &ports.GroupSupervisor{GroupID: data.ActiveGroup.ID, StaffID: data.Staff2ID, StartDate: today, EndDate: &tomorrow, Role: "tomorrow"}
 	require.NoError(t, repo.Create(ctx, endedToday))
@@ -40,11 +40,11 @@ func TestPresenceSupervisionQueryComposesDateAndStaffFilters(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := sessionSupervisors(repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveGroup)
+	repo := sessionSupervisors(api.NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db)).ActiveGroup)
 	ctx := testpkg.Ctx(t)
 	data := createSupervisorTestData(t, db)
-	start := timezone.NewDate(2020, 1, 1)
-	endedOn := timezone.NewDate(2020, 1, 2)
+	start := calendar.NewDate(2020, 1, 1)
+	endedOn := calendar.NewDate(2020, 1, 2)
 	open := &ports.GroupSupervisor{GroupID: data.ActiveGroup.ID, StaffID: data.Staff1ID, StartDate: start, Role: "open"}
 	ended := &ports.GroupSupervisor{GroupID: data.ActiveGroup.ID, StaffID: data.Staff2ID, StartDate: start, EndDate: &endedOn, Role: "ended"}
 	require.NoError(t, repo.Create(ctx, open))

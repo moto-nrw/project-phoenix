@@ -80,6 +80,7 @@ function editingProps(overrides: Partial<KontoEditing> = {}): KontoEditing {
     canEditStaffFields: true,
     existingPositions: ["Betreuung", "OGS-Büro"],
     canEditRole: false,
+    canDeleteStaff: false,
     onEditingChange: vi.fn(),
     onSave: vi.fn(() => Promise.resolve()),
     ...overrides,
@@ -90,7 +91,7 @@ describe("KontoTab", () => {
   it("shows role, access and account fields of the person", () => {
     render(<KontoTab teacher={teacher} />);
 
-    expect(screen.getByText("Systemrolle")).toBeInTheDocument();
+    expect(screen.getByText("Rolle")).toBeInTheDocument();
     expect(screen.getByText("Betreuung")).toBeInTheDocument();
     expect(screen.getByText("ABC123")).toBeInTheDocument();
     expect(screen.getByText("42")).toBeInTheDocument();
@@ -287,7 +288,7 @@ describe("KontoTab", () => {
 
     expect(
       await screen.findByText(
-        "Für die Systemrolle fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
+        "Für die Rolle fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
       ),
     ).toBeInTheDocument();
   });
@@ -317,14 +318,17 @@ describe("KontoTab", () => {
     render(<KontoTab teacher={teacher} editing={editing} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
-    const role = screen.getByLabelText("Systemrolle");
+    const role = screen.getByLabelText("Rolle");
     fireEvent.change(role, { target: { value: "1" } });
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
     await waitFor(() => expect(role).toHaveFocus());
     expect(role).toHaveAttribute("name", "role_id");
     expect(role).toHaveAttribute("aria-invalid", "true");
-    expect(role).toHaveAttribute("aria-describedby", "konto-role-error");
+    expect(role).toHaveAttribute(
+      "aria-describedby",
+      "konto-role-hint konto-role-error",
+    );
     expect(document.getElementById("konto-role-error")).toHaveTextContent(
       "Bitte prüfen Sie dieses Feld.",
     );
@@ -357,7 +361,7 @@ describe("KontoTab", () => {
     fireEvent.change(screen.getByLabelText("Vorname"), {
       target: { value: "Milena" },
     });
-    fireEvent.change(screen.getByLabelText("Systemrolle"), {
+    fireEvent.change(screen.getByLabelText("Rolle"), {
       target: { value: "1" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
@@ -395,7 +399,7 @@ describe("KontoTab", () => {
     render(<KontoTab teacher={teacher} editing={editing} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
-    const roleField = screen.getByLabelText<HTMLSelectElement>("Systemrolle");
+    const roleField = screen.getByLabelText<HTMLSelectElement>("Rolle");
     expect(roleField.value).toBe("2");
 
     // Unverändert: keine role_id im Entwurf.
@@ -407,7 +411,7 @@ describe("KontoTab", () => {
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
-    fireEvent.change(screen.getByLabelText("Systemrolle"), {
+    fireEvent.change(screen.getByLabelText("Rolle"), {
       target: { value: "1" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
@@ -438,10 +442,8 @@ describe("KontoTab", () => {
     render(<KontoTab teacher={teacher} editing={editing} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
-    expect(screen.getByLabelText<HTMLSelectElement>("Systemrolle").value).toBe(
-      "2",
-    );
-    fireEvent.change(screen.getByLabelText("Systemrolle"), {
+    expect(screen.getByLabelText<HTMLSelectElement>("Rolle").value).toBe("2");
+    fireEvent.change(screen.getByLabelText("Rolle"), {
       target: { value: "2" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
@@ -451,7 +453,7 @@ describe("KontoTab", () => {
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
-    fireEvent.change(screen.getByLabelText("Systemrolle"), {
+    fireEvent.change(screen.getByLabelText("Rolle"), {
       target: { value: "1" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
@@ -480,10 +482,8 @@ describe("KontoTab", () => {
     render(<KontoTab teacher={teacher} editing={editing} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
-    expect(screen.getByLabelText<HTMLSelectElement>("Systemrolle").value).toBe(
-      "2",
-    );
-    fireEvent.change(screen.getByLabelText("Systemrolle"), {
+    expect(screen.getByLabelText<HTMLSelectElement>("Rolle").value).toBe("2");
+    fireEvent.change(screen.getByLabelText("Rolle"), {
       target: { value: "2" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
@@ -493,7 +493,7 @@ describe("KontoTab", () => {
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
-    fireEvent.change(screen.getByLabelText("Systemrolle"), {
+    fireEvent.change(screen.getByLabelText("Rolle"), {
       target: { value: "1" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
@@ -525,7 +525,7 @@ describe("KontoTab", () => {
     expect(
       screen.queryByLabelText("Notizen der Leitung"),
     ).not.toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("Systemrolle"), {
+    fireEvent.change(screen.getByLabelText("Rolle"), {
       target: { value: "1" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
@@ -535,12 +535,13 @@ describe("KontoTab", () => {
     });
   });
 
-  it("keeps the role of a Lehrkraft read-only and explains why", () => {
+  function renderLehrkraftInEditMode(canDeleteStaff: boolean) {
     render(
       <KontoTab
         teacher={{ ...teacher, account_role: "lehrkraft", is_teacher: false }}
         editing={editingProps({
           canEditRole: true,
+          canDeleteStaff,
           roleAssignment: {
             options: [{ id: "1", name: "Administration", systemName: "admin" }],
             currentRoleIds: ["3"],
@@ -552,12 +553,43 @@ describe("KontoTab", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
 
-    expect(screen.queryByLabelText("Systemrolle")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Rolle")).not.toBeInTheDocument();
     expect(
       screen.getByText(/Lehrkraft-Zugänge haben kein Betreuungsprofil/),
     ).toBeInTheDocument();
+    // Ein umkehrbares Deaktivieren gibt es nicht (#4431).
+    expect(screen.queryByText(/deaktivieren/)).not.toBeInTheDocument();
     // Ohne Betreuungsprofil gibt es keine Position zu speichern.
     expect(screen.queryByLabelText("Position")).not.toBeInTheDocument();
+  }
+
+  it("keeps the role of a Lehrkraft read-only and shows the delete steps to whoever may delete", () => {
+    renderLehrkraftInEditMode(true);
+
+    // Der Weg zu einer anderen Rolle ist Löschen und neu Einladen (#4431).
+    const steps = screen
+      .getAllByRole("listitem")
+      .map((item) => item.textContent);
+    expect(steps).toEqual([
+      "Öffnen Sie oben rechts das Menü mit den drei Punkten.",
+      "Wählen Sie „Löschen“.",
+      "Laden Sie die Person danach neu ein.",
+    ]);
+    expect(
+      screen.queryByText(/wer Personal löschen darf/),
+    ).not.toBeInTheDocument();
+  });
+
+  it("names who can change a Lehrkraft role when the reader may not delete staff", () => {
+    renderLehrkraftInEditMode(false);
+
+    // Ohne users:delete fehlt „Löschen“ im Menü; der Hinweis schickt nicht
+    // dorthin, sondern nennt, wer es erledigen kann.
+    expect(screen.queryByText(/„Löschen“/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("list")).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/Das kann nur, wer Personal löschen darf/),
+    ).toBeInTheDocument();
   });
 
   it("drops the draft on cancel", () => {

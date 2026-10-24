@@ -5,14 +5,16 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
+	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -39,10 +41,10 @@ type studentDocumentScenario struct {
 // A nil staff models a guest or guardian account — which children a staff
 // member may reach is no longer a group question.
 type stubDocumentUserContext struct {
-	staff *userModels.Staff
+	staff *peopleValues.Staff
 }
 
-func (s stubDocumentUserContext) GetCurrentStaff(context.Context) (*userModels.Staff, error) {
+func (s stubDocumentUserContext) GetCurrentStaff(context.Context) (*peopleValues.Staff, error) {
 	return s.staff, nil
 }
 
@@ -65,7 +67,7 @@ func newStudentDocumentScenario(t *testing.T) *studentDocumentScenario {
 
 	return &studentDocumentScenario{
 		db:        db,
-		svc:       newStudentDocuments(t, db, stubDocumentUserContext{staff: &userModels.Staff{}}),
+		svc:       newStudentDocuments(t, db, stubDocumentUserContext{staff: &peopleValues.Staff{}}),
 		ctx:       testpkg.TenantContext(student.TenantID),
 		studentID: student.ID,
 		account:   account.ID,
@@ -77,8 +79,9 @@ func newStudentDocumentScenario(t *testing.T) *studentDocumentScenario {
 // caller's staff identity stood in.
 func newStudentDocuments(t *testing.T, db *bun.DB, userContext stubDocumentUserContext) careplan.StudentDocuments {
 	t.Helper()
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	documents, err := services.NewStudentDocumentsTestModule(db, repos.CarePlan(), repos.Student, userContext, repos.StudentFieldEdit, repos.DataAccessLog)
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	documents, err := api.NewStudentDocumentsTestModule(testpkg.NewDatabase(t, db), repos.CarePlan(), reposPeople.Student, userContext, owners.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).StudentFieldEdit, owners.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).DataAccessLog)
 	require.NoError(t, err)
 	return documents
 }
@@ -115,23 +118,23 @@ func (s *studentDocumentScenario) input(category string) careplan.CreateStudentD
 	}
 }
 
-func (s *studentDocumentScenario) auditRows(t *testing.T) []*auditModels.StudentFieldEdit {
+func (s *studentDocumentScenario) auditRows(t *testing.T) []*testpkg.StudentFieldEdit {
 	t.Helper()
-	var rows []*auditModels.StudentFieldEdit
+	var rows []*testpkg.StudentFieldEdit
 	err := s.db.NewSelect().
 		Model(&rows).
 		ModelTableExpr(`audit.student_field_edits AS "student_field_edit"`).
 		Where(`"student_field_edit".student_id = ?`, s.studentID).
-		Where(`"student_field_edit".field_name LIKE ?`, auditModels.StudentFieldDocumentPrefix+"%").
+		Where(`"student_field_edit".field_name LIKE ?`, testpkg.AuditStudentFieldDocumentPrefix+"%").
 		Order("id ASC").
 		Scan(context.Background())
 	require.NoError(t, err)
 	return rows
 }
 
-func (s *studentDocumentScenario) accessLogRows(t *testing.T) []*auditModels.DataAccessLog {
+func (s *studentDocumentScenario) accessLogRows(t *testing.T) []*testpkg.DataAccessLog {
 	t.Helper()
-	var rows []*auditModels.DataAccessLog
+	var rows []*testpkg.DataAccessLog
 	err := s.db.NewSelect().
 		Model(&rows).
 		ModelTableExpr(`audit.data_access_log AS "data_access_log"`).
@@ -139,9 +142,6 @@ func (s *studentDocumentScenario) accessLogRows(t *testing.T) []*auditModels.Dat
 		Order("id ASC").
 		Scan(context.Background())
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		_, _ = s.db.ExecContext(context.Background(), `DELETE FROM audit.data_access_log WHERE actor_account_id = ?`, s.account)
-	})
 	return rows
 }
 
@@ -250,7 +250,7 @@ func TestStudentDocumentService_SensitiveDownloadsAreLogged(t *testing.T) {
 	logs := s.accessLogRows(t)
 	require.Len(t, logs, 2)
 	for _, entry := range logs {
-		assert.Equal(t, auditModels.ResourceTypeStudentDocumentDownload, entry.ResourceType)
+		assert.Equal(t, testpkg.AuditResourceTypeStudentDocumentDownload, entry.ResourceType)
 	}
 	assert.EqualValues(t, attest.ID, logs[0].Metadata["document_id"])
 	assert.EqualValues(t, custody.ID, logs[1].Metadata["document_id"])
@@ -397,12 +397,13 @@ func TestStudentDocumentService_AuditFieldCarriesCategory(t *testing.T) {
 	require.Len(t, rows, 2)
 
 	fields := []string{rows[0].FieldName, rows[1].FieldName}
-	assert.Contains(t, fields, auditModels.StudentDocumentField(careplan.StudentDocumentCategoryAttest))
-	assert.Contains(t, fields, auditModels.StudentDocumentField(careplan.StudentDocumentCategoryBetreuungsvertrag))
+	assert.Contains(t, fields, testpkg.AuditStudentFieldDocumentPrefix+careplan.StudentDocumentCategoryAttest)
+	assert.Contains(t, fields, testpkg.AuditStudentFieldDocumentPrefix+careplan.StudentDocumentCategoryBetreuungsvertrag)
 
 	// And the category survives the round trip a reader performs.
 	for _, row := range rows {
-		category := auditModels.StudentDocumentCategoryFromField(row.FieldName)
+		require.True(t, strings.HasPrefix(row.FieldName, testpkg.AuditStudentFieldDocumentPrefix))
+		category := strings.TrimPrefix(row.FieldName, testpkg.AuditStudentFieldDocumentPrefix)
 		require.NotEmpty(t, category, "every document row must name its category")
 		assert.True(t, careplan.IsValidStudentDocumentCategory(category))
 	}
@@ -426,15 +427,16 @@ func TestStudentDocumentService_RefusesToWriteWithoutAnAuditTrail(t *testing.T) 
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	staff := stubDocumentUserContext{staff: &userModels.Staff{}}
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	staff := stubDocumentUserContext{staff: &peopleValues.Staff{}}
 
-	unaudited, err := services.NewStudentDocumentsTestModule(db, repos.CarePlan(), repos.Student, staff, nil, repos.DataAccessLog)
+	unaudited, err := api.NewStudentDocumentsTestModule(testpkg.NewDatabase(t, db), repos.CarePlan(), reposPeople.Student, staff, nil, owners.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).DataAccessLog)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "refusing unaudited changes")
 	assert.Nil(t, unaudited)
 
-	unlogged, err := services.NewStudentDocumentsTestModule(db, repos.CarePlan(), repos.Student, staff, repos.StudentFieldEdit, nil)
+	unlogged, err := api.NewStudentDocumentsTestModule(testpkg.NewDatabase(t, db), repos.CarePlan(), reposPeople.Student, staff, owners.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).StudentFieldEdit, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "refusing unaudited changes")
 	assert.Nil(t, unlogged)

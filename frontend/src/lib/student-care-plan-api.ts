@@ -82,7 +82,6 @@ interface ApiResponse<T> {
   status: string;
   data?: T;
   message?: string;
-  error?: string;
 }
 
 interface BackendSlot {
@@ -188,8 +187,8 @@ async function parseApiResult<T>(
   fallback: string,
 ): Promise<T> {
   const result = (await response.json()) as ApiResponse<T>;
-  if (result.status === "error" || !result.data) {
-    throw apiErrorFromBody(result.error ?? fallback, response.status, result);
+  if (!result.data) {
+    throw apiErrorFromBody(fallback, response.status, result);
   }
   return result.data;
 }

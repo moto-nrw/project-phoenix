@@ -90,7 +90,7 @@ func (rs *Resource) executeStudentCheckout(
 	// attendance row alongside an orphaned open visit.
 	result, err := rs.Operations.CheckOutStudent(actionCtx, checkoutCtx.StudentID, staff.ID)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrCheckoutFailed, err)
+		return nil, fmt.Errorf("%w: %w", ErrCheckoutFailed, err)
 	}
 
 	// Get updated attendance status (optional, don't fail if this errors)

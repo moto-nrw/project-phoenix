@@ -8,7 +8,7 @@
 # copied .env already carries that worktree's ports, so several checkouts
 # can run side by side.
 #
-#   scripts/dev-native.sh up                 start infra + backend + frontend (foreground)
+#   scripts/dev-native.sh up [backend|frontend] start infra + selected apps (default: both)
 #   scripts/dev-native.sh down               stop native backend/frontend (infra keeps running)
 #   scripts/dev-native.sh status             show native process and infra state
 #   scripts/dev-native.sh backend <cmd...>   run a command in backend/ with the native env
@@ -17,12 +17,16 @@
 #   scripts/dev-native.sh docker             stop native processes, start the full Compose stack
 #
 # `devbox run dev <command>` is the same thing with the pinned toolchain.
+# Every `up` replaces both managed native apps, even when selecting only one.
+# Shared postgres/mailpit stay running; frontend-only skips Go and migrations.
+# Backend children default to GOFLAGS=-p=4 and GOMAXPROCS=4; caller values win.
 #
 # Why .env and not backend/dev.env: parts of the backend read os.Getenv
 # directly (CORS, rate limits, OPERATOR_*, ADMIN_*) and never see dev.env.
 set -euo pipefail
 
 die() { echo "dev-native: $*" >&2; exit 1; }
+usage() { sed -n '10,22p' "$0" | sed 's/^# \{0,1\}//'; }
 
 ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || die "not inside a git repository"
 [ -f "$ROOT/backend/.air.toml" ] && [ -f "$ROOT/frontend/package.json" ] ||
@@ -30,15 +34,66 @@ ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || die "not inside a git repos
 [ -f "$ROOT/.env" ] || die "$ROOT/.env missing (run scripts/setup-dev.sh)"
 STATE="$ROOT/tmp/dev-native"
 
+# Compose interpolates ${VAR} in .env values (DB_DSN carries
+# ${POSTGRES_PASSWORD}); do the same so the native apps see the value the
+# containers see. Single-quoted values stay literal, as in Compose. Both ${VAR}
+# and $VAR are expanded; $$ is the Compose escape for a literal $.
+# Defaults (${VAR:-x}) are not allowed in this repo, so any other braced form,
+# and a reference to an unset variable, fails here instead of reaching the apps
+# as text. Sets EXPANDED; no subshell, so die stops the script.
+expand_refs() {
+  local key=$1 val=$2 out='' ref char next i=0
+  while [ "$i" -lt "${#val}" ]; do
+    char=${val:i:1}
+    if [ "$char" != '$' ]; then
+      out+=$char
+      i=$((i + 1))
+      continue
+    fi
+
+    next=${val:i+1:1}
+    if [ "$next" = '$' ]; then
+      out+='$'
+      i=$((i + 2))
+    elif [ "$next" = '{' ]; then
+      ref=${val:i+2}
+      ref=${ref%%\}*}
+      [[ ${val:i+2} == *\}* && $ref =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] ||
+        die "$key in .env uses an unsupported \${...} form; only \${VAR} is resolved"
+      [ -n "${!ref+set}" ] || die "$key in .env references \${$ref}, which is not set"
+      out+=${!ref}
+      i=$((i + ${#ref} + 3))
+    elif [[ $next =~ [A-Za-z_] ]]; then
+      ref=${val:i+1}
+      ref=${ref%%[^A-Za-z0-9_]*}
+      [ -n "${!ref+set}" ] || die "$key in .env references \$$ref, which is not set"
+      out+=${!ref}
+      i=$((i + ${#ref} + 1))
+    else
+      out+='$'
+      i=$((i + 1))
+    fi
+  done
+  EXPANDED=$out
+}
+
 load_env() {
-  local line key val
+  local line key val shell_env_keys=$'\n'
+  while IFS= read -r key; do shell_env_keys+="$key"$'\n'; done < <(compgen -e)
   while IFS= read -r line || [ -n "$line" ]; do
     case "$line" in '' | '#'*) continue ;; esac
     line=${line#export }
     key=${line%%=*}
     val=${line#*=}
     [[ $key =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || continue
-    if [[ $val == \"*\" || $val == \'*\' ]]; then val=${val:1:${#val}-2}; fi
+    [[ $shell_env_keys == *$'\n'"$key"$'\n'* ]] && continue
+    if [[ $val == \'*\' ]]; then
+      val=${val:1:${#val}-2}
+    else
+      if [[ $val == \"*\" ]]; then val=${val:1:${#val}-2}; fi
+      expand_refs "$key" "$val"
+      val=$EXPANDED
+    fi
     export "$key=$val"
   done <"$ROOT/.env"
 
@@ -48,8 +103,11 @@ load_env() {
   done
 
   # Host overrides: Compose hostnames -> localhost with published ports.
-  [[ $DB_DSN == *@postgres:5432/* ]] || die "DB_DSN in .env does not use host postgres:5432; adjust scripts/dev-native.sh"
-  export DB_DSN=${DB_DSN/@postgres:5432\//@localhost:$POSTGRES_HOST_PORT/}
+  if [[ $DB_DSN == *@postgres:5432/* ]]; then
+    export DB_DSN=${DB_DSN/@postgres:5432\//@localhost:$POSTGRES_HOST_PORT/}
+  elif [[ $shell_env_keys != *$'\nDB_DSN\n'* ]]; then
+    die "DB_DSN in .env does not use host postgres:5432; adjust scripts/dev-native.sh"
+  fi
   export EMAIL_SMTP_HOST=localhost
   export EMAIL_SMTP_PORT=$MAILPIT_SMTP_HOST_PORT
   export MAILPIT_URL=http://localhost:$MAILPIT_HOST_PORT
@@ -94,8 +152,36 @@ start_svc() {
   echo $! >"$STATE/$name.pid"
 }
 
+# A replaced supervisor must not stop the new loop's processes. The arrays
+# belong to cmd_up; Bash's dynamic scope keeps its signal handler on that loop.
+stop_started() {
+  local i name pidfile pid
+  for i in "${!services[@]}"; do
+    name=${services[$i]}
+    pid=${started_pids[$i]:-}
+    pidfile="$STATE/$name.pid"
+    [ -n "$pid" ] && [ "$(cat "$pidfile" 2>/dev/null || true)" = "$pid" ] || continue
+    kill_tree "$pid"
+    [ "$(cat "$pidfile" 2>/dev/null || true)" != "$pid" ] || rm -f "$pidfile"
+    echo "stopped $name"
+  done
+}
+
 cmd_up() {
-  require_tools go air pnpm docker lsof
+  local services=(backend frontend) started_pids=() name p i
+  [ $# -le 1 ] || die "usage: scripts/dev-native.sh up [backend|frontend]"
+  case "${1:-}" in
+    '') ;;
+    backend | frontend) services=("$1") ;;
+    *) die "unknown service '$1'; use backend or frontend" ;;
+  esac
+  require_tools docker lsof
+  for name in "${services[@]}"; do
+    case "$name" in
+      backend) require_tools go air ;;
+      frontend) require_tools node ;;
+    esac
+  done
   load_env
   mkdir -p "$STATE"
   stop_native
@@ -104,27 +190,47 @@ cmd_up() {
   docker compose stop server frontend >/dev/null 2>&1 || true
   docker compose up -d --wait postgres mailpit
 
-  local p
-  for p in "$SERVER_HOST_PORT" "$FRONTEND_HOST_PORT"; do
+  for name in "${services[@]}"; do
+    case "$name" in
+      backend) p=$SERVER_HOST_PORT ;;
+      frontend) p=$FRONTEND_HOST_PORT ;;
+    esac
     port_free "$p" || die "port $p is in use: $(lsof -nP -iTCP:"$p" -sTCP:LISTEN | tail -n +2 | awk '{print $1, $2}' | head -3 | tr '\n' ' ')"
   done
 
+  trap 'echo; stop_started; exit 130' INT TERM
   # Same sequence as the Compose server command: migrate, then air. Building
   # air's binary first and migrating with it avoids a second full compile
   # (`go run` links its own copy); air's first build is then a cache hit.
-  start_svc backend backend bash -c 'go build -ldflags="-s -w" -o ./tmp/main . && ./tmp/main migrate && exec air -c .air.toml'
-  PORT=$FRONTEND_HOST_PORT start_svc frontend frontend node --max-http-header-size=65536 node_modules/next/dist/bin/next dev
+  for name in "${services[@]}"; do
+    case "$name" in
+      backend)
+        GOFLAGS=${GOFLAGS--p=4} GOMAXPROCS=${GOMAXPROCS-4} \
+          start_svc backend backend bash -c 'go build -ldflags="-s -w" -o ./tmp/main . && ./tmp/main migrate && exec air -c .air.toml'
+        echo "dev-native: backend http://localhost:$SERVER_HOST_PORT"
+        ;;
+      frontend)
+        PORT=$FRONTEND_HOST_PORT start_svc frontend frontend node --max-http-header-size=65536 node_modules/next/dist/bin/next dev
+        echo "dev-native: frontend http://localhost:$FRONTEND_HOST_PORT"
+        ;;
+    esac
+    started_pids+=("$(cat "$STATE/$name.pid")")
+  done
 
-  trap 'echo; stop_native; exit 130' INT TERM
-  echo "dev-native: backend http://localhost:$SERVER_HOST_PORT  frontend http://localhost:$FRONTEND_HOST_PORT  mailpit http://localhost:$MAILPIT_HOST_PORT"
+  echo "dev-native: mailpit http://localhost:$MAILPIT_HOST_PORT"
   echo "dev-native: logs in $STATE/{backend,frontend}.log"
 
-  local name
   while true; do
-    for name in backend frontend; do
-      if ! kill -0 "$(cat "$STATE/$name.pid" 2>/dev/null || echo 0)" 2>/dev/null; then
+    for i in "${!services[@]}"; do
+      name=${services[$i]}
+      if [ "$(cat "$STATE/$name.pid" 2>/dev/null || true)" != "${started_pids[$i]}" ]; then
+        echo "dev-native: managed loop replaced or stopped"
+        stop_started
+        return
+      fi
+      if ! kill -0 "${started_pids[$i]}" 2>/dev/null; then
         echo "dev-native: $name exited, stopping the rest" >&2
-        stop_native
+        stop_started
         exit 1
       fi
     done
@@ -150,7 +256,11 @@ cmd_in() {
   shift
   [ $# -gt 0 ] || die "usage: scripts/dev-native.sh $dir <command...>"
   load_env
-  [ "$dir" = frontend ] && export PORT=$FRONTEND_HOST_PORT
+  if [ "$dir" = frontend ]; then
+    export PORT=$FRONTEND_HOST_PORT
+  else
+    export GOFLAGS=${GOFLAGS--p=4} GOMAXPROCS=${GOMAXPROCS-4}
+  fi
   cd "$ROOT/$dir"
   exec "$@"
 }
@@ -159,7 +269,8 @@ cmd_in() {
 # file while `up` runs cannot derail the running instance.
 main() {
   case "${1:-}" in
-    up) cmd_up ;;
+    -h | --help) usage ;;
+    up) shift; cmd_up "$@" ;;
     down) stop_native ;;
     status) cmd_status ;;
     backend | frontend) cmd_in "$@" ;;
@@ -168,7 +279,7 @@ main() {
       stop_native
       cd "$ROOT" && docker compose --profile full up -d
       ;;
-    *) sed -n '10,17p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
+    *) usage; exit 2 ;;
   esac
 }
 

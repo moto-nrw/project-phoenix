@@ -1,5 +1,12 @@
 import { expect, type Page, test } from "@playwright/test";
 
+import {
+  loginToTenant,
+  MISSING_SEED_ACCESS,
+  openSidebarGroup,
+  seedAccess as access,
+} from "./tenant-session";
+
 // #1875: before a series edit ("Alle Termine" / "Ab jetzt dauerhaft") discards
 // single-occurrence edits, the planner warns and lists the affected dates.
 //
@@ -9,12 +16,9 @@ import { expect, type Page, test } from "@playwright/test";
 // deterministic regardless of what single-occurrence edits happen to exist in
 // the seeded data. It always cancels the warning, so no series data is mutated.
 //
-// Like the sibling specs it needs E2E_TEST_EMAIL / E2E_TEST_PASSWORD (skips
-// otherwise) and a seeded, template-backed instance in the current week (skips
-// with a clear message if none is found).
-
-const TEST_EMAIL = process.env.E2E_TEST_EMAIL;
-const TEST_PASSWORD = process.env.E2E_TEST_PASSWORD;
+// Login and tenant origin: e2e/tenant-session.ts. The spec needs a
+// seeded, template-backed instance in the current week (skips with a clear
+// message if none is found).
 
 // The deterministic probe payload the stub returns for every window.
 const STUB_OCCURRENCES = [
@@ -33,18 +37,6 @@ const STUB_OCCURRENCES = [
     changes: ["staff"],
   },
 ];
-
-async function login(page: Page, email: string, password: string) {
-  await page.goto("/");
-  await page.waitForSelector('input[type="email"]');
-  await page.fill('input[type="email"]', email);
-  await page.fill('input[type="password"]', password);
-  await page.click('button:has-text("Anmelden")');
-  await page.waitForURL(
-    (url) => !url.pathname.includes("login") && url.pathname !== "/",
-    { timeout: 15000 },
-  );
-}
 
 async function stubProbe(page: Page) {
   await page.route(
@@ -66,31 +58,49 @@ async function stubProbe(page: Page) {
 }
 
 /**
- * Opens the first planned, template-backed instance of the current week in the
- * edit modal and clicks Speichern. Returns true when the series scope dialog
- * ("Wiederholenden Termin ändern") appears (i.e. the instance belongs to a
- * series), false otherwise. Mutates nothing — the caller cancels afterwards.
+ * Opens the first planned, template-backed instance of the current week and
+ * clicks Bearbeiten. Returns true when the series scope dialog ("Wiederholenden
+ * Termin ändern") appears (i.e. the instance belongs to a series), false
+ * otherwise. Since 63cee37399 the scope is chosen BEFORE the form opens; the
+ * caller picks the scope, then saves the loaded series form (see
+ * saveSeriesForm). Mutates nothing — the caller cancels the warning.
  */
 async function openSeriesScopeDialog(page: Page): Promise<boolean> {
-  await page.locator("aside").getByText("Betreuungsplan").click();
+  // "Betreuungsplan" lives in the collapsible "Planung" sidebar group.
+  await openSidebarGroup(page, "Planung");
+  await page
+    .locator("aside")
+    .getByRole("link", { name: "Betreuungsplan", exact: true })
+    .click();
   await page.waitForURL((url) => url.pathname.endsWith("/betreuungsplan"));
 
   // Instance blocks render as buttons showing a HH:MM time. Try the first few.
+  // The grid loads after navigation; count() does not wait, so wait for the
+  // first block before counting.
   const blocks = page.getByRole("button").filter({ hasText: /\d{1,2}:\d{2}/ });
+  await blocks
+    .first()
+    .waitFor({ state: "visible", timeout: 15000 })
+    .catch(() => undefined);
   const count = await blocks.count();
+  const appears = (locator: ReturnType<Page["getByRole"]>, timeout: number) =>
+    locator.waitFor({ state: "visible", timeout }).then(
+      () => true,
+      () => false,
+    );
   for (let i = 0; i < Math.min(count, 5); i++) {
     await blocks.nth(i).click();
     // The read-only detail slide-over offers "Bearbeiten" for planned rows.
     const edit = page.getByRole("button", { name: "Bearbeiten" });
-    if (await edit.isVisible().catch(() => false)) {
+    if (await appears(edit, 5000)) {
       await edit.click();
-      const save = page.getByRole("button", { name: "Speichern" });
-      await save.click();
-      const scopeDialog = page.getByText("Wiederholenden Termin ändern");
-      if (await scopeDialog.isVisible({ timeout: 3000 }).catch(() => false)) {
+      const scopeDialog = page
+        .getByRole("dialog")
+        .filter({ hasText: "Wiederholenden Termin ändern" });
+      if (await appears(scopeDialog, 3000)) {
         return true;
       }
-      // Not a series instance (or validation blocked): back out and try next.
+      // Not a series instance: the form opened directly; back out, try next.
       await page.keyboard.press("Escape");
     } else {
       await page.keyboard.press("Escape");
@@ -99,15 +109,35 @@ async function openSeriesScopeDialog(page: Page): Promise<boolean> {
   return false;
 }
 
+/**
+ * Saves the series form opened by the chosen scope, unchanged. The form is a
+ * three-step wizard; Speichern only exists on the last step (#2025,
+ * 2139e21072), so walk through with "Weiter" first.
+ */
+async function saveSeriesForm(page: Page) {
+  const form = page
+    .getByRole("dialog")
+    .filter({ hasText: "Regeltermin bearbeiten" });
+  const save = form.getByRole("button", { name: "Speichern", exact: true });
+  const next = form.getByRole("button", { name: "Weiter", exact: true });
+  await expect(save.or(next)).toBeVisible({ timeout: 15000 });
+  for (let step = 0; step < 3 && !(await save.isVisible()); step++) {
+    await next.click();
+    await expect(save.or(next)).toBeVisible();
+  }
+  await save.click();
+}
+
+function lostEditsWarning(page: Page) {
+  return page.getByRole("dialog", { name: "Einzelanpassungen gehen verloren" });
+}
+
 test.describe("#1875 lost single-occurrence edits warning", () => {
   test.beforeEach(async ({ page }) => {
-    test.skip(
-      !TEST_EMAIL || !TEST_PASSWORD,
-      "E2E_TEST_EMAIL and E2E_TEST_PASSWORD must be set",
-    );
-    if (!TEST_EMAIL || !TEST_PASSWORD) return;
+    test.skip(access === null, MISSING_SEED_ACCESS);
+    if (!access) return;
     await stubProbe(page);
-    await login(page, TEST_EMAIL, TEST_PASSWORD);
+    await loginToTenant(page, access);
   });
 
   test("warns before 'Alle Termine der Serie' and cancels without saving", async ({
@@ -120,6 +150,7 @@ test.describe("#1875 lost single-occurrence edits warning", () => {
     );
 
     await page.getByRole("button", { name: /Alle Termine der Serie/ }).click();
+    await saveSeriesForm(page);
 
     // Deterministic warning from the stubbed probe, listing the concrete dates.
     await expect(
@@ -128,8 +159,11 @@ test.describe("#1875 lost single-occurrence edits warning", () => {
     await expect(page.getByText("11.05.2026")).toBeVisible();
     await expect(page.getByText("18.05.2026")).toBeVisible();
 
-    // Cancel — nothing is written.
-    await page.getByRole("button", { name: "Abbrechen" }).click();
+    // Cancel — nothing is written. Scoped to the warning: the series form
+    // underneath has its own "Abbrechen".
+    await lostEditsWarning(page)
+      .getByRole("button", { name: "Abbrechen" })
+      .click();
     await expect(
       page.getByText("Einzelanpassungen gehen verloren"),
     ).toBeHidden();
@@ -145,13 +179,16 @@ test.describe("#1875 lost single-occurrence edits warning", () => {
     );
 
     await page.getByRole("button", { name: /Ab jetzt dauerhaft/ }).click();
+    await saveSeriesForm(page);
 
     await expect(
       page.getByText("Einzelanpassungen gehen verloren"),
     ).toBeVisible();
     await expect(page.getByText("11.05.2026")).toBeVisible();
 
-    await page.getByRole("button", { name: "Abbrechen" }).click();
+    await lostEditsWarning(page)
+      .getByRole("button", { name: "Abbrechen" })
+      .click();
     await expect(
       page.getByText("Einzelanpassungen gehen verloren"),
     ).toBeHidden();

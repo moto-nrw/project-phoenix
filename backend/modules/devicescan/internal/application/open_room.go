@@ -7,7 +7,7 @@ import (
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/modules/devicescan"
-	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/ports"
+	"github.com/moto-nrw/project-phoenix/modules/devicescan/ports"
 )
 
 var _ devicescan.OpenRoomBooking = (*Service)(nil)
@@ -69,7 +69,7 @@ func (s *Service) BookOpenRoom(ctx context.Context, command devicescan.OpenRoomC
 
 // openRoomStudent resolves the child behind the card and checks that the
 // tenant can book open rooms at all.
-func (s *Service) openRoomStudent(ctx context.Context, device *ports.Device, tag string) (*ports.Person, *ports.Student, error) {
+func (s *Service) openRoomStudent(ctx context.Context, device *devicescan.PrincipalDevice, tag string) (*ports.Person, *ports.Student, error) {
 	person, err := s.resolvePerson(ctx, device, tag)
 	if err != nil {
 		return nil, nil, err
@@ -80,7 +80,7 @@ func (s *Service) openRoomStudent(ctx context.Context, device *ports.Device, tag
 	}
 	// Binary-mode tenants track attendance only: there is no room a child
 	// could stay in, so the destination choice does not exist for them.
-	mode, err := s.settings.PresenceMode(ctx)
+	mode, err := s.settings.GetPresenceMode(ctx)
 	if err != nil {
 		return nil, nil, devicescan.Internal(devicescan.MessageInternalServerError, err)
 	}

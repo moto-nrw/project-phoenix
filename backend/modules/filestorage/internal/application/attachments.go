@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
+	"github.com/moto-nrw/project-phoenix/modules/filestorage"
 	"github.com/moto-nrw/project-phoenix/modules/filestorage/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/filestorage/internal/ports"
 )
@@ -25,7 +25,7 @@ import (
 // AuthorizeAttachmentUpload answers "may this caller attach a file to this
 // announcement" WITHOUT writing anything.
 func (s *Service) AuthorizeAttachmentUpload(ctx context.Context, announcementID int64) error {
-	return s.run("authorize_attachment_upload", func(o *op) error {
+	return s.runRead(ctx, "authorize_attachment_upload", func(ctx context.Context, o *op) error {
 		return s.write(ctx, o, func(txCtx context.Context, o *op) error {
 			return s.checkAttachmentUpload(txCtx, o, announcementID, false)
 		})
@@ -37,7 +37,7 @@ func (s *Service) AuthorizeAttachmentUpload(ctx context.Context, announcementID 
 // row lock, so the limit count and the draft state still hold at commit time.
 func (s *Service) checkAttachmentUpload(ctx context.Context, o *op, announcementID int64, lock bool) error {
 	if announcementID <= 0 {
-		return fmt.Errorf("%w: announcement id is required", domain.ErrInvalid)
+		return fmt.Errorf("%w: announcement id is required", filestorage.ErrInvalid)
 	}
 	if err := s.requireEditableAnnouncement(ctx, announcementID, lock); err != nil {
 		return err
@@ -48,7 +48,7 @@ func (s *Service) checkAttachmentUpload(ctx context.Context, o *op, announcement
 		return err
 	}
 	if count >= domain.MaxAnnouncementAttachments {
-		return domain.ErrAttachmentLimitReached
+		return filestorage.ErrAttachmentLimitReached
 	}
 	return nil
 }
@@ -85,9 +85,9 @@ func (s *Service) requireEditableAnnouncement(ctx context.Context, announcementI
 		return nil
 	}
 	if !exists {
-		return domain.ErrAttachmentNotFound
+		return filestorage.ErrAttachmentNotFound
 	}
-	return domain.ErrAttachmentPublished
+	return filestorage.ErrAttachmentPublished
 }
 
 // requireAnnouncement refuses a read for an announcement the current tenant
@@ -101,24 +101,19 @@ func (s *Service) requireAnnouncement(ctx context.Context, announcementID int64)
 		return err
 	}
 	if !exists {
-		return domain.ErrAttachmentNotFound
+		return filestorage.ErrAttachmentNotFound
 	}
 	return nil
 }
 
 // UploadAttachment stores one attachment: intent, object, metadata, settle.
-func (s *Service) UploadAttachment(ctx context.Context, announcementID int64, upload domain.Upload, actor domain.Actor) (attachment domain.Document, err error) {
-	err = s.run("upload_attachment", func(o *op) error {
+func (s *Service) UploadAttachment(ctx context.Context, announcementID int64, value filestorage.Upload, who filestorage.Actor) (filestorage.Attachment, error) {
+	upload, actor := domainUpload(value), s.actor(who)
+	var attachment domain.Document
+	err := s.run("upload_attachment", func(o *op) error {
 		tenantID := s.deps.Tx.TenantID(ctx)
-		if tenantID <= 0 {
-			return fmt.Errorf("%w: no tenant context", domain.ErrInvalid)
-		}
-		if err := requireActor(actor); err != nil {
+		if err := normalizeUpload(tenantID, actor, &upload); err != nil {
 			return err
-		}
-		upload.FilenameDisplay = strings.TrimSpace(upload.FilenameDisplay)
-		if upload.FilenameDisplay == "" {
-			return fmt.Errorf("%w: filename is required", domain.ErrInvalid)
 		}
 		if err := s.write(ctx, o, func(txCtx context.Context, o *op) error {
 			return s.checkAttachmentUpload(txCtx, o, announcementID, false)
@@ -144,16 +139,19 @@ func (s *Service) UploadAttachment(ctx context.Context, announcementID int64, up
 		}
 		attachment, err = s.createAttachment(uploadCtx, o, announcementID, storedName, size, upload, actor)
 		if err != nil {
-			rejectedBeforeCommit := errors.Is(err, domain.ErrInvalid) ||
-				errors.Is(err, domain.ErrAttachmentNotFound) ||
-				errors.Is(err, domain.ErrAttachmentPublished) ||
-				errors.Is(err, domain.ErrAttachmentLimitReached)
+			rejectedBeforeCommit := errors.Is(err, filestorage.ErrInvalid) ||
+				errors.Is(err, filestorage.ErrAttachmentNotFound) ||
+				errors.Is(err, filestorage.ErrAttachmentPublished) ||
+				errors.Is(err, filestorage.ErrAttachmentLimitReached)
 			s.releaseFailedUpload(ctx, k, tenantID, announcementID, storedName, rejectedBeforeCommit, err)
 			return err
 		}
 		return nil
 	})
-	return attachment, err
+	if err != nil {
+		return filestorage.Attachment{}, err
+	}
+	return toAttachment(attachment), nil
 }
 
 func (s *Service) createAttachment(ctx context.Context, o *op, announcementID int64, storedName string, size int64, upload domain.Upload, actor domain.Actor) (attachment domain.Document, err error) {
@@ -171,7 +169,7 @@ func (s *Service) createAttachment(ctx context.Context, o *op, announcementID in
 			SizeBytes: size, ContentType: upload.ContentType, UploadedBy: actor.AccountID,
 		}
 		if err := document.Validate(); err != nil {
-			return fmt.Errorf("%w: %s", domain.ErrInvalid, err.Error())
+			return fmt.Errorf("%w: %s", filestorage.ErrInvalid, err.Error())
 		}
 		created, stats, err := s.deps.Attachments.Create(txCtx, document)
 		o.add(stats)
@@ -200,10 +198,12 @@ func (s *Service) createAttachment(ctx context.Context, o *op, announcementID in
 // Transaktionsfehler darf nicht als editable: false durchgehen. Die erreichte
 // Höchstzahl ist ausdrücklich KEINE solche Absage: der Entwurf bleibt
 // änderbar, nur eine weitere Datei passt nicht mehr dazu.
-func (s *Service) ListAttachments(ctx context.Context, announcementID int64) (attachments []domain.Document, editable bool, err error) {
-	err = s.run("list_attachments", func(o *op) error {
+func (s *Service) ListAttachments(ctx context.Context, announcementID int64) (filestorage.AttachmentList, error) {
+	var attachments []domain.Document
+	var editable bool
+	err := s.runRead(ctx, "list_attachments", func(ctx context.Context, o *op) error {
 		if announcementID <= 0 {
-			return fmt.Errorf("%w: announcement id is required", domain.ErrInvalid)
+			return fmt.Errorf("%w: announcement id is required", filestorage.ErrInvalid)
 		}
 		if err := s.write(ctx, o, func(txCtx context.Context, o *op) error {
 			if err := s.requireAnnouncement(txCtx, announcementID); err != nil {
@@ -224,20 +224,25 @@ func (s *Service) ListAttachments(ctx context.Context, announcementID int64) (at
 			return s.checkAttachmentUpload(txCtx, o, announcementID, false)
 		})
 		switch {
-		case err == nil, errors.Is(err, domain.ErrAttachmentLimitReached):
-		case errors.Is(err, domain.ErrAttachmentPublished), errors.Is(err, domain.ErrAttachmentNotFound), errors.Is(err, domain.ErrInvalid):
+		case err == nil, errors.Is(err, filestorage.ErrAttachmentLimitReached):
+		case errors.Is(err, filestorage.ErrAttachmentPublished), errors.Is(err, filestorage.ErrAttachmentNotFound), errors.Is(err, filestorage.ErrInvalid):
 			editable = false
 		default:
 			return err
 		}
 		return nil
 	})
-	return attachments, editable, err
+	if err != nil {
+		return filestorage.AttachmentList{}, err
+	}
+	return filestorage.AttachmentList{Attachments: toAttachments(attachments), Editable: editable}, nil
 }
 
 // OpenAttachment resolves one attachment for a staff caller and opens its bytes.
-func (s *Service) OpenAttachment(ctx context.Context, announcementID, attachmentID int64) (attachment domain.Document, object ports.Object, err error) {
-	err = s.run("open_attachment", func(o *op) error {
+func (s *Service) OpenAttachment(ctx context.Context, announcementID, attachmentID int64) (filestorage.Content, error) {
+	var attachment domain.Document
+	var object ports.Object
+	err := s.run("open_attachment", func(o *op) error {
 		if err := s.write(ctx, o, func(txCtx context.Context, o *op) error {
 			if err := s.requireAnnouncement(txCtx, announcementID); err != nil {
 				return err
@@ -248,7 +253,7 @@ func (s *Service) OpenAttachment(ctx context.Context, announcementID, attachment
 				return err
 			}
 			if !ok {
-				return domain.ErrAttachmentNotFound
+				return filestorage.ErrAttachmentNotFound
 			}
 			attachment = found
 			return nil
@@ -259,73 +264,47 @@ func (s *Service) OpenAttachment(ctx context.Context, announcementID, attachment
 		object, err = s.openObject(ctx, s.attachments(), s.deps.Tx.TenantID(ctx), attachment)
 		return err
 	})
-	return attachment, object, err
+	if err != nil {
+		return filestorage.Content{}, err
+	}
+	return toContent(attachment, object), nil
 }
 
 // DeleteAttachment soft-deletes an attachment of a draft and removes its bytes
 // after commit.
-func (s *Service) DeleteAttachment(ctx context.Context, announcementID, attachmentID int64, actor domain.Actor) error {
+func (s *Service) DeleteAttachment(ctx context.Context, announcementID, attachmentID int64, who filestorage.Actor) error {
+	actor := s.actor(who)
 	return s.run("delete_attachment", func(o *op) error {
 		if err := requireActor(actor); err != nil {
 			return err
 		}
-		var document domain.Document
+		var deletedDocument domain.Document
 		if err := s.write(ctx, o, func(txCtx context.Context, o *op) error {
-			if err := s.requireEditableAnnouncement(txCtx, announcementID, true); err != nil {
-				return err
-			}
-			live, found, stats, err := s.deps.Attachments.FindForOwner(txCtx, announcementID, attachmentID, false)
-			o.add(stats)
-			if err != nil {
-				return err
-			}
-			if !found {
-				// Already soft-deleted: retry the byte removal instead of a
-				// 404 the caller cannot act on.
-				deleted, found, stats, err := s.deps.Attachments.FindForOwner(txCtx, announcementID, attachmentID, true)
-				o.add(stats)
-				if err != nil {
-					return err
-				}
-				if !found {
-					return domain.ErrAttachmentNotFound
-				}
-				document = deleted
-				return nil
-			}
-			deleted, stats, err := s.deps.Attachments.SoftDelete(txCtx, live.ID, actor.AccountID)
-			o.add(stats)
-			if err != nil {
-				return err
-			}
-			if err := s.deps.Announcements.ResetAnnouncementEngagement(txCtx, announcementID); err != nil {
-				return err
-			}
-			document = deleted
-			return s.record(txCtx, actor, ports.EventAttachmentDeleted, nil, &announcementID, &deleted.ID,
-				fmt.Sprintf("Anhang „%s“ von Elternmitteilung entfernt", deleted.FilenameDisplay))
+			document, err := s.deleteAttachmentRecord(txCtx, o, announcementID, attachmentID, actor)
+			deletedDocument = document
+			return err
 		}); err != nil {
 			return err
 		}
-		if document.BytesPresent() {
-			s.scheduleCleanup(ctx, s.attachments(), document, "delete")
+		if deletedDocument.BytesPresent() {
+			s.scheduleCleanup(ctx, s.attachments(), deletedDocument, "delete")
 		}
 		return nil
 	})
 }
 
-// --- parent side --------------------------------------------------------------
+// --- tenant-scoped reads ------------------------------------------------------
 
-// ListGuardianAttachments returns the attachments a guardian account may see
-// and the school they are stored under, or ErrAttachmentNotFound when the
-// account is outside the audience.
-func (s *Service) ListGuardianAttachments(ctx context.Context, accountID, announcementID int64) (tenantID int64, attachments []domain.Document, err error) {
-	err = s.run("list_guardian_attachments", func(o *op) error {
-		var err error
-		if tenantID, err = s.guardianTenant(ctx, accountID, announcementID); err != nil {
-			return err
+// ListAnnouncementAttachmentsInTenant returns an announcement's live
+// attachments under tenantID's RLS. The caller decided the audience; the
+// parents portal is cross-tenant, so the announcement's school is named.
+func (s *Service) ListAnnouncementAttachmentsInTenant(ctx context.Context, tenantID, announcementID int64) ([]filestorage.Attachment, error) {
+	var attachments []domain.Document
+	err := s.run("list_announcement_attachments_in_tenant", func(o *op) error {
+		if tenantID <= 0 || announcementID <= 0 {
+			return filestorage.ErrAttachmentNotFound
 		}
-		if err := s.deps.Tx.RunInTenant(ctx, tenantID, func(txCtx context.Context) error {
+		return s.deps.Tx.RunInTenant(ctx, tenantID, func(txCtx context.Context) error {
 			found, stats, err := s.deps.Attachments.ListByOwner(txCtx, announcementID)
 			o.add(stats)
 			if err != nil {
@@ -333,138 +312,66 @@ func (s *Service) ListGuardianAttachments(ctx context.Context, accountID, announ
 			}
 			attachments = found
 			return nil
-		}); err != nil {
-			return err
-		}
-		return s.revalidateGuardianAccess(ctx, accountID, announcementID, tenantID)
+		})
 	})
-	return tenantID, attachments, err
+	if err != nil {
+		return nil, err
+	}
+	return toAttachments(attachments), nil
 }
 
-// OpenGuardianAttachment resolves one attachment for a guardian and opens its
-// bytes under the announcement's school.
-func (s *Service) OpenGuardianAttachment(ctx context.Context, accountID, announcementID, attachmentID int64) (attachment domain.Document, object ports.Object, err error) {
-	err = s.run("open_guardian_attachment", func(o *op) error {
-		tenantID, err := s.guardianTenant(ctx, accountID, announcementID)
-		if err != nil {
-			return err
-		}
-		if err := s.deps.Tx.RunInTenant(ctx, tenantID, func(txCtx context.Context) error {
-			found, ok, stats, err := s.deps.Attachments.FindForOwner(txCtx, announcementID, attachmentID, false)
-			o.add(stats)
-			if err != nil {
-				return err
-			}
-			if !ok {
-				return domain.ErrAttachmentNotFound
-			}
-			attachment = found
-			return nil
-		}); err != nil {
-			return err
-		}
-		if err := s.revalidateGuardianAccess(ctx, accountID, announcementID, tenantID); err != nil {
+// FindAnnouncementAttachmentInTenant reads one attachment row under
+// tenantID's RLS without opening its bytes.
+func (s *Service) FindAnnouncementAttachmentInTenant(ctx context.Context, tenantID, announcementID, attachmentID int64) (filestorage.Attachment, error) {
+	var attachment domain.Document
+	err := s.run("find_announcement_attachment_in_tenant", func(o *op) error {
+		var err error
+		attachment, err = s.findAttachmentInTenant(ctx, o, tenantID, announcementID, attachmentID)
+		return err
+	})
+	if err != nil {
+		return filestorage.Attachment{}, err
+	}
+	return toAttachment(attachment), nil
+}
+
+// OpenAnnouncementAttachmentInTenant reads one attachment row under
+// tenantID's RLS and opens its bytes under that school.
+func (s *Service) OpenAnnouncementAttachmentInTenant(ctx context.Context, tenantID, announcementID, attachmentID int64) (filestorage.Content, error) {
+	var attachment domain.Document
+	var object ports.Object
+	err := s.run("open_announcement_attachment_in_tenant", func(o *op) error {
+		var err error
+		if attachment, err = s.findAttachmentInTenant(ctx, o, tenantID, announcementID, attachmentID); err != nil {
 			return err
 		}
 		object, err = s.openObject(ctx, s.attachments(), tenantID, attachment)
 		return err
 	})
-	return attachment, object, err
+	if err != nil {
+		return filestorage.Content{}, err
+	}
+	return toContent(attachment, object), nil
 }
 
-// OpenGuardianDeclarationProofAttachment resolves one attachment that was
-// frozen in the caller's own declaration proof. Unlike the live-announcement
-// path, this remains available after expiry or withdrawal; the proof gate
-// verifies the relationship, submission and frozen attachment together.
-func (s *Service) OpenGuardianDeclarationProofAttachment(ctx context.Context, accountID, announcementID, studentID, attachmentID int64) (attachment domain.Document, object ports.Object, err error) {
-	err = s.run("open_guardian_declaration_proof_attachment", func(o *op) error {
-		tenantID, err := s.guardianDeclarationProofAttachmentTenant(ctx, accountID, announcementID, studentID, attachmentID)
+func (s *Service) findAttachmentInTenant(ctx context.Context, o *op, tenantID, announcementID, attachmentID int64) (domain.Document, error) {
+	if tenantID <= 0 || announcementID <= 0 || attachmentID <= 0 {
+		return domain.Document{}, filestorage.ErrAttachmentNotFound
+	}
+	var attachment domain.Document
+	err := s.deps.Tx.RunInTenant(ctx, tenantID, func(txCtx context.Context) error {
+		found, ok, stats, err := s.deps.Attachments.FindForOwner(txCtx, announcementID, attachmentID, false)
+		o.add(stats)
 		if err != nil {
 			return err
 		}
-		if err := s.deps.Tx.RunInTenant(ctx, tenantID, func(txCtx context.Context) error {
-			found, ok, stats, err := s.deps.Attachments.FindForOwner(txCtx, announcementID, attachmentID, false)
-			o.add(stats)
-			if err != nil {
-				return err
-			}
-			if !ok {
-				return domain.ErrAttachmentNotFound
-			}
-			attachment = found
-			return nil
-		}); err != nil {
-			return err
+		if !ok {
+			return filestorage.ErrAttachmentNotFound
 		}
-		if err := s.revalidateGuardianDeclarationProofAttachmentAccess(ctx, accountID, announcementID, studentID, attachmentID, tenantID); err != nil {
-			return err
-		}
-		object, err = s.openObject(ctx, s.attachments(), tenantID, attachment)
-		return err
+		attachment = found
+		return nil
 	})
-	return attachment, object, err
-}
-
-// revalidateGuardianAccess asks the audience a second time, after the rows
-// have been read and before anything is handed out. Die erste Prüfung und das
-// Lesen laufen in getrennten Transaktionen; zwischen beiden kann die Mitteilung
-// zurückgezogen worden sein. Eine abweichende Schule wird wie „nicht sichtbar"
-// behandelt.
-func (s *Service) revalidateGuardianAccess(ctx context.Context, accountID, announcementID, expectedTenantID int64) error {
-	tenantID, err := s.guardianTenant(ctx, accountID, announcementID)
-	if err != nil {
-		return err
-	}
-	if tenantID != expectedTenantID {
-		return domain.ErrAttachmentNotFound
-	}
-	return nil
-}
-
-func (s *Service) revalidateGuardianDeclarationProofAttachmentAccess(ctx context.Context, accountID, announcementID, studentID, attachmentID, expectedTenantID int64) error {
-	tenantID, err := s.guardianDeclarationProofAttachmentTenant(ctx, accountID, announcementID, studentID, attachmentID)
-	if err != nil {
-		return err
-	}
-	if tenantID != expectedTenantID {
-		return domain.ErrAttachmentNotFound
-	}
-	return nil
-}
-
-// guardianTenant resolves the announcement's school after the audience check.
-func (s *Service) guardianTenant(ctx context.Context, accountID, announcementID int64) (int64, error) {
-	if accountID <= 0 || announcementID <= 0 {
-		return 0, domain.ErrAttachmentNotFound
-	}
-	if s.deps.GuardianAudience == nil {
-		return 0, errors.New("announcement audience is not wired; refusing attachment read")
-	}
-	tenantID, err := s.deps.GuardianAudience.GuardianAnnouncementTenant(ctx, accountID, announcementID)
-	if err != nil {
-		return 0, err
-	}
-	if tenantID <= 0 {
-		return 0, domain.ErrAttachmentNotFound
-	}
-	return tenantID, nil
-}
-
-func (s *Service) guardianDeclarationProofAttachmentTenant(ctx context.Context, accountID, announcementID, studentID, attachmentID int64) (int64, error) {
-	if accountID <= 0 || announcementID <= 0 || studentID <= 0 || attachmentID <= 0 {
-		return 0, domain.ErrAttachmentNotFound
-	}
-	if s.deps.GuardianAudience == nil {
-		return 0, errors.New("declaration proof attachment audience is not wired; refusing attachment read")
-	}
-	tenantID, err := s.deps.GuardianAudience.GuardianDeclarationProofAttachmentTenant(ctx, accountID, announcementID, studentID, attachmentID)
-	if err != nil {
-		return 0, err
-	}
-	if tenantID <= 0 {
-		return 0, domain.ErrAttachmentNotFound
-	}
-	return tenantID, nil
+	return attachment, err
 }
 
 // --- announcement-side promises ------------------------------------------------
@@ -477,7 +384,7 @@ func (s *Service) guardianDeclarationProofAttachmentTenant(ctx context.Context, 
 func (s *Service) QueueAttachmentCleanupForAnnouncement(ctx context.Context, announcementID int64) error {
 	return s.run("queue_attachment_cleanup_for_announcement", func(o *op) error {
 		if announcementID <= 0 {
-			return fmt.Errorf("%w: announcement id is required", domain.ErrInvalid)
+			return fmt.Errorf("%w: announcement id is required", filestorage.ErrInvalid)
 		}
 		pending, stats, err := s.deps.Attachments.ListPendingCleanupByOwner(ctx, announcementID)
 		o.add(stats)
@@ -499,9 +406,9 @@ func (s *Service) QueueAttachmentCleanupForAnnouncement(ctx context.Context, ann
 // CountAttachments reports the live attachments of an announcement in the
 // caller's transaction; the announcement service asks at publish time.
 func (s *Service) CountAttachments(ctx context.Context, announcementID int64) (count int, err error) {
-	err = s.run("count_attachments", func(o *op) error {
+	err = s.runRead(ctx, "count_attachments", func(ctx context.Context, o *op) error {
 		if announcementID <= 0 {
-			return fmt.Errorf("%w: announcement id is required", domain.ErrInvalid)
+			return fmt.Errorf("%w: announcement id is required", filestorage.ErrInvalid)
 		}
 		var stats domain.OperationStats
 		var err error
@@ -510,4 +417,40 @@ func (s *Service) CountAttachments(ctx context.Context, announcementID int64) (c
 		return err
 	})
 	return count, err
+}
+
+func (s *Service) deleteAttachmentRecord(txCtx context.Context, o *op, announcementID, attachmentID int64, actor domain.Actor) (document domain.Document, err error) {
+	if err := s.requireEditableAnnouncement(txCtx, announcementID, true); err != nil {
+		return document, err
+	}
+	live, found, stats, err := s.deps.Attachments.FindForOwner(txCtx, announcementID, attachmentID, false)
+	o.add(stats)
+	if err != nil {
+		return document, err
+	}
+	if !found {
+		// Already soft-deleted: retry the byte removal instead of a
+		// 404 the caller cannot act on.
+		deleted, found, stats, err := s.deps.Attachments.FindForOwner(txCtx, announcementID, attachmentID, true)
+		o.add(stats)
+		if err != nil {
+			return document, err
+		}
+		if !found {
+			return document, filestorage.ErrAttachmentNotFound
+		}
+		document = deleted
+		return document, nil
+	}
+	deleted, stats, err := s.deps.Attachments.SoftDelete(txCtx, live.ID, actor.AccountID)
+	o.add(stats)
+	if err != nil {
+		return document, err
+	}
+	if err := s.deps.Announcements.ResetAnnouncementEngagement(txCtx, announcementID); err != nil {
+		return document, err
+	}
+	document = deleted
+	return document, s.record(txCtx, actor, ports.EventAttachmentDeleted, nil, &announcementID, &deleted.ID,
+		fmt.Sprintf("Anhang „%s“ von Elternmitteilung entfernt", deleted.FilenameDisplay))
 }

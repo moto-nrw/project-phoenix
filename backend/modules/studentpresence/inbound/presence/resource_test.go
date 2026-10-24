@@ -5,11 +5,14 @@ import (
 	"log/slog"
 	"testing"
 
+	settingsFacts "github.com/moto-nrw/project-phoenix/modules/settings"
+
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -18,6 +21,7 @@ import (
 // supply only the collaborators its path calls.
 func resourceForTest(resource Resource) *Resource {
 	resource.logger = slog.Default()
+	resource.displaySettings = settingsFacts.NewDisplaySettings(resource.SettingsService)
 	resource.authorization = authorizationForTest()
 	resource.runtime.TenantID = tenant.FromContext
 	resource.runtime.MarkRollback = tenant.MarkRollback
@@ -31,6 +35,9 @@ func authorizeVisitForTest(ctx context.Context, accountID int64, readAll bool, v
 func authorizationForTest() Authorization {
 	return Authorization{
 		Visit: authorizeVisitForTest,
+		StudentDataAccess: func(ctx context.Context, lookup func(context.Context) (bool, error)) (bool, bool) {
+			return securityruntime.StudentDataAccess(ctx, testpkg.PermissionsFromContext(ctx), lookup)
+		},
 		OperationalOverview: func(ctx context.Context, settings Settings, staff StaffAccess, assignmentBound, admin bool) (bool, error) {
 			return securityruntime.CanViewOperationalOverview(ctx, settings, staff, assignmentBound, admin)
 		},
@@ -44,34 +51,34 @@ func requestRuntimeForTest(withStaff func(context.Context, int64, int64) context
 func TestResourceRequiresLogger(t *testing.T) {
 	t.Parallel()
 	require.PanicsWithValue(t, "active API: logger is required", func() {
-		NewResource(nil, nil, nil, nil, nil, nil, nil, nil, nil, RequestRuntime{}, Authorization{}, nil)
+		NewResource(nil, nil, nil, nil, nil, nil, nil, nil, RequestRuntime{}, Authorization{}, settingsFacts.NewDisplaySettings(nil))
 	})
 }
 
 func TestResourceUsesInjectedLogger(t *testing.T) {
 	t.Parallel()
 	logger := slog.New(slog.DiscardHandler)
-	resource := NewResource(nil, nil, nil, nil, nil, nil,
+	resource := NewResource(nil, nil, nil, nil, nil,
 		func(testutil.Router, func(testutil.Router, common.Middleware)) {}, logger, mappingReadQueries{},
-		requestRuntimeForTest(func(ctx context.Context, _, _ int64) context.Context { return ctx }), authorizationForTest(), nil)
+		requestRuntimeForTest(func(ctx context.Context, _, _ int64) context.Context { return ctx }), authorizationForTest(), settingsFacts.NewDisplaySettings(nil))
 	assert.Same(t, logger, resource.getLogger())
 }
 
 func TestResourceRequiresVisitAuthorization(t *testing.T) {
 	t.Parallel()
 	require.PanicsWithValue(t, "active API: visit authorization is required", func() {
-		NewResource(nil, nil, nil, nil, nil, nil,
+		NewResource(nil, nil, nil, nil, nil,
 			func(testutil.Router, func(testutil.Router, common.Middleware)) {}, slog.Default(), mappingReadQueries{},
-			requestRuntimeForTest(func(ctx context.Context, _, _ int64) context.Context { return ctx }), Authorization{}, nil)
+			requestRuntimeForTest(func(ctx context.Context, _, _ int64) context.Context { return ctx }), Authorization{}, settingsFacts.NewDisplaySettings(nil))
 	})
 }
 
 func TestResourceRequiresOverviewAuthorization(t *testing.T) {
 	t.Parallel()
 	require.PanicsWithValue(t, "active API: overview authorization is required", func() {
-		NewResource(nil, nil, nil, nil, nil, nil,
+		NewResource(nil, nil, nil, nil, nil,
 			func(testutil.Router, func(testutil.Router, common.Middleware)) {}, slog.Default(), mappingReadQueries{},
-			requestRuntimeForTest(func(ctx context.Context, _, _ int64) context.Context { return ctx }), Authorization{Visit: authorizeVisitForTest}, nil)
+			requestRuntimeForTest(func(ctx context.Context, _, _ int64) context.Context { return ctx }), Authorization{Visit: authorizeVisitForTest}, settingsFacts.NewDisplaySettings(nil))
 	})
 }
 
@@ -87,10 +94,30 @@ func TestResourceRequiresTenantRequestRuntime(t *testing.T) {
 				runtime.MarkRollback = nil
 			}
 			require.PanicsWithValue(t, "active API: tenant request runtime is required", func() {
-				NewResource(nil, nil, nil, nil, nil, nil,
+				NewResource(nil, nil, nil, nil, nil,
 					func(testutil.Router, func(testutil.Router, common.Middleware)) {}, slog.Default(), mappingReadQueries{},
-					runtime, authorizationForTest(), nil)
+					runtime, authorizationForTest(), settingsFacts.NewDisplaySettings(nil))
 			})
 		})
 	}
+}
+
+func TestResourceRequiresStudentDataAuthorization(t *testing.T) {
+	t.Parallel()
+	authorization := authorizationForTest()
+	authorization.StudentDataAccess = nil
+	require.PanicsWithValue(t, "active API: student data authorization is required", func() {
+		NewResource(nil, nil, nil, nil, nil,
+			func(testutil.Router, func(testutil.Router, common.Middleware)) {}, slog.Default(), mappingReadQueries{},
+			requestRuntimeForTest(func(ctx context.Context, _, _ int64) context.Context { return ctx }), authorization, settingsFacts.NewDisplaySettings(nil))
+	})
+}
+
+func TestResourceRequiresDisplaySettings(t *testing.T) {
+	t.Parallel()
+	require.PanicsWithValue(t, "active API: display settings facts are required", func() {
+		NewResource(nil, nil, nil, nil, nil,
+			func(testutil.Router, func(testutil.Router, common.Middleware)) {}, slog.Default(), mappingReadQueries{},
+			requestRuntimeForTest(func(ctx context.Context, _, _ int64) context.Context { return ctx }), authorizationForTest(), nil)
+	})
 }

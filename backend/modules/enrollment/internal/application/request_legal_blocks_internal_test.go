@@ -4,9 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -14,30 +13,30 @@ import (
 func TestBuildTemplateLegalBlocks_FiltersDisabledAndKeepsCustomKeys(t *testing.T) {
 	t.Parallel()
 
-	blocks := buildTemplateLegalBlocks([]enrollment.FormLegalBlock{
+	blocks := buildTemplateLegalBlocks([]enrollmentNative.FormLegalBlock{
 		{
-			Key:       enrollmentModels.ConsentKeyDataProcessing,
-			Kind:      enrollment.LegalBlockKindPrivacyNotice,
+			Key:       enrollmentNative.ConsentKeyDataProcessing,
+			Kind:      enrollmentNative.LegalBlockKindPrivacyNotice,
 			Title:     "Datenschutz",
 			Label:     "Zur Kenntnis genommen.",
 			Required:  true,
 			Enabled:   true,
 			SortOrder: 10,
-			Source:    enrollment.LegalBlockSourceStandard,
+			Source:    enrollmentNative.LegalBlockSourceStandard,
 		},
 		{
 			Key:       "custom_pool",
-			Kind:      enrollment.LegalBlockKindConsent,
+			Kind:      enrollmentNative.LegalBlockKindConsent,
 			Title:     "Schwimmbad",
 			Label:     "Mein Kind darf teilnehmen.",
 			Required:  false,
 			Enabled:   true,
 			SortOrder: 20,
-			Source:    enrollment.LegalBlockSourceCustom,
+			Source:    enrollmentNative.LegalBlockSourceCustom,
 		},
 		{
-			Key:     enrollmentModels.ConsentKeyPhoto,
-			Kind:    enrollment.LegalBlockKindConsent,
+			Key:     enrollmentNative.ConsentKeyPhoto,
+			Kind:    enrollmentNative.LegalBlockKindConsent,
 			Title:   "Foto",
 			Label:   "Foto",
 			Enabled: false,
@@ -45,7 +44,7 @@ func TestBuildTemplateLegalBlocks_FiltersDisabledAndKeepsCustomKeys(t *testing.T
 	})
 
 	require.Len(t, blocks, 2)
-	assert.Equal(t, enrollmentModels.ConsentKeyDataProcessing, blocks[0].Key)
+	assert.Equal(t, enrollmentNative.ConsentKeyDataProcessing, blocks[0].Key)
 	assert.True(t, blocks[0].Required)
 	assert.Equal(t, "custom_pool", blocks[1].Key)
 	assert.False(t, blocks[1].Required)
@@ -54,35 +53,35 @@ func TestBuildTemplateLegalBlocks_FiltersDisabledAndKeepsCustomKeys(t *testing.T
 func TestResolveRequiredConsents_UsesTemplateLegalBlocks(t *testing.T) {
 	t.Parallel()
 
-	svc := NewIntake(IntakeDependencies{})
-	schema := &enrollment.FormSchema{
-		LegalBlocks: []enrollment.FormLegalBlock{
+	svc := NewIntake(IntakeDependencies{Settings: intakeSettingsFake{}})
+	schema := &enrollmentNative.FormSchema{
+		LegalBlocks: []enrollmentNative.FormLegalBlock{
 			{
-				Key:      enrollmentModels.ConsentKeyDataProcessing,
-				Kind:     enrollment.LegalBlockKindPrivacyNotice,
+				Key:      enrollmentNative.ConsentKeyDataProcessing,
+				Kind:     enrollmentNative.LegalBlockKindPrivacyNotice,
 				Title:    "Datenschutz",
 				Label:    "Zur Kenntnis genommen.",
 				Required: true,
 				Enabled:  true,
-				Source:   enrollment.LegalBlockSourceStandard,
+				Source:   enrollmentNative.LegalBlockSourceStandard,
 			},
 			{
 				Key:      "custom_pool",
-				Kind:     enrollment.LegalBlockKindConsent,
+				Kind:     enrollmentNative.LegalBlockKindConsent,
 				Title:    "Schwimmbad",
 				Label:    "Mein Kind darf teilnehmen.",
 				Required: true,
 				Enabled:  true,
-				Source:   enrollment.LegalBlockSourceCustom,
+				Source:   enrollmentNative.LegalBlockSourceCustom,
 			},
 			{
-				Key:      enrollmentModels.ConsentKeyAGB,
-				Kind:     enrollment.LegalBlockKindTerms,
+				Key:      enrollmentNative.ConsentKeyAGB,
+				Kind:     enrollmentNative.LegalBlockKindTerms,
 				Title:    "AGB",
 				Label:    "AGB",
 				Required: true,
 				Enabled:  false,
-				Source:   enrollment.LegalBlockSourceStandard,
+				Source:   enrollmentNative.LegalBlockSourceStandard,
 			},
 		},
 	}
@@ -90,13 +89,13 @@ func TestResolveRequiredConsents_UsesTemplateLegalBlocks(t *testing.T) {
 	blocks, err := svc.resolveSubmissionLegalBlocks(context.Background(), schema)
 
 	require.NoError(t, err)
-	assert.ElementsMatch(t, []string{enrollmentModels.ConsentKeyDataProcessing, "custom_pool"}, requiredConsentKeys(blocks))
+	assert.ElementsMatch(t, []string{enrollmentNative.ConsentKeyDataProcessing, "custom_pool"}, requiredConsentKeys(blocks))
 }
 
 func TestBuildLegalBlocks_RequiresEnabledTogglesForEveryStandardBlock(t *testing.T) {
 	t.Parallel()
 
-	texts := enrollment.LegalTexts{
+	texts := enrollmentNative.LegalTexts{
 		AGB:                 "AGB Text",
 		DSGVO:               "DSGVO Text",
 		EmailContact:        "E-Mail Text",
@@ -110,13 +109,13 @@ func TestBuildLegalBlocks_RequiresEnabledTogglesForEveryStandardBlock(t *testing
 	blocks := buildLegalBlocks(texts)
 
 	require.Len(t, blocks, 1)
-	assert.Equal(t, enrollmentModels.ConsentKeyAGB, blocks[0].Key)
+	assert.Equal(t, enrollmentNative.ConsentKeyAGB, blocks[0].Key)
 }
 
 func TestBuildLegalBlocks_DefaultAGBSourceUsesTextWhenDocumentExists(t *testing.T) {
 	t.Parallel()
 
-	texts := enrollment.LegalTexts{
+	texts := enrollmentNative.LegalTexts{
 		AGB:            "AGB Text",
 		AGBDocumentURL: "/uploads/enrollment-legal-documents/tenant-1.pdf",
 		TermsEnabled:   true,
@@ -131,7 +130,7 @@ func TestBuildLegalBlocks_DefaultAGBSourceUsesTextWhenDocumentExists(t *testing.
 func TestBuildLegalBlocks_PDFAGBSourceUsesDocumentLinkOnly(t *testing.T) {
 	t.Parallel()
 
-	texts := enrollment.LegalTexts{
+	texts := enrollmentNative.LegalTexts{
 		AGB:            "AGB Text",
 		AGBDocumentURL: "/uploads/enrollment-legal-documents/tenant-1.pdf",
 		AGBDisplayMode: legalAGBDisplayModePDF,
@@ -149,18 +148,18 @@ func TestBuildLegalBlocks_PDFAGBSourceUsesDocumentLinkOnly(t *testing.T) {
 func TestBuildTemplateLegalBlocks_PDFAGBSourceUsesDocumentURL(t *testing.T) {
 	t.Parallel()
 
-	blocks := buildTemplateLegalBlocks([]enrollment.FormLegalBlock{
+	blocks := buildTemplateLegalBlocks([]enrollmentNative.FormLegalBlock{
 		{
-			Key:         enrollmentModels.ConsentKeyAGB,
-			Kind:        enrollment.LegalBlockKindTerms,
+			Key:         enrollmentNative.ConsentKeyAGB,
+			Kind:        enrollmentNative.LegalBlockKindTerms,
 			Title:       "AGB",
 			Label:       "AGB akzeptieren",
 			Text:        "Textquelle bleibt gespeichert",
 			Required:    true,
 			Enabled:     true,
 			SortOrder:   10,
-			Source:      enrollment.LegalBlockSourceStandard,
-			DisplayMode: enrollment.LegalBlockDisplayModePDF,
+			Source:      enrollmentNative.LegalBlockSourceStandard,
+			DisplayMode: enrollmentNative.LegalBlockDisplayModePDF,
 			DocumentURL: "/uploads/enrollment-form-legal-documents/1_terms.pdf",
 		},
 	})
@@ -174,7 +173,7 @@ func TestBuildTemplateLegalBlocks_PDFAGBSourceUsesDocumentURL(t *testing.T) {
 func TestBuildLegalBlocks_ShowsAllEnabledContentfulStandardBlocks(t *testing.T) {
 	t.Parallel()
 
-	texts := enrollment.LegalTexts{
+	texts := enrollmentNative.LegalTexts{
 		AGB:                 "AGB Text",
 		DSGVO:               "DSGVO Text",
 		EmailContact:        "E-Mail Text",
@@ -188,10 +187,10 @@ func TestBuildLegalBlocks_ShowsAllEnabledContentfulStandardBlocks(t *testing.T) 
 	blocks := buildLegalBlocks(texts)
 
 	require.Len(t, blocks, 4)
-	assert.Equal(t, enrollmentModels.ConsentKeyAGB, blocks[0].Key)
-	assert.Equal(t, enrollmentModels.ConsentKeyDataProcessing, blocks[1].Key)
-	assert.Equal(t, enrollmentModels.ConsentKeyPhoto, blocks[2].Key)
-	assert.Equal(t, enrollmentModels.ConsentKeyEmailContact, blocks[3].Key)
+	assert.Equal(t, enrollmentNative.ConsentKeyAGB, blocks[0].Key)
+	assert.Equal(t, enrollmentNative.ConsentKeyDataProcessing, blocks[1].Key)
+	assert.Equal(t, enrollmentNative.ConsentKeyPhoto, blocks[2].Key)
+	assert.Equal(t, enrollmentNative.ConsentKeyEmailContact, blocks[3].Key)
 }
 
 func TestResolveRequiredConsents_AllDisabledTemplateFallsBackToSettings(t *testing.T) {
@@ -204,11 +203,11 @@ func TestResolveRequiredConsents_AllDisabledTemplateFallsBackToSettings(t *testi
 		DSGVO:        "DSGVO Text",
 		DSGVOEnabled: true,
 	}}})
-	schema := &enrollment.FormSchema{
-		LegalBlocks: []enrollment.FormLegalBlock{
+	schema := &enrollmentNative.FormSchema{
+		LegalBlocks: []enrollmentNative.FormLegalBlock{
 			{
-				Key:     enrollmentModels.ConsentKeyDataProcessing,
-				Kind:    enrollment.LegalBlockKindPrivacyNotice,
+				Key:     enrollmentNative.ConsentKeyDataProcessing,
+				Kind:    enrollmentNative.LegalBlockKindPrivacyNotice,
 				Title:   "Datenschutz",
 				Label:   "Zur Kenntnis genommen.",
 				Enabled: false,
@@ -219,16 +218,16 @@ func TestResolveRequiredConsents_AllDisabledTemplateFallsBackToSettings(t *testi
 	blocks, err := svc.resolveSubmissionLegalBlocks(context.Background(), schema)
 
 	require.NoError(t, err)
-	assert.ElementsMatch(t, []string{enrollmentModels.ConsentKeyDataProcessing}, requiredConsentKeys(blocks))
+	assert.ElementsMatch(t, []string{enrollmentNative.ConsentKeyDataProcessing}, requiredConsentKeys(blocks))
 }
 
 func TestBuildTemplateLegalBlocks_SortsBySortOrder(t *testing.T) {
 	t.Parallel()
 
-	blocks := buildTemplateLegalBlocks([]enrollment.FormLegalBlock{
-		{Key: "custom_b", Kind: enrollment.LegalBlockKindConsent, Title: "B", Label: "B", Enabled: true, SortOrder: 30},
-		{Key: "custom_a", Kind: enrollment.LegalBlockKindConsent, Title: "A", Label: "A", Enabled: true, SortOrder: 10},
-		{Key: "custom_c", Kind: enrollment.LegalBlockKindConsent, Title: "C", Label: "C", Enabled: true, SortOrder: 20},
+	blocks := buildTemplateLegalBlocks([]enrollmentNative.FormLegalBlock{
+		{Key: "custom_b", Kind: enrollmentNative.LegalBlockKindConsent, Title: "B", Label: "B", Enabled: true, SortOrder: 30},
+		{Key: "custom_a", Kind: enrollmentNative.LegalBlockKindConsent, Title: "A", Label: "A", Enabled: true, SortOrder: 10},
+		{Key: "custom_c", Kind: enrollmentNative.LegalBlockKindConsent, Title: "C", Label: "C", Enabled: true, SortOrder: 20},
 	})
 
 	require.Len(t, blocks, 3)
@@ -240,12 +239,12 @@ func TestBuildTemplateLegalBlocks_SortsBySortOrder(t *testing.T) {
 func TestFilterConsentFlags_DropsKeysOutsideContract(t *testing.T) {
 	t.Parallel()
 
-	blocks := []enrollment.LegalBlock{
-		{Key: enrollmentModels.ConsentKeyDataProcessing},
+	blocks := []enrollmentNative.LegalBlock{
+		{Key: enrollmentNative.ConsentKeyDataProcessing},
 		{Key: "custom_pool"},
 	}
 	flags := map[string]any{
-		enrollmentModels.ConsentKeyDataProcessing: true,
+		enrollmentNative.ConsentKeyDataProcessing: true,
 		"custom_pool":  false,
 		"smuggled_key": true,
 	}
@@ -253,7 +252,7 @@ func TestFilterConsentFlags_DropsKeysOutsideContract(t *testing.T) {
 	filtered := filterConsentFlags(flags, blocks)
 
 	assert.Equal(t, map[string]any{
-		enrollmentModels.ConsentKeyDataProcessing: true,
+		enrollmentNative.ConsentKeyDataProcessing: true,
 		"custom_pool": false,
 	}, filtered)
 }

@@ -10,11 +10,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -24,30 +22,30 @@ import (
 // ============================================================================
 
 type shiftMockRepo struct {
-	createFunc                  func(ctx context.Context, shift *StaffShift) error
-	findByIDFunc                func(ctx context.Context, id any) (*StaffShift, error)
-	updateFunc                  func(ctx context.Context, shift *StaffShift) error
+	createFunc                  func(ctx context.Context, shift *workforce.ShiftRecord) error
+	findByIDFunc                func(ctx context.Context, id any) (*workforce.ShiftRecord, error)
+	updateFunc                  func(ctx context.Context, shift *workforce.ShiftRecord) error
 	deleteFunc                  func(ctx context.Context, id any) error
-	findByDateRangeFunc         func(ctx context.Context, start, end timezone.Date) ([]*StaffShift, error)
-	findByStaffAndDateRangeFunc func(ctx context.Context, staffID int64, start, end timezone.Date) ([]*StaffShift, error)
-	findByOriginShiftIDFunc     func(ctx context.Context, originShiftID int64) ([]*StaffShift, error)
+	findByDateRangeFunc         func(ctx context.Context, start, end calendar.Date) ([]*workforce.ShiftRecord, error)
+	findByStaffAndDateRangeFunc func(ctx context.Context, staffID int64, start, end calendar.Date) ([]*workforce.ShiftRecord, error)
+	findByOriginShiftIDFunc     func(ctx context.Context, originShiftID int64) ([]*workforce.ShiftRecord, error)
 }
 
-func (m *shiftMockRepo) Create(ctx context.Context, shift *StaffShift) error {
+func (m *shiftMockRepo) Create(ctx context.Context, shift *workforce.ShiftRecord) error {
 	if m.createFunc != nil {
 		return m.createFunc(ctx, shift)
 	}
 	return nil
 }
 
-func (m *shiftMockRepo) FindByID(ctx context.Context, id any) (*StaffShift, error) {
+func (m *shiftMockRepo) FindByID(ctx context.Context, id any) (*workforce.ShiftRecord, error) {
 	if m.findByIDFunc != nil {
 		return m.findByIDFunc(ctx, id)
 	}
 	return nil, errors.New("not found")
 }
 
-func (m *shiftMockRepo) Update(ctx context.Context, shift *StaffShift) error {
+func (m *shiftMockRepo) Update(ctx context.Context, shift *workforce.ShiftRecord) error {
 	if m.updateFunc != nil {
 		return m.updateFunc(ctx, shift)
 	}
@@ -61,7 +59,7 @@ func (m *shiftMockRepo) Delete(ctx context.Context, id any) error {
 	return nil
 }
 
-func (m *shiftMockRepo) FindByDateRange(ctx context.Context, start, end timezone.Date) ([]*StaffShift, error) {
+func (m *shiftMockRepo) FindByDateRange(ctx context.Context, start, end calendar.Date) ([]*workforce.ShiftRecord, error) {
 	if m.findByDateRangeFunc != nil {
 		return m.findByDateRangeFunc(ctx, start, end)
 	}
@@ -69,57 +67,57 @@ func (m *shiftMockRepo) FindByDateRange(ctx context.Context, start, end timezone
 }
 
 // FindByStaffIDsAndDateRange satisfies the batched interface method (#1417).
-func (m *shiftMockRepo) FindByStaffIDsAndDateRange(context.Context, []int64, timezone.Date, timezone.Date) (map[int64][]*StaffShift, error) {
+func (m *shiftMockRepo) FindByStaffIDsAndDateRange(context.Context, []int64, calendar.Date, calendar.Date) (map[int64][]*workforce.ShiftRecord, error) {
 	return nil, nil
 }
 
-func (m *shiftMockRepo) FindByStaffAndDateRange(ctx context.Context, staffID int64, start, end timezone.Date) ([]*StaffShift, error) {
+func (m *shiftMockRepo) FindByStaffAndDateRange(ctx context.Context, staffID int64, start, end calendar.Date) ([]*workforce.ShiftRecord, error) {
 	if m.findByStaffAndDateRangeFunc != nil {
 		return m.findByStaffAndDateRangeFunc(ctx, staffID, start, end)
 	}
 	return nil, nil
 }
 
-func (m *shiftMockRepo) FindByStaffIDsAndDate(_ context.Context, _ []int64, _ timezone.Date) ([]*StaffShift, error) {
+func (m *shiftMockRepo) FindByStaffIDsAndDate(_ context.Context, _ []int64, _ calendar.Date) ([]*workforce.ShiftRecord, error) {
 	return nil, nil
 }
 
-func (m *shiftMockRepo) FindByOriginShiftID(ctx context.Context, originShiftID int64) ([]*StaffShift, error) {
+func (m *shiftMockRepo) FindByOriginShiftID(ctx context.Context, originShiftID int64) ([]*workforce.ShiftRecord, error) {
 	if m.findByOriginShiftIDFunc != nil {
 		return m.findByOriginShiftIDFunc(ctx, originShiftID)
 	}
 	return nil, nil
 }
 
-func (m *shiftMockRepo) FindByStaffIDsAndDates(_ context.Context, _ []int64, _ []timezone.Date) ([]*StaffShift, error) {
+func (m *shiftMockRepo) FindByStaffIDsAndDates(_ context.Context, _ []int64, _ []calendar.Date) ([]*workforce.ShiftRecord, error) {
 	return nil, nil
 }
 
-func (m *shiftMockRepo) FindUsedCalendarWeeks(_ context.Context, _, _ timezone.Date) ([]timezone.Date, error) {
+func (m *shiftMockRepo) FindUsedCalendarWeeks(_ context.Context, _, _ calendar.Date) ([]calendar.Date, error) {
 	return nil, nil
 }
 
-func (m *shiftMockRepo) BulkCreate(context.Context, []*StaffShift) error {
+func (m *shiftMockRepo) BulkCreate(context.Context, []*workforce.ShiftRecord) error {
 	return nil
 }
 
-func (m *shiftMockRepo) DeleteNonDetachedBySeriesFrom(context.Context, int64, timezone.Date) (int64, error) {
+func (m *shiftMockRepo) DeleteNonDetachedBySeriesFrom(context.Context, int64, calendar.Date) (int64, error) {
 	return 0, nil
 }
 
-func (m *shiftMockRepo) RepointDetachedSeriesFrom(context.Context, int64, int64, timezone.Date) (int64, error) {
+func (m *shiftMockRepo) RepointDetachedSeriesFrom(context.Context, int64, int64, calendar.Date) (int64, error) {
 	return 0, nil
 }
 
 type shiftMockStaffRepo struct {
-	findByIDFunc func(ctx context.Context, id interface{}) (*usersModels.Staff, error)
+	findByIDFunc func(ctx context.Context, id interface{}) (*workforce.PlanStaff, error)
 }
 
-func (m *shiftMockStaffRepo) FindByID(ctx context.Context, id interface{}) (*usersModels.Staff, error) {
+func (m *shiftMockStaffRepo) FindByID(ctx context.Context, id interface{}) (*workforce.PlanStaff, error) {
 	if m.findByIDFunc != nil {
 		return m.findByIDFunc(ctx, id)
 	}
-	return &usersModels.Staff{}, nil
+	return &workforce.PlanStaff{}, nil
 }
 
 func (m *shiftMockStaffRepo) ListAccountIDsByStaffIDs(_ context.Context, _ []int64) (map[int64]int64, error) {
@@ -130,59 +128,10 @@ func (m *shiftMockStaffRepo) ListAllStaffAccountIDs(_ context.Context) (map[int6
 	return map[int64]int64{}, nil
 }
 
-// The remaining StaffRepository methods are unused by the shift service.
-func (m *shiftMockStaffRepo) Create(context.Context, *usersModels.Staff) error { return nil }
-func (m *shiftMockStaffRepo) FindByIDForUpdate(ctx context.Context, id int64) (*usersModels.Staff, error) {
-	return m.FindByID(ctx, id)
-}
-func (m *shiftMockStaffRepo) FindByPersonID(context.Context, int64) (*usersModels.Staff, error) {
-	return nil, errors.New("not implemented")
-}
-func (m *shiftMockStaffRepo) Update(context.Context, *usersModels.Staff) error { return nil }
-func (m *shiftMockStaffRepo) Delete(context.Context, interface{}) error        { return nil }
-func (m *shiftMockStaffRepo) List(context.Context, map[string]interface{}) ([]*usersModels.Staff, error) {
+func (m *shiftMockStaffRepo) ListAllWithPerson(context.Context) ([]*workforce.PlanStaff, error) {
 	return nil, nil
 }
-func (*shiftMockStaffRepo) FindReachableCalendarStaffIDs(context.Context, []int64) (map[int64]bool, error) {
-	return map[int64]bool{}, nil
-}
-
-// Birthday display (#1542) — irrelevant to shift planning, stubbed to satisfy
-// the interface.
-func (*shiftMockStaffRepo) FindBirthdaysOn(context.Context, []usersModels.MonthDay) ([]usersModels.BirthdayEntry, error) {
-	return nil, nil
-}
-
-func (*shiftMockStaffRepo) ListBirthdaysForExport(context.Context) ([]usersModels.BirthdayEntry, error) {
-	return nil, nil
-}
-
-func (*shiftMockStaffRepo) SetBirthdayDisplayOptOut(context.Context, int64, bool) error {
-	return nil
-}
-
-func (m *shiftMockStaffRepo) ListAllWithPerson(context.Context) ([]*usersModels.Staff, error) {
-	return nil, nil
-}
-func (m *shiftMockStaffRepo) UpdateNotes(context.Context, int64, string) error { return nil }
-func (m *shiftMockStaffRepo) FindWithPerson(context.Context, int64) (*usersModels.Staff, error) {
-	return nil, errors.New("not implemented")
-}
-func (m *shiftMockStaffRepo) FindByIDs(context.Context, []int64) (map[int64]*usersModels.Staff, error) {
-	return nil, nil
-}
-func (m *shiftMockStaffRepo) FindWithPersonByIDs(context.Context, []int64) (map[int64]*usersModels.Staff, error) {
-	return nil, nil
-}
-func (m *shiftMockStaffRepo) ListStaffWithPermission(context.Context, string) ([]*usersModels.StaffWithRoleInfo, error) {
-	return nil, nil
-}
-
-func (m *shiftMockStaffRepo) GetStaffContactInfo(context.Context, int64) (*usersModels.StaffWithRoleInfo, error) {
-	return nil, nil
-}
-
-func (m *shiftMockStaffRepo) ListStaffByRoles(context.Context, []string) ([]*usersModels.StaffWithRoleInfo, error) {
+func (m *shiftMockStaffRepo) FindWithPersonByIDs(context.Context, []int64) (map[int64]*workforce.PlanStaff, error) {
 	return nil, nil
 }
 
@@ -190,7 +139,7 @@ func (m *shiftMockStaffRepo) ListStaffByRoles(context.Context, []string) ([]*use
 // service's active-flag enforcement can be exercised without a database. An
 // unknown id maps to ErrShiftTypeNotFound, mirroring the real GetShiftType.
 type stubShiftTypeService struct {
-	types map[int64]*ShiftType
+	types map[int64]*workforce.ShiftTypeRecord
 	// listErr, when set, is returned by ListShiftTypes so attachShiftTypes'
 	// error propagation can be exercised (#1844).
 	listErr error
@@ -199,19 +148,19 @@ type stubShiftTypeService struct {
 	listCalls int
 }
 
-func (s *stubShiftTypeService) GetShiftType(_ context.Context, id int64) (*ShiftType, error) {
+func (s *stubShiftTypeService) GetShiftType(_ context.Context, id int64) (*workforce.ShiftTypeRecord, error) {
 	if t, ok := s.types[id]; ok {
 		return t, nil
 	}
 	return nil, ErrShiftTypeNotFound
 }
 
-func (s *stubShiftTypeService) ListShiftTypes(context.Context) ([]*ShiftType, error) {
+func (s *stubShiftTypeService) ListShiftTypes(context.Context) ([]*workforce.ShiftTypeRecord, error) {
 	s.listCalls++
 	if s.listErr != nil {
 		return nil, s.listErr
 	}
-	out := make([]*ShiftType, 0, len(s.types))
+	out := make([]*workforce.ShiftTypeRecord, 0, len(s.types))
 	for id, t := range s.types {
 		t.ID = id // keep ID consistent with the map key so byID lookups resolve
 		out = append(out, t)
@@ -219,17 +168,17 @@ func (s *stubShiftTypeService) ListShiftTypes(context.Context) ([]*ShiftType, er
 	return out, nil
 }
 
-func (s *stubShiftTypeService) CreateShiftType(_ context.Context, t *ShiftType) (*ShiftType, error) {
+func (s *stubShiftTypeService) CreateShiftType(_ context.Context, t *workforce.ShiftTypeRecord) (*workforce.ShiftTypeRecord, error) {
 	return t, nil
 }
 
-func (s *stubShiftTypeService) UpdateShiftType(_ context.Context, t *ShiftType) (*ShiftType, error) {
+func (s *stubShiftTypeService) UpdateShiftType(_ context.Context, t *workforce.ShiftTypeRecord) (*workforce.ShiftTypeRecord, error) {
 	return t, nil
 }
 
 func (s *stubShiftTypeService) DeleteShiftType(context.Context, int64) error { return nil }
 
-func (s *stubShiftTypeService) CreateDefaultShiftTypes(context.Context) ([]*ShiftType, error) {
+func (s *stubShiftTypeService) CreateDefaultShiftTypes(context.Context) ([]*workforce.ShiftTypeRecord, error) {
 	return nil, nil
 }
 
@@ -245,7 +194,7 @@ func shiftServiceFixture() (StaffShiftService, *shiftMockRepo, *shiftMockStaffRe
 
 // shiftServiceWithTypes wires a stub ShiftTypeService so tests can exercise the
 // active-flag enforcement on assigned shift types.
-func shiftServiceWithTypes(types map[int64]*ShiftType) (StaffShiftService, *shiftMockRepo, *shiftMockStaffRepo) {
+func shiftServiceWithTypes(types map[int64]*workforce.ShiftTypeRecord) (StaffShiftService, *shiftMockRepo, *shiftMockStaffRepo) {
 	repo := &shiftMockRepo{}
 	staffRepo := &shiftMockStaffRepo{}
 	svc := NewStaffShiftService(repo, staffRepo, &stubShiftTypeService{types: types}, nil, nil)
@@ -256,10 +205,10 @@ func wall(hour, minute int) time.Time {
 	return time.Date(1, 1, 1, hour, minute, 0, 0, time.UTC)
 }
 
-func validShift(staffID int64) *StaffShift {
-	return &StaffShift{
+func validShift(staffID int64) *workforce.ShiftRecord {
+	return &workforce.ShiftRecord{
 		StaffID:   staffID,
-		Date:      timezone.NewDate(2026, time.July, 6),
+		Date:      calendar.NewDate(2026, time.July, 6),
 		StartTime: wall(8, 0),
 		EndTime:   wall(16, 0),
 		CreatedBy: 1,
@@ -275,7 +224,7 @@ func TestShiftService_CreateSuccess(t *testing.T) {
 
 	svc, repo, _ := shiftServiceFixture()
 	created := false
-	repo.createFunc = func(_ context.Context, _ *StaffShift) error {
+	repo.createFunc = func(_ context.Context, _ *workforce.ShiftRecord) error {
 		created = true
 		return nil
 	}
@@ -303,8 +252,8 @@ func TestShiftService_CreateRejectsUnknownStaff(t *testing.T) {
 	t.Parallel()
 
 	svc, _, staffRepo := shiftServiceFixture()
-	staffRepo.findByIDFunc = func(_ context.Context, _ interface{}) (*usersModels.Staff, error) {
-		return nil, modelBase.ErrNotFound
+	staffRepo.findByIDFunc = func(_ context.Context, _ interface{}) (*workforce.PlanStaff, error) {
+		return nil, errRowNotFound
 	}
 
 	_, err := svc.CreateShift(context.Background(), validShift(999))
@@ -316,7 +265,7 @@ func TestShiftService_CreatePropagatesStaffLookupError(t *testing.T) {
 	t.Parallel()
 
 	svc, _, staffRepo := shiftServiceFixture()
-	staffRepo.findByIDFunc = func(_ context.Context, _ interface{}) (*usersModels.Staff, error) {
+	staffRepo.findByIDFunc = func(_ context.Context, _ interface{}) (*workforce.PlanStaff, error) {
 		return nil, errors.New("connection reset")
 	}
 
@@ -330,7 +279,7 @@ func TestShiftService_CreateRejectsNilStaff(t *testing.T) {
 	t.Parallel()
 
 	svc, _, staffRepo := shiftServiceFixture()
-	staffRepo.findByIDFunc = func(_ context.Context, _ interface{}) (*usersModels.Staff, error) {
+	staffRepo.findByIDFunc = func(_ context.Context, _ interface{}) (*workforce.PlanStaff, error) {
 		return nil, nil
 	}
 
@@ -357,7 +306,7 @@ func TestShiftService_CreatePropagatesOverlapLookupError(t *testing.T) {
 	t.Parallel()
 
 	svc, repo, _ := shiftServiceFixture()
-	repo.findByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*StaffShift, error) {
+	repo.findByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ calendar.Date) ([]*workforce.ShiftRecord, error) {
 		return nil, errors.New("read failed")
 	}
 
@@ -370,7 +319,7 @@ func TestShiftService_CreatePropagatesCreateError(t *testing.T) {
 	t.Parallel()
 
 	svc, repo, _ := shiftServiceFixture()
-	repo.createFunc = func(_ context.Context, _ *StaffShift) error {
+	repo.createFunc = func(_ context.Context, _ *workforce.ShiftRecord) error {
 		return errors.New("insert failed")
 	}
 
@@ -386,8 +335,8 @@ func TestShiftService_CreateRejectsOverlap(t *testing.T) {
 
 	existing := validShift(7) // 08:00–16:00
 	existing.ID = 1
-	repo.findByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*StaffShift, error) {
-		return []*StaffShift{existing}, nil
+	repo.findByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ calendar.Date) ([]*workforce.ShiftRecord, error) {
+		return []*workforce.ShiftRecord{existing}, nil
 	}
 
 	overlapping := validShift(7)
@@ -406,8 +355,8 @@ func TestShiftService_CreateAllowsTouchingShifts(t *testing.T) {
 
 	existing := validShift(7) // 08:00–16:00
 	existing.ID = 1
-	repo.findByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*StaffShift, error) {
-		return []*StaffShift{existing}, nil
+	repo.findByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ calendar.Date) ([]*workforce.ShiftRecord, error) {
+		return []*workforce.ShiftRecord{existing}, nil
 	}
 
 	adjacent := validShift(7)
@@ -425,11 +374,11 @@ func TestShiftService_UpdateExcludesSelfFromOverlap(t *testing.T) {
 
 	existing := validShift(7)
 	existing.ID = 5
-	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
+	repo.findByIDFunc = func(_ context.Context, _ any) (*workforce.ShiftRecord, error) {
 		return existing, nil
 	}
-	repo.findByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*StaffShift, error) {
-		return []*StaffShift{existing}, nil
+	repo.findByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ calendar.Date) ([]*workforce.ShiftRecord, error) {
+		return []*workforce.ShiftRecord{existing}, nil
 	}
 
 	update := validShift(7)
@@ -449,7 +398,7 @@ func TestShiftService_UpdateKeepsStaffAssignment(t *testing.T) {
 	existing := validShift(7)
 	existing.ID = 5
 	existing.CreatedBy = 3
-	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
+	repo.findByIDFunc = func(_ context.Context, _ any) (*workforce.ShiftRecord, error) {
 		return existing, nil
 	}
 
@@ -475,7 +424,7 @@ func TestShiftService_UpdateRejectsConcurrentSameStaffMove(t *testing.T) {
 	moved.EndTime = wall(17, 0)
 
 	reads := 0
-	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
+	repo.findByIDFunc = func(_ context.Context, _ any) (*workforce.ShiftRecord, error) {
 		reads++
 		if reads == 1 {
 			return existing, nil
@@ -483,7 +432,7 @@ func TestShiftService_UpdateRejectsConcurrentSameStaffMove(t *testing.T) {
 		return &moved, nil
 	}
 	updates := 0
-	repo.updateFunc = func(_ context.Context, _ *StaffShift) error {
+	repo.updateFunc = func(_ context.Context, _ *workforce.ShiftRecord) error {
 		updates++
 		return nil
 	}
@@ -509,7 +458,7 @@ func TestShiftService_UpdateClearsSickProvenanceWhenAdminKeepsCancellation(t *te
 	existing.Cancelled = true
 	existing.ChangeReason = &existingReason
 	existing.SickAbsenceID = &absenceID
-	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
+	repo.findByIDFunc = func(_ context.Context, _ any) (*workforce.ShiftRecord, error) {
 		return existing, nil
 	}
 
@@ -536,7 +485,7 @@ func TestShiftService_UpdatePreservesCreatedAt(t *testing.T) {
 	existing := validShift(7)
 	existing.ID = 5
 	existing.CreatedAt = time.Date(2026, time.June, 1, 10, 0, 0, 0, time.UTC)
-	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
+	repo.findByIDFunc = func(_ context.Context, _ any) (*workforce.ShiftRecord, error) {
 		return existing, nil
 	}
 
@@ -557,12 +506,12 @@ func TestShiftService_UpdateCanPreserveExistingNotes(t *testing.T) {
 	existing := validShift(7)
 	existing.ID = 5
 	existing.Notes = "Existing note"
-	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
+	repo.findByIDFunc = func(_ context.Context, _ any) (*workforce.ShiftRecord, error) {
 		return existing, nil
 	}
 
-	var persisted *StaffShift
-	repo.updateFunc = func(_ context.Context, shift *StaffShift) error {
+	var persisted *workforce.ShiftRecord
+	repo.updateFunc = func(_ context.Context, shift *workforce.ShiftRecord) error {
 		persisted = shift
 		return nil
 	}
@@ -586,7 +535,7 @@ func TestShiftService_UpdateExplicitNotesReplaceExistingNotes(t *testing.T) {
 	existing := validShift(7)
 	existing.ID = 5
 	existing.Notes = "Existing note"
-	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
+	repo.findByIDFunc = func(_ context.Context, _ any) (*workforce.ShiftRecord, error) {
 		return existing, nil
 	}
 
@@ -607,7 +556,7 @@ func TestShiftService_UpdateExplicitEmptyNotesClearsExistingNotes(t *testing.T) 
 	existing := validShift(7)
 	existing.ID = 5
 	existing.Notes = "Existing note"
-	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
+	repo.findByIDFunc = func(_ context.Context, _ any) (*workforce.ShiftRecord, error) {
 		return existing, nil
 	}
 
@@ -624,8 +573,8 @@ func TestShiftService_UpdateNotFound(t *testing.T) {
 	t.Parallel()
 
 	svc, repo, _ := shiftServiceFixture()
-	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
-		return nil, modelBase.ErrNotFound
+	repo.findByIDFunc = func(_ context.Context, _ any) (*workforce.ShiftRecord, error) {
+		return nil, errRowNotFound
 	}
 
 	update := validShift(7)
@@ -648,7 +597,7 @@ func TestShiftService_UpdateRejectsNilExistingShift(t *testing.T) {
 	t.Parallel()
 
 	svc, repo, _ := shiftServiceFixture()
-	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
+	repo.findByIDFunc = func(_ context.Context, _ any) (*workforce.ShiftRecord, error) {
 		return nil, nil
 	}
 
@@ -663,7 +612,7 @@ func TestShiftService_UpdatePropagatesFindError(t *testing.T) {
 	t.Parallel()
 
 	svc, repo, _ := shiftServiceFixture()
-	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
+	repo.findByIDFunc = func(_ context.Context, _ any) (*workforce.ShiftRecord, error) {
 		return nil, errors.New("database timeout")
 	}
 
@@ -682,7 +631,7 @@ func TestShiftService_UpdateRejectsInvalidMergedShift(t *testing.T) {
 	svc, repo, _ := shiftServiceFixture()
 	existing := validShift(7)
 	existing.ID = 5
-	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
+	repo.findByIDFunc = func(_ context.Context, _ any) (*workforce.ShiftRecord, error) {
 		return existing, nil
 	}
 
@@ -705,11 +654,11 @@ func TestShiftService_UpdatePropagatesOverlap(t *testing.T) {
 	conflicting.ID = 6
 	conflicting.StartTime = wall(15, 0)
 	conflicting.EndTime = wall(18, 0)
-	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
+	repo.findByIDFunc = func(_ context.Context, _ any) (*workforce.ShiftRecord, error) {
 		return existing, nil
 	}
-	repo.findByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*StaffShift, error) {
-		return []*StaffShift{existing, conflicting}, nil
+	repo.findByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ calendar.Date) ([]*workforce.ShiftRecord, error) {
+		return []*workforce.ShiftRecord{existing, conflicting}, nil
 	}
 
 	update := validShift(7)
@@ -730,7 +679,7 @@ func TestShiftService_UpdatePropagatesLockError(t *testing.T) {
 	svc := NewStaffShiftService(repo, staffRepo, nil, func(context.Context, int64) error { return lockErr }, nil)
 	existing := validShift(7)
 	existing.ID = 5
-	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
+	repo.findByIDFunc = func(_ context.Context, _ any) (*workforce.ShiftRecord, error) {
 		return existing, nil
 	}
 
@@ -748,10 +697,10 @@ func TestShiftService_UpdatePropagatesUpdateError(t *testing.T) {
 	svc, repo, _ := shiftServiceFixture()
 	existing := validShift(7)
 	existing.ID = 5
-	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
+	repo.findByIDFunc = func(_ context.Context, _ any) (*workforce.ShiftRecord, error) {
 		return existing, nil
 	}
-	repo.updateFunc = func(_ context.Context, _ *StaffShift) error {
+	repo.updateFunc = func(_ context.Context, _ *workforce.ShiftRecord) error {
 		return errors.New("update failed")
 	}
 
@@ -767,8 +716,8 @@ func TestShiftService_DeleteNotFound(t *testing.T) {
 	t.Parallel()
 
 	svc, repo, _ := shiftServiceFixture()
-	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
-		return nil, modelBase.ErrNotFound
+	repo.findByIDFunc = func(_ context.Context, _ any) (*workforce.ShiftRecord, error) {
+		return nil, errRowNotFound
 	}
 
 	err := svc.DeleteShift(context.Background(), 12345)
@@ -788,7 +737,7 @@ func TestShiftService_DeleteRejectsNilExistingShift(t *testing.T) {
 	t.Parallel()
 
 	svc, repo, _ := shiftServiceFixture()
-	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
+	repo.findByIDFunc = func(_ context.Context, _ any) (*workforce.ShiftRecord, error) {
 		return nil, nil
 	}
 
@@ -800,7 +749,7 @@ func TestShiftService_DeletePropagatesFindError(t *testing.T) {
 	t.Parallel()
 
 	svc, repo, _ := shiftServiceFixture()
-	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
+	repo.findByIDFunc = func(_ context.Context, _ any) (*workforce.ShiftRecord, error) {
 		return nil, errors.New("database timeout")
 	}
 
@@ -816,7 +765,7 @@ func TestShiftService_DeletePropagatesDeleteError(t *testing.T) {
 	svc, repo, _ := shiftServiceFixture()
 	existing := validShift(7)
 	existing.ID = 5
-	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
+	repo.findByIDFunc = func(_ context.Context, _ any) (*workforce.ShiftRecord, error) {
 		return existing, nil
 	}
 	repo.deleteFunc = func(_ context.Context, _ any) error {
@@ -834,7 +783,7 @@ func TestShiftService_DeleteSuccess(t *testing.T) {
 	svc, repo, _ := shiftServiceFixture()
 	existing := validShift(7)
 	existing.ID = 5
-	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
+	repo.findByIDFunc = func(_ context.Context, _ any) (*workforce.ShiftRecord, error) {
 		return existing, nil
 	}
 
@@ -846,7 +795,7 @@ func TestShiftService_ListRejectsTooLargeRange(t *testing.T) {
 
 	svc, _, _ := shiftServiceFixture()
 
-	start := timezone.NewDate(2026, time.January, 1)
+	start := calendar.NewDate(2026, time.January, 1)
 	end := start.AddDays(maxShiftRangeDays + 1)
 
 	_, err := svc.ListShifts(context.Background(), start, end)
@@ -858,7 +807,7 @@ func TestShiftService_ListRejectsInvertedRange(t *testing.T) {
 
 	svc, _, _ := shiftServiceFixture()
 
-	start := timezone.NewDate(2026, time.July, 6)
+	start := calendar.NewDate(2026, time.July, 6)
 	_, err := svc.ListShifts(context.Background(), start, start.AddDays(-1))
 	assert.ErrorIs(t, err, ErrShiftInvalid)
 }
@@ -868,10 +817,10 @@ func TestShiftService_ListRejectsMissingRangeDates(t *testing.T) {
 
 	svc, _, _ := shiftServiceFixture()
 
-	_, err := svc.ListShifts(context.Background(), timezone.Date(""), timezone.NewDate(2026, time.July, 6))
+	_, err := svc.ListShifts(context.Background(), calendar.Date(""), calendar.NewDate(2026, time.July, 6))
 	assert.ErrorIs(t, err, ErrShiftInvalid)
 
-	_, err = svc.ListShifts(context.Background(), timezone.NewDate(2026, time.July, 6), timezone.Date(""))
+	_, err = svc.ListShifts(context.Background(), calendar.NewDate(2026, time.July, 6), calendar.Date(""))
 	assert.ErrorIs(t, err, ErrShiftInvalid)
 }
 
@@ -879,12 +828,12 @@ func TestShiftService_ListDelegatesToRepository(t *testing.T) {
 	t.Parallel()
 
 	svc, repo, _ := shiftServiceFixture()
-	start := timezone.NewDate(2026, time.July, 6)
+	start := calendar.NewDate(2026, time.July, 6)
 	end := start.AddDays(4)
-	expected := []*StaffShift{validShift(7)}
-	repo.findByDateRangeFunc = func(_ context.Context, gotStart, gotEnd timezone.Date) ([]*StaffShift, error) {
-		assert.Equal(t, timezone.Date(start), gotStart)
-		assert.Equal(t, timezone.Date(end), gotEnd)
+	expected := []*workforce.ShiftRecord{validShift(7)}
+	repo.findByDateRangeFunc = func(_ context.Context, gotStart, gotEnd calendar.Date) ([]*workforce.ShiftRecord, error) {
+		assert.Equal(t, calendar.Date(start), gotStart)
+		assert.Equal(t, calendar.Date(end), gotEnd)
 		return expected, nil
 	}
 
@@ -897,12 +846,12 @@ func TestShiftService_ListShiftsForStaffDelegatesToRepository(t *testing.T) {
 	t.Parallel()
 
 	svc, repo, _ := shiftServiceFixture()
-	start := timezone.NewDate(2026, time.July, 6)
-	expected := []*StaffShift{validShift(7)}
-	repo.findByStaffAndDateRangeFunc = func(_ context.Context, staffID int64, gotStart, gotEnd timezone.Date) ([]*StaffShift, error) {
+	start := calendar.NewDate(2026, time.July, 6)
+	expected := []*workforce.ShiftRecord{validShift(7)}
+	repo.findByStaffAndDateRangeFunc = func(_ context.Context, staffID int64, gotStart, gotEnd calendar.Date) ([]*workforce.ShiftRecord, error) {
 		assert.Equal(t, int64(7), staffID)
-		assert.Equal(t, timezone.Date(start), gotStart)
-		assert.Equal(t, timezone.Date(start), gotEnd)
+		assert.Equal(t, calendar.Date(start), gotStart)
+		assert.Equal(t, calendar.Date(start), gotEnd)
 		return expected, nil
 	}
 
@@ -916,7 +865,7 @@ func TestShiftService_ListShiftsForStaffRequiresStaffID(t *testing.T) {
 
 	svc, _, _ := shiftServiceFixture()
 
-	start := timezone.NewDate(2026, time.July, 6)
+	start := calendar.NewDate(2026, time.July, 6)
 	_, err := svc.ListShiftsForStaff(context.Background(), 0, start, start)
 	assert.ErrorIs(t, err, ErrShiftInvalid)
 }
@@ -926,7 +875,7 @@ func TestShiftService_ListShiftsForStaffRejectsInvalidRange(t *testing.T) {
 
 	svc, _, _ := shiftServiceFixture()
 
-	start := timezone.NewDate(2026, time.July, 6)
+	start := calendar.NewDate(2026, time.July, 6)
 	_, err := svc.ListShiftsForStaff(context.Background(), 7, start, start.AddDays(-1))
 	assert.ErrorIs(t, err, ErrShiftInvalid)
 }
@@ -955,7 +904,7 @@ func TestStaffShiftServiceUsesInjectedLogger(t *testing.T) {
 func TestShiftService_CreateRejectsInactiveShiftType(t *testing.T) {
 	t.Parallel()
 
-	svc, _, _ := shiftServiceWithTypes(map[int64]*ShiftType{
+	svc, _, _ := shiftServiceWithTypes(map[int64]*workforce.ShiftTypeRecord{
 		4: {IsActive: false},
 	})
 
@@ -970,7 +919,7 @@ func TestShiftService_CreateRejectsInactiveShiftType(t *testing.T) {
 func TestShiftService_CreateAllowsActiveShiftType(t *testing.T) {
 	t.Parallel()
 
-	svc, _, _ := shiftServiceWithTypes(map[int64]*ShiftType{
+	svc, _, _ := shiftServiceWithTypes(map[int64]*workforce.ShiftTypeRecord{
 		4: {IsActive: true},
 	})
 
@@ -984,7 +933,7 @@ func TestShiftService_CreateAllowsActiveShiftType(t *testing.T) {
 func TestShiftService_CreateRejectsUnknownShiftType(t *testing.T) {
 	t.Parallel()
 
-	svc, _, _ := shiftServiceWithTypes(map[int64]*ShiftType{})
+	svc, _, _ := shiftServiceWithTypes(map[int64]*workforce.ShiftTypeRecord{})
 
 	shift := validShift(7)
 	shift.ShiftTypeID = testpkg.Int64Ptr(4)
@@ -1008,14 +957,14 @@ func TestShiftService_CreateWithoutTypeSkipsActiveCheck(t *testing.T) {
 func TestShiftService_UpdateKeepsAlreadyAttachedInactiveType(t *testing.T) {
 	t.Parallel()
 
-	svc, repo, _ := shiftServiceWithTypes(map[int64]*ShiftType{
+	svc, repo, _ := shiftServiceWithTypes(map[int64]*workforce.ShiftTypeRecord{
 		4: {IsActive: false},
 	})
 
 	existing := validShift(7)
 	existing.ID = 5
 	existing.ShiftTypeID = testpkg.Int64Ptr(4)
-	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
+	repo.findByIDFunc = func(_ context.Context, _ any) (*workforce.ShiftRecord, error) {
 		return existing, nil
 	}
 
@@ -1030,7 +979,7 @@ func TestShiftService_UpdateKeepsAlreadyAttachedInactiveType(t *testing.T) {
 func TestShiftService_UpdateRejectsSwitchToDifferentInactiveType(t *testing.T) {
 	t.Parallel()
 
-	svc, repo, _ := shiftServiceWithTypes(map[int64]*ShiftType{
+	svc, repo, _ := shiftServiceWithTypes(map[int64]*workforce.ShiftTypeRecord{
 		4: {IsActive: false},
 		9: {IsActive: false},
 	})
@@ -1038,7 +987,7 @@ func TestShiftService_UpdateRejectsSwitchToDifferentInactiveType(t *testing.T) {
 	existing := validShift(7)
 	existing.ID = 5
 	existing.ShiftTypeID = testpkg.Int64Ptr(4)
-	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
+	repo.findByIDFunc = func(_ context.Context, _ any) (*workforce.ShiftRecord, error) {
 		return existing, nil
 	}
 
@@ -1054,7 +1003,7 @@ func TestShiftService_UpdateRejectsSwitchToDifferentInactiveType(t *testing.T) {
 func TestShiftService_UpdateAllowsSwitchToActiveType(t *testing.T) {
 	t.Parallel()
 
-	svc, repo, _ := shiftServiceWithTypes(map[int64]*ShiftType{
+	svc, repo, _ := shiftServiceWithTypes(map[int64]*workforce.ShiftTypeRecord{
 		4: {IsActive: false},
 		9: {IsActive: true},
 	})
@@ -1062,7 +1011,7 @@ func TestShiftService_UpdateAllowsSwitchToActiveType(t *testing.T) {
 	existing := validShift(7)
 	existing.ID = 5
 	existing.ShiftTypeID = testpkg.Int64Ptr(4)
-	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
+	repo.findByIDFunc = func(_ context.Context, _ any) (*workforce.ShiftRecord, error) {
 		return existing, nil
 	}
 
@@ -1089,7 +1038,7 @@ func shiftServiceWithStub(stub *stubShiftTypeService) (StaffShiftService, *shift
 func TestShiftService_ListAttachesShiftTypes(t *testing.T) {
 	t.Parallel()
 
-	stub := &stubShiftTypeService{types: map[int64]*ShiftType{
+	stub := &stubShiftTypeService{types: map[int64]*workforce.ShiftTypeRecord{
 		4: {Name: "Betreuung", Color: "#83CD2D", IsActive: true},
 	}}
 	svc, repo := shiftServiceWithStub(stub)
@@ -1099,11 +1048,11 @@ func TestShiftService_ListAttachesShiftTypes(t *testing.T) {
 	typed.ShiftTypeID = testpkg.Int64Ptr(4)
 	untyped := validShift(8)
 	untyped.ID = 2
-	repo.findByDateRangeFunc = func(_ context.Context, _, _ timezone.Date) ([]*StaffShift, error) {
-		return []*StaffShift{typed, untyped}, nil
+	repo.findByDateRangeFunc = func(_ context.Context, _, _ calendar.Date) ([]*workforce.ShiftRecord, error) {
+		return []*workforce.ShiftRecord{typed, untyped}, nil
 	}
 
-	start := timezone.NewDate(2026, time.July, 6)
+	start := calendar.NewDate(2026, time.July, 6)
 	shifts, err := svc.ListShifts(context.Background(), start, start.AddDays(4))
 	require.NoError(t, err)
 	require.Len(t, shifts, 2)
@@ -1116,7 +1065,7 @@ func TestShiftService_ListAttachesShiftTypes(t *testing.T) {
 func TestShiftService_ListForStaffAttachesShiftTypes(t *testing.T) {
 	t.Parallel()
 
-	stub := &stubShiftTypeService{types: map[int64]*ShiftType{
+	stub := &stubShiftTypeService{types: map[int64]*workforce.ShiftTypeRecord{
 		4: {Name: "Frühdienst", Color: "#5080D8", IsActive: true},
 	}}
 	svc, repo := shiftServiceWithStub(stub)
@@ -1124,11 +1073,11 @@ func TestShiftService_ListForStaffAttachesShiftTypes(t *testing.T) {
 	typed := validShift(7)
 	typed.ID = 1
 	typed.ShiftTypeID = testpkg.Int64Ptr(4)
-	repo.findByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*StaffShift, error) {
-		return []*StaffShift{typed}, nil
+	repo.findByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ calendar.Date) ([]*workforce.ShiftRecord, error) {
+		return []*workforce.ShiftRecord{typed}, nil
 	}
 
-	start := timezone.NewDate(2026, time.July, 6)
+	start := calendar.NewDate(2026, time.July, 6)
 	shifts, err := svc.ListShiftsForStaff(context.Background(), 7, start, start)
 	require.NoError(t, err)
 	require.Len(t, shifts, 1)
@@ -1147,11 +1096,11 @@ func TestShiftService_ListSkipsShiftTypeResolveWithoutTypedShifts(t *testing.T) 
 
 	untyped := validShift(7)
 	untyped.ID = 1
-	repo.findByDateRangeFunc = func(_ context.Context, _, _ timezone.Date) ([]*StaffShift, error) {
-		return []*StaffShift{untyped}, nil
+	repo.findByDateRangeFunc = func(_ context.Context, _, _ calendar.Date) ([]*workforce.ShiftRecord, error) {
+		return []*workforce.ShiftRecord{untyped}, nil
 	}
 
-	start := timezone.NewDate(2026, time.July, 6)
+	start := calendar.NewDate(2026, time.July, 6)
 	shifts, err := svc.ListShifts(context.Background(), start, start.AddDays(4))
 	require.NoError(t, err)
 	require.Len(t, shifts, 1)
@@ -1162,7 +1111,7 @@ func TestShiftService_ListPropagatesShiftTypeResolveError(t *testing.T) {
 	t.Parallel()
 
 	stub := &stubShiftTypeService{
-		types:   map[int64]*ShiftType{4: {IsActive: true}},
+		types:   map[int64]*workforce.ShiftTypeRecord{4: {IsActive: true}},
 		listErr: errors.New("shift types unavailable"),
 	}
 	svc, repo := shiftServiceWithStub(stub)
@@ -1170,13 +1119,56 @@ func TestShiftService_ListPropagatesShiftTypeResolveError(t *testing.T) {
 	typed := validShift(7)
 	typed.ID = 1
 	typed.ShiftTypeID = testpkg.Int64Ptr(4)
-	repo.findByDateRangeFunc = func(_ context.Context, _, _ timezone.Date) ([]*StaffShift, error) {
-		return []*StaffShift{typed}, nil
+	repo.findByDateRangeFunc = func(_ context.Context, _, _ calendar.Date) ([]*workforce.ShiftRecord, error) {
+		return []*workforce.ShiftRecord{typed}, nil
 	}
 
-	start := timezone.NewDate(2026, time.July, 6)
+	start := calendar.NewDate(2026, time.July, 6)
 	_, err := svc.ListShifts(context.Background(), start, start.AddDays(4))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to resolve shift types")
 	assert.Contains(t, err.Error(), "shift types unavailable")
+}
+
+func (m *shiftMockStaffRepo) ListMembershipsWithPerson(ctx context.Context) ([]*workforce.PlanStaff, error) {
+	return m.ListAllWithPerson(ctx)
+}
+
+func (m *shiftMockRepo) CreateStaffShift(ctx context.Context, v *workforce.StaffShift) (workforce.StaffShift, error) {
+	row := ShiftRecord(*v)
+	err := m.Create(ctx, row)
+	return ShiftCapability(row), err
+}
+func (m *shiftMockRepo) ReadShift(ctx context.Context, id int64) (*workforce.ShiftRecord, error) {
+	return m.FindByID(ctx, id)
+}
+
+func (m *shiftMockRepo) UpdateStaffShift(ctx context.Context, v workforce.StaffShift) (workforce.StaffShift, error) {
+	row := ShiftRecord(v)
+	err := m.Update(ctx, row)
+	return ShiftCapability(row), err
+}
+func (m *shiftMockRepo) DeleteStaffShift(ctx context.Context, id int64) error {
+	return m.Delete(ctx, id)
+}
+func (m *shiftMockRepo) ReadShifts(ctx context.Context, f workforce.StaffShiftFilter) ([]*workforce.ShiftRecord, error) {
+	if f.OriginShiftID != 0 {
+		return m.FindByOriginShiftID(ctx, f.OriginShiftID)
+	}
+	if f.StaffID != 0 {
+		return m.FindByStaffAndDateRange(ctx, f.StaffID, calendar.Date(f.From), calendar.Date(f.To))
+	}
+	return m.FindByDateRange(ctx, calendar.Date(f.From), calendar.Date(f.To))
+}
+
+func (m *shiftMockRepo) CreateStaffShifts(ctx context.Context, values []workforce.StaffShift) ([]workforce.StaffShift, error) {
+	rows := shiftsToRows(values)
+	err := m.BulkCreate(ctx, rows)
+	return ShiftCapabilities(rows), err
+}
+func (m *shiftMockRepo) DeleteRegenerableSeriesShifts(ctx context.Context, id int64, from string) (int64, error) {
+	return m.DeleteNonDetachedBySeriesFrom(ctx, id, calendar.Date(from))
+}
+func (m *shiftMockRepo) RepointDetachedSeriesShifts(ctx context.Context, fromID, toID int64, from string) (int64, error) {
+	return m.RepointDetachedSeriesFrom(ctx, fromID, toID, calendar.Date(from))
 }

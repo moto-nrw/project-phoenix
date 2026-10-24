@@ -7,12 +7,9 @@ import {
   CheckCircle2,
   Download,
   ListChecks,
-  X,
 } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
-
-import { Alert } from "~/components/ui/alert";
 
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
@@ -43,7 +40,6 @@ import {
 } from "~/lib/import-request";
 import { hasPermission } from "~/lib/auth-utils";
 import {
-  importBatchFailureAlertType,
   importBatchFailureMessage,
   importBatchSavedCount,
   readImportBatchFailure,
@@ -270,8 +266,8 @@ export default function OpeningBalanceImportPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   // Fehler der Datei und der Übernahme stehen im Kasten über den Schritten,
-  // mit Wiederholen (#2517). Ein angehaltener Stapel ist ein Stand und steht
-  // als eigener Hinweis.
+  // mit Wiederholen (#2517). Ein angehaltener Stapel steht dort auch, mit
+  // oder ohne gespeicherte Zeilen: die Übernahme als Ganzes ist gescheitert.
   const importErrors = useApiFormError();
   const { clear: clearImportErrors, show: showImportError } = importErrors;
   const { show: showTemplateError } = useApiErrorDisplay();
@@ -536,7 +532,13 @@ export default function OpeningBalanceImportPage() {
 
   if (status === "loading") {
     return (
-      <TenantPage title="Eröffnungssalden" stats={statusLine} back>
+      <TenantPage
+        title="Eröffnungssalden"
+        stats={statusLine}
+        back
+        backHref="/database/personal"
+        backLabel="Zurück zum Personal"
+      >
         <SkeletonRegion label="Eröffnungssalden-Import wird geladen">
           <FormSkeleton fields={4} />
           <TableSkeleton rows={5} columns={4} />
@@ -561,32 +563,20 @@ export default function OpeningBalanceImportPage() {
     : `${importable} ${importable === 1 ? "Übernahme" : "Übernahmen"} buchen`;
 
   return (
-    <TenantPage title="Eröffnungssalden" stats={statusLine} back>
+    <TenantPage
+      title="Eröffnungssalden"
+      stats={statusLine}
+      back
+      backHref="/database/personal"
+      backLabel="Zurück zum Personal"
+    >
       {/* Der Erklärtext steht auf einer Fläche, nicht auf dem gemusterten
           Grund (BAUARTEN-SPEC, Teil 3). */}
       <SectionCard>
         <p className="text-sm text-gray-600">{OPENING_BALANCES_DESCRIPTION}</p>
       </SectionCard>
 
-      <FormErrorAlert message={importErrors.error} />
-      {batchNotice && importResult ? (
-        <div className="relative">
-          <Alert
-            type={importBatchFailureAlertType(importResult)}
-            message={batchNotice}
-          />
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={() => setBatchNotice(null)}
-            className="text-moto-red hover:text-moto-red-strong absolute top-1/2 right-2 -translate-y-1/2"
-            aria-label="Hinweis schließen"
-          >
-            <X className="h-4 w-4" aria-hidden="true" />
-          </Button>
-        </div>
-      ) : null}
+      <FormErrorAlert message={importErrors.error ?? batchNotice} />
 
       {/* Schritt 1: Vorlage */}
       <SectionCard

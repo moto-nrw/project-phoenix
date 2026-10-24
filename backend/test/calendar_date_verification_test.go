@@ -41,7 +41,7 @@ var legacyTimeTimeDateColumns = map[string]string{}
 // unmapped column must be classified here with a reason.
 var unmappedDateColumns = map[string]string{
 	// Expand #2715 creates empty storage with no Go reader or writer. Cutover
-	// must replace this classification with a timezone.Date owner row field.
+	// must replace this classification with a calendar.Date owner row field.
 	// People Directory uses explicit joined projections, not a table-bound
 	// model. Its adapter-local studentRow and studentRecordRow use calendar.Date;
 	// adapters/postgres/store_test.go checks the persistence field types.
@@ -51,32 +51,35 @@ var unmappedDateColumns = map[string]string{
 	// entry describes is carried by the adapter-local studentNoteRow as a
 	// *calendar.Date and travels through the capability as the same type.
 	"users.student_notes.subject_date": "People Directory adapter row studentNoteRow uses *calendar.Date",
+	// The day Abholart (#3945) is read and written only by the Care Plan
+	// adapter; its row carries the day as the adapter's calendarDate.
+	"schedule.student_departure_exceptions.exception_date": "Care Plan adapter row departureExceptionRow uses calendarDate",
 	// Reminder push claims are written and deleted exclusively by the two
 	// SECURITY DEFINER functions from 001015255; the occurrence date is bound as
-	// a timezone.Date parameter there and never scanned into a struct, so the
+	// a calendar.Date parameter there and never scanned into a struct, so the
 	// table has no model to carry a field.
 	"calendar.appointment_reminder_push_deliveries.occurrence_date": "claim table touched only through calendar.claim/release_appointment_reminder_push_delivery — no model struct",
 	// The care-exit ledger (#2487) is written and replayed entirely in SQL:
 	// both columns are copied straight from and back into
 	// activities.student_enrollments, whose own fields are already
-	// timezone.Date. Nothing ever scans them into Go, so there is no struct to
+	// calendar.Date. Nothing ever scans them into Go, so there is no struct to
 	// carry a field — and giving them one would invite a round trip through a
 	// type the restore does not need.
 	"users.student_care_exit_removals.valid_from":           "care-exit ledger, copied column-to-column in SQL — no model struct",
 	"users.student_care_exit_removals.previous_valid_until": "care-exit ledger, copied column-to-column in SQL — no model struct",
-	// Meal-plan persistence uses an adapter-local row with timezone.Date. The
+	// Meal-plan persistence uses an adapter-local row with calendar.Date. The
 	// scanner intentionally only inspects models/, so it cannot discover it.
-	"schedule.meal_plan_entries.date":                      "meal-plan Postgres adapter-local row uses timezone.Date — no models/ struct",
-	"schedule.meal_participation_schedules.effective_from": "meal-participation Postgres adapter-local row uses timezone.Date — no models/ struct",
-	"schedule.meal_participation_overrides.date":           "meal-participation Postgres adapter-local row uses timezone.Date — no models/ struct",
-	"schedule.meal_sickness_status_history.date":           "meal-participation sickness history is queried through adapter-local timezone.Date rows — no models/ struct",
+	"schedule.meal_plan_entries.date":                      "meal-plan Postgres adapter-local row uses calendar.Date — no models/ struct",
+	"schedule.meal_participation_schedules.effective_from": "meal-participation Postgres adapter-local row uses calendar.Date — no models/ struct",
+	"schedule.meal_participation_overrides.date":           "meal-participation Postgres adapter-local row uses calendar.Date — no models/ struct",
+	"schedule.meal_sickness_status_history.date":           "meal-participation sickness history is queried through adapter-local calendar.Date rows — no models/ struct",
 	// Later-pickup tasks (#3261) are owned by the Timetable module. Its
 	// adapter-local rows use the module's distinct Date value, because the
-	// target architecture forbids a dependency on internal/timezone.
+	// target architecture forbids a dependency on the former date wrapper.
 	"schedule.pickup_extension_tasks.task_date":      "timetable adapter-local row uses the typed domain.Date — no models/ struct",
 	"schedule.pickup_extension_tasks.effective_from": "timetable adapter-local row uses the typed domain.Date — no models/ struct",
 	// The billing key-date counts (#2791) are owned by Organisation & Tenancy,
-	// which may not depend on internal/timezone or the shared calendar. Its
+	// which may not depend on the shared calendar. Its
 	// raw SQL binds the YYYY-MM-DD strings with an explicit ::date cast and
 	// reads them back as ::text, so no time.Time ever meets these columns.
 	"platform.billing_key_date_counts.period":   "organization-tenancy raw SQL binds and reads YYYY-MM-DD through ::date / ::text casts — no models/ struct",
@@ -100,6 +103,9 @@ var renamedDateColumns = map[string]string{
 	// the Contract (#2754) removed users.staff, and the Staff DTO no longer
 	// declares it as its table.
 	"users.staff.rotation_anchor_date": "users.staff_employment_profiles.rotation_anchor_date",
+	// 001015477_external_caregivers_table.go renames users.guests (ADR 0091).
+	"users.guests.start_date": "users.external_caregivers.start_date",
+	"users.guests.end_date":   "users.external_caregivers.end_date",
 	// 001015034_template_extensions.go renames enrollment_date to valid_from.
 	"activities.student_enrollments.enrollment_date": "activities.student_enrollments.valid_from",
 }
@@ -189,13 +195,13 @@ func TestDateColumnTypes(t *testing.T) {
 				if _, ok := unmappedDateColumns[col]; !ok {
 					violations = append(violations,
 						"  unclassified DATE column "+col+" ("+ref+"):\n"+
-							"    add a timezone.Date model field, or classify it in unmappedDateColumns/renamedDateColumns")
+							"    add a calendar.Date model field, or classify it in unmappedDateColumns/renamedDateColumns")
 				}
 				continue
 			}
 			for _, f := range fields {
 				switch f.goType {
-				case "timezone.Date", "*timezone.Date":
+				case "calendar.Date", "*calendar.Date":
 					// migrated — ok
 				case "calendarDate", "*calendarDate":
 					if !storageDateIsString(backendRoot, f.file) {
@@ -204,7 +210,7 @@ func TestDateColumnTypes(t *testing.T) {
 					}
 				case "enrollment.Date", "*enrollment.Date":
 					// Verify the owner type's representation instead of accepting
-					// a timestamp wrapper or importing legacy-shared/timezone.
+					// a timestamp wrapper or importing the former date wrapper.
 					if !strings.HasPrefix(f.file, "modules/enrollment/") || !enrollmentDateIsString(backendRoot) {
 						violations = append(violations, formatViolation(f.file, f.line,
 							col+" must use Enrollment's string-backed calendar date"))
@@ -214,36 +220,36 @@ func TestDateColumnTypes(t *testing.T) {
 					// not depend on the legacy shared/domain package.
 					if !strings.HasPrefix(f.file, "modules/appointments/") {
 						violations = append(violations, formatViolation(f.file, f.line,
-							col+" uses domain.Date outside modules/appointments — use timezone.Date"))
+							col+" uses domain.Date outside modules/appointments — use calendar.Date"))
 					}
 				case "Date", "*Date":
 					// Domain owners may keep the same ISO calendar-date value shape
-					// without importing the legacy shared timezone package.
+					// without importing sharedkernel/calendar.
 					if !strings.HasPrefix(f.file, "models/activities/") &&
-						!strings.HasPrefix(f.file, "models/audit/") &&
+						!strings.HasPrefix(f.file, "modules/auditlog/records/") &&
 						!strings.HasPrefix(f.file, "models/calendar/") &&
 						!strings.HasPrefix(f.file, "models/schedule/") {
 						violations = append(violations, formatViolation(f.file, f.line,
-							col+" uses Date outside an approved owner package — use timezone.Date"))
+							col+" uses Date outside an approved owner package — use calendar.Date"))
 					}
 				case "CalendarDate", "*CalendarDate":
-					// models/config is being detached from the legacy timezone
-					// package by #2646. CalendarDate is an ISO string value, so
+					// modules/settings/records (formerly models/config) keeps its own
+					// CalendarDate (#2646). It is an ISO string value, so
 					// BUN binds it without converting a time.Time instant to UTC.
-					if !strings.HasPrefix(f.file, "models/config/") {
+					if !strings.HasPrefix(f.file, "modules/settings/records/") {
 						violations = append(violations, formatViolation(f.file, f.line,
-							col+" uses CalendarDate outside models/config — use timezone.Date"))
+							col+" uses CalendarDate outside modules/settings/records — use calendar.Date"))
 					}
 				case "time.Time", "*time.Time":
 					if _, ok := legacyTimeTimeDateColumns[col]; !ok {
 						violations = append(violations, formatViolation(f.file, f.line,
 							col+" is a DATE column but "+f.structName+"."+f.fieldName+" is "+f.goType+
-								" — use timezone.Date (see .claude/rules/calendar-dates.md)"))
+								" — use calendar.Date (see .claude/rules/calendar-dates.md)"))
 					}
 				default:
 					if !isCanonicalDateAlias(backendRoot, f.file, f.goType) {
 						violations = append(violations, formatViolation(f.file, f.line,
-							col+" maps to unexpected Go type "+f.goType+" — use timezone.Date"))
+							col+" maps to unexpected Go type "+f.goType+" — use calendar.Date"))
 					}
 				}
 			}
@@ -251,7 +257,7 @@ func TestDateColumnTypes(t *testing.T) {
 		if len(violations) > 0 {
 			t.Errorf("Found %d DATE-column type violation(s):\n\n%s\n\n"+
 				"time.Time bound to a DATE column is converted to UTC by bun and lands one day\n"+
-				"behind between 00:00 and 02:00 Berlin time. Use timezone.Date.",
+				"behind between 00:00 and 02:00 Berlin time. Use calendar.Date.",
 				len(violations), strings.Join(violations, "\n"))
 		}
 	})
@@ -333,7 +339,7 @@ func TestDateColumnTypes(t *testing.T) {
 		}
 		if len(violations) > 0 {
 			t.Errorf("Found %d Truncate(24 * time.Hour) occurrence(s) — UTC-day math, not Berlin "+
-				"calendar days. Use timezone.Date / timezone.TodayDate():\n\n%s",
+				"calendar days. Use calendar.Date / calendar.TodayDate():\n\n%s",
 				len(violations), strings.Join(violations, "\n"))
 		}
 		if len(stale) > 0 {

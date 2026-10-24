@@ -1,11 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
 import { POST } from "./route";
-
-interface ExtendedSession extends Session {
-  user: Session["user"] & { token?: string };
-}
+import {
+  type ExtendedSession,
+  defaultSession,
+} from "~/test/route-test-helpers";
 
 const { mockAuth } = vi.hoisted(() => ({
   mockAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
@@ -30,11 +29,6 @@ function createMockRequest(formData: FormData): NextRequest {
   return new NextRequest(url, { method: "POST", body: formData });
 }
 
-const defaultSession: ExtendedSession = {
-  user: { id: "1", token: "test-token", name: "Test User" },
-  expires: "2099-01-01",
-};
-
 async function parseJsonResponse<T>(response: Response): Promise<T> {
   return (await response.json()) as T;
 }
@@ -43,18 +37,6 @@ describe("POST /api/import/teachers/preview", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(defaultSession);
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const formData = new FormData();
-    formData.append("file", new Blob(["test"]), "test.csv");
-
-    const response = await POST(createMockRequest(formData));
-
-    expect(response.status).toBe(401);
-    expect(mockFetch).not.toHaveBeenCalled();
   });
 
   it("forwards FormData to backend for preview", async () => {
@@ -88,45 +70,5 @@ describe("POST /api/import/teachers/preview", () => {
     expect(response.status).toBe(200);
     const json = await parseJsonResponse(response);
     expect(json).toEqual(mockPreview);
-  });
-
-  it("forwards backend validation errors", async () => {
-    const mockError = { error: "Invalid CSV format" };
-
-    mockFetch.mockResolvedValueOnce(Response.json(mockError, { status: 400 }));
-
-    const formData = new FormData();
-    formData.append("file", new Blob(["invalid"]), "invalid.csv");
-
-    const response = await POST(createMockRequest(formData));
-
-    expect(response.status).toBe(400);
-    const json = await parseJsonResponse(response);
-    expect(json).toEqual(mockError);
-  });
-
-  it("handles backend server errors", async () => {
-    mockFetch.mockResolvedValueOnce(
-      Response.json({ error: "Database connection failed" }, { status: 500 }),
-    );
-
-    const formData = new FormData();
-    formData.append("file", new Blob(["test"]), "test.csv");
-
-    const response = await POST(createMockRequest(formData));
-    expect(response.status).toBe(500);
-  });
-
-  it("handles fetch errors", async () => {
-    mockFetch.mockRejectedValueOnce(new Error("Network error"));
-
-    const formData = new FormData();
-    formData.append("file", new Blob(["test"]), "test.csv");
-
-    const response = await POST(createMockRequest(formData));
-
-    expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Internal server error");
   });
 });

@@ -10,11 +10,14 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	rootAPI "github.com/moto-nrw/project-phoenix/api"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	authAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
 )
@@ -28,7 +31,7 @@ type reasonPolicyResolveResp struct {
 func resolveReasonPolicy(t *testing.T, slug string, resource *authAPI.Resource) string {
 	t.Helper()
 	router := chi.NewRouter()
-	router.Mount("/auth", resource.Router())
+	router.Mount("/auth", resource.Router(rootAPI.TenantSessionChain))
 
 	req := httptest.NewRequest("GET", "/auth/tenant/resolve?slug="+slug, nil)
 	rr := httptest.NewRecorder()
@@ -46,7 +49,7 @@ func TestTenantResolveEmitsReasonPolicy(t *testing.T) {
 	db, authRoute, tenantSettings := setupAuthDependenciesRouteWithSettings(t)
 	scope, slug := newTenantResolveScope(t, db)
 
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, testutil.AccountRouteTenantRuntime())
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation, authRoute.SettingsService)
 	resource.SettingsService = authRoute.SettingsService
 
 	assert.Equal(t, settings.ReasonPolicyBoth, resolveReasonPolicy(t, slug, resource),
@@ -72,10 +75,10 @@ func TestTenantResolveReasonPolicyUnknownValueFallsBackToBoth(t *testing.T) {
 	// Stored straight through the repository: SetValue would reject a value
 	// outside the registry options, and what we need to pin is the read side
 	// meeting a row written by some future or older release.
-	testutil.StoreRawTenantSetting(t, db, scope.TenantID,
+	storeRawTenantSetting(t, db, scope.TenantID,
 		settings.KeyParentRequestReasonPolicy, json.RawMessage(`"irgendwas"`))
 
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, testutil.AccountRouteTenantRuntime())
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation, authRoute.SettingsService)
 	resource.SettingsService = authRoute.SettingsService
 
 	assert.Equal(t, settings.ReasonPolicyBoth, resolveReasonPolicy(t, slug, resource))

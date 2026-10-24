@@ -1,16 +1,32 @@
+import { useRef, type ComponentProps } from "react";
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
+import { useApiFormError } from "~/contexts/ToastContext";
 import { PasswordResetModal } from "./password-reset-modal";
 
-const meta: Meta<typeof PasswordResetModal> = {
+/** The modal on the shared error path, as every owner mounts it. */
+function PasswordResetModalOnErrorPath(
+  props: Omit<
+    ComponentProps<typeof PasswordResetModal>,
+    "errorPath" | "formRef"
+  >,
+) {
+  const formRef = useRef<HTMLFormElement>(null);
+  const errorPath = useApiFormError(formRef);
+  return (
+    <PasswordResetModal {...props} errorPath={errorPath} formRef={formRef} />
+  );
+}
+
+const meta: Meta<typeof PasswordResetModalOnErrorPath> = {
   title: "components/ui/PasswordResetModal",
-  component: PasswordResetModal,
+  component: PasswordResetModalOnErrorPath,
   parameters: {
     layout: "fullscreen",
   },
 };
 
 export default meta;
-type Story = StoryObj<typeof PasswordResetModal>;
+type Story = StoryObj<typeof PasswordResetModalOnErrorPath>;
 
 export const Default: Story = {
   args: {

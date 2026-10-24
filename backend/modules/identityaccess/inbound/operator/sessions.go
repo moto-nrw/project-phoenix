@@ -3,8 +3,7 @@ package operator
 import (
 	"net/http"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // Sessions are the operator session middleware chains the operator router
@@ -12,13 +11,13 @@ import (
 // chains; the token verifier, the authenticators and the operator gates are
 // Identity & Access's.
 type Sessions struct {
-	tokenAuth *jwt.TokenAuth
+	tokenAuth *sessiontoken.TokenAuth
 	operators OperatorLookup
 }
 
 // NewSessions binds the operator session chains to the session signer and
 // the operator lookup of the active-operator gate.
-func NewSessions(tokenAuth *jwt.TokenAuth, operators OperatorLookup) Sessions {
+func NewSessions(tokenAuth *sessiontoken.TokenAuth, operators OperatorLookup) Sessions {
 	return Sessions{tokenAuth: tokenAuth, operators: operators}
 }
 
@@ -30,7 +29,7 @@ func (s Sessions) Configured() bool {
 
 // TokenAuth is the session signer the operator MFA exchange mints tokens
 // with.
-func (s Sessions) TokenAuth() *jwt.TokenAuth {
+func (s Sessions) TokenAuth() *sessiontoken.TokenAuth {
 	return s.tokenAuth
 }
 
@@ -38,7 +37,7 @@ func (s Sessions) TokenAuth() *jwt.TokenAuth {
 func (s Sessions) Refresh() []func(http.Handler) http.Handler {
 	return []func(http.Handler) http.Handler{
 		s.tokenAuth.Verifier(),
-		jwt.AuthenticateRefreshJWT,
+		sessiontoken.AuthenticateRefreshJWT,
 	}
 }
 
@@ -48,20 +47,20 @@ func (s Sessions) Refresh() []func(http.Handler) http.Handler {
 func (s Sessions) MFAEnrollment() []func(http.Handler) http.Handler {
 	return []func(http.Handler) http.Handler{
 		s.tokenAuth.Verifier(),
-		jwt.MFAEnrollmentAuthenticator,
+		sessiontoken.MFAEnrollmentAuthenticator,
 	}
 }
 
 // Operator authenticates an operator access token: platform scope, the
 // read-only preview guard, the security principal and an operator that is
 // still active.
-func (s Sessions) Operator() []func(http.Handler) http.Handler {
+func (s Sessions) Operator(preview, principal func(http.Handler) http.Handler) []func(http.Handler) http.Handler {
 	return []func(http.Handler) http.Handler{
 		s.tokenAuth.Verifier(),
-		jwt.Authenticator,
-		common.ReadOnlyPreviewMiddleware,
+		sessiontoken.Authenticator,
+		preview,
 		RequiresOperatorScope,
-		common.SecurityPrincipalMiddleware,
+		principal,
 		RequiresActiveOperator(s.operators),
 	}
 }

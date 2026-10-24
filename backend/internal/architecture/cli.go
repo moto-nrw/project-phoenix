@@ -10,19 +10,42 @@ import (
 )
 
 type CLIDependencies struct {
-	IssueClient IssueClient
-	Getenv      func(string) string
-	ProjectRoot string
+	IssueClient  IssueClient
+	Getenv       func(string) string
+	ProjectRoot  string
+	CheckProject func(project, baseRef string) error
 }
 
 func RunCLI(args []string, dependencies CLIDependencies) error {
 	if len(args) == 0 {
-		return fmt.Errorf("command is required: check, explain, diagram, dependencies, cycles, audit-issues, or validate-ticket")
+		return fmt.Errorf("command is required: check, effects, passthrough-snapshot, explain, diagram, dependencies, cycles, audit-issues, or relocations")
 	}
 
 	switch args[0] {
 	case "check":
-		return runCheck(args[1:])
+		options, err := parseCheckOptions(args[1:])
+		if err != nil {
+			return err
+		}
+		if err := runCheck(options); err != nil {
+			return err
+		}
+		if dependencies.CheckProject != nil {
+			return dependencies.CheckProject(options.project, options.baseRef)
+		}
+		return nil
+	case "effects":
+		options, err := parseCheckOptions(args[1:])
+		if err != nil {
+			return err
+		}
+		policy, err := LoadPolicy(options.policy)
+		if err != nil {
+			return err
+		}
+		return GenerateCommandEffects(options.project, policy)
+	case "relocations":
+		return runRelocations(args[1:])
 	case "explain":
 		return runExplain(args[1:])
 	case "audit-issues":
@@ -33,10 +56,8 @@ func RunCLI(args []string, dependencies CLIDependencies) error {
 		return runDependencies(args[1:])
 	case "cycles":
 		return runCycles(args[1:])
-	case "validate-ticket":
-		return runValidateMigrationTicket(args[1:], dependencies)
 	default:
-		return fmt.Errorf("unknown command %q: expected check, explain, diagram, dependencies, cycles, audit-issues, or validate-ticket", args[0])
+		return fmt.Errorf("unknown command %q: expected check, effects, passthrough-snapshot, explain, diagram, dependencies, cycles, audit-issues, or relocations", args[0])
 	}
 }
 
@@ -64,11 +85,7 @@ func runExplain(args []string) error {
 	return nil
 }
 
-func runCheck(args []string) error {
-	options, err := parseCheckOptions(args)
-	if err != nil {
-		return err
-	}
+func runCheck(options checkOptions) error {
 	policy, err := LoadPolicy(options.policy)
 	if err != nil {
 		return err
@@ -81,7 +98,7 @@ func runCheck(args []string) error {
 	if options.baseline == "" {
 		return FormatViolations(violations)
 	}
-	return runRatchet(options, policy, violations)
+	return runRatchet(options, policy, violations, graph)
 }
 
 type checkOptions struct {
@@ -115,7 +132,7 @@ func parseCheckOptions(args []string) (checkOptions, error) {
 	}, nil
 }
 
-func runRatchet(options checkOptions, policy *Policy, violations []Violation) error {
+func runRatchet(options checkOptions, policy *Policy, violations []Violation, graph *Graph) error {
 	manifest, err := LoadLegacyManifest(options.baseline)
 	if err != nil {
 		return err
@@ -123,7 +140,7 @@ func runRatchet(options checkOptions, policy *Policy, violations []Violation) er
 	remaining, localErr := EnforceLegacyBaseline(violations, manifest)
 	var baseErr error
 	if options.baseRef != "" {
-		baseErr = compareWithBase(options, policy, manifest, violations)
+		baseErr = compareWithBase(options, policy, manifest, graph)
 	}
 	if err := errors.Join(localErr, baseErr); err != nil {
 		return fmt.Errorf("%w\nremaining legacy violations: %d", err, remaining)
@@ -132,15 +149,17 @@ func runRatchet(options checkOptions, policy *Policy, violations []Violation) er
 	return nil
 }
 
-func compareWithBase(options checkOptions, policy *Policy, manifest *LegacyManifest, violations []Violation) error {
+func compareWithBase(options checkOptions, policy *Policy, manifest *LegacyManifest, graph *Graph) error {
 	basePolicy, baseManifest, err := LoadBasePolicyAndManifest(options.project, options.policy, options.baseline, options.baseRef)
 	if err != nil {
 		return err
 	}
 	return errors.Join(
-		CompareCandidatePolicyStrictness(options.project, options.baseRef, basePolicy, policy, baseManifest, violations),
+		compareCandidatePolicyStrictness(options.project, options.baseRef, basePolicy, policy, graph),
 		CompareCandidateLegacyBaselines(options.project, options.baseRef, manifest, baseManifest, basePolicy, policy),
-		CompareCompositionSurface(options.project, options.baseRef),
+		CompareCompositionSurface(options.project, options.baseRef, basePolicy, policy),
+		CompareRatchetBudgets(options.project, options.baseRef),
+		compareCommandEffectsIfEnabled(options.project, options.baseRef, policy),
 	)
 }
 
@@ -159,8 +178,9 @@ func runAuditIssues(args []string, dependencies CLIDependencies) error {
 	if err != nil {
 		return err
 	}
-	policy, err := LoadPolicy(*policyPath)
-	if err != nil {
+	// The audit reads only baseline issues, but an invalid policy (for example
+	// a rule that still carries an issue, ADR 0057) fails it as well.
+	if _, err := LoadPolicy(*policyPath); err != nil {
 		return err
 	}
 	if dependencies.IssueClient == nil {
@@ -170,11 +190,11 @@ func runAuditIssues(args []string, dependencies CLIDependencies) error {
 	if getenv == nil {
 		getenv = os.Getenv
 	}
-	result, err := AuditLegacyIssues(context.Background(), dependencies.IssueClient, *apiURL, getenv("GITHUB_TOKEN"), manifest, policy)
+	result, err := AuditLegacyIssues(context.Background(), dependencies.IssueClient, *apiURL, getenv("GITHUB_TOKEN"), manifest)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("issue audit passed: %d open migration issue(s) cover %d legacy violation(s) and %d temporary rule(s)\n", result.Issues, result.Entries, result.Rules)
+	fmt.Printf("issue audit passed: %d open migration issue(s) cover %d legacy violation(s)\n", result.Issues, result.Entries)
 	return nil
 }
 

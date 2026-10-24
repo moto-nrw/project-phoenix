@@ -61,6 +61,8 @@ import {
   createStudentPickupException,
   createStudentPickupNote,
   deleteStudentPickupException,
+  deleteStudentDepartureException,
+  setStudentDepartureException,
   deleteStudentPickupNote,
   fetchStudentPickupData,
   applyStudentPickupAdjustment,
@@ -72,6 +74,10 @@ import {
   updateStudentPickupException,
   updateStudentPickupNote,
 } from "~/lib/pickup-schedule-api";
+import {
+  type AllowedDepartureModes,
+  DEPARTURE_MODE_LABELS,
+} from "~/lib/student-helpers";
 import {
   type DayData as PickupDayData,
   type PickupData,
@@ -165,6 +171,8 @@ interface CareScheduleManagerProps {
   readonly onDeleteStatusDay?: (statusDayId: string) => Promise<void>;
   readonly canDeleteStatusDay?: (day: StudentStatusDay) => boolean;
   readonly onVisibleDateRangeChange?: (from: string, to: string) => void;
+  /** Die Abholarten aus dem Wochenplan, für „Regulär“ im Tagesdialog (#3945). */
+  readonly weeklyDepartureModes?: AllowedDepartureModes;
 }
 
 interface CareDayData {
@@ -268,6 +276,7 @@ export function CareScheduleManager({
   onDeleteStatusDay,
   canDeleteStatusDay,
   onVisibleDateRangeChange,
+  weeklyDepartureModes,
 }: CareScheduleManagerProps) {
   const [arrivalData, setArrivalData] = useState<ArrivalData>({
     schedules: [],
@@ -373,6 +382,7 @@ export function CareScheduleManager({
           statusForDate,
           pickupData.effectiveSchedules,
           weekendFollowsFriday,
+          pickupData.departureExceptions,
         );
         return {
           date,
@@ -395,6 +405,7 @@ export function CareScheduleManager({
       pickupData.exceptions,
       pickupData.notes,
       pickupData.effectiveSchedules,
+      pickupData.departureExceptions,
       isSick,
       isExcused,
       weekendFollowsFriday,
@@ -707,6 +718,7 @@ export function CareScheduleManager({
       statusByDate.get(dateKey) ?? null,
       pickupData.effectiveSchedules,
       weekendFollowsFriday,
+      pickupData.departureExceptions,
     );
   }, [
     editingDayDate,
@@ -725,7 +737,7 @@ export function CareScheduleManager({
    */
   const handleSubmitException = useCallback(
     async (payload: CareExceptionSubmit) => {
-      const { date: dayISO, arrival, pickup } = payload;
+      const { date: dayISO, arrival, pickup, departure } = payload;
       let persistedChange = false;
 
       try {
@@ -786,6 +798,20 @@ export function CareScheduleManager({
             }
             persistedChange = true;
           }
+        }
+
+        // Die Abholart des Tages (#3945) ist ein eigener Eintrag neben der
+        // Abholzeit; „Wie im Wochenplan“ entfernt ihn.
+        if (departure) {
+          if (departure.kind === "regular") {
+            await deleteStudentDepartureException(studentId, dayISO);
+          } else {
+            await setStudentDepartureException(studentId, dayISO, {
+              departureMode: departure.mode,
+              reason: departure.reason ?? undefined,
+            });
+          }
+          persistedChange = true;
         }
       } catch (err) {
         // Arrival and pickup are separate endpoints, so a failed second request
@@ -1069,6 +1095,7 @@ export function CareScheduleManager({
         arrivalDay={currentEditingArrivalDay}
         pickupDay={currentEditingPickupDay}
         onSubmitException={handleSubmitException}
+        weeklyDepartureModes={weeklyDepartureModes}
         onCreateArrivalNote={handleCreateArrivalNote}
         onUpdateArrivalNote={handleUpdateArrivalNote}
         onDeleteArrivalNote={handleDeleteArrivalNote}
@@ -1292,7 +1319,10 @@ function CareDayCard({
   readonly isMobileDetail?: boolean;
 }) {
   const hasStatus = day.status !== null;
-  const hasException = day.arrival.isException || day.pickup.isException;
+  const hasException =
+    day.arrival.isException ||
+    day.pickup.isException ||
+    day.pickup.departureException !== undefined;
   // A guardian-sourced exception means a parent changed this day's pickup or
   // arrival time from the parents portal — flag it so staff don't mistake it
   // for their own edit at the door.
@@ -1703,6 +1733,26 @@ function getCareBoundaries(
       icon: <MotoConceptIcon concept="pickup" size={18} />,
       onEdit: actions.onEditPickup,
     },
+    // Die Abholart erscheint nur an einem Tag, an dem sie vom Wochenplan
+    // abweicht (#3945); sonst steht sie in den Stammdaten des Kindes.
+    ...(day.pickup.departureException
+      ? [
+          {
+            key: "departure",
+            label: "Abholart",
+            value:
+              DEPARTURE_MODE_LABELS[
+                day.pickup.departureException.departureMode
+              ],
+            description: day.pickup.departureException.reason
+              ? `Grund: ${day.pickup.departureException.reason}`
+              : "Nur an diesem Tag",
+            marker: "Ausnahme",
+            icon: <MotoConceptIcon concept="pickup" size={18} />,
+            onEdit: actions.onEditPickup,
+          },
+        ]
+      : []),
   ];
 }
 

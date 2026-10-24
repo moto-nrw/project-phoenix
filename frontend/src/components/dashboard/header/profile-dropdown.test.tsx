@@ -271,6 +271,10 @@ describe("ProfileDropdownMenu", () => {
       />,
     );
 
+    // Anker: das offene Menü zeigt den Abmelden-Knopf.
+    expect(
+      screen.getByRole("button", { name: /abmelden/i }),
+    ).toBeInTheDocument();
     expect(
       screen.queryByRole("link", { name: /profil/i }),
     ).not.toBeInTheDocument();
@@ -343,6 +347,10 @@ describe("ProfileDropdownMenu", () => {
       />,
     );
 
+    // Anker: das offene Menü zeigt den Abmelden-Knopf.
+    expect(
+      screen.getByRole("button", { name: /abmelden/i }),
+    ).toBeInTheDocument();
     expect(screen.queryByLabelText("Menü schließen")).not.toBeInTheDocument();
   });
 });

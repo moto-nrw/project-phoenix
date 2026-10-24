@@ -35,25 +35,38 @@ var (
 	ErrPasswordMismatch = errors.New("passwords don't match")
 )
 
+// EmploymentAction is the school's choice for a returning member (ADR 0021).
+// An omitted choice continues the former employment, including existing links.
+type EmploymentAction string
+
+const (
+	EmploymentActionResume EmploymentAction = "resume"
+	EmploymentActionNew    EmploymentAction = "new"
+)
+
 // SchoolInvitation is one auth.invitation_tokens row.
 type SchoolInvitation struct {
-	ID               int64
-	TenantID         int64
-	Email            string
-	Token            string
-	RoleID           int64
-	RoleName         string
-	ExpiresAt        time.Time
-	UsedAt           *time.Time
-	CreatedBy        *int64
-	CreatorEmail     string
-	FirstName        *string
-	LastName         *string
-	Position         *string
-	CaregiverEnabled bool
-	PersonID         *int64
-	Delivery         TokenDelivery
-	CreatedAt        time.Time
+	ID                  int64
+	TenantID            int64
+	Email               string
+	Token               string
+	RoleID              int64
+	RoleName            string
+	ExpiresAt           time.Time
+	UsedAt              *time.Time
+	CreatedBy           *int64
+	CreatorEmail        string
+	FirstName           *string
+	LastName            *string
+	Position            *string
+	CaregiverEnabled    bool
+	EmploymentAction    EmploymentAction
+	ResetMasterData     bool
+	ResetQualifications bool
+	ResetWorkTime       bool
+	PersonID            *int64
+	Delivery            TokenDelivery
+	CreatedAt           time.Time
 }
 
 // Redeemable reports whether the invitation can still be accepted at now.
@@ -65,6 +78,10 @@ func (i SchoolInvitation) Redeemable(now time.Time) bool {
 // stored already expired or used, so no delivery carries a dead link.
 func (i *SchoolInvitation) Validate(now time.Time) error {
 	switch {
+	case i.EmploymentAction != EmploymentActionResume && (i.ResetMasterData || i.ResetQualifications || i.ResetWorkTime):
+		return errors.New("employment resets require resumption")
+	case i.EmploymentAction != EmploymentActionResume && i.EmploymentAction != EmploymentActionNew:
+		return errors.New("invalid employment action")
 	case i.Email == "":
 		return errors.New("email is required")
 	case i.Token == "":
@@ -81,13 +98,17 @@ func (i *SchoolInvitation) Validate(now time.Time) error {
 
 // SchoolInvitationRequest describes the invitation to create.
 type SchoolInvitationRequest struct {
-	Email            string
-	RoleID           int64
-	TenantID         int64
-	FirstName        *string
-	LastName         *string
-	Position         *string
-	CaregiverEnabled bool
+	EmploymentAction    EmploymentAction
+	ResetMasterData     bool
+	ResetQualifications bool
+	ResetWorkTime       bool
+	Email               string
+	RoleID              int64
+	TenantID            int64
+	FirstName           *string
+	LastName            *string
+	Position            *string
+	CaregiverEnabled    bool
 	// PersonID is the existing, account-less person the invitee becomes on
 	// acceptance; the staff import sets it (#2600).
 	PersonID   *int64

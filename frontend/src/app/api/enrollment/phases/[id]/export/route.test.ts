@@ -1,10 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
-
-interface ExtendedSession extends Session {
-  user: Session["user"] & { token?: string };
-}
+import type { ExtendedSession } from "~/test/route-test-helpers";
 
 const { mockAuth, mockUncachedAuth } = vi.hoisted(() => ({
   mockAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
@@ -121,7 +117,13 @@ describe("POST /api/enrollment/phases/[id]/export", () => {
     mockAuth.mockRejectedValue(new Error("auth exploded"));
     const res = await POST(req(), ctx);
     expect(res.status).toBe(500);
-    expect(await res.json()).toEqual({ error: "auth exploded" });
+    const body = await res.text();
+    expect(JSON.parse(body)).toMatchObject({
+      status: 500,
+      detail: "Internal Server Error",
+      code: "general.server",
+    });
+    expect(body).not.toContain("auth exploded");
   });
 
   it("gives up when the refreshed token is unchanged", async () => {

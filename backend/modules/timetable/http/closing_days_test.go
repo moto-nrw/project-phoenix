@@ -32,7 +32,7 @@ func TestListClosingDays(t *testing.T) {
 				return []schoolcalendar.ClosingDay{newTestClosingDay()}, nil
 			},
 		}
-		res := NewResource(Dependencies{ClosingDays: mock})
+		res := newResourceForTest(Dependencies{ClosingDays: mock})
 		router := setupTestRouter(res.listClosingDays, http.MethodGet, false)
 
 		w := executeRequest(router, http.MethodGet, "/", nil)
@@ -48,7 +48,7 @@ func TestListClosingDays(t *testing.T) {
 				return nil, errors.New("db error: password=secret")
 			},
 		}
-		res := NewResource(Dependencies{ClosingDays: mock})
+		res := newResourceForTest(Dependencies{ClosingDays: mock})
 		router := setupTestRouter(res.listClosingDays, http.MethodGet, false)
 
 		w := executeRequest(router, http.MethodGet, "/", nil)
@@ -69,7 +69,7 @@ func TestCreateClosingDay(t *testing.T) {
 				return schoolcalendar.ClosingDay{ID: 1, StartDate: input.StartDate, EndDate: input.EndDate, Reason: input.Reason}, nil
 			},
 		}
-		res := NewResource(Dependencies{ClosingDays: mock})
+		res := newResourceForTest(Dependencies{ClosingDays: mock})
 		router := setupTestRouter(res.createClosingDay, http.MethodPost, false)
 
 		w := executeRequest(router, http.MethodPost, "/", ClosingDayRequest{
@@ -86,7 +86,7 @@ func TestCreateClosingDay(t *testing.T) {
 
 	t.Run("accepts single-day range (start = end)", func(t *testing.T) {
 		mock := &ClosingDaysMock{}
-		res := NewResource(Dependencies{ClosingDays: mock})
+		res := newResourceForTest(Dependencies{ClosingDays: mock})
 		router := setupTestRouter(res.createClosingDay, http.MethodPost, false)
 
 		w := executeRequest(router, http.MethodPost, "/", ClosingDayRequest{
@@ -99,7 +99,7 @@ func TestCreateClosingDay(t *testing.T) {
 	})
 
 	t.Run("rejects missing reason", func(t *testing.T) {
-		res := NewResource(Dependencies{ClosingDays: &ClosingDaysMock{}})
+		res := newResourceForTest(Dependencies{ClosingDays: &ClosingDaysMock{}})
 		router := setupTestRouter(res.createClosingDay, http.MethodPost, false)
 
 		w := executeRequest(router, http.MethodPost, "/", ClosingDayRequest{
@@ -111,7 +111,7 @@ func TestCreateClosingDay(t *testing.T) {
 	})
 
 	t.Run("rejects whitespace-only reason", func(t *testing.T) {
-		res := NewResource(Dependencies{ClosingDays: &ClosingDaysMock{}})
+		res := newResourceForTest(Dependencies{ClosingDays: &ClosingDaysMock{}})
 		router := setupTestRouter(res.createClosingDay, http.MethodPost, false)
 
 		w := executeRequest(router, http.MethodPost, "/", ClosingDayRequest{
@@ -131,7 +131,7 @@ func TestCreateClosingDay(t *testing.T) {
 				return schoolcalendar.ClosingDay{ID: 1, StartDate: input.StartDate, EndDate: input.EndDate, Reason: input.Reason}, nil
 			},
 		}
-		res := NewResource(Dependencies{ClosingDays: mock})
+		res := newResourceForTest(Dependencies{ClosingDays: mock})
 		router := setupTestRouter(res.createClosingDay, http.MethodPost, false)
 
 		w := executeRequest(router, http.MethodPost, "/", ClosingDayRequest{
@@ -153,7 +153,7 @@ func TestCreateClosingDay(t *testing.T) {
 	})
 
 	t.Run("rejects end before start", func(t *testing.T) {
-		res := NewResource(Dependencies{ClosingDays: &ClosingDaysMock{}})
+		res := newResourceForTest(Dependencies{ClosingDays: &ClosingDaysMock{}})
 		router := setupTestRouter(res.createClosingDay, http.MethodPost, false)
 
 		w := executeRequest(router, http.MethodPost, "/", ClosingDayRequest{
@@ -166,7 +166,7 @@ func TestCreateClosingDay(t *testing.T) {
 	})
 
 	t.Run("rejects invalid date format", func(t *testing.T) {
-		res := NewResource(Dependencies{ClosingDays: &ClosingDaysMock{}})
+		res := newResourceForTest(Dependencies{ClosingDays: &ClosingDaysMock{}})
 		router := setupTestRouter(res.createClosingDay, http.MethodPost, false)
 
 		w := executeRequest(router, http.MethodPost, "/", ClosingDayRequest{
@@ -193,7 +193,7 @@ func TestUpdateClosingDay(t *testing.T) {
 				return schoolcalendar.ClosingDay{ID: input.ID, StartDate: input.StartDate, EndDate: input.EndDate, Reason: input.Reason}, nil
 			},
 		}
-		res := NewResource(Dependencies{ClosingDays: mock})
+		res := newResourceForTest(Dependencies{ClosingDays: mock})
 		router := setupTestRouter(res.updateClosingDay, http.MethodPut, true)
 
 		w := executeRequest(router, http.MethodPut, "/7", ClosingDayRequest{
@@ -210,7 +210,7 @@ func TestUpdateClosingDay(t *testing.T) {
 	})
 
 	t.Run("returns 400 for invalid ID", func(t *testing.T) {
-		res := NewResource(Dependencies{ClosingDays: &ClosingDaysMock{}})
+		res := newResourceForTest(Dependencies{ClosingDays: &ClosingDaysMock{}})
 		router := setupTestRouter(res.updateClosingDay, http.MethodPut, true)
 
 		w := executeRequest(router, http.MethodPut, "/abc", ClosingDayRequest{
@@ -228,7 +228,7 @@ func TestUpdateClosingDay(t *testing.T) {
 				return schoolcalendar.ClosingDay{}, schoolcalendar.ErrClosingDayNotFound
 			},
 		}
-		res := NewResource(Dependencies{ClosingDays: mock})
+		res := newResourceForTest(Dependencies{ClosingDays: mock})
 		router := setupTestRouter(res.updateClosingDay, http.MethodPut, true)
 
 		w := executeRequest(router, http.MethodPut, "/999", ClosingDayRequest{
@@ -255,7 +255,7 @@ func TestDeleteClosingDay(t *testing.T) {
 				return nil
 			},
 		}
-		res := NewResource(Dependencies{ClosingDays: mock})
+		res := newResourceForTest(Dependencies{ClosingDays: mock})
 		router := setupTestRouter(res.deleteClosingDay, http.MethodDelete, true)
 
 		w := executeRequest(router, http.MethodDelete, "/7", nil)
@@ -270,7 +270,7 @@ func TestDeleteClosingDay(t *testing.T) {
 				return schoolcalendar.ClosingDay{}, schoolcalendar.ErrClosingDayNotFound
 			},
 		}
-		res := NewResource(Dependencies{ClosingDays: mock})
+		res := newResourceForTest(Dependencies{ClosingDays: mock})
 		router := setupTestRouter(res.deleteClosingDay, http.MethodDelete, true)
 
 		w := executeRequest(router, http.MethodDelete, "/999", nil)
@@ -279,7 +279,7 @@ func TestDeleteClosingDay(t *testing.T) {
 	})
 
 	t.Run("returns 400 for invalid ID", func(t *testing.T) {
-		res := NewResource(Dependencies{ClosingDays: &ClosingDaysMock{}})
+		res := newResourceForTest(Dependencies{ClosingDays: &ClosingDaysMock{}})
 		router := setupTestRouter(res.deleteClosingDay, http.MethodDelete, true)
 
 		w := executeRequest(router, http.MethodDelete, "/abc", nil)

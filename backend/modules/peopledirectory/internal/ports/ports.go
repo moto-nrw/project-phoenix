@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
 )
 
@@ -11,34 +12,45 @@ import (
 // in context when one is present; the platform-wide CountByTenant is the
 // only deliberate exception and requires an admin transaction.
 type Store interface {
-	Create(context.Context, domain.CreatePerson) (domain.Person, domain.OperationStats, error)
-	Update(context.Context, domain.UpdatePerson) (domain.Person, domain.OperationStats, error)
-	FindByID(ctx context.Context, id int64, lock string) (domain.Person, bool, domain.OperationStats, error)
-	FindByAccount(context.Context, int64) (domain.Person, bool, domain.OperationStats, error)
-	FindByTag(context.Context, string) (domain.Person, bool, domain.OperationStats, error)
-	ListByIDs(context.Context, []int64) ([]domain.Person, domain.OperationStats, error)
-	ListByTenantIDs(context.Context, []int64) ([]domain.Person, domain.OperationStats, error)
-	ListByAccounts(context.Context, []int64) ([]domain.Person, domain.OperationStats, error)
-	Search(context.Context, domain.Filter) ([]domain.Person, domain.OperationStats, error)
+	Create(context.Context, peopledirectory.CreatePerson) (peopledirectory.Person, domain.OperationStats, error)
+	Update(context.Context, peopledirectory.UpdatePerson) (peopledirectory.Person, domain.OperationStats, error)
+	FindByID(ctx context.Context, id int64, lock string) (peopledirectory.Person, bool, domain.OperationStats, error)
+	FindByAccount(context.Context, int64) (peopledirectory.Person, bool, domain.OperationStats, error)
+	FindByTag(context.Context, string) (peopledirectory.Person, bool, domain.OperationStats, error)
+	ListByIDs(context.Context, []int64) ([]peopledirectory.Person, domain.OperationStats, error)
+	ListByTenantIDs(context.Context, []int64) ([]peopledirectory.Person, domain.OperationStats, error)
+	ListByAccounts(context.Context, []int64) ([]peopledirectory.Person, domain.OperationStats, error)
+	Search(context.Context, peopledirectory.PersonFilter) ([]peopledirectory.Person, domain.OperationStats, error)
 	CountByTenant(context.Context) (map[int64]int, domain.OperationStats, error)
 	SoftDelete(context.Context, int64) (domain.OperationStats, error)
+	// AnonymizeAndSoftDelete puts the deletion placeholders in place of the
+	// names, clears the birthday and marks the row deleted; a missing row is
+	// no error.
+	AnonymizeAndSoftDelete(context.Context, int64) (domain.OperationStats, error)
 	// AnonymizeIfUnchanged replaces the direct identifiers of a deleted
 	// child's person with placeholders and tombstones the row, only while its
 	// updated_at still equals the previewed value. False means the row moved.
 	AnonymizeIfUnchanged(ctx context.Context, personID int64, updatedAt time.Time) (bool, domain.OperationStats, error)
 	SetAccount(ctx context.Context, personID int64, accountID *int64) (domain.OperationStats, error)
+	// SetNames writes the names of the person, deleted or not, as given.
+	SetNames(ctx context.Context, personID int64, firstName, lastName string) (domain.OperationStats, error)
+	// SetDetails writes the names and the birthday (YYYY-MM-DD, empty for
+	// none) of the person, deleted or not, as given.
+	SetDetails(ctx context.Context, personID int64, firstName, lastName, birthday string) (domain.OperationStats, error)
 	SetTag(ctx context.Context, personID int64, tagID *string) (domain.OperationStats, error)
-	LockHeldTags(context.Context, []int64) ([]domain.ReleasedTag, domain.OperationStats, error)
+	LockHeldTags(context.Context, []int64) ([]peopledirectory.ReleasedTag, domain.OperationStats, error)
 	ClearTags(context.Context, []int64) (domain.OperationStats, error)
 	RestoreTag(ctx context.Context, personID int64, tagID string) (bool, domain.OperationStats, error)
 }
 
 type Transaction interface {
+	// RequireTransaction rejects lock operations without their caller's school unit.
+	RequireTransaction(context.Context) error
 	// RunWrite joins the caller's transaction or opens one for the tenant
 	// in context.
 	RunWrite(context.Context, func(context.Context) error) error
 	// RunRead joins the caller's transaction, else opens a tenant
-	// transaction, else an admin transaction for cross-tenant readers.
+	// transaction. A missing tenant fails; cross-school reads name RunAdminRead.
 	RunRead(context.Context, func(context.Context) error) error
 	// RunSavepoint runs fn inside a savepoint of the current transaction so
 	// a rejected statement leaves the outer transaction usable.

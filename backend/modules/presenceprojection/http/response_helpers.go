@@ -1,0 +1,696 @@
+package presenceprojectionhttp
+
+import (
+	context "context"
+	errors "errors"
+	fmt "fmt"
+	slog "log/slog"
+	http "net/http"
+	strings "strings"
+	time "time"
+
+	common "github.com/moto-nrw/project-phoenix/api/common"
+	careplan "github.com/moto-nrw/project-phoenix/modules/careplan"
+	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	departure "github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
+	studentpresence "github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+)
+
+// StudentResponseOpts groups parameters for creating a student response to reduce function parameter count
+type StudentResponseOpts struct {
+	Student          *peopleModule.StudentState
+	Person           *peopleModule.Person
+	Group            *SchoolGroup
+	HasFullAccess    bool
+	HasPhotoAccess   bool
+	LocationOverride *string
+	// Resolve once per request and thread through — populatePhotoFields
+	// runs per-student in list paths.
+	PhotosEnabled bool
+}
+
+// StudentResponseServices groups service dependencies for student response creation
+type StudentResponseServices struct {
+	ActiveService StudentPresence
+}
+
+// populatePersonAndGroupData fills the response with person and group information
+// based on access level permissions
+func populatePersonAndGroupData(response *StudentResponse, person *peopleModule.Person, student *peopleModule.StudentState, group *SchoolGroup, hasFullAccess bool) {
+	if person != nil {
+		response.FirstName = person.FirstName
+		response.LastName = person.LastName
+		// Format birthday as YYYY-MM-DD string if available
+		response.Birthday = person.Birthday
+		// Only include RFID tag for users with full access
+		if hasFullAccess && person.TagID != nil {
+			response.TagID = *person.TagID
+		}
+	}
+
+	if student.GroupID != nil {
+		response.GroupID = *student.GroupID
+	}
+
+	if group != nil {
+		response.GroupName = group.Name
+	}
+}
+
+// populateCareEndFields carries the child's last care day onto every student
+// payload (#2487). Both list projections need it: a planned exit stays in the
+// list and is labelled "Betreuung endet am …", an effective one is only shown
+// in the archive view. The exit REASON never travels here — it is read behind
+// users:delete.
+func populateCareEndFields(response *StudentResponse, student *peopleModule.StudentState) {
+	if student.EnrolledUntil == nil {
+		return
+	}
+	response.CareEndsOn = student.EnrolledUntil.String()
+	response.CareEnded = student.CareEndedOn(calendar.TodayDate())
+}
+
+// populatePublicStudentFields sets fields visible to all authenticated staff
+func populatePublicStudentFields(response *StudentResponse, student *peopleModule.StudentState) {
+	populateCareEndFields(response, student)
+	allowed := student.AllowedDepartureModes.Normalize()
+	response.DepartureRuleConfigured = departureRuleConfigured(student, allowed)
+	if !allowed.HasAny() {
+		allowed = departure.AllowedDepartureModesFromDeparture(student.DepartureDays)
+	}
+	departure := allowed.DepartureDays()
+	response.AllowedDepartureModes = allowed
+	response.DepartureDays = departure
+	response.BusDays = allowed.BusDays()
+	response.Bus = response.BusDays.HasAny()
+	response.PickupDays = allowed.PickupDays()
+	// Derive pickup_status from the FULL non-exclusive set, not the exclusive
+	// `departure` projection: the projection ranks bus over accompanied, so a day
+	// allowing both would drop the accompanied signal and return this child to
+	// legacy list/search/admin consumers as a self-goer (#1694).
+	response.PickupStatus = responsePickupStatus(student, allowed.LegacyPickupStatus())
+}
+
+func departureRuleConfigured(student *peopleModule.StudentState, allowed departure.AllowedDepartureModes) bool {
+	if allowed.HasAny() || student.DepartureDays.HasAny() {
+		return true
+	}
+	return student.PickupStatus != nil && strings.TrimSpace(*student.PickupStatus) != ""
+}
+
+func responsePickupStatus(student *peopleModule.StudentState, derived string) string {
+	if student.PickupStatus == nil {
+		return derived
+	}
+	stored := strings.TrimSpace(*student.PickupStatus)
+	if stored == "" ||
+		stored == departure.PickupStatusPickedUp ||
+		stored == departure.PickupStatusGoesAlone ||
+		stored == departure.PickupStatusAccompanied {
+		return derived
+	}
+	return *student.PickupStatus
+}
+
+// populateSensitiveStudentFields sets fields visible only with users:read.
+func populateSensitiveStudentFields(response *StudentResponse, student *peopleModule.StudentState) {
+	if student.HealthInfo != nil {
+		response.HealthInfo = *student.HealthInfo
+	}
+	if student.ExtraInfo != nil && *student.ExtraInfo != "" {
+		response.ExtraInfo = *student.ExtraInfo
+	}
+	if student.DepartureCompanionNote != nil && *student.DepartureCompanionNote != "" {
+		response.DepartureCompanionNote = *student.DepartureCompanionNote
+	}
+	if student.Sick != nil {
+		response.Sick = *student.Sick
+	}
+	if student.SickSince != nil {
+		response.SickSince = student.SickSince
+	}
+	if student.Excused != nil {
+		response.Excused = *student.Excused
+	}
+	if student.ExcusedSince != nil {
+		response.ExcusedSince = student.ExcusedSince
+	}
+}
+
+func populateStudentAddressFields(response *StudentResponse, student *peopleModule.StudentState) {
+	if student.AddressStreet != nil {
+		response.AddressStreet = *student.AddressStreet
+	}
+	if student.AddressCity != nil {
+		response.AddressCity = *student.AddressCity
+	}
+	if student.AddressPostalCode != nil {
+		response.AddressPostalCode = *student.AddressPostalCode
+	}
+}
+
+// populatePhotoFields fills the response with photo URL + consent metadata.
+// Visible to all authenticated staff so any list view can render the avatar.
+//
+// When photosEnabled is false (operations.student_photos_enabled off for
+// the tenant) we skip every photo-related field. Otherwise an admin who
+// turns the feature off would still see photo_url + consent metadata in
+// API responses for rows that already had a photo uploaded — the
+// frontend would hide the avatar, but the bytes would still be reachable
+// through the JSON URL. Caller resolves the flag once per request.
+//
+// The DB stores the raw `/uploads/student-photos/{filename}` path (the
+// serve route keys cleanup off this prefix); the frontend can't fetch
+// `/uploads/...` directly because Next.js doesn't serve that path. The
+// JSON-facing URL is rewritten to the authenticated proxy URL by
+// `common.BuildStudentPhotoServeURL` — same helper the active-group visit
+// response uses, so the two endpoints can never drift.
+// populatePhotoFields fills the response with photo URL + consent metadata.
+//
+// hasPhotoAccess MUST mirror the predicate serveStudentPhoto uses internally
+// (authorize.CanReadStudent — i.e. admin or verified staff, #2329): the
+// byte-serving route 403s callers that
+// fail it, so emitting photo_url for rows the same session is forbidden to
+// fetch would let list/search responses hand out URLs that immediately bounce
+// to a broken-image fetch. The boolean PhotoConsentGiven flag is fine to
+// surface tenant-wide — it's not GDPR-sensitive on its own — only the URL
+// itself is gated.
+//
+// When photosEnabled is false we still skip every photo field so an admin
+// who turns the feature off mid-session no longer sees photo_url + consent
+// metadata in API responses for rows that already had a photo uploaded.
+func populatePhotoFields(response *StudentResponse, student *peopleModule.StudentState, photosEnabled, hasPhotoAccess bool) {
+	if !photosEnabled {
+		// All photo fields stay at their zero values. With
+		// PhotoConsentGiven typed as *bool + omitempty, leaving it nil
+		// suppresses it from the JSON entirely — the frontend cannot
+		// confuse "feature off" with "consent withdrawn". Same goes for
+		// PhotoURL (string + omitempty drops the empty string).
+		return
+	}
+	// PhotoURL is only emitted when the caller can actually fetch it.
+	// hasPhotoAccess matches the access gate inside serveStudentPhoto so
+	// the URL we hand out is one the same session is allowed to render.
+	if hasPhotoAccess && student.PhotoPath != nil {
+		response.PhotoURL = common.BuildStudentPhotoServeURL(student.ID, *student.PhotoPath)
+	}
+	// Surface the explicit boolean state to the frontend so the consent
+	// checkbox can render correctly: true when consent has been recorded,
+	// false when photos are enabled but consent is not given (or was
+	// withdrawn). Nil is reserved for the feature-off branch above.
+	consentGiven := student.PhotoConsentGivenAt != nil
+	response.PhotoConsentGiven = &consentGiven
+	if student.PhotoConsentGivenAt != nil {
+		response.PhotoConsentGivenAt = student.PhotoConsentGivenAt
+	}
+	if student.PhotoConsentGivenBy != nil {
+		response.PhotoConsentGivenBy = student.PhotoConsentGivenBy
+	}
+}
+
+// populateEnrollmentConsents emits the AGB / Datenschutz / E-Mail
+// consent stamps regardless of the photo feature flag — these are
+// operational records (DSGVO is the data-processing baseline, not a
+// photo gate). Photo consent stays under populatePhotoFields so its
+// visibility tracks the photos feature flag.
+func populateEnrollmentConsents(response *StudentResponse, student *peopleModule.StudentState) {
+	if student.AGBAcceptedAt != nil {
+		response.AGBAcceptedAt = student.AGBAcceptedAt
+	}
+	if student.DataProcessingAcceptedAt != nil {
+		response.DataProcessingAcceptedAt = student.DataProcessingAcceptedAt
+	}
+	if student.EmailContactAcceptedAt != nil {
+		response.EmailContactAcceptedAt = student.EmailContactAcceptedAt
+	}
+}
+
+// populateSnapshotPublicFields sets fields visible to all staff in snapshot version
+func populateSnapshotPublicFields(response *StudentResponse, student *peopleModule.StudentState) {
+	populateCareEndFields(response, student)
+	allowed := student.AllowedDepartureModes.Normalize()
+	response.DepartureRuleConfigured = departureRuleConfigured(student, allowed)
+	if !allowed.HasAny() {
+		allowed = departure.AllowedDepartureModesFromDeparture(student.DepartureDays)
+	}
+	departure := allowed.DepartureDays()
+	response.AllowedDepartureModes = allowed
+	response.DepartureDays = departure
+	response.BusDays = allowed.BusDays()
+	response.Bus = response.BusDays.HasAny()
+	response.PickupDays = allowed.PickupDays()
+	// Full set, not the exclusive projection: see populatePublicStudentFields (#1694).
+	response.PickupStatus = responsePickupStatus(student, allowed.LegacyPickupStatus())
+}
+
+// presentOrTransit returns the appropriate location for a checked-in student
+// without a specific room assignment, based on access level.
+func presentOrTransit(hasFullAccess bool) studentpresence.StudentLocationInfo {
+	if hasFullAccess {
+		return studentpresence.StudentLocationInfo{Location: "Unterwegs"}
+	}
+	return studentpresence.StudentLocationInfo{Location: "Anwesend"}
+}
+
+// absentInfo returns the "Abwesend" location, optionally with checkout time for full access users.
+func absentInfo(hasFullAccess bool, checkOutTime *time.Time) studentpresence.StudentLocationInfo {
+	if hasFullAccess && checkOutTime != nil {
+		return studentpresence.StudentLocationInfo{Location: "Abwesend", Since: checkOutTime}
+	}
+	return studentpresence.StudentLocationInfo{Location: "Abwesend"}
+}
+
+// resolveStudentLocationWithTime determines a student's current location with timestamp.
+//
+// Binary-mode tenants short-circuit to ResolveBinaryLocation — web check-ins
+// write only attendance (no room visit), so falling through to
+// presentOrTransit() would always yield "Unterwegs", contradicting the
+// simplified Anwesend/Schulhof/Abwesend UX binary mode promises.
+func resolveStudentLocationWithTime(ctx context.Context, studentID int64, hasFullAccess bool, svc StudentPresence) (studentpresence.StudentLocationInfo, error) {
+	mode, err := svc.GetPresenceMode(ctx)
+	if err != nil {
+		return studentpresence.StudentLocationInfo{}, err
+	}
+	attendanceStatus, err := svc.GetStudentAttendanceStatus(ctx, studentID)
+	if err != nil {
+		return studentpresence.StudentLocationInfo{}, err
+	}
+	if attendanceStatus == nil {
+		return studentpresence.StudentLocationInfo{Location: "Abwesend"}, nil
+	}
+
+	if mode == studentpresence.PresenceModeBinary {
+		info := studentpresence.ResolveBinaryLocation(attendanceStatus, hasFullAccess)
+		if info.Location == studentpresence.YardLocationLabel {
+			info.RoomColor = studentpresence.ResolveYardRoomColor(ctx, svc)
+		}
+		return info, nil
+	}
+
+	// Handle non-checked-in states (checked_out or other)
+	if attendanceStatus.Status != "checked_in" {
+		return absentInfo(hasFullAccess, attendanceStatus.CheckOutTime), nil
+	}
+
+	// Student is checked in - get current visit to check room assignment
+	currentVisit, err := svc.GetStudentCurrentVisit(ctx, studentID)
+	if err != nil && !errors.Is(err, studentpresence.ErrVisitNotFound) {
+		return studentpresence.StudentLocationInfo{}, err
+	}
+	if currentVisit == nil || currentVisit.ActiveGroupID <= 0 {
+		return presentOrTransit(hasFullAccess), nil
+	}
+
+	activeGroup, err := svc.GetActiveGroup(ctx, currentVisit.ActiveGroupID)
+	if err != nil {
+		return studentpresence.StudentLocationInfo{}, err
+	}
+	if activeGroup == nil {
+		return presentOrTransit(hasFullAccess), nil
+	}
+
+	// Include room name for all authenticated staff (needed for supervised room checkout)
+	if activeGroup.Room != nil && activeGroup.Room.Name != "" {
+		return studentpresence.StudentLocationInfo{
+			Location:  fmt.Sprintf("Anwesend - %s", activeGroup.Room.Name),
+			Since:     &currentVisit.EntryTime,
+			RoomColor: activeGroup.Room.Color,
+		}, nil
+	}
+
+	return presentOrTransit(hasFullAccess), nil
+}
+
+// newStudentResponseWithOpts creates a student response using options structs
+func newStudentResponseWithOpts(ctx context.Context, opts StudentResponseOpts, services StudentResponseServices) (StudentResponse, error) {
+	student := opts.Student
+	person := opts.Person
+	group := opts.Group
+	hasFullAccess := opts.HasFullAccess && canReadSensitiveStudentData(ctx)
+	locationOverride := opts.LocationOverride
+	response := StudentResponse{
+		ID:          student.ID,
+		PersonID:    student.PersonID,
+		SchoolClass: student.SchoolClass,
+		CreatedAt:   student.CreatedAt,
+		UpdatedAt:   student.UpdatedAt,
+	}
+
+	// The response carries no guardian data: guardian contacts are served by
+	// the guardian routes behind users:read.
+
+	response.HasFullAccess = hasFullAccess
+
+	// Resolve location
+	if locationOverride != nil {
+		response.Location = *locationOverride
+	} else {
+		locationInfo, err := resolveStudentLocationWithTime(ctx, student.ID, hasFullAccess, services.ActiveService)
+		if err != nil {
+			return StudentResponse{}, err
+		}
+		response.Location = locationInfo.Location
+		response.LocationSince = locationInfo.Since
+		response.RoomColor = locationInfo.RoomColor
+	}
+
+	populatePersonAndGroupData(&response, person, student, group, hasFullAccess)
+	populatePublicStudentFields(&response, student)
+
+	// Notes and health information require users:read, independently of the
+	// staff-only address and planning scope.
+	if canReadSensitiveStudentData(ctx) {
+		populateSensitiveStudentFields(&response, student)
+	} else {
+		response.PickupStatus = response.AllowedDepartureModes.LegacyPickupStatus()
+	}
+	if hasFullAccess {
+		populateStudentAddressFields(&response, student)
+	}
+
+	// Photo + consent metadata. Suppressed entirely when the feature is
+	// off; PhotoURL additionally requires photo access so we never hand
+	// out a URL the same session would 403 against in serveStudentPhoto.
+	populatePhotoFields(&response, student, opts.PhotosEnabled, opts.HasFullAccess || opts.HasPhotoAccess)
+
+	// AGB / Datenschutz / E-Mail consents flow through independently
+	// of the photo feature flag — see populateEnrollmentConsents.
+	populateEnrollmentConsents(&response, student)
+
+	return response, nil
+}
+
+// newStudentResponseFromSnapshot creates a student response using pre-loaded snapshot data
+// This eliminates N+1 queries by using cached person, group, and location data
+func newStudentResponseFromSnapshot(ctx context.Context, student *peopleModule.StudentState, person *peopleModule.Person, group *SchoolGroup, hasFullAccess bool, snapshot *studentDataSnapshot, photosEnabled bool) StudentResponse {
+	hasPhotoAccess := hasFullAccess
+	hasFullAccess = hasFullAccess && canReadSensitiveStudentData(ctx)
+	response := StudentResponse{
+		ID:          student.ID,
+		PersonID:    student.PersonID,
+		SchoolClass: student.SchoolClass,
+		CreatedAt:   student.CreatedAt,
+		UpdatedAt:   student.UpdatedAt,
+	}
+
+	// The response carries no guardian data: guardian contacts are served by
+	// the guardian routes behind users:read.
+
+	response.HasFullAccess = hasFullAccess
+
+	locationInfo := snapshot.ResolveLocationWithTime(student.ID, hasFullAccess)
+	response.Location = locationInfo.Location
+	response.LocationSince = locationInfo.Since
+	response.RoomColor = locationInfo.RoomColor
+
+	populatePersonAndGroupData(&response, person, student, group, hasFullAccess)
+	populateSnapshotPublicFields(&response, student)
+
+	if canReadSensitiveStudentData(ctx) {
+		populateSensitiveStudentFields(&response, student)
+	} else {
+		response.PickupStatus = response.AllowedDepartureModes.LegacyPickupStatus()
+	}
+	if hasFullAccess {
+		populateStudentAddressFields(&response, student)
+	}
+
+	// Photo + consent metadata — same rationale as in newStudentResponseWithOpts.
+	populatePhotoFields(&response, student, photosEnabled, hasFullAccess || hasPhotoAccess)
+	populateEnrollmentConsents(&response, student)
+
+	return response
+}
+
+// teacherToSupervisorContact converts a group teacher to a supervisor contact.
+func teacherToSupervisorContact(teacher GroupTeacher) *SupervisorContact {
+	return &SupervisorContact{
+		ID:        teacher.ID,
+		FirstName: teacher.FirstName,
+		LastName:  teacher.LastName,
+		Email:     teacher.Email,
+		Role:      "teacher",
+	}
+}
+
+// enrichWithCareExitFlag marks the children whose end of care was entered by
+// the school (#2487). Batched over the page that is actually being returned:
+// the flag decides whether the child management offers "Ende ändern" and
+// "Ende stornieren", which must not depend on how far the date lies ahead.
+func (rs *Resource) enrichWithCareExitFlag(ctx context.Context, responses []StudentResponse) error {
+	if rs.CareLifecycleService == nil {
+		return nil
+	}
+	ids := make([]int64, 0, len(responses))
+	for i := range responses {
+		// Only children that carry an end date at all can have an exit row —
+		// asking for the others would be a query for nothing.
+		if responses[i].CareEndsOn == "" {
+			continue
+		}
+		ids = append(ids, responses[i].ID)
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	recorded, err := rs.CareLifecycleService.RecordedExitStudentIDs(ctx, ids)
+	if err != nil {
+		if rs.Logger != nil {
+			rs.Logger.ErrorContext(ctx, "failed to load recorded care exits",
+				slog.String("error", err.Error()),
+			)
+		}
+		return fmt.Errorf("load recorded care exits: %w", err)
+	}
+	for i := range responses {
+		if recorded[responses[i].ID] {
+			responses[i].CareExitRecorded = true
+		}
+	}
+	return nil
+}
+
+// applyPickupTimesFromMap writes already-loaded effective pickup times onto the
+// responses without touching the database, so a pipeline stage that has the
+// bulk map in hand does not re-run the three pickup SELECTs (#2098).
+func applyPickupTimesFromMap(responses []StudentResponse, pickupTimes map[int64]*careplan.EffectivePickupTime) {
+	for i := range responses {
+		if !responses[i].HasFullAccess {
+			continue
+		}
+		if ept, ok := pickupTimes[responses[i].ID]; ok {
+			if ept.PickupTime != nil {
+				formatted := ept.PickupTime.Format("15:04")
+				responses[i].PickupTime = &formatted
+			}
+			responses[i].PickupIsException = ept.IsException
+			responses[i].PickupNotes = buildPickupNotes(ept)
+		}
+	}
+}
+
+// applyArrivalTimesFromMap writes already-loaded effective arrival times onto
+// the responses without touching the database, so a pipeline stage that has the
+// bulk map in hand does not re-run the three arrival SELECTs (#2098).
+func applyArrivalTimesFromMap(responses []StudentResponse, arrivalTimes map[int64]*careplan.EffectiveArrivalTime) {
+	for i := range responses {
+		if !responses[i].HasFullAccess {
+			continue
+		}
+		if eat, ok := arrivalTimes[responses[i].ID]; ok {
+			if eat.ArrivalTime != nil {
+				formatted := eat.ArrivalTime.Format("15:04")
+				responses[i].ArrivalTime = &formatted
+			}
+			responses[i].ArrivalIsException = eat.IsException
+			responses[i].ArrivalNotes = buildArrivalNotes(eat)
+		}
+	}
+}
+
+// buildPickupNotes combines exception reason and day notes into a single string.
+func buildPickupNotes(ept *careplan.EffectivePickupTime) string {
+	var parts []string
+	if ept.Notes != "" {
+		parts = append(parts, ept.Notes)
+	}
+	for _, n := range ept.DayNotes {
+		if n.Content != "" {
+			parts = append(parts, n.Content)
+		}
+	}
+	return strings.Join(parts, ", ")
+}
+
+// buildArrivalNotes combines exception reason and day notes into a single string.
+func buildArrivalNotes(eat *careplan.EffectiveArrivalTime) string {
+	var parts []string
+	if eat.Notes != "" {
+		parts = append(parts, eat.Notes)
+	}
+	for _, n := range eat.DayNotes {
+		if n.Content != "" {
+			parts = append(parts, n.Content)
+		}
+	}
+	return strings.Join(parts, ", ")
+}
+
+func applyActualTimesFromAttendance(response *StudentResponse, status *studentpresence.DailyAttendanceStatus) {
+	if response == nil || status == nil {
+		return
+	}
+
+	response.ActualArrivalTime = calendar.FormatBerlinClock(status.CheckInTime)
+	response.ActualPickupTime = calendar.FormatBerlinClock(status.CheckOutTime)
+	if status.CheckOutTime != nil {
+		response.ActualPickupNote = status.CheckOutNote
+	}
+}
+
+func applyActualTimesFromSnapshot(response *StudentResponse, snapshot *studentDataSnapshot) {
+	if response == nil || snapshot == nil || snapshot.LocationSnapshot == nil {
+		return
+	}
+
+	status, ok := snapshot.LocationSnapshot.Attendances[response.ID]
+	if !ok || status == nil {
+		return
+	}
+
+	applyActualTimesFromAttendance(response, status)
+}
+
+// getPersonForStudent fetches the person data for a student
+// Returns the person and true if successful, or renders an error and returns nil, false
+func (rs *Resource) getPersonForStudent(w http.ResponseWriter, r *http.Request, student *peopleModule.StudentState) (*peopleModule.Person, bool) {
+	person, err := rs.findPerson(r.Context(), student.PersonID)
+	if err != nil {
+		renderError(w, r, common.ErrorInternalServerWrap("failed to get person data for student", err))
+		return nil, false
+	}
+	return person, true
+}
+
+// getStudentGroup fetches the group for a student if they have one assigned
+func (rs *Resource) getStudentGroup(ctx context.Context, student *peopleModule.StudentState) *SchoolGroup {
+	if student.GroupID == nil {
+		return nil
+	}
+	group, err := rs.SchoolGroups.GetGroup(ctx, *student.GroupID)
+	if err != nil {
+		return nil
+	}
+	return group
+}
+
+// fetchStudentGroup retrieves group data if the student has an assigned group
+func (rs *Resource) fetchStudentGroup(ctx context.Context, groupID *int64) *SchoolGroup {
+	if groupID == nil {
+		return nil
+	}
+	group, err := rs.SchoolGroups.GetGroup(ctx, *groupID)
+	if err != nil {
+		return nil
+	}
+	return group
+}
+
+// filterStudentIDsByGroups keeps the student ids whose group is among groupIDs.
+// An empty groupIDs slice means "no group restriction" and returns the input
+// unchanged — the same meaning an absent group_id has everywhere else (#2218).
+func (rs *Resource) filterStudentIDsByGroups(ctx context.Context, studentIDs []int64, groupIDs []int64) ([]int64, error) {
+	if len(groupIDs) == 0 {
+		return studentIDs, nil
+	}
+	wanted := make(map[int64]struct{}, len(groupIDs))
+	for _, groupID := range groupIDs {
+		wanted[groupID] = struct{}{}
+	}
+	studentMap, err := rs.studentsByIDs(ctx, studentIDs)
+	if err != nil {
+		return nil, err
+	}
+	filtered := make([]int64, 0, len(studentMap))
+	for _, sid := range studentIDs {
+		student, ok := studentMap[sid]
+		if !ok || student.GroupID == nil {
+			continue
+		}
+		if _, wantedGroup := wanted[*student.GroupID]; !wantedGroup {
+			continue
+		}
+		filtered = append(filtered, sid)
+	}
+	return filtered, nil
+}
+
+// loadStudentListData bulk-loads what a student list renders besides the
+// student rows: persons and locations into the shared snapshot, and the
+// groups from School Structure. It prevents N+1 reads per listed child.
+func (rs *Resource) loadStudentListData(ctx context.Context, students []*peopleModule.StudentState) (*studentDataSnapshot, map[int64]*SchoolGroup, error) {
+	studentIDs, personIDs, groupIDs := collectIDsFromStudents(students)
+	dataSnapshot, err := rs.loadStudentDataSnapshot(ctx, studentIDs, personIDs)
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(groupIDs) == 0 {
+		return dataSnapshot, map[int64]*SchoolGroup{}, nil
+	}
+	if rs.SchoolGroups == nil {
+		return nil, nil, errors.New("school groups are not configured")
+	}
+	groups, err := rs.SchoolGroups.GetGroupsByIDs(ctx, groupIDs)
+	if err != nil {
+		return nil, nil, fmt.Errorf("load student snapshot groups: %w", err)
+	}
+	return dataSnapshot, groups, nil
+}
+
+// buildStudentResponses builds filtered student responses
+func (rs *Resource) buildStudentResponses(ctx context.Context, students []*peopleModule.StudentState, params *studentListParams, accessCtx *common.StudentAccessContext, dataSnapshot *studentDataSnapshot, groups map[int64]*SchoolGroup, photosEnabled bool) []StudentResponse {
+	responses := make([]StudentResponse, 0, len(students))
+
+	for _, student := range students {
+		response := rs.buildSingleStudentResponse(ctx, student, params, accessCtx, dataSnapshot, groups, photosEnabled)
+		if response != nil {
+			responses = append(responses, *response)
+		}
+	}
+
+	return responses
+}
+
+// buildSingleStudentResponse builds a response for a single student, returning nil if filtered out
+func (rs *Resource) buildSingleStudentResponse(ctx context.Context, student *peopleModule.StudentState, params *studentListParams, accessCtx *common.StudentAccessContext, dataSnapshot *studentDataSnapshot, groups map[int64]*SchoolGroup, photosEnabled bool) *StudentResponse {
+	hasFullAccess := hasFullAccessToStudent(accessCtx, student)
+
+	// Get person data from snapshot
+	person := dataSnapshot.GetPerson(student.PersonID)
+	if person == nil {
+		return nil
+	}
+
+	// Apply filters
+	if !matchesSearchFilter(person, student.ID, params.search) {
+		return nil
+	}
+	if !matchesNameFilters(person, params.firstName, params.lastName) {
+		return nil
+	}
+	if !matchesGradeLevel(student.SchoolClass, params.gradeLevels) {
+		return nil
+	}
+
+	// Get group data from the bulk-loaded groups
+	var group *SchoolGroup
+	if student.GroupID != nil {
+		group = groups[*student.GroupID]
+	}
+
+	// Build response
+	studentResponse := newStudentResponseFromSnapshot(ctx, student, person, group, hasFullAccess, dataSnapshot, photosEnabled)
+
+	return &studentResponse
+}

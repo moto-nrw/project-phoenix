@@ -8,9 +8,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/classday/internal/ports"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 func TestClassDayCancellationsUseCareDayService(t *testing.T) {
@@ -23,7 +23,7 @@ func TestClassDayCancellationsUseCareDayService(t *testing.T) {
 	}}})
 
 	facts := newClassDayFacts()
-	cancelled, err := svc.classDayCancellations(context.Background(), []int64{1, 2, 3}, timezone.NewDate(2026, 8, 5), &facts)
+	cancelled, err := svc.classDayCancellations(context.Background(), []int64{1, 2, 3}, calendar.NewDate(2026, 8, 5), &facts)
 
 	require.NoError(t, err)
 	assert.Equal(t, map[int64]bool{1: true}, cancelled)
@@ -46,8 +46,8 @@ func TestClassDayCancellationUsesArrivalExceptionReportTime(t *testing.T) {
 	})
 	facts := newClassDayFacts()
 
-	require.NoError(t, svc.classDayEffectiveTimes(context.Background(), []int64{1}, timezone.NewDate(2026, 8, 5), &facts))
-	cancelled, err := svc.classDayCancellations(context.Background(), []int64{1}, timezone.NewDate(2026, 8, 5), &facts)
+	require.NoError(t, svc.classDayEffectiveTimes(context.Background(), []int64{1}, calendar.NewDate(2026, 8, 5), &facts))
+	cancelled, err := svc.classDayCancellations(context.Background(), []int64{1}, calendar.NewDate(2026, 8, 5), &facts)
 	require.NoError(t, err)
 	for studentID := range cancelled {
 		facts.statuses[studentID] = studentStatusDayCancelled
@@ -56,7 +56,7 @@ func TestClassDayCancellationUsesArrivalExceptionReportTime(t *testing.T) {
 		}
 	}
 
-	report := buildClassDayReport("1a", timezone.NewDate(2026, 8, 5), "Schuljahr", []DayRosterRow{{
+	report := buildClassDayReport("1a", calendar.NewDate(2026, 8, 5), "Schuljahr", []DayRosterRow{{
 		StudentID: 1, Registered: true, OfferingsByDay: map[string][]string{"wed": {"Ganztag"}},
 	}}, facts)
 	require.NotNil(t, report.Rows[0].ReportedAt)
@@ -73,7 +73,7 @@ func TestClassDayStatusPrecedenceSickWins(t *testing.T) {
 		{StudentID: 2, Status: statusDayExcused},
 	}}})
 
-	statuses, _, err := svc.classDayStatuses(context.Background(), []int64{1, 2}, timezone.NewDate(2026, 8, 5))
+	statuses, _, err := svc.classDayStatuses(context.Background(), []int64{1, 2}, calendar.NewDate(2026, 8, 5))
 
 	require.NoError(t, err)
 	assert.Equal(t, "sick", statuses[1])
@@ -93,7 +93,7 @@ func TestClassDayStatusUnknownValueStillCounts(t *testing.T) {
 		{StudentID: 2, Status: statusDayExcused},
 	}}})
 
-	statuses, _, err := svc.classDayStatuses(context.Background(), []int64{1, 2}, timezone.NewDate(2026, 8, 5))
+	statuses, _, err := svc.classDayStatuses(context.Background(), []int64{1, 2}, calendar.NewDate(2026, 8, 5))
 
 	require.NoError(t, err)
 	assert.Equal(t, "quarantine", statuses[1])
@@ -254,7 +254,7 @@ func TestClassDayStatusesReportTime(t *testing.T) {
 		{StudentID: 1, Status: statusDaySick, ReportedAt: sickAt},
 	}}})
 
-	statuses, stamps, err := svc.classDayStatuses(context.Background(), []int64{1}, timezone.NewDate(2026, 8, 5))
+	statuses, stamps, err := svc.classDayStatuses(context.Background(), []int64{1}, calendar.NewDate(2026, 8, 5))
 
 	require.NoError(t, err)
 	assert.Equal(t, "sick", statuses[1])

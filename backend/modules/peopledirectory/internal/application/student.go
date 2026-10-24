@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/ports"
 )
@@ -13,7 +14,6 @@ type StudentService struct {
 	owners ports.StudentOwners
 	store  ports.StudentStore
 	notes  ports.StudentNoteStore
-	audit  ports.StudentNoteDeletionAudit
 	// companions is Care Plan's "läuft mit" edges. Narrowing a child's
 	// departure plan has to drop the links it no longer allows, and this is the
 	// one write path every writer passes through. Optional: a graph that never
@@ -29,16 +29,15 @@ func NewStudents(
 	companions ports.StudentCompanions,
 	owners ports.StudentOwners,
 	tx ports.Transaction,
-	audit ports.StudentNoteDeletionAudit,
 	observe ports.Observer,
 ) *StudentService {
 	if store == nil || notes == nil || tx == nil || observe == nil {
 		panic("people directory application: all student dependencies are required")
 	}
-	return &StudentService{store: store, notes: notes, companions: companions, owners: owners, tx: tx, audit: audit, observe: observe}
+	return &StudentService{store: store, notes: notes, companions: companions, owners: owners, tx: tx, observe: observe}
 }
 
-func (s *StudentService) ListByIDs(ctx context.Context, ids []int64) (result []domain.Student, err error) {
+func (s *StudentService) ListByIDs(ctx context.Context, ids []int64) (result []peopledirectory.Student, err error) {
 	err = s.run(ctx, "list_students_by_id", s.tx.RunRead, func(txCtx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		result, queryStats, err = s.store.ListByIDs(txCtx, ids)
@@ -48,7 +47,7 @@ func (s *StudentService) ListByIDs(ctx context.Context, ids []int64) (result []d
 	return result, err
 }
 
-func (s *StudentService) ListNamesByIDs(ctx context.Context, ids []int64) (result []domain.StudentName, err error) {
+func (s *StudentService) ListNamesByIDs(ctx context.Context, ids []int64) (result []peopledirectory.StudentName, err error) {
 	err = s.run(ctx, "list_student_names_by_id", s.tx.RunRead, func(txCtx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		result, queryStats, err = s.store.ListNamesByIDs(txCtx, ids)
@@ -60,7 +59,7 @@ func (s *StudentService) ListNamesByIDs(ctx context.Context, ids []int64) (resul
 
 // ListAcrossTenantsByIDs reads in a separate admin transaction so a hosting
 // tenant's row-level security does not hide visiting students.
-func (s *StudentService) ListAcrossTenantsByIDs(ctx context.Context, ids []int64) (result []domain.Student, err error) {
+func (s *StudentService) ListAcrossTenantsByIDs(ctx context.Context, ids []int64) (result []peopledirectory.Student, err error) {
 	err = s.run(ctx, "list_students_across_tenants_by_id", s.tx.RunAdminRead, func(txCtx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		result, queryStats, err = s.store.ListByIDs(txCtx, ids)
@@ -70,7 +69,7 @@ func (s *StudentService) ListAcrossTenantsByIDs(ctx context.Context, ids []int64
 	return result, err
 }
 
-func (s *StudentService) ListByClasses(ctx context.Context, classes []string) (result []domain.Student, err error) {
+func (s *StudentService) ListByClasses(ctx context.Context, classes []string) (result []peopledirectory.Student, err error) {
 	err = s.run(ctx, "list_students_by_class", s.tx.RunRead, func(txCtx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		result, queryStats, err = s.store.ListByClasses(txCtx, classes)
@@ -80,7 +79,7 @@ func (s *StudentService) ListByClasses(ctx context.Context, classes []string) (r
 	return result, err
 }
 
-func (s *StudentService) ListByPersonIDs(ctx context.Context, personIDs []int64) (result []domain.Student, err error) {
+func (s *StudentService) ListByPersonIDs(ctx context.Context, personIDs []int64) (result []peopledirectory.Student, err error) {
 	err = s.run(ctx, "list_students_by_person", s.tx.RunRead, func(txCtx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		result, queryStats, err = s.store.ListByPersonIDs(txCtx, personIDs)
@@ -90,7 +89,7 @@ func (s *StudentService) ListByPersonIDs(ctx context.Context, personIDs []int64)
 	return result, err
 }
 
-func (s *StudentService) ListEnrolled(ctx context.Context) (result []domain.Student, err error) {
+func (s *StudentService) ListEnrolled(ctx context.Context) (result []peopledirectory.Student, err error) {
 	err = s.run(ctx, "list_enrolled_students", s.tx.RunRead, func(txCtx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		result, queryStats, err = s.store.ListEnrolled(txCtx)
@@ -110,7 +109,7 @@ func (s *StudentService) ListClasses(ctx context.Context) (result []string, err 
 	return result, err
 }
 
-func (s *StudentService) ListByStatusFlag(ctx context.Context, status string) (result []domain.Student, err error) {
+func (s *StudentService) ListByStatusFlag(ctx context.Context, status string) (result []peopledirectory.Student, err error) {
 	err = s.run(ctx, "list_students_with_status_flag", s.tx.RunRead, func(txCtx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		result, queryStats, err = s.store.ListByStatusFlag(txCtx, status)
@@ -121,7 +120,12 @@ func (s *StudentService) ListByStatusFlag(ctx context.Context, status string) (r
 }
 
 func (s *StudentService) Lock(ctx context.Context, id int64) error {
-	return s.run(ctx, "lock_student", s.tx.RunWrite, func(txCtx context.Context, stats *domain.OperationStats) error {
+	return s.run(ctx, "lock_student", func(ctx context.Context, fn func(context.Context) error) error {
+		if err := s.tx.RequireTransaction(ctx); err != nil {
+			return err
+		}
+		return fn(ctx)
+	}, func(txCtx context.Context, stats *domain.OperationStats) error {
 		found, lockStats, err := s.store.Lock(txCtx, id)
 		stats.Add(lockStats)
 		if err != nil {

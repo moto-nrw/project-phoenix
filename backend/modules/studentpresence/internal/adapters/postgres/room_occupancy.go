@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 	"github.com/uptrace/bun"
 )
@@ -18,13 +19,13 @@ type roomOccupancyRow struct {
 	SupervisorStaffIDs []int64 `bun:"supervisor_staff_ids,array"`
 }
 
-func (s *Store) ListRoomOccupancy(ctx context.Context, roomIDs []int64) ([]ports.RoomOccupancy, ports.Stats, error) {
+func (s *Store) ListRoomOccupancy(ctx context.Context, roomIDs []int64) ([]studentpresence.RoomOccupancy, ports.Stats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, ports.Stats{}, err
 	}
 	if len(roomIDs) == 0 {
-		return []ports.RoomOccupancy{}, ports.Stats{}, nil
+		return []studentpresence.RoomOccupancy{}, ports.Stats{}, nil
 	}
 	rows := []roomOccupancyRow{}
 	query := db.NewSelect().
@@ -46,9 +47,9 @@ func (s *Store) ListRoomOccupancy(ctx context.Context, roomIDs []int64) ([]ports
 	if err != nil {
 		return nil, stats, fmt.Errorf("list room occupancy: %w", err)
 	}
-	result := make([]ports.RoomOccupancy, 0, len(rows))
+	result := make([]studentpresence.RoomOccupancy, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, ports.RoomOccupancy(row))
+		result = append(result, studentpresence.RoomOccupancy(row))
 	}
 	return result, stats, nil
 }

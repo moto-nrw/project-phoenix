@@ -7,10 +7,9 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -48,7 +47,7 @@ func (s *service) resolveStaffIDForAttendance(ctx context.Context, staffID, devi
 
 // ensureOrUpdateAttendance handles attendance creation or re-entry update
 func (s *service) ensureOrUpdateAttendance(ctx context.Context, visit *studentpresence.Visit, staffID, deviceID int64) error {
-	visitDate := timezone.DateFromTime(visit.EntryTime)
+	visitDate := calendar.DateFromTime(visit.EntryTime)
 	attendanceRecords, err := s.SchoolPresence.ListAttendance(ctx, studentpresence.AttendanceFilter{StudentIDs: []int64{visit.StudentID}, FromDate: visitDate.String(), UntilDate: visitDate.String()})
 	if err != nil {
 		return &ActiveError{Op: "CreateVisit", Err: err}
@@ -72,7 +71,7 @@ func (s *service) ensureOrUpdateAttendance(ctx context.Context, visit *studentpr
 // the same instant, and history/export session-to-slot matching relies on the
 // two timestamps being identical. Never replace either side with an
 // independent time.Now().
-func (s *service) createAttendanceRecord(ctx context.Context, visit *studentpresence.Visit, staffID, deviceID int64, visitDate timezone.Date) error {
+func (s *service) createAttendanceRecord(ctx context.Context, visit *studentpresence.Visit, staffID, deviceID int64, visitDate calendar.Date) error {
 	resolvedStaffID, err := s.resolveStaffIDForAttendance(ctx, staffID, deviceID)
 	if err != nil {
 		return &ActiveError{Op: "CreateVisit", Err: errors.Join(ErrDatabaseOperation, err)}
@@ -113,7 +112,7 @@ func (s *service) syncAttendanceForVisitRevision(
 	if err := s.SchoolPresence.LockStudentAttendance(ctx, previous.StudentID); err != nil {
 		return err
 	}
-	day := timezone.DateFromTime(previous.EntryTime).String()
+	day := calendar.DateFromTime(previous.EntryTime).String()
 	rows, err := s.SchoolPresence.ListAttendance(ctx, studentpresence.AttendanceFilter{StudentIDs: []int64{previous.StudentID}, FromDate: day, UntilDate: day})
 	if err != nil {
 		return err
@@ -122,7 +121,7 @@ func (s *service) syncAttendanceForVisitRevision(
 		if !row.CheckInTime.Equal(previous.EntryTime) {
 			continue
 		}
-		row.Date = timezone.DateFromTime(updated.EntryTime).String()
+		row.Date = calendar.DateFromTime(updated.EntryTime).String()
 		row.CheckInTime = updated.EntryTime
 		row.CheckOutTime = updated.ExitTime
 		if updated.ExitTime == nil {
@@ -283,7 +282,7 @@ func (s *service) recordStudentStatusForClear(ctx context.Context, studentID int
 	if since != nil {
 		reportedAt = *since
 	}
-	today := timezone.DateFromTime(now)
+	today := calendar.DateFromTime(now)
 	if err := s.StudentStatusRepo.UpsertReported(ctx, &absencerecords.StudentStatusDay{
 		StudentID:  studentID,
 		Date:       today,
@@ -321,7 +320,7 @@ func (s *service) autoClearPlannedStudentStatuses(ctx context.Context, studentID
 	}
 
 	now := s.now()
-	today := timezone.DateFromTime(now)
+	today := calendar.DateFromTime(now)
 	rows, err := s.StudentStatusRepo.FindActiveByStudentAndDateRange(ctx, studentID, today, today)
 	if err != nil {
 		return fmt.Errorf("load planned student statuses: %w", err)
@@ -437,7 +436,7 @@ func (s *service) emitVisitCreated(ctx context.Context, visit *studentpresence.V
 	activeGroupID := fmt.Sprintf("%d", visit.ActiveGroupID)
 	eduGroupIDs := eduGroupIDsOf(educationGroupID)
 
-	realtimeevents.PublishVisitCheckIn(ctx, s.Broadcaster, s.getLogger(), realtimeevents.VisitChange{
+	s.Broadcaster.VisitCheckedIn(ctx, studentpresence.LiveVisitChange{
 		ActiveGroupID:    activeGroupID,
 		StudentID:        fmt.Sprintf("%d", visit.StudentID),
 		EducationGroupID: educationGroupID,

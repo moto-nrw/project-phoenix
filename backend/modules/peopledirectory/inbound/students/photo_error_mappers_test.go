@@ -1,10 +1,5 @@
 package students
 
-// Table-driven tests for the three photo error mappers. Each sentinel must
-// land on a stable HTTP status — the frontend keys German user-facing
-// strings off these codes, and PyrePortal does the same for the IoT-side
-// flows that touch students. Drift here = silent breakage in the kiosk UI.
-
 import (
 	"errors"
 	"net/http"

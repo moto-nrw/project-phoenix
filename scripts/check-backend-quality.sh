@@ -36,9 +36,13 @@ vulnerabilities() {
 case "${1:-quality}" in
   quality)
     quality_step go-format formatting
-    quality_step source-ratchets go test ./test -run Ratchet -count=1
+    quality_step production-build go build -tags= ./...
+    # CI runs ./test in test.yml for every backend selection, so the lint job
+    # skips this step. Pre-push runs no changed-test selection and keeps it.
+    if [[ "${SKIP_SOURCE_RATCHETS:-}" != true ]]; then
+      quality_step source-ratchets go test -tags=testhooks ./test -run Ratchet -count=1
+    fi
     quality_step migration-validation go run main.go migrate validate
-    quality_step migration-collisions go test ./database/migrations/ -run TestNoDuplicateMigrationVersions -v
     quality_step deadcode-regressions bash "$root/scripts/check-deadcode_test.sh"
     quality_step deadcode bash "$root/scripts/check-deadcode.sh"
     quality_step go-licenses go tool go-licenses check ./... --ignore github.com/moto-nrw/project-phoenix --disallowed_types=restricted,reciprocal

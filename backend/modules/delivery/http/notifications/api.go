@@ -13,26 +13,25 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/api/common"
-	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // Resource wires the notification routes.
 type Resource struct {
-	NotificationsService notificationsService.Service
-	PushService          notificationsService.PushSubscriptionService
-	PreferenceService    notificationsService.PreferenceService
+	Runtime              Runtime
+	NotificationsService Service
+	PushService          PushSubscriptionService
+	PreferenceService    PreferenceService
 }
 
 // NewResource builds the notifications HTTP resource.
 func NewResource(
-	service notificationsService.Service,
-	pushService notificationsService.PushSubscriptionService,
-	preferenceService notificationsService.PreferenceService,
+	service Service,
+	pushService PushSubscriptionService,
+	preferenceService PreferenceService,
+	runtime Runtime,
 ) *Resource {
 	return &Resource{
+		Runtime:              runtime,
 		NotificationsService: service,
 		PushService:          pushService,
 		PreferenceService:    preferenceService,
@@ -59,7 +58,7 @@ func requestPortal(r *http.Request) string {
 	if portal, ok := r.Context().Value(portalCtxKey{}).(string); ok && portal != "" {
 		return portal
 	}
-	return notificationsService.PortalStaff
+	return PortalStaff
 }
 
 // Router mounts the notification routes behind tenant JWT auth.
@@ -67,7 +66,7 @@ func (rs *Resource) Router() chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
-	common.ProtectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) {
+	rs.Runtime.ProtectedTenant(r, func(r chi.Router, withTx Middleware) {
 		rs.registerRoutes(r, withTx)
 		// Opt-in e-mails to staff (#3780). Each type names the permission its
 		// decision needs, so the handlers check it per type; the school portal
@@ -86,14 +85,14 @@ func (rs *Resource) Router() chi.Router {
 func (rs *Resource) SchoolRouter() chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
-	r.Use(withPortal(notificationsService.PortalSchool))
+	r.Use(withPortal(PortalSchool))
 
-	common.ProtectedSchoolRoutes(r, rs.registerRoutes)
+	rs.Runtime.ProtectedSchool(r, rs.registerRoutes)
 
 	return r
 }
 
-func (rs *Resource) registerRoutes(r chi.Router, withTx common.Middleware) {
+func (rs *Resource) registerRoutes(r chi.Router, withTx Middleware) {
 	// The event is scoped to the logged-in account, so a valid session is
 	// sufficient. No user can trigger a test for someone else.
 	r.With(withTx).Post("/test", rs.sendTestNotification)
@@ -102,7 +101,7 @@ func (rs *Resource) registerRoutes(r chi.Router, withTx common.Middleware) {
 	// extra permission beyond a valid session.
 	// Push services open their own tenant/admin transactions. In particular,
 	// school endpoint rebinding must not try to elevate an ambient tenant tx.
-	r.With(common.TenantOperationMiddleware).Route("/push", func(r chi.Router) {
+	r.With(rs.Runtime.TenantOperation).Route("/push", func(r chi.Router) {
 		r.Get("/public-key", rs.getPushPublicKey)
 		r.Post("/subscriptions", rs.subscribePush)
 		r.Delete("/subscriptions", rs.unsubscribePush)
@@ -126,32 +125,32 @@ func (rs *Resource) sendTestNotification(w http.ResponseWriter, r *http.Request)
 	ctx := r.Context()
 
 	if rs.NotificationsService == nil {
-		common.RenderError(w, r, common.ErrorInternalServer(errors.New("notifications service is not configured")))
+		rs.Runtime.Internal(w, r, errors.New("notifications service is not configured"))
 		return
 	}
 
-	tenantID := tenant.FromContext(ctx)
+	tenantID := rs.Runtime.TenantID(ctx)
 	if tenantID <= 0 {
-		common.RenderError(w, r, common.ErrorForbidden(errors.New("missing tenant context")))
+		rs.Runtime.Forbidden(w, r, errors.New("missing tenant context"))
 		return
 	}
-	accountID := jwt.ActorAccountIDFromCtx(ctx)
+	accountID := rs.Runtime.ActorID(ctx)
 	if accountID == nil {
-		common.RenderError(w, r, common.ErrorUnauthorized(jwt.ErrTokenUnauthorized))
+		rs.Runtime.Unauthorized(w, r)
 		return
 	}
 
-	err := rs.NotificationsService.Notify(ctx, notificationsService.Event{
+	err := rs.NotificationsService.Notify(ctx, Event{
 		Type: "test", IdempotencyKey: fmt.Sprintf("notification-test:%d", time.Now().UTC().UnixNano()),
-		Audience: notificationsService.Audience{
+		Audience: Audience{
 			TenantID:        tenantID,
-			Scope:           notificationsService.ScopeStaff,
+			Scope:           ScopeStaff,
 			StaffAccountIDs: []int64{*accountID},
 		},
 		// The test proves the setup of the portal the person is standing in,
 		// so it is delivered there and nowhere else (#2208).
 		Portal:   requestPortal(r),
-		Priority: notificationsService.PriorityNormal,
+		Priority: PriorityNormal,
 		Title:    "Testbenachrichtigung",
 		Body:     "Die Benachrichtigungen sind korrekt eingerichtet.",
 		DeepLink: "/dashboard",
@@ -159,13 +158,13 @@ func (rs *Resource) sendTestNotification(w http.ResponseWriter, r *http.Request)
 		SchoolDeepLink: "/school",
 	})
 	switch {
-	case errors.Is(err, notificationsService.ErrDisabled):
-		common.RenderError(w, r, common.ErrorConflictWithCode(errors.New("notifications are disabled for this tenant"), common.CodeCommunicationNotificationsDisabled))
+	case rs.NotificationsService.IsDisabled(err):
+		rs.Runtime.Disabled(w, r)
 		return
 	case err != nil:
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		rs.Runtime.Internal(w, r, err)
 		return
 	}
 
-	common.Respond(w, r, http.StatusOK, nil, "Test notification dispatched")
+	rs.Runtime.Respond(w, r, http.StatusOK, nil, "Test notification dispatched")
 }

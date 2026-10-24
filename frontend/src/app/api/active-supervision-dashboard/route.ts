@@ -11,6 +11,7 @@ import type { NextRequest } from "next/server";
 import { apiGet } from "~/lib/api-helpers.server";
 import { createGetHandler } from "~/lib/route-wrapper.server";
 import type { CareDayStatus } from "~/lib/timetable-types";
+import type { DepartureMode } from "~/lib/student-helpers";
 
 // ===== Wire types (Go: backend/modules/supervisiondashboard) =====
 
@@ -24,6 +25,13 @@ interface WireGroup {
   can_assign: boolean;
   // The started activity's limit; absent without one (#3634).
   participant_limit?: number;
+  // Who supervises the session now; absent without anyone (#4354).
+  supervisors?: WireSessionSupervisor[];
+}
+
+interface WireSessionSupervisor {
+  staff_id: string;
+  name: string;
 }
 
 interface WireUnclaimedGroup {
@@ -84,6 +92,7 @@ interface WireOpenRoomSession {
   student_count: number;
   // The activity's limit; absent without one (#3634).
   participant_limit?: number;
+  supervisors?: WireSessionSupervisor[];
   block?: {
     instance_id: string;
     start_time: string;
@@ -130,6 +139,7 @@ interface WirePlannedInstance {
   pickup_times_loaded?: boolean;
   pickup_times_redacted?: boolean;
   roster_preview?: WireRosterRow[];
+  planning_track_color?: string | null;
 }
 
 interface WireRosterRow {
@@ -188,6 +198,7 @@ interface WirePickupTime {
   weekday_name: string;
   pickup_time?: string;
   is_exception: boolean;
+  day_departure_mode?: DepartureMode;
   notes?: string;
   day_notes?: WireDayNote[];
 }
@@ -277,6 +288,8 @@ interface ActiveSupervisionDashboardResponse {
     name: string;
     canAssign: boolean;
     participantLimit: number | null;
+    /** Wer die Sitzung gerade beaufsichtigt (#4354). */
+    supervisorNames: string[];
     room_id?: string;
     room?: { id: string; name: string; color?: string | null };
   }>;
@@ -315,6 +328,7 @@ interface ActiveSupervisionDashboardResponse {
       canAssign: boolean;
       studentCount: number;
       participantLimit: number | null;
+      supervisorNames: string[];
       block: {
         instanceId: string;
         startTime: string;
@@ -382,6 +396,8 @@ interface ActiveSupervisionDashboardResponse {
     startExpiresAt: string;
     pickupTimesLoaded?: boolean;
     pickupTimesRedacted?: boolean;
+    /** Farbe der Planungsspur des Blocks (#4413). */
+    planningTrackColor: string | null;
     rosterPreview: Array<{
       studentId: string;
       studentName: string;
@@ -409,6 +425,7 @@ interface ActiveSupervisionDashboardResponse {
     weekdayName: string;
     pickupTime: string | null;
     isException: boolean;
+    dayDepartureMode?: DepartureMode;
     notes: string;
     dayNotes: Array<{ id: string; content: string }>;
   }>;
@@ -421,6 +438,12 @@ interface ActiveSupervisionDashboardResponse {
     notes: string;
     dayNotes: Array<{ id: string; content: string }>;
   }>;
+}
+
+function supervisorNames(
+  supervisors: WireSessionSupervisor[] | undefined,
+): string[] {
+  return (supervisors ?? []).map((supervisor) => supervisor.name);
 }
 
 function mapDashboard(wire: WireDashboard): ActiveSupervisionDashboardResponse {
@@ -436,6 +459,7 @@ function mapDashboard(wire: WireDashboard): ActiveSupervisionDashboardResponse {
       canAssign: g.can_assign,
       isCurrentUserSupervising: g.is_current_user_supervising,
       participantLimit: g.participant_limit ?? null,
+      supervisorNames: supervisorNames(g.supervisors),
       room_id: g.room_id,
       room: g.room_id
         ? {
@@ -478,6 +502,7 @@ function mapDashboard(wire: WireDashboard): ActiveSupervisionDashboardResponse {
         canAssign: session.can_assign,
         studentCount: session.student_count,
         participantLimit: session.participant_limit ?? null,
+        supervisorNames: supervisorNames(session.supervisors),
         block: session.block
           ? {
               instanceId: session.block.instance_id,
@@ -556,6 +581,7 @@ function mapDashboard(wire: WireDashboard): ActiveSupervisionDashboardResponse {
       startExpiresAt: i.start_expires_at ?? "",
       pickupTimesLoaded: i.pickup_times_loaded,
       pickupTimesRedacted: i.pickup_times_redacted,
+      planningTrackColor: i.planning_track_color ?? null,
       rosterPreview: (i.roster_preview ?? []).map((row) => ({
         studentId: row.student_id.toString(),
         studentName: row.student_name,
@@ -595,6 +621,7 @@ function mapDashboard(wire: WireDashboard): ActiveSupervisionDashboardResponse {
       weekdayName: p.weekday_name,
       pickupTime: p.pickup_time ?? null,
       isException: p.is_exception,
+      dayDepartureMode: p.day_departure_mode,
       notes: p.notes ?? "",
       dayNotes: (p.day_notes ?? []).map((n) => ({
         id: n.id,

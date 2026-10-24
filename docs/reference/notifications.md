@@ -3,6 +3,9 @@
 A single technical interface through which features trigger user-facing
 notifications without knowing the delivery channels.
 
+Backend paths below start at `backend/` unless already prefixed; frontend
+`components/`, `lib/` and `app/` paths start at `frontend/src/`.
+
 It started as an abstraction with no user-visible surface (#1624). With the
 personal-notification epic it also became a feature: people choose in their own
 profile what they want to hear about, and notifications are addressed to
@@ -56,10 +59,14 @@ about a child is re-checked when it is sent, not only when it is queued — see
 
 ## Triggering a notification (backend)
 
-```go
-import "github.com/moto-nrw/project-phoenix/services/notifications"
+The following example is inside Delivery. Other owners use their own semantic
+notification ports; the root translates those values to Delivery's contract
+(ADR 0067), rather than importing its private package.
 
-err := factory.Notifications.Notify(ctx, notifications.Event{
+```go
+import "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications"
+
+err := notifier.Notify(ctx, notifications.Event{
     Type:     "pickup_upcoming",              // stable, feature-defined type
     Audience: notifications.Audience{
         TenantID: tenantID,
@@ -117,7 +124,7 @@ For example, an aggregate derived from an admin-wide view must use
 Nothing is delivered to a person who did not ask for it. The rule is
 mechanical: **no row means off**.
 
-- **Catalogue** — `services/notifications/types.go`. One `TypeDefinition` per
+- **Catalogue** — `modules/delivery/internal/notifications/types.go`. One `TypeDefinition` per
   notification a person can agree to: key, German label and description (the
   profile page renders them verbatim), display group, portal (`staff` /
   `parent`), and the optional `TenantGate` setting a school can use to switch
@@ -130,7 +137,7 @@ mechanical: **no row means off**.
   `enabled = false` is deliberately different from no row: it records a decision
   a later change of defaults must not overwrite. `notification_type` carries no
   CHECK constraint — an unknown type is inert, nothing reads it.
-- **Service** — `services/notifications/preferences.go`. `GetForAccount` /
+- **Service** — `modules/delivery/internal/notifications/preferences.go`. `GetForAccount` /
   `SetForAccount` for the staff portal; `GetForParent` / `SetForParent` act
   across every active school of a guardian at once (the parents app has no
   tenant context of its own). A type the school currently blocks can still be
@@ -276,7 +283,7 @@ closed/locked devices.
 
 ### Personal reminders (scheduler task `reminder-notifications`)
 
-`services/scheduler/reminder_notifications.go`. Every minute, per tenant:
+`modules/schedulerruntime/internal/application/reminder_notifications.go`. Every minute, per tenant:
 
 1. **Candidates** — `StaffRepository.ListAllStaffAccountIDs`: every staff
    member of the school with an active account and an active tenant mapping.
@@ -291,7 +298,7 @@ closed/locked devices.
    reaches nobody, so only schools that use time tracking switch it on.
 4. **Compute** — one `reminders.ComputeBatch` for all recipients: the
    tenant-wide reads happen once, only the per-person slice is derived in
-   memory (see the package comment in `services/reminders/batch.go`).
+   memory (see the package comment in `workflows/reminderdelivery/internal/application/batch.go`).
 5. **Dispatch** — one event per person and type, aggregated by count, through
    a single `NotifyBatch`. An activity the person is personally planned on is
    reported as `my_activity_starting` (the batch reports the assignment in
@@ -304,11 +311,11 @@ a name — the reminder rows behind it carry names, the notification must not.
 Deep link `/reminders`, priority `high` for the two overdue types. A re-fire
 guard keyed by `(tenant, account, reminder identity)` and rotated at midnight
 prevents repeats; a failed dispatch leaves the occurrence eligible for the next
-tick. The producer lives in the scheduler because it needs both
-`services/reminders` and `services/notifications`, and those two deliberately
-do not know each other.
+tick. The producer lives in `workflows/reminderdelivery/personal_notifications.go`: it
+coordinates reminder computation and notification delivery through its own
+ports. The scheduler only ticks it; the root binds the collaborators.
 
-### Absences (`services/notifications/absence_producer.go`)
+### Absences (`modules/delivery/internal/notifications/absence_producer.go`)
 
 `NotifyAbsenceReported` turns a recorded sick note or excuse for **today** into
 a `student_absence_reported` notification for the supervising staff of the
@@ -316,13 +323,15 @@ child's group plus the office (effective admins), minus the person who entered
 it. Gated additionally by `notifications.absence_reported_enabled` and
 `notifications.on_duty_only`; with the latter enabled, only accounts mapped to
 staff who are currently checked in remain. Wired into the parent write path and
-all three staff-side entry points
-(`student_status_day_write.go`, `api/students/status_history.go`,
-`excused_request_service.go`). Every call runs after the absence transaction
+the staff-side entry points
+(`modules/studentpresence/internal/application/presence/student_status_day_write.go`,
+`modules/studentpresence/http/status_history.go`,
+`modules/careplan/http/student_broadcasts.go` and
+`modules/careplan/internal/application/excused_request_decisions.go`). Every call runs after the absence transaction
 commits; the producer opens a fresh tenant transaction for its RLS-scoped
 recipient and consent reads.
 
-### Guardian messages to staff (`services/notifications/staff_parent_message_producer.go`)
+### Guardian messages to staff (`modules/delivery/internal/notifications/staff_parent_message_producer.go`)
 
 After a guardian message commits, `NotifyStaffParentMessage` addresses the
 child's fixed-group staff, today's active substitutions and the school's
@@ -339,7 +348,7 @@ Existing accounts receive no preference backfill: because no prior staff
 notification existed for this direction, the new switch starts off until each
 person explicitly enables it.
 
-### Parent announcements (`services/announcement/service.go`)
+### Parent announcements (`modules/communication/internal/application/staff_service.go`)
 
 A published announcement notifies its guardian audience as
 `parent_announcement`, narrowed by consent. A nil preference service keeps the
@@ -356,10 +365,10 @@ the service worker opens the link against the browser origin.
 
 | Producer | Type | Fires when | Deep link |
 |---|---|---|---|
-| `services/messaging` (`notifyGuardianDevice`) | `parent_message` | staff send a message in a child's thread | `/messages` |
-| `services/calendar` (`notifyGuardianDevices`) | `parent_appointment` | an appointment is published, changed or cancelled | `/calendar` |
-| `services/calendar` (reminder scan) | `parent_appointment_reminder` | shortly before an appointment | `/calendar` |
-| `services/parentmessaging` (`notifyRequestDecision`) | `parent_request_decided` | staff decide a care-schedule, master-data or excused-absence request | `/children/{id}` |
+| `modules/communication/internal/parentmessages` (`notifyGuardianDevice`) | `parent_message` | staff send a message in a child's thread | `/messages` |
+| `modules/schoolcalendar/portal/internal/application` (`notifyGuardianDevices`) | `parent_appointment` | an appointment is published, changed or cancelled | `/calendar` |
+| `modules/schoolcalendar/portal/internal/application` (reminder scan) | `parent_appointment_reminder` | shortly before an appointment | `/calendar` |
+| `modules/communication/internal/application/parentmessaging/emitter.go` (`EnqueueRequestDecision`) | `parent_request_decided` | staff decide a care-schedule, master-data or excused-absence request | `/children/{id}` |
 
 Two of these deliberately ride on an existing opt-in rather than introducing a
 new one:
@@ -399,7 +408,7 @@ the outbox and are re-checked when the worker sends them.
 
 ### Appointment reminders (scheduler task `appointment-reminders`)
 
-`services/scheduler/appointment_reminders.go` — every 5 minutes, per tenant:
+`modules/schedulerruntime/internal/application/appointment_reminders.go` — every 5 minutes, per tenant:
 
 1. **Gate** — `calendar.appointment_reminder_enabled` (default **on**) and
    `calendar.appointment_reminder_lead_hours` (default 24, bounded 1–168).
@@ -579,7 +588,7 @@ feature flag is off. The frontend proxies it at `/api/notifications/test`.
 ## Adding a new notification type
 
 1. Add the key and a `RegisterType(TypeDefinition{...})` call in
-   `services/notifications/types.go` — German label and description (the
+   `modules/delivery/internal/notifications/types.go` — German label and description (the
    profile page renders them as they are), a group from the existing set, the
    portal, and a `TenantGate` only if a school should be able to switch the
    type off for everybody. No migration.
@@ -591,7 +600,9 @@ feature flag is off. The frontend proxies it at `/api/notifications/test`.
 
 ## Adding a new channel
 
-Implement `notifications.Channel` (`Name()` + `Deliver(ctx, Event)`), register
-it in `services/factory.go` where `notifications.NewService` is wired, and
-respect the GDPR contract above for anything that leaves the backend
+Implement Delivery's private `notifications.Channel` (`Name()` + `Deliver(ctx, Event)`)
+in `backend/modules/delivery/internal/notifications/`, register
+it in `BuildDeliveryNotifications` (`backend/roots/owners/root_delivery.go`),
+where the root wires `deliveryCompose.NewNotifier`, and respect the GDPR
+contract above for anything that leaves the backend
 (especially push payloads: `Title`/`Body`/`DeepLink` only, never `Data`).

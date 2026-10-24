@@ -47,8 +47,18 @@ vi.mock("~/components/ui/logout-modal", () => ({
 }));
 
 vi.mock("~/components/help/context-help-link", () => ({
-  ContextHelpLink: ({ topic }: { topic: string }) => (
-    <a href={`/help/${topic}`} data-testid="context-help-link">
+  ContextHelpLink: ({
+    topic,
+    containerClassName,
+  }: {
+    topic: string;
+    containerClassName?: string;
+  }) => (
+    <a
+      href={`/help/${topic}`}
+      className={containerClassName}
+      data-testid="context-help-link"
+    >
       Hilfe
     </a>
   ),
@@ -157,7 +167,7 @@ vi.mock("./header/breadcrumb-utils", () => ({
       ? {
           sectionLabel: "Datenverwaltung",
           sectionHref: "/database",
-          pageLabel: "Gruppen",
+          pageLabel: "Gruppendaten",
         }
       : null,
   getPageTypeInfo: (pathname: string) => ({
@@ -311,6 +321,31 @@ describe("Header", () => {
       "href",
       "/help/kindersuche",
     );
+    expect(screen.getByTestId("context-help-link")).toHaveClass(
+      "hidden",
+      "lg:inline-flex",
+    );
+  });
+
+  it("groups the help link with the header actions, not with the page name", () => {
+    render(<Header />);
+
+    const helpLink = screen.getByTestId("context-help-link");
+    const pageTitle = screen.getByTestId("page-title");
+    let actions = screen.getByTestId("profile-trigger").parentElement;
+    while (actions && !actions.contains(helpLink)) {
+      actions = actions.parentElement;
+    }
+
+    expect(actions).not.toBeNull();
+    expect(actions).not.toContainElement(pageTitle);
+  });
+
+  it("is taller from desktop on and stays compact on the phone (#4345)", () => {
+    const { container } = render(<Header />);
+
+    const bar = container.querySelector("[data-app-header] > div > div");
+    expect(bar).toHaveClass("h-12", "lg:h-16");
   });
 
   it("does not show a generic help link when no matching topic exists", () => {
@@ -318,6 +353,8 @@ describe("Header", () => {
 
     render(<Header />);
 
+    // Anker: der Kopf mit seinem Profilmenü ist gerendert.
+    expect(screen.getByTestId("profile-trigger")).toBeInTheDocument();
     expect(screen.queryByTestId("context-help-link")).not.toBeInTheDocument();
   });
 
@@ -330,6 +367,9 @@ describe("Header", () => {
     expect(screen.getByTestId("context-help-link")).toHaveAttribute(
       "href",
       "/help/meine-aufsichten-ansehen",
+    );
+    expect(screen.getByTestId("context-help-link")).not.toHaveAttribute(
+      "class",
     );
   });
 
@@ -350,7 +390,7 @@ describe("Header", () => {
     // Die Sektionswurzel heißt wie der Seitenleisten-Eintrag
     // ("Datenverwaltung", nicht mehr "Datenbank").
     expect(breadcrumb).toHaveTextContent("Datenverwaltung");
-    expect(breadcrumb).toHaveTextContent("Gruppen");
+    expect(breadcrumb).toHaveTextContent("Gruppendaten");
   });
 
   it("normalizes tenant-prefixed paths before resolving breadcrumbs", () => {
@@ -360,7 +400,7 @@ describe("Header", () => {
 
     const breadcrumb = screen.getByTestId("section-breadcrumb");
     expect(breadcrumb).toHaveTextContent("Datenverwaltung");
-    expect(breadcrumb).toHaveTextContent("Gruppen");
+    expect(breadcrumb).toHaveTextContent("Gruppendaten");
   });
 
   it("renders OGS groups breadcrumb", () => {

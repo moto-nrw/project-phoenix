@@ -6,8 +6,10 @@ import (
 	"strings"
 	"time"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+
+	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -49,63 +51,63 @@ type (
 	}
 	// IntakeRequests reads and writes the submitted requests.
 	IntakeRequests interface {
-		InsertRequest(context.Context, *enrollment.Request) error
-		RequestByID(context.Context, int64, bool) (*enrollment.Request, error)
-		RequestByToken(context.Context, string, bool) (*enrollment.Request, error)
-		RequestsByID(context.Context, []int64) ([]*enrollment.Request, error)
-		UpdateRequestGuardian(context.Context, *enrollment.Request, bool) error
+		InsertRequest(context.Context, *enrollmentNative.Request) error
+		RequestByID(context.Context, int64, bool) (*enrollmentNative.Request, error)
+		RequestByToken(context.Context, string, bool) (*enrollmentNative.Request, error)
+		RequestsByID(context.Context, []int64) ([]*enrollmentNative.Request, error)
+		UpdateRequestGuardian(context.Context, *enrollmentNative.Request, bool) error
 		SetRequestWithdrawal(context.Context, int64, *time.Time) error
 		AcquireSubmissionDedupLock(context.Context, int64, uint64) error
 		AcquireExistingStudentMatchLock(context.Context, int64) error
-		ActiveDuplicateChildren(context.Context, int64, string, []enrollment.DuplicateChildKey, int64) ([]enrollment.DuplicateChildKey, error)
+		ActiveDuplicateChildren(context.Context, int64, string, []enrollmentNative.DuplicateChildKey, int64) ([]enrollmentNative.DuplicateChildKey, error)
 		HasActiveRequestForMatchedStudent(context.Context, int64, int64, int64) (bool, error)
 		PinDecisionNotificationMode(context.Context, int64, string) (string, error)
 	}
 	// IntakeChildren reads and writes the children of the requests with
 	// their submitted offering choices.
 	IntakeChildren interface {
-		enrollment.SubmittedOfferingCommands
-		RequestChildOfferingHistoryForChildren(context.Context, []int64) ([]*enrollment.RequestChildOffering, error)
-		RequestChildOfferingsForChildrenAtDate(context.Context, []int64, enrollment.Date) ([]*enrollment.RequestChildOffering, error)
-		OfferingCapacityPeak(context.Context, int64, []int64, enrollment.Date, enrollment.Date) (int, error)
-		InsertChild(context.Context, *enrollment.RequestChild) error
-		ChildrenForRequest(context.Context, int64, bool) ([]*enrollment.RequestChild, error)
-		ChildrenForRequests(context.Context, []int64) ([]*enrollment.RequestChild, error)
+		enrollmentNative.SubmittedOfferingCommands
+		RequestChildOfferingHistoryForChildren(context.Context, []int64) ([]*enrollmentNative.RequestChildOffering, error)
+		RequestChildOfferingsForChildrenAtDate(context.Context, []int64, enrollmentNative.Date) ([]*enrollmentNative.RequestChildOffering, error)
+		OfferingCapacityPeak(context.Context, int64, []int64, enrollmentNative.Date, enrollmentNative.Date) (int, error)
+		InsertChild(context.Context, *enrollmentNative.RequestChild) error
+		ChildrenForRequest(context.Context, int64, bool) ([]*enrollmentNative.RequestChild, error)
+		ChildrenForRequests(context.Context, []int64) ([]*enrollmentNative.RequestChild, error)
 		DeleteRequestChildren(context.Context, int64) error
 		UpdateChildStatus(context.Context, int64, string, *string, int64) error
-		UpdateChildData(context.Context, *enrollment.RequestChild) error
+		UpdateChildData(context.Context, *enrollmentNative.RequestChild) error
 		UpdateMatchedStudent(context.Context, int64, *int64) error
 	}
 	// IntakeGuardians keeps the co-guardians of the requests.
 	IntakeGuardians interface {
-		CreateRequestGuardian(context.Context, *enrollment.RequestGuardian) error
-		RequestGuardians(context.Context, []int64) ([]*enrollment.RequestGuardian, error)
+		CreateRequestGuardian(context.Context, *enrollmentNative.RequestGuardian) error
+		RequestGuardians(context.Context, []int64) ([]*enrollmentNative.RequestGuardian, error)
 		DeleteRequestGuardians(context.Context, int64) error
 	}
 	// IntakeLateInvites issues, resolves and consumes late invites.
 	IntakeLateInvites interface {
-		InsertLateInvite(context.Context, *enrollment.LateInvite) error
-		UsableLateInvite(context.Context, string, int64, time.Time, bool) (*enrollment.LateInvite, error)
+		InsertLateInvite(context.Context, *enrollmentNative.LateInvite) error
+		UsableLateInvite(context.Context, string, int64, time.Time, bool) (*enrollmentNative.LateInvite, error)
 		MarkLateInviteUsed(context.Context, int64, int64, time.Time) error
-		LateInviteByUsedRequestID(context.Context, int64) (*enrollment.LateInvite, error)
+		LateInviteByUsedRequestID(context.Context, int64) (*enrollmentNative.LateInvite, error)
 	}
 	// IntakeCatalog loads the phase and the immutable schema a submission
 	// works with.
 	IntakeCatalog interface {
-		Phase(context.Context, int64) (*enrollment.Phase, error)
-		Schema(context.Context, int64) (*enrollment.FormSchema, error)
+		Phase(context.Context, int64) (*enrollmentNative.Phase, error)
+		Schema(context.Context, int64) (*enrollmentNative.FormSchema, error)
 	}
 	// SubmissionRateLimiter counts submission attempts per IP and email.
 	SubmissionRateLimiter interface {
-		IncrementAttempts(context.Context, int64, string, string, time.Duration) (*enrollment.SubmissionRateLimitState, error)
+		IncrementAttempts(context.Context, int64, string, string, time.Duration) (*enrollmentNative.SubmissionRateLimitState, error)
 	}
 )
 
 // IntakeOfferings reads Care Plan's offering catalog in Enrollment's
 // offering rows.
 type IntakeOfferings interface {
-	ListActiveByPhase(ctx context.Context, phaseID int64) ([]*enrollmentModels.CareOffering, error)
-	ListByIDs(ctx context.Context, ids []int64) ([]*enrollmentModels.CareOffering, error)
+	ListActiveByPhase(ctx context.Context, phaseID int64) ([]*offeringContract.CareOfferingRecord, error)
+	ListByIDs(ctx context.Context, ids []int64) ([]*offeringContract.CareOfferingRecord, error)
 }
 
 // StudentMatches is the People Directory's name-and-birthday match of
@@ -124,16 +126,15 @@ type GuardianStudentAuthorizer interface {
 	GuardianEmailHasStudentPermission(ctx context.Context, email string, studentID, tenantID int64, permission string) (bool, error)
 }
 
-// IntakeSettings resolves the tenant settings of the intake. The *Default
-// reads fall back to the registry default on any failure, the others report
-// it.
+// IntakeSettings resolves tenant overrides or registry defaults. Permission
+// and token-lifetime reads propagate lookup failures.
 type IntakeSettings interface {
 	// EnrollmentEnabled defaults to false.
 	EnrollmentEnabled(ctx context.Context) bool
-	// AllowSubmissionEdit defaults to true.
-	AllowSubmissionEdit(ctx context.Context) bool
-	// StatusTokenTTLDays defaults to 365.
-	StatusTokenTTLDays(ctx context.Context) int
+	// AllowSubmissionEdit reports lookup failures instead of granting an edit.
+	AllowSubmissionEdit(ctx context.Context) (bool, error)
+	// StatusTokenTTLDays resolves the token lifetime or reports the read failure.
+	StatusTokenTTLDays(ctx context.Context) (int, error)
 	// AdminNotificationEmails is the comma-separated recipient list, empty
 	// when unset.
 	AdminNotificationEmails(ctx context.Context) string
@@ -175,7 +176,7 @@ type LegalSettings struct {
 // ManualEnrollmentDecider approves the freshly submitted request of a manual
 // enrollment in the same transaction.
 type ManualEnrollmentDecider interface {
-	Decide(ctx context.Context, input enrollment.DecideInput) (*enrollment.DecideOutcome, error)
+	Decide(ctx context.Context, input enrollmentNative.DecideInput) (*enrollmentNative.DecideOutcome, error)
 }
 
 // IntakeDependencies bind the intake to its owners. Guardians, LateInvites,
@@ -190,10 +191,10 @@ type IntakeDependencies struct {
 	Catalog            IntakeCatalog
 	RateLimits         SubmissionRateLimiter
 	Offerings          IntakeOfferings
-	Bookings           enrollment.CareBookingCommands
-	Capacity           enrollment.OfferingCapacity
-	Schools            enrollment.SchoolDirectory
-	Notifications      enrollment.Notifications
+	Bookings           enrollmentNative.CareBookingCommands
+	Capacity           enrollmentNative.OfferingCapacity
+	Schools            enrollmentNative.SchoolDirectory
+	Notifications      enrollmentNative.Notifications
 	Students           StudentMatches
 	GuardianAuthorizer GuardianStudentAuthorizer
 	Outbox             MailOutbox
@@ -202,6 +203,9 @@ type IntakeDependencies struct {
 	// switched it on (#3780). Nil keeps the configured list only.
 	AdminSubscribers AdminMailSubscribers
 	ManualDecider    ManualEnrollmentDecider
+	// Uploads stores the files parents attach (#4783). Nil leaves file
+	// answers untouched and refuses uploads.
+	Uploads IntakeUploads
 	// ParentChanges makes a request unread for the staff again after a
 	// parent edit or renewal confirmation (#3778). Nil skips it (focused tests).
 	ParentChanges RequestParentChanges
@@ -224,13 +228,16 @@ type Intake struct {
 }
 
 var (
-	_ enrollment.IntakeSubmissions = (*Intake)(nil)
-	_ enrollment.IntakeStatus      = (*Intake)(nil)
-	_ enrollment.IntakeForms       = (*Intake)(nil)
+	_ enrollmentNative.IntakeSubmissions = (*Intake)(nil)
+	_ enrollmentNative.IntakeStatus      = (*Intake)(nil)
+	_ enrollmentNative.IntakeForms       = (*Intake)(nil)
 )
 
 // NewIntake composes the intake. A nil logger falls back to slog.Default().
 func NewIntake(deps IntakeDependencies) *Intake {
+	if deps.Settings == nil {
+		panic("enrollment intake: settings are required")
+	}
 	if deps.Logger == nil {
 		deps.Logger = slog.Default()
 	}
@@ -244,11 +251,11 @@ func NewIntake(deps IntakeDependencies) *Intake {
 
 func (s *Intake) logger() *slog.Logger { return s.deps.Logger }
 
-func (s *Intake) intakePhase(ctx context.Context, id int64) (*enrollment.Phase, error) {
+func (s *Intake) intakePhase(ctx context.Context, id int64) (*enrollmentNative.Phase, error) {
 	return s.deps.Catalog.Phase(ctx, id)
 }
 
-func (s *Intake) intakeSchema(ctx context.Context, id int64) (*enrollment.FormSchema, error) {
+func (s *Intake) intakeSchema(ctx context.Context, id int64) (*enrollmentNative.FormSchema, error) {
 	value, err := s.deps.Catalog.Schema(ctx, id)
-	return enrollment.CopyFormSchema(value), err
+	return enrollmentNative.CopyFormSchema(value), err
 }

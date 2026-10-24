@@ -23,9 +23,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	authAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -74,11 +77,11 @@ type tenantSettingsWriter interface {
 // store tenant overrides.
 func setupAuthDependenciesRouteWithSettings(t *testing.T) (*bun.DB, *authAPI.Resource, tenantSettingsWriter) {
 	t.Helper()
-	db, svc := testutil.SetupAuthModule(t)
-	resource := authAPI.NewResource(svc.Auth, svc.Invitation, testSchoolDirectory{schools: svc.Schools, db: db, runtime: testpkg.TenantRuntime(t, db)}, svc.AccountAuthentication, testutil.AccountRouteTenantRuntime())
-	resource.SettingsService = svc.Settings
-	resource.RoleGrants = testutil.AccountRoleGrantPolicy()
-	return db, resource, svc.Settings
+	db, svc := setupAuthModule(t)
+	settings := api.NewAuthTestSettings(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
+	resource := authAPI.NewResource(svc.Auth, svc.Invitation, testSchoolDirectory{schools: api.NewOrganizationTestRows(testpkg.NewDatabase(t, db)).School, db: db, runtime: testpkg.TenantRuntime(t, db)}, svc.AccountAuthentication, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation, settings)
+	resource.RoleGrants = api.AccountRoleGrantPolicy()
+	return db, resource, settings
 }
 
 // setupPublicRouter creates a router for testing public endpoints
@@ -96,7 +99,7 @@ func setupPublicRouterWithDB(t *testing.T) (*bun.DB, chi.Router) {
 	tc := setupAuthRoute(t)
 
 	router := testutil.NewTenantRouter(tc.db)
-	router.Mount("/auth", tc.resource.Router())
+	router.Mount("/auth", tc.resource.Router(api.TenantSessionChain))
 
 	return tc.db, router
 }
@@ -111,7 +114,7 @@ func setupProtectedRouter(t *testing.T) (*testContext, chi.Router) {
 	tc := setupAuthRoute(t)
 
 	router := testutil.NewTenantRouter(tc.db)
-	router.Mount("/auth", tc.resource.Router())
+	router.Mount("/auth", tc.resource.Router(api.TenantSessionChain))
 
 	return tc, router
 }
@@ -126,7 +129,7 @@ func TestLogin(t *testing.T) {
 	tc := setupAuthRoute(t)
 
 	router := testutil.NewTenantRouter(tc.db)
-	router.Mount("/auth", tc.resource.Router())
+	router.Mount("/auth", tc.resource.Router(api.TenantSessionChain))
 
 	// Create a fresh test account to avoid stale tokens from seed data
 	testEmail := fmt.Sprintf("logintest-%d@example.com", time.Now().UnixNano())
@@ -174,14 +177,6 @@ func TestLogin(t *testing.T) {
 		testutil.AssertUnauthorized(t, rr)
 	})
 
-	// Cleanup test account
-	t.Cleanup(func() {
-		ctx := testpkg.Ctx(t)
-		_, _ = tc.db.NewDelete().TableExpr("auth.tokens").Where("account_id = ?", account.ID).Exec(ctx)
-		_, _ = tc.db.NewDelete().TableExpr("auth.account_tenants").Where("account_id = ?", account.ID).Exec(ctx)
-		_, _ = tc.db.NewDelete().TableExpr("auth.accounts").Where("id = ?", account.ID).Exec(ctx)
-	})
-
 	t.Run("bad request with invalid email format", func(t *testing.T) {
 		body := map[string]string{
 			"email":    "not-an-email",
@@ -216,7 +211,7 @@ func TestLogin(t *testing.T) {
 // loginAsAdmin creates an admin account, assigns it the "admin" role, logs in via the
 // router, and returns a valid JWT access token plus a valid non-admin role ID that can
 // be used as role_id in registration payloads.
-func loginAsAdmin(t *testing.T, db *bun.DB, router chi.Router) (token string, validRoleID int64) {
+func loginAsAdmin(t *testing.T, db *bun.DB, _ chi.Router) (token string, validRoleID int64) {
 	t.Helper()
 	ctx := context.Background()
 
@@ -227,7 +222,7 @@ func loginAsAdmin(t *testing.T, db *bun.DB, router chi.Router) (token string, va
 
 	// 1. Create admin account with known password
 	adminEmail := fmt.Sprintf("registeradmin_%d@example.com", time.Now().UnixNano())
-	adminPassword := "AdminPass123!"
+	adminPassword := testpkg.NewTestPassword()
 	adminAccount := testpkg.CreateTestAccountWithPassword(t, db, adminEmail, adminPassword)
 
 	// Map account to tenant 1 so Login can resolve the tenant for JWT/token creation
@@ -242,24 +237,12 @@ func loginAsAdmin(t *testing.T, db *bun.DB, router chi.Router) (token string, va
 	// 3. Get or create a "user" role to use as valid role_id in test payloads
 	userRole := testpkg.GetOrCreateTestRole(t, db, "user")
 
-	// 4. Login to get a real JWT token
-	loginBody := map[string]string{
-		"email":    adminEmail,
-		"password": adminPassword,
-	}
-	loginReq := testutil.NewJSONRequest(t, "POST", "/auth/login", loginBody)
-	loginRR := testutil.ExecuteRequest(router, loginReq)
-	require.Equal(t, http.StatusOK, loginRR.Code, "Admin login failed: %s", loginRR.Body.String())
-
-	loginResp := testutil.ParseJSONResponse(t, loginRR.Body.Bytes())
-	accessToken, ok := loginResp["access_token"].(string)
-	require.True(t, ok, "Expected access_token string in login response")
-
-	// 5. Cleanup admin account on test completion
-	t.Cleanup(func() {
-		_, _ = db.NewDelete().TableExpr("auth.account_roles").Where("account_id = ?", adminAccount.ID).Exec(ctx)
-		_, _ = db.NewDelete().TableExpr("auth.tokens").Where("account_id = ?", adminAccount.ID).Exec(ctx)
-	})
+	// Protected-route tests start after the completed second-factor exchange.
+	// Password-only login now correctly returns an enrollment token, not a
+	// usable admin session. Login/MFA behavior has its own HTTP/behavior tests.
+	module := setupAuthModuleOn(t, db)
+	accessToken, _, err := module.Auth.IssueTokensForAuthenticatedAccount(ctx, adminAccount.ID, testpkg.Tenant(t), "", "")
+	require.NoError(t, err)
 
 	return accessToken, userRole.ID
 }
@@ -464,9 +447,6 @@ func TestRegisterRejectsGuardianRole(t *testing.T) {
 	db, router := setupPublicRouterWithDB(t)
 
 	guardianRole := testpkg.CreateTestSystemRole(t, db, "guardian")
-	t.Cleanup(func() {
-		_, _ = db.NewDelete().TableExpr("auth.roles").Where("id = ?", guardianRole.ID).Exec(context.Background())
-	})
 
 	adminToken, _ := loginAsAdmin(t, db, router)
 
@@ -531,12 +511,6 @@ func TestRegisterRequiresAdminAuth(t *testing.T) {
 		_, err := db.NewRaw("INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)",
 			userAccount.ID, noPermsRole.ID, testpkg.Tenant(t)).Exec(ctx)
 		require.NoError(t, err)
-
-		t.Cleanup(func() {
-			_, _ = db.NewDelete().TableExpr("auth.account_roles").Where("account_id = ?", userAccount.ID).Exec(ctx)
-			_, _ = db.NewDelete().TableExpr("auth.tokens").Where("account_id = ?", userAccount.ID).Exec(ctx)
-			_, _ = db.NewDelete().TableExpr("auth.roles").Where("id = ?", noPermsRole.ID).Exec(ctx)
-		})
 
 		// Login to get a real token — JWT will have zero permissions
 		loginReq := testutil.NewJSONRequest(t, "POST", "/auth/login", map[string]string{
@@ -1198,10 +1172,10 @@ func TestPermissionManagement(t *testing.T) {
 		assert.Equal(t, resource, data["resource"])
 		assert.Equal(t, "read", data["action"])
 
-		// Cleanup: delete the created permission
+		// auth.permissions is tenantless; the fixture helper owns its teardown.
 		permID, err := strconv.ParseInt(data["id"].(string), 10, 64)
 		require.NoError(t, err)
-		_, _ = tc.db.NewDelete().TableExpr("auth.permissions").Where("id = ?", permID).Exec(context.Background())
+		testpkg.OwnTestPermission(t, tc.db, permID)
 	})
 
 	t.Run("create permission bad request with missing resource", func(t *testing.T) {
@@ -1340,21 +1314,6 @@ func TestRolePermissionAssignment(t *testing.T) {
 		testutil.AssertForbidden(t, rr)
 	})
 
-	t.Run("assign and remove permission from role", func(t *testing.T) {
-		role := testpkg.CreateTestRole(t, tc.db, "AssignPermRole")
-		permission := testpkg.CreateTestPermission(t, tc.db, "AssignToRole", "test", "read")
-
-		// Assign permission
-		req := testutil.NewJSONRequest(t, "POST", fmt.Sprintf("/auth/roles/%d/permissions/%d", role.ID, permission.ID), nil)
-		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"roles:manage"})
-		assert.Equal(t, http.StatusNoContent, rr.Code, "Assign failed: %s", rr.Body.String())
-
-		// Remove permission
-		req = testutil.NewJSONRequest(t, "DELETE", fmt.Sprintf("/auth/roles/%d/permissions/%d", role.ID, permission.ID), nil)
-		rr = testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"roles:manage"})
-		assert.Equal(t, http.StatusNoContent, rr.Code, "Remove failed: %s", rr.Body.String())
-	})
-
 	t.Run("replaces permissions on a role", func(t *testing.T) {
 		role := testpkg.CreateTestRole(t, tc.db, "ReplacePermRole")
 		permission := testpkg.CreateTestPermission(t, tc.db, "ReplaceRolePermission", "test", "read")
@@ -1474,30 +1433,16 @@ func TestAccountRoleAssignment(t *testing.T) {
 		testutil.AssertForbidden(t, rr)
 	})
 
-	t.Run("assign and remove role from account", func(t *testing.T) {
-		account := testpkg.CreateTestAccount(t, tc.db, fmt.Sprintf("assignrole%d", time.Now().UnixNano()))
-		role := testpkg.CreateTestRole(t, tc.db, "AssignAccRole")
-
-		// Assign role
-		req := testutil.NewJSONRequest(t, "POST", fmt.Sprintf("/auth/accounts/%d/roles/%d", account.ID, role.ID), nil)
-		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:manage"})
-		assert.Equal(t, http.StatusNoContent, rr.Code, "Assign failed: %s", rr.Body.String())
-
-		// Remove role
-		req = testutil.NewJSONRequest(t, "DELETE", fmt.Sprintf("/auth/accounts/%d/roles/%d", account.ID, role.ID), nil)
-		rr = testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:manage"})
-		assert.Equal(t, http.StatusNoContent, rr.Code, "Remove failed: %s", rr.Body.String())
-	})
-
 	t.Run("replaces roles on an account", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, tc.db, fmt.Sprintf("replacerole%d", time.Now().UnixNano()))
 		oldRole := testpkg.CreateTestRole(t, tc.db, "ReplaceAccRoleOld")
 		extraRole := testpkg.CreateTestRole(t, tc.db, "ReplaceAccRoleExtra")
 		role := testpkg.CreateTestRole(t, tc.db, "ReplaceAccRole")
 		for _, current := range []int64{oldRole.ID, extraRole.ID} {
-			assignReq := testutil.NewJSONRequest(t, "POST", fmt.Sprintf("/auth/accounts/%d/roles/%d", account.ID, current), nil)
-			assignResp := testutil.ExecuteWithAuthPermissions(t, router, assignReq, adminClaims, []string{"users:manage"})
-			require.Equal(t, http.StatusNoContent, assignResp.Code, "Assign failed: %s", assignResp.Body.String())
+			_, err := tc.db.ExecContext(context.Background(),
+				"INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)",
+				account.ID, current, testpkg.Tenant(t))
+			require.NoError(t, err)
 		}
 
 		req := testutil.NewJSONRequest(t, "PUT", fmt.Sprintf("/auth/accounts/%d/roles", account.ID), map[string]string{
@@ -1530,108 +1475,68 @@ func TestAccountRoleAssignment(t *testing.T) {
 			Exec(context.Background())
 		require.NoError(t, err)
 
-		req := testutil.NewJSONRequest(t, "POST", fmt.Sprintf("/auth/accounts/%d/roles/%d", account.ID, guardianRole.ID), nil)
+		req := testutil.NewJSONRequest(t, "PUT", fmt.Sprintf("/auth/accounts/%d/roles", account.ID), map[string]string{
+			"role_id": fmt.Sprintf("%d", guardianRole.ID),
+		})
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:manage"})
 
 		testutil.AssertBadRequest(t, rr)
 	})
 }
 
+// TestSingleRoleAndActivationRoutesAreRetired pins that the single role and
+// permission assignment routes and the account activation toggles are gone
+// (#4431). Role changes run through PUT /auth/accounts/{id}/roles and PUT
+// /auth/roles/{id}/permissions; deleting a staff member deactivates the
+// account.
+func TestSingleRoleAndActivationRoutesAreRetired(t *testing.T) {
+	t.Parallel()
+	tc, router := setupProtectedRouter(t)
+	adminClaims := testutil.AdminTestClaims(1)
+	account := testpkg.CreateTestAccount(t, tc.db, fmt.Sprintf("retiredroles%d", time.Now().UnixNano()))
+	role := testpkg.CreateTestRole(t, tc.db, "RetiredSingleRole")
+	permission := testpkg.CreateTestPermission(t, tc.db, "RetiredSingle", "test", "read")
+
+	for _, route := range []struct{ method, path string }{
+		{http.MethodPost, fmt.Sprintf("/auth/accounts/%d/roles/%d", account.ID, role.ID)},
+		{http.MethodDelete, fmt.Sprintf("/auth/accounts/%d/roles/%d", account.ID, role.ID)},
+		{http.MethodPost, fmt.Sprintf("/auth/roles/%d/permissions/%d", role.ID, permission.ID)},
+		{http.MethodDelete, fmt.Sprintf("/auth/roles/%d/permissions/%d", role.ID, permission.ID)},
+		{http.MethodPut, fmt.Sprintf("/auth/accounts/%d/activate", account.ID)},
+		{http.MethodPut, fmt.Sprintf("/auth/accounts/%d/deactivate", account.ID)},
+	} {
+		req := testutil.NewJSONRequest(t, route.method, route.path, nil)
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:manage", "users:update", "roles:manage"})
+		assert.Contains(t, []int{http.StatusNotFound, http.StatusMethodNotAllowed}, rr.Code,
+			"%s %s must be retired, got %d: %s", route.method, route.path, rr.Code, rr.Body.String())
+	}
+}
+
 // ============================================================================
 // ACCOUNT PERMISSION TESTS
 // ============================================================================
 
-// TestAccountPermissionManagement tests account permission management endpoints
-func TestAccountPermissionManagement(t *testing.T) {
+// TestAccountPermissionRoutesAreRetired pins that the direct account
+// permission endpoints are gone (#4485): rights come only from roles.
+func TestAccountPermissionRoutesAreRetired(t *testing.T) {
 	t.Parallel()
 	tc, router := setupProtectedRouter(t)
 	adminClaims := testutil.AdminTestClaims(1)
+	account := testpkg.CreateTestAccount(t, tc.db, fmt.Sprintf("retiredperms%d", time.Now().UnixNano()))
+	permission := testpkg.CreateTestPermission(t, tc.db, "RetiredDirect", "test", "read")
 
-	t.Run("get account permissions", func(t *testing.T) {
-		account := testpkg.CreateTestAccount(t, tc.db, fmt.Sprintf("accperms%d", time.Now().UnixNano()))
-
-		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/auth/accounts/%d/permissions", account.ID), nil)
+	for _, route := range []struct{ method, path string }{
+		{http.MethodGet, fmt.Sprintf("/auth/accounts/%d/permissions", account.ID)},
+		{http.MethodGet, fmt.Sprintf("/auth/accounts/%d/permissions/direct", account.ID)},
+		{http.MethodPost, fmt.Sprintf("/auth/accounts/%d/permissions/%d/grant", account.ID, permission.ID)},
+		{http.MethodPost, fmt.Sprintf("/auth/accounts/%d/permissions/%d/deny", account.ID, permission.ID)},
+		{http.MethodDelete, fmt.Sprintf("/auth/accounts/%d/permissions/%d", account.ID, permission.ID)},
+	} {
+		req := testutil.NewJSONRequest(t, route.method, route.path, nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:manage"})
-
-		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
-	})
-
-	t.Run("get account direct permissions", func(t *testing.T) {
-		account := testpkg.CreateTestAccount(t, tc.db, fmt.Sprintf("directperms%d", time.Now().UnixNano()))
-
-		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/auth/accounts/%d/permissions/direct", account.ID), nil)
-		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:manage"})
-
-		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
-	})
-
-	t.Run("grant and remove permission from account", func(t *testing.T) {
-		account := testpkg.CreateTestAccount(t, tc.db, fmt.Sprintf("grantperm%d", time.Now().UnixNano()))
-		permission := testpkg.CreateTestPermission(t, tc.db, "GrantToAcc", "test", "read")
-
-		// Grant permission
-		req := testutil.NewJSONRequest(t, "POST", fmt.Sprintf("/auth/accounts/%d/permissions/%d/grant", account.ID, permission.ID), nil)
-		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:manage"})
-		assert.Equal(t, http.StatusNoContent, rr.Code, "Grant failed: %s", rr.Body.String())
-
-		// Remove permission
-		req = testutil.NewJSONRequest(t, "DELETE", fmt.Sprintf("/auth/accounts/%d/permissions/%d", account.ID, permission.ID), nil)
-		rr = testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:manage"})
-		assert.Equal(t, http.StatusNoContent, rr.Code, "Remove failed: %s", rr.Body.String())
-	})
-
-	t.Run("deny permission endpoint responds", func(t *testing.T) {
-		// Note: Deny permission has a known database schema issue
-		// This test just verifies the endpoint is accessible
-		account := testpkg.CreateTestAccount(t, tc.db, fmt.Sprintf("denyperm%d", time.Now().UnixNano()))
-		permission := testpkg.CreateTestPermission(t, tc.db, "DenyToAcc", "test", "read")
-		req := testutil.NewJSONRequest(t, "POST", fmt.Sprintf("/auth/accounts/%d/permissions/%d/deny", account.ID, permission.ID), nil)
-		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:manage"})
-		// Accept 204 (success) or 500 (known schema issue)
-		assert.True(t, rr.Code == http.StatusNoContent || rr.Code == http.StatusInternalServerError,
-			"Expected 204 or 500, got %d: %s", rr.Code, rr.Body.String())
-	})
-
-	t.Run("permission operations forbidden without permission", func(t *testing.T) {
-		req := testutil.NewJSONRequest(t, "GET", "/auth/accounts/1/permissions", nil)
-		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{})
-		testutil.AssertForbidden(t, rr)
-	})
-}
-
-// ============================================================================
-// ACCOUNT ACTIVATION TESTS
-// ============================================================================
-
-// TestAccountActivation tests account activation/deactivation endpoints
-func TestAccountActivation(t *testing.T) {
-	t.Parallel()
-	tc, router := setupProtectedRouter(t)
-	adminClaims := testutil.AdminTestClaims(1)
-
-	t.Run("activate account", func(t *testing.T) {
-		account := testpkg.CreateTestAccount(t, tc.db, fmt.Sprintf("activate%d", time.Now().UnixNano()))
-
-		req := testutil.NewJSONRequest(t, "PUT", fmt.Sprintf("/auth/accounts/%d/activate", account.ID), nil)
-		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:update"})
-
-		assert.Equal(t, http.StatusNoContent, rr.Code, "Body: %s", rr.Body.String())
-	})
-
-	t.Run("deactivate account", func(t *testing.T) {
-		account := testpkg.CreateTestAccount(t, tc.db, fmt.Sprintf("deactivate%d", time.Now().UnixNano()))
-
-		req := testutil.NewJSONRequest(t, "PUT", fmt.Sprintf("/auth/accounts/%d/deactivate", account.ID), nil)
-		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:update"})
-
-		assert.Equal(t, http.StatusNoContent, rr.Code, "Body: %s", rr.Body.String())
-	})
-
-	t.Run("activation forbidden without permission", func(t *testing.T) {
-		req := testutil.NewJSONRequest(t, "PUT", "/auth/accounts/1/activate", nil)
-		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{})
-		testutil.AssertForbidden(t, rr)
-	})
+		assert.Contains(t, []int{http.StatusNotFound, http.StatusMethodNotAllowed}, rr.Code,
+			"%s %s must be retired, got %d: %s", route.method, route.path, rr.Code, rr.Body.String())
+	}
 }
 
 // TestAccountUpdate tests account update endpoint
@@ -1767,6 +1672,24 @@ func TestInvitationManagement(t *testing.T) {
 		testutil.AssertForbidden(t, rr)
 	})
 
+	// The Einladen dialog's former-employment question (#3402) is gated
+	// like sending the invitation: users:list alone does not answer it.
+	t.Run("former employment forbidden without users:manage", func(t *testing.T) {
+		body := map[string]interface{}{"email": "former@example.com"}
+		req := testutil.NewJSONRequest(t, "POST", "/auth/invitations/former-employment", body)
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:list"})
+
+		testutil.AssertForbidden(t, rr)
+	})
+
+	t.Run("former employment answers with users:manage", func(t *testing.T) {
+		body := map[string]interface{}{"email": "former@example.com"}
+		req := testutil.NewJSONRequest(t, "POST", "/auth/invitations/former-employment", body)
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:manage"})
+
+		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+	})
+
 	t.Run("create invitation bad request with invalid email", func(t *testing.T) {
 		body := map[string]interface{}{
 			"email":      "invalid-email",
@@ -1802,124 +1725,6 @@ func TestInvitationManagement(t *testing.T) {
 // ============================================================================
 // PARENT ACCOUNT TESTS
 // ============================================================================
-
-// TestParentAccountManagement tests parent account management endpoints
-func TestParentAccountManagement(t *testing.T) {
-	t.Parallel()
-	tc, router := setupProtectedRouter(t)
-	adminClaims := testutil.AdminTestClaims(1)
-
-	t.Run("list parent accounts", func(t *testing.T) {
-		req := testutil.NewJSONRequest(t, "GET", "/auth/parent-accounts", nil)
-		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:list"})
-
-		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
-	})
-
-	t.Run("list parent accounts with filters", func(t *testing.T) {
-		req := testutil.NewJSONRequest(t, "GET", "/auth/parent-accounts?active=true", nil)
-		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:list"})
-
-		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
-	})
-
-	t.Run("create parent account", func(t *testing.T) {
-		email := fmt.Sprintf("parent%d@test.local", time.Now().UnixNano())
-		username := fmt.Sprintf("parent_%d", time.Now().UnixNano()) // No modulo - fully unique
-		body := map[string]string{
-			"email":            email,
-			"username":         username,
-			"password":         "SecurePass123!",
-			"confirm_password": "SecurePass123!",
-		}
-
-		req := testutil.NewJSONRequest(t, "POST", "/auth/parent-accounts", body)
-		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:create"})
-
-		testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
-
-		// Cleanup: delete the created parent account
-		response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
-		data := response["data"].(map[string]interface{})
-		parentID := int64(data["id"].(float64))
-		_, _ = tc.db.NewDelete().TableExpr("auth.accounts_parents").Where("id = ?", parentID).Exec(context.Background())
-	})
-
-	t.Run("create parent account bad request with weak password", func(t *testing.T) {
-		// Use unique identifiers even though registration should fail
-		body := map[string]string{
-			"email":            fmt.Sprintf("weakparent_%d@test.local", time.Now().UnixNano()),
-			"username":         fmt.Sprintf("weakparent_%d", time.Now().UnixNano()),
-			"password":         "weak",
-			"confirm_password": "weak",
-		}
-
-		req := testutil.NewJSONRequest(t, "POST", "/auth/parent-accounts", body)
-		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:create"})
-
-		testutil.AssertBadRequest(t, rr)
-	})
-
-	t.Run("get parent account not found", func(t *testing.T) {
-		req := testutil.NewJSONRequest(t, "GET", "/auth/parent-accounts/99999", nil)
-		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:read"})
-
-		testutil.AssertNotFound(t, rr)
-	})
-
-	t.Run("update parent account not found", func(t *testing.T) {
-		body := map[string]string{
-			"email": "update@test.local",
-		}
-
-		req := testutil.NewJSONRequest(t, "PUT", "/auth/parent-accounts/99999", body)
-		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:update"})
-
-		testutil.AssertNotFound(t, rr)
-	})
-
-	t.Run("parent account operations forbidden without permission", func(t *testing.T) {
-		req := testutil.NewJSONRequest(t, "GET", "/auth/parent-accounts", nil)
-		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{})
-		testutil.AssertForbidden(t, rr)
-	})
-
-	// Test activate/deactivate with a real parent account
-	t.Run("activate and deactivate parent account", func(t *testing.T) {
-		// Create parent account first with fully unique identifiers
-		email := fmt.Sprintf("activateparent%d@test.local", time.Now().UnixNano())
-		username := fmt.Sprintf("activatep_%d", time.Now().UnixNano()) // No modulo - fully unique
-		body := map[string]string{
-			"email":            email,
-			"username":         username,
-			"password":         "SecurePass123!",
-			"confirm_password": "SecurePass123!",
-		}
-
-		req := testutil.NewJSONRequest(t, "POST", "/auth/parent-accounts", body)
-		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:create"})
-		require.Equal(t, http.StatusCreated, rr.Code, "Create failed: %s", rr.Body.String())
-
-		response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
-		data := response["data"].(map[string]interface{})
-		parentID := int64(data["id"].(float64))
-
-		// Cleanup when done
-		defer func() {
-			_, _ = tc.db.NewDelete().TableExpr("auth.accounts_parents").Where("id = ?", parentID).Exec(context.Background())
-		}()
-
-		// Deactivate
-		req = testutil.NewJSONRequest(t, "PUT", fmt.Sprintf("/auth/parent-accounts/%d/deactivate", parentID), nil)
-		rr = testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:update"})
-		assert.Equal(t, http.StatusNoContent, rr.Code, "Deactivate failed: %s", rr.Body.String())
-
-		// Activate
-		req = testutil.NewJSONRequest(t, "PUT", fmt.Sprintf("/auth/parent-accounts/%d/activate", parentID), nil)
-		rr = testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:update"})
-		assert.Equal(t, http.StatusNoContent, rr.Code, "Activate failed: %s", rr.Body.String())
-	})
-}
 
 // ============================================================================
 // ADDITIONAL COVERAGE TESTS - Previously 0% Coverage Handlers
@@ -1975,7 +1780,7 @@ func setupRefreshTokenRouter(t *testing.T) (*testContext, chi.Router) {
 
 	// Use the full public router for refresh/logout
 	// These routes require JWT middleware which we bypass via context
-	router.Mount("/auth", tc.resource.Router())
+	router.Mount("/auth", tc.resource.Router(api.TenantSessionChain))
 
 	return tc, router
 }
@@ -2040,10 +1845,10 @@ func TestListTenants(t *testing.T) {
 	t.Parallel()
 	_, authRoute := setupAuthDependenciesRoute(t)
 
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, testutil.AccountRouteTenantRuntime())
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation, authRoute.SettingsService)
 
 	router := chi.NewRouter()
-	router.Mount("/auth", resource.Router())
+	router.Mount("/auth", resource.Router(api.TenantSessionChain))
 
 	t.Run("returns active tenants without internal IDs", func(t *testing.T) {
 		// EnsureTestTenant (called by SetupTestDB) creates tenant 1 with active=true
@@ -2111,7 +1916,7 @@ func setupAuthRouteWithSchoolRepo(t *testing.T) *testContext {
 	t.Helper()
 
 	db, authRoute := setupAuthDependenciesRoute(t)
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, testutil.AccountRouteTenantRuntime())
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation, authRoute.SettingsService)
 
 	return &testContext{
 		db:       db,
@@ -2126,7 +1931,7 @@ func TestInvitationCreateSuccess(t *testing.T) {
 	tc := setupAuthRouteWithSchoolRepo(t)
 
 	router := testutil.NewTenantRouter(tc.db)
-	router.Mount("/auth", tc.resource.Router())
+	router.Mount("/auth", tc.resource.Router(api.TenantSessionChain))
 
 	// Create a test account to act as the invitation creator
 	account := testpkg.CreateTestAccount(t, tc.db, fmt.Sprintf("inv-creator-%d@test.local", time.Now().UnixNano()))
@@ -2159,20 +1964,12 @@ func TestInvitationCreateSuccess(t *testing.T) {
 		require.Equal(t, http.StatusCreated, rr.Code,
 			"Expected 201 Created, got %d. Body: %s", rr.Code, rr.Body.String())
 
-		// Parse the created invitation to get its ID for cleanup
+		// Parse the created invitation
 		response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
 		data, ok := response["data"].(map[string]interface{})
 		require.True(t, ok, "Expected data in response")
 		assert.Equal(t, inviteeEmail, data["email"])
 		assert.NotZero(t, data["id"])
-
-		// Cleanup the created invitation
-		if id, ok := data["id"].(float64); ok {
-			_, _ = tc.db.NewDelete().
-				TableExpr("auth.invitation_tokens").
-				Where("id = ?", int64(id)).
-				Exec(context.Background())
-		}
 	})
 
 	t.Run("list pending invitations through tenant transaction", func(t *testing.T) {
@@ -2209,7 +2006,7 @@ func TestInvitationCreateSuccess(t *testing.T) {
 			"confirm_password": "Test1234%",
 		}
 		acceptReq := testutil.NewJSONRequest(t, "POST", "/invitations/"+token+"/accept", acceptBody)
-		acceptRR := testutil.ExecuteRequest(tc.resource.Router(), acceptReq)
+		acceptRR := testutil.ExecuteRequest(tc.resource.Router(api.TenantSessionChain), acceptReq)
 
 		require.Equal(t, http.StatusCreated, acceptRR.Code,
 			"Expected 201 Created, got %d. Body: %s", acceptRR.Code, acceptRR.Body.String())
@@ -2223,13 +2020,6 @@ func TestInvitationCreateSuccess(t *testing.T) {
 		// tenant_subdomain should be the subdomain of the invitation's school (#1977)
 		if subdomain, ok := acceptData["tenant_subdomain"].(string); ok {
 			assert.NotEmpty(t, subdomain, "tenant_subdomain should be non-empty")
-		}
-
-		if id, ok := data["id"].(float64); ok {
-			_, _ = tc.db.NewDelete().
-				TableExpr("auth.invitation_tokens").
-				Where("id = ?", int64(id)).
-				Exec(context.Background())
 		}
 	})
 }
@@ -2272,16 +2062,6 @@ func TestLinkToTenant(t *testing.T) {
 		data, ok := response["data"].(map[string]interface{})
 		require.True(t, ok, "Expected data to be an object")
 		assert.Equal(t, email, data["email"])
-
-		// Cleanup tenant mapping + role assignment created by link
-		_, _ = db.NewDelete().
-			TableExpr("auth.account_roles").
-			Where("account_id = ?", account.ID).
-			Exec(context.Background())
-		_, _ = db.NewDelete().
-			TableExpr("auth.account_tenants").
-			Where("account_id = ?", account.ID).
-			Exec(context.Background())
 	})
 
 	t.Run("returns 404 for non-existent email", func(t *testing.T) {
@@ -2332,10 +2112,10 @@ func TestResolveTenant_DeletedSchool_ReturnsNotFound(t *testing.T) {
 		`UPDATE platform.schools SET deleted_at = NOW() WHERE id = ?`, tenantID)
 	require.NoError(t, err)
 
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, testutil.AccountRouteTenantRuntime())
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation, authRoute.SettingsService)
 
 	router := chi.NewRouter()
-	router.Mount("/auth", resource.Router())
+	router.Mount("/auth", resource.Router(api.TenantSessionChain))
 
 	// The subdomain for tenant 9900 is "t9900" (set by EnsureTestTenant).
 	req := httptest.NewRequest("GET", "/auth/tenant/resolve?slug=t9900", nil)
@@ -2345,12 +2125,12 @@ func TestResolveTenant_DeletedSchool_ReturnsNotFound(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, rr.Code, "Soft-deleted tenant must return 404, body: %s", rr.Body.String())
 
 	var response struct {
-		Status  string `json:"status"`
-		Message string `json:"message"`
+		Status int    `json:"status"`
+		Detail string `json:"detail"`
 	}
 	err = json.Unmarshal(rr.Body.Bytes(), &response)
 	require.NoError(t, err, "Failed to parse error response: %s", rr.Body.String())
-	assert.Equal(t, "error", response.Status)
+	assert.Equal(t, rr.Code, response.Status)
 }
 
 // TestCreateInvitationRequiresRoleGrantAuthority guards the invitation endpoint

@@ -124,7 +124,14 @@ describe("createResponseAwareAuth", () => {
     const backend = vi.fn(async (token: string | undefined) =>
       token === "fresh-access"
         ? Response.json({ ok: true })
-        : Response.json({ code: "TOKEN_EXPIRED" }, { status: 401 }),
+        : Response.json(
+            {
+              status: 401,
+              detail: "token expired",
+              code: "general.permission",
+            },
+            { status: 401 },
+          ),
     );
     const route = helpers.withAuthResponse(async () => {
       const initial = await helpers.auth();

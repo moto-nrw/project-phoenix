@@ -9,6 +9,7 @@ interface GroupsApiResponse {
     room_name?: string;
     via_substitution: boolean;
     is_personal: boolean;
+    leaders?: string[];
   }>;
 }
 

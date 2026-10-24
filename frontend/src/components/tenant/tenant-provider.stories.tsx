@@ -13,6 +13,7 @@ const fakeTenant: TenantInfo = {
   presenceMode: "detailed",
   studentPhotosEnabled: true,
   nfcEnabled: false,
+  bookedModules: [],
   messagingEnabled: false,
   staffMessagingEnabled: false,
   displayEnabled: false,

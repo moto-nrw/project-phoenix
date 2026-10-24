@@ -10,7 +10,15 @@ let shellUser: { id: string } | null = { id: "74" };
 let preview = false;
 let onboarding: StaffOnboardingState | null = null;
 let pathname = "/dashboard";
-let permissions: string[] = ["calendar:own"];
+// Die Rechte einer Betreuungskraft, an denen die Schritte hängen (#4573).
+const CAREGIVER_PERMISSIONS = [
+  "calendar:own",
+  "users:read",
+  "groups:read",
+  "groups:update",
+  "time_tracking:own",
+];
+let permissions: string[] = CAREGIVER_PERMISSIONS;
 let groups: { id: string; is_personal?: boolean }[] = [{ id: "1" }];
 let presenceMode: "detailed" | "binary" = "detailed";
 let openCare = false;
@@ -42,6 +50,7 @@ vi.mock("~/lib/tenant-context", () => ({
   useNFCEnabled: () => false,
   usePresenceMode: () => presenceMode,
   useOpenCareGroupMode: () => openCare,
+  useChildSearchOnlyNavigation: () => false,
   useAttendanceWebEnabled: () => webAttendance,
   useTenantSlugSafe: () => tenantSlug,
 }));
@@ -72,6 +81,7 @@ vi.mock("~/lib/staff-onboarding-api", async (importOriginal) => ({
 }));
 
 import { StaffOnboardingWizard } from "./staff-onboarding-wizard";
+import { ApiError } from "~/lib/api-error";
 
 function newPerson(): StaffOnboardingState {
   return {
@@ -116,7 +126,7 @@ describe("StaffOnboardingWizard", () => {
     preview = false;
     onboarding = newPerson();
     pathname = "/dashboard";
-    permissions = ["calendar:own"];
+    permissions = CAREGIVER_PERMISSIONS;
     groups = [{ id: "1" }];
     presenceMode = "detailed";
     openCare = false;
@@ -153,13 +163,43 @@ describe("StaffOnboardingWizard", () => {
     openCare = true;
     webAttendance = false;
     presenceMode = "binary";
-    permissions = [];
+    permissions = ["users:read", "time_tracking:own"];
     render(<StaffOnboardingWizard />);
 
     expect(stepTitles()).toEqual([
       "Ein Kind finden und Angaben ansehen",
       "Arbeitszeit erfassen",
     ]);
+  });
+
+  // ADR 0091: die AG-Leitung hält nur schedules:read. Sie findet keine
+  // Kinder über „Alle Kinder“ und erfasst keine Arbeitszeit.
+  it("offers an external person only the supervision step", () => {
+    permissions = ["schedules:read"];
+    groups = [];
+    render(<StaffOnboardingWizard />);
+
+    expect(stepTitles()).toEqual(["Eine Aufsicht starten"]);
+  });
+
+  // ADR 0091: der Gast sieht Gruppen und Aufsichten, startet aber keine.
+  // Ohne einen Schritt, der für ihn gilt, bleibt die Checkliste weg.
+  it("offers a guest no step and hides the checklist", () => {
+    permissions = [
+      "students:read",
+      "groups:read",
+      "rooms:read",
+      "activities:read",
+    ];
+    groups = [];
+    const guest = render(<StaffOnboardingWizard />);
+    expect(screen.queryByText(/Erste Schritte/)).toBeNull();
+    guest.unmount();
+
+    // Anker: mit dem Startrecht der AG-Leitung erscheint dieselbe Liste.
+    permissions = ["schedules:read"];
+    render(<StaffOnboardingWizard />);
+    expect(stepTitles()).toEqual(["Eine Aufsicht starten"]);
   });
 
   it("shows the group step only to a person with an own group", () => {
@@ -170,20 +210,39 @@ describe("StaffOnboardingWizard", () => {
   });
 
   it("stays hidden until the school is ready, once hidden, and in a preview", () => {
-    onboarding = { ...newPerson(), schoolReady: false };
-    const { unmount } = render(<StaffOnboardingWizard />);
-    expect(screen.queryByText("Erste Schritte")).toBeNull();
-    unmount();
+    // Jede verdeckte Zeile weicht von der sichtbaren Ausgangslage (Schule
+    // bereit, nicht ausgeblendet, keine Vorschau) nur in einem Punkt ab. Der
+    // reguläre Ausdruck trifft die offene Checkliste und den Knopf.
+    const showVisible = () => {
+      onboarding = newPerson();
+      preview = false;
+    };
+    const hiddenRows = [
+      () => {
+        onboarding = { ...newPerson(), schoolReady: false };
+      },
+      () => {
+        onboarding = { ...newPerson(), dismissed: true };
+      },
+      () => {
+        preview = true;
+      },
+    ];
 
-    onboarding = { ...newPerson(), dismissed: true };
-    const second = render(<StaffOnboardingWizard />);
-    expect(screen.queryByText("Erste Schritte")).toBeNull();
-    second.unmount();
+    for (const hide of hiddenRows) {
+      showVisible();
+      hide();
+      const hidden = render(<StaffOnboardingWizard />);
+      expect(screen.queryByText(/Erste Schritte/)).toBeNull();
+      hidden.unmount();
 
-    onboarding = newPerson();
-    preview = true;
-    render(<StaffOnboardingWizard />);
-    expect(screen.queryByText("Erste Schritte")).toBeNull();
+      sessionStorage.clear();
+      showVisible();
+      const shown = render(<StaffOnboardingWizard />);
+      // Anker: dieselbe Abfrage findet die Checkliste in der sichtbaren Ausgangslage.
+      expect(screen.getByText(/Erste Schritte/)).toBeInTheDocument();
+      shown.unmount();
+    }
   });
 
   it("marks a step done once the person reaches the end of its tour", async () => {
@@ -563,9 +622,8 @@ describe("StaffOnboardingWizard", () => {
   });
 
   it("says so when a step could not be saved", async () => {
-    const { StaffOnboardingError } = await import("~/lib/staff-onboarding-api");
     api.setStaffOnboardingStepState.mockRejectedValueOnce(
-      new StaffOnboardingError(500),
+      new ApiError("staff onboarding request failed (500)", 500),
     );
     render(<StaffOnboardingWizard />);
 

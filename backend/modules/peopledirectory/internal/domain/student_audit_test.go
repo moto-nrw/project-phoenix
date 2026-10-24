@@ -38,8 +38,8 @@ func TestDiffStudentFieldsNoChange(t *testing.T) {
 		},
 		{
 			name:   "nil vs empty-string note are equal",
-			before: StudentAuditSnapshot{SupervisorNotes: nil},
-			after:  StudentAuditSnapshot{SupervisorNotes: strPtr("")},
+			before: StudentAuditSnapshot{HealthInfo: nil},
+			after:  StudentAuditSnapshot{HealthInfo: strPtr("")},
 		},
 		{
 			name:   "no recorded care end on either side",
@@ -72,21 +72,21 @@ func TestDiffStudentFieldsPerField(t *testing.T) {
 		assert.Equal(t, "Aktiv", changes[0].NewValue)
 	})
 
-	t.Run("supervisor notes from empty to value", func(t *testing.T) {
+	t.Run("health info from empty to value", func(t *testing.T) {
 		changes := DiffStudentFields(
 			StudentAuditSnapshot{},
-			StudentAuditSnapshot{SupervisorNotes: strPtr("Allergie beachten")},
+			StudentAuditSnapshot{HealthInfo: strPtr("synthetic-value-a")},
 		)
 		require.Len(t, changes, 1)
-		assert.Equal(t, StudentFieldSupervisorNotes, changes[0].FieldName)
+		assert.Equal(t, StudentFieldHealthInfo, changes[0].FieldName)
 		assert.Equal(t, "", changes[0].OldValue)
-		assert.Equal(t, "Allergie beachten", changes[0].NewValue)
+		assert.Equal(t, "Angabe hinzugefügt", changes[0].NewValue)
 	})
 
 	t.Run("extra info and health info change independently", func(t *testing.T) {
 		changes := DiffStudentFields(
-			StudentAuditSnapshot{ExtraInfo: strPtr("alt"), HealthInfo: strPtr("gesund")},
-			StudentAuditSnapshot{ExtraInfo: strPtr("neu"), HealthInfo: strPtr("gesund")},
+			StudentAuditSnapshot{ExtraInfo: strPtr("alt"), HealthInfo: strPtr("synthetic-value-a")},
+			StudentAuditSnapshot{ExtraInfo: strPtr("neu"), HealthInfo: strPtr("synthetic-value-a")},
 		)
 		require.Len(t, changes, 1, "only extra_info changed")
 		assert.Equal(t, StudentFieldExtraInfo, changes[0].FieldName)
@@ -95,21 +95,22 @@ func TestDiffStudentFieldsPerField(t *testing.T) {
 	t.Run("surrounding whitespace remains auditable", func(t *testing.T) {
 		changes := DiffStudentFields(
 			StudentAuditSnapshot{
-				SupervisorNotes: strPtr("Hinweis"),
-				ExtraInfo:       strPtr("Info"),
-				HealthInfo:      strPtr("Gesund"),
+				DepartureCompanionNote: strPtr("Hinweis"),
+				ExtraInfo:              strPtr("Info"),
+				HealthInfo:             strPtr("synthetic-value-a"),
 			},
 			StudentAuditSnapshot{
-				SupervisorNotes: strPtr(" Hinweis "),
-				ExtraInfo:       strPtr(" Info "),
-				HealthInfo:      strPtr(" Gesund "),
+				DepartureCompanionNote: strPtr(" Hinweis "),
+				ExtraInfo:              strPtr(" Info "),
+				HealthInfo:             strPtr(" synthetic-value-a "),
 			},
 		)
 		byField := changeByField(changes)
 		require.Len(t, changes, 3)
-		assert.Equal(t, " Hinweis ", byField[StudentFieldSupervisorNotes].NewValue)
+		assert.Equal(t, " Hinweis ", byField[StudentFieldDepartureCompanionNote].NewValue)
 		assert.Equal(t, " Info ", byField[StudentFieldExtraInfo].NewValue)
-		assert.Equal(t, " Gesund ", byField[StudentFieldHealthInfo].NewValue)
+		assert.Equal(t, "Angabe vorhanden", byField[StudentFieldHealthInfo].OldValue)
+		assert.Equal(t, "Angabe geändert", byField[StudentFieldHealthInfo].NewValue)
 	})
 
 	t.Run("pickup status change", func(t *testing.T) {
@@ -178,12 +179,35 @@ func TestDiffStudentFieldsMultipleFields(t *testing.T) {
 	t.Parallel()
 
 	changes := DiffStudentFields(
-		StudentAuditSnapshot{Status: "active", SupervisorNotes: strPtr("alt")},
-		StudentAuditSnapshot{Status: "inactive", SupervisorNotes: strPtr("neu")},
+		StudentAuditSnapshot{Status: "active", ExtraInfo: strPtr("alt")},
+		StudentAuditSnapshot{Status: "inactive", ExtraInfo: strPtr("neu")},
 	)
 	byField := changeByField(changes)
 	require.Len(t, changes, 2)
 	assert.Contains(t, byField, StudentFieldStatus)
-	assert.Contains(t, byField, StudentFieldSupervisorNotes)
+	assert.Contains(t, byField, StudentFieldExtraInfo)
 	assert.Equal(t, "Inaktiv", byField[StudentFieldStatus].NewValue)
+}
+
+// Health changes retain the event, never either free-text value.
+func TestDiffStudentFieldsHealthInfoIsMasked(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name               string
+		before, after      *string
+		oldValue, newValue string
+	}{
+		{"added", nil, strPtr("synthetic-value-a"), "", "Angabe hinzugefügt"},
+		{"replaced", strPtr("synthetic-value-a"), strPtr("synthetic-value-b"), "Angabe vorhanden", "Angabe geändert"},
+		{"removed", strPtr("synthetic-value-a"), nil, "Angabe vorhanden", ""},
+		{"cleared to empty", strPtr("synthetic-value-a"), strPtr(""), "Angabe vorhanden", ""},
+		{"whitespace changed", strPtr("synthetic-value-a"), strPtr(" synthetic-value-a "), "Angabe vorhanden", "Angabe geändert"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			changes := DiffStudentFields(StudentAuditSnapshot{HealthInfo: tc.before}, StudentAuditSnapshot{HealthInfo: tc.after})
+			require.Equal(t, []StudentFieldChange{{FieldName: StudentFieldHealthInfo, OldValue: tc.oldValue, NewValue: tc.newValue}}, changes)
+		})
+	}
+	assert.Empty(t, DiffStudentFields(StudentAuditSnapshot{HealthInfo: strPtr("synthetic-value-a")}, StudentAuditSnapshot{HealthInfo: strPtr("synthetic-value-a")}))
 }

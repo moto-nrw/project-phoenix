@@ -12,6 +12,25 @@ default workload is `checkpoint-1-v2` (see
 `-runtime-checkpoint-workload=checkpoint-1-v1`, for the comparison with #3019
 and #3020 and for bridge runs.
 
+## Planner statistics condition
+
+Since [#4410](https://github.com/moto-nrw/project-phoenix/issues/4410), every
+opt-in checkpoint collects **fresh statistics** with a full `ANALYZE` of its
+disposable database after fixture setup and before warm-ups or metric counters.
+The raw evidence records this condition in `environment.planner_statistics`
+and `environment.planner_statistics_preparation`. Normal tests, the template
+and production are unchanged. Later per-request fixture preparation and worker
+writes remain part of the unchanged workload lifecycle; this is a setup-time
+condition, not continuously refreshed statistics or populated-inbox evidence.
+
+This is a measurement-series break, recorded in the
+[checkpoint register](https://github.com/moto-nrw/project-phoenix/blob/46506b00c695a6f102865cae2dc9f24010371b7c/backend/architecture/runtime-checkpoints.json).
+The accepted #3019, #3020 and #3021 evidence was captured without an explicit
+fixture `ANALYZE` and remains unchanged. Compare across this boundary only with
+a paired bridge or an explicit statistics-condition qualification. Workload
+versions, scenarios, fixtures, budgets and comparator tolerances do not change.
+See the [paired evidence](fresh-statistics-4410.md).
+
 ## Reproduce version `checkpoint-1-v1`
 
 1. Check out the workload commit linked in #3019. Install the pinned Devbox
@@ -25,7 +44,7 @@ and #3020 and for bridge runs.
 
    ```bash
    checkpoint_dir=$(mktemp -d)
-   GOMAXPROCS=4 scripts/run-go-toolchain.sh go -C backend test ./api \
+   GOMAXPROCS=4 scripts/run-go-toolchain.sh go -C backend test -tags=testhooks ./api \
      -run '^TestFullProductionRouterGolden$' -count=1 -parallel 8 \
      -runtime-checkpoint-output="$checkpoint_dir/raw.json" \
      > "$checkpoint_dir/test.log" 2>&1
@@ -465,9 +484,80 @@ toolchain, database settings, and transport scope. Any workload change needs
 an old/new bridge run on the same runtime commit. Do not extrapolate these
 latencies to deployment capacity.
 
+## Flow-specific runtime evidence (opt-in)
+
+Besides the production-router checkpoint above, the migration tickets left
+flow-specific measurements: tests that repeat one owner flow over warmups and
+samples on a disposable clone and log latency, statements, rows, pool and
+lock waits, deadlocks or `EXPLAIN (ANALYZE, BUFFERS)` plans. Since
+[#4426](https://github.com/moto-nrw/project-phoenix/issues/4426) they skip
+unless `PHX_TEST_RUNTIME_EVIDENCE=1` is set (`testpkg.RequireRuntimeEvidence`).
+`scripts/test-backend.sh`, `scripts/test-changed.sh` and CI never set it. The
+contracts these tests also asserted (read paths write nothing, query budgets,
+replay refusals, rollback and retry) run in the normal suite in the owners'
+budget, golden and integration tests.
+
+Run one measurement from the repository root, in a fresh process, and keep the
+log as evidence:
+
+```bash
+PHX_TEST_RUNTIME_EVIDENCE=1 scripts/run-go-toolchain.sh go -C backend test \
+  -tags=testhooks ./modules/timetable/compose/httpintegration \
+  -run '^TestSessionEndRuntimeEvidence$' -count=1 -parallel 8 -v
+```
+
+Without the variable the test reports `SKIP` and measures nothing. The
+commands recorded in the evidence files below predate this opt-in and partly
+name retired package paths; use the package from this table and add the
+variable. A test without an evidence file keeps its numbers in its migration
+issue at most; it stays opt-in instead of being deleted.
+
+| Test | Package (`backend/`) | Evidence |
+|---|---|---|
+| `TestEmergencySnapshotRuntimeEvidence` | `api` | [emergency-snapshot-2704.md](emergency-snapshot-2704.md) |
+| `TestIdentityMembershipRuntimeEvidence` | `api` | [identity-membership-2721.md](identity-membership-2721.md) |
+| `TestSlotListRuntime` | `modules/classday/compose` | #3108, no evidence file |
+| `TestDataImportRuntimeEvidence` | `modules/dataimport/importtest` | [data-import-2708.md](data-import-2708.md), [data-import-batches-2708.md](data-import-batches-2708.md), [data-import-contract-2744.md](data-import-contract-2744.md) |
+| `TestUnregisteredTagScanRuntime` | `modules/devicefleet/compose/httpadapter` | #2678, no evidence file |
+| `TestDeviceScanRuntimeEvidence` | `modules/devicescan/http/checkin` | [device-scan-2698.md](device-scan-2698.md) |
+| `TestFileStorageRuntimeEvidence` | `modules/filestorage/http/files` | [file-storage-2707.md](file-storage-2707.md) |
+| `TestOGSGroupLiveRuntime` | `modules/grouplive/http` | no evidence file |
+| `TestLinkRuntimeEvidence` | `modules/identityaccess/behavior` | #2722, no evidence file |
+| `TestIdentityPersistenceRuntimeEvidence` | `modules/identityaccess/inbound/account` | [identity-persistence-3226.md](identity-persistence-3226.md) |
+| `TestAccountSessionRuntimeEvidence` | `modules/identityaccess/integration` | [account-sessions-2720.md](account-sessions-2720.md) |
+| `TestOperatorRuntimeEvidence` | `modules/identityaccess/integration` | [operator-sessions-2720.md](operator-sessions-2720.md) |
+| `TestAccountPasskeyRuntimeEvidence`, `TestOperatorPasskeyRuntimeEvidence` | `modules/identityaccess/integration` | #2724, no evidence file |
+| `TestOperatorMFARuntimeEvidence` | `modules/identityaccess/integration` | #2723, no evidence file |
+| `TestOperatorTokenRuntimeEvidence` | `modules/identityaccess/integration` | #2722, no evidence file |
+| `TestOffboardingRuntimeEvidence` | `modules/peopledirectory/contracttest` | [staff-offboarding-2709.md](staff-offboarding-2709.md) |
+| `TestRequestReviewRuntimeEvidence` | `modules/requestreview/http` | [request-review-2705.md](request-review-2705.md), [request-review-3179.md](request-review-3179.md) |
+| `TestReminderRuntimeEvidence` | `modules/schoolcalendar/portal/compose` | [reminder-delivery-2700.md](reminder-delivery-2700.md) |
+| `TestGradeTransitionRuntimeEvidence` | `modules/schoolstructure/internal/application/groups` | [grade-transition-2711.md](grade-transition-2711.md) |
+| `TestStudentPresenceMigrationRuntime` | `modules/studentpresence/compose` | [student-presence-2691.md](student-presence-2691.md) |
+| `TestGroupRecoveryMigrationRuntime` | `modules/studentpresence/compose` | [student-presence-2692.md](student-presence-2692.md) |
+| `TestUnclaimedClaimRuntime` | `modules/studentpresence/internal/application/presence` | no evidence file |
+| `TestInstanceAssignmentMigrationRuntime` | `modules/timetable/compose` | #2685, no evidence file |
+| `TestSessionEndRuntimeEvidence` | `modules/timetable/compose/httpintegration` | [session-end-2697.md](session-end-2697.md) |
+| `TestWorkforceOwnerRuntime` | `modules/workforce/compose` | #2690, no evidence file |
+| `TestPlanExportRuntimeEvidence`, `TestDienstplanRuntimeEvidence` | `roots/owners` | [plan-export-2706.md](plan-export-2706.md) |
+| `TestStudentDeletionRuntimeEvidence` | `workflows/studentdeletion` | [student-deletion-2710.md](student-deletion-2710.md) |
+
+To run all of them, select them by name across the backend; packages without
+a match report `no tests to run`. The alternation names exactly the tests in
+the table:
+
+```bash
+PHX_TEST_RUNTIME_EVIDENCE=1 scripts/run-go-toolchain.sh go -C backend test \
+  -tags=testhooks ./... -count=1 -parallel 8 -v -run '^Test((EmergencySnapshot|IdentityMembership|DataImport|DeviceScan|FileStorage|Link|IdentityPersistence|AccountPasskey|AccountSession|OperatorMFA|OperatorPasskey|Operator|OperatorToken|Offboarding|RequestReview|Reminder|GradeTransition|SessionEnd|PlanExport|Dienstplan|StudentDeletion)RuntimeEvidence|(SlotList|UnregisteredTagScan|OGSGroupLive|UnclaimedClaim|WorkforceOwner)Runtime|(GroupRecovery|StudentPresence|InstanceAssignment)MigrationRuntime)$'
+```
+
+A new flow measurement calls
+`testpkg.RequireRuntimeEvidence(t)` right after `t.Parallel()` and keeps any
+contract it asserts in a normal test as well.
+
 ## Acceptance
 
-The measurement command does not accept a baseline. Follow
-[the acceptance registry contract](../../backend/architecture/README.md#recording-acceptance):
-explicit issue acceptance precedes a reviewed registry entry. Neither this
-helper nor its report edits `runtime-checkpoints.json`, policy, or ratchets.
+The measurement command does not accept a baseline. A checkpoint is accepted
+explicitly in its issue; the repository keeps no acceptance registry since the
+[amendment to ADR 0026](../adr/0026-migration-evidence-gate-preserves-provenance.md#amendment-of-2026-10-23).
+Neither this helper nor its report edits policy or ratchets.

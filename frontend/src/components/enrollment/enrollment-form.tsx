@@ -1,5 +1,12 @@
 "use client";
 
+import { AttachmentList } from "~/components/enrollment/attachment-list";
+import {
+  EnrollmentUploadScope,
+  FileUploadInput,
+  fileValueMissing,
+  useEnrollmentUploadTarget,
+} from "~/components/enrollment/enrollment-file-upload";
 import { useEffect, useId, useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { Check, FileText, Info, Lock, Plus, Trash2 } from "lucide-react";
@@ -50,6 +57,7 @@ import {
 import ReactMarkdown, { type Components } from "react-markdown";
 import { ConfirmationModal, Modal } from "~/components/ui/modal";
 import { CustomSelect } from "~/components/ui/custom-select";
+import { Alert } from "~/components/ui/alert";
 import { Checkbox } from "~/components/ui/checkbox";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { ToggleChip } from "~/components/ui/toggle-chip";
@@ -64,6 +72,12 @@ import {
 } from "~/components/ui/form-error-alert";
 import { ApiError } from "~/lib/api-error";
 import {
+  AT_MOST_ONE_PER_DAY,
+  type CareOfferingDayConflict,
+  careOfferingDayConflicts,
+  conflictOfferingList,
+} from "~/lib/care-offering-day-conflicts";
+import {
   copyStableObjectKey,
   getStableObjectKey,
 } from "~/lib/stable-object-key";
@@ -71,6 +85,7 @@ import {
   availableCareOfferings,
   careOfferingAvailabilityReason,
   careOfferingIsAvailable,
+  careOfferingRuleExcludesNobody,
 } from "~/lib/care-offering-availability";
 import {
   type CareOfferingBookingStats,
@@ -170,6 +185,10 @@ interface Props {
   readonly onSubmitted: (statusURL: string) => void;
   readonly prefetchedData?: EnrollmentFormPrefetchedData;
   readonly lateInviteToken?: string;
+  /** Status-link authorization for file uploads while editing a request. */
+  readonly statusToken?: string;
+  /** Authenticated parent-portal upload route for restricted phases. */
+  readonly uploadEndpoint?: string;
   readonly previewMode?: boolean;
   readonly previewSchema?: PublicFormSchema | null;
   /**
@@ -259,7 +278,7 @@ export interface EnrollmentFormPrefetchedData {
  * Public enrollment form. Loads the active schema + open care offerings,
  * collects guardian info + 1..n children + offering selections, and
  * submits to /api/enrollment/{tenantSlug}/submit. The captcha widget is
- * inlined when enrollment.captcha_site_key is present in the payload,
+ * inlined only when captcha is enabled and the payload carries a site key;
  * captcha verification happens server-side.
  *
  * The form intentionally renders core fields (guardian + child names,
@@ -273,6 +292,8 @@ export function EnrollmentForm({
   onSubmitted,
   prefetchedData,
   lateInviteToken,
+  statusToken,
+  uploadEndpoint,
   previewMode = false,
   previewSchema,
   profileFetcher,
@@ -297,6 +318,16 @@ export function EnrollmentForm({
     [intl, localizedCopy],
   );
   const { tenantSlug } = useTenant();
+  // File fields upload at once; the submit waits for running uploads (#4783).
+  const { pendingUploads, uploadTarget } = useEnrollmentUploadTarget({
+    tenantSlug,
+    phaseId: phaseID,
+    lateInviteToken,
+    statusToken,
+    uploadEndpoint,
+    locale: contentLocale,
+    previewMode,
+  });
   // A "new_students" phase rejects any already-enrolled child at submit
   // (#1663). The parent portal prefills the guardian's linked children, so
   // offering to reuse one would always fail server-side — hide the reuse
@@ -311,6 +342,7 @@ export function EnrollmentForm({
   const isExistingStudentsPhase =
     prefetchedData?.audience === "existing_students";
   const initialOfferings = prefetchedData?.offerings ?? [];
+  const initialCollectGradeLevel = prefetchedData?.collectGradeLevel !== false;
   const initialRequiredOfferingIDs = initialOfferings
     .filter((o) => o.is_required && careOfferingIsAvailable(o, undefined))
     .map((o) => o.id);
@@ -437,6 +469,7 @@ export function EnrollmentForm({
       ? seedRequiredAvailableOfferings(
           draftChildren(initialDraft, initialRequiredOfferingIDs),
           initialOfferings,
+          initialCollectGradeLevel,
         )
       : [blankChild(initialRequiredOfferingIDs)]),
   ]);
@@ -462,11 +495,12 @@ export function EnrollmentForm({
       seedRequiredAvailableOfferings(
         draftChildren(initialDraft, requiredOfferingIDs),
         offerings,
+        collectGradeLevel,
       ),
     );
     setAdditionalGuardians(draftGuardians(initialDraft));
     setCustomData(initialDraft.custom_data ?? {});
-  }, [initialDraft, offerings, requiredOfferingIDs]);
+  }, [initialDraft, offerings, requiredOfferingIDs, collectGradeLevel]);
   // Once the phase's class config is known (prefetched or fetched in load()),
   // drop any hydrated class an edit draft carries that the phase no longer
   // offers so it collapses to "Klasse offen" instead of being silently
@@ -477,6 +511,7 @@ export function EnrollmentForm({
   const [captchaToken, setCaptchaToken] = useState("");
   const [captchaConfig, setCaptchaConfig] =
     useState<PublicCaptchaConfig | null>(prefetchedData?.captchaConfig ?? null);
+  const captchaRequired = !skipCaptcha && captchaConfig?.enabled === true;
   // Per-tenant legal block contract. null until fetched.
   const [legalTexts, setLegalTexts] = useState<PublicLegalTexts | null>(
     prefetchedData?.legalTexts ?? null,
@@ -528,6 +563,7 @@ export function EnrollmentForm({
         seedRequiredAvailableOfferings(
           prev.length > 0 ? prev : [blankChild()],
           prefetchedData.offerings,
+          prefetchedData.collectGradeLevel !== false,
         ),
       );
       if (prefetchedData.lateInvite) {
@@ -645,7 +681,11 @@ export function EnrollmentForm({
         // Seed mandatory offerings into the children that already exist
         // (the initial blank slot is created before offerings load).
         setChildren((prev) =>
-          seedRequiredAvailableOfferings(prev, offeringsResult.offerings),
+          seedRequiredAvailableOfferings(
+            prev,
+            offeringsResult.offerings,
+            offeringsResult.collectGradeLevel !== false,
+          ),
         );
         setCaptchaConfig(captchaResult);
         setLegalTexts(legalResult);
@@ -703,6 +743,22 @@ export function EnrollmentForm({
     );
   };
 
+  const careOfferingGradeForChild = (child: ChildDraft) =>
+    collectGradeLevel ? child.target_grade_level : undefined;
+
+  const careOfferingsForChild = (child: ChildDraft) =>
+    availableCareOfferings(offerings, careOfferingGradeForChild(child));
+
+  const materializeCareOfferingsForChild = (
+    child: ChildDraft,
+    childOfferings: readonly PublicCareOffering[],
+  ) =>
+    materializeCareOfferings(
+      child,
+      childOfferings,
+      careOfferingGradeForChild(child),
+    );
+
   const toggleOffering = (childIndex: number, offeringID: string) => {
     // "Genau eines" / "höchstens eines" selection_groups behave like radios:
     // selecting one clears the other selected member(s) of the same group.
@@ -710,10 +766,7 @@ export function EnrollmentForm({
     setChildren((prev) =>
       prev.map((c, i) => {
         if (i !== childIndex) return c;
-        const childOfferings = availableCareOfferings(
-          offerings,
-          c.target_grade_level,
-        );
+        const childOfferings = careOfferingsForChild(c);
         const childRequiredIDs = childOfferings
           .filter((o) => o.is_required)
           .map((o) => o.id);
@@ -781,14 +834,14 @@ export function EnrollmentForm({
     setChildren((prev) =>
       prev.map((c, i) => {
         if (i !== childIndex) return c;
-        const childOfferings = availableCareOfferings(
-          offerings,
-          c.target_grade_level,
-        );
+        const childOfferings = careOfferingsForChild(c);
         const childRequiredIDs = childOfferings
           .filter((o) => o.is_required)
           .map((o) => o.id);
-        const materialized = materializeCareOfferings(c, childOfferings);
+        const materialized = materializeCareOfferingsForChild(
+          c,
+          childOfferings,
+        );
         if (materialized.automaticDays[offeringID]?.has(day)) return c;
         const current = c.offering_days[offeringID] ?? new Set<string>();
         const next = new Set(current);
@@ -865,9 +918,9 @@ export function EnrollmentForm({
     offeringNames: new Set(
       Array.from(
         careOfferingsEnabled
-          ? materializeCareOfferings(
+          ? materializeCareOfferingsForChild(
               child,
-              availableCareOfferings(offerings, child.target_grade_level),
+              careOfferingsForChild(child),
             ).offeringIds
           : [],
       )
@@ -895,6 +948,10 @@ export function EnrollmentForm({
     }
     if (!phaseID) {
       formError.invalid(tr("missingPhase"));
+      return;
+    }
+    if (pendingUploads > 0) {
+      formError.invalid(tr("upload.pendingSubmit"));
       return;
     }
 
@@ -965,10 +1022,7 @@ export function EnrollmentForm({
     for (const [i, c] of children.entries()) {
       if (c.locked) continue;
       const childCtx = childConditionCtx(c);
-      const childOfferings = availableCareOfferings(
-        offerings,
-        c.target_grade_level,
-      );
+      const childOfferings = careOfferingsForChild(c);
       if (!c.first_name.trim()) {
         newFieldErrors[`children_${i}_first_name`] = tr("errors.firstName");
       }
@@ -989,6 +1043,7 @@ export function EnrollmentForm({
       // rather than an unsubmittable required-but-empty dropdown. Mirror the
       // backend gate (#1833).
       if (
+        collectGradeLevel &&
         schoolClassConfig.require &&
         collectsConcreteClassForGrade(
           schoolClassConfig,
@@ -1011,6 +1066,7 @@ export function EnrollmentForm({
               c,
               childOfferings,
               previewMode,
+              careOfferingGradeForChild(c),
               offerings.length > 0,
             ),
             careDaysAreConstrained(offerings, previewMode),
@@ -1034,6 +1090,7 @@ export function EnrollmentForm({
         c,
         childOfferings,
         previewMode,
+        careOfferingGradeForChild(c),
         offerings.length > 0,
       );
       const accompaniedSelected = (schema?.fields ?? [])
@@ -1096,16 +1153,16 @@ export function EnrollmentForm({
     // would make exactly_one unsatisfiable.
     for (const [i, c] of children.entries()) {
       if (c.locked) continue;
-      const childOfferings = availableCareOfferings(
-        offerings,
-        c.target_grade_level,
-      );
+      const childOfferings = careOfferingsForChild(c);
       const childRequiredIDs = childOfferings
         .filter((o) => o.is_required)
         .map((o) => o.id);
       const selectionModeApplies =
         offerings.length === 0 || childOfferings.some((o) => !o.is_required);
-      const materializedCare = materializeCareOfferings(c, childOfferings);
+      const materializedCare = materializeCareOfferingsForChild(
+        c,
+        childOfferings,
+      );
       const choosableSelectedCount = [...c.offering_ids].filter(
         (id) =>
           childOfferings.some((o) => o.id === id) &&
@@ -1142,7 +1199,7 @@ export function EnrollmentForm({
         }
       }
       const groupRuleMessage = offeringGroupRuleError(
-        materializedCare.offeringIds,
+        materializedCare,
         childOfferings,
         tr,
         contentLocale,
@@ -1226,10 +1283,7 @@ export function EnrollmentForm({
     // validation above, so this only builds data (no further checks).
     const payloadChildren: SubmitChildPayload[] = children.map((c) => {
       if (c.lockedPayload) return c.lockedPayload;
-      const childOfferings = availableCareOfferings(
-        offerings,
-        c.target_grade_level,
-      );
+      const childOfferings = careOfferingsForChild(c);
       const childOfferingIDs = new Set(childOfferings.map((o) => o.id));
       const offeringDaysPayload: Array<{
         offering_id: number;
@@ -1266,6 +1320,7 @@ export function EnrollmentForm({
               c,
               childOfferings,
               previewMode,
+              careOfferingGradeForChild(c),
               offerings.length > 0,
             ),
           );
@@ -1314,10 +1369,12 @@ export function EnrollmentForm({
         // only when the phase offers a grade-1 class, otherwise omitted
         // ("Klasse offen").
         target_school_class:
+          collectGradeLevel &&
           collectsConcreteClassForGrade(
             schoolClassConfig,
             c.target_grade_level,
-          ) && c.target_school_class.trim()
+          ) &&
+          c.target_school_class.trim()
             ? c.target_school_class.trim()
             : undefined,
         custom_data: customData,
@@ -1376,7 +1433,7 @@ export function EnrollmentForm({
               guardianCtx,
             ),
         children: payloadChildren,
-        captcha_token: skipCaptcha ? undefined : captchaToken || undefined,
+        captcha_token: captchaRequired ? captchaToken || undefined : undefined,
         late_invite_token: lateInviteToken?.trim()
           ? lateInviteToken.trim()
           : undefined,
@@ -1531,514 +1588,589 @@ export function EnrollmentForm({
   }
 
   return (
-    <form
-      ref={formRef}
-      onSubmit={handleSubmit}
-      noValidate
-      className="space-y-5"
-    >
-      <FormErrorAlert message={formError.error} />
-
-      {!restrictToOfferings && (
-        <section className="moto-content-surface space-y-5 rounded-xl border p-4 shadow-sm sm:p-5">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <SectionHeading
-              title={tr("sections.guardianTitle")}
-              description={tr("sections.guardianDescription")}
-            />
-            <button
-              type="button"
-              onClick={addGuardian}
-              className="moto-content-surface inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-lg border px-3 text-sm font-semibold whitespace-nowrap text-gray-700 shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:w-auto sm:shrink-0"
-            >
-              <Plus className="h-4 w-4" aria-hidden="true" />
-              {tr("actions.addGuardian")}
-            </button>
-          </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Input
-              label={tr("fields.firstName")}
-              name="guardian_first_name"
-              autoComplete="given-name"
-              value={guardianFirstName}
-              onChange={setGuardianFirstName}
-              required
-              error={fieldError("guardian_first_name")}
-            />
-            <Input
-              label={tr("fields.lastName")}
-              name="guardian_last_name"
-              autoComplete="family-name"
-              value={guardianLastName}
-              onChange={setGuardianLastName}
-              required
-              error={fieldError("guardian_last_name")}
-            />
-            <Input
-              label={tr("fields.email")}
-              name="guardian_email"
-              type="email"
-              autoComplete="email"
-              value={guardianEmail}
-              onChange={setGuardianEmail}
-              required
-              readOnly={lockedGuardianEmail}
-              error={fieldError("guardian_email")}
-            />
-            <Input
-              label={tr(
-                schema?.core_requirements?.guardian_phone
-                  ? "fields.phoneRequired"
-                  : "fields.phone",
-              )}
-              name="guardian_phone"
-              type="tel"
-              autoComplete="tel"
-              inputMode="tel"
-              value={guardianPhone}
-              onChange={setGuardianPhone}
-              required={schema?.core_requirements?.guardian_phone === true}
-              error={fieldError("guardian_phone")}
-            />
-          </div>
-
-          {additionalGuardians.map((g, i) => (
-            <div
-              key={getStableObjectKey(g, "additional-guardian")}
-              className="moto-content-surface space-y-5 rounded-xl border p-3 shadow-sm sm:p-4"
-            >
-              <div className="flex items-center justify-between gap-3">
-                <h3 className="text-sm font-semibold tracking-wide text-gray-500 uppercase">
-                  {tr("sections.additionalGuardianLabel", { index: i + 1 })}
-                </h3>
-                <button
-                  type="button"
-                  onClick={() => removeGuardian(i)}
-                  className="text-moto-red-strong hover:bg-moto-red/10 focus-visible:ring-moto-red/30 rounded-lg px-2 py-1 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none"
-                >
-                  {tr("actions.remove")}
-                </button>
-              </div>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <Input
-                  label={tr("fields.firstName")}
-                  name={`additional_guardian_${i}_first_name`}
-                  autoComplete="given-name"
-                  value={g.first_name}
-                  onChange={(v) => updateGuardian(i, { first_name: v })}
-                  required
-                  error={fieldError(`additional_guardian_${i}_first_name`)}
-                />
-                <Input
-                  label={tr("fields.lastName")}
-                  name={`additional_guardian_${i}_last_name`}
-                  autoComplete="family-name"
-                  value={g.last_name}
-                  onChange={(v) => updateGuardian(i, { last_name: v })}
-                  required
-                  error={fieldError(`additional_guardian_${i}_last_name`)}
-                />
-                <Input
-                  label={tr("fields.emailPlain")}
-                  name={`additional_guardian_${i}_email`}
-                  type="email"
-                  autoComplete="email"
-                  value={g.email}
-                  onChange={(v) => updateGuardian(i, { email: v })}
-                  error={fieldError(`additional_guardian_${i}_email`)}
-                />
-                <Input
-                  label={tr("fields.phone")}
-                  name={`additional_guardian_${i}_phone`}
-                  type="tel"
-                  autoComplete="tel"
-                  inputMode="tel"
-                  value={g.phone}
-                  onChange={(v) => updateGuardian(i, { phone: v })}
-                  error={fieldError(`additional_guardian_${i}_phone`)}
-                />
-              </div>
-            </div>
-          ))}
-        </section>
-      )}
-
-      {!restrictToOfferings &&
-        schema?.fields.some((f) => !f.applies_to_child) && (
-          <section className="moto-content-surface space-y-4 rounded-xl border p-4 shadow-sm sm:p-5">
-            <SectionHeading
-              title={tr("sections.extraTitle")}
-              description={tr("sections.extraDescription")}
-            />
-            {schema.fields
-              .filter(
-                (f) => !f.applies_to_child && isFieldVisible(f, guardianCtx),
-              )
-              .map((f) =>
-                f.type === "information" ? (
-                  <InfoBlock key={f.key} field={f} />
-                ) : (
-                  <CustomFieldInput
-                    key={f.key}
-                    field={f}
-                    value={customData[f.key]}
-                    onChange={(v) =>
-                      setCustomData((prev) => ({ ...prev, [f.key]: v }))
-                    }
-                    inputName={`custom_${f.key}`}
-                    error={fieldError(`custom_${f.key}`)}
-                    tr={tr}
-                  />
-                ),
-              )}
-          </section>
-        )}
-
-      <section className="moto-content-surface space-y-5 rounded-xl border p-4 shadow-sm sm:p-5">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <SectionHeading
-            title={tr(
-              restrictToOfferings
-                ? "sections.offeringsOnlyTitle"
-                : "sections.childrenTitle",
-            )}
-            description={tr(
-              restrictToOfferings
-                ? "sections.offeringsOnlyDescription"
-                : "sections.childrenDescription",
-            )}
-          />
-          {!lockChildStructure ? (
-            <button
-              type="button"
-              onClick={addChild}
-              className="moto-content-surface inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-lg border px-3 text-sm font-semibold whitespace-nowrap text-gray-700 shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:w-auto sm:shrink-0"
-            >
-              <Plus className="h-4 w-4" aria-hidden="true" />
-              {tr("actions.addChild")}
-            </button>
-          ) : null}
-        </div>
-
-        {profile &&
-          profile.children.length > 0 &&
-          !lockChildStructure &&
-          isNewStudentsPhase && (
-            <p className="border-moto-orange/30 bg-moto-orange/5 rounded-lg border px-4 py-3 text-sm text-gray-700">
-              {tr("sections.newStudentsOnlyNotice")}
-            </p>
-          )}
-
-        {reusableChildren.length > 0 &&
-          !lockChildStructure &&
-          isExistingStudentsPhase && (
-            <ExistingChildrenPanel
-              existing={reusableChildren}
-              usedIDs={usedExistingChildIDs}
-              tr={tr}
-              onAdopt={(child) => {
-                const newSlot: ChildDraft = blankChild(requiredOfferingIDs);
-                newSlot.first_name = child.first_name;
-                newSlot.last_name = child.last_name;
-                // The phase may restrict eligible grades (#1663), and the
-                // grade select offers exactly those. Adopting a child whose
-                // stored grade falls outside the restriction would prefill a
-                // value the parent can neither see nor change, pass the
-                // client-side "grade is set" check, and only fail at submit
-                // with grade_not_eligible for the whole form. Drop the
-                // ineligible prefill so the required-field check forces a
-                // grade the phase accepts. Grades are not collected at all
-                // when collect_grade_level is off — the phase-side
-                // collectability guard keeps that pair from carrying a
-                // restriction — so the prefill stays untouched there and
-                // keeps driving the care-offering filter.
-                const reusedGrade =
-                  child.grade_level != null ? String(child.grade_level) : "";
-                newSlot.target_grade_level =
-                  !collectGradeLevel ||
-                  selectableGradeLevels(
-                    gradeLevelMax,
-                    eligibleGradeLevels,
-                  ).includes(Number(reusedGrade))
-                    ? reusedGrade
-                    : "";
-                for (const offering of availableCareOfferings(
-                  offerings,
-                  newSlot.target_grade_level,
-                )) {
-                  if (offering.is_required) {
-                    newSlot.offering_ids.add(offering.id);
-                  }
-                }
-                // Prefill the concrete class only when it matches one of the
-                // phase's offered classes, so re-enrolling an existing "2a"
-                // child defaults sensibly without injecting a stale/unknown
-                // value into the dropdown (#1833).
-                newSlot.target_school_class =
-                  schoolClassConfig.available_classes.includes(
-                    child.school_class,
-                  ) &&
-                  classMatchesGrade(
-                    child.school_class,
-                    newSlot.target_grade_level,
-                  )
-                    ? child.school_class
-                    : "";
-                setChildren((prev) => {
-                  // Replace the first empty slot if one exists, otherwise
-                  // append. Avoids leaving a stranded empty card after
-                  // every adoption.
-                  const emptyIdx = prev.findIndex(
-                    (c) => !c.first_name && !c.last_name && !c.date_of_birth,
-                  );
-                  if (emptyIdx >= 0) {
-                    return prev.map((c, i) => (i === emptyIdx ? newSlot : c));
-                  }
-                  return [...prev, newSlot];
-                });
-                setUsedExistingChildIDs((prev) => {
-                  const next = new Set(prev);
-                  next.add(child.id);
-                  return next;
-                });
-              }}
-            />
-          )}
-
-        {children.map((child, i) => {
-          const childOfferings = availableCareOfferings(
-            offerings,
-            child.target_grade_level,
-          );
-          // Admin flows only (#2186): everything the grade rule filtered out,
-          // so the picker can show it greyed with a reason. The parent form
-          // leaves this empty and is byte-for-byte unchanged.
-          const blockedOfferings = showBlockedOfferings
-            ? offerings.filter(
-                (offering) =>
-                  !childOfferings.some((open) => open.id === offering.id),
-              )
-            : [];
-          const materializedCare = materializeCareOfferings(
-            child,
-            childOfferings,
-          );
-          if (child.locked) {
-            const name = `${child.first_name} ${child.last_name}`.trim();
-            const booked = offerings
-              .filter((offering) => child.offering_ids.has(offering.id))
-              .map((offering) => offering.name);
-            return (
-              <InfoCard
-                key={child.clientId}
-                title={name || tr("structured.child")}
-                icon={
-                  <Lock className="h-5 w-5 text-gray-600" aria-hidden="true" />
-                }
-              >
-                <StatusBadge label={tr("locked.badge")} tone="green" />
-                <InfoItem
-                  label={tr("locked.birthday")}
-                  value={
-                    child.date_of_birth
-                      ? formatDate(child.date_of_birth, false, activeLocale)
-                      : "-"
-                  }
-                />
-                {collectGradeLevel && child.target_grade_level ? (
-                  <InfoItem
-                    label={tr("locked.grade")}
-                    value={tr("fields.grade", {
-                      grade: child.target_grade_level,
-                    })}
-                  />
-                ) : null}
-                <InfoItem
-                  label={tr("locked.care")}
-                  value={
-                    booked.length > 0
-                      ? booked.join(", ")
-                      : child.offering_ids.size > 0
-                        ? "-"
-                        : tr("locked.noCare")
-                  }
-                />
-                <p className="border-moto-blue/30 bg-moto-blue/5 rounded-lg border px-3 py-2 text-sm leading-6 text-gray-700">
-                  {tr("locked.hint", {
-                    name: name || tr("structured.child"),
-                  })}
-                  <br />
-                  {tr("locked.noAccess")}
-                </p>
-              </InfoCard>
-            );
+    <EnrollmentUploadScope target={uploadTarget}>
+      <form
+        ref={formRef}
+        onSubmit={handleSubmit}
+        noValidate
+        className="space-y-5"
+      >
+        <FormErrorAlert message={formError.error} />
+        {/* No submit can pass the bot protection: the form fails as a whole,
+          so families read it before they fill anything in. */}
+        <LoadErrorAlert
+          error={
+            captchaRequired && !captchaConfig.site_key
+              ? tr("captchaMisconfigured")
+              : null
           }
-          return (
-            <div
-              key={child.clientId}
-              className="moto-content-surface space-y-5 rounded-xl border p-3 shadow-sm sm:p-4"
-            >
-              <div className="flex items-center justify-between gap-3">
-                <h3 className="text-sm font-semibold tracking-wide text-gray-500 uppercase">
-                  {restrictToOfferings && child.first_name
-                    ? `${child.first_name} ${child.last_name}`.trim()
-                    : `${tr("structured.child")} ${i + 1}`}
-                </h3>
-                {children.length > 1 && !lockChildStructure && (
+        />
+
+        {!restrictToOfferings && (
+          <section className="moto-content-surface space-y-5 rounded-xl border p-4 shadow-sm sm:p-5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <SectionHeading
+                title={tr("sections.guardianTitle")}
+                description={tr("sections.guardianDescription")}
+              />
+              <button
+                type="button"
+                onClick={addGuardian}
+                className="moto-content-surface inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-lg border px-3 text-sm font-semibold whitespace-nowrap text-gray-700 shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:w-auto sm:shrink-0"
+              >
+                <Plus className="h-4 w-4" aria-hidden="true" />
+                {tr("actions.addGuardian")}
+              </button>
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Input
+                label={tr("fields.firstName")}
+                name="guardian_first_name"
+                autoComplete="given-name"
+                value={guardianFirstName}
+                onChange={setGuardianFirstName}
+                required
+                error={fieldError("guardian_first_name")}
+              />
+              <Input
+                label={tr("fields.lastName")}
+                name="guardian_last_name"
+                autoComplete="family-name"
+                value={guardianLastName}
+                onChange={setGuardianLastName}
+                required
+                error={fieldError("guardian_last_name")}
+              />
+              <Input
+                label={tr("fields.email")}
+                name="guardian_email"
+                type="email"
+                autoComplete="email"
+                value={guardianEmail}
+                onChange={setGuardianEmail}
+                required
+                readOnly={lockedGuardianEmail}
+                error={fieldError("guardian_email")}
+              />
+              <Input
+                label={tr(
+                  schema?.core_requirements?.guardian_phone
+                    ? "fields.phoneRequired"
+                    : "fields.phone",
+                )}
+                name="guardian_phone"
+                type="tel"
+                autoComplete="tel"
+                inputMode="tel"
+                value={guardianPhone}
+                onChange={setGuardianPhone}
+                required={schema?.core_requirements?.guardian_phone === true}
+                error={fieldError("guardian_phone")}
+              />
+            </div>
+
+            {additionalGuardians.map((g, i) => (
+              <div
+                key={getStableObjectKey(g, "additional-guardian")}
+                className="moto-content-surface space-y-5 rounded-xl border p-3 shadow-sm sm:p-4"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="text-sm font-semibold tracking-wide text-gray-500 uppercase">
+                    {tr("sections.additionalGuardianLabel", { index: i + 1 })}
+                  </h3>
                   <button
                     type="button"
-                    onClick={() => removeChild(i)}
+                    onClick={() => removeGuardian(i)}
                     className="text-moto-red-strong hover:bg-moto-red/10 focus-visible:ring-moto-red/30 rounded-lg px-2 py-1 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none"
                   >
                     {tr("actions.remove")}
                   </button>
-                )}
-              </div>
-              {!restrictToOfferings && (
+                </div>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <Input
                     label={tr("fields.firstName")}
-                    name={`children_${i}_first_name`}
+                    name={`additional_guardian_${i}_first_name`}
                     autoComplete="given-name"
-                    value={child.first_name}
-                    onChange={(v) => updateChild(i, { first_name: v })}
+                    value={g.first_name}
+                    onChange={(v) => updateGuardian(i, { first_name: v })}
                     required
-                    error={fieldError(`children_${i}_first_name`)}
+                    error={fieldError(`additional_guardian_${i}_first_name`)}
                   />
                   <Input
                     label={tr("fields.lastName")}
-                    name={`children_${i}_last_name`}
+                    name={`additional_guardian_${i}_last_name`}
                     autoComplete="family-name"
-                    value={child.last_name}
-                    onChange={(v) => updateChild(i, { last_name: v })}
+                    value={g.last_name}
+                    onChange={(v) => updateGuardian(i, { last_name: v })}
                     required
-                    error={fieldError(`children_${i}_last_name`)}
+                    error={fieldError(`additional_guardian_${i}_last_name`)}
                   />
-                  <div>
-                    <span className="block text-sm font-semibold text-gray-700">
-                      {tr("fields.dateOfBirth")}
-                    </span>
-                    <DateOfBirthPicker
-                      value={child.date_of_birth}
-                      onChange={(v) => updateChild(i, { date_of_birth: v })}
-                      error={fieldError(`children_${i}_date_of_birth`)}
-                      tr={tr}
-                    />
-                  </div>
-                  {collectGradeLevel && (
-                    <GradeLevelSelect
-                      id={`children-${i}-target-grade-level`}
-                      value={child.target_grade_level}
-                      onChange={(v) => {
-                        const nextOfferings = availableCareOfferings(
-                          offerings,
-                          v,
-                        );
-                        const nextAvailableIDs = new Set(
-                          nextOfferings.map((o) => o.id),
-                        );
-                        const before = materializeCareOfferings(
-                          child,
-                          childOfferings,
-                        ).offeringIds;
-                        const nextIDs = new Set(
-                          [...child.offering_ids].filter((id) =>
-                            nextAvailableIDs.has(id),
-                          ),
-                        );
-                        nextOfferings
-                          .filter((o) => o.is_required)
-                          .forEach((o) => nextIDs.add(o.id));
-                        const nextDays = Object.fromEntries(
-                          Object.entries(child.offering_days).filter(([id]) =>
-                            nextAvailableIDs.has(id),
-                          ),
-                        );
-                        const removed = [...before].some(
-                          (id) => !nextAvailableIDs.has(id),
-                        );
-                        setChildren((prev) =>
-                          prev.map((entry, index) =>
-                            index === i
-                              ? {
-                                  ...entry,
-                                  target_grade_level: v,
-                                  target_school_class:
-                                    entry.target_school_class &&
-                                    !classMatchesGrade(
-                                      entry.target_school_class,
-                                      v,
-                                    )
-                                      ? ""
-                                      : entry.target_school_class,
-                                  offering_ids: nextIDs,
-                                  offering_days: nextDays,
-                                }
-                              : entry,
-                          ),
-                        );
-                        setAvailabilityNotices((prev) =>
-                          removed
-                            ? { ...prev, [child.clientId]: true }
-                            : Object.fromEntries(
-                                Object.entries(prev).filter(
-                                  ([key]) => key !== child.clientId,
-                                ),
-                              ),
-                        );
-                      }}
-                      max={gradeLevelMax}
-                      allowedGrades={eligibleGradeLevels}
-                      error={fieldError(`children_${i}_target_grade_level`)}
-                      tr={tr}
-                    />
-                  )}
-                  {collectGradeLevel &&
-                    collectsConcreteClassForGrade(
-                      schoolClassConfig,
-                      child.target_grade_level,
-                    ) &&
-                    (() => {
-                      // Options are filtered to this child's grade; a phase may
-                      // require classes yet offer none for this grade, in which
-                      // case the pick cannot be mandatory (no valid option to
-                      // choose), so "Klasse offen" stays available (#1833).
-                      const gradeClasses =
-                        schoolClassConfig.available_classes.filter((c) =>
-                          classMatchesGrade(c, child.target_grade_level),
-                        );
-                      return (
-                        <SchoolClassSelect
-                          id={`children-${i}-target-school-class`}
-                          value={child.target_school_class}
-                          onChange={(v) =>
-                            updateChild(i, { target_school_class: v })
-                          }
-                          classes={gradeClasses}
-                          required={
-                            schoolClassConfig.require && gradeClasses.length > 0
-                          }
-                          error={fieldError(
-                            `children_${i}_target_school_class`,
-                          )}
-                          tr={tr}
-                        />
-                      );
-                    })()}
+                  <Input
+                    label={tr("fields.emailPlain")}
+                    name={`additional_guardian_${i}_email`}
+                    type="email"
+                    autoComplete="email"
+                    value={g.email}
+                    onChange={(v) => updateGuardian(i, { email: v })}
+                    error={fieldError(`additional_guardian_${i}_email`)}
+                  />
+                  <Input
+                    label={tr("fields.phone")}
+                    name={`additional_guardian_${i}_phone`}
+                    type="tel"
+                    autoComplete="tel"
+                    inputMode="tel"
+                    value={g.phone}
+                    onChange={(v) => updateGuardian(i, { phone: v })}
+                    error={fieldError(`additional_guardian_${i}_phone`)}
+                  />
                 </div>
-              )}
-              {availabilityNotices[child.clientId] ? (
-                <p
-                  role="status"
-                  className="border-moto-amber/50 bg-moto-amber/10 text-moto-amber-strong rounded-lg border px-3 py-2 text-sm"
-                >
-                  {tr("care.availabilitySelectionRemoved")}
-                </p>
-              ) : null}
+              </div>
+            ))}
+          </section>
+        )}
 
-              {careOfferingsEnabled &&
-                (childOfferings.length > 0 || blockedOfferings.length > 0) && (
+        {!restrictToOfferings &&
+          schema?.fields.some((f) => !f.applies_to_child) && (
+            <section className="moto-content-surface space-y-4 rounded-xl border p-4 shadow-sm sm:p-5">
+              <SectionHeading
+                title={tr("sections.extraTitle")}
+                description={tr("sections.extraDescription")}
+              />
+              {schema.fields
+                .filter(
+                  (f) => !f.applies_to_child && isFieldVisible(f, guardianCtx),
+                )
+                .map((f) =>
+                  f.type === "information" ? (
+                    <InfoBlock key={f.key} field={f} />
+                  ) : (
+                    <CustomFieldInput
+                      key={f.key}
+                      field={f}
+                      value={customData[f.key]}
+                      onChange={(v) =>
+                        setCustomData((prev) => ({ ...prev, [f.key]: v }))
+                      }
+                      inputName={`custom_${f.key}`}
+                      error={fieldError(`custom_${f.key}`)}
+                      tr={tr}
+                    />
+                  ),
+                )}
+            </section>
+          )}
+
+        <section className="moto-content-surface space-y-5 rounded-xl border p-4 shadow-sm sm:p-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <SectionHeading
+              title={tr(
+                restrictToOfferings
+                  ? "sections.offeringsOnlyTitle"
+                  : "sections.childrenTitle",
+              )}
+              description={tr(
+                restrictToOfferings
+                  ? "sections.offeringsOnlyDescription"
+                  : "sections.childrenDescription",
+              )}
+            />
+            {!lockChildStructure ? (
+              <button
+                type="button"
+                onClick={addChild}
+                className="moto-content-surface inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-lg border px-3 text-sm font-semibold whitespace-nowrap text-gray-700 shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:w-auto sm:shrink-0"
+              >
+                <Plus className="h-4 w-4" aria-hidden="true" />
+                {tr("actions.addChild")}
+              </button>
+            ) : null}
+          </div>
+
+          {profile &&
+            profile.children.length > 0 &&
+            !lockChildStructure &&
+            isNewStudentsPhase && (
+              <p className="border-moto-orange/30 bg-moto-orange/5 rounded-lg border px-4 py-3 text-sm text-gray-700">
+                {tr("sections.newStudentsOnlyNotice")}
+              </p>
+            )}
+
+          {reusableChildren.length > 0 &&
+            !lockChildStructure &&
+            isExistingStudentsPhase && (
+              <ExistingChildrenPanel
+                existing={reusableChildren}
+                usedIDs={usedExistingChildIDs}
+                tr={tr}
+                onAdopt={(child) => {
+                  const newSlot: ChildDraft = blankChild(requiredOfferingIDs);
+                  newSlot.first_name = child.first_name;
+                  newSlot.last_name = child.last_name;
+                  // The phase may restrict eligible grades (#1663), and the
+                  // grade select offers exactly those. Adopting a child whose
+                  // stored grade falls outside the restriction would prefill a
+                  // value the parent can neither see nor change, pass the
+                  // client-side "grade is set" check, and only fail at submit
+                  // with grade_not_eligible for the whole form. Drop the
+                  // ineligible prefill so the required-field check forces a
+                  // grade the phase accepts. Grades are not collected at all
+                  // when collect_grade_level is off — the phase-side
+                  // collectability guard keeps that pair from carrying a
+                  // restriction — the value stays in the draft but must not
+                  // drive any hidden grade-dependent controls.
+                  const reusedGrade =
+                    child.grade_level != null ? String(child.grade_level) : "";
+                  newSlot.target_grade_level =
+                    !collectGradeLevel ||
+                    selectableGradeLevels(
+                      gradeLevelMax,
+                      eligibleGradeLevels,
+                    ).includes(Number(reusedGrade))
+                      ? reusedGrade
+                      : "";
+                  for (const offering of availableCareOfferings(
+                    offerings,
+                    collectGradeLevel ? newSlot.target_grade_level : undefined,
+                  )) {
+                    if (offering.is_required) {
+                      newSlot.offering_ids.add(offering.id);
+                    }
+                  }
+                  // Prefill the concrete class only when it matches one of the
+                  // phase's offered classes, so re-enrolling an existing "2a"
+                  // child defaults sensibly without injecting a stale/unknown
+                  // value into the dropdown (#1833).
+                  newSlot.target_school_class =
+                    schoolClassConfig.available_classes.includes(
+                      child.school_class,
+                    ) &&
+                    classMatchesGrade(
+                      child.school_class,
+                      newSlot.target_grade_level,
+                    )
+                      ? child.school_class
+                      : "";
+                  setChildren((prev) => {
+                    // Replace the first empty slot if one exists, otherwise
+                    // append. Avoids leaving a stranded empty card after
+                    // every adoption.
+                    const emptyIdx = prev.findIndex(
+                      (c) => !c.first_name && !c.last_name && !c.date_of_birth,
+                    );
+                    if (emptyIdx >= 0) {
+                      return prev.map((c, i) => (i === emptyIdx ? newSlot : c));
+                    }
+                    return [...prev, newSlot];
+                  });
+                  setUsedExistingChildIDs((prev) => {
+                    const next = new Set(prev);
+                    next.add(child.id);
+                    return next;
+                  });
+                }}
+              />
+            )}
+
+          {children.map((child, i) => {
+            const childOfferings = careOfferingsForChild(child);
+            // Admin flows only (#2186): everything the grade rule filtered out,
+            // so the picker can show it greyed with a reason. The parent form
+            // leaves this empty and is byte-for-byte unchanged.
+            const blockedOfferings = showBlockedOfferings
+              ? offerings.filter(
+                  (offering) =>
+                    !childOfferings.some((open) => open.id === offering.id),
+                )
+              : [];
+            const materializedCare = materializeCareOfferingsForChild(
+              child,
+              childOfferings,
+            );
+            const dayConflicts = careOfferingDayConflicts(
+              childOfferings,
+              materializedCare.offeringIds,
+              materializedCare.offeringDays,
+            );
+            const groupDayConflicts = (group: string) =>
+              dayConflicts.filter((conflict) => conflict.group === group);
+            // #4515: offerings limited by grade stay hidden until a grade is
+            // picked. Say so up front, or a parent reads the missing block as
+            // "no care offered here" or "comes in a later step". Only when the
+            // grade select is on screen and some selectable grade would reveal
+            // more offerings, so a switched-off grade question or a catalog
+            // without grade rules never asks for a grade.
+            const gradeChosen = Number(child.target_grade_level) >= 1;
+            const hasGradeRestrictedOffering = offerings.some(
+              (offering) =>
+                !careOfferingRuleExcludesNobody(
+                  offering.availability_rule,
+                  gradeLevelMax,
+                ),
+            );
+            const offeringsAwaitGrade =
+              careOfferingsEnabled &&
+              collectGradeLevel &&
+              !restrictToOfferings &&
+              !gradeChosen &&
+              hasGradeRestrictedOffering &&
+              selectableGradeLevels(gradeLevelMax, eligibleGradeLevels).some(
+                (grade) =>
+                  availableCareOfferings(offerings, grade).length >
+                  childOfferings.length,
+              );
+            const noOfferingsForGrade =
+              careOfferingsEnabled &&
+              collectGradeLevel &&
+              gradeChosen &&
+              offerings.length > 0 &&
+              childOfferings.length === 0 &&
+              blockedOfferings.length === 0;
+            const showCareSection =
+              careOfferingsEnabled &&
+              (childOfferings.length > 0 ||
+                blockedOfferings.length > 0 ||
+                offeringsAwaitGrade ||
+                noOfferingsForGrade);
+            if (child.locked) {
+              const name = `${child.first_name} ${child.last_name}`.trim();
+              const booked = offerings
+                .filter((offering) => child.offering_ids.has(offering.id))
+                .map((offering) => offering.name);
+              return (
+                <InfoCard
+                  key={child.clientId}
+                  title={name || tr("structured.child")}
+                  icon={
+                    <Lock
+                      className="h-5 w-5 text-gray-600"
+                      aria-hidden="true"
+                    />
+                  }
+                >
+                  <StatusBadge label={tr("locked.badge")} tone="green" />
+                  <InfoItem
+                    label={tr("locked.birthday")}
+                    value={
+                      child.date_of_birth
+                        ? formatDate(child.date_of_birth, false, activeLocale)
+                        : "-"
+                    }
+                  />
+                  {collectGradeLevel && child.target_grade_level ? (
+                    <InfoItem
+                      label={tr("locked.grade")}
+                      value={tr("fields.grade", {
+                        grade: child.target_grade_level,
+                      })}
+                    />
+                  ) : null}
+                  <InfoItem
+                    label={tr("locked.care")}
+                    value={
+                      booked.length > 0
+                        ? booked.join(", ")
+                        : child.offering_ids.size > 0
+                          ? "-"
+                          : tr("locked.noCare")
+                    }
+                  />
+                  <p className="border-moto-blue/30 bg-moto-blue/5 rounded-lg border px-3 py-2 text-sm leading-6 text-gray-700">
+                    {tr("locked.hint", {
+                      name: name || tr("structured.child"),
+                    })}
+                    <br />
+                    {tr("locked.noAccess")}
+                  </p>
+                </InfoCard>
+              );
+            }
+            return (
+              <div
+                key={child.clientId}
+                className="moto-content-surface space-y-5 rounded-xl border p-3 shadow-sm sm:p-4"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="text-sm font-semibold tracking-wide text-gray-500 uppercase">
+                    {restrictToOfferings && child.first_name
+                      ? `${child.first_name} ${child.last_name}`.trim()
+                      : `${tr("structured.child")} ${i + 1}`}
+                  </h3>
+                  {children.length > 1 && !lockChildStructure && (
+                    <button
+                      type="button"
+                      onClick={() => removeChild(i)}
+                      className="text-moto-red-strong hover:bg-moto-red/10 focus-visible:ring-moto-red/30 rounded-lg px-2 py-1 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none"
+                    >
+                      {tr("actions.remove")}
+                    </button>
+                  )}
+                </div>
+                {!restrictToOfferings && (
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <Input
+                      label={tr("fields.firstName")}
+                      name={`children_${i}_first_name`}
+                      autoComplete="given-name"
+                      value={child.first_name}
+                      onChange={(v) => updateChild(i, { first_name: v })}
+                      required
+                      error={fieldError(`children_${i}_first_name`)}
+                    />
+                    <Input
+                      label={tr("fields.lastName")}
+                      name={`children_${i}_last_name`}
+                      autoComplete="family-name"
+                      value={child.last_name}
+                      onChange={(v) => updateChild(i, { last_name: v })}
+                      required
+                      error={fieldError(`children_${i}_last_name`)}
+                    />
+                    <div>
+                      <span className="block text-sm font-semibold text-gray-700">
+                        {tr("fields.dateOfBirth")}
+                      </span>
+                      <DateOfBirthPicker
+                        value={child.date_of_birth}
+                        onChange={(v) => updateChild(i, { date_of_birth: v })}
+                        error={fieldError(`children_${i}_date_of_birth`)}
+                        tr={tr}
+                      />
+                    </div>
+                    {collectGradeLevel && (
+                      <GradeLevelSelect
+                        id={`children-${i}-target-grade-level`}
+                        value={child.target_grade_level}
+                        onChange={(v) => {
+                          const nextOfferings = availableCareOfferings(
+                            offerings,
+                            v,
+                          );
+                          const nextAvailableIDs = new Set(
+                            nextOfferings.map((o) => o.id),
+                          );
+                          const before = materializeCareOfferingsForChild(
+                            child,
+                            childOfferings,
+                          ).offeringIds;
+                          const nextIDs = new Set(
+                            [...child.offering_ids].filter((id) =>
+                              nextAvailableIDs.has(id),
+                            ),
+                          );
+                          nextOfferings
+                            .filter((o) => o.is_required)
+                            .forEach((o) => nextIDs.add(o.id));
+                          const nextDays = Object.fromEntries(
+                            Object.entries(child.offering_days).filter(([id]) =>
+                              nextAvailableIDs.has(id),
+                            ),
+                          );
+                          const removed = [...before].some(
+                            (id) => !nextAvailableIDs.has(id),
+                          );
+                          setChildren((prev) =>
+                            prev.map((entry, index) =>
+                              index === i
+                                ? {
+                                    ...entry,
+                                    target_grade_level: v,
+                                    target_school_class:
+                                      entry.target_school_class &&
+                                      !classMatchesGrade(
+                                        entry.target_school_class,
+                                        v,
+                                      )
+                                        ? ""
+                                        : entry.target_school_class,
+                                    offering_ids: nextIDs,
+                                    offering_days: nextDays,
+                                  }
+                                : entry,
+                            ),
+                          );
+                          setAvailabilityNotices((prev) =>
+                            removed
+                              ? { ...prev, [child.clientId]: true }
+                              : Object.fromEntries(
+                                  Object.entries(prev).filter(
+                                    ([key]) => key !== child.clientId,
+                                  ),
+                                ),
+                          );
+                        }}
+                        max={gradeLevelMax}
+                        allowedGrades={eligibleGradeLevels}
+                        error={fieldError(`children_${i}_target_grade_level`)}
+                        tr={tr}
+                      />
+                    )}
+                    {collectGradeLevel &&
+                      collectsConcreteClassForGrade(
+                        schoolClassConfig,
+                        child.target_grade_level,
+                      ) &&
+                      (() => {
+                        // Options are filtered to this child's grade; a phase may
+                        // require classes yet offer none for this grade, in which
+                        // case the pick cannot be mandatory (no valid option to
+                        // choose), so "Klasse offen" stays available (#1833).
+                        const gradeClasses =
+                          schoolClassConfig.available_classes.filter((c) =>
+                            classMatchesGrade(c, child.target_grade_level),
+                          );
+                        return (
+                          <SchoolClassSelect
+                            id={`children-${i}-target-school-class`}
+                            value={child.target_school_class}
+                            onChange={(v) =>
+                              updateChild(i, { target_school_class: v })
+                            }
+                            classes={gradeClasses}
+                            required={
+                              schoolClassConfig.require &&
+                              gradeClasses.length > 0
+                            }
+                            error={fieldError(
+                              `children_${i}_target_school_class`,
+                            )}
+                            tr={tr}
+                          />
+                        );
+                      })()}
+                  </div>
+                )}
+                {availabilityNotices[child.clientId] ? (
+                  <p
+                    role="status"
+                    className="border-moto-amber/50 bg-moto-amber/10 text-moto-amber-strong rounded-lg border px-3 py-2 text-sm"
+                  >
+                    {tr("care.availabilitySelectionRemoved")}
+                  </p>
+                ) : null}
+
+                {showCareSection && (
                   <div className="space-y-4">
+                    {childOfferings.length === 0 &&
+                      blockedOfferings.length === 0 && (
+                        <p className="text-sm font-semibold text-gray-700">
+                          {tr("care.offers")}
+                        </p>
+                      )}
+                    {offeringsAwaitGrade && (
+                      <Alert
+                        type="info"
+                        message={tr("care.chooseGradeFirst")}
+                      />
+                    )}
+                    {noOfferingsForGrade && (
+                      <Alert
+                        type="info"
+                        message={tr("care.noOfferingsForGrade", {
+                          grade: child.target_grade_level,
+                        })}
+                      />
+                    )}
                     {/* Required offerings are part of the enrollment regardless of
                     the parent's choice. They are presented as an "always
                     included" block - locked, no checkbox-style selection - so
@@ -2166,7 +2298,16 @@ export function EnrollmentForm({
                             ) : (
                               <div
                                 key={`group-${bucket.group}`}
-                                className="rounded-lg border border-gray-200 bg-gray-50/60 p-2"
+                                aria-invalid={
+                                  groupDayConflicts(bucket.group).length > 0
+                                    ? true
+                                    : undefined
+                                }
+                                className={`rounded-lg border p-2 ${
+                                  groupDayConflicts(bucket.group).length > 0
+                                    ? "border-moto-red bg-moto-red/5"
+                                    : "border-gray-200 bg-gray-50/60"
+                                }`}
                               >
                                 <div className="mb-2 flex flex-wrap items-center gap-2 px-1">
                                   <span className="text-xs font-semibold text-gray-800">
@@ -2177,7 +2318,7 @@ export function EnrollmentForm({
                                     )}
                                   </span>
                                   {offeringRuleHint(bucket.rule, tr) && (
-                                    <span className="bg-moto-blue/10 text-moto-blue-hover rounded-full px-2 py-0.5 text-[11px] font-medium">
+                                    <span className="bg-moto-blue/10 text-moto-blue-hover rounded-full px-2 py-0.5 text-xs font-medium">
                                       {offeringRuleHint(bucket.rule, tr)}
                                     </span>
                                   )}
@@ -2224,6 +2365,21 @@ export function EnrollmentForm({
                                     />
                                   ))}
                                 </div>
+                                {groupDayConflicts(bucket.group).map(
+                                  (conflict) => (
+                                    <p
+                                      key={conflict.day}
+                                      className="text-moto-red mt-2 px-1 text-xs"
+                                    >
+                                      {dayConflictMessage(
+                                        conflict,
+                                        childOfferings,
+                                        tr,
+                                        contentLocale,
+                                      )}
+                                    </p>
+                                  ),
+                                )}
                               </div>
                             ),
                           )}
@@ -2263,187 +2419,183 @@ export function EnrollmentForm({
                   </div>
                 )}
 
-              {!restrictToOfferings &&
-                (schema?.fields ?? [])
-                  .filter(
-                    (f) =>
-                      f.applies_to_child &&
-                      isFieldVisible(f, childConditionCtx(child)),
-                  )
-                  .map((f) =>
-                    f.type === "information" ? (
-                      <InfoBlock key={f.key} field={f} />
-                    ) : (
-                      <CustomFieldInput
-                        key={f.key}
-                        field={f}
-                        value={child.custom[f.key]}
-                        onChange={(v) =>
-                          updateChild(i, {
-                            custom: { ...child.custom, [f.key]: v },
-                          })
-                        }
-                        companionNote={
-                          f.target === "student.allowed_departure_modes"
-                            ? (child.custom[DEPARTURE_COMPANION_KEY] as
-                                string | undefined)
-                            : undefined
-                        }
-                        onCompanionNoteChange={
-                          f.target === "student.allowed_departure_modes"
-                            ? (v) =>
-                                updateChild(i, {
-                                  custom: {
-                                    ...child.custom,
-                                    [DEPARTURE_COMPANION_KEY]: v,
-                                  },
-                                })
-                            : undefined
-                        }
-                        inputName={`children_${i}_custom_${f.key}`}
-                        error={fieldError(`children_${i}_custom_${f.key}`)}
-                        companionNoteName={`children_${i}_departure_companion_note`}
-                        companionNoteError={
-                          f.target === "student.allowed_departure_modes"
-                            ? fieldError(
-                                `children_${i}_departure_companion_note`,
-                              )
-                            : undefined
-                        }
-                        relevantDays={relevantCareDaysForChild(
-                          child,
-                          childOfferings,
-                          previewMode,
-                          offerings.length > 0,
-                        )}
-                        careConstrained={careDaysAreConstrained(
-                          offerings,
-                          previewMode,
-                        )}
-                        singleMode={
-                          f.type === "weekday_multi_mode" &&
-                          singleModeApplies(f, child.target_grade_level)
-                        }
-                        tr={tr}
-                      />
-                    ),
-                  )}
-            </div>
-          );
-        })}
-      </section>
-
-      {legalBlocks.length > 0 && !restrictToOfferings && (
-        <section className="moto-content-surface space-y-4 rounded-xl border p-4 shadow-sm sm:p-5">
-          <SectionHeading
-            title={tr("sections.consentTitle")}
-            description={tr("sections.consentDescription")}
-          />
-          {localizedCopy && activeLocale !== DEFAULT_LOCALE ? (
-            <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs leading-5 text-gray-600">
-              {tr("legalGermanNotice")}
-            </p>
-          ) : null}
-          {legalBlocks.map((block) =>
-            block.kind === "notice" ? (
-              <EmailContactNotice
-                key={block.key}
-                block={block}
-                onViewLegal={
-                  block.text ? () => setOpenLegalDoc(block) : undefined
-                }
-                detailsLabel={tr("actions.details")}
-                detailsAriaLabel={tr("actions.detailsAria", {
-                  title: block.title,
-                })}
-              />
-            ) : (
-              <Consent
-                key={block.key}
-                name={`consent_${block.key}`}
-                label={block.label}
-                checked={legalConsents[block.key] === true}
-                onChange={(checked) =>
-                  setLegalConsents((prev) => ({
-                    ...prev,
-                    [block.key]: checked,
-                  }))
-                }
-                required={block.required}
-                error={fieldError(`consent_${block.key}`)}
-                legalText={block.text}
-                legalTitle={block.title}
-                onViewLegal={
-                  block.text ? () => setOpenLegalDoc(block) : undefined
-                }
-                tr={tr}
-              />
-            ),
-          )}
+                {!restrictToOfferings &&
+                  (schema?.fields ?? [])
+                    .filter(
+                      (f) =>
+                        f.applies_to_child &&
+                        isFieldVisible(f, childConditionCtx(child)),
+                    )
+                    .map((f) =>
+                      f.type === "information" ? (
+                        <InfoBlock key={f.key} field={f} />
+                      ) : (
+                        <CustomFieldInput
+                          key={f.key}
+                          field={f}
+                          value={child.custom[f.key]}
+                          onChange={(v) =>
+                            updateChild(i, {
+                              custom: { ...child.custom, [f.key]: v },
+                            })
+                          }
+                          companionNote={
+                            f.target === "student.allowed_departure_modes"
+                              ? (child.custom[DEPARTURE_COMPANION_KEY] as
+                                  string | undefined)
+                              : undefined
+                          }
+                          onCompanionNoteChange={
+                            f.target === "student.allowed_departure_modes"
+                              ? (v) =>
+                                  updateChild(i, {
+                                    custom: {
+                                      ...child.custom,
+                                      [DEPARTURE_COMPANION_KEY]: v,
+                                    },
+                                  })
+                              : undefined
+                          }
+                          inputName={`children_${i}_custom_${f.key}`}
+                          error={fieldError(`children_${i}_custom_${f.key}`)}
+                          companionNoteName={`children_${i}_departure_companion_note`}
+                          companionNoteError={
+                            f.target === "student.allowed_departure_modes"
+                              ? fieldError(
+                                  `children_${i}_departure_companion_note`,
+                                )
+                              : undefined
+                          }
+                          relevantDays={relevantCareDaysForChild(
+                            child,
+                            childOfferings,
+                            previewMode,
+                            careOfferingGradeForChild(child),
+                            offerings.length > 0,
+                          )}
+                          careConstrained={careDaysAreConstrained(
+                            offerings,
+                            previewMode,
+                          )}
+                          singleMode={
+                            f.type === "weekday_multi_mode" &&
+                            singleModeApplies(f, child.target_grade_level)
+                          }
+                          tr={tr}
+                        />
+                      ),
+                    )}
+              </div>
+            );
+          })}
         </section>
-      )}
 
-      <Modal
-        isOpen={openLegalDoc !== null}
-        onClose={() => setOpenLegalDoc(null)}
-        title={openLegalDoc?.title ?? ""}
-        widthClass="mx-4 w-[calc(100%-2rem)] max-w-2xl"
-      >
-        <div className="max-h-[60vh] overflow-y-auto text-sm text-gray-700">
-          <LegalMarkdown text={openLegalDoc?.text ?? ""} />
-        </div>
-      </Modal>
+        {legalBlocks.length > 0 && !restrictToOfferings && (
+          <section className="moto-content-surface space-y-4 rounded-xl border p-4 shadow-sm sm:p-5">
+            <SectionHeading
+              title={tr("sections.consentTitle")}
+              description={tr("sections.consentDescription")}
+            />
+            {localizedCopy && activeLocale !== DEFAULT_LOCALE ? (
+              <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs leading-5 text-gray-600">
+                {tr("legalGermanNotice")}
+              </p>
+            ) : null}
+            {legalBlocks.map((block) => (
+              <div key={block.key}>
+                {block.kind === "notice" ? (
+                  <EmailContactNotice
+                    key={block.key}
+                    block={block}
+                    onViewLegal={
+                      block.text ? () => setOpenLegalDoc(block) : undefined
+                    }
+                    detailsLabel={tr("actions.details")}
+                    detailsAriaLabel={tr("actions.detailsAria", {
+                      title: block.title,
+                    })}
+                  />
+                ) : (
+                  <Consent
+                    key={block.key}
+                    name={`consent_${block.key}`}
+                    label={block.label}
+                    checked={legalConsents[block.key] === true}
+                    onChange={(checked) =>
+                      setLegalConsents((prev) => ({
+                        ...prev,
+                        [block.key]: checked,
+                      }))
+                    }
+                    required={block.required}
+                    error={fieldError(`consent_${block.key}`)}
+                    legalText={block.text}
+                    legalTitle={block.title}
+                    onViewLegal={
+                      block.text ? () => setOpenLegalDoc(block) : undefined
+                    }
+                    tr={tr}
+                  />
+                )}
+                <AttachmentList attachments={block.attachments} />
+              </div>
+            ))}
+          </section>
+        )}
 
-      {/*
+        <Modal
+          isOpen={openLegalDoc !== null}
+          onClose={() => setOpenLegalDoc(null)}
+          title={openLegalDoc?.title ?? ""}
+          widthClass="mx-4 w-[calc(100%-2rem)] max-w-2xl"
+        >
+          <div className="max-h-[60vh] overflow-y-auto text-sm text-gray-700">
+            <LegalMarkdown text={openLegalDoc?.text ?? ""} />
+          </div>
+        </Modal>
+
+        {/*
         Cloudflare Turnstile widget. Only rendered when:
         - the caller didn't skip captcha (parent JWT path skips), and
-        - the tenant has configured enrollment.captcha_site_key.
-        When require_captcha=true but no site_key is set, we still
+        - the school enabled captcha and the config carries a site key (the server requires the
+          platform's TURNSTILE_SITE_KEY at startup).
+        When require_captcha=true but no site_key arrives, we still
         render a warning to the parent and disable submit; failing
         closed is safer than letting bots through silently.
         The hidden input ships the token along with the form post.
       */}
-      {!skipCaptcha && captchaConfig?.site_key && (
-        <section aria-labelledby="captcha-heading" className="space-y-2">
-          <h2 id="captcha-heading" className="sr-only">
-            Sicherheitsprüfung
-          </h2>
-          <Turnstile
-            siteKey={captchaConfig.site_key}
-            options={{ theme: "light" }}
-            onSuccess={(token: string) => setCaptchaToken(token)}
-            onExpire={() => setCaptchaToken("")}
-            onError={() => setCaptchaToken("")}
-          />
-          <input type="hidden" name="captcha_token" value={captchaToken} />
-        </section>
-      )}
-      {!skipCaptcha && captchaConfig?.enabled && !captchaConfig.site_key && (
-        <div
-          role="alert"
-          className="border-moto-red/30 bg-moto-red/5 text-moto-red-strong rounded-md border p-3 text-sm"
+        {captchaRequired && captchaConfig.site_key && (
+          <section aria-labelledby="captcha-heading" className="space-y-2">
+            <h2 id="captcha-heading" className="sr-only">
+              Sicherheitsprüfung
+            </h2>
+            <Turnstile
+              siteKey={captchaConfig.site_key}
+              options={{ theme: "light" }}
+              onSuccess={(token: string) => setCaptchaToken(token)}
+              onExpire={() => setCaptchaToken("")}
+              onError={() => setCaptchaToken("")}
+            />
+            <input type="hidden" name="captcha_token" value={captchaToken} />
+          </section>
+        )}
+        <button
+          type="submit"
+          disabled={
+            submitting ||
+            previewMode ||
+            (captchaRequired && (!captchaConfig.site_key || !captchaToken))
+          }
+          className="h-11 w-full rounded-lg bg-gray-900 text-sm font-semibold text-white shadow-sm transition-colors duration-200 hover:bg-gray-800 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-gray-400"
         >
-          {tr("captchaMisconfigured")}
-        </div>
-      )}
-
-      <button
-        type="submit"
-        disabled={
-          submitting ||
-          previewMode ||
-          (!skipCaptcha && !!captchaConfig?.site_key && !captchaToken) ||
-          (!skipCaptcha && !!captchaConfig?.enabled && !captchaConfig.site_key)
-        }
-        className="h-11 w-full rounded-lg bg-gray-900 text-sm font-semibold text-white shadow-sm transition-colors duration-200 hover:bg-gray-800 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-gray-400"
-      >
-        {previewMode
-          ? tr("actions.previewSubmit")
-          : submitting
-            ? tr("actions.submitting")
-            : (submitLabel ?? tr("actions.submit"))}
-      </button>
-    </form>
+          {previewMode
+            ? tr("actions.previewSubmit")
+            : submitting
+              ? tr("actions.submitting")
+              : (submitLabel ?? tr("actions.submit"))}
+        </button>
+      </form>
+    </EnrollmentUploadScope>
   );
 }
 
@@ -2643,17 +2795,21 @@ function asStringMap(value: unknown): Record<string, string> {
   );
 }
 
-// Add mandatory offerings that apply to each child's grade after the catalog
-// loads. Conditional required offerings stay absent while their grade input is
-// empty and are added by the grade-change handler once they become applicable.
+// Add mandatory offerings that apply to each child's visible grade after the
+// catalog loads. Conditional required offerings stay absent while their grade
+// input is empty and are added by the grade-change handler once applicable.
 function seedRequiredAvailableOfferings(
   children: ChildDraft[],
   offerings: readonly PublicCareOffering[],
+  collectGradeLevel: boolean,
 ): ChildDraft[] {
   return children.map((c) => {
     if (c.locked) return c;
     const nextIDs = new Set(c.offering_ids);
-    availableCareOfferings(offerings, c.target_grade_level)
+    availableCareOfferings(
+      offerings,
+      collectGradeLevel ? c.target_grade_level : undefined,
+    )
       .filter((offering) => offering.is_required)
       .forEach((offering) => nextIDs.add(offering.id));
     return { ...c, offering_ids: nextIDs };
@@ -2725,11 +2881,20 @@ export function submitFieldName(path: string): string {
 // selection is valid. The backend re-checks the same in
 // validateOfferingGroupRules (defense-in-depth).
 function offeringGroupRuleError(
-  selectedOfferingIds: ReadonlySet<string>,
+  materialized: Pick<MaterializedCareSelection, "offeringIds" | "offeringDays">,
   offerings: PublicCareOffering[],
-  tr: TranslationFn,
+  tr: EnrollmentFormTranslator,
   locale: string,
 ): string | null {
+  const selectedOfferingIds = materialized.offeringIds;
+  const [dayConflict] = careOfferingDayConflicts(
+    offerings,
+    selectedOfferingIds,
+    materialized.offeringDays,
+  );
+  if (dayConflict) {
+    return dayConflictMessage(dayConflict, offerings, tr, locale);
+  }
   const ruleByGroup = new Map<string, string>();
   for (const o of offerings) {
     const group = o.selection_group?.trim() ?? "";
@@ -2757,7 +2922,26 @@ function offeringGroupRuleError(
   return null;
 }
 
+// dayConflictMessage names the day and the offerings of one conflict, so the
+// family sees what to change without the form changing it for them (#4514).
+function dayConflictMessage(
+  conflict: CareOfferingDayConflict,
+  offerings: readonly PublicCareOffering[],
+  tr: EnrollmentFormTranslator,
+  locale: string,
+): string {
+  const weekdays = asStringMap(tr.raw("weekdays"));
+  const names = conflict.offeringIds.map(
+    (id) => offerings.find((o) => o.id === id)?.name ?? id,
+  );
+  return tr("errors.groupDayConflict", {
+    day: weekdays[conflict.day] ?? conflict.day,
+    offerings: conflictOfferingList(names, locale),
+  });
+}
+
 function offeringRuleHint(rule: string, tr: TranslationFn): string {
+  if (rule === AT_MOST_ONE_PER_DAY) return tr("care.ruleAtMostOnePerDay");
   if (rule === "exactly_one") return tr("care.ruleExactlyOne");
   if (rule === "at_least_one") return tr("care.ruleAtLeastOne");
   if (rule === "at_most_one") return tr("care.ruleAtMostOne");
@@ -2785,6 +2969,7 @@ function InfoBlock({
           {field.content}
         </p>
       )}
+      <AttachmentList attachments={field.attachments} />
     </div>
   );
 }
@@ -3335,6 +3520,7 @@ function previewLegalTexts(schema: PublicFormSchema | null): PublicLegalTexts {
         title: block.title,
         label: block.label,
         text: legalBlockText(block),
+        attachments: block.attachments,
         required: block.required,
         sort_order: block.sort_order,
         source: block.source,
@@ -3556,6 +3742,9 @@ function customValueMissing(
   if (field.type === "contact_list") {
     return contactListValueMissing(value);
   }
+  if (field.type === "file") {
+    return fileValueMissing(value);
+  }
   if (field.type === "weekday_schedule") {
     const days = relevantDays ?? WEEKDAYS;
     if (days.length === 0) return false;
@@ -3662,6 +3851,9 @@ function requiredMessageForField(
   }
   if (field.type === "select") {
     return tr("errors.select");
+  }
+  if (field.type === "file") {
+    return tr("errors.file");
   }
   return tr("errors.required");
 }
@@ -3869,6 +4061,18 @@ function CustomFieldInput({
         companionNoteError={companionNoteError}
         companionNoteName={companionNoteName}
         singleMode={singleMode}
+      />
+    );
+  }
+  if (field.type === "file") {
+    return (
+      <FileUploadInput
+        field={field}
+        inputName={inputName}
+        value={value}
+        onChange={onChange}
+        error={error}
+        tr={tr}
       />
     );
   }
@@ -4198,8 +4402,9 @@ const DEPARTURE_MODE_OPTIONS: ReadonlyArray<DepartureModeValue> = [
 function selectedCareDaysForChild(
   child: ChildDraft,
   offerings: readonly PublicCareOffering[],
+  gradeLevel: string | undefined,
 ): string[] {
-  const materialized = materializeCareOfferings(child, offerings);
+  const materialized = materializeCareOfferings(child, offerings, gradeLevel);
   const days = new Set<string>();
   for (const id of materialized.offeringIds) {
     const offering = offerings.find((o) => o.id === id);
@@ -4226,6 +4431,7 @@ interface MaterializedCareSelection {
 function materializeCareOfferings(
   child: ChildDraft,
   offerings: readonly PublicCareOffering[],
+  gradeLevel: string | undefined,
 ): MaterializedCareSelection {
   const offeringIds = new Set(child.offering_ids);
   const offeringDays: Record<string, Set<string>> = {};
@@ -4238,7 +4444,7 @@ function materializeCareOfferings(
   while (changed) {
     changed = false;
     for (const target of offerings) {
-      if (!autoAddAppliesToGrade(child.target_grade_level, target)) continue;
+      if (!autoAddAppliesToGrade(gradeLevel, target)) continue;
       const triggerIDs = target.auto_add_trigger_offering_ids ?? [];
       if (triggerIDs.length === 0 && !isRequiredLunchOffering(target)) continue;
 
@@ -4316,7 +4522,7 @@ function isRequiredLunchOffering(offering: PublicCareOffering): boolean {
 }
 
 function autoAddAppliesToGrade(
-  gradeValue: string,
+  gradeValue: string | undefined,
   offering: PublicCareOffering,
 ): boolean {
   const gradeLevels = offering.auto_add_grade_levels ?? [];
@@ -4330,6 +4536,7 @@ function relevantCareDaysForChild(
   child: ChildDraft,
   offerings: readonly PublicCareOffering[],
   previewMode: boolean,
+  gradeLevel: string | undefined,
   hasOfferingCatalog = offerings.length > 0,
 ): string[] {
   // No offerings to derive care days from (care-offering feature unused, or
@@ -4339,7 +4546,7 @@ function relevantCareDaysForChild(
   if (previewMode || !hasOfferingCatalog) {
     return [...WEEKDAYS];
   }
-  return selectedCareDaysForChild(child, offerings);
+  return selectedCareDaysForChild(child, offerings, gradeLevel);
 }
 
 // Whether the visible weekdays are genuinely derived from selected care

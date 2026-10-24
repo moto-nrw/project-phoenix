@@ -48,6 +48,10 @@ export const WithActionsAndSubtitle: Story = {
     subdomain: "gs-am-berg",
     active: true,
     subtitle: "Betreibende Organisation: Träger für Bildung e.V.",
+    back: {
+      href: "/operator/organizations/traeger-fuer-bildung",
+      label: "Zurück zum Träger",
+    },
     createdAt: new Date("2022-01-15"),
     stats: [{ label: "Schüler", value: 128 }],
     actions: (

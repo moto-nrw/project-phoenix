@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/domain"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/driver/pgdriver"
@@ -114,27 +115,27 @@ func (s *Store) databaseForWrite(ctx context.Context, operation string) (bun.IDB
 	return db, tenantID, nil
 }
 
-func (s *Store) FindCareOffering(ctx context.Context, id int64) (domain.CareOffering, bool, domain.OperationStats, error) {
+func (s *Store) FindCareOffering(ctx context.Context, id int64) (careplan.CareOffering, bool, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return domain.CareOffering{}, false, domain.OperationStats{}, err
+		return careplan.CareOffering{}, false, domain.OperationStats{}, err
 	}
 	row := new(careOfferingRow)
 	query := withTenant(careOfferingSelect(db, row).Where(`"care_offering".id = ?`, id), "care_offering", tenantID)
 	found, stats, err := scanOne(ctx, query, "find care offering")
 	if err != nil || !found {
-		return domain.CareOffering{}, found, stats, err
+		return careplan.CareOffering{}, found, stats, err
 	}
-	result := []domain.CareOffering{careOfferingToDomain(*row)}
+	result := []careplan.CareOffering{careOfferingToDomain(*row)}
 	triggerStats, err := s.hydrateTriggers(ctx, db, tenantID, result)
 	stats.Add(triggerStats)
 	if err != nil {
-		return domain.CareOffering{}, false, stats, err
+		return careplan.CareOffering{}, false, stats, err
 	}
 	return result[0], true, stats, nil
 }
 
-func (s *Store) ListCareOfferings(ctx context.Context, filter domain.CareOfferingFilter) ([]domain.CareOffering, domain.OperationStats, error) {
+func (s *Store) ListCareOfferings(ctx context.Context, filter careplan.CareOfferingFilter) ([]careplan.CareOffering, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
@@ -142,13 +143,13 @@ func (s *Store) ListCareOfferings(ctx context.Context, filter domain.CareOfferin
 	rows := []careOfferingRow{}
 	query, empty := careOfferingListQuery(db, &rows, tenantID, filter)
 	if empty {
-		return []domain.CareOffering{}, domain.OperationStats{}, nil
+		return []careplan.CareOffering{}, domain.OperationStats{}, nil
 	}
 	stats, err := scanAll(ctx, query, "list care offerings")
 	if err != nil {
 		return nil, stats, err
 	}
-	result := make([]domain.CareOffering, 0, len(rows))
+	result := make([]careplan.CareOffering, 0, len(rows))
 	for _, row := range rows {
 		result = append(result, careOfferingToDomain(row))
 	}
@@ -158,7 +159,7 @@ func (s *Store) ListCareOfferings(ctx context.Context, filter domain.CareOfferin
 	return result, stats, err
 }
 
-func careOfferingListQuery(db bun.IDB, rows *[]careOfferingRow, tenantID int64, filter domain.CareOfferingFilter) (*bun.SelectQuery, bool) {
+func careOfferingListQuery(db bun.IDB, rows *[]careOfferingRow, tenantID int64, filter careplan.CareOfferingFilter) (*bun.SelectQuery, bool) {
 	query := withTenant(careOfferingSelect(db, rows), "care_offering", tenantID)
 	if filter.IDs != nil {
 		if len(filter.IDs) == 0 {
@@ -216,10 +217,10 @@ func (s *Store) CountCareOfferingsByPhase(ctx context.Context, phaseID int64) (i
 	return int(count), stats, nil
 }
 
-func (s *Store) CreateCareOffering(ctx context.Context, fields domain.CareOfferingFields) (domain.CareOffering, domain.OperationStats, error) {
+func (s *Store) CreateCareOffering(ctx context.Context, fields careplan.CareOfferingFields) (careplan.CareOffering, domain.OperationStats, error) {
 	db, tenantID, err := s.databaseForWrite(ctx, "create a care offering")
 	if err != nil {
-		return domain.CareOffering{}, domain.OperationStats{}, err
+		return careplan.CareOffering{}, domain.OperationStats{}, err
 	}
 	row := careOfferingRow{TenantID: tenantID}
 	applyCareOfferingFields(&row, fields)
@@ -228,16 +229,16 @@ func (s *Store) CreateCareOffering(ctx context.Context, fields domain.CareOfferi
 	err = db.NewInsert().Model(&row).ModelTableExpr(`enrollment.care_offerings`).Returning("*").Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
-		return domain.CareOffering{}, stats, fmt.Errorf("care plan postgres: create care offering: %w", err)
+		return careplan.CareOffering{}, stats, fmt.Errorf("care plan postgres: create care offering: %w", err)
 	}
 	stats.Rows = 1
 	return careOfferingToDomain(row), stats, nil
 }
 
-func (s *Store) UpdateCareOffering(ctx context.Context, id int64, fields domain.CareOfferingFields) (domain.CareOffering, domain.OperationStats, error) {
+func (s *Store) UpdateCareOffering(ctx context.Context, id int64, fields careplan.CareOfferingFields) (careplan.CareOffering, domain.OperationStats, error) {
 	db, tenantID, err := s.databaseForWrite(ctx, "update a care offering")
 	if err != nil {
-		return domain.CareOffering{}, domain.OperationStats{}, err
+		return careplan.CareOffering{}, domain.OperationStats{}, err
 	}
 	row := careOfferingRow{ID: id}
 	applyCareOfferingFields(&row, fields)
@@ -253,10 +254,10 @@ func (s *Store) UpdateCareOffering(ctx context.Context, id int64, fields domain.
 	err = query.Returning("*").Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if errors.Is(err, sql.ErrNoRows) {
-		return domain.CareOffering{}, stats, domain.ErrCareOfferingNotFound
+		return careplan.CareOffering{}, stats, careplan.ErrCareOfferingNotFound
 	}
 	if err != nil {
-		return domain.CareOffering{}, stats, fmt.Errorf("care plan postgres: update care offering: %w", err)
+		return careplan.CareOffering{}, stats, fmt.Errorf("care plan postgres: update care offering: %w", err)
 	}
 	stats.Rows = 1
 	return careOfferingToDomain(row), stats, nil
@@ -270,7 +271,7 @@ func (s *Store) DeleteCareOffering(ctx context.Context, id int64) (domain.Operat
 	query := withTenant(db.NewDelete().Model((*careOfferingRow)(nil)).
 		ModelTableExpr(`enrollment.care_offerings AS "care_offering"`).
 		Where(`"care_offering".id = ?`, id), "care_offering", tenantID)
-	return execGuarded(ctx, query, "delete care offering", domain.ErrCareOfferingNotFound)
+	return execGuarded(ctx, query, "delete care offering", careplan.ErrCareOfferingNotFound)
 }
 
 func (s *Store) ReplaceAutoAddTriggers(ctx context.Context, targetID int64, triggerIDs []int64) (domain.OperationStats, error) {
@@ -302,7 +303,7 @@ func validateAutoAddTriggerTarget(ctx context.Context, db bun.IDB, tenantID, tar
 		return stats, fmt.Errorf("care plan postgres: validate care offering auto trigger target: %w", err)
 	}
 	if count == 0 {
-		return stats, domain.ErrCareOfferingNotFound
+		return stats, careplan.ErrCareOfferingNotFound
 	}
 	stats.Rows = int64(count)
 	return stats, nil
@@ -325,7 +326,7 @@ func insertAutoAddTriggers(ctx context.Context, db bun.IDB, tenantID, targetID i
 		return stats, fmt.Errorf("care plan postgres: validate care offering auto triggers: %w", err)
 	}
 	if count != int64(len(triggerIDs)) {
-		return stats, domain.ErrCareOfferingTriggerInvalid
+		return stats, careplan.ErrCareOfferingTriggerInvalid
 	}
 	rows := make([]autoTriggerRow, 0, len(triggerIDs))
 	for _, triggerID := range triggerIDs {
@@ -342,9 +343,9 @@ func insertAutoAddTriggers(ctx context.Context, db bun.IDB, tenantID, targetID i
 	return stats, nil
 }
 
-func (s *Store) hydrateTriggers(ctx context.Context, db bun.IDB, tenantID int64, offerings []domain.CareOffering) (domain.OperationStats, error) {
+func (s *Store) hydrateTriggers(ctx context.Context, db bun.IDB, tenantID int64, offerings []careplan.CareOffering) (domain.OperationStats, error) {
 	ids := make([]int64, 0, len(offerings))
-	byID := make(map[int64]*domain.CareOffering, len(offerings))
+	byID := make(map[int64]*careplan.CareOffering, len(offerings))
 	for index := range offerings {
 		offerings[index].AutoAddTriggerOfferingIDs = []int64{}
 		ids = append(ids, offerings[index].ID)
@@ -371,10 +372,10 @@ func (s *Store) hydrateTriggers(ctx context.Context, db bun.IDB, tenantID int64,
 	return stats, nil
 }
 
-func (s *Store) FindOfferingChange(ctx context.Context, id int64, lock bool) (domain.OfferingChangeRequest, bool, domain.OperationStats, error) {
+func (s *Store) FindOfferingChange(ctx context.Context, id int64, lock bool) (careplan.OfferingChangeRequest, bool, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return domain.OfferingChangeRequest{}, false, domain.OperationStats{}, err
+		return careplan.OfferingChangeRequest{}, false, domain.OperationStats{}, err
 	}
 	row := new(offeringChangeRow)
 	query := withTenant(offeringChangeSelect(db, row).Where(`"offering_change_request".id = ?`, id), "offering_change_request", tenantID)
@@ -383,12 +384,12 @@ func (s *Store) FindOfferingChange(ctx context.Context, id int64, lock bool) (do
 	}
 	found, stats, err := scanOne(ctx, query, "find offering change request")
 	if err != nil || !found {
-		return domain.OfferingChangeRequest{}, found, stats, err
+		return careplan.OfferingChangeRequest{}, found, stats, err
 	}
 	return offeringChangeToDomain(*row), true, stats, nil
 }
 
-func (s *Store) ListOfferingChanges(ctx context.Context, filter domain.OfferingChangeFilter) ([]domain.OfferingChangeRequest, domain.OperationStats, error) {
+func (s *Store) ListOfferingChanges(ctx context.Context, filter careplan.OfferingChangeFilter) ([]careplan.OfferingChangeRequest, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
@@ -396,7 +397,7 @@ func (s *Store) ListOfferingChanges(ctx context.Context, filter domain.OfferingC
 	rows := []offeringChangeRow{}
 	query, empty := offeringChangeListQuery(db, &rows, tenantID, filter)
 	if empty {
-		return []domain.OfferingChangeRequest{}, domain.OperationStats{}, nil
+		return []careplan.OfferingChangeRequest{}, domain.OperationStats{}, nil
 	}
 	query = orderOfferingChanges(query, filter)
 	if filter.Limit > 0 {
@@ -409,7 +410,7 @@ func (s *Store) ListOfferingChanges(ctx context.Context, filter domain.OfferingC
 	if err != nil {
 		return nil, stats, err
 	}
-	result := make([]domain.OfferingChangeRequest, 0, len(rows))
+	result := make([]careplan.OfferingChangeRequest, 0, len(rows))
 	for _, row := range rows {
 		result = append(result, offeringChangeToDomain(row))
 	}
@@ -417,7 +418,7 @@ func (s *Store) ListOfferingChanges(ctx context.Context, filter domain.OfferingC
 	return result, stats, nil
 }
 
-func offeringChangeListQuery(db bun.IDB, rows *[]offeringChangeRow, tenantID int64, filter domain.OfferingChangeFilter) (*bun.SelectQuery, bool) {
+func offeringChangeListQuery(db bun.IDB, rows *[]offeringChangeRow, tenantID int64, filter careplan.OfferingChangeFilter) (*bun.SelectQuery, bool) {
 	query := withTenant(offeringChangeSelect(db, rows), "offering_change_request", tenantID)
 	if filter.IDs != nil {
 		if len(filter.IDs) == 0 {
@@ -447,7 +448,7 @@ func offeringChangeListQuery(db bun.IDB, rows *[]offeringChangeRow, tenantID int
 	return query, false
 }
 
-func orderOfferingChanges(query *bun.SelectQuery, filter domain.OfferingChangeFilter) *bun.SelectQuery {
+func orderOfferingChanges(query *bun.SelectQuery, filter careplan.OfferingChangeFilter) *bun.SelectQuery {
 	switch filter.Order {
 	case "reviewed":
 		query = query.OrderExpr(`"offering_change_request".reviewed_at DESC NULLS LAST`).OrderExpr(`"offering_change_request".id DESC`)
@@ -465,10 +466,10 @@ func orderOfferingChanges(query *bun.SelectQuery, filter domain.OfferingChangeFi
 	return query
 }
 
-func (s *Store) CreateOfferingChange(ctx context.Context, value domain.OfferingChangeRequest) (domain.OfferingChangeRequest, domain.OperationStats, error) {
+func (s *Store) CreateOfferingChange(ctx context.Context, value careplan.OfferingChangeRequest) (careplan.OfferingChangeRequest, domain.OperationStats, error) {
 	db, tenantID, err := s.databaseForWrite(ctx, "create an offering change request")
 	if err != nil {
-		return domain.OfferingChangeRequest{}, domain.OperationStats{}, err
+		return careplan.OfferingChangeRequest{}, domain.OperationStats{}, err
 	}
 	row := offeringChangeFromDomain(value)
 	row.TenantID = tenantID
@@ -477,7 +478,7 @@ func (s *Store) CreateOfferingChange(ctx context.Context, value domain.OfferingC
 	err = db.NewInsert().Model(&row).ModelTableExpr(`enrollment.offering_change_requests`).Returning("*").Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
-		return domain.OfferingChangeRequest{}, stats, wrapOfferingChangeWrite("create", err)
+		return careplan.OfferingChangeRequest{}, stats, wrapOfferingChangeWrite("create", err)
 	}
 	stats.Rows = 1
 	return offeringChangeToDomain(row), stats, nil
@@ -495,7 +496,7 @@ func (s *Store) UpdateApprovedCompleteWithdrawal(ctx context.Context, id int64, 
 	})
 }
 
-func (s *Store) UpdatePendingOfferingChange(ctx context.Context, input domain.UpdatePendingOfferingChange) (domain.OperationStats, error) {
+func (s *Store) UpdatePendingOfferingChange(ctx context.Context, input careplan.UpdatePendingOfferingChange) (domain.OperationStats, error) {
 	return s.updatePending(ctx, input.ID, "update pending offering change request", func(query *bun.UpdateQuery) *bun.UpdateQuery {
 		return query.
 			Set("payload = ?", input.Payload).
@@ -516,10 +517,10 @@ func (s *Store) updatePending(ctx context.Context, id int64, operation string, c
 		Where(`"offering_change_request".status = 'pending'`)
 	query = change(query)
 	query = withTenant(query, "offering_change_request", tenantID)
-	return execGuarded(ctx, query, operation, domain.ErrOfferingChangeNotPending)
+	return execGuarded(ctx, query, operation, careplan.ErrOfferingChangeNotPending)
 }
 
-func (s *Store) DecideOfferingChange(ctx context.Context, input domain.DecideOfferingChange) (domain.OperationStats, error) {
+func (s *Store) DecideOfferingChange(ctx context.Context, input careplan.DecideOfferingChange) (domain.OperationStats, error) {
 	db, tenantID, err := s.databaseForWrite(ctx, "decide an offering change request")
 	if err != nil {
 		return domain.OperationStats{}, err
@@ -539,7 +540,7 @@ func (s *Store) DecideOfferingChange(ctx context.Context, input domain.DecideOff
 		query = query.Set("applied_at = ?", now)
 	}
 	query = withTenant(query, "offering_change_request", tenantID)
-	return execGuarded(ctx, query, "decide offering change request", domain.ErrOfferingChangeNotPending)
+	return execGuarded(ctx, query, "decide offering change request", careplan.ErrOfferingChangeNotPending)
 }
 
 func (s *Store) UpdateOfferingChangeSnapshot(ctx context.Context, id int64, snapshot json.RawMessage) (domain.OperationStats, error) {
@@ -580,7 +581,7 @@ func offeringChangeSelect(db bun.IDB, model any) *bun.SelectQuery {
 	return db.NewSelect().Model(model).ModelTableExpr(`enrollment.offering_change_requests AS "offering_change_request"`)
 }
 
-func applyCareOfferingFields(row *careOfferingRow, fields domain.CareOfferingFields) {
+func applyCareOfferingFields(row *careOfferingRow, fields careplan.CareOfferingFields) {
 	row.PhaseID = fields.PhaseID
 	row.ActivityGroupID = fields.ActivityGroupID
 	row.Name = fields.Name
@@ -607,8 +608,8 @@ func applyCareOfferingFields(row *careOfferingRow, fields domain.CareOfferingFie
 	}
 }
 
-func careOfferingToDomain(row careOfferingRow) domain.CareOffering {
-	return domain.CareOffering{
+func careOfferingToDomain(row careOfferingRow) careplan.CareOffering {
+	return careplan.CareOffering{
 		ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		PhaseID: row.PhaseID, ActivityGroupID: row.ActivityGroupID, Name: row.Name, Description: row.Description,
 		DaysOfWeekMode: row.DaysOfWeekMode, AvailableDays: row.AvailableDays,
@@ -620,7 +621,7 @@ func careOfferingToDomain(row careOfferingRow) domain.CareOffering {
 	}
 }
 
-func offeringChangeFromDomain(value domain.OfferingChangeRequest) offeringChangeRow {
+func offeringChangeFromDomain(value careplan.OfferingChangeRequest) offeringChangeRow {
 	return offeringChangeRow{
 		ID: value.ID, TenantID: value.TenantID, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
 		StudentID: value.StudentID, RequestChildID: value.RequestChildID, SubmittedBy: value.SubmittedBy,
@@ -633,8 +634,8 @@ func offeringChangeFromDomain(value domain.OfferingChangeRequest) offeringChange
 	}
 }
 
-func offeringChangeToDomain(row offeringChangeRow) domain.OfferingChangeRequest {
-	return domain.OfferingChangeRequest{
+func offeringChangeToDomain(row offeringChangeRow) careplan.OfferingChangeRequest {
+	return careplan.OfferingChangeRequest{
 		ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		StudentID: row.StudentID, RequestChildID: row.RequestChildID, SubmittedBy: row.SubmittedBy,
 		CompleteWithdrawalConfirmed: row.CompleteWithdrawalConfirmed,
@@ -646,11 +647,14 @@ func offeringChangeToDomain(row offeringChangeRow) domain.OfferingChangeRequest 
 	}
 }
 
-func withTenant[Q interface{ Where(string, ...any) Q }](query Q, alias string, tenantID int64) Q {
-	if tenantID > 0 {
-		return query.Where(`"`+alias+`".tenant_id = ?`, tenantID)
+func withTenant[Q interface {
+	Where(string, ...any) Q
+	Err(error) Q
+}](query Q, alias string, tenantID int64) Q {
+	if tenantID <= 0 {
+		return query.Err(errors.New("careplan: tenant is required"))
 	}
-	return query
+	return query.Where(`"`+alias+`".tenant_id = ?`, tenantID)
 }
 
 func scanOne(ctx context.Context, query *bun.SelectQuery, operation string) (bool, domain.OperationStats, error) {
@@ -726,11 +730,11 @@ func isUniqueViolation(err error) bool {
 func wrapOfferingChangeWrite(operation string, err error) error {
 	var postgresError pgdriver.Error
 	if errors.As(err, &postgresError) && postgresError.IntegrityViolation() && postgresError.Field('n') == pendingOfferingChangeConstraint {
-		return fmt.Errorf("%w: %w", domain.ErrOfferingChangeAlreadyOpen, err)
+		return fmt.Errorf("%w: %w", careplan.ErrOfferingChangeAlreadyOpen, err)
 	}
 	return fmt.Errorf("care plan postgres: %s offering change request: %w", operation, err)
 }
 
 var _ interface {
-	FindCareOffering(context.Context, int64) (domain.CareOffering, bool, domain.OperationStats, error)
+	FindCareOffering(context.Context, int64) (careplan.CareOffering, bool, domain.OperationStats, error)
 } = (*Store)(nil)

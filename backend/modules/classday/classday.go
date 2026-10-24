@@ -10,11 +10,11 @@ import (
 
 // ErrClassNotAssigned is returned when the requested class is not among the
 // caller's education.class_teachers assignments.
-var ErrClassNotAssigned = errors.New("Diese Klasse ist Ihnen nicht zugewiesen") //nolint:staticcheck // ST1005: user-facing German message
+var ErrClassNotAssigned = errors.New("diese Klasse ist Ihnen nicht zugewiesen")
 
 // ErrStaffRecordRequired is returned when the caller has no users.staff row
 // to attribute an entry to.
-var ErrStaffRecordRequired = errors.New("Zu Ihrem Konto gibt es keinen Mitarbeiterdatensatz") //nolint:staticcheck // ST1005: user-facing German message
+var ErrStaffRecordRequired = errors.New("zu Ihrem Konto gibt es keinen Mitarbeiterdatensatz")
 
 // ErrInvalidReportFilter marks a day-report request the report refuses
 // before reading anything (an empty class name).
@@ -39,6 +39,39 @@ var (
 	ErrArrivalExceptionClassNotFound = errors.New("school class has no active students")
 	// ErrArrivalExceptionNotFound means there is nothing to delete.
 	ErrArrivalExceptionNotFound = errors.New("class arrival exception not found")
+)
+
+// ErrMorningAttendanceNotConfigured is returned by the morning attendance
+// write when the projection was composed without the Student Presence seam.
+var ErrMorningAttendanceNotConfigured = errors.New("morning attendance is not configured")
+
+// Sentinels the HTTP layer classifies for the morning attendance (#4790).
+var (
+	// ErrMorningAttendanceDisabled means the school switched the morning
+	// attendance off (operations.school_portal_morning_attendance).
+	ErrMorningAttendanceDisabled = errors.New("die OGS hat die Anwesenheit am Vormittag ausgeschaltet")
+	// ErrMorningAttendanceNotToday refuses a write for any day but today.
+	ErrMorningAttendanceNotToday = errors.New("morning attendance can only be recorded for today")
+	// ErrMorningAttendanceNoSchoolDay refuses a write on a day without
+	// school (a weekend that does not follow Friday's plan).
+	ErrMorningAttendanceNoSchoolDay = errors.New("morning attendance can only be recorded on a school day")
+	// ErrMorningAttendanceUnknownChild refuses a mark for a child that is
+	// not on the class roster of the day.
+	ErrMorningAttendanceUnknownChild = errors.New("child is not on the class roster of the day")
+	// ErrMorningAttendanceInvalid refuses a mark without a child or with an
+	// unknown status.
+	ErrMorningAttendanceInvalid = errors.New("morning attendance mark is invalid")
+)
+
+// Morning attendance statuses (#4790) and where a row's status comes from:
+// the Lehrkraft marked it, or a reported absence (sick, excused, class trip)
+// fills it in until she does.
+const (
+	MorningAttendancePresent = "present"
+	MorningAttendanceAbsent  = "absent"
+
+	MorningAttendanceSourceTeacher = "teacher"
+	MorningAttendanceSourceReport  = "report"
 )
 
 // ArrivalExceptionOriginSchool marks an entry a Lehrkraft made through the
@@ -91,6 +124,20 @@ type DayRow struct {
 	// ReportedAt is when the deviation became known. Empty for rows without
 	// a deviation.
 	ReportedAt *time.Time `json:"reported_at,omitempty"`
+	// MorningAttendance is the child's school-morning status (#4790): what
+	// the Lehrkraft marked, else "absent" filled in from a reported sick,
+	// excused or class-trip day. Nil when neither exists or on a day without
+	// school.
+	MorningAttendance *DayMorningAttendance `json:"morning_attendance,omitempty"`
+}
+
+// DayMorningAttendance is one child's school-morning status on the wire.
+type DayMorningAttendance struct {
+	// Status is "present" or "absent".
+	Status string `json:"status"`
+	// Source is "teacher" (marked) or "report" (filled in from a reported
+	// absence, not yet marked).
+	Source string `json:"source"`
 }
 
 // DayTotals summarize one day report.
@@ -129,6 +176,30 @@ type DayReport struct {
 	// ClassArrivalException is the class-wide arrival day exception of the
 	// date (#2962/#2970), whoever entered it.
 	ClassArrivalException *DayArrivalException `json:"class_arrival_exception,omitempty"`
+	// CanRecordMorningAttendance is true when the caller may mark the
+	// morning attendance of this report (#4790): the date is today and a
+	// school day, the school left the setting on, and the token holds
+	// class_day:morning_attendance_write.
+	CanRecordMorningAttendance bool `json:"can_record_morning_attendance"`
+}
+
+// MorningAttendanceMark is one child's mark as the Lehrkraft enters it:
+// StudentID for a child with an OGS record, ListEntryID for a class-list-only
+// entry (#2382); exactly one is set.
+type MorningAttendanceMark struct {
+	StudentID   int64
+	ListEntryID int64
+	Status      string
+}
+
+// MorningAttendanceWrite is the morning attendance of one class and date as
+// the Lehrkraft enters it.
+type MorningAttendanceWrite struct {
+	SchoolClass string
+	Date        Date
+	// RecordedBy is the users.staff_school_memberships row of the Lehrkraft.
+	RecordedBy int64
+	Marks      []MorningAttendanceMark
 }
 
 // ArrivalException is one class-wide arrival day exception.
@@ -162,8 +233,8 @@ type ArrivalExceptionWrite struct {
 // exceptions (#2970). Caller scoping (which classes the account may see) is
 // resolved here; the HTTP adapter only maps outcomes to status codes.
 type ClassDay interface {
-	// AssignedClasses returns the school classes assigned to the caller.
-	AssignedClasses(ctx context.Context) ([]string, error)
+	// GetMySchoolClasses returns the school classes assigned to the caller.
+	GetMySchoolClasses(ctx context.Context) ([]string, error)
 	// ResolveClass picks the class to show: the requested one when it is one
 	// of the caller's assignments (normalized comparison), otherwise the
 	// first assigned class when nothing was requested. ErrClassNotAssigned
@@ -185,6 +256,11 @@ type ClassDay interface {
 	SetArrivalException(ctx context.Context, in ArrivalExceptionWrite) (*ArrivalException, error)
 	// ClearArrivalException deletes the exception of one class and date.
 	ClearArrivalException(ctx context.Context, schoolClass string, date Date) error
+	// RecordMorningAttendance stores the morning marks of one class the
+	// caller may see (#4790): only for today, on a school day, for children
+	// on the class roster of the day, and only while the school leaves the
+	// setting on. It never changes the OGS attendance.
+	RecordMorningAttendance(ctx context.Context, in MorningAttendanceWrite) error
 	// EarliestBlockStart returns the "HH:MM" start of the first block of the
 	// date that addresses the class, "" when there is none.
 	EarliestBlockStart(ctx context.Context, schoolClass string, date Date) (string, error)

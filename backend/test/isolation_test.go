@@ -11,14 +11,15 @@ import (
 	"context"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/models/users"
-	facilitiesRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/compose/repositoryadapter"
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -33,15 +34,6 @@ func isolationTenants(tb testing.TB, db *bun.DB) (tenantA, tenantB int64) {
 	EnsureTestTenant(tb, db, tenantA)
 	EnsureTestTenant(tb, db, tenantB)
 	return tenantA, tenantB
-}
-
-func testRoomRepository(t *testing.T, db *bun.DB) *facilitiesRepositoryAdapter.Repository {
-	t.Helper()
-	rooms, err := repositories.NewFacilities(db)
-	require.NoError(t, err)
-	repository := facilitiesRepositoryAdapter.New()
-	repository.Bind(rooms)
-	return repository
 }
 
 // ctxForTenant returns a background context with the given tenant ID set.
@@ -63,12 +55,12 @@ func TestTenantIsolation_StudentVisibility(t *testing.T) {
 	sA := CreateTestStudentForTenant(t, db, tenantA, "TenantA", "Student", "1a")
 	sB := CreateTestStudentForTenant(t, db, tenantB, "TenantB", "Student", "1a")
 
-	repo := repositories.NewStudentRepository(db)
+	repo := api.NewUnboundStudentRepository(NewDatabase(t, db))
 
 	// --- Tenant A perspective ---
 	ctx42 := ctxForTenant(tenantA)
 
-	students, err := repo.List(ctx42, nil)
+	students, err := TenantQuery1(t, ctx42, db, repo.List, nil)
 	require.NoError(t, err)
 
 	for _, s := range students {
@@ -76,14 +68,14 @@ func TestTenantIsolation_StudentVisibility(t *testing.T) {
 			"cross-tenant leak: tenant B student visible to tenant A (List)")
 	}
 
-	_, err = repo.FindByID(ctx42, sB.ID)
+	_, err = TenantQuery1(t, ctx42, db, repo.FindByID, any(sB.ID))
 	assert.Error(t, err,
 		"cross-tenant FindByID should fail: tenant A must not see tenant B student %d", sB.ID)
 
 	// --- Tenant B perspective ---
 	ctx43 := ctxForTenant(tenantB)
 
-	students, err = repo.List(ctx43, nil)
+	students, err = TenantQuery1(t, ctx43, db, repo.List, nil)
 	require.NoError(t, err)
 
 	for _, s := range students {
@@ -91,7 +83,7 @@ func TestTenantIsolation_StudentVisibility(t *testing.T) {
 			"cross-tenant leak: tenant A student visible to tenant B (List)")
 	}
 
-	_, err = repo.FindByID(ctx43, sA.ID)
+	_, err = TenantQuery1(t, ctx43, db, repo.FindByID, any(sA.ID))
 	assert.Error(t, err,
 		"cross-tenant FindByID should fail: tenant B must not see tenant A student %d", sA.ID)
 }
@@ -109,12 +101,12 @@ func TestTenantIsolation_EducationGroupVisibility(t *testing.T) {
 	gA := CreateTestEducationGroupForTenant(t, db, tenantA, "GroupA")
 	gB := CreateTestEducationGroupForTenant(t, db, tenantB, "GroupB")
 
-	repo := repositories.NewEducationGroupRepository(db)
+	repo := api.NewEducationGroupRepository(NewDatabase(t, db))
 
 	// --- Tenant A ---
 	ctx42 := ctxForTenant(tenantA)
 
-	groups, err := repo.List(ctx42, nil)
+	groups, err := TenantQuery1(t, ctx42, db, repo.List, nil)
 	require.NoError(t, err)
 
 	for _, g := range groups {
@@ -122,14 +114,14 @@ func TestTenantIsolation_EducationGroupVisibility(t *testing.T) {
 			"cross-tenant leak: tenant B group visible to tenant A (List)")
 	}
 
-	_, err = repo.FindByID(ctx42, gB.ID)
+	_, err = TenantQuery1(t, ctx42, db, repo.FindByID, any(gB.ID))
 	assert.Error(t, err,
 		"cross-tenant FindByID should fail: tenant A must not see tenant B group %d", gB.ID)
 
 	// --- Tenant B ---
 	ctx43 := ctxForTenant(tenantB)
 
-	groups, err = repo.List(ctx43, nil)
+	groups, err = TenantQuery1(t, ctx43, db, repo.List, nil)
 	require.NoError(t, err)
 
 	for _, g := range groups {
@@ -137,7 +129,7 @@ func TestTenantIsolation_EducationGroupVisibility(t *testing.T) {
 			"cross-tenant leak: tenant A group visible to tenant B (List)")
 	}
 
-	_, err = repo.FindByID(ctx43, gA.ID)
+	_, err = TenantQuery1(t, ctx43, db, repo.FindByID, any(gA.ID))
 	assert.Error(t, err,
 		"cross-tenant FindByID should fail: tenant B must not see tenant A group %d", gA.ID)
 }
@@ -155,12 +147,13 @@ func TestTenantIsolation_RoomVisibility(t *testing.T) {
 	rA := CreateTestRoomForTenant(t, db, tenantA, "RoomA")
 	rB := CreateTestRoomForTenant(t, db, tenantB, "RoomB")
 
-	repo := testRoomRepository(t, db)
+	repo, err := api.NewFacilitiesRoomRepository(NewDatabase(t, db))
+	require.NoError(t, err)
 
 	// --- Tenant A ---
 	ctx42 := ctxForTenant(tenantA)
 
-	rooms, err := repo.List(ctx42, nil)
+	rooms, err := TenantQuery1(t, ctx42, db, repo.List, nil)
 	require.NoError(t, err)
 
 	for _, r := range rooms {
@@ -168,14 +161,14 @@ func TestTenantIsolation_RoomVisibility(t *testing.T) {
 			"cross-tenant leak: tenant B room visible to tenant A (List)")
 	}
 
-	_, err = repo.FindByID(ctx42, rB.ID)
+	_, err = TenantQuery1(t, ctx42, db, repo.FindByID, any(rB.ID))
 	assert.Error(t, err,
 		"cross-tenant FindByID should fail: tenant A must not see tenant B room %d", rB.ID)
 
 	// --- Tenant B ---
 	ctx43 := ctxForTenant(tenantB)
 
-	rooms, err = repo.List(ctx43, nil)
+	rooms, err = TenantQuery1(t, ctx43, db, repo.List, nil)
 	require.NoError(t, err)
 
 	for _, r := range rooms {
@@ -183,7 +176,7 @@ func TestTenantIsolation_RoomVisibility(t *testing.T) {
 			"cross-tenant leak: tenant A room visible to tenant B (List)")
 	}
 
-	_, err = repo.FindByID(ctx43, rA.ID)
+	_, err = TenantQuery1(t, ctx43, db, repo.FindByID, any(rA.ID))
 	assert.Error(t, err,
 		"cross-tenant FindByID should fail: tenant B must not see tenant A room %d", rA.ID)
 }
@@ -201,13 +194,13 @@ func TestTenantIsolation_TimeframeVisibility(t *testing.T) {
 	tfA := CreateTestTimeframeForTenant(t, db, tenantA, "TimeframeA")
 	tfB := CreateTestTimeframeForTenant(t, db, tenantB, "TimeframeB")
 
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := api.NewUnobservedTimetableRepositories(MustDatabase(db))
 	repo := repos.Timeframe
 
 	// --- Tenant A ---
 	ctx42 := ctxForTenant(tenantA)
 
-	timeframes, err := repo.ListAll(ctx42)
+	timeframes, err := TenantQuery1(t, ctx42, db, repo.ListTimeframes, timetable.TimeframeFilter{})
 	require.NoError(t, err)
 
 	for _, tf := range timeframes {
@@ -215,14 +208,14 @@ func TestTenantIsolation_TimeframeVisibility(t *testing.T) {
 			"cross-tenant leak: tenant B timeframe visible to tenant A (List)")
 	}
 
-	_, err = repo.FindByID(ctx42, tfB.ID)
+	_, err = TenantQuery1(t, ctx42, db, repo.FindTimeframe, tfB.ID)
 	assert.Error(t, err,
 		"cross-tenant FindByID should fail: tenant A must not see tenant B timeframe %d", tfB.ID)
 
 	// --- Tenant B ---
 	ctx43 := ctxForTenant(tenantB)
 
-	timeframes, err = repo.ListAll(ctx43)
+	timeframes, err = TenantQuery1(t, ctx43, db, repo.ListTimeframes, timetable.TimeframeFilter{})
 	require.NoError(t, err)
 
 	for _, tf := range timeframes {
@@ -230,7 +223,7 @@ func TestTenantIsolation_TimeframeVisibility(t *testing.T) {
 			"cross-tenant leak: tenant A timeframe visible to tenant B (List)")
 	}
 
-	_, err = repo.FindByID(ctx43, tfA.ID)
+	_, err = TenantQuery1(t, ctx43, db, repo.FindTimeframe, tfA.ID)
 	assert.Error(t, err,
 		"cross-tenant FindByID should fail: tenant B must not see tenant A timeframe %d", tfA.ID)
 }
@@ -250,13 +243,13 @@ func TestTenantIsolation_DeviceVisibility(t *testing.T) {
 
 	// Device reads go through the Device Fleet owner (#2676), which resolves
 	// room names through the Facilities owner.
-	repo, err := repositories.NewDeviceRepository(db)
+	repo, err := api.NewDeviceRepository(NewDatabase(t, db))
 	require.NoError(t, err)
 
 	// --- Tenant A ---
 	ctx42 := ctxForTenant(tenantA)
 
-	devices, err := repo.List(ctx42, nil)
+	devices, err := TenantQuery1(t, ctx42, db, repo.List, nil)
 	require.NoError(t, err)
 
 	for _, d := range devices {
@@ -264,14 +257,14 @@ func TestTenantIsolation_DeviceVisibility(t *testing.T) {
 			"cross-tenant leak: tenant B device visible to tenant A (List)")
 	}
 
-	_, err = repo.FindByID(ctx42, dB.ID)
+	_, err = TenantQuery1(t, ctx42, db, repo.FindByID, any(dB.ID))
 	assert.Error(t, err,
 		"cross-tenant FindByID should fail: tenant A must not see tenant B device %d", dB.ID)
 
 	// --- Tenant B ---
 	ctx43 := ctxForTenant(tenantB)
 
-	devices, err = repo.List(ctx43, nil)
+	devices, err = TenantQuery1(t, ctx43, db, repo.List, nil)
 	require.NoError(t, err)
 
 	for _, d := range devices {
@@ -279,7 +272,7 @@ func TestTenantIsolation_DeviceVisibility(t *testing.T) {
 			"cross-tenant leak: tenant A device visible to tenant B (List)")
 	}
 
-	_, err = repo.FindByID(ctx43, dA.ID)
+	_, err = TenantQuery1(t, ctx43, db, repo.FindByID, any(dA.ID))
 	assert.Error(t, err,
 		"cross-tenant FindByID should fail: tenant B must not see tenant A device %d", dA.ID)
 }
@@ -294,7 +287,7 @@ func TestTenantIsolation_DisplayVisibility(t *testing.T) {
 	db := SetupTestDB(t)
 	tenantA, tenantB := isolationTenants(t, db)
 
-	fleet, err := repositories.NewDeviceFleet(db)
+	fleet, err := owners.NewDeviceFleet(NewDatabase(t, db))
 	require.NoError(t, err)
 
 	ctxA := ctxForTenant(tenantA)
@@ -357,13 +350,13 @@ func TestTenantIsolation_ActiveGroupVisibility(t *testing.T) {
 	agA := CreateTestActiveGroupForTenant(t, db, tenantA)
 	agB := CreateTestActiveGroupForTenant(t, db, tenantB)
 
-	repo := repositories.NewSessionCleanupRepositories(db, repositories.NewUnobservedTimetableDependencies(db).Capability).Sessions
-	presence := PresenceModule(t, db)
+	repo, _, _ := api.NewSessionCleanupRepositories(NewDatabase(t, db), owners.MustNewUnobservedTimetable(NewDatabase(t, db)))
+	presence := api.NewStudentPresenceForTests(NewDatabase(t, db))
 
 	// --- Tenant A ---
 	ctx42 := ctxForTenant(tenantA)
 
-	groups, err := presence.QueryLiveGroups(ctx42, studentpresence.LiveGroupFilter{})
+	groups, err := TenantQuery1(t, ctx42, db, presence.QueryLiveGroups, studentpresence.LiveGroupFilter{})
 	require.NoError(t, err)
 
 	for _, g := range groups {
@@ -371,14 +364,14 @@ func TestTenantIsolation_ActiveGroupVisibility(t *testing.T) {
 			"cross-tenant leak: tenant B active group visible to tenant A (List)")
 	}
 
-	_, err = repo.FindSession(ctx42, agB.ID)
+	_, err = TenantQuery1(t, ctx42, db, repo.FindSession, agB.ID)
 	assert.Error(t, err,
 		"cross-tenant FindByID should fail: tenant A must not see tenant B active group %d", agB.ID)
 
 	// --- Tenant B ---
 	ctx43 := ctxForTenant(tenantB)
 
-	groups, err = presence.QueryLiveGroups(ctx43, studentpresence.LiveGroupFilter{})
+	groups, err = TenantQuery1(t, ctx43, db, presence.QueryLiveGroups, studentpresence.LiveGroupFilter{})
 	require.NoError(t, err)
 
 	for _, g := range groups {
@@ -386,7 +379,7 @@ func TestTenantIsolation_ActiveGroupVisibility(t *testing.T) {
 			"cross-tenant leak: tenant A active group visible to tenant B (List)")
 	}
 
-	_, err = repo.FindSession(ctx43, agA.ID)
+	_, err = TenantQuery1(t, ctx43, db, repo.FindSession, agA.ID)
 	assert.Error(t, err,
 		"cross-tenant FindByID should fail: tenant B must not see tenant A active group %d", agA.ID)
 }
@@ -404,12 +397,12 @@ func TestTenantIsolation_ActivityCategoryVisibility(t *testing.T) {
 	catA := CreateTestActivityCategoryForTenant(t, db, tenantA, "CatA")
 	catB := CreateTestActivityCategoryForTenant(t, db, tenantB, "CatB")
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActivityCategory
+	repo := api.NewUnobservedTimetableRepositories(MustDatabase(db)).ActivityCategory
 
 	// --- Tenant A ---
 	ctx42 := ctxForTenant(tenantA)
 
-	categories, err := repo.List(ctx42, nil)
+	categories, err := TenantQuery0(t, ctx42, db, repo.ListCategories)
 	require.NoError(t, err)
 
 	for _, c := range categories {
@@ -417,14 +410,14 @@ func TestTenantIsolation_ActivityCategoryVisibility(t *testing.T) {
 			"cross-tenant leak: tenant B category visible to tenant A (List)")
 	}
 
-	_, err = repo.FindByID(ctx42, catB.ID)
+	_, err = TenantQuery1(t, ctx42, db, repo.FindCategory, catB.ID)
 	assert.Error(t, err,
 		"cross-tenant FindByID should fail: tenant A must not see tenant B category %d", catB.ID)
 
 	// --- Tenant B ---
 	ctx43 := ctxForTenant(tenantB)
 
-	categories, err = repo.List(ctx43, nil)
+	categories, err = TenantQuery0(t, ctx43, db, repo.ListCategories)
 	require.NoError(t, err)
 
 	for _, c := range categories {
@@ -432,7 +425,7 @@ func TestTenantIsolation_ActivityCategoryVisibility(t *testing.T) {
 			"cross-tenant leak: tenant A category visible to tenant B (List)")
 	}
 
-	_, err = repo.FindByID(ctx43, catA.ID)
+	_, err = TenantQuery1(t, ctx43, db, repo.FindCategory, catA.ID)
 	assert.Error(t, err,
 		"cross-tenant FindByID should fail: tenant B must not see tenant A category %d", catA.ID)
 }
@@ -456,7 +449,6 @@ func TestCrossTenantWrite_RowsAffectedGuard(t *testing.T) {
 	tenantA, tenantB := isolationTenants(t, db)
 
 	// Arrange: create one record per tenant in each domain
-	studentA := CreateTestStudentForTenant(t, db, tenantA, "WriteA", "Student", "1a")
 	roomA := CreateTestRoomForTenant(t, db, tenantA, "WriteRoomA")
 	groupA := CreateTestEducationGroupForTenant(t, db, tenantA, "WriteGroupA")
 
@@ -464,50 +456,27 @@ func TestCrossTenantWrite_RowsAffectedGuard(t *testing.T) {
 	ctxB := ctxForTenant(tenantB)
 
 	// ------------------------------------------------------------------
-	// 1. base.Repository.Update across 3 domains
+	// 1. base.Repository.Update across 2 domains (the student writes are
+	//    pinned in the People Directory contract suite)
 	// ------------------------------------------------------------------
 
-	t.Run("student update blocked", func(t *testing.T) {
-		// The child's write path is People Directory's (#3349), so this has to
-		// be the composed repository the composition root hands out — the raw
-		// one no longer performs the write at all.
-		repo := repositories.NewStudentRepository(db)
-		err := repo.Update(ctxB, studentA)
-		require.Error(t, err, "cross-tenant student update must fail")
-		require.ErrorIs(t, err, users.ErrStudentRowMissing,
-			"another tenant's child must not exist for this writer")
-	})
-
 	t.Run("room update blocked", func(t *testing.T) {
-		repo := testRoomRepository(t, db)
-		stored, err := repo.FindByID(ctxA, roomA.ID)
+		repo, err := api.NewFacilitiesRoomRepository(NewDatabase(t, db))
 		require.NoError(t, err)
-		err = repo.Update(ctxB, stored)
+		stored, err := TenantQuery1(t, ctxA, db, repo.FindByID, any(roomA.ID))
+		require.NoError(t, err)
+		err = TenantCommand1(t, ctxB, db, repo.Update, stored)
 		require.Error(t, err, "cross-tenant room update must fail")
 	})
 
 	t.Run("education group update blocked", func(t *testing.T) {
-		repo := repositories.NewEducationGroupRepository(db)
-		stored, err := repo.FindByID(ctxA, groupA.ID)
+		repo := api.NewEducationGroupRepository(NewDatabase(t, db))
+		stored, err := TenantQuery1(t, ctxA, db, repo.FindByID, any(groupA.ID))
 		require.NoError(t, err)
-		err = repo.Update(ctxB, stored)
+		err = TenantCommand1(t, ctxB, db, repo.Update, stored)
 		require.Error(t, err, "cross-tenant group update must fail")
 		assert.Contains(t, err.Error(), "rows affected",
 			"error should mention rows affected guard")
-	})
-
-	// ------------------------------------------------------------------
-	// 4. Custom TenantWhere + AssertRowsAffected path
-	// ------------------------------------------------------------------
-
-	t.Run("student UpdateStatus blocked", func(t *testing.T) {
-		// The lifecycle status is the owner's write (#3349), so this has to be
-		// the composed repository the composition root hands out.
-		repo := repositories.NewStudentRepository(db)
-		err := repo.UpdateStatus(ctxB, studentA.ID, users.StudentStatusInactive)
-		require.Error(t, err, "cross-tenant UpdateStatus must fail")
-		require.ErrorIs(t, err, users.ErrStudentRowMissing,
-			"another tenant's child must not exist for this writer")
 	})
 
 	// ------------------------------------------------------------------
@@ -515,14 +484,15 @@ func TestCrossTenantWrite_RowsAffectedGuard(t *testing.T) {
 	// ------------------------------------------------------------------
 
 	t.Run("room delete blocked", func(t *testing.T) {
-		repo := testRoomRepository(t, db)
+		repo, err := api.NewFacilitiesRoomRepository(NewDatabase(t, db))
+		require.NoError(t, err)
 
 		// Attempt cross-tenant delete: ctxB tries to delete roomA (tenant A)
-		err := repo.Delete(ctxB, roomA.ID)
+		err = TenantCommand1(t, ctxB, db, repo.Delete, any(roomA.ID))
 		require.Error(t, err, "cross-tenant room delete must fail")
 
 		// Verify the room still exists from tenant A's perspective
-		found, err := repo.FindByID(ctxA, roomA.ID)
+		found, err := TenantQuery1(t, ctxA, db, repo.FindByID, any(roomA.ID))
 		require.NoError(t, err, "room should still be accessible to its own tenant")
 		assert.Equal(t, roomA.ID, found.ID, "room must survive cross-tenant delete attempt")
 	})

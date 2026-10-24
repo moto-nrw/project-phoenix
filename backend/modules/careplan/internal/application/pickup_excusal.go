@@ -174,23 +174,38 @@ func (s *PickupAutoExcusalSyncer) DetachRow(ctx context.Context, row *careplan.P
 }
 
 // ResyncFutureExceptions re-runs the auto-excusal decision for every upcoming
-// pickup exception (today onwards) of the student. Weekly-baseline writers
-// call it in the same transaction as their change: moving a weekday time
-// earlier, later, or removing it re-derives or releases the coupled block
-// absences instead of leaving them stale until someone edits the day
-// exception. Manual partial absences stay untouched, matching Sync.
+// pickup exception (today onwards) of the students. Weekly-baseline writers
+// call it after their change: moving a weekday time earlier, later, or
+// removing it re-derives or releases the coupled block absences instead of
+// leaving them stale until someone edits the day exception (#2360). Manual
+// partial absences stay untouched, matching Sync.
 //
-// Must run inside a tenant transaction. It takes the student row lock first
-// (the shared first lock of every care-day writer — this also stabilizes the
+// It runs in Care Plan's tenant unit of work, reusing an ambient transaction
+// and opening one otherwise, because the care-day locks it takes are
+// transaction-scoped. Per student it takes the student row lock first (the
+// shared first lock of every care-day writer — this also stabilizes the
 // upcoming-exception set) and then the per-day care locks in ascending date
-// order. A missing student (offboarding in the same transaction) is a no-op.
-func (s *PickupAutoExcusalSyncer) ResyncFutureExceptions(ctx context.Context, studentID int64) error {
-	if err := s.locker.LockStudent(ctx, studentID); err != nil {
-		if s.locker.IsNotFound(err) {
-			return nil
+// order. A missing student (offboarding in the same transaction) is skipped.
+func (s *PickupAutoExcusalSyncer) ResyncFutureExceptions(ctx context.Context, studentIDs []int64) error {
+	return s.locker.WithinTenant(ctx, func(txCtx context.Context) error {
+		for _, studentID := range studentIDs {
+			if err := s.locker.LockStudent(txCtx, studentID); err != nil {
+				if s.locker.IsNotFound(err) {
+					continue
+				}
+				return fmt.Errorf("auto excusal: lock student %d for weekly resync: %w", studentID, err)
+			}
+			if err := s.resyncUpcomingExceptions(txCtx, studentID); err != nil {
+				return err
+			}
 		}
-		return fmt.Errorf("auto excusal: lock student %d for weekly resync: %w", studentID, err)
-	}
+		return nil
+	})
+}
+
+// resyncUpcomingExceptions re-derives the upcoming exceptions of a student
+// whose row lock the caller holds.
+func (s *PickupAutoExcusalSyncer) resyncUpcomingExceptions(ctx context.Context, studentID int64) error {
 	rows, err := s.pickups.FindUpcomingByStudentID(ctx, studentID)
 	if err != nil {
 		return fmt.Errorf("auto excusal: load upcoming pickup exceptions for student %d: %w", studentID, err)
@@ -208,6 +223,24 @@ func (s *PickupAutoExcusalSyncer) ResyncFutureExceptions(ctx context.Context, st
 		}
 		if _, err := s.Sync(ctx, row.ID); err != nil {
 			return err
+		}
+	}
+	return nil
+}
+
+// LockWeeklyPickupStudents takes the student locks a weekly pickup approval
+// needs before it writes its weekly rows: the same student -> schedule-row ->
+// care-day order the staff weekly editors use, so the writers cannot deadlock
+// against each other (#2360 review). It runs in the ambient tenant
+// transaction. A student that no longer exists (concurrent offboarding) is
+// skipped.
+func LockWeeklyPickupStudents(ctx context.Context, students ports.PickupStudentLocks, studentIDs []int64) error {
+	if students == nil {
+		return errors.New("weekly pickups: student locks are not configured")
+	}
+	for _, studentID := range studentIDs {
+		if _, err := students.LockStudent(ctx, studentID); err != nil {
+			return fmt.Errorf("weekly pickups: lock student %d: %w", studentID, err)
 		}
 	}
 	return nil

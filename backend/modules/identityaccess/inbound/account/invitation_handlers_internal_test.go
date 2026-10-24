@@ -13,6 +13,9 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/settings"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -27,6 +30,11 @@ type invitationsStub struct {
 	validateSchool func(ctx context.Context, token string) (identityaccess.InvitationPreview, error)
 	acceptSchool   func(ctx context.Context, token string, registration identityaccess.InvitationRegistration) (identityaccess.Account, error)
 	listPending    func(ctx context.Context) ([]identityaccess.SchoolInvitation, error)
+	findFormer     func(ctx context.Context, email string) (identityaccess.FormerEmployment, bool, error)
+}
+
+func (s *invitationsStub) FindFormerEmployment(ctx context.Context, email string) (identityaccess.FormerEmployment, bool, error) {
+	return s.findFormer(ctx, email)
 }
 
 func (s *invitationsStub) CreateSchoolInvitation(ctx context.Context, request identityaccess.SchoolInvitationRequest) (identityaccess.SchoolInvitation, error) {
@@ -98,7 +106,7 @@ func TestInvitationHandlers_CreateInvitationAndListPending(t *testing.T) {
 		},
 	}
 
-	resource := NewResource(nil, service, nil, nil, nil)
+	resource := NewResource(nil, service, nil, nil, nil, transactionFailures.IsConstraintViolation, unusedTenantSettings{})
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/invitations", bytes.NewBufferString(`{"email":" INVITEE@EXAMPLE.COM ","role_id":"9007199254740993","first_name":" Ada ","last_name":" Lovelace ","position":" Principal "}`))
 	req.Header.Set("Content-Type", "application/json")
@@ -136,7 +144,7 @@ func TestInvitationHandlers_CreateInvitation_AccountAlreadyHasTenantAccess(t *te
 		},
 	}
 
-	resource := NewResource(nil, service, nil, nil, nil)
+	resource := NewResource(nil, service, nil, nil, nil, transactionFailures.IsConstraintViolation, unusedTenantSettings{})
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/invitations", bytes.NewBufferString(`{"email":"existing@example.com","role_id":1}`))
 	req.Header.Set("Content-Type", "application/json")
@@ -146,7 +154,7 @@ func TestInvitationHandlers_CreateInvitation_AccountAlreadyHasTenantAccess(t *te
 
 	require.Equal(t, http.StatusConflict, rr.Code)
 	body := decodeJSONBody(t, rr)
-	assert.Equal(t, "error", body["status"])
+	assert.Equal(t, float64(rr.Code), body["status"])
 	assert.Equal(t, "identity.account_already_has_tenant_access", body["code"])
 }
 
@@ -160,7 +168,7 @@ func TestInvitationHandlers_CreateInvitation_EmailAlreadyExistsNamesTheField(t *
 			}
 		},
 	}
-	resource := NewResource(nil, service, nil, nil, nil)
+	resource := NewResource(nil, service, nil, nil, nil, transactionFailures.IsConstraintViolation, unusedTenantSettings{})
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/invitations", bytes.NewBufferString(`{"email":"existing@example.com","role_id":1}`))
 	req.Header.Set("Content-Type", "application/json")
@@ -181,7 +189,7 @@ func TestInvitationHandlers_CreateInvitation_EmailAlreadyExistsNamesTheField(t *
 func TestInvitationHandlers_CreateInvitation_BlankFieldsComeBackAsFieldErrors(t *testing.T) {
 	t.Parallel()
 
-	resource := NewResource(nil, &invitationsStub{}, nil, nil, nil)
+	resource := NewResource(nil, &invitationsStub{}, nil, nil, nil, transactionFailures.IsConstraintViolation, unusedTenantSettings{})
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/invitations", bytes.NewBufferString(`{"email":"","role_id":null}`))
 	req.Header.Set("Content-Type", "application/json")
@@ -216,7 +224,7 @@ func TestInvitationHandlers_ValidateAndAccept(t *testing.T) {
 			return identityaccess.Account{ID: 77, Email: "invitee@example.com"}, nil
 		},
 	}
-	resource := NewResource(nil, service, nil, nil, nil)
+	resource := NewResource(nil, service, nil, nil, nil, transactionFailures.IsConstraintViolation, unusedTenantSettings{})
 
 	validateReq := httptest.NewRequest(http.MethodGet, "/auth/invitations/abc123", nil)
 	validateCtx := chi.NewRouteContext()
@@ -268,7 +276,7 @@ func TestInvitationHandlerHelpersAndErrors(t *testing.T) {
 	assert.Equal(t, int64(0), invitationCreatedByValue(nil))
 	assert.Equal(t, int64(4), invitationCreatedByValue(ptr64(4)))
 
-	resource := NewResource(nil, nil, nil, nil, nil)
+	resource := NewResource(nil, nil, nil, nil, nil, transactionFailures.IsConstraintViolation, unusedTenantSettings{})
 
 	req := httptest.NewRequest(http.MethodGet, "/auth/invitations/token", nil)
 	rr := httptest.NewRecorder()
@@ -283,7 +291,7 @@ func TestInvitationHandlerHelpersAndErrors(t *testing.T) {
 			return identityaccess.Account{}, identityaccess.ErrInvitationPasswordMismatch
 		},
 	}
-	resource = NewResource(nil, errService, nil, nil, nil)
+	resource = NewResource(nil, errService, nil, nil, nil, transactionFailures.IsConstraintViolation, unusedTenantSettings{})
 
 	validateCtx := chi.NewRouteContext()
 	validateCtx.URLParams.Add("token", "boom")
@@ -304,3 +312,123 @@ func TestInvitationHandlerHelpersAndErrors(t *testing.T) {
 }
 
 func ptr64(v int64) *int64 { return &v }
+
+func TestInvitationHandlers_FindFormerEmployment(t *testing.T) {
+	t.Parallel()
+
+	var asked string
+	service := &invitationsStub{
+		findFormer: func(_ context.Context, email string) (identityaccess.FormerEmployment, bool, error) {
+			asked = email
+			return identityaccess.FormerEmployment{
+				StartedOn:    calendar.NewDate(2024, time.August, 1),
+				EndedOn:      calendar.NewDate(2026, time.July, 31),
+				Resumes:      []identityaccess.FormerEmploymentPart{identityaccess.FormerEmploymentMasterData},
+				NotReturning: []identityaccess.FormerEmploymentPart{identityaccess.FormerEmploymentStaffDocuments},
+			}, true, nil
+		},
+	}
+	resource := NewResource(nil, service, nil, nil, nil, transactionFailures.IsConstraintViolation, unusedTenantSettings{})
+
+	rr := postFormerEmployment(resource, `{"email":" Former@Example.com "}`)
+
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	assert.Equal(t, "former@example.com", asked)
+	data := decodeJSONBody(t, rr)["data"].(map[string]any)
+	assert.Equal(t, map[string]any{
+		"started_on":    "2024-08-01",
+		"ended_on":      "2026-07-31",
+		"resumes":       []any{"master_data"},
+		"not_returning": []any{"staff_documents"},
+	}, data["former_employment"])
+}
+
+// Without a former employment the answer carries nothing, whether or not an
+// account exists for the address.
+func TestInvitationHandlers_FindFormerEmployment_NoneIsNull(t *testing.T) {
+	t.Parallel()
+
+	service := &invitationsStub{
+		findFormer: func(context.Context, string) (identityaccess.FormerEmployment, bool, error) {
+			return identityaccess.FormerEmployment{}, false, nil
+		},
+	}
+	resource := NewResource(nil, service, nil, nil, nil, transactionFailures.IsConstraintViolation, unusedTenantSettings{})
+
+	rr := postFormerEmployment(resource, `{"email":"new@example.com"}`)
+
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	data := decodeJSONBody(t, rr)["data"].(map[string]any)
+	assert.Contains(t, data, "former_employment")
+	assert.Nil(t, data["former_employment"])
+}
+
+func TestInvitationHandlers_FindFormerEmployment_InvalidEmail(t *testing.T) {
+	t.Parallel()
+
+	resource := NewResource(nil, &invitationsStub{}, nil, nil, nil, transactionFailures.IsConstraintViolation, unusedTenantSettings{})
+
+	rr := postFormerEmployment(resource, `{"email":"not-an-address"}`)
+
+	require.Equal(t, http.StatusBadRequest, rr.Code)
+	errs := decodeJSONBody(t, rr)["errors"].([]any)
+	require.Len(t, errs, 1)
+	assert.Equal(t, "email", errs[0].(map[string]any)["field"])
+}
+
+func postFormerEmployment(resource *Resource, body string) *httptest.ResponseRecorder {
+	req := httptest.NewRequest(http.MethodPost, "/auth/invitations/former-employment", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(testutil.WithAuthenticatedContext(req.Context(), testutil.Claims{ID: 1}, nil))
+	rr := httptest.NewRecorder()
+	resource.findFormerEmployment(rr, req)
+	return rr
+}
+
+func TestInvitationEmploymentActionWireContract(t *testing.T) {
+	t.Parallel()
+	for _, action := range []identityaccess.EmploymentAction{"", identityaccess.EmploymentActionResume, identityaccess.EmploymentActionNew, "unknown"} {
+		req := CreateInvitationRequest{Email: "invitee@example.com", RoleID: 42, EmploymentAction: action}
+		err := req.Bind(httptest.NewRequest(http.MethodPost, "/auth/invitations", nil))
+		if action == "unknown" {
+			require.Error(t, err)
+			require.Contains(t, err.Error(), "employment_action")
+			continue
+		}
+		require.NoError(t, err)
+		resource := &Resource{}
+		request := httptest.NewRequest(http.MethodPost, "/auth/invitations", nil)
+		mapped := resource.buildInvitationRequest(request, &req, testutil.DefaultTestClaims())
+		require.Equal(t, action, mapped.EmploymentAction)
+	}
+	// The public validation response must not expose the school's decision.
+	body, err := json.Marshal(toInvitationValidationResponse(identityaccess.InvitationPreview{}))
+	require.NoError(t, err)
+	require.NotContains(t, string(body), "employment_action")
+	body, err = json.Marshal(toInvitationResponse(identityaccess.SchoolInvitation{EmploymentAction: identityaccess.EmploymentActionNew}))
+	require.NoError(t, err)
+	require.Contains(t, string(body), `"employment_action":"new"`)
+}
+
+func TestInvitationResetWireContract(t *testing.T) {
+	t.Parallel()
+	for _, action := range []identityaccess.EmploymentAction{"", identityaccess.EmploymentActionResume, identityaccess.EmploymentActionNew} {
+		req := CreateInvitationRequest{Email: "return@example.test", RoleID: 42, EmploymentAction: action, ResetMasterData: true, ResetQualifications: true, ResetWorkTime: true}
+		err := req.Bind(httptest.NewRequest(http.MethodPost, "/auth/invitations", nil))
+		if action == identityaccess.EmploymentActionNew {
+			require.Error(t, err)
+			continue
+		}
+		require.NoError(t, err)
+		mapped := (&Resource{}).buildInvitationRequest(httptest.NewRequest(http.MethodPost, "/auth/invitations", nil), &req, testutil.DefaultTestClaims())
+		require.True(t, mapped.ResetMasterData)
+		require.True(t, mapped.ResetQualifications)
+		require.True(t, mapped.ResetWorkTime)
+	}
+	body, err := json.Marshal(toInvitationValidationResponse(identityaccess.InvitationPreview{}))
+	require.NoError(t, err)
+	require.NotContains(t, string(body), "reset_")
+}
+
+// Unexpected shell reads panic in invitation-only tests.
+type unusedTenantSettings struct{ settings.TenantReader }

@@ -3,11 +3,13 @@ package parentportal_test
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
+	"github.com/stretchr/testify/assert"
 )
 
 // TestExcusedRequestContractMatchesPersistedVocabulary pins the persisted
@@ -17,6 +19,9 @@ import (
 // A drift here would silently split one table between two spellings.
 func TestExcusedRequestContractMatchesPersistedVocabulary(t *testing.T) {
 	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	protocol := api.ParentPersistedFixtureProtocol(owners.MustNewPeopleDirectory(testpkg.MustDatabase(db)))
 
 	assert.Equal(t, absencerecords.StudentStatusDaySick, careplan.StudentStatusDaySick)
 	assert.Equal(t, absencerecords.StudentStatusDayExcused, careplan.StudentStatusDayExcused)
@@ -33,20 +38,20 @@ func TestExcusedRequestContractMatchesPersistedVocabulary(t *testing.T) {
 	assert.Equal(t, absencerecords.ExcusedRequestStatusDone, careplan.ExcusedRequestStatusDone)
 	assert.Equal(t, absencerecords.ExcusedRequestStatusCareEnded, careplan.ExcusedRequestStatusCareEnded)
 
-	assert.Equal(t, usersModels.ParentRequestTypeExcusedAbsence, careplan.ParentRequestTypeExcusedAbsence)
-	assert.Equal(t, usersModels.ParentRequestEventSubmitted, careplan.ParentRequestEventSubmitted)
-	assert.Equal(t, usersModels.ParentRequestEventGuardianEdit, careplan.ParentRequestEventGuardianEdit)
-	assert.Equal(t, usersModels.ParentRequestEventDecided, careplan.ParentRequestEventDecided)
-	assert.Equal(t, usersModels.ParentRequestEventMarkedDone, careplan.ParentRequestEventMarkedDone)
-	assert.Equal(t, usersModels.ParentRequestEventCorrected, careplan.ParentRequestEventCorrected)
+	assert.Equal(t, protocol.ParentRequestTypeExcusedAbsence, careplan.ParentRequestTypeExcusedAbsence)
+	assert.Equal(t, protocol.ParentRequestEventSubmitted, careplan.ParentRequestEventSubmitted)
+	assert.Equal(t, protocol.ParentRequestEventGuardianEdit, careplan.ParentRequestEventGuardianEdit)
+	assert.Equal(t, protocol.ParentRequestEventDecided, careplan.ParentRequestEventDecided)
+	assert.Equal(t, protocol.ParentRequestEventMarkedDone, careplan.ParentRequestEventMarkedDone)
+	assert.Equal(t, protocol.ParentRequestEventCorrected, careplan.ParentRequestEventCorrected)
 
-	assert.Equal(t, usersModels.ParentMessageEventRequestCreated, careplan.ParentMessageEventRequestCreated)
-	assert.Equal(t, usersModels.ParentMessageEventRequestStatus, careplan.ParentMessageEventRequestStatus)
-	assert.Equal(t, usersModels.ParentMessageSenderGuardian, careplan.ParentMessageActorGuardian)
-	assert.Equal(t, usersModels.ParentMessageSenderStaff, careplan.ParentMessageActorStaff)
-	assert.Equal(t, usersModels.ParentMessageRequestStatusOpen, careplan.ParentMessageRequestStatusOpen)
-	assert.Equal(t, usersModels.ParentMessageRequestStatusDone, careplan.ParentMessageRequestStatusDone)
-	assert.Equal(t, usersModels.ParentMessageRequestStatusRejected, careplan.ParentMessageRequestStatusReject)
-	assert.Equal(t, usersModels.ParentMessageRequestExcusedAbsence, careplan.ParentMessageRequestExcused)
-	assert.Equal(t, usersModels.ParentMessageRequestSickAbsence, careplan.ParentMessageRequestSick)
+	assert.Equal(t, protocol.ParentMessageEventRequestCreated, careplan.ParentMessageEventRequestCreated)
+	assert.Equal(t, protocol.ParentMessageEventRequestStatus, careplan.ParentMessageEventRequestStatus)
+	assert.Equal(t, protocol.ParentMessageSenderGuardian, careplan.ParentMessageActorGuardian)
+	assert.Equal(t, protocol.ParentMessageSenderStaff, careplan.ParentMessageActorStaff)
+	assert.Equal(t, protocol.ParentMessageRequestStatusOpen, careplan.ParentMessageRequestStatusOpen)
+	assert.Equal(t, protocol.ParentMessageRequestStatusDone, careplan.ParentMessageRequestStatusDone)
+	assert.Equal(t, protocol.ParentMessageRequestStatusRejected, careplan.ParentMessageRequestStatusReject)
+	assert.Equal(t, protocol.ParentMessageRequestExcusedAbsence, careplan.ParentMessageRequestExcused)
+	assert.Equal(t, protocol.ParentMessageRequestSickAbsence, careplan.ParentMessageRequestSick)
 }

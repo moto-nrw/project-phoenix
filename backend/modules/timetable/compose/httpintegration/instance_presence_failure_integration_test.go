@@ -5,22 +5,22 @@ import (
 	"errors"
 	"testing"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	fixtures "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type failedConflictPresence struct {
-	compose.LifecyclePresence
+	timetablePorts.LifecyclePresence
 	err   error
 	reads int
 }
 
 type failedReopenSupervisions struct {
-	compose.LifecyclePresence
+	timetablePorts.LifecyclePresence
 	err   error
 	reads int
 }
@@ -51,16 +51,16 @@ func TestInstanceReopenPreservesCompletedStateOnSupervisionFailure(t *testing.T)
 	assert.Nil(t, result)
 	assert.Equal(t, 1, fault.reads)
 	assert.Empty(t, broadcaster.Calls())
-	stored, err := s.repos.ActivityInstance.FindByID(s.ctx, instance.ID)
+	stored, err := fixtures.FromActivityInstanceRecords(s.timetable.NativeInstances()).FindByID(s.ctx, instance.ID)
 	require.NoError(t, err)
-	assert.Equal(t, scheduleModels.InstanceStatusCompleted, stored.Status)
-	group, err := s.factory.Active.GetActiveGroup(s.ctx, started.ActiveGroupID)
+	assert.Equal(t, fixtures.InstanceStatusCompleted(), stored.Status)
+	group, err := s.active.GetActiveGroup(s.ctx, started.ActiveGroupID)
 	require.NoError(t, err)
 	assert.NotNil(t, group.EndTime)
 	fault.err = nil
 	result, err = s.svc.Reopen(s.ctx, instance.ID, 0, true)
 	require.NoError(t, err)
-	assert.Equal(t, scheduleModels.InstanceStatusActive, result.Instance.Status)
+	assert.Equal(t, fixtures.InstanceStatusActive(), result.Instance.Status)
 }
 
 func (p *failedConflictPresence) ListVisits(ctx context.Context, filter studentpresence.VisitFilter) ([]studentpresence.Visit, error) {
@@ -84,12 +84,12 @@ func TestInstanceStartPropagatesPresenceFailureAndRetries(t *testing.T) {
 	require.ErrorIs(t, err, injected)
 	assert.Nil(t, result)
 	require.Equal(t, 1, fault.reads)
-	var classified *compose.ScheduleError
+	var classified *timetablePorts.ScheduleError
 	require.ErrorAs(t, err, &classified)
 	assert.Empty(t, broadcaster.Calls())
-	stored, err := s.repos.ActivityInstance.FindByID(s.ctx, instance.ID)
+	stored, err := fixtures.FromActivityInstanceRecords(s.timetable.NativeInstances()).FindByID(s.ctx, instance.ID)
 	require.NoError(t, err)
-	assert.Equal(t, scheduleModels.InstanceStatusPlanned, stored.Status)
+	assert.Equal(t, fixtures.InstanceStatusPlanned(), stored.Status)
 	assert.Nil(t, stored.ActiveGroupID)
 	groups, err := s.repos.ActiveGroup.FindActiveByRoomID(s.ctx, s.roomID)
 	require.NoError(t, err)

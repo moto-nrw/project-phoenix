@@ -1,97 +1,22 @@
 package test
 
-import (
-	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-)
+import "github.com/moto-nrw/project-phoenix/modules/securityruntime"
 
-// The retained People Directory repository suites (the tests of
-// database/repositories/users, which run in the modules/peopledirectory test
-// binary) may import neither the retained models nor the authorization
-// runtime (#2727). They name the rows, values and errors they arrange and
-// assert through this test support. Every entry goes with the last suite that
-// uses it.
-
-type (
-	AnnouncementDeliveryRecipient  = users.AnnouncementDeliveryRecipient
-	AnnouncementFeedItem           = users.AnnouncementFeedItem
-	AnnouncementFeedScope          = users.AnnouncementFeedScope
-	AnnouncementLetterChildStatus  = users.AnnouncementLetterChildStatus
-	AnnouncementRecipientStatus    = users.AnnouncementRecipientStatus
-	AnnouncementStats              = users.AnnouncementStats
-	CareWithdrawalCompletion       = users.CareWithdrawalCompletion
-	CareWithdrawalCompletionFilter = users.CareWithdrawalCompletionFilter
-	CaregiverBindingLocker         = users.CaregiverBindingLocker
-	FamilyProtectionEvent          = users.FamilyProtectionEvent
-	GuardianPhoneNumber            = users.GuardianPhoneNumber
-	GuardianProfile                = users.GuardianProfile
-	GuardianProfileRepository      = users.GuardianProfileRepository
-	Guest                          = users.Guest
-	ParentAnnouncement             = users.ParentAnnouncement
-	ParentAnnouncementOption       = users.ParentAnnouncementOption
-	ParentAnnouncementRepository   = users.ParentAnnouncementRepository
-	ParentAnnouncementTarget       = users.ParentAnnouncementTarget
-	ParentMessage                  = users.ParentMessage
-	ParentMessageThread            = users.ParentMessageThread
-	ParentRequestShareEvent        = users.ParentRequestShareEvent
-	Person                         = users.Person
-	Staff                          = users.Staff
-	Student                        = users.Student
-	StudentCompanion               = users.StudentCompanion
-	StudentDataChangeRequest       = users.StudentDataChangeRequest
-	StudentGuardian                = users.StudentGuardian
-	StudentGuardianRepository      = users.StudentGuardianRepository
-	StudentStatus                  = users.StudentStatus
-	StudentWithGroupInfo           = users.StudentWithGroupInfo
-	Teacher                        = users.Teacher
-	QueryOptions                   = users.QueryOptions
-	QueryFilter                    = users.QueryFilter
-	RequestQueueFilters            = users.RequestQueueFilters
-)
+// Suites that may import neither the retained People Directory models nor
+// the authorization runtime name the rows, values and errors they arrange and
+// assert through this test support. The retained People Directory repository
+// suites name the models themselves from the People Directory contract suite
+// (#3966). Every entry goes with the last suite that uses it.
 
 const (
-	AnnouncementTargetActivityGroup        = users.AnnouncementTargetActivityGroup
-	AnnouncementTargetClass                = users.AnnouncementTargetClass
-	AnnouncementTargetPendingEnrollment    = users.AnnouncementTargetPendingEnrollment
-	AnnouncementTargetSchoolAll            = users.AnnouncementTargetSchoolAll
-	AnnouncementTargetStudent              = users.AnnouncementTargetStudent
-	CareWithdrawalTriggerBookingExpired    = users.CareWithdrawalTriggerBookingExpired
-	CareWithdrawalTriggerDirectSchool      = users.CareWithdrawalTriggerDirectSchool
-	DataChangeStatusApproved               = users.DataChangeStatusApproved
-	DataChangeStatusPending                = users.DataChangeStatusPending
-	DataChangeStatusRejected               = users.DataChangeStatusRejected
-	DataChangeTargetPerson                 = users.DataChangeTargetPerson
-	ParentAnnouncementPriorityInfo         = users.ParentAnnouncementPriorityInfo
-	ParentAnnouncementResponseMultiChoice  = users.ParentAnnouncementResponseMultiChoice
-	ParentAnnouncementResponseSingleChoice = users.ParentAnnouncementResponseSingleChoice
-	ParentMessageKindEvent                 = users.ParentMessageKindEvent
-	ParentMessageSenderGuardian            = users.ParentMessageSenderGuardian
-	ParentMessageSenderStaff               = users.ParentMessageSenderStaff
-	ParentMessageSenderSystem              = users.ParentMessageSenderSystem
-	PhoneTypeHome                          = users.PhoneTypeHome
-	PhoneTypeMobile                        = users.PhoneTypeMobile
-	PhoneTypeWork                          = users.PhoneTypeWork
-	StudentStatusActive                    = users.StudentStatusActive
-	StudentStatusAlumnus                   = users.StudentStatusAlumnus
-	StudentStatusInactive                  = users.StudentStatusInactive
-	StudentStatusPending                   = users.StudentStatusPending
-	GuardianPermissionEnrollmentSubmit     = securityruntime.GuardianPermissionEnrollmentSubmit
-	GuardianPermissionPollResponse         = securityruntime.GuardianPermissionPollResponse
-	GuardianPermissionPortalAccess         = securityruntime.GuardianPermissionPortalAccess
-	GuardianRoleLegalGuardian              = securityruntime.GuardianRoleLegalGuardian
-	GuardianRolePickupOnly                 = securityruntime.GuardianRolePickupOnly
-	GuardianRoleSocialWorker               = securityruntime.GuardianRoleSocialWorker
-)
-
-var (
-	ErrAnnouncementPublished   = users.ErrAnnouncementPublished
-	ErrChangeRequestNotFound   = users.ErrChangeRequestNotFound
-	ErrChangeRequestNotPending = users.ErrChangeRequestNotPending
-	ErrGuardianAccountConflict = users.ErrGuardianAccountConflict
-	ErrGuardianProfileNotFound = users.ErrGuardianProfileNotFound
-	ErrStudentGuardianNotFound = users.ErrStudentGuardianNotFound
-	EnrolledOn                 = users.EnrolledOn
-	WithAccompaniedDays        = users.WithAccompaniedDays
-	NewQueryOptions            = users.NewQueryOptions
-	NewQueryFilter             = users.NewQueryFilter
+	GuardianPermissionEnrollmentSubmit = securityruntime.GuardianPermissionEnrollmentSubmit
+	GuardianPermissionNotesWrite       = securityruntime.GuardianPermissionNotesWrite
+	GuardianPermissionPollResponse     = securityruntime.GuardianPermissionPollResponse
+	GuardianPermissionPortalAccess     = securityruntime.GuardianPermissionPortalAccess
+	GuardianPermissionSickNoteSubmit   = securityruntime.GuardianPermissionSickNoteSubmit
+	GuardianRoleEmergency              = securityruntime.GuardianRoleEmergency
+	GuardianRoleLegalGuardian          = securityruntime.GuardianRoleLegalGuardian
+	GuardianRolePickupOnly             = securityruntime.GuardianRolePickupOnly
+	GuardianRolePrimaryGuardian        = securityruntime.GuardianRolePrimaryGuardian
+	GuardianRoleSocialWorker           = securityruntime.GuardianRoleSocialWorker
 )

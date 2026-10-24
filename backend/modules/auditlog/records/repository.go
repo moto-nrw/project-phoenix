@@ -1,0 +1,81 @@
+package records
+
+import (
+	"context"
+	"time"
+)
+
+// DataDeletionRepository defines operations for managing data deletion audit records
+type DataDeletionRepository interface {
+	Create(ctx context.Context, deletion *DataDeletion) error
+	FindByID(ctx context.Context, id interface{}) (*DataDeletion, error)
+	FindByStudentID(ctx context.Context, studentID int64) ([]*DataDeletion, error)
+	FindByDateRange(ctx context.Context, startDate, endDate time.Time) ([]*DataDeletion, error)
+	FindByType(ctx context.Context, deletionType string) ([]*DataDeletion, error)
+	List(ctx context.Context, filters map[string]interface{}) ([]*DataDeletion, error)
+}
+
+type RecentDeletionSummary struct {
+	Date           string `bun:"date"`
+	RecordsDeleted int64  `bun:"records_deleted"`
+	StudentCount   int64  `bun:"student_count"`
+}
+
+// AuthEventRepository defines operations for managing authentication event audit records
+type AuthEventRepository interface {
+	Create(ctx context.Context, event *AuthEvent) error
+	FindByID(ctx context.Context, id interface{}) (*AuthEvent, error)
+	FindByAccountID(ctx context.Context, accountID int64, limit int) ([]*AuthEvent, error)
+	List(ctx context.Context, filters map[string]interface{}) ([]*AuthEvent, error)
+	// CreateStaffPreviewEndOnce records the end of one staff-view preview
+	// instance (#2893) and reports whether this call wrote the row. Repeated
+	// or concurrent ends of the same preview id insert nothing and return
+	// false — uniqueness is enforced by the database, not by a prior read.
+	CreateStaffPreviewEndOnce(ctx context.Context, event *AuthEvent) (bool, error)
+	// StaffPreviewEnded reports whether this preview instance has already
+	// been ended (#2893), so a stale token cannot revive a closed preview.
+	StaffPreviewEnded(ctx context.Context, accountID int64, previewID string) (bool, error)
+	// LockStaffPreview serializes the two transactions that decide one
+	// preview instance's fate (#2893): the renewal, which may only continue
+	// an instance that is still running, and the end, which closes it. Both
+	// hold the lock for the rest of their transaction, so a renewal never
+	// straddles an end and revives a closed preview.
+	LockStaffPreview(ctx context.Context, accountID int64, previewID string) error
+	ListPendingAccountWideWipes(ctx context.Context, since time.Time) ([]PendingAccountWideWipe, error)
+	ClaimPendingAccountWideWipes(ctx context.Context, accountID int64) ([]PendingAccountWideWipe, error)
+}
+
+// PendingAccountWideWipe is a recorded account-wide revoke that may still
+// need recovery after a failed after-commit wipe.
+type PendingAccountWideWipe struct {
+	EventID   int64     `bun:"event_id"`
+	TenantID  int64     `bun:"tenant_id"`
+	AccountID int64     `bun:"account_id"`
+	Reason    string    `bun:"reason"`
+	CreatedAt time.Time `bun:"created_at"`
+}
+
+// DataAccessLogRepository is an insert-only repository for audit.data_access_log.
+// Access-log rows are append-only and are never updated or deleted by the application.
+type DataAccessLogRepository interface {
+	Create(ctx context.Context, entry *DataAccessLog) error
+	// ExistsSince reports whether the actor already has a row of resourceType,
+	// accessed at or after since, whose metadata matches every given
+	// key/value (text comparison). Lets polling readers collapse identical
+	// re-reads into one evidential row instead of flooding the append-only
+	// log with duplicates.
+	ExistsSince(ctx context.Context, actorAccountID int64, resourceType string, metadata map[string]string, since time.Time) (bool, error)
+}
+
+type UnregisteredTagScanRepository interface {
+	Create(ctx context.Context, scan *UnregisteredTagScan) error
+	FindByID(ctx context.Context, id int64) (*UnregisteredTagScan, error)
+	DeleteOlderThan(ctx context.Context, cutoff time.Time) (int, error)
+}
+
+// DataImportRepository defines operations for managing data import audit records
+type DataImportRepository interface {
+	Create(ctx context.Context, dataImport *DataImport) error
+	FindByID(ctx context.Context, id int64) (*DataImport, error)
+	List(ctx context.Context, filters map[string]interface{}) ([]*DataImport, error)
+}

@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"strings"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+
+	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
 )
 
@@ -16,26 +18,26 @@ import (
 
 // validateRequiredCustomFields enforces the required core and custom fields,
 // skipping fields hidden by their condition and information blocks.
-func validateRequiredCustomFields(schema *enrollment.FormSchema, req SubmitRequest, openByID map[int64]*enrollmentModels.CareOffering) error {
+func validateRequiredCustomFields(schema *enrollmentNative.FormSchema, req SubmitRequest, openByID map[int64]*offeringContract.CareOfferingRecord) error {
 	if schema == nil {
 		return nil
 	}
 	// Core fields render from request columns, so their requirement comes
 	// from the schema's core_requirements.
-	if schema.CoreRequirements.Required(enrollment.CoreRequirementGuardianPhone) {
+	if schema.CoreRequirements.Required(enrollmentNative.CoreRequirementGuardianPhone) {
 		if req.GuardianPhone == nil || strings.TrimSpace(*req.GuardianPhone) == "" {
-			return enrollment.InvalidInput(enrollment.CodeGuardianPhoneRequired, "guardian_phone", fmt.Errorf("%w: guardian phone is required", enrollment.ErrInvalidSubmission))
+			return enrollmentNative.InvalidInput(enrollmentNative.CodeGuardianPhoneRequired, "guardian_phone", fmt.Errorf("%w: guardian phone is required", enrollmentNative.ErrInvalidSubmission))
 		}
 	}
 	byKey := buildFieldsByKey(schema)
 	guardianCtx := fieldVisibilityContext{guardianAnswers: req.CustomData, fieldsByKey: byKey}
 	for i := range schema.Fields {
 		f := &schema.Fields[i]
-		if f.AppliesToCh || f.Type == enrollment.FormFieldInfo || !f.Required || !fieldVisible(f, guardianCtx) {
+		if f.AppliesToCh || f.Type == enrollmentNative.FormFieldInfo || !f.Required || !fieldVisible(f, guardianCtx) {
 			continue
 		}
 		if !customAnswerSatisfiesRequired(*f, req.CustomData) {
-			return enrollment.InvalidInput(enrollment.CodeFieldRequired, customDataField(-1, f.Key), fmt.Errorf("%w: field %q is required", enrollment.ErrInvalidSubmission, f.Key))
+			return enrollmentNative.InvalidInput(enrollmentNative.CodeFieldRequired, customDataField(-1, f.Key), fmt.Errorf("%w: field %q is required", enrollmentNative.ErrInvalidSubmission, f.Key))
 		}
 	}
 	for idx := range req.Children {
@@ -46,15 +48,15 @@ func validateRequiredCustomFields(schema *enrollment.FormSchema, req SubmitReque
 	return nil
 }
 
-func validateRequiredChildFields(schema *enrollment.FormSchema, guardianAnswers map[string]any, idx int, child SubmitChild, openByID map[int64]*enrollmentModels.CareOffering, byKey map[string]*enrollment.FormField) error {
+func validateRequiredChildFields(schema *enrollmentNative.FormSchema, guardianAnswers map[string]any, idx int, child SubmitChild, openByID map[int64]*offeringContract.CareOfferingRecord, byKey map[string]*enrollmentNative.FormField) error {
 	childCtx := childVisibilityContext(guardianAnswers, child, openByID, byKey)
 	for i := range schema.Fields {
 		f := &schema.Fields[i]
-		if !f.AppliesToCh || f.Type == enrollment.FormFieldInfo || !f.Required || !fieldVisible(f, childCtx) {
+		if !f.AppliesToCh || f.Type == enrollmentNative.FormFieldInfo || !f.Required || !fieldVisible(f, childCtx) {
 			continue
 		}
 		if !childAnswerSatisfiesRequired(*f, child, openByID) {
-			return enrollment.InvalidInput(enrollment.CodeFieldRequired, customDataField(idx, f.Key), fmt.Errorf("%w: child %d field %q is required", enrollment.ErrInvalidSubmission, idx, f.Key))
+			return enrollmentNative.InvalidInput(enrollmentNative.CodeFieldRequired, customDataField(idx, f.Key), fmt.Errorf("%w: child %d field %q is required", enrollmentNative.ErrInvalidSubmission, idx, f.Key))
 		}
 	}
 	return nil
@@ -63,11 +65,11 @@ func validateRequiredChildFields(schema *enrollment.FormSchema, guardianAnswers 
 // childAnswerSatisfiesRequired checks one required per-child field. The
 // day-scoped fields are scoped to the child's care days exactly like the form
 // renders them; a no-offerings phase renders every weekday.
-func childAnswerSatisfiesRequired(f enrollment.FormField, child SubmitChild, openByID map[int64]*enrollmentModels.CareOffering) bool {
+func childAnswerSatisfiesRequired(f enrollmentNative.FormField, child SubmitChild, openByID map[int64]*offeringContract.CareOfferingRecord) bool {
 	switch f.Type {
-	case enrollment.FormFieldWeekdayMultiMode:
+	case enrollmentNative.FormFieldWeekdayMultiMode:
 		return customAnswerSatisfiesRequiredWeekdayMultiMode(f, child.CustomData, relevantCareDaysForChild(child, openByID))
-	case enrollment.FormFieldWeekdaySchedule:
+	case enrollmentNative.FormFieldWeekdaySchedule:
 		return customAnswerSatisfiesRequiredWeekdaySchedule(f, child.CustomData, relevantCareDaysForChild(child, openByID), len(openByID) > 0)
 	default:
 		return customAnswerSatisfiesRequired(f, child.CustomData)
@@ -77,7 +79,7 @@ func childAnswerSatisfiesRequired(f enrollment.FormField, child SubmitChild, ope
 // validateAccompaniedCompanionNote requires the "mit wem" note for a child
 // whose visible departure field allows the accompanied mode. Without it the
 // request would store fine and then block its approval (#1694).
-func validateAccompaniedCompanionNote(schema *enrollment.FormSchema, req SubmitRequest, openByID map[int64]*enrollmentModels.CareOffering) error {
+func validateAccompaniedCompanionNote(schema *enrollmentNative.FormSchema, req SubmitRequest, openByID map[int64]*offeringContract.CareOfferingRecord) error {
 	if schema == nil {
 		return nil
 	}
@@ -87,9 +89,9 @@ func validateAccompaniedCompanionNote(schema *enrollment.FormSchema, req SubmitR
 		if !childDepartureAllowsAccompanied(schema, child, childVisibilityContext(req.CustomData, child, openByID, byKey)) {
 			continue
 		}
-		if strings.TrimSpace(stringValue(child.CustomData[enrollment.TargetStudentDepartureCompanionNote])) == "" {
-			return enrollment.InvalidInput(enrollment.CodeCompanionNoteRequired, customDataField(idx, enrollment.TargetStudentDepartureCompanionNote),
-				fmt.Errorf("%w: child %d accompanied departure requires a companion note", enrollment.ErrInvalidSubmission, idx))
+		if strings.TrimSpace(stringValue(child.CustomData[enrollmentNative.TargetStudentDepartureCompanionNote])) == "" {
+			return enrollmentNative.InvalidInput(enrollmentNative.CodeCompanionNoteRequired, customDataField(idx, enrollmentNative.TargetStudentDepartureCompanionNote),
+				fmt.Errorf("%w: child %d accompanied departure requires a companion note", enrollmentNative.ErrInvalidSubmission, idx))
 		}
 	}
 	return nil
@@ -98,18 +100,18 @@ func validateAccompaniedCompanionNote(schema *enrollment.FormSchema, req SubmitR
 // childDepartureAllowsAccompanied reports whether a visible per-child
 // departure field allows the accompanied mode. A decode error counts as not
 // accompanied; the approval rejects a malformed value.
-func childDepartureAllowsAccompanied(schema *enrollment.FormSchema, child SubmitChild, ctx fieldVisibilityContext) bool {
+func childDepartureAllowsAccompanied(schema *enrollmentNative.FormSchema, child SubmitChild, ctx fieldVisibilityContext) bool {
 	for i := range schema.Fields {
 		f := &schema.Fields[i]
 		if !f.AppliesToCh || !fieldVisible(f, ctx) {
 			continue
 		}
 		switch f.Target {
-		case enrollment.TargetStudentAllowedDepartureModes:
+		case enrollmentNative.TargetStudentAllowedDepartureModes:
 			if modes, err := decodeAllowedDepartureModes(child.CustomData[f.Key]); err == nil && modes.HasMode(departure.DepartureAccompanied) {
 				return true
 			}
-		case enrollment.TargetStudentDeparture:
+		case enrollmentNative.TargetStudentDeparture:
 			if days, err := decodeDepartureDays(child.CustomData[f.Key]); err == nil && days.HasMode(departure.DepartureAccompanied) {
 				return true
 			}
@@ -124,7 +126,7 @@ func childDepartureAllowsAccompanied(schema *enrollment.FormSchema, child Submit
 // days, because the other entries are pruned before persistence.
 // existingChildren, when given, lets an unchanged answer accepted before a
 // single-mode rule stand.
-func validateConstrainedSchedules(schema *enrollment.FormSchema, req SubmitRequest, openByID map[int64]*enrollmentModels.CareOffering, existingChildren ...[]*RequestChild) error {
+func validateConstrainedSchedules(schema *enrollmentNative.FormSchema, req SubmitRequest, openByID map[int64]*offeringContract.CareOfferingRecord, existingChildren ...[]*RequestChild) error {
 	if schema == nil {
 		return nil
 	}
@@ -136,7 +138,7 @@ func validateConstrainedSchedules(schema *enrollment.FormSchema, req SubmitReque
 	guardianCtx := fieldVisibilityContext{guardianAnswers: req.CustomData, fieldsByKey: byKey}
 	for i := range schema.Fields {
 		f := &schema.Fields[i]
-		if f.Target != enrollment.TargetSchedulePickup || len(f.AllowedTimes) == 0 || f.AppliesToCh || !fieldVisible(f, guardianCtx) {
+		if f.Target != enrollmentNative.TargetSchedulePickup || len(f.AllowedTimes) == 0 || f.AppliesToCh || !fieldVisible(f, guardianCtx) {
 			continue
 		}
 		if err := checkAllowedPickupTimes(f, req.CustomData, -1, nil); err != nil {
@@ -155,7 +157,7 @@ func validateConstrainedSchedules(schema *enrollment.FormSchema, req SubmitReque
 	return nil
 }
 
-func validateChildConstrainedSchedules(schema *enrollment.FormSchema, guardianAnswers map[string]any, idx int, child SubmitChild, existing *RequestChild, openByID map[int64]*enrollmentModels.CareOffering, byKey map[string]*enrollment.FormField) error {
+func validateChildConstrainedSchedules(schema *enrollmentNative.FormSchema, guardianAnswers map[string]any, idx int, child SubmitChild, existing *RequestChild, openByID map[int64]*offeringContract.CareOfferingRecord, byKey map[string]*enrollmentNative.FormField) error {
 	childCtx := childVisibilityContext(guardianAnswers, child, openByID, byKey)
 	scheduleDays := relevantCareDaysForChild(child, openByID)
 	for i := range schema.Fields {
@@ -163,12 +165,12 @@ func validateChildConstrainedSchedules(schema *enrollment.FormSchema, guardianAn
 		if !f.AppliesToCh || !fieldVisible(f, childCtx) {
 			continue
 		}
-		if f.Target == enrollment.TargetSchedulePickup && len(f.AllowedTimes) > 0 {
+		if f.Target == enrollmentNative.TargetSchedulePickup && len(f.AllowedTimes) > 0 {
 			if err := checkAllowedPickupTimes(f, child.CustomData, idx, scheduleDays); err != nil {
 				return err
 			}
 		}
-		if f.Target != enrollment.TargetStudentAllowedDepartureModes || !f.SingleModeAppliesTo(child.TargetGradeLevel) ||
+		if f.Target != enrollmentNative.TargetStudentAllowedDepartureModes || !f.SingleModeAppliesTo(child.TargetGradeLevel) ||
 			unchangedSingleModeDepartureAnswer(existing, child, f.Key) {
 			continue
 		}
@@ -181,20 +183,20 @@ func validateChildConstrainedSchedules(schema *enrollment.FormSchema, guardianAn
 
 // checkAllowedPickupTimes checks one schedule answer against the field's
 // fixed times. scheduleDays scopes the checked weekdays; nil checks all.
-func checkAllowedPickupTimes(f *enrollment.FormField, answers map[string]any, childIdx int, scheduleDays map[string]bool) error {
+func checkAllowedPickupTimes(f *enrollmentNative.FormField, answers map[string]any, childIdx int, scheduleDays map[string]bool) error {
 	raw, ok := answers[f.Key]
 	if !ok || raw == nil {
 		return nil
 	}
-	var sched enrollment.WeekdaySchedule
+	var sched enrollmentNative.WeekdaySchedule
 	if err := decodeStructured(raw, &sched); err != nil {
 		if childIdx >= 0 {
-			return fmt.Errorf("%w: child %d field %q: invalid schedule", enrollment.ErrInvalidSubmission, childIdx, f.Key)
+			return fmt.Errorf("%w: child %d field %q: invalid schedule", enrollmentNative.ErrInvalidSubmission, childIdx, f.Key)
 		}
-		return fmt.Errorf("%w: field %q: invalid schedule", enrollment.ErrInvalidSubmission, f.Key)
+		return fmt.Errorf("%w: field %q: invalid schedule", enrollmentNative.ErrInvalidSubmission, f.Key)
 	}
 	if scheduleDays != nil {
-		scoped := make(enrollment.WeekdaySchedule, len(sched))
+		scoped := make(enrollmentNative.WeekdaySchedule, len(sched))
 		for day, t := range sched {
 			if scheduleDays[day] {
 				scoped[day] = t
@@ -204,9 +206,9 @@ func checkAllowedPickupTimes(f *enrollment.FormField, answers map[string]any, ch
 	}
 	if err := sched.ValidateAllowed(f.AllowedTimes); err != nil {
 		if childIdx >= 0 {
-			return enrollment.InvalidInput(enrollment.CodePickupTimeNotAllowed, customDataField(childIdx, f.Key), fmt.Errorf("%w: child %d field %q: %v", enrollment.ErrPickupTimeNotAllowed, childIdx, f.Key, err))
+			return enrollmentNative.InvalidInput(enrollmentNative.CodePickupTimeNotAllowed, customDataField(childIdx, f.Key), fmt.Errorf("%w: child %d field %q: %v", enrollmentNative.ErrPickupTimeNotAllowed, childIdx, f.Key, err))
 		}
-		return enrollment.InvalidInput(enrollment.CodePickupTimeNotAllowed, customDataField(childIdx, f.Key), fmt.Errorf("%w: field %q: %v", enrollment.ErrPickupTimeNotAllowed, f.Key, err))
+		return enrollmentNative.InvalidInput(enrollmentNative.CodePickupTimeNotAllowed, customDataField(childIdx, f.Key), fmt.Errorf("%w: field %q: %v", enrollmentNative.ErrPickupTimeNotAllowed, f.Key, err))
 	}
 	return nil
 }
@@ -227,17 +229,17 @@ func sameGradeLevel(left, right *int16) bool {
 
 // checkSingleModeDeparture enforces at most one departure mode per weekday
 // (#2381) on every submitted day; the answer is not care-day-pruned.
-func checkSingleModeDeparture(f *enrollment.FormField, answers map[string]any, childIdx int) error {
+func checkSingleModeDeparture(f *enrollmentNative.FormField, answers map[string]any, childIdx int) error {
 	raw, ok := answers[f.Key]
 	if !ok || raw == nil {
 		return nil
 	}
-	var modes enrollment.WeekdayMultiMode
+	var modes enrollmentNative.WeekdayMultiMode
 	if err := decodeStructured(raw, &modes); err != nil {
-		return fmt.Errorf("%w: child %d field %q: invalid departure modes", enrollment.ErrInvalidSubmission, childIdx, f.Key)
+		return fmt.Errorf("%w: child %d field %q: invalid departure modes", enrollmentNative.ErrInvalidSubmission, childIdx, f.Key)
 	}
 	if err := modes.ValidateSingleSelection(); err != nil {
-		return enrollment.InvalidInput(enrollment.CodeDepartureModeLimit, customDataField(childIdx, f.Key), fmt.Errorf("%w: child %d field %q: %v", enrollment.ErrDepartureModeLimitExceeded, childIdx, f.Key, err))
+		return enrollmentNative.InvalidInput(enrollmentNative.CodeDepartureModeLimit, customDataField(childIdx, f.Key), fmt.Errorf("%w: child %d field %q: %v", enrollmentNative.ErrDepartureModeLimitExceeded, childIdx, f.Key, err))
 	}
 	return nil
 }
@@ -246,16 +248,16 @@ func checkSingleModeDeparture(f *enrollment.FormField, answers map[string]any, c
 // answered. The pickup target and the departure fields accept an empty
 // selection ("geht alleine"), so a never-touched field — no key at all —
 // must still fail.
-func customAnswerSatisfiesRequired(field enrollment.FormField, answers map[string]any) bool {
+func customAnswerSatisfiesRequired(field enrollmentNative.FormField, answers map[string]any) bool {
 	value, present := answers[field.Key]
-	pickupBoolean := field.Type == enrollment.FormFieldWeekdayBoolean && field.Target == enrollment.TargetStudentPickupStatus
-	if (pickupBoolean || field.Type == enrollment.FormFieldWeekdayMode || field.Type == enrollment.FormFieldWeekdayMultiMode) && !present {
+	pickupBoolean := field.Type == enrollmentNative.FormFieldWeekdayBoolean && field.Target == enrollmentNative.TargetStudentPickupStatus
+	if (pickupBoolean || field.Type == enrollmentNative.FormFieldWeekdayMode || field.Type == enrollmentNative.FormFieldWeekdayMultiMode) && !present {
 		return false
 	}
 	return customValueSatisfiesRequired(field, value)
 }
 
-func customAnswerSatisfiesRequiredWeekdayMultiMode(field enrollment.FormField, answers map[string]any, careDays map[string]bool) bool {
+func customAnswerSatisfiesRequiredWeekdayMultiMode(field enrollmentNative.FormField, answers map[string]any, careDays map[string]bool) bool {
 	if len(careDays) == 0 {
 		return true
 	}
@@ -263,7 +265,7 @@ func customAnswerSatisfiesRequiredWeekdayMultiMode(field enrollment.FormField, a
 	if !present {
 		return false
 	}
-	var modes enrollment.WeekdayMultiMode
+	var modes enrollmentNative.WeekdayMultiMode
 	if err := decodeStructured(value, &modes); err != nil || modes.Validate() != nil {
 		return false
 	}
@@ -284,7 +286,7 @@ func customAnswerSatisfiesRequiredWeekdayMultiMode(field enrollment.FormField, a
 // scoped schedule: with care offerings every shown care day needs a time,
 // without them at least one weekday does; a child without care days has no
 // input to fill.
-func customAnswerSatisfiesRequiredWeekdaySchedule(field enrollment.FormField, answers map[string]any, scheduleDays map[string]bool, careConstrained bool) bool {
+func customAnswerSatisfiesRequiredWeekdaySchedule(field enrollmentNative.FormField, answers map[string]any, scheduleDays map[string]bool, careConstrained bool) bool {
 	if len(scheduleDays) == 0 {
 		return true
 	}
@@ -292,7 +294,7 @@ func customAnswerSatisfiesRequiredWeekdaySchedule(field enrollment.FormField, an
 	if !present {
 		return false
 	}
-	var sched enrollment.WeekdaySchedule
+	var sched enrollmentNative.WeekdaySchedule
 	if err := decodeStructured(value, &sched); err != nil {
 		return false
 	}
@@ -315,38 +317,40 @@ func customAnswerSatisfiesRequiredWeekdaySchedule(field enrollment.FormField, an
 // customValueSatisfiesRequired reports whether a required answer is present
 // and well formed; structured entries are validated one by one, so [{}] never
 // satisfies a required phone list.
-func customValueSatisfiesRequired(field enrollment.FormField, value any) bool {
+func customValueSatisfiesRequired(field enrollmentNative.FormField, value any) bool {
 	switch field.Type {
-	case enrollment.FormFieldBoolean:
+	case enrollmentNative.FormFieldBoolean:
 		_, ok := value.(bool)
 		return ok
-	case enrollment.FormFieldPhoneList:
+	case enrollmentNative.FormFieldPhoneList:
 		return phoneListSatisfiesRequired(value)
-	case enrollment.FormFieldContactList:
+	case enrollmentNative.FormFieldContactList:
 		return contactListSatisfiesRequired(value)
-	case enrollment.FormFieldWeekdaySchedule:
+	case enrollmentNative.FormFieldWeekdaySchedule:
 		return scheduleHasAnyTime(value)
-	case enrollment.FormFieldWeekdayBoolean:
+	case enrollmentNative.FormFieldWeekdayBoolean:
 		// An empty map is the valid "Geht alleine nach Hause" answer of the
 		// pickup target; every other weekday_boolean needs a selected day.
-		if field.Target == enrollment.TargetStudentPickupStatus {
+		if field.Target == enrollmentNative.TargetStudentPickupStatus {
 			return weekdayBooleanWellFormed(value)
 		}
 		return weekdayBooleanHasAnySelected(value)
-	case enrollment.FormFieldWeekdayMode:
+	case enrollmentNative.FormFieldWeekdayMode:
 		// An all-alone (empty) plan is a valid answer (#1610).
 		return weekdayModeWellFormed(value)
-	case enrollment.FormFieldWeekdayMultiMode:
+	case enrollmentNative.FormFieldWeekdayMultiMode:
 		return weekdayMultiModeWellFormed(value)
-	case enrollment.FormFieldNumber:
+	case enrollmentNative.FormFieldNumber:
 		return numberValueSatisfiesRequired(value)
+	case enrollmentNative.FormFieldFile:
+		return fileAnswerPresent(value)
 	default:
 		return stringValue(value) != ""
 	}
 }
 
 func weekdayBooleanHasAnySelected(value any) bool {
-	var days enrollment.WeekdayBoolean
+	var days enrollmentNative.WeekdayBoolean
 	if err := decodeStructured(value, &days); err != nil || days.Validate() != nil {
 		return false
 	}
@@ -354,7 +358,7 @@ func weekdayBooleanHasAnySelected(value any) bool {
 }
 
 func weekdayBooleanWellFormed(value any) bool {
-	var days enrollment.WeekdayBoolean
+	var days enrollmentNative.WeekdayBoolean
 	if err := decodeStructured(value, &days); err != nil {
 		return false
 	}
@@ -362,7 +366,7 @@ func weekdayBooleanWellFormed(value any) bool {
 }
 
 func weekdayModeWellFormed(value any) bool {
-	var modes enrollment.WeekdayMode
+	var modes enrollmentNative.WeekdayMode
 	if err := decodeStructured(value, &modes); err != nil {
 		return false
 	}
@@ -370,7 +374,7 @@ func weekdayModeWellFormed(value any) bool {
 }
 
 func weekdayMultiModeWellFormed(value any) bool {
-	var modes enrollment.WeekdayMultiMode
+	var modes enrollmentNative.WeekdayMultiMode
 	if err := decodeStructured(value, &modes); err != nil {
 		return false
 	}
@@ -378,7 +382,7 @@ func weekdayMultiModeWellFormed(value any) bool {
 }
 
 func phoneListSatisfiesRequired(value any) bool {
-	var entries []enrollment.PhoneEntry
+	var entries []enrollmentNative.PhoneEntry
 	if err := decodeStructured(value, &entries); err != nil || len(entries) == 0 {
 		return false
 	}
@@ -391,7 +395,7 @@ func phoneListSatisfiesRequired(value any) bool {
 }
 
 func contactListSatisfiesRequired(value any) bool {
-	var entries []enrollment.ContactEntry
+	var entries []enrollmentNative.ContactEntry
 	if err := decodeStructured(value, &entries); err != nil || len(entries) == 0 {
 		return false
 	}

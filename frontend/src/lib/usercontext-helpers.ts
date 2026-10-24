@@ -76,6 +76,8 @@ export interface NavigationEducationalGroup {
   is_personal?: boolean;
   room_id?: string;
   room_name?: string;
+  /** Namen der Gruppenleitung, nur wenn eine zugeordnet ist (#4351). */
+  leaders?: string[];
 }
 
 export interface BackendActivityGroup {

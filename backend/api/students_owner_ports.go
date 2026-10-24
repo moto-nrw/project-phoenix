@@ -3,9 +3,13 @@ package api
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/students"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
+	peopleRouteValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	presenceprojectionOwnerHTTP "github.com/moto-nrw/project-phoenix/modules/presenceprojection/http"
+
 	educationSvc "github.com/moto-nrw/project-phoenix/modules/schoolstructure"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -23,17 +27,17 @@ type studentSchoolGroups struct {
 
 // GetGroupTeachers reduces the group's teachers to the supervisor contact the
 // detail lists; a teacher without a staff member or person is left out.
-func (s studentSchoolGroups) GetGroupTeachers(ctx context.Context, groupID int64) ([]students.GroupTeacher, error) {
+func (s studentSchoolGroups) GetGroupTeachers(ctx context.Context, groupID int64) ([]presenceprojectionOwnerHTTP.GroupTeacher, error) {
 	teachers, err := s.GroupManagement.GetGroupTeachers(ctx, groupID)
 	if err != nil {
 		return nil, err
 	}
-	result := make([]students.GroupTeacher, 0, len(teachers))
+	result := make([]presenceprojectionOwnerHTTP.GroupTeacher, 0, len(teachers))
 	for _, teacher := range teachers {
 		if teacher == nil || teacher.Person == nil {
 			continue
 		}
-		result = append(result, students.GroupTeacher{
+		result = append(result, presenceprojectionOwnerHTTP.GroupTeacher{
 			ID:        teacher.ID,
 			FirstName: teacher.Person.FirstName,
 			LastName:  teacher.Person.LastName,
@@ -43,29 +47,29 @@ func (s studentSchoolGroups) GetGroupTeachers(ctx context.Context, groupID int64
 	return result, nil
 }
 
-func (s studentSchoolGroups) GetGroup(ctx context.Context, id int64) (*students.SchoolGroup, error) {
+func (s studentSchoolGroups) GetGroup(ctx context.Context, id int64) (*presenceprojectionOwnerHTTP.SchoolGroup, error) {
 	group, err := s.GroupManagement.GetGroup(ctx, id)
 	if err != nil {
 		return nil, err
 	}
-	view := students.SchoolGroup{ID: group.ID, Name: group.Name, RoomID: group.RoomID}
+	view := presenceprojectionOwnerHTTP.SchoolGroup{ID: group.ID, Name: group.Name, RoomID: group.RoomID}
 	if group.Room != nil {
 		view.RoomName = group.Room.Name
 	}
 	return &view, nil
 }
 
-func (s studentSchoolGroups) GetGroupsByIDs(ctx context.Context, ids []int64) (map[int64]*students.SchoolGroup, error) {
+func (s studentSchoolGroups) GetGroupsByIDs(ctx context.Context, ids []int64) (map[int64]*presenceprojectionOwnerHTTP.SchoolGroup, error) {
 	groups, err := s.GroupManagement.GetGroupsByIDs(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
-	views := make(map[int64]*students.SchoolGroup, len(groups))
+	views := make(map[int64]*presenceprojectionOwnerHTTP.SchoolGroup, len(groups))
 	for id, group := range groups {
 		if group == nil {
 			continue
 		}
-		view := students.SchoolGroup{ID: group.ID, Name: group.Name, RoomID: group.RoomID}
+		view := presenceprojectionOwnerHTTP.SchoolGroup{ID: group.ID, Name: group.Name, RoomID: group.RoomID}
 		if group.Room != nil {
 			view.RoomName = group.Room.Name
 		}
@@ -74,17 +78,17 @@ func (s studentSchoolGroups) GetGroupsByIDs(ctx context.Context, ids []int64) (m
 	return views, nil
 }
 
-func (s studentSchoolGroups) ListGroups(ctx context.Context) ([]*students.SchoolGroup, error) {
+func (s studentSchoolGroups) ListGroups(ctx context.Context) ([]*presenceprojectionOwnerHTTP.SchoolGroup, error) {
 	groups, err := s.GroupManagement.ListGroups(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
-	views := make([]*students.SchoolGroup, 0, len(groups))
+	views := make([]*presenceprojectionOwnerHTTP.SchoolGroup, 0, len(groups))
 	for _, group := range groups {
 		if group == nil {
 			continue
 		}
-		view := students.SchoolGroup{ID: group.ID, Name: group.Name, RoomID: group.RoomID}
+		view := presenceprojectionOwnerHTTP.SchoolGroup{ID: group.ID, Name: group.Name, RoomID: group.RoomID}
 		if group.Room != nil {
 			view.RoomName = group.Room.Name
 		}
@@ -98,21 +102,21 @@ func (s studentSchoolGroups) ListGroups(ctx context.Context) ([]*students.School
 // prints. Each child's groups keep the read's order; the export sorts and
 // deduplicates the names itself.
 type studentActiveEnrollments struct {
-	enrollments timetableCompose.ActivityService
+	enrollments activityContract.ActivityService
 }
 
-func (s studentActiveEnrollments) ActiveEnrollmentGroups(ctx context.Context, studentIDs []int64, onDate calendar.Date) (map[int64][]students.ActiveEnrollmentGroup, error) {
+func (s studentActiveEnrollments) ActiveEnrollmentGroups(ctx context.Context, studentIDs []int64, onDate calendar.Date) (map[int64][]peopleRouteValues.StudentActivityGroup, error) {
 	byStudent, err := s.enrollments.GetActiveStudentEnrollmentsByStudentIDs(ctx, studentIDs, onDate)
 	if err != nil {
 		return nil, err
 	}
-	views := make(map[int64][]students.ActiveEnrollmentGroup, len(byStudent))
+	views := make(map[int64][]peopleRouteValues.StudentActivityGroup, len(byStudent))
 	for studentID, groups := range byStudent {
 		for _, group := range groups {
 			if group == nil {
 				continue
 			}
-			views[studentID] = append(views[studentID], students.ActiveEnrollmentGroup{ID: group.ID, Name: group.Name})
+			views[studentID] = append(views[studentID], peopleRouteValues.StudentActivityGroup{ID: group.ID, Name: group.Name})
 		}
 	}
 	return views, nil

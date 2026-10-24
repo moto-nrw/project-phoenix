@@ -10,8 +10,22 @@ import {
 
 const logger = createLogger({ component: "StaffAPI" });
 
+/**
+ * Adresse des Profilbilds einer Kollegin, `undefined` ohne hochgeladenes Bild
+ * (#4432). Das Bild kommt über die schulbezogene Staff-Route, nie über den
+ * gespeicherten Pfad selbst.
+ */
+export function staffAvatarUrl(
+  staffId: string,
+  avatar: string | null | undefined,
+): string | undefined {
+  return avatar ? `/api/staff/${staffId}/avatar` : undefined;
+}
+
 // Backend response types (already mapped by the API route handler)
 export interface BackendStaffResponse {
+  started_on?: string;
+  ended_on?: string | null;
   id: string;
   name: string;
   firstName: string;
@@ -20,6 +34,8 @@ export interface BackendStaffResponse {
   role: string | null;
   qualifications: string | null;
   account_role?: string | null;
+  /** Gespeicherter Avatar-Pfad des Kontos; nur ob er da ist, zählt. */
+  avatar?: string | null;
   tag_id: string | null;
   staff_notes: string | null;
   created_at: string;
@@ -32,10 +48,29 @@ export interface BackendStaffResponse {
   absence_type?: string;
   /** The school's own Abwesenheitsart wording for today's absence (#2403). */
   absence_type_label?: string;
-  /** External caregiver without a moto account (#3823). */
+  /** External caregiver, with or without a moto account (#3823, #4573). */
   is_external?: boolean;
   external_organization?: string | null;
+  /** Account state of an external caregiver; absent for everyone else. */
+  external_account_status?: ExternalAccountStatus | null;
 }
+
+/**
+ * Account state of an external caregiver (#4573): `account` signs in,
+ * `invitation_pending` has an unused invitation, `none` has neither. `none`
+ * is a deliberate state (Kein Zugang), not a gap (ADR 0091).
+ */
+export type ExternalAccountStatus = "account" | "invitation_pending" | "none";
+
+/**
+ * Access chosen for an external caregiver (ADR 0091): `none` records a
+ * placeholder without account, `view` invites into the system role „Gast“,
+ * `supervise` into „AG-Leitung“.
+ */
+export type ExternalAccess = "none" | "view" | "supervise";
+
+/** The two levels an invitation can grant. */
+export type ExternalInvitationAccess = Exclude<ExternalAccess, "none">;
 
 interface ActiveSupervisionResponse {
   id: number;
@@ -65,11 +100,15 @@ interface StaffSupervision {
 
 // Frontend types
 export interface Staff {
+  startedOn?: string;
+  endedOn?: string | null;
   id: string;
   name: string;
   firstName: string;
   lastName: string;
   email?: string;
+  /** Profilbild über `/api/staff/[id]/avatar`, fehlt ohne Bild (#4432). */
+  avatarUrl?: string;
   role?: string; // Display role (custom position from teacher profile)
   accountRole?: string; // Auth role (Admin/Betreuer/Extern)
   specialization?: string;
@@ -91,16 +130,23 @@ export interface Staff {
   absenceTypeLabel?: string;
   isFinancialProfile?: boolean;
   isLimitedProfile?: boolean;
-  /** Externe Betreuungskraft ohne moto-Konto (#3823). */
+  /** Externe Betreuungskraft, mit oder ohne moto-Konto (#3823, #4573). */
   isExternal?: boolean;
   /** Organisation der externen Kraft, z. B. die Musikschule. */
   externalOrganization?: string;
+  /** Kontostand der externen Kraft; `null` für alle anderen (#4573). */
+  externalAccountStatus?: ExternalAccountStatus | null;
 }
 
-/** Name of an external caregiver recorded from a supervision (#3823). */
+/**
+ * An external caregiver to record (#3823, ADR 0091). The email address is
+ * only sent with an access that invites.
+ */
 interface ExternalStaffInput {
   firstName: string;
   lastName: string;
+  access: ExternalAccess;
+  email?: string;
   organization?: string;
 }
 
@@ -115,6 +161,27 @@ export interface StaffDocumentDirectoryEntry {
   name: string;
   firstName: string;
   lastName: string;
+}
+
+/**
+ * A former employment at this school, the Ehemalige filter of the staff list
+ * (ADR 0021, #3403). Dates are calendar days ("YYYY-MM-DD"): the days the
+ * person was entered in moto and left.
+ */
+export interface FormerStaff {
+  id: string;
+  firstName: string;
+  lastName: string;
+  startedOn: string;
+  endedOn: string;
+}
+
+export interface BackendFormerStaff {
+  id: string;
+  first_name: string;
+  last_name: string;
+  started_on: string;
+  ended_on: string;
 }
 
 /** Active group with supervisors and room info */
@@ -285,7 +352,7 @@ function getSupervisionInfo(
   }
   // Priority 2: Time clock home office → always wins
   else if (workStatus === "home_office") {
-    currentLocation = "Homeoffice";
+    currentLocation = "Unterwegs";
   }
   // Priority 3: Not clocked in - check for absence reason
   // (checked_out, no work_status, or legacy fallback)
@@ -344,6 +411,7 @@ function mapStaffMember(
     absenceTypeLabel: staff.absence_type_label,
     isExternal: staff.is_external ?? false,
     externalOrganization: staff.external_organization ?? undefined,
+    externalAccountStatus: staff.external_account_status ?? null,
   };
 }
 
@@ -398,6 +466,18 @@ class StaffService {
       .data;
   }
 
+  // Former employments of this school, for the Ehemalige filter (#3403).
+  async getFormerStaff(): Promise<FormerStaff[]> {
+    const response = await sessionFetch("/api/staff/former");
+    if (!response.ok) {
+      throw await apiErrorFromResponse(
+        response,
+        `Failed to fetch former staff: ${response.statusText}`,
+      );
+    }
+    return ((await response.json()) as { data: FormerStaff[] }).data;
+  }
+
   // Get all staff members with their current supervision status.
   // `options.strict` opts into the /api/staff route's non-swallowing path so a
   // backend failure rejects here instead of masquerading as an empty staff list
@@ -440,8 +520,9 @@ class StaffService {
     return applyStaffFilters(mappedStaff, filters);
   }
 
-  // Records an external caregiver without a moto account (#3823): a name and,
-  // optionally, the organization. The new entry is selectable right away.
+  // Records an external caregiver (#3823) with the chosen access (ADR 0091);
+  // `view` and `supervise` invite by email. The new entry is selectable
+  // right away, with or without account.
   async createExternal(input: ExternalStaffInput): Promise<Staff> {
     const response = await sessionFetch("/api/staff/externals", {
       method: "POST",
@@ -450,12 +531,42 @@ class StaffService {
         first_name: input.firstName.trim(),
         last_name: input.lastName.trim(),
         organization: input.organization?.trim() ?? "",
+        access: input.access,
+        ...(input.access === "none"
+          ? {}
+          : { email: input.email?.trim() ?? "" }),
       }),
     });
     if (!response.ok) {
       throw await apiErrorFromResponse(
         response,
         `Failed to create external caregiver: ${response.statusText}`,
+      );
+    }
+    const payload = (await response.json()) as { data: BackendStaffResponse };
+    return mapStaffMember(payload.data, {});
+  }
+
+  // Invites an external caregiver who has no account yet (#4573) with the
+  // chosen access (ADR 0091). A second invitation replaces an open one, for
+  // example with a corrected address.
+  async inviteExternal(
+    id: string,
+    email: string,
+    access: ExternalInvitationAccess,
+  ): Promise<Staff> {
+    const response = await sessionFetch(
+      `/api/staff/externals/${encodeURIComponent(id)}/invitation`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim(), access }),
+      },
+    );
+    if (!response.ok) {
+      throw await apiErrorFromResponse(
+        response,
+        `Failed to invite external caregiver: ${response.statusText}`,
       );
     }
     const payload = (await response.json()) as { data: BackendStaffResponse };
@@ -484,11 +595,14 @@ class StaffService {
     );
     return {
       id: staff.id,
+      startedOn: staff.started_on,
+      endedOn: staff.ended_on,
       name: staff.name,
       firstName: staff.firstName ?? staff.name?.split(" ")[0] ?? "",
       lastName:
         staff.lastName ?? staff.name?.split(" ").slice(1).join(" ") ?? "",
       email: undefined,
+      avatarUrl: staffAvatarUrl(staff.id, staff.avatar),
       role: staff.role ?? undefined,
       accountRole: staff.account_role ?? undefined,
       specialization: staff.specialization?.trim() ?? undefined,
@@ -507,6 +621,7 @@ class StaffService {
       absenceTypeLabel: staff.absence_type_label,
       isExternal: staff.is_external ?? false,
       externalOrganization: staff.external_organization ?? undefined,
+      externalAccountStatus: staff.external_account_status ?? null,
     };
   }
 
@@ -539,11 +654,13 @@ class StaffService {
       data: Omit<
         Pick<Staff, "id" | "name" | "firstName" | "lastName">,
         "id"
-      > & { id: number };
+      > & { id: number; started_on?: string; ended_on?: string | null };
     };
     return {
       ...json.data,
       id: json.data.id.toString(),
+      startedOn: json.data.started_on,
+      endedOn: json.data.ended_on,
       hasRfid: false,
       isTeacher: false,
       isSupervising: false,
@@ -1620,29 +1737,19 @@ class StaffSessionService {
 }
 
 // The ApiError keeps code, field errors and request ID for the shared error
-// display (#2511); callers that still show `message` read it unchanged.
+// display (#2511); its message is the envelope's diagnostic `detail`.
 async function readStaffAPIError(
   response: Response,
   fallback: string,
 ): Promise<ApiError> {
   const text = await response.text().catch(() => "");
-  if (!text) return apiErrorFromText(fallback, response.status, text);
-
   try {
-    const payload = JSON.parse(text) as {
-      error?: unknown;
-      message?: unknown;
-    };
-    const message =
-      typeof payload.error === "string"
-        ? payload.error
-        : typeof payload.message === "string"
-          ? payload.message
-          : fallback;
-    return apiErrorFromText(message, response.status, text);
+    JSON.parse(text);
   } catch {
-    return apiErrorFromText(text, response.status, text);
+    // A plain-text body (proxy or gateway) is the best diagnostic there is.
+    if (text) return apiErrorFromText(text, response.status, text);
   }
+  return apiErrorFromText(fallback, response.status, text);
 }
 
 // Stundenkonto lifecycle (#1420): payout / comp-time transactions and the

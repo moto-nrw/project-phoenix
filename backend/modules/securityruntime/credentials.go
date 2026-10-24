@@ -1,6 +1,6 @@
 package securityruntime
 
-import "github.com/moto-nrw/project-phoenix/auth/authorize"
+import "github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/application/authorize"
 
 // The credential primitives the compositions hand to Identity & Access and
 // the operator flows. Security Runtime owns the password policy and the
@@ -36,4 +36,16 @@ func FillRandom(b []byte) error {
 // UploadFilenameSuffix preserves the upload filename entropy and alphabet.
 func UploadFilenameSuffix() (string, error) {
 	return authorize.UploadFilenameSuffix()
+}
+
+// DeviceAPIKey returns a fresh device API key. Security Runtime owns the key
+// format and its entropy; the provisioning flows only hand the key out.
+func DeviceAPIKey() (string, error) {
+	return authorize.DeviceAPIKey()
+}
+
+// RandomLowerAlphanumeric returns n random lowercase letters and digits from
+// the cryptographic entropy source.
+func RandomLowerAlphanumeric(n int) (string, error) {
+	return authorize.RandomLowerAlphanumeric(n)
 }

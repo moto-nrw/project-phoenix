@@ -1,0 +1,288 @@
+name: Frontend E2E
+
+# Playwright-Flows aus frontend/e2e/*.spec.ts (#4436) gegen einen frisch
+# geseedeten Stack: Postgres und Mailpit als Services, Backend-Binary,
+# migrate, seed (alle Profile, Standardprofil `vollbetrieb`), Next-Dev-Server
+# über den webServer-Block von frontend/playwright.config.ts. Die serverlosen
+# Layouttests unter frontend/e2e/layout/ laufen weiter in test.yml.
+#
+# Kein Required Check: die Flows hängen am echten Heute und an den Seed-Daten.
+# Nachts prüft der Lauf den development-Stand gegen UI-Drift; Änderungen an
+# den Specs, ihrer Konfiguration, den Abhängigkeiten oder diesem Workflow laufen
+# einmal auf dem PR.
+#
+# Alle Werte unten sind Wegwerfwerte für den CI-Stack, keine Secrets.
+
+on:
+  schedule:
+    # 05:00 UTC Montag bis Freitag, nach perf-nightly. Die Flows brauchen einen
+    # Berliner Werktag (Wochenraster Mo-Fr).
+    - cron: "0 5 * * 1-5"
+  workflow_dispatch:
+  pull_request:
+    branches: [development]
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - ".github/workflows/e2e.yml"
+      - "frontend/e2e/**"
+      - "!frontend/e2e/layout/**"
+      - "frontend/playwright.config.ts"
+      - "frontend/playwright.network.config.ts"
+      - "frontend/playwright.tenant-switch.config.ts"
+      - "frontend/scripts/seed-state.ts"
+      - "frontend/package.json"
+      - "frontend/pnpm-lock.yaml"
+      - "frontend/pnpm-workspace.yaml"
+
+concurrency:
+  group: e2e-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+permissions: {}
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  GOTOOLCHAIN: local
+
+jobs:
+  e2e:
+    name: Playwright E2E flows
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: phoenix_e2e
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          TZ: Europe/Berlin
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 10
+      mailpit:
+        # Operator login enrolls MFA and reads the code back out of mailpit's
+        # REST API, so the seeder cannot authenticate without a mail sink.
+        image: axllent/mailpit:v1.30
+        ports:
+          - 1025:1025
+          - 8025:8025
+
+    env:
+      # --- Backend (validateServeConfig() requires every one of these) ---
+      DB_DSN: postgres://postgres:postgres@localhost:5432/phoenix_e2e?sslmode=disable
+      DB_MAX_OPEN_CONNS: "40"
+      DB_MAX_IDLE_CONNS: "40"
+      DB_CONN_MAX_LIFETIME: 30m
+      DB_CONN_MAX_IDLE_TIME: 10m
+      PHOENIX_AUTH_PASSWORD: phoenix_auth_test
+      PHOENIX_DEMO_PASSWORD: phoenix_demo_test
+      APP_ENV: development
+      LOG_LEVEL: info
+      LOG_TEXTLOGGING: "true"
+      AUTH_JWT_SECRET: ci-test-secret-must-be-at-least-32-chars-long
+      AUTH_JWT_EXPIRY: 15m
+      AUTH_JWT_REFRESH_EXPIRY: 168h
+      OPERATOR_EMAIL: operator@example.com
+      OPERATOR_PASSWORD: E2eFlows1234%
+      OPERATOR_DISPLAY_NAME: CI Operator
+      ADMIN_EMAIL: admin@example.com
+      ADMIN_PASSWORD: E2eFlows1234%
+      FRONTEND_URL: http://localhost:3000
+      PARENTS_URL: http://eltern.localhost:3000
+      # Cloudflare's documented always-passing Turnstile test keys.
+      TURNSTILE_SITE_KEY: 1x00000000000000000000AA
+      TURNSTILE_SECRET_KEY: 1x0000000000000000000000000000000AA
+      SCHOOL_URL: http://schule.localhost:3000
+      TENANT_DOMAIN: localhost
+      METRICS_BEARER_TOKEN: ci-metrics-token
+      # Seeder input for security.ogs_device_pin only; no runtime fallback.
+      OGS_DEVICE_PIN: "1234"
+      EMAIL_SMTP_HOST: localhost
+      EMAIL_SMTP_PORT: 1025
+      EMAIL_FROM_ADDRESS: noreply@localhost
+      EMAIL_FROM_NAME: moto CI
+      MAILPIT_URL: http://localhost:8025
+      # The schedulers would mutate seeded rows during the run.
+      CLEANUP_SCHEDULER_ENABLED: "false"
+      SESSION_END_SCHEDULER_ENABLED: "false"
+      # --- Frontend: playwright.config.ts requires these for `next dev` ---
+      API_URL: http://localhost:8080
+      NEXT_PUBLIC_API_URL: http://localhost:8080
+      NEXT_PUBLIC_TENANT_DOMAIN: localhost
+      NEXT_PUBLIC_OPERATOR_HOSTNAME: operator.localhost:3000
+      NEXT_PUBLIC_PARENTS_HOSTNAME: eltern.localhost:3000
+      NEXT_PUBLIC_SCHOOL_HOSTNAME: schule.localhost:3000
+      NEXT_PUBLIC_APP_ENV: development
+      NEXTAUTH_URL: http://localhost:3000
+      NEXTAUTH_SECRET: ci-e2e-throwaway-secret
+      AUTH_TRUST_HOST: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: backend/go.mod
+          cache: true
+          cache-dependency-path: backend/go.sum
+
+      - name: Build backend and dev tools binaries
+        working-directory: backend
+        run: |
+          go build -o "${RUNNER_TEMP}/phoenix" .
+          go build -o "${RUNNER_TEMP}/devtools" ./cmd/devtools
+
+      - name: Run migrations
+        working-directory: backend
+        run: |
+          "${RUNNER_TEMP}/phoenix" migrate
+
+      # PORT only here: `next dev`, started by playwright.config.ts, reads PORT
+      # too and must stay on 3000.
+      - name: Start backend
+        working-directory: backend
+        env:
+          PORT: "8080"
+        run: |
+          "${RUNNER_TEMP}/phoenix" serve > "${RUNNER_TEMP}/server.log" 2>&1 &
+          echo $! > "${RUNNER_TEMP}/server.pid"
+          for _ in $(seq 1 60); do
+            if curl -fsS http://localhost:8080/health > /dev/null; then
+              echo "server up"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "server did not become healthy in 60s"
+          exit 1
+
+      # Writes backend/.seed-state.json; e2e/tenant-session.ts reads the
+      # tenant slug and the school-admin login of the default profile from it.
+      - name: Seed demo data
+        working-directory: backend
+        run: |
+          "${RUNNER_TEMP}/devtools" seed \
+            --email "${OPERATOR_EMAIL}" \
+            --password "${OPERATOR_PASSWORD}" \
+            --pin "${OGS_DEVICE_PIN}" \
+            --url http://localhost:8080
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
+        with:
+          node-version: "24"
+          cache: "pnpm"
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('frontend/pnpm-lock.yaml') }}
+
+      - name: Install Playwright Chromium
+        working-directory: frontend
+        run: |
+          if [ "${{ steps.playwright-cache.outputs.cache-hit }}" = "true" ]; then
+            pnpm exec playwright install-deps chromium
+          else
+            pnpm exec playwright install --with-deps chromium
+          fi
+
+      # Separate frontend + localhost-only synthetic API; never calls vendors.
+      - name: Run portal network evidence
+        working-directory: frontend
+        env:
+          # Readiness must work even when Node cannot resolve portal hosts.
+          NODE_OPTIONS: "--require ./e2e/network/no-subdomain-dns.cjs"
+        run: pnpm run test:network
+
+      - name: Upload sanitized network evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: portal-network-evidence-${{ github.run_id }}
+          path: frontend/test-results/network/*/network*.json
+          if-no-files-found: error
+
+      - name: Run shared-cookie tenant-switch regression
+        working-directory: frontend
+        env:
+          NODE_OPTIONS: "--require ./e2e/network/no-subdomain-dns.cjs"
+        # Different fixture domains/keys must not reuse a stale Turbopack dev
+        # graph (observed HMR reload loop). Leave the seeded flow a fresh cache.
+        run: |
+          mfa_switch_cache=$(mktemp -d "${RUNNER_TEMP}/tenant-switch-cache.XXXXXX")
+          if [ -d .next/dev ]; then mv .next/dev "$mfa_switch_cache/before"; fi
+          trap 'if [ -d .next/dev ]; then mv .next/dev "$mfa_switch_cache/after"; fi' EXIT
+          pnpm run test:tenant-switch
+
+      # playwright.config.ts starts `next dev` on port 3000 itself (CI=true
+      # disables reuseExistingServer) and runs one worker.
+      - name: Run E2E flows
+        working-directory: frontend
+        run: pnpm run test:e2e
+
+      # Reject empty runs and fixture skips. Only the Krank-Flow's explicit
+      # weekend skip is expected: its grid has no Saturday/Sunday columns.
+      - name: Reject skipped or missing tests
+        working-directory: frontend
+        run: |
+          report=test-results/e2e-results.json
+          jq '.stats' "$report"
+          if ! jq -e '
+            . as $report |
+            [.suites[] | .. | objects | .specs[]? |
+              select(.file == "dienstplan.spec.ts" and (.title | startswith("Krank-Flow:"))) |
+              .tests[] | select(.status == "skipped") |
+              select(any(.annotations[]?;
+                .type == "skip" and
+                .description == "Krank-Flow braucht ein Heute innerhalb Mo-Fr (Wochenraster ohne Sa/So)"
+              ))] | length as $weekendSkips |
+            $report.stats.expected > 0 and $report.stats.skipped == $weekendSkips
+          ' "$report" > /dev/null; then
+            echo "::error::E2E run executed no test or skipped tests other than the documented Krank-Flow weekend skip."
+            exit 1
+          fi
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e2e-report-${{ github.run_id }}
+          path: |
+            frontend/playwright-report/
+            frontend/test-results/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Backend log
+        if: always()
+        run: tail -n 200 "${RUNNER_TEMP}/server.log" || true
+
+      - name: Stop backend
+        if: always()
+        run: kill "$(cat "${RUNNER_TEMP}/server.pid")" 2>/dev/null || true

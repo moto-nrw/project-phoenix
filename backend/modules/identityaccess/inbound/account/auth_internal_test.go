@@ -3,11 +3,13 @@
 package account
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
@@ -127,7 +129,7 @@ func TestGetClientIP_XForwardedFor_TakesPrecedence_OverRemoteAddr(t *testing.T) 
 func getClientIPThroughXFFMiddleware(req *http.Request) string {
 	var ip string
 	router := chi.NewRouter()
-	router.Use(chimiddleware.ClientIPFromXFF())
+	router.Use(chimiddleware.ClientIPFromXFFTrustedProxies(1))
 	router.Get("/test", func(w http.ResponseWriter, r *http.Request) {
 		ip = getClientIP(r)
 		w.WriteHeader(http.StatusNoContent)
@@ -341,19 +343,6 @@ func TestUpdateAccountRequest_Fields(t *testing.T) {
 }
 
 // =============================================================================
-// Resource Tests
-// =============================================================================
-
-func TestNewResource_ReturnsResource(t *testing.T) {
-	t.Parallel()
-
-	// Create resource with nil services (just testing initialization)
-	resource := NewResource(nil, nil, nil, nil, nil)
-
-	assert.NotNil(t, resource)
-}
-
-// =============================================================================
 // normalizeBaseRole Tests
 // =============================================================================
 
@@ -561,13 +550,6 @@ func TestUpdateRoleRequest_Bind_BaseRoleValidation(t *testing.T) {
 	})
 }
 
-// parentAccountRouteStub satisfies the two method values the parent-account
-// routes bind while the router builds; none of them is called here.
-type parentAccountRouteStub struct{ AccountLifecycle }
-
-func (parentAccountRouteStub) ActivateParentAccount(context.Context, int64) error   { return nil }
-func (parentAccountRouteStub) DeactivateParentAccount(context.Context, int64) error { return nil }
-
 // TestRouterWithAuthRateLimiter pins which routes the production composition
 // throttles: the public credential and second-factor exchanges, and nothing
 // else. The route golden builds the router without a limiter, so this is the
@@ -580,7 +562,7 @@ func TestRouterWithAuthRateLimiter(t *testing.T) {
 			w.WriteHeader(http.StatusTooManyRequests)
 		})
 	}
-	router := NewResource(parentAccountRouteStub{}, nil, nil, nil, nil).RouterWithAuthRateLimiter(throttled)
+	router := NewResource(nil, nil, nil, nil, nil, transactionFailures.IsConstraintViolation, unusedTenantSettings{}).RouterWithAuthRateLimiter(throttled, scopeTestTenantSession(testpkg.TenantSessionGates()))
 
 	for _, path := range []string{
 		"/login",

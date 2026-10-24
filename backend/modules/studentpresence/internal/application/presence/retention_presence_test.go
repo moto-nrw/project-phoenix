@@ -7,17 +7,19 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
-	"github.com/moto-nrw/project-phoenix/services"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type retentionAuditFault struct {
-	command     services.AuditCommand
+	command interface {
+		Append(context.Context, any) error
+	}
 	afterAppend error
 	writes      int
 }
@@ -36,8 +38,8 @@ type retentionDeleteFault struct {
 	deleted     int64
 }
 
-func (p *retentionDeleteFault) DeleteCompletedVisitsBefore(ctx context.Context, id int64, cutoff time.Time) (int64, error) {
-	count, err := p.PresenceRetention.DeleteCompletedVisitsBefore(ctx, id, cutoff)
+func (p *retentionDeleteFault) DeleteCompletedVisitsBefore(ctx context.Context, id int64, policy studentpresence.VisitRetentionPolicy, cutoff time.Time) (int64, error) {
+	count, err := p.PresenceRetention.DeleteCompletedVisitsBefore(ctx, id, policy, cutoff)
 	if err == nil {
 		p.deleted += count
 		err = p.afterDelete
@@ -58,7 +60,7 @@ func testRetentionRollback(t *testing.T, stage string) {
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	presence := testSchoolPresence(t, db)
-	command, err := services.NewCleanupAuditCommand(slog.Default())
+	command, err := api.NewCleanupAuditCommand(slog.Default())
 	require.NoError(t, err)
 	injected := errors.New("fail after retention write")
 	fault := &retentionAuditFault{command: command}
@@ -68,13 +70,13 @@ func testRetentionRollback(t *testing.T, stage string) {
 	} else {
 		fault.afterAppend = injected
 	}
-	repos := repositories.NewRetentionCleanupRepositories(db, fault)
-	svc := activeService.NewCleanupService(deleteFault, sessionSupervisors(repos.Sessions), services.NewDeletionAudit(repos.Deletion), visitRetentionSetting{days: 30})
+	repos := api.NewRetentionCleanupRepositories(testpkg.NewDatabase(t, db), fault)
+	svc := activeService.NewCleanupService(deleteFault, sessionSupervisors(repos.Sessions), owners.NewDeletionAudit(repos.Deletion), visitRetentionSetting{days: 30})
 	consent := testpkg.CreateTestPrivacyConsent(t, db, "retention-rollback")
 	group := testpkg.CreateTestActiveGroupForTenant(t, db, testpkg.Tenant(t))
 	entry := time.Now().AddDate(0, 0, -45)
 	exit := entry.Add(time.Hour)
-	visit, err := presence.RecordVisit(ctx, studentpresence.Visit{
+	visit, err := testpkg.TenantQuery1(t, ctx, db, presence.RecordVisit, studentpresence.Visit{
 		CreatedAt: entry,
 		StudentID: consent.StudentID, ActiveGroupID: group.ID, EntryTime: entry, ExitTime: &exit,
 	})
@@ -93,9 +95,9 @@ func testRetentionRollback(t *testing.T, stage string) {
 		require.Equal(t, 1, fault.writes, "failure must follow the real audit append")
 	}
 	assert.Zero(t, failed.RecordsDeleted)
-	_, err = presence.FindVisit(ctx, visit.ID)
+	_, err = testpkg.TenantQuery1(t, ctx, db, presence.FindVisit, visit.ID)
 	require.NoError(t, err, "audit failure must roll back the authoritative delete")
-	audits, err := repos.Deletion.FindByStudentID(ctx, consent.StudentID)
+	audits, err := testpkg.TenantQuery1(t, ctx, db, repos.Deletion.FindByStudentID, consent.StudentID)
 	require.NoError(t, err)
 	assert.Empty(t, audits, "the audit append must roll back with its delete")
 
@@ -105,9 +107,9 @@ func testRetentionRollback(t *testing.T, stage string) {
 	require.NoError(t, err)
 	assert.True(t, result.Success)
 	assert.EqualValues(t, 1, result.RecordsDeleted)
-	_, err = presence.FindVisit(ctx, visit.ID)
+	_, err = testpkg.TenantQuery1(t, ctx, db, presence.FindVisit, visit.ID)
 	require.ErrorIs(t, err, studentpresence.ErrVisitNotFound)
-	audits, err = repos.Deletion.FindByStudentID(ctx, consent.StudentID)
+	audits, err = testpkg.TenantQuery1(t, ctx, db, repos.Deletion.FindByStudentID, consent.StudentID)
 	require.NoError(t, err)
 	require.Len(t, audits, 1)
 
@@ -115,12 +117,12 @@ func testRetentionRollback(t *testing.T, stage string) {
 	require.NoError(t, err)
 	assert.True(t, result.Success)
 	assert.Zero(t, result.RecordsDeleted)
-	audits, err = repos.Deletion.FindByStudentID(ctx, consent.StudentID)
+	audits, err = testpkg.TenantQuery1(t, ctx, db, repos.Deletion.FindByStudentID, consent.StudentID)
 	require.NoError(t, err)
 	require.Len(t, audits, 1, "an idempotent retry must not duplicate the audit")
 	assert.Equal(t, 1, audits[0].RecordsDeleted)
 	for _, id := range []int64{open.ID, recent.ID} {
-		_, err := presence.FindVisit(ctx, id)
+		_, err := testpkg.TenantQuery1(t, ctx, db, presence.FindVisit, id)
 		require.NoError(t, err, "retention must preserve open and recent visits")
 	}
 }
@@ -130,20 +132,20 @@ type failedRetentionRead struct {
 	oldestErr, monthlyErr error
 }
 
-func (*failedRetentionRead) CountExpiredVisits(context.Context, int) (int64, error) {
+func (*failedRetentionRead) CountExpiredVisits(context.Context, studentpresence.VisitRetentionPolicy) (int64, error) {
 	return 1, nil
 }
 
-func (*failedRetentionRead) ListVisitRetentionCounts(context.Context, int) ([]studentpresence.VisitRetentionCount, error) {
+func (*failedRetentionRead) ListVisitRetentionCounts(context.Context, studentpresence.VisitRetentionPolicy) ([]studentpresence.VisitRetentionCount, error) {
 	return []studentpresence.VisitRetentionCount{{StudentID: 1, Count: 1}}, nil
 }
 
-func (r *failedRetentionRead) OldestExpiredVisitDate(context.Context, int) (*time.Time, error) {
+func (r *failedRetentionRead) OldestExpiredVisitDate(context.Context, studentpresence.VisitRetentionPolicy) (*time.Time, error) {
 	oldest := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
 	return &oldest, r.oldestErr
 }
 
-func (r *failedRetentionRead) ListExpiredVisitMonths(context.Context, int) ([]studentpresence.VisitMonthCount, error) {
+func (r *failedRetentionRead) ListExpiredVisitMonths(context.Context, studentpresence.VisitRetentionPolicy) ([]studentpresence.VisitMonthCount, error) {
 	return nil, r.monthlyErr
 }
 

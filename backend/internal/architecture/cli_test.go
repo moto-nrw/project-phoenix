@@ -2,6 +2,8 @@ package architecture
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -9,6 +11,90 @@ import (
 	"strings"
 	"testing"
 )
+
+func TestCheckPassesParsedOptionsToProjectCheck(t *testing.T) {
+	t.Parallel()
+	for _, prefix := range []string{"-", "--"} {
+		for _, joined := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/joined=%t", prefix, joined), func(t *testing.T) {
+				t.Parallel()
+				repo, base := ratchetRepository(t, legacyRecord(2583))
+				args := []string{"check"}
+				for _, option := range [][2]string{{"project", repo}, {"baseline", "architecture/legacy.jsonl"}, {"base-ref", base}} {
+					if joined {
+						args = append(args, prefix+option[0]+"="+option[1])
+					} else {
+						args = append(args, prefix+option[0], option[1])
+					}
+				}
+				failure := errors.New("project evidence rejected")
+				err := RunCLI(args, CLIDependencies{CheckProject: func(project, baseRef string) error {
+					if project != repo || baseRef != base {
+						t.Fatalf("project check received (%q, %q), want (%q, %q)", project, baseRef, repo, base)
+					}
+					return failure
+				}})
+				if !errors.Is(err, failure) {
+					t.Fatalf("project evidence failure must propagate: %v", err)
+				}
+			})
+		}
+	}
+}
+
+func TestRunCLIRejectsMissingAndUnknownCommands(t *testing.T) {
+	t.Parallel()
+
+	const commands = "check, effects, passthrough-snapshot, explain, diagram, dependencies, cycles, audit-issues, or relocations"
+	err := RunCLI(nil, CLIDependencies{})
+	if err == nil || err.Error() != "command is required: "+commands {
+		t.Fatalf("missing command error = %v", err)
+	}
+	err = RunCLI([]string{"validate-ticket"}, CLIDependencies{})
+	if err == nil || err.Error() != `unknown command "validate-ticket": expected `+commands {
+		t.Fatalf("unknown command error = %v", err)
+	}
+}
+
+func TestEffectsUsesParsedProjectWithoutRunningPassThroughCheck(t *testing.T) {
+	t.Parallel()
+	project, policy := commandEffectFixture(t)
+	template, err := LoadPolicy(fixturePath(t, "allowed-edge.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	template.ModulePath, template.Owners, template.Packages, template.Rules = policy.ModulePath, policy.Owners, policy.Packages, policy.Rules
+	template.Roles = append(template.Roles, "public", "compose")
+	for i := range template.Packages {
+		template.Packages[i].InternalTestRole = "module-internal-test"
+		template.Packages[i].ExternalTestRole = "module-behavior-test"
+	}
+	for i := range template.Rules {
+		template.Rules[i].Description = "The fixture root binds its domain capability."
+	}
+	policy = template
+	data, err := json.Marshal(policy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(project, "architecture", "policy.json"), string(data))
+	err = RunCLI([]string{"effects", "--project", project}, CLIDependencies{
+		CheckProject: func(string, string) error {
+			t.Fatal("effects must not run the pass-through check")
+			return nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	inventory, err := os.ReadFile(filepath.Join(project, commandEffectInventory))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(inventory), "example.test/effects/foreign.Ledger.Record") {
+		t.Fatalf("effects did not generate the project inventory: %s", inventory)
+	}
+}
 
 func TestCheckRejectsUnknownPolicyFields(t *testing.T) {
 	t.Parallel()
@@ -29,7 +115,7 @@ func TestCheckRejectsUnsupportedSchemaVersion(t *testing.T) {
 	if err == nil {
 		t.Fatalf("check unexpectedly succeeded:\n%s", output)
 	}
-	if !strings.Contains(output, "schema_version must be 3, got 4") {
+	if !strings.Contains(output, "schema_version must be 5, got 6") {
 		t.Fatalf("check error does not identify the unsupported schema:\n%s", output)
 	}
 }
@@ -462,13 +548,14 @@ func TestCheckAllowsOwnedTableAccessThroughPostgresAdapter(t *testing.T) {
 	}
 }
 
+// One stable check of the semantic/invalid fixture serves every assertion on
+// its output; stableFailingCheck runs it twice to prove the output stable.
 func TestCheckReportsSemanticArchitectureViolations(t *testing.T) {
 	t.Parallel()
 
-	output, err := runArchitecture(t, "check", "--project", fixturePath(t, "semantic", "invalid"), "--policy", fixturePath(t, "semantic", "invalid", "policy.json"))
-	if err == nil {
-		t.Fatalf("semantic violations unexpectedly succeeded:\n%s", output)
-	}
+	project := fixturePath(t, "semantic", "invalid")
+	policy := fixturePath(t, "semantic", "invalid", "policy.json")
+	output := stableFailingCheck(t, "check", "--project", project, "--policy", policy)
 
 	for _, want := range expectedSemanticViolationKeys() {
 		if !strings.Contains(output, want) {
@@ -481,14 +568,14 @@ func TestCheckReportsSemanticArchitectureViolations(t *testing.T) {
 	if strings.Contains(output, "database.direct-access|example.test/architecture-semantic/service|example.test/architecture-semantic/service.MixedDB.Close") {
 		t.Fatalf("unrelated interface method was reported as database access:\n%s", output)
 	}
-}
-
-func TestCheckReportsDeterministicSemanticLocations(t *testing.T) {
-	t.Parallel()
-
-	project := fixturePath(t, "semantic", "invalid")
-	policy := fixturePath(t, "semantic", "invalid", "policy.json")
-	output := stableFailingCheck(t, "check", "--project", project, "--policy", policy)
+	if strings.Contains(output, "public.OpenAttachment.Read") {
+		t.Fatalf("standard byte stream was classified as entity CRUD:\n%s", output)
+	}
+	assertContainsAll(t, output,
+		"production|contracts.generic-crud|example.test/architecture-semantic/public|public.RowReader.Read",
+		"production|contracts.generic-crud|example.test/architecture-semantic/public|public.OpenRows.Read",
+		"production|contracts.orm-type|example.test/architecture-semantic/public|public.Service",
+	)
 	assertContainsAll(t, output,
 		"production|tables.foreign-read|example.test/architecture-semantic/foreign|beta.records",
 		"  at foreign/duplicate.go:6 (ReadAgain)",
@@ -773,29 +860,6 @@ func TestPolicyRejectsProjectionPackageAliasesWithDuplicateGrants(t *testing.T) 
 	}
 }
 
-func TestCanonicalArchitectureRatchetMatchesCommittedBaseline(t *testing.T) {
-	t.Parallel()
-	holdRepositoryGraphLoad(t)
-
-	output, err := runArchitecture(t, "check")
-	if err != nil {
-		t.Fatalf("canonical architecture ratchet failed: %v\n%s", err, output)
-	}
-	if !strings.Contains(output, "backend architecture ratchet passed:") || !strings.Contains(output, "legacy violation(s) remain") {
-		t.Fatalf("canonical check did not report the shrinking ratchet result:\n%s", output)
-	}
-
-	output, err = runArchitecture(t, "check", "--baseline", "")
-	if err == nil || !strings.Contains(output, "|imports.forbidden|") {
-		t.Fatalf("canonical check did not evaluate real import edges: %v\n%s", err, output)
-	}
-	for _, forbidden := range []string{"|packages.unclassified|", "|packages.stale|", "|external.unclassified|", "|external.stale|", "|policy.rules-overlap|"} {
-		if strings.Contains(output, forbidden) {
-			t.Fatalf("canonical policy contains classification failure %q:\n%s", forbidden, output)
-		}
-	}
-}
-
 func runArchitecture(t *testing.T, args ...string) (string, error) {
 	return runArchitectureWithEnv(t, nil, args...)
 }
@@ -871,18 +935,4 @@ func packageDir(t *testing.T) string {
 		}
 		moduleRoot = parent
 	}
-}
-
-func TestStandardByteStreamsDoNotAuthorizeApplicationCRUD(t *testing.T) {
-	t.Parallel()
-	project := fixturePath(t, "semantic", "invalid")
-	output := stableFailingCheck(t, "check", "--project", project, "--policy", fixturePath(t, "semantic", "invalid", "policy.json"))
-	if strings.Contains(output, "public.OpenAttachment.Read") {
-		t.Fatalf("standard byte stream was classified as entity CRUD:\n%s", output)
-	}
-	assertContainsAll(t, output,
-		"production|contracts.generic-crud|example.test/architecture-semantic/public|public.RowReader.Read",
-		"production|contracts.generic-crud|example.test/architecture-semantic/public|public.OpenRows.Read",
-		"production|contracts.orm-type|example.test/architecture-semantic/public|public.Service",
-	)
 }

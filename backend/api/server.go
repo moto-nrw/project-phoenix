@@ -12,13 +12,24 @@ import (
 	"sync"
 	"time"
 
+	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	carePlanHTTP "github.com/moto-nrw/project-phoenix/modules/careplan/http"
+
+	"github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth"
+
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/analytics"
-	"github.com/moto-nrw/project-phoenix/database"
-	"github.com/moto-nrw/project-phoenix/modules/communication"
-	organizationModule "github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
+	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	schedulerPorts "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
 	"github.com/moto-nrw/project-phoenix/observability"
-	"github.com/moto-nrw/project-phoenix/services/scheduler"
+	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/spf13/viper"
 )
 
 const shutdownTimeout = 30 * time.Second
@@ -34,9 +45,20 @@ type ServeConfig struct {
 	// error reports go to (#3645); empty when the backend runs without
 	// Sentry.
 	SentryPyrePortalDSN string
+	// Turnstile holds the keys of the one Cloudflare Turnstile widget that
+	// protects the public enrollment form of every school.
+	Turnstile TurnstileKeys
 	// Process selects what this root runs (#2726). The zero value keeps the
 	// HTTP API with its embedded Worker.
 	Process ServeProcess
+}
+
+// TurnstileKeys are the platform's Cloudflare Turnstile keys. The site key
+// is public and rendered in the parent's browser; the secret key stays on
+// the server for the siteverify call.
+type TurnstileKeys struct {
+	SiteKey   string
+	SecretKey string
 }
 
 // ServeProcess is what one Serve root runs. Every Worker, embedded or
@@ -58,14 +80,24 @@ const (
 // Runtime owns the assembled HTTP graph and its process-scoped resources.
 // A Runtime may be served once.
 type Runtime struct {
-	server          *http.Server
-	graph           *serveGraph
-	worker          backgroundWorker
-	listen          func(network, address string) (net.Listener, error)
-	capacityLogger  *capacityLogger
-	tracker         analytics.Tracker
+	httpTasks      sync.WaitGroup
+	server         *http.Server
+	handler        http.Handler
+	db             transactionruntime.Database
+	worker         backgroundWorker
+	listen         func(network, address string) (net.Listener, error)
+	capacityLogger *capacityLogger
+	tracker        processResource
+	// workerStop stops the Worker once, whichever shutdown path comes first.
+	workerStop      sync.Once
 	logger          *slog.Logger
 	resourcesUnsafe bool
+}
+
+// processResource is a process-scoped resource the Runtime releases on
+// shutdown.
+type processResource interface {
+	Close() error
 }
 
 // backgroundWorker is the lifecycle contract Runtime needs from its worker
@@ -124,49 +156,123 @@ func newRuntime(config ServeConfig) (*Runtime, error) {
 	if strings.TrimSpace(config.PublicAPIURL) == "" {
 		return nil, fmt.Errorf("serve dependency public API URL is required")
 	}
+	if strings.TrimSpace(config.Turnstile.SiteKey) == "" || strings.TrimSpace(config.Turnstile.SecretKey) == "" {
+		return nil, fmt.Errorf("serve dependency Turnstile site and secret key are required")
+	}
 	if err := validateServeProcess(config.Process); err != nil {
 		return nil, err
 	}
 
 	config.Logger.Info("initializing API server")
-
-	graph, err := newServeGraph(config)
+	metricsToken, err := observability.MetricsBearerTokenFromEnv(os.Getenv)
 	if err != nil {
 		return nil, err
 	}
-
-	runtime := &Runtime{
-		graph:          graph,
-		capacityLogger: newRuntimeCapacityLogger(graph, config.Logger),
-		tracker:        graph.services.Tracker,
-		logger:         config.Logger,
+	db, tracker, err := openRuntimeResources(config)
+	if err != nil {
+		return nil, err
 	}
-	var worker *scheduler.Scheduler
+	handler, worker, capacity, err := composeProcess(config, db, tracker, metricsToken)
+	if err != nil {
+		return nil, errors.Join(err, closeRuntimeResources(db, tracker))
+	}
 	if config.Process == ServeAPIOnly {
 		config.Logger.Info("embedded worker disabled; a standalone worker runs the jobs")
-	} else {
-		worker, err = newWorker(graph, config.Logger)
-		if err != nil {
-			return nil, errors.Join(err, runtime.closeResources())
-		}
-		runtime.worker = worker
 	}
-	runtime.server = &http.Server{
-		Addr:    resolveListenAddr(config.Port),
-		Handler: processHandler(config.Process, runtime.Handler(), worker, graph.metricsBearerToken),
-		// ReadTimeout stays modest to protect against slowloris attacks,
-		// but WriteTimeout must be disabled to allow long-lived SSE streams.
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 0,
-		IdleTimeout:  0,
-	}
-
-	return runtime, nil
+	return &Runtime{
+		server: &http.Server{
+			Addr:    resolveListenAddr(config.Port),
+			Handler: processHandler(config.Process, handler, worker, metricsToken),
+			// ReadTimeout stays modest to protect against slowloris attacks,
+			// but WriteTimeout must be disabled to allow long-lived SSE streams.
+			ReadTimeout:  15 * time.Second,
+			WriteTimeout: 0,
+			IdleTimeout:  0,
+		},
+		handler: handler, db: db, worker: runtimeWorker(worker), capacityLogger: capacity, tracker: tracker, logger: config.Logger,
+	}, nil
 }
 
-func newRuntimeCapacityLogger(graph *serveGraph, logger *slog.Logger) *capacityLogger {
+// runtimeWorker keeps a missing Worker a nil interface, so an API-only
+// process starts and stops none.
+func runtimeWorker(worker schedulerPorts.Worker) backgroundWorker {
+	if worker == nil {
+		return nil
+	}
+	return worker
+}
+
+// openRuntimeResources opens the process-scoped resources every root runs
+// over: the least-privilege pool, after the schema check, and the product
+// analytics.
+func openRuntimeResources(config ServeConfig) (transactionruntime.Database, analytics.Tracker, error) {
+	// Get database connection as phoenix_auth (least-privilege for serve)
+	db, err := transactionruntime.OpenServeDatabase()
+	if err != nil {
+		return transactionruntime.Database{}, nil, err
+	}
+	// Fail fast on a partially migrated schema: the student repository selects
+	// and writes its departure columns unconditionally (no per-request
+	// information_schema probes, #2059), so the server must only start against
+	// a fully migrated database.
+	if err := peopleCompose.VerifyRetainedStudentSchema(context.Background(), db.Pool()); err != nil {
+		return transactionruntime.Database{}, nil, errors.Join(err, db.Close())
+	}
+	if viper.GetBool("db_debug") {
+		db.LogQueries(config.Logger.With("component", "database"))
+	}
+	tracker, err := newProductAnalytics(config.Logger)
+	if err != nil {
+		return transactionruntime.Database{}, nil, errors.Join(err, db.Close())
+	}
+	return db, tracker, nil
+}
+
+// closeRuntimeResources releases the analytics and the pool.
+func closeRuntimeResources(db transactionruntime.Database, tracker processResource) error {
+	var err error
+	if tracker != nil {
+		err = tracker.Close()
+	}
+	return errors.Join(err, db.Close())
+}
+
+// composeProcess builds the root the process runs: the server root with or
+// without its embedded Worker, or the standalone Worker root behind its
+// probes. All of them share one realtime hub.
+func composeProcess(config ServeConfig, db transactionruntime.Database, tracker analytics.Tracker, metricsToken string) (http.Handler, schedulerPorts.Worker, *capacityLogger, error) {
+	env, err := newProductionEnvironment(config.Logger, config.PublicAPIURL)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	hub := deliveryCompose.NewRealtimeHub(config.Logger.With("component", "sse-hub"))
+	metrics, tracer := newHTTPMetrics(), newRuntimeTracer(config.Logger)
+	capacity := newRuntimeCapacityLogger(db, hub, metrics, config.Logger)
+	observability.RegisterDBStatsProvider(func() observability.DBStats {
+		stats := db.Capacity()
+		return observability.DBStats{
+			OpenConnections:   stats.OpenConnections,
+			InUse:             stats.InUse,
+			Idle:              stats.Idle,
+			WaitCount:         stats.WaitCount,
+			WaitDuration:      stats.WaitDuration,
+			MaxIdleClosed:     stats.MaxIdleClosed,
+			MaxLifetimeClosed: stats.MaxLifetimeClosed,
+		}
+	})
+	health, legal, fallback := carePlanHTTP.StudentDocumentPermissions()
+	documentPermissions := carePlanCompose.StudentDocumentPermissions{Health: health, Legal: legal, Default: fallback}
+	if config.Process == ServeWorkerOnly {
+		worker, err := owners.ComposeWorker(db, env, hub, tracer, tracker, newLegacyTokenAdapter, CommunicationSession{}, TimetableRequestSession{}, AttendancePrincipal, deviceauth.WithAttendanceStaff, documentPermissions, workerAnalytics, analyticsSchoolNames)
+		return nil, worker, capacity, err
+	}
+	handler, worker, err := composeServeRoot(db, env, hub, config, tracker, metrics, tracer, metricsToken, config.Process != ServeAPIOnly, documentPermissions)
+	return handler, worker, capacity, err
+}
+
+func newRuntimeCapacityLogger(db transactionruntime.Database, hub *realtime.Hub, metrics *httpMetrics, logger *slog.Logger) *capacityLogger {
 	return newCapacityLogger(func() dbCapacityStats {
-		stats := database.SnapshotCapacity(graph.db)
+		stats := db.Capacity()
 		return dbCapacityStats{
 			openConnections:   stats.OpenConnections,
 			inUse:             stats.InUse,
@@ -176,12 +282,7 @@ func newRuntimeCapacityLogger(graph *serveGraph, logger *slog.Logger) *capacityL
 			maxIdleClosed:     stats.MaxIdleClosed,
 			maxLifetimeClosed: stats.MaxLifetimeClosed,
 		}
-	}, graph.services.RealtimeHub, graph.metrics, logger.With("component", "capacity"))
-}
-
-// Handler returns the fully assembled production HTTP graph.
-func (runtime *Runtime) Handler() http.Handler {
-	return runtime.graph
+	}, hub, metrics, logger.With("component", "capacity"))
 }
 
 // resolveListenAddr turns a configured port into a listen address. A value
@@ -192,162 +293,6 @@ func resolveListenAddr(port string) string {
 		return port
 	}
 	return ":" + port
-}
-
-// newWorker assembles the embedded Worker root from one typed dependency value.
-func newWorker(graph *serveGraph, logger *slog.Logger) (*scheduler.Scheduler, error) {
-	if graph == nil || graph.services == nil || graph.repos == nil {
-		return nil, fmt.Errorf("worker serve graph is required")
-	}
-	billing, err := newOperatorBilling(logger)
-	if err != nil {
-		return nil, fmt.Errorf("compose worker billing: %w", err)
-	}
-	lease, err := newWorkerLease(graph.tenantRuntime)
-	if err != nil {
-		return nil, fmt.Errorf("compose worker lease: %w", err)
-	}
-	runtime, err := schedulerTenantRuntime(graph.tenantRuntime)
-	if err != nil {
-		return nil, fmt.Errorf("compose worker tenant runtime: %w", err)
-	}
-	if err := verifySchedulerSettingKeys(); err != nil {
-		return nil, err
-	}
-	settings, err := schedulerSettings(graph)
-	if err != nil {
-		return nil, err
-	}
-	deps := workerRuntimeDependencies(graph, logger, billing)
-	deps.TenantRuntime = runtime
-	deps.Settings = settings
-	deps.Lease = lease
-	addWorkerServiceDependencies(&deps, graph)
-	addWorkerRepositoryDependencies(&deps, graph)
-	return scheduler.NewWorker(deps)
-}
-
-func workerRuntimeDependencies(graph *serveGraph, logger *slog.Logger, billing organizationModule.BillingReport) scheduler.WorkerDependencies {
-	return scheduler.WorkerDependencies{
-		Logger:                 logger.With("service", "scheduler"),
-		Getenv:                 os.Getenv,
-		SchoolRepo:             schedulerTenantDirectory{schools: graph.services.Schools, billing: billing},
-		TenantRuntimeObserver:  observability.RecordTenantRuntimeEvent,
-		UnitOfWorkObserver:     observability.RecordUnitOfWorkEvent,
-		Tracer:                 workerTracer(graph),
-		StaffDocumentCleaner:   graph.documents.staff,
-		StudentDocumentCleaner: graph.documents.student,
-		FileStoreCleaner:       fileStoreCleaner(graph),
-	}
-}
-
-// fileStoreCleaner hands the File Storage sweep to the worker only when the
-// module was composed. A nil module behind a non-nil interface would pass the
-// scheduler's nil check and fail on the first tick.
-func fileStoreCleaner(graph *serveGraph) scheduler.FileStoreCleaner {
-	if graph.services.FileStore == nil {
-		return nil
-	}
-	return graph.services.FileStore
-}
-
-func addWorkerServiceDependencies(deps *scheduler.WorkerDependencies, graph *serveGraph) {
-	services := graph.services
-	deps.Active = services.Active
-	deps.ActiveCleanup = services.ActiveCleanup
-	deps.AuthCleanup = services.AuthMaintenanceRuntime()
-	deps.InvitationCleanup = services.Invitation
-	deps.EmailChangeCleanup = services.OperatorAuth
-	deps.OperatorInvitationCleanup = services.OperatorInvitation
-	deps.WorkSessionCleanup = services.WorkSession
-	deps.BreakAutoEnder = services.WorkSession
-	deps.AutoCheckouter = services.WorkSession
-	deps.FeedbackCleaner = graph.feedback
-	deps.UnregisteredScanCleaner = services.UnregisteredTagScans
-	deps.Materializer = services.Materialization
-	deps.TimetableCleanup = services.TimetableCleanup
-	deps.CalendarFeedCleanup = services.CalendarFeedCleanup
-	deps.TimeTrackingCleanup = schedulerTimeTrackingCleanupPort(services.TimeTrackingCleanup)
-	deps.StudentChangeLogCleanup = schedulerStudentChangeLogCleanup(graph)
-	deps.PWAUsageCleanup = services.PWAUsage
-	deps.StaffMessageCleanup = staffMessageCleanup(services.StaffMessaging)
-	deps.EnrollmentRejectedCleanup = services.EnrollmentRejectedCleanup
-	deps.AutoStart = services.AutoStart
-	deps.AutoEnd = services.AutoEnd
-	deps.TimetableBridge = services.TimetableBridge
-	deps.StudentLifecycleAudit = schedulerStudentAudit(graph)
-	deps.CareExitEffector = services.CareLifecycle
-	deps.OutboxWorker = services.EmailOutboxWorker
-	deps.AppointmentReminders = services.Reminders
-	var rollover scheduler.RolloverDeadlineRunner
-	if services.EnrollmentRollover != nil {
-		rollover = scheduler.NewRolloverDeadlineRunner(func(ctx context.Context, asOf time.Time) (any, error) {
-			return services.EnrollmentRollover.RunDeadlineWorker(ctx, asOf)
-		})
-	}
-	deps.RolloverDeadlineRunner = rollover
-}
-
-func staffMessageCleanup(service communication.StaffMessagingRuntime) scheduler.StaffMessageCleanup {
-	if service == nil {
-		return nil
-	}
-	return func(ctx context.Context) (scheduler.StaffMessageCleanupResult, error) {
-		result, err := service.CleanupExpiredStaffMessages(ctx)
-		return scheduler.StaffMessageCleanupResult{
-			MessagesDeleted: result.MessagesDeleted,
-			ThreadsDeleted:  result.ThreadsDeleted,
-			RetentionDays:   result.RetentionDays,
-		}, err
-	}
-}
-
-func addWorkerRepositoryDependencies(deps *scheduler.WorkerDependencies, graph *serveGraph) {
-	deps.BookingConsistency = schedulerBookingConsistency(graph)
-	deps.InstanceRepo = schedulerDayInstances(graph)
-	deps.InstanceRoomRepo = schedulerExistingRooms(graph)
-	deps.InstanceStudentRepo = graph.repos.InstanceStudent
-	deps.StudentStatusDayRepo = graph.repos.StudentStatusDay
-	deps.OverdueBroadcaster = graph.services.RealtimeHub
-	deps.StudentLifecycleRepo = schedulerStudentLifecycle(graph)
-	deps.ReminderNotifications = scheduler.ReminderNotificationDeps{
-		Computer:     graph.services.Reminders,
-		Notifier:     graph.services.Notifications,
-		Preferences:  graph.services.NotificationPreferences,
-		Staff:        graph.repos.Staff,
-		Accounts:     graph.services.Auth,
-		WorkSessions: graph.repos.WorkSession,
-	}
-}
-
-func workerTracer(graph *serveGraph) scheduler.WorkerTracer {
-	return scheduler.WorkerTracer{
-		StartJob: func(ctx context.Context, operation string) (context.Context, error) {
-			ctx, _, err := graph.tracer.StartJob(ctx, operation)
-			return ctx, err
-		},
-		Logger: graph.tracer.Logger,
-		Failure: func(ctx context.Context, operation, outcome string, err error) {
-			graph.tracer.Failure(ctx, "worker", operation, outcome, err)
-		},
-		Run: func(jobID scheduler.JobID, outcome string, duration time.Duration) {
-			observability.RecordWorkerRunEvent(string(jobID), outcome, duration)
-		},
-		Batch: func(event scheduler.TenantBatchEvidence) {
-			observability.RecordWorkerTenantBatchEvent(
-				string(event.JobID),
-				event.Duration,
-				event.Processed,
-				event.Failed,
-				event.Retries,
-				event.Backlog,
-				event.PoolWait,
-			)
-		},
-		Backlog: func(jobID scheduler.JobID, backlog int) {
-			observability.SetWorkerTenantBatchBacklog(string(jobID), backlog)
-		},
-	}
 }
 
 // Serve runs the HTTP server and embedded worker until ctx is cancelled.
@@ -407,10 +352,11 @@ func workerProbeHandler(ready func() bool, metricsToken string) http.Handler {
 	router.Get("/health", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte("OK"))
 	})
-	router.Get("/ready", func(w http.ResponseWriter, _ *http.Request) {
+	router.Get("/ready", func(w http.ResponseWriter, r *http.Request) {
 		if !ready() {
-			w.WriteHeader(http.StatusServiceUnavailable)
-			_, _ = w.Write([]byte("standby"))
+			// A standby answers 503 in the shared error envelope; the
+			// probe reads the status, the detail names the state.
+			apiCommon.RenderStatus(w, r, http.StatusServiceUnavailable, "standby")
 			return
 		}
 		_, _ = w.Write([]byte("ready"))
@@ -438,10 +384,10 @@ func (runtime *Runtime) startHTTP(ctx context.Context) (<-chan error, error) {
 	}
 	serveErr := make(chan error, 1)
 	servingListener := &startupListener{Listener: listener, started: make(chan struct{})}
-	go func() {
+	runtime.httpTasks.Go(func() {
 		runtime.logger.Info("server listening", slog.String("addr", runtime.server.Addr))
 		serveErr <- runtime.server.Serve(servingListener)
-	}()
+	})
 	select {
 	case <-servingListener.started:
 	case err := <-serveErr:
@@ -490,10 +436,11 @@ func (runtime *Runtime) shutdownWithTimeout(reason error, timeout time.Duration)
 	// alive until they stop, while giving HTTP requests their own full drain
 	// deadline.
 	workerStopped := make(chan struct{})
-	go func() {
+	var workerTask sync.WaitGroup
+	workerTask.Go(func() {
 		runtime.stopWorker()
 		close(workerStopped)
-	}()
+	})
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -505,8 +452,10 @@ func (runtime *Runtime) shutdownWithTimeout(reason error, timeout time.Duration)
 			closeErr,
 		)
 	}
+	runtime.httpTasks.Wait()
 	select {
 	case <-workerStopped:
+		workerTask.Wait()
 		return nil
 	case <-ctx.Done():
 		runtime.resourcesUnsafe = true
@@ -518,9 +467,7 @@ func (runtime *Runtime) stopWorker() {
 	if runtime.worker == nil {
 		return
 	}
-	worker := runtime.worker
-	runtime.worker = nil
-	worker.Stop()
+	runtime.workerStop.Do(runtime.worker.Stop)
 }
 
 func (runtime *Runtime) closeResources() error {
@@ -530,10 +477,5 @@ func (runtime *Runtime) closeResources() error {
 		// resources. Closing the pool here would race those goroutines.
 		return nil
 	}
-	var err error
-	if runtime.tracker != nil {
-		err = runtime.tracker.Close()
-	}
-	err = errors.Join(err, database.ClosePool(runtime.graph.db))
-	return err
+	return closeRuntimeResources(runtime.db, runtime.tracker)
 }

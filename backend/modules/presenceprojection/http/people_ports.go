@@ -1,0 +1,45 @@
+package presenceprojectionhttp
+
+import (
+	context "context"
+	time "time"
+
+	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+)
+
+// PersonRecords is the person half the routes cannot yet reach through the
+// owner's capability, because the retained person service still decides it:
+// the person writes with their account and RFID-card checks, the student-aware
+// bracelet assignment, the dated roster of the group day log and the staff
+// member behind a person. The root binds the retained person service
+// (compose.NewStudentRoutePersons in modules/peopledirectory/compose).
+type PersonRecords interface {
+	// CreatePerson validates and inserts a person, refusing a tag or account
+	// that does not exist.
+	CreatePerson(ctx context.Context, person peopleModule.CreatePerson) (peopleModule.Person, error)
+	// UpdatePerson rewrites a person, refusing a re-pointed tag or account
+	// that does not exist.
+	UpdatePerson(ctx context.Context, person peopleModule.UpdatePerson) (peopleModule.Person, error)
+	Delete(ctx context.Context, id interface{}) error
+	// AssignStudentTag links the bracelet to the child's person, creating the
+	// card and releasing it from a previous holder. A graduated or missing
+	// child is refused with peopledirectory.ErrStudentNotFound, re-checked
+	// under the child's row lock.
+	AssignStudentTag(ctx context.Context, studentID int64, tagID string) error
+	UnlinkFromRFIDCard(ctx context.Context, personID int64) error
+	// ListStudentsForDay returns the children of the groups whose care covers
+	// date, as the day log counts them; today is the caller's calendar day.
+	ListStudentsForDay(ctx context.Context, groupIDs []int64, date, today calendar.Date) ([]peopleModule.StudentRecord, error)
+	// StaffIDForPerson resolves the staff member of a person; found is false
+	// for a person who is no staff member.
+	StaffIDForPerson(ctx context.Context, personID int64) (staffID int64, found bool, err error)
+}
+
+// StudentConsentCapability is the consent surface of the student rows these
+// routes hold: the shared portal projection People Directory folds together,
+// and the Audit Platform trail every effective change appends to (#3349).
+type StudentConsentCapability interface {
+	CurrentStudentConsents(ctx context.Context, snapshot peopleModule.StudentConsentSnapshot, canManagePhoto bool) ([]peopleModule.StudentConsentState, error)
+	RecordStudentConsentTransitions(ctx context.Context, before, after peopleModule.StudentConsentSnapshot, source string, actorAccountID *int64, changedAt time.Time) error
+}

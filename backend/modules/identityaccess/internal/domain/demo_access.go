@@ -24,8 +24,6 @@ var (
 	ErrDemoAccessExpired = errors.New("demo access has expired")
 	// ErrDemoSchoolPreparing reports a demo school nobody can enter yet.
 	ErrDemoSchoolPreparing = errors.New("demo school is being prepared")
-	// ErrDemoSessionTenantLocked reports a tenant switch of a demo session.
-	ErrDemoSessionTenantLocked = errors.New("demo sessions cannot switch tenants")
 	// ErrDemoCapacityReached reports that no further demo school may be
 	// created (#3466).
 	ErrDemoCapacityReached = errors.New("demo capacity reached")
@@ -91,7 +89,7 @@ func ParseDemoRole(value string) (DemoRole, error) {
 }
 
 // The reduced roles of the demo school (#3469). The seeder creates both as
-// roles of the school with their permission sets (seed/api/demo_roles.go);
+// roles of the school with their permission sets (internal/devtools/seedapi/demo_roles.go);
 // "all functions" is the administrator.
 const (
 	DemoSchoolRoleCaregiver = "betreuungskraft"
@@ -123,6 +121,7 @@ const (
 // DemoSchoolEntry is what a demo access needs to enter its school. AccountID
 // is the prospect's own caregiver; zero signs in the school's administrator.
 type DemoSchoolEntry struct {
+	Exists    bool
 	Status    string
 	TenantID  int64
 	AccountID int64

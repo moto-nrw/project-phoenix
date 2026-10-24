@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/domain"
 	"github.com/uptrace/bun"
 )
@@ -31,7 +30,7 @@ type groupSubstitutionRow struct {
 }
 
 func (s *Store) FindGroupSubstitution(ctx context.Context, id int64, lock bool) (domain.GroupSubstitution, bool, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.GroupSubstitution{}, false, domain.OperationStats{}, err
 	}
@@ -39,7 +38,7 @@ func (s *Store) FindGroupSubstitution(ctx context.Context, id int64, lock bool) 
 	query := withTenant(db.NewSelect().
 		Model(row).
 		ModelTableExpr(tableGroupSubstitution+` AS "group_substitution"`).
-		Where(`"group_substitution".id = ?`, id), aliasGroupSubstitution, tenantID)
+		Where(`"group_substitution".id = ?`, id), aliasGroupSubstitution, scope)
 	if lock {
 		query = query.For("UPDATE")
 	}
@@ -51,23 +50,50 @@ func (s *Store) FindGroupSubstitution(ctx context.Context, id int64, lock bool) 
 }
 
 func (s *Store) ListGroupSubstitutions(ctx context.Context, filter domain.GroupSubstitutionFilter) ([]domain.GroupSubstitution, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
 	rows := []groupSubstitutionRow{}
 	query := withTenant(db.NewSelect().
 		Model(&rows).
-		ModelTableExpr(tableGroupSubstitution+` AS "group_substitution"`), aliasGroupSubstitution, tenantID)
-	if filter.TenantID > 0 {
-		query = query.Where(`"group_substitution".tenant_id = ?`, filter.TenantID)
+		ModelTableExpr(tableGroupSubstitution+` AS "group_substitution"`), aliasGroupSubstitution, scope)
+	query, empty := applyGroupSubstitutionFilter(query, filter)
+	if empty {
+		return []domain.GroupSubstitution{}, domain.OperationStats{}, nil
+	}
+	query = query.OrderExpr(`"group_substitution".id ASC`)
+	if filter.Limit > 0 {
+		query = query.Limit(int64(filter.Limit))
+	}
+	if filter.Offset > 0 {
+		query = query.Offset(int64(filter.Offset))
+	}
+	stats, err := scanAll(ctx, query, "list group substitutions")
+	if err != nil {
+		return nil, stats, err
+	}
+	stats.Rows = int64(len(rows))
+	result := make([]domain.GroupSubstitution, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, groupSubstitutionToDomain(row))
+	}
+	return result, stats, nil
+}
+
+// applyGroupSubstitutionFilter renders the filter's predicates; empty reports
+// a set predicate that can match nothing, which bun cannot render as an IN
+// list.
+func applyGroupSubstitutionFilter(query *bun.SelectQuery, filter domain.GroupSubstitutionFilter) (*bun.SelectQuery, bool) {
+	if filter.TenantID != nil {
+		query = query.Where(`"group_substitution".tenant_id = ?`, *filter.TenantID)
 	}
 	if filter.GroupID > 0 {
 		query = query.Where(`"group_substitution".group_id = ?`, filter.GroupID)
 	}
 	if filter.GroupIDs != nil {
 		if len(filter.GroupIDs) == 0 {
-			return []domain.GroupSubstitution{}, domain.OperationStats{}, nil
+			return query, true
 		}
 		query = query.Where(`"group_substitution".group_id IN (?)`, bun.List(filter.GroupIDs))
 	}
@@ -98,40 +124,24 @@ func (s *Store) ListGroupSubstitutions(ctx context.Context, filter domain.GroupS
 	if filter.ReasonContains != "" {
 		query = query.Where(`"group_substitution".reason ILIKE ?`, "%"+filter.ReasonContains+"%")
 	}
-	query = query.OrderExpr(`"group_substitution".id ASC`)
-	if filter.Limit > 0 {
-		query = query.Limit(int64(filter.Limit))
-	}
-	if filter.Offset > 0 {
-		query = query.Offset(int64(filter.Offset))
-	}
-	stats, err := scanAll(ctx, query, "list group substitutions")
-	if err != nil {
-		return nil, stats, err
-	}
-	stats.Rows = int64(len(rows))
-	result := make([]domain.GroupSubstitution, 0, len(rows))
-	for _, row := range rows {
-		result = append(result, groupSubstitutionToDomain(row))
-	}
-	return result, stats, nil
+	return query, false
 }
 
 func (s *Store) CreateGroupSubstitution(ctx context.Context, value domain.GroupSubstitution) (domain.GroupSubstitution, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.GroupSubstitution{}, domain.OperationStats{}, err
 	}
 	row := groupSubstitutionFromDomain(value)
 	if row.TenantID == 0 {
-		row.TenantID = tenantID
+		row.TenantID = scope.TenantID
 	}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	_, err = db.NewInsert().Model(row).ModelTableExpr(tableGroupSubstitution).Returning("*").Exec(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
-		if modelBase.IsUniqueViolation(err) {
+		if isUniqueViolationOn(err, groupSubstitutionTransferIndex) {
 			return domain.GroupSubstitution{}, stats, &domain.ConflictError{Kind: domain.ErrGroupSubstitutionExists, Cause: err}
 		}
 		return domain.GroupSubstitution{}, stats, fmt.Errorf("workforce postgres: insert group substitution: %w", err)
@@ -141,13 +151,13 @@ func (s *Store) CreateGroupSubstitution(ctx context.Context, value domain.GroupS
 }
 
 func (s *Store) UpdateGroupSubstitution(ctx context.Context, value domain.GroupSubstitution) (domain.GroupSubstitution, bool, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.GroupSubstitution{}, false, domain.OperationStats{}, err
 	}
 	row := groupSubstitutionFromDomain(value)
 	if row.TenantID == 0 {
-		row.TenantID = tenantID
+		row.TenantID = scope.TenantID
 	}
 	query := db.NewUpdate().
 		Model(row).
@@ -156,15 +166,13 @@ func (s *Store) UpdateGroupSubstitution(ctx context.Context, value domain.GroupS
 		Set("updated_at = NOW()").
 		WherePK().
 		Returning("*")
-	if tenantID > 0 {
-		query = query.Where(`"group_substitution".tenant_id = ?`, tenantID)
-	}
+	query = scopeQuery(scope, query, `"group_substitution".tenant_id = ?`)
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	result, err := query.Exec(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
-		if modelBase.IsUniqueViolation(err) {
+		if isUniqueViolationOn(err, groupSubstitutionTransferIndex) {
 			return domain.GroupSubstitution{}, false, stats, &domain.ConflictError{Kind: domain.ErrGroupSubstitutionExists, Cause: err}
 		}
 		return domain.GroupSubstitution{}, false, stats, fmt.Errorf("workforce postgres: update group substitution: %w", err)
@@ -181,19 +189,19 @@ func (s *Store) UpdateGroupSubstitution(ctx context.Context, value domain.GroupS
 }
 
 func (s *Store) DeleteGroupSubstitution(ctx context.Context, id int64) (domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
 	query := withTenant(db.NewDelete().
 		Model((*groupSubstitutionRow)(nil)).
 		ModelTableExpr(tableGroupSubstitution+` AS "group_substitution"`).
-		Where(`"group_substitution".id = ?`, id), aliasGroupSubstitution, tenantID)
+		Where(`"group_substitution".id = ?`, id), aliasGroupSubstitution, scope)
 	return execAffected(ctx, query, "delete group substitution")
 }
 
 func (s *Store) DeleteGroupSubstitutionsForStaff(ctx context.Context, staffID int64, from string) (int64, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return 0, domain.OperationStats{}, err
 	}
@@ -201,7 +209,7 @@ func (s *Store) DeleteGroupSubstitutionsForStaff(ctx context.Context, staffID in
 		Model((*groupSubstitutionRow)(nil)).
 		ModelTableExpr(tableGroupSubstitution+` AS "group_substitution"`).
 		Where(`("group_substitution".regular_staff_id = ? OR "group_substitution".substitute_staff_id = ?)`, staffID, staffID).
-		Where(`"group_substitution".end_date >= ?`, from), aliasGroupSubstitution, tenantID)
+		Where(`"group_substitution".end_date >= ?`, from), aliasGroupSubstitution, scope)
 	stats, err := execAffected(ctx, query, "delete group substitutions for staff")
 	return stats.Rows, stats, err
 }

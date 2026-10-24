@@ -15,7 +15,6 @@ import {
   type SetStateAction,
 } from "react";
 import {
-  ArrowLeft,
   Check,
   ChevronDown,
   Eye,
@@ -31,6 +30,21 @@ import {
   TextCursorInput,
   Trash2,
 } from "lucide-react";
+import {
+  AttachmentEditor,
+  AttachmentUploadContext,
+} from "~/components/enrollment/attachment-editor";
+import { FieldErrorHint } from "~/components/ui/field-error-hint";
+import {
+  applyFileFieldRules,
+  createIncomeDeclarationFields,
+  FileFieldOptionsEditor,
+  fileFieldDraftProblem,
+  FilePreviewInput,
+  hasIncomeDeclaration,
+  IncomeDeclarationButton,
+  fieldTypeChangePatch,
+} from "~/components/enrollment/file-field-editor";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import {
   useApiErrorDisplay,
@@ -50,6 +64,7 @@ import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
 import { SectionCard } from "~/components/ui/section-card";
 import { Textarea } from "~/components/ui/textarea";
+import { BackAction } from "~/components/ui/back-link";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { FormSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
@@ -64,6 +79,7 @@ import {
 } from "~/components/enrollment/translations-section";
 import type { Translations } from "~/lib/enrollment-translations";
 import {
+  MAX_ENROLLMENT_DOCUMENT_BYTES,
   blankField,
   blankInfoField,
   createSchema,
@@ -78,6 +94,7 @@ import {
   RESERVED_TARGETS,
   type ConditionOperator,
   type ConditionSource,
+  type FormAttachment,
   type FormField,
   type FormFieldTarget,
   type FormFieldType,
@@ -114,6 +131,7 @@ const fieldTypeLabels: Record<FormFieldType, string> = {
   weekday_mode: "Geh- und Abholregelung",
   weekday_multi_mode: "Erlaubte Heimwege",
   contact_list: "Kontaktliste",
+  file: "Datei",
 };
 
 // German labels for the visibility-condition editor.
@@ -137,6 +155,7 @@ const freeFieldTypes = [
   "textarea",
   "date",
   "select",
+  "file",
 ] satisfies FormFieldType[];
 
 const structuredFieldTypes = new Set<FormFieldType>([
@@ -210,7 +229,6 @@ const targetSuggestionDescriptions: Record<
 const NEW_SCHEMA_VALUE = "__new__";
 const LEGAL_DOCUMENT_UPLOAD_PENDING_MESSAGE =
   "Bitte warten Sie, bis die PDF-Datei hochgeladen ist.";
-const MAX_LEGAL_DOCUMENT_BYTES = 10 * 1024 * 1024;
 
 /**
  * The hint the save path marks a control with, by the control's `name`
@@ -240,17 +258,6 @@ function fieldErrorProps(
   } as const;
 }
 
-function FieldErrorHint({
-  id,
-  message,
-}: Readonly<{ id: string; message: string | undefined }>) {
-  if (!message) return null;
-  return (
-    <p id={id} className="text-moto-red-strong mt-1 text-xs">
-      {message}
-    </p>
-  );
-}
 type EditorMode = "overview" | "builder" | "detail";
 type PendingNavigation = "overview" | "new" | "preview";
 
@@ -422,6 +429,8 @@ export function EnrollmentFormEditor({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const builderRef = useRef<HTMLDivElement>(null);
+  const fieldListRef = useRef<HTMLDivElement>(null);
+  const revealAddedFieldRef = useRef(false);
   const {
     error: loadError,
     show: showLoadError,
@@ -435,7 +444,7 @@ export function EnrollmentFormEditor({
     clear: clearSaveError,
   } = useApiFormError(builderRef);
   const deleteErrors = useApiFormError();
-  const { show: showActionError } = useApiErrorDisplay();
+  const { show: showActionError, showMessage } = useApiErrorDisplay();
   const [mode, setMode] = useState<EditorMode>("overview");
   const [pendingNavigation, setPendingNavigation] =
     useState<PendingNavigation | null>(null);
@@ -551,6 +560,19 @@ export function EnrollmentFormEditor({
     setUploadingLegalDocumentCount((count) => Math.max(0, count - 1));
   }, []);
 
+  const attachmentLifecycle = useMemo(
+    () => ({
+      remember: rememberDraftDocumentURL,
+      begin: beginLegalDocumentUpload,
+      end: endLegalDocumentUpload,
+    }),
+    [
+      rememberDraftDocumentURL,
+      beginLegalDocumentUpload,
+      endLegalDocumentUpload,
+    ],
+  );
+
   const cleanupDraftDocumentURLs = useCallback(
     async ({
       keepalive = false,
@@ -608,7 +630,13 @@ export function EnrollmentFormEditor({
         ),
       );
       for (const url of urls) {
-        void deleteEnrollmentLegalDocument(url, { keepalive: true });
+        void deleteEnrollmentLegalDocument(url, { keepalive: true }).catch(
+          (error: unknown) => {
+            logger.warn("draft_document_cleanup_failed_after_unmount", {
+              error: error instanceof Error ? error.message : String(error),
+            });
+          },
+        );
       }
     };
   }, []);
@@ -748,19 +776,55 @@ export function EnrollmentFormEditor({
   };
 
   const addField = () => {
+    revealAddedFieldRef.current = true;
     setFields((prev) => [...prev, blankField(prev.length)]);
   };
 
   const addInfoField = () => {
+    revealAddedFieldRef.current = true;
     setFields((prev) => [...prev, blankInfoField(prev.length)]);
   };
 
+  const addIncomeDeclaration = () => {
+    if (hasIncomeDeclaration(fields)) return;
+    revealAddedFieldRef.current = true;
+    setFields((prev) =>
+      hasIncomeDeclaration(prev)
+        ? prev
+        : [...prev, ...createIncomeDeclarationFields(prev.length)],
+    );
+  };
+
   const addTargetField = (target: Exclude<FormFieldTarget, "">) => {
+    if (!fields.some((field) => field.target === target)) {
+      revealAddedFieldRef.current = true;
+    }
     setFields((prev) => {
       if (prev.some((field) => field.target === target)) return prev;
       return [...prev, createTargetField(target, prev.length)];
     });
   };
+
+  // A new row lands at the end of the list, often below the fold. Bring it
+  // into view and put the cursor into its first text field, so the admin
+  // sees what the button did (#4328).
+  useEffect(() => {
+    if (!revealAddedFieldRef.current) return;
+    revealAddedFieldRef.current = false;
+    const row = fieldListRef.current?.lastElementChild;
+    if (!(row instanceof HTMLElement)) return;
+    row
+      .querySelector<HTMLInputElement>('input[type="text"]:not(:disabled)')
+      ?.focus({ preventScroll: true });
+    const reduceMotion =
+      globalThis.matchMedia?.("(prefers-reduced-motion: reduce)").matches ??
+      false;
+    // happy-dom ships no scrollIntoView on elements.
+    row.scrollIntoView?.({
+      behavior: reduceMotion ? "auto" : "smooth",
+      block: "center",
+    });
+  }, [fields]);
 
   const removeField = (index: number) => {
     setFields((prev) =>
@@ -892,6 +956,12 @@ export function EnrollmentFormEditor({
         legalBlocksForSave,
         uploadedDraftDocumentURLsRef.current,
       );
+      for (const field of fieldsForSave) {
+        for (const attachment of field.attachments ?? []) {
+          if (uploadedDraftDocumentURLsRef.current.has(attachment.document_url))
+            referencedDraftDocumentURLs.add(attachment.document_url);
+        }
+      }
       savingDraftDocumentURLsRef.current = referencedDraftDocumentURLs;
       await cleanupDraftDocumentURLs({
         urlsToKeep: referencedDraftDocumentURLs,
@@ -951,7 +1021,13 @@ export function EnrollmentFormEditor({
         // uploads of this save are cleaned up.
         const urls = Array.from(savingDraftDocumentURLsRef.current);
         for (const url of urls) {
-          void deleteEnrollmentLegalDocument(url, { keepalive: true });
+          void deleteEnrollmentLegalDocument(url, { keepalive: true }).catch(
+            (error: unknown) => {
+              logger.warn("draft_document_cleanup_failed_after_unmount", {
+                error: error instanceof Error ? error.message : String(error),
+              });
+            },
+          );
         }
         savingDraftDocumentURLsRef.current = new Set();
       } else {
@@ -982,7 +1058,7 @@ export function EnrollmentFormEditor({
 
   const requestBackToOverview = () => {
     if (hasPendingLegalDocumentUpload) {
-      toast.error(LEGAL_DOCUMENT_UPLOAD_PENDING_MESSAGE);
+      showMessage(LEGAL_DOCUMENT_UPLOAD_PENDING_MESSAGE);
       return;
     }
     if (hasUnsavedChanges) {
@@ -994,7 +1070,7 @@ export function EnrollmentFormEditor({
 
   const requestStartNew = () => {
     if (hasPendingLegalDocumentUpload) {
-      toast.error(LEGAL_DOCUMENT_UPLOAD_PENDING_MESSAGE);
+      showMessage(LEGAL_DOCUMENT_UPLOAD_PENDING_MESSAGE);
       return;
     }
     if (hasUnsavedChanges) {
@@ -1014,7 +1090,7 @@ export function EnrollmentFormEditor({
 
   const requestExternalPreview = () => {
     if (hasPendingLegalDocumentUpload) {
-      toast.error(LEGAL_DOCUMENT_UPLOAD_PENDING_MESSAGE);
+      showMessage(LEGAL_DOCUMENT_UPLOAD_PENDING_MESSAGE);
       return;
     }
     if (!hasUnsavedChanges && currentSchema) {
@@ -1144,195 +1220,196 @@ export function EnrollmentFormEditor({
     // Flex-Spalte (wie die beiden anderen Ansichten dieser Seite): als
     // Editor-Wurzel einer Tenant-Seite reicht sie den Platz an die letzte
     // Fläche weiter, die bis zur Unterkante wächst (`.moto-tenant-body`).
-    <FieldErrorContext.Provider value={fieldError}>
-      <div ref={builderRef} className="flex flex-col space-y-5">
-        <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
-          <div className="border-b border-gray-100 px-5 py-3 sm:px-6">
-            <Button
-              type="button"
-              variant="ghost"
-              size="compact"
-              onClick={requestBackToOverview}
-              disabled={saving || hasPendingLegalDocumentUpload}
-              className="inline-flex items-center gap-2"
-            >
-              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-              Zurück zur Übersicht
-            </Button>
-          </div>
-          <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_430px]">
-            <div className="space-y-6 p-5 sm:p-6">
-              {/* Ein Neuladen nach dem Speichern kann scheitern; der Entwurf
-                bleibt dann stehen. */}
-              <LoadErrorAlert error={loadError} />
-              {/* Speicher- und Prüffehler stehen oben im Bearbeiten-Bereich
-                (Bauart 2 Regel 5); der Alert holt sich selbst ins Bild. */}
-              <FormErrorAlert message={saveError} />
-
-              <FormBuilderIntro />
-
-              <BuilderTemplateSummary
-                name={name}
-                isCreating={isCreating}
-                saving={saving}
-                currentSchema={currentSchema}
-                onNameChange={setName}
-                fields={fields}
+    <AttachmentUploadContext.Provider value={attachmentLifecycle}>
+      <FieldErrorContext.Provider value={fieldError}>
+        <div ref={builderRef} className="flex flex-col space-y-5">
+          <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
+            <div className="border-b border-gray-100 px-5 py-3 sm:px-6">
+              <BackAction
+                onClick={requestBackToOverview}
+                disabled={saving || hasPendingLegalDocumentUpload}
+                label="Zurück zur Übersicht"
               />
-
-              <CoreFieldsSection
-                coreRequirements={coreRequirements}
-                onRequirementChange={updateCoreRequirement}
-                disabled={saving}
-              />
-
-              <LegalBlocksSection
-                blocks={legalBlocks}
-                standardBlocks={standardLegalBlocks}
-                onChange={setLegalBlocks}
-                disabled={saving}
-                draftDocumentURLs={uploadedDraftDocumentURLs}
-                onDraftDocumentUploaded={rememberDraftDocumentURL}
-                onDraftDocumentDeleted={forgetDraftDocumentURL}
-                onUploadStart={beginLegalDocumentUpload}
-                onUploadEnd={endLegalDocumentUpload}
-              />
-
-              <section className="space-y-4">
-                <div className="flex flex-col gap-3 border-t border-gray-100 pt-5 sm:flex-row sm:items-end sm:justify-between">
-                  <div>
-                    <h2 className="text-base font-semibold text-gray-900">
-                      Was Eltern zusätzlich beantworten sollen
-                    </h2>
-                    <p className="mt-1 max-w-2xl text-sm text-gray-600">
-                      Wählen Sie feste Vorschläge, wenn die Antwort später in
-                      den Stammdaten stehen soll. Freie Zusatzfragen bleiben nur
-                      bei der Anmeldung.
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      type="button"
-                      onClick={addInfoField}
-                      disabled={saving}
-                      variant="outline"
-                      size="md"
-                      className="inline-flex items-center justify-center gap-2"
-                    >
-                      <Info className="h-4 w-4" aria-hidden="true" />
-                      Infotext
-                    </Button>
-                    <Button
-                      type="button"
-                      onClick={addField}
-                      disabled={saving}
-                      variant="outline"
-                      size="md"
-                      className="inline-flex items-center justify-center gap-2"
-                    >
-                      <Plus className="h-4 w-4" aria-hidden="true" />
-                      Freie Zusatzfrage
-                    </Button>
-                  </div>
-                </div>
-
-                <TargetSuggestions
-                  fields={fields}
-                  onAdd={addTargetField}
-                  disabled={saving}
-                />
-
-                {fields.length > 0 ? (
-                  <div className="space-y-3">
-                    {fields.map((field, index) => (
-                      <FieldEditorRow
-                        key={getStableObjectKey(field, "custom-field")}
-                        field={field}
-                        index={index}
-                        total={fields.length}
-                        allFields={fields}
-                        onChange={(patch) => updateField(index, patch)}
-                        onRemove={() => removeField(index)}
-                        onMoveUp={() => moveField(index, -1)}
-                        onMoveDown={() => moveField(index, 1)}
-                        disabled={saving}
-                      />
-                    ))}
-                  </div>
-                ) : null}
-
-                <TranslationsSection
-                  targets={schemaTranslationTargets(fields, legalBlocks)}
-                  onChange={applySchemaTranslation}
-                  disabled={saving}
-                />
-
-                <div className="flex flex-wrap items-center justify-end gap-2 border-t border-gray-100 pt-4">
-                  <Button
-                    type="button"
-                    onClick={requestStartNew}
-                    disabled={saving || hasPendingLegalDocumentUpload}
-                    variant="outline"
-                    size="md"
-                    className="inline-flex items-center justify-center"
-                  >
-                    Zurücksetzen
-                  </Button>
-                  <Button
-                    type="button"
-                    onClick={handleSave}
-                    disabled={saving || hasPendingLegalDocumentUpload}
-                    variant="primary"
-                    size="md"
-                    className="inline-flex items-center justify-center"
-                  >
-                    {saving
-                      ? "Speichert…"
-                      : isCreating
-                        ? "Formularvorlage erstellen"
-                        : "Änderungen speichern"}
-                  </Button>
-                </div>
-              </section>
             </div>
+            <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_430px]">
+              <div className="space-y-6 p-5 sm:p-6">
+                {/* Ein Neuladen nach dem Speichern kann scheitern; der Entwurf
+                bleibt dann stehen. */}
+                <LoadErrorAlert error={loadError} />
+                {/* Speicher- und Prüffehler stehen oben im Bearbeiten-Bereich
+                (Bauart 2 Regel 5); der Alert holt sich selbst ins Bild. */}
+                <FormErrorAlert message={saveError} />
 
-            <aside className="moto-dotted-background moto-dotted-background--split border-t border-gray-100 p-5 sm:p-6 lg:border-t-0 lg:border-l">
-              <FormPreview
-                fields={fields}
-                coreRequirements={coreRequirements}
-                legalBlocks={legalBlocks}
-                templateName={name}
-                isActive={currentSchema?.is_active ?? false}
-                isSaved={currentSchema !== null}
-                previewHref={
-                  currentSchema && !hasUnsavedChanges
-                    ? tenantPath(
-                        `/anmeldung/preview?schemaId=${encodeURIComponent(currentSchema.id)}`,
-                      )
-                    : undefined
-                }
-                onPreviewClick={requestExternalPreview}
-                assignedPhaseCount={
-                  currentSchema
-                    ? phases.filter(
-                        (phase) => phase.form_schema_id === currentSchema.id,
-                      ).length
-                    : 0
-                }
-              />
-            </aside>
-          </div>
-        </section>
-        <UnsavedChangesDialog
-          pendingNavigation={pendingNavigation}
-          saving={saving || hasPendingLegalDocumentUpload}
-          saveBlockedMessage={effectiveSaveBlockedMessage}
-          onCancel={() => setPendingNavigation(null)}
-          onDiscard={discardPendingNavigation}
-          onSave={savePendingNavigation}
-        />
-      </div>
-    </FieldErrorContext.Provider>
+                <FormBuilderIntro />
+
+                <BuilderTemplateSummary
+                  name={name}
+                  isCreating={isCreating}
+                  saving={saving}
+                  currentSchema={currentSchema}
+                  onNameChange={setName}
+                  fields={fields}
+                />
+
+                <CoreFieldsSection
+                  coreRequirements={coreRequirements}
+                  onRequirementChange={updateCoreRequirement}
+                  disabled={saving || hasPendingLegalDocumentUpload}
+                />
+
+                <LegalBlocksSection
+                  blocks={legalBlocks}
+                  standardBlocks={standardLegalBlocks}
+                  onChange={setLegalBlocks}
+                  disabled={saving || hasPendingLegalDocumentUpload}
+                  draftDocumentURLs={uploadedDraftDocumentURLs}
+                  onDraftDocumentUploaded={rememberDraftDocumentURL}
+                  onDraftDocumentDeleted={forgetDraftDocumentURL}
+                  onUploadStart={beginLegalDocumentUpload}
+                  onUploadEnd={endLegalDocumentUpload}
+                />
+
+                <section className="space-y-4">
+                  <div className="flex flex-col gap-3 border-t border-gray-100 pt-5 sm:flex-row sm:items-end sm:justify-between">
+                    <div>
+                      <h2 className="text-base font-semibold text-gray-900">
+                        Was Eltern zusätzlich beantworten sollen
+                      </h2>
+                      <p className="mt-1 max-w-2xl text-sm text-gray-600">
+                        Wählen Sie feste Vorschläge, wenn die Antwort später in
+                        den Stammdaten stehen soll. Freie Zusatzfragen bleiben
+                        nur bei der Anmeldung.
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        onClick={addInfoField}
+                        disabled={saving || hasPendingLegalDocumentUpload}
+                        variant="outline"
+                        size="md"
+                        className="inline-flex items-center justify-center gap-2"
+                      >
+                        <Info className="h-4 w-4" aria-hidden="true" />
+                        Infotext
+                      </Button>
+                      <Button
+                        type="button"
+                        onClick={addField}
+                        disabled={saving || hasPendingLegalDocumentUpload}
+                        variant="outline"
+                        size="md"
+                        className="inline-flex items-center justify-center gap-2"
+                      >
+                        <Plus className="h-4 w-4" aria-hidden="true" />
+                        Freie Zusatzfrage
+                      </Button>
+                      <IncomeDeclarationButton
+                        fields={fields}
+                        onAdd={addIncomeDeclaration}
+                        disabled={saving || hasPendingLegalDocumentUpload}
+                      />
+                    </div>
+                  </div>
+
+                  <TargetSuggestions
+                    fields={fields}
+                    onAdd={addTargetField}
+                    disabled={saving || hasPendingLegalDocumentUpload}
+                  />
+
+                  {fields.length > 0 ? (
+                    <div ref={fieldListRef} className="space-y-3">
+                      {fields.map((field, index) => (
+                        <FieldEditorRow
+                          key={getStableObjectKey(field, "custom-field")}
+                          field={field}
+                          index={index}
+                          total={fields.length}
+                          allFields={fields}
+                          onChange={(patch) => updateField(index, patch)}
+                          onRemove={() => removeField(index)}
+                          onMoveUp={() => moveField(index, -1)}
+                          onMoveDown={() => moveField(index, 1)}
+                          disabled={saving || hasPendingLegalDocumentUpload}
+                        />
+                      ))}
+                    </div>
+                  ) : null}
+
+                  <TranslationsSection
+                    targets={schemaTranslationTargets(fields, legalBlocks)}
+                    onChange={applySchemaTranslation}
+                    disabled={saving || hasPendingLegalDocumentUpload}
+                  />
+
+                  <div className="flex flex-wrap items-center justify-end gap-2 border-t border-gray-100 pt-4">
+                    <Button
+                      type="button"
+                      onClick={requestStartNew}
+                      disabled={saving || hasPendingLegalDocumentUpload}
+                      variant="outline"
+                      size="md"
+                      className="inline-flex items-center justify-center"
+                    >
+                      Zurücksetzen
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={handleSave}
+                      disabled={saving || hasPendingLegalDocumentUpload}
+                      variant="primary"
+                      size="md"
+                      className="inline-flex items-center justify-center"
+                    >
+                      {saving
+                        ? "Speichert…"
+                        : isCreating
+                          ? "Formularvorlage erstellen"
+                          : "Änderungen speichern"}
+                    </Button>
+                  </div>
+                </section>
+              </div>
+
+              <aside className="moto-dotted-background moto-dotted-background--split border-t border-gray-100 p-5 sm:p-6 lg:border-t-0 lg:border-l">
+                <FormPreview
+                  fields={fields}
+                  coreRequirements={coreRequirements}
+                  legalBlocks={legalBlocks}
+                  templateName={name}
+                  isActive={currentSchema?.is_active ?? false}
+                  isSaved={currentSchema !== null}
+                  previewHref={
+                    currentSchema && !hasUnsavedChanges
+                      ? tenantPath(
+                          `/anmeldung/preview?schemaId=${encodeURIComponent(currentSchema.id)}`,
+                        )
+                      : undefined
+                  }
+                  onPreviewClick={requestExternalPreview}
+                  assignedPhaseCount={
+                    currentSchema
+                      ? phases.filter(
+                          (phase) => phase.form_schema_id === currentSchema.id,
+                        ).length
+                      : 0
+                  }
+                />
+              </aside>
+            </div>
+          </section>
+          <UnsavedChangesDialog
+            pendingNavigation={pendingNavigation}
+            saving={saving || hasPendingLegalDocumentUpload}
+            saveBlockedMessage={effectiveSaveBlockedMessage}
+            onCancel={() => setPendingNavigation(null)}
+            onDiscard={discardPendingNavigation}
+            onSave={savePendingNavigation}
+          />
+        </div>
+      </FieldErrorContext.Provider>
+    </AttachmentUploadContext.Provider>
   );
 }
 
@@ -1478,7 +1555,7 @@ function BaseTemplateOverviewRow() {
           <h4 className="truncate text-sm font-semibold text-gray-900">
             Basisformular
           </h4>
-          <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600">
+          <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
             System
           </span>
         </div>
@@ -1711,16 +1788,7 @@ function FormTemplateDetail({
         <div className="grid flex-1 gap-0 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]">
           <div>
             <div className="border-b border-gray-100 px-5 py-3 sm:px-6">
-              <Button
-                type="button"
-                variant="ghost"
-                size="compact"
-                onClick={onBack}
-                className="inline-flex items-center gap-2"
-              >
-                <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-                Zurück zur Übersicht
-              </Button>
+              <BackAction onClick={onBack} label="Zurück zur Übersicht" />
             </div>
             <div className="space-y-5 p-5 sm:p-6">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -2329,7 +2397,7 @@ function LegalBlocksSection({
   onUploadEnd: () => void;
 }>) {
   const toast = useToast();
-  const { show: showActionError } = useApiErrorDisplay();
+  const { show: showActionError, showMessage } = useApiErrorDisplay();
   const fieldError = useContext(FieldErrorContext);
   const [editingStandardKeys, setEditingStandardKeys] = useState<string[]>([]);
   const [uploadingDocumentKey, setUploadingDocumentKey] = useState<
@@ -2379,11 +2447,11 @@ function LegalBlocksSection({
       file.type !== "application/pdf" &&
       !file.name.toLowerCase().endsWith(".pdf")
     ) {
-      toast.error("Bitte wählen Sie eine PDF-Datei aus.");
+      showMessage("Bitte wählen Sie eine PDF-Datei aus.");
       return;
     }
-    if (file.size > MAX_LEGAL_DOCUMENT_BYTES) {
-      toast.error(
+    if (file.size > MAX_ENROLLMENT_DOCUMENT_BYTES) {
+      showMessage(
         "Die Datei ist größer als 10 MB. Bitte wählen Sie eine kleinere Datei.",
       );
       return;
@@ -2606,6 +2674,15 @@ function LegalBlocksSection({
           </div>
         )}
 
+        <div className="mt-3">
+          <AttachmentEditor
+            fieldPath={`legal_blocks.${index}.attachments`}
+            fieldError={fieldError}
+            attachments={block.attachments}
+            onChange={(attachments) => updateBlock(index, { attachments })}
+            disabled={disabled}
+          />
+        </div>
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <LegalBlockModeControl
             isNotice={block.kind === "notice"}
@@ -2812,7 +2889,9 @@ function hasStandardLegalBlockOverride(
     block.text !== standardBlock.text ||
     block.required !== standardBlock.required ||
     legalBlockDisplayMode(block) !== legalBlockDisplayMode(standardBlock) ||
-    (block.document_url ?? "") !== (standardBlock.document_url ?? "")
+    (block.document_url ?? "") !== (standardBlock.document_url ?? "") ||
+    JSON.stringify(block.attachments ?? []) !==
+      JSON.stringify(standardBlock.attachments ?? [])
   );
 }
 
@@ -3552,6 +3631,13 @@ function FieldEditorRow({
                   rows={3}
                 />
               </div>
+              <AttachmentEditor
+                fieldPath={`fields.${index}.attachments`}
+                fieldError={fieldError}
+                attachments={field.attachments}
+                onChange={(attachments) => onChange({ attachments })}
+                disabled={disabled}
+              />
               <div className="grid gap-2 sm:grid-cols-2">
                 <FormChoice
                   checked={Boolean(field.applies_to_child)}
@@ -3622,7 +3708,9 @@ function FieldEditorRow({
                     ariaLabel="Typ"
                     value={field.type}
                     onChange={(value) =>
-                      onChange({ type: value as FormFieldType })
+                      onChange(
+                        fieldTypeChangePatch(field, value as FormFieldType),
+                      )
                     }
                     disabled={disabled || isTargetField}
                     className="mt-1"
@@ -3667,6 +3755,16 @@ function FieldEditorRow({
                     rows={3}
                   />
                 </div>
+              ) : null}
+
+              {field.type === "file" ? (
+                <FileFieldOptionsEditor
+                  field={field}
+                  index={index}
+                  onChange={onChange}
+                  disabled={disabled}
+                  error={fieldError(`fields.${index}.file_options`)}
+                />
               ) : null}
 
               {field.target === "schedule.pickup" ? (
@@ -3775,8 +3873,12 @@ function FieldEditorRow({
                     onChange({ applies_to_child: checked })
                   }
                   label="Pro Kind abfragen"
-                  hint="Die Frage erscheint für jedes angemeldete Kind."
-                  disabled={disabled || isTargetField}
+                  hint={
+                    field.type === "file"
+                      ? "Dateien gelten immer für die ganze Anmeldung."
+                      : "Die Frage erscheint für jedes angemeldete Kind."
+                  }
+                  disabled={disabled || isTargetField || field.type === "file"}
                 />
               </div>
             </>
@@ -4444,6 +4546,9 @@ function FormPreview({
                           <p className="mt-1 line-clamp-2 text-xs leading-5 text-gray-500">
                             {block.label}
                           </p>
+                          <PreviewAttachmentNames
+                            attachments={block.attachments}
+                          />
                           {previewText.trim() !== "" ? (
                             <p className="mt-1 line-clamp-2 text-sm leading-5 text-gray-400">
                               {previewText}
@@ -4500,6 +4605,19 @@ function ConditionalBadge({ field }: Readonly<{ field: FormField }>) {
   );
 }
 
+function PreviewAttachmentNames({
+  attachments,
+}: Readonly<{ attachments?: FormAttachment[] }>) {
+  if (!attachments?.length) return null;
+  return (
+    <ul className="mt-2 space-y-1 text-sm text-gray-600">
+      {attachments.map((attachment) => (
+        <li key={attachment.document_url}>PDF: {attachment.label}</li>
+      ))}
+    </ul>
+  );
+}
+
 function PreviewCustomField({ field }: Readonly<{ field: FormField }>) {
   if (field.type === "information") {
     return (
@@ -4525,6 +4643,7 @@ function PreviewCustomField({ field }: Readonly<{ field: FormField }>) {
             Noch kein Text hinterlegt.
           </p>
         )}
+        <PreviewAttachmentNames attachments={field.attachments} />
       </div>
     );
   }
@@ -4579,6 +4698,10 @@ function PreviewInput({ field }: Readonly<{ field: FormField }>) {
         />
       </div>
     );
+  }
+
+  if (field.type === "file") {
+    return <FilePreviewInput field={field} />;
   }
 
   if (field.type === "textarea") {
@@ -4828,16 +4951,17 @@ export function prepareFieldsForSave(fields: FormField[]): FormField[] {
         applies_to_child: Boolean(field.applies_to_child),
         visible_when: field.visible_when ?? undefined,
         translations: field.translations,
+        attachments: field.attachments,
       };
     }
-    return {
+    return applyFileFieldRules({
       ...field,
       key: field.key.trim() || normalizeFieldKey(field.label),
       label: field.label.trim(),
       help_text: field.help_text?.trim() ?? "",
       sort_order: index,
       visible_when: field.visible_when ?? undefined,
-    };
+    });
   });
 }
 
@@ -5034,6 +5158,10 @@ function prepareLegalBlocksForSave(blocks: FormLegalBlock[]): FormLegalBlock[] {
       display_mode: displayMode,
       document_url: documentURL,
       translations: block.translations,
+      attachments: block.attachments?.map((attachment) => ({
+        label: attachment.label.trim(),
+        document_url: attachment.document_url,
+      })),
     };
   });
 }
@@ -5044,6 +5172,10 @@ function draftDocumentURLsInLegalBlocks(
 ): Set<string> {
   const urls = new Set<string>();
   for (const block of blocks) {
+    for (const attachment of block.attachments ?? []) {
+      if (draftURLs.has(attachment.document_url))
+        urls.add(attachment.document_url);
+    }
     const documentURL = (block.document_url ?? "").trim();
     if (
       block.display_mode === LEGAL_BLOCK_DISPLAY_MODE_PDF &&
@@ -5111,6 +5243,9 @@ function getRequiredHint(field: FormField): string {
   if (field.type === "phone_list") {
     return "Eltern müssen mindestens eine Telefonnummer angeben.";
   }
+  if (field.type === "file") {
+    return "Eltern müssen mindestens eine Datei hochladen.";
+  }
   return "Eltern müssen diese Frage beantworten.";
 }
 
@@ -5138,6 +5273,22 @@ function getSchemaDraftValidationMessage({
       field: "name",
       hint: FILL_IN_HINT,
     };
+  }
+
+  for (const [prefix, entries] of [
+    ["fields", fields],
+    ["legal_blocks", legalBlocks],
+  ] as const) {
+    for (const [index, entry] of entries.entries()) {
+      const attachmentIndex =
+        entry.attachments?.findIndex((a) => a.label.trim() === "") ?? -1;
+      if (attachmentIndex >= 0)
+        return {
+          message: "Bitte geben Sie jeder PDF-Datei eine Bezeichnung.",
+          field: `${prefix}.${index}.attachments.${attachmentIndex}.label`,
+          hint: FILL_IN_HINT,
+        };
+    }
   }
 
   const seenKeys = new Set<string>();
@@ -5197,6 +5348,9 @@ function getSchemaDraftValidationMessage({
         message: `Bitte wählen Sie für Frage ${position} einen einfachen Typ. Telefonlisten, Wochenzeiten und Kontaktlisten gibt es nur als feste Vorschläge.`,
       };
     }
+
+    const fileProblem = fileFieldDraftProblem(field, index);
+    if (fileProblem) return fileProblem;
 
     if (field.type === "select" && (field.options ?? []).length === 0) {
       return {

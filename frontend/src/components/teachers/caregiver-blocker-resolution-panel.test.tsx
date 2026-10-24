@@ -64,6 +64,7 @@ vi.mock("~/lib/staff-role-api", () => ({
 vi.mock("~/lib/logger", () => ({
   createLogger: () => ({
     error: vi.fn(),
+    warn: vi.fn(),
   }),
 }));
 
@@ -163,6 +164,8 @@ describe("CaregiverBlockerResolutionPanel", () => {
       />,
     );
 
+    // Ausgangszustand: die Aufsicht steht in der Liste.
+    expect(screen.getByText("Gruppe Blau")).toBeInTheDocument();
     fireEvent.click(screen.getByText("Beenden"));
     expect(mockFetch).not.toHaveBeenCalled();
     expect(

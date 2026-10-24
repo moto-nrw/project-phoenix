@@ -3,11 +3,13 @@ package application
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 	"sync"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -43,6 +45,7 @@ type raStore struct {
 	findRoleErr          error
 	listRolesErr         error
 	listAccountRolesErr  error
+	roleMatchesErr       error
 	roleNamesErr         error
 	avatarsErr           error
 	emailsErr            error
@@ -52,7 +55,6 @@ type raStore struct {
 	deleteRoleErr        error
 	deleteAccountRoleErr error
 	createdAssignments   []raAssignment
-	grants               []raAssignment
 }
 
 type raAssignment struct{ accountID, otherID, tenantID int64 }
@@ -154,6 +156,22 @@ func (s *raStore) ListAccountRoles(_ context.Context, accountID int64) ([]domain
 	return result, nil
 }
 
+func (s *raStore) ListAccountsHoldingRole(_ context.Context, accountIDs []int64, roleName string) (map[int64]bool, error) {
+	if s.roleMatchesErr != nil {
+		return nil, s.roleMatchesErr
+	}
+	matches := make(map[int64]bool)
+	for _, accountID := range accountIDs {
+		for _, roleID := range s.accountRoles[accountID] {
+			if s.roles[roleID].Name == roleName {
+				matches[accountID] = true
+				break
+			}
+		}
+	}
+	return matches, nil
+}
+
 func (s *raStore) ListAccountRoleNames(context.Context, []int64) (map[int64]string, error) {
 	if s.roleNamesErr != nil {
 		return nil, s.roleNamesErr
@@ -216,7 +234,11 @@ func (s *raStore) UpdatePermission(context.Context, domain.ManagedPermission) er
 func (s *raStore) DeletePermission(context.Context, int64) error                    { return nil }
 
 func (s *raStore) ListPermissions(context.Context, domain.PermissionFilter) ([]domain.ManagedPermission, error) {
-	return nil, nil
+	result := make([]domain.ManagedPermission, 0, len(s.permissions))
+	for _, permission := range s.permissions {
+		result = append(result, permission)
+	}
+	return result, nil
 }
 
 func (s *raStore) ListRolePermissions(_ context.Context, roleID int64) ([]domain.ManagedPermission, error) {
@@ -227,17 +249,19 @@ func (s *raStore) ListRolePermissions(_ context.Context, roleID int64) ([]domain
 	return result, nil
 }
 
-func (s *raStore) ListAccountPermissions(context.Context, int64) ([]domain.ManagedPermission, error) {
-	return nil, nil
-}
-
-func (s *raStore) ListAccountDirectPermissions(context.Context, int64) ([]domain.ManagedPermission, error) {
-	return nil, nil
-}
-
 func (s *raStore) AssignRolePermission(_ context.Context, roleID, permissionID int64) error {
 	s.record("assign role permission")
 	s.rolePerms[roleID] = append(s.rolePerms[roleID], permissionID)
+	return nil
+}
+
+func (s *raStore) AssignRolePermissions(_ context.Context, roleID int64, permissionIDs []int64) error {
+	s.record("assign role permissions")
+	for _, id := range permissionIDs {
+		if _, found := s.permissions[id]; found && !slices.Contains(s.rolePerms[roleID], id) {
+			s.rolePerms[roleID] = append(s.rolePerms[roleID], id)
+		}
+	}
 	return nil
 }
 
@@ -250,21 +274,12 @@ func (s *raStore) RemoveRolePermission(_ context.Context, roleID, permissionID i
 func (s *raStore) DeletePermissionAssignments(context.Context, int64) error { return nil }
 func (s *raStore) DeletePermissionGrants(context.Context, int64) error      { return nil }
 
-func (s *raStore) GrantAccountPermission(_ context.Context, accountID, permissionID int64) error {
-	s.record("grant account permission")
-	s.grants = append(s.grants, raAssignment{accountID: accountID, otherID: permissionID})
-	return nil
-}
-
-func (s *raStore) DenyAccountPermission(context.Context, int64, int64) error   { return nil }
-func (s *raStore) RemoveAccountPermission(context.Context, int64, int64) error { return nil }
-
-func (s *raStore) FindManageableAccount(_ context.Context, accountID int64) (domain.ManagedAccountRecord, error) {
+func (s *raStore) FindManageableAccount(_ context.Context, accountID int64) (identityaccess.ManagedAccount, error) {
 	s.record("find manageable account")
 	if !s.manageable[accountID] {
-		return domain.ManagedAccountRecord{}, domain.ErrAccountNotFound
+		return identityaccess.ManagedAccount{}, domain.ErrAccountNotFound
 	}
-	return domain.ManagedAccountRecord{ID: accountID}, nil
+	return identityaccess.ManagedAccount{ID: accountID}, nil
 }
 
 func (s *raStore) LockAccount(_ context.Context, accountID int64) (bool, error) {
@@ -305,7 +320,7 @@ func (p raProfiles) HasLiveCaregiverProfile(_ context.Context, accountID int64) 
 // raPolicy mirrors the public school-role policy over the domain facts.
 type raPolicy struct{}
 
-func (raPolicy) IsLehrkraftSystemRole(role *domain.RoleFacts) bool {
+func (raPolicy) IsLehrkraftRole(role *domain.RoleFacts) bool {
 	return role != nil && role.IsSystem && strings.EqualFold(strings.TrimSpace(role.Name), "lehrkraft")
 }
 
@@ -331,7 +346,7 @@ func (p raPolicy) ValidateAssignableSchoolRole(role *domain.RoleFacts, tenantID 
 
 type raIdentity struct{ inputs []domain.SchoolIdentityInput }
 
-func (i *raIdentity) EnsureSchoolIdentity(_ context.Context, input domain.SchoolIdentityInput) (*domain.SchoolIdentity, error) {
+func (i *raIdentity) EnsureSchoolIdentityChain(_ context.Context, input domain.SchoolIdentityInput) (*domain.SchoolIdentity, error) {
 	i.inputs = append(i.inputs, input)
 	return nil, nil
 }
@@ -342,15 +357,15 @@ type raSessions struct {
 	deleteErr error
 }
 
-func (s *raSessions) DeleteAccountSessionsWithAudit(_ context.Context, accountID int64, reason, _, _ string) ([]domain.AccountSession, error) {
+func (s *raSessions) DeleteAccountSessionsWithAudit(_ context.Context, accountID int64, reason, _, _ string) ([]identityaccess.AccountSession, error) {
 	if s.deleteErr != nil {
 		return nil, s.deleteErr
 	}
 	s.deleted = append(s.deleted, accountID)
-	return []domain.AccountSession{{AccountID: accountID, FamilyID: reason}}, nil
+	return []identityaccess.AccountSession{{AccountID: accountID, FamilyID: reason}}, nil
 }
 
-func (s *raSessions) QueuePushCleanup(_ context.Context, accountID int64, sessions []domain.AccountSession, _ string) {
+func (s *raSessions) QueuePushCleanup(_ context.Context, accountID int64, sessions []identityaccess.AccountSession, _ string) {
 	s.queued = append(s.queued, accountID)
 	for _, session := range sessions {
 		if session.AccountID != accountID {
@@ -409,9 +424,15 @@ func TestRoleAdministration_BatchLookupsWrapStoreFailures(t *testing.T) {
 	t.Parallel()
 
 	f := newRAFixture(t)
+	f.store.roleMatchesErr = errors.New("role matches lookup failed")
 	f.store.roleNamesErr = errors.New("role names lookup failed")
 	f.store.avatarsErr = errors.New("avatar lookup failed")
 	f.store.emailsErr = errors.New("email lookup failed")
+
+	matches, err := f.admin.accountsHoldingRole(raContext(), []int64{f.account()}, "user")
+	require.ErrorIs(t, err, f.store.roleMatchesErr)
+	assert.Nil(t, matches)
+	assert.EqualError(t, err, "auth error during get accounts holding role: role matches lookup failed")
 
 	names, err := f.admin.GetAccountRoleNames(raContext(), []int64{f.account()})
 	require.ErrorIs(t, err, f.store.roleNamesErr)
@@ -434,13 +455,13 @@ func TestRoleAdministration_UpdateRoleReturnsNotFoundOnLookupFailure(t *testing.
 
 	f := newRAFixture(t)
 	f.store.findRoleErr = errors.New("sql: no rows in result set")
-	err := f.admin.UpdateRole(raContext(), domain.ManagedRole{ID: f.account()})
-	require.ErrorIs(t, err, domain.ErrRoleNotFound)
+	err := f.admin.UpdateRole(raContext(), identityaccess.Role{ID: f.account()})
+	require.ErrorIs(t, err, identityaccess.ErrRoleNotFound)
 	assert.NotErrorIs(t, err, f.store.findRoleErr)
 
 	missing := newRAFixture(t)
-	err = missing.admin.UpdateRole(raContext(), domain.ManagedRole{ID: missing.account()})
-	require.ErrorIs(t, err, domain.ErrRoleNotFound)
+	err = missing.admin.UpdateRole(raContext(), identityaccess.Role{ID: missing.account()})
+	require.ErrorIs(t, err, identityaccess.ErrRoleNotFound)
 }
 
 func TestRoleAdministration_SystemRolesAreImmutable(t *testing.T) {
@@ -452,14 +473,14 @@ func TestRoleAdministration_SystemRolesAreImmutable(t *testing.T) {
 	ctx := raContext()
 
 	// The stored row decides, never the caller's flag.
-	err := f.admin.UpdateRole(ctx, domain.ManagedRole{ID: system.ID, Name: "renamed", IsSystem: false})
-	require.ErrorIs(t, err, domain.ErrSystemRoleImmutable)
+	err := f.admin.UpdateRole(ctx, identityaccess.Role{ID: system.ID, Name: "renamed", IsSystem: false})
+	require.ErrorIs(t, err, identityaccess.ErrSystemRoleImmutable)
 	assert.EqualError(t, err, "auth error during update role: system roles cannot be modified")
 
-	require.ErrorIs(t, f.admin.DeleteRole(ctx, system.ID), domain.ErrSystemRoleImmutable)
-	require.ErrorIs(t, f.admin.AssignPermissionToRole(ctx, system.ID, permission.ID), domain.ErrSystemRoleImmutable)
-	require.ErrorIs(t, f.admin.ReplaceRolePermissions(ctx, system.ID, []int64{permission.ID}), domain.ErrSystemRoleImmutable)
-	require.ErrorIs(t, f.admin.RemovePermissionFromRole(ctx, system.ID, permission.ID), domain.ErrSystemRoleImmutable)
+	require.ErrorIs(t, f.admin.DeleteRole(ctx, system.ID), identityaccess.ErrSystemRoleImmutable)
+	require.ErrorIs(t, f.admin.AssignPermissionToRole(ctx, system.ID, permission.ID), identityaccess.ErrSystemRoleImmutable)
+	require.ErrorIs(t, f.admin.ReplaceRolePermissions(ctx, system.ID, []int64{permission.ID}), identityaccess.ErrSystemRoleImmutable)
+	require.ErrorIs(t, f.admin.RemovePermissionFromRole(ctx, system.ID, permission.ID), identityaccess.ErrSystemRoleImmutable)
 
 	assert.Equal(t, "admin", f.store.roles[system.ID].Name)
 	assert.Empty(t, f.store.rolePerms[system.ID])
@@ -474,15 +495,15 @@ func TestRoleAdministration_MissingRoleIsNotFoundForMutations(t *testing.T) {
 	ctx := raContext()
 	missing := f.account()
 
-	require.ErrorIs(t, f.admin.DeleteRole(ctx, missing), domain.ErrRoleNotFound)
-	require.ErrorIs(t, f.admin.AssignPermissionToRole(ctx, missing, missing), domain.ErrRoleNotFound)
-	require.ErrorIs(t, f.admin.RemovePermissionFromRole(ctx, missing, missing), domain.ErrRoleNotFound)
+	require.ErrorIs(t, f.admin.DeleteRole(ctx, missing), identityaccess.ErrRoleNotFound)
+	require.ErrorIs(t, f.admin.AssignPermissionToRole(ctx, missing, missing), identityaccess.ErrRoleNotFound)
+	require.ErrorIs(t, f.admin.RemovePermissionFromRole(ctx, missing, missing), identityaccess.ErrRoleNotFound)
 
 	// An infrastructure failure is not a missing role.
 	f.store.findRoleErr = errors.New("database unavailable")
 	err := f.admin.DeleteRole(ctx, missing)
 	require.ErrorIs(t, err, f.store.findRoleErr)
-	assert.NotErrorIs(t, err, domain.ErrRoleNotFound)
+	assert.NotErrorIs(t, err, identityaccess.ErrRoleNotFound)
 }
 
 func TestRoleAdministration_DeleteRolePropagatesIntermediateFailures(t *testing.T) {
@@ -526,18 +547,18 @@ func TestRoleAdministration_ListAndGetAccountRolesErrorPaths(t *testing.T) {
 
 	f := newRAFixture(t)
 	f.store.listRolesErr = errors.New("list failed")
-	roles, err := f.admin.ListRoles(raContext(), domain.RoleFilter{Name: "admin"})
+	roles, err := f.admin.listRoles(raContext(), domain.RoleFilter{Name: "admin"})
 	require.ErrorIs(t, err, f.store.listRolesErr)
 	assert.Nil(t, roles)
 
 	account := f.account()
 	f.store.listAccountRolesErr = errors.New("account roles failed")
-	roles, err = f.admin.GetAccountRoles(raContext(), account)
+	roles, err = f.admin.accountRoles(raContext(), account)
 	require.ErrorIs(t, err, f.store.listAccountRolesErr)
 	assert.Nil(t, roles)
 
 	unmanaged := f.store.nextID + 1
-	_, err = f.admin.GetAccountRoles(raContext(), unmanaged)
+	_, err = f.admin.accountRoles(raContext(), unmanaged)
 	require.ErrorIs(t, err, domain.ErrAccountNotFound)
 	assert.EqualError(t, err, "auth error during get account roles: account not found")
 }
@@ -557,32 +578,12 @@ func TestRoleAdministration_AccountLockOrder(t *testing.T) {
 		}, f.store.calls)
 	})
 
-	t.Run("organisation scope checks and shares the membership", func(t *testing.T) {
-		f := newRAFixture(t)
-		account := f.account()
-		f.store.memberships[account] = true
-		permission := f.store.addPermission("groups:read")
-		ctx := withScope(raContext(), domain.ScopeOrg, 3)
-
-		require.NoError(t, f.admin.GrantPermissionToAccount(ctx, account, permission.ID))
-		assert.Equal(t, []string{
-			"find manageable account", "membership", "lock account",
-			"find manageable account", "membership for share", "grant account permission",
-		}, f.store.calls)
-	})
-
 	t.Run("organisation scope refuses an account of another school", func(t *testing.T) {
 		f := newRAFixture(t)
 		account := f.account()
-		permission := f.store.addPermission("groups:read")
 		ctx := withScope(raContext(), domain.ScopeOrg, 3)
 
-		err := f.admin.GrantPermissionToAccount(ctx, account, permission.ID)
-		require.ErrorIs(t, err, domain.ErrAccountNotFound)
-		assert.NotContains(t, f.store.calls, "lock account")
-		assert.Empty(t, f.store.grants)
-
-		_, err = f.admin.GetAccountRoles(ctx, account)
+		_, err := f.admin.accountRoles(ctx, account)
 		require.ErrorIs(t, err, domain.ErrAccountNotFound)
 	})
 
@@ -591,7 +592,7 @@ func TestRoleAdministration_AccountLockOrder(t *testing.T) {
 		account := f.account()
 		ctx := withScope(context.Background(), domain.ScopeOrg, 3)
 
-		_, err := f.admin.GetAccountPermissions(ctx, account)
+		_, err := f.admin.accountRoles(ctx, account)
 		require.ErrorIs(t, err, domain.ErrAccountNotFound)
 		assert.NotContains(t, f.store.calls, "membership")
 	})
@@ -602,7 +603,7 @@ func TestRoleAdministration_AccountLockOrder(t *testing.T) {
 		role := f.store.addRole(customRoleOf("leitung", "admin"))
 
 		err := f.admin.AssignRoleToAccount(raContext(), unmanaged, role.ID)
-		require.ErrorIs(t, err, domain.ErrAccountNotFound)
+		require.ErrorIs(t, err, identityaccess.ErrAccountNotFound)
 		assert.EqualError(t, err, "auth error during assign role: account not found")
 		assert.Equal(t, []string{"find manageable account"}, f.store.calls)
 	})
@@ -729,9 +730,9 @@ func TestRoleAdministration_LehrkraftGuards(t *testing.T) {
 		admin := f.store.addRole(customRoleOf("leitung", "admin"))
 
 		err := f.admin.AssignRoleToAccount(raContext(), account, admin.ID)
-		require.ErrorIs(t, err, domain.ErrLehrkraftRoleImmutable)
+		require.ErrorIs(t, err, identityaccess.ErrLehrkraftRoleImmutable)
 		err = f.admin.ReplaceAccountRole(raContext(), account, admin.ID)
-		require.ErrorIs(t, err, domain.ErrLehrkraftRoleImmutable)
+		require.ErrorIs(t, err, identityaccess.ErrLehrkraftRoleImmutable)
 		assert.Empty(t, f.store.createdAssignments)
 	})
 
@@ -741,7 +742,7 @@ func TestRoleAdministration_LehrkraftGuards(t *testing.T) {
 		f.profiles.live[account] = true
 
 		err := f.admin.AssignRoleToAccount(raContext(), account, lehrkraft(f).ID)
-		require.ErrorIs(t, err, domain.ErrRoleLehrkraftCaregiverProfile)
+		require.ErrorIs(t, err, identityaccess.ErrRoleLehrkraftCaregiverProfile)
 		assert.Empty(t, f.store.createdAssignments)
 	})
 
@@ -765,7 +766,7 @@ func TestRoleAdministration_LehrkraftGuards(t *testing.T) {
 		// other role, a caregiver role included, is refused by it.
 		require.NoError(t, f.admin.AssignRoleToAccount(raContext(), account, role.ID))
 		err := f.admin.AssignRoleToAccount(raContext(), account, caregiver.ID)
-		require.ErrorIs(t, err, domain.ErrLehrkraftRoleImmutable)
+		require.ErrorIs(t, err, identityaccess.ErrLehrkraftRoleImmutable)
 	})
 
 	t.Run("caregiver roles need the profile only on Lehrkraft accounts", func(t *testing.T) {
@@ -799,13 +800,13 @@ func TestRoleAdministration_CaregiverRoleNeedsProfileOnLehrkraftAccount(t *testi
 	}
 	role := f.store.addRole(domain.ManagedRole{Name: "lehrkraft", IsSystem: true})
 	err := admin.AssignRoleToAccount(raContext(), account, role.ID)
-	require.ErrorIs(t, err, domain.ErrRoleCaregiverNeedsProfile)
+	require.ErrorIs(t, err, identityaccess.ErrRoleCaregiverNeedsProfile)
 
 	g, account, _ := newEnv(t, true)
 	admin.accounts, admin.store, admin.profiles = g.store, g.store, g.profiles
 	role = g.store.addRole(domain.ManagedRole{Name: "lehrkraft", IsSystem: true})
 	err = admin.AssignRoleToAccount(raContext(), account, role.ID)
-	require.ErrorIs(t, err, domain.ErrRoleLehrkraftCaregiverProfile, "the Lehrkraft profile guard runs first")
+	require.ErrorIs(t, err, identityaccess.ErrRoleLehrkraftCaregiverProfile, "the Lehrkraft profile guard runs first")
 }
 
 // caregiverLehrkraftRoles classifies every role as caregiver tier so the
@@ -841,20 +842,20 @@ func TestRoleAdministration_ResolveAssignableSchoolRole(t *testing.T) {
 	permission := f.store.addPermission("groups:read")
 	f.store.rolePerms[role.ID] = []int64{permission.ID}
 
-	resolved, names, err := f.admin.ResolveAssignableSchoolRole(raContext(), role.ID, raTenant)
+	resolved, names, err := f.admin.resolveAssignableSchoolRole(raContext(), role.ID, raTenant)
 	require.NoError(t, err)
 	assert.Equal(t, role.ID, resolved.ID)
 	assert.Equal(t, []string{"groups:read"}, names)
 
-	_, _, err = f.admin.ResolveAssignableSchoolRole(raContext(), 0, raTenant)
+	_, _, err = f.admin.resolveAssignableSchoolRole(raContext(), 0, raTenant)
 	require.ErrorIs(t, err, errRAPolicyNotAssignable)
-	_, _, err = f.admin.ResolveAssignableSchoolRole(raContext(), permission.ID+100, raTenant)
+	_, _, err = f.admin.resolveAssignableSchoolRole(raContext(), permission.ID+100, raTenant)
 	require.ErrorIs(t, err, errRAPolicyNotAssignable)
-	_, _, err = f.admin.ResolveAssignableSchoolRole(raContext(), role.ID, raTenant+1)
+	_, _, err = f.admin.resolveAssignableSchoolRole(raContext(), role.ID, raTenant+1)
 	require.ErrorIs(t, err, errRAPolicyForeign)
 
 	f.store.findRoleErr = errors.New("database unavailable")
-	_, _, err = f.admin.ResolveAssignableSchoolRole(raContext(), role.ID, raTenant)
+	_, _, err = f.admin.resolveAssignableSchoolRole(raContext(), role.ID, raTenant)
 	require.ErrorIs(t, err, f.store.findRoleErr)
 	assert.NotErrorIs(t, err, errRAPolicyNotAssignable)
 }
@@ -869,7 +870,7 @@ func TestRoleAdministration_ReplaceRolePermissions(t *testing.T) {
 
 		err := f.admin.ReplaceRolePermissions(raContext(), role.ID, []int64{role.ID + 1})
 		require.ErrorIs(t, err, f.store.findPermissionErr)
-		assert.NotErrorIs(t, err, domain.ErrPermissionNotFound)
+		assert.NotErrorIs(t, err, identityaccess.ErrPermissionNotFound)
 	})
 
 	t.Run("an invalid request leaves the selection untouched", func(t *testing.T) {
@@ -878,8 +879,8 @@ func TestRoleAdministration_ReplaceRolePermissions(t *testing.T) {
 		kept := f.store.addPermission("groups:read")
 		f.store.rolePerms[role.ID] = []int64{kept.ID}
 
-		require.ErrorIs(t, f.admin.ReplaceRolePermissions(raContext(), role.ID, []int64{kept.ID, 0}), domain.ErrPermissionNotFound)
-		require.ErrorIs(t, f.admin.ReplaceRolePermissions(raContext(), role.ID, []int64{kept.ID + 100}), domain.ErrPermissionNotFound)
+		require.ErrorIs(t, f.admin.ReplaceRolePermissions(raContext(), role.ID, []int64{kept.ID, 0}), identityaccess.ErrPermissionNotFound)
+		require.ErrorIs(t, f.admin.ReplaceRolePermissions(raContext(), role.ID, []int64{kept.ID + 100}), identityaccess.ErrPermissionNotFound)
 		assert.Equal(t, []int64{kept.ID}, f.store.rolePerms[role.ID])
 	})
 
@@ -899,11 +900,8 @@ func TestRoleAdministration_ReplaceRolePermissions(t *testing.T) {
 	t.Run("single mutations need an existing permission", func(t *testing.T) {
 		f := newRAFixture(t)
 		role := f.store.addRole(customRoleOf("ogs", "user"))
-		account := f.account()
 
-		require.ErrorIs(t, f.admin.AssignPermissionToRole(raContext(), role.ID, role.ID+100), domain.ErrPermissionNotFound)
-		require.ErrorIs(t, f.admin.GrantPermissionToAccount(raContext(), account, role.ID+100), domain.ErrPermissionNotFound)
-		require.ErrorIs(t, f.admin.DenyPermissionToAccount(raContext(), account, role.ID+100), domain.ErrPermissionNotFound)
+		require.ErrorIs(t, f.admin.AssignPermissionToRole(raContext(), role.ID, role.ID+100), identityaccess.ErrPermissionNotFound)
 	})
 }
 
@@ -923,44 +921,171 @@ func TestRoleAdministration_CreateRoleRequiresBaseRole(t *testing.T) {
 	assert.NotZero(t, role.ID)
 }
 
-func TestRoleAdministration_GrantStaffDefaultPermission(t *testing.T) {
+func systemRoleOf(name string, tier *string) domain.ManagedRole {
+	return domain.ManagedRole{Name: name, IsSystem: true, BaseRole: tier}
+}
+
+func (s *raStore) grant(roleID int64, names ...string) []int64 {
+	ids := make([]int64, 0, len(names))
+	for _, name := range names {
+		permission := s.addPermission(name)
+		s.rolePerms[roleID] = append(s.rolePerms[roleID], permission.ID)
+		ids = append(ids, permission.ID)
+	}
+	return ids
+}
+
+func (s *raStore) permissionNames(roleID int64) []string {
+	names := []string{}
+	for _, id := range s.rolePerms[roleID] {
+		names = append(names, s.permissions[id].Name)
+	}
+	return names
+}
+
+func TestRoleAdministration_CreateRoleFromTemplate(t *testing.T) {
 	t.Parallel()
 
-	t.Run("grants the permission to a staff account", func(t *testing.T) {
+	t.Run("copies the template's permissions once", func(t *testing.T) {
 		f := newRAFixture(t)
-		account := f.account()
-		permission := f.store.addPermission("groups:read")
+		caregiver := f.store.addRole(systemRoleOf("user", nil))
+		f.store.grant(caregiver.ID, "groups:read", "visits:create")
 
-		f.admin.GrantStaffDefaultPermission(raContext(), account, false, "groups:read")
-		assert.Equal(t, []raAssignment{{accountID: account, otherID: permission.ID}}, f.store.grants)
+		role, err := f.admin.CreateRole(raContext(), "Springer", "", nil, identityaccess.RoleTemplateCaregiver)
+		require.NoError(t, err)
+		require.NotNil(t, role.BaseRole)
+		assert.Equal(t, "user", *role.BaseRole)
+		assert.False(t, role.SchoolPortal, "only a Lehrkraft copy opens moto schule")
+		assert.ElementsMatch(t, []string{"groups:read", "visits:create"}, f.store.permissionNames(role.ID))
+
+		// A permission the template gains later does not reach the copy.
+		f.store.grant(caregiver.ID, "rooms:read")
+		assert.ElementsMatch(t, []string{"groups:read", "visits:create"}, f.store.permissionNames(role.ID))
 	})
 
-	t.Run("skips a Lehrkraft account", func(t *testing.T) {
+	t.Run("gives the admin template every permission except the reserved ones", func(t *testing.T) {
 		f := newRAFixture(t)
-		account := f.account()
-		role := f.store.addRole(domain.ManagedRole{Name: "lehrkraft", IsSystem: true})
-		f.store.accountRoles[account] = []int64{role.ID}
-		f.store.addPermission("groups:read")
+		admin := f.store.addRole(systemRoleOf("admin", nil))
+		f.store.grant(admin.ID, "*:*", "admin:*", "system:manage", "permissions:create", "permissions:update", "permissions:delete", "permissions:read", "users:manage", "config:manage")
+		// admin reaches these only through admin:*.
+		f.store.addPermission("staff:financial")
+		f.store.addPermission("users:checkin")
 
-		f.admin.GrantStaffDefaultPermission(raContext(), account, true, "groups:read")
-		assert.Empty(t, f.store.grants)
+		role, err := f.admin.CreateRole(raContext(), "Leitung", "", nil, identityaccess.RoleTemplateAdministration)
+		require.NoError(t, err)
+		require.NotNil(t, role.BaseRole)
+		assert.Equal(t, "admin", *role.BaseRole)
+		assert.ElementsMatch(t, []string{"permissions:read", "users:manage", "config:manage", "staff:financial", "users:checkin"}, f.store.permissionNames(role.ID))
 	})
 
-	t.Run("fails closed when the roles cannot be read", func(t *testing.T) {
+	t.Run("takes the stored tier of the Lehrkraft template", func(t *testing.T) {
 		f := newRAFixture(t)
-		account := f.account()
-		f.store.addPermission("groups:read")
-		f.store.listAccountRolesErr = errors.New("roles unavailable")
+		tier := "user"
+		lehrkraft := f.store.addRole(systemRoleOf("lehrkraft", &tier))
+		f.store.grant(lehrkraft.ID, "class_day:read")
 
-		f.admin.GrantStaffDefaultPermission(raContext(), account, false, "groups:read")
-		assert.Empty(t, f.store.grants)
+		role, err := f.admin.CreateRole(raContext(), "Klassenleitung", "", nil, identityaccess.RoleTemplateLehrkraft)
+		require.NoError(t, err)
+		require.NotNil(t, role.BaseRole)
+		assert.Equal(t, "user", *role.BaseRole)
+		// The copy opens moto schule like the Lehrkraft role itself (#4574).
+		assert.True(t, role.SchoolPortal)
+		assert.True(t, f.store.roles[role.ID].SchoolPortal, "the mark is stored with the role")
+		assert.Equal(t, []string{"class_day:read"}, f.store.permissionNames(role.ID))
 	})
 
-	t.Run("an unknown permission grants nothing", func(t *testing.T) {
+	t.Run("refuses an unknown or missing template", func(t *testing.T) {
 		f := newRAFixture(t)
-		account := f.account()
 
-		f.admin.GrantStaffDefaultPermission(raContext(), account, false, "groups:read")
-		assert.Empty(t, f.store.grants)
+		_, err := f.admin.CreateRole(raContext(), "Gast", "", nil, identityaccess.RoleTemplate("guest"))
+		require.ErrorIs(t, err, identityaccess.ErrRoleNotFound)
+		_, err = f.admin.CreateRole(raContext(), "Betreuung", "", nil, identityaccess.RoleTemplateCaregiver)
+		require.ErrorIs(t, err, identityaccess.ErrRoleNotFound)
+		assert.Empty(t, f.store.roles)
 	})
+
+	t.Run("the template sets the tier alone", func(t *testing.T) {
+		f := newRAFixture(t)
+		f.store.addRole(systemRoleOf("user", nil))
+		tier := "admin"
+
+		_, err := f.admin.CreateRole(raContext(), "Springer", "", &tier, identityaccess.RoleTemplateCaregiver)
+		require.ErrorIs(t, err, identityaccess.ErrRoleNotFound)
+		assert.Len(t, f.store.roles, 1)
+	})
+}
+
+func TestRoleAdministration_ReservedPermissionsStayOffSchoolRoles(t *testing.T) {
+	t.Parallel()
+
+	for _, name := range reservedPermissionNames {
+		t.Run(name, func(t *testing.T) {
+			f := newRAFixture(t)
+			role := f.store.addRole(customRoleOf("ogs", "user"))
+			kept := f.store.grant(role.ID, "groups:read")
+			platform := f.store.addPermission(name)
+
+			err := f.admin.ReplaceRolePermissions(raContext(), role.ID, []int64{kept[0], platform.ID})
+			require.ErrorIs(t, err, identityaccess.ErrReservedPermissionNotAllowed)
+			var reservedErr *identityaccess.ReservedPermissionError
+			require.ErrorAs(t, err, &reservedErr)
+			assert.Equal(t, name, reservedErr.Permission)
+			assert.Equal(t, kept, f.store.rolePerms[role.ID])
+
+			require.ErrorIs(t, f.admin.AssignPermissionToRole(raContext(), role.ID, platform.ID), identityaccess.ErrReservedPermissionNotAllowed)
+			assert.Equal(t, kept, f.store.rolePerms[role.ID])
+		})
+	}
+
+	t.Run("a role that already holds one stays editable", func(t *testing.T) {
+		f := newRAFixture(t)
+		role := f.store.addRole(customRoleOf("ogs", "admin"))
+		held := f.store.grant(role.ID, "admin:*", "groups:read")
+		added := f.store.addPermission("rooms:read")
+
+		require.NoError(t, f.admin.ReplaceRolePermissions(raContext(), role.ID, []int64{held[0], held[1], added.ID}))
+		assert.ElementsMatch(t, []string{"admin:*", "groups:read", "rooms:read"}, f.store.permissionNames(role.ID))
+
+		require.NoError(t, f.admin.ReplaceRolePermissions(raContext(), role.ID, []int64{held[1], added.ID}))
+		assert.ElementsMatch(t, []string{"groups:read", "rooms:read"}, f.store.permissionNames(role.ID))
+	})
+}
+
+// reservedPermissionNames is the reserved list #4574 names, written out
+// so the tests do not read it back from the code under test.
+var reservedPermissionNames = []string{"*:*", "admin:*", "system:manage", "permissions:create", "permissions:update", "permissions:delete"}
+
+func TestRoleAdministration_ReservedPermissionsWithInconsistentMetadata(t *testing.T) {
+	t.Parallel()
+	for _, name := range reservedPermissionNames {
+		for _, canonical := range []bool{true, false} {
+			t.Run(fmt.Sprintf("%s/canonical=%t", name, canonical), func(t *testing.T) {
+				f := newRAFixture(t)
+				role := f.store.addRole(customRoleOf("ogs", "user"))
+				kept := f.store.grant(role.ID, "groups:read")
+				permission := f.store.addPermission(name)
+				permission.Resource, permission.Action = "groups", "read"
+				if !canonical {
+					permission.Name = "groups:read"
+					parts := strings.SplitN(name, ":", 2)
+					permission.Resource, permission.Action = parts[0], parts[1]
+				}
+				f.store.permissions[permission.ID] = permission
+
+				err := f.admin.ReplaceRolePermissions(raContext(), role.ID, []int64{kept[0], permission.ID})
+				require.ErrorIs(t, err, identityaccess.ErrReservedPermissionNotAllowed)
+				var reservedErr *identityaccess.ReservedPermissionError
+				require.ErrorAs(t, err, &reservedErr)
+				assert.Equal(t, name, reservedErr.Permission)
+				require.ErrorIs(t, f.admin.AssignPermissionToRole(raContext(), role.ID, permission.ID), identityaccess.ErrReservedPermissionNotAllowed)
+				assert.Equal(t, kept, f.store.rolePerms[role.ID])
+
+				source := f.store.addRole(domain.ManagedRole{Name: "user", IsSystem: true})
+				f.store.rolePerms[source.ID] = []int64{permission.ID, kept[0]}
+				copied, err := f.admin.CreateRole(raContext(), "Springer", "", nil, identityaccess.RoleTemplateCaregiver)
+				require.NoError(t, err)
+				assert.Equal(t, []string{"groups:read"}, f.store.permissionNames(copied.ID))
+			})
+		}
+	}
 }

@@ -4,6 +4,7 @@ import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 interface EditPickupChangeRequestBody {
   date: string;
   pickup_time: string;
+  departure_mode?: string;
   reason: string;
   expected_version: string;
 }

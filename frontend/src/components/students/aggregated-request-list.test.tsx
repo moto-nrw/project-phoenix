@@ -800,11 +800,17 @@ describe("AggregatedRequestList", () => {
       />,
     );
 
-    await waitFor(() => expect(mockListOpen).toHaveBeenCalled());
+    // Anker: die gefilterte Liste ist geladen und zeigt ihren Leerzustand.
+    expect(
+      await screen.findByText(
+        "Für die aktuelle Suche und Filter gibt es keine Treffer.",
+      ),
+    ).toBeInTheDocument();
+    expect(mockListOpen).toHaveBeenCalled();
     expect(mockListWithdrawals).not.toHaveBeenCalled();
     expect(
-      screen.queryByText("withdrawal-item-withdrawal-filtered"),
-    ).toBeNull();
+      screen.queryByRole("button", { name: /Anfrage für Mia Muster/ }),
+    ).not.toBeInTheDocument();
   });
 
   it("verschränkt Anmeldungsänderungen nach Zeitpunkt in die Liste", async () => {
@@ -963,9 +969,9 @@ describe("AggregatedRequestList", () => {
     });
 
     await waitFor(() => expect(mockListOpen).toHaveBeenCalledTimes(2));
-    await waitFor(() =>
-      expect(screen.queryByText("excused-item-4")).toBeNull(),
-    );
+    // Die nachgeladene, leere Liste steht da (nicht nur ein Ladeskelett).
+    expect(await screen.findByText("Keine offenen Anfragen.")).toBeVisible();
+    expect(screen.queryByText("excused-item-4")).toBeNull();
   });
 
   it("ignoriert eine verspätete erste Ladung nach einem Refresh", async () => {
@@ -1214,6 +1220,34 @@ describe("AggregatedRequestList", () => {
         "Für die aktuelle Suche und Filter gibt es keine Treffer.",
       ),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Neue Anfragen von Eltern erscheinen hier."),
+    ).toBeNull();
+    expect(
+      screen.queryByText("Entschiedene Anfragen erscheinen hier."),
+    ).toBeNull();
+  });
+
+  it("sagt ohne Filter, was im leeren Offen und in der leeren Historie erscheint", async () => {
+    const { unmount } = render(
+      <AggregatedRequestList view="open" filters={NO_FILTERS} />,
+    );
+    expect(
+      await screen.findByText("Neue Anfragen von Eltern erscheinen hier."),
+    ).toBeInTheDocument();
+    unmount();
+
+    render(<AggregatedRequestList view="history" filters={NO_FILTERS} />);
+    expect(
+      await screen.findByText("Entschiedene Anfragen erscheinen hier."),
+    ).toBeInTheDocument();
+  });
+
+  it("legt den Leer-Zustand auf eine eigene Fläche statt auf den Seitengrund", async () => {
+    render(<AggregatedRequestList view="open" filters={NO_FILTERS} />);
+
+    const title = await screen.findByText("Keine offenen Anfragen.");
+    expect(title.closest("section")).not.toBeNull();
   });
 
   it("zeigt einen Ladefehler vor Ort mit Vorgangskennung und Wiederholen", async () => {
@@ -1245,9 +1279,9 @@ describe("AggregatedRequestList", () => {
     fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
 
     await waitFor(() => expect(mockListOpen).toHaveBeenCalledTimes(2));
-    await waitFor(() =>
-      expect(screen.queryByText(/konnte nicht bearbeitet werden/)).toBeNull(),
-    );
+    // Die erneut geladene, leere Liste steht da (nicht nur ein Ladeskelett).
+    expect(await screen.findByText("Keine offenen Anfragen.")).toBeVisible();
+    expect(screen.queryByText(/konnte nicht bearbeitet werden/)).toBeNull();
   });
 
   it("meldet das fehlende Recht über den Code, nicht über den Backend-Satz", async () => {

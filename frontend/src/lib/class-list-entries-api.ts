@@ -36,7 +36,6 @@ interface WireEntry {
 
 interface Envelope<T> {
   data: T;
-  error?: string;
   message?: string;
 }
 
@@ -71,13 +70,13 @@ async function request<T>(
   const payload = (await response.json().catch(() => null)) as
     (Envelope<unknown> & Record<string, unknown>) | null;
   if (!response.ok) {
-    const message =
-      (typeof payload?.error === "string" && payload.error) ||
-      (typeof payload?.message === "string" && payload.message) ||
-      `API error (${response.status})`;
     // Code, field errors and request ID travel on for the shared error path
-    // (#2513); the message is diagnosis only.
-    throw apiErrorFromBody(message, response.status, payload);
+    // (#2513); the message is the envelope's diagnostic `detail`.
+    throw apiErrorFromBody(
+      `API error (${response.status})`,
+      response.status,
+      payload,
+    );
   }
   return payload as T;
 }

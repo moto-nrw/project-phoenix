@@ -1,6 +1,7 @@
 package files
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strconv"
@@ -10,7 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/filestorage"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // Anhänge an Elternmitteilungen (#2890).
@@ -27,10 +28,8 @@ import (
 // Beide Meldungen erreichen eine Person in der Schule und sagen, was als
 // Nächstes zu tun ist, nicht nur, dass etwas fehlgeschlagen ist.
 var (
-	//nolint:staticcheck // ST1005: user-facing German message
-	errAnnouncementPublished = errors.New("Die Mitteilung ist schon veröffentlicht. Ziehen Sie sie zurück, um Anhänge zu ändern.")
-	//nolint:staticcheck // ST1005: user-facing German message
-	errAttachmentLimit = errors.New("Diese Mitteilung hat schon die höchstmögliche Zahl an Anhängen.")
+	errAnnouncementPublished = errors.New("die Mitteilung ist schon veröffentlicht. Ziehen Sie sie zurück, um Anhänge zu ändern")
+	errAttachmentLimit       = errors.New("diese Mitteilung hat schon die höchstmögliche Zahl an Anhängen")
 )
 
 // AnnouncementAttachmentResponse is one attachment on the wire.
@@ -80,9 +79,9 @@ func newAttachmentListResponse(attachments []filestorage.Attachment, editable bo
 // /api/announcement-attachments. It is gated on the same permission as the
 // announcements themselves (#1669): who may write an Elternmitteilung may
 // attach a file to it.
-func (rs *Resource) AnnouncementAttachmentRouter() chi.Router {
+func (rs *Resource) AnnouncementAttachmentRouter(protectedTenantRoutes func(chi.Router, func(chi.Router, common.Middleware))) chi.Router {
 	r := chi.NewRouter()
-	common.ProtectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) {
+	protectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) {
 		admin := common.RequiresPermission(permissions.AdminWildcard)
 
 		r.With(admin, withTx).Get("/{announcementId}", rs.listAnnouncementAttachments)
@@ -93,15 +92,41 @@ func (rs *Resource) AnnouncementAttachmentRouter() chi.Router {
 	return r
 }
 
+// GuardianAttachments is the parents portal's attachment entry as these
+// handlers consume it: it decides whether the guardian account is in the
+// announcement's audience and reads the attachments through File Storage.
+// The root binds the Parent Portal workflow; File Storage itself decides no
+// audience (#4825).
+type GuardianAttachments interface {
+	// ListGuardianAttachments returns the attachments a guardian account may
+	// see, or ErrAttachmentNotFound when it is outside the audience.
+	ListGuardianAttachments(ctx context.Context, accountID, announcementID int64) ([]filestorage.Attachment, error)
+	OpenGuardianAttachment(ctx context.Context, accountID, announcementID, attachmentID int64) (filestorage.Content, error)
+	// OpenGuardianDeclarationProofAttachment opens an attachment frozen in the
+	// caller's own declaration proof, including after the announcement expired
+	// or was withdrawn.
+	OpenGuardianDeclarationProofAttachment(ctx context.Context, accountID, announcementID, studentID, attachmentID int64) (filestorage.Content, error)
+}
+
+// parentAttachmentRoutes serves the guardian side through its entry.
+type parentAttachmentRoutes struct {
+	rs       *Resource
+	guardian GuardianAttachments
+}
+
 // ParentAnnouncementAttachmentRouter serves the guardian side. It is mounted
 // at the root rather than under /parent, which is a catch-all mount, and is
 // authenticated with ParentMiddleware. No tenant transaction: a parent token
-// is cross-tenant, so the owner resolves the school from the announcement.
-func (rs *Resource) ParentAnnouncementAttachmentRouter() chi.Router {
+// is cross-tenant, so the entry resolves the school from the announcement.
+func (rs *Resource) ParentAnnouncementAttachmentRouter(protectedParentGroup func(chi.Router, func(chi.Router)), guardian GuardianAttachments) chi.Router {
+	if guardian == nil {
+		panic("files HTTP: guardian attachment entry is required")
+	}
+	routes := parentAttachmentRoutes{rs: rs, guardian: guardian}
 	r := chi.NewRouter()
-	common.ProtectedParentGroup(r, func(r chi.Router) {
-		r.Get("/{announcementId}", rs.listParentAnnouncementAttachments)
-		r.Get("/{announcementId}/{attachmentId}/download", rs.downloadParentAnnouncementAttachment)
+	protectedParentGroup(r, func(r chi.Router) {
+		r.Get("/{announcementId}", routes.listParentAnnouncementAttachments)
+		r.Get("/{announcementId}/{attachmentId}/download", routes.downloadParentAnnouncementAttachment)
 	})
 	return r
 }
@@ -205,7 +230,7 @@ func (rs *Resource) deleteAnnouncementAttachment(w http.ResponseWriter, r *http.
 
 // parentAccountID reads the guardian account from the parent token.
 func parentAccountID(w http.ResponseWriter, r *http.Request) (int64, bool) {
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	if claims.ID == 0 {
 		common.RenderError(w, r, common.ErrorUnauthorized(errors.New("invalid token: no account id")))
 		return 0, false
@@ -213,7 +238,7 @@ func parentAccountID(w http.ResponseWriter, r *http.Request) (int64, bool) {
 	return int64(claims.ID), true
 }
 
-func (rs *Resource) listParentAnnouncementAttachments(w http.ResponseWriter, r *http.Request) {
+func (p parentAttachmentRoutes) listParentAnnouncementAttachments(w http.ResponseWriter, r *http.Request) {
 	announcementID, ok := common.ParseInt64IDWithError(w, r, "announcementId", "invalid announcement ID")
 	if !ok {
 		return
@@ -222,7 +247,7 @@ func (rs *Resource) listParentAnnouncementAttachments(w http.ResponseWriter, r *
 	if !ok {
 		return
 	}
-	attachments, err := rs.files.ListGuardianAttachments(r.Context(), accountID, announcementID)
+	attachments, err := p.guardian.ListGuardianAttachments(r.Context(), accountID, announcementID)
 	if err != nil {
 		renderAttachmentError(w, r, err)
 		return
@@ -232,7 +257,7 @@ func (rs *Resource) listParentAnnouncementAttachments(w http.ResponseWriter, r *
 	common.Respond(w, r, http.StatusOK, newAttachmentListResponse(attachments, false), "Attachments retrieved successfully")
 }
 
-func (rs *Resource) downloadParentAnnouncementAttachment(w http.ResponseWriter, r *http.Request) {
+func (p parentAttachmentRoutes) downloadParentAnnouncementAttachment(w http.ResponseWriter, r *http.Request) {
 	announcementID, ok := common.ParseInt64IDWithError(w, r, "announcementId", "invalid announcement ID")
 	if !ok {
 		return
@@ -258,13 +283,13 @@ func (rs *Resource) downloadParentAnnouncementAttachment(w http.ResponseWriter, 
 			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("student_id must be a positive integer")))
 			return
 		}
-		content, err = rs.files.OpenGuardianDeclarationProofAttachment(r.Context(), accountID, announcementID, parsedStudentID, attachmentID)
+		content, err = p.guardian.OpenGuardianDeclarationProofAttachment(r.Context(), accountID, announcementID, parsedStudentID, attachmentID)
 	} else {
-		content, err = rs.files.OpenGuardianAttachment(r.Context(), accountID, announcementID, attachmentID)
+		content, err = p.guardian.OpenGuardianAttachment(r.Context(), accountID, announcementID, attachmentID)
 	}
 	if err != nil {
 		renderAttachmentError(w, r, err)
 		return
 	}
-	rs.serveContent(w, r, content)
+	p.rs.serveContent(w, r, content)
 }

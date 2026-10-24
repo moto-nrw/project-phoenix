@@ -562,6 +562,15 @@ func repointStudentForeignKeys(ctx context.Context, tx bun.Tx) error {
 						FOREIGN KEY (tenant_id, student_id) REFERENCES users.student_profiles(tenant_id, id) ON DELETE CASCADE NOT VALID;
 				END IF;
 			END $$;
+			-- Day departure exceptions (#3945) were introduced after this
+			-- Cutover too; same replay rule as the student notes above.
+			DO $$ BEGIN
+				IF to_regclass('schedule.student_departure_exceptions') IS NOT NULL THEN
+					ALTER TABLE schedule.student_departure_exceptions DROP CONSTRAINT fk_student_departure_exceptions_student;
+					ALTER TABLE schedule.student_departure_exceptions ADD CONSTRAINT fk_student_departure_exceptions_student
+						FOREIGN KEY (tenant_id, student_id) REFERENCES users.student_profiles(tenant_id, id) ON DELETE CASCADE NOT VALID;
+				END IF;
+			END $$;
 			DO $$ BEGIN
 				IF EXISTS (SELECT 1 FROM pg_constraint
 					WHERE confrelid = 'users.students'::regclass AND contype = 'f') THEN
@@ -636,6 +645,11 @@ func ValidateStudentOwnerForeignKeys(ctx context.Context, db *bun.DB) error {
 		DO $$ BEGIN
 			IF to_regclass('users.student_notes') IS NOT NULL THEN
 				ALTER TABLE users.student_notes VALIDATE CONSTRAINT fk_student_notes_student;
+			END IF;
+		END $$;
+		DO $$ BEGIN
+			IF to_regclass('schedule.student_departure_exceptions') IS NOT NULL THEN
+				ALTER TABLE schedule.student_departure_exceptions VALIDATE CONSTRAINT fk_student_departure_exceptions_student;
 			END IF;
 		END $$;
 	`); err != nil {

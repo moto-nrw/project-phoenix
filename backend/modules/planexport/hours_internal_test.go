@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/services/listexport"
+	listexport "github.com/moto-nrw/project-phoenix/modules/documentrendering/records"
 )
 
 // stubHours serves the weekly figures and records the window it was asked for.
@@ -80,7 +80,7 @@ func TestDienstplanHoursSheetSplitsTheWeekBySchichtart(t *testing.T) {
 	if doc.Title != "Stundenübersicht" || renderer.filename != "Stundenuebersicht 2026-07-27" {
 		t.Fatalf("title = %q, filename = %q", doc.Title, renderer.filename)
 	}
-	wantColumns := []string{"Mitarbeitende", "Verfügungsstunden", "Vertretungsunterricht", "Wochenstunden Ganztag", "Ohne Schichtart", "Gesamt", "Soll", "Differenz"}
+	wantColumns := []string{"Mitarbeitende", "Verfügungsstunden", "Vertretungsunterricht", "Wochenstunden Ganztag", "Ohne Dienstart", "Gesamt", "Soll", "Differenz"}
 	if got := columnLabels(doc); !equalStrings(got, wantColumns) {
 		t.Fatalf("columns = %v, want %v", got, wantColumns)
 	}
@@ -125,7 +125,7 @@ func TestDienstplanHoursSheetWithoutTarget(t *testing.T) {
 	}
 	renderer, _ := exportHours(t, hours, nil, dayKey(monday), dayKey(monday))
 	doc := renderer.doc
-	if got := columnLabels(doc)[1]; got != "Unbekannte Schichtart" {
+	if got := columnLabels(doc)[1]; got != "Unbekannte Dienstart" {
 		t.Fatalf("type column without a resolvable name = %q", got)
 	}
 	if got := cellFor(t, doc, "Müller, Anna", hoursColumnTotal); got != "20,25 h" {

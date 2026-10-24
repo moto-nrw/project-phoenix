@@ -4,8 +4,8 @@ import (
 	"errors"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/selection"
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment/selection"
 )
 
 // The HTTP adapters classify refusals by Enrollment's public values, but some
@@ -20,6 +20,8 @@ var publicErrorAliases = []struct {
 	origin error
 	public error
 }{
+	{selection.ErrCareOfferingDayConflict, enrollment.ErrCareOfferingDayConflict},
+	{careplan.ErrCareOfferingDayConflict, enrollment.ErrCareOfferingDayConflict},
 	{selection.ErrCareOfferingRule, enrollment.ErrCareOfferingRule},
 	{selection.ErrSelectedDayNotAvailable, enrollment.ErrSelectedDayNotAvailable},
 	{selection.ErrDaySelectionRequired, enrollment.ErrDaySelectionRequired},

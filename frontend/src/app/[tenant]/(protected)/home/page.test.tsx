@@ -312,6 +312,20 @@ describe("Startseite", () => {
     expect(screen.queryByTestId("home-now")).not.toBeInTheDocument();
   });
 
+  // „Anpassen" ist auf allen Breiten ein Symbolknopf (#4346): kein
+  // sichtbarer Text, der Name und der Tooltip sagen „Anpassen".
+  it("zeigt Anpassen als Symbolknopf mit Tooltip", async () => {
+    render(<HomePage />);
+
+    const button = await screen.findByRole("button", { name: "Anpassen" });
+    expect(button).toHaveTextContent(/^$/);
+    const tooltipId = button.getAttribute("aria-describedby");
+    expect(tooltipId).toBeTruthy();
+    const tooltip = document.getElementById(tooltipId ?? "");
+    expect(tooltip).toHaveAttribute("role", "tooltip");
+    expect(tooltip).toHaveTextContent("Anpassen");
+  });
+
   // Das Issue verlangt für Mischrollen die Vereinigung: die Leitung, die
   // selbst betreut, behält ihren eigenen Tag vor der Lage der Schule.
   it("gibt der Leitung, die selbst betreut, den eigenen Tag dazu", async () => {
@@ -341,13 +355,14 @@ describe("Startseite", () => {
 
     render(<HomePage />);
 
-    await waitFor(() =>
-      expect(screen.queryByText("Kein Zugriff")).not.toBeInTheDocument(),
-    );
+    // Anker: die Standardansicht der Betreuungskraft ist geladen.
+    expect(
+      await screen.findByText("Ihre Startseite ist leer"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Kein Zugriff")).not.toBeInTheDocument();
     // Ohne Rechte auf die Betriebszahlen bleiben die Kennzahlen weg; die
     // Bausteine mit eigener Quelle stehen da, sobald ihr Recht reicht.
     expect(screen.queryByText("Kinder anwesend")).not.toBeInTheDocument();
-    expect(screen.getByText("Ihre Startseite ist leer")).toBeInTheDocument();
   });
 
   it("zeigt die Skelettfläche, solange die Sitzung lädt", () => {
@@ -381,12 +396,24 @@ describe("Startseite", () => {
     expect(useSWRAuth).not.toHaveBeenCalled();
   });
 
-  it("lädt die Ablaufwarnungen der Anmeldephasen nur für die Leitung", () => {
+  it("zeigt der Leitung die Ablaufwarnungen der Anmeldephasen", async () => {
+    vi.mocked(leadsSchool).mockReturnValue(true);
+
+    render(<HomePage />);
+
+    expect(
+      await screen.findByTestId("phase-expiry-warnings"),
+    ).toBeInTheDocument();
+  });
+
+  it("lädt die Ablaufwarnungen der Anmeldephasen nur für die Leitung", async () => {
     // Leitung: Adminzuschnitt oder config:manage (#3469).
     vi.mocked(leadsSchool).mockReturnValue(false);
 
     render(<HomePage />);
 
+    // Anker: das Brett ist geladen, nur die Warnungen fehlen.
+    expect(await screen.findByTestId("home-board")).toBeInTheDocument();
     expect(
       screen.queryByTestId("phase-expiry-warnings"),
     ).not.toBeInTheDocument();

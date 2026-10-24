@@ -16,21 +16,31 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // Error messages (S1192 - avoid duplicate string literals)
 const errInvitationServiceUnavailable = "invitation service unavailable"
 
 type CreateInvitationRequest struct {
-	Email     string        `json:"email"`
-	RoleID    common.JSONID `json:"role_id"`
-	FirstName string        `json:"first_name"`
-	LastName  string        `json:"last_name"`
-	Position  string        `json:"position"`
+	EmploymentAction    identityaccess.EmploymentAction `json:"employment_action"`
+	ResetMasterData     bool                            `json:"reset_master_data"`
+	ResetQualifications bool                            `json:"reset_qualifications"`
+	ResetWorkTime       bool                            `json:"reset_work_time"`
+	Email               string                          `json:"email"`
+	RoleID              common.JSONID                   `json:"role_id"`
+	FirstName           string                          `json:"first_name"`
+	LastName            string                          `json:"last_name"`
+	Position            string                          `json:"position"`
 }
 
 func (req *CreateInvitationRequest) Bind(_ *http.Request) error {
+	noResetForNew := validation.By(func(value interface{}) error {
+		if reset, ok := value.(bool); ok && reset && req.EmploymentAction == identityaccess.EmploymentActionNew {
+			return errors.New("resets require resumption")
+		}
+		return nil
+	})
 	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
 	req.FirstName = strings.TrimSpace(req.FirstName)
 	req.LastName = strings.TrimSpace(req.LastName)
@@ -48,25 +58,33 @@ func (req *CreateInvitationRequest) Bind(_ *http.Request) error {
 		validation.Field(&req.FirstName, validation.Length(0, 100)),
 		validation.Field(&req.LastName, validation.Length(0, 100)),
 		validation.Field(&req.Position, validation.Length(0, 100)),
+		validation.Field(&req.ResetMasterData, noResetForNew),
+		validation.Field(&req.ResetQualifications, noResetForNew),
+		validation.Field(&req.ResetWorkTime, noResetForNew),
+		validation.Field(&req.EmploymentAction, validation.In(identityaccess.EmploymentAction(""), identityaccess.EmploymentActionResume, identityaccess.EmploymentActionNew)),
 	)
 }
 
 type InvitationResponse struct {
-	ID              int64      `json:"id"`
-	Email           string     `json:"email"`
-	RoleID          int64      `json:"role_id,string"`
-	RoleName        string     `json:"role_name,omitempty"`
-	Token           string     `json:"token,omitempty"`
-	ExpiresAt       time.Time  `json:"expires_at"`
-	FirstName       *string    `json:"first_name,omitempty"`
-	LastName        *string    `json:"last_name,omitempty"`
-	Position        *string    `json:"position,omitempty"`
-	CreatedBy       int64      `json:"created_by"`
-	Creator         string     `json:"creator,omitempty"`
-	DeliveryStatus  string     `json:"delivery_status"`
-	EmailSentAt     *time.Time `json:"email_sent_at,omitempty"`
-	EmailError      *string    `json:"email_error,omitempty"`
-	EmailRetryCount int        `json:"email_retry_count"`
+	EmploymentAction    identityaccess.EmploymentAction `json:"employment_action"`
+	ResetMasterData     bool                            `json:"reset_master_data"`
+	ResetQualifications bool                            `json:"reset_qualifications"`
+	ResetWorkTime       bool                            `json:"reset_work_time"`
+	ID                  int64                           `json:"id"`
+	Email               string                          `json:"email"`
+	RoleID              int64                           `json:"role_id,string"`
+	RoleName            string                          `json:"role_name,omitempty"`
+	Token               string                          `json:"token,omitempty"`
+	ExpiresAt           time.Time                       `json:"expires_at"`
+	FirstName           *string                         `json:"first_name,omitempty"`
+	LastName            *string                         `json:"last_name,omitempty"`
+	Position            *string                         `json:"position,omitempty"`
+	CreatedBy           int64                           `json:"created_by"`
+	Creator             string                          `json:"creator,omitempty"`
+	DeliveryStatus      string                          `json:"delivery_status"`
+	EmailSentAt         *time.Time                      `json:"email_sent_at,omitempty"`
+	EmailError          *string                         `json:"email_error,omitempty"`
+	EmailRetryCount     int                             `json:"email_retry_count"`
 }
 
 // InvitationValidationResponse is the public-safe view of a redeemable
@@ -95,7 +113,7 @@ func (rs *Resource) createInvitation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	invitationReq := rs.buildInvitationRequest(r, req, claims)
 
 	invitation, err := rs.runCreateInvitation(r.Context(), invitationReq)
@@ -113,8 +131,10 @@ func (rs *Resource) createInvitation(w http.ResponseWriter, r *http.Request) {
 // buildInvitationRequest maps the wire request into the module's invitation
 // request, resolving the tenant display name for the invitation email and
 // copying the optional name/position fields.
-func (rs *Resource) buildInvitationRequest(r *http.Request, req *CreateInvitationRequest, claims jwt.AppClaims) identityaccess.SchoolInvitationRequest {
+func (rs *Resource) buildInvitationRequest(r *http.Request, req *CreateInvitationRequest, claims sessiontoken.AppClaims) identityaccess.SchoolInvitationRequest {
 	invitationReq := identityaccess.SchoolInvitationRequest{
+		EmploymentAction: req.EmploymentAction,
+		ResetMasterData:  req.ResetMasterData, ResetQualifications: req.ResetQualifications, ResetWorkTime: req.ResetWorkTime,
 		Email:            req.Email,
 		RoleID:           req.RoleID.Int64(),
 		CreatedBy:        int64(claims.ID),
@@ -185,6 +205,8 @@ func renderCreateInvitationError(w http.ResponseWriter, r *http.Request, err err
 // toInvitationResponse maps an invitation to its wire response shape.
 func toInvitationResponse(invitation identityaccess.SchoolInvitation) InvitationResponse {
 	return InvitationResponse{
+		EmploymentAction: invitation.EmploymentAction,
+		ResetMasterData:  invitation.ResetMasterData, ResetQualifications: invitation.ResetQualifications, ResetWorkTime: invitation.ResetWorkTime,
 		ID:              invitation.ID,
 		Email:           invitation.Email,
 		RoleID:          invitation.RoleID,
@@ -201,6 +223,67 @@ func toInvitationResponse(invitation identityaccess.SchoolInvitation) Invitation
 		EmailError:      invitation.Delivery.Error,
 		EmailRetryCount: invitation.Delivery.RetryCount,
 	}
+}
+
+// FormerEmploymentRequest names the address the Einladen dialog asks about.
+// The address travels in the body, not the URL, so it stays out of access
+// logs.
+type FormerEmploymentRequest struct {
+	Email string `json:"email"`
+}
+
+func (req *FormerEmploymentRequest) Bind(_ *http.Request) error {
+	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
+	return validation.ValidateStruct(req, validation.Field(&req.Email, validation.Required, is.Email))
+}
+
+// FormerEmploymentResponse answers the Einladen dialog (#3402): the former
+// employment an invitation would continue, or null.
+type FormerEmploymentResponse struct {
+	FormerEmployment *FormerEmploymentView `json:"former_employment"`
+}
+
+// FormerEmploymentView is a former employment on the wire; the parts are
+// FormerEmploymentPart values.
+type FormerEmploymentView struct {
+	StartedOn    string   `json:"started_on"`
+	EndedOn      string   `json:"ended_on"`
+	Resumes      []string `json:"resumes"`
+	NotReturning []string `json:"not_returning"`
+}
+
+func (rs *Resource) findFormerEmployment(w http.ResponseWriter, r *http.Request) {
+	if rs.Invitations == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New(errInvitationServiceUnavailable)))
+		return
+	}
+	req := &FormerEmploymentRequest{}
+	if err := render.Bind(r, req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	// The route's tenant transaction middleware supplies the school unit.
+	former, found, err := rs.Invitations.FindFormerEmployment(r.Context(), req.Email)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	response := FormerEmploymentResponse{}
+	if found {
+		response.FormerEmployment = &FormerEmploymentView{
+			StartedOn: former.StartedOn.String(), EndedOn: former.EndedOn.String(),
+			Resumes: formerEmploymentParts(former.Resumes), NotReturning: formerEmploymentParts(former.NotReturning),
+		}
+	}
+	common.Respond(w, r, http.StatusOK, response, "Former employment checked")
+}
+
+func formerEmploymentParts(parts []identityaccess.FormerEmploymentPart) []string {
+	values := make([]string, len(parts))
+	for i, part := range parts {
+		values[i] = string(part)
+	}
+	return values
 }
 
 func (rs *Resource) validateInvitation(w http.ResponseWriter, r *http.Request) {
@@ -450,7 +533,7 @@ func (rs *Resource) resendInvitationHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 
 	ctx := r.Context()
 	if rs.transactions != nil {
@@ -491,7 +574,7 @@ func (rs *Resource) revokeInvitation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 
 	ctx := r.Context()
 	var revokeErr error

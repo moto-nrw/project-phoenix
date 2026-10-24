@@ -7,8 +7,6 @@ import {
   SupervisionProvider,
   useSupervision,
   useOptionalSupervision,
-  useHasGroups,
-  useIsSupervising,
 } from "./supervision-context";
 
 // Mock next-auth
@@ -312,6 +310,80 @@ describe("SupervisionProvider", () => {
     });
   });
 
+  it.each([true, false])(
+    "preserves supervision loading during a groups-only retry (success: %s)",
+    async (ok) => {
+      setupFetchMock({ groups: new Error("Group loading failed") });
+      const { result } = renderHook(() => useSupervision(), {
+        wrapper: createWrapper("test-token"),
+      });
+      await waitFor(() => {
+        expect(result.current.groupsLoadFailed).toBe(true);
+        expect(result.current.isLoadingSupervision).toBe(false);
+      });
+
+      let resolveGroups: ((value: unknown) => void) | undefined;
+      mockFetch.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveGroups = resolve;
+          }),
+      );
+      mockFetch.mockClear();
+      let retry: Promise<void> | undefined;
+      act(() => {
+        retry = result.current.refresh({ force: true, groupsOnly: true });
+      });
+
+      expect(result.current.isLoadingGroups).toBe(true);
+      expect(result.current.isLoadingSupervision).toBe(false);
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/groups/context",
+        expect.any(Object),
+      );
+
+      await act(async () => {
+        resolveGroups?.({ ok, json: async () => ({ groups: [] }) });
+        await retry;
+      });
+      expect(result.current.isLoadingGroups).toBe(false);
+      expect(result.current.isLoadingSupervision).toBe(false);
+      expect(result.current.groupsLoadFailed).toBe(!ok);
+    },
+  );
+
+  it.each(["Old room", undefined])(
+    "updates room names on silent refresh (previous name: %s)",
+    async (roomName) => {
+      const group = {
+        id: "10",
+        name: "Group",
+        room_id: "5",
+        room_name: roomName,
+      };
+      setupFetchMock({ groups: { groups: [group] } });
+      const { result } = renderHook(() => useSupervision(), {
+        wrapper: createWrapper("test-token"),
+      });
+      await waitFor(() => {
+        expect(result.current.groups).toEqual([group]);
+        expect(result.current.isLoadingSupervision).toBe(false);
+      });
+
+      const updatedGroup = { ...group, room_name: "New room" };
+      setupFetchMock({ groups: { groups: [updatedGroup] } });
+      await act(async () => {
+        await result.current.refresh({
+          force: true,
+          groupsOnly: true,
+          silent: true,
+        });
+      });
+      expect(result.current.groups).toEqual([updatedGroup]);
+    },
+  );
+
   it("should debounce rapid refresh calls", async () => {
     setupFetchMock(); // Use defaults
 
@@ -610,127 +682,6 @@ describe("useSupervision", () => {
     expect(result.current).toHaveProperty("isSupervising");
     expect(result.current).toHaveProperty("isLoadingSupervision");
     expect(result.current).toHaveProperty("refresh");
-  });
-});
-
-describe("useHasGroups", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it("should return false when loading", () => {
-    vi.mocked(useSession).mockReturnValue({
-      data: {
-        user: { token: "test", id: "1", email: "test@test.com", name: "Test" },
-        expires: "2099-12-31",
-      },
-      status: "authenticated",
-      update: vi.fn(),
-    });
-
-    mockFetch.mockImplementation(
-      () =>
-        new Promise(() => {
-          /* noop */
-        }),
-    ); // Never resolves
-
-    const { result } = renderHook(() => useHasGroups(), {
-      wrapper: createWrapper("test-token"),
-    });
-
-    expect(result.current).toBe(false);
-  });
-
-  it("should return true when has groups and not loading", async () => {
-    setupFetchMock({
-      groups: { groups: [{ id: 1, name: "Group A" }] },
-    });
-
-    const { result } = renderHook(() => useHasGroups(), {
-      wrapper: createWrapper("test-token"),
-    });
-
-    await waitFor(() => {
-      expect(result.current).toBe(true);
-    });
-  });
-
-  it("should return false when no groups", async () => {
-    setupFetchMock(); // Use defaults (empty groups)
-
-    const { result } = renderHook(() => useHasGroups(), {
-      wrapper: createWrapper("test-token"),
-    });
-
-    await waitFor(() => {
-      expect(result.current).toBe(false);
-    });
-  });
-});
-
-describe("useIsSupervising", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it("should return false when loading", () => {
-    vi.mocked(useSession).mockReturnValue({
-      data: {
-        user: { token: "test", id: "1", email: "test@test.com", name: "Test" },
-        expires: "2099-12-31",
-      },
-      status: "authenticated",
-      update: vi.fn(),
-    });
-
-    mockFetch.mockImplementation(
-      () =>
-        new Promise(() => {
-          /* noop */
-        }),
-    );
-
-    const { result } = renderHook(() => useIsSupervising(), {
-      wrapper: createWrapper("test-token"),
-    });
-
-    expect(result.current).toBe(false);
-  });
-
-  it("should return true when supervising and not loading", async () => {
-    setupFetchMock({
-      supervised: {
-        data: [
-          {
-            id: 1,
-            room_id: 5,
-            group_id: 1,
-            room: { id: 5, name: "Room 5" },
-          },
-        ],
-      },
-    });
-
-    const { result } = renderHook(() => useIsSupervising(), {
-      wrapper: createWrapper("test-token"),
-    });
-
-    await waitFor(() => {
-      expect(result.current).toBe(true);
-    });
-  });
-
-  it("should return false when not supervising", async () => {
-    setupFetchMock(); // Use defaults (empty)
-
-    const { result } = renderHook(() => useIsSupervising(), {
-      wrapper: createWrapper("test-token"),
-    });
-
-    await waitFor(() => {
-      expect(result.current).toBe(false);
-    });
   });
 });
 

@@ -168,7 +168,8 @@ type mappingKey struct{ accountID, tenantID int64 }
 // session service is constructed with), ports.OperatorStore, the session
 // store and ports.AccountLoginStore over maps.
 type fakeStore struct {
-	mu sync.Mutex
+	passwordStates map[int64]domain.PasswordLoginState
+	mu             sync.Mutex
 
 	accounts    map[int64]domain.LoginAccount
 	mappings    []mappingKey // insertion order
@@ -209,7 +210,7 @@ type fakeStore struct {
 }
 
 func newFakeStore() *fakeStore {
-	return &fakeStore{
+	return &fakeStore{passwordStates: make(map[int64]domain.PasswordLoginState),
 		accounts: map[int64]domain.LoginAccount{}, inactive: map[mappingKey]bool{},
 		roles: map[mappingKey][]domain.RoleAssignment{}, permissions: map[mappingKey][]string{},
 		operators: map[int64]domain.Operator{}, sessions: map[int64]domain.AccountSession{}, operatorTokens: map[int64]domain.OperatorSession{},
@@ -283,6 +284,11 @@ func (s *fakeStore) FindLoginAccountByEmail(_ context.Context, email string) (do
 		}
 	}
 	return domain.LoginAccount{}, false, stats(), nil
+}
+
+func (s *fakeStore) LockLoginAccountByEmail(ctx context.Context, email string) (domain.LoginAccount, bool, domain.OperationStats, error) {
+	s.record("LockLoginAccountByEmail")
+	return s.FindLoginAccountByEmail(ctx, email)
 }
 
 func (s *fakeStore) FindLoginAccount(_ context.Context, id int64, forUpdate bool) (domain.LoginAccount, bool, domain.OperationStats, error) {
@@ -423,6 +429,10 @@ func (s *fakeStore) InsertOperator(_ context.Context, operator domain.Operator) 
 }
 func (s *fakeStore) DeleteOperator(context.Context, int64) (domain.OperationStats, error) {
 	panic("not used")
+}
+func (s *fakeStore) DeleteDeactivatedOperators(context.Context) (int, domain.OperationStats, error) {
+	s.record("DeleteDeactivatedOperators")
+	return 0, stats(), nil
 }
 
 // IncrementOperatorMFAAttempts models the single UPDATE: the counter grows
@@ -1068,7 +1078,7 @@ func newAuthFixture(t *testing.T) *authFixture {
 	audit := &fakeAudit{}
 	push := &fakePush{}
 	auth, err := NewAccountAuthentication(sessions, AccountAuthenticationDependencies{
-		Store: store, Schools: schools, Persons: persons, Passwords: fakePasswords{}, Codec: fakeCodec{},
+		Store: store, Schools: schools, Persons: persons, Passwords: fakePasswords{}, PasswordPolicy: testPasswordLoginPolicy, Codec: fakeCodec{},
 		MFA: mfa, MFALock: lock, Audit: audit, Push: push, Runtime: runtime, Rotation: fakeRotation{},
 		Logger: slog.New(slog.NewTextHandler(testWriter{t}, nil)),
 	})
@@ -1098,4 +1108,23 @@ func (f *authFixture) seedStaff(accountID, tenantID int64, roleNames ...string) 
 
 func lehrkraftRole() domain.RoleAssignment {
 	return domain.RoleAssignment{RoleID: 7, Name: "lehrkraft", IsSystem: true}
+}
+
+func (fakeTransaction) RunAdmin(ctx context.Context, fn func(context.Context) error) error {
+	return fn(ctx)
+}
+
+func testPasswordLoginPolicy() (int, time.Duration, error) { return 5, 15 * time.Minute, nil }
+func (s *fakeStore) LockPasswordLoginState(_ context.Context, id int64, operator bool) (domain.PasswordLoginState, error) {
+	if operator {
+		return s.passwordStates[-id], nil
+	}
+	return s.passwordStates[id], nil
+}
+func (s *fakeStore) SavePasswordLoginState(_ context.Context, id int64, operator bool, state domain.PasswordLoginState) error {
+	if operator {
+		id = -id
+	}
+	s.passwordStates[id] = state
+	return nil
 }

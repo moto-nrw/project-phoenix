@@ -13,17 +13,22 @@ export function wireErrorCode(code: unknown): ErrorCode | undefined {
 export class ApiError extends Error {
   status?: number;
   code?: ErrorCode;
+  /** Backend diagnostic detail. It is for logs, never for user-facing copy. */
+  detail?: string;
   details?: Record<string, unknown>;
   errors?: { field: string; reason: string }[];
   instance?: string;
   requestId?: string;
   retryAfterSeconds?: number;
+  /** No HTTP response arrived; the status is a stand-in (unavailableApiError). */
+  noResponse?: boolean;
 
   constructor(
     message: string,
     status?: number,
     payload?: {
       code?: string;
+      detail?: string;
       details?: Record<string, unknown>;
       errors?: { field: string; reason: string }[];
       instance?: string;
@@ -35,6 +40,7 @@ export class ApiError extends Error {
     this.code =
       wireErrorCode(payload?.code) ||
       (status === undefined ? undefined : errorClassCode(status));
+    this.detail = payload?.detail;
     this.details = payload?.details;
     this.errors = payload?.errors;
     this.instance = payload?.instance;
@@ -45,7 +51,7 @@ export class ApiError extends Error {
 /** Mirrors backend/api/common.ErrorClassCode until generated contracts include it. */
 export function errorClassCode(status: number): ErrorCode {
   if (status === 401 || status === 403) return "general.permission";
-  if (status === 431) return "general.request_too_large";
+  if (status === 413 || status === 431) return "general.request_too_large";
   if (status === 409 || status === 410 || status === 422)
     return "general.business_rejection";
   if ([408, 429, 499, 502, 503, 504].includes(status))
@@ -63,6 +69,7 @@ export function unavailableApiError(cause?: unknown): ApiError {
     code: "general.unavailable",
   });
   if (cause instanceof Error && cause.name) error.name = cause.name;
+  error.noResponse = true;
   return error;
 }
 
@@ -91,6 +98,74 @@ export async function transportFetch(
   }
 }
 
+/**
+ * The RFC 9457 error body every API answer carries (ADR 0006). `status` is the
+ * HTTP status number, `detail` is developer diagnostics and never shown; the
+ * user reads the catalog text for `code`.
+ */
+export interface ProblemBody {
+  type?: string;
+  title?: string;
+  status: number;
+  detail: string;
+  instance?: string;
+  code: ErrorCode;
+  errors?: { field: string; reason: string }[];
+  details?: Record<string, unknown>;
+  /** Companion-plan 409 of the student PUT (CompanionPlanConflictError). */
+  conflicts?: unknown[];
+}
+
+/**
+ * Builds the envelope for an error that starts in the frontend's own server
+ * layer, so the browser reads it like a backend answer. Without a code the
+ * error carries the code of its class.
+ */
+export function problemBody(
+  status: number,
+  detail: string,
+  extra: Omit<Partial<ProblemBody>, "status" | "detail"> = {},
+): ProblemBody {
+  return {
+    type: "about:blank",
+    title: problemTitle(status),
+    ...extra,
+    status,
+    detail,
+    code: wireErrorCode(extra.code) ?? errorClassCode(status),
+  };
+}
+
+export function problemTitle(status: number): string {
+  const titles: Record<number, string> = {
+    400: "Bad Request",
+    401: "Unauthorized",
+    403: "Forbidden",
+    404: "Not Found",
+    405: "Method Not Allowed",
+    409: "Conflict",
+    413: "Content Too Large",
+    422: "Unprocessable Content",
+    429: "Too Many Requests",
+    500: "Internal Server Error",
+    502: "Bad Gateway",
+    503: "Service Unavailable",
+    504: "Gateway Timeout",
+  };
+  return titles[status] ?? (status >= 500 ? "Server Error" : "Client Error");
+}
+
+/** The diagnostic `detail` of an error body, for logs and error messages. */
+export function problemDetail(body: unknown): string | undefined {
+  if (!body || typeof body !== "object") return undefined;
+  const detail = (body as { detail?: unknown }).detail;
+  return typeof detail === "string" && detail.trim() ? detail : undefined;
+}
+
+/**
+ * Turns an error body into an ApiError. The caller supplies the user-safe
+ * message; the envelope's diagnostic `detail` remains separate for logs.
+ */
 export function apiErrorFromBody(
   message: string,
   status: number,
@@ -115,6 +190,7 @@ export function apiErrorFromBody(
     : undefined;
   return new ApiError(message, status, {
     code: typeof data.code === "string" && data.code ? data.code : undefined,
+    detail: problemDetail(data),
     details,
     errors,
     instance: typeof data.instance === "string" ? data.instance : undefined,
@@ -177,6 +253,7 @@ export function enrichApiError<T extends ApiError>(
     error.code = parsed.code;
   }
   error.details = parsed.details ?? error.details;
+  error.detail = parsed.detail ?? error.detail;
   error.errors = parsed.errors ?? error.errors;
   error.instance = parsed.instance ?? error.instance;
   error.requestId = parsed.requestId ?? error.requestId;

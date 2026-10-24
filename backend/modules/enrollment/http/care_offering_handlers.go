@@ -70,6 +70,12 @@ var careOfferingWriteErrorRenderer = common.RulesRenderer(
 		},
 		{Target: capability.ErrCareOfferingInvalid, Render: common.ErrorInvalidRequest},
 		{
+			Target: capability.ErrCareOfferingNotFound,
+			Render: func(err error) render.Renderer {
+				return common.ErrorNotFoundWithCode(err, common.CodeEnrollmentCareOfferingNotFound)
+			},
+		},
+		{
 			Target: capability.ErrCareOfferingGroupRuleConflict,
 			Render: func(err error) render.Renderer {
 				return common.ErrorInvalidRequest(capability.InvalidInput(
@@ -460,16 +466,19 @@ func (rs *Resource) deleteCareOffering(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		// FK violation when a selection or care booking already references
 		// this offering — admin should soft-delete (is_active=false).
-		if common.IsConstraintViolation(err) {
+		if rs.Failures.Constraint(err) {
 			common.RenderError(w, r, common.ErrorInvalidRequestWithCode(
-				//nolint:staticcheck // ST1005: user-facing German message
-				errors.New("Das Betreuungsangebot wird bereits verwendet und kann nicht gelöscht werden. Deaktivieren Sie es stattdessen."),
+				errors.New("das Betreuungsangebot wird bereits verwendet und kann nicht gelöscht werden. Deaktivieren Sie es stattdessen"),
 				common.CodeEnrollmentCareOfferingInUse,
 			))
 			return
 		}
 		if errors.Is(err, capability.ErrCareOfferingInvalid) {
 			common.RenderError(w, r, common.ErrorInvalidRequest(err))
+			return
+		}
+		if errors.Is(err, capability.ErrCareOfferingNotFound) {
+			common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentCareOfferingNotFound))
 			return
 		}
 		common.RenderError(w, r, common.ErrorInternalServerWrap("delete care offering failed", err))

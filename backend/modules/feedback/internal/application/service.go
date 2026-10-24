@@ -2,22 +2,13 @@ package application
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/feedback"
 	"github.com/moto-nrw/project-phoenix/modules/feedback/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/feedback/internal/ports"
 )
-
-var (
-	ErrInvalidSettings = errors.New("feedback settings are invalid")
-)
-
-type CleanupResult struct {
-	Rows          int
-	RetentionDays int
-}
 
 type Service struct {
 	store    ports.Store
@@ -42,82 +33,19 @@ func (s *Service) Available(ctx context.Context) (available bool, err error) {
 	return available, err
 }
 
-func (s *Service) Create(ctx context.Context, input domain.Entry) (entry domain.Entry, err error) {
-	err = s.run(ctx, "submit", func(txCtx context.Context) (domain.OperationStats, error) {
-		var stats domain.OperationStats
-		entry, stats, err = s.store.Create(txCtx, input)
-		return stats, err
-	})
-	return entry, err
-}
-
-func (s *Service) CreateBatch(ctx context.Context, inputs []domain.Entry) (entries []domain.Entry, err error) {
-	err = s.run(ctx, "submit_batch", func(txCtx context.Context) (stats domain.OperationStats, batchErr error) {
-		entries = make([]domain.Entry, 0, len(inputs))
-		for _, input := range inputs {
-			entry, current, createErr := s.store.Create(txCtx, input)
-			stats.Queries += current.Queries
-			stats.Rows += current.Rows
-			stats.StatementDuration += current.StatementDuration
-			if createErr != nil {
-				return stats, createErr
-			}
-			entries = append(entries, entry)
+// Deletion, its preview counts and retention use run directly so switching
+// feedback off never prevents erasure of already stored entries.
+func (s *Service) runWhenEnabled(ctx context.Context, operation string, fn func(context.Context) (domain.OperationStats, error)) error {
+	return s.run(ctx, operation, func(txCtx context.Context) (domain.OperationStats, error) {
+		enabled, err := s.settings.FeedbackEnabled(txCtx)
+		if err != nil {
+			return domain.OperationStats{}, fmt.Errorf("feedback: resolve availability: %w", err)
 		}
-		return stats, nil
-	})
-	return entries, err
-}
-
-func (s *Service) Get(ctx context.Context, id int64) (entry domain.Entry, err error) {
-	err = s.run(ctx, "read", func(txCtx context.Context) (domain.OperationStats, error) {
-		var stats domain.OperationStats
-		entry, stats, err = s.store.Get(txCtx, id)
-		return stats, err
-	})
-	return entry, err
-}
-
-func (s *Service) Delete(ctx context.Context, id int64) error {
-	return s.run(ctx, "delete", func(txCtx context.Context) (domain.OperationStats, error) {
-		return s.store.Delete(txCtx, id)
-	})
-}
-
-func (s *Service) List(ctx context.Context, filter domain.Filter) (entries []domain.Entry, err error) {
-	err = s.run(ctx, "read_list", func(txCtx context.Context) (domain.OperationStats, error) {
-		var stats domain.OperationStats
-		entries, stats, err = s.store.List(txCtx, filter)
-		return stats, err
-	})
-	return entries, err
-}
-
-func (s *Service) Cleanup(ctx context.Context) (result CleanupResult, err error) {
-	err = s.run(ctx, "retention_cleanup", func(txCtx context.Context) (domain.OperationStats, error) {
-		retentionDays, resolveErr := s.settings.FeedbackRetentionDays(txCtx)
-		if resolveErr != nil {
-			return domain.OperationStats{}, fmt.Errorf("feedback: resolve retention: %w", resolveErr)
+		if !enabled {
+			return domain.OperationStats{}, feedback.ErrFeatureDisabled
 		}
-		if retentionDays <= 0 {
-			return domain.OperationStats{}, ErrInvalidSettings
-		}
-		result.RetentionDays = retentionDays
-		cutoff := s.today().AddDays(-retentionDays)
-		stats, deleteErr := s.store.DeleteOlderThan(txCtx, cutoff)
-		result.Rows = int(stats.Rows)
-		return stats, deleteErr
+		return fn(txCtx)
 	})
-	return result, err
-}
-
-func (s *Service) CountForStudent(ctx context.Context, studentID int64) (count int, err error) {
-	err = s.run(ctx, "count_student", func(txCtx context.Context) (domain.OperationStats, error) {
-		var stats domain.OperationStats
-		count, stats, err = s.store.CountForStudent(txCtx, studentID)
-		return stats, err
-	})
-	return count, err
 }
 
 func (s *Service) run(ctx context.Context, operation string, fn func(context.Context) (domain.OperationStats, error)) (err error) {

@@ -7,10 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -25,18 +24,8 @@ type failingPresenceRevision struct {
 }
 
 type failingSlotRevision struct {
-	scheduleModels.InstanceStudentRepository
 	afterWrite error
 	changed    bool
-}
-
-func (r *failingSlotRevision) ReconcileAttendanceInterval(ctx context.Context, instanceID, studentID int64, previousIn time.Time, previousOut *time.Time, updatedIn time.Time, updatedOut *time.Time) (bool, error) {
-	changed, err := r.InstanceStudentRepository.ReconcileAttendanceInterval(ctx, instanceID, studentID, previousIn, previousOut, updatedIn, updatedOut)
-	if err != nil {
-		return changed, err
-	}
-	r.changed = changed
-	return changed, r.afterWrite
 }
 
 func TestVisitRevisionRollsBackAfterSlotWriteAndRetries(t *testing.T) {
@@ -44,9 +33,9 @@ func TestVisitRevisionRollsBackAfterSlotWriteAndRetries(t *testing.T) {
 	testpkg.OwnTenant(t)
 	db := testpkg.SetupTestDB(t)
 	module := testSchoolPresence(t, db)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	rows := &failingSlotRevision{InstanceStudentRepository: repos.InstanceStudent}
-	syncer := newAttendanceMirror(t, repos.ActivityInstance, rows, slog.Default())
+	timetableRepos := api.NewAttendanceSyncTestRepositories(testpkg.MustDatabase(db), owners.MustNewUnobservedTimetable(testpkg.NewDatabase(t, db)))
+	rows := &failingSlotRevision{}
+	syncer := newAttendanceMirror(t, rows.bind(api.TimetableOwnerRows{Instances: timetableRepos.Instances, Participants: timetableRepos.Participants}), slog.Default())
 	svc, broadcaster := newServiceWithPresenceSync(t, db, module, syncer)
 	activeService.ConfigureForTest(svc, activeService.WithTenantRuntime(testpkg.TenantRuntime(t, db)))
 	student := testpkg.CreateTestStudent(t, db, "Slot", "Rollback", "3a")
@@ -54,11 +43,11 @@ func TestVisitRevisionRollsBackAfterSlotWriteAndRetries(t *testing.T) {
 	device := testpkg.CreateTestDevice(t, db, "slot-revision-rollback")
 	group := testpkg.CreateTestActiveGroupForTenant(t, db, testpkg.Tenant(t))
 	instance := testpkg.CreateTestActivityInstance(t, db, testpkg.TodayDate(), group.RoomID, testpkg.ActivityInstanceOpts{
-		ActiveGroupID: &group.ID, Status: scheduleModels.InstanceStatusActive,
+		ActiveGroupID: &group.ID, Status: studentpresence.ActivitySessionActive,
 	})
-	testpkg.CreateTestInstanceStudent(t, db, instance.ID, student.ID, scheduleModels.AttendanceStatusExpected)
-	ctx := services.WithAttendanceDevice(testpkg.Ctx(t), device.ID, device.TenantID)
-	ctx = services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
+	testpkg.CreateTestInstanceStudent(t, db, instance.ID, student.ID, studentpresence.SessionAttendanceExpected)
+	ctx := api.WithAttendanceDevice(testpkg.Ctx(t), device.ID, device.TenantID)
+	ctx = api.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
 	visit := &studentpresence.Visit{StudentID: student.ID, ActiveGroupID: group.ID, EntryTime: time.Now().Add(-time.Hour)}
 	require.NoError(t, svc.CreateVisit(ctx, visit))
 	original, err := module.FindVisit(ctx, visit.ID)
@@ -82,7 +71,7 @@ func TestVisitRevisionRollsBackAfterSlotWriteAndRetries(t *testing.T) {
 		require.NoError(t, readErr)
 		require.Len(t, attendance, 1)
 		assert.True(t, attendance[0].CheckInTime.Equal(expected), "school attendance interval")
-		slot, readErr := repos.InstanceStudent.FindByInstanceAndStudent(ctx, instance.ID, student.ID)
+		slot, readErr := timetableRepos.Participants.FindByInstanceAndStudent(ctx, instance.ID, student.ID)
 		require.NoError(t, readErr)
 		require.NotNil(t, slot.CheckedInAt)
 		assert.True(t, slot.CheckedInAt.Equal(expected), "timetable interval")
@@ -129,8 +118,8 @@ func TestVisitRevisionRollsBackAfterEachWriteAndRetries(t *testing.T) {
 			staff := testpkg.CreateTestStaff(t, db, "Revise", "Staff")
 			device := testpkg.CreateTestDevice(t, db, "visit-revise-rollback")
 			group := testpkg.CreateTestActiveGroupForTenant(t, db, testpkg.Tenant(t))
-			ctx := services.WithAttendanceDevice(testpkg.Ctx(t), device.ID, device.TenantID)
-			ctx = services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
+			ctx := api.WithAttendanceDevice(testpkg.Ctx(t), device.ID, device.TenantID)
+			ctx = api.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
 			visit := &studentpresence.Visit{StudentID: student.ID, ActiveGroupID: group.ID, EntryTime: time.Now().Add(-time.Hour)}
 			require.NoError(t, svc.CreateVisit(ctx, visit))
 			original, err := module.FindVisit(ctx, visit.ID)
@@ -162,4 +151,14 @@ func TestVisitRevisionRollsBackAfterEachWriteAndRetries(t *testing.T) {
 			assert.True(t, attendance[0].CheckInTime.Equal(visit.EntryTime))
 		})
 	}
+}
+
+func (r *failingSlotRevision) bind(rows api.TimetableOwnerRows) api.TimetableOwnerRows {
+	return api.AfterAttendanceMirrorWrite(rows, func(_ string, changed bool, err error) error {
+		if err != nil {
+			return err
+		}
+		r.changed = changed
+		return r.afterWrite
+	})
 }

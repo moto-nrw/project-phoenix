@@ -2,9 +2,16 @@
  * Tests for InvitationForm Component
  * Tests the rendering and submission of invitation form
  */
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import {
+  act,
+  render,
+  screen,
+  waitFor,
+  fireEvent,
+} from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ApiError } from "~/lib/api-error";
+import { releaseFakeTimers } from "~/test/clock";
 import { InvitationForm } from "./invitation-form";
 
 // Mock dependencies. The form reports errors through the real
@@ -19,6 +26,7 @@ vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
 
 const mockGetRoles = vi.fn();
 const mockCreateInvitation = vi.fn();
+const mockFindFormerEmployment = vi.fn();
 
 vi.mock("~/lib/auth-service", () => ({
   authService: {
@@ -28,6 +36,8 @@ vi.mock("~/lib/auth-service", () => ({
 
 vi.mock("~/lib/invitation-api", () => ({
   createInvitation: (data: unknown): unknown => mockCreateInvitation(data),
+  findFormerEmployment: (email: unknown, signal?: AbortSignal): unknown =>
+    mockFindFormerEmployment(email, signal),
 }));
 
 vi.mock("~/lib/auth-helpers", () => {
@@ -48,6 +58,18 @@ vi.mock("~/lib/auth-helpers", () => {
   };
 });
 
+// The address lookup starts FORMER_EMPLOYMENT_DEBOUNCE_MS (invitation-form.tsx)
+// after the last change. Each describe runs on fake timers that keep advancing
+// with real time, so waitFor and findBy behave as before; tests skip the
+// debounce explicitly where they wait for the lookup.
+const LOOKUP_DEBOUNCE_MS = 400;
+
+function skipLookupDebounce() {
+  act(() => {
+    vi.advanceTimersByTime(LOOKUP_DEBOUNCE_MS);
+  });
+}
+
 const mockRoles = [
   { id: "9007199254740993", name: "user" },
   { id: "2", name: "admin" },
@@ -58,6 +80,7 @@ describe("InvitationForm", () => {
   const mockOnCreated = vi.fn();
 
   beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     vi.clearAllMocks();
     mockGetRoles.mockResolvedValue(mockRoles);
     mockCreateInvitation.mockResolvedValue({
@@ -65,6 +88,7 @@ describe("InvitationForm", () => {
       email: "test@example.com",
       token: "abc123",
     });
+    mockFindFormerEmployment.mockResolvedValue(null);
   });
 
   it("shows loading state while fetching roles", async () => {
@@ -171,7 +195,7 @@ describe("InvitationForm", () => {
       expect(screen.getByLabelText("Rolle")).not.toBeDisabled();
     });
 
-    fireEvent.click(screen.getByText("Einladung senden"));
+    fireEvent.click(await screen.findByText("Einladung senden"));
 
     const email = screen.getByLabelText("E-Mail-Adresse");
     await waitFor(() => expect(email).toHaveFocus());
@@ -202,8 +226,9 @@ describe("InvitationForm", () => {
     render(<InvitationForm />);
     const emailInput = await screen.findByLabelText("E-Mail-Adresse");
     fireEvent.change(emailInput, { target: { value: "test@example.com" } });
+    skipLookupDebounce();
 
-    fireEvent.click(screen.getByText("Einladung senden"));
+    fireEvent.click(await screen.findByText("Einladung senden"));
 
     await waitFor(() => expect(screen.getByLabelText("Rolle")).toHaveFocus());
   });
@@ -223,7 +248,8 @@ describe("InvitationForm", () => {
     fireEvent.click(roleSelect);
     fireEvent.click(screen.getByRole("option", { name: "Betreuer" }));
 
-    const submitButton = screen.getByText("Einladung senden");
+    skipLookupDebounce();
+    const submitButton = await screen.findByText("Einladung senden");
     fireEvent.click(submitButton);
 
     await waitFor(() => {
@@ -262,7 +288,8 @@ describe("InvitationForm", () => {
       target: { value: "Pädagogische Fachkraft" },
     });
 
-    const submitButton = screen.getByText("Einladung senden");
+    skipLookupDebounce();
+    const submitButton = await screen.findByText("Einladung senden");
     fireEvent.click(submitButton);
 
     await waitFor(() => {
@@ -291,7 +318,8 @@ describe("InvitationForm", () => {
     fireEvent.click(roleSelect);
     fireEvent.click(screen.getByRole("option", { name: "Betreuer" }));
 
-    const submitButton = screen.getByText("Einladung senden");
+    skipLookupDebounce();
+    const submitButton = await screen.findByText("Einladung senden");
     fireEvent.click(submitButton);
 
     await waitFor(() => {
@@ -314,7 +342,8 @@ describe("InvitationForm", () => {
     fireEvent.click(roleSelect);
     fireEvent.click(screen.getByRole("option", { name: "Betreuer" }));
 
-    const submitButton = screen.getByText("Einladung senden");
+    skipLookupDebounce();
+    const submitButton = await screen.findByText("Einladung senden");
     fireEvent.click(submitButton);
 
     await waitFor(() => {
@@ -339,7 +368,8 @@ describe("InvitationForm", () => {
     fireEvent.click(roleSelect);
     fireEvent.click(screen.getByRole("option", { name: "Betreuer" }));
 
-    const submitButton = screen.getByText("Einladung senden");
+    skipLookupDebounce();
+    const submitButton = await screen.findByText("Einladung senden");
     fireEvent.click(submitButton);
 
     await waitFor(() => {
@@ -372,7 +402,8 @@ describe("InvitationForm", () => {
     fireEvent.click(roleSelect);
     fireEvent.click(screen.getByRole("option", { name: "Betreuer" }));
 
-    const submitButton = screen.getByText("Einladung senden");
+    skipLookupDebounce();
+    const submitButton = await screen.findByText("Einladung senden");
     fireEvent.click(submitButton);
 
     await waitFor(() => {
@@ -410,7 +441,8 @@ describe("InvitationForm", () => {
     fireEvent.click(roleSelect);
     fireEvent.click(screen.getByRole("option", { name: "Betreuer" }));
 
-    const submitButton = screen.getByText("Einladung senden");
+    skipLookupDebounce();
+    const submitButton = await screen.findByText("Einladung senden");
     fireEvent.click(submitButton);
 
     await waitFor(() => {
@@ -439,7 +471,8 @@ describe("InvitationForm", () => {
     fireEvent.click(roleSelect);
     fireEvent.click(screen.getByRole("option", { name: "Betreuer" }));
 
-    const submitButton = screen.getByText("Einladung senden");
+    skipLookupDebounce();
+    const submitButton = await screen.findByText("Einladung senden");
     fireEvent.click(submitButton);
 
     await waitFor(() => {
@@ -471,7 +504,8 @@ describe("InvitationForm", () => {
     fireEvent.click(roleSelect);
     fireEvent.click(screen.getByRole("option", { name: "Betreuer" }));
 
-    const submitButton = screen.getByText("Einladung senden");
+    skipLookupDebounce();
+    const submitButton = await screen.findByText("Einladung senden");
     fireEvent.click(submitButton);
 
     await waitFor(() => {
@@ -494,8 +528,9 @@ describe("InvitationForm", () => {
     fireEvent.change(screen.getByLabelText("E-Mail-Adresse"), {
       target: { value: "test@example.com" },
     });
+    skipLookupDebounce();
 
-    fireEvent.click(screen.getByText("Einladung senden"));
+    fireEvent.click(await screen.findByText("Einladung senden"));
 
     expect(
       await screen.findByRole("button", { name: "Vorgangskennung kopieren" }),
@@ -538,7 +573,7 @@ describe("InvitationForm", () => {
         expect(screen.getByLabelText("Rolle")).not.toBeDisabled();
       });
 
-      fireEvent.click(screen.getByText("Einladung senden"));
+      fireEvent.click(await screen.findByText("Einladung senden"));
 
       await waitFor(() => {
         expect(scrollIntoViewMock).toHaveBeenCalledWith({
@@ -564,8 +599,9 @@ describe("InvitationForm", () => {
       fireEvent.change(screen.getByLabelText("E-Mail-Adresse"), {
         target: { value: "test@example.com" },
       });
+      skipLookupDebounce();
 
-      fireEvent.click(screen.getByText("Einladung senden"));
+      fireEvent.click(await screen.findByText("Einladung senden"));
 
       await waitFor(() => {
         expect(screen.getByText("Rolle").className).toContain(
@@ -573,5 +609,401 @@ describe("InvitationForm", () => {
         );
       });
     });
+  });
+});
+
+// Before an invitation goes out, the dialog says whether the address belongs
+// to a former employment at this school and what a Wiederaufnahme brings
+// back (ADR 0021, #3402).
+describe("InvitationForm former employment hint", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.clearAllMocks();
+    mockGetRoles.mockResolvedValue(mockRoles);
+    mockFindFormerEmployment.mockResolvedValue(null);
+  });
+
+  const typeEmail = async (value: string) => {
+    render(<InvitationForm />);
+    await waitFor(() => {
+      expect(screen.getByLabelText("Rolle")).not.toBeDisabled();
+    });
+    fireEvent.change(screen.getByLabelText("E-Mail-Adresse"), {
+      target: { value },
+    });
+    skipLookupDebounce();
+  };
+
+  it("names the period, what comes back and what does not", async () => {
+    mockFindFormerEmployment.mockResolvedValue({
+      startedOn: "2024-08-01",
+      endedOn: "2026-07-31",
+      resumes: [
+        "master_data",
+        "qualifications",
+        "work_time",
+        "past_shifts_and_absences",
+      ],
+      notReturning: [
+        "staff_documents",
+        "future_shifts_and_absences",
+        "groups_classes_substitutions",
+      ],
+    });
+
+    await typeEmail(" Former@Example.com ");
+
+    expect(
+      await screen.findByText("Diese Person war schon bei Ihnen beschäftigt"),
+    ).toBeInTheDocument();
+    expect(mockFindFormerEmployment).toHaveBeenCalledWith(
+      "former@example.com",
+      expect.any(AbortSignal),
+    );
+    expect(
+      screen.getByText("In moto eingetragen vom 01.08.2024 bis 31.07.2026."),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: /Stammdaten/ })).toBeChecked();
+    expect(
+      screen.getByRole("checkbox", { name: /Qualifikationen/ }),
+    ).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: /Arbeitszeit/ })).toBeChecked();
+    expect(
+      screen.getByText(
+        "Vergangene Schichten und Abwesenheiten bleiben erhalten.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Dokumente, künftige Schichten und Abwesenheiten, Gruppen, Klassen und Vertretungen",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("looks nothing like a hint when there is no former employment", async () => {
+    await typeEmail("new@example.com");
+
+    await waitFor(() => {
+      expect(mockFindFormerEmployment).toHaveBeenCalledWith(
+        "new@example.com",
+        expect.any(AbortSignal),
+      );
+    });
+    expect(
+      screen.queryByText("Diese Person war schon bei Ihnen beschäftigt"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("does not ask for an incomplete address", async () => {
+    await typeEmail("new@exa");
+
+    // Longer than the debounce: a lookup would have started by now.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(600);
+    });
+    expect(mockFindFormerEmployment).not.toHaveBeenCalled();
+  });
+
+  it("drops the hint when the address changes to one without", async () => {
+    mockFindFormerEmployment.mockImplementation((email: string) =>
+      Promise.resolve(
+        email === "former@example.com"
+          ? {
+              startedOn: "2024-08-01",
+              endedOn: "2026-07-31",
+              resumes: ["master_data"],
+              notReturning: ["staff_documents"],
+            }
+          : null,
+      ),
+    );
+
+    await typeEmail("former@example.com");
+    expect(
+      await screen.findByText("Diese Person war schon bei Ihnen beschäftigt"),
+    ).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("E-Mail-Adresse"), {
+      target: { value: "other@example.com" },
+    });
+    skipLookupDebounce();
+
+    await waitFor(() => {
+      expect(
+        screen.queryByText("Diese Person war schon bei Ihnen beschäftigt"),
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  it("waits for a fresh lookup when returning to an address with a former employment", async () => {
+    mockFindFormerEmployment.mockImplementation((email: string) => {
+      if (email === "former@example.com") {
+        return Promise.resolve({
+          startedOn: "2024-08-01",
+          endedOn: "2026-07-31",
+          resumes: ["master_data"],
+          notReturning: ["staff_documents"],
+        });
+      }
+      return new Promise(() => undefined);
+    });
+
+    await typeEmail("former@example.com");
+    expect(
+      await screen.findByText("Diese Person war schon bei Ihnen beschäftigt"),
+    ).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("E-Mail-Adresse"), {
+      target: { value: "other@example.com" },
+    });
+    skipLookupDebounce();
+    await waitFor(() =>
+      expect(mockFindFormerEmployment).toHaveBeenCalledTimes(2),
+    );
+    await waitFor(() =>
+      expect(screen.getByText("Adresse wird geprüft…")).toBeDisabled(),
+    );
+
+    fireEvent.change(screen.getByLabelText("E-Mail-Adresse"), {
+      target: { value: "former@example.com" },
+    });
+
+    expect(
+      screen.queryByText("Diese Person war schon bei Ihnen beschäftigt"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("Adresse wird geprüft…")).toBeDisabled();
+  });
+
+  it("keeps the dialog usable when the lookup fails", async () => {
+    mockFindFormerEmployment.mockRejectedValue(new Error("network"));
+    mockCreateInvitation.mockResolvedValue({
+      id: 1,
+      email: "former@example.com",
+      token: "abc123",
+    });
+
+    await typeEmail("former@example.com");
+    await waitFor(() => {
+      expect(mockFindFormerEmployment).toHaveBeenCalled();
+    });
+
+    expect(
+      screen.queryByText("Diese Person war schon bei Ihnen beschäftigt"),
+    ).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText("Einladung senden")).not.toBeDisabled();
+    });
+  });
+
+  it("falls back to the existing invitation behavior when the lookup times out", async () => {
+    let lookupSignal: AbortSignal | undefined;
+    mockFindFormerEmployment.mockImplementation(
+      (_email: string, signal?: AbortSignal) => {
+        lookupSignal = signal;
+        return new Promise((_, reject) => {
+          signal?.addEventListener("abort", () => reject(new Error("aborted")));
+        });
+      },
+    );
+
+    let usesFakeTimers = false;
+    try {
+      render(<InvitationForm />);
+      await waitFor(() =>
+        expect(screen.getByLabelText("Rolle")).not.toBeDisabled(),
+      );
+      vi.useFakeTimers();
+      usesFakeTimers = true;
+      fireEvent.change(screen.getByLabelText("E-Mail-Adresse"), {
+        target: { value: "former@example.com" },
+      });
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(400);
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5_000);
+      });
+
+      expect(lookupSignal?.aborted).toBe(true);
+      expect(screen.getByText("Einladung senden")).not.toBeDisabled();
+      fireEvent.click(screen.getByText("Einladung senden"));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(mockCreateInvitation).toHaveBeenCalledWith(
+        expect.not.objectContaining({ employmentAction: expect.anything() }),
+      );
+    } finally {
+      if (usesFakeTimers) releaseFakeTimers();
+    }
+  });
+});
+
+describe("InvitationForm employment choice", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.clearAllMocks();
+    mockGetRoles.mockResolvedValue(mockRoles);
+    mockCreateInvitation.mockResolvedValue({
+      id: 1,
+      email: "former@example.com",
+      token: "abc123",
+    });
+    mockFindFormerEmployment.mockResolvedValue({
+      startedOn: "2024-08-01",
+      endedOn: "2026-07-31",
+      resumes: ["master_data", "work_time"],
+      notReturning: ["staff_documents"],
+    });
+  });
+
+  const openFormer = async () => {
+    render(<InvitationForm />);
+    await waitFor(() =>
+      expect(screen.getByLabelText("Rolle")).not.toBeDisabled(),
+    );
+    fireEvent.change(screen.getByLabelText("E-Mail-Adresse"), {
+      target: { value: "former@example.com" },
+    });
+    skipLookupDebounce();
+    await screen.findByRole("button", { name: "Neuaufnahme" });
+  };
+
+  it("waits for the address lookup before sending", async () => {
+    let resolveLookup!: (value: null) => void;
+    mockFindFormerEmployment.mockImplementation(
+      () =>
+        new Promise<null>((resolve) => {
+          resolveLookup = resolve;
+        }),
+    );
+    render(<InvitationForm />);
+    await waitFor(() =>
+      expect(screen.getByLabelText("Rolle")).not.toBeDisabled(),
+    );
+    fireEvent.change(screen.getByLabelText("E-Mail-Adresse"), {
+      target: { value: "former@example.com" },
+    });
+    expect(screen.getByText("Adresse wird geprüft…")).toBeDisabled();
+    skipLookupDebounce();
+    await waitFor(() => expect(mockFindFormerEmployment).toHaveBeenCalled());
+    expect(mockCreateInvitation).not.toHaveBeenCalled();
+    resolveLookup(null);
+    expect(await screen.findByText("Einladung senden")).not.toBeDisabled();
+  });
+
+  it("sends Wiederaufnahme by default for a recognized employment", async () => {
+    await openFormer();
+    expect(
+      screen.getByRole("button", { name: "Wiederaufnahme" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(await screen.findByText("Einladung senden"));
+    await waitFor(() =>
+      expect(mockCreateInvitation).toHaveBeenCalledWith(
+        expect.objectContaining({ employmentAction: "resume" }),
+      ),
+    );
+  });
+
+  it("explains and sends Neuaufnahme", async () => {
+    await openFormer();
+    fireEvent.click(screen.getByRole("button", { name: "Neuaufnahme" }));
+    expect(
+      screen.getByText(
+        "Eine neue Beschäftigung beginnt. Die frühere bleibt beendet.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Kommt bei Wiederaufnahme zurück:"),
+    ).not.toBeInTheDocument();
+    fireEvent.click(await screen.findByText("Einladung senden"));
+    await waitFor(() =>
+      expect(mockCreateInvitation).toHaveBeenCalledWith(
+        expect.objectContaining({ employmentAction: "new" }),
+      ),
+    );
+  });
+
+  it("clears the choice when the address changes", async () => {
+    await openFormer();
+    fireEvent.click(screen.getByRole("button", { name: "Neuaufnahme" }));
+    mockFindFormerEmployment.mockResolvedValue(null);
+    fireEvent.change(screen.getByLabelText("E-Mail-Adresse"), {
+      target: { value: "new@example.com" },
+    });
+    expect(
+      screen.queryByRole("button", { name: "Neuaufnahme" }),
+    ).not.toBeInTheDocument();
+    skipLookupDebounce();
+    fireEvent.click(await screen.findByText("Einladung senden"));
+    await waitFor(() =>
+      expect(mockCreateInvitation).toHaveBeenCalledWith(
+        expect.objectContaining({ email: "new@example.com" }),
+      ),
+    );
+    expect(mockCreateInvitation.mock.calls[0]?.[0]).not.toHaveProperty(
+      "employmentAction",
+    );
+  });
+  it("stores the three carryover choices and keeps work time together", async () => {
+    await openFormer();
+    expect(screen.getAllByRole("checkbox")).toHaveLength(3);
+    fireEvent.click(screen.getByRole("checkbox", { name: /Stammdaten/ }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /Arbeitszeit/ }));
+    fireEvent.click(screen.getByText("Einladung senden"));
+    await waitFor(() =>
+      expect(mockCreateInvitation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          employmentAction: "resume",
+          resetMasterData: true,
+          resetQualifications: false,
+          resetWorkTime: true,
+        }),
+      ),
+    );
+  });
+
+  it("explains when unchecked qualifications will be reset", async () => {
+    await openFormer();
+    expect(
+      screen.getByText("Bisherige Qualifikationen bleiben erhalten."),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("checkbox", { name: /Qualifikationen/ }));
+
+    expect(
+      screen.getByText("Bisherige Qualifikationen werden zurückgesetzt."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Bisherige Qualifikationen bleiben erhalten."),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides and omits reset choices for a new employment", async () => {
+    await openFormer();
+    fireEvent.click(screen.getByRole("checkbox", { name: /Qualifikationen/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Neuaufnahme" }));
+    expect(screen.queryAllByRole("checkbox")).toHaveLength(0);
+    fireEvent.click(screen.getByText("Einladung senden"));
+    await waitFor(() => expect(mockCreateInvitation).toHaveBeenCalled());
+    const request = mockCreateInvitation.mock.calls[0]?.[0];
+    expect(request).toMatchObject({ employmentAction: "new" });
+    expect(request).not.toHaveProperty("resetMasterData");
+    expect(request).not.toHaveProperty("resetQualifications");
+    expect(request).not.toHaveProperty("resetWorkTime");
+  });
+
+  it("does not reuse another address's reset choices", async () => {
+    await openFormer();
+    fireEvent.click(screen.getByRole("checkbox", { name: /Qualifikationen/ }));
+    fireEvent.change(screen.getByLabelText("E-Mail-Adresse"), {
+      target: { value: "another@example.com" },
+    });
+    skipLookupDebounce();
+    await screen.findByRole("checkbox", { name: /Qualifikationen/ });
+    expect(
+      screen.getByRole("checkbox", { name: /Qualifikationen/ }),
+    ).toBeChecked();
   });
 });

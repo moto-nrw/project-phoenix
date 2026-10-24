@@ -51,9 +51,8 @@ export async function gotoTolerant(page: Page, url: string): Promise<void> {
   try {
     await page.goto(url, { waitUntil: "domcontentloaded" });
   } catch (error) {
-    if (!(error instanceof Error && error.message.includes("ERR_ABORTED"))) {
-      throw error;
-    }
+    const reason = error instanceof Error ? error.message : "";
+    if (!/net::ERR_ABORTED/.test(reason)) throw error;
   }
 }
 

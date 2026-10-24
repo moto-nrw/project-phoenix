@@ -48,31 +48,31 @@ func TestApprovedBookingsTenantScopeNullStudentAndReadFailure(t *testing.T) {
 	}
 	for i, schoolID := range schoolIDs {
 		ctx := testpkg.ContextForTenant(testpkg.Ctx(t), schoolID)
-		duplicates, err := module.ActiveDuplicateChildren(ctx, phaseIDs[i], "  AUDIT@EXAMPLE.TEST  ", []enrollment.DuplicateChildKey{{FirstName: " FIRST ", LastName: " LAST "}}, 0)
+		duplicates, err := testpkg.TenantQuery4(t, ctx, db, module.ActiveDuplicateChildren, phaseIDs[i], "  AUDIT@EXAMPLE.TEST  ", []enrollment.DuplicateChildKey{{FirstName: " FIRST ", LastName: " LAST "}}, 0)
 		require.NoError(t, err)
 		require.Equal(t, []enrollment.DuplicateChildKey{{FirstName: "first", LastName: "last"}}, duplicates)
-		duplicates, err = module.ActiveDuplicateChildren(ctx, phaseIDs[i], "audit@example.test", []enrollment.DuplicateChildKey{{FirstName: "First", LastName: "Last"}}, requestIDs[i])
+		duplicates, err = testpkg.TenantQuery4(t, ctx, db, module.ActiveDuplicateChildren, phaseIDs[i], "audit@example.test", []enrollment.DuplicateChildKey{{FirstName: "First", LastName: "Last"}}, requestIDs[i])
 		require.NoError(t, err)
 		require.Empty(t, duplicates, "editing a request must not match itself")
-		duplicates, err = module.ActiveDuplicateChildren(ctx, phaseIDs[1-i], "audit@example.test", []enrollment.DuplicateChildKey{{FirstName: "First", LastName: "Last"}}, 0)
+		duplicates, err = testpkg.TenantQuery4(t, ctx, db, module.ActiveDuplicateChildren, phaseIDs[1-i], "audit@example.test", []enrollment.DuplicateChildKey{{FirstName: "First", LastName: "Last"}}, 0)
 		require.NoError(t, err)
 		require.Empty(t, duplicates, "another school's submissions cannot match")
-		matched, err := module.HasActiveRequestForMatchedStudent(ctx, phaseIDs[i], studentIDs[i], 0)
+		matched, err := testpkg.TenantQuery3(t, ctx, db, module.HasActiveRequestForMatchedStudent, phaseIDs[i], studentIDs[i], 0)
 		require.NoError(t, err)
 		require.True(t, matched, "approved children remain active duplicates")
-		matched, err = module.HasActiveRequestForMatchedStudent(ctx, phaseIDs[1-i], studentIDs[1-i], 0)
+		matched, err = testpkg.TenantQuery3(t, ctx, db, module.HasActiveRequestForMatchedStudent, phaseIDs[1-i], studentIDs[1-i], 0)
 		require.NoError(t, err)
 		require.False(t, matched)
-		count, err := module.CountStudentReferences(ctx, studentIDs[i])
+		count, _, err := testpkg.TenantQueryPair1(t, ctx, db, module.CountStudentReferencesForDeletion, studentIDs[i])
 		require.NoError(t, err)
 		require.Equal(t, 1, count)
-		createdIDs, err := module.CreatedStudentRequestChildIDs(ctx, studentIDs)
+		createdIDs, err := testpkg.TenantQuery1(t, ctx, db, module.CreatedStudentRequestChildIDs, studentIDs)
 		require.NoError(t, err)
 		require.Empty(t, createdIDs, "matched-only links are not care-exit source ownership")
-		periods, err := module.StudentCarePeriods(ctx, studentIDs[i])
+		periods, err := testpkg.TenantQuery1(t, ctx, db, module.StudentCarePeriods, studentIDs[i])
 		require.NoError(t, err)
 		require.Empty(t, periods, "matched-only links are not created-student care periods")
-		links, err := module.CareExitApplicationLinks(ctx, studentIDs)
+		links, err := testpkg.TenantQuery1(t, ctx, db, module.CareExitApplicationLinks, studentIDs)
 		require.NoError(t, err)
 		require.Len(t, links, 1, "selected-student projection includes matched links but excludes foreign schools")
 		require.Nil(t, links[0].CreatedStudentID)
@@ -93,7 +93,7 @@ func TestApprovedBookingsTenantScopeNullStudentAndReadFailure(t *testing.T) {
 			return activationFailure
 		})
 		require.ErrorIs(t, err, activationFailure)
-		matched, err = module.HasActiveRequestForMatchedStudent(ctx, phaseIDs[i], studentIDs[i], links[0].ID)
+		matched, err = testpkg.TenantQuery3(t, ctx, db, module.HasActiveRequestForMatchedStudent, phaseIDs[i], studentIDs[i], links[0].ID)
 		require.NoError(t, err)
 		require.False(t, matched, "rechecking a child must exclude its own pin")
 		transitionFailure := errors.New("after bulk restore")
@@ -110,7 +110,7 @@ func TestApprovedBookingsTenantScopeNullStudentAndReadFailure(t *testing.T) {
 			return transitionFailure
 		})
 		require.ErrorIs(t, err, transitionFailure)
-		afterRestore, err := module.ApprovedBookings(ctx)
+		afterRestore, err := testpkg.TenantQuery0(t, ctx, db, module.ApprovedBookings)
 		require.NoError(t, err)
 		require.Len(t, afterRestore, 2, "bulk transitions and both restore writes join the caller's transaction")
 		for _, operation := range []string{"status", "rollover review"} {
@@ -124,18 +124,18 @@ func TestApprovedBookingsTenantScopeNullStudentAndReadFailure(t *testing.T) {
 				return failure
 			})
 			require.ErrorIs(t, err, failure)
-			after, err := module.CareExitApplicationLinks(ctx, studentIDs)
+			after, err := testpkg.TenantQuery1(t, ctx, db, module.CareExitApplicationLinks, studentIDs)
 			require.NoError(t, err)
 			require.Len(t, after, 1)
 			require.Equal(t, "approved", after[0].Status, "a failed workflow must not persist its child review")
 		}
-		allLinks, err := module.CareExitApplicationLinks(ctx, nil)
+		allLinks, err := testpkg.TenantQuery1(t, ctx, db, module.CareExitApplicationLinks, nil)
 		require.NoError(t, err)
 		require.Len(t, allLinks, 3, "scheduled expiry projection retains all local application statuses")
 		for _, link := range allLinks {
 			require.Equal(t, schoolID, link.TenantID)
 		}
-		count, err = module.CountStudentReferences(ctx, studentIDs[1-i])
+		count, _, err = testpkg.TenantQueryPair1(t, ctx, db, module.CountStudentReferencesForDeletion, studentIDs[1-i])
 		require.NoError(t, err)
 		require.Zero(t, count, "another school's child references are not visible")
 		linkFailure := errors.New("after student link writes")
@@ -145,33 +145,33 @@ func TestApprovedBookingsTenantScopeNullStudentAndReadFailure(t *testing.T) {
 			return linkFailure
 		})
 		require.ErrorIs(t, err, linkFailure)
-		afterLinks, err := module.CareExitApplicationLinks(ctx, studentIDs)
+		afterLinks, err := testpkg.TenantQuery1(t, ctx, db, module.CareExitApplicationLinks, studentIDs)
 		require.NoError(t, err)
 		require.Len(t, afterLinks, 1)
 		require.Nil(t, afterLinks[0].CreatedStudentID)
 		require.Equal(t, &studentIDs[i], afterLinks[0].MatchedStudentID)
 		foreignCtx := testpkg.ContextForTenant(testpkg.Ctx(t), schoolIDs[1-i])
-		require.Error(t, module.LinkCreatedStudent(foreignCtx, links[0].ID, studentIDs[1-i]))
-		require.Error(t, module.UpdateMatchedStudent(foreignCtx, links[0].ID, nil))
-		require.NoError(t, module.LinkCreatedStudent(ctx, links[0].ID, studentIDs[i]))
-		periods, err = module.StudentCarePeriods(ctx, studentIDs[i])
+		require.Error(t, testpkg.TenantCommand2(t, foreignCtx, db, module.LinkCreatedStudent, links[0].ID, studentIDs[1-i]))
+		require.Error(t, testpkg.TenantCommand2(t, foreignCtx, db, module.UpdateMatchedStudent, links[0].ID, nil))
+		require.NoError(t, testpkg.TenantCommand2(t, ctx, db, module.LinkCreatedStudent, links[0].ID, studentIDs[i]))
+		periods, err = testpkg.TenantQuery1(t, ctx, db, module.StudentCarePeriods, studentIDs[i])
 		require.NoError(t, err)
 		require.Len(t, periods, 1)
 		require.Equal(t, phaseIDs[i], periods[0].PhaseID)
-		phase, err := module.Phase(ctx, phaseIDs[i])
+		phase, err := testpkg.TenantQuery1(t, ctx, db, module.Phase, phaseIDs[i])
 		require.NoError(t, err)
 		require.Equal(t, phase.ServiceStartDate, periods[0].ServiceStartDate)
 		require.Equal(t, phase.ServiceEndDate, periods[0].ServiceEndDate)
-		foreignPeriods, err := module.StudentCarePeriods(foreignCtx, studentIDs[i])
+		foreignPeriods, err := testpkg.TenantQuery1(t, foreignCtx, db, module.StudentCarePeriods, studentIDs[i])
 		require.NoError(t, err)
 		require.Empty(t, foreignPeriods)
-		count, err = module.CountStudentReferences(ctx, studentIDs[i])
+		count, _, err = testpkg.TenantQueryPair1(t, ctx, db, module.CountStudentReferencesForDeletion, studentIDs[i])
 		require.NoError(t, err)
 		require.Equal(t, 1, count, "one child with both links is counted once")
-		createdIDs, err = module.CreatedStudentRequestChildIDs(ctx, append(studentIDs, studentIDs[i]))
+		createdIDs, err = testpkg.TenantQuery1(t, ctx, db, module.CreatedStudentRequestChildIDs, append(studentIDs, studentIDs[i]))
 		require.NoError(t, err)
 		require.Len(t, createdIDs, 1, "the owner filters foreign schools and duplicate input IDs")
-		rows, err := module.ApprovedBookings(ctx)
+		rows, err := testpkg.TenantQuery0(t, ctx, db, module.ApprovedBookings)
 		require.NoError(t, err)
 		require.Len(t, rows, 2, "approved rows without a student must remain available for missing-offering audits")
 		require.Nil(t, rows[0].StudentID)
@@ -182,9 +182,9 @@ func TestApprovedBookingsTenantScopeNullStudentAndReadFailure(t *testing.T) {
 			require.NotEmpty(t, row.ServiceEndDate)
 		}
 		err = tenant.WithAdminTx(ctx, db, func(adminCtx context.Context, _ bun.Tx) error {
-			_, err := module.ApprovedBookings(adminCtx)
+			_, err := testpkg.TenantQuery0(t, adminCtx, db, module.ApprovedBookings)
 			require.ErrorContains(t, err, "tenant ID is required")
-			rows, err = module.ApprovedBookings(testpkg.ContextForTenant(adminCtx, schoolID))
+			rows, err = testpkg.TenantQuery0(t, testpkg.ContextForTenant(adminCtx, schoolID), db, module.ApprovedBookings)
 			require.NoError(t, err)
 			require.Len(t, rows, 2)
 			for _, row := range rows {
@@ -198,8 +198,8 @@ func TestApprovedBookingsTenantScopeNullStudentAndReadFailure(t *testing.T) {
 	err := testpkg.WithTenantTx(t, ctx, db, schoolIDs[0], func(txCtx context.Context, tx bun.Tx) error {
 		_, err := tx.NewRaw("SELECT 1 / 0").Exec(txCtx)
 		require.Error(t, err)
-		_, countErr := module.CountStudentReferences(txCtx, studentIDs[0])
-		require.ErrorContains(t, countErr, "count enrollment student references")
+		_, _, countErr := module.CountStudentReferencesForDeletion(txCtx, studentIDs[0])
+		require.ErrorContains(t, countErr, "count enrollment student references for deletion")
 		_, sourceErr := module.CreatedStudentRequestChildIDs(txCtx, studentIDs)
 		require.ErrorContains(t, sourceErr, "list enrollment children created as students")
 		_, linksErr := module.CareExitApplicationLinks(txCtx, studentIDs)
@@ -209,30 +209,66 @@ func TestApprovedBookingsTenantScopeNullStudentAndReadFailure(t *testing.T) {
 		return err
 	})
 	require.Error(t, err)
-	rows, err := module.ApprovedBookings(ctx)
+	rows, err := testpkg.TenantQuery0(t, ctx, db, module.ApprovedBookings)
 	require.NoError(t, err)
 	require.Len(t, rows, 2, "retry succeeds after the failed transaction rolls back")
-	count, err := module.CountCreatedStudentsByPhase(ctx, phaseIDs[0])
+	count, err := testpkg.TenantQuery1(t, ctx, db, module.CountCreatedStudentsByPhase, phaseIDs[0])
 	require.NoError(t, err)
 	require.Equal(t, 1, count)
-	count, err = module.CountCreatedStudentsByPhase(ctx, phaseIDs[1])
+	count, err = testpkg.TenantQuery1(t, ctx, db, module.CountCreatedStudentsByPhase, phaseIDs[1])
 	require.NoError(t, err)
 	require.Zero(t, count)
-	require.NoError(t, module.DeleteRequestChildren(ctx, requestIDs[1]))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, module.DeleteRequestChildren, requestIDs[1]))
 	failure := errors.New("after child deletion")
 	err = testpkg.WithTenantTx(t, ctx, db, schoolIDs[0], func(txCtx context.Context, _ bun.Tx) error {
 		require.NoError(t, module.DeleteRequestChildren(txCtx, requestIDs[0]))
 		return failure
 	})
 	require.ErrorIs(t, err, failure)
-	count, err = module.CountCreatedStudentsByPhase(ctx, phaseIDs[0])
+	count, err = testpkg.TenantQuery1(t, ctx, db, module.CountCreatedStudentsByPhase, phaseIDs[0])
 	require.NoError(t, err)
 	require.Equal(t, 1, count, "rollback restores the child and its student reference")
-	require.NoError(t, module.DeleteRequestChildren(ctx, requestIDs[0]))
-	count, err = module.CountCreatedStudentsByPhase(ctx, phaseIDs[0])
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, module.DeleteRequestChildren, requestIDs[0]))
+	count, err = testpkg.TenantQuery1(t, ctx, db, module.CountCreatedStudentsByPhase, phaseIDs[0])
 	require.NoError(t, err)
 	require.Zero(t, count)
-	count, err = module.CountCreatedStudentsByPhase(testpkg.ContextForTenant(testpkg.Ctx(t), schoolIDs[1]), phaseIDs[1])
+	count, err = testpkg.TenantQuery1(t, testpkg.ContextForTenant(testpkg.Ctx(t), schoolIDs[1]), db, module.CountCreatedStudentsByPhase, phaseIDs[1])
 	require.NoError(t, err)
 	require.Equal(t, 1, count, "another school's children remain")
+}
+
+func TestCountStudentReferencesForDeletionSeparatesRetainedChildren(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := enrollmentCompose.New()
+	schoolID := testpkg.Tenant(t)
+	ctx := testpkg.ContextForTenant(testpkg.Ctx(t), schoolID)
+	phase := testpkg.CreateTestEnrollmentPhase(t, db)
+	student := testpkg.CreateTestStudent(t, db, "Reference", "Count", "3a")
+
+	err := testpkg.WithTenantTx(t, ctx, db, schoolID, func(txCtx context.Context, tx bun.Tx) error {
+		var requestID int64
+		err := tx.NewRaw(`INSERT INTO enrollment.requests (tenant_id,phase_id,guardian_first_name,guardian_last_name,guardian_email,status_token,consent_flags,custom_data)
+			VALUES (?,?,'First','Last','count@example.test',?,'{}'::jsonb,'{}'::jsonb) RETURNING id`, schoolID, phase.ID, fmt.Sprintf("reference-count-%d", schoolID)).Scan(txCtx, &requestID)
+		if err != nil {
+			return err
+		}
+		_, err = tx.NewRaw(`INSERT INTO enrollment.request_children
+			(tenant_id,request_id,first_name,last_name,date_of_birth,status,activation_mode,sort_order,custom_data,created_student_id,matched_student_id)
+			VALUES (?,?,'Approved','Child','2018-04-15',?,'scheduled',0,'{}'::jsonb,?,NULL),
+			 (?,?,'Open','Child','2018-04-15',?,'scheduled',1,'{}'::jsonb,NULL,?),
+			 (?,?,'Rejected','Child','2018-04-15',?,'scheduled',2,'{}'::jsonb,?,NULL),
+			 (?,?,'Withdrawn','Child','2018-04-15',?,'scheduled',3,'{}'::jsonb,NULL,?)`,
+			schoolID, requestID, enrollment.ChildStatusApproved, student.ID,
+			schoolID, requestID, enrollment.ChildStatusSubmitted, student.ID,
+			schoolID, requestID, enrollment.ChildStatusRejected, student.ID,
+			schoolID, requestID, enrollment.ChildStatusWithdrawn, student.ID).Exec(txCtx)
+		return err
+	})
+	require.NoError(t, err)
+
+	approved, total, err := testpkg.TenantQueryPair1(t, ctx, db, module.CountStudentReferencesForDeletion, student.ID)
+	require.NoError(t, err)
+	require.Equal(t, 1, approved, "only the approved enrollment child leaves with the student")
+	require.Equal(t, 4, total, "retained enrollment children still require the locked recheck")
 }

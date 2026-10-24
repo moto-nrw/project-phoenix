@@ -1,11 +1,12 @@
 // Package operator serves the operator school settings routes of Settings
-// Platform (#3232): the school's settings schema, the booking authority
-// review, and setting, resetting and revealing a school's values. The
+// Platform (#3232): the school's settings schema, and setting, resetting and
+// revealing a school's values. The
 // operator router in api/operator mounts these handlers behind its
 // middleware chain, so the operator wire format and authorization stay
 // unchanged. The handlers call the public OperatorSchoolSettings capability
 // (#2736); the tenant transaction, the side effects and the broadcast live
-// behind it.
+// behind it. The operator and the school's slug come through ports the root
+// binds (#4072), so the platform names no domain owner.
 package operator
 
 import (
@@ -18,8 +19,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
 )
 
@@ -64,7 +63,13 @@ type SettingsResource struct {
 	// `tenant-${slug}` Next.js cache after tenant-resolve-affecting
 	// toggles (currently only operations.student_photos_enabled).
 	schoolService SchoolLookup
+	// operatorID names the authenticated operator who changes a value.
+	operatorID OperatorIdentity
 }
+
+// OperatorIdentity returns the authenticated operator of the request
+// context. The root binds it to the operator session.
+type OperatorIdentity func(ctx context.Context) int64
 
 // SettingsConfig holds the operator settings routes' dependencies.
 type SettingsConfig struct {
@@ -73,13 +78,19 @@ type SettingsConfig struct {
 	// operator proxy can additionally bust the `tenant-${slug}` Next.js cache
 	// for tenant-resolve-affecting settings (e.g. student_photos_enabled).
 	Schools SchoolLookup
+	// OperatorID records who set or reset a value. Required.
+	OperatorID OperatorIdentity
 }
 
 // NewSettingsResource creates a new operator settings resource.
 func NewSettingsResource(cfg SettingsConfig) *SettingsResource {
+	if cfg.OperatorID == nil {
+		panic("operator settings: SettingsConfig.OperatorID is required")
+	}
 	return &SettingsResource{
 		settings:      cfg.Settings,
 		schoolService: cfg.Schools,
+		operatorID:    cfg.OperatorID,
 	}
 }
 
@@ -112,7 +123,7 @@ func (rs *SettingsResource) resolveSchoolSlug(ctx context.Context, schoolID int6
 	if rs.schoolService == nil {
 		return ""
 	}
-	school, err := rs.schoolService.FindSchool(ctx, schoolID)
+	slug, err := rs.schoolService.SchoolSlug(ctx, schoolID)
 	if err != nil {
 		slog.Warn("operator settings: school slug lookup failed",
 			slog.Int64("school_id", schoolID),
@@ -120,7 +131,7 @@ func (rs *SettingsResource) resolveSchoolSlug(ctx context.Context, schoolID int6
 		)
 		return ""
 	}
-	return school.Slug
+	return slug
 }
 
 // GetSchoolSettingsSchema returns the full settings schema with resolved values for a school.
@@ -138,26 +149,6 @@ func (rs *SettingsResource) GetSchoolSettingsSchema(w http.ResponseWriter, r *ht
 	}
 
 	common.Respond(w, r, http.StatusOK, schema, "Schema retrieved successfully")
-}
-
-// GetBookingAuthorityImpact shows the facts an operator must review before
-// enabling booking-led care. The write path repeats this evaluation under the
-// booking-write lock, so a stale preview cannot bypass the guard.
-func (rs *SettingsResource) GetBookingAuthorityImpact(w http.ResponseWriter, r *http.Request) {
-	schoolID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid school ID")
-	if !ok {
-		return
-	}
-	impact, err := rs.settings.BookingAuthorityImpact(r.Context(), schoolID)
-	if errors.Is(err, settings.ErrBookingAuthorityImpactUnavailable) {
-		common.RenderError(w, r, common.ErrorInternalServerWrap("Booking authority impact service is not configured", err))
-		return
-	}
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServerWrap("Failed to review booking authority impact", err))
-		return
-	}
-	common.Respond(w, r, http.StatusOK, impact, "Booking authority impact retrieved successfully")
 }
 
 // SetSchoolSettingValue sets a setting value for a specific school.
@@ -180,8 +171,7 @@ func (rs *SettingsResource) SetSchoolSettingValue(w http.ResponseWriter, r *http
 		return
 	}
 
-	claims := jwt.ClaimsFromCtx(r.Context())
-	changedBy := int64(claims.ID)
+	changedBy := rs.operatorID(r.Context())
 	// ?force=true lets operators bypass the presence-mode switch guard when
 	// doing maintenance recovery (e.g. stuck attendance rows blocking the
 	// switch). Everything else ignores the flag.
@@ -196,8 +186,8 @@ func (rs *SettingsResource) SetSchoolSettingValue(w http.ResponseWriter, r *http
 			common.RenderError(w, r, common.OperatorRejection(http.StatusConflict, common.CodeSettingsPresenceModeSwitchBlocked, settings.ErrPresenceModeSwitchBlocked.Error()))
 			return
 		}
-		if errors.Is(err, careplan.ErrBookingAuthorityBlocked) {
-			common.RenderError(w, r, common.OperatorRejection(http.StatusConflict, common.CodeSettingsBookingAuthorityBlocked, careplan.ErrBookingAuthorityBlocked.Error()))
+		if blocked, ok := errors.AsType[*settings.BookingAuthorityBlockedError](err); ok {
+			common.RenderError(w, r, common.OperatorRejection(http.StatusConflict, common.CodeSettingsBookingAuthorityBlocked, blocked.Error()))
 			return
 		}
 		renderOperatorSettingsError(w, r, err)
@@ -227,8 +217,7 @@ func (rs *SettingsResource) ResetSchoolSettingValue(w http.ResponseWriter, r *ht
 		return
 	}
 
-	claims := jwt.ClaimsFromCtx(r.Context())
-	changedBy := int64(claims.ID)
+	changedBy := rs.operatorID(r.Context())
 
 	if err := rs.settings.ResetValue(r.Context(), schoolID, key, changedBy); err != nil {
 		renderOperatorSettingsError(w, r, err)
@@ -279,6 +268,8 @@ func renderOperatorSettingsError(w http.ResponseWriter, r *http.Request, err err
 
 	var defNotFound *settings.DefinitionNotFoundError
 	var invalidValue *settings.InvalidValueError
+	var attendanceWindow *settings.AttendanceWindowError
+	var moduleDependency *settings.ModuleDependencyError
 	var permDenied *settings.PermissionDeniedError
 
 	switch {
@@ -286,9 +277,39 @@ func renderOperatorSettingsError(w http.ResponseWriter, r *http.Request, err err
 		common.RenderError(w, r, common.OperatorRejection(http.StatusNotFound, common.CodeSettingsNotFound, err.Error()))
 	case errors.As(inner, &invalidValue):
 		common.RenderError(w, r, common.OperatorInvalidRequestWithCode(err, common.CodeSettingsInvalidValue))
+	case errors.As(inner, &attendanceWindow):
+		code, details := attendanceWindowRejection(attendanceWindow)
+		common.RenderError(w, r, common.OperatorRejectionWithDetails(http.StatusBadRequest, code, err.Error(), details))
+	case errors.As(inner, &moduleDependency):
+		code, details := moduleDependencyRejection(moduleDependency)
+		common.RenderError(w, r, common.OperatorRejectionWithDetails(http.StatusBadRequest, code, err.Error(), details))
 	case errors.As(inner, &permDenied):
 		common.RenderError(w, r, common.OperatorForbidden(err.Error()))
 	default:
 		common.RenderError(w, r, common.ErrorInternalServerWrap("Failed to change setting", err))
+	}
+}
+
+// attendanceWindowRejection names the window that blocks the write (#3957):
+// the retention a visible window may not exceed, or the visible window a
+// retention may not undercut.
+func attendanceWindowRejection(window *settings.AttendanceWindowError) (string, map[string]any) {
+	if window.VisibleWritten() {
+		return common.CodeSettingsAttendanceVisibleExceedsRetention, map[string]any{"retention_days": window.RetentionDays}
+	}
+	return common.CodeSettingsAttendanceRetentionBelowVisible, map[string]any{"visible_days": window.VisibleDays}
+}
+
+// moduleDependencyRejection names the modules that block a module switch
+// (#4892): the prerequisites a booking lacks, or the booked modules a
+// cancellation would leave without their prerequisite.
+func moduleDependencyRejection(rejection *settings.ModuleDependencyError) (string, map[string]any) {
+	if rejection.Booking {
+		return common.CodeSettingsModuleRequires, map[string]any{
+			"module": rejection.Module.Label, "required": rejection.ConflictLabels(),
+		}
+	}
+	return common.CodeSettingsModuleRequiredBy, map[string]any{
+		"module": rejection.Module.Label, "dependents": rejection.ConflictLabels(),
 	}
 }

@@ -36,13 +36,32 @@ func (l *observationLog) operations() []string {
 	return names
 }
 
-func buildModule(t *testing.T, db *bun.DB, observations ...func(Observation)) *schoolcalendar.Module {
+func buildModule(t *testing.T, db *bun.DB, observations ...func(Observation)) schoolcalendar.Calendar {
 	t.Helper()
 	observe := func(Observation) {}
 	if len(observations) > 0 {
 		observe = observations[0]
 	}
-	module, err := New(Dependencies{DB: db, Observe: observe, Today: func() string { return fixedToday }})
+	return buildCalendar(t, db, observe, unboundFederalState, func(context.Context) error { return nil },
+		func(context.Context, int64, *schoolcalendar.CalendarPeriodFields) error { return nil })
+}
+
+// unboundFederalState is the federal state of a tenant without the setting.
+func unboundFederalState(context.Context) (string, error) {
+	return "", errors.New("school calendar: federal state resolver is not bound")
+}
+
+// buildCalendar composes the records and the period administration over
+// the fixed calendar day.
+func buildCalendar(t *testing.T, db *bun.DB, observe func(Observation), federalState func(context.Context) (string, error),
+	gate func(context.Context) error, guard func(context.Context, int64, *schoolcalendar.CalendarPeriodFields) error,
+) schoolcalendar.Calendar {
+	t.Helper()
+	records, err := NewRecords(RecordsDependencies{DB: db, Observe: observe, FederalState: federalState})
+	require.NoError(t, err)
+	module, err := NewAdministration(records, AdministrationDependencies{
+		DB: db, Observe: observe, RecurrenceGate: gate, CareOfferingGuard: guard, Today: func() string { return fixedToday },
+	})
 	require.NoError(t, err)
 	return module
 }
@@ -61,14 +80,14 @@ func periodFields(name string, start, end string, active bool) schoolcalendar.Ca
 	}
 }
 
-func createPeriod(t *testing.T, ctx context.Context, module *schoolcalendar.Module, fields schoolcalendar.CalendarPeriodFields) schoolcalendar.CalendarPeriod {
+func createPeriod(t *testing.T, ctx context.Context, module schoolcalendar.Calendar, fields schoolcalendar.CalendarPeriodFields) schoolcalendar.CalendarPeriod {
 	t.Helper()
 	period, err := module.CreateCalendarPeriod(ctx, schoolcalendar.CreateCalendarPeriod{CalendarPeriodFields: fields})
 	require.NoError(t, err)
 	return period
 }
 
-func createClosingDay(t *testing.T, ctx context.Context, module *schoolcalendar.Module, start, end, reason string) schoolcalendar.ClosingDay {
+func createClosingDay(t *testing.T, ctx context.Context, module schoolcalendar.Calendar, start, end, reason string) schoolcalendar.ClosingDay {
 	t.Helper()
 	day, err := module.CreateClosingDay(ctx, schoolcalendar.CreateClosingDay{ClosingDayFields: schoolcalendar.ClosingDayFields{
 		StartDate: start, EndDate: end, Reason: reason,
@@ -87,7 +106,9 @@ func idsOf(periods []schoolcalendar.CalendarPeriod) []int64 {
 
 func TestNewRequiresEveryDependency(t *testing.T) {
 	t.Parallel()
-	_, err := New(Dependencies{})
+	_, err := NewRecords(RecordsDependencies{})
+	require.Error(t, err)
+	_, err = NewAdministration(nil, AdministrationDependencies{})
 	require.Error(t, err)
 }
 
@@ -318,7 +339,7 @@ func TestModuleWritesRollBackWithTheOuterTransaction(t *testing.T) {
 	assert.Equal(t, "Rolled back", found.Name)
 }
 
-func TestModuleReadsOnTheSharedConnectionWithoutTransaction(t *testing.T) {
+func TestModuleReadsUseTheCallerTransaction(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	module := buildModule(t, db)
@@ -342,6 +363,14 @@ func TestModuleRefusesWritesWithoutABoundTenant(t *testing.T) {
 	period := createPeriod(t, ctx, module, periodFields("Guarded", "2030-08-01", "2031-07-31", true))
 	day := createClosingDay(t, ctx, module, "2030-11-04", "2030-11-08", "Guarded")
 	unscoped := testpkg.WithPackageTenantRuntime(context.Background())
+	_, readErr := module.FindCalendarPeriod(unscoped, period.ID)
+	require.ErrorContains(t, readErr, "tenant is required")
+	_, readErr = module.ListCalendarPeriods(unscoped, schoolcalendar.CalendarPeriodFilter{})
+	require.ErrorContains(t, readErr, "tenant is required")
+	_, readErr = module.FindClosingDay(unscoped, day.ID)
+	require.ErrorContains(t, readErr, "tenant is required")
+	_, readErr = module.ListClosingDays(unscoped, schoolcalendar.ClosingDayFilter{})
+	require.ErrorContains(t, readErr, "tenant is required")
 
 	_, err := module.CreateCalendarPeriod(unscoped, schoolcalendar.CreateCalendarPeriod{CalendarPeriodFields: periodFields("Unscoped", "2030-08-01", "2031-07-31", true)})
 	require.ErrorContains(t, err, "tenant is required")

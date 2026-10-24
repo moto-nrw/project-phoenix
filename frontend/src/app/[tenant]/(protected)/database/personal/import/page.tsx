@@ -10,11 +10,10 @@ import {
 } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
-import { Download, Info, ListChecks, RefreshCw, X } from "lucide-react";
+import { Download, Info, ListChecks, RefreshCw } from "lucide-react";
 import { SkeletonRegion, FormSkeleton } from "~/components/ui/page-skeletons";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
-import { Alert } from "~/components/ui/alert";
 import { SectionCard } from "~/components/ui/section-card";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { TenantPage } from "~/components/ui/tenant-page";
@@ -29,7 +28,6 @@ import {
 } from "~/lib/import-mode";
 import {
   countAlreadyExistsRows,
-  importBatchFailureAlertType,
   importBatchFailureMessage,
   importBatchSavedCount,
   readImportBatchFailure,
@@ -140,8 +138,8 @@ export default function StaffImportPage() {
   const [importInterrupted, setImportInterrupted] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   // Fehler der Datei und des Imports stehen im Kasten über der Vorlage,
-  // mit Wiederholen (#2517). Ein angehaltener Stapel ist kein Fehler des
-  // Ablaufs, sondern ein Stand: er steht als eigener Hinweis.
+  // mit Wiederholen (#2517). Ein angehaltener Stapel steht dort auch, mit
+  // oder ohne gespeicherte Zeilen: der Import als Ganzes ist gescheitert.
   const importErrors = useApiFormError();
   const { show: showTemplateError } = useApiErrorDisplay();
   const [batchNotice, setBatchNotice] = useState<string | null>(null);
@@ -453,7 +451,13 @@ export default function StaffImportPage() {
 
   if (status === "loading") {
     return (
-      <TenantPage title="Personal importieren" stats={statusLine} back>
+      <TenantPage
+        title="Personal importieren"
+        stats={statusLine}
+        back
+        backHref="/database/personal"
+        backLabel="Zurück zum Personal"
+      >
         <SkeletonRegion label="Mitarbeiter-Import wird geladen…">
           <FormSkeleton fields={2} />
         </SkeletonRegion>
@@ -462,7 +466,13 @@ export default function StaffImportPage() {
   }
 
   return (
-    <TenantPage title="Personal importieren" stats={statusLine} back>
+    <TenantPage
+      title="Personal importieren"
+      stats={statusLine}
+      back
+      backHref="/database/personal"
+      backLabel="Zurück zum Personal"
+    >
       {/* Info Section */}
       <SectionCard title="Import-Anleitung" icon={Info}>
         <ul className="list-inside list-disc space-y-1 text-sm text-gray-600">
@@ -496,25 +506,7 @@ export default function StaffImportPage() {
         </ul>
       </SectionCard>
 
-      <FormErrorAlert message={importErrors.error} />
-      {batchNotice && importResult ? (
-        <div className="relative">
-          <Alert
-            type={importBatchFailureAlertType(importResult)}
-            message={batchNotice}
-          />
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={() => setBatchNotice(null)}
-            className="text-moto-red hover:text-moto-red-strong absolute top-1/2 right-2 -translate-y-1/2"
-            aria-label="Hinweis schließen"
-          >
-            <X className="h-4 w-4" aria-hidden="true" />
-          </Button>
-        </div>
-      ) : null}
+      <FormErrorAlert message={importErrors.error ?? batchNotice} />
 
       {/* Download Template */}
       <SectionCard title="Vorlage herunterladen" icon={Download}>

@@ -9,7 +9,10 @@ import {
   authInputClassName,
   authPrimaryButtonClassName,
 } from "~/components/auth/auth-shell";
-import { credentialError } from "~/components/auth/credential-error";
+import {
+  credentialError,
+  INVITATION_REFUSALS,
+} from "~/components/auth/credential-error";
 import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
 import {
   FormErrorAlert,
@@ -147,7 +150,7 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
         error: err instanceof Error ? err.message : String(err),
       });
       // Vor der Anmeldung heißt 401 "abgelehnt", nicht "Sitzung abgelaufen".
-      void formErrors.show(credentialError(err), {
+      void formErrors.show(credentialError(err, INVITATION_REFUSALS), {
         object: t("errorObject"),
         retry: () => latestSubmitRef.current(),
       });

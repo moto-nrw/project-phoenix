@@ -27,11 +27,13 @@ import type { FormError } from "~/components/ui/form-error";
 import { Checkbox } from "~/components/ui/checkbox";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
+import { EditActions } from "~/components/ui/edit-actions";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { useNavigationGuard } from "~/lib/hooks/use-navigation-guard";
 import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
 import { SUPPORTED_LOCALES } from "~/i18n/locales";
 import { formatDate } from "~/lib/date-helpers";
+import { cn } from "~/lib/utils";
 import { createLogger } from "~/lib/logger";
 import {
   type ChildFeatures,
@@ -43,7 +45,10 @@ import {
   submitMasterDataRequest,
   updateMasterDataField,
 } from "~/lib/parent-api";
-import { ParentSection } from "~/components/parent/shell/parent-section";
+import {
+  ParentSection,
+  ParentSubsection,
+} from "~/components/parent/shell/parent-section";
 import { OgsVisibleBadge } from "~/components/parent/ogs-visible-badge";
 import { ParentSectionSkeleton } from "~/components/parent/parent-page";
 import { StatusBadge } from "~/components/ui/status-badge";
@@ -59,6 +64,10 @@ const logger = createLogger({ component: "ChildMasterData" });
 const AUTO_SAVE_DELAY_MS = 1500;
 const DEPARTURE_DAYS = ["mon", "tue", "wed", "thu", "fri"] as const;
 const DEPARTURE_REQUEST_MODES = ["alone", "bus", "pickup"] as const;
+const DEPARTURE_DISPLAY_MODES = [
+  ...DEPARTURE_REQUEST_MODES,
+  "accompanied",
+] as const;
 const CONTACT_METHODS = ["email", "phone", "mobile", "sms"] as const;
 
 type SaveStatus = "idle" | "saving" | "saved" | "error";
@@ -131,7 +140,7 @@ export function ChildMasterDataView({
   if (loading) {
     if (area === "details") {
       return (
-        <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-2 [&_.animate-pulse]:animate-none">
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 [&_.animate-pulse]:animate-none">
           <ParentSectionSkeleton rows={2} />
           <ParentSectionSkeleton rows={2} />
         </div>
@@ -379,7 +388,7 @@ function ChildMasterDataContent({
   if (area === "contact") return guarded(contactSection);
 
   return guarded(
-    <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
+    <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
       <IdentitySection
         studentId={studentId}
         data={data}
@@ -526,6 +535,7 @@ function IdentitySection({
               : t("notSet")
           }
           pending={birthdayPending}
+          formatRequested={(raw) => formatDate(raw, false, locale)}
           onEdited={refresh}
         />
         <IdentityFact
@@ -560,47 +570,76 @@ function IdentityFact({
   label,
   value,
   pending,
+  formatRequested,
   onEdited,
 }: Readonly<{
   studentId: string;
   label: string;
   value: string;
   pending?: MasterDataChange;
+  /** Zeigt den beantragten Rohwert so an wie den gültigen Wert. */
+  formatRequested?: (raw: string) => string;
   onEdited?: () => void;
 }>) {
   const t = useTranslations("parentMasterData");
+  const requestTitleId = useId();
   const [editing, setEditing] = useState(false);
   // Nur Textwerte lassen sich hier ändern. Die Abholarten sind eine Tabelle
   // und werden im eigenen Abschnitt geändert.
   const editableValue =
     typeof pending?.new_value === "string" ? pending.new_value : null;
+  const requestedValue = editableValue
+    ? (formatRequested?.(editableValue) ?? editableValue)
+    : t("notSet");
+  const isSelf = pending?.is_self === true;
   return (
     <div className="min-w-0">
-      <dt className="flex min-h-6 flex-wrap items-center gap-2 text-sm text-gray-500">
-        <span>{label}</span>
-        {pending && (
-          <div className="flex flex-wrap items-center gap-2">
-            <StatusBadge label={t("pendingBadge")} tone="orange" />
-            <RequestSharingControl
-              studentId={studentId}
-              requestType="master_data"
-              requestId={pending.id}
-              isSelf={pending.is_self === true}
-            />
-            {pending.is_self === true && editableValue !== null && (
-              <Button
-                type="button"
-                variant="outline"
-                size="md"
-                className="max-sm:min-h-11"
-                onClick={() => setEditing(true)}
-              >
-                {t("requestEdit")}
-              </Button>
+      <dt className="text-sm text-gray-500">{label}</dt>
+      <dd className="mt-1 text-base font-medium break-words text-gray-900">
+        {value}
+      </dd>
+      {pending && (
+        <dd className="mt-3">
+          <div
+            role="group"
+            aria-labelledby={requestTitleId}
+            className="space-y-3 rounded-xl bg-gray-50 p-3"
+          >
+            <div>
+              <p id={requestTitleId} className="text-sm text-gray-500">
+                {t("pendingTitle")}
+              </p>
+              <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                <span className="min-w-0 text-base font-medium break-words text-gray-900">
+                  {requestedValue}
+                </span>
+                <StatusBadge label={t("pendingBadge")} tone="orange" />
+              </div>
+            </div>
+            {isSelf && (
+              <div className="flex flex-wrap items-center gap-2">
+                {editableValue !== null && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="md"
+                    className="max-sm:min-h-11"
+                    onClick={() => setEditing(true)}
+                  >
+                    {t("requestEdit")}
+                  </Button>
+                )}
+                <RequestSharingControl
+                  studentId={studentId}
+                  requestType="master_data"
+                  requestId={pending.id}
+                  isSelf={isSelf}
+                />
+              </div>
             )}
           </div>
-        )}
-      </dt>
+        </dd>
+      )}
       {pending && editing && editableValue !== null && (
         <RequestEditModal
           studentId={studentId}
@@ -614,9 +653,6 @@ function IdentityFact({
           onSaved={() => onEdited?.()}
         />
       )}
-      <dd className="mt-1 text-base font-medium break-words text-gray-900">
-        {value}
-      </dd>
     </div>
   );
 }
@@ -640,6 +676,7 @@ function DepartureSection({
   const [modes, setModes] = useState(() =>
     normalizeDepartureModes(data.allowed_departure_modes),
   );
+  const [editing, setEditing] = useState(false);
   const [status, setStatus] = useState<SaveStatus>("idle");
   const [message, setMessage] = useState<string | null>(null);
   const {
@@ -648,7 +685,9 @@ function DepartureSection({
     clear: clearSubmitError,
   } = useApiFormError();
   const [recipientIds, setRecipientIds] = useState<string[]>([]);
-  const [requestSaved, setRequestSaved] = useState(false);
+  const editButtonRef = useRef<HTMLButtonElement>(null);
+  const firstChoiceRef = useRef<HTMLInputElement>(null);
+  const focusEditButton = useRef(false);
   const current = useMemo(
     () => normalizeDepartureModes(data.allowed_departure_modes),
     [data.allowed_departure_modes],
@@ -661,11 +700,14 @@ function DepartureSection({
   const hasAccompanied = hasDepartureAccompanied(data.allowed_departure_modes);
   const requestable =
     features.master_data_request_enabled && !pending && !hasAccompanied;
-  const displayedModes = hasAccompanied
-    ? [...DEPARTURE_REQUEST_MODES, "accompanied"]
-    : DEPARTURE_REQUEST_MODES;
+  // Eine offene Anfrage oder ein abgeschalteter Antrag beendet das
+  // Bearbeiten, auch wenn er während des Bearbeitens eintrifft.
+  const isEditing = editing && requestable;
+  const requestedModes = pending
+    ? departureModesFromValue(pending.new_value)
+    : undefined;
   useReportFieldState(
-    !changed || requestSaved
+    !isEditing || !changed
       ? "clean"
       : status === "saving"
         ? "saving"
@@ -690,6 +732,15 @@ function DepartureSection({
     departureBase.current = current;
   }, [current, pending]);
 
+  useEffect(() => {
+    if (isEditing) {
+      firstChoiceRef.current?.focus();
+    } else if (focusEditButton.current) {
+      focusEditButton.current = false;
+      editButtonRef.current?.focus();
+    }
+  }, [isEditing]);
+
   const toggle = (day: string, mode: string) => {
     setModes((prev) => {
       const next = normalizeDepartureModes(prev);
@@ -703,6 +754,23 @@ function DepartureSection({
       if (next[day].length === 0) delete next[day];
       return next;
     });
+  };
+
+  const startEditing = () => {
+    setStatus("idle");
+    setMessage(null);
+    clearSubmitError();
+    setEditing(true);
+  };
+
+  const cancelEditing = () => {
+    setModes(current);
+    setRecipientIds([]);
+    setStatus("idle");
+    setMessage(null);
+    clearSubmitError();
+    focusEditButton.current = true;
+    setEditing(false);
   };
 
   const submit = async () => {
@@ -726,7 +794,9 @@ function DepartureSection({
         ...data,
         pending_changes: mergePendingChanges(data.pending_changes, submitted),
       });
-      setRequestSaved(true);
+      setModes(current);
+      setRecipientIds([]);
+      setEditing(false);
       setStatus("saved");
       setMessage(t("requestSubmitted"));
       try {
@@ -766,97 +836,167 @@ function DepartureSection({
       title={t("sections.departure", { name: childName })}
       description={t("departureDescription")}
       concept="pickup"
-    >
-      {pending && <StatusBadge label={t("pendingBadge")} tone="orange" />}
-      {pending && (
-        <RequestSharingControl
-          studentId={studentId}
-          requestType="master_data"
-          requestId={pending.id}
-          isSelf={pending.is_self === true}
-        />
-      )}
-      {hasAccompanied && (
-        <p className="text-sm text-gray-600">
-          {t("departureReadOnlyAccompanied")}
-        </p>
-      )}
-      <div
-        data-parent-tour="child-departure"
-        className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
-      >
-        {DEPARTURE_DAYS.map((day) => (
-          <fieldset
-            key={day}
-            className="rounded-xl border border-gray-200 bg-gray-50/70 p-3"
-          >
-            <legend className="px-1 text-sm font-semibold text-gray-900">
-              {t(`departureDays.${day}`)}
-            </legend>
-            <div className="mt-1 space-y-1">
-              {displayedModes.map((mode) => (
-                <label
-                  key={mode}
-                  htmlFor={`departure-${day}-${mode}`}
-                  className={
-                    hasAccompanied
-                      ? "flex min-h-11 cursor-default items-center gap-3 rounded-lg px-2 text-sm text-gray-700"
-                      : "flex min-h-11 cursor-pointer items-center gap-3 rounded-lg px-2 text-sm text-gray-700 hover:bg-white"
-                  }
-                >
-                  <Checkbox
-                    id={`departure-${day}-${mode}`}
-                    aria-label={`${t(`departureDays.${day}`)} ${t(`departureModes.${mode}`)}`}
-                    checked={
-                      mode === "accompanied"
-                        ? (data.allowed_departure_modes?.[day] ?? []).includes(
-                            mode,
-                          )
-                        : (modes[day] ?? []).includes(mode)
-                    }
-                    disabled={!requestable}
-                    onChange={() => toggle(day, mode)}
-                  />
-                  <span>{t(`departureModes.${mode}`)}</span>
-                </label>
-              ))}
-            </div>
-          </fieldset>
-        ))}
-      </div>
-      {requestable && !requestSaved && (
-        <RequestSharingSelector
-          studentId={studentId}
-          selected={recipientIds}
-          onChange={setRecipientIds}
-        />
-      )}
-      <FormErrorAlert message={submitError} />
-      {features.master_data_request_enabled ? (
-        <div className="flex flex-col-reverse items-stretch gap-3 border-t border-gray-100 pt-4 sm:flex-row sm:items-center sm:justify-end">
-          {message && (
-            <span role="status" className="text-moto-green-strong text-sm">
-              {message}
-            </span>
-          )}
+      actions={
+        requestable && !isEditing ? (
           <Button
+            ref={editButtonRef}
             type="button"
-            variant="primary"
+            variant="surface"
             size="md"
-            className="min-h-11 sm:min-h-0"
-            disabled={
-              !changed || !requestable || status === "saving" || requestSaved
-            }
-            onClick={() => void submit()}
+            className="gap-2"
+            onClick={startEditing}
           >
-            {t("requestButton")}
+            <PencilSimpleIcon size={20} weight="bold" aria-hidden="true" />
+            {t("departureEdit")}
           </Button>
-        </div>
+        ) : undefined
+      }
+    >
+      {isEditing ? (
+        <>
+          <div
+            data-parent-tour="child-departure"
+            className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
+          >
+            {DEPARTURE_DAYS.map((day, dayIndex) => (
+              <fieldset
+                key={day}
+                className="rounded-xl border border-gray-200 bg-gray-50/70 p-3"
+              >
+                <legend className="px-1 text-sm font-semibold text-gray-900">
+                  {t(`departureDays.${day}`)}
+                </legend>
+                <div className="mt-1 space-y-1">
+                  {DEPARTURE_REQUEST_MODES.map((mode, modeIndex) => (
+                    <label
+                      key={mode}
+                      htmlFor={`departure-${day}-${mode}`}
+                      className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg px-2 text-sm text-gray-700 hover:bg-white"
+                    >
+                      <Checkbox
+                        ref={
+                          dayIndex === 0 && modeIndex === 0
+                            ? firstChoiceRef
+                            : undefined
+                        }
+                        id={`departure-${day}-${mode}`}
+                        aria-label={`${t(`departureDays.${day}`)} ${t(`departureModes.${mode}`)}`}
+                        checked={(modes[day] ?? []).includes(mode)}
+                        disabled={status === "saving"}
+                        onChange={() => toggle(day, mode)}
+                      />
+                      <span>{t(`departureModes.${mode}`)}</span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+            ))}
+          </div>
+          <RequestSharingSelector
+            studentId={studentId}
+            selected={recipientIds}
+            onChange={setRecipientIds}
+          />
+          <FormErrorAlert message={submitError} />
+          <EditActions
+            className="border-t border-gray-100 pt-4 max-sm:flex-col-reverse max-sm:[&>*]:min-h-11 max-sm:[&>*]:w-full"
+            onCancel={cancelEditing}
+            onSave={() => void submit()}
+            saving={status === "saving"}
+            disabled={!changed}
+            saveLabel={t("requestButton")}
+            savingLabel={t("departureSubmitting")}
+            cancelLabel={t("departureCancel")}
+          />
+        </>
       ) : (
-        <p className="text-xs text-gray-500">{t("requestDisabled")}</p>
+        <>
+          <DepartureDays modes={data.allowed_departure_modes} tourTarget />
+          {hasAccompanied && (
+            <p className="text-sm text-gray-600">
+              {t("departureReadOnlyAccompanied")}
+            </p>
+          )}
+          {message && (
+            <p role="status" className="text-moto-green-strong text-sm">
+              {message}
+            </p>
+          )}
+          {pending && (
+            <ParentSubsection
+              title={t("pendingTitle")}
+              actions={
+                // Der Wrapper nimmt die volle Breite der Aktionsspalte auf
+                // dem Handy, das Badge behält seine eigene Breite.
+                <div>
+                  <StatusBadge label={t("pendingBadge")} tone="orange" />
+                </div>
+              }
+            >
+              {requestedModes && (
+                <DepartureDays modes={requestedModes} nested />
+              )}
+              <p className="text-sm text-gray-500">
+                {t("departurePendingNotice")}
+              </p>
+              <RequestSharingControl
+                studentId={studentId}
+                requestType="master_data"
+                requestId={pending.id}
+                isSelf={pending.is_self === true}
+              />
+            </ParentSubsection>
+          )}
+          {!features.master_data_request_enabled && (
+            <p className="text-xs text-gray-500">{t("requestDisabled")}</p>
+          )}
+        </>
       )}
-      {pending && <p className="text-xs text-gray-500">{t("pendingNotice")}</p>}
     </ParentSection>
+  );
+}
+
+/** Der Heimweg je Wochentag als reine Anzeige, ohne Auswahlfelder. */
+function DepartureDays({
+  modes,
+  tourTarget = false,
+  nested = false,
+}: Readonly<{
+  modes?: Record<string, readonly string[]>;
+  tourTarget?: boolean;
+  /** Auf grauem Grund (offene Anfrage) heben sich die Tage weiß ab. */
+  nested?: boolean;
+}>) {
+  const t = useTranslations("parentMasterData");
+  return (
+    <dl
+      data-parent-tour={tourTarget ? "child-departure" : undefined}
+      className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5"
+    >
+      {DEPARTURE_DAYS.map((day) => {
+        const dayModes = DEPARTURE_DISPLAY_MODES.filter((mode) =>
+          (modes?.[day] ?? []).includes(mode),
+        );
+        return (
+          <div
+            key={day}
+            className={cn(
+              "flex items-baseline justify-between gap-3 rounded-xl px-3 py-2.5 sm:block",
+              nested ? "bg-white" : "bg-gray-50",
+            )}
+          >
+            <dt className="text-sm text-gray-500">
+              {t(`careSchedule.weekdays.${day}`)}
+            </dt>
+            <dd className="text-right text-sm font-medium text-gray-900 sm:mt-1 sm:text-left">
+              {dayModes.length > 0
+                ? dayModes.map((mode) => t(`departureModes.${mode}`)).join(", ")
+                : t("departureModes.none")}
+            </dd>
+          </div>
+        );
+      })}
+    </dl>
   );
 }
 
@@ -1231,6 +1371,24 @@ function normalizeDepartureModes(
     const allowed = new Set(modes?.[day] ?? []);
     const ordered = DEPARTURE_REQUEST_MODES.filter((mode) => allowed.has(mode));
     if (ordered.length > 0) out[day] = ordered;
+  }
+  return out;
+}
+
+/** Liest den beantragten Heimweg aus `new_value`; Unbekanntes fällt weg. */
+function departureModesFromValue(
+  value: unknown,
+): Record<string, readonly string[]> | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+  const out: Record<string, string[]> = {};
+  for (const [day, modes] of Object.entries(value)) {
+    if (Array.isArray(modes)) {
+      out[day] = modes.filter(
+        (mode): mode is string => typeof mode === "string",
+      );
+    }
   }
   return out;
 }

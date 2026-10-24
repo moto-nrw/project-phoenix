@@ -25,7 +25,6 @@ func TestWriteCompositionInventoryUsesCanonicalTopLevelOrder(t *testing.T) {
 		"evidence_commit",
 		"evidence_constructor_calls",
 		"evidence_legacy_callers",
-		"legacy_callers",
 		"production_roots",
 		"runtime_baseline",
 		"schema_version",

@@ -2,14 +2,14 @@ package behavior_test
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/auth/rotation"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/moto-nrw/project-phoenix/api"
+
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -55,7 +55,8 @@ func TestLogoutPersistsRevocationAuditWithoutRawFamilyID(t *testing.T) {
 	assert.Equal(t, "tenant", event.Metadata["portal_scope"])
 	assert.Equal(t, "logout", event.Metadata["reason"])
 	assert.Equal(t, float64(1), event.Metadata["revoked_token_count"])
-	assert.Equal(t, rotation.FamilyFingerprint(persisted.FamilyID), event.Metadata["family_fingerprint"])
+	familyFingerprint := sha256.Sum256([]byte(persisted.FamilyID))
+	assert.Equal(t, hex.EncodeToString(familyFingerprint[:]), event.Metadata["family_fingerprint"])
 	assert.NotContains(t, event.Metadata["family_fingerprint"], persisted.FamilyID)
 }
 
@@ -73,14 +74,12 @@ func TestLogoutRevokesTokensWhenAuditFails(t *testing.T) {
 	_, refreshToken, err := workingService.Login(ctx, email, testPassword)
 	require.NoError(t, err)
 
-	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	signer, err := authjwt.NewTokenAuthWithDurations(authTestFactoryConfig(false).JWTSecret, 15*time.Minute, time.Hour)
+	sessionTokens, err := api.NewConfiguredSessionTokens(authTestFactoryConfig(false).JWTSecret, 15*time.Minute, time.Hour)
 	require.NoError(t, err)
-	service, err := services.IdentityAccessForTests(repoFactory, services.IdentityAccessTestConfig{
-		TokenAuth: signer, TenantRuntime: testpkg.TenantRuntime(t, db),
-		Audit: failingAuditCommand{}, FrontendURL: "http://localhost:3000",
+	service, err := api.IdentityAccessForTests(api.IdentityAccessTestConfig{
+		SessionTokens: sessionTokens, FrontendURL: "http://localhost:3000",
 		PasswordResetExpiry: time.Hour,
-	}, db, nil)
+	}, testpkg.TenantRuntime(t, db), failingAuditCommand{}, testpkg.NewDatabase(t, db), nil)
 	require.NoError(t, err)
 
 	require.NoError(t, service.LogoutWithAudit(ctx, refreshToken, "192.0.2.10", "logout-test"))
@@ -103,11 +102,9 @@ func TestRevocationAuditFailureRollsBackAndRetryIsIdempotent(t *testing.T) {
 	_, _, err = workingService.Login(ctx, email, testPassword)
 	require.NoError(t, err)
 
-	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	service, err := services.IdentityAccessForTests(repoFactory, services.IdentityAccessTestConfig{
-		TenantRuntime: testpkg.TenantRuntime(t, db), Audit: failingAuditCommand{},
+	service, err := api.IdentityAccessForTests(api.IdentityAccessTestConfig{
 		FrontendURL: "http://localhost:3000", PasswordResetExpiry: time.Hour,
-	}, db, nil)
+	}, testpkg.TenantRuntime(t, db), failingAuditCommand{}, testpkg.NewDatabase(t, db), nil)
 	require.NoError(t, err)
 
 	err = service.RevokeAllTokensWithReason(testpkg.TenantContext(tenantID), account.ID, "password_reset")

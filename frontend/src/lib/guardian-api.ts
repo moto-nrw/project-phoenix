@@ -1,4 +1,4 @@
-import { ApiError, enrichApiError, transportFetch } from "./api-error";
+import { type ApiError, apiErrorFromBody, transportFetch } from "./api-error";
 // Guardian API Client
 // Calls Next.js API routes which proxy to the Go backend
 
@@ -22,7 +22,6 @@ import {
   mapGuardianResponse,
   mapGuardianPickerResponse,
   mapGuardianWithRelationshipResponse,
-  mapGuardianFormDataToBackend,
   mapStudentGuardianLinkToBackend,
   mapPhoneNumberResponse,
   mapPhoneNumberCreateToBackend,
@@ -36,7 +35,6 @@ interface ApiResponse<T> {
   status: string;
   data?: T;
   message?: string;
-  error?: string;
 }
 
 interface PaginatedResponse<T> {
@@ -52,40 +50,16 @@ interface PaginatedResponse<T> {
   error?: string;
 }
 
-// Error response from failed JSON parsing
-interface ErrorResponse {
-  error: string;
-}
+// Every failure of this client is an ApiError: the wire code, field errors
+// and request ID travel to the shared error display (#2517); the message is
+// the envelope's diagnostic `detail` and is never shown.
 
-// Type guard for error responses
-function isErrorResponse(value: unknown): value is ErrorResponse {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "error" in value &&
-    typeof (value as ErrorResponse).error === "string"
-  );
-}
-
-// Every failure of this client is a GuardianApiError: the wire code, field
-// errors and request ID travel to the shared error display (#2517); the
-// message is a diagnostic for the logs and is never shown.
-class GuardianApiError extends ApiError {
-  status: number;
-
-  constructor(message: string, status: number) {
-    super(message, status);
-    this.name = "GuardianApiError";
-    this.status = status;
-  }
-}
-
-/** The failed response as a GuardianApiError carrying the envelope. */
+/** The failed response as an ApiError carrying the envelope. */
 async function guardianApiError(
   response: Response,
   operation: string,
   fallback: string,
-): Promise<GuardianApiError> {
+): Promise<ApiError> {
   const body: unknown = await response.json().catch((err: unknown) => {
     logger.debug("json_parse_failed", {
       error: err instanceof Error ? err.message : String(err),
@@ -94,26 +68,15 @@ async function guardianApiError(
     });
     return undefined;
   });
-  const message = isErrorResponse(body) ? body.error : fallback;
-  return enrichApiError(new GuardianApiError(message, response.status), body);
+  return apiErrorFromBody(fallback, response.status, body);
 }
 
 /**
- * A 2xx answer whose body still says `status: "error"`, or lacks the data
- * the call needs. Nothing about it is the user's input, so it counts as a
- * server failure.
+ * A 2xx answer that lacks the data the call needs. Nothing about it is the
+ * user's input, so it counts as a server failure.
  */
 function bodyError(body: unknown, fallback: string) {
-  const message = isErrorResponse(body) ? body.error : fallback;
-  return enrichApiError(new GuardianApiError(message, 500), body);
-}
-
-// Backend student type (minimal representation for guardian relationships)
-interface BackendStudent {
-  id: number;
-  first_name: string;
-  last_name: string;
-  date_of_birth: string;
+  return apiErrorFromBody(fallback, 500, body);
 }
 
 // Partial update request type for guardian profile
@@ -190,71 +153,7 @@ export async function fetchStudentGuardians(
     BackendGuardianWithRelationship[]
   >;
 
-  if (result.status === "error") {
-    throw bodyError(result, "Failed to fetch guardians");
-  }
-
   return (result.data ?? []).map(mapGuardianWithRelationshipResponse);
-}
-
-/**
- * Fetch all students for a guardian
- */
-export async function fetchGuardianStudents(
-  guardianId: string,
-): Promise<BackendStudent[]> {
-  const response = await transportFetch(
-    `/api/guardians/${guardianId}/students`,
-  );
-
-  if (!response.ok) {
-    throw await guardianApiError(
-      response,
-      "fetch_guardian_students",
-      "Failed to fetch students",
-    );
-  }
-
-  const result = (await response.json()) as ApiResponse<BackendStudent[]>;
-
-  if (result.status === "error") {
-    throw bodyError(result, "Failed to fetch students");
-  }
-
-  return result.data ?? [];
-}
-
-/**
- * Create a new guardian profile
- */
-export async function createGuardian(
-  data: GuardianFormData,
-): Promise<Guardian> {
-  const backendData = mapGuardianFormDataToBackend(data);
-
-  const response = await transportFetch("/api/guardians", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(backendData),
-  });
-
-  if (!response.ok) {
-    throw await guardianApiError(
-      response,
-      "create_guardian",
-      "Failed to create guardian",
-    );
-  }
-
-  const result = (await response.json()) as ApiResponse<BackendGuardianProfile>;
-
-  if (result.status === "error" || !result.data) {
-    throw bodyError(result, "Failed to create guardian");
-  }
-
-  return mapGuardianResponse(result.data);
 }
 
 /**
@@ -284,7 +183,7 @@ export async function updateGuardian(
 
   const result = (await response.json()) as ApiResponse<BackendGuardianProfile>;
 
-  if (result.status === "error" || !result.data) {
+  if (!result.data) {
     throw bodyError(result, "Failed to update guardian");
   }
 
@@ -298,7 +197,7 @@ export async function updateGuardian(
  * that is still linked to any student. Pass `{ force: true }` to perform the
  * deliberate full delete that also removes every student link — the backend
  * restricts that to administrators (403 otherwise). On any non-OK response a
- * {@link GuardianApiError} carrying the HTTP status is thrown so the caller can
+ * {@link ApiError} carrying the HTTP status is thrown so the caller can
  * branch on 409 / 403.
  */
 export async function deleteGuardian(
@@ -330,18 +229,6 @@ export async function deleteGuardian(
       "Failed to delete guardian",
     );
   }
-
-  // 204 No Content means successful deletion with no response body
-  if (response.status === 204) {
-    return;
-  }
-
-  // If there's a response body, parse it
-  const result = (await response.json()) as ApiResponse<null>;
-
-  if (result.status === "error") {
-    throw bodyError(result, "Failed to delete guardian");
-  }
 }
 
 /** Read-only preview of what a full guardian delete would affect. */
@@ -362,7 +249,7 @@ export interface GuardianDeletePreview {
  * Backs the admin "Komplett löschen" confirmation: the modal shows
  * {@link GuardianDeletePreview.warning} (which children would lose the
  * guardian) before the user confirms the force delete. Admin-only on the
- * backend (403 otherwise), exposed via {@link GuardianApiError}.
+ * backend (403 otherwise), exposed via {@link ApiError}.
  */
 export async function fetchGuardianDeletePreview(
   guardianId: string,
@@ -388,7 +275,7 @@ export async function fetchGuardianDeletePreview(
     warning: string;
   }>;
 
-  if (result.status === "error" || !result.data) {
+  if (!result.data) {
     throw bodyError(result, "Failed to load delete preview");
   }
 
@@ -428,12 +315,6 @@ export async function linkGuardianToStudent(
       "link_guardian_to_student",
       "Failed to link guardian",
     );
-  }
-
-  const result = (await response.json()) as ApiResponse<null>;
-
-  if (result.status === "error") {
-    throw bodyError(result, "Failed to link guardian");
   }
 }
 
@@ -524,17 +405,6 @@ export async function createStudentGuardians(
       "Failed to create guardians",
     );
   }
-
-  // 201 Created with no meaningful body — the caller reloads the guardian list.
-  if (response.status === 204) {
-    return;
-  }
-
-  const result = (await response.json()) as ApiResponse<null>;
-
-  if (result.status === "error") {
-    throw bodyError(result, "Failed to create guardians");
-  }
 }
 
 /**
@@ -586,12 +456,6 @@ export async function updateStudentGuardianRelationship(
       "Failed to update relationship",
     );
   }
-
-  const result = (await response.json()) as ApiResponse<null>;
-
-  if (result.status === "error") {
-    throw bodyError(result, "Failed to update relationship");
-  }
 }
 
 /**
@@ -614,18 +478,6 @@ export async function removeGuardianFromStudent(
       "remove_guardian_from_student",
       "Failed to remove guardian",
     );
-  }
-
-  // 204 No Content means successful deletion with no response body
-  if (response.status === 204) {
-    return;
-  }
-
-  // If there's a response body, parse it
-  const result = (await response.json()) as ApiResponse<null>;
-
-  if (result.status === "error") {
-    throw bodyError(result, "Failed to remove guardian");
   }
 }
 
@@ -688,7 +540,7 @@ export async function inviteGuardianToStudent(
   }
 
   const result = (await response.json()) as ApiResponse<InviteGuardianResult>;
-  if (result.status === "error" || !result.data) {
+  if (!result.data) {
     throw bodyError(result, "Failed to invite guardian");
   }
   return result.data;
@@ -721,43 +573,12 @@ export async function searchGuardians(query: string): Promise<Guardian[]> {
   const result =
     (await response.json()) as PaginatedResponse<BackendGuardianPickerResponse>;
 
-  if (result.status === "error") {
-    throw bodyError(result, "Failed to search guardians");
-  }
-
   return (result.data ?? []).map(mapGuardianPickerResponse);
 }
 
 // =============================================================================
 // Phone Number API Functions
 // =============================================================================
-
-/**
- * Fetch all phone numbers for a guardian
- */
-export async function fetchGuardianPhoneNumbers(
-  guardianId: string,
-): Promise<PhoneNumber[]> {
-  const response = await transportFetch(
-    `/api/guardians/${guardianId}/phone-numbers`,
-  );
-
-  if (!response.ok) {
-    throw await guardianApiError(
-      response,
-      "fetch_guardian_phone_numbers",
-      "Failed to fetch phone numbers",
-    );
-  }
-
-  const result = (await response.json()) as ApiResponse<BackendPhoneNumber[]>;
-
-  if (result.status === "error") {
-    throw bodyError(result, "Failed to fetch phone numbers");
-  }
-
-  return (result.data ?? []).map(mapPhoneNumberResponse);
-}
 
 /**
  * Add a phone number to a guardian
@@ -789,7 +610,7 @@ export async function addGuardianPhoneNumber(
 
   const result = (await response.json()) as ApiResponse<BackendPhoneNumber>;
 
-  if (result.status === "error" || !result.data) {
+  if (!result.data) {
     throw bodyError(result, "Failed to add phone number");
   }
 
@@ -824,12 +645,6 @@ export async function updateGuardianPhoneNumber(
       "Failed to update phone number",
     );
   }
-
-  const result = (await response.json()) as ApiResponse<null>;
-
-  if (result.status === "error") {
-    throw bodyError(result, "Failed to update phone number");
-  }
 }
 
 /**
@@ -853,17 +668,6 @@ export async function deleteGuardianPhoneNumber(
       "Failed to delete phone number",
     );
   }
-
-  // 204 No Content means successful deletion with no response body
-  if (response.status === 204) {
-    return;
-  }
-
-  const result = (await response.json()) as ApiResponse<null>;
-
-  if (result.status === "error") {
-    throw bodyError(result, "Failed to delete phone number");
-  }
 }
 
 /**
@@ -886,12 +690,6 @@ export async function setGuardianPrimaryPhone(
       "set_guardian_primary_phone",
       "Failed to set primary phone",
     );
-  }
-
-  const result = (await response.json()) as ApiResponse<null>;
-
-  if (result.status === "error") {
-    throw bodyError(result, "Failed to set primary phone");
   }
 }
 
@@ -958,9 +756,6 @@ export async function listPendingApprovals(): Promise<PendingApproval[]> {
   const result = (await response.json()) as ApiResponse<
     BackendPendingApproval[]
   >;
-  if (result.status === "error") {
-    throw bodyError(result, "Failed to load approvals");
-  }
   return (result.data ?? []).map(mapPendingApproval);
 }
 
@@ -978,11 +773,6 @@ async function postInvitationAction(
       `${action}_invitation`,
       `Failed to ${action} invitation`,
     );
-  }
-  if (response.status === 204) return;
-  const result = (await response.json()) as ApiResponse<null>;
-  if (result.status === "error") {
-    throw bodyError(result, `Failed to ${action} invitation`);
   }
 }
 

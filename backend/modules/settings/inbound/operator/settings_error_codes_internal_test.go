@@ -34,6 +34,10 @@ func TestRenderOperatorSettingsErrorAnswersWithCodes(t *testing.T) {
 		{"unknown setting", &settings.SettingsError{Op: "set_value", Err: &settings.DefinitionNotFoundError{Key: "bad.key"}}, http.StatusNotFound, "settings.not_found"},
 		{"invalid value", &settings.SettingsError{Op: "set_value", Err: &settings.InvalidValueError{Key: "a.b", Reason: "below minimum 5"}}, http.StatusBadRequest, "settings.invalid_value"},
 		{"permission", &settings.SettingsError{Op: "set_value", Err: &settings.PermissionDeniedError{Key: "a.b"}}, http.StatusForbidden, "general.permission"},
+		{"attendance retention below the visible window", &settings.SettingsError{Op: "set_value", Err: &settings.AttendanceWindowError{Key: settings.KeyGDPRAttendanceRetentionDays, VisibleDays: 90, RetentionDays: 60}}, http.StatusBadRequest, "settings.attendance_retention_below_visible"},
+		{"attendance visible window above the retention", &settings.SettingsError{Op: "set_value", Err: &settings.AttendanceWindowError{Key: settings.KeyAttendanceVisibleDays, VisibleDays: 90, RetentionDays: 60}}, http.StatusBadRequest, "settings.attendance_visible_exceeds_retention"},
+		{"module booked without its prerequisite", &settings.SettingsError{Op: "set_value", Err: &settings.ModuleDependencyError{Key: "module.ferienbetreuung", Booking: true}}, http.StatusBadRequest, "settings.module_requires"},
+		{"module cancelled while a booked module requires it", &settings.SettingsError{Op: "set_value", Err: &settings.ModuleDependencyError{Key: "module.online_anmeldung"}}, http.StatusBadRequest, "settings.module_required_by"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -59,7 +63,7 @@ func TestRenderOperatorSettingsErrorKeepsCauseOutOfTheAnswer(t *testing.T) {
 			status, body := renderSettingsErrorBody(t, err)
 			assert.Equal(t, http.StatusInternalServerError, status)
 			assert.Equal(t, "general.server", body["code"])
-			assert.NotContains(t, body["error"], "pq:")
+			assert.NotContains(t, body["detail"], "pq:")
 			assert.NotContains(t, body["detail"], "pq:")
 		})
 	}

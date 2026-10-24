@@ -8,8 +8,9 @@ import (
 	"testing"
 	"time"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,7 +24,7 @@ func TestReplanWeek_LogsDroppedSnapshotWhenSlotVanishes(t *testing.T) {
 	t.Parallel()
 
 	date := calendar.NewDate(2026, time.April, 20) // Mon
-	s := makeScenario(t, activitiesModels.WeekdayMonday, date)
+	s := makeScenario(t, activityContract.WeekdayMonday, date)
 	defer s.runCleanup(t)
 
 	seedDeviatedOccurrence(t, s, date)
@@ -37,13 +38,13 @@ func TestReplanWeek_LogsDroppedSnapshotWhenSlotVanishes(t *testing.T) {
 		Exec(context.Background())
 	require.NoError(t, err)
 
-	_, err = s.factory.Instance.ReplanWeek(s.ctx, date, date, &s.template.ID, nil)
+	_, err = s.instance.ReplanWeek(s.ctx, date, date, &s.template.ID, nil)
 	require.NoError(t, err)
 
 	events := loadDeviationEvents(t, s.db, s.ctx, s.tenantID)
 	require.Len(t, events, 1, "exactly one drop event for the vanished slot")
 	ev := events[0]
-	assert.Equal(t, compose.DeviationEventDroppedByReplan, ev.EventType)
+	assert.Equal(t, timetablePorts.DeviationEventDroppedByReplan, ev.EventType)
 	require.NotNil(t, ev.ActivityGroupID)
 	assert.Equal(t, s.template.ID, *ev.ActivityGroupID)
 	assert.Equal(t, date.String(), ev.OccurrenceDate.String())
@@ -59,12 +60,12 @@ func TestReplanWeek_SuccessfulReapplyLogsNothing(t *testing.T) {
 	t.Parallel()
 
 	date := calendar.NewDate(2026, time.April, 20) // Mon
-	s := makeScenario(t, activitiesModels.WeekdayMonday, date)
+	s := makeScenario(t, activityContract.WeekdayMonday, date)
 	defer s.runCleanup(t)
 
 	seedDeviatedOccurrence(t, s, date)
 
-	_, err := s.factory.Instance.ReplanWeek(s.ctx, date, date, &s.template.ID, nil)
+	_, err := s.instance.ReplanWeek(s.ctx, date, date, &s.template.ID, nil)
 	require.NoError(t, err)
 
 	regen := listInstancesForDate(t, s.db, s.template.ID, date)

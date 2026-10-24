@@ -7,43 +7,6 @@ import (
 	"time"
 )
 
-// FormFieldType enumerates the field types admins can place in the
-// custom-fields portion of a form schema. Mirrors the settings registry
-// vocabulary so the auto-generated frontend renderer can be reused.
-//
-// "textarea" is the only enrollment-specific addition (handy for
-// open-ended fields like allergy notes). "email" / "phone" are NOT
-// included - guardian email + phone are core fields with their own
-// columns on enrollment.requests.
-type FormFieldType string
-
-const (
-	FormFieldBoolean  FormFieldType = "boolean"
-	FormFieldNumber   FormFieldType = "number"
-	FormFieldText     FormFieldType = "text"
-	FormFieldTextarea FormFieldType = "textarea"
-	FormFieldDate     FormFieldType = "date"
-	FormFieldSelect   FormFieldType = "select"
-
-	// FormFieldInfo is a read-only text block (optional heading + plain
-	// description) shown to parents. It collects no answer: the
-	// submission + decision services ignore it, and it can never be
-	// required or carry options/target/validation. Use it for
-	// instructions, notes, or disclaimers placed between questions. Like
-	// any field it may carry a VisibleWhen condition.
-	FormFieldInfo FormFieldType = "information"
-
-	// Structured types — admins cannot define their internal shape;
-	// the renderer + decision service know how to interpret them.
-	// Each pairs with a specific FormField.Target (see ReservedTargets).
-	FormFieldPhoneList        FormFieldType = "phone_list"         // 0..N labelled phone numbers
-	FormFieldWeekdaySchedule  FormFieldType = "weekday_schedule"   // mon..fri → HH:MM, optional per day
-	FormFieldWeekdayBoolean   FormFieldType = "weekday_boolean"    // mon..fri → bool, optional per day
-	FormFieldWeekdayMode      FormFieldType = "weekday_mode"       // mon..fri → alone/bus/pickup, optional per day
-	FormFieldWeekdayMultiMode FormFieldType = "weekday_multi_mode" // mon..fri → []alone/bus/pickup, optional per day
-	FormFieldContactList      FormFieldType = "contact_list"       // 0..N people (name + phones + flags)
-)
-
 // validFormFieldTypes is the set of accepted FormFieldType values.
 var validFormFieldTypes = map[FormFieldType]bool{
 	FormFieldBoolean:          true,
@@ -59,62 +22,7 @@ var validFormFieldTypes = map[FormFieldType]bool{
 	FormFieldWeekdayMode:      true,
 	FormFieldWeekdayMultiMode: true,
 	FormFieldContactList:      true,
-}
-
-// FormFieldOption is a single static option on a select-type field.
-type FormFieldOption struct {
-	Label        string       `json:"label"`
-	Value        string       `json:"value"`
-	Translations Translations `json:"translations,omitempty"` // of Label (#3377)
-}
-
-// FormFieldValidation mirrors the settings registry's validation shape so
-// the frontend renderer can apply min/max/pattern hints without a separate
-// schema. All fields optional.
-type FormFieldValidation struct {
-	Min     *float64 `json:"min,omitempty"`
-	Max     *float64 `json:"max,omitempty"`
-	Pattern *string  `json:"pattern,omitempty"`
-}
-
-// Visibility condition sources. A field with a VisibleWhen condition is
-// only shown to parents when the source value matches.
-const (
-	// ConditionSourceField references another custom field in the same
-	// schema by key (must be a boolean or select field).
-	ConditionSourceField = "field"
-	// ConditionSourceGradeLevel references the per-child core field
-	// target_grade_level. Only valid on per-child fields.
-	ConditionSourceGradeLevel = "grade_level"
-	// ConditionSourceCareOffering references the child's selected care
-	// offerings by name (Value is an offering name, matched
-	// case-insensitively). Names are used rather than ids because form
-	// templates are not bound to a phase and offering ids differ per
-	// phase. Only valid on per-child fields, paired with the "includes"
-	// operator. Evaluated client-side only — the backend never resolves
-	// this source (care offerings are per-child; the submit flow's
-	// validation checks guardian-level fields only).
-	ConditionSourceCareOffering = "care_offering"
-)
-
-// Visibility condition operators.
-const (
-	ConditionOpEquals    = "eq"        // source value equals Value
-	ConditionOpNotEquals = "neq"       // source value differs from Value
-	ConditionOpNotEmpty  = "not_empty" // source has any non-empty value
-	ConditionOpIncludes  = "includes"  // multi-value source contains Value (care offering only)
-)
-
-// VisibilityCondition makes a field appear only when a controlling value
-// matches. It mirrors the settings registry's Dependency shape but adds
-// enrollment-specific sources for the built-in grade level and the
-// child's selected care offerings, plus an "includes" operator for the
-// multi-value offering check. nil means "always visible".
-type VisibilityCondition struct {
-	Source   string `json:"source"`          // ConditionSource* constant
-	Field    string `json:"field,omitempty"` // controlling custom field key (Source == "field")
-	Operator string `json:"operator"`        // ConditionOp* constant
-	Value    any    `json:"value,omitempty"` // compared value (required except for not_empty)
+	FormFieldFile:             true,
 }
 
 // Validate checks a condition's shape in isolation. Cross-field
@@ -123,6 +31,15 @@ type VisibilityCondition struct {
 // see sibling fields. appliesToChild is the owning field's scope; the
 // grade_level / care_offering sources are per-child only.
 func (c *VisibilityCondition) Validate(appliesToChild bool) error {
+	if err := c.validateOperatorValue(); err != nil {
+		return err
+	}
+	return c.validateSource(appliesToChild)
+}
+
+// validateOperatorValue checks the operator is known and that a value-taking
+// operator carries a scalar value.
+func (c *VisibilityCondition) validateOperatorValue() error {
 	switch c.Operator {
 	case ConditionOpEquals, ConditionOpNotEquals, ConditionOpNotEmpty, ConditionOpIncludes:
 	default:
@@ -151,7 +68,12 @@ func (c *VisibilityCondition) Validate(appliesToChild bool) error {
 			)
 		}
 	}
+	return nil
+}
 
+// validateSource checks the condition source against the operator and the
+// owning field's scope.
+func (c *VisibilityCondition) validateSource(appliesToChild bool) error {
 	switch c.Source {
 	case ConditionSourceField:
 		if strings.TrimSpace(c.Field) == "" {
@@ -180,55 +102,9 @@ func (c *VisibilityCondition) Validate(appliesToChild bool) error {
 	return nil
 }
 
-// FormField is one custom-field definition. Stored as a JSON object inside
-// FormSchema.Fields.
-//
-// Target is the optional link to a Stammdaten column / association table.
-// When empty, the field's value stays in request[_children].custom_data and
-// is never auto-migrated. When set to one of the ReservedTargets entries,
-// the decision service copies the value onto the appropriate downstream
-// record on approval (Student column, guardian_phone_numbers row, schedule
-// row, additional student-guardian relationship, etc.). Type is constrained by
-// Target — see ReservedTargets for the allowed (target, type) pairs.
-type FormField struct {
-	Key      string            `json:"key"`
-	Label    string            `json:"label"`
-	Type     FormFieldType     `json:"type"`
-	Required bool              `json:"required,omitempty"`
-	HelpText string            `json:"help_text,omitempty"`
-	Content  string            `json:"content,omitempty"` // body text for FormFieldInfo blocks (plain text, newlines preserved); empty for all other types
-	Options  []FormFieldOption `json:"options,omitempty"`
-	// AllowedTimes constrains a FormFieldWeekdaySchedule field to a fixed
-	// list of HH:MM pickup times. Empty/absent = free time entry (the
-	// historical behaviour). When set, every per-weekday time a parent
-	// submits must be a member of this list. Only valid on a
-	// weekday_schedule field; rejected on every other type.
-	AllowedTimes []string `json:"allowed_times,omitempty"`
-	// SingleModeGrades is the Heimweg-Beschränkung (#2381): target grade
-	// levels whose children may pick at most ONE departure mode per weekday
-	// on this weekday_multi_mode field. Parents still choose WHICH mode.
-	// Empty/absent = unrestricted multi-select (the historical behaviour);
-	// children without a target grade level are never restricted. Only valid
-	// on the allowed-departure-modes field; rejected everywhere else.
-	SingleModeGrades []int                `json:"single_mode_grades,omitempty"`
-	Validation       *FormFieldValidation `json:"validation,omitempty"`
-	SortOrder        int                  `json:"sort_order"`
-	AppliesToCh      bool                 `json:"applies_to_child,omitempty"` // false (default) = guardian-level field; true = per-child field
-	Target           string               `json:"target,omitempty"`           // "" = free custom field; otherwise one of ReservedTargets
-	VisibleWhen      *VisibilityCondition `json:"visible_when,omitempty"`     // nil = always visible; otherwise show only when the condition matches
-	Translations     Translations         `json:"translations,omitempty"`     // of Label, HelpText, Content (#3377); see form_schema_translations.go
-}
-
-const CoreRequirementGuardianPhone = "guardian_phone"
-
 var validCoreRequirements = map[string]bool{
 	CoreRequirementGuardianPhone: true,
 }
-
-// CoreRequirements stores per-template required-state for core fields
-// that are rendered from dedicated request/request_child columns rather
-// than from FormSchema.Fields. A missing or false value means optional.
-type CoreRequirements map[string]bool
 
 // Validate rejects unknown core requirement keys so typos in the admin API
 // do not silently create requirements the public form cannot enforce.
@@ -248,48 +124,6 @@ func (c CoreRequirements) Required(key string) bool {
 	}
 	return c[key]
 }
-
-// ReservedTargets maps each known target to the FormFieldType it requires
-// and a hint whether the field is naturally per-child (applies_to_child).
-// Admins pick from this list in the editor; the editor locks the type to
-// match. The decision service uses the same table to dispatch values onto
-// downstream records during approval.
-type ReservedTarget struct {
-	Type           FormFieldType
-	AppliesToChild bool
-	Label          string // German default — admin may override per field
-}
-
-const (
-	TargetStudentHealthInfo = "student.health_info"
-	TargetStudentExtraInfo  = "student.extra_info"
-	// TargetStudentDeparture is the canonical unified target: per weekday, how
-	// the child leaves (alone/bus/pickup). It supersedes the separate Buskind
-	// (TargetStudentBusDays/TargetStudentBus) and Abholregelung
-	// (TargetStudentPickupStatus) targets, which are kept as legacy aliases so
-	// older saved schemas keep working; all of them dispatch onto
-	// student.departure_days, the single source of truth (#1610).
-	TargetStudentDeparture             = "student.departure"
-	TargetStudentAllowedDepartureModes = "student.allowed_departure_modes"
-	// TargetStudentBusDays is the legacy Buskind target. TargetStudentBus
-	// ("student.bus") is kept as a legacy alias so older saved schemas keep
-	// working; both dispatch onto student.departure_days as bus days.
-	TargetStudentBusDays      = "student.bus_days"
-	TargetStudentBus          = "student.bus"
-	TargetStudentPickupStatus = "student.pickup_status"
-	// TargetStudentDepartureCompanionNote captures the free-text "mit wem" for
-	// the accompanied departure mode (sibling, friend, named person). It is a
-	// coupled companion to TargetStudentAllowedDepartureModes, NOT an
-	// independently admin-pickable field: it rides on a reserved child
-	// custom-data key under this string and is applied (accompanied-gated) by
-	// the decision service. It is intentionally absent from ReservedTargets so
-	// a schema cannot declare it as a standalone field whose answer would be
-	// silently dropped on approval (#1694).
-	TargetStudentDepartureCompanionNote = "student.departure_companion_note"
-	TargetSchedulePickup                = "schedule.pickup"
-	TargetScheduleArrival               = "schedule.arrival"
-	TargetStudentContacts               = "student.contacts"
-)
 
 // ReservedTargets is the canonical list of admin-pickable targets.
 //
@@ -335,9 +169,6 @@ var keyAllowedRunes = func(r rune) bool {
 	return (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '_'
 }
 
-// formFieldKeyMaxLength caps the length of a custom form field key.
-const formFieldKeyMaxLength = 64
-
 // Validate checks a single field. Used by the form schema service when
 // admins create / update a schema version.
 func (f *FormField) Validate() error {
@@ -357,8 +188,8 @@ func (f *FormField) Validate() error {
 		return invalidInputf(CodeFormFieldKeyInvalid, "key", "form field key %q is reserved for a core field", f.Key)
 	}
 
-	if !validFormFieldTypes[f.Type] {
-		return fmt.Errorf("unknown form field type %q", f.Type)
+	if err := f.validateType(); err != nil {
+		return err
 	}
 
 	f.Label = strings.TrimSpace(f.Label)
@@ -386,6 +217,9 @@ func (f *FormField) Validate() error {
 // answer, so the answer-oriented attributes must all be empty. The
 // label (heading) is optional.
 func (f *FormField) validateInfo() error {
+	if err := ValidateFormAttachments(f.Attachments); err != nil {
+		return err
+	}
 	if f.Content == "" {
 		return invalidInputf(CodeFormFieldContentRequired, "content", "information field %q requires content text", f.Key)
 	}
@@ -429,6 +263,9 @@ func (f *FormField) SingleModeAppliesTo(grade *int16) bool {
 // validateQuestion enforces the constraints for answer-collecting fields
 // (every type except FormFieldInfo).
 func (f *FormField) validateQuestion() error {
+	if len(f.Attachments) > 0 {
+		return invalidInputf(CodeFormAttachmentInvalid, "attachments", "only information fields may declare attachments")
+	}
 	if f.Label == "" {
 		return invalidInput(CodeFormFieldLabelRequired, "label", errors.New("form field label is required"))
 	}
@@ -442,7 +279,17 @@ func (f *FormField) validateQuestion() error {
 	if f.Type != FormFieldSelect && len(f.Options) > 0 {
 		return invalidInputf(CodeFormFieldOptionsInvalid, "options", "non-select field %q must not declare options", f.Key)
 	}
+	if err := f.validateAllowedTimes(); err != nil {
+		return err
+	}
+	if err := f.validateSingleModeGrades(); err != nil {
+		return err
+	}
+	return f.validateTarget()
+}
 
+// validateAllowedTimes checks and normalizes the fixed pickup times.
+func (f *FormField) validateAllowedTimes() error {
 	// AllowedTimes (fixed pickup times) is only meaningful on the pickup
 	// schedule field; everywhere else it would silently do nothing, so
 	// reject it. In particular the arrival schedule (schedule.arrival)
@@ -468,7 +315,12 @@ func (f *FormField) validateQuestion() error {
 			f.AllowedTimes[i] = t
 		}
 	}
+	return nil
+}
 
+// validateSingleModeGrades checks and normalizes the Heimweg-Beschränkung
+// grades.
+func (f *FormField) validateSingleModeGrades() error {
 	// SingleModeGrades (Heimweg-Beschränkung, #2381) only makes sense on
 	// the allowed-departure-modes field; anywhere else it would silently
 	// do nothing, so reject it. Grade bounds and dedup reuse the shared
@@ -486,7 +338,11 @@ func (f *FormField) validateQuestion() error {
 		}
 		f.SingleModeGrades = normalized
 	}
+	return nil
+}
 
+// validateTarget checks the structured-type and reserved-target pairing.
+func (f *FormField) validateTarget() error {
 	// Structured types are only meaningful when paired with their
 	// canonical target. They have no free-form variant — admins can't
 	// invent a "phone_list" with their own semantics.
@@ -524,17 +380,6 @@ func isStructuredFieldType(t FormFieldType) bool {
 	}
 }
 
-// PhoneEntry is one row of a FormFieldPhoneList submission. The
-// decision service inserts one users.guardian_phone_numbers row per
-// entry. PhoneType is validated against the enum from migration
-// 1.7.6 (mobile/home/work/other).
-type PhoneEntry struct {
-	PhoneNumber string `json:"phone_number"`
-	PhoneType   string `json:"phone_type"`
-	Label       string `json:"label,omitempty"`
-	IsPrimary   bool   `json:"is_primary,omitempty"`
-}
-
 // ValidPhoneTypes mirrors the CHECK constraint on
 // users.guardian_phone_numbers.phone_type.
 var ValidPhoneTypes = map[string]bool{
@@ -560,25 +405,6 @@ func (p *PhoneEntry) Validate() error {
 	return nil
 }
 
-// WeekdaySchedule is the value of a FormFieldWeekdaySchedule field.
-// Keys are weekday names (mon/tue/wed/thu/fri); values are HH:MM
-// strings. Missing or empty days are skipped on approval.
-type WeekdaySchedule map[string]string
-
-// WeekdayBoolean is the value of a FormFieldWeekdayBoolean field.
-// Keys are weekday names (mon/tue/wed/thu/fri); true means selected.
-type WeekdayBoolean map[string]bool
-
-// Weekday departure modes for a FormFieldWeekdayMode value. They mirror
-// users.DepartureMode without importing the users package, keeping the
-// enrollment model layer self-contained.
-const (
-	WeekdayModeAlone       = "alone"
-	WeekdayModeBus         = "bus"
-	WeekdayModePickup      = "pickup"
-	WeekdayModeAccompanied = "accompanied"
-)
-
 // ValidWeekdayModes is the set of accepted WeekdayMode values.
 var ValidWeekdayModes = map[string]bool{
 	WeekdayModeAlone:       true,
@@ -586,11 +412,6 @@ var ValidWeekdayModes = map[string]bool{
 	WeekdayModePickup:      true,
 	WeekdayModeAccompanied: true,
 }
-
-// WeekdayMode is the value of a FormFieldWeekdayMode field. Keys are weekday
-// names (mon/tue/wed/thu/fri); values are alone/bus/pickup. A missing day (or
-// "alone") means the child goes home alone that day.
-type WeekdayMode map[string]string
 
 // Validate checks every entry is a known weekday with a known mode.
 func (w WeekdayMode) Validate() error {
@@ -604,10 +425,6 @@ func (w WeekdayMode) Validate() error {
 	}
 	return nil
 }
-
-// WeekdayMultiMode is the value of a FormFieldWeekdayMultiMode field. Each
-// weekday contains every allowed departure mode for that care day.
-type WeekdayMultiMode map[string][]string
 
 func (w WeekdayMultiMode) Validate() error {
 	for day, modes := range w {
@@ -720,25 +537,6 @@ func (w WeekdayBoolean) HasAny() bool {
 	return false
 }
 
-// ContactEntry is one row of a FormFieldContactList submission. The
-// shape mirrors GuardianImportData (services/import/student.go) so
-// the decision service can run it through the same dedup-by-email
-// path the CSV importer uses.
-type ContactEntry struct {
-	FirstName          string       `json:"first_name"`
-	LastName           string       `json:"last_name"`
-	Email              string       `json:"email,omitempty"`
-	RelationshipType   string       `json:"relationship_type,omitempty"`
-	PhoneNumbers       []PhoneEntry `json:"phone_numbers,omitempty"`
-	CanPickup          bool         `json:"can_pickup,omitempty"`
-	IsEmergencyContact bool         `json:"is_emergency_contact,omitempty"`
-	EmergencyPriority  int          `json:"emergency_priority,omitempty"`
-	AddressStreet      string       `json:"address_street,omitempty"`
-	AddressCity        string       `json:"address_city,omitempty"`
-	AddressPostalCode  string       `json:"address_postal_code,omitempty"`
-	Notes              string       `json:"notes,omitempty"`
-}
-
 // Validate enforces guardian_profiles.CHECK (email OR ≥1 phone) plus
 // per-phone validity. Relationship type is admitted as free text;
 // the decision service maps it onto the enum via the same helper the
@@ -766,19 +564,6 @@ func (c *ContactEntry) Validate() error {
 	return nil
 }
 
-const (
-	LegalBlockKindTerms         = "terms"
-	LegalBlockKindPrivacyNotice = "privacy_notice"
-	LegalBlockKindNotice        = "notice"
-	LegalBlockKindConsent       = "consent"
-
-	LegalBlockSourceStandard = "standard"
-	LegalBlockSourceCustom   = "custom"
-
-	LegalBlockDisplayModeText = "text"
-	LegalBlockDisplayModePDF  = "pdf"
-)
-
 var validLegalBlockKinds = map[string]bool{
 	LegalBlockKindTerms:         true,
 	LegalBlockKindPrivacyNotice: true,
@@ -793,24 +578,6 @@ var standardLegalBlockKeys = map[string]bool{
 	ConsentKeyPhoto:          true,
 }
 
-// FormLegalBlock is one consent/legal row owned by a form template.
-// Standard blocks originate from tenant settings and may be overridden or
-// disabled on the template. Custom blocks are stored only on the template.
-type FormLegalBlock struct {
-	Key          string       `json:"key"`
-	Kind         string       `json:"kind"`
-	Title        string       `json:"title"`
-	Label        string       `json:"label"`
-	Text         string       `json:"text"`
-	Required     bool         `json:"required"`
-	Enabled      bool         `json:"enabled"`
-	SortOrder    int          `json:"sort_order"`
-	Source       string       `json:"source,omitempty"`
-	DisplayMode  string       `json:"display_mode,omitempty"`
-	DocumentURL  string       `json:"document_url,omitempty"`
-	Translations Translations `json:"translations,omitempty"` // of Title, Label, Text (#3377)
-}
-
 func (b *FormLegalBlock) Validate() error {
 	b.Key = strings.TrimSpace(b.Key)
 	b.Kind = strings.TrimSpace(b.Kind)
@@ -821,6 +588,27 @@ func (b *FormLegalBlock) Validate() error {
 	b.DisplayMode = strings.TrimSpace(b.DisplayMode)
 	b.DocumentURL = strings.TrimSpace(b.DocumentURL)
 
+	validators := []func() error{
+		b.validateKey,
+		b.validateSource,
+		b.validateContent,
+		b.validateDisplayMode,
+		func() error { return ValidateFormAttachments(b.Attachments) },
+	}
+	for _, validate := range validators {
+		if err := validate(); err != nil {
+			return err
+		}
+	}
+	var err error
+	b.Translations, err = b.Translations.Normalize(TranslationAttrTitle, TranslationAttrLabel, TranslationAttrText)
+	if err != nil {
+		return fmt.Errorf("legal block %q: %w", b.Key, err)
+	}
+	return nil
+}
+
+func (b *FormLegalBlock) validateKey() error {
 	if b.Key == "" {
 		return invalidInput(CodeLegalBlockKeyInvalid, "key", errors.New("legal block key is required"))
 	}
@@ -832,6 +620,11 @@ func (b *FormLegalBlock) Validate() error {
 			return invalidInputf(CodeLegalBlockKeyInvalid, "key", "legal block key %q must be lowercase letters, digits, or underscores", b.Key)
 		}
 	}
+	return nil
+}
+
+// validateSource defaults the source from the key and checks the pair.
+func (b *FormLegalBlock) validateSource() error {
 	if b.Source == "" {
 		if standardLegalBlockKeys[b.Key] {
 			b.Source = LegalBlockSourceStandard
@@ -848,6 +641,12 @@ func (b *FormLegalBlock) Validate() error {
 	if b.Source == LegalBlockSourceCustom && standardLegalBlockKeys[b.Key] {
 		return invalidInputf(CodeLegalBlockKeyInvalid, "key", "custom legal block key %q is reserved for a standard block", b.Key)
 	}
+	return nil
+}
+
+// validateContent checks the kind, the texts an enabled block needs and the
+// kinds that must not be required.
+func (b *FormLegalBlock) validateContent() error {
 	if !validLegalBlockKinds[b.Kind] {
 		return fmt.Errorf("legal block %q has unknown kind %q", b.Key, b.Kind)
 	}
@@ -868,34 +667,7 @@ func (b *FormLegalBlock) Validate() error {
 	if b.Kind == LegalBlockKindConsent && b.Required {
 		return invalidInputf(CodeLegalBlockRequiredNotAllowed, "required", "consent legal block %q cannot be required", b.Key)
 	}
-	if err := b.validateDisplayMode(); err != nil {
-		return err
-	}
-	var err error
-	b.Translations, err = b.Translations.Normalize(TranslationAttrTitle, TranslationAttrLabel, TranslationAttrText)
-	if err != nil {
-		return fmt.Errorf("legal block %q: %w", b.Key, err)
-	}
 	return nil
-}
-
-// FormSchema is a row in enrollment.form_schemas. Each save creates a new
-// version; submissions pin to a specific schema_id so editing the active
-// schema doesn't break already-submitted requests. Name groups versions
-// of the same logical schema (e.g. "Schuljahr", "Ferienbetreuung") so
-// admins can maintain multiple parallel form variants per tenant.
-type FormSchema struct {
-	ID               int64            `json:"id"`
-	TenantID         int64            `json:"tenant_id"`
-	CreatedAt        time.Time        `json:"created_at"`
-	UpdatedAt        time.Time        `json:"updated_at"`
-	Name             string           `json:"name"`
-	Version          int              `json:"version"`
-	Fields           []FormField      `json:"fields"`
-	CoreRequirements CoreRequirements `json:"core_requirements"`
-	LegalBlocks      []FormLegalBlock `json:"legal_blocks"`
-	IsActive         bool             `json:"is_active"`
-	CreatedBy        int64            `json:"created_by"`
 }
 
 // Validate checks fields for duplicate keys + per-field validity.
@@ -915,6 +687,27 @@ func (s *FormSchema) Validate() error {
 	if err := s.CoreRequirements.Validate(); err != nil {
 		return err
 	}
+	if err := s.validateLegalBlocks(); err != nil {
+		return err
+	}
+	byKey, err := s.validateFields()
+	if err != nil {
+		return err
+	}
+
+	// Second pass: validate cross-field visibility references now that
+	// every key is known. A "field" condition must point at an existing
+	// boolean/select field that the owning field can actually observe.
+	for i := range s.Fields {
+		if err := validateFieldVisibility(&s.Fields[i], byKey); err != nil {
+			return NestInput(err, fmt.Sprintf("fields.%d", i), "field %d", i)
+		}
+	}
+	return nil
+}
+
+// validateLegalBlocks validates every legal block and rejects duplicate keys.
+func (s *FormSchema) validateLegalBlocks() error {
 	// NOTE: a template may deliberately enable blocks while keeping
 	// data_processing disabled — pilot schools without a standalone
 	// Datenschutzinformation run their consent via the Elternbrief/AGB
@@ -930,14 +723,20 @@ func (s *FormSchema) Validate() error {
 		}
 		legalByKey[s.LegalBlocks[i].Key] = true
 	}
+	return nil
+}
+
+// validateFields validates every field, rejects duplicate keys and reserved
+// targets, and returns the fields by key.
+func (s *FormSchema) validateFields() (map[string]*FormField, error) {
 	byKey := make(map[string]*FormField, len(s.Fields))
 	seenTarget := make(map[string]string, len(s.Fields))
 	for i := range s.Fields {
 		if err := s.Fields[i].Validate(); err != nil {
-			return NestInput(err, fmt.Sprintf("fields.%d", i), "field %d", i)
+			return nil, NestInput(err, fmt.Sprintf("fields.%d", i), "field %d", i)
 		}
 		if _, dup := byKey[s.Fields[i].Key]; dup {
-			return invalidInputf(CodeFormFieldKeyDuplicate, fmt.Sprintf("fields.%d.key", i), "duplicate form field key %q", s.Fields[i].Key)
+			return nil, invalidInputf(CodeFormFieldKeyDuplicate, fmt.Sprintf("fields.%d.key", i), "duplicate form field key %q", s.Fields[i].Key)
 		}
 		byKey[s.Fields[i].Key] = &s.Fields[i]
 		// A reserved target writes one specific Stammdaten column on approval, so
@@ -947,21 +746,12 @@ func (s *FormSchema) Validate() error {
 		// target) may repeat. Keep in sync with the editor's reserved-targets picker.
 		if t := s.Fields[i].Target; t != "" {
 			if firstKey, dup := seenTarget[t]; dup {
-				return invalidInputf(CodeFormFieldTargetDuplicate, fmt.Sprintf("fields.%d.target", i), "duplicate field target %q on fields %q and %q", t, firstKey, s.Fields[i].Key)
+				return nil, invalidInputf(CodeFormFieldTargetDuplicate, fmt.Sprintf("fields.%d.target", i), "duplicate field target %q on fields %q and %q", t, firstKey, s.Fields[i].Key)
 			}
 			seenTarget[t] = s.Fields[i].Key
 		}
 	}
-
-	// Second pass: validate cross-field visibility references now that
-	// every key is known. A "field" condition must point at an existing
-	// boolean/select field that the owning field can actually observe.
-	for i := range s.Fields {
-		if err := validateFieldVisibility(&s.Fields[i], byKey); err != nil {
-			return NestInput(err, fmt.Sprintf("fields.%d", i), "field %d", i)
-		}
-	}
-	return nil
+	return byKey, nil
 }
 
 // validateFieldVisibility checks a field's "field"-sourced visibility
@@ -989,13 +779,6 @@ func validateFieldVisibility(f *FormField, byKey map[string]*FormField) error {
 	}
 	return nil
 }
-
-const (
-	ConsentKeyAGB            = "agb"
-	ConsentKeyDataProcessing = "data_processing"
-	ConsentKeyEmailContact   = "email_contact"
-	ConsentKeyPhoto          = "photo"
-)
 
 // normalizeGradeLevelList validates the supported school grades and preserves
 // the configured order while removing duplicates.

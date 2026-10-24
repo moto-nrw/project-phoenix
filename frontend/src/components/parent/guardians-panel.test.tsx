@@ -1,4 +1,5 @@
 import "@testing-library/jest-dom/vitest";
+import { ApiError } from "~/lib/api-error";
 import {
   fireEvent,
   render as renderPlain,
@@ -11,11 +12,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import GuardiansPanel from "./guardians-panel";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { catalogText } from "~/test/error-catalog-text";
-import {
-  ParentApiError,
-  type ChildGuardian,
-  type RelatedAccount,
-} from "~/lib/parent-api";
+import { type ChildGuardian, type RelatedAccount } from "~/lib/parent-api";
 
 // The shared error path reports row actions through the toast provider
 // (#2518).
@@ -33,10 +30,8 @@ const mocks = vi.hoisted(() => ({
   updateGuardianRelationship: vi.fn(),
 }));
 
-vi.mock("~/lib/parent-api", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("~/lib/parent-api")>();
+vi.mock("~/lib/parent-api", () => {
   return {
-    ParentApiError: actual.ParentApiError,
     listChildGuardians: mocks.listChildGuardians,
     listRelatedAccounts: mocks.listRelatedAccounts,
     createGuardianContact: mocks.createGuardianContact,
@@ -180,7 +175,7 @@ describe("GuardiansPanel", () => {
 
   it("keeps invitation errors inside the dialog", async () => {
     mocks.inviteRelatedAccount.mockRejectedValue(
-      new ParentApiError("diag", 503, "general.unavailable"),
+      new ApiError("diag", 503, { code: "general.unavailable" }),
     );
 
     render(<GuardiansPanel studentId="42" canInvite canRemove={false} />);
@@ -350,10 +345,10 @@ describe("GuardiansPanel", () => {
 
   it("shows a parent API error code in the dialog via the shared catalog", async () => {
     mocks.updateGuardianContact.mockRejectedValue(
-      new ParentApiError(
+      new ApiError(
         "parent: guardian with own portal account cannot be edited by another parent",
         403,
-        "care.guardian_has_own_account",
+        { code: "care.guardian_has_own_account" },
       ),
     );
 
@@ -577,12 +572,12 @@ describe("GuardiansPanel", () => {
   it("shows load errors where the lists are missing and retries them", async () => {
     mocks.listChildGuardians
       .mockRejectedValueOnce(
-        new ParentApiError("diag", 503, "general.unavailable"),
+        new ApiError("diag", 503, { code: "general.unavailable" }),
       )
       .mockResolvedValue([editableGuardian]);
     mocks.listRelatedAccounts
       .mockRejectedValueOnce(
-        new ParentApiError("diag", 503, "general.unavailable"),
+        new ApiError("diag", 503, { code: "general.unavailable" }),
       )
       .mockResolvedValue([]);
 
@@ -627,7 +622,7 @@ describe("GuardiansPanel", () => {
       },
     ]);
     mocks.removeRelatedAccount.mockRejectedValue(
-      new ParentApiError("diag", 403, "care.remove_disabled"),
+      new ApiError("diag", 403, { code: "care.remove_disabled" }),
     );
 
     render(<GuardiansPanel studentId="42" canInvite={false} canRemove />);
@@ -648,7 +643,7 @@ describe("GuardiansPanel", () => {
 
   it("checks the name before saving and keeps a pickup save error in its dialog", async () => {
     mocks.updateGuardianRelationship.mockRejectedValue(
-      new ParentApiError("diag", 403, "care.pickup_change_disabled"),
+      new ApiError("diag", 403, { code: "care.pickup_change_disabled" }),
     );
 
     render(

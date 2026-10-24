@@ -11,7 +11,6 @@ import {
   authPrimaryButtonClassName,
   type AuthTestimonialPanelCopy,
 } from "~/components/auth/auth-shell";
-import { credentialError } from "~/components/auth/credential-error";
 import { formErrorMessage } from "~/components/ui/form-error";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Loading } from "~/components/ui/loading";
@@ -282,7 +281,10 @@ export function ResetPasswordPageContent({
       } else {
         logger.error("password_reset_failed", context);
       }
-      void formErrors.show(credentialError(err), {
+      // An invalid or used link answers 400/410 with
+      // identity.password_reset_link_invalid, never 401: the form shows its
+      // catalog text in place.
+      void formErrors.show(err, {
         object: copy.errorObject ?? DEFAULT_ERROR_OBJECT,
         retry: () => latestSubmitRef.current(),
       });

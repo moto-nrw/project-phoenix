@@ -1,4 +1,4 @@
-import { ApiError, enrichApiError } from "./api-error";
+import { apiErrorFromResponse, type ApiError } from "./api-error";
 // API client for tenant-defined shift types (Schichtarten, #1836).
 // Admin CRUD goes through /api/staff/shift-types (backend /api/shift-types,
 // time_tracking:manage).
@@ -24,18 +24,6 @@ interface ShiftTypePayload {
   categoryIds?: string[];
 }
 
-export class ShiftTypeApiError extends ApiError {
-  readonly status: number;
-  readonly detail: string;
-
-  constructor(status: number, detail: string) {
-    super(`HTTP ${status}: ${detail}`, status);
-    this.name = "ShiftTypeApiError";
-    this.status = status;
-    this.detail = detail;
-  }
-}
-
 function toBackendBody(payload: ShiftTypePayload) {
   return {
     name: payload.name,
@@ -50,36 +38,13 @@ function toBackendBody(payload: ShiftTypePayload) {
   };
 }
 
-async function readError(
-  response: Response,
-  fallback: string,
-): Promise<ShiftTypeApiError> {
-  let detail = "";
-  let payload: unknown;
-  const contentType = response.headers.get("content-type") ?? "";
-  if (contentType.includes("json")) {
-    try {
-      const body = (await response.json()) as { error?: string };
-      detail = body.error ?? "";
-      payload = body;
-    } catch {
-      detail = "";
-    }
-  } else {
-    detail = await response.text();
-  }
-  return enrichApiError(
-    new ShiftTypeApiError(response.status, detail || fallback),
-    payload,
-  );
+function readError(response: Response, fallback: string): Promise<ApiError> {
+  return apiErrorFromResponse(response, fallback);
 }
 
 async function readList(response: Response): Promise<ShiftType[]> {
   if (!response.ok) {
-    throw await readError(
-      response,
-      "Schichtarten konnten nicht geladen werden",
-    );
+    throw await readError(response, "Dienstarten konnten nicht geladen werden");
   }
   const json = (await response.json()) as { data: BackendShiftType[] | null };
   return (json.data ?? []).map(mapShiftType);
@@ -89,7 +54,7 @@ async function readOne(response: Response): Promise<ShiftType> {
   if (!response.ok) {
     throw await readError(
       response,
-      "Schichtart konnte nicht gespeichert werden",
+      "Dienstart konnte nicht gespeichert werden",
     );
   }
   const json = (await response.json()) as { data: BackendShiftType };
@@ -128,10 +93,7 @@ class ShiftTypeService {
       method: "DELETE",
     });
     if (!response.ok) {
-      throw await readError(
-        response,
-        "Schichtart konnte nicht gelöscht werden",
-      );
+      throw await readError(response, "Dienstart konnte nicht gelöscht werden");
     }
   }
 

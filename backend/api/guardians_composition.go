@@ -9,11 +9,10 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	usersAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/http"
 	"github.com/moto-nrw/project-phoenix/observability"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // The guardian surface under /api/guardians (#2663) is the People Directory
@@ -61,13 +60,13 @@ var guardianInputCodes = []struct {
 	{peopleModule.ErrGuardianAccountHolderTooLong, apiCommon.CodeStudentsGuardianAccountHolderTooLong, "account_holder"},
 }
 
-func guardianFailureKind(kind services.GuardianFailureKind) usersAPI.FailureKind {
+func guardianFailureKind(kind GuardianFailureKind) usersAPI.FailureKind {
 	switch kind {
-	case services.GuardianFailureConflict:
+	case GuardianFailureConflict:
 		return usersAPI.FailureConflict
-	case services.GuardianFailureForbidden:
+	case GuardianFailureForbidden:
 		return usersAPI.FailureForbidden
-	case services.GuardianFailureInvalidRequest:
+	case GuardianFailureInvalidRequest:
 		return usersAPI.FailureInvalidRequest
 	default:
 		return usersAPI.FailureInternal
@@ -77,10 +76,10 @@ func guardianFailureKind(kind services.GuardianFailureKind) usersAPI.FailureKind
 // newGuardiansResource binds the guardian HTTP adapter over the People
 // Directory and the legacy-service runtime. appEnv gates the seed-only raw
 // invitation token.
-func newGuardiansResource(module peopleModule.Capability, runtime services.GuardianDirectoryRuntime, appEnv string, logger *slog.Logger) *usersAPI.GuardianResource {
+func newGuardiansResource(module peopleModule.Capability, runtime GuardianDirectoryRuntime, appEnv string, logger *slog.Logger) *usersAPI.GuardianResource {
 	return usersAPI.NewGuardianResource(module, usersAPI.GuardianRuntime{
 		Protected: func(router chi.Router, register func(chi.Router, usersAPI.Middleware)) {
-			apiCommon.ProtectedTenantRoutes(router, register)
+			ProtectedTenantRoutes(router, register)
 		},
 		Permission: func(permission string) usersAPI.Middleware {
 			return apiCommon.RequiresPermission(permission)
@@ -92,18 +91,19 @@ func newGuardiansResource(module peopleModule.Capability, runtime services.Guard
 		},
 		Failure:         renderPeopleDirectoryFailure,
 		ObserveResponse: observability.ObserveGuardianDirectoryHTTPResponse,
+		ParseIDParam:    apiCommon.ParseIDParam,
 
 		ActorID: func(r *http.Request) int64 {
-			return int64(jwt.ClaimsFromCtx(r.Context()).ID)
+			return int64(sessiontoken.ClaimsFromCtx(r.Context()).ID)
 		},
 		ActorRole: func(r *http.Request) string {
-			return strings.Join(jwt.ClaimsFromCtx(r.Context()).Roles, ",")
+			return strings.Join(sessiontoken.ClaimsFromCtx(r.Context()).Roles, ",")
 		},
 		HasPermission: func(r *http.Request, permission string) bool {
-			return apiCommon.HasPermission(permission, jwt.PermissionsFromCtx(r.Context()))
+			return apiCommon.HasPermission(permission, sessiontoken.PermissionsFromCtx(r.Context()))
 		},
 		IsAdmin: func(r *http.Request) bool {
-			return apiCommon.HasAdminWildcard(jwt.PermissionsFromCtx(r.Context()))
+			return apiCommon.HasAdminWildcard(sessiontoken.PermissionsFromCtx(r.Context()))
 		},
 		IsVerifiedStaff: runtime.IsVerifiedStaff,
 		ExposeInvitationToken: func(r *http.Request) bool {
@@ -137,7 +137,7 @@ func newGuardiansResource(module peopleModule.Capability, runtime services.Guard
 			return result, nil
 		},
 		InviteGuardianToStudent: func(ctx context.Context, input usersAPI.GuardianInvite) (usersAPI.GuardianInviteResult, error) {
-			result, err := runtime.InviteGuardianToStudent(ctx, services.GuardianInviteInput{
+			result, err := runtime.InviteGuardianToStudent(ctx, GuardianInviteInput{
 				StudentID: input.StudentID, Email: input.Email, FirstName: input.FirstName, LastName: input.LastName,
 				RelationshipType: input.RelationshipType, ActorAccountID: input.ActorAccountID, ConfirmRoleUpgrade: input.ConfirmRoleUpgrade,
 			})
@@ -151,7 +151,7 @@ func newGuardiansResource(module peopleModule.Capability, runtime services.Guard
 		},
 		BulkInviteGuardians: bulkInviteGuardians(runtime),
 		InviteFailureKind: func(err error) usersAPI.FailureKind {
-			return guardianFailureKind(services.ClassifyGuardianInvitationFailure(err))
+			return guardianFailureKind(ClassifyGuardianInvitationFailure(err))
 		},
 		ListPendingApprovals: func(ctx context.Context) ([]usersAPI.GuardianPendingApproval, error) {
 			views, err := runtime.ListPendingApprovals(ctx)
@@ -187,9 +187,9 @@ func newGuardiansResource(module peopleModule.Capability, runtime services.Guard
 
 // bulkInviteGuardians maps the bulk invitation (#3378) between the adapter's
 // contract and the runtime's.
-func bulkInviteGuardians(runtime services.GuardianDirectoryRuntime) func(context.Context, usersAPI.GuardianBulkInvite) (usersAPI.GuardianBulkInviteResult, error) {
+func bulkInviteGuardians(runtime GuardianDirectoryRuntime) func(context.Context, usersAPI.GuardianBulkInvite) (usersAPI.GuardianBulkInviteResult, error) {
 	return func(ctx context.Context, input usersAPI.GuardianBulkInvite) (usersAPI.GuardianBulkInviteResult, error) {
-		result, err := runtime.BulkInviteGuardians(ctx, services.GuardianBulkInviteRequest{
+		result, err := runtime.BulkInviteGuardians(ctx, GuardianBulkInviteRequest{
 			StudentIDs: input.StudentIDs, CreatedBy: input.ActorAccountID, ResendOpen: input.ResendOpen, DryRun: input.DryRun,
 		})
 		if err != nil {

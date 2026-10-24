@@ -7,10 +7,10 @@ import {
   ReviewDiffPanel,
 } from "~/components/students/request-review-card";
 import { usePickupExtensionPrompt } from "~/components/timetable/pickup-extension-access";
+import { ApiError } from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
-import { useApiErrorDisplay, useToast } from "~/contexts/ToastContext";
+import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import {
-  CareRequestApiError,
   type StaffCareRequest,
   decideCareScheduleChangeRequest,
 } from "~/lib/care-request-review-api";
@@ -70,11 +70,35 @@ export function careTypeLabel(
   return requestKind === "pickup_change" ? "Einzelner Tag" : undefined;
 }
 
+/**
+ * Was eine Anfrage für einen Tag ändert: die Abholzeit, die Abholart (#3945)
+ * oder beides. Ohne lesbare Einträge bleibt es bei der Abholzeit, die jede
+ * Anfrage vor #3945 trug.
+ */
+function pickupChangeLegs(diff: readonly RequestDiffEntry[]): {
+  time: boolean;
+  mode: boolean;
+} {
+  const mode = diff.some((entry) => entry.care_kind === "departure_mode");
+  const time = diff.some((entry) => entry.care_kind === "pickup") || !mode;
+  return { time, mode };
+}
+
 function decisionNotice(row: StaffCareRequest, approve: boolean): string {
-  if (row.request_kind === "pickup_change")
+  if (row.request_kind === "pickup_change") {
+    const { time, mode } = pickupChangeLegs(row.diff);
+    if (time && mode)
+      return approve
+        ? "Abholzeit und Abholart sind übernommen."
+        : "Die Anfrage zur Abholung ist abgelehnt.";
+    if (mode)
+      return approve
+        ? "Die Abholart ist übernommen."
+        : "Die Anfrage zur Abholart ist abgelehnt.";
     return approve
       ? "Die Abholzeit ist übernommen."
       : "Die Anfrage zur Abholzeit ist abgelehnt.";
+  }
   return approve
     ? "Die Betreuungszeiten sind übernommen."
     : "Die Anfrage zu den Betreuungszeiten ist abgelehnt.";
@@ -154,8 +178,8 @@ function useCareRequestDecision(
   onDecided: (notice: string) => void,
   expectedVersion?: string,
 ) {
-  const toast = useToast();
-  const { show: showApiError } = useApiErrorDisplay();
+  const { show: showApiError, showMessage: showLocalError } =
+    useApiErrorDisplay();
   const extensions = usePickupExtensionPrompt();
   const [reason, setReason] = useState("");
   const [reasonError, setReasonError] = useState(false);
@@ -166,7 +190,6 @@ function useCareRequestDecision(
   );
   // Fehler laufen als Toast, nicht als Kasten in der Karte: sie sind die
   // Ausnahme, und der Platz gehört dem, worüber entschieden wird.
-  const showLocalError = (message: string) => toast.error(message);
   const decide = async (approve: boolean) => {
     const trimmed = reason.trim();
     if (
@@ -241,7 +264,7 @@ function decisionInputReady(
 }
 
 function logDecisionError(err: unknown, requestID: string) {
-  const code = err instanceof CareRequestApiError ? err.code : undefined;
+  const code = err instanceof ApiError ? err.code : undefined;
   logger.warn("care_request_review_decide_failed", {
     error: err instanceof Error ? err.message : String(err),
     request_id: requestID,
@@ -260,7 +283,10 @@ function CareRequestDetails({ row }: Readonly<{ row: StaffCareRequest }>) {
           </p>
         )}
         <RequestDiffRows diff={row.diff} />
-        {row.request_kind === "pickup_change" && <PickupImpact row={row} />}
+        {/* Nur eine neue Abholzeit verschiebt Termine; eine Abholart allein
+            ändert am Betreuungsplan nichts (#3945). */}
+        {row.request_kind === "pickup_change" &&
+          pickupChangeLegs(row.diff).time && <PickupImpact row={row} />}
       </ReviewDiffPanel>
     </>
   );

@@ -107,7 +107,7 @@ describe("PlanExportModal", () => {
   it("exports the displayed week, not the day that was clicked", async () => {
     renderModal();
 
-    fireEvent.click(screen.getByRole("button", { name: "PDF" }));
+    fireEvent.click(screen.getByRole("button", { name: "Herunterladen" }));
 
     await waitFor(() => expect(mockExportPlan).toHaveBeenCalled());
     expect(mockExportPlan).toHaveBeenCalledWith(
@@ -139,7 +139,8 @@ describe("PlanExportModal", () => {
 
     fireEvent.click(screen.getByRole("radio", { name: /Nach Einsatzbereich/ }));
     fireEvent.click(screen.getByRole("radio", { name: /Interne Fassung/ }));
-    fireEvent.click(screen.getByRole("button", { name: "XLSX" }));
+    fireEvent.click(screen.getByRole("button", { name: "Excel" }));
+    fireEvent.click(screen.getByRole("button", { name: "Herunterladen" }));
 
     await waitFor(() => expect(mockExportPlan).toHaveBeenCalled());
     expect(mockExportPlan).toHaveBeenCalledWith(
@@ -166,7 +167,8 @@ describe("PlanExportModal", () => {
       ),
     ).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "XLSX" }));
+    fireEvent.click(screen.getByRole("button", { name: "Excel" }));
+    fireEvent.click(screen.getByRole("button", { name: "Herunterladen" }));
 
     await waitFor(() => expect(mockExportPlan).toHaveBeenCalled());
     expect(mockExportPlan).toHaveBeenCalledWith(
@@ -182,7 +184,17 @@ describe("PlanExportModal", () => {
   it("hides the template picker for the care plan", () => {
     renderModal({ plan: "betreuungsplan" });
 
+    // Anker: der Export-Dialog des Betreuungsplans ist offen.
+    expect(
+      screen.getByText("Betreuungsplan drucken oder exportieren"),
+    ).toBeInTheDocument();
     expect(screen.queryByText("Vorlage")).not.toBeInTheDocument();
+  });
+
+  it("offers the template picker for the duty plan", () => {
+    renderModal({ plan: "dienstplan" });
+
+    expect(screen.getByText("Vorlage")).toBeInTheDocument();
   });
 
   it("states which days actually land on the sheet", () => {
@@ -225,7 +237,9 @@ describe("PlanExportModal", () => {
     await waitFor(() =>
       expect(screen.getByText(/höchstens 8 Wochen/)).toBeInTheDocument(),
     );
-    expect(screen.getByRole("button", { name: "PDF" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Herunterladen" }),
+    ).toBeDisabled();
     expect(mockExportPlan).not.toHaveBeenCalled();
   });
 
@@ -242,7 +256,7 @@ describe("PlanExportModal", () => {
       .mockResolvedValueOnce(undefined);
     const { onClose } = renderModal({ canExportInternal: true });
 
-    fireEvent.click(screen.getByRole("button", { name: "PDF" }));
+    fireEvent.click(screen.getByRole("button", { name: "Herunterladen" }));
 
     expect(
       await screen.findByText(
@@ -271,7 +285,7 @@ describe("PlanExportModal", () => {
     mockExportPlan.mockRejectedValue(new Error("Backend weg"));
     const { onClose } = renderModal();
 
-    fireEvent.click(screen.getByRole("button", { name: "PDF" }));
+    fireEvent.click(screen.getByRole("button", { name: "Herunterladen" }));
 
     // Kein ApiError: der Anzeigeweg nimmt den Absturztext, nie den Satz.
     const crash = ERROR_CATALOG.de.actions.crash.replace(

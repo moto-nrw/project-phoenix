@@ -15,9 +15,7 @@ import (
 	"github.com/go-chi/render"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // AdminRequestSummary is the wire shape for admin list-style responses.
@@ -64,6 +62,9 @@ type AdminRequestDetail struct {
 	StatusToken             string `json:"status_token"`
 	LateInviteGuardianEmail string `json:"late_invite_guardian_email,omitempty"`
 	LateInviteEmailMismatch bool   `json:"late_invite_email_mismatch,omitempty"`
+	// CanViewUploads and Uploads carry the files parents attached (#4783).
+	CanViewUploads bool                 `json:"can_view_uploads"`
+	Uploads        []AdminRequestUpload `json:"uploads"`
 }
 
 // AdminRequestGuardian is one additional guardian (co-guardian) within an
@@ -150,7 +151,7 @@ type AdminRequestChild struct {
 // The attribute and validity fields carry the same facts the parent
 // portal renders for this booking (#2185), in the same wire shape:
 // ValidUntil is the INCLUSIVE last covered day, matching
-// modules/careplan/inbound/parent/care_offerings_handlers.go. The stored column is
+// workflows/parentportal/http/care_offerings_handlers.go. The stored column is
 // exclusive; one JSON name must not mean two different days depending
 // on which endpoint answered.
 //
@@ -258,7 +259,7 @@ func (rs *Resource) listAdminRequests(w http.ResponseWriter, r *http.Request) {
 		filters.ChildStatus = v
 	}
 
-	accountID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
+	accountID := int64(sessiontoken.ClaimsFromCtx(r.Context()).ID)
 	var summaries []*RequestSummary
 	unread := map[int64]bool{}
 	err := rs.runInTenantTx(r, func(ctx context.Context) error {
@@ -301,7 +302,7 @@ func (rs *Resource) getAdminRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	var detail AdminRequestDetail
 	err := rs.runInTenantTx(r, func(ctx context.Context) error {
 		s, e := rs.DecisionService.Get(ctx, id)
@@ -317,7 +318,7 @@ func (rs *Resource) getAdminRequest(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		detail = rs.toAdminRequestDetail(ctx, s)
-		return nil
+		return rs.attachAdminUploads(ctx, &detail, id)
 	})
 	if err != nil {
 		if errors.Is(err, capability.ErrDecisionRequestNotFound) {
@@ -497,7 +498,7 @@ func (rs *Resource) decideAdminChild(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	outcome, err := rs.decideChildWithRetry(r, DecideInput{
 		RequestID:  requestID,
 		ChildID:    childID,
@@ -506,16 +507,8 @@ func (rs *Resource) decideAdminChild(w http.ResponseWriter, r *http.Request) {
 		ReviewedBy: int64(claims.ID),
 	})
 	if err != nil {
-		renderDecideError(w, r, err)
+		rs.renderDecideError(w, r, err)
 		return
-	}
-
-	// Post-tx: schedule guardian invitation if the approval pipeline
-	// asked for one. Best-effort — failure here doesn't roll back the
-	// approval (records are already committed). Logging captures the
-	// failure for the admin to chase via "Re-send invitation".
-	if outcome != nil && outcome.PendingInvite != nil && rs.GuardianInvitations.configured() {
-		go rs.dispatchPostDecisionInvite(r.Context(), outcome.PendingInvite)
 	}
 
 	common.Respond(w, r, http.StatusOK, newAdminRequestChild(outcome.Child), "Decision applied")
@@ -535,7 +528,7 @@ func (rs *Resource) restoreAdminRequest(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	var outcome *RestoreOutcome
 	err := rs.runInTenantTx(r, func(ctx context.Context) error {
 		out, e := rs.DecisionService.RestoreWithdrawn(ctx, requestID, int64(claims.ID))
@@ -546,7 +539,7 @@ func (rs *Resource) restoreAdminRequest(w http.ResponseWriter, r *http.Request) 
 		return nil
 	})
 	if err != nil {
-		renderRestoreError(w, r, err)
+		rs.renderRestoreError(w, r, err)
 		return
 	}
 
@@ -559,7 +552,7 @@ func (rs *Resource) restoreAdminRequest(w http.ResponseWriter, r *http.Request) 
 // renderRestoreError maps a restore failure to its HTTP status. The two
 // business guards (inactive phase, active duplicate) surface as 409s with
 // stable codes so the frontend can show specific German messages.
-func renderRestoreError(w http.ResponseWriter, r *http.Request, err error) {
+func (rs *Resource) renderRestoreError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, context.Canceled):
 		common.RenderError(w, r, common.ErrorClientClosed(err))
@@ -579,7 +572,7 @@ func renderRestoreError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeEnrollmentCareOfferingFull))
 	case errors.Is(err, capability.ErrCareOfferingClosed):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeEnrollmentRestoreOfferingClosed))
-	case common.IsTransientDatabaseError(err):
+	case rs.Failures.Transient(err):
 		common.RenderError(w, r, common.ErrorServiceUnavailable(err))
 	default:
 		common.RenderError(w, r, common.ErrorInternalServer(err))
@@ -603,7 +596,7 @@ func (rs *Resource) decideChildWithRetry(r *http.Request, input DecideInput) (*D
 			}
 			outcome = out
 			decisionBodySucceeded = true
-			return nil
+			return rs.enqueueDecisionInvite(ctx, out.PendingInvite)
 		})
 		if err == nil {
 			break
@@ -611,7 +604,7 @@ func (rs *Resource) decideChildWithRetry(r *http.Request, input DecideInput) (*D
 		if reqErr := r.Context().Err(); reqErr != nil {
 			return outcome, reqErr
 		}
-		if decisionBodySucceeded || !common.IsTransientDatabaseError(err) || attempt == 1 {
+		if decisionBodySucceeded || !rs.Failures.Transient(err) || attempt == 1 {
 			break
 		}
 		slog.WarnContext(r.Context(), "transient enrollment decision failure, retrying",
@@ -623,37 +616,42 @@ func (rs *Resource) decideChildWithRetry(r *http.Request, input DecideInput) (*D
 	return outcome, err
 }
 
-var decideErrorRules = []common.ErrorRule{
-	{Target: context.Canceled, Render: common.ErrorClientClosed},
-	{Target: context.DeadlineExceeded, Render: common.ErrorRequestTimeout},
-	{Target: capability.ErrDecisionChildNotFound, Render: renderRequestNotFound},
-	{Target: capability.ErrDecisionRequestNotFound, Render: renderRequestNotFound},
-	{Target: capability.ErrDecisionInvalidStatus, Render: common.ErrorInvalidRequest},
-	{Target: capability.ErrDecisionAlreadyTerminal, Render: func(err error) render.Renderer {
-		return common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentDecisionAlreadyFinal)
-	}},
-	{Target: capability.ErrDecisionInvalidData, Render: func(err error) render.Renderer {
-		return common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentApprovalDataInvalid)
-	}},
-	{Target: capability.ErrWaitlistDisabled, Render: func(err error) render.Renderer {
-		return common.ErrorConflictWithCode(err, common.CodeEnrollmentWaitlistDisabled)
-	}},
-	{Target: capability.ErrCareOfferingMissing, Render: func(err error) render.Renderer {
-		return common.ErrorConflictWithCode(err, common.CodeEnrollmentApprovalCareOfferingMissing)
-	}},
-	{Target: capability.ErrCareOfferingExactlyOneRequired, Render: func(err error) render.Renderer {
-		return common.ErrorConflictWithCode(err, common.CodeEnrollmentApprovalCareOfferingExactlyOne)
-	}},
-	{Target: capability.ErrGuardianAccountMismatch, Render: func(err error) render.Renderer {
-		return common.ErrorConflictWithCode(err, common.CodeEnrollmentGuardianAccountMismatch)
-	}},
-	{Match: common.IsTransientDatabaseError, Render: common.ErrorServiceUnavailable},
+func (rs *Resource) decideErrorRules() []common.ErrorRule {
+	return []common.ErrorRule{
+		{Target: context.Canceled, Render: common.ErrorClientClosed},
+		{Target: context.DeadlineExceeded, Render: common.ErrorRequestTimeout},
+		{Target: capability.ErrDecisionChildNotFound, Render: renderRequestNotFound},
+		{Target: capability.ErrDecisionRequestNotFound, Render: renderRequestNotFound},
+		{Target: capability.ErrDecisionInvalidStatus, Render: common.ErrorInvalidRequest},
+		{Target: capability.ErrDecisionAlreadyTerminal, Render: func(err error) render.Renderer {
+			return common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentDecisionAlreadyFinal)
+		}},
+		{Target: capability.ErrDecisionInvalidData, Render: func(err error) render.Renderer {
+			return common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentApprovalDataInvalid)
+		}},
+		{Target: capability.ErrWaitlistDisabled, Render: func(err error) render.Renderer {
+			return common.ErrorConflictWithCode(err, common.CodeEnrollmentWaitlistDisabled)
+		}},
+		{Target: capability.ErrCareOfferingMissing, Render: func(err error) render.Renderer {
+			return common.ErrorConflictWithCode(err, common.CodeEnrollmentApprovalCareOfferingMissing)
+		}},
+		{Target: capability.ErrCareOfferingExactlyOneRequired, Render: func(err error) render.Renderer {
+			return common.ErrorConflictWithCode(err, common.CodeEnrollmentApprovalCareOfferingExactlyOne)
+		}},
+		{Target: capability.ErrCareOfferingDayConflict, Render: func(err error) render.Renderer {
+			return common.ErrorConflictWithCode(err, common.CodeEnrollmentApprovalCareOfferingDayConflict)
+		}},
+		{Target: capability.ErrGuardianAccountMismatch, Render: func(err error) render.Renderer {
+			return common.ErrorConflictWithCode(err, common.CodeEnrollmentGuardianAccountMismatch)
+		}},
+		{Match: rs.Failures.Transient, Render: common.ErrorServiceUnavailable},
+	}
 }
 
 // renderDecideError keeps cancellation and retryable database failures distinct
 // so the frontend can tell terminal decisions from requests worth retrying.
-func renderDecideError(w http.ResponseWriter, r *http.Request, err error) {
-	common.RenderError(w, r, common.RenderWithRules(err, decideErrorRules, common.ErrorInternalServer))
+func (rs *Resource) renderDecideError(w http.ResponseWriter, r *http.Request, err error) {
+	common.RenderError(w, r, common.RenderWithRules(err, rs.decideErrorRules(), common.ErrorInternalServer))
 }
 
 // newAdminRequestChild maps a decided child model onto the wire shape
@@ -687,37 +685,11 @@ func actorRoleFromClaims(roles []string) string {
 	return "admin"
 }
 
-// dispatchPostDecisionInvite fires the guardian invitation flow after
-// the approval tx commits. Runs in its own goroutine so the HTTP
-// response isn't blocked on SMTP / outbox writes; the invitation
-// service writes to platform.email_outbox synchronously, then the
-// outbox worker dispatches the email asynchronously on its own tick.
-func (rs *Resource) dispatchPostDecisionInvite(parentCtx context.Context, invite *PendingGuardianInvite) {
-	// Detach from request lifetime so the goroutine isn't cancelled by
-	// the response writer flushing. Re-attach tenant from the parent so
-	// the invitation service's tenant-scoped writes resolve.
-	tenantID, err := tenant.TenantFromContext(parentCtx)
-	if err != nil {
-		slog.Default().Warn("post-decision guardian invitation rejected: missing tenant", slog.String("error", err.Error()))
-		return
+// enqueueDecisionInvite joins the decision transaction so approval and its
+// durable invitation either both commit or both roll back.
+func (rs *Resource) enqueueDecisionInvite(ctx context.Context, invite *PendingGuardianInvite) error {
+	if invite == nil || !rs.GuardianInvitations.configured() {
+		return nil
 	}
-	bgCtx := context.WithoutCancel(parentCtx)
-	bgCtx = tenant.ContextWithoutTransaction(bgCtx)
-	bgCtx = tenant.ContextWithoutAfterCommitHooks(bgCtx)
-	bgCtx, cancel := context.WithTimeout(bgCtx, 30*time.Second)
-	defer cancel()
-	bgCtx = tenant.WithTenant(bgCtx, tenantID)
-
-	// Wrap in a tenant tx so the owner's writes pick up the right RLS
-	// scope. The owner joins an existing tx from the context, so this stays
-	// a single tx.
-	err = withinTenant(bgCtx, tenantID.Int64(), func(txCtx context.Context) error {
-		return rs.GuardianInvitations.Create(txCtx, invite.GuardianProfileID, invite.CreatedBy)
-	})
-	if err != nil {
-		slog.Default().Warn("post-decision guardian invitation failed",
-			slog.Int64("guardian_profile_id", invite.GuardianProfileID),
-			slog.Int64("created_by", invite.CreatedBy),
-			slog.String("error", err.Error()))
-	}
+	return rs.GuardianInvitations.Create(ctx, invite.GuardianProfileID, invite.CreatedBy)
 }

@@ -1,6 +1,7 @@
 # Demo process: one demo school per demo access
 
-The `demo` command keeps the demo schools of the public demo alive. Since
+The `demo` command of the dev tools binary (`cmd/devtools`, ADR 0060) keeps
+the demo schools of the public demo alive. Since
 #3463 every demo access gets a demo school of its own; the one standing demo
 school of #3461 stays selectable as the fallback (see below).
 
@@ -118,7 +119,7 @@ NFC guards hide device and RFID screens from school admins.
    Use separate worktree ports and a separate Compose project/database.
 2. Start the application with `phx-dev up`. On macOS with the Nix toolchain,
    use `CGO_ENABLED=0 phx-dev up` if the native linker cannot find `libresolv`.
-3. In another terminal, run `CGO_ENABLED=0 phx-dev backend go run . demo
+3. In another terminal, run `CGO_ENABLED=0 phx-dev backend go run ./cmd/devtools demo
    --url http://localhost:<SERVER_HOST_PORT>`, replacing the port with the
    worktree's `.env` value. Keep the command on one line.
 4. Open `http://messe-demo.localhost:<FRONTEND_HOST_PORT>`. Retrieve a school
@@ -146,7 +147,7 @@ switch), run a separate worktree in demo mode:
 3. Run the demo process against the loopback address, because under `demo`
    it accepts only the Compose host `server` or a loopback IP, and point
    `DEMO_DB_DSN` at the published Postgres port (one line):
-   `CGO_ENABLED=0 devbox run dev backend env 'DEMO_DB_DSN=postgres://phoenix_demo@localhost:<POSTGRES_HOST_PORT>/postgres?sslmode=require' go run . demo --url http://127.0.0.1:<SERVER_HOST_PORT>`
+   `CGO_ENABLED=0 devbox run dev backend env 'DEMO_DB_DSN=postgres://phoenix_demo@localhost:<POSTGRES_HOST_PORT>/postgres?sslmode=require' go run ./cmd/devtools demo --url http://127.0.0.1:<SERVER_HOST_PORT>`
    The native server sees this process as a loopback peer, so with
    `RATE_LIMIT_ENABLED=true` the seed runs unthrottled as on the deployed demo.
 4. Request a demo as the website would:
@@ -258,8 +259,7 @@ HTTP database roles cannot read that table.
 
 ## Verification
 
-`scripts/run-go-toolchain.sh go -C backend test ./simulate
-./modules/organizationtenancy/compose ./cmd ./seed/api` covers grace-period
+`scripts/run-go-toolchain.sh go -C backend test -tags=testhooks ./internal/devtools/simulate ./modules/organizationtenancy/compose ./cmd/devtools ./internal/devtools/seedapi` covers grace-period
 boundaries, weekend rebuilds, stored-state restart, competing runners, HTTP-role
 credential isolation and environment/host guards. Keep this command on one line.
 

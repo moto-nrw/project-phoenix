@@ -26,8 +26,6 @@ import (
 	"net/http"
 	"testing"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -36,6 +34,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
 	settingsoperator "github.com/moto-nrw/project-phoenix/modules/settings/inbound/operator"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // setupOperatorSettingsWithSchoolRepoRoute mirrors
@@ -47,11 +46,12 @@ import (
 func setupOperatorSettingsWithSchoolRepoRoute(t *testing.T) *operatorSettingsTestContext {
 	t.Helper()
 
-	db, svc := testutil.SetupOperatorSettingsModule(t)
+	db, svc := setupOperatorSettingsModule(t)
 	tc := &operatorSettingsTestContext{db: db}
 	resource := settingsoperator.NewSettingsResource(settingsoperator.SettingsConfig{
-		Settings: svc.OperatorSchoolSettings(tc.runValueSetHook),
-		Schools:  svc.Schools,
+		Settings:   svc.OperatorSchoolSettings(tc.runValueSetHook),
+		Schools:    svc.SchoolSlugs(),
+		OperatorID: operatorAccount(t, db),
 	})
 
 	router := chi.NewRouter()
@@ -75,13 +75,6 @@ func setupOperatorSettingsWithSchoolRepoRoute(t *testing.T) *operatorSettingsTes
 func TestOperatorSetSchoolSettingValue_StudentPhotosEnabled_ReturnsSlug(t *testing.T) {
 	t.Parallel()
 	ctx := setupOperatorSettingsWithSchoolRepoRoute(t)
-
-	// Reset prior override so the test starts clean.
-	t.Cleanup(func() {
-		_, _ = ctx.db.ExecContext(context.Background(),
-			`DELETE FROM config.setting_values WHERE tenant_id = ? AND setting_key = ?`,
-			testpkg.Tenant(t), settings.KeyStudentPhotosEnabled)
-	})
 
 	body := map[string]interface{}{"value": true}
 	req := newOperatorRequest(t, http.MethodPut,
@@ -121,12 +114,6 @@ func TestOperatorResetSchoolSettingValue_StudentPhotosEnabled_ReturnsSlug(t *tes
 		map[string]interface{}{"value": true})
 	require.Equal(t, http.StatusOK, testutil.ExecuteRequest(ctx.router, setReq).Code)
 
-	t.Cleanup(func() {
-		_, _ = ctx.db.ExecContext(context.Background(),
-			`DELETE FROM config.setting_values WHERE tenant_id = ? AND setting_key = ?`,
-			testpkg.Tenant(t), settings.KeyStudentPhotosEnabled)
-	})
-
 	resetReq := newOperatorRequest(t, http.MethodDelete,
 		fmt.Sprintf("/schools/%d/settings/values/", testpkg.Tenant(t))+settings.KeyStudentPhotosEnabled, nil)
 	rr := testutil.ExecuteRequest(ctx.router, resetReq)
@@ -154,12 +141,6 @@ func TestOperatorResetSchoolSettingValue_StudentPhotosEnabled_ReturnsSlug(t *tes
 func TestOperatorSetSchoolSettingValue_StudentPhotosEnabled_HookFires(t *testing.T) {
 	t.Parallel()
 	ctx := setupOperatorSettingsWithSchoolRepoRoute(t)
-
-	t.Cleanup(func() {
-		_, _ = ctx.db.ExecContext(context.Background(),
-			`DELETE FROM config.setting_values WHERE tenant_id = ? AND setting_key = ?`,
-			testpkg.Tenant(t), settings.KeyStudentPhotosEnabled)
-	})
 
 	var hookCalled bool
 	var capturedKey string
@@ -202,12 +183,6 @@ func TestOperatorResetSchoolSettingValue_StudentPhotosEnabled_HookFiresWithDefau
 		fmt.Sprintf("/schools/%d/settings/values/", testpkg.Tenant(t))+settings.KeyStudentPhotosEnabled,
 		map[string]interface{}{"value": true})
 	require.Equal(t, http.StatusOK, testutil.ExecuteRequest(ctx.router, setReq).Code)
-
-	t.Cleanup(func() {
-		_, _ = ctx.db.ExecContext(context.Background(),
-			`DELETE FROM config.setting_values WHERE tenant_id = ? AND setting_key = ?`,
-			testpkg.Tenant(t), settings.KeyStudentPhotosEnabled)
-	})
 
 	var hookCalled bool
 	var capturedValue any

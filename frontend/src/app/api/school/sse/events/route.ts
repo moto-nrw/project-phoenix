@@ -3,6 +3,7 @@ import { schoolAuth } from "~/server/auth/school";
 import { withSchoolAuth } from "~/server/auth/school-route";
 import { createLogger } from "~/lib/logger";
 import { proxySSEStream } from "~/lib/sse-proxy.server";
+import { problemResponse } from "~/lib/api-helpers.server";
 
 const logger = createLogger({ component: "SchoolSSEEventsRoute" });
 
@@ -19,7 +20,7 @@ async function GETHandler(request: NextRequest) {
   const session = await schoolAuth();
 
   if (!session?.user?.token) {
-    return new Response("Unauthorized", { status: 401 });
+    return problemResponse(401, "Unauthorized", request);
   }
 
   return proxySSEStream(request, {

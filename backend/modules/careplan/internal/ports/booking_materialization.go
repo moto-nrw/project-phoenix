@@ -14,6 +14,16 @@ import (
 // keeps its text.
 var ErrBookingRowNotFound = errors.New("booking materialization: row not found")
 
+// BookingRowNotFound marks an owner's not-found error as ErrBookingRowNotFound
+// and keeps its text.
+func BookingRowNotFound(err error) error { return &bookingRowNotFound{err: err} }
+
+type bookingRowNotFound struct{ err error }
+
+func (e *bookingRowNotFound) Error() string { return e.err.Error() }
+
+func (e *bookingRowNotFound) Unwrap() []error { return []error{e.err, ErrBookingRowNotFound} }
+
 // RosterEnrollment is one Timetable roster row (activities.student_enrollments)
 // as the materialization reads and writes it. ValidUntil is exclusive; an
 // empty SelectedWeekdays means every weekday.
@@ -194,4 +204,14 @@ type BookingPickup interface {
 	OfferingPickupForDate(ctx context.Context, studentID int64, date calendar.Date) (*careplan.PickupSchedule, error)
 	WeekdayRows(ctx context.Context, studentID int64) ([]PickupWeekdayRow, error)
 	DeleteWeekdayRow(ctx context.Context, id int64) error
+}
+
+// PickupScheduleStaff wakes the staff views of a school's pickup schedule.
+type PickupScheduleStaff interface {
+	PickupScheduleChanged(tenantID int64) error
+}
+
+// PickupScheduleGuardians refreshes one child's card in the guardians' portal.
+type PickupScheduleGuardians interface {
+	BroadcastChildUpdateToGuardians(tenantID, studentID int64)
 }

@@ -2,14 +2,6 @@ package ports
 
 import "context"
 
-const (
-	EmailKindAppointmentPublished = "appointment_published"
-	EmailKindAppointmentUpdated   = "appointment_updated"
-	EmailKindAppointmentCancelled = "appointment_cancelled"
-	EmailKindAppointmentReminder  = "appointment_reminder"
-	EmailRelatedTypeAppointment   = "calendar_appointment"
-)
-
 type EnqueueRequest struct {
 	Kind              string
 	Payload           map[string]any

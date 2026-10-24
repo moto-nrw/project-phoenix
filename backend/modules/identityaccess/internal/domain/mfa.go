@@ -28,9 +28,8 @@ const (
 	MFAChallengeScopeSchool   = "school"
 )
 
-// MFA policy constants. The account values are the fallbacks the school's
-// security.* settings override; the operator values are fixed, because every
-// moto operator faces the same posture.
+// Fixed MFA protocol and operator-policy constants. Account lockout and
+// trusted-device lifetime policy comes only from the school settings.
 const (
 	// MFAChallengeTTL is the e-mail code lifetime and the challenge JWT TTL.
 	MFAChallengeTTL = 10 * time.Minute
@@ -45,9 +44,6 @@ const (
 	// MFAEmailRateLimitMaxSent is the hard cap of codes per account and
 	// window. It is an abuse defense, not a UX knob, and stays in code.
 	MFAEmailRateLimitMaxSent = 3
-	// MFATrustedDeviceCookieDefaultDays is the remember-device lifetime the
-	// school's security.mfa_trusted_device_days setting overrides.
-	MFATrustedDeviceCookieDefaultDays = 90
 	// MFAEmailCodeLength is the number of decimal digits in an e-mail code.
 	MFAEmailCodeLength = 6
 	// MFATrustedDeviceTokenBytes is the random-source size of a
@@ -76,15 +72,6 @@ const trustedDeviceHKDFInfo = "mfa-trusted-device-v1"
 // MFA errors. The messages are generic on purpose; the detail stays in the
 // logs.
 var (
-	ErrMFAChallengeTokenInvalid = errors.New("invalid or expired challenge token")
-	ErrMFACodeInvalid           = errors.New("invalid or expired code")
-	ErrMFALocked                = errors.New("account locked due to too many failed attempts")
-	ErrMFARateLimited           = errors.New("too many code requests, please wait")
-	ErrMFANotEnrolled           = errors.New("mfa not enrolled for this account")
-	ErrMFAAlreadyEnrolled       = errors.New("mfa already enrolled for this account")
-	ErrMFAPermissionDenied      = errors.New("permission denied")
-	ErrMFAInvalidOverride       = errors.New("invalid mfa override value")
-	ErrMFAUnsupportedScope      = errors.New("operator-scope MFA is wired up in a separate phase")
 	// ErrMFAReasonRequired reports an admin override without a reason.
 	ErrMFAReasonRequired = errors.New("reason is required for admin override")
 	// ErrMFAGlobalReasonRequired reports a platform-wide override without a
@@ -125,20 +112,20 @@ func IsValidMFAAdminOverride(value string) bool {
 	return false
 }
 
-// MFAPolicy is the MFA verdict for one account at one school with the role
+// MFAPolicy is the MFA verdict for one account at one school with the permission
 // predicate left unapplied: every database read (the admin overrides, the
 // school's security.mfa_mode) is settled, and what remains is a pure
-// function of a role set.
+// function of a permission set.
 //
 // The split exists because the school-portal mint guard settles the gate
 // under the account lock it already holds: it resolves the policy freshly in
-// its own transaction and applies it to the role set it read under that
+// its own transaction and applies it to the permission set it read under that
 // lock. Both halves can change while a login is in flight, and neither may
 // slip a session through without a second factor.
 //
-// The zero value requires nothing.
+// The zero value still enforces the privileged permission floor.
 type MFAPolicy struct {
-	// override, when set, is the admin override's verdict and wins outright.
+	// override applies only above the mandatory privileged permission floor.
 	override *bool
 	mode     string
 }
@@ -149,31 +136,16 @@ func MFAPolicyForced(required bool) MFAPolicy { return MFAPolicy{override: &requ
 // MFAPolicyForMode is the policy a school's security.mfa_mode produces.
 func MFAPolicyForMode(mode string) MFAPolicy { return MFAPolicy{mode: mode} }
 
-// RequiredFor applies the resolved policy to a concrete role-name set. Pure:
-// safe to call from inside a transaction holding locks.
-func (p MFAPolicy) RequiredFor(roleNames []string) bool {
+// RequiredFor applies the school's additional policy to effective permissions.
+// The privileged floor wins over every override, including legacy force_off.
+func (p MFAPolicy) RequiredFor(permissions []string) bool {
+	if HasPrivilegedMFAPermission(permissions) {
+		return true
+	}
 	if p.override != nil {
 		return *p.override
 	}
-	switch p.mode {
-	case MFAModeRequiredAll:
-		return true
-	case MFAModeRequiredAdmins:
-		for _, name := range roleNames {
-			// A school names its own roles, so the match is
-			// case-insensitive: "Admin" is the admin role too, and a
-			// case-sensitive compare would let it log in without a second
-			// factor.
-			if strings.EqualFold(name, AdminRoleName) {
-				return true
-			}
-		}
-		return false
-	default:
-		// Off, unset, or an unknown value the resolution already warned
-		// about.
-		return false
-	}
+	return p.mode == MFAModeRequiredAll
 }
 
 // KnownMFAMode reports whether mode is one the policy understands. An
@@ -373,13 +345,13 @@ type OperatorMFAEvidence struct {
 	Reason string
 	// LockedUntil is the cooldown an mfa_locked entry started.
 	LockedUntil *time.Time
-	// Override is set on the operator's account-wide MFA override.
+	// Override describes an operator's privileged account MFA change.
 	Override *OperatorMFAOverrideEvidence
 }
 
-// OperatorMFAOverrideEvidence records one platform-wide override
-// transition.
+// OperatorMFAOverrideEvidence records one privileged account MFA change.
 type OperatorMFAOverrideEvidence struct {
+	SchoolID         int64
 	Action           string
 	Scope            string
 	Override         string

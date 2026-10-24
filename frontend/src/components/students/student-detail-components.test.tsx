@@ -197,7 +197,6 @@ describe("Kopf der Kindakte", () => {
     buskind: false,
     pickup_status: "selbst",
     health_info: undefined,
-    supervisor_notes: undefined,
     extra_info: undefined,
     sick: false,
     sick_since: undefined,
@@ -240,6 +239,8 @@ describe("Kopf der Kindakte", () => {
         mySupervisedRooms={[]}
       />,
     );
+    // Anker: der Kopf mit dem Namen ist gerendert.
+    expect(screen.getByText("Max Mustermann")).toBeInTheDocument();
     expect(screen.queryByText("Gruppe 1")).not.toBeInTheDocument();
   });
 
@@ -682,6 +683,8 @@ describe("SupervisorsCard", () => {
       />,
     );
 
+    // Anker: die Zeile der Ansprechpartnerin ist gerendert.
+    expect(screen.getByText("Anna Schmidt")).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: /kontakt aufnehmen/i }),
     ).not.toBeInTheDocument();
@@ -708,7 +711,6 @@ describe("PersonalInfoReadOnly", () => {
     address_street: "Musterstraße 12",
     address_city: "Köln",
     address_postal_code: "50667",
-    supervisor_notes: undefined,
     extra_info: undefined,
     sick: false,
     sick_since: undefined,
@@ -957,9 +959,17 @@ describe("PersonalInfoReadOnly", () => {
     expect(screen.getByText("Zweite Antwort")).toBeInTheDocument();
   });
 
+  it("renders health info when present", () => {
+    render(<PersonalInfoReadOnly student={mockStudent} />);
+    expect(screen.getByText("Gesundheitsinformationen")).toBeInTheDocument();
+    expect(screen.getByText("Allergien: Erdnüsse")).toBeInTheDocument();
+  });
+
   it("does not render health info when not present", () => {
     const studentWithoutHealth = { ...mockStudent, health_info: undefined };
     render(<PersonalInfoReadOnly student={studentWithoutHealth} />);
+    // Anker: die Karte mit den persönlichen Informationen ist gerendert.
+    expect(screen.getByText("Persönliche Informationen")).toBeInTheDocument();
     expect(
       screen.queryByText("Gesundheitsinformationen"),
     ).not.toBeInTheDocument();
@@ -1003,7 +1013,9 @@ describe("PersonalInfoReadOnly", () => {
       <PersonalInfoReadOnly student={mockStudent} showEditButton={true} />,
     );
     // Edit button should not be rendered when onEditClick is not provided
-    expect(screen.queryByTitle("Bearbeiten")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Bearbeiten" }),
+    ).not.toBeInTheDocument();
     // Should still show the "Nur Ansicht" badge
     expect(screen.getByText("Nur Ansicht")).toBeInTheDocument();
   });
@@ -1016,7 +1028,11 @@ describe("PersonalInfoReadOnly", () => {
         onEditClick={vi.fn()}
       />,
     );
-    expect(screen.queryByTitle("Bearbeiten")).not.toBeInTheDocument();
+    // Anker: an der Stelle des Knopfs steht das Nur-Ansicht-Abzeichen.
+    expect(screen.getByText("Nur Ansicht")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Bearbeiten" }),
+    ).not.toBeInTheDocument();
   });
 });
 
@@ -1037,7 +1053,6 @@ describe("PersonalInfoReadOnly with showEditButton", () => {
     buskind: false,
     pickup_status: "selbst",
     health_info: "Allergien: Erdnüsse",
-    supervisor_notes: "Benötigt extra Aufmerksamkeit",
     extra_info: "Elternnotiz hier",
     sick: false,
     sick_since: undefined,
@@ -1081,26 +1096,6 @@ describe("PersonalInfoReadOnly with showEditButton", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
     expect(onEditClick).toHaveBeenCalledTimes(1);
-  });
-
-  // Betreuernotizen used to render here as a free-text field. Since #3632 the
-  // durable hints are notes of their own, rendered by
-  // StudentPermanentNotesCard with their author and their audience. The
-  // student row still carries the old column until the follow-up migration
-  // drops it, so this pins that the retired field does not leak back onto a
-  // surface that no longer owns it.
-  it("does not render the retired supervisor-notes field", () => {
-    render(
-      <PersonalInfoReadOnly
-        student={mockStudent}
-        showEditButton={true}
-        onEditClick={vi.fn()}
-      />,
-    );
-    expect(
-      screen.queryByText("Benötigt extra Aufmerksamkeit"),
-    ).not.toBeInTheDocument();
-    expect(screen.queryByText("Betreuernotizen")).not.toBeInTheDocument();
   });
 
   it("renders extra info (parent notes) when present", () => {

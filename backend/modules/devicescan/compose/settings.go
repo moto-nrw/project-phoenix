@@ -2,75 +2,51 @@ package compose
 
 import (
 	"context"
-	"errors"
 
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/ports"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/application"
+
+	"github.com/moto-nrw/project-phoenix/modules/devicescan/ports"
 )
 
-var errSettingsNotConfigured = errors.New("settings service is not configured")
+var errSettingsNotConfigured = application.ErrSettingsNotConfigured
 
-type settingsResolver interface {
-	ResolveString(context.Context, string) (string, error)
-	ResolveBool(context.Context, string) (bool, error)
-	ResolveInt(context.Context, string) (int, error)
-}
+// ScanSettings are the tenant settings the scans read; the root binds them
+// to the Settings Platform.
+type ScanSettings interface{ application.ScanSettings }
 
 // settings binds the required tenant settings service. Presence mode stays
-// with the retained presence service, which validates the value.
+// with the retained presence service, which validates the value; its
+// GetPresenceMode is promoted unchanged.
 type settings struct {
-	settings settingsResolver
-	active   studentpresence.Presence
+	settings ScanSettings
+	presenceModes
 }
 
-func (s settings) PresenceMode(ctx context.Context) (string, error) {
-	return s.active.GetPresenceMode(ctx)
+type presenceModes interface {
+	GetPresenceMode(ctx context.Context) (string, error)
 }
 
 func (s settings) FeedbackEnabled(ctx context.Context) (bool, error) {
-	if s.settings == nil {
-		return false, errSettingsNotConfigured
-	}
-	return s.settings.ResolveBool(ctx, configModel.KeyFeedbackEnabled)
+	return application.FeedbackEnabledBinding(ctx, s.settings)
 }
 
 func (s settings) CapacityDetailsDisclosed(ctx context.Context, kind ports.CapacityKind) (bool, error) {
-	if s.settings == nil {
-		return false, errSettingsNotConfigured
-	}
-	key := configModel.KeyCheckinRoomCapacityDetailsEnabled
-	if kind == ports.CapacityActivity {
-		key = configModel.KeyCheckinActivityCapacityDetailsEnabled
-	}
-	return s.settings.ResolveBool(ctx, key)
+	return application.CapacityDetailsDisclosedBinding(ctx, s.settings, kind)
 }
 
 // DailyCheckoutTime resolves the tenant override or registry default.
 func (s settings) DailyCheckoutTime(ctx context.Context) (string, error) {
-	if s.settings == nil {
-		return "", errSettingsNotConfigured
-	}
-	return s.settings.ResolveString(ctx, configModel.KeyStudentDailyCheckoutTime)
+	return application.DailyCheckoutTimeBinding(ctx, s.settings)
 }
 
 func (s settings) PerStudentCheckoutEnabled(ctx context.Context) (bool, error) {
-	if s.settings == nil {
-		return false, nil
-	}
-	return s.settings.ResolveBool(ctx, configModel.KeyPerStudentCheckoutEnabled)
+	return application.PerStudentCheckoutEnabledBinding(ctx, s.settings)
 }
 
 func (s settings) PerStudentCheckoutDeltaMinutes(ctx context.Context) (int, error) {
-	if s.settings == nil {
-		return 0, errSettingsNotConfigured
-	}
-	return s.settings.ResolveInt(ctx, configModel.KeyPerStudentCheckoutDeltaMinutes)
+	return application.PerStudentCheckoutDeltaMinutesBinding(ctx, s.settings)
 }
 
 func (s settings) DailyCheckoutFromAllRoomsEnabled(ctx context.Context) (bool, error) {
-	if s.settings == nil {
-		return false, nil
-	}
-	return s.settings.ResolveBool(ctx, configModel.KeyCheckoutDailyFromAllRoomsEnabled)
+	return application.DailyCheckoutFromAllRoomsEnabledBinding(ctx, s.settings)
 }

@@ -102,6 +102,8 @@ describe("MotoDuotoneIcon", () => {
     );
     const icon = container.querySelector("svg");
 
+    // Anker: das Icon selbst ist gerendert, nur ohne Hintergrundfläche.
+    expect(icon).toBeInTheDocument();
     expect(icon?.querySelector('[opacity="0.2"]')).not.toBeInTheDocument();
   });
 });

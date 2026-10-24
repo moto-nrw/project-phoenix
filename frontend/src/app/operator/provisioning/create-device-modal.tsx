@@ -2,7 +2,7 @@ import { API_KEY_COPY_FAILED_MESSAGE } from "~/lib/operator/provisioning-helpers
 import { useState, useCallback, useEffect, useRef } from "react";
 import { Modal } from "~/components/ui/modal";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
-import { useApiFormError, useToast } from "~/contexts/ToastContext";
+import { useApiErrorDisplay, useApiFormError } from "~/contexts/ToastContext";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import type {
   School,
@@ -30,13 +30,11 @@ export function CreateDeviceModal({
   const [deviceId, setDeviceId] = useState("");
   const [deviceType, setDeviceType] = useState("");
   const [name, setName] = useState("");
-  const [apiKeyMode, setApiKeyMode] = useState<"auto" | "manual">("auto");
-  const [customApiKey, setCustomApiKey] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(formRef);
   const { show: showError, invalid, clear: clearError } = formErrors;
-  const { error: toastError } = useToast();
+  const { showMessage } = useApiErrorDisplay();
 
   const [createdDevice, setCreatedDevice] = useState<OperatorDevice | null>(
     null,
@@ -44,13 +42,12 @@ export function CreateDeviceModal({
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
+    setCreatedDevice(null);
     if (isOpen) {
       setSchoolId(schools?.length === 1 ? schools[0]!.id : "");
       setDeviceId("");
       setDeviceType("");
       setName("");
-      setApiKeyMode("auto");
-      setCustomApiKey("");
       clearError();
       setCreatedDevice(null);
       setCopied(false);
@@ -91,11 +88,9 @@ export function CreateDeviceModal({
           device_id: deviceId.trim(),
           device_type: deviceType,
           ...(name.trim() && { name: name.trim() }),
-          ...(apiKeyMode === "manual" &&
-            customApiKey.trim() && { api_key: customApiKey.trim() }),
         });
         setCreatedDevice(device);
-        onCreated(device);
+        onCreated({ ...device, apiKey: "" });
       } catch (err) {
         logger.error("device_create_failed", {
           error: err instanceof Error ? err.message : String(err),
@@ -110,8 +105,6 @@ export function CreateDeviceModal({
       deviceId,
       deviceType,
       name,
-      apiKeyMode,
-      customApiKey,
       onCreated,
       invalid,
       clearError,
@@ -129,9 +122,9 @@ export function CreateDeviceModal({
       logger.error("clipboard_copy_failed", {
         error: "Failed to copy API key to clipboard",
       });
-      toastError(API_KEY_COPY_FAILED_MESSAGE);
+      showMessage(API_KEY_COPY_FAILED_MESSAGE);
     }
-  }, [createdDevice, toastError]);
+  }, [createdDevice, showMessage]);
 
   if (createdDevice) {
     return (
@@ -150,6 +143,9 @@ export function CreateDeviceModal({
             </div>
           </div>
 
+          <p className="text-sm text-gray-600">
+            Kopieren Sie den API-Key jetzt. Er wird nur einmal angezeigt.
+          </p>
           {createdDevice.apiKey && (
             <div className="space-y-2">
               <p className="text-sm font-medium text-gray-700">API-Key:</p>
@@ -165,9 +161,6 @@ export function CreateDeviceModal({
                   {copied ? "Kopiert!" : "Kopieren"}
                 </button>
               </div>
-              <p className="text-xs text-gray-500">
-                Der API-Key kann jederzeit im Geräte-Tab kopiert werden.
-              </p>
             </div>
           )}
 
@@ -202,13 +195,7 @@ export function CreateDeviceModal({
           <button
             type="button"
             onClick={(e) => void handleCreate(e)}
-            disabled={
-              isSaving ||
-              !schoolId ||
-              !deviceId.trim() ||
-              !deviceType ||
-              (apiKeyMode === "manual" && !customApiKey.trim())
-            }
+            disabled={isSaving || !schoolId || !deviceId.trim() || !deviceType}
             className="flex-1 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isSaving ? "Wird erstellt..." : "Erstellen"}
@@ -305,64 +292,9 @@ export function CreateDeviceModal({
           />
         </FormField>
 
-        <div className="border-t border-gray-100 pt-4">
-          <p className="mb-3 text-xs font-medium text-gray-500 uppercase">
-            API-Key
-          </p>
-          <div className="space-y-3">
-            <label className="flex cursor-pointer items-center gap-2">
-              <input
-                type="radio"
-                name="api-key-mode"
-                value="auto"
-                checked={apiKeyMode === "auto"}
-                onChange={() => setApiKeyMode("auto")}
-                className="text-moto-blue"
-              />
-              <span className="text-sm text-gray-700">
-                Automatisch generieren
-              </span>
-            </label>
-            <label className="flex cursor-pointer items-center gap-2">
-              <input
-                type="radio"
-                name="api-key-mode"
-                value="manual"
-                checked={apiKeyMode === "manual"}
-                onChange={() => setApiKeyMode("manual")}
-                className="text-moto-blue"
-              />
-              <span className="text-sm text-gray-700">
-                Eigenen Key eingeben
-              </span>
-            </label>
-            {apiKeyMode === "manual" && (
-              <input
-                type="text"
-                name="api_key"
-                aria-label="API-Key"
-                aria-invalid={
-                  formErrors.fieldError("api_key") ? true : undefined
-                }
-                aria-describedby={
-                  formErrors.fieldError("api_key")
-                    ? "device-api-key-error"
-                    : undefined
-                }
-                value={customApiKey}
-                onChange={(e) => setCustomApiKey(e.target.value)}
-                placeholder="API-Key eingeben..."
-                maxLength={255}
-                className="focus:ring-moto-blue w-full rounded-lg border border-gray-200 px-3 py-2 font-mono text-sm focus:ring-2 focus:outline-none"
-              />
-            )}
-            {apiKeyMode === "manual" && formErrors.fieldError("api_key") ? (
-              <p id="device-api-key-error" className="text-moto-red text-xs">
-                {formErrors.fieldError("api_key")}
-              </p>
-            ) : null}
-          </div>
-        </div>
+        <p className="text-sm text-gray-600">
+          Der API-Key wird automatisch erstellt und nur einmal angezeigt.
+        </p>
       </form>
     </Modal>
   );

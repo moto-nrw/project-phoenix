@@ -11,7 +11,9 @@ import (
 
 type PickupApprovalDirectory interface {
 	EnrolledUntil(context.Context, int64) (*calendar.Date, error)
-	ActingStaffID(context.Context) (int64, error)
+	// CurrentStaffID is the caller's staff profile; found is false when the
+	// caller has none.
+	CurrentStaffID(context.Context) (staffID int64, found bool, err error)
 }
 
 type PickupApprovalPresence interface {
@@ -24,6 +26,10 @@ type PickupApprovalExceptions interface {
 	Create(context.Context, careplan.PickupException) (int64, error)
 	Update(context.Context, careplan.PickupException) error
 	IsUniqueViolation(error) bool
+	// FindDepartureForDate and SaveDeparture write the day Abholart (#3945)
+	// under the same care-day lock as the pickup exception.
+	FindDepartureForDate(context.Context, int64, calendar.Date) (*careplan.DepartureException, error)
+	SaveDeparture(context.Context, careplan.DepartureException) (int64, error)
 }
 
 type PickupApprovalExcusal interface {

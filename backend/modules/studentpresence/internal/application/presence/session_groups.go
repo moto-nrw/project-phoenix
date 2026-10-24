@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -15,7 +14,7 @@ import (
 func (s *service) GetActiveGroup(ctx context.Context, id int64) (*ports.ActiveGroup, error) {
 	group, err := s.GroupRepo.FindByID(ctx, id)
 	if err != nil {
-		if base.IsNoRows(err) {
+		if IsNoRows(err) {
 			return nil, &ActiveError{Op: "GetActiveGroup", Err: ErrActiveGroupNotFound}
 		}
 		return nil, &ActiveError{Op: "GetActiveGroup", Err: ErrDatabaseOperation}
@@ -101,7 +100,7 @@ func (s *service) updateActiveGroupLocked(ctx context.Context, group *ports.Acti
 	}
 	existing, err := s.GroupRepo.FindByIDForUpdate(ctx, group.ID)
 	if err != nil {
-		if base.IsNoRows(err) {
+		if IsNoRows(err) {
 			return &ActiveError{Op: "UpdateActiveGroup", Err: ErrActiveGroupNotFound}
 		}
 		return &ActiveError{Op: "UpdateActiveGroup", Err: ErrDatabaseOperation}
@@ -166,7 +165,7 @@ func (s *service) DeleteActiveGroup(ctx context.Context, id int64) error {
 	// Delete the active group
 	_, err = s.GroupRepo.FindByID(ctx, id)
 	if err != nil {
-		if base.IsNoRows(err) {
+		if IsNoRows(err) {
 			return &ActiveError{Op: "DeleteActiveGroup", Err: ErrActiveGroupNotFound}
 		}
 		return &ActiveError{Op: "DeleteActiveGroup", Err: fmt.Errorf("find group: %w", err)}

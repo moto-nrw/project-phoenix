@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // ======== Unclaimed Groups Management (Deviceless Claiming) ========
@@ -37,7 +37,7 @@ func (s *service) GetUnclaimedActiveGroups(ctx context.Context) ([]*ports.Active
 	if err != nil {
 		return nil, &ActiveError{Op: "GetUnclaimedActiveGroups", Err: err}
 	}
-	roomsByID := make(map[int64]*ports.SessionRoom, len(rooms))
+	roomsByID := make(map[int64]*studentpresence.SessionRoom, len(rooms))
 	for _, room := range rooms {
 		roomsByID[room.ID] = room
 	}
@@ -83,7 +83,7 @@ func (s *service) ClaimActiveGroup(ctx context.Context, groupID, staffID int64, 
 		case err != nil:
 			return ErrDatabaseOperation
 		}
-		date, err := timezone.ParseDate(row.StartDate)
+		date, err := calendar.ParseDate(row.StartDate)
 		if err != nil {
 			return err
 		}

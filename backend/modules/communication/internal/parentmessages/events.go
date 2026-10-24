@@ -1,15 +1,15 @@
 package messaging
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"log/slog"
 
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
+
+	"github.com/moto-nrw/project-phoenix/modules/communication/internal/application/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun"
 )
 
 // EventEmitter is Communication's side of the parent-event emitter: it owns
@@ -17,11 +17,10 @@ import (
 // the realtime fan-out. Consumers reach it through the services/parentmessaging
 // shell, which adds the pure audience and decision rules on top.
 type EventEmitter struct {
-	db          *bun.DB
-	runtime     tenant.UnitOfWork
-	threadRepo  usersModels.ParentMessageThreadRepository
-	messageRepo usersModels.ParentMessageRepository
-	settings    parentmessaging.TenantSettingsResolver
+	runtime     EventRuntime
+	threadRepo  ParentMessageThreadRepository
+	messageRepo ParentMessageRepository
+	settings    EventSettings
 	broadcaster realtime.Broadcaster
 	logger      *slog.Logger
 }
@@ -32,16 +31,15 @@ type EventEmitter struct {
 // Any nil dependency (except broadcaster/logger) turns EmitChildEvent into a
 // no-op for the same reason.
 func NewEventEmitter(
-	db *bun.DB,
-	runtime tenant.UnitOfWork,
-	threadRepo usersModels.ParentMessageThreadRepository,
-	messageRepo usersModels.ParentMessageRepository,
-	settings parentmessaging.TenantSettingsResolver,
+	runtime EventRuntime,
+	threadRepo ParentMessageThreadRepository,
+	messageRepo ParentMessageRepository,
+	settings EventSettings,
 	broadcaster realtime.Broadcaster,
 	logger *slog.Logger,
 ) *EventEmitter {
 	return &EventEmitter{
-		db: db, runtime: runtime, threadRepo: threadRepo, messageRepo: messageRepo,
+		runtime: runtime, threadRepo: threadRepo, messageRepo: messageRepo,
 		settings: settings, broadcaster: broadcaster, logger: logger,
 	}
 }
@@ -51,19 +49,21 @@ func NewEventEmitter(
 // inherit its cancellation, but it does carry the unit of work those paths
 // open their own tenant transaction through.
 func (e *EventEmitter) backgroundContext() context.Context {
-	return tenant.WithUnitOfWork(context.Background(), e.runtime)
+	return e.runtime.BackgroundContext()
 }
 
 // InTransaction reports whether ctx carries an active tenant transaction.
 func (e *EventEmitter) InTransaction(ctx context.Context) bool {
-	_, active := tenant.TransactionFromContext(ctx)
-	return active
+	if e == nil || e.runtime == nil {
+		return false
+	}
+	return e.runtime.InTransaction(ctx)
 }
 
 // PortalGuardians lists the child's guardians with parent_portal.access on
 // the caller's context, so the caller's tenant transaction and RLS scope
 // apply.
-func (e *EventEmitter) PortalGuardians(ctx context.Context, studentID int64) ([]parentmessaging.PortalGuardian, error) {
+func (e *EventEmitter) PortalGuardians(ctx context.Context, studentID int64) ([]eventContract.PortalGuardian, error) {
 	if e == nil || e.threadRepo == nil {
 		return nil, parentmessaging.ErrEmitterNotConfigured
 	}
@@ -71,12 +71,12 @@ func (e *EventEmitter) PortalGuardians(ctx context.Context, studentID int64) ([]
 	if err != nil {
 		return nil, err
 	}
-	result := make([]parentmessaging.PortalGuardian, 0, len(guardians))
+	result := make([]eventContract.PortalGuardian, 0, len(guardians))
 	for _, guardian := range guardians {
 		if guardian == nil {
 			continue
 		}
-		result = append(result, parentmessaging.PortalGuardian{AccountID: guardian.AccountID, PortalLocale: guardian.PortalLocale})
+		result = append(result, eventContract.PortalGuardian{AccountID: guardian.AccountID, PortalLocale: guardian.PortalLocale})
 	}
 	return result, nil
 }
@@ -106,17 +106,16 @@ func (e *EventEmitter) MessagingEnabledForTenant(ctx context.Context, tenantID i
 // see the reconcile path below, which appends the closing pill to the existing
 // thread without ever creating one (and, when the submitting guardian has since
 // lost access, without waking that guardian).
-func (e *EventEmitter) EmitChildEvent(tenantID, studentID, guardianAccountID int64, ev parentmessaging.ChildEvent) {
-	if e == nil || e.db == nil || e.threadRepo == nil || e.messageRepo == nil || e.settings == nil {
-		return
+func (e *EventEmitter) EmitChildEvent(ctx context.Context, tenantID, studentID, guardianAccountID int64, ev eventContract.ChildEvent) error {
+	if e == nil || e.runtime == nil || !e.runtime.Configured() || e.threadRepo == nil || e.messageRepo == nil || e.settings == nil {
+		return nil
 	}
 	if tenantID <= 0 || studentID <= 0 || guardianAccountID <= 0 {
-		return
+		return nil
 	}
-	// Detached background context: the pill outlives the (already committed)
-	// request transaction and must not inherit its cancellation.
-	bgCtx := e.backgroundContext()
-	enabled, err := e.settings.ResolveBoolForTenant(bgCtx, tenantID, configModels.KeyParentNotesEnabled)
+	// Keep the triggering command context so the pill joins its transaction.
+	bgCtx := ctx
+	enabled, err := e.settings.ParentNotesEnabledForTenant(bgCtx, tenantID)
 	// Messaging OFF (or a settings-resolve blip, which fails CLOSED for this
 	// write path) normally drops the pill entirely so a disabled school never
 	// accumulates threads via GetOrCreate. The ONE exception is a TERMINAL
@@ -134,153 +133,16 @@ func (e *EventEmitter) EmitChildEvent(tenantID, studentID, guardianAccountID int
 	messagingOff := err != nil || !enabled
 	isTerminal := parentmessaging.IsTerminalRequestEvent(ev)
 	if messagingOff && !isTerminal {
-		return
+		return nil
 	}
-
 	var threadID int64
 	var suppressReason string
-	skipGuardianBroadcast := false
-	err = tenant.WithTenantTx(bgCtx, e.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		// Staff-triggered pills (every staff decision, and any close we reconcile
-		// onto an existing thread) must never resurrect a thread for — or wake — a
-		// guardian whose child link (or parent_portal.access) was revoked after the
-		// request was submitted: GetOrCreate would leave a permanent orphan thread
-		// and the broadcast would push parent-message activity to an account the
-		// parent APIs now hide. Guardian-triggered pills (submit / withdraw) are the
-		// guardian acting live under their own permission, so they are not gated.
-		revoked := false
-		if ev.ActorKind == usersModels.ParentMessageSenderStaff {
-			hasAccess, herr := e.guardianHasChildAccess(txCtx, studentID, guardianAccountID)
-			if herr != nil {
-				return herr
-			}
-			revoked = !hasAccess
-		}
-		// Reconcile (append to an EXISTING thread only, never GetOrCreate) whenever a
-		// thread must not be born: messaging is disabled (no threads for a disabled
-		// school) OR the guardian lost access (no orphan thread). A terminal request
-		// event still needs its closing pill in either case so the staff timeline
-		// stops showing a resolved request as actionable; a revoked guardian just
-		// won't be woken for it (skipGuardianBroadcast below).
-		reconcileOnly := messagingOff || revoked
-
-		var thread *usersModels.ParentMessageThread
-		if reconcileOnly {
-			if !isTerminal {
-				// Non-terminal pills (request_created, self-service mirrors) carry no
-				// reconcile obligation: with messaging off they were already dropped
-				// pre-tx, and for a revoked guardian there is no open request to close.
-				suppressReason = "non-terminal pill dropped (messaging disabled or guardian access revoked)"
-				return nil
-			}
-			// Only CLOSE an already-emitted request. Resolve the existing thread and
-			// its request_created pill; if either is absent there is no stale "open"
-			// notice to reconcile, so drop without creating a thread or leaving a
-			// dangling status pill.
-			existing, ferr := e.threadRepo.FindByStudentGuardian(txCtx, studentID, guardianAccountID)
-			if ferr != nil {
-				return ferr
-			}
-			if existing == nil || ev.RefID == nil {
-				suppressReason = "no existing thread to reconcile"
-				return nil
-			}
-			created, cerr := e.messageRepo.FindEventByRef(txCtx, existing.ID, usersModels.ParentMessageEventRequestCreated, ev.RefTable, *ev.RefID)
-			if cerr != nil {
-				return cerr
-			}
-			if created == nil {
-				suppressReason = "no request_created pill to reconcile"
-				return nil
-			}
-			thread = existing
-			// A revoked guardian must not receive the parent-message SSE for a child
-			// the parent APIs now hide; the tenant-wide staff wake still fires so the
-			// staff inbox drops the stale "Anfrage bearbeiten" CTA.
-			skipGuardianBroadcast = revoked
-		} else {
-			created, cerr := e.threadRepo.GetOrCreate(txCtx, tenantID, studentID, guardianAccountID)
-			if cerr != nil {
-				return cerr
-			}
-			thread = created
-		}
-		threadID = thread.ID
-		msg := &usersModels.ParentMessage{
-			ThreadID:        thread.ID,
-			StudentID:       thread.StudentID,
-			SenderAccountID: ev.ActorAccountID,
-			SenderKind:      usersModels.ParentMessageSenderSystem,
-			SenderName:      "System",
-			Body:            ev.Body,
-			Kind:            usersModels.ParentMessageKindEvent,
-			EventType:       ev.EventType,
-			EventActorKind:  ev.ActorKind,
-			RequestType:     ev.RequestType,
-			RequestStatus:   ev.RequestStatus,
-			DecisionReason:  ev.DecisionReason,
-			RefTable:        ev.RefTable,
-			RefID:           ev.RefID,
-			Payload:         ev.Payload,
-		}
-		msg.SetTenantID(thread.TenantID)
-		if err := e.threadRepo.LockForMessageAppend(txCtx, thread.ID); err != nil {
-			return err
-		}
-		if err := e.messageRepo.Create(txCtx, msg); err != nil {
-			return err
-		}
-		// request_created pills are a QUEUE signal, not a chat message (#1803): keep
-		// them out of the thread's denormalized last-activity preview/ordering
-		// (last_message_*) exactly as counterpartUnread keeps them out of every unread
-		// count. Otherwise the two disagree — the Nachrichten badge (counterpart-side,
-		// non-request_created) flags an earlier staff decision while the preview shows
-		// the parent's OWN newest "Anfrage gestellt", which reads as "my own submission
-		// is unread". The pill still lives in the timeline (ListByThread) and still
-		// fires the SSE wake below; only the preview/sort skips it. A brand-new thread
-		// whose only pill is request_created keeps NULL last_message_at and renders the
-		// empty-preview fallback (never a broken row). Every OTHER pill (decision,
-		// withdrawal, self-service mirror) advances the preview as before.
-		if ev.EventType == usersModels.ParentMessageEventRequestCreated {
-			return nil
-		}
-		// Touch the thread with the row's own DB-stamped created_at (one clock —
-		// see AppendMessage) and attribute it to the TRIGGERING side so the staff
-		// inbox's awaiting-reply signal and the guardian's unread badge both fire
-		// correctly, including for dual-role accounts.
-		return e.threadRepo.TouchLastMessage(txCtx, thread.ID, msg.CreatedAt, msg.ID, ev.ActorKind, ev.Body)
+	var skipGuardianBroadcast bool
+	err = e.runtime.WithinTenant(bgCtx, tenantID, func(txCtx context.Context) error {
+		threadID, suppressReason, skipGuardianBroadcast, err = e.persistChildEvent(txCtx, tenantID, studentID, guardianAccountID, ev, messagingOff, isTerminal)
+		return err
 	})
-	if err != nil {
-		loggerOr(e.logger).Warn("parent messaging: child event emit failed",
-			slog.Int64("tenant_id", tenantID),
-			slog.Int64("student_id", studentID),
-			slog.String("event_type", ev.EventType),
-			slog.String("error", err.Error()),
-		)
-		return
-	}
-	if suppressReason != "" {
-		loggerOr(e.logger).Info("parent messaging: child event pill suppressed",
-			slog.Int64("tenant_id", tenantID),
-			slog.Int64("student_id", studentID),
-			slog.String("event_type", ev.EventType),
-			slog.String("reason", suppressReason),
-		)
-		return
-	}
-	// The staff inbox and open threads refetch only on a parent_message SSE
-	// event — not student_updated — so without this the pill stays invisible
-	// until a manual reload. When the guardian's access was revoked we still wake
-	// the tenant's staff (so their timeline drops the resolved request's CTA) but
-	// pass account id 0 to skip the guardian fan-out — a parent who can no longer
-	// read the child never gets the SSE. Guardian account ids are always > 0, so
-	// id 0 matches no guardian client while BroadcastParentMessage's tenant-wide
-	// staff wake still fires.
-	broadcastGuardianID := guardianAccountID
-	if skipGuardianBroadcast {
-		broadcastGuardianID = 0
-	}
-	Broadcast(e.broadcaster, e.logger, tenantID, broadcastGuardianID, threadID, studentID)
+	return e.finishChildEvent(ctx, ev, tenantID, studentID, guardianAccountID, threadID, suppressReason, skipGuardianBroadcast, err)
 }
 
 // WakeChildGuardians wakes EVERY guardian of the child with a message-
@@ -294,7 +156,7 @@ func (e *EventEmitter) EmitChildEvent(tenantID, studentID, guardianAccountID int
 // the originating transaction commits (from a RegisterAfterCommit callback) so a
 // woken client never reads the pre-commit snapshot. A nil dependency is a no-op.
 func (e *EventEmitter) WakeChildGuardians(tenantID, studentID int64) {
-	if e == nil || e.broadcaster == nil || e.threadRepo == nil || e.db == nil {
+	if e == nil || e.broadcaster == nil || e.threadRepo == nil || e.runtime == nil || !e.runtime.Configured() {
 		return
 	}
 	if tenantID <= 0 || studentID <= 0 {
@@ -304,8 +166,8 @@ func (e *EventEmitter) WakeChildGuardians(tenantID, studentID int64) {
 	// originating transaction. Reading the guardian list is RLS-scoped, so it runs
 	// inside its own tenant transaction like EmitChildEvent's work.
 	bgCtx := e.backgroundContext()
-	var guardians []*usersModels.MessageableGuardian
-	if err := tenant.WithTenantTx(bgCtx, e.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+	var guardians []*MessageableGuardian
+	if err := e.runtime.WithinTenant(bgCtx, tenantID, func(txCtx context.Context) error {
 		gs, gerr := e.threadRepo.ListGuardiansForStudent(txCtx, studentID)
 		if gerr != nil {
 			return gerr
@@ -361,4 +223,205 @@ func (e *EventEmitter) guardianHasChildAccess(ctx context.Context, studentID, gu
 	return false, nil
 }
 
-var _ parentmessaging.Events = (*EventEmitter)(nil)
+var _ eventContract.Events = (*EventEmitter)(nil)
+
+func childEventPayloadFacts(payload *eventContract.ChildEventPayload) (map[string]any, error) {
+	if payload == nil {
+		return nil, nil
+	}
+	document, err := payload.MarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	var facts map[string]any
+	decoder := json.NewDecoder(bytes.NewReader(document))
+	decoder.UseNumber()
+	err = decoder.Decode(&facts)
+	return facts, err
+}
+
+func childEventMessage(thread *ParentMessageThread, ev eventContract.ChildEvent) (*ParentMessage, error) {
+	payload, err := childEventPayloadFacts(ev.Payload)
+	if err != nil {
+		return nil, err
+	}
+	msg := &ParentMessage{
+		ThreadID:        thread.ID,
+		StudentID:       thread.StudentID,
+		SenderAccountID: ev.ActorAccountID,
+		SenderKind:      ParentMessageSenderSystem,
+		SenderName:      "System",
+		Body:            ev.Body,
+		Kind:            ParentMessageKindEvent,
+		EventType:       ev.EventType,
+		EventActorKind:  ev.ActorKind,
+		RequestType:     ev.RequestType,
+		RequestStatus:   ev.RequestStatus,
+		DecisionReason:  ev.DecisionReason,
+		RefTable:        ev.RefTable,
+		RefID:           ev.RefID,
+		Payload:         payload,
+	}
+	msg.SetTenantID(thread.TenantID)
+	return msg, nil
+}
+
+func (e *EventEmitter) appendChildEvent(txCtx context.Context, thread *ParentMessageThread, ev eventContract.ChildEvent) error {
+	msg, err := childEventMessage(thread, ev)
+	if err != nil {
+		return err
+	}
+	if err := e.threadRepo.LockForMessageAppend(txCtx, thread.ID); err != nil {
+		return err
+	}
+	if err := e.messageRepo.Create(txCtx, msg); err != nil {
+		return err
+	}
+	// request_created pills are a QUEUE signal, not a chat message (#1803): keep
+	// them out of the thread's denormalized last-activity preview/ordering
+	// (last_message_*) exactly as counterpartUnread keeps them out of every unread
+	// count. Otherwise the two disagree — the Nachrichten badge (counterpart-side,
+	// non-request_created) flags an earlier staff decision while the preview shows
+	// the parent's OWN newest "Anfrage gestellt", which reads as "my own submission
+	// is unread". The pill still lives in the timeline (ListByThread) and still
+	// fires the SSE wake below; only the preview/sort skips it. A brand-new thread
+	// whose only pill is request_created keeps NULL last_message_at and renders the
+	// empty-preview fallback (never a broken row). Every OTHER pill (decision,
+	// withdrawal, self-service mirror) advances the preview as before.
+	if ev.EventType == ParentMessageEventRequestCreated {
+		return nil
+	}
+	// Touch the thread with the row's own DB-stamped created_at (one clock —
+	// see AppendMessage) and attribute it to the TRIGGERING side so the staff
+	// inbox's awaiting-reply signal and the guardian's unread badge both fire
+	// correctly, including for dual-role accounts.
+	return e.threadRepo.TouchLastMessage(txCtx, thread.ID, msg.CreatedAt, msg.ID, ev.ActorKind, ev.Body)
+}
+
+func (e *EventEmitter) reconcileChildEventThread(txCtx context.Context, studentID, guardianAccountID int64, ev eventContract.ChildEvent) (*ParentMessageThread, string, error) {
+	// Only CLOSE an already-emitted request. Resolve the existing thread and
+	// its request_created pill; if either is absent there is no stale "open"
+	// notice to reconcile, so drop without creating a thread or leaving a
+	// dangling status pill.
+	existing, ferr := e.threadRepo.FindByStudentGuardian(txCtx, studentID, guardianAccountID)
+	if ferr != nil {
+		return nil, "", ferr
+	}
+	if existing == nil || ev.RefID == nil {
+		return nil, "no existing thread to reconcile", nil
+	}
+	created, cerr := e.messageRepo.FindEventByRef(txCtx, existing.ID, ParentMessageEventRequestCreated, ev.RefTable, *ev.RefID)
+	if cerr != nil {
+		return nil, "", cerr
+	}
+	if created == nil {
+		return nil, "no request_created pill to reconcile", nil
+	}
+	return existing, "", nil
+}
+
+func (e *EventEmitter) persistChildEvent(ctx context.Context, tenantID, studentID, guardianAccountID int64, ev eventContract.ChildEvent, messagingOff, isTerminal bool) (threadID int64, suppressReason string, skipGuardianBroadcast bool, err error) {
+	thread, reason, skippedGuardian, err := e.childEventThread(ctx, tenantID, studentID, guardianAccountID, ev, messagingOff, isTerminal)
+	suppressReason, skipGuardianBroadcast = reason, skippedGuardian
+	if err != nil || reason != "" {
+		return threadID, suppressReason, skipGuardianBroadcast, err
+	}
+	threadID = thread.ID
+	return threadID, suppressReason, skipGuardianBroadcast, e.appendChildEvent(ctx, thread, ev)
+}
+
+func (e *EventEmitter) broadcastChildEvent(ctx context.Context, tenantID, studentID, guardianAccountID, threadID int64, skipGuardianBroadcast bool) {
+	// The staff inbox and open threads refetch only on a parent_message SSE
+	// event — not student_updated — so without this the pill stays invisible
+	// until a manual reload. When the guardian's access was revoked we still wake
+	// the tenant's staff (so their timeline drops the resolved request's CTA) but
+	// pass account id 0 to skip the guardian fan-out — a parent who can no longer
+	// read the child never gets the SSE. Guardian account ids are always > 0, so
+	// id 0 matches no guardian client while BroadcastParentMessage's tenant-wide
+	// staff wake still fires.
+	broadcastGuardianID := guardianAccountID
+	if skipGuardianBroadcast {
+		broadcastGuardianID = 0
+	}
+	e.runtime.RegisterAfterCommit(ctx, func() { Broadcast(e.broadcaster, e.logger, tenantID, broadcastGuardianID, threadID, studentID) })
+}
+
+func (e *EventEmitter) childEventThread(txCtx context.Context, tenantID, studentID, guardianAccountID int64, ev eventContract.ChildEvent, messagingOff, isTerminal bool) (threadResult *ParentMessageThread, suppressReason string, skipGuardianBroadcast bool, err error) {
+	// Staff-triggered pills (every staff decision, and any close we reconcile
+	// onto an existing thread) must never resurrect a thread for — or wake — a
+	// guardian whose child link (or parent_portal.access) was revoked after the
+	// request was submitted: GetOrCreate would leave a permanent orphan thread
+	// and the broadcast would push parent-message activity to an account the
+	// parent APIs now hide. Guardian-triggered pills (submit / withdraw) are the
+	// guardian acting live under their own permission, so they are not gated.
+	revoked := false
+	if ev.ActorKind == ParentMessageSenderStaff {
+		hasAccess, herr := e.guardianHasChildAccess(txCtx, studentID, guardianAccountID)
+		if herr != nil {
+			return nil, suppressReason, skipGuardianBroadcast, herr
+		}
+		revoked = !hasAccess
+	}
+	// Reconcile (append to an EXISTING thread only, never GetOrCreate) whenever a
+	// thread must not be born: messaging is disabled (no threads for a disabled
+	// school) OR the guardian lost access (no orphan thread). A terminal request
+	// event still needs its closing pill in either case so the staff timeline
+	// stops showing a resolved request as actionable; a revoked guardian just
+	// won't be woken for it (skipGuardianBroadcast below).
+	reconcileOnly := messagingOff || revoked
+
+	var thread *ParentMessageThread
+	if reconcileOnly {
+		if !isTerminal {
+			// Non-terminal pills (request_created, self-service mirrors) carry no
+			// reconcile obligation: with messaging off they were already dropped
+			// pre-tx, and for a revoked guardian there is no open request to close.
+			suppressReason = "non-terminal pill dropped (messaging disabled or guardian access revoked)"
+			return nil, suppressReason, skipGuardianBroadcast, nil
+		}
+		var reason string
+		var err error
+		thread, reason, err = e.reconcileChildEventThread(txCtx, studentID, guardianAccountID, ev)
+		if err != nil {
+			return nil, suppressReason, skipGuardianBroadcast, err
+		}
+		if reason != "" {
+			suppressReason = reason
+			return nil, suppressReason, skipGuardianBroadcast, nil
+		}
+		// A revoked guardian must not receive the parent-message SSE for a child
+		// the parent APIs now hide; the tenant-wide staff wake still fires so the
+		// staff inbox drops the stale "Anfrage bearbeiten" CTA.
+		skipGuardianBroadcast = revoked
+	} else {
+		created, cerr := e.threadRepo.GetOrCreate(txCtx, tenantID, studentID, guardianAccountID)
+		if cerr != nil {
+			return nil, suppressReason, skipGuardianBroadcast, cerr
+		}
+		thread = created
+	}
+	return thread, suppressReason, skipGuardianBroadcast, nil
+}
+
+func (e *EventEmitter) finishChildEvent(ctx context.Context, ev eventContract.ChildEvent, tenantID, studentID, guardianAccountID, threadID int64, suppressReason string, skipGuardianBroadcast bool, err error) error {
+	if err != nil {
+		loggerOr(e.logger).Warn("parent messaging: child event emit failed",
+			slog.Int64("tenant_id", tenantID),
+			slog.Int64("student_id", studentID),
+			slog.String("event_type", ev.EventType),
+			slog.String("error", err.Error()),
+		)
+		return err
+	}
+	if suppressReason != "" {
+		loggerOr(e.logger).Info("parent messaging: child event pill suppressed",
+			slog.Int64("tenant_id", tenantID),
+			slog.Int64("student_id", studentID),
+			slog.String("event_type", ev.EventType),
+			slog.String("reason", suppressReason),
+		)
+		return nil
+	}
+	e.broadcastChildEvent(ctx, tenantID, studentID, guardianAccountID, threadID, skipGuardianBroadcast)
+	return nil
+}

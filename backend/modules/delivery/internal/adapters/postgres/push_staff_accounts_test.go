@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	deliveryRepo "github.com/moto-nrw/project-phoenix/database/repositories/delivery"
-	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
+	deliveryRepo "github.com/moto-nrw/project-phoenix/modules/delivery/internal/adapters/deliverypostgres"
+	deliveryModels "github.com/moto-nrw/project-phoenix/modules/delivery/subscriptions"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,7 +22,7 @@ func TestPushSubscriptionRepository_FindForStaffAccounts(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := deliveryRepo.NewPushSubscriptionRepository(db)
+	repo := &deliveryRepo.PushSubscriptionRepository{DB: db}
 	ctx := testpkg.Ctx(t)
 
 	suffix := time.Now().UnixNano()
@@ -40,12 +40,12 @@ func TestPushSubscriptionRepository_FindForStaffAccounts(t *testing.T) {
 	bystanderEndpoint := fmt.Sprintf("https://fcm.googleapis.com/fcm/send/bystander-%d", suffix)
 	schoolEndpoint := fmt.Sprintf("https://fcm.googleapis.com/fcm/send/school-%d", suffix)
 
-	require.NoError(t, repo.Upsert(ctx, newSubscription(t, addressed.ID, deliveryModels.PushPortalStaff, addressedEndpoint)))
-	require.NoError(t, repo.Upsert(ctx, newSubscription(t, bystander.ID, deliveryModels.PushPortalStaff, bystanderEndpoint)))
-	require.NoError(t, repo.Upsert(ctx, newSubscription(t, addressed.ID, deliveryModels.PushPortalSchool, schoolEndpoint)))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repo.RegisterSubscription, newSubscription(t, addressed.ID, deliveryModels.PushPortalStaff, addressedEndpoint)))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repo.RegisterSubscription, newSubscription(t, bystander.ID, deliveryModels.PushPortalStaff, bystanderEndpoint)))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repo.RegisterSubscription, newSubscription(t, addressed.ID, deliveryModels.PushPortalSchool, schoolEndpoint)))
 
 	t.Run("returns only the addressed account's devices", func(t *testing.T) {
-		subs, err := repo.FindForStaffAccounts(ctx, []int64{addressed.ID})
+		subs, err := testpkg.TenantQuery1(t, ctx, db, repo.FindForStaffAccounts, []int64{addressed.ID})
 		require.NoError(t, err)
 
 		assert.True(t, hasSubscriptionEndpoint(subs, addressedEndpoint),
@@ -55,12 +55,12 @@ func TestPushSubscriptionRepository_FindForStaffAccounts(t *testing.T) {
 	})
 
 	t.Run("keeps school devices separate from staff devices", func(t *testing.T) {
-		staffSubs, err := repo.FindForStaffAccounts(ctx, []int64{addressed.ID})
+		staffSubs, err := testpkg.TenantQuery1(t, ctx, db, repo.FindForStaffAccounts, []int64{addressed.ID})
 		require.NoError(t, err)
 		assert.True(t, hasSubscriptionEndpoint(staffSubs, addressedEndpoint))
 		assert.False(t, hasSubscriptionEndpoint(staffSubs, schoolEndpoint))
 
-		schoolSubs, err := repo.FindForSchoolAccounts(ctx, []int64{addressed.ID})
+		schoolSubs, err := testpkg.TenantQuery1(t, ctx, db, repo.FindForSchoolAccounts, []int64{addressed.ID})
 		require.NoError(t, err)
 		assert.True(t, hasSubscriptionEndpoint(schoolSubs, schoolEndpoint))
 		assert.False(t, hasSubscriptionEndpoint(schoolSubs, addressedEndpoint))
@@ -73,12 +73,12 @@ func TestPushSubscriptionRepository_FindForStaffAccounts(t *testing.T) {
 		removeLehrkraftSystemRole(t, db, addressed.ID, testpkg.Tenant(t))
 		defer testpkg.AssignLehrkraftSystemRole(t, db, addressed.ID, testpkg.Tenant(t))
 
-		schoolSubs, err := repo.FindForSchoolAccounts(ctx, []int64{addressed.ID})
+		schoolSubs, err := testpkg.TenantQuery1(t, ctx, db, repo.FindForSchoolAccounts, []int64{addressed.ID})
 		require.NoError(t, err)
 		assert.Empty(t, schoolSubs,
 			"a revoked lehrkraft role must end school-portal push delivery")
 
-		staffSubs, err := repo.FindForStaffAccounts(ctx, []int64{addressed.ID})
+		staffSubs, err := testpkg.TenantQuery1(t, ctx, db, repo.FindForStaffAccounts, []int64{addressed.ID})
 		require.NoError(t, err)
 		assert.True(t, hasSubscriptionEndpoint(staffSubs, addressedEndpoint),
 			"the remaining staff role keeps staff-portal delivery")
@@ -87,16 +87,16 @@ func TestPushSubscriptionRepository_FindForStaffAccounts(t *testing.T) {
 	t.Run("empty input returns nothing rather than everything", func(t *testing.T) {
 		// The dangerous default: an empty recipient list must never widen into
 		// a tenant-wide send.
-		subs, err := repo.FindForStaffAccounts(ctx, nil)
+		subs, err := testpkg.TenantQuery1(t, ctx, db, repo.FindForStaffAccounts, nil)
 		require.NoError(t, err)
 		assert.Empty(t, subs)
 	})
 
 	t.Run("agrees with the tenant-wide staff finder on eligibility", func(t *testing.T) {
-		all, err := repo.FindForTenantStaff(ctx)
+		all, err := testpkg.TenantQuery0(t, ctx, db, repo.FindForTenantStaff)
 		require.NoError(t, err)
 
-		narrowed, err := repo.FindForStaffAccounts(ctx, []int64{addressed.ID})
+		narrowed, err := testpkg.TenantQuery1(t, ctx, db, repo.FindForStaffAccounts, []int64{addressed.ID})
 		require.NoError(t, err)
 
 		assert.ElementsMatch(t,
@@ -122,7 +122,7 @@ func TestPushSubscriptionRepository_FindForStaffAccounts(t *testing.T) {
 			require.NoError(t, resetErr)
 		}()
 
-		subs, err := repo.FindForStaffAccounts(ctx, []int64{addressed.ID})
+		subs, err := testpkg.TenantQuery1(t, ctx, db, repo.FindForStaffAccounts, []int64{addressed.ID})
 		require.NoError(t, err)
 
 		assert.Empty(t, subs,
@@ -146,7 +146,7 @@ func TestPushSubscriptionRepository_FindForStaffAccounts(t *testing.T) {
 			require.NoError(t, resetErr)
 		}()
 
-		subs, err := repo.FindForStaffAccounts(ctx, []int64{addressed.ID})
+		subs, err := testpkg.TenantQuery1(t, ctx, db, repo.FindForStaffAccounts, []int64{addressed.ID})
 		require.NoError(t, err)
 
 		assert.Empty(t, subs, "someone who left the school stops receiving its notifications")
@@ -155,7 +155,7 @@ func TestPushSubscriptionRepository_FindForStaffAccounts(t *testing.T) {
 	t.Run("does not reach the same account from another tenant's context", func(t *testing.T) {
 		otherTenantCtx := testpkg.TenantContext(2)
 
-		subs, err := repo.FindForStaffAccounts(otherTenantCtx, []int64{addressed.ID})
+		subs, err := testpkg.TenantQuery1(t, otherTenantCtx, db, repo.FindForStaffAccounts, []int64{addressed.ID})
 		require.NoError(t, err)
 
 		assert.Empty(t, subs,

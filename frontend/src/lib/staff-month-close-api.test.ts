@@ -40,7 +40,7 @@ function errorResponse(code: string, message = "backend error"): Response {
   return {
     ok: false,
     status: 409,
-    text: () => Promise.resolve(JSON.stringify({ code, error: message })),
+    text: () => Promise.resolve(JSON.stringify({ code, detail: message })),
   } as Response;
 }
 
@@ -143,7 +143,8 @@ describe("staffMonthCloseService", () => {
     await expect(failure).rejects.toMatchObject({
       code,
       status: 409,
-      message: "backend error",
+      message: "Monatsabschluss fehlgeschlagen",
+      detail: "backend error",
     });
   });
 

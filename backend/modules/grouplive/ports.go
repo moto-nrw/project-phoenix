@@ -24,6 +24,8 @@ type Date string
 // Caller carries the request principal's projection-relevant rights. The
 // access port resolves them once per request from the shared authorize rules.
 type Caller struct {
+	// CanReadStudentPlans is users:read, required for plans, notes and absence statuses.
+	CanReadStudentPlans bool
 	// CanReadGroups is the groups:read permission gating the group-derived
 	// sections (room status, transfers, tracking indicators).
 	CanReadGroups bool
@@ -37,9 +39,9 @@ type Caller struct {
 // Access resolves the caller's rights for the current request.
 type Access interface {
 	Caller(ctx context.Context) (Caller, error)
-	// FullStudentAccess reports whether the caller sees unredacted student
-	// records (admin or verified staff, #2329). It is resolved only once a
-	// roster is about to be projected.
+	// FullStudentAccess reports staff/admin eligibility (#2329), used for
+	// photos and locations. Planning additionally requires CanReadStudentPlans.
+	// It is resolved only once a roster is about to be projected.
 	FullStudentAccess(ctx context.Context) (bool, error)
 }
 
@@ -50,9 +52,8 @@ type GroupRecord struct {
 	RoomID *int64
 }
 
-// GroupDirectory lists groups. SupervisedGroups and TenantGroups deliver
-// their rows in German dictionary order (DIN 5007-1), which selectGroup and
-// the response order rely on.
+// GroupDirectory lists groups. The projection sorts the rows of
+// SupervisedGroups and TenantGroups with Dependencies.Collate.
 type GroupDirectory interface {
 	// SupervisedGroups are the caller's own groups, including substitutions.
 	SupervisedGroups(ctx context.Context) ([]GroupRecord, error)
@@ -63,6 +64,9 @@ type GroupDirectory interface {
 	SubstitutedGroupIDs(ctx context.Context) (map[int64]bool, error)
 	// GroupRoomNames resolves the room name of every group that has a room.
 	GroupRoomNames(ctx context.Context, groupIDs []int64) (map[int64]string, error)
+	// GroupLeaderNames resolves the full names of each group's assigned
+	// Gruppenleitung. A group without one is absent or maps to no names.
+	GroupLeaderNames(ctx context.Context, groupIDs []int64) (map[int64][]string, error)
 }
 
 // RosterStudent is a group member with the directory facts the roster shows.
@@ -154,6 +158,9 @@ type Pickup struct {
 	IsException bool
 	Notes       string
 	DayNotes    []DayNote
+
+	// DayDepartureMode is the Abholart set for this day only (#3946).
+	DayDepartureMode string
 }
 
 // Day-planning reason codes are part of the students API wire contract

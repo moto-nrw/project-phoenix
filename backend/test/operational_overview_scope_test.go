@@ -9,6 +9,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -39,7 +41,7 @@ func TestOperationalOverviewNeverCrossesTenants(t *testing.T) {
 	groupA := CreateTestActiveGroupForTenant(t, db, tenantA)
 	groupB := CreateTestActiveGroupForTenant(t, db, tenantB)
 
-	presence := PresenceModule(t, db)
+	presence := api.NewStudentPresenceForTests(NewDatabase(t, db))
 
 	assertSeesOnlyOwn := func(tb testing.TB, ownTenant, ownGroup, foreignGroup int64) {
 		tb.Helper()

@@ -27,9 +27,13 @@ services:
     healthcheck:
       # The init-only server accepts sockets before restarting; wait for TCP.
       test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "postgres"]
-      interval: 1s
+      # Postgres logs every probe connection. Probe each second only while it
+      # starts, so deploys and restores still see it healthy at once.
+      interval: 10s
       timeout: 1s
       retries: 5
+      start_period: 30s
+      start_interval: 1s
     logging:
       driver: journald
       options:
@@ -76,6 +80,8 @@ services:
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY?VAPID_PUBLIC_KEY is required}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY?VAPID_PRIVATE_KEY is required}
       VAPID_SUBSCRIBER: ${VAPID_SUBSCRIBER?VAPID_SUBSCRIBER is required}
+      TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY:?TURNSTILE_SITE_KEY is required}
+      TURNSTILE_SECRET_KEY: ${TURNSTILE_SECRET_KEY:?TURNSTILE_SECRET_KEY is required}
       FRONTEND_URL: ${FRONTEND_URL:?FRONTEND_URL is required}
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:?NEXT_PUBLIC_API_URL is required}
       PARENTS_URL: ${PARENTS_URL:?PARENTS_URL is required}
@@ -97,16 +103,8 @@ services:
       POSTHOG_API_KEY: ${POSTHOG_API_KEY?POSTHOG_API_KEY is required}
       POSTHOG_HOST: ${POSTHOG_HOST?POSTHOG_HOST is required}
       CLEANUP_SCHEDULER_ENABLED: ${CLEANUP_SCHEDULER_ENABLED:?CLEANUP_SCHEDULER_ENABLED is required}
-      CLEANUP_SCHEDULER_TIME: ${CLEANUP_SCHEDULER_TIME:?CLEANUP_SCHEDULER_TIME is required}
-      CLEANUP_SCHEDULER_TIMEOUT_MINUTES: ${CLEANUP_SCHEDULER_TIMEOUT_MINUTES:?CLEANUP_SCHEDULER_TIMEOUT_MINUTES is required}
       SESSION_END_SCHEDULER_ENABLED: ${SESSION_END_SCHEDULER_ENABLED:?SESSION_END_SCHEDULER_ENABLED is required}
-      SESSION_END_TIME: ${SESSION_END_TIME:?SESSION_END_TIME is required}
-      SESSION_END_TIMEOUT_MINUTES: ${SESSION_END_TIMEOUT_MINUTES:?SESSION_END_TIMEOUT_MINUTES is required}
       STUDENT_DAILY_CHECKOUT_TIME: ${STUDENT_DAILY_CHECKOUT_TIME:?STUDENT_DAILY_CHECKOUT_TIME is required}
-      SESSION_CLEANUP_ENABLED: ${SESSION_CLEANUP_ENABLED:?SESSION_CLEANUP_ENABLED is required}
-      SESSION_CLEANUP_INTERVAL_MINUTES: ${SESSION_CLEANUP_INTERVAL_MINUTES:?SESSION_CLEANUP_INTERVAL_MINUTES is required}
-      SESSION_ABANDONED_THRESHOLD_MINUTES: ${SESSION_ABANDONED_THRESHOLD_MINUTES:?SESSION_ABANDONED_THRESHOLD_MINUTES is required}
-      OGS_DEVICE_PIN: ${OGS_DEVICE_PIN:?OGS_DEVICE_PIN is required}
     logging:
       driver: journald
       options:
@@ -167,7 +165,8 @@ services:
       - demo
 
   # Demo process (docs/operations/standing-demo.md): seeds one demo school per
-  # demo access and keeps them alive. deploy-remote.sh pins the image to the
+  # demo access and keeps them alive. It runs the dev tools binary, which only
+  # the demo image carries (ADR 0060). deploy-remote.sh pins the image to the
   # server's revision and starts it with the application.
   # Fallback to the one standing demo school: append "--demo-standing-school"
   # to this command AND to the server's command; check-runtime-env.py rejects
@@ -177,7 +176,7 @@ services:
   # traffic arrives from the Docker gateway, never from loopback.
   demo-runtime:
     image: ghcr.io/moto-nrw/phoenix-server:demo
-    command: ["./main", "demo", "--url", "http://127.0.0.1:8080", "--heartbeat", "/tmp/demo-heartbeat"]
+    command: ["./devtools", "demo", "--url", "http://127.0.0.1:8080", "--heartbeat", "/tmp/demo-heartbeat"]
     restart: unless-stopped
     depends_on:
       server:
@@ -198,6 +197,7 @@ services:
       PHOENIX_DEMO_PASSWORD: ${PHOENIX_DEMO_PASSWORD:?PHOENIX_DEMO_PASSWORD is required}
       OPERATOR_EMAIL: ${OPERATOR_EMAIL:?OPERATOR_EMAIL is required}
       OPERATOR_PASSWORD: ${OPERATOR_PASSWORD:?OPERATOR_PASSWORD is required}
+      # Seed value of security.ogs_device_pin only; never a serving fallback.
       OGS_DEVICE_PIN: ${OGS_DEVICE_PIN:?OGS_DEVICE_PIN is required}
     logging:
       driver: journald

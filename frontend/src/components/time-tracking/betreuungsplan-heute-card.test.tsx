@@ -66,6 +66,29 @@ describe("BetreuungsplanHeuteCard", () => {
     expect(screen.getByText("OGS-Raum 1")).toBeInTheDocument();
   });
 
+  // #4363: Auf der Zeiterfassung stehen wenige Einsätze nebeneinander, je
+  // einer in einem eigenen Feld, statt als schmale Liste über die volle Breite.
+  it("stellt die Einsätze auf der Zeiterfassung als Raster dar", () => {
+    swr.data = [
+      assignment({ instanceId: "1", title: "Frühdienst" }),
+      assignment({ instanceId: "2", title: "Lernzeit" }),
+    ];
+
+    render(<BetreuungsplanHeuteCard />);
+
+    expect(screen.getByRole("list").className).toContain("grid-cols");
+    expect(screen.getAllByRole("listitem")).toHaveLength(2);
+  });
+
+  // Die Startseite behält ihre Liste: dort hat die Karte eine feste Höhe.
+  it("behält auf der Startseite die Liste", () => {
+    swr.data = [assignment()];
+
+    render(<BetreuungsplanHeuteCard maxRows={3} dense />);
+
+    expect(screen.getByRole("list").className).not.toContain("grid-cols");
+  });
+
   // Startseite: eine Zeile je Einsatz, Raum als Zusatz dahinter.
   it("fasst den Einsatz mit dense in eine Zeile", () => {
     swr.data = [assignment()];
@@ -94,7 +117,7 @@ describe("BetreuungsplanHeuteCard", () => {
     expect(screen.getByText("Mittagessen")).toBeInTheDocument();
     expect(screen.queryByText("Lernzeit")).not.toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: "Noch 2 Einsätze im Tagesplan" }),
+      screen.getByRole("link", { name: "Noch 2 Einsätze ansehen" }),
     ).toHaveAttribute("href", "/test-tenant/tagesplan");
   });
 
@@ -177,6 +200,8 @@ describe("BetreuungsplanHeuteCard", () => {
 
     render(<BetreuungsplanHeuteCard />);
 
+    // Anker: der laufende Einsatz steht als Zeile da.
+    expect(screen.getByText("Lernzeit")).toBeInTheDocument();
     expect(screen.queryByText("Läuft")).not.toBeInTheDocument();
   });
 
@@ -204,7 +229,7 @@ describe("BetreuungsplanHeuteCard", () => {
 
     rerender(<BetreuungsplanHeuteCard href="/test-tenant/tagesplan" />);
     expect(
-      screen.getByRole("link", { name: "Lernzeit: im Tagesplan öffnen" }),
+      screen.getByRole("link", { name: "Lernzeit: unter Heute öffnen" }),
     ).toHaveAttribute("href", "/test-tenant/tagesplan");
   });
 

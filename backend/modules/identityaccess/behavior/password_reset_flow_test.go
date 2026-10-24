@@ -7,8 +7,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -19,11 +20,11 @@ import (
 // below drive the public capability the way the reset routes of the three
 // portals do (#3332), against a real database.
 
-const resetPassword = "Str0ngP@ssword!" //nolint:gosec // test-only value, never a real credential
+var resetPassword = testpkg.NewTestPassword()
 
-func newResetCapability(t *testing.T, db *bun.DB, options ...services.AuthTestOption) identityaccess.PasswordResets {
+func newResetCapability(t *testing.T, db *bun.DB, options ...api.AuthTestOption) identityaccess.PasswordResets {
 	t.Helper()
-	module, err := services.NewAuthTestModule(db, testpkg.TenantRuntime(t, db), options...)
+	module, err := api.NewAuthTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), options...)
 	require.NoError(t, err)
 	return module.AccountAuthentication
 }
@@ -99,6 +100,24 @@ func TestInitiatePasswordResetIssuesARedeemableLink(t *testing.T) {
 		"an expired link is refused")
 }
 
+func TestPasswordResetRejectsAnErasedAccount(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	resets := newResetCapability(t, db)
+	ctx := testpkg.Ctx(t)
+	email := resetAccount(t, db, "reset-erased-account")
+
+	token, err := resets.InitiatePasswordReset(ctx, email, identityaccess.PasswordResetScopeStaff)
+	require.NoError(t, err)
+	require.NotNil(t, token)
+	_, err = db.NewRaw(`UPDATE auth.accounts SET personal_data_erased_at = NOW() WHERE id = ?`, token.AccountID).Exec(ctx)
+	require.NoError(t, err)
+
+	require.ErrorIs(t, resets.ResetPassword(ctx, token.Token, resetPassword), identityaccess.ErrInvalidToken)
+	used, _ := storedResetToken(t, db, token.ID)
+	require.False(t, used, "a refused reset does not spend the token")
+}
+
 // Issuing a link spends the account's previous one, so only the newest link
 // in an inbox works.
 func TestInitiatePasswordResetInvalidatesThePreviousLink(t *testing.T) {
@@ -156,7 +175,7 @@ func TestPasswordResetScopesServeTheirPortalOnly(t *testing.T) {
 func TestPasswordResetRateLimitBlocksAfterThreeAttempts(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	resets := newResetCapability(t, db, services.WithAuthTestPasswordResetRateLimit(true))
+	resets := newResetCapability(t, db, api.WithAuthTestPasswordResetRateLimit(true))
 	ctx := testpkg.Ctx(t)
 	email := resetAccount(t, db, "reset-rate-limit")
 
@@ -188,7 +207,7 @@ func TestPasswordResetRateLimitBlocksAfterThreeAttempts(t *testing.T) {
 func TestPasswordResetRateLimitCountsOnlyActionableRequests(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	resets := newResetCapability(t, db, services.WithAuthTestPasswordResetRateLimit(true))
+	resets := newResetCapability(t, db, api.WithAuthTestPasswordResetRateLimit(true))
 	ctx := testpkg.Ctx(t)
 	unknown := "reset-unknown@test.local"
 	forgetResetWindow(t, db, unknown)
@@ -208,7 +227,7 @@ func TestPasswordResetRateLimitCountsOnlyActionableRequests(t *testing.T) {
 func TestPasswordResetCleanupKeepsLiveLinksAndTheWindow(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
-	resets := newResetCapability(t, db, services.WithAuthTestPasswordResetRateLimit(true))
+	resets := newResetCapability(t, db, api.WithAuthTestPasswordResetRateLimit(true))
 	ctx := testpkg.Ctx(t)
 	email := resetAccount(t, db, "reset-cleanup")
 
@@ -261,7 +280,7 @@ func TestInitiatePasswordResetNormalisesTheAddress(t *testing.T) {
 func TestResetPasswordReplacesTheAccountCredential(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	module, err := services.NewAuthTestModule(db, testpkg.TenantRuntime(t, db))
+	module, err := api.NewAuthTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 	email := resetAccount(t, db, "reset-credential")

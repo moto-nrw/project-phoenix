@@ -80,10 +80,25 @@ Seiten und Funktionen, wo Nutzer hängen bleiben, wie Interessenten durch die
 öffentliche Demo gehen. Sie dient nur der Produktverbesserung; Schulen und
 Träger sehen sie nicht, und sie bewertet keine einzelnen Mitarbeitenden.
 
+Die Schule kann die Nutzungsanalyse unter **Datenschutz** ausschalten
+(`analytics.enabled`, Standard an). Das stoppt auch Aufzeichnungen,
+Kernaktionen, Kiosk-Nutzungsereignisse und die Benennung ihrer Analysegruppe.
+Fehlerdiagnose bleibt getrennt. Bei Lesefehlern bleibt die Erfassung aus.
+Im Elternportal müssen alle zugeordneten Schulen Analyse erlauben; vor der
+Zuordnung läuft dort keine Erfassung. Die Demo bleibt unverändert.
+Auf Formular-, Bearbeitungs- und Anpassungsseiten der Anmeldung muss
+zusätzlich die Zielschule Analyse erlauben. Außerhalb der Demo erfassen
+Token-Statusseiten der Anmeldung nie, auch nicht bei erlaubender Schule:
+Die Freigabe der Zielschule ist dort unbekannt. Eine Freigabe einer anderen Schule hebt deren Sperre
+nicht auf. Auf dem Schulhost bestimmt die Schule des Hosts die Freigabe; eine eingebettete Schule kann nur
+zusätzlich sperren.
+Abschaltbarkeit ist keine Rechtsgrundlage: deren Prüfung bleibt offen
+(#3843, Recht-Slice 3843-e). Produktive Wirksamkeit ist gesondert nachzuweisen.
+
 Eine **Sitzungsaufzeichnung** gibt eine Browsersitzung als Film wieder, mit
 ausgeblendeten Inhalten. In der öffentlichen Demo läuft sie immer. In einer
 echten Schule laufen sie und die Wiedererkennung einzelner Nutzer nur im
-OGS-Portal und nur mit **Analyse-Freigabe**: der schriftlichen Zustimmung der
+OGS-Portal bei eingeschalteter Nutzungsanalyse und nur mit **Analyse-Freigabe**: der schriftlichen Zustimmung der
 Schule bzw. ihres Trägers, die das moto-Team daraufhin für genau diese Schule
 erteilt. Ohne Analyse-Freigabe, im Eltern-Portal, im Schul-Portal der
 Lehrkräfte und im Träger-Büro bleibt die Nutzungsanalyse ohne Personenbezug.
@@ -199,12 +214,27 @@ Eine **zusätzliche Aufsicht** ordnet einer bereits laufenden Betreuung eine
 weitere Betreuungskraft zu. Sie ersetzt keine abwesende Person und verändert
 weder Gruppenübergaben noch geplante Termine.
 
-Eine **externe Betreuungskraft** ist eine Person ohne moto-Konto, etwa eine
-AG-Leitung der Musikschule (#3823). Sie wird als Personal mit Gastprofil
-(`users.guests`) geführt, kann einer spontanen Aktivität und einer zusätzlichen
-Aufsicht zugeordnet werden, übernimmt aber nie eine Gruppe. Zeiterfassung und
-Dienstplan führen sie nicht. Personal, das nur ohne E-Mail-Adresse importiert
-wurde, ist keine externe Betreuungskraft.
+Eine **externe Betreuungskraft** ist Personal mit einem aktiven Datensatz
+„externe Betreuungskraft“, etwa eine AG-Kraft der Musikschule (#3823, #4573,
+ADR 0091). Der Datensatz trägt die Organisation und einen optionalen Zeitraum.
+Extern ist ein Merkmal, keine Rolle: Nur der Datensatz macht extern, nicht ein
+Konto, eine Rolle oder eine fehlende E-Mail-Adresse. Externe sind in
+Regelterminen, einzelnen und spontanen Terminen und als zusätzliche Aufsicht
+planbar, auch allein und als zuständige Person. Sie übernehmen nie eine Gruppe,
+nie eine Vertretung und stehen nicht im Personalpool. Zeiterfassung,
+Mitarbeitenden-Status und Dienstplan führen sie nicht, und ein Aufsichtsstart
+stempelt keine Arbeitszeit.
+
+Der **Zugang** einer externen Betreuungskraft ist davon getrennt und eine von
+drei Stufen: **Kein Zugang** (Platzhalter ohne Konto, ohne E-Mail-Adresse),
+**Nur ansehen** (Einladung in die Systemrolle **Gast**) oder **Eigene Termine
+betreuen** (Einladung in die Systemrolle **AG-Leitung**). Ihr Kontostand ist
+`account`, `invitation_pending` oder `none`.
+
+**Gast** (`guest`) ist die Systemrolle fürs reine Ansehen: Kinder, Räume und
+AGs, ohne Elterndaten, Nachrichten und Schreibrechte. **AG-Leitung**
+(`ag-leitung`) ist die Systemrolle für Leute, die ihre eigenen Termine
+betreuen. Beide Rollen machen niemanden extern.
 
 Die **Vertretungsübersicht** ist die gemeinsame Arbeitsfläche für
 Gruppenübergaben, Vertretungen und zusätzliche Aufsichten. Die drei Vorgänge
@@ -438,10 +468,16 @@ Ein Eintrag kann zum dauerhaften Hinweis werden; sein Datum entfällt dabei.
 
 Der **Bezug** einer Kindnotiz ist das, worum es außer dem Kind geht: nichts,
 ein Angebot oder eine Gruppe. Ein einzelner Termin ist das Angebot zusammen
-mit dem Tag und kein eigener Bezug.
+mit dem Tag und kein eigener Bezug. Wählbar sind die OGS-Gruppe des Kindes
+und die Angebote, in denen es heute angemeldet ist.
+
+Die kurze Notiz an der Anwesenheit eines Kurstermins ist keine Kindnotiz: sie
+gehört zur Anwesenheit. Beobachtungen zum Kind in einem Angebot, etwa
+Verhalten oder ein Vorfall, sind Kindnotizen mit dem Angebot als Bezug.
 
 Die **Reichweite** einer Kindnotiz legt fest, wer sie liest: das ganze Team,
-das **Betreuungsteam** des Kindes oder die Leitung der bezogenen Gruppe. Das
+das **Betreuungsteam** des Kindes oder die Leitung des Bezugs: die Leitung
+der OGS-Gruppe oder des Angebots. Das
 Betreuungsteam eines Kindes sind die Betreuungskräfte, die es tatsächlich
 haben — über seine Gruppe, seine Klasse oder ein Angebot, in dem es
 angemeldet ist. Die Reichweite gilt je Notiz und erteilt keine weiteren
@@ -600,12 +636,220 @@ zu mehreren OGS wechselt zwischen ihnen, das Träger-Büro sieht sie gemeinsam.
 _Vermeiden_: Träger-Admin, Organisationsadmin, Bereichsleitung (eine Person im
 Träger-Büro, nicht das Büro).
 
+## Träger-Portal
+
+Das **Träger-Portal** ist der eigene Arbeitsbereich des Träger-Büros. Eine
+Person meldet sich dort mit demselben Konto an, das sie vielleicht auch in einer
+OGS nutzt. Die Anmeldung im Träger-Portal ist aber getrennt von der Anmeldung in
+einer OGS, und keine beendet die andere.
+_Vermeiden_: Träger-Cockpit (Werbename), Org-Portal.
+
+## Träger-Rolle
+
+Eine **Träger-Rolle** legt fest, was eine Person im Träger-Büro darf:
+Verwaltung, Abrechnung, Personal oder nur lesen. Eine Person kann mehrere
+Träger-Rollen haben. Eine Träger-Rolle gilt für alle OGS des Trägers, auch für
+später hinzukommende. Sie ist unabhängig von einer Rolle in einer OGS.
+
+## Träger-Wert
+
+Ein **Träger-Wert** ist der Wert einer Einstellung, den das Träger-Büro für
+alle OGS des Trägers setzt. Er gilt in jeder OGS des Trägers ohne eigene
+Schul-Abweichung, auch in später hinzukommenden. Manche Einstellungen gibt es
+nur beim Träger; dort kann keine OGS abweichen. Tarife, Vorlagen,
+Nummernkreise und Bankverbindungen sind keine Träger-Werte, sondern eigene
+Objekte des Trägers.
+_Vermeiden_: Träger-Default, Vorgabe (klingt nach Sperre), Org-Setting.
+
+## Schul-Abweichung
+
+Eine **Schul-Abweichung** ist der eigene Wert einer OGS für eine Einstellung.
+Er ersetzt dort den Träger-Wert oder den Standardwert. Setzt die OGS ihn
+zurück, gilt wieder der Träger-Wert, ohne Träger-Wert der Standardwert.
+_Vermeiden_: Override (nur im Code), Ausnahme.
+
+## Ausrichtende OGS
+
+Die **ausrichtende OGS** betreut in einer Ferienwoche die Kinder, die für diese
+Woche gebucht sind, auch Kinder anderer Schulen des Trägers und Kinder ohne
+Schule des Trägers.
+
+## Feriengast
+
+Ein **Feriengast** ist ein Kind, das die ausrichtende OGS nur wegen einer
+bestätigten Ferienbuchung betreut. Die ausrichtende OGS sieht von ihm nur, was
+sie für die Betreuung braucht (Betreuungszeiten, Notfall, Abholung), und nur
+für die gebuchten Wochen. Ein Feriengast wird dadurch kein Kind dieser OGS.
+_Vermeiden_: Gastkind (unklar, ob mit Buchung), Ferienkind.
+
+## Betreuungsvertrag
+
+Ein **Betreuungsvertrag** ist die Vereinbarung zwischen dem Träger und den
+Eltern über die Betreuung eines Kindes an einem Betreuungsort. Er entsteht aus
+einer angenommenen Anmeldung oder aus einem Import; auch jede bestätigte
+Ferienbuchung ist einer. Er ist die einzige Grundlage für Elternbeiträge.
+_Vermeiden_: Vertrag allein (meint auch den Vertrag zwischen moto und einer
+Schule), Betreuungsvereinbarung.
+
+## Vertragsversion
+
+Eine **Vertragsversion** ist der Inhalt eines Betreuungsvertrags ab einem
+Wirkdatum: gebuchte Leistungen, Zeiten und der Preis, der beim Anlegen der
+Version galt. Jede Änderung erzeugt eine neue Version; spätere Tarifänderungen ändern
+keine bestehende Version.
+
+## Betreuungsort
+
+Der **Betreuungsort** eines Betreuungsvertrags ist die OGS, in der das Kind
+betreut wird. Für einen Feriengast ist das die ausrichtende OGS.
+_Vermeiden_: Heimschule (das ist die Schule, die das Kind besucht).
+
+## Elternabrechnung
+
+Die **Elternabrechnung** berechnet aus Betreuungsverträgen die Beiträge der
+Eltern und stellt Rechnungen oder Bescheide aus. moto zieht dabei kein Geld
+ein.
+_Vermeiden_: Abrechnung allein (meint im OGS-Portal die Lohnabrechnung),
+Billing (meint die Abrechnung zwischen moto und Schulen).
+
+## Zahler
+
+Ein **Zahler** ist die Person oder Stelle, an die der Träger Rechnungen oder
+Bescheide richtet und von der er den Beitrag bekommt. Ein Zahler muss kein
+Elternteil sein.
+_Vermeiden_: Rechnungsempfänger, Payer.
+
+## Familie
+
+Eine **Familie** ist beim Träger die bestätigte Gruppe aus Kindern mit
+Betreuungsvertrag und ihren Zahlern. Geschwister im Sinn der Beitragsregeln
+sind Kinder derselben Familie, auch an verschiedenen Schulen des Trägers. moto
+schlägt eine Familie vor, die Abrechnung bestätigt sie.
+_Vermeiden_: Haushalt.
+
+## Mensa-Monatsfreigabe
+
+Mit der **Mensa-Monatsfreigabe** bestätigt die OGS-Leitung, dass Anwesenheit und
+Abmeldungen eines Monats stimmen. Erst danach rechnet die Elternabrechnung die
+Mensa dieser OGS für den Monat spitz ab.
+
+## Beitragsposition
+
+Eine **Beitragsposition** ist eine einzelne, nachrechenbare Zeile einer
+Elternabrechnung: der Grundpreis eines Tarifs oder die Wirkung einer
+Beitragsregel (Einkommensstufe, Geschwister, Höchstbetrag, Kostenträger,
+Korrektur). Jede Position ist auf volle Cent gerundet. Ein Beitrag ist die
+Summe seiner Positionen.
+
+## Abrechnungslauf
+
+Ein **Abrechnungslauf** berechnet für einen Monat oder einen Ferienzeitraum die
+Beiträge aller Betreuungsverträge eines Trägers. Bis zur Freigabe darf die
+Abrechnung prüfen, korrigieren und neu berechnen. Mit der Freigabe werden alle
+Beitragsdokumente des Laufs ausgestellt.
+
+## Beitragsdokument
+
+Ein **Beitragsdokument** ist das, was ein Abrechnungslauf an einen Zahler
+richtet: eine Rechnung, ein Gebührenbescheid oder ein Bestätigungsschreiben.
+Welche Art es ist, legt der Träger je Leistung fest.
+_Vermeiden_: Rechnung als Oberbegriff (ein Bescheid ist keine Rechnung).
+
+## Rechnungssteller
+
+Der **Rechnungssteller** ist die Stelle, die ein Beitragsdokument ausstellt und
+den Beitrag bekommt: der Träger, eine Gemeinde oder ein Schulträger. Ein Träger
+kann mehrere haben. Mandate gelten für genau einen Rechnungssteller.
+
+## Kostenträger
+
+Ein **Kostenträger** ist eine Stelle, die einen Anteil am Beitrag eines Kindes
+übernimmt, etwa Bildung und Teilhabe oder das Jugendamt. Er ist ein Zahler und
+bekommt seinen Anteil in einem eigenen Beitragsdokument.
+_Vermeiden_: Zuschussgeber.
+
+## Nachberechnung
+
+Eine **Nachberechnung** ist eine Beitragsposition, die einen schon
+abgerechneten Zeitraum um die Differenz zu einer später wirksamen
+Vertragsversion korrigiert. Sie verweist auf das frühere Beitragsdokument und
+ändert es nicht.
+
+## Ausgestellt
+
+Ein Beitragsdokument ist **ausgestellt**, sobald sein Abrechnungslauf
+freigegeben ist. Erst dann bekommt das Dokument seine Nummer aus dem
+Nummernkreis. Ein ausgestelltes Dokument wird nie mehr geändert.
+_Vermeiden_: verschickt (Versand ist ein eigener Schritt), erstellt.
+
+## Storno und Gutschrift
+
+Ein **Storno** hebt ein ausgestelltes Beitragsdokument vollständig auf. Eine
+**Gutschrift** gibt einen Teil davon zurück. Beide sind eigene Dokumente mit
+eigener Nummer aus demselben Nummernkreis und verweisen auf das Original.
+_Vermeiden_: Rechnungskorrektur, Löschen einer Rechnung.
+
+## Personalstamm
+
+Der **Personalstamm** ist die eine Identität einer Person, die der Träger
+beschäftigt, über alle seine Schulen, mit der Personalnummer des Trägers.
+Personal, das der Träger nicht beschäftigt (Lehrkräfte des Landes, externe
+Betreuungskräfte, Kräfte von Kooperationspartnern), hat keinen Personalstamm
+und bleibt Personal der Schule.
+_Vermeiden_: Personalakte (meint das vollständige gesetzliche Archiv),
+Träger-Personensatz.
+
+## Arbeitsvertrag
+
+Ein **Arbeitsvertrag** ist ein Vertrag einer Person mit dem Träger, mit seiner
+Art (Vollzeit, Teilzeit, Minijob, Übungsleiter, Ehrenamt), seinem Soll und seinem
+eigenen Stundenkonto. Ein Personalstamm hat einen oder mehrere. Jede
+Beschäftigung an einer Schule gehört zu höchstens einem Arbeitsvertrag; ohne
+Arbeitsvertrag beschäftigt der Träger die Person nicht.
+_Vermeiden_: Beschäftigung (das ist der Verlauf an einer Schule), Stelle.
+
+Das **Vertragsende** beendet einen Arbeitsvertrag und mit ihm alle seine
+Beschäftigungen. Ein Personalaustritt an einer Schule beendet nur die
+Beschäftigung dort; der Arbeitsvertrag läuft weiter.
+_Vermeiden_: Austritt (für das Ende beim Träger), Kündigung.
+
+## Einsatzort
+
+Ein **Einsatzort** ist die Schule einer Beschäftigung, die zu einem
+Arbeitsvertrag gehört. Ein Arbeitsvertrag kann mehrere Einsatzorte haben.
+Genau einer davon ist der **Haupteinsatzort**; dessen Leitung entscheidet über
+Abwesenheitsanträge aus diesem Arbeitsvertrag.
+_Vermeiden_: Standort (meint die Schule allgemein), Stammschule.
+
+## Nachweis
+
+Ein **Nachweis** belegt am Personalstamm, dass eine gesetzlich oder vom Träger
+verlangte Voraussetzung erfüllt ist, etwa Führungszeugnis, Masernschutz oder
+Präventionsschulung, mit Datum der Vorlage, Ablaufdatum und Ergebnis. Beim
+Führungszeugnis hält moto nur die Einsichtnahme fest, keine Kopie. Eine Schule
+sieht für Personen an ihrem Einsatzort nur, ob der Nachweis vollständig ist,
+fehlt oder abläuft.
+_Vermeiden_: Qualifikation (ein Abschluss oder eine Fortbildung, je Schule),
+Personaldokument.
+
+## Vertretungspool
+
+Der **Vertretungspool** sind die Arbeitsverträge eines Trägers, die an jeder
+seiner Schulen eingesetzt werden können. Eine Person mit einem solchen
+Arbeitsvertrag ist ein **Springer**. Eine OGS-Leitung **blockt** einen
+Springer für Tage oder Zeiten; für genau diese Zeit ist ihre Schule sein
+Einsatzort. Andere Schulen sehen nur, dass und von welcher Schule er geblockt
+ist.
+_Vermeiden_: Springerpool, Vertretung (das ist die Zuordnung einer
+Ersatzperson zu Terminen innerhalb einer Schule), Reservierung.
+
 ## Personalaustritt
 
 Ein **Personalaustritt** beendet die Beschäftigung einer Person an einer
 Schule, ohne ihren Personensatz oder ihren Beschäftigungsverlauf zu löschen.
 Er entzieht den Schulzugang, beendet Gruppen-, Klassen- und Vertretungs-
-zuordnungen und gibt Transponder und Arbeitszeitmodell frei. Personal-
+zuordnungen und gibt den Transponder frei. Kontolink und Arbeitszeitmodell
+bleiben stehen, damit eine Wiederaufnahme sie wiederfindet. Personal-
 dokumente werden dabei endgültig entfernt; sie kehren durch nichts zurück.
 _Vermeiden_: Offboarding (nur im Code), Löschung, Deaktivierung.
 
@@ -722,7 +966,10 @@ Hintergrund eingesetzt ist.
 
 _Vermeiden_: Marketing-Bild, Screen, gestaltetes Bild (für Mockups).
 
-Hilfe-Screenshots im Hilfebereich sind keine Produkt-Screenshots.
+Website, Unterlagen und Hilfe zeigen jeweils die Produkt-Screenshots einer
+festgelegten Release-Version, nicht automatisch die neueste (ADR 0055).
+Hilfe-Bilder, die nicht aus der Shot-Liste stammen, sind keine
+Produkt-Screenshots.
 
 ## Löschfrist
 
@@ -744,3 +991,26 @@ AU-Bescheinigung. moto ist dafür Ablage, kein gesetzliches Archiv: Gesetzliche
 Aufbewahrungspflichten erfüllt der Träger in seinem eigenen Lohn- und
 Aktensystem.
 _Vermeiden_: Personalakte (meint das vollständige gesetzliche Archiv).
+
+## Backend-Modul
+
+Ein **Fachmodul** ist der Teil des Backends, der einen fachlichen Begriff von
+moto mit seinen Regeln und Daten besitzt. Ein **Plattformmodul** stellt eine
+gemeinsame Laufzeit bereit, etwa Mandanten, Transaktionen, Sicherheit oder
+Zustellung, und besitzt nicht die fachliche Bedeutung dessen, was es
+transportiert. moto hat 18 Fachmodule und 10 Plattformmodule:
+
+- Fachmodule: Identity & Access, People Directory, School Membership,
+  Organisation & Tenancy, School Structure, School Calendar, Facilities,
+  Enrollment, Care Plan, Timetable & Activities, Student Presence, Workforce,
+  Appointments, Communication, Device Fleet, Meal Plan, Feedback, File Storage.
+- Plattformmodule: Tenant Runtime, Transaction Runtime, Security Runtime,
+  Settings Platform, Delivery Platform, Observability, Audit Platform,
+  Scheduler Runtime, Document Rendering, Export Transfer.
+
+Projektionen, Workflows und Werkzeuge sind keine Module. Die Regeln für
+Module stehen in den Prinzipien-ADRs 0066 bis 0071, Einstieg und Liste in
+[ADR 0066](docs/adr/0066-principle-every-module-table-and-cross-owner-read-has-one-owner.md),
+die Übersicht in der
+[Architektur-README](backend/architecture/README.md#architecture-principles).
+_Vermeiden_: Service oder Domäne für ein Plattformmodul.

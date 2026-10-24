@@ -5,6 +5,8 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanTest "github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
@@ -21,7 +23,7 @@ func TestOfferingStorageOwnerCommandsRollbackAtEveryBoundary(t *testing.T) {
 			testpkg.OwnTenant(t)
 			phaseID, _, childID := testpkg.CreateAuditAdjustmentChain(t, db)
 			offering := testpkg.CreateTestCareOffering(t, db, phaseID, "Atomic offering")
-			choices, bookings := enrollmentTest.New(), carePlanTest.NewOfferingBookings()
+			choices, bookings := api.NewParentPortalEnrollments().Enrollment, carePlanTest.NewOfferingBookings()
 			ctx := testpkg.Ctx(t)
 			injected := errors.New("failure after owner command")
 			run := func(fail bool) error {
@@ -42,24 +44,24 @@ func TestOfferingStorageOwnerCommandsRollbackAtEveryBoundary(t *testing.T) {
 				})
 			}
 			require.ErrorIs(t, run(true), injected)
-			submitted, err := choices.SubmittedOfferingChoices(ctx, []int64{childID})
+			submitted, err := testpkg.TenantQuery1(t, ctx, db, choices.SubmittedOfferingChoices, []int64{childID})
 			require.NoError(t, err)
 			require.Empty(t, submitted)
-			effective, err := bookings.CareOfferingBookingHistory(ctx, []int64{childID})
+			effective, err := testpkg.TenantQuery1(t, ctx, db, bookings.CareOfferingBookingHistory, []int64{childID})
 			require.NoError(t, err)
 			require.Empty(t, effective)
 			require.NoError(t, run(false))
 			require.NoError(t, run(false))
-			submitted, err = choices.SubmittedOfferingChoices(ctx, []int64{childID})
+			submitted, err = testpkg.TenantQuery1(t, ctx, db, choices.SubmittedOfferingChoices, []int64{childID})
 			require.NoError(t, err)
 			require.Len(t, submitted, 1)
 			require.Equal(t, []string{"mon"}, submitted[0].SelectedDays)
-			effective, err = bookings.CareOfferingBookingHistory(ctx, []int64{childID})
+			effective, err = testpkg.TenantQuery1(t, ctx, db, bookings.CareOfferingBookingHistory, []int64{childID})
 			require.NoError(t, err)
 			require.Len(t, effective, 1)
 			require.Equal(t, []string{"mon", "wed"}, effective[0].EffectiveSelectedDays())
 			require.NoError(t, bookings.ReplaceCareOfferingBookings(ctx, childID, []careplan.CareOfferingBooking{{CareOfferingID: offering.ID, ManualSelectedDays: []string{"fri"}}}))
-			afterCorrection, err := choices.SubmittedOfferingChoices(ctx, []int64{childID})
+			afterCorrection, err := testpkg.TenantQuery1(t, ctx, db, choices.SubmittedOfferingChoices, []int64{childID})
 			require.NoError(t, err)
 			require.Equal(t, submitted, afterCorrection, "correcting effective care must preserve the submitted choice and notes")
 		})

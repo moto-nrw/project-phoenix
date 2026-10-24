@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
+	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/domain"
 )
 
@@ -29,17 +30,33 @@ type Store interface {
 	OldestPendingAge(context.Context, time.Time) (time.Duration, error)
 	ReplaceEmailDeliveries(context.Context, int64, string, int64, []domain.EmailDelivery) error
 	DeleteEmailDeliveries(context.Context, int64, string, int64) (int64, error)
-	EmailDeliveryStatuses(context.Context, int64, string, int64) ([]domain.EmailDeliveryStatus, error)
+	EmailDeliveryStatuses(context.Context, int64, string, int64) ([]deliveryContract.EmailDeliveryStatus, error)
 	AttachEmailOutbox(context.Context, int64, int64, int64) error
 	ClaimFailedEmailDelivery(context.Context, int64, int64) (bool, error)
 }
 
 type Provider interface {
-	Send(context.Context, domain.Intent) (domain.ProviderResult, error)
+	Send(context.Context, domain.Intent) (deliveryContract.ProviderResult, error)
 }
 
 type GuardianDirectory interface {
-	Resolve(context.Context, []int64) (map[int64]domain.GuardianDisplay, error)
+	ResolveGuardianDisplays(context.Context, []int64) ([]deliveryContract.GuardianDisplay, error)
 }
 
 type Observer func(domain.Observation)
+
+// RetentionStore deletes the delivery data of one school whose retention
+// window ended before the instant (#3955). Every statement runs on the
+// school's tenant transaction.
+type RetentionStore interface {
+	// DeleteExpiredEmailDeliveryLogs removes the delivery logs of the
+	// expired mails and the logs without a mail written before the instant.
+	DeleteExpiredEmailDeliveryLogs(ctx context.Context, tenantID int64, before time.Time) (int, error)
+	// DeleteExpiredEmailIntents removes the expired mails except the
+	// key-only templates.
+	DeleteExpiredEmailIntents(ctx context.Context, tenantID int64, before time.Time, keyOnlyTemplates []string) (int, error)
+	// ClearExpiredKeyOnlyEmailIntents empties relation, recipient, content and
+	// provider answer of the expired key-only mails not cleared yet.
+	ClearExpiredKeyOnlyEmailIntents(ctx context.Context, tenantID int64, before time.Time, keyOnlyTemplates []string) (int, error)
+	DeleteExpiredPushIntents(ctx context.Context, tenantID int64, before time.Time) (int, error)
+}

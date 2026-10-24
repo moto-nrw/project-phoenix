@@ -3,11 +3,11 @@ package test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -20,27 +20,27 @@ import (
 
 // CreateTestGuardianProfileNamed creates a guardian profile with the given
 // names in the test's tenant. email is made unique.
-func CreateTestGuardianProfileNamed(tb testing.TB, db *bun.DB, firstName, lastName, email string) *users.GuardianProfile {
+func CreateTestGuardianProfileNamed(tb testing.TB, db *bun.DB, firstName, lastName, email string) *GuardianProfile {
 	tb.Helper()
 	return CreateTestGuardianProfileForTenant(tb, db, fixtureTenantID(tb), firstName, lastName, email)
 }
 
 // CreateTestGuardianProfileForTenant creates a guardian profile in tenantID.
 // email is made unique.
-func CreateTestGuardianProfileForTenant(tb testing.TB, db *bun.DB, tenantID int64, firstName, lastName, email string) *users.GuardianProfile {
+func CreateTestGuardianProfileForTenant(tb testing.TB, db *bun.DB, tenantID int64, firstName, lastName, email string) *GuardianProfile {
 	tb.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	uniqueEmail := fmt.Sprintf(testEmailFormat, email, uniqueFixtureSuffix())
-	profile := &users.GuardianProfile{
+	profile := &GuardianProfile{
 		FirstName:              firstName,
 		LastName:               lastName,
 		Email:                  &uniqueEmail,
 		PreferredContactMethod: "email",
 		LanguagePreference:     "de",
 	}
-	profile.SetTenantID(tenantID)
+	profile.TenantID = tenantID
 	err := db.NewInsert().Model(profile).ModelTableExpr(`users.guardian_profiles`).Scan(ctx)
 	require.NoError(tb, err, "Failed to create test guardian profile")
 	return profile
@@ -49,19 +49,19 @@ func CreateTestGuardianProfileForTenant(tb testing.TB, db *bun.DB, tenantID int6
 // CreateTestStudentGuardianLink links a guardian to a student in the test's
 // tenant with the given role preset; the role decides the parents-portal
 // permissions exactly as the production link path does.
-func CreateTestStudentGuardianLink(tb testing.TB, db *bun.DB, studentID, guardianProfileID int64, role string) *users.StudentGuardian {
+func CreateTestStudentGuardianLink(tb testing.TB, db *bun.DB, studentID, guardianProfileID int64, role string) *StudentGuardian {
 	tb.Helper()
 	return CreateTestStudentGuardianLinkForTenant(tb, db, fixtureTenantID(tb), studentID, guardianProfileID, role)
 }
 
 // CreateTestStudentGuardianLinkForTenant links a guardian to a student in
 // tenantID with the given role preset.
-func CreateTestStudentGuardianLinkForTenant(tb testing.TB, db *bun.DB, tenantID, studentID, guardianProfileID int64, role string) *users.StudentGuardian {
+func CreateTestStudentGuardianLinkForTenant(tb testing.TB, db *bun.DB, tenantID, studentID, guardianProfileID int64, role string) *StudentGuardian {
 	tb.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	link := &users.StudentGuardian{
+	link := &StudentGuardian{
 		StudentID:          studentID,
 		GuardianProfileID:  guardianProfileID,
 		RelationshipType:   "parent",
@@ -70,7 +70,7 @@ func CreateTestStudentGuardianLinkForTenant(tb testing.TB, db *bun.DB, tenantID,
 		EmergencyPriority:  1,
 	}
 	ApplyStudentGuardianRole(link, role)
-	link.SetTenantID(tenantID)
+	link.TenantID = tenantID
 	require.NoError(tb, InsertTestStudentGuardian(ctx, db, link), "Failed to create student guardian link")
 	return link
 }
@@ -79,17 +79,8 @@ func CreateTestStudentGuardianLinkForTenant(tb testing.TB, db *bun.DB, tenantID,
 // statement: People Directory's relationship, Care Plan's pickup permission
 // and Identity & Access's portal access bound to the guardian's account. It
 // fills the link's ID and timestamps. A zero ID draws from the relationship
-// sequence. In a world restored before the Cutover
-// (RestoreGuardianStorageBeforeCutover) it writes the then authoritative
-// users.students_guardians instead.
-func InsertTestStudentGuardian(ctx context.Context, db bun.IDB, link *users.StudentGuardian) error {
-	historical, err := guardianStorageBeforeCutover(ctx, db)
-	if err != nil {
-		return err
-	}
-	if historical {
-		return db.NewInsert().Model(link).ModelTableExpr(`users.students_guardians`).Scan(ctx)
-	}
+// sequence.
+func InsertTestStudentGuardian(ctx context.Context, db bun.IDB, link *StudentGuardian) error {
 	permissions := []byte(`{}`)
 	if link.Permissions != nil {
 		var err error
@@ -125,7 +116,7 @@ func InsertTestStudentGuardian(ctx context.Context, db bun.IDB, link *users.Stud
 }
 
 // studentGuardianLinkSource joins the three owners of a relationship into
-// the users.StudentGuardian row shape, as the production guardian-link
+// the StudentGuardian row shape, as the production guardian-link
 // projection does. Test support may not import that module.
 const studentGuardianLinkSource = `(SELECT r.id, r.tenant_id, r.student_id, r.guardian_profile_id, r.relationship_type,
 	r.guardian_role, r.is_primary, r.is_emergency_contact, p.can_pickup, p.pickup_notes,
@@ -144,28 +135,36 @@ func StudentGuardianLinks(db bun.IDB) *bun.SelectQuery {
 	return db.NewSelect().TableExpr(studentGuardianLinkSource)
 }
 
-// guardianStorageBeforeCutover reports whether a test restored
-// users.students_guardians as the authoritative base table it was before the
-// Cutover (RestoreGuardianStorageBeforeCutover).
-func guardianStorageBeforeCutover(ctx context.Context, db bun.IDB) (bool, error) {
-	var historical bool
-	err := db.NewRaw(`SELECT to_regclass('users.students_guardians') IS NOT NULL AND NOT EXISTS (
-		SELECT 1 FROM pg_trigger WHERE tgname = 'students_guardians_route_compatibility'
-		AND tgrelid = to_regclass('users.students_guardians'))`).Scan(ctx, &historical)
-	return historical, err
+// GuardianLinks stands in for the guardian link projection in suites that
+// compose the retained People Directory repositories outside the root and
+// cannot reach it, over the same three-owner row source.
+type GuardianLinks struct{}
+
+// GuardianLinkRows is the link row source, scoped to tenantID when positive.
+func (GuardianLinks) GuardianLinkRows(db bun.IDB, tenantID int64) *bun.SelectQuery {
+	query := StudentGuardianLinks(db)
+	if tenantID <= 0 {
+		return query.Err(errors.New("fixture projection: tenant is required"))
+	}
+	query = query.Where(`"student_guardian".tenant_id = ?`, tenantID)
+	return query
 }
 
-// LoadTestStudentGuardian reads one link joined from its owners, or from users.students_guardians before the Cutover.
-func LoadTestStudentGuardian(ctx context.Context, db bun.IDB, linkID int64) (*users.StudentGuardian, error) {
-	historical, err := guardianStorageBeforeCutover(ctx, db)
-	if err != nil {
-		return nil, err
+// GuardianLinkModelRows is the link row source with BUN's model column
+// selection.
+func (GuardianLinks) GuardianLinkModelRows(db bun.IDB, tenantID int64, model any) *bun.SelectQuery {
+	query := db.NewSelect().Model(model).ModelTableExpr(studentGuardianLinkSource)
+	if tenantID <= 0 {
+		return query.Err(errors.New("fixture projection: tenant is required"))
 	}
-	var link users.StudentGuardian
+	query = query.Where(`"student_guardian".tenant_id = ?`, tenantID)
+	return query
+}
+
+// LoadTestStudentGuardian reads one link joined from its owners.
+func LoadTestStudentGuardian(ctx context.Context, db bun.IDB, linkID int64) (*StudentGuardian, error) {
+	var link StudentGuardian
 	query := db.NewSelect().Model(&link).ModelTableExpr(studentGuardianLinkSource)
-	if historical {
-		query = db.NewSelect().Model(&link).ModelTableExpr(`users.students_guardians AS "student_guardian"`)
-	}
 	if err := query.Where(`"student_guardian".id = ?`, linkID).Scan(ctx); err != nil {
 		return nil, err
 	}
@@ -173,37 +172,19 @@ func LoadTestStudentGuardian(ctx context.Context, db bun.IDB, linkID int64) (*us
 }
 
 // SetTestStudentGuardianPermissions replaces the portal permissions of a
-// stored link on its Identity & Access row, or on users.students_guardians
-// before the Cutover.
+// stored link on its Identity & Access row.
 func SetTestStudentGuardianPermissions(ctx context.Context, db bun.IDB, linkID int64, permissions map[string]interface{}) error {
-	historical, err := guardianStorageBeforeCutover(ctx, db)
-	if err != nil {
-		return err
-	}
 	encoded, err := json.Marshal(permissions)
 	if err != nil {
 		return err
 	}
-	statement := `UPDATE auth.guardian_student_access SET permissions = ?::jsonb WHERE relationship_id = ?`
-	if historical {
-		statement = `UPDATE users.students_guardians SET permissions = ?::jsonb WHERE id = ?`
-	}
-	_, err = db.ExecContext(ctx, statement, string(encoded), linkID)
+	_, err = db.ExecContext(ctx, `UPDATE auth.guardian_student_access SET permissions = ?::jsonb WHERE relationship_id = ?`, string(encoded), linkID)
 	return err
 }
 
-// setTestStudentGuardianRole writes a link's role on its relationship, or on
-// users.students_guardians before the Cutover.
+// setTestStudentGuardianRole writes a link's role on its relationship.
 func setTestStudentGuardianRole(ctx context.Context, db bun.IDB, linkID int64, role string) error {
-	historical, err := guardianStorageBeforeCutover(ctx, db)
-	if err != nil {
-		return err
-	}
-	statement := `UPDATE users.student_guardian_relationships SET guardian_role = ? WHERE id = ?`
-	if historical {
-		statement = `UPDATE users.students_guardians SET guardian_role = ? WHERE id = ?`
-	}
-	_, err = db.ExecContext(ctx, statement, role, linkID)
+	_, err := db.ExecContext(ctx, `UPDATE users.student_guardian_relationships SET guardian_role = ? WHERE id = ?`, role, linkID)
 	return err
 }
 
@@ -236,13 +217,13 @@ func StudentGuardianLinkGrantsPortalAccess(tb testing.TB, db *bun.DB, linkID int
 
 	link, err := LoadTestStudentGuardian(ctx, db, linkID)
 	require.NoError(tb, err, "Failed to load student guardian link")
-	return StudentGuardianHasPermission(link, securityruntime.GuardianPermissionPortalAccess)
+	return GuardianPermissionsGrant(link.Permissions, securityruntime.GuardianPermissionPortalAccess)
 }
 
 // ApplyStudentGuardianRole sets a relationship's role to the preset and its
 // parent-portal permissions to exactly the ones the preset grants, as the
 // owner's role assignment stores them.
-func ApplyStudentGuardianRole(link *users.StudentGuardian, role string) {
+func ApplyStudentGuardianRole(link *StudentGuardian, role string) {
 	if link == nil {
 		return
 	}
@@ -251,16 +232,37 @@ func ApplyStudentGuardianRole(link *users.StudentGuardian, role string) {
 	for _, permission := range granted {
 		permissions[permission] = true
 	}
-	link.SetGuardianAuthorizationData(normalized, permissions)
+	link.GuardianRole = normalized
+	link.Permissions = permissions
 }
 
-// StudentGuardianHasPermission reports whether the relationship grants the
-// parent-portal permission under the Security Runtime's stored-value rule.
-func StudentGuardianHasPermission(link *users.StudentGuardian, permission string) bool {
-	if link == nil {
+// GuardianPermissionsGrant reports whether a relationship's stored
+// parent-portal permissions grant permission under the Security Runtime's
+// stored-value rule.
+func GuardianPermissionsGrant(permissions any, permission string) bool {
+	if raw, ok := permissions.(json.RawMessage); ok {
+		return securityruntime.GuardianPermissionGrantedJSON(raw, permission)
+	}
+	values, ok := permissions.(map[string]any)
+	if !ok {
 		return false
 	}
-	_, _, _, _, _, permissions := link.GuardianAuthorizationData()
-	value, exists := permissions[permission]
+	value, exists := values[permission]
 	return exists && securityruntime.GuardianPermissionGranted(value)
+}
+
+// GuardianPermissionValueJSON reads the stored value without interpreting its grant.
+func GuardianPermissionValueJSON(raw json.RawMessage, permission string) any {
+	var values map[string]any
+	if json.Unmarshal(raw, &values) != nil {
+		return nil
+	}
+	return values[permission]
+}
+
+func (GuardianLinks) AllSchoolsGuardianLinkRows(db bun.IDB) *bun.SelectQuery {
+	return StudentGuardianLinks(db)
+}
+func (GuardianLinks) AllSchoolsGuardianLinkModelRows(db bun.IDB, model any) *bun.SelectQuery {
+	return db.NewSelect().Model(model).ModelTableExpr(studentGuardianLinkSource)
 }

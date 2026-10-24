@@ -1,13 +1,12 @@
 package enrollmenthttp_test
 
 import (
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	owner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -16,25 +15,20 @@ import (
 func TestOwnerOfferingSelectionsAtDate_DoesNotReturnFutureSelection(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 	fx := setupOfferingChangeFixture(t, env, "FutureSelection")
 
-	require.NoError(t, repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).ReplaceRequestChildOfferings(ctx, fx.childID, nil))
+	require.NoError(t, api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).ReplaceRequestChildOfferings(ctx, fx.childID, nil))
 	futureStart := calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(30)
-	require.NoError(t, repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(
+	require.NoError(t, api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(
 		ctx,
 		fx.childID,
 		owner.Date(futureStart),
 		[]*owner.RequestChildOffering{{CareOfferingID: fx.oldOffering.ID}},
 	))
 
-	links, err := env.repos.Enrollment().RequestChildOfferingsAtDate(
-		ctx,
-		fx.childID,
-		env.sourcePhase.ServiceStartDate,
-	)
+	links, err := testpkg.TenantQuery2(t, ctx, testpkg.SetupTestDB(t), env.repos.Enrollment().RequestChildOfferingsAtDate, fx.childID, env.sourcePhase.ServiceStartDate)
 	require.NoError(t, err)
 	require.Empty(t, links)
 }
@@ -48,14 +42,13 @@ func TestOwnerOfferingSelectionsAtDate_DoesNotReturnFutureSelection(t *testing.T
 func TestOwnerOfferingSelectionsBeforeServiceStart_ReturnsNextInterval(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 	fx := setupOfferingChangeFixture(t, env, "PreStartFallback")
 
 	beforeStart := calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(-10)
 
-	links, err := env.repos.Enrollment().RequestChildOfferingsAtDate(ctx, fx.childID, owner.Date(beforeStart))
+	links, err := testpkg.TenantQuery2(t, ctx, testpkg.SetupTestDB(t), env.repos.Enrollment().RequestChildOfferingsAtDate, fx.childID, owner.Date(beforeStart))
 	require.NoError(t, err)
 	require.NotEmpty(t, links,
 		"before the service start the repository reports the upcoming interval, not 'nothing booked'")
@@ -69,20 +62,19 @@ func TestOwnerOfferingSelectionsBeforeServiceStart_ReturnsNextInterval(t *testin
 func TestOwnerOfferingSelectionsAtDates_DoesNotReturnHistoricalSelection(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 	fx := setupOfferingChangeFixture(t, env, "HistoricalSelection")
 
 	futureStart := calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(30)
-	require.NoError(t, repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(
+	require.NoError(t, api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(
 		ctx,
 		fx.childID,
 		owner.Date(futureStart),
 		[]*owner.RequestChildOffering{{CareOfferingID: fx.newOffering.ID}},
 	))
 
-	links, err := env.repos.Enrollment().RequestChildOfferingsAtDates(ctx, map[int64]owner.Date{
+	links, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.Enrollment().RequestChildOfferingsAtDates, map[int64]owner.Date{
 		fx.childID: owner.Date(futureStart),
 	})
 	require.NoError(t, err)

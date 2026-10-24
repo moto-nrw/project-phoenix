@@ -6,12 +6,12 @@ import (
 	"testing"
 	"time"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+	fixtures "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest"
+
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -27,17 +27,19 @@ func TestTimetableOperationsRosterCombinesPlannedStudentsAndLiveDropIns(t *testi
 	deps := newTimetableOpsDeps()
 	wireAssignedStaff(deps, 650, 450, 240, instanceID)
 	deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
-	deps.studentRepo.byInstance[instanceID] = []*scheduleModels.InstanceStudent{
-		{StudentID: 530, Status: scheduleModels.AttendanceStatusExpected},
+	deps.studentRepo.byInstance[instanceID] = []*fixtures.InstanceStudent{fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+		fixtureRow.StudentID = 530
+		fixtureRow.Status = fixtures.AttendanceStatusExpected()
+	}),
 	}
 	deps.visitRepo.byActiveGroup[activeGroupID] = []*studentpresence.Visit{
 		{StudentID: 531, ActiveGroupID: activeGroupID, EntryTime: time.Date(2026, time.May, 10, 14, 5, 0, 0, time.UTC)},
 	}
 	deps.visitRepo.byActiveGroup[activeGroupID][0].ID = visitID
-	deps.students.byID[530] = &usersModels.Student{PersonID: 460, SchoolClass: "3a", GroupID: &groupID}
-	deps.students.byID[531] = &usersModels.Student{PersonID: 461, SchoolClass: "4b"}
-	deps.personService.people[460] = &usersModels.Person{FirstName: "Zoe", LastName: "Zimmer"}
-	deps.personService.people[461] = &usersModels.Person{FirstName: "Anna", LastName: "Anlauf"}
+	deps.students.byID[530] = &timetable.OperationStudent{PersonID: 460, SchoolClass: "3a", LifecycleStudent: timetable.LifecycleStudent{GroupID: &groupID}}
+	deps.students.byID[531] = &timetable.OperationStudent{PersonID: 461, SchoolClass: "4b"}
+	deps.personService.people[460] = &timetable.Person{FirstName: "Zoe", LastName: "Zimmer"}
+	deps.personService.people[461] = &timetable.Person{FirstName: "Anna", LastName: "Anlauf"}
 	deps.groups.names[groupID] = "OGS Blau"
 
 	roster, err := deps.service.Roster(context.Background(), 650, false, instanceID)
@@ -67,23 +69,26 @@ func TestTimetableOperationsRosterFlagsParallelPresence(t *testing.T) {
 	deps := newTimetableOpsDeps()
 	wireAssignedStaff(deps, 660, 480, 250, instanceID)
 	deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
-	deps.studentRepo.byInstance[instanceID] = []*scheduleModels.InstanceStudent{
-		{StudentID: 540, Status: scheduleModels.AttendanceStatusExpected},
-		{StudentID: 541, Status: scheduleModels.AttendanceStatusExpected},
+	deps.studentRepo.byInstance[instanceID] = []*fixtures.InstanceStudent{fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+		fixtureRow.StudentID = 540
+		fixtureRow.Status = fixtures.AttendanceStatusExpected()
+	}), fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+		fixtureRow.StudentID = 541
+		fixtureRow.Status = fixtures.AttendanceStatusExpected()
+	}),
 	}
-	deps.studentRepo.parallelPresence = []scheduleModels.ParallelPresence{
-		{
-			StudentID:  540,
-			InstanceID: otherInstanceID,
-			Title:      "GT 1",
-			StartTime:  time.Date(2026, time.May, 10, 12, 45, 0, 0, time.UTC),
-			EndTime:    time.Date(2026, time.May, 10, 13, 45, 0, 0, time.UTC),
-		},
+	deps.studentRepo.parallelPresence = []fixtures.ParallelPresence{*fixtures.NewParallelPresence(func(fixtureRow *fixtures.ParallelPresence) {
+		fixtureRow.StudentID = 540
+		fixtureRow.InstanceID = otherInstanceID
+		fixtureRow.Title = "GT 1"
+		fixtureRow.StartTime = time.Date(2026, time.May, 10, 12, 45, 0, 0, time.UTC)
+		fixtureRow.EndTime = time.Date(2026, time.May, 10, 13, 45, 0, 0, time.UTC)
+	}),
 	}
-	deps.students.byID[540] = &usersModels.Student{PersonID: 481, SchoolClass: "1a"}
-	deps.students.byID[541] = &usersModels.Student{PersonID: 482, SchoolClass: "1a"}
-	deps.personService.people[481] = &usersModels.Person{FirstName: "Mia", LastName: "Muster"}
-	deps.personService.people[482] = &usersModels.Person{FirstName: "Tom", LastName: "Test"}
+	deps.students.byID[540] = &timetable.OperationStudent{PersonID: 481, SchoolClass: "1a"}
+	deps.students.byID[541] = &timetable.OperationStudent{PersonID: 482, SchoolClass: "1a"}
+	deps.personService.people[481] = &timetable.Person{FirstName: "Mia", LastName: "Muster"}
+	deps.personService.people[482] = &timetable.Person{FirstName: "Tom", LastName: "Test"}
 
 	roster, err := deps.service.Roster(context.Background(), 660, false, instanceID)
 
@@ -111,18 +116,24 @@ func TestTimetableOperationsRosterLoadsEffectivePickupTimesForBlockDate(t *testi
 	deps := newTimetableOpsDeps()
 	wireAssignedStaff(deps, 664, 489, 254, instanceID)
 	deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
-	deps.instanceRepo.byID[instanceID].Date = scheduleModels.Date(blockDate)
-	deps.studentRepo.byInstance[instanceID] = []*scheduleModels.InstanceStudent{
-		{StudentID: 548, Status: scheduleModels.AttendanceStatusExpected},
-		{StudentID: 549, Status: scheduleModels.AttendanceStatusExpected},
-		{StudentID: 550, Status: scheduleModels.AttendanceStatusExpected},
+	deps.instanceRepo.byID[instanceID].Date = calendar.Date(blockDate)
+	deps.studentRepo.byInstance[instanceID] = []*fixtures.InstanceStudent{fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+		fixtureRow.StudentID = 548
+		fixtureRow.Status = fixtures.AttendanceStatusExpected()
+	}), fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+		fixtureRow.StudentID = 549
+		fixtureRow.Status = fixtures.AttendanceStatusExpected()
+	}), fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+		fixtureRow.StudentID = 550
+		fixtureRow.Status = fixtures.AttendanceStatusExpected()
+	}),
 	}
-	deps.students.byID[548] = &usersModels.Student{PersonID: 490, SchoolClass: "1a"}
-	deps.students.byID[549] = &usersModels.Student{PersonID: 491, SchoolClass: "1a"}
-	deps.students.byID[550] = &usersModels.Student{PersonID: 492, SchoolClass: "1a"}
-	deps.personService.people[490] = &usersModels.Person{FirstName: "Wochenplan", LastName: "Kind"}
-	deps.personService.people[491] = &usersModels.Person{FirstName: "Tagesänderung", LastName: "Kind"}
-	deps.personService.people[492] = &usersModels.Person{FirstName: "Ohne", LastName: "Gehzeit"}
+	deps.students.byID[548] = &timetable.OperationStudent{PersonID: 490, SchoolClass: "1a"}
+	deps.students.byID[549] = &timetable.OperationStudent{PersonID: 491, SchoolClass: "1a"}
+	deps.students.byID[550] = &timetable.OperationStudent{PersonID: 492, SchoolClass: "1a"}
+	deps.personService.people[490] = &timetable.Person{FirstName: "Wochenplan", LastName: "Kind"}
+	deps.personService.people[491] = &timetable.Person{FirstName: "Tagesänderung", LastName: "Kind"}
+	deps.personService.people[492] = &timetable.Person{FirstName: "Ohne", LastName: "Gehzeit"}
 	weekly := time.Date(1, time.January, 1, 15, 0, 0, 0, time.UTC)
 	override := time.Date(1, time.January, 1, 13, 30, 0, 0, time.UTC)
 	// Care Plan's effective time: the weekly plan, a day exception, and a
@@ -156,11 +167,13 @@ func TestTimetableOperationsRosterKeepsAttendanceUsableWhenPickupTimesFail(t *te
 	deps := newTimetableOpsDeps()
 	wireAssignedStaff(deps, 665, 493, 255, instanceID)
 	deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, 275)
-	deps.studentRepo.byInstance[instanceID] = []*scheduleModels.InstanceStudent{
-		{StudentID: 551, Status: scheduleModels.AttendanceStatusExpected},
+	deps.studentRepo.byInstance[instanceID] = []*fixtures.InstanceStudent{fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+		fixtureRow.StudentID = 551
+		fixtureRow.Status = fixtures.AttendanceStatusExpected()
+	}),
 	}
-	deps.students.byID[551] = &usersModels.Student{PersonID: 494, SchoolClass: "2b"}
-	deps.personService.people[494] = &usersModels.Person{FirstName: "Nora", LastName: "Nutzbar"}
+	deps.students.byID[551] = &timetable.OperationStudent{PersonID: 494, SchoolClass: "2b"}
+	deps.personService.people[494] = &timetable.Person{FirstName: "Nora", LastName: "Nutzbar"}
 	deps.pickupService.err = errors.New("pickup lookup failed")
 
 	roster, err := deps.service.Roster(context.Background(), 665, false, instanceID)
@@ -178,16 +191,17 @@ func TestTimetableOperationsRosterSkipsParallelPresenceForInactiveInstance(t *te
 	instanceID := int64(371)
 	deps := newTimetableOpsDeps()
 	wireAssignedStaff(deps, 661, 483, 251, instanceID)
-	completed := instanceWithTimes(instanceID, scheduleModels.InstanceStatusCompleted,
-		time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC),
+	completed := instanceWithTimes(instanceID, fixtures.InstanceStatusCompleted(), time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC),
 		time.Date(2026, time.May, 10, 15, 0, 0, 0, time.UTC))
 	completed.ID = instanceID
 	deps.instanceRepo.byID[instanceID] = completed
-	deps.studentRepo.byInstance[instanceID] = []*scheduleModels.InstanceStudent{
-		{StudentID: 545, Status: scheduleModels.AttendanceStatusPresent},
+	deps.studentRepo.byInstance[instanceID] = []*fixtures.InstanceStudent{fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+		fixtureRow.StudentID = 545
+		fixtureRow.Status = fixtures.AttendanceStatusPresent()
+	}),
 	}
-	deps.students.byID[545] = &usersModels.Student{PersonID: 484, SchoolClass: "2b"}
-	deps.personService.people[484] = &usersModels.Person{FirstName: "Lea", LastName: "Lang"}
+	deps.students.byID[545] = &timetable.OperationStudent{PersonID: 484, SchoolClass: "2b"}
+	deps.personService.people[484] = &timetable.Person{FirstName: "Lea", LastName: "Lang"}
 
 	roster, err := deps.service.Roster(context.Background(), 661, false, instanceID)
 
@@ -205,11 +219,13 @@ func TestTimetableOperationsRosterParallelPresenceLookupErrorFails(t *testing.T)
 	deps := newTimetableOpsDeps()
 	wireAssignedStaff(deps, 662, 485, 252, instanceID)
 	deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
-	deps.studentRepo.byInstance[instanceID] = []*scheduleModels.InstanceStudent{
-		{StudentID: 546, Status: scheduleModels.AttendanceStatusExpected},
+	deps.studentRepo.byInstance[instanceID] = []*fixtures.InstanceStudent{fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+		fixtureRow.StudentID = 546
+		fixtureRow.Status = fixtures.AttendanceStatusExpected()
+	}),
 	}
-	deps.students.byID[546] = &usersModels.Student{PersonID: 486, SchoolClass: "2b"}
-	deps.personService.people[486] = &usersModels.Person{FirstName: "Ben", LastName: "Berg"}
+	deps.students.byID[546] = &timetable.OperationStudent{PersonID: 486, SchoolClass: "2b"}
+	deps.personService.people[486] = &timetable.Person{FirstName: "Ben", LastName: "Berg"}
 	deps.studentRepo.parallelPresenceErr = errors.New("boom")
 
 	_, err := deps.service.Roster(context.Background(), 662, false, instanceID)
@@ -228,14 +244,17 @@ func TestTimetableOperationsTwoReadsAfterAttendanceWriteAgree(t *testing.T) {
 	deps := newTimetableOpsDeps()
 	wireAssignedStaff(deps, 663, 487, 253, instanceID)
 	deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
-	row := &scheduleModels.InstanceStudent{StudentID: 547, Status: scheduleModels.AttendanceStatusExpected}
+	row := fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+		fixtureRow.StudentID = 547
+		fixtureRow.Status = fixtures.AttendanceStatusExpected()
+	})
 	row.ID = 900
-	deps.studentRepo.byInstance[instanceID] = []*scheduleModels.InstanceStudent{row}
+	deps.studentRepo.byInstance[instanceID] = []*fixtures.InstanceStudent{row}
 	deps.studentRepo.byInstanceStudent[instanceStudentKey{instanceID, 547}] = row
-	deps.students.byID[547] = &usersModels.Student{PersonID: 488, SchoolClass: "3c"}
-	deps.personService.people[488] = &usersModels.Person{FirstName: "Ida", LastName: "Igel"}
+	deps.students.byID[547] = &timetable.OperationStudent{PersonID: 488, SchoolClass: "3c"}
+	deps.personService.people[488] = &timetable.Person{FirstName: "Ida", LastName: "Igel"}
 
-	status := scheduleModels.AttendanceStatusAbsent
+	status := fixtures.AttendanceStatusAbsent()
 	_, err := deps.service.PatchAttendance(context.Background(), 663, false, instanceID, 547, timetable.AttendancePatch{Status: &status})
 	require.NoError(t, err)
 	// The fake stores patches in `updates` without mutating the row; apply it
@@ -250,7 +269,7 @@ func TestTimetableOperationsTwoReadsAfterAttendanceWriteAgree(t *testing.T) {
 
 	assert.Equal(t, first.Rows, second.Rows)
 	require.Len(t, first.Rows, 1)
-	assert.Equal(t, scheduleModels.AttendanceStatusAbsent, first.Rows[0].Status)
+	assert.Equal(t, fixtures.AttendanceStatusAbsent(), first.Rows[0].Status)
 }
 
 // A completed block's verdict is frozen in the stored marker: the care plan may
@@ -263,16 +282,18 @@ func TestTimetableOperationsRosterFreezesCareDayVerdictOnCompletedInstance(t *te
 	instanceID := int64(366)
 	deps := newTimetableOpsDeps()
 	wireAssignedStaff(deps, 656, 456, 246, instanceID)
-	completed := instanceWithTimes(instanceID, scheduleModels.InstanceStatusCompleted,
-		time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC),
+	completed := instanceWithTimes(instanceID, fixtures.InstanceStatusCompleted(), time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC),
 		time.Date(2026, time.May, 10, 15, 0, 0, 0, time.UTC))
 	completed.ID = instanceID
 	deps.instanceRepo.byID[instanceID] = completed
-	deps.studentRepo.byInstance[instanceID] = []*scheduleModels.InstanceStudent{
-		{StudentID: 536, Status: scheduleModels.AttendanceStatusExpected, NotScheduled: true},
+	deps.studentRepo.byInstance[instanceID] = []*fixtures.InstanceStudent{fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+		fixtureRow.StudentID = 536
+		fixtureRow.Status = fixtures.AttendanceStatusExpected()
+		fixtureRow.NotScheduled = true
+	}),
 	}
-	deps.students.byID[536] = &usersModels.Student{PersonID: 466, SchoolClass: "3a"}
-	deps.personService.people[466] = &usersModels.Person{FirstName: "Nora", LastName: "Neu"}
+	deps.students.byID[536] = &timetable.OperationStudent{PersonID: 466, SchoolClass: "3a"}
+	deps.personService.people[466] = &timetable.Person{FirstName: "Nora", LastName: "Neu"}
 	// The plan says "booked" today — a later edit. It must not win over the marker.
 	deps.careDayService.byStudent[536] = timetable.CareDayScheduled
 
@@ -293,16 +314,17 @@ func TestTimetableOperationsRosterCompletedWithoutMarkerReportsUnknown(t *testin
 	instanceID := int64(367)
 	deps := newTimetableOpsDeps()
 	wireAssignedStaff(deps, 657, 457, 247, instanceID)
-	completed := instanceWithTimes(instanceID, scheduleModels.InstanceStatusCompleted,
-		time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC),
+	completed := instanceWithTimes(instanceID, fixtures.InstanceStatusCompleted(), time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC),
 		time.Date(2026, time.May, 10, 15, 0, 0, 0, time.UTC))
 	completed.ID = instanceID
 	deps.instanceRepo.byID[instanceID] = completed
-	deps.studentRepo.byInstance[instanceID] = []*scheduleModels.InstanceStudent{
-		{StudentID: 537, Status: scheduleModels.AttendanceStatusAbsent},
+	deps.studentRepo.byInstance[instanceID] = []*fixtures.InstanceStudent{fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+		fixtureRow.StudentID = 537
+		fixtureRow.Status = fixtures.AttendanceStatusAbsent()
+	}),
 	}
-	deps.students.byID[537] = &usersModels.Student{PersonID: 467, SchoolClass: "3a"}
-	deps.personService.people[467] = &usersModels.Person{FirstName: "Ole", LastName: "Ohm"}
+	deps.students.byID[537] = &timetable.OperationStudent{PersonID: 467, SchoolClass: "3a"}
+	deps.personService.people[467] = &timetable.Person{FirstName: "Ole", LastName: "Ohm"}
 	deps.careDayService.byStudent[537] = timetable.CareDayNotScheduled
 
 	roster, err := deps.service.Roster(context.Background(), 657, false, instanceID)
@@ -325,16 +347,23 @@ func TestTimetableOperationsRosterReportsStatusDayAbsenceOnUnbookedDay(t *testin
 	deps := newTimetableOpsDeps()
 	wireAssignedStaff(deps, 658, 458, 248, instanceID)
 	deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, 268)
-	deps.studentRepo.byInstance[instanceID] = []*scheduleModels.InstanceStudent{
+	deps.studentRepo.byInstance[instanceID] = []*fixtures.InstanceStudent{fixtures.
 		// Owned by a day status, on a day the plan does not book.
-		{StudentID: 538, Status: scheduleModels.AttendanceStatusAbsent, StudentStatusDayID: &statusDayID},
+		NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+			fixtureRow.StudentID = 538
+			fixtureRow.Status = fixtures.AttendanceStatusAbsent()
+			fixtureRow.StudentStatusDayID = &statusDayID
+		}), fixtures.
 		// Same verdict, but the absence is a human decision: it stays an absence.
-		{StudentID: 539, Status: scheduleModels.AttendanceStatusAbsent},
+		NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+			fixtureRow.StudentID = 539
+			fixtureRow.Status = fixtures.AttendanceStatusAbsent()
+		}),
 	}
-	deps.students.byID[538] = &usersModels.Student{PersonID: 468, SchoolClass: "3a"}
-	deps.students.byID[539] = &usersModels.Student{PersonID: 469, SchoolClass: "3a"}
-	deps.personService.people[468] = &usersModels.Person{FirstName: "Pia", LastName: "Plan"}
-	deps.personService.people[469] = &usersModels.Person{FirstName: "Rudi", LastName: "Rot"}
+	deps.students.byID[538] = &timetable.OperationStudent{PersonID: 468, SchoolClass: "3a"}
+	deps.students.byID[539] = &timetable.OperationStudent{PersonID: 469, SchoolClass: "3a"}
+	deps.personService.people[468] = &timetable.Person{FirstName: "Pia", LastName: "Plan"}
+	deps.personService.people[469] = &timetable.Person{FirstName: "Rudi", LastName: "Rot"}
 	deps.careDayService.byStudent[538] = timetable.CareDayNotScheduled
 	deps.careDayService.byStudent[539] = timetable.CareDayNotScheduled
 
@@ -366,16 +395,18 @@ func TestTimetableOperationsRosterFlagsArrivalAndClassMismatch(t *testing.T) {
 	wireAssignedStaff(deps, 651, 451, 241, instanceID)
 	deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
 	deps.instanceRepo.byID[instanceID].ActivityGroupID = &activityGroupID
-	deps.studentRepo.byInstance[instanceID] = []*scheduleModels.InstanceStudent{
-		{StudentID: studentID, Status: scheduleModels.AttendanceStatusExpected},
+	deps.studentRepo.byInstance[instanceID] = []*fixtures.InstanceStudent{fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+		fixtureRow.StudentID = studentID
+		fixtureRow.Status = fixtures.AttendanceStatusExpected()
+	}),
 	}
-	deps.activityGroups.byID[activityGroupID] = &activitiesModels.Group{EducationGroupID: &expectedGroupID}
-	deps.students.byID[studentID] = &usersModels.Student{PersonID: 462, SchoolClass: "3b", GroupID: &actualGroupID}
-	deps.personService.people[462] = &usersModels.Person{FirstName: "Nina", LastName: "Nachmittag"}
+	deps.activityGroups.byID[activityGroupID] = &activityContract.Group{EducationGroupID: &expectedGroupID}
+	deps.students.byID[studentID] = &timetable.OperationStudent{PersonID: 462, SchoolClass: "3b", LifecycleStudent: timetable.LifecycleStudent{GroupID: &actualGroupID}}
+	deps.personService.people[462] = &timetable.Person{FirstName: "Nina", LastName: "Nachmittag"}
 	deps.groups.names[expectedGroupID] = "Klasse 2a"
 	deps.groups.names[actualGroupID] = "Klasse 3b"
 	lateArrival := time.Date(2000, time.January, 1, 14, 30, 0, 0, time.UTC)
-	deps.arrivalService.byStudent[studentID] = &compose.ExpectedArrival{ArrivalTime: &lateArrival}
+	deps.arrivalService.byStudent[studentID] = &timetablePorts.ExpectedArrival{ArrivalTime: &lateArrival}
 
 	roster, err := deps.service.Roster(context.Background(), 651, false, instanceID)
 
@@ -406,19 +437,23 @@ func TestTimetableOperationsRosterChecksAllGroupTargets(t *testing.T) {
 	wireAssignedStaff(deps, 653, 453, 243, instanceID)
 	deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
 	deps.instanceRepo.byID[instanceID].ActivityGroupID = &activityGroupID
-	deps.studentRepo.byInstance[instanceID] = []*scheduleModels.InstanceStudent{
-		{StudentID: studentID, Status: scheduleModels.AttendanceStatusExpected},
-		{StudentID: outsideStudentID, Status: scheduleModels.AttendanceStatusExpected},
+	deps.studentRepo.byInstance[instanceID] = []*fixtures.InstanceStudent{fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+		fixtureRow.StudentID = studentID
+		fixtureRow.Status = fixtures.AttendanceStatusExpected()
+	}), fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+		fixtureRow.StudentID = outsideStudentID
+		fixtureRow.Status = fixtures.AttendanceStatusExpected()
+	}),
 	}
-	deps.activityGroups.byID[activityGroupID] = &activitiesModels.Group{EducationGroupID: &firstGroupID}
-	deps.activityGroups.targetsByGroup[activityGroupID] = []*activitiesModels.GroupTarget{
-		{TargetGroupType: activitiesModels.TargetGroupTypeGruppe, EducationGroupID: &firstGroupID},
-		{TargetGroupType: activitiesModels.TargetGroupTypeGruppe, EducationGroupID: &secondGroupID},
+	deps.activityGroups.byID[activityGroupID] = &activityContract.Group{EducationGroupID: &firstGroupID}
+	deps.activityGroups.targetsByGroup[activityGroupID] = []*activityContract.GroupTarget{
+		{TargetGroupType: activityContract.TargetGroupTypeGruppe, EducationGroupID: &firstGroupID},
+		{TargetGroupType: activityContract.TargetGroupTypeGruppe, EducationGroupID: &secondGroupID},
 	}
-	deps.students.byID[studentID] = &usersModels.Student{PersonID: 464, GroupID: &secondGroupID}
-	deps.students.byID[outsideStudentID] = &usersModels.Student{PersonID: 465, GroupID: &outsideGroupID}
-	deps.personService.people[464] = &usersModels.Person{FirstName: "Mia", LastName: "Mehrfach"}
-	deps.personService.people[465] = &usersModels.Person{FirstName: "Noah", LastName: "Außerhalb"}
+	deps.students.byID[studentID] = &timetable.OperationStudent{PersonID: 464, LifecycleStudent: timetable.LifecycleStudent{GroupID: &secondGroupID}}
+	deps.students.byID[outsideStudentID] = &timetable.OperationStudent{PersonID: 465, LifecycleStudent: timetable.LifecycleStudent{GroupID: &outsideGroupID}}
+	deps.personService.people[464] = &timetable.Person{FirstName: "Mia", LastName: "Mehrfach"}
+	deps.personService.people[465] = &timetable.Person{FirstName: "Noah", LastName: "Außerhalb"}
 
 	roster, err := deps.service.Roster(context.Background(), 653, false, instanceID)
 
@@ -456,12 +491,14 @@ func TestTimetableOperationsRosterWarningsBranches(t *testing.T) {
 		deps := newTimetableOpsDeps()
 		wireAssignedStaff(deps, 652, 452, 242, instanceID)
 		deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
-		deps.studentRepo.byInstance[instanceID] = []*scheduleModels.InstanceStudent{
-			{StudentID: studentID, Status: scheduleModels.AttendanceStatusExpected},
+		deps.studentRepo.byInstance[instanceID] = []*fixtures.InstanceStudent{fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+			fixtureRow.StudentID = studentID
+			fixtureRow.Status = fixtures.AttendanceStatusExpected()
+		}),
 		}
-		deps.students.byID[studentID] = &usersModels.Student{PersonID: 463, SchoolClass: "3c"}
-		deps.personService.people[463] = &usersModels.Person{FirstName: "Kai", LastName: "Kurz"}
-		deps.arrivalService.byStudent[studentID] = &compose.ExpectedArrival{IsException: true}
+		deps.students.byID[studentID] = &timetable.OperationStudent{PersonID: 463, SchoolClass: "3c"}
+		deps.personService.people[463] = &timetable.Person{FirstName: "Kai", LastName: "Kurz"}
+		deps.arrivalService.byStudent[studentID] = &timetablePorts.ExpectedArrival{IsException: true}
 
 		roster, err := deps.service.Roster(context.Background(), 652, false, instanceID)
 
@@ -474,11 +511,13 @@ func TestTimetableOperationsRosterWarningsBranches(t *testing.T) {
 		deps := newTimetableOpsDeps()
 		wireAssignedStaff(deps, 653, 453, 243, instanceID)
 		deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
-		deps.studentRepo.byInstance[instanceID] = []*scheduleModels.InstanceStudent{
-			{StudentID: studentID, Status: scheduleModels.AttendanceStatusExpected},
+		deps.studentRepo.byInstance[instanceID] = []*fixtures.InstanceStudent{fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+			fixtureRow.StudentID = studentID
+			fixtureRow.Status = fixtures.AttendanceStatusExpected()
+		}),
 		}
-		deps.students.byID[studentID] = &usersModels.Student{PersonID: 464, SchoolClass: "3c"}
-		deps.personService.people[464] = &usersModels.Person{FirstName: "Eli", LastName: "Error"}
+		deps.students.byID[studentID] = &timetable.OperationStudent{PersonID: 464, SchoolClass: "3c"}
+		deps.personService.people[464] = &timetable.Person{FirstName: "Eli", LastName: "Error"}
 		deps.arrivalService.err = errors.New("arrival failed")
 
 		roster, err := deps.service.Roster(context.Background(), 653, false, instanceID)

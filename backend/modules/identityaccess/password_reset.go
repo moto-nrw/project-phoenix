@@ -20,6 +20,20 @@ var (
 	ErrPasswordResetRateLimited = errors.New("too many password reset requests")
 )
 
+// The deployment's reset link lifetime (password_reset_token_expiry_minutes)
+// is bounded: an unset or non-positive value means 30 minutes, and no link
+// lives longer than a day.
+const (
+	passwordResetTokenExpiryFallbackMinutes = 30
+	passwordResetTokenExpiryMaxMinutes      = 1440
+)
+
+// PasswordResetTokenExpiry is the reset link lifetime for the configured
+// minutes.
+func PasswordResetTokenExpiry(configuredMinutes int) time.Duration {
+	return boundedLifetime(configuredMinutes, passwordResetTokenExpiryFallbackMinutes, passwordResetTokenExpiryMaxMinutes, time.Minute)
+}
+
 // PasswordResetScope names the portal a reset link opens.
 type PasswordResetScope string
 
@@ -68,27 +82,13 @@ type PasswordResets interface {
 	// issued (unknown address or no role of the scope's portal).
 	InitiatePasswordReset(ctx context.Context, email string, scope PasswordResetScope) (*PasswordResetLink, error)
 	ResetPassword(ctx context.Context, token, newPassword string) error
-	RecordPasswordResetDelivery(ctx context.Context, id int64, delivery TokenDelivery) error
+	PasswordResetDeliveryRecorder
 	DeleteSpentPasswordResetTokens(ctx context.Context) (int, error)
 	DeleteStalePasswordResetWindows(ctx context.Context) (int, error)
 }
 
-func (m *Module) InitiatePasswordReset(ctx context.Context, email string, scope PasswordResetScope) (*PasswordResetLink, error) {
-	return m.engine.InitiatePasswordReset(ctx, email, scope)
-}
-
-func (m *Module) ResetPassword(ctx context.Context, token, newPassword string) error {
-	return m.engine.ResetPassword(ctx, token, newPassword)
-}
-
-func (m *Module) RecordPasswordResetDelivery(ctx context.Context, id int64, delivery TokenDelivery) error {
-	return m.engine.RecordPasswordResetDelivery(ctx, id, delivery)
-}
-
-func (m *Module) DeleteSpentPasswordResetTokens(ctx context.Context) (int, error) {
-	return m.engine.DeleteSpentPasswordResetTokens(ctx)
-}
-
-func (m *Module) DeleteStalePasswordResetWindows(ctx context.Context) (int, error) {
-	return m.engine.DeleteStalePasswordResetWindows(ctx)
+// PasswordResetDeliveryRecorder records how the mail of a reset link fared;
+// the root's mail delivery reports through it.
+type PasswordResetDeliveryRecorder interface {
+	RecordPasswordResetDelivery(ctx context.Context, id int64, delivery TokenDelivery) error
 }

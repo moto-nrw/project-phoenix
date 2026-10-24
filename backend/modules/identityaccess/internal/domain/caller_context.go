@@ -16,6 +16,7 @@ var (
 	ErrCallerNotLinkedToStaff   = errors.New("user not linked to a staff member")
 	ErrCallerNotLinkedToTeacher = errors.New("user not linked to a teacher")
 	ErrCallerGroupNotFound      = errors.New("group not found")
+	ErrCallerSessionNotFound    = errors.New("session not found")
 )
 
 // Caller is the authenticated principal of a request, resolved at the

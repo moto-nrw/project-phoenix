@@ -13,6 +13,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	usersHTTP "github.com/moto-nrw/project-phoenix/modules/peopledirectory/http"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -88,9 +89,9 @@ func (response) Render(http.ResponseWriter, *http.Request) error { return nil }
 
 type errorResponse struct {
 	StatusCode int    `json:"-"`
-	Status     string `json:"status"`
+	Status     int    `json:"status"`
 	Kind       string `json:"kind"`
-	Error      string `json:"error"`
+	Detail     string `json:"detail"`
 }
 
 func (e errorResponse) Render(_ http.ResponseWriter, r *http.Request) error {
@@ -157,7 +158,7 @@ func newHarness(t *testing.T, directory *fakeDirectory) *harness {
 		},
 		NoContent: func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) },
 		Failure: func(w http.ResponseWriter, r *http.Request, kind usersHTTP.FailureKind, err error) {
-			_ = render.Render(w, r, errorResponse{StatusCode: statusOf[kind], Status: "error", Kind: string(kind), Error: err.Error()})
+			_ = render.Render(w, r, errorResponse{StatusCode: statusOf[kind], Status: statusOf[kind], Kind: string(kind), Detail: err.Error()})
 		},
 		AccountEmails: func(_ context.Context, ids []int64) (map[int64]string, error) {
 			h.lookups = append(h.lookups, ids)
@@ -173,6 +174,7 @@ func newHarness(t *testing.T, directory *fakeDirectory) *harness {
 		ObserveResponse: func(status int, code string) {
 			h.observed = append(h.observed, http.StatusText(status)+":"+code)
 		},
+		ParseIDParam: testpkg.ParseHTTPIDParam,
 	})
 	h.router = chi.NewRouter()
 	h.router.Mount("/users", resource.Router())
@@ -281,11 +283,14 @@ func TestGetPersonAddsAccountEmailAndMapsNotFound(t *testing.T) {
 
 	missing := h.do(t, http.MethodGet, "/users/8", nil)
 	assert.Equal(t, http.StatusNotFound, missing.Code)
-	assert.Equal(t, "person not found", decodeError(t, missing).Error)
+	assert.Equal(t, "person not found", decodeError(t, missing).Detail)
 
 	invalid := h.do(t, http.MethodGet, "/users/abc", nil)
 	assert.Equal(t, http.StatusBadRequest, invalid.Code)
-	assert.Equal(t, "invalid person ID", decodeError(t, invalid).Error)
+	assert.Equal(t, "invalid person ID", decodeError(t, invalid).Detail)
+	nonPositive := h.do(t, http.MethodGet, "/users/0", nil)
+	assert.Equal(t, http.StatusBadRequest, nonPositive.Code)
+	assert.Equal(t, "invalid person ID", decodeError(t, nonPositive).Detail)
 	assert.Contains(t, h.observed, "Not Found:not_found")
 	assert.Contains(t, h.observed, "Bad Request:invalid_parameters")
 }
@@ -300,15 +305,16 @@ func TestCreatePersonValidatesBodyAndForeignReferences(t *testing.T) {
 
 	missingName := h.do(t, http.MethodPost, "/users", map[string]any{"last_name": "Only"})
 	assert.Equal(t, http.StatusBadRequest, missingName.Code)
-	assert.Equal(t, "first name is required", decodeError(t, missingName).Error)
+	assert.Equal(t, string(usersHTTP.FailureInvalidRequest), decodeError(t, missingName).Kind)
+	assert.Contains(t, decodeError(t, missingName).Detail, "first_name")
 
 	unknownAccount := h.do(t, http.MethodPost, "/users", map[string]any{"first_name": "A", "last_name": "B", "account_id": 6})
 	assert.Equal(t, http.StatusNotFound, unknownAccount.Code)
-	assert.Equal(t, "account not found", decodeError(t, unknownAccount).Error)
+	assert.Equal(t, "account not found", decodeError(t, unknownAccount).Detail)
 
 	unknownTag := h.do(t, http.MethodPost, "/users", map[string]any{"first_name": "A", "last_name": "B", "tag_id": "zz:zz"})
 	assert.Equal(t, http.StatusNotFound, unknownTag.Code)
-	assert.Equal(t, "RFID card not found", decodeError(t, unknownTag).Error)
+	assert.Equal(t, "RFID card not found", decodeError(t, unknownTag).Detail)
 
 	created := h.do(t, http.MethodPost, "/users", map[string]any{"first_name": "A", "last_name": "B", "account_id": 5, "tag_id": "aa:bb"})
 	require.Equal(t, http.StatusCreated, created.Code)
@@ -368,7 +374,7 @@ func TestDeletePersonRespondsNoContentAndMapsModuleErrors(t *testing.T) {
 	directory.err = errors.New("storage down")
 	failed := h.do(t, http.MethodDelete, "/users/7", nil)
 	assert.Equal(t, http.StatusInternalServerError, failed.Code)
-	assert.Equal(t, "storage down", decodeError(t, failed).Error)
+	assert.Equal(t, "storage down", decodeError(t, failed).Detail)
 	assert.Contains(t, h.observed, "Internal Server Error:internal_error")
 }
 

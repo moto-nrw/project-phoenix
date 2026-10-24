@@ -42,7 +42,7 @@ func TestPickupExceptionUpdateReportsNotFoundWhenRowVanishedUnderLock(t *testing
 	for name, auto := range map[string]careplan.PickupAutoExcusal{"without auto excusal": nil, "with auto excusal": idleAutoExcusal{}} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			service := NewPickupSchedules(nil, vanishedExceptions{}, nil, passThroughTransaction{}, nil, auto, nil, nil)
+			service := NewPickupSchedules(nil, vanishedExceptions{}, nil, passThroughTransaction{}, nil, auto, nil, nil, nil)
 
 			_, err := service.UpdateException(context.Background(), 41, 42, "2026-09-21", nil, nil, true, nil)
 
@@ -67,7 +67,7 @@ func (racedExceptions) FindByIDForUpdate(context.Context, int64) (*careplan.Pick
 
 func TestPickupExceptionDeleteStaysIdempotentWhenRowVanishedUnderLock(t *testing.T) {
 	t.Parallel()
-	service := NewPickupSchedules(nil, racedExceptions{}, nil, passThroughTransaction{}, nil, nil, nil, nil)
+	service := NewPickupSchedules(nil, racedExceptions{}, nil, passThroughTransaction{}, nil, nil, nil, nil, nil)
 
 	err := service.DeleteStudentPickupException(context.Background(), 41, 42)
 

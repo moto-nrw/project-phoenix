@@ -3,22 +3,36 @@ import {
   render as rtlRender,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { setTestClock } from "~/test/clock";
 import { preloadDayPicker } from "~/components/ui/lazy-day-picker";
 import "@testing-library/jest-dom/vitest";
+import { NextIntlClientProvider } from "next-intl";
+import deMessages from "~/i18n/messages/de.json";
+
+// Real next-intl: the cutoff texts use ICU plurals the global mock cannot
+// render.
+vi.unmock("next-intl");
 
 const mocks = vi.hoisted(() => ({
   getDailyMealParticipants: vi.fn(),
   downloadDailyMealParticipants: vi.fn(),
+  getWeeklyMealParticipants: vi.fn(),
+  downloadWeeklyMealParticipants: vi.fn(),
+  setMealParticipantDay: vi.fn(),
   today: "2026-09-07",
 }));
 
-vi.mock("~/lib/meal-plan-api", () => ({
+vi.mock("~/lib/meal-plan-api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/meal-plan-api")>()),
   getDailyMealParticipants: mocks.getDailyMealParticipants,
   downloadDailyMealParticipants: mocks.downloadDailyMealParticipants,
+  getWeeklyMealParticipants: mocks.getWeeklyMealParticipants,
+  downloadWeeklyMealParticipants: mocks.downloadWeeklyMealParticipants,
+  setMealParticipantDay: mocks.setMealParticipantDay,
 }));
 
 vi.mock("~/lib/hooks/use-berlin-today", () => ({
@@ -31,7 +45,17 @@ import { catalogText } from "~/test/error-catalog-text";
 import { MealParticipantList } from "./meal-participant-list";
 
 function render(ui: ReactElement) {
-  return rtlRender(ui, { wrapper: ToastProvider });
+  return rtlRender(ui, {
+    wrapper: ({ children }) => (
+      <NextIntlClientProvider
+        locale="de"
+        messages={deMessages}
+        timeZone="Europe/Berlin"
+      >
+        <ToastProvider>{children}</ToastProvider>
+      </NextIntlClientProvider>
+    ),
+  });
 }
 
 // The kit loads the calendar grid lazily; load it once up front so a cold
@@ -164,7 +188,8 @@ describe("MealParticipantList", () => {
     ).toBeInTheDocument();
   });
 
-  it("groups the established PDF and Excel export actions", async () => {
+  // #4748: ein Export ohne Optionen steht im Menü, ein Eintrag pro Format.
+  it("offers PDF and Excel in one download menu", async () => {
     let finishPdf: () => void = () => undefined;
     mocks.downloadDailyMealParticipants
       .mockReturnValueOnce(
@@ -176,19 +201,10 @@ describe("MealParticipantList", () => {
     render(<MealParticipantList />);
 
     await screen.findByText("Mittagessen am 07.09.2026");
-    expect(
-      screen.getByRole("group", { name: "Tagesliste herunterladen" }),
-    ).toBeInTheDocument();
     fireEvent.click(
-      screen.getByRole("button", {
-        name: "Tagesliste als PDF herunterladen",
-      }),
+      screen.getByRole("button", { name: "Tagesliste herunterladen" }),
     );
-    expect(
-      screen.getByRole("button", {
-        name: "Tagesliste als PDF herunterladen",
-      }),
-    ).toHaveAttribute("aria-busy", "true");
+    fireEvent.click(screen.getByRole("menuitem", { name: "PDF" }));
     expect(screen.getByRole("status")).toHaveTextContent(
       "PDF wird heruntergeladen.",
     );
@@ -199,15 +215,14 @@ describe("MealParticipantList", () => {
       );
     });
     finishPdf();
-    await screen.findByRole("button", {
-      name: "Tagesliste als PDF herunterladen",
-    });
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent(""),
+    );
 
     fireEvent.click(
-      screen.getByRole("button", {
-        name: "Tagesliste als Excel-Datei herunterladen",
-      }),
+      screen.getByRole("button", { name: "Tagesliste herunterladen" }),
     );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Excel" }));
     await waitFor(() => {
       expect(mocks.downloadDailyMealParticipants).toHaveBeenCalledWith(
         "2026-09-07",
@@ -224,11 +239,11 @@ describe("MealParticipantList", () => {
       .mockResolvedValueOnce(undefined);
     render(<MealParticipantList />);
 
+    await screen.findByText("Mittagessen am 07.09.2026");
     fireEvent.click(
-      await screen.findByRole("button", {
-        name: "Tagesliste als PDF herunterladen",
-      }),
+      screen.getByRole("button", { name: "Tagesliste herunterladen" }),
     );
+    fireEvent.click(screen.getByRole("menuitem", { name: "PDF" }));
 
     expect(
       await screen.findByText(catalogText("general.server", "die Tagesliste")),
@@ -268,5 +283,286 @@ describe("MealParticipantList", () => {
     expect(
       (await screen.findAllByText("Keine Anmeldungen für diesen Tag")).length,
     ).toBeGreaterThan(0);
+  });
+
+  it("names the lead days of the cutoff on the daily list", async () => {
+    mocks.getDailyMealParticipants.mockResolvedValue({
+      date: "2026-09-07",
+      cutoffTime: "09:00",
+      cutoffLeadDays: 2,
+      participants: [],
+    });
+    render(<MealParticipantList />);
+
+    expect(
+      await screen.findByText(
+        "Änderungen für diesen Tag sind bis 09:00 Uhr 2 Werktage vorher möglich.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("shows the week with a mark per day and exports it", async () => {
+    mocks.getWeeklyMealParticipants.mockResolvedValue({
+      weekStart: "2026-09-07",
+      cutoffTime: "09:00",
+      cutoffLeadDays: 1,
+      days: [
+        {
+          date: "2026-09-07",
+          participants: [
+            {
+              studentId: "42",
+              firstName: "Mia",
+              lastName: "Muster",
+              schoolClass: "2a",
+            },
+            {
+              studentId: "43",
+              firstName: "Ben",
+              lastName: "Bauer",
+              schoolClass: "1b",
+            },
+          ],
+        },
+        { date: "2026-09-08", participants: [] },
+        {
+          date: "2026-09-09",
+          participants: [
+            {
+              studentId: "42",
+              firstName: "Mia",
+              lastName: "Muster",
+              schoolClass: "2a",
+            },
+          ],
+        },
+        { date: "2026-09-10", participants: [] },
+        { date: "2026-09-11", participants: [] },
+      ],
+    });
+    mocks.downloadWeeklyMealParticipants.mockResolvedValue(undefined);
+    render(<MealParticipantList />);
+    await screen.findByText("Mittagessen am 07.09.2026");
+
+    fireEvent.click(screen.getByRole("button", { name: "Woche" }));
+
+    expect(
+      await screen.findByText("Mittagessen vom 07.09.2026 bis 11.09.2026"),
+    ).toBeInTheDocument();
+    expect(mocks.getWeeklyMealParticipants).toHaveBeenCalledWith("2026-09-07");
+    expect(
+      screen.getByText(
+        "Änderungen sind bis 09:00 Uhr am Werktag davor möglich.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Wochenliste für die Küche" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Essen pro Tag:").parentElement).toHaveTextContent(
+      "Essen pro Tag: Mo 2 Kinder · Di 0 Kinder · Mi 1 Kind · Do 0 Kinder · Fr 0 Kinder",
+    );
+    expect(screen.getAllByText("Muster, Mia").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Bauer, Ben").length).toBeGreaterThan(0);
+    // Mia on Mon and Wed, Ben on Mon: three marks in all.
+    expect(
+      within(screen.getByRole("table")).getAllByText("angemeldet"),
+    ).toHaveLength(3);
+    expect(
+      screen.getByRole("table").querySelectorAll("svg.lucide-check"),
+    ).toHaveLength(3);
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Wochenliste herunterladen",
+      }),
+    );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Excel" }));
+    await waitFor(() => {
+      expect(mocks.downloadWeeklyMealParticipants).toHaveBeenCalledWith(
+        "2026-09-07",
+        "xlsx",
+      );
+    });
+    expect(mocks.downloadDailyMealParticipants).not.toHaveBeenCalled();
+  });
+
+  describe("#3164 cutoffs, closed days and team changes", () => {
+    const mia = {
+      studentId: "42",
+      firstName: "Mia",
+      lastName: "Muster",
+      schoolClass: "2a",
+    };
+    const ben = {
+      studentId: "43",
+      firstName: "Ben",
+      lastName: "Beispiel",
+      schoolClass: "3b",
+    };
+    const dailyList = (overrides: Record<string, unknown> = {}) => ({
+      date: "2026-09-07",
+      cutoffTime: "16:00",
+      cutoffLeadDays: 0,
+      cutoffWeekday: 3,
+      cancellationCutoffTime: "09:00",
+      cancellationCutoffLeadDays: 1,
+      closed: false,
+      participants: [mia],
+      available: [ben],
+      ...overrides,
+    });
+
+    it("names the weekday cutoff and the later cancellation cutoff", async () => {
+      mocks.getDailyMealParticipants.mockResolvedValue(dailyList());
+      render(<MealParticipantList />);
+
+      expect(
+        await screen.findByText(
+          "Änderungen sind bis Mittwoch der Vorwoche, 16:00 Uhr, möglich.",
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText("Abmelden geht bis 09:00 Uhr am Werktag davor."),
+      ).toBeInTheDocument();
+      // Without the permission there is nothing to change.
+      expect(screen.getAllByText("Muster, Mia").length).toBeGreaterThan(0);
+      expect(
+        screen.queryByRole("button", { name: "Kind anmelden" }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("shows a closed day without a list or changes", async () => {
+      mocks.getDailyMealParticipants.mockResolvedValue(
+        dailyList({ closed: true, participants: [], available: [] }),
+      );
+      render(<MealParticipantList canChange />);
+
+      expect(
+        await screen.findByText("Kein Essen an diesem Tag"),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText("Dieser Tag ist ein Feiertag oder Schließtag."),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Kind anmelden" }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("lets the team sign a child up and off after the cutoff", async () => {
+      mocks.getDailyMealParticipants.mockResolvedValue(dailyList());
+      mocks.setMealParticipantDay.mockResolvedValue(undefined);
+      render(<MealParticipantList canChange />);
+
+      expect(
+        await screen.findByText(
+          "Sie können Kinder hier auch nach der Frist an- oder abmelden.",
+        ),
+      ).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "Kind anmelden" }));
+      const dialog = await screen.findByRole("dialog", {
+        name: "Kind für 07.09.2026 anmelden",
+      });
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Kind anmelden" }),
+      );
+      expect(
+        await within(dialog).findAllByText("Bitte wählen Sie ein Kind aus."),
+      ).not.toHaveLength(0);
+      expect(mocks.setMealParticipantDay).not.toHaveBeenCalled();
+
+      fireEvent.click(within(dialog).getByRole("combobox"));
+      fireEvent.click(
+        await screen.findByRole("option", { name: "Beispiel, Ben (3b)" }),
+      );
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Kind anmelden" }),
+      );
+      await waitFor(() => {
+        expect(mocks.setMealParticipantDay).toHaveBeenCalledWith(
+          "43",
+          "2026-09-07",
+          true,
+        );
+      });
+      expect(
+        await screen.findByText("Ben Beispiel ist für 07.09.2026 angemeldet."),
+      ).toBeInTheDocument();
+
+      fireEvent.click(
+        screen.getAllByRole("button", { name: "Aktionen für Mia Muster" })[0]!,
+      );
+      fireEvent.click(
+        await screen.findByRole("menuitem", { name: "Abmelden" }),
+      );
+      await waitFor(() => {
+        expect(mocks.setMealParticipantDay).toHaveBeenCalledWith(
+          "42",
+          "2026-09-07",
+          false,
+        );
+      });
+      expect(
+        mocks.getDailyMealParticipants.mock.calls.length,
+      ).toBeGreaterThanOrEqual(3);
+    });
+
+    it("offers no changes for a past day", async () => {
+      mocks.today = "2026-09-08";
+      mocks.getDailyMealParticipants.mockResolvedValue(dailyList());
+      render(<MealParticipantList canChange />);
+
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Datum: 08.09.2026" }),
+      );
+      fireEvent.click(
+        await screen.findByRole("button", {
+          name: /Montag, 7\. September 2026/,
+        }),
+      );
+      await waitFor(() => {
+        expect(mocks.getDailyMealParticipants).toHaveBeenCalledWith(
+          "2026-09-07",
+        );
+      });
+      expect(
+        (await screen.findAllByText("Muster, Mia")).length,
+      ).toBeGreaterThan(0);
+      expect(
+        screen.queryByRole("button", { name: "Kind anmelden" }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("marks a closed day in the week", async () => {
+      mocks.getDailyMealParticipants.mockResolvedValue(dailyList());
+      mocks.getWeeklyMealParticipants.mockResolvedValue({
+        weekStart: "2026-09-07",
+        cutoffTime: "09:00",
+        cutoffLeadDays: 1,
+        cutoffWeekday: 0,
+        cancellationCutoffTime: "",
+        cancellationCutoffLeadDays: 0,
+        days: [
+          { date: "2026-09-07", closed: false, participants: [mia] },
+          { date: "2026-09-08", closed: true, participants: [] },
+          { date: "2026-09-09", closed: false, participants: [] },
+          { date: "2026-09-10", closed: false, participants: [] },
+          { date: "2026-09-11", closed: false, participants: [] },
+        ],
+      });
+      render(<MealParticipantList />);
+      await screen.findAllByText("Muster, Mia");
+
+      fireEvent.click(screen.getByRole("button", { name: "Woche" }));
+
+      expect(
+        (await screen.findByText("Essen pro Tag:")).parentElement,
+      ).toHaveTextContent(
+        "Essen pro Tag: Mo 1 Kind · Di kein Essen · Mi 0 Kinder · Do 0 Kinder · Fr 0 Kinder",
+      );
+      expect(
+        within(screen.getByRole("table")).getAllByText("kein Essen").length,
+      ).toBeGreaterThan(0);
+    });
   });
 });

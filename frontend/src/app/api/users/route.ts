@@ -1,7 +1,6 @@
 // app/api/users/route.ts
 import type { NextRequest } from "next/server";
 import { apiGet, apiPost } from "~/lib/api-helpers.server";
-import { ApiResponseError } from "~/lib/api-helpers.server";
 import {
   createGetHandler,
   createPostHandler,
@@ -105,45 +104,6 @@ export const POST = createPostHandler<
     throw new Error("Missing required field: last_name cannot be blank");
   }
 
-  try {
-    // Create the person via the API
-    const response = await apiPost<BackendPersonResponse>(
-      "/api/users",
-      token,
-      body,
-    );
-
-    return response;
-  } catch (error) {
-    if (error instanceof ApiResponseError) throw error;
-    // Check for permission errors (403 Forbidden)
-    if (error instanceof Error && error.message.includes("403")) {
-      logger.error("permission denied when creating person", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-      throw new Error(
-        "Permission denied: You need the 'users:create' permission to create persons.",
-        { cause: error },
-      );
-    }
-
-    // Check for validation errors
-    if (error instanceof Error && error.message.includes("400")) {
-      const errorMessage = error.message;
-      logger.error("validation error when creating person", {
-        error: errorMessage,
-      });
-
-      // Extract specific error message if possible
-      if (errorMessage.includes("first name is required")) {
-        throw new Error("First name is required", { cause: error });
-      }
-      if (errorMessage.includes("last name is required")) {
-        throw new Error("Last name is required", { cause: error });
-      }
-    }
-
-    // Re-throw other errors
-    throw error;
-  }
+  // A backend failure (403, 400) keeps its envelope and status.
+  return apiPost<BackendPersonResponse>("/api/users", token, body);
 });

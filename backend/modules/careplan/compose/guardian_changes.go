@@ -10,7 +10,7 @@ import (
 )
 
 // GuardianAbsenceRecords and GuardianPickupRecords are satisfied by
-// *careplan.Module.
+// the Care Plan owner.
 type GuardianAbsenceRecords = ports.GuardianAbsenceRecords
 type GuardianPickupRecords = ports.GuardianPickupRecords
 

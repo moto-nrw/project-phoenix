@@ -2,6 +2,11 @@
 import { rejectRetiredStudentContacts } from "~/lib/student-request-helpers";
 import type { NextRequest } from "next/server";
 import { apiGet, apiPut, apiDelete } from "~/lib/api-helpers.server";
+import { problemBody } from "~/lib/api-error";
+import {
+  ApiResponseError,
+  isApiResponseError,
+} from "~/lib/api-response-error.server";
 import {
   createGetHandler,
   createPutHandler,
@@ -39,38 +44,32 @@ const PRIVACY_CONSENT_SAVED_DETAIL = "privacy_consent_saved";
  * backend payload is parsed and re-emitted rather than replaced, and only
  * `details` grows a key.
  */
-function markPrivacyConsentSaved(error: unknown): Error {
+function markPrivacyConsentSaved(error: unknown): ApiResponseError {
   const original = error instanceof Error ? error : new Error(String(error));
-  const status = /API error[:\s(]+(\d{3})/.exec(original.message)?.[1] ?? "500";
-
-  const jsonStart = original.message.indexOf("{");
-  let payload: Record<string, unknown> = {};
-  if (jsonStart !== -1) {
-    try {
-      payload = JSON.parse(original.message.substring(jsonStart)) as Record<
-        string,
-        unknown
-      >;
-    } catch {
-      // Not a JSON body (network error, plain-text upstream). The message below
-      // then carries the whole original text, which is what handleApiError
-      // would have shown anyway.
-      payload = {};
-    }
-  }
+  const status = isApiResponseError(original) ? original.status : 500;
+  const parsed = isApiResponseError(original)
+    ? original.body<Record<string, unknown>>()
+    : null;
+  // A body that is not an envelope (network error, plain-text upstream)
+  // becomes one, with the original text as its diagnostic detail.
+  const envelope: Record<string, unknown> =
+    parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)
+      ? parsed
+      : { ...problemBody(status, original.message) };
 
   const details = {
-    ...((payload.details as Record<string, unknown> | undefined) ?? {}),
+    ...((envelope.details as Record<string, unknown> | undefined) ?? {}),
     [PRIVACY_CONSENT_SAVED_DETAIL]: true,
   };
 
-  return new Error(
-    `API error (${status}): ${JSON.stringify({
-      ...payload,
-      error: payload.error ?? payload.message ?? original.message,
-      details,
-    })}`,
-    { cause: original },
+  return new ApiResponseError(
+    status,
+    JSON.stringify({ ...envelope, details }),
+    {
+      cause: original,
+      contentType: "application/problem+json",
+      retryAfter: isApiResponseError(original) ? original.retryAfter : null,
+    },
   );
 }
 

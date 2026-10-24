@@ -3,16 +3,14 @@ package compose_test
 import (
 	"context"
 	"encoding/json"
-	"log/slog"
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/api"
 	substitution "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -26,7 +24,7 @@ func TestScheduleSubstitutionExternalInterfacePartialCoverage(t *testing.T) {
 	room := testpkg.CreateTestRoom(t, db, "Teilvertretung")
 	absent := testpkg.CreateTestStaff(t, db, "Anna", "Abwesend")
 	replacement := testpkg.CreateTestStaff(t, db, "Bela", "Vertretung")
-	date := timezone.TodayDate().AddDays(1)
+	date := calendar.TodayDate().AddDays(1)
 	first := testpkg.CreateTestActivityInstance(t, db, date, room.ID, testpkg.ActivityInstanceOpts{Title: "Erster Termin"})
 	second := testpkg.CreateTestActivityInstance(t, db, date, room.ID, testpkg.ActivityInstanceOpts{Title: "Zweiter Termin", StartHHMM: "16:00", EndHHMM: "17:00"})
 	testpkg.CreateTestInstanceStaff(t, db, first.ID, absent.ID, testpkg.InstanceStaffOpts{})
@@ -46,12 +44,12 @@ func TestScheduleSubstitutionExternalInterfacePartialCoverage(t *testing.T) {
 	require.NotNil(t, result.ScheduleSubstitution)
 	require.Equal(t, 1, result.ScheduleSubstitution.TotalAffected)
 
-	firstRows, err := repos.InstanceStaff.FindByInstanceID(testpkg.Ctx(t), first.ID)
+	firstRows, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), db, repos.InstanceStaffReads().FindByInstanceID, first.ID)
 	require.NoError(t, err)
 	requireScheduleStaffState(t, firstRows, absent.ID, true, false)
 	requireScheduleStaffState(t, firstRows, replacement.ID, false, true)
 
-	secondRows, err := repos.InstanceStaff.FindByInstanceID(testpkg.Ctx(t), second.ID)
+	secondRows, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), db, repos.InstanceStaffReads().FindByInstanceID, second.ID)
 	require.NoError(t, err)
 	requireScheduleStaffState(t, secondRows, absent.ID, false, false)
 	for _, row := range secondRows {
@@ -66,7 +64,7 @@ func TestScheduleSubstitutionExternalInterfaceDayWideAbsence(t *testing.T) {
 
 	room := testpkg.CreateTestRoom(t, db, "Tagesweite Abwesenheit")
 	absent := testpkg.CreateTestStaff(t, db, "Tara", "Ganztägig")
-	date := timezone.TodayDate().AddDays(1)
+	date := calendar.TodayDate().AddDays(1)
 	first := testpkg.CreateTestActivityInstance(t, db, date, room.ID, testpkg.ActivityInstanceOpts{Title: "Früher Termin"})
 	second := testpkg.CreateTestActivityInstance(t, db, date, room.ID, testpkg.ActivityInstanceOpts{Title: "Später Termin", StartHHMM: "16:00", EndHHMM: "17:00"})
 	testpkg.CreateTestInstanceStaff(t, db, first.ID, absent.ID, testpkg.InstanceStaffOpts{})
@@ -83,7 +81,7 @@ func TestScheduleSubstitutionExternalInterfaceDayWideAbsence(t *testing.T) {
 	require.Equal(t, 2, result.ScheduleSubstitution.TotalAffected)
 
 	for _, instanceID := range []int64{first.ID, second.ID} {
-		rows, findErr := repos.InstanceStaff.FindByInstanceID(testpkg.Ctx(t), instanceID)
+		rows, findErr := testpkg.TenantQuery1(t, testpkg.Ctx(t), db, repos.InstanceStaffReads().FindByInstanceID, instanceID)
 		require.NoError(t, findErr)
 		requireScheduleStaffState(t, rows, absent.ID, true, false)
 	}
@@ -99,8 +97,8 @@ func TestScheduleSubstitutionExternalInterfaceActiveAppointmentSyncsOnce(t *test
 	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 	absent := testpkg.CreateTestStaff(t, db, "Alex", "Aktiv")
 	replacement := testpkg.CreateTestStaff(t, db, "Rita", "Ersatz")
-	instance := testpkg.CreateTestActivityInstance(t, db, timezone.TodayDate(), room.ID, testpkg.ActivityInstanceOpts{
-		Title: "Laufender Termin", Status: scheduleModels.InstanceStatusActive, ActiveGroupID: &activeGroup.ID,
+	instance := testpkg.CreateTestActivityInstance(t, db, calendar.TodayDate(), room.ID, testpkg.ActivityInstanceOpts{
+		Title: "Laufender Termin", Status: timetable.InstanceStatusActive, ActiveGroupID: &activeGroup.ID,
 	})
 	testpkg.CreateTestInstanceStaff(t, db, instance.ID, absent.ID, testpkg.InstanceStaffOpts{})
 	testpkg.CreateTestGroupSupervisor(t, db, absent.ID, activeGroup.ID, "supervisor")
@@ -117,7 +115,9 @@ func TestScheduleSubstitutionExternalInterfaceActiveAppointmentSyncsOnce(t *test
 	})
 	require.NoError(t, err)
 
-	activeSupervisors, err := repos.GroupSupervisor.FindByActiveGroupID(testpkg.Ctx(t), activeGroup.ID, true)
+	presence, err := api.NewTimetablePresenceRows(testpkg.NewDatabase(t, db), repos, owners.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
+	require.NoError(t, err)
+	activeSupervisors, err := presence.GroupSupervisor.FindByActiveGroupID(testpkg.Ctx(t), activeGroup.ID, true)
 	require.NoError(t, err)
 	require.Len(t, activeSupervisors, 1)
 	require.Equal(t, replacement.ID, activeSupervisors[0].StaffID)
@@ -133,7 +133,7 @@ func TestScheduleSubstitutionExternalInterfaceConflictRollsBack(t *testing.T) {
 	secondAbsent := testpkg.CreateTestStaff(t, db, "Zweite", "Abwesend")
 	existingReplacement := testpkg.CreateTestStaff(t, db, "Schon", "Eingetragen")
 	newReplacement := testpkg.CreateTestStaff(t, db, "Neu", "Gewählt")
-	date := timezone.TodayDate().AddDays(1)
+	date := calendar.TodayDate().AddDays(1)
 	first := testpkg.CreateTestActivityInstance(t, db, date, room.ID, testpkg.ActivityInstanceOpts{Title: "Schreibbarer Termin"})
 	conflicting := testpkg.CreateTestActivityInstance(t, db, date, room.ID, testpkg.ActivityInstanceOpts{Title: "Bereits vertreten", StartHHMM: "16:00", EndHHMM: "17:00"})
 	testpkg.CreateTestInstanceStaff(t, db, first.ID, firstAbsent.ID, testpkg.InstanceStaffOpts{})
@@ -154,7 +154,7 @@ func TestScheduleSubstitutionExternalInterfaceConflictRollsBack(t *testing.T) {
 	})
 	require.ErrorIs(t, err, substitution.ErrConflict)
 
-	firstRows, err := repos.InstanceStaff.FindByInstanceID(testpkg.Ctx(t), first.ID)
+	firstRows, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), db, repos.InstanceStaffReads().FindByInstanceID, first.ID)
 	require.NoError(t, err)
 	requireScheduleStaffState(t, firstRows, firstAbsent.ID, false, false)
 	for _, row := range firstRows {
@@ -170,7 +170,7 @@ func TestScheduleSubstitutionExternalInterfaceWriteFailureRollsBack(t *testing.T
 	room := testpkg.CreateTestRoom(t, db, "Rollback")
 	absent := testpkg.CreateTestStaff(t, db, "Romy", "Rollback")
 	replacement := testpkg.CreateTestStaff(t, db, "Fritz", "Fehler")
-	date := timezone.TodayDate().AddDays(1)
+	date := calendar.TodayDate().AddDays(1)
 	instance := testpkg.CreateTestActivityInstance(t, db, date, room.ID, testpkg.ActivityInstanceOpts{Title: "Rollback-Termin"})
 	testpkg.CreateTestInstanceStaff(t, db, instance.ID, absent.ID, testpkg.InstanceStaffOpts{})
 	selected := []int64{instance.ID}
@@ -189,7 +189,7 @@ func TestScheduleSubstitutionExternalInterfaceWriteFailureRollsBack(t *testing.T
 	})
 	require.Error(t, err)
 
-	rows, err := repos.InstanceStaff.FindByInstanceID(testpkg.Ctx(t), instance.ID)
+	rows, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), db, repos.InstanceStaffReads().FindByInstanceID, instance.ID)
 	require.NoError(t, err)
 	requireScheduleStaffState(t, rows, absent.ID, false, false)
 	for _, row := range rows {
@@ -206,7 +206,7 @@ func TestScheduleSubstitutionExternalInterfacePreservesStaffingRules(t *testing.
 	absent := testpkg.CreateTestStaff(t, db, "Ulla", "Unterbesetzt")
 	present := testpkg.CreateTestStaff(t, db, "Paul", "Anwesend")
 	replacement := testpkg.CreateTestStaff(t, db, "Vera", "Vertretung")
-	instance := testpkg.CreateTestActivityInstance(t, db, timezone.TodayDate().AddDays(1), room.ID, testpkg.ActivityInstanceOpts{Title: "Besetzungsregeln"})
+	instance := testpkg.CreateTestActivityInstance(t, db, calendar.TodayDate().AddDays(1), room.ID, testpkg.ActivityInstanceOpts{Title: "Besetzungsregeln"})
 	testpkg.CreateTestInstanceStaff(t, db, instance.ID, absent.ID, testpkg.InstanceStaffOpts{})
 	testpkg.CreateTestInstanceStaff(t, db, instance.ID, present.ID, testpkg.InstanceStaffOpts{})
 	selected := []int64{instance.ID}
@@ -256,7 +256,7 @@ func TestScheduleSubstitutionExternalInterfaceReportsTimeConflicts(t *testing.T)
 	room := testpkg.CreateTestRoom(t, db, "Zeitkonflikt")
 	absent := testpkg.CreateTestStaff(t, db, "Karla", "Abwesend")
 	replacement := testpkg.CreateTestStaff(t, db, "Theo", "Doppelt")
-	date := timezone.TodayDate().AddDays(1)
+	date := calendar.TodayDate().AddDays(1)
 	target := testpkg.CreateTestActivityInstance(t, db, date, room.ID, testpkg.ActivityInstanceOpts{Title: "Zieltermin"})
 	other := testpkg.CreateTestActivityInstance(t, db, date, room.ID, testpkg.ActivityInstanceOpts{Title: "Paralleler Termin", StartHHMM: "14:30", EndHHMM: "15:30"})
 	testpkg.CreateTestInstanceStaff(t, db, target.ID, absent.ID, testpkg.InstanceStaffOpts{})
@@ -286,7 +286,7 @@ func TestScheduleSubstitutionExternalInterfacePermissionAndTenantIsolation(t *te
 	room := testpkg.CreateTestRoom(t, db, "Berechtigung")
 	absent := testpkg.CreateTestStaff(t, db, "Pia", "Geplant")
 	replacement := testpkg.CreateTestStaff(t, db, "Bert", "Ersatz")
-	date := timezone.TodayDate().AddDays(1)
+	date := calendar.TodayDate().AddDays(1)
 	instance := testpkg.CreateTestActivityInstance(t, db, date, room.ID, testpkg.ActivityInstanceOpts{Title: "Eigener Termin"})
 	testpkg.CreateTestInstanceStaff(t, db, instance.ID, absent.ID, testpkg.InstanceStaffOpts{})
 	selected := []int64{instance.ID}
@@ -322,14 +322,11 @@ func TestScheduleSubstitutionExternalInterfacePermissionAndTenantIsolation(t *te
 		Date: testpkg.ScheduleDate(date), Title: "Fremder Termin", RoomID: foreignRoom.ID,
 		StartTime: time.Date(2000, time.January, 1, 14, 0, 0, 0, time.UTC),
 		EndTime:   time.Date(2000, time.January, 1, 15, 0, 0, 0, time.UTC),
-		Status:    scheduleModels.InstanceStatusPlanned,
+		Status:    timetable.InstanceStatusPlanned,
 	}
 	foreignInstance.TenantID = foreignTenant
 	testpkg.InsertActivityInstanceRow(t, context.Background(), db, foreignInstance)
-	foreignRow := &scheduleModels.InstanceStaff{InstanceID: foreignInstance.ID, StaffID: foreignAbsent.ID}
-	foreignRow.SetTenantID(foreignTenant)
-	_, err = db.NewInsert().Model(foreignRow).ModelTableExpr(`schedule.instance_staff`).Exec(context.Background())
-	require.NoError(t, err)
+	testpkg.CreateTestInstanceStaffForTenant(t, db, foreignTenant, foreignInstance.ID, foreignAbsent.ID, testpkg.InstanceStaffOpts{})
 
 	caller = scheduleSubstitutionCaller(t)
 	foreignSelected := []int64{foreignInstance.ID}
@@ -351,7 +348,7 @@ func TestScheduleSubstitutionExternalInterfaceUsesBulkPlanning(t *testing.T) {
 	room := testpkg.CreateTestRoom(t, db, "Sammelvertretung")
 	absent := testpkg.CreateTestStaff(t, db, "Sam", "Mehrere Tage")
 	replacement := testpkg.CreateTestStaff(t, db, "Mara", "Vertretung")
-	firstDate := timezone.TodayDate().AddDays(1)
+	firstDate := calendar.TodayDate().AddDays(1)
 	secondDate := firstDate.AddDays(1)
 	first := testpkg.CreateTestActivityInstance(t, db, firstDate, room.ID, testpkg.ActivityInstanceOpts{Title: "Erster Tag"})
 	second := testpkg.CreateTestActivityInstance(t, db, secondDate, room.ID, testpkg.ActivityInstanceOpts{Title: "Zweiter Tag"})
@@ -363,7 +360,7 @@ func TestScheduleSubstitutionExternalInterfaceUsesBulkPlanning(t *testing.T) {
 		ScheduleSubstitution: &substitution.ScheduleSubstitutionAssignment{
 			WholeDays: &substitution.ScheduleWholeDayAssignment{
 				AbsentStaffID: absent.ID, SubstituteStaffID: &replacement.ID,
-				Dates: []timezone.Date{firstDate, secondDate},
+				Dates: []calendar.Date{firstDate, secondDate},
 			},
 		},
 	})
@@ -371,7 +368,7 @@ func TestScheduleSubstitutionExternalInterfaceUsesBulkPlanning(t *testing.T) {
 	require.Len(t, result.ScheduleSubstitution.Days, 2)
 	require.Equal(t, 2, result.ScheduleSubstitution.TotalAffected)
 	for _, instanceID := range []int64{first.ID, second.ID} {
-		rows, findErr := repos.InstanceStaff.FindByInstanceID(testpkg.Ctx(t), instanceID)
+		rows, findErr := testpkg.TenantQuery1(t, testpkg.Ctx(t), db, repos.InstanceStaffReads().FindByInstanceID, instanceID)
 		require.NoError(t, findErr)
 		requireScheduleStaffState(t, rows, absent.ID, true, false)
 		requireScheduleStaffState(t, rows, replacement.ID, false, true)
@@ -386,7 +383,7 @@ func TestScheduleSubstitutionExternalInterfaceEndsTypedAppointmentSubstitution(t
 	room := testpkg.CreateTestRoom(t, db, "Vertretung beenden")
 	absent := testpkg.CreateTestStaff(t, db, "Erna", "Abwesend")
 	replacement := testpkg.CreateTestStaff(t, db, "Emil", "Ersatz")
-	instance := testpkg.CreateTestActivityInstance(t, db, timezone.TodayDate().AddDays(1), room.ID, testpkg.ActivityInstanceOpts{Title: "Terminvertretung"})
+	instance := testpkg.CreateTestActivityInstance(t, db, calendar.TodayDate().AddDays(1), room.ID, testpkg.ActivityInstanceOpts{Title: "Terminvertretung"})
 	testpkg.CreateTestInstanceStaff(t, db, instance.ID, absent.ID, testpkg.InstanceStaffOpts{})
 	selected := []int64{instance.ID}
 	caller := scheduleSubstitutionCaller(t)
@@ -401,7 +398,7 @@ func TestScheduleSubstitutionExternalInterfaceEndsTypedAppointmentSubstitution(t
 		},
 	})
 	require.NoError(t, err)
-	rows, err := repos.InstanceStaff.FindByInstanceID(testpkg.Ctx(t), instance.ID)
+	rows, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), db, repos.InstanceStaffReads().FindByInstanceID, instance.ID)
 	require.NoError(t, err)
 	var substitutionID int64
 	for _, row := range rows {
@@ -414,7 +411,7 @@ func TestScheduleSubstitutionExternalInterfaceEndsTypedAppointmentSubstitution(t
 	require.NoError(t, service.End(testpkg.Ctx(t), caller, substitution.EndRequest{
 		Type: substitution.TargetScheduleSubstitution, ID: substitutionID,
 	}))
-	rows, err = repos.InstanceStaff.FindByInstanceID(testpkg.Ctx(t), instance.ID)
+	rows, err = testpkg.TenantQuery1(t, testpkg.Ctx(t), db, repos.InstanceStaffReads().FindByInstanceID, instance.ID)
 	require.NoError(t, err)
 	requireScheduleStaffState(t, rows, absent.ID, true, false)
 	for _, row := range rows {
@@ -430,7 +427,7 @@ func TestScheduleSubstitutionExternalInterfaceReturnsNarrowOverview(t *testing.T
 	room := testpkg.CreateTestRoom(t, db, "Schmale Übersicht")
 	absent := testpkg.CreateTestStaff(t, db, "Nora", "Abwesend")
 	replacement := testpkg.CreateTestStaff(t, db, "Nils", "Vertretung")
-	date := timezone.TodayDate().AddDays(1)
+	date := calendar.TodayDate().AddDays(1)
 	instance := testpkg.CreateTestActivityInstance(t, db, date, room.ID, testpkg.ActivityInstanceOpts{Title: "Schmaler Termin"})
 	testpkg.CreateTestInstanceStaff(t, db, instance.ID, absent.ID, testpkg.InstanceStaffOpts{})
 	selected := []int64{instance.ID}
@@ -446,7 +443,7 @@ func TestScheduleSubstitutionExternalInterfaceReturnsNarrowOverview(t *testing.T
 	})
 	require.NoError(t, err)
 
-	overview, err := service.Overview(testpkg.Ctx(t), caller, substitution.OverviewQuery{
+	overview, err := testpkg.TenantQuery2(t, testpkg.Ctx(t), db, service.Overview, caller, substitution.OverviewQuery{
 		ScheduleFrom: &date, ScheduleTo: &date, IncludeScheduleTargets: true,
 	})
 	require.NoError(t, err)
@@ -463,7 +460,7 @@ func TestScheduleSubstitutionExternalInterfaceReturnsNarrowOverview(t *testing.T
 	require.Contains(t, overview.ScheduleTargets, substitution.StaffRef{ID: replacement.ID, FullName: "Nils Vertretung"})
 	readOnly := scheduleSubstitutionCaller(t)
 	readOnly.HasPermission = func(required string) bool { return required == "schedules:read" }
-	readOnlyOverview, err := service.Overview(testpkg.Ctx(t), readOnly, substitution.OverviewQuery{
+	readOnlyOverview, err := testpkg.TenantQuery2(t, testpkg.Ctx(t), db, service.Overview, readOnly, substitution.OverviewQuery{
 		ScheduleFrom: &date, ScheduleTo: &date,
 	})
 	require.NoError(t, err)
@@ -478,7 +475,32 @@ func TestScheduleSubstitutionExternalInterfaceReturnsNarrowOverview(t *testing.T
 	require.NotContains(t, string(payload), "person_id")
 }
 
-func requireScheduleStaffState(t *testing.T, rows []*scheduleModels.InstanceStaff, staffID int64, absent, substitute bool) {
+// An external caregiver is never a substitute (#4573 D6), so the overview
+// marks them among the schedule targets; the pickers leave them out while an
+// absence can still name them.
+func TestScheduleSubstitutionExternalInterfaceMarksExternalTargets(t *testing.T) {
+	t.Parallel()
+	db, _, service := newScheduleSubstitutionModule(t)
+
+	internal := testpkg.CreateTestStaff(t, db, "Ida", "Intern")
+	external := testpkg.CreateTestExternalCaregiverRecord(t, db, "Musik")
+	date := calendar.TodayDate().AddDays(1)
+
+	overview, err := testpkg.TenantQuery2(t, testpkg.Ctx(t), db, service.Overview, scheduleSubstitutionCaller(t), substitution.OverviewQuery{
+		ScheduleFrom: &date, ScheduleTo: &date, IncludeScheduleTargets: true,
+	})
+	require.NoError(t, err)
+	targets := make(map[int64]substitution.StaffRef, len(overview.ScheduleTargets))
+	for _, target := range overview.ScheduleTargets {
+		targets[target.ID] = target
+	}
+	require.Contains(t, targets, internal.ID)
+	require.False(t, targets[internal.ID].IsExternal)
+	require.Contains(t, targets, external.StaffID)
+	require.True(t, targets[external.StaffID].IsExternal)
+}
+
+func requireScheduleStaffState(t *testing.T, rows []*timetable.InstanceStaff, staffID int64, absent, substitute bool) {
 	t.Helper()
 	for _, row := range rows {
 		if row.StaffID == staffID {
@@ -502,11 +524,11 @@ func scheduleSubstitutionCaller(t *testing.T) substitution.Caller {
 	}
 }
 
-// newScheduleSubstitutionModule drives the substitution module's schedule half
-// through the composed workflow: the module keeps its own authorization and
-// transaction handling, the workflow performs the deviation writes.
-func newScheduleSubstitutionModule(t *testing.T) (*bun.DB, repositories.TimetableTestRepositories, substitution.SubstitutionModule) {
+// newScheduleSubstitutionModule drives the Terminvertretung entry the root
+// routes the schedule target to: it authorizes the caller, joins the request
+// transaction and performs the deviation writes.
+func newScheduleSubstitutionModule(t *testing.T) (*bun.DB, owners.TimetableTestRepositories, substitution.SubstitutionModule) {
 	t.Helper()
 	env := newPlanSyncEnv(t, nil, nil)
-	return env.db, env.repos, services.NewScheduleSubstitutionSuiteModule(env.substitution, testpkg.TenantTransactionRuntime{}, slog.Default())
+	return env.db, env.repos, env.substitution
 }

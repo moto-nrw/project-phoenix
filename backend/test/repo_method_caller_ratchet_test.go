@@ -15,8 +15,8 @@ import (
 // unnoticed (deleted in slice A3). This ratchet re-runs the audit's detection
 // continuously.
 //
-// Mechanism: every method declared in a models/*/repository.go interface (plus
-// models/config/setting_value_repository.go) must have at least one textual
+// Mechanism: every method declared in the native Timetable persistence
+// interfaces (relocated from the final models repositories) must have a textual
 // caller `.Name(` in non-test Go outside models/ and database/ — i.e. a
 // service, api, cmd, seed, or scheduler call site. A method with ZERO textual
 // hits anywhere is either dead or test-only and must appear in the allowlist
@@ -30,23 +30,8 @@ import (
 //
 // Repository interfaces may expose only methods with production callers.
 // Tests must verify behavior through live methods instead of preserving
-// test-only repository API; the single entry below is the documented
-// exception, not a place to park new dead API.
-var repoMethodZeroCallerAllowlist = map[string]string{
-	// users.StudentRepository.UpdateStatus is the deliberate test-only twin of
-	// the production TransitionStatus (compare-and-set). It is the isolation
-	// suite's only cover for the custom TenantWhere + AssertRowsAffected write
-	// path: cross-tenant UpdateStatus must return a "rows affected" error,
-	// which the compare-and-set form cannot express (it reports a stale
-	// transition as false, nil). Until #2676 the name had a production caller
-	// only by collision with the retired iot.DeviceRepository.UpdateStatus.
-	"UpdateStatus": "test-only twin of TransitionStatus; covers the tenant-guard write path in test/isolation_test.go",
-
-	// audit.DataDeletionRepository.FindByType is the same story: the name had
-	// a production caller only through the retired iot.DeviceRepository.
-	// It is covered by database/repositories/audit/data_deletion_repository_test.go.
-	"FindByType": "test-only audit deletion lookup; its production caller was the retired iot.DeviceRepository.FindByType",
-}
+// test-only repository API; an entry here needs a documented reason.
+var repoMethodZeroCallerAllowlist = map[string]string{}
 
 func TestRepoInterfaceMethodCallerRatchet(t *testing.T) {
 	t.Parallel()
@@ -93,16 +78,15 @@ func TestRepoInterfaceMethodCallerRatchet(t *testing.T) {
 }
 
 // collectRepoInterfaceMethods parses method declarations out of every
-// interface block in models/*/repository.go (+ the config setting-value
-// repository file), returning the deduplicated, sorted method-name list.
+// interface block in the native Timetable persistence files, returning the
+// deduplicated, sorted method-name list.
 func collectRepoInterfaceMethods(t *testing.T, backendRoot string) []string {
 	t.Helper()
 
-	files, globErr := filepath.Glob(filepath.Join(backendRoot, "models", "*", "repository.go"))
+	files, globErr := filepath.Glob(filepath.Join(backendRoot, "modules", "timetable", "ports", "*_persistence.go"))
 	if globErr != nil {
-		t.Fatalf("glob models repositories: %v", globErr)
+		t.Fatalf("glob native persistence capabilities: %v", globErr)
 	}
-	files = append(files, filepath.Join(backendRoot, "models", "config", "setting_value_repository.go"))
 
 	ifaceRe := regexp.MustCompile(`(?ms)^type \w+ interface \{(.*?)^\}`)
 	declRe := regexp.MustCompile(`(?m)^\t([A-Z]\w*)\(`)
@@ -111,7 +95,7 @@ func collectRepoInterfaceMethods(t *testing.T, backendRoot string) []string {
 	for _, f := range files {
 		data, readErr := os.ReadFile(f) // #nosec G304 -- test scans repo-local source files
 		if readErr != nil {
-			continue
+			t.Fatalf("read %s: %v", f, readErr)
 		}
 		for _, iface := range ifaceRe.FindAllStringSubmatch(string(data), -1) {
 			for _, decl := range declRe.FindAllStringSubmatch(iface[1], -1) {
@@ -128,41 +112,23 @@ func collectRepoInterfaceMethods(t *testing.T, backendRoot string) []string {
 	return names
 }
 
-// collectCallerFileContents loads every non-test .go file outside models/ and
-// database/ (the caller universe: services, api, auth, cmd, seed, scheduler,
-// simulate, tenant, realtime, internal, ...).
+// collectCallerFileContents loads every non-test .go file outside models/,
+// database/ and hidden directories from the shared goSourceIndex (the caller
+// universe: api, auth, cmd, modules, seed, workflows, ...).
 func collectCallerFileContents(t *testing.T, backendRoot string) []string {
 	t.Helper()
 
-	skipDirs := map[string]bool{"models": true, "database": true}
-	var contents []string
-	err := filepath.WalkDir(backendRoot, func(path string, d os.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		rel, relErr := filepath.Rel(backendRoot, path)
-		if relErr != nil {
-			return relErr
-		}
-		rel = filepath.ToSlash(rel)
-		if d.IsDir() {
-			if skipDirs[rel] || (strings.HasPrefix(d.Name(), ".") && rel != ".") {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
-			return nil
-		}
-		data, readErr := os.ReadFile(path) // #nosec G304 -- test scans repo-local source files
-		if readErr != nil {
-			return readErr
-		}
-		contents = append(contents, string(data))
-		return nil
-	})
+	files, err := goSourceIndex(backendRoot)
 	if err != nil {
 		t.Fatalf("walking backend for caller files: %v", err)
+	}
+	var contents []string
+	for _, f := range files {
+		if strings.HasSuffix(f.rel, "_test.go") || inDirNamed(f.rel) ||
+			strings.HasPrefix(f.rel, "models/") || strings.HasPrefix(f.rel, "database/") {
+			continue
+		}
+		contents = append(contents, string(f.content))
 	}
 	return contents
 }

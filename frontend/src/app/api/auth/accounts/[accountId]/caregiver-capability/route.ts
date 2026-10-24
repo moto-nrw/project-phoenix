@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
 import { createTenantJsonProxy } from "~/lib/backend-proxy-route.server";
+import { problemResponse } from "~/lib/api-helpers.server";
 
 const path = (
   _request: Request,
@@ -7,10 +7,7 @@ const path = (
 ) => {
   const accountId = params.accountId;
   if (typeof accountId !== "string" || !accountId) {
-    return NextResponse.json(
-      { error: "Invalid accountId parameter" },
-      { status: 400 },
-    );
+    return problemResponse(400, "Invalid accountId parameter", _request);
   }
   return `/auth/accounts/${encodeURIComponent(accountId)}/caregiver-capability`;
 };

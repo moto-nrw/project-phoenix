@@ -6,6 +6,7 @@ import {
 import { createLogger } from "~/lib/logger";
 import { readEnrollmentError } from "~/lib/enrollment-api-error";
 import type { Translations } from "~/lib/enrollment-translations";
+import type { FileFieldOptions } from "~/lib/enrollment-uploads";
 
 const logger = createLogger({ component: "EnrollmentFormSchemaAPI" });
 
@@ -23,7 +24,8 @@ export type FormFieldType =
   | "weekday_boolean"
   | "weekday_mode"
   | "weekday_multi_mode"
-  | "contact_list";
+  | "contact_list"
+  | "file";
 
 /**
  * Source of a field's visibility condition. Mirrors the backend
@@ -154,7 +156,15 @@ interface FormFieldValidation {
   pattern?: string | null;
 }
 
+export const MAX_ENROLLMENT_DOCUMENT_BYTES = 10 * 1024 * 1024;
+
+export interface FormAttachment {
+  label: string;
+  document_url: string;
+}
+
 export interface FormField {
+  attachments?: FormAttachment[];
   key: string;
   label: string;
   type: FormFieldType;
@@ -182,6 +192,12 @@ export interface FormField {
    * everywhere else.
    */
   single_mode_grades?: number[];
+  /**
+   * Rules of a `file` field (#4783): allowed file kinds, the size limit per
+   * file and whether parents may attach several files (at most 5). Required
+   * on `file` fields, rejected by the backend on every other type.
+   */
+  file_options?: FileFieldOptions;
   validation?: FormFieldValidation | null;
   sort_order: number;
   applies_to_child?: boolean;
@@ -216,6 +232,7 @@ type LegalBlockSource = "standard" | "custom";
 export type LegalBlockDisplayMode = "text" | "pdf";
 
 export interface FormLegalBlock {
+  attachments?: FormAttachment[];
   key: string;
   kind: LegalBlockKind;
   title: string;
@@ -247,7 +264,6 @@ interface BackendEnvelope<T> {
   status?: string;
   data?: T;
   message?: string;
-  error?: string;
   code?: string;
 }
 
@@ -294,21 +310,6 @@ export async function listSchemas(): Promise<FormSchema[]> {
   }
   const list = await readJSON<FormSchema[]>(response);
   return Array.isArray(list) ? list : [];
-}
-
-export async function fetchSchemaById(id: string): Promise<FormSchema> {
-  const response = await send(`${SCHEMA_PATH}/${encodeURIComponent(id)}`, {
-    cache: "no-store",
-  });
-  if (!response.ok) {
-    throw await readEnrollmentError(
-      response,
-      "Formularvorlage konnte nicht geladen werden",
-      logger,
-      "schema_fetch_by_id_failed",
-    );
-  }
-  return readJSON<FormSchema>(response);
 }
 
 export function latestSchemasByName(schemas: FormSchema[]): FormSchema[] {
@@ -388,9 +389,9 @@ export async function fetchEnrollmentPreviewBootstrap(params: {
 /**
  * Public Cloudflare Turnstile config for a tenant. enabled mirrors the
  * server-side enrollment.require_captcha setting; site_key is the
- * public Turnstile site key (safe to render in the widget). When
- * site_key is empty the widget is hidden and submit falls through;
- * the backend's IsEnabled check still gates verification.
+ * public Turnstile site key (safe to render in the widget). Only enabled
+ * captcha with a site key mounts the widget. Enabled captcha without a
+ * site key blocks submission; the backend also enforces verification.
  */
 export interface PublicCaptchaConfig {
   enabled: boolean;
@@ -414,6 +415,7 @@ export async function fetchPublicCaptchaConfig(
 }
 
 export interface PublicLegalBlock {
+  attachments?: FormAttachment[];
   key: string;
   kind: LegalBlockKind;
   title: string;

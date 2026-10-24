@@ -9,12 +9,6 @@ import (
 // Operator authentication errors (#3252). The HTTP layer switches on the
 // sentinels; the texts are the retained operator auth service's.
 var (
-	ErrOperatorInvalidCredentials = errors.New("invalid credentials")
-	ErrOperatorInactive           = errors.New("operator account is inactive")
-	// ErrOperatorRefreshTokenInvalid refuses a refresh whose session expired,
-	// was rotated already, was revoked, or never existed server-side.
-	ErrOperatorRefreshTokenInvalid = errors.New("operator refresh token is invalid")
-	ErrOperatorPasswordMismatch    = errors.New("current password is incorrect")
 	// ErrOperatorAuthenticationUnavailable reports a module composed without
 	// the operator dependencies.
 	ErrOperatorAuthenticationUnavailable = errors.New("operator authentication is not composed")
@@ -70,6 +64,10 @@ const (
 	OperatorAuditActionEmailChangeStarted = "email_change_initiated"
 	OperatorAuditActionEmailChangeDone    = "email_change_confirmed"
 	OperatorAuditResourceInvitation       = "invitation"
+
+	// Deactivation and reactivation of an operator account (#4047).
+	OperatorAuditActionDeactivated = "operator_deactivated"
+	OperatorAuditActionReactivated = "operator_reactivated"
 )
 
 // OperatorAuditEntry is one platform-scoped ledger entry: who did what to
@@ -141,9 +139,9 @@ func ValidateOperatorDisplayName(displayName string) (string, error) {
 	displayName = strings.TrimSpace(displayName)
 	switch {
 	case displayName == "":
-		return "", InvalidInput("display name is required")
+		return "", &InvalidInputError{Err: ErrOperatorDisplayNameRequired}
 	case len(displayName) > maxOperatorDisplayNameLength:
-		return "", InvalidInput("display name must not exceed 100 characters")
+		return "", &InvalidInputError{Err: ErrOperatorDisplayNameTooLong}
 	}
 	return displayName, nil
 }

@@ -15,6 +15,7 @@ import {
   ParentSectionSkeleton,
 } from "~/components/parent/parent-page";
 import { TenantProvider } from "~/lib/tenant-context";
+import { useAnalyticsSchoolPolicy } from "~/lib/hooks/use-analytics-school-policy";
 import { isSupportedGradeLevelMax } from "~/lib/grade-level";
 import {
   fetchParentEnrollmentProfile,
@@ -43,7 +44,13 @@ interface PageProps {
  */
 export default function ParentEnrollFormPage({ params }: PageProps) {
   return (
-    <Suspense fallback={<ParentPageSkeleton rows={3} />}>
+    <Suspense
+      fallback={
+        <TenantProvider tenantSlug="" tenant={null}>
+          <ParentPageSkeleton rows={3} />
+        </TenantProvider>
+      }
+    >
       <ParentEnrollFormPageContent params={params} />
     </Suspense>
   );
@@ -58,6 +65,7 @@ function ParentEnrollFormPageContent({ params }: PageProps) {
   const [loaded, setLoaded] = useState<{
     tenant: TenantInfo;
     prefetchedData: EnrollmentFormPrefetchedData;
+    targetPath: string;
   } | null>(null);
   const [loading, setLoading] = useState(true);
   // A failed load stays where the form would be, with retry (#2515).
@@ -67,6 +75,15 @@ function ParentEnrollFormPageContent({ params }: PageProps) {
     clear: clearLoadError,
   } = useApiLoadError();
   const [loadAttempt, setLoadAttempt] = useState(0);
+  const targetPath = `/anmeldung/${encodeURIComponent(tenantSlug)}/${encodeURIComponent(phaseId)}`;
+  useAnalyticsSchoolPolicy(
+    tenantSlug,
+    !loading &&
+      !loadError &&
+      loaded?.targetPath === targetPath &&
+      loaded.tenant.analyticsEnabled === true,
+    targetPath,
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -101,6 +118,7 @@ function ParentEnrollFormPageContent({ params }: PageProps) {
         setLoaded({
           tenant,
           prefetchedData: toParentPrefetchedData(bootstrap, profile),
+          targetPath,
         });
       })
       .catch((err: unknown) => {
@@ -125,6 +143,7 @@ function ParentEnrollFormPageContent({ params }: PageProps) {
     clearLoadError,
     showLoadError,
     t,
+    targetPath,
   ]);
 
   const handleSubmitted = (statusURL: string) => {
@@ -144,26 +163,29 @@ function ParentEnrollFormPageContent({ params }: PageProps) {
   );
 
   return (
-    <ParentPage>
-      <ParentPageHeader
-        kicker={t("parentEmbeddedKicker")}
-        title={t("formEyebrow")}
-        description={t("parentEmbeddedDescription")}
-        backHref={parentPath("/parents/anmeldung")}
-        backLabel={t("backToPicker")}
-      />
+    <TenantProvider
+      tenantSlug={tenantSlug}
+      tenant={loading || loadError ? null : (loaded?.tenant ?? null)}
+    >
+      <ParentPage>
+        <ParentPageHeader
+          kicker={t("parentEmbeddedKicker")}
+          title={t("formEyebrow")}
+          description={t("parentEmbeddedDescription")}
+          backHref={parentPath("/parents/anmeldung")}
+          backLabel={t("backToParentPicker")}
+        />
 
-      {loading ? (
-        <div className="space-y-5" aria-busy="true">
-          <span className="sr-only">{t("detailsLoading")}</span>
-          <ParentSectionSkeleton rows={4} />
-          <ParentSectionSkeleton rows={5} />
-          <ParentSectionSkeleton rows={3} />
-        </div>
-      ) : loadError || !loaded ? (
-        <LoadErrorAlert error={loadError ?? t("detailsLoadFailed")} />
-      ) : (
-        <TenantProvider tenantSlug={tenantSlug} tenant={loaded.tenant}>
+        {loading ? (
+          <div className="space-y-5" aria-busy="true">
+            <span className="sr-only">{t("detailsLoading")}</span>
+            <ParentSectionSkeleton rows={4} />
+            <ParentSectionSkeleton rows={5} />
+            <ParentSectionSkeleton rows={3} />
+          </div>
+        ) : loadError || !loaded ? (
+          <LoadErrorAlert error={loadError ?? t("detailsLoadFailed")} />
+        ) : (
           <EnrollmentForm
             phaseID={phaseId}
             gradeLevelMax={loaded.tenant.gradeLevelMax}
@@ -171,12 +193,13 @@ function ParentEnrollFormPageContent({ params }: PageProps) {
             prefetchedData={loaded.prefetchedData}
             submitter={submitter}
             lateInviteToken={lateInviteToken ?? undefined}
+            uploadEndpoint={`/api/parent/enrollments/${encodeURIComponent(tenantSlug)}/uploads`}
             skipCaptcha
             localizedCopy
           />
-        </TenantProvider>
-      )}
-    </ParentPage>
+        )}
+      </ParentPage>
+    </TenantProvider>
   );
 }
 

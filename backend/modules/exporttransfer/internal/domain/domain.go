@@ -48,29 +48,6 @@ type TargetState struct {
 // Ready reports whether a transfer may be started at all.
 func (s TargetState) Ready() bool { return s.Enabled && len(s.MissingSettings) == 0 }
 
-// Request is one transfer: which export, which file, on whose behalf. The
-// bytes are produced elsewhere — this capability never builds a file.
-type Request struct {
-	Kind           string
-	Format         string
-	Filename       string
-	Data           []byte
-	ActorAccountID int64
-	ActorName      string
-}
-
-// Result is the outcome of one attempt. A failure is a value, not an error:
-// a counterpart can be down, and that is a normal answer.
-type Result struct {
-	Success         bool
-	Filename        string
-	ByteSize        int64
-	TargetHost      string
-	TargetDirectory string
-	// Reason is empty on success, one of the codes above otherwise.
-	Reason string
-}
-
 // JournalEntry is one recorded attempt.
 //
 // It holds NO credentials: no username, no password, no host key. Host, port

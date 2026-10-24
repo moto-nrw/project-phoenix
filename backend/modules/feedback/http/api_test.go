@@ -10,10 +10,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api/testutil/routetest"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	feedbackModule "github.com/moto-nrw/project-phoenix/modules/feedback"
 	feedbackHTTP "github.com/moto-nrw/project-phoenix/modules/feedback/http"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -56,8 +59,9 @@ func (response) Render(http.ResponseWriter, *http.Request) error { return nil }
 
 type errorResponse struct {
 	StatusCode int    `json:"-"`
-	Status     string `json:"status"`
-	Error      string `json:"error"`
+	Status     int    `json:"status"`
+	Detail     string `json:"detail"`
+	Code       string `json:"code"`
 }
 
 func (e *errorResponse) Render(http.ResponseWriter, *http.Request) error { return nil }
@@ -67,7 +71,7 @@ func testResource(e engine) *feedbackHTTP.Resource {
 }
 
 func testResourceWithObserver(e engine, observe func(int, string)) *feedbackHTTP.Resource {
-	return feedbackHTTP.NewResource(feedbackModule.NewModule(e), feedbackHTTP.Runtime{
+	return feedbackHTTP.NewResource(e, feedbackHTTP.Runtime{
 		Protected: func(router chi.Router, register func(chi.Router, feedbackHTTP.Middleware)) {
 			register(router, func(next http.Handler) http.Handler { return next })
 		},
@@ -80,9 +84,10 @@ func testResourceWithObserver(e engine, observe func(int, string)) *feedbackHTTP
 		},
 		Failure: func(w http.ResponseWriter, r *http.Request, failure feedbackHTTP.Failure) {
 			render.Status(r, failure.Status)
-			require.NoError(testingT(r.Context()), render.Render(w, r, &errorResponse{StatusCode: failure.Status, Status: "error", Error: failure.Err.Error()}))
+			require.NoError(testingT(r.Context()), render.Render(w, r, &errorResponse{StatusCode: failure.Status, Status: failure.Status, Detail: failure.Err.Error(), Code: routetest.ClassCode(failure.Status)}))
 		},
 		ObserveResponse: observe,
+		ParseIDParam:    testpkg.ParseHTTPIDParam,
 	})
 }
 
@@ -139,11 +144,11 @@ func TestStaffErrorStatusesStayStable(t *testing.T) {
 		code int
 		body string
 	}{
-		{"not found", feedbackModule.ErrEntryNotFound, 404, `{"status":"error","error":"feedback entry not found"}`},
-		{"invalid", feedbackModule.ErrInvalidEntryData, 400, `{"status":"error","error":"invalid feedback entry data"}`},
-		{"range", feedbackModule.ErrInvalidDateRange, 400, `{"status":"error","error":"invalid date range"}`},
-		{"student", feedbackModule.ErrStudentNotFound, 404, `{"status":"error","error":"student not found"}`},
-		{"internal", errors.New("boom"), 500, `{"status":"error","error":"boom"}`},
+		{"not found", feedbackModule.ErrEntryNotFound, 404, `{"status":404,"detail":"feedback entry not found","code":"general.input"}`},
+		{"invalid", feedbackModule.ErrInvalidEntryData, 400, `{"status":400,"detail":"invalid feedback entry data","code":"general.input"}`},
+		{"range", feedbackModule.ErrInvalidDateRange, 400, `{"status":400,"detail":"invalid date range","code":"general.input"}`},
+		{"student", feedbackModule.ErrStudentNotFound, 404, `{"status":404,"detail":"student not found","code":"general.input"}`},
+		{"internal", errors.New("boom"), 500, `{"status":500,"detail":"boom","code":"general.server"}`},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -155,9 +160,25 @@ func TestStaffErrorStatusesStayStable(t *testing.T) {
 	}
 }
 
+func TestInvalidPathIDsAnswerBadRequest(t *testing.T) {
+	t.Parallel()
+	resource := testResource(engine{available: true})
+	for _, test := range []struct{ method, target, detail string }{
+		{http.MethodGet, "/abc", "invalid feedback ID"},
+		{http.MethodGet, "/0", "invalid feedback ID"},
+		{http.MethodDelete, "/-1", "invalid feedback ID"},
+		{http.MethodGet, "/student/abc", "invalid student ID"},
+		{http.MethodGet, "/student/0", "invalid student ID"},
+	} {
+		recorder := execute(t, resource, test.method, test.target, nil)
+		assert.Equal(t, http.StatusBadRequest, recorder.Code, test.target)
+		assert.Equal(t, `{"status":400,"detail":"`+test.detail+`","code":"general.input"}`+"\n", recorder.Body.String(), test.target)
+	}
+}
+
 func TestStudentReadDoesNotSwallowSettingsFailure(t *testing.T) {
 	t.Parallel()
-	recorder := execute(t, testResource(engine{availableErr: errors.New("settings down")}), http.MethodGet, "/student/42", nil)
+	recorder := execute(t, testResource(engine{err: errors.New("settings down")}), http.MethodGet, "/student/42", nil)
 	assert.Equal(t, http.StatusInternalServerError, recorder.Code)
 	assert.Contains(t, recorder.Body.String(), "settings down")
 }

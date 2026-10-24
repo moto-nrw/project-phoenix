@@ -3,8 +3,8 @@ package compose
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,7 +20,7 @@ func TestStaffAbsenceDateRangeContract(t *testing.T) {
 
 	t.Run("finds absences in date range", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
-		today := timezone.NewDate(2026, 8, 24)
+		today := calendar.NewDate(2026, 8, 24)
 		tomorrow := today.AddDays(1)
 		nextWeek := today.AddDays(7)
 
@@ -32,7 +32,7 @@ func TestStaffAbsenceDateRangeContract(t *testing.T) {
 			Status:      workforce.AbsenceStatusReported,
 			CreatedBy:   staff.ID,
 		}
-		absence, err := repo.CreateStaffAbsence(ctx, absence)
+		absence, err := repo.CreateStaffAbsence(ctx, &absence)
 		require.NoError(t, err)
 
 		absences, err := repo.ListStaffAbsences(ctx, workforce.StaffAbsenceFilter{
@@ -54,7 +54,7 @@ func TestStaffAbsenceDateRangeContract(t *testing.T) {
 
 	t.Run("returns empty for date range with no absences", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
-		futureDate := timezone.NewDate(2026, 8, 24).AddDays(365)
+		futureDate := calendar.NewDate(2026, 8, 24).AddDays(365)
 		absences, err := repo.ListStaffAbsences(ctx, workforce.StaffAbsenceFilter{
 			StaffID: staff.ID, OverlapFrom: futureDate.String(), OverlapTo: futureDate.String(),
 			Order: []workforce.StaffAbsenceOrder{{Field: workforce.StaffAbsenceOrderDateStart}},
@@ -65,7 +65,7 @@ func TestStaffAbsenceDateRangeContract(t *testing.T) {
 
 	t.Run("finds overlapping absences", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
-		today := timezone.NewDate(2026, 8, 24)
+		today := calendar.NewDate(2026, 8, 24)
 		yesterday := today.AddDays(-1)
 		tomorrow := today.AddDays(1)
 
@@ -78,7 +78,7 @@ func TestStaffAbsenceDateRangeContract(t *testing.T) {
 			Status:      workforce.AbsenceStatusApproved,
 			CreatedBy:   staff.ID,
 		}
-		_, err := repo.CreateStaffAbsence(ctx, absence)
+		_, err := repo.CreateStaffAbsence(ctx, &absence)
 		require.NoError(t, err)
 
 		// Query just for today should find the overlapping absence

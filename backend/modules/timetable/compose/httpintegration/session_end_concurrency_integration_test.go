@@ -5,8 +5,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/services"
+	fixtures "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -18,8 +20,10 @@ import (
 func TestSessionEndSerializesWithTimetableCancel(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
-	module, err := services.NewActiveTestModule(db, testpkg.TenantRuntime(t, db))
+	_, err := api.NewActiveTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
+	moduleTimetable, _ := api.NewActiveTestTimetable(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
+	moduleSessionEnd := api.NewActiveTestSessionEnd(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	activity := testpkg.CreateTestActivityGroup(t, db, "Concurrent session end")
 	room := testpkg.CreateTestRoom(t, db, "Concurrent session end")
 	group := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
@@ -39,7 +43,7 @@ func TestSessionEndSerializesWithTimetableCancel(t *testing.T) {
 			return err
 		}
 		go func() {
-			_, err := module.Instance.Cancel(ctx, instance.ID, nil, nil)
+			_, err := fixtures.FromInstanceLifecycle(moduleTimetable.Instance).Cancel(ctx, instance.ID, nil, nil)
 			cancelDone <- err
 		}()
 		require.Eventually(t, func() bool {
@@ -50,7 +54,7 @@ func TestSessionEndSerializesWithTimetableCancel(t *testing.T) {
 		if _, err := tx.NewRaw("SET LOCAL lock_timeout = '250ms'").Exec(txCtx); err != nil {
 			return err
 		}
-		_, err := module.SessionEnd.EndSession(txCtx, group.ID)
+		_, err := moduleSessionEnd.SessionEnd.EndSession(txCtx, group.ID)
 		return err
 	})
 	var cancelErr error

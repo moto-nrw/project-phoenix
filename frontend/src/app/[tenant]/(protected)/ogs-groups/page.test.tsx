@@ -2472,7 +2472,6 @@ describe("OGSGroupPage ID-based selection: First load initialization", () => {
     expect(localStorageMock).toMatchObject({
       "sidebar-last-group": "1",
       "sidebar-last-group-name": "Mondgruppe",
-      "sidebar-last-group-section": "other",
     });
   });
 
@@ -2741,7 +2740,6 @@ describe("OGSGroupPage ID-based selection: localStorage restore", () => {
     // call already targets group 2.
     localStorageMock["sidebar-last-group"] = "2";
     localStorageMock["sidebar-last-group-name"] = "Veraltete Gruppe";
-    localStorageMock["sidebar-last-group-section"] = "personal";
 
     vi.mocked(useSWRAuth).mockReturnValue({
       data: liveData({
@@ -2790,7 +2788,6 @@ describe("OGSGroupPage ID-based selection: localStorage restore", () => {
     expect(localStorageMock).toMatchObject({
       "sidebar-last-group": "2",
       "sidebar-last-group-name": "Mondgruppe",
-      "sidebar-last-group-section": "other",
     });
   });
 
@@ -2828,7 +2825,6 @@ describe("OGSGroupPage ID-based selection: localStorage restore", () => {
       expect(localStorageMock).toMatchObject({
         "sidebar-last-group": "1",
         "sidebar-last-group-name": "OGS Gruppe A",
-        "sidebar-last-group-section": "personal",
       });
     });
   });
@@ -3420,10 +3416,10 @@ describe("RoleGuard integration", () => {
   });
 });
 
-// #3890: Eine Gruppe aus „Weitere Gruppen" hieß im Titel „Meine Gruppen" und
-// stand im Breadcrumb unter „Meine Gruppe". Titel ist jetzt der Gruppenname,
-// der Breadcrumb nennt den Bereich, unter dem die Gruppe in der Leiste steht.
-describe("OGSGroupPage title and breadcrumb (#3890)", () => {
+// #3890 nannte den Bereich der Gruppe im Breadcrumb. Seit #4351 gibt es nur
+// noch den Eintrag „Gruppen“: Titel ist der Gruppenname, der Breadcrumb heißt
+// „Gruppen › Mondgruppe“, ob die Gruppe eine eigene ist oder nicht.
+describe("OGSGroupPage title and breadcrumb (#4351)", () => {
   function renderWithGroup(group: OgsLiveViewData["groups"][number]) {
     vi.mocked(useSWRAuth).mockReturnValue({
       data: liveData({ groups: [group], groupId: group.id }),
@@ -3435,7 +3431,7 @@ describe("OGSGroupPage title and breadcrumb (#3890)", () => {
     render(<OGSGroupPage />);
   }
 
-  it("titles a group from „Weitere Gruppen“ with its name and that section", async () => {
+  it("titles a foreign group with its name under „Gruppen“", async () => {
     renderWithGroup({
       id: "7",
       name: "Mondgruppe",
@@ -3447,16 +3443,15 @@ describe("OGSGroupPage title and breadcrumb (#3890)", () => {
       await screen.findByRole("heading", { level: 1, name: "Mondgruppe" }),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole("heading", { level: 1, name: "Meine Gruppen" }),
+      screen.queryByRole("heading", { level: 1, name: "Gruppen" }),
     ).not.toBeInTheDocument();
     expect(vi.mocked(useSetBreadcrumb)).toHaveBeenLastCalledWith({
       ogsGroupName: "Mondgruppe",
-      ogsGroupSection: "other",
-      pageTitle: "Weitere Gruppen",
+      pageTitle: "Gruppen",
     });
   });
 
-  it("keeps „Meine Gruppen“ as the section of an own group", async () => {
+  it("titles an own group the same way", async () => {
     renderWithGroup({
       id: "1",
       name: "Sonnengruppe",
@@ -3469,8 +3464,7 @@ describe("OGSGroupPage title and breadcrumb (#3890)", () => {
     ).toBeInTheDocument();
     expect(vi.mocked(useSetBreadcrumb)).toHaveBeenLastCalledWith({
       ogsGroupName: "Sonnengruppe",
-      ogsGroupSection: "personal",
-      pageTitle: "Meine Gruppen",
+      pageTitle: "Gruppen",
     });
   });
 });

@@ -5,7 +5,7 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
-import type { ReactElement } from "react";
+import { useState, type ReactElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { setTestClock } from "~/test/clock";
 
@@ -335,10 +335,62 @@ describe("StaffCalendarPage", () => {
     await waitFor(() =>
       expect(mockRespondStaffCalendar).toHaveBeenCalledWith("42", "accepted"),
     );
-    await waitFor(() => expect(mockMutate).toHaveBeenCalledOnce());
+    // Erst übernimmt der Cache die Antwort ohne Neuladen, dann lädt der
+    // Kalender einmal neu.
+    await waitFor(() => expect(mockMutate).toHaveBeenCalledTimes(2));
+    expect(mockMutate).toHaveBeenNthCalledWith(1, expect.any(Function), {
+      revalidate: false,
+    });
+    expect(mockMutate).toHaveBeenNthCalledWith(2);
     expect(mockToastSuccess).toHaveBeenCalledWith(
       "Ihre Zusage ist gespeichert.",
     );
+  });
+
+  // Wer den Termin nach dem Zusagen sofort wieder öffnet, sieht die gespeicherte
+  // Antwort, auch wenn der Kalender noch nicht neu geladen ist.
+  it("shows the stored RSVP when the event is reopened before the calendar reloads", async () => {
+    mockUseSWRAuth.mockImplementation(function useCalendarCache(key: unknown) {
+      const [data, setData] = useState(calendarResponse);
+      const cacheKey = typeof key === "string" ? key : "";
+      if (!cacheKey.startsWith("staff-calendar")) {
+        return {
+          data: cacheKey.startsWith("calendar-recipient-options")
+            ? recipientOptions
+            : undefined,
+          error: null,
+          isLoading: false,
+        };
+      }
+      return {
+        data,
+        error: null,
+        isLoading: false,
+        // Das Neuladen endet nie: nur die gespeicherte Antwort selbst darf
+        // die Ansicht ändern.
+        mutate: (update?: (current: CalendarResponse) => CalendarResponse) => {
+          if (update === undefined) return new Promise(() => undefined);
+          setData((current) => update(current));
+          return Promise.resolve();
+        },
+      };
+    });
+    render(<StaffCalendarPage />);
+    const eventBlock = () =>
+      screen.getAllByRole("button", { name: /Teamplanung/, hidden: true })[0]!;
+
+    fireEvent.click(eventBlock());
+    fireEvent.click(screen.getByRole("button", { name: "Zusagen" }));
+    await waitFor(() =>
+      expect(mockToastSuccess).toHaveBeenCalledWith(
+        "Ihre Zusage ist gespeichert.",
+      ),
+    );
+
+    fireEvent.click(eventBlock());
+    const detail = await screen.findByRole("dialog", { name: "Termin" });
+    expect(within(detail).getByText("Zugesagt")).toBeInTheDocument();
+    expect(within(detail).queryByText("Offen")).not.toBeInTheDocument();
   });
 
   // #2517: eine Aktion ohne Formular meldet sich im Toast, mit Katalogtext
@@ -792,6 +844,8 @@ describe("StaffCalendarPage", () => {
 
     render(<StaffCalendarPage />);
 
+    // Anker: die eigenen Termine sind geladen, nur die Reiter fehlen.
+    expect(screen.getAllByText("Teamplanung").length).toBeGreaterThan(0);
     expect(screen.queryByRole("tab")).not.toBeInTheDocument();
   });
 
@@ -803,6 +857,8 @@ describe("StaffCalendarPage", () => {
 
     render(<StaffCalendarPage />);
 
+    // Anker: die eigenen Termine sind geladen, nur die Reiter fehlen.
+    expect(screen.getAllByText("Teamplanung").length).toBeGreaterThan(0);
     expect(screen.queryByRole("tab")).not.toBeInTheDocument();
   });
 
@@ -814,6 +870,9 @@ describe("StaffCalendarPage", () => {
 
     render(<StaffCalendarPage />);
 
+    // Anker: der Reiter „Meine Termine“ ist geladen und zeigt seine Termine,
+    // nur der Anlegen-Knopf fehlt.
+    expect(screen.getAllByText("Teamplanung").length).toBeGreaterThan(0);
     expect(
       screen.queryByRole("button", { name: "Neuer Termin" }),
     ).not.toBeInTheDocument();

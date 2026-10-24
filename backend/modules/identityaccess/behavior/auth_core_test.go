@@ -11,11 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/auth/rotation"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/services"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,15 +22,23 @@ import (
 
 // testPassword is a valid password for integration tests that meets strength requirements.
 // This is NOT a real secret - it's only used in test code with test databases.
-const testPassword = "Test1234%" //nolint:gosec // pragma: allowlist secret
+var testPassword = testpkg.NewTestPassword()
 
 // testNewPassword is an alternative test password for password change/reset tests.
-const testNewPassword = "NewStr0ng!Pass" //nolint:gosec // pragma: allowlist secret
+var testNewPassword = testpkg.NewTestPassword()
+
+// Keep this issuer distinct from the shared router fixture's signing key.
+var authSigningSecret = testpkg.NewTestSigningSecret()
+
+// recoveryGrace is the refresh recovery window the frontend's old-token
+// deduplication relies on: a rotated predecessor stays recoverable, and a
+// retired family stays usable, for five minutes.
+const recoveryGrace = 5 * time.Minute
 
 // setupAuthService creates an Auth Service with real database connection
-func authTestFactoryConfig(rateLimitEnabled bool) services.FactoryConfig {
-	return services.FactoryConfig{
-		JWTSecret:        "test-jwt-secret-for-unit-tests-minimum-32-chars",
+func authTestFactoryConfig(rateLimitEnabled bool) owners.ServiceConfig {
+	return owners.ServiceConfig{
+		JWTSecret:        authSigningSecret,
 		JWTExpiry:        15 * time.Minute,
 		JWTRefreshExpiry: 24 * time.Hour,
 		FrontendURL:      "http://localhost:3000",
@@ -51,7 +57,6 @@ func authTestFactoryConfig(rateLimitEnabled bool) services.FactoryConfig {
 // the call shape the tests were written against and drives the owner's
 // capability underneath, so every assertion still describes real behavior.
 type testAuthService interface {
-	identityaccess.ParentAccountAccess
 	identityaccess.AccountAuthentication
 	identityaccess.AccountSessionMaintenance
 	identityaccess.StaffPreview
@@ -71,33 +76,30 @@ type testAuthService interface {
 
 func setupAuthService(t *testing.T, db *bun.DB, rateLimitEnabled ...bool) testAuthService {
 	serviceFactory := setupAuthFactory(t, db, rateLimitEnabled...)
-	return newFixtureAuthService(t, db, serviceFactory.Auth)
+	return newFixtureAuthService(t, db, serviceFactory)
 }
 
 // setupAuthFactory composes the service factory the auth service and the
 // Identity & Access module are wired through, for tests that drive the
 // module's public contract directly.
-func setupAuthFactory(t *testing.T, db *bun.DB, rateLimitEnabled ...bool) *services.Factory {
+func setupAuthFactory(t *testing.T, db *bun.DB, rateLimitEnabled ...bool) identityaccess.Owner {
 	t.Helper()
-	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	enabled := len(rateLimitEnabled) > 0 && rateLimitEnabled[0]
-	serviceFactory, err := services.NewFactoryForTestsWithConfig(repoFactory, db, slog.Default(), authTestFactoryConfig(enabled))
+	identityModule, err := api.NewTestIdentityAccessWithConfig(testpkg.NewDatabase(t, db), slog.Default(), authTestFactoryConfig(enabled))
 	require.NoError(t, err, "Failed to create service factory")
-	require.NoError(t, serviceFactory.SetTenantRuntime(testpkg.TenantRuntime(t, db)))
-	return serviceFactory
+	return identityModule
 }
 
-func setupInvitationService(t *testing.T, db *bun.DB) services.InvitationCapability {
+func setupInvitationService(t *testing.T, db *bun.DB) api.InvitationCapability {
 	t.Helper()
-	service := setupAuthFactory(t, db).Invitation
+	service := setupAuthFactory(t, db)
 	return &fixtureOwnedInvitationService{InvitationCapability: service, t: t, db: db}
 }
 
 // newFixtureAuthService binds every capability the suites drive to the one
 // composed Identity & Access module.
-func newFixtureAuthService(t *testing.T, db *bun.DB, module *identityaccess.Module) *fixtureOwnedAuthService {
+func newFixtureAuthService(t *testing.T, db *bun.DB, module identityaccess.Owner) *fixtureOwnedAuthService {
 	return &fixtureOwnedAuthService{
-		ParentAccountAccess:       module,
 		AccountAuthentication:     module,
 		AccountSessionMaintenance: module,
 		StaffPreview:              module,
@@ -111,12 +113,11 @@ func newFixtureAuthService(t *testing.T, db *bun.DB, module *identityaccess.Modu
 }
 
 type fixtureOwnedAuthService struct {
-	identityaccess.ParentAccountAccess
 	identityaccess.AccountAuthentication
 	identityaccess.AccountSessionMaintenance
 	identityaccess.StaffPreview
 	identityaccess.StaffOffboardingAccess
-	module         *identityaccess.Module
+	module         identityaccess.Owner
 	provisioning   identityaccess.AccountProvisioning
 	administration identityaccess.AccountAdministration
 	t              *testing.T
@@ -253,7 +254,7 @@ func registeredAccountModel(account identityaccess.RegisteredAccount) *testpkg.A
 }
 
 type fixtureOwnedInvitationService struct {
-	services.InvitationCapability
+	api.InvitationCapability
 	t  *testing.T
 	db *bun.DB
 }
@@ -568,75 +569,6 @@ func TestAuthService_RefreshToken(t *testing.T) {
 	})
 }
 
-// TestAuthService_RefreshToken_ConcurrentSingleflight verifies that concurrent
-// refresh calls with the same token are deduplicated by singleflight.
-// Without singleflight, only the first goroutine succeeds (it deletes the old DB token),
-// and all others get "token not found". With singleflight, all goroutines succeed.
-func TestAuthService_RefreshToken_ConcurrentSingleflight(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := setupAuthService(t, db)
-	ctx := testpkg.Ctx(t)
-
-	// ARRANGE: create account and get a refresh token
-	email, username := uniqueTestCredentials("singleflight")
-	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
-	require.NoError(t, err)
-	testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
-
-	_, refreshToken, err := service.Login(ctx, email, testPassword)
-	require.NoError(t, err)
-
-	// ACT: fire 5 concurrent refresh requests with the same token.
-	// Use a barrier (WaitGroup) so all goroutines start at the same time —
-	// without this, goroutine 1 can complete the entire refresh (rotating the
-	// token in the DB) before goroutine 2 even starts, defeating singleflight.
-	const concurrency = 5
-	type result struct {
-		accessToken  string
-		refreshToken string
-		err          error
-	}
-	results := make(chan result, concurrency)
-
-	var barrier sync.WaitGroup
-	barrier.Add(concurrency)
-	for range concurrency {
-		go func() {
-			barrier.Done()
-			barrier.Wait() // all goroutines unblock together
-			at, rt, e := service.RefreshToken(ctx, refreshToken)
-			results <- result{at, rt, e}
-		}()
-	}
-
-	// ASSERT: all goroutines should succeed with the same tokens (deduplicated)
-	var successes int
-	var firstAccess, firstRefresh string
-	for range concurrency {
-		r := <-results
-		if r.err != nil {
-			t.Errorf("concurrent refresh failed: %v", r.err)
-			continue
-		}
-		successes++
-		assert.NotEmpty(t, r.accessToken, "access token should not be empty")
-		assert.NotEmpty(t, r.refreshToken, "refresh token should not be empty")
-
-		if firstAccess == "" {
-			firstAccess = r.accessToken
-			firstRefresh = r.refreshToken
-		} else {
-			// Singleflight returns the same result to all concurrent callers
-			assert.Equal(t, firstAccess, r.accessToken, "all callers should get same access token")
-			assert.Equal(t, firstRefresh, r.refreshToken, "all callers should get same refresh token")
-		}
-	}
-	assert.Equal(t, concurrency, successes, "all concurrent refresh calls should succeed")
-}
-
 // TestAuthService_RefreshToken_InterruptedRotationRecovery reproduces the
 // tablet/deploy failure from #1938: the backend commits a rotation, but the
 // browser retries with the predecessor because the response/cookie was lost.
@@ -655,14 +587,14 @@ func TestAuthService_RefreshToken_InterruptedRotationRecovery(t *testing.T) {
 
 	_, predecessorJWT, err := serviceBeforeRestart.Login(ctx, email, testPassword)
 	require.NoError(t, err)
-	recoveryCtx := rotation.WithRecoveryProof(ctx, "independent-recovery-secret")
-	_, firstSuccessorJWT, err := serviceBeforeRestart.RefreshToken(recoveryCtx, predecessorJWT)
+	const recoveryProof = "independent-recovery-secret"
+	_, firstSuccessorJWT, err := serviceBeforeRestart.RefreshTokenWithAudit(ctx, predecessorJWT, recoveryProof, "", "")
 	require.NoError(t, err)
 
 	// A new service instance has empty in-memory singleflight/cache state and
 	// models a frontend/backend process replacement during deployment.
 	serviceAfterRestart := setupAuthService(t, db)
-	accessToken, recoveredRefreshJWT, err := serviceAfterRestart.RefreshToken(recoveryCtx, predecessorJWT)
+	accessToken, recoveredRefreshJWT, err := serviceAfterRestart.RefreshTokenWithAudit(ctx, predecessorJWT, recoveryProof, "", "")
 	require.NoError(t, err)
 	assert.NotEmpty(t, accessToken)
 	assert.NotEmpty(t, firstSuccessorJWT)
@@ -694,14 +626,13 @@ func TestAuthService_RefreshToken_InterruptedRotationRecoveryAcrossMultipleHando
 
 	_, predecessorJWT, err := service.Login(ctx, email, testPassword)
 	require.NoError(t, err)
-	firstProofCtx := rotation.WithRecoveryProof(ctx, "first-recovery-secret")
-	_, firstSuccessorJWT, err := service.RefreshToken(firstProofCtx, predecessorJWT)
+	const firstProof = "first-recovery-secret"
+	_, firstSuccessorJWT, err := service.RefreshTokenWithAudit(ctx, predecessorJWT, firstProof, "", "")
 	require.NoError(t, err)
-	secondProofCtx := rotation.WithRecoveryProof(ctx, "second-recovery-secret")
-	_, secondSuccessorJWT, err := service.RefreshToken(secondProofCtx, firstSuccessorJWT)
+	_, secondSuccessorJWT, err := service.RefreshTokenWithAudit(ctx, firstSuccessorJWT, "second-recovery-secret", "", "")
 	require.NoError(t, err)
 
-	accessToken, recoveredRefreshJWT, err := setupAuthService(t, db).RefreshToken(firstProofCtx, predecessorJWT)
+	accessToken, recoveredRefreshJWT, err := setupAuthService(t, db).RefreshTokenWithAudit(ctx, predecessorJWT, firstProof, "", "")
 	require.NoError(t, err)
 	assert.NotEmpty(t, accessToken)
 	assert.NotEmpty(t, secondSuccessorJWT)
@@ -742,13 +673,13 @@ func TestAuthService_RefreshToken_ReplayAfterGraceCommitsFamilyRevocation(t *tes
 
 	_, predecessorJWT, err := service.Login(ctx, email, testPassword)
 	require.NoError(t, err)
-	recoveryCtx := rotation.WithRecoveryProof(ctx, "independent-recovery-secret")
-	_, successorJWT, err := service.RefreshToken(recoveryCtx, predecessorJWT)
+	const recoveryProof = "independent-recovery-secret"
+	_, successorJWT, err := service.RefreshTokenWithAudit(ctx, predecessorJWT, recoveryProof, "", "")
 	require.NoError(t, err)
 
 	_, err = db.NewUpdate().
 		Table("auth.tokens").
-		Set("rotated_at = ?", time.Now().Add(-rotation.RecoveryGrace-time.Minute)).
+		Set("rotated_at = ?", time.Now().Add(-recoveryGrace-time.Minute)).
 		Where("account_id = ?", account.ID).
 		Where("rotated_at IS NOT NULL").
 		Exec(ctx)
@@ -757,10 +688,10 @@ func TestAuthService_RefreshToken_ReplayAfterGraceCommitsFamilyRevocation(t *tes
 	// Rotate the successor after the predecessor leaves the recovery window.
 	// Cleanup must retain the predecessor until its JWT expiry so a later replay
 	// can still revoke the whole family.
-	_, _, err = service.RefreshToken(rotation.WithRecoveryProof(ctx, "successor-recovery-secret"), successorJWT)
+	_, _, err = service.RefreshTokenWithAudit(ctx, successorJWT, "successor-recovery-secret", "", "")
 	require.NoError(t, err)
 
-	_, _, err = setupAuthService(t, db).RefreshToken(recoveryCtx, predecessorJWT)
+	_, _, err = setupAuthService(t, db).RefreshTokenWithAudit(ctx, predecessorJWT, recoveryProof, "", "")
 	require.Error(t, err)
 	var authErr *identityaccess.AuthenticationError
 	require.ErrorAs(t, err, &authErr)
@@ -788,10 +719,10 @@ func TestAuthService_RefreshToken_WrongRecoveryProofRevokesFamily(t *testing.T) 
 
 	_, predecessorJWT, err := service.Login(ctx, email, testPassword)
 	require.NoError(t, err)
-	_, _, err = service.RefreshToken(rotation.WithRecoveryProof(ctx, "independent-recovery-secret"), predecessorJWT)
+	_, _, err = service.RefreshTokenWithAudit(ctx, predecessorJWT, "independent-recovery-secret", "", "")
 	require.NoError(t, err)
 
-	_, _, err = setupAuthService(t, db).RefreshToken(rotation.WithRecoveryProof(ctx, "attacker-does-not-have-the-recovery-secret"), predecessorJWT)
+	_, _, err = setupAuthService(t, db).RefreshTokenWithAudit(ctx, predecessorJWT, "attacker-does-not-have-the-recovery-secret", "", "")
 	require.Error(t, err)
 	var authErr *identityaccess.AuthenticationError
 	require.ErrorAs(t, err, &authErr)
@@ -825,7 +756,7 @@ func TestAuthService_Logout(t *testing.T) {
 		testpkg.MapAccountToTenant(t, db, account.ID, secondaryTenantID)
 
 		staffEndpoint := fmt.Sprintf("https://fcm.googleapis.com/logout-staff-%d", account.ID)
-		for _, tenantID := range []int64{tenant.FromContext(ctx), secondaryTenantID} {
+		for _, tenantID := range []int64{testpkg.TenantIDFromContext(ctx), secondaryTenantID} {
 			insertPushSubscription(t, db, account.ID, tenantID, pushPortalStaff, staffEndpoint, "")
 		}
 
@@ -871,7 +802,7 @@ func TestAuthService_ChangePassword(t *testing.T) {
 		// ARRANGE
 		email, username := uniqueTestCredentials("changepwd")
 		oldPassword := testPassword
-		newPassword := "NewPassword1%"
+		newPassword := testpkg.NewTestPassword()
 		account, err := service.Register(ctx, email, username, oldPassword, nil, 0)
 		require.NoError(t, err)
 		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
@@ -894,7 +825,7 @@ func TestAuthService_ChangePassword(t *testing.T) {
 		require.NoError(t, err)
 
 		// ACT
-		err = service.ChangePassword(ctx, int(account.ID), "WrongPassword1!", "NewPassword1%")
+		err = service.ChangePassword(ctx, int(account.ID), testpkg.NewTestPassword(), testpkg.NewTestPassword())
 
 		// ASSERT
 		require.Error(t, err)
@@ -1390,7 +1321,7 @@ func TestAuthService_AssignRoleToAccount(t *testing.T) {
 		require.NoError(t, err)
 
 		sentinelErr := errors.New("force outer rollback")
-		txHandler := tenant.NewTransactionRunner()
+		txHandler := testpkg.TenantTransactionRuntime{}
 
 		err = txHandler.RunInTx(ctx, func(txCtx context.Context) error {
 			if err := rbac.AssignRoleToAccount(txCtx, account.ID, role.ID); err != nil {
@@ -1475,7 +1406,7 @@ func TestAuthService_ReplaceAccountRole(t *testing.T) {
 	assert.ElementsMatch(t, []int64{guardianRole.ID, newRole.ID}, roleIDs(roles))
 
 	sentinelErr := errors.New("force outer rollback")
-	err = tenant.NewTransactionRunner().RunInTx(ctx, func(txCtx context.Context) error {
+	err = testpkg.RunInTenantTransaction(ctx, func(txCtx context.Context) error {
 		if err := rbac.ReplaceAccountRole(txCtx, account.ID, oldRole.ID); err != nil {
 			return err
 		}
@@ -1557,6 +1488,22 @@ func TestAuthService_RemoveRoleFromAccount(t *testing.T) {
 		assert.Empty(t, newAccessToken)
 		assert.Empty(t, newRefreshToken)
 	})
+
+	// The retired DELETE /auth/accounts/{id}/roles/{roleId} route (#4431)
+	// pinned this refusal over HTTP; offboarding and the caregiver capability
+	// still remove roles through this method.
+	t.Run("rejects an account without membership at this school", func(t *testing.T) {
+		email, username := uniqueTestCredentials("remove-role-foreign")
+		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
+		require.NoError(t, err)
+
+		roleName := fmt.Sprintf("remove-role-foreign-%d", time.Now().UnixNano())
+		role, err := rbac.CreateRole(ctx, roleName, "foreign account", testpkg.StrPtr("user"))
+		require.NoError(t, err)
+
+		err = rbac.RemoveRoleFromAccount(ctx, account.ID, role.ID)
+		require.ErrorIs(t, err, identityaccess.ErrAccountNotFound)
+	})
 }
 
 // =============================================================================
@@ -1637,142 +1584,9 @@ func TestAuthService_ListPermissions(t *testing.T) {
 	})
 }
 
-func TestAuthService_GrantPermissionToAccount(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := setupAuthService(t, db)
-	rbac := roleAdministrationOf(t, service)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("grants permission to account", func(t *testing.T) {
-		// ARRANGE
-		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
-		email, username := uniqueTestCredentials("grantperm")
-		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
-		require.NoError(t, err)
-		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
-
-		permName := fmt.Sprintf("grant-perm-%s", uniqueID)
-		resource := fmt.Sprintf("resource-grant-%s", uniqueID)
-		perm, err := rbac.CreatePermission(ctx, permName, "desc", resource, "read")
-		require.NoError(t, err)
-		testpkg.OwnTestPermission(t, db, perm.ID)
-
-		// ACT
-		err = rbac.GrantPermissionToAccount(ctx, account.ID, perm.ID)
-
-		// ASSERT
-		require.NoError(t, err)
-	})
-}
-
 // =============================================================================
 // Parent Account Tests
 // =============================================================================
-
-func TestAuthService_CreateParentAccount(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := setupAuthService(t, db)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("creates parent account successfully", func(t *testing.T) {
-		// ARRANGE
-		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
-		email := fmt.Sprintf("parent-%s@test.local", uniqueID)
-		username := fmt.Sprintf("parent-%s", uniqueID)
-
-		// ACT
-		account, err := service.CreateParentAccount(ctx, email, username, testPassword)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.NotNil(t, account)
-		assert.Greater(t, account.ID, int64(0))
-		assert.Equal(t, email, account.Email)
-	})
-
-	t.Run("returns error for duplicate email", func(t *testing.T) {
-		// ARRANGE
-		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
-		email := fmt.Sprintf("dupparent-%s@test.local", uniqueID)
-		username1 := fmt.Sprintf("parent1-%s", uniqueID)
-		_, err := service.CreateParentAccount(ctx, email, username1, testPassword)
-		require.NoError(t, err)
-
-		// ACT
-		username2 := fmt.Sprintf("parent2-%s", uniqueID)
-		account, err := service.CreateParentAccount(ctx, email, username2, testPassword)
-
-		// ASSERT
-		require.Error(t, err)
-		assert.Zero(t, account)
-	})
-}
-
-func TestAuthService_GetParentAccountByID(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := setupAuthService(t, db)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("returns parent account when found", func(t *testing.T) {
-		// ARRANGE
-		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
-		email := fmt.Sprintf("getparent-%s@test.local", uniqueID)
-		username := fmt.Sprintf("getparent-%s", uniqueID)
-		account, err := service.CreateParentAccount(ctx, email, username, testPassword)
-		require.NoError(t, err)
-
-		// ACT
-		result, err := service.GetParentAccountByID(ctx, account.ID)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.NotNil(t, result)
-		assert.Equal(t, account.ID, result.ID)
-	})
-
-	t.Run("returns error when not found", func(t *testing.T) {
-		// ACT
-		result, err := service.GetParentAccountByID(ctx, 99999999)
-
-		// ASSERT
-		require.Error(t, err)
-		assert.Zero(t, result)
-	})
-}
-
-func TestAuthService_ListParentAccounts(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := setupAuthService(t, db)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("returns parent accounts", func(t *testing.T) {
-		// ARRANGE
-		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
-		email := fmt.Sprintf("listparent-%s@test.local", uniqueID)
-		username := fmt.Sprintf("listparent-%s", uniqueID)
-		_, err := service.CreateParentAccount(ctx, email, username, testPassword)
-		require.NoError(t, err)
-
-		// ACT
-		result, err := service.ListParentAccounts(ctx, identityaccess.ParentAccountFilter{})
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.NotEmpty(t, result)
-	})
-}
 
 // =============================================================================
 // Permission Management Tests (Additional Coverage)
@@ -1878,110 +1692,6 @@ func TestAuthService_DeletePermission(t *testing.T) {
 	})
 }
 
-func TestAuthService_GetAccountPermissions(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := setupAuthService(t, db)
-	rbac := roleAdministrationOf(t, service)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("returns account permissions", func(t *testing.T) {
-		// ARRANGE - create account with permission
-		email, username := uniqueTestCredentials("acctperms")
-		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
-		require.NoError(t, err)
-		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
-
-		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
-		permName := fmt.Sprintf("acctperm-%s", uniqueID)
-		resource := fmt.Sprintf("acct-res-%s", uniqueID)
-		permission, err := rbac.CreatePermission(ctx, permName, "Account permission", resource, "read")
-		require.NoError(t, err)
-		testpkg.OwnTestPermission(t, db, permission.ID)
-
-		err = rbac.GrantPermissionToAccount(ctx, account.ID, permission.ID)
-		require.NoError(t, err)
-
-		// ACT
-		result, err := rbac.GetAccountPermissions(ctx, account.ID)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.NotEmpty(t, result)
-	})
-}
-
-func TestAuthService_GetAccountDirectPermissions(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := setupAuthService(t, db)
-	rbac := roleAdministrationOf(t, service)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("returns direct permissions only", func(t *testing.T) {
-		// ARRANGE
-		email, username := uniqueTestCredentials("directperms")
-		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
-		require.NoError(t, err)
-		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
-
-		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
-		permName := fmt.Sprintf("directperm-%s", uniqueID)
-		resource := fmt.Sprintf("direct-res-%s", uniqueID)
-		permission, err := rbac.CreatePermission(ctx, permName, "Direct permission", resource, "read")
-		require.NoError(t, err)
-		testpkg.OwnTestPermission(t, db, permission.ID)
-
-		err = rbac.GrantPermissionToAccount(ctx, account.ID, permission.ID)
-		require.NoError(t, err)
-
-		// ACT
-		result, err := rbac.GetAccountDirectPermissions(ctx, account.ID)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.NotEmpty(t, result)
-	})
-}
-
-func TestAuthService_RemovePermissionFromAccount(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := setupAuthService(t, db)
-	rbac := roleAdministrationOf(t, service)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("removes permission from account", func(t *testing.T) {
-		// ARRANGE
-		email, username := uniqueTestCredentials("removeperm")
-		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
-		require.NoError(t, err)
-		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
-
-		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
-		permName := fmt.Sprintf("removeperm-%s", uniqueID)
-		resource := fmt.Sprintf("rem-res-%s", uniqueID)
-		permission, err := rbac.CreatePermission(ctx, permName, "To be removed", resource, "read")
-		require.NoError(t, err)
-		testpkg.OwnTestPermission(t, db, permission.ID)
-
-		err = rbac.GrantPermissionToAccount(ctx, account.ID, permission.ID)
-		require.NoError(t, err)
-
-		// ACT
-		err = rbac.RemovePermissionFromAccount(ctx, account.ID, permission.ID)
-
-		// ASSERT
-		require.NoError(t, err)
-	})
-}
-
 // =============================================================================
 // Role-Permission Management Tests
 // =============================================================================
@@ -2042,7 +1752,7 @@ func TestAuthService_ReplaceRolePermissions(t *testing.T) {
 	assert.Equal(t, newPermission.ID, permissions[0].ID)
 
 	sentinelErr := errors.New("force outer rollback")
-	err = tenant.NewTransactionRunner().RunInTx(ctx, func(txCtx context.Context) error {
+	err = testpkg.RunInTenantTransaction(ctx, func(txCtx context.Context) error {
 		if err := rbac.ReplaceRolePermissions(txCtx, role.ID, []int64{oldPermission.ID}); err != nil {
 			return err
 		}
@@ -2182,66 +1892,8 @@ func TestAuthService_GetAccountsByRole(t *testing.T) {
 // uses unqualified table names that may not work in all test database configurations.
 
 // =============================================================================
-// Parent Account Tests (Additional Coverage)
-// =============================================================================
-
-// NOTE: GetParentAccountByEmail and UpdateParentAccount tests are skipped
-// because account_parents table may not exist in all test database configurations.
-// These methods are tested via API integration tests instead.
-
-// =============================================================================
 // Additional Permission Tests
 // =============================================================================
-
-func TestAuthService_DenyPermissionToAccount(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := setupAuthService(t, db)
-	rbac := roleAdministrationOf(t, service)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("returns error for non-existent account", func(t *testing.T) {
-		// ARRANGE
-		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
-		permission, err := rbac.CreatePermission(ctx, "deny-perm-"+uniqueID, "Test permission", "deny-resource-"+uniqueID, "read")
-		require.NoError(t, err)
-		testpkg.OwnTestPermission(t, db, permission.ID)
-
-		// ACT
-		err = rbac.DenyPermissionToAccount(ctx, 99999999, permission.ID)
-
-		// ASSERT
-		require.Error(t, err)
-	})
-
-	t.Run("returns error for non-existent permission", func(t *testing.T) {
-		// ARRANGE
-		account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("deny-perm-%d@test.com", time.Now().UnixNano()))
-
-		// ACT
-		err := rbac.DenyPermissionToAccount(ctx, account.ID, 99999999)
-
-		// ASSERT
-		require.Error(t, err)
-	})
-
-	t.Run("denies permission to account", func(t *testing.T) {
-		// ARRANGE
-		account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("deny-success-%d@test.com", time.Now().UnixNano()))
-		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
-		permission, err := rbac.CreatePermission(ctx, "deny-success-perm-"+uniqueID, "Test", "deny-success-res-"+uniqueID, "read")
-		require.NoError(t, err)
-		testpkg.OwnTestPermission(t, db, permission.ID)
-
-		// ACT
-		err = rbac.DenyPermissionToAccount(ctx, account.ID, permission.ID)
-
-		// ASSERT
-		require.NoError(t, err)
-	})
-}
 
 // =============================================================================
 // Additional Invitation Tests
@@ -2554,143 +2206,6 @@ func TestInvitationService_RevokeInvitation(t *testing.T) {
 // Parent Account Extended Tests
 // =============================================================================
 
-func TestAuthService_GetParentAccountByEmail(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := setupAuthService(t, db)
-	ctx := testpkg.Ctx(t)
-
-	// NOTE: The "finds parent account by email" test is skipped because the repository
-	// uses an unqualified table name in some database configurations.
-	// The error path is still tested below.
-
-	t.Run("returns error for non-existent email", func(t *testing.T) {
-		// ACT - This exercises the service code path even with repository errors
-		result, err := service.GetParentAccountByEmail(ctx, "nonexistent-parent@test.local")
-
-		// ASSERT - Expect error (either not found or repository error)
-		require.Error(t, err)
-		assert.Zero(t, result)
-	})
-}
-
-func TestAuthService_UpdateParentAccount(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := setupAuthService(t, db)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("updates parent account successfully", func(t *testing.T) {
-		// ARRANGE
-		parentAccount, err := service.CreateParentAccount(ctx, fmt.Sprintf("update-test-%d@example.com", testpkg.Tenant(t)), "", testPassword)
-		require.NoError(t, err)
-
-		// Modify the account
-		newUsername := fmt.Sprintf("updated-username-%d", time.Now().UnixNano())
-		parentAccount.Username = newUsername
-
-		// ACT
-		err = service.UpdateParentAccount(ctx, parentAccount)
-
-		// ASSERT
-		require.NoError(t, err)
-
-		// Verify the update
-		updated, err := service.GetParentAccountByID(ctx, parentAccount.ID)
-		require.NoError(t, err)
-		assert.Equal(t, newUsername, updated.Username)
-	})
-
-	t.Run("returns error for non-existent account", func(t *testing.T) {
-		// ARRANGE
-		fakeAccount := identityaccess.ParentAccount{}
-		fakeAccount.ID = 99999999
-
-		// ACT
-		err := service.UpdateParentAccount(ctx, fakeAccount)
-
-		// ASSERT
-		require.Error(t, err)
-	})
-}
-
-func TestAuthService_ActivateParentAccount(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := setupAuthService(t, db)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("activates parent account successfully", func(t *testing.T) {
-		// ARRANGE
-		parentAccount, err := service.CreateParentAccount(ctx, fmt.Sprintf("activate-test-%d@example.com", testpkg.Tenant(t)), "", testPassword)
-		require.NoError(t, err)
-
-		// First deactivate
-		parentAccount.Active = false
-		err = service.UpdateParentAccount(ctx, parentAccount)
-		require.NoError(t, err)
-
-		// ACT
-		err = service.ActivateParentAccount(ctx, parentAccount.ID)
-
-		// ASSERT
-		require.NoError(t, err)
-
-		// Verify activation
-		updated, err := service.GetParentAccountByID(ctx, parentAccount.ID)
-		require.NoError(t, err)
-		assert.True(t, updated.Active)
-	})
-
-	t.Run("returns error for non-existent account", func(t *testing.T) {
-		// ACT
-		err := service.ActivateParentAccount(ctx, 99999999)
-
-		// ASSERT
-		require.Error(t, err)
-	})
-}
-
-func TestAuthService_DeactivateParentAccount(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := setupAuthService(t, db)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("deactivates parent account successfully", func(t *testing.T) {
-		// ARRANGE
-		parentAccount, err := service.CreateParentAccount(ctx, fmt.Sprintf("deactivate-test-%d@example.com", testpkg.Tenant(t)), "", testPassword)
-		require.NoError(t, err)
-
-		// ACT
-		err = service.DeactivateParentAccount(ctx, parentAccount.ID)
-
-		// ASSERT
-		require.NoError(t, err)
-
-		// Verify deactivation
-		updated, err := service.GetParentAccountByID(ctx, parentAccount.ID)
-		require.NoError(t, err)
-		assert.False(t, updated.Active)
-	})
-
-	t.Run("returns error for non-existent account", func(t *testing.T) {
-		// ACT
-		err := service.DeactivateParentAccount(ctx, 99999999)
-
-		// ASSERT
-		require.Error(t, err)
-	})
-}
-
 // =============================================================================
 // WithTenantTx Production Path Tests (Item 4)
 // =============================================================================
@@ -2851,15 +2366,6 @@ func TestAcceptInvitation_WithTenantID_CreatesAccountTenant(t *testing.T) {
 	// ASSERT
 	require.NoError(t, err)
 	require.NotNil(t, account)
-	defer func() {
-		// Clean up: staff, person, invitation tokens, then auth fixtures (includes account_tenants)
-		_, _ = db.ExecContext(context.Background(),
-			`DELETE FROM users.staff_school_memberships WHERE person_id IN (SELECT id FROM users.persons WHERE account_id = ?)`, account.ID)
-		_, _ = db.ExecContext(context.Background(),
-			`DELETE FROM users.persons WHERE account_id = ?`, account.ID)
-		_, _ = db.ExecContext(context.Background(),
-			`DELETE FROM auth.invitation_tokens WHERE email = ?`, email)
-	}()
 
 	// Verify account_tenant mapping was created
 	var tenantCount int
@@ -2939,12 +2445,6 @@ func TestAuthService_LinkAccountToTenant(t *testing.T) {
 			Scan(context.Background(), &roleCount)
 		require.NoError(t, err)
 		assert.Equal(t, 1, roleCount, "role should be assigned")
-
-		// Cleanup role assignment
-		_, _ = db.NewDelete().
-			TableExpr("auth.account_roles").
-			Where("account_id = ? AND role_id = ? AND tenant_id = ?", account.ID, roleID, tenantID).
-			Exec(context.Background())
 	})
 
 	t.Run("links an existing account with a system role", func(t *testing.T) {

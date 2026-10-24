@@ -1,7 +1,30 @@
 # Pull Request
 
+## TL;DR: Was ändert sich für Nutzer?
+<!-- Pflicht, 1–3 Sätze in einfacher Sprache aus Sicht der Betroffenen:
+     Wer (Betreuer, Eltern, Schulleitung, Kiosk) merkt was, wo im Produkt?
+     Keine Dateien, Module oder Klassennamen.
+     Ohne sichtbare Wirkung: „Keine Änderung für Nutzer“ plus Halbsatz warum. -->
+
 ## Description
 <!-- Explain the changes you've made and why they're needed -->
+
+## Backend-Architektur
+<!-- Pflicht in jeder PR-Beschreibung, auch bei Erstellung per CLI und bei Updates.
+     Ohne Backend-Bezug: „Nicht betroffen“ plus kurze Begründung.
+     Bei Backend-Änderungen konkret ausfüllen, mit betroffenen Codepfaden als Beleg:
+     - Zielarchitektur: betroffene Owner, öffentliche Capabilities und Paketrollen;
+       passende Prinzip-ADRs aus backend/architecture/README.md und Einträge in
+       backend/architecture/policy.json nennen und erklären, warum die Änderung dort liegt.
+     - Grenzen: relevante Abhängigkeiten/Ports, Cross-Owner-Lese- und Schreibzugriffe,
+       Transaktionen und Composition erklären. Nicht betroffene Grenzen kurz benennen.
+     - Drift: Policy-, Baseline- und Composition-Inventar-Änderungen sowie Vorher-/Nachher-
+       Zahlen berührter Shrink-only-Flächen nennen (nur gleichbleibend oder sinkend).
+       Abweichungen mit ADR-Entscheidung belegen; offene Architekturfragen offen ausweisen.
+     - Nachweis: tatsächlich ausgeführte Architekturchecks mit Befehl und Ergebnis;
+       nicht ausgeführte oder blockierte Checks ausdrücklich nennen.
+     Ein grüner Check allein ersetzt die Architekturbegründung nicht.
+     Maßgeblich: backend/CLAUDE.md, Abschnitt „Architecture“. -->
 
 ## Type of Change
 - [ ] Bug fix

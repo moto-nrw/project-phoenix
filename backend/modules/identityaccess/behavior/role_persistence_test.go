@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
@@ -22,7 +22,7 @@ func TestRolePersistenceScopeOrderingAndRollback(t *testing.T) {
 	tenantID := testpkg.Tenant(t)
 	other := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, other)
-	otherCtx := tenant.WithTenantID(ctx, other)
+	otherCtx := testpkg.ContextForTenant(ctx, other)
 	baseRole := " user "
 	first, err := identity.CreateRole(ctx, "Primary", "original", &baseRole)
 	require.NoError(t, err)
@@ -55,6 +55,9 @@ func TestRolePersistenceScopeOrderingAndRollback(t *testing.T) {
 	require.Len(t, roles, 2)
 	require.Equal(t, first.ID, roles[0].ID, "assignment id breaks equal creation timestamps")
 	require.Equal(t, second.ID, roles[1].ID)
+	matches, err := identity.AccountsHoldingRole(ctx, []int64{account.ID}, second.Name)
+	require.NoError(t, err)
+	assert.True(t, matches[account.ID], "the batch lookup considers every role of an account")
 	names, err := identity.GetAccountRoleNames(ctx, []int64{account.ID})
 	require.NoError(t, err)
 	require.Equal(t, first.Name, names[account.ID])
@@ -62,8 +65,8 @@ func TestRolePersistenceScopeOrderingAndRollback(t *testing.T) {
 	changed := first
 	changed.Name, changed.Description = "Renamed", "transactional change"
 	rollback := errors.New("roll back role changes")
-	err = tenant.WithAdminTx(ctx, db, func(txCtx context.Context, _ bun.Tx) error {
-		txCtx = tenant.WithTenantID(txCtx, tenantID)
+	err = testpkg.WithAdminTx(t, ctx, db, func(txCtx context.Context, _ bun.Tx) error {
+		txCtx = testpkg.ContextForTenant(txCtx, tenantID)
 		require.NoError(t, identity.UpdateRole(txCtx, changed))
 		current, readErr := identity.GetRole(txCtx, first.ID)
 		require.NoError(t, readErr)

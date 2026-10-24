@@ -13,23 +13,22 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // --- shared helpers for this file ---
 
 type wiredMFAFixture struct {
 	svc      identityaccess.AccountMFA
-	repos    *repositories.Factory
+	repos    owners.MembershipTestRepositories
 	db       *bun.DB
 	tenantID int64
 	mailer   *testpkg.CapturingMailer
@@ -47,15 +46,15 @@ func newWiredMFAFixture(t *testing.T) *wiredMFAFixture {
 
 	mailer := testpkg.NewCapturingMailer()
 	module := newMFATestModule(t, db,
-		services.WithAuthTestMailer(mailer),
+		api.WithAuthTestMailer(mailer),
 		// No retries: a refused send must fail in milliseconds, not in the
 		// production twenty seconds.
-		services.WithAuthTestMFABackoff(time.Millisecond),
+		api.WithAuthTestMFABackoff(time.Millisecond),
 	)
 
 	return &wiredMFAFixture{
 		svc:      module.MFA,
-		repos:    module.Repos,
+		repos:    owners.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)),
 		db:       db,
 		tenantID: tenantID,
 		mailer:   mailer,
@@ -99,11 +98,11 @@ func TestMFAService_IsRequired_ModeRequiredAdmins_RequiresAdminsOnly(t *testing.
 	fix := newWiredMFAFixture(t)
 	fix.setOverride(t, settingKeyMFAMode, mfaModeRequiredAdmins)
 
-	required, err := fix.svc.IsRequired(context.Background(), 4242, []string{"admin"}, fix.tenantID)
+	required, err := fix.svc.IsRequired(context.Background(), 4242, []string{"users:manage"}, fix.tenantID)
 	require.NoError(t, err)
-	assert.True(t, required, "admins must require MFA when mode=required_admins")
+	assert.True(t, required, "administrative permissions must require MFA")
 
-	required, err = fix.svc.IsRequired(context.Background(), 4243, []string{"teacher"}, fix.tenantID)
+	required, err = fix.svc.IsRequired(context.Background(), 4243, []string{"class_day:read"}, fix.tenantID)
 	require.NoError(t, err)
 	assert.False(t, required, "non-admins must skip MFA when mode=required_admins")
 }
@@ -162,14 +161,14 @@ func TestMFAService_TrustedDeviceDays_TenantOverrideRespected(t *testing.T) {
 	assert.Equal(t, 14, days, "tenant override must override the registry default")
 }
 
-func TestMFAService_TrustedDeviceDays_NegativeOverrideFallsBackToDefault(t *testing.T) {
+func TestMFAService_TrustedDeviceDays_NegativeOverrideDisablesHint(t *testing.T) {
 	t.Parallel()
 
 	fix := newWiredMFAFixture(t)
-	// A bad value (≤0) must fall through to the package constant default.
+	// An invalid lifetime must not be advertised as a usable default.
 	fix.setOverride(t, settingKeyMFATrustedDeviceDays, -5)
 	days := fix.svc.TrustedDeviceDays(context.Background(), fix.tenantID)
-	assert.Positive(t, days, "negative override must not break the resolver — it must fall back to the default")
+	assert.Zero(t, days, "invalid lifetime must disable the remember-device hint")
 }
 
 // --- IssueTrustedDevice: trusted-device-disabled short-circuit ---
@@ -186,7 +185,7 @@ func TestMFAService_IssueTrustedDevice_DisabledBySetting_NoCookieIssued(t *testi
 
 	// Need a real account so the account FK is satisfied for any downstream call.
 	// (IssueTrustedDevice never reaches persistence in the disabled branch.)
-	_ = fix.repos.AuthEvent // any repo's db is fine; just confirm fixture wired
+	_ = fix.repos.Person // any repo's db is fine; just confirm fixture wired
 	cookie, expiresAt, err := fix.svc.IssueTrustedDevice(ctx, 99999, fix.tenantID, "ua", net.ParseIP("203.0.113.99"))
 	require.NoError(t, err)
 	assert.Empty(t, cookie, "disabled setting must skip cookie issuance")

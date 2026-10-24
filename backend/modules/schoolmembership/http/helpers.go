@@ -5,9 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
-	"strconv"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 )
 
@@ -40,7 +38,7 @@ func statusOf(kind FailureKind) int {
 
 // parseStaffID reads the {id} path parameter.
 func (rs *Resource) parseStaffID(w http.ResponseWriter, r *http.Request) (int64, bool) {
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := rs.runtime.ParseIDParam(r, "id")
 	if err != nil || id <= 0 {
 		rs.failure(w, r, FailureInvalidRequest, errors.New(msgInvalidStaffID), "invalid_parameters")
 		return 0, false
@@ -128,13 +126,20 @@ func (rs *Resource) personIndex(ctx context.Context, members []schoolmembership.
 }
 
 // teacherIndex batch-loads the teacher profiles of a staff list, keyed by
-// staff ID, so the list view stays free of the per-row lookup.
-func (rs *Resource) teacherIndex(ctx context.Context, staffIDs []int64) (map[int64]schoolmembership.Teacher, error) {
+// staff ID, so the list view stays free of the per-row lookup. Former
+// employments include profiles the offboarding workflow soft-deleted.
+func (rs *Resource) teacherIndex(
+	ctx context.Context,
+	staffIDs []int64,
+	includeDeleted bool,
+) (map[int64]schoolmembership.Teacher, error) {
 	index := make(map[int64]schoolmembership.Teacher, len(staffIDs))
 	if len(staffIDs) == 0 {
 		return index, nil
 	}
-	teachers, err := rs.membership.ListTeachers(ctx, schoolmembership.TeacherFilter{StaffIDs: staffIDs})
+	teachers, err := rs.membership.ListTeachers(ctx, schoolmembership.TeacherFilter{
+		StaffIDs: staffIDs, IncludeDeleted: includeDeleted,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -192,6 +197,33 @@ type directory struct {
 	accountRole map[int64]string
 	email       map[int64]string
 	avatar      map[int64]string
+	// invited holds the person IDs an open invitation names (#4573).
+	invited map[int64]bool
+}
+
+// withInvitations adds the open invitations to the directory, but only when
+// an external caregiver without an account is among the members: no other
+// row shows them, so other pages pay no extra query. Non-critical like
+// stringMap.
+func (rs *Resource) withInvitations(ctx context.Context, d directory, members []schoolmembership.Staff, persons map[int64]*Person) directory {
+	needed := false
+	for _, staff := range members {
+		person := persons[staff.PersonID]
+		if staff.HasExternalCaregiverRecord && person != nil && person.AccountID == nil {
+			needed = true
+			break
+		}
+	}
+	if !needed {
+		return d
+	}
+	invited, err := rs.runtime.PendingInvitationPersons(ctx)
+	if err != nil {
+		rs.runtime.Log.Warn("failed to fetch pending invitations", slog.String("error", err.Error()))
+		return d
+	}
+	d.invited = invited
+	return d
 }
 
 func (rs *Resource) loadDirectory(ctx context.Context, accountIDs []int64) directory {
@@ -218,6 +250,9 @@ func (d directory) enrich(staff schoolmembership.Staff, person *Person, personne
 	if personnel {
 		data.absenceTypeLabel = d.absenceLbl[staff.ID]
 	}
+	if person != nil {
+		data.invitationPending = d.invited[person.ID]
+	}
 	if person != nil && person.AccountID != nil {
 		data.accountRole = d.accountRole[*person.AccountID]
 		data.email = d.email[*person.AccountID]
@@ -242,4 +277,23 @@ func staffIDsOf(members []schoolmembership.Staff) []int64 {
 		ids = append(ids, staff.ID)
 	}
 	return ids
+}
+
+// parseAndFindStaffForRead includes retained employments only on profile reads.
+// Mutation and assignment handlers continue using the live-only lookup.
+func (rs *Resource) parseAndFindStaffForRead(w http.ResponseWriter, r *http.Request) (schoolmembership.Staff, bool) {
+	id, ok := rs.parseStaffID(w, r)
+	if !ok {
+		return schoolmembership.Staff{}, false
+	}
+	members, err := rs.membership.ListStaff(r.Context(), schoolmembership.StaffFilter{IDs: []int64{id}, IncludeDeleted: true, IncludeInactiveExternalCaregiverRecords: true})
+	if err != nil {
+		rs.internal(w, r, err)
+		return schoolmembership.Staff{}, false
+	}
+	if len(members) != 1 || members[0].PersonalDataErasedAt != nil {
+		rs.failure(w, r, FailureNotFound, errors.New(msgStaffNotFound), "not_found")
+		return schoolmembership.Staff{}, false
+	}
+	return members[0], true
 }

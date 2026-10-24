@@ -2,7 +2,7 @@ import { API_KEY_COPY_FAILED_MESSAGE } from "~/lib/operator/provisioning-helpers
 import { useState, useCallback, useEffect, useRef } from "react";
 import { Modal } from "~/components/ui/modal";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
-import { useApiFormError, useToast } from "~/contexts/ToastContext";
+import { useApiErrorDisplay, useApiFormError } from "~/contexts/ToastContext";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import type { OperatorDevice } from "~/lib/operator/provisioning-helpers";
 import { createLogger } from "~/lib/logger";
@@ -20,13 +20,11 @@ export function SetApiKeyModal({
   readonly device: OperatorDevice | null;
   readonly onKeySet: (device: OperatorDevice) => void;
 }) {
-  const [mode, setMode] = useState<"auto" | "manual">("auto");
-  const [customKey, setCustomKey] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const formRef = useRef<HTMLDivElement>(null);
   const formErrors = useApiFormError(formRef);
   const { show: showError, clear: clearError } = formErrors;
-  const { error: toastError } = useToast();
+  const { showMessage } = useApiErrorDisplay();
 
   const [updatedDevice, setUpdatedDevice] = useState<OperatorDevice | null>(
     null,
@@ -34,9 +32,8 @@ export function SetApiKeyModal({
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
+    setUpdatedDevice(null);
     if (isOpen) {
-      setMode("auto");
-      setCustomKey("");
       clearError();
       setUpdatedDevice(null);
       setCopied(false);
@@ -49,14 +46,11 @@ export function SetApiKeyModal({
     setIsSaving(true);
     clearError();
     try {
-      const apiKey =
-        mode === "manual" && customKey.trim() ? customKey.trim() : undefined;
       const result = await operatorProvisioningService.setDeviceAPIKey(
         device.id,
-        apiKey,
       );
       setUpdatedDevice(result);
-      onKeySet(result);
+      onKeySet({ ...result, apiKey: "" });
     } catch (err) {
       logger.error("set_api_key_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -66,7 +60,7 @@ export function SetApiKeyModal({
     } finally {
       setIsSaving(false);
     }
-  }, [device, mode, customKey, onKeySet, clearError, showError]);
+  }, [device, onKeySet, clearError, showError]);
 
   const handleCopyApiKey = useCallback(async () => {
     if (!updatedDevice?.apiKey) return;
@@ -78,9 +72,9 @@ export function SetApiKeyModal({
       logger.error("clipboard_copy_failed", {
         error: "Failed to copy API key to clipboard",
       });
-      toastError(API_KEY_COPY_FAILED_MESSAGE);
+      showMessage(API_KEY_COPY_FAILED_MESSAGE);
     }
-  }, [updatedDevice, toastError]);
+  }, [updatedDevice, showMessage]);
 
   const deviceLabel = device?.name ?? device?.deviceId ?? "Gerät";
 
@@ -112,7 +106,8 @@ export function SetApiKeyModal({
                 </button>
               </div>
               <p className="text-xs text-gray-500">
-                Der neue Key ist aktiv. Der alte Key ist ab sofort ungültig.
+                Kopieren Sie den API-Key jetzt. Er wird nur einmal angezeigt.
+                Der alte Key ist ab sofort ungültig.
               </p>
             </div>
           )}
@@ -148,7 +143,7 @@ export function SetApiKeyModal({
           <button
             type="button"
             onClick={() => void handleSubmit()}
-            disabled={isSaving || (mode === "manual" && !customKey.trim())}
+            disabled={isSaving}
             className="bg-moto-red hover:bg-moto-red-hover flex-1 rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isSaving ? "Wird geändert..." : "Übernehmen"}
@@ -169,53 +164,9 @@ export function SetApiKeyModal({
           </p>
         </div>
 
-        <div className="space-y-3">
-          <label className="flex cursor-pointer items-center gap-2">
-            <input
-              type="radio"
-              name="set-key-mode"
-              value="auto"
-              checked={mode === "auto"}
-              onChange={() => setMode("auto")}
-              className="text-moto-blue"
-            />
-            <span className="text-sm text-gray-700">Neuen Key generieren</span>
-          </label>
-          <label className="flex cursor-pointer items-center gap-2">
-            <input
-              type="radio"
-              name="set-key-mode"
-              value="manual"
-              checked={mode === "manual"}
-              onChange={() => setMode("manual")}
-              className="text-moto-blue"
-            />
-            <span className="text-sm text-gray-700">Eigenen Key eingeben</span>
-          </label>
-          {mode === "manual" && (
-            <input
-              type="text"
-              name="api_key"
-              aria-label="API-Key"
-              aria-invalid={formErrors.fieldError("api_key") ? true : undefined}
-              aria-describedby={
-                formErrors.fieldError("api_key")
-                  ? "set-api-key-error"
-                  : undefined
-              }
-              value={customKey}
-              onChange={(e) => setCustomKey(e.target.value)}
-              placeholder="API-Key eingeben..."
-              maxLength={255}
-              className="focus:ring-moto-blue w-full rounded-lg border border-gray-200 px-3 py-2 font-mono text-sm focus:ring-2 focus:outline-none"
-            />
-          )}
-          {mode === "manual" && formErrors.fieldError("api_key") ? (
-            <p id="set-api-key-error" className="text-moto-red text-xs">
-              {formErrors.fieldError("api_key")}
-            </p>
-          ) : null}
-        </div>
+        <p className="text-sm text-gray-600">
+          Ein neuer API-Key wird automatisch erstellt und nur einmal angezeigt.
+        </p>
       </div>
     </Modal>
   );

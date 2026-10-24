@@ -59,7 +59,7 @@ func TestNativeArrivalClassUpdateAuthorizesBeforeClassLockAndPreservesDeviations
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	owner := careplantest.NewCarePlan(t, db)
+	owner := careplantest.NewCarePlan(t, db, testpkg.StudentDirectory{})
 	first := testpkg.CreateTestStudent(t, db, "Class", "First", "1a")
 	second := testpkg.CreateTestStudent(t, db, "Class", "Second", "1a")
 	staff := testpkg.CreateTestStaff(t, db, "Class", "Staff")

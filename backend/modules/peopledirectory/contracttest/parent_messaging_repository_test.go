@@ -1,0 +1,684 @@
+package contracttest_test
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/uptrace/bun"
+
+	"github.com/moto-nrw/project-phoenix/api"
+
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+)
+
+// parentRepos composes only the parent-conversation stores.
+//
+// It deliberately avoids repositories.NewFactory: the factory is shrink-only
+// under #2580, so a test that needs three repositories must not add another
+// caller that builds the whole legacy graph.
+func parentRepos(tb testing.TB, db *bun.DB) api.PeopleRepositorySuiteParentMessaging {
+	tb.Helper()
+	repos, err := api.NewPeopleRepositorySuiteParentMessaging(testpkg.NewDatabase(tb, db))
+	require.NoError(tb, err)
+	return repos
+}
+
+// tenantCtx returns a context scoped to this test's own tenant (#2419).
+func tenantCtx(tb testing.TB) context.Context {
+	return testpkg.Ctx(tb)
+}
+
+// TestParentMessaging_ThreadsMessagesAndReadState exercises the full data layer:
+// create a thread for a (child, guardian), append guardian + staff messages
+// oldest-first, and verify the read-cursor / unread arithmetic that drives both
+// the staff inbox and the parent thread list.
+func TestParentMessaging_ThreadsMessagesAndReadState(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	// The staff reader is a DISTINCT account from the guardian — in production the
+	// inbox reader and the guardian sender are never the same account. Unread is
+	// "a message after the cursor the reader did NOT send", so a reader's own
+	// messages are excluded by sender_account_id (notReaderAuthored). Reusing one
+	// id for both sides would hide that rule and the read-cursor arithmetic it
+	// guards.
+	_, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Olivia", "Berg")
+	// Messages/reads from staffAccount FK auth.accounts without ON DELETE
+	// CASCADE; clear them before the LIFO-earlier account delete above.
+
+	threadRepo := parentRepos(t, db).Thread
+	msgRepo := parentRepos(t, db).Message
+	readRepo := parentRepos(t, db).Read
+	ctx := tenantCtx(t)
+	guardian := chain.AccountID
+
+	thread := api.ParentStoreThread(testpkg.Tenant(t), chain.StudentID, guardian)
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, threadRepo.Create, thread))
+	require.Positive(t, thread.ID)
+
+	found, err := testpkg.TenantQuery1(t, ctx, db, threadRepo.FindByID, thread.ID)
+	require.NoError(t, err)
+	require.NotNil(t, found)
+	assert.Equal(t, guardian, found.GuardianAccountID)
+
+	// Two guardian messages (from the guardian) and one staff reply (from the
+	// staff reader's own account).
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, msgRepo.Create, api.ParentStoreMessage(testpkg.Tenant(t), thread.ID, chain.StudentID, guardian, peopleValues.ParentMessageSenderGuardian, "hallo")))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, msgRepo.Create, api.ParentStoreMessage(testpkg.Tenant(t), thread.ID, chain.StudentID, guardian, peopleValues.ParentMessageSenderGuardian, "noch was")))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, msgRepo.Create, api.ParentStoreMessage(testpkg.Tenant(t), thread.ID, chain.StudentID, staffAccount.ID, peopleValues.ParentMessageSenderStaff, "antwort")))
+
+	messages, err := testpkg.TenantQuery2(t, ctx, db, msgRepo.ListByThread, thread.ID, 0)
+	require.NoError(t, err)
+	require.Len(t, messages, 3)
+	assert.Equal(t, "hallo", messages[0].Body)
+	assert.Equal(t, peopleValues.ParentMessageSenderStaff, messages[2].SenderKind)
+
+	// Staff inbox: one row, guardian + child names, unread = 2 guardian msgs.
+	inbox, err := testpkg.TenantQuery3(t, ctx, db, readRepo.ListInboxForStaff, staffAccount.ID, true, false)
+	require.NoError(t, err)
+	require.Len(t, inbox, 1)
+	assert.Equal(t, "Felix Schneider", inbox[0].StudentName)
+	assert.Equal(t, "Sabine Schneider", inbox[0].GuardianName)
+	assert.Equal(t, "parent", inbox[0].RelationshipType)
+	assert.Equal(t, 2, inbox[0].UnreadCount)
+
+	// Sidebar badge counts unread MESSAGES (not threads): the two guardian
+	// messages above are both unread to the staff reader, so the badge is 2 —
+	// matching the inbox row pill above, not "1 thread".
+	unread, err := testpkg.TenantQuery2(t, ctx, db, readRepo.UnreadMessageCountForStaff, staffAccount.ID, true)
+	require.NoError(t, err)
+	assert.Equal(t, 2, unread)
+
+	// After the staff reader reads up to the newest message, their unread clears.
+	// (MarkReadUpTo is the production read path; the old NOW()-cursor MarkRead was
+	// removed as dead code.) MarkReadUpTo reports that the cursor advanced.
+	newest := messages[len(messages)-1]
+	advanced, err := testpkg.TenantQuery5(t, ctx, db, readRepo.MarkReadUpTo, testpkg.Tenant(t), thread.ID, staffAccount.ID, newest.CreatedAt, newest.ID)
+	require.NoError(t, err)
+	assert.True(t, advanced, "first read from an empty cursor advances")
+	unread, err = testpkg.TenantQuery2(t, ctx, db, readRepo.UnreadMessageCountForStaff, staffAccount.ID, true)
+	require.NoError(t, err)
+	assert.Equal(t, 0, unread)
+
+	// Re-marking the same newest message does NOT advance (idempotent) — this is
+	// what gates the read-receipt SSE push so it can't ping-pong.
+	advanced, err = testpkg.TenantQuery5(t, ctx, db, readRepo.MarkReadUpTo, testpkg.Tenant(t), thread.ID, staffAccount.ID, newest.CreatedAt, newest.ID)
+	require.NoError(t, err)
+	assert.False(t, advanced, "re-reading the same newest message is a no-op")
+
+	onlyUnread, err := testpkg.TenantQuery3(t, ctx, db, readRepo.ListInboxForStaff, staffAccount.ID, true, true)
+	require.NoError(t, err)
+	assert.Empty(t, onlyUnread)
+
+	// Guardian thread list: unread counts STAFF messages after the GUARDIAN's own
+	// cursor. Once the guardian has read up to the newest message, the staff reply
+	// is read → 0 unread.
+	_, err = testpkg.TenantQuery5(t, ctx, db, readRepo.MarkReadUpTo, testpkg.Tenant(t), thread.ID, guardian, newest.CreatedAt, newest.ID)
+	require.NoError(t, err)
+	guardianThreads, err := testpkg.TenantQuery2(t, ctx, db, readRepo.ListThreadsForGuardianStudent, guardian, chain.StudentID)
+	require.NoError(t, err)
+	require.Len(t, guardianThreads, 1)
+	assert.Equal(t, 0, guardianThreads[0].UnreadCount)
+
+	// A new staff message makes the guardian list show 1 unread.
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, msgRepo.Create, api.ParentStoreMessage(testpkg.Tenant(t), thread.ID, chain.StudentID, staffAccount.ID, peopleValues.ParentMessageSenderStaff, "noch eine antwort")))
+	guardianThreads, err = testpkg.TenantQuery2(t, ctx, db, readRepo.ListThreadsForGuardianStudent, guardian, chain.StudentID)
+	require.NoError(t, err)
+	require.Len(t, guardianThreads, 1)
+	assert.Equal(t, 1, guardianThreads[0].UnreadCount)
+}
+
+// TestParentMessaging_UnreadCreatedAtTie guards the read-cursor tie-breaker: two
+// messages in a thread can share a created_at (clock_timestamp() is microsecond
+// precision, so rapid/concurrent sends can tie), and the message list breaks
+// those ties by id DESC. A timestamp-only cursor would treat a tied message that
+// the reader never saw as already read; the composite (last_read_at,
+// last_read_message_id) cursor must keep it unread.
+func TestParentMessaging_UnreadCreatedAtTie(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+
+	// Distinct staff reader (see TestParentMessaging_ThreadsMessagesAndReadState):
+	// the guardian messages must be sent by an account OTHER than the reader, or
+	// the own-message exclusion (notReaderAuthored) would drop them before the
+	// tie-break is exercised.
+	_, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Olivia", "Berg")
+	// The staff reader records reads that FK auth.accounts without ON DELETE
+	// CASCADE; clear them before the LIFO-earlier account delete above.
+
+	threadRepo := parentRepos(t, db).Thread
+	msgRepo := parentRepos(t, db).Message
+	readRepo := parentRepos(t, db).Read
+	ctx := tenantCtx(t)
+	reader := staffAccount.ID
+
+	thread := api.ParentStoreThread(testpkg.Tenant(t), chain.StudentID, chain.AccountID)
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, threadRepo.Create, thread))
+
+	// Two guardian messages forced to the SAME created_at instant; the second
+	// gets the higher id (the tie-break the thread list orders by).
+	tie := time.Now().Truncate(time.Microsecond)
+	m1 := api.ParentStoreMessage(testpkg.Tenant(t), thread.ID, chain.StudentID, chain.AccountID, peopleValues.ParentMessageSenderGuardian, "erste")
+	m1.CreatedAt, m1.UpdatedAt = tie, tie
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, msgRepo.Create, m1))
+	m2 := api.ParentStoreMessage(testpkg.Tenant(t), thread.ID, chain.StudentID, chain.AccountID, peopleValues.ParentMessageSenderGuardian, "zweite")
+	m2.CreatedAt, m2.UpdatedAt = tie, tie
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, msgRepo.Create, m2))
+	require.Greater(t, m2.ID, m1.ID, "second insert must get the higher id")
+
+	// Reader read up to m1 (the message it actually saw). m2 committed with the
+	// SAME created_at but a higher id, so it must remain unread — a timestamp-only
+	// cursor (created_at > last_read_at) would silently drop it.
+	advanced, err := testpkg.TenantQuery5(t, ctx, db, readRepo.MarkReadUpTo, testpkg.Tenant(t), thread.ID, reader, m1.CreatedAt, m1.ID)
+	require.NoError(t, err)
+	assert.True(t, advanced, "first read advances the cursor")
+	count, err := testpkg.TenantQuery2(t, ctx, db, readRepo.UnreadMessageCountForStaff, reader, true)
+	require.NoError(t, err)
+	assert.Equal(t, 1, count, "tied message with a higher id must stay unread")
+
+	// Reading up to m2 (the higher tie-break id) clears it.
+	advanced, err = testpkg.TenantQuery5(t, ctx, db, readRepo.MarkReadUpTo, testpkg.Tenant(t), thread.ID, reader, m2.CreatedAt, m2.ID)
+	require.NoError(t, err)
+	assert.True(t, advanced, "reading the higher tie-break id advances the cursor")
+	count, err = testpkg.TenantQuery2(t, ctx, db, readRepo.UnreadMessageCountForStaff, reader, true)
+	require.NoError(t, err)
+	assert.Equal(t, 0, count)
+}
+
+// TestParentMessaging_TeamHandledCursorDoesNotSkipTiedNewMessage pins the
+// reply/message race: handling a snapshot up to one guardian row must leave a
+// later row with the same timestamp and a higher id unread for every colleague.
+func TestParentMessaging_TeamHandledCursorDoesNotSkipTiedNewMessage(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	_, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Miriam", "Klein")
+
+	threadRepo := parentRepos(t, db).Thread
+	msgRepo := parentRepos(t, db).Message
+	readRepo := parentRepos(t, db).Read
+	ctx := tenantCtx(t)
+	thread := api.ParentStoreThread(testpkg.Tenant(t), chain.StudentID, chain.AccountID)
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, threadRepo.Create, thread))
+
+	tie := time.Now().Truncate(time.Microsecond)
+	first := api.ParentStoreMessage(testpkg.Tenant(t), thread.ID, chain.StudentID, chain.AccountID, peopleValues.ParentMessageSenderGuardian, "erste")
+	first.CreatedAt, first.UpdatedAt = tie, tie
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, msgRepo.Create, first))
+	require.NoError(t, testpkg.TenantCommand4(t, ctx, db, readRepo.MarkStaffHandledUpTo, testpkg.Tenant(t), thread.ID, first.CreatedAt, first.ID))
+
+	concurrent := api.ParentStoreMessage(testpkg.Tenant(t), thread.ID, chain.StudentID, chain.AccountID, peopleValues.ParentMessageSenderGuardian, "gleichzeitig")
+	concurrent.CreatedAt, concurrent.UpdatedAt = tie, tie
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, msgRepo.Create, concurrent))
+	require.Greater(t, concurrent.ID, first.ID)
+
+	count, err := testpkg.TenantQuery2(t, ctx, db, readRepo.UnreadMessageCountForStaff, staffAccount.ID, true)
+	require.NoError(t, err)
+	assert.Equal(t, 1, count, "a tied higher-id message outside the handled snapshot must remain unread")
+
+	require.NoError(t, testpkg.TenantCommand4(t, ctx, db, readRepo.MarkStaffHandledUpTo, testpkg.Tenant(t), thread.ID, concurrent.CreatedAt, concurrent.ID))
+	count, err = testpkg.TenantQuery2(t, ctx, db, readRepo.UnreadMessageCountForStaff, staffAccount.ID, true)
+	require.NoError(t, err)
+	assert.Zero(t, count)
+}
+
+func TestParentMessaging_MessageAppendLockSerializesThreadWrites(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+
+	repo := parentRepos(t, db).Thread
+	ctx := tenantCtx(t)
+	thread := api.ParentStoreThread(testpkg.Tenant(t), chain.StudentID, chain.AccountID)
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repo.Create, thread))
+
+	holder, err := db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = holder.Rollback() }()
+	holderCtx := testpkg.ContextWithTransaction(ctx, &holder)
+	require.NoError(t, testpkg.TenantCommand1(t, holderCtx, db, repo.LockForMessageAppend, thread.ID))
+
+	contender, err := db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = contender.Rollback() }()
+	_, err = contender.ExecContext(ctx, "SET LOCAL lock_timeout = ?", "200ms")
+	require.NoError(t, err)
+	contenderCtx := testpkg.ContextWithTransaction(ctx, &contender)
+	err = testpkg.TenantCommand1(t, contenderCtx, db, repo.LockForMessageAppend, thread.ID)
+	require.Error(t, err, "a second append must wait for the first transaction")
+	assert.True(t, isLockTimeoutError(err), "expected lock_timeout, got: %v", err)
+	require.NoError(t, contender.Rollback())
+
+	require.NoError(t, holder.Commit())
+	followUp, err := db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = followUp.Rollback() }()
+	followUpCtx := testpkg.ContextWithTransaction(ctx, &followUp)
+	require.NoError(t, testpkg.TenantCommand1(t, followUpCtx, db, repo.LockForMessageAppend, thread.ID))
+}
+
+func TestParentMessaging_StaffNotificationClaimDebouncesOneThread(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+
+	repo := parentRepos(t, db).Thread
+	ctx := tenantCtx(t)
+	thread := api.ParentStoreThread(testpkg.Tenant(t), chain.StudentID, chain.AccountID)
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repo.Create, thread))
+
+	claimed, err := testpkg.TenantQuery2(t, ctx, db, repo.ClaimStaffMessageNotification, thread.ID, time.Minute)
+	require.NoError(t, err)
+	assert.True(t, claimed, "the first parent message claims the notification window")
+
+	claimed, err = testpkg.TenantQuery2(t, ctx, db, repo.ClaimStaffMessageNotification, thread.ID, time.Minute)
+	require.NoError(t, err)
+	assert.False(t, claimed, "a second message inside the window is suppressed")
+
+	_, err = db.NewUpdate().
+		TableExpr(`users.parent_message_threads AS "parent_message_thread"`).
+		Set("last_staff_message_notification_at = clock_timestamp() - INTERVAL '61 seconds'").
+		Where(`"parent_message_thread".id = ?`, thread.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	claimed, err = testpkg.TenantQuery2(t, ctx, db, repo.ClaimStaffMessageNotification, thread.ID, time.Minute)
+	require.NoError(t, err)
+	assert.True(t, claimed, "a later follow-up starts a new notification window")
+}
+
+// newRequestCreatedPill builds a "request created" event pill as the emitter
+// stores it: a system event attributed to the GUARDIAN side (event_actor_kind),
+// so it counts as unread to a staff reader. actorAccountID is the submitting
+// guardian's account (the emitter stamps the actor in sender_account_id).
+
+// TestParentMessaging_RequestCreatedPillNotCounted pins the #1803 duplicate-signal
+// fix: a request_created pill is a queue notice surfaced on the Änderungsanfragen
+// badge, not an unread chat message, so it must NOT inflate the staff Nachrichten
+// unread count — while a plain guardian message in the SAME thread still does. It
+// also asserts the per-thread unread_count column agrees with the aggregate badge,
+// the invariant the exclusion is baked into counterpartUnread to preserve.
+func TestParentMessaging_RequestCreatedPillNotCounted(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+
+	_, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Olivia", "Berg")
+
+	threadRepo := parentRepos(t, db).Thread
+	msgRepo := parentRepos(t, db).Message
+	readRepo := parentRepos(t, db).Read
+	ctx := tenantCtx(t)
+
+	thread := api.ParentStoreThread(testpkg.Tenant(t), chain.StudentID, chain.AccountID)
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, threadRepo.Create, thread))
+
+	base := time.Now().Truncate(time.Microsecond)
+	// A request_created pill (guardian-side system event) alone must leave the
+	// staff badge at zero — it belongs on the Änderungsanfragen queue count.
+	pill := api.ParentStoreRequestCreatedPill(testpkg.Tenant(t), thread.ID, chain.StudentID, chain.AccountID, base)
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, msgRepo.Create, pill))
+
+	count, err := testpkg.TenantQuery2(t, ctx, db, readRepo.UnreadMessageCountForStaff, staffAccount.ID, true)
+	require.NoError(t, err)
+	assert.Equal(t, 0, count, "a request_created pill must not count toward the staff Nachrichten badge")
+
+	inbox, err := testpkg.TenantQuery3(t, ctx, db, readRepo.ListInboxForStaff, staffAccount.ID, true, false)
+	require.NoError(t, err)
+	require.Len(t, inbox, 1, "the thread is still listed — it has a message")
+	assert.Equal(t, 0, inbox[0].UnreadCount, "per-thread unread_count agrees with the badge: pill excluded")
+
+	// A plain guardian chat message in the same thread DOES count — the exclusion
+	// is specific to request_created, not a blanket mute of the thread.
+	chat := api.ParentStoreMessage(testpkg.Tenant(t), thread.ID, chain.StudentID, chain.AccountID, peopleValues.ParentMessageSenderGuardian, "Frage")
+	chat.CreatedAt, chat.UpdatedAt = base.Add(time.Second), base.Add(time.Second)
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, msgRepo.Create, chat))
+
+	count, err = testpkg.TenantQuery2(t, ctx, db, readRepo.UnreadMessageCountForStaff, staffAccount.ID, true)
+	require.NoError(t, err)
+	assert.Equal(t, 1, count, "a plain guardian message still counts; only the pill is excluded")
+
+	inbox, err = testpkg.TenantQuery3(t, ctx, db, readRepo.ListInboxForStaff, staffAccount.ID, true, false)
+	require.NoError(t, err)
+	require.Len(t, inbox, 1)
+	assert.Equal(t, 1, inbox[0].UnreadCount, "per-thread count still matches the badge")
+}
+
+// TestParentMessaging_OneThreadPerGuardian verifies the chat model: exactly one
+// conversation per (child, guardian). A second create for the same pair is
+// rejected by the unique constraint, and FindByStudentGuardian returns the
+// existing thread so the "send" path is get-or-create.
+func TestParentMessaging_OneThreadPerGuardian(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+
+	threadRepo := parentRepos(t, db).Thread
+	readRepo := parentRepos(t, db).Read
+	ctx := tenantCtx(t)
+
+	first := api.ParentStoreThread(testpkg.Tenant(t), chain.StudentID, chain.AccountID)
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, threadRepo.Create, first))
+
+	// A second conversation for the same (child, guardian) is rejected.
+	err := testpkg.TenantCommand1(t, ctx, db, threadRepo.Create, api.ParentStoreThread(testpkg.Tenant(t), chain.StudentID, chain.AccountID))
+	require.Error(t, err, "unique constraint must reject a duplicate conversation")
+
+	// get-or-create lookup returns the existing thread.
+	found, err := testpkg.TenantQuery2(t, ctx, db, threadRepo.FindByStudentGuardian, chain.StudentID, chain.AccountID)
+	require.NoError(t, err)
+	require.NotNil(t, found)
+	assert.Equal(t, first.ID, found.ID)
+
+	// An opened-but-unwritten conversation (created by the "open chat" path)
+	// stays hidden from the guardian's list until its first message, so opening
+	// a chat never litters the list.
+	threads, err := testpkg.TenantQuery2(t, ctx, db, readRepo.ListThreadsForGuardianStudent, chain.AccountID, chain.StudentID)
+	require.NoError(t, err)
+	assert.Empty(t, threads, "an empty conversation must stay hidden until the first message")
+
+	// After the first message it appears — still exactly one conversation.
+	msgRepo := parentRepos(t, db).Message
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, msgRepo.Create, api.ParentStoreMessage(testpkg.Tenant(t), first.ID, chain.StudentID, chain.AccountID, peopleValues.ParentMessageSenderStaff, "hallo")))
+	threads, err = testpkg.TenantQuery2(t, ctx, db, readRepo.ListThreadsForGuardianStudent, chain.AccountID, chain.StudentID)
+	require.NoError(t, err)
+	assert.Len(t, threads, 1, "guardian should have exactly one conversation about the child")
+}
+
+// TestParentMessaging_ListGuardiansForStudent returns the child's
+// account-holding guardians for the staff recipient picker.
+func TestParentMessaging_ListGuardiansForStudent(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+
+	threadRepo := parentRepos(t, db).Thread
+	guardians, err := testpkg.TenantQuery1(t, tenantCtx(t), db, threadRepo.ListGuardiansForStudent, chain.StudentID)
+	require.NoError(t, err)
+	require.Len(t, guardians, 1)
+	assert.Equal(t, chain.AccountID, guardians[0].AccountID)
+	assert.Equal(t, "Sabine Schneider", guardians[0].Name)
+	assert.Equal(t, "parent", guardians[0].RelationshipType)
+	assert.True(t, guardians[0].IsPrimary)
+}
+
+// A pickup-only guardian holds a portal account but no parent_portal.access for
+// this child, so the parent-side reads reject that thread. The staff recipient
+// picker must therefore NOT offer them — otherwise staff could send a message
+// the recipient can never see.
+func TestParentMessaging_ListGuardiansForStudent_ExcludesNoPortalAccess(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+
+	ctx := tenantCtx(t)
+	// Second guardian: account-holding, linked to the SAME child, but pickup_only
+	// (no parent_portal.access in the relationship's permissions).
+	pickupAccount := testpkg.CreateTestAccount(t, db, "pickup-only")
+	pickupProfile := &peopleValues.GuardianProfileSnapshot{
+		FirstName:  "Olaf",
+		LastName:   "Helfer",
+		Email:      &pickupAccount.Email,
+		AccountID:  &pickupAccount.ID,
+		HasAccount: true,
+	}
+	pickupProfile.TenantID = chain.TenantID
+	_, err := db.NewInsert().Model(pickupProfile).ModelTableExpr(`users.guardian_profiles`).ExcludeColumn("id", "created_at", "updated_at", "phone_numbers").Returning("*").Exec(context.Background())
+	require.NoError(t, err)
+
+	pickupLink := &testpkg.StudentGuardian{
+		StudentID:         chain.StudentID,
+		GuardianProfileID: pickupProfile.ID,
+		RelationshipType:  "other",
+		CanPickup:         true,
+	}
+	testpkg.ApplyStudentGuardianRole(pickupLink, testpkg.GuardianRolePickupOnly)
+	pickupLink.TenantID = chain.TenantID
+	require.NoError(t, testpkg.InsertTestStudentGuardian(context.Background(), db, pickupLink))
+	// The relationship for this student is cleaned by CleanupParentGuardianChain.
+
+	threadRepo := parentRepos(t, db).Thread
+	guardians, err := testpkg.TenantQuery1(t, ctx, db, threadRepo.ListGuardiansForStudent, chain.StudentID)
+	require.NoError(t, err)
+	require.Len(t, guardians, 1, "pickup-only guardian without parent_portal.access must be excluded")
+	assert.Equal(t, chain.AccountID, guardians[0].AccountID)
+}
+
+// A guardian who still has parent_portal.access on the relationship but whose
+// auth.account_tenants membership for this school is no longer active can no
+// longer read the child (the parent-side reads require status = 'active'). The
+// staff recipient picker must therefore exclude them — otherwise staff could
+// open a thread the recipient can never see and BroadcastParentMessage would
+// still wake the revoked account.
+func TestParentMessaging_ListGuardiansForStudent_ExcludesInactiveTenantMembership(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+
+	ctx := tenantCtx(t)
+	threadRepo := parentRepos(t, db).Thread
+
+	// Sanity: with an active membership the primary guardian is offered.
+	guardians, err := testpkg.TenantQuery1(t, ctx, db, threadRepo.ListGuardiansForStudent, chain.StudentID)
+	require.NoError(t, err)
+	require.Len(t, guardians, 1)
+
+	// Revoke access by flipping the membership to inactive.
+	_, err = db.ExecContext(context.Background(),
+		`UPDATE auth.account_tenants SET status = 'inactive' WHERE account_id = ? AND tenant_id = ?`,
+		chain.AccountID, chain.TenantID)
+	require.NoError(t, err)
+
+	guardians, err = testpkg.TenantQuery1(t, ctx, db, threadRepo.ListGuardiansForStudent, chain.StudentID)
+	require.NoError(t, err)
+	assert.Empty(t, guardians, "guardian without an active account_tenants membership must be excluded")
+}
+
+// TestParentMessaging_ListStudentIDsWithMessageableGuardian applies the
+// recipient picker's rule to every child at once (#4362): a child counts only
+// with a guardian who holds a portal account, parent_portal.access for this
+// child and an active membership of the school.
+func TestParentMessaging_ListStudentIDsWithMessageableGuardian(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	ctx := tenantCtx(t)
+	reachable := testpkg.CreateTestParentGuardianChain(t, db)
+	revoked := testpkg.CreateTestParentGuardianChain(t, db)
+	withoutGuardian := testpkg.CreateTestStudent(t, db, "Ohne", "Eltern", "3a")
+
+	// A pickup-only guardian holds an account but no parent_portal.access.
+	pickupOnly := testpkg.CreateTestStudent(t, db, "Nur", "Abholung", "3a")
+	pickupAccount := testpkg.CreateTestAccount(t, db, "pickup-only-list")
+	pickupProfile := &peopleValues.GuardianProfileSnapshot{
+		FirstName:  "Olaf",
+		LastName:   "Helfer",
+		Email:      &pickupAccount.Email,
+		AccountID:  &pickupAccount.ID,
+		HasAccount: true,
+	}
+	pickupProfile.TenantID = reachable.TenantID
+	_, err := db.NewInsert().Model(pickupProfile).ModelTableExpr(`users.guardian_profiles`).ExcludeColumn("id", "created_at", "updated_at", "phone_numbers").Returning("*").Exec(context.Background())
+	require.NoError(t, err)
+	pickupLink := &testpkg.StudentGuardian{
+		StudentID:         pickupOnly.ID,
+		GuardianProfileID: pickupProfile.ID,
+		RelationshipType:  "other",
+		CanPickup:         true,
+	}
+	testpkg.ApplyStudentGuardianRole(pickupLink, testpkg.GuardianRolePickupOnly)
+	pickupLink.TenantID = reachable.TenantID
+	require.NoError(t, testpkg.InsertTestStudentGuardian(context.Background(), db, pickupLink))
+
+	_, err = db.ExecContext(context.Background(),
+		`UPDATE auth.account_tenants SET status = 'inactive' WHERE account_id = ? AND tenant_id = ?`,
+		revoked.AccountID, revoked.TenantID)
+	require.NoError(t, err)
+
+	threadRepo := parentRepos(t, db).Thread
+	ids, err := testpkg.TenantQuery0(t, ctx, db, threadRepo.ListStudentIDsWithMessageableGuardian)
+	require.NoError(t, err)
+	assert.Contains(t, ids, reachable.StudentID)
+	assert.NotContains(t, ids, revoked.StudentID, "a guardian without an active membership reaches nobody")
+	assert.NotContains(t, ids, pickupOnly.ID, "a pickup-only guardian has no parent_portal.access")
+	assert.NotContains(t, ids, withoutGuardian.ID)
+	assert.IsIncreasing(t, ids)
+}
+
+// TestParentMessaging_TouchLastMessage_Monotonic verifies the denormalized
+// last-activity fields only ever move FORWARD in time. This is the concurrency
+// guard: when a staff reply and a guardian message hit the same thread at nearly
+// the same time, each loads the thread and stamps its own instant. The older one
+// must NOT overwrite the newer one's preview/order just because it committed
+// last. TouchLastMessage no-ops on a stale (older-or-equal) instant.
+func TestParentMessaging_TouchLastMessage_Monotonic(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+
+	ctx := tenantCtx(t)
+	threadRepo := parentRepos(t, db).Thread
+
+	thread := api.ParentStoreThread(testpkg.Tenant(t), chain.StudentID, chain.AccountID)
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, threadRepo.Create, thread))
+	require.Positive(t, thread.ID)
+
+	t1 := time.Now().Truncate(time.Second)
+	t2 := t1.Add(2 * time.Second)
+
+	// First real activity: a guardian message at t2 wins the empty (NULL) thread.
+	require.NoError(t, testpkg.TenantCommand5(t, ctx, db, threadRepo.TouchLastMessage, thread.ID, t2, 1, peopleValues.ParentMessageSenderGuardian, "neuere Nachricht"))
+	got, err := testpkg.TenantQuery1(t, ctx, db, threadRepo.FindByID, thread.ID)
+	require.NoError(t, err)
+	require.NotNil(t, got.LastMessageAt)
+	assert.WithinDuration(t, t2, *got.LastMessageAt, time.Second)
+	assert.Equal(t, peopleValues.ParentMessageSenderGuardian, derefStr(got.LastSenderKind))
+	assert.Equal(t, "neuere Nachricht", got.LastMessageBody)
+
+	// A staff send that committed afterwards but captured an OLDER instant (t1)
+	// must be a no-op: preview/order/last-sender stay on the t2 message.
+	require.NoError(t, testpkg.TenantCommand5(t, ctx, db, threadRepo.TouchLastMessage, thread.ID, t1, 2, peopleValues.ParentMessageSenderStaff, "ältere Antwort"))
+	got, err = testpkg.TenantQuery1(t, ctx, db, threadRepo.FindByID, thread.ID)
+	require.NoError(t, err)
+	assert.WithinDuration(t, t2, *got.LastMessageAt, time.Second, "stale older send must not move last_message_at back")
+	assert.Equal(t, peopleValues.ParentMessageSenderGuardian, derefStr(got.LastSenderKind), "stale older send must not steal last sender")
+	assert.Equal(t, "neuere Nachricht", got.LastMessageBody, "stale older send must not overwrite the preview")
+
+	// A genuinely newer send (t3 > t2) does advance the thread.
+	t3 := t2.Add(2 * time.Second)
+	require.NoError(t, testpkg.TenantCommand5(t, ctx, db, threadRepo.TouchLastMessage, thread.ID, t3, 3, peopleValues.ParentMessageSenderStaff, "neueste Antwort"))
+	got, err = testpkg.TenantQuery1(t, ctx, db, threadRepo.FindByID, thread.ID)
+	require.NoError(t, err)
+	assert.WithinDuration(t, t3, *got.LastMessageAt, time.Second)
+	assert.Equal(t, peopleValues.ParentMessageSenderStaff, derefStr(got.LastSenderKind))
+	assert.Equal(t, "neueste Antwort", got.LastMessageBody)
+}
+
+// TestParentMessaging_TouchLastMessage_TiedTimestamp pins the id tie-breaker:
+// clock_timestamp() can hand two messages in the same thread an identical
+// created_at, so the monotonic preview guard must fall back to the message id
+// (the second half of the (created_at, id) order ListByThread and the unread
+// cursor use). On an equal instant the higher-id message owns the preview/sender,
+// and a lower-id message that commits afterwards must NOT steal it back.
+func TestParentMessaging_TouchLastMessage_TiedTimestamp(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+
+	ctx := tenantCtx(t)
+	threadRepo := parentRepos(t, db).Thread
+
+	thread := api.ParentStoreThread(testpkg.Tenant(t), chain.StudentID, chain.AccountID)
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, threadRepo.Create, thread))
+	require.Positive(t, thread.ID)
+
+	at := time.Now().Truncate(time.Second)
+
+	// Lower-id message lands first and wins the empty thread.
+	require.NoError(t, testpkg.TenantCommand5(t, ctx, db, threadRepo.TouchLastMessage, thread.ID, at, 10, peopleValues.ParentMessageSenderGuardian, "erste gleiche Zeit"))
+
+	// Same instant, HIGHER id: the genuinely newer message must take over.
+	require.NoError(t, testpkg.TenantCommand5(t, ctx, db, threadRepo.TouchLastMessage, thread.ID, at, 20, peopleValues.ParentMessageSenderStaff, "neuere gleiche Zeit"))
+	got, err := testpkg.TenantQuery1(t, ctx, db, threadRepo.FindByID, thread.ID)
+	require.NoError(t, err)
+	assert.Equal(t, peopleValues.ParentMessageSenderStaff, derefStr(got.LastSenderKind), "higher id at equal instant must win")
+	assert.Equal(t, "neuere gleiche Zeit", got.LastMessageBody)
+
+	// Same instant, LOWER id committing afterwards: must be a no-op.
+	require.NoError(t, testpkg.TenantCommand5(t, ctx, db, threadRepo.TouchLastMessage, thread.ID, at, 15, peopleValues.ParentMessageSenderGuardian, "ältere gleiche Zeit"))
+	got, err = testpkg.TenantQuery1(t, ctx, db, threadRepo.FindByID, thread.ID)
+	require.NoError(t, err)
+	assert.Equal(t, peopleValues.ParentMessageSenderStaff, derefStr(got.LastSenderKind), "lower id at equal instant must not steal the preview")
+	assert.Equal(t, "neuere gleiche Zeit", got.LastMessageBody, "lower id at equal instant must not overwrite the preview")
+}
+
+func derefStr(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
+}
+
+// TestParentMessaging_UnreadCountExcludesAlumni guards the sidebar badges
+// against graduated children: both inboxes hide an alumnus child's threads, so
+// the shared unread-count query must not keep counting their messages — a
+// nonzero badge no portal can open or clear (#405 review).
+func TestParentMessaging_UnreadCountExcludesAlumni(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+
+	_, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Olivia", "Berg")
+
+	threadRepo := parentRepos(t, db).Thread
+	msgRepo := parentRepos(t, db).Message
+	readRepo := parentRepos(t, db).Read
+	ctx := tenantCtx(t)
+
+	thread := api.ParentStoreThread(testpkg.Tenant(t), chain.StudentID, chain.AccountID)
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, threadRepo.Create, thread))
+
+	// One unread message per reader side: the guardian message badges the staff
+	// sidebar, the staff message badges the parent portal.
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, msgRepo.Create, api.ParentStoreMessage(testpkg.Tenant(t), thread.ID, chain.StudentID, chain.AccountID, peopleValues.ParentMessageSenderGuardian, "hallo")))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, msgRepo.Create, api.ParentStoreMessage(testpkg.Tenant(t), thread.ID, chain.StudentID, staffAccount.ID, peopleValues.ParentMessageSenderStaff, "antwort")))
+
+	staffUnread, err := testpkg.TenantQuery2(t, ctx, db, readRepo.UnreadMessageCountForStaff, staffAccount.ID, true)
+	require.NoError(t, err)
+	require.Equal(t, 1, staffUnread, "guard: the guardian message counts while the child is active")
+	guardianUnread, err := testpkg.TenantQuery2(t, ctx, db, readRepo.UnreadMessageCountForGuardianTenants, chain.AccountID, []int64{testpkg.Tenant(t)})
+	require.NoError(t, err)
+	require.Equal(t, 1, guardianUnread, "guard: the staff message counts while the child is active")
+
+	// The child graduates (soft delete via Jahrgangswechsel).
+	_, err = db.NewRaw(`UPDATE users.student_school_memberships SET status = 'alumnus' WHERE student_profile_id = ? AND deleted_at IS NULL`, chain.StudentID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	staffUnread, err = testpkg.TenantQuery2(t, ctx, db, readRepo.UnreadMessageCountForStaff, staffAccount.ID, true)
+	require.NoError(t, err)
+	assert.Equal(t, 0, staffUnread, "a graduated child's messages must not badge the staff sidebar")
+	guardianUnread, err = testpkg.TenantQuery2(t, ctx, db, readRepo.UnreadMessageCountForGuardianTenants, chain.AccountID, []int64{testpkg.Tenant(t)})
+	require.NoError(t, err)
+	assert.Equal(t, 0, guardianUnread, "a graduated child's messages must not badge the parent portal")
+}

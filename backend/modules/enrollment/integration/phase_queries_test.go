@@ -34,15 +34,15 @@ func TestPhaseCalendarReferencesTenantIsolationAndFailure(t *testing.T) {
 	for i, schoolID := range schoolIDs {
 		ctx := testpkg.ContextForTenant(testpkg.Ctx(t), schoolID)
 		counter := testpkg.CaptureQueriesForContext(t, db)
-		counts, err := module.PhaseCountsByCalendarPeriod(counter.Context(ctx))
+		counts, err := testpkg.TenantQuery0(t, counter.Context(ctx), db, module.PhaseCountsByCalendarPeriod)
 		require.NoError(t, err)
 		require.Equal(t, map[int64]int{periodIDs[i]: 1}, counts)
 		require.Len(t, counter.Selects("enrollment.phases"), 1, "phase counts must use one grouped owner query")
 		counter.Stop()
 		err = tenant.WithAdminTx(ctx, db, func(adminCtx context.Context, _ bun.Tx) error {
-			_, queryErr := module.PhaseCountsByCalendarPeriod(adminCtx)
+			_, queryErr := testpkg.TenantQuery0(t, adminCtx, db, module.PhaseCountsByCalendarPeriod)
 			require.ErrorContains(t, queryErr, "tenant ID is required")
-			counts, queryErr = module.PhaseCountsByCalendarPeriod(testpkg.ContextForTenant(adminCtx, schoolID))
+			counts, queryErr = testpkg.TenantQuery0(t, testpkg.ContextForTenant(adminCtx, schoolID), db, module.PhaseCountsByCalendarPeriod)
 			require.NoError(t, queryErr)
 			require.Equal(t, map[int64]int{periodIDs[i]: 1}, counts)
 			return nil
@@ -58,7 +58,7 @@ func TestPhaseCalendarReferencesTenantIsolationAndFailure(t *testing.T) {
 		return err
 	})
 	require.Error(t, err)
-	counts, err := module.PhaseCountsByCalendarPeriod(ctx)
+	counts, err := testpkg.TenantQuery0(t, ctx, db, module.PhaseCountsByCalendarPeriod)
 	require.NoError(t, err)
 	require.Equal(t, map[int64]int{periodIDs[0]: 1}, counts)
 }

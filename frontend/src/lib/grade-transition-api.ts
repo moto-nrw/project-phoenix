@@ -1,5 +1,5 @@
 import type { ErrorCode } from "~/lib/error-codes.generated";
-import { ApiError, apiErrorFromBody, enrichApiError } from "./api-error";
+import { ApiError, apiErrorFromBody } from "./api-error";
 // grade-transition-api.ts
 // Client for the Jahrgangsstufenwechsel (grade transition) admin flow (#405).
 // Talks to the Next.js proxy routes under /api/admin/grade-transitions which
@@ -366,41 +366,23 @@ export const NOT_DRAFT_CODE: ErrorCode = "grade_transition.not_draft";
 export const NOT_APPLIED_CODE: ErrorCode = "grade_transition.not_applied";
 
 /**
- * Error thrown by {@link applyGradeTransition} and {@link revertGradeTransition}
- * that preserves the backend's stable error `code`, so the caller can
- * distinguish a recoverable conflict (graduates still checked in, stale revert
- * target) from a generic failure.
+ * A failed response as ApiError: the backend's stable `code` (for example a
+ * NOT_DRAFT_CODE or NOT_APPLIED_CODE conflict) lets the caller tell a
+ * recoverable conflict from a real failure.
  */
-export class TransitionRequestError extends ApiError {
-  constructor(message: string, code?: string) {
-    super(message, undefined, { code });
-    this.name = "TransitionRequestError";
-  }
-}
-
-async function readErrorWithCode(
-  response: Response,
-): Promise<{ message: string; code?: string; payload?: unknown }> {
+async function responseError(response: Response): Promise<ApiError> {
+  let body: unknown;
   try {
-    const body = (await response.json()) as {
-      error?: string;
-      message?: string;
-      code?: string;
-    };
-    return {
-      message: body.error ?? body.message ?? `HTTP ${response.status}`,
-      code: body.code,
-      payload: body,
-    };
+    body = await response.json();
   } catch {
-    return { message: `HTTP ${response.status}` };
+    // Not JSON: the status still classifies.
   }
+  return apiErrorFromBody(`HTTP ${response.status}`, response.status, body);
 }
 
 async function readJSON<T>(response: Response): Promise<T> {
   if (!response.ok) {
-    const error = await readErrorWithCode(response);
-    throw apiErrorFromBody(error.message, response.status, error.payload);
+    throw await responseError(response);
   }
   const body = (await response.json()) as { data?: T } | T;
   if (body && typeof body === "object" && "data" in body) {
@@ -505,12 +487,7 @@ export async function updateGradeTransition(
     // Keep the stable code: a NOT_DRAFT_CODE conflict means the loaded draft
     // was applied by another admin, and the editor must say so instead of
     // suggesting a retry that can never succeed (#405 review).
-    const { message, code, payload } = await readErrorWithCode(response);
-    throw enrichApiError(
-      new TransitionRequestError(message, code),
-      payload,
-      response.status,
-    );
+    throw await responseError(response);
   }
   return mapTransition(await readJSON<BackendGradeTransition>(response));
 }
@@ -520,12 +497,7 @@ export async function deleteGradeTransition(id: string): Promise<void> {
     method: "DELETE",
   });
   if (!response.ok) {
-    const { message, code, payload } = await readErrorWithCode(response);
-    throw enrichApiError(
-      new TransitionRequestError(message, code),
-      payload,
-      response.status,
-    );
+    throw await responseError(response);
   }
 }
 
@@ -539,8 +511,8 @@ export async function previewGradeTransition(
 }
 
 /**
- * Reads an apply/revert response, throwing a {@link TransitionRequestError} that
- * keeps the backend's stable `code` on failure. The generic {@link readJSON}
+ * Reads an apply/revert response, throwing an ApiError that keeps the
+ * backend's stable `code` on failure. The generic {@link readJSON}
  * path drops that code, which would leave the caller unable to tell a
  * recoverable 409 conflict from a real failure.
  */
@@ -548,12 +520,7 @@ async function readResultOrThrow(
   response: Response,
 ): Promise<TransitionResult> {
   if (!response.ok) {
-    const { message, code, payload } = await readErrorWithCode(response);
-    throw enrichApiError(
-      new TransitionRequestError(message, code),
-      payload,
-      response.status,
-    );
+    throw await responseError(response);
   }
   const body = (await response.json()) as
     { data?: BackendTransitionResult } | BackendTransitionResult;
@@ -633,7 +600,6 @@ export async function purgeGraduatedStudent(studentId: string): Promise<void> {
     { method: "DELETE" },
   );
   if (!response.ok) {
-    const error = await readErrorWithCode(response);
-    throw apiErrorFromBody(error.message, response.status, error.payload);
+    throw await responseError(response);
   }
 }

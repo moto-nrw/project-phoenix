@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/classday"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // SupervisionStudentSheet builds the per-child sheet a supervisor opens from
@@ -27,7 +27,7 @@ func (s *dayReports) SupervisionStudentSheet(ctx context.Context, in classday.Su
 	}
 	date := in.Date
 	if date.IsZero() {
-		date = timezone.TodayDate()
+		date = calendar.TodayDate()
 	}
 	student, err := s.students.FindSheetStudent(ctx, in.StudentID)
 	if err != nil {
@@ -48,7 +48,7 @@ func (s *dayReports) SupervisionStudentSheet(ctx context.Context, in classday.Su
 
 // supervisionSheetFor reads the child's name, the effective times, the
 // departure, the day status and the contacts of the date.
-func (s *dayReports) supervisionSheetFor(ctx context.Context, student *SheetStudent, date timezone.Date, boundary []int64) (*classday.SupervisionStudentSheet, error) {
+func (s *dayReports) supervisionSheetFor(ctx context.Context, student *SheetStudent, date calendar.Date, boundary []int64) (*classday.SupervisionStudentSheet, error) {
 	sheet := &classday.SupervisionStudentSheet{
 		StudentID:         student.ID,
 		SchoolClass:       student.SchoolClass,
@@ -85,7 +85,7 @@ func (s *dayReports) supervisionSheetFor(ctx context.Context, student *SheetStud
 
 // supervisionStatus is the reported day status, or "cancelled" when the
 // care day was called off.
-func (s *dayReports) supervisionStatus(ctx context.Context, studentID int64, date timezone.Date, facts *classDayFacts) (string, error) {
+func (s *dayReports) supervisionStatus(ctx context.Context, studentID int64, date calendar.Date, facts *classDayFacts) (string, error) {
 	studentIDs := []int64{studentID}
 	statuses, _, err := s.classDayStatuses(ctx, studentIDs, date)
 	if err != nil {
@@ -108,7 +108,7 @@ func (s *dayReports) supervisionStatus(ctx context.Context, studentID int64, dat
 // disclosure boundary for companion names. A companion binding that is not
 // wired costs the names in brackets, but a lookup failure fails the sheet
 // closed so a partial departure instruction is never presented as complete.
-func (s *dayReports) supervisionDeparture(ctx context.Context, student *SheetStudent, date timezone.Date, boundary []int64) (string, error) {
+func (s *dayReports) supervisionDeparture(ctx context.Context, student *SheetStudent, date calendar.Date, boundary []int64) (string, error) {
 	weekday, err := classDayPlanKey(ctx, date)
 	if err != nil {
 		return "", err
@@ -124,7 +124,11 @@ func (s *dayReports) supervisionDeparture(ctx context.Context, student *SheetStu
 	if err != nil {
 		return "", fmt.Errorf("supervision sheet: load departure companions: %w", err)
 	}
-	modes := weekdayDepartureModes(student.AllowedDepartureModes, student.DepartureDays, weekday)
+	dayModes, err := s.dayDepartureModes(ctx, []int64{student.ID}, date)
+	if err != nil {
+		return "", fmt.Errorf("supervision sheet: %w", err)
+	}
+	modes := withDayDeparture(weekdayDepartureModes(student.AllowedDepartureModes, student.DepartureDays, weekday), dayModes[student.ID])
 	if departure := classDayDeparture(modes, weekday, links[student.ID], onSheet); departure != "" {
 		return departure, nil
 	}

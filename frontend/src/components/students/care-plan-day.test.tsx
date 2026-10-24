@@ -292,6 +292,8 @@ describe("CarePlanDayTimeline", () => {
         onEditSchedule={vi.fn()}
       />,
     );
+    // Anker: die Zeitleiste der Wochenspalte ist gerendert.
+    expect(screen.getByText("Abholung")).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Zeiten bearbeiten" }),
     ).not.toBeInTheDocument();

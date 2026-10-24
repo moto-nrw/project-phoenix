@@ -9,6 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/driver/pgdriver"
 )
 
 type permissionRow struct {
@@ -139,41 +140,6 @@ func (s *Store) ListRolePermissions(ctx context.Context, roleID int64) ([]domain
 		Where("rp.role_id = ?", roleID), "find by role ID")
 }
 
-// ListAccountPermissions preserves the administration view: direct grants plus role grants.
-// Explicit denials are applied by the authentication evaluator, not by this catalog view.
-func (s *Store) ListAccountPermissions(ctx context.Context, accountID int64) ([]domain.ManagedPermission, error) {
-	db, err := s.database(ctx)
-	if err != nil {
-		return nil, err
-	}
-	direct := db.NewSelect().TableExpr("auth.account_permissions AS account_permission").
-		ColumnExpr("account_permission.permission_id").Where("account_permission.account_id = ? AND account_permission.granted = true", accountID)
-	roles := db.NewSelect().TableExpr("auth.role_permissions AS role_permission").
-		ColumnExpr("role_permission.permission_id").
-		Join("JOIN auth.account_roles AS ar ON ar.role_id = role_permission.role_id").Where("ar.account_id = ?", accountID)
-	if tenantID := s.scope(ctx).TenantID; tenantID > 0 {
-		direct = direct.Where("account_permission.tenant_id = ?", tenantID)
-		roles = roles.Where("ar.tenant_id = ?", tenantID)
-	}
-	return scanPermissions(ctx, db.NewSelect().TableExpr("auth.permissions AS permission").
-		ColumnExpr("permission.id, permission.name, permission.description, permission.resource, permission.action, permission.created_at, permission.updated_at").Distinct().
-		Join("JOIN (?) AS aap ON aap.permission_id = permission.id", direct.UnionAll(roles)), "find by account ID")
-}
-
-func (s *Store) ListAccountDirectPermissions(ctx context.Context, accountID int64) ([]domain.ManagedPermission, error) {
-	db, err := s.database(ctx)
-	if err != nil {
-		return nil, err
-	}
-	query := db.NewSelect().TableExpr("auth.permissions AS permission").ColumnExpr("permission.id, permission.name, permission.description, permission.resource, permission.action, permission.created_at, permission.updated_at").
-		Join("JOIN auth.account_permissions ap ON ap.permission_id = permission.id").
-		Where("ap.account_id = ? AND ap.granted = true", accountID)
-	if tenantID := s.scope(ctx).TenantID; tenantID > 0 {
-		query = query.Where("ap.tenant_id = ?", tenantID)
-	}
-	return scanPermissions(ctx, query, "find direct permissions by account ID")
-}
-
 // AssignRolePermission is idempotent under the caller's role-row lock.
 func (s *Store) AssignRolePermission(ctx context.Context, roleID, permissionID int64) error {
 	db, err := s.database(ctx)
@@ -192,6 +158,60 @@ func (s *Store) AssignRolePermission(ctx context.Context, roleID, permissionID i
 		return fmt.Errorf("assign permission to role: %w", err)
 	}
 	return nil
+}
+
+// copyRolePermissionsAttempts bounds the retries of AssignRolePermissions.
+// Each retry follows a catalog deletion that committed during the statement.
+const copyRolePermissionsAttempts = 3
+
+// AssignRolePermissions gives a role every listed permission the catalog
+// still holds, in one statement, so a permission deleted after the caller
+// read the catalog is skipped instead of failing the role (#4574). A deletion
+// that commits while the statement runs breaks its foreign key check; the
+// statement then rolls back to its savepoint and runs again on the new
+// catalog. phoenix_tenant may not lock catalog rows (no UPDATE grant), so the
+// retry stands in for a row lock.
+func (s *Store) AssignRolePermissions(ctx context.Context, roleID int64, permissionIDs []int64) error {
+	if len(permissionIDs) == 0 {
+		return nil
+	}
+	db, err := s.database(ctx)
+	if err != nil {
+		return err
+	}
+	for attempt := 1; ; attempt++ {
+		err = copyCatalogPermissions(ctx, db, roleID, permissionIDs)
+		if err == nil || attempt == copyRolePermissionsAttempts || !isDeletedPermission(err) {
+			return err
+		}
+	}
+}
+
+func copyCatalogPermissions(ctx context.Context, db bun.IDB, roleID int64, permissionIDs []int64) error {
+	if _, err := db.ExecContext(ctx, "SAVEPOINT copy_role_permissions"); err != nil {
+		return fmt.Errorf("copy permissions to role: %w", err)
+	}
+	_, err := db.NewRaw(`INSERT INTO auth.role_permissions (role_id, permission_id)
+		SELECT ?, permission.id FROM auth.permissions AS permission WHERE permission.id IN (?)
+		ON CONFLICT (role_id, permission_id) DO NOTHING`, roleID, bun.List(permissionIDs)).Exec(ctx)
+	if err != nil {
+		if _, rollbackErr := db.ExecContext(ctx, "ROLLBACK TO SAVEPOINT copy_role_permissions"); rollbackErr != nil {
+			return fmt.Errorf("copy permissions to role: %w", errors.Join(err, rollbackErr))
+		}
+		return fmt.Errorf("copy permissions to role: %w", err)
+	}
+	if _, err := db.ExecContext(ctx, "RELEASE SAVEPOINT copy_role_permissions"); err != nil {
+		return fmt.Errorf("copy permissions to role: %w", err)
+	}
+	return nil
+}
+
+// isDeletedPermission reports the foreign key violation of a role permission
+// whose catalog permission was deleted concurrently.
+func isDeletedPermission(err error) bool {
+	var postgresError pgdriver.Error
+	return errors.As(err, &postgresError) && postgresError.Field('C') == "23503" &&
+		postgresError.Field('n') == "fk_role_permissions_permission"
 }
 
 func (s *Store) RemoveRolePermission(ctx context.Context, roleID, permissionID int64) error {
@@ -236,72 +256,10 @@ func (s *Store) DeletePermissionGrants(ctx context.Context, permissionID int64) 
 		return err
 	}
 	query := db.NewDelete().TableExpr("auth.account_permissions AS account_permission").Where("account_permission.permission_id = ?", permissionID)
-	if tenantID := s.scope(ctx).TenantID; tenantID > 0 {
-		query = query.Where("account_permission.tenant_id = ?", tenantID)
-	}
+	query = scopeTenantQuery(s.scope(ctx), query, "account_permission.tenant_id = ?")
 	_, err = query.Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("delete by permission ID: %w", err)
-	}
-	return nil
-}
-
-func (s *Store) GrantAccountPermission(ctx context.Context, accountID, permissionID int64) error {
-	return s.setAccountPermission(ctx, accountID, permissionID, true, "grant permission")
-}
-
-func (s *Store) DenyAccountPermission(ctx context.Context, accountID, permissionID int64) error {
-	return s.setAccountPermission(ctx, accountID, permissionID, false, "deny permission")
-}
-
-// setAccountPermission retains the existence/update sequence under the account-row lock.
-// Tenantless administrative callers update all matching mappings, as before; school callers
-// always constrain both the existence check and update to their school.
-func (s *Store) setAccountPermission(ctx context.Context, accountID, permissionID int64, granted bool, operation string) error {
-	db, err := s.database(ctx)
-	if err != nil {
-		return err
-	}
-	tenantID := s.scope(ctx).TenantID
-	query := db.NewSelect().TableExpr("auth.account_permissions AS account_permission").
-		Where("account_permission.account_id = ? AND account_permission.permission_id = ?", accountID, permissionID)
-	if tenantID > 0 {
-		query = query.Where("account_permission.tenant_id = ?", tenantID)
-	}
-	exists, err := query.Exists(ctx)
-	if err != nil {
-		return fmt.Errorf("check permission mapping: %w", err)
-	}
-	if exists {
-		update := db.NewUpdate().TableExpr("auth.account_permissions AS account_permission").
-			Set("granted = ?", granted).Where("account_permission.account_id = ? AND account_permission.permission_id = ?", accountID, permissionID)
-		if tenantID > 0 {
-			update = update.Where("account_permission.tenant_id = ?", tenantID)
-		}
-		_, err = update.Exec(ctx)
-	} else {
-		_, err = db.NewRaw("INSERT INTO auth.account_permissions (account_id, permission_id, granted, tenant_id) VALUES (?, ?, ?, ?)",
-			accountID, permissionID, granted, tenantID).Exec(ctx)
-	}
-	if err != nil {
-		return fmt.Errorf("%s: %w", operation, err)
-	}
-	return nil
-}
-
-func (s *Store) RemoveAccountPermission(ctx context.Context, accountID, permissionID int64) error {
-	db, err := s.database(ctx)
-	if err != nil {
-		return err
-	}
-	query := db.NewDelete().TableExpr("auth.account_permissions AS account_permission").
-		Where("account_permission.account_id = ? AND account_permission.permission_id = ?", accountID, permissionID)
-	if tenantID := s.scope(ctx).TenantID; tenantID > 0 {
-		query = query.Where("account_permission.tenant_id = ?", tenantID)
-	}
-	_, err = query.Exec(ctx)
-	if err != nil {
-		return fmt.Errorf("remove permission: %w", err)
 	}
 	return nil
 }

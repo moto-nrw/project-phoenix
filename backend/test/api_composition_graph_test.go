@@ -240,14 +240,10 @@ func (graph *compositionGraph) references(node compositionNode) ([]string, []str
 	return edges, broad
 }
 
+// broadCompositionSymbol names the root's full composition: the process
+// runtime and the full-router golden that builds it.
 func broadCompositionSymbol(pkg, name string) bool {
-	if (pkg == rootServicesImport || pkg == projectImportRoot+"/database/repositories") && strings.HasPrefix(name, "NewFactory") {
-		return true
-	}
-	if pkg == testutilImport && (name == "SetupAPITest" || name == "setupAPITest" || name == "SetupFeedbackAPITest") {
-		return true
-	}
-	return pkg == projectImportRoot+"/api" && (name == "New" || name == "newRuntime" || name == "initializeAPIResources" || name == "buildFullProductionRouterGolden" || name == "TestFullProductionRouterGolden")
+	return pkg == projectImportRoot+"/api" && (name == "newRuntime" || name == "TestFullProductionRouterGolden")
 }
 
 func fullRouterGoldenNode(source routeBuilderFile, name string) bool {

@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // The presence capability is published as small facades. A consumer declares
@@ -158,7 +158,7 @@ type AttendanceReads interface {
 	GetStudentsAttendanceStatuses(ctx context.Context, studentIDs []int64) (map[int64]*DailyAttendanceStatus, error)
 	// HasOpenAttendanceOn reports whether any attendance row on the given
 	// calendar date is still open. Used by the presence-mode switch guard.
-	HasOpenAttendanceOn(ctx context.Context, date timezone.Date) (bool, error)
+	HasOpenAttendanceOn(ctx context.Context, date calendar.Date) (bool, error)
 }
 
 // Presence is the whole presence capability the composition root wires once.
@@ -177,6 +177,7 @@ type Presence interface {
 
 // PresenceCleanup applies and previews the data-retention cleanup.
 type PresenceCleanup interface {
+	ApplyAttendanceLogSetting(context.Context, bool) error
 	// CleanupExpiredVisits runs the cleanup process for all students
 	CleanupExpiredVisits(ctx context.Context) (*CleanupResult, error)
 	// GetRetentionStatistics gets statistics about data that will be deleted
@@ -198,17 +199,17 @@ type PresenceCleanup interface {
 type StudentHistory interface {
 	// GetAttendanceByStudentAndDateRange returns a student's attendance rows
 	// between two dates (inclusive).
-	GetAttendanceByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate timezone.Date) ([]*Attendance, error)
+	GetAttendanceByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate calendar.Date) ([]*Attendance, error)
 	// GetAttendanceForDateByStudentIDs returns attendance rows for the supplied
 	// students on one calendar date.
-	GetAttendanceForDateByStudentIDs(ctx context.Context, date timezone.Date, studentIDs []int64) ([]*Attendance, error)
+	GetAttendanceForDateByStudentIDs(ctx context.Context, date calendar.Date, studentIDs []int64) ([]*Attendance, error)
 	// GetVisitsByStudentAndTimeRange returns a student's visits (active or
 	// ended) entered within the inclusive time range.
 	GetVisitsByStudentAndTimeRange(ctx context.Context, studentID int64, start, end time.Time) ([]*VisitHistoryEntry, error)
-	GetSlotAttendanceByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate timezone.Date) ([]*HistorySlot, error)
+	GetSlotAttendanceByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate calendar.Date) ([]*HistorySlot, error)
 	// HasPlannedSlotsInRange reports whether the tenant has any planned slot
 	// assignment on a non-cancelled instance within the inclusive date range.
-	HasPlannedSlotsInRange(ctx context.Context, startDate, endDate timezone.Date) (bool, error)
+	HasPlannedSlotsInRange(ctx context.Context, startDate, endDate calendar.Date) (bool, error)
 	// RecordDataAccess writes a GDPR data-access log entry.
 	RecordDataAccess(ctx context.Context, entry *DataAccessEvent) error
 }
@@ -216,19 +217,28 @@ type StudentHistory interface {
 // StatusDayReads reads the reported status days (sick / excused / class
 // trip). Care Plan owns the rows; presence reads them through its adapters.
 type StatusDayReads interface {
-	GetActiveByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date timezone.Date) ([]*absencerecords.StudentStatusDay, error)
-	GetSignedOffByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date timezone.Date) ([]*absencerecords.StudentStatusDay, error)
-	GetActiveByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate timezone.Date) ([]*absencerecords.StudentStatusDay, error)
-	GetByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate timezone.Date) ([]*absencerecords.StudentStatusDay, error)
+	// FindActiveByStudentIDsAndDate returns the active status rows of many
+	// students for one calendar date.
+	FindActiveByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date calendar.Date) ([]*absencerecords.StudentStatusDay, error)
+	// FindSignedOffByStudentIDsAndDate returns the status rows of many
+	// students that count as a registered sign-off for one date: active rows
+	// plus rows the end-of-day scheduler archived.
+	FindSignedOffByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date calendar.Date) ([]*absencerecords.StudentStatusDay, error)
+	// FindActiveByStudentAndDateRange returns a student's active status rows
+	// within the date range.
+	FindActiveByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate calendar.Date) ([]*absencerecords.StudentStatusDay, error)
+	// FindByStudentAndDateRange returns ALL (including cleared) status rows
+	// of a student within the date range.
+	FindByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate calendar.Date) ([]*absencerecords.StudentStatusDay, error)
 }
 
 // StatusDayWrites records and clears status days. The writes persist through
 // Care Plan, the single write owner of active.student_status_days.
 type StatusDayWrites interface {
 	UpsertReported(ctx context.Context, entry *absencerecords.StudentStatusDay) error
-	MarkCleared(ctx context.Context, studentID int64, status string, date timezone.Date, clearedAt time.Time, source string) error
-	CreateForDates(ctx context.Context, wc StatusDayWriteContext, studentID int64, status, reason string, dates []timezone.Date) error
-	BulkCreateForDates(ctx context.Context, wc StatusDayWriteContext, studentIDs []int64, status, reason string, dates []timezone.Date) error
+	MarkCleared(ctx context.Context, studentID int64, status string, date calendar.Date, clearedAt time.Time, source string) error
+	CreateForDates(ctx context.Context, wc StatusDayWriteContext, studentID int64, status, reason string, dates []calendar.Date) error
+	BulkCreateForDates(ctx context.Context, wc StatusDayWriteContext, studentIDs []int64, status, reason string, dates []calendar.Date) error
 	// DeleteStatusDay removes one of the student's status days inside the
 	// write context's tenant transaction.
 	DeleteStatusDay(ctx context.Context, wc StatusDayWriteContext, statusDayID, studentID int64) error
@@ -242,5 +252,5 @@ type StatusDays interface {
 
 // StatusDayOverviews assembles the tenant-wide absence overview.
 type StatusDayOverviews interface {
-	GetOverview(ctx context.Context, groups []*StatusDayOverviewGroup, from, to, today timezone.Date, filters StatusDayOverviewFilters) (*StatusDayOverview, error)
+	GetOverview(ctx context.Context, groups []*StatusDayOverviewGroup, from, to, today calendar.Date, filters StatusDayOverviewFilters) (*StatusDayOverview, error)
 }

@@ -33,7 +33,7 @@ func TestDemoAccessRequestMailsTheLinkAndTheLead(t *testing.T) {
 	link, ok := env.mails.MessageWithTemplate(demoAccessTemplate)
 	require.True(t, ok, env.mails.Templates())
 	assert.Equal(t, env.address(), link.To.Address)
-	assert.Equal(t, "kontakt@moto.nrw", link.ReplyTo.Address)
+	assert.Equal(t, "kontakt@moto-ogs.de", link.ReplyTo.Address)
 	assert.NotEmpty(t, link.From.Address, "the sender of the product mails")
 	content, ok := link.Content.(map[string]any)
 	require.True(t, ok)
@@ -45,7 +45,7 @@ func TestDemoAccessRequestMailsTheLinkAndTheLead(t *testing.T) {
 
 	lead, ok := env.mails.MessageWithTemplate(demoLeadTemplate)
 	require.True(t, ok, env.mails.Templates())
-	assert.Equal(t, "kontakt@moto.nrw", lead.To.Address)
+	assert.Equal(t, "kontakt@moto-ogs.de", lead.To.Address)
 	assert.Equal(t, link.From, lead.From)
 	content, ok = lead.Content.(map[string]any)
 	require.True(t, ok)

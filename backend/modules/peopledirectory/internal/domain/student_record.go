@@ -51,10 +51,9 @@ type StudentRecord struct {
 	AddressCity       *string
 	AddressPostalCode *string
 
-	ExtraInfo       *string
-	SupervisorNotes *string
-	HealthInfo      *string
-	PickupStatus    *string
+	ExtraInfo    *string
+	HealthInfo   *string
+	PickupStatus *string
 
 	DepartureDays          departure.DepartureDays
 	AllowedDepartureModes  departure.AllowedDepartureModes

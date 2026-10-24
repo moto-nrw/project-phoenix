@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -10,7 +11,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment/selection"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/selection"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -28,6 +29,16 @@ var (
 	errCareOfferingRule               = selection.ErrCareOfferingRule
 	errCareOfferingExactlyOneRequired = selection.ErrCareOfferingExactlyOneRequired
 )
+
+// selectionRefusal wraps an engine refusal in the caller's invalid value and
+// keeps a weekday conflict recognizable, so the handlers can name it (#4514).
+// The other engine values stay text only, as before.
+func selectionRefusal(invalid, err error) error {
+	if errors.Is(err, selection.ErrCareOfferingDayConflict) {
+		return fmt.Errorf("%w: %w: %v", invalid, careplan.ErrCareOfferingDayConflict, err)
+	}
+	return fmt.Errorf("%w: %v", invalid, err)
+}
 
 // selectionMaterialization is what one materialization runs against: the
 // child's phase, the request child whose bookings it replaces, and the day
@@ -74,7 +85,7 @@ func (s *OfferingChanges) materializedSelections(ctx context.Context, in selecti
 	child.ExcludedAutoAddTargetIDs = in.excluded
 	materialized, err := materializeForAdjustment(child, allowed, in.phase.CareOfferingSelectionMode, current, allowWithdrawal)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", careplan.ErrOfferingChangeInvalid, err)
+		return nil, selectionRefusal(careplan.ErrOfferingChangeInvalid, err)
 	}
 	return materialized, nil
 }
@@ -102,7 +113,7 @@ func (s *OfferingChanges) validateSelections(ctx context.Context, in selectionMa
 		return nil, err
 	}
 	if _, err := materializeForAdjustment(child, allowed, in.phase.CareOfferingSelectionMode, current, allowWithdrawal); err != nil {
-		return nil, fmt.Errorf("%w: %v", careplan.ErrOfferingChangeInvalid, err)
+		return nil, selectionRefusal(careplan.ErrOfferingChangeInvalid, err)
 	}
 	sort.SliceStable(normalized, func(i, j int) bool {
 		return normalized[i].OfferingID < normalized[j].OfferingID

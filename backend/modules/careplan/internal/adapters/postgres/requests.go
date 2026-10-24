@@ -25,71 +25,6 @@ const (
 	dataTargetDeparture           = "departure"
 )
 
-type requestStore struct{ *Store }
-
-func NewRequestStore(store *Store) *requestStore {
-	if store == nil {
-		panic("care plan request store: store is required")
-	}
-	return &requestStore{Store: store}
-}
-
-type excusedAbsenceRequestRow struct {
-	bun.BaseModel  `bun:"table:excused_absence_requests,alias:excused_absence_request"`
-	ID             int64          `bun:"id,pk,autoincrement"`
-	TenantID       int64          `bun:"tenant_id,notnull"`
-	CreatedAt      time.Time      `bun:"created_at,nullzero,notnull,default:current_timestamp"`
-	UpdatedAt      time.Time      `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
-	StudentID      int64          `bun:"student_id,notnull"`
-	SubmittedBy    int64          `bun:"submitted_by,notnull"`
-	Dates          []calendarDate `bun:"dates,type:jsonb,notnull"`
-	Note           string         `bun:"note,notnull"`
-	AbsenceStatus  string         `bun:"absence_status,notnull,default:'excused'"`
-	Status         string         `bun:"status,notnull,default:'pending'"`
-	DecisionReason *string        `bun:"decision_reason"`
-	ReviewedBy     *int64         `bun:"reviewed_by"`
-	ReviewedAt     *time.Time     `bun:"reviewed_at"`
-	AppliedAt      *time.Time     `bun:"applied_at"`
-}
-
-type careScheduleRequestRow struct {
-	bun.BaseModel    `bun:"table:care_schedule_change_requests,alias:care_schedule_change_request"`
-	ID               int64           `bun:"id,pk,autoincrement"`
-	TenantID         int64           `bun:"tenant_id,notnull"`
-	CreatedAt        time.Time       `bun:"created_at,nullzero,notnull,default:current_timestamp"`
-	UpdatedAt        time.Time       `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
-	StudentID        int64           `bun:"student_id,notnull"`
-	SubmittedBy      int64           `bun:"submitted_by,notnull"`
-	RequestKind      string          `bun:"request_kind,notnull"`
-	Payload          json.RawMessage `bun:"payload,type:jsonb,notnull"`
-	Status           string          `bun:"status,notnull,default:'pending'"`
-	DecisionReason   *string         `bun:"decision_reason"`
-	ReviewedBy       *int64          `bun:"reviewed_by"`
-	ReviewedAt       *time.Time      `bun:"reviewed_at"`
-	AppliedAt        *time.Time      `bun:"applied_at"`
-	DecisionSnapshot json.RawMessage `bun:"decision_snapshot,type:jsonb"`
-}
-
-type studentDataRequestRow struct {
-	bun.BaseModel `bun:"table:student_data_change_requests,alias:student_data_change_request"`
-	ID            int64           `bun:"id,pk,autoincrement"`
-	TenantID      int64           `bun:"tenant_id,notnull"`
-	CreatedAt     time.Time       `bun:"created_at,nullzero,notnull,default:current_timestamp"`
-	UpdatedAt     time.Time       `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
-	StudentID     int64           `bun:"student_id,notnull"`
-	SubmittedBy   int64           `bun:"submitted_by,notnull"`
-	Target        string          `bun:"target,notnull"`
-	TargetRefID   *int64          `bun:"target_ref_id"`
-	FieldKey      string          `bun:"field_key,notnull"`
-	OldValue      json.RawMessage `bun:"old_value,type:jsonb"`
-	NewValue      json.RawMessage `bun:"new_value,type:jsonb,notnull"`
-	Status        string          `bun:"status,notnull,default:'pending'"`
-	ReviewReason  *string         `bun:"review_reason"`
-	ReviewedBy    *int64          `bun:"reviewed_by"`
-	ReviewedAt    *time.Time      `bun:"reviewed_at"`
-	AppliedAt     *time.Time      `bun:"applied_at"`
-}
-
 func (s *requestStore) CountOpenCareRequests(ctx context.Context, studentIDs []int64) (map[int64]int, carePlanCompose.RequestStoreStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
@@ -204,7 +139,7 @@ func requestDBError(op string, err error) error {
 	return fmt.Errorf("care plan postgres: %s: %w", op, err)
 }
 
-func applyRequestQueueFilters(query *bun.SelectQuery, alias, keysetColumn string, filter *careplan.RequestQueueFilter) *bun.SelectQuery {
+func applyRequestQueueFilters(directory StudentDirectory, query *bun.SelectQuery, alias, keysetColumn string, filter *careplan.RequestQueueFilter) *bun.SelectQuery {
 	studentColumn := bun.Ident(alias + ".student_id")
 	instantColumn := bun.Ident(alias + "." + keysetColumn)
 	idColumn := bun.Ident(alias + ".id")
@@ -215,7 +150,7 @@ func applyRequestQueueFilters(query *bun.SelectQuery, alias, keysetColumn string
 		query = query.Where("? IN (?)", studentColumn, bun.List(filter.StudentIDs))
 	}
 	if search := strings.TrimSpace(filter.Search); search != "" {
-		query = filterRequestQueueStudentName(query, alias, search)
+		query = filterRequestQueueStudentName(directory, query, alias, search)
 	}
 	if !filter.BeforeInstant.IsZero() {
 		query = query.Where("(?, ?) < (?, ?)", instantColumn, idColumn, filter.BeforeInstant, filter.BeforeID)
@@ -304,7 +239,7 @@ func (s *requestStore) ListExcusedAbsenceRequests(ctx context.Context, filter ca
 	if !filter.RecentSince.IsZero() {
 		query = query.Where(`COALESCE("excused_absence_request".reviewed_at, "excused_absence_request".updated_at) >= ?`, filter.RecentSince)
 	}
-	query = applyExcusedRequestOptions(query, filter)
+	query = applyExcusedRequestOptions(s.directory, query, filter)
 	started := time.Now()
 	err = query.Scan(ctx)
 	stats := requestStats(started, int64(len(rows)))
@@ -314,13 +249,13 @@ func (s *requestStore) ListExcusedAbsenceRequests(ctx context.Context, filter ca
 	return excusedRequestsToPublic(rows), stats, nil
 }
 
-func applyExcusedRequestOptions(query *bun.SelectQuery, filter careplan.ExcusedAbsenceRequestFilter) *bun.SelectQuery {
+func applyExcusedRequestOptions(directory StudentDirectory, query *bun.SelectQuery, filter careplan.ExcusedAbsenceRequestFilter) *bun.SelectQuery {
 	if filter.Queue != nil {
 		if len(filter.Statuses) == 1 && filter.Statuses[0] == requestPending {
 			query = applyRequestUrgency(query, filter.Queue, `"excused_absence_request".dates @> ?::jsonb`, `["`+filter.Queue.UrgentDate+`"]`)
-			return applyRequestQueueFilters(query, "excused_absence_request", "created_at", filter.Queue)
+			return applyRequestQueueFilters(directory, query, "excused_absence_request", "created_at", filter.Queue)
 		}
-		return applyRequestQueueFilters(query, "excused_absence_request", "updated_at", filter.Queue)
+		return applyRequestQueueFilters(directory, query, "excused_absence_request", "updated_at", filter.Queue)
 	}
 	if filter.Options != nil {
 		query = applyStudentScheduleOptions(query, filter.Options, "excused_absence_request")
@@ -479,7 +414,7 @@ func (s *requestStore) ListCareScheduleRequests(ctx context.Context, filter care
 	if len(filter.Statuses) > 0 {
 		query = query.Where(`"care_schedule_change_request".status IN (?)`, bun.List(filter.Statuses))
 	}
-	query, err = applyCareScheduleRequestOptions(query, filter)
+	query, err = applyCareScheduleRequestOptions(s.directory, query, filter)
 	if err != nil {
 		return nil, carePlanCompose.RequestStoreStats{}, err
 	}
@@ -492,7 +427,7 @@ func (s *requestStore) ListCareScheduleRequests(ctx context.Context, filter care
 	return careScheduleRequestsToPublic(rows), stats, nil
 }
 
-func applyCareScheduleRequestOptions(query *bun.SelectQuery, filter careplan.CareScheduleRequestFilter) (*bun.SelectQuery, error) {
+func applyCareScheduleRequestOptions(directory StudentDirectory, query *bun.SelectQuery, filter careplan.CareScheduleRequestFilter) (*bun.SelectQuery, error) {
 	if !filter.RecentSince.IsZero() {
 		return query.Where(`("care_schedule_change_request".status = ? OR "care_schedule_change_request".updated_at >= ?)`, requestPending, filter.RecentSince).
 			OrderExpr(`"care_schedule_change_request".created_at DESC`).OrderExpr(`"care_schedule_change_request".id DESC`), nil
@@ -502,7 +437,7 @@ func applyCareScheduleRequestOptions(query *bun.SelectQuery, filter careplan.Car
 	}
 	if len(filter.Statuses) == 1 && filter.Statuses[0] == requestPending {
 		if filter.Queue.UrgentOnly == nil {
-			return applyRequestQueueFilters(query, "care_schedule_change_request", "created_at", filter.Queue), nil
+			return applyRequestQueueFilters(directory, query, "care_schedule_change_request", "created_at", filter.Queue), nil
 		}
 		date, err := time.Parse(time.DateOnly, filter.Queue.UrgentDate)
 		if err != nil {
@@ -517,9 +452,9 @@ func applyCareScheduleRequestOptions(query *bun.SelectQuery, filter careplan.Car
 			("care_schedule_change_request".request_kind = 'pickup_change' AND "care_schedule_change_request".payload->>'date' = ?)
 			OR ("care_schedule_change_request".request_kind <> 'pickup_change' AND "care_schedule_change_request".payload->'weekdays' @> ?::jsonb)
 		`, filter.Queue.UrgentDate, weekdayJSON)
-		return applyRequestQueueFilters(query, "care_schedule_change_request", "created_at", filter.Queue), nil
+		return applyRequestQueueFilters(directory, query, "care_schedule_change_request", "created_at", filter.Queue), nil
 	}
-	return applyRequestQueueFilters(query, "care_schedule_change_request", "updated_at", filter.Queue), nil
+	return applyRequestQueueFilters(directory, query, "care_schedule_change_request", "updated_at", filter.Queue), nil
 }
 
 func (s *requestStore) CreateCareScheduleRequest(ctx context.Context, value careplan.CareScheduleChangeRequest) (careplan.CareScheduleChangeRequest, carePlanCompose.RequestStoreStats, error) {
@@ -657,9 +592,9 @@ func (s *requestStore) ListStudentDataRequests(ctx context.Context, filter carep
 	if filter.Queue != nil {
 		if len(filter.Statuses) == 1 && filter.Statuses[0] == requestPending {
 			query = applyRequestUrgency(query, filter.Queue, "FALSE")
-			query = applyRequestQueueFilters(query, "student_data_change_request", "created_at", filter.Queue)
+			query = applyRequestQueueFilters(s.directory, query, "student_data_change_request", "created_at", filter.Queue)
 		} else {
-			query = applyRequestQueueFilters(query, "student_data_change_request", "updated_at", filter.Queue)
+			query = applyRequestQueueFilters(s.directory, query, "student_data_change_request", "updated_at", filter.Queue)
 		}
 	} else {
 		query = query.OrderExpr(`"student_data_change_request".created_at DESC`).OrderExpr(`"student_data_change_request".id DESC`)
@@ -782,66 +717,4 @@ func execRequest(ctx context.Context, query interface {
 		return stats, noRows
 	}
 	return stats, nil
-}
-
-func excusedRequestFromPublic(value careplan.ExcusedAbsenceRequest) *excusedAbsenceRequestRow {
-	dates := make([]calendarDate, len(value.Dates))
-	for i := range value.Dates {
-		dates[i] = calendarDate(value.Dates[i])
-	}
-	row := &excusedAbsenceRequestRow{StudentID: value.StudentID, SubmittedBy: value.SubmittedBy, Dates: dates, Note: value.Note, AbsenceStatus: value.AbsenceStatus, Status: value.Status, DecisionReason: value.DecisionReason, ReviewedBy: value.ReviewedBy, ReviewedAt: value.ReviewedAt, AppliedAt: value.AppliedAt}
-	row.ID, row.TenantID, row.CreatedAt, row.UpdatedAt = value.ID, value.TenantID, value.CreatedAt, value.UpdatedAt
-	return row
-}
-
-func excusedRequestToPublic(row *excusedAbsenceRequestRow) careplan.ExcusedAbsenceRequest {
-	dates := make([]careplan.Date, len(row.Dates))
-	for i := range row.Dates {
-		dates[i] = careplan.Date(row.Dates[i])
-	}
-	return careplan.ExcusedAbsenceRequest{ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, StudentID: row.StudentID, SubmittedBy: row.SubmittedBy, Dates: dates, Note: row.Note, AbsenceStatus: row.AbsenceStatus, Status: row.Status, DecisionReason: row.DecisionReason, ReviewedBy: row.ReviewedBy, ReviewedAt: row.ReviewedAt, AppliedAt: row.AppliedAt}
-}
-
-func excusedRequestsToPublic(rows []excusedAbsenceRequestRow) []careplan.ExcusedAbsenceRequest {
-	result := make([]careplan.ExcusedAbsenceRequest, 0, len(rows))
-	for i := range rows {
-		result = append(result, excusedRequestToPublic(&rows[i]))
-	}
-	return result
-}
-
-func careScheduleRequestFromPublic(value careplan.CareScheduleChangeRequest) *careScheduleRequestRow {
-	row := &careScheduleRequestRow{StudentID: value.StudentID, SubmittedBy: value.SubmittedBy, RequestKind: value.RequestKind, Payload: value.Payload, Status: value.Status, DecisionReason: value.DecisionReason, ReviewedBy: value.ReviewedBy, ReviewedAt: value.ReviewedAt, AppliedAt: value.AppliedAt, DecisionSnapshot: value.DecisionSnapshot}
-	row.ID, row.TenantID, row.CreatedAt, row.UpdatedAt = value.ID, value.TenantID, value.CreatedAt, value.UpdatedAt
-	return row
-}
-
-func careScheduleRequestToPublic(row *careScheduleRequestRow) careplan.CareScheduleChangeRequest {
-	return careplan.CareScheduleChangeRequest{ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, StudentID: row.StudentID, SubmittedBy: row.SubmittedBy, RequestKind: row.RequestKind, Payload: row.Payload, Status: row.Status, DecisionReason: row.DecisionReason, ReviewedBy: row.ReviewedBy, ReviewedAt: row.ReviewedAt, AppliedAt: row.AppliedAt, DecisionSnapshot: row.DecisionSnapshot}
-}
-
-func careScheduleRequestsToPublic(rows []careScheduleRequestRow) []careplan.CareScheduleChangeRequest {
-	result := make([]careplan.CareScheduleChangeRequest, 0, len(rows))
-	for i := range rows {
-		result = append(result, careScheduleRequestToPublic(&rows[i]))
-	}
-	return result
-}
-
-func studentDataRequestFromPublic(value careplan.StudentDataChangeRequest) *studentDataRequestRow {
-	row := &studentDataRequestRow{StudentID: value.StudentID, SubmittedBy: value.SubmittedBy, Target: value.Target, TargetRefID: value.TargetRefID, FieldKey: value.FieldKey, OldValue: value.OldValue, NewValue: value.NewValue, Status: value.Status, ReviewReason: value.ReviewReason, ReviewedBy: value.ReviewedBy, ReviewedAt: value.ReviewedAt, AppliedAt: value.AppliedAt}
-	row.ID, row.TenantID, row.CreatedAt, row.UpdatedAt = value.ID, value.TenantID, value.CreatedAt, value.UpdatedAt
-	return row
-}
-
-func studentDataRequestToPublic(row *studentDataRequestRow) careplan.StudentDataChangeRequest {
-	return careplan.StudentDataChangeRequest{ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, StudentID: row.StudentID, SubmittedBy: row.SubmittedBy, Target: row.Target, TargetRefID: row.TargetRefID, FieldKey: row.FieldKey, OldValue: row.OldValue, NewValue: row.NewValue, Status: row.Status, ReviewReason: row.ReviewReason, ReviewedBy: row.ReviewedBy, ReviewedAt: row.ReviewedAt, AppliedAt: row.AppliedAt}
-}
-
-func studentDataRequestsToPublic(rows []studentDataRequestRow) []careplan.StudentDataChangeRequest {
-	result := make([]careplan.StudentDataChangeRequest, 0, len(rows))
-	for i := range rows {
-		result = append(result, studentDataRequestToPublic(&rows[i]))
-	}
-	return result
 }

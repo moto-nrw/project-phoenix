@@ -7,12 +7,10 @@ import (
 	"testing"
 	"time"
 
-	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/api"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
-	"github.com/moto-nrw/project-phoenix/services"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
@@ -30,24 +28,36 @@ import (
 func buildPickupChangeService(t *testing.T, pickupChangeEnabled bool) (*parentService.Portal, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
-		CarePlan:       repos.CarePlan(),
-		People:         repositories.MustNewPeopleDirectory(db),
-		CareProfiles:   careProfiles(t, db),
-		ChildRepo:      repos.ParentChild,
-		StatusDayRepo:  repos.StudentStatusDay,
-		StudentRepo:    repos.Student,
-		CareExceptions: repos.CarePlan(),
+		GuardianChanges: owners.ParentGuardianChanges(),
+		DeparturePolicy: owners.ParentDeparturePolicy(),
+		GuardianPolicy:  owners.NewParentGuardianPolicy(),
+		Fingerprints:    owners.SecurityFingerprints{},
+		Declarations:    owners.ParentDeclarationPolicy(),
+		Locales:         owners.ParentPortalLocales(),
+		Runtime:         owners.ParentPortalRuntime{},
+		CarePlan:        owners.NewParentCarePlanCommands(repos.CarePlan(), nil),
+		People:          owners.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
+		CareProfiles:    careProfiles(t, db),
+		ChildRepo:       repos.ParentChildReads(),
+		StatusDayRepo:   repos.StudentStatusDay,
+		StudentRepo:     owners.NewParentStudentReads(reposPeople.Student),
+		CareExceptions:  owners.NewParentCareExceptions(repos.CarePlan()),
 		Settings: parentSettingsStub{
 			boolValues: map[string]bool{
-				configModels.KeyParentPickupChangeEnabled: pickupChangeEnabled,
+				parentService.KeyParentPickupChangeEnabled: pickupChangeEnabled,
 			},
 			stringValues: map[string]string{
-				configModels.KeyGuardianParentInviteMode: configModels.ParentInviteModeDisabled,
+				parentService.KeyGuardianParentInviteMode: parentService.ParentInviteModeDisabled,
 			},
 		},
 		Logger: slog.Default(),
+
+		DataRequests: owners.NewParentDataRequestCommands(repos.CarePlan()),
+
+		CarePlanPolicy: owners.NewParentCarePlanPolicy(),
 	})
 	return svc, db
 }
@@ -56,63 +66,75 @@ func buildPickupChangeService(t *testing.T, pickupChangeEnabled bool) (*parentSe
 // submit/list/withdraw round trip runs against actual rows. configure adjusts
 // the service configuration before the service is built (#3163 uses it to
 // reuse the wiring for further services).
-func buildPickupChangeServiceWithRequests(t *testing.T, configure ...func(*parentportalcompose.Dependencies)) (*parentService.Portal, *bun.DB, *repositories.Factory) {
+func buildPickupChangeServiceWithRequests(t *testing.T, configure ...func(*parentportalcompose.Dependencies)) (*parentService.Portal, *bun.DB, *api.RepositoryTestFactory) {
 	t.Helper()
 	return buildPickupChangeServiceWithRequestOptions(t, nil, configure...)
 }
 
 // buildPickupChangeServiceWithRequestOptions is buildPickupChangeServiceWithRequests
 // with construction options for the request service (#3163 pins its clock).
-func buildPickupChangeServiceWithRequestOptions(t *testing.T, requestOptions []services.CareRequestOption, configure ...func(*parentportalcompose.Dependencies)) (*parentService.Portal, *bun.DB, *repositories.Factory) {
+func buildPickupChangeServiceWithRequestOptions(t *testing.T, requestOptions []owners.CareRequestOption, configure ...func(*parentportalcompose.Dependencies)) (*parentService.Portal, *bun.DB, *api.RepositoryTestFactory) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	timetableDeps := repositories.NewUnobservedTimetableDependencies(db)
-	repos := repositories.NewFactory(db, timetableDeps)
-	sf, err := services.NewFactoryForTests(repos, db, slog.Default())
+	timetableOwner := owners.MustNewUnobservedTimetable(testpkg.NewDatabase(t, db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	_, schedules, sfServices, caller, persons, _, err := api.NewTestCareRequests(testpkg.NewDatabase(t, db), slog.Default())
 	require.NoError(t, err)
 
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
-	careRequests := services.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
+	careRequests := owners.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
 		repos.CarePlan(),
-		sf.PeopleDirectory,
-		sf.ArrivalSchedule,
-		sf.PickupSchedule,
+		persons,
+		schedules.Arrivals,
+		schedules.Pickups,
 		presence,
 		newPickupExcusal(t, db, repos.CarePlan(),
 			newPickupBaselineService(repos.CarePlan(), approvedOfferingProjection(t)),
-			timetableDeps.Capability, false,
+			timetableOwner, false,
 		),
 		repos.CarePlan(),
-		sf.UserContext,
+		caller,
 		nil, // emitter — best-effort, after commit
 		nil, // broadcaster — cache fan-out
-		testpkg.RequestReviewPolicy{UserContext: sf.UserContext},
+		testpkg.NewRequestReviewPolicy(caller, reposPeople.Student.FindByIDForUpdate), testpkg.PermissionsFromContext,
 		nil,
 		slog.Default(),
-		sf.StudentAudit,
+		sfServices.StudentAudit,
 		requestOptions...,
 	)
 
 	cfg := parentportalcompose.Dependencies{
-		CarePlan:       repos.CarePlan(),
-		People:         repositories.MustNewPeopleDirectory(db),
-		CareProfiles:   careProfiles(t, db),
-		ChildRepo:      repos.ParentChild,
-		StatusDayRepo:  repos.StudentStatusDay,
-		StudentRepo:    repos.Student,
-		CareExceptions: repos.CarePlan(),
-		Attendance:     parentAttendance(t, db),
-		CareRequests:   careRequests,
+		GuardianChanges: owners.ParentGuardianChanges(),
+		DeparturePolicy: owners.ParentDeparturePolicy(),
+		GuardianPolicy:  owners.NewParentGuardianPolicy(),
+		Fingerprints:    owners.SecurityFingerprints{},
+		Declarations:    owners.ParentDeclarationPolicy(),
+		Locales:         owners.ParentPortalLocales(),
+		Runtime:         owners.ParentPortalRuntime{},
+		CarePlan:        owners.NewParentCarePlanCommands(repos.CarePlan(), nil),
+		People:          owners.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
+		CareProfiles:    careProfiles(t, db),
+		ChildRepo:       repos.ParentChildReads(),
+		StatusDayRepo:   repos.StudentStatusDay,
+		StudentRepo:     owners.NewParentStudentReads(reposPeople.Student),
+		CareExceptions:  owners.NewParentCareExceptions(repos.CarePlan()),
+		Attendance:      parentAttendance(t, db),
+		CareRequests:    careRequests,
 		Settings: parentSettingsStub{
 			boolValues: map[string]bool{
-				configModels.KeyParentPickupChangeEnabled: true,
+				parentService.KeyParentPickupChangeEnabled: true,
 			},
 			stringValues: map[string]string{
-				configModels.KeyGuardianParentInviteMode: configModels.ParentInviteModeDisabled,
+				parentService.KeyGuardianParentInviteMode: parentService.ParentInviteModeDisabled,
 			},
 		},
 		Logger: slog.Default(),
+
+		DataRequests: owners.NewParentDataRequestCommands(repos.CarePlan()),
+
+		CarePlanPolicy: owners.NewParentCarePlanPolicy(),
 	}
 	for _, apply := range configure {
 		apply(&cfg)
@@ -130,13 +152,13 @@ func TestPickupChangeRoundTrip(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	ctx := testpkg.Ctx(t)
-	date := timezone.TodayDate().AddDays(3)
-	pickup := timezone.NormalizeWallClock(time.Date(2026, 1, 1, 14, 30, 0, 0, time.UTC))
+	date := calendar.TodayDate().AddDays(3)
+	pickup := calendar.NormalizeWallClock(time.Date(2026, 1, 1, 14, 30, 0, 0, time.UTC))
 
-	created, err := svc.SubmitPickupChangeRequest(ctx, chain.AccountID, chain.StudentID, date, pickup, "Arzttermin", nil)
+	created, err := svc.SubmitPickupChangeRequest(ctx, chain.AccountID, chain.StudentID, date, pickup, "", "Arzttermin", nil)
 	require.NoError(t, err)
 	require.NotNil(t, created)
-	assert.Equal(t, scheduleModels.CareRequestStatusPending, created.Status)
+	assert.Equal(t, "pending", created.Status)
 
 	listed, err := svc.ListPickupChangeRequests(ctx, chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
@@ -149,8 +171,7 @@ func TestPickupChangeRoundTrip(t *testing.T) {
 	assert.True(t, found, "die eigene Anfrage steht in der Liste")
 
 	// Nothing was applied: only a staff approval may move a pickup time.
-	applied, err := repos.StudentPickupException.FindByStudentIDAndDate(
-		tenant.WithTenantID(ctx, chain.TenantID), chain.StudentID, scheduleModels.Date(date))
+	applied, err := api.FindParentPickupExceptionFixture(tenant.WithTenantID(ctx, chain.TenantID), repos.CarePlan(), chain.StudentID, date)
 	require.NoError(t, err)
 	assert.Nil(t, applied, "eine Anfrage allein aendert keine Abholzeit")
 }
@@ -162,13 +183,13 @@ func TestPickupChangeRejectsASecondOpenRequestForTheSameDay(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
-	date := timezone.TodayDate().AddDays(4)
-	pickup := timezone.NormalizeWallClock(time.Date(2026, 1, 1, 14, 0, 0, 0, time.UTC))
+	date := calendar.TodayDate().AddDays(4)
+	pickup := calendar.NormalizeWallClock(time.Date(2026, 1, 1, 14, 0, 0, 0, time.UTC))
 
-	_, err := svc.SubmitPickupChangeRequest(ctx, chain.AccountID, chain.StudentID, date, pickup, "Arzttermin", nil)
+	_, err := svc.SubmitPickupChangeRequest(ctx, chain.AccountID, chain.StudentID, date, pickup, "", "Arzttermin", nil)
 	require.NoError(t, err)
 
-	_, err = svc.SubmitPickupChangeRequest(ctx, chain.AccountID, chain.StudentID, date, pickup, "Noch ein Termin", nil)
+	_, err = svc.SubmitPickupChangeRequest(ctx, chain.AccountID, chain.StudentID, date, pickup, "", "Noch ein Termin", nil)
 	require.Error(t, err, "eine zweite offene Anfrage fuer denselben Tag muss abgewiesen werden")
 }
 
@@ -183,11 +204,11 @@ func TestSubmitPickupChangeRequestRejectsBadInput(t *testing.T) {
 	t.Parallel()
 
 	svc, db := buildPickupChangeService(t, true)
-	tomorrow := timezone.TodayDate().AddDays(1)
-	pickup := timezone.NormalizeWallClock(time.Date(2026, 1, 1, 15, 0, 0, 0, time.UTC))
+	tomorrow := calendar.TodayDate().AddDays(1)
+	pickup := calendar.NormalizeWallClock(time.Date(2026, 1, 1, 15, 0, 0, 0, time.UTC))
 
 	t.Run("ohne Uhrzeit", func(t *testing.T) {
-		_, err := svc.SubmitPickupChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), 1, 1, tomorrow, time.Time{}, "Arzttermin", nil)
+		_, err := svc.SubmitPickupChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), 1, 1, tomorrow, time.Time{}, "", "Arzttermin", nil)
 		require.ErrorIs(t, err, parentService.ErrNoCareException)
 	})
 
@@ -195,12 +216,12 @@ func TestSubmitPickupChangeRequestRejectsBadInput(t *testing.T) {
 		// #2267: reason policy defaults to "both"
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
 		_, err := svc.SubmitPickupChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()),
-			chain.AccountID, chain.StudentID, tomorrow, pickup, "   ", nil)
+			chain.AccountID, chain.StudentID, tomorrow, pickup, "", "   ", nil)
 		require.ErrorIs(t, err, parentService.ErrCareExceptionReasonRequired)
 	})
 
 	t.Run("Grund zu lang", func(t *testing.T) {
-		_, err := svc.SubmitPickupChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), 1, 1, tomorrow, pickup,
+		_, err := svc.SubmitPickupChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), 1, 1, tomorrow, pickup, "",
 			strings.Repeat("a", 256), nil)
 		require.ErrorIs(t, err, parentService.ErrCareExceptionReasonTooLong)
 	})
@@ -208,7 +229,7 @@ func TestSubmitPickupChangeRequestRejectsBadInput(t *testing.T) {
 	// 255 runes is the limit, and it counts runes, not bytes: an Umlaut must not
 	// cost two characters of a parent's explanation.
 	t.Run("255 Umlaute sind kein zu langer Grund", func(t *testing.T) {
-		_, err := svc.SubmitPickupChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), 1, 1, tomorrow, pickup,
+		_, err := svc.SubmitPickupChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), 1, 1, tomorrow, pickup, "",
 			strings.Repeat("ä", 255), nil)
 		assert.NotErrorIs(t, err, parentService.ErrCareExceptionReasonTooLong)
 	})
@@ -222,9 +243,9 @@ func TestSubmitPickupChangeRequestRejectsForeignChild(t *testing.T) {
 	svc, db := buildPickupChangeService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	pickup := timezone.NormalizeWallClock(time.Date(2026, 1, 1, 15, 0, 0, 0, time.UTC))
+	pickup := calendar.NormalizeWallClock(time.Date(2026, 1, 1, 15, 0, 0, 0, time.UTC))
 	_, err := svc.SubmitPickupChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID,
-		chain.StudentID+999999, timezone.TodayDate().AddDays(1), pickup, "Arzttermin", nil)
+		chain.StudentID+999999, calendar.TodayDate().AddDays(1), pickup, "", "Arzttermin", nil)
 
 	require.Error(t, err, "ein nicht verknuepftes Kind muss abgewiesen werden")
 }
@@ -236,9 +257,9 @@ func TestSubmitPickupChangeRequestRespectsSchoolSetting(t *testing.T) {
 	svc, db := buildPickupChangeService(t, false)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	pickup := timezone.NormalizeWallClock(time.Date(2026, 1, 1, 15, 0, 0, 0, time.UTC))
+	pickup := calendar.NormalizeWallClock(time.Date(2026, 1, 1, 15, 0, 0, 0, time.UTC))
 	_, err := svc.SubmitPickupChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID,
-		chain.StudentID, timezone.TodayDate().AddDays(1), pickup, "Arzttermin", nil)
+		chain.StudentID, calendar.TodayDate().AddDays(1), pickup, "", "Arzttermin", nil)
 
 	require.ErrorIs(t, err, parentService.ErrPickupChangeDisabled)
 }
@@ -251,18 +272,18 @@ func TestSubmitPickupChangeRequestBoundsTheDate(t *testing.T) {
 	svc, db := buildPickupChangeService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	pickup := timezone.NormalizeWallClock(time.Date(2026, 1, 1, 15, 0, 0, 0, time.UTC))
-	today := timezone.TodayDate()
+	pickup := calendar.NormalizeWallClock(time.Date(2026, 1, 1, 15, 0, 0, 0, time.UTC))
+	today := calendar.TodayDate()
 
 	t.Run("gestern", func(t *testing.T) {
 		_, err := svc.SubmitPickupChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID,
-			chain.StudentID, today.AddDays(-1), pickup, "Arzttermin", nil)
+			chain.StudentID, today.AddDays(-1), pickup, "", "Arzttermin", nil)
 		require.ErrorIs(t, err, parentService.ErrPastCareDate)
 	})
 
 	t.Run("zu weit voraus", func(t *testing.T) {
 		_, err := svc.SubmitPickupChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID,
-			chain.StudentID, today.AddDays(200), pickup, "Arzttermin", nil)
+			chain.StudentID, today.AddDays(200), pickup, "", "Arzttermin", nil)
 		require.ErrorIs(t, err, parentService.ErrCareDateTooFar)
 	})
 }
@@ -296,9 +317,9 @@ func TestPickupChangeRequiresConfiguredRequestService(t *testing.T) {
 	assert.Contains(t, err.Error(), "not configured")
 }
 
-func approvedOfferingProjection(t *testing.T) *services.ApprovedOfferingTestProjection {
+func approvedOfferingProjection(t *testing.T) *api.ApprovedOfferingTestProjection {
 	t.Helper()
-	projection, err := services.NewOwnerApprovedOfferingTestProjection(testpkg.SetupTestDB(t))
+	projection, err := api.NewOwnerApprovedOfferingTestProjection(testpkg.NewDatabase(t, testpkg.SetupTestDB(t)))
 	require.NoError(t, err)
 	return projection
 }
@@ -307,5 +328,5 @@ func parentAttendance(t *testing.T, db *bun.DB) parentService.AttendanceReader {
 	t.Helper()
 	module, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
-	return module
+	return owners.BindParentAttendance(module)
 }

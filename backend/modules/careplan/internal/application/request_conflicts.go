@@ -15,6 +15,7 @@ import (
 
 type RequestConflicts struct {
 	Records   ports.RequestConflictRecords
+	People    ports.RequestDecisionPeople
 	Plans     ports.RequestConflictPlans
 	Decisions carerequests.Decisions
 	Today     func() calendar.Date
@@ -29,7 +30,10 @@ func (s *RequestConflicts) ConflictCandidate(ctx context.Context, id int64) (*ca
 }
 
 func (s *RequestConflicts) LockConflictRequest(ctx context.Context, id int64) error {
-	_, err := s.pending(ctx, id, true)
+	row, _, err := lockCareRequestStudent(ctx, s.Records, s.People, id, func(row carerequests.Request) error { return validatePendingCareRequest(row, "") })
+	if err == nil && row.Status != "pending" {
+		return careplan.ErrCareScheduleRequestNotPending
+	}
 	return err
 }
 
@@ -70,7 +74,7 @@ func (s *RequestConflicts) WriteStaffValue(ctx context.Context, write carereques
 	if err != nil {
 		return err
 	}
-	staffID, err := s.Plans.ActingStaffID(ctx)
+	staffID, err := actingStaffID(ctx, s.Plans, pickupRequestStaff)
 	if err != nil {
 		return err
 	}
@@ -81,17 +85,18 @@ func (s *RequestConflicts) WriteStaffValue(ctx context.Context, write carereques
 }
 
 func (s *RequestConflicts) writePickupException(ctx context.Context, request carerequests.Request, reason string, pickup time.Time) error {
-	date, _, _, err := carerequests.ParsePickup(request.Payload)
+	change, err := carerequests.ParsePickup(request.Payload)
 	if err != nil {
 		return err
 	}
+	date := change.Date
 	if date.Before(s.Today()) {
 		return carerequests.ErrPickupChangeExpired
 	}
 	if err := s.Plans.LockStudentAndExceptionDay(ctx, request.StudentID, date.String()); err != nil {
 		return fmt.Errorf("schedule: lock staff pickup day: %w", err)
 	}
-	staffID, err := s.Plans.ActingStaffID(ctx)
+	staffID, err := actingStaffID(ctx, s.Plans, pickupRequestStaff)
 	if err != nil {
 		return err
 	}

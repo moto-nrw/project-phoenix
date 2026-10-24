@@ -116,7 +116,7 @@ describe("PUT /api/operator/provisioning/schools/[id]", () => {
   it("forwards 404 not found from backend", async () => {
     mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
     mockFetch.mockResolvedValue(
-      new Response(JSON.stringify({ error: "School not found" }), {
+      new Response(JSON.stringify({ detail: "School not found" }), {
         status: 404,
         headers: { "Content-Type": "application/json" },
       }),
@@ -139,7 +139,7 @@ describe("PUT /api/operator/provisioning/schools/[id]", () => {
   it("forwards 409 conflict from backend", async () => {
     mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
     mockFetch.mockResolvedValue(
-      new Response(JSON.stringify({ error: "subdomain already exists" }), {
+      new Response(JSON.stringify({ detail: "subdomain already exists" }), {
         status: 409,
         headers: { "Content-Type": "application/json" },
       }),
@@ -206,7 +206,7 @@ describe("DELETE /api/operator/provisioning/schools/[id]", () => {
   it("forwards 404 not found from backend", async () => {
     mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
     mockFetch.mockResolvedValue(
-      new Response(JSON.stringify({ error: "School not found" }), {
+      new Response(JSON.stringify({ detail: "School not found" }), {
         status: 404,
         headers: { "Content-Type": "application/json" },
       }),
@@ -225,7 +225,7 @@ describe("DELETE /api/operator/provisioning/schools/[id]", () => {
   it("forwards 409 already deleted from backend", async () => {
     mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
     mockFetch.mockResolvedValue(
-      new Response(JSON.stringify({ error: "School is already deleted" }), {
+      new Response(JSON.stringify({ detail: "School is already deleted" }), {
         status: 409,
         headers: { "Content-Type": "application/json" },
       }),

@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	api "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	fixtures "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -60,9 +60,12 @@ func createPoolInstance(t *testing.T, s *poolSetup, title, startHHMM, endHHMM, s
 	return row
 }
 
-func createPoolStaffRow(t *testing.T, s *poolSetup, instanceID, staffID int64, mutate func(*scheduleModels.InstanceStaff)) *scheduleModels.InstanceStaff {
+func createPoolStaffRow(t *testing.T, s *poolSetup, instanceID, staffID int64, mutate func(*fixtures.InstanceStaff)) *fixtures.InstanceStaff {
 	t.Helper()
-	row := &scheduleModels.InstanceStaff{InstanceID: instanceID, StaffID: staffID}
+	row := fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
+		fixtureRow.InstanceID = instanceID
+		fixtureRow.StaffID = staffID
+	})
 	if mutate != nil {
 		mutate(row)
 	}
@@ -75,7 +78,7 @@ func createPoolStaffRow(t *testing.T, s *poolSetup, instanceID, staffID int64, m
 func makePoolSetup(t *testing.T) *poolSetup {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos, err := repositories.NewTimetableTestRepositories(db)
+	repos, err := api.NewTimetableTestRepositoriesWithMembers(testpkg.NewDatabase(t, db), api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
 	require.NoError(t, err)
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
@@ -84,7 +87,7 @@ func makePoolSetup(t *testing.T) *poolSetup {
 		db:        db,
 		ctx:       testpkg.TenantContext(tenantID),
 		tenantID:  tenantID,
-		detection: newConflictDetection(t, repos),
+		detection: newConflictDetection(t, db, repos),
 	}
 	room := testpkg.CreateTestRoomForTenant(t, db, tenantID, fmt.Sprintf("Pool-Room-%d", suffix))
 	s.roomID = room.ID
@@ -92,8 +95,8 @@ func makePoolSetup(t *testing.T) *poolSetup {
 	other := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Otto", fmt.Sprintf("Other-%d", suffix))
 	s.staffID = staff.ID
 	s.otherID = other.ID
-	s.source = createPoolInstance(t, s, "Schulhof", "14:00", "15:00", scheduleModels.InstanceStatusPlanned)
-	s.target = createPoolInstance(t, s, "Mensa", "14:30", "15:30", scheduleModels.InstanceStatusPlanned)
+	s.source = createPoolInstance(t, s, "Schulhof", "14:00", "15:00", fixtures.InstanceStatusPlanned())
+	s.target = createPoolInstance(t, s, "Mensa", "14:30", "15:30", fixtures.InstanceStatusPlanned())
 	return s
 }
 
@@ -108,16 +111,17 @@ func poolEntryOf(t *testing.T, pool timetable.StaffPool, staffID int64) timetabl
 	return timetable.StaffPoolEntry{}
 }
 
-func createPoolShift(t *testing.T, s *poolSetup, staffID int64, startHHMM, endHHMM string, cancelled bool) *scheduleModels.StaffShift {
+func createPoolShift(t *testing.T, s *poolSetup, staffID int64, startHHMM, endHHMM string, cancelled bool) *fixtures.StaffShift {
 	t.Helper()
-	shift := &scheduleModels.StaffShift{
-		StaffID:   staffID,
-		Date:      scheduleModels.Date(poolTestDate()),
-		StartTime: parsePoolClock(t, startHHMM),
-		EndTime:   parsePoolClock(t, endHHMM),
-		Cancelled: cancelled,
-		CreatedBy: staffID,
-	}
+	shift := fixtures.NewStaffShift(func(fixtureRow *fixtures.StaffShift) {
+		fixtureRow.StaffID = staffID
+		fixtureRow.Date = calendar.Date(poolTestDate())
+		fixtureRow.StartTime = parsePoolClock(t, startHHMM)
+		fixtureRow.EndTime = parsePoolClock(t, endHHMM)
+		fixtureRow.Cancelled = cancelled
+		fixtureRow.CreatedBy = staffID
+	})
+
 	shift.SetTenantID(s.tenantID)
 	_, err := s.db.NewInsert().Model(shift).ModelTableExpr(`schedule.staff_shifts`).Exec(s.ctx)
 	require.NoError(t, err)
@@ -147,7 +151,7 @@ func TestStaffPoolForInstance_Categories(t *testing.T) {
 	// partial: shift overlaps the window but does not cover it (ends 15:00).
 	createPoolShift(t, s, partial.ID, "12:00", "15:00", false)
 	// absent: assigned to source but marked absent day-wide.
-	createPoolStaffRow(t, s, s.source.ID, absent.ID, func(row *scheduleModels.InstanceStaff) {
+	createPoolStaffRow(t, s, s.source.ID, absent.ID, func(row *fixtures.InstanceStaff) {
 		row.IsAbsent = true
 		row.AbsenceReason = testpkg.StrPtr("krank")
 	})
@@ -208,9 +212,8 @@ func TestStaffPoolForInstance_LeavesExternalCaregiversOut(t *testing.T) {
 	t.Parallel()
 
 	s := makePoolSetup(t)
-	external := &usersModels.Guest{StaffID: s.otherID, ActivityExpertise: "Musik"}
-	external.SetTenantID(s.tenantID)
-	_, err := s.db.NewInsert().Model(external).ModelTableExpr(`users.guests`).Exec(s.ctx)
+	external := &testpkg.ExternalCaregiverRecord{TenantID: s.tenantID, StaffID: s.otherID, ActivityExpertise: "Musik"}
+	_, err := s.db.NewInsert().Model(external).ModelTableExpr(`users.external_caregivers`).Exec(s.ctx)
 	require.NoError(t, err)
 
 	pool, err := s.detection.StaffPoolForInstance(s.ctx, s.target.ID)
@@ -220,13 +223,29 @@ func TestStaffPoolForInstance_LeavesExternalCaregiversOut(t *testing.T) {
 	}
 }
 
+// The pool is replacement staffing, which an account does not open to an
+// external caregiver (#4573 D6).
+func TestStaffPoolForInstance_LeavesAccountBackedExternalCaregiversOut(t *testing.T) {
+	t.Parallel()
+
+	s := makePoolSetup(t)
+	externalID := createAccountBackedExternal(t, s.db, s.ctx, s.tenantID)
+
+	pool, err := s.detection.StaffPoolForInstance(s.ctx, s.target.ID)
+	require.NoError(t, err)
+	poolEntryOf(t, pool, s.staffID) // positive anchor: regular staff is listed
+	for _, entry := range pool.Entries {
+		assert.NotEqual(t, externalID, entry.StaffID)
+	}
+}
+
 // TestStaffPoolForInstance_TouchingWindowsDoNotOverlap: a block ending
 // exactly when the target starts does not occupy the person.
 func TestStaffPoolForInstance_TouchingWindowsDoNotOverlap(t *testing.T) {
 	t.Parallel()
 
 	s := makePoolSetup(t)
-	before := createPoolInstance(t, s, "Davor", "13:30", "14:30", scheduleModels.InstanceStatusPlanned)
+	before := createPoolInstance(t, s, "Davor", "13:30", "14:30", fixtures.InstanceStatusPlanned())
 	createPoolStaffRow(t, s, before.ID, s.staffID, nil)
 	createPoolShift(t, s, s.staffID, "12:00", "16:00", false)
 
@@ -277,15 +296,12 @@ func TestStaffPoolForInstance_CancelledOnlyWeekMeansDienstplanNotInUse(t *testin
 func TestStaffPoolForInstance_TerminalBlockAbsenceRemainsDayWide(t *testing.T) {
 	t.Parallel()
 
-	for _, status := range []string{
-		scheduleModels.InstanceStatusCompleted,
-		scheduleModels.InstanceStatusCancelled,
-	} {
+	for _, status := range []string{fixtures.InstanceStatusCompleted(), fixtures.InstanceStatusCancelled()} {
 		t.Run(status, func(t *testing.T) {
 			s := makePoolSetup(t)
 
 			terminal := createPoolInstance(t, s, "Historie", "09:00", "10:00", status)
-			createPoolStaffRow(t, s, terminal.ID, s.staffID, func(row *scheduleModels.InstanceStaff) {
+			createPoolStaffRow(t, s, terminal.ID, s.staffID, func(row *fixtures.InstanceStaff) {
 				row.IsAbsent = true
 				row.AbsenceReason = testpkg.StrPtr("krank")
 			})

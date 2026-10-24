@@ -167,7 +167,7 @@ describe("parseRequestBody with maxBodyBytes", () => {
     });
     await expect(
       parseRequestBody<typeof oversized>(request, 1024),
-    ).rejects.toThrow(/API error \(413\)/);
+    ).rejects.toMatchObject({ status: 413 });
   });
 
   it("rejects via the declared content-length before reading the stream", async () => {
@@ -180,7 +180,7 @@ describe("parseRequestBody with maxBodyBytes", () => {
     } as unknown as NextRequest;
     await expect(
       parseRequestBody<Record<string, unknown>>(request, 1024),
-    ).rejects.toThrow(/API error \(413\)/);
+    ).rejects.toMatchObject({ status: 413 });
   });
 
   it("returns empty object for an empty bounded body", async () => {
@@ -194,7 +194,7 @@ describe("parseRequestBody with maxBodyBytes", () => {
     expect(result).toEqual({});
   });
 
-  // A bare SyntaxError carries no "API error (<status>)" marker, so
+  // A bare SyntaxError carries no status, so
   // handleApiError would answer 500 for a client-side malformed body. The
   // bounded (strict) path maps it to 400 instead (review #2372).
   it("rejects malformed JSON with a 400-shaped error", async () => {
@@ -205,7 +205,7 @@ describe("parseRequestBody with maxBodyBytes", () => {
     });
     await expect(
       parseRequestBody<Record<string, unknown>>(request, 1024),
-    ).rejects.toThrow(/API error \(400\)/);
+    ).rejects.toMatchObject({ status: 400 });
   });
 });
 
@@ -249,7 +249,11 @@ describe("createUnauthorizedResponse", () => {
     const response = createUnauthorizedResponse();
     expect(response.status).toBe(401);
     const json = (await response.json()) as { error?: string };
-    expect(json).toEqual({ error: "Unauthorized" });
+    expect(json).toMatchObject({
+      status: 401,
+      detail: "Unauthorized",
+      code: "general.permission",
+    });
   });
 });
 
@@ -266,6 +270,7 @@ describe("isStringParam", () => {
     expect(isStringParam(undefined)).toBe(false);
     expect(isStringParam({})).toBe(false);
     expect(isStringParam([])).toBe(false);
+    expect(isStringParam(true)).toBe(false);
   });
 });
 

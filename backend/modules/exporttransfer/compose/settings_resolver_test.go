@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/exporttransfer/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/exporttransfer/internal/domain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -46,12 +47,12 @@ func completeValues() map[string]string {
 	}
 }
 
-func newResolver(enabled bool, port int, values map[string]string) settingsResolver {
+func newResolver(enabled bool, port int, values map[string]string) application.SettingsResolver {
 	read := func(key string) func(context.Context) (string, error) {
 		return func(context.Context) (string, error) { return values[key], nil }
 	}
-	return settingsResolver{
-		settings: Settings{
+	return application.SettingsResolver{
+		Settings: application.Settings{
 			Enabled:            func(context.Context) (bool, error) { return enabled, nil },
 			Port:               func(context.Context) (int, error) { return port, nil },
 			Host:               read(keyHost),
@@ -60,7 +61,7 @@ func newResolver(enabled bool, port int, values map[string]string) settingsResol
 			RemoteDirectory:    read(keyDirectory),
 			HostKeyFingerprint: read(keyFingerprint),
 		},
-		keys: testKeys(),
+		Keys: application.SettingKeys(testKeys()),
 	}
 }
 
@@ -205,7 +206,7 @@ func TestResolve_StoreFailureIsNotReportedAsUnconfigured(t *testing.T) {
 
 	boom := errors.New("settings unavailable")
 	resolver := newResolver(true, 22, completeValues())
-	resolver.settings.Enabled = func(context.Context) (bool, error) { return false, boom }
+	resolver.Settings.Enabled = func(context.Context) (bool, error) { return false, boom }
 
 	_, err := resolver.Resolve(context.Background())
 	require.Error(t, err)

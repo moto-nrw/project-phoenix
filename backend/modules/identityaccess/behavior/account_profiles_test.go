@@ -5,9 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
@@ -15,7 +14,7 @@ import (
 func TestAccountProfiles(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	profiles, err := repositories.NewIdentityAccessForTests(db)
+	profiles, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 	account := testpkg.CreateTestAccount(t, db, "account-profile")
@@ -48,7 +47,7 @@ func TestAccountProfiles(t *testing.T) {
 
 	// The owner joins the caller's transaction; both reads and writes see it.
 	rollback := errors.New("roll back profile change")
-	err = tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+	err = testpkg.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
 		if writeErr := profiles.SetAccountBio(txCtx, account.ID, "Uncommitted"); writeErr != nil {
 			return writeErr
 		}
@@ -85,4 +84,22 @@ func TestAccountProfiles(t *testing.T) {
 	for _, invalidID := range []int64{0, -1} {
 		require.Error(t, profiles.SetAccountBio(ctx, invalidID, "Invalid"))
 	}
+}
+
+func TestAccountProfilesRejectErasedAccounts(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	profiles, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
+	require.NoError(t, err)
+	account := testpkg.CreateTestAccount(t, db, "erased-account-profile")
+	ctx := testpkg.Ctx(t)
+	_, err = db.NewRaw(`UPDATE auth.accounts SET personal_data_erased_at = NOW() WHERE id = ?`, account.ID).Exec(ctx)
+	require.NoError(t, err)
+
+	err = profiles.SetAccountBio(ctx, account.ID, "May not return")
+	require.ErrorContains(t, err, "cannot reference an erased account")
+
+	var profilesCount int
+	require.NoError(t, db.NewRaw(`SELECT COUNT(*) FROM users.profiles WHERE account_id = ?`, account.ID).Scan(ctx, &profilesCount))
+	require.Zero(t, profilesCount)
 }

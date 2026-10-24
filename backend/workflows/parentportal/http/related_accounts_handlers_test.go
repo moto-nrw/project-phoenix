@@ -1,0 +1,298 @@
+package parent_test
+
+import (
+	"context"
+	"log/slog"
+	"net/http"
+	"strconv"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
+
+	"github.com/moto-nrw/project-phoenix/api"
+	"github.com/moto-nrw/project-phoenix/modules/settings"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
+	parent "github.com/moto-nrw/project-phoenix/workflows/parentportal/http"
+)
+
+// relAcctHandlerSettings is a configurable settings stub for the related-
+// accounts gate at the HTTP layer.
+type relAcctHandlerSettings struct {
+	parentService.SettingsService
+	inviteMode string
+	canRemove  bool
+}
+
+func (s relAcctHandlerSettings) ResolveStringForTenant(_ context.Context, _ int64, key string) (string, error) {
+	if key == settings.KeyGuardianParentInviteMode {
+		return s.inviteMode, nil
+	}
+	return "", nil
+}
+
+func (s relAcctHandlerSettings) ResolveBoolForTenant(_ context.Context, _ int64, key string) (bool, error) {
+	if key == settings.KeyGuardianParentCanRemove {
+		return s.canRemove, nil
+	}
+	return false, nil
+}
+
+// relAcctStubInvites is a no-op guardian invitation service: the related-
+// accounts handlers only need it to succeed once the gate passes.
+type relAcctStubInvites struct {
+}
+
+func (relAcctStubInvites) InviteToStudent(_ context.Context, req parentService.GuardianInviteRequest) (parentService.GuardianInviteOutcome, error) {
+	return parentService.GuardianInviteOutcome{
+		Outcome:           "invited",
+		GuardianProfileID: req.StudentID,
+	}, nil
+}
+
+func (relAcctStubInvites) RevokeAccess(_ context.Context, _ parentService.GuardianAccessRevocation) error {
+	return nil
+}
+
+// relAcctSocialWorkerInvites refuses every invite with the social-worker
+// sentinel, mirroring the service refusal for school-managed contacts (#2172).
+type relAcctSocialWorkerInvites struct{}
+
+func (relAcctSocialWorkerInvites) InviteToStudent(_ context.Context, _ parentService.GuardianInviteRequest) (parentService.GuardianInviteOutcome, error) {
+	return parentService.GuardianInviteOutcome{}, parentService.ErrInviteSocialWorkerManaged
+}
+
+func (relAcctSocialWorkerInvites) RevokeAccess(context.Context, parentService.GuardianAccessRevocation) error {
+	return nil
+}
+
+func newRelAcctRouter(t *testing.T, db *bun.DB, inviteMode string, canRemove bool) http.Handler {
+	t.Helper()
+	members := owners.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db))
+	repos, repoErr := api.NewParentRouteTestRepositories(testpkg.NewDatabase(t, db), members)
+	require.NoError(t, repoErr)
+	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		GuardianChanges:     owners.ParentGuardianChanges(),
+		DeparturePolicy:     owners.ParentDeparturePolicy(),
+		GuardianPolicy:      owners.NewParentGuardianPolicy(),
+		Fingerprints:        owners.SecurityFingerprints{},
+		Declarations:        owners.ParentDeclarationPolicy(),
+		Locales:             owners.ParentPortalLocales(),
+		Runtime:             owners.ParentPortalRuntime{},
+		CarePlan:            owners.NewParentCarePlanCommands(repos.CareExceptions, nil),
+		People:              owners.MustNewPeopleDirectory(testpkg.NewDatabase(t, db)),
+		ChildRepo:           repos.ParentChildReads(),
+		StatusDayRepo:       repos.StudentStatusDay,
+		StudentRepo:         owners.NewParentStudentReads(members.Student),
+		Settings:            relAcctHandlerSettings{inviteMode: inviteMode, canRemove: canRemove},
+		GuardianInvites:     relAcctStubInvites{},
+		StudentGuardianRepo: owners.NewParentStudentGuardianReads(members.StudentGuardian),
+		GuardianProfileRepo: owners.NewParentGuardianProfileReads(members.GuardianProfile),
+		Logger:              slog.Default(),
+
+		DataRequests: owners.NewParentDataRequestCommands(repos.CareExceptions),
+
+		CarePlanPolicy: owners.NewParentCarePlanPolicy(),
+	})
+	rs := parent.NewResource(parent.ResourceConfig{Parent: svc})
+	return testpkg.TenantRuntimeMiddleware(t, db)(rs.Router(api.ParentSessionChain))
+}
+
+func TestRelatedAccountsEndpoint_List(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+
+	router := newRelAcctRouter(t, db, settings.ParentInviteModeDirect, false)
+	token := parentToken(t, chain.AccountID)
+	sid := strconv.FormatInt(chain.StudentID, 10)
+
+	rr := doRequest(t, router, http.MethodGet, "/me/children/"+sid+"/related-accounts", token, nil)
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	assert.Contains(t, rr.Body.String(), `"guardian_profile_id"`)
+	assert.Contains(t, rr.Body.String(), `"guardian_role":"primary_guardian"`,
+		"the per-child role must be exposed so the panel can gate social-worker rows")
+}
+
+func TestRelatedAccountsEndpoint_InviteGate(t *testing.T) {
+	t.Parallel()
+
+	sid := func(c testpkg.ParentChain) string { return strconv.FormatInt(c.StudentID, 10) }
+
+	t.Run("disabled → 403", func(t *testing.T) {
+		db := testpkg.SetupTestDB(t)
+		chain := testpkg.CreateTestParentGuardianChain(t, db)
+		router := newRelAcctRouter(t, db, settings.ParentInviteModeDisabled, false)
+		token := parentToken(t, chain.AccountID)
+
+		rr := doRequest(t, router, http.MethodPost, "/me/children/"+sid(chain)+"/related-accounts", token,
+			map[string]any{"email": "x@example.test"})
+		assert.Equal(t, http.StatusForbidden, rr.Code, rr.Body.String())
+	})
+
+	t.Run("direct → 201", func(t *testing.T) {
+		db := testpkg.SetupTestDB(t)
+		chain := testpkg.CreateTestParentGuardianChain(t, db)
+		router := newRelAcctRouter(t, db, settings.ParentInviteModeDirect, false)
+		token := parentToken(t, chain.AccountID)
+
+		rr := doRequest(t, router, http.MethodPost, "/me/children/"+sid(chain)+"/related-accounts", token,
+			map[string]any{"email": "new@example.test"})
+		assert.Equal(t, http.StatusCreated, rr.Code, rr.Body.String())
+	})
+}
+
+func TestRelatedAccountsEndpoint_RemoveGate(t *testing.T) {
+	t.Parallel()
+
+	t.Run("removal disabled → 403", func(t *testing.T) {
+		db := testpkg.SetupTestDB(t)
+		chain := testpkg.CreateTestParentGuardianChain(t, db)
+		router := newRelAcctRouter(t, db, settings.ParentInviteModeDirect, false)
+		token := parentToken(t, chain.AccountID)
+		sid := strconv.FormatInt(chain.StudentID, 10)
+		gid := strconv.FormatInt(chain.GuardianProfileID, 10)
+
+		rr := doRequest(t, router, http.MethodDelete, "/me/children/"+sid+"/related-accounts/"+gid, token, nil)
+		assert.Equal(t, http.StatusForbidden, rr.Code, rr.Body.String())
+	})
+
+	t.Run("removal enabled → 200", func(t *testing.T) {
+		db := testpkg.SetupTestDB(t)
+		chain := testpkg.CreateTestParentGuardianChain(t, db)
+		router := newRelAcctRouter(t, db, settings.ParentInviteModeDirect, true)
+		token := parentToken(t, chain.AccountID)
+		sid := strconv.FormatInt(chain.StudentID, 10)
+		gid := strconv.FormatInt(chain.GuardianProfileID, 10)
+
+		rr := doRequest(t, router, http.MethodDelete, "/me/children/"+sid+"/related-accounts/"+gid, token, nil)
+		assert.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	})
+}
+
+// TestRelatedAccountsEndpoint_ManagePermission pins #4603: inviting and
+// removing accounts needs parent_portal.related_accounts.manage on the child,
+// while the list stays open to every account with portal access.
+func TestRelatedAccountsEndpoint_ManagePermission(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	router := newRelAcctRouter(t, db, settings.ParentInviteModeDirect, true)
+	token := parentToken(t, chain.AccountID)
+	base := "/me/children/" + strconv.FormatInt(chain.StudentID, 10) + "/related-accounts"
+	removePath := base + "/" + strconv.FormatInt(chain.GuardianProfileID, 10)
+
+	setGuardianPermissions(t, db, chain, `{"parent_portal.access": true}`)
+
+	listed := doRequest(t, router, http.MethodGet, base, token, nil)
+	assert.Equal(t, http.StatusOK, listed.Code, listed.Body.String())
+
+	invited := doRequest(t, router, http.MethodPost, base, token, map[string]any{"email": "neu@example.test"})
+	require.Equal(t, http.StatusForbidden, invited.Code, invited.Body.String())
+	assert.Contains(t, invited.Body.String(), `"code":"care.guardian_permission_denied"`)
+
+	removed := doRequest(t, router, http.MethodDelete, removePath, token, nil)
+	require.Equal(t, http.StatusForbidden, removed.Code, removed.Body.String())
+	assert.Contains(t, removed.Body.String(), `"code":"care.guardian_permission_denied"`)
+
+	setGuardianPermissions(t, db, chain, `{"parent_portal.access": true, "parent_portal.related_accounts.manage": true}`)
+	invited = doRequest(t, router, http.MethodPost, base, token, map[string]any{"email": "neu@example.test"})
+	assert.Equal(t, http.StatusCreated, invited.Code, invited.Body.String())
+	removed = doRequest(t, router, http.MethodDelete, removePath, token, nil)
+	assert.Equal(t, http.StatusOK, removed.Code, removed.Body.String())
+}
+
+// relAcctCaptureInvites records the invite request and returns a canned result,
+// so the handler's confirm_role_upgrade/existing_role passthrough is testable.
+type relAcctCaptureInvites struct {
+	lastReq *parentService.GuardianInviteRequest
+	result  parentService.GuardianInviteOutcome
+}
+
+func (s *relAcctCaptureInvites) InviteToStudent(_ context.Context, req parentService.GuardianInviteRequest) (parentService.GuardianInviteOutcome, error) {
+	s.lastReq = &req
+	return s.result, nil
+}
+
+func (s *relAcctCaptureInvites) RevokeAccess(context.Context, parentService.GuardianAccessRevocation) error {
+	return nil
+}
+
+func newRelAcctRouterWithInvites(t *testing.T, db *bun.DB, invites parentService.GuardianAccess) http.Handler {
+	t.Helper()
+	members := owners.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db))
+	repos, repoErr := api.NewParentRouteTestRepositories(testpkg.NewDatabase(t, db), members)
+	require.NoError(t, repoErr)
+	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		GuardianChanges:     owners.ParentGuardianChanges(),
+		DeparturePolicy:     owners.ParentDeparturePolicy(),
+		GuardianPolicy:      owners.NewParentGuardianPolicy(),
+		Fingerprints:        owners.SecurityFingerprints{},
+		Declarations:        owners.ParentDeclarationPolicy(),
+		Locales:             owners.ParentPortalLocales(),
+		Runtime:             owners.ParentPortalRuntime{},
+		CarePlan:            owners.NewParentCarePlanCommands(repos.CareExceptions, nil),
+		People:              owners.MustNewPeopleDirectory(testpkg.NewDatabase(t, db)),
+		ChildRepo:           repos.ParentChildReads(),
+		StatusDayRepo:       repos.StudentStatusDay,
+		StudentRepo:         owners.NewParentStudentReads(members.Student),
+		Settings:            relAcctHandlerSettings{inviteMode: settings.ParentInviteModeDirect},
+		GuardianInvites:     invites,
+		StudentGuardianRepo: owners.NewParentStudentGuardianReads(members.StudentGuardian),
+		GuardianProfileRepo: owners.NewParentGuardianProfileReads(members.GuardianProfile),
+		Logger:              slog.Default(),
+
+		DataRequests: owners.NewParentDataRequestCommands(repos.CareExceptions),
+
+		CarePlanPolicy: owners.NewParentCarePlanPolicy(),
+	})
+	rs := parent.NewResource(parent.ResourceConfig{Parent: svc})
+	return testpkg.TenantRuntimeMiddleware(t, db)(rs.Router(api.ParentSessionChain))
+}
+
+func TestRelatedAccountsEndpoint_ConfirmRoleUpgradePassthrough(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+
+	invites := &relAcctCaptureInvites{result: parentService.GuardianInviteOutcome{
+		Outcome:           "existing_contact_restricted",
+		GuardianProfileID: chain.GuardianProfileID,
+		ExistingRole:      "emergency_contact",
+	}}
+	router := newRelAcctRouterWithInvites(t, db, invites)
+	token := parentToken(t, chain.AccountID)
+	sid := strconv.FormatInt(chain.StudentID, 10)
+
+	rr := doRequest(t, router, http.MethodPost, "/me/children/"+sid+"/related-accounts", token,
+		map[string]any{"email": "contact@example.test", "confirm_role_upgrade": true})
+	require.Equal(t, http.StatusCreated, rr.Code, rr.Body.String())
+
+	require.NotNil(t, invites.lastReq)
+	assert.True(t, invites.lastReq.ConfirmRoleUpgrade, "confirm_role_upgrade must reach the invite service")
+	assert.Contains(t, rr.Body.String(), `"outcome":"existing_contact_restricted"`)
+	assert.Contains(t, rr.Body.String(), `"existing_role":"emergency_contact"`)
+}
+
+func TestRelatedAccountsEndpoint_SocialWorkerRefusedWithCode(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+
+	router := newRelAcctRouterWithInvites(t, db, relAcctSocialWorkerInvites{})
+	token := parentToken(t, chain.AccountID)
+	sid := strconv.FormatInt(chain.StudentID, 10)
+
+	rr := doRequest(t, router, http.MethodPost, "/me/children/"+sid+"/related-accounts", token,
+		map[string]any{"email": "sozialdienst@example.test", "confirm_role_upgrade": true})
+	require.Equal(t, http.StatusForbidden, rr.Code, rr.Body.String())
+	assert.Contains(t, rr.Body.String(), `"code":"care.guardian_social_worker_managed"`)
+}

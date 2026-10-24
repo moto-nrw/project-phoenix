@@ -13,7 +13,6 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 )
 
 // Rows loads the retained records the read routes render, in the wire shape
@@ -30,19 +29,20 @@ type Rows interface {
 
 // Resource handles the /api/me routes.
 type Resource struct {
-	caller identityaccess.CallerContext
-	rows   Rows
-	router chi.Router
+	uploads common.UploadStorage
+	caller  identityaccess.CallerContext
+	rows    Rows
+	router  chi.Router
 }
 
 // NewResource mounts the /api/me routes behind the tenant security chain.
 // Every route runs in the request's tenant transaction.
-func NewResource(caller identityaccess.CallerContext, rows Rows) *Resource {
-	res := &Resource{caller: caller, rows: rows, router: chi.NewRouter()}
-	res.router.Use(jwt.Authenticator)
-	res.router.Use(common.ReadOnlyPreviewMiddleware)
-	res.router.Use(common.TenantScopeMiddleware)
-	res.router.Use(common.SecurityPrincipalMiddleware)
+func NewResource(caller identityaccess.CallerContext, rows Rows, configureSession func(chi.Router), uploads common.UploadStorage) *Resource {
+	if uploads == nil {
+		panic("me resource: upload storage is required")
+	}
+	res := &Resource{caller: caller, rows: rows, router: chi.NewRouter(), uploads: uploads}
+	configureSession(res.router)
 	withTx := common.TenantTxMiddleware
 
 	res.router.With(withTx).Get("/", res.getCurrentUser)
@@ -207,6 +207,7 @@ var ErrorRenderer = common.RulesRenderer([]common.ErrorRule{
 	{Target: identityaccess.ErrCallerNotLinkedToStaff, Render: common.ErrorNotFound},
 	{Target: identityaccess.ErrCallerNotLinkedToTeacher, Render: common.ErrorNotFound},
 	{Target: identityaccess.ErrCallerGroupNotFound, Render: common.ErrorNotFound},
+	{Target: identityaccess.ErrCallerSessionNotFound, Render: common.ErrorNotFound},
 }, common.ErrorInternalServer)
 
 var errAuthenticationRequired = errors.New("authentication required")

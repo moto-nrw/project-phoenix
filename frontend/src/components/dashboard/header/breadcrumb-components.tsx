@@ -7,9 +7,9 @@ import { NavLink } from "~/components/ui/nav-link";
 import { useTranslations } from "next-intl";
 
 import {
-  OGS_GROUP_SECTION_LABELS,
-  type OgsGroupSection,
-} from "~/lib/ogs-group-sections";
+  OGS_GROUPS_LABEL,
+  OGS_GROUPS_OVERVIEW_PATH,
+} from "~/lib/ogs-groups-navigation";
 import {
   ENROLLMENT_SECTION,
   ENROLLMENT_SUB_PAGES,
@@ -178,22 +178,20 @@ function AccordionSectionBreadcrumb({
 }
 
 /**
- * OGS Groups breadcrumb with optional group name. Der Bereich ist der, unter
- * dem die Gruppe in der Seitenleiste steht (#3890).
+ * Breadcrumb der Gruppenseite: „Gruppen › Mondgruppe“ (#4351). „Gruppen“
+ * führt zurück auf die Auswahlseite.
  */
 interface OgsGroupsBreadcrumbProps {
   readonly groupName?: string;
-  readonly section?: OgsGroupSection;
 }
 
-export function OgsGroupsBreadcrumb({
-  groupName,
-  section = "personal",
-}: OgsGroupsBreadcrumbProps) {
+export function OgsGroupsBreadcrumb({ groupName }: OgsGroupsBreadcrumbProps) {
+  if (!groupName) return <PageTitleDisplay title={OGS_GROUPS_LABEL} />;
   return (
-    <AccordionSectionBreadcrumb
-      sectionLabel={OGS_GROUP_SECTION_LABELS[section]}
-      itemName={groupName}
+    <SectionBreadcrumb
+      sectionLabel={OGS_GROUPS_LABEL}
+      sectionHref={OGS_GROUPS_OVERVIEW_PATH}
+      pageLabel={groupName}
     />
   );
 }
@@ -203,11 +201,23 @@ export function OgsGroupsBreadcrumb({
  */
 interface ActiveSupervisionsBreadcrumbProps {
   readonly supervisionName?: string;
+  /** Offener Raum ohne eigene Aufsicht: „Räume › Name“ (#4372). */
+  readonly isSharedRoom?: boolean;
 }
 
 export function ActiveSupervisionsBreadcrumb({
   supervisionName,
+  isSharedRoom = false,
 }: ActiveSupervisionsBreadcrumbProps) {
+  if (isSharedRoom && supervisionName) {
+    return (
+      <SectionBreadcrumb
+        sectionLabel="Räume"
+        sectionHref="/rooms"
+        pageLabel={supervisionName}
+      />
+    );
+  }
   return (
     <AccordionSectionBreadcrumb
       sectionLabel="Aktuelle Aufsicht"

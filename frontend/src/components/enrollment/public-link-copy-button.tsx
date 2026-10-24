@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, Copy } from "lucide-react";
-import { useToast } from "~/contexts/ToastContext";
+import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { useClipboardCopy } from "~/lib/use-clipboard-copy";
 
 // Kein API-Fehler: der Browser hat das Kopieren verweigert. Der Link steht
@@ -21,7 +21,7 @@ export function PublicLinkCopyButton({
   label = "Elternlink kopieren",
 }: PublicLinkCopyButtonProps) {
   const { copied, copy } = useClipboardCopy(componentId, 2000);
-  const toast = useToast();
+  const { showMessage } = useApiErrorDisplay();
   const Icon = copied ? Check : Copy;
   const accessibleLabel = copied ? "Link kopiert" : label;
 
@@ -31,7 +31,7 @@ export function PublicLinkCopyButton({
       onClick={(event) => {
         event.stopPropagation();
         void copy(url).then((ok) => {
-          if (!ok) toast.error(COPY_FAILED);
+          if (!ok) showMessage(COPY_FAILED);
         });
       }}
       aria-label={accessibleLabel}

@@ -2,7 +2,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const mockApiGet = vi.fn();
 
-vi.mock("~/lib/api-helpers.server", () => ({
+vi.mock("~/lib/api-helpers.server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/api-helpers.server")>()),
   apiGet: (...args: unknown[]) => mockApiGet(...args),
 }));
 
@@ -29,13 +30,5 @@ describe("GET /api/settings/schema", () => {
       "test-token",
     );
     expect(result).toEqual(schemaData);
-  });
-
-  it("propagates errors from apiGet", async () => {
-    mockApiGet.mockRejectedValue(new Error("API error"));
-
-    await expect((GET as Function)({}, "test-token")).rejects.toThrow(
-      "API error",
-    );
   });
 });

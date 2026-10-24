@@ -14,8 +14,11 @@ import type {
   PendingInvitation,
   BackendInvitationValidation,
   BackendInvitation,
+  BackendFormerEmployment,
+  FormerEmployment,
 } from "./invitation-helpers";
 import {
+  mapFormerEmploymentResponse,
   mapInvitationValidationResponse,
   mapPendingInvitationResponse,
 } from "./invitation-helpers";
@@ -47,12 +50,8 @@ const createApiError = async (
   try {
     const contentType = response.headers.get("Content-Type") ?? "";
     if (contentType.includes("json")) {
-      const body = (await response.json()) as {
-        error?: string;
-        message?: string;
-      };
-      message = body.error ?? body.message ?? fallbackMessage;
-      payload = body;
+      // The envelope's `detail` becomes the diagnostic message.
+      payload = await response.json();
     } else {
       const text = (await response.text()).trim();
       if (text) {
@@ -157,6 +156,37 @@ export async function createInvitation(
   const raw = (await response.json()) as unknown;
   const invitationData = extractData<BackendInvitation>(raw);
   return mapPendingInvitationResponse(invitationData);
+}
+
+/**
+ * Asks whether an invitation to the address would continue a former
+ * employment at this school; null when it would not, also for an address
+ * without an account. The address goes in the body, never into a URL.
+ */
+export async function findFormerEmployment(
+  email: string,
+  signal?: AbortSignal,
+): Promise<FormerEmployment | null> {
+  const response = await transportFetch("/api/invitations/former-employment", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ email }),
+    credentials: "include",
+    signal,
+  });
+  if (!response.ok) {
+    throw await createApiError(
+      response,
+      "Frühere Beschäftigung konnte nicht geprüft werden.",
+    );
+  }
+  const raw = (await response.json()) as unknown;
+  const data = extractData<{
+    former_employment?: BackendFormerEmployment | null;
+  }>(raw);
+  return mapFormerEmploymentResponse(data.former_employment);
 }
 
 export async function listPendingInvitations(): Promise<PendingInvitation[]> {

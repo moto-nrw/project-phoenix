@@ -1,5 +1,6 @@
 "use client";
 
+import { ApiError } from "~/lib/api-error";
 import {
   useCallback,
   useEffect,
@@ -66,7 +67,6 @@ import {
   fetchSlotListOptions,
   fetchSlotListPreview,
   groupByOptionsFor,
-  SlotListExportError,
   SlotListExportSupersededError,
   SLOT_LIST_KIND_LABELS,
   SLOT_LIST_GROUP_BY_LABELS,
@@ -808,7 +808,8 @@ export default function SlotListsPage() {
   const { show: showPreviewLoadError, clear: clearPreviewLoadError } =
     previewLoad;
   // Export ist eine Aktion ohne Formular: Fehler und Hinweise als Toast.
-  const { show: showExportError } = useApiErrorDisplay();
+  const { show: showExportError, showMessage: showExportMessage } =
+    useApiErrorDisplay();
   const toast = useToast();
   // Bumped on focus/visibility to force the preview effect to refetch. The
   // /options revalidation alone cannot catch attendance drift: its payload holds
@@ -1461,7 +1462,7 @@ export default function SlotListsPage() {
         if (!printTarget) {
           // Kein API-Fehler: der Browser hat das Fenster blockiert. Derselbe
           // Toast-Weg wie die übrigen Exportfehler, mit eigenem Text (#2516).
-          toast.error(PRINT_WINDOW_BLOCKED_MESSAGE);
+          showExportMessage(PRINT_WINDOW_BLOCKED_MESSAGE);
           return;
         }
       }
@@ -1805,13 +1806,16 @@ export default function SlotListsPage() {
           });
           return;
         }
-        // 409 = the backend's atomic drift refusal (its rebuild no longer matches
-        // the verified signature). Refresh the preview so the user sees the new
-        // content and re-checks, rather than silently failing. exportSlotList
-        // already closed the print tab on this rejection. The status decides
-        // the flow only; the notice is our own text, never the server's
-        // sentence (#2516).
-        if (err instanceof SlotListExportError && err.status === 409) {
+        // timetable.slot_list_drifted = the backend's atomic drift refusal
+        // (its rebuild no longer matches the verified signature). Refresh the
+        // preview so the user sees the new content and re-checks, rather than
+        // silently failing. exportSlotList already closed the print tab on
+        // this rejection. The code decides the flow only; the notice is our
+        // own text, never the server's sentence (#2516).
+        if (
+          err instanceof ApiError &&
+          err.code === "timetable.slot_list_drifted"
+        ) {
           toast.warning(LIST_CHANGED_MESSAGE, {
             duration: DRIFT_NOTICE_DURATION_MS,
           });
@@ -1868,6 +1872,7 @@ export default function SlotListsPage() {
       revalidateOptions,
       clearOptionsLoadError,
       showExportError,
+      showExportMessage,
       toast,
     ],
   );

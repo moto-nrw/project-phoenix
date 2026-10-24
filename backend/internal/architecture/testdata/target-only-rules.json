@@ -1,0 +1,231 @@
+{
+  "schema_version": 5,
+  "policy_epoch": 47,
+  "module_path": "example.test/target-only",
+  "shared_kernel_types": [
+    "CorrelationID",
+    "Date",
+    "TenantID",
+    "WallClock"
+  ],
+  "build": {
+    "goos": "linux",
+    "goarch": "amd64",
+    "cgo_enabled": false
+  },
+  "owners": [
+    {
+      "id": "alpha",
+      "kind": "domain"
+    },
+    {
+      "id": "beta",
+      "kind": "domain"
+    },
+    {
+      "id": "runtime",
+      "kind": "platform"
+    },
+    {
+      "id": "clock",
+      "kind": "platform"
+    },
+    {
+      "id": "board",
+      "kind": "projection"
+    },
+    {
+      "id": "flow",
+      "kind": "workflow"
+    },
+    {
+      "id": "root",
+      "kind": "composition"
+    },
+    {
+      "id": "tools",
+      "kind": "tool"
+    }
+  ],
+  "roles": [
+    "adapter",
+    "application",
+    "cli",
+    "compose",
+    "contract",
+    "domain",
+    "http",
+    "legacy-model",
+    "module-behavior-test",
+    "module-internal-test",
+    "postgres",
+    "public",
+    "test-support"
+  ],
+  "packages": [
+    {
+      "path": "alpha",
+      "owner": "alpha",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "alpha/application",
+      "owner": "alpha",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "alpha/compose",
+      "owner": "alpha",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "beta",
+      "owner": "beta",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "beta/application",
+      "owner": "beta",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "beta/session",
+      "owner": "beta",
+      "role": "http",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "models/beta",
+      "owner": "beta",
+      "role": "legacy-model",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "models/beta/betatest",
+      "owner": "beta",
+      "role": "test-support",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "runtime",
+      "owner": "runtime",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "runtime/application",
+      "owner": "runtime",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "clock",
+      "owner": "clock",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "board",
+      "owner": "board",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "flow",
+      "owner": "flow",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    }
+  ],
+  "data_objects": [],
+  "read_projections": [],
+  "legacy_composition": [],
+  "external_classes": [],
+  "external_packages": [],
+  "rules": [
+    {
+      "id": "alpha.application.beta-public",
+      "description": "Alpha decides through Beta's public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "alpha",
+      "source_role": "application",
+      "target_owner": "beta",
+      "target_role": "public"
+    },
+    {
+      "id": "beta.application.legacy-model",
+      "description": "Beta maps its own retained rows.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "beta",
+      "source_role": "application",
+      "target_owner": "beta",
+      "target_role": "legacy-model"
+    },
+    {
+      "id": "domain.compose.application",
+      "description": "An owner composition builds its own application.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "domain",
+      "source_role": "compose",
+      "target_role": "application",
+      "same_owner": true
+    },
+    {
+      "id": "runtime.application.clock-public",
+      "description": "The runtime reads the clock platform.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "runtime",
+      "source_role": "application",
+      "target_owner": "clock",
+      "target_role": "public"
+    },
+    {
+      "id": "flow.public.board-public",
+      "description": "The workflow reads the board projection.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "flow",
+      "source_role": "public",
+      "target_owner": "board",
+      "target_role": "public"
+    },
+    {
+      "id": "alpha.http.beta-session",
+      "description": "Alpha's routes reach Beta's session runtime.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "alpha",
+      "source_role": "http",
+      "target_owner": "beta",
+      "target_role": "http"
+    }
+  ]
+}

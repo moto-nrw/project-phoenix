@@ -8,18 +8,15 @@ package compose
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/devicescan"
 	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/ports"
+	"github.com/moto-nrw/project-phoenix/modules/devicescan/ports"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
-	configSvc "github.com/moto-nrw/project-phoenix/services/config"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -43,22 +40,23 @@ type Presence interface {
 type Rooms = application.Rooms
 
 // Rosters resolves the day rosters of running blocks. The roots bind it to
-// the Student Presence sessions and the Timetable roster (repositories.SessionRosters).
+// Timetable, which maps the Student Presence sessions to its day rosters.
 type Rosters = ports.Rosters
 
 // PickupReader is the slice of the retained pickup schedule service the
 // scans read.
 type PickupReader interface {
-	GetEffectivePickupTimeForDate(ctx context.Context, studentID int64, date timezone.Date) (*careplan.EffectivePickupTime, error)
+	GetEffectivePickupTimeForDate(ctx context.Context, studentID int64, date calendar.Date) (*careplan.EffectivePickupTime, error)
 }
 
 // Dependencies are the collaborators of the device-scan workflow. Fleet,
 // Presence, Rooms, Active, Users and Settings are required; the others may be nil in
 // narrow graphs and disable the flows that need them.
 type Dependencies struct {
-	Fleet    Fleet
-	Presence Presence
-	Rooms    Rooms
+	Principal devicescan.DevicePrincipal
+	Fleet     Fleet
+	Presence  Presence
+	Rooms     Rooms
 	// Active is the retained presence service that still owns the visit,
 	// session and attendance transitions.
 	Active studentpresence.Presence
@@ -66,7 +64,7 @@ type Dependencies struct {
 	Users PersonDirectory
 	// Activities is the retained activity catalog the special rooms
 	// provision from.
-	Activities activitiesSvc.ActivityService
+	Activities application.ActivityCatalog
 	// Rosters reads the day rosters of running blocks for the Schulhof
 	// scan rule (#3282).
 	Rosters Rosters
@@ -78,56 +76,47 @@ type Dependencies struct {
 	// binds it to the open-room move workflow; nil refuses the booking.
 	OpenRooms devicescan.OpenRoomMover
 	// Settings resolves tenant settings and is required.
-	Settings configSvc.SettingsService
+	Settings ScanSettings
 	// Now is the workflow clock; nil means the wall clock.
 	Now    func() time.Time
 	Logger *slog.Logger
 }
 
 // New composes the device-scan workflow.
-func New(deps Dependencies) DeviceScan {
+func New(deps Dependencies, bindings Bindings) DeviceScan {
 	if deps.Fleet == nil || deps.Presence == nil || deps.Rooms == nil || deps.Active == nil || deps.Users == nil {
 		panic("device scan composition: fleet, presence, rooms, active and users are required")
 	}
+	if deps.Principal == nil {
+		panic("device scan composition: principal is required")
+	}
 	if deps.Settings == nil {
 		panic("device scan composition: settings are required")
-	}
-	now := deps.Now
-	if now == nil {
-		now = time.Now
 	}
 	logger := deps.Logger
 	if logger == nil {
 		logger = slog.Default()
 	}
-	clock := clock{now: now}
-	var activities ports.Activities
+	clock := bindings.Clock
+	var activities application.ActivityCatalog
 	if deps.Activities != nil {
-		activities = activityCatalog{activities: deps.Activities}
-	}
-	var groups ports.Groups
-	if deps.Education != nil {
-		groups = groupDirectory{education: deps.Education}
-	}
-	var pickups ports.Pickups
-	if deps.Pickups != nil {
-		pickups = pickupPlan{pickups: deps.Pickups}
+		activities = deps.Activities
 	}
 	return application.NewService(application.Dependencies{
 		Fleet:      deps.Fleet,
 		Presence:   deps.Presence,
 		Rooms:      deps.Rooms,
-		Principals: principals{},
-		People:     people{users: deps.Users},
-		Visits:     visits{active: deps.Active, clock: clock},
-		Sessions:   sessions{active: deps.Active, presence: deps.Presence, clock: clock},
-		Attendance: attendance{active: deps.Active},
+		Principals: deps.Principal,
+		People:     people{PersonDirectory: deps.Users},
+		Visits:     bindings.Visits,
+		Sessions:   bindings.Sessions,
+		Attendance: bindings.Attendance,
 		Activities: activities,
 		Rosters:    deps.Rosters,
-		Groups:     groups,
-		Pickups:    pickups,
+		Groups:     bindings.Groups,
+		Pickups:    bindings.Pickups,
 		OpenRooms:  deps.OpenRooms,
-		Settings:   settings{settings: deps.Settings, active: deps.Active},
+		Settings:   settings{settings: deps.Settings, presenceModes: deps.Active},
 		UnitOfWork: unitOfWork{},
 		Clock:      clock,
 		Logger:     logger,
@@ -138,30 +127,26 @@ func New(deps Dependencies) DeviceScan {
 type clock struct{ now func() time.Time }
 
 func (c clock) Now() time.Time                      { return c.now() }
-func (c clock) Day(instant time.Time) timezone.Date { return timezone.DateFromTime(instant) }
+func (c clock) Day(instant time.Time) calendar.Date { return calendar.DateFromTime(instant) }
 
 // unitOfWork binds the request transaction of the tenant runtime.
 type unitOfWork struct{}
 
 func (unitOfWork) RequireTransaction(ctx context.Context) error {
-	if _, ok := tenant.TransactionFromContext(ctx); !ok {
-		return errors.New("device scan requires a tenant transaction")
-	}
-	_, err := tenant.TenantFromContext(ctx)
-	return err
+	return application.RequireTransaction(ctx, tenant.TransactionFromContext, tenant.TenantFromContext)
 }
 
 func (unitOfWork) MarkRollback(ctx context.Context) { tenant.MarkRollback(ctx) }
 
-// mappedError keeps the retained service's message on the wire while
-// answering errors.Is for the workflow's port sentinel.
-type mappedError struct {
-	err      error
-	sentinel error
+type Bindings struct {
+	Visits     ports.Visits
+	Sessions   application.SessionOperations
+	Attendance ports.Attendance
+	Groups     ports.Groups
+	Pickups    ports.Pickups
+	Clock      ports.Clock
 }
-
-func (e mappedError) Error() string        { return e.err.Error() }
-func (e mappedError) Unwrap() error        { return e.err }
-func (e mappedError) Is(target error) bool { return target == e.sentinel }
-
-func mapError(err, sentinel error) error { return mappedError{err: err, sentinel: sentinel} }
+type roomSessionQuery interface {
+	QueryLiveGroups(context.Context, studentpresence.LiveGroupFilter) ([]studentpresence.LiveGroup, error)
+	QueryGroupSupervisions(context.Context, studentpresence.GroupSupervisionFilter) ([]studentpresence.GroupSupervision, error)
+}

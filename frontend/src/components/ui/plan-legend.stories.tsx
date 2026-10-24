@@ -28,7 +28,7 @@ export const CategoriesOnly: Story = {
     entries: [
       { key: "care", label: "Arbeit am Kind", color: "#3F6F12" },
       { key: "prep", label: "Vorbereitung", color: "#4A6FA5" },
-      { key: "untyped", label: "Ohne Schichtart" },
+      { key: "untyped", label: "Ohne Dienstart" },
     ],
   },
 };

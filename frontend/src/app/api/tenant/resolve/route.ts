@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
 import { createPublicJsonProxy } from "~/lib/backend-proxy-route.server";
+import { problemResponse } from "~/lib/api-helpers.server";
 
 /** Resolve a tenant without attaching a school session. */
 export const GET = createPublicJsonProxy({
@@ -7,10 +7,7 @@ export const GET = createPublicJsonProxy({
   path: (request) => {
     const slug = request.nextUrl.searchParams.get("slug");
     if (!slug) {
-      return NextResponse.json(
-        { error: "slug parameter is required" },
-        { status: 400 },
-      );
+      return problemResponse(400, "slug parameter is required", request);
     }
     return `/auth/tenant/resolve?slug=${encodeURIComponent(slug)}`;
   },

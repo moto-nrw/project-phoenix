@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 )
 
@@ -72,7 +73,7 @@ func (f *AccountMFAFlows) adminDisable(ctx context.Context, actorType string, ac
 		f.recordAdminFailure(ctx, failure)
 		return domain.ErrMFAReasonRequired
 	}
-	if err := f.Disable(ctx, targetAccountID); err != nil {
+	if err := f.disableForAdmin(ctx, actorType, actorID, targetTenantID, targetAccountID); err != nil {
 		failure.Reason, failure.ErrMsg = reason, err.Error()
 		f.recordAdminFailure(ctx, failure)
 		return err
@@ -122,9 +123,9 @@ func (f *AccountMFAFlows) setTenantOverride(ctx context.Context, actorType strin
 		TargetAccountID: targetAccountID, Action: "set_override", Override: override, Reason: reason,
 	}
 	if !domain.IsValidMFAAdminOverride(override) {
-		failure.ErrMsg = domain.ErrMFAInvalidOverride.Error()
+		failure.ErrMsg = identityaccess.ErrMFAInvalidOverride.Error()
 		f.recordAdminFailure(ctx, failure)
-		return domain.ErrMFAInvalidOverride
+		return identityaccess.ErrMFAInvalidOverride
 	}
 	reason = strings.TrimSpace(reason)
 	if reason == "" {
@@ -141,35 +142,11 @@ func (f *AccountMFAFlows) setTenantOverride(ctx context.Context, actorType strin
 
 	previous := domain.MFAAdminOverrideNone
 	txErr := f.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
-		if err := f.records.LockAccountForOverrideWrite(txCtx, targetAccountID); err != nil {
+		if err := f.writeTenantOverride(txCtx, actorType, actorID, targetTenantID, targetAccountID, override, reason, &previous); err != nil {
 			return err
 		}
-		existing, found, err := f.records.FindTenantOverride(txCtx, targetAccountID, targetTenantID)
-		if err != nil {
-			return fmt.Errorf("load existing tenant override: %w", err)
-		}
-		if found {
-			previous = existing.Override
-		}
-		if override == domain.MFAAdminOverrideNone {
-			if err := f.records.DeleteTenantOverride(txCtx, targetAccountID, targetTenantID); err != nil {
-				return fmt.Errorf("clear tenant override: %w", err)
-			}
-			return nil
-		}
-		tenantID := targetTenantID
-		if err := f.records.UpsertTenantOverride(txCtx, domain.AccountMFAOverride{
-			AccountID: targetAccountID, TenantID: &tenantID, Override: override,
-			SetBy: actorID, SetByType: actorType, Reason: reason,
-		}); err != nil {
-			return fmt.Errorf("persist tenant mfa override: %w", err)
-		}
-		// Force-off revokes this school's devices only: the same account may
-		// legitimately keep trust at schools whose admin has not flipped it.
-		if override == domain.MFAAdminOverrideForceOff {
-			if err := f.records.RevokeTenantTrustedDevices(txCtx, targetAccountID, targetTenantID, f.now()); err != nil {
-				return fmt.Errorf("revoke tenant-scoped trusted devices: %w", err)
-			}
+		if actorType == actorTypeOperator {
+			return f.recordOperatorMFAChange(txCtx, actorID, targetAccountID, domain.OperatorMFAOverrideEvidence{SchoolID: targetTenantID, Action: "set_override", Scope: "tenant", Override: override, PreviousOverride: previous})
 		}
 		return nil
 	})
@@ -200,9 +177,9 @@ func (f *AccountMFAFlows) OperatorSetGlobalMFAOverride(ctx context.Context, oper
 		TargetAccountID: targetAccountID, Action: "set_global_override", Override: override, Reason: reason,
 	}
 	if !domain.IsValidMFAAdminOverride(override) {
-		failure.ErrMsg = domain.ErrMFAInvalidOverride.Error()
+		failure.ErrMsg = identityaccess.ErrMFAInvalidOverride.Error()
 		f.recordAdminFailure(ctx, failure)
-		return domain.ErrMFAInvalidOverride
+		return identityaccess.ErrMFAInvalidOverride
 	}
 	reason = strings.TrimSpace(reason)
 	if reason == "" {
@@ -213,35 +190,11 @@ func (f *AccountMFAFlows) OperatorSetGlobalMFAOverride(ctx context.Context, oper
 	failure.Reason = reason
 
 	previous := domain.MFAAdminOverrideNone
+	record := func(txCtx context.Context) error {
+		return f.recordOperatorMFAChange(txCtx, operatorID, targetAccountID, domain.OperatorMFAOverrideEvidence{Action: "set_global_override", Scope: "platform", Override: override, PreviousOverride: previous, Reason: reason})
+	}
 	txErr := f.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
-		if err := f.records.LockAccountForOverrideWrite(txCtx, targetAccountID); err != nil {
-			return err
-		}
-		existing, found, err := f.records.FindGlobalOverride(txCtx, targetAccountID)
-		if err != nil {
-			return fmt.Errorf("load existing global override: %w", err)
-		}
-		if found {
-			previous = existing.Override
-		}
-		if override == domain.MFAAdminOverrideNone {
-			if err := f.records.DeleteGlobalOverride(txCtx, targetAccountID); err != nil {
-				return fmt.Errorf("clear global mfa override: %w", err)
-			}
-			return nil
-		}
-		if err := f.records.UpsertGlobalOverride(txCtx, domain.AccountMFAOverride{
-			AccountID: targetAccountID, Override: override, SetBy: operatorID,
-			SetByType: domain.MFAOverrideSetByTypeOperator, Reason: reason,
-		}); err != nil {
-			return fmt.Errorf("persist global mfa override: %w", err)
-		}
-		if override == domain.MFAAdminOverrideForceOff {
-			if err := f.records.RevokeAllTrustedDevices(txCtx, targetAccountID, f.now()); err != nil {
-				return fmt.Errorf("revoke trusted devices: %w", err)
-			}
-		}
-		return nil
+		return f.writeGlobalOverride(txCtx, operatorID, targetAccountID, override, reason, &previous, record)
 	})
 	if txErr != nil {
 		failure.ErrMsg = txErr.Error()
@@ -249,19 +202,6 @@ func (f *AccountMFAFlows) OperatorSetGlobalMFAOverride(ctx context.Context, oper
 		return txErr
 	}
 
-	// An account-wide override is a platform action with no single school.
-	// The authentication ledger is school-scoped and would drop the row, so
-	// this one goes to the operator action log instead — the same table the
-	// operator's own MFA actions use.
-	target := targetAccountID
-	f.audit.RecordOperatorActionAsync(domain.OperatorAuditEntry{
-		OperatorID: operatorID, Action: domain.OperatorAuditActionMFAAdminOverride,
-		ResourceType: domain.OperatorAuditResourceAccount, ResourceID: &target,
-		MFA: &domain.OperatorMFAEvidence{Override: &domain.OperatorMFAOverrideEvidence{
-			Action: "set_global_override", Scope: "platform", Override: override,
-			PreviousOverride: previous, Reason: reason,
-		}},
-	})
 	return nil
 }
 
@@ -330,7 +270,7 @@ func (f *AccountMFAFlows) requireAdminPermission(ctx context.Context, actorPermi
 	}
 	failure.ErrMsg = "permission denied"
 	f.recordAdminFailure(ctx, failure)
-	return domain.ErrMFAPermissionDenied
+	return identityaccess.ErrMFAPermissionDenied
 }
 
 // requireSchoolMembership mirrors the route-level check inside the flow, so
@@ -342,7 +282,7 @@ func (f *AccountMFAFlows) requireSchoolMembership(ctx context.Context, actorType
 	if schoolID == 0 {
 		failure.ErrMsg = "missing school_id"
 		f.recordAdminFailure(ctx, failure)
-		return domain.ErrMFAPermissionDenied
+		return identityaccess.ErrMFAPermissionDenied
 	}
 	exists, err := f.records.AccountBelongsToTenant(ctx, targetAccountID, schoolID)
 	if err != nil {
@@ -353,7 +293,7 @@ func (f *AccountMFAFlows) requireSchoolMembership(ctx context.Context, actorType
 	if !exists {
 		failure.ErrMsg = "account is not a member of school"
 		f.recordAdminFailure(ctx, failure)
-		return domain.ErrMFAPermissionDenied
+		return identityaccess.ErrMFAPermissionDenied
 	}
 	return nil
 }
@@ -383,4 +323,91 @@ func (f *AccountMFAFlows) recordAdminFailure(ctx context.Context, failure adminO
 			Action: failure.Action, Override: failure.Override, Reason: failure.Reason,
 		}},
 	})
+}
+
+func (f *AccountMFAFlows) writeTenantOverride(txCtx context.Context, actorType string, actorID, targetTenantID, targetAccountID int64, override, reason string, previous *string) error {
+	if err := f.records.LockAccountForOverrideWrite(txCtx, targetAccountID); err != nil {
+		return err
+	}
+	if err := f.refusePrivilegedForceOff(txCtx, targetAccountID, targetTenantID, override); err != nil {
+		return err
+	}
+	existing, found, err := f.records.FindTenantOverride(txCtx, targetAccountID, targetTenantID)
+	if err != nil {
+		return fmt.Errorf("load existing tenant override: %w", err)
+	}
+	if found {
+		*previous = existing.Override
+	}
+	if override == domain.MFAAdminOverrideNone {
+		if err := f.records.DeleteTenantOverride(txCtx, targetAccountID, targetTenantID); err != nil {
+			return fmt.Errorf("clear tenant override: %w", err)
+		}
+		return nil
+	}
+	tenantID := targetTenantID
+	if err := f.records.UpsertTenantOverride(txCtx, domain.AccountMFAOverride{
+		AccountID: targetAccountID, TenantID: &tenantID, Override: override,
+		SetBy: actorID, SetByType: actorType, Reason: reason,
+	}); err != nil {
+		return fmt.Errorf("persist tenant mfa override: %w", err)
+	}
+	// Force-off revokes this school's devices only: the same account may
+	// legitimately keep trust at schools whose admin has not flipped it.
+	if override == domain.MFAAdminOverrideForceOff {
+		if err := f.records.RevokeTenantTrustedDevices(txCtx, targetAccountID, targetTenantID, f.now()); err != nil {
+			return fmt.Errorf("revoke tenant-scoped trusted devices: %w", err)
+		}
+	}
+	return nil
+}
+
+func (f *AccountMFAFlows) writeGlobalOverride(txCtx context.Context, operatorID, targetAccountID int64, override, reason string, previous *string, record func(context.Context) error) error {
+	if err := f.records.LockAccountForOverrideWrite(txCtx, targetAccountID); err != nil {
+		return err
+	}
+	if err := f.refusePrivilegedForceOff(txCtx, targetAccountID, 0, override); err != nil {
+		return err
+	}
+	existing, found, err := f.records.FindGlobalOverride(txCtx, targetAccountID)
+	if err != nil {
+		return fmt.Errorf("load existing global override: %w", err)
+	}
+	if found {
+		*previous = existing.Override
+	}
+	if override == domain.MFAAdminOverrideNone {
+		if err := f.records.DeleteGlobalOverride(txCtx, targetAccountID); err != nil {
+			return fmt.Errorf("clear global mfa override: %w", err)
+		}
+		return record(txCtx)
+	}
+	if err := f.records.UpsertGlobalOverride(txCtx, domain.AccountMFAOverride{
+		AccountID: targetAccountID, Override: override, SetBy: operatorID,
+		SetByType: domain.MFAOverrideSetByTypeOperator, Reason: reason,
+	}); err != nil {
+		return fmt.Errorf("persist global mfa override: %w", err)
+	}
+	if override == domain.MFAAdminOverrideForceOff {
+		if err := f.records.RevokeAllTrustedDevices(txCtx, targetAccountID, f.now()); err != nil {
+			return fmt.Errorf("revoke trusted devices: %w", err)
+		}
+	}
+	return record(txCtx)
+}
+
+// No break-glass exemption for privileged access: recovery restores a factor,
+// not a password-only session. Existing exemptions are ignored by the policy.
+func (f *AccountMFAFlows) refusePrivilegedForceOff(ctx context.Context, accountID, tenantID int64, override string) error {
+	if override != domain.MFAAdminOverrideForceOff {
+		return nil
+	}
+	permissions, err := f.records.MFAAccountPermissions(ctx, accountID, tenantID)
+	if err != nil {
+		return identityaccess.ErrMFAStatusUnavailable
+	}
+	if domain.HasPrivilegedMFAPermission(permissions) {
+		return identityaccess.ErrMFAPermissionDenied
+	}
+	return nil
 }

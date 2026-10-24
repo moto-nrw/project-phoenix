@@ -1,0 +1,228 @@
+package owners
+
+import (
+	"context"
+	"errors"
+	"fmt"
+
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
+
+	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
+	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
+)
+
+// staffAdminStaffRows are the retained staff rows the administration reads
+// and locks. The employment-only writes go through School Membership.
+type staffAdminStaffRows interface {
+	FindWithPerson(context.Context, int64) (*peopledirectory.Staff, error)
+	FindByID(context.Context, any) (*peopledirectory.Staff, error)
+	FindByIDForUpdate(context.Context, int64) (*peopledirectory.Staff, error)
+}
+
+// staffAdminPersonRows are the retained person rows behind a staff member.
+type staffAdminPersonRows interface {
+	FindByID(context.Context, interface{}) (*peopledirectory.DirectoryPersonSnapshot, error)
+	FindByIDForUpdate(context.Context, int64) (*peopledirectory.DirectoryPersonSnapshot, error)
+}
+
+// staffAdminPersonDetails writes the names and the birthday of the person
+// behind a staff member through the People Directory.
+type staffAdminPersonDetails interface {
+	SetPersonDetails(ctx context.Context, personID int64, details peopledirectory.PersonDetails) error
+}
+
+// staffAdminPersons reads the person behind a staff member from the retained
+// rows and writes its details through the People Directory.
+type staffAdminPersons struct {
+	rows    staffAdminPersonRows
+	details staffAdminPersonDetails
+}
+
+// staffDataAccessTrail is the Audit Platform's data access log.
+type staffDataAccessTrail interface {
+	Create(context.Context, *auditModels.DataAccessLog) error
+}
+
+// ComposeStaffAdmin composes the personnel-record administration over the
+// retained staff and person rows, the People Directory's person details,
+// School Membership and the audit trail. admin carries what the caller binds
+// (the database, the observer, the logger and the clock); the subjects, the
+// audit trail and the permission matcher are bound here.
+func ComposeStaffAdmin(
+	admin workforceCompose.StaffAdminDependencies, staff staffAdminStaffRows, personRows staffAdminPersonRows,
+	personDetails staffAdminPersonDetails, membership schoolmembership.Capability,
+	masterDataAudit auditModels.StaffMasterDataChangeCreator, personnelNumber auditModels.PersonnelNumberChangeCreator,
+	dataAccessLog staffDataAccessTrail,
+) (*workforceModule.StaffAdmin, error) {
+	if staff == nil || personRows == nil || personDetails == nil || membership == nil ||
+		masterDataAudit == nil || personnelNumber == nil || dataAccessLog == nil {
+		return nil, errors.New("staff admin: staff, person, membership and audit repositories are required")
+	}
+	persons := staffAdminPersons{rows: personRows, details: personDetails}
+	admin.Subjects = staffAdminSubjects{staff: staff, persons: persons, membership: membership}
+	admin.Audit = staffAdminAudit{masterData: masterDataAudit, personnelNumber: personnelNumber, accessLog: dataAccessLog}
+	admin.Allows = securityruntime.HasPermission
+	return workforceCompose.NewStaffAdmin(admin)
+}
+
+type staffAdminSubjects struct {
+	staff      staffAdminStaffRows
+	persons    staffAdminPersons
+	membership schoolmembership.Capability
+}
+
+func (s staffAdminSubjects) StaffWithPerson(ctx context.Context, staffID int64) (workforceModule.StaffProfile, error) {
+	live, err := s.staff.FindWithPerson(ctx, staffID)
+	if err == nil {
+		return *publicStaffProfile(live), nil
+	}
+	if !peoplePorts.IsRepositoryNoRows(err) {
+		return workforceModule.StaffProfile{}, err
+	}
+	members, err := s.membership.ListStaff(ctx, schoolmembership.StaffFilter{IDs: []int64{staffID}, IncludeDeleted: true})
+	if err != nil {
+		return workforceModule.StaffProfile{}, err
+	}
+	if len(members) != 1 || members[0].PersonalDataErasedAt != nil {
+		return workforceModule.StaffProfile{}, membershipNotFound("read staff profile")
+	}
+	staff := toLegacyStaff(members[0])
+	person, err := s.persons.rows.FindByID(ctx, staff.PersonID)
+	if err != nil {
+		return workforceModule.StaffProfile{}, err
+	}
+	staff.Person = person
+	return *publicStaffProfile(staff), nil
+}
+
+func (s staffAdminSubjects) StaffExists(ctx context.Context, staffID int64) error {
+	_, err := s.staff.FindByID(ctx, staffID)
+	return err
+}
+
+func (s staffAdminSubjects) LockStaff(ctx context.Context, staffID int64, withPerson bool) (workforceModule.StaffProfile, error) {
+	staff, err := s.staff.FindByIDForUpdate(ctx, staffID)
+	if err != nil {
+		return workforceModule.StaffProfile{}, err
+	}
+	if withPerson && staff.Person == nil {
+		// FindByIDForUpdate does not preload; lock the person row too so
+		// person-section diffs read the last committed values.
+		person, err := s.persons.rows.FindByIDForUpdate(ctx, staff.PersonID)
+		if err != nil {
+			return workforceModule.StaffProfile{}, err
+		}
+		if person == nil {
+			return workforceModule.StaffProfile{}, fmt.Errorf("staff %d has no person record", staffID)
+		}
+		staff.Person = person
+	}
+	return *publicStaffProfile(staff), nil
+}
+
+func (s staffAdminSubjects) UpdatePerson(ctx context.Context, personID int64, firstName, lastName string, birthday *string) error {
+	details := peopledirectory.PersonDetails{FirstName: firstName, LastName: lastName}
+	if birthday != nil {
+		details.Birthday = *birthday
+	}
+	return s.persons.details.SetPersonDetails(ctx, personID, details)
+}
+
+func (s staffAdminSubjects) SetEmploymentType(ctx context.Context, staffID int64, value *string) error {
+	_, err := s.membership.UpdateEmploymentDetails(ctx, schoolmembership.UpdateEmploymentDetails{ID: staffID, SetEmploymentType: true, EmploymentType: value})
+	return membershipError("update staff", err)
+}
+
+func (s staffAdminSubjects) SetPersonnelNumber(ctx context.Context, staffID int64, value *string) error {
+	_, err := s.membership.UpdateEmploymentDetails(ctx, schoolmembership.UpdateEmploymentDetails{ID: staffID, SetPersonnelNumber: true, PersonnelNumber: value})
+	if errors.Is(err, schoolmembership.ErrPersonnelNumberConflict) {
+		return workforceModule.ErrPersonnelNumberTaken
+	}
+	return membershipError("update staff", err)
+}
+
+func (s staffAdminSubjects) OffboardedStaffIDs(ctx context.Context) ([]int64, error) {
+	members, err := s.membership.ListStaff(ctx, schoolmembership.StaffFilter{IncludeDeleted: true})
+	if err != nil {
+		return nil, err
+	}
+	offboarded := make([]int64, 0, len(members))
+	for _, member := range members {
+		if member.IsDeleted() {
+			offboarded = append(offboarded, member.ID)
+		}
+	}
+	return offboarded, nil
+}
+
+type staffAdminAudit struct {
+	masterData      auditModels.StaffMasterDataChangeCreator
+	personnelNumber auditModels.PersonnelNumberChangeCreator
+	accessLog       staffDataAccessTrail
+}
+
+var staffAuditSections = map[string]string{
+	workforceModule.StaffAuditSectionPerson:         auditModels.StammdatenSectionPerson,
+	workforceModule.StaffAuditSectionKontakt:        auditModels.StammdatenSectionKontakt,
+	workforceModule.StaffAuditSectionArbeitsvertrag: auditModels.StammdatenSectionArbeitsvertrag,
+	workforceModule.StaffAuditSectionQualifikation:  auditModels.StammdatenSectionQualifikation,
+	workforceModule.StaffAuditSectionBankSteuer:     auditModels.StammdatenSectionBankSteuer,
+	workforceModule.StaffAuditSectionDokumente:      auditModels.StammdatenSectionDokumente,
+}
+
+var staffDataAccessResources = map[string]string{
+	workforceModule.StaffDataAccessFinancialView:    auditModels.ResourceTypeStaffFinancialView,
+	workforceModule.StaffDataAccessFinancialReveal:  auditModels.ResourceTypeStaffFinancialReveal,
+	workforceModule.StaffDataAccessDocumentDownload: auditModels.ResourceTypeStaffDocumentDownload,
+}
+
+func (a staffAdminAudit) RecordMasterDataChange(ctx context.Context, change workforceModule.StaffMasterDataChange) error {
+	section, ok := staffAuditSections[change.Section]
+	if !ok {
+		return fmt.Errorf("unknown stammdaten audit section %q", change.Section)
+	}
+	return a.masterData.Create(ctx, &auditModels.StaffMasterDataChange{
+		StaffID:   change.StaffID,
+		ChangedBy: change.ChangedBy,
+		Section:   section,
+		FieldName: change.Field,
+		OldValue:  change.OldValue,
+		NewValue:  change.NewValue,
+		Note:      change.Note,
+	})
+}
+
+func (a staffAdminAudit) RecordPersonnelNumberChange(ctx context.Context, change workforceModule.PersonnelNumberChange) error {
+	return a.personnelNumber.Create(ctx, &auditModels.PersonnelNumberChange{
+		StaffID:   change.StaffID,
+		ChangedBy: change.ChangedBy,
+		OldValue:  change.OldValue,
+		NewValue:  change.NewValue,
+		Note:      change.Note,
+	})
+}
+
+func (a staffAdminAudit) RecordDataAccess(ctx context.Context, access workforceModule.StaffDataAccess) error {
+	resource, ok := staffDataAccessResources[access.Resource]
+	if !ok {
+		return fmt.Errorf("unknown data access resource %q", access.Resource)
+	}
+	metadata := map[string]interface{}{"staff_id": access.StaffID}
+	if access.Resource == workforceModule.StaffDataAccessDocumentDownload {
+		metadata["document_id"] = access.DocumentID
+		metadata["category"] = access.Category
+	}
+	return a.accessLog.Create(ctx, &auditModels.DataAccessLog{
+		ActorAccountID: access.ActorAccountID,
+		ActorRole:      access.ActorRole,
+		ResourceType:   resource,
+		RangeStart:     access.At,
+		RangeEnd:       access.At,
+		AccessedAt:     access.At,
+		Metadata:       metadata,
+	})
+}

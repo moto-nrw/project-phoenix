@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 import {
   listMyChildren,
-  listMyEnrollments,
   listEnrollableSchools,
   fetchParentEnrollmentProfile,
   submitParentEnrollment,
@@ -25,7 +24,6 @@ import {
   updateMasterDataField,
   submitMasterDataRequest,
   listMessageThreads,
-  listChildThreads,
   fetchMessagesUnreadCount,
   getChildConversation,
   postChildMessage,
@@ -34,7 +32,6 @@ import {
   markAnnouncementRead,
   acknowledgeAnnouncement,
   type Child,
-  type EnrollmentRequest,
   type StatusDay,
   type ChildMasterData,
   type ThreadSummary,
@@ -78,29 +75,6 @@ function mkChild(id: string, schoolName: string): Child {
     status: "active",
     school_name: schoolName,
     school_slug: "school",
-  };
-}
-
-function mkEnrollment(id: string): EnrollmentRequest {
-  return {
-    request_id: id,
-    tenant_id: "1",
-    status_token: "tok",
-    submitted_at: "2026-04-01T12:00:00Z",
-    phase_id: "5",
-    phase_name: "Schuljahr",
-    service_start_date: "2026-09-01",
-    service_end_date: "2027-07-31",
-    school_name: "OGS",
-    school_slug: "ogs",
-    children: [
-      {
-        child_id: "99",
-        first_name: "Lara",
-        last_name: "Beispiel",
-        status: "submitted",
-      },
-    ],
   };
 }
 
@@ -242,9 +216,9 @@ describe("listMyChildren", () => {
 
   it("throws with backend error message on non-OK", async () => {
     mockFetch(async () =>
-      jsonResponse({ error: "forbidden" }, { status: 403 }),
+      jsonResponse({ detail: "forbidden" }, { status: 403 }),
     );
-    await expect(listMyChildren()).rejects.toThrow(/forbidden/);
+    await expect(listMyChildren()).rejects.toThrow(/Request failed \(403\)/);
   });
 
   it("throws with generic message on non-OK non-JSON body", async () => {
@@ -263,23 +237,6 @@ describe("listMyChildren", () => {
     mockFetch(async () => new Response("", { status: 401 }));
     await expect(listMyChildren()).rejects.toThrow();
     expect(assign).toHaveBeenCalledWith("/parents/login");
-  });
-});
-
-// --- listMyEnrollments ----------------------------------------------
-
-describe("listMyEnrollments", () => {
-  it("returns the unwrapped data array on 200", async () => {
-    mockFetch(async () => jsonResponse({ data: [mkEnrollment("99")] }));
-    const out = await listMyEnrollments();
-    expect(out).toHaveLength(1);
-    expect(out[0]!.request_id).toBe("99");
-    expect(out[0]!.children).toHaveLength(1);
-  });
-
-  it("throws on non-OK", async () => {
-    mockFetch(async () => jsonResponse({ error: "boom" }, { status: 500 }));
-    await expect(listMyEnrollments()).rejects.toThrow(/boom/);
   });
 });
 
@@ -319,8 +276,10 @@ describe("listEnrollableSchools", () => {
   });
 
   it("throws on non-OK", async () => {
-    mockFetch(async () => jsonResponse({ error: "boom" }, { status: 500 }));
-    await expect(listEnrollableSchools()).rejects.toThrow(/boom/);
+    mockFetch(async () => jsonResponse({ detail: "boom" }, { status: 500 }));
+    await expect(listEnrollableSchools()).rejects.toThrow(
+      /Request failed \(500\)/,
+    );
   });
 });
 
@@ -359,7 +318,7 @@ describe("fetchParentEnrollmentProfile", () => {
 
   it("throws an ApiError with the status class, never the backend text", async () => {
     mockFetch(async () =>
-      jsonResponse({ error: "tenant unknown" }, { status: 404 }),
+      jsonResponse({ detail: "tenant unknown" }, { status: 404 }),
     );
     const error = await fetchParentEnrollmentProfile("school").catch(
       (err: unknown) => err,
@@ -456,7 +415,7 @@ describe("submitParentEnrollment", () => {
 
   it("keeps the backend sentence out of the error", async () => {
     mockFetch(async () =>
-      jsonResponse({ error: "Anmeldung bereits vorhanden" }, { status: 409 }),
+      jsonResponse({ detail: "Anmeldung bereits vorhanden" }, { status: 409 }),
     );
     const error = await submitParentEnrollment("school", validPayload).catch(
       (err: unknown) => err,
@@ -481,7 +440,7 @@ describe("submitParentEnrollment", () => {
     mockFetch(async () =>
       jsonResponse(
         {
-          error: "late invite is invalid",
+          detail: "late invite is invalid",
           code: "enrollment.late_invite_invalid",
         },
         { status: 403 },
@@ -600,12 +559,12 @@ describe("parent master-data API helpers", () => {
 
   it("surfaces backend errors for master-data writes", async () => {
     mockFetch(async () =>
-      jsonResponse({ error: "field is locked" }, { status: 409 }),
+      jsonResponse({ detail: "field is locked" }, { status: 409 }),
     );
 
     await expect(
       updateMasterDataField("42", "student", "health_info", "x"),
-    ).rejects.toThrow(/field is locked/);
+    ).rejects.toThrow(/Request failed \(409\)/);
   });
 });
 
@@ -653,7 +612,7 @@ describe("updateParentPortalLocale", () => {
     );
     // #2518: a coded error, so the switcher shows the catalog text.
     await expect(updateParentPortalLocale("en")).rejects.toMatchObject({
-      name: "ParentApiError",
+      name: "ApiError",
       status: 400,
       code: "general.input",
       requestId: "req-locale",
@@ -788,11 +747,11 @@ describe("submitSickNote", () => {
 
   it("throws with the backend error message on non-OK", async () => {
     mockFetch(async () =>
-      jsonResponse({ error: "Krankmeldung deaktiviert" }, { status: 403 }),
+      jsonResponse({ detail: "Krankmeldung deaktiviert" }, { status: 403 }),
     );
     await expect(
       submitSickNote("84", ["2026-06-02"], "Fieber"),
-    ).rejects.toThrow(/Krankmeldung deaktiviert/);
+    ).rejects.toThrow(/Request failed \(403\)/);
   });
 
   it("redirects to /parents/login on 401", async () => {
@@ -1026,38 +985,6 @@ describe("listMessageThreads", () => {
   });
 });
 
-// --- listChildThreads ---------------------------------------------------------
-
-describe("listChildThreads", () => {
-  it("GETs the per-child threads route with encoded studentId", async () => {
-    let seenURL = "";
-    mockFetch(async (input) => {
-      seenURL = typeof input === "string" ? input : input.toString();
-      return jsonResponse({ data: [mkThreadSummary()] });
-    });
-    const out = await listChildThreads("42");
-    expect(out).toHaveLength(1);
-    expect(seenURL).toContain("/api/parent/me/messages/children/42/threads");
-  });
-
-  it("URL-encodes the studentId", async () => {
-    let seenURL = "";
-    mockFetch(async (input) => {
-      seenURL = typeof input === "string" ? input : input.toString();
-      return jsonResponse({ data: [] });
-    });
-    await listChildThreads("a/b");
-    expect(seenURL).toContain("a%2Fb");
-  });
-
-  it("throws on non-OK", async () => {
-    mockFetch(async () =>
-      jsonResponse({ error: "forbidden" }, { status: 403 }),
-    );
-    await expect(listChildThreads("42")).rejects.toThrow(/forbidden/);
-  });
-});
-
 // --- fetchMessagesUnreadCount -------------------------------------------------
 
 describe("fetchMessagesUnreadCount", () => {
@@ -1113,9 +1040,11 @@ describe("getChildConversation", () => {
 
   it("throws on non-OK", async () => {
     mockFetch(async () =>
-      jsonResponse({ error: "not found" }, { status: 404 }),
+      jsonResponse({ detail: "not found" }, { status: 404 }),
     );
-    await expect(getChildConversation("42")).rejects.toThrow(/not found/);
+    await expect(getChildConversation("42")).rejects.toThrow(
+      /Request failed \(404\)/,
+    );
   });
 });
 
@@ -1151,10 +1080,10 @@ describe("postChildMessage", () => {
 
   it("throws on non-OK with the backend error message", async () => {
     mockFetch(async () =>
-      jsonResponse({ error: "Messaging deaktiviert" }, { status: 403 }),
+      jsonResponse({ detail: "Messaging deaktiviert" }, { status: 403 }),
     );
     await expect(postChildMessage("42", "test")).rejects.toThrow(
-      /Messaging deaktiviert/,
+      /Request failed \(403\)/,
     );
   });
 });
@@ -1194,9 +1123,9 @@ describe("listAnnouncements", () => {
     expect(seenMethod).toBe("GET");
   });
 
-  it("throws a ParentApiError on a failed feed load", async () => {
-    mockFetch(async () => jsonResponse({ error: "kaputt" }, { status: 500 }));
-    await expect(listAnnouncements()).rejects.toThrow(/kaputt/);
+  it("throws an ApiError on a failed feed load", async () => {
+    mockFetch(async () => jsonResponse({ detail: "kaputt" }, { status: 500 }));
+    await expect(listAnnouncements()).rejects.toThrow(/Request failed \(500\)/);
   });
 });
 
@@ -1246,10 +1175,12 @@ describe("markAnnouncementRead", () => {
   });
 
   it("propagates a 409 when the loaded version is stale", async () => {
-    mockFetch(async () => jsonResponse({ error: "veraltet" }, { status: 409 }));
+    mockFetch(async () =>
+      jsonResponse({ detail: "veraltet" }, { status: 409 }),
+    );
     await expect(
       markAnnouncementRead("5", "2026-07-01T08:00:00Z"),
-    ).rejects.toThrow(/veraltet/);
+    ).rejects.toThrow(/Request failed \(409\)/);
   });
 });
 
@@ -1269,10 +1200,12 @@ describe("acknowledgeAnnouncement", () => {
   });
 
   it("propagates a 409 when acknowledging since-corrected wording", async () => {
-    mockFetch(async () => jsonResponse({ error: "veraltet" }, { status: 409 }));
+    mockFetch(async () =>
+      jsonResponse({ detail: "veraltet" }, { status: 409 }),
+    );
     await expect(
       acknowledgeAnnouncement("5", "2026-07-01T08:00:00Z"),
-    ).rejects.toThrow(/veraltet/);
+    ).rejects.toThrow(/Request failed \(409\)/);
   });
 });
 
@@ -1282,7 +1215,7 @@ describe("getChildToday", () => {
   it.each([403, 404])(
     "meldet bei %i einen unbekannten Tagesstatus statt zu werfen",
     async (status) => {
-      mockFetch(async () => jsonResponse({ error: "nope" }, { status }));
+      mockFetch(async () => jsonResponse({ detail: "nope" }, { status }));
 
       await expect(getChildToday("42")).resolves.toEqual(UNKNOWN_CHILD_TODAY);
     },
@@ -1292,7 +1225,7 @@ describe("getChildToday", () => {
   // durchgehen, saehe ein kaputtes Backend wie ein gueltiger Zustand aus und
   // niemand erfuehre davon.
   it.each([500, 502, 503])("wirft bei %i weiter", async (status) => {
-    mockFetch(async () => jsonResponse({ error: "kaputt" }, { status }));
+    mockFetch(async () => jsonResponse({ detail: "kaputt" }, { status }));
 
     await expect(getChildToday("42")).rejects.toThrow();
   });

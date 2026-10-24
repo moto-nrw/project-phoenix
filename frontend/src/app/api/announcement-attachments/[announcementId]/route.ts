@@ -33,7 +33,11 @@ export const POST = createFileUploadHandler<unknown>(
 
     const file = formData.get("file");
     if (!file || !(file instanceof File)) {
-      throw new FileValidationError("Bitte wählen Sie eine Datei aus.", 400);
+      throw new FileValidationError(
+        "Bitte wählen Sie eine Datei aus.",
+        400,
+        "files.file_missing",
+      );
     }
 
     const backendUrl = `${getServerApiUrl()}/api/announcement-attachments/${announcementId}`;

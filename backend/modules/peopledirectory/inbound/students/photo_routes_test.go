@@ -1,26 +1,3 @@
-// Package students_test exercises the three HTTP handlers in
-// api/students/photo.go (uploadStudentPhoto, deleteStudentPhoto,
-// serveStudentPhoto) end-to-end through the production
-// Resource.Router(). The tests use the same hermetic pattern as
-// usercontext_test.go: real database fixtures, real service factory,
-// real signed JWT minted via testutil.MintTestJWT so the full
-// middleware chain (Verifier → Authenticator → TenantMiddleware →
-// TenantTxMiddleware) runs as it does in production.
-//
-// Why the helper file exists separately:
-//
-//   - photo_helpers_test.go is in `package students` (internal). It
-//     pins the small helper functions (stampPhotoConsent,
-//     ensurePhotoFeatureEnabled, removeStudentPhotoFile) without DB.
-//   - this file is in `package students_test` (external). It pins
-//     the HTTP handlers — including the auth gates, multipart parse,
-//     consent gate, feature-disable map, filename mismatch, and
-//     authenticated proxy URL.
-//
-// Test fixtures touch the real public/uploads/student-photos/
-// directory because the handlers hard-code that path. Each test
-// cleans up after itself via t.Cleanup so a failed run does not
-// leave orphaned bytes around.
 package students_test
 
 import (
@@ -39,31 +16,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
-
-// init seeds JWT viper defaults so jwt.MustNewTokenAuth (called by
-// students.NewResource → Router) succeeds in CI environments without
-// a populated .env. Identical pattern to modules/identityaccess/inbound/usercontext/usercontext_test.go
-// and required because setupStudentsRoute constructs the resource which
-// MUST be able to verify and sign JWTs.
-func init() {
-	testutil.SeedTestJWTConfig()
-}
-
-// =============================================================================
-// Local helpers — kept private to this file so they don't bleed into
-// the existing photo_helpers_test.go (internal package) or
-// test_helpers_test.go (external package, but unrelated).
-// =============================================================================
 
 // jpegBytes returns a minimal valid 1x1 JPEG. Using image/jpeg.Encode
 // produces real magic bytes so common.detectContentType (which gates
@@ -132,8 +94,8 @@ func adminBearer(t *testing.T) string {
 // holds users:update + users:read but who is NOT an admin and is NOT
 // (by default) a group supervisor. Since #2329 the handler-level
 // canUpdateStudent gate admits this caller for every child of the tenant.
-func staffWithUsersUpdate(tb testing.TB, accountID int64) jwt.AppClaims {
-	return jwt.AppClaims{
+func staffWithUsersUpdate(tb testing.TB, accountID int64) sessiontoken.AppClaims {
+	return sessiontoken.AppClaims{
 		ID:          int(accountID),
 		Sub:         "staff@example.com",
 		Username:    "staff",
@@ -195,7 +157,7 @@ func readStudentPhotoPath(t *testing.T, tc *testContext, studentID int64) string
 // the file is removed after a successful delete.
 func seedStudentWithPhoto(t *testing.T, tc *testContext, studentID int64) (storedURL, onDisk string) {
 	t.Helper()
-	pubDir, err := common.ResolvePublicDir()
+	pubDir, err := nativeUploads.ResolvePublicDir()
 	require.NoError(t, err, "resolve public dir")
 
 	dir := filepath.Join(pubDir, "uploads", "student-photos")
@@ -251,16 +213,12 @@ func removeUploadedPhotoFile(t *testing.T, body []byte) {
 	if filename == "" {
 		return
 	}
-	pubDir, err := common.ResolvePublicDir()
+	pubDir, err := nativeUploads.ResolvePublicDir()
 	if err != nil {
 		return
 	}
 	_ = os.Remove(filepath.Join(pubDir, "uploads", "student-photos", filename))
 }
-
-// =============================================================================
-// uploadStudentPhoto — POST /api/students/{id}/photo
-// =============================================================================
 
 // TestUploadStudentPhoto_HappyPath_ConsentOnRow uploads a JPEG for a
 // student whose row already carries photo_consent_given_at. The
@@ -284,7 +242,7 @@ func TestUploadStudentPhoto_HappyPath_ConsentOnRow(t *testing.T) {
 	req.Header.Set("Content-Type", contentType)
 	req.Header.Set("Authorization", "Bearer "+adminBearer(t))
 
-	rr := testutil.ExecuteRequest(tc.resource.Router(), req)
+	rr := testutil.ExecuteRequest(tc.router(), req)
 	t.Cleanup(func() { removeUploadedPhotoFile(t, rr.Body.Bytes()) })
 
 	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
@@ -295,6 +253,29 @@ func TestUploadStudentPhoto_HappyPath_ConsentOnRow(t *testing.T) {
 	stored := readStudentPhotoPath(t, tc, student.ID)
 	assert.True(t, strings.HasPrefix(stored, common.StudentPhotoStoredURLPrefix),
 		"DB must store the canonical /uploads/student-photos/ prefix, got %q", stored)
+	photoPath, err := (nativeUploads.UploadFiles{}).StoredPath("public", stored, common.StudentPhotoStoredURLPrefix)
+	require.NoError(t, err)
+	fileInfo, err := os.Stat(photoPath)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o600), fileInfo.Mode().Perm())
+	dirInfo, err := os.Stat(filepath.Dir(photoPath))
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o700), dirInfo.Mode().Perm())
+
+	// Owner-only disk permissions must preserve authenticated image serving.
+	getReq, err := http.NewRequest(http.MethodGet, fmt.Sprintf("/%d/photo/%s", student.ID, filepath.Base(photoPath)), nil)
+	require.NoError(t, err)
+	getReq.Header.Set("Authorization", "Bearer "+adminBearer(t))
+	imageResponse := testutil.ExecuteRequest(tc.router(), getReq)
+	require.Equal(t, http.StatusOK, imageResponse.Code)
+	assert.Equal(t, jpegBytes(t), imageResponse.Body.Bytes())
+	assert.Equal(t, "private, no-cache", imageResponse.Header().Get("Cache-Control"))
+	lastModified := imageResponse.Header().Get("Last-Modified")
+	require.NotEmpty(t, lastModified)
+	getReq.Header.Set("If-Modified-Since", lastModified)
+	revalidated := testutil.ExecuteRequest(tc.router(), getReq)
+	assert.Equal(t, http.StatusNotModified, revalidated.Code)
+	assert.Empty(t, revalidated.Body.Bytes())
 
 	// Tenant-scoped broadcast emitted so SSE clients re-fetch the
 	// student. The RecordingBroadcaster captures every event; we
@@ -321,7 +302,7 @@ func TestUploadStudentPhoto_HappyPath_ConsentAcknowledged(t *testing.T) {
 	req.Header.Set("Content-Type", contentType)
 	req.Header.Set("Authorization", "Bearer "+adminBearer(t))
 
-	rr := testutil.ExecuteRequest(tc.resource.Router(), req)
+	rr := testutil.ExecuteRequest(tc.router(), req)
 	t.Cleanup(func() { removeUploadedPhotoFile(t, rr.Body.Bytes()) })
 
 	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
@@ -353,7 +334,7 @@ func TestUploadStudentPhoto_InvalidStudentID(t *testing.T) {
 	req.Header.Set("Content-Type", contentType)
 	req.Header.Set("Authorization", "Bearer "+adminBearer(t))
 
-	rr := testutil.ExecuteRequest(tc.resource.Router(), req)
+	rr := testutil.ExecuteRequest(tc.router(), req)
 	assert.Equal(t, http.StatusBadRequest, rr.Code, "Body: %s", rr.Body.String())
 }
 
@@ -374,7 +355,7 @@ func TestUploadStudentPhoto_NoFile(t *testing.T) {
 	req.Header.Set("Content-Type", contentType)
 	req.Header.Set("Authorization", "Bearer "+adminBearer(t))
 
-	rr := testutil.ExecuteRequest(tc.resource.Router(), req)
+	rr := testutil.ExecuteRequest(tc.router(), req)
 	assert.Equal(t, http.StatusBadRequest, rr.Code, "Body: %s", rr.Body.String())
 }
 
@@ -396,7 +377,7 @@ func TestUploadStudentPhoto_InvalidImageBytes(t *testing.T) {
 	req.Header.Set("Content-Type", contentType)
 	req.Header.Set("Authorization", "Bearer "+adminBearer(t))
 
-	rr := testutil.ExecuteRequest(tc.resource.Router(), req)
+	rr := testutil.ExecuteRequest(tc.router(), req)
 	assert.Equal(t, http.StatusBadRequest, rr.Code, "Body: %s", rr.Body.String())
 }
 
@@ -418,10 +399,10 @@ func TestUploadStudentPhoto_MissingConsent(t *testing.T) {
 	req.Header.Set("Content-Type", contentType)
 	req.Header.Set("Authorization", "Bearer "+adminBearer(t))
 
-	rr := testutil.ExecuteRequest(tc.resource.Router(), req)
+	rr := testutil.ExecuteRequest(tc.router(), req)
 	assert.Equal(t, http.StatusBadRequest, rr.Code, "Body: %s", rr.Body.String())
-	assert.Contains(t, rr.Body.String(), "Einwilligung",
-		"German error message must surface so the OGS UI can display it verbatim")
+	assert.Contains(t, rr.Body.String(), "einwilligung",
+		"diagnostic detail must name the missing consent; the UI uses the code catalog")
 
 	assert.Equal(t, "", readStudentPhotoPath(t, tc, student.ID),
 		"refused upload must not persist a photo_path")
@@ -445,7 +426,7 @@ func TestUploadStudentPhoto_FeatureDisabled(t *testing.T) {
 	req.Header.Set("Content-Type", contentType)
 	req.Header.Set("Authorization", "Bearer "+adminBearer(t))
 
-	rr := testutil.ExecuteRequest(tc.resource.Router(), req)
+	rr := testutil.ExecuteRequest(tc.router(), req)
 	assert.Equal(t, http.StatusForbidden, rr.Code, "Body: %s", rr.Body.String())
 	assert.Contains(t, rr.Body.String(), "nicht aktiviert",
 		"feature-disabled response must use the canonical German message")
@@ -476,7 +457,7 @@ func TestUploadStudentPhoto_StaffOutsideGroup(t *testing.T) {
 	req.Header.Set("Content-Type", contentType)
 	req.Header.Set("Authorization", "Bearer "+token)
 
-	rr := testutil.ExecuteRequest(tc.resource.Router(), req)
+	rr := testutil.ExecuteRequest(tc.router(), req)
 	t.Cleanup(func() { removeUploadedPhotoFile(t, rr.Body.Bytes()) })
 
 	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
@@ -498,7 +479,7 @@ func TestUploadStudentPhoto_StudentNotFound(t *testing.T) {
 	req.Header.Set("Content-Type", contentType)
 	req.Header.Set("Authorization", "Bearer "+adminBearer(t))
 
-	rr := testutil.ExecuteRequest(tc.resource.Router(), req)
+	rr := testutil.ExecuteRequest(tc.router(), req)
 	assert.Equal(t, http.StatusNotFound, rr.Code, "Body: %s", rr.Body.String())
 }
 
@@ -515,7 +496,7 @@ func TestUploadStudentPhoto_GraduatedStudentNotFound(t *testing.T) {
 	req, _ := http.NewRequest("POST", fmt.Sprintf("/%d/photo", student.ID), body)
 	req.Header.Set("Content-Type", contentType)
 	req.Header.Set("Authorization", "Bearer "+adminBearer(t))
-	rr := testutil.ExecuteRequest(tc.resource.Router(), req)
+	rr := testutil.ExecuteRequest(tc.router(), req)
 
 	assert.Equal(t, http.StatusNotFound, rr.Code, "Body: %s", rr.Body.String())
 	assert.Empty(t, readStudentPhotoPath(t, tc, student.ID))
@@ -540,7 +521,7 @@ func TestUploadStudentPhoto_ReplacesExistingPhoto(t *testing.T) {
 	req.Header.Set("Content-Type", contentType)
 	req.Header.Set("Authorization", "Bearer "+adminBearer(t))
 
-	rr := testutil.ExecuteRequest(tc.resource.Router(), req)
+	rr := testutil.ExecuteRequest(tc.router(), req)
 	t.Cleanup(func() { removeUploadedPhotoFile(t, rr.Body.Bytes()) })
 	t.Cleanup(func() { _ = os.Remove(oldDisk) })
 
@@ -550,10 +531,6 @@ func TestUploadStudentPhoto_ReplacesExistingPhoto(t *testing.T) {
 	assert.NotEqual(t, oldStored, newStored, "photo_path must be replaced with a new filename")
 	assert.True(t, strings.HasPrefix(newStored, common.StudentPhotoStoredURLPrefix))
 }
-
-// =============================================================================
-// deleteStudentPhoto — DELETE /api/students/{id}/photo
-// =============================================================================
 
 // TestDeleteStudentPhoto_HappyPath — student has a photo, admin
 // deletes, row's photo_path goes NULL, response is 200 "Foto entfernt",
@@ -571,7 +548,7 @@ func TestDeleteStudentPhoto_HappyPath(t *testing.T) {
 
 	req, _ := http.NewRequest("DELETE", fmt.Sprintf("/%d/photo", student.ID), nil)
 	req.Header.Set("Authorization", "Bearer "+adminBearer(t))
-	rr := testutil.ExecuteRequest(tc.resource.Router(), req)
+	rr := testutil.ExecuteRequest(tc.router(), req)
 
 	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
 	assert.Contains(t, rr.Body.String(), "Foto entfernt")
@@ -594,7 +571,7 @@ func TestDeleteStudentPhoto_Idempotent(t *testing.T) {
 
 	req, _ := http.NewRequest("DELETE", fmt.Sprintf("/%d/photo", student.ID), nil)
 	req.Header.Set("Authorization", "Bearer "+adminBearer(t))
-	rr := testutil.ExecuteRequest(tc.resource.Router(), req)
+	rr := testutil.ExecuteRequest(tc.router(), req)
 
 	assert.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
 	assert.Contains(t, rr.Body.String(), "Kein Foto vorhanden")
@@ -615,7 +592,7 @@ func TestDeleteStudentPhoto_FeatureDisabled(t *testing.T) {
 
 	req, _ := http.NewRequest("DELETE", fmt.Sprintf("/%d/photo", student.ID), nil)
 	req.Header.Set("Authorization", "Bearer "+adminBearer(t))
-	rr := testutil.ExecuteRequest(tc.resource.Router(), req)
+	rr := testutil.ExecuteRequest(tc.router(), req)
 
 	assert.Equal(t, http.StatusForbidden, rr.Code, "Body: %s", rr.Body.String())
 }
@@ -640,7 +617,7 @@ func TestDeleteStudentPhoto_StaffOutsideGroup(t *testing.T) {
 
 	req, _ := http.NewRequest("DELETE", fmt.Sprintf("/%d/photo", student.ID), nil)
 	req.Header.Set("Authorization", "Bearer "+token)
-	rr := testutil.ExecuteRequest(tc.resource.Router(), req)
+	rr := testutil.ExecuteRequest(tc.router(), req)
 
 	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
 	assert.Equal(t, "", readStudentPhotoPath(t, tc, student.ID),
@@ -657,7 +634,7 @@ func TestDeleteStudentPhoto_StudentNotFound(t *testing.T) {
 
 	req, _ := http.NewRequest("DELETE", "/9999998/photo", nil)
 	req.Header.Set("Authorization", "Bearer "+adminBearer(t))
-	rr := testutil.ExecuteRequest(tc.resource.Router(), req)
+	rr := testutil.ExecuteRequest(tc.router(), req)
 
 	assert.Equal(t, http.StatusNotFound, rr.Code, "Body: %s", rr.Body.String())
 }
@@ -675,15 +652,11 @@ func TestDeleteStudentPhoto_GraduatedStudentNotFound(t *testing.T) {
 
 	req, _ := http.NewRequest("DELETE", fmt.Sprintf("/%d/photo", student.ID), nil)
 	req.Header.Set("Authorization", "Bearer "+adminBearer(t))
-	rr := testutil.ExecuteRequest(tc.resource.Router(), req)
+	rr := testutil.ExecuteRequest(tc.router(), req)
 
 	assert.Equal(t, http.StatusNotFound, rr.Code, "Body: %s", rr.Body.String())
 	assert.Equal(t, storedURL, readStudentPhotoPath(t, tc, student.ID))
 }
-
-// =============================================================================
-// serveStudentPhoto — GET /api/students/{id}/photo/{filename}
-// =============================================================================
 
 // TestServeStudentPhoto_HappyPath — admin fetching a real seeded
 // photo. Response is 200, Cache-Control is "private, no-cache" (so
@@ -701,7 +674,7 @@ func TestServeStudentPhoto_HappyPath(t *testing.T) {
 
 	req, _ := http.NewRequest("GET", fmt.Sprintf("/%d/photo/%s", student.ID, filename), nil)
 	req.Header.Set("Authorization", "Bearer "+adminBearer(t))
-	rr := testutil.ExecuteRequest(tc.resource.Router(), req)
+	rr := testutil.ExecuteRequest(tc.router(), req)
 
 	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
 	assert.Equal(t, "private, no-cache", rr.Header().Get("Cache-Control"),
@@ -718,7 +691,7 @@ func TestServeStudentPhoto_InvalidStudentID(t *testing.T) {
 
 	req, _ := http.NewRequest("GET", "/abc/photo/foo.jpg", nil)
 	req.Header.Set("Authorization", "Bearer "+adminBearer(t))
-	rr := testutil.ExecuteRequest(tc.resource.Router(), req)
+	rr := testutil.ExecuteRequest(tc.router(), req)
 
 	assert.Equal(t, http.StatusBadRequest, rr.Code, "Body: %s", rr.Body.String())
 }
@@ -741,7 +714,7 @@ func TestServeStudentPhoto_FeatureDisabled(t *testing.T) {
 
 	req, _ := http.NewRequest("GET", fmt.Sprintf("/%d/photo/%s", student.ID, filename), nil)
 	req.Header.Set("Authorization", "Bearer "+adminBearer(t))
-	rr := testutil.ExecuteRequest(tc.resource.Router(), req)
+	rr := testutil.ExecuteRequest(tc.router(), req)
 
 	assert.Equal(t, http.StatusForbidden, rr.Code, "Body: %s", rr.Body.String())
 }
@@ -759,7 +732,7 @@ func TestServeStudentPhoto_NoPhoto(t *testing.T) {
 
 	req, _ := http.NewRequest("GET", fmt.Sprintf("/%d/photo/anything.jpg", student.ID), nil)
 	req.Header.Set("Authorization", "Bearer "+adminBearer(t))
-	rr := testutil.ExecuteRequest(tc.resource.Router(), req)
+	rr := testutil.ExecuteRequest(tc.router(), req)
 
 	assert.Equal(t, http.StatusNotFound, rr.Code, "Body: %s", rr.Body.String())
 }
@@ -780,7 +753,7 @@ func TestServeStudentPhoto_FilenameMismatch(t *testing.T) {
 
 	req, _ := http.NewRequest("GET", fmt.Sprintf("/%d/photo/wrong-filename.jpg", student.ID), nil)
 	req.Header.Set("Authorization", "Bearer "+adminBearer(t))
-	rr := testutil.ExecuteRequest(tc.resource.Router(), req)
+	rr := testutil.ExecuteRequest(tc.router(), req)
 
 	assert.Equal(t, http.StatusForbidden, rr.Code, "Body: %s", rr.Body.String())
 	assert.Contains(t, rr.Body.String(), "gehört nicht zu diesem Kind",
@@ -806,7 +779,7 @@ func TestServeStudentPhoto_ForbiddenWithoutStaffRecord(t *testing.T) {
 
 	guest := testpkg.CreateTestAccount(t, tc.db, "photo-serve-guest@example.com")
 
-	claims := jwt.AppClaims{
+	claims := sessiontoken.AppClaims{
 		ID:          int(guest.ID),
 		Sub:         "noread@example.com",
 		Username:    "noread",
@@ -818,7 +791,7 @@ func TestServeStudentPhoto_ForbiddenWithoutStaffRecord(t *testing.T) {
 
 	req, _ := http.NewRequest("GET", fmt.Sprintf("/%d/photo/%s", student.ID, filename), nil)
 	req.Header.Set("Authorization", "Bearer "+token)
-	rr := testutil.ExecuteRequest(tc.resource.Router(), req)
+	rr := testutil.ExecuteRequest(tc.router(), req)
 
 	assert.Equal(t, http.StatusForbidden, rr.Code, "Body: %s", rr.Body.String())
 }
@@ -839,7 +812,7 @@ func TestServeStudentPhoto_AllowedForStaffOutsideGroup(t *testing.T) {
 
 	_, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "ServeNonSup", "Staff")
 
-	claims := jwt.AppClaims{
+	claims := sessiontoken.AppClaims{
 		ID:          int(account.ID),
 		Sub:         "staffread@example.com",
 		Username:    "staffread",
@@ -851,7 +824,7 @@ func TestServeStudentPhoto_AllowedForStaffOutsideGroup(t *testing.T) {
 
 	req, _ := http.NewRequest("GET", fmt.Sprintf("/%d/photo/%s", student.ID, filename), nil)
 	req.Header.Set("Authorization", "Bearer "+token)
-	rr := testutil.ExecuteRequest(tc.resource.Router(), req)
+	rr := testutil.ExecuteRequest(tc.router(), req)
 
 	assert.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
 }
@@ -867,7 +840,7 @@ func TestServeStudentPhoto_StudentNotFound(t *testing.T) {
 
 	req, _ := http.NewRequest("GET", "/9999997/photo/anything.jpg", nil)
 	req.Header.Set("Authorization", "Bearer "+adminBearer(t))
-	rr := testutil.ExecuteRequest(tc.resource.Router(), req)
+	rr := testutil.ExecuteRequest(tc.router(), req)
 
 	assert.Equal(t, http.StatusNotFound, rr.Code, "Body: %s", rr.Body.String())
 }
@@ -885,7 +858,7 @@ func TestServeStudentPhoto_GraduatedStudentNotFound(t *testing.T) {
 
 	req, _ := http.NewRequest("GET", common.BuildStudentPhotoServeURL(student.ID, storedURL), nil)
 	req.Header.Set("Authorization", "Bearer "+adminBearer(t))
-	rr := testutil.ExecuteRequest(tc.resource.Router(), req)
+	rr := testutil.ExecuteRequest(tc.router(), req)
 
 	assert.Equal(t, http.StatusNotFound, rr.Code, "Body: %s", rr.Body.String())
 }

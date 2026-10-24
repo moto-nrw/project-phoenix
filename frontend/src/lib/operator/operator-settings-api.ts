@@ -1,4 +1,5 @@
-import { operatorFetch, isOperatorApiError } from "./api-helpers";
+import { ApiError } from "../api-error";
+import { operatorFetch } from "./api-helpers";
 import type { SettingsSchema } from "~/lib/settings-api";
 import { createLogger } from "~/lib/logger";
 
@@ -98,7 +99,7 @@ export async function setOperatorSettingValue(
     logger.warn("set_operator_setting_value_failed", {
       school_id: schoolId,
       key,
-      status: isOperatorApiError(error) ? error.status : undefined,
+      status: error instanceof ApiError ? error.status : undefined,
       error: error instanceof Error ? error.message : String(error),
     });
     throw error;

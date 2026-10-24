@@ -11,7 +11,8 @@ import (
 	validation "github.com/go-ozzo/ozzo-validation"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // SchoolAccountMFAResource serves the operator MFA admin actions for school
@@ -150,7 +151,12 @@ func (rs *SchoolAccountMFAResource) ResetSchoolAccountMFA(w http.ResponseWriter,
 		common.RenderError(w, r, common.OperatorInvalidRequest(err))
 		return
 	}
-	if err := rs.TenantMFAService.OperatorDisableMFA(r.Context(), operatorID, schoolID, accountID, req.Reason); err != nil {
+	ctx := identityaccess.WithOperatorAuditClientIP(r.Context(), common.ParseClientIP(r))
+	if err := rs.TenantMFAService.OperatorDisableMFA(ctx, operatorID, schoolID, accountID, req.Reason); err != nil {
+		if errors.Is(err, identityaccess.ErrOperatorAuditUnavailable) {
+			common.RenderError(w, r, common.OperatorRejection(http.StatusServiceUnavailable, common.CodeOperatorAuditUnavailable, "Operator audit unavailable"))
+			return
+		}
 		if errors.Is(err, ErrMFAPermissionDenied) {
 			common.RenderError(w, r, common.OperatorForbidden("Permission denied"))
 			return
@@ -182,7 +188,12 @@ func (rs *SchoolAccountMFAResource) SetSchoolAccountMFAOverride(w http.ResponseW
 		common.RenderError(w, r, common.OperatorInvalidRequest(err))
 		return
 	}
-	if err := rs.TenantMFAService.OperatorSetMFAOverride(r.Context(), operatorID, schoolID, accountID, req.Override, req.Reason); err != nil {
+	ctx := identityaccess.WithOperatorAuditClientIP(r.Context(), common.ParseClientIP(r))
+	if err := rs.TenantMFAService.OperatorSetMFAOverride(ctx, operatorID, schoolID, accountID, req.Override, req.Reason); err != nil {
+		if errors.Is(err, identityaccess.ErrOperatorAuditUnavailable) {
+			common.RenderError(w, r, common.OperatorRejection(http.StatusServiceUnavailable, common.CodeOperatorAuditUnavailable, "Operator audit unavailable"))
+			return
+		}
 		if errors.Is(err, ErrMFAInvalidOverride) {
 			common.RenderError(w, r, common.OperatorInvalidRequest(err))
 			return
@@ -201,7 +212,7 @@ func (rs *SchoolAccountMFAResource) SetSchoolAccountMFAOverride(w http.ResponseW
 // claims on the request. Returns 0 when the request is unauthenticated
 // — callers must reject in that case.
 func operatorIDFromClaims(r *http.Request) int64 {
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	if claims.ID == 0 {
 		return 0
 	}
@@ -273,7 +284,12 @@ func (rs *SchoolAccountMFAResource) SetAccountMFAGlobalOverride(w http.ResponseW
 		common.RenderError(w, r, common.OperatorInvalidRequest(err))
 		return
 	}
-	if err := rs.TenantMFAService.OperatorSetGlobalMFAOverride(r.Context(), operatorID, accountID, req.Override, req.Reason); err != nil {
+	ctx := identityaccess.WithOperatorAuditClientIP(r.Context(), common.ParseClientIP(r))
+	if err := rs.TenantMFAService.OperatorSetGlobalMFAOverride(ctx, operatorID, accountID, req.Override, req.Reason); err != nil {
+		if errors.Is(err, identityaccess.ErrOperatorAuditUnavailable) {
+			common.RenderError(w, r, common.OperatorRejection(http.StatusServiceUnavailable, common.CodeOperatorAuditUnavailable, "Operator audit unavailable"))
+			return
+		}
 		if errors.Is(err, ErrMFAInvalidOverride) {
 			common.RenderError(w, r, common.OperatorInvalidRequest(err))
 			return

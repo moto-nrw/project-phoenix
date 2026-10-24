@@ -7,7 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
+	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -46,12 +49,13 @@ func TestAdditionalSupervisionExternalInterface(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	// Supervisor names come from the People Directory composition (#2661),
 	// so the module is built on the composed repositories the graph uses.
-	repos, err := testutil.NewSchoolStructurePeopleSuiteFactory(db)
+	repos, err := api.NewSchoolStructurePeopleSuiteFactory(testpkg.NewDatabase(t, db))
+	reposPresence := api.NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	activeService := testpkg.GroupSupervisorCreator{Repository: repos.GroupSupervisor}
+	activeService := testpkg.GroupSupervisorCreator{Repository: reposPresence.GroupSupervisor}
 	now := fixedNow
-	module := testutil.NewSubstitutionSuiteModule(repos, db, SubstitutionDependencies{
-		ActiveGroups: repos.ActiveGroup, ActiveSupervisors: repos.GroupSupervisor,
+	module := api.NewSubstitutionSuiteModule(repos, testpkg.NewDatabase(t, db), SubstitutionDependencies{
+		ActiveGroups: reposPresence.ActiveGroup, ActiveSupervisors: reposPresence.GroupSupervisor,
 		ActiveSupervisorCreator: activeService,
 		Now:                     func() time.Time { return now },
 	})
@@ -65,7 +69,7 @@ func TestAdditionalSupervisionExternalInterface(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	caller := substitutionCaller(t, ownerAccountID, false)
 
-	overview, err := module.Overview(ctx, caller, OverviewQuery{
+	overview, err := testpkg.TenantQuery2(t, ctx, db, module.Overview, caller, OverviewQuery{
 		ActiveGroupID: running.ID, IncludeTargets: true,
 	})
 	require.NoError(t, err)
@@ -77,7 +81,7 @@ func TestAdditionalSupervisionExternalInterface(t *testing.T) {
 		IsCurrentUserSupervising: true, CanAssign: true,
 	}}, overview.RunningSupervisions)
 
-	created, err := module.Assign(ctx, caller, Assignment{
+	created, err := testpkg.TenantQuery2(t, ctx, db, module.Assign, caller, Assignment{
 		Type: TargetAdditionalSupervision,
 		AdditionalSupervision: &AdditionalSupervisionAssignment{
 			ActiveGroupID: running.ID, TargetStaffID: target.StaffID,
@@ -93,7 +97,7 @@ func TestAdditionalSupervisionExternalInterface(t *testing.T) {
 	require.Equal(t, calendar.DateFromTime(now), row.StartDate)
 	require.Nil(t, row.EndDate)
 
-	overview, err = module.Overview(ctx, caller, OverviewQuery{
+	overview, err = testpkg.TenantQuery2(t, ctx, db, module.Overview, caller, OverviewQuery{
 		ActiveGroupID: running.ID, IncludeTargets: true,
 	})
 	require.NoError(t, err)
@@ -104,14 +108,14 @@ func TestAdditionalSupervisionExternalInterface(t *testing.T) {
 	}, overview.RunningSupervisions[0].Supervisors)
 	require.Empty(t, overview.RunningSupervisions[0].AvailableTargets)
 
-	_, err = module.Assign(ctx, caller, Assignment{
+	_, err = testpkg.TenantQuery2(t, ctx, db, module.Assign, caller, Assignment{
 		Type: TargetAdditionalSupervision,
 		AdditionalSupervision: &AdditionalSupervisionAssignment{
 			ActiveGroupID: running.ID, TargetStaffID: target.StaffID,
 		},
 	})
 	require.ErrorIs(t, err, ErrAlreadyAssigned)
-	_, err = module.Assign(ctx, caller, Assignment{
+	_, err = testpkg.TenantQuery2(t, ctx, db, module.Assign, caller, Assignment{
 		Type: TargetAdditionalSupervision,
 		AdditionalSupervision: &AdditionalSupervisionAssignment{
 			ActiveGroupID: running.ID, TargetStaffID: owner.StaffID,
@@ -131,8 +135,9 @@ func TestAdditionalSupervisionExternalInterface(t *testing.T) {
 func TestAdditionalSupervisionAuthorizationMatrix(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repos := testutil.NewSchoolStructureRepositorySuiteFactory(db)
-	activeService := testpkg.GroupSupervisorCreator{Repository: repos.GroupSupervisor}
+	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	reposPresence := api.NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db))
+	activeService := testpkg.GroupSupervisorCreator{Repository: reposPresence.GroupSupervisor}
 
 	activity := testpkg.CreateTestActivityGroup(t, db, "Werken")
 	room := testpkg.CreateTestRoom(t, db, "Werkraum")
@@ -148,8 +153,8 @@ func TestAdditionalSupervisionAuthorizationMatrix(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	newModule := func(broad bool) SubstitutionModule {
-		return testutil.NewSubstitutionSuiteModule(repos, db, SubstitutionDependencies{
-			ActiveGroups: repos.ActiveGroup, ActiveSupervisors: repos.GroupSupervisor,
+		return api.NewSubstitutionSuiteModule(repos, testpkg.NewDatabase(t, db), SubstitutionDependencies{
+			ActiveGroups: reposPresence.ActiveGroup, ActiveSupervisors: reposPresence.GroupSupervisor,
 			ActiveSupervisorCreator: activeService,
 
 			CanSeeAll: func(context.Context, bool, bool, bool) (bool, error) { return broad, nil },
@@ -158,14 +163,14 @@ func TestAdditionalSupervisionAuthorizationMatrix(t *testing.T) {
 
 	personal := newModule(false)
 	ownerCaller := substitutionCaller(t, ownerAccountID, false)
-	overview, err := personal.Overview(ctx, ownerCaller, OverviewQuery{})
+	overview, err := testpkg.TenantQuery2(t, ctx, db, personal.Overview, ownerCaller, OverviewQuery{})
 	require.NoError(t, err)
 	require.Equal(t, []int64{owned.ID}, runningSupervisionIDs(overview))
 	_, err = personal.Assign(ctx, ownerCaller, additionalSupervisionAssignment(other.ID, target.StaffID))
 	require.ErrorIs(t, err, ErrNotFound)
 
 	broad := newModule(true)
-	overview, err = broad.Overview(ctx, ownerCaller, OverviewQuery{})
+	overview, err = testpkg.TenantQuery2(t, ctx, db, broad.Overview, ownerCaller, OverviewQuery{})
 	require.NoError(t, err)
 	require.ElementsMatch(t, []int64{owned.ID, other.ID}, runningSupervisionIDs(overview))
 	require.True(t, findRunningSupervision(t, overview, owned.ID).CanAssign)
@@ -174,7 +179,7 @@ func TestAdditionalSupervisionAuthorizationMatrix(t *testing.T) {
 	require.ErrorIs(t, err, ErrForbidden)
 
 	viewerCaller := substitutionCaller(t, viewerAccountID, false)
-	overview, err = broad.Overview(ctx, viewerCaller, OverviewQuery{})
+	overview, err = testpkg.TenantQuery2(t, ctx, db, broad.Overview, viewerCaller, OverviewQuery{})
 	require.NoError(t, err)
 	require.ElementsMatch(t, []int64{owned.ID, other.ID}, runningSupervisionIDs(overview))
 	for _, supervision := range overview.RunningSupervisions {
@@ -186,7 +191,7 @@ func TestAdditionalSupervisionAuthorizationMatrix(t *testing.T) {
 
 	admin := testpkg.CreateTestAccount(t, db, "additional-supervision-admin")
 	adminCaller := substitutionCaller(t, admin.ID, true)
-	overview, err = personal.Overview(ctx, adminCaller, OverviewQuery{})
+	overview, err = testpkg.TenantQuery2(t, ctx, db, personal.Overview, adminCaller, OverviewQuery{})
 	require.NoError(t, err)
 	require.ElementsMatch(t, []int64{owned.ID, other.ID}, runningSupervisionIDs(overview))
 	created, err := personal.Assign(ctx, adminCaller, additionalSupervisionAssignment(other.ID, target.StaffID))
@@ -214,10 +219,11 @@ func TestAdditionalSupervisionAuthorizationMatrix(t *testing.T) {
 func TestAdditionalSupervisionAuditFailureRollsBack(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repos := testutil.NewSchoolStructureRepositorySuiteFactory(db)
-	activeService := testpkg.GroupSupervisorCreator{Repository: repos.GroupSupervisor}
-	module := testutil.NewSubstitutionSuiteModule(repos, db, SubstitutionDependencies{
-		ActiveGroups: repos.ActiveGroup, ActiveSupervisors: repos.GroupSupervisor,
+	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	reposPresence := api.NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db))
+	activeService := testpkg.GroupSupervisorCreator{Repository: reposPresence.GroupSupervisor}
+	module := api.NewSubstitutionSuiteModule(repos, testpkg.NewDatabase(t, db), SubstitutionDependencies{
+		ActiveGroups: reposPresence.ActiveGroup, ActiveSupervisors: reposPresence.GroupSupervisor,
 		ActiveSupervisorCreator: activeService,
 		Audit:                   failingAudit{},
 	})
@@ -228,9 +234,9 @@ func TestAdditionalSupervisionAuditFailureRollsBack(t *testing.T) {
 	target, _ := activeTeacher(t, db, "Tara", "Target")
 	testpkg.CreateTestGroupSupervisor(t, db, owner.StaffID, running.ID, "supervisor")
 
-	_, err := module.Assign(testpkg.Ctx(t), substitutionCaller(t, ownerAccountID, false), additionalSupervisionAssignment(running.ID, target.StaffID))
+	_, err := testpkg.TenantQuery2(t, testpkg.Ctx(t), db, module.Assign, substitutionCaller(t, ownerAccountID, false), additionalSupervisionAssignment(running.ID, target.StaffID))
 	require.Error(t, err)
-	rows, listErr := repos.GroupSupervisor.FindByActiveGroupID(testpkg.Ctx(t), running.ID, true)
+	rows, listErr := testpkg.TenantQuery2(t, testpkg.Ctx(t), db, reposPresence.GroupSupervisor.FindByActiveGroupID, running.ID, true)
 	require.NoError(t, listErr)
 	require.Len(t, rows, 1)
 	require.Equal(t, owner.StaffID, rows[0].StaffID)
@@ -239,10 +245,11 @@ func TestAdditionalSupervisionAuditFailureRollsBack(t *testing.T) {
 func TestAdditionalSupervisionTreatsFutureEndDateAsActive(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repos := testutil.NewSchoolStructureRepositorySuiteFactory(db)
-	module := testutil.NewSubstitutionSuiteModule(repos, db, SubstitutionDependencies{
-		ActiveGroups: repos.ActiveGroup, ActiveSupervisors: repos.GroupSupervisor,
-		ActiveSupervisorCreator: testpkg.GroupSupervisorCreator{Repository: repos.GroupSupervisor},
+	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	reposPresence := api.NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db))
+	module := api.NewSubstitutionSuiteModule(repos, testpkg.NewDatabase(t, db), SubstitutionDependencies{
+		ActiveGroups: reposPresence.ActiveGroup, ActiveSupervisors: reposPresence.GroupSupervisor,
+		ActiveSupervisorCreator: testpkg.GroupSupervisorCreator{Repository: reposPresence.GroupSupervisor},
 	})
 	activity := testpkg.CreateTestActivityGroup(t, db, "Future end activity")
 	room := testpkg.CreateTestRoom(t, db, "Future end room")
@@ -256,25 +263,26 @@ func TestAdditionalSupervisionTreatsFutureEndDateAsActive(t *testing.T) {
 		_, err := db.NewUpdate().TableExpr(`active.group_supervisors`).Set("end_date = ?", futureEnd).Where("id = ?", id).Exec(testpkg.Ctx(t))
 		require.NoError(t, err)
 	}
-	overview, err := module.Overview(testpkg.Ctx(t), substitutionCaller(t, accountID, false), OverviewQuery{ActiveGroupID: running.ID, IncludeTargets: true})
+	overview, err := testpkg.TenantQuery2(t, testpkg.Ctx(t), db, module.Overview, substitutionCaller(t, accountID, false), OverviewQuery{ActiveGroupID: running.ID, IncludeTargets: true})
 	require.NoError(t, err)
 	require.Len(t, overview.RunningSupervisions, 1)
 	require.Len(t, overview.RunningSupervisions[0].Supervisors, 2)
 	require.Empty(t, overview.RunningSupervisions[0].AvailableTargets)
-	_, err = module.Assign(testpkg.Ctx(t), substitutionCaller(t, accountID, false), additionalSupervisionAssignment(running.ID, target.StaffID))
+	_, err = testpkg.TenantQuery2(t, testpkg.Ctx(t), db, module.Assign, substitutionCaller(t, accountID, false), additionalSupervisionAssignment(running.ID, target.StaffID))
 	require.ErrorIs(t, err, ErrAlreadyAssigned)
 }
 
 func TestAdditionalSupervisionSignalsOnlyAfterCommit(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repos := testutil.NewSchoolStructureRepositorySuiteFactory(db)
-	activeService := testpkg.GroupSupervisorCreator{Repository: repos.GroupSupervisor}
+	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	reposPresence := api.NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db))
+	activeService := testpkg.GroupSupervisorCreator{Repository: reposPresence.GroupSupervisor}
 	broadcaster := testpkg.NewRecordingBroadcaster()
-	module := testutil.NewSubstitutionSuiteModule(repos, db, SubstitutionDependencies{
-		ActiveGroups: repos.ActiveGroup, ActiveSupervisors: repos.GroupSupervisor,
+	module := api.NewSubstitutionSuiteModule(repos, testpkg.NewDatabase(t, db), SubstitutionDependencies{
+		ActiveGroups: reposPresence.ActiveGroup, ActiveSupervisors: reposPresence.GroupSupervisor,
 		ActiveSupervisorCreator: activeService,
-		Broadcaster:             broadcaster,
+		Broadcaster:             api.NewGroupEvents(broadcaster, nil),
 	})
 	activity := testpkg.CreateTestActivityGroup(t, db, "Signals activity")
 	room := testpkg.CreateTestRoom(t, db, "Signals room")
@@ -284,7 +292,7 @@ func TestAdditionalSupervisionSignalsOnlyAfterCommit(t *testing.T) {
 	testpkg.CreateTestGroupSupervisor(t, db, owner.StaffID, running.ID, "supervisor")
 
 	ctx, commit := testpkg.WithAfterCommitHooks(testpkg.Ctx(t))
-	_, err := module.Assign(ctx, substitutionCaller(t, ownerAccountID, false), additionalSupervisionAssignment(running.ID, target.StaffID))
+	_, err := testpkg.TenantQuery2(t, ctx, db, module.Assign, substitutionCaller(t, ownerAccountID, false), additionalSupervisionAssignment(running.ID, target.StaffID))
 	require.NoError(t, err)
 	require.Empty(t, broadcaster.Events())
 	commit()
@@ -296,8 +304,9 @@ func TestAdditionalSupervisionSignalsOnlyAfterCommit(t *testing.T) {
 func TestAdditionalSupervisionRejectsConcurrentSessionEnd(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repos := testutil.NewSchoolStructureRepositorySuiteFactory(db)
-	activeService := testpkg.GroupSupervisorCreator{Repository: repos.GroupSupervisor}
+	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	reposPresence := api.NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db))
+	activeService := testpkg.GroupSupervisorCreator{Repository: reposPresence.GroupSupervisor}
 
 	activity := testpkg.CreateTestActivityGroup(t, db, "Race activity")
 	room := testpkg.CreateTestRoom(t, db, "Race room")
@@ -306,10 +315,10 @@ func TestAdditionalSupervisionRejectsConcurrentSessionEnd(t *testing.T) {
 	target, _ := activeTeacher(t, db, "Theo", "Target")
 	testpkg.CreateTestGroupSupervisor(t, db, owner.StaffID, running.ID, "supervisor")
 	entered := make(chan struct{})
-	groups := &testpkg.SignalingGroupRepository{SessionRecords: repos.ActiveGroup, Entered: entered}
+	groups := &testpkg.SignalingGroupRepository{SessionRecords: reposPresence.ActiveGroup, Entered: entered}
 
-	module := testutil.NewSubstitutionSuiteModule(repos, db, SubstitutionDependencies{
-		ActiveGroups: groups, ActiveSupervisors: repos.GroupSupervisor,
+	module := api.NewSubstitutionSuiteModule(repos, testpkg.NewDatabase(t, db), SubstitutionDependencies{
+		ActiveGroups: groups, ActiveSupervisors: reposPresence.GroupSupervisor,
 		ActiveSupervisorCreator: activeService,
 	})
 
@@ -331,7 +340,7 @@ func TestAdditionalSupervisionRejectsConcurrentSessionEnd(t *testing.T) {
 	assignCtx := testpkg.Ctx(t)
 	caller := substitutionCaller(t, ownerAccountID, false)
 	go func() {
-		_, assignErr := module.Assign(assignCtx, caller, additionalSupervisionAssignment(running.ID, target.StaffID))
+		_, assignErr := testpkg.TenantQuery2(t, assignCtx, db, module.Assign, caller, additionalSupervisionAssignment(running.ID, target.StaffID))
 		result <- assignErr
 	}()
 	<-entered
@@ -353,8 +362,8 @@ func TestGroupHandoverExternalInterface(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	testpkg.Tenant(t)
-	repos := testutil.NewSchoolStructureRepositorySuiteFactory(db)
-	service := testutil.NewSubstitutionSuiteModule(repos, db, SubstitutionDependencies{
+	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	service := api.NewSubstitutionSuiteModule(repos, testpkg.NewDatabase(t, db), SubstitutionDependencies{
 		Now: func() time.Time { return fixedNow },
 	})
 	group := testpkg.CreateTestEducationGroup(t, db, "Robins Gruppe")
@@ -366,7 +375,7 @@ func TestGroupHandoverExternalInterface(t *testing.T) {
 	testpkg.CreateTestGroupTeacher(t, db, group.ID, owner.ID)
 	ctx := testpkg.Ctx(t)
 	caller := substitutionCaller(t, ownerAccountID, false)
-	created, err := service.Assign(ctx, caller, Assignment{
+	created, err := testpkg.TenantQuery2(t, ctx, db, service.Assign, caller, Assignment{
 		Type:          TargetGroupHandover,
 		GroupHandover: &GroupHandoverAssignment{GroupID: group.ID, TargetStaffID: target.StaffID},
 	})
@@ -375,7 +384,7 @@ func TestGroupHandoverExternalInterface(t *testing.T) {
 	require.Equal(t, fixedNow.Format(time.DateOnly), created.Period.StartDate)
 	require.Equal(t, "Toni Target", created.Target.FullName)
 
-	overview, err := service.Overview(ctx, caller, OverviewQuery{GroupID: group.ID, IncludeTargets: true})
+	overview, err := testpkg.TenantQuery2(t, ctx, db, service.Overview, caller, OverviewQuery{GroupID: group.ID, IncludeTargets: true})
 	require.NoError(t, err)
 	require.Equal(t, []GroupRef{{ID: group.ID, Name: group.Name}}, overview.Groups)
 	require.Len(t, overview.GroupHandovers, 1)
@@ -396,12 +405,12 @@ func TestGroupHandoverExternalInterface(t *testing.T) {
 		Scan(ctx, &auditCount))
 	require.Equal(t, 1, auditCount)
 
-	_, err = service.Assign(ctx, caller, Assignment{
+	_, err = testpkg.TenantQuery2(t, ctx, db, service.Assign, caller, Assignment{
 		Type:          TargetGroupHandover,
 		GroupHandover: &GroupHandoverAssignment{GroupID: group.ID, TargetStaffID: target.StaffID},
 	})
 	require.ErrorIs(t, err, ErrAlreadyAssigned)
-	require.NoError(t, service.End(ctx, caller, EndRequest{Type: TargetGroupHandover, ID: created.ID}))
+	require.NoError(t, testpkg.TenantCommand2(t, ctx, db, service.End, caller, EndRequest{Type: TargetGroupHandover, ID: created.ID}))
 	require.NoError(t, db.NewSelect().TableExpr(`audit.substitution_changes AS "change"`).
 		ColumnExpr("COUNT(*)").
 		Where(`"change".tenant_id = ?`, testpkg.Tenant(t)).
@@ -415,8 +424,8 @@ func TestGroupHandoverPermissionsAndPeriod(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	testpkg.Tenant(t)
-	repos := testutil.NewSchoolStructureRepositorySuiteFactory(db)
-	service := testutil.NewSubstitutionSuiteModule(repos, db, SubstitutionDependencies{
+	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	service := api.NewSubstitutionSuiteModule(repos, testpkg.NewDatabase(t, db), SubstitutionDependencies{
 		Now: func() time.Time { return fixedNow },
 	})
 	owned := testpkg.CreateTestEducationGroup(t, db, "Own")
@@ -428,7 +437,7 @@ func TestGroupHandoverPermissionsAndPeriod(t *testing.T) {
 	caller := substitutionCaller(t, accountID, false)
 	unauthorized := caller
 	unauthorized.Roles = nil
-	_, err := service.Overview(ctx, unauthorized, OverviewQuery{})
+	_, err := testpkg.TenantQuery2(t, ctx, db, service.Overview, unauthorized, OverviewQuery{})
 	require.ErrorIs(t, err, ErrForbidden)
 
 	// A role the school defines itself (#3469) reaches its own groups through
@@ -436,38 +445,38 @@ func TestGroupHandoverPermissionsAndPeriod(t *testing.T) {
 	schoolRole := caller
 	schoolRole.Roles = []string{"betreuungskraft"}
 	schoolRole.HasPermission = func(permission string) bool { return permission == "substitutions:read" }
-	overview, err := service.Overview(ctx, schoolRole, OverviewQuery{})
+	overview, err := testpkg.TenantQuery2(t, ctx, db, service.Overview, schoolRole, OverviewQuery{})
 	require.NoError(t, err)
 	require.NotNil(t, overview)
 	schoolRole.HasPermission = func(string) bool { return false }
-	_, err = service.Overview(ctx, schoolRole, OverviewQuery{})
+	_, err = testpkg.TenantQuery2(t, ctx, db, service.Overview, schoolRole, OverviewQuery{})
 	require.ErrorIs(t, err, ErrForbidden)
 
-	_, err = service.Assign(ctx, caller, Assignment{Type: TargetGroupHandover,
+	_, err = testpkg.TenantQuery2(t, ctx, db, service.Assign, caller, Assignment{Type: TargetGroupHandover,
 		GroupHandover: &GroupHandoverAssignment{GroupID: owned.ID, TargetStaffID: owner.StaffID}})
 	require.ErrorIs(t, err, ErrInvalidTarget)
 
-	_, err = service.Assign(ctx, caller, Assignment{Type: TargetGroupHandover,
+	_, err = testpkg.TenantQuery2(t, ctx, db, service.Assign, caller, Assignment{Type: TargetGroupHandover,
 		GroupHandover: &GroupHandoverAssignment{GroupID: foreign.ID, TargetStaffID: target.StaffID}})
 	require.ErrorIs(t, err, ErrNotFound)
 	tomorrow := calendar.DateFromTime(fixedNow).AddDays(1)
-	_, err = service.Assign(ctx, caller, Assignment{Type: TargetGroupHandover,
+	_, err = testpkg.TenantQuery2(t, ctx, db, service.Assign, caller, Assignment{Type: TargetGroupHandover,
 		GroupHandover: &GroupHandoverAssignment{GroupID: owned.ID, TargetStaffID: target.StaffID, StartDate: &tomorrow, EndDate: &tomorrow}})
 	require.ErrorIs(t, err, ErrInvalidPeriod)
-	received, err := service.Assign(ctx, caller, Assignment{Type: TargetGroupHandover,
+	received, err := testpkg.TenantQuery2(t, ctx, db, service.Assign, caller, Assignment{Type: TargetGroupHandover,
 		GroupHandover: &GroupHandoverAssignment{GroupID: owned.ID, TargetStaffID: target.StaffID}})
 	require.NoError(t, err)
-	receivedOverview, err := service.Overview(ctx, substitutionCaller(t, targetAccountID, false), OverviewQuery{GroupID: owned.ID})
+	receivedOverview, err := testpkg.TenantQuery2(t, ctx, db, service.Overview, substitutionCaller(t, targetAccountID, false), OverviewQuery{GroupID: owned.ID})
 	require.NoError(t, err)
 	require.Len(t, receivedOverview.GroupHandovers, 1)
 	require.False(t, receivedOverview.GroupHandovers[0].CanEnd)
-	require.ErrorIs(t, service.End(ctx, substitutionCaller(t, targetAccountID, false), EndRequest{
+	require.ErrorIs(t, testpkg.TenantCommand2(t, ctx, db, service.End, substitutionCaller(t, targetAccountID, false), EndRequest{
 		Type: TargetGroupHandover, ID: received.ID,
 	}), ErrNotFound)
-	require.NoError(t, service.End(ctx, caller, EndRequest{Type: TargetGroupHandover, ID: received.ID}))
+	require.NoError(t, testpkg.TenantCommand2(t, ctx, db, service.End, caller, EndRequest{Type: TargetGroupHandover, ID: received.ID}))
 	dualRoleCaller := caller
 	dualRoleCaller.Admin = true
-	todayHandover, err := service.Assign(ctx, dualRoleCaller, Assignment{
+	todayHandover, err := testpkg.TenantQuery2(t, ctx, db, service.Assign, dualRoleCaller, Assignment{
 		Type: TargetGroupHandover,
 		GroupHandover: &GroupHandoverAssignment{
 			GroupID: owned.ID, TargetStaffID: target.StaffID,
@@ -476,39 +485,39 @@ func TestGroupHandoverPermissionsAndPeriod(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, calendar.DateFromTime(fixedNow).String(), todayHandover.Period.StartDate)
 	require.Equal(t, todayHandover.Period.StartDate, todayHandover.Period.EndDate)
-	require.NoError(t, service.End(ctx, dualRoleCaller, EndRequest{
+	require.NoError(t, testpkg.TenantCommand2(t, ctx, db, service.End, dualRoleCaller, EndRequest{
 		Type: TargetGroupHandover, ID: todayHandover.ID,
 	}))
 
 	admin := testpkg.CreateTestAccount(t, db, "substitution-admin")
 	end := tomorrow.AddDays(3)
 	adminCaller := substitutionCaller(t, admin.ID, true)
-	_, err = service.Assign(ctx, adminCaller, Assignment{Type: TargetGroupHandover,
+	_, err = testpkg.TenantQuery2(t, ctx, db, service.Assign, adminCaller, Assignment{Type: TargetGroupHandover,
 		GroupHandover: &GroupHandoverAssignment{
 			GroupID: foreign.ID, TargetStaffID: target.StaffID, StartDate: &tomorrow,
 		}})
 	require.ErrorIs(t, err, ErrInvalidPeriod)
-	created, err := service.Assign(ctx, adminCaller, Assignment{Type: TargetGroupHandover,
+	created, err := testpkg.TenantQuery2(t, ctx, db, service.Assign, adminCaller, Assignment{Type: TargetGroupHandover,
 		GroupHandover: &GroupHandoverAssignment{GroupID: foreign.ID, TargetStaffID: target.StaffID, StartDate: &tomorrow, EndDate: &end}})
 	require.NoError(t, err)
 	require.Equal(t, end.String(), created.Period.EndDate)
-	futureOwn, err := service.Assign(ctx, adminCaller, Assignment{Type: TargetGroupHandover,
+	futureOwn, err := testpkg.TenantQuery2(t, ctx, db, service.Assign, adminCaller, Assignment{Type: TargetGroupHandover,
 		GroupHandover: &GroupHandoverAssignment{GroupID: owned.ID, TargetStaffID: target.StaffID, StartDate: &tomorrow, EndDate: &end}})
 	require.NoError(t, err)
-	ownerOverview, err := service.Overview(ctx, caller, OverviewQuery{})
+	ownerOverview, err := testpkg.TenantQuery2(t, ctx, db, service.Overview, caller, OverviewQuery{})
 	require.NoError(t, err)
 	require.Empty(t, ownerOverview.GroupHandovers)
-	require.ErrorIs(t, service.End(ctx, caller, EndRequest{Type: TargetGroupHandover, ID: futureOwn.ID}), ErrNotRunning)
+	require.ErrorIs(t, testpkg.TenantCommand2(t, ctx, db, service.End, caller, EndRequest{Type: TargetGroupHandover, ID: futureOwn.ID}), ErrNotRunning)
 
 	otherTenant, _ := testpkg.CreateTestTenant(t, db)
 	otherGroup := testpkg.CreateTestEducationGroupForTenant(t, db, otherTenant, "Other tenant")
-	_, err = service.Assign(ctx, adminCaller, Assignment{Type: TargetGroupHandover,
+	_, err = testpkg.TenantQuery2(t, ctx, db, service.Assign, adminCaller, Assignment{Type: TargetGroupHandover,
 		GroupHandover: &GroupHandoverAssignment{GroupID: otherGroup.ID, TargetStaffID: target.StaffID, StartDate: &tomorrow, EndDate: &tomorrow}})
 	require.ErrorIs(t, err, ErrNotFound)
 
 	regularStaffID := owner.StaffID
 	legacy := testpkg.CreateTestGroupSubstitution(t, db, foreign.ID, &regularStaffID, target.StaffID, tomorrow, tomorrow)
-	adminOverview, err := service.Overview(ctx, adminCaller, OverviewQuery{On: &tomorrow, IncludeTargets: true})
+	adminOverview, err := testpkg.TenantQuery2(t, ctx, db, service.Overview, adminCaller, OverviewQuery{On: &tomorrow, IncludeTargets: true})
 	require.NoError(t, err)
 	require.ElementsMatch(t, []GroupRef{
 		{ID: owned.ID, Name: owned.Name},
@@ -517,8 +526,8 @@ func TestGroupHandoverPermissionsAndPeriod(t *testing.T) {
 	for _, handover := range adminOverview.GroupHandovers {
 		require.NotEqual(t, legacy.ID, handover.ID)
 	}
-	require.ErrorIs(t, service.End(ctx, adminCaller, EndRequest{Type: TargetGroupHandover, ID: legacy.ID}), ErrNotFound)
-	_, err = repos.GroupSubstitution.FindByID(ctx, legacy.ID)
+	require.ErrorIs(t, testpkg.TenantCommand2(t, ctx, db, service.End, adminCaller, EndRequest{Type: TargetGroupHandover, ID: legacy.ID}), ErrNotFound)
+	_, err = testpkg.TenantQuery1(t, ctx, db, repos.GroupSubstitution.FindByID, any(legacy.ID))
 	require.NoError(t, err)
 }
 
@@ -526,8 +535,8 @@ func TestGroupHandoverAllStaffVisibilityDoesNotGrantActions(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	testpkg.Tenant(t)
-	repos := testutil.NewSchoolStructureRepositorySuiteFactory(db)
-	service := testutil.NewSubstitutionSuiteModule(repos, db, SubstitutionDependencies{
+	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	service := api.NewSubstitutionSuiteModule(repos, testpkg.NewDatabase(t, db), SubstitutionDependencies{
 		Now:       func() time.Time { return fixedNow },
 		CanSeeAll: func(context.Context, bool, bool, bool) (bool, error) { return true, nil },
 	})
@@ -538,7 +547,7 @@ func TestGroupHandoverAllStaffVisibilityDoesNotGrantActions(t *testing.T) {
 	testpkg.CreateTestGroupTeacher(t, db, group.ID, owner.ID)
 	ctx := testpkg.Ctx(t)
 
-	created, err := service.Assign(ctx, substitutionCaller(t, ownerAccountID, false), Assignment{
+	created, err := testpkg.TenantQuery2(t, ctx, db, service.Assign, substitutionCaller(t, ownerAccountID, false), Assignment{
 		Type: TargetGroupHandover,
 		GroupHandover: &GroupHandoverAssignment{
 			GroupID: group.ID, TargetStaffID: target.StaffID,
@@ -547,26 +556,26 @@ func TestGroupHandoverAllStaffVisibilityDoesNotGrantActions(t *testing.T) {
 	require.NoError(t, err)
 
 	observerCaller := substitutionCaller(t, observerAccountID, false)
-	overview, err := service.Overview(ctx, observerCaller, OverviewQuery{GroupID: group.ID, IncludeTargets: true})
+	overview, err := testpkg.TenantQuery2(t, ctx, db, service.Overview, observerCaller, OverviewQuery{GroupID: group.ID, IncludeTargets: true})
 	require.NoError(t, err)
 	require.Empty(t, overview.Groups, "school-wide visibility must not grant group handover actions")
 	require.Len(t, overview.GroupHandovers, 1)
 	require.False(t, overview.GroupHandovers[0].CanEnd)
 
-	_, err = service.Assign(ctx, observerCaller, Assignment{
+	_, err = testpkg.TenantQuery2(t, ctx, db, service.Assign, observerCaller, Assignment{
 		Type: TargetGroupHandover,
 		GroupHandover: &GroupHandoverAssignment{
 			GroupID: group.ID, TargetStaffID: target.StaffID,
 		},
 	})
 	require.ErrorIs(t, err, ErrNotFound)
-	require.ErrorIs(t, service.End(ctx, observerCaller, EndRequest{
+	require.ErrorIs(t, testpkg.TenantCommand2(t, ctx, db, service.End, observerCaller, EndRequest{
 		Type: TargetGroupHandover, ID: created.ID,
 	}), ErrNotFound)
 
 	schoolCaller := observerCaller
 	schoolCaller.Scope = "school"
-	_, err = service.Overview(ctx, schoolCaller, OverviewQuery{GroupID: group.ID})
+	_, err = testpkg.TenantQuery2(t, ctx, db, service.Overview, schoolCaller, OverviewQuery{GroupID: group.ID})
 	require.ErrorIs(t, err, ErrForbidden)
 }
 
@@ -574,22 +583,22 @@ func TestGroupHandoverAuditFailureRollsBack(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	testpkg.Tenant(t)
-	repos := testutil.NewSchoolStructureRepositorySuiteFactory(db)
-	service := testutil.NewSubstitutionSuiteModule(repos, db, SubstitutionDependencies{
+	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	service := api.NewSubstitutionSuiteModule(repos, testpkg.NewDatabase(t, db), SubstitutionDependencies{
 		Audit: failingAudit{}, Now: func() time.Time { return fixedNow },
 	})
 	group := testpkg.CreateTestEducationGroup(t, db, "Rollback")
 	target, _ := activeTeacher(t, db, "Sam", "Target")
 	admin := testpkg.CreateTestAccount(t, db, "rollback-admin")
 	today := calendar.DateFromTime(fixedNow)
-	_, err := service.Assign(testpkg.Ctx(t), substitutionCaller(t, admin.ID, true), Assignment{Type: TargetGroupHandover,
+	_, err := testpkg.TenantQuery2(t, testpkg.Ctx(t), db, service.Assign, substitutionCaller(t, admin.ID, true), Assignment{Type: TargetGroupHandover,
 		GroupHandover: &GroupHandoverAssignment{GroupID: group.ID, TargetStaffID: target.StaffID, StartDate: &today, EndDate: &today}})
 	require.Error(t, err)
-	rows, listErr := repos.GroupSubstitution.FindByGroup(testpkg.Ctx(t), group.ID)
+	rows, listErr := testpkg.TenantQuery1(t, testpkg.Ctx(t), db, repos.GroupSubstitution.FindByGroup, group.ID)
 	require.NoError(t, listErr)
 	require.Empty(t, rows)
 
-	workingService := testutil.NewSubstitutionSuiteModule(repos, db, SubstitutionDependencies{
+	workingService := api.NewSubstitutionSuiteModule(repos, testpkg.NewDatabase(t, db), SubstitutionDependencies{
 		Now: func() time.Time { return fixedNow },
 	})
 	created, err := workingService.Assign(testpkg.Ctx(t), substitutionCaller(t, admin.ID, true), Assignment{
@@ -599,10 +608,10 @@ func TestGroupHandoverAuditFailureRollsBack(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.Error(t, service.End(testpkg.Ctx(t), substitutionCaller(t, admin.ID, true), EndRequest{
+	require.Error(t, testpkg.TenantCommand2(t, testpkg.Ctx(t), db, service.End, substitutionCaller(t, admin.ID, true), EndRequest{
 		Type: TargetGroupHandover, ID: created.ID,
 	}))
-	_, err = repos.GroupSubstitution.FindByID(testpkg.Ctx(t), created.ID)
+	_, err = testpkg.TenantQuery1(t, testpkg.Ctx(t), db, repos.GroupSubstitution.FindByID, any(created.ID))
 	require.NoError(t, err)
 }
 
@@ -610,10 +619,10 @@ func TestGroupHandoverSignalsOnlyAfterCommit(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	testpkg.Tenant(t)
-	repos := testutil.NewSchoolStructureRepositorySuiteFactory(db)
+	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	broadcaster := testpkg.NewRecordingBroadcaster()
-	service := testutil.NewSubstitutionSuiteModule(repos, db, SubstitutionDependencies{
-		Broadcaster: broadcaster,
+	service := api.NewSubstitutionSuiteModule(repos, testpkg.NewDatabase(t, db), SubstitutionDependencies{
+		Broadcaster: api.NewGroupEvents(broadcaster, nil),
 		Now:         func() time.Time { return fixedNow },
 	})
 	group := testpkg.CreateTestEducationGroup(t, db, "Signals")
@@ -623,7 +632,7 @@ func TestGroupHandoverSignalsOnlyAfterCommit(t *testing.T) {
 	caller := substitutionCaller(t, admin.ID, true)
 
 	assignCtx, commitAssign := testpkg.WithAfterCommitHooks(testpkg.Ctx(t))
-	created, err := service.Assign(assignCtx, caller, Assignment{
+	created, err := testpkg.TenantQuery2(t, assignCtx, db, service.Assign, caller, Assignment{
 		Type: TargetGroupHandover,
 		GroupHandover: &GroupHandoverAssignment{
 			GroupID: group.ID, TargetStaffID: target.StaffID, StartDate: &today, EndDate: &today,
@@ -636,7 +645,7 @@ func TestGroupHandoverSignalsOnlyAfterCommit(t *testing.T) {
 	require.Equal(t, "group_access_changed", string(broadcaster.Events()[0].Type))
 
 	endCtx, commitEnd := testpkg.WithAfterCommitHooks(testpkg.Ctx(t))
-	require.NoError(t, service.End(endCtx, caller, EndRequest{
+	require.NoError(t, testpkg.TenantCommand2(t, endCtx, db, service.End, caller, EndRequest{
 		Type: TargetGroupHandover, ID: created.ID,
 	}))
 	require.Len(t, broadcaster.Events(), 1)
@@ -649,29 +658,30 @@ func TestGroupHandoverRechecksOwnershipAfterGroupLock(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	testpkg.Tenant(t)
-	repos := testutil.NewSchoolStructureRepositorySuiteFactory(db)
+	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	reposStructure := owners.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db))
 	group := testpkg.CreateTestEducationGroup(t, db, "OwnershipRace")
 	owner, accountID := activeTeacher(t, db, "Owner", "Race")
 	target, _ := activeTeacher(t, db, "Target", "Race")
 	testpkg.CreateTestGroupTeacher(t, db, group.ID, owner.ID)
 	groups := &ownershipRevokingGroups{
-		GroupStore: repos.Group, links: repos.GroupTeacher, teacherID: owner.ID,
+		GroupStore: reposStructure.Group, links: reposStructure.GroupTeacher, teacherID: owner.ID,
 	}
-	service := testutil.NewSubstitutionSuiteModule(repos, db, SubstitutionDependencies{
+	service := api.NewSubstitutionSuiteModule(repos, testpkg.NewDatabase(t, db), SubstitutionDependencies{
 		Groups: groups, Now: func() time.Time { return fixedNow },
 	})
 
-	_, err := service.Assign(testpkg.Ctx(t), substitutionCaller(t, accountID, false), Assignment{
+	_, err := testpkg.TenantQuery2(t, testpkg.Ctx(t), db, service.Assign, substitutionCaller(t, accountID, false), Assignment{
 		Type: TargetGroupHandover,
 		GroupHandover: &GroupHandoverAssignment{
 			GroupID: group.ID, TargetStaffID: target.StaffID,
 		},
 	})
 	require.ErrorIs(t, err, ErrNotFound)
-	rows, err := repos.GroupSubstitution.FindByGroup(testpkg.Ctx(t), group.ID)
+	rows, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), db, repos.GroupSubstitution.FindByGroup, group.ID)
 	require.NoError(t, err)
 	require.Empty(t, rows)
-	relations, err := repos.GroupTeacher.FindByGroup(testpkg.Ctx(t), group.ID)
+	relations, err := reposStructure.GroupTeacher.FindByGroup(testpkg.Ctx(t), group.ID)
 	require.NoError(t, err)
 	require.Len(t, relations, 1, "the simulated concurrent removal must roll back with the rejected assignment")
 }
@@ -679,7 +689,7 @@ func TestGroupHandoverRechecksOwnershipAfterGroupLock(t *testing.T) {
 // groupTeacherLinks is the slice of the group teacher store the ownership
 // race reads and changes.
 type groupTeacherLinks interface {
-	FindByGroup(ctx context.Context, groupID int64) ([]*testutil.SchoolStructureGroupTeacher, error)
+	FindByGroup(ctx context.Context, groupID int64) ([]*api.SchoolStructureSuiteGroupTeacher, error)
 	Delete(ctx context.Context, id any) error
 }
 
@@ -689,7 +699,7 @@ type ownershipRevokingGroups struct {
 	teacherID int64
 }
 
-func (g *ownershipRevokingGroups) FindByIDForUpdate(ctx context.Context, id any) (*testutil.SchoolStructureGroup, error) {
+func (g *ownershipRevokingGroups) FindByIDForUpdate(ctx context.Context, id any) (*schoolStructureCompose.Group, error) {
 	group, err := g.GroupStore.FindByIDForUpdate(ctx, id)
 	if err != nil {
 		return nil, err
@@ -711,7 +721,7 @@ func (g *ownershipRevokingGroups) FindByIDForUpdate(ctx context.Context, id any)
 
 type failingAudit struct{}
 
-func (failingAudit) RecordSubstitutionChange(context.Context, testutil.SchoolStructureSubstitutionChange) error {
+func (failingAudit) RecordSubstitutionChange(context.Context, schoolStructureCompose.SubstitutionChange) error {
 	return errors.New("audit unavailable")
 }
 
@@ -719,7 +729,7 @@ func activeTeacher(t *testing.T, db *bun.DB, firstName, lastName string) (*testp
 	t.Helper()
 	staff, account := testpkg.CreateTestCalendarStaff(t, db, firstName, lastName)
 	teacher := &testpkg.Teacher{StaffID: staff.ID, Staff: staff}
-	teacher.SetTenantID(testpkg.Tenant(t))
+	teacher.TenantID = testpkg.Tenant(t)
 	_, err := db.NewInsert().Model(teacher).ModelTableExpr("users.teachers").Exec(context.Background())
 	require.NoError(t, err)
 	return teacher, account.ID

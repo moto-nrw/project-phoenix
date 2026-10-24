@@ -12,16 +12,6 @@ const { mockOperatorFetch } = vi.hoisted(() => ({
 
 vi.mock("./api-helpers", () => ({
   operatorFetch: mockOperatorFetch,
-  OperatorApiError: class OperatorApiError extends Error {
-    status: number;
-    constructor(message: string, status: number) {
-      super(message);
-      this.name = "OperatorApiError";
-      this.status = status;
-    }
-  },
-  isOperatorApiError: (e: unknown) =>
-    e instanceof Error && e.name === "OperatorApiError",
 }));
 
 // Must import after mocks
@@ -84,6 +74,7 @@ describe("operator invitation api", () => {
             active: true,
             last_login: "2026-04-03T00:00:00Z",
             created_at: "2026-01-01T00:00:00Z",
+            is_self: true,
           },
         ],
       };

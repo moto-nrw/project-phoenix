@@ -1,4 +1,5 @@
 // lib/usercontext-api.ts
+import { ApiError, apiErrorFromText } from "./api-error";
 import { getCachedSession } from "./session-cache";
 import { createLogger } from "~/lib/logger";
 
@@ -56,7 +57,11 @@ export const userContextService = {
             status: response.status,
             error: errorText,
           });
-          throw new Error(`Get current user failed: ${response.status}`);
+          throw apiErrorFromText(
+            `Get current user failed: ${response.status}`,
+            response.status,
+            errorText,
+          );
         }
 
         const responseData =
@@ -97,7 +102,11 @@ export const userContextService = {
               error: errorText,
             });
           }
-          throw new Error(`Get current staff failed: ${status}`);
+          throw apiErrorFromText(
+            `Get current staff failed: ${status}`,
+            status,
+            errorText,
+          );
         }
 
         const responseData =
@@ -109,10 +118,7 @@ export const userContextService = {
       }
     } catch (error) {
       // Suppress 404 logs (account not linked to a person) to avoid noisy console
-      if (!(
-        error instanceof Error &&
-        error.message.includes("Get current staff failed: 404")
-      )) {
+      if (!(error instanceof ApiError && error.status === 404)) {
         logger.error("get current staff error", { error: String(error) });
       }
       throw error;
@@ -140,7 +146,11 @@ export const userContextService = {
             status: response.status,
             error: errorText,
           });
-          throw new Error(`Get current teacher failed: ${response.status}`);
+          throw apiErrorFromText(
+            `Get current teacher failed: ${response.status}`,
+            response.status,
+            errorText,
+          );
         }
 
         const responseData =
@@ -186,7 +196,11 @@ export const userContextService = {
             status: response.status,
             error: errorText,
           });
-          throw new Error(`Get educational groups failed: ${response.status}`);
+          throw apiErrorFromText(
+            `Get educational groups failed: ${response.status}`,
+            response.status,
+            errorText,
+          );
         }
 
         const responseData = (await response.json()) as ApiResponse<
@@ -236,7 +250,11 @@ export const userContextService = {
             status: response.status,
             error: errorText,
           });
-          throw new Error(`Get activity groups failed: ${response.status}`);
+          throw apiErrorFromText(
+            `Get activity groups failed: ${response.status}`,
+            response.status,
+            errorText,
+          );
         }
 
         const responseData = (await response.json()) as ApiResponse<
@@ -278,7 +296,11 @@ export const userContextService = {
             status: response.status,
             error: errorText,
           });
-          throw new Error(`Get active groups failed: ${response.status}`);
+          throw apiErrorFromText(
+            `Get active groups failed: ${response.status}`,
+            response.status,
+            errorText,
+          );
         }
 
         const responseData = (await response.json()) as ApiResponse<
@@ -326,7 +348,11 @@ export const userContextService = {
             status: response.status,
             error: errorText,
           });
-          throw new Error(`Get supervised groups failed: ${response.status}`);
+          throw apiErrorFromText(
+            `Get supervised groups failed: ${response.status}`,
+            response.status,
+            errorText,
+          );
         }
 
         const responseData = (await response.json()) as ApiResponse<

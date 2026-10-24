@@ -1,11 +1,11 @@
 ---
 name: backend-structured-logging
-description: Use when writing or modifying backend Go code that needs logging. Covers slog injection via factory pattern, scoped loggers, key-value conventions, GDPR constraints, nil-safe patterns, and sloglint enforcement. Triggers on log statements, error handling, new service/handler creation, or any logging-related backend work.
+description: Use when writing or modifying backend Go code that needs logging. Covers slog injection through the composition root, scoped loggers, key-value conventions, GDPR constraints, nil-safe patterns, and sloglint enforcement. Triggers on log statements, error handling, new service/handler creation, or any logging-related backend work.
 ---
 
 # Backend Structured Logging (slog)
 
-This project uses Go's stdlib `log/slog` exclusively. The logger is bootstrapped once at startup (`applog.New()`) and injected through the factory pattern. All log output flows to Grafana/Loki as structured JSON.
+This project uses Go's stdlib `log/slog` exclusively. The logger is bootstrapped once at startup (`applog.New()`) and injected through the composition root. All log output flows to Grafana/Loki as structured JSON.
 
 **MANDATORY**: Never use `logrus`, `log.Printf`, or any other logging library. Only `log/slog` via the injected logger.
 
@@ -22,7 +22,8 @@ cmd/serve.go
      ├─ Adds global "env" attribute
      │
      ▼
- services.NewFactory(repos, db, logger)
+ api.composeProcess (api/server.go)
+     │  (process root → owner compositions)
      │
      ├─ logger.With("service", "active")      → Active Service
      ├─ logger.With("service", "auth")         → Auth Service
@@ -109,7 +110,7 @@ logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
 ## Scoped Logger Convention
 
-The factory creates scoped loggers with a `"service"` or `"component"` key. This appears on every log line for Grafana filtering.
+Compositions create scoped loggers with a `"service"` or `"component"` key. This appears on every log line for Grafana filtering.
 
 | Layer | Key | Pattern | Example |
 |-------|-----|---------|---------|
@@ -117,13 +118,13 @@ The factory creates scoped loggers with a `"service"` or `"component"` key. This
 | Handler | `"handler"` | Domain name | `logger.With("handler", "iot")` |
 | Infrastructure | `"component"` | Component name | `logger.With("component", "sse-hub")` |
 
-When adding a new service to the factory, create a scoped logger:
+When a composition builds a service, give it a scoped logger:
 
 ```go
-// In services/factory.go NewFactory()
+// In the owner's compose package
 myLogger := logger.With("service", "mydomain")
 
-myService := mydomain.NewService(repos.MyRepo, db, myLogger)
+myService := mydomain.NewService(myRepo, db, myLogger)
 ```
 
 ## Nil-Safe Logger Pattern
@@ -267,7 +268,7 @@ These files intentionally use `log.Printf` and must NOT be converted:
 
 | File | Reason |
 |------|--------|
-| `modules/identityaccess/legacy/jwt/tokenauth.go` | Startup config logging (process exits on failure) |
+| `modules/identityaccess/sessiontoken/tokenauth.go` | Startup config logging (process exits on failure) |
 | `cmd/` package | CLI bootstrapping (before logger exists) |
 | `seed/` package | One-off data seeding |
 | `simulator/` package | Standalone simulation tool |
@@ -280,6 +281,6 @@ All `log.Printf` calls from these files route through slog as WARN level via `sl
 |------|---------|
 | `applog/applog.go` | Logger bootstrap (`New()`, `parseLevel()`, `SetDefault`) |
 | `applog/applog_test.go` | Logger unit tests (JSON output, level filtering, stdlib routing) |
-| `services/factory.go` | Scoped logger creation and injection into all services |
+| `api/server.go` | Process root: hands the logger to the owner compositions |
 | `cmd/serve.go` | Entry point — calls `applog.New()` with viper config |
 | `.golangci.yml` | sloglint configuration (`no-mixed-args`, `snake` keys, `args-on-sep-lines`) |

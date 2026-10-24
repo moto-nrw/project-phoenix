@@ -4,6 +4,7 @@ import {
   type BrowserContext,
   type Page,
 } from "@playwright/test";
+import { loginToLocalTenant } from "../../e2e/local-tenant-login";
 
 import { accessForShot, type Credentials, type StackAccess } from "./access";
 import {
@@ -13,6 +14,12 @@ import {
   type DeviceSpec,
   type Portal,
 } from "./devices";
+import {
+  MAX_WAIT_MS,
+  trackNetworkActivity,
+  waitExpired,
+  type NetworkActivity,
+} from "./network-activity";
 import {
   BrokenShotError,
   findBrokenReasons,
@@ -35,12 +42,17 @@ export interface CaptureOptions {
   readonly access: StackAccess;
   readonly shots: readonly Shot[];
   readonly now?: Date;
-  /** Wie lange Ladeanzeigen abklingen dürfen, bevor der Shot als kaputt gilt. */
+  /**
+   * Wie lange Ladeanzeigen stehen dürfen, während die Seite nichts mehr lädt,
+   * bevor der Shot als kaputt gilt (network-activity.ts).
+   */
   readonly loadTimeoutMs?: number;
   readonly log?: (message: string) => void;
 }
 
 const LOAD_TIMEOUT_MS = 20_000;
+/** Dasselbe für `warten_auf`: so lange darf die Seite ohne Laden still stehen. */
+const STEP_IDLE_MS = 30_000;
 const SETTLE_MS = 600;
 
 /**
@@ -68,17 +80,21 @@ nextjs-portal { display: none !important; }
  * kennt; deshalb beantwortet dieses Skript die Frage für jeden Schlüssel dieser
  * Form mit "erledigt". Dasselbe gilt für die Erste-Schritte-Liste der Eltern
  * (components/parent/onboarding), die sich beim ersten Besuch über den Inhalt
- * legt: Sie gilt als ausgeblendet. Ein Produkt-Screenshot zeigt die App im
- * Alltag, nicht ihren Erststart.
+ * legt: Sie gilt als ausgeblendet. Die Erste-Schritte-Liste der Betreuer
+ * (components/staff-onboarding) geht einmal je Sitzung von selbst auf; sie
+ * gilt als schon geöffnet und bleibt damit zugeklappt. Ein Produkt-Screenshot
+ * zeigt die App im Alltag, nicht ihren Erststart.
  */
 const PRESET_DECISIONS = `
 (() => {
   const setupKey = /^moto\\.[a-z]+\\.notification-setup\\.v1\\./;
   const parentFirstStepsKey = /^parent-first-steps:v1:/;
+  const staffOnboardingOpenedKey = /^staff-onboarding-opened:/;
   const original = Storage.prototype.getItem;
   Storage.prototype.getItem = function (key) {
     if (setupKey.test(key)) return '{"done":true}';
     if (parentFirstStepsKey.test(key)) return '{"dismissed":true}';
+    if (staffOnboardingOpenedKey.test(key)) return "1";
     return original.call(this, key);
   };
 })();
@@ -125,15 +141,7 @@ async function login(
     }
     // `domcontentloaded`: der Dev-Server hält SSE-Verbindungen offen, das
     // `load`-Ereignis kann dadurch hängen.
-    await page.goto(`${origin}/`, { waitUntil: "domcontentloaded" });
-    await page.waitForSelector('input[type="email"]', { timeout: 30_000 });
-    await page.fill('input[type="email"]', credentials.email);
-    await page.fill('input[type="password"]', credentials.password);
-    await page.click('button:has-text("Anmelden")');
-    await page.waitForSelector('input[type="email"]', {
-      state: "detached",
-      timeout: 30_000,
-    });
+    await loginToLocalTenant(page, origin, credentials);
   } finally {
     await page.close();
   }
@@ -161,26 +169,101 @@ async function sessionFor(
   }
 }
 
-async function waitForSettled(page: Page, timeoutMs: number): Promise<number> {
-  const deadline = Date.now() + timeoutMs;
-  while ((await countLoadingIndicators(page)) > 0 && Date.now() < deadline) {
-    await page.waitForTimeout(200);
-  }
-  await page.evaluate(() => document.fonts.ready);
-  await page.waitForTimeout(SETTLE_MS);
-  return countLoadingIndicators(page);
+/**
+ * Bilder im Ausschnitt, die noch nicht geladen sind. Avatare laden über
+ * next/image mit loading="lazy"; ohne dieses Warten zeigte ein Shot leere
+ * Kreise statt Fotos. Ein Bild, das nicht lädt, ersetzt die Avatar-Komponente
+ * durch Initialen; es zählt hier also nur, solange es unterwegs ist.
+ */
+function countUnloadedImages(page: Page): Promise<number> {
+  return page.evaluate(
+    () =>
+      Array.from(document.images).filter((image) => {
+        const { top, bottom, left, right, width, height } =
+          image.getBoundingClientRect();
+        const inView =
+          width > 0 &&
+          height > 0 &&
+          bottom > 0 &&
+          right > 0 &&
+          top < window.innerHeight &&
+          left < window.innerWidth;
+        return inView && (!image.complete || image.naturalWidth === 0);
+      }).length,
+  );
 }
 
-async function runStep(page: Page, step: Step): Promise<void> {
+interface Settled {
+  readonly loadingIndicators: number;
+  readonly unloadedImages: number;
+}
+
+/**
+ * Prüft `done`, bis es zutrifft. Gibt auf, wenn die Seite `idleMs` lang keine
+ * Anfrage an den Stack offen hatte, spätestens nach MAX_WAIT_MS. Liefert, ob
+ * `done` eingetreten ist.
+ */
+async function waitWhileLoading(
+  page: Page,
+  network: NetworkActivity,
+  idleMs: number,
+  done: () => Promise<boolean>,
+): Promise<boolean> {
+  const startedAt = Date.now();
+  const limits = { idleMs, maxMs: MAX_WAIT_MS };
+  while (!(await done())) {
+    if (waitExpired(Date.now(), startedAt, network.state(), limits)) {
+      return false;
+    }
+    await page.waitForTimeout(200);
+  }
+  return true;
+}
+
+async function waitForSettled(
+  page: Page,
+  network: NetworkActivity,
+  idleMs: number,
+): Promise<Settled> {
+  await waitWhileLoading(
+    page,
+    network,
+    idleMs,
+    // Erst nach den Ladeanzeigen: vorher stehen die Bilder noch nicht im DOM.
+    async () =>
+      (await countLoadingIndicators(page)) === 0 &&
+      (await countUnloadedImages(page)) === 0,
+  );
+  await page.evaluate(() => document.fonts.ready);
+  await page.waitForTimeout(SETTLE_MS);
+  return {
+    loadingIndicators: await countLoadingIndicators(page),
+    unloadedImages: await countUnloadedImages(page),
+  };
+}
+
+async function runStep(
+  page: Page,
+  network: NetworkActivity,
+  step: Step,
+): Promise<void> {
   if ("klicken" in step) {
     await page.locator(step.klicken).first().click({ timeout: 10_000 });
   } else if ("warten_auf" in step) {
-    await page
-      .locator(step.warten_auf)
-      .first()
-      // Großzügig: nach einem Klick auf eine andere Seite kompiliert der
-      // Dev-Server deren Route beim ersten Aufruf.
-      .waitFor({ state: "visible", timeout: 30_000 });
+    // Nach einem Klick auf eine andere Seite kompiliert der Dev-Server deren
+    // Route und Datenabfragen beim ersten Aufruf; solange die Seite lädt,
+    // wartet der Schritt weiter.
+    const target = page.locator(step.warten_auf).first();
+    const startedAt = Date.now();
+    const visible = await waitWhileLoading(page, network, STEP_IDLE_MS, () =>
+      target.isVisible(),
+    );
+    if (!visible) {
+      const seconds = Math.round((Date.now() - startedAt) / 1000);
+      throw new Error(
+        `${step.warten_auf} nach ${seconds} s nicht sichtbar (${network.state().inFlight} Anfragen offen)`,
+      );
+    }
   } else if (typeof step.scrollen === "number") {
     const offset = step.scrollen;
     await page.evaluate((top) => window.scrollTo(0, top), offset);
@@ -249,6 +332,7 @@ async function captureOne(
       const host = new URL(url).hostname;
       return host === "localhost" || host.endsWith(".localhost");
     };
+    const network = trackNetworkActivity(page, ownHost);
     const ignoredUrls = new Set<string>();
     page.on("response", (response) => {
       if (response.status() < 400 || !ownHost(response.url())) return;
@@ -275,14 +359,14 @@ async function captureOne(
     const opensDialog = (shot.vorbereitung ?? []).some(
       (step) => "klicken" in step,
     );
-    let loadingIndicators = await waitForSettled(page, loadTimeoutMs);
+    let settled = await waitForSettled(page, network, loadTimeoutMs);
     // Die Umleitungsprüfung gilt der Seite, auf der der Shot landet. Ein Klick
     // der Vorbereitung darf danach weiterführen, etwa von der Kindersuche auf
     // ein Kind, dessen ID erst der Seed vergibt.
     const landedPath = new URL(page.url()).pathname;
     for (const step of shot.vorbereitung ?? []) {
       try {
-        await runStep(page, step);
+        await runStep(page, network, step);
       } catch (error) {
         // Mit dem Anfang des Call-Logs: er sagt, ob der Selektor nichts fand
         // oder ein Element, das sich nicht klicken ließ.
@@ -291,7 +375,7 @@ async function captureOne(
         );
         break;
       }
-      loadingIndicators = await waitForSettled(page, loadTimeoutMs);
+      settled = await waitForSettled(page, network, loadTimeoutMs);
     }
 
     const reasons = [
@@ -311,7 +395,8 @@ async function captureOne(
             .locator("nextjs-portal")
             .locator("[data-nextjs-dialog], [data-nextjs-dialog-overlay]")
             .count()) > 0,
-        loadingIndicators,
+        loadingIndicators: settled.loadingIndicators,
+        unloadedImages: settled.unloadedImages,
         unexpectedDialogs: opensDialog
           ? 0
           : await page.locator('[role="dialog"]:visible, dialog[open]').count(),

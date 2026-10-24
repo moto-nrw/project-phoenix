@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	directoryPorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -28,19 +30,21 @@ func (l *observationLog) record(observation Observation) {
 	l.seen = append(l.seen, observation)
 }
 
-func buildModule(t *testing.T, db *bun.DB, observers ...func(Observation)) *timetable.Module {
+func buildModule(t *testing.T, db *bun.DB, observers ...func(Observation)) timetable.Owner {
 	t.Helper()
 	observe := func(Observation) {}
 	if len(observers) > 0 {
 		observe = observers[0]
 	}
-	students := StudentDirectoryFunc(func(context.Context) ([]TargetStudent, error) { return []TargetStudent{}, nil })
-	module, err := New(Dependencies{DB: db, Students: students, Rooms: testRooms(), Sessions: &fixedSessions{}, LockStaffAssignment: func(context.Context, int64) error { return nil }, Observe: observe})
+	students := directoryPorts.StudentDirectoryFunc(func(context.Context) ([]directoryPorts.TargetStudent, error) {
+		return []directoryPorts.TargetStudent{}, nil
+	})
+	module, err := New(Dependencies{Provenance: testpkg.EnrollmentProvenance{}, DB: db, Students: students, Rooms: testRooms(), Sessions: &fixedSessions{}, LockStaffAssignment: func(context.Context, int64) error { return nil }, Observe: observe})
 	require.NoError(t, err)
 	return module
 }
 
-func createCategory(t *testing.T, ctx context.Context, module *timetable.Module, name string) timetable.Category {
+func createCategory(t *testing.T, ctx context.Context, module timetable.Owner, name string) timetable.Category {
 	t.Helper()
 	category, err := module.CreateCategory(ctx, timetable.CreateCategory{Name: name, Color: "#abc"})
 	require.NoError(t, err)
@@ -366,7 +370,7 @@ func TestTemplateArchiveRollsBackAndRetries(t *testing.T) {
 	assert.Zero(t, rows)
 }
 
-func assertTemplateOfferingSource(t *testing.T, ctx context.Context, module *timetable.Module, id int64, offeringIDs []int64, grades []int) {
+func assertTemplateOfferingSource(t *testing.T, ctx context.Context, module timetable.Owner, id int64, offeringIDs []int64, grades []int) {
 	t.Helper()
 	group, err := module.FindGroup(ctx, id)
 	require.NoError(t, err)
@@ -374,7 +378,7 @@ func assertTemplateOfferingSource(t *testing.T, ctx context.Context, module *tim
 	assert.Equal(t, grades, group.SourceGradeLevels)
 }
 
-func createTemplate(t *testing.T, ctx context.Context, module *timetable.Module, categoryID int64, name string, sourceIDs []int64) timetable.Group {
+func createTemplate(t *testing.T, ctx context.Context, module timetable.Owner, categoryID int64, name string, sourceIDs []int64) timetable.Group {
 	t.Helper()
 	input := timetable.GroupInput{Name: name, CategoryID: categoryID, IsTemplate: true}
 	if len(sourceIDs) > 0 {
@@ -487,13 +491,13 @@ func TestModuleResolvesTargetStudentsThroughPeopleDirectory(t *testing.T) {
 	group := testpkg.CreateTestActivityGroup(t, db, "Target students")
 	member := testpkg.CreateTestStudent(t, db, "Target", "Member", " 2B ")
 	nonMember := testpkg.CreateTestStudent(t, db, "Target", "Other", "3a")
-	students := StudentDirectoryFunc(func(context.Context) ([]TargetStudent, error) {
-		return []TargetStudent{
+	students := directoryPorts.StudentDirectoryFunc(func(context.Context) ([]directoryPorts.TargetStudent, error) {
+		return []directoryPorts.TargetStudent{
 			{ID: member.ID, SchoolClass: member.SchoolClass},
 			{ID: nonMember.ID, SchoolClass: nonMember.SchoolClass},
 		}, nil
 	})
-	module, err := New(Dependencies{DB: db, Students: students, Rooms: testRooms(), Sessions: &fixedSessions{}, LockStaffAssignment: func(context.Context, int64) error { return nil }, Observe: func(Observation) {}})
+	module, err := New(Dependencies{Provenance: testpkg.EnrollmentProvenance{}, DB: db, Students: students, Rooms: testRooms(), Sessions: &fixedSessions{}, LockStaffAssignment: func(context.Context, int64) error { return nil }, Observe: func(Observation) {}})
 	require.NoError(t, err)
 	class := "2b"
 	insertGroupTarget(t, db, testpkg.Tenant(t), group.ID, timetable.TargetGroupTypeSchoolClass, &class)
@@ -640,8 +644,15 @@ func TestCareExitEnrollmentLifecycleIsReversibleAndIdempotent(t *testing.T) {
 	closedEnd := "2026-09-01"
 	closed := insertCareExitEnrollment(t, db, testpkg.Tenant(t), student.ID, group.ID, "2026-08-01", &closedEnd)
 
-	require.NoError(t, module.LockStudentEnrollmentsForCareExit(ctx, []int64{student.ID}, "2026-09-10"))
-	changes, err := module.EndStudentEnrollmentsForCareExit(ctx, []int64{student.ID}, "2026-09-10")
+	var changes timetable.CareExitEnrollmentChanges
+	err := tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+		if err := module.LockStudentEnrollmentsForCareExit(txCtx, []int64{student.ID}, "2026-09-10"); err != nil {
+			return err
+		}
+		var err error
+		changes, err = module.EndStudentEnrollmentsForCareExit(txCtx, []int64{student.ID}, "2026-09-10")
+		return err
+	})
 	require.NoError(t, err)
 	require.Len(t, changes.Deleted, 1)
 	require.Len(t, changes.Capped, 1)
@@ -774,12 +785,17 @@ func (s *fixedSessions) NotScheduledParticipantIDs(_ context.Context, ids []int6
 func (s *fixedSessions) ExecutionFacts(_ context.Context, instanceIDs, participantIDs []int64) ([]int64, []int64, error) {
 	return intersect(instanceIDs, s.completed), intersect(participantIDs, s.notScheduled), nil
 }
+func (s *fixedSessions) RunningSessionsByInstance(context.Context, []int64) (map[int64]int64, error) {
+	return map[int64]int64{}, nil
+}
 
 // buildModuleWithSessions composes the owner over the given session facts.
-func buildModuleWithSessions(t *testing.T, db *bun.DB, sessions timetable.SessionFacts) *timetable.Module {
+func buildModuleWithSessions(t *testing.T, db *bun.DB, sessions timetable.SessionFacts) timetable.Owner {
 	t.Helper()
-	students := StudentDirectoryFunc(func(context.Context) ([]TargetStudent, error) { return []TargetStudent{}, nil })
-	module, err := New(Dependencies{DB: db, Students: students, Rooms: testRooms(), Sessions: sessions, LockStaffAssignment: func(context.Context, int64) error { return nil }, Observe: func(Observation) {}})
+	students := directoryPorts.StudentDirectoryFunc(func(context.Context) ([]directoryPorts.TargetStudent, error) {
+		return []directoryPorts.TargetStudent{}, nil
+	})
+	module, err := New(Dependencies{Provenance: testpkg.EnrollmentProvenance{}, DB: db, Students: students, Rooms: testRooms(), Sessions: sessions, LockStaffAssignment: func(context.Context, int64) error { return nil }, Observe: func(Observation) {}})
 	require.NoError(t, err)
 	return module
 }

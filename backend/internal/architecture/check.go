@@ -38,6 +38,7 @@ func Check(policy *Policy, graph *Graph) []Violation {
 	externalPackages := policy.externalPackageMap()
 	violations := packageClassificationViolations(packages, graph.Packages, graph.PackageLocations)
 	violations = append(violations, graph.SemanticViolations...)
+	violations = append(violations, sharedFixtureCompositionViolations(packages, graph)...)
 	usedExternalPackages := make(map[string]struct{}, len(externalPackages))
 	usedRules := make(map[string]struct{}, len(policy.Rules))
 	for _, edge := range graph.Edges {
@@ -336,7 +337,8 @@ func sortedRuleIDs(rules []*Rule) []string {
 }
 
 func (p *Policy) matchesSource(rule Rule, source Package) bool {
-	return p.matchesOwner(rule.SourceOwner, rule.SourceOwnerKind, source.Owner) &&
+	return (rule.SourcePackage == "" || rule.SourcePackage == source.Path) &&
+		p.matchesOwner(rule.SourceOwner, rule.SourceOwnerKind, source.Owner) &&
 		(rule.SourceRole == "" || rule.SourceRole == source.Role)
 }
 
@@ -344,7 +346,8 @@ func (p *Policy) matchesTarget(rule Rule, source, target Package) bool {
 	if rule.SameOwner && (source.Owner != target.Owner || !p.sameOwnerSelectsID(target.Owner)) {
 		return false
 	}
-	return p.matchesOwner(rule.TargetOwner, rule.TargetOwnerKind, target.Owner) && rule.TargetRole == target.Role
+	return (rule.TargetPackage == "" || rule.TargetPackage == target.Path) &&
+		p.matchesOwner(rule.TargetOwner, rule.TargetOwnerKind, target.Owner) && rule.TargetRole == target.Role
 }
 
 func (p *Policy) matchesOwner(wantOwner, wantKind, actualOwner string) bool {
@@ -387,6 +390,29 @@ func staleRuleViolations(rules []Rule, used map[string]struct{}) []Violation {
 		if _, ok := used[rule.ID]; !ok {
 			violations = append(violations, Violation{Rule: "rules.stale", Source: rule.ID, Target: rule.ID, Detail: "policy rule allows no import in the fixed build context; remove it"})
 		}
+	}
+	return violations
+}
+
+// Shared fixture packages never import owner compositions, even when a policy
+// rule permits that edge. Owner-local test support remains governed by ADR 0053
+// point 7.1; shared fixtures follow point 7.3 and ADR 0069 point 5.
+func sharedFixtureCompositionViolations(packages map[string]Package, graph *Graph) []Violation {
+	var violations []Violation
+	for _, edge := range graph.Edges {
+		source, target := packages[edge.Source], packages[edge.Target]
+		if edge.Scope != ScopeProduction || source.Owner != "test-support" || source.Role != "test-support" || target.Role != "compose" {
+			continue
+		}
+		// ADR 0069 point 5 expressly includes the Transaction Runtime bootstrap.
+		if target.Owner == "transaction-runtime" {
+			continue
+		}
+		violations = append(violations, Violation{
+			Scope: edge.Scope, Rule: "imports.forbidden", Source: edge.Source, Target: edge.Target,
+			Detail:    "shared fixtures create rows and must not import owner compositions (ADR 0053 point 7.3)",
+			Locations: graph.ImportLocations[edge],
+		})
 	}
 	return violations
 }

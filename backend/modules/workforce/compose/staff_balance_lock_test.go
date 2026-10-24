@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
@@ -18,7 +18,7 @@ func TestStaffWorkScheduleReplaceSharesBalanceLock(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, db, "Schedule", "BalanceLock")
 
 	runtime := testpkg.ConfigRuntime(db)
-	schedules := buildScheduleRepository(t, db)
+	capability := buildWorkforce(t, db)
 
 	lockHeld := make(chan struct{})
 	releaseLock := make(chan struct{})
@@ -44,12 +44,15 @@ func TestStaffWorkScheduleReplaceSharesBalanceLock(t *testing.T) {
 	writerDone := make(chan error, 1)
 	go func() {
 		writerDone <- testpkg.WithinTenantContext(t, context.Background(), db, staff.TenantID, func(ctx context.Context) error {
-			return schedules.ReplaceSchedule(ctx, staff.ID, []*configModel.StaffWorkSchedule{{
-				WeekIndex:      0,
-				RotationLength: 1,
-				DayOfWeek:      configModel.DayMonday,
-				TargetMinutes:  480,
-			}}, configModel.CalendarDate(""))
+			return capability.ReplaceStaffSchedule(ctx, workforce.ReplaceStaffSchedule{
+				StaffID: staff.ID,
+				Entries: []workforce.StaffWorkScheduleEntry{{
+					WeekIndex:      0,
+					RotationLength: 1,
+					DayOfWeek:      dayMonday,
+					TargetMinutes:  480,
+				}},
+			})
 		})
 	}()
 

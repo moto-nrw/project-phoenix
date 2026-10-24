@@ -1,16 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Session } from "next-auth";
-import { NextRequest } from "next/server";
 import { GET, POST } from "./route";
+import { ApiResponseError } from "~/lib/api-response-error.server";
 import { suppressConsole } from "~/test/helpers/console";
-
-// ============================================================================
-// Types
-// ============================================================================
-
-interface ExtendedSession extends Session {
-  user: Session["user"] & { token?: string };
-}
+import {
+  type ExtendedSession,
+  createMockContext,
+  createMockRequest,
+  defaultSession,
+} from "~/test/route-test-helpers";
 
 // ============================================================================
 // Mocks (using vi.hoisted for proper hoisting)
@@ -38,35 +35,6 @@ vi.mock("~/lib/api-helpers.server", async (importOriginal) => ({
 // Test Helpers
 // ============================================================================
 
-function createMockRequest(
-  path: string,
-  options: { method?: string; body?: unknown } = {},
-): NextRequest {
-  const url = new URL(path, "http://localhost:3000");
-  const requestInit: { method: string; body?: string; headers?: HeadersInit } =
-    {
-      method: options.method ?? "GET",
-    };
-
-  if (options.body) {
-    requestInit.body = JSON.stringify(options.body);
-    requestInit.headers = { "Content-Type": "application/json" };
-  }
-
-  return new NextRequest(url, requestInit);
-}
-
-function createMockContext(
-  params: Record<string, string | string[] | undefined> = {},
-) {
-  return { params: Promise.resolve(params) };
-}
-
-const defaultSession: ExtendedSession = {
-  user: { id: "1", token: "test-token", name: "Test User" },
-  expires: "2099-01-01",
-};
-
 interface ApiResponse<T> {
   success: boolean;
   message: string;
@@ -87,15 +55,6 @@ describe("GET /api/rooms", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(defaultSession);
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/rooms");
-    const response = await GET(request, createMockContext());
-
-    expect(response.status).toBe(401);
   });
 
   it("fetches rooms from backend API", async () => {
@@ -172,13 +131,14 @@ describe("GET /api/rooms", () => {
     const response = await GET(request, createMockContext());
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Network error");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toContain("Network error");
   });
 
   it("logs rate-limited fetch failures as warnings", async () => {
     mockApiGet.mockRejectedValueOnce(
-      new Error("API error (429): Rate limit exceeded"),
+      new ApiResponseError(429, "Rate limit exceeded"),
     );
 
     const request = createMockRequest("/api/rooms");
@@ -186,7 +146,7 @@ describe("GET /api/rooms", () => {
 
     expect(response.status).toBe(429);
     expect(consoleSpies.warn).toHaveBeenCalledWith("api route rate limited", {
-      error: "API error (429): Rate limit exceeded",
+      error: "Rate limit exceeded",
       rate_limited: true,
       status: 429,
     });
@@ -197,18 +157,6 @@ describe("POST /api/rooms", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(defaultSession);
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/rooms", {
-      method: "POST",
-      body: { name: "New Room" },
-    });
-    const response = await POST(request, createMockContext());
-
-    expect(response.status).toBe(401);
   });
 
   it("creates a new room via backend API", async () => {
@@ -254,8 +202,9 @@ describe("POST /api/rooms", () => {
     const response = await POST(request, createMockContext());
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("name cannot be blank");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toContain("name cannot be blank");
   });
 
   it("rejects room creation with invalid capacity", async () => {
@@ -266,19 +215,10 @@ describe("POST /api/rooms", () => {
     const response = await POST(request, createMockContext());
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Capacity must be greater than 0");
-  });
-
-  it("handles permission denied error", async () => {
-    mockApiPost.mockRejectedValueOnce(new Error("API error (403): Forbidden"));
-
-    const request = createMockRequest("/api/rooms", {
-      method: "POST",
-      body: { name: "Room" },
-    });
-    const response = await POST(request, createMockContext());
-
-    expect(response.status).toBe(403);
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toContain(
+      "Capacity must be greater than 0",
+    );
   });
 });

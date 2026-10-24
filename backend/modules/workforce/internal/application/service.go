@@ -4,16 +4,16 @@
 package application
 
 import (
+	"context"
 	"slices"
 	"time"
 
-	"context"
-
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/ports"
 )
 
-// Service is the single entry point behind the Workforce facade.
+// Service implements the public Workforce capability.
 type Service struct {
 	store               ports.Store
 	transaction         ports.Transaction
@@ -66,18 +66,25 @@ func (s *Service) lockAssignmentStaff(ctx context.Context, ids []int64) error {
 	return nil
 }
 
-func (s *Service) ListWorkTimeModels(ctx context.Context) (result []domain.WorkTimeModel, err error) {
-	err = s.run("list_work_time_models", func(stats *domain.OperationStats) error {
+func (s *Service) ListWorkTimeModels(ctx context.Context) ([]workforce.WorkTimeModel, error) {
+	var result []domain.WorkTimeModel
+	var err error
+	err = s.run(ctx, "list_work_time_models", func(ctx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		result, queryStats, err = s.store.ListWorkTimeModels(ctx)
 		stats.Add(queryStats)
 		return err
 	})
-	return result, err
+	return modelsToPublic(result), MapError(err)
 }
 
-func (s *Service) FindWorkTimeModel(ctx context.Context, id int64) (result domain.WorkTimeModel, err error) {
-	err = s.run("find_work_time_model", func(stats *domain.OperationStats) error {
+func (s *Service) FindWorkTimeModel(ctx context.Context, id int64) (workforce.WorkTimeModel, error) {
+	if id <= 0 {
+		return workforce.WorkTimeModel{}, invalid("work time model ID is required")
+	}
+	var result domain.WorkTimeModel
+	var err error
+	err = s.run(ctx, "find_work_time_model", func(ctx context.Context, stats *domain.OperationStats) error {
 		var found bool
 		var queryStats domain.OperationStats
 		result, found, queryStats, err = s.store.FindWorkTimeModel(ctx, id)
@@ -87,27 +94,32 @@ func (s *Service) FindWorkTimeModel(ctx context.Context, id int64) (result domai
 		}
 		return err
 	})
-	return result, err
+	return modelToPublic(result), MapError(err)
 }
 
-func (s *Service) ListWorkTimeModelsByIDs(ctx context.Context, ids []int64) (result []domain.WorkTimeModel, err error) {
+func (s *Service) ListWorkTimeModelsByIDs(ctx context.Context, ids []int64) ([]workforce.WorkTimeModel, error) {
 	if len(ids) == 0 {
 		return nil, nil
 	}
-	err = s.run("list_work_time_models_by_ids", func(stats *domain.OperationStats) error {
+	var result []domain.WorkTimeModel
+	var err error
+	err = s.run(ctx, "list_work_time_models_by_ids", func(ctx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		result, queryStats, err = s.store.ListWorkTimeModelsByIDs(ctx, ids)
 		stats.Add(queryStats)
 		return err
 	})
-	return result, err
+	return modelsToPublic(result), MapError(err)
 }
 
-func (s *Service) CreateWorkTimeModel(ctx context.Context, fields domain.WorkTimeModelFields) (result domain.WorkTimeModel, err error) {
+func (s *Service) CreateWorkTimeModel(ctx context.Context, input workforce.CreateWorkTimeModel) (workforce.WorkTimeModel, error) {
+	fields := modelFieldsToDomain(input.WorkTimeModelFields)
+	var result domain.WorkTimeModel
+	var err error
 	if validationErr := domain.ValidateWorkTimeModelFields(fields); validationErr != nil {
-		return domain.WorkTimeModel{}, validationErr
+		return modelToPublic(domain.WorkTimeModel{}), MapError(validationErr)
 	}
-	err = s.run("create_work_time_model", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "create_work_time_model", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			var writeStats domain.OperationStats
 			result, writeStats, err = s.store.CreateWorkTimeModel(txCtx, fields)
@@ -115,7 +127,7 @@ func (s *Service) CreateWorkTimeModel(ctx context.Context, fields domain.WorkTim
 			return err
 		})
 	})
-	return result, err
+	return modelToPublic(result), MapError(err)
 }
 
 // UpdateWorkTimeModel replaces the template and, in the same unit of work,
@@ -123,11 +135,18 @@ func (s *Service) CreateWorkTimeModel(ctx context.Context, fields domain.WorkTim
 // writes are inseparable: a template whose entries moved but whose assignees
 // still carry the old Soll is a wrong time account, so they must commit or
 // roll back together.
-func (s *Service) UpdateWorkTimeModel(ctx context.Context, id int64, fields domain.WorkTimeModelFields) (result domain.WorkTimeModel, err error) {
-	if validationErr := domain.ValidateWorkTimeModelFields(fields); validationErr != nil {
-		return domain.WorkTimeModel{}, validationErr
+func (s *Service) UpdateWorkTimeModel(ctx context.Context, input workforce.UpdateWorkTimeModel) (workforce.WorkTimeModel, error) {
+	if input.ID <= 0 {
+		return workforce.WorkTimeModel{}, invalid("work time model ID is required")
 	}
-	err = s.run("update_work_time_model", func(stats *domain.OperationStats) error {
+	id := input.ID
+	fields := modelFieldsToDomain(input.WorkTimeModelFields)
+	var result domain.WorkTimeModel
+	var err error
+	if validationErr := domain.ValidateWorkTimeModelFields(fields); validationErr != nil {
+		return modelToPublic(domain.WorkTimeModel{}), MapError(validationErr)
+	}
+	err = s.run(ctx, "update_work_time_model", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			var found bool
 			var writeStats domain.OperationStats
@@ -142,22 +161,22 @@ func (s *Service) UpdateWorkTimeModel(ctx context.Context, id int64, fields doma
 			return s.refreshAssignedSchedules(txCtx, result, stats)
 		})
 	})
-	return result, err
+	return modelToPublic(result), MapError(err)
 }
 
-// DeleteWorkTimeModel removes a template that no staff member is bound to.
-// The assignment check and the delete share the write transaction, so a
-// concurrent assignment cannot slip past the guard and leave a staff member
-// pointing at a deleted template.
+// DeleteWorkTimeModel removes a template that no live staff member is bound
+// to. Retired employments keep their binding until here and are released with
+// the template. The assignment check and the delete share the write
+// transaction, so a concurrent assignment cannot slip past the guard and leave
+// a staff member pointing at a deleted template.
 func (s *Service) DeleteWorkTimeModel(ctx context.Context, id int64) error {
-	return s.run("delete_work_time_model", func(stats *domain.OperationStats) error {
+	if id <= 0 {
+		return invalid("work time model ID is required")
+	}
+	return MapError(s.run(ctx, "delete_work_time_model", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
-			assigned, err := s.assignments.AssignedStaffIDs(txCtx, id)
-			if err != nil {
+			if err := s.refuseAssignedOrReleaseRetired(txCtx, id); err != nil {
 				return err
-			}
-			if len(assigned) > 0 {
-				return domain.ErrWorkTimeModelAssigned
 			}
 			found, deleteStats, err := s.store.DeleteWorkTimeModel(txCtx, id)
 			stats.Add(deleteStats)
@@ -169,7 +188,26 @@ func (s *Service) DeleteWorkTimeModel(ctx context.Context, id int64) error {
 			}
 			return nil
 		})
-	})
+	}))
+}
+
+// refuseAssignedOrReleaseRetired refuses a template a live staff member is bound to
+// and detaches it from the retired ones. The bindings are read before the live
+// check: one a concurrent assignment adds afterwards is not released and still
+// trips the foreign key instead of being detached silently.
+func (s *Service) refuseAssignedOrReleaseRetired(ctx context.Context, id int64) error {
+	bound, err := s.store.StaffOnWorkTimeModel(ctx, id)
+	if err != nil {
+		return err
+	}
+	assigned, err := s.assignments.AssignedStaffIDs(ctx, id)
+	if err != nil {
+		return err
+	}
+	if len(assigned) > 0 {
+		return domain.ErrWorkTimeModelAssigned
+	}
+	return s.store.ReleaseWorkTimeModel(ctx, id, bound)
 }
 
 // refreshAssignedSchedules rewrites the schedule snapshots of every staff
@@ -238,20 +276,33 @@ func (s *Service) refreshAssignedSchedules(ctx context.Context, model domain.Wor
 // leaves the per-version anchor NULL: a one-week rotation has no parity. An
 // empty validFrom starts the version today; an earlier day is checked by
 // domain.ScheduleVersionStart.
-func (s *Service) ReplaceStaffSchedule(ctx context.Context, staffID int64, entries []domain.StaffWorkScheduleFields, anchor, validFrom string) error {
+func (s *Service) ReplaceStaffSchedule(ctx context.Context, input workforce.ReplaceStaffSchedule) error {
+	if input.StaffID <= 0 {
+		return invalid("staff ID is required")
+	}
+	entries := make([]domain.StaffWorkScheduleFields, 0, len(input.Entries))
+	for _, entry := range input.Entries {
+		entries = append(entries, domain.StaffWorkScheduleFields{
+			WeekIndex: entry.WeekIndex, RotationLength: entry.RotationLength,
+			DayOfWeek: entry.DayOfWeek, TargetMinutes: entry.TargetMinutes, StartTime: entry.StartTime,
+		})
+	}
+	staffID := input.StaffID
+	anchor := input.RotationAnchorDate
+	validFrom := input.ValidFrom
 	if err := domain.ValidateDate(anchor, "rotation_anchor_date"); err != nil {
-		return err
+		return MapError(err)
 	}
 	for _, entry := range entries {
 		if err := domain.ValidateStaffScheduleFields(entry); err != nil {
-			return err
+			return MapError(err)
 		}
 	}
-	return s.run("replace_staff_schedule", func(stats *domain.OperationStats) error {
+	return MapError(s.run(ctx, "replace_staff_schedule", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			return s.writeStaffSchedule(txCtx, staffID, entries, anchor, validFrom, stats)
 		})
-	})
+	}))
 }
 
 // writeStaffSchedule is ReplaceStaffSchedule inside its unit of work.
@@ -307,74 +358,99 @@ func (s *Service) scheduleVersionStart(ctx context.Context, staffID int64, valid
 	return domain.ScheduleVersionStart(validFrom, today, hasHistory, closed)
 }
 
-func (s *Service) CurrentStaffSchedule(ctx context.Context, staffID int64) (result []domain.StaffWorkSchedule, err error) {
-	err = s.run("current_staff_schedule", func(stats *domain.OperationStats) error {
+func (s *Service) CurrentStaffSchedule(ctx context.Context, staffID int64) ([]workforce.StaffWorkSchedule, error) {
+	if staffID <= 0 {
+		return nil, invalid("staff ID is required")
+	}
+	var result []domain.StaffWorkSchedule
+	var err error
+	err = s.run(ctx, "current_staff_schedule", func(ctx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		result, queryStats, err = s.store.CurrentStaffSchedule(ctx, staffID)
 		stats.Add(queryStats)
 		return err
 	})
-	return result, err
+	return schedulesToPublic(result), MapError(err)
 }
 
-func (s *Service) StaffScheduleOn(ctx context.Context, staffID int64, date string) (result []domain.StaffWorkSchedule, err error) {
-	if validationErr := domain.ValidateDate(date, "date"); validationErr != nil {
-		return nil, validationErr
+func (s *Service) StaffScheduleOn(ctx context.Context, staffID int64, date string) ([]workforce.StaffWorkSchedule, error) {
+	if staffID <= 0 {
+		return nil, invalid("staff ID is required")
 	}
-	err = s.run("staff_schedule_on", func(stats *domain.OperationStats) error {
+	var result []domain.StaffWorkSchedule
+	var err error
+	if validationErr := domain.ValidateDate(date, "date"); validationErr != nil {
+		return schedulesToPublic(nil), MapError(validationErr)
+	}
+	err = s.run(ctx, "staff_schedule_on", func(ctx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		result, queryStats, err = s.store.StaffScheduleOn(ctx, staffID, date)
 		stats.Add(queryStats)
 		return err
 	})
-	return result, err
+	return schedulesToPublic(result), MapError(err)
 }
 
-func (s *Service) StaffSchedulesInRange(ctx context.Context, staffIDs []int64, from, to string) (result []domain.StaffWorkSchedule, err error) {
+func (s *Service) StaffSchedulesInRange(ctx context.Context, staffIDs []int64, from, to string) ([]workforce.StaffWorkSchedule, error) {
 	if len(staffIDs) == 0 {
 		return nil, nil
 	}
+	var result []domain.StaffWorkSchedule
+	var err error
 	if validationErr := domain.ValidateDate(from, "from"); validationErr != nil {
-		return nil, validationErr
+		return schedulesToPublic(nil), MapError(validationErr)
 	}
 	if validationErr := domain.ValidateDate(to, "to"); validationErr != nil {
-		return nil, validationErr
+		return schedulesToPublic(nil), MapError(validationErr)
 	}
-	err = s.run("staff_schedules_in_range", func(stats *domain.OperationStats) error {
+	err = s.run(ctx, "staff_schedules_in_range", func(ctx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		result, queryStats, err = s.store.StaffSchedulesInRange(ctx, staffIDs, from, to)
 		stats.Add(queryStats)
 		return err
 	})
-	return result, err
+	return schedulesToPublic(result), MapError(err)
 }
 
-func (s *Service) HasStaffScheduleHistory(ctx context.Context, staffID int64) (result bool, err error) {
-	err = s.run("has_staff_schedule_history", func(stats *domain.OperationStats) error {
+func (s *Service) HasStaffScheduleHistory(ctx context.Context, staffID int64) (bool, error) {
+	if staffID <= 0 {
+		return false, invalid("staff ID is required")
+	}
+	var result bool
+	var err error
+	err = s.run(ctx, "has_staff_schedule_history", func(ctx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		result, queryStats, err = s.store.HasStaffScheduleHistory(ctx, staffID)
 		stats.Add(queryStats)
 		return err
 	})
-	return result, err
+	return result, MapError(err)
 }
 
-func (s *Service) StaffIDsWithScheduleHistory(ctx context.Context, staffIDs []int64) (result map[int64]bool, err error) {
+func (s *Service) StaffIDsWithScheduleHistory(ctx context.Context, staffIDs []int64) (map[int64]bool, error) {
 	if len(staffIDs) == 0 {
 		return map[int64]bool{}, nil
 	}
-	err = s.run("staff_ids_with_schedule_history", func(stats *domain.OperationStats) error {
+	var result map[int64]bool
+	var err error
+	err = s.run(ctx, "staff_ids_with_schedule_history", func(ctx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		result, queryStats, err = s.store.StaffIDsWithScheduleHistory(ctx, staffIDs)
 		stats.Add(queryStats)
 		return err
 	})
-	return result, err
+	return result, MapError(err)
 }
 
 // --- plumbing ---
 
-func (s *Service) run(operation string, fn func(*domain.OperationStats) error) (err error) {
+func (s *Service) run(ctx context.Context, operation string, fn func(context.Context, *domain.OperationStats) error) error {
+	return s.observeOperation(operation, func(stats *domain.OperationStats) error {
+		return s.transaction.RunRead(ctx, func(txCtx context.Context) error { return fn(txCtx, stats) })
+	})
+}
+
+func (s *Service) observeOperation(operation string, fn func(*domain.OperationStats) error) (err error) {
 	started := time.Now()
 	stats := domain.OperationStats{}
 	defer func() {

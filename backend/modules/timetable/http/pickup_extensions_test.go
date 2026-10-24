@@ -12,15 +12,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -50,10 +48,10 @@ func buildPickupExtensionSetup(t *testing.T, db *bun.DB) *pickupExtensionSetup {
 		StartHHMM: "14:45", EndHHMM: "16:00", Title: "Freies Spiel",
 	})
 	testpkg.CreateTestInstanceStudent(t, db, freePlay.ID, other.ID, timetable.SlotAttendanceExpected)
-	res := NewResource(Dependencies{
+	res := newResourceForTest(Dependencies{
 		PickupExtensions: module,
-		RecurrenceLock:   must(testutil.NewTimetableRecurrenceLock(db)),
-		People:           must(testutil.NewTimetablePeople(db)),
+		RecurrenceLock:   must(RootCompositions.RecurrenceLock(db)),
+		People:           must(RootCompositions.People(db)),
 	})
 	return &pickupExtensionSetup{
 		db: db, ctx: testpkg.Ctx(t), res: res, module: module,
@@ -81,7 +79,7 @@ func (s *pickupExtensionSetup) router(perms []string) chi.Router {
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 			ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(req.Context()), tenantID)
-			ctx = context.WithValue(ctx, jwt.CtxPermissions, perms)
+			ctx = context.WithValue(ctx, sessiontoken.CtxPermissions, perms)
 			next.ServeHTTP(w, req.WithContext(ctx))
 		})
 	})

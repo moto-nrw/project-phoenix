@@ -41,15 +41,14 @@ const networkError = () =>
 
 import { OfferingRequestReviewItem } from "./offering-request-review-item";
 import {
-  OfferingRequestApiError,
   decideOfferingChangeRequest,
   previewOfferingChangeRequest,
   type OfferingRequestPreview,
   type StaffOfferingRequest,
 } from "~/lib/offering-request-review-api";
 
-// Mock only the network functions; keep the real error class so the
-// component's `err instanceof OfferingRequestApiError` branch resolves.
+// Mock only the network functions; the component reads the code of the
+// thrown ApiError.
 // Das Gültigkeitsdatum wird als Feld getestet, nicht als Kalender-Overlay: die
 // Regel dahinter ist, welches Datum die Freigabe mitnimmt (#2484).
 vi.mock("~/components/ui/date-picker", async () =>
@@ -206,10 +205,9 @@ describe("OfferingRequestReviewItem", () => {
 
   it("names the capacity conflict and keeps the card pending", async () => {
     mockDecide.mockRejectedValue(
-      new OfferingRequestApiError(
-        "full",
-        "students.offering_change_capacity_full",
-      ),
+      new ApiError("full", 409, {
+        code: "students.offering_change_capacity_full",
+      }),
     );
     const onDecided = vi.fn();
     renderItem(request(), onDecided);
@@ -226,10 +224,9 @@ describe("OfferingRequestReviewItem", () => {
 
   it("explains an already-decided request", async () => {
     mockDecide.mockRejectedValue(
-      new OfferingRequestApiError(
-        "gone",
-        "students.change_request_not_pending",
-      ),
+      new ApiError("gone", 409, {
+        code: "students.change_request_not_pending",
+      }),
     );
     renderItem();
 
@@ -242,10 +239,9 @@ describe("OfferingRequestReviewItem", () => {
 
   it("explains a missing enrollment", async () => {
     mockDecide.mockRejectedValue(
-      new OfferingRequestApiError(
-        "gone",
-        "students.offering_changes_no_enrollment",
-      ),
+      new ApiError("gone", 409, {
+        code: "students.offering_changes_no_enrollment",
+      }),
     );
     renderItem();
 
@@ -375,6 +371,8 @@ describe("OfferingRequestReviewItem", () => {
       }),
     );
     renderItem(request({ diff: mixedRuleDiff }));
+    // Ausgangszustand: der Hinweis steht vor dem Abwählen da.
+    expect(screen.getByText(/kommen automatisch dazu/)).toBeInTheDocument();
 
     fireEvent.click(
       screen.getByRole("checkbox", {
@@ -1001,10 +999,9 @@ describe("OfferingRequestReviewItem — Gültig ab", () => {
 
   it("blocks the approval while the chosen date does not work out", async () => {
     mockPreview.mockRejectedValue(
-      new OfferingRequestApiError(
-        "range",
-        "students.offering_change_date_out_of_range",
-      ),
+      new ApiError("range", 400, {
+        code: "students.offering_change_date_out_of_range",
+      }),
     );
     renderItem();
     unlockDate();

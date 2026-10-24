@@ -223,18 +223,8 @@ func ValidateStaffShiftSeries(series StaffShiftSeries) error {
 	if series.StaffID <= 0 {
 		return invalidSeries("staff ID is required")
 	}
-	if len(series.Weekdays) == 0 {
-		return invalidSeries("at least one weekday is required")
-	}
-	seen := map[int]bool{}
-	for _, weekday := range series.Weekdays {
-		if weekday < 1 || weekday > 7 {
-			return invalidSeries("weekdays must be ISO weekdays between 1 and 7")
-		}
-		if seen[weekday] {
-			return invalidSeries("weekdays must not repeat")
-		}
-		seen[weekday] = true
+	if err := validateSeriesWeekdays(series.Weekdays); err != nil {
+		return err
 	}
 	if err := validateShiftWindow(series.StartTime, series.EndTime, series.BreakMinutes, invalidSeries); err != nil {
 		return err
@@ -245,24 +235,52 @@ func ValidateStaffShiftSeries(series StaffShiftSeries) error {
 	if series.WeekPattern < WeekPatternEvery || series.WeekPattern > WeekPatternB {
 		return invalidSeries("week pattern must be 0 (every week), 1 (week A), or 2 (week B)")
 	}
-	if series.ValidFrom == "" {
-		return invalidSeries("valid from is required")
-	}
-	validFrom, err := parseShiftDate(series.ValidFrom, "valid_from", invalidSeries)
-	if err != nil {
+	if err := validateSeriesValidity(series.ValidFrom, series.ValidUntil); err != nil {
 		return err
-	}
-	if series.ValidUntil != "" {
-		validUntil, err := parseShiftDate(series.ValidUntil, "valid_until", invalidSeries)
-		if err != nil {
-			return err
-		}
-		if !validUntil.After(validFrom) {
-			return invalidSeries("valid until must be after valid from")
-		}
 	}
 	if series.CreatedBy <= 0 {
 		return invalidSeries("created by is required")
+	}
+	return nil
+}
+
+// validateSeriesWeekdays requires at least one ISO weekday and no repeats.
+func validateSeriesWeekdays(weekdays []int) error {
+	if len(weekdays) == 0 {
+		return invalidSeries("at least one weekday is required")
+	}
+	seen := map[int]bool{}
+	for _, weekday := range weekdays {
+		if weekday < 1 || weekday > 7 {
+			return invalidSeries("weekdays must be ISO weekdays between 1 and 7")
+		}
+		if seen[weekday] {
+			return invalidSeries("weekdays must not repeat")
+		}
+		seen[weekday] = true
+	}
+	return nil
+}
+
+// validateSeriesValidity requires a valid start date and an optional end date
+// after it.
+func validateSeriesValidity(validFromValue, validUntilValue string) error {
+	if validFromValue == "" {
+		return invalidSeries("valid from is required")
+	}
+	validFrom, err := parseShiftDate(validFromValue, "valid_from", invalidSeries)
+	if err != nil {
+		return err
+	}
+	if validUntilValue == "" {
+		return nil
+	}
+	validUntil, err := parseShiftDate(validUntilValue, "valid_until", invalidSeries)
+	if err != nil {
+		return err
+	}
+	if !validUntil.After(validFrom) {
+		return invalidSeries("valid until must be after valid from")
 	}
 	return nil
 }

@@ -14,12 +14,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
-	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
@@ -30,49 +30,64 @@ import (
 func buildCareScheduleService(t *testing.T) (*parentService.Portal, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	sf, err := services.NewFactoryForTests(repos, db, slog.Default(), func() time.Time {
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
+	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	reposMessages := api.NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, db))
+	sfRequests, schedules, _, _, _, _, err := api.NewTestCareRequests(testpkg.NewDatabase(t, db), slog.Default(), func() time.Time {
 		return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 	})
 	require.NoError(t, err)
-	return parentportalcompose.New(parentportalcompose.Dependencies{
-		CarePlan:            repos.CarePlan(),
-		People:              repositories.MustNewPeopleDirectory(db),
-		CareProfiles:        careProfiles(t, db),
-		ChildRepo:           repos.ParentChild,
-		StudentRepo:         repos.Student,
-		StudentGuardianRepo: repos.StudentGuardian,
-		GuardianProfileRepo: repos.GuardianProfile,
-		PersonRepo:          repos.Person,
-		Settings: parentSettingsStub{
-			boolValues: map[string]bool{
-				configModels.KeyParentSickNoteEnabled:           true,
-				configModels.KeyParentNotesEnabled:              true,
-				configModels.KeyParentCareArrivalRequestEnabled: true,
-				configModels.KeyParentCarePickupRequestEnabled:  true,
-				configModels.KeyParentCareModeRequestEnabled:    true,
-			},
-			stringValues: map[string]string{
-				configModels.KeyGuardianParentInviteMode: configModels.ParentInviteModeDisabled,
-			},
+	settings := parentSettingsStub{
+		boolValues: map[string]bool{
+			parentService.KeyParentSickNoteEnabled:           true,
+			parentService.KeyParentNotesEnabled:              true,
+			parentService.KeyParentCareArrivalRequestEnabled: true,
+			parentService.KeyParentCarePickupRequestEnabled:  true,
+			parentService.KeyParentCareModeRequestEnabled:    true,
 		},
+		stringValues: map[string]string{
+			parentService.KeyGuardianParentInviteMode: parentService.ParentInviteModeDisabled,
+		},
+	}
+	return parentportalcompose.New(parentportalcompose.Dependencies{
+		GuardianChanges:        owners.ParentGuardianChanges(),
+		DeparturePolicy:        owners.ParentDeparturePolicy(),
+		GuardianPolicy:         owners.NewParentGuardianPolicy(),
+		Fingerprints:           owners.SecurityFingerprints{},
+		Declarations:           owners.ParentDeclarationPolicy(),
+		Locales:                owners.ParentPortalLocales(),
+		Runtime:                owners.ParentPortalRuntime{},
+		MessagingEnabled:       owners.BindParentMessagingGate(settings, slog.Default()),
+		CarePlan:               owners.NewParentCarePlanCommands(repos.CarePlan(), nil),
+		People:                 owners.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
+		CareProfiles:           careProfiles(t, db),
+		ChildRepo:              repos.ParentChildReads(),
+		StudentRepo:            owners.NewParentStudentReads(reposPeople.Student),
+		StudentGuardianRepo:    owners.NewParentStudentGuardianReads(reposPeople.StudentGuardian),
+		GuardianProfileRepo:    owners.NewParentGuardianProfileReads(reposPeople.GuardianProfile),
+		PersonRepo:             owners.NewParentPersonReads(reposPeople.Person),
+		Settings:               settings,
 		MealPlan:               availableMealPlan(false),
-		Broadcaster:            testpkg.NewRecordingBroadcaster(),
-		ArrivalSchedules:       sf.ArrivalSchedule,
-		PickupSchedules:        sf.PickupSchedule,
-		CareRequests:           sf.CareRequests,
-		CareRequestRepo:        repos.CareScheduleChangeRequest,
-		FamilyProtectionEvents: repos.FamilyProtection,
-		ParentRequestShares:    repos.ParentRequestShare,
+		StudentUpdates:         owners.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster()),
+		ArrivalSchedules:       owners.NewParentArrivalSchedules(schedules.Arrivals),
+		PickupSchedules:        owners.NewParentPickupSchedules(schedules.Pickups),
+		CareRequests:           sfRequests.CareRequests,
+		CareRequestRepo:        owners.NewParentCareRequestReads(repos.CarePlan()),
+		FamilyProtectionEvents: owners.BindParentFamilyProtectionReads(reposPeople.FamilyProtection),
+		ParentRequestShares:    owners.BindParentRequestShareRecords(reposPeople.ParentRequestShare),
 		StatusDayRepo:          repos.StudentStatusDay,
-		MessageThreadRepo:      repos.ParentMessageThread,
-		MessageRepo:            repos.ParentMessage,
-		MessageReadRepo:        repos.ParentMessageRead,
-		Conversations:          communicationtest.NewParentConversationCore(repos.ParentMessageThread, repos.ParentMessage, repos.ParentMessageRead, testpkg.NewRecordingBroadcaster(), slog.Default()),
+		MessageThreadRepo:      owners.BindParentMessageThreadAccess(reposMessages.ParentMessageThread),
+		MessageRepo:            owners.BindParentMessageReads(communicationtest.NewParentMessageRepository(db)),
+		MessageReadRepo:        owners.BindParentMessageInboxReads(reposMessages.ParentMessageRead),
+		Conversations:          api.NewParentConversationCore(reposMessages.ParentMessageThread, communicationtest.NewParentMessageRepository(db), reposMessages.ParentMessageRead, testpkg.NewRecordingBroadcaster(), slog.Default()),
 		Logger:                 slog.Default(),
 		Now: func() time.Time {
 			return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 		},
+
+		DataRequests: owners.NewParentDataRequestCommands(repos.CarePlan()),
+
+		CarePlanPolicy: owners.NewParentCarePlanPolicy(),
 	}), db
 }
 
@@ -104,13 +119,9 @@ func TestGetChildCareSchedule_TodayAbsentReflectsStatusDay(t *testing.T) {
 		INSERT INTO active.student_status_days
 			(tenant_id, student_id, date, status, reported_at, source)
 		VALUES (?, ?, ?, ?, now(), ?)
-	`, chain.TenantID, chain.StudentID, timezone.NewDate(2026, 8, 24),
+	`, chain.TenantID, chain.StudentID, calendar.NewDate(2026, 8, 24),
 		absencerecords.StudentStatusDayClassTrip, absencerecords.StudentStatusSourcePlanned)
 	require.NoError(t, err)
-	defer func() {
-		_, _ = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()),
-			`DELETE FROM active.student_status_days WHERE student_id = ?`, chain.StudentID)
-	}()
 
 	// The read view now reports the absence...
 	view, err = svc.GetChildCareSchedule(ctx, chain.AccountID, chain.StudentID)
@@ -120,7 +131,7 @@ func TestGetChildCareSchedule_TodayAbsentReflectsStatusDay(t *testing.T) {
 	// ...even though ListSickDays still hides the staff-created class-trip row,
 	// which is exactly why the tile needs a separate parent-safe signal.
 	days, err := svc.ListSickDays(ctx, chain.AccountID, chain.StudentID,
-		timezone.NewDate(2026, 8, 24), timezone.NewDate(2026, 8, 24))
+		calendar.NewDate(2026, 8, 24), calendar.NewDate(2026, 8, 24))
 	require.NoError(t, err)
 	assert.Empty(t, days, "class-trip days stay hidden from the parent sick-day list")
 }

@@ -115,12 +115,6 @@ describe("OperatorLoginPage", () => {
     expect(screen.getByLabelText("Passwort")).toBeInTheDocument();
   });
 
-  it("does not render the MOTO logo", () => {
-    render(<OperatorLoginPage />);
-
-    expect(screen.queryByAltText("MOTO Logo")).not.toBeInTheDocument();
-  });
-
   it("submits form with email and password (2-step MFA flow)", async () => {
     mockSignIn.mockResolvedValue({ error: null });
 
@@ -158,9 +152,13 @@ describe("OperatorLoginPage", () => {
   });
 
   it("shows error message on login failure (401)", async () => {
+    const assign = vi
+      .spyOn(window.location, "assign")
+      .mockImplementation(() => undefined);
     global.fetch = mockOperatorFetchResponse(401, {
-      status: "error",
-      error: "Invalid credentials",
+      status: 401,
+      detail: "Invalid credentials",
+      code: "identity.invalid_credentials",
     });
 
     render(<OperatorLoginPage />);
@@ -173,14 +171,16 @@ describe("OperatorLoginPage", () => {
     fireEvent.change(passwordInput, { target: { value: "wrong" } });
     fireEvent.click(submitButton);
 
-    // #2519: the catalog text by code; an uncoded 401 at the login is a
-    // refused credential, never the backend sentence.
+    // #2519: the catalog text by code, never the backend sentence. The
+    // refusal stays in the form instead of leaving for the login screen.
     await waitFor(() => {
       expect(screen.getByRole("alert")).toHaveTextContent(
         catalogText("identity.invalid_credentials", "die Anmeldung"),
       );
     });
     expect(screen.queryByText("Invalid credentials")).toBeNull();
+    expect(assign).not.toHaveBeenCalled();
+    assign.mockRestore();
   });
 
   it("shows loading state during authentication", async () => {

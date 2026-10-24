@@ -1,25 +1,6 @@
 package domain
 
-import (
-	"errors"
-	"time"
-)
-
-// Display sentinel errors, mapped by the public package to the stable errors
-// the info-point contract already returns.
-var (
-	ErrDisplayNotFound = errors.New("display not found")
-	ErrDisplayInactive = errors.New("display inactive")
-	ErrDisplayInvalid  = errors.New("invalid display input")
-)
-
-// InvalidDisplayError names which display rule a request broke.
-type InvalidDisplayError struct{ Reason string }
-
-func (e *InvalidDisplayError) Error() string { return ErrDisplayInvalid.Error() + ": " + e.Reason }
-
-// Unwrap keeps errors.Is(err, ErrDisplayInvalid) true for every reason.
-func (e *InvalidDisplayError) Unwrap() error { return ErrDisplayInvalid }
+import "time"
 
 // MaxDisplayNameLength bounds the admin-supplied screen name.
 const MaxDisplayNameLength = 100

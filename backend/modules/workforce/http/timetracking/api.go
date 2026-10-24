@@ -1,0 +1,682 @@
+package timetracking
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"log/slog"
+	"net/http"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/render"
+	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/tenant"
+)
+
+// Error message constants
+const errInvalidSessionID = "invalid session ID"
+
+// Router returns a configured router for time-tracking endpoints
+func (rs *Resource) Router(protectedTenantRoutes func(chi.Router, func(chi.Router, common.Middleware))) chi.Router {
+	r := chi.NewRouter()
+	r.Use(render.SetContentType(render.ContentTypeJSON))
+
+	// Protected routes that require authentication and permissions
+	protectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) {
+
+		// All time-tracking endpoints require TimeTrackingOwn permission
+		r.With(common.RequiresPermission(permissions.TimeTrackingOwn), withTx).Post("/check-in", rs.checkIn)
+		r.With(common.RequiresPermission(permissions.TimeTrackingOwn), withTx).Post("/check-out", rs.checkOut)
+		r.With(common.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/current", rs.getCurrent)
+		// The Stundenkonto anchor is a tenant-wide setting, not caller-scoped
+		// data. Admin views resolve a staff member's Monatskarte from it, so a
+		// manage-only role must be able to read it — the staff summary
+		// endpoints it pairs with gate on TimeTrackingManage alone.
+		r.With(common.RequiresAnyPermission(permissions.TimeTrackingOwn, permissions.TimeTrackingManage), withTx).Get("/config", rs.getConfig)
+		r.With(common.RequiresAnyPermission(permissions.TimeTrackingOwn, permissions.TimeTrackingManage), withTx).Get("/holidays", rs.getHolidays)
+		r.With(common.RequiresAnyPermission(permissions.TimeTrackingOwn, permissions.TimeTrackingManage), withTx).Get("/closing-days", rs.getClosingDays)
+		r.With(common.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/history", rs.getHistory)
+		r.With(common.RequiresPermission(permissions.TimeTrackingOwn), withTx).Put("/{id}", rs.updateSession)
+		r.With(common.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/{id}/edits", rs.getSessionEdits)
+
+		// Break management
+		r.With(common.RequiresPermission(permissions.TimeTrackingOwn), withTx).Post("/break/start", rs.startBreak)
+		r.With(common.RequiresPermission(permissions.TimeTrackingOwn), withTx).Post("/break/end", rs.endBreak)
+		r.With(common.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/breaks/{sessionId}", rs.getBreaks)
+
+		// Export
+		r.With(common.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/export", rs.exportSessions)
+
+		// Own planned shifts (Dienstplan, #1376/#1798)
+		r.With(common.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/shifts", rs.getOwnShifts)
+		// Own Monatskarte (#1842)
+		r.With(common.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/month-summary", rs.getOwnMonthSummary)
+		r.With(common.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/schedule-targets", rs.getOwnScheduleTargets)
+		// Own Betreuungsplan blocks for the day (Ort/Aufgabe + Vertretungen, #1844)
+		r.With(common.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/assignments", rs.getOwnAssignments)
+
+		// Absence management
+		r.With(common.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/absences", rs.listAbsences)
+		r.With(common.RequiresPermission(permissions.TimeTrackingOwn), withTx).Post("/absences", rs.createAbsence)
+		r.With(common.RequiresPermission(permissions.TimeTrackingOwn), withTx).Put("/absences/{id}", rs.updateAbsence)
+		r.With(common.RequiresPermission(permissions.TimeTrackingOwn), withTx).Delete("/absences/{id}", rs.deleteAbsence)
+
+		// Vacation workflow (Tranche 4), MA-side
+		r.With(common.RequiresPermission(permissions.TimeTrackingOwn), withTx).Post("/vacation/request", rs.requestVacation)
+		r.With(common.RequiresPermission(permissions.TimeTrackingOwn), withTx).Post("/absences/{id}/cancel", rs.cancelAbsence)
+		r.With(common.RequiresPermission(permissions.TimeTrackingOwn), withTx).Post("/absences/{id}/resubmit", rs.resubmitAbsence)
+		r.With(common.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/vacation/quota", rs.getOwnVacationQuota)
+
+		// Presence map - for internal use by staff page
+		r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/presence-map", rs.getPresenceMap)
+	})
+
+	return r
+}
+
+// CheckInRequest represents a check-in request. Reason is the optional F9
+// deviation reason; it is only required when the backend answered a previous
+// attempt with the "iot.deviation_reason_required" conflict.
+type CheckInRequest struct {
+	Status string `json:"status"` // "present" or "home_office"
+	Reason string `json:"reason"`
+}
+
+// CheckOutRequest is the optional check-out body. Existing clients send no
+// body at all; the handler treats an empty body as an empty request.
+type CheckOutRequest struct {
+	Reason string `json:"reason"`
+}
+
+type ConfigResponse struct {
+	AccountStartDate string `json:"account_start_date"`
+}
+
+// Bind validates the check-in request
+func (req *CheckInRequest) Bind(_ *http.Request) error {
+	if req.Status != "present" && req.Status != "home_office" {
+		return errors.New("status must be 'present' or 'home_office'")
+	}
+	return nil
+}
+
+// getStaffIDFromClaims resolves JWT account ID to staff ID through PersonService
+func (rs *Resource) getStaffIDFromClaims(ctx context.Context, claims Identity) (int64, error) {
+	if claims.AccountID == 0 {
+		return 0, errors.New("invalid token")
+	}
+
+	person, err := rs.PersonService.PersonByAccountID(ctx, claims.AccountID)
+	if err != nil {
+		return 0, errors.New("person not found for account")
+	}
+
+	staff, err := rs.PersonService.StaffByPersonID(ctx, person.ID)
+	if err != nil {
+		return 0, errors.New("staff record not found")
+	}
+
+	return staff.ID, nil
+}
+
+// parseDateRange extracts and validates "from" and "to" query parameters as dates.
+// Returns the parsed times or renders an error and returns false.
+func parseDateRange(w http.ResponseWriter, r *http.Request) (from, to calendar.Date, ok bool) {
+	fromStr := r.URL.Query().Get("from")
+	toStr := r.URL.Query().Get("to")
+
+	if fromStr == "" || toStr == "" {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("from and to query parameters are required")))
+		return calendar.Date(""), calendar.Date(""), false
+	}
+
+	from, err := calendar.ParseDate(fromStr)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid from date format, expected YYYY-MM-DD")))
+		return calendar.Date(""), calendar.Date(""), false
+	}
+
+	to, err = calendar.ParseDate(toStr)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid to date format, expected YYYY-MM-DD")))
+		return calendar.Date(""), calendar.Date(""), false
+	}
+
+	return from, to, true
+}
+
+// checkIn handles POST /api/time-tracking/check-in
+func (rs *Resource) checkIn(w http.ResponseWriter, r *http.Request) {
+	// Parse request
+	req := &CheckInRequest{}
+	if err := render.Bind(r, req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+
+	// Get staff ID from JWT claims
+	userClaims := rs.identity(r.Context())
+	staffID, err := rs.getStaffIDFromClaims(r.Context(), userClaims)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorUnauthorized(err))
+		return
+	}
+
+	// Call service to check in
+	tenantID := tenant.FromContext(r.Context())
+	var session *workforce.WorkSession
+	if err := rs.withinTenant(r.Context(), tenantID, func(ctx context.Context) error {
+		var txErr error
+		session, txErr = rs.WorkSessionService.CheckIn(ctx, staffID, req.Status, workforce.WorkSessionSourceApp, req.Reason)
+		return txErr
+	}); err != nil {
+		common.RenderError(w, r, classifyServiceError(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, workforce.WorkSessionWire{WorkSession: session}, "Check-in successful")
+}
+
+// checkOut handles POST /api/time-tracking/check-out
+func (rs *Resource) checkOut(w http.ResponseWriter, r *http.Request) {
+	// The body is optional (legacy clients POST without one); an empty body
+	// is an empty request, anything else must be valid JSON.
+	req := &CheckOutRequest{}
+	if err := render.DecodeJSON(r.Body, req); err != nil && !errors.Is(err, io.EOF) {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+
+	// Get staff ID from JWT claims
+	userClaims := rs.identity(r.Context())
+	staffID, err := rs.getStaffIDFromClaims(r.Context(), userClaims)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorUnauthorized(err))
+		return
+	}
+
+	// Call service to check out
+	tenantID := tenant.FromContext(r.Context())
+	var session *workforce.WorkSession
+	if err := rs.withinTenant(r.Context(), tenantID, func(ctx context.Context) error {
+		var txErr error
+		session, txErr = rs.WorkSessionService.CheckOut(ctx, staffID, req.Reason)
+		return txErr
+	}); err != nil {
+		common.RenderError(w, r, classifyServiceError(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, workforce.WorkSessionWire{WorkSession: session}, "Check-out successful")
+}
+
+// getCurrent handles GET /api/time-tracking/current
+func (rs *Resource) getCurrent(w http.ResponseWriter, r *http.Request) {
+	// Get staff ID from JWT claims
+	userClaims := rs.identity(r.Context())
+	staffID, err := rs.getStaffIDFromClaims(r.Context(), userClaims)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorUnauthorized(err))
+		return
+	}
+
+	// The running block, whichever day it was opened on. Filtering on today
+	// would hide a block that crossed Berlin midnight: the page would offer
+	// "Einstempeln", the check-in would refuse it as already checked in, and
+	// no button would close the block that is actually running.
+	session, err := rs.WorkSessionService.LatestOpenSession(r.Context(), staffID)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	// Return null if no active session (not an error)
+	common.Respond(w, r, http.StatusOK, workforce.WorkSessionWire{WorkSession: session}, "Current session retrieved successfully")
+}
+
+// getConfig handles GET /api/time-tracking/config
+func (rs *Resource) getConfig(w http.ResponseWriter, r *http.Request) {
+	accountStartDate := ""
+	if rs.accountStartDate != nil {
+		value, err := rs.accountStartDate(r.Context())
+		if err != nil {
+			common.RenderError(w, r, common.ErrorInternalServer(err))
+			return
+		}
+		accountStartDate = value
+	}
+
+	common.Respond(w, r, http.StatusOK, ConfigResponse{
+		AccountStartDate: accountStartDate,
+	}, "Time tracking config retrieved successfully")
+}
+
+// getHistory handles GET /api/time-tracking/history?from=2026-01-01&to=2026-01-31
+func (rs *Resource) getHistory(w http.ResponseWriter, r *http.Request) {
+	// Get staff ID from JWT claims
+	userClaims := rs.identity(r.Context())
+	staffID, err := rs.getStaffIDFromClaims(r.Context(), userClaims)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorUnauthorized(err))
+		return
+	}
+
+	from, to, ok := parseDateRange(w, r)
+	if !ok {
+		return
+	}
+
+	// Get history with weekly aggregation. Intersecting for the same reason as
+	// the admin-side history (api/staff): a night block that began before
+	// `from` still carries minutes inside the range (#2402).
+	historyResp, err := rs.WorkSessionService.HistoryIntersecting(r.Context(), staffID, from.String(), to.String())
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, historyResp, "Session history retrieved successfully")
+}
+
+// updateSession handles PUT /api/time-tracking/{id}
+func (rs *Resource) updateSession(w http.ResponseWriter, r *http.Request) {
+	// Get staff ID from JWT claims
+	userClaims := rs.identity(r.Context())
+	staffID, err := rs.getStaffIDFromClaims(r.Context(), userClaims)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorUnauthorized(err))
+		return
+	}
+
+	sessionID, ok := common.ParseInt64IDWithError(w, r, "id", errInvalidSessionID)
+	if !ok {
+		return
+	}
+
+	// Parse update request
+	var updates workforce.SessionUpdateRequest
+	if err := render.DecodeJSON(r.Body, &updates); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+
+	// Call service to update session
+	tenantID := tenant.FromContext(r.Context())
+	var session *workforce.WorkSession
+	if err := rs.withinTenant(r.Context(), tenantID, func(ctx context.Context) error {
+		var txErr error
+		session, txErr = rs.WorkSessionService.UpdateSession(ctx, staffID, sessionID, updates)
+		return txErr
+	}); err != nil {
+		common.RenderError(w, r, classifyServiceError(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, workforce.WorkSessionWire{WorkSession: session}, "Session updated successfully")
+}
+
+// StartBreakRequest represents a request to start a break
+type StartBreakRequest struct {
+	PlannedDurationMinutes *int `json:"planned_duration_minutes,omitempty"`
+}
+
+// startBreak handles POST /api/time-tracking/break/start
+func (rs *Resource) startBreak(w http.ResponseWriter, r *http.Request) {
+	// Get staff ID from JWT claims
+	userClaims := rs.identity(r.Context())
+	staffID, err := rs.getStaffIDFromClaims(r.Context(), userClaims)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorUnauthorized(err))
+		return
+	}
+
+	// Parse optional request body for planned_duration_minutes
+	var req StartBreakRequest
+	if r.ContentLength > 0 {
+		if err := render.DecodeJSON(r.Body, &req); err != nil {
+			common.RenderError(w, r, common.ErrorInvalidRequest(err))
+			return
+		}
+	}
+
+	// Call service to start break
+	tenantID := tenant.FromContext(r.Context())
+	var brk *workforce.WorkSessionBreak
+	if err := rs.withinTenant(r.Context(), tenantID, func(ctx context.Context) error {
+		var txErr error
+		brk, txErr = rs.WorkSessionService.StartBreak(ctx, staffID, req.PlannedDurationMinutes)
+		return txErr
+	}); err != nil {
+		common.RenderError(w, r, classifyServiceError(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, brk, "Break started")
+}
+
+// endBreak handles POST /api/time-tracking/break/end
+func (rs *Resource) endBreak(w http.ResponseWriter, r *http.Request) {
+	// Get staff ID from JWT claims
+	userClaims := rs.identity(r.Context())
+	staffID, err := rs.getStaffIDFromClaims(r.Context(), userClaims)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorUnauthorized(err))
+		return
+	}
+
+	// Call service to end break
+	tenantID := tenant.FromContext(r.Context())
+	var session *workforce.WorkSession
+	if err := rs.withinTenant(r.Context(), tenantID, func(ctx context.Context) error {
+		var txErr error
+		session, txErr = rs.WorkSessionService.EndBreak(ctx, staffID)
+		return txErr
+	}); err != nil {
+		common.RenderError(w, r, classifyServiceError(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, workforce.WorkSessionWire{WorkSession: session}, "Break ended")
+}
+
+// getBreaks handles GET /api/time-tracking/breaks/{sessionId}
+func (rs *Resource) getBreaks(w http.ResponseWriter, r *http.Request) {
+	// Get staff ID from JWT claims for ownership verification
+	userClaims := rs.identity(r.Context())
+	staffID, err := rs.getStaffIDFromClaims(r.Context(), userClaims)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorUnauthorized(err))
+		return
+	}
+
+	sessionID, ok := common.ParseInt64IDWithError(w, r, "sessionId", errInvalidSessionID)
+	if !ok {
+		return
+	}
+
+	// Get breaks (service verifies ownership)
+	breaks, err := rs.WorkSessionService.SessionBreaks(r.Context(), staffID, sessionID)
+	if err != nil {
+		common.RenderError(w, r, classifyServiceError(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, breaks, "Breaks retrieved successfully")
+}
+
+// getSessionEdits handles GET /api/time-tracking/{id}/edits
+func (rs *Resource) getSessionEdits(w http.ResponseWriter, r *http.Request) {
+	// Get staff ID from JWT claims for ownership verification
+	userClaims := rs.identity(r.Context())
+	staffID, err := rs.getStaffIDFromClaims(r.Context(), userClaims)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorUnauthorized(err))
+		return
+	}
+
+	sessionID, ok := common.ParseInt64IDWithError(w, r, "id", errInvalidSessionID)
+	if !ok {
+		return
+	}
+
+	// Get edits (service verifies ownership)
+	edits, err := rs.WorkSessionService.SessionEdits(r.Context(), staffID, sessionID)
+	if err != nil {
+		common.RenderError(w, r, classifyServiceError(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, edits, "Session edits retrieved successfully")
+}
+
+// parseSessionExportFormat reads the work-session export format. A missing
+// format means CSV; an unknown one is a caller mistake and is rejected rather
+// than silently answered with CSV.
+func parseSessionExportFormat(r *http.Request) (string, error) {
+	format := strings.TrimSpace(r.URL.Query().Get("format"))
+	switch format {
+	case "":
+		return "csv", nil
+	case "csv", "xlsx", "pdf":
+		return format, nil
+	default:
+		return "", fmt.Errorf("unsupported export format %q, expected csv, xlsx or pdf", format)
+	}
+}
+
+// exportSessions handles GET /api/time-tracking/export?from=...&to=...&format=csv|xlsx
+func (rs *Resource) exportSessions(w http.ResponseWriter, r *http.Request) {
+	// Get staff ID from JWT claims
+	userClaims := rs.identity(r.Context())
+	staffID, err := rs.getStaffIDFromClaims(r.Context(), userClaims)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorUnauthorized(err))
+		return
+	}
+
+	from, to, ok := parseDateRange(w, r)
+	if !ok {
+		return
+	}
+
+	format, err := parseSessionExportFormat(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+
+	file, err := rs.WorkSessionService.ExportSessions(r.Context(), staffID, from.String(), to.String(), format)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	// Set response headers for file download
+	w.Header().Set("Content-Type", file.ContentType)
+	w.Header().Set("Content-Disposition", "attachment; filename=\""+file.Filename+"\"")
+	w.Header().Set("Content-Length", strconv.Itoa(len(file.Data)))
+
+	if _, err := w.Write(file.Data); err != nil {
+		// Response already started, just log the error
+		slog.Default().Error("failed to write export response", slog.String("error", err.Error()))
+		return
+	}
+}
+
+// requestVacation handles POST /api/time-tracking/vacation/request
+func (rs *Resource) requestVacation(w http.ResponseWriter, r *http.Request) {
+	userClaims := rs.identity(r.Context())
+	staffID, err := rs.getStaffIDFromClaims(r.Context(), userClaims)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorUnauthorized(err))
+		return
+	}
+
+	var req workforce.RequestVacationRequest
+	if err := render.DecodeJSON(r.Body, &req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+
+	tenantID := tenant.FromContext(r.Context())
+	var resp *workforce.StaffAbsenceResponse
+	err = rs.withinTenant(r.Context(), tenantID, func(ctx context.Context) error {
+		var txErr error
+		resp, txErr = rs.StaffAbsenceService.RequestVacation(ctx, staffID, req)
+		return txErr
+	})
+	if err != nil {
+		common.RenderError(w, r, classifyAbsenceError(err))
+		return
+	}
+	common.Respond(w, r, http.StatusCreated, resp, "Vacation request created")
+}
+
+// cancelAbsence handles POST /api/time-tracking/absences/{id}/cancel
+func (rs *Resource) cancelAbsence(w http.ResponseWriter, r *http.Request) {
+	userClaims := rs.identity(r.Context())
+	staffID, err := rs.getStaffIDFromClaims(r.Context(), userClaims)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorUnauthorized(err))
+		return
+	}
+	absenceID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid absence ID")
+	if !ok {
+		return
+	}
+	tenantID := tenant.FromContext(r.Context())
+	if err := rs.withinTenant(r.Context(), tenantID, func(ctx context.Context) error {
+		return rs.StaffAbsenceService.CancelAbsence(ctx, staffID, userClaims.AccountID, absenceID)
+	}); err != nil {
+		common.RenderError(w, r, classifyAbsenceError(err))
+		return
+	}
+	common.RespondNoContent(w, r)
+}
+
+// resubmitAbsence handles POST /api/time-tracking/absences/{id}/resubmit —
+// the MA answers a Rückfrage by amending their note and re-requesting (#1419).
+func (rs *Resource) resubmitAbsence(w http.ResponseWriter, r *http.Request) {
+	userClaims := rs.identity(r.Context())
+	staffID, err := rs.getStaffIDFromClaims(r.Context(), userClaims)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorUnauthorized(err))
+		return
+	}
+	absenceID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid absence ID")
+	if !ok {
+		return
+	}
+	var req struct {
+		Note string `json:"note"`
+	}
+	if err := render.DecodeJSON(r.Body, &req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	tenantID := tenant.FromContext(r.Context())
+	var resp *workforce.StaffAbsenceResponse
+	if err := rs.withinTenant(r.Context(), tenantID, func(ctx context.Context) error {
+		var txErr error
+		resp, txErr = rs.StaffAbsenceService.ResubmitAbsence(ctx, staffID, userClaims.AccountID, absenceID, req.Note)
+		return txErr
+	}); err != nil {
+		common.RenderError(w, r, classifyAbsenceError(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, resp, "Absence resubmitted")
+}
+
+// getOwnVacationQuota handles GET /api/time-tracking/vacation/quota?year=YYYY
+func (rs *Resource) getOwnVacationQuota(w http.ResponseWriter, r *http.Request) {
+	userClaims := rs.identity(r.Context())
+	staffID, err := rs.getStaffIDFromClaims(r.Context(), userClaims)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorUnauthorized(err))
+		return
+	}
+	year, err := parseYearParam(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	summary, err := rs.StaffAbsenceService.VacationQuotaSummary(r.Context(), staffID, year)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, summary, "Vacation quota retrieved")
+}
+
+func parseYearParam(r *http.Request) (int, error) {
+	yearStr := r.URL.Query().Get("year")
+	if yearStr == "" {
+		return time.Now().Year(), nil
+	}
+	year, err := strconv.Atoi(yearStr)
+	if err != nil || year < 2000 || year > 2100 {
+		return 0, errors.New("invalid year parameter, expected 2000-2100")
+	}
+	return year, nil
+}
+
+// getPresenceMap handles GET /api/time-tracking/presence-map
+func (rs *Resource) getPresenceMap(w http.ResponseWriter, r *http.Request) {
+	// Get today's presence map
+	presenceMap, err := rs.WorkSessionService.GetTodayPresenceMap(r.Context())
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, presenceMap, "Presence map retrieved successfully")
+}
+
+// getOwnShifts handles GET /api/time-tracking/shifts — the staff member's
+// own planned shifts (Dienstplan) in a from/to date range.
+func (rs *Resource) getOwnShifts(w http.ResponseWriter, r *http.Request) {
+	userClaims := rs.identity(r.Context())
+	staffID, err := rs.getStaffIDFromClaims(r.Context(), userClaims)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorUnauthorized(err))
+		return
+	}
+
+	from, to, ok := parseDateRange(w, r)
+	if !ok {
+		return
+	}
+
+	shifts, err := rs.StaffShiftService.ListShifts(r.Context(), workforce.ShiftRange{
+		From: from.String(), To: to.String(), StaffID: staffID,
+	})
+	if err != nil {
+		renderShiftRangeError(w, r, err)
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, rs.shiftResponses(shifts), "Shifts retrieved successfully")
+}
+
+// renderShiftRangeError keeps the range reads' classification: a malformed or
+// oversized range is the caller's fault, everything else is a 500.
+func renderShiftRangeError(w http.ResponseWriter, r *http.Request, err error) {
+	if errors.Is(err, workforce.ErrInvalidStaffShift) || errors.Is(err, workforce.ErrStaffShiftRangeTooLarge) {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	common.RenderError(w, r, common.ErrorInternalServer(err))
+}
+
+// getOwnAssignments handles GET /api/time-tracking/assignments — the staff
+// member's own Betreuungsplan blocks (room + activity + Vertretungsplan state)
+// in a from/to date range. Self-scoped: the staff id comes from the caller's
+// JWT, never a parameter, so no one reads another person's plan (#1844).
+func (rs *Resource) getOwnAssignments(w http.ResponseWriter, r *http.Request) {
+	userClaims := rs.identity(r.Context())
+	staffID, err := rs.getStaffIDFromClaims(r.Context(), userClaims)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorUnauthorized(err))
+		return
+	}
+
+	from, to, ok := parseDateRange(w, r)
+	if !ok {
+		return
+	}
+
+	assignments, err := rs.StaffAssignmentService.ListStaffAssignments(r.Context(), staffID, from.String(), to.String())
+	if err != nil {
+		renderShiftRangeError(w, r, err)
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, toAssignmentResponses(assignments), "Assignments retrieved successfully")
+}

@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -42,7 +42,7 @@ func exportRequest(t *testing.T, body map[string]any, perms []string) (*fakePlan
 	fake := &fakePlanExport{file: planexport.File{Data: []byte("%PDF-1.7"), ContentType: "application/pdf", Filename: "Betreuungsplan 2026-07-27.pdf"}}
 	rs := &Resource{Dependencies: Dependencies{PlanExportService: fake}}
 	router := setupTestRouter(func(w http.ResponseWriter, r *http.Request) {
-		ctx := context.WithValue(r.Context(), jwt.CtxPermissions, perms)
+		ctx := context.WithValue(r.Context(), sessiontoken.CtxPermissions, perms)
 		rs.exportBetreuungsplan(w, r.WithContext(ctx))
 	}, http.MethodPost, false)
 	recorder := executeRequest(router, http.MethodPost, "/", body)
@@ -91,7 +91,7 @@ func TestBetreuungsplanExportMapsCapabilityErrors(t *testing.T) {
 			fake := &fakePlanExport{err: tc.err}
 			rs := &Resource{Dependencies: Dependencies{PlanExportService: fake}}
 			router := setupTestRouter(func(w http.ResponseWriter, r *http.Request) {
-				ctx := context.WithValue(r.Context(), jwt.CtxPermissions, []string{permissions.SchedulesRead})
+				ctx := context.WithValue(r.Context(), sessiontoken.CtxPermissions, []string{permissions.SchedulesRead})
 				rs.exportBetreuungsplan(w, r.WithContext(ctx))
 			}, http.MethodPost, false)
 			recorder := executeRequest(router, http.MethodPost, "/", map[string]any{"from": "2026-07-27", "to": "2026-07-31"})

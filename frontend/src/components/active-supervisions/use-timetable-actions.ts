@@ -12,7 +12,6 @@ import { useApiErrorDisplay, useApiFormError } from "~/contexts/ToastContext";
 import { ApiError, wireErrorCode } from "~/lib/api-error";
 import { errorStatus } from "~/lib/expected-failure";
 import { createLogger } from "~/lib/logger";
-import { fetchStudents } from "~/lib/student-api";
 import {
   isReopenUnavailableError,
   timetableOperationsApi,
@@ -22,7 +21,6 @@ import type {
   TimetableRoster,
   TimetableRosterRow,
 } from "~/lib/timetable-operations-types";
-import type { Student } from "~/lib/student-helpers";
 import { useLatest } from "~/lib/hooks/use-latest";
 import { isTimetableOperationForbidden } from "~/lib/timetable-operation-access";
 import { useOptionalSupervision } from "~/lib/supervision-context";
@@ -110,9 +108,8 @@ export interface TimetableActions {
   readonly completeError: FormError | null;
   readonly moveNotice: string | null;
   readonly addStudentSearch: string;
-  /** Failed search or add; stays in the dialog „Kind ungeplant hinzufügen“. */
+  /** Failed add; stays in the dialog „Kind ungeplant hinzufügen“. */
   readonly addStudentError: FormError | null;
-  readonly addStudentResults: Student[];
   readonly handleAddStudentSearchChange: (value: string) => void;
   readonly handleStartPlannedInstance: (
     instance: PlannedTimetableInstance,
@@ -190,10 +187,6 @@ export function useTimetableActions(
     useState(false);
   const [isConfirmingExpected, setIsConfirmingExpected] = useState(false);
   const [addStudentSearch, setAddStudentSearch] = useState("");
-  const [addStudentResult, setAddStudentResult] = useState<{
-    readonly instanceId: string;
-    readonly students: Student[];
-  } | null>(null);
   const [isAddingStudent, setIsAddingStudent] = useState(false);
   const [presentPickerAutoOpenInstanceId, setPresentPickerAutoOpenInstanceId] =
     useState<string | null>(null);
@@ -239,11 +232,6 @@ export function useTimetableActions(
     ]);
   }, [mutateDashboard, refreshSupervision]);
 
-  const addStudentResults =
-    addStudentResult?.instanceId === activeTimetableInstanceId
-      ? addStudentResult.students
-      : [];
-
   // Hinweise und Fehler gehören zur aktiven Sitzung und dürfen nicht in eine
   // andere Aufsicht übernommen werden.
   useEffect(() => {
@@ -252,49 +240,9 @@ export function useTimetableActions(
     clearCompleteError();
   }, [activeTimetableInstanceId, clearAddStudentError, clearCompleteError]);
 
-  useEffect(() => {
-    if (!activeTimetableInstanceId || addStudentSearch.trim().length < 2) {
-      setAddStudentResult(null);
-      return;
-    }
-
-    setAddStudentResult(null);
-    let cancelled = false;
-    const timeout = window.setTimeout(() => {
-      fetchStudents({
-        search: addStudentSearch.trim(),
-        page: 1,
-        page_size: 5,
-      })
-        .then((result) => {
-          if (!cancelled) {
-            setAddStudentResult({
-              instanceId: activeTimetableInstanceId,
-              students: result.students,
-            });
-          }
-        })
-        .catch((err) => {
-          if (cancelled) return;
-          logger.warn("failed to search students for timetable roster", {
-            error: err instanceof Error ? err.message : String(err),
-          });
-          setAddStudentResult(null);
-          // Kein Wiederholen-Link: die Suche läuft beim nächsten Tippen neu.
-          void showAddStudentError(err, { object: "die Suche nach Kindern" });
-        });
-    }, 250);
-
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timeout);
-    };
-  }, [activeTimetableInstanceId, addStudentSearch, showAddStudentError]);
-
   const handleAddStudentSearchChange = useCallback(
     (value: string) => {
       setAddStudentSearch(value);
-      setAddStudentResult(null);
       clearAddStudentError();
     },
     [clearAddStudentError],
@@ -727,7 +675,6 @@ export function useTimetableActions(
         if (activeTimetableInstanceIdRef.current !== instanceId) return false;
         setMoveNotice(moveNoticeFromRoster(rosterResult, studentId));
         setAddStudentSearch("");
-        setAddStudentResult(null);
         await mutateRoster(rosterResult, { revalidate: false });
         return true;
       } catch (err) {
@@ -826,7 +773,6 @@ export function useTimetableActions(
     moveNotice,
     addStudentSearch,
     addStudentError: addStudentErrors.error,
-    addStudentResults,
     handleAddStudentSearchChange,
     handleStartPlannedInstance,
     handleStartSpontaneousActivity,

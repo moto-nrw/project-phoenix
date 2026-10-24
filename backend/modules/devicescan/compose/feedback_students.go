@@ -3,7 +3,8 @@ package compose
 import (
 	"context"
 	"database/sql"
-	"errors"
+
+	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/application"
 
 	"github.com/moto-nrw/project-phoenix/modules/devicescan"
 )
@@ -20,12 +21,5 @@ func NewFeedbackStudents(users PersonDirectory) devicescan.FeedbackStudents {
 }
 
 func (r feedbackStudents) LockFeedbackStudent(ctx context.Context, studentID int64) (devicescan.FeedbackStudent, error) {
-	student, err := r.users.GetStudentByIDForUpdate(ctx, studentID)
-	if errors.Is(err, sql.ErrNoRows) || (err == nil && student == nil) {
-		return devicescan.FeedbackStudent{}, devicescan.ErrFeedbackStudentNotFound
-	}
-	if err != nil {
-		return devicescan.FeedbackStudent{}, err
-	}
-	return devicescan.FeedbackStudent{ID: student.ID, Alumnus: student.IsAlumnus()}, nil
+	return application.LockFeedbackStudentBinding(ctx, r.users, sql.ErrNoRows, studentID)
 }

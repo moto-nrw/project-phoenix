@@ -6,7 +6,7 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // UpdateProfileRequest represents the profile update request body
@@ -32,7 +32,7 @@ func (req *ChangePasswordRequest) Bind(_ *http.Request) error {
 
 // UpdateProfile handles updating the current operator's display name
 func (rs *Resource) UpdateProfile(w http.ResponseWriter, r *http.Request) {
-	operatorID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
+	operatorID := int64(sessiontoken.ClaimsFromCtx(r.Context()).ID)
 
 	req := &UpdateProfileRequest{}
 	if err := render.Bind(r, req); err != nil {
@@ -55,7 +55,7 @@ func (rs *Resource) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 // ChangePassword handles changing the current operator's password; the
 // capability revokes the operator's sessions with it.
 func (rs *Resource) ChangePassword(w http.ResponseWriter, r *http.Request) {
-	operatorID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
+	operatorID := int64(sessiontoken.ClaimsFromCtx(r.Context()).ID)
 
 	req := &ChangePasswordRequest{}
 	if err := render.Bind(r, req); err != nil {

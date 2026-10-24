@@ -24,7 +24,12 @@ export interface SchemaCategory {
   items: ResolvedSetting[];
 }
 
-type AccessPolicy = "shared" | "admin_only" | "operator_only";
+type AccessPolicy =
+  | "shared"
+  | "admin_only"
+  | "operator_only"
+  // Operator ändert, Schule liest (ADR 0048): die Löschfristen.
+  | "operator_managed";
 
 export interface ResolvedSetting {
   key: string;
@@ -263,109 +268,6 @@ export async function clearSettingValue(key: string): Promise<void> {
       response,
       `Setting ${key} could not be reset (${response.status})`,
     );
-  }
-}
-
-/**
- * Extracts the validation reason from a backend error and translates it
- * to a short German message suitable for inline display below a field.
- */
-function translateValidationError(apiError: string): string {
-  // Backend format: "invalid value for setting {key}: {reason}"
-  const colonIdx = apiError.lastIndexOf(": ");
-  const reason = colonIdx >= 0 ? apiError.slice(colonIdx + 2) : apiError;
-
-  if (reason === "value is required") return "Dieser Wert ist erforderlich.";
-  if (reason === "expected a number") return "Bitte eine Zahl eingeben.";
-
-  const belowMin = /below minimum (\d+)/.exec(reason);
-  if (belowMin) return `Minimum: ${belowMin[1]}`;
-
-  const aboveMax = /exceeds maximum (\d+)/.exec(reason);
-  if (aboveMax) return `Maximum: ${aboveMax[1]}`;
-
-  return "Ungültiger Wert.";
-}
-
-/**
- * Set a setting value. Returns a user-facing error message on failure,
- * or null on success.
- *
- * @deprecated Old error path, still used by the payroll page until #2520.
- * New callers use saveSettingValue, which throws an ApiError.
- */
-export async function setSettingValue(
-  key: string,
-  value: unknown,
-): Promise<string | null> {
-  try {
-    const response = await sessionFetch(`/api/settings/values/${key}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ value }),
-    });
-
-    if (!response.ok) {
-      // Log the raw API error for debugging, show clean German message to user
-      let apiError = "";
-      try {
-        const result = (await response.json()) as { error?: string };
-        apiError = result.error ?? "";
-      } catch {
-        // ignore parse errors
-      }
-      logger.warn("set_setting_value_rejected", {
-        key,
-        status: response.status,
-        api_error: apiError,
-      });
-
-      if (response.status === 404) {
-        return "Einstellung nicht gefunden.";
-      }
-      if (response.status === 400 && apiError) {
-        return translateValidationError(apiError);
-      }
-      return "Einstellung konnte nicht gespeichert werden.";
-    }
-
-    return null;
-  } catch (error) {
-    logger.warn("set_setting_value_failed", {
-      key,
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return "Netzwerkfehler beim Speichern der Einstellung.";
-  }
-}
-
-/**
- * Reset a setting value. Returns a user-facing error message on failure,
- * or null on success.
- *
- * @deprecated Old error path until #2520; new callers use clearSettingValue.
- */
-export async function resetSettingValue(key: string): Promise<string | null> {
-  try {
-    const response = await sessionFetch(`/api/settings/values/${key}`, {
-      method: "DELETE",
-    });
-
-    if (!response.ok && response.status !== 204) {
-      logger.warn("reset_setting_value_rejected", {
-        key,
-        status: response.status,
-      });
-      return "Einstellung konnte nicht zurückgesetzt werden.";
-    }
-
-    return null;
-  } catch (error) {
-    logger.warn("reset_setting_value_failed", {
-      key,
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return "Netzwerkfehler beim Zurücksetzen der Einstellung.";
   }
 }
 

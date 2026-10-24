@@ -6,10 +6,11 @@ import { auth, uncachedAuth } from "~/server/auth";
 import { withTenantAuth } from "~/server/auth/tenant-route";
 import { incomingAnalyticsSessionHeaders } from "~/lib/analytics-session-header.server";
 import { createLogger } from "~/lib/logger";
+import { problemResponse } from "~/lib/api-helpers.server";
 
 const logger = createLogger({ component: "StudentExportRoute" });
 
-async function proxyExport(body: string, token: string) {
+async function proxyExport(request: NextRequest, body: string, token: string) {
   const { getServerApiUrl } = await import("~/lib/server-api-url");
   const response = await fetch(`${getServerApiUrl()}/api/students/export`, {
     method: "POST",
@@ -22,7 +23,7 @@ async function proxyExport(body: string, token: string) {
     cache: "no-store",
   });
 
-  if (!response.ok) return forwardBackendResponse(response);
+  if (!response.ok) return forwardBackendResponse(response, request);
 
   const contentType =
     response.headers.get("content-type") ?? "application/octet-stream";
@@ -40,11 +41,11 @@ async function POSTHandler(request: NextRequest) {
   try {
     const session = await auth();
     if (!session?.user?.token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return problemResponse(401, "Unauthorized", request);
     }
 
     const body = await request.text();
-    const response = await proxyExport(body, session.user.token);
+    const response = await proxyExport(request, body, session.user.token);
     if (response.status !== 401) return response;
 
     const refreshed = await uncachedAuth();
@@ -54,12 +55,12 @@ async function POSTHandler(request: NextRequest) {
     ) {
       return response;
     }
-    return proxyExport(body, refreshed.user.token);
+    return proxyExport(request, body, refreshed.user.token);
   } catch (error) {
     captureBffException(error, request);
     const message = error instanceof Error ? error.message : "Export failed";
     logger.error("student_export_route_failed", { error: message });
-    return NextResponse.json({ error: message }, { status: 500 });
+    return problemResponse(500, message, request);
   }
 }
 

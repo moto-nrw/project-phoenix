@@ -37,7 +37,12 @@ export interface PublicCareOffering {
    * at_most_one). Empty group = ungrouped, no constraint.
    */
   selection_group?: string | null;
-  selection_rule?: "optional" | "exactly_one" | "at_least_one" | "at_most_one";
+  selection_rule?:
+    | "optional"
+    | "exactly_one"
+    | "at_least_one"
+    | "at_most_one"
+    | "at_most_one_per_day";
   /** Translations of `name` and `description` that still match (#3377). */
   translations?: Translations;
 }
@@ -208,7 +213,6 @@ export interface EnrollmentChangeRequest {
 interface BackendEnvelope<T> {
   status?: string;
   data?: T;
-  error?: string;
   message?: string;
 }
 

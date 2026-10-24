@@ -1,17 +1,17 @@
 package students
 
 import (
-	"context"
-	"errors"
-	"fmt"
-	"net/http"
-	"path/filepath"
+	context "context"
+	errors "errors"
+	fmt "fmt"
+	http "net/http"
+	filepath "path/filepath"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/api/common"
+	chi "github.com/go-chi/chi/v5"
+	render "github.com/go-chi/render"
+	common "github.com/moto-nrw/project-phoenix/api/common"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	tenant "github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // publicPhotoBaseDir + StudentPhotoStoredURLPrefix must stay aligned —
@@ -23,9 +23,9 @@ const (
 )
 
 const (
-	msgPhotosFeatureDisabled = "Kinderfotos sind in dieser Schule nicht aktiviert"                  //nolint:staticcheck // ST1005: user-facing German message
-	msgConsentWithdrawnRetry = "Einwilligung der Eltern wurde widerrufen — bitte erneut bestätigen" //nolint:staticcheck // ST1005: user-facing German message
-	msgConsentRequiredFirst  = "Einwilligung der Eltern muss vor dem Upload bestätigt werden"       //nolint:staticcheck // ST1005: user-facing German message
+	msgPhotosFeatureDisabled = "kinderfotos sind in dieser Schule nicht aktiviert"
+	msgConsentWithdrawnRetry = "einwilligung der Eltern wurde widerrufen — bitte erneut bestätigen"
+	msgConsentRequiredFirst  = "einwilligung der Eltern muss vor dem Upload bestätigt werden"
 	msgPhotoForbiddenForAcct = "dieses Foto ist für diesen Account nicht freigegeben"
 	msgPhotoBelongsToOther   = "dieses Foto gehört nicht zu diesem Kind"
 	msgPhotoNotFound         = "kein Foto hinterlegt"
@@ -64,7 +64,7 @@ func (rs *Resource) uploadStudentPhoto(w http.ResponseWriter, r *http.Request) {
 	// {tenantID}_{studentID} prefix prevents cross-tenant collisions and
 	// makes orphaned files traceable.
 	prefix := fmt.Sprintf("%d_%d", tenantID, id)
-	filePath, err := common.SaveImage(uploaded.File, publicPhotoBaseDir, prefix, uploaded.ContentType)
+	filePath, err := common.SavePrivateImage(uploaded.File, publicPhotoBaseDir, prefix, uploaded.ContentType, rs.Uploads)
 	if err != nil {
 		renderError(w, r, common.ErrorInternalServer(err))
 		return
@@ -73,7 +73,7 @@ func (rs *Resource) uploadStudentPhoto(w http.ResponseWriter, r *http.Request) {
 
 	if err := rs.commitStudentPhoto(r.Context(), id, newStoredURL, consentAck); err != nil {
 		// Keep disk and DB consistent on rejection.
-		common.RemoveImage(filePath)
+		rs.Uploads.RemoveUpload(filePath)
 		mapPhotoUploadError(w, r, err)
 		return
 	}
@@ -122,13 +122,13 @@ func (rs *Resource) serveStudentPhoto(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resolvedPath, resolveErr := common.ResolveStoredPath("public", storedURL, common.StudentPhotoStoredURLPrefix)
+	resolvedPath, resolveErr := rs.Uploads.StoredPath("public", storedURL, common.StudentPhotoStoredURLPrefix)
 	if resolveErr != nil {
 		// 403 not 500 — ResolveStoredPath rejected a path-traversal attempt.
 		renderError(w, r, common.ErrorForbidden(errors.New("could not resolve stored photo path")))
 		return
 	}
-	common.ServeImage(w, r, filepath.Dir(resolvedPath), filepath.Base(resolvedPath), "private, no-cache")
+	common.ServeImage(w, r, filepath.Dir(resolvedPath), filepath.Base(resolvedPath), "private, no-cache", rs.Uploads)
 }
 
 // mapPhotoUploadError maps service sentinels to HTTP status.
@@ -137,16 +137,16 @@ func mapPhotoUploadError(w http.ResponseWriter, r *http.Request, err error) {
 	case errors.Is(err, peopleModule.ErrPhotoFeatureDisabled),
 		errors.Is(err, peopleModule.ErrPhotoFeatureDisabledMid):
 		render.Status(r, http.StatusForbidden)
-		renderError(w, r, common.ErrorForbiddenWithCode(errors.New(msgPhotosFeatureDisabled), common.CodeStudentsPhotosDisabled)) //nolint:staticcheck // ST1005: user-facing German message
+		renderError(w, r, common.ErrorForbiddenWithCode(errors.New(msgPhotosFeatureDisabled), common.CodeStudentsPhotosDisabled))
 	case errors.Is(err, peopleModule.ErrStudentNotFound):
 		renderError(w, r, common.ErrorNotFound(err))
 	case errors.Is(err, peopleModule.ErrPhotoStudentForbidden):
 		renderError(w, r, common.ErrorForbidden(errors.New("insufficient permissions to update this student's photo")))
 	case errors.Is(err, peopleModule.ErrPhotoConsentRequired):
-		renderError(w, r, common.ErrorInvalidRequestWithCode(errors.New(msgConsentRequiredFirst), common.CodeStudentsPhotoConsentRequired)) //nolint:staticcheck // ST1005: user-facing German message
+		renderError(w, r, common.ErrorInvalidRequestWithCode(errors.New(msgConsentRequiredFirst), common.CodeStudentsPhotoConsentRequired))
 	case errors.Is(err, peopleModule.ErrPhotoConsentWithdrawn):
 		// 409 — consent flipped between request and commit; frontend re-prompts.
-		renderError(w, r, common.ErrorConflictWithCode(errors.New(msgConsentWithdrawnRetry), common.CodeStudentsPhotoConsentWithdrawn)) //nolint:staticcheck // ST1005: user-facing German message
+		renderError(w, r, common.ErrorConflictWithCode(errors.New(msgConsentWithdrawnRetry), common.CodeStudentsPhotoConsentWithdrawn))
 	case errors.Is(err, errPhotoNoTenant):
 		renderError(w, r, common.ErrorInvalidRequest(err))
 	default:
@@ -158,7 +158,7 @@ func mapPhotoDeleteError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, peopleModule.ErrPhotoFeatureDisabled):
 		render.Status(r, http.StatusForbidden)
-		renderError(w, r, common.ErrorForbiddenWithCode(errors.New(msgPhotosFeatureDisabled), common.CodeStudentsPhotosDisabled)) //nolint:staticcheck // ST1005: user-facing German message
+		renderError(w, r, common.ErrorForbiddenWithCode(errors.New(msgPhotosFeatureDisabled), common.CodeStudentsPhotosDisabled))
 	case errors.Is(err, peopleModule.ErrStudentNotFound):
 		renderError(w, r, common.ErrorNotFound(errors.New("student not found")))
 	case errors.Is(err, peopleModule.ErrPhotoStudentForbidden):

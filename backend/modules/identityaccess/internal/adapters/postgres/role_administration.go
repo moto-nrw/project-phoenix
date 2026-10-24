@@ -26,18 +26,19 @@ type managedRoleRow struct {
 	Description   string    `bun:"description"`
 	IsSystem      bool      `bun:"is_system"`
 	BaseRole      *string   `bun:"base_role"`
+	SchoolPortal  bool      `bun:"school_portal"`
 	CreatedAt     time.Time `bun:"created_at,nullzero,notnull,default:current_timestamp"`
 	UpdatedAt     time.Time `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
 }
 
 func managedRoleRecord(role domain.ManagedRole) managedRoleRow {
 	return managedRoleRow{ID: role.ID, TenantID: role.TenantID, Name: role.Name, Description: role.Description,
-		IsSystem: role.IsSystem, BaseRole: role.BaseRole, CreatedAt: role.CreatedAt, UpdatedAt: role.UpdatedAt}
+		IsSystem: role.IsSystem, BaseRole: role.BaseRole, SchoolPortal: role.SchoolPortal, CreatedAt: role.CreatedAt, UpdatedAt: role.UpdatedAt}
 }
 
 func (role managedRoleRow) domain() domain.ManagedRole {
 	return domain.ManagedRole{ID: role.ID, TenantID: role.TenantID, Name: role.Name, Description: role.Description,
-		IsSystem: role.IsSystem, BaseRole: role.BaseRole, CreatedAt: role.CreatedAt, UpdatedAt: role.UpdatedAt}
+		IsSystem: role.IsSystem, BaseRole: role.BaseRole, SchoolPortal: role.SchoolPortal, CreatedAt: role.CreatedAt, UpdatedAt: role.UpdatedAt}
 }
 
 func (s *RoleStore) CreateRole(ctx context.Context, role domain.ManagedRole) (domain.ManagedRole, error) {
@@ -62,26 +63,26 @@ func (s *RoleStore) CreateRole(ctx context.Context, role domain.ManagedRole) (do
 }
 
 func (s *RoleStore) FindRole(ctx context.Context, id int64) (domain.ManagedRole, bool, error) {
-	return s.findRole(ctx, id, s.scope(ctx).TenantID, false)
+	return s.findRole(ctx, id, false, true)
 }
 
 func (s *RoleStore) FindRoleIgnoringTenant(ctx context.Context, id int64) (domain.ManagedRole, bool, error) {
-	return s.findRole(ctx, id, 0, false)
+	return s.findRole(ctx, id, false, false)
 }
 
 func (s *RoleStore) FindRoleForUpdate(ctx context.Context, id int64) (domain.ManagedRole, bool, error) {
-	return s.findRole(ctx, id, s.scope(ctx).TenantID, true)
+	return s.findRole(ctx, id, true, true)
 }
 
-func (s *RoleStore) findRole(ctx context.Context, id, tenantID int64, lock bool) (domain.ManagedRole, bool, error) {
+func (s *RoleStore) findRole(ctx context.Context, id int64, lock, scoped bool) (domain.ManagedRole, bool, error) {
 	db, err := s.database(ctx)
 	if err != nil {
 		return domain.ManagedRole{}, false, err
 	}
 	row := new(managedRoleRow)
 	query := db.NewSelect().Model(row).ModelTableExpr("auth.roles AS role").Where("role.id = ?", id)
-	if tenantID > 0 {
-		query = query.Where("(role.tenant_id = ? OR role.tenant_id IS NULL)", tenantID)
+	if scoped {
+		query = scopeTenantQuery(s.scope(ctx), query, "(role.tenant_id = ? OR role.tenant_id IS NULL)")
 	}
 	if lock {
 		query = query.For("UPDATE")
@@ -122,10 +123,9 @@ func (s *RoleStore) UpdateRole(ctx context.Context, role domain.ManagedRole) err
 		return err
 	}
 	row := managedRoleRecord(role)
-	query := db.NewUpdate().Model(&row).ModelTableExpr("auth.roles AS role").Where("role.id = ?", role.ID)
-	if tenantID := s.scope(ctx).TenantID; tenantID > 0 {
-		query = query.Where("role.tenant_id = ?", tenantID)
-	}
+	// The template sets school_portal once at creation (#4574); an edit keeps it.
+	query := db.NewUpdate().Model(&row).ModelTableExpr("auth.roles AS role").ExcludeColumn("school_portal").Where("role.id = ?", role.ID)
+	query = scopeTenantQuery(s.scope(ctx), query, "role.tenant_id = ?")
 	result, err := query.Exec(ctx)
 	return roleMutationResult(result, roleNameConflict(err))
 }
@@ -150,9 +150,7 @@ func (s *RoleStore) DeleteRole(ctx context.Context, id int64) error {
 		return err
 	}
 	query := db.NewDelete().TableExpr("auth.roles AS role").Where("role.id = ?", id)
-	if tenantID := s.scope(ctx).TenantID; tenantID > 0 {
-		query = query.Where("role.tenant_id = ?", tenantID)
-	}
+	query = scopeTenantQuery(s.scope(ctx), query, "role.tenant_id = ?")
 	result, err := query.Exec(ctx)
 	return roleMutationResult(result, err)
 }
@@ -178,9 +176,7 @@ func (s *RoleStore) ListRoles(ctx context.Context, filter domain.RoleFilter) ([]
 	}
 	var rows []managedRoleRow
 	query := db.NewSelect().Model(&rows).ModelTableExpr("auth.roles AS role")
-	if tenantID := s.scope(ctx).TenantID; tenantID > 0 {
-		query = query.Where("(role.tenant_id = ? OR role.tenant_id IS NULL)", tenantID)
-	}
+	query = scopeTenantQuery(s.scope(ctx), query, "(role.tenant_id = ? OR role.tenant_id IS NULL)")
 	if filter.Name != "" {
 		query = query.Where("LOWER(role.name) = LOWER(?)", filter.Name)
 	}
@@ -210,13 +206,36 @@ func (s *RoleStore) ListAccountRoles(ctx context.Context, accountID int64) ([]do
 	query := db.NewSelect().Model(&rows).ModelTableExpr("auth.roles AS role").
 		Join("JOIN auth.account_roles ar ON ar.role_id = role.id").Where("ar.account_id = ?", accountID).
 		OrderExpr("ar.created_at ASC, ar.id ASC")
-	if tenantID := s.scope(ctx).TenantID; tenantID > 0 {
-		query = query.Where("ar.tenant_id = ?", tenantID)
-	}
+	query = scopeTenantQuery(s.scope(ctx), query, "ar.tenant_id = ?")
 	if err := query.Scan(ctx); err != nil {
 		return nil, fmt.Errorf("find roles by account ID: %w", err)
 	}
 	return managedRoles(rows), nil
+}
+
+func (s *RoleStore) ListAccountsHoldingRole(ctx context.Context, accountIDs []int64, roleName string) (map[int64]bool, error) {
+	result := make(map[int64]bool)
+	if len(accountIDs) == 0 || roleName == "" {
+		return result, nil
+	}
+	db, err := s.database(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var matching []int64
+	query := db.NewSelect().TableExpr("auth.account_roles AS ar").
+		ColumnExpr("ar.account_id").
+		Join("JOIN auth.roles AS role ON role.id = ar.role_id").
+		Where("ar.account_id IN (?)", bun.List(accountIDs)).
+		Where("role.name = ?", roleName)
+	query = scopeTenantQuery(s.scope(ctx), query, "ar.tenant_id = ?")
+	if err := query.Scan(ctx, &matching); err != nil {
+		return nil, fmt.Errorf("find accounts holding role by account IDs: %w", err)
+	}
+	for _, accountID := range matching {
+		result[accountID] = true
+	}
+	return result, nil
 }
 
 func (s *RoleStore) ListAccountRoleNames(ctx context.Context, accountIDs []int64) (map[int64]string, error) {
@@ -236,9 +255,7 @@ func (s *RoleStore) ListAccountRoleNames(ctx context.Context, accountIDs []int64
 		ColumnExpr("ar.account_id, role.name AS role_name").
 		Join("JOIN auth.roles AS role ON role.id = ar.role_id").
 		Where("ar.account_id IN (?)", bun.List(accountIDs)).OrderExpr("ar.created_at ASC, ar.id ASC")
-	if tenantID := s.scope(ctx).TenantID; tenantID > 0 {
-		query = query.Where("ar.tenant_id = ?", tenantID)
-	}
+	query = scopeTenantQuery(s.scope(ctx), query, "ar.tenant_id = ?")
 	if err := query.Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("find role names by account IDs: %w", err)
 	}
@@ -257,9 +274,7 @@ func (s *RoleStore) AccountHoldsRole(ctx context.Context, accountID, roleID int6
 	}
 	query := db.NewSelect().TableExpr("auth.account_roles AS account_role").
 		Where("account_role.account_id = ? AND account_role.role_id = ?", accountID, roleID)
-	if tenantID := s.scope(ctx).TenantID; tenantID > 0 {
-		query = query.Where("account_role.tenant_id = ?", tenantID)
-	}
+	query = scopeTenantQuery(s.scope(ctx), query, "account_role.tenant_id = ?")
 	return query.Exists(ctx)
 }
 
@@ -291,9 +306,7 @@ func (s *RoleStore) DeleteAccountRole(ctx context.Context, accountID, roleID int
 	}
 	query := db.NewDelete().TableExpr("auth.account_roles AS account_role").
 		Where("account_role.account_id = ? AND account_role.role_id = ?", accountID, roleID)
-	if tenantID := s.scope(ctx).TenantID; tenantID > 0 {
-		query = query.Where("account_role.tenant_id = ?", tenantID)
-	}
+	query = scopeTenantQuery(s.scope(ctx), query, "account_role.tenant_id = ?")
 	_, err = query.Exec(ctx)
 	return err
 }
@@ -304,9 +317,7 @@ func (s *RoleStore) DeleteRoleAssignments(ctx context.Context, roleID int64) err
 		return err
 	}
 	query := db.NewDelete().TableExpr("auth.account_roles AS account_role").Where("account_role.role_id = ?", roleID)
-	if tenantID := s.scope(ctx).TenantID; tenantID > 0 {
-		query = query.Where("account_role.tenant_id = ?", tenantID)
-	}
+	query = scopeTenantQuery(s.scope(ctx), query, "account_role.tenant_id = ?")
 	_, err = query.Exec(ctx)
 	return err
 }

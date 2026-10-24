@@ -120,18 +120,27 @@ describe("MessageCountSection", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("stays hidden while the school has messaging off", () => {
+  it("stays hidden while the school has messaging off", async () => {
     mockTenant.messagingEnabled = false;
-    renderWithToast(<MessageCountSection />);
+    const { unmount } = renderWithToast(<MessageCountSection />);
 
     expect(screen.queryByText("Zahl bei Nachrichten")).not.toBeInTheDocument();
     expect(mockFetchSetting).not.toHaveBeenCalled();
+    unmount();
+
+    mockTenant.messagingEnabled = true;
+    renderWithToast(<MessageCountSection />);
+    // Anker: mit eingeschalteten Nachrichten steht die Karte im selben Aufbau.
+    expect(screen.getByText("Zahl bei Nachrichten")).toBeInTheDocument();
+    await screen.findByRole("radio", { name: /Alle Nachrichten/ });
   });
 
   it("stays hidden for an account without read access", async () => {
     mockFetchSetting.mockRejectedValue(new ApiError("forbidden", 403));
     renderWithToast(<MessageCountSection />);
 
+    // Anker: die Karte steht da, solange die Antwort aussteht.
+    expect(screen.getByText("Zahl bei Nachrichten")).toBeInTheDocument();
     await waitFor(() => expect(mockFetchSetting).toHaveBeenCalledTimes(1));
     await waitFor(() =>
       expect(

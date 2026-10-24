@@ -6,12 +6,13 @@ import (
 	"testing"
 	"time"
 
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -20,7 +21,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-type approvalOutboxFunc func(context.Context, platformModels.OutboxEnqueueRequest) error
+type approvalOutboxFunc func(context.Context, TestMail) error
 
 // accountBeforeRosterBookings runs the check when the decision asks Care
 // Plan's booking materialization to resync the class-filtered rosters.
@@ -38,18 +39,19 @@ func (b accountBeforeRosterBookings) ResyncOfferingSourcedTemplates(ctx context.
 
 func TestExistingStudentApprovalGrantsAccountBeforeClassRosterResync(t *testing.T) {
 	t.Parallel()
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 	account := testpkg.CreateTestAccount(t, env.db, "existing-student-lock-order")
-	existing := testpkg.CreateTestStudent(t, env.db, "Existing", "Child", "1a")
+	existingFixture := testpkg.CreateTestStudent(t, env.db, "Existing", "Child", "1a")
+	existing, err := env.repos.Student.FindByID(ctx, existingFixture.ID)
+	require.NoError(t, err)
 	// Not cared for right now, so the approval writes the class at once; an
 	// active child would keep its class until the phase starts (#3917).
-	existing.Status = usersModels.StudentStatusInactive
+	existing.Status = peopleValues.StudentStatusInactive
 	require.NoError(t, env.repos.Student.Update(ctx, existing))
 	requestID, childID := submitOneChild(t, env, account.Email, "Existing", "Child")
 	matchChildToExistingStudent(t, env, childID, existing.ID)
-	_, err := env.db.NewRaw("UPDATE enrollment.request_children SET target_school_class = '2a' WHERE id = ? AND tenant_id = ?", childID, testpkg.Tenant(t)).Exec(ctx)
+	_, err = env.db.NewRaw("UPDATE enrollment.request_children SET target_school_class = '2a' WHERE id = ? AND tenant_id = ?", childID, testpkg.Tenant(t)).Exec(ctx)
 	require.NoError(t, err)
 	var txDB bun.IDB
 	checked := false
@@ -67,14 +69,14 @@ func TestExistingStudentApprovalGrantsAccountBeforeClassRosterResync(t *testing.
 	decision := newDecisionServiceForTestWithBookings(nil, env.rolloverTestEnv, bookings, nil, nil, nil, nil)
 	err = testpkg.WithTenantTx(t, ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, tx bun.Tx) error {
 		txDB = tx
-		_, err := decision.Decide(txCtx, enrollmentAPI.DecideInput{RequestID: requestID, ChildID: childID, Status: capability.DecisionApproved, ReviewedBy: env.creatorID})
+		_, err := decision.Decide(txCtx, enrollmentAPI.DecideInput{RequestID: requestID, ChildID: childID, Status: enrollmentNative.DecisionApproved, ReviewedBy: env.creatorID})
 		return err
 	})
 	require.True(t, checked, "the changed class must reach roster resynchronization")
 	require.NoError(t, err)
 }
 
-func (f approvalOutboxFunc) EnqueueOutbox(ctx context.Context, request platformModels.OutboxEnqueueRequest) error {
+func (f approvalOutboxFunc) EnqueueMail(ctx context.Context, request TestMail) error {
 	return f(ctx, request)
 }
 
@@ -98,8 +100,7 @@ func approvalOwnerSnapshot(t *testing.T, ctx context.Context, db bun.IDB, tenant
 func TestDecisionService_ApprovalRollsBackEveryOwnerAfterMaterialization(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 	otherTenant, _ := testpkg.CreateTestTenant(t, env.db)
 	testpkg.OwnTenantRows(t, env.db, otherTenant)
@@ -126,23 +127,17 @@ func TestDecisionService_ApprovalRollsBackEveryOwnerAfterMaterialization(t *test
 		calendar.NewDate(2027, 8, 31))
 	createCareOfferingTemplateSchedule(t, env.db, group.ID, timetable.WeekdayTuesday, &period.ID)
 	createCareOfferingTemplateSchedule(t, env.db, group.ID, timetable.WeekdayThursday, &period.ID)
-	defer func() {
-		_, _ = env.db.NewDelete().
-			TableExpr("activities.schedules").
-			Where("activity_group_id = ?", group.ID).
-			Exec(ctx)
-	}()
 
-	offering := &enrollmentModels.CareOffering{
+	offering := &offeringContract.CareOfferingRecord{
 		PhaseID:         env.sourcePhase.ID,
 		ActivityGroupID: &group.ID,
 		Name:            "Fixed Tue Thu",
-		DaysOfWeekMode:  enrollmentModels.DaysOfWeekModeFixed,
+		DaysOfWeekMode:  offeringContract.DaysOfWeekModeFixed,
 		AvailableDays:   []string{"tue", "thu"},
 		IsActive:        true,
 	}
 	offering.TenantID = testpkg.Tenant(t)
-	require.NoError(t, newCareOfferingFixtures(env.repos.CarePlan()).Create(ctx, offering))
+	require.NoError(t, newCareOfferingFixtures(env.reposCare.CarePlan).Create(ctx, offering))
 
 	account := testpkg.CreateTestAccount(t, env.db, "approval-rollback")
 	_, err := env.db.NewRaw("UPDATE auth.account_tenants SET status = 'inactive', deactivated_at = NOW() WHERE account_id = ? AND tenant_id = ?", account.ID, testpkg.Tenant(t)).Exec(ctx)
@@ -175,10 +170,9 @@ func TestDecisionService_ApprovalRollsBackEveryOwnerAfterMaterialization(t *test
 
 	// The offering runs on Tuesdays; the occurrence must not lie in the past or
 	// the approval projects no roster row for it.
-	instance := testpkg.CreateTestActivityInstance(t, env.db, nextWeekday(calendar.TodayDate(), time.Tuesday), room.ID, testpkg.ActivityInstanceOpts{
+	testpkg.CreateTestActivityInstance(t, env.db, nextWeekday(calendar.TodayDate(), time.Tuesday), room.ID, testpkg.ActivityInstanceOpts{
 		ActivityGroupID: &group.ID, CalendarPeriodID: &period.ID,
 	})
-	registerSourcedInstanceCleanup(t, env, instance.ID)
 	before := approvalOwnerSnapshot(t, ctx, env.db, testpkg.Tenant(t))
 	var accountBefore string
 	require.NoError(t, env.db.NewRaw("SELECT to_jsonb(a)::text FROM auth.accounts a WHERE id = ?", account.ID).Scan(ctx, &accountBefore))
@@ -186,7 +180,7 @@ func TestDecisionService_ApprovalRollsBackEveryOwnerAfterMaterialization(t *test
 	reached := false
 	var txDB bun.IDB
 	failing := newDecisionServiceForTestWithDependencies(env.rolloverTestEnv, nil, nil, nil, nil,
-		approvalOutboxFunc(func(txCtx context.Context, _ platformModels.OutboxEnqueueRequest) error {
+		approvalOutboxFunc(func(txCtx context.Context, _ TestMail) error {
 			reached = true
 			pending := approvalOwnerSnapshot(t, txCtx, txDB, testpkg.Tenant(t))
 			for _, table := range []string{"enrollment.request_children", "users.student_profiles", "users.student_school_memberships", "users.student_care_profiles", "users.persons", "users.student_guardian_relationships", "users.student_guardian_pickup_permissions", "auth.guardian_student_access", "activities.student_enrollments", "schedule.instance_students", "auth.account_tenants", "auth.account_roles"} {
@@ -198,7 +192,7 @@ func TestDecisionService_ApprovalRollsBackEveryOwnerAfterMaterialization(t *test
 		txDB = tx
 		_, decisionErr := failing.Decide(txCtx, enrollmentAPI.DecideInput{
 			RequestID: submitted.Request.ID, ChildID: submitted.Children[0].ID,
-			Status: capability.DecisionApproved, ReviewedBy: env.creatorID,
+			Status: enrollmentNative.DecisionApproved, ReviewedBy: env.creatorID,
 		})
 		return decisionErr
 	})
@@ -215,7 +209,7 @@ func TestDecisionService_ApprovalRollsBackEveryOwnerAfterMaterialization(t *test
 		outcome, decisionErr = env.decision.Decide(txCtx, enrollmentAPI.DecideInput{
 			RequestID:  submitted.Request.ID,
 			ChildID:    submitted.Children[0].ID,
-			Status:     capability.DecisionApproved,
+			Status:     enrollmentNative.DecisionApproved,
 			ReviewedBy: env.creatorID,
 		})
 		return decisionErr
@@ -240,7 +234,7 @@ func TestDecisionService_ApprovalRollsBackEveryOwnerAfterMaterialization(t *test
 	err = testpkg.WithTenantTx(t, ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		again, retryErr := env.decision.Decide(txCtx, enrollmentAPI.DecideInput{
 			RequestID: submitted.Request.ID, ChildID: submitted.Children[0].ID,
-			Status: capability.DecisionApproved, ReviewedBy: env.creatorID,
+			Status: enrollmentNative.DecisionApproved, ReviewedBy: env.creatorID,
 		})
 		if retryErr == nil {
 			require.Equal(t, outcome.Child.CreatedStudentID, again.Child.CreatedStudentID)

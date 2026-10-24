@@ -11,7 +11,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -91,8 +91,8 @@ func setupGuardiansCompositionRoute(t *testing.T, appEnvs ...string) *guardianCo
 	if len(appEnvs) > 0 {
 		appEnv = appEnvs[0]
 	}
-	db, svc := testutil.SetupGuardianModule(t)
-	resource := newGuardiansResource(svc.PeopleDirectory, svc.NewGuardianDirectoryRuntime(db), appEnv, slog.Default())
+	db, svc := setupGuardianModule(t)
+	resource := newGuardiansResource(svc.PeopleDirectory, svc.NewGuardianDirectoryRuntime(testpkg.NewDatabase(t, db)), appEnv, slog.Default())
 
 	router := chi.NewRouter()
 	router.Use(testpkg.TenantRuntimeMiddleware(t, db))
@@ -221,7 +221,7 @@ func setupGuardiansCompositionRoute(t *testing.T, appEnvs ...string) *guardianCo
 
 // bearer mints a signed JWT for claims and returns it as an Authorization
 // bearer option.
-func bearer(t *testing.T, claims jwt.AppClaims) testutil.RequestOption {
+func bearer(t *testing.T, claims sessiontoken.AppClaims) testutil.RequestOption {
 	t.Helper()
 	return testutil.WithJWTBearer(testutil.MintTestJWT(t, claims))
 }
@@ -230,8 +230,8 @@ func bearer(t *testing.T, claims jwt.AppClaims) testutil.RequestOption {
 // (which has no staff record in the test DB). It carries exactly perms so the
 // request clears the route's RequiresPermission gate and is then denied by
 // the handler's own staff check.
-func nonStaffClaims(tb testing.TB, perms ...string) jwt.AppClaims {
-	return jwt.AppClaims{
+func nonStaffClaims(tb testing.TB, perms ...string) sessiontoken.AppClaims {
+	return sessiontoken.AppClaims{
 		ID:          1,
 		Sub:         "nonstaff@example.com",
 		TenantID:    testpkg.Tenant(tb),
@@ -241,14 +241,14 @@ func nonStaffClaims(tb testing.TB, perms ...string) jwt.AppClaims {
 }
 
 // withPerms returns a copy of claims narrowed to exactly perms.
-func withPerms(claims jwt.AppClaims, perms ...string) jwt.AppClaims {
+func withPerms(claims sessiontoken.AppClaims, perms ...string) sessiontoken.AppClaims {
 	claims.Permissions = perms
 	return claims
 }
 
 // guardianStaffClaims are teacher claims for accountID carrying exactly the
 // given permissions.
-func guardianStaffClaims(accountID int64, accountPermissions ...string) jwt.AppClaims {
+func guardianStaffClaims(accountID int64, accountPermissions ...string) sessiontoken.AppClaims {
 	claims := testutil.TeacherTestClaims(int(accountID))
 	claims.Permissions = accountPermissions
 	return claims
@@ -258,13 +258,13 @@ func guardiansPath(format string, args ...any) string {
 	return "/guardians" + fmt.Sprintf(format, args...)
 }
 
-func (c *guardianCompositionContext) do(t *testing.T, claims jwt.AppClaims, method, path string, body any) *httptest.ResponseRecorder {
+func (c *guardianCompositionContext) do(t *testing.T, claims sessiontoken.AppClaims, method, path string, body any) *httptest.ResponseRecorder {
 	t.Helper()
 	req := testutil.NewAuthenticatedRequest(t, method, guardiansPath("%s", path), body, bearer(t, claims))
 	return testutil.ExecuteRequest(c.router, req)
 }
 
-func (c *guardianCompositionContext) status(t *testing.T, claims jwt.AppClaims, method, path string, body any) int {
+func (c *guardianCompositionContext) status(t *testing.T, claims sessiontoken.AppClaims, method, path string, body any) int {
 	t.Helper()
 	return c.do(t, claims, method, path, body).Code
 }
@@ -272,7 +272,7 @@ func (c *guardianCompositionContext) status(t *testing.T, claims jwt.AppClaims, 
 func errorText(t *testing.T, body string) string {
 	t.Helper()
 	response := testutil.ParseJSONResponse(t, []byte(body))
-	text, ok := response["error"].(string)
+	text, ok := response["detail"].(string)
 	require.True(t, ok, "expected error text in response: %s", body)
 	return text
 }
@@ -962,7 +962,7 @@ func TestGuardianComposition_BatchRejectsEmptyAndNonStaff(t *testing.T) {
 
 	testutil.AssertBadRequest(t, ctx.do(t, testutil.AdminTestClaims(999), http.MethodPost, fmt.Sprintf("/students/%d/guardians/batch", studentID), map[string]any{"guardians": []map[string]any{}}))
 
-	nonStaff := jwt.AppClaims{ID: 555, Sub: "nonstaff@test.com", TenantID: testpkg.Tenant(t), Roles: []string{"user"}, Permissions: []string{"users:read", "users:update"}}
+	nonStaff := sessiontoken.AppClaims{ID: 555, Sub: "nonstaff@test.com", TenantID: testpkg.Tenant(t), Roles: []string{"user"}, Permissions: []string{"users:read", "users:update"}}
 	testutil.AssertForbidden(t, ctx.do(t, nonStaff, http.MethodPost, fmt.Sprintf("/students/%d/guardians/batch", studentID), map[string]any{
 		"guardians": []map[string]any{{"first_name": "X", "last_name": "Y", "relationship_type": "parent", "emergency_priority": 1}},
 	}))

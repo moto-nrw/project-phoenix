@@ -12,6 +12,7 @@ import {
 import useSWR from "swr";
 import { MessagesSquare } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
+import { BackLink } from "~/components/ui/back-link";
 import { EmptyState } from "~/components/ui/empty-state";
 import { formErrorMessage, type FormError } from "~/components/ui/form-error";
 import {
@@ -40,6 +41,16 @@ const logger = createLogger({ component: "TeamChatThread" });
 const DISABLED_TITLE = "Der Team-Chat ist ausgeschaltet";
 const DISABLED_DESCRIPTION =
   "Ihre Schule hat den Team-Chat ausgeschaltet. Wenden Sie sich an die OGS-Leitung, wenn Sie ihn nutzen möchten.";
+
+/**
+ * Rückweg zum Posteingang. Die Hülle setzt ihn über den Titel der
+ * Kopfkarte; `href` ist der Pfad so, wie die Hülle ihn erwartet (das
+ * OGS-Portal ohne Schulpräfix, das Schul-Portal fertig aufgelöst).
+ */
+export interface TeamChatThreadBack {
+  readonly href: string;
+  readonly label: string;
+}
 
 /**
  * Was die Hülle eines Portals vom Chat-Fenster bekommt. Wie beim Posteingang
@@ -73,8 +84,8 @@ export interface TeamChatThreadParts {
   readonly error: FormError | string | null;
   /** Skelett statt Verlauf. */
   readonly loading: boolean;
-  /** Zurück-Navigation des Portals, unverändert durchgereicht. */
-  readonly backNav: ReactNode;
+  /** Rückweg zum Posteingang, unverändert durchgereicht. */
+  readonly back: TeamChatThreadBack;
   /**
    * Der Container, der die Viewport-Sperre trägt; die Hülle hängt ihn an das
    * Element, das Verlauf und Composer umschließt.
@@ -85,23 +96,22 @@ export interface TeamChatThreadParts {
 }
 
 /**
- * One conversation, shared by both portals (#2208). The back navigation is a
- * slot because the OGS portal routes through the tenant router and the
- * school portal through schoolPath; everything else is the same on both
- * sides.
+ * One conversation, shared by both portals (#2208). The back target is
+ * passed in because the OGS portal resolves paths per tenant and the school
+ * portal through schoolPath; everything else is the same on both sides.
  */
 export function TeamChatThread({
   portal,
   threadID,
   myAccountId,
-  backNav,
+  back,
   frame,
 }: {
   readonly portal: TeamChatPortal;
   readonly threadID: string;
   /** The viewer's account id — decides which bubbles are "mine". */
   readonly myAccountId: string;
-  readonly backNav: ReactNode;
+  readonly back: TeamChatThreadBack;
   /**
    * Hülle des Portals. Ohne Angabe die Fläche des Schul-Portals; das
    * OGS-Portal reicht hier `TenantPage` herein.
@@ -367,7 +377,7 @@ export function TeamChatThread({
       ? shownLoadError
       : "Diese Unterhaltung gibt es nicht.",
     loading: showSkeleton,
-    backNav,
+    back,
     containerRef,
     body,
   };
@@ -375,7 +385,7 @@ export function TeamChatThread({
   return frame ? frame(parts) : <DefaultThreadFrame parts={parts} />;
 }
 
-/** Die Hülle des Schul-Portals: Zurück-Navigation und eine Fläche. */
+/** Die Hülle des Schul-Portals: eine Fläche, der Rückweg über dem Titel. */
 function DefaultThreadFrame({
   parts,
 }: {
@@ -388,7 +398,7 @@ function DefaultThreadFrame({
     empty,
     error,
     loading,
-    backNav,
+    back,
     containerRef,
     body,
   } = parts;
@@ -396,15 +406,13 @@ function DefaultThreadFrame({
   if (state !== "ready") {
     return (
       <div className="-mt-1.5 w-full">
-        {backNav}
+        <BackLink href={back.href} label={back.label} className="mb-3" />
         {state === "disabled" ? (
           <EmptyState
             icon={empty.icon}
             title={empty.title}
             description={empty.description}
           />
-        ) : typeof error === "string" ? (
-          <Alert type="error" message={error} />
         ) : (
           <LoadErrorAlert error={error} />
         )}
@@ -417,9 +425,8 @@ function DefaultThreadFrame({
       ref={containerRef}
       className="-mt-1.5 flex min-h-[20rem] w-full flex-col overflow-hidden"
     >
-      {backNav}
-
       <div className="moto-content-surface flex min-h-0 flex-1 flex-col rounded-2xl border p-4 backdrop-blur-sm sm:p-6">
+        <BackLink href={back.href} label={back.label} className="mb-2" />
         {!loading && (
           <div className="mb-4 min-w-0">
             <h1 className="truncate text-lg font-semibold text-gray-900 sm:text-xl">

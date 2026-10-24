@@ -1,0 +1,191 @@
+package application
+
+import (
+	"bytes"
+	"context"
+	"errors"
+	"fmt"
+	"log/slog"
+	"testing"
+	"time"
+
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	schedule "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func newTestAutoEnd(t *testing.T, instances ports.LegacyInstanceReads, completion timetable.InstanceLifecycle) timetable.InstanceAutoEnd {
+	t.Helper()
+	svc, err := NewInstanceAutoEnd(instances, completion, nil)
+	require.NoError(t, err)
+	return svc
+}
+
+func TestAutoEnd_RunForTenant_CompletesOnlyDueActivePlannedInstances(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 4, 20, 14, 15, 0, 0, calendar.Berlin)
+	duePastGrace := autoStartInstance(101, schedule.InstanceStatusActive, 13, 0, 13, 45)
+	dueAfterGrace := autoStartInstance(102, schedule.InstanceStatusActive, 13, 0, 14, 0)
+	notDue := autoStartInstance(103, schedule.InstanceStatusActive, 13, 0, 14, 1)
+	neverStarted := autoStartInstance(104, schedule.InstanceStatusPlanned, 13, 0, 14, 0)
+	spontaneous := autoStartInstance(105, schedule.InstanceStatusActive, 13, 0, 14, 0)
+	spontaneous.IsSpontaneous = true
+	alreadyCompleted := autoStartInstance(106, schedule.InstanceStatusCompleted, 13, 0, 14, 0)
+	overdueFromYesterday := autoStartInstance(107, schedule.InstanceStatusActive, 13, 0, 14, 0)
+	overdueFromYesterday.Date = overdueFromYesterday.Date.AddDays(-1)
+
+	completer := &autoEndCompleter{}
+	svc := newTestAutoEnd(t, &autoStartInstanceRepo{instances: []*schedule.ActivityInstance{
+		duePastGrace, dueAfterGrace, notDue, neverStarted, spontaneous, alreadyCompleted, overdueFromYesterday,
+	}}, completer)
+
+	result, err := svc.RunForTenant(context.Background(), now, 15*time.Minute)
+
+	require.NoError(t, err)
+	assert.Equal(t, 7, result.Checked)
+	assert.Equal(t, 3, result.Completed)
+	assert.Equal(t, 1, result.SkippedBeforeDeadline)
+	assert.Equal(t, 1, result.SkippedSpontaneous)
+	assert.Equal(t, 2, result.SkippedNonActive)
+	assert.Equal(t, []int64{101, 102, 107}, completer.completedIDs)
+}
+
+func TestAutoEnd_RunForTenant_UsesZeroGrace(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 4, 20, 14, 0, 0, 0, calendar.Berlin)
+	completer := &autoEndCompleter{}
+	svc := newTestAutoEnd(t, &autoStartInstanceRepo{instances: []*schedule.ActivityInstance{
+		autoStartInstance(201, schedule.InstanceStatusActive, 13, 0, 14, 0),
+	}}, completer)
+
+	result, err := svc.RunForTenant(context.Background(), now, 0)
+
+	require.NoError(t, err)
+	assert.Equal(t, 1, result.Completed)
+	assert.Equal(t, []int64{201}, completer.completedIDs)
+}
+
+func TestAutoEnd_RunForTenant_UsesBerlinBoundaryForUTCInstant(t *testing.T) {
+	t.Parallel()
+
+	// 12:00 UTC is 14:00 in Berlin on this date (CEST).
+	now := time.Date(2026, 4, 20, 12, 0, 0, 0, time.UTC)
+	completer := &autoEndCompleter{}
+	svc := newTestAutoEnd(t, &autoStartInstanceRepo{instances: []*schedule.ActivityInstance{
+		autoStartInstance(251, schedule.InstanceStatusActive, 13, 0, 14, 0),
+	}}, completer)
+
+	result, err := svc.RunForTenant(context.Background(), now, 0)
+
+	require.NoError(t, err)
+	assert.Equal(t, 1, result.Completed)
+	assert.Equal(t, []int64{251}, completer.completedIDs)
+}
+
+func TestAutoEnd_RunForTenant_TreatsConcurrentCompletionAsIdempotent(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 4, 20, 14, 15, 0, 0, calendar.Berlin)
+	completer := &autoEndCompleter{errorsByID: map[int64]error{
+		301: fmt.Errorf("manual completion won: %w", timetable.ErrInvalidInstanceTransition),
+	}}
+	svc := newTestAutoEnd(t, &autoStartInstanceRepo{
+		instances: []*schedule.ActivityInstance{
+			autoStartInstance(301, schedule.InstanceStatusActive, 13, 0, 14, 0),
+			autoStartInstance(302, schedule.InstanceStatusActive, 13, 0, 14, 0),
+		},
+		findStatusByID: map[int64]string{301: schedule.InstanceStatusCompleted},
+	}, completer)
+
+	result, err := svc.RunForTenant(context.Background(), now, 15*time.Minute)
+
+	require.NoError(t, err)
+	assert.Equal(t, 1, result.Completed)
+	assert.Equal(t, 1, result.SkippedConcurrent)
+	assert.Equal(t, []int64{301, 302}, completer.completedIDs)
+}
+
+func TestAutoEnd_RunForTenant_ContinuesAfterFailedCompletion(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 4, 20, 14, 15, 0, 0, calendar.Berlin)
+	completer := &autoEndCompleter{errorsByID: map[int64]error{
+		401: fmt.Errorf("active group is already closed: %w", timetable.ErrInvalidInstanceTransition),
+	}}
+	svc := newTestAutoEnd(t, &autoStartInstanceRepo{instances: []*schedule.ActivityInstance{
+		autoStartInstance(401, schedule.InstanceStatusActive, 13, 0, 14, 0),
+		autoStartInstance(402, schedule.InstanceStatusActive, 13, 0, 14, 0),
+	}, findStatusByID: map[int64]string{401: schedule.InstanceStatusActive}}, completer)
+
+	result, err := svc.RunForTenant(context.Background(), now, 15*time.Minute)
+
+	require.NoError(t, err)
+	assert.Equal(t, 1, result.Completed)
+	assert.Equal(t, 1, result.Failed)
+	assert.Zero(t, result.SkippedConcurrent)
+	assert.Equal(t, []int64{401, 402}, completer.completedIDs)
+}
+
+// #4601: a failed completion is logged with its cause instead of only being
+// counted, so the operator can see why a block stayed running.
+func TestAutoEnd_RunForTenant_LogsFailedCompletionCause(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 4, 20, 14, 15, 0, 0, calendar.Berlin)
+	var logs bytes.Buffer
+	completer := &autoEndCompleter{errorsByID: map[int64]error{
+		451: errors.New("close active group: connection reset"),
+	}}
+	svc, err := NewInstanceAutoEnd(&autoStartInstanceRepo{instances: []*schedule.ActivityInstance{
+		autoStartInstance(451, schedule.InstanceStatusActive, 13, 0, 14, 0),
+	}}, completer, slog.New(slog.NewTextHandler(&logs, nil)))
+	require.NoError(t, err)
+
+	result, err := svc.RunForTenant(context.Background(), now, 15*time.Minute)
+
+	require.NoError(t, err)
+	assert.Equal(t, 1, result.Failed)
+	assert.Contains(t, logs.String(), "instance_id=451")
+	assert.Contains(t, logs.String(), "connection reset")
+}
+
+// A savepoint-control failure leaves the surrounding transaction unusable,
+// so the run stops instead of failing every later block the same way.
+func TestAutoEnd_RunForTenant_StopsOnSavepointControlFailure(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 4, 20, 14, 15, 0, 0, calendar.Berlin)
+	completer := &autoEndCompleter{errorsByID: map[int64]error{
+		461: fmt.Errorf("%w: release: connection reset", tenant.ErrSavepointControl),
+	}}
+	svc := newTestAutoEnd(t, &autoStartInstanceRepo{instances: []*schedule.ActivityInstance{
+		autoStartInstance(461, schedule.InstanceStatusActive, 13, 0, 14, 0),
+		autoStartInstance(462, schedule.InstanceStatusActive, 13, 0, 14, 0),
+	}}, completer)
+
+	result, err := svc.RunForTenant(context.Background(), now, 15*time.Minute)
+
+	require.ErrorIs(t, err, tenant.ErrSavepointControl)
+	assert.Equal(t, 1, result.Failed)
+	assert.Equal(t, []int64{461}, completer.completedIDs)
+}
+
+type autoEndCompleter struct {
+	timetable.InstanceLifecycle
+	completedIDs []int64
+	errorsByID   map[int64]error
+}
+
+func (c *autoEndCompleter) Complete(_ context.Context, instanceID int64) (*timetable.LifecycleInstance, error) {
+	c.completedIDs = append(c.completedIDs, instanceID)
+	if err := c.errorsByID[instanceID]; err != nil {
+		return nil, err
+	}
+	return &timetable.LifecycleInstance{Status: schedule.InstanceStatusCompleted}, nil
+}

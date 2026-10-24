@@ -5,15 +5,16 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
+	"github.com/moto-nrw/project-phoenix/api"
+
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	carePlanTest "github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
+	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -36,18 +37,17 @@ func setupCareOfferingRepoTest(t *testing.T) (
 	tenantID := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
-	phaseRepo := enrollmentTest.New()
+	phaseRepo := api.NewParentPortalEnrollments().Enrollment
 	phaseName := uniquePhaseName("offering")
 	phase := makeOwnerEligibilityPhase(phaseName)
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		return phaseRepo.InsertPhase(ctx, phase)
 	}))
-	t.Cleanup(func() { wipePhases(db, tenantID, phaseName) })
 
-	carePlan := carePlanTest.NewCarePlan(t, db)
+	carePlan := carePlanTest.NewCarePlan(t, db, testpkg.StudentDirectory{})
 	return db, careOfferingRepoUnderTest{
 		careOfferingFixtureRecords: newCareOfferingFixtureRecords(carePlan),
-		CareOfferingRecords:        testutil.NewEnrollmentCareOfferingRecords(carePlan),
+		CareOfferingRecords:        enrollmentTest.NewCareOfferingRecords(carePlan),
 	}, tenantID, phase.ID
 }
 
@@ -57,7 +57,6 @@ func TestCareOfferingRepository_Create_PersistsAndReturnsID(t *testing.T) {
 	t.Parallel()
 
 	db, repo, tenantID, phaseID := setupCareOfferingRepoTest(t)
-	defer wipeOfferings(db, tenantID, phaseID)
 
 	offering := makeOffering(phaseID, uniqueOfferingName("create"))
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -72,7 +71,6 @@ func TestCareOfferingRepository_Create_PreservesExplicitCountsAsCareFalse(t *tes
 	t.Parallel()
 
 	db, repo, tenantID, phaseID := setupCareOfferingRepoTest(t)
-	defer wipeOfferings(db, tenantID, phaseID)
 
 	offering := makeOffering(phaseID, uniqueOfferingName("nonstat"))
 	offering.CountsAsCare = false
@@ -82,7 +80,7 @@ func TestCareOfferingRepository_Create_PreservesExplicitCountsAsCareFalse(t *tes
 		return repo.Create(ctx, offering)
 	}))
 
-	var got *enrollmentModels.CareOffering
+	var got *offeringContract.CareOfferingRecord
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var findErr error
 		got, findErr = repo.FindByID(ctx, offering.ID)
@@ -96,14 +94,13 @@ func TestCareOfferingRepository_FindByID_HappyPath(t *testing.T) {
 	t.Parallel()
 
 	db, repo, tenantID, phaseID := setupCareOfferingRepoTest(t)
-	defer wipeOfferings(db, tenantID, phaseID)
 
 	offering := makeOffering(phaseID, uniqueOfferingName("find"))
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		return repo.Create(ctx, offering)
 	}))
 
-	var got *enrollmentModels.CareOffering
+	var got *offeringContract.CareOfferingRecord
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var fbErr error
 		got, fbErr = repo.FindByID(ctx, offering.ID)
@@ -119,7 +116,7 @@ func TestCareOfferingRepository_FindByID_NotFound(t *testing.T) {
 	t.Parallel()
 
 	db, repo, tenantID, _ := setupCareOfferingRepoTest(t)
-	var got *enrollmentModels.CareOffering
+	var got *offeringContract.CareOfferingRecord
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var fbErr error
 		got, fbErr = repo.FindByID(ctx, 9_999_999)
@@ -139,7 +136,6 @@ func TestCareOfferingRepository_Update_PersistsEveryEditableColumn(t *testing.T)
 	// test pins that behavior by changing several fields and checking
 	// they all round-trip.
 	db, repo, tenantID, phaseID := setupCareOfferingRepoTest(t)
-	defer wipeOfferings(db, tenantID, phaseID)
 
 	offering := makeOffering(phaseID, uniqueOfferingName("update"))
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -152,7 +148,7 @@ func TestCareOfferingRepository_Update_PersistsEveryEditableColumn(t *testing.T)
 	price := 12000
 	offering.Name = newName
 	offering.Description = &desc
-	offering.DaysOfWeekMode = enrollmentModels.DaysOfWeekModeParentChoice
+	offering.DaysOfWeekMode = offeringContract.DaysOfWeekModeParentChoice
 	offering.AvailableDays = []string{"mon", "wed", "fri"}
 	offering.IncludesHolidayCare = true
 	offering.IncludesLunch = true
@@ -166,7 +162,7 @@ func TestCareOfferingRepository_Update_PersistsEveryEditableColumn(t *testing.T)
 		return repo.Update(ctx, offering)
 	}))
 
-	var got *enrollmentModels.CareOffering
+	var got *offeringContract.CareOfferingRecord
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var fbErr error
 		got, fbErr = repo.FindByID(ctx, offering.ID)
@@ -175,7 +171,7 @@ func TestCareOfferingRepository_Update_PersistsEveryEditableColumn(t *testing.T)
 	assert.Equal(t, newName, got.Name)
 	require.NotNil(t, got.Description)
 	assert.Equal(t, desc, *got.Description)
-	assert.Equal(t, enrollmentModels.DaysOfWeekModeParentChoice, got.DaysOfWeekMode)
+	assert.Equal(t, offeringContract.DaysOfWeekModeParentChoice, got.DaysOfWeekMode)
 	assert.Equal(t, []string{"mon", "wed", "fri"}, got.AvailableDays)
 	assert.True(t, got.IncludesHolidayCare)
 	assert.True(t, got.IncludesLunch)
@@ -209,7 +205,6 @@ func TestCareOfferingRepository_Delete_HappyPath(t *testing.T) {
 	t.Parallel()
 
 	db, repo, tenantID, phaseID := setupCareOfferingRepoTest(t)
-	defer wipeOfferings(db, tenantID, phaseID)
 
 	offering := makeOffering(phaseID, uniqueOfferingName("delete"))
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -220,7 +215,7 @@ func TestCareOfferingRepository_Delete_HappyPath(t *testing.T) {
 		return repo.Delete(ctx, offering.ID)
 	}))
 
-	var got *enrollmentModels.CareOffering
+	var got *offeringContract.CareOfferingRecord
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var fbErr error
 		got, fbErr = repo.FindByID(ctx, offering.ID)
@@ -246,7 +241,6 @@ func TestCareOfferingRepository_ListByPhase_OrdersBySortOrder(t *testing.T) {
 	t.Parallel()
 
 	db, repo, tenantID, phaseID := setupCareOfferingRepoTest(t)
-	defer wipeOfferings(db, tenantID, phaseID)
 
 	// Out-of-order sort_order values so the test really exercises the
 	// ORDER BY rather than insertion order.
@@ -256,13 +250,13 @@ func TestCareOfferingRepository_ListByPhase_OrdersBySortOrder(t *testing.T) {
 	o2.SortOrder = 0
 	o3 := makeOffering(phaseID, uniqueOfferingName("listC"))
 	o3.SortOrder = 1
-	for _, o := range []*enrollmentModels.CareOffering{o1, o2, o3} {
+	for _, o := range []*offeringContract.CareOfferingRecord{o1, o2, o3} {
 		require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 			return repo.Create(ctx, o)
 		}))
 	}
 
-	var list []*enrollmentModels.CareOffering
+	var list []*offeringContract.CareOfferingRecord
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var lErr error
 		list, lErr = repo.ListByPhase(ctx, phaseID)
@@ -278,20 +272,15 @@ func TestCareOfferingRepository_ListByPhase_ScopesToPhase(t *testing.T) {
 	t.Parallel()
 
 	db, repo, tenantID, phaseA := setupCareOfferingRepoTest(t)
-	defer wipeOfferings(db, tenantID, phaseA)
 
 	// Second phase so we can prove the filter.
-	phaseRepo := enrollmentTest.New()
+	phaseRepo := api.NewParentPortalEnrollments().Enrollment
 	other := makeOwnerEligibilityPhase(uniquePhaseName("otherphase"))
 	other.ServiceStartDate = "2027-09-01"
 	other.ServiceEndDate = "2028-07-31"
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		return phaseRepo.InsertPhase(ctx, other)
 	}))
-	t.Cleanup(func() {
-		wipeOfferings(db, tenantID, other.ID)
-		wipePhases(db, tenantID, other.Name)
-	})
 
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		return repo.Create(ctx, makeOffering(phaseA, uniqueOfferingName("scopedA")))
@@ -300,7 +289,7 @@ func TestCareOfferingRepository_ListByPhase_ScopesToPhase(t *testing.T) {
 		return repo.Create(ctx, makeOffering(other.ID, uniqueOfferingName("scopedB")))
 	}))
 
-	var list []*enrollmentModels.CareOffering
+	var list []*offeringContract.CareOfferingRecord
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var lErr error
 		list, lErr = repo.ListByPhase(ctx, phaseA)
@@ -317,30 +306,25 @@ func TestCareOfferingRepository_ListByIDs_LoadsExactIDsAcrossPhases(t *testing.T
 	t.Parallel()
 
 	db, repo, tenantID, phaseA := setupCareOfferingRepoTest(t)
-	defer wipeOfferings(db, tenantID, phaseA)
 
-	phaseRepo := enrollmentTest.New()
+	phaseRepo := api.NewParentPortalEnrollments().Enrollment
 	other := makeOwnerEligibilityPhase(uniquePhaseName("ids-otherphase"))
 	other.ServiceStartDate = "2027-09-01"
 	other.ServiceEndDate = "2028-07-31"
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		return phaseRepo.InsertPhase(ctx, other)
 	}))
-	t.Cleanup(func() {
-		wipeOfferings(db, tenantID, other.ID)
-		wipePhases(db, tenantID, other.Name)
-	})
 
 	first := makeOffering(phaseA, uniqueOfferingName("idsA"))
 	second := makeOffering(other.ID, uniqueOfferingName("idsB"))
 	unrequested := makeOffering(phaseA, uniqueOfferingName("idsSkip"))
-	for _, offering := range []*enrollmentModels.CareOffering{first, second, unrequested} {
+	for _, offering := range []*offeringContract.CareOfferingRecord{first, second, unrequested} {
 		require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 			return repo.Create(ctx, offering)
 		}))
 	}
 
-	var empty []*enrollmentModels.CareOffering
+	var empty []*offeringContract.CareOfferingRecord
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var lErr error
 		empty, lErr = repo.ListByIDs(ctx, nil)
@@ -348,7 +332,7 @@ func TestCareOfferingRepository_ListByIDs_LoadsExactIDsAcrossPhases(t *testing.T
 	}))
 	assert.Empty(t, empty)
 
-	var list []*enrollmentModels.CareOffering
+	var list []*offeringContract.CareOfferingRecord
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var lErr error
 		list, lErr = repo.ListByIDs(ctx, []int64{first.ID, second.ID})
@@ -368,18 +352,17 @@ func TestCareOfferingRepository_ListActiveByPhase_FiltersInactive(t *testing.T) 
 	t.Parallel()
 
 	db, repo, tenantID, phaseID := setupCareOfferingRepoTest(t)
-	defer wipeOfferings(db, tenantID, phaseID)
 
 	active := makeOffering(phaseID, uniqueOfferingName("active"))
 	inactive := makeOffering(phaseID, uniqueOfferingName("inactive"))
 	inactive.IsActive = false
-	for _, o := range []*enrollmentModels.CareOffering{active, inactive} {
+	for _, o := range []*offeringContract.CareOfferingRecord{active, inactive} {
 		require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 			return repo.Create(ctx, o)
 		}))
 	}
 
-	var list []*enrollmentModels.CareOffering
+	var list []*offeringContract.CareOfferingRecord
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var lErr error
 		list, lErr = repo.ListActiveByPhase(ctx, phaseID)
@@ -404,7 +387,6 @@ func TestCareOfferingRepository_ListByTenant_ReturnsAllForTenant(t *testing.T) {
 	t.Parallel()
 
 	db, repo, tenantID, phaseID := setupCareOfferingRepoTest(t)
-	defer wipeOfferings(db, tenantID, phaseID)
 
 	for i := 0; i < 3; i++ {
 		o := makeOffering(phaseID, uniqueOfferingName(fmt.Sprintf("tenantlist-%d", i)))
@@ -413,7 +395,7 @@ func TestCareOfferingRepository_ListByTenant_ReturnsAllForTenant(t *testing.T) {
 		}))
 	}
 
-	var list []*enrollmentModels.CareOffering
+	var list []*offeringContract.CareOfferingRecord
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var lErr error
 		list, lErr = repo.ListByTenant(ctx)

@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"log/slog"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+
+	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -22,7 +24,8 @@ import (
 // portal has always shown those; listing only the currently effective
 // selection left staff unable to see an approved change before its
 // effective date and unable to answer the family's questions about it.
-func (d *Decisions) ListChildOfferings(ctx context.Context, requestID int64) (map[int64]enrollment.ChildOfferingSet, error) {
+func (d *Decisions) ListChildOfferings(ctx context.Context, requestID int64) (publicResult map[int64]enrollmentNative.ChildOfferingSet, publicErr error) {
+	defer func() { publicErr = PublicError(publicErr) }()
 	if requestID <= 0 {
 		return nil, fmt.Errorf("decision: request_id required")
 	}
@@ -45,11 +48,11 @@ func (d *Decisions) ListChildOfferings(ctx context.Context, requestID int64) (ma
 	today := d.todayDate()
 	// The date the WRITE path treats as "now".
 	selectionDate := offeringSelectionDateOn(phase, today)
-	links, err := enrollment.OfferingHistoryRecordsForChildren(ctx, d.deps.Children, childIDs)
+	links, err := enrollmentNative.OfferingHistoryRecordsForChildren(ctx, d.deps.Children, childIDs)
 	if err != nil {
 		return nil, fmt.Errorf("decision: list child offering history: %w", err)
 	}
-	currentLinks, err := enrollment.OfferingSelectionRecordsForChildrenAt(ctx, d.deps.Children, childIDs, selectionDate)
+	currentLinks, err := enrollmentNative.OfferingSelectionRecordsForChildrenAt(ctx, d.deps.Children, childIDs, selectionDate)
 	if err != nil {
 		return nil, fmt.Errorf("decision: list current child offerings: %w", err)
 	}
@@ -60,7 +63,7 @@ func (d *Decisions) ListChildOfferings(ctx context.Context, requestID int64) (ma
 		offeringByID:  d.careOfferingsForLinks(ctx, links),
 	}
 	linksByChild := offeringLinksByChild(links)
-	out := make(map[int64]enrollment.ChildOfferingSet, len(children))
+	out := make(map[int64]enrollmentNative.ChildOfferingSet, len(children))
 	for _, child := range children {
 		out[child.ID] = sets.build(linksByChild[child.ID])
 	}
@@ -73,11 +76,11 @@ type childOfferingSets struct {
 	onDate        calendar.Date
 	selectionDate calendar.Date
 	currentIDs    map[int64]bool
-	offeringByID  map[int64]*enrollmentModels.CareOffering
+	offeringByID  map[int64]*offeringContract.CareOfferingRecord
 }
 
-func (s childOfferingSets) build(links []*enrollment.RequestChildOfferingRecord) enrollment.ChildOfferingSet {
-	set := enrollment.ChildOfferingSet{}
+func (s childOfferingSets) build(links []*enrollmentNative.RequestChildOfferingRecord) enrollmentNative.ChildOfferingSet {
+	set := enrollmentNative.ChildOfferingSet{}
 	for _, link := range links {
 		if link == nil || (link.ValidUntil != nil && !link.ValidUntil.After(s.onDate)) {
 			continue
@@ -98,7 +101,7 @@ func (s childOfferingSets) build(links []*enrollment.RequestChildOfferingRecord)
 
 // offeringSelectionDateOn is the day within the phase the offering write path
 // treats as now: the phase start before it begins, its end after it ended.
-func offeringSelectionDateOn(phase *enrollment.Phase, today calendar.Date) calendar.Date {
+func offeringSelectionDateOn(phase *enrollmentNative.Phase, today calendar.Date) calendar.Date {
 	if phase == nil {
 		return today
 	}
@@ -111,8 +114,8 @@ func offeringSelectionDateOn(phase *enrollment.Phase, today calendar.Date) calen
 	return today
 }
 
-func offeringLinksByChild(links []*enrollment.RequestChildOfferingRecord) map[int64][]*enrollment.RequestChildOfferingRecord {
-	result := make(map[int64][]*enrollment.RequestChildOfferingRecord)
+func offeringLinksByChild(links []*enrollmentNative.RequestChildOfferingRecord) map[int64][]*enrollmentNative.RequestChildOfferingRecord {
+	result := make(map[int64][]*enrollmentNative.RequestChildOfferingRecord)
 	for _, link := range links {
 		if link != nil {
 			result[link.RequestChildID] = append(result[link.RequestChildID], link)
@@ -121,7 +124,7 @@ func offeringLinksByChild(links []*enrollment.RequestChildOfferingRecord) map[in
 	return result
 }
 
-func offeringLinkIDSet(links []*enrollment.RequestChildOfferingRecord) map[int64]bool {
+func offeringLinkIDSet(links []*enrollmentNative.RequestChildOfferingRecord) map[int64]bool {
 	result := make(map[int64]bool, len(links))
 	for _, link := range links {
 		if link != nil {
@@ -142,8 +145,8 @@ func offeringLinkIDSet(links []*enrollment.RequestChildOfferingRecord) map[int64
 // untouched save replaces the family's real bookings with nothing. A
 // row with a missing name is recoverable; a silently emptied booking
 // list is not.
-func (d *Decisions) careOfferingsForLinks(ctx context.Context, links []*enrollment.RequestChildOfferingRecord) map[int64]*enrollmentModels.CareOffering {
-	byID := make(map[int64]*enrollmentModels.CareOffering, len(links))
+func (d *Decisions) careOfferingsForLinks(ctx context.Context, links []*enrollmentNative.RequestChildOfferingRecord) map[int64]*offeringContract.CareOfferingRecord {
+	byID := make(map[int64]*offeringContract.CareOfferingRecord, len(links))
 	if d.deps.Offerings == nil || len(links) == 0 {
 		return byID
 	}
@@ -169,11 +172,11 @@ func (d *Decisions) careOfferingsForLinks(ctx context.Context, links []*enrollme
 // entry — deleted offering — still yields a row so the admin sees the
 // booking exists, unlike the parent view which skips it.
 func childOfferingRow(
-	link *enrollment.RequestChildOfferingRecord,
-	offering *enrollmentModels.CareOffering,
+	link *enrollmentNative.RequestChildOfferingRecord,
+	offering *offeringContract.CareOfferingRecord,
 	onDate calendar.Date,
-) enrollment.ChildOfferingRow {
-	row := enrollment.ChildOfferingRow{
+) enrollmentNative.ChildOfferingRow {
+	row := enrollmentNative.ChildOfferingRow{
 		OfferingID:            link.CareOfferingID,
 		SelectedDays:          link.SelectedDays,
 		ManualSelectedDays:    link.ManualSelectedDays,

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 
@@ -1118,6 +1119,7 @@ func TestExportPhaseRegistrations_StreamsPDFAndForwardsActor(t *testing.T) {
 
 	mock := &mockDecisionService{exportResult: sampleExport()}
 	rs := &Resource{
+		Failures:          DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation},
 		DecisionService:   mock,
 		ListExportService: newTestDocumentRenderer(),
 		// db nil → runInTenantTx runs the closure directly.
@@ -1172,7 +1174,8 @@ func TestExportPhaseRegistrations_StreamsXLSX(t *testing.T) {
 	t.Parallel()
 
 	mock := &mockDecisionService{exportResult: sampleExport()}
-	rs := &Resource{DecisionService: mock, ListExportService: newTestDocumentRenderer()}
+	rs := &Resource{
+		Failures: DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation}, DecisionService: mock, ListExportService: newTestDocumentRenderer()}
 	router := buildExportRouter(rs, routetest.Claims{
 		ID:    exportTestActorID,
 		Roles: []string{"admin"},
@@ -1198,7 +1201,8 @@ func TestExportPhaseRegistrations_StreamsDOCX(t *testing.T) {
 	t.Parallel()
 
 	mock := &mockDecisionService{exportResult: sampleExport()}
-	rs := &Resource{DecisionService: mock, ListExportService: newTestDocumentRenderer()}
+	rs := &Resource{
+		Failures: DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation}, DecisionService: mock, ListExportService: newTestDocumentRenderer()}
 	router := buildExportRouter(rs, routetest.Claims{
 		ID:    exportTestActorID,
 		Roles: []string{"admin"},
@@ -1239,7 +1243,8 @@ func TestExportPhaseRegistrations_ServiceErrorIs500(t *testing.T) {
 	t.Parallel()
 
 	mock := &mockDecisionService{exportErr: context.DeadlineExceeded}
-	rs := &Resource{DecisionService: mock, ListExportService: newTestDocumentRenderer()}
+	rs := &Resource{
+		Failures: DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation}, DecisionService: mock, ListExportService: newTestDocumentRenderer()}
 	router := buildExportRouter(rs, routetest.Claims{
 		ID:    exportTestActorID,
 		Roles: []string{"admin"},
@@ -1260,7 +1265,8 @@ func TestExportStudentEnrollmentRequests_StudentNotFoundIs404(t *testing.T) {
 	t.Parallel()
 
 	mock := &mockDecisionService{exportStudentErr: capability.ErrDecisionStudentNotFound}
-	rs := &Resource{DecisionService: mock, ListExportService: newTestDocumentRenderer()}
+	rs := &Resource{
+		Failures: DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation}, DecisionService: mock, ListExportService: newTestDocumentRenderer()}
 	router := buildExportRouter(rs, routetest.Claims{
 		ID:    exportTestActorID,
 		Roles: []string{"admin"},
@@ -1281,7 +1287,8 @@ func TestExportStudentEnrollmentRequests_StudentNotFoundIs404(t *testing.T) {
 func TestExportPhaseRegistrations_InvalidPhaseIDIs400(t *testing.T) {
 	t.Parallel()
 
-	rs := &Resource{DecisionService: &mockDecisionService{}, ListExportService: newTestDocumentRenderer()}
+	rs := &Resource{
+		Failures: DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation}, DecisionService: &mockDecisionService{}, ListExportService: newTestDocumentRenderer()}
 	router := buildExportRouter(rs, routetest.Claims{
 		ID:    exportTestActorID,
 		Roles: []string{"admin"},

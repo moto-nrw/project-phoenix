@@ -7,14 +7,15 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	rootAPI "github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/go-chi/chi/v5"
-	remindersHTTP "github.com/moto-nrw/project-phoenix/api/reminders"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
-	"github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/compose"
+	remindersHTTP "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/http"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -48,13 +49,13 @@ func TestListRemindersAdminScope(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			query := &captureQuery{result: &reminder.Result{Enabled: true}}
-			runtime := compose.HTTPRuntime()
+			runtime := rootAPI.ReminderHTTPRuntime()
 			// These scope tests start with authenticated claims, as the former
 			// direct-handler tests did. Keep the real permission middleware.
 			runtime.Protected = func(router chi.Router, register func(chi.Router, remindersHTTP.Middleware)) {
 				register(router, func(next http.Handler) http.Handler { return next })
 			}
-			request := requestWithPrincipal(t, jwt.AppClaims{IsAdmin: tt.admin, Permissions: tt.permissions})
+			request := requestWithPrincipal(t, sessiontoken.AppClaims{IsAdmin: tt.admin, Permissions: tt.permissions})
 			recorder := httptest.NewRecorder()
 			remindersHTTP.NewResource(query, runtime).Router().ServeHTTP(recorder, request)
 			require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
@@ -76,11 +77,11 @@ func TestReminderHTTPErrorContract(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			query := &captureQuery{err: tt.err}
-			runtime := compose.HTTPRuntime()
+			runtime := rootAPI.ReminderHTTPRuntime()
 			runtime.Protected = func(router chi.Router, register func(chi.Router, remindersHTTP.Middleware)) {
 				register(router, func(next http.Handler) http.Handler { return next })
 			}
-			request := requestWithPrincipal(t, jwt.AppClaims{Permissions: []string{"users:read"}})
+			request := requestWithPrincipal(t, sessiontoken.AppClaims{Permissions: []string{"users:read"}})
 			recorder := httptest.NewRecorder()
 			remindersHTTP.NewResource(query, runtime).Router().ServeHTTP(recorder, request)
 			require.Equal(t, tt.status, recorder.Code, recorder.Body.String())
@@ -89,7 +90,7 @@ func TestReminderHTTPErrorContract(t *testing.T) {
 	}
 }
 
-func requestWithPrincipal(t *testing.T, claims jwt.AppClaims) *http.Request {
+func requestWithPrincipal(t *testing.T, claims sessiontoken.AppClaims) *http.Request {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	account := testpkg.CreateTestAccount(t, db, "reminder-scope@example.com")
@@ -106,7 +107,7 @@ func requestWithPrincipal(t *testing.T, claims jwt.AppClaims) *http.Request {
 
 func TestCallerQueryRejectsUnlinkedIdentity(t *testing.T) {
 	t.Parallel()
-	db, module := testutil.SetupRemindersModule(t)
+	db, module, _ := setupRemindersModule(t)
 	for _, personLinked := range []bool{false, true} {
 		name := "account without person"
 		if personLinked {
@@ -119,7 +120,7 @@ func TestCallerQueryRejectsUnlinkedIdentity(t *testing.T) {
 				testpkg.CreateTestPersonWithAccountID(t, db, "Reminder", "Unlinked", account.ID)
 			}
 			request := testutil.NewRequest(http.MethodGet, "/", nil,
-				testutil.WithClaims(t, jwt.AppClaims{ID: int(account.ID), TenantID: testpkg.Tenant(t)}))
+				testutil.WithClaims(t, sessiontoken.AppClaims{ID: int(account.ID), TenantID: testpkg.Tenant(t)}))
 			require.NoError(t, testpkg.WithinTenantContext(t, request.Context(), db, testpkg.Tenant(t), func(ctx context.Context) error {
 				result, err := module.Reminders.ComputeForCaller(ctx, false)
 				require.ErrorIs(t, err, reminder.ErrNotLinkedToStaff)

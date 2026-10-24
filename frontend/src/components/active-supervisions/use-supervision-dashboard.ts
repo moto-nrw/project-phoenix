@@ -24,6 +24,7 @@ import {
   mapVisitsToSupervisionStudents,
   resolveSupervisionSelection,
 } from "~/components/active-supervisions/view-model";
+import type { DepartureMode } from "~/lib/student-helpers";
 import type {
   ActiveSupervisionRoom,
   ActiveSupervisionStudent,
@@ -48,6 +49,7 @@ interface BFFDashboardResponse {
     canAssign: boolean;
     isCurrentUserSupervising?: boolean;
     participantLimit?: number | null;
+    supervisorNames?: string[];
     room_id?: string;
     room?: { id: string; name: string; color?: string | null };
   }>;
@@ -114,6 +116,8 @@ interface BFFDashboardResponse {
     weekdayName: string;
     pickupTime: string | null;
     isException: boolean;
+    /** The Abholart set for today only (#3946). */
+    dayDepartureMode?: DepartureMode;
     notes: string;
     dayNotes: Array<{ id: string; content: string }>;
   }>;
@@ -494,6 +498,7 @@ export function useSupervisionDashboard(
         weekdayName: pickup.weekdayName,
         pickupTime: pickup.pickupTime ?? undefined,
         isException: pickup.isException,
+        dayDepartureMode: pickup.dayDepartureMode,
         notes: pickup.notes || undefined,
         dayNotes: pickup.dayNotes,
       });
@@ -697,14 +702,10 @@ export function useSupervisionDashboard(
     setSelectedTimetableInstanceId(null);
   }, [allRoomsBase, selectedOpenRoomId, openRoomIds]);
 
-  // With no own supervision at all, open the first shared room rather than
-  // leaving the page empty: released rooms are reachable for everyone, and
-  // that is exactly the caller who has nothing else to show.
-  useEffect(() => {
-    if (allRoomsBase.length > 0 || selectedOpenRoomId) return;
-    const first = openRooms[0];
-    if (first) setSelectedOpenRoomId(first.roomId);
-  }, [allRoomsBase.length, openRooms, selectedOpenRoomId]);
+  // With no own supervision the page stays on its empty state. A released
+  // room opens only by its id (`?room=`), from „Räume“ or from the caller's
+  // own supervision in it: „Aktuelle Aufsicht“ must not present a shared
+  // room as the caller's supervision (#4372).
 
   // ---- Selection → fetch reconciliation ----
 
@@ -810,11 +811,20 @@ export function useSupervisionDashboard(
   // just because a refresh re-resolved a room-keyed URL (#2265).
   useEffect(() => {
     const savedSessionId = localStorage.getItem("supervision-last-session");
+    // A saved released room without an own supervision stays unopened: that
+    // room belongs to „Räume“, and „Aktuelle Aufsicht“ must not reopen it as
+    // the caller's supervision (#4372). Its URL still opens it.
+    const storedRoomId = localStorage.getItem("sidebar-last-room");
+    const savedRoomId = openRooms.some(
+      (room) => room.roomId === storedRoomId && !room.isUserSupervising,
+    )
+      ? null
+      : storedRoomId;
     const target = resolveSupervisionSelection({
       sessionParam,
       roomParam,
       savedSessionId,
-      savedRoomId: localStorage.getItem("sidebar-last-room"),
+      savedRoomId,
       rooms: allRoomsBase,
       currentSessionId: selectedRoomId,
       currentOpenRoomId: selectedOpenRoomId,
@@ -823,7 +833,15 @@ export function useSupervisionDashboard(
 
     if (target.kind === "open-room") {
       selectOpenRoom(target.roomId);
-      localStorage.removeItem("supervision-last-session");
+      // A released room without an own supervision is only visited from
+      // „Räume“; the caller's last own supervision stays the one „Aktuelle
+      // Aufsicht“ returns to (#4372).
+      const isOwnOpenRoom = openRooms.some(
+        (room) => room.roomId === target.roomId && room.isUserSupervising,
+      );
+      if (isOwnOpenRoom) {
+        localStorage.removeItem("supervision-last-session");
+      }
       localStorage.setItem("sidebar-last-room", target.roomId);
       if (!roomParam) {
         router.replace(`/active-supervisions?room=${target.roomId}`);
@@ -852,7 +870,7 @@ export function useSupervisionDashboard(
     }
     // "none": already in sync
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allRoomsBase, sessionParam, roomParam, openRoomIds, router]);
+  }, [allRoomsBase, sessionParam, roomParam, openRoomIds, openRooms, router]);
 
   return {
     dashboardError: dashboardError ?? undefined,

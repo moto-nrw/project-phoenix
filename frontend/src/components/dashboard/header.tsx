@@ -21,7 +21,6 @@ import {
 } from "~/lib/tenant-context";
 import { normalizeTenantPathname } from "~/lib/tenant-path";
 import { matchesPathPrefix } from "~/lib/section-navigation";
-import type { OgsGroupSection } from "~/lib/ogs-group-sections";
 import {
   getHelpTopicForPath,
   getParentHelpTopicForPath,
@@ -119,8 +118,8 @@ export function Header() {
     announcementTitle,
     referrerPage,
     activeSupervisionName,
+    activeSupervisionIsSharedRoom,
     ogsGroupName,
-    ogsGroupSection,
     pageTitle: customPageTitle,
     helpTopic,
   } = breadcrumb;
@@ -217,7 +216,7 @@ export function Header() {
   const schoolPageTitle =
     mode === "school" ? schoolTitleForPath(pathname) : null;
   const displayedPageTitle = parentPageTitle ?? schoolPageTitle ?? pageTitle;
-  // Das Fragezeichen neben der Brotkrume. Jedes Portal hat seine eigenen
+  // Die Seitenhilfe bei den Aktionen. Jedes Portal hat seine eigenen
   // Routen: `/messages` heisst im Personal-Portal etwas anderes als im
   // Elternportal, deshalb zwei getrennte Nachschlagewege.
   const contextualHelpTopic = (() => {
@@ -243,8 +242,8 @@ export function Header() {
           : getAccountRoleLabel(userRoles, user?.roleIsSystem);
 
   // Beim Scrollen bekommt die Kopfzeile nur noch einen Schatten (Hysterese
-  // gegen Flackern). Die Höhe bleibt fest: der frühere Scroll-Zustand von
-  // 48px ist seit #2827 der Normalzustand.
+  // gegen Flackern). Die Höhe bleibt beim Scrollen fest: 48px auf dem Telefon
+  // (#2827), ab Desktop 64px (#4345).
   useEffect(() => {
     const handleScroll = () => {
       const y = globalThis.window.scrollY;
@@ -259,7 +258,7 @@ export function Header() {
   // Get page type information
   const pageTypeInfo = getPageTypeInfo(pathname);
   const referrer = referrerPage ?? "/students/search";
-  const breadcrumbLabel = getBreadcrumbLabel(referrer, ogsGroupSection);
+  const breadcrumbLabel = getBreadcrumbLabel(referrer);
   const historyType = getHistoryType(pathname);
   // Nur im Mitarbeiter-Portal: die Kataloge beschreiben dessen Seitenleiste.
   // Das Elternportal teilt sich Pfade wie /messages und bekäme sonst eine
@@ -295,7 +294,10 @@ export function Header() {
       }`}
     >
       <div className="w-full px-4 sm:px-6 lg:px-8">
-        <div className="flex h-12 w-full items-center">
+        {/* Ab Desktop höher (#4345), auf dem Telefon bleibt die kompakte
+            Höhe aus #2827. Die klebenden Seitenleisten (top-[73px]) hängen
+            an dieser Höhe. */}
+        <div className="flex h-12 w-full items-center lg:h-16">
           {/* Left section: Logo + Brand + Context — must be allowed to
               shrink (min-w-0) so long tenant names / breadcrumbs truncate
               instead of pushing the header past the viewport (#2011) */}
@@ -340,7 +342,13 @@ export function Header() {
               <BrandLink
                 href={homeUrl}
                 label={brandLabel}
-                hideLabelBelow={mode === "parent" ? "lg" : undefined}
+                hideLabelBelow={
+                  mode === "parent"
+                    ? "lg"
+                    : mode === "school"
+                      ? "md"
+                      : undefined
+                }
               />
             )}
             <BreadcrumbDivider />
@@ -354,7 +362,7 @@ export function Header() {
                 {mobileLocation}
               </span>
             )}
-            <div className="flex min-w-0 items-center gap-1">
+            <div className="flex min-w-0 items-center">
               <HeaderBreadcrumb
                 pathname={pathname}
                 pageTitle={displayedPageTitle}
@@ -368,26 +376,27 @@ export function Header() {
                 breadcrumbLabel={breadcrumbLabel}
                 historyType={historyType}
                 ogsGroupName={ogsGroupName}
-                ogsGroupSection={ogsGroupSection}
                 activeSupervisionName={activeSupervisionName}
+                activeSupervisionIsSharedRoom={activeSupervisionIsSharedRoom}
               />
-              {contextualHelpTopic ? (
-                <ContextHelpLink
-                  topic={contextualHelpTopic}
-                  // Eltern sind fast immer am Handy. Ein Fragezeichen, das
-                  // erst ab Tablet auftaucht, erreicht sie nie. Im
-                  // Personal-Portal bleibt die schmale Kopfzeile frei: dort
-                  // ist die Hilfe über die Seitenleiste erreichbar.
-                  containerClassName={
-                    mode === "parent" ? undefined : "hidden md:inline-flex"
-                  }
-                />
-              ) : null}
             </div>
           </div>
 
           {/* Right section: Actions + Profile */}
           <div className="ml-auto flex flex-shrink-0 items-center space-x-2">
+            {/* Das Fragezeichen steht bei den Aktionen (#4345): direkt hinter
+                der Brotkrume las es sich als Teil des Seitennamens oder als
+                Darstellungsfehler. */}
+            {contextualHelpTopic ? (
+              <ContextHelpLink
+                topic={contextualHelpTopic}
+                // Unter lg sitzt die Hilfe im Seitenkopf. moto schule
+                // behält diese Kopfzeile auf jeder Breite.
+                containerClassName={
+                  mode === "school" ? undefined : "hidden lg:inline-flex"
+                }
+              />
+            ) : null}
             {/* Desktop actions */}
             <div className="hidden items-center space-x-2 lg:flex">
               <SessionWarning isExpired={isSessionExpired} variant="desktop" />
@@ -505,8 +514,8 @@ interface HeaderBreadcrumbProps {
   readonly breadcrumbLabel: string;
   readonly historyType: string;
   readonly ogsGroupName?: string;
-  readonly ogsGroupSection?: OgsGroupSection;
   readonly activeSupervisionName?: string;
+  readonly activeSupervisionIsSharedRoom?: boolean;
 }
 
 function HeaderBreadcrumb({
@@ -522,8 +531,8 @@ function HeaderBreadcrumb({
   breadcrumbLabel,
   historyType,
   ogsGroupName,
-  ogsGroupSection,
   activeSupervisionName,
+  activeSupervisionIsSharedRoom,
 }: HeaderBreadcrumbProps) {
   // Gruppierte Navigationsbereiche: Datenverwaltung, Planung, Eltern
   if (sectionBreadcrumb) {
@@ -532,15 +541,16 @@ function HeaderBreadcrumb({
 
   // OGS Groups page
   if (pathname === "/ogs-groups") {
-    return (
-      <OgsGroupsBreadcrumb groupName={ogsGroupName} section={ogsGroupSection} />
-    );
+    return <OgsGroupsBreadcrumb groupName={ogsGroupName} />;
   }
 
   // Active Supervisions page
   if (pathname === "/active-supervisions") {
     return (
-      <ActiveSupervisionsBreadcrumb supervisionName={activeSupervisionName} />
+      <ActiveSupervisionsBreadcrumb
+        supervisionName={activeSupervisionName}
+        isSharedRoom={activeSupervisionIsSharedRoom}
+      />
     );
   }
 
@@ -616,7 +626,7 @@ function HeaderBreadcrumb({
   // Student detail page (2 or 3 levels depending on context)
   if (pageTypeInfo.isStudentDetailPage) {
     // When navigating from an accordion section, show the sub-section name
-    // e.g. "Meine Gruppen > 1a > Mia Fischer" instead of "Meine Gruppen > Mia Fischer"
+    // e.g. "Gruppen > 1a > Mia Fischer" instead of "Gruppen > Mia Fischer"
     const subSectionName = ogsGroupName ?? activeSupervisionName;
     return (
       <StudentDetailBreadcrumb

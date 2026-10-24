@@ -5,9 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -16,7 +15,7 @@ import (
 func TestAccountRoleQueriesScopeAndSystemRoles(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	identity, err := repositories.NewIdentityAccessForTests(db)
+	identity, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 	account := testpkg.CreateTestAccount(t, db, "role-facts")
@@ -34,8 +33,8 @@ func TestAccountRoleQueriesScopeAndSystemRoles(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []string{second.Name, first.Name}, names)
 	// Even an administrative transaction must not widen this school query.
-	require.NoError(t, tenant.WithAdminTx(ctx, db, func(txCtx context.Context, _ bun.Tx) error {
-		txCtx = tenant.WithTenantID(txCtx, testpkg.Tenant(t))
+	require.NoError(t, testpkg.WithAdminTx(t, ctx, db, func(txCtx context.Context, _ bun.Tx) error {
+		txCtx = testpkg.ContextForTenant(txCtx, testpkg.Tenant(t))
 		actual, queryErr := identity.ListSchoolAccountRoleNames(txCtx, account.ID)
 		require.NoError(t, queryErr)
 		require.Equal(t, names, actual)
@@ -58,8 +57,8 @@ func TestAccountRoleQueriesScopeAndSystemRoles(t *testing.T) {
 	require.False(t, found, "a school role is not a platform system role")
 
 	rollback := errors.New("roll back role removal")
-	err = tenant.WithAdminTx(ctx, db, func(txCtx context.Context, tx bun.Tx) error {
-		txCtx = tenant.WithTenantID(txCtx, testpkg.Tenant(t))
+	err = testpkg.WithAdminTx(t, ctx, db, func(txCtx context.Context, tx bun.Tx) error {
+		txCtx = testpkg.ContextForTenant(txCtx, testpkg.Tenant(t))
 		_, writeErr := tx.NewRaw(`DELETE FROM auth.account_roles WHERE account_id = ? AND role_id = ?`, account.ID, second.ID).Exec(txCtx)
 		require.NoError(t, writeErr)
 		actual, queryErr := identity.ListSchoolAccountRoleNames(txCtx, account.ID)
@@ -76,12 +75,12 @@ func TestAccountRoleQueriesScopeAndSystemRoles(t *testing.T) {
 func TestAccountRoleQueriesDatabaseFailures(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupClosableTestDB(t)
-	identity, err := repositories.NewIdentityAccessForTests(db)
+	identity, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
 	require.NoError(t, db.Close())
 	_, _, err = identity.FindSystemRoleID(context.Background(), "user")
 	require.ErrorContains(t, err, "database is closed")
-	ctx := tenant.WithUnitOfWork(testpkg.TenantContext(testpkg.Tenant(t)), testpkg.TenantRuntime(t, db))
+	ctx := testpkg.ContextWithTenantRuntime(testpkg.TenantContext(testpkg.Tenant(t)), testpkg.TenantRuntime(t, db))
 	_, err = identity.ListSchoolAccountRoleNames(ctx, 1)
 	require.ErrorContains(t, err, "database is closed")
 }

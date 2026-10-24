@@ -2,6 +2,10 @@
 
 import { useEffect } from "react";
 
+import {
+  CollectionGrid,
+  CollectionGridTile,
+} from "~/components/ui/collection-grid";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { useApiLoadError } from "~/contexts/ToastContext";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -138,10 +142,10 @@ export function BetreuungsplanHeuteCard({
           href ? (
             <Link
               href={href}
-              aria-label={`${title}: zum Tagesplan`}
+              aria-label={`${title}: Heute öffnen`}
               className="flex items-center gap-1 text-sm font-medium text-gray-600 transition-colors hover:text-gray-900"
             >
-              Zum Tagesplan
+              Heute öffnen
               <ChevronRight className="h-4 w-4" aria-hidden="true" />
             </Link>
           ) : undefined
@@ -171,6 +175,24 @@ export function BetreuungsplanHeuteCard({
       ? relevant.slice(-Math.max(rowLimit - 1, 1))
       : relevant.slice(0, Math.max(rowLimit - 1, 1));
   const hidden = relevant.length - shown.length;
+  // Auf der Zeiterfassung reicht die Karte über die volle Breite: eine Liste
+  // ließe bei ein bis vier Einsätzen rechts die halbe Karte leer. Dort stehen
+  // die Einsätze als Raster nebeneinander, je einer in einem Feld (#4363).
+  // Nur als Anzeige: anklickbare Zeilen und die Startseite bleiben Liste.
+  const grid = !onHome && !dense && !href;
+  const rows = shown.map((block) => (
+    <AssignmentRow
+      key={block.instanceId}
+      block={block}
+      href={href}
+      dense={compact}
+      tile={grid}
+      // Der Zustand relativ zur Uhr gehört auf die Startseite, wo die
+      // Karte den Moment trägt. Auf der Zeiterfassung steht der ganze Tag,
+      // und „vorbei" wäre an jedem zweiten Einsatz nur Rauschen.
+      now={onHome && now !== "" ? now : undefined}
+    />
+  ));
 
   return (
     <InfoCard
@@ -180,10 +202,10 @@ export function BetreuungsplanHeuteCard({
         href ? (
           <Link
             href={href}
-            aria-label={`${title}: zum Tagesplan`}
+            aria-label={`${title}: Heute öffnen`}
             className="flex items-center gap-1 text-sm font-medium text-gray-600 transition-colors hover:text-gray-900"
           >
-            Zum Tagesplan
+            Heute öffnen
             <ChevronRight className="h-4 w-4" aria-hidden="true" />
           </Link>
         ) : undefined
@@ -194,35 +216,30 @@ export function BetreuungsplanHeuteCard({
           liefe der Baustein aus seiner Karte heraus. Stattdessen stehen so
           viele Einsätze da, wie ganz hineinpassen, und darunter der Rest als
           eine Zeile mit Zahl und Weg. Ohne Höhenvorgabe (Zeiterfassung) steht
-          der ganze Tag da, in der gewohnten zweizeiligen Form. */}
-      <ul
-        className={
-          compact
-            ? "min-h-0 flex-1 space-y-2 overflow-hidden"
-            : "divide-y divide-gray-100"
-        }
-      >
-        {shown.map((block) => (
-          <AssignmentRow
-            key={block.instanceId}
-            block={block}
-            href={href}
-            dense={compact}
-            // Der Zustand relativ zur Uhr gehört auf die Startseite, wo die
-            // Karte den Moment trägt. Auf der Zeiterfassung steht der Tag als
-            // Liste, und „vorbei" wäre an jeder zweiten Zeile nur Rauschen.
-            now={onHome && now !== "" ? now : undefined}
-          />
-        ))}
-      </ul>
+          der ganze Tag da, als Raster über die Kartenbreite. */}
+      {grid ? (
+        <CollectionGrid as="ul" minTileWidth="16rem">
+          {rows}
+        </CollectionGrid>
+      ) : (
+        <ul
+          className={
+            compact
+              ? "min-h-0 flex-1 space-y-2 overflow-hidden"
+              : "divide-y divide-gray-100"
+          }
+        >
+          {rows}
+        </ul>
+      )}
       {hidden > 0 && href && (
         <Link
           href={href}
           className="mt-2 block shrink-0 text-sm font-medium text-gray-600 transition-colors hover:text-gray-900"
         >
           {hidden === 1
-            ? "Noch 1 Einsatz im Tagesplan"
-            : `Noch ${hidden} Einsätze im Tagesplan`}
+            ? "Noch 1 Einsatz ansehen"
+            : `Noch ${hidden} Einsätze ansehen`}
         </Link>
       )}
     </InfoCard>
@@ -233,11 +250,14 @@ function AssignmentRow({
   block,
   href,
   dense,
+  tile = false,
   now,
 }: {
   readonly block: OwnAssignment;
   readonly href?: string;
   readonly dense: boolean;
+  /** Ein Feld im Raster der Zeiterfassung statt einer Listenzeile. */
+  readonly tile?: boolean;
   /** Uhrzeit „HH:MM" für den Zustand der Zeile; ohne Angabe kein Zustand. */
   readonly now?: string;
 }) {
@@ -281,7 +301,9 @@ function AssignmentRow({
       ) : (
         <div className="min-w-0 flex-1">
           <p
-            className={`truncate text-sm font-medium ${
+            // Im Feld ist die Spalte schmal: der Titel bricht um, statt
+            // abgeschnitten zu werden.
+            className={`text-sm font-medium ${tile ? "" : "truncate"} ${
               dimmed ? "text-gray-400" : "text-gray-900"
             }`}
           >
@@ -307,7 +329,7 @@ function AssignmentRow({
       <div
         className={`flex flex-wrap items-center gap-1.5 ${
           dense ? "shrink-0 justify-end" : ""
-        }`}
+        } ${tile ? "empty:hidden" : ""}`}
       >
         {block.isSubstitute && <StatusBadge tone="blue" label="Vertretung" />}
         {/* Dieselben Wörter wie im Tagesplan und in der Jetzt-Zone: „Läuft"
@@ -346,6 +368,14 @@ function AssignmentRow({
     </>
   );
 
+  if (tile) {
+    return (
+      <CollectionGridTile className="flex flex-col gap-1">
+        {content}
+      </CollectionGridTile>
+    );
+  }
+
   // Mit Ziel ist die Zeile ein Link und sieht auch so aus; ohne Ziel bleibt
   // sie eine Anzeige — nichts, was sich anfassen lässt, ohne etwas zu tun.
   return (
@@ -353,7 +383,7 @@ function AssignmentRow({
       {href ? (
         <Link
           href={href}
-          aria-label={`${block.title}: im Tagesplan öffnen`}
+          aria-label={`${block.title}: unter Heute öffnen`}
           className={`${rowClass} transition-colors hover:bg-gray-100/50`}
         >
           {content}

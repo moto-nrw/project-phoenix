@@ -6,14 +6,14 @@ import (
 	"fmt"
 	"log/slog"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
 
 // ListOfferingAdjustments lists the audit trail of one child's offering
 // adjustments for the admin request detail.
-func (d *Decisions) ListOfferingAdjustments(ctx context.Context, requestID, requestChildID int64) ([]*enrollment.OfferingAdjustmentRecord, error) {
+func (d *Decisions) ListOfferingAdjustments(ctx context.Context, requestID, requestChildID int64) (publicResult []*enrollmentNative.OfferingAdjustmentRecord, publicErr error) {
+	defer func() { publicErr = PublicError(publicErr) }()
 	if d.deps.Adjustments == nil {
 		return nil, fmt.Errorf("decision: offering adjustment repo not configured")
 	}
@@ -34,9 +34,9 @@ func (d *Decisions) ListOfferingAdjustments(ctx context.Context, requestID, requ
 
 // approvedChildSync is one run of SyncApprovedChildData.
 type approvedChildSync struct {
-	input    enrollment.ApprovedChildSync
+	input    enrollmentNative.ApprovedChildSync
 	snapshot map[string]any
-	request  *enrollmentModels.Request
+	request  *Request
 	child    *RequestChild
 	student  *Student
 }
@@ -44,7 +44,7 @@ type approvedChildSync struct {
 // SyncApprovedChildData carries the confirmed request and child data onto the
 // student the approval created: the person's name and birthday, the class,
 // the guardian links and the targeted form fields.
-func (d *Decisions) SyncApprovedChildData(ctx context.Context, input enrollment.ApprovedChildSync) (*enrollment.RequestChild, error) {
+func (d *Decisions) SyncApprovedChildData(ctx context.Context, input enrollmentNative.ApprovedChildSync) (*enrollmentNative.RequestChild, error) {
 	if input.RequestID <= 0 || input.ChildID <= 0 {
 		return nil, fmt.Errorf("%w: request_id and child_id are required", careplan.ErrOfferingAdjustmentInvalid)
 	}
@@ -85,7 +85,7 @@ func (d *Decisions) loadApprovedChildForSync(ctx context.Context, run *approvedC
 	if err != nil || child == nil || child.RequestID != req.ID {
 		return careplan.ErrBookingChildNotFound
 	}
-	if child.Status != enrollmentModels.ChildStatusApproved || child.CreatedStudentID == nil || *child.CreatedStudentID <= 0 {
+	if child.Status != enrollmentNative.ChildStatusApproved || child.CreatedStudentID == nil || *child.CreatedStudentID <= 0 {
 		return fmt.Errorf("%w: only approved children with a linked student can be synced", careplan.ErrOfferingAdjustmentInvalid)
 	}
 	run.request, run.child = req, child
@@ -107,7 +107,7 @@ func (d *Decisions) syncApprovedChildStudent(ctx context.Context, run *approvedC
 	}
 	student, err := d.readEnrollmentStudent(ctx, *run.child.CreatedStudentID, "update")
 	if (err != nil && d.deps.Runtime.NotFound(err)) || (err == nil && student == nil) {
-		return enrollment.ErrDecisionStudentNotFound
+		return enrollmentNative.ErrDecisionStudentNotFound
 	}
 	if err != nil {
 		return fmt.Errorf("decision: load approved child student: %w", err)
@@ -201,7 +201,7 @@ func (d *Decisions) syncApprovedChildGuardians(ctx context.Context, run *approve
 // the primary guardian link and, on a replacing edit, reconciles that link.
 // Without guardian profiles the request itself is the identity and no link
 // is touched.
-func (d *Decisions) approvedChildPrimaryGuardian(ctx context.Context, run *approvedChildSync) (*enrollmentModels.Request, *GuardianProfile, error) {
+func (d *Decisions) approvedChildPrimaryGuardian(ctx context.Context, run *approvedChildSync) (*Request, *GuardianProfile, error) {
 	if d.deps.People.GuardianProfiles == nil {
 		return run.request, nil, nil
 	}
@@ -222,7 +222,7 @@ func (d *Decisions) approvedChildPrimaryGuardian(ctx context.Context, run *appro
 // syncApprovedChildGuardianFields dispatches the targeted form fields for
 // the primary guardian, resolving the guardian when the edit did not
 // reconcile the link. A guardian that cannot be resolved skips the dispatch.
-func (d *Decisions) syncApprovedChildGuardianFields(ctx context.Context, run *approvedChildSync, guardianRequest *enrollmentModels.Request, guardian *GuardianProfile, keep map[int64]bool) error {
+func (d *Decisions) syncApprovedChildGuardianFields(ctx context.Context, run *approvedChildSync, guardianRequest *Request, guardian *GuardianProfile, keep map[int64]bool) error {
 	if d.deps.People.GuardianProfiles == nil {
 		return nil
 	}

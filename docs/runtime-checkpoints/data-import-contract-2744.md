@@ -60,6 +60,10 @@ go test ./test -run '^TestCompositionInventory$' -update-composition-inventory
 go test ./services/import/integration -run '^TestDataImportRuntimeEvidence$' -count=1 -v
 ```
 
+`TestCompositionLegacyCallerInventory` and its `-update-composition-legacy`
+flag were removed in #4440. `scripts/backend-architecture.sh check` rejects
+every typed legacy reference, so the command above no longer exists.
+
 Architecture verification runs from the repository root:
 
 ```sh

@@ -26,7 +26,6 @@ import {
 } from "~/components/staff/absence-booking-modal";
 import type { SickReportStaff } from "~/components/staff/sick-report-modal";
 import { formatSignedDuration } from "~/components/staff/staff-time-views";
-import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
@@ -258,6 +257,18 @@ export function AbsenceRebookModal({
 
   const disabled =
     saving || !selected || loading || Boolean(previewError) || exceeded;
+  // Warum „Art ändern“ gesperrt ist: steht im Fehlerfeld oben im Formular.
+  const allowanceBlocker =
+    [
+      preview?.allowanceExceeded && selected
+        ? `Nicht genug Tage: ${selected.label} reicht für diese Einträge nicht. Erhöhen Sie zuerst den Anspruch oder wählen Sie weniger Einträge.`
+        : null,
+      preview?.vacationExceeded
+        ? "Nicht genug Urlaub: Der Resturlaub reicht für diese Einträge nicht. Erhöhen Sie zuerst den Urlaubsanspruch."
+        : null,
+    ]
+      .filter(Boolean)
+      .join(" ") || null;
 
   const save = async () => {
     if (disabled || !selected) return;
@@ -334,7 +345,7 @@ export function AbsenceRebookModal({
       }
     >
       <div className="space-y-4">
-        <FormErrorAlert message={formErrors.error} />
+        <FormErrorAlert message={allowanceBlocker ?? formErrors.error} />
         <p className="text-sm text-gray-600">
           Die Einträge bleiben stehen. Nur ihre Art ändert sich.
         </p>
@@ -404,18 +415,6 @@ export function AbsenceRebookModal({
               </p>
             ) : null}
           </div>
-        ) : null}
-        {preview?.allowanceExceeded && selected ? (
-          <Alert
-            type="error"
-            message={`Nicht genug Tage: ${selected.label} reicht für diese Einträge nicht. Erhöhen Sie zuerst den Anspruch oder wählen Sie weniger Einträge.`}
-          />
-        ) : null}
-        {preview?.vacationExceeded ? (
-          <Alert
-            type="error"
-            message="Nicht genug Urlaub: Der Resturlaub reicht für diese Einträge nicht. Erhöhen Sie zuerst den Urlaubsanspruch."
-          />
         ) : null}
         <Input
           id="absence-rebook-reason"

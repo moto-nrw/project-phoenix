@@ -12,11 +12,11 @@ NFC-based student attendance and room management for schools.
 [![GitHub Issues](https://img.shields.io/github/issues/moto-nrw/project-phoenix?style=flat-square)](https://github.com/moto-nrw/project-phoenix/issues)
 [![GitHub Pull Requests](https://img.shields.io/github/issues-pr/moto-nrw/project-phoenix?style=flat-square)](https://github.com/moto-nrw/project-phoenix/pulls)
 [![License](https://img.shields.io/badge/License-Source--Available-blue?style=flat-square)](LICENSE)
-[![GDPR](https://img.shields.io/badge/GDPR-Compliant-success?style=flat-square)](SECURITY.md#gdpr-compliance)
+[Privacy implementation and operational limits](SECURITY.md#gdpr-compliance)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen?style=flat-square)](CONTRIBUTING.md)
 [![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-3.0-4baaaa?style=flat-square)](CODE_OF_CONDUCT.md)
 
-[![Go](https://img.shields.io/badge/Go-1.27.2-00ADD8?style=flat-square&logo=go&logoColor=white)](https://go.dev)
+[![Go](https://img.shields.io/badge/Go-1.27.3-00ADD8?style=flat-square&logo=go&logoColor=white)](https://go.dev)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org)
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=black)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
@@ -75,10 +75,10 @@ devbox run bootstrap      # installs development tools and frontend dependencies
 scripts/dev-native.sh up  # postgres+mailpit in Docker, backend+frontend native; migrates first
 
 # seed demo data (the setup script prints this command with your credentials)
-scripts/dev-native.sh backend go run . seed --email <op-email> --password '<pw>' --pin 1234 --url http://localhost:8080
+scripts/dev-native.sh backend go run ./cmd/devtools seed --email <op-email> --password '<pw>' --pin 1234 --url http://localhost:8080
 
 # create attendance and room data for the statistics demo
-scripts/dev-native.sh backend go run . simulate full-day --profile vollbetrieb --close
+scripts/dev-native.sh backend go run ./cmd/devtools simulate full-day --profile vollbetrieb --close
 ```
 
 Then log in at **http://localhost:3000** (staff account from the seeder output) or **http://operator.localhost:3000** (your operator credentials).
@@ -92,7 +92,7 @@ Editor/LSP setup, fresh worktrees and tooling health checks:
 
 | Layer | Technology |
 |-------|-----------|
-| **Backend** | Go 1.27.2, Chi Router, Bun ORM |
+| **Backend** | Go 1.27.3, Chi Router, Bun ORM |
 | **Frontend** | Next.js 16, React 19, TypeScript, Tailwind CSS 4 |
 | **Database** | PostgreSQL 17 with 15 domain schemas, SSL, Row-Level Security |
 | **Auth** | JWT with refresh tokens + MFA, NextAuth.js, three isolated portals (staff / operator / parents) |

@@ -56,7 +56,7 @@ shots:
     rolle: admin
     pfad: /students/search
     vorbereitung:
-      - klicken: 'role=button[name="Finn Hartmann - Details öffnen"]'
+      - klicken: 'role=button[name="Finn Busch - Details öffnen"]'
       - warten_auf: 'role=tab[name="Stammdaten"]'
   # Hilfe betreuungszeiten-eintragen, kind-angaben-aendern
   - id: betreuungszeiten-pflegen
@@ -65,7 +65,7 @@ shots:
     rolle: admin
     pfad: /students/search
     vorbereitung:
-      - klicken: 'role=button[name="Finn Hartmann - Details öffnen"]'
+      - klicken: 'role=button[name="Finn Busch - Details öffnen"]'
       - warten_auf: 'role=tab[name="Stammdaten"]'
       - klicken: '[role="tab"][data-tab-value="betreuungszeiten"]'
   # Hilfe abwesenheiten; PostHog: 253 Abwesenheitsmeldungen
@@ -75,7 +75,7 @@ shots:
     rolle: admin
     pfad: /students/search
     vorbereitung:
-      - klicken: 'role=button[name="Finn Hartmann - Details öffnen"]'
+      - klicken: 'role=button[name="Finn Busch - Details öffnen"]'
       - warten_auf: 'role=tab[name="Stammdaten"]'
       - klicken: 'main button:has-text("Krank melden")'
       - warten_auf: '[role="dialog"]'
@@ -160,7 +160,7 @@ shots:
     pfad: /parent-announcements
   # Hilfe essensplan-veroeffentlichen
   - id: essensplan
-    titel: Essensplan der Woche
+    titel: Speiseplan der Woche
     portal: tenant
     rolle: admin
     pfad: /meal-plan
@@ -262,7 +262,7 @@ shots:
     pfad: /children
     vorbereitung:
       - klicken: 'text=Emir Yilmaz'
-      - warten_auf: 'role=tab'
+      - warten_auf: 'main button:has-text("Emir abmelden")'
   # Hilfe abwesenheit-meines-kindes-melden; PostHog: 75 Abwesenheitsanfragen
   - id: eltern-kind-abmelden
     titel: Kind abmelden
@@ -283,7 +283,7 @@ shots:
     vorbereitung:
       - klicken: 'text=Emir Yilmaz'
       - warten_auf: 'role=tab'
-      - klicken: 'main button:has-text("Abholzeit für")'
+      - klicken: 'main button:has-text("Abhol")'
       - warten_auf: '[role="dialog"]'
   # Hilfe als-elternteil-nachrichten-lesen; PostHog: 323 Aufrufe
   - id: eltern-nachrichten

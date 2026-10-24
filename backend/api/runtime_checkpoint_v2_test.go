@@ -16,8 +16,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
@@ -60,7 +59,6 @@ type targetRiskWorkload struct {
 	loginEmail, loginPassword string
 	refreshToken              string
 	mfaAccountID              int64
-	tokenAuth                 *jwt.TokenAuth
 
 	deviceKey  string
 	studentTag string
@@ -120,10 +118,6 @@ func newTargetRiskWorkload(t *testing.T, production *Runtime) *targetRiskWorkloa
 	}
 	require.NotEqual(t, testpkg.Tenant(t), w.tenantID, "checkpoint-1-v2 fixtures need their own tenant")
 	require.NoError(t, db.NewRaw("SELECT subdomain FROM platform.schools WHERE id = ?", w.tenantID).Scan(ctx, &w.subdomain))
-	var err error
-	w.tokenAuth, err = testpkg.ConfiguredTokenAuth()
-	require.NoError(t, err)
-
 	suffix := testpkg.UniqueSuffix()
 	w.loginEmail = fmt.Sprintf("checkpoint-login-%d@example.test", suffix)
 	w.loginPassword = fmt.Sprintf("ckpt-%d-login", suffix)
@@ -154,7 +148,7 @@ func newTargetRiskWorkload(t *testing.T, production *Runtime) *targetRiskWorkloa
 	require.NoError(t, db.NewRaw("SELECT nextval(pg_get_serial_sequence('users.care_withdrawal_completions', 'id'))").Scan(ctx, &w.missingCompletion))
 
 	withdrawn := testpkg.CreateTestStudent(fixtures, db, "Checkpoint", "Withdrawn", "2a")
-	w.completionID = w.pendingWithdrawal(t, production, withdrawn.ID)
+	w.completionID = w.pendingWithdrawal(t, withdrawn.ID)
 	w.companionID = testpkg.CreateTestStudent(fixtures, db, "Checkpoint", "Companion", "2a").ID
 	w.accompanied(t, w.companionID)
 	w.stalePreviewID = w.linkedStudent(t, "Stale")
@@ -261,34 +255,12 @@ func (w *targetRiskWorkload) putStudent(t *testing.T, studentID int64, body stri
 	require.Equal(t, http.StatusOK, response.Code, "prepare student plan: %s", response.Body.String())
 }
 
-// pendingWithdrawal stores one school-confirmed withdrawal task through the
-// Care Plan repository of the production graph. A withdrawal cannot be
-// raised over HTTP without booking-led enrollment, so the fixture asks the
-// owner directly; the least-privilege pool needs the tenant transaction.
-func (w *targetRiskWorkload) pendingWithdrawal(t *testing.T, production *Runtime, studentID int64) int64 {
+// pendingWithdrawal stores one school-confirmed withdrawal task in the
+// workload's tenant. A withdrawal cannot be raised over HTTP without
+// booking-led enrollment, so the fixture writes the pending task row.
+func (w *targetRiskWorkload) pendingWithdrawal(t *testing.T, studentID int64) int64 {
 	t.Helper()
-	tenantID, err := tenant.NewTenantID(w.tenantID)
-	require.NoError(t, err)
-	ctx := tenant.WithUnitOfWork(testpkg.Ctx(w.fixtures), production.graph.tenantRuntime)
-	writer := tenantScopedUpsert(production.graph.repos.CareWithdrawal.UpsertPending, func(fn func(context.Context) error) error {
-		return tenant.WithinTenant(ctx, tenantID, fn)
-	})
-	return testpkg.CreateTestCareWithdrawalCompletion(w.fixtures, writer, studentID, w.accountID, "2026-09-14").ID
-}
-
-// tenantUpsert runs an owner's pending-task upsert inside the tenant
-// transaction, whatever context the fixture passes.
-type tenantUpsert[T any] struct {
-	upsert func(context.Context, T) error
-	within func(func(context.Context) error) error
-}
-
-func tenantScopedUpsert[T any](upsert func(context.Context, T) error, within func(func(context.Context) error) error) tenantUpsert[T] {
-	return tenantUpsert[T]{upsert: upsert, within: within}
-}
-
-func (u tenantUpsert[T]) UpsertPending(_ context.Context, value T) error {
-	return u.within(func(ctx context.Context) error { return u.upsert(ctx, value) })
+	return testpkg.CreateTestCareWithdrawalCompletion(w.fixtures, w.db, studentID, w.accountID, "2026-09-14").ID
 }
 
 // deletionBody reads the preview the confirmation dialog shows and returns
@@ -505,8 +477,8 @@ func (w *targetRiskWorkload) mfaChallenge(t *testing.T, code, submitted string) 
 		(account_id, scope, tenant_id, code_hash, expires_at, created_at, updated_at)
 		VALUES (?, 'tenant', ?, ?, NOW() + INTERVAL '10 minutes', NOW(), NOW()) RETURNING id`,
 		w.mfaAccountID, w.tenantID, testpkg.HashTestPassword(t, code)).Scan(context.Background(), &challengeID))
-	challenge, err := w.tokenAuth.CreateMFAChallengeJWT(jwt.MFAChallengeClaims{
-		AccountID: w.mfaAccountID, Scope: jwt.MFAChallengeScopeTenant, TenantID: w.tenantID, ChallengeID: challengeID,
+	challenge, err := testpkg.TestTokenAuth(t).CreateMFAChallengeJWT(sessiontoken.MFAChallengeClaims{
+		AccountID: w.mfaAccountID, Scope: sessiontoken.MFAChallengeScopeTenant, TenantID: w.tenantID, ChallengeID: challengeID,
 	}, 10*time.Minute)
 	require.NoError(t, err)
 	return fmt.Sprintf(`{"challenge_token":%q,"code":%q}`, challenge, submitted)
@@ -634,7 +606,7 @@ func (w *targetRiskWorkload) measureContention(t *testing.T, production *Runtime
 	t.Helper()
 	operations := contentionOperations()
 	require.GreaterOrEqual(t, concurrency, len(operations), "every contention operation needs at least one slot per round")
-	api := production.graph
+	api := newGoldenRuntime(t, production)
 	slots := make([]*checkpointConcurrentOperation, concurrency)
 	for i := range slots {
 		index := i
@@ -647,10 +619,10 @@ func (w *targetRiskWorkload) measureContention(t *testing.T, production *Runtime
 	// bun never removes a query hook, so the scoped counters are created once
 	// and reused by every contention run instead of piling up per run.
 	for len(w.slotCounters) < concurrency {
-		w.slotCounters = append(w.slotCounters, testpkg.CaptureQueriesForContext(t, api.db))
+		w.slotCounters = append(w.slotCounters, testpkg.CaptureQueriesForContext(t, api.db.Pool()))
 	}
 	counters := w.slotCounters[:concurrency]
-	run := checkpointConcurrentRun{Name: "contention.student-graph", Concurrency: concurrency, PoolMaxOpen: api.db.Stats().MaxOpenConnections, WarmupRounds: 5, MeasuredRounds: 30, Operations: operations}
+	run := checkpointConcurrentRun{Name: "contention.student-graph", Concurrency: concurrency, PoolMaxOpen: api.db.Pool().Stats().MaxOpenConnections, WarmupRounds: 5, MeasuredRounds: 30, Operations: operations}
 	deadlocks := func() int64 {
 		var count int64
 		require.NoError(t, w.db.NewRaw("SELECT deadlocks FROM pg_stat_database WHERE datname = current_database()").Scan(context.Background(), &count))
@@ -716,12 +688,12 @@ func (w *targetRiskWorkload) measureContention(t *testing.T, production *Runtime
 			metricRound.Before = checkpointMetrics(t)
 			deadlocksBefore = deadlocks()
 		}
-		before := api.db.Stats()
+		before := api.db.Pool().Stats()
 		roundStarted := time.Now()
 		close(start)
 		wg.Wait()
 		wall := time.Since(roundStarted)
-		after := api.db.Stats()
+		after := api.db.Pool().Stats()
 		if measured {
 			metricRound.After = checkpointMetrics(t)
 			run.MetricRounds = append(run.MetricRounds, metricRound)

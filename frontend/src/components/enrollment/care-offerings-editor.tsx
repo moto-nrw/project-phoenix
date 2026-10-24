@@ -38,9 +38,14 @@ import {
 import {
   type CareOfferingBookingStats,
   fetchCareOfferingBookingStats,
+  totalFreePlaces,
 } from "~/lib/care-offering-booking-stats";
+import {
+  offeringCapacityColumn,
+  offeringOccupancyColumn,
+  offeringStatusColumn,
+} from "~/components/enrollment/offering-occupancy";
 import { TranslationsSection } from "~/components/enrollment/translations-section";
-import { Alert } from "~/components/ui/alert";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { CheckboxCard } from "~/components/ui/checkbox-card";
@@ -72,17 +77,14 @@ import {
   copyStableObjectKey,
   getStableObjectKey,
 } from "~/lib/stable-object-key";
-import {
-  DataTable,
-  DataTableStatusBadge,
-  type DataTableColumn,
-} from "~/components/ui/data-table";
+import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { FeaturePill } from "~/components/enrollment/feature-pill";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { formatOfferingPrice } from "~/lib/care-offering-format";
 import { useTenantAwarePath } from "~/lib/tenant-path";
+import { FieldErrorHint } from "~/components/ui/field-error-hint";
 
 const logger = createLogger({ component: "CareOfferingsEditor" });
 
@@ -456,9 +458,10 @@ export function CareOfferingsEditor({
   const [cloneSource, setCloneSource] = useState<CareOffering | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<CareOffering | null>(null);
   // Booking stats are display-only (#2186): the availability-rule editor uses
-  // them to say how many existing bookings a rule would contradict. A failure
-  // to load them must never block catalog editing; the rule editor then says
-  // the count is unknown instead of reading as "no conflicts".
+  // them to say how many existing bookings a rule would contradict, the list
+  // shows occupancy and free places (#4782). A failure to load them must never
+  // block catalog editing; the list then hides the numbers, and the rule
+  // editor says the count is unknown instead of reading as "no conflicts".
   const [bookingStats, setBookingStats] = useState<
     Record<string, CareOfferingBookingStats>
   >({});
@@ -493,6 +496,12 @@ export function CareOfferingsEditor({
     if (offering.capacity == null) return sum;
     return sum + offering.capacity;
   }, 0);
+  const hasCapacityLimit = offerings.some(
+    (offering) => offering.capacity != null,
+  );
+  const freePlaces = bookingStatsUnavailable
+    ? null
+    : totalFreePlaces(offerings, bookingStats);
   const autoAddRules = useMemo(() => {
     const offeringsById = new Map(
       offerings.map((offering) => [offering.id, offering]),
@@ -869,18 +878,8 @@ export function CareOfferingsEditor({
           </div>
         ),
       },
-      {
-        key: "capacity",
-        header: "Kapazität",
-        sortValue: (offering) => offering.capacity ?? Number.POSITIVE_INFINITY,
-        render: (offering) => (
-          <span className="text-sm text-gray-700">
-            {offering.capacity == null
-              ? "Unbegrenzt"
-              : `${offering.capacity} Plätze`}
-          </span>
-        ),
-      },
+      offeringCapacityColumn(),
+      offeringOccupancyColumn(bookingStats),
       {
         key: "price",
         header: "Preis",
@@ -891,14 +890,7 @@ export function CareOfferingsEditor({
           </span>
         ),
       },
-      {
-        key: "status",
-        header: "Status",
-        sortValue: (offering) => (offering.is_active ? 1 : 0),
-        render: (offering) => (
-          <DataTableStatusBadge active={offering.is_active} />
-        ),
-      },
+      offeringStatusColumn(bookingStats),
       {
         key: "actions",
         header: "Aktionen",
@@ -925,6 +917,7 @@ export function CareOfferingsEditor({
     ],
     [
       beginEdit,
+      bookingStats,
       deletingId,
       gradeLevelMax,
       saving,
@@ -966,6 +959,8 @@ export function CareOfferingsEditor({
             activeOfferingCount={activeOfferingCount}
             selectableDaysCount={selectableDaysCount}
             totalCapacity={totalCapacity}
+            hasCapacityLimit={hasCapacityLimit}
+            freePlaces={freePlaces}
             focusMode={Boolean(draft || cloneSource)}
             onPhaseChange={(phaseId) => {
               selectedPhaseIdRef.current = phaseId;
@@ -1057,6 +1052,10 @@ export function CareOfferingsEditor({
             <DataTable
               columns={columns}
               rows={offerings}
+              // Ohne geladene Belegung fehlt die Spalte, statt leer zu stehen.
+              hiddenColumns={
+                bookingStatsUnavailable ? OCCUPANCY_COLUMN_HIDDEN : undefined
+              }
               getRowKey={(offering) => offering.id}
               defaultSortKey="name"
               defaultSortDirection="asc"
@@ -1092,6 +1091,8 @@ export function CareOfferingsEditor({
   );
 }
 
+const OCCUPANCY_COLUMN_HIDDEN: ReadonlySet<string> = new Set(["occupancy"]);
+
 function CareOfferingToolbar({
   phases,
   selectedPhaseId,
@@ -1099,6 +1100,8 @@ function CareOfferingToolbar({
   activeOfferingCount,
   selectableDaysCount,
   totalCapacity,
+  hasCapacityLimit,
+  freePlaces,
   focusMode,
   onPhaseChange,
   onCreate,
@@ -1109,6 +1112,9 @@ function CareOfferingToolbar({
   activeOfferingCount: number;
   selectableDaysCount: number;
   totalCapacity: number;
+  hasCapacityLimit: boolean;
+  /** Free places of the phase; null while unknown or without any limit. */
+  freePlaces: number | null;
   focusMode: boolean;
   onPhaseChange: (phaseId: string) => void;
   onCreate: () => void;
@@ -1138,7 +1144,12 @@ function CareOfferingToolbar({
           <CareOfferingMetric
             icon={<MotoConceptIcon concept="children" size={18} />}
             label="Kapazität"
-            value={totalCapacity || "frei"}
+            value={hasCapacityLimit ? totalCapacity : "frei"}
+            detail={
+              freePlaces != null
+                ? `${freePlaces} frei (aktive Angebote)`
+                : undefined
+            }
           />
         </div>
 
@@ -1179,10 +1190,13 @@ function CareOfferingMetric({
   icon,
   label,
   value,
+  detail,
 }: Readonly<{
   icon: React.ReactNode;
   label: string;
   value: number | string;
+  /** Second figure next to the value, e.g. the free places. */
+  detail?: string;
 }>) {
   return (
     <div className="flex items-center gap-2 rounded-xl bg-gray-50 px-3 py-2">
@@ -1190,8 +1204,11 @@ function CareOfferingMetric({
         {icon}
       </span>
       <span>
-        <span className="block text-sm font-semibold text-gray-900">
+        <span className="block text-sm font-semibold whitespace-nowrap text-gray-900">
           {value}
+          {detail ? (
+            <span className="font-normal text-gray-500"> · {detail}</span>
+          ) : null}
         </span>
         <span className="block text-xs text-gray-500">{label}</span>
       </span>
@@ -1224,21 +1241,6 @@ function fieldErrorProps(id: string, message: string | undefined) {
   return message
     ? { "aria-invalid": true, "aria-describedby": `${id}-error` }
     : {};
-}
-
-function FieldErrorHint({
-  id,
-  message,
-}: Readonly<{ id: string; message: string | undefined }>) {
-  if (!message) return null;
-  return (
-    <span
-      id={`${id}-error`}
-      className="text-moto-red-strong mt-1 block text-xs"
-    >
-      {message}
-    </span>
-  );
 }
 
 function NoPhaseState() {
@@ -1510,6 +1512,7 @@ function CareOfferingTemplateField({
   templates,
   periods,
   metadataStatus,
+  unverifiableChange,
   onChange,
 }: Readonly<{
   draft: CareOfferingInput;
@@ -1517,6 +1520,8 @@ function CareOfferingTemplateField({
   templates: TimetableTemplate[];
   periods: CalendarPeriod[];
   metadataStatus: PlannerMetadataStatus;
+  /** The link changed while the planner data is unavailable. */
+  unverifiableChange: boolean;
   onChange: (patch: Partial<CareOfferingInput>) => void;
 }>) {
   const selectedPhase = phases.find(
@@ -1567,6 +1572,16 @@ function CareOfferingTemplateField({
     templates,
     metadataStatus,
   );
+  let templateError: string | undefined;
+  if (periodMismatch) {
+    templateError = inactivePeriodMismatch
+      ? INACTIVE_TEMPLATE_PERIOD_MESSAGE
+      : CARE_OFFERING_TEMPLATE_PERIOD_MISMATCH_MESSAGE;
+  } else if (weekdayError) {
+    templateError = weekdayError;
+  } else if (unverifiableChange) {
+    templateError = UNVERIFIABLE_TEMPLATE_CHANGE_MESSAGE;
+  }
   const options: Array<{
     value: string;
     label: string;
@@ -1608,32 +1623,27 @@ function CareOfferingTemplateField({
           }
           disabled={selectorDisabled}
           className="mt-1 border-gray-200 bg-white"
-          invalid={periodMismatch || weekdayError !== null}
+          invalid={templateError !== undefined}
+          ariaDescribedBy={
+            templateError ? "care-offering-template-error" : undefined
+          }
           options={options}
+        />
+        <FieldErrorHint
+          id="care-offering-template-error"
+          as="span"
+          message={templateError}
+          live
         />
       </label>
       <p className="mt-2 text-xs text-gray-600">
         Genehmigte Anmeldungen werden in diesen Regeltermin übernommen und an
         den ausgewählten Angebotstagen erwartet.
       </p>
-      {periodMismatch ? (
-        <Alert
-          type="error"
-          className="mt-2"
-          message={
-            inactivePeriodMismatch
-              ? INACTIVE_TEMPLATE_PERIOD_MESSAGE
-              : CARE_OFFERING_TEMPLATE_PERIOD_MISMATCH_MESSAGE
-          }
-        />
-      ) : null}
       {compatibilityUnknown ? (
         <p className="border-moto-amber/50 bg-moto-amber/10 text-moto-amber-strong mt-2 rounded-lg border px-3 py-2 text-xs">
           {unknownCompatibilityMessage(metadataStatus)}
         </p>
-      ) : null}
-      {weekdayError ? (
-        <Alert type="error" className="mt-2" message={weekdayError} />
       ) : null}
       {metadataStatus === "ready" &&
       !periodMismatch &&
@@ -2151,7 +2161,12 @@ function CareOfferingAvailabilityFields({
             <Plus className="h-4 w-4" />
             Bedingung hinzufügen
           </Button>
-          {error ? <Alert type="error" message={error} /> : null}
+          <FieldErrorHint
+            id="care-offering-availability-error"
+            as="span"
+            message={error ?? undefined}
+            live
+          />
           {!error && conflicts > 0 ? (
             <p
               role="status"
@@ -2213,7 +2228,8 @@ function CareOfferingCommercialFields({
           className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
         />
         <FieldErrorHint
-          id="care-offering-capacity"
+          id="care-offering-capacity-error"
+          as="span"
           message={fieldError("capacity")}
         />
         {draft.is_required ? (
@@ -2237,7 +2253,8 @@ function CareOfferingCommercialFields({
           className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
         />
         <FieldErrorHint
-          id="care-offering-price"
+          id="care-offering-price-error"
+          as="span"
           message={fieldError("price_cents")}
         />
       </label>
@@ -2410,7 +2427,8 @@ function CareOfferingForm({
             className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
           />
           <FieldErrorHint
-            id="care-offering-name"
+            id="care-offering-name-error"
+            as="span"
             message={fieldError("name")}
           />
         </label>
@@ -2455,12 +2473,9 @@ function CareOfferingForm({
         templates={templates}
         periods={periods}
         metadataStatus={metadataStatus}
+        unverifiableChange={unverifiableTemplateChange}
         onChange={update}
       />
-
-      {unverifiableTemplateChange ? (
-        <Alert type="error" message={UNVERIFIABLE_TEMPLATE_CHANGE_MESSAGE} />
-      ) : null}
 
       <label className="block">
         <span className="text-xs font-medium text-gray-700">Beschreibung</span>
@@ -2527,6 +2542,13 @@ function CareOfferingForm({
             />
           </label>
         </div>
+        {draft.selection_rule === "at_most_one_per_day" && (
+          <p className="mt-3 text-sm leading-6 text-gray-600">
+            Eltern können Angebote dieser Gruppe kombinieren, aber pro Wochentag
+            nur eines wählen. Bestehende Buchungen bleiben, wie sie sind. Bei
+            einer späteren Änderung gilt dann pro Tag ein Angebot.
+          </p>
+        )}
       </fieldset>
 
       <CareOfferingWeekdayFields draft={draft} onChange={update} />

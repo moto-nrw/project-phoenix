@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
@@ -18,8 +18,8 @@ import (
 func TestFactoryOperatorMFARefusesChallengeWithoutSMTP(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	cfg := services.FactoryConfig{
-		JWTSecret:        "configured-operator-mfa-secret-at-least-32-chars",
+	cfg := owners.ServiceConfig{
+		JWTSecret:        testpkg.NewTestSigningSecret(),
 		JWTExpiry:        15 * time.Minute,
 		JWTRefreshExpiry: 24 * time.Hour,
 		FrontendURL:      "http://localhost:3000",
@@ -30,10 +30,14 @@ func TestFactoryOperatorMFARefusesChallengeWithoutSMTP(t *testing.T) {
 		OperatorHostname: "operator.localhost:3000",
 	}
 
-	factory, err := services.NewFactoryForTestsWithConfig(repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)), db, slog.Default(), cfg)
+	identityModule, err := api.NewTestIdentityAccessWithConfig(testpkg.NewDatabase(t, db), slog.Default(), cfg)
 	require.NoError(t, err)
 
 	operator := testpkg.CreateTestOperator(t, db)
-	_, err = factory.OperatorMFA.StartOperatorMFAChallenge(context.Background(), operator.ID, net.ParseIP("203.0.113.1"))
+	t.Cleanup(func() {
+		_, err := db.NewDelete().TableExpr("platform.email_outbox").Where("tenant_id IS NULL AND related_entity_type = ? AND related_entity_id = ?", "operator_mfa_email_code", operator.ID).Exec(context.Background())
+		require.NoError(t, err)
+	})
+	_, err = identityModule.StartOperatorMFAChallenge(context.Background(), operator.ID, net.ParseIP("203.0.113.1"))
 	require.ErrorIs(t, err, identityaccess.ErrMFAStatusUnavailable)
 }

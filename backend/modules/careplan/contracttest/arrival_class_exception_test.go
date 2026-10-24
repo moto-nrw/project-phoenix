@@ -5,12 +5,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	timetable "github.com/moto-nrw/project-phoenix/modules/timetable"
+
+	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,38 +23,40 @@ import (
 // replaced too, a per-child day exception still wins, and the write side
 // refuses past dates and empty classes.
 
-func arrivalServiceWithClassExceptions(t *testing.T, repos *repositories.Factory) careplan.ArrivalScheduleService {
+func arrivalServiceWithClassExceptions(t *testing.T, repos *api.RepositoryTestFactory) careplan.ArrivalScheduleService {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	classes, err := arrivalTimetable.NewClassArrivals(db, func(arrivalTimetable.Observation) {})
 	require.NoError(t, err)
-	classExceptions, err := services.NewClassArrivalExceptions(classes, repositories.MustNewPeopleDirectory(db))
+	classExceptions, err := owners.NewClassArrivalExceptions(classes, owners.MustNewPeopleDirectory(testpkg.MustDatabase(db)))
 	require.NoError(t, err)
-	return nativeArrivalSchedules(t, repos.CarePlan(), classArrivalBaseline(t, repos), services.ClassArrivalPlans(classes), classExceptions)
+	return nativeArrivalSchedules(t, repos.CarePlan(), classArrivalBaseline(t, repos), owners.ClassArrivalPlans(classes), classExceptions)
 }
 
-func setClassArrivalException(t *testing.T, repos *repositories.Factory, class string, date timezone.Date, hhmm, reason string) {
+func setClassArrivalException(t *testing.T, _ *api.RepositoryTestFactory, class string, date calendar.Date, hhmm, reason string) {
 	t.Helper()
+	// Class arrival exceptions belong to Timetable (#2962, #2743).
+	db := testpkg.SetupTestDB(t)
 	parsed, err := time.Parse("15:04", hhmm)
 	require.NoError(t, err)
-	row := &scheduleModel.ClassArrivalException{
+	row := &careplan.ClassArrivalException{
 		SchoolClass: class,
-		Date:        scheduleModel.Date(date),
-		ArrivalTime: timezone.NormalizeWallClock(parsed),
+		Date:        calendar.Date(date),
+		ArrivalTime: calendar.NormalizeWallClock(parsed),
 	}
 	if reason != "" {
 		row.Reason = &reason
 	}
-	row.SetTenantID(testpkg.Tenant(t))
+	row.TenantID = testpkg.Tenant(t)
 	require.NoError(t, row.Validate())
-	require.NoError(t, repos.ClassArrivalException.Upsert(testpkg.Ctx(t), row))
+	require.NoError(t, api.UpsertClassArrivalTestRecord(testpkg.Ctx(t), testpkg.NewDatabase(t, db), row))
 }
 
 func TestClassArrivalExceptionReplacesTheClassTimeOnThatDateOnly(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	baseline := classArrivalBaseline(t, repos)
 
@@ -60,10 +64,10 @@ func TestClassArrivalExceptionReplacesTheClassTimeOnThatDateOnly(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, db, "Betreuung", "Person")
 	setClassArrivalTimes(t, "4a", map[string]string{"mon": "13:30", "tue": "13:30"})
 	// Care days come from the stored rows with the booking mode off.
-	testpkg.CreateTestArrivalSchedule(t, db, student.ID, scheduleModel.WeekdayMonday, staff.ID, "")
-	testpkg.CreateTestArrivalSchedule(t, db, student.ID, scheduleModel.WeekdayTuesday, staff.ID, "")
+	testpkg.CreateTestArrivalSchedule(t, db, student.ID, timetable.WeekdayMonday, staff.ID, "")
+	testpkg.CreateTestArrivalSchedule(t, db, student.ID, timetable.WeekdayTuesday, staff.ID, "")
 
-	monday := mondayOnOrAfter(timezone.TodayDate())
+	monday := mondayOnOrAfter(calendar.TodayDate())
 	tuesday := monday.AddDays(1)
 	nextMonday := monday.AddDays(7)
 	setClassArrivalException(t, repos, "4a", monday, "12:45", "Unterricht fällt aus")
@@ -74,7 +78,7 @@ func TestClassArrivalExceptionReplacesTheClassTimeOnThatDateOnly(t *testing.T) {
 	changed := projection.ForDate(student.ID, monday)
 	require.NotNil(t, changed)
 	assert.Equal(t, "12:45", changed.ExpectedArrival.Format("15:04"))
-	assert.Equal(t, scheduleModel.ArrivalScheduleSourceClassException, changed.Source)
+	assert.Equal(t, careplan.ScheduleSourceClassException, changed.Source)
 	assert.Equal(t, "4a", changed.SourceClass)
 	assert.Equal(t, "Klasse 4a: Unterricht fällt aus", changed.SourceLabel)
 	require.NotNil(t, changed.Notes)
@@ -84,7 +88,7 @@ func TestClassArrivalExceptionReplacesTheClassTimeOnThatDateOnly(t *testing.T) {
 	untouched := projection.ForDate(student.ID, tuesday)
 	require.NotNil(t, untouched)
 	assert.Equal(t, "13:30", untouched.ExpectedArrival.Format("15:04"))
-	assert.Equal(t, scheduleModel.ArrivalScheduleSourceClassSchedule, untouched.Source)
+	assert.Equal(t, careplan.ScheduleSourceClassSchedule, untouched.Source)
 	weekLater := projection.ForDate(student.ID, nextMonday)
 	require.NotNil(t, weekLater)
 	assert.Equal(t, "13:30", weekLater.ExpectedArrival.Format("15:04"))
@@ -94,7 +98,7 @@ func TestClassArrivalExceptionOutranksAPerChildWeeklyDeviation(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	baseline := classArrivalBaseline(t, repos)
 
@@ -102,9 +106,9 @@ func TestClassArrivalExceptionOutranksAPerChildWeeklyDeviation(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, db, "Betreuung", "Person")
 	setClassArrivalTimes(t, "4b", map[string]string{"mon": "12:45"})
 	// This child normally has six lessons and arrives later than the class.
-	testpkg.CreateTestArrivalSchedule(t, db, student.ID, scheduleModel.WeekdayMonday, staff.ID, "13:30")
+	testpkg.CreateTestArrivalSchedule(t, db, student.ID, timetable.WeekdayMonday, staff.ID, "13:30")
 
-	monday := mondayOnOrAfter(timezone.TodayDate())
+	monday := mondayOnOrAfter(calendar.TodayDate())
 	setClassArrivalException(t, repos, "4b", monday, "11:45", "")
 
 	projection, err := baseline.Project(ctx, []int64{student.ID}, monday, monday)
@@ -120,28 +124,28 @@ func TestClassArrivalExceptionStaysOutOfWeeklySchedules(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	svc := arrivalServiceWithClassExceptions(t, repos)
 
 	student := testpkg.CreateTestStudent(t, db, "Wochenplan", "Kind", "4b")
 	staff := testpkg.CreateTestStaff(t, db, "Betreuung", "Person")
 	setClassArrivalTimes(t, "4b", map[string]string{"mon": "13:30"})
-	testpkg.CreateTestArrivalSchedule(t, db, student.ID, scheduleModel.WeekdayMonday, staff.ID, "")
-	monday := mondayOnOrAfter(timezone.TodayDate())
+	testpkg.CreateTestArrivalSchedule(t, db, student.ID, timetable.WeekdayMonday, staff.ID, "")
+	monday := mondayOnOrAfter(calendar.TodayDate())
 	setClassArrivalException(t, repos, "4b", monday, "11:45", "Unterricht fällt aus")
 
 	weekly, err := svc.GetWeeklySchedulesByStudentIDsForDate(ctx, []int64{student.ID}, monday)
 	require.NoError(t, err)
 	require.Len(t, weekly, 1)
 	assert.Equal(t, "13:30", weekly[0].ExpectedArrival.Format("15:04"))
-	assert.Equal(t, scheduleModel.ArrivalScheduleSourceClassSchedule, weekly[0].Source)
+	assert.Equal(t, careplan.ScheduleSourceClassSchedule, weekly[0].Source)
 
 	data, err := svc.GetStudentArrivalDataForDateRange(ctx, student.ID, monday, monday)
 	require.NoError(t, err)
 	require.Len(t, data.Schedules, 1)
 	assert.Equal(t, "13:30", data.Schedules[0].ExpectedArrival.Format("15:04"))
-	assert.Equal(t, scheduleModel.ArrivalScheduleSourceClassSchedule, data.Schedules[0].Source)
+	assert.Equal(t, careplan.ScheduleSourceClassSchedule, data.Schedules[0].Source)
 
 	effective, err := svc.GetEffectiveArrivalTimeForDate(ctx, student.ID, monday)
 	require.NoError(t, err)
@@ -154,7 +158,7 @@ func TestClassArrivalExceptionDoesNotAddACareDay(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	baseline := classArrivalBaseline(t, repos)
 
@@ -162,9 +166,9 @@ func TestClassArrivalExceptionDoesNotAddACareDay(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, db, "Betreuung", "Person")
 	setClassArrivalTimes(t, "4c", map[string]string{"mon": "12:45", "tue": "12:45"})
 	// Only Tuesday is a care day.
-	testpkg.CreateTestArrivalSchedule(t, db, student.ID, scheduleModel.WeekdayTuesday, staff.ID, "")
+	testpkg.CreateTestArrivalSchedule(t, db, student.ID, timetable.WeekdayTuesday, staff.ID, "")
 
-	monday := mondayOnOrAfter(timezone.TodayDate())
+	monday := mondayOnOrAfter(calendar.TodayDate())
 	setClassArrivalException(t, repos, "4c", monday, "11:45", "Unterricht fällt aus")
 
 	projection, err := baseline.Project(ctx, []int64{student.ID}, monday, monday)
@@ -176,7 +180,7 @@ func TestPerChildDayExceptionWinsOverTheClassException(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	svc := arrivalServiceWithClassExceptions(t, repos)
 
@@ -184,10 +188,10 @@ func TestPerChildDayExceptionWinsOverTheClassException(t *testing.T) {
 	second := testpkg.CreateTestStudent(t, db, "Ohne", "Termin", "3a")
 	staff := testpkg.CreateTestStaff(t, db, "Betreuung", "Person")
 	setClassArrivalTimes(t, "3a", map[string]string{"mon": "13:30"})
-	testpkg.CreateTestArrivalSchedule(t, db, first.ID, scheduleModel.WeekdayMonday, staff.ID, "")
-	testpkg.CreateTestArrivalSchedule(t, db, second.ID, scheduleModel.WeekdayMonday, staff.ID, "")
+	testpkg.CreateTestArrivalSchedule(t, db, first.ID, timetable.WeekdayMonday, staff.ID, "")
+	testpkg.CreateTestArrivalSchedule(t, db, second.ID, timetable.WeekdayMonday, staff.ID, "")
 
-	monday := mondayOnOrAfter(timezone.TodayDate())
+	monday := mondayOnOrAfter(calendar.TodayDate())
 	setClassArrivalException(t, repos, "3a", monday, "12:45", "Unterricht fällt aus")
 	testpkg.CreateTestArrivalException(t, db, first.ID, monday, staff.ID, "14:00", "Arzttermin")
 
@@ -222,13 +226,13 @@ func TestUpsertClassArrivalExceptionWritesAndListsOneRowPerDate(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	svc := arrivalServiceWithClassExceptions(t, repos)
 
 	testpkg.CreateTestStudent(t, db, "Klassen", "Kind", "2b")
 	staff := testpkg.CreateTestStaff(t, db, "Koordination", "Person")
-	monday := mondayOnOrAfter(timezone.TodayDate())
+	monday := mondayOnOrAfter(calendar.TodayDate())
 	reason := "  Wandertag  "
 
 	first, err := svc.UpsertClassArrivalException(ctx, careplan.ClassArrivalExceptionInput{
@@ -271,13 +275,13 @@ func TestUpsertClassArrivalExceptionReturnsPersistedMetadata(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	svc := arrivalServiceWithClassExceptions(t, repos)
 
 	testpkg.CreateTestStudent(t, db, "Klassen", "Kind", "2c")
 	staff := testpkg.CreateTestStaff(t, db, "Koordination", "Person")
-	monday := mondayOnOrAfter(timezone.TodayDate())
+	monday := mondayOnOrAfter(calendar.TodayDate())
 
 	created, err := svc.UpsertClassArrivalException(ctx, careplan.ClassArrivalExceptionInput{
 		SchoolClass: "2c",
@@ -304,7 +308,7 @@ func TestUpsertClassArrivalExceptionRefusesPastDatesAndEmptyClasses(t *testing.T
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	svc := arrivalServiceWithClassExceptions(t, repos)
 
@@ -314,12 +318,12 @@ func TestUpsertClassArrivalExceptionRefusesPastDatesAndEmptyClasses(t *testing.T
 
 	_, err := svc.UpsertClassArrivalException(ctx, careplan.ClassArrivalExceptionInput{
 		SchoolClass: "1a",
-		Date:        timezone.TodayDate().AddDays(-1),
+		Date:        calendar.TodayDate().AddDays(-1),
 		ArrivalTime: noon,
 	}, staff.ID)
 	assert.True(t, errors.Is(err, careplan.ErrClassArrivalExceptionPastDate), "got %v", err)
 
-	weekend := timezone.NewDate(2099, time.March, 7)
+	weekend := calendar.NewDate(2099, time.March, 7)
 	_, err = svc.UpsertClassArrivalException(ctx, careplan.ClassArrivalExceptionInput{
 		SchoolClass: "9z",
 		Date:        weekend.AddDays(2),
@@ -334,6 +338,6 @@ func TestUpsertClassArrivalExceptionRefusesPastDatesAndEmptyClasses(t *testing.T
 	}, staff.ID)
 	assert.True(t, errors.Is(err, careplan.ErrClassArrivalExceptionWeekend), "got %v", err)
 
-	err = svc.DeleteClassArrivalException(ctx, "1a", timezone.TodayDate().AddDays(-1))
+	err = svc.DeleteClassArrivalException(ctx, "1a", calendar.TodayDate().AddDays(-1))
 	assert.True(t, errors.Is(err, careplan.ErrClassArrivalExceptionPastDate), "got %v", err)
 }

@@ -31,5 +31,5 @@ export function useDayPlanHref(): string {
 export function useDayPlanLabel(): string {
   const { data: session } = useSession();
   const adminOnly = hasEffectiveAdminScope(session) && !isCaregiver(session);
-  return adminOnly ? "Zum Betreuungsplan" : "Zum Tagesplan";
+  return adminOnly ? "Zum Betreuungsplan" : "Heute öffnen";
 }

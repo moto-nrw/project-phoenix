@@ -205,6 +205,18 @@ func TestProvisioningSoftDeletePerson(t *testing.T) {
 		assert.Contains(t, h.logs.String(), "person_soft_deleted")
 	})
 
+	t.Run("a former staff member's account is unlinked, not retired", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		h.people.persons[personID] = domain.Person{ID: personID, TenantID: 10, AccountID: int64Ptr(100), FormerStaff: true}
+
+		require.NoError(t, h.svc.SoftDeletePerson(context.Background(), personID, testOperatorID, operatorIP))
+
+		assert.Equal(t, []string{"FindPerson", "FindStaff", "UnlinkAccount", "AnonymizeAndSoftDelete"}, h.people.calls)
+		assert.Empty(t, h.identity.calls, "the account may still serve another school or the parents portal")
+		assert.NotContains(t, h.people.persons, personID)
+	})
+
 	t.Run("a person without card, account or staff record is only anonymised", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
@@ -264,13 +276,14 @@ func TestProvisioningSoftDeletePerson(t *testing.T) {
 		assert.NotContains(t, h.people.persons, personID)
 	})
 
-	t.Run("audit failure does not fail the deletion", func(t *testing.T) {
+	t.Run("audit failure fails the transaction", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
 		seedStaffWithAccount(h)
 		h.audit.err = errBoom
 
-		require.NoError(t, h.svc.SoftDeletePerson(context.Background(), personID, testOperatorID, operatorIP))
+		require.ErrorIs(t, h.svc.SoftDeletePerson(context.Background(), personID, testOperatorID, operatorIP), errBoom)
+		assert.ErrorIs(t, h.tx.lastErr, errBoom)
 	})
 
 	for name, tc := range map[string]struct {

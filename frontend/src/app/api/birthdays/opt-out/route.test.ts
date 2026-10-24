@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { ApiResponseError } from "~/lib/api-response-error.server";
 
 const mockFetchOptOut = vi.fn();
 const mockUpdateOptOut = vi.fn();
@@ -57,9 +58,16 @@ describe("PUT /api/birthdays/opt-out", () => {
     ["a string", { opt_out: "true" }],
     ["a number", { opt_out: 1 }],
   ])("rejects %s instead of clearing the opt-out", async (_label, body) => {
-    await expect((PUT as Function)({}, body, "token", {})).rejects.toThrow(
-      "API error (400): opt_out must be a boolean",
+    const error: unknown = await (PUT as Function)({}, body, "token", {}).catch(
+      (thrown: unknown) => thrown,
     );
+    expect(error).toBeInstanceOf(ApiResponseError);
+    expect((error as ApiResponseError).status).toBe(400);
+    expect((error as ApiResponseError).body()).toMatchObject({
+      status: 400,
+      detail: "opt_out must be a boolean",
+      code: "general.input",
+    });
 
     expect(mockUpdateOptOut).not.toHaveBeenCalled();
   });

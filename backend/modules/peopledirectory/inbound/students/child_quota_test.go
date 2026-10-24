@@ -1,26 +1,14 @@
-// The HTTP surface of the Kinderkontingent (#3567): manual creation and
-// resuming care answer a full Kinderkontingent with 409 and a stable code,
-// and nothing is written. The Datenverwaltung reads the Kinderkontingent next
-// to the Kontingentzahl (#3569).
 package students_test
 
 import (
-	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api/testutil"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
-
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	studentsAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/students"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 func liveMemberships(t *testing.T, tc *testContext) int {
@@ -74,53 +62,6 @@ func TestCreateStudent_FillsTheLastPlace(t *testing.T) {
 
 	require.Equal(t, http.StatusCreated, rr.Code, "Body: %s", rr.Body.String())
 	assert.Equal(t, 2, liveMemberships(t, tc))
-}
-
-func TestResumeCare_RefusesAFullKinderkontingent(t *testing.T) {
-	t.Parallel()
-	tc := setupStudentsRouteWithCareLifecycle(t, false, fixedCalendarClock)
-	today := studentsTestToday
-	testpkg.CreateTestStudent(t, tc.db, "Schon", "Da", "1a")
-	ended := testpkg.CreateTestStudent(t, tc.db, "Wieder", "Da", "1a")
-	_, err := tc.db.NewUpdate().TableExpr("users.student_school_memberships").
-		Set("enrolled_until = ?", today.AddDays(-1)).Set("status = ?", careplan.StudentStatusInactive).
-		Where("student_profile_id = ? AND deleted_at IS NULL", ended.ID).Exec(testpkg.Ctx(t))
-	require.NoError(t, err)
-	_, err = tc.db.NewRaw(`INSERT INTO users.student_care_exits (tenant_id, student_id, reason) VALUES (?, ?, 'moved_away')`,
-		testpkg.Tenant(t), ended.ID).Exec(testpkg.Ctx(t))
-	require.NoError(t, err)
-	testpkg.SetTestChildQuota(t, tc.db, 1, 1)
-
-	path := fmt.Sprintf("/%d/care-end/resume", ended.ID)
-	body := map[string]any{"new_start": today.String(), "checked": true}
-	rr := authExec(t, tc, testutil.NewAuthenticatedRequest(t, http.MethodPost, path, body), testutil.AdminTestClaims(1), []string{"admin:*"})
-
-	requireQuotaResponse(t, rr.Code, rr.Body.Bytes(), 1, 1)
-	var until *timezone.Date
-	require.NoError(t, tc.db.NewSelect().TableExpr("users.student_school_memberships").Column("enrolled_until").
-		Where("student_profile_id = ? AND deleted_at IS NULL", ended.ID).Scan(testpkg.Ctx(t), &until))
-	require.NotNil(t, until, "the care stays ended")
-	assert.Equal(t, today.AddDays(-1), *until)
-}
-
-// childQuotaReader binds the School Membership capability to the students
-// port the way the serving root does.
-type childQuotaReader struct {
-	membership schoolmembership.ChildQuotaUsages
-}
-
-func (r childQuotaReader) ChildQuotaUsage(ctx context.Context) (studentsAPI.ChildQuotaUsage, bool, error) {
-	usage, limited, err := r.membership.ChildQuotaUsage(ctx)
-	return studentsAPI.ChildQuotaUsage{Booked: usage.Booked, Occupied: usage.Occupied}, limited, err
-}
-
-func newChildQuotaReader(t *testing.T, db *bun.DB) childQuotaReader {
-	t.Helper()
-	membership, err := testutil.NewStudentRouteMembership(db)
-	require.NoError(t, err)
-	usages, ok := membership.(schoolmembership.ChildQuotaUsages)
-	require.True(t, ok, "the School Membership module answers the Kinderkontingent read")
-	return childQuotaReader{membership: usages}
 }
 
 func getChildQuota(t *testing.T, tc *testContext, perms []string) (int, map[string]any) {

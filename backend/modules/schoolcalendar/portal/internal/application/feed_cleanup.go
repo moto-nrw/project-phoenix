@@ -6,20 +6,14 @@ import (
 	"time"
 )
 
-// CleanupExpiredFeedTombstones permanently removes lifecycle records after
-// every subscribed client has had the documented 90-day cancellation window.
+// CleanupExpiredFeedTombstones permanently removes the staff feed tombstones
+// after every subscribed client has had the documented 90-day cancellation
+// window. Cancelled and deleted appointments go in the nightly retention of
+// the Appointments owner, which logs them (#4045).
 func (s *service) CleanupExpiredFeedTombstones(ctx context.Context) (int, error) {
-	if s.cfg.Appointments == nil || s.cfg.StaffFeedTombstoneRepo == nil {
+	if s.cfg.StaffFeedTombstoneRepo == nil {
 		return 0, fmt.Errorf("%w: calendar feed cleanup not configured", ErrInvalidRequest)
 	}
 	cutoff := time.Now().AddDate(0, 0, -feedTombstoneDays)
-	appointments, err := s.cfg.Appointments.DeleteFeedTombstonesBefore(ctx, cutoff)
-	if err != nil {
-		return 0, err
-	}
-	staffEvents, err := s.cfg.StaffFeedTombstoneRepo.DeleteBefore(ctx, cutoff)
-	if err != nil {
-		return 0, err
-	}
-	return appointments + staffEvents, nil
+	return s.cfg.StaffFeedTombstoneRepo.DeleteFeedCancellationsBefore(ctx, cutoff)
 }

@@ -14,7 +14,7 @@ import { useApiFormError } from "~/contexts/ToastContext";
 import { WizardStepper } from "~/components/ui/wizard-stepper";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
-import { credentialError } from "./credential-error";
+import { credentialError, MFA_STEP_REFUSALS } from "./credential-error";
 import {
   enrollConfirm,
   enrollStart,
@@ -63,8 +63,9 @@ export function MFAEnrollmentScreen({
   onExit,
 }: MFAEnrollmentScreenProps) {
   const [step, setStep] = useState<Step>("intro");
-  // Fehler über den gemeinsamen Weg (#2517). Ein abgelehnter Code kommt als
-  // 401; das ist hier kein Sitzungsende, deshalb credentialError.
+  // Fehler über den gemeinsamen Weg (#2517). Ein abgelehnter Code bleibt im
+  // Formular (MFA_STEP_REFUSALS); ein 401 ohne diesen Code heißt, dass die
+  // Einrichtungs-Anmeldung abgelaufen ist, und führt zur Anmeldeseite.
   const formRef = useRef<HTMLDivElement>(null);
   const formErrors = useApiFormError(formRef);
   const { show: showError, clear: clearError } = formErrors;
@@ -98,7 +99,7 @@ export function MFAEnrollmentScreen({
         scope,
         error: err instanceof Error ? err.message : String(err),
       });
-      void showError(credentialError(err), {
+      void showError(credentialError(err, MFA_STEP_REFUSALS), {
         object: "das Senden des Codes",
         retry: () => latestStartRef.current(),
       });
@@ -142,7 +143,7 @@ export function MFAEnrollmentScreen({
         });
         otpRef.current?.reset();
         // Kein Wiederholen: der Code steht nicht mehr im Feld.
-        void showError(credentialError(err), {
+        void showError(credentialError(err, MFA_STEP_REFUSALS), {
           object: "die Prüfung des Codes",
         });
       } finally {
@@ -250,8 +251,8 @@ export function MFAEnrollmentScreen({
             <p className="text-sm leading-relaxed text-gray-600">
               {step === "intro" ? (
                 <>
-                  Ihre Schule verlangt eine zweite Sicherheitsstufe beim Login.
-                  Wir senden dafür einen 6-stelligen Code an{" "}
+                  Sie brauchen zusätzlich einen Code per E-Mail. Wir senden
+                  dafür einen 6-stelligen Code an{" "}
                   <span className="font-medium text-gray-800">{userEmail}</span>
                   {"."}
                 </>
@@ -271,7 +272,7 @@ export function MFAEnrollmentScreen({
             <div className="space-y-5">
               <Alert
                 type="info"
-                message="Falls Sie keinen Zugriff mehr auf Ihr E-Mail-Postfach haben, kann Ihre Schul-Administration die 2FA für Sie zurücksetzen."
+                message="Kein Zugriff auf Ihre E-Mails? Wenden Sie sich an Ihre Schulverwaltung. Der zusätzliche Nachweis bleibt bei besonderen Zugriffsrechten Pflicht."
               />
               <Button
                 type="button"

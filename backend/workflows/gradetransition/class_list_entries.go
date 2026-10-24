@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 )
@@ -38,7 +37,7 @@ func newClassListRenameLookup(renames map[string]string) classListRenameLookup {
 	normalized := make(map[string]string, len(renames))
 	ambiguous := make(map[string]bool)
 	for from, to := range renames {
-		key := schoolclass.Normalize(from)
+		key := schoolstructure.NormalizeClass(from)
 		if existing, seen := normalized[key]; seen && existing != to {
 			ambiguous[key] = true
 			continue
@@ -57,7 +56,7 @@ func (l classListRenameLookup) target(schoolClass string) (string, bool) {
 	if to, ok := l.exact[strings.TrimSpace(schoolClass)]; ok {
 		return to, true
 	}
-	to, ok := l.normalized[schoolclass.Normalize(schoolClass)]
+	to, ok := l.normalized[schoolstructure.NormalizeClass(schoolClass)]
 	return to, ok
 }
 
@@ -66,7 +65,7 @@ func (l classListRenameLookup) target(schoolClass string) (string, bool) {
 func classListEntryKey(firstName, lastName, schoolClass string) string {
 	return strings.ToLower(strings.TrimSpace(firstName)) + "\x00" +
 		strings.ToLower(strings.TrimSpace(lastName)) + "\x00" +
-		schoolclass.Normalize(schoolClass)
+		schoolstructure.NormalizeClass(schoolClass)
 }
 
 func classListDisplayValue(firstName, lastName, schoolClass string) string {
@@ -226,64 +225,14 @@ func (w *Workflow) revertClassListEntries(ctx context.Context, actor Actor, tran
 		current[classListEntryKey(entry.FirstName, entry.LastName, entry.SchoolClass)] = entry
 		byID[entry.ID] = entry
 	}
-	ledgerCreated := make(map[string]bool)
-	deletedCreated := make(map[string]bool)
-	for _, item := range ledger {
-		if item.Action != schoolstructure.LedgerActionCreated {
-			continue
-		}
-		key := classListEntryKey(item.FirstName, item.LastName, item.SchoolClass)
-		ledgerCreated[key] = true
-		row, found := resolveLedgerCreatedRow(item, current, byID)
-		if !found {
-			continue
-		}
-		if err := w.deps.Membership.DeleteClassListEntry(ctx, row.ID); err != nil {
-			return fmt.Errorf("failed to delete class list entry: %w", err)
-		}
-		delete(current, classListEntryKey(row.FirstName, row.LastName, row.SchoolClass))
-		deletedCreated[key] = true
-		if err := w.auditClassListEntry(ctx, actor, row.ID, ClassListAuditDeleted, classListDisplayValue(row.FirstName, row.LastName, row.SchoolClass), ""); err != nil {
-			return err
-		}
+	ledgerCreated, deletedCreated, err := w.deleteCreatedClassListEntries(ctx, actor, ledger, current, byID)
+	if err != nil {
+		return err
 	}
 	lookup := newClassListRenameLookup(classRenames(mappings))
 	names := w.newClassListStudentNames()
 	for _, item := range ledger {
-		if item.Action != schoolstructure.LedgerActionRemoved {
-			continue
-		}
-		if target, hit := lookup.target(item.SchoolClass); hit && target != "" {
-			pairKey := classListEntryKey(item.FirstName, item.LastName, target)
-			if ledgerCreated[pairKey] && !deletedCreated[pairKey] {
-				continue // the admin removed the renamed child after the apply
-			}
-		}
-		key := classListEntryKey(item.FirstName, item.LastName, item.SchoolClass)
-		if _, taken := current[key]; taken {
-			continue
-		}
-		duplicate, err := names.duplicatesStudent(ctx, item.FirstName, item.LastName, item.SchoolClass)
-		if err != nil {
-			return err
-		}
-		if duplicate {
-			continue // the reactivated student of that name IS the row now
-		}
-		create := schoolmembership.CreateClassListEntry{
-			ClassListEntryFields: schoolmembership.ClassListEntryFields{FirstName: item.FirstName, LastName: item.LastName, SchoolClass: item.SchoolClass},
-		}
-		if actor.AccountID > 0 {
-			accountID := actor.AccountID
-			create.CreatedBy = &accountID
-		}
-		restored, err := w.deps.Membership.CreateClassListEntry(ctx, create)
-		if err != nil {
-			return fmt.Errorf("failed to restore class list entry: %w", err)
-		}
-		current[key] = restored
-		names.invalidate(item.SchoolClass)
-		if err := w.auditClassListEntry(ctx, actor, restored.ID, ClassListAuditCreated, "", classListDisplayValue(restored.FirstName, restored.LastName, restored.SchoolClass)); err != nil {
+		if err := w.restoreClassListEntry(ctx, actor, item, lookup, names, current, ledgerCreated, deletedCreated); err != nil {
 			return err
 		}
 	}
@@ -313,6 +262,71 @@ func resolveLedgerCreatedRow(item schoolstructure.TransitionClassListEntry, byKe
 func (w *Workflow) auditClassListEntry(ctx context.Context, actor Actor, entryID int64, action, oldValue, newValue string) error {
 	if err := w.deps.AppendClassListEntryAudit(ctx, actor, ClassListEntryAudit{EntryID: entryID, Action: action, OldValue: oldValue, NewValue: newValue}); err != nil {
 		return fmt.Errorf("failed to record class list entry change: %w", err)
+	}
+	return nil
+}
+
+func (w *Workflow) deleteCreatedClassListEntries(ctx context.Context, actor Actor, ledger []schoolstructure.TransitionClassListEntry, current map[string]schoolmembership.ClassListEntry, byID map[int64]schoolmembership.ClassListEntry) (map[string]bool, map[string]bool, error) {
+	ledgerCreated := make(map[string]bool)
+	deletedCreated := make(map[string]bool)
+	for _, item := range ledger {
+		if item.Action != schoolstructure.LedgerActionCreated {
+			continue
+		}
+		key := classListEntryKey(item.FirstName, item.LastName, item.SchoolClass)
+		ledgerCreated[key] = true
+		row, found := resolveLedgerCreatedRow(item, current, byID)
+		if !found {
+			continue
+		}
+		if err := w.deps.Membership.DeleteClassListEntry(ctx, row.ID); err != nil {
+			return nil, nil, fmt.Errorf("failed to delete class list entry: %w", err)
+		}
+		delete(current, classListEntryKey(row.FirstName, row.LastName, row.SchoolClass))
+		deletedCreated[key] = true
+		if err := w.auditClassListEntry(ctx, actor, row.ID, ClassListAuditDeleted, classListDisplayValue(row.FirstName, row.LastName, row.SchoolClass), ""); err != nil {
+			return nil, nil, err
+		}
+	}
+	return ledgerCreated, deletedCreated, nil
+}
+
+func (w *Workflow) restoreClassListEntry(ctx context.Context, actor Actor, item schoolstructure.TransitionClassListEntry, lookup classListRenameLookup, names *classListStudentNames, current map[string]schoolmembership.ClassListEntry, ledgerCreated, deletedCreated map[string]bool) error {
+	if item.Action != schoolstructure.LedgerActionRemoved {
+		return nil
+	}
+	if target, hit := lookup.target(item.SchoolClass); hit && target != "" {
+		pairKey := classListEntryKey(item.FirstName, item.LastName, target)
+		if ledgerCreated[pairKey] && !deletedCreated[pairKey] {
+			return nil // the admin removed the renamed child after the apply
+		}
+	}
+	key := classListEntryKey(item.FirstName, item.LastName, item.SchoolClass)
+	if _, taken := current[key]; taken {
+		return nil
+	}
+	duplicate, err := names.duplicatesStudent(ctx, item.FirstName, item.LastName, item.SchoolClass)
+	if err != nil {
+		return err
+	}
+	if duplicate {
+		return nil // the reactivated student of that name IS the row now
+	}
+	create := schoolmembership.CreateClassListEntry{
+		ClassListEntryFields: schoolmembership.ClassListEntryFields{FirstName: item.FirstName, LastName: item.LastName, SchoolClass: item.SchoolClass},
+	}
+	if actor.AccountID > 0 {
+		accountID := actor.AccountID
+		create.CreatedBy = &accountID
+	}
+	restored, err := w.deps.Membership.CreateClassListEntry(ctx, create)
+	if err != nil {
+		return fmt.Errorf("failed to restore class list entry: %w", err)
+	}
+	current[key] = restored
+	names.invalidate(item.SchoolClass)
+	if err := w.auditClassListEntry(ctx, actor, restored.ID, ClassListAuditCreated, "", classListDisplayValue(restored.FirstName, restored.LastName, restored.SchoolClass)); err != nil {
+		return err
 	}
 	return nil
 }

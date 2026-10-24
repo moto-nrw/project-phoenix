@@ -3,6 +3,8 @@ package ports
 import (
 	"context"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
 
 // The Statistik report (#2606) reads its own presence facts through the
@@ -101,6 +103,7 @@ type StatusDays interface {
 
 // StatisticsRetention resolves the tenant retention windows the report names.
 type StatisticsRetention interface {
+	// RoomRetentionDays returns zero when room history is switched off.
 	RoomRetentionDays(context.Context) (int, error)
 	CourseRetentionDays(context.Context) (int, error)
 }
@@ -108,13 +111,13 @@ type StatisticsRetention interface {
 // Own presence facts the report reads through the application service.
 
 type AttendanceDays interface {
-	ListAttendanceDays(ctx context.Context, from, to Date) ([]AttendanceDay, error)
+	ListAttendanceDays(ctx context.Context, from, to string) ([]studentpresence.AttendanceDay, error)
 }
 
 type RoomUtilizations interface {
-	RoomUtilization(context.Context, []StudentVisitWindow) ([]RoomUtilization, error)
+	RoomUtilization(context.Context, []studentpresence.StudentVisitWindow) ([]studentpresence.RoomUtilization, error)
 }
 
 type RetentionSettings interface {
-	ListAcceptedRetentionSettings(context.Context) ([]StudentRetentionSetting, error)
+	ListAcceptedRetentionSettings(context.Context) ([]studentpresence.StudentRetentionSetting, error)
 }

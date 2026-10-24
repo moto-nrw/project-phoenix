@@ -50,6 +50,10 @@ type ParentMessage struct {
 	DecisionReason string
 	ReadByStaff    bool
 	ReadByGuardian bool
+	// GroupThreadID and GroupThreadTitle name the group thread a guardian's
+	// message answers (#4784).
+	GroupThreadID    *int64
+	GroupThreadTitle string
 }
 
 type ParentMessageInboxThread struct {
@@ -95,6 +99,10 @@ type ParentMessagingQuery interface {
 	ListParentMessageInbox(context.Context, bool) ([]ParentMessageInboxThread, error)
 	CountUnreadParentMessages(context.Context) (int, error)
 	ListMessageableGuardians(context.Context, int64) ([]MessageableGuardian, error)
+	// ListParentMessageReachableStudents returns, ascending, the IDs of the
+	// school's children with at least one guardian ListMessageableGuardians
+	// would offer (#4362).
+	ListParentMessageReachableStudents(context.Context) ([]int64, error)
 	ListParentMessageThreadsForStudent(context.Context, int64) ([]ParentMessageInboxThread, error)
 	// ParentMessageCountScope returns which conversations the caller's own
 	// counter counts (#3673).
@@ -156,6 +164,23 @@ type MessageableStaff struct {
 	AccountID int64
 	Name      string
 	RoleKind  string
+}
+
+// ParentMessageCleanupResult reports one school's parent-message retention
+// sweep (#3959).
+type ParentMessageCleanupResult struct {
+	MessagesDeleted int
+	ThreadsDeleted  int
+	RetentionDays   int
+}
+
+// Deleted is the number of rows the sweep deleted: messages and threads.
+func (r ParentMessageCleanupResult) Deleted() int { return r.MessagesDeleted + r.ThreadsDeleted }
+
+// ParentMessageCleanup deletes the parent/OGS messages of the school in
+// context after the retention window the moto team recorded for it.
+type ParentMessageCleanup interface {
+	CleanupExpiredParentMessages(context.Context) (ParentMessageCleanupResult, error)
 }
 
 type StaffMessageCleanupResult struct {

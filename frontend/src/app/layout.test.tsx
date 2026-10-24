@@ -55,16 +55,6 @@ describe("RootLayout", () => {
     expect(getByTestId("background-wrapper")).toBeInTheDocument();
   });
 
-  it("renders html and body structure", async () => {
-    const { container } = render(
-      await RootLayout({ children: <div>Test</div> }),
-    );
-
-    // RootLayout is a server component that renders html and body tags
-    // In test environment, we can verify the structure exists
-    expect(container).toBeTruthy();
-  });
-
   it("wraps content in providers and background wrapper", async () => {
     const { getByTestId } = render(
       await RootLayout({ children: <div>Test</div> }),

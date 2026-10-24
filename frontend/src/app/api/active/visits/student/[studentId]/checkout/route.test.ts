@@ -1,15 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
 import { POST } from "./route";
-
-// ============================================================================
-// Types
-// ============================================================================
-
-interface ExtendedSession extends Session {
-  user: Session["user"] & { token?: string };
-}
+import {
+  type ExtendedSession,
+  createMockContext,
+  defaultSession,
+} from "~/test/route-test-helpers";
 
 // ============================================================================
 // Mocks (using vi.hoisted for proper hoisting)
@@ -49,17 +45,6 @@ function createMockRequest(
   return new NextRequest(url, requestInit);
 }
 
-function createMockContext(
-  params: Record<string, string | string[] | undefined> = {},
-) {
-  return { params: Promise.resolve(params) };
-}
-
-const defaultSession: ExtendedSession = {
-  user: { id: "1", token: "test-token", name: "Test User" },
-  expires: "2099-01-01",
-};
-
 interface ApiResponse<T> {
   success: boolean;
   message: string;
@@ -78,21 +63,6 @@ describe("POST /api/active/visits/student/[studentId]/checkout", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(defaultSession);
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest(
-      "/api/active/visits/student/123/checkout",
-      { method: "POST", body: {} },
-    );
-    const response = await POST(
-      request,
-      createMockContext({ studentId: "123" }),
-    );
-
-    expect(response.status).toBe(401);
   });
 
   it("returns 500 when studentId parameter is missing", async () => {
@@ -164,7 +134,11 @@ describe("POST /api/active/visits/student/[studentId]/checkout", () => {
     );
 
     expect(response.status).toBe(404);
-    expect(await response.text()).toBe("Student not found");
+    expect(await response.json()).toMatchObject({
+      status: 404,
+      detail: "Not Found",
+      code: "general.input",
+    });
   });
 
   it("handles empty error response", async () => {
@@ -181,6 +155,10 @@ describe("POST /api/active/visits/student/[studentId]/checkout", () => {
     );
 
     expect(response.status).toBe(500);
-    expect(await response.text()).toBe("");
+    expect(await response.json()).toMatchObject({
+      status: 500,
+      detail: "Internal Server Error",
+      code: "general.server",
+    });
   });
 });

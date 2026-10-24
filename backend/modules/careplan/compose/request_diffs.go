@@ -9,11 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
 )
 
-type RequestDiffPeople = ports.RequestDiffPeople
-type RequestDiffArrivals = ports.RequestDiffArrivals
-type RequestDiffPickups = ports.RequestDiffPickups
-
-func NewRequestDiffs(people RequestDiffPeople, arrivals RequestDiffArrivals, pickups RequestDiffPickups, logger *slog.Logger) (carerequests.Diffs, error) {
+func NewRequestDiffs(people ports.RequestDiffPeople, arrivals ports.RequestDiffArrivals, pickups ports.RequestDiffPickups, logger *slog.Logger) (carerequests.Diffs, error) {
 	if people == nil || arrivals == nil || pickups == nil {
 		return nil, errors.New("care request diffs: people, arrivals, and pickups are required")
 	}

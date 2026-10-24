@@ -76,7 +76,27 @@ describe("fetchStudentFeedback", () => {
     expect(result).toEqual([]);
   });
 
-  it("throws feature_disabled on 403", async () => {
+  it("carries the feedback.disabled code of a switched-off feature", async () => {
+    mockSessionFetch.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          status: 403,
+          detail: "feature_disabled",
+          code: "feedback.disabled",
+        }),
+        { status: 403, statusText: "Forbidden" },
+      ),
+    );
+
+    const error = await fetchStudentFeedback("1").catch(
+      (caught: unknown) => caught,
+    );
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).status).toBe(403);
+    expect((error as ApiError).code).toBe("feedback.disabled");
+  });
+
+  it("uses the permission class code for a 403 without a body", async () => {
     mockSessionFetch.mockResolvedValue({
       ok: false,
       status: 403,

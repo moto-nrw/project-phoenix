@@ -7,26 +7,21 @@ package deviceauth
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"fmt"
 	"log/slog"
-	"net"
 	"net/http"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/auth/device"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
+	device "github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/adapters/deviceauth"
 	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun/driver/pgdriver"
 )
 
 // Middleware is the shape every device route group mounts.
 type Middleware = func(http.Handler) http.Handler
 
 // Fleet is the part of the Device Fleet capability device authentication
-// reads and writes. *devicefleet.Module satisfies it.
+// reads and writes. devicefleet.Capability satisfies it.
 type Fleet interface {
 	FindDeviceByAPIKey(context.Context, string) (devicefleet.Device, error)
 	UpdateDeviceLastSeen(context.Context, int64, time.Time) error
@@ -44,24 +39,37 @@ type SchoolDirectory interface {
 }
 
 // Settings resolves tenant settings outside a tenant transaction. The
-// settings service satisfies it.
+// settings service satisfies it. Errors must not contain stored values or credentials;
+// the authentication boundary logs the lookup cause.
 type Settings interface {
 	ResolveStringForTenant(ctx context.Context, tenantID int64, key string) (string, error)
 }
 
+// devicePINSettingKey is the Settings Platform registry key of the school's
+// shared device PIN. The registry owns it; deviceauth_test.go pins it to the
+// owner's public name so a renamed key fails there instead of resolving
+// nothing.
+const devicePINSettingKey = "security.ogs_device_pin"
+
+// SchoolErrors classifies the school read without coupling HTTP to a SQL driver.
+// Root supplies the classifier from the Device Fleet composition.
+type SchoolErrors interface {
+	Missing(error) bool
+	Transient(error) bool
+}
+
 // Dependencies are the collaborators the device authenticators need.
 type Dependencies struct {
+	// Logger records operational authentication failures.
+	Logger *slog.Logger
 	// Devices resolves API keys and records device activity. Required.
 	Devices Fleet
 	// Schools blocks devices of deleted schools. Optional: a nil directory
 	// skips the check, which only test graphs use.
-	Schools SchoolDirectory
-	// Settings resolves the tenant device PIN. Optional: without it only
-	// FallbackPIN authenticates.
+	Schools      SchoolDirectory
+	SchoolErrors SchoolErrors
+	// Settings resolves the tenant device PIN. Required.
 	Settings Settings
-	// FallbackPIN is the OGS_DEVICE_PIN value used when no tenant PIN
-	// resolves.
-	FallbackPIN string
 }
 
 // Authenticators are the composed device middlewares. Both share one
@@ -74,16 +82,22 @@ func New(deps Dependencies) *Authenticators {
 	if deps.Devices == nil {
 		panic("device authentication composition: the Device Fleet capability is required")
 	}
+	if deps.Schools != nil && deps.SchoolErrors == nil {
+		panic("device authentication composition: school error classifier is required")
+	}
+	if deps.Settings == nil {
+		panic("device authentication composition: settings resolver is required")
+	}
 	var schools device.SchoolLookup
 	if deps.Schools != nil {
-		schools = schoolLookup{schools: deps.Schools}
+		schools = schoolLookup{schools: deps.Schools, errors: deps.SchoolErrors}
 	}
 	return &Authenticators{authenticator: device.NewAuthenticator(device.Dependencies{
-		Devices:     fleetDirectory{fleet: deps.Devices},
-		BindTenant:  bindTenant,
-		Schools:     schools,
-		PIN:         pinResolver(deps.Settings),
-		FallbackPIN: deps.FallbackPIN,
+		Logger:     deps.Logger,
+		Devices:    fleetDirectory{fleet: deps.Devices},
+		BindTenant: bindTenant,
+		Schools:    schools,
+		PIN:        pinResolver(deps.Settings),
 	})}
 }
 
@@ -125,21 +139,24 @@ func (d fleetDirectory) FindByAPIKey(ctx context.Context, apiKey string) (*devic
 }
 
 func (d fleetDirectory) RecordLastSeen(ctx context.Context, deviceID int64, seenAt time.Time) error {
-	return d.fleet.UpdateDeviceLastSeen(ctx, deviceID, seenAt)
+	// Each heartbeat has its own school unit, never a completed request transaction.
+	return d.fleet.UpdateDeviceLastSeen(tenant.ContextWithoutTransaction(ctx), deviceID, seenAt)
 }
 
-// schoolLookup classifies the school read for the adapter. It runs before
-// the tenant transaction middleware, so the repository falls back to the raw
-// connection; platform.schools is not behind RLS.
-type schoolLookup struct{ schools SchoolDirectory }
+// schoolLookup classifies the pre-tenant school-directory capability.
+// Its owner supplies the explicit discovery unit before tenant middleware.
+type schoolLookup struct {
+	schools SchoolDirectory
+	errors  SchoolErrors
+}
 
 func (l schoolLookup) IsSchoolDeleted(ctx context.Context, schoolID int64) (bool, error) {
 	school, err := l.schools.FindSchool(ctx, schoolID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if l.errors.Missing(err) {
 			return false, fmt.Errorf("%w: %w", device.ErrSchoolNotFound, err)
 		}
-		if isTransientDBErr(err) {
+		if l.errors.Transient(err) {
 			return false, fmt.Errorf("%w: %w", device.ErrSchoolLookupUnavailable, err)
 		}
 		return false, err
@@ -150,33 +167,8 @@ func (l schoolLookup) IsSchoolDeleted(ctx context.Context, schoolID int64) (bool
 	return school.Deleted, nil
 }
 
-// isTransientDBErr returns true for errors that indicate a temporary
-// connectivity problem (net timeouts, connection resets, context
-// cancellation, PostgreSQL connection-class SQLSTATE 08xxx). Everything else
-// (bad queries, permission errors, serialization failures) returns false so
-// the adapter fails closed. Wrapped repository errors are unwrapped through
-// the standard error chain.
-func isTransientDBErr(err error) bool {
-	if err == nil {
-		return false
-	}
-	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
-		return true
-	}
-	var netErr net.Error
-	if errors.As(err, &netErr) {
-		return true
-	}
-	var pgErr pgdriver.Error
-	if errors.As(err, &pgErr) {
-		code := pgErr.Field('C')
-		return len(code) >= 2 && code[:2] == "08"
-	}
-	return false
-}
-
 // bindTenant makes the device's school the ambient tenant. Device routes do
-// not use jwt.TenantMiddleware, so an unusable tenant id is reported here.
+// not use sessiontoken.TenantMiddleware, so an unusable tenant id is reported here.
 func bindTenant(ctx context.Context, tenantID int64) (context.Context, error) {
 	id, err := tenant.NewTenantID(tenantID)
 	if err != nil {
@@ -186,22 +178,9 @@ func bindTenant(ctx context.Context, tenantID int64) (context.Context, error) {
 	return tenant.WithTenant(ctx, id), nil
 }
 
-// pinResolver reads the tenant device PIN from the settings service. It
-// returns nil without a settings service, so the adapter falls back to the
-// configured PIN.
+// pinResolver propagates settings failures to the authentication boundary.
 func pinResolver(settings Settings) device.PINResolver {
-	if settings == nil {
-		return nil
-	}
-	return func(ctx context.Context, tenantID int64) string {
-		pin, err := settings.ResolveStringForTenant(ctx, tenantID, configModel.KeyOGSDevicePIN)
-		if err != nil {
-			slog.Error("failed to resolve tenant PIN from settings, falling back to env var",
-				slog.Int64("tenant_id", tenantID),
-				slog.String("error", err.Error()),
-			)
-			return ""
-		}
-		return pin
+	return func(ctx context.Context, tenantID int64) (string, error) {
+		return settings.ResolveStringForTenant(ctx, tenantID, devicePINSettingKey)
 	}
 }

@@ -281,6 +281,59 @@ describe("CarePlanEditorModal", () => {
     });
   });
 
+  // #3945: the day's Abholart is its own leg next to the times.
+  it("saves only the Abholart of the day", async () => {
+    const { onSubmitException } = renderEditor({
+      weeklyDepartureModes: { mon: ["alone"] },
+    });
+
+    expect(screen.getByText("Regulär: Geht zu Fuß")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wird abgeholt" }));
+    fireEvent.change(
+      screen.getByLabelText("Grund", {
+        selector: "#exception-abholart-reason",
+      }),
+      { target: { value: "Vater hat angerufen" } },
+    );
+    save();
+
+    await waitFor(() => {
+      expect(onSubmitException).toHaveBeenCalledWith({
+        date: "2026-05-25",
+        arrival: null,
+        pickup: null,
+        departure: {
+          kind: "mode",
+          mode: "pickup",
+          reason: "Vater hat angerufen",
+        },
+      });
+    });
+  });
+
+  it("returns the Abholart of the day to the weekly plan", async () => {
+    const { onSubmitException } = renderEditor({
+      pickupDay: {
+        ...basePickupDay,
+        departureException: {
+          id: "5",
+          studentId: "1",
+          exceptionDate: "2026-05-25",
+          departureMode: "bus",
+        },
+      },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Wie im Wochenplan" }));
+    save();
+
+    await waitFor(() => {
+      expect(onSubmitException).toHaveBeenCalledWith(
+        expect.objectContaining({ departure: { kind: "regular" } }),
+      );
+    });
+  });
+
   it("can set 'Keine Abholung', which the old day editor could not express", async () => {
     const { onSubmitException } = renderEditor();
 
@@ -329,7 +382,9 @@ describe("CarePlanEditorModal", () => {
     save();
 
     expect(
-      await screen.findByText("Bitte ändern Sie zuerst eine Zeit."),
+      await screen.findByText(
+        "Bitte ändern Sie zuerst eine Zeit oder die Abholart.",
+      ),
     ).toBeInTheDocument();
     expect(onSubmitException).not.toHaveBeenCalled();
   });

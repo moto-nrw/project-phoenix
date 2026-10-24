@@ -17,7 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	announcementService "github.com/moto-nrw/project-phoenix/modules/communication"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // Resource is the staff parent-announcement HTTP resource.
@@ -33,10 +33,10 @@ func NewResource(service announcementService.ParentAnnouncementCapability, repor
 }
 
 // Router returns the chi router scoped to /parent-announcements.
-func (rs *Resource) Router() chi.Router {
+func (rs *Resource) Router(protectedTenantRoutes func(chi.Router, func(chi.Router, common.Middleware))) chi.Router {
 	r := chi.NewRouter()
 
-	common.ProtectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) {
+	protectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) {
 
 		// Authoring parent broadcasts is ADMIN-ONLY in v1 (#1669 product
 		// decision, 2026-07-02: "nur Admins"). The route is the only audience
@@ -300,7 +300,7 @@ func (rs *Resource) create(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	a, err := rs.Service.CreateParentAnnouncement(r.Context(), int64(claims.ID), in)
 	if err != nil {
 		renderAnnouncementError(w, r, err)

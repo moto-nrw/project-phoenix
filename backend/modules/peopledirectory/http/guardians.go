@@ -5,7 +5,6 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -19,8 +18,8 @@ import (
 // Bankverbindungen list. It talks to the People Directory only; identity,
 // invitations and document rendering are injected by the root.
 
-// Messages the legacy handlers produced verbatim; changing one changes the
-// contract the staff screens read.
+// Diagnostic messages retained from the legacy handlers. The staff screens
+// show the catalog text selected by the error code.
 const (
 	msgInvalidGuardianID      = "invalid guardian ID"
 	msgInvalidPhoneID         = "invalid phone ID"
@@ -138,6 +137,8 @@ type GuardianRuntime struct {
 	SuccessPaginated func(http.ResponseWriter, *http.Request, int, any, Pagination, string)
 	Failure          func(http.ResponseWriter, *http.Request, FailureKind, error)
 	ObserveResponse  func(int, string)
+	// ParseIDParam reads an int64 path parameter: api/common.ParseIDParam.
+	ParseIDParam func(*http.Request, string) (int64, error)
 
 	// ActorID is the authenticated account, 0 when the token carries none.
 	ActorID func(*http.Request) int64
@@ -187,7 +188,7 @@ func NewGuardianResource(directory peopledirectory.Capability, runtime GuardianR
 		runtime.SendInvitation == nil || runtime.ListPendingInvitations == nil ||
 		runtime.InviteGuardianToStudent == nil || runtime.BulkInviteGuardians == nil || runtime.InviteFailureKind == nil || runtime.ListPendingApprovals == nil ||
 		runtime.PendingInvitationStudentID == nil || runtime.ApproveInvitation == nil || runtime.RejectInvitation == nil ||
-		runtime.RenderPaymentExport == nil || runtime.Log == nil {
+		runtime.RenderPaymentExport == nil || runtime.Log == nil || runtime.ParseIDParam == nil {
 		panic("guardians HTTP: all dependencies are required")
 	}
 	return &GuardianResource{directory: directory, runtime: runtime}
@@ -314,7 +315,7 @@ func classifyGuardianError(err error) FailureKind {
 }
 
 func (rs *GuardianResource) parseIDParam(w http.ResponseWriter, r *http.Request, name, message string) (int64, bool) {
-	id, err := strconv.ParseInt(chi.URLParam(r, name), 10, 64)
+	id, err := rs.runtime.ParseIDParam(r, name)
 	if err != nil || id <= 0 {
 		rs.failMessage(w, r, FailureInvalidRequest, message)
 		return 0, false

@@ -85,6 +85,20 @@ test('demo rollback accepts only main and selects its own directory', t => {
   assert.equal(result.output, 'dir=demo\n');
 });
 
+for (const environment of ['demo', 'production', 'staging']) {
+  test(`${environment} backend SHA tag stays separate from the other image variant`, () => {
+    const metadata = build.split('      - name: Extract metadata for backend\n')[1]
+      .split('      - name: Build and push backend')[0];
+    const tags = interpolate(metadata.replaceAll('needs.check-environment', 'needs["check-environment"]'), {
+      needs: { 'check-environment': { outputs: { environment } } }, env: { BACKEND_IMAGE: 'backend' },
+    });
+    const prefix = environment === 'demo' ? 'demo-' : '';
+    assert.match(tags, new RegExp(`type=sha,prefix=${prefix},format=short`));
+    assert.match(tags, new RegExp(`type=ref,event=branch,enable=${environment !== 'demo'}`));
+    assert.match(tags, new RegExp(`type=raw,value=latest,enable=${environment === 'production'}`));
+  });
+}
+
 test('demo browser hosts are generated at build time', t => {
   const context = { needs: { 'check-environment': { outputs: { environment: 'demo' } } } };
   // GitHub permits hyphens in property names; JavaScript bracket syntax is equivalent here.

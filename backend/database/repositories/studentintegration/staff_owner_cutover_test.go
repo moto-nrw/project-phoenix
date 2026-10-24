@@ -14,7 +14,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -27,17 +29,12 @@ import (
 // Inventory source literals rather than grep output: comments and the owner
 // tables are not callers. The Contract (#2754) removed the compatibility view
 // and its archive, so application code, fixtures and behavior tests alike must
-// not name them. Historical migrations, the operator-only backfill command and
-// the restore helper keep the name for the frozen Expand/Backfill/Cutover
-// contracts, which recreate the retired table inside disposable clones.
+// not name them. Only historical migrations keep the name.
 func TestStaffCutoverCallerInventory(t *testing.T) {
 	t.Parallel()
 	root := filepath.Join("..", "..", "..")
 	exempt := map[string]bool{
-		"cmd/backfill.go":                         true, // operator-only backfill command
-		"cmd/backfill_test.go":                    true, // drives that command on a restored pre-cutover clone
-		"test/staff_storage_cutover.go":           true, // historical restore helper
-		"test/calendar_date_verification_test.go": true, // renamed-column registry of historical migrations
+		"test/calendar_date_verification_test.go":                              true, // renamed-column registry of historical migrations
 		"database/repositories/studentintegration/staff_owner_cutover_test.go": true, // this pattern
 	}
 	files, literals := 0, 0
@@ -130,10 +127,10 @@ func TestStaffOwnersWorkOnContractedStorage(t *testing.T) {
 		AND to_regclass('users.staff_compatibility_reads') IS NULL
 		AND to_regclass('users.staff_compatibility_writes') IS NULL`).Scan(ctx, &retired))
 	require.True(t, retired, "the Contract must have removed the compatibility storage")
-	membership, err := repositories.NewSchoolMembership(db)
+	membership, err := owners.NewSchoolMembership(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	employment := repositories.MustNewStaffEmployment(db)
-	workTime, err := repositories.NewWorkforce(db, membership)
+	employment := api.MustNewStaffEmployment(testpkg.NewDatabase(t, db))
+	workTime, err := owners.NewWorkforce(testpkg.NewDatabase(t, db), membership)
 	require.NoError(t, err)
 
 	model, err := workTime.CreateWorkTimeModel(ctx, workforce.CreateWorkTimeModel{WorkTimeModelFields: workforce.WorkTimeModelFields{
@@ -172,8 +169,7 @@ func TestStaffOwnersWorkOnContractedStorage(t *testing.T) {
 	assert.Equal(t, "2026-02-02", found.RotationAnchorDate)
 
 	require.NoError(t, membership.DeleteStaff(ctx, created.ID))
-	require.NoError(t, employment.ClearStaffWorkTimeModel(ctx, created.ID))
-	require.NoError(t, workTime.DeleteWorkTimeModel(ctx, model.ID), "the retired staff member no longer holds the template")
+	require.NoError(t, workTime.DeleteWorkTimeModel(ctx, model.ID), "the template releases the retired staff member's binding")
 }
 
 func staffOwnerRows(t *testing.T, db *bun.DB, personID int64) (memberships, profiles int) {
@@ -210,7 +206,7 @@ func TestStaffOwnerWritesRollBackWhenTheCallerCatchesTheFailure(t *testing.T) {
 	// trigger is table-wide DDL.
 	db := testpkg.SetupIsolatedTestDB(t)
 	ctx := testpkg.Ctx(t)
-	membership, err := repositories.NewSchoolMembership(db)
+	membership, err := owners.NewSchoolMembership(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	for _, stage := range []struct{ name, timing string }{{"after membership", "BEFORE"}, {"after employment", "AFTER"}} {
 		person := testpkg.CreateTestPerson(t, db, "Atomic", stage.name)
@@ -246,7 +242,7 @@ func TestStaffOwnerUpdateRollsBackBothOwnersWithTheOuterTransaction(t *testing.T
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	membership, err := repositories.NewSchoolMembership(db)
+	membership, err := owners.NewSchoolMembership(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	person := testpkg.CreateTestPerson(t, db, "Outer", "Rollback")
 	created, err := membership.CreateStaff(ctx, schoolmembership.CreateStaff{StaffFields: schoolmembership.StaffFields{PersonID: person.ID, StaffNotes: "vorher"}})
@@ -272,7 +268,7 @@ func TestStaffOwnersClassifyAPersonnelNumberConflict(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	membership, err := repositories.NewSchoolMembership(db)
+	membership, err := owners.NewSchoolMembership(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	holder := testpkg.CreateTestPerson(t, db, "Number", "Holder")
 	_, err = membership.CreateStaff(ctx, schoolmembership.CreateStaff{StaffFields: schoolmembership.StaffFields{PersonID: holder.ID, PersonnelNumber: testpkg.StrPtr("PN-7")}})
@@ -289,9 +285,9 @@ func TestStaffOwnersAreTenantIsolated(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	membership, err := repositories.NewSchoolMembership(db)
+	membership, err := owners.NewSchoolMembership(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	employment := repositories.MustNewStaffEmployment(db)
+	employment := api.MustNewStaffEmployment(testpkg.NewDatabase(t, db))
 	person := testpkg.CreateTestPerson(t, db, "Tenant", "Bound")
 	created, err := membership.CreateStaff(ctx, schoolmembership.CreateStaff{StaffFields: schoolmembership.StaffFields{PersonID: person.ID, StaffNotes: "vertraulich"}})
 	require.NoError(t, err)

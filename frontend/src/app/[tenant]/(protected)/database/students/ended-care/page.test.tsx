@@ -112,6 +112,14 @@ describe("Beendete Betreuungen", () => {
     mockFetchEndedCare.mockResolvedValue(swrState.data);
   });
 
+  it("führt zurück zu den Kinderdaten", async () => {
+    render(<Page />);
+
+    expect(
+      await screen.findByRole("link", { name: "Zurück zu den Kinderdaten" }),
+    ).toHaveAttribute("href", expect.stringMatching(/\/database\/students$/));
+  });
+
   it("lists each child with its last care day and reason", async () => {
     render(<Page />);
 
@@ -132,7 +140,7 @@ describe("Beendete Betreuungen", () => {
     ).toBeVisible();
     expect(
       screen.getByText(
-        /Abgänge aus dem Jahrgangswechsel stehen weiterhin dort/,
+        /Abgänge aus dem Schuljahreswechsel stehen weiterhin dort/,
       ),
     ).toBeVisible();
   });

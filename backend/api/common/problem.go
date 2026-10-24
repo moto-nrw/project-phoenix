@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/go-chi/chi/v5/middleware"
@@ -21,13 +22,13 @@ var helpAnchorByErrorClass = map[string]string{
 }
 
 // ErrorClassCode supplies a stable class identity where a handler has no
-// domain-specific code yet. The numeric status remains on the HTTP response;
-// the JSON status member stays the literal "error" of the shared envelope.
+// domain-specific code yet. Every class code is registered, so an answer
+// without a code of its own still carries a registry code (#2503).
 func ErrorClassCode(status int) string {
 	switch status {
 	case http.StatusUnauthorized, http.StatusForbidden:
 		return CodeGeneralPermission
-	case http.StatusRequestHeaderFieldsTooLarge:
+	case http.StatusRequestEntityTooLarge, http.StatusRequestHeaderFieldsTooLarge:
 		return CodeGeneralRequestTooLarge
 	case http.StatusConflict, http.StatusGone, http.StatusUnprocessableEntity:
 		return CodeGeneralBusinessRejection
@@ -66,6 +67,18 @@ func requestID(r *http.Request) string {
 // use http.Error. Successful responses and streaming responses pass through
 // without buffering.
 func ProblemResponseMiddleware(next http.Handler) http.Handler {
+	return problemResponse(slog.Default)(next)
+}
+
+// problemResponse is ProblemResponseMiddleware with the logger that records a
+// repaired body.
+func problemResponse(logger func() *slog.Logger) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return problemResponseHandler(next, logger)
+	}
+}
+
+func problemResponseHandler(next http.Handler, logger func() *slog.Logger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		capture := &problemWriter{ResponseWriter: w}
 		next.ServeHTTP(capture, r)
@@ -73,16 +86,22 @@ func ProblemResponseMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
+		wroteBody := len(bytes.TrimSpace(capture.body.Bytes())) > 0
 		body := readProblemBody(capture, w.Header().Get("Content-Type"))
-		if departsFromEnvelope(body) {
-			// The answer is repaired below; the warning names the route whose
-			// handler still writes its own error body (#2507).
-			slog.Default().WarnContext(r.Context(), "error body outside the shared envelope",
+		repaired := wroteBody && departsFromEnvelope(body, capture.status)
+		addProblemFields(body, capture.status, middleware.GetReqID(r.Context()))
+		if repaired {
+			// A handler wrote its own error body. The answer is repaired, but
+			// that is a regression of the one error path (#2520): it is logged
+			// at error level with the route and the code it now answers with.
+			// A status without a body is the documented way to let this
+			// middleware answer and is not logged.
+			logger().ErrorContext(r.Context(), "error body outside the shared envelope",
 				slog.String("route", RoutePattern(r)),
 				slog.Int("status", capture.status),
+				slog.String("code", problemStringField(body, "code")),
 			)
 		}
-		addProblemFields(body, capture.status, middleware.GetReqID(r.Context()))
 		encoded, err := json.Marshal(body)
 		if err != nil {
 			slog.Default().ErrorContext(r.Context(), "failed to encode problem response", slog.String("error", err.Error()))
@@ -108,42 +127,44 @@ func readProblemBody(capture *problemWriter, contentType string) map[string]json
 		if message == "" {
 			message = problemTitle(capture.status)
 		}
-		setProblemString(body, "status", "error")
-		setProblemString(body, "error", message)
+		setProblemString(body, "detail", message)
 	}
 	return body
 }
 
-// departsFromEnvelope reports a body whose status member is not "error" or
-// which carries its text in `message`.
-func departsFromEnvelope(body map[string]json.RawMessage) bool {
+// departsFromEnvelope reports a body that is not the shared envelope yet:
+// a legacy `error` or `message` text, a status member other than the HTTP
+// status number, or no code.
+func departsFromEnvelope(body map[string]json.RawMessage, status int) bool {
 	_, hasMessage := body["message"]
-	return hasMessage || problemStringField(body, "status") != "error"
+	_, hasError := body["error"]
+	return hasMessage || hasError || problemStatusField(body) != status || problemStringField(body, "code") == ""
 }
 
-// Shared renderers already supplied these fields. Direct writers get the
-// missing members filled; their status member becomes "error" and a
-// `message` text moves to `error`, so every failure has one form. Further
-// members stay as RFC 9457 extensions.
+// addProblemFields completes the RFC 9457 envelope. Shared renderers already
+// supplied every member. A direct writer's text moves from `error` or
+// `message` into `detail`, its status member becomes the HTTP status number
+// and a missing or unregistered code becomes the class code of the status.
+// Further members stay as RFC 9457 extensions.
 func addProblemFields(body map[string]json.RawMessage, status int, requestID string) {
-	setProblemString(body, "status", "error")
-	if problemStringField(body, "error") == "" {
-		setProblemString(body, "error", problemDetail(body, status))
+	if problemStringField(body, "detail") == "" {
+		setProblemString(body, "detail", problemDetail(body, status))
 	}
+	delete(body, "error")
 	delete(body, "message")
+	body["status"] = json.RawMessage(strconv.Itoa(status))
 	code := problemStringField(body, "code")
-	if code == "" {
+	codeReplaced := false
+	if _, registered := errorClassByCode[code]; !registered {
 		code = ErrorClassCode(status)
 		setProblemString(body, "code", code)
+		codeReplaced = true
 	}
-	if problemStringField(body, "type") == "" {
+	if codeReplaced || problemStringField(body, "type") == "" {
 		setProblemString(body, "type", problemType(code, status))
 	}
 	if problemStringField(body, "title") == "" {
 		setProblemString(body, "title", problemTitle(status))
-	}
-	if problemStringField(body, "detail") == "" {
-		setProblemString(body, "detail", problemDetail(body, status))
 	}
 	if problemStringField(body, "instance") == "" {
 		setProblemString(body, "instance", requestID)
@@ -151,12 +172,20 @@ func addProblemFields(body map[string]json.RawMessage, status int, requestID str
 }
 
 func problemDetail(body map[string]json.RawMessage, status int) string {
-	for _, key := range []string{"error", "message", "detail"} {
+	for _, key := range []string{"detail", "error", "message"} {
 		if value := problemStringField(body, key); value != "" {
 			return value
 		}
 	}
 	return problemTitle(status)
+}
+
+func problemStatusField(body map[string]json.RawMessage) int {
+	var value int
+	if err := json.Unmarshal(body["status"], &value); err != nil {
+		return 0
+	}
+	return value
 }
 
 func problemStringField(body map[string]json.RawMessage, key string) string {
@@ -178,6 +207,10 @@ type problemWriter struct {
 
 func (w *problemWriter) WriteHeader(status int) {
 	if w.status != 0 {
+		return
+	}
+	if isInterimStatus(status) {
+		w.ResponseWriter.WriteHeader(status)
 		return
 	}
 	w.status = status

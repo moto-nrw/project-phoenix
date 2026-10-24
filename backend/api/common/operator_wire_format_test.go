@@ -47,7 +47,7 @@ func TestWireFormat_Operator_ErrHelpers(t *testing.T) {
 			name:       "ErrInvalidRequest",
 			renderer:   common.OperatorInvalidRequest(errors.New("bad")),
 			wantStatus: 400,
-			wantBody:   `{"status":"error","type":"https://moto-app.de/help/fehlermeldungen#anleitung-eingabe-pruefen","title":"Bad Request","detail":"bad","instance":"","error":"bad","code":"general.input"}` + "\n",
+			wantBody:   `{"type":"https://moto-app.de/help/fehlermeldungen#anleitung-eingabe-pruefen","title":"Bad Request","status":400,"detail":"bad","instance":"","code":"general.input"}` + "\n",
 		},
 		{
 			name:       "ErrInvalidCredentials",
@@ -55,55 +55,55 @@ func TestWireFormat_Operator_ErrHelpers(t *testing.T) {
 			wantStatus: 401,
 			// #2519: the failed login names its reason by code; the type
 			// follows the code's input class.
-			wantBody: `{"status":"error","type":"https://moto-app.de/help/fehlermeldungen#anleitung-eingabe-pruefen","title":"Unauthorized","detail":"Invalid email or password","instance":"","error":"Invalid email or password","code":"identity.invalid_credentials"}` + "\n",
+			wantBody: `{"type":"https://moto-app.de/help/fehlermeldungen#anleitung-eingabe-pruefen","title":"Unauthorized","status":401,"detail":"Invalid email or password","instance":"","code":"identity.invalid_credentials"}` + "\n",
 		},
 		{
 			name:       "ErrRejectionWithDetails",
 			renderer:   common.OperatorRejectionWithDetails(409, common.CodeProvisioningOrganizationHasSchools, "has schools", map[string]any{"school_count": 2}),
 			wantStatus: 409,
-			wantBody:   `{"status":"error","type":"https://moto-app.de/help/fehlermeldungen#anleitung-vorgang-nicht-moeglich","title":"Conflict","detail":"has schools","instance":"","error":"has schools","code":"provisioning.organization_has_schools","details":{"school_count":2}}` + "\n",
+			wantBody:   `{"type":"https://moto-app.de/help/fehlermeldungen#anleitung-vorgang-nicht-moeglich","title":"Conflict","status":409,"detail":"has schools","instance":"","code":"provisioning.organization_has_schools","details":{"school_count":2}}` + "\n",
 		},
 		{
 			name:       "ErrInvalidField",
 			renderer:   common.OperatorInvalidField(common.CodeIdentityPasswordTooWeak, "password", "weak"),
 			wantStatus: 400,
-			wantBody:   `{"status":"error","type":"https://moto-app.de/help/fehlermeldungen#anleitung-eingabe-pruefen","title":"Bad Request","detail":"weak","instance":"","error":"weak","code":"identity.password_too_weak","errors":[{"field":"password","reason":"weak"}]}` + "\n",
+			wantBody:   `{"type":"https://moto-app.de/help/fehlermeldungen#anleitung-eingabe-pruefen","title":"Bad Request","status":400,"detail":"weak","instance":"","code":"identity.password_too_weak","errors":[{"field":"password","reason":"weak"}]}` + "\n",
 		},
 		{
 			name:       "ErrUnauthorized",
 			renderer:   common.OperatorUnauthorized(),
 			wantStatus: 401,
-			wantBody:   `{"status":"error","type":"https://moto-app.de/help/fehlermeldungen#anleitung-zugriff-pruefen","title":"Unauthorized","detail":"Unauthorized","instance":"","error":"Unauthorized","code":"general.permission"}` + "\n",
+			wantBody:   `{"type":"https://moto-app.de/help/fehlermeldungen#anleitung-zugriff-pruefen","title":"Unauthorized","status":401,"detail":"Unauthorized","instance":"","code":"general.permission"}` + "\n",
 		},
 		{
 			name:       "ErrNotFound",
 			renderer:   common.OperatorNotFound("thing missing"),
 			wantStatus: 404,
-			wantBody:   `{"status":"error","type":"https://moto-app.de/help/fehlermeldungen#anleitung-eingabe-pruefen","title":"Not Found","detail":"thing missing","instance":"","error":"thing missing","code":"general.input"}` + "\n",
+			wantBody:   `{"type":"https://moto-app.de/help/fehlermeldungen#anleitung-eingabe-pruefen","title":"Not Found","status":404,"detail":"thing missing","instance":"","code":"general.input"}` + "\n",
 		},
 		{
 			name:       "ErrConflict",
 			renderer:   common.OperatorConflict("duplicate"),
 			wantStatus: 409,
-			wantBody:   `{"status":"error","type":"https://moto-app.de/help/fehlermeldungen#anleitung-vorgang-nicht-moeglich","title":"Conflict","detail":"duplicate","instance":"","error":"duplicate","code":"general.business_rejection"}` + "\n",
+			wantBody:   `{"type":"https://moto-app.de/help/fehlermeldungen#anleitung-vorgang-nicht-moeglich","title":"Conflict","status":409,"detail":"duplicate","instance":"","code":"general.business_rejection"}` + "\n",
 		},
 		{
 			name:       "ErrForbidden",
 			renderer:   common.OperatorForbidden("no access"),
 			wantStatus: 403,
-			wantBody:   `{"status":"error","type":"https://moto-app.de/help/fehlermeldungen#anleitung-zugriff-pruefen","title":"Forbidden","detail":"no access","instance":"","error":"no access","code":"general.permission"}` + "\n",
+			wantBody:   `{"type":"https://moto-app.de/help/fehlermeldungen#anleitung-zugriff-pruefen","title":"Forbidden","status":403,"detail":"no access","instance":"","code":"general.permission"}` + "\n",
 		},
 		{
 			name:       "ErrInternal",
 			renderer:   common.OperatorInternal("oops"),
 			wantStatus: 500,
-			wantBody:   `{"status":"error","type":"https://moto-app.de/help/fehlermeldungen#anleitung-unerwarteter-fehler","title":"Internal Server Error","detail":"oops","instance":"","error":"oops","code":"general.server"}` + "\n",
+			wantBody:   `{"type":"https://moto-app.de/help/fehlermeldungen#anleitung-unerwarteter-fehler","title":"Internal Server Error","status":500,"detail":"oops","instance":"","code":"general.server"}` + "\n",
 		},
 		{
 			name:       "ErrServiceUnavailable",
 			renderer:   common.OperatorServiceUnavailable("try later"),
 			wantStatus: 503,
-			wantBody:   `{"status":"error","type":"https://moto-app.de/help/fehlermeldungen#anleitung-gerade-nicht-erreichbar","title":"Service Unavailable","detail":"try later","instance":"","error":"try later","code":"general.unavailable"}` + "\n",
+			wantBody:   `{"type":"https://moto-app.de/help/fehlermeldungen#anleitung-gerade-nicht-erreichbar","title":"Service Unavailable","status":503,"detail":"try later","instance":"","code":"general.unavailable"}` + "\n",
 		},
 	}
 
@@ -112,7 +112,7 @@ func TestWireFormat_Operator_ErrHelpers(t *testing.T) {
 			gotStatus, gotBody := renderWireOperator(t, tt.renderer)
 			assert.Equal(t, tt.wantStatus, gotStatus)
 			assert.Equal(t, tt.wantBody, gotBody)
-			assert.Empty(t, routetest.ProblemEnvelopeViolations([]byte(gotBody), false))
+			assert.Empty(t, routetest.ProblemEnvelopeViolations([]byte(gotBody), gotStatus, false))
 		})
 	}
 }

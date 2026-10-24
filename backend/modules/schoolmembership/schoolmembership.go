@@ -1,5 +1,5 @@
 // Package schoolmembership is the public School Membership capability. It
-// owns users.staff_school_memberships, users.teachers, users.guests,
+// owns users.staff_school_memberships, users.teachers, users.external_caregivers,
 // users.class_list_entries, education.class_teachers and
 // education.group_teacher. Every read or write of those rows by another owner
 // goes through Query or Command instead of a foreign SQL join.
@@ -17,8 +17,6 @@ package schoolmembership
 import (
 	"context"
 	"errors"
-	"net/mail"
-	"strings"
 	"time"
 )
 
@@ -33,14 +31,20 @@ const (
 const DateLayout = "2006-01-02"
 
 var (
-	ErrStaffNotFound           = errors.New("staff member not found")
-	ErrTeacherNotFound         = errors.New("teacher not found")
-	ErrGuestNotFound           = errors.New("guest not found")
-	ErrInvalidMembership       = errors.New("invalid membership")
-	ErrStaffPersonConflict     = errors.New("person already has a staff record")
-	ErrTeacherStaffConflict    = errors.New("staff member already has a teacher record")
-	ErrGuestStaffConflict      = errors.New("staff member already has a guest record")
-	ErrPersonnelNumberConflict = errors.New("personnel number is already assigned")
+	ErrStaffNotFound                   = errors.New("staff member not found")
+	ErrTeacherNotFound                 = errors.New("teacher not found")
+	ErrExternalCaregiverRecordNotFound = errors.New("external caregiver record not found")
+	ErrInvalidMembership               = errors.New("invalid membership")
+	// ErrStaffPersonMergeNoLongerEligible reports an employment set that no
+	// longer satisfies the reviewed staff person repair predicates.
+	ErrStaffPersonMergeNoLongerEligible     = errors.New("staff person merge no longer eligible")
+	ErrStaffPersonConflict                  = errors.New("person already has a staff record")
+	ErrTeacherStaffConflict                 = errors.New("staff member already has a teacher record")
+	ErrExternalCaregiverRecordStaffConflict = errors.New("staff member already has an external caregiver record")
+	ErrPersonnelNumberConflict              = errors.New("personnel number is already assigned")
+	// ErrStaffStillReferenced refuses offboarding a staff member other rows
+	// still point at. It is user-facing copy and keeps its capital letter.
+	ErrStaffStillReferenced = errors.New("personal kann nicht gelöscht werden: Mitarbeiter/in wird noch in anderen Bereichen referenziert")
 )
 
 // InvalidMembershipError carries the validation reason; it unwraps to
@@ -67,11 +71,16 @@ type Staff struct {
 	RotationAnchorDate    string     `json:"rotation_anchor_date,omitempty"`
 	BirthdayDisplayOptOut bool       `json:"birthday_display_opt_out"`
 	DeletedAt             *time.Time `json:"-"`
-	// IsGuest marks an external caregiver without a moto account, recorded
-	// as a guest profile (#3823). Time tracking and the duty roster leave
+	// PersonalDataErasedAt marks a retired membership the automatic deletion
+	// of staff erased (#3963); no Wiederaufnahme continues it.
+	PersonalDataErasedAt *time.Time `json:"-"`
+	// HasExternalCaregiverRecord marks an active external caregiver record
+	// (#3823), the raw store fact. Readers that attach the
+	// person narrow it to an external caregiver (ExternalCaregiver), with or
+	// without a moto account (#4573). Time tracking and the duty roster leave
 	// these people out; supervision pickers offer them.
-	IsGuest           bool   `json:"is_guest"`
-	GuestOrganization string `json:"guest_organization,omitempty"`
+	HasExternalCaregiverRecord bool   `json:"has_external_caregiver_record"`
+	ExternalOrganization       string `json:"external_organization,omitempty"`
 }
 
 func (s Staff) IsDeleted() bool { return s.DeletedAt != nil }
@@ -91,9 +100,11 @@ type Teacher struct {
 
 func (t Teacher) IsDeleted() bool { return t.DeletedAt != nil }
 
-// Guest is the guest-instructor profile of a staff member. StartDate and
-// EndDate are calendar dates in DateLayout, empty when open-ended.
-type Guest struct {
+// ExternalCaregiverRecord makes a staff member an external caregiver
+// (#3823, #4573, ADR 0091): the organization the person comes from and an
+// optional window. StartDate and EndDate are calendar dates in DateLayout,
+// empty when open-ended.
+type ExternalCaregiverRecord struct {
 	ID                int64     `json:"id"`
 	TenantID          int64     `json:"tenant_id"`
 	CreatedAt         time.Time `json:"created_at"`
@@ -141,7 +152,7 @@ type UpdateTeacher struct {
 	TeacherFields
 }
 
-type GuestFields struct {
+type ExternalCaregiverRecordFields struct {
 	StaffID           int64
 	Organization      string
 	ContactEmail      string
@@ -152,11 +163,11 @@ type GuestFields struct {
 	Notes             string
 }
 
-type CreateGuest struct{ GuestFields }
+type CreateExternalCaregiverRecord struct{ ExternalCaregiverRecordFields }
 
-type UpdateGuest struct {
+type UpdateExternalCaregiverRecord struct {
 	ID int64
-	GuestFields
+	ExternalCaregiverRecordFields
 }
 
 // StaffFilter narrows a staff listing. Every field is optional; an empty
@@ -172,6 +183,10 @@ type StaffFilter struct {
 	// IncludeDeleted also returns soft-deleted rows; history readers use it
 	// to keep resolving offboarded colleagues.
 	IncludeDeleted bool
+	// IncludeInactiveExternalCaregiverRecords keeps the external caregiver
+	// record marker after the record's window ended. Historical readers use it to classify former employments;
+	// ordinary staff reads keep the active-window semantics.
+	IncludeInactiveExternalCaregiverRecords bool
 	// MembershipOnly skips the Workforce employment half (#2753): the staff
 	// values carry ID, person, tenant and lifecycle only. Callers that read no
 	// employment field set it and save a statement.
@@ -191,9 +206,10 @@ type TeacherFilter struct {
 	IncludeDeleted         bool
 }
 
-// GuestFilter narrows a guest listing. ActiveOn is a calendar date in
-// DateLayout: only guests whose start/end window covers that day match.
-type GuestFilter struct {
+// ExternalCaregiverRecordFilter narrows a listing of external caregiver
+// records. ActiveOn is a calendar date in DateLayout: only records whose
+// start/end window covers that day match.
+type ExternalCaregiverRecordFilter struct {
 	IDs                  []int64
 	StaffIDs             []int64
 	ActiveOn             string
@@ -202,7 +218,8 @@ type GuestFilter struct {
 	HasOrganization      *bool
 }
 
-type Query interface {
+// StaffQuery reads the staff rows and their teacher profiles and external caregiver records.
+type StaffQuery interface {
 	// FindStaff returns one live staff member visible in the caller's
 	// transaction.
 	FindStaff(context.Context, int64) (Staff, error)
@@ -218,10 +235,13 @@ type Query interface {
 	FindTeacherByStaff(context.Context, int64) (Teacher, error)
 	ListTeachers(context.Context, TeacherFilter) ([]Teacher, error)
 
-	FindGuest(context.Context, int64) (Guest, error)
-	FindGuestByStaff(context.Context, int64) (Guest, error)
-	ListGuests(context.Context, GuestFilter) ([]Guest, error)
+	FindExternalCaregiverRecord(context.Context, int64) (ExternalCaregiverRecord, error)
+	FindExternalCaregiverRecordByStaff(context.Context, int64) (ExternalCaregiverRecord, error)
+	ListExternalCaregiverRecords(context.Context, ExternalCaregiverRecordFilter) ([]ExternalCaregiverRecord, error)
+}
 
+// ClassListQuery reads the Klassenliste entries.
+type ClassListQuery interface {
 	FindClassListEntry(context.Context, int64) (ClassListEntry, error)
 	// FindClassListEntryForMutation locks the row for the caller's transaction.
 	FindClassListEntryForMutation(context.Context, int64) (ClassListEntry, error)
@@ -234,12 +254,23 @@ type Query interface {
 	// MatchingStudentIDs names the enrolled students sharing an entry's name
 	// and class: the "Zuordnen" hint, never an automatic merge.
 	MatchingStudentIDs(context.Context, ClassListEntryFields) ([]int64, error)
+}
 
+// TeachingAssignmentQuery reads the class teacher and group teacher rows.
+type TeachingAssignmentQuery interface {
 	ListClassAssignments(context.Context, ClassAssignmentFilter) ([]ClassAssignment, error)
 	ListGroupAssignments(context.Context, GroupAssignmentFilter) ([]GroupAssignment, error)
 }
 
-type Command interface {
+type Query interface {
+	StaffQuery
+	ClassListQuery
+	TeachingAssignmentQuery
+}
+
+// StaffCommand writes the staff rows and their teacher profiles and external caregiver records.
+type StaffCommand interface {
+	StaffEmploymentCommands
 	CreateStaff(context.Context, CreateStaff) (Staff, error)
 	UpdateStaff(context.Context, UpdateStaff) (Staff, error)
 	// DeleteStaff soft-deletes the staff row (deleted_at), keeping it.
@@ -250,11 +281,14 @@ type Command interface {
 	// DeleteTeacher soft-deletes the teacher profile.
 	DeleteTeacher(context.Context, int64) error
 
-	CreateGuest(context.Context, CreateGuest) (Guest, error)
-	UpdateGuest(context.Context, UpdateGuest) (Guest, error)
-	// DeleteGuest removes the guest profile; guests carry no tombstone.
-	DeleteGuest(context.Context, int64) error
+	CreateExternalCaregiverRecord(context.Context, CreateExternalCaregiverRecord) (ExternalCaregiverRecord, error)
+	UpdateExternalCaregiverRecord(context.Context, UpdateExternalCaregiverRecord) (ExternalCaregiverRecord, error)
+	// DeleteExternalCaregiverRecord removes the record; records carry no tombstone.
+	DeleteExternalCaregiverRecord(context.Context, int64) error
+}
 
+// ClassListCommand writes the Klassenliste entries.
+type ClassListCommand interface {
 	CreateClassListEntry(context.Context, CreateClassListEntry) (ClassListEntry, error)
 	UpdateClassListEntry(context.Context, UpdateClassListEntry) (ClassListEntry, error)
 	// DeleteClassListEntry removes the entry; entries carry no tombstone.
@@ -267,7 +301,10 @@ type Command interface {
 	ReviseClassListEntry(context.Context, ReviseClassListEntry) (ClassListEntry, error)
 	RemoveClassListEntry(context.Context, RemoveClassListEntry) error
 	ResolveClassListEntry(context.Context, ResolveClassListEntry) error
+}
 
+// TeachingAssignmentCommand writes the class teacher and group teacher rows.
+type TeachingAssignmentCommand interface {
 	CreateClassAssignment(context.Context, CreateClassAssignment) (ClassAssignment, error)
 	UpdateClassAssignment(context.Context, UpdateClassAssignment) (ClassAssignment, error)
 	DeleteClassAssignment(context.Context, int64) error
@@ -283,6 +320,12 @@ type Command interface {
 	LockGroupAssignments(context.Context) error
 }
 
+type Command interface {
+	StaffCommand
+	ClassListCommand
+	TeachingAssignmentCommand
+}
+
 type Capability interface {
 	StudentEnrollmentCommands
 	Query
@@ -290,363 +333,12 @@ type Capability interface {
 	StaffIdentities
 }
 
-type engine interface {
-	TransitionStudentStatus(context.Context, int64, string, string) (bool, error)
-	SetStudentStatus(context.Context, int64, string) (bool, error)
-	EnrollStudent(context.Context, StudentEnrollment) (int64, error)
-	RenewStudentEnrollment(context.Context, StudentEnrollment) (int64, error)
-	AssignStudentGroup(context.Context, int64, *int64) (bool, error)
-	LockStudentClassWrites(context.Context, bool) error
-	EndStudentCare(context.Context, []int64, string) (int64, error)
-	ResumeStudentCare(context.Context, int64, string, string, string) (bool, error)
-	GraduateStudents(context.Context, []int64) (int64, error)
-	ReactivateStudents(ctx context.Context, ids []int64, status string, enforceChildQuota bool) ([]int64, error)
-	ChildQuotaUsage(context.Context) (ChildQuotaUsage, bool, error)
-	ChangeStudentClass(context.Context, []int64, string, string) (int64, error)
-	FindStaff(ctx context.Context, id int64, lock string) (Staff, error)
-	FindStaffByPerson(context.Context, int64) (Staff, error)
-	// FindStaffMembershipByPerson returns the membership row alone, without
-	// the Workforce employment half: the identity chain needs only the ID.
-	FindStaffMembershipByPerson(context.Context, int64) (Staff, error)
-	ListStaff(context.Context, StaffFilter) ([]Staff, error)
-	CreateStaff(context.Context, CreateStaff) (Staff, error)
-	UpdateStaff(context.Context, UpdateStaff) (Staff, error)
-	DeleteStaff(context.Context, int64) error
-
-	FindTeacher(context.Context, int64) (Teacher, error)
-	FindTeacherByStaff(context.Context, int64) (Teacher, error)
-	ListTeachers(context.Context, TeacherFilter) ([]Teacher, error)
-	CreateTeacher(context.Context, CreateTeacher) (Teacher, error)
-	UpdateTeacher(context.Context, UpdateTeacher) (Teacher, error)
-	DeleteTeacher(context.Context, int64) error
-
-	FindGuest(context.Context, int64) (Guest, error)
-	FindGuestByStaff(context.Context, int64) (Guest, error)
-	ListGuests(context.Context, GuestFilter) ([]Guest, error)
-	CreateGuest(context.Context, CreateGuest) (Guest, error)
-	UpdateGuest(context.Context, UpdateGuest) (Guest, error)
-	DeleteGuest(context.Context, int64) error
-
-	FindClassListEntry(ctx context.Context, id int64, lock string) (ClassListEntry, error)
-	ListClassListEntries(context.Context, ClassListEntryFilter) ([]ClassListEntry, error)
-	ListClassListEntriesInDisplayOrder(context.Context, ClassListEntryFilter) ([]ClassListEntry, error)
-	MatchingStudentIDs(context.Context, ClassListEntryFields) ([]int64, error)
-	CreateClassListEntry(context.Context, CreateClassListEntry) (ClassListEntry, error)
-	UpdateClassListEntry(context.Context, UpdateClassListEntry) (ClassListEntry, error)
-	DeleteClassListEntry(context.Context, int64) error
-	AddClassListEntry(context.Context, AddClassListEntry) (ClassListEntry, error)
-	ReviseClassListEntry(context.Context, ReviseClassListEntry) (ClassListEntry, error)
-	RemoveClassListEntry(context.Context, RemoveClassListEntry) error
-	ResolveClassListEntry(context.Context, ResolveClassListEntry) error
-	BindClassListEntryAdministration(ClassListEntryStudents, ClassListEntryTrail)
-	// ReadInTenant runs read inside one read transaction of the context's
-	// tenant and fails when the context carries none.
-	ReadInTenant(ctx context.Context, read func(context.Context) error) error
-}
-
-type teachingAssignmentEngine interface {
-	ListClassAssignments(context.Context, ClassAssignmentFilter) ([]ClassAssignment, error)
-	CreateClassAssignment(context.Context, CreateClassAssignment) (ClassAssignment, error)
-	UpdateClassAssignment(context.Context, UpdateClassAssignment) (ClassAssignment, error)
-	DeleteClassAssignment(context.Context, int64) error
-	DeleteClassAssignmentsByStaff(context.Context, int64) (int64, error)
-
-	ListGroupAssignments(context.Context, GroupAssignmentFilter) ([]GroupAssignment, error)
-	CreateGroupAssignment(context.Context, CreateGroupAssignment) (GroupAssignment, error)
-	UpdateGroupAssignment(context.Context, UpdateGroupAssignment) (GroupAssignment, error)
-	DeleteGroupAssignment(context.Context, int64) error
-	DeleteGroupAssignmentsByTeacher(context.Context, int64) (int64, error)
-	LockGroupAssignments(context.Context) error
-}
-
-type Module struct {
-	engine              engine
-	teachingAssignments teachingAssignmentEngine
-}
-
-func NewModule(engine engine, teachingAssignments ...teachingAssignmentEngine) *Module {
-	if engine == nil {
-		panic("school membership: engine is required")
-	}
-	if len(teachingAssignments) > 1 {
-		panic("school membership: at most one teaching assignment engine is allowed")
-	}
-	module := &Module{engine: engine}
-	if len(teachingAssignments) == 1 {
-		if teachingAssignments[0] == nil {
-			panic("school membership: teaching assignment engine is required")
-		}
-		module.teachingAssignments = teachingAssignments[0]
-	}
-	return module
-}
-
-// --- staff ---
-
-func (m *Module) FindStaff(ctx context.Context, id int64) (Staff, error) {
-	if id <= 0 {
-		return Staff{}, invalid("staff ID is required")
-	}
-	return m.engine.FindStaff(ctx, id, "")
-}
-
-func (m *Module) FindStaffForMutation(ctx context.Context, id int64) (Staff, error) {
-	if id <= 0 {
-		return Staff{}, invalid("staff ID is required")
-	}
-	return m.engine.FindStaff(ctx, id, "UPDATE")
-}
-
-func (m *Module) FindStaffByPerson(ctx context.Context, personID int64) (Staff, error) {
-	if personID <= 0 {
-		return Staff{}, invalid("person ID is required")
-	}
-	return m.engine.FindStaffByPerson(ctx, personID)
-}
-
-func (m *Module) ListStaff(ctx context.Context, filter StaffFilter) ([]Staff, error) {
-	filter.IDs = uniquePositive(filter.IDs)
-	filter.PersonIDs = uniquePositive(filter.PersonIDs)
-	filter.TenantIDs = uniquePositive(filter.TenantIDs)
-	return m.engine.ListStaff(ctx, filter)
-}
-
-func (m *Module) CreateStaff(ctx context.Context, input CreateStaff) (Staff, error) {
-	if err := validateStaffFields(&input.StaffFields); err != nil {
-		return Staff{}, err
-	}
-	return m.engine.CreateStaff(ctx, input)
-}
-
-func (m *Module) UpdateStaff(ctx context.Context, input UpdateStaff) (Staff, error) {
-	if input.ID <= 0 {
-		return Staff{}, invalid("staff ID is required")
-	}
-	if err := validateStaffFields(&input.StaffFields); err != nil {
-		return Staff{}, err
-	}
-	return m.engine.UpdateStaff(ctx, input)
-}
-
-func (m *Module) DeleteStaff(ctx context.Context, id int64) error {
-	if id <= 0 {
-		return invalid("staff ID is required")
-	}
-	return m.engine.DeleteStaff(ctx, id)
-}
-
-// --- teachers ---
-
-func (m *Module) FindTeacher(ctx context.Context, id int64) (Teacher, error) {
-	if id <= 0 {
-		return Teacher{}, invalid("teacher ID is required")
-	}
-	return m.engine.FindTeacher(ctx, id)
-}
-
-func (m *Module) FindTeacherByStaff(ctx context.Context, staffID int64) (Teacher, error) {
-	if staffID <= 0 {
-		return Teacher{}, invalid("staff ID is required")
-	}
-	return m.engine.FindTeacherByStaff(ctx, staffID)
-}
-
-func (m *Module) ListTeachers(ctx context.Context, filter TeacherFilter) ([]Teacher, error) {
-	filter.IDs = uniquePositive(filter.IDs)
-	filter.StaffIDs = uniquePositive(filter.StaffIDs)
-	filter.Specialization = strings.TrimSpace(filter.Specialization)
-	filter.SpecializationContains = strings.TrimSpace(filter.SpecializationContains)
-	filter.RoleContains = strings.TrimSpace(filter.RoleContains)
-	return m.engine.ListTeachers(ctx, filter)
-}
-
-func (m *Module) CreateTeacher(ctx context.Context, input CreateTeacher) (Teacher, error) {
-	if err := validateTeacherFields(&input.TeacherFields); err != nil {
-		return Teacher{}, err
-	}
-	return m.engine.CreateTeacher(ctx, input)
-}
-
-func (m *Module) UpdateTeacher(ctx context.Context, input UpdateTeacher) (Teacher, error) {
-	if input.ID <= 0 {
-		return Teacher{}, invalid("teacher ID is required")
-	}
-	if err := validateTeacherFields(&input.TeacherFields); err != nil {
-		return Teacher{}, err
-	}
-	return m.engine.UpdateTeacher(ctx, input)
-}
-
-func (m *Module) DeleteTeacher(ctx context.Context, id int64) error {
-	if id <= 0 {
-		return invalid("teacher ID is required")
-	}
-	return m.engine.DeleteTeacher(ctx, id)
-}
-
-// --- guests ---
-
-func (m *Module) FindGuest(ctx context.Context, id int64) (Guest, error) {
-	if id <= 0 {
-		return Guest{}, invalid("guest ID is required")
-	}
-	return m.engine.FindGuest(ctx, id)
-}
-
-func (m *Module) FindGuestByStaff(ctx context.Context, staffID int64) (Guest, error) {
-	if staffID <= 0 {
-		return Guest{}, invalid("staff ID is required")
-	}
-	return m.engine.FindGuestByStaff(ctx, staffID)
-}
-
-func (m *Module) ListGuests(ctx context.Context, filter GuestFilter) ([]Guest, error) {
-	filter.IDs = uniquePositive(filter.IDs)
-	filter.StaffIDs = uniquePositive(filter.StaffIDs)
-	filter.OrganizationContains = strings.TrimSpace(filter.OrganizationContains)
-	filter.ExpertiseContains = strings.TrimSpace(filter.ExpertiseContains)
-	if err := validateDate(filter.ActiveOn, "active-on date"); err != nil {
-		return nil, err
-	}
-	return m.engine.ListGuests(ctx, filter)
-}
-
-func (m *Module) CreateGuest(ctx context.Context, input CreateGuest) (Guest, error) {
-	if err := validateGuestFields(&input.GuestFields); err != nil {
-		return Guest{}, err
-	}
-	return m.engine.CreateGuest(ctx, input)
-}
-
-func (m *Module) UpdateGuest(ctx context.Context, input UpdateGuest) (Guest, error) {
-	if input.ID <= 0 {
-		return Guest{}, invalid("guest ID is required")
-	}
-	if err := validateGuestFields(&input.GuestFields); err != nil {
-		return Guest{}, err
-	}
-	return m.engine.UpdateGuest(ctx, input)
-}
-
-func (m *Module) DeleteGuest(ctx context.Context, id int64) error {
-	if id <= 0 {
-		return invalid("guest ID is required")
-	}
-	return m.engine.DeleteGuest(ctx, id)
-}
-
-// --- validation ---
-
-func validateStaffFields(fields *StaffFields) error {
-	if fields.PersonID <= 0 {
-		return invalid("person ID is required")
-	}
-	if fields.EmploymentType != nil {
-		switch *fields.EmploymentType {
-		case EmploymentTypeFullTime, EmploymentTypePartTime, EmploymentTypeMinijob:
-		default:
-			return invalid("employment_type must be 'full_time', 'part_time', or 'minijob'")
-		}
-	}
-	if fields.WorkTimeModelID != nil && *fields.WorkTimeModelID <= 0 {
-		return invalid("work time model ID must be positive")
-	}
-	if fields.PersonnelNumber != nil {
-		trimmed := strings.TrimSpace(*fields.PersonnelNumber)
-		if trimmed == "" {
-			fields.PersonnelNumber = nil
-		} else {
-			fields.PersonnelNumber = &trimmed
-		}
-	}
-	return validateDate(fields.RotationAnchorDate, "rotation anchor date")
-}
-
-func validateTeacherFields(fields *TeacherFields) error {
-	if fields.StaffID <= 0 {
-		return invalid("staff ID is required")
-	}
-	fields.Specialization = strings.TrimSpace(fields.Specialization)
-	fields.Role = strings.TrimSpace(fields.Role)
-	return nil
-}
-
-func validateGuestFields(fields *GuestFields) error {
-	if fields.StaffID <= 0 {
-		return invalid("staff ID is required")
-	}
-	fields.ActivityExpertise = strings.TrimSpace(fields.ActivityExpertise)
-	if fields.ActivityExpertise == "" {
-		return invalid("activity expertise is required")
-	}
-	fields.Organization = strings.TrimSpace(fields.Organization)
-	fields.ContactEmail = strings.TrimSpace(fields.ContactEmail)
-	if fields.ContactEmail != "" {
-		if _, err := mail.ParseAddress(fields.ContactEmail); err != nil {
-			return invalid("invalid contact email format")
-		}
-	}
-	fields.ContactPhone = strings.TrimSpace(fields.ContactPhone)
-	if fields.ContactPhone != "" && !validPhone(fields.ContactPhone) {
-		return invalid("invalid contact phone format")
-	}
-	if err := validateDate(fields.StartDate, "start date"); err != nil {
-		return err
-	}
-	if err := validateDate(fields.EndDate, "end date"); err != nil {
-		return err
-	}
-	if fields.StartDate != "" && fields.EndDate != "" && fields.EndDate < fields.StartDate {
-		return invalid("end date cannot be before start date")
-	}
-	return nil
-}
-
-// validPhone mirrors the shared phone rule of the legacy guest model: an
-// optional leading plus, then digits with spaces, slashes, dashes or
-// parentheses, at least six digits in total.
-func validPhone(value string) bool {
-	digits := 0
-	for index, r := range value {
-		switch {
-		case r >= '0' && r <= '9':
-			digits++
-		case r == '+' && index == 0:
-		case r == ' ' || r == '/' || r == '-' || r == '(' || r == ')':
-		default:
-			return false
-		}
-	}
-	return digits >= 6 && digits <= 20
-}
-
-func validateDate(value, label string) error {
-	if value == "" {
-		return nil
-	}
-	if _, err := time.Parse(DateLayout, value); err != nil {
-		return invalid(label + " must be a calendar date in YYYY-MM-DD format")
-	}
-	return nil
-}
-
-func uniquePositive(ids []int64) []int64 {
-	if ids == nil {
-		return nil
-	}
-	result := make([]int64, 0, len(ids))
-	seen := make(map[int64]struct{}, len(ids))
-	for _, id := range ids {
-		if id <= 0 {
-			continue
-		}
-		if _, ok := seen[id]; ok {
-			continue
-		}
-		seen[id] = struct{}{}
-		result = append(result, id)
-	}
-	return result
+// Owner is the whole School Membership owner surface: the Capability and
+// the Kinderkontingent usage of the Datenverwaltung. The composition roots
+// hand it out; narrower consumers name only the slice they use.
+type Owner interface {
+	Capability
+	ChildQuotaUsages
 }
 
 func invalid(reason string) error { return &InvalidMembershipError{Reason: reason} }
@@ -656,14 +348,14 @@ func ErrorCode(err error) string {
 	switch {
 	case err == nil:
 		return "none"
-	case errors.Is(err, ErrStaffNotFound), errors.Is(err, ErrTeacherNotFound), errors.Is(err, ErrGuestNotFound),
+	case errors.Is(err, ErrStaffNotFound), errors.Is(err, ErrTeacherNotFound), errors.Is(err, ErrExternalCaregiverRecordNotFound),
 		errors.Is(err, ErrClassListEntryNotFound), errors.Is(err, ErrClassAssignmentNotFound), errors.Is(err, ErrGroupAssignmentNotFound):
 		return "not_found"
 	case errors.Is(err, ErrOffboardingConflict):
 		return "offboarding_conflict"
 	case errors.Is(err, ErrInvalidMembership):
 		return "invalid"
-	case errors.Is(err, ErrStaffPersonConflict), errors.Is(err, ErrTeacherStaffConflict), errors.Is(err, ErrGuestStaffConflict):
+	case errors.Is(err, ErrStaffPersonConflict), errors.Is(err, ErrTeacherStaffConflict), errors.Is(err, ErrExternalCaregiverRecordStaffConflict):
 		return "membership_conflict"
 	case errors.Is(err, ErrPersonnelNumberConflict):
 		return "personnel_number_conflict"
@@ -679,4 +371,12 @@ func ErrorCode(err error) string {
 	default:
 		return "internal_error"
 	}
+}
+
+// ExternalCaregiver reports whether a staff member is an external caregiver
+// (#3823, #4573): a staff member with an active external caregiver record whose person is
+// known, with or without a moto account. Whether the person can act in moto
+// themselves is ExternalCaregiverCanSignIn.
+func ExternalCaregiver(hasRecord, personKnown bool) bool {
+	return hasRecord && personKnown
 }

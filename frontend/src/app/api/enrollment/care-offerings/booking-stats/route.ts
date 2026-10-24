@@ -1,15 +1,12 @@
-import { NextResponse } from "next/server";
 import { createTenantJsonProxy } from "~/lib/backend-proxy-route.server";
+import { problemResponse } from "~/lib/api-helpers.server";
 
 export const GET = createTenantJsonProxy({
   method: "GET",
   path: (request) => {
     const phase = request.nextUrl.searchParams.get("phase_id");
     if (!phase) {
-      return NextResponse.json(
-        { error: "phase_id is required" },
-        { status: 400 },
-      );
+      return problemResponse(400, "phase_id is required", request);
     }
     return `/api/enrollment/care-offerings/booking-stats?phase_id=${encodeURIComponent(phase)}`;
   },

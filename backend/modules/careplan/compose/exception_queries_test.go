@@ -93,7 +93,9 @@ func TestDayLocksPreserveStudentFailureContracts(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			locks, err := NewDayLocks(db, func(context.Context, int64) error { return tc.failure }, missing)
 			require.NoError(t, err)
-			err = locks.LockStudentAndExceptionDay(testpkg.Ctx(t), student.ID, "2031-02-03")
+			err = tenant.WithinCurrentTenant(testpkg.Ctx(t), func(txCtx context.Context) error {
+				return locks.LockStudentAndExceptionDay(txCtx, student.ID, "2031-02-03")
+			})
 			require.ErrorIs(t, err, tc.want)
 			assert.Equal(t, "lock student for care exception day: "+tc.want.Error(), err.Error())
 		})

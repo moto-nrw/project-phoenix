@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -15,7 +15,7 @@ import (
 func TestRoleCatalogWithoutLifecycle(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	catalog, err := repositories.NewIdentityAccessForTests(db)
+	catalog, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 	role := testpkg.CreateTestRole(t, db, "catalog-without-lifecycle")
@@ -38,7 +38,7 @@ func TestRoleCatalogWithoutLifecycle(t *testing.T) {
 func TestRoleCatalogDatabaseFailures(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupClosableTestDB(t)
-	catalog, err := repositories.NewIdentityAccessForTests(db)
+	catalog, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 	require.NoError(t, db.Close())
@@ -211,89 +211,6 @@ func TestPermissionPersistence_FindByRoleID(t *testing.T) {
 
 		// Find permissions
 		permissions, err := repo.GetRolePermissions(ctx, role.ID)
-		require.NoError(t, err)
-		assert.NotEmpty(t, permissions)
-
-		var found bool
-		for _, p := range permissions {
-			if p.ID == permission.ID {
-				found = true
-				break
-			}
-		}
-		assert.True(t, found)
-	})
-}
-
-func TestPermissionPersistence_FindByAccountID(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	repo := roleAdministrationOf(t, setupAuthService(t, db))
-	ctx := testpkg.Ctx(t)
-
-	t.Run("finds permissions for account via role", func(t *testing.T) {
-		account := testpkg.CreateTestAccount(t, db, "permacc")
-		role := testpkg.CreateTestRole(t, db, "PermAccRole")
-		permission := testpkg.CreateTestPermission(t, db, "ByAccountID", "resource", "read")
-
-		// Assign role to account
-		_, err := db.ExecContext(ctx,
-			"INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)",
-			account.ID, role.ID, testpkg.Tenant(t))
-		require.NoError(t, err)
-
-		// Assign permission to role
-		_, err = db.ExecContext(ctx,
-			"INSERT INTO auth.role_permissions (role_id, permission_id) VALUES (?, ?)",
-			role.ID, permission.ID)
-		require.NoError(t, err)
-
-		// Find permissions (includes both direct and via role)
-		permissions, err := repo.GetAccountPermissions(ctx, account.ID)
-		require.NoError(t, err)
-		assert.NotEmpty(t, permissions)
-
-		var found bool
-		for _, p := range permissions {
-			if p.ID == permission.ID {
-				found = true
-				break
-			}
-		}
-		assert.True(t, found)
-	})
-
-	t.Run("returns empty for account with no permissions", func(t *testing.T) {
-		account := testpkg.CreateTestAccount(t, db, "noperms")
-
-		permissions, err := repo.GetAccountPermissions(ctx, account.ID)
-		require.NoError(t, err)
-		assert.Empty(t, permissions)
-	})
-}
-
-func TestPermissionPersistence_FindDirectByAccountID(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	repo := roleAdministrationOf(t, setupAuthService(t, db))
-	ctx := testpkg.Ctx(t)
-
-	t.Run("finds directly assigned permissions only", func(t *testing.T) {
-		account := testpkg.CreateTestAccount(t, db, "directperm")
-		permission := testpkg.CreateTestPermission(t, db, "DirectByAccountID", "resource", "read")
-
-		// Assign permission directly to account (granted=true)
-		_, err := db.ExecContext(ctx,
-			"INSERT INTO auth.account_permissions (account_id, permission_id, granted, tenant_id) VALUES (?, ?, ?, ?)",
-			account.ID, permission.ID, true, testpkg.Tenant(t))
-		require.NoError(t, err)
-
-		// Find direct permissions
-		permissions, err := repo.GetAccountDirectPermissions(ctx, account.ID)
 		require.NoError(t, err)
 		assert.NotEmpty(t, permissions)
 

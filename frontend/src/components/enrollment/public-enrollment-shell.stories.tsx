@@ -1,8 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { ShieldCheck } from "lucide-react";
 import type { TenantInfo } from "~/lib/tenant-api";
+import { BackLink as BackLinkComponent } from "~/components/ui/back-link";
 import {
-  PublicEnrollmentBackLink,
   PublicEnrollmentBrand,
   PublicEnrollmentLocaleSwitcher,
   PublicEnrollmentPageShell,
@@ -21,6 +21,7 @@ const fakeTenant: TenantInfo = {
   presenceMode: "detailed",
   studentPhotosEnabled: false,
   nfcEnabled: true,
+  bookedModules: ["nfc_anwesenheit"],
   messagingEnabled: false,
   staffMessagingEnabled: false,
   displayEnabled: false,
@@ -60,9 +61,7 @@ export const LocaleSwitcher: Story = {
 };
 
 export const BackLink: Story = {
-  render: () => (
-    <PublicEnrollmentBackLink href="#">Zurück</PublicEnrollmentBackLink>
-  ),
+  render: () => <BackLinkComponent href="#" label="Zurück zur Auswahl" />,
 };
 
 export const InfoCard: Story = {
@@ -83,7 +82,7 @@ export const Composition: Story = {
           <PublicEnrollmentLocaleSwitcher />
         </div>
       </div>
-      <PublicEnrollmentBackLink href="#">Zurück</PublicEnrollmentBackLink>
+      <BackLinkComponent href="#" label="Zurück zur Auswahl" />
       <div className="mt-4">
         <PublicInfoCard
           icon={<ShieldCheck className="h-5 w-5" />}

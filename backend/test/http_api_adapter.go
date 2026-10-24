@@ -67,8 +67,30 @@ func NewHTTPRequest(method, url string, body io.Reader) (*HTTPRequest, error) {
 	return http.NewRequest(method, url, body)
 }
 
-func HTTPNotFound(response HTTPResponseWriter, request *HTTPRequest) {
-	http.NotFound(response, request)
+// HTTPNotFound answers a fake server's unknown path the way the API does: a
+// 404 in the shared error envelope (ADR 0006) with the input class code.
+func HTTPNotFound(response HTTPResponseWriter, _ *HTTPRequest) {
+	writeTestProblem(response, http.StatusNotFound, codeGeneralInput)
+}
+
+// Registered class codes (error-registry.json) of the answers test servers
+// write themselves; test support names them once here.
+const (
+	codeGeneralInput  = "general.input"
+	codeGeneralServer = "general.server"
+)
+
+// testProblem is the shared error envelope (ADR 0006) a test server writes.
+type testProblem struct {
+	Status int    `json:"status"`
+	Detail string `json:"detail"`
+	Code   string `json:"code"`
+}
+
+func writeTestProblem(response http.ResponseWriter, status int, code string) {
+	response.Header().Set("Content-Type", "application/problem+json")
+	response.WriteHeader(status)
+	_ = json.NewEncoder(response).Encode(testProblem{Status: status, Detail: http.StatusText(status), Code: code})
 }
 
 func (s *HTTPTestServer) Close() {
@@ -213,15 +235,11 @@ func (a *HTTPAPIAdapter) do(ctx context.Context, auth APIAuth, method, path, con
 	}
 	if response.StatusCode >= http.StatusBadRequest {
 		var payload struct {
-			Message string `json:"message"`
-			Error   string `json:"error"`
-			Code    string `json:"code"`
+			Detail string `json:"detail"`
+			Code   string `json:"code"`
 		}
 		_ = json.Unmarshal(raw, &payload)
-		if payload.Message == "" {
-			payload.Message = payload.Error
-		}
-		return raw, response.StatusCode, &APIRequestError{Method: method, Path: path, StatusCode: response.StatusCode, Code: payload.Code, Message: payload.Message, Body: string(raw), RetryAfter: response.Header.Get("Retry-After")}
+		return raw, response.StatusCode, &APIRequestError{Method: method, Path: path, StatusCode: response.StatusCode, Code: payload.Code, Message: payload.Detail, Body: string(raw), RetryAfter: response.Header.Get("Retry-After")}
 	}
 	return raw, response.StatusCode, nil
 }

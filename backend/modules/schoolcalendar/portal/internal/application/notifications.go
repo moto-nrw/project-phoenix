@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	appointmentcap "github.com/moto-nrw/project-phoenix/modules/appointments"
+	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports"
 )
 
@@ -90,36 +91,13 @@ func (s *service) notifyGuardians(ctx context.Context, appointment *appointmentc
 	if err != nil {
 		return err
 	}
-	guardianIDs, profiles := recipients.guardianIDs, recipients.profiles
+	guardianIDs := recipients.guardianIDs
 	if len(guardianIDs) == 0 {
 		return nil
 	}
-
-	schoolName := s.resolveSchoolName(ctx, appointment.TenantID)
-	logoURL := s.resolveSchoolLogo(ctx, appointment.TenantID)
-	motoLogoURL := s.cfg.MotoLogoURL(s.cfg.ParentsURL)
-
-	// The e-mail advertises the appointment's FIRST occurrence. For a weekly rule
-	// whose weekdays exclude the StartDate weekday, that is a later date than
-	// StartDate — use the same first-occurrence anchor as the calendar/ICS export
-	// so the mail and the calendar never disagree.
-	whenAppointment := appointment
-	recurrence, err := s.cfg.Appointments.FindRecurrenceRule(ctx, appointment.ID)
+	content, err := s.guardianEmailContent(ctx, appointment)
 	if err != nil {
 		return err
-	}
-	if recurrence != nil {
-		if first, ok := firstRecurrenceOccurrence(appointment, recurrence); ok && first != toTimezoneDate(appointment.StartDate) {
-			adjusted := *appointment
-			adjusted.EndDate = toCalendarDate(first.AddDays(appointment.StartDate.DaysUntil(appointment.EndDate)))
-			adjusted.StartDate = toCalendarDate(first)
-			whenAppointment = &adjusted
-		}
-	}
-	whenText := appointmentWhenText(whenAppointment)
-	location := ""
-	if appointment.Location != nil {
-		location = *appointment.Location
 	}
 
 	seen := make(map[int64]struct{}, len(guardianIDs))
@@ -128,40 +106,119 @@ func (s *service) notifyGuardians(ctx context.Context, appointment *appointmentc
 			continue
 		}
 		seen[id] = struct{}{}
-		profile, ok := profiles[id]
-		if !ok || profile.Email == nil || *profile.Email == "" {
-			continue
+		if err := s.emailGuardian(ctx, appointment, kind, content, recipients, id); err != nil {
+			return err
 		}
-		if profile.AccountID != nil && *profile.AccountID > 0 && s.cfg.Preferences != nil {
-			notOptedOut, err := s.cfg.Preferences.FilterNotOptedOut(ctx, "parent_appointment", []int64{*profile.AccountID})
-			if err != nil {
-				return fmt.Errorf("calendar: filter appointment preferences: %w", err)
-			}
-			if len(notOptedOut) == 0 {
-				continue
-			}
-		}
-		payload := map[string]any{
-			apptPayloadRecipient:   *profile.Email,
-			apptPayloadFirstName:   profile.FirstName,
-			apptPayloadLastName:    profile.LastName,
-			apptPayloadTitle:       appointment.Title,
-			apptPayloadWhen:        whenText,
-			apptPayloadLocation:    location,
-			apptPayloadSchoolName:  schoolName,
-			apptPayloadPortalURL:   s.cfg.ParentsURL,
-			apptPayloadLogoURL:     logoURL,
-			apptPayloadMotoLogoURL: motoLogoURL,
-		}
-		addGuardianDeliveryScope(payload, recipients, id)
-		if _, err := s.cfg.Outbox.Enqueue(ctx, ports.EnqueueRequest{
-			Kind:              kind,
-			Payload:           payload,
-			RelatedEntityType: ports.EmailRelatedTypeAppointment,
-			RelatedEntityID:   appointment.ID,
-		}); err != nil {
-			return fmt.Errorf("calendar: enqueue appointment e-mail: %w", err)
-		}
+	}
+	return nil
+}
+
+// emailGuardian enqueues the appointment e-mail for one guardian profile that
+// has an e-mail address and has not opted out.
+func (s *service) emailGuardian(ctx context.Context, appointment *appointmentcap.Appointment, kind string, content appointmentEmailContent, recipients guardianRecipients, guardianProfileID int64) error {
+	profile, ok := recipients.profiles[guardianProfileID]
+	if !ok || profile.Email == nil || *profile.Email == "" {
+		return nil
+	}
+	wanted, err := s.guardianWantsAppointmentEmail(ctx, profile)
+	if err != nil || !wanted {
+		return err
+	}
+	return s.enqueueGuardianEmail(ctx, appointment, kind, content.payload(profile), recipients, guardianProfileID)
+}
+
+// appointmentEmailContent is the per-appointment part of a guardian e-mail
+// payload, shared by every recipient.
+type appointmentEmailContent struct {
+	schoolName  string
+	logoURL     string
+	motoLogoURL string
+	portalURL   string
+	title       string
+	when        string
+	location    string
+}
+
+func (c appointmentEmailContent) payload(profile *ports.GuardianProfile) map[string]any {
+	return map[string]any{
+		apptPayloadRecipient:   *profile.Email,
+		apptPayloadFirstName:   profile.FirstName,
+		apptPayloadLastName:    profile.LastName,
+		apptPayloadTitle:       c.title,
+		apptPayloadWhen:        c.when,
+		apptPayloadLocation:    c.location,
+		apptPayloadSchoolName:  c.schoolName,
+		apptPayloadPortalURL:   c.portalURL,
+		apptPayloadLogoURL:     c.logoURL,
+		apptPayloadMotoLogoURL: c.motoLogoURL,
+	}
+}
+
+// guardianEmailContent resolves the branding (best effort) and the
+// first-occurrence wording of an appointment e-mail.
+func (s *service) guardianEmailContent(ctx context.Context, appointment *appointmentcap.Appointment) (appointmentEmailContent, error) {
+	content := appointmentEmailContent{
+		schoolName:  s.resolveSchoolName(ctx, appointment.TenantID),
+		logoURL:     s.resolveSchoolLogo(ctx, appointment.TenantID),
+		motoLogoURL: s.cfg.MotoLogoURL(s.cfg.ParentsURL),
+		portalURL:   s.cfg.ParentsURL,
+		title:       appointment.Title,
+	}
+	whenAppointment, err := s.firstOccurrenceAppointment(ctx, appointment)
+	if err != nil {
+		return appointmentEmailContent{}, err
+	}
+	content.when = appointmentWhenText(whenAppointment)
+	if appointment.Location != nil {
+		content.location = *appointment.Location
+	}
+	return content, nil
+}
+
+// firstOccurrenceAppointment anchors the appointment on its FIRST occurrence.
+// For a weekly rule whose weekdays exclude the StartDate weekday, that is a
+// later date than StartDate — use the same first-occurrence anchor as the
+// calendar/ICS export so the mail and the calendar never disagree.
+func (s *service) firstOccurrenceAppointment(ctx context.Context, appointment *appointmentcap.Appointment) (*appointmentcap.Appointment, error) {
+	recurrence, err := s.cfg.Appointments.FindRecurrenceRule(ctx, appointment.ID)
+	if err != nil {
+		return nil, err
+	}
+	if recurrence == nil {
+		return appointment, nil
+	}
+	first, ok := firstRecurrenceOccurrence(appointment, recurrence)
+	if !ok || first == toTimezoneDate(appointment.StartDate) {
+		return appointment, nil
+	}
+	adjusted := *appointment
+	adjusted.EndDate = toCalendarDate(first.AddDays(appointment.StartDate.DaysUntil(appointment.EndDate)))
+	adjusted.StartDate = toCalendarDate(first)
+	return &adjusted, nil
+}
+
+// guardianWantsAppointmentEmail drops guardians whose portal account opted out
+// of appointment notifications; profiles without an account are always mailed.
+func (s *service) guardianWantsAppointmentEmail(ctx context.Context, profile *ports.GuardianProfile) (bool, error) {
+	if profile.AccountID == nil || *profile.AccountID <= 0 || s.cfg.Preferences == nil {
+		return true, nil
+	}
+	notOptedOut, err := s.cfg.Preferences.FilterNotOptedOut(ctx, "parent_appointment", []int64{*profile.AccountID})
+	if err != nil {
+		return false, fmt.Errorf("calendar: filter appointment preferences: %w", err)
+	}
+	return len(notOptedOut) > 0, nil
+}
+
+func (s *service) enqueueGuardianEmail(ctx context.Context, appointment *appointmentcap.Appointment, kind string, payload map[string]any, recipients guardianRecipients, guardianProfileID int64) error {
+	addGuardianDeliveryScope(payload, recipients, guardianProfileID)
+	if _, err := s.cfg.Outbox.Enqueue(ctx, ports.EnqueueRequest{
+		Kind:              kind,
+		Payload:           payload,
+		RelatedEntityType: portal.EmailRelatedTypeAppointment,
+		RelatedEntityID:   appointment.ID,
+	}); err != nil {
+		return fmt.Errorf("calendar: enqueue appointment e-mail: %w", err)
 	}
 	return nil
 }
@@ -313,67 +370,35 @@ func guardianStudentIDs(recipients guardianRecipients, accountIDs []int64) []int
 	return studentIDs
 }
 
-// notifyGuardianDevices is the push/in-app counterpart of notifyGuardians: same
-// audience, same trigger, different channel. It is called only where the e-mail
-// is also sent, so the per-appointment "Eltern benachrichtigen" opt-in governs
-// both — an organizer who chose not to notify does not get to notify anyway
-// through a second channel.
-//
-// Never fatal. The appointment write is the operation the user asked for; a
-// notification that could not be dispatched is logged and dropped, exactly like
-// SSE broadcasting elsewhere in the codebase.
-func (s *service) notifyGuardianDevices(ctx context.Context, appointment *appointmentcap.Appointment, kind string) {
+// notifyGuardianDevices writes the durable push snapshot in the appointment's
+// transaction. Delivery rechecks the captured relationship scope before sending;
+// the notifier's remaining after-commit work is only the realtime wake-up.
+func (s *service) notifyGuardianDevices(ctx context.Context, appointment *appointmentcap.Appointment, kind string) error {
 	if s.cfg.Notifier == nil {
-		return
-	}
-	appointmentCopy := *appointment
-	postCommitCtx := s.cfg.Runtime.WithoutTransactionAndHooks(ctx)
-	s.cfg.Runtime.AfterCommit(ctx, func() {
-		s.dispatchGuardianDevicesAfterCommit(postCommitCtx, &appointmentCopy, kind)
-	})
-}
-
-// dispatchGuardianDevicesAfterCommit rechecks the relationship-scoped parent
-// permission after the lifecycle write commits, immediately before notification
-// dispatch. Notifications use account IDs on the wire, so retaining an earlier
-// account-only audience would otherwise bypass a just-revoked student link.
-func (s *service) dispatchGuardianDevicesAfterCommit(ctx context.Context, appointment *appointmentcap.Appointment, kind string) {
-	var accountIDs []int64
-	err := s.cfg.Runtime.WithinTenant(ctx, appointment.TenantID, func(txCtx context.Context) error {
-		current, err := s.findAppointment(txCtx, appointment.ID)
-		if err != nil {
-			return err
-		}
-		if current == nil || current.DeletedAt != nil {
-			return nil
-		}
-		if kind != ports.EmailKindAppointmentCancelled && (current.CancelledAt != nil || !current.NotifyGuardians) {
-			return nil
-		}
-		recipients, err := s.reachableGuardianRecipients(txCtx, current.ID)
-		if err != nil {
-			return err
-		}
-		accountIDs = guardianAccountIDs(recipients.guardianIDs, recipients.profiles)
-		for _, group := range guardianStudentGroups(recipients, accountIDs) {
-			if _, err := s.dispatchGuardianAccountDevicesLocalized(txCtx, current, kind, group.accountIDs, group.studentIDs, group.locale); err != nil {
-				return err
-			}
-		}
 		return nil
+	}
+
+	var accountCount int
+	err := s.cfg.Runtime.WithinTenant(ctx, appointment.TenantID, func(txCtx context.Context) error {
+		var err error
+		accountCount, err = s.queueGuardianDevices(txCtx, appointment.ID, kind)
+		return err
 	})
 	if s.cfg.PushSuppressed(err) {
 		s.logger().Info("calendar: appointment push suppressed by tenant notification gate",
 			slog.Int64("appointment_id", appointment.ID),
-			slog.Int("recipient_count", len(accountIDs)),
+			slog.Int("recipient_count", accountCount),
 			slog.String("reason", err.Error()),
 		)
+		return nil
 	} else if err != nil {
 		s.logger().Warn("calendar: queue guardian appointment push failed",
 			slog.Int64("appointment_id", appointment.ID),
 			slog.String("error", err.Error()),
 		)
+		return fmt.Errorf("calendar: enqueue guardian appointment push: %w", err)
 	}
+	return nil
 }
 
 func (s *service) dispatchGuardianAccountDevicesLocalized(ctx context.Context, appointment *appointmentcap.Appointment, kind string, accountIDs, studentIDs []int64, locale string) (bool, error) {
@@ -381,7 +406,7 @@ func (s *service) dispatchGuardianAccountDevicesLocalized(ctx context.Context, a
 		return false, nil
 	}
 	notificationType := "parent_appointment"
-	if kind == ports.EmailKindAppointmentReminder {
+	if kind == portal.EmailKindAppointmentReminder {
 		notificationType = "parent_appointment_reminder"
 	}
 
@@ -402,7 +427,7 @@ func (s *service) dispatchGuardianAccountDevicesLocalized(ctx context.Context, a
 
 	title, body := s.cfg.NotificationCopy(kind, locale)
 	priority := "normal"
-	if kind == ports.EmailKindAppointmentCancelled {
+	if kind == portal.EmailKindAppointmentCancelled {
 		priority = "high"
 	}
 
@@ -431,7 +456,7 @@ func (s *service) dispatchGuardianAccountReminderDevicesLocalized(ctx context.Co
 	if s.cfg.ReminderNotifier == nil || len(accountIDs) == 0 {
 		return false, nil
 	}
-	title, body := s.cfg.NotificationCopy(ports.EmailKindAppointmentReminder, locale)
+	title, body := s.cfg.NotificationCopy(portal.EmailKindAppointmentReminder, locale)
 	if err := s.cfg.ReminderNotifier.NotifySynchronously(ctx, ports.Event{
 		Type: "parent_appointment_reminder", Title: title, Body: body,
 		DeepLink: parentCalendarDeepLink, Priority: "normal",
@@ -456,7 +481,7 @@ func (s *service) logger() *slog.Logger {
 // whose snapshot has become stale after an appointment lifecycle change.
 func (s *service) cancelPendingNotifications(ctx context.Context, appointmentID int64, reason string) error {
 	if s.cfg.Outbox != nil {
-		if _, err := s.cfg.Outbox.CancelPendingByRelatedEntity(ctx, ports.EmailRelatedTypeAppointment, appointmentID, reason); err != nil {
+		if _, err := s.cfg.Outbox.CancelPendingByRelatedEntity(ctx, portal.EmailRelatedTypeAppointment, appointmentID, reason); err != nil {
 			return err
 		}
 	}
@@ -507,4 +532,35 @@ func appointmentWhenText(appointment *appointmentcap.Appointment) string {
 		return fmt.Sprintf("%s, %s Uhr – %s, %s Uhr", day, start, appointment.EndDate.Format("02.01.2006"), end)
 	}
 	return fmt.Sprintf("%s, %s–%s Uhr", day, start, end)
+}
+
+func (s *service) notifyGuardianLifecycle(ctx context.Context, appointment *appointmentcap.Appointment, kind string) error {
+	if err := s.notifyGuardians(ctx, appointment, kind); err != nil {
+		return err
+	}
+	return s.notifyGuardianDevices(ctx, appointment, kind)
+}
+
+func (s *service) queueGuardianDevices(ctx context.Context, appointmentID int64, kind string) (int, error) {
+	current, err := s.findAppointment(ctx, appointmentID)
+	if err != nil {
+		return 0, err
+	}
+	if current == nil || current.DeletedAt != nil {
+		return 0, nil
+	}
+	if kind != portal.EmailKindAppointmentCancelled && (current.CancelledAt != nil || !current.NotifyGuardians) {
+		return 0, nil
+	}
+	recipients, err := s.reachableGuardianRecipients(ctx, current.ID)
+	if err != nil {
+		return 0, err
+	}
+	accountIDs := guardianAccountIDs(recipients.guardianIDs, recipients.profiles)
+	for _, group := range guardianStudentGroups(recipients, accountIDs) {
+		if _, err := s.dispatchGuardianAccountDevicesLocalized(ctx, current, kind, group.accountIDs, group.studentIDs, group.locale); err != nil {
+			return 0, err
+		}
+	}
+	return len(accountIDs), nil
 }

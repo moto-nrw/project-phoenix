@@ -7,28 +7,32 @@ import (
 	"context"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
-	"github.com/moto-nrw/project-phoenix/services"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+// workSessionRow is the part of a work session row the auto-stamp asserts.
+type workSessionRow struct {
+	Status string
+	Source string
+}
+
 // todayWorkSession loads today's work session row for the staff member, or nil.
-func todayWorkSession(t *testing.T, db *testpkg.DB, staffID int64) *timerecords.WorkSession {
+func todayWorkSession(t *testing.T, db *testpkg.DB, staffID int64) *workSessionRow {
 	t.Helper()
-	session := new(timerecords.WorkSession)
+	session := new(workSessionRow)
 	err := db.NewSelect().
-		Model(session).
-		ModelTableExpr(`active.work_sessions AS "work_session"`).
+		TableExpr(`active.work_sessions AS "work_session"`).
+		ColumnExpr(`"work_session"."status", "work_session"."source"`).
 		Where(`"work_session"."staff_id" = ?`, staffID).
-		Where(`"work_session"."date" = ?`, timezone.TodayDate()).
+		Where(`"work_session"."date" = ?`, calendar.TodayDate()).
 		Limit(1).
-		Scan(context.Background())
+		Scan(context.Background(), &session.Status, &session.Source)
 	if err != nil {
 		return nil
 	}
@@ -48,7 +52,7 @@ func TestToggleStudentAttendance_IoTAutoOpensWorkSession(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, db, "AutoStamp", "Supervisor")
 	dev := testpkg.CreateTestDevice(t, db, "autostamp-device-1")
 
-	ctx := services.WithIoTAttendanceRequest(testpkg.Ctx(t))
+	ctx := api.WithIoTAttendanceRequest(testpkg.Ctx(t))
 
 	result, err := service.ToggleStudentAttendance(ctx, student.ID, staff.ID, dev.ID, true)
 	require.NoError(t, err)
@@ -105,7 +109,7 @@ func TestCreateGroupSupervisor_AutoOpensWorkSession(t *testing.T) {
 		StaffID:   staff.ID,
 		GroupID:   activeGroup.ID,
 		Role:      "Supervisor",
-		StartDate: timezone.TodayDate(),
+		StartDate: calendar.TodayDate(),
 	}
 	require.NoError(t, service.CreateGroupSupervisor(ctx, supervisor))
 
@@ -127,8 +131,63 @@ func TestCreateGroupSupervisor_SkipsWorkSessionForExternalCaregiver(t *testing.T
 
 	require.NoError(t, service.CreateGroupSupervisor(testpkg.Ctx(t), &ports.GroupSupervisor{
 		StaffID: staff.ID, GroupID: activeGroup.ID, Role: "additional_supervisor",
-		StartDate: timezone.TodayDate(), SkipPresenceStamp: true,
+		StartDate: calendar.TodayDate(), SkipPresenceStamp: true,
 	}))
 
 	assert.Nil(t, todayWorkSession(t, db, staff.ID), "external caregivers do not record working time")
+}
+
+// createAccountBackedExternal creates an external caregiver with an account:
+// a staff member with a login and an active external caregiver record (#4573).
+func createAccountBackedExternal(t *testing.T, db *testpkg.DB, lastName string) int64 {
+	t.Helper()
+	staff, _ := testpkg.CreateTestStaffWithAccount(t, db, "Extern", lastName)
+	record := &testpkg.ExternalCaregiverRecord{TenantID: testpkg.Tenant(t), StaffID: staff.ID, ActivityExpertise: "Musik"}
+	_, err := db.NewInsert().Model(record).ModelTableExpr(`users.external_caregivers`).Exec(testpkg.Ctx(t))
+	require.NoError(t, err)
+	return staff.ID
+}
+
+// An account does not make an external caregiver record working time
+// (#4573): joining a supervision opens no block for them, even when the
+// caller asks for the stamp. Workforce decides it, so every stamping path
+// is covered; a regular colleague in the same supervision still gets one.
+func TestCreateGroupSupervisor_SkipsWorkSessionForAccountBackedExternal(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	service := setupActiveService(t, db)
+
+	activityGroup := testpkg.CreateTestActivityGroup(t, db, "External Account Activity")
+	room := testpkg.CreateTestRoom(t, db, "External Account Room")
+	externalID := createAccountBackedExternal(t, db, "WebSupervisor")
+	colleague := testpkg.CreateTestStaff(t, db, "Regular", "WebSupervisor")
+	activeGroup := testpkg.CreateTestActiveGroup(t, db, activityGroup.ID, room.ID)
+
+	for _, staffID := range []int64{externalID, colleague.ID} {
+		require.NoError(t, service.CreateGroupSupervisor(testpkg.Ctx(t), &ports.GroupSupervisor{
+			StaffID: staffID, GroupID: activeGroup.ID, Role: "Supervisor", StartDate: calendar.TodayDate(),
+		}))
+	}
+
+	assert.Nil(t, todayWorkSession(t, db, externalID), "external caregivers do not record working time")
+	require.NotNil(t, todayWorkSession(t, db, colleague.ID), "the regular colleague is stamped")
+}
+
+// The kiosk path stamps through the same Workforce check.
+func TestToggleStudentAttendance_IoTSkipsWorkSessionForAccountBackedExternal(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	service := setupActiveService(t, db)
+
+	student := testpkg.CreateTestStudent(t, db, "AutoStampExtern", "Student", "3a")
+	externalID := createAccountBackedExternal(t, db, "Kiosk")
+	dev := testpkg.CreateTestDevice(t, db, "autostamp-device-external")
+
+	result, err := service.ToggleStudentAttendance(api.WithIoTAttendanceRequest(testpkg.Ctx(t)), student.ID, externalID, dev.ID, true)
+	require.NoError(t, err)
+	assert.Equal(t, "checked_in", result.Action)
+
+	assert.Nil(t, todayWorkSession(t, db, externalID), "external caregivers do not record working time")
 }

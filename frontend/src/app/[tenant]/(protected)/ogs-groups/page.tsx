@@ -19,11 +19,7 @@ import { CollectionGrid } from "~/components/ui/collection-grid";
 import { Button } from "~/components/ui/button";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { TenantPage } from "~/components/ui/tenant-page";
-import {
-  LAST_GROUP_SECTION_STORAGE_KEY,
-  OGS_GROUP_SECTION_LABELS,
-  ogsGroupSectionOf,
-} from "~/lib/ogs-group-sections";
+import { OGS_GROUPS_LABEL } from "~/lib/ogs-groups-navigation";
 import {
   OverflowMenu,
   type OverflowMenuEntry,
@@ -65,6 +61,7 @@ import {
 import { StudentCardGridSkeleton } from "~/components/students/student-card-skeleton";
 import { SchoolCheckinFab } from "~/components/students/school-checkin-fab";
 import { SchoolCheckinModeMobile } from "~/components/students/school-checkin-mode-mobile";
+import { canCheckInChildren } from "~/lib/student-access";
 import {
   deriveCheckinState,
   useSchoolCheckinMode,
@@ -81,6 +78,7 @@ import {
   pickupColumn,
   statusColumn,
   trackingColumn,
+  dayHomeChange,
   type StudentTableDay,
 } from "~/components/students/student-table";
 import { StudentSelectionScope } from "~/components/students/student-selection-scope";
@@ -338,10 +336,6 @@ function buildGroupTabItems(groups: readonly OGSGroup[]) {
 function persistGroupSelection(group: OGSGroup): void {
   localStorage.setItem("sidebar-last-group", group.id);
   localStorage.setItem("sidebar-last-group-name", group.name);
-  localStorage.setItem(
-    LAST_GROUP_SECTION_STORAGE_KEY,
-    ogsGroupSectionOf(group.isPersonal),
-  );
 }
 
 function OGSGroupPageContent() {
@@ -364,6 +358,8 @@ function OGSGroupPageContent() {
   // it did before this feature landed.
   const presenceMode = usePresenceMode();
   const isBinaryMode = presenceMode === "binary";
+  // Der An- und Abmelde-Modus nur mit users:checkin; der Gast hat es nicht.
+  const offersCheckinMode = isBinaryMode && canCheckInChildren(session);
 
   // Photo feature flag — only the OGS-groups view has compact StudentCards
   // (no Klasse / Gruppe rows in extraContent because the user is already
@@ -661,14 +657,11 @@ function OGSGroupPageContent() {
       : EMPTY_GROUP_TRANSFERS,
   );
 
-  // Breadcrumb: der Bereich der Seitenleiste, unter dem die Gruppe steht,
-  // dann ihr Name (#3890). Der Seitentitel ist der Bereich, damit auch die
-  // schmale Kopfzeile ihn nennt.
-  const groupSection = ogsGroupSectionOf(currentGroup?.isPersonal);
+  // Breadcrumb „Gruppen › Mondgruppe“ (#4351). Der Seitentitel ist der
+  // Eintrag der Seitenleiste, damit auch die schmale Kopfzeile ihn nennt.
   useSetBreadcrumb({
     ogsGroupName: currentGroup?.name,
-    ogsGroupSection: groupSection,
-    pageTitle: OGS_GROUP_SECTION_LABELS[groupSection],
+    pageTitle: OGS_GROUPS_LABEL,
   });
 
   // Tracking indicators come straight from the aggregated live response; they
@@ -967,6 +960,7 @@ function OGSGroupPageContent() {
           now,
           day,
         },
+        dayDepartureMode: studentPickup?.dayDepartureMode,
       };
       if (student.actual_pickup_time) return result;
       const absenceLabel =
@@ -1050,7 +1044,7 @@ function OGSGroupPageContent() {
   if (!showSkeleton && !hasAccess) {
     return (
       <TenantPage
-        title={OGS_GROUP_SECTION_LABELS.personal}
+        title={OGS_GROUPS_LABEL}
         empty={{
           icon: <MotoConceptIcon concept="groups" size={48} />,
           title: "Keine OGS-Gruppe zugeordnet",
@@ -1137,7 +1131,7 @@ function OGSGroupPageContent() {
               const checkinState = deriveCheckinState(student.current_location);
               const studentIdStr = student.id.toString();
               const isGroupCardCheckinMode =
-                isBinaryMode && schoolCheckin.isActive;
+                offersCheckinMode && schoolCheckin.isActive;
               return (
                 <StudentCard
                   key={student.id}
@@ -1151,6 +1145,7 @@ function OGSGroupPageContent() {
                   checkinMode={isGroupCardCheckinMode}
                   checkinState={checkinState}
                   isCheckinPending={schoolCheckin.pendingIds.has(studentIdStr)}
+                  dayHomeChange={dayHomeChange(ogsStudentDay(student))}
                   onCheckinClick={() => {
                     if (
                       checkinState !== "abwesend" &&
@@ -1309,7 +1304,7 @@ function OGSGroupPageContent() {
           darunter, in den Aktionen der An- und Abmelde-Modus, der
           Vertretungshinweis und das Kebab-Menü. */}
       <TenantPage
-        title={currentGroup?.name ?? OGS_GROUP_SECTION_LABELS[groupSection]}
+        title={currentGroup?.name ?? OGS_GROUPS_LABEL}
         stats={groupStats}
         statsLoading={showSkeleton}
         actions={
@@ -1323,7 +1318,7 @@ function OGSGroupPageContent() {
                 onChange={changeView}
               />
             </div>
-            {isBinaryMode && !showTable ? (
+            {offersCheckinMode && !showTable ? (
               <div className="hidden lg:block">
                 <SchoolCheckinFab
                   variant="inline"
@@ -1443,7 +1438,7 @@ function OGSGroupPageContent() {
             desktop the header inline pill, both rendered below. */}
         {/* In der Liste markieren die Kästchen; der Modus gehört zu den
             Kacheln (#3834). */}
-        {isBinaryMode && !showTable && (
+        {offersCheckinMode && !showTable && (
           <div className="md:hidden">
             <SchoolCheckinModeMobile
               isActive={schoolCheckin.isActive}
@@ -1473,7 +1468,7 @@ function OGSGroupPageContent() {
       {/* Tablet (md..lg) check-in mode trigger — floating FAB. Mobile
           renders the inline pill / sticky bar combo above; desktop
           renders the inline pill inside the page header. */}
-      {isBinaryMode && !showTable && (
+      {offersCheckinMode && !showTable && (
         <div className="hidden md:block lg:hidden">
           <SchoolCheckinFab
             variant="floating"

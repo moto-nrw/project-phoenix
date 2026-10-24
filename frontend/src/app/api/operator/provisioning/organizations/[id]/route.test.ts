@@ -109,7 +109,7 @@ describe("PUT /api/operator/provisioning/organizations/[id]", () => {
   it("forwards 409 conflict from backend", async () => {
     mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
     mockFetch.mockResolvedValue(
-      new Response(JSON.stringify({ error: "slug already exists" }), {
+      new Response(JSON.stringify({ detail: "slug already exists" }), {
         status: 409,
         headers: { "Content-Type": "application/json" },
       }),
@@ -189,7 +189,7 @@ describe("DELETE /api/operator/provisioning/organizations/[id]", () => {
     mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
     mockFetch.mockResolvedValue(
       new Response(
-        JSON.stringify({ error: "organization has existing schools" }),
+        JSON.stringify({ detail: "organization has existing schools" }),
         {
           status: 409,
           headers: { "Content-Type": "application/json" },

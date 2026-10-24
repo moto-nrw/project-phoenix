@@ -14,7 +14,8 @@ import (
 
 // TestHandlerComplexityRatchet enforces .claude/rules/backend-conventions.md
 // Rule 4: no function under api/ may exceed a gocognit cognitive-complexity
-// score of 15. The rule was review-only since June 2026 and the violation
+// score of 15. It scans the default production build. The rule was
+// review-only since June 2026 and the violation
 // count grew from ~53 to 79 in a month — this ratchet makes it shrink-only,
 // like the other ratchets in this package.
 //
@@ -25,6 +26,10 @@ import (
 //   - When refactoring lowers a score (or drops it to ≤ 15), the test fails
 //     until the entry is lowered/removed — the ratchet only turns one way.
 //     Never raise a number.
+//
+// The handlers #2580 moved out of api/ (modules/*/http, modules/*/inbound,
+// workflows/*/http) are scored by TestModuleComplexityRatchet, which scans
+// all of modules/ and workflows/ against the same threshold.
 //
 // Keys are "relative/file.go:FuncName" with methods rendered exactly like the
 // gocognit CLI ("(*Resource).applyDeviations"), so `gocognit -over 15 api/`
@@ -90,7 +95,8 @@ func complexityViolations(scores, allowlist map[string]int) []string {
 }
 
 // scanHandlerComplexity returns gocognit scores above the threshold for every
-// function in non-test .go files under api/, keyed "relpath:FuncName" with
+// function in non-test .go files under api/ outside the test composition
+// hooks, keyed "relpath:FuncName" with
 // methods rendered like the gocognit CLI ("(*Resource).name").
 func scanHandlerComplexity(backendRoot string) (map[string]int, error) {
 	scores := make(map[string]int)
@@ -113,6 +119,13 @@ func scanHandlerComplexity(backendRoot string) (map[string]int, error) {
 			return relErr
 		}
 		rel = filepath.ToSlash(rel)
+		active, buildErr := productionGoSources(backendRoot)
+		if buildErr != nil {
+			return buildErr
+		}
+		if !active[filepath.Clean(path)] {
+			return nil
+		}
 
 		_, file, parseErr := parseGoSourceCached(path, nil)
 		if parseErr != nil {

@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -27,7 +27,7 @@ func TestFlowH_ReplanReappliesAbsenceAndAckAcrossTemplateEdit(t *testing.T) {
 
 	s := setupTimetableScenarioModule(t)
 
-	target := nextWeekday(timezone.TodayDate(), 3, 7) // Wednesday, >=7 days out
+	target := nextWeekday(calendar.TodayDate(), 3, 7) // Wednesday, >=7 days out
 	dateS := target.String()
 	s.createActivePeriod(fmt.Sprintf("E2E-Flow-H-%d", time.Now().UnixNano()), target)
 
@@ -112,7 +112,7 @@ func TestFlowH_ReplanReappliesSubstitute(t *testing.T) {
 
 	s := setupTimetableScenarioModule(t)
 
-	target := nextWeekday(timezone.TodayDate(), 4, 7) // Thursday
+	target := nextWeekday(calendar.TodayDate(), 4, 7) // Thursday
 	dateS := target.String()
 	s.createActivePeriod(fmt.Sprintf("E2E-Flow-H2-%d", time.Now().UnixNano()), target)
 
@@ -169,7 +169,7 @@ func TestFlowH_ClearPersistedAbsence(t *testing.T) {
 
 	s := setupTimetableScenarioModule(t)
 
-	target := nextWeekday(timezone.TodayDate(), 2, 7) // Tuesday
+	target := nextWeekday(calendar.TodayDate(), 2, 7) // Tuesday
 	dateS := target.String()
 	s.createActivePeriod(fmt.Sprintf("E2E-Flow-H3-%d", time.Now().UnixNano()), target)
 

@@ -9,16 +9,16 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-func enrolledEveryDay(timezone.Date, timezone.Date) bool { return true }
+func enrolledEveryDay(calendar.Date, calendar.Date) bool { return true }
 
 type reportStudents struct{}
 
-func (reportStudents) FindOverlappingWithGroups(context.Context, timezone.Date, timezone.Date, timezone.Date) ([]*ports.StatisticsStudent, error) {
+func (reportStudents) FindOverlappingWithGroups(context.Context, calendar.Date, calendar.Date, calendar.Date) ([]*ports.StatisticsStudent, error) {
 	return nil, nil
 }
 
@@ -45,7 +45,7 @@ func (a *reportAudit) SeenStatisticsAccessSince(context.Context, int64, map[stri
 func TestReportRejectsRetentionAndAuditFailures(t *testing.T) {
 	t.Parallel()
 	failure := errors.New("dependency unavailable")
-	filters := studentpresence.StatisticsFilters{From: timezone.NewDate(2026, 8, 1), To: timezone.NewDate(2026, 8, 2), Sections: []studentpresence.StatisticsSection{studentpresence.StatisticsSectionCourses}}
+	filters := studentpresence.StatisticsFilters{From: calendar.NewDate(2026, 8, 1), To: calendar.NewDate(2026, 8, 2), Sections: []studentpresence.StatisticsSection{studentpresence.StatisticsSectionCourses}}
 	audit := &reportAudit{}
 	service := NewService(Config{Students: reportStudents{}, Retention: reportRetention{err: failure}, AccessLog: audit, Now: fixedNow})
 	report, err := service.Report(context.Background(), filters, studentpresence.StatisticsActor{AccountID: 1})
@@ -74,25 +74,25 @@ func TestReportRejectsRetentionAndAuditFailures(t *testing.T) {
 	require.Empty(t, audit.events)
 }
 
-type dateSet map[timezone.Date]bool
+type dateSet map[calendar.Date]bool
 
-func (d dateSet) HolidayDates(context.Context, timezone.Date, timezone.Date) (map[timezone.Date]bool, error) {
-	return map[timezone.Date]bool(d), nil
+func (d dateSet) HolidayDates(context.Context, calendar.Date, calendar.Date) (map[calendar.Date]bool, error) {
+	return map[calendar.Date]bool(d), nil
 }
 
-func (d dateSet) ClosingDayDates(context.Context, timezone.Date, timezone.Date) (map[timezone.Date]bool, error) {
-	return map[timezone.Date]bool(d), nil
+func (d dateSet) ClosingDayDates(context.Context, calendar.Date, calendar.Date) (map[calendar.Date]bool, error) {
+	return map[calendar.Date]bool(d), nil
 }
 
 type periodList []ports.HolidayPeriod
 
-func (p periodList) StatisticsHolidayPeriods(context.Context, timezone.Date, timezone.Date) ([]ports.HolidayPeriod, error) {
+func (p periodList) StatisticsHolidayPeriods(context.Context, calendar.Date, calendar.Date) ([]ports.HolidayPeriod, error) {
 	return p, nil
 }
 
-type retentionSettings []ports.StudentRetentionSetting
+type retentionSettings []studentpresence.StudentRetentionSetting
 
-func (s retentionSettings) ListAcceptedRetentionSettings(context.Context) ([]ports.StudentRetentionSetting, error) {
+func (s retentionSettings) ListAcceptedRetentionSettings(context.Context) ([]studentpresence.StudentRetentionSetting, error) {
 	return s, nil
 }
 
@@ -110,24 +110,24 @@ func (s *accessLogSpy) SeenStatisticsAccessSince(_ context.Context, _ int64, met
 }
 
 func fixedNow() time.Time {
-	return time.Date(2026, 8, 25, 12, 0, 0, 0, timezone.Berlin)
+	return time.Date(2026, 8, 25, 12, 0, 0, 0, calendar.Berlin)
 }
 
 // A day that is a public holiday AND a closing day is subtracted once.
 func TestCareDays_UnionOfExclusions(t *testing.T) {
 	t.Parallel()
-	mon := timezone.NewDate(2026, 6, 8)
+	mon := calendar.NewDate(2026, 6, 8)
 	svc := &service{cfg: Config{
 		Holidays:    dateSet{mon: true},
-		ClosingDays: dateSet{mon: true, timezone.NewDate(2026, 6, 9): true},
+		ClosingDays: dateSet{mon: true, calendar.NewDate(2026, 6, 9): true},
 		Periods: periodList{{
-			StartDate: timezone.NewDate(2026, 6, 13), // Saturday
-			EndDate:   timezone.NewDate(2026, 6, 15), // Monday
+			StartDate: calendar.NewDate(2026, 6, 13), // Saturday
+			EndDate:   calendar.NewDate(2026, 6, 15), // Monday
 		}},
 		Now: fixedNow,
 	}}
 
-	care, excluded, err := svc.careDays(context.Background(), mon, timezone.NewDate(2026, 6, 19))
+	care, excluded, err := svc.careDays(context.Background(), mon, calendar.NewDate(2026, 6, 19))
 	require.NoError(t, err)
 
 	// Two weeks = 10 weekdays; minus Mon 08 (holiday+closing), Tue 09
@@ -137,17 +137,17 @@ func TestCareDays_UnionOfExclusions(t *testing.T) {
 	assert.Equal(t, 1, excluded.PublicHolidays)
 	assert.Equal(t, 2, excluded.ClosingDays)
 	assert.Equal(t, 1, excluded.HolidayPeriods, "weekend days of a holiday period are not counted")
-	assert.False(t, care[timezone.NewDate(2026, 6, 13)], "weekend never a care day")
+	assert.False(t, care[calendar.NewDate(2026, 6, 13)], "weekend never a care day")
 }
 
 // A holiday period reaching far beyond the window is clamped to it.
 func TestCareDays_ClampsHolidayPeriodToWindow(t *testing.T) {
 	t.Parallel()
-	from, to := timezone.NewDate(2026, 6, 8), timezone.NewDate(2026, 6, 12)
+	from, to := calendar.NewDate(2026, 6, 8), calendar.NewDate(2026, 6, 12)
 	svc := &service{cfg: Config{
 		Periods: periodList{{
-			StartDate: timezone.NewDate(1900, 1, 1),
-			EndDate:   timezone.NewDate(2100, 1, 1),
+			StartDate: calendar.NewDate(1900, 1, 1),
+			EndDate:   calendar.NewDate(2100, 1, 1),
 		}},
 		Now: fixedNow,
 	}}
@@ -162,8 +162,8 @@ func TestCareDays_ClampsHolidayPeriodToWindow(t *testing.T) {
 
 func TestBuildStudentRows_CategoriesAndPrecedence(t *testing.T) {
 	t.Parallel()
-	d1, d2, d3, d4 := timezone.NewDate(2026, 6, 8), timezone.NewDate(2026, 6, 9), timezone.NewDate(2026, 6, 10), timezone.NewDate(2026, 6, 11)
-	care := map[timezone.Date]bool{d1: true, d2: true, d3: true, d4: true}
+	d1, d2, d3, d4 := calendar.NewDate(2026, 6, 8), calendar.NewDate(2026, 6, 9), calendar.NewDate(2026, 6, 10), calendar.NewDate(2026, 6, 11)
+	care := map[calendar.Date]bool{d1: true, d2: true, d3: true, d4: true}
 	groupID := int64(77)
 	students := []*ports.StatisticsStudent{
 		{SchoolClass: "1a", GroupID: &groupID, FirstName: "Zoe", LastName: "Beta", GroupName: "Sonne", EnrolledOn: enrolledEveryDay},
@@ -175,7 +175,7 @@ func TestBuildStudentRows_CategoriesAndPrecedence(t *testing.T) {
 	rows := buildStudentRows(students, care,
 		[]ports.AttendanceDay{
 			{StudentID: 100, Date: d1},
-			{StudentID: 100, Date: timezone.NewDate(2026, 6, 13)}, // not a care day: ignored
+			{StudentID: 100, Date: calendar.NewDate(2026, 6, 13)}, // not a care day: ignored
 		},
 		[]ports.StatusDay{
 			{StudentID: 100, Date: d2, Status: statusExcused},
@@ -183,7 +183,7 @@ func TestBuildStudentRows_CategoriesAndPrecedence(t *testing.T) {
 			{StudentID: 100, Date: d3, Status: statusClassTrip},
 			{StudentID: 100, Date: d1, Status: statusSick}, // present beats any status
 		},
-		timezone.DateFromTime(fixedNow()),
+		calendar.DateFromTime(fixedNow()),
 	)
 	require.Len(t, rows, 2)
 	assert.Equal(t, "Alpha", rows[0].LastName, "sorted by last name")
@@ -224,7 +224,7 @@ func TestRate_RoundsToOneDecimalAndNilsOnZero(t *testing.T) {
 func TestValidate_RangeRules(t *testing.T) {
 	t.Parallel()
 	svc := &service{cfg: Config{Now: fixedNow}}
-	today := timezone.NewDate(2026, 8, 25)
+	today := calendar.NewDate(2026, 8, 25)
 
 	assert.NoError(t, svc.validate(studentpresence.StatisticsFilters{From: today.AddDays(-365), To: today}, today))
 	assert.ErrorIs(t, svc.validate(studentpresence.StatisticsFilters{From: today.AddDays(-366), To: today}, today), studentpresence.ErrInvalidStatisticsRange)
@@ -255,20 +255,20 @@ func TestFilterStudentsByGroup(t *testing.T) {
 
 func TestBuildStudentRows_OnlyCountsDaysInsideEnrollment(t *testing.T) {
 	t.Parallel()
-	first := timezone.NewDate(2026, 6, 8)
-	care := map[timezone.Date]bool{
+	first := calendar.NewDate(2026, 6, 8)
+	care := map[calendar.Date]bool{
 		first:            true,
 		first.AddDays(1): true,
 		first.AddDays(2): true,
 		first.AddDays(3): true,
 	}
 	enrolledFrom := first.AddDays(2)
-	student := &ports.StatisticsStudent{EnrolledOn: func(day, _ timezone.Date) bool { return !day.Before(enrolledFrom) }}
+	student := &ports.StatisticsStudent{EnrolledOn: func(day, _ calendar.Date) bool { return !day.Before(enrolledFrom) }}
 	student.ID = 100
 
 	rows := buildStudentRows([]*ports.StatisticsStudent{student}, care,
 		[]ports.AttendanceDay{{StudentID: student.ID, Date: enrolledFrom}}, nil,
-		timezone.DateFromTime(fixedNow()))
+		calendar.DateFromTime(fixedNow()))
 
 	require.Len(t, rows, 1)
 	assert.Equal(t, 2, rows[0].CareDays)
@@ -323,17 +323,17 @@ func TestRoomRetentionDays_ScopedToTheCoveredPopulation(t *testing.T) {
 // before it do not. The same child in status pending has no care day at all.
 func TestBuildStudentRows_UsesOwnerEnrollmentEligibility(t *testing.T) {
 	t.Parallel()
-	today := timezone.DateFromTime(fixedNow())
-	care := map[timezone.Date]bool{
+	today := calendar.DateFromTime(fixedNow())
+	care := map[calendar.Date]bool{
 		today.AddDays(-2): true,
 		today.AddDays(-1): true,
 		today:             true,
 	}
 	startsLater := today.AddDays(14)
 
-	activated := &ports.StatisticsStudent{EnrolledOn: func(day, reportToday timezone.Date) bool { return !day.Before(reportToday) }}
+	activated := &ports.StatisticsStudent{EnrolledOn: func(day, reportToday calendar.Date) bool { return !day.Before(reportToday) }}
 	activated.ID = 100
-	pending := &ports.StatisticsStudent{EnrolledOn: func(day, _ timezone.Date) bool { return !day.Before(startsLater) }}
+	pending := &ports.StatisticsStudent{EnrolledOn: func(day, _ calendar.Date) bool { return !day.Before(startsLater) }}
 	pending.ID = 101
 
 	rows := buildStudentRows(
@@ -364,7 +364,7 @@ func TestRecordAccess_DeduplicatesOnlyMatchingNormalizedGroupScopes(t *testing.T
 	t.Parallel()
 	accessLog := &accessLogSpy{}
 	svc := &service{cfg: Config{AccessLog: accessLog, Now: fixedNow}}
-	filters := studentpresence.StatisticsFilters{From: timezone.NewDate(2026, 8, 1), To: timezone.NewDate(2026, 8, 2)}
+	filters := studentpresence.StatisticsFilters{From: calendar.NewDate(2026, 8, 1), To: calendar.NewDate(2026, 8, 2)}
 
 	require.NoError(t, svc.recordAccess(context.Background(), studentpresence.StatisticsFilters{From: filters.From, To: filters.To, GroupIDs: []int64{9, 2}}, studentpresence.StatisticsActor{AccountID: 1}, "view", "", true))
 	require.NoError(t, svc.recordAccess(context.Background(), studentpresence.StatisticsFilters{From: filters.From, To: filters.To, GroupIDs: []int64{2, 9}}, studentpresence.StatisticsActor{AccountID: 1}, "view", "", true))
@@ -374,4 +374,50 @@ func TestRecordAccess_DeduplicatesOnlyMatchingNormalizedGroupScopes(t *testing.T
 	assert.Equal(t, "2,9", accessLog.metadata[0]["group_ids"])
 	assert.Equal(t, "2,9", accessLog.metadata[1]["group_ids"])
 	assert.Equal(t, "3", accessLog.metadata[2]["group_ids"])
+}
+
+type disabledRoomRetention struct{ reportRetention }
+
+func (disabledRoomRetention) RoomRetentionDays(context.Context) (int, error) { return 0, nil }
+
+func TestRoomReportDoesNotReadVisitsWhenHistoryIsDisabled(t *testing.T) {
+	t.Parallel()
+	filters := studentpresence.StatisticsFilters{From: calendar.NewDate(2026, 8, 1), To: calendar.NewDate(2026, 8, 2), Sections: []studentpresence.StatisticsSection{studentpresence.StatisticsSectionRooms}}
+	audit := &reportAudit{}
+	svc := NewService(Config{Students: reportStudents{}, Retention: disabledRoomRetention{}, AccessLog: audit, Now: fixedNow})
+	// Room and visit readers are deliberately absent: the disabled section must not call them.
+	report, err := svc.Report(context.Background(), filters, studentpresence.StatisticsActor{AccountID: 1})
+	require.NoError(t, err)
+	assert.Empty(t, report.Rooms)
+	assert.Zero(t, report.RoomDataDays)
+	assert.True(t, report.RoomHistoryDisabled)
+	assert.Equal(t, calendar.NewDate(2026, 8, 25), report.RoomDataFrom)
+
+	injected := errors.New("synthetic attendance log settings failure")
+	svc = NewService(Config{Students: reportStudents{}, Retention: reportRetention{err: injected}, AccessLog: audit, Now: fixedNow})
+	report, err = svc.Report(context.Background(), filters, studentpresence.StatisticsActor{AccountID: 1})
+	require.ErrorIs(t, err, injected)
+	assert.Nil(t, report)
+}
+
+type reportRooms struct{}
+
+func (reportRooms) StatisticsRooms(context.Context) ([]ports.StatisticsRoom, error) {
+	return []ports.StatisticsRoom{{ID: 1, Name: "Gruppenraum"}}, nil
+}
+
+func (reportRooms) RoomUtilization(context.Context, []studentpresence.StudentVisitWindow) ([]studentpresence.RoomUtilization, error) {
+	return nil, nil
+}
+
+func TestRoomReportDoesNotMarkEnabledHistoryAsDisabled(t *testing.T) {
+	t.Parallel()
+	filters := studentpresence.StatisticsFilters{From: calendar.NewDate(2026, 8, 1), To: calendar.NewDate(2026, 8, 2), Sections: []studentpresence.StatisticsSection{studentpresence.StatisticsSectionRooms}}
+	svc := NewService(Config{Students: reportStudents{}, Retention: reportRetention{}, Rooms: reportRooms{}, Statistics: reportRooms{}, AccessLog: &reportAudit{}, Now: fixedNow})
+	report, err := svc.Report(context.Background(), filters, studentpresence.StatisticsActor{AccountID: 1})
+	require.NoError(t, err)
+	assert.False(t, report.RoomHistoryDisabled)
+	require.Len(t, report.Rooms, 1)
+	assert.Equal(t, "Gruppenraum", report.Rooms[0].Name)
+	assert.Equal(t, 30, report.RoomDataDays)
 }

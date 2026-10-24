@@ -8,8 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/api"
 	enrollmentCapability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -20,12 +19,11 @@ import (
 func TestSubmit_AdminNotificationReachesSubscribedEnrollmentManagers(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupRequestTest(t)
-	defer cleanup()
+	env := setupRequestTest(t)
 	ctx := testpkg.Ctx(t)
 	tenantID := testpkg.Tenant(t)
 
-	subscribers, consent, err := testutil.NewEnrollmentAdminSubscribers(env.db)
+	subscribers, consent, err := api.NewEnrollmentAdminSubscribersForTests(testpkg.NewDatabase(t, env.db))
 	require.NoError(t, err)
 	config := env.config
 	config.AdminSubscribers = subscribers
@@ -34,7 +32,7 @@ func TestSubmit_AdminNotificationReachesSubscribedEnrollmentManagers(t *testing.
 	const enrollmentMail = "enrollment_submitted"
 	subscribe := func(t *testing.T, ctx context.Context, accountID int64, enabled bool) {
 		t.Helper()
-		require.NoError(t, consent.RecordConsent(ctx, accountID, enrollmentMail, enabled))
+		require.NoError(t, testpkg.TenantCommand3(t, ctx, testpkg.SetupTestDB(t), consent.RecordConsent, accountID, enrollmentMail, enabled))
 	}
 
 	manager := testpkg.CreateTestAccount(t, env.db, "anmeldung-leitung")
@@ -62,7 +60,7 @@ func TestSubmit_AdminNotificationReachesSubscribedEnrollmentManagers(t *testing.
 	testpkg.GrantTestPermission(t, env.db, otherTenant, foreign.ID, "config:manage")
 	subscribe(t, testpkg.TenantContext(otherTenant), foreign.ID, true)
 
-	env.settings.stringValues[configModel.KeyEnrollmentNotificationEmails] =
+	env.settings.stringValues[settingKeyNotificationEmails] =
 		"extern@example.test, " + strings.ToUpper(alsoListed.Email)
 
 	_, err = svc.Submit(ctx, validSubmission(t, env.phaseID))

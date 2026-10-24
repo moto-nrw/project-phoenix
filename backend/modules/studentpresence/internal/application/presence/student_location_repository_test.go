@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -38,7 +38,7 @@ func TestAttendanceRepository_GetTodayByStudentIDs(t *testing.T) {
 
 		// Create multiple attendance records for student1 (different check-in times)
 		// Use timezone.Today() for consistent Europe/Berlin timezone handling
-		today := timezone.Today()
+		today := calendar.Today()
 
 		// Earlier check-in/out cycle for student1 — closed so the partial
 		// unique index on (student_id, date) WHERE check_out_time IS NULL
@@ -58,7 +58,7 @@ func TestAttendanceRepository_GetTodayByStudentIDs(t *testing.T) {
 
 		// ACT: Query with duplicate student IDs to test de-duplication
 		studentIDs := []int64{student1.ID, student2.ID, student1.ID}
-		result, err := repo.ListAttendance(ctx, studentpresence.AttendanceFilter{StudentIDs: studentIDs, FromDate: timezone.TodayDate().String(), UntilDate: timezone.TodayDate().String(), StudentOrder: true, NewestFirst: true})
+		result, err := repo.ListAttendance(ctx, studentpresence.AttendanceFilter{StudentIDs: studentIDs, FromDate: calendar.TodayDate().String(), UntilDate: calendar.TodayDate().String(), StudentOrder: true, NewestFirst: true})
 
 		// ASSERT
 		require.NoError(t, err)
@@ -72,7 +72,7 @@ func TestAttendanceRepository_GetTodayByStudentIDs(t *testing.T) {
 	})
 
 	t.Run("returns empty list for empty input", func(t *testing.T) {
-		result, err := repo.ListAttendance(ctx, studentpresence.AttendanceFilter{StudentIDs: []int64{}, FromDate: timezone.TodayDate().String(), UntilDate: timezone.TodayDate().String()})
+		result, err := repo.ListAttendance(ctx, studentpresence.AttendanceFilter{StudentIDs: []int64{}, FromDate: calendar.TodayDate().String(), UntilDate: calendar.TodayDate().String()})
 
 		require.NoError(t, err)
 		assert.Empty(t, result)
@@ -83,7 +83,7 @@ func TestAttendanceRepository_GetTodayByStudentIDs(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "NoAttendance", "Student", "2a")
 
 		// ACT
-		result, err := repo.ListAttendance(ctx, studentpresence.AttendanceFilter{StudentIDs: []int64{student.ID}, FromDate: timezone.TodayDate().String(), UntilDate: timezone.TodayDate().String()})
+		result, err := repo.ListAttendance(ctx, studentpresence.AttendanceFilter{StudentIDs: []int64{student.ID}, FromDate: calendar.TodayDate().String(), UntilDate: calendar.TodayDate().String()})
 
 		// ASSERT
 		require.NoError(t, err)
@@ -174,7 +174,7 @@ func TestGroupRepository_FindByIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	repo := sessionGroups(repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveGroup)
+	repo := sessionGroups(api.NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db)).ActiveGroup)
 
 	t.Run("returns groups with room relations", func(t *testing.T) {
 		// ARRANGE: Create two complete group setups

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -14,7 +13,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -58,7 +57,7 @@ func (req *spontaneousStartRequest) Bind(_ *http.Request) error {
 // gate already collapses to "own" for a school token — but it keeps the second
 // path (the explicit isAdmin argument) from ever becoming the way in.
 func operationActor(ctx context.Context) (accountID int64, isAdmin bool) {
-	claims := jwt.ClaimsFromCtx(ctx)
+	claims := sessiontoken.ClaimsFromCtx(ctx)
 	if common.IsAssignmentBoundPortal(ctx) {
 		return int64(claims.ID), false
 	}
@@ -202,7 +201,7 @@ func (rs *Resource) operationsStart(w http.ResponseWriter, r *http.Request) {
 
 func (rs *Resource) operationsReopen(w http.ResponseWriter, r *http.Request) {
 	rs.withOperationInstance(w, r, func(instanceID int64) (any, error) {
-		claims := jwt.ClaimsFromCtx(r.Context())
+		claims := sessiontoken.ClaimsFromCtx(r.Context())
 		result, err := rs.OperationsService.Reopen(r.Context(), int64(claims.ID), common.HasEffectiveAdminScope(r.Context()), instanceID)
 		if err != nil {
 			return nil, err
@@ -245,7 +244,7 @@ func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r
 		return
 	}
 
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	result, err := rs.OperationsService.CreateAndStartSpontaneous(r.Context(), int64(claims.ID), claims.IsAdmin, timetable.SpontaneousStart{
 		Date:             window.date,
 		StartTime:        window.startTime,
@@ -279,7 +278,12 @@ func (rs *Resource) admitSpontaneousStart(w http.ResponseWriter, r *http.Request
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("timetable operations resource not fully wired")))
 		return nil, 0, false
 	}
-	if !rs.webSpontaneousActivitiesEnabled(r) {
+	enabled, err := rs.webSpontaneousActivitiesEnabled(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap(http.StatusText(http.StatusInternalServerError), err))
+		return nil, 0, false
+	}
+	if !enabled {
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(timetable.ErrTimetableOperationForbidden, common.CodeTimetableSpontaneousActivitiesDisabled))
 		return nil, 0, false
 	}
@@ -390,23 +394,18 @@ func clockTimeFromMinutes(minutes int) time.Time {
 }
 
 func (rs *Resource) operationsCapabilities(w http.ResponseWriter, r *http.Request) {
+	enabled, err := rs.webSpontaneousActivitiesEnabled(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap(http.StatusText(http.StatusInternalServerError), err))
+		return
+	}
 	common.Respond(w, r, http.StatusOK, map[string]any{
-		"web_spontaneous_activities_enabled": rs.webSpontaneousActivitiesEnabled(r),
+		"web_spontaneous_activities_enabled": enabled,
 	}, "Timetable operation capabilities retrieved")
 }
 
-func (rs *Resource) webSpontaneousActivitiesEnabled(r *http.Request) bool {
-	logger := rs.Logger
-	if logger == nil {
-		logger = slog.Default()
-	}
-	return settings.ResolveBoolOrDefault(
-		r.Context(),
-		rs.SettingsService,
-		settings.KeyWebSpontaneousActivities,
-		true,
-		logger,
-	)
+func (rs *Resource) webSpontaneousActivitiesEnabled(r *http.Request) (bool, error) {
+	return rs.SettingsService.ResolveBool(r.Context(), settings.KeyWebSpontaneousActivities)
 }
 
 func (rs *Resource) operationsComplete(w http.ResponseWriter, r *http.Request) {
@@ -566,7 +565,7 @@ func (rs *Resource) operationsPatchAttendance(w http.ResponseWriter, r *http.Req
 
 func canViewOperationPickupTimes(ctx context.Context) bool {
 	return common.IsAssignmentBoundPortal(ctx) ||
-		securityruntime.HasPermission(permissions.UsersRead, jwt.PermissionsFromCtx(ctx))
+		securityruntime.HasPermission(permissions.UsersRead, sessiontoken.PermissionsFromCtx(ctx))
 }
 
 func redactOperationRosterPickupTimes(roster *timetable.OperationRoster) {

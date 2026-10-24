@@ -51,7 +51,11 @@ type DeletionPreviewDependencies struct {
 	CountAuditAdjustments func(context.Context, int64, *int64) (int, error)
 	// CountBookings counts Care Plan's bookings of the request children.
 	CountBookings func(context.Context, []int64) (int, error)
-	Runtime       Runtime
+	// CountSourceEnrollments counts the timetable enrollments a request
+	// (childID nil) or one of its children sourced; the deletion clears
+	// their source links.
+	CountSourceEnrollments func(ctx context.Context, requestID int64, childID *int64) (int, error)
+	Runtime                Runtime
 }
 
 // DeletionPreview combines owner queries into the impact of deleting a
@@ -243,6 +247,10 @@ func (r *DeletionPreview) requestCounts(ctx context.Context, requestID int64) (*
 	if err != nil {
 		return nil, err
 	}
+	row.StudentSourceLinksCleared, err = r.sourceEnrollmentCount(ctx, requestID, nil)
+	if err != nil {
+		return nil, fmt.Errorf("preview enrollment request deletion: %w", err)
+	}
 	children, err := r.deps.Enrollment.ChildrenForRequest(ctx, requestID, false)
 	if err != nil {
 		return nil, err
@@ -303,6 +311,10 @@ func (r *DeletionPreview) childCounts(ctx context.Context, requestID, childID in
 	if err != nil {
 		return enrollment.DeletionCounts{}, err
 	}
+	row.StudentSourceLinks, err = r.sourceEnrollmentCount(ctx, requestID, &childID)
+	if err != nil {
+		return enrollment.DeletionCounts{}, fmt.Errorf("preview enrollment child deletion: %w", err)
+	}
 	row.Offerings, err = r.bookingCount(ctx, []int64{childID})
 	if err != nil {
 		return enrollment.DeletionCounts{}, err
@@ -323,6 +335,24 @@ func (r *DeletionPreview) childCounts(ctx context.Context, requestID, childID in
 		RolloverLinksCleared:      row.RolloverLinks,
 		StudentSourceLinksCleared: row.StudentSourceLinks,
 	}, nil
+}
+
+// sourceEnrollmentCount counts the timetable enrollments the request or the
+// child sourced.
+func (r *DeletionPreview) sourceEnrollmentCount(ctx context.Context, requestID int64, childID *int64) (int, error) {
+	if r.deps.CountSourceEnrollments == nil {
+		return 0, errors.New("source enrollment count capability is required")
+	}
+	if r.deps.Runtime.Transactions == nil {
+		return 0, errors.New("source enrollment transaction runtime is required")
+	}
+	var result int
+	err := r.deps.Runtime.Transactions.RunInTx(ctx, func(txCtx context.Context) error {
+		var err error
+		result, err = r.deps.CountSourceEnrollments(txCtx, requestID, childID)
+		return err
+	})
+	return result, err
 }
 
 func deletionCountsFromRow(row *enrollment.DeletionRequestCounts) enrollment.DeletionCounts {

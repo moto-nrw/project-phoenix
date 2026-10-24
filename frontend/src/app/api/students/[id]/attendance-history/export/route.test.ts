@@ -1,10 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
-
-interface ExtendedSession extends Session {
-  user: Session["user"] & { token?: string };
-}
+import type { ExtendedSession } from "~/test/route-test-helpers";
 
 const { mockAuth, mockUncachedAuth } = vi.hoisted(() => ({
   mockAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
@@ -121,14 +117,22 @@ describe("GET /api/students/[id]/attendance-history/export", () => {
   });
 
   it("preserves backend errors", async () => {
-    global.fetch = vi
-      .fn()
-      .mockResolvedValue(new Response("feature_disabled", { status: 403 }));
+    const envelope = {
+      status: 403,
+      detail: "feature_disabled",
+      code: "attendance.log_disabled",
+    };
+    global.fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(envelope), {
+        status: 403,
+        headers: { "Content-Type": "application/problem+json" },
+      }),
+    );
 
     const response = await GET(request("?format=pdf"), context);
 
     expect(response.status).toBe(403);
-    expect(await response.text()).toBe("feature_disabled");
+    expect(await response.json()).toEqual(envelope);
   });
 
   it("returns 502 for a successful response without a body", async () => {
@@ -145,6 +149,8 @@ describe("GET /api/students/[id]/attendance-history/export", () => {
     const response = await GET(request("?format=pdf"), context);
 
     expect(response.status).toBe(500);
-    expect(await response.text()).toBe("Internal server error");
+    expect(await response.json()).toMatchObject({
+      detail: "Internal Server Error",
+    });
   });
 });

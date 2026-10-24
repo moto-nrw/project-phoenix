@@ -29,7 +29,7 @@ func (d *detailFailDirectory) PersonNames(context.Context, []int64) (map[int64]c
 func TestScheduleDetailAuthorizesBeforeLoadingNames(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	module := careplantest.NewCarePlan(t, db)
+	module := careplantest.NewCarePlan(t, db, testpkg.StudentDirectory{})
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "Detail", "Scope", "1a")
 	account := testpkg.CreateTestAccount(t, db, "parent")
@@ -39,7 +39,7 @@ func TestScheduleDetailAuthorizesBeforeLoadingNames(t *testing.T) {
 	require.NoError(t, err)
 	directory := &detailFailDirectory{students: map[int64]compose.ReviewStudent{student.ID: {ID: student.ID, PersonID: student.PersonID}}, err: errors.New("name lookup failed")}
 	scope := compose.ReviewScope{}
-	deps := compose.ScheduleReviewDependencies{People: directory, Bookings: struct{ compose.ReviewBookings }{}, Classes: struct{ compose.ReviewClassTimes }{},
+	deps := compose.ScheduleReviewDependencies{StudentDirectory: testpkg.StudentDirectory{}, People: directory, Bookings: struct{ compose.ReviewBookings }{}, Classes: struct{ compose.ReviewClassTimes }{},
 		Scope:                 func(context.Context) (compose.ReviewScope, error) { return scope, nil },
 		BookingsAuthoritative: func(context.Context) (bool, error) { return false, nil }, Today: func() careplan.Date { return "2026-09-20" },
 	}

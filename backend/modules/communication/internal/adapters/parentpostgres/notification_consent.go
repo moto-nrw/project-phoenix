@@ -18,12 +18,15 @@ const (
 // type and school. Absence of a row means "not agreed"; a row with
 // enabled = false is a deliberate opt-out that a later change of defaults must
 // not overrule.
-type NotificationConsentStore struct{ store }
+type NotificationConsentStore struct {
+	store
+	observe func(context.Context, string) (context.Context, func(error))
+}
 
 // NewNotificationConsentStore builds the consent store over the ambient
 // transaction runtime.
-func NewNotificationConsentStore(database Database) *NotificationConsentStore {
-	return &NotificationConsentStore{store: newStore(database)}
+func NewNotificationConsentStore(database Database, observe func(context.Context, string) (context.Context, func(error))) *NotificationConsentStore {
+	return &NotificationConsentStore{store: newStore(database), observe: observe}
 }
 
 type notificationPreferenceRow struct {
@@ -38,8 +41,11 @@ type notificationPreferenceRow struct {
 // StoredConsent returns every decision the account stored in the current
 // tenant, keyed by notification type. Types the account never touched are
 // simply absent.
-func (s *NotificationConsentStore) StoredConsent(ctx context.Context, accountID int64) (map[string]bool, error) {
-	db, tenantID, err := s.database(ctx)
+func (s *NotificationConsentStore) StoredConsent(ctx context.Context, accountID int64) (result map[string]bool, err error) {
+	ctx, finish := s.observe(ctx, "notification_consent.stored")
+	defer func() { finish(err) }()
+
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -48,7 +54,7 @@ func (s *NotificationConsentStore) StoredConsent(ctx context.Context, accountID 
 		Model(&rows).
 		ModelTableExpr(notificationPreferenceTableExpr).
 		Where(`"notification_preference".account_id = ?`, accountID)
-	query = withTenant(query, notificationPreferenceAlias, tenantID)
+	query = withTenant(query, notificationPreferenceAlias, scope)
 	if err := query.Scan(ctx); err != nil {
 		return nil, fmt.Errorf("list notification preferences by account: %w", err)
 	}
@@ -61,19 +67,22 @@ func (s *NotificationConsentStore) StoredConsent(ctx context.Context, accountID 
 
 // RecordConsent stores one decision, overwriting any previous one for the same
 // (tenant, account, type).
-func (s *NotificationConsentStore) RecordConsent(ctx context.Context, accountID int64, notificationType string, enabled bool) error {
+func (s *NotificationConsentStore) RecordConsent(ctx context.Context, accountID int64, notificationType string, enabled bool) (err error) {
+	ctx, finish := s.observe(ctx, "notification_consent.record")
+	defer func() { finish(err) }()
+
 	if accountID <= 0 {
 		return fmt.Errorf("record notification preference: account ID is required")
 	}
 	if notificationType == "" {
 		return fmt.Errorf("record notification preference: notification type is required")
 	}
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return err
 	}
 	row := &notificationPreferenceRow{
-		TenantID:         tenantID,
+		TenantID:         scope.TenantID,
 		AccountID:        accountID,
 		NotificationType: notificationType,
 		Enabled:          enabled,
@@ -94,11 +103,14 @@ func (s *NotificationConsentStore) RecordConsent(ctx context.Context, accountID 
 // HasAnyOptedIn answers whether the current tenant holds at least one enabled
 // row for any named type. It is a cheap scheduling gate only; it does not
 // establish that the stored account is still an eligible recipient.
-func (s *NotificationConsentStore) HasAnyOptedIn(ctx context.Context, notificationTypes []string) (bool, error) {
+func (s *NotificationConsentStore) HasAnyOptedIn(ctx context.Context, notificationTypes []string) (result bool, err error) {
+	ctx, finish := s.observe(ctx, "notification_consent.has_any_opted_in")
+	defer func() { finish(err) }()
+
 	if len(notificationTypes) == 0 {
 		return false, nil
 	}
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return false, err
 	}
@@ -106,7 +118,7 @@ func (s *NotificationConsentStore) HasAnyOptedIn(ctx context.Context, notificati
 		TableExpr(notificationPreferenceTableExpr).
 		Where(`"notification_preference".notification_type IN (?)`, bun.List(notificationTypes)).
 		Where(`"notification_preference".enabled`)
-	query = withTenant(query, notificationPreferenceAlias, tenantID)
+	query = withTenant(query, notificationPreferenceAlias, scope)
 	exists, err := query.Exists(ctx)
 	if err != nil {
 		return false, fmt.Errorf("check for opted-in accounts: %w", err)
@@ -118,11 +130,14 @@ func (s *NotificationConsentStore) HasAnyOptedIn(ctx context.Context, notificati
 //
 // The empty-input short circuit matters: a producer that resolved no
 // candidates must end up with no recipients, never with "everyone".
-func (s *NotificationConsentStore) FilterOptedIn(ctx context.Context, notificationType string, accountIDs []int64) ([]int64, error) {
+func (s *NotificationConsentStore) FilterOptedIn(ctx context.Context, notificationType string, accountIDs []int64) (result []int64, err error) {
+	ctx, finish := s.observe(ctx, "notification_consent.filter_opted_in")
+	defer func() { finish(err) }()
+
 	if notificationType == "" || len(accountIDs) == 0 {
 		return nil, nil
 	}
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +148,7 @@ func (s *NotificationConsentStore) FilterOptedIn(ctx context.Context, notificati
 		Where(`"notification_preference".notification_type = ?`, notificationType).
 		Where(`"notification_preference".enabled`).
 		Where(`"notification_preference".account_id IN (?)`, bun.List(accountIDs))
-	query = withTenant(query, notificationPreferenceAlias, tenantID)
+	query = withTenant(query, notificationPreferenceAlias, scope)
 	if err := query.Scan(ctx, &optedIn); err != nil {
 		return nil, fmt.Errorf("filter opted-in accounts: %w", err)
 	}
@@ -143,17 +158,20 @@ func (s *NotificationConsentStore) FilterOptedIn(ctx context.Context, notificati
 // ListOptedIn returns every account of the current school that agreed to the
 // type, in ID order. It is the candidate set of an opt-in e-mail (#3780); the
 // consumer narrows it by membership and permission before addressing anyone.
-func (s *NotificationConsentStore) ListOptedIn(ctx context.Context, notificationType string) ([]int64, error) {
+func (s *NotificationConsentStore) ListOptedIn(ctx context.Context, notificationType string) (result []int64, err error) {
+	ctx, finish := s.observe(ctx, "notification_consent.list_opted_in")
+	defer func() { finish(err) }()
+
 	if notificationType == "" {
 		return nil, nil
 	}
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, err
 	}
 	// Unlike the filters, this read has no candidate set to bound it: without
 	// a school it would list every school's subscribers.
-	if tenantID <= 0 {
+	if scope.TenantID <= 0 {
 		return nil, errors.New("list opted-in accounts: school context is required")
 	}
 	var optedIn []int64
@@ -163,7 +181,7 @@ func (s *NotificationConsentStore) ListOptedIn(ctx context.Context, notification
 		Where(`"notification_preference".notification_type = ?`, notificationType).
 		Where(`"notification_preference".enabled`).
 		OrderExpr(`"notification_preference".account_id ASC`)
-	query = withTenant(query, notificationPreferenceAlias, tenantID)
+	query = withTenant(query, notificationPreferenceAlias, scope)
 	if err := query.Scan(ctx, &optedIn); err != nil {
 		return nil, fmt.Errorf("list opted-in accounts: %w", err)
 	}
@@ -176,12 +194,15 @@ func (s *NotificationConsentStore) FilterOptedInByType(
 	ctx context.Context,
 	notificationTypes []string,
 	accountIDs []int64,
-) (map[string][]int64, error) {
+) (result map[string][]int64, err error) {
+	ctx, finish := s.observe(ctx, "notification_consent.filter_opted_in_by_type")
+	defer func() { finish(err) }()
+
 	optedInByType := make(map[string][]int64)
 	if len(notificationTypes) == 0 || len(accountIDs) == 0 {
 		return optedInByType, nil
 	}
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -198,7 +219,7 @@ func (s *NotificationConsentStore) FilterOptedInByType(
 		Where(`"notification_preference".account_id IN (?)`, bun.List(accountIDs)).
 		OrderExpr(`"notification_preference".notification_type ASC`).
 		OrderExpr(`"notification_preference".account_id ASC`)
-	query = withTenant(query, notificationPreferenceAlias, tenantID)
+	query = withTenant(query, notificationPreferenceAlias, scope)
 	if err := query.Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("filter opted-in accounts by type: %w", err)
 	}
@@ -212,11 +233,14 @@ func (s *NotificationConsentStore) FilterOptedInByType(
 // candidates who explicitly declined the type. It reads the opt-out rows and
 // subtracts them instead of selecting survivors in SQL, so candidates without
 // any row have nothing to join against and the caller's order is preserved.
-func (s *NotificationConsentStore) FilterNotOptedOut(ctx context.Context, notificationType string, accountIDs []int64) ([]int64, error) {
+func (s *NotificationConsentStore) FilterNotOptedOut(ctx context.Context, notificationType string, accountIDs []int64) (result []int64, err error) {
+	ctx, finish := s.observe(ctx, "notification_consent.filter_not_opted_out")
+	defer func() { finish(err) }()
+
 	if notificationType == "" || len(accountIDs) == 0 {
 		return nil, nil
 	}
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -227,7 +251,7 @@ func (s *NotificationConsentStore) FilterNotOptedOut(ctx context.Context, notifi
 		Where(`"notification_preference".notification_type = ?`, notificationType).
 		Where(`NOT "notification_preference".enabled`).
 		Where(`"notification_preference".account_id IN (?)`, bun.List(accountIDs))
-	query = withTenant(query, notificationPreferenceAlias, tenantID)
+	query = withTenant(query, notificationPreferenceAlias, scope)
 	if err := query.Scan(ctx, &optedOut); err != nil {
 		return nil, fmt.Errorf("filter opted-out accounts: %w", err)
 	}
@@ -247,11 +271,14 @@ func (s *NotificationConsentStore) FilterNotOptedOut(ctx context.Context, notifi
 
 // DisableConsent switches the named stored decisions of one account off. Types
 // with no row stay absent — they are already off.
-func (s *NotificationConsentStore) DisableConsent(ctx context.Context, accountID int64, notificationTypes []string) error {
+func (s *NotificationConsentStore) DisableConsent(ctx context.Context, accountID int64, notificationTypes []string) (err error) {
+	ctx, finish := s.observe(ctx, "notification_consent.disable")
+	defer func() { finish(err) }()
+
 	if len(notificationTypes) == 0 {
 		return nil
 	}
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return err
 	}
@@ -263,9 +290,10 @@ func (s *NotificationConsentStore) DisableConsent(ctx context.Context, accountID
 		Where("account_id = ?", accountID).
 		Where("notification_type IN (?)", bun.List(notificationTypes)).
 		Where("enabled")
-	if tenantID > 0 {
-		query = query.Where("tenant_id = ?", tenantID)
+	if scope.TenantID <= 0 {
+		return errors.New("communication: tenant is required")
 	}
+	query = query.Where("tenant_id = ?", scope.TenantID)
 	if _, err := query.Exec(ctx); err != nil {
 		return fmt.Errorf("disable all notification preferences: %w", err)
 	}

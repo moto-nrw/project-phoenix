@@ -4,11 +4,12 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Date exposes the canonical calendar-date value used by attendance storage ports.
-type Date = timezone.Date
+type Date = calendar.Date
 
 // Attendance is the owner's calendar-date-aware, persistence-independent record.
 type Attendance struct {
@@ -26,30 +27,6 @@ type Attendance struct {
 	CheckOutNote         *string
 }
 
-type AttendanceFilter struct {
-	IDs          []int64
-	StudentIDs   []int64
-	FromDate     string
-	UntilDate    string
-	BeforeDate   string
-	OpenOnly     bool
-	NewestFirst  bool
-	StudentOrder bool
-	ForUpdate    bool
-	Limit        int
-}
-
-type AttendanceCheckout struct {
-	StudentIDs []int64
-	Date       string
-	At         time.Time
-	StaffID    int64
-	DeviceID   int64
-	// Note is the optional reason for an early checkout (#3324). Empty
-	// leaves the column NULL.
-	Note string
-}
-
 type AttendanceDay struct {
 	StudentID int64
 	Date      Date
@@ -63,11 +40,14 @@ type AttendanceStore interface {
 	EnsureAttendanceBatch(context.Context, []*Attendance) ([]int64, Stats, error)
 	CloseStaleAttendance(context.Context, int64, time.Time, time.Time) (Stats, error)
 	LockStudentAttendance(context.Context, int64) (Stats, error)
-	HasAttendance(context.Context, AttendanceFilter) (bool, Stats, error)
+	HasAttendance(context.Context, studentpresence.AttendanceFilter) (bool, Stats, error)
 	CountAttendanceByStaff(context.Context, int64) (int, Stats, error)
 	ListOpenAttendanceStudentIDs(context.Context, string) ([]int64, Stats, error)
 	FindAttendance(context.Context, int64) (*Attendance, Stats, error)
-	ListAttendance(context.Context, AttendanceFilter) ([]*Attendance, Stats, error)
+	ListAttendance(context.Context, studentpresence.AttendanceFilter) ([]*Attendance, Stats, error)
 	EnsureAttendance(context.Context, *Attendance) (bool, Stats, error)
-	CloseAttendance(context.Context, AttendanceCheckout) ([]*Attendance, Stats, error)
+	CloseAttendance(context.Context, studentpresence.AttendanceCheckout) ([]*Attendance, Stats, error)
+	// DeleteAttendanceBefore deletes the tenant's attendance dated before
+	// cutoff (#3957).
+	DeleteAttendanceBefore(context.Context, Date) (Stats, error)
 }

@@ -35,11 +35,11 @@ func (l *observationLog) operations() []string {
 	return names
 }
 
-func buildModule(t *testing.T, db *bun.DB, observe func(Observation)) *facilities.Module {
+func buildModule(t *testing.T, db *bun.DB, observe func(Observation)) facilities.Capability {
 	t.Helper()
 	module, err := New(Dependencies{
 		DB: db, DeletionLock: func(context.Context) error { return nil },
-		DeletionGuard: func(context.Context, int64) error { return nil }, Observe: observe,
+		Usage: roomUsageFunc(func(context.Context) bool { return false }), Observe: observe,
 	})
 	require.NoError(t, err)
 	return module
@@ -121,7 +121,7 @@ func TestModuleHidesRoomsOfOtherTenants(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestModuleFallsBackToTheSharedConnectionWithoutTransaction(t *testing.T) {
+func TestStandaloneRoomReadUsesTheSchoolUnit(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	module := buildModule(t, db, func(Observation) {})
@@ -157,7 +157,7 @@ func TestModuleRejectsAmbientTenantTransactionWithoutTenantContext(t *testing.T)
 	require.NoError(t, err)
 }
 
-func TestModuleFiltersSharedConnectionByTenant(t *testing.T) {
+func TestStandaloneRoomReadScopesTheSchoolUnit(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	module := buildModule(t, db, func(Observation) {})
@@ -283,9 +283,9 @@ func TestModuleCountsOnlyAttemptedPageQueries(t *testing.T) {
 	module := buildModule(t, db, func(value Observation) { observed = value })
 	require.NoError(t, db.Close())
 
-	_, err := module.ListRoomsPage(testpkg.Ctx(t), facilities.RoomFilter{}, 0, 10)
+	_, err := module.ListRoomsPage(testpkg.WithTenantRuntime(t, testpkg.Ctx(t), db), facilities.RoomFilter{}, 0, 10)
 
 	require.Error(t, err)
 	assert.Equal(t, "list_rooms_page", observed.Operation)
-	assert.EqualValues(t, 1, observed.Stats.Queries)
+	assert.Zero(t, observed.Stats.Queries, "a failed unit start attempts no owner query")
 }

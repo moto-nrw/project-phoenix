@@ -45,7 +45,7 @@ it("forwards an SSE backend error without inventing a connection message", async
   expect(captureException).not.toHaveBeenCalled();
 });
 
-it("forwards an SSE backend 5xx without a BFF event", async () => {
+it("replaces an SSE backend 5xx without a BFF event", async () => {
   global.fetch = vi
     .fn()
     .mockResolvedValue(
@@ -59,7 +59,11 @@ it("forwards an SSE backend 5xx without a BFF event", async () => {
   );
 
   expect(response.status).toBe(503);
-  expect(await response.text()).toBe("backend down");
+  expect(await response.json()).toMatchObject({
+    status: 503,
+    detail: "Service Unavailable",
+    code: "general.unavailable",
+  });
   expect(captureException).not.toHaveBeenCalled();
 });
 

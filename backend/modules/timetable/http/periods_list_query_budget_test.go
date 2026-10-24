@@ -27,7 +27,7 @@ func TestListPeriodsQueryBudget(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	repos := mustTimetableTestRepositories(db)
-	res := NewResource(Dependencies{
+	res := newResourceForTest(Dependencies{
 		CalendarPeriods:     repos.SchoolCalendar(),
 		CalendarPeriodUsage: calendarPeriodUsageFor(repos.CalendarPeriodUsage()),
 	})

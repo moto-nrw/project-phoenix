@@ -4,7 +4,6 @@ import {
   buildBackendStudentRequest,
   handlePrivacyConsentCreation,
   buildStudentResponse,
-  handleStudentCreationError,
 } from "./student-request-helpers";
 import type { Student } from "./student-helpers";
 import { LOCATION_STATUSES } from "./location-helper";
@@ -300,7 +299,6 @@ describe("buildBackendStudentRequest", () => {
       extra_info: "Special needs",
       birthday: "2015-06-15",
       health_info: "Allergies",
-      supervisor_notes: "Extra care",
       pickup_status: "Authorized",
     };
 
@@ -319,7 +317,6 @@ describe("buildBackendStudentRequest", () => {
       extra_info: "Special needs",
       birthday: "2015-06-15",
       health_info: "Allergies",
-      supervisor_notes: "Extra care",
       pickup_status: "Authorized",
     });
   });
@@ -600,168 +597,5 @@ describe("buildStudentResponse", () => {
       privacy_consent_accepted: false,
       data_retention_days: 30,
     });
-  });
-});
-
-describe("handleStudentCreationError", () => {
-  it("throws permission error for 403 status", () => {
-    const error = new Error("API error: 403 Forbidden");
-    const consoleErrorSpy = vi
-      .spyOn(console, "error")
-      .mockImplementation(() => undefined);
-
-    expect(() => handleStudentCreationError(error)).toThrow(
-      "Permission denied: You need the 'users:create' permission to create students.",
-    );
-
-    expect(consoleErrorSpy).toHaveBeenCalledWith(
-      "permission denied when creating student",
-      { error: String(error) },
-    );
-
-    consoleErrorSpy.mockRestore();
-  });
-
-  it("throws schedule permission error when Betreuungszeiten creation lacks users:update", () => {
-    const error = new Error(
-      'API error: 403 {"error":"users:update permission required to create student schedules"}',
-    );
-    const consoleErrorSpy = vi
-      .spyOn(console, "error")
-      .mockImplementation(() => undefined);
-
-    expect(() => handleStudentCreationError(error)).toThrow(
-      "Permission denied: You need the 'users:update' permission to create student Betreuungszeiten.",
-    );
-
-    expect(consoleErrorSpy).toHaveBeenCalledWith(
-      "permission denied when creating student",
-      { error: String(error) },
-    );
-
-    consoleErrorSpy.mockRestore();
-  });
-
-  it("preserves 403 status for mapped schedule permission errors", () => {
-    const error = new Error(
-      'API error (403): {"error":"users:update permission required to create student schedules"}',
-    );
-    const consoleErrorSpy = vi
-      .spyOn(console, "error")
-      .mockImplementation(() => undefined);
-
-    try {
-      handleStudentCreationError(error);
-      throw new Error("Expected handleStudentCreationError to throw");
-    } catch (caught) {
-      expect(caught).toBeInstanceOf(Error);
-      expect((caught as Error).message).toContain("API error (403):");
-      expect((caught as { status?: number }).status).toBe(403);
-      expect((caught as Error).message).toContain(
-        "Permission denied: You need the 'users:update' permission to create student Betreuungszeiten.",
-      );
-    }
-
-    consoleErrorSpy.mockRestore();
-  });
-
-  it("preserves 403 status for mapped student create permission errors", () => {
-    const error = new Error("API error (403): Forbidden");
-    const consoleErrorSpy = vi
-      .spyOn(console, "error")
-      .mockImplementation(() => undefined);
-
-    try {
-      handleStudentCreationError(error);
-      throw new Error("Expected handleStudentCreationError to throw");
-    } catch (caught) {
-      expect(caught).toBeInstanceOf(Error);
-      expect((caught as Error).message).toContain("API error (403):");
-      expect((caught as { status?: number }).status).toBe(403);
-      expect((caught as Error).message).toContain(
-        "Permission denied: You need the 'users:create' permission to create students.",
-      );
-    }
-
-    consoleErrorSpy.mockRestore();
-  });
-
-  it("throws specific error for missing first name validation", () => {
-    const error = new Error("400: first name is required");
-    const consoleErrorSpy = vi
-      .spyOn(console, "error")
-      .mockImplementation(() => undefined);
-
-    expect(() => handleStudentCreationError(error)).toThrow(
-      "First name is required",
-    );
-
-    consoleErrorSpy.mockRestore();
-  });
-
-  it("throws specific error for missing school class validation", () => {
-    const error = new Error(
-      "400 Bad Request: school class is required for this student",
-    );
-    const consoleErrorSpy = vi
-      .spyOn(console, "error")
-      .mockImplementation(() => undefined);
-
-    expect(() => handleStudentCreationError(error)).toThrow(
-      "School class is required",
-    );
-
-    consoleErrorSpy.mockRestore();
-  });
-
-  it("throws specific error for missing guardian name validation", () => {
-    const error = new Error("400: guardian name is required");
-    const consoleErrorSpy = vi
-      .spyOn(console, "error")
-      .mockImplementation(() => undefined);
-
-    expect(() => handleStudentCreationError(error)).toThrow(
-      "Guardian name is required",
-    );
-
-    consoleErrorSpy.mockRestore();
-  });
-
-  it("throws specific error for missing guardian contact validation", () => {
-    const error = new Error("400 - guardian contact is required");
-    const consoleErrorSpy = vi
-      .spyOn(console, "error")
-      .mockImplementation(() => undefined);
-
-    expect(() => handleStudentCreationError(error)).toThrow(
-      "Guardian contact is required",
-    );
-
-    consoleErrorSpy.mockRestore();
-  });
-
-  it("re-throws non-validation errors as-is", () => {
-    const error = new Error("Network timeout");
-
-    expect(() => handleStudentCreationError(error)).toThrow("Network timeout");
-  });
-
-  it("re-throws non-Error objects as-is", () => {
-    const error = "String error";
-
-    expect(() => handleStudentCreationError(error)).toThrow("String error");
-  });
-
-  it("re-throws 400 errors without specific validation messages", () => {
-    const error = new Error("400 Bad Request: unknown validation error");
-    const consoleErrorSpy = vi
-      .spyOn(console, "error")
-      .mockImplementation(() => undefined);
-
-    expect(() => handleStudentCreationError(error)).toThrow(
-      "400 Bad Request: unknown validation error",
-    );
-
-    consoleErrorSpy.mockRestore();
   });
 });

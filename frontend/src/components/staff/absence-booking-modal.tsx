@@ -65,7 +65,7 @@ export interface YearAccount {
   readonly allowances: ReadonlyMap<string, AbsenceTypeAllowanceSummary>;
 }
 
-export type OptionKind = "quota" | "comp_time" | "plain";
+type OptionKind = "quota" | "comp_time" | "plain";
 
 export interface BookingOption {
   readonly value: string;
@@ -660,6 +660,13 @@ export function AbsenceBookingModal({
         types.filter((type) => type.isActive && type.allowanceEnabled),
       )
     : [];
+  // Warum „Eintragen“ gesperrt ist: steht im Fehlerfeld oben im Formular.
+  let allowanceBlocker: string | null = null;
+  if (shortfall && selected) {
+    allowanceBlocker = `Nicht genug Tage: ${selected.label}${projections.length > 1 ? ` ${shortfall.year}` : ""} hat noch ${formatDayCount(shortfall.remaining)}, diese Eintragung braucht ${formatDayCount(shortfall.needed)}. Ändern Sie zuerst den Anspruch oder wählen Sie eine andere Art.`;
+  } else if (customBlocked && selected) {
+    allowanceBlocker = `Nicht genug Tage: Diese Eintragung braucht Tage aus dem Vorjahr, die für spätere Eintragungen von ${selected.label} schon verplant sind. Ändern Sie zuerst den Anspruch.`;
+  }
   const isOverdraft =
     isCompTime && preview !== null && preview.projectedBalanceMinutes < 0;
   const firstAccount = years.length > 0 ? accounts.get(years[0]!) : undefined;
@@ -744,7 +751,7 @@ export function AbsenceBookingModal({
       }
     >
       <div className="space-y-4">
-        <FormErrorAlert message={formErrors.error} />
+        <FormErrorAlert message={allowanceBlocker ?? formErrors.error} />
         <p className="text-sm text-gray-600">
           Wird sofort eingetragen. Es entsteht kein Antrag.
         </p>
@@ -796,18 +803,6 @@ export function AbsenceBookingModal({
         ) : null}
         {selected?.kind === "quota" && projections.length > 0 ? (
           <QuotaSummary label={selected.label} projections={projections} />
-        ) : null}
-        {shortfall && selected ? (
-          <Alert
-            type="error"
-            message={`Nicht genug Tage: ${selected.label}${projections.length > 1 ? ` ${shortfall.year}` : ""} hat noch ${formatDayCount(shortfall.remaining)}, diese Eintragung braucht ${formatDayCount(shortfall.needed)}. Ändern Sie zuerst den Anspruch oder wählen Sie eine andere Art.`}
-          />
-        ) : null}
-        {customBlocked && !shortfall && selected ? (
-          <Alert
-            type="error"
-            message={`Nicht genug Tage: Diese Eintragung braucht Tage aus dem Vorjahr, die für spätere Eintragungen von ${selected.label} schon verplant sind. Ändern Sie zuerst den Anspruch.`}
-          />
         ) : null}
         {openQuotas.length > 0 ? (
           <Alert

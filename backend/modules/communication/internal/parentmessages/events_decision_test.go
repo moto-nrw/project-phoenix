@@ -10,24 +10,30 @@ import (
 	"log/slog"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	parentmessaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/application/parentmessaging"
 
-	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
-	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
+	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
+
+	messaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
+
+	"github.com/moto-nrw/project-phoenix/api"
+
+	"github.com/moto-nrw/project-phoenix/modules/communication"
+	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/devices"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
 
 type capturingNotifier struct {
-	events []notifications.Event
+	events []communication.NotificationEvent
 	err    error
 }
 
-func (n *capturingNotifier) Notify(_ context.Context, event notifications.Event) error {
+func (n *capturingNotifier) Notify(_ context.Context, event communication.NotificationEvent) error {
 	if n.err != nil {
 		return n.err
 	}
@@ -38,7 +44,7 @@ func (n *capturingNotifier) Notify(_ context.Context, event notifications.Event)
 // decisionPreferences answers the consent question the emitter asks before it
 // pushes: optedIn decides the audience, err simulates an unavailable store.
 type decisionPreferences struct {
-	notifications.PreferenceService
+	communication.NotificationPreferences
 	optedIn bool
 	err     error
 }
@@ -53,14 +59,14 @@ func (p decisionPreferences) FilterOptedIn(_ context.Context, _ string, accountI
 	return accountIDs, nil
 }
 
-func staffDecision(accountID int64, refID int64) parentmessaging.ChildEvent {
-	return parentmessaging.ChildEvent{
-		EventType:      usersModels.ParentMessageEventRequestStatus,
-		ActorKind:      usersModels.ParentMessageSenderStaff,
+func staffDecision(accountID int64, refID int64) eventContract.ChildEvent {
+	return eventContract.ChildEvent{
+		EventType:      messaging.ParentMessageEventRequestStatus,
+		ActorKind:      messaging.ParentMessageSenderStaff,
 		ActorAccountID: accountID,
 		Body:           "Anfrage bestätigt",
-		RequestType:    usersModels.ParentMessageRequestCareSchedule,
-		RequestStatus:  usersModels.ParentMessageRequestStatusDone,
+		RequestType:    messaging.ParentMessageRequestCareSchedule,
+		RequestStatus:  messaging.ParentMessageRequestStatusDone,
 		RefTable:       "schedule.care_schedule_change_requests",
 		RefID:          i64(refID),
 	}
@@ -69,9 +75,9 @@ func staffDecision(accountID int64, refID int64) parentmessaging.ChildEvent {
 func enqueueDecision(
 	t *testing.T,
 	db *bun.DB,
-	emitter *parentmessaging.Emitter,
+	emitter eventContract.Emitter,
 	tenantID, studentID, accountID int64,
-	ev parentmessaging.ChildEvent,
+	ev eventContract.ChildEvent,
 ) error {
 	t.Helper()
 	ctx := tenant.WithUnitOfWork(context.Background(), testpkg.TenantRuntime(t, db))
@@ -83,7 +89,7 @@ func enqueueDecision(
 func TestEmitChildEvent_PushesDecisionToSubmittingGuardian(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	reposMessages := api.NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, db))
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	_, err := db.NewUpdate().
 		TableExpr("users.guardian_profiles").
@@ -93,38 +99,38 @@ func TestEmitChildEvent_PushesDecisionToSubmittingGuardian(t *testing.T) {
 	require.NoError(t, err)
 
 	notifier := &capturingNotifier{}
-	emitter := newMockEmitter(t, db, repos.ParentMessageThread, repos.ParentMessage,
-		&toggleSettings{enabled: true}, testpkg.NewRecordingBroadcaster(), slog.Default()).
-		WithDecisionNotifications(notifier, decisionPreferences{optedIn: true})
+	emitter := newMockEmitter(t, db, messaging.NewThreadRepository(reposMessages.ParentMessageThread), messaging.NewMessageRepository(parentStore.NewParentMessageRepository(db)),
+		&toggleSettings{enabled: true}, testpkg.NewRecordingBroadcaster(), slog.Default(),
+		api.NewCommunicationRequestDecisionNotifier(notifier.Notify, decisionPreferences{optedIn: true}))
 
 	ev := staffDecision(chain.AccountID, 301)
 	require.NoError(t, enqueueDecision(t, db, emitter, chain.TenantID, chain.StudentID, chain.AccountID, ev))
-	emitter.EmitChildEvent(chain.TenantID, chain.StudentID, chain.AccountID, ev)
+	_ = emitter.EmitChildEvent(context.Background(), chain.TenantID, chain.StudentID, chain.AccountID, ev)
 
 	require.Len(t, notifier.events, 1)
 	event := notifier.events[0]
-	assert.Equal(t, notifications.TypeParentRequestDecided, event.Type)
+	assert.Equal(t, communication.TypeParentRequestDecided, event.Type)
 	assert.Equal(t, "Request approved", event.Title)
 	assert.Contains(t, event.Body, "care schedule")
-	assert.Equal(t, notifications.ScopeGuardian, event.Audience.Scope)
+	assert.Equal(t, communication.ScopeGuardian, event.Audience.Scope)
 	assert.Equal(t, chain.TenantID, event.Audience.TenantID)
 	assert.Equal(t, []int64{chain.AccountID}, event.Audience.GuardianAccountIDs)
 	// The deep link points at the child, never at a payload that names them.
 	assert.Contains(t, event.DeepLink, "/children/")
 	assert.NotContains(t, event.Body, "Kind")
 
-	_, msgs := threadPills(t, db, repos, chain)
-	assert.Equal(t, 1, countEventType(msgs, usersModels.ParentMessageEventRequestStatus),
+	_, msgs := threadPills(t, db, reposMessages, chain)
+	assert.Equal(t, 1, countEventType(msgs, messaging.ParentMessageEventRequestStatus),
 		"the pill and the push are the same event, not two code paths")
 }
 
 // revokedBeforePush denies child access to both the delivery and pill paths.
 type revokedBeforePush struct {
-	usersModels.ParentMessageThreadRepository
+	messaging.ParentMessageThreadRepository
 	reads int
 }
 
-func (r *revokedBeforePush) ListGuardiansForStudent(ctx context.Context, studentID int64) ([]*usersModels.MessageableGuardian, error) {
+func (r *revokedBeforePush) ListGuardiansForStudent(ctx context.Context, studentID int64) ([]*messaging.MessageableGuardian, error) {
 	r.reads++
 	return nil, nil
 }
@@ -132,47 +138,47 @@ func (r *revokedBeforePush) ListGuardiansForStudent(ctx context.Context, student
 func TestRequestDecisionEnqueueAndPillBothCheckChildAccess(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	reposMessages := api.NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, db))
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	threadRepo := &revokedBeforePush{ParentMessageThreadRepository: repos.ParentMessageThread}
+	threadRepo := &revokedBeforePush{ParentMessageThreadRepository: messaging.NewThreadRepository(reposMessages.ParentMessageThread)}
 	notifier := &capturingNotifier{}
-	emitter := newMockEmitter(t, db, threadRepo, repos.ParentMessage,
-		&toggleSettings{enabled: true}, testpkg.NewRecordingBroadcaster(), slog.Default()).
-		WithDecisionNotifications(notifier, decisionPreferences{optedIn: true})
+	emitter := newMockEmitter(t, db, threadRepo, messaging.NewMessageRepository(parentStore.NewParentMessageRepository(db)),
+		&toggleSettings{enabled: true}, testpkg.NewRecordingBroadcaster(), slog.Default(),
+		api.NewCommunicationRequestDecisionNotifier(notifier.Notify, decisionPreferences{optedIn: true}))
 
 	ev := staffDecision(chain.AccountID, 309)
 	require.NoError(t, enqueueDecision(t, db, emitter, chain.TenantID, chain.StudentID, chain.AccountID, ev))
-	emitter.EmitChildEvent(chain.TenantID, chain.StudentID, chain.AccountID, ev)
+	_ = emitter.EmitChildEvent(context.Background(), chain.TenantID, chain.StudentID, chain.AccountID, ev)
 
 	assert.Empty(t, notifier.events,
 		"an account the parent APIs now hide must not be told about the child on a lock screen")
 	assert.Equal(t, 2, threadRepo.reads,
 		"delivery enqueue and the detached pill each enforce current access")
-	_, msgs := threadPills(t, db, repos, chain)
-	assert.Zero(t, countEventType(msgs, usersModels.ParentMessageEventRequestStatus))
+	_, msgs := threadPills(t, db, reposMessages, chain)
+	assert.Zero(t, countEventType(msgs, messaging.ParentMessageEventRequestStatus))
 }
 
 func TestEmitChildEvent_DecisionPushRespectsConsentAndPillShape(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	reposMessages := api.NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, db))
 
 	t.Run("a guardian who did not opt in is not pushed at", func(t *testing.T) {
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 		notifier := &capturingNotifier{}
-		emitter := newMockEmitter(t, db, repos.ParentMessageThread, repos.ParentMessage,
-			&toggleSettings{enabled: true}, testpkg.NewRecordingBroadcaster(), slog.Default()).
-			WithDecisionNotifications(notifier, decisionPreferences{optedIn: false})
+		emitter := newMockEmitter(t, db, messaging.NewThreadRepository(reposMessages.ParentMessageThread), messaging.NewMessageRepository(parentStore.NewParentMessageRepository(db)),
+			&toggleSettings{enabled: true}, testpkg.NewRecordingBroadcaster(), slog.Default(),
+			api.NewCommunicationRequestDecisionNotifier(notifier.Notify, decisionPreferences{optedIn: false}))
 
 		ev := staffDecision(chain.AccountID, 302)
 		require.NoError(t, enqueueDecision(t, db, emitter, chain.TenantID, chain.StudentID, chain.AccountID, ev))
-		emitter.EmitChildEvent(chain.TenantID, chain.StudentID, chain.AccountID, ev)
+		_ = emitter.EmitChildEvent(context.Background(), chain.TenantID, chain.StudentID, chain.AccountID, ev)
 
 		assert.Empty(t, notifier.events)
-		_, msgs := threadPills(t, db, repos, chain)
-		assert.Equal(t, 1, countEventType(msgs, usersModels.ParentMessageEventRequestStatus),
+		_, msgs := threadPills(t, db, reposMessages, chain)
+		assert.Equal(t, 1, countEventType(msgs, messaging.ParentMessageEventRequestStatus),
 			"consent governs the push, not the in-app pill")
 	})
 
@@ -180,15 +186,15 @@ func TestEmitChildEvent_DecisionPushRespectsConsentAndPillShape(t *testing.T) {
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 		notifier := &capturingNotifier{}
-		emitter := newMockEmitter(t, db, repos.ParentMessageThread, repos.ParentMessage,
-			&toggleSettings{enabled: true}, testpkg.NewRecordingBroadcaster(), slog.Default()).
-			WithDecisionNotifications(notifier, decisionPreferences{optedIn: true})
+		emitter := newMockEmitter(t, db, messaging.NewThreadRepository(reposMessages.ParentMessageThread), messaging.NewMessageRepository(parentStore.NewParentMessageRepository(db)),
+			&toggleSettings{enabled: true}, testpkg.NewRecordingBroadcaster(), slog.Default(),
+			api.NewCommunicationRequestDecisionNotifier(notifier.Notify, decisionPreferences{optedIn: true}))
 
 		withdrawn := staffDecision(chain.AccountID, 303)
-		withdrawn.ActorKind = usersModels.ParentMessageSenderGuardian
-		withdrawn.RequestStatus = usersModels.ParentMessageRequestStatusWithdrawn
+		withdrawn.ActorKind = messaging.ParentMessageSenderGuardian
+		withdrawn.RequestStatus = messaging.ParentMessageRequestStatusWithdrawn
 		require.NoError(t, enqueueDecision(t, db, emitter, chain.TenantID, chain.StudentID, chain.AccountID, withdrawn))
-		emitter.EmitChildEvent(chain.TenantID, chain.StudentID, chain.AccountID, withdrawn)
+		_ = emitter.EmitChildEvent(context.Background(), chain.TenantID, chain.StudentID, chain.AccountID, withdrawn)
 
 		assert.Empty(t, notifier.events)
 	})
@@ -196,13 +202,13 @@ func TestEmitChildEvent_DecisionPushRespectsConsentAndPillShape(t *testing.T) {
 	t.Run("an emitter without notification wiring stays a no-op", func(t *testing.T) {
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-		emitter := newMockEmitter(t, db, repos.ParentMessageThread, repos.ParentMessage,
+		emitter := newMockEmitter(t, db, messaging.NewThreadRepository(reposMessages.ParentMessageThread), messaging.NewMessageRepository(parentStore.NewParentMessageRepository(db)),
 			&toggleSettings{enabled: true}, testpkg.NewRecordingBroadcaster(), slog.Default())
 
-		emitter.EmitChildEvent(chain.TenantID, chain.StudentID, chain.AccountID, staffDecision(chain.AccountID, 304))
+		_ = emitter.EmitChildEvent(context.Background(), chain.TenantID, chain.StudentID, chain.AccountID, staffDecision(chain.AccountID, 304))
 
-		_, msgs := threadPills(t, db, repos, chain)
-		assert.Equal(t, 1, countEventType(msgs, usersModels.ParentMessageEventRequestStatus),
+		_, msgs := threadPills(t, db, reposMessages, chain)
+		assert.Equal(t, 1, countEventType(msgs, messaging.ParentMessageEventRequestStatus),
 			"the pill must still be written when no notifier is configured")
 	})
 }
@@ -210,24 +216,24 @@ func TestEmitChildEvent_DecisionPushRespectsConsentAndPillShape(t *testing.T) {
 func TestRequestDecisionEnqueueFailuresAbortTheUnitOfWork(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	reposMessages := api.NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, db))
 
 	emitWith := func(t *testing.T, notifier *capturingNotifier, prefs decisionPreferences, refID int64) (int, error) {
 		t.Helper()
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-		emitter := newMockEmitter(t, db, repos.ParentMessageThread, repos.ParentMessage,
-			&toggleSettings{enabled: true}, testpkg.NewRecordingBroadcaster(), slog.Default()).
-			WithDecisionNotifications(notifier, prefs)
+		emitter := newMockEmitter(t, db, messaging.NewThreadRepository(reposMessages.ParentMessageThread), messaging.NewMessageRepository(parentStore.NewParentMessageRepository(db)),
+			&toggleSettings{enabled: true}, testpkg.NewRecordingBroadcaster(), slog.Default(),
+			api.NewCommunicationRequestDecisionNotifier(notifier.Notify, prefs))
 
 		ev := staffDecision(chain.AccountID, refID)
 		err := enqueueDecision(t, db, emitter, chain.TenantID, chain.StudentID, chain.AccountID, ev)
 		if err == nil {
-			emitter.EmitChildEvent(chain.TenantID, chain.StudentID, chain.AccountID, ev)
+			_ = emitter.EmitChildEvent(context.Background(), chain.TenantID, chain.StudentID, chain.AccountID, ev)
 		}
 
-		_, msgs := threadPills(t, db, repos, chain)
-		return countEventType(msgs, usersModels.ParentMessageEventRequestStatus), err
+		_, msgs := threadPills(t, db, reposMessages, chain)
+		return countEventType(msgs, messaging.ParentMessageEventRequestStatus), err
 	}
 
 	t.Run("an unavailable consent store aborts", func(t *testing.T) {
@@ -237,14 +243,14 @@ func TestRequestDecisionEnqueueFailuresAbortTheUnitOfWork(t *testing.T) {
 	})
 
 	t.Run("a school with notifications switched off remains a closed gate", func(t *testing.T) {
-		notifier := &capturingNotifier{err: notifications.ErrDisabled}
+		notifier := &capturingNotifier{err: devices.ErrNotificationsDisabled}
 		pills, err := emitWith(t, notifier, decisionPreferences{optedIn: true}, 306)
 		assert.NoError(t, err)
 		assert.Equal(t, 1, pills)
 	})
 
 	t.Run("a push outside the school's delivery window is not a failure", func(t *testing.T) {
-		notifier := &capturingNotifier{err: notifications.ErrOutsideActiveWindow}
+		notifier := &capturingNotifier{err: devices.ErrOutsideNotificationWindow}
 		pills, err := emitWith(t, notifier, decisionPreferences{optedIn: true}, 307)
 		assert.NoError(t, err)
 		assert.Equal(t, 1, pills)
@@ -258,9 +264,9 @@ func TestRequestDecisionEnqueueFailuresAbortTheUnitOfWork(t *testing.T) {
 	})
 }
 
-func TestWithDecisionNotificationsOnNilEmitter(t *testing.T) {
+func TestDecisionDeliveryOnNilEmitter(t *testing.T) {
 	t.Parallel()
 	var emitter *parentmessaging.Emitter
-	assert.Nil(t, emitter.WithDecisionNotifications(&capturingNotifier{}, decisionPreferences{}),
-		"a partially-wired factory must not panic while adding optional dependencies")
+	assert.NoError(t, emitter.EnqueueRequestDecision(context.Background(), 1, 2, 3, staffDecision(3, 310)),
+		"a partially-wired factory must not panic on its optional decision delivery")
 }

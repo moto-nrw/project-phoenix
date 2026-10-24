@@ -33,7 +33,7 @@ func (l *observationLog) operations() []string {
 	return names
 }
 
-func buildModule(t *testing.T, db *bun.DB, observe func(Observation)) *schoolstructure.Module {
+func buildModule(t *testing.T, db *bun.DB, observe func(Observation)) schoolstructure.Owner {
 	t.Helper()
 	module, err := New(Dependencies{DB: db, Observe: observe})
 	require.NoError(t, err)
@@ -145,13 +145,16 @@ func TestModuleHidesGroupsOfOtherTenants(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestModuleFallsBackToTheSharedConnectionWithoutTransaction(t *testing.T) {
+func TestModuleRequiresAmbientTransaction(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	module := buildModule(t, db, func(Observation) {})
 	group := testpkg.CreateTestEducationGroup(t, db, "Igel")
 
-	found, err := module.FindGroup(testpkg.Ctx(t), group.ID)
+	ctx := testpkg.Ctx(t)
+	_, err := module.FindGroup(ctx, group.ID)
+	require.ErrorContains(t, err, "transaction is required")
+	found, err := testpkg.TenantQuery1(t, ctx, db, module.FindGroup, group.ID)
 	require.NoError(t, err)
 	assert.Equal(t, group.Name, found.Name)
 }

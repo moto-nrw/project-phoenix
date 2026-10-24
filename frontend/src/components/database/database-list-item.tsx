@@ -21,6 +21,8 @@ interface DatabaseListItemProps {
    * zum Objekt ist portalweit die Route (BAUARTEN-SPEC Bauart 1 Regel 2).
    */
   href?: string;
+  /** Vor dem Titel, etwa ein Avatar. */
+  leadingAccessory?: ReactNode;
   trailingAccessory?: ReactNode;
   selectionMode?: boolean;
   isChecked?: boolean;
@@ -36,6 +38,7 @@ export function DatabaseListItem({
   isSelected,
   onSelect,
   href,
+  leadingAccessory,
   trailingAccessory,
   selectionMode = false,
   isChecked = false,
@@ -43,6 +46,7 @@ export function DatabaseListItem({
 }: DatabaseListItemProps) {
   const content = (
     <>
+      {leadingAccessory}
       <div className="min-w-0 flex-1">
         <div
           className={cn(

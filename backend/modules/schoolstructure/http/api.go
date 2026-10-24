@@ -15,7 +15,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/domain"
@@ -35,8 +35,8 @@ type CallerGroups interface {
 type GroupPeople interface {
 	// GroupStudents returns the children of a group.
 	GroupStudents(ctx context.Context, groupID int64) ([]peopledirectory.StudentRecord, error)
-	// CountStudentsByGroupIDs counts the children of each group.
-	CountStudentsByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64]int, error)
+	// CountByGroupIDs counts the children of each group.
+	CountByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64]int, error)
 	// FindPerson returns one person.
 	FindPerson(ctx context.Context, personID int64) (peopledirectory.Person, error)
 	// ListPersonsByID returns the persons keyed by ID; an unknown ID is absent.
@@ -45,36 +45,40 @@ type GroupPeople interface {
 
 // Resource defines the group API resource
 type Resource struct {
-	EducationService   GroupService
-	ActiveService      studentpresence.Presence
-	People             GroupPeople
-	UserContextService CallerGroups
+	ConstraintViolation func(error) bool
+	EducationService    GroupService
+	ActiveService       studentpresence.Presence
+	People              GroupPeople
+	UserContextService  CallerGroups
 }
 
 // NewResource creates a new groups resource
-func NewResource(educationService GroupService, activeService studentpresence.Presence, people GroupPeople, userContextService CallerGroups) *Resource {
+func NewResource(educationService GroupService, activeService studentpresence.Presence, people GroupPeople, userContextService CallerGroups, constraintViolation func(error) bool) *Resource {
+	if constraintViolation == nil {
+		panic("group resource: database failure classifier is required")
+	}
 	return &Resource{
-		EducationService:   educationService,
-		ActiveService:      activeService,
-		People:             people,
-		UserContextService: userContextService,
+		ConstraintViolation: constraintViolation,
+		EducationService:    educationService,
+		ActiveService:       activeService,
+		People:              people,
+		UserContextService:  userContextService,
 	}
 }
 
 // Router returns a configured router for group endpoints
-func (rs *Resource) Router() chi.Router {
+func (rs *Resource) Router(protectedTenantRoutes func(chi.Router, func(chi.Router, common.Middleware))) chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
 	// Protected routes that require authentication and permissions
-	common.ProtectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) {
+	protectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) {
 
 		// Read operations only require groups:read permission
 		r.With(common.RequiresPermission(permissions.GroupsRead), withTx).Get("/", rs.listGroups)
 		r.With(common.RequiresPermission(permissions.GroupsRead), withTx).Get("/{id}", rs.getGroup)
 		r.With(common.RequiresPermission(permissions.GroupsRead), withTx).Get("/{id}/students", rs.getGroupStudents)
 		r.With(common.RequiresPermission(permissions.GroupsRead), withTx).Get("/{id}/supervisors", rs.getGroupSupervisors)
-		r.With(common.RequiresPermission(permissions.GroupsRead), withTx).Get("/{id}/students/room-status", rs.getGroupStudentsRoomStatus)
 
 		// Write operations require groups:create, groups:update, or groups:delete permission
 		r.With(common.RequiresPermission(permissions.GroupsCreate), withTx).Post("/", rs.createGroup)
@@ -210,7 +214,7 @@ func (rs *Resource) parseAndGetGroup(w http.ResponseWriter, r *http.Request) (*e
 // userHasGroupAccess checks if the current user has access to the specified group.
 // Returns true if user is admin or supervises the group.
 func (rs *Resource) userHasGroupAccess(r *http.Request, groupID int64) bool {
-	userPermissions := jwt.PermissionsFromCtx(r.Context())
+	userPermissions := sessiontoken.PermissionsFromCtx(r.Context())
 	if securityruntime.HasAdminWildcard(userPermissions) {
 		return true
 	}
@@ -265,7 +269,7 @@ func (rs *Resource) listGroups(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Batch load student counts (1 query instead of N)
-	studentCounts, err := rs.People.CountStudentsByGroupIDs(r.Context(), groupIDs)
+	studentCounts, err := rs.People.CountByGroupIDs(r.Context(), groupIDs)
 	if err != nil {
 		slog.Default().Warn("failed to batch load student counts", slog.String("error", err.Error()))
 		studentCounts = make(map[int64]int)
@@ -446,7 +450,7 @@ func (rs *Resource) deleteGroup(w http.ResponseWriter, r *http.Request) {
 	if err := tenant.WithinCurrentTenant(r.Context(), func(ctx context.Context) error {
 		return rs.EducationService.DeleteGroup(ctx, id)
 	}); err != nil {
-		if common.IsConstraintViolation(err) {
+		if rs.ConstraintViolation(err) {
 			common.RenderError(w, r, common.ErrorConflictMessage("Gruppe kann nicht gelöscht werden: Gruppe wird noch in anderen Bereichen referenziert"))
 			return
 		}

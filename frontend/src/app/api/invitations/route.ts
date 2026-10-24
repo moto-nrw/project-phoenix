@@ -30,6 +30,12 @@ interface BackendResponse<T> {
 }
 
 interface IncomingCreateInvitationPayload {
+  resetMasterData?: boolean;
+  resetQualifications?: boolean;
+  resetWorkTime?: boolean;
+  reset_master_data?: boolean;
+  reset_qualifications?: boolean;
+  reset_work_time?: boolean;
   email: string;
   role_id?: string | number;
   roleId?: string | number;
@@ -38,9 +44,15 @@ interface IncomingCreateInvitationPayload {
   last_name?: string;
   lastName?: string;
   position?: string;
+  employment_action?: string;
+  employmentAction?: string;
 }
 
 interface BackendCreateInvitationPayload {
+  reset_master_data?: boolean;
+  reset_qualifications?: boolean;
+  reset_work_time?: boolean;
+  employment_action?: string;
   email: string;
   role_id?: string;
   first_name?: string;
@@ -84,10 +96,15 @@ export const POST = createPostHandler<
 
     const payload: BackendCreateInvitationPayload = {
       email: body.email,
+      reset_master_data: body.reset_master_data ?? body.resetMasterData,
+      reset_qualifications:
+        body.reset_qualifications ?? body.resetQualifications,
+      reset_work_time: body.reset_work_time ?? body.resetWorkTime,
       ...(roleId === undefined ? {} : { role_id: roleId }),
       first_name: body.first_name ?? body.firstName,
       last_name: body.last_name ?? body.lastName,
       position: body.position,
+      employment_action: body.employment_action ?? body.employmentAction,
     };
 
     const response = await apiPost<

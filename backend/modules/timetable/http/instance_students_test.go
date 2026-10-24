@@ -1,11 +1,11 @@
 // Tests for the WP-B10 three-field attendance PATCH handler.
 //
-// Split into two halves:
-//
-//  1. Pure unit tests for validateAttendancePatch — every 400 branch,
-//     cross-field rule included. No DB.
-//  2. Integration tests for the full handler — real DB + real repo, the
-//     router without JWT, using the production tenant transaction middleware.
+// The validation rules are owned by timetable.ValidateAttendancePatch
+// (attendance_patch_test.go); the handler's 400 branches run without a
+// database in instance_students_unit_test.go. This file keeps the tri-state
+// decoder unit test and the integration tests for the full handler — real
+// DB + real repo, the router without JWT, using the production tenant
+// transaction middleware.
 //
 // The integration tests intentionally avoid the authentication stack. Permission
 // gating is enforced at the router level in api.go and exercised by the
@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 
@@ -36,126 +35,8 @@ import (
 )
 
 // -----------------------------------------------------------------------------
-// Unit tests: validateAttendancePatch
+// Unit tests: decodeNullableString
 // -----------------------------------------------------------------------------
-
-func TestValidateAttendancePatch_CrossFieldRule(t *testing.T) {
-	t.Parallel()
-
-	excused := timetable.SlotSubstatusExcused
-	tests := []struct {
-		name         string
-		current      *timetable.ScheduledParticipant
-		patch        timetable.AttendancePatch
-		wantErrField string
-		wantOK       bool
-	}{
-		{
-			name:    "expected + new substatus without status change → reject",
-			current: &timetable.ScheduledParticipant{Status: timetable.SlotAttendanceExpected},
-			patch: timetable.AttendancePatch{
-				Substatus: testpkg.StrPtr(timetable.SlotSubstatusLate),
-			},
-			wantErrField: "substatus",
-		},
-		{
-			name:    "expected → present + substatus → ok",
-			current: &timetable.ScheduledParticipant{Status: timetable.SlotAttendanceExpected},
-			patch: timetable.AttendancePatch{
-				Status:    testpkg.StrPtr(timetable.SlotAttendancePresent),
-				Substatus: testpkg.StrPtr(timetable.SlotSubstatusLate),
-			},
-			wantOK: true,
-		},
-		{
-			name:    "expected → absent + substatus → ok",
-			current: &timetable.ScheduledParticipant{Status: timetable.SlotAttendanceExpected},
-			patch: timetable.AttendancePatch{
-				Status:    testpkg.StrPtr(timetable.SlotAttendanceAbsent),
-				Substatus: testpkg.StrPtr(timetable.SlotSubstatusSick),
-			},
-			wantOK: true,
-		},
-		{
-			name:    "present + substatus → ok (status unchanged)",
-			current: &timetable.ScheduledParticipant{Status: timetable.SlotAttendancePresent},
-			patch: timetable.AttendancePatch{
-				Substatus: testpkg.StrPtr(timetable.SlotSubstatusLate),
-			},
-			wantOK: true,
-		},
-		{
-			name:    "present → expected with substatus still set → reject",
-			current: &timetable.ScheduledParticipant{Status: timetable.SlotAttendancePresent, Substatus: &excused},
-			patch: timetable.AttendancePatch{
-				Status: testpkg.StrPtr(timetable.SlotAttendanceExpected),
-			},
-			wantErrField: "substatus",
-		},
-		{
-			name:    "present → expected clearing substatus → ok",
-			current: &timetable.ScheduledParticipant{Status: timetable.SlotAttendancePresent, Substatus: &excused},
-			patch: timetable.AttendancePatch{
-				Status:         testpkg.StrPtr(timetable.SlotAttendanceExpected),
-				SubstatusClear: true,
-			},
-			wantOK: true,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			errs := validateAttendancePatch(tc.patch, tc.current)
-			if tc.wantOK {
-				assert.Empty(t, errs)
-				return
-			}
-			require.NotEmpty(t, errs)
-			found := false
-			for _, e := range errs {
-				if e.Field == tc.wantErrField {
-					found = true
-					break
-				}
-			}
-			assert.True(t, found, "expected field error on %q, got %+v", tc.wantErrField, errs)
-		})
-	}
-}
-
-func TestValidateAttendancePatch_PerFieldErrors(t *testing.T) {
-	t.Parallel()
-
-	cur := &timetable.ScheduledParticipant{Status: timetable.SlotAttendancePresent}
-
-	t.Run("invalid status", func(t *testing.T) {
-		errs := validateAttendancePatch(timetable.AttendancePatch{Status: testpkg.StrPtr("ghost")}, cur)
-		require.Len(t, errs, 1)
-		assert.Equal(t, "status", errs[0].Field)
-	})
-
-	t.Run("invalid substatus", func(t *testing.T) {
-		errs := validateAttendancePatch(timetable.AttendancePatch{Substatus: testpkg.StrPtr("banana")}, cur)
-		require.Len(t, errs, 1)
-		assert.Equal(t, "substatus", errs[0].Field)
-	})
-
-	t.Run("note too long", func(t *testing.T) {
-		tooLong := strings.Repeat("x", timetable.SlotAttendanceNoteMaxLength+1)
-		errs := validateAttendancePatch(timetable.AttendancePatch{Note: &tooLong}, cur)
-		require.Len(t, errs, 1)
-		assert.Equal(t, "note", errs[0].Field)
-	})
-
-	t.Run("two per-field errors returned together", func(t *testing.T) {
-		tooLong := strings.Repeat("y", timetable.SlotAttendanceNoteMaxLength+1)
-		errs := validateAttendancePatch(timetable.AttendancePatch{
-			Status: testpkg.StrPtr("ghost"),
-			Note:   &tooLong,
-		}, cur)
-		require.Len(t, errs, 2)
-	})
-}
 
 func TestDecodeNullableString(t *testing.T) {
 	t.Parallel()
@@ -225,7 +106,7 @@ func buildPatchSetup(t *testing.T) *patchSetup {
 	row := testpkg.CreateTestInstanceStudent(t, db, inst.ID, student.ID, timetable.SlotAttendancePresent)
 
 	data := testTimetableData(db)
-	res := NewResource(Dependencies{Templates: data, AttendanceCorrections: data.AttendanceCorrections(), TimetableData: data.TimetableData()})
+	res := newResourceForTest(Dependencies{Templates: data, AttendanceCorrections: data.AttendanceCorrections(), TimetableData: data.TimetableData()})
 
 	return &patchSetup{
 		res:        res,
@@ -307,7 +188,7 @@ func TestPatchInstanceStudent_ClearNoteWithExplicitNull(t *testing.T) {
 	s := buildPatchSetup(t)
 	// Pre-populate note so the clear is observable.
 	initial := "pre"
-	_, _ = mustTimetableTestRepositories(s.db).InstanceStudent.UpdateAttendanceFromCheckin(s.ctx, s.instanceID, s.studentID, time.Now())
+	_, _ = mustTimetableTestRepositories(s.db).NativeParticipants().UpdateAttendanceFromCheckin(s.ctx, s.instanceID, s.studentID, time.Now())
 	// Directly set note via the owner's update-fields path to be sure.
 	require.NoError(t, s.data.PatchSlotAttendance(s.ctx, s.rowID, timetable.AttendancePatch{
 		Note: &initial,
@@ -324,87 +205,6 @@ func TestPatchInstanceStudent_ClearNoteWithExplicitNull(t *testing.T) {
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 	data := resp["data"].(map[string]any)
 	assert.Nil(t, data["note"], "note should be cleared to null in response")
-}
-
-func TestPatchInstanceStudent_400_EmptyBody(t *testing.T) {
-	t.Parallel()
-
-	s := buildPatchSetup(t)
-	router := patchRouter(testpkg.Ctx(t), s.res, s.db)
-
-	w := doPatch(t, router, fmt.Sprintf("/instances/%d/students/%d", s.instanceID, s.studentID), map[string]any{})
-	require.Equal(t, http.StatusBadRequest, w.Code, "body: %s", w.Body.String())
-	assert.Contains(t, w.Body.String(), "at least one of")
-}
-
-func TestPatchInstanceStudent_400_InvalidStatus(t *testing.T) {
-	t.Parallel()
-
-	s := buildPatchSetup(t)
-	router := patchRouter(testpkg.Ctx(t), s.res, s.db)
-
-	w := doPatch(t, router, fmt.Sprintf("/instances/%d/students/%d", s.instanceID, s.studentID), map[string]any{
-		"status": "ghost",
-	})
-	require.Equal(t, http.StatusBadRequest, w.Code)
-	assert.Contains(t, w.Body.String(), "status")
-}
-
-func TestPatchInstanceStudent_400_InvalidSubstatus(t *testing.T) {
-	t.Parallel()
-
-	s := buildPatchSetup(t)
-	router := patchRouter(testpkg.Ctx(t), s.res, s.db)
-
-	w := doPatch(t, router, fmt.Sprintf("/instances/%d/students/%d", s.instanceID, s.studentID), map[string]any{
-		"substatus": "banana",
-	})
-	require.Equal(t, http.StatusBadRequest, w.Code)
-	assert.Contains(t, w.Body.String(), "substatus")
-}
-
-func TestPatchInstanceStudent_400_NonStringSubstatus(t *testing.T) {
-	t.Parallel()
-
-	s := buildPatchSetup(t)
-	router := patchRouter(testpkg.Ctx(t), s.res, s.db)
-
-	// Substatus is a number, not a string — must be rejected at parse time.
-	body := `{"substatus": 5}`
-	w := doPatch(t, router, fmt.Sprintf("/instances/%d/students/%d", s.instanceID, s.studentID), body)
-	require.Equal(t, http.StatusBadRequest, w.Code, "body: %s", w.Body.String())
-	assert.Contains(t, w.Body.String(), "substatus")
-}
-
-func TestPatchInstanceStudent_400_NoteTooLong(t *testing.T) {
-	t.Parallel()
-
-	s := buildPatchSetup(t)
-	router := patchRouter(testpkg.Ctx(t), s.res, s.db)
-
-	tooLong := strings.Repeat("x", timetable.SlotAttendanceNoteMaxLength+1)
-	w := doPatch(t, router, fmt.Sprintf("/instances/%d/students/%d", s.instanceID, s.studentID), map[string]any{
-		"note": tooLong,
-	})
-	require.Equal(t, http.StatusBadRequest, w.Code)
-	assert.Contains(t, w.Body.String(), "note")
-}
-
-func TestPatchInstanceStudent_400_SubstatusOnExpected(t *testing.T) {
-	t.Parallel()
-
-	s := buildPatchSetup(t)
-	// Move the row into expected so the cross-field rule fires.
-	require.NoError(t, s.data.PatchSlotAttendance(s.ctx, s.rowID, timetable.AttendancePatch{
-		Status: testpkg.StrPtr(timetable.SlotAttendanceExpected),
-	}))
-	router := patchRouter(testpkg.Ctx(t), s.res, s.db)
-
-	w := doPatch(t, router, fmt.Sprintf("/instances/%d/students/%d", s.instanceID, s.studentID), map[string]any{
-		"substatus": "late",
-	})
-	require.Equal(t, http.StatusBadRequest, w.Code, "body: %s", w.Body.String())
-	assert.Contains(t, w.Body.String(), "cannot be set when status is expected")
 }
 
 func TestPatchInstanceStudent_409_CompletedInstance(t *testing.T) {

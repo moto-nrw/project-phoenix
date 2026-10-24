@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/services/listexport"
+	listexport "github.com/moto-nrw/project-phoenix/modules/documentrendering/records"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -136,44 +136,18 @@ func (s *service) blockColors(ctx context.Context, instances []*Instance) map[in
 	if s.deps.ActivityGroups == nil || s.deps.PlanningTracks == nil {
 		return colors
 	}
-
-	groupIDs := make([]int64, 0, len(instances))
-	for _, instance := range instances {
-		if instance.ActivityGroupID != nil {
-			groupIDs = append(groupIDs, *instance.ActivityGroupID)
-		}
-	}
+	groupIDs := instanceActivityGroupIDs(instances)
 	if len(groupIDs) == 0 {
 		return colors
 	}
-
-	groups, err := s.deps.ActivityGroups.ActivityGroupsByIDs(ctx, groupIDs)
-	if err != nil {
-		s.getLogger().Warn("plan export: activity group lookup failed", "error", err.Error())
+	trackByGroup, ok := s.planningTrackByGroup(ctx, groupIDs)
+	if !ok || len(trackByGroup) == 0 {
 		return colors
 	}
-	trackByGroup := make(map[int64]int64, len(groups))
-	for _, group := range groups {
-		if group != nil && group.PlanningTrackID != nil {
-			trackByGroup[group.ID] = *group.PlanningTrackID
-		}
-	}
-	if len(trackByGroup) == 0 {
+	colorByTrack, ok := s.planningTrackColors(ctx)
+	if !ok {
 		return colors
 	}
-
-	tracks, err := s.deps.PlanningTracks.ListPlanningTracks(ctx)
-	if err != nil {
-		s.getLogger().Warn("plan export: planning track lookup failed", "error", err.Error())
-		return colors
-	}
-	colorByTrack := make(map[int64]string, len(tracks))
-	for _, track := range tracks {
-		if track != nil {
-			colorByTrack[track.ID] = track.Color
-		}
-	}
-
 	for _, instance := range instances {
 		if instance.ActivityGroupID == nil {
 			continue
@@ -183,6 +157,50 @@ func (s *service) blockColors(ctx context.Context, instances []*Instance) map[in
 		}
 	}
 	return colors
+}
+
+func instanceActivityGroupIDs(instances []*Instance) []int64 {
+	groupIDs := make([]int64, 0, len(instances))
+	for _, instance := range instances {
+		if instance.ActivityGroupID != nil {
+			groupIDs = append(groupIDs, *instance.ActivityGroupID)
+		}
+	}
+	return groupIDs
+}
+
+// planningTrackByGroup maps each activity group to its Planungsspur. A failed
+// lookup is logged and reported as false.
+func (s *service) planningTrackByGroup(ctx context.Context, groupIDs []int64) (map[int64]int64, bool) {
+	groups, err := s.deps.ActivityGroups.ActivityGroupsByIDs(ctx, groupIDs)
+	if err != nil {
+		s.getLogger().Warn("plan export: activity group lookup failed", "error", err.Error())
+		return nil, false
+	}
+	trackByGroup := make(map[int64]int64, len(groups))
+	for _, group := range groups {
+		if group != nil && group.PlanningTrackID != nil {
+			trackByGroup[group.ID] = *group.PlanningTrackID
+		}
+	}
+	return trackByGroup, true
+}
+
+// planningTrackColors maps each Planungsspur to its colour. A failed lookup
+// is logged and reported as false.
+func (s *service) planningTrackColors(ctx context.Context) (map[int64]string, bool) {
+	tracks, err := s.deps.PlanningTracks.ListPlanningTracks(ctx)
+	if err != nil {
+		s.getLogger().Warn("plan export: planning track lookup failed", "error", err.Error())
+		return nil, false
+	}
+	colorByTrack := make(map[int64]string, len(tracks))
+	for _, track := range tracks {
+		if track != nil {
+			colorByTrack[track.ID] = track.Color
+		}
+	}
+	return colorByTrack, true
 }
 
 // staffNames resolves the names of the assigned staff. Unlike the instance
@@ -266,21 +284,35 @@ func keyFor(instance *Instance, title string) offeringKey {
 	return offeringKey{title: title}
 }
 
+// offeringRow collects one Angebot across the week's days.
+type offeringRow struct {
+	key      offeringKey
+	title    string
+	earliest string
+	days     [fullWeekDays][]*Instance
+}
+
 // rows builds one row per Angebot for the given week.
 func (d *betreuungsplanData) rows(w week) []listexport.Row {
+	ordered := sortedOfferingRows(d.weekOfferings(w))
+	rows := make([]listexport.Row, 0, len(ordered))
+	for _, row := range ordered {
+		cells := newDayCells(row.title, w)
+		for i, day := range w.days {
+			cells.days[i] = d.offeringDayLines(day, row.days[i])
+		}
+		rows = append(rows, cells.toRow())
+	}
+	return rows
+}
+
+// weekOfferings files the week's blocks under their Angebot and weekday.
+func (d *betreuungsplanData) weekOfferings(w week) map[offeringKey]*offeringRow {
 	dayIndex := make(map[Date]int, len(w.days))
 	for i, day := range w.days {
 		dayIndex[dayKey(day)] = i
 	}
-
-	type offering struct {
-		key      offeringKey
-		title    string
-		earliest string
-		days     [fullWeekDays][]*Instance
-	}
-	offerings := map[offeringKey]*offering{}
-
+	offerings := map[offeringKey]*offeringRow{}
 	for _, instance := range d.instances {
 		index, ok := dayIndex[instance.Date]
 		if !ok {
@@ -293,7 +325,7 @@ func (d *betreuungsplanData) rows(w week) []listexport.Row {
 		key := keyFor(instance, title)
 		row, exists := offerings[key]
 		if !exists {
-			row = &offering{key: key, earliest: "99:99"}
+			row = &offeringRow{key: key, earliest: "99:99"}
 			offerings[key] = row
 		}
 		// The row is labelled by its earliest occurrence, so a single
@@ -304,8 +336,11 @@ func (d *betreuungsplanData) rows(w week) []listexport.Row {
 		}
 		row.days[index] = append(row.days[index], instance)
 	}
+	return offerings
+}
 
-	ordered := make([]*offering, 0, len(offerings))
+func sortedOfferingRows(offerings map[offeringKey]*offeringRow) []*offeringRow {
+	ordered := make([]*offeringRow, 0, len(offerings))
 	for _, row := range offerings {
 		ordered = append(ordered, row)
 	}
@@ -323,24 +358,20 @@ func (d *betreuungsplanData) rows(w week) []listexport.Row {
 		}
 		return ordered[i].key.title < ordered[j].key.title
 	})
+	return ordered
+}
 
-	rows := make([]listexport.Row, 0, len(ordered))
-	for _, row := range ordered {
-		cells := newDayCells(row.title, w)
-		for i, day := range w.days {
-			lines := d.closedDayLines(day)
-			instances := row.days[i]
-			sort.SliceStable(instances, func(a, b int) bool {
-				return instances[a].StartTime.Before(instances[b].StartTime)
-			})
-			for _, instance := range instances {
-				lines = append(lines, d.instanceLines(instance)...)
-			}
-			cells.days[i] = lines
-		}
-		rows = append(rows, cells.toRow())
+// offeringDayLines renders one day cell of an Angebot: the closed-day label,
+// then its blocks in start order.
+func (d *betreuungsplanData) offeringDayLines(day calendar.Date, instances []*Instance) []listexport.Line {
+	lines := d.closedDayLines(day)
+	sort.SliceStable(instances, func(a, b int) bool {
+		return instances[a].StartTime.Before(instances[b].StartTime)
+	})
+	for _, instance := range instances {
+		lines = append(lines, d.instanceLines(instance)...)
 	}
-	return rows
+	return lines
 }
 
 // plannedDays are the days blocks run on, so a Saturday Angebot gets its own
@@ -435,26 +466,32 @@ func (d *betreuungsplanData) staffLine(instanceID, primaryRoomID int64) string {
 		if row.IsAbsent && !d.variant.internal() {
 			continue
 		}
-		name := d.staffNames[row.StaffID]
-		if name == "" {
-			name = "Unbekannt"
-		}
-		if row.IsSubstitute {
-			name += " (Vertretung)"
-		}
-		if row.IsAbsent {
-			name += " (abwesend)"
-		}
-		if row.RoomID != nil && *row.RoomID != primaryRoomID {
-			if room := d.roomNames[*row.RoomID]; room != "" {
-				name += " (" + room + ")"
-			}
-		}
-		names = append(names, name)
+		names = append(names, d.staffEntryName(row, primaryRoomID))
 	}
 	if len(names) == 0 {
 		return "Kein Personal eingeteilt"
 	}
 	sort.Strings(names)
 	return strings.Join(names, ", ")
+}
+
+// staffEntryName is one assigned staff member with their substitute and
+// absence markers and, when they work elsewhere than the block, their room.
+func (d *betreuungsplanData) staffEntryName(row *InstanceStaff, primaryRoomID int64) string {
+	name := d.staffNames[row.StaffID]
+	if name == "" {
+		name = "Unbekannt"
+	}
+	if row.IsSubstitute {
+		name += " (Vertretung)"
+	}
+	if row.IsAbsent {
+		name += " (abwesend)"
+	}
+	if row.RoomID != nil && *row.RoomID != primaryRoomID {
+		if room := d.roomNames[*row.RoomID]; room != "" {
+			name += " (" + room + ")"
+		}
+	}
+	return name
 }

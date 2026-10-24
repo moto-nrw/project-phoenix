@@ -7,74 +7,60 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
 
-func newUnitOfWorkGuardianProfile(t *testing.T, suffix string) *usersModels.GuardianProfile {
-	t.Helper()
-	email := fmt.Sprintf("unit-of-work-%s-%d@test.local", suffix, Tenant(t))
-	return &usersModels.GuardianProfile{
-		FirstName:              "Unit",
-		LastName:               "Work",
-		Email:                  &email,
-		PreferredContactMethod: "email",
-		LanguagePreference:     "de",
-	}
-}
+// The unit-of-work tests write one throwaway guardian profile through the
+// tenant transaction the unit of work opens (TransactionProbe) and read it
+// back outside that transaction.
 
 func TestUnitOfWorkCommitsSuccessfulCommand(t *testing.T) {
 	t.Parallel()
 	db := SetupTestDB(t)
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianProfile
-	profile := newUnitOfWorkGuardianProfile(t, "commit")
+	probe := NewTransactionProbe(t, db)
 
 	err := tenant.WithinCurrentTenant(Ctx(t), func(txCtx context.Context) error {
-		return repo.Create(txCtx, profile)
+		return probe.Write(txCtx)
 	})
 
 	require.NoError(t, err)
-	stored, err := repo.FindByID(Ctx(t), profile.ID)
-	require.NoError(t, err)
-	assert.Equal(t, profile.ID, stored.ID)
+	require.True(t, probe.Written())
+	assert.True(t, probe.Committed(t))
 }
 
 func TestUnitOfWorkRollsBackReturnedError(t *testing.T) {
 	t.Parallel()
 	db := SetupTestDB(t)
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianProfile
-	profile := newUnitOfWorkGuardianProfile(t, "error")
+	probe := NewTransactionProbe(t, db)
 	commandErr := errors.New("command failed")
 
 	err := tenant.WithinCurrentTenant(Ctx(t), func(txCtx context.Context) error {
-		require.NoError(t, repo.Create(txCtx, profile))
+		require.NoError(t, probe.Write(txCtx))
 		return commandErr
 	})
 
 	require.ErrorIs(t, err, commandErr)
-	_, err = repo.FindByID(Ctx(t), profile.ID)
-	assert.ErrorIs(t, err, usersModels.ErrGuardianProfileNotFound)
+	require.True(t, probe.Written())
+	assert.False(t, probe.Committed(t))
 }
 
 func TestUnitOfWorkRollsBackPanic(t *testing.T) {
 	t.Parallel()
 	db := SetupTestDB(t)
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianProfile
-	profile := newUnitOfWorkGuardianProfile(t, "panic")
+	probe := NewTransactionProbe(t, db)
 
 	assert.PanicsWithValue(t, "command panicked", func() {
 		_ = tenant.WithinCurrentTenant(Ctx(t), func(txCtx context.Context) error {
-			require.NoError(t, repo.Create(txCtx, profile))
+			require.NoError(t, probe.Write(txCtx))
 			panic("command panicked")
 		})
 	})
 
-	_, err := repo.FindByID(Ctx(t), profile.ID)
-	assert.ErrorIs(t, err, usersModels.ErrGuardianProfileNotFound)
+	require.True(t, probe.Written())
+	assert.False(t, probe.Committed(t))
 }
 
 func TestUnitOfWorkReportsPoolWaitAndTransactionDuration(t *testing.T) {
@@ -103,14 +89,14 @@ func TestTenantRuntimePreservesTransactionSettingAndRLSIsolation(t *testing.T) {
 	other := NewTenantScope(t, db)
 	ownerProfile := CreateTestGuardianProfile(t, db, "tenant-runtime-owner")
 	otherEmail := fmt.Sprintf("tenant-runtime-other-%d@test.local", other.TenantID)
-	otherProfile := &usersModels.GuardianProfile{
+	otherProfile := &GuardianProfile{
 		FirstName:              "Other",
 		LastName:               "Tenant",
 		Email:                  &otherEmail,
 		PreferredContactMethod: "email",
 		LanguagePreference:     "de",
 	}
-	otherProfile.SetTenantID(other.TenantID)
+	otherProfile.TenantID = other.TenantID
 	require.NoError(t, db.NewInsert().Model(otherProfile).ModelTableExpr("users.guardian_profiles").Scan(context.Background()))
 	id, err := tenant.NewTenantID(owner.TenantID)
 	require.NoError(t, err)

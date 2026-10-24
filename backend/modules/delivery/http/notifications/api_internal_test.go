@@ -9,10 +9,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil/routetest"
-	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -23,37 +20,37 @@ func init() {
 
 // captureService records the event the handler dispatched.
 type captureService struct {
-	gotEvent notificationsService.Event
+	gotEvent Event
 	called   bool
 	err      error
 }
 
 type pushSubscriptionServiceStub struct {
-	notificationsService.PushSubscriptionService
+	PushSubscriptionService
 	subscribeErr       error
 	unsubscribeErr     error
 	unsubscribedPortal *string
 }
 
-func (s pushSubscriptionServiceStub) Subscribe(context.Context, int64, notificationsService.PushSubscriptionInput) error {
+func (s pushSubscriptionServiceStub) Subscribe(context.Context, int64, PushSubscriptionInput) error {
 	return s.subscribeErr
 }
 
 func (s pushSubscriptionServiceStub) Unsubscribe(context.Context, int64, string) error {
 	if s.unsubscribedPortal != nil {
-		*s.unsubscribedPortal = notificationsService.PortalStaff
+		*s.unsubscribedPortal = PortalStaff
 	}
 	return s.unsubscribeErr
 }
 
 func (s pushSubscriptionServiceStub) UnsubscribeSchool(context.Context, int64, string) error {
 	if s.unsubscribedPortal != nil {
-		*s.unsubscribedPortal = notificationsService.PortalSchool
+		*s.unsubscribedPortal = PortalSchool
 	}
 	return s.unsubscribeErr
 }
 
-func (c *captureService) Notify(_ context.Context, event notificationsService.Event) error {
+func (c *captureService) Notify(_ context.Context, event Event) error {
 	c.called = true
 	c.gotEvent = event
 	return c.err
@@ -64,7 +61,7 @@ func newTestRequest(tenantID int64) *http.Request {
 	if tenantID > 0 {
 		ctx = tenant.WithTenantID(ctx, tenantID)
 	}
-	ctx = context.WithValue(ctx, jwt.CtxClaims, jwt.AppClaims{ID: 73})
+	ctx = routetest.WithAuthenticatedContext(ctx, routetest.Claims{ID: 73}, nil)
 	return httptest.NewRequest(http.MethodPost, "/test", nil).WithContext(ctx)
 }
 
@@ -72,7 +69,7 @@ func TestSendTestNotificationDispatchesOnlyToRequester(t *testing.T) {
 	t.Parallel()
 
 	svc := &captureService{}
-	rs := &Resource{NotificationsService: svc}
+	rs := &Resource{Runtime: testNotificationRuntime(), NotificationsService: svc}
 
 	rec := httptest.NewRecorder()
 	rs.sendTestNotification(rec, newTestRequest(41))
@@ -81,10 +78,10 @@ func TestSendTestNotificationDispatchesOnlyToRequester(t *testing.T) {
 	require.True(t, svc.called)
 	assert.Equal(t, "test", svc.gotEvent.Type)
 	assert.Equal(t, int64(41), svc.gotEvent.Audience.TenantID)
-	assert.Equal(t, notificationsService.ScopeStaff, svc.gotEvent.Audience.Scope)
+	assert.Equal(t, ScopeStaff, svc.gotEvent.Audience.Scope)
 	assert.Equal(t, []int64{73}, svc.gotEvent.Audience.StaffAccountIDs)
 	assert.NotEmpty(t, svc.gotEvent.Title)
-	assert.Equal(t, notificationsService.PortalStaff, svc.gotEvent.Portal)
+	assert.Equal(t, PortalStaff, svc.gotEvent.Portal)
 }
 
 // The test notification proves the setup of the portal it was fired from, so
@@ -93,23 +90,23 @@ func TestSendTestNotificationCarriesTheRequestingPortal(t *testing.T) {
 	t.Parallel()
 
 	svc := &captureService{}
-	rs := &Resource{NotificationsService: svc}
+	rs := &Resource{Runtime: testNotificationRuntime(), NotificationsService: svc}
 
 	req := newTestRequest(41)
-	req = req.WithContext(context.WithValue(req.Context(), portalCtxKey{}, notificationsService.PortalSchool))
+	req = req.WithContext(context.WithValue(req.Context(), portalCtxKey{}, PortalSchool))
 
 	rec := httptest.NewRecorder()
 	rs.sendTestNotification(rec, req)
 
 	require.Equal(t, http.StatusOK, rec.Code)
-	assert.Equal(t, notificationsService.PortalSchool, svc.gotEvent.Portal)
+	assert.Equal(t, PortalSchool, svc.gotEvent.Portal)
 }
 
 func TestSendTestNotificationDisabledMapsToConflict(t *testing.T) {
 	t.Parallel()
 
-	svc := &captureService{err: notificationsService.ErrDisabled}
-	rs := &Resource{NotificationsService: svc}
+	svc := &captureService{err: errNotificationTestDisabled}
+	rs := &Resource{Runtime: testNotificationRuntime(), NotificationsService: svc}
 
 	rec := httptest.NewRecorder()
 	rs.sendTestNotification(rec, newTestRequest(41))
@@ -123,7 +120,7 @@ func TestSendTestNotificationErrorsMapToInternal(t *testing.T) {
 	t.Parallel()
 
 	svc := &captureService{err: errors.New("boom")}
-	rs := &Resource{NotificationsService: svc}
+	rs := &Resource{Runtime: testNotificationRuntime(), NotificationsService: svc}
 
 	rec := httptest.NewRecorder()
 	rs.sendTestNotification(rec, newTestRequest(41))
@@ -135,7 +132,7 @@ func TestSendTestNotificationMissingTenant(t *testing.T) {
 	t.Parallel()
 
 	svc := &captureService{}
-	rs := &Resource{NotificationsService: svc}
+	rs := &Resource{Runtime: testNotificationRuntime(), NotificationsService: svc}
 
 	rec := httptest.NewRecorder()
 	rs.sendTestNotification(rec, newTestRequest(0))
@@ -148,7 +145,7 @@ func TestSendTestNotificationMissingAccount(t *testing.T) {
 	t.Parallel()
 
 	svc := &captureService{}
-	rs := &Resource{NotificationsService: svc}
+	rs := &Resource{Runtime: testNotificationRuntime(), NotificationsService: svc}
 	ctx := tenant.WithTenantID(context.Background(), 41)
 	req := httptest.NewRequest(http.MethodPost, "/test", nil).WithContext(ctx)
 
@@ -162,36 +159,12 @@ func TestSendTestNotificationMissingAccount(t *testing.T) {
 func TestSendTestNotificationNilService(t *testing.T) {
 	t.Parallel()
 
-	rs := &Resource{}
+	rs := &Resource{Runtime: testNotificationRuntime()}
 
 	rec := httptest.NewRecorder()
 	rs.sendTestNotification(rec, newTestRequest(41))
 
 	assert.Equal(t, http.StatusInternalServerError, rec.Code)
-}
-
-func TestTestNotificationRouteAllowsStaffWithoutConfigUpdate(t *testing.T) {
-	t.Parallel()
-
-	testpkg.SetupTestDB(t)
-
-	svc := &captureService{}
-	router := NewResource(svc, nil, nil).Router()
-	claims := routetest.TeacherTestClaims(73)
-	require.NotContains(t, claims.Permissions, "config:update")
-	req := routetest.NewAuthenticatedRequest(
-		t,
-		http.MethodPost,
-		"/test",
-		nil,
-		routetest.WithJWTBearer(routetest.MintTestJWT(t, claims)),
-	)
-
-	rec := routetest.ExecuteRequest(router, req)
-
-	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-	require.True(t, svc.called)
-	assert.Equal(t, []int64{73}, svc.gotEvent.Audience.StaffAccountIDs)
 }
 
 func TestSubscribePushClassifiesServiceErrors(t *testing.T) {
@@ -206,7 +179,7 @@ func TestSubscribePushClassifiesServiceErrors(t *testing.T) {
 	}{
 		{
 			name:       "invalid browser subscription",
-			serviceErr: notificationsService.ErrInvalidPushSubscription,
+			serviceErr: errNotificationTestInvalidPushSubscription,
 			wantStatus: http.StatusBadRequest,
 		},
 		{
@@ -220,14 +193,14 @@ func TestSubscribePushClassifiesServiceErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rs := &Resource{PushService: pushSubscriptionServiceStub{subscribeErr: tt.serviceErr}}
+			rs := &Resource{Runtime: testNotificationRuntime(), PushService: pushSubscriptionServiceStub{subscribeErr: tt.serviceErr}}
 			req := httptest.NewRequest(
 				http.MethodPost,
 				"/push/subscriptions",
 				strings.NewReader(`{"endpoint":"https://fcm.googleapis.com/fcm/send/device","keys":{"p256dh":"key","auth":"auth"}}`),
 			)
 			req.Header.Set("Content-Type", "application/json")
-			req = req.WithContext(context.WithValue(req.Context(), jwt.CtxClaims, jwt.AppClaims{ID: 42}))
+			req = req.WithContext(routetest.WithAuthenticatedContext(req.Context(), routetest.Claims{ID: 42}, nil))
 			rec := httptest.NewRecorder()
 
 			rs.subscribePush(rec, req)
@@ -246,7 +219,7 @@ func TestSubscribePushClassifiesServiceErrors(t *testing.T) {
 func TestUnsubscribePushHidesServiceErrors(t *testing.T) {
 	t.Parallel()
 
-	rs := &Resource{PushService: pushSubscriptionServiceStub{
+	rs := &Resource{Runtime: testNotificationRuntime(), PushService: pushSubscriptionServiceStub{
 		unsubscribeErr: errors.New("delete subscription: pq: internal detail"),
 	}}
 	req := httptest.NewRequest(
@@ -254,7 +227,7 @@ func TestUnsubscribePushHidesServiceErrors(t *testing.T) {
 		"/push/subscriptions?endpoint=https%3A%2F%2Ffcm.googleapis.com%2Ffcm%2Fsend%2Fdevice",
 		nil,
 	)
-	req = req.WithContext(context.WithValue(req.Context(), jwt.CtxClaims, jwt.AppClaims{ID: 42}))
+	req = req.WithContext(routetest.WithAuthenticatedContext(req.Context(), routetest.Claims{ID: 42}, nil))
 	rec := httptest.NewRecorder()
 
 	rs.unsubscribePush(rec, req)
@@ -268,19 +241,76 @@ func TestUnsubscribePushUsesSchoolPortalSubscription(t *testing.T) {
 	t.Parallel()
 
 	portal := ""
-	rs := &Resource{PushService: pushSubscriptionServiceStub{unsubscribedPortal: &portal}}
+	rs := &Resource{Runtime: testNotificationRuntime(), PushService: pushSubscriptionServiceStub{unsubscribedPortal: &portal}}
 	req := httptest.NewRequest(
 		http.MethodDelete,
 		"/push/subscriptions?endpoint=https%3A%2F%2Ffcm.googleapis.com%2Ffcm%2Fsend%2Fdevice",
 		nil,
 	)
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, jwt.AppClaims{ID: 42})
-	ctx = context.WithValue(ctx, portalCtxKey{}, notificationsService.PortalSchool)
+	ctx := routetest.WithAuthenticatedContext(req.Context(), routetest.Claims{ID: 42}, nil)
+	ctx = context.WithValue(ctx, portalCtxKey{}, PortalSchool)
 	req = req.WithContext(ctx)
 	rec := httptest.NewRecorder()
 
 	rs.unsubscribePush(rec, req)
 
 	assert.Equal(t, http.StatusNoContent, rec.Code)
-	assert.Equal(t, notificationsService.PortalSchool, portal)
+	assert.Equal(t, PortalSchool, portal)
+}
+
+var (
+	errNotificationTestDisabled                = errors.New("notifications are disabled for this tenant")
+	errNotificationTestWebPushNotConfigured    = errors.New("web push is not configured on this server")
+	errNotificationTestInvalidPushSubscription = errors.New("invalid push subscription")
+)
+
+func (*captureService) IsDisabled(err error) bool { return errors.Is(err, errNotificationTestDisabled) }
+func (pushSubscriptionServiceStub) IsNotConfigured(err error) bool {
+	return errors.Is(err, errNotificationTestWebPushNotConfigured)
+}
+func (pushSubscriptionServiceStub) IsInvalidSubscription(err error) bool {
+	return errors.Is(err, errNotificationTestInvalidPushSubscription)
+}
+
+// testNotificationRuntime uses the existing wire/request support for owner
+// handler cases. Root binds the native runtime in composition/golden suites.
+func testNotificationRuntime() Runtime {
+	return Runtime{
+		TenantID: tenant.FromContext,
+		ActorID: func(ctx context.Context) *int64 {
+			claims := routetest.ClaimsFromContext(ctx)
+			if claims.ID <= 0 {
+				return nil
+			}
+			id := int64(claims.ID)
+			return &id
+		},
+		Caller: func(ctx context.Context) Caller {
+			claims := routetest.ClaimsFromContext(ctx)
+			return Caller{ID: claims.ID, FamilyID: claims.FamilyID}
+		},
+		Respond: routetest.RespondSuccess,
+		Internal: func(w http.ResponseWriter, r *http.Request, err error) {
+			routetest.RespondError(w, r, http.StatusInternalServerError, err)
+		},
+		Forbidden: func(w http.ResponseWriter, r *http.Request, err error) {
+			routetest.RespondError(w, r, http.StatusForbidden, err)
+		},
+		Unauthorized: func(w http.ResponseWriter, r *http.Request) {
+			routetest.RespondError(w, r, http.StatusUnauthorized, errors.New("token is unauthorized"))
+		},
+		Invalid: func(w http.ResponseWriter, r *http.Request, err error) { routetest.RespondInvalidRequest(w, r, err) },
+		Disabled: func(w http.ResponseWriter, r *http.Request) {
+			routetest.RespondCoded(w, r, http.StatusConflict, "communication.notifications_disabled", errNotificationTestDisabled, nil, "")
+		},
+		Conflict: func(w http.ResponseWriter, r *http.Request, err error) {
+			routetest.RespondError(w, r, http.StatusConflict, err)
+		},
+		NotFound: func(w http.ResponseWriter, r *http.Request, err error) {
+			routetest.RespondError(w, r, http.StatusNotFound, err)
+		},
+		Wrapped: func(w http.ResponseWriter, r *http.Request, message string, _ error) {
+			routetest.RespondError(w, r, http.StatusInternalServerError, errors.New(message))
+		},
+	}
 }

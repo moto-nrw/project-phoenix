@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -38,10 +37,6 @@ func TestMFAService_RecordAuthEvent_LandsRowWithExplicitTenantID(t *testing.T) {
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	acc := testpkg.CreateTestAccount(t, db, "mfa-audit-tenant")
-	t.Cleanup(func() {
-		_, _ = db.NewDelete().Table("audit.auth_events").
-			Where("account_id = ?", acc.ID).Exec(context.Background())
-	})
 	testpkg.EnsureAccountTenant(t, db, acc.ID, tenantID)
 
 	require.NoError(t, svc.EnrollMFA(ctx, acc.ID))
@@ -78,10 +73,6 @@ func TestMFAService_RecordAuthEvent_FallsBackToSentinelIPForInternalEvents(t *te
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	acc := testpkg.CreateTestAccount(t, db, "mfa-audit-sentinel-ip")
-	t.Cleanup(func() {
-		_, _ = db.NewDelete().Table("audit.auth_events").
-			Where("account_id = ?", acc.ID).Exec(context.Background())
-	})
 	testpkg.EnsureAccountTenant(t, db, acc.ID, tenantID)
 
 	// Seed a real active challenge so VerifyCodeForAccount reaches the
@@ -96,12 +87,12 @@ func TestMFAService_RecordAuthEvent_FallsBackToSentinelIPForInternalEvents(t *te
 	// the tenant on the context. Mirror that here so the recordAuthEvent
 	// fallback (tenantID==0 -> tenant.FromContext(ctx)) finds the right
 	// tenant and the audit row lands.
-	authedCtx := tenant.WithTenantID(ctx, tenantID)
+	authedCtx := testpkg.ContextForTenant(ctx, tenantID)
 
 	// Wrong code -> mfa_failed audit row via the nil-IP internal path.
 	// (We can't recover the plaintext code, so "000000" is guaranteed to
 	// miss the hash and produce the wrong-code branch.)
-	err = svc.VerifyMFACodeForAccount(authedCtx, acc.ID, tenantID, "000000", identityaccess.MFAChallengeScopeTenant)
+	_, err = svc.VerifyMFACodeForAccount(authedCtx, acc.ID, tenantID, "000000", identityaccess.MFAChallengeScopeTenant)
 	require.ErrorIs(t, err, identityaccess.ErrMFACodeInvalid)
 
 	row := waitForAuthEvent(t, db, acc.ID, authEventMFAFailed, 3*time.Second)

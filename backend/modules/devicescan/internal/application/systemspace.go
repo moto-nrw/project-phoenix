@@ -6,7 +6,8 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/ports"
+	"github.com/moto-nrw/project-phoenix/modules/devicescan"
+
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
 )
 
@@ -43,7 +44,7 @@ type systemSpace struct {
 
 	activityName    string
 	maxParticipants int
-	selectActivity  func(candidates []ports.Activity, room *facilities.Room) *ports.Activity
+	selectActivity  func(candidates []devicescan.Activity, room *facilities.Room) *devicescan.Activity
 }
 
 var schulhofSpace = systemSpace{
@@ -67,7 +68,7 @@ var schulhofSpace = systemSpace{
 	releaseRoomOnCreate: true,
 	activityName:        facilities.SchulhofActivityName,
 	maxParticipants:     facilities.SchulhofMaxParticipants,
-	selectActivity: func(candidates []ports.Activity, room *facilities.Room) *ports.Activity {
+	selectActivity: func(candidates []devicescan.Activity, room *facilities.Room) *devicescan.Activity {
 		for i := range candidates {
 			if validateSchulhofActivityRoom(&candidates[i], room) == nil {
 				return &candidates[i]
@@ -121,7 +122,7 @@ func (s *Service) findCanonicalSchulhofRoom(ctx context.Context) (*facilities.Ro
 
 // validateSchulhofActivityRoom checks that the activity is the dedicated
 // system activity of the canonical yard.
-func validateSchulhofActivityRoom(activity *ports.Activity, room *facilities.Room) error {
+func validateSchulhofActivityRoom(activity *devicescan.Activity, room *facilities.Room) error {
 	if activity == nil {
 		return errors.New("schulhof activity is nil")
 	}
@@ -142,7 +143,7 @@ func validateSchulhofActivityRoom(activity *ports.Activity, room *facilities.Roo
 
 // schulhofActivity finds or provisions the permanent Schulhof activity,
 // validating the yard infrastructure it is bound to.
-func (s *Service) schulhofActivity(ctx context.Context) (*ports.Activity, error) {
+func (s *Service) schulhofActivity(ctx context.Context) (*devicescan.Activity, error) {
 	activity, err := s.systemActivity(ctx, schulhofSpace)
 	if err != nil {
 		return nil, err
@@ -158,7 +159,7 @@ func (s *Service) schulhofActivity(ctx context.Context) (*ports.Activity, error)
 }
 
 // wcActivity finds or provisions the permanent WC activity.
-func (s *Service) wcActivity(ctx context.Context) (*ports.Activity, error) {
+func (s *Service) wcActivity(ctx context.Context) (*devicescan.Activity, error) {
 	return s.systemActivity(ctx, wcSpace)
 }
 
@@ -202,7 +203,7 @@ func (s *Service) ensureSystemRoom(ctx context.Context, sp systemSpace) (*facili
 }
 
 // ensureSystemCategory finds or creates the space's activity category.
-func (s *Service) ensureSystemCategory(ctx context.Context, sp systemSpace) (*ports.Category, error) {
+func (s *Service) ensureSystemCategory(ctx context.Context, sp systemSpace) (*devicescan.Category, error) {
 	categories, err := s.activities.ListCategories(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list activity categories: %w", err)
@@ -217,7 +218,7 @@ func (s *Service) ensureSystemCategory(ctx context.Context, sp systemSpace) (*po
 	}
 
 	s.logger.InfoContext(ctx, sp.label+" category not found, auto-creating")
-	created, err := s.activities.CreateCategory(ctx, ports.NewCategory{
+	created, err := s.activities.CreateCategory(ctx, devicescan.NewCategory{
 		Name: sp.categoryName, Description: sp.categoryDesc, Color: sp.color, IsSystem: true,
 	})
 	if err != nil {
@@ -239,7 +240,7 @@ func (s *Service) ensureSystemCategory(ctx context.Context, sp systemSpace) (*po
 
 // systemActivity finds or creates the space's permanent activity, lazily
 // provisioning room, category and activity on first use.
-func (s *Service) systemActivity(ctx context.Context, sp systemSpace) (*ports.Activity, error) {
+func (s *Service) systemActivity(ctx context.Context, sp systemSpace) (*devicescan.Activity, error) {
 	if s.activities == nil {
 		return nil, errors.New("activity catalog is not configured")
 	}
@@ -258,14 +259,8 @@ func (s *Service) systemActivity(ctx context.Context, sp systemSpace) (*ports.Ac
 	if err != nil {
 		return nil, fmt.Errorf("failed to query %s activity: %w", sp.label, err)
 	}
-	selectExisting := func(candidates []ports.Activity) *ports.Activity {
-		if sp.selectActivity != nil {
-			return sp.selectActivity(candidates, room)
-		}
-		if len(candidates) > 0 {
-			return &candidates[0]
-		}
-		return nil
+	selectExisting := func(candidates []devicescan.Activity) *devicescan.Activity {
+		return selectSystemActivity(sp, candidates, room)
 	}
 	if existing := selectExisting(candidates); existing != nil {
 		s.logger.DebugContext(ctx, "found existing "+sp.label+" activity",
@@ -286,15 +281,29 @@ func (s *Service) systemActivity(ctx context.Context, sp systemSpace) (*ports.Ac
 		return nil, fmt.Errorf("failed to ensure %s category: %w", sp.label, err)
 	}
 
+	return s.createSystemActivity(ctx, sp, room, category.ID)
+}
+
+func selectSystemActivity(sp systemSpace, candidates []devicescan.Activity, room *facilities.Room) *devicescan.Activity {
+	if sp.selectActivity != nil {
+		return sp.selectActivity(candidates, room)
+	}
+	if len(candidates) > 0 {
+		return &candidates[0]
+	}
+	return nil
+}
+
+func (s *Service) createSystemActivity(ctx context.Context, sp systemSpace, room *facilities.Room, categoryID int64) (*devicescan.Activity, error) {
 	// created_by stays unset: the activity is system-created.
-	created, err := s.activities.CreateActivity(ctx, ports.NewActivity{
+	created, err := s.activities.CreateActivity(ctx, devicescan.NewActivity{
 		Name: sp.activityName, MaxParticipants: sp.maxParticipants, IsOpen: true,
-		CategoryID: category.ID, PlannedRoomID: &room.ID, IsSystem: true,
+		CategoryID: categoryID, PlannedRoomID: &room.ID, IsSystem: true,
 	})
 	if err != nil {
 		// Retry: a concurrent request may have created it.
 		if retry, retryErr := s.activities.ListByName(ctx, sp.activityName); retryErr == nil {
-			if existing := selectExisting(retry); existing != nil {
+			if existing := selectSystemActivity(sp, retry, room); existing != nil {
 				return existing, nil
 			}
 		}
@@ -302,7 +311,7 @@ func (s *Service) systemActivity(ctx context.Context, sp systemSpace) (*ports.Ac
 	}
 	s.logger.InfoContext(ctx, "successfully auto-created "+sp.label+" infrastructure",
 		slog.Int64("room_id", room.ID),
-		slog.Int64("category_id", category.ID),
+		slog.Int64("category_id", categoryID),
 		slog.Int64("activity_id", created.ID),
 	)
 	return &created, nil

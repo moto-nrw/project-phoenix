@@ -17,7 +17,7 @@ import (
 	"sort"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 )
@@ -167,7 +167,7 @@ func (rs *Resource) readableStudentNames(r *http.Request, studentIDs []int64) (m
 	if err != nil {
 		return nil, err
 	}
-	perms := jwt.PermissionsFromCtx(ctx)
+	perms := sessiontoken.PermissionsFromCtx(ctx)
 	visible := make([]int64, 0, len(attending))
 	personIDs := make([]int64, 0, len(attending))
 	for _, id := range studentIDs {

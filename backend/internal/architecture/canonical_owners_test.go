@@ -18,10 +18,14 @@ func TestCanonicalPolicyOwnerLists(t *testing.T) {
 	if err := policy.Validate(); err != nil {
 		t.Fatalf("owner declaration order must not matter: %v", err)
 	}
+	// The canonical lists are compared per kind, so one owner of each kind
+	// proves that removing, renaming or reclassifying any of them fails.
+	checkedKinds := make(map[string]bool)
 	for _, owner := range policy.Owners {
-		if owner.Kind != "domain" && owner.Kind != "platform" {
+		if owner.Kind != "domain" && owner.Kind != "platform" && owner.Kind != "tool" || checkedKinds[owner.Kind] {
 			continue
 		}
+		checkedKinds[owner.Kind] = true
 		for _, change := range []string{"remove", "rename", "reclassify"} {
 			t.Run(owner.ID+"/"+change, func(t *testing.T) {
 				t.Parallel()
@@ -45,7 +49,10 @@ func TestCanonicalPolicyOwnerLists(t *testing.T) {
 			})
 		}
 	}
-	for _, kind := range []string{"domain", "platform"} {
+	if len(checkedKinds) != 3 {
+		t.Fatalf("policy lacks an owner of every canonical kind: %v", checkedKinds)
+	}
+	for _, kind := range []string{"domain", "platform", "tool"} {
 		t.Run("additional-"+kind, func(t *testing.T) {
 			t.Parallel()
 			candidate, err := LoadPolicy(policyPath)
@@ -58,25 +65,5 @@ func TestCanonicalPolicyOwnerLists(t *testing.T) {
 				t.Fatalf("expected additional %s owner rejection, got %v", kind, err)
 			}
 		})
-	}
-}
-
-func TestCanonicalPolicyOwnerListsAcceptPreviousEpoch(t *testing.T) {
-	t.Parallel()
-	policyPath := filepath.Join("..", "..", "architecture", "policy.json")
-	policy, err := LoadPolicy(policyPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	policy.PolicyEpoch = 1
-	index := slices.IndexFunc(policy.Owners, func(item Owner) bool { return item.ID == "export-transfer" })
-	policy.Owners = slices.Delete(policy.Owners, index, index+1)
-	policy.Packages = slices.DeleteFunc(policy.Packages, func(item Package) bool { return item.Owner == "export-transfer" })
-	policy.DataObjects = slices.DeleteFunc(policy.DataObjects, func(item DataObject) bool { return item.WriteOwner == "export-transfer" })
-	policy.Rules = slices.DeleteFunc(policy.Rules, func(item Rule) bool {
-		return item.SourceOwner == "export-transfer" || item.TargetOwner == "export-transfer"
-	})
-	if err := policy.Validate(); err != nil {
-		t.Fatalf("previous canonical policy epoch must remain decodable: %v", err)
 	}
 }

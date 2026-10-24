@@ -1,0 +1,94 @@
+package main
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"os"
+	"time"
+
+	seedapi "github.com/moto-nrw/project-phoenix/internal/devtools/seedapi"
+	"github.com/moto-nrw/project-phoenix/internal/devtools/simulate"
+)
+
+type seedCommandAdapter struct{ inner *Adapter }
+
+func newSeedCommandAdapter(baseURL string, verbose bool) seedCommandAdapter {
+	inner := NewCommandAdapter(baseURL, verbose)
+	inner.tenantSessions = newTenantSessionCache(".seed-sessions")
+	return seedCommandAdapter{inner: inner}
+}
+
+// The deployed sidecar has a read-only filesystem and no Mailpit. It completes
+// real MFA using only the codes accepted by its process-local demo inbox.
+func demoSeedAdapterFactory(fetchCode func(context.Context, string, time.Time) (string, error)) func(string, bool) seedCommandAdapter {
+	return func(baseURL string, verbose bool) seedCommandAdapter {
+		inner := NewCommandAdapter(baseURL, verbose)
+		inner.fetchLatestMFACode = fetchCode
+		return seedCommandAdapter{inner: inner}
+	}
+}
+
+func (a seedCommandAdapter) BaseURL() string { return a.inner.BaseURL() }
+func (a seedCommandAdapter) CheckHealth(ctx context.Context) error {
+	return commandSeedWrappedError(a.inner.CheckHealth(ctx), "server health check failed")
+}
+
+func (a seedCommandAdapter) LoginOperator(ctx context.Context, email, password string) (seedapi.AuthRef, error) {
+	auth, err := a.inner.LoginOperator(ctx, email, password)
+	return commandSeedAuth(auth), commandSeedWrappedError(err, "operator login request failed")
+}
+
+func (a seedCommandAdapter) LoginTenant(ctx context.Context, email, password, tenantSlug string) (seedapi.AuthRef, error) {
+	auth, err := a.inner.LoginTenant(ctx, email, password, tenantSlug)
+	return commandSeedAuth(auth), commandSeedWrappedError(err, "login request failed")
+}
+
+func (a seedCommandAdapter) LoginParent(ctx context.Context, email, password string) (seedapi.AuthRef, error) {
+	auth, err := a.inner.LoginParent(ctx, email, password)
+	return commandSeedAuth(auth), commandSeedWrappedError(err, "parent login request failed")
+}
+
+func (a seedCommandAdapter) Raw(ctx context.Context, auth seedapi.AuthRef, method, path string, body any, headers map[string]string) ([]byte, int, error) {
+	raw, status, err := a.inner.Raw(ctx, commandAPIAuth(auth), method, path, body, headers)
+	return raw, status, commandSeedError(err)
+}
+
+func (a seedCommandAdapter) RawUpload(ctx context.Context, auth seedapi.AuthRef, method, path, contentType string, body []byte) ([]byte, int, error) {
+	raw, status, err := a.inner.RawUpload(ctx, commandAPIAuth(auth), method, path, contentType, body)
+	return raw, status, commandSeedError(err)
+}
+
+func commandSeedAuth(auth AuthRef) seedapi.AuthRef {
+	return seedapi.AuthRef{Kind: seedapi.AuthKind(auth.Kind), Label: auth.Label, Token: auth.Token, APIKey: auth.APIKey, PIN: auth.PIN}
+}
+
+func commandAPIAuth(auth seedapi.AuthRef) AuthRef {
+	return AuthRef{Kind: AuthKind(auth.Kind), Label: auth.Label, Token: auth.Token, APIKey: auth.APIKey, PIN: auth.PIN}
+}
+
+func commandSeedError(err error) error {
+	var apiErr *APIError
+	if errors.As(err, &apiErr) {
+		return &seedapi.APIError{Method: apiErr.Method, Path: apiErr.Path, StatusCode: apiErr.StatusCode, Code: apiErr.Code, Message: apiErr.Message, Body: apiErr.Body, RetryAfter: apiErr.RetryAfter}
+	}
+	return err
+}
+
+func commandSeedWrappedError(err error, operation string) error {
+	if err == nil {
+		return nil
+	}
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) {
+		return err
+	}
+	return fmt.Errorf("%s: %w", operation, commandSeedError(err))
+}
+
+func newSimulationClient(baseURL string, verbose bool) (simulate.Client, error) {
+	if err := assertDevOnlyTarget(baseURL, os.Getenv("APP_ENV")); err != nil {
+		return nil, err
+	}
+	return seedapi.NewClientWithAdapter(newSeedCommandAdapter(baseURL, verbose), verbose), nil
+}

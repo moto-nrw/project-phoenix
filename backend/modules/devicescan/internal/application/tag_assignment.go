@@ -6,7 +6,7 @@ import (
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/modules/devicescan"
-	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/ports"
+	"github.com/moto-nrw/project-phoenix/modules/devicescan/ports"
 )
 
 // TagPeople supplies the person and membership facts needed to distinguish
@@ -22,12 +22,12 @@ type TagPeople interface {
 
 type tagAssignments struct {
 	people     TagPeople
-	principals ports.Principals
+	principals devicescan.PrincipalReader
 	clock      ports.Clock
 	logger     *slog.Logger
 }
 
-func NewTagAssignments(people TagPeople, principals ports.Principals, clock ports.Clock, logger *slog.Logger) devicescan.TagAssignments {
+func NewTagAssignments(people TagPeople, principals devicescan.PrincipalReader, clock ports.Clock, logger *slog.Logger) devicescan.TagAssignments {
 	if people == nil || principals == nil || clock == nil {
 		panic("tag assignment query: people, principals and clock are required")
 	}

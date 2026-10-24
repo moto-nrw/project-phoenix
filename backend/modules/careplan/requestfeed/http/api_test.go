@@ -37,7 +37,7 @@ func (s stubEngine) ByToken(context.Context, string) (requestfeed.Feed, error) {
 }
 
 func testResource(engine stubEngine) *requestfeedhttp.Resource {
-	return requestfeedhttp.NewResource(requestfeed.NewModule(engine), requestfeedhttp.Runtime{
+	return requestfeedhttp.NewResource(engine, requestfeedhttp.Runtime{
 		Protected: func(router chi.Router, register func(chi.Router, requestfeedhttp.Middleware)) {
 			register(router, func(next http.Handler) http.Handler { return next })
 		},
@@ -54,7 +54,7 @@ func TestPublicFeedUsesUniformNotFoundResponse(t *testing.T) {
 	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/revoked-token", nil))
 
 	assert.Equal(t, http.StatusNotFound, recorder.Code)
-	assert.Equal(t, "Not Found\n", recorder.Body.String())
+	assert.JSONEq(t, `{"status":404,"detail":"Not Found","code":"general.input"}`, recorder.Body.String())
 }
 
 func TestPublicFeedDisablesCaching(t *testing.T) {

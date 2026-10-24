@@ -113,10 +113,11 @@ type RefreshClaims struct {
 
 // AccountRole is one role an account holds at a school.
 type AccountRole struct {
-	ID       int64
-	Name     string
-	IsSystem bool
-	TenantID *int64
+	ID           int64
+	Name         string
+	IsSystem     bool
+	TenantID     *int64
+	SchoolPortal bool
 }
 
 // AccountClaims is the tenant-scoped claims material of an account: the
@@ -148,14 +149,16 @@ func (c AccountClaims) IsGuardianOnly() bool {
 	return true
 }
 
-// IsSchoolPortalOnly reports whether every role is a school-portal role
-// (the lehrkraft system role, #2207).
+// IsSchoolPortalOnly reports whether every role is a school-portal role:
+// the lehrkraft system role (#2207) or a school role made from its template
+// (#4574).
 func (c AccountClaims) IsSchoolPortalOnly() bool {
 	if len(c.Roles) == 0 {
 		return false
 	}
 	for _, role := range c.Roles {
-		if !role.IsSystem || !strings.EqualFold(strings.TrimSpace(role.Name), "lehrkraft") {
+		facts := RoleFacts{Name: role.Name, IsSystem: role.IsSystem, SchoolPortal: role.SchoolPortal}
+		if !IsLehrkraftRole(&facts) {
 			return false
 		}
 	}
@@ -178,9 +181,9 @@ type School struct {
 	LogoURL string
 }
 
-// MFAPolicy is a resolved MFA verdict waiting for the role set it applies to.
+// MFAPolicy is a resolved MFA verdict waiting for the permission set it applies to.
 type MFAPolicy interface {
-	RequiredFor(roleNames []string) bool
+	RequiredFor(permissions []string) bool
 }
 
 // Authentication audit event types, as the Audit platform stores them.
@@ -191,6 +194,9 @@ const (
 	AuthEventTokenRevoked             = "token_revoked"
 	AuthEventAccountWideWipeCompleted = "account_wide_wipe_completed"
 	AuthEventTenantSwitch             = "tenant_switch"
+	AuthEventTenantAccessGranted      = "tenant_access_granted"
+	AuthEventTenantRoleChanged        = "tenant_role_changed"
+	AuthEventTenantAccessRevoked      = "tenant_access_revoked"
 )
 
 // AuthEvent is one authentication ledger entry with its typed evidence.
@@ -210,6 +216,52 @@ type AuthEvent struct {
 	CompletedWipe   *CompletedWipeEvidence
 	// MFA is set on the mfa_* events (#3331).
 	MFA *MFAEvidence
+}
+
+// AuthEventMetadataEntry is one metadata key of an auth audit event and the
+// value the Audit platform stores under it.
+type AuthEventMetadataEntry struct {
+	Key   string
+	Value any
+}
+
+// Metadata lists the audit metadata of the event's evidence in recording
+// order; a later entry with the same key replaces an earlier one. A tenant
+// access event adds the role facts its type changes; the MFA evidence adds
+// none.
+func (e AuthEvent) Metadata() []AuthEventMetadataEntry {
+	var entries []AuthEventMetadataEntry
+	add := func(key string, value any) {
+		entries = append(entries, AuthEventMetadataEntry{Key: key, Value: value})
+	}
+	if evidence := e.TenantAccess; evidence != nil {
+		add("school_id", evidence.SchoolID)
+		add("school_name", evidence.SchoolName)
+		add("operator_id", evidence.OperatorID)
+		switch e.Type {
+		case AuthEventTenantAccessGranted:
+			add("role", evidence.Role)
+		case AuthEventTenantRoleChanged:
+			add("role", evidence.Role)
+			add("removed_roles", evidence.RemovedRoles)
+		case AuthEventTenantAccessRevoked:
+			add("account_deactivated", evidence.AccountDeactivated)
+		}
+	}
+	if evidence := e.RevokedSessions; evidence != nil {
+		add("portal_scope", evidence.PortalScope)
+		add("family_fingerprint", evidence.FamilyFingerprint)
+		add("reason", evidence.Reason)
+		add("revoked_token_count", evidence.Count)
+	}
+	if evidence := e.PendingWipe; evidence != nil {
+		add("reason", evidence.Reason)
+		add("pending_account_wide_wipe", true)
+	}
+	if evidence := e.CompletedWipe; evidence != nil {
+		add("pending_event_id", evidence.PendingEventID)
+	}
+	return entries
 }
 
 // TenantAccessEvidence describes an operator-led change of the school
@@ -256,21 +308,55 @@ type PendingAccountWideWipe struct {
 // AccountAuthentication is the capability tenant, parent and school login,
 // MFA exchange, refresh, switching, logout and session validation consume.
 type AccountAuthentication interface {
+	AccountLogin
+	AccountSessionAuthentication
 	AccountPasswordConfirmation
+}
+
+// AccountLogin combines tenant, parent and school sign-in capabilities.
+type AccountLogin interface {
+	TenantAccountLogin
+	ParentAccountLogin
+	SchoolAccountLogin
+}
+
+// TenantAccountLogin authenticates accounts at the tenant portal.
+type TenantAccountLogin interface {
+	IssueTokensForVerifiedMFA(ctx context.Context, proof VerifiedMFAChallenge, ipAddress, userAgent string) (string, string, error)
 	LoginWithAudit(ctx context.Context, email, password, ipAddress, userAgent, tenantSlug string) (accessToken, refreshToken string, err error)
 	LoginWithMFAGate(ctx context.Context, email, password, ipAddress, userAgent, tenantSlug, trustedDeviceCookie string) (*LoginResult, error)
+	IssueTokensForAuthenticatedAccount(ctx context.Context, accountID, tenantID int64, ipAddress, userAgent string) (accessToken, refreshToken string, err error)
+}
+
+// ParentAccountLogin authenticates guardians and confirms their passwords.
+type ParentAccountLogin interface {
+	AccountPasswordConfirmation
 	LoginParentWithAudit(ctx context.Context, email, password, ipAddress, userAgent string) (accessToken, refreshToken string, err error)
+}
+
+// SchoolAccountLogin authenticates accounts and switches their school portal.
+type SchoolAccountLogin interface {
+	IssueSchoolTokensForVerifiedMFA(ctx context.Context, proof VerifiedMFAChallenge, ipAddress, userAgent string) (string, string, error)
+	SwitchSchool(ctx context.Context, accountID int64, tenantSlug, ipAddress, userAgent, sourceFamilyID string) (accessToken, refreshToken string, err error)
 	LoginSchoolWithMFAGate(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie string) (*LoginResult, error)
 	LoginSchoolAtTenantWithMFAGate(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie, tenantSlug string) (*LoginResult, error)
-	IssueTokensForAuthenticatedAccount(ctx context.Context, accountID, tenantID int64, ipAddress, userAgent string) (accessToken, refreshToken string, err error)
 	IssueSchoolTokensForAuthenticatedAccount(ctx context.Context, accountID, tenantID int64, ipAddress, userAgent string) (accessToken, refreshToken string, err error)
-	RefreshTokenWithAudit(ctx context.Context, refreshToken, ipAddress, userAgent string) (accessToken, newRefreshToken string, err error)
+}
+
+// AccountSessionAuthentication renews and validates account sessions.
+type AccountSessionAuthentication interface {
+	// RefreshTokenWithAudit rotates the presented session. recoveryProof is
+	// the independent secret the caller sends with every refresh; it lets a
+	// retried predecessor recover the persisted successor within the grace.
+	// An empty proof binds nothing, so a retried predecessor without one
+	// counts as a replay.
+	RefreshTokenWithAudit(ctx context.Context, refreshToken, recoveryProof, ipAddress, userAgent string) (accessToken, newRefreshToken string, err error)
 	LogoutWithAudit(ctx context.Context, refreshToken, ipAddress, userAgent string) error
 	// SwitchTenant retires the presented family with a short grace because
 	// the browser replaces that session with the returned pair; an empty
 	// presentedFamilyID skips the retirement.
 	SwitchTenant(ctx context.Context, accountID int64, tenantSlug, presentedFamilyID string) (accessToken, refreshToken string, err error)
-	SwitchSchool(ctx context.Context, accountID int64, tenantSlug, ipAddress, userAgent string) (accessToken, refreshToken string, err error)
+
 	HasSchoolPortalAccess(ctx context.Context, accountID, tenantID int64) (bool, error)
 	ValidateSessionTokens(ctx context.Context, accessToken, refreshToken, portal string) (SessionClaims, error)
 	VerifyAccountTenantMembership(ctx context.Context, accountID, tenantID int64) (bool, error)
@@ -306,122 +392,10 @@ type AccountClaimsQuery interface {
 	FindSchoolPortalTenant(ctx context.Context, accountID int64) (bool, int64, error)
 }
 
-func (m *Module) LoginWithAudit(ctx context.Context, email, password, ipAddress, userAgent, tenantSlug string) (string, string, error) {
-	return m.engine.LoginWithAudit(ctx, email, password, ipAddress, userAgent, tenantSlug)
-}
-
-func (m *Module) LoginWithMFAGate(ctx context.Context, email, password, ipAddress, userAgent, tenantSlug, trustedDeviceCookie string) (*LoginResult, error) {
-	return m.engine.LoginWithMFAGate(ctx, email, password, ipAddress, userAgent, tenantSlug, trustedDeviceCookie)
-}
-
 // AccountPasswordConfirmation re-checks the signed-in account's password
 // without issuing a session: a guardian confirms a binding Erklärung with it
 // (#3430). It answers ErrInvalidCredentials for a wrong password and
 // ErrAccountInactive for a deactivated account.
 type AccountPasswordConfirmation interface {
 	ConfirmAccountPassword(ctx context.Context, accountID int64, password string) error
-}
-
-func (m *Module) ConfirmAccountPassword(ctx context.Context, accountID int64, password string) error {
-	return m.engine.ConfirmAccountPassword(ctx, accountID, password)
-}
-
-func (m *Module) LoginParentWithAudit(ctx context.Context, email, password, ipAddress, userAgent string) (string, string, error) {
-	return m.engine.LoginParentWithAudit(ctx, email, password, ipAddress, userAgent)
-}
-
-func (m *Module) LoginSchoolWithMFAGate(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie string) (*LoginResult, error) {
-	return m.engine.LoginSchoolWithMFAGate(ctx, email, password, ipAddress, userAgent, trustedDeviceCookie)
-}
-
-func (m *Module) LoginSchoolAtTenantWithMFAGate(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie, tenantSlug string) (*LoginResult, error) {
-	return m.engine.LoginSchoolAtTenantWithMFAGate(ctx, email, password, ipAddress, userAgent, trustedDeviceCookie, tenantSlug)
-}
-
-func (m *Module) IssueTokensForAuthenticatedAccount(ctx context.Context, accountID, tenantID int64, ipAddress, userAgent string) (string, string, error) {
-	return m.engine.IssueTokensForAuthenticatedAccount(ctx, accountID, tenantID, ipAddress, userAgent)
-}
-
-func (m *Module) IssueSchoolTokensForAuthenticatedAccount(ctx context.Context, accountID, tenantID int64, ipAddress, userAgent string) (string, string, error) {
-	return m.engine.IssueSchoolTokensForAuthenticatedAccount(ctx, accountID, tenantID, ipAddress, userAgent)
-}
-
-func (m *Module) RefreshTokenWithAudit(ctx context.Context, refreshToken, ipAddress, userAgent string) (string, string, error) {
-	return m.engine.RefreshTokenWithAudit(ctx, refreshToken, ipAddress, userAgent)
-}
-
-func (m *Module) LogoutWithAudit(ctx context.Context, refreshToken, ipAddress, userAgent string) error {
-	return m.engine.LogoutWithAudit(ctx, refreshToken, ipAddress, userAgent)
-}
-
-func (m *Module) SwitchTenant(ctx context.Context, accountID int64, tenantSlug, presentedFamilyID string) (string, string, error) {
-	return m.engine.SwitchTenant(ctx, accountID, tenantSlug, presentedFamilyID)
-}
-
-func (m *Module) SwitchSchool(ctx context.Context, accountID int64, tenantSlug, ipAddress, userAgent string) (string, string, error) {
-	return m.engine.SwitchSchool(ctx, accountID, tenantSlug, ipAddress, userAgent)
-}
-
-func (m *Module) HasSchoolPortalAccess(ctx context.Context, accountID, tenantID int64) (bool, error) {
-	return m.engine.HasSchoolPortalAccess(ctx, accountID, tenantID)
-}
-
-func (m *Module) ValidateSessionTokens(ctx context.Context, accessToken, refreshToken, portal string) (SessionClaims, error) {
-	return m.engine.ValidateSessionTokens(ctx, accessToken, refreshToken, portal)
-}
-
-func (m *Module) VerifyAccountTenantMembership(ctx context.Context, accountID, tenantID int64) (bool, error) {
-	return m.engine.VerifyAccountTenantMembership(ctx, accountID, tenantID)
-}
-
-func (m *Module) CountExpiredTokens(ctx context.Context) (int, error) {
-	return m.engine.CountExpiredTokens(ctx)
-}
-
-func (m *Module) CleanupExpiredTokens(ctx context.Context) (int, error) {
-	return m.engine.CleanupExpiredTokens(ctx)
-}
-
-func (m *Module) ListActiveSessions(ctx context.Context, accountID int64) ([]AccountSession, error) {
-	return m.engine.ListActiveSessions(ctx, accountID)
-}
-
-func (m *Module) ListSessionIDs(ctx context.Context, accountID int64) ([]int64, error) {
-	return m.engine.ListSessionIDs(ctx, accountID)
-}
-
-func (m *Module) RevokeAllTokensWithReason(ctx context.Context, accountID int64, reason string) error {
-	return m.engine.RevokeAllTokensWithReason(ctx, accountID, reason)
-}
-
-func (m *Module) RevokeTokensByTenantID(ctx context.Context, tenantID int64) (int, error) {
-	return m.engine.RevokeTokensByTenantID(ctx, tenantID)
-}
-
-func (m *Module) DeleteAccountSessionsWithAudit(ctx context.Context, accountID int64, reason, ipAddress, userAgent string) ([]AccountSession, error) {
-	return m.engine.DeleteAccountSessionsWithAudit(ctx, accountID, reason, ipAddress, userAgent)
-}
-
-func (m *Module) QueuePushCleanup(ctx context.Context, accountID int64, sessions []AccountSession, reason string) {
-	m.engine.QueuePushCleanup(ctx, accountID, sessions, reason)
-}
-
-func (m *Module) ScheduleAccountWideRevoke(ctx context.Context, accountID int64, reason, ipAddress, userAgent string) error {
-	return m.engine.ScheduleAccountWideRevoke(ctx, accountID, reason, ipAddress, userAgent)
-}
-
-func (m *Module) MarkAccountWideWipeCompleted(ctx context.Context, accountID int64) error {
-	return m.engine.MarkAccountWideWipeCompleted(ctx, accountID)
-}
-
-func (m *Module) LoadAccountClaims(ctx context.Context, accountID, tenantID int64) (AccountClaims, error) {
-	return m.engine.LoadAccountClaims(ctx, accountID, tenantID)
-}
-
-func (m *Module) FindGuardianTenant(ctx context.Context, accountID int64) (bool, int64, error) {
-	return m.engine.FindGuardianTenant(ctx, accountID)
-}
-
-func (m *Module) FindSchoolPortalTenant(ctx context.Context, accountID int64) (bool, int64, error) {
-	return m.engine.FindSchoolPortalTenant(ctx, accountID)
 }

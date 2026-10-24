@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/domain"
 	"github.com/uptrace/bun"
 )
@@ -97,10 +98,10 @@ func storeError(op string, err error) error {
 	return fmt.Errorf("school structure postgres: %s: %w", op, err)
 }
 
-func (s *Store) FindTransition(ctx context.Context, tenantID, id int64, lock string) (domain.Transition, bool, domain.OperationStats, error) {
+func (s *Store) FindTransition(ctx context.Context, tenantID, id int64, lock string) (schoolstructure.Transition, bool, domain.OperationStats, error) {
 	db, err := s.database(ctx)
 	if err != nil {
-		return domain.Transition{}, false, domain.OperationStats{}, err
+		return schoolstructure.Transition{}, false, domain.OperationStats{}, err
 	}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
@@ -113,61 +114,37 @@ func (s *Store) FindTransition(ctx context.Context, tenantID, id int64, lock str
 	err = query.Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if errors.Is(err, sql.ErrNoRows) {
-		return domain.Transition{}, false, stats, nil
+		return schoolstructure.Transition{}, false, stats, nil
 	}
 	if err != nil {
-		return domain.Transition{}, false, stats, storeError("find transition", err)
+		return schoolstructure.Transition{}, false, stats, storeError("find transition", err)
 	}
 	stats.Rows = 1
 	mappings, mappingStats, err := s.listMappings(ctx, db, tenantID, []int64{id})
 	stats.Add(mappingStats)
 	if err != nil {
-		return domain.Transition{}, false, stats, err
+		return schoolstructure.Transition{}, false, stats, err
 	}
 	transition := transitionToDomain(row)
 	transition.Mappings = mappings[id]
 	return transition, true, stats, nil
 }
 
-func (s *Store) ListTransitions(ctx context.Context, tenantID int64, filter domain.TransitionFilter) ([]domain.Transition, int, domain.OperationStats, error) {
+func (s *Store) ListTransitions(ctx context.Context, tenantID int64, filter schoolstructure.TransitionFilter) ([]schoolstructure.Transition, int, domain.OperationStats, error) {
 	db, err := s.database(ctx)
 	if err != nil {
 		return nil, 0, domain.OperationStats{}, err
 	}
 	stats := domain.OperationStats{}
-	apply := func(query *bun.SelectQuery) *bun.SelectQuery {
-		query = query.Where(`"transition".tenant_id = ?`, tenantID)
-		if filter.Status != "" {
-			query = query.Where(`"transition".status = ?`, filter.Status)
-		}
-		if filter.AcademicYear != "" {
-			query = query.Where(`"transition".academic_year = ?`, filter.AcademicYear)
-		}
-		if filter.AfterID != nil {
-			query = query.Where(`"transition".id > ?`, *filter.AfterID)
-		}
-		return query
-	}
 	started := time.Now()
-	total, err := apply(db.NewSelect().Model((*transitionRow)(nil)).ModelTableExpr(transitionsTable)).Count(ctx)
+	total, err := filterTransitions(db.NewSelect().Model((*transitionRow)(nil)).ModelTableExpr(transitionsTable), tenantID, filter).Count(ctx)
 	stats.Queries++
 	stats.StatementDuration += time.Since(started)
 	if err != nil {
 		return nil, 0, stats, storeError("count transitions", err)
 	}
 	rows := []transitionRow{}
-	query := apply(db.NewSelect().Model(&rows).ModelTableExpr(transitionsTable))
-	if filter.AfterID != nil {
-		query = query.OrderExpr(`"transition".id ASC`)
-	} else {
-		query = query.OrderExpr(`"transition".created_at DESC, "transition".id DESC`)
-	}
-	if filter.Limit > 0 {
-		query = query.Limit(int64(filter.Limit))
-	}
-	if filter.Offset > 0 {
-		query = query.Offset(int64(filter.Offset))
-	}
+	query := pageTransitions(filterTransitions(db.NewSelect().Model(&rows).ModelTableExpr(transitionsTable), tenantID, filter), filter)
 	started = time.Now()
 	err = query.Scan(ctx)
 	stats.Queries++
@@ -185,7 +162,7 @@ func (s *Store) ListTransitions(ctx context.Context, tenantID int64, filter doma
 	if err != nil {
 		return nil, 0, stats, err
 	}
-	result := make([]domain.Transition, 0, len(rows))
+	result := make([]schoolstructure.Transition, 0, len(rows))
 	for _, row := range rows {
 		transition := transitionToDomain(row)
 		transition.Mappings = mappings[row.ID]
@@ -194,8 +171,41 @@ func (s *Store) ListTransitions(ctx context.Context, tenantID int64, filter doma
 	return result, int(total), stats, nil
 }
 
-func (s *Store) listMappings(ctx context.Context, db bun.IDB, tenantID int64, transitionIDs []int64) (map[int64][]domain.TransitionMapping, domain.OperationStats, error) {
-	result := make(map[int64][]domain.TransitionMapping, len(transitionIDs))
+// filterTransitions narrows a transition query to the tenant and the filter;
+// the count and the page share it.
+func filterTransitions(query *bun.SelectQuery, tenantID int64, filter schoolstructure.TransitionFilter) *bun.SelectQuery {
+	query = query.Where(`"transition".tenant_id = ?`, tenantID)
+	if filter.Status != "" {
+		query = query.Where(`"transition".status = ?`, filter.Status)
+	}
+	if filter.AcademicYear != "" {
+		query = query.Where(`"transition".academic_year = ?`, filter.AcademicYear)
+	}
+	if filter.AfterID != nil {
+		query = query.Where(`"transition".id > ?`, *filter.AfterID)
+	}
+	return query
+}
+
+// pageTransitions orders and bounds the listed page: a cursor walks forward by
+// ID, an offset page lists the newest first.
+func pageTransitions(query *bun.SelectQuery, filter schoolstructure.TransitionFilter) *bun.SelectQuery {
+	if filter.AfterID != nil {
+		query = query.OrderExpr(`"transition".id ASC`)
+	} else {
+		query = query.OrderExpr(`"transition".created_at DESC, "transition".id DESC`)
+	}
+	if filter.Limit > 0 {
+		query = query.Limit(int64(filter.Limit))
+	}
+	if filter.Offset > 0 {
+		query = query.Offset(int64(filter.Offset))
+	}
+	return query
+}
+
+func (s *Store) listMappings(ctx context.Context, db bun.IDB, tenantID int64, transitionIDs []int64) (map[int64][]schoolstructure.TransitionMapping, domain.OperationStats, error) {
+	result := make(map[int64][]schoolstructure.TransitionMapping, len(transitionIDs))
 	if len(transitionIDs) == 0 {
 		return result, domain.OperationStats{}, nil
 	}
@@ -218,13 +228,13 @@ func (s *Store) listMappings(ctx context.Context, db bun.IDB, tenantID int64, tr
 	return result, stats, nil
 }
 
-func (s *Store) InsertTransition(ctx context.Context, tenantID int64, draft domain.TransitionDraft) (domain.Transition, domain.OperationStats, error) {
+func (s *Store) InsertTransition(ctx context.Context, tenantID int64, draft schoolstructure.TransitionDraft) (schoolstructure.Transition, domain.OperationStats, error) {
 	db, err := s.database(ctx)
 	if err != nil {
-		return domain.Transition{}, domain.OperationStats{}, err
+		return schoolstructure.Transition{}, domain.OperationStats{}, err
 	}
 	row := transitionRow{
-		TenantID: tenantID, AcademicYear: draft.AcademicYear, Status: domain.TransitionStatusDraft,
+		TenantID: tenantID, AcademicYear: draft.AcademicYear, Status: schoolstructure.TransitionStatusDraft,
 		CreatedBy: draft.CreatedBy, Notes: draft.Notes,
 	}
 	stats := domain.OperationStats{Queries: 1}
@@ -232,7 +242,7 @@ func (s *Store) InsertTransition(ctx context.Context, tenantID int64, draft doma
 	_, err = db.NewInsert().Model(&row).ModelTableExpr(`education.grade_transitions`).Returning("id, created_at, updated_at").Exec(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
-		return domain.Transition{}, stats, storeError("insert transition", err)
+		return schoolstructure.Transition{}, stats, storeError("insert transition", err)
 	}
 	stats.Rows = 1
 	transition := transitionToDomain(row)
@@ -240,14 +250,14 @@ func (s *Store) InsertTransition(ctx context.Context, tenantID int64, draft doma
 		mappings, insertStats, err := s.insertMappings(ctx, db, tenantID, row.ID, draft.Mappings)
 		stats.Add(insertStats)
 		if err != nil {
-			return domain.Transition{}, stats, err
+			return schoolstructure.Transition{}, stats, err
 		}
 		transition.Mappings = mappings
 	}
 	return transition, stats, nil
 }
 
-func (s *Store) insertMappings(ctx context.Context, db bun.IDB, tenantID, transitionID int64, inputs []domain.TransitionMappingInput) ([]domain.TransitionMapping, domain.OperationStats, error) {
+func (s *Store) insertMappings(ctx context.Context, db bun.IDB, tenantID, transitionID int64, inputs []schoolstructure.TransitionMappingInput) ([]schoolstructure.TransitionMapping, domain.OperationStats, error) {
 	rows := make([]mappingRow, 0, len(inputs))
 	for _, input := range inputs {
 		rows = append(rows, mappingRow{TenantID: tenantID, TransitionID: transitionID, FromClass: input.FromClass, ToClass: input.ToClass})
@@ -260,7 +270,7 @@ func (s *Store) insertMappings(ctx context.Context, db bun.IDB, tenantID, transi
 		return nil, stats, storeError("insert transition mappings", err)
 	}
 	stats.Rows = int64(len(rows))
-	result := make([]domain.TransitionMapping, 0, len(rows))
+	result := make([]schoolstructure.TransitionMapping, 0, len(rows))
 	for _, row := range rows {
 		result = append(result, mappingToDomain(row))
 	}
@@ -277,7 +287,7 @@ func (s *Store) UpdateTransitionFields(ctx context.Context, tenantID, id int64, 
 	result, err := db.NewUpdate().TableExpr(transitionsTable).
 		Set(`academic_year = ?`, academicYear).Set(`notes = ?`, notes).Set(`updated_at = NOW()`).
 		Where(`"transition".tenant_id = ?`, tenantID).Where(`"transition".id = ?`, id).
-		Where(`"transition".status = ?`, domain.TransitionStatusDraft).Exec(ctx)
+		Where(`"transition".status = ?`, schoolstructure.TransitionStatusDraft).Exec(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
 		return 0, stats, storeError("update transition", err)
@@ -289,7 +299,7 @@ func (s *Store) UpdateTransitionFields(ctx context.Context, tenantID, id int64, 
 	return stats.Rows, stats, nil
 }
 
-func (s *Store) ReplaceMappings(ctx context.Context, tenantID, transitionID int64, mappings []domain.TransitionMappingInput) ([]domain.TransitionMapping, domain.OperationStats, error) {
+func (s *Store) ReplaceMappings(ctx context.Context, tenantID, transitionID int64, mappings []schoolstructure.TransitionMappingInput) ([]schoolstructure.TransitionMapping, domain.OperationStats, error) {
 	db, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
@@ -303,7 +313,7 @@ func (s *Store) ReplaceMappings(ctx context.Context, tenantID, transitionID int6
 		return nil, stats, storeError("delete transition mappings", err)
 	}
 	if len(mappings) == 0 {
-		return []domain.TransitionMapping{}, stats, nil
+		return []schoolstructure.TransitionMapping{}, stats, nil
 	}
 	inserted, insertStats, err := s.insertMappings(ctx, db, tenantID, transitionID, mappings)
 	stats.Add(insertStats)
@@ -319,7 +329,7 @@ func (s *Store) DeleteTransition(ctx context.Context, tenantID, id int64) (int64
 	started := time.Now()
 	result, err := db.NewDelete().TableExpr(transitionsTable).
 		Where(`"transition".tenant_id = ?`, tenantID).Where(`"transition".id = ?`, id).
-		Where(`"transition".status = ?`, domain.TransitionStatusDraft).Exec(ctx)
+		Where(`"transition".status = ?`, schoolstructure.TransitionStatusDraft).Exec(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
 		return 0, stats, storeError("delete transition", err)
@@ -327,6 +337,31 @@ func (s *Store) DeleteTransition(ctx context.Context, tenantID, id int64) (int64
 	stats.Rows, err = result.RowsAffected()
 	if err != nil {
 		return 0, stats, storeError("delete transition: count rows", err)
+	}
+	return stats.Rows, stats, nil
+}
+
+// DeleteTransitionsEndedBefore removes the transitions of the school that
+// ended before cutoff: an applied one at its application, a reverted one at
+// its reversal, a draft at its last change (#4045). Their child rows cascade.
+func (s *Store) DeleteTransitionsEndedBefore(ctx context.Context, tenantID int64, cutoff time.Time) (int64, domain.OperationStats, error) {
+	db, err := s.database(ctx)
+	if err != nil {
+		return 0, domain.OperationStats{}, err
+	}
+	stats := domain.OperationStats{Queries: 1}
+	started := time.Now()
+	result, err := db.NewDelete().TableExpr(transitionsTable).
+		Where(`"transition".tenant_id = ?`, tenantID).
+		Where(`COALESCE("transition".reverted_at, "transition".applied_at, "transition".updated_at) < ?`, cutoff).
+		Exec(ctx)
+	stats.StatementDuration = time.Since(started)
+	if err != nil {
+		return 0, stats, storeError("delete ended transitions", err)
+	}
+	stats.Rows, err = result.RowsAffected()
+	if err != nil {
+		return 0, stats, storeError("delete ended transitions: count rows", err)
 	}
 	return stats.Rows, stats, nil
 }
@@ -346,25 +381,25 @@ func (s *Store) LockTransitions(ctx context.Context, tenantID int64) (domain.Ope
 	return stats, nil
 }
 
-func (s *Store) LockLatestApplied(ctx context.Context, tenantID int64) (domain.Transition, bool, domain.OperationStats, error) {
+func (s *Store) LockLatestApplied(ctx context.Context, tenantID int64) (schoolstructure.Transition, bool, domain.OperationStats, error) {
 	db, err := s.database(ctx)
 	if err != nil {
-		return domain.Transition{}, false, domain.OperationStats{}, err
+		return schoolstructure.Transition{}, false, domain.OperationStats{}, err
 	}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	row := transitionRow{}
 	err = db.NewSelect().Model(&row).ModelTableExpr(transitionsTable).
 		Where(`"transition".tenant_id = ?`, tenantID).
-		Where(`"transition".status = ?`, domain.TransitionStatusApplied).
+		Where(`"transition".status = ?`, schoolstructure.TransitionStatusApplied).
 		OrderExpr(`"transition".applied_at DESC NULLS LAST, "transition".id DESC`).
 		Limit(1).For("UPDATE").Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if errors.Is(err, sql.ErrNoRows) {
-		return domain.Transition{}, false, stats, nil
+		return schoolstructure.Transition{}, false, stats, nil
 	}
 	if err != nil {
-		return domain.Transition{}, false, stats, storeError("lock latest applied transition", err)
+		return schoolstructure.Transition{}, false, stats, storeError("lock latest applied transition", err)
 	}
 	stats.Rows = 1
 	return transitionToDomain(row), true, stats, nil
@@ -378,12 +413,12 @@ func (s *Store) MarkApplied(ctx context.Context, tenantID, id, accountID int64, 
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	result, err := db.NewUpdate().TableExpr(transitionsTable).
-		Set(`status = ?`, domain.TransitionStatusApplied).
+		Set(`status = ?`, schoolstructure.TransitionStatusApplied).
 		Set(`applied_at = ?`, at).Set(`applied_by = ?`, accountID).
 		Set(`roster_baseline_instance_id = ?`, rosterBaselineInstanceID).
 		Set(`updated_at = NOW()`).
 		Where(`"transition".tenant_id = ?`, tenantID).Where(`"transition".id = ?`, id).
-		Where(`"transition".status = ?`, domain.TransitionStatusDraft).Exec(ctx)
+		Where(`"transition".status = ?`, schoolstructure.TransitionStatusDraft).Exec(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
 		return 0, stats, storeError("mark transition applied", err)
@@ -403,11 +438,11 @@ func (s *Store) MarkReverted(ctx context.Context, tenantID, id, accountID int64,
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	result, err := db.NewUpdate().TableExpr(transitionsTable).
-		Set(`status = ?`, domain.TransitionStatusReverted).
+		Set(`status = ?`, schoolstructure.TransitionStatusReverted).
 		Set(`reverted_at = ?`, at).Set(`reverted_by = ?`, accountID).
 		Set(`updated_at = NOW()`).
 		Where(`"transition".tenant_id = ?`, tenantID).Where(`"transition".id = ?`, id).
-		Where(`"transition".status = ?`, domain.TransitionStatusApplied).Exec(ctx)
+		Where(`"transition".status = ?`, schoolstructure.TransitionStatusApplied).Exec(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
 		return 0, stats, storeError("mark transition reverted", err)
@@ -419,7 +454,7 @@ func (s *Store) MarkReverted(ctx context.Context, tenantID, id, accountID int64,
 	return stats.Rows, stats, nil
 }
 
-func (s *Store) InsertHistory(ctx context.Context, tenantID int64, entries []domain.TransitionHistoryEntry) (domain.OperationStats, error) {
+func (s *Store) InsertHistory(ctx context.Context, tenantID int64, entries []schoolstructure.TransitionHistoryEntry) (domain.OperationStats, error) {
 	if len(entries) == 0 {
 		return domain.OperationStats{}, nil
 	}
@@ -445,7 +480,7 @@ func (s *Store) InsertHistory(ctx context.Context, tenantID int64, entries []dom
 	return stats, nil
 }
 
-func (s *Store) ListHistory(ctx context.Context, tenantID, transitionID int64) ([]domain.TransitionHistoryEntry, domain.OperationStats, error) {
+func (s *Store) ListHistory(ctx context.Context, tenantID, transitionID int64) ([]schoolstructure.TransitionHistoryEntry, domain.OperationStats, error) {
 	db, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
@@ -461,9 +496,9 @@ func (s *Store) ListHistory(ctx context.Context, tenantID, transitionID int64) (
 		return nil, stats, storeError("list transition history", err)
 	}
 	stats.Rows = int64(len(rows))
-	result := make([]domain.TransitionHistoryEntry, 0, len(rows))
+	result := make([]schoolstructure.TransitionHistoryEntry, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, domain.TransitionHistoryEntry{
+		result = append(result, schoolstructure.TransitionHistoryEntry{
 			ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, TransitionID: row.TransitionID, StudentID: row.StudentID,
 			PersonName: row.PersonName, FromClass: row.FromClass, ToClass: row.ToClass, Action: row.Action,
 			FromStatus: row.FromStatus, RFIDTag: row.RFIDTag,
@@ -472,7 +507,7 @@ func (s *Store) ListHistory(ctx context.Context, tenantID, transitionID int64) (
 	return result, stats, nil
 }
 
-func (s *Store) InsertClassTeacherLedger(ctx context.Context, tenantID int64, entries []domain.TransitionClassTeacherEntry) (domain.OperationStats, error) {
+func (s *Store) InsertClassTeacherLedger(ctx context.Context, tenantID int64, entries []schoolstructure.TransitionClassTeacherEntry) (domain.OperationStats, error) {
 	if len(entries) == 0 {
 		return domain.OperationStats{}, nil
 	}
@@ -497,7 +532,7 @@ func (s *Store) InsertClassTeacherLedger(ctx context.Context, tenantID int64, en
 	return stats, nil
 }
 
-func (s *Store) ListClassTeacherLedger(ctx context.Context, tenantID, transitionID int64) ([]domain.TransitionClassTeacherEntry, domain.OperationStats, error) {
+func (s *Store) ListClassTeacherLedger(ctx context.Context, tenantID, transitionID int64) ([]schoolstructure.TransitionClassTeacherEntry, domain.OperationStats, error) {
 	db, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
@@ -513,16 +548,16 @@ func (s *Store) ListClassTeacherLedger(ctx context.Context, tenantID, transition
 		return nil, stats, storeError("list class teacher ledger", err)
 	}
 	stats.Rows = int64(len(rows))
-	result := make([]domain.TransitionClassTeacherEntry, 0, len(rows))
+	result := make([]schoolstructure.TransitionClassTeacherEntry, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, domain.TransitionClassTeacherEntry{
+		result = append(result, schoolstructure.TransitionClassTeacherEntry{
 			ID: row.ID, TransitionID: row.TransitionID, StaffID: row.StaffID, SchoolClass: row.SchoolClass, Action: row.Action,
 		})
 	}
 	return result, stats, nil
 }
 
-func (s *Store) InsertClassListLedger(ctx context.Context, tenantID int64, entries []domain.TransitionClassListEntry) (domain.OperationStats, error) {
+func (s *Store) InsertClassListLedger(ctx context.Context, tenantID int64, entries []schoolstructure.TransitionClassListEntry) (domain.OperationStats, error) {
 	if len(entries) == 0 {
 		return domain.OperationStats{}, nil
 	}
@@ -548,7 +583,7 @@ func (s *Store) InsertClassListLedger(ctx context.Context, tenantID int64, entri
 	return stats, nil
 }
 
-func (s *Store) ListClassListLedger(ctx context.Context, tenantID, transitionID int64) ([]domain.TransitionClassListEntry, domain.OperationStats, error) {
+func (s *Store) ListClassListLedger(ctx context.Context, tenantID, transitionID int64) ([]schoolstructure.TransitionClassListEntry, domain.OperationStats, error) {
 	db, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
@@ -564,9 +599,9 @@ func (s *Store) ListClassListLedger(ctx context.Context, tenantID, transitionID 
 		return nil, stats, storeError("list class list ledger", err)
 	}
 	stats.Rows = int64(len(rows))
-	result := make([]domain.TransitionClassListEntry, 0, len(rows))
+	result := make([]schoolstructure.TransitionClassListEntry, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, domain.TransitionClassListEntry{
+		result = append(result, schoolstructure.TransitionClassListEntry{
 			ID: row.ID, TransitionID: row.TransitionID, EntryID: row.EntryID,
 			FirstName: row.FirstName, LastName: row.LastName, SchoolClass: row.SchoolClass, Action: row.Action,
 		})
@@ -574,8 +609,8 @@ func (s *Store) ListClassListLedger(ctx context.Context, tenantID, transitionID 
 	return result, stats, nil
 }
 
-func transitionToDomain(row transitionRow) domain.Transition {
-	return domain.Transition{
+func transitionToDomain(row transitionRow) schoolstructure.Transition {
+	return schoolstructure.Transition{
 		ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		AcademicYear: row.AcademicYear, Status: row.Status, AppliedAt: row.AppliedAt, AppliedBy: row.AppliedBy,
 		RevertedAt: row.RevertedAt, RevertedBy: row.RevertedBy, CreatedBy: row.CreatedBy, Notes: row.Notes,
@@ -583,6 +618,6 @@ func transitionToDomain(row transitionRow) domain.Transition {
 	}
 }
 
-func mappingToDomain(row mappingRow) domain.TransitionMapping {
-	return domain.TransitionMapping{ID: row.ID, TenantID: row.TenantID, TransitionID: row.TransitionID, FromClass: row.FromClass, ToClass: row.ToClass}
+func mappingToDomain(row mappingRow) schoolstructure.TransitionMapping {
+	return schoolstructure.TransitionMapping{ID: row.ID, TenantID: row.TenantID, TransitionID: row.TransitionID, FromClass: row.FromClass, ToClass: row.ToClass}
 }

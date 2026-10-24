@@ -10,7 +10,10 @@ import {
   authInputClass,
   authPrimaryButtonClassName,
 } from "~/components/auth/auth-shell";
-import { credentialError } from "~/components/auth/credential-error";
+import {
+  credentialError,
+  INVITATION_REFUSALS,
+} from "~/components/auth/credential-error";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
@@ -167,7 +170,7 @@ export function InvitationAcceptForm({
         error: err instanceof Error ? err.message : String(err),
       });
       // Ohne Netz kommt general.unavailable mit Wiederholen.
-      void formErrors.show(credentialError(err), {
+      void formErrors.show(credentialError(err, INVITATION_REFUSALS), {
         object: "die Einladung",
         retry: () => latestSubmitRef.current(),
       });

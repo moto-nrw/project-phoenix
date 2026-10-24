@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
@@ -20,7 +20,7 @@ func TestCareLifecycleDirectoryReadsWithoutStudentCompatibilityView(t *testing.T
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
 	ctx := testpkg.Ctx(t)
-	today := timezone.NewDate(2026, 9, 19)
+	today := calendar.NewDate(2026, 9, 19)
 	svc := newCareLifecycleServiceAt(t, db, today)
 	testpkg.AssertStudentCompatibilityStorageAbsent(t, db)
 

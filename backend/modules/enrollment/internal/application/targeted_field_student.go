@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
 
 // errStudentConsentAuditRequired marks a consent write whose history could
@@ -28,7 +28,7 @@ type consentStamp struct {
 // stamp records the approval moment, not the parent submission moment — the
 // parent submission timestamp lives on enrollment.requests.
 var consentStamps = []consentStamp{
-	{key: enrollmentModels.ConsentKeyPhoto, apply: func(student *Student, at *time.Time, reviewedBy int64) {
+	{key: enrollmentNative.ConsentKeyPhoto, apply: func(student *Student, at *time.Time, reviewedBy int64) {
 		student.PhotoConsentGivenAt = at
 		if at == nil {
 			student.PhotoConsentGivenBy = nil
@@ -37,13 +37,13 @@ var consentStamps = []consentStamp{
 			student.PhotoConsentGivenBy = &rb
 		}
 	}},
-	{key: enrollmentModels.ConsentKeyAGB, apply: func(student *Student, at *time.Time, _ int64) {
+	{key: enrollmentNative.ConsentKeyAGB, apply: func(student *Student, at *time.Time, _ int64) {
 		student.AGBAcceptedAt = at
 	}},
-	{key: enrollmentModels.ConsentKeyDataProcessing, apply: func(student *Student, at *time.Time, _ int64) {
+	{key: enrollmentNative.ConsentKeyDataProcessing, apply: func(student *Student, at *time.Time, _ int64) {
 		student.DataProcessingAcceptedAt = at
 	}},
-	{key: enrollmentModels.ConsentKeyEmailContact, apply: func(student *Student, at *time.Time, _ int64) {
+	{key: enrollmentNative.ConsentKeyEmailContact, apply: func(student *Student, at *time.Time, _ int64) {
 		student.EmailContactAcceptedAt = at
 	}},
 }

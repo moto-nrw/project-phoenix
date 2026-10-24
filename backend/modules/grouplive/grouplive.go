@@ -39,6 +39,7 @@ type AtSchoolCounter interface {
 
 // Dependencies are the consumer-owned ports the projection reads through.
 // ExcusedRequests is optional: without it no pending note is attached.
+// Collate is optional: without it the groups keep the directory order.
 // Logger defaults to slog.Default; every other field is required.
 type Dependencies struct {
 	Access          Access
@@ -50,7 +51,10 @@ type Dependencies struct {
 	Settings        Settings
 	Calendar        Calendar
 	ExcusedRequests PendingExcusedReader
-	Logger          *slog.Logger
+	// Collate orders two group names in German dictionary order (DIN 5007-1),
+	// the order the group selection and the response rely on.
+	Collate func(a, b string) int
+	Logger  *slog.Logger
 }
 
 type service struct{ deps Dependencies }
@@ -71,6 +75,10 @@ type Group struct {
 	RoomName        string `json:"room_name,omitempty"`
 	ViaSubstitution bool   `json:"via_substitution"`
 	IsPersonal      bool   `json:"is_personal"`
+	// Leaders names the group's assigned Gruppenleitung for the group
+	// selection (#4351). Only the navigation list fills it; the assignment
+	// is optional, so it is often empty.
+	Leaders []string `json:"leaders,omitempty"`
 }
 
 type Student struct {
@@ -97,7 +105,7 @@ type Student struct {
 	ActualArrivalTime  *string    `json:"actual_arrival_time,omitempty"`
 	ActualPickupTime   *string    `json:"actual_pickup_time,omitempty"`
 	PhotoURL           string     `json:"photo_url,omitempty"`
-	fullAccess         bool
+	fullAccess         bool       // Planning access: staff/admin eligibility plus users:read.
 }
 
 type RoomStatus struct {
@@ -108,16 +116,6 @@ type RoomStatus struct {
 type DayNote struct {
 	ID      int64  `json:"id,string"`
 	Content string `json:"content"`
-}
-
-type PickupTime struct {
-	StudentID   int64     `json:"student_id,string"`
-	Date        string    `json:"date"`
-	WeekdayName string    `json:"weekday_name"`
-	PickupTime  *string   `json:"pickup_time,omitempty"`
-	IsException bool      `json:"is_exception"`
-	Notes       string    `json:"notes,omitempty"`
-	DayNotes    []DayNote `json:"day_notes,omitempty"`
 }
 
 type TrackingIndicators struct {
@@ -211,18 +209,6 @@ func (s *service) LiveGroup(ctx context.Context, requestedGroupID int64) (*Proje
 	return s.finishProjection(ctx, state)
 }
 
-func (s *service) ListGroups(ctx context.Context) ([]Group, error) {
-	if err := s.validateGroupDependencies(); err != nil {
-		return nil, err
-	}
-	caller, err := s.deps.Access.Caller(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("resolve caller access: %w", err)
-	}
-	groups, _, err := s.resolveGroups(ctx, caller, 0, true)
-	return groups, err
-}
-
 // CountAtSchoolToday applies the same planning and pre-check-in rule as the
 // live-group projection, without loading group membership or caller access.
 // Its callers already provide the dashboard's tenant-scoped home candidates.
@@ -310,101 +296,6 @@ func (s *service) validateAtSchoolCounterDependencies() error {
 	return nil
 }
 
-func (s *service) resolveGroups(ctx context.Context, caller Caller, requestedGroupID int64, allowMissingRoomNames bool) ([]Group, *GroupRecord, error) {
-	myGroups, err := s.deps.Groups.SupervisedGroups(ctx)
-	if err != nil {
-		return nil, nil, fmt.Errorf("load supervised groups: %w", err)
-	}
-	personalIDs := make(map[int64]bool, len(myGroups))
-	for _, group := range myGroups {
-		personalIDs[group.ID] = true
-	}
-
-	visibleGroups := myGroups
-	if caller.OperationalOverview && caller.CanReadGroups {
-		visibleGroups, err = s.deps.Groups.TenantGroups(ctx)
-		if err != nil {
-			return nil, nil, fmt.Errorf("load tenant groups: %w", err)
-		}
-	}
-
-	if len(visibleGroups) == 0 {
-		if requestedGroupID > 0 {
-			return nil, nil, ErrForbiddenGroup
-		}
-		return nil, nil, nil
-	}
-
-	selected := selectGroup(visibleGroups, personalIDs, requestedGroupID)
-	if selected == nil {
-		return nil, nil, ErrForbiddenGroup
-	}
-
-	substituted, err := s.deps.Groups.SubstitutedGroupIDs(ctx)
-	if err != nil {
-		return nil, nil, fmt.Errorf("load substitution metadata: %w", err)
-	}
-	groups, err := s.mapGroups(ctx, visibleGroups, personalIDs, substituted, allowMissingRoomNames)
-	if err != nil {
-		return nil, nil, err
-	}
-	return groups, selected, nil
-}
-
-// selectGroup picks the requested group from the directory order, or the
-// first personal group (falling back to the first visible one) when no group
-// was requested. The directory delivers groups in German dictionary order.
-func selectGroup(groups []GroupRecord, personalIDs map[int64]bool, requestedGroupID int64) *GroupRecord {
-	if requestedGroupID <= 0 {
-		for i := range groups {
-			if personalIDs[groups[i].ID] {
-				return &groups[i]
-			}
-		}
-		return &groups[0]
-	}
-	for i := range groups {
-		if groups[i].ID == requestedGroupID {
-			return &groups[i]
-		}
-	}
-	return nil
-}
-
-func (s *service) mapGroups(ctx context.Context, groups []GroupRecord, personalIDs, substituted map[int64]bool, allowMissingRoomNames bool) ([]Group, error) {
-	// One bulk lookup resolves every room name; a per-group lookup loop would
-	// run on every aggregate refresh including SSE revalidations.
-	roomGroupIDs := make([]int64, 0, len(groups))
-	for _, group := range groups {
-		if group.RoomID != nil {
-			roomGroupIDs = append(roomGroupIDs, group.ID)
-		}
-	}
-	roomNames := map[int64]string{}
-	if len(roomGroupIDs) > 0 {
-		loaded, err := s.deps.Groups.GroupRoomNames(ctx, roomGroupIDs)
-		if err != nil {
-			if !allowMissingRoomNames {
-				return nil, fmt.Errorf("load group rooms: %w", err)
-			}
-			s.deps.Logger.Warn("load group rooms failed",
-				"error", err,
-			)
-		} else {
-			roomNames = loaded
-		}
-	}
-
-	result := make([]Group, 0, len(groups))
-	for _, group := range groups {
-		result = append(result, Group{
-			ID: group.ID, Name: group.Name, RoomID: group.RoomID, RoomName: roomNames[group.ID],
-			ViaSubstitution: substituted[group.ID], IsPersonal: personalIDs[group.ID],
-		})
-	}
-	return result, nil
-}
-
 // loadRoster returns the group's care participants of the day together with
 // their presence snapshot. Every sub-load is all-or-nothing: a failing owner
 // query fails the projection instead of silently thinning the roster.
@@ -447,20 +338,22 @@ func (s *service) projectRoster(ctx context.Context, state *buildState) error {
 	if err != nil {
 		return fmt.Errorf("resolve student access: %w", err)
 	}
-	state.projected = projectStudents(state.students, state.presence, fullAccess, photosEnabled)
+	state.projected = projectStudents(state.students, state.presence, fullAccess, photosEnabled, state.caller.CanReadStudentPlans)
 	return s.applyStatusDays(ctx, state)
 }
 
-func projectStudents(students []RosterStudent, presence PresenceSnapshot, fullAccess, photosEnabled bool) []Student {
+func projectStudents(students []RosterStudent, presence PresenceSnapshot, fullAccess, photosEnabled, canReadPlans bool) []Student {
 	result := make([]Student, 0, len(students))
 	for _, model := range students {
 		location := presence.Location(model.ID, fullAccess)
 		student := Student{
 			ID: model.ID, FirstName: model.FirstName, LastName: model.LastName,
 			SchoolClass: model.SchoolClass, Location: location.Name,
-			LocationSince: location.Since, RoomColor: location.RoomColor, fullAccess: fullAccess,
-			Sick: model.Sick, SickSince: model.SickSince,
-			Excused: model.Excused, ExcusedSince: model.ExcusedSince,
+			LocationSince: location.Since, RoomColor: location.RoomColor, fullAccess: fullAccess && canReadPlans,
+		}
+		if canReadPlans {
+			student.Sick, student.SickSince = model.Sick, model.SickSince
+			student.Excused, student.ExcusedSince = model.Excused, model.ExcusedSince
 		}
 		if photosEnabled && fullAccess && model.PhotoPath != nil {
 			student.PhotoURL = buildPhotoURL(model.ID, *model.PhotoPath)
@@ -478,7 +371,7 @@ func buildPhotoURL(studentID int64, storedURL string) string {
 }
 
 func (s *service) applyStatusDays(ctx context.Context, state *buildState) error {
-	if len(state.projected) == 0 {
+	if !state.caller.CanReadStudentPlans || len(state.projected) == 0 {
 		return nil
 	}
 	statuses, err := s.deps.Presence.EffectiveStatuses(ctx, state.studentIDs, state.today)
@@ -733,16 +626,22 @@ func (s *service) finishProjection(ctx context.Context, state *buildState) (*Pro
 	if err != nil {
 		return nil, fmt.Errorf("load tracking indicators: %w", err)
 	}
+	projection.RoomStatus = roomStatuses(state.projected, state.presence, state.selected.RoomID)
+	projection.TrackingIndicators = tracking
+
+	// Transfers name the substituting staff. A guest reads groups without
+	// users:read and sees no staff (ADR 0091); the substitution owner would
+	// refuse the guest role and fail the whole roster.
+	if !state.caller.CanReadStudentPlans {
+		return projection, nil
+	}
 	transfers, err := s.deps.Transfers.GroupHandovers(ctx, state.selected.ID, state.today)
 	if err != nil {
 		return nil, fmt.Errorf("load group transfers: %w", err)
 	}
-	if transfers == nil {
-		transfers = []Transfer{}
+	if transfers != nil {
+		projection.Transfers = transfers
 	}
-	projection.RoomStatus = roomStatuses(state.projected, state.presence, state.selected.RoomID)
-	projection.TrackingIndicators = tracking
-	projection.Transfers = transfers
 	return projection, nil
 }
 
@@ -784,32 +683,6 @@ func roomStatuses(students []Student, presence PresenceSnapshot, groupRoomID *in
 			}
 		}
 		result[key] = status
-	}
-	return result
-}
-
-func pickupTimes(students []Student, pickups map[int64]Pickup) []PickupTime {
-	result := make([]PickupTime, 0, len(students))
-	for i := range students {
-		if !students[i].fullAccess {
-			continue
-		}
-		effective, ok := pickups[students[i].ID]
-		if !ok {
-			continue
-		}
-		item := PickupTime{
-			StudentID: students[i].ID, Date: string(effective.Date), WeekdayName: effective.WeekdayName,
-			IsException: effective.IsException, Notes: effective.Notes,
-		}
-		if effective.PickupTime != nil {
-			formatted := effective.PickupTime.Format("15:04")
-			item.PickupTime = &formatted
-		}
-		for _, note := range effective.DayNotes {
-			item.DayNotes = append(item.DayNotes, DayNote{ID: note.ID, Content: note.Content})
-		}
-		result = append(result, item)
 	}
 	return result
 }

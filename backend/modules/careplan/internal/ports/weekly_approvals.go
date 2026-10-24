@@ -8,7 +8,9 @@ import (
 
 type WeeklyApprovalPeople interface {
 	TrackCompanionChanges(context.Context) (context.Context, func() bool)
-	ActingStaffID(context.Context) (int64, error)
+	// CurrentStaffID is the caller's staff profile; found is false when the
+	// caller has none.
+	CurrentStaffID(context.Context) (staffID int64, found bool, err error)
 	LockDepartureModes(context.Context, int64) (map[string][]string, error)
 	SaveDepartureModes(context.Context, int64, map[string][]string) error
 	AuditDepartureModes(context.Context, int64, int64) error

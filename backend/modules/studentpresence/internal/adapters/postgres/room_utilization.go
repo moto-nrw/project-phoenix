@@ -6,22 +6,14 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 )
 
-func (s *Store) RoomUtilization(ctx context.Context, windows []ports.StudentVisitWindow) ([]ports.RoomUtilization, ports.Stats, error) {
-	db, tenantID, err := s.database(ctx)
-	if err != nil {
-		return nil, ports.Stats{}, err
-	}
-	if len(windows) == 0 {
-		return []ports.RoomUtilization{}, ports.Stats{}, nil
-	}
-	input, err := json.Marshal(windows)
-	if err != nil {
-		return nil, ports.Stats{}, err
-	}
-	const query = `WITH eligible_student AS (
+// roomUtilizationQuery clamps every retained visit to its student's eligible
+// window and aggregates days used, distinct students, student minutes and
+// peak occupancy per room.
+const roomUtilizationQuery = `WITH eligible_student AS (
  SELECT * FROM jsonb_to_recordset(?::jsonb) AS eligibility(student_id bigint, start_at timestamptz, end_at timestamptz)
 ),
 retention AS (
@@ -88,9 +80,22 @@ LEFT JOIN peak p ON p.room_id = s.room_id
 LEFT JOIN room_days d ON d.room_id = s.room_id
 GROUP BY s.room_id, d.days_used, p.peak_occupancy
 ORDER BY s.room_id`
-	var rows []ports.RoomUtilization
+
+func (s *Store) RoomUtilization(ctx context.Context, windows []studentpresence.StudentVisitWindow) ([]studentpresence.RoomUtilization, ports.Stats, error) {
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return nil, ports.Stats{}, err
+	}
+	if len(windows) == 0 {
+		return []studentpresence.RoomUtilization{}, ports.Stats{}, nil
+	}
+	input, err := json.Marshal(windows)
+	if err != nil {
+		return nil, ports.Stats{}, err
+	}
+	var rows []studentpresence.RoomUtilization
 	started := time.Now()
-	err = db.NewRaw(query, string(input), tenantID, tenantID, tenantID).Scan(ctx, &rows)
+	err = db.NewRaw(roomUtilizationQuery, string(input), tenantID, tenantID, tenantID).Scan(ctx, &rows)
 	stats := ports.Stats{Queries: 1, Rows: int64(len(rows)), StatementDuration: time.Since(started)}
 	if err != nil {
 		return nil, stats, fmt.Errorf("statistics room utilization: %w", err)

@@ -46,22 +46,22 @@ func NewStudentNoteStore(database Database) *StudentNoteStore {
 	return &StudentNoteStore{database: database}
 }
 
-func (s *StudentNoteStore) tenantDatabase(ctx context.Context) (bun.IDB, int64, error) {
-	db, tenantID, err := s.database(ctx)
+func (s *StudentNoteStore) tenantDatabase(ctx context.Context) (bun.IDB, TenantScope, error) {
+	db, scope, err := s.database(ctx)
 	if err != nil {
-		return nil, 0, err
+		return nil, TenantScope{}, err
 	}
-	if tenantID <= 0 {
-		return nil, 0, errors.New("people directory: student notes require a tenant")
+	if scope.TenantID <= 0 {
+		return nil, TenantScope{}, errors.New("people directory: student notes require a tenant")
 	}
-	return db, tenantID, nil
+	return db, scope, nil
 }
 
 // List returns one child's visible notes, newest first. The audience predicate
 // is built from the filter the caller resolved; this store never decides who
 // may read what, it only turns the answer into SQL.
 func (s *StudentNoteStore) List(ctx context.Context, filter domain.StudentNoteFilter) ([]domain.StudentNote, domain.OperationStats, error) {
-	db, tenantID, err := s.tenantDatabase(ctx)
+	db, scope, err := s.tenantDatabase(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
@@ -69,7 +69,7 @@ func (s *StudentNoteStore) List(ctx context.Context, filter domain.StudentNoteFi
 	query := db.NewSelect().
 		Model(&rows).
 		ModelTableExpr(studentNotesTable+" AS note").
-		Where(`"note".tenant_id = ?`, tenantID).
+		Where(`"note".tenant_id = ?`, scope.TenantID).
 		Where(`"note".student_id = ?`, filter.StudentID).
 		Where(`"note".deleted_at IS NULL`)
 	if filter.Kind != "" {
@@ -135,7 +135,7 @@ func applyAudience(query *bun.SelectQuery, filter domain.StudentNoteFilter) *bun
 // SELECT ... FOR <lock> so a writer can re-check authorship under the same
 // lock it updates with.
 func (s *StudentNoteStore) FindByID(ctx context.Context, id int64, lock string) (domain.StudentNote, bool, domain.OperationStats, error) {
-	db, tenantID, err := s.tenantDatabase(ctx)
+	db, scope, err := s.tenantDatabase(ctx)
 	if err != nil {
 		return domain.StudentNote{}, false, domain.OperationStats{}, err
 	}
@@ -143,7 +143,7 @@ func (s *StudentNoteStore) FindByID(ctx context.Context, id int64, lock string) 
 	query := db.NewSelect().
 		Model(&row).
 		ModelTableExpr(studentNotesTable+" AS note").
-		Where(`"note".tenant_id = ?`, tenantID).
+		Where(`"note".tenant_id = ?`, scope.TenantID).
 		Where(`"note".id = ?`, id).
 		Where(`"note".deleted_at IS NULL`)
 	if lock != "" {
@@ -163,51 +163,16 @@ func (s *StudentNoteStore) FindByID(ctx context.Context, id int64, lock string) 
 	return row.toDomain(), true, stats, nil
 }
 
-// FindLegacySupervisorNote finds the still-live hint the temporary legacy
-// field owns. A field clear locks it before hiding the note and recording the
-// compatibility deletion in the Audit-owned ledger.
-func (s *StudentNoteStore) FindLegacySupervisorNote(
-	ctx context.Context, studentID int64, lock string,
-) (domain.StudentNote, bool, domain.OperationStats, error) {
-	db, tenantID, err := s.tenantDatabase(ctx)
-	if err != nil {
-		return domain.StudentNote{}, false, domain.OperationStats{}, err
-	}
-	var row studentNoteRow
-	query := db.NewSelect().
-		Model(&row).
-		ModelTableExpr(studentNotesTable+" AS note").
-		Where(`"note".tenant_id = ?`, tenantID).
-		Where(`"note".student_id = ?`, studentID).
-		Where(`"note".origin = ?`, domain.StudentNoteOriginMasterData).
-		Where(`"note".deleted_at IS NULL`)
-	if lock != "" {
-		query = query.For(lock)
-	}
-	stats := domain.OperationStats{Queries: 1}
-	started := time.Now()
-	err = query.Scan(ctx)
-	stats.StatementDuration = time.Since(started)
-	if errors.Is(err, sql.ErrNoRows) {
-		return domain.StudentNote{}, false, stats, nil
-	}
-	if err != nil {
-		return domain.StudentNote{}, false, stats, fmt.Errorf("find legacy supervisor note: %w", err)
-	}
-	stats.Rows = 1
-	return row.toDomain(), true, stats, nil
-}
-
 // Insert writes one new note and returns it as stored, so the caller renders
 // the server's timestamps rather than guessing them.
 func (s *StudentNoteStore) Insert(ctx context.Context, create domain.CreateStudentNote) (domain.StudentNote, domain.OperationStats, error) {
-	db, tenantID, err := s.tenantDatabase(ctx)
+	db, scope, err := s.tenantDatabase(ctx)
 	if err != nil {
 		return domain.StudentNote{}, domain.OperationStats{}, err
 	}
 	author := create.AuthorAccountID
 	row := studentNoteRow{
-		TenantID: tenantID, StudentID: create.StudentID, AuthorAccountID: &author,
+		TenantID: scope.TenantID, StudentID: create.StudentID, AuthorAccountID: &author,
 		Origin: domain.StudentNoteOriginStaff, Kind: create.Kind, Visibility: create.Visibility,
 		Category: optionalText(create.Category), Body: create.Body,
 		SubjectDate:      create.Subject.Date,
@@ -233,7 +198,7 @@ func (s *StudentNoteStore) Insert(ctx context.Context, create domain.CreateStude
 // group reference stays fixed, so a correction cannot move a note to another
 // activity or group.
 func (s *StudentNoteStore) Update(ctx context.Context, update domain.UpdateStudentNote) (domain.StudentNote, domain.OperationStats, error) {
-	db, tenantID, err := s.tenantDatabase(ctx)
+	db, scope, err := s.tenantDatabase(ctx)
 	if err != nil {
 		return domain.StudentNote{}, domain.OperationStats{}, err
 	}
@@ -248,7 +213,7 @@ func (s *StudentNoteStore) Update(ctx context.Context, update domain.UpdateStude
 		Set("category = ?", optionalText(update.Category)).
 		Set("body = ?", update.Body).
 		Set("subject_date = ?", update.SubjectDate).
-		Where(`"note".tenant_id = ?`, tenantID).
+		Where(`"note".tenant_id = ?`, scope.TenantID).
 		Where(`"note".id = ?`, update.ID).
 		Where(`"note".deleted_at IS NULL`).
 		Returning("*").
@@ -268,7 +233,7 @@ func (s *StudentNoteStore) Update(ctx context.Context, update domain.UpdateStude
 // about a child is documentation, and a deletion that leaves no trace is
 // indistinguishable from a note that was never written.
 func (s *StudentNoteStore) SoftDelete(ctx context.Context, deletion domain.DeleteStudentNote) (domain.OperationStats, error) {
-	db, tenantID, err := s.tenantDatabase(ctx)
+	db, scope, err := s.tenantDatabase(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
@@ -279,7 +244,7 @@ func (s *StudentNoteStore) SoftDelete(ctx context.Context, deletion domain.Delet
 		ModelTableExpr(studentNotesTable+" AS note").
 		Set("deleted_at = clock_timestamp()").
 		Set("deleted_by_account_id = ?", deletion.ActorAccountID).
-		Where(`"note".tenant_id = ?`, tenantID).
+		Where(`"note".tenant_id = ?`, scope.TenantID).
 		Where(`"note".id = ?`, deletion.ID).
 		Where(`"note".deleted_at IS NULL`).
 		Exec(ctx)
@@ -298,62 +263,31 @@ func (s *StudentNoteStore) SoftDelete(ctx context.Context, deletion domain.Delet
 	return stats, nil
 }
 
-// SyncLegacySupervisorNotes mirrors an actual legacy-field write to the
-// carried-over permanent hint. It is an application write rather than a
-// database trigger: the student-owner expand contract forbids compatibility
-// triggers on its storage tables.
-func (s *StudentNoteStore) SyncLegacySupervisorNotes(
-	ctx context.Context, studentID int64, supervisorNotes *string,
+// ImportPermanentHint writes an imported „Betreuernotizen" text to the
+// carried-over permanent hint: it replaces the live one, or creates one when
+// the child never had one. A hint the school deliberately deleted stays
+// deleted, the same rule the 1.15.438 carry-over follows.
+func (s *StudentNoteStore) ImportPermanentHint(
+	ctx context.Context, studentID int64, body string,
 ) (domain.OperationStats, error) {
-	db, tenantID, err := s.tenantDatabase(ctx)
+	db, scope, err := s.tenantDatabase(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
-	if studentID <= 0 {
+	body = strings.TrimSpace(body)
+	if studentID <= 0 || body == "" {
 		return domain.OperationStats{}, domain.ErrStudentNoteInvalid
 	}
-	body := strings.TrimSpace(derefString(supervisorNotes))
-	if body == "" {
-		return s.deleteLegacySupervisorNote(ctx, db, tenantID, studentID)
-	}
-	return s.upsertLegacySupervisorNote(ctx, db, tenantID, studentID, body)
-}
-
-func (s *StudentNoteStore) deleteLegacySupervisorNote(
-	ctx context.Context, db bun.IDB, tenantID, studentID int64,
-) (domain.OperationStats, error) {
-	stats := domain.OperationStats{Queries: 1}
-	started := time.Now()
-	_, err := db.NewUpdate().
-		Model((*studentNoteRow)(nil)).
-		ModelTableExpr(studentNotesTable+" AS note").
-		Set("deleted_at = clock_timestamp()").
-		Set("deleted_by_account_id = NULL").
-		Where(`"note".tenant_id = ?`, tenantID).
-		Where(`"note".student_id = ?`, studentID).
-		Where(`"note".origin = ?`, domain.StudentNoteOriginMasterData).
-		Where(`"note".deleted_at IS NULL`).
-		Exec(ctx)
-	stats.StatementDuration = time.Since(started)
-	if err != nil {
-		return stats, fmt.Errorf("sync legacy supervisor notes: %w", err)
-	}
-	return stats, nil
-}
-
-func (s *StudentNoteStore) upsertLegacySupervisorNote(
-	ctx context.Context, db bun.IDB, tenantID, studentID int64, body string,
-) (domain.OperationStats, error) {
-	updated, stats, err := s.updateLiveLegacySupervisorNote(ctx, db, tenantID, studentID, body)
+	updated, stats, err := s.updateLivePermanentHint(ctx, db, scope.TenantID, studentID, body)
 	if err != nil || updated {
 		return stats, err
 	}
-	insertStats, err := s.insertLegacySupervisorNote(ctx, db, tenantID, studentID, body)
+	insertStats, err := s.insertPermanentHint(ctx, db, scope.TenantID, studentID, body)
 	stats.Add(insertStats)
 	return stats, err
 }
 
-func (s *StudentNoteStore) updateLiveLegacySupervisorNote(
+func (s *StudentNoteStore) updateLivePermanentHint(
 	ctx context.Context, db bun.IDB, tenantID, studentID int64, body string,
 ) (bool, domain.OperationStats, error) {
 	stats := domain.OperationStats{Queries: 1}
@@ -369,17 +303,17 @@ func (s *StudentNoteStore) updateLiveLegacySupervisorNote(
 		Exec(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
-		return false, stats, fmt.Errorf("sync legacy supervisor notes: %w", err)
+		return false, stats, fmt.Errorf("import permanent hint: %w", err)
 	}
 	affected, err := result.RowsAffected()
 	if err != nil {
-		return false, stats, fmt.Errorf("sync legacy supervisor notes: %w", err)
+		return false, stats, fmt.Errorf("import permanent hint: %w", err)
 	}
 	stats.Rows = affected
 	return affected > 0, stats, nil
 }
 
-func (s *StudentNoteStore) insertLegacySupervisorNote(
+func (s *StudentNoteStore) insertPermanentHint(
 	ctx context.Context, db bun.IDB, tenantID, studentID int64, body string,
 ) (domain.OperationStats, error) {
 	stats := domain.OperationStats{Queries: 1}
@@ -393,20 +327,13 @@ func (s *StudentNoteStore) insertLegacySupervisorNote(
 		)`, tenantID, studentID, body, tenantID, studentID).Exec(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
-		return stats, fmt.Errorf("sync legacy supervisor notes: %w", err)
+		return stats, fmt.Errorf("import permanent hint: %w", err)
 	}
 	stats.Rows, err = result.RowsAffected()
 	if err != nil {
-		return stats, fmt.Errorf("sync legacy supervisor notes: %w", err)
+		return stats, fmt.Errorf("import permanent hint: %w", err)
 	}
 	return stats, nil
-}
-
-func derefString(value *string) string {
-	if value == nil {
-		return ""
-	}
-	return *value
 }
 
 func (r studentNoteRow) toDomain() domain.StudentNote {

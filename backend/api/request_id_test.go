@@ -64,8 +64,7 @@ func TestRequestIDGenerationFailureHasProblemResponse(t *testing.T) {
 		t.Fatalf("decode response: %v", err)
 	}
 	want := map[string]any{
-		"status":   "error",
-		"error":    http.StatusText(http.StatusInternalServerError),
+		"status":   float64(http.StatusInternalServerError),
 		"code":     "general.server",
 		"type":     "https://moto-app.de/help/fehlermeldungen#anleitung-unerwarteter-fehler",
 		"title":    http.StatusText(http.StatusInternalServerError),

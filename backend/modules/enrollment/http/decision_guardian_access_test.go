@@ -19,8 +19,7 @@ import (
 func TestDecisionService_Decide_ApprovedAttachesExistingAccountAndReactivatesAccess(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 	tenantID := testpkg.Tenant(t)
 	account := testpkg.CreateTestAccount(t, env.db, "attach-existing-account")
@@ -30,7 +29,7 @@ func TestDecisionService_Decide_ApprovedAttachesExistingAccountAndReactivatesAcc
 	var studentIDs []int64
 	for _, child := range []string{"Erstes", "Zweites"} {
 		reqID, childID := submitOneChild(t, env, account.Email, child, "Kind")
-		outcome, err := env.decision.Decide(ctx, enrollmentAPI.DecideInput{
+		outcome, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.decision.Decide, enrollmentAPI.DecideInput{
 			RequestID: reqID, ChildID: childID, Status: capability.DecisionApproved, ReviewedBy: env.creatorID,
 		})
 		require.NoError(t, err)
@@ -50,10 +49,10 @@ func TestDecisionService_Decide_ApprovedAttachesExistingAccountAndReactivatesAcc
 	require.Equal(t, 1, guardianRoles, "two approvals for the same guardian assign the role once")
 
 	for _, studentID := range studentIDs {
-		links, err := env.repos.StudentGuardian.FindByStudentID(ctx, studentID)
+		links, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.StudentGuardian.FindByStudentID, studentID)
 		require.NoError(t, err)
 		require.Len(t, links, 1)
-		profile, err := env.repos.GuardianProfile.FindByID(ctx, links[0].GuardianProfileID)
+		profile, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.GuardianProfile.FindByID, links[0].GuardianProfileID)
 		require.NoError(t, err)
 		require.NotNil(t, profile.AccountID)
 		require.Equal(t, account.ID, *profile.AccountID, "the guardian profile must be linked to the existing account")

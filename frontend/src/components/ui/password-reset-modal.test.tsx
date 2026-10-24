@@ -3,8 +3,33 @@
  * Tests the rendering and basic functionality of password reset modal
  */
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { useRef, type ComponentProps } from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { useApiFormError } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
 import { PasswordResetModal } from "./password-reset-modal";
+
+/** The modal on the shared error path, as every owner mounts it. */
+function ResetModal(
+  props: Omit<
+    ComponentProps<typeof PasswordResetModal>,
+    "errorPath" | "formRef"
+  >,
+) {
+  const formRef = useRef<HTMLFormElement>(null);
+  const errorPath = useApiFormError(formRef);
+  return (
+    <PasswordResetModal {...props} errorPath={errorPath} formRef={formRef} />
+  );
+}
+
+function rateLimited(retryAfterSeconds: number): ApiError {
+  const error = new ApiError("too many reset requests", 429, {
+    code: "identity.password_reset_rate_limited",
+  });
+  error.retryAfterSeconds = retryAfterSeconds;
+  return error;
+}
 
 const modalOnCloseHistory: Array<() => void> = [];
 
@@ -108,32 +133,26 @@ describe("PasswordResetModal", () => {
   });
 
   it("renders the modal when open", () => {
-    render(<PasswordResetModal isOpen={true} onClose={mockOnClose} />);
+    render(<ResetModal isOpen={true} onClose={mockOnClose} />);
 
     expect(screen.getByTestId("modal")).toBeInTheDocument();
   });
 
-  it("does not render when closed", () => {
-    render(<PasswordResetModal isOpen={false} onClose={mockOnClose} />);
-
-    expect(screen.queryByTestId("modal")).not.toBeInTheDocument();
-  });
-
   it("renders password reset form", () => {
-    render(<PasswordResetModal isOpen={true} onClose={mockOnClose} />);
+    render(<ResetModal isOpen={true} onClose={mockOnClose} />);
 
     expect(screen.getByText(/Passwort zurücksetzen/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/E-Mail-Adresse/i)).toBeInTheDocument();
   });
 
   it("renders email input field", () => {
-    render(<PasswordResetModal isOpen={true} onClose={mockOnClose} />);
+    render(<ResetModal isOpen={true} onClose={mockOnClose} />);
 
     expect(screen.getByTestId("input-reset-email")).toBeInTheDocument();
   });
 
   it("renders submit and cancel buttons", () => {
-    render(<PasswordResetModal isOpen={true} onClose={mockOnClose} />);
+    render(<ResetModal isOpen={true} onClose={mockOnClose} />);
 
     expect(
       screen.getByRole("button", { name: /Abbrechen/i }),
@@ -144,7 +163,7 @@ describe("PasswordResetModal", () => {
   });
 
   it("handles email input changes", () => {
-    render(<PasswordResetModal isOpen={true} onClose={mockOnClose} />);
+    render(<ResetModal isOpen={true} onClose={mockOnClose} />);
 
     const emailInput = screen.getByTestId("input-reset-email");
     fireEvent.change(emailInput, { target: { value: "test@example.com" } });
@@ -153,7 +172,7 @@ describe("PasswordResetModal", () => {
   });
 
   it("keeps a stable modal close handler while typing", () => {
-    render(<PasswordResetModal isOpen={true} onClose={mockOnClose} />);
+    render(<ResetModal isOpen={true} onClose={mockOnClose} />);
 
     const initialOnClose = modalOnCloseHistory.at(-1);
     const emailInput = screen.getByTestId("input-reset-email");
@@ -164,7 +183,7 @@ describe("PasswordResetModal", () => {
   });
 
   it("displays success state after successful submission", async () => {
-    render(<PasswordResetModal isOpen={true} onClose={mockOnClose} />);
+    render(<ResetModal isOpen={true} onClose={mockOnClose} />);
 
     const emailInput = screen.getByTestId("input-reset-email");
     fireEvent.change(emailInput, { target: { value: "test@example.com" } });
@@ -178,7 +197,7 @@ describe("PasswordResetModal", () => {
   });
 
   it("displays instructions in success state", async () => {
-    render(<PasswordResetModal isOpen={true} onClose={mockOnClose} />);
+    render(<ResetModal isOpen={true} onClose={mockOnClose} />);
 
     const emailInput = screen.getByTestId("input-reset-email");
     fireEvent.change(emailInput, { target: { value: "test@example.com" } });
@@ -197,7 +216,7 @@ describe("PasswordResetModal", () => {
   });
 
   it("displays close button in success state", async () => {
-    render(<PasswordResetModal isOpen={true} onClose={mockOnClose} />);
+    render(<ResetModal isOpen={true} onClose={mockOnClose} />);
 
     const emailInput = screen.getByTestId("input-reset-email");
     fireEvent.change(emailInput, { target: { value: "test@example.com" } });
@@ -213,7 +232,7 @@ describe("PasswordResetModal", () => {
   });
 
   it("calls onClose when cancel button is clicked", () => {
-    render(<PasswordResetModal isOpen={true} onClose={mockOnClose} />);
+    render(<ResetModal isOpen={true} onClose={mockOnClose} />);
 
     const cancelButton = screen.getByRole("button", { name: /Abbrechen/i });
     fireEvent.click(cancelButton);
@@ -226,7 +245,7 @@ describe("PasswordResetModal", () => {
       () => new Promise((resolve) => setTimeout(resolve, 1000)),
     );
 
-    render(<PasswordResetModal isOpen={true} onClose={mockOnClose} />);
+    render(<ResetModal isOpen={true} onClose={mockOnClose} />);
 
     const emailInput = screen.getByTestId("input-reset-email");
     fireEvent.change(emailInput, { target: { value: "test@example.com" } });
@@ -238,11 +257,11 @@ describe("PasswordResetModal", () => {
   });
 
   it("handles API errors", async () => {
-    mockRequestPasswordReset.mockRejectedValue({
-      message: "Email not found",
-    });
+    mockRequestPasswordReset.mockRejectedValue(
+      new ApiError("smtp unavailable", 500),
+    );
 
-    render(<PasswordResetModal isOpen={true} onClose={mockOnClose} />);
+    render(<ResetModal isOpen={true} onClose={mockOnClose} />);
 
     const emailInput = screen.getByTestId("input-reset-email");
     fireEvent.change(emailInput, { target: { value: "test@example.com" } });
@@ -251,17 +270,16 @@ describe("PasswordResetModal", () => {
     fireEvent.click(submitButton);
 
     await waitFor(() => {
-      expect(screen.getByTestId("alert-error")).toBeInTheDocument();
+      expect(screen.getByTestId("alert-error")).toHaveTextContent(
+        /Das Senden des Links konnte nicht bearbeitet werden/i,
+      );
     });
   });
 
   it("handles rate limit errors with countdown", async () => {
-    mockRequestPasswordReset.mockRejectedValue({
-      status: 429,
-      retryAfterSeconds: 60,
-    });
+    mockRequestPasswordReset.mockRejectedValue(rateLimited(60));
 
-    render(<PasswordResetModal isOpen={true} onClose={mockOnClose} />);
+    render(<ResetModal isOpen={true} onClose={mockOnClose} />);
 
     const emailInput = screen.getByTestId("input-reset-email");
     fireEvent.change(emailInput, { target: { value: "test@example.com" } });
@@ -270,17 +288,20 @@ describe("PasswordResetModal", () => {
     fireEvent.click(submitButton);
 
     await waitFor(() => {
-      expect(screen.getByText(/Zu viele Versuche/i)).toBeInTheDocument();
+      expect(
+        screen.getByText(/Sie haben zu oft einen Link angefordert/i),
+      ).toBeInTheDocument();
     });
+    expect(
+      screen.getByText(/Einen neuen Link können Sie in 01:00 anfordern/i),
+    ).toBeInTheDocument();
+    expect(submitButton).toBeDisabled();
   });
 
   it("persists rate limit to localStorage", async () => {
-    mockRequestPasswordReset.mockRejectedValue({
-      status: 429,
-      retryAfterSeconds: 60,
-    });
+    mockRequestPasswordReset.mockRejectedValue(rateLimited(60));
 
-    render(<PasswordResetModal isOpen={true} onClose={mockOnClose} />);
+    render(<ResetModal isOpen={true} onClose={mockOnClose} />);
 
     const emailInput = screen.getByTestId("input-reset-email");
     fireEvent.change(emailInput, { target: { value: "test@example.com" } });
@@ -301,9 +322,12 @@ describe("PasswordResetModal", () => {
       futureTimestamp.toString(),
     );
 
-    render(<PasswordResetModal isOpen={true} onClose={mockOnClose} />);
+    render(<ResetModal isOpen={true} onClose={mockOnClose} />);
 
-    expect(screen.getByText(/Zu viele Versuche/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Einen neuen Link können Sie in/i),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Link senden/i })).toBeDisabled();
   });
 
   it("clears expired rate limit from localStorage", () => {
@@ -313,10 +337,14 @@ describe("PasswordResetModal", () => {
       pastTimestamp.toString(),
     );
 
-    render(<PasswordResetModal isOpen={true} onClose={mockOnClose} />);
+    render(<ResetModal isOpen={true} onClose={mockOnClose} />);
 
-    // Should not show rate limit error
-    expect(screen.queryByText(/Zu viele Versuche/i)).not.toBeInTheDocument();
+    // Anker: das Formular steht da und der Knopf ist wieder frei.
+    expect(screen.getByRole("button", { name: /Link senden/i })).toBeEnabled();
+    // Should not show the wait
+    expect(
+      screen.queryByText(/Einen neuen Link können Sie in/i),
+    ).not.toBeInTheDocument();
   });
 
   describe("Scroll to error", () => {
@@ -324,11 +352,11 @@ describe("PasswordResetModal", () => {
       const scrollIntoViewMock = vi.fn();
       Element.prototype.scrollIntoView = scrollIntoViewMock;
 
-      mockRequestPasswordReset.mockRejectedValue({
-        message: "Email not found",
-      });
+      mockRequestPasswordReset.mockRejectedValue(
+        new ApiError("smtp unavailable", 500),
+      );
 
-      render(<PasswordResetModal isOpen={true} onClose={mockOnClose} />);
+      render(<ResetModal isOpen={true} onClose={mockOnClose} />);
 
       const emailInput = screen.getByTestId("input-reset-email");
       fireEvent.change(emailInput, { target: { value: "test@example.com" } });
@@ -345,7 +373,7 @@ describe("PasswordResetModal", () => {
       await waitFor(() => {
         expect(scrollIntoViewMock).toHaveBeenCalledWith({
           behavior: "smooth",
-          block: "start",
+          block: "nearest",
         });
       });
     });

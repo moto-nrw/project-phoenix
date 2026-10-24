@@ -25,15 +25,3 @@ export function isDateExpired(dateString: string | null | undefined): boolean {
   const date = new Date(dateString!);
   return date.getTime() < Date.now();
 }
-
-/**
- * Safely parses a date string and returns a Date object or null
- * @param dateString - The date string to parse
- * @returns Date object if valid, null otherwise
- */
-export function safeParseDate(
-  dateString: string | null | undefined,
-): Date | null {
-  if (!isValidDateString(dateString)) return null;
-  return new Date(dateString!);
-}

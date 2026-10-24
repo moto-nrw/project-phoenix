@@ -2,10 +2,8 @@ package sse
 
 import (
 	"context"
+	"errors"
 	"log/slog"
-
-	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/uptrace/bun"
 )
 
 // SubscriptionResolver resolves the caller's live-update topics through the
@@ -26,18 +24,20 @@ type SetupRejection interface {
 }
 
 // Resource defines the SSE resource with dependencies
-type Resource struct {
-	hub     *realtime.Hub
+type Resource[E Event, C Client[E]] struct {
+	hub     Hub[C]
 	userCtx SubscriptionResolver
-	db      *bun.DB
+	runtime Runtime[E, C]
 	logger  *slog.Logger
 	// schoolAccess re-checks an open school-portal stream (#2208). Wired via
-	// SetSchoolAccess; the school handler refuses to stream without it.
+	// NewResourceWithSchoolAccess; the school handler refuses to stream
+	// without it: a long-lived connection that nobody re-authorizes is
+	// exactly what this guard exists to prevent.
 	schoolAccess SchoolAccessChecker
 }
 
 // getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil
-func (rs *Resource) getLogger() *slog.Logger {
+func (rs *Resource[E, C]) getLogger() *slog.Logger {
 	return loggerOrDefault(rs.logger)
 }
 
@@ -49,16 +49,34 @@ func loggerOrDefault(logger *slog.Logger) *slog.Logger {
 }
 
 // NewResource creates a new SSE resource
-func NewResource(
-	hub *realtime.Hub,
+func NewResource[E Event, C Client[E]](
+	hub Hub[C],
 	userCtx SubscriptionResolver,
-	db *bun.DB,
+	runtime Runtime[E, C],
 	logger *slog.Logger,
-) *Resource {
-	return &Resource{
+) *Resource[E, C] {
+	return &Resource[E, C]{
 		hub:     hub,
 		userCtx: userCtx,
-		db:      db,
+		runtime: runtime,
 		logger:  logger,
 	}
+}
+
+// NewResourceWithSchoolAccess is NewResource with the school stream's access
+// re-check at construction (ADR 0059). A missing hub, subscription resolver
+// or access checker is a construction error.
+func NewResourceWithSchoolAccess[E Event, C Client[E]](
+	hub Hub[C],
+	userCtx SubscriptionResolver,
+	runtime Runtime[E, C],
+	schoolAccess SchoolAccessChecker,
+	logger *slog.Logger,
+) (*Resource[E, C], error) {
+	if hub == nil || userCtx == nil || schoolAccess == nil {
+		return nil, errors.New("sse resource: hub, subscription resolver and school access are required")
+	}
+	resource := NewResource(hub, userCtx, runtime, logger)
+	resource.schoolAccess = schoolAccess
+	return resource, nil
 }

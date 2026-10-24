@@ -1,6 +1,6 @@
-import { NextResponse } from "next/server";
 import { createLogger } from "~/lib/logger";
 import { createOptionalTenantJsonProxy } from "~/lib/backend-proxy-route.server";
+import { problemResponse } from "~/lib/api-helpers.server";
 
 const logger = createLogger({ component: "AuthRegisterRoute" });
 
@@ -15,12 +15,10 @@ export const POST = createOptionalTenantJsonProxy({
       content_type: response.headers.get("content-type"),
     });
   },
-  networkErrorResponse: (error) =>
-    NextResponse.json(
-      {
-        message: "An error occurred during registration",
-        error: String(error),
-      },
-      { status: 500 },
+  networkErrorResponse: (error, request) =>
+    problemResponse(
+      500,
+      `registration request failed: ${String(error)}`,
+      request,
     ),
 });

@@ -15,9 +15,16 @@ and [fixture helpers](../../backend/test/fixtures.go).
 Copy their tenant/parallel setup, not literal IDs or legacy factory composition.
 
 - **One pool per package (#2419)**: `SetupTestDB` returns the same `*bun.DB` for every test in the binary. Never `db.Close()` it (gate: `no_shared_pool_close`). Tests that close their DB on purpose to force error paths use `testpkg.SetupClosableTestDB(t)`.
-- **No explicit `Cleanup*` calls**: `cleanupCallBaseline` is empty and the
-  AST-based gate rejects fixture cleanup through any import alias. The package
-  clone owns tenant rows. Tenantless fixture builders register their lifecycle
+- **No hand-written cleanup deletes**: the AST-based gate
+  `no_ignored_cleanup_deletes` rejects DB deletes with a discarded error in
+  `t.Cleanup`, deferred calls, cleanup closures, `wipe*`/`cleanup*`/`teardown*`
+  helpers, same-file functions those call, and at the end of a test or
+  subtest. It does not follow helpers in other files, misses SQL built at
+  runtime (`fmt.Sprintf`, local variables, ranged `[]string`), and treats a
+  merely logged error as handled. The package clone owns tenant rows.
+  Under `go test -count=N` a rerun gets a fresh tenant once its top-level test
+  calls `SetupTestDB` or `testpkg.Tenant`; a test that opens the database only
+  in subtests reuses the previous run's tenant. Tenantless fixture builders register their lifecycle
   internally; schema-migration tests use `testpkg.OwnTenantRows`; subtests that
   need isolated state use `testpkg.OwnTenant` / `testpkg.OwnCtx`. If a missing
   row is the test arrangement, use a production delete operation or reserve an
@@ -27,8 +34,15 @@ Copy their tenant/parallel setup, not literal IDs or legacy factory composition.
   The `tests_run_in_parallel` gate has an empty baseline and rejects every
   exception. Inject process configuration and output; use per-test database
   clones for schema changes, sweeps, query measurements, and lock tests.
-- **Concurrency is pinned, not inherited**: `scripts/test-backend.sh` runs
-  `-p 10 -parallel 8` (local postgres-test has `max_connections=300`);
+- **Runtime measurements are opt-in (#4426)**: a test that repeats a flow
+  for latency, plans or lock samples calls `testpkg.RequireRuntimeEvidence(t)`
+  right after `t.Parallel()` and runs only with `PHX_TEST_RUNTIME_EVIDENCE=1`.
+  Every contract it asserts (no writes, query budgets, row counts) also
+  lives in a normal test.
+- **Concurrency is bounded, not inherited**: `scripts/test-backend.sh` and
+  `scripts/test-changed.sh` use the same local package budget: half the CPUs,
+  one worker per 8 GiB RAM, at most two on macOS or four on Linux, minimum one.
+  Both keep `-parallel 8` (local postgres-test has `max_connections=300`);
   post-merge CI runs `-p 6 -parallel 8`, changed-only PRs `-p 4 -parallel 8`
   (CI's service container keeps the stock 100 connections). `-parallel` stays
   at 8 everywhere on purpose: `-test.parallel` is part of the Go test cache
@@ -43,17 +57,43 @@ Copy their tenant/parallel setup, not literal IDs or legacy factory composition.
   when rows are left in SHARED state — rows outside the tenants its own tests
   created. Rows in a test's own tenant are not leftovers. The gate runs from
   `TestMain` via `testpkg.Run(m)` (gate: `db_packages_run_the_leftover_gate`),
-  so `../scripts/run-go-toolchain.sh go test ./...` is gated exactly like a
+  so `../scripts/run-go-toolchain.sh go test -tags=testhooks ./...` is gated exactly like a
   full wrapper run; it costs the package one query at exit (~30-70ms measured).
-  `PHX_TEST_LEFTOVERS=1 ../scripts/run-go-toolchain.sh go test -v` also prints
+  `PHX_TEST_LEFTOVERS=1 ../scripts/run-go-toolchain.sh go test -tags=testhooks -v` also prints
   the pairs `testdb.LeftoverAllowlist` still tolerates;
-  `PHX_TEST_LEFTOVERS=test ../scripts/run-go-toolchain.sh go test -parallel 1 ./pkg` checks after every test
+  `PHX_TEST_LEFTOVERS=test ../scripts/run-go-toolchain.sh go test -tags=testhooks -parallel 1 ./pkg` checks after every test
   and names the culprit instead of the package.
 - **Parallel + bootstrap tenant is the combination to avoid.** Tests sharing tenant 1 may run in parallel only while every assertion is scoped to IDs the test created; the moment one asserts something tenant-wide (a count, a "list all"), it becomes order-dependent. The remaining files where both meet are frozen by the `parallel_on_bootstrap_tenant_ratchet` gate — do not add a new one, opt the package into per-test tenants instead.
 - The fixture catalog lives in `backend/test/fixtures.go` (`CreateTest*` helpers, including `*ForTenant` variants for multi-tenant tests and auth chains like `CreateTestTeacherWithAccount`). Search it before writing a new fixture.
 - Tests hitting the DB go in external test packages (`package active_test`); pure model tests stay internal.
-- From `backend/`, run the gate before pushing: `../scripts/run-go-toolchain.sh go test ./test/ -run TestHermeticTestPatterns -v`
+- From `backend/`, run the gate before pushing: `../scripts/run-go-toolchain.sh go test -tags=testhooks ./test/ -run TestHermeticTestPatterns -v`
 - Preserve test contracts; use `.claude/rules/no-test-modifications.md` to distinguish regressions from authorized expectation changes.
+
+## Credential fixtures
+
+Use `testpkg.NewTestPassword()` for a valid password in authentication,
+invitation and password-change scenarios. Keep the result and use the same
+value for setup, confirmation and login. A package-level generated fixture is
+appropriate when many tests share a credential: the fixture hash cache then
+hashes it only once. Use a second generated value for a different valid password.
+
+Use `testpkg.NewTestSigningSecret()` for an HMAC signing fixture. The shared
+`testpkg.TestJWTSecret` is generated once per binary so routers and token helpers
+agree; a separate issuer or a forged-key scenario gets a separate generated key.
+
+Generate actual cryptographic material at runtime with the existing library
+helpers. The SFTP test server generates its own password and host keys;
+Delivery's VAPID tests generate key pairs with `webpush.GenerateVAPIDKeys()`.
+Tests that only map or store credentials should use explicit placeholders such
+as `example-test-password`, `p256dh-key` and `auth-key`, not copied documentation
+keys. Preserve exact whitespace, serialization and redaction assertions.
+
+Keep literal weak, empty, malformed or wrong inputs when those properties are
+the behavior under test. Do not replace them with valid generated credentials
+or weaken their refusal assertions.
+
+Scanner setup and historical findings are documented
+under [GitGuardian findings](operations.md#gitguardian-findings).
 
 ## Local test-server lifetime
 
@@ -64,6 +104,18 @@ templates and volumes. No per-worktree teardown hook or personal machine service
 is needed. See [test-server operations](operations.md#test-database) for supported
 hosts, status, legacy-container migration and the startup/cleanup lock contract.
 
+## Test build context
+
+Cross-package test hooks compile only with `-tags=testhooks`. The test wrappers,
+CI, linter and architecture analysis enable it. Direct `go test` commands must
+pass the tag; a missing tag fails to compile callers rather than skipping them.
+Production builds run without the tag. Architecture analysis includes the
+hook-enabled superset so no existing dependency or composition debt disappears
+merely because a hook leaves the default build.
+
+For gopls, add `"gopls": {"buildFlags": ["-tags=testhooks"]}` to the editor's
+workspace settings.
+
 ## Test commands
 
 ```bash
@@ -72,15 +124,16 @@ hosts, status, legacy-container migration and the startup/cleanup lock contract.
 # migrations hash (phoenix_test_<hash>, so parallel worktrees never share
 # one), and gives each package binary a run-stamped clone.
 ../scripts/run-go-toolchain.sh ../scripts/test-backend.sh  # Full suite via gotestsum + immediate clone sweep (preferred full run)
-../scripts/run-go-toolchain.sh go test ./...                # All tests (works standalone; each binary drops its own clone at exit)
-PHX_TEST_LEFTOVERS=1 ../scripts/run-go-toolchain.sh go test -v ./modules/studentpresence/internal/application/presence  # Also print tolerated leftovers
-PHX_TEST_LEFTOVERS=test ../scripts/run-go-toolchain.sh go test -parallel 1 ./modules/studentpresence/internal/application/presence  # Name the leaking test
-PHX_TEST_KEEP_CLONE=1 ../scripts/run-go-toolchain.sh go test ./modules/studentpresence/internal/application/presence  # Keep the clone for a post-mortem
+../scripts/run-go-toolchain.sh go test -tags=testhooks ./...                # All tests (works standalone; each binary drops its own clone at exit)
+PHX_TEST_LEFTOVERS=1 ../scripts/run-go-toolchain.sh go test -tags=testhooks -v ./modules/studentpresence/internal/application/presence  # Also print tolerated leftovers
+PHX_TEST_LEFTOVERS=test ../scripts/run-go-toolchain.sh go test -tags=testhooks -parallel 1 ./modules/studentpresence/internal/application/presence  # Name the leaking test
+PHX_TEST_KEEP_CLONE=1 ../scripts/run-go-toolchain.sh go test -tags=testhooks ./modules/studentpresence/internal/application/presence  # Keep the clone for a post-mortem
+PHX_TEST_RUNTIME_EVIDENCE=1 ../scripts/run-go-toolchain.sh go test -tags=testhooks ./modules/timetable/compose/httpintegration -run '^TestSessionEndRuntimeEvidence$' -count=1 -v  # Opt-in runtime measurement; list in docs/runtime-checkpoints/README.md, never set in CI
 ../scripts/run-go-toolchain.sh go run ./internal/testdb/cmd/sweep  # Drop this/dead runs' clones manually
-../scripts/run-go-toolchain.sh go test -short ./...             # Fast inner loop; NEVER in CI — guts coverage.
-../scripts/run-go-toolchain.sh go test ./modules/studentpresence/internal/application/presence/... -v # Specific package
-../scripts/run-go-toolchain.sh go test -race ./...              # Race detection
-../scripts/run-go-toolchain.sh go test ./api/auth -run TestLogin # Specific test
+../scripts/run-go-toolchain.sh go test -tags=testhooks -short ./...             # Fast inner loop; NEVER in CI — guts coverage.
+../scripts/run-go-toolchain.sh go test -tags=testhooks ./modules/studentpresence/internal/application/presence/... -v # Specific package
+../scripts/run-go-toolchain.sh go test -tags=testhooks -race ./...              # Race detection
+../scripts/run-go-toolchain.sh go test -tags=testhooks ./api/auth -run TestLogin # Specific test
 ```
 
 The Go result cache can replay an earlier green result after the calendar day

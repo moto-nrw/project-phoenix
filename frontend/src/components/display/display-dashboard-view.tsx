@@ -1,12 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ApiError } from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
 import type { DashboardPayload } from "~/lib/display-api";
-import {
-  fetchDisplayDashboard,
-  DisplayDashboardError,
-} from "~/lib/display-api";
+import { fetchDisplayDashboard } from "~/lib/display-api";
 import { RoomOccupancyPanel } from "./room-occupancy-panel";
 import { ActivitiesPanel } from "./activities-panel";
 import { PickupTimesPanel } from "./pickup-times-panel";
@@ -52,7 +50,7 @@ export function DisplayDashboardView({ token }: DisplayDashboardViewProps) {
         setState({ kind: "active", payload });
       } catch (error) {
         if (signal.aborted) return;
-        if (error instanceof DisplayDashboardError && error.status === 404) {
+        if (error instanceof ApiError && error.status === 404) {
           setState({ kind: "invalid" });
           return;
         }

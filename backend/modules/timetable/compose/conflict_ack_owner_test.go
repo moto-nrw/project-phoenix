@@ -23,10 +23,6 @@ const (
 func conflictAckAccount(t *testing.T, db *bun.DB) int64 {
 	t.Helper()
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("conflict-ack-%d@example.com", time.Now().UnixNano()))
-	t.Cleanup(func() {
-		_, _ = db.ExecContext(context.Background(),
-			"DELETE FROM schedule.timetable_conflict_acks WHERE account_id = ?", account.ID)
-	})
 	return account.ID
 }
 

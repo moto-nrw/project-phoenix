@@ -7,9 +7,9 @@ import (
 	"github.com/go-chi/jwtauth/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/rotation"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	jwtPkg "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application/rotation"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // TrustedDeviceCookieName mirrors the tenant-side constant. The operator
@@ -140,12 +140,12 @@ func (rs *Resource) Login(w http.ResponseWriter, r *http.Request) {
 // by the router's middleware; only operator-scoped tokens that name a
 // persisted session reach the capability.
 func (rs *Resource) RefreshToken(w http.ResponseWriter, r *http.Request) {
-	if jwtPkg.RefreshTokenFromCtx(r.Context()) == "" {
+	if sessiontoken.RefreshTokenFromCtx(r.Context()) == "" {
 		common.RenderError(w, r, rs.responses.Unauthorized())
 		return
 	}
 
-	var claims jwtPkg.RefreshClaims
+	var claims sessiontoken.RefreshClaims
 	_, rawClaims, _ := jwtauth.FromContext(r.Context())
 	if err := claims.ParseClaims(rawClaims); err != nil {
 		common.RenderError(w, r, rs.responses.Unauthorized())

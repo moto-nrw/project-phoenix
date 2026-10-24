@@ -57,11 +57,12 @@ func TestMFAService_OperatorSetGlobalMFAOverride_NoneOnEmptyState(t *testing.T) 
 	// to delete — DeleteGlobal is idempotent and the audit row still fires.
 	ctx := context.Background()
 	svc, _, db := newTestMFAService(t)
+	operator := testpkg.CreateTestOperator(t, db)
 	acc := testpkg.CreateTestAccount(t, db, "global-none-noop")
 
-	require.NoError(t, svc.OperatorSetGlobalMFAOverride(ctx, 99, acc.ID, identityaccess.MFAAdminOverrideNone, "no-op"))
+	require.NoError(t, svc.OperatorSetGlobalMFAOverride(ctx, operator.ID, acc.ID, identityaccess.MFAAdminOverrideNone, "no-op"))
 
-	_, found, err := nativeMFARecords(t, db).FindGlobalOverride(ctx, acc.ID)
+	_, found, err := mfaRecordRows(t, db).FindGlobalOverride(ctx, acc.ID)
 	require.NoError(t, err)
 	assert.False(t, found)
 }
@@ -75,6 +76,7 @@ func TestMFAService_OperatorSetGlobalMFAOverride_ForceOnKeepsExistingDevice(t *t
 	// break this test.
 	ctx := context.Background()
 	svc, _, db := newTestMFAService(t)
+	operator := testpkg.CreateTestOperator(t, db)
 
 	acc := testpkg.CreateTestAccount(t, db, "global-force-on-keeps-device")
 	tenantID := testpkg.UniqueTestTenantID(t)
@@ -84,7 +86,7 @@ func TestMFAService_OperatorSetGlobalMFAOverride_ForceOnKeepsExistingDevice(t *t
 	_, _, err := svc.IssueTrustedDevice(ctx, acc.ID, tenantID, "UA-test", net.ParseIP("203.0.113.10"))
 	require.NoError(t, err)
 
-	require.NoError(t, svc.OperatorSetGlobalMFAOverride(ctx, 99, acc.ID, identityaccess.MFAAdminOverrideForceOn, "hardening"))
+	require.NoError(t, svc.OperatorSetGlobalMFAOverride(ctx, operator.ID, acc.ID, identityaccess.MFAAdminOverrideForceOn, "hardening"))
 
 	devices, err := svc.ListTrustedDevices(ctx, acc.ID, tenantID)
 	require.NoError(t, err)
@@ -100,6 +102,7 @@ func TestMFAService_OperatorSetGlobalMFAOverride_ForceOffRevokesAcrossAllTenants
 	// devices after a single global force_off.
 	ctx := context.Background()
 	svc, _, db := newTestMFAService(t)
+	operator := testpkg.CreateTestOperator(t, db)
 
 	acc := testpkg.CreateTestAccount(t, db, "global-force-off-cross-tenant")
 
@@ -114,7 +117,7 @@ func TestMFAService_OperatorSetGlobalMFAOverride_ForceOffRevokesAcrossAllTenants
 	_, _, err = svc.IssueTrustedDevice(ctx, acc.ID, tenantB, "UA-B", net.ParseIP("203.0.113.22"))
 	require.NoError(t, err)
 
-	require.NoError(t, svc.OperatorSetGlobalMFAOverride(ctx, 99, acc.ID, identityaccess.MFAAdminOverrideForceOff, "mailbox lockout"))
+	require.NoError(t, svc.OperatorSetGlobalMFAOverride(ctx, operator.ID, acc.ID, identityaccess.MFAAdminOverrideForceOff, "mailbox lockout"))
 
 	for _, tid := range []int64{tenantA, tenantB} {
 		devices, err := svc.ListTrustedDevices(ctx, acc.ID, tid)
@@ -152,13 +155,13 @@ func TestMFAService_SetMFAOverride_NoneClearsExistingRow(t *testing.T) {
 	perms := []string{"users:manage"}
 	require.NoError(t, svc.SetMFAOverride(ctx, 11, tenantID, acc.ID, identityaccess.MFAAdminOverrideForceOn, "harden", perms))
 
-	_, found, err := nativeMFARecords(t, db).FindTenantOverride(ctx, acc.ID, tenantID)
+	_, found, err := mfaRecordRows(t, db).FindTenantOverride(ctx, acc.ID, tenantID)
 	require.NoError(t, err)
 	require.True(t, found)
 
 	require.NoError(t, svc.SetMFAOverride(ctx, 11, tenantID, acc.ID, identityaccess.MFAAdminOverrideNone, "policy reverted", perms))
 
-	_, found, err = nativeMFARecords(t, db).FindTenantOverride(ctx, acc.ID, tenantID)
+	_, found, err = mfaRecordRows(t, db).FindTenantOverride(ctx, acc.ID, tenantID)
 	require.NoError(t, err)
 	assert.False(t, found, "none must DELETE the row, not leave it with a stale override value")
 }
@@ -230,6 +233,7 @@ func TestMFAService_OperatorSetGlobalMFAOverride_WaitsForTheAccountRowLock(t *te
 
 	ctx := context.Background()
 	svc, _, db := newTestMFAService(t)
+	operator := testpkg.CreateTestOperator(t, db)
 	acc := testpkg.CreateTestAccount(t, db, "global-override-lock-order")
 
 	// An override row must already exist: the row is what makes this a real
@@ -239,7 +243,7 @@ func TestMFAService_OperatorSetGlobalMFAOverride_WaitsForTheAccountRowLock(t *te
 	// (account_id does not change), so nothing but the explicit account lock
 	// orders the flip against a mint that already read the old value.
 	require.NoError(t, svc.OperatorSetGlobalMFAOverride(
-		ctx, 99, acc.ID, identityaccess.MFAAdminOverrideForceOff, "seed"))
+		ctx, operator.ID, acc.ID, identityaccess.MFAAdminOverrideForceOff, "seed"))
 
 	// Stand in for the mint transaction, which owns the account row from its
 	// precondition check until commit.
@@ -252,7 +256,7 @@ func TestMFAService_OperatorSetGlobalMFAOverride_WaitsForTheAccountRowLock(t *te
 	written := make(chan error, 1)
 	go func() {
 		written <- svc.OperatorSetGlobalMFAOverride(
-			context.Background(), 99, acc.ID, identityaccess.MFAAdminOverrideForceOn, "lock order")
+			context.Background(), operator.ID, acc.ID, identityaccess.MFAAdminOverrideForceOn, "lock order")
 	}()
 
 	select {

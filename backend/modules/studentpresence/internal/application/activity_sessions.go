@@ -5,12 +5,12 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 )
 
-func (s *Service) FindActivitySession(ctx context.Context, instanceID int64) (result ports.ActivitySession, err error) {
-	err = s.run("find_activity_session", func() (ports.Stats, error) {
+func (s *Service) FindActivitySession(ctx context.Context, instanceID int64) (result studentpresence.ActivitySession, err error) {
+	err = s.runWrite(ctx, "find_activity_session", func(ctx context.Context) (ports.Stats, error) {
 		if instanceID <= 0 {
 			return ports.Stats{}, errors.New("student presence: invalid instance ID")
 		}
@@ -19,7 +19,7 @@ func (s *Service) FindActivitySession(ctx context.Context, instanceID int64) (re
 			return stats, findErr
 		}
 		if !found {
-			return stats, ports.ErrActivitySessionNotFound
+			return stats, studentpresence.ErrActivitySessionNotFound
 		}
 		result = value
 		return stats, nil
@@ -27,8 +27,8 @@ func (s *Service) FindActivitySession(ctx context.Context, instanceID int64) (re
 	return result, err
 }
 
-func (s *Service) ListActivitySessions(ctx context.Context, filter ports.ActivitySessionFilter) (result []ports.ActivitySession, err error) {
-	err = s.run("list_activity_sessions", func() (ports.Stats, error) {
+func (s *Service) ListActivitySessions(ctx context.Context, filter studentpresence.ActivitySessionFilter) (result []studentpresence.ActivitySession, err error) {
+	err = s.runWrite(ctx, "list_activity_sessions", func(ctx context.Context) (ports.Stats, error) {
 		if !validIDs(filter.InstanceIDs) || !validIDs(filter.ActiveGroupIDs) || !validActivitySessionStatus(filter.Status, true) {
 			return ports.Stats{}, errors.New("student presence: invalid activity session filter")
 		}
@@ -36,14 +36,14 @@ func (s *Service) ListActivitySessions(ctx context.Context, filter ports.Activit
 		result, stats, err = s.store.ListActivitySessions(ctx, filter)
 		return stats, err
 	})
-	return result, err
+	return listResult(result, err)
 }
 
 // SessionExecution answers, in one statement, which of the instances ended
 // and which of the participants are marked as not booked. Timetable asks it
 // before offering a block to a later pickup.
-func (s *Service) SessionExecution(ctx context.Context, filter ports.SessionExecutionFilter) (result ports.SessionExecution, err error) {
-	err = s.run("session_execution", func() (ports.Stats, error) {
+func (s *Service) SessionExecution(ctx context.Context, filter studentpresence.SessionExecutionFilter) (result studentpresence.SessionExecution, err error) {
+	err = s.runWrite(ctx, "session_execution", func(ctx context.Context) (ports.Stats, error) {
 		if !validIDs(filter.InstanceIDs) || !validIDs(filter.ParticipantIDs) {
 			return ports.Stats{}, errors.New("student presence: invalid session execution filter")
 		}
@@ -70,23 +70,23 @@ func validActivitySessionStatus(status string, optional bool) bool {
 
 // StartActivitySession joins the caller's transaction: the start of a block
 // writes the live group, its supervisors and the session together.
-func (s *Service) StartActivitySession(ctx context.Context, start ports.ActivitySessionStart) (result ports.ActivitySession, err error) {
+func (s *Service) StartActivitySession(ctx context.Context, start studentpresence.ActivitySessionStart) (result studentpresence.ActivitySession, err error) {
 	err = s.runWrite(ctx, "start_activity_session", func(txCtx context.Context) (ports.Stats, error) {
 		if start.InstanceID <= 0 || start.ActiveGroupID <= 0 || start.StartedAt.IsZero() || (start.StartedBy != nil && *start.StartedBy <= 0) {
 			return ports.Stats{}, errors.New("student presence: invalid activity session start")
 		}
 		var stats ports.Stats
 		result, stats, err = s.store.StartActivitySession(txCtx, start)
-		if base.IsUniqueViolation(err) {
+		if errors.Is(err, studentpresence.ErrActivitySessionExists) {
 			// One session per instance: a second start races the first.
-			return stats, ports.ErrActivitySessionExists
+			return stats, studentpresence.ErrActivitySessionExists
 		}
 		return stats, err
 	})
 	return result, err
 }
 
-func (s *Service) CompleteActivitySession(ctx context.Context, completion ports.ActivitySessionCompletion) (result ports.ActivitySession, err error) {
+func (s *Service) CompleteActivitySession(ctx context.Context, completion studentpresence.ActivitySessionCompletion) (result studentpresence.ActivitySession, err error) {
 	err = s.runWrite(ctx, "complete_activity_session", func(txCtx context.Context) (ports.Stats, error) {
 		if completion.InstanceID <= 0 || completion.CompletedAt.IsZero() || (completion.CompletedBy != nil && *completion.CompletedBy <= 0) {
 			return ports.Stats{}, errors.New("student presence: invalid activity session completion")
@@ -96,7 +96,7 @@ func (s *Service) CompleteActivitySession(ctx context.Context, completion ports.
 			return stats, completeErr
 		}
 		if !found {
-			return stats, ports.ErrActivitySessionNotFound
+			return stats, studentpresence.ErrActivitySessionNotFound
 		}
 		result = value
 		return stats, nil
@@ -113,7 +113,7 @@ func (s *Service) RecordActivitySessionCompleted(ctx context.Context, instanceID
 	})
 }
 
-func (s *Service) ReopenActivitySession(ctx context.Context, instanceID, activeGroupID int64) (result ports.ActivitySession, err error) {
+func (s *Service) ReopenActivitySession(ctx context.Context, instanceID, activeGroupID int64) (result studentpresence.ActivitySession, err error) {
 	err = s.run("reopen_activity_session", func() (ports.Stats, error) {
 		if instanceID <= 0 || activeGroupID <= 0 {
 			return ports.Stats{}, errors.New("student presence: invalid activity session reopen")
@@ -126,7 +126,7 @@ func (s *Service) ReopenActivitySession(ctx context.Context, instanceID, activeG
 			return stats, reopenErr
 		}
 		if !found {
-			return stats, ports.ErrActivitySessionNotFound
+			return stats, studentpresence.ErrActivitySessionNotFound
 		}
 		result = value
 		return stats, nil

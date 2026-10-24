@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -15,7 +15,7 @@ import (
 func TestSchoolAccountCountsDeduplicateWithinBoundedGroups(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	identity, err := repositories.NewIdentityAccessForTests(db)
+	identity, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 	first, _ := testpkg.CreateTestTenant(t, db)
@@ -43,11 +43,11 @@ func TestSchoolAccountCountsDeduplicateWithinBoundedGroups(t *testing.T) {
 	}
 	check(ctx, want)
 	require.NoError(t, testpkg.WithinTenantContext(t, testpkg.TenantContext(first), db, first, func(txCtx context.Context) error {
-		check(txCtx, want) // Memberships have no RLS; explicit school bounds remain decisive.
+		check(txCtx, map[int64]int{0: 1, 1: 1, 2: 0, 3: 0, 4: 0}) // An ambient school transaction must not count foreign memberships.
 		return nil
 	}))
 	rollback := errors.New("rollback count membership change")
-	err = tenant.WithAdminTx(ctx, db, func(txCtx context.Context, tx bun.Tx) error {
+	err = testpkg.WithAdminTx(t, ctx, db, func(txCtx context.Context, tx bun.Tx) error {
 		_, updateErr := tx.NewRaw("UPDATE auth.account_tenants SET status = 'pending' WHERE account_id = ? AND tenant_id = ?", shared.ID, first).Exec(txCtx)
 		require.NoError(t, updateErr)
 		check(txCtx, map[int64]int{0: 2, 1: 0, 2: 2, 3: 0, 4: 0})

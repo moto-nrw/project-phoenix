@@ -2,6 +2,8 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { berlinTodayISO } from "~/lib/date-helpers";
+import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
+import { TIMETABLE_UNTYPED_EDGE_COLOR } from "~/components/timetable/timetable-style";
 import { useSWRAuth } from "~/lib/swr/hooks";
 import {
   useOperationalOverviewScope,
@@ -15,6 +17,7 @@ import type { PlannedTimetableInstance } from "~/lib/timetable-operations-types"
 import { TagesplanView } from "./tagesplan-view";
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
+import { MobilePageHelpPortal } from "~/components/help/mobile-page-help-portal";
 
 // Starten ist eine Aktion ohne Formular: Fehler gehen als Toast über
 // useApiErrorDisplay (#2516). Ladefehler laufen über den echten Hook.
@@ -38,6 +41,20 @@ vi.mock("~/lib/tenant-context", () => ({
   useTimetableEnabled: vi.fn(() => true),
   useOperationalOverviewScope: vi.fn(() => "all_staff"),
   useWeekendFollowsFriday: vi.fn(() => false),
+  useTenantSlugSafe: () => null,
+  useTenantRoutingModeSafe: () => "path",
+  useNFCEnabled: () => true,
+  usePresenceMode: () => "detailed",
+  useOpenCareGroupMode: () => false,
+}));
+
+vi.mock("~/lib/shell-auth-context", () => ({
+  useShellAuthSafe: () => ({ mode: "teacher" }),
+  useShellAuth: () => ({ mode: "teacher", user: { roles: ["user"] } }),
+}));
+
+vi.mock("~/lib/breadcrumb-context", () => ({
+  useBreadcrumb: () => ({ breadcrumb: {} }),
 }));
 
 // Feste Uhr: 10:00 Berliner Zeit, damit die "Jetzt"-Linie deterministisch ist.
@@ -60,6 +77,7 @@ vi.mock("~/lib/timetable-operations-api", async (importOriginal) => {
 
 const searchParams = { current: new URLSearchParams() };
 vi.mock("next/navigation", () => ({
+  usePathname: () => "/tagesplan",
   useSearchParams: () => searchParams.current,
 }));
 
@@ -122,6 +140,39 @@ describe("TagesplanView", () => {
     setSWR({ data: [], isLoading: false, error: null });
   });
 
+  // Die Seite heißt „Heute“ (#4348); welcher Tag das ist, steht direkt
+  // daneben. Ein anderer Tag trägt sein Datum schon im Titel. Eine
+  // Beschreibung braucht nur die eingeschränkte Sicht (#2380).
+  it("titles today 'Heute' with the date beside it and no description", () => {
+    render(<TagesplanView />);
+
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Heute" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Mittwoch, 09.09.2026")).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Der Betreuungstag Ihrer Schule/),
+    ).not.toBeInTheDocument();
+  });
+
+  it("titles another day with its date and no second date", () => {
+    searchParams.current = new URLSearchParams("d=2026-07-15");
+    render(<TagesplanView />);
+
+    expect(
+      screen.getByRole("heading", { level: 1, name: "15.07.2026" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Mittwoch|Donnerstag/)).not.toBeInTheDocument();
+  });
+
+  it("names the switched-off page 'Heute' too", () => {
+    vi.mocked(useTimetableEnabled).mockReturnValue(false);
+    render(<TagesplanView />);
+
+    expect(screen.getByTestId("tagesplan-disabled")).toBeInTheDocument();
+    expect(screen.queryByText("Tagesplan")).not.toBeInTheDocument();
+  });
+
   it("steps a day forward and back, skipping the weekend", () => {
     searchParams.current = new URLSearchParams("d=2026-07-15");
     render(<TagesplanView />);
@@ -134,6 +185,24 @@ describe("TagesplanView", () => {
       screen.getAllByRole("button", { name: "Nächster Tag" })[1]!,
     );
     expect(replace).toHaveBeenLastCalledWith("/tagesplan?d=2026-07-20");
+  });
+
+  it("shows contextual help for the active day plan on phones and tablets", async () => {
+    searchParams.current = new URLSearchParams("d=2026-07-15");
+
+    render(
+      <MobilePageHelpPortal>
+        <TagesplanView />
+      </MobilePageHelpPortal>,
+    );
+
+    const help = await screen.findByRole("link", {
+      name: "Hilfe zu dieser Seite",
+    });
+    const url = new URL(help.getAttribute("href")!, "https://moto.invalid");
+    expect(url.pathname).toBe("/help/tagesplan-ansehen");
+    expect(url.searchParams.get("return_to")).toBe("/tagesplan?d=2026-07-15");
+    expect(help.parentElement).toHaveClass("lg:hidden");
   });
 
   it("steps onto Saturday when the weekend follows Friday's plan (#3921)", () => {
@@ -188,6 +257,98 @@ describe("TagesplanView", () => {
     expect(
       screen.getByText("Maria Muster, Vera Vertretung (Vertretung)"),
     ).toBeInTheDocument();
+  });
+
+  // #4350: der eigene Block ist auf einen Blick zu finden, als Wort statt
+  // nur als Farbe. Eine Vertretung ist auch eine eigene Einteilung.
+  it("tints the caller's own blocks in their block colour, substitutions included (#4350)", () => {
+    setSWR({
+      data: [
+        makeInstance({
+          id: "1",
+          title: "Basteln",
+          isAssigned: true,
+          planningTrackColor: "#5080D8",
+        }),
+        makeInstance({
+          id: "2",
+          title: "Hausaufgaben",
+          startTime: "10:00",
+          isAssigned: true,
+          isSubstitute: true,
+        }),
+        makeInstance({ id: "3", title: "Fußball-AG", startTime: "11:00" }),
+      ],
+      isLoading: false,
+      error: null,
+    });
+
+    render(<TagesplanView />);
+
+    const rows = screen.getAllByRole("listitem");
+    const rowOf = (title: string) =>
+      rows.find((row) => row.textContent?.includes(title));
+    // Sichtbar ist nur die Tönung in der Kantenfarbe; den Text "Mein Block"
+    // hören nur Vorleseprogramme, damit die Markierung nicht allein Farbe ist.
+    expect(rowOf("Basteln")).toHaveStyle({ backgroundColor: "#5080D81A" });
+    expect(rowOf("Hausaufgaben")).toHaveStyle({
+      backgroundColor: `${TIMETABLE_UNTYPED_EDGE_COLOR}1A`,
+    });
+    expect(rowOf("Fußball-AG")?.style.backgroundColor).toBe("");
+    expect(rowOf("Basteln")).toHaveTextContent("Mein Block");
+    expect(rowOf("Hausaufgaben")).toHaveTextContent("Mein Block");
+    expect(rowOf("Fußball-AG")).not.toHaveTextContent("Mein Block");
+  });
+
+  it("marks room and staff with their concept symbols (#4350)", () => {
+    setSWR({
+      data: [
+        makeInstance({
+          id: "1",
+          title: "Basteln",
+          roomName: "Kreativraum",
+          staffNames: [
+            { staffId: "9", displayName: "Maria Muster", isSubstitute: false },
+          ],
+        }),
+      ],
+      isLoading: false,
+      error: null,
+    });
+
+    render(<TagesplanView />);
+
+    // Die Symbole sind Schmuck neben dem Text, kein zweiter Vorleser-Text.
+    const roomIcon = screen.getByText(/Kreativraum/).querySelector("svg");
+    const staffIcon = screen.getByText("Maria Muster").querySelector("svg");
+    expect(roomIcon).toHaveAttribute(
+      "data-moto-duotone-tone",
+      MOTO_CONCEPTS.rooms.tone,
+    );
+    expect(roomIcon).toHaveAttribute("aria-hidden", "true");
+    expect(staffIcon).toHaveAttribute(
+      "data-moto-duotone-tone",
+      MOTO_CONCEPTS.staff.tone,
+    );
+    expect(staffIcon).toHaveAttribute("aria-hidden", "true");
+  });
+
+  // Wer nur die eigene Einteilung sieht (#2380), hätte das Etikett an jeder
+  // Zeile; dort sagt es nichts und fällt weg.
+  it("leaves the own-block tint out when only own blocks are shown (#4350)", () => {
+    vi.mocked(useOperationalOverviewScope).mockReturnValue("own");
+    setSWR({
+      data: [makeInstance({ id: "1", title: "Basteln", isAssigned: true })],
+      isLoading: false,
+      error: null,
+    });
+
+    render(<TagesplanView />);
+
+    const row = screen.getByRole("listitem");
+    expect(row).toHaveTextContent("Basteln");
+    expect(row).not.toHaveTextContent("Mein Block");
+    expect(row.style.backgroundColor).toBe("");
   });
 
   it("opens the live list of a running block on tap", () => {
@@ -265,6 +426,10 @@ describe("TagesplanView", () => {
       error: null,
     });
 
+    const staleEvents: Event[] = [];
+    const onStale = (event: Event) => staleEvents.push(event);
+    window.addEventListener("phoenix:supervision-stale", onStale);
+
     render(<TagesplanView />);
 
     fireEvent.click(screen.getByRole("button", { name: "Starten" }));
@@ -272,6 +437,10 @@ describe("TagesplanView", () => {
       expect(timetableOperationsApi.start).toHaveBeenCalledWith("4");
       expect(push).toHaveBeenCalledWith("/active-supervisions?session=77");
     });
+    // The sidebar learns about the new supervision without a live event
+    // (role Extern has none for it, #4573).
+    expect(staleEvents).toHaveLength(1);
+    window.removeEventListener("phoenix:supervision-stale", onStale);
   });
 
   it("renders cancelled and completed blocks as plain display without actions", () => {
@@ -375,12 +544,10 @@ describe("TagesplanView", () => {
   });
 
   it("explains missing permission with the catalog text (403)", async () => {
-    const { TimetableOperationsApiError } =
-      await import("~/lib/timetable-operations-api");
     setSWR({
       data: undefined,
       isLoading: false,
-      error: new TimetableOperationsApiError("forbidden", 403),
+      error: new ApiError("forbidden", 403),
     });
 
     render(<TagesplanView />);

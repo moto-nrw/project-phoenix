@@ -5,8 +5,8 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Active-session lifecycle policy (Rule 12: Models Hold Data, Not Decisions).
@@ -82,7 +82,7 @@ func (s *service) SessionTimeUntilTimeout(ctx context.Context, group *ports.Acti
 // IsSupervisorActive decides whether a supervision assignment has started and
 // has not ended as of now. A nil EndDate means open-ended after its StartDate.
 func IsSupervisorActive(supervisor *ports.GroupSupervisor, now time.Time) bool {
-	today := timezone.DateFromTime(now)
+	today := calendar.DateFromTime(now)
 	return !supervisor.StartDate.After(today) &&
 		(supervisor.EndDate == nil || today.Before(*supervisor.EndDate))
 }

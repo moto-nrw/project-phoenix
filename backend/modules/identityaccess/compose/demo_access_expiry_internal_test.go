@@ -42,7 +42,7 @@ func TestDemoAccessExpiryDeletesExpiredAccessesAndNamesOrphanedSchools(t *testin
 	insertDemoAccess(t, db, west, clock.Add(-2*time.Hour))
 	insertDemoAccess(t, db, west, clock.Add(-time.Minute))
 
-	deleted, orphaned, err := expiry.ExpireDemoAccesses(t.Context())
+	deleted, orphaned, err := expiry.ExpireDemoAccesses(testpkg.WithTenantRuntime(t, t.Context(), db))
 	require.NoError(t, err)
 	assert.Equal(t, 4, deleted)
 	assert.Equal(t, []string{sued, west}, orphaned, "a school with a link left is not named; a school named twice is named once")
@@ -51,15 +51,51 @@ func TestDemoAccessExpiryDeletesExpiredAccessesAndNamesOrphanedSchools(t *testin
 	assert.Equal(t, []string{nord}, remaining, "the unexpired access stays")
 
 	// Nothing is due until the clock passes the remaining end.
-	deleted, orphaned, err = expiry.ExpireDemoAccesses(t.Context())
+	deleted, orphaned, err = expiry.ExpireDemoAccesses(testpkg.WithTenantRuntime(t, t.Context(), db))
 	require.NoError(t, err)
 	assert.Zero(t, deleted)
 	assert.Empty(t, orphaned)
 	clock = clock.Add(2 * time.Hour)
-	deleted, orphaned, err = expiry.ExpireDemoAccesses(t.Context())
+	deleted, orphaned, err = expiry.ExpireDemoAccesses(testpkg.WithTenantRuntime(t, t.Context(), db))
 	require.NoError(t, err)
 	assert.Equal(t, 1, deleted)
 	assert.Equal(t, []string{nord}, orphaned)
+}
+
+func TestDemoAccessExpiryWaitsForAnInProgressDemoRedemption(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	clock := time.Date(2026, 9, 22, 8, 0, 0, 0, time.UTC)
+	expiry, err := NewDemoAccessExpiry(db, func() time.Time { return clock })
+	require.NoError(t, err)
+	slug := fmt.Sprintf("ogs-nord-%d", testpkg.Tenant(t))
+	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("demo-%d@example.org", testpkg.Tenant(t)))
+	var accessID int64
+	require.NoError(t, db.NewRaw(`INSERT INTO auth.demo_accesses (email, first_name, last_name, school_name, token_hash, expires_at, school_slug)
+		VALUES (?, 'Kim', 'Beispiel', 'OGS Beispiel', ?, ?, ?) RETURNING id`,
+		"kim-"+slug+"@ogs-beispiel.de", "redemption-"+slug, clock.Add(-time.Minute), slug).Scan(t.Context(), &accessID))
+
+	require.NoError(t, testpkg.WithAdminTx(t, t.Context(), db, func(ctx context.Context, _ bun.Tx) error {
+		store := newStore(db)
+		require.NoError(t, store.LockDemoSchool(ctx, slug))
+		blockedCtx, cancel := context.WithTimeout(testpkg.WithTenantRuntime(t, t.Context(), db), 100*time.Millisecond)
+		defer cancel()
+		result := make(chan error, 1)
+		go func() {
+			_, _, err := expiry.ExpireDemoAccesses(blockedCtx)
+			result <- err
+		}()
+		err := <-result
+		require.Error(t, err, "expiry must wait for the redemption's school lock")
+		assert.Contains(t, err.Error(), "lock demo school")
+		usedAt := clock.Add(-2 * time.Minute)
+		return store.RecordDemoAccessUse(ctx, accessID, account.ID, 0, usedAt, usedAt.Add(14*24*time.Hour))
+	}))
+
+	deleted, orphaned, err := expiry.ExpireDemoAccesses(testpkg.WithTenantRuntime(t, t.Context(), db))
+	require.NoError(t, err)
+	assert.Zero(t, deleted, "the completed redemption extended the access before expiry could delete it")
+	assert.Empty(t, orphaned)
 }
 
 func TestDemoAccessExpiryRequiresADatabaseAndAClock(t *testing.T) {

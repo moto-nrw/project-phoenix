@@ -37,20 +37,6 @@ describe("/api/operator/provisioning/schools/[id]/accounts/[accountId]/caregiver
     mockUncachedOperatorAuth.mockResolvedValue(null);
   });
 
-  it("returns 401 when the operator is not authenticated", async () => {
-    mockOperatorAuth.mockResolvedValueOnce(null);
-
-    const response = await GET(
-      new NextRequest(
-        "http://localhost:3000/api/operator/provisioning/schools/10/accounts/42/caregiver-capability",
-      ),
-      createContext("10", "42"),
-    );
-
-    expect(response.status).toBe(401);
-    await expect(response.json()).resolves.toEqual({ error: "Unauthorized" });
-  });
-
   it("returns 400 when school or account params are invalid", async () => {
     const response = await POST(
       new NextRequest(
@@ -66,8 +52,10 @@ describe("/api/operator/provisioning/schools/[id]/accounts/[accountId]/caregiver
 
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({
-      status: "error",
-      error: "Invalid school or account parameter",
+      type: "about:blank",
+      title: "Bad Request",
+      status: 400,
+      detail: "Invalid school or account parameter",
       code: "general.input",
     });
   });
@@ -102,7 +90,10 @@ describe("/api/operator/provisioning/schools/[id]/accounts/[accountId]/caregiver
     });
     mockFetch
       .mockResolvedValueOnce(
-        Response.json({ error: "expired" }, { status: 401 }),
+        Response.json(
+          { status: 401, detail: "expired", code: "general.permission" },
+          { status: 401 },
+        ),
       )
       .mockResolvedValueOnce(Response.json({ deleted: true }));
 

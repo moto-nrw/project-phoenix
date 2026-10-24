@@ -29,7 +29,8 @@ func (s *Store) FindManagedAccount(ctx context.Context, id int64, forUpdate bool
 	query := db.NewSelect().
 		TableExpr(`auth.accounts AS "account"`).
 		ColumnExpr(`"account".id, "account".email, "account".active`).
-		Where(`"account".id = ?`, id)
+		Where(`"account".id = ?`, id).
+		Where(`"account".personal_data_erased_at IS NULL`)
 	if forUpdate {
 		query = query.For("UPDATE")
 	}
@@ -56,6 +57,7 @@ func (s *Store) SetAccountActive(ctx context.Context, id int64, active bool) (do
 		Set("active = ?", active).
 		Set("updated_at = NOW()").
 		Where(`"account".id = ?`, id).
+		Where(`"account".personal_data_erased_at IS NULL`).
 		Exec(ctx)
 	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}
 	if err != nil {
@@ -130,6 +132,8 @@ type accountRoleAssignmentRow struct {
 	Name     string  `bun:"name"`
 	IsSystem bool    `bun:"is_system"`
 	BaseRole *string `bun:"base_role"`
+	// SchoolPortal is the role's mark as a Lehrkraft copy (#4574).
+	SchoolPortal bool `bun:"school_portal"`
 }
 
 // ListAccountRoleAssignments returns the account's assignments at every
@@ -144,7 +148,7 @@ func (s *Store) ListAccountRoleAssignments(ctx context.Context, accountID int64)
 	started := time.Now()
 	err = db.NewSelect().
 		TableExpr(`auth.account_roles AS "account_role"`).
-		ColumnExpr(`"account_role".tenant_id, "account_role".role_id, COALESCE("role".name, '') AS name, COALESCE("role".is_system, false) AS is_system, "role".base_role`).
+		ColumnExpr(`"account_role".tenant_id, "account_role".role_id, COALESCE("role".name, '') AS name, COALESCE("role".is_system, false) AS is_system, "role".base_role, COALESCE("role".school_portal, false) AS school_portal`).
 		Join(`LEFT JOIN auth.roles AS "role" ON "role".id = "account_role".role_id`).
 		Where(`"account_role".account_id = ?`, accountID).
 		OrderExpr(`"account_role".tenant_id ASC, "account_role".role_id ASC`).
@@ -157,7 +161,7 @@ func (s *Store) ListAccountRoleAssignments(ctx context.Context, accountID int64)
 	for _, row := range rows {
 		assignments = append(assignments, domain.AccountRoleAssignment{
 			TenantID: row.TenantID,
-			Role:     domain.AccountTenantRole{ID: row.RoleID, Name: row.Name, IsSystem: row.IsSystem, BaseRole: row.BaseRole},
+			Role:     domain.AccountTenantRole{ID: row.RoleID, Name: row.Name, IsSystem: row.IsSystem, BaseRole: row.BaseRole, SchoolPortal: row.SchoolPortal},
 		})
 	}
 	return assignments, stats, nil
@@ -203,18 +207,19 @@ func (s *Store) DeleteAccountPermissionsAtTenant(ctx context.Context, accountID,
 }
 
 type roleFactRow struct {
-	ID       int64   `bun:"id"`
-	Name     string  `bun:"name"`
-	IsSystem bool    `bun:"is_system"`
-	BaseRole *string `bun:"base_role"`
-	TenantID *int64  `bun:"tenant_id"`
+	ID           int64   `bun:"id"`
+	Name         string  `bun:"name"`
+	IsSystem     bool    `bun:"is_system"`
+	BaseRole     *string `bun:"base_role"`
+	TenantID     *int64  `bun:"tenant_id"`
+	SchoolPortal bool    `bun:"school_portal"`
 }
 
 func (r roleFactRow) toDomain() domain.RoleFact {
-	return domain.RoleFact{ID: r.ID, Name: r.Name, IsSystem: r.IsSystem, BaseRole: r.BaseRole, TenantID: r.TenantID}
+	return domain.RoleFact{ID: r.ID, Name: r.Name, IsSystem: r.IsSystem, BaseRole: r.BaseRole, TenantID: r.TenantID, SchoolPortal: r.SchoolPortal}
 }
 
-const roleFactColumns = `"role".id, "role".name, "role".is_system, "role".base_role, "role".tenant_id`
+const roleFactColumns = `"role".id, "role".name, "role".is_system, "role".base_role, "role".tenant_id, "role".school_portal`
 
 // FindRole resolves a role of any school; the access policy decides whether
 // it may be handed out at the target school.

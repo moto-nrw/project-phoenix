@@ -3,6 +3,10 @@
 import { useMemo, useState } from "react";
 import { ChevronDown, CircleAlert, Play } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import {
+  OwnBlockHint,
+  blockTintStyle,
+} from "~/components/timetable/block-row-parts";
 import { Alert } from "~/components/ui/alert";
 import type { MotoConceptKey } from "~/lib/moto-concepts";
 import { LOCATION_COLORS, MOTO_COLOR_PALETTE } from "~/lib/location-helper";
@@ -211,6 +215,7 @@ export function PlannedNowSection({
                 <article
                   key={instance.id}
                   className="moto-content-surface overflow-hidden rounded-xl border shadow-sm"
+                  style={blockTintStyle(instance, instance.isAssigned)}
                 >
                   <div className="p-4">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -218,6 +223,7 @@ export function PlannedNowSection({
                         <div className="flex flex-wrap items-center gap-2">
                           <h3 className="truncate text-sm font-semibold text-gray-900">
                             {instance.title}
+                            <OwnBlockHint mine={instance.isAssigned} />
                           </h3>
                           <SlotStatusBadge instance={instance} />
                           <ResponsibilityBadge instance={instance} />
@@ -227,8 +233,12 @@ export function PlannedNowSection({
                             <MotoConceptIcon concept="careTimes" size={16} />
                             {blockTimeRange(instance)}
                           </span>
-                          <span className="inline-flex items-center gap-1.5">
-                            <MotoConceptIcon concept="rooms" size={18} />
+                          <span>
+                            <MotoConceptIcon
+                              concept="rooms"
+                              size={14}
+                              className="mr-1 inline-block align-[-2px]"
+                            />
                             {instance.roomName ?? `Raum ${instance.roomId}`}
                           </span>
                         </div>
@@ -379,38 +389,22 @@ function SlotStatusBadge({
 }
 
 /**
- * Mirrors the label ranking below field for field. Branching on a different
- * field than the label does leaves "Zuständig" wearing the same icon as
- * "Zugewiesen" and "Info", which is what happened when this moved from a
- * ShieldCheck/UserCheck pair to the concept system.
+ * Names a role the person holds on the block. Whether the block is their own
+ * at all shows as the tint of the card, the same as in the Tagesplan
+ * (#4350), so a plain "Zugewiesen" or "Info" pill would only repeat it.
  */
-function responsibilityConcept(
-  instance: PlannedTimetableInstance,
-): MotoConceptKey {
-  if (instance.isPrimary) return "responsibility";
-  if (instance.isSubstitute) return "substitution";
-  return "supervision";
-}
-
 function ResponsibilityBadge({
   instance,
 }: Readonly<{ instance: PlannedTimetableInstance }>) {
-  const label = instance.isPrimary
-    ? "Zuständig"
-    : instance.isSubstitute
-      ? "Vertretung"
-      : instance.isAssigned
-        ? "Zugewiesen"
-        : "Info";
-  const className = instance.isAssigned
-    ? "bg-moto-blue/10 text-moto-blue-hover"
-    : "bg-gray-100 text-gray-500";
+  if (!instance.isAssigned) return null;
+  if (!instance.isPrimary && !instance.isSubstitute) return null;
   return (
-    <span
-      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${className}`}
-    >
-      <MotoConceptIcon concept={responsibilityConcept(instance)} size={16} />
-      {label}
+    <span className="bg-moto-blue/10 text-moto-blue-hover inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium">
+      <MotoConceptIcon
+        concept={instance.isPrimary ? "responsibility" : "substitution"}
+        size={16}
+      />
+      {instance.isPrimary ? "Zuständig" : "Vertretung"}
     </span>
   );
 }

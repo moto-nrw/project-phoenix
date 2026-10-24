@@ -7,7 +7,6 @@ import {
   exportSlotList,
   fetchSlotListOptions,
   fetchSlotListPreview,
-  SlotListExportError,
   SlotListExportSupersededError,
   type SlotListRequest,
 } from "./slot-lists-api";
@@ -89,8 +88,14 @@ describe("exportSlotList", () => {
       location: { href: "" },
     };
 
-    await exportSlotList(request, "pdf", "print", target as unknown as Window);
+    const printing = exportSlotList(
+      request,
+      "pdf",
+      "print",
+      target as unknown as Window,
+    );
     await vi.runAllTimersAsync();
+    await printing;
 
     expect(target.print).toHaveBeenCalledOnce();
     expect(target.close).not.toHaveBeenCalled();
@@ -193,13 +198,14 @@ describe("slot list errors", () => {
     }
   });
 
-  // The page branches on the 409 drift refusal by status, so the export error
-  // must keep it next to the shared ApiError fields.
-  it("rejects a drifted export as SlotListExportError with status 409", async () => {
+  // The page branches on the drift refusal by its code, so the export error
+  // must carry it next to the shared ApiError fields.
+  it("rejects a drifted export as an ApiError with the drift code", async () => {
     globalThis.fetch = vi.fn().mockResolvedValue(
       errorResponse(409, {
-        status: "error",
-        error: "Die Liste hat sich seit der Vorschau geändert.",
+        status: 409,
+        detail: "list drifted since preview",
+        code: "timetable.slot_list_drifted",
         instance: "req-export",
       }),
     ) as unknown as typeof fetch;
@@ -214,11 +220,10 @@ describe("slot list errors", () => {
       exportSlotList(request, "pdf", "print", target as unknown as Window),
     );
 
-    expect(error).toBeInstanceOf(SlotListExportError);
     expect(error).toBeInstanceOf(ApiError);
     expect(error).toMatchObject({
       status: 409,
-      code: "general.business_rejection",
+      code: "timetable.slot_list_drifted",
       requestId: "req-export",
     });
     expect(target.print).not.toHaveBeenCalled();
@@ -243,8 +248,7 @@ describe("slot list errors", () => {
     );
 
     expect(error).toBeInstanceOf(ApiError);
-    expect(error).not.toBeInstanceOf(SlotListExportError);
-    expect(error).toMatchObject({ code: "general.unavailable" });
+    expect(error).toMatchObject({ status: 503, code: "general.unavailable" });
     expect(target.close).toHaveBeenCalled();
   });
 });

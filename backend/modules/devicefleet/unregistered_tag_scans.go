@@ -3,6 +3,7 @@ package devicefleet
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 )
 
@@ -81,49 +82,32 @@ type UnregisteredTagScanCommand interface {
 	DeleteExpiredUnregisteredTagScans(context.Context, time.Time) (int64, error)
 }
 
-// FindUnregisteredTagScan returns one scan visible to the caller with its
-// device identity, or ErrUnregisteredTagScanNotFound.
-func (m *Module) FindUnregisteredTagScan(ctx context.Context, id int64) (UnregisteredTagScan, error) {
-	if id <= 0 {
-		return UnregisteredTagScan{}, m.reject("find_unregistered_tag_scan", ErrInvalidUnregisteredTagScan)
-	}
-	return m.engine.FindUnregisteredTagScan(ctx, id)
+// UnregisteredTagScanRetention removes scans after the owner's fixed
+// retention window and reports that window with the deleted count.
+type UnregisteredTagScanRetention interface {
+	DeleteUnregisteredTagScansAfterRetention(context.Context) (deleted int, retentionDays int, err error)
 }
 
-// ListUnregisteredTagScans returns the scans matching filter, newest first.
-// A caller without an ambient tenant sees every tenant it may read.
-func (m *Module) ListUnregisteredTagScans(ctx context.Context, filter UnregisteredTagScanFilter) ([]UnregisteredTagScan, error) {
-	for _, id := range filter.TenantIDs {
-		if id <= 0 {
-			return nil, m.reject("list_unregistered_tag_scans", ErrInvalidUnregisteredTagScan)
-		}
+var (
+	ErrTagScanIDRequired         = errors.New("scan ID is required")
+	ErrTagScanOperatorIDRequired = errors.New("operator ID is required")
+)
+
+// Normalize trims the tag UID and stamps a missing scan time.
+func (r *RecordUnregisteredTagScan) Normalize(now time.Time) {
+	r.TagUID = strings.TrimSpace(r.TagUID)
+	if r.ScannedAt.IsZero() {
+		r.ScannedAt = now
 	}
-	if filter.Limit < 0 {
-		return nil, m.reject("list_unregistered_tag_scans", ErrInvalidUnregisteredTagScan)
-	}
-	return m.engine.ListUnregisteredTagScans(ctx, filter)
 }
 
-// RecordUnregisteredTagScan appends one scan for the caller's tenant.
-func (m *Module) RecordUnregisteredTagScan(ctx context.Context, input RecordUnregisteredTagScan) (UnregisteredTagScan, error) {
-	return m.engine.RecordUnregisteredTagScan(ctx, input)
-}
-
-// ResolveUnregisteredTagScan marks one open scan as handled. A missing scan
-// reports ErrUnregisteredTagScanNotFound; a handled one reports
-// ErrUnregisteredTagScanResolved and is never stamped twice.
-func (m *Module) ResolveUnregisteredTagScan(ctx context.Context, input ResolveUnregisteredTagScan) (UnregisteredTagScan, error) {
-	if input.ID <= 0 || input.OperatorID <= 0 {
-		return UnregisteredTagScan{}, m.reject("resolve_unregistered_tag_scan", ErrInvalidUnregisteredTagScan)
+// Validate checks whether the scan can be stored.
+func (r RecordUnregisteredTagScan) Validate() error {
+	if strings.TrimSpace(r.TagUID) == "" {
+		return ErrInvalidUnregisteredTagScan
 	}
-	return m.engine.ResolveUnregisteredTagScan(ctx, input)
-}
-
-// DeleteExpiredUnregisteredTagScans removes the caller tenant's scans older
-// than cutoff.
-func (m *Module) DeleteExpiredUnregisteredTagScans(ctx context.Context, cutoff time.Time) (int64, error) {
-	if cutoff.IsZero() {
-		return 0, m.reject("delete_expired_unregistered_tag_scans", ErrInvalidUnregisteredTagScan)
+	if r.DeviceID != nil && *r.DeviceID <= 0 {
+		return ErrInvalidUnregisteredTagScan
 	}
-	return m.engine.DeleteExpiredUnregisteredTagScans(ctx, cutoff)
+	return nil
 }

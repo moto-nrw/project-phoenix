@@ -44,7 +44,7 @@ while IFS= read -r -d '' file; do
     frontend/*|scripts/check-frontend-quality.sh) frontend=true ;;
     environments/*|.env.example) env_sync=true ;;
     scripts/check-quality.sh|scripts/quality-timing.sh|devbox.*|package.json) backend=true; frontend=true; hooks=true ;;
-    scripts/pre-push*|scripts/check-secrets.sh|scripts/run-go-toolchain.sh|lefthook.yml|.github/*|scripts/test-*) hooks=true ;;
+    scripts/pre-push*|scripts/check-secrets*|.gitleaks*|scripts/run-go-toolchain.sh|scripts/dev-native*|scripts/go-package-workers.sh|scripts/total-memory-gb.sh|lefthook.yml|.github/*|scripts/test-*) hooks=true ;;
     .agents/*|.claude/*|.codex/*|scripts/check-agent-context*) context=true ;;
   esac
 done < "$changed"
@@ -56,6 +56,9 @@ printf 'Pre-push %s..%s: backend=%s frontend=%s context=%s hooks=%s\n' "$merge_b
 export PATH="$root/.devbox/nix/profile/default/bin:$PATH"
 export GOTOOLCHAIN=local
 export CGO_ENABLED=${CGO_ENABLED:-0}
+# Cache inputs must see the same budget that the pinned runner exports.
+export GOFLAGS="${GOFLAGS--p=4}"
+export GOMAXPROCS="${GOMAXPROCS-4}"
 require_pinned() {
   if [[ ! -x "$root/.devbox/nix/profile/default/bin/$1" ]]; then
     echo "Pinned $1 is missing. Run 'devbox install'." >&2
@@ -67,14 +70,14 @@ cached() {
   shift
   node scripts/pre-push-cache.mjs "$stage" "$base" "$@"
 }
-quality_step secrets bash scripts/check-secrets.sh --scan
+quality_step secrets bash scripts/check-secrets.sh pre-push "$base"
 require_pinned node
 if [[ "$context" == true || "$hooks" == true ]]; then
   quality_step context node scripts/check-agent-context.mjs
   quality_step context-tests node --test scripts/check-agent-context.test.mjs
 fi
 if [[ "$hooks" == true ]]; then
-  cached hook-tests node --test scripts/pre-push.test.mjs
+  cached hook-tests node --test scripts/pre-push.test.mjs scripts/check-secrets.test.mjs
 fi
 if [[ "$env_sync" == true ]]; then
   quality_step env-sync bash scripts/env-check.sh

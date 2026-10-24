@@ -89,10 +89,18 @@ type AccountProvisioning interface {
 	LinkSchoolAccount(ctx context.Context, request SchoolAccountLink) (ProvisionedAccount, error)
 }
 
-func (m *Module) RegisterSchoolAccount(ctx context.Context, request SchoolAccountRegistration) (ProvisionedAccount, error) {
-	return m.engine.RegisterSchoolAccount(ctx, request)
-}
+// provisioningUsernameSuffixLength is the length of the suffix that keeps
+// generated usernames unique.
+const provisioningUsernameSuffixLength = 6
 
-func (m *Module) LinkSchoolAccount(ctx context.Context, request SchoolAccountLink) (ProvisionedAccount, error) {
-	return m.engine.LinkSchoolAccount(ctx, request)
+// ProvisioningUsernameSuffix draws the suffix of a generated username from
+// random, six lowercase letters and digits. A failing source yields an empty
+// suffix: the username stays unique through the account's other name parts
+// and the registration's conflict check.
+func ProvisioningUsernameSuffix(random func(length int) (string, error)) string {
+	suffix, err := random(provisioningUsernameSuffixLength)
+	if err != nil {
+		return ""
+	}
+	return suffix
 }

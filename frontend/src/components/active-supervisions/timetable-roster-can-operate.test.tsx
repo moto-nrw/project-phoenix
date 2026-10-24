@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
+import { AddUnplannedStudentModal } from "./add-unplanned-student-modal";
 import { TimetableRosterContent } from "./timetable-roster";
 import type {
   TimetableRoster,
@@ -8,6 +9,17 @@ import type {
 } from "~/lib/timetable-operations-types";
 
 const VIEW_ONLY_HINT = "Sie sind für diese Aktivität nicht eingeplant.";
+
+// The arrows that fold a list (#4353) only change the view; every other
+// button acts on the block or a child.
+function actionButtons(): HTMLElement[] {
+  return screen
+    .queryAllByRole("button")
+    .filter(
+      (button) =>
+        !/ (ein|aus)klappen$/.test(button.getAttribute("aria-label") ?? ""),
+    );
+}
 
 function rosterRow(overrides: Partial<TimetableRosterRow>): TimetableRosterRow {
   return {
@@ -67,7 +79,7 @@ function roster(canOperate: boolean | undefined): TimetableRoster {
 function renderRoster(value: TimetableRoster, attendanceWebEnabled = true) {
   render(
     <TimetableRosterContent
-      addStudentResults={[]}
+      addUnplannedStudentModal={AddUnplannedStudentModal}
       addStudentSearch=""
       attendanceWebEnabled={attendanceWebEnabled}
       isAddingStudent={false}
@@ -185,7 +197,7 @@ describe("TimetableRosterContent action rights (#3167)", () => {
 
   it("does not expose web attendance actions through a school-wide grant when web is off", () => {
     renderRoster({ ...roster(false), canEditAttendance: true }, false);
-    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(actionButtons()).toEqual([]);
   });
 
   it("shows the list without any action to a caller who is not planned", () => {
@@ -193,7 +205,7 @@ describe("TimetableRosterContent action rights (#3167)", () => {
 
     expect(screen.getByText("Marie Muster")).toBeInTheDocument();
     expect(screen.getByText("Ben Beispiel")).toBeInTheDocument();
-    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(actionButtons()).toEqual([]);
     expect(screen.getByText(new RegExp(VIEW_ONLY_HINT))).toBeInTheDocument();
   });
 

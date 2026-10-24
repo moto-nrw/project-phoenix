@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"log/slog"
 	"math"
 	"net/http"
 	"net/http/httptest"
@@ -16,7 +17,9 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
@@ -70,7 +73,13 @@ func measureRuntimeCheckpoint(t *testing.T, production *Runtime) {
 	output, err := os.OpenFile(*runtimeCheckpointOutput, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
 	require.NoError(t, err, "use a new output path for each checkpoint execution")
 	defer func() { _ = output.Close() }()
-	api := production.graph
+	api := newGoldenRuntime(t, production)
+	// The Worker's outbox drain and the materialization run over the pool of
+	// the production runtime.
+	var checkpointMaterialization timetableModule.MaterializationCapability
+	var checkpointOutbox *deliveryModule.Worker
+	_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, checkpointMaterialization, _, _, _, _, _, _, _, checkpointOutbox, _, err = composeTestRoot(api.db, slog.Default(), currentTestServiceConfig())
+	require.NoError(t, err)
 	db := testpkg.SetupTestDB(t)
 	_, account := testpkg.CreateTestTeacherWithAccount(t, db, "Checkpoint", "Staff")
 	phase := testpkg.CreateTestEnrollmentPhase(t, db)
@@ -112,7 +121,7 @@ func measureRuntimeCheckpoint(t *testing.T, production *Runtime) {
 		{"appointments.calendar", "GET", "/api/calendar/my?from=2026-09-01&to=2026-09-30", 200, true, ""},
 		{"settings.schema", "GET", "/api/settings/schema", 200, true, ""},
 		{"meal-plan.list", "GET", "/api/meal-plan/?week_start=2026-08-31", 200, true, ""},
-		{"feedback.list", "GET", "/api/feedback/", 200, true, ""},
+		{"feedback.list", "GET", "/api/feedback/", http.StatusForbidden, true, ""},
 		{"school-membership.staff", "GET", "/api/staff/", 200, true, ""},
 		{"facilities.invalid-id", "GET", "/api/rooms/invalid", 400, true, ""},
 		{"timetable.invalid-id", "GET", "/api/activities/invalid", 400, true, ""},
@@ -192,7 +201,7 @@ func measureRuntimeCheckpoint(t *testing.T, production *Runtime) {
 			if *runtimeCheckpointEnrollmentParents {
 				parentChain := testpkg.CreateTestParentGuardianChain(t, db)
 				parentAccountID = parentChain.AccountID
-				parentClaims := jwt.AppClaims{ID: int(parentAccountID), Sub: parentChain.Email, Scope: "parent", Roles: []string{"guardian"}}
+				parentClaims := sessiontoken.AppClaims{ID: int(parentAccountID), Sub: parentChain.Email, Scope: "parent", Roles: []string{"guardian"}}
 				parentToken = testutil.MintTestJWT(t, parentClaims)
 				require.NoError(t, db.NewRaw("SELECT subdomain FROM platform.schools WHERE id = ?", testpkg.Tenant(t)).Scan(context.Background(), &parentSubdomain))
 				workloadVersion = "enrollment-2694-writes-v8"
@@ -253,17 +262,21 @@ func measureRuntimeCheckpoint(t *testing.T, production *Runtime) {
 		// never queue an invitation for it.
 		parentChain := testpkg.CreateTestParentGuardianChain(t, db)
 		parentAccountID = parentChain.AccountID
-		parentToken = testutil.MintTestJWT(t, jwt.AppClaims{ID: int(parentAccountID), Sub: parentChain.Email, Scope: "parent", Roles: []string{"guardian"}})
+		parentToken = testutil.MintTestJWT(t, sessiontoken.AppClaims{ID: int(parentAccountID), Sub: parentChain.Email, Scope: "parent", Roles: []string{"guardian"}})
 		acceptance = newAcceptanceWorkload(t, production.Handler(), token, parentToken, parentAccountID, phase.ID, schoolSlug, schoolSubdomain)
 		workloadVersion = acceptanceWorkloadVersion
 		scenarios = acceptance.scenarios()
 	}
-	counter := testpkg.CaptureQueries(t, api.db)
+	// Refresh the disposable fixture database only for this opt-in measurement.
+	// Keep planner maintenance outside warm-ups and every measured counter.
+	_, err = db.ExecContext(context.Background(), "ANALYZE")
+	require.NoError(t, err, "collect checkpoint fixture statistics before warm-ups")
+	counter := testpkg.CaptureQueries(t, api.db.Pool())
 	counter.Stop()
 	var postgresVersion string
 	require.NoError(t, db.NewSelect().ColumnExpr("version()").Scan(context.Background(), &postgresVersion))
 	var role string
-	require.NoError(t, api.db.NewSelect().ColumnExpr("current_user").Scan(context.Background(), &role))
+	require.NoError(t, api.db.Pool().NewSelect().ColumnExpr("current_user").Scan(context.Background(), &role))
 	require.Equal(t, "phoenix_auth", role)
 	var databaseSettings []struct {
 		Name    string `json:"name"`
@@ -279,9 +292,11 @@ func measureRuntimeCheckpoint(t *testing.T, production *Runtime) {
 	}
 	environment := map[string]any{
 		"started_at": time.Now().UTC().Format(time.RFC3339Nano), "gomaxprocs": runtime.GOMAXPROCS(0), "logical_cpus": runtime.NumCPU(),
-		"pool_max_open_connections": api.db.Stats().MaxOpenConnections, "database_settings": databaseSettings, "fixture_rows": volumes,
+		"pool_max_open_connections": api.db.Pool().Stats().MaxOpenConnections, "database_settings": databaseSettings, "fixture_rows": volumes,
 		"http_transport": "in-process Runtime.Handler (no TCP/TLS)", "email_transport": "production mock mailer (unavailable)",
 		"lock_poll_interval_ms": 2, "app_env": os.Getenv("APP_ENV"),
+		"planner_statistics":             "fresh statistics",
+		"planner_statistics_preparation": "ANALYZE entire disposable database after fixture setup, before warm-ups and measurement",
 	}
 	if targetRisks != nil {
 		environment["checkpoint_1_v2_fixture_rows"] = targetRisks.fixtureRows(t)
@@ -375,13 +390,13 @@ func measureRuntimeCheckpoint(t *testing.T, production *Runtime) {
 			for range 30 {
 				resolved, requestToken, sequence := prepareRequest(scenario)
 				counter.Reset()
-				before := api.db.Stats()
+				before := api.db.Pool().Stats()
 				counter.Start()
 				started := time.Now()
 				response := sendRequest(resolved, requestToken, sequence)
 				elapsed := time.Since(started)
 				counter.Stop()
-				after := api.db.Stats()
+				after := api.db.Pool().Stats()
 				recordsets.Observe(counter.Queries())
 				result.Samples = append(result.Samples, checkpointSample{
 					DurationMS: float64(elapsed) / float64(time.Millisecond), Queries: counter.Total(), Status: response.Code,
@@ -419,9 +434,9 @@ func measureRuntimeCheckpoint(t *testing.T, production *Runtime) {
 		if *runtimeCheckpointEnrollment || *runtimeCheckpointEnrollmentWrites || changeRequests != nil || acceptance != nil {
 			continue
 		}
-		workers := testpkg.MeasureDeliveryCheckpoint(t, api.db, db, api.services.EmailOutboxWorker, api.tenantRuntime, counter, func() string { return checkpointMetrics(t) })
-		workers = append(workers, testpkg.MeasureTimetableCheckpoint(t, api.db, db, api.tenantRuntime, counter, templateID, func(ctx context.Context) (int, int, error) {
-			result, materializeErr := api.services.Materialization.MaterializeForTenant(ctx, "2026-09-07", "2026-09-07", "scheduler")
+		workers := testpkg.MeasureDeliveryCheckpoint(t, api.db.Pool(), db, checkpointOutbox, api.db.UnitOfWork(), counter, func() string { return checkpointMetrics(t) })
+		workers = append(workers, testpkg.MeasureTimetableCheckpoint(t, api.db.Pool(), db, api.db.UnitOfWork(), counter, templateID, func(ctx context.Context) (int, int, error) {
+			result, materializeErr := checkpointMaterialization.MaterializeForTenant(ctx, "2026-09-07", "2026-09-07", "scheduler")
 			if materializeErr != nil {
 				return 0, 0, materializeErr
 			}

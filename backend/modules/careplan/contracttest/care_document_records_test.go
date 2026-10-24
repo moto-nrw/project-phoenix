@@ -6,7 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -24,7 +25,7 @@ const (
 
 func careDocumentRecords(t *testing.T, db *bun.DB) careplan.Capability {
 	t.Helper()
-	return repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CarePlan()
+	return api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).CarePlan()
 }
 
 // newTestCareDocument builds a valid document row for a student.

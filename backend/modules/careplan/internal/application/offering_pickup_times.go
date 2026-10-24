@@ -15,9 +15,6 @@ import (
 // manual overrides and refresh the materialized consumers that still depend
 // on a pickup baseline.
 
-// ReconcileOfferingPickupForStudents refreshes the remaining derived effects.
-// It deliberately writes no schedule.student_pickup_schedules rows: regular
-// offering pickup times are a date-aware projection of booking validity.
 func (m *BookingMaterialization) ReconcileOfferingPickupForStudents(ctx context.Context, studentIDs []int64) error {
 	studentIDs = sortedPositiveIDs(studentIDs)
 	if len(studentIDs) == 0 {
@@ -34,8 +31,6 @@ func (m *BookingMaterialization) ReconcileOfferingPickupForStudents(ctx context.
 	return nil
 }
 
-// ReconcileOfferingPickupForOffering refreshes every current or future child
-// affected by an offering edit. The catalog calls it after an update.
 func (m *BookingMaterialization) ReconcileOfferingPickupForOffering(ctx context.Context, offeringID int64) error {
 	if offeringID <= 0 {
 		return fmt.Errorf("%w: offering id is required", careplan.ErrCareOfferingConfigInvalid)
@@ -61,19 +56,16 @@ func (m *BookingMaterialization) offeringStudentIDs(ctx context.Context, offerin
 	return studentIDs, nil
 }
 
-// ResetStudentPickupDayToOffering removes the stored row for one weekday. A
-// staff row is the manual override; an old care_offering row is legacy
-// materialization. The row is removed only when the read-time projection has
-// an offering time for the requested date.
 func (m *BookingMaterialization) ResetStudentPickupDayToOffering(ctx context.Context, studentID int64, date calendar.Date) error {
 	weekday := int(date.Weekday())
 	if weekday < 1 || weekday > 5 {
 		return errors.New("pickup reset date must be Monday through Friday")
 	}
-	if err := m.lockPickupStudents(ctx, []int64{studentID}); err != nil {
+	// Match care end: class -> recurrence before the student and pickup rows.
+	if err := m.LockOfferingDerivedWrites(ctx); err != nil {
 		return err
 	}
-	if err := m.lockTemplateRecurrence(ctx); err != nil {
+	if err := m.lockPickupStudents(ctx, []int64{studentID}); err != nil {
 		return err
 	}
 	offering, err := m.deps.Pickup.OfferingPickupForDate(ctx, studentID, date)

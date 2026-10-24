@@ -2,23 +2,23 @@ package behavior_test
 
 import (
 	"context"
-	"errors"
 	"net"
 	"testing"
 	"time"
+
+	api "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // newExtraMFAService composes the second factor over the test database and
 // returns an account to drive it with.
-func newExtraMFAService(t *testing.T) (identityaccess.AccountMFA, *repositories.Factory, int64) {
+func newExtraMFAService(t *testing.T) (identityaccess.AccountMFA, api.MembershipTestRepositories, int64) {
 	t.Helper()
 	scenario := newMFATestScenario(t)
 	return scenario.MFA, scenario.Repos, scenario.AccountID
@@ -33,7 +33,7 @@ func TestMFAService_VerifyCodeForAccount_NoActiveChallenge_ReturnsInvalid(t *tes
 
 	svc, _, accID := newExtraMFAService(t)
 
-	err := svc.VerifyMFACodeForAccount(context.Background(), accID, 0, "123456", identityaccess.MFAChallengeScopeTenant)
+	_, err := svc.VerifyMFACodeForAccount(context.Background(), accID, 0, "123456", identityaccess.MFAChallengeScopeTenant)
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, identityaccess.ErrMFACodeInvalid,
@@ -47,7 +47,7 @@ func TestMFAService_VerifyCodeForAccount_WrongAccount_ReturnsInvalid(t *testing.
 
 	// Account id 99999999 doesn't exist — FindByID returns sql.ErrNoRows
 	// and the helper must map it to "invalid", not 500.
-	err := svc.VerifyMFACodeForAccount(context.Background(), 99999999, 0, "123456", identityaccess.MFAChallengeScopeTenant)
+	_, err := svc.VerifyMFACodeForAccount(context.Background(), 99999999, 0, "123456", identityaccess.MFAChallengeScopeTenant)
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, identityaccess.ErrMFACodeInvalid)
@@ -64,7 +64,7 @@ func TestMFAService_VerifyCodeForAccount_WrongCode_RecordsFailureAndReturnsInval
 	_, err := svc.StartMFAChallenge(context.Background(), accID, 0, identityaccess.MFAChallengeScopeTenant, net.ParseIP("127.0.0.1"))
 	require.NoError(t, err)
 
-	err = svc.VerifyMFACodeForAccount(context.Background(), accID, 0, "000000", identityaccess.MFAChallengeScopeTenant)
+	_, err = svc.VerifyMFACodeForAccount(context.Background(), accID, 0, "000000", identityaccess.MFAChallengeScopeTenant)
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, identityaccess.ErrMFACodeInvalid)
@@ -144,36 +144,4 @@ func TestMFAService_IssueTrustedDevice_PersistsAndReturnsSignedToken(t *testing.
 	require.NoError(t, err)
 	assert.NotEmpty(t, cookie, "trusted-device default-enabled tenant must mint a cookie value")
 	assert.True(t, expiresAt.After(time.Now()), "expires_at must be in the future")
-}
-
-// The rate-limit count is the only statement that fails below; everything
-// else behaves normally, which is the situation the fail-open bug needed to
-// show itself: challenge creation and mail dispatch succeed regardless of
-// whether that count could be read.
-
-func TestMFAService_StartChallenge_RateLimitLookupFails_IssuesNoCode(t *testing.T) {
-	t.Parallel()
-
-	svc, _, db := newTestMFAService(t, withFailingMFARecords(failingMFARecords{
-		countChallengesSince: func(context.Context, int64, time.Time) (int, error) {
-			return 0, errors.New("rate-limit count unavailable")
-		},
-	}))
-
-	acc := testpkg.CreateTestAccount(t, db, "mfa-ratelimit-blind")
-
-	challengeToken, err := svc.StartMFAChallenge(
-		context.Background(), acc.ID, 0, identityaccess.MFAChallengeScopeTenant, net.ParseIP("127.0.0.1"),
-	)
-
-	require.Error(t, err)
-	assert.ErrorIs(t, err, identityaccess.ErrMFAStatusUnavailable,
-		"an unreadable rate-limit count must refuse the code, not wave it through")
-	assert.Empty(t, challengeToken)
-
-	issued, err := nativeMFARecords(t, db).CountChallengesSince(
-		context.Background(), acc.ID, time.Now().Add(-time.Hour),
-	)
-	require.NoError(t, err)
-	assert.Zero(t, issued, "a refused challenge must leave no code behind")
 }

@@ -181,7 +181,7 @@ func TestMoveStudentsToActiveGroup(t *testing.T) {
 		require.Equal(t, testutil.StatusConflict, w.Code)
 		var body map[string]any
 		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
-		assert.Equal(t, "error", body["status"])
+		assert.Equal(t, float64(testutil.StatusConflict), body["status"])
 	})
 
 	// #2329: the handler no longer decides per student — it hands the caller's
@@ -229,7 +229,7 @@ func TestMoveStudentsToActiveGroup(t *testing.T) {
 		req := withStaffMoveContext(httptest.NewRequest(testutil.MethodPost, "/api/active/visits/move-to-group", nil))
 		w := httptest.NewRecorder()
 
-		auth, ok := rs.bulkStudentMoveAuthorization(w, req)
+		auth, ok := rs.BulkStudentMoveAuthorization(w, req)
 
 		require.True(t, ok)
 		require.NotNil(t, auth)
@@ -371,6 +371,6 @@ func TestMoveStudentsToTransit(t *testing.T) {
 		require.Equal(t, testutil.StatusConflict, w.Code)
 		var body map[string]any
 		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
-		assert.Equal(t, "error", body["status"])
+		assert.Equal(t, float64(testutil.StatusConflict), body["status"])
 	})
 }

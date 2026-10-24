@@ -6,12 +6,14 @@ package planning
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func typedShift(t *testing.T, staffID int64, date timezone.Date, start, end string, typeID int64) *StaffShift {
+func typedShift(t *testing.T, staffID int64, date calendar.Date, start, end string, typeID int64) *workforce.ShiftRecord {
 	t.Helper()
 	shift := testShift(t, staffID, date, start, end)
 	shift.ShiftTypeID = &typeID
@@ -24,7 +26,7 @@ func typedShift(t *testing.T, staffID int64, date timezone.Date, start, end stri
 func TestPlannedShiftMinutesByType_SplitsTheWeeklyTotal(t *testing.T) {
 	t.Parallel()
 
-	monday := timezone.NewDate(2026, 9, 28)
+	monday := calendar.NewDate(2026, 9, 28)
 	ganztag := typedShift(t, 7, monday, "08:00", "14:00", 2) // 360
 	ganztag.BreakMinutes = 30                                // → 330
 	vertretung := typedShift(t, 7, monday.AddDays(1), "10:00", "12:00", 9)
@@ -34,7 +36,7 @@ func TestPlannedShiftMinutesByType_SplitsTheWeeklyTotal(t *testing.T) {
 	cancelled.Cancelled = true
 	otherStaff := typedShift(t, 8, monday, "08:00", "09:00", 2)
 
-	shifts := []*StaffShift{ganztag, vertretung, verfuegung, untyped, cancelled, otherStaff}
+	shifts := []*workforce.ShiftRecord{ganztag, vertretung, verfuegung, untyped, cancelled, otherStaff}
 	byType := plannedShiftMinutesByType(shifts)
 	key := staffDateKey{StaffID: 7, Date: monday}
 

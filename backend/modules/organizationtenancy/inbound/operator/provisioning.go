@@ -13,7 +13,7 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 )
 
@@ -190,7 +190,7 @@ func (rs *ProvisioningResource) CreateOrganization(w http.ResponseWriter, r *htt
 		common.RenderError(w, r, common.OperatorInvalidRequest(err))
 		return
 	}
-	operatorID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
+	operatorID := int64(sessiontoken.ClaimsFromCtx(r.Context()).ID)
 	org := &organizationtenancy.CreateOrganization{Name: req.Name, Slug: req.Slug, Active: true}
 	created, err := rs.service.CreateOrganization(r.Context(), org, operatorID, common.ParseClientIP(r))
 	if err != nil {
@@ -215,7 +215,7 @@ func (rs *ProvisioningResource) CreateSchool(w http.ResponseWriter, r *http.Requ
 		common.RenderError(w, r, common.OperatorInvalidRequest(err))
 		return
 	}
-	operatorID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
+	operatorID := int64(sessiontoken.ClaimsFromCtx(r.Context()).ID)
 	school := &organizationtenancy.CreateSchool{
 		OrganizationID: req.OrganizationID,
 		Name:           req.Name,
@@ -256,7 +256,7 @@ func (rs *ProvisioningResource) UpdateOrganization(w http.ResponseWriter, r *htt
 	if !ok {
 		return
 	}
-	operatorID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
+	operatorID := int64(sessiontoken.ClaimsFromCtx(r.Context()).ID)
 	svcReq := organizationtenancy.OrganizationChanges{
 		Name:   req.Name,
 		Slug:   req.Slug,
@@ -280,7 +280,7 @@ func (rs *ProvisioningResource) UpdateSchool(w http.ResponseWriter, r *http.Requ
 	if !ok {
 		return
 	}
-	operatorID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
+	operatorID := int64(sessiontoken.ClaimsFromCtx(r.Context()).ID)
 	svcReq := organizationtenancy.SchoolChanges{
 		OrganizationID: req.OrganizationID,
 		Name:           req.Name,
@@ -308,7 +308,7 @@ func (rs *ProvisioningResource) SoftDeleteSchool(w http.ResponseWriter, r *http.
 	if !ok {
 		return
 	}
-	operatorID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
+	operatorID := int64(sessiontoken.ClaimsFromCtx(r.Context()).ID)
 	if err := rs.service.SoftDeleteSchool(r.Context(), schoolID, operatorID, common.ParseClientIP(r)); err != nil {
 		common.RenderError(w, r, ProvisioningErrorRenderer(err))
 		return
@@ -321,7 +321,7 @@ func (rs *ProvisioningResource) RestoreSchool(w http.ResponseWriter, r *http.Req
 	if !ok {
 		return
 	}
-	operatorID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
+	operatorID := int64(sessiontoken.ClaimsFromCtx(r.Context()).ID)
 	if err := rs.service.RestoreSchool(r.Context(), schoolID, operatorID, common.ParseClientIP(r)); err != nil {
 		common.RenderError(w, r, ProvisioningErrorRenderer(err))
 		return
@@ -334,7 +334,7 @@ func (rs *ProvisioningResource) SoftDeleteOrganization(w http.ResponseWriter, r 
 	if !ok {
 		return
 	}
-	operatorID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
+	operatorID := int64(sessiontoken.ClaimsFromCtx(r.Context()).ID)
 	if err := rs.service.SoftDeleteOrganization(r.Context(), orgID, operatorID, common.ParseClientIP(r)); err != nil {
 		common.RenderError(w, r, ProvisioningErrorRenderer(err))
 		return
@@ -347,7 +347,7 @@ func (rs *ProvisioningResource) RestoreOrganization(w http.ResponseWriter, r *ht
 	if !ok {
 		return
 	}
-	operatorID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
+	operatorID := int64(sessiontoken.ClaimsFromCtx(r.Context()).ID)
 	if err := rs.service.RestoreOrganization(r.Context(), orgID, operatorID, common.ParseClientIP(r)); err != nil {
 		common.RenderError(w, r, ProvisioningErrorRenderer(err))
 		return
@@ -365,7 +365,7 @@ func (rs *ProvisioningResource) InviteSchoolAdmin(w http.ResponseWriter, r *http
 	if !ok {
 		return
 	}
-	operatorID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
+	operatorID := int64(sessiontoken.ClaimsFromCtx(r.Context()).ID)
 	invitationReq := organizationtenancy.SchoolAdminInvitationInput{
 		Email:            req.Email,
 		CaregiverEnabled: req.CaregiverEnabled,
@@ -420,7 +420,7 @@ func (rs *ProvisioningResource) CreateSchoolAccount(w http.ResponseWriter, r *ht
 	if !ok {
 		return
 	}
-	operatorID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
+	operatorID := int64(sessiontoken.ClaimsFromCtx(r.Context()).ID)
 	svcReq := organizationtenancy.SchoolAccountInput{
 		Email:            req.Email,
 		Password:         req.Password,
@@ -642,7 +642,7 @@ func (rs *ProvisioningResource) CreateDevice(w http.ResponseWriter, r *http.Requ
 		common.RenderError(w, r, common.OperatorInvalidRequest(err))
 		return
 	}
-	operatorID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
+	operatorID := int64(sessiontoken.ClaimsFromCtx(r.Context()).ID)
 	var name *string
 	if req.Name != "" {
 		name = &req.Name
@@ -656,6 +656,7 @@ func (rs *ProvisioningResource) CreateDevice(w http.ResponseWriter, r *http.Requ
 		common.RenderError(w, r, ProvisioningErrorRenderer(err))
 		return
 	}
+	w.Header().Set("Cache-Control", "no-store")
 	common.Respond(w, r, http.StatusCreated, device, "Device created successfully")
 }
 
@@ -669,7 +670,7 @@ func (rs *ProvisioningResource) SetDeviceAPIKey(w http.ResponseWriter, r *http.R
 		common.RenderError(w, r, common.OperatorInvalidRequest(err))
 		return
 	}
-	operatorID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
+	operatorID := int64(sessiontoken.ClaimsFromCtx(r.Context()).ID)
 	var apiKey *string
 	if req.APIKey != "" {
 		apiKey = &req.APIKey
@@ -679,6 +680,7 @@ func (rs *ProvisioningResource) SetDeviceAPIKey(w http.ResponseWriter, r *http.R
 		common.RenderError(w, r, ProvisioningErrorRenderer(err))
 		return
 	}
+	w.Header().Set("Cache-Control", "no-store")
 	common.Respond(w, r, http.StatusOK, device, "Device API key updated successfully")
 }
 
@@ -687,7 +689,7 @@ func (rs *ProvisioningResource) DeleteDevice(w http.ResponseWriter, r *http.Requ
 	if !ok {
 		return
 	}
-	operatorID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
+	operatorID := int64(sessiontoken.ClaimsFromCtx(r.Context()).ID)
 	err := rs.service.DeleteDevice(r.Context(), deviceID, operatorID, common.ParseClientIP(r))
 	if err != nil {
 		common.RenderError(w, r, ProvisioningErrorRenderer(err))
@@ -719,7 +721,7 @@ func (rs *ProvisioningResource) TransferDevice(w http.ResponseWriter, r *http.Re
 		common.RenderError(w, r, common.OperatorInvalidRequest(err))
 		return
 	}
-	operatorID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
+	operatorID := int64(sessiontoken.ClaimsFromCtx(r.Context()).ID)
 	device, err := rs.service.TransferDevice(r.Context(), deviceID, req.TargetSchoolID, operatorID, common.ParseClientIP(r))
 	if err != nil {
 		common.RenderError(w, r, ProvisioningErrorRenderer(err))
@@ -737,7 +739,7 @@ func (rs *ProvisioningResource) SoftDeletePerson(w http.ResponseWriter, r *http.
 	if !ok {
 		return
 	}
-	operatorID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
+	operatorID := int64(sessiontoken.ClaimsFromCtx(r.Context()).ID)
 	err := rs.service.SoftDeletePerson(r.Context(), personID, operatorID, common.ParseClientIP(r))
 	if err != nil {
 		common.RenderError(w, r, ProvisioningErrorRenderer(err))

@@ -14,7 +14,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // ErrNotConfigured reports a missing queue or access port.
@@ -31,9 +31,9 @@ type Query interface {
 }
 
 // Dependencies are the consumer-owned ports the projection reads through.
-// Queues and Access are required. Students and FamilyProtection are
-// optional: without them the open page omits group names and reports no
-// Familienschutz. Today defaults to the Berlin calendar day of the wall
+// Queues and Access are required. Students, FamilyProtection and Submitters
+// are optional: without them the open page omits group names and reports no
+// Familienschutz, and no row of either view names who filed it. Today defaults to the Berlin calendar day of the wall
 // clock; it is resolved once per call so the queues' urgency phase and the
 // rows' urgency and past flags never straddle midnight.
 type Dependencies struct {
@@ -41,6 +41,7 @@ type Dependencies struct {
 	Access           Access
 	Students         StudentDirectory
 	FamilyProtection FamilyProtection
+	Submitters       SubmitterDirectory
 	Today            func() Date
 }
 
@@ -50,7 +51,7 @@ type service struct{ deps Dependencies }
 // the first call, never as a partial list.
 func New(deps Dependencies) Query {
 	if deps.Today == nil {
-		deps.Today = func() Date { return Date(timezone.TodayDate()) }
+		deps.Today = func() Date { return Date(calendar.TodayDate()) }
 	}
 	return &service{deps: deps}
 }
@@ -136,11 +137,19 @@ type Item struct {
 	// (withdrawn, marked done, closed by a care end).
 	CanCorrect      bool `json:"can_correct,omitempty"`
 	FamilyProtected bool `json:"family_protected"`
-	Data            any  `json:"data"`
+	// SubmittedByName is who filed the request (#4359), and
+	// SubmittedByRelationship their stored relationship to the child. Both
+	// are omitted when the school does not know the filer (any more) or keeps
+	// no relationship; the client then names nobody rather than guessing.
+	SubmittedByName         string `json:"submitted_by_name,omitempty"`
+	SubmittedByRelationship string `json:"submitted_by_relationship,omitempty"`
+	Data                    any    `json:"data"`
 	// studentID is StudentID as the owner queues report it. The wire carries
 	// the string (backend int64 IDs map to frontend strings); the decorations
 	// key on this instead of parsing the string back.
 	studentID int64
+	// submittedBy is Row.SubmittedBy; the wire carries the name instead.
+	submittedBy int64
 }
 
 // Page is the cursor envelope of the list.
@@ -190,6 +199,11 @@ func (s *service) ListRequests(ctx context.Context, query ListQuery) (Page, erro
 	}
 	if !query.History {
 		if err := s.decorateOpenPage(ctx, &page, query.Types, query.today); err != nil {
+			return Page{}, err
+		}
+	}
+	if s.deps.Submitters != nil {
+		if err := s.decorateSubmitters(ctx, &page); err != nil {
 			return Page{}, err
 		}
 	}

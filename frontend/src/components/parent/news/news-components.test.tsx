@@ -1,11 +1,11 @@
 import { useState } from "react";
+import { ApiError } from "~/lib/api-error";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { NewsCard, NewsDetailModal, isOpenPoll } from "./news-components";
 import type { ParentAnnouncement } from "~/lib/parent-api";
 import * as parentApi from "~/lib/parent-api";
-import { ParentApiError } from "~/lib/parent-api";
 import { catalogText } from "~/test/error-catalog-text";
 import * as dateHelpers from "~/lib/date-helpers";
 import { BELOW_SM } from "~/lib/hooks/use-media-query";
@@ -280,7 +280,7 @@ describe("Umfrage answering in the detail view", () => {
 
   it("keeps the selection and reports the error when saving fails", async () => {
     vi.spyOn(parentApi, "respondToAnnouncement").mockRejectedValue(
-      new ParentApiError("boom", 503, "general.unavailable"),
+      new ApiError("boom", 503, { code: "general.unavailable" }),
     );
     const onUpdated = vi.fn();
     const onClose = vi.fn();
@@ -310,7 +310,7 @@ describe("Umfrage answering in the detail view", () => {
     const respond = vi
       .spyOn(parentApi, "respondToAnnouncement")
       .mockRejectedValueOnce(
-        new ParentApiError("down", 503, "general.unavailable"),
+        new ApiError("down", 503, { code: "general.unavailable" }),
       )
       .mockResolvedValueOnce(undefined);
     const onClose = vi.fn();
@@ -881,6 +881,8 @@ describe("long poll for several children (#3861)", () => {
       />,
     );
 
+    // Anker: beide Kinderkarten stehen offen mit ihren Antwortoptionen.
+    expect(screen.getAllByRole("radio", { name: "Ja" })).toHaveLength(2);
     expect(
       screen.queryByRole("button", { name: /ausklappen|einklappen/ }),
     ).not.toBeInTheDocument();
@@ -993,7 +995,7 @@ describe("scheduled reminder in the parent feed (#3162)", () => {
 describe("NewsDetailModal errors", () => {
   it("shows a failed read confirmation in the dialog", async () => {
     vi.spyOn(parentApi, "acknowledgeAnnouncement").mockRejectedValue(
-      new ParentApiError("ack kaputt", 500, "general.server"),
+      new ApiError("ack kaputt", 500, { code: "general.server" }),
     );
     const onClose = vi.fn();
 
@@ -1020,7 +1022,7 @@ describe("NewsDetailModal errors", () => {
     const list = vi
       .spyOn(parentApi, "listAnnouncementAttachments")
       .mockRejectedValueOnce(
-        new ParentApiError("files kaputt", 503, "general.unavailable"),
+        new ApiError("files kaputt", 503, { code: "general.unavailable" }),
       )
       .mockResolvedValueOnce([]);
 

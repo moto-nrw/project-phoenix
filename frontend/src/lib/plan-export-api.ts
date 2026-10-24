@@ -52,13 +52,13 @@ export const PLAN_EXPORT_TEMPLATES: Record<
       id: "areas",
       label: "Nach Einsatzbereich",
       description:
-        "Eine Zeile je Schichtart oder Angebot, die Namen stehen in den Feldern.",
+        "Eine Zeile je Dienstart oder Angebot, die Namen stehen in den Feldern.",
     },
     {
       id: "hours",
       label: "Stundenübersicht",
       description:
-        "Eine Zeile je Mitarbeitenden mit den Stunden je Schichtart und dem Soll.",
+        "Eine Zeile je Mitarbeitenden mit den Stunden je Dienstart und dem Soll.",
     },
   ],
   betreuungsplan: [
@@ -123,7 +123,7 @@ export async function exportPlan(
 
     const blob = await response.blob();
     if (mode === "print") {
-      openBlobForPrint(blob, printTarget);
+      await openBlobForPrint(blob, printTarget);
       return;
     }
     downloadBlob(

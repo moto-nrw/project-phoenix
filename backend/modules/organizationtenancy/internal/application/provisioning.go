@@ -16,12 +16,13 @@ import (
 // ProvisioningDependencies are the owners operator provisioning (#3253)
 // works through. Every field is required.
 type ProvisioningDependencies struct {
+	PWAUsageWindowDays int
 	// Organizations is this module's public owner facade; provisioning
 	// creates and changes organisations and schools only through it, so the
 	// owner's normalisation and validation apply.
 	Organizations organizationtenancy.Capability
 	Transaction   ports.Transaction
-	Dashboard     ports.OperatorDashboard
+	Dashboard     organizationtenancy.OperatorDashboard
 	Identity      ports.ProvisioningIdentity
 	Devices       ports.ProvisioningDevices
 	People        ports.ProvisioningPeople
@@ -35,27 +36,30 @@ type ProvisioningDependencies struct {
 
 // Provisioning implements the operator provisioning capability. Every
 // operation runs in one administrative transaction; operations on one school
-// scope their owner calls to that school through the ports.
+// scope their owner calls to that school through the ports. The owner's
+// organisation reads, ListOrganizations among them, are promoted unchanged.
 type Provisioning struct {
-	organizations organizationtenancy.Capability
-	tx            ports.Transaction
-	dashboard     ports.OperatorDashboard
-	identity      ports.ProvisioningIdentity
-	devices       ports.ProvisioningDevices
-	people        ports.ProvisioningPeople
-	presence      ports.ProvisioningPresence
-	categories    ports.ProvisioningCategories
-	settings      ports.ProvisioningSettings
-	audit         ports.OperatorAudit
-	secrets       ports.ProvisioningSecrets
-	logger        *slog.Logger
+	organizationtenancy.OrganizationQuery
+	pwaUsageWindowDays int
+	organizations      organizationtenancy.Capability
+	tx                 ports.Transaction
+	dashboard          organizationtenancy.OperatorDashboard
+	identity           ports.ProvisioningIdentity
+	devices            ports.ProvisioningDevices
+	people             ports.ProvisioningPeople
+	presence           ports.ProvisioningPresence
+	categories         ports.ProvisioningCategories
+	settings           ports.ProvisioningSettings
+	audit              ports.OperatorAudit
+	secrets            ports.ProvisioningSecrets
+	logger             *slog.Logger
 }
 
 var _ organizationtenancy.Provisioning = (*Provisioning)(nil)
 
 // NewProvisioning builds the provisioning application.
 func NewProvisioning(deps ProvisioningDependencies) (*Provisioning, error) {
-	if deps.Organizations == nil || deps.Transaction == nil || deps.Dashboard == nil || deps.Identity == nil ||
+	if deps.PWAUsageWindowDays <= 0 || deps.Organizations == nil || deps.Transaction == nil || deps.Dashboard == nil || deps.Identity == nil ||
 		deps.Devices == nil || deps.People == nil || deps.Presence == nil || deps.Categories == nil ||
 		deps.Settings == nil || deps.Audit == nil || deps.Secrets == nil {
 		return nil, errors.New("organization tenancy provisioning: all dependencies are required")
@@ -65,7 +69,9 @@ func NewProvisioning(deps ProvisioningDependencies) (*Provisioning, error) {
 		logger = slog.Default()
 	}
 	return &Provisioning{
-		organizations: deps.Organizations, tx: deps.Transaction, dashboard: deps.Dashboard,
+		OrganizationQuery:  deps.Organizations,
+		pwaUsageWindowDays: deps.PWAUsageWindowDays,
+		organizations:      deps.Organizations, tx: deps.Transaction, dashboard: deps.Dashboard,
 		identity: deps.Identity, devices: deps.Devices, people: deps.People, presence: deps.Presence,
 		categories: deps.Categories, settings: deps.Settings, audit: deps.Audit, secrets: deps.Secrets,
 		logger: logger,
@@ -113,11 +119,6 @@ func (p *Provisioning) CreateOrganization(ctx context.Context, input *organizati
 			"slug": created.Slug,
 		})
 	})
-}
-
-// ListOrganizations lists every organisation.
-func (p *Provisioning) ListOrganizations(ctx context.Context) ([]organizationtenancy.Organization, error) {
-	return p.organizations.ListOrganizations(ctx)
 }
 
 // UpdateOrganization changes an organisation and records the changed fields.
@@ -202,7 +203,11 @@ func (p *Provisioning) recordAction(ctx context.Context, operatorID int64, actio
 		entry.Changes = payload
 	}
 	if err := p.audit.RecordOperatorAction(ctx, entry); err != nil {
-		return fmt.Errorf("create operator audit log: %w", err)
+		p.logger.Error("operator audit unavailable",
+			slog.String("action", action),
+			slog.String("resource_type", resourceType),
+		)
+		return &organizationtenancy.OperatorAuditUnavailableError{Err: err}
 	}
 	return nil
 }

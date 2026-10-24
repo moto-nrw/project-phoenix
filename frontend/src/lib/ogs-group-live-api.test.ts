@@ -136,6 +136,7 @@ describe("mapOgsGroupLiveResponse", () => {
             student_id: "2",
             pickup_time: "16:00",
             is_exception: true,
+            day_departure_mode: "bus",
           },
         ],
       }),
@@ -146,6 +147,7 @@ describe("mapOgsGroupLiveResponse", () => {
     expect(view.pickupTimes.get("1")).toEqual({
       pickupTime: "15:30",
       isException: false,
+      dayDepartureMode: undefined,
       notes: "Parent pickup",
       dayNotes: [
         { id: "5", content: "Arzttermin" },
@@ -155,6 +157,7 @@ describe("mapOgsGroupLiveResponse", () => {
     expect(view.pickupTimes.get("2")).toEqual({
       pickupTime: "16:00",
       isException: true,
+      dayDepartureMode: "bus",
       notes: undefined,
       dayNotes: [],
     });

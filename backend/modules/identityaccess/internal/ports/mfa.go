@@ -15,6 +15,10 @@ import (
 // Missing active challenges and devices may return a not-found error;
 // callers refuse verification for either an error or found=false.
 type AccountMFARecords interface {
+	// MFAAccountPermissions returns effective grants at one school, or across
+	// active school mappings when tenantID is zero (operator global override).
+	MFAAccountPermissions(ctx context.Context, accountID, tenantID int64) ([]string, error)
+	InvalidateSessionMFA(ctx context.Context, accountID int64) error
 	AccountDirectory
 	// AccountBelongsToTenant reports an active school mapping.
 	AccountBelongsToTenant(ctx context.Context, accountID, tenantID int64) (bool, error)
@@ -107,26 +111,22 @@ type ShortCodeHasher interface {
 	VerifyShortCode(plain, encodedHash string) (bool, error)
 }
 
-// MFAMail is the consumer-owned port over the two mails the MFA flows send.
-// DeliverCode is synchronous and fail-closed: the flow only activates the
-// code after the transport accepted the message. NotifyTrustedDeviceAdded is
-// fire-and-forget, because the login must not break when the security
-// notification does.
+// MFAMail queues MFA messages in the caller's transaction. EnqueueCode returns
+// a continuation that must run after commit; activation remains synchronous
+// and fail-closed until the transport accepts the code. Trusted-device notices
+// are durable but their eventual transport result does not affect login.
 type MFAMail interface {
-	DeliverCode(ctx context.Context, message domain.MFACodeMail) error
-	NotifyTrustedDeviceAdded(ctx context.Context, message domain.TrustedDeviceMail)
+	EnqueueCode(ctx context.Context, message domain.MFACodeMail, challengeID int64, expiresAt time.Time) (func(context.Context) error, error)
+	NotifyTrustedDeviceAdded(ctx context.Context, message domain.TrustedDeviceMail, deviceID int64) error
 }
 
-// MFAAuditTrail is the consumer-owned port over the two ledgers the MFA
-// flows append to: the tenant-scoped authentication ledger and the operator
-// action log. Both are best-effort by contract — the flows log a failure and
-// continue, exactly as the retained services did.
+// MFAAuditTrail appends to the authentication and operator ledgers on the
+// caller's transaction. Operator audit failures roll back the audited change.
 type MFAAuditTrail interface {
 	// RecordAuthEvent appends to the authentication ledger. Implementations
 	// join the caller's transaction when one is active and otherwise open
 	// the school's own transaction for the append.
 	RecordAuthEvent(ctx context.Context, event domain.AuthEvent) error
-	// RecordOperatorActionAsync appends to the operator action log outside the
-	// caller's outcome, so the request never pays for the insert.
-	RecordOperatorActionAsync(entry domain.OperatorAuditEntry)
+	// RecordOperatorAction appends to the operator action log in the caller's transaction.
+	RecordOperatorAction(ctx context.Context, entry domain.OperatorAuditEntry) error
 }

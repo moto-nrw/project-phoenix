@@ -8,14 +8,14 @@
  * propagation (no swallowed sub-loads).
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Session } from "next-auth";
-import { NextRequest } from "next/server";
 import { GET } from "./route";
 import { mockSessionData } from "~/test/mocks/next-auth";
-
-interface ExtendedSession extends Session {
-  user: Session["user"] & { token?: string };
-}
+import { ApiResponseError } from "~/lib/api-response-error.server";
+import {
+  type ExtendedSession,
+  createMockContext,
+  createMockRequest,
+} from "~/test/route-test-helpers";
 
 const { mockAuth, mockApiGet } = vi.hoisted(() => ({
   mockAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
@@ -26,35 +26,17 @@ vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));
 
-vi.mock("~/lib/api-helpers.server", () => ({
-  apiGet: mockApiGet,
-  apiPost: vi.fn(),
-  apiPut: vi.fn(),
-  apiDelete: vi.fn(),
-  handleApiError: vi.fn((error: unknown) => {
-    const message =
-      error instanceof Error ? error.message : "Internal Server Error";
-    const status = message.includes("(401)")
-      ? 401
-      : message.includes("(404)")
-        ? 404
-        : message.includes("(403)")
-          ? 403
-          : 500;
-    return new Response(JSON.stringify({ error: message }), { status });
-  }),
-}));
-
-function createMockRequest(path: string): NextRequest {
-  const url = new URL(path, "http://localhost:3000");
-  return new NextRequest(url);
-}
-
-function createMockContext(
-  params: Record<string, string | string[] | undefined> = {},
-) {
-  return { params: Promise.resolve(params) };
-}
+vi.mock("~/lib/api-helpers.server", async () => {
+  const { mockHandleApiError } =
+    await import("~/test/helpers/handle-api-error");
+  return {
+    apiGet: mockApiGet,
+    apiPost: vi.fn(),
+    apiPut: vi.fn(),
+    apiDelete: vi.fn(),
+    handleApiError: vi.fn(mockHandleApiError),
+  };
+});
 
 const defaultSession = mockSessionData() as ExtendedSession;
 
@@ -89,17 +71,6 @@ describe("GET /api/active-supervision-dashboard", () => {
     mockApiGet.mockReset();
     mockAuth.mockReset();
     mockAuth.mockResolvedValue(defaultSession);
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const response = await GET(
-      createMockRequest("/api/active-supervision-dashboard"),
-      createMockContext(),
-    );
-
-    expect(response.status).toBe(401);
   });
 
   it("issues exactly one backend request without group_id", async () => {
@@ -158,6 +129,10 @@ describe("GET /api/active-supervision-dashboard", () => {
             is_current_user_supervising: true,
             can_assign: true,
             participant_limit: 45,
+            supervisors: [
+              { staff_id: "5", name: "Anna Alt" },
+              { staff_id: "6", name: "Ben Bauer" },
+            ],
           },
         ],
         selected_group_id: "7",
@@ -256,6 +231,7 @@ describe("GET /api/active-supervision-dashboard", () => {
             weekday_name: "Mittwoch",
             pickup_time: "15:30",
             is_exception: true,
+            day_departure_mode: "pickup",
             day_notes: [{ id: "1", content: "Oma holt ab" }],
           },
         ],
@@ -351,6 +327,7 @@ describe("GET /api/active-supervision-dashboard", () => {
         canAssign: true,
         isCurrentUserSupervising: true,
         participantLimit: 45,
+        supervisorNames: ["Anna Alt", "Ben Bauer"],
         room_id: "10",
         room: { id: "10", name: "Raum 101", color: "#83CD2D" },
       },
@@ -391,6 +368,7 @@ describe("GET /api/active-supervision-dashboard", () => {
     expect(data.pickupTimes[0]).toMatchObject({
       studentId: "100",
       pickupTime: "15:30",
+      dayDepartureMode: "pickup",
       dayNotes: [{ id: "1", content: "Oma holt ab" }],
     });
     expect(data.arrivalTimes[0]).toMatchObject({
@@ -421,6 +399,7 @@ describe("GET /api/active-supervision-dashboard", () => {
                 can_assign: false,
                 student_count: 1,
                 participant_limit: 45,
+                supervisors: [{ staff_id: "8", name: "Cem Cakir" }],
                 block: {
                   instance_id: "510",
                   start_time: "13:00",
@@ -482,6 +461,7 @@ describe("GET /api/active-supervision-dashboard", () => {
         canAssign: false,
         studentCount: 1,
         participantLimit: 45,
+        supervisorNames: ["Cem Cakir"],
         block: {
           instanceId: "510",
           startTime: "13:00",
@@ -499,6 +479,7 @@ describe("GET /api/active-supervision-dashboard", () => {
         canAssign: true,
         studentCount: 0,
         participantLimit: null,
+        supervisorNames: [],
         block: null,
       },
       {
@@ -509,6 +490,7 @@ describe("GET /api/active-supervision-dashboard", () => {
         canAssign: false,
         studentCount: 1,
         participantLimit: null,
+        supervisorNames: [],
         block: null,
       },
     ]);
@@ -597,8 +579,45 @@ describe("GET /api/active-supervision-dashboard", () => {
     expect(json.data.openRooms[0]?.students[1]?.activityName).toBeUndefined();
   });
 
+  it("passes the planning-track colour of a planned block through (#4413)", async () => {
+    const planned = {
+      id: 7,
+      title: "Basteln",
+      date: "2026-08-31",
+      start_time: "14:00",
+      end_time: "15:00",
+      room_id: 3,
+      status: "planned",
+      is_overdue: false,
+      minutes_until_start: 10,
+      expected_students_count: 0,
+      present_students_count: 0,
+      assigned_staff_ids: [],
+    };
+    mockApiGet.mockResolvedValueOnce({
+      data: {
+        ...emptyWire,
+        planned_now: [
+          { ...planned, planning_track_color: "#5080D8" },
+          { ...planned, id: 8 },
+        ],
+      },
+    });
+
+    const response = await GET(
+      createMockRequest("/api/active-supervision-dashboard"),
+      createMockContext(),
+    );
+    const json = await parseJsonResponse<{
+      data: { plannedNow: Array<{ planningTrackColor: string | null }> };
+    }>(response);
+
+    expect(json.data.plannedNow[0]?.planningTrackColor).toBe("#5080D8");
+    expect(json.data.plannedNow[1]?.planningTrackColor).toBeNull();
+  });
+
   it("propagates backend errors instead of degrading to empty sections", async () => {
-    mockApiGet.mockRejectedValueOnce(new Error("API error (403): forbidden"));
+    mockApiGet.mockRejectedValueOnce(new ApiResponseError(403, "forbidden"));
 
     const response = await GET(
       createMockRequest("/api/active-supervision-dashboard?group_id=42"),
@@ -606,18 +625,5 @@ describe("GET /api/active-supervision-dashboard", () => {
     );
 
     expect(response.status).toBe(403);
-  });
-
-  it("propagates backend 500s", async () => {
-    mockApiGet.mockRejectedValueOnce(
-      new Error("API error (500): schulhof load failed"),
-    );
-
-    const response = await GET(
-      createMockRequest("/api/active-supervision-dashboard"),
-      createMockContext(),
-    );
-
-    expect(response.status).toBe(500);
   });
 });

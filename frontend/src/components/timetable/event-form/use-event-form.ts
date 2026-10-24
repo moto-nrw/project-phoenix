@@ -44,7 +44,7 @@ import {
   planningTrackService,
   type PlanningTrack,
 } from "~/lib/planning-track-api";
-import { staffService } from "~/lib/staff-api";
+import { staffService, type Staff } from "~/lib/staff-api";
 import { getSchoolYear } from "~/lib/student-helpers";
 import { useTenant } from "~/lib/tenant-context";
 import { timetableService } from "~/lib/timetable-api";
@@ -81,6 +81,7 @@ import {
   shiftCoverageWarningText,
   sortPeople,
   sourceScopesOverlap,
+  staffRosterOptions,
   targetCohortActionLabel,
 } from "./form-model";
 import {
@@ -388,7 +389,20 @@ export function useEventForm({
   const [planningTracks, setPlanningTracks] = useState<PlanningTrack[]>([]);
   const [groups, setGroups] = useState<GroupOption[]>([]);
   const [students, setStudents] = useState<PersonOption[]>([]);
-  const [staff, setStaff] = useState<PersonOption[]>([]);
+  // The whole staff list, externals with any access included (ADR 0091).
+  const [staffDirectory, setStaffDirectory] = useState<Staff[]>([]);
+  const staff = useMemo(
+    () => staffRosterOptions(staffDirectory),
+    [staffDirectory],
+  );
+
+  /** Puts a just recorded or invited external person into the lists. */
+  const addStaffOption = useCallback((person: Staff) => {
+    setStaffDirectory((prev) => [
+      ...prev.filter((item) => item.id !== person.id),
+      person,
+    ]);
+  }, []);
   const [loadingRefs, setLoadingRefs] = useState(false);
   const [referenceLoadFailed, setReferenceLoadFailed] = useState(false);
   const [loadingStudents, setLoadingStudents] = useState(false);
@@ -765,20 +779,14 @@ export function useEventForm({
       .getAllStaff()
       .then((items) => {
         if (!isCurrentStaffLoad()) return;
-        setStaff(
-          sortPeople(
-            items
-              .filter((item) => !item.isExternal)
-              .map((item) => ({ id: item.id, name: item.name })),
-          ),
-        );
+        setStaffDirectory(items);
       })
       .catch((err: unknown) => {
         logger.error("staff_fetch_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
         if (!isCurrentStaffLoad()) return;
-        setStaff([]);
+        setStaffDirectory([]);
         setStaffLoadFailed(true);
         void showStaffLoadError(err, {
           object: "die Personalliste",
@@ -841,7 +849,7 @@ export function useEventForm({
     setCoverageWarningCount(0);
     setCoverageCheckFailed(false);
     setStudents([]);
-    setStaff([]);
+    setStaffDirectory([]);
 
     loadReferenceLists(nextForm.categoryId, initialSeries?.categoryName);
     void loadStudentList();
@@ -3996,6 +4004,7 @@ export function useEventForm({
     groups,
     students,
     staff,
+    addStaffOption,
     loadingRefs,
     loadingStudents,
     studentLoadFailed,

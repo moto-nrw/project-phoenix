@@ -7,11 +7,10 @@ import (
 	"testing"
 	"time"
 
+	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
 
 type cleanupSettingsStub struct {
@@ -20,6 +19,10 @@ type cleanupSettingsStub struct {
 }
 
 func (s cleanupSettingsStub) RejectedRetentionDays(context.Context) (int, error) {
+	return s.days, s.err
+}
+
+func (s cleanupSettingsStub) WithdrawnRetentionDays(context.Context) (int, error) {
 	return s.days, s.err
 }
 
@@ -41,12 +44,16 @@ func (s *cleanupRequestStub) FullyRejectedRequestsBefore(_ context.Context, cuto
 	s.cutoff = cutoff
 	return s.ids, s.listErr
 }
-func (s *cleanupRequestStub) RequestByID(_ context.Context, id int64, _ bool) (*enrollment.Request, error) {
+func (s *cleanupRequestStub) SettledRequestsBefore(_ context.Context, withdrawnCutoff, _ time.Time) ([]int64, error) {
+	s.cutoff = withdrawnCutoff
+	return s.ids, s.listErr
+}
+func (s *cleanupRequestStub) RequestByID(_ context.Context, id int64, _ bool) (*enrollmentNative.Request, error) {
 	s.locked = append(s.locked, id)
 	if err := s.lockErr[id]; err != nil {
 		return nil, err
 	}
-	return &enrollment.Request{}, nil
+	return &enrollmentNative.Request{}, nil
 }
 func (s *cleanupRequestStub) DeleteRequest(_ context.Context, id int64) error {
 	if err := s.deleteErr[id]; err != nil {
@@ -57,12 +64,12 @@ func (s *cleanupRequestStub) DeleteRequest(_ context.Context, id int64) error {
 }
 
 type cleanupChildrenStub struct {
-	byRequestID map[int64][]*enrollment.RequestChild
+	byRequestID map[int64][]*enrollmentNative.RequestChild
 	errFor      map[int64]error
 	locked      []int64
 }
 
-func (s *cleanupChildrenStub) ChildrenForRequest(_ context.Context, requestID int64, forUpdate bool) ([]*enrollment.RequestChild, error) {
+func (s *cleanupChildrenStub) ChildrenForRequest(_ context.Context, requestID int64, forUpdate bool) ([]*enrollmentNative.RequestChild, error) {
 	if !forUpdate {
 		return nil, errors.New("cleanup must lock children")
 	}
@@ -76,13 +83,13 @@ func (s *cleanupChildrenStub) ChildrenForRequest(_ context.Context, requestID in
 func eligibleCleanupChildren(requestIDs ...int64) *cleanupChildrenStub {
 	reviewedAt := time.Now().Add(-365 * 24 * time.Hour)
 	children := &cleanupChildrenStub{
-		byRequestID: make(map[int64][]*enrollment.RequestChild, len(requestIDs)),
+		byRequestID: make(map[int64][]*enrollmentNative.RequestChild, len(requestIDs)),
 		errFor:      map[int64]error{},
 	}
 	for _, requestID := range requestIDs {
-		children.byRequestID[requestID] = []*enrollment.RequestChild{{
+		children.byRequestID[requestID] = []*enrollmentNative.RequestChild{{
 			RequestID:  requestID,
-			Status:     enrollmentModels.ChildStatusRejected,
+			Status:     enrollmentNative.ChildStatusRejected,
 			ReviewedAt: &reviewedAt,
 		}}
 	}
@@ -99,6 +106,10 @@ type cleanupLateInvitesStub struct {
 	counts  map[int64]int64
 	errFor  map[int64]error
 	deleted []int64
+}
+
+func (s *cleanupLateInvitesStub) DeleteLateInvitesSettledBefore(context.Context, time.Time) (int64, error) {
+	return 0, nil
 }
 
 func (s *cleanupLateInvitesStub) DeleteLateInvitesByUsedRequestID(_ context.Context, requestID int64) (int64, error) {
@@ -162,7 +173,7 @@ func TestRejectedEnrollmentCleanup_DeletesUsedLateInvites(t *testing.T) {
 	result, err := cleanupServiceForTest(requests, children, outbox, cleanupSettingsStub{days: 30}, lateInvites).CleanupRejectedEnrollments(context.Background())
 
 	require.NoError(t, err)
-	assert.Equal(t, enrollment.RejectedEnrollmentCleanupResult{DeletedRequests: 1, DeletedLateInvites: 2, DeletedOutboxRows: 3}, result)
+	assert.Equal(t, enrollmentNative.RejectedEnrollmentCleanupResult{DeletedRequests: 1, DeletedLateInvites: 2, DeletedOutboxRows: 3}, result)
 	assert.Equal(t, []int64{11}, lateInvites.deleted)
 	assert.Equal(t, []int64{11}, outbox.deleted)
 	assert.Equal(t, []int64{11}, requests.deleted)
@@ -196,7 +207,7 @@ func TestRejectedEnrollmentCleanup_DeletesOnlyRepositorySelectedRequests(t *test
 	result, err := cleanupServiceForTest(requests, children, outbox, cleanupSettingsStub{days: 30}).CleanupRejectedEnrollments(context.Background())
 
 	require.NoError(t, err)
-	assert.Equal(t, enrollment.RejectedEnrollmentCleanupResult{DeletedRequests: 2, DeletedOutboxRows: 3}, result)
+	assert.Equal(t, enrollmentNative.RejectedEnrollmentCleanupResult{DeletedRequests: 2, DeletedOutboxRows: 3}, result)
 	assert.Equal(t, []int64{11, 12}, requests.locked)
 	assert.Equal(t, []int64{11, 12}, children.locked)
 	assert.Equal(t, []int64{11, 12}, outbox.deleted)
@@ -241,9 +252,9 @@ func TestRejectedEnrollmentCleanup_RechecksLockedChildrenBeforeDeleting(t *testi
 	requests := &cleanupRequestStub{ids: []int64{11, 12}, deleteErr: map[int64]error{}}
 	children := eligibleCleanupChildren(11, 12)
 	reviewedAt := time.Now().Add(-365 * 24 * time.Hour)
-	children.byRequestID[11] = []*enrollment.RequestChild{{
+	children.byRequestID[11] = []*enrollmentNative.RequestChild{{
 		RequestID:  11,
-		Status:     enrollmentModels.ChildStatusUnderReview,
+		Status:     enrollmentNative.ChildStatusUnderReview,
 		ReviewedAt: &reviewedAt,
 	}}
 	outbox := &cleanupOutboxStub{counts: map[int64]int64{11: 3, 12: 2}, errFor: map[int64]error{}}
@@ -251,7 +262,7 @@ func TestRejectedEnrollmentCleanup_RechecksLockedChildrenBeforeDeleting(t *testi
 	result, err := cleanupServiceForTest(requests, children, outbox, cleanupSettingsStub{days: 30}).CleanupRejectedEnrollments(context.Background())
 
 	require.NoError(t, err)
-	assert.Equal(t, enrollment.RejectedEnrollmentCleanupResult{DeletedRequests: 1, DeletedOutboxRows: 2}, result)
+	assert.Equal(t, enrollmentNative.RejectedEnrollmentCleanupResult{DeletedRequests: 1, DeletedOutboxRows: 2}, result)
 	assert.Equal(t, []int64{11, 12}, requests.locked)
 	assert.Equal(t, []int64{11, 12}, children.locked)
 	assert.Equal(t, []int64{12}, outbox.deleted)
@@ -305,18 +316,18 @@ func TestChildrenRemainFullyRejectedBefore(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		children []*enrollment.RequestChild
+		children []*enrollmentNative.RequestChild
 		want     bool
 	}{
 		{name: "no children"},
-		{name: "nil child", children: []*enrollment.RequestChild{nil}},
-		{name: "reopened child", children: []*enrollment.RequestChild{{Status: enrollmentModels.ChildStatusUnderReview, ReviewedAt: &oldReview}}},
-		{name: "missing review time", children: []*enrollment.RequestChild{{Status: enrollmentModels.ChildStatusRejected}}},
-		{name: "review exactly at cutoff", children: []*enrollment.RequestChild{{Status: enrollmentModels.ChildStatusRejected, ReviewedAt: &cutoff}}},
-		{name: "review after cutoff", children: []*enrollment.RequestChild{{Status: enrollmentModels.ChildStatusRejected, ReviewedAt: &newReview}}},
-		{name: "all rejected before cutoff", children: []*enrollment.RequestChild{
-			{Status: enrollmentModels.ChildStatusRejected, ReviewedAt: &oldReview},
-			{Status: enrollmentModels.ChildStatusRejected, ReviewedAt: &oldReview},
+		{name: "nil child", children: []*enrollmentNative.RequestChild{nil}},
+		{name: "reopened child", children: []*enrollmentNative.RequestChild{{Status: enrollmentNative.ChildStatusUnderReview, ReviewedAt: &oldReview}}},
+		{name: "missing review time", children: []*enrollmentNative.RequestChild{{Status: enrollmentNative.ChildStatusRejected}}},
+		{name: "review exactly at cutoff", children: []*enrollmentNative.RequestChild{{Status: enrollmentNative.ChildStatusRejected, ReviewedAt: &cutoff}}},
+		{name: "review after cutoff", children: []*enrollmentNative.RequestChild{{Status: enrollmentNative.ChildStatusRejected, ReviewedAt: &newReview}}},
+		{name: "all rejected before cutoff", children: []*enrollmentNative.RequestChild{
+			{Status: enrollmentNative.ChildStatusRejected, ReviewedAt: &oldReview},
+			{Status: enrollmentNative.ChildStatusRejected, ReviewedAt: &oldReview},
 		}, want: true},
 	}
 
@@ -325,4 +336,22 @@ func TestChildrenRemainFullyRejectedBefore(t *testing.T) {
 			assert.Equal(t, tt.want, childrenRemainFullyRejectedBefore(tt.children, cutoff))
 		})
 	}
+}
+
+func TestChildSettledBeforeUsesTheWithdrawalStatusTimestamp(t *testing.T) {
+	t.Parallel()
+
+	cutoff := time.Now()
+	withdrawnAt := cutoff.Add(-time.Hour)
+	updatedLater := cutoff.Add(time.Hour)
+
+	assert.True(t, childSettledBefore(&enrollmentNative.RequestChild{
+		Status:     enrollmentNative.ChildStatusWithdrawn,
+		ReviewedAt: &withdrawnAt,
+		UpdatedAt:  updatedLater,
+	}, settledCutoffs{withdrawn: cutoff}), "a later data correction does not restart retention")
+	assert.True(t, childSettledBefore(&enrollmentNative.RequestChild{
+		Status:    enrollmentNative.ChildStatusWithdrawn,
+		UpdatedAt: withdrawnAt,
+	}, settledCutoffs{withdrawn: cutoff}), "a lapsed renewal has no review timestamp")
 }

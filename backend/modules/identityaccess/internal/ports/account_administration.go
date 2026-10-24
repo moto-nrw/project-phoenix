@@ -39,7 +39,7 @@ type AccountAdministrationStore interface {
 	// visibility. found=false when the predicate matched no row.
 	SetManageableAccountActive(ctx context.Context, id int64, active bool, visibility domain.AccountVisibility) (bool, domain.OperationStats, error)
 	// UpdateAccountPasswordHash replaces the credential of the account
-	// holder; found=false when the row is gone.
+	// holder; found=false when the row is gone or erased.
 	UpdateAccountPasswordHash(ctx context.Context, id int64, hash string) (bool, domain.OperationStats, error)
 }
 
@@ -49,5 +49,5 @@ type AccountAdministrationStore interface {
 // administrator with no account to manage, which is the refusal the
 // retained repository applied.
 type ManageableSchools interface {
-	ManageableSchoolIDs(ctx context.Context, organizationID int64) ([]int64, error)
+	ListManageableSchoolIDs(ctx context.Context, organizationID int64) ([]int64, error)
 }

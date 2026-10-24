@@ -2,10 +2,12 @@ version: "2"
 
 run:
   timeout: 10m
+  build-tags: [testhooks]
 
 linters:
   default: standard
   enable:
+    - errorlint
     - sloglint
     - forbidigo
   settings:
@@ -17,11 +19,16 @@ linters:
       analyze-types: true
       forbid:
         - pattern: '^time\.Time\.Truncate$'
-          msg: "Truncate on an instant yields UTC-aligned days, not Berlin calendar days. Use timezone.Date / timezone.TodayDate() (see .claude/rules/calendar-dates.md). For sub-day alignment, nolint with a justification."
+          msg: "Truncate on an instant yields UTC-aligned days, not Berlin calendar days. Use calendar.Date / calendar.TodayDate() (see .claude/rules/calendar-dates.md). For sub-day alignment, nolint with a justification."
         - pattern: 'time\.Now\(\)\.UTC\(\)\.Truncate'
-          msg: "UTC-truncating now() produces the wrong calendar day before 02:00 Berlin. Use timezone.TodayDate()."
+          msg: "UTC-truncating now() produces the wrong calendar day before 02:00 Berlin. Use calendar.TodayDate()."
   exclusions:
     rules:
+      # #4089 gates every HTTP role without exceptions. Non-HTTP errorlint
+      # findings are outside this wire-preserving boundary migration.
+      - path-except: '(^|/)(http|inbound)(/|$)|^api/(common|display|iot)/|^analytics/|^middleware/|^modules/(schoolportal|identityaccess/sessiontoken|devicefleet/deviceauth)/'
+        linters:
+          - errorlint
       # Test-file Truncate sites are enforced by TestDateColumnTypes'
       # no_truncate_24h_date_math sub-test (shrinking allowlist) instead.
       - path: '_test\.go$'

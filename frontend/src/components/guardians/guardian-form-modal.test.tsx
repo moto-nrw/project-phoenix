@@ -372,28 +372,15 @@ describe("toEntry", () => {
 });
 
 describe("GuardianFormModal", () => {
-  const mockOnClose = vi.fn();
-  const mockOnSubmit = vi.fn();
+  let mockOnClose = vi.fn();
+  let mockOnSubmit = vi.fn();
 
   beforeEach(() => {
+    // Ein später Rückruf eines früheren Dialogs darf nicht zum nächsten Test
+    // zählen. clearAllMocks leert nur Aufrufe, nicht die Funktionsinstanz.
+    mockOnClose = vi.fn();
+    mockOnSubmit = vi.fn();
     vi.clearAllMocks();
-  });
-
-  it("renders nothing when isOpen is false", () => {
-    render(
-      <GuardianFormModal
-        isOpen={false}
-        onClose={mockOnClose}
-        onSubmit={mockOnSubmit}
-        mode="create"
-      />,
-    );
-
-    expect(
-      screen.queryByRole("heading", {
-        name: "Erziehungsberechtigte/n hinzufügen",
-      }),
-    ).not.toBeInTheDocument();
   });
 
   it("renders modal when isOpen is true", () => {
@@ -487,6 +474,8 @@ describe("GuardianFormModal", () => {
       />,
     );
 
+    // Anker: der Eintrag steht, unter dem der Knopf stünde.
+    expect(screen.getAllByPlaceholderText("Max")).toHaveLength(1);
     expect(screen.queryByText("Weiteren hinzufügen")).not.toBeInTheDocument();
   });
 

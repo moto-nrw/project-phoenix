@@ -2,15 +2,15 @@ import { describe, expect, it } from "vitest";
 
 import {
   assignBlockLanes,
+  buildDayColumnTemplate,
   chunkDateRange,
   comparePlanningInstances,
-  computeTimetableSetup,
   countPlannedStaff,
+  DENSITY_TO_LANE_MIN_WIDTH_PX,
   deviationEventLabel,
   formatDayHeader,
   formatMonthLabel,
   formatWeekLabel,
-  formatYearLabel,
   getActivityColor,
   getActivityTypeBadge,
   instanceRoomLabel,
@@ -24,8 +24,6 @@ import {
   getStatusLabel,
   getWeekRange,
   getWeekdays,
-  getYearMonths,
-  getYearRange,
   groupInstancesByDate,
   mapApplyDeviations,
   mapBulkSubstitution,
@@ -167,16 +165,6 @@ describe("date and range helpers", () => {
     expect(days.at(-1)).toEqual(to);
   });
 
-  it("returns the civil year range and month anchors", () => {
-    const { from, to } = getYearRange(new Date("2026-05-15T00:00:00"));
-
-    expect(toISODate(from)).toBe("2026-01-01");
-    expect(toISODate(to)).toBe("2026-12-31");
-    expect(getYearMonths(from).map((d) => d.getMonth())).toEqual([
-      0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
-    ]);
-  });
-
   it("chunks inclusive date ranges and rejects invalid ranges", () => {
     expect(chunkDateRange("2026-05-01", "2026-05-05", 2)).toEqual([
       { from: "2026-05-01", to: "2026-05-02" },
@@ -315,7 +303,6 @@ describe("date and range helpers", () => {
     expect(formatWeekLabel(monday, sunday)).toContain("10.05.2026");
     expect(formatDayHeader(monday)).toBe("Mo 04.05.");
     expect(formatMonthLabel(monday)).toMatch(/Mai 2026/i);
-    expect(formatYearLabel(monday)).toBe("2026");
     expect(getGermanWeekdayLong(monday)).toBe("Montag");
     expect(getGermanWeekdayShort(monday)).toBe("Mo");
   });
@@ -1662,6 +1649,73 @@ describe("assignBlockLanes", () => {
     expect(b.laneCount).toBe(2);
     expect(c.laneCount).toBe(2);
   });
+
+  it("lets an event grow into lanes to its right that are free for its whole time", () => {
+    // a: 10–12 (lane 0), b: 10–11 (lane 1), c: 10–11 (lane 2),
+    // d: 11–12 → lane 1; lane 2 is free from 11:00, so d spans lanes 1–2.
+    const result = assignBlockLanes([
+      fakeInstance("a", "10:00", "12:00"),
+      fakeInstance("b", "10:00", "11:00"),
+      fakeInstance("c", "10:00", "11:00"),
+      fakeInstance("d", "11:00", "12:00"),
+    ]);
+    const byId = new Map(result.map((r) => [r.instance.id, r]));
+    expect(byId.get("d")).toMatchObject({ lane: 1, laneCount: 3, laneSpan: 2 });
+    // Parallel events keep exactly their own lane.
+    expect(byId.get("a")).toMatchObject({ lane: 0, laneSpan: 1 });
+    expect(byId.get("b")).toMatchObject({ lane: 1, laneSpan: 1 });
+    expect(byId.get("c")).toMatchObject({ lane: 2, laneSpan: 1 });
+  });
+
+  it("stops growing at the first lane that is busy during the event", () => {
+    // a: 7:30–8:15 (lane 0), b: 8–12 (lane 1), c: 11–12 (lane 0):
+    // lane 1 is busy until 12:00, so a and c stay one lane wide.
+    const result = assignBlockLanes([
+      fakeInstance("a", "07:30", "08:15"),
+      fakeInstance("b", "08:00", "12:00"),
+      fakeInstance("c", "11:00", "12:00"),
+    ]);
+    for (const r of result) {
+      expect(r.laneCount).toBe(2);
+      expect(r.laneSpan).toBe(1);
+    }
+  });
+
+  it("keeps a lone event at one lane of one", () => {
+    const [only] = assignBlockLanes([fakeInstance("a", "10:00", "11:00")]);
+    expect(only).toMatchObject({ lane: 0, laneCount: 1, laneSpan: 1 });
+  });
+});
+
+describe("buildDayColumnTemplate", () => {
+  it("gives every day an equal share when no day has parallel events", () => {
+    const { template, minWidthPx } = buildDayColumnTemplate([1, 1, 1], 64);
+    expect(template).toBe(
+      "64px minmax(120px,1fr) minmax(120px,1fr) minmax(120px,1fr)",
+    );
+    expect(minWidthPx).toBe(64 + 3 * 120);
+  });
+
+  it("widens a day by its parallel lanes so no lane drops below a readable width", () => {
+    const { template, minWidthPx } = buildDayColumnTemplate([1, 4, 0], 40);
+    // Four parallel lanes need four readable lane widths and four shares of
+    // the free space; an empty day keeps the day minimum.
+    expect(template).toBe(
+      "40px minmax(120px,1fr) minmax(448px,4fr) minmax(120px,1fr)",
+    );
+    expect(minWidthPx).toBe(40 + 120 + 448 + 120);
+  });
+
+  it("fits the whole week into the width when lanes may shrink (Kompakt)", () => {
+    const { template, minWidthPx } = buildDayColumnTemplate(
+      [1, 4],
+      64,
+      DENSITY_TO_LANE_MIN_WIDTH_PX.compact,
+    );
+    // Busy days still get the larger share; only the day minimum holds.
+    expect(template).toBe("64px minmax(120px,1fr) minmax(120px,4fr)");
+    expect(minWidthPx).toBe(64 + 2 * 120);
+  });
 });
 
 describe("comparePlanningInstances", () => {
@@ -1865,69 +1919,6 @@ describe("countPlannedStaff", () => {
 
   it("returns 0 for an empty list", () => {
     expect(countPlannedStaff([])).toBe(0);
-  });
-});
-
-describe("computeTimetableSetup", () => {
-  it("completes when period + plan are done (enrollment optional)", () => {
-    const result = computeTimetableSetup({
-      hasActivePeriod: true,
-      careOfferingLink: "unlinked",
-      hasPlan: true,
-    });
-    expect(result.setupComplete).toBe(true);
-    expect(result.periodDone).toBe(true);
-    expect(result.planDone).toBe(true);
-    expect(result.totalSteps).toBe(3);
-    expect(result.completedSteps).toBe(2);
-    expect(result.progressPercent).toBe(67);
-  });
-
-  it("is incomplete for a fresh school (no period, no plan)", () => {
-    const result = computeTimetableSetup({
-      hasActivePeriod: false,
-      careOfferingLink: "unlinked",
-      hasPlan: false,
-    });
-    expect(result.setupComplete).toBe(false);
-    expect(result.completedSteps).toBe(0);
-    expect(result.progressPercent).toBe(0);
-  });
-
-  it("counts a linked care offering toward progress", () => {
-    const result = computeTimetableSetup({
-      hasActivePeriod: true,
-      careOfferingLink: "linked",
-      hasPlan: true,
-    });
-    expect(result.enrollmentDone).toBe(true);
-    expect(result.completedSteps).toBe(3);
-    expect(result.progressPercent).toBe(100);
-  });
-
-  // Issue #1651: an active enrollment phase whose offerings link to nothing
-  // must not tick the "Mit der Anmeldung verknüpfen" step.
-  it("leaves the enrollment step open when no care offering is linked", () => {
-    const result = computeTimetableSetup({
-      hasActivePeriod: true,
-      careOfferingLink: "unlinked",
-      hasPlan: true,
-    });
-    expect(result.enrollmentApplicable).toBe(true);
-    expect(result.enrollmentDone).toBe(false);
-    expect(result.completedSteps).toBe(2);
-  });
-
-  it("drops the enrollment step from progress when the linkage is unknown", () => {
-    const result = computeTimetableSetup({
-      hasActivePeriod: true,
-      careOfferingLink: "unknown",
-      hasPlan: false,
-    });
-    expect(result.enrollmentApplicable).toBe(false);
-    expect(result.totalSteps).toBe(2);
-    expect(result.completedSteps).toBe(1);
-    expect(result.progressPercent).toBe(50);
   });
 });
 

@@ -5,7 +5,6 @@ import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
 import {
   fetchDatevExportReport,
-  DatevConfigIncompleteError,
   type DatevExportReport,
 } from "~/lib/datev-export-api";
 import {
@@ -191,7 +190,11 @@ describe("StaffTimeExportModal", () => {
   });
 
   it("blocks the DATEV download while the payroll configuration is incomplete", async () => {
-    fetchReportMock.mockRejectedValue(new DatevConfigIncompleteError());
+    fetchReportMock.mockRejectedValue(
+      new ApiError("payroll_config_incomplete", 409, {
+        code: "workforce.payroll_config_incomplete",
+      }),
+    );
     renderModal();
     fireEvent.click(screen.getByRole("button", { name: "DATEV LODAS" }));
 

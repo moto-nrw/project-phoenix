@@ -24,7 +24,7 @@ if [[ "${1:-}" == build ]]; then
   cp "$(dirname "$0")/deadcode" "$3"
   exit 0
 fi
-if [[ "$*" == 'tool deadcode -test ./...' ]]; then
+if [[ "$*" == 'tool deadcode -tags=testhooks -test ./...' ]]; then
   mode=tests
 else
   mode=production
@@ -35,14 +35,19 @@ cat >"$fixture/bin/deadcode" <<'SH'
 #!/usr/bin/env bash
 set -euo pipefail
 mode=${1:-}
-[[ "$mode" != './...' ]] || mode=architecture
+if [[ "${*: -1}" == './...' ]]; then
+  mode=architecture
+  # The command run must report internal/architecture, whose only production
+  # entry point is that command.
+  [[ "${1:-}" == -filter && "${2:-}" == *internal/architecture* && "${2:-}" == *internal/passthrough* ]] || exit 9
+fi
 printf 'blacksmith-gocacheprog pid=%s\n' "$$" >&2
 if [[ "$mode" == "$FAIL_MODE" ]]; then
   echo 'analyzer failed' >&2
   exit 7
 fi
 if [[ "$mode" == "$FINDING_MODE" ]]; then
-  echo 'services/example.go:12:1: unreachable func: Example'
+  echo "${FINDING_PATH:-services/example.go}:12:1: unreachable func: Example"
 fi
 SH
 chmod +x "$fixture/bin/go" "$fixture/bin/deadcode"
@@ -78,3 +83,8 @@ for mode in tests production architecture; do
   run_case "$mode analyzer errors still fail" '' "$mode" 7
 done
 run_case 'analyzer build errors still fail' '' build 7
+# internal/architecture is no longer exempt when tests are entry points.
+FINDING_PATH=internal/architecture/example.go run_case 'internal/architecture test findings fail' tests '' 1
+
+FINDING_PATH=internal/passthrough/example.go run_case 'pass-through scanner test findings fail' tests '' 1
+FINDING_PATH=internal/passthrough/example.go run_case 'pass-through scanner CLI findings fail' architecture '' 1

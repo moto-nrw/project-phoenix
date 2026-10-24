@@ -3,7 +3,6 @@ package compose
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
@@ -46,36 +45,6 @@ type (
 	ApprovedOfferingProjection = application.ApprovedOfferingProjection
 )
 
-func tenantRuntime() application.Runtime {
-	return application.Runtime{
-		Transactions: tenant.NewTransactionRunner(),
-		TenantID:     tenant.FromContext,
-		MarkRollback: tenant.MarkRollback,
-		NotFound:     func(err error) bool { return errors.Is(err, sql.ErrNoRows) },
-		NoRows:       sql.ErrNoRows,
-		InTransaction: func(ctx context.Context) bool {
-			_, ok := tenant.TransactionFromContext(ctx)
-			return ok
-		},
-		Savepoint:           tenant.WithSavepoint,
-		IsSavepointControl:  func(err error) bool { return errors.Is(err, tenant.ErrSavepointControl) },
-		WithinCurrentTenant: tenant.WithinCurrentTenant,
-		AfterCommit:         tenant.RegisterAfterCommit,
-		AdminTx: func(ctx context.Context, fn func(context.Context) error) error {
-			return tenant.WithAdminTx(ctx, (*bun.DB)(nil), func(txCtx context.Context, _ bun.Tx) error { return fn(txCtx) })
-		},
-		TenantTx: func(ctx context.Context, tenantID int64, fn func(context.Context) error) error {
-			return tenant.WithTenantTx(ctx, (*bun.DB)(nil), tenantID, func(txCtx context.Context, _ bun.Tx) error { return fn(txCtx) })
-		},
-		WithTenant:         tenant.WithTenantID,
-		IsAdminTx:          tenant.IsAdminTx,
-		WithoutTransaction: tenant.ContextWithoutTransaction,
-		DetachTransaction: func(ctx context.Context) context.Context {
-			return tenant.ContextWithoutAfterCommitHooks(tenant.ContextWithoutTransaction(ctx))
-		},
-	}
-}
-
 // PhaseDependencies bind the phase administration to its owners. Calendar,
 // Settings and the three response ports are optional in focused tests.
 type PhaseDependencies struct {
@@ -84,30 +53,29 @@ type PhaseDependencies struct {
 	Calendar                        CalendarPeriods
 	LockTemplateRecurrence          func(context.Context) error
 	ValidateCareOfferingPhaseChange func(context.Context, int64, *enrollment.Phase) error
-	// SourcedTemplates resolves the decision flow's sourced-template
-	// resyncer on every edit, so the root can bind it after the phase
-	// administration exists.
-	SourcedTemplates func() enrollment.SourcedTemplateResyncer
-	Settings         CollectionSettings
-	Roster           enrollment.PhaseResponseRoster
-	CareExits        enrollment.PhaseResponseCareExits
-	PortalAccounts   enrollment.PhaseResponsePortalAccounts
-	Logger           *slog.Logger
-	Today            func() calendar.Date
+	// Resyncer keeps the templates sourcing the phase's offerings in step.
+	Resyncer       enrollment.SourcedTemplateResyncer
+	Settings       CollectionSettings
+	Roster         enrollment.PhaseResponseRoster
+	CareExits      enrollment.PhaseResponseCareExits
+	PortalAccounts enrollment.PhaseResponsePortalAccounts
+	Logger         *slog.Logger
+	Today          func() calendar.Date
 }
 
-// NewPhases composes the phase administration in the ambient tenant
-// transaction.
-func NewPhases(deps PhaseDependencies) *Phases {
+// NewResyncingPhases composes the phase administration in the ambient tenant
+// transaction over the sourced-template resyncer; a missing resyncer, record
+// or offering port or recurrence lock is a construction error.
+func NewResyncingPhases(deps PhaseDependencies) (*Phases, error) {
 	var responses *application.PhaseResponseSources
 	if deps.Roster != nil || deps.CareExits != nil || deps.PortalAccounts != nil {
 		responses = &application.PhaseResponseSources{Roster: deps.Roster, CareExits: deps.CareExits, PortalAccounts: deps.PortalAccounts}
 	}
-	return application.NewPhases(application.PhaseDependencies{
+	return application.NewResyncingPhases(application.PhaseDependencies{
 		Records: deps.Records, Offerings: deps.Offerings, Calendar: deps.Calendar,
 		LockTemplateRecurrence:          deps.LockTemplateRecurrence,
 		ValidateCareOfferingPhaseChange: deps.ValidateCareOfferingPhaseChange,
-		SourcedTemplates:                deps.SourcedTemplates,
+		Resyncer:                        deps.Resyncer,
 		Settings:                        deps.Settings,
 		Responses:                       responses,
 		Runtime:                         tenantRuntime(),
@@ -146,12 +114,12 @@ func NewCaptcha(settings CaptchaSettings, verifyURL string, logger *slog.Logger)
 
 // NotificationDependencies bind the parent mails to their owners.
 type NotificationDependencies struct {
+	Branding func(baseURL, schoolImageURL string) (schoolLogoURL, motoLogoURL string)
 	Modes    NotificationModePin
 	Settings NotificationSettings
 	Outbox   MailOutbox
 	Schools  enrollment.SchoolDirectory
-	// Fingerprint identifies a decision state for the outbox idempotency
-	// keys.
+	// Fingerprint identifies the decision state for outbox idempotency.
 	Fingerprint func(content []byte) string
 }
 
@@ -159,7 +127,7 @@ type NotificationDependencies struct {
 func NewNotifications(deps NotificationDependencies) enrollment.Notifications {
 	return application.NewNotifications(application.NotificationDependencies{
 		Modes: deps.Modes, Settings: deps.Settings, Outbox: deps.Outbox, Schools: deps.Schools,
-		Fingerprint: deps.Fingerprint,
+		Fingerprint: deps.Fingerprint, Branding: deps.Branding,
 	})
 }
 
@@ -171,4 +139,29 @@ func NewMailRenderers() enrollment.MailRenderers {
 // NewApprovedOfferingProjection composes the approved-offering projection.
 func NewApprovedOfferingProjection(selections ApprovedSelections, students OfferingStudentDirectory) *ApprovedOfferingProjection {
 	return application.NewApprovedOfferingProjection(selections, students)
+}
+
+func tenantRuntime() application.Runtime {
+	return application.Runtime{
+		Transactions:        tenant.NewTransactionRunner(),
+		TenantID:            tenant.FromContext,
+		MarkRollback:        tenant.MarkRollback,
+		NotFound:            application.NewErrorMatcher(sql.ErrNoRows),
+		NoRows:              sql.ErrNoRows,
+		InTransaction:       application.NewTransactionPresence(tenant.TransactionFromContext),
+		Savepoint:           tenant.WithSavepoint,
+		IsSavepointControl:  application.NewErrorMatcher(tenant.ErrSavepointControl),
+		WithinCurrentTenant: tenant.WithinCurrentTenant,
+		AfterCommit:         tenant.RegisterAfterCommit,
+		AdminTx: func(ctx context.Context, fn func(context.Context) error) error {
+			return tenant.WithAdminTx(ctx, (*bun.DB)(nil), func(txCtx context.Context, _ bun.Tx) error { return fn(txCtx) })
+		},
+		TenantTx: func(ctx context.Context, tenantID int64, fn func(context.Context) error) error {
+			return tenant.WithTenantTx(ctx, (*bun.DB)(nil), tenantID, func(txCtx context.Context, _ bun.Tx) error { return fn(txCtx) })
+		},
+		WithTenant:         tenant.WithTenantID,
+		IsAdminTx:          tenant.IsAdminTx,
+		WithoutTransaction: tenant.ContextWithoutTransaction,
+		DetachTransaction:  application.NewDetachedContext(tenant.ContextWithoutAfterCommitHooks, tenant.ContextWithoutTransaction),
+	}
 }

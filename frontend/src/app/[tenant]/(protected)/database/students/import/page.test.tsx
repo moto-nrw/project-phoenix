@@ -27,7 +27,7 @@ vi.mock("next-auth/react", () => ({
 // Mock next/navigation
 vi.mock("next/navigation", () => ({
   redirect: vi.fn(),
-  // BackButton (via useTenantRouter) braucht useRouter.
+  // useTenantRouter braucht useRouter.
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
 }));
 
@@ -168,6 +168,14 @@ describe("StudentImportPage", () => {
 
   afterEach(() => {
     cleanup();
+  });
+
+  it("führt zurück zu den Kinderdaten", () => {
+    render(<StudentImportPage />);
+
+    expect(
+      screen.getByRole("link", { name: "Zurück zu den Kinderdaten" }),
+    ).toHaveAttribute("href", expect.stringMatching(/\/database\/students$/));
   });
 
   it("renders the page with instruction section", () => {
@@ -1560,8 +1568,8 @@ describe("StudentImportPage", () => {
           status: 409,
           json: () =>
             Promise.resolve({
-              status: "error",
-              error: "Import fehlgeschlagen",
+              status: 409,
+              detail: "import batch failed",
               code: "import.import_batch_failed",
               details: {
                 result: {
@@ -1595,7 +1603,7 @@ describe("StudentImportPage", () => {
       );
 
       await waitFor(() => {
-        expect(screen.getByTestId("alert-warning")).toHaveTextContent(
+        expect(screen.getByTestId("alert-error")).toHaveTextContent(
           "50 Zeilen sind gespeichert. Das Kinderkontingent Ihrer Schule ist voll. Die Kontingentzahl beträgt 200 von 200 Kindern. Für weitere Kinder melden Sie sich bitte beim moto-Team. Die gespeicherten Zeilen bleiben.",
         );
       });

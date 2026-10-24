@@ -3,12 +3,14 @@ package contracttest_test
 import (
 	"testing"
 
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 )
 
 // TestOfferingChangeRequestService_ListHistory proves the staff history:
@@ -18,13 +20,12 @@ import (
 func TestOfferingChangeRequestService_ListHistory(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "History")
 
-	row, err := svc.SubmitOfferingChange(ctx, careplan.CreateOfferingChangeInput{
+	row, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), svc.SubmitOfferingChange, careplan.CreateOfferingChangeInput{
 		StudentID:     fx.studentID,
 		AccountID:     env.creatorID,
 		EffectiveFrom: fx.switchDate,
@@ -42,7 +43,7 @@ func TestOfferingChangeRequestService_ListHistory(t *testing.T) {
 		assert.NotEqual(t, row.ID, item.Request.ID, "pending rows must never appear in the history")
 	}
 
-	require.NoError(t, svc.Decide(ctx, careplan.OfferingChangeDecisionInput{
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), svc.Decide, careplan.OfferingChangeDecisionInput{
 		RequestID: row.ID, Approve: false, Reason: "Kapazität erschöpft", ReviewedBy: env.creatorID,
 	}))
 
@@ -56,7 +57,7 @@ func TestOfferingChangeRequestService_ListHistory(t *testing.T) {
 		}
 	}
 	require.NotNil(t, got, "the decided request must appear in the history")
-	assert.Equal(t, enrollmentModels.OfferingChangeStatusRejected, got.Request.Status)
+	assert.Equal(t, offeringContract.OfferingChangeStatusRejected, got.Request.Status)
 	assert.NotEmpty(t, got.StudentName)
 	assert.Equal(t, "Rollover Tester", got.ReviewerName)
 	require.NotNil(t, got.Request.DecisionReason)
@@ -68,7 +69,7 @@ func TestOfferingChangeRequestService_ListHistory(t *testing.T) {
 	}
 	assert.Contains(t, labels, fx.newOffering.Name)
 
-	withdrawn, err := svc.SubmitOfferingChange(ctx, careplan.CreateOfferingChangeInput{
+	withdrawn, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), svc.SubmitOfferingChange, careplan.CreateOfferingChangeInput{
 		StudentID:     fx.studentID,
 		AccountID:     env.creatorID,
 		EffectiveFrom: fx.switchDate,
@@ -80,7 +81,7 @@ func TestOfferingChangeRequestService_ListHistory(t *testing.T) {
 	// Withdrawal was retired in #2267 (guardians edit instead); the status
 	// stays valid for historic rows, so it is written through the repository.
 	require.NoError(t, env.repos.CarePlan().DecideOfferingChange(ctx, careplan.DecideOfferingChange{
-		ID: withdrawn.ID, Status: enrollmentModels.OfferingChangeStatusWithdrawn,
+		ID: withdrawn.ID, Status: offeringContract.OfferingChangeStatusWithdrawn,
 	}))
 
 	items, _, err = offeringReviewQueueForTest(t, env).ListHistory(ctx, careplan.RequestQueueFilter{Limit: 25})

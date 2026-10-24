@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -32,18 +33,19 @@ func TestListPhaseExpiryWarnings_StringifiesIDsAndDates(t *testing.T) {
 	t.Parallel()
 
 	successorID := int64(22)
-	resource := &Resource{PhaseExpiryService: &phaseExpiryServiceStub{warnings: []*enrollmentOwner.PhaseExpiryWarning{
-		{
-			SourcePhaseID:      3,
-			SourcePhaseName:    "1. Halbjahr",
-			SuccessorPhaseID:   &successorID,
-			FirstAffectedDate:  calendar.NewDate(2027, 2, 1),
-			AffectedChildren:   204,
-			UnresolvedChildren: 17,
-			State:              enrollmentOwner.PhaseExpiryStateIncomplete,
-			Overdue:            false,
-		},
-	}}}
+	resource := &Resource{
+		Failures: DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation}, PhaseExpiryService: &phaseExpiryServiceStub{warnings: []*enrollmentOwner.PhaseExpiryWarning{
+			{
+				SourcePhaseID:      3,
+				SourcePhaseName:    "1. Halbjahr",
+				SuccessorPhaseID:   &successorID,
+				FirstAffectedDate:  calendar.NewDate(2027, 2, 1),
+				AffectedChildren:   204,
+				UnresolvedChildren: 17,
+				State:              enrollmentOwner.PhaseExpiryStateIncomplete,
+				Overdue:            false,
+			},
+		}}}
 	router := chi.NewRouter()
 	router.Use(render.SetContentType(render.ContentTypeJSON))
 	router.Get("/enrollment/phases/expiry-warnings", resource.listPhaseExpiryWarnings)
@@ -69,7 +71,8 @@ func TestListPhaseExpiryWarnings_RequiresAdminScope(t *testing.T) {
 
 	// Same gate as the route: whoever creates phases (config:manage) reads
 	// the warnings that ask for a successor phase (#3469).
-	resource := &Resource{PhaseExpiryService: &phaseExpiryServiceStub{}}
+	resource := &Resource{
+		Failures: DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation}, PhaseExpiryService: &phaseExpiryServiceStub{}}
 
 	readOnly := executeAdminRouteWithPermissions(
 		t,

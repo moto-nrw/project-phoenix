@@ -19,6 +19,8 @@ import (
 	"testing"
 	"time"
 
+	rootAPI "github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -27,8 +29,8 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -52,7 +54,7 @@ type scenario struct {
 	previewCleanup func(context.Context) (*timetable.TimetableCleanupPreview, error)
 	cleanup        func(context.Context) (*timetable.TimetableCleanupResult, error)
 	router         timetableTestRouter
-	today          func() timezone.Date
+	today          func() calendar.Date
 
 	primaryTenant   int64
 	secondaryTenant int64
@@ -63,24 +65,24 @@ type scenario struct {
 func setupTimetableScenarioModule(t *testing.T, clocks ...func() time.Time) *scenario {
 	t.Helper()
 
-	db, factory := testutil.SetupTimetableScenarioModule(t, clocks...)
+	db, factory, live, livePeople, liveCaller, liveSettings, schoolCalendar := buildTimetableScenarioModule(t, clocks...)
 	primaryTenant := testpkg.Tenant(t)
 	secondaryTenant := testpkg.NewTenantScope(t, db).TenantID
 
 	resource := newTimetableTestResource(timetableTestDependencies{
-		CalendarPeriods:        factory.SchoolCalendar,
-		ClosingDays:            factory.SchoolCalendar,
+		CalendarPeriods:        schoolCalendar,
+		ClosingDays:            schoolCalendar,
 		MaterializationService: factory.Materialization,
 		InstanceService:        factory.Instance,
-		People:                 factory.People,
+		People:                 rootAPI.NewTimetablePeople(livePeople.Users),
 		Templates:              factory.TimetableData.Templates,
 		RecurrenceLock:         factory.TimetableData.RecurrenceLock,
 		AttendanceCorrections:  factory.TimetableData.AttendanceCorrections,
 		Deviations:             factory.TimetableData.Deviations,
 		TimetableData:          factory.TimetableData.Data,
 		ConflictDetection:      factory.TimetableData.ConflictDetection,
-		UserContextService:     factory.UserContext,
-		SettingsService:        factory.Settings,
+		UserContextService:     liveCaller,
+		SettingsService:        liveSettings.Settings,
 		Staffing:               factory.Instance,
 		Logger:                 slog.Default(),
 	})
@@ -88,11 +90,11 @@ func setupTimetableScenarioModule(t *testing.T, clocks ...func() time.Time) *sce
 		t:               t,
 		db:              db,
 		resource:        resource,
-		createVisit:     factory.Active.CreateVisit,
-		endVisit:        factory.Active.EndVisit,
+		createVisit:     live.Active.CreateVisit,
+		endVisit:        live.Active.EndVisit,
 		previewCleanup:  factory.TimetableCleanup.PreviewExpiredTimetableData,
 		cleanup:         factory.TimetableCleanup.CleanupExpiredTimetableData,
-		today:           timezone.CalendarDateClock(clocks...),
+		today:           calendar.CalendarDateClock(clocks...),
 		primaryTenant:   primaryTenant,
 		secondaryTenant: secondaryTenant,
 	}
@@ -124,7 +126,7 @@ func (s *scenario) tenantCtx() context.Context {
 // mountRouter builds the full timetable Resource with real services and
 // returns its router (with JWT + tenant middleware intact).
 func (s *scenario) mountRouter() timetableTestRouter {
-	return s.resource.Router()
+	return s.resource.Router(rootAPI.ProtectedTenantRoutes)
 }
 
 // do executes an HTTP request against the timetable router.
@@ -211,13 +213,13 @@ func parseHHMM(t *testing.T, hhmm string) time.Time {
 
 // createActivePeriod creates an active calendar period spanning 1 year before
 // and 1 year after `anchor`.
-func (s *scenario) createActivePeriod(name string, anchor timezone.Date) *testpkg.CalendarPeriod {
+func (s *scenario) createActivePeriod(name string, anchor calendar.Date) *testpkg.CalendarPeriod {
 	s.t.Helper()
 	period := &testpkg.CalendarPeriod{
 		Name:            name,
 		PeriodType:      testpkg.SchedulePeriodTypeSchoolYear,
-		StartDate:       timezone.NewDate(anchor.Year()-1, 8, 1),
-		EndDate:         timezone.NewDate(anchor.Year()+1, 7, 31),
+		StartDate:       calendar.NewDate(anchor.Year()-1, 8, 1),
+		EndDate:         calendar.NewDate(anchor.Year()+1, 7, 31),
 		WeekCycleLength: 1,
 		IsActive:        true,
 	}
@@ -271,8 +273,8 @@ type templateSpec struct {
 	staffIDs   []int64
 	studentIDs []int64
 	periodID   *int64
-	validFrom  timezone.Date
-	validUntil *timezone.Date
+	validFrom  calendar.Date
+	validUntil *calendar.Date
 }
 
 // templateFixture is the full bundle of rows behind one activity template.
@@ -285,7 +287,7 @@ type templateFixture struct {
 	roomID       int64
 	staffIDs     []int64
 	studentIDs   []int64
-	validFromUTC timezone.Date
+	validFromUTC calendar.Date
 }
 
 // buildTemplate inserts a full template bundle so materialize() will pick it up.
@@ -388,7 +390,7 @@ func (s *scenario) buildTemplate(spec templateSpec) *templateFixture {
 
 // nextWeekday returns the next occurrence of the given ISO weekday (1=Mon...7=Sun)
 // at least `minDaysAhead` days from `from`.
-func nextWeekday(from timezone.Date, isoWeekday, minDaysAhead int) timezone.Date {
+func nextWeekday(from calendar.Date, isoWeekday, minDaysAhead int) calendar.Date {
 	d := from.AddDays(minDaysAhead)
 	for {
 		w := int(d.Weekday())

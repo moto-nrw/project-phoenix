@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/facilities"
+
 	"github.com/moto-nrw/project-phoenix/modules/facilities/internal/domain"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/driver/pgdriver"
@@ -39,13 +41,13 @@ func New(database Database) *Store {
 	return &Store{database: database}
 }
 
-func (s *Store) Create(ctx context.Context, input domain.CreateRoom) (domain.Room, domain.OperationStats, error) {
+func (s *Store) Create(ctx context.Context, input facilities.CreateRoom) (facilities.Room, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return domain.Room{}, domain.OperationStats{}, err
+		return facilities.Room{}, domain.OperationStats{}, err
 	}
 	if tenantID <= 0 {
-		return domain.Room{}, domain.OperationStats{}, errors.New("facilities postgres: tenant is required")
+		return facilities.Room{}, domain.OperationStats{}, errors.New("facilities postgres: tenant is required")
 	}
 	row := roomRow{
 		TenantID: tenantID, Name: input.Name, Building: input.Building, Floor: input.Floor,
@@ -57,16 +59,16 @@ func (s *Store) Create(ctx context.Context, input domain.CreateRoom) (domain.Roo
 	err = db.NewInsert().Model(&row).ModelTableExpr(`facilities.rooms`).Returning("*").Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
-		return domain.Room{}, stats, fmt.Errorf("facilities postgres: create room: %w", classifyWriteError(err))
+		return facilities.Room{}, stats, fmt.Errorf("facilities postgres: create room: %w", classifyWriteError(err))
 	}
 	stats.Rows = 1
 	return toDomain(row), stats, nil
 }
 
-func (s *Store) Update(ctx context.Context, input domain.UpdateRoom) (domain.Room, domain.OperationStats, error) {
+func (s *Store) Update(ctx context.Context, input facilities.UpdateRoom) (facilities.Room, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return domain.Room{}, domain.OperationStats{}, err
+		return facilities.Room{}, domain.OperationStats{}, err
 	}
 	row := roomRow{
 		ID: input.ID, TenantID: tenantID, Name: input.Name, Building: input.Building,
@@ -91,7 +93,7 @@ func (s *Store) Update(ctx context.Context, input domain.UpdateRoom) (domain.Roo
 	err = query.Returning("*").Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
-		return domain.Room{}, stats, fmt.Errorf("facilities postgres: update room: %w", classifyWriteError(err))
+		return facilities.Room{}, stats, fmt.Errorf("facilities postgres: update room: %w", classifyWriteError(err))
 	}
 	stats.Rows = 1
 	return toDomain(row), stats, nil
@@ -124,10 +126,10 @@ func (s *Store) Delete(ctx context.Context, id int64) (domain.OperationStats, er
 	return stats, nil
 }
 
-func (s *Store) FindByID(ctx context.Context, id int64, lock string) (domain.Room, bool, domain.OperationStats, error) {
+func (s *Store) FindByID(ctx context.Context, id int64, lock string) (facilities.Room, bool, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return domain.Room{}, false, domain.OperationStats{}, err
+		return facilities.Room{}, false, domain.OperationStats{}, err
 	}
 	row := roomRow{}
 	stats := domain.OperationStats{Queries: 1}
@@ -141,19 +143,19 @@ func (s *Store) FindByID(ctx context.Context, id int64, lock string) (domain.Roo
 	err = query.Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if errors.Is(err, sql.ErrNoRows) {
-		return domain.Room{}, false, stats, nil
+		return facilities.Room{}, false, stats, nil
 	}
 	if err != nil {
-		return domain.Room{}, false, stats, fmt.Errorf("facilities postgres: find room: %w", err)
+		return facilities.Room{}, false, stats, fmt.Errorf("facilities postgres: find room: %w", err)
 	}
 	stats.Rows = 1
 	return toDomain(row), true, stats, nil
 }
 
-func (s *Store) FindByName(ctx context.Context, name string) (domain.Room, bool, domain.OperationStats, error) {
+func (s *Store) FindByName(ctx context.Context, name string) (facilities.Room, bool, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return domain.Room{}, false, domain.OperationStats{}, err
+		return facilities.Room{}, false, domain.OperationStats{}, err
 	}
 	row := roomRow{}
 	query := roomSelect(db, &row).
@@ -164,19 +166,19 @@ func (s *Store) FindByName(ctx context.Context, name string) (domain.Room, bool,
 	err = query.Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if errors.Is(err, sql.ErrNoRows) {
-		return domain.Room{}, false, stats, nil
+		return facilities.Room{}, false, stats, nil
 	}
 	if err != nil {
-		return domain.Room{}, false, stats, fmt.Errorf("facilities postgres: find room by name: %w", err)
+		return facilities.Room{}, false, stats, fmt.Errorf("facilities postgres: find room by name: %w", err)
 	}
 	stats.Rows = 1
 	return toDomain(row), true, stats, nil
 }
 
-func (s *Store) FindToilet(ctx context.Context, excludeRoomID int64) (domain.Room, bool, domain.OperationStats, error) {
+func (s *Store) FindToilet(ctx context.Context, excludeRoomID int64) (facilities.Room, bool, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return domain.Room{}, false, domain.OperationStats{}, err
+		return facilities.Room{}, false, domain.OperationStats{}, err
 	}
 	row := roomRow{}
 	query := roomSelect(db, &row).
@@ -192,16 +194,16 @@ func (s *Store) FindToilet(ctx context.Context, excludeRoomID int64) (domain.Roo
 	err = query.Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if errors.Is(err, sql.ErrNoRows) {
-		return domain.Room{}, false, stats, nil
+		return facilities.Room{}, false, stats, nil
 	}
 	if err != nil {
-		return domain.Room{}, false, stats, fmt.Errorf("facilities postgres: find toilet room: %w", err)
+		return facilities.Room{}, false, stats, fmt.Errorf("facilities postgres: find toilet room: %w", err)
 	}
 	stats.Rows = 1
 	return toDomain(row), true, stats, nil
 }
 
-func (s *Store) List(ctx context.Context, filter domain.RoomFilter) ([]domain.Room, domain.OperationStats, error) {
+func (s *Store) List(ctx context.Context, filter facilities.RoomFilter) ([]facilities.Room, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
@@ -212,7 +214,7 @@ func (s *Store) List(ctx context.Context, filter domain.RoomFilter) ([]domain.Ro
 		OrderExpr(`"room".name ASC, "room".id ASC`)
 	query, empty := applyRoomListFilter(query, filter)
 	if empty {
-		return []domain.Room{}, domain.OperationStats{}, nil
+		return []facilities.Room{}, domain.OperationStats{}, nil
 	}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
@@ -221,7 +223,7 @@ func (s *Store) List(ctx context.Context, filter domain.RoomFilter) ([]domain.Ro
 	if err != nil {
 		return nil, stats, fmt.Errorf("facilities postgres: list rooms: %w", err)
 	}
-	result := make([]domain.Room, 0, len(rows))
+	result := make([]facilities.Room, 0, len(rows))
 	for _, row := range rows {
 		result = append(result, toDomain(row))
 	}
@@ -229,7 +231,7 @@ func (s *Store) List(ctx context.Context, filter domain.RoomFilter) ([]domain.Ro
 	return result, stats, nil
 }
 
-func (s *Store) ListPage(ctx context.Context, filter domain.RoomFilter, offset, limit int) ([]domain.Room, int, domain.OperationStats, error) {
+func (s *Store) ListPage(ctx context.Context, filter facilities.RoomFilter, offset, limit int) ([]facilities.Room, int, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, 0, domain.OperationStats{}, err
@@ -245,7 +247,7 @@ func (s *Store) ListPage(ctx context.Context, filter domain.RoomFilter, offset, 
 	query, empty := applyRoomListFilter(query, filter)
 	countQuery, countEmpty := applyRoomListFilter(countQuery, filter)
 	if empty || countEmpty {
-		return []domain.Room{}, 0, domain.OperationStats{}, nil
+		return []facilities.Room{}, 0, domain.OperationStats{}, nil
 	}
 	stats := domain.OperationStats{}
 	started := time.Now()
@@ -262,7 +264,7 @@ func (s *Store) ListPage(ctx context.Context, filter domain.RoomFilter, offset, 
 		return nil, 0, stats, fmt.Errorf("facilities postgres: list room page: %w", err)
 	}
 	stats.StatementDuration = time.Since(started)
-	result := make([]domain.Room, 0, len(rows))
+	result := make([]facilities.Room, 0, len(rows))
 	for _, row := range rows {
 		result = append(result, toDomain(row))
 	}
@@ -270,7 +272,7 @@ func (s *Store) ListPage(ctx context.Context, filter domain.RoomFilter, offset, 
 	return result, total, stats, nil
 }
 
-func applyRoomListFilter(query *bun.SelectQuery, filter domain.RoomFilter) (*bun.SelectQuery, bool) {
+func applyRoomListFilter(query *bun.SelectQuery, filter facilities.RoomFilter) (*bun.SelectQuery, bool) {
 	if filter.Name != nil {
 		query = query.Where(`LOWER("room".name) = LOWER(?)`, *filter.Name)
 	}
@@ -315,18 +317,18 @@ func applyRoomListFilter(query *bun.SelectQuery, filter domain.RoomFilter) (*bun
 	return query, false
 }
 
-func (s *Store) ListByIDs(ctx context.Context, ids []int64) ([]domain.Room, domain.OperationStats, error) {
+func (s *Store) ListByIDs(ctx context.Context, ids []int64) ([]facilities.Room, domain.OperationStats, error) {
 	return s.listByIDs(ctx, ids, "")
 }
 
 // LockByIDs resolves the rooms while holding key-share locks until the
 // caller's transaction ends. A concurrent DELETE therefore cannot invalidate
 // a room reference between restore validation and its INSERT.
-func (s *Store) LockByIDs(ctx context.Context, ids []int64) ([]domain.Room, domain.OperationStats, error) {
+func (s *Store) LockByIDs(ctx context.Context, ids []int64) ([]facilities.Room, domain.OperationStats, error) {
 	return s.listByIDs(ctx, ids, "KEY SHARE")
 }
 
-func (s *Store) listByIDs(ctx context.Context, ids []int64, lock string) ([]domain.Room, domain.OperationStats, error) {
+func (s *Store) listByIDs(ctx context.Context, ids []int64, lock string) ([]facilities.Room, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
@@ -346,7 +348,7 @@ func (s *Store) listByIDs(ctx context.Context, ids []int64, lock string) ([]doma
 	if err != nil {
 		return nil, stats, fmt.Errorf("facilities postgres: list rooms: %w", err)
 	}
-	result := make([]domain.Room, 0, len(rows))
+	result := make([]facilities.Room, 0, len(rows))
 	for _, row := range rows {
 		result = append(result, toDomain(row))
 	}
@@ -358,8 +360,8 @@ func roomSelect(db bun.IDB, model any) *bun.SelectQuery {
 	return db.NewSelect().Model(model).ModelTableExpr(`facilities.rooms AS "room"`)
 }
 
-func toDomain(row roomRow) domain.Room {
-	return domain.Room{
+func toDomain(row roomRow) facilities.Room {
+	return facilities.Room{
 		ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		Name: row.Name, Building: row.Building, Floor: row.Floor, Capacity: row.Capacity,
 		Category: row.Category, Color: row.Color, IsSystem: row.IsSystem,
@@ -374,11 +376,11 @@ func classifyWriteError(err error) error {
 	}
 	switch postgresError.Field('n') {
 	case domain.RoomNameUniqueConstraint:
-		return domain.ErrDuplicate
+		return facilities.ErrDuplicateRoom
 	case domain.RoomColorUniqueConstraint:
-		return domain.ErrColorAlreadyInUse
+		return facilities.ErrRoomColorAlreadyInUse
 	case domain.RoomWCAliasUniqueConstraint:
-		return domain.ErrDuplicateToilet
+		return facilities.ErrDuplicateToiletRoom
 	default:
 		return err
 	}

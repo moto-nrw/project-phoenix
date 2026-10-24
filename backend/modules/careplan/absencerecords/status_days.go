@@ -11,8 +11,8 @@ package absencerecords
 import (
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Broad day statuses. The values are the persisted column values.
@@ -42,7 +42,7 @@ const (
 	StudentStatusSourceManual      = excusedrequests.StudentStatusSourceManual
 	StudentStatusSourcePlanned     = "planned"
 	StudentStatusSourceNextCheckin = "next_checkin"
-	StudentStatusSourceEndOfDay    = "end_of_day"
+	StudentStatusSourceEndOfDay    = excusedrequests.StudentStatusSourceEndOfDay
 	// StudentStatusSourceParent marks a status day reported by a
 	// guardian through the parents portal (vs. entered by staff).
 	StudentStatusSourceParent = excusedrequests.StudentStatusSourceParent
@@ -50,7 +50,7 @@ const (
 
 // Date is the calendar date the absence records carry, so the adapters that
 // exchange them name it without the calendar package.
-type Date = timezone.Date
+type Date = calendar.Date
 
 // StudentStatusDay is one row of active.student_status_days.
 type StudentStatusDay struct {
@@ -59,7 +59,7 @@ type StudentStatusDay struct {
 	UpdatedAt  time.Time     `json:"updated_at"`
 	TenantID   int64         `json:"tenant_id"`
 	StudentID  int64         `json:"student_id"`
-	Date       timezone.Date `json:"date"`
+	Date       calendar.Date `json:"date"`
 	Status     string        `json:"status"`
 	ReportedAt time.Time     `json:"reported_at"`
 	ClearedAt  *time.Time    `json:"cleared_at,omitempty"`
@@ -77,11 +77,7 @@ type StudentStatusDay struct {
 type StudentStatusCounts struct {
 	Sick    int
 	Excused int
-	// Total is every active student of the tenant, absent or not. The
-	// dashboard needs it to derive "at home" as the remainder after presence
-	// and the absence buckets, which is why it comes from the same query —
-	// counting it separately would let the two drift apart under a concurrent
-	// write.
+	// Total is every active student of the tenant, absent or not.
 	Total int
 	// UnaccountedIDs are the active students counted in Total but in neither
 	// absence bucket.

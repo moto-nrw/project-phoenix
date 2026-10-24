@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
 	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -40,8 +41,17 @@ func pickupRequestPayload(ctx context.Context, pickup ports.RequestSubmissionPic
 	if err != nil {
 		return nil, err
 	}
-	payload := map[string]any{"date": input.Date.String(), "pickup_time": input.PickupTime.Format("15:04"), "reason": reason}
-	if pickup != nil {
+	payload := map[string]any{"date": input.Date.String(), "reason": reason}
+	if !input.PickupTime.IsZero() {
+		payload["pickup_time"] = input.PickupTime.Format("15:04")
+	}
+	if input.DepartureMode != "" {
+		payload["departure_mode"] = input.DepartureMode
+	}
+	if pickup == nil {
+		return json.Marshal(payload)
+	}
+	if !input.PickupTime.IsZero() {
 		previous, readErr := pickup.PickupTime(ctx, input.StudentID, input.Date)
 		if readErr != nil {
 			return nil, fmt.Errorf("schedule: resolve current pickup time: %w", readErr)
@@ -50,8 +60,49 @@ func pickupRequestPayload(ctx context.Context, pickup ports.RequestSubmissionPic
 			payload["previous_pickup_time"] = previous.Format("15:04")
 		}
 	}
+	if input.DepartureMode != "" {
+		previous, readErr := previousDepartureModes(ctx, pickup, input.StudentID, input.Date)
+		if readErr != nil {
+			return nil, fmt.Errorf("schedule: resolve current departure modes: %w", readErr)
+		}
+		if len(previous) > 0 {
+			payload["previous_departure_modes"] = previous
+		}
+	}
 	return json.Marshal(payload)
 }
+
+// previousDepartureModes is the Abholart of the day before a request changes
+// it: the OGS's day value (#3945), else the weekly plan's set for the plan
+// weekday. A weekday without a configured set is "alone", the weekly diff's
+// reading. A day outside the weekly plan has none.
+func previousDepartureModes(ctx context.Context, pickup ports.RequestSubmissionPickup, studentID int64, date calendar.Date) ([]string, error) {
+	mode, found, err := pickup.DayDepartureMode(ctx, studentID, date)
+	if err != nil {
+		return nil, err
+	}
+	if found {
+		return []string{mode}, nil
+	}
+	weekday, err := calendar.PlanWeekday(ctx, date)
+	if err != nil || weekday < 1 || weekday > 5 {
+		return nil, err
+	}
+	weekly, err := pickup.WeeklyDepartureModes(ctx, studentID)
+	if err != nil {
+		return nil, err
+	}
+	modes := make([]string, 0, 2)
+	modes = append(modes, weekly[planWeekdayKeys[weekday]]...)
+	if len(modes) == 0 {
+		modes = append(modes, careplan.DepartureModeAlone)
+	}
+	return modes, nil
+}
+
+// planWeekdayKeys maps a plan weekday (1 = Monday) onto the key of the
+// weekly Abholart plan.
+var planWeekdayKeys = [...]string{"", "mon", "tue", "wed", "thu", "fri"}
 
 func (s *RequestSubmissions) create(ctx context.Context, studentID, guardianID int64, kind, operation string, payload json.RawMessage) (*carerequests.Request, error) {
 	request, err := s.Records.Create(ctx, carerequests.Request{StudentID: studentID, SubmittedBy: guardianID, RequestKind: kind, Payload: payload, Status: "pending"})

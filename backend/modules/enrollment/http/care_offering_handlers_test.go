@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -91,7 +92,8 @@ func (m *mockCareOfferingService) ListBookingStats(_ context.Context, phaseID in
 }
 
 func buildCareOfferingRouter(svc CareOfferingCatalog) chi.Router {
-	rs := &Resource{CareOfferingService: svc}
+	rs := &Resource{
+		Failures: DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation}, CareOfferingService: svc}
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 	r.Get("/enrollment/care-offerings", rs.listCareOfferings)
@@ -311,7 +313,7 @@ func TestCreateCareOfferingHandler_TemplatePeriodMismatchReturnsStableCode(t *te
 		validOfferingBody(5678, "OGS"))
 
 	require.Equal(t, http.StatusBadRequest, w.Code)
-	assert.JSONEq(t, `{"status":"error","error":"validate linked template: care offering phase must be within the linked timetable template period","code":"enrollment.care_offering_template_period_mismatch","type":"https://moto-app.de/help/fehlermeldungen#anleitung-eingabe-pruefen","title":"Bad Request","detail":"validate linked template: care offering phase must be within the linked timetable template period","instance":""}`, w.Body.String())
+	assert.JSONEq(t, `{"status":400,"code":"enrollment.care_offering_template_period_mismatch","type":"https://moto-app.de/help/fehlermeldungen#anleitung-eingabe-pruefen","title":"Bad Request","detail":"validate linked template: care offering phase must be within the linked timetable template period","instance":""}`, w.Body.String())
 }
 
 func TestCreateCareOfferingHandler_MissingDaysReturnsStableCode(t *testing.T) {
@@ -629,7 +631,8 @@ func TestCareOfferingRouter_BookingStatsIsNotTreatedAsAnID(t *testing.T) {
 	t.Parallel()
 
 	mock := &mockCareOfferingService{bookingStatsResult: []CareOfferingBookingStat{}}
-	rs := &Resource{CareOfferingService: mock}
+	rs := &Resource{
+		Failures: DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation}, CareOfferingService: mock}
 	router := chi.NewRouter()
 	router.Use(render.SetContentType(render.ContentTypeJSON))
 	router.Route("/care-offerings", func(r chi.Router) {

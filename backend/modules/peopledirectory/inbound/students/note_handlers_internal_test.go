@@ -6,22 +6,14 @@ import (
 	"strings"
 	"testing"
 
+	securitycontract "github.com/moto-nrw/project-phoenix/modules/securityruntime/ports"
+
+	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 )
-
-// The note routes turn a request into an owner command. What is checked here
-// is that translation: the defaults a missing field falls back to and the
-// payloads the route refuses before the owner ever sees them.
-//
-// Who may read or remove a note is decided in auth/authorize (covered by
-// auth/authorize/student_notes_test.go) and enforced by the owner against the
-// real table (modules/peopledirectory/compose); this adapter test may not
-// reach into either.
 
 func noteBody(t *testing.T, payload string) (studentNoteRequestBody, int) {
 	t.Helper()
@@ -96,7 +88,7 @@ func TestParseNoteSubject(t *testing.T) {
 
 	t.Run("a future day is refused", func(t *testing.T) {
 		t.Parallel()
-		future := timezone.TodayDate().AddDays(1).String()
+		future := calendar.TodayDate().AddDays(1).String()
 		_, err := parseNoteSubject(studentNoteRequestBody{SubjectDate: &future})
 		require.ErrorContains(t, err, "must not be in the future")
 	})
@@ -125,7 +117,7 @@ func TestValidateNoteSubjectForChild(t *testing.T) {
 	t.Parallel()
 
 	groupID, activityID := int64(9), int64(7)
-	child := securityruntime.StudentNoteChild{
+	child := securitycontract.StudentNoteChild{
 		GroupID: &groupID, ActivityGroupIDs: []int64{activityID},
 	}
 
@@ -157,7 +149,7 @@ func TestBuildNoteResponseDoesNotOfferEditingForOrphanedLeadershipNote(t *testin
 	t.Parallel()
 
 	author := int64(17)
-	date := timezone.TodayDate()
+	date := calendar.TodayDate()
 	note := peopleModule.StudentNote{
 		ID: 1, StudentID: 2, AuthorAccountID: &author, Origin: peopleModule.StudentNoteOriginStaff,
 		Kind: peopleModule.StudentNoteKindJournal, Visibility: peopleModule.StudentNoteVisibilityGroupLeads,
@@ -165,9 +157,9 @@ func TestBuildNoteResponseDoesNotOfferEditingForOrphanedLeadershipNote(t *testin
 	}
 
 	groupID := int64(19)
-	response := buildNoteResponse(note, securityruntime.StudentNoteAudience{
+	response := buildNoteResponse(note, securitycontract.StudentNoteAudience{
 		LedEducationGroupIDs: []int64{groupID},
-	}, &Student{GroupID: &groupID}, author)
+	}, &peopleModule.StudentState{GroupID: &groupID}, author)
 	assert.False(t, response.CanEdit,
 		"the response must not offer an edit that the owner rejects without a group reference")
 	assert.False(t, response.CanDelete,
@@ -175,3 +167,20 @@ func TestBuildNoteResponseDoesNotOfferEditingForOrphanedLeadershipNote(t *testin
 }
 
 func int64Pointer(value int64) *int64 { return &value }
+
+func TestBuildNoteSubjectsResponse(t *testing.T) {
+	t.Parallel()
+
+	response := buildNoteSubjectsResponse([]peopleModule.StudentActivityGroup{
+		{ID: 7, Name: "Fußball-AG"}, {ID: 12, Name: "Schach"},
+	})
+	assert.Equal(t, []noteSubjectActivity{
+		{ID: "7", Name: "Fußball-AG"}, {ID: "12", Name: "Schach"},
+	}, response.Activities)
+
+	// A child without enrollments still answers with an empty list, so the
+	// picker renders "no activity" instead of failing on a null.
+	empty := buildNoteSubjectsResponse(nil)
+	require.NotNil(t, empty.Activities)
+	assert.Empty(t, empty.Activities)
+}

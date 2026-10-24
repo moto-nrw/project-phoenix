@@ -6,16 +6,19 @@ import (
 	"testing"
 	"time"
 
+	studentpresence "github.com/moto-nrw/project-phoenix/modules/studentpresence"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+	api "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -31,14 +34,14 @@ func timetableDataWithArrivalBaseline(
 	t.Helper()
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: env.db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
-	data, err := arrivalTimetable.NewTimetableData(arrivalTimetable.TimetableDataDependencies{
-		Instances:         env.repos.ActivityInstance,
-		InstanceStaff:     env.repos.InstanceStaff,
-		Participants:      env.repos.InstanceStudent,
-		PickupExceptions:  env.repos.StudentPickupException,
-		ArrivalExceptions: env.repos.StudentArrivalException,
+	data, err := arrivalTimetable.NewTimetableData(timetablePorts.TimetableDataDependencies{
+		Instances:         env.timetable.ActivityInstance.Reads,
+		InstanceStaff:     env.timetable.InstanceStaff,
+		Participants:      env.timetable.InstanceStudent,
+		PickupExceptions:  env.reposSchedules.StudentPickupException,
+		ArrivalExceptions: env.reposSchedules.StudentArrivalException,
 		ArrivalBaselines:  arrivalBaselineProjector{reader: bookingModeArrivalBaseline(t, env, authoritative)},
-		PickupBaselines:   pickupBaselineProjector{reader: newPickupBaselineService(env.repos.CarePlan(), approvedOfferingTestProjection(env.repos))},
+		PickupBaselines:   pickupBaselineProjector{reader: newPickupBaselineService(env.repos.CarePlan(), approvedOfferingTestProjection(env.reposEnrollment, env.reposPeople))},
 		Visits:            presence,
 		Templates:         unusedStudentWeekTemplates{},
 		Groups:            unusedStudentWeekReaders{},
@@ -56,21 +59,21 @@ func timetableDataWithArrivalBaseline(
 // unusedStudentWeekReaders stands in for the planner readers the student
 // week never touches.
 type unusedStudentWeekReaders struct {
-	arrivalTimetable.DataGroups
-	arrivalTimetable.RoomNames
-	arrivalTimetable.RoomOccupancy
-	arrivalTimetable.DeviationEventReader
+	timetablePorts.DataGroups
+	timetablePorts.RoomNames
+	timetablePorts.RoomOccupancy
+	timetablePorts.DeviationEventReader
 	timetable.ConflictAckCapability
 }
 
 // unusedStudentWeekTemplates and unusedStudentWeekCategories stand in for
 // the template and category writes of a spontaneous start.
 type unusedStudentWeekTemplates struct {
-	arrivalTimetable.DataTemplates
+	timetablePorts.DataTemplates
 }
 
 type unusedStudentWeekCategories struct {
-	arrivalTimetable.DataCategories
+	timetablePorts.DataCategories
 }
 
 // pickupBaselineProjector serves the Timetable pickup port from Care Plan's
@@ -79,7 +82,7 @@ type pickupBaselineProjector struct {
 	reader careplan.PickupBaselineReader
 }
 
-func (p pickupBaselineProjector) ProjectPickups(ctx context.Context, studentIDs []int64, from, to timezone.Date) (arrivalTimetable.PickupBaselines, error) {
+func (p pickupBaselineProjector) ProjectPickups(ctx context.Context, studentIDs []int64, from, to calendar.Date) (timetablePorts.PickupBaselines, error) {
 	projection, err := p.reader.Project(ctx, studentIDs, from, to)
 	if err != nil {
 		return nil, err
@@ -91,7 +94,7 @@ type pickupBaselineProjection struct {
 	projection *careplan.PickupBaselineProjection
 }
 
-func (p pickupBaselineProjection) RegularPickup(studentID int64, date timezone.Date) (time.Time, bool) {
+func (p pickupBaselineProjection) RegularPickup(studentID int64, date calendar.Date) (time.Time, bool) {
 	row := p.projection.ForDate(studentID, date)
 	if row == nil {
 		return time.Time{}, false
@@ -111,19 +114,19 @@ func exceptionConflictsWithArrivalBaseline(
 	t.Helper()
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: env.db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
-	detection, err := arrivalTimetable.NewConflictDetection(arrivalTimetable.ConflictDetectionDependencies{
-		Instances:         env.repos.ActivityInstance,
-		InstanceStaff:     env.repos.InstanceStaff,
-		InstanceStudents:  env.repos.InstanceStudent,
-		Exceptions:        env.repos.ActivityException,
-		Schedules:         env.repos.ActivitySchedule,
+	detection, err := arrivalTimetable.NewConflictDetection(timetablePorts.ConflictDetectionDependencies{
+		Instances:         env.timetable.ActivityInstance.Reads,
+		InstanceStaff:     env.timetable.InstanceStaff,
+		InstanceStudents:  env.timetable.InstanceStudent,
+		Exceptions:        env.timetable.ActivityException,
+		Schedules:         env.timetable.ActivitySchedule,
 		Shifts:            unusedConflictShifts{},
-		Staff:             env.repos.Staff,
-		CalendarPeriods:   env.repos.CalendarPeriod,
-		ArrivalExceptions: env.repos.StudentArrivalException,
+		Staff:             api.NewTimetableStaff(env.reposPeople.Staff),
+		CalendarPeriods:   env.reposSchedules.CalendarPeriod,
+		ArrivalExceptions: env.reposSchedules.StudentArrivalException,
 		ArrivalBaselines:  arrivalBaselineProjector{reader: bookingModeArrivalBaseline(t, env, authoritative)},
 		Presence:          presence,
-		Sessions:          env.repos.ActiveGroup,
+		Sessions:          env.reposPresence.ActiveGroup,
 		// Exception conflicts carry no fingerprint; the digest is never used.
 		ContentHash: func([]byte) string { return "" },
 		Logger:      slog.Default(),
@@ -135,7 +138,7 @@ func exceptionConflictsWithArrivalBaseline(
 // unusedConflictShifts stands in for the Dienstplan rows the exception read
 // never touches.
 type unusedConflictShifts struct {
-	arrivalTimetable.ConflictShifts
+	timetablePorts.ConflictShifts
 }
 
 // arrivalBaselineProjector serves the conflict detection's arrival port from
@@ -144,7 +147,7 @@ type arrivalBaselineProjector struct {
 	reader careplan.ArrivalBaselineReader
 }
 
-func (p arrivalBaselineProjector) ProjectArrivals(ctx context.Context, studentIDs []int64, from, to timezone.Date) (arrivalTimetable.ArrivalBaselines, error) {
+func (p arrivalBaselineProjector) ProjectArrivals(ctx context.Context, studentIDs []int64, from, to calendar.Date) (timetablePorts.ArrivalBaselines, error) {
 	projection, err := p.reader.Project(ctx, studentIDs, from, to)
 	if err != nil {
 		return nil, err
@@ -156,7 +159,7 @@ type arrivalBaselineProjection struct {
 	projection *careplan.ArrivalBaselineProjection
 }
 
-func (p arrivalBaselineProjection) ExpectedArrival(studentID int64, date timezone.Date) (time.Time, bool) {
+func (p arrivalBaselineProjection) ExpectedArrival(studentID int64, date calendar.Date) (time.Time, bool) {
 	row := p.projection.ForDate(studentID, date)
 	if row == nil {
 		return time.Time{}, false
@@ -171,8 +174,7 @@ func (p arrivalBaselineProjection) ExpectedArrival(studentID int64, date timezon
 func TestTimetableRead_StudentWeekAppliesTheBookingMode(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	setSourcePhaseServiceStartDate(t, env, decisionTestToday.AddDays(-30))
 	ctx := testpkg.Ctx(t)
 
@@ -185,7 +187,7 @@ func TestTimetableRead_StudentWeekAppliesTheBookingMode(t *testing.T) {
 
 	// The row on Thursday survived the Abmeldung, the booking covers Monday.
 	staff := testpkg.CreateTestStaff(t, env.db, "Betreuung", "Wochenansicht")
-	testpkg.CreateTestArrivalSchedule(t, env.db, studentID, scheduleModels.WeekdayThursday, staff.ID, "11:45")
+	testpkg.CreateTestArrivalSchedule(t, env.db, studentID, timetable.WeekdayThursday, staff.ID, "11:45")
 
 	monday := nextWeekday(decisionTestToday, time.Monday)
 	thursday := monday.AddDays(3)
@@ -200,11 +202,11 @@ func TestTimetableRead_StudentWeekAppliesTheBookingMode(t *testing.T) {
 		assert.Equal(t, "11:45", booked.Time.Format("15:04"))
 		// The week carries the time only; the source stays with Care Plan's
 		// projection the week is built from.
-		projection, err := bookingModeArrivalBaseline(t, env, true).Project(ctx, []int64{studentID}, monday, thursday)
+		projection, err := testpkg.TenantQuery3(t, ctx, testpkg.SetupTestDB(t), bookingModeArrivalBaseline(t, env, true).Project, []int64{studentID}, monday, thursday)
 		require.NoError(t, err)
 		source := projection.ForDate(studentID, monday)
 		require.NotNil(t, source)
-		assert.Equal(t, scheduleModels.ArrivalScheduleSourceClassSchedule, source.Source)
+		assert.Equal(t, careplan.ScheduleSourceClassSchedule, source.Source)
 
 		assert.False(t, week.ArrivalByDate[thursday.String()].HasSchedule,
 			"a stale row on an unbooked weekday must not plan anything")
@@ -228,8 +230,7 @@ func TestTimetableRead_StudentWeekAppliesTheBookingMode(t *testing.T) {
 func TestTimetableRead_StudentWeekCareDayWithoutClassTime(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	setSourcePhaseServiceStartDate(t, env, decisionTestToday.AddDays(-30))
 	ctx := testpkg.Ctx(t)
 
@@ -254,17 +255,17 @@ func TestTimetableRead_StudentWeekCareDayWithoutClassTime(t *testing.T) {
 	instance := testpkg.CreateTestActivityInstance(t, env.db, monday, room.ID, testpkg.ActivityInstanceOpts{
 		ActivityGroupID: &activity.ID,
 	})
-	testpkg.CreateTestInstanceStudent(t, env.db, instance.ID, studentID, scheduleModels.AttendanceStatusExpected)
+	testpkg.CreateTestInstanceStudent(t, env.db, instance.ID, studentID, studentpresence.SessionAttendanceExpected)
 	reason := "Fällt aus"
-	exception := &scheduleModels.ActivityException{
+	exception := &timetable.ActivityException{
 		ActivityGroupID: activity.ID,
-		ExceptionDate:   scheduleModels.Date(monday),
-		ExceptionType:   scheduleModels.ActivityExceptionCancelled,
+		ExceptionDate:   string(careplan.Date(monday)),
+		ExceptionType:   timetable.ActivityExceptionCancelled,
 		Reason:          &reason,
 	}
-	exception.SetTenantID(testpkg.Tenant(t))
+	exception.TenantID = testpkg.Tenant(t)
 	require.NoError(t, exception.Validate())
-	require.NoError(t, env.repos.ActivityException.Create(ctx, exception))
+	require.NoError(t, arrivalTimetable.NativeExceptionRecords(env.timetable.ActivityException).Create(ctx, exception))
 
 	conflicts, err := exceptionConflictsWithArrivalBaseline(t, env, true).DetectExceptionConflicts(ctx, monday, monday)
 	require.NoError(t, err)
@@ -282,8 +283,7 @@ func TestTimetableRead_StudentWeekCareDayWithoutClassTime(t *testing.T) {
 func TestTimetableRead_ExceptionConflictsApplyTheBookingMode(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	setSourcePhaseServiceStartDate(t, env, decisionTestToday.AddDays(-30))
 	ctx := testpkg.Ctx(t)
 
@@ -296,7 +296,7 @@ func TestTimetableRead_ExceptionConflictsApplyTheBookingMode(t *testing.T) {
 
 	// The Thursday row survived the Abmeldung; the booking covers Monday only.
 	staff := testpkg.CreateTestStaff(t, env.db, "Betreuung", "Konflikt")
-	testpkg.CreateTestArrivalSchedule(t, env.db, studentID, scheduleModels.WeekdayThursday, staff.ID, "11:45")
+	testpkg.CreateTestArrivalSchedule(t, env.db, studentID, timetable.WeekdayThursday, staff.ID, "11:45")
 
 	monday := nextWeekday(decisionTestToday, time.Monday)
 	thursday := monday.AddDays(3)
@@ -304,12 +304,12 @@ func TestTimetableRead_ExceptionConflictsApplyTheBookingMode(t *testing.T) {
 	// Both days: the activity is moved to 10:00, before the 11:45 arrival.
 	room := testpkg.CreateTestRoom(t, env.db, "Konflikt-Raum")
 	activity := testpkg.CreateTestActivityGroup(t, env.db, "Konflikt-AG")
-	movedStart := timezone.NormalizeWallClock(time.Date(2000, 1, 1, 10, 0, 0, 0, time.UTC))
-	for _, date := range []timezone.Date{monday, thursday} {
+	movedStart := calendar.NormalizeWallClock(time.Date(2000, 1, 1, 10, 0, 0, 0, time.UTC))
+	for _, date := range []calendar.Date{monday, thursday} {
 		instance := testpkg.CreateTestActivityInstance(t, env.db, date, room.ID, testpkg.ActivityInstanceOpts{
 			ActivityGroupID: &activity.ID,
 		})
-		testpkg.CreateTestInstanceStudent(t, env.db, instance.ID, studentID, scheduleModels.AttendanceStatusExpected)
+		testpkg.CreateTestInstanceStudent(t, env.db, instance.ID, studentID, studentpresence.SessionAttendanceExpected)
 		createModifiedException(t, env, activity.ID, date, staff.ID, movedStart)
 	}
 
@@ -330,21 +330,21 @@ func createModifiedException(
 	t *testing.T,
 	env *decisionTestEnv,
 	activityGroupID int64,
-	date timezone.Date,
+	date calendar.Date,
 	staffID int64,
 	startTime time.Time,
 ) {
 	t.Helper()
 	reason := "Verlegt"
-	exception := &scheduleModels.ActivityException{
+	exception := &timetable.ActivityException{
 		ActivityGroupID: activityGroupID,
-		ExceptionDate:   scheduleModels.Date(date),
-		ExceptionType:   scheduleModels.ActivityExceptionModified,
-		StartTime:       &startTime,
+		ExceptionDate:   string(careplan.Date(date)),
+		ExceptionType:   timetable.ActivityExceptionModified,
+		StartTime:       activityClockPtr(&startTime),
 		Reason:          &reason,
 		CreatedBy:       &staffID,
 	}
-	exception.SetTenantID(testpkg.Tenant(t))
+	exception.TenantID = testpkg.Tenant(t)
 	require.NoError(t, exception.Validate())
-	require.NoError(t, env.repos.ActivityException.Create(testpkg.Ctx(t), exception))
+	require.NoError(t, arrivalTimetable.NativeExceptionRecords(env.timetable.ActivityException).Create(testpkg.Ctx(t), exception))
 }

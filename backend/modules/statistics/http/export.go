@@ -7,38 +7,43 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/services/listexport"
+)
+
+const (
+	columnName        = "name"
+	columnSchoolClass = "school_class"
+	columnRoomName    = "room_name"
 )
 
 // Column IDs: catalog IDs where the PDF has a layout weight for them
 // (name, class, group), ad-hoc IDs for the numeric columns.
 const (
-	columnPresent     listexport.ColumnID = "present_days"
-	columnSick        listexport.ColumnID = "sick_days"
-	columnExcused     listexport.ColumnID = "excused_days"
-	columnUnexplained listexport.ColumnID = "unexplained_days"
-	columnRate        listexport.ColumnID = "attendance_rate"
+	columnPresent     string = "present_days"
+	columnSick        string = "sick_days"
+	columnExcused     string = "excused_days"
+	columnUnexplained string = "unexplained_days"
+	columnRate        string = "attendance_rate"
 )
 
 const (
-	columnCapacity    listexport.ColumnID = "capacity"
-	columnDaysUsed    listexport.ColumnID = "days_used"
-	columnStudents    listexport.ColumnID = "distinct_students"
-	columnHours       listexport.ColumnID = "student_hours"
-	columnPeak        listexport.ColumnID = "peak_occupancy"
-	columnUtilization listexport.ColumnID = "peak_utilization"
+	columnCapacity    string = "capacity"
+	columnDaysUsed    string = "days_used"
+	columnStudents    string = "distinct_students"
+	columnHours       string = "student_hours"
+	columnPeak        string = "peak_occupancy"
+	columnUtilization string = "peak_utilization"
 )
 
 const (
-	columnCourse       listexport.ColumnID = "course"
-	columnCategory     listexport.ColumnID = "category"
-	columnHeld         listexport.ColumnID = "held_instances"
-	columnCancelled    listexport.ColumnID = "cancelled_instances"
-	columnParticipated listexport.ColumnID = "present_slots"
-	columnMissed       listexport.ColumnID = "absent_slots"
-	columnOpen         listexport.ColumnID = "open_slots"
-	columnOccupancy    listexport.ColumnID = "occupancy"
-	columnSeats        listexport.ColumnID = "seats"
+	columnCourse       string = "course"
+	columnCategory     string = "category"
+	columnHeld         string = "held_instances"
+	columnCancelled    string = "cancelled_instances"
+	columnParticipated string = "present_slots"
+	columnMissed       string = "absent_slots"
+	columnOpen         string = "open_slots"
+	columnOccupancy    string = "occupancy"
+	columnSeats        string = "seats"
 )
 
 const exportConfidentialityNote = "Vertrauliche Anwesenheitsdaten"
@@ -46,7 +51,7 @@ const exportConfidentialityNote = "Vertrauliche Anwesenheitsdaten"
 // buildSectionDocument picks the document for the requested export section
 // and the filename stem that goes with it. Every section has its own column
 // grid — mixing them under shared headers produced unreadable PDFs (#2606).
-func buildSectionDocument(report *studentpresence.StatisticsReport, section string) (listexport.Document, string) {
+func buildSectionDocument(report *studentpresence.StatisticsReport, section string) (ExportDocument, string) {
 	switch section {
 	case sectionRooms:
 		return buildRoomExportDocument(report), "raumauslastung"
@@ -72,12 +77,12 @@ func courseExportFilters(report *studentpresence.StatisticsReport) []string {
 }
 
 // buildCourseExportDocument renders one row per course.
-func buildCourseExportDocument(report *studentpresence.StatisticsReport) listexport.Document {
-	doc := listexport.Document{
+func buildCourseExportDocument(report *studentpresence.StatisticsReport) ExportDocument {
+	doc := ExportDocument{
 		Title:       "Kursteilnahme",
 		Subtitle:    fmt.Sprintf("Teilnahme je Kurs vom %s bis %s", report.From.Format("02.01.2006"), report.To.Format("02.01.2006")),
 		GeneratedAt: time.Now(),
-		Columns: []listexport.Column{
+		Columns: []ExportColumn{
 			{ID: columnCourse, Label: "Kurs"},
 			{ID: columnCategory, Label: "Kategorie"},
 			{ID: columnHeld, Label: "Termine"},
@@ -94,7 +99,7 @@ func buildCourseExportDocument(report *studentpresence.StatisticsReport) listexp
 		Footer:  exportConfidentialityNote,
 	}
 	for _, course := range report.Courses {
-		doc.Rows = append(doc.Rows, listexport.Row{Values: map[listexport.ColumnID]string{
+		doc.Rows = append(doc.Rows, ExportRow{Values: map[string]string{
 			columnCourse:       course.Name,
 			columnCategory:     course.CategoryName,
 			columnHeld:         strconv.Itoa(course.HeldInstances),
@@ -113,14 +118,14 @@ func buildCourseExportDocument(report *studentpresence.StatisticsReport) listexp
 
 // buildCourseStudentExportDocument renders one row per child and course,
 // grouped by child so a family sees its own block in one place.
-func buildCourseStudentExportDocument(report *studentpresence.StatisticsReport) listexport.Document {
-	doc := listexport.Document{
+func buildCourseStudentExportDocument(report *studentpresence.StatisticsReport) ExportDocument {
+	doc := ExportDocument{
 		Title:       "Kursteilnahme je Kind",
 		Subtitle:    fmt.Sprintf("Teilnahme je Kind vom %s bis %s", report.From.Format("02.01.2006"), report.To.Format("02.01.2006")),
 		GeneratedAt: time.Now(),
-		Columns: []listexport.Column{
-			{ID: listexport.ColumnName, Label: "Name"},
-			{ID: listexport.ColumnSchoolClass, Label: "Klasse"},
+		Columns: []ExportColumn{
+			{ID: columnName, Label: "Name"},
+			{ID: columnSchoolClass, Label: "Klasse"},
 			{ID: columnCourse, Label: "Kurs"},
 			{ID: columnParticipated, Label: "Teilnahme"},
 			{ID: columnMissed, Label: "Fehltage"},
@@ -131,14 +136,14 @@ func buildCourseStudentExportDocument(report *studentpresence.StatisticsReport) 
 		Footer:  exportConfidentialityNote,
 	}
 	for _, row := range report.CourseStudents {
-		doc.Rows = append(doc.Rows, listexport.Row{Values: map[listexport.ColumnID]string{
-			listexport.ColumnName:        row.LastName + ", " + row.FirstName,
-			listexport.ColumnSchoolClass: row.SchoolClass,
-			columnCourse:                 row.CourseName,
-			columnParticipated:           strconv.Itoa(row.PresentDays),
-			columnMissed:                 strconv.Itoa(row.AbsentDays),
-			columnOpen:                   strconv.Itoa(row.OpenDays),
-			columnRate:                   formatRate(row.ParticipationRate),
+		doc.Rows = append(doc.Rows, ExportRow{Values: map[string]string{
+			columnName:         row.LastName + ", " + row.FirstName,
+			columnSchoolClass:  row.SchoolClass,
+			columnCourse:       row.CourseName,
+			columnParticipated: strconv.Itoa(row.PresentDays),
+			columnMissed:       strconv.Itoa(row.AbsentDays),
+			columnOpen:         strconv.Itoa(row.OpenDays),
+			columnRate:         formatRate(row.ParticipationRate),
 		}})
 	}
 	return doc
@@ -153,13 +158,13 @@ func formatSeats(maxParticipants int) string {
 }
 
 // buildRoomExportDocument renders the room utilization table.
-func buildRoomExportDocument(report *studentpresence.StatisticsReport) listexport.Document {
-	doc := listexport.Document{
+func buildRoomExportDocument(report *studentpresence.StatisticsReport) ExportDocument {
+	doc := ExportDocument{
 		Title:       "Raumauslastung",
 		Subtitle:    fmt.Sprintf("Raumnutzung vom %s bis %s", report.From.Format("02.01.2006"), report.To.Format("02.01.2006")),
 		GeneratedAt: time.Now(),
-		Columns: []listexport.Column{
-			{ID: listexport.ColumnRoomName, Label: "Raum"},
+		Columns: []ExportColumn{
+			{ID: columnRoomName, Label: "Raum"},
 			{ID: columnCapacity, Label: "Plätze"},
 			{ID: columnDaysUsed, Label: "Tage genutzt"},
 			{ID: columnStudents, Label: "Kinder"},
@@ -174,19 +179,27 @@ func buildRoomExportDocument(report *studentpresence.StatisticsReport) listexpor
 		},
 		Footer: exportConfidentialityNote,
 	}
+	if report.RoomHistoryDisabled {
+		doc.Filters = []string{
+			"Raumhistorie ist ausgeschaltet.",
+			"Raumstatistiken brauchen das eingeschaltete Anwesenheitsprotokoll.",
+			"Ihre Administration kann es unter Einstellungen > Datenschutz einschalten.",
+		}
+		return doc
+	}
 	for _, room := range report.Rooms {
 		capacity := ""
 		if room.Capacity != nil {
 			capacity = strconv.Itoa(*room.Capacity)
 		}
-		doc.Rows = append(doc.Rows, listexport.Row{Values: map[listexport.ColumnID]string{
-			listexport.ColumnRoomName: room.Name,
-			columnCapacity:            capacity,
-			columnDaysUsed:            strconv.Itoa(room.DaysUsed),
-			columnStudents:            strconv.Itoa(room.DistinctStudents),
-			columnHours:               formatHours(room.StudentMinutes),
-			columnPeak:                strconv.Itoa(room.PeakOccupancy),
-			columnUtilization:         formatRate(room.PeakUtilizationPercent),
+		doc.Rows = append(doc.Rows, ExportRow{Values: map[string]string{
+			columnRoomName:    room.Name,
+			columnCapacity:    capacity,
+			columnDaysUsed:    strconv.Itoa(room.DaysUsed),
+			columnStudents:    strconv.Itoa(room.DistinctStudents),
+			columnHours:       formatHours(room.StudentMinutes),
+			columnPeak:        strconv.Itoa(room.PeakOccupancy),
+			columnUtilization: formatRate(room.PeakUtilizationPercent),
 		}})
 	}
 	return doc
@@ -195,14 +208,14 @@ func buildRoomExportDocument(report *studentpresence.StatisticsReport) listexpor
 // buildExportDocument renders the child table grouped by education group
 // (GroupTitle marker rows). Rooms have their own column grid and therefore
 // their own document (buildRoomExportDocument, section=rooms).
-func buildExportDocument(report *studentpresence.StatisticsReport) listexport.Document {
-	doc := listexport.Document{
+func buildExportDocument(report *studentpresence.StatisticsReport) ExportDocument {
+	doc := ExportDocument{
 		Title:       "Statistik",
 		Subtitle:    fmt.Sprintf("Anwesenheit vom %s bis %s", report.From.Format("02.01.2006"), report.To.Format("02.01.2006")),
 		GeneratedAt: time.Now(),
-		Columns: []listexport.Column{
-			{ID: listexport.ColumnName, Label: "Name"},
-			{ID: listexport.ColumnSchoolClass, Label: "Klasse"},
+		Columns: []ExportColumn{
+			{ID: columnName, Label: "Name"},
+			{ID: columnSchoolClass, Label: "Klasse"},
 			{ID: columnPresent, Label: "Anwesend"},
 			{ID: columnSick, Label: "Krank"},
 			{ID: columnExcused, Label: "Entschuldigt"},
@@ -233,16 +246,16 @@ func buildExportDocument(report *studentpresence.StatisticsReport) listexport.Do
 		if group.AttendanceRate != nil {
 			title += " · " + formatRate(group.AttendanceRate)
 		}
-		doc.Rows = append(doc.Rows, listexport.Row{GroupTitle: title})
+		doc.Rows = append(doc.Rows, ExportRow{GroupTitle: title})
 		for _, st := range byGroup[group.GroupID] {
-			doc.Rows = append(doc.Rows, listexport.Row{Values: map[listexport.ColumnID]string{
-				listexport.ColumnName:        st.LastName + ", " + st.FirstName,
-				listexport.ColumnSchoolClass: st.SchoolClass,
-				columnPresent:                strconv.Itoa(st.PresentDays),
-				columnSick:                   strconv.Itoa(st.SickDays),
-				columnExcused:                strconv.Itoa(st.ExcusedDays),
-				columnUnexplained:            strconv.Itoa(st.UnexplainedDays),
-				columnRate:                   formatRate(st.AttendanceRate),
+			doc.Rows = append(doc.Rows, ExportRow{Values: map[string]string{
+				columnName:        st.LastName + ", " + st.FirstName,
+				columnSchoolClass: st.SchoolClass,
+				columnPresent:     strconv.Itoa(st.PresentDays),
+				columnSick:        strconv.Itoa(st.SickDays),
+				columnExcused:     strconv.Itoa(st.ExcusedDays),
+				columnUnexplained: strconv.Itoa(st.UnexplainedDays),
+				columnRate:        formatRate(st.AttendanceRate),
 			}})
 		}
 	}

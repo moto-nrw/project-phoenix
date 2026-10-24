@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -25,7 +25,7 @@ func carryoverType(t *testing.T, svc workforce.Capability, name string) workforc
 
 func bookAllowanceDay(t *testing.T, svc workforce.Capability, staffID, typeID int64, day string, enteredAt time.Time) {
 	t.Helper()
-	_, err := svc.CreateStaffAbsence(testpkg.Ctx(t), workforce.StaffAbsence{
+	_, err := svc.CreateStaffAbsence(testpkg.Ctx(t), &workforce.StaffAbsence{
 		StaffID: staffID, CreatedBy: staffID, AbsenceType: workforce.AbsenceTypeOther, AbsenceTypeID: &typeID,
 		Status: workforce.AbsenceStatusReported, DateStart: day, DateEnd: day, CreatedAt: enteredAt,
 	})
@@ -70,7 +70,7 @@ func TestCustomAllowanceCarriesTheRestIntoTheNextYear(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	january := timezone.NewDate(2027, time.January, 8).BerlinMidnight().Add(9 * time.Hour)
+	january := calendar.NewDate(2027, time.January, 8).BerlinMidnight().Add(9 * time.Hour)
 	svc := buildWorkforceAt(t, db, january)
 	staff := testpkg.CreateTestStaff(t, db, "Rena", "Übertrag")
 	admin := testpkg.CreateTestStaff(t, db, "Swantje", "Leitung")
@@ -131,7 +131,7 @@ func TestCustomAllowanceRestExpires(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	april := timezone.NewDate(2027, time.April, 6).BerlinMidnight().Add(9 * time.Hour)
+	april := calendar.NewDate(2027, time.April, 6).BerlinMidnight().Add(9 * time.Hour)
 	svc := buildWorkforceAt(t, db, april)
 	staff := testpkg.CreateTestStaff(t, db, "Rena", "Verfall")
 	admin := testpkg.CreateTestStaff(t, db, "Swantje", "Verfall")
@@ -140,7 +140,7 @@ func TestCustomAllowanceRestExpires(t *testing.T) {
 		StaffID: staff.ID, AbsenceTypeID: typ.ID, Year: 2026, EntitledDays: 10, Reason: "Sommerferien krank", ChangedBy: admin.ID,
 	})
 	require.NoError(t, err)
-	march := timezone.NewDate(2027, time.March, 1).BerlinMidnight()
+	march := calendar.NewDate(2027, time.March, 1).BerlinMidnight()
 	bookAllowanceDay(t, svc, staff.ID, typ.ID, "2027-03-05", march)
 
 	old, err := svc.AllowanceSummary(ctx, staff.ID, typ.ID, 2026)

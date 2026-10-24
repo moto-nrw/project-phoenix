@@ -1,3 +1,5 @@
+import { MODULE_SETTING_KEYS } from "./modules";
+
 // Keys whose value rides on /auth/tenant/resolve. The settings PUT/DELETE
 // proxies (tenant-side `/api/settings/values/[key]` and operator-side
 // `/api/operator/provisioning/schools/[id]/settings/values/[key]`) consult
@@ -6,6 +8,9 @@
 // The settings page also calls `router.refresh()` so the RSC tree pulls the
 // fresh layout data.
 export const TENANT_RESOLVE_AFFECTING_KEYS: ReadonlySet<string> = new Set([
+  // Expire the analytics policy immediately so reloads and new tabs cannot
+  // start capturing with a stale enabled value after the school opts out.
+  "analytics.enabled",
   "calendar.caldav_enabled",
   "operations.student_photos_enabled",
   // presence_mode is served via /auth/tenant/resolve and drives the
@@ -13,9 +18,10 @@ export const TENANT_RESOLVE_AFFECTING_KEYS: ReadonlySet<string> = new Set([
   // operator flipping it leaves reloads/new tabs on the old mode for
   // up to the layout cache TTL (300s).
   "operations.presence_mode",
-  // nfc_enabled is also served through /auth/tenant/resolve so every staff
-  // user can hide NFC-only navigation without config:read.
-  "attendance.nfc_enabled",
+  // The module switches (#4892) ride on /auth/tenant/resolve as
+  // booked_modules, so every staff member's navigation follows a booking
+  // without config:read. The moto team switches them in the operator portal.
+  ...MODULE_SETTING_KEYS,
   // parent_notes_enabled rides on /auth/tenant/resolve too (as
   // parent_messaging_enabled) so non-admin staff can hide the "Neue Nachricht"
   // compose entry points without config:read. Without revalidation, toggling it
@@ -29,6 +35,11 @@ export const TENANT_RESOLVE_AFFECTING_KEYS: ReadonlySet<string> = new Set([
   // and because the chat fails CLOSED, that stale value shows "ausgeschaltet"
   // on a school that just turned it on.
   "operations.staff_messaging_enabled",
+  // child_search_only_navigation (#1321) decides every staff member's
+  // navigation. A stale value would keep „Meine Gruppen“ and „Aktuelle
+  // Aufsicht“ in the sidebar for five minutes after the school switched them
+  // off, or hide them after it switched them back on.
+  "operations.child_search_only_navigation",
   // Approved-child offering corrections consume this through tenant shell
   // metadata so staff without config:read never see a save action that the
   // authoritative enrollment service will reject.

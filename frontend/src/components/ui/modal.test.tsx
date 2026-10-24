@@ -18,8 +18,8 @@ describe("Modal", () => {
     vi.useRealTimers();
   });
 
-  it("should not render when isOpen is false", () => {
-    render(
+  it("should not render when isOpen is false", async () => {
+    const { unmount } = render(
       <TestWrapper>
         <Modal isOpen={false} onClose={vi.fn()} title="Test Modal">
           <p>Modal content</p>
@@ -29,6 +29,21 @@ describe("Modal", () => {
 
     expect(screen.queryByText("Test Modal")).not.toBeInTheDocument();
     expect(screen.queryByText("Modal content")).not.toBeInTheDocument();
+    unmount();
+
+    render(
+      <TestWrapper>
+        <Modal isOpen={true} onClose={vi.fn()} title="Test Modal">
+          <p>Modal content</p>
+        </Modal>
+      </TestWrapper>,
+    );
+    await act(async () => {
+      vi.advanceTimersByTime(20);
+    });
+    // Anker: geöffnet finden dieselben Abfragen Titel und Inhalt.
+    expect(screen.getByText("Test Modal")).toBeInTheDocument();
+    expect(screen.getByText("Modal content")).toBeInTheDocument();
   });
 
   it("should render when isOpen is true", async () => {
@@ -963,22 +978,5 @@ describe("ConfirmationModal", () => {
     expect(onClose).toHaveBeenCalledOnce();
 
     matchMedia.mockRestore();
-  });
-
-  it("should not render when isOpen is false", () => {
-    render(
-      <TestWrapper>
-        <ConfirmationModal
-          isOpen={false}
-          onClose={vi.fn()}
-          onConfirm={vi.fn()}
-          title="Confirm"
-        >
-          <p>Sure?</p>
-        </ConfirmationModal>
-      </TestWrapper>,
-    );
-
-    expect(screen.queryByText("Confirm")).not.toBeInTheDocument();
   });
 });

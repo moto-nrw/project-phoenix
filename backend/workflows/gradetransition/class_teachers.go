@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 )
@@ -55,39 +54,20 @@ func (w *Workflow) remapClassTeacherAssignments(ctx context.Context, transitionI
 	if err != nil {
 		return fmt.Errorf("failed to list class teacher assignments: %w", err)
 	}
-	// Normalized class names each staff member keeps untouched; renamed rows
-	// must not collide with these on re-insert.
-	kept := make(map[int64]map[string]bool, len(assignments))
-	var affected []schoolmembership.ClassAssignment
-	for _, assignment := range assignments {
-		if _, hit := renames[strings.TrimSpace(assignment.SchoolClass)]; hit {
-			affected = append(affected, assignment)
-			continue
-		}
-		if kept[assignment.StaffID] == nil {
-			kept[assignment.StaffID] = make(map[string]bool)
-		}
-		kept[assignment.StaffID][schoolclass.Normalize(assignment.SchoolClass)] = true
-	}
+	kept, affected := affectedClassAssignments(assignments, renames)
 	if len(affected) == 0 {
 		return nil
 	}
-	var ledger []schoolstructure.TransitionClassTeacherEntry
-	for _, assignment := range affected {
-		if err := w.deps.Membership.DeleteClassAssignment(ctx, assignment.ID); err != nil {
-			return fmt.Errorf("failed to delete class teacher assignment: %w", err)
-		}
-		ledger = append(ledger, schoolstructure.TransitionClassTeacherEntry{
-			TransitionID: transitionID, StaffID: assignment.StaffID, SchoolClass: assignment.SchoolClass,
-			Action: schoolstructure.LedgerActionRemoved,
-		})
+	ledger, err := w.removeTransitionClassAssignments(ctx, transitionID, affected)
+	if err != nil {
+		return err
 	}
 	for _, assignment := range affected {
 		target := renames[strings.TrimSpace(assignment.SchoolClass)]
 		if target == "" {
 			continue // graduated: the assignment is dropped
 		}
-		key := schoolclass.Normalize(target)
+		key := schoolstructure.NormalizeClass(target)
 		if kept[assignment.StaffID][key] {
 			continue // the staff member already holds the target class
 		}
@@ -138,52 +118,16 @@ func (w *Workflow) revertClassTeacherAssignments(ctx context.Context, transition
 	}
 	current := make(map[staffClass]schoolmembership.ClassAssignment, len(assignments))
 	for _, assignment := range assignments {
-		current[staffClass{assignment.StaffID, schoolclass.Normalize(assignment.SchoolClass)}] = assignment
+		current[staffClass{assignment.StaffID, schoolstructure.NormalizeClass(assignment.SchoolClass)}] = assignment
 	}
-	// ledgerCreated: pairs the apply inserted at all. deletedCreated: the
-	// subset this revert actually found and deleted; a pair in the first set
-	// but not the second was removed by the admin after the apply.
-	ledgerCreated := make(map[staffClass]bool)
-	deletedCreated := make(map[staffClass]bool)
-	for _, entry := range ledger {
-		if entry.Action != schoolstructure.LedgerActionCreated {
-			continue
-		}
-		key := staffClass{entry.StaffID, schoolclass.Normalize(entry.SchoolClass)}
-		ledgerCreated[key] = true
-		if row, ok := current[key]; ok {
-			if err := w.deps.Membership.DeleteClassAssignment(ctx, row.ID); err != nil {
-				return fmt.Errorf("failed to delete class teacher assignment: %w", err)
-			}
-			delete(current, key)
-			deletedCreated[key] = true
-		}
+	ledgerCreated, deletedCreated, err := w.deleteCreatedClassAssignments(ctx, ledger, current)
+	if err != nil {
+		return err
 	}
 	for _, entry := range ledger {
-		if entry.Action != schoolstructure.LedgerActionRemoved {
-			continue
+		if err := w.restoreClassAssignment(ctx, entry, liveStaff, renames, current, ledgerCreated, deletedCreated); err != nil {
+			return err
 		}
-		if !liveStaff[entry.StaffID] {
-			continue // offboarded since the apply: do not resurrect scope
-		}
-		key := staffClass{entry.StaffID, schoolclass.Normalize(entry.SchoolClass)}
-		if ledgerCreated[key] && !deletedCreated[key] {
-			continue
-		}
-		if target := renames[strings.TrimSpace(entry.SchoolClass)]; target != "" {
-			pair := staffClass{entry.StaffID, schoolclass.Normalize(target)}
-			if ledgerCreated[pair] && !deletedCreated[pair] {
-				continue // the admin removed the renamed row after the apply
-			}
-		}
-		if _, taken := current[key]; taken {
-			continue
-		}
-		restored, err := w.deps.Membership.CreateClassAssignment(ctx, schoolmembership.CreateClassAssignment{StaffID: entry.StaffID, SchoolClass: entry.SchoolClass})
-		if err != nil {
-			return fmt.Errorf("failed to restore class teacher assignment: %w", err)
-		}
-		current[key] = restored
 	}
 	return nil
 }
@@ -214,4 +158,87 @@ func (w *Workflow) liveLedgerStaff(ctx context.Context, ledger []schoolstructure
 		}
 	}
 	return live, nil
+}
+
+func affectedClassAssignments(assignments []schoolmembership.ClassAssignment, renames map[string]string) (map[int64]map[string]bool, []schoolmembership.ClassAssignment) {
+	// Normalized class names each staff member keeps untouched; renamed rows
+	// must not collide with these on re-insert.
+	kept := make(map[int64]map[string]bool, len(assignments))
+	var affected []schoolmembership.ClassAssignment
+	for _, assignment := range assignments {
+		if _, hit := renames[strings.TrimSpace(assignment.SchoolClass)]; hit {
+			affected = append(affected, assignment)
+			continue
+		}
+		if kept[assignment.StaffID] == nil {
+			kept[assignment.StaffID] = make(map[string]bool)
+		}
+		kept[assignment.StaffID][schoolstructure.NormalizeClass(assignment.SchoolClass)] = true
+	}
+	return kept, affected
+}
+
+func (w *Workflow) deleteCreatedClassAssignments(ctx context.Context, ledger []schoolstructure.TransitionClassTeacherEntry, current map[staffClass]schoolmembership.ClassAssignment) (map[staffClass]bool, map[staffClass]bool, error) {
+	// ledgerCreated: pairs the apply inserted at all. deletedCreated: the
+	// subset this revert actually found and deleted; a pair in the first set
+	// but not the second was removed by the admin after the apply.
+	ledgerCreated := make(map[staffClass]bool)
+	deletedCreated := make(map[staffClass]bool)
+	for _, entry := range ledger {
+		if entry.Action != schoolstructure.LedgerActionCreated {
+			continue
+		}
+		key := staffClass{entry.StaffID, schoolstructure.NormalizeClass(entry.SchoolClass)}
+		ledgerCreated[key] = true
+		if row, ok := current[key]; ok {
+			if err := w.deps.Membership.DeleteClassAssignment(ctx, row.ID); err != nil {
+				return nil, nil, fmt.Errorf("failed to delete class teacher assignment: %w", err)
+			}
+			delete(current, key)
+			deletedCreated[key] = true
+		}
+	}
+	return ledgerCreated, deletedCreated, nil
+}
+
+func (w *Workflow) restoreClassAssignment(ctx context.Context, entry schoolstructure.TransitionClassTeacherEntry, liveStaff map[int64]bool, renames map[string]string, current map[staffClass]schoolmembership.ClassAssignment, ledgerCreated, deletedCreated map[staffClass]bool) error {
+	if entry.Action != schoolstructure.LedgerActionRemoved {
+		return nil
+	}
+	if !liveStaff[entry.StaffID] {
+		return nil // offboarded since the apply: do not resurrect scope
+	}
+	key := staffClass{entry.StaffID, schoolstructure.NormalizeClass(entry.SchoolClass)}
+	if ledgerCreated[key] && !deletedCreated[key] {
+		return nil
+	}
+	if target := renames[strings.TrimSpace(entry.SchoolClass)]; target != "" {
+		pair := staffClass{entry.StaffID, schoolstructure.NormalizeClass(target)}
+		if ledgerCreated[pair] && !deletedCreated[pair] {
+			return nil // the admin removed the renamed row after the apply
+		}
+	}
+	if _, taken := current[key]; taken {
+		return nil
+	}
+	restored, err := w.deps.Membership.CreateClassAssignment(ctx, schoolmembership.CreateClassAssignment{StaffID: entry.StaffID, SchoolClass: entry.SchoolClass})
+	if err != nil {
+		return fmt.Errorf("failed to restore class teacher assignment: %w", err)
+	}
+	current[key] = restored
+	return nil
+}
+
+func (w *Workflow) removeTransitionClassAssignments(ctx context.Context, transitionID int64, affected []schoolmembership.ClassAssignment) ([]schoolstructure.TransitionClassTeacherEntry, error) {
+	var ledger []schoolstructure.TransitionClassTeacherEntry
+	for _, assignment := range affected {
+		if err := w.deps.Membership.DeleteClassAssignment(ctx, assignment.ID); err != nil {
+			return nil, fmt.Errorf("failed to delete class teacher assignment: %w", err)
+		}
+		ledger = append(ledger, schoolstructure.TransitionClassTeacherEntry{
+			TransitionID: transitionID, StaffID: assignment.StaffID, SchoolClass: assignment.SchoolClass,
+			Action: schoolstructure.LedgerActionRemoved,
+		})
+	}
+	return ledger, nil
 }

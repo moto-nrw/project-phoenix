@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
@@ -56,12 +58,12 @@ func (s *planningTrackServiceStub) ValidatePlanningTrackAssignment(context.Conte
 func TestPlanningTrackListRouteAllowsSchedulesManage(t *testing.T) {
 	t.Parallel()
 
-	_, _ = testutil.SetupTimetableModule(t)
-	resource := NewResource(Dependencies{
+	_, _ = RootCompositions.Module(t)
+	resource := newResourceForTest(Dependencies{
 		PlanningTracks: new(planningTrackServiceStub),
 	})
 	router := chi.NewRouter()
-	router.Mount("/timetable", resource.Router())
+	router.Mount("/timetable", resource.Router(scopeTestTenantRoutes(testpkg.TenantSessionGatesWithCaches(scopeTestSettingsCache))))
 	request := httptest.NewRequest(http.MethodGet, "/timetable/planning-tracks/", nil)
 
 	response := testutil.ExecuteWithAuthPermissions(
@@ -78,7 +80,7 @@ func TestPlanningTrackHandlersCreateAndReorder(t *testing.T) {
 	t.Parallel()
 
 	service := new(planningTrackServiceStub)
-	resource := NewResource(Dependencies{PlanningTracks: service})
+	resource := newResourceForTest(Dependencies{PlanningTracks: service})
 
 	createRequest := httptest.NewRequest(http.MethodPost, "/planning-tracks", strings.NewReader(`{"name":"Mittag","color":"#F78C10","sort_order":2}`))
 	createRequest.Header.Set("Content-Type", "application/json")
@@ -106,7 +108,7 @@ func TestPlanningTrackHandlersCreateAndReorder(t *testing.T) {
 func TestPlanningTrackHandlerMapsNotFound(t *testing.T) {
 	t.Parallel()
 
-	resource := NewResource(Dependencies{PlanningTracks: new(planningTrackServiceStub)})
+	resource := newResourceForTest(Dependencies{PlanningTracks: new(planningTrackServiceStub)})
 	request := httptest.NewRequest(http.MethodDelete, "/planning-tracks/99", nil)
 	routeContext := chi.NewRouteContext()
 	routeContext.URLParams.Add("id", "99")
@@ -122,7 +124,7 @@ func TestPlanningTrackHandlerMapsNotFound(t *testing.T) {
 	if err := json.Unmarshal(recorder.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
-	if body["error"] == nil {
+	if body["detail"] == nil {
 		t.Fatalf("expected error response, got %#v", body)
 	}
 }
@@ -130,7 +132,7 @@ func TestPlanningTrackHandlerMapsNotFound(t *testing.T) {
 func TestPlanningTrackHandlersReturnInternalErrorWithoutService(t *testing.T) {
 	t.Parallel()
 
-	resource := NewResource(Dependencies{})
+	resource := newResourceForTest(Dependencies{})
 	tests := []struct {
 		name    string
 		handler http.HandlerFunc

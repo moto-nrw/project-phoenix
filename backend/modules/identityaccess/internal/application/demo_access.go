@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
+	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 )
 
 // DemoAccess runs the demo access of the public demo (#3462): a prospect
@@ -89,34 +91,33 @@ func (d *DemoAccess) request(ctx context.Context, access domain.DemoAccess, entr
 	}
 	access.TokenHash = fingerprint
 	access.ExpiresAt = d.now().Add(domain.DemoAccessLifetime)
-	var stored, lead bool
+	entryURL := entryURLPrefix + raw
+	if access.Role != "" {
+		entryURL += "&role=" + string(access.Role)
+	}
 	err = d.adminTx(ctx, func(txCtx context.Context) error {
-		known, found, findErr := d.store.FindActiveDemoAccessByEmail(txCtx, access.Email, d.now())
-		if findErr != nil || (found && known.CoolingDown(d.now())) {
-			return findErr
+		known, found, coolingDown, err := d.knownSchool(txCtx, access.Email)
+		if err != nil || coolingDown {
+			return err
 		}
 		var txErr error
 		if access.SchoolSlug, txErr = d.schoolFor(txCtx, access, known, found); txErr != nil {
 			return txErr
 		}
-		stored, lead = true, !found || known.ContactOptIn != access.ContactOptIn
 		access.ID, txErr = d.store.InsertDemoAccess(txCtx, access)
-		return txErr
+		if txErr != nil {
+			return txErr
+		}
+		if err := d.mail.SendDemoAccessLink(txCtx, access, entryURL); err != nil {
+			return err
+		}
+		if !found || known.ContactOptIn != access.ContactOptIn {
+			return d.mail.SendDemoLead(txCtx, access)
+		}
+		return nil
 	})
 	if err != nil {
 		return fmt.Errorf("store demo access: %w", err)
-	}
-	if !stored {
-		return nil
-	}
-	entryURL := entryURLPrefix + raw
-	if access.Role != "" {
-		// The fragment carries the preselected role past the waiting room.
-		entryURL += "&role=" + string(access.Role)
-	}
-	d.mail.SendDemoAccessLink(ctx, access, entryURL)
-	if lead {
-		d.mail.SendDemoLead(ctx, access)
 	}
 	return nil
 }
@@ -130,7 +131,7 @@ func (d *DemoAccess) schoolFor(ctx context.Context, access, known domain.DemoAcc
 		if err != nil {
 			return "", err
 		}
-		if entry.Status != domain.DemoSchoolFailed {
+		if entry.Exists && entry.Status != domain.DemoSchoolFailed {
 			return known.SchoolSlug, nil
 		}
 	}
@@ -176,7 +177,7 @@ func (d *DemoAccess) Redeem(ctx context.Context, token string, role domain.DemoR
 	var access domain.DemoAccess
 	err = d.adminTx(ctx, func(txCtx context.Context) error {
 		var err error
-		if access, err = d.valid(txCtx, token); err != nil {
+		if access, err = d.validAndLock(txCtx, token); err != nil {
 			return err
 		}
 		if entry, err = d.entry(txCtx, access.SchoolSlug); err != nil {
@@ -234,7 +235,7 @@ func (d *DemoAccess) Reset(ctx context.Context, token, clientIP string) (domain.
 	var access domain.DemoAccess
 	err := d.adminTx(ctx, func(txCtx context.Context) error {
 		var err error
-		if access, err = d.valid(txCtx, token); err != nil {
+		if access, err = d.validAndLock(txCtx, token); err != nil {
 			return err
 		}
 		if err := d.perAddress.admit(access.Email, at); err != nil {
@@ -347,6 +348,52 @@ func (d *DemoAccess) valid(ctx context.Context, token string) (domain.DemoAccess
 	return access, nil
 }
 
+// validAndLock makes an access's school stable for a mutating flow. The
+// initial read finds the key; each later read verifies that the locked school
+// still owns the access and makes an expiry race report the real token state.
+func (d *DemoAccess) validAndLock(ctx context.Context, token string) (domain.DemoAccess, error) {
+	for {
+		locked, err := d.valid(ctx, token)
+		if err != nil {
+			return domain.DemoAccess{}, err
+		}
+		if err := d.store.LockDemoSchool(ctx, locked.SchoolSlug); err != nil {
+			return domain.DemoAccess{}, err
+		}
+		access, err := d.valid(ctx, token)
+		if err != nil {
+			return domain.DemoAccess{}, err
+		}
+		if access.SchoolSlug == locked.SchoolSlug {
+			return access, nil
+		}
+	}
+}
+
+// knownSchool keeps the address and school locks together. If an expiry or a
+// restart wins while this request waits for the school, the second read sees
+// that result before a new access chooses a school.
+func (d *DemoAccess) knownSchool(ctx context.Context, email string) (domain.DemoAccess, bool, bool, error) {
+	known, found, err := d.store.FindActiveDemoAccessByEmail(ctx, email, d.now())
+	if err != nil || !found {
+		return known, found, false, err
+	}
+	for !known.CoolingDown(d.now()) {
+		lockedSlug := known.SchoolSlug
+		if err := d.store.LockDemoSchool(ctx, lockedSlug); err != nil {
+			return domain.DemoAccess{}, false, false, err
+		}
+		known, found, err = d.store.FindActiveDemoAccessByEmail(ctx, email, d.now())
+		if err != nil || !found {
+			return known, found, false, err
+		}
+		if known.SchoolSlug == lockedSlug {
+			return known, true, false, nil
+		}
+	}
+	return known, true, true, nil
+}
+
 // demoTenantLock is the mint guard of the tenant switch: an account a demo
 // access signed in stays in its demo school. It reads inside the switch's
 // own administrative transaction, so it holds for every caller and cannot be
@@ -357,7 +404,120 @@ func (s *AccountAuthentication) demoTenantLock(ctx context.Context, account doma
 		return failed("switch tenant", err)
 	}
 	if demo {
-		return failed("switch tenant", domain.ErrDemoSessionTenantLocked)
+		return failed("switch tenant", identityaccess.ErrDemoSessionTenantLocked)
 	}
 	return nil
+}
+
+type DemoSchoolsPort struct{ identityPorts.DemoSchools }
+
+func (p DemoSchoolsPort) ReplaceDemoSchool(ctx context.Context, slug, schoolName, firstName, lastName string) (string, error) {
+	newSlug, err := p.DemoSchools.ReplaceDemoSchool(ctx, slug, schoolName, firstName, lastName)
+	switch {
+	case errors.Is(err, identityaccess.ErrDemoCapacityReached):
+		return "", domain.ErrDemoCapacityReached
+	case errors.Is(err, identityaccess.ErrDemoAccessInvalid):
+		return "", domain.ErrDemoAccessInvalid
+	}
+	return newSlug, err
+}
+
+func (p DemoSchoolsPort) PrepareDemoSchool(ctx context.Context, schoolName, firstName, lastName string) (string, error) {
+	slug, err := p.DemoSchools.PrepareDemoSchool(ctx, schoolName, firstName, lastName)
+	if errors.Is(err, identityaccess.ErrDemoCapacityReached) {
+		return "", domain.ErrDemoCapacityReached
+	}
+	return slug, err
+}
+
+func (p DemoSchoolsPort) DemoSchoolEntry(ctx context.Context, slug string) (domain.DemoSchoolEntry, error) {
+	entry, err := p.DemoSchools.DemoSchoolEntry(ctx, slug)
+	return domain.DemoSchoolEntry{
+		Exists: entry.Exists, Status: entry.Status, TenantID: entry.SchoolID, AccountID: entry.AccountID, ParentAccountID: entry.ParentAccountID,
+	}, err
+}
+
+type DemoAccessTokens struct {
+	Mint            func() (string, string, error)
+	FingerprintFunc func(string) string
+}
+
+func (t DemoAccessTokens) NewToken() (string, string, error) { return t.Mint() }
+
+func (t DemoAccessTokens) Fingerprint(raw string) string { return t.FingerprintFunc(raw) }
+
+// demoAccessMail hands the internal access to the root's mail binding.
+type DemoAccessMail struct{ Mail identityaccess.DemoAccessMail }
+
+func (m DemoAccessMail) SendDemoAccessLink(ctx context.Context, access domain.DemoAccess, entryURL string) error {
+	return m.Mail.SendDemoAccessLink(ctx, demoAccessMessage(access), entryURL)
+}
+
+func (m DemoAccessMail) SendDemoLead(ctx context.Context, access domain.DemoAccess) error {
+	return m.Mail.SendDemoLead(ctx, demoAccessMessage(access))
+}
+
+type DemoAccessEngine struct{ Flows *DemoAccess }
+
+func (e DemoAccessEngine) RequestDemoAccess(ctx context.Context, request identityaccess.DemoAccessRequest) error {
+	return demoAccessError(e.Flows.Request(ctx, domain.DemoAccess{
+		Email: request.Email, FirstName: request.FirstName, LastName: request.LastName, SchoolName: request.SchoolName,
+		Source: request.Source, ContactOptIn: request.ContactOptIn, Role: domain.DemoRole(request.Role),
+	}, request.ClientIP, request.EntryURLPrefix))
+}
+
+func (e DemoAccessEngine) DemoAccessStatus(ctx context.Context, token string) (identityaccess.DemoAccessProgress, error) {
+	access, status, err := e.Flows.Status(ctx, token)
+	if err != nil {
+		return identityaccess.DemoAccessProgress{}, demoAccessError(err)
+	}
+	return identityaccess.DemoAccessProgress{Status: status, SchoolSlug: access.SchoolSlug, SchoolName: access.SchoolName}, nil
+}
+
+func (e DemoAccessEngine) RedeemDemoAccess(ctx context.Context, token, role, ipAddress, userAgent string) (identityaccess.DemoEntry, error) {
+	entry, err := e.Flows.Redeem(ctx, token, domain.DemoRole(role), ipAddress, userAgent)
+	if err != nil {
+		return identityaccess.DemoEntry{}, demoAccessError(err)
+	}
+	return identityaccess.DemoEntry{
+		AccessToken: entry.AccessToken, RefreshToken: entry.RefreshToken,
+		AccessID: entry.AccessID, Role: string(entry.Role), Source: entry.Source, FixedRole: entry.FixedRole,
+	}, nil
+}
+
+func (e DemoAccessEngine) ResetDemoAccess(ctx context.Context, token, clientIP string) error {
+	_, err := e.Flows.Reset(ctx, token, clientIP)
+	return demoAccessError(err)
+}
+
+var demoAccessSentinels = []struct{ internal, public error }{
+	{domain.ErrDemoAccessInvalid, identityaccess.ErrDemoAccessInvalid},
+	{domain.ErrDemoAccessUnknown, identityaccess.ErrDemoAccessUnknown},
+	{domain.ErrDemoAccessExpired, identityaccess.ErrDemoAccessExpired},
+	{domain.ErrDemoSchoolPreparing, identityaccess.ErrDemoSchoolPreparing},
+	{domain.ErrDemoCapacityReached, identityaccess.ErrDemoCapacityReached},
+}
+
+func demoAccessMessage(access domain.DemoAccess) identityaccess.DemoAccessMessage {
+	return identityaccess.DemoAccessMessage{
+		ExpiresAt: access.ExpiresAt,
+		AccessID:  access.ID, Email: access.Email, FirstName: access.FirstName, LastName: access.LastName,
+		SchoolName: access.SchoolName, Source: access.Source, ContactOptIn: access.ContactOptIn,
+	}
+}
+
+func demoAccessError(err error) error {
+	if err == nil {
+		return nil
+	}
+	var limited *domain.DemoAccessRateLimitedError
+	if errors.As(err, &limited) {
+		return &identityaccess.DemoAccessRateLimitError{RetryAt: limited.RetryAt}
+	}
+	for _, sentinel := range demoAccessSentinels {
+		if errors.Is(err, sentinel.internal) {
+			return sentinel.public
+		}
+	}
+	return fmt.Errorf("identity access demo access: %w", err)
 }

@@ -5,37 +5,16 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
-
-	"github.com/go-chi/chi/v5"
-	"github.com/uptrace/bun"
-
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // Router returns a configured router for SSE endpoints
-func (rs *Resource) Router() chi.Router {
-	r := chi.NewRouter()
 
-	// Create JWT auth instance for middleware
-
-	// SSE endpoint requires authentication
-	r.Group(func(r chi.Router) {
-		r.Use(jwt.Authenticator)
-		r.Use(jwt.TenantMiddleware(tenant.ClaimScope{}))
-		r.Get("/events", rs.eventsHandler)
-	})
-
-	return r
-}
-
-// eventsHandler handles Server-Sent Events connections
+// StaffEvents handles Server-Sent Events connections
 // Orchestrates: connection setup → subscription resolution → event streaming
-func (rs *Resource) eventsHandler(w http.ResponseWriter, r *http.Request) {
-	ctx, cancel, ok := withSSETokenDeadline(r.Context())
+func (rs *Resource[E, C]) StaffEvents(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel, ok := rs.runtime.TokenDeadline(r.Context())
 	if !ok {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		writeSSEProblem(w, http.StatusUnauthorized, codeGeneralPermission, "Unauthorized")
 		return
 	}
 	defer cancel()
@@ -44,17 +23,17 @@ func (rs *Resource) eventsHandler(w http.ResponseWriter, r *http.Request) {
 	conn, statusCode := rs.setupSSEConnection(w)
 	if conn == nil {
 		slog.WarnContext(ctx, "SSE streaming unsupported by client")
-		http.Error(w, "Streaming unsupported", statusCode)
+		writeSSEProblem(w, statusCode, codeGeneralServer, "Streaming unsupported")
 		return
 	}
 
 	// Step 2: Extract tenant ID from JWT context (set by TenantMiddleware)
-	conn.tenantID = tenant.FromContext(ctx)
-	claims := jwt.ClaimsFromCtx(ctx)
-	conn.isAdmin = claims.IsAdmin || authorize.HasAdminWildcard(jwt.PermissionsFromCtx(ctx))
+	identity := rs.runtime.Identity(ctx)
+	conn.tenantID = identity.TenantID
+	conn.isAdmin = identity.IsAdmin
 	// The login account, needed to address this person individually. Already in
 	// the claims, so no extra lookup.
-	conn.accountID = int64(claims.ID)
+	conn.accountID = identity.AccountID
 
 	// Step 3: Resolve staff + subscription topics.
 	topics, staffID, err := rs.resolveSSESubscription(ctx, conn.tenantID)
@@ -68,7 +47,7 @@ func (rs *Resource) eventsHandler(w http.ResponseWriter, r *http.Request) {
 	// Step 4: Send initial "connected" event
 	if err := conn.sendConnectedEvent(topics); err != nil {
 		slog.ErrorContext(ctx, "SSE failed to send connected event", slog.String("error", err.Error()))
-		http.Error(w, "Failed to initialize SSE stream", http.StatusInternalServerError)
+		writeSSEProblem(w, http.StatusInternalServerError, codeGeneralServer, "Failed to initialize SSE stream")
 		return
 	}
 
@@ -81,11 +60,11 @@ func (rs *Resource) eventsHandler(w http.ResponseWriter, r *http.Request) {
 // resolveSSESubscription resolves the client's topic subscription inside a
 // tenant transaction. Resolution requires it because RLS on users.persons and
 // users.staff needs app.current_tenant_id to be set — the SSE router uses
-// jwt.TenantMiddleware (context only), not the DB-level TenantTxMiddleware.
-func (rs *Resource) resolveSSESubscription(ctx context.Context, tenantID int64) (*sseTopics, int64, error) {
+// sessiontoken.TenantMiddleware (context only), not the DB-level TenantTxMiddleware.
+func (rs *Resource[E, C]) resolveSSESubscription(ctx context.Context, tenantID int64) (*sseTopics, int64, error) {
 	var staffID int64
 	topics := &sseTopics{}
-	err := tenant.WithTenantTx(ctx, rs.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := rs.runtime.WithinTenant(ctx, tenantID, func(txCtx context.Context) error {
 		var resolveErr error
 		staffID, topics.activeGroupIDs, topics.eduTopics, topics.allTopics, resolveErr = rs.userCtx.ResolveSSETopics(txCtx)
 		return resolveErr
@@ -98,13 +77,13 @@ func (rs *Resource) resolveSSESubscription(ctx context.Context, tenantID int64) 
 
 // writeSSESetupError maps a subscription-resolution error to the SSE HTTP
 // response: the carried status for an *SSESetupError (401/403), 500 otherwise.
-func (rs *Resource) writeSSESetupError(w http.ResponseWriter, ctx context.Context, err error) {
+func (rs *Resource[E, C]) writeSSESetupError(w http.ResponseWriter, ctx context.Context, err error) {
 	var setupErr SetupRejection
 	if errors.As(err, &setupErr) {
 		slog.WarnContext(ctx, "SSE setup failed", slog.String("error", setupErr.SetupMessage()))
-		http.Error(w, setupErr.SetupMessage(), setupErr.SetupStatus())
+		writeSSEProblem(w, setupErr.SetupStatus(), setupProblemCode(setupErr.SetupStatus()), setupErr.SetupMessage())
 		return
 	}
 	slog.ErrorContext(ctx, "SSE failed to determine supervised groups", slog.String("error", err.Error()))
-	http.Error(w, "Failed to determine supervised groups", http.StatusInternalServerError)
+	writeSSEProblem(w, http.StatusInternalServerError, codeGeneralServer, "Failed to determine supervised groups")
 }

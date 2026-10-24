@@ -1,0 +1,67 @@
+package application
+
+import (
+	"context"
+	"errors"
+
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+)
+
+// CommandTransactions selects the identity application unit of work. Global
+// credential/operator commands are explicit; ordinary school reads never
+// choose administrative access when their school is absent.
+type CommandTransactions struct {
+	attach       func(context.Context) context.Context
+	current      func(context.Context) (any, bool)
+	school       func(context.Context) int64
+	withinSchool func(context.Context, func(context.Context) error) error
+	withinAdmin  func(context.Context, func(context.Context) error) error
+}
+
+type globalCredentialScopeKey struct{}
+type standaloneAdminScopeKey struct{}
+
+// withGlobalCredentialScope marks account-wide credential/bootstrap commands,
+// not arbitrary school reads. It affects only a standalone command: an ambient
+// transaction still owns its role, snapshot and rollback.
+func withGlobalCredentialScope(ctx context.Context) context.Context {
+	return context.WithValue(ctx, globalCredentialScopeKey{}, true)
+}
+
+func NewCommandTransactions(attach func(context.Context) context.Context, current func(context.Context) (any, bool), school func(context.Context) int64, withinSchool, withinAdmin func(context.Context, func(context.Context) error) error) CommandTransactions {
+	return CommandTransactions{attach: attach, current: current, school: school, withinSchool: withinSchool, withinAdmin: withinAdmin}
+}
+func (r CommandTransactions) RunWrite(ctx context.Context, fn func(context.Context) error) error {
+	ctx = r.attach(ctx)
+	if _, ok := r.current(ctx); ok {
+		return fn(ctx)
+	}
+	if r.school(ctx) <= 0 {
+		return domain.ErrTenantRequired
+	}
+	return r.withinSchool(ctx, fn)
+}
+func (r CommandTransactions) RunRead(ctx context.Context, fn func(context.Context) error) error {
+	return r.RunWrite(ctx, fn)
+}
+func (r CommandTransactions) RunPlatform(ctx context.Context, fn func(context.Context) error) error {
+	ctx = r.attach(ctx)
+	if _, ok := r.current(ctx); ok {
+		return fn(ctx)
+	}
+	globalCredential, _ := ctx.Value(globalCredentialScopeKey{}).(bool)
+	if r.school(ctx) <= 0 || globalCredential {
+		return r.withinAdmin(ctx, fn)
+	}
+	return r.withinSchool(ctx, fn)
+}
+func (r CommandTransactions) RunAdmin(ctx context.Context, fn func(context.Context) error) error {
+	ctx = r.attach(ctx)
+	if _, ok := r.current(ctx); ok {
+		if standalone, _ := ctx.Value(standaloneAdminScopeKey{}).(bool); standalone {
+			return errors.New("identity access: standalone administrative command cannot join an ambient transaction")
+		}
+		return fn(ctx)
+	}
+	return r.withinAdmin(ctx, fn)
+}

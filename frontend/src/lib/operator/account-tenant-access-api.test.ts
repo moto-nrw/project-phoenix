@@ -1,8 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  AccountTenantAccessApiError,
-  accountTenantAccessService,
-} from "./account-tenant-access-api";
+import { ApiError } from "../api-error";
+import { accountTenantAccessService } from "./account-tenant-access-api";
 
 const mockFetch = vi.fn();
 
@@ -62,7 +60,15 @@ describe("accountTenantAccessService", () => {
         deactivatedAt: null,
         hasPerson: true,
         hasStaff: false,
-        roles: [{ id: "1", name: "admin", isSystem: true, baseRole: null }],
+        roles: [
+          {
+            id: "1",
+            name: "admin",
+            isSystem: true,
+            baseRole: null,
+            schoolPortal: false,
+          },
+        ],
       },
     ]);
   });
@@ -130,12 +136,26 @@ describe("accountTenantAccessService", () => {
 
   it("loads assignable roles for the selected school", async () => {
     mockFetch.mockResolvedValue(
-      jsonResponse({ data: [{ id: "4", name: "teamleitung" }] }),
+      jsonResponse({
+        data: [
+          { id: "4", name: "teamleitung", is_system: false },
+          // A copy of the Lehrkraft role keeps its mark (#4574).
+          {
+            id: "5",
+            name: "klassenleitung",
+            is_system: false,
+            school_portal: true,
+          },
+        ],
+      }),
     );
 
     await expect(
       accountTenantAccessService.listAssignableRoles("42", "7"),
-    ).resolves.toEqual([{ id: "4", name: "teamleitung" }]);
+    ).resolves.toEqual([
+      { id: "4", name: "teamleitung", isSystem: false, schoolPortal: false },
+      { id: "5", name: "klassenleitung", isSystem: false, schoolPortal: true },
+    ]);
 
     expect(mockFetch).toHaveBeenCalledWith(
       "/api/operator/accounts/42/tenants/7/roles",
@@ -143,12 +163,12 @@ describe("accountTenantAccessService", () => {
     );
   });
 
-  it("throws the backend message so the modal can show the real reason", async () => {
+  it("keeps the backend diagnostic separate from the modal message", async () => {
     mockFetch.mockResolvedValue(
       jsonResponse(
         {
           status: "error",
-          error: "Diese Rolle existiert an der Zielschule nicht",
+          detail: "Diese Rolle existiert an der Zielschule nicht",
         },
         400,
       ),
@@ -157,18 +177,19 @@ describe("accountTenantAccessService", () => {
     await expect(
       accountTenantAccessService.updateRole("42", "7", "1"),
     ).rejects.toThrowError(
-      new AccountTenantAccessApiError(
-        "Diese Rolle existiert an der Zielschule nicht",
-        400,
-      ),
+      new ApiError("school access request failed (400)", 400, {
+        detail: "Diese Rolle existiert an der Zielschule nicht",
+      }),
     );
   });
 
-  it("throws the backend error of an unauthorized request", async () => {
-    mockFetch.mockResolvedValue(jsonResponse({ error: "Unauthorized" }, 401));
+  it("keeps the unauthorized backend diagnostic separate", async () => {
+    mockFetch.mockResolvedValue(jsonResponse({ detail: "Unauthorized" }, 401));
 
     await expect(accountTenantAccessService.list("42")).rejects.toThrowError(
-      new AccountTenantAccessApiError("Unauthorized", 401),
+      new ApiError("school access request failed (401)", 401, {
+        detail: "Unauthorized",
+      }),
     );
   });
 
@@ -178,10 +199,7 @@ describe("accountTenantAccessService", () => {
     );
 
     await expect(accountTenantAccessService.list("42")).rejects.toThrowError(
-      new AccountTenantAccessApiError(
-        "Die Anfrage ist fehlgeschlagen (504).",
-        504,
-      ),
+      new ApiError("school access request failed (504)", 504),
     );
   });
 

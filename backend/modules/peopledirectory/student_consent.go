@@ -55,13 +55,65 @@ type StudentConsentQuery interface {
 	CurrentStudentConsents(ctx context.Context, snapshot StudentConsentSnapshot, canManagePhoto bool) ([]StudentConsentState, error)
 }
 
-func (m *Module) CurrentStudentConsents(
-	ctx context.Context,
-	snapshot StudentConsentSnapshot,
-	canManagePhoto bool,
-) ([]StudentConsentState, error) {
-	if snapshot.StudentID <= 0 {
-		return nil, invalidStudent("a persisted student is required")
+// StudentConsentTransition is one consent whose timestamp appeared or
+// disappeared between two snapshots of a child.
+type StudentConsentTransition struct {
+	Key string
+	// Granted is false for a withdrawal.
+	Granted bool
+	// At is the new timestamp of a grant and the time of the change for a
+	// withdrawal.
+	At time.Time
+}
+
+// StudentConsentTransitions lists the consents that were granted or
+// withdrawn between before and after, in the key order of the states. A
+// timestamp that stayed set, even to another value, or stayed unset is no
+// transition.
+func StudentConsentTransitions(before, after StudentConsentSnapshot, changedAt time.Time) []StudentConsentTransition {
+	fields := []struct {
+		key           string
+		before, after *time.Time
+	}{
+		{StudentConsentAGB, before.AGBAcceptedAt, after.AGBAcceptedAt},
+		{StudentConsentDataProcessing, before.DataProcessingAcceptedAt, after.DataProcessingAcceptedAt},
+		{StudentConsentEmailContact, before.EmailContactAcceptedAt, after.EmailContactAcceptedAt},
+		{StudentConsentPhoto, before.PhotoConsentGivenAt, after.PhotoConsentGivenAt},
 	}
-	return m.engine.CurrentStudentConsents(ctx, snapshot, canManagePhoto)
+	transitions := make([]StudentConsentTransition, 0, len(fields))
+	for _, field := range fields {
+		if (field.before != nil) == (field.after != nil) {
+			continue
+		}
+		transition := StudentConsentTransition{Key: field.key, At: changedAt}
+		if field.after != nil {
+			transition.Granted, transition.At = true, *field.after
+		}
+		transitions = append(transitions, transition)
+	}
+	return transitions
+}
+
+// StudentConsentEvent is one recorded consent change of a child.
+type StudentConsentEvent struct {
+	Key       string
+	Withdrawn bool
+	At        time.Time
+}
+
+// PhotoConsentWithdrawnAt is when the photo consent was withdrawn, read from
+// the events newest first: only a withdrawal as the newest photo event
+// counts, since a later grant means the consent stands.
+func PhotoConsentWithdrawnAt(events []StudentConsentEvent) *time.Time {
+	for _, event := range events {
+		if event.Key != StudentConsentPhoto {
+			continue
+		}
+		if !event.Withdrawn {
+			return nil
+		}
+		withdrawnAt := event.At
+		return &withdrawnAt
+	}
+	return nil
 }

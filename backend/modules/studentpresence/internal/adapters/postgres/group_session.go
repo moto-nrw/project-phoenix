@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 	"github.com/uptrace/bun"
 )
@@ -25,8 +26,8 @@ type liveGroupRow struct {
 	RoomID         int64      `bun:"room_id"`
 }
 
-func (row liveGroupRow) record() ports.LiveGroup {
-	return ports.LiveGroup{
+func (row liveGroupRow) record() studentpresence.LiveGroup {
+	return studentpresence.LiveGroup{
 		ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		StartTime: row.StartTime, LastActivity: row.LastActivity, EndTime: row.EndTime,
 		TimeoutMinutes: row.TimeoutMinutes, ActivityGroupID: row.GroupID, DeviceID: row.DeviceID, RoomID: row.RoomID,
@@ -36,10 +37,10 @@ func (row liveGroupRow) record() ports.LiveGroup {
 // LockGroup reads one group FOR UPDATE. The tenant filter keeps a foreign ID
 // from matching, so the caller sees ErrGroupNotFound instead of another
 // school's session.
-func (s *Store) LockGroup(ctx context.Context, groupID int64) (ports.LiveGroup, ports.Stats, error) {
+func (s *Store) LockGroup(ctx context.Context, groupID int64) (studentpresence.LiveGroup, ports.Stats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return ports.LiveGroup{}, ports.Stats{}, err
+		return studentpresence.LiveGroup{}, ports.Stats{}, err
 	}
 	var row liveGroupRow
 	started := time.Now()
@@ -48,10 +49,10 @@ func (s *Store) LockGroup(ctx context.Context, groupID int64) (ports.LiveGroup, 
 		FROM active.groups WHERE tenant_id = ? AND id = ? FOR UPDATE`, tenantID, groupID).Scan(ctx, &row)
 	stats := ports.Stats{Queries: 1, StatementDuration: time.Since(started)}
 	if errors.Is(err, sql.ErrNoRows) {
-		return ports.LiveGroup{}, stats, ports.ErrGroupNotFound
+		return studentpresence.LiveGroup{}, stats, studentpresence.ErrGroupNotFound
 	}
 	if err != nil {
-		return ports.LiveGroup{}, stats, fmt.Errorf("lock group: %w", err)
+		return studentpresence.LiveGroup{}, stats, fmt.Errorf("lock group: %w", err)
 	}
 	stats.Rows = 1
 	return row.record(), stats, nil
@@ -70,17 +71,9 @@ func (s *Store) EndGroupSession(ctx context.Context, groupID int64, at time.Time
 	started := time.Now()
 	defer func() { stats.StatementDuration = time.Since(started) }()
 
-	var endTime *time.Time
 	stats.Queries++
-	err = db.NewRaw(`SELECT end_time FROM active.groups WHERE tenant_id = ? AND id = ? FOR UPDATE`, tenantID, groupID).Scan(ctx, &endTime)
-	if errors.Is(err, sql.ErrNoRows) {
-		return result, stats, ports.ErrGroupNotFound
-	}
-	if err != nil {
-		return result, stats, fmt.Errorf("end group session: lock lifecycle: %w", err)
-	}
-	if endTime != nil {
-		return result, stats, ports.ErrGroupEnded
+	if err = lockOpenGroupLifecycle(ctx, db, tenantID, groupID); err != nil {
+		return result, stats, err
 	}
 
 	visits := []*visitRow{}
@@ -106,17 +99,9 @@ func (s *Store) EndGroupSession(ctx context.Context, groupID int64, at time.Time
 	stats.Rows += int64(len(supervisorIDs))
 
 	stats.Queries++
-	ended, err := db.NewUpdate().Table("active.groups").Set("end_time = ?", at).Set("updated_at = ?", at).
-		Where("tenant_id = ?", tenantID).Where("id = ? AND end_time IS NULL", groupID).Exec(ctx)
+	changed, err := endOpenGroupRow(ctx, db, tenantID, groupID, at)
 	if err != nil {
-		return result, stats, fmt.Errorf("end group session: end group: %w", err)
-	}
-	changed, err := ended.RowsAffected()
-	if err != nil {
-		return result, stats, fmt.Errorf("end group session: end group: %w", err)
-	}
-	if changed != 1 {
-		return result, stats, fmt.Errorf("end group session: expected 1 group row, updated %d", changed)
+		return result, stats, err
 	}
 	stats.Rows += changed
 
@@ -126,12 +111,47 @@ func (s *Store) EndGroupSession(ctx context.Context, groupID int64, at time.Time
 	}, stats, nil
 }
 
+// lockOpenGroupLifecycle locks the group row for the session end and requires
+// it to exist and still be open.
+func lockOpenGroupLifecycle(ctx context.Context, db bun.IDB, tenantID, groupID int64) error {
+	var endTime *time.Time
+	err := db.NewRaw(`SELECT end_time FROM active.groups WHERE tenant_id = ? AND id = ? FOR UPDATE`, tenantID, groupID).Scan(ctx, &endTime)
+	if errors.Is(err, sql.ErrNoRows) {
+		return studentpresence.ErrGroupNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("end group session: lock lifecycle: %w", err)
+	}
+	if endTime != nil {
+		return studentpresence.ErrGroupEnded
+	}
+	return nil
+}
+
+// endOpenGroupRow stamps the end time on the still open group row and
+// requires exactly that one row to change.
+func endOpenGroupRow(ctx context.Context, db bun.IDB, tenantID, groupID int64, at time.Time) (int64, error) {
+	ended, err := db.NewUpdate().Table("active.groups").Set("end_time = ?", at).Set("updated_at = ?", at).
+		Where("tenant_id = ?", tenantID).Where("id = ? AND end_time IS NULL", groupID).Exec(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("end group session: end group: %w", err)
+	}
+	changed, err := ended.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("end group session: end group: %w", err)
+	}
+	if changed != 1 {
+		return 0, fmt.Errorf("end group session: expected 1 group row, updated %d", changed)
+	}
+	return changed, nil
+}
+
 // EndGroupSessions is the nightly bulk close. It ends only groups that are
 // still open, so a retry after a rolled-back run finds the same set again and
 // a group closed in between is left alone. Visit exits keep the clamp to the
 // entry time the nightly job always applied: one skewed interval must not
 // abort the whole batch.
-func (s *Store) EndGroupSessions(ctx context.Context, groupIDs []int64, at time.Time, endDate ports.Date) (result ports.EndedGroupSessions, stats ports.Stats, err error) {
+func (s *Store) EndGroupSessions(ctx context.Context, groupIDs []int64, at time.Time, endDate ports.Date) (result studentpresence.EndedGroupSessions, stats ports.Stats, err error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return result, stats, err
@@ -204,13 +224,13 @@ func (s *Store) EndGroup(ctx context.Context, groupID int64, at time.Time) (stat
 	stats.Queries++
 	err = db.NewRaw(`SELECT end_time FROM active.groups WHERE tenant_id = ? AND id = ? FOR UPDATE`, tenantID, groupID).Scan(ctx, &endTime)
 	if errors.Is(err, sql.ErrNoRows) {
-		return stats, ports.ErrGroupNotFound
+		return stats, studentpresence.ErrGroupNotFound
 	}
 	if err != nil {
 		return stats, fmt.Errorf("end group: lock lifecycle: %w", err)
 	}
 	if endTime != nil {
-		return stats, ports.ErrGroupEnded
+		return stats, studentpresence.ErrGroupEnded
 	}
 
 	stats.Queries++

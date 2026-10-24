@@ -46,8 +46,11 @@ type ParentMessage struct {
 	AppliedAt      *time.Time
 	AppliedBy      *int64
 	DecisionReason string
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
+	// GroupThreadID names the group thread a guardian's message answers
+	// (#4784). The answer lives in this 1:1 conversation only.
+	GroupThreadID *int64
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
 }
 
 // ParentMessageThread is the single continuous conversation between the OGS
@@ -80,60 +83,11 @@ type ParentMessageThread struct {
 	UpdatedAt                      time.Time
 }
 
-// ParentInboxThread is the list projection of one conversation: the child, the
-// guardian, a preview of the latest message, and the viewer's unread count.
-// Both the staff inbox and the guardian thread list read it.
-type ParentInboxThread struct {
-	ThreadID int64
-	// TenantID is the thread's owning school. The parent portal maps it to the
-	// per-school messaging flag, so a school that switched messaging off shows
-	// no unread pill.
-	TenantID          int64
-	StudentID         int64
-	StudentName       string
-	SchoolClass       string
-	GroupID           *int64
-	GuardianAccountID int64
-	GuardianName      string
-	RelationshipType  string
-	LastMessageAt     *time.Time
-	LastSenderKind    string
-	LastMessageBody   string
-	// The last message's structured fields. The localized parents portal builds
-	// its preview from these instead of the German LastMessageBody.
-	LastMessageKind        string
-	LastEventType          string
-	LastRequestType        string
-	LastRequestStatus      string
-	LastMessagePayload     map[string]any
-	LastMessageReadByStaff bool
-	UnreadCount            int
-	ReadBoundAt            *time.Time
-	ReadBoundMessageID     *int64
-}
-
-// ParentReadCursor is a reader's position in a thread: the read instant and its
-// message-id tie-breaker. Two messages can share a created_at, so every unread
-// and receipt comparison uses the composite, never the timestamp alone.
-type ParentReadCursor struct {
-	LastReadAt        time.Time
-	LastReadMessageID int64
-}
-
 // ReadCursorBound is a counterpart message selected in the inbox snapshot.
 type ReadCursorBound struct {
 	ThreadID  int64
 	ReadAt    time.Time
 	MessageID int64
-}
-
-// ParentThreadHeader is the chat window's header: the child and guardian
-// display names plus the relationship. It deliberately omits the inbox
-// projection's unread count.
-type ParentThreadHeader struct {
-	StudentName      string
-	GuardianName     string
-	RelationshipType string
 }
 
 // MessageableGuardian is one guardian of a child who holds a parent-portal

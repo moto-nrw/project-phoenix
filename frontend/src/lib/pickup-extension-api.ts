@@ -1,4 +1,4 @@
-import { ApiError, enrichApiError, transportFetch } from "./api-error";
+import { apiErrorFromBody, transportFetch } from "./api-error";
 /**
  * Client for the later-pickup block decisions (#3261). A child who is picked
  * up later than before may be on no block for the extra time; the backend
@@ -55,32 +55,18 @@ interface BackendPickupExtension {
   blocks: BackendPickupExtensionBlock[] | null;
 }
 
-export class PickupExtensionApiError extends ApiError {
-  readonly status: number;
-  constructor(message: string, status: number, code?: string) {
-    super(message, status, { code });
-    this.name = "PickupExtensionApiError";
-    this.status = status;
-  }
-}
-
 async function readData<T>(response: Response): Promise<T> {
   if (!response.ok) {
-    let message = `Anfrage fehlgeschlagen (HTTP ${response.status})`;
-    let code: string | undefined;
     let payload: unknown;
     try {
-      const body = (await response.json()) as { error?: string; code?: string };
-      payload = body;
-      if (body.error) message = body.error;
-      code = body.code;
+      payload = await response.json();
     } catch {
-      // Body wasn't JSON; keep the generic message.
+      // Body wasn't JSON; the status still classifies.
     }
-    throw enrichApiError(
-      new PickupExtensionApiError(message, response.status, code),
-      payload,
+    throw apiErrorFromBody(
+      `pickup extension request failed (${response.status})`,
       response.status,
+      payload,
     );
   }
   return (await response.json()) as T;

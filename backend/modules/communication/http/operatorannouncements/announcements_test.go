@@ -17,7 +17,7 @@ import (
 
 	platform "github.com/moto-nrw/project-phoenix/modules/communication"
 	"github.com/moto-nrw/project-phoenix/modules/communication/http/operatorannouncements"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // Test constants used in mock assertions (not DB-dependent)
@@ -127,8 +127,8 @@ func TestCreateAnnouncement_EmptyTitle(t *testing.T) {
 	jsonBody, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPost, "/announcements", bytes.NewReader(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
-	claims := jwt.AppClaims{ID: 1}
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+	claims := sessiontoken.AppClaims{ID: 1}
+	ctx := context.WithValue(req.Context(), sessiontoken.CtxClaims, claims)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -151,8 +151,8 @@ func TestCreateAnnouncement_EmptyContent(t *testing.T) {
 	jsonBody, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPost, "/announcements", bytes.NewReader(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
-	claims := jwt.AppClaims{ID: 1}
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+	claims := sessiontoken.AppClaims{ID: 1}
+	ctx := context.WithValue(req.Context(), sessiontoken.CtxClaims, claims)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -177,8 +177,8 @@ func TestCreateAnnouncement_InvalidExpiresAt(t *testing.T) {
 	jsonBody, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPost, "/announcements", bytes.NewReader(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
-	claims := jwt.AppClaims{ID: 1}
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+	claims := sessiontoken.AppClaims{ID: 1}
+	ctx := context.WithValue(req.Context(), sessiontoken.CtxClaims, claims)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -222,9 +222,9 @@ func TestUpdateAnnouncement_InvalidExpiresAt(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	rctx := chi.NewRouteContext()
 	rctx.URLParams.Add("id", "1")
-	claims := jwt.AppClaims{ID: 1}
+	claims := sessiontoken.AppClaims{ID: 1}
 	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
-	ctx = context.WithValue(ctx, jwt.CtxClaims, claims)
+	ctx = context.WithValue(ctx, sessiontoken.CtxClaims, claims)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -244,9 +244,9 @@ func callIDHandler(handler idHandlerFunc, method, path, id string) *httptest.Res
 	req := httptest.NewRequest(method, path, nil)
 	rctx := chi.NewRouteContext()
 	rctx.URLParams.Add("id", id)
-	claims := jwt.AppClaims{ID: 1}
+	claims := sessiontoken.AppClaims{ID: 1}
 	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
-	ctx = context.WithValue(ctx, jwt.CtxClaims, claims)
+	ctx = context.WithValue(ctx, sessiontoken.CtxClaims, claims)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 	handler(rr, req)
@@ -313,7 +313,7 @@ func TestCreateAnnouncement_Targeting(t *testing.T) {
 			})
 			req := httptest.NewRequest(http.MethodPost, "/announcements", bytes.NewReader(body))
 			req.Header.Set("Content-Type", "application/json")
-			ctx := context.WithValue(req.Context(), jwt.CtxClaims, jwt.AppClaims{ID: 1})
+			ctx := context.WithValue(req.Context(), sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: 1})
 			rr := httptest.NewRecorder()
 			resource.CreateAnnouncement(rr, req.WithContext(ctx))
 			assert.Equal(t, http.StatusCreated, rr.Code)
@@ -346,7 +346,7 @@ func TestUpdateAnnouncement_WithOrgAndTenantTargeting(t *testing.T) {
 	rctx := chi.NewRouteContext()
 	rctx.URLParams.Add("id", "1")
 	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
-	ctx = context.WithValue(ctx, jwt.CtxClaims, jwt.AppClaims{ID: 1})
+	ctx = context.WithValue(ctx, sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: 1})
 	rr := httptest.NewRecorder()
 	resource.UpdateAnnouncement(rr, req.WithContext(ctx))
 	assert.Equal(t, http.StatusOK, rr.Code)
@@ -375,7 +375,7 @@ func TestCreateAnnouncement_ResponseIncludesTargetingFields(t *testing.T) {
 	})
 	req := httptest.NewRequest(http.MethodPost, "/announcements", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, jwt.AppClaims{ID: 1})
+	ctx := context.WithValue(req.Context(), sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: 1})
 	rr := httptest.NewRecorder()
 	resource.CreateAnnouncement(rr, req.WithContext(ctx))
 	assert.Equal(t, http.StatusCreated, rr.Code)
@@ -445,7 +445,7 @@ func TestListAnnouncements_IncludesOrgAndTenantIDs(t *testing.T) {
 	resource := operatorannouncements.NewAnnouncementsResource(mock)
 
 	req := httptest.NewRequest(http.MethodGet, "/announcements", nil)
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, jwt.AppClaims{ID: 1})
+	ctx := context.WithValue(req.Context(), sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: 1})
 	rr := httptest.NewRecorder()
 	resource.ListAnnouncements(rr, req.WithContext(ctx))
 	assert.Equal(t, http.StatusOK, rr.Code)
@@ -482,7 +482,7 @@ func TestAnnouncementResponse_NilOrgAndTenantIDsDefaultToEmptyArrays(t *testing.
 	resource := operatorannouncements.NewAnnouncementsResource(mock)
 
 	req := httptest.NewRequest(http.MethodGet, "/announcements", nil)
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, jwt.AppClaims{ID: 1})
+	ctx := context.WithValue(req.Context(), sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: 1})
 	rr := httptest.NewRecorder()
 	resource.ListAnnouncements(rr, req.WithContext(ctx))
 	assert.Equal(t, http.StatusOK, rr.Code)
@@ -562,7 +562,7 @@ func TestCreateAnnouncement_DefaultTypeAndSeverity(t *testing.T) {
 	body, _ := json.Marshal(map[string]any{"title": "T", "content": "C"})
 	req := httptest.NewRequest(http.MethodPost, "/announcements", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, jwt.AppClaims{ID: 1})
+	ctx := context.WithValue(req.Context(), sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: 1})
 	rr := httptest.NewRecorder()
 	resource.CreateAnnouncement(rr, req.WithContext(ctx))
 	assert.Equal(t, http.StatusCreated, rr.Code)
@@ -586,7 +586,7 @@ func TestCreateAnnouncement_WithVersion(t *testing.T) {
 	})
 	req := httptest.NewRequest(http.MethodPost, "/announcements", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, jwt.AppClaims{ID: 1})
+	ctx := context.WithValue(req.Context(), sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: 1})
 	rr := httptest.NewRecorder()
 	resource.CreateAnnouncement(rr, req.WithContext(ctx))
 	assert.Equal(t, http.StatusCreated, rr.Code)
@@ -598,7 +598,7 @@ func TestCreateAnnouncement_InvalidJSONBody(t *testing.T) {
 	resource := operatorannouncements.NewAnnouncementsResource(&mockAnnouncementService{})
 	req := httptest.NewRequest(http.MethodPost, "/announcements", bytes.NewReader([]byte("not-json")))
 	req.Header.Set("Content-Type", "application/json")
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, jwt.AppClaims{ID: 1})
+	ctx := context.WithValue(req.Context(), sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: 1})
 	rr := httptest.NewRecorder()
 	resource.CreateAnnouncement(rr, req.WithContext(ctx))
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
@@ -613,7 +613,7 @@ func TestUpdateAnnouncement_InvalidJSONBody(t *testing.T) {
 	rctx := chi.NewRouteContext()
 	rctx.URLParams.Add("id", "1")
 	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
-	ctx = context.WithValue(ctx, jwt.CtxClaims, jwt.AppClaims{ID: 1})
+	ctx = context.WithValue(ctx, sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: 1})
 	rr := httptest.NewRecorder()
 	resource.UpdateAnnouncement(rr, req.WithContext(ctx))
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
@@ -633,14 +633,14 @@ func TestCreateAnnouncement_InvalidDataError(t *testing.T) {
 	body, _ := json.Marshal(map[string]any{"title": "T", "content": "C", "severity": "bad"})
 	req := httptest.NewRequest(http.MethodPost, "/announcements", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, jwt.AppClaims{ID: 1})
+	ctx := context.WithValue(req.Context(), sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: 1})
 	rr := httptest.NewRecorder()
 	resource.CreateAnnouncement(rr, req.WithContext(ctx))
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 
 	var response map[string]any
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &response))
-	assert.Contains(t, response["error"], "severity must be one of")
+	assert.Contains(t, response["detail"], "severity must be one of")
 }
 
 func TestUpdateAnnouncement_InvalidDataError(t *testing.T) {
@@ -662,14 +662,14 @@ func TestUpdateAnnouncement_InvalidDataError(t *testing.T) {
 	rctx := chi.NewRouteContext()
 	rctx.URLParams.Add("id", "1")
 	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
-	ctx = context.WithValue(ctx, jwt.CtxClaims, jwt.AppClaims{ID: 1})
+	ctx = context.WithValue(ctx, sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: 1})
 	rr := httptest.NewRecorder()
 	resource.UpdateAnnouncement(rr, req.WithContext(ctx))
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 
 	var response map[string]any
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &response))
-	assert.Contains(t, response["error"], "title exceeds maximum length")
+	assert.Contains(t, response["detail"], "title exceeds maximum length")
 }
 
 // --- Update: clear/set expires_at, set active flag ---
@@ -706,7 +706,7 @@ func TestUpdateAnnouncement_ClearExpiresAt(t *testing.T) {
 	rctx := chi.NewRouteContext()
 	rctx.URLParams.Add("id", "1")
 	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
-	ctx = context.WithValue(ctx, jwt.CtxClaims, jwt.AppClaims{ID: 1})
+	ctx = context.WithValue(ctx, sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: 1})
 	rr := httptest.NewRecorder()
 	resource.UpdateAnnouncement(rr, req.WithContext(ctx))
 	assert.Equal(t, http.StatusOK, rr.Code)
@@ -733,7 +733,7 @@ func TestUpdateAnnouncement_SetValidExpiresAt(t *testing.T) {
 	rctx := chi.NewRouteContext()
 	rctx.URLParams.Add("id", "1")
 	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
-	ctx = context.WithValue(ctx, jwt.CtxClaims, jwt.AppClaims{ID: 1})
+	ctx = context.WithValue(ctx, sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: 1})
 	rr := httptest.NewRecorder()
 	resource.UpdateAnnouncement(rr, req.WithContext(ctx))
 	assert.Equal(t, http.StatusOK, rr.Code)
@@ -770,7 +770,7 @@ func TestUpdateAnnouncement_SetActiveFlag(t *testing.T) {
 	rctx := chi.NewRouteContext()
 	rctx.URLParams.Add("id", "1")
 	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
-	ctx = context.WithValue(ctx, jwt.CtxClaims, jwt.AppClaims{ID: 1})
+	ctx = context.WithValue(ctx, sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: 1})
 	rr := httptest.NewRecorder()
 	resource.UpdateAnnouncement(rr, req.WithContext(ctx))
 	assert.Equal(t, http.StatusOK, rr.Code)
@@ -969,7 +969,7 @@ func TestListAnnouncements_ServiceError(t *testing.T) {
 	}
 	resource := operatorannouncements.NewAnnouncementsResource(mock)
 	req := httptest.NewRequest(http.MethodGet, "/announcements", nil)
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, jwt.AppClaims{ID: 1})
+	ctx := context.WithValue(req.Context(), sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: 1})
 	rr := httptest.NewRecorder()
 	resource.ListAnnouncements(rr, req.WithContext(ctx))
 	assert.Equal(t, http.StatusInternalServerError, rr.Code)

@@ -10,18 +10,22 @@ import (
 	"testing"
 	"time"
 
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
+	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -46,7 +50,9 @@ func setupReviewListTest(t *testing.T) *reviewListEnv {
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.Tenant(t)
 	ctx := testpkg.Ctx(t)
-	repos, repoErr := repositories.NewEnrollmentTestRepositories(db, repositories.NewTestAuditStore(db))
+	repos, repoErr := api.NewEnrollmentTestRepositories(testpkg.NewDatabase(t, db), owners.NewTestAuditStore(testpkg.NewDatabase(t, db)))
+	reposCare := api.NewEnrollmentCarePlanRows(testpkg.NewDatabase(t, db))
+	reposSchools := api.NewOrganizationTestRows(testpkg.NewDatabase(t, db))
 	require.NoError(t, repoErr)
 	settings := stubTakeoverSettings{}
 
@@ -57,13 +63,13 @@ func setupReviewListTest(t *testing.T) *reviewListEnv {
 		OrderExpr("id").
 		Limit(1).
 		Scan(ctx, &accountID))
-	reviewer := &usersModels.Person{
+	reviewer := &peopleValues.DirectoryPersonSnapshot{
 		FirstName: "Rita",
 		LastName:  "Ruecksicht",
 		AccountID: &accountID,
 	}
 	reviewer.SetTenantID(tenantID)
-	require.NoError(t, db.NewInsert().Model(reviewer).ModelTableExpr("users.persons").Scan(ctx))
+	require.NoError(t, db.NewInsert().Model(reviewer).ModelTableExpr("users.persons").Column("tenant_id", "first_name", "last_name", "account_id").Returning("*").Scan(ctx))
 
 	schemaSvc := NewTestFormSchemas(repos.Enrollment())
 	schema, err := schemaSvc.CreateSchema(ctx, "Testformular "+t.Name(), []capability.FormField{
@@ -73,25 +79,25 @@ func setupReviewListTest(t *testing.T) *reviewListEnv {
 
 	phase := &capability.Phase{
 		Name:             "review-list-" + t.Name(),
-		Kind:             enrollmentModels.PhaseKindSchoolYear,
+		Kind:             capability.PhaseKindSchoolYear,
 		ServiceStartDate: capability.Date(calendar.NewDate(2026, 9, 1)),
 		ServiceEndDate:   capability.Date(calendar.NewDate(2027, 7, 31)),
 		IsActive:         true,
 		FormSchemaID:     &schema.ID,
-		CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
+		CareOverflowMode: capability.PhaseCareOverflowWaitlist,
 	}
 	phase.TenantID = tenantID
-	require.NoError(t, repos.Enrollment().InsertPhase(ctx, phase))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repos.Enrollment().InsertPhase, phase))
 
-	requestSvc := enrollmentAPI.NewRequestService(testutil.NewEnrollmentIntake(testutil.EnrollmentIntakeSources{
+	requestSvc := newFixtureRequestRoot(owners.NewEnrollmentIntake(owners.EnrollmentIntakeSources{
 		Requests:         repos.Enrollment(),
 		Children:         repos.Enrollment(),
 		Guardians:        repos.Enrollment(),
-		CareOfferingRepo: testutil.NewEnrollmentCareOfferingRecords(repos.CarePlan),
-		Capacity:         testutil.NewEnrollmentOfferingCapacity(testutil.NewEnrollmentCareOfferingRecords(repos.CarePlan), repos.Enrollment(), settings),
+		CareOfferingRepo: enrollmentCompose.NewCareOfferingRecords(reposCare.CarePlan),
+		Capacity:         owners.NewEnrollmentOfferingCapacity(enrollmentCompose.NewCareOfferingRecords(reposCare.CarePlan), repos.Enrollment(), settings),
 		Catalog:          repos.Enrollment(),
-		SchoolRepo:       capabilitySchools{schools: repos.School},
-		Notifications:    NewTestNotifications(repos.Enrollment(), notifyModeSettings{settings: settings}, discardingOutbox{}, capabilitySchools{schools: repos.School}),
+		SchoolRepo:       capabilitySchools{schools: reposSchools.School},
+		Notifications:    NewTestNotifications(repos.Enrollment(), notifyModeSettings{settings: settings}, discardingOutbox{}, capabilitySchools{schools: reposSchools.School}),
 		RateLimitRepo:    repos.Enrollment(),
 		OutboxEnqueuer:   discardingOutbox{},
 		Settings:         settings,
@@ -99,15 +105,15 @@ func setupReviewListTest(t *testing.T) *reviewListEnv {
 		ParentsURL:       "http://parents.localhost:3000",
 		Logger:           slog.Default(),
 	}))
-	changeRequestSvc := enrollmentAPI.NewChangeRequestService(testutil.NewEnrollmentChangeRequests(testutil.EnrollmentChangeRequestSources{
+	changeRequestSvc := enrollmentAPI.NewChangeRequestService(owners.NewEnrollmentChangeRequests(owners.EnrollmentChangeRequestSources{
 		Requests:            repos.Enrollment(),
 		Children:            repos.Enrollment(),
 		Guardians:           repos.Enrollment(),
 		LateInviteRepo:      repos.Enrollment(),
-		CareOfferingRepo:    testutil.NewEnrollmentCareOfferingRecords(repos.CarePlan),
-		Capacity:            testutil.NewEnrollmentOfferingCapacity(testutil.NewEnrollmentCareOfferingRecords(repos.CarePlan), repos.Enrollment(), settings),
+		CareOfferingRepo:    enrollmentCompose.NewCareOfferingRecords(reposCare.CarePlan),
+		Capacity:            owners.NewEnrollmentOfferingCapacity(enrollmentCompose.NewCareOfferingRecords(reposCare.CarePlan), repos.Enrollment(), settings),
 		Catalog:             repos.Enrollment(),
-		Notifications:       NewTestNotifications(repos.Enrollment(), notifyModeSettings{settings: settings}, discardingOutbox{}, capabilitySchools{schools: repos.School}),
+		Notifications:       NewTestNotifications(repos.Enrollment(), notifyModeSettings{settings: settings}, discardingOutbox{}, capabilitySchools{schools: reposSchools.School}),
 		GuardianProfileRepo: repos.GuardianProfile,
 		GuardianPhoneRepo:   repos.GuardianPhoneNumber,
 		PersonRepo:          repos.Person,
@@ -123,7 +129,7 @@ func setupReviewListTest(t *testing.T) *reviewListEnv {
 	resource := enrollmentAPI.NewResource(
 		nil, nil, requestSvc, nil, nil, nil, nil, nil, changeRequestSvc,
 		nil, enrollmentAPI.GuardianInvitationRuntime{}, nil, nil,
-	)
+		nativeUploads.UploadFiles{}, enrollmentAPI.DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation})
 
 	submitted, err := requestSvc.Submit(ctx, enrollmentAPI.SubmitRequest{
 		TenantID:          tenantID,
@@ -157,13 +163,13 @@ func setupReviewListTest(t *testing.T) *reviewListEnv {
 
 	env := &reviewListEnv{
 		db:        db,
-		router:    testpkg.TenantRuntimeMiddleware(t, db)(resource.Router()),
+		router:    testpkg.TenantRuntimeMiddleware(t, db)(resource.Router(api.TenantSessionChain)),
 		tenantID:  tenantID,
 		requestID: submitted.Request.ID,
 		childIDs:  []int64{submitted.Children[0].ID, submitted.Children[1].ID},
 		accountID: accountID,
 	}
-	claims := jwt.AppClaims{
+	claims := sessiontoken.AppClaims{
 		ID:          int(accountID),
 		Sub:         "review-list@example.com",
 		Username:    "reviewer",
@@ -451,7 +457,7 @@ func TestChangeRequestReviewCount_CountsOpenBeyondOnePage(t *testing.T) {
 	assert.Equal(t, 3, out.Data.PendingCount)
 
 	// Auch der Zähler hält seine Berechtigungsgrenze.
-	withoutPermission := testutil.MintTestJWT(t, jwt.AppClaims{
+	withoutPermission := testutil.MintTestJWT(t, sessiontoken.AppClaims{
 		ID:          int(env.accountID),
 		Sub:         "review-list@example.com",
 		Username:    "reviewer",
@@ -482,7 +488,7 @@ func TestChangeRequestReviewList_RefusesBadQueryAndMissingPermission(t *testing.
 	}
 
 	// The queue keeps its own permission boundary: config:manage, nothing else.
-	withoutPermission := testutil.MintTestJWT(t, jwt.AppClaims{
+	withoutPermission := testutil.MintTestJWT(t, sessiontoken.AppClaims{
 		ID:          int(env.accountID),
 		Sub:         "review-list@example.com",
 		Username:    "reviewer",

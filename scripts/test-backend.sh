@@ -4,13 +4,13 @@
 # verfügbar, und ein Sweep am Ende (auch bei Ctrl-C/Fehlschlag), der die
 # Clones dieses Laufs droppt und verwaiste Clones toter Läufe einsammelt.
 #
-# `go test ./...` funktioniert weiterhin ohne dieses Skript (selbst-
+# `go test -tags=testhooks ./...` funktioniert weiterhin ohne dieses Skript (selbst-
 # initialisierend); dann räumt erst die Generation-GC des nächsten Laufs auf.
 #
 # Das Leftover-Gate sitzt NICHT hier, sondern im Testprozess selbst: jedes
 # Test-Binary vergleicht seinen Clone am Ende mit dem Startzustand und lässt
 # das Package scheitern, wenn Zeilen in geteiltem (tenant-losem) Zustand
-# übrig sind. Ein nacktes `go test ./...` ist damit genauso abgesichert.
+# übrig sind. Ein nacktes `go test -tags=testhooks ./...` ist damit genauso abgesichert.
 #
 # Usage: scripts/test-backend.sh [go-test-args...]     (Default: ./...)
 set -euo pipefail
@@ -35,7 +35,7 @@ trap sweep EXIT
 # Handshake once per run instead of once per test binary: server erreichbar,
 # Template zum Migrations-Hash gebaut. Die Binaries bekommen das Ergebnis
 # ueber PHX_TEST_TEMPLATE und ueberspringen beide Schritte (#2419). Ein
-# nacktes `go test ./...` ohne diese Zeile macht sie weiterhin selbst.
+# nacktes `go test -tags=testhooks ./...` ohne diese Zeile macht sie weiterhin selbst.
 PHX_TEST_TEMPLATE=$(go run ./internal/testdb/cmd/bootstrap)
 export PHX_TEST_TEMPLATE
 
@@ -43,22 +43,13 @@ if [ "$#" -eq 0 ]; then
   set -- ./...
 fi
 
-# Concurrency is pinned rather than left at GOMAXPROCS, because the budget
-# that matters is a server-side one: `go test` runs -p package binaries at
-# once and each opens a pool of (-parallel + headroom) connections plus one
-# keeper, i.e. 13 per binary at -parallel 8 (backend/test/db_clone.go).
-# The local postgres-test container runs max_connections=300
-# (docker-compose), so 10 x 13 = 130 leaves ample headroom for lifecycle
-# and maintenance sessions. CI's service container keeps PostgreSQL's stock
-# 100 but never runs this script: test.yml pins its own -p 4 / -p 6.
-# -parallel 8 stays pinned on purpose - -test.parallel is part of the Go
-# test cache key, and a drifting value would split the cache universe.
-# -p also bounds RAM: each package binary link peaks around 1.3 GB, so a
-# 16 GB laptop gets 4 instead of 10 (one per 4 GB, at most 10).
-package_workers=$(( $("$repo_root/scripts/total-memory-gb.sh") / 4 ))
-if [ "$package_workers" -lt 1 ]; then package_workers=1; fi
-if [ "$package_workers" -gt 10 ]; then package_workers=10; fi
-CONCURRENCY=(-p "$package_workers" -parallel 8)
+# Use the same conservative package budget as the changed-test loop. Heavy
+# links, nested tools and a running IDE/dev loop need headroom beyond each
+# package's own RSS. CLI arguments follow the defaults so an explicit -p
+# still overrides this budget. Keep -parallel 8 fixed: it sizes the DB pool
+# (13 connections per binary including its keeper) and is a test-cache input.
+package_workers=$("$repo_root/scripts/go-package-workers.sh")
+CONCURRENCY=(-p "$package_workers" -parallel 8 -tags=testhooks)
 
 if go tool gotestsum --help >/dev/null 2>&1; then
   go tool gotestsum --format pkgname-and-test-fails -- "${CONCURRENCY[@]}" "$@"

@@ -6,13 +6,14 @@
 // Lehrkräfte" erreicht. Verwaltet wird im OGS-Portal — hier wird gelesen und
 // zur Kenntnis genommen.
 
+import { useEffect } from "react";
 import { useSession } from "next-auth/react";
 
 import { TodayNoticeList } from "~/components/staff-notices/today-notice-list";
-import { Alert } from "~/components/ui/alert";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { Loading } from "~/components/ui/loading";
 import { SectionCard } from "~/components/ui/section-card";
-import { getApiErrorMessage } from "~/lib/api-error-message";
+import { useApiLoadError } from "~/contexts/ToastContext";
 import {
   SCHOOL_NOTICES_TODAY_KEY,
   schoolStaffNoticesApi,
@@ -28,6 +29,20 @@ export default function SchoolNoticesPage() {
     { revalidateOnFocus: false },
   );
   const notices = data ?? [];
+  // Ein Ladefehler darf nicht wie "keine Hinweise" aussehen: er steht über
+  // den gemeinsamen Fehlerweg dort, wo die Liste fehlt.
+  const load = useApiLoadError();
+  const { show: showLoadError, clear: clearLoadError } = load;
+  useEffect(() => {
+    if (!error) {
+      clearLoadError();
+      return;
+    }
+    void showLoadError(error, {
+      object: "die Tagesinformationen",
+      retry: () => void mutate(),
+    });
+  }, [error, mutate, showLoadError, clearLoadError]);
 
   return (
     <div className="-mt-1.5 w-full space-y-6">
@@ -45,16 +60,7 @@ export default function SchoolNoticesPage() {
         {isLoading && notices.length === 0 ? (
           <Loading fullPage={false} />
         ) : error ? (
-          // Ein Ladefehler darf nicht wie "keine Hinweise" aussehen.
-          <Alert
-            type="error"
-            message={getApiErrorMessage(
-              error,
-              "laden",
-              "die Tagesinformationen",
-              "Die Tagesinformationen konnten nicht geladen werden.",
-            )}
-          />
+          <LoadErrorAlert error={load.error} />
         ) : notices.length === 0 ? (
           <p className="text-sm leading-6 text-gray-600">
             Für heute liegen keine Hinweise der OGS vor.
@@ -64,6 +70,7 @@ export default function SchoolNoticesPage() {
             notices={notices}
             onChanged={mutate}
             acknowledge={schoolStaffNoticesApi.acknowledgeStaffNotice}
+            layout="grid"
           />
         )}
       </SectionCard>

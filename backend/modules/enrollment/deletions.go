@@ -73,7 +73,32 @@ type RejectedEnrollmentCleanupResult struct {
 }
 
 // RejectedEnrollmentCleaner removes rejected enrollment data after its
-// tenant-configured retention window.
+// tenant-configured retention window. The same cleanup serves the retention
+// of settled enrollments, which shares its deletion path.
 type RejectedEnrollmentCleaner interface {
 	CleanupRejectedEnrollments(ctx context.Context) (RejectedEnrollmentCleanupResult, error)
+	SettledEnrollmentRetention
+}
+
+// SettledEnrollmentCleanupResult reports one retention run of settled
+// enrollments: the deleted requests, the invitations to enroll late that went
+// with them or on their own, and the window in days.
+type SettledEnrollmentCleanupResult struct {
+	DeletedRequests    int
+	DeletedLateInvites int64
+	RetentionDays      int
+}
+
+// Deleted is the number of rows the run deleted: the requests and the
+// invitations to enroll late.
+func (r SettledEnrollmentCleanupResult) Deleted() int {
+	return r.DeletedRequests + int(r.DeletedLateInvites)
+}
+
+// SettledEnrollmentRetention deletes the withdrawn and lapsed enrollments of
+// the school in context no child was created from, once the school's window
+// after settling passed (#3960). Accepted enrollments go with their child,
+// open ones stay; a rejected child keeps the window of rejected enrollments.
+type SettledEnrollmentRetention interface {
+	CleanupSettledEnrollments(ctx context.Context) (SettledEnrollmentCleanupResult, error)
 }

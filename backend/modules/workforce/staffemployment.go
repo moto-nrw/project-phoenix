@@ -38,8 +38,6 @@ type StaffEmploymentQuery interface {
 type StaffEmploymentCommand interface {
 	// SaveStaffEmployment creates or replaces the membership's profile.
 	SaveStaffEmployment(context.Context, StaffEmployment) error
-	// ClearStaffWorkTimeModel detaches the membership from its template.
-	ClearStaffWorkTimeModel(ctx context.Context, membershipID int64) error
 	// AppendStaffNotes adds a paragraph to the private staff notes under a
 	// row lock and returns the updated profile.
 	AppendStaffNotes(ctx context.Context, membershipID int64, notes string) (StaffEmployment, error)
@@ -52,4 +50,32 @@ type StaffEmploymentCommand interface {
 type StaffEmployments interface {
 	StaffEmploymentQuery
 	StaffEmploymentCommand
+}
+
+// MissingPersonnelNumbers counts the staff members payroll cannot export
+// yet: those without a personnel number, absent or empty. The payroll page
+// and the DATEV writers judge completeness by it.
+func MissingPersonnelNumbers(personnelNumbers []*string) int {
+	missing := 0
+	for _, number := range personnelNumbers {
+		if number == nil || *number == "" {
+			missing++
+		}
+	}
+	return missing
+}
+
+// StaffPlanningProfile is one membership's template binding and every schedule
+// version intersecting the requested calendar window, read atomically.
+type StaffPlanningProfile struct {
+	MembershipID       int64
+	WorkTimeModelID    *int64
+	RotationAnchorDate string
+	Schedules          []StaffWorkSchedule
+}
+
+// StaffPlanningProfilesQuery supplies the complete Workforce-owned planning
+// snapshot, without a second facade that only forwards the same contract.
+type StaffPlanningProfilesQuery interface {
+	StaffPlanningProfiles(ctx context.Context, staffIDs []int64, from, to string) ([]StaffPlanningProfile, error)
 }

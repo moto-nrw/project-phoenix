@@ -15,7 +15,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	jwtPkg "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -308,8 +308,8 @@ type fakeCaregiverFailureError struct {
 func (e fakeCaregiverFailureError) CaregiverFailure() error { return e.cause }
 
 func withOperatorClaims(req *http.Request, operatorID int) *http.Request {
-	claims := jwtPkg.AppClaims{ID: operatorID, Scope: "platform"}
-	return req.WithContext(context.WithValue(req.Context(), jwtPkg.CtxClaims, claims))
+	claims := sessiontoken.AppClaims{ID: operatorID, Scope: "platform"}
+	return req.WithContext(context.WithValue(req.Context(), sessiontoken.CtxClaims, claims))
 }
 
 func decodeBody(t *testing.T, rr *httptest.ResponseRecorder) map[string]any {
@@ -754,7 +754,7 @@ func TestProvisioningResource_UpdateOrganization_ProvisioningConflict(t *testing
 
 	resource.UpdateOrganization(rr, req)
 	assert.Equal(t, http.StatusConflict, rr.Code)
-	assert.Equal(t, "slug taken", decodeBody(t, rr)["error"])
+	assert.Equal(t, "slug taken", decodeBody(t, rr)["detail"])
 }
 
 func TestProvisioningResource_UpdateSchool(t *testing.T) {
@@ -938,7 +938,7 @@ func TestProvisioningResource_UpdateSchool_ProvisioningConflict(t *testing.T) {
 
 	resource.UpdateSchool(rr, req)
 	assert.Equal(t, http.StatusConflict, rr.Code)
-	assert.Equal(t, "subdomain taken", decodeBody(t, rr)["error"])
+	assert.Equal(t, "subdomain taken", decodeBody(t, rr)["detail"])
 }
 
 // --- Bind method tests ---
@@ -1504,7 +1504,7 @@ func TestProvisioningResource_CreateDevice_ProvisioningConflict(t *testing.T) {
 	resource.CreateDevice(rr, req)
 
 	assert.Equal(t, http.StatusConflict, rr.Code)
-	assert.Equal(t, "api_key already exists", decodeBody(t, rr)["error"])
+	assert.Equal(t, "api_key already exists", decodeBody(t, rr)["detail"])
 }
 
 func TestProvisioningResource_SetDeviceAPIKey(t *testing.T) {
@@ -1885,7 +1885,7 @@ func TestProvisioningErrorRenderer_SchoolInactive(t *testing.T) {
 	resp, ok := renderer.(*common.ErrResponse)
 	require.True(t, ok)
 	assert.Equal(t, http.StatusForbidden, resp.HTTPStatusCode)
-	assert.Contains(t, resp.ErrorText, "inactive")
+	assert.Contains(t, resp.Detail, "inactive")
 }
 
 func TestProvisioningErrorRenderer_DeviceNotFound(t *testing.T) {
@@ -2117,7 +2117,7 @@ func TestProvisioningErrorRenderer_PersonNotFound(t *testing.T) {
 	resp, ok := renderer.(*common.ErrResponse)
 	require.True(t, ok)
 	assert.Equal(t, http.StatusNotFound, resp.HTTPStatusCode)
-	assert.Equal(t, "Person not found", resp.ErrorText)
+	assert.Equal(t, "Person not found", resp.Detail)
 }
 
 func TestProvisioningErrorRenderer_PersonActiveSupervisors(t *testing.T) {
@@ -2127,7 +2127,7 @@ func TestProvisioningErrorRenderer_PersonActiveSupervisors(t *testing.T) {
 	resp, ok := renderer.(*common.ErrResponse)
 	require.True(t, ok)
 	assert.Equal(t, http.StatusConflict, resp.HTTPStatusCode)
-	assert.Equal(t, "Person has active supervisions and cannot be deleted", resp.ErrorText)
+	assert.Equal(t, "Person has active supervisions and cannot be deleted", resp.Detail)
 }
 
 func ptrInt64(v int64) *int64    { return &v }
@@ -2312,7 +2312,7 @@ func TestProvisioningErrorRenderer_SchoolAlreadyDeleted(t *testing.T) {
 	resp, ok := renderer.(*common.ErrResponse)
 	require.True(t, ok)
 	assert.Equal(t, http.StatusConflict, resp.HTTPStatusCode)
-	assert.Contains(t, resp.ErrorText, "already deleted")
+	assert.Contains(t, resp.Detail, "already deleted")
 }
 
 func TestProvisioningErrorRenderer_SchoolNotDeleted(t *testing.T) {
@@ -2322,7 +2322,7 @@ func TestProvisioningErrorRenderer_SchoolNotDeleted(t *testing.T) {
 	resp, ok := renderer.(*common.ErrResponse)
 	require.True(t, ok)
 	assert.Equal(t, http.StatusConflict, resp.HTTPStatusCode)
-	assert.Contains(t, resp.ErrorText, "not deleted")
+	assert.Contains(t, resp.Detail, "not deleted")
 }
 
 // --- SoftDeleteOrganization handler tests ---
@@ -2479,7 +2479,7 @@ func TestProvisioningErrorRenderer_OrganizationAlreadyDeleted(t *testing.T) {
 	resp, ok := renderer.(*common.ErrResponse)
 	require.True(t, ok)
 	assert.Equal(t, http.StatusConflict, resp.HTTPStatusCode)
-	assert.Contains(t, resp.ErrorText, "already deleted")
+	assert.Contains(t, resp.Detail, "already deleted")
 }
 
 func TestProvisioningErrorRenderer_OrganizationNotDeleted(t *testing.T) {
@@ -2489,7 +2489,7 @@ func TestProvisioningErrorRenderer_OrganizationNotDeleted(t *testing.T) {
 	resp, ok := renderer.(*common.ErrResponse)
 	require.True(t, ok)
 	assert.Equal(t, http.StatusConflict, resp.HTTPStatusCode)
-	assert.Contains(t, resp.ErrorText, "not deleted")
+	assert.Contains(t, resp.Detail, "not deleted")
 }
 
 func TestProvisioningErrorRenderer_OrganizationHasSchools(t *testing.T) {
@@ -2499,7 +2499,7 @@ func TestProvisioningErrorRenderer_OrganizationHasSchools(t *testing.T) {
 	resp, ok := renderer.(*common.ErrResponse)
 	require.True(t, ok)
 	assert.Equal(t, http.StatusConflict, resp.HTTPStatusCode)
-	assert.Contains(t, resp.ErrorText, "3 existing school(s)")
+	assert.Contains(t, resp.Detail, "3 existing school(s)")
 }
 
 func TestProvisioningErrorRenderer_OrganizationDeleted(t *testing.T) {
@@ -2509,7 +2509,7 @@ func TestProvisioningErrorRenderer_OrganizationDeleted(t *testing.T) {
 	resp, ok := renderer.(*common.ErrResponse)
 	require.True(t, ok)
 	assert.Equal(t, http.StatusConflict, resp.HTTPStatusCode)
-	assert.Contains(t, resp.ErrorText, "deleted")
+	assert.Contains(t, resp.Detail, "deleted")
 }
 
 func TestUpdateCaregiverCapabilityRequest_Bind_TrimWhitespace(t *testing.T) {
@@ -2553,7 +2553,7 @@ func TestCaregiverCapabilityProvisioningErrorRenderer(t *testing.T) {
 		resp, ok := renderer.(*common.ErrResponse)
 		require.True(t, ok)
 		assert.Equal(t, http.StatusNotFound, resp.HTTPStatusCode)
-		assert.Equal(t, "Account not found", resp.ErrorText)
+		assert.Equal(t, "Account not found", resp.Detail)
 	})
 
 	t.Run("maps invalid data to bad request", func(t *testing.T) {
@@ -2564,7 +2564,7 @@ func TestCaregiverCapabilityProvisioningErrorRenderer(t *testing.T) {
 		resp, ok := renderer.(*common.ErrResponse)
 		require.True(t, ok)
 		assert.Equal(t, http.StatusBadRequest, resp.HTTPStatusCode)
-		assert.Equal(t, "invalid caregiver input", resp.ErrorText)
+		assert.Equal(t, "invalid caregiver input", resp.Detail)
 	})
 
 	t.Run("maps invalid provisioning data to bad request", func(t *testing.T) {
@@ -2575,7 +2575,7 @@ func TestCaregiverCapabilityProvisioningErrorRenderer(t *testing.T) {
 		resp, ok := renderer.(*common.ErrResponse)
 		require.True(t, ok)
 		assert.Equal(t, http.StatusBadRequest, resp.HTTPStatusCode)
-		assert.Equal(t, "invalid caregiver input", resp.ErrorText)
+		assert.Equal(t, "invalid caregiver input", resp.Detail)
 	})
 
 	t.Run("maps wrapped validation errors to bad request", func(t *testing.T) {
@@ -2588,7 +2588,7 @@ func TestCaregiverCapabilityProvisioningErrorRenderer(t *testing.T) {
 		resp, ok := renderer.(*common.ErrResponse)
 		require.True(t, ok)
 		assert.Equal(t, http.StatusBadRequest, resp.HTTPStatusCode)
-		assert.Equal(t, "first_name is required", resp.ErrorText)
+		assert.Equal(t, "first_name is required", resp.Detail)
 	})
 
 	t.Run("preserves internal users errors as internal server errors", func(t *testing.T) {
@@ -2601,7 +2601,7 @@ func TestCaregiverCapabilityProvisioningErrorRenderer(t *testing.T) {
 		resp, ok := renderer.(*common.ErrResponse)
 		require.True(t, ok)
 		assert.Equal(t, http.StatusInternalServerError, resp.HTTPStatusCode)
-		assert.Equal(t, "An error occurred", resp.ErrorText)
+		assert.Equal(t, "An error occurred", resp.Detail)
 	})
 }
 
@@ -2787,8 +2787,8 @@ func TestProvisioningResource_EnableSchoolAccountCaregiverCapability_EmptyBody(t
 
 	var responseBody map[string]any
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &responseBody))
-	assert.Equal(t, "error", responseBody["status"])
-	assert.Equal(t, "EOF", responseBody["error"])
+	assert.Equal(t, float64(http.StatusBadRequest), responseBody["status"])
+	assert.Equal(t, "EOF", responseBody["detail"])
 }
 
 func TestProvisioningResource_DisableSchoolAccountCaregiverCapability(t *testing.T) {
@@ -3068,4 +3068,8 @@ func TestProvisioningResource_ListOrganizationPersons_OrganizationNotFound(t *te
 
 	resource.ListOrganizationPersons(rr, req)
 	assert.Equal(t, http.StatusNotFound, rr.Code)
+}
+
+func (m *mockProvisioningService) RecordOperatorRead(context.Context, organizationtenancy.OperatorReadAccess) error {
+	return nil
 }

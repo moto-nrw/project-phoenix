@@ -16,6 +16,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -39,7 +41,9 @@ func TestUploadLegalDocument_SavesTenantPrefixedPDF(t *testing.T) {
 	req = req.WithContext(tenant.WithTenantID(req.Context(), 42))
 	w := httptest.NewRecorder()
 
-	(&Resource{}).uploadLegalDocument(w, req)
+	(&Resource{
+		Failures: DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation},
+		uploads:  nativeUploads.UploadFiles{}}).uploadLegalDocument(w, req)
 
 	require.Equal(t, http.StatusOK, w.Code)
 	var body struct {
@@ -51,7 +55,7 @@ func TestUploadLegalDocument_SavesTenantPrefixedPDF(t *testing.T) {
 	assert.True(t, strings.HasPrefix(body.Data.DocumentURL, "/uploads/enrollment-form-legal-documents/42_"))
 	assert.True(t, strings.HasSuffix(body.Data.DocumentURL, ".pdf"))
 
-	path, err := legalDocumentPath(body.Data.DocumentURL)
+	path, err := legalDocumentPath(body.Data.DocumentURL, nativeUploads.UploadFiles{})
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = os.Remove(path) })
 	_, err = os.Stat(path)
@@ -65,7 +69,9 @@ func TestUploadLegalDocument_RejectsNonPDF(t *testing.T) {
 	req = req.WithContext(tenant.WithTenantID(req.Context(), 42))
 	w := httptest.NewRecorder()
 
-	(&Resource{}).uploadLegalDocument(w, req)
+	(&Resource{
+		Failures: DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation},
+		uploads:  nativeUploads.UploadFiles{}}).uploadLegalDocument(w, req)
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
@@ -79,7 +85,9 @@ func TestDeleteLegalDocument_RemovesUnreferencedTenantPDF(t *testing.T) {
 	req = req.WithContext(tenant.WithTenantID(req.Context(), 42))
 	w := httptest.NewRecorder()
 
-	res := &Resource{legalDocumentRefs: fakeLegalDocumentReferenceRepository{}}
+	res := &Resource{
+		Failures: DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation},
+		uploads:  nativeUploads.UploadFiles{}, legalDocumentRefs: fakeLegalDocumentReferenceRepository{}}
 	res.deleteLegalDocument(w, req)
 
 	require.Equal(t, http.StatusNoContent, w.Code)
@@ -96,7 +104,9 @@ func TestDeleteLegalDocument_KeepsReferencedTenantPDF(t *testing.T) {
 	req = req.WithContext(tenant.WithTenantID(req.Context(), 42))
 	w := httptest.NewRecorder()
 
-	res := &Resource{legalDocumentRefs: fakeLegalDocumentReferenceRepository{referenced: true}}
+	res := &Resource{
+		Failures: DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation},
+		uploads:  nativeUploads.UploadFiles{}, legalDocumentRefs: fakeLegalDocumentReferenceRepository{referenced: true}}
 	res.deleteLegalDocument(w, req)
 
 	require.Equal(t, http.StatusNoContent, w.Code)
@@ -116,6 +126,8 @@ func TestDeleteLegalDocument_ChecksReferencesInTenantTx(t *testing.T) {
 	type txContextKey struct{}
 	sawTenantTxContext := false
 	res := &Resource{
+		Failures: DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation},
+		uploads:  nativeUploads.UploadFiles{},
 		legalDocumentRefs: fakeLegalDocumentReferenceRepository{
 			referenced: true,
 			checkCtx: func(ctx context.Context) {
@@ -142,7 +154,9 @@ func TestDeleteLegalDocument_RejectsOtherTenantPDF(t *testing.T) {
 	req = req.WithContext(tenant.WithTenantID(req.Context(), 42))
 	w := httptest.NewRecorder()
 
-	res := &Resource{legalDocumentRefs: fakeLegalDocumentReferenceRepository{}}
+	res := &Resource{
+		Failures: DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation},
+		uploads:  nativeUploads.UploadFiles{}, legalDocumentRefs: fakeLegalDocumentReferenceRepository{}}
 	res.deleteLegalDocument(w, req)
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
@@ -162,7 +176,7 @@ func withFilenameParam(req *http.Request, filename string) *http.Request {
 func writeEnrollmentLegalDocument(t *testing.T, filename string) (string, string) {
 	t.Helper()
 	url := "/uploads/enrollment-form-legal-documents/" + filename
-	path, err := legalDocumentPath(url)
+	path, err := legalDocumentPath(url, nativeUploads.UploadFiles{})
 	require.NoError(t, err)
 	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0755))
 	require.NoError(t, os.WriteFile(path, []byte("%PDF-1.4\n%test\n"), 0600))

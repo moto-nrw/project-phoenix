@@ -9,18 +9,12 @@ import (
 	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-type PickupApprovalDirectory = ports.PickupApprovalDirectory
-type PickupApprovalPresence = ports.PickupApprovalPresence
-type PickupApprovalExceptions = ports.PickupApprovalExceptions
-type PickupApprovalExcusal = ports.PickupApprovalExcusal
-type PickupApprovalLocker = ports.PickupApprovalLocker
-
 type PickupApprovalDependencies struct {
-	People     PickupApprovalDirectory
-	Presence   PickupApprovalPresence
-	Exceptions PickupApprovalExceptions
-	Excusal    PickupApprovalExcusal
-	Locker     PickupApprovalLocker
+	People     ports.PickupApprovalDirectory
+	Presence   ports.PickupApprovalPresence
+	Exceptions ports.PickupApprovalExceptions
+	Excusal    ports.PickupApprovalExcusal
+	Locker     ports.PickupApprovalLocker
 	Today      func() calendar.Date
 	// Fingerprint returns the lowercase hexadecimal SHA-256 of the content.
 	Fingerprint func([]byte) string

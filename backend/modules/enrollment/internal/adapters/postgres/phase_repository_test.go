@@ -8,12 +8,11 @@ import (
 
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	ownerCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -23,27 +22,12 @@ func uniquePhaseName(prefix string) string {
 	return fmt.Sprintf("%s-%d", prefix, testpkg.UniqueSuffix())
 }
 
-// wipePhases removes every phase row for the tenant. Each test calls
-// this from a defer so we don't bleed rows between tests.
-func wipePhases(db *bun.DB, tenantID int64, names ...string) {
-	bg := context.Background()
-	if len(names) == 0 {
-		// No-op when no names — protects against accidental tenant-wide
-		// wipes in shared-tenant tests.
-		return
-	}
-	_, _ = db.NewDelete().
-		TableExpr("enrollment.phases").
-		Where("tenant_id = ? AND name IN (?)", tenantID, bun.List(names)).
-		Exec(bg)
-}
-
-func setupOwnerPhaseTest(t *testing.T) (*bun.DB, *capability.Module, int64) {
+func setupOwnerPhaseTest(t *testing.T) (*bun.DB, capability.Owner, int64) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	return db, enrollmentCompose.New(), tenantID
+	return db, ownerCompose.New(), tenantID
 }
 
 // --- Create + Validation -----------------------------------------------
@@ -53,7 +37,6 @@ func TestPhaseRepository_Create_PersistsAndReturnsID(t *testing.T) {
 
 	db, repo, tenantID := setupOwnerPhaseTest(t)
 	name := uniquePhaseName("create")
-	defer wipePhases(db, tenantID, name)
 
 	phase := makeOwnerEligibilityPhase(name)
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -84,7 +67,6 @@ func TestPhaseRepository_FindByID_HappyPath(t *testing.T) {
 
 	db, repo, tenantID := setupOwnerPhaseTest(t)
 	name := uniquePhaseName("findbyid")
-	defer wipePhases(db, tenantID, name)
 
 	phase := makeOwnerEligibilityPhase(name)
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -126,7 +108,6 @@ func TestPhaseRepository_Update_PersistsChanges(t *testing.T) {
 
 	db, repo, tenantID := setupOwnerPhaseTest(t)
 	name := uniquePhaseName("update")
-	defer wipePhases(db, tenantID, name)
 
 	phase := makeOwnerEligibilityPhase(name)
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -135,7 +116,6 @@ func TestPhaseRepository_Update_PersistsChanges(t *testing.T) {
 
 	// Change name + service end + active.
 	newName := uniquePhaseName("updated")
-	defer wipePhases(db, tenantID, newName)
 	phase.Name = newName
 	phase.ServiceEndDate = capability.Date("2027-08-15")
 	phase.IsActive = false
@@ -188,7 +168,6 @@ func TestPhaseRepository_Update_RejectsInvalidPhase(t *testing.T) {
 
 	db, repo, tenantID := setupOwnerPhaseTest(t)
 	name := uniquePhaseName("invalidupdate")
-	defer wipePhases(db, tenantID, name)
 
 	phase := makeOwnerEligibilityPhase(name)
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -212,7 +191,6 @@ func TestPhaseRepository_Delete_HappyPath(t *testing.T) {
 
 	db, repo, tenantID := setupOwnerPhaseTest(t)
 	name := uniquePhaseName("delete")
-	defer wipePhases(db, tenantID, name)
 
 	phase := makeOwnerEligibilityPhase(name)
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -220,7 +198,7 @@ func TestPhaseRepository_Delete_HappyPath(t *testing.T) {
 	}))
 
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return enrollmentCompose.New().DeletePhase(ctx, phase.ID)
+		return ownerCompose.New().DeletePhase(ctx, phase.ID)
 	}))
 
 	var got *capability.Phase
@@ -239,7 +217,7 @@ func TestPhaseRepository_Delete_MissingIDErrors(t *testing.T) {
 	db, _, tenantID := setupOwnerPhaseTest(t)
 
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return enrollmentCompose.New().DeletePhase(ctx, 9_999_999)
+		return ownerCompose.New().DeletePhase(ctx, 9_999_999)
 	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not found")
@@ -254,7 +232,6 @@ func TestPhaseRepository_ListByTenant_OrdersByServiceStartDesc(t *testing.T) {
 	a := uniquePhaseName("listA")
 	b := uniquePhaseName("listB")
 	c := uniquePhaseName("listC")
-	defer wipePhases(db, tenantID, a, b, c)
 
 	phaseA := makeOwnerEligibilityPhase(a)
 	phaseA.ServiceStartDate = capability.Date("2025-09-01")
@@ -277,7 +254,7 @@ func TestPhaseRepository_ListByTenant_OrdersByServiceStartDesc(t *testing.T) {
 	var list []*capability.Phase
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var lErr error
-		list, lErr = enrollmentCompose.New().Phases(ctx)
+		list, lErr = ownerCompose.New().Phases(ctx)
 		return lErr
 	}))
 
@@ -303,7 +280,6 @@ func TestPhaseRepository_ListPublicOpen_OnlyReturnsActiveInWindow(t *testing.T) 
 	openInactive := uniquePhaseName("openInactive")
 	closedActive := uniquePhaseName("closedActive")
 	openActive := uniquePhaseName("openActive")
-	defer wipePhases(db, tenantID, openInactive, closedActive, openActive)
 
 	now := time.Date(2026, 6, 15, 12, 0, 0, 0, time.UTC)
 	openAt := now.Add(-24 * time.Hour)
@@ -325,7 +301,6 @@ func TestPhaseRepository_ListPublicOpen_OnlyReturnsActiveInWindow(t *testing.T) 
 	// (3) Active, window not yet open → excluded.
 	farFutureCloseAt := now.Add(72 * time.Hour)
 	pFuture := makeOwnerEligibilityPhase(uniquePhaseName("futureActive"))
-	defer wipePhases(db, tenantID, pFuture.Name)
 	pFuture.EnrollmentOpenAt = &futureOpenAt
 	pFuture.EnrollmentCloseAt = &farFutureCloseAt
 
@@ -343,7 +318,7 @@ func TestPhaseRepository_ListPublicOpen_OnlyReturnsActiveInWindow(t *testing.T) 
 	var list []*capability.Phase
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var lErr error
-		list, lErr = enrollmentCompose.New().PublicOpenPhases(ctx, now)
+		list, lErr = ownerCompose.New().PublicOpenPhases(ctx, now)
 		return lErr
 	}))
 
@@ -362,7 +337,6 @@ func TestPhaseRepository_ListPublicOpen_NullBoundsTreatedAsUnbounded(t *testing.
 
 	db, repo, tenantID := setupOwnerPhaseTest(t)
 	name := uniquePhaseName("nullBounds")
-	defer wipePhases(db, tenantID, name)
 
 	phase := makeOwnerEligibilityPhase(name)
 	// EnrollmentOpenAt and CloseAt left nil → permanently open.
@@ -374,7 +348,7 @@ func TestPhaseRepository_ListPublicOpen_NullBoundsTreatedAsUnbounded(t *testing.
 	var list []*capability.Phase
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var lErr error
-		list, lErr = enrollmentCompose.New().PublicOpenPhases(ctx, now)
+		list, lErr = ownerCompose.New().PublicOpenPhases(ctx, now)
 		return lErr
 	}))
 
@@ -396,7 +370,6 @@ func TestPhaseRepository_ListWithExpiredRolloverDeadline_OnlyReturnsExpired(t *t
 	noDeadline := uniquePhaseName("noDeadline")
 	pending := uniquePhaseName("pending")
 	expired := uniquePhaseName("expired")
-	defer wipePhases(db, tenantID, noDeadline, pending, expired)
 
 	asOf := time.Date(2027, 7, 15, 0, 0, 0, 0, time.UTC)
 	pastDeadline := asOf.Add(-1 * time.Hour)
@@ -420,7 +393,7 @@ func TestPhaseRepository_ListWithExpiredRolloverDeadline_OnlyReturnsExpired(t *t
 	var list []*capability.Phase
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var lErr error
-		list, lErr = enrollmentCompose.New().PhasesWithExpiredRolloverDeadline(ctx, asOf)
+		list, lErr = ownerCompose.New().PhasesWithExpiredRolloverDeadline(ctx, asOf)
 		return lErr
 	}))
 
@@ -442,12 +415,8 @@ func TestPhaseRepository_ExistsByFormSchemaID_TrueWhenReferenced(t *testing.T) {
 	// enrollment.phases.form_schema_id passes.
 	db, repo, tenantID := setupOwnerPhaseTest(t)
 	account := testpkg.CreateTestAccount(t, db, "phase-exists")
-	t.Cleanup(func() {
-		_, _ = db.NewDelete().TableExpr("auth.accounts").
-			Where("id = ?", account.ID).Exec(context.Background())
-	})
 
-	schemaRepo := enrollmentCompose.New()
+	schemaRepo := ownerCompose.New()
 	schema := &capability.FormSchema{
 		Name:      uniqueSchemaName("phase-exists"),
 		Version:   1,
@@ -458,10 +427,8 @@ func TestPhaseRepository_ExistsByFormSchemaID_TrueWhenReferenced(t *testing.T) {
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		return schemaRepo.InsertSchemaVersion(ctx, schema)
 	}))
-	t.Cleanup(func() { wipeSchemas(db, tenantID, account.ID) })
 
 	name := uniquePhaseName("schemaRef")
-	defer wipePhases(db, tenantID, name)
 	phase := makeOwnerEligibilityPhase(name)
 	phase.FormSchemaID = &schema.ID
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -471,7 +438,7 @@ func TestPhaseRepository_ExistsByFormSchemaID_TrueWhenReferenced(t *testing.T) {
 	var count int
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var eErr error
-		count, eErr = enrollmentCompose.New().CountPhaseSchemaReferences(ctx, []int64{schema.ID})
+		count, eErr = ownerCompose.New().CountPhaseSchemaReferences(ctx, []int64{schema.ID})
 		return eErr
 	})
 	require.NoError(t, err)
@@ -486,7 +453,7 @@ func TestPhaseRepository_ExistsByFormSchemaID_FalseWhenUnreferenced(t *testing.T
 	var count int
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var eErr error
-		count, eErr = enrollmentCompose.New().CountPhaseSchemaReferences(ctx, []int64{9_999_999})
+		count, eErr = ownerCompose.New().CountPhaseSchemaReferences(ctx, []int64{9_999_999})
 		return eErr
 	})
 	require.NoError(t, err)
@@ -501,7 +468,6 @@ func TestPhaseRepository_ExistsByRolloverSourcePhaseID_TrueAfterRollover(t *test
 	db, repo, tenantID := setupOwnerPhaseTest(t)
 	sourceName := uniquePhaseName("rolloverSource")
 	rolloverName := uniquePhaseName("rolloverTarget")
-	defer wipePhases(db, tenantID, sourceName, rolloverName)
 
 	source := makeOwnerEligibilityPhase(sourceName)
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -523,7 +489,7 @@ func TestPhaseRepository_ExistsByRolloverSourcePhaseID_TrueAfterRollover(t *test
 	var exists bool
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var eErr error
-		exists, eErr = enrollmentCompose.New().HasRolloverSuccessor(ctx, source.ID)
+		exists, eErr = ownerCompose.New().HasRolloverSuccessor(ctx, source.ID)
 		return eErr
 	})
 	require.NoError(t, err)
@@ -538,7 +504,7 @@ func TestPhaseRepository_ExistsByRolloverSourcePhaseID_FalseWhenUnreferenced(t *
 	var exists bool
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var eErr error
-		exists, eErr = enrollmentCompose.New().HasRolloverSuccessor(ctx, 9_999_999)
+		exists, eErr = ownerCompose.New().HasRolloverSuccessor(ctx, 9_999_999)
 		return eErr
 	})
 	require.NoError(t, err)

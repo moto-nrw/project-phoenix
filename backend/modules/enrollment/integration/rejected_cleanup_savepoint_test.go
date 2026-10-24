@@ -78,6 +78,8 @@ type savepointCleanupRetention struct{}
 
 func (savepointCleanupRetention) RejectedRetentionDays(context.Context) (int, error) { return 30, nil }
 
+func (savepointCleanupRetention) WithdrawnRetentionDays(context.Context) (int, error) { return 90, nil }
+
 type savepointCleanupChildren struct {
 	enrollmentCompose.RejectedChildren
 }

@@ -5,10 +5,13 @@ import (
 	"log/slog"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	"github.com/moto-nrw/project-phoenix/services"
+	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/api"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
+	communicationtest "github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -35,24 +38,6 @@ func (s staticShareVisibility) SharedRecipientAccountIDs(
 	return s.recipients, nil
 }
 
-func careCoGuardianPills(
-	t *testing.T, f *careFixture, guardianAccountID int64,
-) []*usersModels.ParentMessage {
-	t.Helper()
-	var msgs []*usersModels.ParentMessage
-	require.NoError(t, tenant.WithTenantTx(
-		testpkg.WithTenantRuntime(t, context.Background(), f.db), f.db, f.chain.TenantID,
-		func(txCtx context.Context, _ bun.Tx) error {
-			thread, err := f.repos.ParentMessageThread.FindByStudentGuardian(txCtx, f.chain.StudentID, guardianAccountID)
-			if err != nil || thread == nil {
-				return err
-			}
-			msgs, err = f.repos.ParentMessage.ListByThread(txCtx, thread.ID, 100)
-			return err
-		}))
-	return msgs
-}
-
 // TestCareDecisionTellsTheOtherGuardian is story 47 for the care domain: a
 // decision on one parent's request changes the whole family's care, so the
 // other guardian hears about it — neutrally, unless the submitter explicitly
@@ -72,7 +57,10 @@ func TestCareDecisionTellsTheOtherGuardian(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		pills := careCoGuardianPills(t, f, other.AccountID)
+		pills, err := api.ParentStoreGuardianMessagesFixture(func(read func(context.Context) error) error {
+			return tenant.WithTenantTx(testpkg.WithTenantRuntime(t, context.Background(), f.db), f.db, f.chain.TenantID, func(ctx context.Context, _ bun.Tx) error { return read(ctx) })
+		}, f.reposMessages.ParentMessageThread, communicationtest.NewParentMessageRepository(f.db), f.chain.StudentID, other.AccountID, 100)
+		require.NoError(t, err)
 		require.Len(t, pills, 1, "the other guardian hears about the decision exactly once")
 		assert.Contains(t, pills[0].Body, "Betreuungsstand geändert")
 		assert.Empty(t, pills[0].DecisionReason, "the staff reason belongs to the submitting guardian")
@@ -91,7 +79,10 @@ func TestCareDecisionTellsTheOtherGuardian(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		pills := careCoGuardianPills(t, f, other.AccountID)
+		pills, err := api.ParentStoreGuardianMessagesFixture(func(read func(context.Context) error) error {
+			return tenant.WithTenantTx(testpkg.WithTenantRuntime(t, context.Background(), f.db), f.db, f.chain.TenantID, func(ctx context.Context, _ bun.Tx) error { return read(ctx) })
+		}, f.reposMessages.ParentMessageThread, communicationtest.NewParentMessageRepository(f.db), f.chain.StudentID, other.AccountID, 100)
+		require.NoError(t, err)
 		require.Len(t, pills, 1)
 		assert.Equal(t, "Passt so", pills[0].DecisionReason,
 			"a guardian the request was shared with sees the same decision the submitter does")
@@ -102,14 +93,14 @@ func TestCareDecisionTellsTheOtherGuardian(t *testing.T) {
 // (messaging-enabled) emitter and the given explicit share recipients.
 func careServiceWithCoGuardianEmitter(t *testing.T, f *careFixture, sharedWith []int64) carerequests.Service {
 	t.Helper()
-	emitter := f.emitter(t, f.repos.ParentMessage, messagingOnSettings{}, testpkg.NewRecordingBroadcaster())
-	return services.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
-		f.repos.CarePlan(), f.sf.PeopleDirectory,
-		f.sf.ArrivalSchedule, f.sf.PickupSchedule, newPickupChangePresence(t, f.db), f.autoExcusal,
-		f.repos.CarePlan(),
-		f.sf.UserContext, emitter, nil,
-		testpkg.RequestReviewPolicy{UserContext: f.sf.UserContext},
-		nil, slog.Default(), f.sf.StudentAudit,
-		services.WithRequestShareVisibility(staticShareVisibility{recipients: sharedWith}),
+	emitter := f.emitter(t, messagingOnSettings{}, testpkg.NewRecordingBroadcaster())
+	return owners.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
+		f.reposCare.CarePlan(), f.persons,
+		f.schedules.Arrivals, f.schedules.Pickups, newPickupChangePresence(t, f.db), f.autoExcusal,
+		f.reposCare.CarePlan(),
+		f.caller, emitter, nil,
+		testpkg.RequestReviewPolicy[*peopleValues.StudentState]{UserContext: f.caller}, testpkg.PermissionsFromContext,
+		nil, slog.Default(), f.services.StudentAudit,
+		owners.WithRequestShareVisibility(staticShareVisibility{recipients: sharedWith}),
 	)
 }

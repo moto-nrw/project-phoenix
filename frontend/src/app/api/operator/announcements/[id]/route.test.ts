@@ -78,7 +78,7 @@ describe("GET /api/operator/announcements/[id]", () => {
   it("returns 404 for non-existent announcement", async () => {
     mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
     mockFetch.mockResolvedValue(
-      new Response(JSON.stringify({ error: "Not found" }), {
+      new Response(JSON.stringify({ detail: "Not found" }), {
         status: 404,
         headers: { "Content-Type": "application/json" },
       }),
@@ -216,7 +216,7 @@ describe("DELETE /api/operator/announcements/[id]", () => {
   it("returns 404 for non-existent announcement", async () => {
     mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
     mockFetch.mockResolvedValue(
-      new Response(JSON.stringify({ error: "Not found" }), {
+      new Response(JSON.stringify({ detail: "Not found" }), {
         status: 404,
         headers: { "Content-Type": "application/json" },
       }),

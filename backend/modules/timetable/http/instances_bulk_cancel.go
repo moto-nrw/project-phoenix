@@ -8,7 +8,7 @@ import (
 	"github.com/go-chi/render"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 )
 
@@ -51,7 +51,7 @@ func (rs *Resource) bulkCancelInstances(w http.ResponseWriter, r *http.Request) 
 	}
 
 	opts := timetable.BulkCancelOptions{DryRun: req.DryRun, IncludeClosingDaySeries: req.IncludeClosingDaySeries}
-	result, err := rs.InstanceService.BulkCancelPlanned(r.Context(), from, to, opts, jwt.ActorAccountIDFromCtx(r.Context()))
+	result, err := rs.InstanceService.BulkCancelPlanned(r.Context(), from, to, opts, sessiontoken.ActorAccountIDFromCtx(r.Context()))
 	if errors.Is(err, timetable.ErrInvalidBulkCancelRange) {
 		common.RenderError(w, r, codedInvalid(err))
 		return

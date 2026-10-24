@@ -24,6 +24,7 @@ type accountSessionRow struct {
 	Mobile            bool       `bun:"mobile,notnull,default:false"`
 	Identifier        *string    `bun:"identifier"`
 	PortalScope       string     `bun:"portal_scope,notnull,default:'unknown'"`
+	MFAVerified       bool       `bun:"mfa_verified,notnull,default:false"`
 	FamilyID          string     `bun:"family_id"`
 	FamilyExpiryCap   *time.Time `bun:"family_expiry_cap"`
 	Generation        int        `bun:"generation,default:0"`
@@ -37,7 +38,7 @@ type accountSessionRow struct {
 func (r accountSessionRow) toDomain() domain.AccountSession {
 	return domain.AccountSession{
 		ID: r.ID, TenantID: r.TenantID, AccountID: r.AccountID, Token: r.Token, Expiry: r.Expiry, Mobile: r.Mobile,
-		Identifier: r.Identifier, PortalScope: r.PortalScope, FamilyID: r.FamilyID, FamilyExpiryCap: r.FamilyExpiryCap,
+		Identifier: r.Identifier, PortalScope: r.PortalScope, MFAVerified: r.MFAVerified, FamilyID: r.FamilyID, FamilyExpiryCap: r.FamilyExpiryCap,
 		Generation: r.Generation, RotatedAt: r.RotatedAt, ReplacementToken: r.ReplacementToken, RecoveryProofHash: r.RecoveryProofHash,
 		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
 	}
@@ -46,7 +47,7 @@ func (r accountSessionRow) toDomain() domain.AccountSession {
 func accountSessionRowFromDomain(session domain.AccountSession) accountSessionRow {
 	return accountSessionRow{
 		ID: session.ID, TenantID: session.TenantID, AccountID: session.AccountID, Token: session.Token, Expiry: session.Expiry, Mobile: session.Mobile,
-		Identifier: session.Identifier, PortalScope: session.PortalScope, FamilyID: session.FamilyID, FamilyExpiryCap: session.FamilyExpiryCap,
+		Identifier: session.Identifier, PortalScope: session.PortalScope, MFAVerified: session.MFAVerified, FamilyID: session.FamilyID, FamilyExpiryCap: session.FamilyExpiryCap,
 		Generation: session.Generation, RotatedAt: session.RotatedAt, ReplacementToken: session.ReplacementToken, RecoveryProofHash: session.RecoveryProofHash,
 		CreatedAt: session.CreatedAt, UpdatedAt: session.UpdatedAt,
 	}
@@ -62,6 +63,7 @@ func accountSessionsToDomain(rows []accountSessionRow) []domain.AccountSession {
 
 type tenantFilterable[Q any] interface {
 	Where(string, ...any) Q
+	Err(error) Q
 }
 
 // withTenantFilter narrows the statement to the caller's tenant when the
@@ -69,10 +71,7 @@ type tenantFilterable[Q any] interface {
 // logout run before a tenant is known) see every row, as the retained
 // repository's defense-in-depth filter did.
 func withTenantFilter[Q tenantFilterable[Q]](scope TenantScope, query Q) Q {
-	if scope.TenantID > 0 {
-		return query.Where(`"token".tenant_id = ?`, scope.TenantID)
-	}
-	return query
+	return scopeTenantQuery(scope, query, `"token".tenant_id = ?`)
 }
 
 // withTenantFilterUnlessAdmin is withTenantFilter for the cap and retirement

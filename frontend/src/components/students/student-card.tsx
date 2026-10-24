@@ -28,16 +28,49 @@ import {
   type StudentDayTimes,
   type StudentTimeStatus,
 } from "~/lib/student-time-status";
-import {
-  LOCATION_COLORS,
-  MOTO_COLOR_PALETTE,
-  getLocationBadgeTone,
-} from "~/lib/location-helper";
+import { LOCATION_COLORS, MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import type { StudentCheckinState } from "~/lib/hooks/use-school-checkin-mode";
 import { Avatar } from "~/components/ui/avatar";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { useRowClock } from "~/components/students/student-card-clock";
+import {
+  DEPARTURE_MODE_LABELS,
+  type DepartureMode,
+} from "~/lib/student-helpers";
+
+/**
+ * What changed for today only (#3946): the Gehzeit, the Abholart (#3945) or
+ * both. A change to the weekly plan is none of them.
+ */
+export interface DayHomeChange {
+  readonly time: boolean;
+  /** The new Abholart; absent when only the Gehzeit changed. */
+  readonly mode?: DepartureMode;
+}
+
+function dayHomeChangeKind(change: DayHomeChange): "time" | "mode" | "both" {
+  if (!change.mode) return "time";
+  return change.time ? "both" : "mode";
+}
+
+/**
+ * Visible hint of a one-day change (#3946). The new Gehzeit stands in its
+ * row; the new Abholart has no row on every page, so the hint names it. The
+ * value comes apart from the text so a narrow card wraps before it, not
+ * inside it.
+ */
+function dayHomeChangeParts(change: DayHomeChange): {
+  readonly text: string;
+  readonly mode?: string;
+} {
+  if (!change.mode) return { text: "Gehzeit heute geändert" };
+  const changed = change.time ? "Gehzeit und Abholart" : "Abholart";
+  return {
+    text: `${changed} heute geändert:`,
+    mode: DEPARTURE_MODE_LABELS[change.mode],
+  };
+}
 
 interface StudentCardProps {
   /** Unique student ID */
@@ -83,6 +116,13 @@ interface StudentCardProps {
   readonly checkinSelectMode?: boolean;
   /** Whether this card is currently marked for the next bulk action. */
   readonly isCheckinSelected?: boolean;
+  /**
+   * Today's Gehzeit or Abholart differs from the weekly plan for this one day
+   * (#3946). A full-width strip at the bottom of the card says so, in the
+   * shape of the check-in tap strip, so staff see the change without reading
+   * every row. Callers decide via `dayHomeChange`.
+   */
+  readonly dayHomeChange?: DayHomeChange;
 }
 
 // Tap-strip styles for the bottom action area when checkinMode is on. The
@@ -146,6 +186,7 @@ export function StudentCard({
   onCheckinClick,
   checkinSelectMode = false,
   isCheckinSelected = false,
+  dayHomeChange,
 }: StudentCardProps) {
   // Photo feature is per-tenant. When the school hasn't enabled it the
   // entire avatar overlay is suppressed — the card falls back to its
@@ -163,22 +204,37 @@ export function StudentCard({
   // Pull a Tap-Strip preset for the bottom action area in checkinMode.
   // The strip carries the colour signal; the card body stays neutral white.
   const tapStrip = checkinMode ? TAP_STRIP_STYLES[checkinState] : null;
+  // The button's label replaces its content for screen readers, so the
+  // one-day change must be part of it (#3946).
+  const dayChange = dayHomeChange
+    ? dayHomeChangeParts(dayHomeChange)
+    : undefined;
+  const dayChangeLabel = dayChange
+    ? [dayChange.text, dayChange.mode].filter(Boolean).join(" ")
+    : undefined;
+  const dayChangeKind = dayHomeChange
+    ? dayHomeChangeKind(dayHomeChange)
+    : undefined;
+  const nameLabel = dayChangeLabel
+    ? `${firstName} ${lastName}, ${dayChangeLabel}`
+    : `${firstName} ${lastName}`;
   const ariaLabel = selectMode
-    ? `${firstName} ${lastName} - ${isCheckinSelected ? "Auswahl entfernen" : "Auswählen"}`
+    ? `${nameLabel} - ${isCheckinSelected ? "Auswahl entfernen" : "Auswählen"}`
     : checkinMode
-      ? `${firstName} ${lastName} - ${tapStrip?.copy ?? "Tippen zum An-/Abmelden"}`
-      : `${firstName} ${lastName} - Details öffnen`;
+      ? `${nameLabel} - ${tapStrip?.copy ?? "Tippen zum An-/Abmelden"}`
+      : `${nameLabel} - Details öffnen`;
 
   // A selected card gets a brand-green ring on top of the resting shadow.
   // Inline style (not an arbitrary-value class) so the hex stays sourced from
   // LOCATION_COLORS.
-  const selectedRingStyle: React.CSSProperties | undefined =
-    selectMode && isCheckinSelected
-      ? {
-          boxShadow: `0 0 0 1px ${LOCATION_COLORS.GROUP_ROOM}`,
-          borderColor: "transparent",
-        }
-      : undefined;
+  const isSelectedCard = selectMode && isCheckinSelected;
+  const selectedRingStyle: React.CSSProperties | undefined = isSelectedCard
+    ? {
+        boxShadow: `0 0 0 1px ${LOCATION_COLORS.GROUP_ROOM}`,
+        borderColor: "transparent",
+      }
+    : undefined;
+  const hasTapStrip = checkinMode && !selectMode;
 
   return (
     <button
@@ -192,12 +248,13 @@ export function StudentCard({
       data-checkin-mode={checkinMode || undefined}
       data-setup-tour="student-card"
       data-checkin-state={checkinMode ? checkinState : undefined}
-      data-checkin-selected={(selectMode && isCheckinSelected) || undefined}
+      data-checkin-selected={isSelectedCard || undefined}
+      data-day-home-change={dayChangeKind}
       style={selectedRingStyle}
       className={`${TILE_CARD_SURFACE} flex cursor-pointer flex-col disabled:cursor-wait disabled:opacity-70`}
     >
       <div
-        className={`relative ${checkinMode && !selectMode ? "p-3 pb-0 sm:p-5 sm:pb-0" : "p-3 sm:p-5"}`}
+        className={`relative ${hasTapStrip || dayChangeLabel ? "p-3 pb-0 sm:p-5 sm:pb-0" : "p-3 sm:p-5"}`}
       >
         {/* Card body content */}
         <div className="relative">
@@ -278,9 +335,40 @@ export function StudentCard({
           text stays) so the strip's height never changes — otherwise the
           card resizes mid-toggle and a 1px white seam flashes at the
           body→strip boundary. */}
-      {checkinMode && !selectMode && tapStrip ? (
+      {/* One-day change (#3946): an information strip in the shape of the tap
+          strip, left-aligned like the rows above so it reads as a fact, not
+          an action. In check-in mode it sits above the tap strip. The icon is
+          the one of the row that changed: the clock of the Gehzeit, the route
+          of the Abholart. */}
+      {dayChangeLabel ? (
         <div
-          className="relative mt-auto flex min-h-[44px] items-center justify-center gap-2 px-4 py-3 text-sm font-semibold transition-colors duration-150"
+          className="mt-auto flex min-h-[44px] items-center gap-2 px-3 py-2.5 text-sm font-semibold sm:px-5"
+          style={{
+            backgroundColor: MOTO_COLOR_PALETTE.orange.soft,
+            color: MOTO_COLOR_PALETTE.orange.strong,
+          }}
+          data-day-home-change-strip="true"
+        >
+          {dayHomeChange?.mode === undefined ? (
+            <Clock className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
+          ) : (
+            <Route className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
+          )}
+          <span>
+            {dayChange?.text}
+            {dayChange?.mode ? (
+              <>
+                {" "}
+                <span className="whitespace-nowrap">{dayChange.mode}</span>
+              </>
+            ) : null}
+          </span>
+        </div>
+      ) : null}
+
+      {hasTapStrip && tapStrip ? (
+        <div
+          className={`relative ${dayChangeLabel ? "" : "mt-auto"} flex min-h-[44px] items-center justify-center gap-2 px-4 py-3 text-sm font-semibold transition-colors duration-150`}
           style={{
             backgroundColor: tapStrip.background,
             color: tapStrip.text,
@@ -615,36 +703,23 @@ export function StudentAbsenceRow({
 }
 
 /**
- * Informational badge for a child with a still-pending absence request covering
- * today. It is NOT an
- * absence — the child stays "expected" and keeps its normal arrival/pickup rows
- * until the OGS confirms — so this renders as a single compact amber pill
- * alongside them, not in place of them. The parent's note (if any) is kept to
- * the hover title so the card stays as dense as its other rows. The amber tone
- * comes directly from MOTO_COLOR_PALETTE because this is a pending-approval
- * hint, not a location or illness signal.
+ * Informational line for a child with a still-pending absence request covering
+ * today. It is NOT an absence — the child stays "expected" and keeps its
+ * normal arrival/pickup rows until the OGS confirms — so this renders as one
+ * row alongside them, not in place of them. Plain text, not a pill: a card and
+ * a table row carry at most one pill, the location (#4371). The parent's note
+ * (if any) is kept to the hover title so the card stays as dense as its other
+ * rows.
  */
 export function StudentPendingExcusedRow({
   note,
 }: Readonly<{ note?: string }>) {
-  const tone = getLocationBadgeTone(MOTO_COLOR_PALETTE.amber.base);
-
-  // Leading icon at the row's left edge (aligned with the other StudentInfoRow
-  // icons) and the amber pill in the text column, so this line sits in the same
-  // rhythm as the sibling rows instead of looking offset.
   return (
-    <div className="mt-1 flex items-center gap-1.5">
+    <div className="mt-1 flex items-center gap-1.5" title={note ?? undefined}>
       <span className="flex-shrink-0">
         <AbsenceIcon />
       </span>
-      <span
-        className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium"
-        style={{
-          backgroundColor: tone.backgroundColor,
-          color: tone.textColor,
-        }}
-        title={note ?? undefined}
-      >
+      <span className="text-xs font-medium whitespace-nowrap text-gray-600">
         Freigabe ausstehend
       </span>
     </div>

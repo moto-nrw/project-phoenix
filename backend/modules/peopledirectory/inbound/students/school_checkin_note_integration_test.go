@@ -13,9 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Early-checkout note (#3324) through POST /students/{id}/school-checkin and
-// back out through the student detail ("Heutige Abholung").
-
 func postSchoolCheckin(t *testing.T, tc *testContext, studentID, accountID int64, body map[string]string) int {
 	t.Helper()
 	bodyBytes, err := json.Marshal(body)

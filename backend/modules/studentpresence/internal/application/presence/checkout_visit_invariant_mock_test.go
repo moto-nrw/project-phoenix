@@ -163,7 +163,7 @@ func TestEndOpenVisitForStudent_NextDayVisitIsLeftAlone(t *testing.T) {
 func TestEndOpenVisitForStudent_UsesCheckoutInstant(t *testing.T) {
 	t.Parallel()
 
-	day := calendar.TodayDate()
+	day := calendar.NewDate(2026, 8, 24)
 	checkoutAt := day.BerlinMidnight().Add(15*time.Hour + 30*time.Minute)
 	visit := &studentpresence.Visit{ID: 4716, StudentID: 4711, EntryTime: checkoutAt.Add(-time.Hour)}
 

@@ -11,9 +11,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/api/testutil"
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -195,7 +195,7 @@ func TestConvertInstanceToSeries_LinksExistingOccurrenceAndRejectsRetry(t *testi
 
 	// Materializer marker: seed must carry the template period so resync and
 	// FindPlannedTemplateBackedFrom treat it as a series occurrence.
-	seed, err := mustTimetableTestRepositories(s.db).ActivityInstance.FindByID(s.ctx, instance.ID)
+	seed, err := mustTimetableTestRepositories(s.db).NativeInstances().FindByID(s.ctx, instance.ID)
 	require.NoError(t, err)
 	require.NotNil(t, seed.CalendarPeriodID)
 	assert.Equal(t, period.ID, *seed.CalendarPeriodID)
@@ -261,8 +261,8 @@ func TestConvertInstanceToSeries_UsesOfferingRosterForExistingSeed(t *testing.T)
 	)
 	s.res.Templates = timetableData
 	converter, err := timetableCompose.NewInstanceSeriesConversion(
-		timetableCompose.InstanceSeriesConversionDependencies{
-			DB:             s.db,
+		timetablePorts.InstanceSeriesConversionDependencies{
+			Transactions:   timetableCompose.NewTenantTransactions(s.db),
 			InstanceRepo:   repoFactory.ActivityInstance,
 			Lifecycle:      s.res.InstanceService,
 			Templates:      timetableData,
@@ -310,12 +310,12 @@ func TestConvertInstanceToSeries_RollsBackTemplateWhenLinkFails(t *testing.T) {
 	failingInstanceService := &mockInstanceService{updateErr: errors.New("link failed")}
 	repoFactory := mustTimetableTestRepositories(s.db)
 	converter, err := timetableCompose.NewInstanceSeriesConversion(
-		timetableCompose.InstanceSeriesConversionDependencies{
-			DB:             s.db,
+		timetablePorts.InstanceSeriesConversionDependencies{
+			Transactions:   timetableCompose.NewTenantTransactions(s.db),
 			InstanceRepo:   repoFactory.ActivityInstance,
 			Lifecycle:      failingInstanceService,
 			Templates:      s.res.Templates,
-			RecurrenceLock: must(testutil.NewTimetableRecurrenceLock(s.db)),
+			RecurrenceLock: must(RootCompositions.RecurrenceLock(s.db)),
 		},
 	)
 	require.NoError(t, err)
@@ -377,7 +377,7 @@ func TestConvertInstanceToSeries_RollsBackOrphanSeriesOn4xxLinkFailure(t *testin
 			"TenantTxMiddleware must roll back the new series on a 4xx link failure")
 	}
 
-	seed, err := mustTimetableTestRepositories(s.db).ActivityInstance.FindByID(s.ctx, instance.ID)
+	seed, err := mustTimetableTestRepositories(s.db).NativeInstances().FindByID(s.ctx, instance.ID)
 	require.NoError(t, err)
 	assert.Nil(t, seed.ActivityGroupID, "seed must stay unlinked when convert rolls back")
 	assert.True(t, seed.IsSpontaneous)

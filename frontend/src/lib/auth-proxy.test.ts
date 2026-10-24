@@ -132,7 +132,11 @@ describe("forwardJsonPost", () => {
   it("passes backend HTTP status through unchanged", async () => {
     globalThis.fetch = mockFetchResponse({
       status: 401,
-      body: { error: "Invalid credentials" },
+      body: {
+        status: 401,
+        detail: "Invalid credentials",
+        code: "identity.invalid_credentials",
+      },
     });
 
     const res = await forwardJsonPost(
@@ -141,10 +145,14 @@ describe("forwardJsonPost", () => {
     );
 
     expect(res.status).toBe(401);
-    expect(await res.json()).toEqual({ error: "Invalid credentials" });
+    expect(await res.json()).toEqual({
+      status: 401,
+      detail: "Invalid credentials",
+      code: "identity.invalid_credentials",
+    });
   });
 
-  it("forwards non-JSON bodies unchanged", async () => {
+  it("replaces a non-JSON backend 5xx body with a safe envelope", async () => {
     globalThis.fetch = mockFetchResponse({
       status: 502,
       body: "Bad Gateway",
@@ -157,11 +165,15 @@ describe("forwardJsonPost", () => {
     );
 
     expect(res.status).toBe(502);
-    expect(res.headers.get("Content-Type")).toBe("text/plain");
-    expect(await res.text()).toBe("Bad Gateway");
+    expect(res.headers.get("Content-Type")).toBe("application/problem+json");
+    expect(await res.json()).toMatchObject({
+      status: 502,
+      detail: "Bad Gateway",
+      code: "general.unavailable",
+    });
   });
 
-  it("forwards malformed backend JSON unchanged", async () => {
+  it("replaces malformed backend 5xx JSON with a safe envelope", async () => {
     globalThis.fetch = mockFetchResponse({
       status: 500,
       body: "not-json-at-all",
@@ -174,8 +186,12 @@ describe("forwardJsonPost", () => {
     );
 
     expect(res.status).toBe(500);
-    expect(res.headers.get("Content-Type")).toBe("application/json");
-    expect(await res.text()).toBe("not-json-at-all");
+    expect(res.headers.get("Content-Type")).toBe("application/problem+json");
+    expect(await res.json()).toMatchObject({
+      status: 500,
+      detail: "Internal Server Error",
+      code: "general.server",
+    });
     expect(captureException).not.toHaveBeenCalled();
   });
 
@@ -197,7 +213,11 @@ describe("forwardJsonPost", () => {
     );
 
     expect(res.status).toBe(500);
-    expect(await res.json()).toEqual({ error: "Internal Server Error" });
+    expect(await res.json()).toMatchObject({
+      status: 500,
+      detail: "Internal Server Error",
+      code: "general.server",
+    });
     expect(consoleError).toHaveBeenCalledWith(
       "proxy_failed",
       expect.objectContaining({ path: "/api/auth/login" }),

@@ -169,7 +169,9 @@ export const SETUP_TOURS: Readonly<
       {
         target: create,
         title: "Personal einladen",
-        text: "Wählen Sie „+ Personal“.",
+        // „+ Personal“ klappt auf: einladen oder externe Person anlegen
+        // (#4573). Die nächste Station wartet auf das Einladungsformular.
+        text: "Wählen Sie „+ Personal“ und danach „Personal einladen“.",
         advance: "click",
       },
       {
@@ -218,7 +220,7 @@ export const SETUP_TOURS: Readonly<
   groups: {
     path: "/database/groups",
     stops: [
-      ...viaSidebar("/database/groups", "Gruppen"),
+      ...viaSidebar("/database/groups", "Gruppendaten"),
       {
         target: create,
         title: "Gruppe anlegen",

@@ -7,8 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
+	"github.com/moto-nrw/project-phoenix/api"
+
+	calModels "github.com/moto-nrw/project-phoenix/modules/appointments"
 	calendarSvc "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -18,8 +19,9 @@ import (
 // Transport is a deterministic local sink; the real outbox and claim stores run.
 func TestReminderRuntimeEvidence(t *testing.T) {
 	t.Parallel()
+	testpkg.RequireRuntimeEvidence(t)
 	testpkg.SetupIsolatedTestDB(t)
-	db, calendar := testutil.SetupCalendarModule(t)
+	db, calendar := setupCalendarModule(t)
 	_, organizer := testpkg.CreateTestCalendarStaff(t, db, "Reminder", "Runtime")
 	parent := testpkg.CreateTestParentGuardianChain(t, db)
 	ctx := calendarContext(t, organizer.ID)
@@ -36,10 +38,10 @@ func TestReminderRuntimeEvidence(t *testing.T) {
 	effects.FilterEmail = func(_ context.Context, ids []int64) ([]int64, error) { return ids, nil }
 	effects.FilterPush = effects.FilterEmail
 	effects.Push = func(context.Context, int64, []int64, []int64, string) (bool, error) { return true, nil }
-	command := testutil.ComposeCalendarReminderCommand(db, reminderEffectsSource{effects})
+	command := api.NewCalendarReminderCommand(testpkg.NewDatabase(t, db), reminderEffectsSource{effects})
 	startsAt := berlinInstant(t, date, 18, 0)
-	_, reminders := testutil.SetupRemindersModule(t, func() time.Time { return berlinInstant(t, date, 12, 0) })
-	require.NoError(t, reminders.Settings.SetValue(testpkg.Ctx(t), "reminders.pickup_upcoming_enabled", true, nil, nil))
+	_, reminders, settings := setupRemindersModule(t, func() time.Time { return berlinInstant(t, date, 12, 0) })
+	require.NoError(t, settings.Settings.SetValue(testpkg.Ctx(t), "reminders.pickup_upcoming_enabled", true, nil, nil))
 	for index := range 8 {
 		testpkg.CreateTestRoom(t, db, fmt.Sprintf("Runtime room %d", index))
 	}
@@ -71,7 +73,7 @@ func TestReminderRuntimeEvidence(t *testing.T) {
 				before := db.Stats()
 				started := time.Now()
 				if operation == "reminder-delivery.query.admin" {
-					_, err = reminders.Reminders.ComputeForCaller(measuredCtx, true)
+					_, err = testpkg.MeasuredTenantQuery1(t, measuredCtx, db, counter, reminders.Reminders.ComputeForCaller, true)
 				} else {
 					var queued int
 					queued, err = command.EnqueueDueAppointmentReminders(measuredCtx, startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute))

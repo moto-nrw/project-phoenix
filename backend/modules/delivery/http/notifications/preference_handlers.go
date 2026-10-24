@@ -7,9 +7,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/api/common"
-	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 )
 
 // notificationTypePattern bounds the path segment before it reaches the
@@ -35,67 +32,67 @@ func (p *preferenceRequest) Bind(_ *http.Request) error {
 // listPreferences returns the staff catalogue with this account's decisions.
 func (rs *Resource) listPreferences(w http.ResponseWriter, r *http.Request) {
 	if rs.PreferenceService == nil {
-		common.RenderError(w, r, common.ErrorInternalServer(errors.New("notification preferences are not configured")))
+		rs.Runtime.Internal(w, r, errors.New("notification preferences are not configured"))
 		return
 	}
 
-	accountID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
+	accountID := int64(rs.Runtime.Caller(r.Context()).ID)
 	overview, err := rs.PreferenceService.GetForAccount(r.Context(), accountID, requestPortal(r))
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		rs.Runtime.Internal(w, r, err)
 		return
 	}
 
-	common.Respond(w, r, http.StatusOK, overview, "Notification preferences retrieved successfully")
+	rs.Runtime.Respond(w, r, http.StatusOK, overview, "Notification preferences retrieved successfully")
 }
 
 // setPreference records one decision for this account.
 func (rs *Resource) setPreference(w http.ResponseWriter, r *http.Request) {
 	if rs.PreferenceService == nil {
-		common.RenderError(w, r, common.ErrorInternalServer(errors.New("notification preferences are not configured")))
+		rs.Runtime.Internal(w, r, errors.New("notification preferences are not configured"))
 		return
 	}
 
 	notificationType := chi.URLParam(r, "type")
 	if !notificationTypePattern.MatchString(notificationType) {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid notification type")))
+		rs.Runtime.Invalid(w, r, errors.New("invalid notification type"))
 		return
 	}
 
 	r.Body = http.MaxBytesReader(w, r.Body, 1<<10)
 	req := &preferenceRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		rs.Runtime.Invalid(w, r, err)
 		return
 	}
 
-	accountID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
+	accountID := int64(rs.Runtime.Caller(r.Context()).ID)
 	err := rs.PreferenceService.SetForPortalAccount(r.Context(), accountID, requestPortal(r), notificationType, *req.Enabled)
 	switch {
-	case errors.Is(err, notificationsService.ErrUnknownNotificationType):
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+	case rs.PreferenceService.IsUnknownType(err):
+		rs.Runtime.Invalid(w, r, err)
 		return
 	case err != nil:
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		rs.Runtime.Internal(w, r, err)
 		return
 	}
 
-	common.Respond(w, r, http.StatusNoContent, nil, "")
+	rs.Runtime.Respond(w, r, http.StatusNoContent, nil, "")
 }
 
 // deleteAllPreferences switches every decision of this account off. It backs
 // the card's "Alle deaktivieren" action.
 func (rs *Resource) deleteAllPreferences(w http.ResponseWriter, r *http.Request) {
 	if rs.PreferenceService == nil {
-		common.RenderError(w, r, common.ErrorInternalServer(errors.New("notification preferences are not configured")))
+		rs.Runtime.Internal(w, r, errors.New("notification preferences are not configured"))
 		return
 	}
 
-	accountID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
+	accountID := int64(rs.Runtime.Caller(r.Context()).ID)
 	if err := rs.PreferenceService.DisableAllForPortalAccount(r.Context(), accountID, requestPortal(r)); err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		rs.Runtime.Internal(w, r, err)
 		return
 	}
 
-	common.Respond(w, r, http.StatusNoContent, nil, "")
+	rs.Runtime.Respond(w, r, http.StatusNoContent, nil, "")
 }

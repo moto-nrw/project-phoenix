@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	directoryPorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -12,12 +14,13 @@ import (
 	"github.com/uptrace/bun"
 )
 
-func newCareExitBaselineModule(t *testing.T, db *bun.DB, sessions timetable.SessionFacts) *timetable.Module {
+func newCareExitBaselineModule(t *testing.T, db *bun.DB, sessions timetable.SessionFacts) timetable.Owner {
 	t.Helper()
 	module, err := New(Dependencies{
+		Provenance:          testpkg.EnrollmentProvenance{},
 		LockStaffAssignment: func(context.Context, int64) error { return nil },
 		DB:                  db,
-		Students:            StudentDirectoryFunc(func(context.Context) ([]TargetStudent, error) { return nil, nil }),
+		Students:            directoryPorts.StudentDirectoryFunc(func(context.Context) ([]directoryPorts.TargetStudent, error) { return nil, nil }),
 		Rooms: timetable.RoomDirectoryFunc(func(context.Context, []int64) ([]timetable.RoomRef, error) {
 			return nil, nil
 		}),

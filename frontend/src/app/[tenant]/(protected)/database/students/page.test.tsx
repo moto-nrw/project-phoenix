@@ -65,12 +65,13 @@ vi.mock("~/components/ui/hooks/useIsMobile", () => ({
   useIsMobile: vi.fn(() => false),
 }));
 
-const mockToastError = vi.fn();
+const mockShowMessage = vi.fn();
+const actionErrorApi = { showMessage: mockShowMessage };
 vi.mock("~/contexts/ToastContext", () => ({
   useToast: vi.fn(() => ({
     success: vi.fn(),
-    error: mockToastError,
   })),
+  useApiErrorDisplay: () => actionErrorApi,
 }));
 
 // Mock UI components
@@ -586,15 +587,19 @@ describe("StudentsPage", () => {
   it("does not search retired guardian names", async () => {
     render(<StudentsPage />);
 
+    expect(screen.getByText("Max Mustermann")).toBeInTheDocument();
+
     // name_lg is "Hans Mustermann" for student with id "1"
     const searchInput = screen.getByTestId("search-input");
     fireEvent.change(searchInput, { target: { value: "Hans" } });
 
-    await waitFor(() => {
-      expect(screen.queryByText("Max Mustermann")).not.toBeInTheDocument();
-      // Anna has null name_lg, so should be filtered out
-      expect(screen.queryByText("Anna Schmidt")).not.toBeInTheDocument();
-    });
+    // Anker: die Suche ist ausgewertet, die Liste zeigt ihren Leerzustand.
+    expect(
+      await screen.findByText("Keine Kinder gefunden"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Max Mustermann")).not.toBeInTheDocument();
+    // Anna has null name_lg, so should be filtered out
+    expect(screen.queryByText("Anna Schmidt")).not.toBeInTheDocument();
   });
 
   it("handles nullish name and class fields without a legacy contact fallback", async () => {
@@ -603,14 +608,17 @@ describe("StudentsPage", () => {
     // Student id "3" has first_name/second_name/school_class/group_name all null;
     // searching exercises every `?.` falsy
     // branch in the search filter.
+    expect(screen.getByText("Max Mustermann")).toBeInTheDocument();
     const searchInput = screen.getByTestId("search-input");
     fireEvent.change(searchInput, { target: { value: "Erika" } });
 
-    await waitFor(() => {
-      expect(screen.queryByText(/Erika Beispiel/)).not.toBeInTheDocument();
-      expect(screen.queryByText("Max Mustermann")).not.toBeInTheDocument();
-      expect(screen.queryByText("Anna Schmidt")).not.toBeInTheDocument();
-    });
+    // Anker: die Suche ist ausgewertet, die Liste zeigt ihren Leerzustand.
+    expect(
+      await screen.findByText("Keine Kinder gefunden"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Erika Beispiel/)).not.toBeInTheDocument();
+    expect(screen.queryByText("Max Mustermann")).not.toBeInTheDocument();
+    expect(screen.queryByText("Anna Schmidt")).not.toBeInTheDocument();
   });
 
   it("filters students by school class", async () => {

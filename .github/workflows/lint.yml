@@ -23,6 +23,15 @@ defaults:
 env:
   GOTOOLCHAIN: local
 
+# Runners: standard GitHub runners are free for this public repository and run
+# every job here except frontend-build and full backend lint. Full lint took
+# 4:07 on a hosted runner after the test suites were split; affected-package
+# PR lint stays on the free runner. frontend-build stays on
+# Blacksmith: on a frontend-only pull request it runs about as long as
+# test-frontend, and its per-commit Next.js cache would churn the 10 GB GitHub
+# cache.
+# nightly.yml runs this workflow on development to keep the GitHub caches warm.
+
 jobs:
   error-code-registry:
     if: ${{ inputs.run-error-codes }}
@@ -32,18 +41,17 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
         with:
           node-version: "24"
       - name: Check error code registry and generated files
         run: |
           node --test scripts/generate-error-codes.test.mjs
-          node scripts/generate-error-codes.mjs
-          git diff --exit-code -- backend/api/common/error_codes.generated.go frontend/src/lib/error-codes.generated.ts
+          node scripts/generate-error-codes.mjs --check
 
   backend-quality:
     if: ${{ inputs.run-backend }}
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     permissions:
       contents: read
     steps:
@@ -58,17 +66,24 @@ jobs:
             backend/tools/go.sum
 
       - name: Backend quality (shared with pre-push)
+        # Source ratchets run once per PR: test.yml selects ./test for every
+        # backend test change, and ci-scripts covers toolchain-filter changes.
+        # Lint-only inputs (quality scripts, .golangci.yml) feed no ratchet.
+        env:
+          SKIP_SOURCE_RATCHETS: 'true'
         run: bash scripts/check-quality.sh backend
 
   backend-lint:
     if: ${{ inputs.run-backend }}
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ${{ inputs.full-backend && 'blacksmith-8vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     permissions:
       contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          # Package selection reads file names only; no file contents needed.
+          filter: blob:none
       - name: Setup Go with cache
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
@@ -95,7 +110,7 @@ jobs:
 
   frontend-quality:
     if: ${{ inputs.run-frontend }}
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     permissions:
       contents: read
     steps:
@@ -105,7 +120,7 @@ jobs:
         run: corepack enable
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
         with:
           node-version: "24"
           cache: "pnpm"
@@ -118,13 +133,19 @@ jobs:
       - name: Frontend quality (shared with pre-push)
         run: bash scripts/check-quality.sh frontend
 
+      # Storybook supplies its own mock environment and needs no Next build.
+      # Keep it off the serial Next.js/bundle-ratchet critical path.
+      - name: Build Storybook
+        working-directory: frontend
+        run: pnpm run build-storybook
+
   frontend-react-doctor:
     # Changed-scope only: the existing codebase has ~1000 findings, so a full
     # scan would always fail. This gates only issues introduced by the PR
     # (fails on error severity, warnings are advisory). Push builds skip it —
     # there is no PR base to diff against.
     if: ${{ inputs.run-frontend && github.event_name == 'pull_request' }}
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     permissions:
       contents: read
     steps:
@@ -133,7 +154,7 @@ jobs:
           fetch-depth: 0
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
         with:
           node-version: "24"
 
@@ -171,19 +192,30 @@ jobs:
         run: corepack enable
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
         with:
           node-version: "24"
           cache: "pnpm"
           cache-dependency-path: "frontend/pnpm-lock.yaml"
 
+      # Actions re-evaluates cache inputs in the post step. Compute these once,
+      # before node_modules and build outputs exist: the same glob cost 24s
+      # after Storybook, even on an exact cache hit with no upload.
+      - name: Compute Next.js cache key
+        id: next-cache-key
+        env:
+          CACHE_KEY: ${{ runner.os }}-nextjs-${{ hashFiles('frontend/pnpm-lock.yaml') }}-${{ hashFiles('frontend/**/*.js', 'frontend/**/*.jsx', 'frontend/**/*.ts', 'frontend/**/*.tsx') }}
+          CACHE_PREFIX: ${{ runner.os }}-nextjs-${{ hashFiles('frontend/pnpm-lock.yaml') }}-
+        run: |
+          echo "key=$CACHE_KEY" >> "$GITHUB_OUTPUT"
+          echo "prefix=$CACHE_PREFIX" >> "$GITHUB_OUTPUT"
+
       - name: Cache Next.js build
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: frontend/.next/cache
-          key: ${{ runner.os }}-nextjs-${{ hashFiles('frontend/pnpm-lock.yaml') }}-${{ hashFiles('frontend/**/*.js', 'frontend/**/*.jsx', 'frontend/**/*.ts', 'frontend/**/*.tsx') }}
-          restore-keys: |
-            ${{ runner.os }}-nextjs-${{ hashFiles('frontend/pnpm-lock.yaml') }}-
+          key: ${{ steps.next-cache-key.outputs.key }}
+          restore-keys: ${{ steps.next-cache-key.outputs.prefix }}
 
       - name: Install dependencies
         working-directory: frontend
@@ -204,13 +236,9 @@ jobs:
 
       - name: Upload measured bundle sizes
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: bundle-measured
           path: frontend/perf-results/bundle-measured.json
           retention-days: 14
           if-no-files-found: ignore
-
-      - name: Build Storybook
-        working-directory: frontend
-        run: pnpm run build-storybook

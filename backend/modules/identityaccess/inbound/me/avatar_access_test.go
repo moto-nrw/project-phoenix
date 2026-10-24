@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
+	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/stretchr/testify/assert"
 )
@@ -36,6 +37,7 @@ func (f *fakeAvatarProfiles) UpdateAvatar(context.Context, string) (identityacce
 
 func avatarResource(profileFunc func(context.Context) (identityaccess.CallerProfile, error)) *Resource {
 	return &Resource{
+		uploads: nativeUploads.UploadFiles{},
 		caller: identityaccess.CallerContext{
 			CallerProfiles: &fakeAvatarProfiles{profileFunc: profileFunc},
 		},
@@ -104,7 +106,8 @@ func TestServeAvatar_FilenameMismatch(t *testing.T) {
 func TestServeAvatar_EmptyFilename(t *testing.T) {
 	t.Parallel()
 
-	resource := &Resource{}
+	resource := &Resource{
+		uploads: nativeUploads.UploadFiles{}}
 	req := requestWithAvatarFilename("")
 	rr := httptest.NewRecorder()
 

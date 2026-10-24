@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { ApiError } from "~/lib/api-error";
 import { presentError } from "~/lib/error-presentation";
-import { credentialError } from "./credential-error";
+import { credentialError, LOGIN_REFUSALS } from "./credential-error";
 
 describe("credentialError", () => {
   const refused = () => {
@@ -16,7 +16,7 @@ describe("credentialError", () => {
   };
 
   it("keeps code, fields and request ID but drops the 401", () => {
-    const shown = credentialError(refused());
+    const shown = credentialError(refused(), LOGIN_REFUSALS);
 
     expect(shown).toBeInstanceOf(ApiError);
     const error = shown as ApiError;
@@ -30,20 +30,20 @@ describe("credentialError", () => {
   it("no longer sends the presentation to the login screen", () => {
     expect(presentError(refused(), "die Anmeldung").requiresLogin).toBe(true);
     expect(
-      presentError(credentialError(refused()), "die Anmeldung").requiresLogin,
+      presentError(credentialError(refused(), LOGIN_REFUSALS), "die Anmeldung")
+        .requiresLogin,
     ).toBe(false);
   });
 
-  it("uses invalid credentials for an uncoded 401", () => {
-    const shown = credentialError(new ApiError("Unauthorized", 401));
+  // An uncoded 401 is an expired session, also at a login step: no code is
+  // invented for it (ADR 0006), so the shared path leads to the login screen.
+  it("never invents a code for an uncoded 401", () => {
+    const expired = new ApiError("Unauthorized", 401);
+    const shown = credentialError(expired, LOGIN_REFUSALS);
 
-    expect(shown).toMatchObject({
-      status: undefined,
-      code: "identity.invalid_credentials",
-    });
-    expect(presentError(shown, "die Anmeldung").message).toBe(
-      "Die E-Mail-Adresse oder das Passwort stimmt nicht. Bitte prüfen Sie Ihre Eingabe.",
-    );
+    expect(shown).toBe(expired);
+    expect((shown as ApiError).code).toBe("general.permission");
+    expect(presentError(shown, "die Anmeldung").requiresLogin).toBe(true);
   });
 
   it("only rewrites the listed codes when a list is given", () => {
@@ -62,7 +62,7 @@ describe("credentialError", () => {
     const forbidden = new ApiError("Forbidden", 403);
     const crash = new Error("boom");
 
-    expect(credentialError(forbidden)).toBe(forbidden);
-    expect(credentialError(crash)).toBe(crash);
+    expect(credentialError(forbidden, LOGIN_REFUSALS)).toBe(forbidden);
+    expect(credentialError(crash, LOGIN_REFUSALS)).toBe(crash);
   });
 });

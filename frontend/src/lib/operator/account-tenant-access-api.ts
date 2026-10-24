@@ -1,7 +1,4 @@
-import { ApiError, enrichApiError, transportFetch } from "../api-error";
-import { createLogger } from "~/lib/logger";
-
-const logger = createLogger({ component: "AccountTenantAccessAPI" });
+import { apiErrorFromBody, transportFetch } from "../api-error";
 
 /** One role an account holds at one school. */
 interface AccountTenantRole {
@@ -9,6 +6,8 @@ interface AccountTenantRole {
   name: string;
   isSystem: boolean;
   baseRole: string | null;
+  /** Made from the template „Wie Lehrkraft“ (#4574). */
+  schoolPortal: boolean;
 }
 
 /** One school an account has (or had) access to. */
@@ -45,6 +44,7 @@ interface BackendAccountTenantAccess {
         name: string;
         is_system: boolean;
         base_role?: string | null;
+        school_portal?: boolean;
       }[]
     | null;
 }
@@ -55,16 +55,6 @@ interface GrantAccountTenantAccessRequest {
   firstName?: string;
   lastName?: string;
   position?: string;
-}
-
-export class AccountTenantAccessApiError extends ApiError {
-  status: number;
-
-  constructor(message: string, status: number) {
-    super(message, status);
-    this.name = "AccountTenantAccessApiError";
-    this.status = status;
-  }
 }
 
 function mapAccess(entry: BackendAccountTenantAccess): AccountTenantAccess {
@@ -89,26 +79,16 @@ function mapAccess(entry: BackendAccountTenantAccess): AccountTenantAccess {
       name: role.name,
       isSystem: role.is_system,
       baseRole: role.base_role ?? null,
+      schoolPortal: role.school_portal ?? false,
     })),
   };
 }
 
 async function throwApiError(response: Response): Promise<never> {
-  let message = `Die Anfrage ist fehlgeschlagen (${response.status}).`;
-  let body: unknown;
-  try {
-    const payload = (await response.json()) as { error?: string };
-    body = payload;
-    message = payload.error ?? message;
-  } catch (error) {
-    logger.warn("failed to parse school access error response", {
-      error: error instanceof Error ? error.message : String(error),
-      status: response.status,
-    });
-  }
-  throw enrichApiError(
-    new AccountTenantAccessApiError(message, response.status),
-    body,
+  throw apiErrorFromBody(
+    `school access request failed (${response.status})`,
+    response.status,
+    await response.json().catch(() => undefined),
   );
 }
 
@@ -137,7 +117,9 @@ async function request(
 
 async function requestRoles(
   endpoint: string,
-): Promise<{ id: string; name: string; isSystem: boolean }[]> {
+): Promise<
+  { id: string; name: string; isSystem: boolean; schoolPortal: boolean }[]
+> {
   const response = await transportFetch(endpoint, {
     credentials: "include",
     headers: { "Content-Type": "application/json" },
@@ -146,12 +128,20 @@ async function requestRoles(
     await throwApiError(response);
   }
   const payload = (await response.json()) as {
-    data?: { id: string; name: string; is_system: boolean }[] | null;
+    data?:
+      | {
+          id: string;
+          name: string;
+          is_system: boolean;
+          school_portal?: boolean;
+        }[]
+      | null;
   };
   return (payload.data ?? []).map((role) => ({
     id: role.id,
     name: role.name,
     isSystem: role.is_system,
+    schoolPortal: role.school_portal ?? false,
   }));
 }
 

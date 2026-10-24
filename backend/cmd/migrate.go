@@ -5,25 +5,24 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/moto-nrw/project-phoenix/applog"
-	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/database/migrations"
+	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	observabilityCompose "github.com/moto-nrw/project-phoenix/observability/compose"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/uptrace/bun"
 )
 
-type migrationOperation func(context.Context, *bun.DB) error
+type migrationOperation func(context.Context, transactionruntime.Database) error
 
 type migrateRoot struct {
-	openDatabase func() (*bun.DB, error)
-	migrate      migrationOperation
-	reset        migrationOperation
-	status       migrationOperation
-	preflight    migrationOperation
+	openDatabase func() (transactionruntime.Database, error)
+	migrate      migrations.Operation
+	reset        migrations.Operation
+	status       migrations.Operation
+	preflight    migrations.Operation
 }
 
-func (root migrateRoot) operation(command string) (migrationOperation, error) {
+func (root migrateRoot) operation(command string) (migrations.Operation, error) {
 	switch command {
 	case "migrate":
 		return root.migrate, nil
@@ -43,8 +42,13 @@ func (root migrateRoot) runCommand(ctx context.Context, command string) error {
 	if err != nil {
 		return err
 	}
+	if operation == nil {
+		return fmt.Errorf("migration operation is required")
+	}
 	configureMigrationLogger()
-	return root.run(ctx, operation)
+	return root.run(ctx, func(ctx context.Context, db transactionruntime.Database) error {
+		return operation(ctx, db.Pool())
+	})
 }
 
 // configureMigrationLogger installs the application logger for migration
@@ -54,15 +58,7 @@ func (root migrateRoot) runCommand(ctx context.Context, command string) error {
 // the standard-library log.Printf calls that the older migrations still make,
 // which otherwise bypass the handler and go straight to stderr.
 func configureMigrationLogger() {
-	format := "json"
-	if viper.GetBool("log_textlogging") {
-		format = "text"
-	}
-	applog.ConfigureDefault(applog.New(applog.Config{
-		Level:  viper.GetString("log_level"),
-		Format: format,
-		Env:    viper.GetString("app_env"),
-	}))
+	observabilityCompose.InstallProcessLogger(viper.GetString("log_level"), viper.GetBool("log_textlogging"), viper.GetString("app_env"))
 }
 
 func (root migrateRoot) run(ctx context.Context, operation migrationOperation) error {
@@ -76,7 +72,7 @@ func (root migrateRoot) run(ctx context.Context, operation migrationOperation) e
 	if err != nil {
 		return fmt.Errorf("open migration database: %w", err)
 	}
-	if db == nil {
+	if db.Pool() == nil {
 		return fmt.Errorf("database opener returned nil")
 	}
 	defer func() { _ = db.Close() }()
@@ -84,7 +80,7 @@ func (root migrateRoot) run(ctx context.Context, operation migrationOperation) e
 }
 
 var defaultMigrateRoot = migrateRoot{
-	openDatabase: database.DBConn,
+	openDatabase: transactionruntime.OpenDatabase,
 	migrate:      migrations.Migrate,
 	reset:        migrations.Reset,
 	status:       migrations.MigrateStatus,

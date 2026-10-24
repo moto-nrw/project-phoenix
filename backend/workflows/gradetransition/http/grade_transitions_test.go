@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	rootAPI "github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -40,7 +42,7 @@ type testContext struct {
 func setupGradeTransitionsModule(t *testing.T) *testContext {
 	t.Helper()
 
-	db, svc := testutil.SetupGradeTransitionModule(t)
+	db, svc := setupGradeTransitionModule(t)
 	resource := gradetransitionhttp.NewGradeTransitionResource(svc.GradeTransition)
 
 	return &testContext{
@@ -98,7 +100,7 @@ func TestGradeTransitionResource_List(t *testing.T) {
 	t1 := testpkg.CreateTestGradeTransition(t, tc.db, "2025-2026", account.ID)
 	t2 := testpkg.CreateTestGradeTransition(t, tc.db, "2026-2027", account.ID)
 
-	router := tc.resource.Router()
+	router := tc.resource.Router(rootAPI.ProtectedTenantRoutes)
 	token := mintAdminToken(t, account.ID)
 
 	t.Run("list returns transitions", func(t *testing.T) {
@@ -264,7 +266,7 @@ func TestGradeTransitionResource_Create(t *testing.T) {
 
 	account := testpkg.CreateTestAccount(t, tc.db, "create-test@example.com")
 
-	router := tc.resource.Router()
+	router := tc.resource.Router(rootAPI.ProtectedTenantRoutes)
 	token := mintAdminToken(t, account.ID)
 
 	t.Run("create transition without mappings", func(t *testing.T) {
@@ -365,7 +367,7 @@ func TestGradeTransitionResource_GetByID(t *testing.T) {
 	transition := testpkg.CreateTestGradeTransition(t, tc.db, "2025-2026", account.ID)
 	testpkg.CreateTestGradeTransitionMapping(t, tc.db, transition.ID, "1a", testpkg.StrPtr("2a"))
 
-	router := tc.resource.Router()
+	router := tc.resource.Router(rootAPI.ProtectedTenantRoutes)
 	token := mintAdminToken(t, account.ID)
 
 	t.Run("get transition by ID", func(t *testing.T) {
@@ -415,7 +417,7 @@ func TestGradeTransitionResource_Update(t *testing.T) {
 
 	account := testpkg.CreateTestAccount(t, tc.db, "update-test@example.com")
 
-	router := tc.resource.Router()
+	router := tc.resource.Router(rootAPI.ProtectedTenantRoutes)
 	token := mintAdminToken(t, account.ID)
 
 	t.Run("update transition notes", func(t *testing.T) {
@@ -484,7 +486,7 @@ func TestGradeTransitionResource_Delete(t *testing.T) {
 
 	account := testpkg.CreateTestAccount(t, tc.db, "delete-test@example.com")
 
-	router := tc.resource.Router()
+	router := tc.resource.Router(rootAPI.ProtectedTenantRoutes)
 	token := mintAdminToken(t, account.ID)
 
 	t.Run("delete draft transition", func(t *testing.T) {
@@ -533,7 +535,7 @@ func TestGradeTransitionResource_Preview(t *testing.T) {
 
 	account := testpkg.CreateTestAccount(t, tc.db, "preview-test@example.com")
 
-	router := tc.resource.Router()
+	router := tc.resource.Router(rootAPI.ProtectedTenantRoutes)
 	token := mintAdminToken(t, account.ID)
 
 	t.Run("preview transition", func(t *testing.T) {
@@ -585,7 +587,7 @@ func TestGradeTransitionResource_Apply(t *testing.T) {
 
 	account := testpkg.CreateTestAccount(t, tc.db, "apply-test@example.com")
 
-	router := tc.resource.Router()
+	router := tc.resource.Router(rootAPI.ProtectedTenantRoutes)
 	token := mintAdminToken(t, account.ID)
 
 	t.Run("apply transition", func(t *testing.T) {
@@ -713,7 +715,7 @@ func TestGradeTransitionResource_Revert(t *testing.T) {
 
 	account := testpkg.CreateTestAccount(t, tc.db, "revert-test@example.com")
 
-	router := tc.resource.Router()
+	router := tc.resource.Router(rootAPI.ProtectedTenantRoutes)
 	token := mintAdminToken(t, account.ID)
 
 	t.Run("revert applied transition", func(t *testing.T) {
@@ -837,7 +839,7 @@ func TestGradeTransitionResource_GetDistinctClasses(t *testing.T) {
 	_ = testpkg.CreateTestStudent(t, tc.db, "Class", "Test1", "ClassX")
 	_ = testpkg.CreateTestStudent(t, tc.db, "Class", "Test2", "ClassY")
 
-	router := tc.resource.Router()
+	router := tc.resource.Router(rootAPI.ProtectedTenantRoutes)
 	token := mintAdminToken(t, account.ID)
 
 	t.Run("get distinct classes", func(t *testing.T) {
@@ -869,7 +871,7 @@ func TestGradeTransitionResource_SuggestMappings(t *testing.T) {
 	_ = testpkg.CreateTestStudent(t, tc.db, "Suggest", "Test1", "1a")
 	_ = testpkg.CreateTestStudent(t, tc.db, "Suggest", "Test2", "4a")
 
-	router := tc.resource.Router()
+	router := tc.resource.Router(rootAPI.ProtectedTenantRoutes)
 	token := mintAdminToken(t, account.ID)
 
 	t.Run("suggest mappings", func(t *testing.T) {
@@ -897,7 +899,7 @@ func TestGradeTransitionResource_GetHistory(t *testing.T) {
 
 	account := testpkg.CreateTestAccount(t, tc.db, "history-test@example.com")
 
-	router := tc.resource.Router()
+	router := tc.resource.Router(rootAPI.ProtectedTenantRoutes)
 	token := mintAdminToken(t, account.ID)
 
 	t.Run("get history for applied transition", func(t *testing.T) {
@@ -977,7 +979,7 @@ func TestGradeTransitionResource_UpdateDelete_ErrorMapping(t *testing.T) {
 
 	account := testpkg.CreateTestAccount(t, tc.db, "update-errors-test@example.com")
 
-	router := tc.resource.Router()
+	router := tc.resource.Router(rootAPI.ProtectedTenantRoutes)
 	token := mintAdminToken(t, account.ID)
 
 	t.Run("update applied transition returns 409 not_draft", func(t *testing.T) {
@@ -1046,7 +1048,7 @@ func TestGradeTransitionResource_GetHistory_OmitsRFIDTag(t *testing.T) {
 
 	account := testpkg.CreateTestAccount(t, tc.db, "history-rfid-test@example.com")
 
-	router := tc.resource.Router()
+	router := tc.resource.Router(rootAPI.ProtectedTenantRoutes)
 	token := mintAdminToken(t, account.ID)
 
 	suffix := uuid.Must(uuid.NewV4()).String()[:8]
@@ -1108,7 +1110,7 @@ func TestTransitionRequest_Bind(t *testing.T) {
 
 	account := testpkg.CreateTestAccount(t, tc.db, "bind-test@example.com")
 
-	router := tc.resource.Router()
+	router := tc.resource.Router(rootAPI.ProtectedTenantRoutes)
 	token := mintAdminToken(t, account.ID)
 
 	t.Run("bind fails with missing academic_year", func(t *testing.T) {
@@ -1136,7 +1138,7 @@ func TestToTransitionResponse(t *testing.T) {
 
 	account := testpkg.CreateTestAccount(t, tc.db, "response-test@example.com")
 
-	router := tc.resource.Router()
+	router := tc.resource.Router(rootAPI.ProtectedTenantRoutes)
 	token := mintAdminToken(t, account.ID)
 
 	t.Run("response includes applied_at and applied_by", func(t *testing.T) {

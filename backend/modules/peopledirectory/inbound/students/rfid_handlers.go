@@ -1,14 +1,13 @@
 package students
 
 import (
-	"errors"
-	"log/slog"
-	"net/http"
+	errors "errors"
+	slog "log/slog"
+	http "net/http"
 
+	render "github.com/go-chi/render"
+	common "github.com/moto-nrw/project-phoenix/api/common"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-
-	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/api/common"
 )
 
 // checkDeviceAuth verifies device authentication and returns the kiosk's
@@ -138,7 +137,7 @@ func (rs *Resource) unassignRFIDTag(w http.ResponseWriter, r *http.Request) {
 	removedTag := *person.TagID
 
 	// Unlink the RFID tag
-	if err := rs.Persons.UnassignTag(r.Context(), person.ID); err != nil {
+	if err := rs.Persons.UnlinkFromRFIDCard(r.Context(), person.ID); err != nil {
 		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}

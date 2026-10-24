@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 )
 
@@ -33,7 +34,18 @@ type bulkInviteCandidate struct {
 // unless DryRun is set, invites the ones that can be invited. It runs on the
 // caller's tenant transaction, or opens one when called directly; any error
 // leaves nothing behind.
-func (l *AccountLifecycle) BulkInviteToStudents(ctx context.Context, req domain.BulkInviteRequest) (result *domain.BulkInviteResult, err error) {
+func (l *AccountLifecycle) BulkInviteToStudents(ctx context.Context, req identityaccess.BulkInviteRequest) (result *identityaccess.BulkInviteResult, err error) {
+	if l == nil {
+		return nil, errAccountLifecycleUnavailable
+	}
+	defer func() {
+		if err != nil {
+			result, err = nil, lifecycleError(err)
+		} else if result != nil && result.Problems == nil {
+			result.Problems = []identityaccess.BulkInviteProblem{}
+		}
+	}()
+	ctx = bindRuntime(l.auth.attach, ctx)
 	if err := validateBulkInvite(req); err != nil {
 		return nil, invalidGuardianInvitation(opGuardianBulkInvite, err)
 	}
@@ -45,13 +57,13 @@ func (l *AccountLifecycle) BulkInviteToStudents(ctx context.Context, req domain.
 	return result, err
 }
 
-func (l *AccountLifecycle) bulkInviteToStudents(ctx context.Context, req domain.BulkInviteRequest, tenantID int64) (*domain.BulkInviteResult, error) {
+func (l *AccountLifecycle) bulkInviteToStudents(ctx context.Context, req identityaccess.BulkInviteRequest, tenantID int64) (*identityaccess.BulkInviteResult, error) {
 	links, err := l.guardians.ListStudentGuardianLinksByStudents(ctx, req.StudentIDs)
 	if err != nil {
 		return nil, failed(opGuardianBulkInvite, err)
 	}
 	candidates, restricted := l.bulkInviteCandidates(links)
-	result := &domain.BulkInviteResult{DryRun: req.DryRun, SkippedRestricted: restricted, Problems: []domain.BulkInviteProblem{}}
+	result := &identityaccess.BulkInviteResult{DryRun: req.DryRun, SkippedRestricted: restricted, Problems: []identityaccess.BulkInviteProblem{}}
 	if len(candidates) == 0 {
 		return result, nil
 	}
@@ -74,7 +86,7 @@ func (l *AccountLifecycle) bulkInviteToStudents(ctx context.Context, req domain.
 	return result, nil
 }
 
-func (l *AccountLifecycle) loadBulkInviteProfiles(ctx context.Context, req domain.BulkInviteRequest, tenantID int64, candidates []bulkInviteCandidate) (map[int64]domain.GuardianProfile, map[int64][]domain.GuardianInvitation, error) {
+func (l *AccountLifecycle) loadBulkInviteProfiles(ctx context.Context, req identityaccess.BulkInviteRequest, tenantID int64, candidates []bulkInviteCandidate) (map[int64]domain.GuardianProfile, map[int64][]domain.GuardianInvitation, error) {
 	profileIDs := make([]int64, 0, len(candidates))
 	for _, candidate := range candidates {
 		profileIDs = append(profileIDs, candidate.profileID)
@@ -95,7 +107,7 @@ func (l *AccountLifecycle) loadBulkInviteProfiles(ctx context.Context, req domai
 	return profiles, open, nil
 }
 
-func (l *AccountLifecycle) newBulkInviteRun(ctx context.Context, req domain.BulkInviteRequest, tenantID int64, result *domain.BulkInviteResult, profiles map[int64]domain.GuardianProfile) (*bulkInviteRun, error) {
+func (l *AccountLifecycle) newBulkInviteRun(ctx context.Context, req identityaccess.BulkInviteRequest, tenantID int64, result *identityaccess.BulkInviteResult, profiles map[int64]domain.GuardianProfile) (*bulkInviteRun, error) {
 	run := &bulkInviteRun{req: req, tenantID: tenantID, result: result, seenEmails: map[string]bool{}, existingAccounts: map[string]domain.Account{}}
 	if !req.DryRun {
 		existingAccounts, err := l.bulkInviteExistingAccounts(ctx, profiles)
@@ -120,7 +132,7 @@ func (l *AccountLifecycle) processBulkInviteCandidates(ctx context.Context, run 
 	return nil
 }
 
-func (l *AccountLifecycle) logBulkInvite(req domain.BulkInviteRequest, result *domain.BulkInviteResult) {
+func (l *AccountLifecycle) logBulkInvite(req identityaccess.BulkInviteRequest, result *identityaccess.BulkInviteResult) {
 	l.logger.Info("guardian bulk invitation",
 		slog.Int64("created_by", req.CreatedBy),
 		slog.Bool("dry_run", req.DryRun),
@@ -156,7 +168,7 @@ func (l *AccountLifecycle) bulkInviteExistingAccounts(ctx context.Context, profi
 	return accounts, nil
 }
 
-func validateBulkInvite(req domain.BulkInviteRequest) error {
+func validateBulkInvite(req identityaccess.BulkInviteRequest) error {
 	if req.CreatedBy <= 0 {
 		return fmt.Errorf("created_by is required")
 	}
@@ -213,9 +225,9 @@ func (l *AccountLifecycle) openInvitationsByProfile(ctx context.Context, profile
 }
 
 type bulkInviteRun struct {
-	req        domain.BulkInviteRequest
+	req        identityaccess.BulkInviteRequest
 	tenantID   int64
-	result     *domain.BulkInviteResult
+	result     *identityaccess.BulkInviteResult
 	seenEmails map[string]bool
 	// existingAccounts was read in one statement before the loop. It is only
 	// needed on the write path; previews deliberately remain side-effect free.
@@ -226,7 +238,7 @@ type bulkInviteRun struct {
 }
 
 func (r *bulkInviteRun) problem(candidate bulkInviteCandidate, profile domain.GuardianProfile, reason string) {
-	r.result.Problems = append(r.result.Problems, domain.BulkInviteProblem{
+	r.result.Problems = append(r.result.Problems, identityaccess.BulkInviteProblem{
 		GuardianProfileID: profile.ID, GuardianName: profile.FullName(), Reason: reason,
 	})
 	r.problemStudents = append(r.problemStudents, candidate.studentIDs)
@@ -362,7 +374,11 @@ func (l *AccountLifecycle) resendOpenInvitation(ctx context.Context, dryRun bool
 		if dryRun {
 			return true, nil
 		}
-		invitation.ExpiresAt = time.Now().Add(l.delivery.InvitationExpiry(ctx))
+		expiry, err := l.delivery.InvitationExpiry(ctx)
+		if err != nil {
+			return false, failed(opGuardianBulkInvite, err)
+		}
+		invitation.ExpiresAt = time.Now().Add(expiry)
 		invitation.EmailSentAt = nil
 		invitation.EmailError = nil
 		if err := l.invitations.UpdateGuardianInvitation(ctx, invitation); err != nil {
@@ -402,7 +418,7 @@ func (l *AccountLifecycle) bulkInviteFresh(ctx context.Context, run *bulkInviteR
 
 // nameBulkInviteProblems resolves the children of the guardians the run
 // could not reach, so the school knows where to fix the address.
-func (l *AccountLifecycle) nameBulkInviteProblems(ctx context.Context, problemStudents [][]int64, result *domain.BulkInviteResult) error {
+func (l *AccountLifecycle) nameBulkInviteProblems(ctx context.Context, problemStudents [][]int64, result *identityaccess.BulkInviteResult) error {
 	if len(problemStudents) == 0 {
 		return nil
 	}

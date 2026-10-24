@@ -6,19 +6,22 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/guardianlinkview"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
 	"github.com/uptrace/bun"
 )
 
 // ListPortalContacts batches the two directory-owned tables in one statement.
 // The application filters these candidates through the identity projection.
-func (s *GuardianStore) ListPortalContacts(ctx context.Context, guardianIDs, studentIDs []int64) ([]domain.GuardianPortalContact, domain.OperationStats, error) {
-	result := []domain.GuardianPortalContact{}
+func (s *GuardianStore) ListPortalContacts(ctx context.Context, guardianIDs, studentIDs []int64) ([]peopledirectory.GuardianPortalContact, domain.OperationStats, error) {
+	result := []peopledirectory.GuardianPortalContact{}
 	if len(guardianIDs) == 0 && len(studentIDs) == 0 {
 		return result, domain.OperationStats{}, nil
 	}
-	db, tenantID, err := s.database(ctx)
+	if s.links == nil {
+		return nil, domain.OperationStats{}, errGuardianLinksUnbound
+	}
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
@@ -33,13 +36,13 @@ func (s *GuardianStore) ListPortalContacts(ctx context.Context, guardianIDs, stu
 	}
 	query := db.NewSelect().TableExpr("users.guardian_profiles AS gp").
 		ColumnExpr("gp.id AS guardian_profile_id, gp.tenant_id, gp.account_id, gp.first_name, gp.last_name, gp.email, gp.portal_locale, sg.student_id, sg.permissions -> 'parent_portal.access' AS portal_permission").
-		Join("LEFT JOIN (?) AS sg ON sg.guardian_profile_id = gp.id AND sg.tenant_id = gp.tenant_id", guardianlinkview.Query(db, tenantID)).
+		Join("LEFT JOIN (?) AS sg ON sg.guardian_profile_id = gp.id AND sg.tenant_id = gp.tenant_id", s.links.GuardianLinkRows(db, scope.TenantID)).
 		Where("gp.account_id IS NOT NULL").
 		WhereGroup(" AND ", func(q *bun.SelectQuery) *bun.SelectQuery {
 			return q.Where("gp.id IN (?)", bun.List(guardianIDs)).WhereOr("sg.student_id IN (?)", bun.List(studentIDs))
 		})
-	if tenantID > 0 {
-		query = query.Where("gp.tenant_id = ?", tenantID)
+	if !scope.AcrossSchools {
+		query = query.Where("gp.tenant_id = ?", scope.TenantID)
 	}
 	started := time.Now()
 	err = query.OrderExpr("gp.id, sg.student_id").Scan(ctx, &rows)
@@ -48,7 +51,7 @@ func (s *GuardianStore) ListPortalContacts(ctx context.Context, guardianIDs, stu
 		return nil, stats, fmt.Errorf("people directory postgres: guardian portal contacts: %w", err)
 	}
 	for _, row := range rows {
-		result = append(result, domain.GuardianPortalContact{
+		result = append(result, peopledirectory.GuardianPortalContact{
 			GuardianProfileID: row.GuardianProfileID, TenantID: row.TenantID, AccountID: row.AccountID,
 			FirstName: row.FirstName, LastName: row.LastName, Email: row.Email, PortalLocale: row.PortalLocale,
 			StudentID:        row.StudentID,

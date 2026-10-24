@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { StudentNotizenTab } from "./student-notizen-tab";
 import { ApiError } from "~/lib/api-error";
-import type { StudentNote } from "~/lib/student-notes-api";
+import type { StudentNote, StudentNoteDraft } from "~/lib/student-notes-api";
 
 // The tab renders the authority the backend sent and nothing else: an entry
 // the reader may not correct carries no Bearbeiten, one they may not remove
@@ -13,6 +13,7 @@ const listMock = vi.fn();
 const createMock = vi.fn();
 const updateMock = vi.fn();
 const removeMock = vi.fn();
+const listActivitiesMock = vi.fn();
 
 vi.mock("~/lib/student-notes-api", async (importOriginal) => {
   const actual =
@@ -24,12 +25,24 @@ vi.mock("~/lib/student-notes-api", async (importOriginal) => {
       create: (...args: unknown[]) => createMock(...args) as unknown,
       update: (...args: unknown[]) => updateMock(...args) as unknown,
       remove: (...args: unknown[]) => removeMock(...args) as unknown,
+      listActivities: (...args: unknown[]) =>
+        listActivitiesMock(...args) as unknown,
     },
   };
 });
 
 vi.mock("~/lib/swr", () => ({
-  useSWRAuth: (_key: string, fetcher: () => Promise<unknown>) => {
+  useSWRAuth: (key: string, fetcher: () => Promise<unknown>) => {
+    // The activity read has its own state, so the note card's state stays
+    // exactly what each test sets up.
+    if (key.startsWith("student-note-activities-")) {
+      return {
+        data: activityState.data,
+        isLoading: false,
+        error: activityState.error,
+        mutate: vi.fn(),
+      };
+    }
     const state = swrState;
     if (!state.started) {
       state.started = true;
@@ -46,6 +59,11 @@ vi.mock("~/lib/swr", () => ({
   },
   useTenantMutate: () => swrState.tenantMutate,
 }));
+
+const activityState: { data: unknown; error: unknown } = {
+  data: [],
+  error: undefined,
+};
 
 const swrState: {
   started: boolean;
@@ -85,18 +103,28 @@ function note(overrides: Partial<StudentNote> = {}): StudentNote {
   };
 }
 
-function renderTab(notes: StudentNote[]) {
+function renderTab(
+  notes: StudentNote[],
+  props: { educationGroupId?: string; educationGroupName?: string } = {},
+) {
   swrState.started = false;
   swrState.data = notes;
   swrState.isLoading = false;
   swrState.error = undefined;
   listMock.mockResolvedValue(notes);
-  return render(<StudentNotizenTab studentId="7" />);
+  return render(<StudentNotizenTab studentId="7" {...props} />);
+}
+
+function chooseOption(label: string, option: string) {
+  fireEvent.click(screen.getByLabelText(label));
+  fireEvent.click(screen.getByRole("option", { name: option }));
 }
 
 describe("StudentNotizenTab", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    activityState.data = [];
+    activityState.error = undefined;
     swrState.mutate = vi.fn(async () => undefined);
     swrState.tenantMutate = vi.fn(async () => undefined);
   });
@@ -127,6 +155,8 @@ describe("StudentNotizenTab", () => {
 
   it("offers no actions on a note the reader may neither correct nor remove", () => {
     renderTab([note()]);
+    // Anker: die Notiz selbst ist gerendert.
+    expect(screen.getByText("Hat heute vorgelesen.")).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Aktionen zur Notiz" }),
     ).not.toBeInTheDocument();
@@ -378,5 +408,169 @@ describe("StudentNotizenTab", () => {
         "Für die Notiz fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
       ),
     ).toBeInTheDocument();
+  });
+
+  describe("reference to a group or an activity", () => {
+    const activities = [
+      { id: "12", name: "Fußball-AG" },
+      { id: "15", name: "Schach" },
+    ];
+
+    it("offers the child alone, its OGS group and its activities", () => {
+      activityState.data = activities;
+      renderTab([], { educationGroupId: "4", educationGroupName: "Bären" });
+      fireEvent.click(
+        screen.getAllByRole("button", { name: "Neue Notiz" })[0]!,
+      );
+      fireEvent.click(screen.getByLabelText("Bezug"));
+
+      expect(
+        screen.getAllByRole("option").map((option) => option.textContent),
+      ).toEqual([
+        "Nur das Kind",
+        "OGS-Gruppe Bären",
+        "Angebot Fußball-AG",
+        "Angebot Schach",
+      ]);
+    });
+
+    it("writes an entry about an activity on its day for the activity's leads", async () => {
+      activityState.data = activities;
+      createMock.mockResolvedValue(undefined);
+      renderTab([], { educationGroupId: "4", educationGroupName: "Bären" });
+      fireEvent.click(
+        screen.getAllByRole("button", { name: "Neue Notiz" })[0]!,
+      );
+
+      // Without a reference there is no leadership to choose.
+      fireEvent.click(screen.getByLabelText("Wer sieht die Notiz?"));
+      expect(
+        screen.queryByRole("option", { name: "Angebotsleitung" }),
+      ).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole("option", { name: "Ganzes Team" }));
+
+      chooseOption("Bezug", "Angebot Fußball-AG");
+      chooseOption("Wer sieht die Notiz?", "Angebotsleitung");
+      fireEvent.change(screen.getByLabelText("Notiz"), {
+        target: { value: "Hat beim Training gefehlt." },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+      await waitFor(() => {
+        expect(createMock).toHaveBeenCalledTimes(1);
+      });
+      const [, draft] = createMock.mock.calls[0] as [string, StudentNoteDraft];
+      expect(draft).toMatchObject({
+        kind: "journal",
+        visibility: "group_leads",
+        activityGroupId: "12",
+        subjectDate: "2026-09-09",
+      });
+      expect(draft.educationGroupId).toBeUndefined();
+    });
+
+    it("names the OGS group's leadership for a note about the group", async () => {
+      createMock.mockResolvedValue(undefined);
+      renderTab([], { educationGroupId: "4", educationGroupName: "Bären" });
+      fireEvent.click(
+        screen.getAllByRole("button", { name: "Neue Notiz" })[0]!,
+      );
+      chooseOption("Bezug", "OGS-Gruppe Bären");
+      chooseOption("Wer sieht die Notiz?", "Gruppenleitung");
+      fireEvent.change(screen.getByLabelText("Notiz"), {
+        target: { value: "Streit in der Gruppe geschlichtet." },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+      await waitFor(() => {
+        expect(createMock).toHaveBeenCalledTimes(1);
+      });
+      const [, draft] = createMock.mock.calls[0] as [string, StudentNoteDraft];
+      expect(draft).toMatchObject({
+        visibility: "group_leads",
+        educationGroupId: "4",
+      });
+      expect(draft.activityGroupId).toBeUndefined();
+    });
+
+    // Dropping the reference must not quietly widen a leadership note to the
+    // whole team; the care team is the next narrower audience.
+    it("keeps the audience narrow when the reference is removed", async () => {
+      activityState.data = activities;
+      createMock.mockResolvedValue(undefined);
+      renderTab([]);
+      fireEvent.click(
+        screen.getAllByRole("button", { name: "Neue Notiz" })[0]!,
+      );
+      chooseOption("Bezug", "Angebot Schach");
+      chooseOption("Wer sieht die Notiz?", "Angebotsleitung");
+      chooseOption("Bezug", "Nur das Kind");
+      fireEvent.change(screen.getByLabelText("Notiz"), {
+        target: { value: "Wirkt heute müde." },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+      await waitFor(() => {
+        expect(createMock).toHaveBeenCalledTimes(1);
+      });
+      const [, draft] = createMock.mock.calls[0] as [string, StudentNoteDraft];
+      expect(draft.visibility).toBe("care_team");
+      expect(draft.activityGroupId).toBeUndefined();
+      expect(draft.educationGroupId).toBeUndefined();
+    });
+
+    it("names the activity of an entry in the chronicle", () => {
+      activityState.data = activities;
+      renderTab([
+        note({
+          activityGroupId: "12",
+          visibility: "group_leads",
+          body: "Tor geschossen.",
+        }),
+      ]);
+      expect(screen.getByText(/Angebot Fußball-AG/)).toBeInTheDocument();
+      expect(screen.getByText("Angebotsleitung")).toBeInTheDocument();
+    });
+
+    it("still marks the activity when the child no longer attends it", () => {
+      renderTab([note({ activityGroupId: "99", body: "Alter Eintrag." })]);
+      expect(screen.getByText(/· Angebot ·/)).toBeInTheDocument();
+    });
+
+    it("names the OGS group of an entry about the group", () => {
+      renderTab([note({ educationGroupId: "4", visibility: "group_leads" })], {
+        educationGroupId: "4",
+        educationGroupName: "Bären",
+      });
+      expect(screen.getByText(/OGS-Gruppe Bären/)).toBeInTheDocument();
+      expect(screen.getByText("Gruppenleitung")).toBeInTheDocument();
+    });
+
+    it("lets the note be written without activities when they fail to load", () => {
+      activityState.error = new Error("boom");
+      renderTab([]);
+      fireEvent.click(
+        screen.getAllByRole("button", { name: "Neue Notiz" })[0]!,
+      );
+      expect(
+        screen.getByText(
+          "Die Angebote konnten nicht geladen werden. Sie können die Notiz trotzdem ohne Angebot speichern.",
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it("keeps the reference fixed while correcting an entry", () => {
+      activityState.data = activities;
+      renderTab([note({ canEdit: true, activityGroupId: "12" })]);
+      fireEvent.click(
+        screen.getByRole("button", { name: "Aktionen zur Notiz" }),
+      );
+      fireEvent.click(screen.getByRole("menuitem", { name: "Bearbeiten" }));
+      expect(screen.queryByLabelText("Bezug")).not.toBeInTheDocument();
+      fireEvent.click(screen.getByLabelText("Wer sieht die Notiz?"));
+      expect(
+        screen.getByRole("option", { name: "Angebotsleitung" }),
+      ).toBeInTheDocument();
+    });
   });
 });

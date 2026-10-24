@@ -2,7 +2,6 @@ package application
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -13,16 +12,14 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-func (s *CareLifecycle) ListPendingWithdrawals(ctx context.Context, filter careplan.CareWithdrawalFilter) ([]careplan.WithdrawalCompletion, int, error) {
+func (s *CareLifecycle) inUnitListPendingWithdrawals(ctx context.Context, filter careplan.CareWithdrawalFilter) ([]careplan.WithdrawalCompletion, int, error) {
 	if filter.StudentID < 0 {
 		return nil, 0, careplan.ErrCareWithdrawalNotFound
 	}
 	return s.listWithdrawals(ctx, careplan.WithdrawalStatePending, filter.Normalized())
 }
 
-// ListResolvedWithdrawals keeps deleted completions visible without the
-// deleted child's personal data.
-func (s *CareLifecycle) ListResolvedWithdrawals(ctx context.Context, filter careplan.CareWithdrawalFilter) ([]careplan.WithdrawalCompletion, int, error) {
+func (s *CareLifecycle) inUnitListResolvedWithdrawals(ctx context.Context, filter careplan.CareWithdrawalFilter) ([]careplan.WithdrawalCompletion, int, error) {
 	return s.listWithdrawals(ctx, careplan.WithdrawalStateResolved, filter.Normalized())
 }
 
@@ -44,7 +41,7 @@ func (s *CareLifecycle) listWithdrawals(ctx context.Context, state string, filte
 	return values, total, nil
 }
 
-func (s *CareLifecycle) GetPendingWithdrawal(ctx context.Context, id int64) (careplan.WithdrawalCompletion, error) {
+func (s *CareLifecycle) inUnitGetPendingWithdrawal(ctx context.Context, id int64) (careplan.WithdrawalCompletion, error) {
 	if id <= 0 {
 		return careplan.WithdrawalCompletion{}, careplan.ErrCareWithdrawalNotFound
 	}
@@ -66,7 +63,7 @@ func withdrawalLookupError(err, notFound error) error {
 	return fmt.Errorf("care lifecycle: find care withdrawal completion: %w", err)
 }
 
-func (s *CareLifecycle) PreviewWithdrawalCareEnd(ctx context.Context, completionID int64, input careplan.CareExitInput) (*careplan.CareExitPreview, error) {
+func (s *CareLifecycle) inUnitPreviewWithdrawalCareEnd(ctx context.Context, completionID int64, input careplan.CareExitInput) (*careplan.CareExitPreview, error) {
 	completion, err := s.GetPendingWithdrawal(ctx, completionID)
 	if err != nil {
 		return nil, err
@@ -82,7 +79,7 @@ func (s *CareLifecycle) PreviewWithdrawalCareEnd(ctx context.Context, completion
 	return s.buildPreview(ctx, normalized, false, withdrawalOfferings(&completion))
 }
 
-func (s *CareLifecycle) ConfirmWithdrawalCareEnd(
+func (s *CareLifecycle) inUnitConfirmWithdrawalCareEnd(
 	ctx context.Context, completionID int64, token string, input careplan.CareExitInput, actorAccountID int64,
 ) (*careplan.CareExitResult, error) {
 	completion, err := s.GetPendingWithdrawal(ctx, completionID)
@@ -125,22 +122,7 @@ func (s *CareLifecycle) validateWithdrawalCareEnd(ctx context.Context, completio
 	return nil
 }
 
-// withdrawalSourceOfferings decodes the offerings a task recorded. The JSON
-// is Care Plan's own and written from the same type.
-func withdrawalSourceOfferings(completion careplan.WithdrawalCompletion) []careplan.CareExitSourceOffering {
-	var offerings []careplan.CareExitSourceOffering
-	if len(completion.SourceOfferings) > 0 {
-		if err := json.Unmarshal(completion.SourceOfferings, &offerings); err != nil {
-			return nil
-		}
-	}
-	return offerings
-}
-
-// ReconcileAuthoritativeBookingChange keeps the withdrawal tasks in step with
-// one booking mutation. In weekly-plan mode only a rebooking can make a task
-// obsolete; in booking-led mode the child's bookings are evaluated again.
-func (s *CareLifecycle) ReconcileAuthoritativeBookingChange(ctx context.Context, change careplan.CareWithdrawalBookingChange) error {
+func (s *CareLifecycle) inUnitReconcileAuthoritativeBookingChange(ctx context.Context, change careplan.CareWithdrawalBookingChange) error {
 	authoritative, err := s.bookingsAuthoritative(ctx)
 	if err != nil {
 		return err
@@ -193,7 +175,7 @@ func (s *CareLifecycle) reconcileWeeklyPlanRebooking(ctx context.Context, change
 	if evaluation := domain.EvaluateCareBookingStates(facts, firstBookinglessDay)[0]; !evaluation.HasCareDays {
 		return nil
 	}
-	_, err = s.records.MarkWithdrawalObsoleteForRebooking(ctx, change.StudentID, completion.FirstBookinglessDay, time.Now())
+	_, err = s.records.MarkWithdrawalObsoleteForRebooking(ctx, change.StudentID, careplan.Date(completion.FirstBookinglessDay), time.Now())
 	return err
 }
 
@@ -267,20 +249,16 @@ func (s *CareLifecycle) upsertBookingCompletion(ctx context.Context, evaluation 
 	if sourceOfferings == nil {
 		sourceOfferings = []careplan.CareExitSourceOffering{}
 	}
-	encoded, err := json.Marshal(sourceOfferings)
-	if err != nil {
-		return fmt.Errorf("care lifecycle: encode care withdrawal source offerings: %w", err)
-	}
-	_, err = s.records.UpsertPendingWithdrawal(ctx, careplan.WithdrawalCompletion{
+	_, err := s.records.UpsertPendingWithdrawal(ctx, careplan.WithdrawalCompletion{
 		StudentID:               &studentID,
-		FirstBookinglessDay:     careplan.Date(*evaluation.FirstBookinglessDay),
+		FirstBookinglessDay:     *evaluation.FirstBookinglessDay,
 		Trigger:                 trigger,
 		SourceAdjustmentID:      optionalPositiveID(change.SourceAdjustmentID),
 		SourceRequestChildID:    optionalPositiveID(sourceChildID),
 		WithdrawalConfirmedBy:   actorID,
 		WithdrawalConfirmedRole: role,
 		WithdrawalConfirmedAt:   time.Now(),
-		SourceOfferings:         encoded,
+		SourceOfferings:         sourceOfferings,
 		State:                   careplan.WithdrawalStatePending,
 	})
 	if err != nil {

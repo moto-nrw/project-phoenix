@@ -209,6 +209,27 @@ type Phase struct {
 // migration 1.15.67 plus a couple of sanity rules (name non-empty,
 // kind in known set).
 func (p *Phase) Validate() error {
+	steps := []func() error{
+		p.validateIdentity,
+		p.validateServicePeriod,
+		p.validateModes,
+		p.validateRollover,
+		p.normalizeTranslations,
+		p.validateAvailableSchoolClasses,
+		p.validateAudience,
+		p.validateEligibleSchoolClasses,
+		p.validateEligibleGradeLevels,
+	}
+	for _, step := range steps {
+		if err := step(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// validateIdentity trims the name and defaults and checks the kind.
+func (p *Phase) validateIdentity() error {
 	p.Name = strings.TrimSpace(p.Name)
 	if p.Name == "" {
 		return invalidInput(CodePhaseNameRequired, "name", errors.New("phase name is required"))
@@ -219,6 +240,11 @@ func (p *Phase) Validate() error {
 	if !validPhaseKinds[p.Kind] {
 		return fmt.Errorf("phase kind must be one of school_year/holiday/custom, got %q", p.Kind)
 	}
+	return nil
+}
+
+// validateServicePeriod checks the service period and the enrollment window.
+func (p *Phase) validateServicePeriod() error {
 	if p.ServiceStartDate.IsZero() {
 		return invalidInput(CodePhaseServicePeriodInvalid, "service_start_date", errors.New("service_start_date is required"))
 	}
@@ -232,6 +258,12 @@ func (p *Phase) Validate() error {
 		!p.EnrollmentCloseAt.After(*p.EnrollmentOpenAt) {
 		return invalidInput(CodePhaseWindowInvalid, "enrollment_close_at", errors.New("enrollment_close_at must be after enrollment_open_at"))
 	}
+	return nil
+}
+
+// validateModes defaults and checks the care overflow and offering selection
+// modes.
+func (p *Phase) validateModes() error {
 	if p.CareOverflowMode == "" {
 		p.CareOverflowMode = PhaseCareOverflowWaitlist
 	}
@@ -244,13 +276,16 @@ func (p *Phase) Validate() error {
 	if !validPhaseCareOfferingSelectionModes[p.CareOfferingSelectionMode] {
 		return fmt.Errorf("care_offering_selection_mode must be optional/at_least_one/exactly_one, got %q", p.CareOfferingSelectionMode)
 	}
-	if err := p.validateRollover(); err != nil {
-		return err
-	}
+	return nil
+}
+
+func (p *Phase) normalizeTranslations() error {
 	var err error
-	if p.Translations, err = p.Translations.Normalize(TranslationAttrName); err != nil {
-		return err
-	}
+	p.Translations, err = p.Translations.Normalize(TranslationAttrName)
+	return err
+}
+
+func (p *Phase) validateAvailableSchoolClasses() error {
 	// available_school_classes is NOT NULL jsonb; a nil slice would bind
 	// NULL and violate the constraint. Coalesce so every create/update
 	// path (admin form, rollover, tests) stores '[]' rather than NULL.
@@ -264,12 +299,20 @@ func (p *Phase) Validate() error {
 	if p.RequireSchoolClass && !hasNonEmptySchoolClass(p.AvailableSchoolClasses) {
 		return invalidInput(CodePhaseSchoolClassesInvalid, "available_school_classes", errors.New("require_school_class needs at least one available_school_class"))
 	}
+	return nil
+}
+
+func (p *Phase) validateAudience() error {
 	if p.Audience == "" {
 		p.Audience = PhaseAudienceOpen
 	}
 	if !validPhaseAudiences[p.Audience] {
 		return fmt.Errorf("audience must be one of open/new_students/existing_students/linked_parents, got %q", p.Audience)
 	}
+	return nil
+}
+
+func (p *Phase) validateEligibleSchoolClasses() error {
 	// Same NOT NULL jsonb coalescing as AvailableSchoolClasses above.
 	if p.EligibleSchoolClasses == nil {
 		p.EligibleSchoolClasses = []string{}
@@ -316,6 +359,10 @@ func (p *Phase) Validate() error {
 			return invalidInputf(CodePhaseSchoolClassesInvalid, "eligible_school_classes", "eligible_school_classes entry %q must also be listed in available_school_classes; the form can only offer available classes, so a restriction to a class it never presents rejects every submission", c)
 		}
 	}
+	return nil
+}
+
+func (p *Phase) validateEligibleGradeLevels() error {
 	// Grade-level eligibility: same NOT NULL jsonb coalescing, plus the shared
 	// grade-bounds check. Unlike the class list this needs no available-list
 	// membership — the form always offers every grade 1..grade_level_max, so any
@@ -332,19 +379,20 @@ func (p *Phase) Validate() error {
 	// unsatisfiable pair up front, mirroring the eligible ⊆ available rule
 	// above. Classes without a numeric grade ("Bienen") carry no derivable
 	// grade and stay compatible with every grade restriction (#1663).
-	if len(p.EligibleGradeLevels) > 0 {
-		eligibleGrades := make(map[string]struct{}, len(p.EligibleGradeLevels))
-		for _, level := range p.EligibleGradeLevels {
-			eligibleGrades[strconv.Itoa(level)] = struct{}{}
+	if len(p.EligibleGradeLevels) == 0 {
+		return nil
+	}
+	eligibleGrades := make(map[string]struct{}, len(p.EligibleGradeLevels))
+	for _, level := range p.EligibleGradeLevels {
+		eligibleGrades[strconv.Itoa(level)] = struct{}{}
+	}
+	for _, c := range p.EligibleSchoolClasses {
+		prefix := classGrade(c)
+		if prefix == "" {
+			continue
 		}
-		for _, c := range p.EligibleSchoolClasses {
-			prefix := classGrade(c)
-			if prefix == "" {
-				continue
-			}
-			if _, ok := eligibleGrades[prefix]; !ok {
-				return invalidInputf(CodePhaseSchoolClassesInvalid, "eligible_school_classes", "eligible_school_classes entry %q belongs to grade %s, which is not in eligible_grade_levels; a child cannot satisfy both restrictions at once", c, prefix)
-			}
+		if _, ok := eligibleGrades[prefix]; !ok {
+			return invalidInputf(CodePhaseSchoolClassesInvalid, "eligible_school_classes", "eligible_school_classes entry %q belongs to grade %s, which is not in eligible_grade_levels; a child cannot satisfy both restrictions at once", c, prefix)
 		}
 	}
 	return nil

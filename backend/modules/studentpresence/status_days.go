@@ -5,8 +5,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // StudentLifecycle is the presence view of where a child stands in the care
@@ -36,8 +36,8 @@ type StudentRecord struct {
 	SchoolClass string
 	Lifecycle   StudentLifecycle
 
-	EnrolledFrom  *timezone.Date
-	EnrolledUntil *timezone.Date
+	EnrolledFrom  *calendar.Date
+	EnrolledUntil *calendar.Date
 
 	Sick         *bool
 	SickSince    *time.Time
@@ -52,7 +52,7 @@ func (s *StudentRecord) IsAlumnus() bool {
 
 // CareEndedOn reports whether the enrollment interval has ended before the
 // given day; the lifecycle status may still lag behind the scheduler.
-func (s *StudentRecord) CareEndedOn(day timezone.Date) bool {
+func (s *StudentRecord) CareEndedOn(day calendar.Date) bool {
 	return s != nil && s.EnrolledUntil != nil && day.After(*s.EnrolledUntil)
 }
 
@@ -210,6 +210,27 @@ type StatusDayOverviewFilters struct {
 type StatusDayOverview struct {
 	Entries []StatusDayOverviewEntry
 	HasMore bool
+}
+
+// StatusDayOverviewQuery selects one page of the absence overview: the status
+// days dated From through To of the listed children, each inside its own
+// window, that are still active or were archived at the end of their day. An
+// empty Children list matches nothing; an empty Status matches every status.
+type StatusDayOverviewQuery struct {
+	From     calendar.Date
+	To       calendar.Date
+	Children []StatusDayWindow
+	Status   string
+	Page     int
+	PageSize int
+}
+
+// StatusDayWindow bounds the overview rows of one child; a nil bound leaves
+// that side open.
+type StatusDayWindow struct {
+	StudentID int64
+	From      *calendar.Date
+	Until     *calendar.Date
 }
 
 // DatabaseHandle marks a live database behind the tenant unit of work. The

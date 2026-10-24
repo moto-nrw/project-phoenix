@@ -6,15 +6,16 @@ import (
 	"errors"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/domain"
 )
 
-func (s *Store) EnrollStudent(ctx context.Context, input domain.StudentEnrollment) (int64, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+func (s *Store) EnrollStudent(ctx context.Context, input schoolmembership.StudentEnrollment) (int64, domain.OperationStats, error) {
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return 0, domain.OperationStats{}, err
 	}
-	if err = requireStudentWriteTenant(tenantID); err != nil {
+	if err = requireStudentWriteTenant(scope.TenantID); err != nil {
 		return 0, domain.OperationStats{}, err
 	}
 	from, err := optionalDate(input.EnrolledFrom, "enrollment start")
@@ -28,7 +29,7 @@ func (s *Store) EnrollStudent(ctx context.Context, input domain.StudentEnrollmen
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	var id int64
-	gate, err := StudentClassWriteGateQuery(db, tenantID)
+	gate, err := StudentClassWriteGateQuery(db, scope.TenantID)
 	if err != nil {
 		return 0, domain.OperationStats{}, err
 	}
@@ -36,7 +37,7 @@ func (s *Store) EnrollStudent(ctx context.Context, input domain.StudentEnrollmen
  INSERT INTO users.student_school_memberships
   (tenant_id, student_profile_id, school_class, status, enrolled_from, enrolled_until, group_id)
   SELECT ?, ?, ?, ?, ?, ?, ? FROM class_write_gate RETURNING id`,
-		gate, tenantID, input.StudentID, input.SchoolClass, input.Status, from, until, input.GroupID).Scan(ctx, &id)
+		gate, scope.TenantID, input.StudentID, input.SchoolClass, input.Status, from, until, input.GroupID).Scan(ctx, &id)
 	stats.StatementDuration = time.Since(started)
 	if err == nil {
 		stats.Rows = 1
@@ -44,12 +45,12 @@ func (s *Store) EnrollStudent(ctx context.Context, input domain.StudentEnrollmen
 	return id, stats, err
 }
 
-func (s *Store) RenewStudentEnrollment(ctx context.Context, input domain.StudentEnrollment) (int64, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+func (s *Store) RenewStudentEnrollment(ctx context.Context, input schoolmembership.StudentEnrollment) (int64, domain.OperationStats, error) {
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return 0, domain.OperationStats{}, err
 	}
-	if err = requireStudentWriteTenant(tenantID); err != nil {
+	if err = requireStudentWriteTenant(scope.TenantID); err != nil {
 		return 0, domain.OperationStats{}, err
 	}
 	from, err := optionalDate(input.EnrolledFrom, "enrollment start")
@@ -67,7 +68,7 @@ func (s *Store) RenewStudentEnrollment(ctx context.Context, input domain.Student
 		Set("school_class = ?", input.SchoolClass).Set("status = ?", input.Status).
 		Set("enrolled_from = ?", from).Set("enrolled_until = ?", until).Set("updated_at = NOW()").
 		Set("group_id = ?", input.GroupID).
-		Where("student.tenant_id = ?", tenantID).Where("student.student_profile_id = ?", input.StudentID).
+		Where("student.tenant_id = ?", scope.TenantID).Where("student.student_profile_id = ?", input.StudentID).
 		Where("student.deleted_at IS NULL").
 		Where(`(student.status <> 'alumnus' AND ? <> 'alumnus') OR
    (student.status = ? AND student.school_class = ? AND
@@ -87,14 +88,14 @@ func (s *Store) RenewStudentEnrollment(ctx context.Context, input domain.Student
 }
 
 func (s *Store) AssignStudentGroup(ctx context.Context, studentID int64, groupID *int64) (bool, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return false, domain.OperationStats{}, err
 	}
-	if err = requireStudentWriteTenant(tenantID); err != nil {
+	if err = requireStudentWriteTenant(scope.TenantID); err != nil {
 		return false, domain.OperationStats{}, err
 	}
-	query := withStudentTenant(studentUpdate(db), tenantID).Set("group_id = ?", groupID).
+	query := withStudentTenant(studentUpdate(db), scope).Set("group_id = ?", groupID).
 		Where("student.student_profile_id = ?", studentID).
 		Where("student.status <> 'alumnus' OR student.group_id = ?::bigint OR (student.group_id IS NULL AND ?::bigint IS NULL)", groupID, groupID)
 	changed, stats, err := execStudents(ctx, query, "assign student group")

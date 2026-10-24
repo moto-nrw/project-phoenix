@@ -108,20 +108,6 @@ describe("FilteredBulkArrivalModal", () => {
     });
   });
 
-  it("does not render when isOpen is false", () => {
-    render(
-      <FilteredBulkArrivalModal
-        isOpen={false}
-        onClose={vi.fn()}
-        filter={{ type: "school_class", schoolClass: "3a" }}
-        filterLabel="3a"
-        studentsInFilter={[makeStudent("1")]}
-      />,
-    );
-
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-  });
-
   it("renders all 5 weekday inputs when open", () => {
     render(
       <FilteredBulkArrivalModal
@@ -209,10 +195,12 @@ describe("FilteredBulkArrivalModal", () => {
       />,
     );
 
+    // Anker: das Formular mit den Wochentagen ist gerendert.
+    expect(screen.getByLabelText("Montag")).toBeInTheDocument();
     await waitFor(() =>
       expect(mockFetchBulkArrivalScheduleStatus).toHaveBeenCalled(),
     );
-    expect(screen.queryByText(/Kinder haben bereits/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/eigene Ankunftszeiten/)).not.toBeInTheDocument();
   });
 
   it("gracefully treats fetch errors as no-existing-schedule", async () => {
@@ -228,10 +216,12 @@ describe("FilteredBulkArrivalModal", () => {
       />,
     );
 
+    // Anker: das Formular mit den Wochentagen ist gerendert.
+    expect(screen.getByLabelText("Montag")).toBeInTheDocument();
     await waitFor(() =>
       expect(mockFetchBulkArrivalScheduleStatus).toHaveBeenCalled(),
     );
-    expect(screen.queryByText(/Kinder haben bereits/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/eigene Ankunftszeiten/)).not.toBeInTheDocument();
   });
 
   it("disables submit until a valid time is entered", async () => {

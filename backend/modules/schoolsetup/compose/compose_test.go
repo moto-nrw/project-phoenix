@@ -4,17 +4,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	configRepo "github.com/moto-nrw/project-phoenix/database/repositories/config"
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/schoolsetup"
-	"github.com/moto-nrw/project-phoenix/modules/schoolsetup/compose"
 	schoolsetuphttp "github.com/moto-nrw/project-phoenix/modules/schoolsetup/http"
-	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -29,15 +26,9 @@ type harness struct {
 func newHarness(t *testing.T) *harness {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	runtime := testpkg.SettingsRuntime(t, db)
-	settings := configSvc.NewSettingsService(
-		configRepo.NewSettingValueRepository(runtime),
-		configRepo.NewSettingAuditRepository(runtime),
-		nil, runtime, slog.Default(),
-	)
-	testpkg.SetTenantRuntime(t, settings, db)
+	settings := api.NewSettingsTestService(testpkg.SettingsRuntime(t, db))
 	h := &harness{db: db}
-	service, err := compose.New(compose.Dependencies{Settings: settings})
+	service, err := api.NewSchoolSetupTestService(api.SchoolSetupSettings{Settings: settings})
 	require.NoError(t, err)
 	h.router = schoolsetuphttp.NewResource(service, harnessRuntime(db)).Router()
 	return h

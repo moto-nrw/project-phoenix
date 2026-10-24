@@ -4,11 +4,13 @@ import (
 	"context"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // recordingRelativeAccess captures what the root forwards to the owner.
@@ -35,10 +37,10 @@ func TestParentGuardianAccessRevokesAsParent(t *testing.T) {
 	t.Parallel()
 
 	owner := &recordingRelativeAccess{}
-	access := services.NewParentGuardianAccess(owner)
+	access := owners.NewParentGuardianAccess(owner)
 	require.NotNil(t, access)
 
-	require.NoError(t, access.RevokeAccess(context.Background(), services.GuardianAccessRevocation{
+	require.NoError(t, access.RevokeAccess(context.Background(), api.GuardianAccessRevocation{
 		StudentID: 11, GuardianProfileID: 22, ActorAccountID: 33,
 	}))
 
@@ -56,10 +58,10 @@ func TestParentGuardianAccessMarksTheRequestingParent(t *testing.T) {
 	t.Parallel()
 
 	owner := &recordingRelativeAccess{}
-	access := services.NewParentGuardianAccess(owner)
+	access := owners.NewParentGuardianAccess(owner)
 	require.NotNil(t, access)
 
-	outcome, err := access.InviteToStudent(context.Background(), services.GuardianInviteRequest{
+	outcome, err := access.InviteToStudent(context.Background(), api.GuardianInviteRequest{
 		StudentID: 11, Email: "oma@example.test", CreatedBy: 33, RequestedByAccountID: 33,
 		RequireApproval: true, ConfirmRoleUpgrade: true,
 	})
@@ -77,5 +79,5 @@ func TestParentGuardianAccessMarksTheRequestingParent(t *testing.T) {
 // portal reports as unavailable instead of panicking.
 func TestParentGuardianAccessWithoutCapability(t *testing.T) {
 	t.Parallel()
-	assert.Nil(t, services.NewParentGuardianAccess(nil))
+	assert.Nil(t, owners.NewParentGuardianAccess(nil))
 }

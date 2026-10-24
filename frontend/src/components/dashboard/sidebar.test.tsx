@@ -47,6 +47,7 @@ vi.mock("~/lib/auth-utils", () => {
   return {
     isAdmin: isAdminFn,
     hasEffectiveAdminScope: hasEffectiveAdminScopeFn,
+    canReadSupervisionData: vi.fn(() => !isAdminFn()),
     isCaregiver: vi.fn(() => !isAdminFn()),
     hasRole: vi.fn((_session: unknown, role: string) => {
       if (role === "admin") return isAdminFn();
@@ -138,10 +139,13 @@ import { Sidebar } from "./sidebar";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useOptionalSupervision } from "~/lib/supervision-context";
+import type { SupervisedRoom } from "~/lib/supervision-derive";
 import {
+  canReadSupervisionData,
   hasEffectiveAdminScope,
   hasPermission,
   isAdmin,
+  isCaregiver,
 } from "~/lib/auth-utils";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import { useStaffAbsencesPending } from "~/lib/hooks/use-staff-absences-pending";
@@ -151,6 +155,7 @@ import { useCareWithdrawalsPending } from "~/lib/hooks/use-care-withdrawals-pend
 import { useEnrollmentsUnread } from "~/lib/hooks/use-enrollments-unread";
 import { useMessagesUnread } from "~/lib/hooks/use-messages-unread";
 import {
+  useChildSearchOnlyNavigation,
   useNFCEnabled,
   useOpenCareGroupMode,
   usePresenceMode,
@@ -165,14 +170,31 @@ const mockUseSearchParams = vi.mocked(useSearchParams);
 const mockUseSession = vi.mocked(useSession);
 const mockUseSupervision = vi.mocked(useOptionalSupervision);
 const mockIsAdmin = vi.mocked(isAdmin);
+const mockIsCaregiver = vi.mocked(isCaregiver);
+const mockCanReadSupervisionData = vi.mocked(canReadSupervisionData);
 const mockHasEffectiveAdminScope = vi.mocked(hasEffectiveAdminScope);
 const mockHasPermission = vi.mocked(hasPermission);
-// Standardverhalten des geteilten hasPermission-Mocks: Rechte hat nur der
-// Admin. Tests, die einzelne Rechte gezielt vergeben, stellen darüber wieder
-// den Ausgangszustand her (vi.clearAllMocks setzt Implementierungen nicht
-// zurück).
+// Standardverhalten des geteilten hasPermission-Mocks: der Admin hält alles,
+// eine Betreuungskraft die Rechte der Systemrolle „user“, die die
+// Navigation prüft (users:read, time_tracking:own, rooms:read,
+// activities:read, substitutions:read). Seit #4573 hängen Alle Kinder,
+// Mitarbeiter, Zeiterfassung, Elternnachrichten, Räume, Aktivitäten,
+// Vertretungen und Notfall an diesen Rechten. Tests, die einzelne Rechte gezielt vergeben, stellen darüber
+// wieder den Ausgangszustand her (vi.clearAllMocks setzt Implementierungen
+// nicht zurück).
+const CAREGIVER_NAV_PERMISSIONS = new Set([
+  "users:read",
+  "time_tracking:own",
+  "rooms:read",
+  "activities:read",
+  "substitutions:read",
+]);
 const restoreDefaultHasPermission = () =>
-  mockHasPermission.mockImplementation((session) => mockIsAdmin(session));
+  mockHasPermission.mockImplementation(
+    (session, permission) =>
+      mockIsAdmin(session) ||
+      (!mockIsAdmin(session) && CAREGIVER_NAV_PERMISSIONS.has(permission)),
+  );
 const mockUseShellAuth = vi.mocked(useShellAuth);
 const mockUseStaffAbsencesPending = vi.mocked(useStaffAbsencesPending);
 const mockUseChangeRequestsPending = vi.mocked(useChangeRequestsPending);
@@ -182,6 +204,9 @@ const mockUseEnrollmentsUnread = vi.mocked(useEnrollmentsUnread);
 const mockUsePresenceMode = vi.mocked(usePresenceMode);
 const mockUseNFCEnabled = vi.mocked(useNFCEnabled);
 const mockUseOpenCareGroupMode = vi.mocked(useOpenCareGroupMode);
+const mockUseChildSearchOnlyNavigation = vi.mocked(
+  useChildSearchOnlyNavigation,
+);
 const mockUseStaffMessagingEnabled = vi.mocked(useStaffMessagingEnabled);
 const mockUseTenantRoutingModeSafe = vi.mocked(useTenantRoutingModeSafe);
 const mockUseSWRDefault = vi.mocked(useSWR);
@@ -255,6 +280,15 @@ describe("Sidebar", () => {
       refresh: vi.fn(),
     });
     mockIsAdmin.mockReturnValue(false);
+    mockIsCaregiver.mockImplementation((session) => !mockIsAdmin(session));
+    // Wie die echte Funktion: Adminzuschnitt, groups:read oder (ohne
+    // Rechteliste) die Betreuungsrolle. canOpenActiveSupervision baut darauf.
+    mockCanReadSupervisionData.mockImplementation(
+      (session) =>
+        mockHasEffectiveAdminScope(session) ||
+        mockHasPermission(session, "groups:read") ||
+        mockIsCaregiver(session),
+    );
     mockHasEffectiveAdminScope.mockImplementation((session) =>
       mockIsAdmin(session),
     );
@@ -338,8 +372,7 @@ describe("Sidebar", () => {
 
       // Admin-only items
       expect(screen.getByText("Startseite")).toBeInTheDocument();
-      expect(screen.getByText("Vertretungen")).toBeInTheDocument();
-      expect(screen.queryByText("Übergaben")).not.toBeInTheDocument();
+      expect(screen.getByText("Übergaben")).toBeInTheDocument();
       expect(screen.getByText("Datenverwaltung")).toBeInTheDocument();
       // Die Planungsbereiche sind Unterpunkte des Planung-Akkordeons (#1946),
       // inklusive Schuljahr und Ferien.
@@ -347,7 +380,7 @@ describe("Sidebar", () => {
       expect(screen.getByText("Betreuungsplan")).toBeInTheDocument();
       expect(screen.getByText("Dienstplan")).toBeInTheDocument();
       expect(screen.getByText("Vertretungsplan")).toBeInTheDocument();
-      expect(screen.getByText("Schuljahr und Ferien")).toBeInTheDocument();
+      expect(screen.getByText("Schuljahr und Kalender")).toBeInTheDocument();
     });
 
     it("labels the personal calendar entry 'Mein Kalender'", () => {
@@ -362,14 +395,20 @@ describe("Sidebar", () => {
       expect(screen.queryByText("Kalender")).not.toBeInTheDocument();
     });
 
-    it("shows group navigation but hides room supervision for admins", () => {
+    // canReadSupervisionData gilt für den Adminzuschnitt (auch auf
+    // development); nur der frühere Mock sprach Admins die Aufsicht ab.
+    it("shows group navigation and room supervision for admins", () => {
       render(<Sidebar />);
 
-      expect(screen.getByText("Meine Gruppen")).toBeInTheDocument();
-      expect(screen.queryByText("Aktuelle Aufsicht")).not.toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Gruppen" }),
+      ).toBeInTheDocument();
+      expect(screen.getByText("Aktuelle Aufsicht")).toBeInTheDocument();
     });
 
-    it("puts all admin-visible groups under Weitere Gruppen", () => {
+    // #4351: ein Eintrag „Gruppen“; fremde Gruppen stehen auf der
+    // Auswahlseite, nicht als Unterpunkte und nicht in einem zweiten Bereich.
+    it("lists only own groups under the single Gruppen entry", () => {
       mockUseSupervision.mockReturnValue({
         hasGroups: true,
         isSupervising: false,
@@ -378,7 +417,7 @@ describe("Sidebar", () => {
         overviewEnabled: false,
         supervisedRooms: [],
         groups: [
-          { id: "1", name: "Eulen", is_personal: false },
+          { id: "1", name: "Eulen", is_personal: true },
           { id: "2", name: "Adler", is_personal: false },
         ],
         refresh: vi.fn(),
@@ -386,8 +425,13 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
-      expect(screen.getByText("Meine Gruppen")).toBeInTheDocument();
-      expect(screen.getByText("Weitere Gruppen")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Gruppen" })).toBeVisible();
+      expect(screen.getByRole("link", { name: "Eulen" })).toHaveAttribute(
+        "href",
+        "/ogs-groups?group=1",
+      );
+      expect(screen.queryByRole("link", { name: "Adler" })).toBeNull();
+      expect(screen.queryByText("Weitere Gruppen")).toBeNull();
     });
 
     it("shows group navigation for an effective admin", () => {
@@ -395,7 +439,9 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
-      expect(screen.getByText("Meine Gruppen")).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Gruppen" }),
+      ).toBeInTheDocument();
     });
 
     it("shows data management for an effective admin", () => {
@@ -472,7 +518,17 @@ describe("Sidebar", () => {
       render(<Sidebar />);
 
       // Staff items with alwaysShow: true
-      expect(screen.getByText("Meine Gruppen")).toBeInTheDocument();
+      expect(screen.getByText("Gruppen")).toBeInTheDocument();
+      expect(screen.getByText("Aktuelle Aufsicht")).toBeInTheDocument();
+    });
+
+    it("shows supervision navigation for custom staff with groups:read", () => {
+      mockIsCaregiver.mockReturnValue(false);
+      mockCanReadSupervisionData.mockReturnValue(true);
+
+      render(<Sidebar />);
+
+      expect(screen.getByText("Gruppen")).toBeInTheDocument();
       expect(screen.getByText("Aktuelle Aufsicht")).toBeInTheDocument();
     });
 
@@ -523,6 +579,8 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
+      // Anker: die Staff-Navigation ist geladen, nicht nur das Skelett.
+      expect(screen.getByText("Gruppen")).toBeInTheDocument();
       expect(screen.queryByText("Anfragen")).not.toBeInTheDocument();
       expect(
         screen.queryByLabelText("2 offene Anfragen"),
@@ -541,12 +599,16 @@ describe("Sidebar", () => {
     });
 
     it("keeps the Team group without its internal pages when none is accessible", () => {
-      mockHasPermission.mockReturnValue(false);
+      // Nur die eigene Zeiterfassung, kein users:read (#4573: Mitarbeiter
+      // und Tagesinformationen hängen daran).
+      mockHasPermission.mockImplementation(
+        (_session, permission) => permission === "time_tracking:own",
+      );
 
       render(<Sidebar />);
 
       // Team-Chat ist aus, Tagesinformationen brauchen users:read — die
-      // Gruppe bleibt wegen Zeiterfassung und Mitarbeiter trotzdem da.
+      // Gruppe bleibt wegen der Zeiterfassung trotzdem da.
       expect(screen.queryByText("Team-Chat")).not.toBeInTheDocument();
       expect(screen.queryByText("Tagesinformationen")).not.toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Team" })).toBeInTheDocument();
@@ -556,8 +618,10 @@ describe("Sidebar", () => {
     it("hides admin-only items for staff", () => {
       render(<Sidebar />);
 
+      // Anker: die Staff-Navigation ist geladen.
+      expect(screen.getByText("Gruppen")).toBeInTheDocument();
+      expect(screen.getByText("Aktuelle Aufsicht")).toBeInTheDocument();
       // Admin-only items should NOT be visible
-      expect(screen.queryByText("Übergaben")).not.toBeInTheDocument();
       expect(screen.queryByText("Datenverwaltung")).not.toBeInTheDocument();
       expect(screen.queryByText("Betreuungsplan")).not.toBeInTheDocument();
       expect(screen.queryByText("Dienstplan")).not.toBeInTheDocument();
@@ -680,7 +744,7 @@ describe("Sidebar", () => {
       );
     });
 
-    it("highlights Schuljahr und Ferien on /calendar-periods", () => {
+    it("highlights Schuljahr und Kalender on /calendar-periods", () => {
       // Die Zeitraum-Verwaltung ist eigener Unterpunkt im Planung-Akkordeon
       // (#1946) und leuchtet dort selbst, nicht mehr im Betreuungsplan.
       mockUsePathname.mockReturnValue("/calendar-periods");
@@ -689,7 +753,9 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
-      const periodsLink = screen.getByText("Schuljahr und Ferien").closest("a");
+      const periodsLink = screen
+        .getByText("Schuljahr und Kalender")
+        .closest("a");
       const betreuungsplanLink = screen
         .getByText("Betreuungsplan")
         .closest("a");
@@ -712,7 +778,7 @@ describe("Sidebar", () => {
       expect(dashboardLink).not.toHaveClass("bg-gray-100");
     });
 
-    it("does not render the removed enrollment reports subpage", () => {
+    it("highlights the enrollment overview on /admin/enrollments", () => {
       mockUsePathname.mockReturnValue("/admin/enrollments");
       mockIsAdmin.mockReturnValue(true);
       mockUseSession.mockReturnValue(createMockSession(true));
@@ -721,7 +787,6 @@ describe("Sidebar", () => {
 
       const overviewLink = screen.getByText("Überblick").closest("a");
       expect(overviewLink).toHaveClass("bg-gray-100");
-      expect(screen.queryByText("Auswertung")).not.toBeInTheDocument();
     });
   });
 
@@ -735,7 +800,7 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
-      const groupHeader = screen.getByText("Meine Gruppen").closest("button");
+      const groupHeader = screen.getByText("Gruppen").closest("button");
       expect(groupHeader).toHaveClass("bg-gray-100");
     });
 
@@ -852,14 +917,32 @@ describe("Sidebar", () => {
 
     it("hides the Statistik entry unless staff have both required permissions", () => {
       mockIsAdmin.mockReturnValue(false);
+      // Ohne users:read; time_tracking:own hält die Zeiterfassung als Anker.
       mockHasPermission.mockImplementation(
-        (_session, permission) => permission === "config:read",
+        (_session, permission) =>
+          permission === "config:read" || permission === "time_tracking:own",
       );
 
       render(<Sidebar />);
 
-      expect(screen.queryByText("Dienstpläne")).not.toBeInTheDocument();
+      // Anker: die Staff-Navigation ist geladen.
+      expect(screen.getByText("Zeiterfassung")).toBeInTheDocument();
       expect(screen.queryByText("Statistik")).not.toBeInTheDocument();
+    });
+
+    it("shows the Statistik entry for staff holding config:read and users:read", () => {
+      mockIsAdmin.mockReturnValue(false);
+      mockHasPermission.mockImplementation(
+        (_session, permission) =>
+          permission === "config:read" || permission === "users:read",
+      );
+
+      render(<Sidebar />);
+
+      expect(screen.getByText("Statistik").closest("a")).toHaveAttribute(
+        "href",
+        "/statistics",
+      );
     });
   });
 
@@ -895,7 +978,7 @@ describe("Sidebar", () => {
       render(<Sidebar />);
 
       // Should still render, but supervision-dependent items behavior changes
-      expect(screen.getByText("Meine Gruppen")).toBeInTheDocument();
+      expect(screen.getByText("Gruppen")).toBeInTheDocument();
     });
 
     it("handles loading supervision state correctly", () => {
@@ -940,7 +1023,7 @@ describe("Sidebar", () => {
   });
 
   describe("accordion sub-items", () => {
-    it("opens personal groups and keeps additional groups closed by default", () => {
+    it("opens the Gruppen entry by default", () => {
       mockUseSupervision.mockReturnValue({
         hasGroups: true,
         isSupervising: false,
@@ -957,73 +1040,13 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
-      expect(
-        screen.getByText("Meine Gruppen").closest("button"),
-      ).toHaveAttribute("aria-expanded", "true");
-      expect(
-        screen.getByText("Weitere Gruppen").closest("button"),
-      ).toHaveAttribute("aria-expanded", "false");
-    });
-
-    it("keeps personal and additional groups mutually exclusive", () => {
-      mockUseSupervision.mockReturnValue({
-        hasGroups: true,
-        isSupervising: false,
-        isLoadingGroups: false,
-        isLoadingSupervision: false,
-        overviewEnabled: false,
-        supervisedRooms: [],
-        groups: [
-          { id: "1", name: "Eulen", is_personal: true },
-          { id: "2", name: "Adler", is_personal: false },
-        ],
-        refresh: vi.fn(),
-      });
-
-      render(<Sidebar />);
-      fireEvent.click(screen.getByText("Weitere Gruppen"));
-
-      expect(
-        screen.getByText("Meine Gruppen").closest("button"),
-      ).toHaveAttribute("aria-expanded", "false");
-      expect(
-        screen.getByText("Weitere Gruppen").closest("button"),
-      ).toHaveAttribute("aria-expanded", "true");
-    });
-
-    it("closes additional groups after leaving the groups section", async () => {
-      mockUseSupervision.mockReturnValue({
-        hasGroups: true,
-        isSupervising: false,
-        isLoadingGroups: false,
-        isLoadingSupervision: false,
-        overviewEnabled: false,
-        supervisedRooms: [],
-        groups: [
-          { id: "1", name: "Eulen", is_personal: true },
-          { id: "2", name: "Adler", is_personal: false },
-        ],
-        refresh: vi.fn(),
-      });
-
-      const { rerender } = render(<Sidebar />);
-      fireEvent.click(screen.getByText("Weitere Gruppen"));
-      mockUsePathname.mockReturnValue("/activities");
-      rerender(<Sidebar />);
-      await waitFor(() =>
-        expect(
-          screen.getByText("Weitere Gruppen").closest("button"),
-        ).toHaveAttribute("aria-expanded", "false"),
+      expect(screen.getByRole("button", { name: "Gruppen" })).toHaveAttribute(
+        "aria-expanded",
+        "true",
       );
-
-      mockUsePathname.mockReturnValue("/ogs-groups");
-      rerender(<Sidebar />);
-      expect(
-        screen.getByText("Meine Gruppen").closest("button"),
-      ).toHaveAttribute("aria-expanded", "true");
     });
 
-    it("opens additional groups when the current group is selected", () => {
+    it("keeps the Gruppen entry open on a foreign group without marking an own one", () => {
       mockUsePathname.mockReturnValue("/ogs-groups");
       mockUseSearchParams.mockReturnValue(
         createMockSearchParams((key: string) => (key === "group" ? "2" : null)),
@@ -1044,12 +1067,17 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
-      expect(
-        screen.getByText("Weitere Gruppen").closest("button"),
-      ).toHaveAttribute("aria-expanded", "true");
+      expect(screen.getByRole("button", { name: "Gruppen" })).toHaveAttribute(
+        "aria-expanded",
+        "true",
+      );
+      expect(screen.getByRole("link", { name: "Eulen" })).not.toHaveClass(
+        "bg-gray-100",
+      );
     });
 
-    it("hides additional groups when the backend returns only personal groups", () => {
+    it("marks no own group on the group selection", () => {
+      mockUsePathname.mockReturnValue("/ogs-groups/overview");
       mockUseSupervision.mockReturnValue({
         hasGroups: true,
         isSupervising: false,
@@ -1057,14 +1085,21 @@ describe("Sidebar", () => {
         isLoadingSupervision: false,
         overviewEnabled: false,
         supervisedRooms: [],
-        groups: [{ id: "1", name: "Eulen", is_personal: true }],
+        groups: [
+          { id: "1", name: "Eulen", is_personal: true },
+          { id: "2", name: "Adler", is_personal: true },
+        ],
         refresh: vi.fn(),
       });
 
       render(<Sidebar />);
 
-      expect(screen.getByText("Meine Gruppen")).toBeInTheDocument();
-      expect(screen.queryByText("Weitere Gruppen")).not.toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "Eulen" })).not.toHaveClass(
+        "bg-gray-100",
+      );
+      expect(screen.getByRole("link", { name: "Adler" })).not.toHaveClass(
+        "bg-gray-100",
+      );
     });
 
     it("renders group sub-items when groups are available", () => {
@@ -1124,7 +1159,12 @@ describe("Sidebar", () => {
       expect(screen.getByText("Datenverwaltung")).toBeInTheDocument();
       expect(screen.getByText("Kinderdaten")).toBeInTheDocument();
       expect(screen.getByText("Personal")).toBeInTheDocument();
-      expect(screen.getByText("Gruppen")).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Gruppen" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("link", { name: "Gruppendaten" }),
+      ).toBeInTheDocument();
     });
   });
 
@@ -1138,7 +1178,7 @@ describe("Sidebar", () => {
       });
     });
 
-    it("navigates to ogs-groups when groups toggle clicked from another page", () => {
+    it("navigates to the group selection when the groups toggle is clicked from another page", () => {
       mockUsePathname.mockReturnValue("/activities");
       mockUseSupervision.mockReturnValue({
         hasGroups: true,
@@ -1153,15 +1193,15 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
-      const groupHeader = screen.getByText("Meine Gruppen");
-      fireEvent.click(groupHeader);
+      fireEvent.click(screen.getByText("Gruppen"));
 
       expect(mockRouterPush).toHaveBeenCalledWith(
-        "/test-tenant/ogs-groups?group=1",
+        "/test-tenant/ogs-groups/overview",
       );
     });
 
-    it("does not navigate from an empty personal groups section", () => {
+    // Ohne sichtbare Gruppe sagt die Auswahlseite, wer eine zuordnet.
+    it("opens the group selection also without own groups", () => {
       mockUsePathname.mockReturnValue("/activities");
       mockUseSupervision.mockReturnValue({
         hasGroups: false,
@@ -1176,10 +1216,11 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
-      const groupHeader = screen.getByText("Meine Gruppen");
-      fireEvent.click(groupHeader);
+      fireEvent.click(screen.getByText("Gruppen"));
 
-      expect(mockRouterPush).not.toHaveBeenCalled();
+      expect(mockRouterPush).toHaveBeenCalledWith(
+        "/test-tenant/ogs-groups/overview",
+      );
     });
 
     it("navigates to active-supervisions when supervisions toggle clicked from another page", () => {
@@ -1323,7 +1364,7 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
-      expect(screen.getByText("Meine Gruppen")).toBeInTheDocument();
+      expect(screen.getByText("Gruppen")).toBeInTheDocument();
     });
 
     it("shows 'Meine Gruppen' for multiple groups", () => {
@@ -1343,7 +1384,7 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
-      expect(screen.getByText("Meine Gruppen")).toBeInTheDocument();
+      expect(screen.getByText("Gruppen")).toBeInTheDocument();
     });
 
     it("shows 'Aktuelle Aufsicht' for single room", () => {
@@ -1515,35 +1556,6 @@ describe("Sidebar", () => {
       );
     });
 
-    // #3890: die Kinderseiten nennen im Breadcrumb den Bereich der Gruppe
-    // und lesen ihn aus dem Speicher.
-    it("persists the sidebar section of the selected group", () => {
-      mockUsePathname.mockReturnValue("/ogs-groups");
-      mockUseSearchParams.mockReturnValue(
-        createMockSearchParams((key: string) => (key === "group" ? "2" : null)),
-      );
-      mockUseSupervision.mockReturnValue({
-        hasGroups: true,
-        isSupervising: false,
-        isLoadingGroups: false,
-        isLoadingSupervision: false,
-        overviewEnabled: false,
-        supervisedRooms: [],
-        groups: [
-          { id: "1", name: "Eulen", is_personal: true },
-          { id: "2", name: "Mondgruppe", is_personal: false },
-        ],
-        refresh: vi.fn(),
-      });
-
-      render(<Sidebar />);
-
-      expect(mockSetItem).toHaveBeenCalledWith(
-        "sidebar-last-group-section",
-        "other",
-      );
-    });
-
     it("persists selected room and room name to localStorage", () => {
       mockUsePathname.mockReturnValue("/active-supervisions");
       mockUseSearchParams.mockReturnValue(
@@ -1647,13 +1659,11 @@ describe("Sidebar", () => {
       vi.spyOn(localStorage, "removeItem").mockImplementation(() => undefined);
     });
 
-    it("navigates to saved group from localStorage when toggling groups", () => {
-      const mockGetItem = vi.fn((key: string) => {
-        if (key === "sidebar-last-group") return "2";
-        return null;
-      });
-      vi.spyOn(localStorage, "getItem").mockImplementation(mockGetItem);
-      mockUsePathname.mockReturnValue("/activities");
+    it("returns from a group to the group selection", () => {
+      mockUsePathname.mockReturnValue("/ogs-groups");
+      mockUseSearchParams.mockReturnValue(
+        createMockSearchParams((key: string) => (key === "group" ? "2" : null)),
+      );
       mockUseSupervision.mockReturnValue({
         hasGroups: true,
         isSupervising: false,
@@ -1670,11 +1680,10 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
-      const groupHeader = screen.getByText("Meine Gruppen");
-      fireEvent.click(groupHeader);
+      fireEvent.click(screen.getByText("Gruppen"));
 
       expect(mockRouterPush).toHaveBeenCalledWith(
-        "/test-tenant/ogs-groups?group=2",
+        "/test-tenant/ogs-groups/overview",
       );
     });
 
@@ -1709,7 +1718,7 @@ describe("Sidebar", () => {
       );
     });
 
-    it("navigates to the shared view for a saved session in a released room", () => {
+    it("navigates to the shared view for a saved session in an own released room", () => {
       vi.spyOn(localStorage, "getItem").mockImplementation((key: string) => {
         if (key === "supervision-last-session") return "active-open";
         return null;
@@ -1727,6 +1736,7 @@ describe("Sidebar", () => {
             name: "Sporthalle",
             groupId: "",
             isOpenRoom: true,
+            isOwnSupervision: true,
             sessionIds: ["active-open"],
           },
         ],
@@ -1740,6 +1750,39 @@ describe("Sidebar", () => {
 
       expect(mockRouterPush).toHaveBeenCalledWith(
         "/test-tenant/active-supervisions?room=sporthalle",
+      );
+    });
+
+    it("does not open a released room without an own supervision (#4372)", () => {
+      vi.spyOn(localStorage, "getItem").mockImplementation((key: string) => {
+        if (key === "sidebar-last-room") return "sporthalle";
+        return null;
+      });
+      mockUsePathname.mockReturnValue("/activities");
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: false,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        overviewEnabled: false,
+        supervisedRooms: [
+          {
+            id: "sporthalle",
+            name: "Sporthalle",
+            groupId: "",
+            isOpenRoom: true,
+          },
+        ],
+        groups: [],
+        refresh: vi.fn(),
+      });
+
+      render(<Sidebar />);
+
+      fireEvent.click(screen.getByText("Aktuelle Aufsicht"));
+
+      expect(mockRouterPush).toHaveBeenCalledWith(
+        "/test-tenant/active-supervisions",
       );
     });
 
@@ -1779,13 +1822,31 @@ describe("Sidebar", () => {
       );
     });
 
-    it("falls back to first group when saved group not found", () => {
-      const mockGetItem = vi.fn((key: string) => {
-        if (key === "sidebar-last-group") return "999";
-        return null;
+    // Die Auswahlseite öffnete die einzige Gruppe ohnehin gleich wieder.
+    it("only folds the entry inside the only group", () => {
+      mockUsePathname.mockReturnValue("/ogs-groups");
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: false,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        overviewEnabled: false,
+        supervisedRooms: [],
+        groups: [{ id: "1", name: "Eulen" }],
+        refresh: vi.fn(),
       });
-      vi.spyOn(localStorage, "getItem").mockImplementation(mockGetItem);
-      mockUsePathname.mockReturnValue("/activities");
+
+      render(<Sidebar />);
+
+      const header = screen.getByRole("button", { name: "Gruppen" });
+      fireEvent.click(header);
+
+      expect(mockRouterPush).not.toHaveBeenCalled();
+      expect(header).toHaveAttribute("aria-expanded", "false");
+    });
+
+    it("only folds the entry on the group selection", () => {
+      mockUsePathname.mockReturnValue("/ogs-groups/overview");
       mockUseSupervision.mockReturnValue({
         hasGroups: true,
         isSupervising: false,
@@ -1802,12 +1863,11 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
-      const groupHeader = screen.getByText("Meine Gruppen");
-      fireEvent.click(groupHeader);
+      const header = screen.getByRole("button", { name: "Gruppen" });
+      fireEvent.click(header);
 
-      expect(mockRouterPush).toHaveBeenCalledWith(
-        "/test-tenant/ogs-groups?group=1",
-      );
+      expect(mockRouterPush).not.toHaveBeenCalled();
+      expect(header).toHaveAttribute("aria-expanded", "false");
     });
 
     it("falls back to first room when saved room not found", () => {
@@ -1872,6 +1932,8 @@ describe("Sidebar", () => {
     it("does not render teacher-specific items", () => {
       render(<Sidebar />);
 
+      // Anker: die Operator-Navigation ist geladen.
+      expect(screen.getByText("Ankündigungen")).toBeInTheDocument();
       expect(screen.queryByText("Alle Kinder")).not.toBeInTheDocument();
       expect(screen.queryByText("Aktivitäten")).not.toBeInTheDocument();
       expect(screen.queryByText("Räume")).not.toBeInTheDocument();
@@ -1888,223 +1950,177 @@ describe("Sidebar", () => {
     it("does not render settings in operator navigation", () => {
       render(<Sidebar />);
 
+      // Anker: die Operator-Navigation ist geladen.
+      expect(screen.getByText("Operatoren")).toBeInTheDocument();
       expect(screen.queryByText("Einstellungen")).not.toBeInTheDocument();
     });
   });
 
-  describe("released rooms in the supervision navigation (#3065)", () => {
-    it("lists a released room next to an own supervision", () => {
-      mockUseSupervision.mockReturnValue({
-        hasGroups: true,
-        isSupervising: true,
-        isLoadingGroups: false,
-        isLoadingSupervision: false,
-        overviewEnabled: false,
-        supervisedRooms: [
+  // Seit #4372 gibt es keinen eigenen Bereich „Offene Räume“ mehr: offene
+  // Räume stehen unter „Räume“. „Aktuelle Aufsicht“ zeigt einen offenen Raum
+  // nur, wenn die Person dort selbst Aufsicht führt (#4349).
+  describe("released rooms in the supervision navigation (#3065, #4372)", () => {
+    const supervision = (
+      supervisedRooms: SupervisedRoom[],
+      overviewEnabled = false,
+    ) => ({
+      hasGroups: true,
+      isSupervising: true,
+      isLoadingGroups: false,
+      isLoadingSupervision: false,
+      overviewEnabled,
+      supervisedRooms,
+      groups: [],
+      refresh: vi.fn(),
+    });
+
+    it("lists no released room without an own supervision there", () => {
+      mockUseSupervision.mockReturnValue(
+        supervision([
           { id: "10", name: "Raum A", groupId: "1" },
-          {
-            id: "7",
-            name: "Schulhof",
-            groupId: "7",
-            isOpenRoom: true,
-          },
-        ],
-        groups: [],
-        refresh: vi.fn(),
-      });
-      mockUsePathname.mockReturnValue("/active-supervisions");
-
-      render(<Sidebar />);
-
-      expect(screen.getByText("Schulhof")).toBeInTheDocument();
-      expect(screen.getByText("Raum A")).toBeInTheDocument();
-    });
-
-    it("links a released room by its real room id", () => {
-      mockUseSupervision.mockReturnValue({
-        hasGroups: true,
-        isSupervising: true,
-        isLoadingGroups: false,
-        isLoadingSupervision: false,
-        overviewEnabled: false,
-        supervisedRooms: [
-          {
-            id: "7",
-            name: "Schulhof",
-            groupId: "7",
-            isOpenRoom: true,
-          },
-        ],
-        groups: [],
-        refresh: vi.fn(),
-      });
-      mockUsePathname.mockReturnValue("/active-supervisions");
-
-      render(<Sidebar />);
-
-      // A released room travels by its real room id, never by a synthetic tab
-      // id: several sessions can run in it, so no session identifies it.
-      const schulhofLink = screen.getByText("Schulhof").closest("a");
-      expect(schulhofLink).toHaveAttribute(
-        "href",
-        "/active-supervisions?room=7",
+          { id: "7", name: "Schulhof", groupId: "", isOpenRoom: true },
+        ]),
       );
+      mockUsePathname.mockReturnValue("/active-supervisions");
+
+      render(<Sidebar />);
+
+      // Anker: die eigene Aufsicht ist geladen.
+      expect(screen.getByText("Raum A")).toBeInTheDocument();
+      expect(screen.queryByText("Schulhof")).not.toBeInTheDocument();
+      expect(screen.queryByText("Offene Räume")).not.toBeInTheDocument();
     });
 
-    it("marks the released room for a session running in it", () => {
-      mockUseSupervision.mockReturnValue({
-        hasGroups: true,
-        isSupervising: true,
-        isLoadingGroups: false,
-        isLoadingSupervision: false,
-        overviewEnabled: false,
-        supervisedRooms: [
+    it("lists an own supervision in a released room under Aktuelle Aufsicht (#4349)", () => {
+      mockUseSupervision.mockReturnValue(
+        supervision([
           { id: "10", name: "Werkraum", groupId: "active-werk" },
           {
             id: "7",
-            name: "Turnhalle",
-            groupId: "7",
+            name: "Kreativraum",
+            groupId: "",
             isOpenRoom: true,
-            sessionIds: ["active-turn"],
+            isOwnSupervision: true,
+            sessionIds: ["55"],
           },
-        ],
-        groups: [],
-        refresh: vi.fn(),
-      });
+          { id: "8", name: "Turnhalle", groupId: "", isOpenRoom: true },
+        ]),
+      );
       mockUsePathname.mockReturnValue("/active-supervisions");
+      // „Mein Tag“ und der Tagesplan öffnen die Aufsicht über ihre Sitzung.
       mockUseSearchParams.mockReturnValue(
-        createMockSearchParams((key) =>
-          key === "session" ? "active-turn" : null,
-        ),
+        createMockSearchParams((key) => (key === "session" ? "55" : null)),
       );
 
       render(<Sidebar />);
 
-      expect(screen.getByText("Turnhalle").closest("a")).toHaveClass(
-        "bg-gray-100",
+      // Zwei eigene Aufsichten, die im offenen Raum zählt mit.
+      expect(screen.getByText("Aktuelle Aufsichten")).toBeInTheDocument();
+      // A released room travels by its real room id, never by a synthetic tab
+      // id: several sessions can run in it, so no session identifies it.
+      const ownRoomLink = screen.getByText("Kreativraum").closest("a");
+      expect(ownRoomLink).toHaveAttribute(
+        "href",
+        "/active-supervisions?room=7",
       );
+      expect(ownRoomLink).toHaveClass("bg-gray-100");
       expect(screen.getByText("Werkraum").closest("a")).not.toHaveClass(
         "bg-gray-100",
       );
+      expect(screen.getAllByText("Kreativraum")).toHaveLength(1);
+      expect(screen.queryByText("Turnhalle")).not.toBeInTheDocument();
     });
 
-    it("lists a released room and an own supervision side by side", () => {
-      mockUseSupervision.mockReturnValue({
-        hasGroups: true,
-        isSupervising: true,
-        isLoadingGroups: false,
-        isLoadingSupervision: false,
-        overviewEnabled: false,
-        supervisedRooms: [
-          { id: "10", name: "Raum A", groupId: "1" },
-          {
-            id: "7",
-            name: "Schulhof",
-            groupId: "7",
-            isOpenRoom: true,
-          },
-        ],
-        groups: [],
-        refresh: vi.fn(),
-      });
-      mockUsePathname.mockReturnValue("/active-supervisions");
-
-      render(<Sidebar />);
-
-      // Both rooms should be visible
-      const links = screen.getAllByRole("link");
-      const roomLinks = links.filter(
-        (link) =>
-          link.textContent === "Raum A" || link.textContent === "Schulhof",
+    it("lists an own supervision in a released room next to other people's in the overview", () => {
+      mockUseSupervision.mockReturnValue(
+        supervision(
+          [
+            { id: "10", name: "Raum A", groupId: "1" },
+            { id: "11", name: "Raum B", groupId: "2" },
+            {
+              id: "7",
+              name: "Kreativraum",
+              groupId: "",
+              isOpenRoom: true,
+              isOwnSupervision: true,
+            },
+          ],
+          true,
+        ),
       );
-      expect(roomLinks).toHaveLength(2);
-    });
-
-    it("keeps released rooms in their own Offene Räume section", () => {
-      mockUseSupervision.mockReturnValue({
-        hasGroups: true,
-        isSupervising: true,
-        isLoadingGroups: false,
-        isLoadingSupervision: false,
-        overviewEnabled: false,
-        supervisedRooms: [
-          { id: "10", name: "Raum A", groupId: "1" },
-          { id: "11", name: "Raum B", groupId: "2" },
-          { id: "7", name: "Schulhof", groupId: "", isOpenRoom: true },
-        ],
-        groups: [],
-        refresh: vi.fn(),
-      });
       mockUsePathname.mockReturnValue("/active-supervisions");
 
       render(<Sidebar />);
 
-      // Shared rooms are visibly apart from own supervisions (#3065), the
-      // same way "Weitere Gruppen" stands apart from "Meine Gruppen".
-      expect(screen.getByText("Offene Räume")).toBeInTheDocument();
-      expect(screen.getByText("Aktuelle Aufsichten")).toBeInTheDocument();
-      expect(screen.getByText("Schulhof").closest("a")).toHaveAttribute(
+      expect(screen.getByText("Raum A")).toBeInTheDocument();
+      expect(screen.getByText("Kreativraum").closest("a")).toHaveAttribute(
         "href",
         "/active-supervisions?room=7",
       );
     });
 
-    it("counts only own supervisions in the Aktuelle Aufsicht header", () => {
+    it("counts no released room without an own supervision in the header", () => {
       mockUseSupervision.mockReturnValue({
-        hasGroups: true,
-        isSupervising: false,
-        isLoadingGroups: false,
-        isLoadingSupervision: false,
-        overviewEnabled: false,
-        supervisedRooms: [
+        ...supervision([
           { id: "7", name: "Schulhof", groupId: "", isOpenRoom: true },
           { id: "8", name: "Sporthalle", groupId: "", isOpenRoom: true },
-        ],
-        groups: [],
-        refresh: vi.fn(),
+        ]),
+        isSupervising: false,
       });
-      mockUsePathname.mockReturnValue("/active-supervisions");
+      mockUsePathname.mockReturnValue("/home");
 
       render(<Sidebar />);
 
       // Reaching two shared rooms is not supervising two rooms.
       expect(screen.getByText("Aktuelle Aufsicht")).toBeInTheDocument();
       expect(screen.queryByText("Aktuelle Aufsichten")).not.toBeInTheDocument();
-      expect(screen.getByText("Offene Räume")).toBeInTheDocument();
     });
 
-    it("shows no Offene Räume section without released rooms", () => {
-      mockUseSupervision.mockReturnValue({
-        hasGroups: true,
-        isSupervising: true,
-        isLoadingGroups: false,
-        isLoadingSupervision: false,
-        overviewEnabled: false,
-        supervisedRooms: [{ id: "10", name: "Raum A", groupId: "1" }],
-        groups: [],
-        refresh: vi.fn(),
-      });
+    it("marks Räume, not Aktuelle Aufsicht, for a released room opened by a legacy session link", () => {
+      mockUseSupervision.mockReturnValue(
+        supervision([
+          { id: "10", name: "Raum A", groupId: "1" },
+          {
+            id: "7",
+            name: "Schulhof",
+            groupId: "",
+            isOpenRoom: true,
+            sessionIds: ["active-schulhof"],
+          },
+        ]),
+      );
       mockUsePathname.mockReturnValue("/active-supervisions");
+      mockUseSearchParams.mockReturnValue(
+        createMockSearchParams((key) =>
+          key === "session" ? "active-schulhof" : null,
+        ),
+      );
 
       render(<Sidebar />);
 
-      expect(screen.queryByText("Offene Räume")).not.toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "Räume" })).toHaveClass(
+        "bg-gray-100",
+      );
+      expect(
+        screen.getByRole("button", { name: /Aktuelle Aufsicht/ }).className,
+      ).not.toContain("bg-gray-100");
+      expect(screen.getByText("Raum A").closest("a")).not.toHaveClass(
+        "bg-gray-100",
+      );
     });
 
-    it("opens the Offene Räume section for the selected released room", () => {
-      mockUseSupervision.mockReturnValue({
-        hasGroups: true,
-        isSupervising: true,
-        isLoadingGroups: false,
-        isLoadingSupervision: false,
-        overviewEnabled: false,
-        supervisedRooms: [
-          { id: "10", name: "Raum A", groupId: "1" },
-          { id: "7", name: "Schulhof", groupId: "", isOpenRoom: true },
-        ],
-        groups: [],
-        refresh: vi.fn(),
-      });
+    it("keeps Aktuelle Aufsicht marked for an own supervision in a released room", () => {
+      mockUseSupervision.mockReturnValue(
+        supervision([
+          {
+            id: "7",
+            name: "Kreativraum",
+            groupId: "",
+            isOpenRoom: true,
+            isOwnSupervision: true,
+          },
+        ]),
+      );
       mockUsePathname.mockReturnValue("/active-supervisions");
       mockUseSearchParams.mockReturnValue(
         createMockSearchParams((key) => (key === "room" ? "7" : null)),
@@ -2112,14 +2128,33 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
-      expect(
-        screen.getByRole("button", { name: /Offene Räume/ }),
-      ).toHaveAttribute("aria-expanded", "true");
-      expect(
-        screen.getByRole("button", { name: /Aktuelle Aufsicht/ }),
-      ).toHaveAttribute("aria-expanded", "false");
-      expect(screen.getByText("Schulhof").closest("a")).toHaveClass(
+      expect(screen.getByText("Kreativraum").closest("a")).toHaveClass(
         "bg-gray-100",
+      );
+      expect(screen.getByRole("link", { name: "Räume" })).not.toHaveClass(
+        "bg-gray-100",
+      );
+    });
+
+    it("opens the own supervision from a released room opened from its room page", () => {
+      mockUseSupervision.mockReturnValue(
+        supervision([
+          { id: "10", name: "Raum A", groupId: "1" },
+          { id: "7", name: "Schulhof", groupId: "", isOpenRoom: true },
+        ]),
+      );
+      mockUsePathname.mockReturnValue("/active-supervisions");
+      mockUseSearchParams.mockReturnValue(
+        createMockSearchParams((key) => (key === "room" ? "7" : null)),
+      );
+
+      render(<Sidebar />);
+      fireEvent.click(
+        screen.getByRole("button", { name: /Aktuelle Aufsicht/ }),
+      );
+
+      expect(mockRouterPush).toHaveBeenCalledWith(
+        "/test-tenant/active-supervisions?session=1",
       );
     });
   });
@@ -2139,6 +2174,8 @@ describe("Sidebar", () => {
 
     it("hides Räume and Aktivitäten nav items", () => {
       render(<Sidebar />);
+      // Anker: die Navigation ist geladen.
+      expect(screen.getByText("Alle Kinder")).toBeInTheDocument();
       expect(screen.queryByText("Räume")).not.toBeInTheDocument();
       expect(screen.queryByText("Aktivitäten")).not.toBeInTheDocument();
     });
@@ -2159,6 +2196,8 @@ describe("Sidebar", () => {
       render(<Sidebar />);
       // Accordion header is "Aktuelle Aufsicht" (singular) or "Aktuelle
       // Aufsichten" (plural) — neither should appear in binary mode.
+      // Anker: die Staff-Navigation ist geladen.
+      expect(screen.getByText("Gruppen")).toBeInTheDocument();
       expect(screen.queryByText(/Aktuelle Aufsicht/)).not.toBeInTheDocument();
     });
 
@@ -2181,6 +2220,8 @@ describe("Sidebar", () => {
     it("hides the classic Aktivitäten nav item when NFC is disabled", () => {
       render(<Sidebar />);
 
+      // Anker: die Navigation ist geladen.
+      expect(screen.getByText("Räume")).toBeInTheDocument();
       expect(screen.queryByText("Aktivitäten")).not.toBeInTheDocument();
     });
 
@@ -2242,7 +2283,7 @@ describe("Sidebar", () => {
         "Dienstplan",
         "Vertretungsplan",
         "Tageslisten",
-        "Schuljahr und Ferien",
+        "Schuljahr und Kalender",
         "Abrechnung",
         "Anmeldungen",
         "Elternzugänge",
@@ -2251,8 +2292,8 @@ describe("Sidebar", () => {
       ]) {
         expect(screen.getByText(label)).toBeInTheDocument();
       }
-      // Die Rolle heißt nicht `admin`; der Tagesplan bleibt ihr erhalten.
-      expect(screen.getByText("Tagesplan")).toBeInTheDocument();
+      // Die Rolle heißt nicht `admin`; „Heute“ bleibt ihr erhalten.
+      expect(screen.getByText("Heute")).toBeInTheDocument();
     });
 
     it("hält Planung, Anmeldungen, Verwaltung und Einstellungen von einer Betreuungsrolle fern", () => {
@@ -2274,8 +2315,113 @@ describe("Sidebar", () => {
       ]) {
         expect(screen.queryByText(label)).not.toBeInTheDocument();
       }
-      expect(screen.getByText("Tagesplan")).toBeInTheDocument();
+      expect(screen.getByText("Heute")).toBeInTheDocument();
       expect(screen.getByText("Mein Kalender")).toBeInTheDocument();
+    });
+
+    // ADR 0091: die AG-Leitung hält nur schedules:read. Einträge, deren
+    // Route ein anderes Recht verlangt, wären für sie Sackgassen.
+    const EXTERN_GATED_LABELS = [
+      "Alle Kinder",
+      "Mitarbeiter",
+      "Zeiterfassung",
+      "Nachrichten",
+      "Räume",
+      "Aktivitäten",
+      "Übergaben",
+      "Notfall",
+    ];
+
+    it("zeigt der AG-Leitung keine Einträge, deren Route sie nicht öffnen darf", () => {
+      mockHasPermission.mockImplementation(
+        (_session: unknown, permission: string) =>
+          permission === "schedules:read",
+      );
+
+      render(<Sidebar />);
+
+      // Anker: „Heute“ ist der Arbeitsplatz der Rolle und geladen.
+      expect(screen.getByText("Heute")).toBeInTheDocument();
+      for (const label of EXTERN_GATED_LABELS) {
+        expect(screen.queryByText(label)).not.toBeInTheDocument();
+      }
+    });
+
+    // ADR 0091: der Gast hält students:read statt users:read. „Alle Kinder“
+    // öffnet er; Elternnachrichten und Notfall bleiben an users:read.
+    it("zeigt dem Gast „Alle Kinder“, aber keine Elterndaten", () => {
+      mockIsCaregiver.mockReturnValue(false);
+      mockHasPermission.mockImplementation(
+        (_session: unknown, permission: string) =>
+          [
+            "students:read",
+            "groups:read",
+            "rooms:read",
+            "activities:read",
+          ].includes(permission),
+      );
+      try {
+        render(<Sidebar />);
+
+        expect(screen.getByText("Alle Kinder")).toBeInTheDocument();
+        expect(screen.getByText("Räume")).toBeInTheDocument();
+        for (const label of ["Nachrichten", "Notfall", "Mitarbeiter"]) {
+          expect(screen.queryByText(label)).not.toBeInTheDocument();
+        }
+      } finally {
+        mockIsCaregiver.mockImplementation((session) => !mockIsAdmin(session));
+      }
+    });
+
+    // Review #4573: „Aktuelle Aufsicht“ hängt am Recht der Seite, nicht am
+    // Rollennamen. Eine selbst benannte Betreuungsrolle (groups:read) und
+    // die AG-Leitung (schedules:read) behalten den Eintrag; ohne beide
+    // Rechte fehlt er.
+    it.each([
+      ["einer selbst benannten Betreuungsrolle", "groups:read", true],
+      ["der AG-Leitung", "schedules:read", true],
+      ["einer Rolle ohne beide Rechte", "users:read", false],
+    ])(
+      "zeigt „Aktuelle Aufsicht“ %s nach Recht",
+      (_who, permission, visible) => {
+        mockIsCaregiver.mockReturnValue(false);
+        mockHasPermission.mockImplementation(
+          (_session: unknown, granted: string) =>
+            granted === permission || granted === "calendar:own",
+        );
+        try {
+          render(<Sidebar />);
+
+          // Anker: die Navigation ist geladen.
+          expect(screen.getByText("Mein Kalender")).toBeInTheDocument();
+          if (visible) {
+            expect(screen.getByText("Aktuelle Aufsicht")).toBeInTheDocument();
+          } else {
+            expect(
+              screen.queryByText("Aktuelle Aufsicht"),
+            ).not.toBeInTheDocument();
+          }
+        } finally {
+          mockIsCaregiver.mockImplementation(
+            (session) => !mockIsAdmin(session),
+          );
+        }
+      },
+    );
+
+    it("zeigt dieselben Einträge einer Betreuungsrolle mit ihren Rechten", () => {
+      mockHasPermission.mockImplementation(
+        (_session: unknown, permission: string) =>
+          CAREGIVER_PERMISSIONS.has(permission) ||
+          CAREGIVER_NAV_PERMISSIONS.has(permission),
+      );
+
+      render(<Sidebar />);
+
+      expect(screen.getByText("Heute")).toBeInTheDocument();
+      for (const label of EXTERN_GATED_LABELS) {
+        expect(screen.getByText(label)).toBeInTheDocument();
+      }
     });
 
     // Eigener Dienstplan (#3821): Eintrag unter Team für alle, die ihre
@@ -2302,6 +2448,10 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
+      // Anker: die Staff-Navigation ist geladen (Mitarbeiter über
+      // users:read; die Zeiterfassung hängt seit #4573 selbst an
+      // time_tracking:own).
+      expect(screen.getByText("Mitarbeiter")).toBeInTheDocument();
       expect(screen.queryByText("Mein Dienstplan")).not.toBeInTheDocument();
     });
 
@@ -2315,6 +2465,8 @@ describe("Sidebar", () => {
       try {
         render(<Sidebar />);
 
+        // Anker: die Staff-Navigation ist geladen.
+        expect(screen.getByText("Zeiterfassung")).toBeInTheDocument();
         expect(screen.queryByText("Mein Dienstplan")).not.toBeInTheDocument();
       } finally {
         vi.mocked(useTimetableEnabled).mockReturnValue(true);
@@ -2372,7 +2524,7 @@ describe("Sidebar", () => {
       } as unknown as ReturnType<typeof useSWR>);
     });
 
-    it("keeps Schuljahr und Ferien and Abrechnung when timetable.enabled is false", () => {
+    it("keeps Schuljahr und Kalender and Abrechnung when timetable.enabled is false", () => {
       mockUseSWRDefault.mockReturnValue({
         data: {
           tabs: [
@@ -2394,7 +2546,7 @@ describe("Sidebar", () => {
       // Schuljahr und Ferien bleiben erreichbar — die Anmeldephasen hängen
       // daran; nur die timetable-spezifischen Seiten verschwinden.
       expect(screen.getByText("Planung")).toBeInTheDocument();
-      expect(screen.getByText("Schuljahr und Ferien")).toBeInTheDocument();
+      expect(screen.getByText("Schuljahr und Kalender")).toBeInTheDocument();
       expect(screen.queryByText("Betreuungsplan")).not.toBeInTheDocument();
       expect(screen.queryByText("Dienstplan")).not.toBeInTheDocument();
       expect(screen.queryByText("Vertretungsplan")).not.toBeInTheDocument();
@@ -2540,12 +2692,15 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
+      // Anker: die Staff-Navigation ist geladen (Dateien stehen für alle da;
+      // die Zeiterfassung braucht seit #4573 time_tracking:own).
+      expect(screen.getByText("Dateien")).toBeInTheDocument();
       expect(screen.queryByText("Planung")).not.toBeInTheDocument();
       expect(screen.queryByText("Betreuungsplan")).not.toBeInTheDocument();
     });
   });
 
-  describe("Vertretungen navigation (#2806)", () => {
+  describe("Übergaben navigation (#2806)", () => {
     beforeEach(() => {
       mockIsAdmin.mockReturnValue(true);
       mockUseSession.mockReturnValue(createMockSession(true));
@@ -2555,27 +2710,27 @@ describe("Sidebar", () => {
       mockUseOpenCareGroupMode.mockReturnValue(false);
     });
 
-    it("keeps Vertretungen for open-care tenants", () => {
+    it("keeps Übergaben for open-care tenants", () => {
       mockUseOpenCareGroupMode.mockReturnValue(true);
 
       render(<Sidebar />);
 
-      expect(screen.getByText("Vertretungen")).toBeInTheDocument();
+      expect(screen.getByText("Übergaben")).toBeInTheDocument();
     });
 
-    it("shows Vertretungen for fixed-groups tenants", () => {
+    it("shows Übergaben for fixed-groups tenants", () => {
       render(<Sidebar />);
 
-      expect(screen.getByText("Vertretungen")).toBeInTheDocument();
+      expect(screen.getByText("Übergaben")).toBeInTheDocument();
     });
 
-    it("shows Vertretungen to staff", () => {
+    it("shows Übergaben to staff", () => {
       mockIsAdmin.mockReturnValue(false);
       mockUseSession.mockReturnValue(createMockSession(false));
 
       render(<Sidebar />);
 
-      expect(screen.getByText("Vertretungen")).toBeInTheDocument();
+      expect(screen.getByText("Übergaben")).toBeInTheDocument();
     });
   });
 
@@ -2603,7 +2758,7 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
-      expect(screen.queryByText("Meine Gruppen")).not.toBeInTheDocument();
+      expect(screen.queryByText("Gruppen")).not.toBeInTheDocument();
       expect(
         screen.queryByText("Keine Gruppen zugeordnet"),
       ).not.toBeInTheDocument();
@@ -2615,8 +2770,77 @@ describe("Sidebar", () => {
     it("shows the Meine Gruppen accordion for fixed-groups tenants", () => {
       render(<Sidebar />);
 
-      expect(screen.getByText("Meine Gruppen")).toBeInTheDocument();
+      expect(screen.getByText("Gruppen")).toBeInTheDocument();
     });
+  });
+
+  describe("Kinder nur über Alle Kinder (#1321)", () => {
+    beforeEach(() => {
+      mockIsAdmin.mockReturnValue(false);
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: true,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        overviewEnabled: false,
+        supervisedRooms: [{ id: "7", name: "Raum 7", groupId: "70" }],
+        groups: [{ id: "1", name: "Bären", is_personal: true }],
+        refresh: vi.fn(),
+      });
+    });
+
+    afterEach(() => {
+      mockUseChildSearchOnlyNavigation.mockReturnValue(false);
+    });
+
+    it("keeps Meine Gruppen and Aktuelle Aufsicht while the school keeps them", () => {
+      render(<Sidebar />);
+
+      expect(screen.getByText("Gruppen")).toBeInTheDocument();
+      expect(screen.getByText("Aktuelle Aufsicht")).toBeInTheDocument();
+      expect(screen.getByText("Alle Kinder")).toBeInTheDocument();
+    });
+
+    it("leaves Alle Kinder as the only child entry when the school switches it on", () => {
+      mockUseChildSearchOnlyNavigation.mockReturnValue(true);
+
+      render(<Sidebar />);
+
+      expect(screen.queryByText("Gruppen")).not.toBeInTheDocument();
+      expect(screen.queryByText("Aktuelle Aufsicht")).not.toBeInTheDocument();
+      expect(screen.getByText("Alle Kinder")).toBeInTheDocument();
+    });
+
+    it("marks Alle Kinder on the group page reached by link", () => {
+      mockUseChildSearchOnlyNavigation.mockReturnValue(true);
+      mockUsePathname.mockReturnValue("/ogs-groups");
+
+      render(<Sidebar />);
+
+      expect(screen.getByText("Alle Kinder").closest("a")).toHaveClass(
+        "bg-gray-100",
+      );
+    });
+
+    it.each([
+      ["Gruppenseite", "/ogs-groups?group=1"],
+      ["Aufsichtsseite", "/active-supervisions?session=70"],
+    ])(
+      "marks Alle Kinder on a child detail page opened from the %s",
+      (_source, from) => {
+        mockUseChildSearchOnlyNavigation.mockReturnValue(true);
+        mockUsePathname.mockReturnValue("/students/123");
+        mockUseSearchParams.mockReturnValue(
+          createMockSearchParams((key) => (key === "from" ? from : null)),
+        );
+
+        render(<Sidebar />);
+
+        expect(screen.getByText("Alle Kinder").closest("a")).toHaveClass(
+          "bg-gray-100",
+        );
+      },
+    );
   });
 
   describe("collapsible sidebar (#2825)", () => {
@@ -2658,7 +2882,7 @@ describe("Sidebar", () => {
 
     it("expands the sidebar and opens the section when a rail accordion icon is clicked", () => {
       // Betreuungskraft mit Aufsicht: der Aufsicht-Bereich ist im Streifen
-      // zu (nur "Meine Gruppen" steht standardmäßig offen).
+      // zu (nur "Gruppen" steht standardmäßig offen).
       mockUseSupervision.mockReturnValue({
         hasGroups: true,
         isSupervising: true,
@@ -2743,8 +2967,8 @@ describe("Sidebar", () => {
       expect(screen.getByLabelText("Hilfe")).toBeInTheDocument();
     });
 
-    it("keeps Tagesplan reachable as an icon in the rail (#2383)", () => {
-      // Betreuungskraft mit schedules:read: ausgeklappt steht Tagesplan ganz
+    it("keeps Heute reachable as an icon in the rail (#2383, #4348)", () => {
+      // Betreuungskraft mit schedules:read: ausgeklappt steht Heute ganz
       // oben — der Streifen darf den Einstieg nicht verlieren.
       mockHasPermission.mockImplementation(
         (_session, permission) => permission === "schedules:read",
@@ -2753,7 +2977,7 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
-      expect(screen.getByLabelText("Tagesplan")).toBeInTheDocument();
+      expect(screen.getByLabelText("Heute")).toBeInTheDocument();
     });
   });
 
@@ -2788,7 +3012,7 @@ describe("Sidebar", () => {
       // Zeilenraster der Seitenleiste. Die Grundklassen des Buttons dürfen
       // dabei nicht durchschlagen: keine zentrierte Ausrichtung, keine
       // eigene Innenbreite, kein transparenter Grund über dem Aktiv-Zustand.
-      const header = screen.getByRole("button", { name: "Meine Gruppen" });
+      const header = screen.getByRole("button", { name: "Gruppen" });
       for (const token of ["h-10", "px-3", "rounded-lg", "justify-start"]) {
         expect(header.className).toContain(token);
       }
@@ -2854,70 +3078,6 @@ describe("Sidebar", () => {
       expect(screen.getByLabelText("Aktivitäten")).toBeInTheDocument();
     });
 
-    // "Weitere Gruppen" erscheint nur, wenn es Gruppen gibt, die der Person
-    // nicht selbst zugeordnet sind.
-    const withOtherGroups = () => {
-      mockUseSupervision.mockReturnValue({
-        hasGroups: true,
-        isSupervising: false,
-        isLoadingGroups: false,
-        isLoadingSupervision: false,
-        overviewEnabled: false,
-        supervisedRooms: [],
-        groups: [{ id: "1", name: "Eulen", is_personal: false }],
-        refresh: vi.fn(),
-      });
-    };
-
-    it("zeigt im Streifen kein zweites, gleich aussehendes Gruppen-Icon", () => {
-      withOtherGroups();
-      localStorage.setItem("sidebar-collapsed", "true");
-
-      render(<Sidebar />);
-
-      // "Weitere Gruppen" trägt dasselbe Icon wie "Meine Gruppen" — ohne
-      // Bezeichnung wären das zwei nicht unterscheidbare Schaltflächen.
-      expect(
-        screen.getByRole("button", { name: "Meine Gruppen" }),
-      ).toBeInTheDocument();
-      expect(
-        screen.queryByRole("button", { name: "Weitere Gruppen" }),
-      ).not.toBeInTheDocument();
-    });
-
-    it("blendet das zweite Gruppen-Icon während des Einklappens aus", async () => {
-      withOtherGroups();
-
-      const { container } = render(<Sidebar />);
-      expect(
-        screen.getByRole("button", { name: "Weitere Gruppen" }),
-      ).toBeInTheDocument();
-
-      act(() => {
-        localStorage.setItem("sidebar-collapsed", "true");
-        globalThis.dispatchEvent(new Event("sidebar-collapsed-change"));
-      });
-
-      // Der Bereich bleibt für die Dauer der Bewegung stehen — sonst
-      // sprängen die Zeilen darunter im ersten Bild um seine ganze Höhe
-      // hoch. Sichtbar ist er dabei nicht: er blendet aus und zieht seine
-      // Höhe auf null, exponiert wird er auch nicht.
-      const fading = container.querySelector(
-        'div[aria-hidden="true"].grid.opacity-0.grid-rows-\\[0fr\\]',
-      );
-      expect(fading).not.toBeNull();
-      expect(fading).toContainElement(screen.getByText("Weitere Gruppen"));
-      expect(fading?.firstElementChild).toHaveAttribute("inert");
-      // Die übrigen Bezeichnungen stehen noch und blenden aus.
-      expect(screen.getByText("Aktivitäten")).toBeInTheDocument();
-
-      // Nach der Bewegung ist der Bereich weg: im Streifen stünden sonst
-      // zwei nicht unterscheidbare Gruppen-Icons untereinander.
-      await waitFor(() =>
-        expect(screen.queryByText("Weitere Gruppen")).not.toBeInTheDocument(),
-      );
-    });
-
     it("entfernt die Bezeichnungen bei prefers-reduced-motion sofort", () => {
       // Ohne Bewegung gibt es nichts, worauf die Texte warten könnten: die
       // Breite springt. Blieben sie die Dauer der Blende stehen, stünden im
@@ -2948,117 +3108,6 @@ describe("Sidebar", () => {
       } finally {
         globalThis.matchMedia = original;
       }
-    });
-
-    it("blendet das zweite Gruppen-Icon erst mit den Bezeichnungen wieder ein", async () => {
-      withOtherGroups();
-      localStorage.setItem("sidebar-collapsed", "true");
-
-      const { container } = render(<Sidebar />);
-      expect(screen.queryByText("Weitere Gruppen")).not.toBeInTheDocument();
-
-      act(() => {
-        localStorage.setItem("sidebar-collapsed", "false");
-        globalThis.dispatchEvent(new Event("sidebar-collapsed-change"));
-      });
-
-      // Der Bereich hängt sich unsichtbar ein und wächst mit den
-      // Bezeichnungen auf — sonst stünden die beiden gleichen Icons ein Bild
-      // lang unbeschriftet untereinander.
-      const growing = container.querySelector(
-        'div[aria-hidden="true"].grid.opacity-0.grid-rows-\\[0fr\\]',
-      );
-      expect(growing).toContainElement(screen.getByText("Weitere Gruppen"));
-
-      await waitFor(() =>
-        expect(
-          container.querySelector(
-            "div.grid.opacity-100.grid-rows-\\[1fr\\] .truncate",
-          ),
-        ).toHaveTextContent("Weitere Gruppen"),
-      );
-    });
-
-    it("öffnet über das Gruppen-Icon wieder Meine Gruppen", async () => {
-      mockUseSupervision.mockReturnValue({
-        hasGroups: true,
-        isSupervising: false,
-        isLoadingGroups: false,
-        isLoadingSupervision: false,
-        overviewEnabled: false,
-        supervisedRooms: [],
-        groups: [
-          { id: "1", name: "Eulen", is_personal: true },
-          { id: "2", name: "Adler", is_personal: false },
-        ],
-        refresh: vi.fn(),
-      });
-
-      render(<Sidebar />);
-      fireEvent.click(screen.getByText("Weitere Gruppen"));
-
-      act(() => {
-        localStorage.setItem("sidebar-collapsed", "true");
-        globalThis.dispatchEvent(new Event("sidebar-collapsed-change"));
-      });
-      await waitFor(() =>
-        expect(screen.queryByText("Meine Gruppen")).not.toBeInTheDocument(),
-      );
-
-      // Das Icon im Streifen heißt "Meine Gruppen"; danach müssen die
-      // eigenen Gruppen offen stehen und nicht der zuletzt gewählte
-      // Unterbereich.
-      fireEvent.click(screen.getByRole("button", { name: "Meine Gruppen" }));
-
-      // "Weitere Gruppen" kommt erst mit den Bezeichnungen dazu, deshalb
-      // beide Erwartungen in derselben Wartebedingung.
-      await waitFor(() => {
-        expect(
-          screen.getByText("Meine Gruppen").closest("button"),
-        ).toHaveAttribute("aria-expanded", "true");
-        expect(
-          screen.getByText("Weitere Gruppen").closest("button"),
-        ).toHaveAttribute("aria-expanded", "false");
-      });
-    });
-
-    it("öffnet Meine Gruppen auch bei geöffneter fremder Gruppe", async () => {
-      // Die geöffnete Gruppe ist eine fremde — "Weitere Gruppen" steht
-      // deshalb offen. Das Icon im Streifen heißt trotzdem "Meine Gruppen"
-      // und muss genau die öffnen.
-      mockUsePathname.mockReturnValue("/ogs-groups");
-      mockUseSearchParams.mockReturnValue(
-        createMockSearchParams((key: string) => (key === "group" ? "2" : null)),
-      );
-      mockUseSupervision.mockReturnValue({
-        hasGroups: true,
-        isSupervising: false,
-        isLoadingGroups: false,
-        isLoadingSupervision: false,
-        overviewEnabled: false,
-        supervisedRooms: [],
-        groups: [
-          { id: "1", name: "Eulen", is_personal: true },
-          { id: "2", name: "Adler", is_personal: false },
-        ],
-        refresh: vi.fn(),
-      });
-      localStorage.setItem("sidebar-collapsed", "true");
-
-      render(<Sidebar />);
-
-      fireEvent.click(screen.getByRole("button", { name: "Meine Gruppen" }));
-
-      // "Weitere Gruppen" kommt erst mit den Bezeichnungen dazu, deshalb
-      // beide Erwartungen in derselben Wartebedingung.
-      await waitFor(() => {
-        expect(
-          screen.getByText("Meine Gruppen").closest("button"),
-        ).toHaveAttribute("aria-expanded", "true");
-        expect(
-          screen.getByText("Weitere Gruppen").closest("button"),
-        ).toHaveAttribute("aria-expanded", "false");
-      });
     });
 
     it("nennt den Zähler während der Bewegung nur einmal", () => {
@@ -3149,58 +3198,6 @@ describe("Sidebar", () => {
       ).toHaveLength(1);
     });
 
-    it("hält den offenen Bereich 'Weitere Gruppen' samt Unterpunkten bis zum Ende der Bewegung", async () => {
-      withOtherGroups();
-
-      const { container } = render(<Sidebar />);
-      fireEvent.click(screen.getByText("Weitere Gruppen"));
-      await waitFor(() =>
-        expect(screen.getByText("Eulen")).toBeInTheDocument(),
-      );
-
-      act(() => {
-        localStorage.setItem("sidebar-collapsed", "true");
-        globalThis.dispatchEvent(new Event("sidebar-collapsed-change"));
-      });
-
-      // Der ganze Bereich bleibt stehen — Kopfzeile und Unterpunkte —, und
-      // seine Höhe geht mit derselben Kurve auf null wie die Breite der
-      // Leiste. Verschwände er sofort, sprängen alle Zeilen darunter im
-      // ersten Bild um seine volle Höhe hoch.
-      const fading = container.querySelector(
-        'div[aria-hidden="true"].grid.grid-rows-\\[0fr\\]',
-      );
-      expect(fading).toContainElement(screen.getByText("Weitere Gruppen"));
-      expect(fading).toContainElement(screen.getByText("Eulen"));
-
-      // Erst nach der Bewegung geht der Bereich aus dem Baum.
-      await waitFor(() =>
-        expect(screen.queryByText("Weitere Gruppen")).not.toBeInTheDocument(),
-      );
-      expect(screen.queryByText("Eulen")).not.toBeInTheDocument();
-    });
-
-    it("klappt den offenen Bereich nicht zusätzlich zur Hülle zu", async () => {
-      withOtherGroups();
-
-      render(<Sidebar />);
-      fireEvent.click(screen.getByText("Weitere Gruppen"));
-      await waitFor(() =>
-        expect(screen.getByText("Eulen")).toBeInTheDocument(),
-      );
-
-      act(() => {
-        localStorage.setItem("sidebar-collapsed", "true");
-        globalThis.dispatchEvent(new Event("sidebar-collapsed-change"));
-      });
-
-      // Die Hülle zieht die volle Höhe zusammen. Der Inhalt behält seine
-      // Höhe bis zum Ende der Bewegung — zwei geschachtelte Höhenwechsel
-      // ergäben sonst eine zweite Bewegung der Zeilen darunter.
-      const header = screen.getByText("Weitere Gruppen").closest("button");
-      expect(header!.nextElementSibling).toHaveClass("grid-rows-[1fr]");
-    });
-
     it("hält geschlossene Bereiche aus der Tastaturreihenfolge heraus", () => {
       render(<Sidebar />);
 
@@ -3273,6 +3270,8 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
+      // Anker: die Staff-Navigation ist geladen.
+      expect(screen.getByText("Mitarbeiter")).toBeInTheDocument();
       expect(
         screen.queryByLabelText(/ungelesene Anmeldungen/),
       ).not.toBeInTheDocument();
