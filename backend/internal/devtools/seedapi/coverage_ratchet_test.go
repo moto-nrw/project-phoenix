@@ -62,8 +62,6 @@ var seedCoverageExemptions = map[string]string{
 
 	"auth.account_permissions":                  "direct account grants are retired (#4485); nothing writes the table and it is dropped in a follow-up migration",
 	"auth.demo_accesses":                        "prospect contact data of the public demo; its routes exist under APP_ENV=demo only and the seeder must not invent prospects",
-	"auth.mfa_credentials":                      "empty in prod too",
-	"auth.mfa_email_challenges":                 "empty in prod too",
 	"auth.mfa_overrides":                        "empty in prod too",
 	"auth.mfa_trusted_devices":                  "empty in prod too",
 	"auth.passkey_credentials":                  "empty in prod too",

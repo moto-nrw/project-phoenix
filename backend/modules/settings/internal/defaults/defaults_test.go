@@ -1726,13 +1726,10 @@ func TestMFASettings_TypesAndDefaults(t *testing.T) {
 func TestMFASettings_DependsOnGraph(t *testing.T) {
 	t.Parallel()
 
-	t.Run("trusted_device_enabled hidden when mfa_mode is off", func(t *testing.T) {
+	t.Run("trusted_device_enabled remains visible for privileged MFA when mode is off", func(t *testing.T) {
 		def := config.GetDefinition(config.KeyMFATrustedDeviceEnabled)
 		require.NotNil(t, def)
-		require.NotNil(t, def.DependsOn)
-		assert.Equal(t, config.KeyMFAMode, def.DependsOn.Key)
-		assert.Equal(t, "neq", def.DependsOn.Condition)
-		assert.Equal(t, config.MFAModeOff, def.DependsOn.Value)
+		assert.Nil(t, def.DependsOn, "privileged accounts require MFA even when the school mode is off")
 	})
 
 	t.Run("trusted_device_days hidden when trusted_device_enabled is false", func(t *testing.T) {
