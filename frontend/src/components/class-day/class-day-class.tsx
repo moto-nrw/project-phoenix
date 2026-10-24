@@ -71,8 +71,15 @@ const logger = createLogger({ component: "ClassDayClass" });
 
 const REPORT_FOCUS_THROTTLE_MS = 60 * 1000;
 
-/** Höchstlänge eines Hinweises an die OGS (#4795), wie im Backend. */
+/** Höchstlänge eines Hinweises an die OGS (#4795) in Zeichen, wie im Backend. */
 const DAY_HINT_MAX_LENGTH = 500;
+
+/** Zählt Zeichen wie das Backend: ein Emoji ist ein Zeichen, nicht zwei. */
+function dayHintLength(text: string): number {
+  return [...text].length;
+}
+
+const DAY_HINT_TOO_LONG = `Der Hinweis ist zu lang. Bitte kürzen Sie ihn auf ${DAY_HINT_MAX_LENGTH} Zeichen.`;
 
 /** Ziel des Hinweises: die ganze Klasse oder ein Kind (seine ID als Text). */
 const CLASS_TARGET = "class";
@@ -309,6 +316,7 @@ export function ClassDayClass({
   };
   const existingHint = ownHintFor(hintTarget);
   const trimmedHint = hintBody.trim();
+  const hintTooLong = dayHintLength(trimmedHint) > DAY_HINT_MAX_LENGTH;
   const hintStudentId =
     hintTarget === CLASS_TARGET ? undefined : Number(hintTarget);
 
@@ -330,6 +338,10 @@ export function ClassDayClass({
       hintErrors.invalid("Bitte schreiben Sie einen Hinweis.", {
         day_hint: "Bitte schreiben Sie einen Hinweis.",
       });
+      return;
+    }
+    if (hintTooLong) {
+      hintErrors.invalid(DAY_HINT_TOO_LONG, { day_hint: DAY_HINT_TOO_LONG });
       return;
     }
     setHintSaving(true);
@@ -362,8 +374,12 @@ export function ClassDayClass({
       logger.error("class_day_hint_delete_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      // Der Dialog bleibt offen; ein zweiter Klick ist der neue Versuch.
-      await hintDeleteErrors.show(err, { object: "der Hinweis" });
+      // Der Dialog bleibt offen; bei einem Serverfehler bietet die Meldung
+      // den neuen Versuch und die Anfrage-ID an (#2513).
+      await hintDeleteErrors.show(err, {
+        object: "der Hinweis",
+        retry: () => void deleteHint(),
+      });
     } finally {
       setHintDeleting(false);
     }
@@ -802,14 +818,20 @@ export function ClassDayClass({
                 name="day_hint"
                 label="Hinweis"
                 rows={4}
-                maxLength={DAY_HINT_MAX_LENGTH}
+                // Der Browser zählt ein Emoji doppelt; der Spielraum lässt
+                // 500 Zeichen immer zu, die Prüfung zählt wie das Backend.
+                maxLength={DAY_HINT_MAX_LENGTH * 2}
                 value={hintBody}
                 onChange={(event) => setHintBody(event.target.value)}
                 placeholder="Zum Beispiel: Hat heute Bauchweh, bitte im Blick behalten."
-                error={hintErrors.fieldError("day_hint")}
+                error={
+                  hintTooLong
+                    ? DAY_HINT_TOO_LONG
+                    : hintErrors.fieldError("day_hint")
+                }
               />
               <p className="mt-1 text-right text-xs text-gray-500 tabular-nums">
-                {hintBody.length} von {DAY_HINT_MAX_LENGTH} Zeichen
+                {dayHintLength(hintBody)} von {DAY_HINT_MAX_LENGTH} Zeichen
               </p>
             </div>
           </div>
@@ -829,7 +851,7 @@ export function ClassDayClass({
         confirmLabel="Endgültig löschen"
         loadingLabel="Wird gelöscht…"
         loading={hintDeleting}
-        error={hintDeleteErrors.error?.message ?? ""}
+        error={hintDeleteErrors.error}
         onConfirm={() => void deleteHint()}
         onClose={() => setHintDeleteOpen(false)}
         mobileSheet

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { setTestClock } from "~/test/clock";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
+import { ApiError } from "~/lib/api-error";
 import type { ClassDayReport } from "~/lib/class-day-api";
 
 // Der Hinweis der Lehrkraft an die OGS (#4795): nur heute, nur mit Freigabe
@@ -154,7 +155,9 @@ describe("ClassDayClass day hints", () => {
       await screen.findByRole("button", { name: "Hinweis für die OGS" }),
     );
     const field = screen.getByLabelText("Hinweis");
-    expect(field).toHaveAttribute("maxLength", "500");
+    // Der Browser zählt UTF-16-Einheiten; die Grenze lässt 500 Zeichen mit
+    // Emojis zu, die eigentliche Prüfung zählt wie das Backend.
+    expect(field).toHaveAttribute("maxLength", "1000");
 
     // Leer speichern sagt, was fehlt, und schickt nichts.
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
@@ -225,6 +228,92 @@ describe("ClassDayClass day hints", () => {
     await waitFor(() =>
       expect(deleteDayHint).toHaveBeenCalledWith("4a", TODAY, undefined),
     );
+  });
+
+  it("counts characters like the backend, an emoji as one", async () => {
+    render(
+      <ClassDayClass
+        schoolClass="4a"
+        fetchClassDay={() =>
+          Promise.resolve(report({ can_write_day_hints: true }))
+        }
+        fetchClasses={classes}
+      />,
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Hinweis für die OGS" }),
+    );
+    const field = screen.getByLabelText("Hinweis");
+
+    // 501 Zeichen sind zu lang: die Meldung steht am Feld, nichts geht raus.
+    fireEvent.change(field, { target: { value: "😀".repeat(501) } });
+    expect(screen.getByText("501 von 500 Zeichen")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    expect(
+      (
+        await screen.findAllByText(
+          "Der Hinweis ist zu lang. Bitte kürzen Sie ihn auf 500 Zeichen.",
+        )
+      ).length,
+    ).toBeGreaterThan(0);
+    expect(saveDayHint).not.toHaveBeenCalled();
+
+    // 500 Emojis sind 1000 UTF-16-Einheiten und trotzdem erlaubt.
+    fireEvent.change(field, { target: { value: "😀".repeat(500) } });
+    expect(screen.getByText("500 von 500 Zeichen")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await waitFor(() =>
+      expect(saveDayHint).toHaveBeenCalledWith(
+        "4a",
+        TODAY,
+        "😀".repeat(500),
+        undefined,
+      ),
+    );
+  });
+
+  it("keeps a failed deletion in the dialog with its request ID and a retry", async () => {
+    deleteDayHint.mockRejectedValueOnce(
+      new ApiError("boom", 500, {
+        code: "general.server",
+        instance: "req-hint",
+      }),
+    );
+    render(
+      <ClassDayClass
+        schoolClass="4a"
+        fetchClassDay={() =>
+          Promise.resolve(
+            report({
+              can_write_day_hints: true,
+              class_day_hints: [
+                {
+                  body: "Heute Sportfest",
+                  own: true,
+                  updated_at: "2026-09-07T07:00:00Z",
+                },
+              ],
+            }),
+          )
+        }
+        fetchClasses={classes}
+      />,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Hinweis für die OGS" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Hinweis löschen" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Ja, löschen" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Endgültig löschen" }),
+    );
+
+    expect(
+      await screen.findByRole("button", { name: "Vorgangskennung kopieren" }),
+    ).toHaveTextContent("req-hint");
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() => expect(deleteDayHint).toHaveBeenCalledTimes(2));
   });
 
   it("offers no hint for another day", async () => {
