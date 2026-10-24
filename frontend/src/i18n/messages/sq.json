@@ -1599,7 +1599,8 @@
     "signatureDownload": "Dëshmia si PDF",
     "signatureDownloading": "Dëshmia po ngarkohet …",
     "signatureEditHint": "Nëse e ndryshoni regjistrimin, e nënshkruani përsëri.",
-    "errorObjectProof": "dëshmia"
+    "errorObjectProof": "dëshmia",
+    "signatureEyebrow": "Dëshmi"
   },
   "parentRequestEdit": {
     "title": "Ndrysho kërkesën",

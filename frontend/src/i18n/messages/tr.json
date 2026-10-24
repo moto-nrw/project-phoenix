@@ -1599,7 +1599,8 @@
     "signatureDownload": "PDF olarak belge",
     "signatureDownloading": "Belge yükleniyor …",
     "signatureEditHint": "Kaydı değiştirirseniz yeniden imzalarsınız.",
-    "errorObjectProof": "belge"
+    "errorObjectProof": "belge",
+    "signatureEyebrow": "Belge"
   },
   "parentRequestEdit": {
     "title": "Talebi düzenle",

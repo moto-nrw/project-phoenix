@@ -5,7 +5,6 @@ import { Download } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { Button } from "~/components/ui/button";
 import { Alert } from "~/components/ui/alert";
-import { SectionCard } from "~/components/ui/section-card";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import {
   downloadEnrollmentSignatureProof,
@@ -60,7 +59,15 @@ export function EnrollmentSignatureStatus({
   });
 
   return (
-    <SectionCard title={t("signatureTitle")} bodyClassName="space-y-3">
+    <section className="moto-content-surface space-y-4 rounded-xl border p-5 shadow-sm sm:p-6">
+      <div>
+        <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+          {t("signatureEyebrow")}
+        </p>
+        <h2 className="mt-1 text-xl font-semibold text-gray-900">
+          {t("signatureTitle")}
+        </h2>
+      </div>
       <p className="text-sm leading-6 text-gray-700">
         {t("signatureSigned", { name: signature.signer_name, date: signedAt })}{" "}
         {signature.method === "typed"
@@ -88,6 +95,6 @@ export function EnrollmentSignatureStatus({
         <Download className="h-4 w-4" aria-hidden="true" />
         {t("signatureDownload")}
       </Button>
-    </SectionCard>
+    </section>
   );
 }

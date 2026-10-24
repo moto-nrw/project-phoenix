@@ -1599,7 +1599,8 @@
     "signatureDownload": "Proof as PDF",
     "signatureDownloading": "Loading proof …",
     "signatureEditHint": "If you change the enrollment, you sign it again.",
-    "errorObjectProof": "the proof"
+    "errorObjectProof": "the proof",
+    "signatureEyebrow": "Proof"
   },
   "parentRequestEdit": {
     "title": "Edit request",

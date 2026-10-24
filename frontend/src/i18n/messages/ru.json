@@ -1599,7 +1599,8 @@
     "signatureDownload": "Подтверждение в PDF",
     "signatureDownloading": "Загрузка подтверждения …",
     "signatureEditHint": "Если вы измените заявку, вы подпишете её заново.",
-    "errorObjectProof": "подтверждение"
+    "errorObjectProof": "подтверждение",
+    "signatureEyebrow": "Подтверждение"
   },
   "parentRequestEdit": {
     "title": "Изменить заявку",

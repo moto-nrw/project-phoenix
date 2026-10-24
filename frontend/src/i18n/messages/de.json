@@ -1599,7 +1599,8 @@
     "signatureDownload": "Nachweis als PDF",
     "signatureDownloading": "Nachweis wird geladen …",
     "signatureEditHint": "Wenn Sie die Anmeldung ändern, unterschreiben Sie sie neu.",
-    "errorObjectProof": "der Nachweis"
+    "errorObjectProof": "der Nachweis",
+    "signatureEyebrow": "Nachweis"
   },
   "parentRequestEdit": {
     "title": "Anfrage bearbeiten",

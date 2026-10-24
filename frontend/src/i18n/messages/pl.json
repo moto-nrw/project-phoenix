@@ -1599,7 +1599,8 @@
     "signatureDownload": "Potwierdzenie jako PDF",
     "signatureDownloading": "Ładowanie potwierdzenia …",
     "signatureEditHint": "Jeśli zmienią Państwo zgłoszenie, podpisują je Państwo ponownie.",
-    "errorObjectProof": "potwierdzenie"
+    "errorObjectProof": "potwierdzenie",
+    "signatureEyebrow": "Potwierdzenie"
   },
   "parentRequestEdit": {
     "title": "Edytuj prośbę",
