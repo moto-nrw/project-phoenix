@@ -299,6 +299,7 @@ describe("ClassTripBulkStatusModal in moto schule (#4799)", () => {
         name: "Ausflug oder Klassenfahrt melden: Klasse 3b",
       }),
     ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Kinder" }));
     expect(screen.getByLabelText("Anna Ausflug")).toBeChecked();
     expect(screen.getByLabelText("Ben Ausflug")).toBeChecked();
 
@@ -376,12 +377,13 @@ describe("ClassTripBulkStatusModal in moto schule (#4799)", () => {
       />,
     );
 
-    fireEvent.click(screen.getByLabelText("Alle auswählen"));
+    fireEvent.click(screen.getByRole("button", { name: "Kinder" }));
+    fireEvent.click(screen.getByRole("button", { name: "Auswahl aufheben" }));
     expect(
       screen.getByRole("button", { name: "Für 0 Kinder melden" }),
     ).toBeDisabled();
 
-    fireEvent.click(screen.getByLabelText("Alle auswählen"));
+    fireEvent.click(screen.getByRole("button", { name: "Alle auswählen" }));
     fireEvent.click(
       screen.getByRole("button", { name: "Für 2 Kinder melden" }),
     );
@@ -391,6 +393,37 @@ describe("ClassTripBulkStatusModal in moto schule (#4799)", () => {
       );
     });
     expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("names the blocking child and day of a refused report like the OGS", async () => {
+    const save = vi.fn().mockRejectedValue(
+      new ApiError("conflict", 409, {
+        code: "classday.class_trip_status_conflict",
+        details: {
+          conflicts: [{ student_id: 12, date: "2026-05-26", status: "sick" }],
+          conflict_count: 1,
+        },
+      }),
+    );
+    render(
+      <ClassTripBulkStatusModal
+        isOpen
+        onClose={vi.fn()}
+        targetLabel="Klasse 3b"
+        students={classChildren}
+        schoolReport={{ save }}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Für 2 Kinder melden" }),
+    );
+    await waitFor(() => {
+      expect(
+        screen.getByText(/Ben Ausflug: 26\.05\.2026 \(krank\)/),
+      ).toBeInTheDocument();
+    });
+    expect(screen.getByText(/1 Konflikt/)).toBeInTheDocument();
   });
 });
 
@@ -420,6 +453,7 @@ describe("ClassTripBulkStatusModal date defaults in moto schule (#4799)", () => 
     expect(screen.getByLabelText("Von")).toHaveValue("2026-09-12");
     expect(screen.getByLabelText("Bis")).toHaveValue("2026-09-12");
     expect(screen.queryByLabelText(/Rückkehrzeit/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Kinder" }));
     expect(screen.getByLabelText("Anna Ausflug")).toBeChecked();
 
     fireEvent.change(screen.getByLabelText("Von"), {

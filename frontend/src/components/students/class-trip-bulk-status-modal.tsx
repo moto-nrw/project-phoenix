@@ -4,22 +4,23 @@ import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { format } from "date-fns/format";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
-import { Checkbox } from "~/components/ui/checkbox";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { isWeekendISO } from "~/components/class-day/routes";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { FormModal } from "~/components/ui/form-modal";
+import { MultiCheckboxSelect } from "~/components/ui/multi-checkbox-select";
 import { TimeField } from "~/components/ui/time-field";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import type { Student } from "~/lib/api";
-import {
-  formatDate as formatCalendarDate,
-  parseISODate,
-} from "~/lib/date-helpers";
+import { formatDate as formatCalendarDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
-import type { ClassTripReportInput } from "~/lib/school-class-day-api";
+import {
+  classTripConflictsFromError,
+  type ClassTripConflictDay,
+  type ClassTripReportInput,
+} from "~/lib/school-class-day-api";
 import {
   bulkCreateStudentStatusDays,
-  type StudentStatusDay,
   type StudentStatusKind,
   StudentStatusDayConflictError,
 } from "~/lib/student-status-days-api";
@@ -50,12 +51,6 @@ interface ClassTripBulkStatusModalProps {
   };
 }
 
-/** Samstag oder Sonntag: dann kommt kein Kind in die OGS. */
-function isWeekendKey(dateKey: string): boolean {
-  const day = parseISODate(dateKey).getDay();
-  return day === 0 || day === 6;
-}
-
 function todayKey(): string {
   return format(new Date(), "yyyy-MM-dd");
 }
@@ -75,7 +70,7 @@ export function ClassTripBulkStatusModal({
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [returnTime, setReturnTime] = useState("");
   const [saving, setSaving] = useState(false);
-  const [conflicts, setConflicts] = useState<StudentStatusDay[]>([]);
+  const [conflicts, setConflicts] = useState<ClassTripConflictDay[]>([]);
   const [conflictTotal, setConflictTotal] = useState(0);
   // Validation and save errors of the form (Bauart 2 Regel 5): shown in the
   // FormModal error slot, not as a toast.
@@ -87,7 +82,7 @@ export function ClassTripBulkStatusModal({
   // Auswahl der Lehrkraft nicht zurück.
   const studentIdsRef = useRef<string[]>([]);
   const schoolReportDefaultRef = useRef<string | undefined>(undefined);
-  const checkboxIdPrefix = useId();
+  const studentsFieldId = useId();
   useLayoutEffect(() => {
     studentIdsRef.current = students.map((student) => student.id);
     schoolReportDefaultRef.current = schoolReport?.defaultDate;
@@ -113,18 +108,10 @@ export function ClassTripBulkStatusModal({
 
   const singleDay = Boolean(from) && from === to;
   // Eine Rückkehrzeit gibt es nur für einen Tag von Montag bis Freitag.
-  const returnTimeOffered = singleDay && !isWeekendKey(from);
+  const returnTimeOffered = singleDay && !isWeekendISO(from);
   const chosenIds = schoolReport
     ? selectedIds
     : students.map((student) => student.id);
-  const allSelected =
-    students.length > 0 && selectedIds.length === students.length;
-  const toggleStudent = (id: string, checked: boolean) =>
-    setSelectedIds((current) =>
-      checked
-        ? [...current.filter((entry) => entry !== id), id]
-        : current.filter((entry) => entry !== id),
-    );
 
   const handleSubmit = async () => {
     formErrors.clear();
@@ -158,9 +145,17 @@ export function ClassTripBulkStatusModal({
         onSuccess?.();
         onClose();
       } catch (err) {
-        logger.error("failed to report class trip", {
-          error: err instanceof Error ? err.message : String(err),
-        });
+        const blocked = classTripConflictsFromError(err);
+        if (blocked) {
+          // Wie bei der OGS stehen die betroffenen Kinder und Tage unter
+          // dem Formular; der Satz oben kommt aus dem Katalog.
+          setConflicts(blocked.conflicts);
+          setConflictTotal(blocked.total);
+        } else {
+          logger.error("failed to report class trip", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
         await formErrors.show(err, {
           object: "die Meldung",
           retry: () => void latestSubmitRef.current(),
@@ -299,47 +294,32 @@ export function ClassTripBulkStatusModal({
           />
         ) : null}
         {schoolReport ? (
-          <fieldset className="space-y-2">
-            <legend className="text-sm font-medium text-gray-700">
-              Kinder ({selectedIds.length} von {students.length})
-            </legend>
+          <div className="space-y-1">
             <label
-              htmlFor={`${checkboxIdPrefix}-all`}
-              className="flex items-center gap-3 text-sm text-gray-900"
+              htmlFor={studentsFieldId}
+              className="block text-sm font-medium text-gray-700"
             >
-              <Checkbox
-                id={`${checkboxIdPrefix}-all`}
-                checked={allSelected}
-                onChange={(event) =>
-                  setSelectedIds(
-                    event.target.checked
-                      ? students.map((student) => student.id)
-                      : [],
-                  )
-                }
-              />
-              Alle auswählen
+              Kinder
             </label>
-            <ul className="max-h-60 space-y-2 overflow-y-auto border-t border-gray-100 pt-2">
-              {students.map((student) => (
-                <li key={student.id}>
-                  <label
-                    htmlFor={`${checkboxIdPrefix}-${student.id}`}
-                    className="flex items-center gap-3 text-sm text-gray-900"
-                  >
-                    <Checkbox
-                      id={`${checkboxIdPrefix}-${student.id}`}
-                      checked={selectedIds.includes(student.id)}
-                      onChange={(event) =>
-                        toggleStudent(student.id, event.target.checked)
-                      }
-                    />
-                    {studentDisplayName(student)}
-                  </label>
-                </li>
-              ))}
-            </ul>
-          </fieldset>
+            <MultiCheckboxSelect
+              id={studentsFieldId}
+              ariaLabel="Kinder"
+              value={selectedIds}
+              options={students.map((student) => ({
+                value: student.id,
+                label: studentDisplayName(student),
+              }))}
+              onChange={setSelectedIds}
+              emptyLabel="Kein Kind ausgewählt"
+              multipleLabel={(count) =>
+                count === students.length
+                  ? `Alle ${count} Kinder`
+                  : `${count} von ${students.length} Kindern`
+              }
+              searchable
+              searchPlaceholder="Kind suchen"
+            />
+          </div>
         ) : null}
         <label className="block text-sm font-medium text-gray-700">
           {schoolReport ? "Ziel (optional)" : "Hinweis (optional)"}
@@ -372,7 +352,7 @@ export function ClassTripBulkStatusModal({
 const MAX_BULK_CONFLICT_DETAILS = 8;
 
 function formatBulkConflictMessage(
-  conflicts: StudentStatusDay[],
+  conflicts: ClassTripConflictDay[],
   students: ClassTripStudent[],
   totalCount: number,
 ): string {

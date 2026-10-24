@@ -31,6 +31,7 @@ import {
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { ChoiceTile } from "~/components/ui/choice-tile";
+import { MultiSelect } from "~/components/ui/multi-select";
 import { BooleanField } from "./fields/boolean-field";
 import { NumberField } from "./fields/number-field";
 import { SettingsTimeField } from "./fields/time-field";
@@ -1864,17 +1865,35 @@ function renderField(
           disabled={disabled}
         />
       );
-    case "multiselect":
+    case "multiselect": {
+      const options = setting.options?.static ?? [];
+      const chosen = Array.isArray(localValue) ? localValue.map(String) : [];
       return (
-        <SelectField
+        <MultiSelect
           ariaLabel={setting.label}
-          value={localValue}
-          onChange={onImmediateSave}
-          options={setting.options?.static ?? []}
+          placeholder="Nichts ausgewählt"
+          summaryLabel={(count) => `${count} ausgewählt`}
+          value={chosen}
+          options={options.map((option) => ({
+            value: String(option.value),
+            label: option.label,
+          }))}
+          onChange={(next) =>
+            onImmediateSave(
+              options
+                .map((option) => option.value)
+                .filter((value) => next.includes(String(value))),
+            )
+          }
           disabled={disabled}
-          multiple
+          triggerClassName={
+            disabled
+              ? "h-10 w-auto min-w-[8rem] max-w-full border-gray-200 sm:max-w-xs"
+              : "moto-content-surface h-10 w-auto min-w-[8rem] max-w-full hover:border-gray-300 sm:max-w-xs"
+          }
         />
       );
+    }
     default:
       return (
         <TextField

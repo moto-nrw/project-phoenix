@@ -854,15 +854,15 @@ describe("SettingsField", () => {
       />,
     );
 
-    expect(
-      getByRole("group", {
+    fireEvent.click(
+      getByRole("button", {
         name: "Was Lehrkräfte in moto schule eintragen dürfen",
       }),
-    ).toBeInTheDocument();
-    const trips = getByRole("checkbox", {
+    );
+    const trips = getByRole("option", {
       name: "Ausflug oder Klassenfahrt der Klasse melden",
     });
-    expect(trips).not.toBeChecked();
+    expect(trips).toHaveAttribute("aria-selected", "false");
     fireEvent.click(trips);
     await waitFor(() =>
       expect(onSave).toHaveBeenCalledExactlyOnceWith(
