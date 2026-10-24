@@ -256,7 +256,7 @@ function LoginForm() {
         eyebrow="Schulportal"
         eyebrowClassName="text-moto-blue"
         title="Willkommen im Schulportal"
-        subtitle="Melden Sie sich mit Ihrem Lehrkraft-Konto an."
+        subtitle="Melden Sie sich mit Ihrem Konto für moto schule an."
         variant="tenant"
         brand={<MotoBrand />}
       >
@@ -441,7 +441,7 @@ export default function SchoolLoginPage() {
           eyebrow="Schulportal"
           eyebrowClassName="text-moto-blue"
           title="Willkommen im Schulportal"
-          subtitle="Melden Sie sich mit Ihrem Lehrkraft-Konto an."
+          subtitle="Melden Sie sich mit Ihrem Konto für moto schule an."
           variant="tenant"
           brand={<MotoBrand />}
         >
