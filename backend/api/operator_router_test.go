@@ -45,6 +45,12 @@ type stubBillingReport struct {
 type protectedRouteProvisioningService struct {
 	organizationtenancy.Provisioning
 	createSchoolFn func(context.Context, *organizationtenancy.CreateSchool, int64, net.IP) (*organizationtenancy.School, error)
+	reads          []organizationtenancy.OperatorReadAccess
+}
+
+func (s *protectedRouteProvisioningService) RecordOperatorRead(_ context.Context, access organizationtenancy.OperatorReadAccess) error {
+	s.reads = append(s.reads, access)
+	return nil
 }
 
 func (s *protectedRouteProvisioningService) CreateSchool(ctx context.Context, school *organizationtenancy.CreateSchool, operatorID int64, clientIP net.IP) (*organizationtenancy.School, error) {
@@ -190,15 +196,17 @@ func TestUnregisteredTagScanRoutesSitBehindOperatorAuth(t *testing.T) {
 			return op, nil
 		},
 	}
+	provisioning := &protectedRouteProvisioningService{}
 	router := operatorRouter(operatorIdentity{access: authService, sessions: operatorTestSessions(t, authService)},
-		provisioningoperator.ProvisioningConfig{}, nil, nil, nil, review, authRateLimiters{}, http.NotFoundHandler())
+		provisioningoperator.ProvisioningConfig{Service: provisioning}, nil, nil, nil, review, authRateLimiters{}, http.NotFoundHandler())
 
 	anonymous := httptest.NewRecorder()
 	router.ServeHTTP(anonymous, httptest.NewRequest(http.MethodGet, "/unregistered-tag-scans/", nil))
 	assert.Equal(t, http.StatusUnauthorized, anonymous.Code)
 	assert.Empty(t, reached)
+	assert.Empty(t, provisioning.reads)
 
-	for _, target := range []struct{ method, path, routePath string }{
+	for i, target := range []struct{ method, path, routePath string }{
 		{method: http.MethodGet, path: "/unregistered-tag-scans/", routePath: "/"},
 		{method: http.MethodPost, path: "/unregistered-tag-scans/123/resolve", routePath: "/123/resolve"},
 	} {
@@ -207,6 +215,8 @@ func TestUnregisteredTagScanRoutesSitBehindOperatorAuth(t *testing.T) {
 		rr := httptest.NewRecorder()
 		router.ServeHTTP(rr, req)
 		assert.Equal(t, http.StatusTeapot, rr.Code, target.path)
+		require.Len(t, provisioning.reads, i+1)
+		assert.Equal(t, organizationtenancy.ReadUnregisteredTagScans, provisioning.reads[i].View)
 		assert.Contains(t, reached, target.method+" "+target.routePath)
 	}
 }
@@ -237,6 +247,7 @@ func TestProtectedOperatorRoutesRejectInactiveOperator(t *testing.T) {
 
 	assert.Equal(t, http.StatusForbidden, rr.Code)
 	assert.Contains(t, rr.Body.String(), "Operator account is inactive")
+	assert.Empty(t, provisioningService.reads, "authentication must reject before the disclosure audit")
 }
 
 func TestProtectedOperatorRoutesAllowActiveOperator(t *testing.T) {
@@ -270,6 +281,9 @@ func TestProtectedOperatorRoutesAllowActiveOperator(t *testing.T) {
 
 	require.Equal(t, http.StatusCreated, rr.Code, rr.Body.String())
 	assert.True(t, createSchoolCalled, "active operator should reach protected provisioning handler")
+	require.Len(t, provisioningService.reads, 1)
+	assert.Equal(t, organizationtenancy.ReadSchools, provisioningService.reads[0].View)
+	assert.EqualValues(t, 42, provisioningService.reads[0].OperatorID)
 }
 
 // testOperatorRouter mounts the operator routes over the given Identity &

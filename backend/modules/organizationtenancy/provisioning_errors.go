@@ -5,6 +5,12 @@ import "fmt"
 // The provisioning errors carry the identifier the operator acted on. The
 // HTTP layer maps them by type.
 
+// OperatorAuditUnavailableError refuses an operation whose audit cannot be stored.
+type OperatorAuditUnavailableError struct{ Err error }
+
+func (e *OperatorAuditUnavailableError) Error() string { return "operator audit unavailable" }
+func (e *OperatorAuditUnavailableError) Unwrap() error { return e.Err }
+
 // InvalidProvisioningDataError rejects operator input that cannot be applied.
 type InvalidProvisioningDataError struct{ Err error }
 
