@@ -224,7 +224,7 @@ var queryBudgets = map[string]queryBudget{
 	// transaction with the supply check and the order read of
 	// modules.mealplan.orders.read_week, so it grows by a fixed number per
 	// school and never with the children; the window is at most a week.
-	"workflows.catererportal.delivery_export":            {max: 999},
+	"workflows.catererportal.delivery_export":            {max: 112, exact: true},
 	"services.education.suggest_mappings.reads":          {max: 4},
 	"services.reminders.present_students_in_rooms.reads": {max: 6},
 	"services.users.list_guardians.reads":                {max: 2},
