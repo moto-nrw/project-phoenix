@@ -21,6 +21,7 @@ type ResourceConfig struct {
 	ArrivalScheduleService  careplan.ArrivalScheduleService
 	CareDayService          careplan.CareDayQuery
 	CareLifecycleService    careplan.CareLifecycle
+	ClassHandovers          ClassHandoverReader
 	ClassListEntries        ClassListEntryReader
 	CompanionService        careplan.StudentCompanions
 	ExcusedRequestService   excusedrequests.Service

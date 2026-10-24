@@ -2,6 +2,10 @@
 package common
 
 const (
+	CodeIotDeviationReasonRequired                    = "iot.deviation_reason_required"
+	CodeIotDeviceApiKeyFormatInvalid                  = "iot.device_api_key_format_invalid"
+	CodeIotDeviceApiKeyInvalid                        = "iot.device_api_key_invalid"
+	CodeIotDeviceApiKeyRequired                       = "iot.device_api_key_required"
 	CodeIotDeviceIdTaken                              = "iot.device_id_taken"
 	CodeIotDeviceInactive                             = "iot.device_inactive"
 	CodeIotDevicePinInvalid                           = "iot.device_pin_invalid"
@@ -298,13 +302,13 @@ const (
 	CodeTimetableStudentGraduated                     = "timetable.student_graduated"
 	CodeTimetableStudentNotCheckedIn                  = "timetable.student_not_checked_in"
 	CodeTimetableStudentNotFound                      = "timetable.student_not_found"
-	CodeTimetableStudentsNotPresent                   = "timetable.students_not_present"
-	CodeTimetableSubstituteAbsent                     = "timetable.substitute_absent"
-	CodeTimetableSubstituteAbsentOnDate               = "timetable.substitute_absent_on_date"
-	CodeTimetableSubstituteConflict                   = "timetable.substitute_conflict"
 )
 
 var errorCodeClasses1 = map[string]string{
+	"iot.deviation_reason_required":                       "input",
+	"iot.device_api_key_format_invalid":                   "permission",
+	"iot.device_api_key_invalid":                          "permission",
+	"iot.device_api_key_required":                         "permission",
 	"iot.device_id_taken":                                 "business_rejection",
 	"iot.device_inactive":                                 "permission",
 	"iot.device_pin_invalid":                              "permission",
@@ -601,10 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.student_graduated":                         "business_rejection",
 	"timetable.student_not_checked_in":                    "business_rejection",
 	"timetable.student_not_found":                         "business_rejection",
-	"timetable.students_not_present":                      "business_rejection",
-	"timetable.substitute_absent":                         "input",
-	"timetable.substitute_absent_on_date":                 "input",
-	"timetable.substitute_conflict":                       "business_rejection",
 }
 
 func init() {

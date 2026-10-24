@@ -39,6 +39,7 @@ type AtSchoolCounter interface {
 
 // Dependencies are the consumer-owned ports the projection reads through.
 // ExcusedRequests is optional: without it no pending note is attached.
+// Handovers is optional: without it no child carries a handover absence.
 // Collate is optional: without it the groups keep the directory order.
 // Logger defaults to slog.Default; every other field is required.
 type Dependencies struct {
@@ -51,6 +52,7 @@ type Dependencies struct {
 	Settings        Settings
 	Calendar        Calendar
 	ExcusedRequests PendingExcusedReader
+	Handovers       HandoverReader
 	// Collate orders two group names in German dictionary order (DIN 5007-1),
 	// the order the group selection and the response rely on.
 	Collate func(a, b string) int
@@ -99,13 +101,16 @@ type Student struct {
 	DayPlanningReason  string     `json:"day_planning_reason,omitempty"`
 	DayPlanningLabel   string     `json:"day_planning_label,omitempty"`
 	PendingExcusedNote *string    `json:"pending_excused_note,omitempty"`
-	ArrivalTime        *string    `json:"arrival_time,omitempty"`
-	ArrivalIsException bool       `json:"arrival_is_exception,omitempty"`
-	ArrivalNotes       string     `json:"arrival_notes,omitempty"`
-	ActualArrivalTime  *string    `json:"actual_arrival_time,omitempty"`
-	ActualPickupTime   *string    `json:"actual_pickup_time,omitempty"`
-	PhotoURL           string     `json:"photo_url,omitempty"`
-	fullAccess         bool       // Planning access: staff/admin eligibility plus users:read.
+	// ClassHandover is set when the Lehrkraft handed the child over to the
+	// OGS today (#4794), with whether she marked it "nicht da".
+	ClassHandover      *ClassHandover `json:"class_handover,omitempty"`
+	ArrivalTime        *string        `json:"arrival_time,omitempty"`
+	ArrivalIsException bool           `json:"arrival_is_exception,omitempty"`
+	ArrivalNotes       string         `json:"arrival_notes,omitempty"`
+	ActualArrivalTime  *string        `json:"actual_arrival_time,omitempty"`
+	ActualPickupTime   *string        `json:"actual_pickup_time,omitempty"`
+	PhotoURL           string         `json:"photo_url,omitempty"`
+	fullAccess         bool           // Planning access: staff/admin eligibility plus users:read.
 }
 
 type RoomStatus struct {
@@ -380,6 +385,24 @@ func (s *service) applyStatusDays(ctx context.Context, state *buildState) error 
 	}
 	for i := range state.projected {
 		applyEffectiveStatus(&state.projected[i], statuses[state.projected[i].ID])
+	}
+	return s.applyClassHandovers(ctx, state)
+}
+
+// applyClassHandovers marks the children the Lehrkraft handed over today
+// (#4794); like the status days only for callers who read plans.
+func (s *service) applyClassHandovers(ctx context.Context, state *buildState) error {
+	if s.deps.Handovers == nil {
+		return nil
+	}
+	handovers, err := s.deps.Handovers.ClassHandovers(ctx, state.studentIDs, state.today)
+	if err != nil {
+		return fmt.Errorf("apply class handovers: %w", err)
+	}
+	for i := range state.projected {
+		if handover, ok := handovers[state.projected[i].ID]; ok {
+			state.projected[i].ClassHandover = &handover
+		}
 	}
 	return nil
 }
