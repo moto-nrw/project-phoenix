@@ -3,6 +3,7 @@ package owners
 import (
 	"context"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	identityBindingPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
@@ -70,14 +71,16 @@ func (a TokenAdapter) Caller(ctx context.Context) identityaccess.Caller {
 	if !ok {
 		return identityaccess.Caller{}
 	}
+	granted := a.Permissions(ctx)
 	return identityaccess.Caller{
-		Authenticated:  true,
-		AccountID:      claims.AccountID,
-		ClaimsTenantID: claims.TenantID,
-		Scope:          claims.Scope,
-		SchoolScope:    claims.SchoolScope,
-		AdminRole:      claims.Admin,
-		AdminWildcard:  securityruntime.HasAdminWildcard(a.Permissions(ctx)),
+		Authenticated:    true,
+		AccountID:        claims.AccountID,
+		ClaimsTenantID:   claims.TenantID,
+		Scope:            claims.Scope,
+		SchoolScope:      claims.SchoolScope,
+		AdminRole:        claims.Admin,
+		AdminWildcard:    securityruntime.HasAdminWildcard(granted),
+		AllSchoolClasses: securityruntime.HasPermission(permissions.ClassDayAllClasses, granted),
 	}
 }
 
