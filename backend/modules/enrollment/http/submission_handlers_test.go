@@ -545,6 +545,46 @@ func TestSignatureProofDocument_RefusesUnreadableConsents(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestSignatureProofDocument_ReproducesFrozenLegalTextAndDocuments(t *testing.T) {
+	t.Parallel()
+
+	req := &Request{LegalBlocksSnapshot: []capability.LegalBlocksSnapshotEntry{{
+		ConsentFlags: []byte(`{"photo":true}`),
+		Blocks: []capability.LegalBlockSnapshot{
+			{
+				Key: "privacy", Kind: capability.LegalBlockKindPrivacyNotice,
+				Title: "Datenschutz", Label: "Datenschutz gelesen.", Text: "Ihre Daten bleiben bei der Schule.",
+				Attachments: []capability.FormAttachment{{Label: "Datenschutzhinweise", DocumentURL: "/dokumente/datenschutz.pdf"}},
+			},
+			{
+				Key: "photo", Kind: capability.LegalBlockKindConsent,
+				Title: "Fotos", Label: "Ich stimme Fotos zu.", Text: "Fotos zeigen den OGS-Alltag.",
+				Attachments: []capability.FormAttachment{{Label: "Fotohinweise", DocumentURL: "/dokumente/fotos.pdf"}},
+			},
+		},
+	}}}
+
+	doc, err := signatureProofDocument(signatureProof{Request: req, Signature: &capability.RequestSignature{}}, time.Now())
+	require.NoError(t, err)
+	require.Len(t, doc.Groups, 3)
+	legal := doc.Groups[2].Records[0]
+	require.Equal(t, "Rechtstexte zum Zeitpunkt der letzten Abgabe", legal.Title)
+	require.Equal(t, []lists.SubRecord{
+		{Title: "Datenschutz", Fields: []lists.Field{
+			{Label: "Bestätigung", Value: "Datenschutz gelesen."},
+			{Label: "Antwort", Value: "Zur Kenntnis genommen"},
+			{Label: "Text", Value: "Ihre Daten bleiben bei der Schule."},
+			{Label: "Dokument: Datenschutzhinweise", Value: "/dokumente/datenschutz.pdf"},
+		}},
+		{Title: "Fotos", Fields: []lists.Field{
+			{Label: "Bestätigung", Value: "Ich stimme Fotos zu."},
+			{Label: "Antwort", Value: "Zugestimmt"},
+			{Label: "Text", Value: "Fotos zeigen den OGS-Alltag."},
+			{Label: "Dokument: Fotohinweise", Value: "/dokumente/fotos.pdf"},
+		}},
+	}, legal.Subs)
+}
+
 func TestSignatureProofDocument_IncludesSignedAnswersAndOfferingChoices(t *testing.T) {
 	t.Parallel()
 

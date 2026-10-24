@@ -177,7 +177,7 @@ func signatureProofDocument(p signatureProof, now time.Time) (lists.RecordDocume
 	if err != nil {
 		return doc, err
 	}
-	if len(consents.Fields) > 0 {
+	if len(consents.Subs) > 0 {
 		doc.Groups = append(doc.Groups, lists.RecordGroup{Title: "Zustimmungen", Records: []lists.Record{consents}})
 	}
 	return doc, nil
@@ -324,8 +324,8 @@ func signatureProofCustomFields(values map[string]any, schema *capability.FormSc
 	return fields
 }
 
-// signatureProofConsents lists the legal blocks of the newest legal
-// snapshot with the parent's answer.
+// signatureProofConsents reproduces each legal block of the newest legal
+// snapshot with the parent's answer, text and document references.
 func signatureProofConsents(req *Request) (lists.Record, error) {
 	record := lists.Record{Title: "Rechtstexte zum Zeitpunkt der letzten Abgabe"}
 	if len(req.LegalBlocksSnapshot) == 0 {
@@ -337,15 +337,29 @@ func signatureProofConsents(req *Request) (lists.Record, error) {
 		return record, fmt.Errorf("decode consent flags of the legal snapshot: %w", err)
 	}
 	for _, b := range entry.Blocks {
-		if b.Kind == capability.LegalBlockKindNotice || b.Kind == capability.LegalBlockKindPrivacyNotice {
-			record.Fields = append(record.Fields, proofField(b.Title, "Zur Kenntnis genommen"))
-			continue
-		}
-		answer := "Nicht zugestimmt"
-		if v, ok := flags[b.Key].(bool); ok && v {
-			answer = "Zugestimmt"
-		}
-		record.Fields = append(record.Fields, proofField(b.Title, answer))
+		record.Subs = append(record.Subs, signatureProofLegalBlock(b, flags))
 	}
 	return record, nil
+}
+
+func signatureProofLegalBlock(block capability.LegalBlockSnapshot, flags map[string]any) lists.SubRecord {
+	answer := "Nicht zugestimmt"
+	if block.Kind == capability.LegalBlockKindNotice || block.Kind == capability.LegalBlockKindPrivacyNotice {
+		answer = "Zur Kenntnis genommen"
+	} else if accepted, ok := flags[block.Key].(bool); ok && accepted {
+		answer = "Zugestimmt"
+	}
+	fields := []lists.Field{
+		proofField("Bestätigung", block.Label),
+		proofField("Antwort", answer),
+		proofField("Text", block.Text),
+	}
+	for _, attachment := range block.Attachments {
+		label := "Dokument"
+		if name := strings.TrimSpace(attachment.Label); name != "" {
+			label += ": " + name
+		}
+		fields = append(fields, proofField(label, attachment.DocumentURL))
+	}
+	return lists.SubRecord{Title: proofText(block.Title), Fields: fields}
 }
