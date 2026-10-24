@@ -24,9 +24,12 @@ const (
 	OverviewVisibilityStaff     = "staff"
 	OverviewVisibilityAll       = "all"
 
-	TargetTypeStaff            = "staff"
-	TargetTypeGuardianProfile  = "guardian_profile"
-	TargetTypeAllStaff         = "all_staff"
+	TargetTypeStaff           = "staff"
+	TargetTypeGuardianProfile = "guardian_profile"
+	TargetTypeAllStaff        = "all_staff"
+	// TargetTypeAllTeachers reaches the Lehrkräfte of the school in moto
+	// schule (#4798): the staff whose account holds a school-portal role.
+	TargetTypeAllTeachers      = "all_teachers"
 	TargetTypeAllSchoolParents = "all_school_parents"
 	TargetTypeParentsByClass   = "parents_by_class"
 	TargetTypeParentsByGroup   = "parents_by_group"
@@ -44,6 +47,14 @@ const (
 	RecurrenceFrequencyWeekly  = "weekly"
 	RecurrenceFrequencyMonthly = "monthly"
 	RecurrenceFrequencyYearly  = "yearly"
+
+	// School event types mark a Schultermin a Lehrkraft or the school
+	// administration entered in moto schule (#4798). An appointment without
+	// one is an OGS appointment.
+	SchoolEventTypeTrip         = "ausflug"
+	SchoolEventTypePedagogicDay = "paedagogischer_tag"
+	SchoolEventTypeLessonsEnd   = "unterrichtsende"
+	SchoolEventTypeOther        = "sonstiges"
 
 	// MaxRecurrenceOccurrenceCount keeps count-bounded expansion finite. Longer
 	// series use EndsOn instead.
@@ -175,6 +186,7 @@ type Appointment struct {
 	CancelledAt        *time.Time `json:"cancelled_at,omitempty"`
 	DeletedAt          *time.Time `json:"deleted_at,omitempty"`
 	NotifyGuardians    bool       `json:"notify_guardians"`
+	SchoolEventType    *string    `json:"school_event_type,omitempty"`
 	Revision           int        `json:"revision"`
 }
 
@@ -191,6 +203,7 @@ type AppointmentFields struct {
 	DeliveryMode       string
 	OverviewVisibility string
 	NotifyGuardians    bool
+	SchoolEventType    *string
 }
 
 func (a *Appointment) Validate() error {

@@ -59,6 +59,9 @@ type Accounts interface {
 	FindEffectivePermissionNamesByAccountIDsForTenant(ctx context.Context, accountIDs []int64, tenantID int64) (map[int64][]string, error)
 	CountRoleNameMatchesByAccountIDs(ctx context.Context, accountIDs []int64, roleNames []string) (map[int64]int, error)
 	ListAccountEmails(ctx context.Context, accountIDs []int64) (map[int64]string, error)
+	// SchoolPortalAccountIDs keeps the accounts that hold a school-portal
+	// role at the school (the Lehrkräfte of moto schule).
+	SchoolPortalAccountIDs(ctx context.Context, tenantID int64, accountIDs []int64) (map[int64]bool, error)
 }
 
 // Dependencies binds the projection. CallerTenant is the school of the

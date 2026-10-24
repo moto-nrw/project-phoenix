@@ -31,7 +31,7 @@ func NewCalendarFacts(
 ) calendarCompose.Config {
 	cfg := calendarCompose.Config{}
 	if staff != nil {
-		cfg.StaffRepo = calendarStaffPort{source: staff}
+		cfg.StaffRepo = calendarStaffPort{source: staff, calendarSchoolPortalStaff: staff}
 	}
 	if students != nil {
 		cfg.StudentRepo = calendarStudentPort{source: students}
@@ -99,13 +99,24 @@ func BindCalendarFeedFacts(
 	return cfg
 }
 
-type calendarStaffPort struct{ source calendarStaffRows }
+// calendarStaffPort maps the retained staff rows into the calendar's terms;
+// the school-portal staff IDs need no mapping and are promoted as they are.
+type calendarStaffPort struct {
+	source calendarStaffRows
+	calendarSchoolPortalStaff
+}
+
+type calendarSchoolPortalStaff interface {
+	FindReachableSchoolCalendarStaffIDs(ctx context.Context, ids []int64) (map[int64]bool, error)
+	FindSchoolPortalStaffIDs(ctx context.Context) (map[int64]bool, error)
+}
 
 // calendarStaffRows are the retained staff reads of the calendar.
 type calendarStaffRows interface {
 	ListAllWithPerson(ctx context.Context) ([]*peopledirectory.Staff, error)
 	FindWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*peopledirectory.Staff, error)
 	FindReachableCalendarStaffIDs(ctx context.Context, ids []int64) (map[int64]bool, error)
+	calendarSchoolPortalStaff
 	FindByPersonID(ctx context.Context, personID int64) (*peopledirectory.Staff, error)
 }
 

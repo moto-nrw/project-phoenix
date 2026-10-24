@@ -609,13 +609,14 @@ describe("getParentHelpTopicForPath", () => {
     ).filter((topic) => helpTopicMatchesRole(topic, "teacher"));
     const visible = new Set(teacherTopics.map((topic) => topic.id));
 
-    expect(teacherTopics).toHaveLength(20);
+    expect(teacherTopics).toHaveLength(21);
     expect([...visible]).toEqual(
       expect.arrayContaining([
         HELP_TOPICS.teacherHomework,
         HELP_TOPICS.teacherClassHandover,
       ]),
     );
+    expect(visible.has(HELP_TOPICS.teacherCalendar)).toBe(true);
     expect(
       teacherTopics.every(
         (topic) =>
@@ -803,6 +804,8 @@ describe("getSchoolHelpTopicForPath", () => {
     ["/school/nachrichten/42", HELP_TOPICS.teacherMessages],
     ["/tagesinformationen", HELP_TOPICS.teacherNotices],
     ["/school/tagesinformationen", HELP_TOPICS.teacherNotices],
+    ["/kalender", HELP_TOPICS.teacherCalendar],
+    ["/school/kalender", HELP_TOPICS.teacherCalendar],
     ["/einstellungen", HELP_TOPICS.teacherSettings],
     ["/school/einstellungen", HELP_TOPICS.teacherSettings],
   ])("maps %s to %s", (pathname, expectedTopic) => {

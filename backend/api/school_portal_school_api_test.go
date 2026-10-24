@@ -64,6 +64,7 @@ func setupSchoolRoute(t *testing.T, clocks ...func() time.Time) (*bun.DB, *schoo
 		emptySchoolMessagingRouter{},
 		nil,
 		newSchoolNotificationsForTests(delivery),
+		nil,
 	)
 
 	tenantID, subdomain := testpkg.CreateTestTenant(t, db)
@@ -135,7 +136,7 @@ func TestSchoolPortalTokenMatrix(t *testing.T) {
 	testpkg.CreateTestClassTeacherForTenant(t, db, tenantID, staff.ID, className)
 
 	classDayResource := classdayhttp.NewResource(resource.ClassDay.(*classdayhttp.Resource).ClassDay, nil)
-	schoolRouter := NewSchoolPortalHTTP(resource.AuthService, resource.MFAService, resource.Resets, classDayResource, newSchoolTimetableResource(db, resource), resource.StaffMessaging, nil, nil).Router(SchoolSessionChain, ProtectedSchoolRoutes)
+	schoolRouter := NewSchoolPortalHTTP(resource.AuthService, resource.MFAService, resource.Resets, classDayResource, newSchoolTimetableResource(db, resource), resource.StaffMessaging, nil, nil, nil).Router(SchoolSessionChain, ProtectedSchoolRoutes)
 
 	schoolClaims := sessiontoken.AppClaims{
 		ID: int(account.ID), Sub: account.Email,

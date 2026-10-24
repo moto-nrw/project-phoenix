@@ -516,6 +516,27 @@ describe("StaffCalendarPage", () => {
     await waitFor(() => expect(mockMutate).toHaveBeenCalled());
   });
 
+  // Die Lehrkräfte erreicht ein Termin in moto schule (#4798).
+  it("invites all teachers as one target", async () => {
+    render(<StaffCalendarPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Neuer Termin" }));
+    fireEvent.change(screen.getByLabelText("Titel"), {
+      target: { value: "Elternabend" },
+    });
+    fireEvent.click(screen.getByRole("checkbox", { name: "Alle Lehrkräfte" }));
+    fireEvent.click(screen.getByRole("button", { name: "Termin speichern" }));
+
+    await waitFor(() =>
+      expect(mockCreateStaffAppointment).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: "Elternabend",
+          targets: [{ type: "all_teachers" }],
+        }),
+      ),
+    );
+  });
+
   it("requires a target before creating an appointment", async () => {
     render(<StaffCalendarPage />);
 

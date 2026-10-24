@@ -37,10 +37,10 @@ func NewCalendarPortal(cfg calendarCompose.Config) calendarCompose.Application {
 }
 
 // BindCalendarCaller binds the calendar's identity port to Identity &
-// Access's caller identities; nil leaves it as it is.
-func BindCalendarCaller(cfg calendarCompose.Config, caller identityaccess.CallerIdentities) calendarCompose.Config {
-	if caller != nil {
-		cfg.UserContext = calendarIdentityPort{caller}
+// Access's caller identities and reach; an unbound caller leaves it as it is.
+func BindCalendarCaller(cfg calendarCompose.Config, caller identityaccess.CallerContext) calendarCompose.Config {
+	if caller.CallerIdentities != nil && caller.CallerReach != nil {
+		cfg.UserContext = calendarIdentityPort{source: caller.CallerIdentities, CallerReach: caller.CallerReach}
 	}
 	return cfg
 }
@@ -125,8 +125,12 @@ func calendarNotificationCopy(kind, locale string) (string, string) {
 	return deliveryCompose.ParentAppointmentCopy(locale, notificationKind)
 }
 
+// calendarIdentityPort maps the caller identities into the calendar's
+// terms; the caller reach (MySchoolClasses) needs no mapping and is
+// promoted as it is.
 type calendarIdentityPort struct {
 	source identityaccess.CallerIdentities
+	identityaccess.CallerReach
 }
 
 func (p calendarIdentityPort) GetCurrentStaff(ctx context.Context) (*calendarCompose.Staff, error) {
