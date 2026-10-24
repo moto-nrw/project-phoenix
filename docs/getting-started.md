@@ -166,10 +166,8 @@ item and a staff reply. For the shot list, two families file requests for the
 next weekday (an open pickup change for Elif, an excused absence for Mia), the
 meal plan covers the current week, the team calendar has a meeting today, and
 the autumn festival of the news item waits for the families' reply in their
-calendar. Eight children have a logo-figure picture
-(`backend/seed/avatar`) uploaded with parental consent, the other four show
-initials; the admin and both caregivers upload theirs while signed in. No two
-people share a picture. Presence and the running blocks are recorded through
+calendar. Student photos stay off, so child cards show no picture; staff have
+no profile picture and show their initials. Presence and the running blocks are recorded through
 the web API at seed time. Product screenshots using this profile therefore
 require a seed from the capture day (Berlin time), on a weekday. Four parent
 accounts (`ParentSeed1234%` unless `--staff-password` is set, one with two
