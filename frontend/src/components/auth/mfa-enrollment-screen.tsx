@@ -251,8 +251,8 @@ export function MFAEnrollmentScreen({
             <p className="text-sm leading-relaxed text-gray-600">
               {step === "intro" ? (
                 <>
-                  Ihre Schule verlangt eine zweite Sicherheitsstufe beim Login.
-                  Wir senden dafür einen 6-stelligen Code an{" "}
+                  Sie brauchen zusätzlich einen Code per E-Mail. Wir senden
+                  dafür einen 6-stelligen Code an{" "}
                   <span className="font-medium text-gray-800">{userEmail}</span>
                   {"."}
                 </>
@@ -272,7 +272,7 @@ export function MFAEnrollmentScreen({
             <div className="space-y-5">
               <Alert
                 type="info"
-                message="Falls Sie keinen Zugriff mehr auf Ihr E-Mail-Postfach haben, kann Ihre Schul-Administration die 2FA für Sie zurücksetzen."
+                message="Kein Zugriff auf Ihre E-Mails? Wenden Sie sich an Ihre Schulverwaltung. Der zusätzliche Nachweis bleibt bei besonderen Zugriffsrechten Pflicht."
               />
               <Button
                 type="button"

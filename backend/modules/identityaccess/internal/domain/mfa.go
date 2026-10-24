@@ -112,20 +112,20 @@ func IsValidMFAAdminOverride(value string) bool {
 	return false
 }
 
-// MFAPolicy is the MFA verdict for one account at one school with the role
+// MFAPolicy is the MFA verdict for one account at one school with the permission
 // predicate left unapplied: every database read (the admin overrides, the
 // school's security.mfa_mode) is settled, and what remains is a pure
-// function of a role set.
+// function of a permission set.
 //
 // The split exists because the school-portal mint guard settles the gate
 // under the account lock it already holds: it resolves the policy freshly in
-// its own transaction and applies it to the role set it read under that
+// its own transaction and applies it to the permission set it read under that
 // lock. Both halves can change while a login is in flight, and neither may
 // slip a session through without a second factor.
 //
-// The zero value requires nothing.
+// The zero value still enforces the privileged permission floor.
 type MFAPolicy struct {
-	// override, when set, is the admin override's verdict and wins outright.
+	// override applies only above the mandatory privileged permission floor.
 	override *bool
 	mode     string
 }
@@ -136,31 +136,16 @@ func MFAPolicyForced(required bool) MFAPolicy { return MFAPolicy{override: &requ
 // MFAPolicyForMode is the policy a school's security.mfa_mode produces.
 func MFAPolicyForMode(mode string) MFAPolicy { return MFAPolicy{mode: mode} }
 
-// RequiredFor applies the resolved policy to a concrete role-name set. Pure:
-// safe to call from inside a transaction holding locks.
-func (p MFAPolicy) RequiredFor(roleNames []string) bool {
+// RequiredFor applies the school's additional policy to effective permissions.
+// The privileged floor wins over every override, including legacy force_off.
+func (p MFAPolicy) RequiredFor(permissions []string) bool {
+	if HasPrivilegedMFAPermission(permissions) {
+		return true
+	}
 	if p.override != nil {
 		return *p.override
 	}
-	switch p.mode {
-	case MFAModeRequiredAll:
-		return true
-	case MFAModeRequiredAdmins:
-		for _, name := range roleNames {
-			// A school names its own roles, so the match is
-			// case-insensitive: "Admin" is the admin role too, and a
-			// case-sensitive compare would let it log in without a second
-			// factor.
-			if strings.EqualFold(name, AdminRoleName) {
-				return true
-			}
-		}
-		return false
-	default:
-		// Off, unset, or an unknown value the resolution already warned
-		// about.
-		return false
-	}
+	return p.mode == MFAModeRequiredAll
 }
 
 // KnownMFAMode reports whether mode is one the policy understands. An

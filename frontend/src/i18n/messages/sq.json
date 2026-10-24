@@ -2496,6 +2496,8 @@
         "email_change_rate_limited": "{object} nuk është i disponueshëm tani. Provoni përsëri.",
         "email_change_same_email": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "email_change_link_invalid": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "mfa_status_unavailable": "Verifikimi i hyrjes nuk është i disponueshëm tani. Provoni përsëri.",
+        "mfa_session_required": "Hyrja në {object} kërkon një verifikim të dytë. Butoni ju nxjerr nga llogaria dhe hap hyrjen e asaj shkolle. Hyni atje përsëri dhe konfirmoni hyrjen.",
         "mfa_not_enrolled": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "mfa_already_enrolled": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "passkey_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",

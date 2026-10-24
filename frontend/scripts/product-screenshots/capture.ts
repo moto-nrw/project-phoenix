@@ -4,6 +4,7 @@ import {
   type BrowserContext,
   type Page,
 } from "@playwright/test";
+import { loginToLocalTenant } from "../../e2e/local-tenant-login";
 
 import { accessForShot, type Credentials, type StackAccess } from "./access";
 import {
@@ -140,15 +141,7 @@ async function login(
     }
     // `domcontentloaded`: der Dev-Server hält SSE-Verbindungen offen, das
     // `load`-Ereignis kann dadurch hängen.
-    await page.goto(`${origin}/`, { waitUntil: "domcontentloaded" });
-    await page.waitForSelector('input[type="email"]', { timeout: 30_000 });
-    await page.fill('input[type="email"]', credentials.email);
-    await page.fill('input[type="password"]', credentials.password);
-    await page.click('button:has-text("Anmelden")');
-    await page.waitForSelector('input[type="email"]', {
-      state: "detached",
-      timeout: 30_000,
-    });
+    await loginToLocalTenant(page, origin, credentials);
   } finally {
     await page.close();
   }

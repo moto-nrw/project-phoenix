@@ -89,6 +89,14 @@ in the dev tools binary `cmd/devtools` (ADR 0060): run them with
 the demo image does. See Cleanup CLI below for cleanup
 command shapes: some commands delete data and silently ignore extra arguments.
 
+Seed and simulation commands keep refresh sessions in `.seed-sessions/` in
+their working directory (normally `backend/`, gitignored, private files).
+Separate commands renew the verified MFA session and switch schools through
+the regular API. Expired or revoked proof falls back to a real login using
+Mailpit. Delete that directory to force fresh logins; it is local credential
+state and must not be uploaded. Keep the same working directory between seed
+and simulation commands.
+
 ## Cleanup CLI
 
 Run these inside the server container; use the documented dry-run shape before
@@ -308,6 +316,10 @@ cd frontend && pnpm run test:screenshots        # pipeline test against the runn
   `backend/.seed-state.json`. Seed and capture must happen on the same Berlin
   calendar day, or the command asks for a fresh seed instead of showing stale
   attendance. Only `*.localhost` hosts are photographed.
+- Tenant screenshot and E2E logins complete the real MFA flow through local
+  `MAILPIT_URL` before saving a browser session. The disappearance of the
+  password form is not proof of a completed login. Sessions are reused within
+  the browser worker; MFA policy and email-code limits remain unchanged.
 - Output per shot: `roh-<device>.png`, `<device>.png` (mockup, transparent
   background) and both as WebP in 640/960/1280/1600/2400/3200 px, plus
   `manifest.json` (format marker, version, time, shots, files, sizes). The output
