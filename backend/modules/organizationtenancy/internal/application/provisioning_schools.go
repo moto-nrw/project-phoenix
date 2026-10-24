@@ -285,13 +285,15 @@ func (p *Provisioning) SoftDeleteSchool(ctx context.Context, schoolID, operatorI
 		if err != nil {
 			return fmt.Errorf("invalidate invitations for school %d: %w", schoolID, err)
 		}
-		p.logAction(adminCtx, operatorID, domain.AuditActionSoftDelete, domain.AuditResourceSchool, &schoolID, clientIP, map[string]any{
+		if err := p.recordAction(adminCtx, operatorID, domain.AuditActionSoftDelete, domain.AuditResourceSchool, &schoolID, clientIP, map[string]any{
 			"name":                school.Name,
 			"slug":                school.Slug,
 			"subdomain":           school.Subdomain,
 			"revoked_tokens":      revokedTokens,
 			"invalidated_invites": invalidatedInvitations,
-		})
+		}); err != nil {
+			return err
+		}
 		return nil
 	})
 }

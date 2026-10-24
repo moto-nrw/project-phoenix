@@ -2882,6 +2882,9 @@
         "external_email_required": "Не вдалося зберегти: {object}. Перевірте введені дані.",
         "external_has_account": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "not_external": "Не вдалося змінити: {object}. Перевірте поточний стан."
+      },
+      "operator": {
+        "audit_unavailable": "{object} зараз недоступний. Спробуйте ще раз."
       }
     },
     "actions": {

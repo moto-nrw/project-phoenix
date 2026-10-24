@@ -2,6 +2,7 @@
 package common
 
 const (
+	CodeTimetableTemplateStartInPast                 = "timetable.template_start_in_past"
 	CodeTimetableTemplateStartNotEarlier             = "timetable.template_start_not_earlier"
 	CodeTimetableTemplateStartOutsidePeriod          = "timetable.template_start_outside_period"
 	CodeTimetableTemplateStartPredecessorOverlap     = "timetable.template_start_predecessor_overlap"
@@ -82,6 +83,7 @@ const (
 )
 
 var errorCodeClasses2 = map[string]string{
+	"timetable.template_start_in_past":                  "input",
 	"timetable.template_start_not_earlier":              "input",
 	"timetable.template_start_outside_period":           "input",
 	"timetable.template_start_predecessor_overlap":      "input",

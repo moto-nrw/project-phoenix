@@ -227,11 +227,13 @@ func (p *Provisioning) SetDeviceAPIKey(ctx context.Context, id int64, apiKey *st
 		if err != nil {
 			return nil, err
 		}
-		p.logAction(adminCtx, operatorID, domain.AuditActionRotateAPIKey, domain.AuditResourceDevice, &id, clientIP, map[string]any{
+		if err := p.recordAction(adminCtx, operatorID, domain.AuditActionRotateAPIKey, domain.AuditResourceDevice, &id, clientIP, map[string]any{
 			"device_id":    device.DeviceID,
 			"school_id":    device.TenantID,
 			"api_key_mode": "auto",
-		})
+		}); err != nil {
+			return nil, err
+		}
 		view, err := p.listedDevice(adminCtx, "SetDeviceAPIKey", id)
 		if err == nil {
 			view.APIKey = &key
@@ -280,11 +282,13 @@ func (p *Provisioning) DeleteDevice(ctx context.Context, id int64, operatorID in
 			}
 			return fmt.Errorf("DeleteDevice: %w", err)
 		}
-		p.logAction(adminCtx, operatorID, domain.AuditActionDelete, domain.AuditResourceDevice, &id, clientIP, map[string]any{
+		if err := p.recordAction(adminCtx, operatorID, domain.AuditActionDelete, domain.AuditResourceDevice, &id, clientIP, map[string]any{
 			"device_id":   device.DeviceID,
 			"device_type": device.DeviceType,
 			"school_id":   device.TenantID,
-		})
+		}); err != nil {
+			return err
+		}
 		return nil
 	})
 }
@@ -327,13 +331,15 @@ func (p *Provisioning) TransferDevice(ctx context.Context, id, targetSchoolID, o
 		if err != nil {
 			return nil, err
 		}
-		p.logAction(adminCtx, operatorID, domain.AuditActionTransfer, domain.AuditResourceDevice, &id, clientIP, map[string]any{
+		if err := p.recordAction(adminCtx, operatorID, domain.AuditActionTransfer, domain.AuditResourceDevice, &id, clientIP, map[string]any{
 			"device_id":        source.DeviceID,
 			"source_device_id": id,
 			"target_device_id": target.ID,
 			"source_school_id": source.TenantID,
 			"target_school_id": targetSchoolID,
-		})
+		}); err != nil {
+			return nil, err
+		}
 		return p.listedDevice(adminCtx, "TransferDevice", target.ID)
 	})
 }
