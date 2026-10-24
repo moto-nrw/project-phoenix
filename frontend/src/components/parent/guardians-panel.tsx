@@ -23,11 +23,14 @@ import {
   type CreateGuardianContactPayload,
   type GuardianContactPayload,
   type GuardianRelationshipPayload,
+  type PickupPermissionRequest,
   type RelatedAccount,
   createGuardianContact,
   inviteRelatedAccount,
   listChildGuardians,
+  listPickupPermissionRequests,
   listRelatedAccounts,
+  submitPickupPermissionRequest,
   removeRelatedAccount,
   updateGuardianContact,
   updateGuardianRelationship,
@@ -56,6 +59,14 @@ import {
 } from "~/components/ui/status-badge";
 import { EmptyState } from "~/components/ui/empty-state";
 import { OgsVisibleBadge } from "~/components/parent/ogs-visible-badge";
+import { type SignatureValue, signatureRequestBody } from "~/lib/signature";
+import {
+  PickupSignatureField,
+  PickupWeekdaysField,
+  normalizeWeekdays,
+  sameWeekdays,
+  useWeekdayList,
+} from "~/components/parent/pickup-permission-fields";
 
 const logger = createLogger({ component: "GuardiansPanel" });
 
@@ -96,6 +107,26 @@ function newPhoneDraftId(): string {
   return `new-phone-${nextPhoneDraftId}`;
 }
 
+const CONTACT_SIGNATURE_FIELD = "new-contact-pickup-signature";
+const PICKUP_SIGNATURE_FIELD = "guardian-pickup-signature";
+
+type PermissionTranslator = ReturnType<
+  typeof useTranslations<"parentPickupPermission">
+>;
+
+/** Der Text der Abholerlaubnis, den die Eltern unterschreiben (#4780). */
+function permissionStatement(
+  t: PermissionTranslator,
+  person: string,
+  weekdays: readonly number[],
+  weekdayList: (days: readonly number[]) => string,
+): string {
+  const days = normalizeWeekdays(weekdays);
+  return days.length === 0
+    ? t("statement.permissionAll", { person })
+    : t("statement.permissionSome", { person, days: weekdayList(days) });
+}
+
 interface GuardiansPanelProps {
   readonly studentId: string;
   readonly canInvite: boolean;
@@ -112,8 +143,13 @@ export default function GuardiansPanel({
   canManagePickup = false,
 }: GuardiansPanelProps) {
   const t = useTranslations("parentChildDetail");
+  const tPermission = useTranslations("parentPickupPermission");
   const [guardians, setGuardians] = useState<ChildGuardian[]>([]);
   const [accounts, setAccounts] = useState<RelatedAccount[]>([]);
+  // Offene Abholerlaubnis-Anfragen je Kontakt (#4780).
+  const [permissionRequests, setPermissionRequests] = useState<
+    PickupPermissionRequest[]
+  >([]);
   const [isLoading, setIsLoading] = useState(true);
   const [editingContact, setEditingContact] = useState<ChildGuardian | null>(
     null,
@@ -159,10 +195,24 @@ export default function GuardiansPanel({
     clearAccountsLoadError();
     // Both lists load side by side; each section reports its own failure, so
     // a failed account list never shows up as "no accounts connected".
-    const [guardianResult, accountResult] = await Promise.allSettled([
-      listChildGuardians(studentId),
-      listRelatedAccounts(studentId),
-    ]);
+    const [guardianResult, accountResult, requestResult] =
+      await Promise.allSettled([
+        listChildGuardians(studentId),
+        listRelatedAccounts(studentId),
+        listPickupPermissionRequests(studentId),
+      ]);
+    // Ohne die Liste fehlt nur der Hinweis „Wartet auf die OGS“; die
+    // Kontakte bleiben vollständig.
+    if (requestResult.status === "fulfilled") {
+      setPermissionRequests(requestResult.value);
+    } else {
+      logger.warn("pickup_permission_requests_load_failed", {
+        error:
+          requestResult.reason instanceof Error
+            ? requestResult.reason.message
+            : String(requestResult.reason),
+      });
+    }
     if (guardianResult.status === "fulfilled") {
       setGuardians(guardianResult.value);
     } else {
@@ -223,6 +273,11 @@ export default function GuardiansPanel({
 
   const accountById = new Map(
     accounts.map((account) => [account.guardian_profile_id, account]),
+  );
+  const pendingByGuardian = new Map(
+    permissionRequests
+      .filter((request) => request.status === "pending")
+      .map((request) => [request.guardian_profile_id, request]),
   );
   const connectedAccounts = accounts.filter(
     (account) => account.status === "active" || account.status === "pending",
@@ -372,6 +427,7 @@ export default function GuardiansPanel({
               key={g.guardian_profile_id}
               guardian={g}
               access={accountById.get(g.guardian_profile_id)}
+              pendingPermission={pendingByGuardian.get(g.guardian_profile_id)}
               canInvite={canInvite}
               busy={busy}
               onEditContact={() => {
@@ -461,8 +517,17 @@ export default function GuardiansPanel({
         <PickupModal
           studentId={studentId}
           guardian={editingPickup}
+          pendingPermission={pendingByGuardian.get(
+            editingPickup.guardian_profile_id,
+          )}
           onClose={() => setEditingPickup(null)}
-          onSaved={() => handleSaved(t("guardians.pickupSaved"))}
+          onSaved={(requested) =>
+            handleSaved(
+              requested
+                ? tPermission("requestSent")
+                : t("guardians.pickupSaved"),
+            )
+          }
         />
       )}
 
@@ -472,7 +537,13 @@ export default function GuardiansPanel({
           studentId={studentId}
           canManagePickup={canManagePickup}
           onClose={() => setAddMode(null)}
-          onSaved={() => handleSaved(t("guardians.contactCreated"))}
+          onSaved={(requested) =>
+            handleSaved(
+              requested
+                ? `${t("guardians.contactCreated")} ${tPermission("requestSent")}`
+                : t("guardians.contactCreated"),
+            )
+          }
         />
       ) : null}
 
@@ -677,6 +748,7 @@ function ConnectedAccountRow({
 function GuardianRow({
   guardian: g,
   access,
+  pendingPermission,
   canInvite,
   busy,
   onEditContact,
@@ -685,6 +757,7 @@ function GuardianRow({
 }: Readonly<{
   guardian: ChildGuardian;
   access?: RelatedAccount;
+  pendingPermission?: PickupPermissionRequest;
   canInvite: boolean;
   busy: boolean;
   onEditContact: () => void;
@@ -692,6 +765,9 @@ function GuardianRow({
   onGrantAccess: (email: string, name: string) => void;
 }>) {
   const t = useTranslations("parentChildDetail");
+  const tPermission = useTranslations("parentPickupPermission");
+  const weekdayList = useWeekdayList();
+  const pickupDays = normalizeWeekdays(g.pickup_weekdays ?? []);
   const name =
     `${g.first_name} ${g.last_name}`.trim() ||
     t("guardians.relationships.contact");
@@ -730,12 +806,25 @@ function GuardianRow({
           {/* Neutral text chips, not colored dots: "darf abholen" and
               "Notfallkontakt" are facts about a person, not alert states, and a
               green/amber dot per contact turned the list into a traffic light. */}
-          {(g.can_pickup || g.is_emergency_contact) && (
+          {(g.can_pickup || g.is_emergency_contact || pendingPermission) && (
             <div className="mt-1.5 flex flex-wrap gap-1.5">
               {g.can_pickup && (
                 <span className="rounded-full bg-white px-2.5 py-0.5 text-xs font-medium text-gray-700 ring-1 ring-gray-200 ring-inset">
-                  {t("guardians.badges.canPickup")}
+                  {pickupDays.length > 0
+                    ? `${t("guardians.badges.canPickup")} · ${tPermission("onlyDays", { days: weekdayList(pickupDays) })}`
+                    : t("guardians.badges.canPickup")}
                 </span>
+              )}
+              {pendingPermission && (
+                <StatusBadge
+                  tone="orange"
+                  label={tPermission("pending", {
+                    days:
+                      pendingPermission.weekdays.length > 0
+                        ? weekdayList(pendingPermission.weekdays)
+                        : tPermission("days.all"),
+                  })}
+                />
               )}
               {g.is_emergency_contact && (
                 <span className="rounded-full bg-white px-2.5 py-0.5 text-xs font-medium text-gray-700 ring-1 ring-gray-200 ring-inset">
@@ -923,9 +1012,11 @@ function ContactModal({
   guardian?: ChildGuardian;
   canManagePickup?: boolean;
   onClose: () => void;
-  onSaved: () => void;
+  /** requested: eine Abholerlaubnis ging als Anfrage an die OGS (#4780). */
+  onSaved: (requested: boolean) => void;
 }>) {
   const t = useTranslations("parentChildDetail");
+  const tPermission = useTranslations("parentPickupPermission");
   const [firstName, setFirstName] = useState(guardian?.first_name ?? "");
   const [lastName, setLastName] = useState(guardian?.last_name ?? "");
   const [email, setEmail] = useState(guardian?.email ?? "");
@@ -935,6 +1026,10 @@ function ContactModal({
   const [relationshipType, setRelationshipType] =
     useState<RelationshipType>("relative");
   const [canPickup, setCanPickup] = useState(false);
+  const [pickupWeekdays, setPickupWeekdays] = useState<number[]>([]);
+  const [pickupSignature, setPickupSignature] = useState<SignatureValue | null>(
+    null,
+  );
   const [isEmergency, setIsEmergency] = useState(false);
   const [pickupNotes, setPickupNotes] = useState("");
   const [phones, setPhones] = useState<PhoneDraft[]>(
@@ -957,6 +1052,7 @@ function ContactModal({
         ],
   );
   const [busy, setBusy] = useState(false);
+  const weekdayList = useWeekdayList();
   const tError = useTranslations("errorCatalog");
   const formRef = useRef<HTMLDivElement>(null);
   const { error, show, invalid, fieldError, clear } = useApiFormError(formRef);
@@ -972,6 +1068,13 @@ function ContactModal({
       invalid(t("guardians.nameRequired"), {
         ...(firstName.trim() ? {} : { first_name: hint }),
         ...(lastName.trim() ? {} : { last_name: hint }),
+      });
+      return;
+    }
+    const requestsPickup = mode === "create" && canManagePickup && canPickup;
+    if (requestsPickup && !pickupSignature) {
+      invalid(tPermission("signature.missing"), {
+        [CONTACT_SIGNATURE_FIELD]: tPermission("signature.missing"),
       });
       return;
     }
@@ -1003,7 +1106,13 @@ function ContactModal({
         const createPayload: CreateGuardianContactPayload = {
           ...payload,
           relationship_type: relationshipType,
-          can_pickup: canManagePickup && canPickup,
+          can_pickup: requestsPickup,
+          ...(requestsPickup && pickupSignature
+            ? {
+                pickup_weekdays: normalizeWeekdays(pickupWeekdays),
+                pickup_signature: signatureRequestBody(pickupSignature),
+              }
+            : {}),
           is_emergency_contact: canManagePickup && isEmergency,
           pickup_notes: pickupNotes.trim() || null,
         };
@@ -1015,7 +1124,7 @@ function ContactModal({
           payload,
         );
       }
-      onSaved();
+      onSaved(requestsPickup);
     } catch (err) {
       logger.error("guardian_contact_save_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -1113,6 +1222,31 @@ function ContactModal({
                     </span>
                   </span>
                 </label>
+                {canPickup ? (
+                  <div className="space-y-3 pl-8">
+                    <PickupWeekdaysField
+                      value={pickupWeekdays}
+                      onChange={setPickupWeekdays}
+                      disabled={busy}
+                    />
+                    <p className="text-sm text-gray-600">
+                      {tPermission("waitsForOgs")}
+                    </p>
+                    <PickupSignatureField
+                      id={CONTACT_SIGNATURE_FIELD}
+                      statement={permissionStatement(
+                        tPermission,
+                        `${firstName} ${lastName}`.trim(),
+                        pickupWeekdays,
+                        weekdayList,
+                      )}
+                      value={pickupSignature}
+                      onChange={setPickupSignature}
+                      disabled={busy}
+                      error={fieldError(CONTACT_SIGNATURE_FIELD)}
+                    />
+                  </div>
+                ) : null}
                 <label
                   htmlFor="new-contact-emergency"
                   className="flex items-start gap-3"
@@ -1280,22 +1414,44 @@ function ContactModal({
 function PickupModal({
   studentId,
   guardian: g,
+  pendingPermission,
   onClose,
   onSaved,
 }: Readonly<{
   studentId: string;
   guardian: ChildGuardian;
+  pendingPermission?: PickupPermissionRequest;
   onClose: () => void;
-  onSaved: () => void;
+  /** requested: die Abholerlaubnis ging als Anfrage an die OGS (#4780). */
+  onSaved: (requested: boolean) => void;
 }>) {
   const t = useTranslations("parentChildDetail");
+  const tPermission = useTranslations("parentPickupPermission");
+  const weekdayList = useWeekdayList();
   const [canPickup, setCanPickup] = useState(g.can_pickup);
+  const [weekdays, setWeekdays] = useState<number[]>(
+    normalizeWeekdays(g.pickup_weekdays ?? []),
+  );
+  const [signature, setSignature] = useState<SignatureValue | null>(null);
   const [isEmergency, setIsEmergency] = useState(g.is_emergency_contact);
   const [notes, setNotes] = useState(g.pickup_notes ?? "");
   const [busy, setBusy] = useState(false);
-  const { error, show, clear } = useApiFormError();
+  const formRef = useRef<HTMLDivElement>(null);
+  const { error, show, invalid, fieldError, clear } = useApiFormError(formRef);
+  // Erteilen und andere Tage sind eine unterschriebene Anfrage an die OGS;
+  // Wegnehmen gilt sofort (#4780).
+  const grants =
+    canPickup &&
+    (!g.can_pickup || !sameWeekdays(weekdays, g.pickup_weekdays ?? []));
+  const revokes = g.can_pickup && !canPickup;
 
   const handleSave = async () => {
+    if (grants && !signature) {
+      invalid(tPermission("signature.missing"), {
+        [PICKUP_SIGNATURE_FIELD]: tPermission("signature.missing"),
+      });
+      return;
+    }
     setBusy(true);
     clear();
     // Send each field only when it actually changed. The backend gates each
@@ -1322,7 +1478,7 @@ function PickupModal({
     const originalNotes = (g.pickup_notes ?? "").trim();
     const noteChanged = g.can_edit_contact && normalizedNotes !== originalNotes;
     const payload: GuardianRelationshipPayload = {
-      ...(canPickup !== g.can_pickup ? { can_pickup: canPickup } : {}),
+      ...(revokes ? { can_pickup: false } : {}),
       ...(isEmergency !== g.is_emergency_contact
         ? { is_emergency_contact: isEmergency }
         : {}),
@@ -1330,18 +1486,26 @@ function PickupModal({
     };
     // Nothing changed: skip the write (the backend rejects an empty payload
     // with care.guardian_no_change) and just close.
-    if (Object.keys(payload).length === 0) {
+    if (Object.keys(payload).length === 0 && !grants) {
       setBusy(false);
       onClose();
       return;
     }
     try {
-      await updateGuardianRelationship(
-        studentId,
-        g.guardian_profile_id,
-        payload,
-      );
-      onSaved();
+      if (grants && signature) {
+        await submitPickupPermissionRequest(studentId, g.guardian_profile_id, {
+          weekdays: normalizeWeekdays(weekdays),
+          signature,
+        });
+      }
+      if (Object.keys(payload).length > 0) {
+        await updateGuardianRelationship(
+          studentId,
+          g.guardian_profile_id,
+          payload,
+        );
+      }
+      onSaved(grants);
     } catch (err) {
       logger.error("guardian_pickup_save_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -1394,7 +1558,7 @@ function PickupModal({
         </div>
       }
     >
-      <div className="space-y-4">
+      <div className="space-y-4" ref={formRef}>
         <FormErrorAlert message={error} />
         <p className="text-sm text-gray-600">
           {`${g.first_name} ${g.last_name}`.trim()}
@@ -1412,6 +1576,7 @@ function PickupModal({
               <Checkbox
                 id="guardian-can-pickup"
                 checked={canPickup}
+                disabled={Boolean(pendingPermission)}
                 onChange={(e) => setCanPickup(e.target.checked)}
               />
               <span className="text-sm">
@@ -1423,6 +1588,45 @@ function PickupModal({
                 </span>
               </span>
             </label>
+            {pendingPermission ? (
+              <Alert
+                type="info"
+                message={`${tPermission("pending", {
+                  days:
+                    pendingPermission.weekdays.length > 0
+                      ? weekdayList(pendingPermission.weekdays)
+                      : tPermission("days.all"),
+                })}. ${tPermission("waitsForOgs")}`}
+              />
+            ) : canPickup ? (
+              <div className="space-y-3 pl-8">
+                <PickupWeekdaysField
+                  value={weekdays}
+                  onChange={setWeekdays}
+                  disabled={busy}
+                />
+                {grants ? (
+                  <>
+                    <p className="text-sm text-gray-600">
+                      {tPermission("waitsForOgs")}
+                    </p>
+                    <PickupSignatureField
+                      id={PICKUP_SIGNATURE_FIELD}
+                      statement={permissionStatement(
+                        tPermission,
+                        `${g.first_name} ${g.last_name}`.trim(),
+                        weekdays,
+                        weekdayList,
+                      )}
+                      value={signature}
+                      onChange={setSignature}
+                      disabled={busy}
+                      error={fieldError(PICKUP_SIGNATURE_FIELD)}
+                    />
+                  </>
+                ) : null}
+              </div>
+            ) : null}
             <label
               htmlFor="guardian-emergency"
               className="flex items-start gap-3"
