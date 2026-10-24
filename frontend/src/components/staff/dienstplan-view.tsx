@@ -13,7 +13,6 @@ import { useSession } from "next-auth/react";
 import { Printer, Settings2 } from "lucide-react";
 
 import { PlanExportModal } from "~/components/planning/plan-export-modal";
-import { PlanningDisabledState } from "~/components/planning/planning-disabled-state";
 import { CalendarPeriodModal } from "~/components/timetable/calendar-period-modal";
 import { PeriodSwitcherDropdown } from "~/components/timetable/period-switcher-dropdown";
 import { DienstplanHalbjahrGrid } from "~/components/staff/dienstplan-halbjahr-grid";
@@ -41,10 +40,8 @@ import { isValidISODate, parseISODate, toISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { useClosingDaysState } from "~/lib/hooks/use-closing-days";
 import { useDienstplanData } from "~/lib/hooks/use-dienstplan-data";
-import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import { useUrlParams } from "~/lib/hooks/use-url-params";
 import { createLogger } from "~/lib/logger";
-import { getSettingValue } from "~/lib/settings-api";
 import type { StaffScheduleStaff, StaffShift } from "~/lib/shift-helpers";
 import { startOfWeek } from "~/lib/staff-metrics-helpers";
 import { useSWRAuth } from "~/lib/swr";
@@ -160,17 +157,9 @@ function DienstplanContent() {
     () => calendarPeriodService.list(),
   );
 
-  // Route-Gate wie Betreuungsplan/Vertretung: Settings-Schema ->
-  // timetable.enabled. fetchSettingsSchema liefert null, wenn der Nutzer keine
-  // Settings lesen darf; die Seite rendert dann normal (gleiche Graceful-
-  // Default-Logik wie die Sidebar).
-  const { data: settingsSchema, isLoading: settingsSchemaLoading } =
-    useSettingsSchema(sessionStatus === "authenticated", {
-      revalidateOnFocus: false,
-      revalidateOnReconnect: false,
-    });
-  const timetableDisabled =
-    getSettingValue(settingsSchema, "timetable.enabled") === false;
+  // Der Dienstplan hängt nicht am Betreuungsplan (`timetable.enabled`): er
+  // setzt nur Basis voraus und folgt seinem Modul (#4812, #4894). Eine
+  // Schule ohne das Modul sieht den erklärenden Zustand des Modul-Registers.
 
   // Mo–Fr als Date-Objekte für den PeriodSwitcherDropdown.
   const weekDayDates = useMemo(
@@ -353,11 +342,7 @@ function DienstplanContent() {
   // — nur der Inhaltsbereich unten fällt auf das Grid-Skeleton zurück, und
   // datenabhängige Toolbar-Teile (Ansichts-Umschalter, Export-Knopf) bleiben
   // aus, bis die Berechtigungen feststehen.
-  const showSkeleton = sessionStatus === "loading" || settingsSchemaLoading;
-
-  if (!showSkeleton && timetableDisabled) {
-    return <DienstplanDisabledState />;
-  }
+  const showSkeleton = sessionStatus === "loading";
 
   // Leerzustand "keine Mitarbeitenden" (docs/05 Abschnitt 4) — geteilt zwischen
   // Wochen- und Halbjahres-Zweig, damit ohne Staff beide Ansichten denselben
@@ -705,17 +690,6 @@ function DienstplanContent() {
         />
       )}
     </TenantPage>
-  );
-}
-
-function DienstplanDisabledState() {
-  return (
-    <PlanningDisabledState
-      pageTitle="Dienstplan"
-      heading="Dienstplan ist deaktiviert"
-      description="Der Dienstplan gehört zum Planungsbereich, der für diese Schule ausgeschaltet ist. Er kann in den Einstellungen unter „Betrieb“ wieder aktiviert werden."
-      testId="dienstplan-disabled-state"
-    />
   );
 }
 

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { ReactNode } from "react";
+import { useModuleBooked } from "~/lib/tenant-context";
 import Link from "~/components/ui/navigation-link";
 import { useSession } from "next-auth/react";
 import {
@@ -101,6 +102,8 @@ export default function DatabaseExportsPage() {
   // "Wer ist wo" hits POST /api/rooms/export, which requires rooms:read on top
   // of the users:read that gates this page. Without rooms:read the export 403s,
   // so hide the card rather than offer a button that always fails.
+  // Der Dienstplan folgt seinem Modul, nicht dem Betreuungsplan (#4894).
+  const dienstplanBooked = useModuleBooked("dienstplan");
   const canReadRooms = isAdmin(session) || hasPermission(session, "rooms:read");
   // Der Dienstplan ist admin-only (die Seite leitet andere auf /staff um), der
   // Export folgt derselben Grenze statt auf eine Sackgasse zu verlinken.
@@ -140,7 +143,7 @@ export default function DatabaseExportsPage() {
     (canReadRooms ? 1 : 0);
   const linkCount =
     (canUseSlotLists && !timetableDisabled ? 1 : 0) +
-    (canEditPlans && !timetableDisabled ? 1 : 0) +
+    (canEditPlans && dienstplanBooked ? 1 : 0) +
     (canUseSlotLists && !timetableDisabled ? 1 : 0) +
     (isAdmin(session) ? 1 : 0) +
     1; // Zeitnachweis
@@ -330,7 +333,7 @@ export default function DatabaseExportsPage() {
           {/* Die beiden Wochenpläne (#2079) exportieren immer die Woche, die
               auf ihrer Seite gerade zu sehen ist. Ein Datumsdialog hier wäre
               eine zweite, konkurrierende Bedienung derselben Sache. */}
-          {canEditPlans && !timetableDisabled && (
+          {canEditPlans && dienstplanBooked && (
             <InfoCard
               title="Dienstplan"
               icon={<CalendarRange className="h-5 w-5" />}

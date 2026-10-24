@@ -1,3 +1,4 @@
+import { MODULE_KEYS } from "~/lib/modules";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -66,7 +67,7 @@ const leadCareAccess: HomeBlockAccess = {
 const fullContext: HomeBlockContext = {
   detailed: true,
   openCareGroupMode: false,
-  nfcEnabled: true,
+  bookedModules: MODULE_KEYS,
   birthdaysEnabled: true,
   timetableEnabled: true,
   remindersEnabled: true,
@@ -186,7 +187,8 @@ describe("resolveHomeLayout — Standardansicht", () => {
     const switches = [
       "detailed",
       "openCareGroupMode",
-      "nfcEnabled",
+      // Das Modul NFC-Anwesenheit (#4894), vorher der Schalter nfcEnabled.
+      "bookedModules",
       "birthdaysEnabled",
       "timetableEnabled",
       "remindersEnabled",
@@ -207,7 +209,14 @@ describe("resolveHomeLayout — Standardansicht", () => {
         switches.forEach((name, bit) => {
           const on = (mask & (1 << bit)) === 0;
           Object.assign(context, {
-            [name]: name === "openCareGroupMode" ? !on : on,
+            [name]:
+              name === "openCareGroupMode"
+                ? !on
+                : name === "bookedModules"
+                  ? on
+                    ? MODULE_KEYS
+                    : MODULE_KEYS.filter((key) => key !== "nfc_anwesenheit")
+                  : on,
           });
         });
         const { placements } = resolveHomeLayout(context, [], {}, {});

@@ -2,7 +2,6 @@
 
 import { useCallback, useMemo } from "react";
 
-import { PlanningDisabledState } from "~/components/planning/planning-disabled-state";
 import { DienstplanPersonWeekGrid } from "~/components/staff/dienstplan-person-week-grid";
 import { DienstplanGridSkeleton } from "~/components/staff/dienstplan-skeleton";
 import { OwnWeekAgenda } from "~/components/time-tracking/own-week-agenda";
@@ -30,7 +29,7 @@ import {
 } from "~/lib/shift-helpers";
 import { indexShiftTypes } from "~/lib/shift-type-helpers";
 import { useSWRAuth } from "~/lib/swr";
-import { useTimetableEnabled } from "~/lib/tenant-context";
+import { useModuleBooked } from "~/lib/tenant-context";
 import { timeTrackingService } from "~/lib/time-tracking-api";
 import { formatWeekLabel } from "~/lib/timetable-helpers";
 
@@ -66,7 +65,11 @@ export function OwnDienstplanView() {
 }
 
 function OwnDienstplanContent() {
-  const timetableEnabled = useTimetableEnabled();
+  // Die Seite gehört zum Modul Dienstplan und hängt nicht mehr am
+  // Betreuungsplan (#4812): ohne das Modul erklärt sich die Seite über das
+  // Modul-Register (#4894). Das Soll kommt aus der Zeiterfassung und fehlt
+  // ohne dieses Modul.
+  const zeiterfassungBooked = useModuleBooked("zeiterfassung");
   const today = useBerlinToday();
   const { params, updateParams } = useUrlParams(ALLOWED_URL_PARAMS);
 
@@ -81,9 +84,7 @@ function OwnDienstplanContent() {
     error: shiftsError,
     mutate: mutateShifts,
   } = useSWRAuth<StaffShift[]>(
-    timetableEnabled
-      ? `${OWN_WEEK_SHIFTS_KEY_PREFIX}${weekFrom}-${weekTo}`
-      : null,
+    `${OWN_WEEK_SHIFTS_KEY_PREFIX}${weekFrom}-${weekTo}`,
     // Ohne keepPreviousData: beim Wochenwechsel stünden sonst kurz die
     // Schichten der alten Woche unter dem neuen Wochenetikett.
     () => ownShiftService.getOwnShifts(weekFrom, weekTo),
@@ -96,17 +97,14 @@ function OwnDienstplanContent() {
     error: projectionError,
     mutate: mutateProjection,
   } = useSWRAuth(
-    timetableEnabled
+    zeiterfassungBooked
       ? `time-tracking-schedule-targets-${weekFrom}-${weekTo}`
       : null,
     () => timeTrackingService.getDailyProjection(weekFrom, weekTo),
     { revalidateOnFocus: false },
   );
 
-  const { closingDays } = useClosingDaysState(
-    timetableEnabled ? weekFrom : "",
-    timetableEnabled ? weekTo : "",
-  );
+  const { closingDays } = useClosingDaysState(weekFrom, weekTo);
 
   const weekShifts = shifts ?? EMPTY_SHIFTS;
   const shiftsByDate = useMemo(() => {
@@ -149,17 +147,6 @@ function OwnDienstplanContent() {
     },
     [weekFrom, updateParams],
   );
-
-  if (!timetableEnabled) {
-    return (
-      <PlanningDisabledState
-        pageTitle="Mein Dienstplan"
-        heading="Der Dienstplan ist nicht verfügbar"
-        description="Ihre Schule plant die Schichten nicht in moto."
-        testId="own-dienstplan-disabled-state"
-      />
-    );
-  }
 
   const statsItems = [
     { value: formatPlannedHours(plannedMinutes), label: "geplant" },

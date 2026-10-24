@@ -33,7 +33,6 @@
 import type { Session } from "next-auth";
 
 import { leadsSchool } from "~/lib/auth-utils";
-import type { HomeBlockKey } from "~/lib/home-blocks";
 import type { ModuleKey } from "~/lib/modules";
 import { matchesPathPrefix } from "~/lib/section-navigation";
 import type { StaffNavSectionKey } from "~/lib/staff-navigation";
@@ -138,8 +137,11 @@ export const SECTION_MODULES: Readonly<
   enrollments: "online_anmeldung",
 };
 
-/** Jeder Baustein der Startseite. */
-export const HOME_BLOCK_MODULES: Readonly<Record<HomeBlockKey, ModuleScope>> = {
+/**
+ * Jeder Baustein der Startseite (`HomeBlockKey` in home-blocks.ts; der Test
+ * hält beide Listen gleich, ein Typ-Import wäre ein Kreis).
+ */
+export const HOME_BLOCK_MODULES: Readonly<Record<string, ModuleScope>> = {
   "tile.students_present": BASIS,
   "tile.students_in_rooms": BASIS,
   "tile.students_in_transit": BASIS,

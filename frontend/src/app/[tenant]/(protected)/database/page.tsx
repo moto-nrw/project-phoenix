@@ -21,7 +21,9 @@ import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 
 import { hasEffectiveAdminScope } from "~/lib/auth-utils";
 import { hasAnyDatabasePagePermission } from "~/lib/section-navigation";
-import { useNFCEnabled, useTimetableEnabled } from "~/lib/tenant-context";
+import { useTimetableEnabled } from "~/lib/tenant-context";
+import { useModuleNavigation } from "~/lib/hooks/use-module-navigation";
+import { LockSimpleIcon } from "@phosphor-icons/react/ssr";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 
 interface DataSection {
@@ -191,7 +193,6 @@ const baseDataSections: DataSection[] = [
     description: "Aufgabe eines Dienstes im Dienstplan benennen",
     href: "/database/shift-types",
     concept: "staffPlan",
-    requiresPlanning: true,
     badge: "Stammdaten",
   },
   {
@@ -223,11 +224,11 @@ const baseDataSections: DataSection[] = [
   },
 ];
 
-const NFC_ONLY_SECTION_IDS = new Set(["activities", "devices"]);
-
 function DatabaseContent() {
   const { data: session } = useSession();
-  const nfcEnabled = useNFCEnabled();
+  // Gebuchte Module (#4894): eine Kachel eines nicht gebuchten Moduls fehlt
+  // oder steht für die Leitung mit Schloss da.
+  const moduleNav = useModuleNavigation();
   // Der Wert kommt aus den Tenant-Metadaten und steht damit auch delegierten
   // Personen ohne config:read zur Verfügung.
   const timetableEnabled = useTimetableEnabled();
@@ -295,11 +296,13 @@ function DatabaseContent() {
       ) : (
         <CollectionGrid minTileWidth="18rem">
           {baseDataSections.map((section) => {
-            if (!nfcEnabled && NFC_ONLY_SECTION_IDS.has(section.id)) {
-              return null;
-            }
+            const visibility = moduleNav.page(section.href);
+            if (visibility === "hidden") return null;
+            const locked = visibility === "locked";
 
-            if (section.requiresPlanning && !timetableEnabled) {
+            // Planungsspuren gehören zum Betreuungsplan; die Einstellung
+            // zählt nur bei gebuchtem Modul.
+            if (!locked && section.requiresPlanning && !timetableEnabled) {
               return null;
             }
 
@@ -343,7 +346,16 @@ function DatabaseContent() {
                         size={36}
                       />
                     </div>
-                    {badgeLoading ? (
+                    {locked ? (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-3 py-1.5 text-xs font-semibold text-gray-600">
+                        <LockSimpleIcon
+                          size={14}
+                          weight="bold"
+                          aria-hidden="true"
+                        />
+                        Nicht gebucht
+                      </span>
+                    ) : badgeLoading ? (
                       // Platzhalter in der Höhe der fertigen Zahl (Text +
                       // py-1.5), damit die Kachel beim Laden nicht springt.
                       <Skeleton className="h-7 w-20 rounded-full">
@@ -365,7 +377,7 @@ function DatabaseContent() {
 
                   <div className="flex items-center text-gray-400 transition-colors group-hover:text-gray-700">
                     <span className="text-sm font-medium">
-                      {section.cta ?? "Verwalten"}
+                      {locked ? "Mehr erfahren" : (section.cta ?? "Verwalten")}
                     </span>
                     <ChevronRight
                       aria-hidden="true"
