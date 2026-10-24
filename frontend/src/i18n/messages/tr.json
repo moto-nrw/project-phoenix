@@ -1386,7 +1386,7 @@
       "emptyDrawing": "Lütfen alana imza atın.",
       "nameTooShort": "Lütfen adınızı yazın.",
       "title": "İmza",
-      "description": "Lütfen kaydı imzalayın. Ardından gönderebilirsiniz.",
+      "description": "Lütfen kaydı imzalayın. İmza olmadan kayıt OGS’ye ulaşmaz.",
       "required": "Lütfen kaydı imzalayın."
     }
   },

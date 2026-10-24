@@ -1386,7 +1386,7 @@
       "emptyDrawing": "Podpisz się w polu.",
       "nameTooShort": "Wpisz swoje imię i nazwisko.",
       "title": "Podpis",
-      "description": "Prosimy podpisać zgłoszenie. Potem można je wysłać.",
+      "description": "Prosimy podpisać zgłoszenie. Bez podpisu nie trafi ono do świetlicy.",
       "required": "Prosimy podpisać zgłoszenie."
     }
   },

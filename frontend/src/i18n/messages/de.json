@@ -1386,7 +1386,7 @@
       "emptyDrawing": "Bitte unterschreiben Sie im Feld.",
       "nameTooShort": "Bitte tippen Sie Ihren Namen.",
       "title": "Unterschrift",
-      "description": "Bitte unterschreiben Sie die Anmeldung. Danach können Sie sie absenden.",
+      "description": "Bitte unterschreiben Sie die Anmeldung. Ohne Unterschrift geht sie nicht an die OGS.",
       "required": "Bitte unterschreiben Sie die Anmeldung."
     }
   },

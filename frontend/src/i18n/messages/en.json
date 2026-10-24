@@ -1386,7 +1386,7 @@
       "emptyDrawing": "Please sign in the box.",
       "nameTooShort": "Please type your name.",
       "title": "Signature",
-      "description": "Please sign the enrollment. Then you can send it.",
+      "description": "Please sign the enrollment. Without a signature it does not reach the after-school care.",
       "required": "Please sign the enrollment."
     }
   },

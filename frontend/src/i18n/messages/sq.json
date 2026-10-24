@@ -1386,7 +1386,7 @@
       "emptyDrawing": "Ju lutemi nënshkruani në fushë.",
       "nameTooShort": "Ju lutemi shkruani emrin tuaj.",
       "title": "Nënshkrimi",
-      "description": "Ju lutemi nënshkruani regjistrimin. Pastaj mund ta dërgoni.",
+      "description": "Ju lutemi nënshkruani regjistrimin. Pa nënshkrim ai nuk i dërgohet shkollës ditore.",
       "required": "Ju lutemi nënshkruani regjistrimin."
     }
   },
