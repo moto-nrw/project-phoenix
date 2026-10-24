@@ -35,7 +35,8 @@ type Actor struct {
 	Surface  string
 	Role     string
 	SchoolID int64 // 0 when the session has no school (parents portal)
-	// AccountID stays internal: OGS pseudonym or parent school-membership lookup.
+	// AccountID stays internal: consent lookup, OGS pseudonym or parent
+	// school-membership lookup.
 	AccountID int64
 }
 
@@ -53,6 +54,12 @@ type CoreActionConfig struct {
 	// (#3603). It must fail closed: false on any error. Nil means no school
 	// has it.
 	AnalyseFreigabe func(ctx context.Context, schoolID int64) bool
+	// Consent reports whether the account allowed the usage analytics in its
+	// browser (§ 25 TDDDG, #4901). It must fail closed: false on any error.
+	// Without consent an event still counts for its school, but it names
+	// neither the browser session nor a pseudonymous person. Nil means no
+	// account consented. The public demo needs none.
+	Consent func(ctx context.Context, accountID int64) bool
 }
 
 // sessionBodyLimit caps how much of a session-minting response is kept to
@@ -199,16 +206,30 @@ func (action CoreAction) properties(actor Actor) map[string]any {
 	return props
 }
 
-// identify names who a core action belongs to. Only an OGS account of a
-// school with Analyse-Freigabe is a person: the tracker sends its event under
-// the same pseudonymous ID the browser identifies with. Every other event
-// stays keyed without one.
+// identify names who a core action belongs to. Without the account's
+// consent the event keeps no browser session and no person. Only a
+// consenting OGS account of a school with Analyse-Freigabe is a person: the
+// tracker sends its event under the same pseudonymous ID the browser
+// identifies with. Every other event stays keyed without one.
 func identify(ctx context.Context, cfg CoreActionConfig, actor Actor) (context.Context, string) {
+	if !consented(ctx, cfg, actor) {
+		return withoutSessionID(ctx), distinctID(actor)
+	}
 	if actor.Surface == SurfaceOGS && actor.SchoolID > 0 && actor.AccountID > 0 &&
 		cfg.AnalyseFreigabe != nil && cfg.AnalyseFreigabe(ctx, actor.SchoolID) {
 		ctx = withPerson(ctx, actor.SchoolID, actor.AccountID)
 	}
 	return ctx, distinctID(actor)
+}
+
+// consented reports whether the event may name the actor's browser. The
+// public demo is exempt; everywhere else only the actor's own account
+// decides, and an unknown account or answer denies.
+func consented(ctx context.Context, cfg CoreActionConfig, actor Actor) bool {
+	if cfg.Policy.Demo {
+		return true
+	}
+	return actor.AccountID > 0 && cfg.Consent != nil && cfg.Consent(ctx, actor.AccountID)
 }
 
 // distinctID keys the event without a person: the school, or the surface
