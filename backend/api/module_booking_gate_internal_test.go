@@ -16,6 +16,13 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
+// moduleForRoute returns the module of a request path or a route pattern
+// and whether any rule covers it.
+func moduleForRoute(path string) (settings.ModuleKey, bool) {
+	rule, ok := moduleRouteFor(path)
+	return rule.module, ok
+}
+
 func TestModuleForRoutePrefersTheMostSpecificRule(t *testing.T) {
 	t.Parallel()
 	cases := map[string]settings.ModuleKey{

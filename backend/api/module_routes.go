@@ -189,13 +189,6 @@ var moduleRoutesLockedElsewhere = map[string]string{
 	"/public/enrollment-form-legal-documents": "Anmeldung: Rechtstexte der Schule, keine Personendaten",
 }
 
-// moduleForRoute returns the module of a request path or a route pattern
-// and whether any rule covers it.
-func moduleForRoute(path string) (settings.ModuleKey, bool) {
-	rule, ok := moduleRouteFor(path)
-	return rule.module, ok
-}
-
 // moduleRouteFor returns the most specific rule covering a request path or
 // a route pattern. Both shapes resolve alike: a rule segment "*" matches a
 // concrete value and a {param} placeholder.
