@@ -38,6 +38,8 @@ type pose struct {
 	crop   crop
 }
 
+type pathPoint struct{ x, y float32 }
+
 // Tint pairs a logo color with its soft background. Values mirror
 // MOTO_COLOR_PALETTE in frontend/src/lib/location-helper.ts. The logo red
 // is left out on purpose: in the app red means "krank".
@@ -155,66 +157,77 @@ func render(choice Choice, size int) (*image.RGBA, error) {
 func tracePath(r *vector.Rasterizer, path string, project func(x, y float32) (float32, float32)) error {
 	// potrace glues commands to their first number ("M1224", "c-143").
 	tokens := strings.Fields(strings.NewReplacer("M", " M ", "c", " c ", "z", " z ").Replace(path))
-	var cx, cy float32
+	var current pathPoint
 	var cmd string
-	num := func(i int) (float32, error) {
-		v, err := strconv.ParseFloat(tokens[i], 32)
-		if err != nil {
-			return 0, fmt.Errorf("avatar path token %d %q: %w", i, tokens[i], err)
-		}
-		return float32(v), nil
-	}
-	for i := 0; i < len(tokens); {
-		tok := tokens[i]
-		switch tok {
+	for index := 0; index < len(tokens); {
+		token := tokens[index]
+		var err error
+		switch token {
 		case "M", "c":
-			cmd = tok
-			i++
+			cmd = token
+			index++
 			continue
 		case "z":
 			r.ClosePath()
-			i++
+			index++
 			continue
 		}
-		switch cmd {
-		case "M":
-			if i+1 >= len(tokens) {
-				return fmt.Errorf("avatar path: incomplete M at token %d", i)
-			}
-			x, err := num(i)
-			if err != nil {
-				return err
-			}
-			y, err := num(i + 1)
-			if err != nil {
-				return err
-			}
-			cx, cy = x, y
-			r.MoveTo(project(cx, cy))
-			i += 2
-		case "c":
-			if i+5 >= len(tokens) {
-				return fmt.Errorf("avatar path: incomplete c at token %d", i)
-			}
-			var d [6]float32
-			for k := range d {
-				v, err := num(i + k)
-				if err != nil {
-					return err
-				}
-				d[k] = v
-			}
-			x1, y1 := project(cx+d[0], cy+d[1])
-			x2, y2 := project(cx+d[2], cy+d[3])
-			cx, cy = cx+d[4], cy+d[5]
-			x3, y3 := project(cx, cy)
-			r.CubeTo(x1, y1, x2, y2, x3, y3)
-			i += 6
-		default:
-			return fmt.Errorf("avatar path: number %q before any command", tok)
+		current, index, err = tracePathSegment(r, tokens, index, cmd, current, project)
+		if err != nil {
+			return err
 		}
 	}
 	return nil
+}
+
+func tracePathSegment(r *vector.Rasterizer, tokens []string, index int, command string, current pathPoint, project func(x, y float32) (float32, float32)) (pathPoint, int, error) {
+	switch command {
+	case "M":
+		return traceMove(r, tokens, index, project)
+	case "c":
+		return traceCurve(r, tokens, index, current, project)
+	default:
+		return current, index, fmt.Errorf("avatar path: number %q before any command", tokens[index])
+	}
+}
+
+func traceMove(r *vector.Rasterizer, tokens []string, index int, project func(x, y float32) (float32, float32)) (pathPoint, int, error) {
+	coordinates, next, err := traceCoordinates(tokens, index, 2, "M")
+	if err != nil {
+		return pathPoint{}, index, err
+	}
+	current := pathPoint{x: coordinates[0], y: coordinates[1]}
+	r.MoveTo(project(current.x, current.y))
+	return current, next, nil
+}
+
+func traceCurve(r *vector.Rasterizer, tokens []string, index int, current pathPoint, project func(x, y float32) (float32, float32)) (pathPoint, int, error) {
+	delta, next, err := traceCoordinates(tokens, index, 6, "c")
+	if err != nil {
+		return current, index, err
+	}
+	x1, y1 := project(current.x+delta[0], current.y+delta[1])
+	x2, y2 := project(current.x+delta[2], current.y+delta[3])
+	current.x += delta[4]
+	current.y += delta[5]
+	x3, y3 := project(current.x, current.y)
+	r.CubeTo(x1, y1, x2, y2, x3, y3)
+	return current, next, nil
+}
+
+func traceCoordinates(tokens []string, index, count int, command string) ([]float32, int, error) {
+	if index+count > len(tokens) {
+		return nil, index, fmt.Errorf("avatar path: incomplete %s at token %d", command, index)
+	}
+	coordinates := make([]float32, count)
+	for i := range coordinates {
+		value, err := strconv.ParseFloat(tokens[index+i], 32)
+		if err != nil {
+			return nil, index, fmt.Errorf("avatar path token %d %q: %w", index+i, tokens[index+i], err)
+		}
+		coordinates[i] = float32(value)
+	}
+	return coordinates, index + count, nil
 }
 
 func rgb(r, g, b uint8) color.RGBA { return color.RGBA{R: r, G: g, B: b, A: 0xFF} }
