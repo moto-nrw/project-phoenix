@@ -466,6 +466,17 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
     "PUT tenant /api/school-setup/steps/step%2F1",
   ],
   "api/school/analytics-policy": ["GET school /analytics-policy"],
+  "api/school/calendar/appointments": [
+    "POST school /school/calendar/appointments",
+  ],
+  "api/school/calendar/feed": ["GET school /school/calendar/feed"],
+  "api/school/calendar/feed/rotate": [
+    "POST school /school/calendar/feed/rotate",
+  ],
+  "api/school/calendar/my": ["GET school /school/calendar/my"],
+  "api/school/calendar/recipients/[recipientId]/response": [
+    "POST school /school/calendar/recipients/recipientId%2F1/response",
+  ],
   "api/school/class-day": ["GET school /school/class-day/"],
   "api/school/class-day/arrival-exceptions": [
     "GET school /school/class-day/arrival-exceptions",
