@@ -2,6 +2,7 @@
 package common
 
 const (
+	CodeIdentityUseParentPortal                       = "identity.use_parent_portal"
 	CodeIdentityUseSchoolPortal                       = "identity.use_school_portal"
 	CodeIdentityUsernameTaken                         = "identity.username_taken"
 	CodeImportFileColumnsMissing                      = "import.file_columns_missing"
@@ -301,10 +302,10 @@ const (
 	CodeTimetableSpontaneousActivitiesDisabled        = "timetable.spontaneous_activities_disabled"
 	CodeTimetableSpontaneousCategoryArchived          = "timetable.spontaneous_category_archived"
 	CodeTimetableStaffAbsentOnDate                    = "timetable.staff_absent_on_date"
-	CodeTimetableStaffAbsentOnSource                  = "timetable.staff_absent_on_source"
 )
 
 var errorCodeClasses1 = map[string]string{
+	"identity.use_parent_portal":                          "permission",
 	"identity.use_school_portal":                          "permission",
 	"identity.username_taken":                             "business_rejection",
 	"import.file_columns_missing":                         "input",
@@ -604,7 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.spontaneous_activities_disabled":           "permission",
 	"timetable.spontaneous_category_archived":             "business_rejection",
 	"timetable.staff_absent_on_date":                      "business_rejection",
-	"timetable.staff_absent_on_source":                    "input",
 }
 
 func init() {

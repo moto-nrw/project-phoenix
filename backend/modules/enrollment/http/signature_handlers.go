@@ -122,7 +122,7 @@ func (rs *Resource) getAdminRequestSignatureProof(w http.ResponseWriter, r *http
 		common.RenderError(w, r, renderRequestNotFound(err))
 		return
 	case errors.Is(err, errSignatureProofMissing):
-		common.RenderError(w, r, common.ErrorNotFound(err))
+		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentSignatureNotFound))
 		return
 	case err != nil:
 		common.RenderError(w, r, common.ErrorInternalServer(err))
@@ -159,7 +159,7 @@ func (rs *Resource) getStatusSignatureProof(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	if proof.Signature == nil {
-		common.RenderError(w, r, common.ErrorNotFound(errSignatureProofMissing))
+		common.RenderError(w, r, common.ErrorNotFoundWithCode(errSignatureProofMissing, common.CodeEnrollmentSignatureNotFound))
 		return
 	}
 	rs.writeSignatureProof(w, r, signatureProof{

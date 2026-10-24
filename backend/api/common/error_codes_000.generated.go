@@ -222,6 +222,7 @@ const (
 	CodeEnrollmentSchemaNotFound                         = "enrollment.schema_not_found"
 	CodeEnrollmentSelectedDayNotAvailable                = "enrollment.selected_day_not_available"
 	CodeEnrollmentSignatureInvalid                       = "enrollment.signature_invalid"
+	CodeEnrollmentSignatureNotFound                      = "enrollment.signature_not_found"
 	CodeEnrollmentSignatureRequired                      = "enrollment.signature_required"
 	CodeEnrollmentStatusLinkInvalid                      = "enrollment.status_link_invalid"
 	CodeEnrollmentStudentExists                          = "enrollment.student_exists"
@@ -301,7 +302,6 @@ const (
 	CodeIdentitySessionAccountInactive                   = "identity.session_account_inactive"
 	CodeIdentityTenantAccessDenied                       = "identity.tenant_access_denied"
 	CodeIdentityTenantAccessNotFound                     = "identity.tenant_access_not_found"
-	CodeIdentityUseParentPortal                          = "identity.use_parent_portal"
 )
 
 var errorCodeClasses0 = map[string]string{
@@ -525,6 +525,7 @@ var errorCodeClasses0 = map[string]string{
 	"enrollment.schema_not_found":                          "business_rejection",
 	"enrollment.selected_day_not_available":                "input",
 	"enrollment.signature_invalid":                         "input",
+	"enrollment.signature_not_found":                       "business_rejection",
 	"enrollment.signature_required":                        "input",
 	"enrollment.status_link_invalid":                       "business_rejection",
 	"enrollment.student_exists":                            "business_rejection",
@@ -604,7 +605,6 @@ var errorCodeClasses0 = map[string]string{
 	"identity.session_account_inactive":                    "permission",
 	"identity.tenant_access_denied":                        "permission",
 	"identity.tenant_access_not_found":                     "business_rejection",
-	"identity.use_parent_portal":                           "permission",
 }
 
 func init() {

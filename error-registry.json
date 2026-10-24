@@ -3791,6 +3791,12 @@
       "legacy": "enrollment.upload_rate_limited"
     },
     {
+      "code": "enrollment.signature_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.signature_not_found"
+    },
+    {
       "code": "enrollment.upload_not_found",
       "class": "business_rejection",
       "parameters": [],
