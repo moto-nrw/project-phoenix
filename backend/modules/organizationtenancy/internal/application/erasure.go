@@ -78,19 +78,21 @@ func erasureSchoolIDs(ctx context.Context, store ports.ErasureStore, r organizat
 	return ids, nil
 }
 
-func (s *Erasure) validate(r organizationtenancy.ErasureRequest) error {
-	if err := validateErasureRequest(r); err != nil {
-		return err
-	}
-	if r.ReceiptID != 0 || r.DryRun {
+func (s *Erasure) checkLedger(r organizationtenancy.ErasureRequest, ids []int64) error {
+	if r.DryRun {
 		return nil
 	}
-	return s.ledger.Check()
+	return s.ledger.Check(ids, r.OrderReference)
 }
 
 func (s *Erasure) runSchool(ctx context.Context, r organizationtenancy.ErasureRequest, id int64, kinds []organizationtenancy.LifecycleFileKind) (json.RawMessage, error) {
 	var proof json.RawMessage
 	err := s.store.WithSchoolLock(ctx, id, func(lockCtx context.Context) error {
+		// Recheck after acquiring the school lock: another erasure may have
+		// completed between the all-school preflight and this lock.
+		if err := s.checkLedger(r, []int64{id}); err != nil {
+			return err
+		}
 		var err error
 		proof, err = s.eraseSchool(lockCtx, s.store, r, id, kinds)
 		if err != nil || r.DryRun {
@@ -107,7 +109,7 @@ func (s *Erasure) runSchool(ctx context.Context, r organizationtenancy.ErasureRe
 }
 
 func (s *Erasure) Run(ctx context.Context, r organizationtenancy.ErasureRequest) ([]json.RawMessage, error) {
-	if err := s.validate(r); err != nil {
+	if err := validateErasureRequest(r); err != nil {
 		return nil, err
 	}
 	if r.ReceiptID != 0 {
@@ -123,6 +125,9 @@ func (s *Erasure) Run(ctx context.Context, r organizationtenancy.ErasureRequest)
 	}
 	ids, err := erasureSchoolIDs(ctx, s.store, r)
 	if err != nil {
+		return nil, err
+	}
+	if err := s.checkLedger(r, ids); err != nil {
 		return nil, err
 	}
 	var results []json.RawMessage

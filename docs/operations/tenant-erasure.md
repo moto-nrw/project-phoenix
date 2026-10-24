@@ -29,7 +29,17 @@ Nebensystemfristen und deren produktive Nachweise: 3837-f.
 
 1. Ein eigenes persistentes Hostverzeichnis außerhalb des DB-Volumes,
    **aller** Upload-Wurzeln, Release-Verzeichnisse und täglichen Sicherungen
-   bereitstellen, z. B. `/var/lib/moto-erasure/` (0700). Pro Installation eine
+   bereitstellen, z. B. `/var/lib/moto-erasure/` (0700). Das Backend-Image läuft
+   als `appuser` mit UID/GID `1001:1001`. Das Verzeichnis deshalb auf dem Host
+   mit diesem Eigentümer vorbereiten (durch einen berechtigten Menschen):
+
+   ```sh
+   install -d -m 0700 /var/lib/moto-erasure
+   chown 1001:1001 /var/lib/moto-erasure
+   chmod 0700 /var/lib/moto-erasure
+   ```
+
+   Pro Installation eine
    eigene Datei `completed.ledger` (0600), nur für den berechtigten internen
    Löschzugang schreibbar, nicht für Web-, Schul- oder App-Zugänge.
    Im Einmal-CLI-Container dieses Verzeichnis zusätzlich als Host-Bind-Mount
@@ -37,9 +47,21 @@ Nebensystemfristen und deren produktive Nachweise: 3837-f.
    Keine Änderung an der Deploy-Compose nötig. Host- und Containerpfad vorab
    prüfen. Die technischen Schul-IDs sind keine anonymisierten Nachweise;
    keine Namen, Personendaten, Operator-IDs oder Inhalte in die Liste aufnehmen.
-2. **Nur für eine neue Liste vor dem ersten Löschauftrag**:
-   `tenant ledger-init --erasure-ledger /erasure-ledger/completed.ledger`.
-   Die Binary oder lokal `scripts/dev-native.sh backend go run .` verwenden.
+2. **Nur für eine neue Liste vor dem ersten Löschauftrag**, mit demselben
+   Backend-Image und Bind-Mount wie bei `erase` initialisieren:
+
+   ```sh
+   docker compose run --rm --no-deps \
+     -v /var/lib/moto-erasure:/erasure-ledger server /app/main tenant ledger-init \
+     --erasure-ledger /erasure-ledger/completed.ledger
+   chown 1001:1001 /var/lib/moto-erasure/completed.ledger
+   chmod 0600 /var/lib/moto-erasure/completed.ledger
+   ```
+
+   Datei und Verzeichnis müssen UID/GID `1001:1001` gehören; Datei 0600,
+   Verzeichnis 0700. Lokal alternativ die native Binary über
+   `scripts/dev-native.sh backend go run .` mit einem lokalen, für den
+   aufrufenden Benutzer schreibbaren Verzeichnis verwenden.
    Der Befehl erstellt exklusiv, synchronisiert Datei und Verzeichnis und
    überschreibt nie eine vorhandene Datei. `erase` und Restore erzeugen
    niemals automatisch eine fehlende Liste. Bei Bestand zuerst alle schon

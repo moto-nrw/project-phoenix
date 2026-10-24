@@ -159,13 +159,22 @@ func terminatedLines(data []byte, atEOF bool) (int, []byte, error) {
 	return 0, nil, nil
 }
 
-func (l *Ledger) Check() error {
+func (l *Ledger) Check(schoolIDs []int64, orderReference string) error {
 	file, err := l.open()
 	if err != nil {
 		return err
 	}
 	defer func() { _ = file.Close() }()
-	_, err = l.read(file, func(entry) error { return nil })
+	selected := make(map[int64]bool, len(schoolIDs))
+	for _, id := range schoolIDs {
+		selected[id] = true
+	}
+	_, err = l.read(file, func(old entry) error {
+		if selected[old.SchoolID] && old.Reference != orderReference {
+			return errors.New("erasure: order reference conflicts with external ledger; school deletion blocked; retry the recorded order")
+		}
+		return nil
+	})
 	return err
 }
 

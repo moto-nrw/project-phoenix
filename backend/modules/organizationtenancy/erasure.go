@@ -33,9 +33,10 @@ type ErasureProof struct {
 	InventoryAt *time.Time `json:"files_inventory_at"`
 }
 
-// ErasureLedger survives database restores. Check never creates a missing list.
+// ErasureLedger survives database restores. Check never creates a missing list
+// and rejects conflicting references for the selected schools before deletion.
 // The root binds the independently protected host store to the erasure command.
 type ErasureLedger interface {
-	Check() error
+	Check(schoolIDs []int64, orderReference string) error
 	Record(json.RawMessage) error
 }

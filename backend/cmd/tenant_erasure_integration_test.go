@@ -284,6 +284,47 @@ func newTestErasureLedger(t *testing.T) string {
 	return path
 }
 
+func TestErasureCLIExternalLedgerRejectsDifferentOrderBeforeDeletion(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	a := testpkg.Tenant(t)
+	b, _ := testpkg.CreateTestTenant(t, db)
+	seedCLIErasure(t, db, a)
+	seedCLIErasure(t, db, b)
+	beforeA := erasureTableCounts(t, db, a)
+	beforeB := erasureTableCounts(t, db, b)
+	operator := testpkg.CreateTestOperator(t, db)
+	path := newTestErasureLedger(t)
+	ledger := erasureledger.New(path, securityruntime.Fingerprint)
+	// The current list survives while the database has been restored to before
+	// this school's completed order. A different reference must not delete it.
+	proof := json.RawMessage(fmt.Sprintf(`{"school_id":%d,"order_reference":"ORDER-RESTORE","status":"completed","completed_at":"2026-10-24T12:00:00Z"}`, a))
+	require.NoError(t, ledger.Record(proof))
+	beforeLedger, err := os.ReadFile(path)
+	require.NoError(t, err)
+	removed := false
+	files := &failingErasureFiles{Local: objects.NewLocal(t.TempDir()), onRemove: func() { removed = true }}
+	service, err := tenancyCompose.NewErasure(db, files, ledger)
+	require.NoError(t, err)
+	request := organizationtenancy.ErasureRequest{SchoolID: a, OperatorID: operator.ID, OrderReference: "ORDER-DIFFERENT", Confirmation: fmt.Sprintf("school:%d", a), PrerequisitesChecked: true, WritersStopped: true, LockTimeout: time.Second, StatementTimeout: time.Minute}
+	results, err := service.Run(t.Context(), request)
+	require.Error(t, err)
+	require.Empty(t, results)
+	require.Equal(t, beforeA, erasureTableCounts(t, db, a), "conflicting order must fail before database deletion")
+	require.Equal(t, beforeB, erasureTableCounts(t, db, b))
+	require.False(t, removed, "conflicting order must fail before file deletion")
+	require.ErrorContains(t, err, "order reference conflicts with external ledger")
+	afterLedger, err := os.ReadFile(path)
+	require.NoError(t, err)
+	require.Equal(t, beforeLedger, afterLedger)
+	request.OrderReference = "ORDER-RESTORE"
+	results, err = service.Run(t.Context(), request)
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	require.True(t, removed)
+	require.Equal(t, beforeB, erasureTableCounts(t, db, b))
+}
+
 func TestErasureCLIExternalLedgerFailureNeverReportsCompletion(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)

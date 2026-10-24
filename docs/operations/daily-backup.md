@@ -379,7 +379,17 @@ weder den Produktionshost noch den Monitoring-Host dafür gelesen.
    `BACKUP_AGE_IDENTITY_FILE` auf die vom Menschen bereitgestellte private
    Identität setzen, nur für den Restore und niemals auf dem Quellhost.
    Schlüssel nicht in Befehlsargumente oder Protokolle schreiben.
-3. **Restore ausführen:** Mit geladener Umgebung
+3. **Aktuelle Löschliste bergen, dann Restore ausführen:** Vor dem Restore die
+   **aktuelle unabhängige** `completed.ledger` aus dem getrennten Betriebsziel
+   bergen und mit dem unabhängig verwahrten SHA-256-Dateiwert und den offenen
+   Vorgängen abgleichen. Nicht aus der alten DB/Sicherung gewinnen und nicht
+   neu initialisieren. Ablage außerhalb von DB-/Upload-Volumes, 0600 und nur
+   für den berechtigten Betrieb les-/schreibbar. Der zusätzliche absolute
+   Pfad ist ein Pflichtargument des Restore-Aufrufs, keine neue Env-Variable.
+   Ein benannter Mensch muss Vollständigkeit und Aktualität bestätigen:
+   eine Prüfsummenkette allein beweist das nicht.
+
+   Erst nach diesem Abgleich mit geladener Umgebung
    `bash scripts/restore-daily-backup.sh <daily-Zeitstempel-Zufallskennung.tar.age> /var/lib/moto-erasure/completed.ledger`
    ausführen. Das Skript lädt herunter, entschlüsselt lokal auf tmpfs, prüft
    Manifest, alle Prüfsummen, Archive und frisches Ziel vor dem ersten Schreibzugriff.
@@ -465,15 +475,7 @@ weder den Produktionshost noch den Monitoring-Host dafür gelesen.
    [PostgreSQL-Vertrag für `\password`](https://www.postgresql.org/docs/17/app-psql.html#APP-PSQL-META-COMMAND-PASSWORD).
    Das lokale Integrationstestverfahren erzwingt SCRAM und belegt die echte
    Anmeldung aller drei Rollen nach Restore, nicht nur deren Existenz.
-4. **Löschungen vor Start erneut umsetzen (3837-d):** Vor dem Restore die
-   **aktuelle unabhängige** `completed.ledger` aus dem getrennten Betriebsziel
-   bergen und mit dem unabhängig verwahrten SHA-256-Dateiwert und den offenen
-   Vorgängen abgleichen. Nicht aus der alten DB/Sicherung gewinnen und nicht
-   neu initialisieren. Ablage außerhalb von DB-/Upload-Volumes, 0600 und nur
-   für den berechtigten Betrieb les-/schreibbar. Der zusätzliche absolute
-   Pfad ist ein Pflichtargument des Restore-Aufrufs, keine neue Env-Variable.
-   Ein benannter Mensch muss Vollständigkeit und Aktualität bestätigen:
-   eine Prüfsummenkette allein beweist das nicht.
+4. **Löschungen vor Start erneut umsetzen (3837-d):**
 
    Nach DB- und Upload-Wiederherstellung validiert das Skript Format und
    gesamte Prüfsummenkette. Fehlende/beschädigte/unsichere Datei führt zu

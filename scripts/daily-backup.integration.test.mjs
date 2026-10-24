@@ -345,6 +345,7 @@ ${unsafe.replaceAll('phoenix_diagnostics', profile.group)}`;
       result = restore(unsafeName, { BACKUP_TARGET: destination, BACKUP_UPLOADS_VOLUME: `${project}-rejected` });
       if (!unsafe) {
         assert.equal(result.status, 0, `safe ${profile.label} login alone must be quarantined`);
+        assert.match(result.stdout, /^restore_result=ok step=deletion_review_required app_start=blocked$/m);
         assert.match(result.stdout, new RegExp(`restore_${profile.label}_disabled=1`));
         assert.equal(sql(`SELECT rolcanlogin FROM pg_roles WHERE rolname='${profile.login}';`), 'f');
         assert.equal(sql(`SELECT pg_has_role('${profile.login}', '${profile.group}', 'SET');`), 't');
