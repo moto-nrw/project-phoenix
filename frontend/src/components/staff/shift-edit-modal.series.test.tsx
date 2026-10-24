@@ -559,9 +559,12 @@ describe("ShiftEditModal series rule editing", () => {
     fireEvent.change(screen.getByLabelText("Ende"), {
       target: { value: "13:00" },
     });
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Serie bearbeiten" }),
-    );
+    const editSeries = await screen.findByRole("button", {
+      name: "Serie bearbeiten",
+    });
+    // The rule loads asynchronously; clicking the still-disabled button is ignored.
+    await waitFor(() => expect(editSeries).toBeEnabled());
+    fireEvent.click(editSeries);
     expect(screen.getByLabelText("Ende")).toHaveValue("12:00");
 
     fireEvent.click(screen.getByRole("button", { name: "Zurück" }));

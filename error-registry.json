@@ -4273,6 +4273,12 @@
       "class": "input",
       "parameters": [],
       "legacy": "staff.external_access_invalid"
+    },
+    {
+      "code": "operator.audit_unavailable",
+      "class": "unavailable",
+      "parameters": [],
+      "legacy": "operator.audit_unavailable"
     }
   ]
 }

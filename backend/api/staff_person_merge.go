@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"net"
 	"net/http"
 
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
@@ -17,6 +18,17 @@ import (
 
 type staffPersonMergeAudit struct {
 	create func(context.Context, *auditRecords.OperatorAuditEntry) error
+}
+
+func (a staffPersonMergeAudit) RecordStaffPersonMergePreview(ctx context.Context, operatorID, schoolID int64, clientIP net.IP) error {
+	changes, err := json.Marshal(struct {
+		SchoolID int64  `json:"school_id"`
+		View     string `json:"view"`
+	}{schoolID, "staff_person_merge_candidates"})
+	if err != nil {
+		return err
+	}
+	return a.create(ctx, &auditRecords.OperatorAuditEntry{OperatorID: operatorID, Action: "view", ResourceType: "person", Changes: changes, RequestIP: clientIP})
 }
 
 func (a staffPersonMergeAudit) RecordStaffPersonMerge(ctx context.Context, operatorID, schoolID int64, candidate staffpersonmerge.Candidate) error {
