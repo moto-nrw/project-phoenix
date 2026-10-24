@@ -83,6 +83,14 @@ export const SCHOOL_PRIMARY_NAV: readonly SchoolNavItem[] = [
     portalPath: true,
     badge: "notices",
   },
+  // Termine der OGS, Schließtage, Ferien und die eigenen Schultermine (#4798).
+  {
+    key: "calendar",
+    href: "/school/kalender",
+    label: "Kalender",
+    concept: "calendar",
+    portalPath: true,
+  },
 ];
 
 /**

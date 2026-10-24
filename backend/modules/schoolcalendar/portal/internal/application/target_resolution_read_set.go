@@ -11,6 +11,7 @@ import (
 
 type targetSelection struct {
 	allStaff      bool
+	allTeachers   bool
 	allParents    bool
 	staffIDs      []int64
 	guardianIDs   []int64
@@ -21,6 +22,7 @@ type targetSelection struct {
 
 type targetResolutionReadSet struct {
 	reachableStaff    map[int64]bool
+	teachers          map[int64]bool
 	activeGuardians   map[int64]bool
 	linksByGuardian   map[int64][]*ports.StudentGuardian
 	linksByStudent    map[int64][]*ports.StudentGuardian
@@ -52,6 +54,7 @@ func (s *service) loadTargetResolutionReadSet(ctx context.Context, targets []App
 func newTargetResolutionReadSet() *targetResolutionReadSet {
 	return &targetResolutionReadSet{
 		reachableStaff:  make(map[int64]bool),
+		teachers:        make(map[int64]bool),
 		activeGuardians: make(map[int64]bool),
 		linksByGuardian: make(map[int64][]*ports.StudentGuardian),
 		linksByStudent:  make(map[int64][]*ports.StudentGuardian),
@@ -71,6 +74,40 @@ func (s *service) loadTargetStaff(ctx context.Context, selection targetSelection
 			return err
 		}
 		readSet.reachableStaff = reachable
+	}
+	if selection.allTeachers {
+		return s.loadTargetTeachers(ctx, selection, readSet)
+	}
+	return nil
+}
+
+func (s *service) loadTargetTeachers(ctx context.Context, selection targetSelection, readSet *targetResolutionReadSet) error {
+	teachers, err := s.cfg.StaffRepo.FindSchoolPortalStaffIDs(ctx)
+	if err != nil {
+		return err
+	}
+	if len(teachers) == 0 {
+		return nil
+	}
+	ids := make([]int64, 0, len(teachers))
+	for id := range teachers {
+		ids = append(ids, id)
+	}
+	schoolReachable, err := s.cfg.StaffRepo.FindReachableSchoolCalendarStaffIDs(ctx, ids)
+	if err != nil {
+		return err
+	}
+	staffReachable := readSet.reachableStaff
+	if !selection.allStaff {
+		staffReachable, err = s.cfg.StaffRepo.FindReachableCalendarStaffIDs(ctx, ids)
+		if err != nil {
+			return err
+		}
+	}
+	for id := range teachers {
+		if schoolReachable[id] || staffReachable[id] {
+			readSet.teachers[id] = true
+		}
 	}
 	return nil
 }
@@ -154,6 +191,8 @@ func (c *targetSelectionCollector) add(target AppointmentTarget) error {
 	switch target.Type {
 	case appointmentcap.TargetTypeAllStaff:
 		c.selection.allStaff = true
+	case appointmentcap.TargetTypeAllTeachers:
+		c.selection.allTeachers = true
 	case appointmentcap.TargetTypeAllSchoolParents:
 		c.selection.allParents = true
 	case appointmentcap.TargetTypeParentsByClass:

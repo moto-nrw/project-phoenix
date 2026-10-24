@@ -68,6 +68,18 @@ type accountsStub struct {
 	permissions map[int64][]string
 	roles       map[int64]int
 	emails      map[int64]string
+	// schoolPortal are the accounts with a school-portal role per school.
+	schoolPortal map[int64][]int64
+}
+
+func (a accountsStub) SchoolPortalAccountIDs(_ context.Context, tenantID int64, accountIDs []int64) (map[int64]bool, error) {
+	result := map[int64]bool{}
+	for _, id := range accountIDs {
+		if slices.Contains(a.schoolPortal[tenantID], id) {
+			result[id] = true
+		}
+	}
+	return result, nil
 }
 
 func (a accountsStub) ListActiveAccountIDsForTenant(_ context.Context, tenantID int64, accountIDs []int64) ([]int64, error) {
@@ -135,6 +147,9 @@ func fixture(t *testing.T) (*Directory, *membersStub) {
 			permissions: map[int64][]string{31: {"calendar:own"}},
 			roles:       map[int64]int{31: 2},
 			emails:      map[int64]string{31: "anna@example.test", 34: "dora@example.test"},
+			// Account 33 holds a school-portal role but is inactive at the
+			// school; account 34 is an active Lehrkraft.
+			schoolPortal: map[int64][]int64{school: {33, 34}},
 		},
 		CallerTenant:  func(context.Context) int64 { return school },
 		HasPermission: func(required string, granted []string) bool { return slices.Contains(granted, required) },
@@ -169,6 +184,16 @@ func TestPermittedStaffKeepTheHoldersOfThePermission(t *testing.T) {
 	reachable, err := directory.ReachableStaffIDs(t.Context(), []int64{11, 13, 14}, "calendar:own")
 	require.NoError(t, err)
 	assert.Equal(t, map[int64]bool{11: true}, reachable)
+}
+
+func TestSchoolPortalStaffKeepActiveLehrkraefte(t *testing.T) {
+	t.Parallel()
+	directory, members := fixture(t)
+
+	teachers, err := directory.SchoolPortalStaffIDs(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, map[int64]bool{14: true}, teachers, "staff 13 is inactive at the school, staff 11 has no school-portal role")
+	assert.True(t, members.filters[0].MembershipOnly)
 }
 
 func TestStaffContactNeedsPersonAccountAndAddress(t *testing.T) {

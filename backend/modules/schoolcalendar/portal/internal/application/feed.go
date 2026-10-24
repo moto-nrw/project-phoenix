@@ -277,7 +277,23 @@ func (s *service) staffFeedStaffID(ctx context.Context, accountID int64) (int64,
 	if err != nil {
 		return 0, err
 	}
-	if !reachable[staff.ID] {
+	if reachable[staff.ID] {
+		return staff.ID, nil
+	}
+	// A Lehrkraft reaches the calendar in moto schule, not through
+	// calendar:own, and subscribes to the same feed (#4798).
+	teachers, err := s.cfg.StaffRepo.FindSchoolPortalStaffIDs(ctx)
+	if err != nil {
+		return 0, err
+	}
+	if !teachers[staff.ID] {
+		return 0, ErrNotFound
+	}
+	schoolReachable, err := s.cfg.StaffRepo.FindReachableSchoolCalendarStaffIDs(ctx, []int64{staff.ID})
+	if err != nil {
+		return 0, err
+	}
+	if !schoolReachable[staff.ID] {
 		return 0, ErrNotFound
 	}
 	return staff.ID, nil

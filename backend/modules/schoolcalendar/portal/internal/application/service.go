@@ -63,10 +63,13 @@ type Config struct {
 	// RoomRepo resolves room names for timetable events in one batch per
 	// window (#2078). Optional: nil leaves Location empty instead of failing
 	// the whole calendar, mirroring StaffShiftRepo/ShiftTypeRepo below.
-	RoomRepo         ports.Rooms
-	StaffShiftRepo   ports.Shifts
-	ShiftTypeRepo    ports.ShiftTypes
-	UserContext      ports.Identity
+	RoomRepo       ports.Rooms
+	StaffShiftRepo ports.Shifts
+	ShiftTypeRepo  ports.ShiftTypes
+	UserContext    ports.Identity
+	// SchoolDays are the closing days and holiday periods the moto schule
+	// calendar shows (#4798).
+	SchoolDays       ports.SchoolDays
 	Runtime          ports.Runtime
 	CalendarRenderer CalendarRenderer
 
