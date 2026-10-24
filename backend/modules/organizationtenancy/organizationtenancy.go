@@ -90,6 +90,11 @@ type OrganizationQuery interface {
 	CountOrganizationsByID(context.Context, []int64) (int, error)
 	FindOrganizationForMutation(context.Context, int64) (Organization, error)
 	FindOrganizationForSchoolMutation(context.Context, int64) (Organization, error)
+	// FindVisibleTraegerName returns the name of the Träger (organization)
+	// a school's own portal shows. Only a Träger with more than one
+	// operational school has a visible level; for a Träger with a single
+	// OGS, and for a deleted organization, the name is empty (#4656).
+	FindVisibleTraegerName(context.Context, int64) (string, error)
 }
 
 // SchoolQuery resolves individual schools and their mutation locks.
