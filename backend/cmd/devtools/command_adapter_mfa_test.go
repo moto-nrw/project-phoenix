@@ -3,7 +3,9 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
+	"math/rand/v2"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -385,4 +387,62 @@ func newCodeMailpitServer(t *testing.T, recipient, code string) *testpkg.HTTPSer
 			testpkg.HTTPNotFound(w, r)
 		}
 	})
+}
+
+func TestLoginTenant_CompletesRequiredMFAEnrollment(t *testing.T) {
+	t.Parallel()
+	recipient := "seed-account@example.invalid"
+	code := fmt.Sprintf("%06d", rand.IntN(1000000))
+	api := testpkg.NewHTTPTestServer(func(w testpkg.HTTPResponseWriter, r *testpkg.HTTPRequest) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/auth/login":
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "mfa_enrollment_required", "access_token": "pending-enrollment", "mfa_enrollment_required": true})
+		case "/auth/mfa/enroll/start":
+			assert.Equal(t, "Bearer pending-enrollment", r.Header.Get("Authorization"))
+			w.WriteHeader(testpkg.HTTPStatusNoContent)
+		case "/auth/mfa/enroll/confirm":
+			assert.Equal(t, "Bearer pending-enrollment", r.Header.Get("Authorization"))
+			var payload map[string]string
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&payload))
+			assert.Equal(t, code, payload["code"])
+			_ = json.NewEncoder(w).Encode(map[string]any{"data": map[string]string{"access_token": "completed-session"}})
+		default:
+			t.Errorf("unexpected path %s", r.URL.Path)
+			w.WriteHeader(testpkg.HTTPStatusBadRequest)
+		}
+	})
+	defer api.Close()
+	adapter := NewCommandAdapter(api.URL, false)
+	adapter.fetchLatestMFACode = func(context.Context, string, time.Time) (string, error) { return code, nil }
+	auth, err := adapter.LoginTenant(context.Background(), recipient, testpkg.NewTestPassword(), "school")
+	require.NoError(t, err)
+	assert.Equal(t, "completed-session", auth.Token, "an enrollment token must never be used as a seed session")
+}
+
+func TestLoginTenant_CompletesRequiredMFAVerification(t *testing.T) {
+	t.Parallel()
+	code := fmt.Sprintf("%06d", rand.IntN(1000000))
+	api := testpkg.NewHTTPTestServer(func(w testpkg.HTTPResponseWriter, r *testpkg.HTTPRequest) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/auth/login":
+			_ = json.NewEncoder(w).Encode(map[string]string{"status": "mfa_required", "challenge_token": "pending-challenge"})
+		case "/auth/mfa/verify":
+			var payload map[string]string
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&payload))
+			assert.Equal(t, code, payload["code"])
+			assert.Equal(t, "pending-challenge", payload["challenge_token"])
+			_ = json.NewEncoder(w).Encode(map[string]string{"access_token": "completed-session"})
+		default:
+			t.Errorf("unexpected path %s", r.URL.Path)
+			w.WriteHeader(testpkg.HTTPStatusBadRequest)
+		}
+	})
+	defer api.Close()
+	adapter := NewCommandAdapter(api.URL, false)
+	adapter.fetchLatestMFACode = func(context.Context, string, time.Time) (string, error) { return code, nil }
+	auth, err := adapter.LoginTenant(context.Background(), "seed-account@example.invalid", testpkg.NewTestPassword(), "school")
+	require.NoError(t, err)
+	assert.Equal(t, "completed-session", auth.Token)
 }

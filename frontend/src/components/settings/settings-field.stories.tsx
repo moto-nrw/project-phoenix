@@ -141,3 +141,25 @@ export const AttendanceHistory: Story = {
     );
   },
 };
+
+/** Mirrors the school-visible MFA policy description from the settings registry. */
+export const PrivilegedMFAFloor: Story = {
+  args: {
+    setting: makeSetting({
+      key: "security.mfa_mode",
+      label: "Zwei-Faktor-Anmeldung (Code per E-Mail)",
+      description:
+        "Für Verwaltung ist ein zweiter Anmeldenachweis immer Pflicht. Ebenso für Personalstammdaten, Personaldokumente, Personalfinanzen und Gesundheitsdokumente. Auch beim Verwalten fremder Arbeitszeiten und Genehmigen von Urlaub. Gesundheitshinweise der Kinder allein lösen diese Pflicht nicht aus. „Aus“ und „Nur Admins“ ändern daran nichts. „Alle Mitarbeitenden“ schützt zusätzlich das ganze Team.",
+      type: "select",
+      value: "off",
+      default: "off",
+      options: {
+        static: [
+          { label: "Aus", value: "off" },
+          { label: "Nur Admins", value: "required_admins" },
+          { label: "Alle Mitarbeitenden", value: "required_all" },
+        ],
+      },
+    }),
+  },
+};

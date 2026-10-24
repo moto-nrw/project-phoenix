@@ -1,6 +1,7 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 
 import { loadSeedAccess, type SeedAccess } from "../scripts/seed-state";
+import { loginToLocalTenant } from "./local-tenant-login";
 
 // Gemeinsamer Tenant-Zugang der E2E-Specs. Der lokale Stack bedient die
 // Tenant-App nur unter {slug}.localhost:3000 (bare localhost ist die
@@ -43,15 +44,7 @@ export async function loginToTenant(
 ): Promise<void> {
   // `domcontentloaded` statt `load`: der Next-Dev-Server hält über SSE
   // Verbindungen offen, das `load`-Event kann dadurch hängen.
-  await page.goto(`${tenantBase}/`, { waitUntil: "domcontentloaded" });
-  await page.waitForSelector('input[type="email"]', { timeout: 20000 });
-  await page.fill('input[type="email"]', access.email);
-  await page.fill('input[type="password"]', access.password);
-  await page.click('button:has-text("Anmelden")');
-  await page.waitForSelector('input[type="email"]', {
-    state: "detached",
-    timeout: 20000,
-  });
+  await loginToLocalTenant(page, tenantBase, access);
 
   const res = await page.request.get(`${tenantBase}/api/auth/session`);
   expect(res.ok(), `Session laden fehlgeschlagen (${res.status()})`).toBe(true);

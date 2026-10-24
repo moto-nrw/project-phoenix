@@ -385,7 +385,7 @@ func verifyEnrollmentProfileCare(rt *Runtime, auth AuthRef, studentID, offeringI
 	return nil
 }
 
-func linkDeveloperAdmin(ctx context.Context, primary, target *Runtime, state *SeedState) error {
+func linkDeveloperAdminIdentity(ctx context.Context, primary, target *Runtime, state *SeedState) error {
 	if primary.FixedSeeder == nil || len(primary.FixedSeeder.staffCredentials) == 0 {
 		return fmt.Errorf("developer admin credentials missing")
 	}
@@ -417,6 +417,14 @@ func linkDeveloperAdmin(ctx context.Context, primary, target *Runtime, state *Se
 		return fmt.Errorf("developer admin staff identity missing")
 	}
 	state.Accounts.Admin = []AccountCredentials{{Key: "developer-admin", Email: admin.Email, Password: admin.Password, Name: admin.Name, StaffID: identity.Data.SchoolIdentity.StaffID, TeacherID: identity.Data.SchoolIdentity.TeacherID}}
+	return nil
+}
+
+func linkDeveloperAdmin(ctx context.Context, primary, target *Runtime, state *SeedState) error {
+	if err := linkDeveloperAdminIdentity(ctx, primary, target, state); err != nil {
+		return err
+	}
+	admin := primary.FixedSeeder.staffCredentials[0]
 	auth, err := target.Adapter.LoginTenant(ctx, admin.Email, admin.Password, primary.Bootstrap.TenantSlug)
 	if err != nil {
 		return err
@@ -463,7 +471,10 @@ func linkDeveloperAdmin(ctx context.Context, primary, target *Runtime, state *Se
 	if !errors.As(err, &denied) || (denied.StatusCode != 401 && denied.StatusCode != 403) {
 		return fmt.Errorf("isolated school admin switch must be denied, got %v", err)
 	}
-	return nil
+	// Keep the shared developer's cached primary-school session live for the
+	// next profile, without requesting another MFA email code.
+	_, err = switchSeedTenant(target, switched, primary.Bootstrap.TenantSlug)
+	return err
 }
 
 func enrollmentProfileParentEmail(rt *Runtime, index int) string {

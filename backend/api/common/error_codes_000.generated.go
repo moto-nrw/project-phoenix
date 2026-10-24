@@ -263,6 +263,8 @@ const (
 	CodeIdentityMfaBlocked                               = "identity.mfa_blocked"
 	CodeIdentityMfaCodeInvalid                           = "identity.mfa_code_invalid"
 	CodeIdentityMfaNotEnrolled                           = "identity.mfa_not_enrolled"
+	CodeIdentityMfaSessionRequired                       = "identity.mfa_session_required"
+	CodeIdentityMfaStatusUnavailable                     = "identity.mfa_status_unavailable"
 	CodeIdentityOperatorInvitationInvalid                = "identity.operator_invitation_invalid"
 	CodeIdentityOperatorSelfDeactivation                 = "identity.operator_self_deactivation"
 	CodeIdentityPasskeyLoginFailed                       = "identity.passkey_login_failed"
@@ -300,8 +302,6 @@ const (
 	CodeIotDeviceIdTaken                                 = "iot.device_id_taken"
 	CodeIotDeviceInactive                                = "iot.device_inactive"
 	CodeIotDevicePinInvalid                              = "iot.device_pin_invalid"
-	CodeIotDevicePinRequired                             = "iot.device_pin_required"
-	CodeIotInvalidRfidTag                                = "iot.invalid_rfid_tag"
 )
 
 var errorCodeClasses0 = map[string]string{
@@ -566,6 +566,8 @@ var errorCodeClasses0 = map[string]string{
 	"identity.mfa_blocked":                                 "unavailable",
 	"identity.mfa_code_invalid":                            "input",
 	"identity.mfa_not_enrolled":                            "business_rejection",
+	"identity.mfa_session_required":                        "permission",
+	"identity.mfa_status_unavailable":                      "unavailable",
 	"identity.operator_invitation_invalid":                 "business_rejection",
 	"identity.operator_self_deactivation":                  "business_rejection",
 	"identity.passkey_login_failed":                        "business_rejection",
@@ -603,8 +605,6 @@ var errorCodeClasses0 = map[string]string{
 	"iot.device_id_taken":                                  "business_rejection",
 	"iot.device_inactive":                                  "permission",
 	"iot.device_pin_invalid":                               "permission",
-	"iot.device_pin_required":                              "permission",
-	"iot.invalid_rfid_tag":                                 "input",
 }
 
 func init() {
