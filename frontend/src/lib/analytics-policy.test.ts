@@ -2,6 +2,7 @@ import type { CaptureResult, Properties } from "posthog-js";
 import { describe, expect, it } from "vitest";
 import {
   ANALYTICS_BLOCK_ATTRIBUTE,
+  analyticsCollectionAllowed,
   analyticsContextUpdateAllowed,
   analyticsIdentity,
   analyticsInitOptions,
@@ -53,6 +54,7 @@ describe("school analytics switch", () => {
         deployment: "localhost",
         surface,
         enabled: true,
+        consent: true,
         analyseFreigabe: false,
       };
       const event = capture("$pageview", {
@@ -90,6 +92,7 @@ describe("school analytics switch", () => {
         deployment: "localhost",
         surface,
         enabled: true,
+        consent: true,
         analyseFreigabe: true,
         recordingSamplePercent: 100,
       };
@@ -201,6 +204,67 @@ describe("school analytics switch", () => {
     },
   );
 
+  // § 25 TDDDG (#4901): the school's switch never replaces the person's own
+  // consent. Unknown and refused consent collect nothing, recording included.
+  it.each([
+    { surface: "ogs", consent: undefined },
+    { surface: "ogs", consent: false },
+    { surface: "parents", consent: undefined },
+    { surface: "school", consent: false },
+    { surface: "public", consent: undefined },
+  ])(
+    "collects nothing without the person's consent ($surface, $consent)",
+    ({ surface, consent }) => {
+      const context = {
+        deployment: "localhost",
+        surface,
+        enabled: true,
+        consent,
+        analyseFreigabe: true,
+        recordingSamplePercent: 100,
+        person: PERSON,
+      };
+      // Anker: the same context with consent collects and records.
+      expect(analyticsCollectionAllowed({ ...context, consent: true })).toBe(
+        true,
+      );
+      expect(analyticsCollectionAllowed(context)).toBe(false);
+      for (const event of ["$pageview", "$autocapture", "$snapshot"]) {
+        expect(filterAnalyticsEvent(context, capture(event, {}))).toBeNull();
+      }
+      expect(analyticsIdentity(context)).toBeNull();
+      expect(analyticsRuntimeOptions(context)).toMatchObject({
+        disable_session_recording: true,
+        tracing_headers: [],
+      });
+    },
+  );
+
+  it("needs no consent in the public demo", () => {
+    const demo = { deployment: "demo", surface: "ogs", analyseFreigabe: false };
+    expect(analyticsCollectionAllowed(demo)).toBe(true);
+    expect(analyticsCollectionAllowed({ ...demo, consent: false })).toBe(true);
+  });
+
+  it("names the own host for the session header only while collecting", () => {
+    const context = {
+      deployment: "localhost",
+      surface: "ogs",
+      enabled: true,
+      consent: true,
+      analyseFreigabe: false,
+    };
+    expect(
+      analyticsRuntimeOptions(context, "school-a.localhost").tracing_headers,
+    ).toEqual(["school-a.localhost"]);
+    expect(
+      analyticsRuntimeOptions(
+        { ...context, consent: false },
+        "school-a.localhost",
+      ).tracing_headers,
+    ).toEqual([]);
+  });
+
   it.each(["ogs", "school", "parents", "public", "unknown"])(
     "drops every event when analytics is off on %s",
     (surface) => {
@@ -258,6 +322,7 @@ const CONTEXTS: ReadonlyArray<{
       deployment: "moto-app.de",
       surface: "ogs",
       enabled: true,
+      consent: true,
       analyseFreigabe: false,
       recordingSamplePercent: 100,
       person: PERSON,
@@ -277,6 +342,7 @@ const CONTEXTS: ReadonlyArray<{
       deployment: "moto-app.de",
       surface: "ogs",
       enabled: true,
+      consent: true,
       analyseFreigabe: true,
       recordingSamplePercent: 100,
       person: PERSON,
@@ -297,6 +363,7 @@ const CONTEXTS: ReadonlyArray<{
       deployment: "moto-app.de",
       surface: "parents",
       enabled: true,
+      consent: true,
       analyseFreigabe: true,
       recordingSamplePercent: 100,
       person: PERSON,
@@ -316,6 +383,7 @@ const CONTEXTS: ReadonlyArray<{
       deployment: "moto-app.de",
       surface: "school",
       enabled: true,
+      consent: true,
       analyseFreigabe: true,
       recordingSamplePercent: 100,
       person: PERSON,
@@ -335,6 +403,7 @@ const CONTEXTS: ReadonlyArray<{
       deployment: "demo",
       surface: "kiosk",
       enabled: true,
+      consent: true,
       analyseFreigabe: true,
       recordingSamplePercent: 100,
       person: PERSON,
@@ -652,6 +721,7 @@ describe("filterAnalyticsEvent", () => {
     deployment: "moto-app.de",
     surface: "ogs",
     enabled: true,
+    consent: true,
     analyseFreigabe: false,
   };
 
@@ -730,6 +800,7 @@ describe("filterAnalyticsEvent", () => {
       deployment: "demo",
       surface: "public",
       enabled: true,
+      consent: true,
       analyseFreigabe: false,
     };
     for (const event of [
@@ -771,6 +842,7 @@ describe("filterAnalyticsEvent", () => {
         deployment: "demo",
         surface: "public",
         enabled: true,
+        consent: true,
         analyseFreigabe: false,
       },
       capture("demo_entered", {
@@ -819,6 +891,7 @@ describe("session recording", () => {
     deployment: "moto-app.de",
     surface: "ogs",
     enabled: true,
+    consent: true,
     analyseFreigabe: true,
     recordingSamplePercent: 30,
     person: PERSON,
@@ -827,6 +900,7 @@ describe("session recording", () => {
     deployment: "demo",
     surface: "public",
     enabled: true,
+    consent: true,
     analyseFreigabe: false,
   };
   const recordingOf = (context: AnalyticsContext) =>

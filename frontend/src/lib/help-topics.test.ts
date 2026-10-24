@@ -330,8 +330,9 @@ describe("getParentHelpTopicForPath", () => {
     expect(caregiverTopics[16]).toMatchObject({
       id: HELP_TOPICS.transferGroup,
     });
-    // 42 seit #3821 („Eigenen Dienstplan ansehen“).
-    expect(caregiverTopics).toHaveLength(44);
+    // 42 seit #3821 („Eigenen Dienstplan ansehen“), 45 seit #4901
+    // („Nutzungsanalyse erlauben oder ablehnen“, alle Rollen).
+    expect(caregiverTopics).toHaveLength(45);
     expect([...new Set(caregiverTopics.map((topic) => topic.group))]).toEqual([
       "einstieg",
       "tagesplanung",
@@ -510,7 +511,7 @@ describe("getParentHelpTopicForPath", () => {
           // unter die NFC- und die Anwesenheitsregel, wird also nur
           // einmal abgezogen.
           const expectedLength =
-            44 -
+            45 -
             (nfcEnabled ? 0 : 7) -
             (presenceMode === "binary" ? (nfcEnabled ? 6 : 5) : 0) -
             (groupMode === "open_care" ? 2 : 0);
@@ -550,7 +551,8 @@ describe("getParentHelpTopicForPath", () => {
     // 83 seit #3821: der eigene Dienstplan ist ein geteilter Artikel.
     // 84 seit #3727: die wichtigsten Einstellungen im Überblick.
     // 86 seit #4796: die Rückmeldung zu Hausaufgaben in der Lernzeit.
-    expect(leadTopics).toHaveLength(86);
+    // 87 seit #4901: die eigene Einwilligung zur Nutzungsanalyse.
+    expect(leadTopics).toHaveLength(87);
     expect(
       leadTopics.every(
         (topic) =>
@@ -575,7 +577,8 @@ describe("getParentHelpTopicForPath", () => {
     );
     const visible = new Set(parentTopics.map((topic) => topic.id));
 
-    expect(parentTopics).toHaveLength(23);
+    // 24 seit #4901: die eigene Einwilligung zur Nutzungsanalyse.
+    expect(parentTopics).toHaveLength(24);
     expect(
       parentTopics.every(
         (topic) =>
@@ -609,7 +612,8 @@ describe("getParentHelpTopicForPath", () => {
     ).filter((topic) => helpTopicMatchesRole(topic, "teacher"));
     const visible = new Set(teacherTopics.map((topic) => topic.id));
 
-    expect(teacherTopics).toHaveLength(21);
+    // 22 seit #4901: die eigene Einwilligung zur Nutzungsanalyse.
+    expect(teacherTopics).toHaveLength(22);
     expect([...visible]).toEqual(
       expect.arrayContaining([
         HELP_TOPICS.teacherHomework,

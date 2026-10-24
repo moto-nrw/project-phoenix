@@ -29,6 +29,8 @@ commit. Terms: `CONTEXT.md`, section „Nutzungsanalyse"; spec #3598.
 | Backend tracker (batching, `deployment`, `$session_id`) | `backend/analytics/analytics.go` |
 | Browser session to the backend (`X-POSTHOG-SESSION-ID`) | `frontend/src/lib/analytics-session-header.server.ts` |
 | School collection switch (`analytics.enabled`, shared, default on) and recording Freigabe (operator-only) | `backend/modules/settings/internal/defaults/analytics.go`; reaches the OGS portal through tenant resolve |
+| Person's consent (§ 25 TDDDG): store, prompt after login, revocation card | `frontend/src/lib/analytics-consent.ts`, `components/analytics/analytics-consent-prompt.tsx`, `components/settings/analytics-consent-section.tsx` |
+| Consent per account (`auth.accounts.analytics_consent`), `GET`/`PUT /analytics-consent/` | `identityaccess.AccountAnalyticsConsent`, `modules/identityaccess/inbound/me/analytics_consent.go` |
 | Pseudonymous user ID (same hash on both sides) | `frontend/src/lib/analytics-pseudonym.ts`, `backend/analytics/pseudonym.go` |
 | PostHog project settings, privacy text draft | `docs/operations/nutzungsanalyse.md` |
 | The PostHog dashboards, their insights, and the feature areas (`FEATURES`) | `scripts/posthog-dashboards.mjs` |
@@ -38,6 +40,22 @@ The floor for real schools: route templates instead of URLs, the deployment
 instead of the real host (the OGS portal runs on `{slug}.TENANT_DOMAIN`), no
 element text, no person profile, no IP. A privacy rule belongs in
 `analytics-policy.ts` and its table test, never in a component.
+
+Collection needs two gates: the school's switch and the signed-in person's
+**consent** (#4901). The SDK touches the device even without cookies, so no
+school decision replaces the consent; `analyticsCollectionAllowed` requires
+both outside the demo. The consent belongs to the account and holds in every
+portal and school. Undecided, refused, failed reads, previews and anonymous
+pages (login, public enrollment, status pages) load no SDK and send no
+`X-POSTHOG-SESSION-ID`; a revocation stops capture, recording and the header
+before it is saved and holds on that page even if saving fails, a consent
+applies only once stored. Open pages re-read the answer when they become
+visible and every five minutes, so a revocation reaches other tabs. The prompt asks only
+undecided accounts of a school that allows collection, on deployments with a
+PostHog key; the demo is exempt. Backend core actions of an account without
+consent keep counting for the school but carry no `$session_id` and no
+pseudonymous person (`CoreActionConfig.Consent`). Every gate below comes on
+top of the consent.
 
 `analytics.enabled` is the school-controlled collection gate (default `true`,
 `config:manage`; operators may also change it). Resolve errors deny collection,
@@ -98,7 +116,11 @@ appear in any recording carries `data-analytics-block`.
    `analytics-routes.test.ts`.
 3. Register its context at login and clear it at logout
    (`registerPortalSession` / `clearPortalSession` in `lib/analytics.ts`).
-4. Add the context to the table in `analytics-policy.test.ts`.
+4. Read the account's consent at login and stop it at logout
+   (`startAnalyticsConsent` / `stopAnalyticsConsent`), render
+   `AnalyticsConsentPrompt`, and give the portal's personal settings an
+   `AnalyticsConsentSection`.
+5. Add the context to the table in `analytics-policy.test.ts`.
 
 ## New writing route
 
