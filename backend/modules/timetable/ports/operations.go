@@ -190,6 +190,9 @@ type OperationDependencies struct {
 	Locks                AttendanceLocks
 	Announcer            AttendanceAnnouncer
 	NormalizeSchoolClass func(string) string
-	Logger               *slog.Logger
-	Now                  func() time.Time
+	// Homework reads the class homework and feedback a Lernzeit roster
+	// shows (#4796); without it the roster carries none.
+	Homework timetable.HomeworkQuery
+	Logger   *slog.Logger
+	Now      func() time.Time
 }

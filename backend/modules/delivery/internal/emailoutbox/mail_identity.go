@@ -28,7 +28,10 @@ type SchoolContacts interface {
 //  1. the email.reply_to_address setting — the school's explicit choice
 //  2. platform.schools.email — the contact address the school already
 //     maintains in its Stammdaten
-//  3. nothing — no Reply-To header is written and the mail behaves as before
+//  3. nothing — no Reply-To header is written. Mail is sent from a noreply
+//     address, so a reply bounces; there is deliberately no moto fallback,
+//     because replies to the school must not reach moto (#2872). The gap is
+//     logged so the operator can add the missing contact address.
 //
 // The fallback to the contact address is what makes this fix reach the schools
 // that never open the setting, which is the whole point: the reported failure
@@ -89,6 +92,9 @@ func (s *tenantMailIdentityService) ResolveReplyTo(
 		if addr := replyToAddress(school.Email); addr != "" {
 			return email.ReplyToIdentity{Name: name, Address: addr}, nil
 		}
+		s.logger.Warn("school has no usable reply address, replies to its mail bounce",
+			slog.Int64("tenant_id", tenantID),
+		)
 	}
 
 	return email.ReplyToIdentity{}, nil

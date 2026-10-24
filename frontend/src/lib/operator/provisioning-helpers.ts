@@ -396,7 +396,7 @@ export interface CreateSchoolRequest {
   city?: string;
   zip?: string;
   phone?: string;
-  email?: string;
+  email: string;
   hidden?: boolean;
 }
 

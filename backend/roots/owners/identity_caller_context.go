@@ -32,12 +32,12 @@ type CallerSettings interface {
 // granted and the parent request review policy reports itself unconfigured.
 func NewCallerContext(
 	tokens TokenAdapter, accounts identityaccess.AccountProfiles, persons CallerPersons, membership schoolmembership.Capability,
-	staffGroups schoolstructure.StaffGroupQuery, activities identityCompose.CallerActivities, presence studentpresence.Owner,
-	settings CallerSettings, logger *slog.Logger,
+	staffGroups schoolstructure.StaffGroupQuery, classes CallerSchoolClasses, activities identityCompose.CallerActivities,
+	presence studentpresence.Owner, settings CallerSettings, logger *slog.Logger,
 ) (identityaccess.CallerContext, error) {
 	if accounts == nil || persons.Rows == nil || persons.People == nil || membership == nil || staffGroups == nil ||
-		activities == nil || presence == nil || logger == nil {
-		return identityaccess.CallerContext{}, errors.New("compose caller context: the accounts, persons, membership, staff groups, supervised activities, presence and a logger are required")
+		classes == nil || activities == nil || presence == nil || logger == nil {
+		return identityaccess.CallerContext{}, errors.New("compose caller context: the accounts, persons, membership, staff groups, school classes, supervised activities, presence and a logger are required")
 	}
 	review := &identityCompose.ParentRequestReviewDependencies{
 		Permissions:           ReviewPermissions,
@@ -53,7 +53,7 @@ func NewCallerContext(
 		Accounts:   accounts,
 		People:     callerPeople{persons: persons},
 		Membership: callerMembership{membership: membership},
-		Structure:  callerStructure{groups: staffGroups},
+		Structure:  callerStructure{groups: staffGroups, CallerSchoolClasses: classes},
 		Activities: activities,
 		Sessions:   callerSessions{presence: presence},
 		LiveTopics: callerLiveTopics{presence: presence},
@@ -119,8 +119,16 @@ func (m callerMembership) FindTeacherByStaff(ctx context.Context, staffID int64)
 	return teacher.ID, true, nil
 }
 
+// CallerSchoolClasses lists every school class of the school, for a caller
+// who reaches all of them (Schulverwaltung, #4789): the classes the OGS
+// assigns to staff from, so a new class is reached without an assignment.
+type CallerSchoolClasses interface {
+	ListSchoolClasses(ctx context.Context) ([]string, error)
+}
+
 type callerStructure struct {
 	groups schoolstructure.StaffGroupQuery
+	CallerSchoolClasses
 }
 
 func (s callerStructure) TeacherGroupIDs(ctx context.Context, teacherID int64) ([]int64, error) {

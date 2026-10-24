@@ -345,7 +345,7 @@ export function BrandTenantSwitcher({
         <div className="absolute left-0 z-50 mt-1 w-72">
           <Alert
             type="info"
-            message="Dieses Konto ist ein Lehrkraft-Konto. Bitte melden Sie sich bei moto schule an."
+            message="Dieses Konto gehört zu moto schule. Bitte melden Sie sich dort an."
             action={
               schoolPortalHint.url ? (
                 <a

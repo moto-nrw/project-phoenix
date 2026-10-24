@@ -364,6 +364,7 @@ function OpenRoomBlock({
           onComplete={actions.handleCompleteTimetableInstance}
           onConfirmExpected={actions.handleConfirmExpectedStudents}
           onRosterAction={actions.handleRosterAction}
+          onSaveHomeworkFeedback={actions.handleSaveHomeworkFeedback}
           onExcuseRestOfDay={
             canExcuseRestOfDay ? actions.handleExcuseRestOfDay : undefined
           }
