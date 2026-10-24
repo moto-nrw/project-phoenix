@@ -204,7 +204,13 @@ func signatureProofRecord(s *capability.RequestSignature) lists.Record {
 }
 
 func signatureProofRequestRecords(p signatureProof) []lists.Record {
-	req := p.Request
+	records := []lists.Record{signatureProofPrimaryGuardianRecord(p.Request, p.Schema)}
+	records = append(records, signatureProofAdditionalGuardianRecords(p.Guardians)...)
+	choicesByChild := signatureProofChoicesByChild(p.OfferingSelections, len(p.Children))
+	return append(records, signatureProofChildRecords(p.Children, p.Schema, choicesByChild, p.OfferingNames)...)
+}
+
+func signatureProofPrimaryGuardianRecord(req *Request, schema *capability.FormSchema) lists.Record {
 	guardian := []lists.Field{
 		proofField("Name", strings.TrimSpace(req.GuardianFirstName+" "+req.GuardianLastName)),
 		proofField("E-Mail", req.GuardianEmail),
@@ -213,9 +219,13 @@ func signatureProofRequestRecords(p signatureProof) []lists.Record {
 		guardian = append(guardian, proofField("Telefon", *req.GuardianPhone))
 	}
 	guardian = append(guardian, proofField("Eingegangen am", proofStamp(req.SubmittedAt)))
-	guardian = append(guardian, signatureProofCustomFields(req.CustomData, p.Schema, false)...)
-	records := []lists.Record{{Title: "Erziehungsberechtigte Person", Fields: guardian}}
-	for _, g := range p.Guardians {
+	guardian = append(guardian, signatureProofCustomFields(req.CustomData, schema, false)...)
+	return lists.Record{Title: "Erziehungsberechtigte Person", Fields: guardian}
+}
+
+func signatureProofAdditionalGuardianRecords(guardians []*capability.RequestGuardian) []lists.Record {
+	records := make([]lists.Record, 0, len(guardians))
+	for _, g := range guardians {
 		fields := []lists.Field{proofField("Name", strings.TrimSpace(g.FirstName+" "+g.LastName))}
 		if g.Email != nil && *g.Email != "" {
 			fields = append(fields, proofField("E-Mail", *g.Email))
@@ -225,14 +235,23 @@ func signatureProofRequestRecords(p signatureProof) []lists.Record {
 		}
 		records = append(records, lists.Record{Title: "Weitere erziehungsberechtigte Person", Fields: fields})
 	}
-	choicesByChild := make(map[int64][]*capability.RequestChildOfferingRecord, len(p.Children))
-	for _, choice := range p.OfferingSelections {
+	return records
+}
+
+func signatureProofChoicesByChild(selections []*capability.RequestChildOfferingRecord, childCount int) map[int64][]*capability.RequestChildOfferingRecord {
+	choicesByChild := make(map[int64][]*capability.RequestChildOfferingRecord, childCount)
+	for _, choice := range selections {
 		if choice == nil {
 			continue
 		}
 		choicesByChild[choice.RequestChildID] = append(choicesByChild[choice.RequestChildID], choice)
 	}
-	for _, c := range p.Children {
+	return choicesByChild
+}
+
+func signatureProofChildRecords(children []*RequestChild, schema *capability.FormSchema, choicesByChild map[int64][]*capability.RequestChildOfferingRecord, offeringNames map[int64]string) []lists.Record {
+	records := make([]lists.Record, 0, len(children))
+	for _, c := range children {
 		fields := []lists.Field{proofField("Geburtsdatum", c.DateOfBirth.Format("02.01.2006"))}
 		if c.TargetGradeLevel != nil {
 			fields = append(fields, proofField("Klassenstufe", strconv.Itoa(int(*c.TargetGradeLevel))))
@@ -241,9 +260,9 @@ func signatureProofRequestRecords(p signatureProof) []lists.Record {
 			fields = append(fields, proofField("Klasse", *c.TargetSchoolClass))
 		}
 		fields = append(fields,
-			proofField("Betreuungsangebote", signatureProofOfferings(choicesByChild[c.ID], p.OfferingNames)),
+			proofField("Betreuungsangebote", signatureProofOfferings(choicesByChild[c.ID], offeringNames)),
 		)
-		fields = append(fields, signatureProofCustomFields(c.CustomData, p.Schema, true)...)
+		fields = append(fields, signatureProofCustomFields(c.CustomData, schema, true)...)
 		records = append(records, lists.Record{Title: proofText(strings.TrimSpace(c.FirstName + " " + c.LastName)), Fields: fields})
 	}
 	return records

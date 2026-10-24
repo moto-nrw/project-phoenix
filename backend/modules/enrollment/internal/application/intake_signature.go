@@ -222,46 +222,75 @@ func (s *Intake) signatureProof(ctx context.Context, req *Request, children []*R
 		return nil, err
 	}
 	proof := &enrollmentNative.RequestSignatureProof{Status: status}
-	if req.SchemaID != nil {
-		schema, err := s.intakeSchema(ctx, *req.SchemaID)
-		if err != nil {
-			return nil, fmt.Errorf("signature proof: load pinned schema: %w", err)
-		}
-		proof.Schema = schema
-		proof.SignatureRequired = signatureRequired(schema, req.SubmissionSource)
+	if err := s.signatureProofSchema(ctx, req, proof); err != nil {
+		return nil, err
 	}
-	if s.deps.Guardians != nil {
-		if proof.Guardians, err = s.deps.Guardians.RequestGuardians(ctx, []int64{req.ID}); err != nil {
-			return nil, fmt.Errorf("signature proof: co-guardians: %w", err)
-		}
+	if err := s.signatureProofGuardians(ctx, req, proof); err != nil {
+		return nil, err
 	}
 	if proof.Signature, err = s.requestSignature(ctx, req.ID); err != nil {
 		return nil, err
 	}
-	if proof.Signature != nil {
-		childIDs := make([]int64, 0, len(children))
-		for _, child := range children {
-			childIDs = append(childIDs, child.ID)
-		}
-		phase, err := s.intakePhase(ctx, req.PhaseID)
-		if err != nil {
-			return nil, fmt.Errorf("signature proof: load phase: %w", err)
-		}
-		if proof.OfferingSelections, err = enrollmentNative.OfferingSelectionRecordsForChildrenAt(ctx, s.deps.Children, childIDs, s.currentOfferingSelectionDate(phase)); err != nil {
-			return nil, fmt.Errorf("signature proof: load offering selections: %w", err)
-		}
-		if len(proof.OfferingSelections) > 0 && s.deps.Offerings != nil {
-			offerings, err := s.deps.Offerings.ListByIDs(ctx, uniqueCareOfferingIDs(proof.OfferingSelections))
-			if err != nil {
-				return nil, fmt.Errorf("signature proof: load offering names: %w", err)
-			}
-			proof.OfferingNames = make(map[int64]string, len(offerings))
-			for _, offering := range offerings {
-				if offering != nil {
-					proof.OfferingNames[offering.ID] = offering.Name
-				}
-			}
-		}
+	if proof.Signature == nil {
+		return proof, nil
+	}
+	if err := s.signatureProofOfferings(ctx, req, children, proof); err != nil {
+		return nil, err
 	}
 	return proof, nil
+}
+
+func (s *Intake) signatureProofSchema(ctx context.Context, req *Request, proof *enrollmentNative.RequestSignatureProof) error {
+	if req.SchemaID == nil {
+		return nil
+	}
+	schema, err := s.intakeSchema(ctx, *req.SchemaID)
+	if err != nil {
+		return fmt.Errorf("signature proof: load pinned schema: %w", err)
+	}
+	proof.Schema = schema
+	proof.SignatureRequired = signatureRequired(schema, req.SubmissionSource)
+	return nil
+}
+
+func (s *Intake) signatureProofGuardians(ctx context.Context, req *Request, proof *enrollmentNative.RequestSignatureProof) error {
+	if s.deps.Guardians == nil {
+		return nil
+	}
+	guardians, err := s.deps.Guardians.RequestGuardians(ctx, []int64{req.ID})
+	if err != nil {
+		return fmt.Errorf("signature proof: co-guardians: %w", err)
+	}
+	proof.Guardians = guardians
+	return nil
+}
+
+func (s *Intake) signatureProofOfferings(ctx context.Context, req *Request, children []*RequestChild, proof *enrollmentNative.RequestSignatureProof) error {
+	childIDs := make([]int64, 0, len(children))
+	for _, child := range children {
+		childIDs = append(childIDs, child.ID)
+	}
+	phase, err := s.intakePhase(ctx, req.PhaseID)
+	if err != nil {
+		return fmt.Errorf("signature proof: load phase: %w", err)
+	}
+	selections, err := enrollmentNative.OfferingSelectionRecordsForChildrenAt(ctx, s.deps.Children, childIDs, s.currentOfferingSelectionDate(phase))
+	if err != nil {
+		return fmt.Errorf("signature proof: load offering selections: %w", err)
+	}
+	proof.OfferingSelections = selections
+	if len(selections) == 0 || s.deps.Offerings == nil {
+		return nil
+	}
+	offerings, err := s.deps.Offerings.ListByIDs(ctx, uniqueCareOfferingIDs(selections))
+	if err != nil {
+		return fmt.Errorf("signature proof: load offering names: %w", err)
+	}
+	proof.OfferingNames = make(map[int64]string, len(offerings))
+	for _, offering := range offerings {
+		if offering != nil {
+			proof.OfferingNames[offering.ID] = offering.Name
+		}
+	}
+	return nil
 }
