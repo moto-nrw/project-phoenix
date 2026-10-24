@@ -85,7 +85,9 @@ export function PhaseOfferingOccupancy({
           <StatusBadge label={`${freePlaces} frei`} tone="gray" />
         )
       }
-      description="„Belegt“ zählt die Kinder am vollsten Tag bis zum Ende der Phase."
+      description={
+        "Hier sehen Sie nur die freien Plätze. „Belegt“ zählt die Kinder am vollsten Tag bis zum Ende der Phase. Anmeldungen prüfen Sie in der Liste darunter."
+      }
     >
       <DataTable
         columns={columns}

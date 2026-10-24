@@ -496,6 +496,9 @@ export function CareOfferingsEditor({
     if (offering.capacity == null) return sum;
     return sum + offering.capacity;
   }, 0);
+  const hasCapacityLimit = offerings.some(
+    (offering) => offering.capacity != null,
+  );
   const freePlaces = bookingStatsUnavailable
     ? null
     : totalFreePlaces(offerings, bookingStats);
@@ -956,6 +959,7 @@ export function CareOfferingsEditor({
             activeOfferingCount={activeOfferingCount}
             selectableDaysCount={selectableDaysCount}
             totalCapacity={totalCapacity}
+            hasCapacityLimit={hasCapacityLimit}
             freePlaces={freePlaces}
             focusMode={Boolean(draft || cloneSource)}
             onPhaseChange={(phaseId) => {
@@ -1096,6 +1100,7 @@ function CareOfferingToolbar({
   activeOfferingCount,
   selectableDaysCount,
   totalCapacity,
+  hasCapacityLimit,
   freePlaces,
   focusMode,
   onPhaseChange,
@@ -1107,6 +1112,7 @@ function CareOfferingToolbar({
   activeOfferingCount: number;
   selectableDaysCount: number;
   totalCapacity: number;
+  hasCapacityLimit: boolean;
   /** Free places of the phase; null while unknown or without any limit. */
   freePlaces: number | null;
   focusMode: boolean;
@@ -1138,10 +1144,10 @@ function CareOfferingToolbar({
           <CareOfferingMetric
             icon={<MotoConceptIcon concept="children" size={18} />}
             label="Kapazität"
-            value={totalCapacity || "frei"}
+            value={hasCapacityLimit ? totalCapacity : "frei"}
             detail={
-              totalCapacity && freePlaces != null
-                ? `${freePlaces} frei`
+              freePlaces != null
+                ? `${freePlaces} frei (aktive Angebote)`
                 : undefined
             }
           />

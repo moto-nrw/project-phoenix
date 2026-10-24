@@ -4272,7 +4272,7 @@ function enrollmentSetupTopic(): HelpTopic {
       "Über `Elternansicht öffnen` sehen Sie das Formular so wie die Eltern.",
       "Das `Basisformular` fragt Elternteil, Kind, Klassenstufe und das gewünschte Betreuungsangebot ab. Brauchen Sie mehr, legen Sie eine eigene Vorlage an.",
       "Eine Phase lässt sich mit einem Kalenderzeitraum verknüpfen. Dann passen die Daten automatisch.",
-      "Bei `Betreuungsangebote` steht in der Spalte `Belegt`, wie viele Plätze gebucht und wie viele noch frei sind. Ein volles Angebot ist mit `Voll` markiert.",
+      "Bei `Betreuungsangebote` steht in der Spalte `Belegt`, wie viele Plätze gebucht sind. Bei Angeboten mit Kapazität steht auch, wie viele Plätze frei sind. Ein volles Angebot ist mit `Voll` markiert.",
       "Sie haben Varianten wie „bis 13 Uhr“ und „bis 17 Uhr“? Geben Sie ihnen bei `Pflichtauswahl` dieselbe `Gruppe (optional)` und die `Regel` `Höchstens eines pro Tag`. Dann mischen Eltern die Varianten über die Woche, aber wählen pro Tag nur eine.",
     ],
     differences: [

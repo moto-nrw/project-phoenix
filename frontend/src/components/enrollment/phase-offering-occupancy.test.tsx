@@ -68,11 +68,18 @@ describe("PhaseOfferingOccupancy (#4782)", () => {
       offering({ id: "1", name: "Regelbetreuung", capacity: 10 }),
       offering({ id: "2", name: "Randstunde", capacity: 1 }),
       offering({ id: "3", name: "Frühbetreuung", capacity: null }),
+      offering({
+        id: "4",
+        name: "Inaktive Randstunde",
+        capacity: 5,
+        is_active: false,
+      }),
     ]);
     mocks.fetchCareOfferingBookingStats.mockResolvedValue({
       "1": stats("1", 10, 7),
       "2": stats("2", 1, 1),
       "3": stats("3", null, 4),
+      "4": stats("4", 5, 5),
     });
 
     render(<PhaseOfferingOccupancy phaseId="7" />);
@@ -98,6 +105,14 @@ describe("PhaseOfferingOccupancy (#4782)", () => {
     const unlimited = rowOf("Frühbetreuung");
     expect(unlimited.getByText("Unbegrenzt")).toBeInTheDocument();
     expect(unlimited.getByText("4")).toBeInTheDocument();
+
+    // An inactive offering remains visible, but it cannot have free places
+    // or be full because nobody can book it.
+    const inactive = rowOf("Inaktive Randstunde");
+    expect(inactive.getByText("5 von 5")).toBeInTheDocument();
+    expect(inactive.getByText("Inaktiv")).toBeInTheDocument();
+    expect(inactive.queryByText("Keine frei")).not.toBeInTheDocument();
+    expect(inactive.queryByText("Voll")).not.toBeInTheDocument();
 
     // The phone list carries the same numbers.
     expect(

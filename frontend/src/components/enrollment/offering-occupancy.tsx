@@ -19,7 +19,8 @@ type StatsById = Readonly<Record<string, CareOfferingBookingStats>>;
 /** „7 von 10“ und „3 frei“; ohne Kapazitätsgrenze nur die Belegung. */
 function OfferingOccupancyCell({
   occupancy,
-}: Readonly<{ occupancy: OfferingOccupancy | null }>) {
+  isActive,
+}: Readonly<{ occupancy: OfferingOccupancy | null; isActive: boolean }>) {
   // Ohne Belegung keine Zahl: „0“ wäre falsch.
   if (!occupancy) return <span className="text-sm text-gray-500">–</span>;
   if (occupancy.capacity == null) {
@@ -30,9 +31,11 @@ function OfferingOccupancyCell({
       <p className="text-sm text-gray-900">
         {occupancy.booked} von {occupancy.capacity}
       </p>
-      <p className="mt-0.5 text-xs text-gray-500">
-        {occupancy.full ? "Keine frei" : `${occupancy.free} frei`}
-      </p>
+      {isActive ? (
+        <p className="mt-0.5 text-xs text-gray-500">
+          {occupancy.full ? "Keine frei" : `${occupancy.free} frei`}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -66,6 +69,7 @@ export function offeringOccupancyColumn(
     render: (offering) => (
       <OfferingOccupancyCell
         occupancy={offeringOccupancy(stats[offering.id])}
+        isActive={offering.is_active}
       />
     ),
   };
@@ -82,7 +86,7 @@ export function offeringStatusColumn(
     render: (offering) => (
       <div className="flex flex-wrap items-center gap-1.5">
         <DataTableStatusBadge active={offering.is_active} />
-        {offeringOccupancy(stats[offering.id])?.full ? (
+        {offering.is_active && offeringOccupancy(stats[offering.id])?.full ? (
           <StatusBadge
             label="Voll"
             tone="orange"

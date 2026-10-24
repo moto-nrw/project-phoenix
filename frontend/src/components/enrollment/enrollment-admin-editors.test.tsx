@@ -1083,10 +1083,34 @@ describe("CareOfferingsEditor", () => {
     expect(unlimited.getByText("4")).toBeInTheDocument();
     expect(unlimited.getByText("Unbegrenzt")).toBeInTheDocument();
 
-    // The capacity tile adds the free places of the phase: 3 + 0.
-    expect(screen.getByText("· 3 frei")).toBeInTheDocument();
-    expect(screen.getByText("· 3 frei").parentElement).toHaveTextContent(
-      "15 · 3 frei",
+    // The capacity tile labels the free places as active offers: 3 + 0.
+    expect(screen.getByText("· 3 frei (aktive Angebote)")).toBeInTheDocument();
+    expect(
+      screen.getByText("· 3 frei (aktive Angebote)").parentElement,
+    ).toHaveTextContent("15 · 3 frei (aktive Angebote)");
+  });
+
+  it("shows a zero capacity instead of treating it as unlimited", async () => {
+    mocks.listPhases.mockResolvedValue([phase()]);
+    mocks.listCareOfferings.mockResolvedValue([
+      offering({ id: "offer-1", capacity: 0 }),
+    ]);
+    mocks.fetchCareOfferingBookingStats.mockResolvedValue({
+      "offer-1": {
+        offering_id: "offer-1",
+        capacity: 0,
+        booked: 0,
+        grade_levels: {},
+        unknown_grade_count: 0,
+      },
+    });
+
+    render(<CareOfferingsEditor />);
+
+    expect(await screen.findByText("0 von 0")).toBeInTheDocument();
+    const freePlaces = screen.getByText("· 0 frei (aktive Angebote)");
+    expect(freePlaces.parentElement).toHaveTextContent(
+      "0 · 0 frei (aktive Angebote)",
     );
   });
 
