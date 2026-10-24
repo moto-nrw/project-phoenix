@@ -1,6 +1,7 @@
 import type { SignatureRequestBody } from "~/lib/signature";
 import { unavailableApiError, type ApiError } from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
+import { downloadBlob, filenameFromDisposition } from "~/lib/file-download";
 import { readEnrollmentError } from "~/lib/enrollment-api-error";
 import type {
   PublicCaptchaConfig,
@@ -663,6 +664,28 @@ export interface StatusResponse {
    * out when it could not determine the account state.
    */
   parent_portal_access?: "account" | "invitation" | "contact_ogs";
+  /**
+   * The form asks the parent to sign every edit (#4786); the page then
+   * offers only the full form, which carries the signature field.
+   */
+  signature_required?: boolean;
+  /** The signature of the current version, without the image. */
+  signature?: EnrollmentSignature;
+}
+
+/**
+ * A stored signature of an enrollment (#4786): a simple electronic
+ * signature with a drawn signature. `image_png` (base64, no `data:` prefix)
+ * reaches only the staff detail.
+ */
+export interface EnrollmentSignature {
+  method: "drawn" | "typed";
+  typed_name?: string;
+  signer_name: string;
+  signed_at: string;
+  document_sha256: string;
+  integrity_ok: boolean;
+  image_png?: string;
 }
 
 /**
@@ -681,6 +704,23 @@ export async function fetchStatus(
     throw await readError(response, "Status konnte nicht geladen werden");
   }
   return readJSON<StatusResponse>(response);
+}
+
+/** Downloads the proof of the parent's signature behind the status link. */
+export async function downloadEnrollmentSignatureProof(
+  token: string,
+): Promise<void> {
+  const response = await request(
+    `/api/enrollment/requests/${encodeURIComponent(token)}/signature-proof`,
+    { cache: "no-store" },
+  );
+  if (!response.ok) {
+    throw await readError(response, "Nachweis konnte nicht geladen werden");
+  }
+  downloadBlob(
+    await response.blob(),
+    filenameFromDisposition(response) ?? "anmeldenachweis.pdf",
+  );
 }
 
 export async function fetchEnrollmentEditBootstrap(

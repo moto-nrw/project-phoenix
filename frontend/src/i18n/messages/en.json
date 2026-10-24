@@ -1369,6 +1369,25 @@
       "tooMany": "You can upload at most {count} files here.",
       "pendingSubmit": "Please wait until all files are uploaded.",
       "previewDisabled": "You cannot upload files in the preview."
+    },
+    "signature": {
+      "label": "Your signature",
+      "hint": "Sign in the box with your finger, a pen or the mouse.",
+      "canvas": "Box for your signature",
+      "clear": "Clear field",
+      "typeInstead": "Type your name",
+      "drawInstead": "Draw instead",
+      "typedName": "Your first and last name",
+      "confirm": "Confirm signature",
+      "confirmed": "Your signature is ready.",
+      "confirmedTyped": "Your typed name is ready.",
+      "change": "Sign again",
+      "preview": "Your signature",
+      "emptyDrawing": "Please sign in the box.",
+      "nameTooShort": "Please type your name.",
+      "title": "Signature",
+      "description": "Please sign the enrollment. Then you can send it.",
+      "required": "Please sign the enrollment."
     }
   },
   "enrollmentStatus": {
@@ -1571,7 +1590,16 @@
     "noAccountHelp": "Can’t find the email? Please check your spam folder too. Email missing or the link no longer works? Please contact the OGS.",
     "unavailableAccountTitle": "Cannot access the parents app",
     "unavailableAccountHelp": "Please contact the OGS. The OGS can help you.",
-    "noAccessFallback": "No access yet? Open the email “Einladung zum Eltern-Portal”. No email? Please contact the OGS."
+    "noAccessFallback": "No access yet? Open the email “Einladung zum Eltern-Portal”. No email? Please contact the OGS.",
+    "signatureTitle": "Signature",
+    "signatureSigned": "Signed by {name} on {date}.",
+    "signatureDrawn": "Drawn with finger, pen or mouse.",
+    "signatureTyped": "Name typed: {name}",
+    "signatureChanged": "Warning: the stored proof was changed afterwards. Please contact the after-school care.",
+    "signatureDownload": "Proof as PDF",
+    "signatureDownloading": "Loading proof …",
+    "signatureEditHint": "If you change the enrollment, you sign it again.",
+    "errorObjectProof": "the proof"
   },
   "parentRequestEdit": {
     "title": "Edit request",

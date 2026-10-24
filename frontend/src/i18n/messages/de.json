@@ -1369,6 +1369,25 @@
       "tooMany": "Sie können hier höchstens {count} Dateien hochladen.",
       "pendingSubmit": "Bitte warten Sie, bis alle Dateien hochgeladen sind.",
       "previewDisabled": "In der Vorschau können Sie keine Dateien hochladen."
+    },
+    "signature": {
+      "label": "Ihre Unterschrift",
+      "hint": "Unterschreiben Sie im Feld mit dem Finger, dem Stift oder der Maus.",
+      "canvas": "Feld zum Unterschreiben",
+      "clear": "Feld leeren",
+      "typeInstead": "Namen tippen",
+      "drawInstead": "Lieber zeichnen",
+      "typedName": "Ihr Vor- und Nachname",
+      "confirm": "Unterschrift bestätigen",
+      "confirmed": "Ihre Unterschrift ist bereit.",
+      "confirmedTyped": "Ihr getippter Name ist bereit.",
+      "change": "Neu unterschreiben",
+      "preview": "Ihre Unterschrift",
+      "emptyDrawing": "Bitte unterschreiben Sie im Feld.",
+      "nameTooShort": "Bitte tippen Sie Ihren Namen.",
+      "title": "Unterschrift",
+      "description": "Bitte unterschreiben Sie die Anmeldung. Danach können Sie sie absenden.",
+      "required": "Bitte unterschreiben Sie die Anmeldung."
     }
   },
   "enrollmentStatus": {
@@ -1571,7 +1590,16 @@
     "noAccountHelp": "Keine E-Mail gefunden? Schauen Sie auch im Spam-Ordner nach. Die E-Mail fehlt oder der Link geht nicht mehr? Bitte melden Sie sich bei der OGS.",
     "unavailableAccountTitle": "Zugang zur Eltern-App nicht möglich",
     "unavailableAccountHelp": "Bitte melden Sie sich bei der OGS. Die OGS hilft Ihnen weiter.",
-    "noAccessFallback": "Noch kein Zugang? Öffnen Sie die E-Mail „Einladung zum Eltern-Portal“. Keine E-Mail bekommen? Bitte melden Sie sich bei der OGS."
+    "noAccessFallback": "Noch kein Zugang? Öffnen Sie die E-Mail „Einladung zum Eltern-Portal“. Keine E-Mail bekommen? Bitte melden Sie sich bei der OGS.",
+    "signatureTitle": "Unterschrift",
+    "signatureSigned": "Unterschrieben von {name} am {date}.",
+    "signatureDrawn": "Mit Finger, Stift oder Maus gezeichnet.",
+    "signatureTyped": "Name getippt: {name}",
+    "signatureChanged": "Achtung: Der gespeicherte Nachweis wurde nachträglich verändert. Bitte wenden Sie sich an die OGS.",
+    "signatureDownload": "Nachweis als PDF",
+    "signatureDownloading": "Nachweis wird geladen …",
+    "signatureEditHint": "Wenn Sie die Anmeldung ändern, unterschreiben Sie sie neu.",
+    "errorObjectProof": "der Nachweis"
   },
   "parentRequestEdit": {
     "title": "Anfrage bearbeiten",

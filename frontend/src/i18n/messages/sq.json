@@ -1369,6 +1369,25 @@
       "tooMany": "Këtu mund të ngarkoni më së shumti {count} skedarë.",
       "pendingSubmit": "Prisni derisa të ngarkohen të gjithë skedarët.",
       "previewDisabled": "Në pamjen paraprake nuk mund të ngarkoni skedarë."
+    },
+    "signature": {
+      "label": "Nënshkrimi juaj",
+      "hint": "Nënshkruani në fushë me gisht, me laps ose me mi.",
+      "canvas": "Fusha për nënshkrimin",
+      "clear": "Pastro fushën",
+      "typeInstead": "Shkruani emrin",
+      "drawInstead": "Vizato në vend të kësaj",
+      "typedName": "Emri dhe mbiemri juaj",
+      "confirm": "Konfirmo nënshkrimin",
+      "confirmed": "Nënshkrimi juaj është gati.",
+      "confirmedTyped": "Emri i shkruar është gati.",
+      "change": "Nënshkruani përsëri",
+      "preview": "Nënshkrimi juaj",
+      "emptyDrawing": "Ju lutemi nënshkruani në fushë.",
+      "nameTooShort": "Ju lutemi shkruani emrin tuaj.",
+      "title": "Nënshkrimi",
+      "description": "Ju lutemi nënshkruani regjistrimin. Pastaj mund ta dërgoni.",
+      "required": "Ju lutemi nënshkruani regjistrimin."
     }
   },
   "enrollmentStatus": {
@@ -1571,7 +1590,16 @@
     "noAccountHelp": "Nuk e gjeni emailin? Shikoni edhe te dosja e spamit. Emaili mungon ose lidhja nuk funksionon më? Ju lutemi kontaktoni OGS-në.",
     "unavailableAccountTitle": "Nuk mund të hyni në aplikacionin për prindër",
     "unavailableAccountHelp": "Ju lutemi kontaktoni OGS-në. OGS-ja do t'ju ndihmojë.",
-    "noAccessFallback": "Nuk keni ende akses? Hapni emailin “Einladung zum Eltern-Portal”. Nuk ju erdhi emaili? Ju lutemi kontaktoni OGS-në."
+    "noAccessFallback": "Nuk keni ende akses? Hapni emailin “Einladung zum Eltern-Portal”. Nuk ju erdhi emaili? Ju lutemi kontaktoni OGS-në.",
+    "signatureTitle": "Nënshkrimi",
+    "signatureSigned": "Nënshkruar nga {name} më {date}.",
+    "signatureDrawn": "Vizatuar me gisht, laps ose maus.",
+    "signatureTyped": "Emri i shtypur: {name}",
+    "signatureChanged": "Kujdes: Dëshmia e ruajtur është ndryshuar më vonë. Ju lutemi kontaktoni shkollën ditore.",
+    "signatureDownload": "Dëshmia si PDF",
+    "signatureDownloading": "Dëshmia po ngarkohet …",
+    "signatureEditHint": "Nëse e ndryshoni regjistrimin, e nënshkruani përsëri.",
+    "errorObjectProof": "dëshmia"
   },
   "parentRequestEdit": {
     "title": "Ndrysho kërkesën",
