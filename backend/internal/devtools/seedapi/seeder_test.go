@@ -1374,6 +1374,20 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{"name": "Sternengruppe"}})
 			return
 		}
+		// Surveys (#4781): a created survey carries its questions; the
+		// parents' news lists no survey, so nobody answers it in the mock.
+		if r.Method == seedHTTPMethodPost && r.URL.Path == "/api/surveys/" {
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{
+				"id": fmt.Sprintf("%d", idCounter),
+				"questions": []map[string]any{
+					{"id": "1", "kind": "scale", "options": []any{}},
+					{"id": "2", "kind": "single", "options": []map[string]any{{"id": "21"}, {"id": "22"}}},
+					{"id": "3", "kind": "multiple", "options": []map[string]any{{"id": "31"}, {"id": "32"}, {"id": "33"}}},
+					{"id": "4", "kind": "text", "options": []any{}},
+				},
+			}})
+			return
+		}
 		if r.Method == seedHTTPMethodPost && r.URL.Path == "/api/messages/group-threads" {
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"status": "success", "data": map[string]any{"thread": map[string]any{"id": fmt.Sprintf("%d", idCounter)}},
