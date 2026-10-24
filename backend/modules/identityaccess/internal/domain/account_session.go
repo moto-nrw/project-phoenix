@@ -38,24 +38,30 @@ func CapPortalScopes(portalScope string) []string {
 // account at one school (auth.tokens). A family groups the generations one
 // login produced through rotation; the hand-off columns let a lost rotation
 // response be recovered within the rotation grace and a replay be detected.
+//
+// Token is the raw value the refresh JWT carries. Only the minting or
+// presenting request knows it; the store keeps TokenHash, its hex SHA-256,
+// and ReplacementTokenHash likewise names the successor by hash (#4902).
+// Listings and revocations return Token empty.
 type AccountSession struct {
-	ID                int64
-	TenantID          int64
-	AccountID         int64
-	Token             string
-	Expiry            time.Time
-	Mobile            bool
-	Identifier        *string
-	PortalScope       string
-	MFAVerified       bool
-	FamilyID          string
-	FamilyExpiryCap   *time.Time
-	Generation        int
-	RotatedAt         *time.Time
-	ReplacementToken  *string
-	RecoveryProofHash []byte
-	CreatedAt         time.Time
-	UpdatedAt         time.Time
+	ID                   int64
+	TenantID             int64
+	AccountID            int64
+	Token                string
+	TokenHash            string
+	Expiry               time.Time
+	Mobile               bool
+	Identifier           *string
+	PortalScope          string
+	MFAVerified          bool
+	FamilyID             string
+	FamilyExpiryCap      *time.Time
+	Generation           int
+	RotatedAt            *time.Time
+	ReplacementTokenHash *string
+	RecoveryProofHash    []byte
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
 }
 
 // Validate normalizes an empty portal scope to unknown and rejects a session
@@ -77,7 +83,7 @@ func (s *AccountSession) Validate() error {
 		return errors.New("invalid portal scope")
 	}
 	switch {
-	case (s.RotatedAt == nil) != (s.ReplacementToken == nil):
+	case (s.RotatedAt == nil) != (s.ReplacementTokenHash == nil):
 		return errors.New("rotation handoff must include both timestamp and replacement token")
 	case s.RotatedAt == nil && len(s.RecoveryProofHash) != 0:
 		return errors.New("recovery proof hash requires a rotation handoff")

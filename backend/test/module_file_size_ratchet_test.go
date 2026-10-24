@@ -74,7 +74,7 @@ var moduleFileSizeAllowlist = map[string]int{
 	// ADR 0087.
 	"observability/prometheus.go": 1722,
 	// ADR 0087.
-	"test/fixtures.go": 3201,
+	"test/fixtures.go": 3175,
 }
 
 func TestModuleFileSizeRatchet(t *testing.T) {

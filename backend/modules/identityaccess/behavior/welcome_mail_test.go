@@ -415,7 +415,7 @@ func TestGuardianWelcomeFailureKeepsTheInvitation(t *testing.T) {
 	}), "the invitation commits although its welcome failed")
 
 	stored := testpkg.GuardianInvitationByID(t, env.db, invitation.ID)
-	assert.Equal(t, invitation.Token, stored.Token, "the invitation is stored")
+	assert.Equal(t, sha256Hex(invitation.Token), stored.Token, "the invitation is stored, its link only as hash")
 	require.Len(t, outbox.Requests(), 1, "the invitation mail is still queued")
 	assert.Equal(t, "guardian_invitation", outbox.Requests()[0].Kind)
 }

@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"regexp"
 	"testing"
 	"time"
 
@@ -65,15 +66,17 @@ func TestIntegration_OperatorInvitation_InviteValidateAccept(t *testing.T) {
 
 	pending, err := service.ListPendingOperatorInvitations(ctx)
 	require.NoError(t, err)
-	var token string
+	listed := false
 	for _, invitation := range pending {
 		if invitation.Email == invitee {
-			token = invitation.Token
+			listed = true
+			assert.Empty(t, invitation.Token, "the list cannot know the link: only its hash is stored")
 			assert.Equal(t, displayName, *invitation.DisplayName)
 			assert.True(t, invitation.ExpiresAt.After(time.Now()))
 		}
 	}
-	require.NotEmpty(t, token, "the invitation is listed as pending")
+	require.True(t, listed, "the invitation is listed as pending")
+	token := mailedLinkToken(t, db, invitee)
 
 	preview, err := service.ValidateOperatorInvitation(ctx, token)
 	require.NoError(t, err)
@@ -144,9 +147,9 @@ func TestIntegration_OperatorInvitation_SpendsThePreviousLink(t *testing.T) {
 	invitee := uniqueOperatorEmail("operator-invitee")
 
 	require.NoError(t, service.InviteOperator(ctx, invitee, nil, inviter, nil))
-	first := pendingTokenFor(t, service, invitee)
+	first := mailedLinkToken(t, db, invitee)
 	require.NoError(t, service.InviteOperator(ctx, invitee, nil, inviter, nil))
-	second := pendingTokenFor(t, service, invitee)
+	second := mailedLinkToken(t, db, invitee)
 	require.NotEqual(t, first, second)
 
 	_, err := service.ValidateOperatorInvitation(ctx, first)
@@ -175,7 +178,8 @@ func TestIntegration_OperatorInvitation_RateLimit(t *testing.T) {
 	require.ErrorIs(t, err, identityaccess.ErrOperatorInvitationRateLimited)
 }
 
-// A resend extends a still redeemable link; a revoked one is never revived.
+// A resend extends a still redeemable invitation with a new link, since only
+// the hash of the previous one is stored; a revoked one is never revived.
 func TestIntegration_OperatorInvitation_ResendAndRevoke(t *testing.T) {
 	t.Parallel()
 	testpkg.SetupIsolatedTestDB(t)
@@ -187,14 +191,18 @@ func TestIntegration_OperatorInvitation_ResendAndRevoke(t *testing.T) {
 	invitee := uniqueOperatorEmail("operator-invitee")
 
 	require.NoError(t, service.InviteOperator(ctx, invitee, nil, inviter, nil))
-	token := pendingTokenFor(t, service, invitee)
+	previous := mailedLinkToken(t, db, invitee)
 	before := pendingExpiryFor(t, service, invitee)
 	invitationID := pendingIDFor(t, service, invitee)
 
 	require.NoError(t, service.ResendOperatorInvitation(ctx, invitationID, inviter, net.ParseIP("10.0.0.3")))
-	assert.True(t, pendingExpiryFor(t, service, invitee).After(before), "the resend extends the link")
-	_, err := service.ValidateOperatorInvitation(ctx, token)
-	require.NoError(t, err, "the resend keeps the same link usable")
+	assert.True(t, pendingExpiryFor(t, service, invitee).After(before), "the resend extends the invitation")
+	token := mailedLinkToken(t, db, invitee)
+	require.NotEqual(t, previous, token, "the resend mails a new link")
+	_, err := service.ValidateOperatorInvitation(ctx, previous)
+	require.ErrorIs(t, err, identityaccess.ErrOperatorInvitationNotFound, "the previous link stops working")
+	_, err = service.ValidateOperatorInvitation(ctx, token)
+	require.NoError(t, err, "the resent link is usable")
 
 	require.NoError(t, service.RevokeOperatorInvitation(ctx, invitationID, inviter, net.ParseIP("10.0.0.4")))
 	_, err = service.ValidateOperatorInvitation(ctx, token)
@@ -204,33 +212,43 @@ func TestIntegration_OperatorInvitation_ResendAndRevoke(t *testing.T) {
 	require.ErrorIs(t, err, identityaccess.ErrOperatorInvitationNotFound, "a revoked link is never revived")
 }
 
-func pendingInvitationFor(t *testing.T, service operatorServiceShim, email string) (int64, string, time.Time) {
+func pendingInvitationFor(t *testing.T, service operatorServiceShim, email string) (int64, time.Time) {
 	t.Helper()
 	pending, err := service.ListPendingOperatorInvitations(context.Background())
 	require.NoError(t, err)
 	for _, invitation := range pending {
 		if invitation.Email == email {
-			return invitation.ID, invitation.Token, invitation.ExpiresAt
+			return invitation.ID, invitation.ExpiresAt
 		}
 	}
 	require.Fail(t, "no pending invitation for "+email)
-	return 0, "", time.Time{}
-}
-
-func pendingTokenFor(t *testing.T, service operatorServiceShim, email string) string {
-	t.Helper()
-	_, token, _ := pendingInvitationFor(t, service, email)
-	return token
+	return 0, time.Time{}
 }
 
 func pendingIDFor(t *testing.T, service operatorServiceShim, email string) int64 {
 	t.Helper()
-	id, _, _ := pendingInvitationFor(t, service, email)
+	id, _ := pendingInvitationFor(t, service, email)
 	return id
 }
 
 func pendingExpiryFor(t *testing.T, service operatorServiceShim, email string) time.Time {
 	t.Helper()
-	_, _, expiry := pendingInvitationFor(t, service, email)
+	_, expiry := pendingInvitationFor(t, service, email)
 	return expiry
 }
+
+// mailedLinkToken is the link token of the newest queued mail to address.
+// The token tables store only hashes (#4902), so a test follows a link the
+// way its recipient does: from the mail.
+func mailedLinkToken(t *testing.T, db *bun.DB, address string) string {
+	t.Helper()
+	var raw string
+	require.NoError(t, db.NewRaw(`SELECT payload::text || recipient::text FROM platform.email_outbox
+		WHERE strpos(lower(payload::text || recipient::text), lower(?)) > 0
+		ORDER BY id DESC LIMIT 1`, address).Scan(context.Background(), &raw), "a mail to %s is queued", address)
+	match := mailedLinkTokenPattern.FindStringSubmatch(raw)
+	require.Len(t, match, 2, "the mail to %s carries a link token", address)
+	return match[1]
+}
+
+var mailedLinkTokenPattern = regexp.MustCompile(`(?:token=|accept-guardian-invite/)([A-Za-z0-9_-]+)`)
