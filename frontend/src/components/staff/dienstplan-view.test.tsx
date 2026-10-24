@@ -814,9 +814,13 @@ describe("DienstplanView", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("renders the disabled state when timetable.enabled is false", () => {
-    // Route-Gate wie Betreuungsplan/Vertretung: Direktaufruf bei
-    // ausgeschaltetem Planungsbereich zeigt den Hinweis statt des Rasters.
+  // Seit #4894 hängt der Dienstplan an seinem Modul, nicht am Betreuungsplan
+  // (Entscheidung in #4812): ausgeschaltetes timetable.enabled lässt das
+  // Raster stehen. Ohne gebuchtes Modul erklärt sich die Seite über
+  // ModuleRouteGate.
+  it("renders the grid even when timetable.enabled is false", () => {
+    mockOverviewLoaded();
+    const loaded = mocks.useSWRAuth.getMockImplementation();
     mocks.useSWRAuth.mockImplementation((key: string | null) => {
       if (key === "settings-schema") {
         return {
@@ -834,14 +838,15 @@ describe("DienstplanView", () => {
           mutate: vi.fn(),
         };
       }
-      return { data: [], error: undefined, isLoading: false, mutate: vi.fn() };
+      return loaded?.(key);
     });
 
     render(<DienstplanView />);
 
-    expect(screen.getByTestId("dienstplan-disabled-state")).toBeInTheDocument();
-    expect(screen.getByText("Dienstplan ist deaktiviert")).toBeInTheDocument();
-    expect(screen.queryByTestId("dienstplan-grid")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("dienstplan-disabled-state"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("dienstplan-grid")).toBeInTheDocument();
   });
 
   it("renders normally while the settings schema is unreadable or enabled", () => {

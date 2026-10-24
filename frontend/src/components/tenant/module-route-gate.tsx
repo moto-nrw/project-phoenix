@@ -34,7 +34,7 @@ export function ModuleRouteGate({
   const tenant = useTenantSafe()?.tenant;
   const booked = useBookedModules();
   const pathname = normalizeTenantPathname(
-    usePathname(),
+    usePathname() ?? "/",
     useTenantSlugSafe(),
     useTenantRoutingModeSafe(),
   );

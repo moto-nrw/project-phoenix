@@ -94,6 +94,21 @@ import { useTimetableEnabled } from "~/lib/tenant-context";
 
 vi.mock("~/lib/tenant-context", () => ({
   useNFCEnabled: () => true,
+  // Alle Module gebucht, wie die Voreinstellung der Registry (#4892).
+  useBookedModules: () => [
+    "nfc_anwesenheit",
+    "mittagessen",
+    "eltern_app",
+    "online_anmeldung",
+    "unterricht_vormittag",
+    "dienstplan",
+    "zeiterfassung",
+    "personalakte",
+    "traeger_uebersicht",
+    "ferienbetreuung",
+    "vertraege",
+    "elternbeitraege",
+  ],
   useTenantSlugSafe: () => "test-tenant",
   useTenantRoutingModeSafe: () => "path",
   useTimetableEnabled: vi.fn(),
