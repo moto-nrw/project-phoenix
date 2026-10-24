@@ -345,6 +345,10 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   "api/parent/me/children/[studentId]/guardians/[guardianProfileId]/pickup": [
     "PUT parent /parent/me/children/studentId%2F1/guardians/guardianProfileId%2F1/pickup",
   ],
+  "api/parent/me/children/[studentId]/guardians/[guardianProfileId]/pickup-permission-requests":
+    [
+      "POST parent /parent/me/children/studentId%2F1/guardians/guardianProfileId%2F1/pickup-permission-requests",
+    ],
   "api/parent/me/children/[studentId]/master-data": [
     "GET parent /parent/me/children/studentId%2F1/master-data",
   ],
@@ -363,6 +367,9 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   ],
   "api/parent/me/children/[studentId]/pickup-change-requests/[requestId]": [
     "PUT parent /parent/me/children/studentId%2F1/pickup-change-requests/requestId%2F1",
+  ],
+  "api/parent/me/children/[studentId]/pickup-permission-requests": [
+    "GET parent /parent/me/children/studentId%2F1/pickup-permission-requests",
   ],
   "api/parent/me/children/[studentId]/related-accounts": [
     "GET parent /parent/me/children/studentId%2F1/related-accounts",
