@@ -30,6 +30,16 @@ func installSchoolErasure(ctx context.Context, tx bun.Tx) error {
 	if _, err := tx.ExecContext(ctx, schoolErasureSchemaSQL); err != nil {
 		return fmt.Errorf("create school erasure evidence: %w", err)
 	}
+	if err := installSchoolErasureFunctions(ctx, tx); err != nil {
+		return err
+	}
+	if err := installSchoolErasureBilling(ctx, tx); err != nil {
+		return fmt.Errorf("restrict retained billing evidence: %w", err)
+	}
+	return nil
+}
+
+func installSchoolErasureFunctions(ctx context.Context, tx bun.Tx) error {
 	if err := installSchoolErasurePlan(ctx, tx); err != nil {
 		return fmt.Errorf("install school erasure plan: %w", err)
 	}
@@ -44,9 +54,6 @@ func installSchoolErasure(ctx context.Context, tx bun.Tx) error {
 	}
 	if _, err := tx.ExecContext(ctx, schoolErasureFunctionsSQL); err != nil {
 		return fmt.Errorf("install school erasure functions: %w", err)
-	}
-	if err := installSchoolErasureBilling(ctx, tx); err != nil {
-		return fmt.Errorf("restrict retained billing evidence: %w", err)
 	}
 	return nil
 }

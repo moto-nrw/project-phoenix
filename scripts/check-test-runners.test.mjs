@@ -33,6 +33,15 @@ test('a path matches only as a whole, not inside a longer name', () => {
   }), ['scripts/bar_test.py']);
 });
 
+test('Python dot-test suites need an executable CI runner too', () => {
+  const files = { 'scripts/ledger.test.py': '' };
+  assert.deepEqual(check(files), ['scripts/ledger.test.py']);
+  assert.deepEqual(check({
+    ...files,
+    '.github/workflows/main.yml': 'run: python3 scripts/ledger.test.py',
+  }), []);
+});
+
 test('hooks, comments and paths filters do not count as runners', () => {
   assert.deepEqual(check({
     '.github/workflows/main.yml': [

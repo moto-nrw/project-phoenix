@@ -7,11 +7,11 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 )
 
-// LiveStaffMembership locks a staff member's membership row and runs the
-// write only while the member still belongs to the school; an offboarded or
-// unknown member fails with School Membership's error before the write.
+// LiveStaffMembership locks a staff member's membership row while the member
+// still belongs to the school; an offboarded or unknown member fails with
+// School Membership's error, and the workflow writes nothing.
 type LiveStaffMembership interface {
-	WithLiveStaff(ctx context.Context, staffID int64, write func(context.Context) error) error
+	LockLiveStaff(ctx context.Context, staffID int64) error
 }
 
 // StaffEmploymentWrites are Workforce's employment-only staff writes.
@@ -40,15 +40,17 @@ func NewLiveStaffEmployment(membership LiveStaffMembership, employment StaffEmpl
 // SetBirthdayDisplayOptOut records whether a live staff member's birthday
 // stays off the shared birthday list.
 func (w *LiveStaffEmployment) SetBirthdayDisplayOptOut(ctx context.Context, staffID int64, optOut bool) error {
-	return w.membership.WithLiveStaff(ctx, staffID, func(ctx context.Context) error {
-		return w.employment.SetStaffBirthdayDisplayOptOut(ctx, staffID, optOut)
-	})
+	if err := w.membership.LockLiveStaff(ctx, staffID); err != nil {
+		return err
+	}
+	return w.employment.SetStaffBirthdayDisplayOptOut(ctx, staffID, optOut)
 }
 
 // AppendNotes adds a paragraph to a live staff member's private notes.
 func (w *LiveStaffEmployment) AppendNotes(ctx context.Context, staffID int64, notes string) error {
-	return w.membership.WithLiveStaff(ctx, staffID, func(ctx context.Context) error {
-		_, err := w.employment.AppendStaffNotes(ctx, staffID, notes)
+	if err := w.membership.LockLiveStaff(ctx, staffID); err != nil {
 		return err
-	})
+	}
+	_, err := w.employment.AppendStaffNotes(ctx, staffID, notes)
+	return err
 }

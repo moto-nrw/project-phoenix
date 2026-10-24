@@ -24,6 +24,9 @@ type EnrollmentForms interface {
 	DecodeSubmission(r *http.Request) (EnrollmentSubmit, error)
 	// RenderSubmitError renders a refused submission.
 	RenderSubmitError(w http.ResponseWriter, r *http.Request, err error)
+	// StoreUpload persists a multipart file after the parent portal derived the
+	// caller's audience access from its authenticated session.
+	StoreUpload(w http.ResponseWriter, r *http.Request, schoolID int64, linkedParents, existingStudents bool)
 }
 
 // EnrollmentResponse writes a loaded form or a stored submission as the

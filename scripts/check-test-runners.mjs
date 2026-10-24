@@ -5,7 +5,7 @@
 // `_test.go` or `frontend/src/**/*.test.ts` cannot fall outside them. Two kinds
 // of tests need an explicit runner and are checked here:
 //   1. Script tests outside frontend/ (`*.test.{js,mjs,cjs,ts}`,
-//      `*_test.{py,sh}`, also under backend/, where Go never runs them). A
+//      `*.test.py`, `*_test.{py,sh}`, also under backend/, where Go never runs them). A
 //      workflow must name the file by its repository path, or name a script
 //      that does (lint.yml -> check-quality.sh -> check-backend-quality.sh ->
 //      check-deadcode_test.sh). Hooks, comments and paths filters do not count.
@@ -19,7 +19,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const scriptTest = /(?:\.test\.[cm]?[jt]s|_test\.(?:py|sh))$/;
+const scriptTest = /(?:\.test\.(?:[cm]?[jt]s|py)|_test\.(?:py|sh))$/;
 const playwrightSpec = /^frontend\/e2e\/.+\.spec\.ts$/;
 const escape = text => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 

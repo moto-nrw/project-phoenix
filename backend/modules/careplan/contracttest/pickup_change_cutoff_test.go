@@ -19,7 +19,7 @@ var cutoffFixtureToday = calendar.NewDate(2026, 8, 24)
 
 func cutoffAt(t *testing.T, hour, minute int) careplan.SameDayCutoff {
 	t.Helper()
-	cutoff, err := careplan.NewSameDayCutoff("11:00",
+	cutoff, err := carerequests.NewSameDayCutoff("11:00",
 		time.Date(2026, 8, 24, hour, minute, 0, 0, calendar.Berlin))
 	require.NoError(t, err)
 	return cutoff
@@ -78,7 +78,7 @@ func TestCreatePickupChangeHonoursSameDayCutoff(t *testing.T) {
 	t.Run("ohne Frist spät am Tag", func(t *testing.T) {
 		t.Parallel()
 		f := newPickupChangeFixture(t)
-		none, err := careplan.NewSameDayCutoff("", time.Date(2026, 8, 24, 23, 0, 0, 0, calendar.Berlin))
+		none, err := carerequests.NewSameDayCutoff("", time.Date(2026, 8, 24, 23, 0, 0, 0, calendar.Berlin))
 		require.NoError(t, err)
 		_, err = createPickupChangeWithCutoff(t, f, cutoffFixtureToday, none)
 		require.NoError(t, err)

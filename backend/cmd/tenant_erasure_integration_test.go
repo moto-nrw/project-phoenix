@@ -7,12 +7,15 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	tenancyCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/erasureledger"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -20,10 +23,15 @@ import (
 
 type failingErasureFiles struct {
 	*objects.Local
-	fail bool
+	fail       bool
+	onRemove   func()
+	removeOnce sync.Once
 }
 
 func (f *failingErasureFiles) TenantObjects(ctx context.Context, kind, layout string, id int64, remove bool) (int64, error) {
+	if remove && f.onRemove != nil {
+		f.removeOnce.Do(f.onRemove)
+	}
 	if remove && kind == "student-documents" && f.fail {
 		return 0, fmt.Errorf("synthetic failure")
 	}
@@ -103,7 +111,7 @@ func TestErasureCLISeparatesSchoolsAndResumesBothPhases(t *testing.T) {
 	require.NoError(t, os.MkdirAll(filepath.Join(root, "avatars/global"), 0700))
 	require.NoError(t, os.WriteFile(filepath.Join(root, "avatars/global/shared.bin"), []byte("synthetic"), 0600))
 	files := &failingErasureFiles{Local: objects.NewLocal(root)}
-	service, err := tenancyCompose.NewErasure(db, files)
+	service, err := tenancyCompose.NewErasure(db, files, erasureledger.New(newTestErasureLedger(t), securityruntime.Fingerprint))
 	require.NoError(t, err)
 	request := organizationtenancy.ErasureRequest{SchoolID: a, OperatorID: operator.ID, OrderReference: "ORDER-3837", Confirmation: fmt.Sprintf("school:%d", a), PrerequisitesChecked: true, WritersStopped: true, LockTimeout: time.Second, StatementTimeout: time.Minute, DryRun: true}
 	beforeA := erasureTableCounts(t, db, a)
@@ -170,9 +178,15 @@ func TestErasureCLISeparatesSchoolsAndResumesBothPhases(t *testing.T) {
 	}
 	require.Equal(t, expected, afterFiles)
 	require.Equal(t, beforeB, erasureTableCounts(t, db, b))
+	// A DB/upload snapshot is not atomic. Restored files must be removable even
+	// when the restored DB already contains the completed receipt, not a school.
+	restoredFile := filepath.Join(root, fmt.Sprintf("files/%d/restored.bin", a))
+	require.NoError(t, os.WriteFile(restoredFile, []byte("synthetic"), 0600))
 	repeated, err := service.Run(t.Context(), request)
 	require.NoError(t, err)
 	require.JSONEq(t, string(result[0]), string(repeated[0]))
+	require.NoFileExists(t, restoredFile)
+	require.Equal(t, expected, erasureFileList(t, root))
 	receipts, err := service.Run(t.Context(), organizationtenancy.ErasureRequest{ReceiptID: proof.ID})
 	require.NoError(t, err)
 	require.JSONEq(t, string(result[0]), string(receipts[0]))
@@ -183,7 +197,7 @@ func TestErasureCLITimeoutAndRoleBoundaries(t *testing.T) {
 	db := testpkg.SetupIsolatedTestDB(t)
 	id := testpkg.Tenant(t)
 	operator := testpkg.CreateTestOperator(t, db)
-	service, err := tenancyCompose.NewErasure(db, objects.NewLocal(t.TempDir()))
+	service, err := tenancyCompose.NewErasure(db, objects.NewLocal(t.TempDir()), erasureledger.New(newTestErasureLedger(t), securityruntime.Fingerprint))
 	require.NoError(t, err)
 	request := organizationtenancy.ErasureRequest{SchoolID: id, OperatorID: operator.ID, OrderReference: "ORDER-TIMEOUT", Confirmation: fmt.Sprintf("school:%d", id), PrerequisitesChecked: true, WritersStopped: true, LockTimeout: 20 * time.Millisecond, StatementTimeout: time.Minute}
 	invalid := request
@@ -237,7 +251,7 @@ func TestErasureCLIOrganizationKeepsRootAndResumesSchoolReceipts(t *testing.T) {
 	_, err := db.ExecContext(t.Context(), `UPDATE platform.schools SET organization_id=? WHERE id=?`, organizationID, b)
 	require.NoError(t, err)
 	operator := testpkg.CreateTestOperator(t, db)
-	service, err := tenancyCompose.NewErasure(db, objects.NewLocal(t.TempDir()))
+	service, err := tenancyCompose.NewErasure(db, objects.NewLocal(t.TempDir()), erasureledger.New(newTestErasureLedger(t), securityruntime.Fingerprint))
 	require.NoError(t, err)
 	request := organizationtenancy.ErasureRequest{OrganizationID: organizationID, OperatorID: operator.ID, OrderReference: "ORDER-ORGANIZATION", Confirmation: fmt.Sprintf("organization:%d", organizationID), PrerequisitesChecked: true, WritersStopped: true, LockTimeout: time.Second, StatementTimeout: time.Minute, DryRun: true}
 	results, err := service.Run(t.Context(), request)
@@ -261,4 +275,87 @@ func TestErasureCLIOrganizationKeepsRootAndResumesSchoolReceipts(t *testing.T) {
 	for i := range results {
 		require.JSONEq(t, string(results[i]), string(repeated[i]))
 	}
+}
+
+func newTestErasureLedger(t *testing.T) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "ledger")
+	require.NoError(t, erasureledger.Initialize(path))
+	return path
+}
+
+func TestErasureCLIExternalLedgerRejectsDifferentOrderBeforeDeletion(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	a := testpkg.Tenant(t)
+	b, _ := testpkg.CreateTestTenant(t, db)
+	seedCLIErasure(t, db, a)
+	seedCLIErasure(t, db, b)
+	beforeA := erasureTableCounts(t, db, a)
+	beforeB := erasureTableCounts(t, db, b)
+	operator := testpkg.CreateTestOperator(t, db)
+	path := newTestErasureLedger(t)
+	ledger := erasureledger.New(path, securityruntime.Fingerprint)
+	// The current list survives while the database has been restored to before
+	// this school's completed order. A different reference must not delete it.
+	proof := json.RawMessage(fmt.Sprintf(`{"school_id":%d,"order_reference":"ORDER-RESTORE","status":"completed","completed_at":"2026-10-24T12:00:00Z"}`, a))
+	require.NoError(t, ledger.Record(proof))
+	beforeLedger, err := os.ReadFile(path)
+	require.NoError(t, err)
+	removed := false
+	files := &failingErasureFiles{Local: objects.NewLocal(t.TempDir()), onRemove: func() { removed = true }}
+	service, err := tenancyCompose.NewErasure(db, files, ledger)
+	require.NoError(t, err)
+	request := organizationtenancy.ErasureRequest{SchoolID: a, OperatorID: operator.ID, OrderReference: "ORDER-DIFFERENT", Confirmation: fmt.Sprintf("school:%d", a), PrerequisitesChecked: true, WritersStopped: true, LockTimeout: time.Second, StatementTimeout: time.Minute}
+	results, err := service.Run(t.Context(), request)
+	require.Error(t, err)
+	require.Empty(t, results)
+	require.Equal(t, beforeA, erasureTableCounts(t, db, a), "conflicting order must fail before database deletion")
+	require.Equal(t, beforeB, erasureTableCounts(t, db, b))
+	require.False(t, removed, "conflicting order must fail before file deletion")
+	require.ErrorContains(t, err, "order reference conflicts with external ledger")
+	afterLedger, err := os.ReadFile(path)
+	require.NoError(t, err)
+	require.Equal(t, beforeLedger, afterLedger)
+	request.OrderReference = "ORDER-RESTORE"
+	results, err = service.Run(t.Context(), request)
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	require.True(t, removed)
+	require.Equal(t, beforeB, erasureTableCounts(t, db, b))
+}
+
+func TestErasureCLIExternalLedgerFailureNeverReportsCompletion(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	a := testpkg.Tenant(t)
+	b, _ := testpkg.CreateTestTenant(t, db)
+	seedCLIErasure(t, db, b)
+	beforeB := erasureTableCounts(t, db, b)
+	operator := testpkg.CreateTestOperator(t, db)
+	path := newTestErasureLedger(t)
+	files := &failingErasureFiles{Local: objects.NewLocal(t.TempDir()), onRemove: func() {
+		require.NoError(t, os.Chmod(path, 0400))
+	}}
+	service, err := tenancyCompose.NewErasure(db, files, erasureledger.New(path, securityruntime.Fingerprint))
+	require.NoError(t, err)
+	request := organizationtenancy.ErasureRequest{SchoolID: a, OperatorID: operator.ID, OrderReference: "ORDER-LEDGER", Confirmation: fmt.Sprintf("school:%d", a), PrerequisitesChecked: true, WritersStopped: true, LockTimeout: time.Second, StatementTimeout: time.Minute}
+	results, err := service.Run(t.Context(), request)
+	require.Error(t, err)
+	require.Empty(t, results, "must not emit completed after external write failure")
+	require.Equal(t, beforeB, erasureTableCounts(t, db, b))
+	require.NoError(t, os.Chmod(path, 0600))
+	results, err = service.Run(t.Context(), request)
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	require.Contains(t, string(data), `"order_reference":"ORDER-LEDGER"`)
+	repeated, err := service.Run(t.Context(), request)
+	require.NoError(t, err)
+	require.JSONEq(t, string(results[0]), string(repeated[0]))
+	after, err := os.ReadFile(path)
+	require.NoError(t, err)
+	require.Equal(t, data, after)
+	require.Equal(t, beforeB, erasureTableCounts(t, db, b))
 }

@@ -71,6 +71,8 @@ export const TRACKED_TENANT_ROUTE_TEMPLATES = [
   "/mein-dienstplan",
   "/messages",
   "/messages/:threadId",
+  "/messages/groups",
+  "/messages/groups/:groupThreadId",
   "/ogs-groups",
   "/ogs-groups/overview",
   "/parent-announcements",
@@ -142,6 +144,7 @@ export const TRACKED_PARENT_ROUTE_TEMPLATES = [
   "/meal-plan",
   "/messages",
   "/messages/:studentId",
+  "/messages/group/:groupThreadId",
   "/news",
   // Nachweis einer Erklärung (#3430); das Kind steht nur im Query-String.
   "/news/:id/nachweis",

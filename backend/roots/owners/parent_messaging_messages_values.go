@@ -56,6 +56,8 @@ func parentMessagingToOwnerParentMessage(v parentportal.ParentMessage) communica
 		AppliedAt:        v.AppliedAt,
 		AppliedBy:        v.AppliedBy,
 		DecisionReason:   v.DecisionReason,
+		GroupThreadID:    v.GroupThreadID,
+		GroupThreadTitle: v.GroupThreadTitle,
 		ReadByStaff:      v.ReadByStaff,
 		ReadByGuardian:   v.ReadByGuardian,
 	}
@@ -85,6 +87,8 @@ func ParentMessagingFromOwnerParentMessage(v communication.PortalParentMessage) 
 		AppliedAt:        v.AppliedAt,
 		AppliedBy:        v.AppliedBy,
 		DecisionReason:   v.DecisionReason,
+		GroupThreadID:    v.GroupThreadID,
+		GroupThreadTitle: v.GroupThreadTitle,
 		ReadByStaff:      v.ReadByStaff,
 		ReadByGuardian:   v.ReadByGuardian,
 	}

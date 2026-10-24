@@ -26,6 +26,21 @@ func (c *captureNotifier) Notify(_ context.Context, event communication.Notifica
 	return c.err
 }
 
+type sequencedNotifier struct {
+	events []communication.NotificationEvent
+	errs   []error
+}
+
+func (c *sequencedNotifier) Notify(_ context.Context, event communication.NotificationEvent) error {
+	c.events = append(c.events, event)
+	if len(c.errs) == 0 {
+		return nil
+	}
+	err := c.errs[0]
+	c.errs = c.errs[1:]
+	return err
+}
+
 type stubPreferences struct {
 	communication.NotificationPreferences
 	optedIn []int64
@@ -204,4 +219,22 @@ func TestNotifyGuardianDevice(t *testing.T) {
 		})
 		assert.Empty(t, notifier.events)
 	})
+}
+
+func TestPushGroupMessage_ContinuesAfterSuppressedRecipient(t *testing.T) {
+	t.Parallel()
+
+	notifier := &sequencedNotifier{errs: []error{devices.ErrNotificationsDisabled, nil}}
+	thread := &communication.ParentGroupThread{ID: 9, TenantID: 7}
+	newNotifyService(notifier, &stubPreferences{optedIn: []int64{42, 43}}).pushGroupMessage(
+		context.Background(),
+		thread,
+		123,
+		[]int64{42, 43},
+		map[int64][]int64{42: {55}, 43: {56}},
+	)
+
+	require.Len(t, notifier.events, 2, "a suppressed push for one guardian must not skip later opted-in guardians")
+	assert.Equal(t, []int64{42}, notifier.events[0].Audience.GuardianAccountIDs)
+	assert.Equal(t, []int64{43}, notifier.events[1].Audience.GuardianAccountIDs)
 }

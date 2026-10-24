@@ -28,7 +28,7 @@ describe("permission-labels", () => {
       expect(resourceLabels.system).toBe("System");
       expect(resourceLabels.admin).toBe("Administration");
       expect(resourceLabels.time_tracking).toBe("Zeiterfassung");
-      expect(resourceLabels.grade_transitions).toBe("Klassenwechsel");
+      expect(resourceLabels.grade_transitions).toBe("Schuljahreswechsel");
     });
   });
 
@@ -187,7 +187,7 @@ describe("permission-labels", () => {
         "Eigene Arbeitszeiten erfassen",
       );
       expect(localizeDescription("grade_transitions", "apply")).toBe(
-        "Klassenwechsel anwenden/zurücksetzen",
+        "Schuljahreswechsel anwenden/zurücksetzen",
       );
     });
 

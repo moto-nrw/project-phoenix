@@ -269,6 +269,16 @@ const (
 	StaffDocumentsHealth = ResourceStaffDocuments + ":health"
 )
 
+// Enrollment upload permission (#4783). enrollment_uploads:read opens the
+// files parents attach to an enrollment request, such as income proofs.
+// Catalog-only like student_documents:health: admins match via the admin:*
+// wildcard; the request detail itself stays config:manage.
+const (
+	ResourceEnrollmentUploads = "enrollment_uploads"
+
+	EnrollmentUploadsRead = ResourceEnrollmentUploads + ":read"
+)
+
 // Student document permissions (#777). student_documents:health gates
 // Attest, Impfnachweis and Medikamentenplan (Art. 9 GDPR health data);
 // student_documents:legal gates the Sorgerechtsnachweis, which is not Art. 9

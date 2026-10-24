@@ -4,6 +4,8 @@ import {
   fetchCareOfferingBookingStats,
   formatOfferingOccupancy,
   offeringIsFull,
+  offeringOccupancy,
+  totalFreePlaces,
 } from "./care-offering-booking-stats";
 
 const stats = (
@@ -127,5 +129,95 @@ describe("offeringIsFull", () => {
   it("is true once bookings reach the capacity", () => {
     expect(offeringIsFull(stats({ booked: 19, capacity: 20 }))).toBe(false);
     expect(offeringIsFull(stats({ booked: 20, capacity: 20 }))).toBe(true);
+  });
+});
+
+describe("offeringOccupancy (#4782)", () => {
+  it("counts the free places of a limited offering", () => {
+    expect(offeringOccupancy(stats({ capacity: 10, booked: 7 }))).toEqual({
+      booked: 7,
+      capacity: 10,
+      free: 3,
+      full: false,
+    });
+  });
+
+  it("marks an offering full at capacity", () => {
+    expect(offeringOccupancy(stats({ capacity: 10, booked: 10 }))).toEqual({
+      booked: 10,
+      capacity: 10,
+      free: 0,
+      full: true,
+    });
+  });
+
+  // Bestandsschutz: a lowered capacity keeps existing bookings.
+  it("never reports negative free places", () => {
+    expect(offeringOccupancy(stats({ capacity: 5, booked: 8 }))?.free).toBe(0);
+  });
+
+  it("reports only the occupancy without a limit", () => {
+    expect(offeringOccupancy(stats({ capacity: null, booked: 4 }))).toEqual({
+      booked: 4,
+      capacity: null,
+      free: null,
+      full: false,
+    });
+  });
+
+  it("returns null without stats", () => {
+    expect(offeringOccupancy(undefined)).toBeNull();
+  });
+});
+
+describe("totalFreePlaces (#4782)", () => {
+  const byId = {
+    a: stats({ offering_id: "a", capacity: 10, booked: 7 }),
+    b: stats({ offering_id: "b", capacity: 20, booked: 25 }),
+    c: stats({ offering_id: "c", capacity: null, booked: 9 }),
+  };
+
+  it("sums the free places of the limited offerings", () => {
+    expect(
+      totalFreePlaces(
+        [
+          { id: "a", capacity: 10, is_active: true },
+          { id: "b", capacity: 20, is_active: true },
+          { id: "c", capacity: null, is_active: true },
+        ],
+        byId,
+      ),
+    ).toBe(3);
+  });
+
+  // An inactive offering cannot be booked: its places are not free.
+  it("leaves out inactive offerings", () => {
+    expect(
+      totalFreePlaces(
+        [
+          { id: "a", capacity: 10, is_active: true },
+          { id: "d", capacity: 30, is_active: false },
+        ],
+        { ...byId, d: stats({ offering_id: "d", capacity: 30, booked: 0 }) },
+      ),
+    ).toBe(3);
+  });
+
+  it("returns null when no offering has a limit", () => {
+    expect(
+      totalFreePlaces([{ id: "c", capacity: null, is_active: true }], byId),
+    ).toBeNull();
+  });
+
+  it("returns null when a limited offering has no stats", () => {
+    expect(
+      totalFreePlaces(
+        [
+          { id: "a", capacity: 10, is_active: true },
+          { id: "missing", capacity: 5, is_active: true },
+        ],
+        byId,
+      ),
+    ).toBeNull();
   });
 });

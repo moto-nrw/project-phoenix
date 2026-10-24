@@ -265,8 +265,8 @@ export function TransitionEditor({
           <div className="min-w-0">
             <SlideOverTitle>
               {existingDraft
-                ? "Jahrgangswechsel bearbeiten"
-                : "Neuer Jahrgangswechsel"}
+                ? "Schuljahreswechsel bearbeiten"
+                : "Neuer Schuljahreswechsel"}
             </SlideOverTitle>
             <SlideOverDescription>
               Festlegen, wohin die Kinder jeder Klasse versetzt werden.

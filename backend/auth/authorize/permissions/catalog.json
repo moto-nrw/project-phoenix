@@ -88,6 +88,10 @@
     "action": "read"
   },
   {
+    "resource": "enrollment_uploads",
+    "action": "read"
+  },
+  {
     "resource": "feedback",
     "action": "create"
   },

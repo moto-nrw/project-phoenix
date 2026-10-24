@@ -511,12 +511,10 @@ type VacationQuotaReader interface {
 }
 
 // OwnAbsences serves the staff member's own absences and vacation requests.
+// The absence writes that may cascade a sick report are SickReportWrites.
 type OwnAbsences interface {
 	VacationQuotaReader
 	ListAbsences(ctx context.Context, staffID int64, filter StaffAbsenceListFilter) ([]*StaffAbsenceResponse, error)
-	CreateOwnAbsence(ctx context.Context, staffID int64, actorAccountID *int64, request CreateAbsenceRequest) (*StaffAbsenceResponse, error)
-	UpdateAbsence(ctx context.Context, staffID int64, actorAccountID *int64, absenceID int64, request UpdateAbsenceRequest) (*StaffAbsenceResponse, error)
-	DeleteOwnAbsence(ctx context.Context, staffID int64, actorAccountID *int64, absenceID int64) error
 	RequestVacation(ctx context.Context, staffID int64, request RequestVacationRequest) (*StaffAbsenceResponse, error)
 	CancelAbsence(ctx context.Context, staffID, actorAccountID, absenceID int64) error
 	ResubmitAbsence(ctx context.Context, staffID, actorAccountID, absenceID int64, note string) (*StaffAbsenceResponse, error)
@@ -532,13 +530,12 @@ type AbsenceRequestReview interface {
 }
 
 // AdminAbsences serves the manager's absence bookings, rebookings and
-// vacation account changes for a staff member.
+// vacation account changes for a staff member. Creating and deleting an
+// absence on the staff member's behalf are SickReportWrites.
 type AdminAbsences interface {
 	VacationQuotaReader
 	AbsenceRequestReview
 	AbsencesForRange(ctx context.Context, staffID int64, from, to string) ([]*StaffAbsenceResponse, error)
-	CreateAbsenceFor(ctx context.Context, subjectStaffID, createdByStaffID int64, actorAccountID *int64, request CreateAbsenceRequest) (*StaffAbsenceResponse, error)
-	DeleteAbsenceFor(ctx context.Context, subjectStaffID, actorStaffID int64, actorAccountID *int64, absenceID int64) error
 	PreviewCompTimeBalance(ctx context.Context, staffID int64, start, end string, halfDay bool) (*CompTimeBalancePreview, error)
 	// RebookAbsences changes the type of stored absences with a reason; with
 	// DryRun it only reports the effects (#3258).
@@ -550,11 +547,13 @@ type AdminAbsences interface {
 }
 
 // StaffAbsences is the absence and vacation administration of the web app:
-// the self-service and administration capabilities for composition, plus the
-// quota write of the opening-balance import.
+// the self-service and administration capabilities for composition, the
+// sick-report writes of the shift-plan-sync workflow, plus the quota write of
+// the opening-balance import.
 type StaffAbsences interface {
 	OwnAbsences
 	AdminAbsences
+	SickReportWrites
 	UpsertVacationQuota(ctx context.Context, staffID int64, year int, entitled, carryover float64) error
 }
 

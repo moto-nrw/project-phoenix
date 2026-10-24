@@ -91,6 +91,61 @@ export function formatOfferingOccupancy(
 export function offeringIsFull(
   stats: CareOfferingBookingStats | null | undefined,
 ): boolean {
-  if (!stats || stats.capacity == null) return false;
-  return stats.booked >= stats.capacity;
+  return offeringOccupancy(stats)?.full ?? false;
+}
+
+/** An offering's occupancy for the list displays (#4782). */
+export interface OfferingOccupancy {
+  booked: number;
+  /** null: the offering has no capacity limit. */
+  capacity: number | null;
+  /**
+   * Places still free, never negative: a booking kept under Bestandsschutz
+   * can push `booked` above a lowered capacity. null without a limit.
+   */
+  free: number | null;
+  full: boolean;
+}
+
+/** Occupancy of one offering; null while its stats are not loaded. */
+export function offeringOccupancy(
+  stats: CareOfferingBookingStats | null | undefined,
+): OfferingOccupancy | null {
+  if (!stats) return null;
+  const capacity = stats.capacity ?? null;
+  if (capacity == null) {
+    return { booked: stats.booked, capacity: null, free: null, full: false };
+  }
+  return {
+    booked: stats.booked,
+    capacity,
+    free: Math.max(0, capacity - stats.booked),
+    full: stats.booked >= capacity,
+  };
+}
+
+/**
+ * Free places summed over the active offerings that have a capacity limit:
+ * an inactive offering cannot be booked, so its places are not free. null
+ * when none has a limit, or when the stats of one of them are missing: an
+ * incomplete sum would read as fewer free places than there are.
+ */
+export function totalFreePlaces(
+  offerings: readonly {
+    readonly id: string;
+    readonly capacity?: number | null;
+    readonly is_active: boolean;
+  }[],
+  statsById: Readonly<Record<string, CareOfferingBookingStats>>,
+): number | null {
+  let total = 0;
+  let limited = false;
+  for (const offering of offerings) {
+    if (!offering.is_active || offering.capacity == null) continue;
+    const free = offeringOccupancy(statsById[offering.id])?.free;
+    if (free == null) return null;
+    limited = true;
+    total += free;
+  }
+  return limited ? total : null;
 }

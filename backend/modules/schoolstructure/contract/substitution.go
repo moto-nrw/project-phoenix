@@ -254,14 +254,7 @@ type SubstitutionModule interface {
 	End(context.Context, Caller, EndRequest) error
 }
 
-type ScheduleAdapter interface {
-	Overview(context.Context, calendar.Date, calendar.Date, bool, bool) (*ScheduleOverview, error)
-	Assign(context.Context, ScheduleSubstitutionAssignment, int64) (*ScheduleSubstitutionResult, error)
-	End(context.Context, int64, int64) (*ScheduleSubstitutionResult, error)
-}
-
 type SubstitutionCaller = Caller
-type ScheduleSubstitutionAdapter = ScheduleAdapter
 
 // SubstitutionRefusalValues names the date and limit of a refused operation.
 type SubstitutionRefusalValues struct {

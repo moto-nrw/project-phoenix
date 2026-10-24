@@ -11,7 +11,6 @@ import (
 	educationRepo "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/workflows/shiftplansync"
 )
 
 // The owner reads behind School Structure's rule of who supervises a group
@@ -23,18 +22,31 @@ import (
 // reads and writes.
 type GroupSubstitutionRow = workforceCompose.GroupSubstitution
 
-// EducationHandovers serves the substitution module's handover store: the
-// shift-plan-sync workflow writes the handovers into Workforce's rows, the
-// reads come from the retained group substitution repository. The binding
-// translates the rows into the School Structure values (#3556).
+// HandoverWrites are Workforce's group substitution commands the handover
+// store writes through: education.group_substitution belongs to Workforce
+// (#2688). They join the substitution module's transaction, so its group
+// lock, duplicate check, write and audit stay one unit of work (#4825).
+type HandoverWrites interface {
+	CreateGroupSubstitution(ctx context.Context, value workforce.GroupSubstitution) (workforce.GroupSubstitution, error)
+	DeleteGroupSubstitution(ctx context.Context, id int64) error
+}
+
+// EducationHandovers serves the substitution module's handover store:
+// Workforce's commands write the handovers into its rows, the reads come
+// from the retained group substitution repository. The binding translates
+// the rows into the School Structure values (#3556).
 type EducationHandovers struct {
 	substitutions owners.GroupSubstitutions
-	handovers     shiftplansync.GroupHandovers
+	handovers     HandoverWrites
 }
 
 // NewEducationHandovers binds the handover store to the group substitution
-// reads and the handover writes.
-func NewEducationHandovers(substitutions owners.GroupSubstitutions, handovers shiftplansync.GroupHandovers) EducationHandovers {
+// reads and Workforce's handover writes. A missing write is a composition
+// error.
+func NewEducationHandovers(substitutions owners.GroupSubstitutions, handovers HandoverWrites) EducationHandovers {
+	if handovers == nil {
+		panic("education handovers: Workforce substitutions are required")
+	}
 	return EducationHandovers{substitutions: substitutions, handovers: handovers}
 }
 
@@ -44,8 +56,8 @@ func (h EducationHandovers) Create(ctx context.Context, handover *educationRepo.
 	if handover == nil {
 		return errors.New("group_substitution cannot be nil or zero value")
 	}
-	created, err := h.handovers.CreateHandover(ctx, workforceHandover(handover))
-	if errors.Is(err, shiftplansync.ErrHandoverExists) {
+	created, err := h.handovers.CreateGroupSubstitution(ctx, workforceHandover(handover))
+	if errors.Is(err, workforce.ErrGroupSubstitutionExists) {
 		return educationRepo.ErrHandoverExists
 	}
 	if err != nil {
@@ -63,7 +75,7 @@ func (h EducationHandovers) Delete(ctx context.Context, id any) error {
 	if err != nil {
 		return err
 	}
-	return h.handovers.DeleteHandover(ctx, handoverID)
+	return h.handovers.DeleteGroupSubstitution(ctx, handoverID)
 }
 
 // FindByID reads one handover.

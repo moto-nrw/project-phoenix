@@ -85,6 +85,7 @@ var seedCoverageExemptions = map[string]string{
 	"education.grade_transition_class_teachers":     "empty in prod too",
 
 	"enrollment.care_offering_auto_triggers": "empty in prod too",
+	"enrollment.request_upload_cleanup":      "holds the file removal of a deleted parent upload (#4783); the seed deletes no upload",
 
 	"feedback.entries": "empty in prod too",
 
@@ -133,8 +134,9 @@ var seedCoverageDebt = map[string]string{}
 // their lifecycle completes. Unlike exemptions, a populated transient table
 // is not stale classification debt.
 var seedCoverageTransient = map[string]string{
-	"auth.invitation_tokens": "short-lived invitation state; the seed accepts some and leaves some open",
-	"platform.push_outbox":   "transient delivery state that requires an honest browser/VAPID-bound push subscription, which the server-side seed cannot create",
+	"auth.account_avatar_file_cleanup": "transient deletion intents for anonymized accounts; drained hourly, never create orphan files as demo data",
+	"auth.invitation_tokens":           "short-lived invitation state; the seed accepts some and leaves some open",
+	"platform.push_outbox":             "transient delivery state that requires an honest browser/VAPID-bound push subscription, which the server-side seed cannot create",
 }
 
 var seedCoverageAllowlist = mergeCoverageClassifications(seedCoverageExemptions, seedCoverageTransient, seedCoverageDebt)

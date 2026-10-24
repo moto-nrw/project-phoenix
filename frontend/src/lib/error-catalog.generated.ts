@@ -267,13 +267,13 @@ export const ERROR_CATALOG = {
       "general.request_too_large":
         "{object} konnte nicht bearbeitet werden. Bitte löschen Sie im Browser die Cookies dieser Seite. Melden Sie sich danach neu an.",
       "grade_transition.graduates_checked_in":
-        "Es sind noch Kinder mit Abgang eingecheckt. Bitte buchen Sie diese Kinder zuerst nach Hause. Wenden Sie den Jahrgangswechsel danach erneut an.",
+        "Es sind noch Kinder mit Abgang eingecheckt. Bitte buchen Sie diese Kinder zuerst nach Hause. Wenden Sie den Schuljahreswechsel danach erneut an.",
       "grade_transition.not_applied":
-        "Der Jahrgangswechsel ist inzwischen schon zurückgesetzt. Die Liste ist neu geladen.",
+        "Der Schuljahreswechsel ist inzwischen schon zurückgesetzt. Die Liste ist neu geladen.",
       "grade_transition.not_draft":
-        "Der Jahrgangswechsel wurde inzwischen von einer anderen Person angewendet oder geändert. Bitte prüfen Sie die Liste.",
+        "Der Schuljahreswechsel wurde inzwischen von einer anderen Person angewendet oder geändert. Bitte prüfen Sie die Liste.",
       "grade_transition.not_latest_transition":
-        "Inzwischen gibt es einen neueren Jahrgangswechsel. Er muss zuerst zurückgesetzt werden.",
+        "Inzwischen gibt es einen neueren Schuljahreswechsel. Er muss zuerst zurückgesetzt werden.",
       "grade_transition.preview_stale":
         "Klassen oder Zuordnungen haben sich seit dem Öffnen geändert. Die Vorschau ist neu geladen. Bitte prüfen Sie sie noch einmal.",
       "identity.account_already_has_tenant_access":
@@ -442,7 +442,7 @@ export const ERROR_CATALOG = {
       "students.care_offerings_disabled":
         "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
       "students.care_resume_alumnus":
-        "Dieses Kind wurde beim Jahrgangswechsel abgemeldet. Sie finden es unter Jahrgangswechsel, Bereich Abgänge.",
+        "Dieses Kind wurde beim Schuljahreswechsel abgemeldet. Sie finden es unter Schuljahreswechsel, Bereich Abgänge.",
       "students.care_resume_missing":
         "Für dieses Kind ist keine beendete Betreuung hinterlegt.",
       "students.care_resume_not_checked":
@@ -925,7 +925,7 @@ export const ERROR_CATALOG = {
       "workforce.shift_series_week_cycle_missing":
         "Dieser Kalenderzeitraum hat keine Woche A und B. Bitte wählen Sie „Jede Woche“.",
       "workforce.shift_type_inactive":
-        "Diese Schichtart ist ausgeschaltet. Bitte wählen Sie eine andere.",
+        "Diese Dienstart ist ausgeschaltet. Bitte wählen Sie eine andere.",
       "workforce.staff_profile_missing":
         "Für Ihr Konto gibt es keinen Personaldatensatz. Diese Einstellung gilt nur für Personal.",
       "workforce.stammdaten_invalid":
@@ -1012,6 +1012,16 @@ export const ERROR_CATALOG = {
         "Hinweise und Einwilligungen dürfen keine Pflicht sein. Bitte nehmen Sie den Haken bei Pflicht heraus.",
       "enrollment.legal_document_invalid":
         "Bitte wählen Sie eine PDF-Datei mit höchstens {max_mb} MB.",
+      "enrollment.form_field_file_options_invalid":
+        "Bitte prüfen Sie die Dateifrage. Wählen Sie mindestens eine Dateiart und eine Größe von 1 bis 10 MB.",
+      "enrollment.upload_invalid":
+        "Diese Datei passt nicht. Bitte wählen Sie eine erlaubte Dateiart mit höchstens {max_mb} MB.",
+      "enrollment.upload_expired":
+        "Eine hochgeladene Datei ist abgelaufen. Bitte laden Sie sie erneut hoch.",
+      "enrollment.upload_rate_limited":
+        "Es wurden zu viele Dateien hochgeladen. Bitte versuchen Sie es später noch einmal.",
+      "enrollment.upload_not_found":
+        "Diese Datei gibt es nicht mehr. Bitte laden Sie sie erneut hoch.",
       "enrollment.request_not_found":
         "Diese Anmeldung gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "enrollment.restore_nothing_withdrawn":
@@ -1200,6 +1210,10 @@ export const ERROR_CATALOG = {
         "Diese E-Mail-Adresse hat schon eine offene Einladung für eine andere Person. Bitte nehmen Sie eine andere Adresse.",
       "staff.external_access_invalid":
         "Bitte wählen Sie, welchen Zugang die Person bekommt.",
+      "communication.group_thread_closed":
+        "Diese Gruppennachricht ist geschlossen. Eine Antwort ist nicht mehr möglich.",
+      "communication.group_thread_no_recipients":
+        "Niemand in dieser Gruppe hat Eltern mit Zugang zu moto. Die Nachricht wurde nicht verschickt.",
       "operator.audit_unavailable":
         "Die Anfrage konnte nicht sicher protokolliert werden. Bitte versuchen Sie es später erneut.",
     },
@@ -1432,6 +1446,16 @@ export const ERROR_CATALOG = {
         "Some days already have an entry. These days were not changed.",
       "enrollment.form_attachment_invalid":
         "Please check the label and the PDF file.",
+      "enrollment.form_field_file_options_invalid":
+        "Please check the file question. Choose at least one file type and a size from 1 to 10 MB.",
+      "enrollment.upload_invalid":
+        "This file does not fit. Please choose an allowed file type of at most {max_mb} MB.",
+      "enrollment.upload_expired":
+        "An uploaded file has expired. Please upload it again.",
+      "enrollment.upload_rate_limited":
+        "Too many files were uploaded. Please try again later.",
+      "enrollment.upload_not_found":
+        "This file no longer exists. Please upload it again.",
       "enrollment.form_not_found":
         "This enrollment form does not exist. Please check the link or ask the school.",
       "enrollment.status_link_invalid":
@@ -1487,6 +1511,10 @@ export const ERROR_CATALOG = {
         "This email address already has an open invitation for someone else. Please use another address.",
       "staff.external_access_invalid":
         "Please choose which access this person gets.",
+      "communication.group_thread_closed":
+        "This group message is closed. You can no longer reply.",
+      "communication.group_thread_no_recipients":
+        "No child in this group has parents with access to moto. The message was not sent.",
     },
   },
   ru: {
@@ -1713,6 +1741,16 @@ export const ERROR_CATALOG = {
       "students.status_day_conflict":
         "На некоторые дни уже есть запись. Эти дни не изменены.",
       "enrollment.form_attachment_invalid": "Проверьте название и PDF-файл.",
+      "enrollment.form_field_file_options_invalid":
+        "Проверьте вопрос с файлом. Выберите хотя бы один тип файла и размер от 1 до 10 МБ.",
+      "enrollment.upload_invalid":
+        "Этот файл не подходит. Выберите разрешённый тип файла размером не более {max_mb} МБ.",
+      "enrollment.upload_expired":
+        "Срок действия загруженного файла истёк. Загрузите его ещё раз.",
+      "enrollment.upload_rate_limited":
+        "Загружено слишком много файлов. Попробуйте позже.",
+      "enrollment.upload_not_found":
+        "Этого файла больше нет. Загрузите его ещё раз.",
       "enrollment.form_not_found":
         "Эта форма записи не найдена. Проверьте ссылку или обратитесь в школу.",
       "enrollment.status_link_invalid":
@@ -1754,6 +1792,10 @@ export const ERROR_CATALOG = {
         "Статус этого запроса на изменение изменился. Обновите страницу.",
       "identity.operator_self_deactivation":
         "Вы не можете деактивировать свою учётную запись. Попросите об этом другого участника команды.",
+      "communication.group_thread_closed":
+        "Это групповое сообщение закрыто. Ответить больше нельзя.",
+      "communication.group_thread_no_recipients":
+        "Ни у одного ребёнка в этой группе нет родителей с доступом к moto. Сообщение не отправлено.",
     },
   },
   sq: {
@@ -1986,6 +2028,16 @@ export const ERROR_CATALOG = {
         "Disa ditë kanë tashmë një regjistrim. Këto ditë nuk u ndryshuan.",
       "enrollment.form_attachment_invalid":
         "Ju lutemi kontrolloni emrin dhe skedarin PDF.",
+      "enrollment.form_field_file_options_invalid":
+        "Kontrolloni pyetjen për skedarin. Zgjidhni të paktën një lloj skedari dhe një madhësi nga 1 deri në 10 MB.",
+      "enrollment.upload_invalid":
+        "Ky skedar nuk përshtatet. Zgjidhni një lloj skedari të lejuar me më së shumti {max_mb} MB.",
+      "enrollment.upload_expired":
+        "Një skedar i ngarkuar ka skaduar. Ngarkojeni përsëri.",
+      "enrollment.upload_rate_limited":
+        "U ngarkuan shumë skedarë. Provoni përsëri më vonë.",
+      "enrollment.upload_not_found":
+        "Ky skedar nuk ekziston më. Ngarkojeni përsëri.",
       "enrollment.form_not_found":
         "Ky formular regjistrimi nuk ekziston. Kontrolloni lidhjen ose pyesni shkollën.",
       "enrollment.status_link_invalid":
@@ -2035,6 +2087,10 @@ export const ERROR_CATALOG = {
         "Gjendja e kësaj kërkese për ndryshim ka ndryshuar. Ju lutemi ringarkoni faqen.",
       "identity.operator_self_deactivation":
         "Nuk mund ta çaktivizoni llogarinë tuaj. Kërkojini një personi tjetër nga ekipi ta bëjë këtë.",
+      "communication.group_thread_closed":
+        "Ky mesazh grupi është mbyllur. Nuk mund të përgjigjeni më.",
+      "communication.group_thread_no_recipients":
+        "Asnjë fëmijë në këtë grup nuk ka prindër me qasje në moto. Mesazhi nuk u dërgua.",
     },
   },
   pl: {
@@ -2262,6 +2318,16 @@ export const ERROR_CATALOG = {
       "students.status_day_conflict":
         "Niektóre dni mają już wpis. Tych dni nie zmieniono.",
       "enrollment.form_attachment_invalid": "Sprawdź nazwę i plik PDF.",
+      "enrollment.form_field_file_options_invalid":
+        "Sprawdź pytanie o plik. Wybierz co najmniej jeden rodzaj pliku i rozmiar od 1 do 10 MB.",
+      "enrollment.upload_invalid":
+        "Ten plik nie pasuje. Wybierz dozwolony rodzaj pliku o rozmiarze najwyżej {max_mb} MB.",
+      "enrollment.upload_expired":
+        "Przesłany plik wygasł. Prześlij go ponownie.",
+      "enrollment.upload_rate_limited":
+        "Przesłano zbyt wiele plików. Spróbuj ponownie później.",
+      "enrollment.upload_not_found":
+        "Tego pliku już nie ma. Prześlij go ponownie.",
       "enrollment.form_not_found":
         "Ten formularz zapisu nie istnieje. Sprawdź link lub zapytaj szkołę.",
       "enrollment.status_link_invalid":
@@ -2303,6 +2369,10 @@ export const ERROR_CATALOG = {
         "Stan tej prośby o zmianę się zmienił. Odśwież stronę.",
       "identity.operator_self_deactivation":
         "Nie możesz dezaktywować własnego konta. Poproś o to inną osobę z zespołu.",
+      "communication.group_thread_closed":
+        "Ta wiadomość grupowa jest zamknięta. Nie można już odpowiedzieć.",
+      "communication.group_thread_no_recipients":
+        "Żadne dziecko w tej grupie nie ma rodziców z dostępem do moto. Wiadomość nie została wysłana.",
     },
   },
   tr: {
@@ -2533,6 +2603,16 @@ export const ERROR_CATALOG = {
         "Bazı günlerde zaten bir kayıt var. Bu günler değiştirilmedi.",
       "enrollment.form_attachment_invalid":
         "Lütfen adı ve PDF dosyasını kontrol edin.",
+      "enrollment.form_field_file_options_invalid":
+        "Lütfen dosya sorusunu kontrol edin. En az bir dosya türü ve 1 ile 10 MB arasında bir boyut seçin.",
+      "enrollment.upload_invalid":
+        "Bu dosya uygun değil. Lütfen en fazla {max_mb} MB olan izin verilen bir dosya türü seçin.",
+      "enrollment.upload_expired":
+        "Yüklenen bir dosyanın süresi doldu. Lütfen dosyayı tekrar yükleyin.",
+      "enrollment.upload_rate_limited":
+        "Çok fazla dosya yüklendi. Lütfen daha sonra tekrar deneyin.",
+      "enrollment.upload_not_found":
+        "Bu dosya artık yok. Lütfen dosyayı tekrar yükleyin.",
       "enrollment.form_not_found":
         "Bu kayıt formu bulunamadı. Bağlantıyı kontrol edin veya okula sorun.",
       "enrollment.status_link_invalid":
@@ -2578,6 +2658,10 @@ export const ERROR_CATALOG = {
         "Bu değişiklik talebinin durumu değişti. Lütfen sayfayı yenileyin.",
       "identity.operator_self_deactivation":
         "Kendi hesabınızı devre dışı bırakamazsınız. Bunu ekipten başka bir kişiden isteyin.",
+      "communication.group_thread_closed":
+        "Bu grup mesajı kapatıldı. Artık yanıt veremezsiniz.",
+      "communication.group_thread_no_recipients":
+        "Bu gruptaki hiçbir çocuğun moto erişimi olan velisi yok. Mesaj gönderilmedi.",
     },
   },
   uk: {
@@ -2803,6 +2887,16 @@ export const ERROR_CATALOG = {
       "students.status_day_conflict":
         "На деякі дні вже є запис. Ці дні не змінено.",
       "enrollment.form_attachment_invalid": "Перевірте назву та PDF-файл.",
+      "enrollment.form_field_file_options_invalid":
+        "Перевірте запитання з файлом. Виберіть хоча б один тип файлу і розмір від 1 до 10 МБ.",
+      "enrollment.upload_invalid":
+        "Цей файл не підходить. Виберіть дозволений тип файлу розміром не більше {max_mb} МБ.",
+      "enrollment.upload_expired":
+        "Термін дії завантаженого файлу минув. Завантажте його ще раз.",
+      "enrollment.upload_rate_limited":
+        "Завантажено забагато файлів. Спробуйте пізніше.",
+      "enrollment.upload_not_found":
+        "Цього файлу більше немає. Завантажте його ще раз.",
       "enrollment.form_not_found":
         "Цієї форми запису не існує. Перевірте посилання або зверніться до школи.",
       "enrollment.status_link_invalid":
@@ -2843,6 +2937,10 @@ export const ERROR_CATALOG = {
         "Статус цього запиту на зміну змінився. Оновіть сторінку.",
       "identity.operator_self_deactivation":
         "Ви не можете деактивувати власний обліковий запис. Попросіть іншу людину з команди зробити це.",
+      "communication.group_thread_closed":
+        "Це групове повідомлення закрито. Відповісти більше не можна.",
+      "communication.group_thread_no_recipients":
+        "Жодна дитина в цій групі не має батьків із доступом до moto. Повідомлення не надіслано.",
     },
   },
 } as const;

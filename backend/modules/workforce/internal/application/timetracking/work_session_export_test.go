@@ -602,7 +602,7 @@ func TestWSSessionToRow_Complete(t *testing.T) {
 	assert.Equal(t, "17:15", row[3])       // Ende
 	assert.Equal(t, "45", row[4])          // Pause
 	assert.Equal(t, "8h 00min", row[5])    // Netto
-	assert.Equal(t, "Vor Ort", row[6])     // Status (Issue #1368)
+	assert.Equal(t, "In der OGS", row[6])  // Status (Issue #1368)
 	assert.Equal(t, "App", row[7])         // Quelle (Issue #1368)
 	assert.Equal(t, "Regular day", row[8]) // Bemerkungen
 }
@@ -664,7 +664,7 @@ func TestWSSessionToRow_NFC(t *testing.T) {
 	}
 
 	row := svc.sessionToRow(sr)
-	assert.Equal(t, "Vor Ort", row[6])
+	assert.Equal(t, "In der OGS", row[6])
 	assert.Equal(t, "NFC", row[7])
 }
 
@@ -692,7 +692,7 @@ func TestWSSessionToRow_LegacyUnknownSource(t *testing.T) {
 	}
 
 	row := svc.sessionToRow(sr)
-	assert.Equal(t, "Vor Ort", row[6])
+	assert.Equal(t, "In der OGS", row[6])
 	assert.Equal(t, "-", row[7], "legacy 'unknown' source must render as hyphen, not guessed App/NFC")
 }
 
@@ -742,8 +742,8 @@ func TestWSSessionToRow_HomeOffice(t *testing.T) {
 
 	row := svc.sessionToRow(sr)
 
-	assert.Equal(t, "Homeoffice", row[6]) // Status (Issue #1368)
-	assert.Equal(t, "App", row[7])        // Quelle (Issue #1368)
+	assert.Equal(t, "Unterwegs", row[6]) // Status (Issue #1368)
+	assert.Equal(t, "App", row[7])       // Quelle (Issue #1368)
 }
 
 func TestWSSessionToRow_Quelle_AutoCheckedOut(t *testing.T) {
@@ -751,7 +751,7 @@ func TestWSSessionToRow_Quelle_AutoCheckedOut(t *testing.T) {
 
 	// Issue #1368: Auto-Checkout overlays the Quelle cell so the
 	// OGS-Leitung sees the session was closed by the scheduler. Status
-	// remains the underlying work mode. Vor Ort is preserved here even
+	// remains the underlying work mode. In der OGS is preserved here even
 	// though Quelle is "Auto-Checkout".
 	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
 
@@ -773,7 +773,7 @@ func TestWSSessionToRow_Quelle_AutoCheckedOut(t *testing.T) {
 	}
 
 	row := svc.sessionToRow(sr)
-	assert.Equal(t, "Vor Ort", row[6], "Status survives Auto-Checkout overlay")
+	assert.Equal(t, "In der OGS", row[6], "Status survives Auto-Checkout overlay")
 	assert.Equal(t, "Auto-Checkout", row[7])
 }
 
@@ -801,7 +801,7 @@ func TestWSSessionToRow_Quelle_ManuelCorrected(t *testing.T) {
 	}
 
 	row := svc.sessionToRow(sr)
-	assert.Equal(t, "Homeoffice", row[6], "Status survives Manuell-korrigiert overlay")
+	assert.Equal(t, "Unterwegs", row[6], "Status survives Manuell-korrigiert overlay")
 	assert.Equal(t, "Manuell korrigiert", row[7])
 }
 
@@ -1106,7 +1106,7 @@ func TestWSUpdateSession_StatusChangeRequiresNotes(t *testing.T) {
 	t.Parallel()
 
 	// Issue #1368: a status change without a reason must be rejected so the
-	// audit trail can never silently lose the "why" of a Vor Ort ↔ Homeoffice
+	// audit trail can never silently lose the "why" of an In der OGS ↔ Unterwegs
 	// switch. Empty/whitespace-only notes count as missing.
 	svc, sessionRepo, _, auditRepo, _ := wsCreateTestService()
 	staffID := int64(100)
