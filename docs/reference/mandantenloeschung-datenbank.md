@@ -132,7 +132,7 @@ DB-Aufträge ohne Inventar können nicht automatisch abgeschlossen werden.
 Die Migration installiert einen eingefrorenen, generierten Plan und statische
 SQL-Blöcke aus dem
 [gemeinsamen Katalog](datenkatalog.md), keinen zweiten fachlichen Katalog.
-Er umfasst 234 Löschziele: `tenant`, `tenantChild` und die Schulwurzel.
+Er umfasst 235 Löschziele: `tenant`, `tenantChild` und die Schulwurzel.
 Migration `1.15.505` installiert Plan, Sperrliste, Löschung, Restprüfung und
 Probelauf erneut mit den sieben schulbezogenen Mittagessen-Tabellen
 (Bestellungen, Anmeldeänderungen, Caterer-Einladungen und Belieferungen, #3873).
@@ -288,7 +288,7 @@ Fristausführung sind menschlich nachzuweisen.
    Superuser oder mit `BYPASSRLS`; die CLI-Rolle selbst darf dies nicht.
    Ownerprüfung und Rollenmitgliedschaften ohne Zugangsdaten dokumentieren.
    Nachweise im Produktivsystem sind noch offen.
-5. Das Wartungsfenster für 234 Löschziele und eingehende FK-Quellen einplanen.
+5. Das Wartungsfenster für 235 Löschziele und eingehende FK-Quellen einplanen.
    `SHARE ROW EXCLUSIVE` kann Schreibzugriffe anderer Schulen blockieren.
    Lock-/Statement-Zeitlimits und die Behandlung eines abgebrochenen Versuchs
    bleiben Aufgabe von 3837-c. Der Write-Fence-Wächter prüft `tenant_id`, nicht

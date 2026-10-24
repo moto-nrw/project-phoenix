@@ -25,8 +25,8 @@ func init() {
 // catalog (ADR 0092): a new school-scoped table needs a migration updating
 // the school erasure functions. Up installs them with the seven
 // school-scoped tables of the meal ordering (#3873); Down installs them as
-// development's latest erasure migration (1.15.492) left them. The caterer business
-// and its accounts are shared across schools and stay (ADR 0077).
+// development's latest erasure migration (1.15.492) left them. The caterer
+// business and its accounts are shared across schools and stay (ADR 0077).
 func mealOrderErasureUp(ctx context.Context, db *bun.DB) error {
 	return installSchoolErasureSteps(ctx, db, "add the meal orders to the school erasure",
 		installMealOrderErasurePlan, installMealOrderErasurePreflight, installMealOrderErasureResidual,
