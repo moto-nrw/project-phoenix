@@ -170,11 +170,20 @@ func (c *effectiveTimeCore[S, E, N, D]) createOrReclaimException(
 	reason *string,
 	staffID int64,
 	resolveStaffID func() (int64, error),
+	authorizeLockedStudent func(context.Context) error,
 ) (E, error) {
 	var result E
 	err := c.transactions.WithinTenant(ctx, func(txCtx context.Context) error {
 		if err := c.transactions.LockStudentAndExceptionDay(txCtx, studentID, date.String()); err != nil {
 			return err
+		}
+
+		// School-scoped writes must revalidate their subject after the student
+		// lock, in the same unit as conflict checks and exception persistence.
+		if authorizeLockedStudent != nil {
+			if err := authorizeLockedStudent(txCtx); err != nil {
+				return err
+			}
 		}
 
 		existing, err := c.exceptionForDate(txCtx, studentID, date)

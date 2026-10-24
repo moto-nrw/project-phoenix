@@ -37,6 +37,12 @@ func (b ClassDayWriteScope) SchoolMayWriteClassArrivalExceptions(ctx context.Con
 	return configModels.SchoolPortalWriteScopeIncludes(scope, configModels.SchoolPortalWriteScopeClassArrivalExceptions), nil
 }
 
+// SchoolMayReportClassTrips reports whether a Lehrkraft may report a class
+// trip through the school portal (#4799).
+func (b ClassDayWriteScope) SchoolMayReportClassTrips(ctx context.Context) (bool, error) {
+	return schoolPortalWriteScopeIncludes(ctx, b.Settings, configModels.SchoolPortalWriteScopeClassTrips)
+}
+
 // schoolPortalWriteScopeIncludes resolves the multi-select write scope
 // (#4794) and reports whether it ticks scope.
 func schoolPortalWriteScopeIncludes(ctx context.Context, settings classDayWriteScopeSettings, scope string) (bool, error) {
@@ -48,7 +54,7 @@ func schoolPortalWriteScopeIncludes(ctx context.Context, settings classDayWriteS
 }
 
 // newClassDayWriteScope binds the write scope; nil settings leave it unbound.
-func newClassDayWriteScope(settings classDayWriteScopeSettings) classdayCompose.ArrivalWriteScope {
+func newClassDayWriteScope(settings classDayWriteScopeSettings) classdayCompose.SchoolWriteScope {
 	if settings == nil {
 		return nil
 	}
