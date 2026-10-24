@@ -678,14 +678,14 @@ func TestProvisioningDeleteDevice(t *testing.T) {
 		}, auditChanges(t, entry))
 	})
 
-	t.Run("audit failure does not fail the deletion", func(t *testing.T) {
+	t.Run("audit failure fails the transaction", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
 		seed(h)
 		h.audit.err = errBoom
 
-		require.NoError(t, h.svc.DeleteDevice(context.Background(), 1, testOperatorID, operatorIP))
-		assert.Equal(t, []int64{1}, h.devices.deleted)
+		require.ErrorIs(t, h.svc.DeleteDevice(context.Background(), 1, testOperatorID, operatorIP), errBoom)
+		assert.ErrorIs(t, h.tx.lastErr, errBoom)
 	})
 
 	for name, tc := range map[string]struct {

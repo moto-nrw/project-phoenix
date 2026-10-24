@@ -151,7 +151,8 @@ var moduleLegacyFileBudgets = map[string]int{
 // Raised by ADR 0076: the restricted staff person repair compositions (+53).
 // Raised by ADR 0078 (the meal ordering rules) and ADR 0077 (the caterer
 // flows and the caterer portal).
-const moduleComposeBudgetTotal = 12497
+// ADR 0097: the isolated tenant return constructor adds exactly 18 LOC.
+const moduleComposeBudgetTotal = 12515
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -185,8 +186,9 @@ var moduleComposeBudgets = map[string]int{
 	"modules/guardianlinkview/compose":              8,
 	"modules/identityaccess/compose":                1348, // raised by ADR 0077
 	"modules/mealplan/compose":                      74,   // raised by ADR 0078
-	"modules/organizationtenancy/compose":           252,
-	"modules/parentrequestfeedprojection/compose":   11,
+	// ADR 0097: the isolated tenant return constructor, no retained logic moved.
+	"modules/organizationtenancy/compose":         270,
+	"modules/parentrequestfeedprojection/compose": 11,
 	// Raised by ADR 0076: the restricted administrative repair constructor.
 	"modules/peopledirectory/compose":       973,
 	"modules/presenceprojection/compose":    7,

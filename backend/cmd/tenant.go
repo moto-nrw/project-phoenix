@@ -3,27 +3,31 @@ package cmd
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	tenancyCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	transactionCompose "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/spf13/cobra"
 )
 
+func init() { RootCmd.AddCommand(newTenantCommand()) }
+
 func newTenantCommand() *cobra.Command {
-	parent := &cobra.Command{Use: "tenant", Short: "Internal tenant lifecycle procedure (see tenant-erasure runbook)"}
+	parent := tenantCommand(runTenantExport)
 	var request organizationtenancy.ErasureRequest
 	var root string
 	erase := &cobra.Command{Use: "erase", Short: "Erase one school, or process an organization's schools (root remains open)", Args: cobra.NoArgs, SilenceUsage: true, SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			db, err := transactionruntime.OpenDatabase()
+			db, err := transactionCompose.OpenDatabase()
 			if err != nil {
 				return errors.New("erasure: database connection unavailable")
 			}
 			defer func() { _ = db.Close() }()
-			service, err := tenancyCompose.NewErasure(db.Pool(), objects.NewLocal(root))
+			service, err := organizationCompose.NewErasure(db.Pool(), objects.NewLocal(root))
 			if err != nil {
 				return err
 			}
@@ -51,12 +55,12 @@ func newTenantCommand() *cobra.Command {
 	var receiptID int64
 	receipt := &cobra.Command{Use: "receipt", Short: "Export non-personal database/local-file phase evidence; external steps remain separate", Args: cobra.NoArgs, SilenceUsage: true, SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			db, err := transactionruntime.OpenDatabase()
+			db, err := transactionCompose.OpenDatabase()
 			if err != nil {
 				return errors.New("erasure: database connection unavailable")
 			}
 			defer func() { _ = db.Close() }()
-			service, err := tenancyCompose.NewErasure(db.Pool(), objects.NewLocal(""))
+			service, err := organizationCompose.NewErasure(db.Pool(), objects.NewLocal(""))
 			if err != nil {
 				return err
 			}
@@ -71,4 +75,49 @@ func newTenantCommand() *cobra.Command {
 	return parent
 }
 
-func init() { RootCmd.AddCommand(newTenantCommand()) }
+func tenantCommand(run func(*cobra.Command, organizationtenancy.TenantExportOptions) error) *cobra.Command {
+	parent := &cobra.Command{Use: "tenant", Short: "Internal tenant data lifecycle procedures"}
+	options := organizationtenancy.TenantExportOptions{}
+	export := &cobra.Command{
+		Use: "export", Short: "Return one school's data to a new private local directory", Args: cobra.NoArgs,
+		SilenceErrors: true, SilenceUsage: true,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			if cmd.Flags().Changed("person") && options.Person == "" {
+				return errors.New("tenant export: --person must not be empty")
+			}
+			return run(cmd, options)
+		},
+	}
+	export.Flags().Int64Var(&options.SchoolID, "school", 0, "Authorized school ID")
+	export.Flags().StringVar(&options.Output, "out", "", "New private output directory")
+	export.Flags().StringVar(&options.Uploads, "uploads", "", "Complete stable uploads root")
+	export.Flags().StringVar(&options.Person, "person", "", "Internal review only: kind:<profile ID>, guardian:<profile ID>, staff:<school membership ID>")
+	parent.AddCommand(export)
+	return parent
+}
+
+func runTenantExport(cmd *cobra.Command, options organizationtenancy.TenantExportOptions) error {
+	if options.SchoolID <= 0 || options.Output == "" || options.Uploads == "" {
+		return errors.New("tenant export: --school, --out and --uploads are required")
+	}
+	db, err := transactionCompose.OpenDatabase()
+	if err != nil {
+		return errors.New("tenant export: database unavailable")
+	}
+	defer func() { _ = db.Close() }()
+	exporter, err := organizationCompose.NewTenantExporter(db.Pool(), organizationtenancy.ExportFingerprints{
+		Bytes: securityruntime.Fingerprint, Reader: securityruntime.ReaderFingerprint,
+	})
+	if err != nil {
+		return err
+	}
+	if err := exporter.Export(cmd.Context(), options); err != nil {
+		return err
+	}
+	message := "Tenant export complete; verify COMPLETE and manifest before handover."
+	if options.Person != "" {
+		message = "Person review workspace created; completeness, third-party review and school approval REQUIRED before handover."
+	}
+	_, err = fmt.Fprintln(cmd.OutOrStdout(), message)
+	return err
+}

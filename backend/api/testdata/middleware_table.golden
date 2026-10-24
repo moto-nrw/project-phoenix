@@ -244,7 +244,6 @@ api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRunti
 	GET /operator/schools/{id}/settings/schema
 	GET /operator/schools/{id}/settings/values/{key}/reveal
 	GET /operator/stats
-	GET /operator/unregistered-tag-scans/
 	POST /operator/accounts/{accountId}/tenants
 	POST /operator/accounts/{accountId}/tenants/
 	POST /operator/announcements/
@@ -269,7 +268,6 @@ api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRunti
 	POST /operator/schools/{id}/create-account
 	POST /operator/schools/{id}/invite-admin
 	POST /operator/schools/{id}/restore
-	POST /operator/unregistered-tag-scans/{id}/resolve
 	PUT /operator/accounts/{accountId}/mfa/global-override
 	PUT /operator/accounts/{accountId}/tenants/{tenantId}
 	PUT /operator/announcements/{id}
@@ -279,6 +277,10 @@ api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRunti
 	PUT /operator/schools/{id}
 	PUT /operator/schools/{id}/accounts/{accountId}/mfa/override
 	PUT /operator/schools/{id}/settings/values/{key}
+
+api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRuntimeMiddleware.# > api/common.AuthorizationObserverMiddleware.# > api/common.TenantRuntimeObserverMiddleware.# > api/common.TenantRequestObserverMiddleware.# > github.com/go-chi/chi/v5/middleware.ClientIPFromXFFTrustedProxies.# > api.syncClientIPToRemoteAddr > api.(*httpMetrics).middleware-fm > github.com/samber/slog-chi.NewWithConfig.# > github.com/go-chi/chi/v5/middleware.Recoverer > api.ServerErrorReporting > middleware.SecurityHeaders > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > github.com/go-chi/jwtauth/v5.Verify.# > api.SentrySessionContext > analytics.CoreActionMiddleware.# > github.com/go-chi/render.SetContentType.# > github.com/go-chi/jwtauth/v5.Verify.# > modules/identityaccess/sessiontoken.Authenticator > api.ReadOnlyPreviewMiddleware > modules/identityaccess/inbound/operator.RequiresOperatorScope > api.SecurityPrincipalMiddleware > modules/identityaccess/inbound/operator.RequiresActiveOperator.# > api.mountOperatorTagScanRoutes.#
+	GET /operator/unregistered-tag-scans/
+	POST /operator/unregistered-tag-scans/{id}/resolve
 
 api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRuntimeMiddleware.# > api/common.AuthorizationObserverMiddleware.# > api/common.TenantRuntimeObserverMiddleware.# > api/common.TenantRequestObserverMiddleware.# > github.com/go-chi/chi/v5/middleware.ClientIPFromXFFTrustedProxies.# > api.syncClientIPToRemoteAddr > api.(*httpMetrics).middleware-fm > github.com/samber/slog-chi.NewWithConfig.# > github.com/go-chi/chi/v5/middleware.Recoverer > api.ServerErrorReporting > middleware.SecurityHeaders > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > github.com/go-chi/jwtauth/v5.Verify.# > api.SentrySessionContext > analytics.CoreActionMiddleware.# > github.com/go-chi/render.SetContentType.# > github.com/go-chi/jwtauth/v5.Verify.# > modules/identityaccess/sessiontoken.MFAEnrollmentAuthenticator
 	POST /operator/auth/mfa/enroll/confirm

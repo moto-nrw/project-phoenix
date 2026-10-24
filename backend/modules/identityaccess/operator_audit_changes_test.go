@@ -44,6 +44,9 @@ func TestOperatorMFAAuditChangesKeepTheStoredKeys(t *testing.T) {
 	}
 	assert.JSONEq(t, `{"action":"set","scope":"platform","override":"off","previous_override":"on","reason":"Wartung"}`,
 		auditJSON(t, mfa(&identityaccess.OperatorMFAEvidence{Override: override, Reason: "ignored"})))
+	assert.JSONEq(t, `{"action":"set_override","scope":"tenant","override":"force_off","previous_override":"force_on","school_id":42}`,
+		auditJSON(t, mfa(&identityaccess.OperatorMFAEvidence{Override: &identityaccess.OperatorMFAOverrideEvidence{SchoolID: 42, Action: "set_override", Scope: "tenant", Override: "force_off", PreviousOverride: "force_on", Reason: "must not be stored"}})))
+
 	assert.JSONEq(t, `{"reason":"zu viele Versuche"}`, auditJSON(t, mfa(&identityaccess.OperatorMFAEvidence{Reason: "zu viele Versuche", LockedUntil: &locked})))
 	assert.JSONEq(t, `{"locked_until":"2026-10-19T12:00:00Z"}`, auditJSON(t, mfa(&identityaccess.OperatorMFAEvidence{LockedUntil: &locked})))
 	assert.Empty(t, auditJSON(t, mfa(&identityaccess.OperatorMFAEvidence{})))
