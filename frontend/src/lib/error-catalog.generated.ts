@@ -351,6 +351,11 @@ export const ERROR_CATALOG = {
         "Im Raum {room_name} ist kein Platz mehr. Bitte wählen Sie einen anderen Raum.",
       "iot.student_already_active":
         "{object} ist bereits im Raum {room_name}. Bitte prüfen Sie den aktuellen Aufenthalt.",
+      "meals.child_not_enrolled":
+        "{object} geht nicht. Das Kind ist an diesem Tag nicht in der Betreuung.",
+      "meals.day_closed":
+        "{object} geht nicht. An diesem Tag ist die Schule geschlossen.",
+      "meals.day_past": "{object} geht nicht mehr. Der Tag ist schon vorbei.",
       "meals.invalid_allergens":
         "Die Allergene konnten nicht gespeichert werden. Bitte wählen Sie sie neu aus.",
       "meals.invalid_dishes":
@@ -1194,6 +1199,18 @@ export const ERROR_CATALOG = {
         "Dieser Scan ist schon erledigt. Bitte laden Sie die Seite neu.",
       "billing.invalid_key_day":
         "Der Stichtag muss zwischen dem 1. und dem 28. des Monats liegen. Bitte wählen Sie einen dieser Tage.",
+      "identity.caterer_address_taken":
+        "Diese E-Mail-Adresse gehört schon zu einem anderen moto-Konto. Bitte nehmen Sie eine andere Adresse.",
+      "identity.caterer_without_school":
+        "Sie beliefern zurzeit keine Schule über moto. Bitte fragen Sie die Schule.",
+      "meals.delivery_range_too_long":
+        "Die Lieferliste umfasst höchstens sieben Tage. Bitte wählen Sie einen kürzeren Zeitraum.",
+      "meals.not_supplied":
+        "Sie beliefern diese Schule nicht mehr. Bitte fragen Sie die Schule.",
+      "meals.order_not_found":
+        "Diese Bestellung gibt es nicht. Bitte laden Sie die Seite neu.",
+      "meals.supply_active":
+        "{object} geht gerade nicht. Ein Caterer beliefert die Schule noch. Beenden Sie zuerst diese Belieferung.",
       "staff.external_email_required":
         "Bitte geben Sie eine E-Mail-Adresse ein.",
       "staff.external_email_invalid":
@@ -1422,6 +1439,12 @@ export const ERROR_CATALOG = {
         "This invitation does not exist. Please check the link in the email.",
       "identity.invitation_expired":
         "This invitation has expired or has already been used. Please ask your school for a new invitation.",
+      "meals.child_not_enrolled":
+        "{object} is not possible. The child is not in care on this day.",
+      "meals.day_closed":
+        "{object} is not possible. The school is closed on this day.",
+      "meals.day_past":
+        "{object} is no longer possible. The day is already over.",
       "meals.invalid_allergens":
         "The allergens could not be saved. Please select them again.",
       "meals.invalid_participation":
@@ -1508,6 +1531,18 @@ export const ERROR_CATALOG = {
         "Sign-in verification is currently unavailable. Please try again.",
       "identity.mfa_session_required":
         "Signing in to {object} requires a second verification. Use the button to sign out and open that school’s sign-in page. Sign in there again and complete the verification.",
+      "identity.caterer_address_taken":
+        "This email address already belongs to another moto account. Please use a different address.",
+      "identity.caterer_without_school":
+        "You do not supply any school through moto at the moment. Please ask the school.",
+      "meals.delivery_range_too_long":
+        "The delivery list covers at most seven days. Please choose a shorter period.",
+      "meals.not_supplied":
+        "You no longer supply this school. Please ask the school.",
+      "meals.order_not_found":
+        "This order does not exist. Please reload the page.",
+      "meals.supply_active":
+        "{object} is not possible right now. A caterer still supplies the school. Please end that supply first.",
       "staff.external_email_required": "Please enter an email address.",
       "staff.external_email_invalid":
         "This email address is not valid. Please check it.",
@@ -1731,6 +1766,10 @@ export const ERROR_CATALOG = {
         "Такого приглашения нет. Проверьте ссылку в письме.",
       "identity.invitation_expired":
         "Это приглашение истекло или уже было использовано. Попросите в школе новое приглашение.",
+      "meals.child_not_enrolled":
+        "Невозможно: {object}. В этот день ребёнок не находится под присмотром.",
+      "meals.day_closed": "Невозможно: {object}. В этот день школа закрыта.",
+      "meals.day_past": "Уже невозможно: {object}. Этот день уже прошёл.",
       "meals.invalid_allergens":
         "Не удалось сохранить аллергены. Пожалуйста, выберите их заново.",
       "meals.invalid_participation":
@@ -1812,6 +1851,18 @@ export const ERROR_CATALOG = {
         "Подтверждение входа сейчас недоступно. Попробуйте ещё раз.",
       "identity.mfa_session_required":
         "Для входа в {object} требуется дополнительное подтверждение. Кнопка завершит текущий сеанс и откроет страницу входа этой школы. Войдите там заново и подтвердите вход.",
+      "identity.caterer_address_taken":
+        "Этот адрес электронной почты уже принадлежит другой учётной записи moto. Пожалуйста, укажите другой адрес.",
+      "identity.caterer_without_school":
+        "Сейчас вы не снабжаете ни одну школу через moto. Пожалуйста, обратитесь в школу.",
+      "meals.delivery_range_too_long":
+        "Список доставки охватывает не более семи дней. Пожалуйста, выберите более короткий период.",
+      "meals.not_supplied":
+        "Вы больше не снабжаете эту школу. Пожалуйста, обратитесь в школу.",
+      "meals.order_not_found":
+        "Такого заказа нет. Пожалуйста, обновите страницу.",
+      "meals.supply_active":
+        "{object} сейчас невозможно. Школу ещё снабжает поставщик питания. Сначала завершите эти поставки.",
       "communication.group_thread_closed":
         "Это групповое сообщение закрыто. Ответить больше нельзя.",
       "communication.group_thread_no_recipients":
@@ -2028,6 +2079,11 @@ export const ERROR_CATALOG = {
         "Kjo ftesë nuk ekziston. Kontrolloni lidhjen në e-mail.",
       "identity.invitation_expired":
         "Kjo ftesë ka skaduar ose është përdorur tashmë. Kërkojini shkollës suaj një ftesë të re.",
+      "meals.child_not_enrolled":
+        "Nuk është e mundur: {object}. Fëmija nuk është në kujdes në këtë ditë.",
+      "meals.day_closed":
+        "Nuk është e mundur: {object}. Shkolla është e mbyllur në këtë ditë.",
+      "meals.day_past": "Nuk është më e mundur: {object}. Dita ka kaluar.",
       "meals.invalid_allergens":
         "Alergjenët nuk u ruajtën. Ju lutemi zgjidhini përsëri.",
       "meals.invalid_participation":
@@ -2119,6 +2175,18 @@ export const ERROR_CATALOG = {
         "Verifikimi i hyrjes nuk është i disponueshëm tani. Provoni përsëri.",
       "identity.mfa_session_required":
         "Hyrja në {object} kërkon një verifikim të dytë. Butoni ju nxjerr nga llogaria dhe hap hyrjen e asaj shkolle. Hyni atje përsëri dhe konfirmoni hyrjen.",
+      "identity.caterer_address_taken":
+        "Kjo adresë email i përket tashmë një llogarie tjetër moto. Ju lutemi përdorni një adresë tjetër.",
+      "identity.caterer_without_school":
+        "Aktualisht nuk furnizoni asnjë shkollë përmes moto. Ju lutemi pyesni shkollën.",
+      "meals.delivery_range_too_long":
+        "Lista e dorëzimit përfshin të shumtën shtatë ditë. Ju lutemi zgjidhni një periudhë më të shkurtër.",
+      "meals.not_supplied":
+        "Ju nuk e furnizoni më këtë shkollë. Ju lutemi pyesni shkollën.",
+      "meals.order_not_found":
+        "Kjo porosi nuk ekziston. Ju lutemi ringarkoni faqen.",
+      "meals.supply_active":
+        "{object} nuk është e mundur tani. Një furnizues ushqimi e furnizon ende shkollën. Përfundoni fillimisht atë furnizim.",
       "communication.group_thread_closed":
         "Ky mesazh grupi është mbyllur. Nuk mund të përgjigjeni më.",
       "communication.group_thread_no_recipients":
@@ -2332,6 +2400,11 @@ export const ERROR_CATALOG = {
         "To zaproszenie nie istnieje. Sprawdź link w e-mailu.",
       "identity.invitation_expired":
         "To zaproszenie wygasło lub zostało już użyte. Poproś swoją szkołę o nowe zaproszenie.",
+      "meals.child_not_enrolled":
+        "Nie można: {object}. Dziecko nie jest tego dnia pod opieką.",
+      "meals.day_closed":
+        "Nie można: {object}. Tego dnia szkoła jest zamknięta.",
+      "meals.day_past": "Już nie można: {object}. Ten dzień już minął.",
       "meals.invalid_allergens":
         "Nie udało się zapisać alergenów. Prosimy wybrać je ponownie.",
       "meals.invalid_participation":
@@ -2413,6 +2486,18 @@ export const ERROR_CATALOG = {
         "Weryfikacja logowania jest teraz niedostępna. Spróbuj ponownie.",
       "identity.mfa_session_required":
         "Logowanie do {object} wymaga dodatkowego potwierdzenia. Przycisk wyloguje Cię i otworzy stronę logowania tej szkoły. Zaloguj się tam ponownie i potwierdź logowanie.",
+      "identity.caterer_address_taken":
+        "Ten adres e-mail należy już do innego konta moto. Proszę użyć innego adresu.",
+      "identity.caterer_without_school":
+        "Obecnie nie zaopatrujesz żadnej szkoły przez moto. Proszę zapytać szkołę.",
+      "meals.delivery_range_too_long":
+        "Lista dostaw obejmuje maksymalnie siedem dni. Proszę wybrać krótszy okres.",
+      "meals.not_supplied":
+        "Nie zaopatrujesz już tej szkoły. Proszę zapytać szkołę.",
+      "meals.order_not_found":
+        "To zamówienie nie istnieje. Proszę odświeżyć stronę.",
+      "meals.supply_active":
+        "{object} nie jest teraz możliwe. Szkołę nadal zaopatruje firma cateringowa. Najpierw zakończ to zaopatrzenie.",
       "communication.group_thread_closed":
         "Ta wiadomość grupowa jest zamknięta. Nie można już odpowiedzieć.",
       "communication.group_thread_no_recipients":
@@ -2627,6 +2712,10 @@ export const ERROR_CATALOG = {
         "Bu davet mevcut değil. Lütfen e-postadaki bağlantıyı kontrol edin.",
       "identity.invitation_expired":
         "Bu davetin süresi dolmuş veya davet zaten kullanılmış. Lütfen okulunuzdan yeni bir davet isteyin.",
+      "meals.child_not_enrolled":
+        "{object} mümkün değil. Çocuk bu gün bakımda değil.",
+      "meals.day_closed": "{object} mümkün değil. Okul bu gün kapalı.",
+      "meals.day_past": "{object} artık mümkün değil. Bu gün geçti.",
       "meals.invalid_allergens":
         "Alerjenler kaydedilemedi. Lütfen yeniden seçin.",
       "meals.invalid_participation":
@@ -2714,6 +2803,18 @@ export const ERROR_CATALOG = {
         "Giriş doğrulaması şu anda kullanılamıyor. Lütfen tekrar deneyin.",
       "identity.mfa_session_required":
         "{object} okuluna giriş için ikinci bir doğrulama gerekiyor. Düğme oturumunuzu kapatır ve o okulun giriş sayfasını açar. Orada yeniden giriş yapın ve doğrulamayı tamamlayın.",
+      "identity.caterer_address_taken":
+        "Bu e-posta adresi zaten başka bir moto hesabına ait. Lütfen başka bir adres kullanın.",
+      "identity.caterer_without_school":
+        "Şu anda moto üzerinden hiçbir okula yemek sağlamıyorsunuz. Lütfen okula danışın.",
+      "meals.delivery_range_too_long":
+        "Teslimat listesi en fazla yedi günü kapsar. Lütfen daha kısa bir dönem seçin.",
+      "meals.not_supplied":
+        "Artık bu okula yemek sağlamıyorsunuz. Lütfen okula danışın.",
+      "meals.order_not_found":
+        "Bu sipariş mevcut değil. Lütfen sayfayı yeniden yükleyin.",
+      "meals.supply_active":
+        "{object} şu anda mümkün değil. Okula hâlâ bir yemek firması yemek sağlıyor. Önce bu tedariki sonlandırın.",
       "communication.group_thread_closed":
         "Bu grup mesajı kapatıldı. Artık yanıt veremezsiniz.",
       "communication.group_thread_no_recipients":
@@ -2925,6 +3026,10 @@ export const ERROR_CATALOG = {
         "Такого запрошення немає. Перевірте посилання в листі.",
       "identity.invitation_expired":
         "Це запрошення вже недійсне або його вже використали. Попросіть у школи нове запрошення.",
+      "meals.child_not_enrolled":
+        "Неможливо: {object}. Цього дня дитина не перебуває під доглядом.",
+      "meals.day_closed": "Неможливо: {object}. Цього дня школа зачинена.",
+      "meals.day_past": "Уже неможливо: {object}. Цей день уже минув.",
       "meals.invalid_allergens":
         "Не вдалося зберегти алергени. Будь ласка, виберіть їх знову.",
       "meals.invalid_participation":
@@ -3005,6 +3110,18 @@ export const ERROR_CATALOG = {
         "Підтвердження входу зараз недоступне. Спробуйте ще раз.",
       "identity.mfa_session_required":
         "Для входу до {object} потрібне додаткове підтвердження. Кнопка завершить поточний сеанс і відкриє сторінку входу цієї школи. Увійдіть там знову й підтвердьте вхід.",
+      "identity.caterer_address_taken":
+        "Ця адреса електронної пошти вже належить іншому обліковому запису moto. Будь ласка, вкажіть іншу адресу.",
+      "identity.caterer_without_school":
+        "Зараз ви не постачаєте жодну школу через moto. Будь ласка, зверніться до школи.",
+      "meals.delivery_range_too_long":
+        "Список доставки охоплює щонайбільше сім днів. Будь ласка, виберіть коротший період.",
+      "meals.not_supplied":
+        "Ви більше не постачаєте цю школу. Будь ласка, зверніться до школи.",
+      "meals.order_not_found":
+        "Такого замовлення немає. Будь ласка, оновіть сторінку.",
+      "meals.supply_active":
+        "{object} зараз неможливо. Школу ще постачає постачальник харчування. Спочатку завершіть ці постачання.",
       "communication.group_thread_closed":
         "Це групове повідомлення закрито. Відповісти більше не можна.",
       "communication.group_thread_no_recipients":
