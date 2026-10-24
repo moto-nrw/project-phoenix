@@ -426,3 +426,36 @@ func (f *surveyFixture) answerAll2(t *testing.T, survey *communication.Survey, f
 		}))
 	}
 }
+
+// TestSurveyListsQueryBudgetStaysFlat: the survey lists and the evaluation
+// read in a fixed number of statements, however many surveys, questions or
+// answers there are.
+func TestSurveyListsQueryBudgetStaysFlat(t *testing.T) {
+	t.Parallel()
+	f := newSurveyFixture(t, 3)
+	var surveys []*communication.Survey
+	for range 3 {
+		surveys = append(surveys, f.publishStaffSurvey(t, true))
+	}
+	f.answerAll(t, surveys[0], 3)
+	ctx := testpkg.WithTenantRuntime(t, testpkg.Ctx(t), f.db)
+
+	counter := testpkg.CaptureQueriesForContext(t, f.db)
+	rows, err := testpkg.MeasuredTenantQuery0(t, counter.Context(ctx), f.db, counter, f.surveys.ListSurveys)
+	require.NoError(t, err)
+	require.Len(t, rows, 3)
+	assert.Equal(t, 3, rows[2].ParticipantCount+rows[1].ParticipantCount+rows[0].ParticipantCount)
+	testpkg.AssertQueryBudget(t, "modules.communication.surveys.list", counter.Queries())
+
+	open := testpkg.CaptureQueriesForContext(t, f.db)
+	toAnswer, err := testpkg.MeasuredTenantQuery1(t, open.Context(ctx), f.db, open, f.surveys.StaffSurveysToAnswer, f.staff[1].AccountID)
+	require.NoError(t, err)
+	require.Len(t, toAnswer, 3)
+	testpkg.AssertQueryBudget(t, "modules.communication.surveys.to_answer", open.Queries())
+
+	evaluation := testpkg.CaptureQueriesForContext(t, f.db)
+	results, err := testpkg.MeasuredTenantQuery1(t, evaluation.Context(ctx), f.db, evaluation, f.surveys.SurveyResults, surveys[0].ID)
+	require.NoError(t, err)
+	require.Len(t, results.Questions, 0, "three answers stay below the minimum")
+	testpkg.AssertQueryBudget(t, "modules.communication.surveys.results", evaluation.Queries())
+}
