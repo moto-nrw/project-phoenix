@@ -158,3 +158,36 @@ describe("useApiLoadError", () => {
     );
   });
 });
+
+// Ein nicht gebuchtes Modul (#4894) ist ein Zustand, kein Fehler: kein
+// Wiederholen, keine rote Meldung, und die Schuldaten laden neu.
+describe("useApiLoadError mit module.not_booked", () => {
+  it("erklärt das Modul als Hinweis und lädt die Schuldaten neu", async () => {
+    const stale = vi.fn();
+    window.addEventListener("phoenix:tenant-settings-stale", stale);
+    try {
+      renderSection(
+        new ApiError("module not booked", 403, {
+          code: "module.not_booked",
+          details: { module: "zeiterfassung", module_label: "Zeiterfassung" },
+        }),
+        vi.fn(),
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: "Laden" }));
+
+      const message = await screen.findByText(
+        "Ihre Schule hat das Modul Zeiterfassung nicht gebucht. Für eine Buchung wenden Sie sich an das moto-Team.",
+      );
+      // Ein Hinweis (role=status), keine Fehlermeldung, kein Wiederholen.
+      expect(message.closest('[role="status"]')).not.toBeNull();
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Erneut versuchen" }),
+      ).not.toBeInTheDocument();
+      expect(stale).toHaveBeenCalledTimes(1);
+    } finally {
+      window.removeEventListener("phoenix:tenant-settings-stale", stale);
+    }
+  });
+});

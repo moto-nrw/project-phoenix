@@ -46,6 +46,14 @@ export function FormErrorAlert({ message, className }: FormErrorAlertProps) {
 
   if (!text) return null;
 
+  if (formErrorDetail(message)?.notBookedModule) {
+    return (
+      <div ref={ref} className={className}>
+        <Alert type="info" message={text} />
+      </div>
+    );
+  }
+
   const action = errorAlertActions(formErrorDetail(message));
 
   return (
@@ -112,6 +120,11 @@ export function LoadErrorAlert({
 }) {
   const text = formErrorMessage(error);
   if (!text) return null;
+  // A module the school did not book is a state, not a failure (#4894): the
+  // catalog text says who books it, there is nothing to retry.
+  if (formErrorDetail(error)?.notBookedModule) {
+    return <Alert type="info" message={text} className={className} />;
+  }
   return (
     <Alert
       type="error"

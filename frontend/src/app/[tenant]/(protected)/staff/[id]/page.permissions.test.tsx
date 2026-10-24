@@ -1,4 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { MODULE_KEYS } from "~/lib/modules";
+import { useBookedModules } from "~/lib/tenant-context";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -329,6 +331,51 @@ describe("StaffDetailContent permissions", () => {
       screen.queryByRole("link", { name: "Abrechnung" }),
     ).not.toBeInTheDocument();
     expect(replaceMock).not.toHaveBeenCalled();
+  });
+
+  // Modul-Register (#4894): Zeiterfassung, Arbeitszeitmodell und
+  // Abwesenheiten gehören zur Zeiterfassung, Stammdaten und Dokumente zur
+  // Personalakte. Ohne gebuchtes Modul fehlen ihre Reiter.
+  it("blendet die Reiter nicht gebuchter Module aus", () => {
+    vi.mocked(useBookedModules).mockReturnValue(
+      MODULE_KEYS.filter(
+        (key) => key !== "zeiterfassung" && key !== "personalakte",
+      ),
+    );
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          id: "7",
+          token: "test-token",
+          roles: ["admin"],
+          permissions: ["admin:*"],
+        },
+        expires: "2099-01-01T00:00:00.000Z",
+      },
+      status: "authenticated",
+      update: vi.fn(),
+    });
+    try {
+      render(<StaffDetailContent />);
+
+      // Anker: die Basis-Reiter bleiben.
+      expect(screen.getByRole("tab", { name: "Konto" })).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: "Klassen" })).toBeInTheDocument();
+      for (const label of [
+        "Übersicht",
+        "Zeiterfassung",
+        "Arbeitszeitmodell",
+        "Abwesenheiten",
+        "Stammdaten",
+        "Dokumente",
+      ]) {
+        expect(
+          screen.queryByRole("tab", { name: label }),
+        ).not.toBeInTheDocument();
+      }
+    } finally {
+      vi.mocked(useBookedModules).mockReturnValue([...MODULE_KEYS]);
+    }
   });
 
   it("passes the selected date from a time-tracking deep link", () => {

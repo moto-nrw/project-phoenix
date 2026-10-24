@@ -16,6 +16,11 @@ import { clientEnv } from "~/env.client";
 import { normalizeLocale, type AppLocale } from "~/i18n/locales";
 import { ApiError } from "~/lib/api-error";
 import {
+  announceModuleBookingStale,
+  notBookedModuleOf,
+} from "~/lib/module-not-booked";
+import type { ModuleKey } from "~/lib/modules";
+import {
   errorLogFields,
   logDisplayedError,
   type ErrorSurface,
@@ -451,6 +456,8 @@ export function loginUrl(host: string, path: string): string {
 /** What one failed action shows, in a toast or in the form's alert. */
 interface DisplayedError {
   message: string;
+  /** Refused with `module.not_booked` (#4894): explained, not retried. */
+  notBookedModule?: ModuleKey;
   retry?: { label: string; onClick: () => void };
   requestId?: string;
   requestIdLabel?: string;
@@ -580,6 +587,21 @@ function useApiErrorCore(
         ...(presentation.fields.length > 0 && { fields: presentation.fields }),
       });
       const labels = errorDisplayLabels(locale);
+      const notBookedModule = notBookedModuleOf(error);
+      if (notBookedModule) {
+        announceModuleBookingStale();
+        setFieldErrors({});
+        deliver(
+          {
+            message: [presentation.message, options.messageSuffix]
+              .filter(Boolean)
+              .join(" "),
+            notBookedModule,
+          },
+          locale,
+        );
+        return presentation;
+      }
       setFieldErrors(
         markFields
           ? Object.fromEntries(
@@ -653,6 +675,7 @@ function toFormErrorDetail(
   const labels = toastLabelsByLocale[locale];
   return {
     message: shown.message,
+    notBookedModule: shown.notBookedModule,
     retry: shown.retry,
     requestId: shown.requestId
       ? {

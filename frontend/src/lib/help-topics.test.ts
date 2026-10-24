@@ -548,7 +548,8 @@ describe("getParentHelpTopicForPath", () => {
     // einem Kind.
     // 83 seit #3821: der eigene Dienstplan ist ein geteilter Artikel.
     // 84 seit #3727: die wichtigsten Einstellungen im Überblick.
-    expect(leadTopics).toHaveLength(85);
+    // 86 seit #4894: Welche Module hat meine Schule?
+    expect(leadTopics).toHaveLength(86);
     expect(
       leadTopics.every(
         (topic) =>

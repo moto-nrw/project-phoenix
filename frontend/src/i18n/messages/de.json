@@ -2942,6 +2942,9 @@
         "module_requires": "{module} braucht das Modul {required}. Bitte buchen Sie zuerst {required}.",
         "module_required_by": "{module} kann nicht abbestellt werden, solange {dependents} gebucht ist. Bitte bestellen Sie zuerst {dependents} ab."
       },
+      "module": {
+        "not_booked": "Ihre Schule hat das Modul {module_label} nicht gebucht. Für eine Buchung wenden Sie sich an das moto-Team."
+      },
       "devices": {
         "tag_scan_not_found": "Diesen Scan gibt es nicht mehr. Bitte laden Sie die Seite neu.",
         "tag_scan_already_resolved": "Dieser Scan ist schon erledigt. Bitte laden Sie die Seite neu."

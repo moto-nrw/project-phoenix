@@ -4,6 +4,7 @@ import { BreadcrumbProvider } from "~/lib/breadcrumb-context";
 import { GroupAttendanceCountProvider } from "~/lib/group-attendance-count-context";
 import { TeacherShellProvider } from "~/lib/shell-auth-context";
 import { AppShell } from "~/components/dashboard/app-shell";
+import { NotBookedPageProvider } from "~/lib/not-booked-page-context";
 import { ShellIntlProvider } from "~/components/dashboard/shell-intl-provider";
 import { AnnouncementModal } from "~/components/platform/announcement-modal";
 import { PwaInstallHint } from "~/components/tenant/pwa-install-hint";
@@ -23,7 +24,10 @@ export default function ProtectedLayout({
       <TeacherShellProvider>
         <BreadcrumbProvider>
           <GroupAttendanceCountProvider>
-            <AppShell>{children}</AppShell>
+            <AppShell>
+              {/* Seiten nicht gebuchter Module erklären sich im Gerüst (#4894). */}
+              <NotBookedPageProvider>{children}</NotBookedPageProvider>
+            </AppShell>
           </GroupAttendanceCountProvider>
           <AnnouncementModal />
           {/* Erste Schritte für neue Schulen (#2832). Nur für Personen, die

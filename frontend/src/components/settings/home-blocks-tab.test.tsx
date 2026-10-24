@@ -47,6 +47,21 @@ vi.mock("~/lib/tenant-context", () => ({
   usePresenceMode: () => "detailed",
   useOpenCareGroupMode: () => false,
   useNFCEnabled: () => true,
+  // Alle Module gebucht, wie die Voreinstellung der Registry (#4892).
+  useBookedModules: () => [
+    "nfc_anwesenheit",
+    "mittagessen",
+    "eltern_app",
+    "online_anmeldung",
+    "unterricht_vormittag",
+    "dienstplan",
+    "zeiterfassung",
+    "personalakte",
+    "traeger_uebersicht",
+    "ferienbetreuung",
+    "vertraege",
+    "elternbeitraege",
+  ],
 }));
 
 // Die beiden Geburtstags-Schalter der Schule (#3737) kommen aus dem
