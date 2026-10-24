@@ -13,7 +13,7 @@ var feedback_init_feedback_0Definitions = []config.Definition{
 	{
 		Key:             config.KeyFeedbackEnabled,
 		Label:           "Feedback der Kinder zum Tag und zum Essen",
-		Description:     "Kinder zeigen beim Gehen am Tablet mit einem Smiley, wie ihr Tag war. Der Schalter gilt auch, wenn Kinder das Essen bewerten. Das Team sieht die Rückmeldungen beim Kind. Aus Datenschutzgründen ist das zunächst ausgeschaltet.",
+		Description:     "Kinder zeigen beim Gehen am Tablet mit einem Smiley, wie ihr Tag war. Der Schalter gilt auch für Bewertungen des Essens. Das Team sieht die Rückmeldungen beim Kind. Aus Datenschutzgründen ist das zunächst ausgeschaltet.",
 		Type:            config.FieldBoolean,
 		Default:         false,
 		ReadPermission:  "config:read",
