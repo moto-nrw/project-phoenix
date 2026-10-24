@@ -155,7 +155,7 @@ func lockedElsewhere(route string) bool {
 }
 
 // checkModuleBookingGate drives the lock through the production router: a
-// school that cancelled a module gets settings.module_not_booked on its
+// school that cancelled a module gets module.not_booked on its
 // routes, a second school with the module keeps them, Basis routes stay
 // reachable, and booking again finds the data unchanged (#4893).
 func checkModuleBookingGate(t *testing.T, api *goldenRuntime) {
@@ -210,13 +210,13 @@ func checkModuleBookingGate(t *testing.T, api *goldenRuntime) {
 	for _, tc := range cases {
 		status, body := request(cancelledToken, tc.method, tc.path, "{}")
 		require.Equalf(t, http.StatusForbidden, status, "%s %s without %s: %v", tc.method, tc.path, tc.module, body)
-		require.Equalf(t, common.CodeSettingsModuleNotBooked, body["code"], "%s %s: %v", tc.method, tc.path, body)
+		require.Equalf(t, common.CodeModuleNotBooked, body["code"], "%s %s: %v", tc.method, tc.path, body)
 		details, _ := body["details"].(map[string]any)
 		require.Equalf(t, string(tc.module), details["module"], "%s %s names its module: %v", tc.method, tc.path, body)
 		require.NotEmptyf(t, details["module_label"], "%s %s names the module for people: %v", tc.method, tc.path, body)
 
 		status, body = request(bookedToken, tc.method, tc.path, "{}")
-		require.NotEqualf(t, common.CodeSettingsModuleNotBooked, body["code"], "%s %s for the school that booked %s: %d %v", tc.method, tc.path, tc.module, status, body)
+		require.NotEqualf(t, common.CodeModuleNotBooked, body["code"], "%s %s for the school that booked %s: %d %v", tc.method, tc.path, tc.module, status, body)
 	}
 
 	t.Run("Basis stays reachable", func(t *testing.T) {

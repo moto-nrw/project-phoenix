@@ -41,6 +41,7 @@ const (
 	CodeMealsPlanDisabled                             = "meals.plan_disabled"
 	CodeMealsPlanWeekOutOfRange                       = "meals.plan_week_out_of_range"
 	CodeMealsRegistrationDisabled                     = "meals.registration_disabled"
+	CodeModuleNotBooked                               = "module.not_booked"
 	CodeOperatorAuditUnavailable                      = "operator.audit_unavailable"
 	CodePickupBulkExceptionConfirmationRequired       = "pickup.bulk_exception_confirmation_required"
 	CodePickupFutureManualReset                       = "pickup.future_manual_reset"
@@ -96,7 +97,6 @@ const (
 	CodeSettingsBookingAuthorityBlocked               = "settings.booking_authority_blocked"
 	CodeSettingsInvalidValue                          = "settings.invalid_value"
 	CodeSettingsManagedByUpload                       = "settings.managed_by_upload"
-	CodeSettingsModuleNotBooked                       = "settings.module_not_booked"
 	CodeSettingsModuleRequiredBy                      = "settings.module_required_by"
 	CodeSettingsModuleRequires                        = "settings.module_requires"
 	CodeSettingsNotFound                              = "settings.not_found"
@@ -344,6 +344,7 @@ var errorCodeClasses1 = map[string]string{
 	"meals.plan_disabled":                                 "permission",
 	"meals.plan_week_out_of_range":                        "input",
 	"meals.registration_disabled":                         "permission",
+	"module.not_booked":                                   "permission",
 	"operator.audit_unavailable":                          "unavailable",
 	"pickup.bulk_exception_confirmation_required":         "input",
 	"pickup.future_manual_reset":                          "business_rejection",
@@ -399,7 +400,6 @@ var errorCodeClasses1 = map[string]string{
 	"settings.booking_authority_blocked":                  "business_rejection",
 	"settings.invalid_value":                              "input",
 	"settings.managed_by_upload":                          "business_rejection",
-	"settings.module_not_booked":                          "permission",
 	"settings.module_required_by":                         "input",
 	"settings.module_requires":                            "input",
 	"settings.not_found":                                  "business_rejection",

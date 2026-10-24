@@ -40,7 +40,7 @@ func moduleRoutesMiddleware(booking *settings.ModuleBooking) func(http.Handler) 
 }
 
 // requireBookedModule refuses a request whose module the bound school has
-// not booked with 403 settings.module_not_booked; the module key travels in
+// not booked with 403 module.not_booked; the module key travels in
 // details so the client can explain the missing module. A failed read is a
 // server error, never a booking decision. Without a requirement (Basis, or a
 // router without the classification) and without a bound school (platform
@@ -74,5 +74,5 @@ func moduleNotBookedResponse(notBooked *settings.ModuleNotBookedError) render.Re
 	if definition, ok := settings.LookupModule(notBooked.Module); ok {
 		details["module_label"] = definition.Label
 	}
-	return common.ErrorForbiddenWithDetails(notBooked, common.CodeSettingsModuleNotBooked, details)
+	return common.ErrorForbiddenWithDetails(notBooked, common.CodeModuleNotBooked, details)
 }

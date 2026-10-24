@@ -2936,8 +2936,10 @@
         "attendance_visible_exceeds_retention": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "attendance_retention_below_visible": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "module_requires": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
-        "module_required_by": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
-        "module_not_booked": "Twoja szkoła nie zamówiła modułu {module_label}. Dlatego ta funkcja jest niedostępna."
+        "module_required_by": "Nie udało się zapisać: {object}. Sprawdź wpisane dane."
+      },
+      "module": {
+        "not_booked": "Twoja szkoła nie zamówiła modułu {module_label}. Dlatego ta funkcja jest niedostępna."
       },
       "devices": {
         "tag_scan_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",

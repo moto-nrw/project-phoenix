@@ -4253,13 +4253,13 @@
       "legacy": "settings.module_required_by"
     },
     {
-      "code": "settings.module_not_booked",
+      "code": "module.not_booked",
       "class": "permission",
       "parameters": [
         "module",
         "module_label"
       ],
-      "legacy": "settings.module_not_booked"
+      "legacy": "module.not_booked"
     },
     {
       "code": "communication.announcement_not_found",

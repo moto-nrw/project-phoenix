@@ -120,7 +120,7 @@ func TestModuleLockRefusesACancelledModuleOfItsSchoolOnly(t *testing.T) {
 		Details map[string]any `json:"details"`
 	}
 	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
-	assert.Equal(t, common.CodeSettingsModuleNotBooked, body.Code)
+	assert.Equal(t, common.CodeModuleNotBooked, body.Code)
 	assert.Equal(t, "zeiterfassung", body.Details["module"])
 	assert.Equal(t, "Zeiterfassung", body.Details["module_label"])
 
