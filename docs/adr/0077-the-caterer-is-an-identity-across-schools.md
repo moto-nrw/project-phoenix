@@ -157,7 +157,7 @@ The Meal Plan's public contract splits into `Menu`, `Registration` and
 
 ## Policy
 
-Policy epoch 92 → 93 registers the data-less workflow owner `caterer-portal`
+Policy epoch 93 → 94 registers the data-less workflow owner `caterer-portal`
 with its five new packages (ADR 0013 path, #3130) and the rules its code
 uses: its public contract and ports speak the public Identity & Access and
 Meal Plan contracts, its composition binds the tenant runtime, and its HTTP
