@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -65,7 +66,7 @@ func newRequestSignatureResponse(s *capability.RequestSignature, withImage bool)
 
 // attachAdminSignature adds the request's signature to the staff detail and
 // returns it for the proof.
-func (rs *Resource) attachAdminSignature(ctx context.Context, detail *AdminRequestDetail, requestID int64) (*capability.RequestSignature, error) {
+func (rs *Resource) attachAdminSignature(ctx context.Context, detail *AdminRequestDetail, requestID int64) (*SignatureProof, error) {
 	if rs.RequestService == nil {
 		return nil, nil
 	}
@@ -74,16 +75,19 @@ func (rs *Resource) attachAdminSignature(ctx context.Context, detail *AdminReque
 		return nil, err
 	}
 	detail.Signature = newRequestSignatureResponse(proof.Signature, true)
-	return proof.Signature, nil
+	return proof, nil
 }
 
 // signatureProof is what a proof PDF prints.
 type signatureProof struct {
-	Request   *Request
-	Children  []*RequestChild
-	Guardians []*capability.RequestGuardian
-	PhaseName string
-	Signature *capability.RequestSignature
+	Request            *Request
+	Children           []*RequestChild
+	Guardians          []*capability.RequestGuardian
+	Schema             *capability.FormSchema
+	OfferingSelections []*capability.RequestChildOfferingRecord
+	OfferingNames      map[int64]string
+	PhaseName          string
+	Signature          *capability.RequestSignature
 }
 
 var errSignatureProofMissing = errors.New("enrollment request has no signature")
@@ -95,8 +99,16 @@ func wantsProofPDF(r *http.Request) bool {
 }
 
 // writeAdminSignatureProof answers the staff proof of a signed request.
-func (rs *Resource) writeAdminSignatureProof(w http.ResponseWriter, r *http.Request, summary *RequestSummary, signature *capability.RequestSignature) {
-	proof := signatureProof{Request: summary.Request, Children: summary.Children, Guardians: summary.Guardians, Signature: signature}
+func (rs *Resource) writeAdminSignatureProof(w http.ResponseWriter, r *http.Request, summary *RequestSummary, signature *SignatureProof) {
+	proof := signatureProof{
+		Request: summary.Request, Children: summary.Children, Guardians: summary.Guardians,
+	}
+	if signature != nil {
+		proof.Schema = signature.Schema
+		proof.OfferingSelections = signature.OfferingSelections
+		proof.OfferingNames = signature.OfferingNames
+		proof.Signature = signature.Signature
+	}
 	if summary.Phase != nil {
 		proof.PhaseName = summary.Phase.Name
 	}
@@ -107,7 +119,8 @@ func (rs *Resource) writeAdminSignatureProof(w http.ResponseWriter, r *http.Requ
 // link; the token already resolved the request.
 func (rs *Resource) writeStatusSignatureProof(w http.ResponseWriter, r *http.Request, view statusView) {
 	rs.writeSignatureProof(w, r, signatureProof{
-		Request: view.req, Children: view.children, Guardians: view.proof.Guardians, Signature: view.proof.Signature,
+		Request: view.req, Children: view.children, Guardians: view.proof.Guardians,
+		Schema: view.proof.Schema, OfferingSelections: view.proof.OfferingSelections, OfferingNames: view.proof.OfferingNames, Signature: view.proof.Signature,
 	})
 }
 
@@ -136,7 +149,7 @@ func (rs *Resource) writeSignatureProof(w http.ResponseWriter, r *http.Request, 
 func proofText(text string) string { return lists.SanitizeUserText(text) }
 
 func proofField(label, value string) lists.Field {
-	return lists.Field{Label: label, Value: proofText(value)}
+	return lists.Field{Label: proofText(label), Value: proofText(value)}
 }
 
 func proofStamp(t time.Time) string {
@@ -200,6 +213,7 @@ func signatureProofRequestRecords(p signatureProof) []lists.Record {
 		guardian = append(guardian, proofField("Telefon", *req.GuardianPhone))
 	}
 	guardian = append(guardian, proofField("Eingegangen am", proofStamp(req.SubmittedAt)))
+	guardian = append(guardian, signatureProofCustomFields(req.CustomData, p.Schema, false)...)
 	records := []lists.Record{{Title: "Erziehungsberechtigte Person", Fields: guardian}}
 	for _, g := range p.Guardians {
 		fields := []lists.Field{proofField("Name", strings.TrimSpace(g.FirstName+" "+g.LastName))}
@@ -211,6 +225,13 @@ func signatureProofRequestRecords(p signatureProof) []lists.Record {
 		}
 		records = append(records, lists.Record{Title: "Weitere erziehungsberechtigte Person", Fields: fields})
 	}
+	choicesByChild := make(map[int64][]*capability.RequestChildOfferingRecord, len(p.Children))
+	for _, choice := range p.OfferingSelections {
+		if choice == nil {
+			continue
+		}
+		choicesByChild[choice.RequestChildID] = append(choicesByChild[choice.RequestChildID], choice)
+	}
 	for _, c := range p.Children {
 		fields := []lists.Field{proofField("Geburtsdatum", c.DateOfBirth.Format("02.01.2006"))}
 		if c.TargetGradeLevel != nil {
@@ -219,9 +240,69 @@ func signatureProofRequestRecords(p signatureProof) []lists.Record {
 		if c.TargetSchoolClass != nil && *c.TargetSchoolClass != "" {
 			fields = append(fields, proofField("Klasse", *c.TargetSchoolClass))
 		}
+		fields = append(fields,
+			proofField("Betreuungsangebote", signatureProofOfferings(choicesByChild[c.ID], p.OfferingNames)),
+		)
+		fields = append(fields, signatureProofCustomFields(c.CustomData, p.Schema, true)...)
 		records = append(records, lists.Record{Title: proofText(strings.TrimSpace(c.FirstName + " " + c.LastName)), Fields: fields})
 	}
 	return records
+}
+
+func signatureProofOfferings(choices []*capability.RequestChildOfferingRecord, names map[int64]string) string {
+	if len(choices) == 0 {
+		return "Keine"
+	}
+	parts := make([]string, 0, len(choices))
+	for _, choice := range choices {
+		if choice == nil {
+			continue
+		}
+		value := strings.TrimSpace(names[choice.CareOfferingID])
+		if value == "" {
+			value = "Angebot #" + strconv.FormatInt(choice.CareOfferingID, 10)
+		} else {
+			value += " (#" + strconv.FormatInt(choice.CareOfferingID, 10) + ")"
+		}
+		if days := formatDayCodes(choice.SelectedDays); days != "" {
+			value += " (" + days + ")"
+		}
+		parts = append(parts, value)
+	}
+	if len(parts) == 0 {
+		return "Keine"
+	}
+	return strings.Join(parts, "; ")
+}
+
+func signatureProofCustomFields(values map[string]any, schema *capability.FormSchema, appliesToChild bool) []lists.Field {
+	if len(values) == 0 {
+		return nil
+	}
+	seen := make(map[string]bool, len(values))
+	fields := make([]lists.Field, 0, len(values))
+	if schema != nil {
+		for _, field := range schema.Fields {
+			if field.AppliesToCh != appliesToChild {
+				continue
+			}
+			if value, ok := values[field.Key]; ok {
+				fields = append(fields, proofField(field.Label, formatCustomValue(field, value)))
+				seen[field.Key] = true
+			}
+		}
+	}
+	keys := make([]string, 0, len(values)-len(seen))
+	for key := range values {
+		if !seen[key] {
+			keys = append(keys, key)
+		}
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		fields = append(fields, proofField("Weitere Angabe: "+key, stringifyValue(values[key])))
+	}
+	return fields
 }
 
 // signatureProofConsents lists the legal blocks of the newest legal

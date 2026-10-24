@@ -309,7 +309,7 @@ func (rs *Resource) getAdminRequest(w http.ResponseWriter, r *http.Request) {
 	var (
 		detail    AdminRequestDetail
 		summary   *RequestSummary
-		signature *capability.RequestSignature
+		signature *SignatureProof
 	)
 	err := rs.runInTenantTx(r, func(ctx context.Context) error {
 		s, e := rs.DecisionService.Get(ctx, id)

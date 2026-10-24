@@ -227,6 +227,7 @@ func (s *Intake) signatureProof(ctx context.Context, req *Request, children []*R
 		if err != nil {
 			return nil, fmt.Errorf("signature proof: load pinned schema: %w", err)
 		}
+		proof.Schema = schema
 		proof.SignatureRequired = signatureRequired(schema, req.SubmissionSource)
 	}
 	if s.deps.Guardians != nil {
@@ -236,6 +237,31 @@ func (s *Intake) signatureProof(ctx context.Context, req *Request, children []*R
 	}
 	if proof.Signature, err = s.requestSignature(ctx, req.ID); err != nil {
 		return nil, err
+	}
+	if proof.Signature != nil {
+		childIDs := make([]int64, 0, len(children))
+		for _, child := range children {
+			childIDs = append(childIDs, child.ID)
+		}
+		phase, err := s.intakePhase(ctx, req.PhaseID)
+		if err != nil {
+			return nil, fmt.Errorf("signature proof: load phase: %w", err)
+		}
+		if proof.OfferingSelections, err = enrollmentNative.OfferingSelectionRecordsForChildrenAt(ctx, s.deps.Children, childIDs, s.currentOfferingSelectionDate(phase)); err != nil {
+			return nil, fmt.Errorf("signature proof: load offering selections: %w", err)
+		}
+		if len(proof.OfferingSelections) > 0 && s.deps.Offerings != nil {
+			offerings, err := s.deps.Offerings.ListByIDs(ctx, uniqueCareOfferingIDs(proof.OfferingSelections))
+			if err != nil {
+				return nil, fmt.Errorf("signature proof: load offering names: %w", err)
+			}
+			proof.OfferingNames = make(map[int64]string, len(offerings))
+			for _, offering := range offerings {
+				if offering != nil {
+					proof.OfferingNames[offering.ID] = offering.Name
+				}
+			}
+		}
 	}
 	return proof, nil
 }

@@ -24,11 +24,14 @@ type IntakeOwner interface {
 // decoded for the proof (#4786). SignatureRequired reports whether the
 // request's form asks the parent to sign every edit.
 type SignatureProof struct {
-	Request           *Request
-	Children          []*RequestChild
-	Guardians         []*capability.RequestGuardian
-	Signature         *capability.RequestSignature
-	SignatureRequired bool
+	Request            *Request
+	Children           []*RequestChild
+	Guardians          []*capability.RequestGuardian
+	Schema             *capability.FormSchema
+	OfferingSelections []*capability.RequestChildOfferingRecord
+	OfferingNames      map[int64]string
+	Signature          *capability.RequestSignature
+	SignatureRequired  bool
 }
 
 // Intake values the owner's contract carries unchanged.
@@ -442,6 +445,7 @@ func signatureProofValue(proof *capability.RequestSignatureProof, err error) (*S
 	}
 	return &SignatureProof{
 		Request: request, Children: children, Guardians: proof.Guardians,
+		Schema: proof.Schema, OfferingSelections: proof.OfferingSelections, OfferingNames: proof.OfferingNames,
 		Signature: proof.Signature, SignatureRequired: proof.SignatureRequired,
 	}, nil
 }

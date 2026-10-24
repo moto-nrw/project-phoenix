@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
 	"github.com/go-chi/chi/v5"
@@ -542,4 +543,37 @@ func TestSignatureProofDocument_RefusesUnreadableConsents(t *testing.T) {
 	req := &Request{LegalBlocksSnapshot: []capability.LegalBlocksSnapshotEntry{{ConsentFlags: []byte("kaputt")}}}
 	_, err := signatureProofDocument(signatureProof{Request: req, Signature: &capability.RequestSignature{}}, time.Now())
 	require.Error(t, err)
+}
+
+func TestSignatureProofDocument_IncludesSignedAnswersAndOfferingChoices(t *testing.T) {
+	t.Parallel()
+
+	req := &Request{
+		CustomData: map[string]any{"vegetarisch": true},
+		LegalBlocksSnapshot: []capability.LegalBlocksSnapshotEntry{{
+			ConsentFlags: []byte(`{}`),
+		}},
+	}
+	child := &RequestChild{ID: 17, FirstName: "Lina", LastName: "Beispiel", DateOfBirth: calendar.NewDate(2018, 4, 15),
+		CustomData: map[string]any{"abholzeit": map[string]any{"mon": "15:00"}}}
+	doc, err := signatureProofDocument(signatureProof{
+		Request: req, Children: []*RequestChild{child}, Signature: &capability.RequestSignature{},
+		Schema: &capability.FormSchema{Fields: []capability.FormField{
+			{Key: "vegetarisch", Label: "Vegetarisch", Type: capability.FormFieldBoolean},
+			{Key: "abholzeit", Label: "Abholzeit", Type: capability.FormFieldWeekdaySchedule, AppliesToCh: true},
+		}},
+		OfferingSelections: []*capability.RequestChildOfferingRecord{{
+			RequestChildID: child.ID, CareOfferingID: 42, SelectedDays: []string{"mon", "wed"},
+		}},
+		OfferingNames: map[int64]string{42: "Kernzeit"},
+	}, time.Now())
+	require.NoError(t, err)
+	require.Len(t, doc.Groups, 2)
+	require.Len(t, doc.Groups[1].Records, 2)
+
+	guardian := doc.Groups[1].Records[0].Fields
+	assert.Contains(t, guardian, lists.Field{Label: "Vegetarisch", Value: "Ja"})
+	childFields := doc.Groups[1].Records[1].Fields
+	assert.Contains(t, childFields, lists.Field{Label: "Betreuungsangebote", Value: "Kernzeit (#42) (Mo, Mi)"})
+	assert.Contains(t, childFields, lists.Field{Label: "Abholzeit", Value: "Mo 15:00"})
 }

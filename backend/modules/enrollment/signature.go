@@ -61,7 +61,15 @@ type RequestSignature struct {
 type RequestSignatureProof struct {
 	Status    *RequestStatus
 	Guardians []*RequestGuardian
-	Signature *RequestSignature
+	// Schema names the pinned form fields that label the saved answers in
+	// the human-readable proof.
+	Schema *FormSchema
+	// OfferingSelections are the selections effective for the request's
+	// phase. The proof labels them as current information, alongside the
+	// checksum of the version the parent signed.
+	OfferingSelections []*RequestChildOfferingRecord
+	OfferingNames      map[int64]string
+	Signature          *RequestSignature
 	// SignatureRequired reports whether the request's form asks the parent
 	// to sign every edit, so the status page offers only the full form.
 	SignatureRequired bool
