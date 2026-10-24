@@ -72,7 +72,8 @@ func scopeSchools(scope contract.ParentAnnouncementFeedScope) []int64 {
 }
 
 // countOutstandingSQL counts live announcements that still need attention:
-// unread, pending confirmation, or an open poll with an unanswered child.
+// unread, pending confirmation, an open poll with an unanswered child, or an
+// open survey the account has not completed.
 // Reading an actionable item must not clear its reminder.
 const countOutstandingSQL = pendingApplicantsFeedCTE + `
 			SELECT COUNT(*)
@@ -84,6 +85,7 @@ const countOutstandingSQL = pendingApplicantsFeedCTE + `
 					par.read_at IS NULL
 					OR (a.requires_acknowledgement AND par.acknowledged_at IS NULL)
 					OR ` + openPollForAccountFeed + `
+					OR ` + openSurveyForAccountFeed + `
 				)
 				AND ` + reachedAccountFeed
 
@@ -107,6 +109,7 @@ func (p *Projection) CountOutstandingForAccount(ctx context.Context, accountID i
 		applicants,
 		accountID, feedScopeList(scope.TenantIDs), feedScopeList(scope.SystemOnlyTenantIDs),
 		today, today, today, p.links.AllSchoolsGuardianLinkRows(db), accountID,
+		accountID,
 		today, today, today, p.links.AllSchoolsGuardianLinkRows(db), accountID, accountID, accountID,
 	).Scan(ctx, &count); err != nil {
 		return 0, fmt.Errorf("count outstanding parent announcements: %w", err)

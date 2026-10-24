@@ -288,6 +288,30 @@ const openPollForAccountFeed = `(
 		)
 	)`
 
+// openSurveyForAccountFeed is the SQL boolean "announcement a carries an open
+// parent survey that the bound account has not completed". Unlike a poll, a
+// survey is completed once per guardian account rather than once per child.
+//
+// Bind order: account.
+const openSurveyForAccountFeed = `(
+		EXISTS (
+			SELECT 1
+			FROM users.surveys s
+			WHERE s.tenant_id = a.tenant_id
+				AND s.announcement_id = a.id
+				AND s.audience = 'parents'
+				AND s.published_at IS NOT NULL
+				AND s.closes_at > NOW()
+				AND NOT EXISTS (
+					SELECT 1
+					FROM users.survey_participations sp
+					WHERE sp.tenant_id = s.tenant_id
+						AND sp.survey_id = s.id
+						AND sp.account_id = ?
+				)
+		)
+	)`
+
 // feedScopePredicate selects hand-written rows from schools with news on and
 // system-authored rows from schools with the cancellation-notice gate on.
 //

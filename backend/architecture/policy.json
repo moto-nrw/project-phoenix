@@ -4839,6 +4839,8 @@
         "users.parent_announcement_targets",
         "users.parent_announcements",
         "users.persons",
+        "users.survey_participations",
+        "users.surveys",
         "users.student_care_profiles",
         "users.student_profiles",
         "users.student_school_memberships"
