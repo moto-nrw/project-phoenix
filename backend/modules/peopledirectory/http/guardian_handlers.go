@@ -393,6 +393,7 @@ func (rs *GuardianResource) getStudentGuardians(w http.ResponseWriter, r *http.R
 			IsEmergencyContact: row.Link.IsEmergencyContact,
 			CanPickup:          row.Link.CanPickup,
 			PickupNotes:        row.Link.PickupNotes,
+			PickupWeekdays:     row.Link.PickupWeekdays,
 			EmergencyPriority:  row.Link.EmergencyPriority,
 			IsPayer:            canSeePayment && row.Link.IsPayer,
 			AccountStatus: guardianAccountStatus(
