@@ -26,6 +26,7 @@ type lifecycleTable struct {
 	Name, Scope, ScopeColumn, Reason, Export, ExportReason    string
 	Parent                                                    *lifecycleParent
 	ExcludeSecretColumns, AllowedSensitiveColumns, PersonKeys map[string]string
+	ExportOrder                                               []string
 }
 
 type lifecycleParent struct{ Table, Column, ParentColumn string }

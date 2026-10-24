@@ -286,7 +286,7 @@ const schoolErasurePreflightSQL = `CREATE OR REPLACE FUNCTION platform.school_er
      WHERE f.contype='f' AND pn.nspname || '.' || pc.relname IN
       (SELECT item->>'name' FROM jsonb_array_elements(v_plan) AS item)
      GROUP BY f.oid,cn.nspname,cc.relname,f.conname,pn.nspname,pc.relname,f.confdeltype
-    ) AS edge) <> 'cc93958213bac77bfbb56a1a42ffb350e5c305fd1c6738c8f466a92bbfd4147c' THEN
+    ) AS edge) <> '526cfab57554ecd811da6fb65a84f1572dac4f989693e11627477be586449376' THEN
     RAISE EXCEPTION 'school erasure foreign keys changed; review plan' USING ERRCODE = '55000';
    END IF;
    -- Generated incoming-FK scope checks. Never cascade into foreign rows.

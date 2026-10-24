@@ -75,6 +75,11 @@ func exportFixtureColumns(table organizationtenancy.LifecycleTable) map[string]s
 	for name := range table.ExcludeSecretColumns {
 		columns[name] = "text"
 	}
+	for _, name := range table.ExportOrder {
+		if _, ok := columns[name]; !ok {
+			columns[name] = "bigint"
+		}
+	}
 	if table.Name == "enrollment.requests" {
 		columns["guardian_account_id"] = "bigint"
 	}
