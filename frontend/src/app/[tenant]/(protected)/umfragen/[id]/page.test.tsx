@@ -158,6 +158,21 @@ describe("Umfrage, Objektseite (#4781)", () => {
     expect(screen.getByText("4 von 5")).toBeInTheDocument();
   });
 
+  it("shows no 'no longer exists' while the session is still unknown", () => {
+    // useSWRAuth before the session is known: no data, no error, no request.
+    state.survey = undefined;
+
+    renderPage();
+
+    // Anker: der Kopf der Seite steht im Ladezustand.
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Umfrage" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Diese Umfrage gibt es nicht mehr."),
+    ).not.toBeInTheDocument();
+  });
+
   it("refuses the page without surveys:manage", async () => {
     state.canManage = false;
 

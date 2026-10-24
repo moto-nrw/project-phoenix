@@ -11,6 +11,9 @@ const state = vi.hoisted(() => ({
   search: "",
   toAnswer: [] as SurveyToAnswer[],
   surveys: [] as Survey[],
+  // Like useSWRAuth before the session is known: the key is held back, so
+  // there is neither data nor a running request.
+  sessionPending: false,
   push: vi.fn(),
 }));
 
@@ -37,8 +40,9 @@ vi.mock("~/lib/tenant-router", () => ({
 vi.mock("~/lib/swr", () => ({
   useTenantMutate: () => vi.fn(),
   useSWRAuth: (key: string | null) => ({
-    data:
-      key === "surveys-to-answer"
+    data: state.sessionPending
+      ? undefined
+      : key === "surveys-to-answer"
         ? state.toAnswer
         : key === "surveys-list"
           ? state.surveys
@@ -116,6 +120,7 @@ describe("Umfragen (#4781)", () => {
     state.search = "";
     state.toAnswer = [openSurvey];
     state.surveys = [managed];
+    state.sessionPending = false;
     state.push.mockReset();
   });
 
@@ -128,6 +133,19 @@ describe("Umfragen (#4781)", () => {
     expect(screen.getByText("Anonym")).toBeInTheDocument();
     expect(screen.queryByText("Umfrage anlegen")).not.toBeInTheDocument();
     expect(screen.queryByText("Elternzufriedenheit")).not.toBeInTheDocument();
+  });
+
+  it("shows no empty state while the session is still unknown", () => {
+    state.sessionPending = true;
+    renderPage();
+
+    // Anker: die Seite steht, nur ihre Daten fehlen noch.
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Umfragen" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Keine offenen Umfragen"),
+    ).not.toBeInTheDocument();
   });
 
   it("shows the anonymity notice when a staff member opens the survey", async () => {

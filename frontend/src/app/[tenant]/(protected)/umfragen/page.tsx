@@ -141,9 +141,10 @@ function SurveysContent() {
 
   const active = view === "alle" ? surveys : toAnswer;
   const activeError = view === "alle" ? surveysError : toAnswerError;
-  const loading =
-    (active.isLoading && active.data === undefined) ||
-    (!!active.error && !activeError && active.data === undefined);
+  // Until the first answer arrives, the page is loading. Before the session is
+  // known, useSWRAuth holds the key back and reports no request at all, so
+  // isLoading alone would show "Keine offenen Umfragen" for a moment.
+  const loading = active.data === undefined && !activeError;
 
   const stats =
     view === "alle"

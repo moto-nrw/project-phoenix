@@ -129,7 +129,6 @@ function SurveyDetail({ surveyId }: Readonly<{ surveyId: string }>) {
   const {
     data: survey,
     error: loadError,
-    isLoading,
     mutate,
   } = useSWRAuth<Survey>(surveyKey(surveyId), () => fetchSurvey(surveyId), {
     revalidateOnFocus: false,
@@ -187,7 +186,9 @@ function SurveyDetail({ surveyId }: Readonly<{ surveyId: string }>) {
   };
 
   const awaitingErrorText = !!loadError && !notFound && !shownLoadError;
-  if ((isLoading && !survey) || awaitingErrorText) {
+  // Before the session is known, useSWRAuth holds the key back and reports
+  // no request, so a missing survey without an error is still loading.
+  if ((!survey && !loadError) || awaitingErrorText) {
     return <TenantPage title="Umfrage" {...BACK} statsLoading loading />;
   }
   if (loadError || !survey) {

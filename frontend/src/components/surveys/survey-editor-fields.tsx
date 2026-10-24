@@ -217,7 +217,6 @@ export function SurveyEditorFields({
             onChange={(closesTime) => update({ closesTime })}
             hint="Uhrzeit im Format 18:00"
             placeholder="18:00"
-            required
             invalid={Boolean(errors?.closesAt)}
           />
         </div>
