@@ -32,21 +32,22 @@ func TestNormalizeWeekdays(t *testing.T) {
 func TestPickupPermissionPayloadRoundTrip(t *testing.T) {
 	t.Parallel()
 
-	raw, err := PickupPermissionPayload(PickupPermissionCreateInput{
+	input := PickupPermissionCreateInput{
 		StudentID: 1, GuardianAccountID: 2, GuardianProfileID: 3, RelationshipID: 4,
 		PersonName: " Erika Muster ", Weekdays: []int{3, 1}, PreviousLabel: "Nicht abholberechtigt",
 		Signature: SignedStatement{SignatureID: 9, Statement: "Ich erlaube …"},
-	})
+	}
+	raw, err := PickupPermissionPayload(input)
 	require.NoError(t, err)
 
 	permission, err := ParsePickupPermission(raw)
 	require.NoError(t, err)
-	assert.Equal(t, int64(3), permission.GuardianProfileID)
-	assert.Equal(t, int64(4), permission.RelationshipID)
+	assert.Equal(t, input.GuardianProfileID, permission.GuardianProfileID)
+	assert.Equal(t, input.RelationshipID, permission.RelationshipID)
 	assert.Equal(t, "Erika Muster", permission.PersonName)
 	assert.Equal(t, []int{1, 3}, permission.Weekdays)
 	require.NotNil(t, permission.Signature)
-	assert.Equal(t, int64(9), permission.Signature.SignatureID)
+	assert.Equal(t, input.Signature.SignatureID, permission.Signature.SignatureID)
 
 	entries := RequestedSummary(raw)
 	require.Len(t, entries, 1)
@@ -74,11 +75,12 @@ func TestWeekdayListLabel(t *testing.T) {
 func TestPickupTermsReadTheOneDayCollector(t *testing.T) {
 	t.Parallel()
 
+	const collectorID int64 = 7
 	raw := json.RawMessage(`{"date":"2026-11-10","reason":"Oma","pickup_person":{"guardian_profile_id":7,"name":"Erika Muster"}}`)
 	change, ok := PickupTerms(raw)
 	require.True(t, ok, "a collector alone is a valid one-day request")
 	require.NotNil(t, change.PickupPerson)
-	assert.Equal(t, int64(7), change.PickupPerson.GuardianProfileID)
+	assert.Equal(t, collectorID, change.PickupPerson.GuardianProfileID)
 
 	terms := StoredPickupTerms(raw)
 	require.NotNil(t, terms)
@@ -105,11 +107,12 @@ func TestPickupPersonAllowed(t *testing.T) {
 func TestSignatureReference(t *testing.T) {
 	t.Parallel()
 
-	raw, err := WithSignature(json.RawMessage(`{"weekdays":[{"weekday":2,"mode":"alone"}]}`), &SignedStatement{SignatureID: 5, Statement: "Ich erlaube …"})
+	statement := &SignedStatement{SignatureID: 5, Statement: "Ich erlaube …"}
+	raw, err := WithSignature(json.RawMessage(`{"weekdays":[{"weekday":2,"mode":"alone"}]}`), statement)
 	require.NoError(t, err)
 	signed := StoredSignature(raw)
 	require.NotNil(t, signed)
-	assert.Equal(t, int64(5), signed.SignatureID)
+	assert.Equal(t, statement.SignatureID, signed.SignatureID)
 
 	unchanged, err := WithSignature(json.RawMessage(`{"a":1}`), nil)
 	require.NoError(t, err)
