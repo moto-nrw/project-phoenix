@@ -7,7 +7,7 @@ import {
   fileValueMissing,
   useEnrollmentUploadTarget,
 } from "~/components/enrollment/enrollment-file-upload";
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { Check, FileText, Info, Lock, Plus, Trash2 } from "lucide-react";
 import { Turnstile } from "@marsidev/react-turnstile";
@@ -495,6 +495,7 @@ export function EnrollmentForm({
   // The parent's signature (#4786); null until the parent confirms it in
   // the pad. A parent edit starts empty: every version is signed again.
   const [signature, setSignature] = useState<SignatureValue | null>(null);
+  const signatureJustConfirmed = useRef(false);
   const [legalConsents, setLegalConsents] = useState<Record<string, boolean>>(
     () => draftConsentFlags(initialDraft),
   );
@@ -518,6 +519,31 @@ export function EnrollmentForm({
   const [customData, setCustomData] = useState<Record<string, unknown>>(
     () => initialDraft?.custom_data ?? {},
   );
+  // A confirmed signature only belongs to the values visible when it was
+  // confirmed. Its own state update must not clear it; every later change to
+  // signed enrollment data does.
+  const changeSignature = (value: SignatureValue | null) => {
+    signatureJustConfirmed.current = value !== null;
+    setSignature(value);
+  };
+  useEffect(() => {
+    if (signature === null) return;
+    if (signatureJustConfirmed.current) {
+      signatureJustConfirmed.current = false;
+      return;
+    }
+    setSignature(null);
+  }, [
+    signature,
+    guardianFirstName,
+    guardianLastName,
+    guardianEmail,
+    guardianPhone,
+    legalConsents,
+    children,
+    additionalGuardians,
+    customData,
+  ]);
   useEffect(() => {
     if (!initialDraft) return;
     setGuardianFirstName(initialDraft.guardian_first_name);
@@ -2598,7 +2624,7 @@ export function EnrollmentForm({
             <SignaturePad
               id={SIGNATURE_FIELD}
               value={signature}
-              onChange={setSignature}
+              onChange={changeSignature}
               disabled={submitting || previewMode}
               // A confirmed signature answers the missing-signature hint.
               error={signature ? undefined : fieldError(SIGNATURE_FIELD)}

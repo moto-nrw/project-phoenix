@@ -4711,6 +4711,26 @@ describe("EnrollmentForm signature (#4786)", () => {
     });
   });
 
+  it("requires a new signature after signed enrollment data changes", async () => {
+    renderForm();
+    await waitForLoaded();
+    await fillRequiredFields();
+    sign();
+    expect(
+      screen.getByText("Ihre Unterschrift ist bereit."),
+    ).toBeInTheDocument();
+
+    fireEvent.change(screen.getAllByLabelText("Vorname *")[0]!, {
+      target: { value: "Maria" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+
+    expect(
+      await screen.findAllByText("Bitte unterschreiben Sie die Anmeldung."),
+    ).not.toHaveLength(0);
+    expect(mockSubmitEnrollment).not.toHaveBeenCalled();
+  });
+
   it("leaves the signature out where the form does not require it", async () => {
     mockFetchPublicActiveSchema.mockResolvedValue(schema());
     renderForm();
