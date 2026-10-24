@@ -1,3 +1,5 @@
+import { MODULE_SETTING_KEYS } from "./modules";
+
 // Keys whose value rides on /auth/tenant/resolve. The settings PUT/DELETE
 // proxies (tenant-side `/api/settings/values/[key]` and operator-side
 // `/api/operator/provisioning/schools/[id]/settings/values/[key]`) consult
@@ -16,9 +18,10 @@ export const TENANT_RESOLVE_AFFECTING_KEYS: ReadonlySet<string> = new Set([
   // operator flipping it leaves reloads/new tabs on the old mode for
   // up to the layout cache TTL (300s).
   "operations.presence_mode",
-  // nfc_enabled is also served through /auth/tenant/resolve so every staff
-  // user can hide NFC-only navigation without config:read.
-  "attendance.nfc_enabled",
+  // The module switches (#4892) ride on /auth/tenant/resolve as
+  // booked_modules, so every staff member's navigation follows a booking
+  // without config:read. The moto team switches them in the operator portal.
+  ...MODULE_SETTING_KEYS,
   // parent_notes_enabled rides on /auth/tenant/resolve too (as
   // parent_messaging_enabled) so non-admin staff can hide the "Neue Nachricht"
   // compose entry points without config:read. Without revalidation, toggling it
