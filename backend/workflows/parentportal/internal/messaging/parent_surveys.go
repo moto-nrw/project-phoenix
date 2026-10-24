@@ -108,6 +108,48 @@ func (s *Service) attachSurveyData(ctx context.Context, accountID int64, items [
 	return nil
 }
 
+// countUnansweredReadSurveys counts survey carriers that the guardian already
+// opened. Unread carriers are included in the ordinary announcement count;
+// this preserves their outstanding state until the guardian participates.
+func (s *Service) countUnansweredReadSurveys(ctx context.Context, accountID int64, items []*AnnouncementFeedItem) (int, error) {
+	if s.Surveys == nil {
+		return 0, nil
+	}
+	ids := make([]int64, 0, len(items))
+	for _, item := range items {
+		if item.ReadAt != nil && isSurveyCarrier(item.SystemKind) {
+			ids = append(ids, item.ID)
+		}
+	}
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	summaries, err := s.Surveys.SurveySummaries(ctx, accountID, ids)
+	if err != nil {
+		return 0, fmt.Errorf("parent: load survey state: %w", err)
+	}
+	now := s.now()
+	count := 0
+	for _, id := range ids {
+		summary, ok := summaries[id]
+		if ok && !summary.Participated && summary.ClosesAt.After(now) {
+			count++
+		}
+	}
+	return count, nil
+}
+
+func (s *Service) countUnansweredReadSurveysForScope(ctx context.Context, accountID int64, scope AnnouncementFeedScope) (int, error) {
+	if s.Surveys == nil {
+		return 0, nil
+	}
+	items, err := s.AnnouncementRepo.ListFeedForAccount(ctx, accountID, scope)
+	if err != nil {
+		return 0, err
+	}
+	return s.countUnansweredReadSurveys(ctx, accountID, items)
+}
+
 // GetAnnouncementSurvey returns the survey an announcement of the guardian's
 // feed carries. Outside the audience it is 404, like the announcement.
 func (s *Service) GetAnnouncementSurvey(ctx context.Context, accountID, announcementID int64) (*SurveyForm, error) {

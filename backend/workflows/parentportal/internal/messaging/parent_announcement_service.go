@@ -145,11 +145,15 @@ func (s *Service) UnreadAnnouncementCount(ctx context.Context, accountID int64) 
 		if err != nil {
 			return err
 		}
+		unansweredSurveys, err := s.countUnansweredReadSurveysForScope(adminCtx, accountID, scope)
+		if err != nil {
+			return err
+		}
 		owed, err := s.countOwedReadDeclarations(adminCtx, accountID, scope.TenantIDs)
 		if err != nil {
 			return err
 		}
-		count = n + owed
+		count = n + unansweredSurveys + owed
 		return nil
 	}); txErr != nil {
 		return 0, fmt.Errorf("parent: unread announcement count: %w", txErr)
