@@ -193,8 +193,11 @@ func (c *CallerContext) SubstitutedGroupIDs(ctx context.Context) (map[int64]bool
 
 // MySchoolClasses returns the school classes assigned to the caller's staff
 // member (#1772) in class order. A caller who is no staff member has none.
+// A caller holding class_day:all_classes (Schulverwaltung, #4789) reaches
+// every class of the school without an assignment, new classes included.
 func (c *CallerContext) MySchoolClasses(ctx context.Context) ([]string, error) {
-	if c.principal(ctx).AccountID <= 0 {
+	caller := c.principal(ctx)
+	if caller.AccountID <= 0 {
 		return nil, &domain.CallerError{Op: opGetMySchoolClasses, Err: domain.ErrCallerNotAuthenticated}
 	}
 	entry := c.entry(ctx)
@@ -209,7 +212,12 @@ func (c *CallerContext) MySchoolClasses(ctx context.Context) ([]string, error) {
 		}
 		return nil, &domain.CallerError{Op: opGetMySchoolClasses, Err: err}
 	}
-	classes, err := c.deps.Structure.SchoolClasses(ctx, staffID)
+	var classes []string
+	if caller.AllSchoolClasses {
+		classes, err = c.deps.Structure.ListSchoolClasses(ctx)
+	} else {
+		classes, err = c.deps.Structure.SchoolClasses(ctx, staffID)
+	}
 	if err != nil {
 		return nil, &domain.CallerError{Op: opGetMySchoolClasses, Err: err}
 	}
