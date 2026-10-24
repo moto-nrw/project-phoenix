@@ -2310,7 +2310,11 @@
         "system_announcement_immutable": "{object} could not be changed. Please check its current status.",
         "announcement_not_found": "{object} could not be changed. Please check its current status.",
         "group_thread_closed": "This group message is closed. You can no longer reply.",
-        "group_thread_no_recipients": "No child in this group has parents with access to moto. The message was not sent."
+        "group_thread_no_recipients": "No child in this group has parents with access to moto. The message was not sent.",
+        "survey_not_open": "This survey no longer accepts answers.",
+        "survey_already_answered": "You have already taken part in this survey. Your answer cannot be changed.",
+        "survey_not_draft": "{object} could not be changed. Please check its current status.",
+        "survey_anonymous": "{object} could not be changed. Please check its current status."
       },
       "enrollment": {
         "form_attachment_invalid": "Please check the label and the PDF file.",
@@ -2974,5 +2978,33 @@
     "title": "The page could not be shown",
     "object": "the page",
     "home": "Go to the start page"
+  },
+  "surveyForm": {
+    "anonymousTitle": "Anonymous",
+    "anonymousText": "The school does not see who gave which answer. It only sees results once there are {min} answers.",
+    "notAnonymousTitle": "Not anonymous",
+    "notAnonymousText": "The school sees your name next to your answers.",
+    "parentOneAnswer": "You answer once for your parent account, not for each child.",
+    "finalHint": "Once you send your answer, you cannot change it.",
+    "closesAt": "Open until {date}, {time}",
+    "closed": "This survey is closed.",
+    "required": "Required",
+    "multipleHint": "You can choose more than one answer",
+    "scaleLegend": "1 = does not apply at all, 5 = fully applies",
+    "scaleLow": "does not apply at all",
+    "scaleHigh": "fully applies",
+    "textLabel": "Your answer",
+    "submit": "Send answer",
+    "submitting": "Sending…",
+    "missingRequired": "Please answer all required questions first.",
+    "missingField": "Please answer this question.",
+    "thanksTitle": "Thank you, your answer has been saved.",
+    "thanksText": "You cannot change it anymore.",
+    "alreadyTitle": "You have already taken part.",
+    "loadObject": "the survey",
+    "submitObject": "your answer",
+    "participated": "Answered",
+    "needsAnswer": "Answer needed",
+    "questionLabel": "Question {number} of {total}"
   }
 }

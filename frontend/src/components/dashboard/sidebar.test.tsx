@@ -615,6 +615,20 @@ describe("Sidebar", () => {
       expect(screen.getByText("Zeiterfassung")).toBeInTheDocument();
     });
 
+    it("shows Umfragen to every staff member, without a permission (#4781)", () => {
+      mockHasPermission.mockImplementation(
+        (_session, permission) => permission === "time_tracking:own",
+      );
+
+      render(<Sidebar />);
+
+      // Beantworten braucht kein Recht; die Verwaltung trennt die Seite selbst.
+      expect(screen.getByText("Umfragen").closest("a")).toHaveAttribute(
+        "href",
+        "/test-tenant/umfragen",
+      );
+    });
+
     it("hides admin-only items for staff", () => {
       render(<Sidebar />);
 

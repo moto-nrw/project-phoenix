@@ -191,6 +191,15 @@ describe("permission-labels", () => {
       );
     });
 
+    it("names the survey permission in German (#4781)", () => {
+      expect(formatPermissionDisplay("surveys", "manage")).toBe(
+        "Umfragen: Verwalten",
+      );
+      expect(localizeDescription("surveys", "manage")).toBe(
+        "Umfragen an Eltern oder das Team anlegen, veröffentlichen und auswerten",
+      );
+    });
+
     it("should return German description for legacy permission names", () => {
       expect(localizeDescription("user", "create")).toBe(
         "Neue Benutzer erstellen",

@@ -16,6 +16,7 @@ import {
 
 import type { AppLocale } from "~/i18n/locales";
 import type { ConsentRecord, ConsentState } from "~/lib/consent-types";
+import type { SurveyAnswersRequest, SurveyForm } from "~/lib/survey-form";
 import { downloadBlob, filenameFromDisposition } from "~/lib/file-download";
 import { createLogger } from "~/lib/logger";
 import {
@@ -1009,7 +1010,11 @@ export interface ParentAnnouncement {
 
   // Set on rows the system wrote on the school's behalf (#2601). A
   // cancellation notice is labelled as such instead of "Elternbrief".
-  readonly system_kind?: "care_cancellation";
+  readonly system_kind?: "care_cancellation" | "survey";
+
+  // Umfrage mit Fragebogen (#4781), present when system_kind is "survey".
+  // `participated` is this parent account's own flag, never anyone else's.
+  readonly survey?: ParentAnnouncementSurvey;
 
   // Scheduled reminder (#3162): set once the school's reminder went out. The
   // feed sorts the item back to the top; read/acknowledged stay as they were.
@@ -1018,6 +1023,14 @@ export interface ParentAnnouncement {
 
   // Einverständnis (#3430): present when delivery_mode is "declaration".
   readonly declaration?: ParentDeclaration;
+}
+
+/** The feed part of an Umfrage with Fragebogen (#4781). */
+export interface ParentAnnouncementSurvey {
+  readonly survey_id: string;
+  readonly anonymous: boolean;
+  readonly closes_at: string; // ISO timestamp
+  readonly participated: boolean;
 }
 
 /** What a guardian can do or did for one child in an Einverständnis. */
@@ -1223,6 +1236,29 @@ export async function respondToAnnouncement(
       option_ids: optionIds,
       published_at: publishedAt,
     },
+  );
+}
+
+/** The questionnaire of an Umfrage in the feed (#4781). */
+export function fetchParentSurveyForm(
+  announcementId: string,
+): Promise<SurveyForm> {
+  return getJson<SurveyForm>(
+    `/api/parent/me/news/${encodeURIComponent(announcementId)}/survey`,
+  );
+}
+
+/**
+ * Submits the answers to an Umfrage once per parent account (#4781). The
+ * answers travel only in the body, never in the address.
+ */
+export async function submitParentSurveyAnswers(
+  announcementId: string,
+  body: SurveyAnswersRequest,
+): Promise<void> {
+  await postJson<{ submitted: boolean }>(
+    `/api/parent/me/news/${encodeURIComponent(announcementId)}/survey`,
+    body,
   );
 }
 

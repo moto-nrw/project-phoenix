@@ -330,7 +330,8 @@ describe("getParentHelpTopicForPath", () => {
       id: HELP_TOPICS.transferGroup,
     });
     // 42 seit #3821 („Eigenen Dienstplan ansehen“).
-    expect(caregiverTopics).toHaveLength(43);
+    // 44 seit #4781 („An einer Umfrage im Team teilnehmen“).
+    expect(caregiverTopics).toHaveLength(44);
     expect([...new Set(caregiverTopics.map((topic) => topic.group))]).toEqual([
       "einstieg",
       "tagesplanung",
@@ -509,7 +510,7 @@ describe("getParentHelpTopicForPath", () => {
           // unter die NFC- und die Anwesenheitsregel, wird also nur
           // einmal abgezogen.
           const expectedLength =
-            43 -
+            44 -
             (nfcEnabled ? 0 : 7) -
             (presenceMode === "binary" ? (nfcEnabled ? 5 : 4) : 0) -
             (groupMode === "open_care" ? 2 : 0);
@@ -548,7 +549,8 @@ describe("getParentHelpTopicForPath", () => {
     // einem Kind.
     // 83 seit #3821: der eigene Dienstplan ist ein geteilter Artikel.
     // 84 seit #3727: die wichtigsten Einstellungen im Überblick.
-    expect(leadTopics).toHaveLength(85);
+    // 87 seit #4781: Umfrage mit Fragebogen und das geteilte Teilnehmen.
+    expect(leadTopics).toHaveLength(87);
     expect(
       leadTopics.every(
         (topic) =>
@@ -573,7 +575,8 @@ describe("getParentHelpTopicForPath", () => {
     );
     const visible = new Set(parentTopics.map((topic) => topic.id));
 
-    expect(parentTopics).toHaveLength(23);
+    // 24 seit #4781 („An einer Umfrage teilnehmen“).
+    expect(parentTopics).toHaveLength(24);
     expect(
       parentTopics.every(
         (topic) =>

@@ -271,7 +271,7 @@ export const FEATURES = Object.freeze([
   {
     name: 'Nachrichten und Elternbriefe',
     pages: {
-      ogs: ['/messages/**', '/team-chat/**', '/parent-announcements/**'],
+      ogs: ['/messages/**', '/team-chat/**', '/parent-announcements/**', '/umfragen/**'],
       parents: ['/messages/**', '/news/**'],
       school: ['/nachrichten/**'],
     },

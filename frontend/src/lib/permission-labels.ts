@@ -35,6 +35,7 @@ export const resourceLabels: Record<string, string> = {
   student_documents: "Unterlagen der Kinder",
   enrollment_uploads: "Nachweise aus Anmeldungen",
   staff_notices: "Tagesinformationen",
+  surveys: "Umfragen",
   class_day: "Klassenansicht",
   supervision: "Aufsichten",
   display: "Info-Point",
@@ -243,6 +244,12 @@ const permissionDescriptions: Record<string, string> = {
   "class_day:morning_attendance_write":
     "Für eine eigene Klasse heute eintragen, wer am Vormittag da ist",
   "staff_notices:read": "Tagesinformationen der Leitung lesen und bestätigen",
+
+  // Umfragen (#4781). Beantworten braucht kein Recht; dieses Recht legt an,
+  // veröffentlicht und wertet aus. Auch dann sieht niemand, wer bei einer
+  // anonymen Umfrage was geantwortet hat.
+  "surveys:manage":
+    "Umfragen an Eltern oder das Team anlegen, veröffentlichen und auswerten",
   "supervision:own": "Eigene Aufsichten aus dem Betreuungsplan durchführen",
 
   // Guardian payment data
