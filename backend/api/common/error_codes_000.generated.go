@@ -82,6 +82,14 @@ const (
 	CodeClassdayClassHandoverNotFound                    = "classday.class_handover_not_found"
 	CodeClassdayClassHandoverNotToday                    = "classday.class_handover_not_today"
 	CodeClassdayClassHandoverUnknownChild                = "classday.class_handover_unknown_child"
+	CodeClassdayClassTripArrivalConflict                 = "classday.class_trip_arrival_conflict"
+	CodeClassdayClassTripInvalidRange                    = "classday.class_trip_invalid_range"
+	CodeClassdayClassTripNoStudents                      = "classday.class_trip_no_students"
+	CodeClassdayClassTripPastDate                        = "classday.class_trip_past_date"
+	CodeClassdayClassTripReturnTimeMultiDay              = "classday.class_trip_return_time_multi_day"
+	CodeClassdayClassTripReturnTimeWeekend               = "classday.class_trip_return_time_weekend"
+	CodeClassdayClassTripStatusConflict                  = "classday.class_trip_status_conflict"
+	CodeClassdayClassTripStudentNotInClass               = "classday.class_trip_student_not_in_class"
 	CodeClassdayMorningAttendanceNoSchoolDay             = "classday.morning_attendance_no_school_day"
 	CodeClassdayMorningAttendanceNotToday                = "classday.morning_attendance_not_today"
 	CodeClassdayMorningAttendanceUnknownChild            = "classday.morning_attendance_unknown_child"
@@ -294,14 +302,6 @@ const (
 	CodeIdentityUsernameTaken                            = "identity.username_taken"
 	CodeImportFileColumnsMissing                         = "import.file_columns_missing"
 	CodeImportFileMissing                                = "import.file_missing"
-	CodeImportFileNoRows                                 = "import.file_no_rows"
-	CodeImportFileRowInvalid                             = "import.file_row_invalid"
-	CodeImportFileTooLarge                               = "import.file_too_large"
-	CodeImportFileTypeInvalid                            = "import.file_type_invalid"
-	CodeImportFileUnreadable                             = "import.file_unreadable"
-	CodeImportImportBatchFailed                          = "import.import_batch_failed"
-	CodeImportModeForbidden                              = "import.mode_forbidden"
-	CodeIotActivityCapacityExceeded                      = "iot.activity_capacity_exceeded"
 )
 
 var errorCodeClasses0 = map[string]string{
@@ -385,6 +385,14 @@ var errorCodeClasses0 = map[string]string{
 	"classday.class_handover_not_found":                    "business_rejection",
 	"classday.class_handover_not_today":                    "input",
 	"classday.class_handover_unknown_child":                "business_rejection",
+	"classday.class_trip_arrival_conflict":                 "business_rejection",
+	"classday.class_trip_invalid_range":                    "input",
+	"classday.class_trip_no_students":                      "input",
+	"classday.class_trip_past_date":                        "input",
+	"classday.class_trip_return_time_multi_day":            "input",
+	"classday.class_trip_return_time_weekend":              "input",
+	"classday.class_trip_status_conflict":                  "business_rejection",
+	"classday.class_trip_student_not_in_class":             "business_rejection",
 	"classday.morning_attendance_no_school_day":            "input",
 	"classday.morning_attendance_not_today":                "input",
 	"classday.morning_attendance_unknown_child":            "business_rejection",
@@ -597,14 +605,6 @@ var errorCodeClasses0 = map[string]string{
 	"identity.username_taken":                              "business_rejection",
 	"import.file_columns_missing":                          "input",
 	"import.file_missing":                                  "input",
-	"import.file_no_rows":                                  "input",
-	"import.file_row_invalid":                              "input",
-	"import.file_too_large":                                "input",
-	"import.file_type_invalid":                             "input",
-	"import.file_unreadable":                               "input",
-	"import.import_batch_failed":                           "server",
-	"import.mode_forbidden":                                "permission",
-	"iot.activity_capacity_exceeded":                       "business_rejection",
 }
 
 func init() {
