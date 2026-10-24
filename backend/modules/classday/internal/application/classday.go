@@ -66,7 +66,7 @@ func NewClassDay(deps ClassDayDependencies) classday.ClassDay {
 	if deps.Caller == nil || deps.Rosters == nil {
 		panic("classday application.NewClassDay: Caller and Rosters dependencies are required")
 	}
-	hints := dayHints{store: deps.DayHints, scope: deps.HintScope, rosters: deps.Rosters, today: deps.Today}
+	hints := dayHints{store: deps.DayHints, scope: deps.HintScope, rosters: deps.Rosters, today: deps.Today, announcer: deps.Announcer}
 	reports := newDayReports(deps)
 	reports.hints = hints
 	return &classDayService{

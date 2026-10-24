@@ -22,10 +22,11 @@ import (
 // assignment itself is checked by the HTTP adapter through ResolveClass, as
 // for the arrival exceptions.
 type dayHints struct {
-	store   DayHints
-	scope   DayHintWriteScope
-	rosters DayRosters
-	today   func() calendar.Date
+	store     DayHints
+	scope     DayHintWriteScope
+	rosters   DayRosters
+	today     func() calendar.Date
+	announcer ArrivalScheduleAnnouncer
 }
 
 // writeOpen applies operations.school_portal_write_scope: without the ticked
@@ -89,7 +90,7 @@ func (h dayHints) SetDayHint(ctx context.Context, in classday.DayHintWrite) erro
 		}
 		write.StudentIDs = []int64{in.StudentID}
 	}
-	return mapDayHintError(h.store.SetSchoolDayHint(ctx, write))
+	return h.announced(ctx, h.store.SetSchoolDayHint(ctx, write))
 }
 
 // ClearDayHint removes one of the caller's hints of today. A child hint is
@@ -116,7 +117,21 @@ func (h dayHints) ClearDayHint(ctx context.Context, target classday.DayHintTarge
 		}
 		removal.StudentID = target.StudentID
 	}
-	return mapDayHintError(h.store.ClearSchoolDayHint(ctx, removal))
+	return h.announced(ctx, h.store.ClearSchoolDayHint(ctx, removal))
+}
+
+// announced maps the owner's error and, after a successful write, tells the
+// open OGS views to refetch. The hint rides on the arrival-schedule event
+// like the class trip: it is tenant-wide, carries no child, and already
+// revalidates Aufsicht, Gruppe and Kindersuche once the unit commits.
+func (h dayHints) announced(ctx context.Context, err error) error {
+	if err != nil {
+		return mapDayHintError(err)
+	}
+	if h.announcer != nil {
+		h.announcer.AnnounceArrivalScheduleChange(ctx)
+	}
+	return nil
 }
 
 // todayOnly parses the date and refuses every day but today.
