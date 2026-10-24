@@ -485,3 +485,27 @@ func Build(external func()) {
 		t.Fatalf("changed evidence of an unresolved diagnostic = %v", err)
 	}
 }
+
+// quorum round 2 (#4879): each case used to report success without either the
+// foreign terminal or an unresolved diagnostic.
+func TestCommandEffectsResolveForwardedAndMethodCallables(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ name, domain, roots string }{
+		{"constructor forwarding", "type reads struct { list func() }; func NewReads(list func()) Writer { return newReads(list) }; func newReads(list func()) Writer { return reads{list: list} }; func (r reads) Record() { r.list() }",
+			"func Build() { enrollment.Run(enrollment.NewReads(foreign.Ledger{}.Record)) }"},
+		{"own named callable", "var hook func(); func SetHook(f func()) { hook = f }; func signal() { hook() }; type reads struct { command func() }; func NewReads() Writer { return reads{command: signal} }; func (r reads) Record() { r.command() }",
+			"func Build() { enrollment.SetHook(foreign.Ledger{}.Record); enrollment.Run(enrollment.NewReads()) }"},
+		{"root factory method", "",
+			"type factory struct{}\nfunc (factory) Make(f func()) func() { return f }\ntype binding struct { command func() }\nfunc (b binding) Record() { b.command() }\nfunc Build() { enrollment.Run(binding{command: factory{}.Make(foreign.Ledger{}.Record)}) }"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			project, policy := commandEffectGateFixture(t)
+			if tc.domain != "" {
+				writeFile(t, filepath.Join(project, "enrollment", "reads.go"), "package enrollment\n"+tc.domain+"\n")
+			}
+			writeFile(t, filepath.Join(project, "roots", "binding.go"), "package roots\nimport (\"example.test/effects/enrollment\"; \"example.test/effects/foreign\")\n"+tc.roots+"\n")
+			requireFixtureTargets(t, project, policy, "enrollment: foreign.Ledger.Record")
+		})
+	}
+}

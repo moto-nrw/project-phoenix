@@ -56,6 +56,9 @@ type effectScanner struct {
 	capture        *effectCapture
 	callableSites  map[string]*effectCapture
 	callableActive map[string]bool
+	// storedFlow counts enclosing resolutions of stored or constructed
+	// callables; see resolveCallable.
+	storedFlow int
 }
 
 func effectTypeID(t types.Type) string {

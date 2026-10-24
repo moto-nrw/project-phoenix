@@ -48,10 +48,10 @@ func (s *effectScanner) resolveCallableOnce(port, binding string, object types.O
 			return true
 		}
 		capture = &effectCapture{targets: map[string]map[string]bool{}}
-		outer := s.capture
-		s.capture, s.callableActive[key] = capture, true
+		outer, outerStored := s.capture, s.storedFlow
+		s.capture, s.callableActive[key], s.storedFlow = capture, true, 0
 		capture.resolved = s.resolveCallable("", "", object, map[string]bool{}, map[types.Object]bool{}, nil)
-		s.capture = outer
+		s.capture, s.storedFlow = outer, outerStored
 		delete(s.callableActive, key)
 		if !capture.partial {
 			s.callableSites[key] = capture
@@ -96,15 +96,22 @@ func (s *effectScanner) resolveCallable(port, binding string, object types.Objec
 		return object.Pkg() != nil && s.policy[object.Pkg().Path()].Owner == s.sourceOwner
 	}
 	ownVariable := false
-	if variable, ok := object.(*types.Var); ok && !variable.IsField() && variable.Pkg() != nil {
-		ownVariable = s.policy[variable.Pkg().Path()].Owner == s.sourceOwner
+	if variable, ok := object.(*types.Var); ok && variable.Pkg() != nil {
+		if variable.IsField() {
+			// Stored callables are assigned at construction, outside the
+			// port's runtime path: follow every argument that feeds them.
+			s.storedFlow++
+			defer func() { s.storedFlow-- }()
+		} else {
+			ownVariable = s.policy[variable.Pkg().Path()].Owner == s.sourceOwner
+		}
 	}
 	resolved := true
 	for _, value := range values {
-		// The owner's own arguments to its own parameters are
-		// summarized where they occur, in the caller reached from the port.
+		// The owner's own arguments to a parameter it invokes at port runtime
+		// are summarized where they occur, in the caller reached from the port.
 		// Unioning every call site would give each port all other ports' work.
-		if ownVariable && value.argument && s.policy[value.pkg.PkgPath].Owner == s.sourceOwner {
+		if ownVariable && value.argument && s.storedFlow == 0 && s.policy[value.pkg.PkgPath].Owner == s.sourceOwner {
 			continue
 		}
 		if !s.resolveCallableValue(port, binding, value.pkg, value.expression, seen, visited, trail) {
@@ -196,6 +203,11 @@ func (s *effectScanner) resolveCallableObjectValue(port, binding string, object 
 		if value.Signature().Recv() != nil {
 			return false
 		}
+		if s.functionOwner(value) == s.sourceOwner {
+			// The owner's own function forwards the callables it invokes.
+			s.resolveOwnCallables(port, binding, s.ownReachable(value.Origin()), seen, trail)
+			return true
+		}
 		s.resolveFunction(port, binding, value.Origin(), seen, trail)
 		return true
 	case *types.Var:
@@ -231,8 +243,13 @@ func (s *effectScanner) resolveCallableFactory(port, binding string, pkg *packag
 	}
 	if selector, ok := ast.Unparen(call.Fun).(*ast.SelectorExpr); ok {
 		if selection := pkg.TypesInfo.Selections[selector]; selection != nil && selection.Kind() == types.MethodVal {
-			s.resolve(port, binding, selection.Recv(), selector.Sel.Name, seen, trail)
-			return true
+			owner := s.receiverOwner(selection.Recv())
+			method, concrete := selection.Obj().(*types.Func)
+			if !concrete || effectInterface(selection.Recv()) != nil || (owner != "root-composition" && owner != s.sourceOwner) {
+				s.resolve(port, binding, selection.Recv(), selector.Sel.Name, seen, trail)
+				return true
+			}
+			return s.resolveFactoryReturns(port, binding, method.Origin(), seen, visited, trail)
 		}
 	}
 	fn, ok := effectObject(pkg, call.Fun).(*types.Func)
@@ -240,15 +257,23 @@ func (s *effectScanner) resolveCallableFactory(port, binding string, pkg *packag
 		return false
 	}
 	fn = fn.Origin()
+	if owner := s.functionOwner(fn); owner != "root-composition" && owner != s.sourceOwner {
+		s.resolveFunction(port, binding, fn, seen, trail)
+		return true
+	}
+	return s.resolveFactoryReturns(port, binding, fn, seen, visited, trail)
+}
+
+// resolveFactoryReturns follows a root or source-owner factory to the callable
+// expressions it returns. Factories run at construction, like stored values.
+func (s *effectScanner) resolveFactoryReturns(port, binding string, fn *types.Func, seen map[string]bool, visited map[types.Object]bool, trail []string) bool {
 	if visited[fn] {
 		return true // The enclosing traversal covers the other return branches.
 	}
 	visited[fn] = true
 	defer delete(visited, fn)
-	if owner := s.functionOwner(fn); owner != "root-composition" && owner != s.sourceOwner {
-		s.resolveFunction(port, binding, fn, seen, trail)
-		return true
-	}
+	s.storedFlow++
+	defer func() { s.storedFlow-- }()
 	body, ok := s.bodies[fn]
 	if !ok || body.declaration.Body == nil {
 		return false

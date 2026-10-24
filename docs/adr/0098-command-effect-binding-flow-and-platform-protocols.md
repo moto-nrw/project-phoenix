@@ -42,7 +42,7 @@ to its own parameters are summarized where they occur, in the caller reached
 from the port. Without that rule a shared runner such as
 `RunWrite(ctx, callback)` handed each port every other port's work: the first
 measurement grew the register to 19,845 entries (1,214 of them false
-Domain → Workflow hops), the precise one to 7,447.
+Domain → Workflow hops); the precise rule kept the first measured register at 7,447.
 
 ## 2. Domain-owned callable fields (M3)
 
@@ -121,7 +121,8 @@ Generation never labels entries. These rules were applied in review:
 4. Domain → Workflow hops are `debt` (#4825); HTTP entries stay `workflow`.
 5. Everything else follows the platform table above or is a `query`.
 
-The 96 new debt entries are visible coordination findings, not approvals:
+The first 96 new debt entries are visible coordination findings, not approvals
+(52 more follow in the follow-up section below):
 
 - Care Plan, Enrollment and School Calendar take `LockRecurrenceWrites` (48).
 - Enrollment decisions use Care Plan's weekly-pickup lock and excusal resync (12)
@@ -138,20 +139,21 @@ Their protocol review is follow-up work under ADR 0067.
 
 ## Register delta and approval
 
-Against development `1fb9eac4fa`, the register goes from 5,353 to 7,447
-entries: 2,711 added, 617 removed and 25 changed fingerprints. The removed
+Against development `1fb9eac4fa`, the register goes from 5,353 to 8,527
+entries: 3,791 added, 617 removed and 25 changed fingerprints. The removed
 entries are only diagnostics: 296 cycles, 152 failed helper lookups, 130
 callables and 39 function fields. No previously resolved terminal disappears.
-Added: 1,562 queries, 85 leaves, 96 debt, 452 platform (142 scope,
-126 mutation, 115 notice, 60 durable, 9 lock) and 516 unresolved. The 25
-changed entries are queries and leaves; their reasons record the new evidence.
+Added: 1,950 queries, 227 leaves, 148 debt, 536 platform (224 scope,
+128 mutation, 115 notice, 60 durable, 9 lock) and 930 unresolved. The 25
+changed entries are queries; their reasons record the new evidence.
 
-The register then contains 541 unresolved entries across 41 identities, down
-from 642. Effects: 4,350 query, 1,832 mutation, 392 lock, 149 scope,
-122 notice, 61 durable and 541 unresolved. 612 entries (516 unresolved, 96
-debt) cite `approval_adr: "0098"`. The counterprobe that removes this ADR
-rejects exactly those 612 new exceptions. Once this ADR is in the base, it
-approves nothing further.
+The register then contains 955 unresolved entries across 51 identities.
+340 of them are one Student Presence `observe` field that a `testhooks`
+constructor also feeds. Effects: 4,738 query, 1,836 mutation, 584 lock,
+231 scope, 122 notice, 61 durable and 955 unresolved. 1,078 entries
+(930 unresolved, 148 debt) cite `approval_adr: "0098"`. The counterprobe that
+removes this ADR rejects exactly those new exceptions. Once this ADR is in the
+base, it approves nothing further.
 
 ## Remaining limits
 
@@ -162,29 +164,38 @@ approves nothing further.
 - Static may-bind accounting can overapproximate which implementation reaches
   a port. It does not prove liveness or instance wiring.
 
-## Callable resolution follow-up
+## Callable resolution follow-ups (quorum review of PR #4879)
 
-Local assignments must remain traversable even in the source owner. Only
-own call arguments to own parameters use caller-local summaries; skipping
-local aliases hid callbacks forwarded by constructors. Factory results also
-include named results at bare returns and sole tuple-valued forwarding calls.
-Active factory origins stop direct and mutual recursion while other return
-branches still contribute terminals. Callable conversions follow their operand.
-Fixtures cover each case without weakening the own-runner precision test.
+The own-argument precision rule first skipped too much:
 
-The register gains 28 entries, loses none, and changes eight fingerprints:
+- Local aliases (`saved := list`) are assignments, not call arguments, and
+  stay traversable.
+- A parameter reached through a stored field or a factory runs at
+  construction, not on the port path. Its own arguments are followed too, so
+  `NewReads(list) -> newReads(list) -> reads{list: list}` keeps the root
+  binding.
+- Only a parameter the owner invokes or forwards at port runtime leaves its own
+  arguments to the caller's summary.
 
-- Six queries: two Care Plan bindings each reach People Directory's recorder
-  reader and context constructor; Workforce's schedule overview reaches the two
-  pure Timetable calendar-week helpers. The recorder targets already have
-  reviewed query entries; the calendar helpers compute only local values.
-- Twenty-two unresolved Workforce clock bindings: twenty reach `api.now` and
-  two reach `application.Clock.Time`. The typed build includes testhooks clock
-  providers whose callers exist only in `_test.go`. These remain visible
-  diagnostics with `approval_adr: "0098"`, not query or command approvals.
-- Eight existing Identity Access → Workforce employment-reset entries retain
-  their debt classification and targets. Following local aliases adds evidence
-  to their fingerprints; it grants no new coordination exception.
+Factory results include named results at bare returns, sole tuple-valued
+forwarding calls and root or source-owner factory methods. Active factories
+stop direct and mutual recursion. Callable conversions follow their operand.
+A source-owned named function used as a callable value is summarized like an
+own method instead of counting as resolved. Fixtures cover each case; the
+own-runner precision test is unchanged.
 
-The total is 7,475 entries, including 563 unresolved. Policy, legacy baseline,
-composition inventory and runtime code remain unchanged.
+These repairs expose real reads that were silently missing, for example
+Communication's injected People Directory and School Membership lookups. They
+also expose 52 further debt entries:
+
+- Workforce takes School Membership's `Query.FindStaffForMutation` row lock
+  (41). The same method through `Capability`/`Owner` is a reviewed leaf; this
+  interface is not, and no label is inferred from the method name.
+- Student Presence takes Care Plan's `LockExceptionDay` (6).
+- Facilities takes `LockRecurrenceWrites` (2).
+- Workforce writes Timetable's `SetCategoryShiftTypeLinks` (2).
+- People Directory takes School Membership's `StudentClassWriteGate`
+  advisory lock (1).
+
+Policy, legacy baseline, composition inventory and runtime code remain
+unchanged.
