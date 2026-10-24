@@ -11,7 +11,6 @@ import {
   useChildSearchOnlyNavigation,
   useStaffMessagingEnabled,
   useDisplayEnabled,
-  useNFCEnabled,
   useOpenCareGroupMode,
   usePresenceMode,
   useTenantRoutingModeSafe,
@@ -61,6 +60,9 @@ import { useChangeRequestsPending } from "~/lib/hooks/use-change-requests-pendin
 import { useEnrollmentRequestsPending } from "~/lib/hooks/use-enrollment-requests-pending";
 import { useEnrollmentsUnread } from "~/lib/hooks/use-enrollments-unread";
 import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
+import { useModuleNavigation } from "~/lib/hooks/use-module-navigation";
+import type { ModuleVisibility } from "~/lib/module-register";
+import { ModuleLockMark } from "~/components/ui/module-lock-mark";
 import { useHelpHref } from "~/lib/hooks/use-help-href";
 import { useGroupAttendanceCounts } from "~/lib/group-attendance-count-context";
 import { SidebarAccordionSection } from "~/components/dashboard/sidebar-accordion-section";
@@ -95,7 +97,6 @@ import {
   ENROLLMENT_SUB_PAGES,
   getActiveEnrollmentSubPageHref,
   hasAnyDatabasePagePermission,
-  NFC_ONLY_DATABASE_HREFS,
   PARENT_SUB_PAGES,
   PLANNING_CATALOG_HREFS,
   STAFF_FLAT_PAGES,
@@ -131,6 +132,26 @@ interface NavItem {
   bottomPinned?: boolean;
   activeColor?: string;
   newTab?: boolean;
+  // Modul nicht gebucht (#4894): nur Leitungen sehen den Eintrag, mit
+  // Schloss. Er führt auf die Seite, die das erklärt.
+  locked?: boolean;
+}
+
+/**
+ * Regel des Modul-Registers (#4894) für einen Eintrag: `hidden` fällt weg,
+ * `locked` braucht nur das Recht der Seite (die Schuleinstellung des Moduls
+ * zählt erst, wenn es gebucht ist), `open` braucht Recht und Einstellung.
+ */
+function moduleGate(
+  visibility: ModuleVisibility,
+  permitted: boolean,
+  settingOn: boolean,
+): { readonly show: boolean; readonly locked: boolean } {
+  if (visibility === "hidden" || !permitted) {
+    return { show: false, locked: false };
+  }
+  if (visibility === "locked") return { show: true, locked: true };
+  return { show: settingOn, locked: false };
 }
 
 // Flat navigation items with their icon, colour and visibility rule. WHERE a
@@ -418,11 +439,6 @@ const OPERATOR_NAV_SECTIONS: readonly OperatorNavSection[] = [
   },
 ];
 
-const NFC_ONLY_HREFS = new Set<string>([
-  "/activities",
-  ...NFC_ONLY_DATABASE_HREFS,
-]);
-
 // Nav items hidden in binary-mode tenants. Rooms and Activities are room/visit
 // concepts with no operational meaning when the tenant only tracks
 // in-school/out-of-school on active.attendance. The Aktuelle-Aufsicht
@@ -688,7 +704,8 @@ function SidebarContent({
   const canAnnounce = hasPermission(session, "admin:*");
   const presenceMode = usePresenceMode();
   const isBinaryMode = presenceMode === "binary";
-  const nfcEnabled = useNFCEnabled();
+  // Gebuchte Module (#4894): offen, mit Schloss oder gar nicht.
+  const moduleNav = useModuleNavigation();
   const displayEnabled = useDisplayEnabled();
   const attendanceLogEnabled = useAttendanceLogEnabled();
   // Betreuungsplan-Flag für den Tagesplan-Eintrag (#2383): vom Tenant-Resolve,
@@ -724,25 +741,20 @@ function SidebarContent({
   const timetableEnabled =
     getSettingValue(settingsSchema, "timetable.enabled") !== false;
 
-  // Kalenderzeiträume und Abrechnung bleiben auch bei abgeschaltetem
-  // Planungsbereich erreichbar: Anmeldephasen verknüpfen sich mit
-  // Kalenderzeiträumen; Abrechnung ist unabhängig davon über config:manage
-  // geschützt.
-  const planningSubPages = PLANNING_SUB_PAGES.filter((page) => {
+  // Nur die Seiten des Betreuungsplans hängen an timetable.enabled.
+  // Kalenderzeiträume bleiben erreichbar (Anmeldephasen verknüpfen sich mit
+  // ihnen); Dienstplan und Abrechnung folgen ihren Modulen (#4894).
+  const planningSubPages = PLANNING_SUB_PAGES.flatMap((page) => {
     // Nicht-Admins sehen nur Seiten mit gehaltener nonAdminPermission
-    // (#2283); das timetable.enabled-Gate darunter gilt für alle.
-    if (
-      !userIsAdmin &&
-      (page.nonAdminPermission === undefined ||
-        !hasPermission(session, page.nonAdminPermission))
-    ) {
-      return false;
-    }
-    return (
-      timetableEnabled ||
-      page.href === "/calendar-periods" ||
-      page.href === "/payroll"
+    // (#2283).
+    const gate = moduleGate(
+      moduleNav.page(page.href),
+      userIsAdmin ||
+        (page.nonAdminPermission !== undefined &&
+          hasPermission(session, page.nonAdminPermission)),
+      !page.requiresTimetable || timetableEnabled,
     );
+    return gate.show ? [{ ...page, locked: gate.locked }] : [];
   });
 
   // Gruppenübergaben (#1940) sind nur bei
@@ -765,23 +777,22 @@ function SidebarContent({
 
   const databaseSubPages = useMemo(
     () =>
-      DATABASE_SUB_PAGES.filter((page) => {
-        if (!nfcEnabled && NFC_ONLY_HREFS.has(page.href)) return false;
-        // Jede Seite trägt das Recht ihrer Route (`DATABASE_PAGE_PERMISSIONS`,
-        // derselbe Katalog wie im Guard der Route); ohne es führt der Eintrag
-        // nur auf ein 403. Der Adminzuschnitt öffnet alle.
-        if (
-          !userHasEffectiveAdminScope &&
-          !hasAnyDatabasePagePermission(session, page.href)
-        ) {
-          return false;
-        }
-        // Planungsspuren und Schichtarten gehören zum Planungsbereich; ist
-        // er ausgeschaltet, gibt es nichts zu ordnen.
-        if (PLANNING_CATALOG_HREFS.has(page.href)) return timetableEnabled;
-        return true;
+      DATABASE_SUB_PAGES.flatMap((page) => {
+        const gate = moduleGate(
+          moduleNav.page(page.href),
+          // Jede Seite trägt das Recht ihrer Route
+          // (`DATABASE_PAGE_PERMISSIONS`, derselbe Katalog wie im Guard der
+          // Route); ohne es führt der Eintrag nur auf ein 403. Der
+          // Adminzuschnitt öffnet alle.
+          userHasEffectiveAdminScope ||
+            hasAnyDatabasePagePermission(session, page.href),
+          // Planungsspuren gehören zum Betreuungsplan; ist er ausgeschaltet,
+          // gibt es nichts zu ordnen.
+          !PLANNING_CATALOG_HREFS.has(page.href) || timetableEnabled,
+        );
+        return gate.show ? [{ ...page, locked: gate.locked }] : [];
       }),
-    [nfcEnabled, userHasEffectiveAdminScope, session, timetableEnabled],
+    [moduleNav, userHasEffectiveAdminScope, session, timetableEnabled],
   );
 
   // Visible "Eltern" accordion sub-pages. Same per-item gating the flat
@@ -789,27 +800,41 @@ function SidebarContent({
   // staff, the rest per permission / feature flag.
   const parentSubPages = useMemo(
     () =>
-      PARENT_SUB_PAGES.filter((page) => {
-        switch (page.feature) {
-          case "messages":
-            // Elternnachrichten verlangen users:read (#4573: nicht für
-            // die AG-Leitung).
-            return userIsAdmin || hasPermission(session, "users:read");
-          case "approvals":
-            // Lesen users:manage, Entscheiden users:update (#3469).
-            return canReviewGuardianApprovals(session);
-          case "announcements":
-            return canAnnounce && parentNewsEnabled;
-          case "bankDetails":
-            return hasPermission(session, "guardians:financial");
-          case "mealPlan":
-            return (
-              mealPlanEnabled === true &&
-              (userIsAdmin || hasPermission(session, "config:read"))
-            );
-        }
+      PARENT_SUB_PAGES.flatMap((page) => {
+        const rule = ((): readonly [permitted: boolean, settingOn: boolean] => {
+          switch (page.feature) {
+            case "messages":
+              // Elternnachrichten verlangen users:read (#4573: nicht für
+              // die AG-Leitung).
+              return [
+                userIsAdmin || hasPermission(session, "users:read"),
+                true,
+              ];
+            case "approvals":
+              // Lesen users:manage, Entscheiden users:update (#3469).
+              return [canReviewGuardianApprovals(session), true];
+            case "announcements":
+              return [canAnnounce, parentNewsEnabled];
+            case "bankDetails":
+              return [hasPermission(session, "guardians:financial"), true];
+            case "mealPlan":
+              return [
+                userIsAdmin || hasPermission(session, "config:read"),
+                mealPlanEnabled,
+              ];
+          }
+        })();
+        const gate = moduleGate(moduleNav.page(page.href), ...rule);
+        return gate.show ? [{ ...page, locked: gate.locked }] : [];
       }),
-    [userIsAdmin, session, canAnnounce, parentNewsEnabled, mealPlanEnabled],
+    [
+      moduleNav,
+      userIsAdmin,
+      session,
+      canAnnounce,
+      parentNewsEnabled,
+      mealPlanEnabled,
+    ],
   );
 
   // Team-interne Seiten: Team-Chat ist Opt-out (operations.
@@ -839,8 +864,15 @@ function SidebarContent({
     "/tagesinformationen": staffNoticesPendingCount,
   };
 
-  // Filter flat navigation items based on permissions
-  const filteredNavItems = NAV_ITEMS.filter((item) => {
+  // Filter flat navigation items based on permissions. Das Modul der Seite
+  // entscheidet zuerst (#4894): nicht gebucht heißt weg oder Schloss.
+  const filteredNavItems = NAV_ITEMS.flatMap((item) => {
+    const visibility = moduleNav.page(item.href);
+    if (visibility === "hidden" || !isNavItemPermitted(item)) return [];
+    return visibility === "locked" ? [{ ...item, locked: true }] : [item];
+  });
+
+  function isNavItemPermitted(item: NavItem): boolean {
     // Anfragen (#2429/#2911): JWT-Rechte allein reichen nicht. Für
     // Elternanfragen muss zusätzlich der aktuelle serverseitige Prüfbereich
     // (Admin, Gruppenleitung oder Vertretung) gelten.
@@ -848,7 +880,6 @@ function SidebarContent({
       return changeRequestAccess.canOpenRequestsPage;
     }
     if (item.hideForAdmin && userIsAdmin && !userIsCaregiver) return false;
-    if (!nfcEnabled && NFC_ONLY_HREFS.has(item.href)) return false;
     if (isBinaryMode && BINARY_HIDDEN_HREFS.has(item.href)) return false;
     // Info-Point Dashboard is opt-in (display.enabled, default off) — hide
     // the admin entry until a school explicitly turns the feature on.
@@ -859,7 +890,6 @@ function SidebarContent({
     // Tagesplan (#2383) nur an Schulen, die den Betreuungsplan nutzen. Das
     // Flag kommt vom Tenant-Resolve und ist damit auch ohne config:read da.
     if (!tagesplanEnabled && item.href === "/tagesplan") return false;
-    if (!tagesplanEnabled && item.href === "/mein-dienstplan") return false;
     if (item.alwaysShow) return true;
     // Permission-gated items (e.g. Änderungsanfragen on users:update): show for
     // admins or anyone holding the permission (any of them, for arrays),
@@ -879,7 +909,7 @@ function SidebarContent({
       return false;
     if (item.requiresAdmin && !userIsAdmin) return false;
     return true;
-  });
+  }
 
   // Helper to determine active href for student detail pages based on referrer
   const getStudentDetailActiveHref = (from: string | null): string => {
@@ -1200,7 +1230,12 @@ function SidebarContent({
             // Ziel der geführten Touren (#2832, #3748).
             data-setup-tour={`nav-${item.href}`}
             {...(collapsed
-              ? { title: item.label, "aria-label": item.label }
+              ? {
+                  title: item.label,
+                  "aria-label": item.locked
+                    ? `${item.label}, nicht gebucht`
+                    : item.label,
+                }
               : {})}
             {...(item.newTab
               ? { target: "_blank", rel: "noopener noreferrer" }
@@ -1212,7 +1247,13 @@ function SidebarContent({
                 {item.label}
               </span>
             )}
-            {renderRowBadge(item.href)}
+            {item.locked
+              ? labelsMounted && (
+                  <ModuleLockMark
+                    className={`ml-2 motion-safe:transition-opacity motion-safe:duration-150 ${labelsVisible ? "opacity-100" : "opacity-0"}`}
+                  />
+                )
+              : renderRowBadge(item.href)}
           </NavLink>
         )}
       </div>
@@ -1231,6 +1272,7 @@ function SidebarContent({
     href: page.href,
     label: page.label,
     concept: STAFF_NAV_CONCEPTS[page.href],
+    locked: "locked" in page ? page.locked : false,
   }));
 
   // Alles, was die Person sehen darf, nach Pfad. Der Baum in
@@ -1638,6 +1680,7 @@ function SidebarContent({
             // Eltern accordion. No-op in subdomain mode.
             href={tenantPath(page.href)}
             label={page.label}
+            locked={page.locked}
             tourId={`nav-${page.href}`}
             // Auch aktiv, wenn die Objektroute (Kindakte, Personalakte,
             // Raumseite) aus diesem Register geöffnet wurde (#3115).
@@ -1652,8 +1695,19 @@ function SidebarContent({
   // Anmeldungen: the setup hub, enrollment periods, offers and enrollment
   // forms. Every route behind it needs config:manage, so the section follows
   // the school lead (#3469). Sits in the Eltern group, below the parent pages.
+  // Ohne das Modul Online-Anmeldung steht für die Leitung eine Zeile mit
+  // Schloss statt des Bereichs (#4894).
+  const enrollmentsVisibility = moduleNav.section("enrollments");
+  const showEnrollments = userLeadsSchool && enrollmentsVisibility === "open";
   const renderEnrollmentsSection = () =>
-    userLeadsSchool ? (
+    userLeadsSchool && enrollmentsVisibility === "locked" ? (
+      renderNavItem({
+        href: ENROLLMENT_SECTION.href,
+        label: ENROLLMENT_SECTION.label,
+        concept: "enrollments",
+        locked: true,
+      })
+    ) : showEnrollments ? (
       <SidebarAccordionSection
         icon={ENROLLMENT_NAV_ICON}
         concept="enrollments"
@@ -1735,7 +1789,7 @@ function SidebarContent({
         ? (rowBadgeCounts[entry.href] ?? 0)
         : 0;
     }
-    return entry.section === "enrollments" && userLeadsSchool
+    return entry.section === "enrollments" && showEnrollments
       ? enrollmentsUnreadCount
       : 0;
   };
