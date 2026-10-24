@@ -84,6 +84,14 @@ func questionCard(q announcementService.SurveyQuestionResult) ReportCard {
 		card.Fields = append(card.Fields, ReportField{Label: "Auswertung", Value: "Zu wenige Antworten. So bleibt niemand erkennbar."})
 		return card
 	}
+	addQuestionDistribution(&card, q)
+	card.Fields = append(card.Fields, highLowFields(q)...)
+	return card
+}
+
+// addQuestionDistribution adds what a shown question's kind counts: the
+// options, the scale steps with the average, or the free texts.
+func addQuestionDistribution(card *ReportCard, q announcementService.SurveyQuestionResult) {
 	switch q.Kind {
 	case announcementService.SurveyQuestionSingle, announcementService.SurveyQuestionMultiple:
 		for _, o := range q.Options {
@@ -105,17 +113,21 @@ func questionCard(q announcementService.SurveyQuestionResult) ReportCard {
 		}
 		card.Blocks = append(card.Blocks, texts)
 	}
+}
+
+func highLowFields(q announcementService.SurveyQuestionResult) []ReportField {
 	highLabel, lowLabel := "Am häufigsten gewählt", "Am seltensten gewählt"
 	if q.Kind == announcementService.SurveyQuestionScale {
 		highLabel, lowLabel = "Höchster Wert", "Niedrigster Wert"
 	}
+	var fields []ReportField
 	if len(q.Highest) > 0 {
-		card.Fields = append(card.Fields, ReportField{Label: highLabel, Value: strings.Join(q.Highest, ", ")})
+		fields = append(fields, ReportField{Label: highLabel, Value: strings.Join(q.Highest, ", ")})
 	}
 	if len(q.Lowest) > 0 {
-		card.Fields = append(card.Fields, ReportField{Label: lowLabel, Value: strings.Join(q.Lowest, ", ")})
+		fields = append(fields, ReportField{Label: lowLabel, Value: strings.Join(q.Lowest, ", ")})
 	}
-	return card
+	return fields
 }
 
 func countWithShare(count, total int) string {

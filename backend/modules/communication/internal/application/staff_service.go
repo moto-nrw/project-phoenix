@@ -78,9 +78,12 @@ func (s *service) List(ctx context.Context, includeInactive bool) ([]*StaffParen
 }
 
 func (s *service) Get(ctx context.Context, id int64) (*StaffParentAnnouncement, error) {
-	a, err := s.findManaged(ctx, id, "get")
+	a, err := s.repo.FindByID(ctx, id)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("announcement: get: %w", err)
+	}
+	if a == nil || isSurveyCarrier(a) {
+		return nil, ErrNotFound
 	}
 	targets, err := s.repo.ListTargets(ctx, id)
 	if err != nil {
@@ -621,9 +624,12 @@ func (s *service) Unpublish(ctx context.Context, id int64) (*StaffParentAnnounce
 }
 
 func (s *service) Stats(ctx context.Context, id int64) (*StaffAnnouncementStats, error) {
-	a, err := s.findManaged(ctx, id, "load for stats")
+	a, err := s.repo.FindByID(ctx, id)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("announcement: load for stats: %w", err)
+	}
+	if a == nil || isSurveyCarrier(a) {
+		return nil, ErrNotFound
 	}
 	stats, err := s.repo.Stats(ctx, a.GetTenantID(), id)
 	if err != nil {
@@ -636,9 +642,12 @@ func (s *service) Stats(ctx context.Context, id int64) (*StaffAnnouncementStats,
 // accounts with their read/ack state — the per-person view behind Stats, so
 // staff can see who still has to acknowledge.
 func (s *service) Recipients(ctx context.Context, id int64) ([]*StaffAnnouncementRecipientStatus, error) {
-	a, err := s.findManaged(ctx, id, "load for recipients")
+	a, err := s.repo.FindByID(ctx, id)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("announcement: load for recipients: %w", err)
+	}
+	if a == nil || isSurveyCarrier(a) {
+		return nil, ErrNotFound
 	}
 	recipients, err := s.repo.AudienceRecipients(ctx, a.GetTenantID(), id)
 	if err != nil {

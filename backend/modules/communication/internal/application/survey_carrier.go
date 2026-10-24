@@ -166,20 +166,10 @@ func withoutSurveyCarriers(rows []*StaffParentAnnouncement) []*StaffParentAnnoun
 	return out
 }
 
+// isSurveyCarrier tells the system announcement of a parent survey. It is
+// none of the staff's announcement routes: its read times per guardian would
+// line up with the answers of an anonymous survey, so those routes do not
+// find it.
 func isSurveyCarrier(a *StaffParentAnnouncement) bool {
 	return a.IsSystem() && *a.SystemKind == StaffParentAnnouncementSystemKindSurvey
-}
-
-// findManaged loads an announcement for the staff's announcement routes. A
-// survey carrier is none of theirs: its read times per guardian would line
-// up with the answers of an anonymous survey, so it is not found here.
-func (s *service) findManaged(ctx context.Context, id int64, step string) (*StaffParentAnnouncement, error) {
-	a, err := s.repo.FindByID(ctx, id)
-	if err != nil {
-		return nil, fmt.Errorf("announcement: %s: %w", step, err)
-	}
-	if a == nil || isSurveyCarrier(a) {
-		return nil, ErrNotFound
-	}
-	return a, nil
 }

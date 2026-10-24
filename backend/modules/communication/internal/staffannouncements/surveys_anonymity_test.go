@@ -46,10 +46,11 @@ func (noAttachments) AttachmentDigests(context.Context, int64, func(io.Reader) (
 }
 
 type surveyFixture struct {
-	surveys communication.SurveyCapability
-	db      *bun.DB
-	logs    *bytes.Buffer
-	staff   surveyStaffStub
+	surveys       communication.SurveyCapability
+	announcements communication.ParentAnnouncementCapability
+	db            *bun.DB
+	logs          *bytes.Buffer
+	staff         surveyStaffStub
 }
 
 func newSurveyFixture(t *testing.T, staffCount int) *surveyFixture {
@@ -78,7 +79,7 @@ func newSurveyFixture(t *testing.T, staffCount int) *surveyFixture {
 	require.NoError(t, err)
 	surveys, err := communication.SurveysOf(withSurveys)
 	require.NoError(t, err)
-	return &surveyFixture{surveys: surveys, db: db, logs: logs, staff: staff}
+	return &surveyFixture{surveys: surveys, announcements: withSurveys, db: db, logs: logs, staff: staff}
 }
 
 func (f *surveyFixture) inSchool(t *testing.T, fn func(ctx context.Context) error) error {
@@ -241,6 +242,15 @@ func TestAnonymousSurvey_EvaluationNeedsFiveAnswersAndNamesNobody(t *testing.T) 
 
 	f.answerAll2(t, survey, 4, 6)
 	results = f.results(t, survey.ID)
+	assert.False(t, results.Available, "a running anonymous survey waits for its end")
+	assert.Equal(t, 6, results.ResponseCount)
+	assert.Empty(t, results.Questions, "two views of a running survey would differ by the answers in between")
+
+	require.NoError(t, f.inSchool(t, func(ctx context.Context) error {
+		_, err := f.surveys.CloseSurvey(ctx, survey.ID)
+		return err
+	}))
+	results = f.results(t, survey.ID)
 	require.True(t, results.Available)
 	require.Len(t, results.Questions, 5)
 	assert.Equal(t, 6, results.Questions[0].AnswerCount)
@@ -249,12 +259,14 @@ func TestAnonymousSurvey_EvaluationNeedsFiveAnswersAndNamesNobody(t *testing.T) 
 	assert.Len(t, results.Strengths, 1)
 	assert.Len(t, results.Improvements, 1)
 
-	// Nothing in the evaluation identifies a person: no account id, no name.
+	// Nothing in the evaluation identifies a person: no account field, no
+	// name. (Small account ids would collide with counts, so the field names
+	// are what is checked.)
 	raw, err := json.Marshal(results)
 	require.NoError(t, err)
+	assert.NotContains(t, strings.ToLower(string(raw)), "account")
 	for _, member := range f.staff {
 		assert.NotContains(t, string(raw), member.Name)
-		assert.NotContains(t, string(raw), `":`+strconv.FormatInt(member.AccountID, 10)+`,`)
 	}
 }
 
@@ -377,6 +389,18 @@ func TestParentSurvey_OneAnswerPerGuardianAccountAndCarrierStaysOutOfAnnouncemen
 		return f.surveys.SubmitPortalSurvey(ctx, tenantID, *survey.AnnouncementID, chain.AccountID, answersFor(survey, 1))
 	})
 	require.ErrorIs(t, err, communication.ErrSurveyAlreadyAnswered, "one answer per guardian account, not per child")
+
+	// The carrier is none of the announcement routes: its read times per
+	// guardian would line up with the anonymous answers.
+	require.NoError(t, f.inSchool(t, func(ctx context.Context) error {
+		_, err := f.announcements.GetParentAnnouncement(ctx, *survey.AnnouncementID)
+		assert.ErrorIs(t, err, communication.ErrParentAnnouncementNotFound, "get")
+		_, err = f.announcements.ParentAnnouncementStats(ctx, *survey.AnnouncementID)
+		assert.ErrorIs(t, err, communication.ErrParentAnnouncementNotFound, "stats")
+		_, err = f.announcements.ParentAnnouncementRecipients(ctx, *survey.AnnouncementID)
+		assert.ErrorIs(t, err, communication.ErrParentAnnouncementNotFound, "recipients")
+		return nil
+	}))
 
 	// Deleting the survey removes its carrier with it.
 	require.NoError(t, f.inSchool(t, func(ctx context.Context) error {
