@@ -457,6 +457,9 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   "api/school/class-day/arrival-exceptions/block-start": [
     "GET school /school/class-day/arrival-exceptions/block-start",
   ],
+  "api/school/class-day/class-trips/[schoolClass]": [
+    "POST school /school/class-day/class-trips/schoolClass%2F1",
+  ],
   "api/school/class-day/homework/[schoolClass]": [
     "POST school /school/class-day/homework/schoolClass%2F1",
   ],

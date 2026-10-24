@@ -8,6 +8,7 @@ import {
   scrubEvent,
   scrubSpan,
   sentryDataCollection,
+  tenantResolutionRateLimitedError,
 } from "./sentry.shared";
 
 type SpanJSON = Parameters<NonNullable<BrowserOptions["beforeSendSpan"]>>[0];
@@ -152,6 +153,21 @@ describe("scrubEvent", () => {
     const result = scrubEvent(event);
 
     expect(result).toBeNull();
+  });
+
+  it("drops a tenant lookup the backend rate limit rejected", () => {
+    const event = makeEvent({
+      exception: {
+        values: [
+          {
+            type: tenantResolutionRateLimitedError,
+            value: "Tenant resolution was rate limited (HTTP 429)",
+          },
+        ],
+      },
+    });
+
+    expect(scrubEvent(event)).toBeNull();
   });
 
   it("keeps router state parse errors without an RSC marker", () => {

@@ -2,6 +2,7 @@ package parent
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -46,14 +47,15 @@ type declarationChildResponse struct {
 
 // AnnouncementDeclarationResponse is the declaration block of a feed item.
 type AnnouncementDeclarationResponse struct {
-	Kind             string                      `json:"kind"`
-	Signers          string                      `json:"signers"`
-	Revocable        bool                        `json:"revocable"`
-	RequiresPassword bool                        `json:"requires_password"`
-	Deadline         *time.Time                  `json:"deadline"`
-	Closed           bool                        `json:"closed"`
-	Version          *declarationVersionResponse `json:"version"`
-	Children         []declarationChildResponse  `json:"children"`
+	Kind              string                      `json:"kind"`
+	Signers           string                      `json:"signers"`
+	Revocable         bool                        `json:"revocable"`
+	RequiresPassword  bool                        `json:"requires_password"`
+	RequiresSignature bool                        `json:"requires_signature"`
+	Deadline          *time.Time                  `json:"deadline"`
+	Closed            bool                        `json:"closed"`
+	Version           *declarationVersionResponse `json:"version"`
+	Children          []declarationChildResponse  `json:"children"`
 }
 
 func toDeclarationResponse(d *parentService.AnnouncementFeedDeclaration) *AnnouncementDeclarationResponse {
@@ -62,7 +64,7 @@ func toDeclarationResponse(d *parentService.AnnouncementFeedDeclaration) *Announ
 	}
 	out := &AnnouncementDeclarationResponse{
 		Kind: d.Kind, Signers: d.Signers, Revocable: d.Revocable, RequiresPassword: d.RequiresPassword,
-		Deadline: d.Deadline, Closed: d.Closed, Children: make([]declarationChildResponse, 0, len(d.Children)),
+		RequiresSignature: d.RequiresSignature, Deadline: d.Deadline, Closed: d.Closed, Children: make([]declarationChildResponse, 0, len(d.Children)),
 	}
 	if d.Version != nil {
 		out.Version = &declarationVersionResponse{
@@ -93,6 +95,22 @@ type declarationRequest struct {
 	Action    string `json:"action"`
 	VersionID string `json:"version_id"`
 	Password  string `json:"password,omitempty"`
+	// Signature is the guardian's signature (#4785): the method, the PNG as
+	// base64 without a data: prefix and, when typed, the typed name.
+	Signature *declarationSignatureRequest `json:"signature,omitempty"`
+}
+
+type declarationSignatureRequest struct {
+	Method    string `json:"method"`
+	ImagePNG  string `json:"image_png"`
+	TypedName string `json:"typed_name,omitempty"`
+}
+
+func (s *declarationSignatureRequest) input() *parentService.DeclarationSignatureInput {
+	if s == nil {
+		return nil
+	}
+	return &parentService.DeclarationSignatureInput{Method: s.Method, ImagePNG: s.ImagePNG, TypedName: s.TypedName}
 }
 
 type declarationSubmissionResponse struct {
@@ -104,6 +122,9 @@ type declarationSubmissionResponse struct {
 	RecordHash        string    `json:"record_hash"`
 	PasswordConfirmed bool      `json:"password_confirmed"`
 }
+
+// declarationBodyLimit bounds a declaration request including its signature.
+const declarationBodyLimit = 320 << 10
 
 func parsePositiveID(raw string) (int64, bool) {
 	id, err := strconv.ParseInt(raw, 10, 64)
@@ -122,6 +143,8 @@ func (rs *Resource) submitDeclaration(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	// A signature PNG is at most 200 KB, about 273 KB as base64 (#4785).
+	r.Body = http.MaxBytesReader(w, r.Body, declarationBodyLimit)
 	var req declarationRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid request body")))
@@ -134,7 +157,7 @@ func (rs *Resource) submitDeclaration(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	submission, created, err := rs.ParentService.SubmitDeclaration(r.Context(), accountID, announcementID,
-		parentService.DeclarationInput{StudentID: studentID, VersionID: versionID, Action: req.Action, Password: req.Password},
+		parentService.DeclarationInput{StudentID: studentID, VersionID: versionID, Action: req.Action, Password: req.Password, Signature: req.Signature.input()},
 		rs.passwordConfirmer(accountID))
 	if err != nil {
 		renderDeclarationError(w, r, err)
@@ -178,6 +201,10 @@ func renderDeclarationError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, common.CodeCareDeclarationPasswordRequired))
 	case errors.Is(err, parentService.ErrDeclarationPasswordIncorrect):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, common.CodeCareDeclarationPasswordIncorrect))
+	case errors.Is(err, parentService.ErrDeclarationSignatureRequired):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeCareDeclarationSignatureRequired))
+	case errors.Is(err, parentService.ErrDeclarationSignatureInvalid):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeCareDeclarationSignatureInvalid))
 	case errors.Is(err, parentService.ErrChildCareEnded):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeCareChildCareEnded))
 	default:
@@ -214,6 +241,58 @@ type proofSubmissionResponse struct {
 	Method            string    `json:"method"`
 	ContentHash       string    `json:"content_hash"`
 	RecordHash        string    `json:"record_hash"`
+	// Signature is the guardian's own signature of a signed answer (#4785).
+	Signature *proofSignatureResponse `json:"signature"`
+}
+
+type proofSignatureResponse struct {
+	Method       string    `json:"method"`
+	TypedName    *string   `json:"typed_name"`
+	ImageDataURL string    `json:"image_data_url"`
+	ImageSHA256  string    `json:"image_sha256"`
+	SignedAt     time.Time `json:"signed_at"`
+}
+
+func toProofSignatureResponse(proof *parentService.DeclarationProof, sub *parentService.DeclarationSubmission) *proofSignatureResponse {
+	s := proofSignatureForRendering(proof, sub)
+	if s == nil {
+		return nil
+	}
+	out := &proofSignatureResponse{
+		Method: s.Method, ImageDataURL: "data:image/png;base64," + base64.StdEncoding.EncodeToString(s.PNG),
+		ImageSHA256: s.ImageSHA256, SignedAt: s.SignedAt,
+	}
+	if s.TypedName != "" {
+		typed := s.TypedName
+		out.TypedName = &typed
+	}
+	return out
+}
+
+// proofSignatureForRendering returns only a signature from a proof whose
+// checks, including its declaration and child binding, have passed. A proof
+// with an altered entry must keep its warning without rendering stored data
+// as the guardian's signature.
+func proofSignatureForRendering(proof *parentService.DeclarationProof, sub *parentService.DeclarationSubmission) *parentService.DeclarationSignature {
+	if !proof.IntegrityOK || sub.SignatureID == nil {
+		return nil
+	}
+	s, ok := proof.Signatures[*sub.SignatureID]
+	if !ok || s == nil || !s.IntegrityOK {
+		return nil
+	}
+	return s
+}
+
+// proofMethodLabel names the procedure of the proof: the signature procedure
+// only when the proof can safely render a signed answer.
+func proofMethodLabel(proof *parentService.DeclarationProof) string {
+	for _, sub := range proof.Submissions {
+		if proofSignatureForRendering(proof, sub) != nil {
+			return signatureMethodLabel
+		}
+	}
+	return methodLabel
 }
 
 type declarationProofResponse struct {
@@ -228,8 +307,12 @@ type declarationProofResponse struct {
 	IntegrityOK bool                      `json:"integrity_ok"`
 }
 
-// methodLabel names the only procedure moto offers, and says what it is.
-const methodLabel = "Einfache elektronische Erklärung im angemeldeten Eltern-Konto"
+// methodLabel and signatureMethodLabel name the two procedures moto offers,
+// and say what they are.
+const (
+	methodLabel          = "Einfache elektronische Erklärung im angemeldeten Eltern-Konto"
+	signatureMethodLabel = "Einfache elektronische Signatur im angemeldeten Eltern-Konto"
+)
 
 // declarationProof returns the guardian's own proof for one child: JSON for
 // the portal page, or with format=pdf the proof in the moto PDF design.
@@ -276,7 +359,7 @@ func (rs *Resource) writeDeclarationProofPDF(w http.ResponseWriter, r *http.Requ
 func toDeclarationProofResponse(proof *parentService.DeclarationProof, now time.Time) declarationProofResponse {
 	out := declarationProofResponse{
 		Title: proof.Title, SchoolName: proof.SchoolName, ChildName: proof.ChildName, Kind: proof.Kind,
-		MethodLabel: methodLabel, GeneratedAt: now, IntegrityOK: proof.IntegrityOK,
+		MethodLabel: proofMethodLabel(proof), GeneratedAt: now, IntegrityOK: proof.IntegrityOK,
 		Versions: []proofVersionResponse{}, Submissions: []proofSubmissionResponse{},
 	}
 	declared := map[int64]bool{}
@@ -291,6 +374,7 @@ func toDeclarationProofResponse(proof *parentService.DeclarationProof, now time.
 			SignerName: sub.SignerName, GuardianRole: sub.GuardianRole, VersionNo: versionNo,
 			PasswordConfirmed: sub.PasswordConfirmed, Method: sub.Method,
 			ContentHash: sub.ContentHash, RecordHash: sub.RecordHash,
+			Signature: toProofSignatureResponse(proof, sub),
 		})
 	}
 	versions := make([]*parentService.DeclarationVersion, 0, len(declared))

@@ -128,6 +128,8 @@ const schoolErasureResidualPart1SQL = `CREATE OR REPLACE FUNCTION platform.schoo
     UNION ALL
     SELECT 1 FROM audit.room_color_migration_backup AS r WHERE r.tenant_id = p_school_id
     UNION ALL
+    SELECT 1 FROM audit.signatures AS r WHERE r.tenant_id = p_school_id
+    UNION ALL
     SELECT 1 FROM audit.staff_master_data_changes AS r WHERE r.tenant_id = p_school_id
     UNION ALL
     SELECT 1 FROM audit.student_consent_changes AS r WHERE r.tenant_id = p_school_id

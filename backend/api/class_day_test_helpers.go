@@ -16,6 +16,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/classday"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
+	presenceStudentsHTTP "github.com/moto-nrw/project-phoenix/modules/studentpresence/http"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -57,10 +59,15 @@ func NewClassDayTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 		Companions: owners.NewStudentCompanionRepository(rCare.CarePlan), ClassListEntries: owners.NewClassListEntryRosterReader(rMembership.Membership),
 		PickupSchedules: active.PickupSchedule, CareParticipation: care.CareLifecycle, Settings: activeSettings.Settings,
 	})
+	people, err := owners.NewPeopleDirectory(db)
+	if err != nil {
+		return ClassDayTestModule{}, err
+	}
 	presence, err := NewCheckinTestPresence(db)
 	if err != nil {
 		return ClassDayTestModule{}, err
 	}
+	hub := deliveryCompose.NewRealtimeHub(slog.Default())
 	members, err := owners.NewMembershipTestRepositories(db)
 	if err != nil {
 		return ClassDayTestModule{}, err
@@ -70,13 +77,26 @@ func NewClassDayTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 		Companions: owners.NewStudentCompanionRepository(rCare.CarePlan), ClassArrivalExceptions: active.ArrivalSchedule,
 		BlockStarts:                   activeTimetable.TimetableOperations,
 		MorningAttendanceDependencies: classdayCompose.MorningAttendanceDependencies{Store: presence, Now: classDayTestClock(clocks)},
-		HomeworkDependencies:          classdayCompose.HomeworkDependencies{Homework: NewClassDayHomework(owners.MustNewUnobservedTimetable(db))},
+		TripStatusDays: NewClassDayTripStatusDays(presenceStudentsHTTP.NewSchoolClassTrips(presenceStudentsHTTP.ResourceConfig{
+			Broadcaster: hub, Logger: slog.Default(), PeopleDirectory: people,
+			StudentStatusDayService: presenceservice.NewStatusDays(rCare.StudentStatusDay, owners.NewManualPartialAbsenceDates(rCare.CarePlan),
+				db.Pool(), rCare.CarePlan.LockExceptionDay, clockOrNow(clocks)),
+		})),
+		HomeworkDependencies: classdayCompose.HomeworkDependencies{Homework: NewClassDayHomework(owners.MustNewUnobservedTimetable(db))},
 		ClassHandoverDependencies: classdayCompose.ClassHandoverDependencies{
 			Handovers: presence, HandoverStaffNames: classHandoverStaffNames(members.Staff),
 		},
 	}, reports, rCare.StudentStatusDay, r.Student, r.Person, r.StudentGuardian, rAudit.DataAccessLog, activeSettings.Settings,
-		deliveryCompose.NewRealtimeHub(slog.Default()), slog.Default())
+		hub, slog.Default())
 	return ClassDayTestModule{ClassDay: classDay}, nil
+}
+
+// clockOrNow is the first clock a test passed, or the wall clock.
+func clockOrNow(clocks []func() time.Time) func() time.Time {
+	if clock := classDayTestClock(clocks); clock != nil {
+		return clock
+	}
+	return time.Now
 }
 
 // classDayTestClock is the first clock a test passed, nil for the wall clock.

@@ -100,6 +100,8 @@ export interface Announcement {
   declaration_signers?: DeclarationSigners;
   declaration_revocable?: boolean;
   declaration_requires_password?: boolean;
+  /** Agreeing needs a signature with finger, pen or mouse (#4785). */
+  declaration_requires_signature?: boolean;
   /** True once a version exists: the attachments are fixed from then on. */
   declaration_locked_attachments?: boolean;
 }
@@ -190,6 +192,7 @@ export interface AnnouncementInput {
   declaration_signers?: DeclarationSigners;
   declaration_revocable?: boolean;
   declaration_requires_password?: boolean;
+  declaration_requires_signature?: boolean;
 }
 
 /**
@@ -330,6 +333,16 @@ export interface DeclarationSubmission {
   record_hash: string;
   submitted_at: string;
   integrity_ok: boolean;
+  /** The stored signature, without the image (#4785). */
+  signature: DeclarationSubmissionSignature | null;
+}
+
+interface DeclarationSubmissionSignature {
+  method: "drawn" | "typed";
+  typed_name: string | null;
+  signed_at: string;
+  /** False when the image or its record changed after signing. */
+  integrity_ok: boolean;
 }
 
 interface DeclarationSummary {
@@ -348,6 +361,7 @@ export interface DeclarationStatus {
   signers: DeclarationSigners;
   revocable: boolean;
   requires_password: boolean;
+  requires_signature: boolean;
   deadline: string | null;
   current_version: DeclarationVersion | null;
   versions: DeclarationVersion[];

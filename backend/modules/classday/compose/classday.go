@@ -43,10 +43,11 @@ type ClassDayDependencies struct {
 	Students               SheetStudents
 	EmergencyContacts      EmergencyContacts
 	AccessLog              AccessLog
-	ClassArrivalExceptions careplan.ClassArrivalExceptions
-	WriteScope             ArrivalWriteScope
+	ClassArrivalExceptions careplan.ArrivalScheduleService
+	WriteScope             SchoolWriteScope
 	BlockStarts            application.BlockStarts
 	Announcer              ArrivalScheduleAnnouncer
+	TripStatusDays         ClassTripStatusDays
 	MorningAttendanceDependencies
 	HomeworkDependencies
 	ClassHandoverDependencies
@@ -61,9 +62,9 @@ func NewClassDay(deps ClassDayDependencies) classday.ClassDay {
 	app := application.ClassDayDependencies{
 		Caller: caller, Rosters: deps.Rosters, StatusDays: deps.StatusDays,
 		Companions: deps.Companions, Students: deps.Students, EmergencyContacts: deps.EmergencyContacts,
-		AccessLog: deps.AccessLog, WriteScope: deps.WriteScope, Announcer: deps.Announcer,
-		MorningAttendanceDependencies: deps.MorningAttendanceDependencies, HomeworkDependencies: deps.HomeworkDependencies,
-		ClassHandoverDependencies: deps.ClassHandoverDependencies,
+		AccessLog: deps.AccessLog, WriteScope: deps.WriteScope, TripScope: deps.WriteScope, Announcer: deps.Announcer,
+		StudentArrivals: deps.ClassArrivalExceptions, TripStatusDays: deps.TripStatusDays, HomeworkDependencies: deps.HomeworkDependencies,
+		MorningAttendanceDependencies: deps.MorningAttendanceDependencies, ClassHandoverDependencies: deps.ClassHandoverDependencies,
 	}
 	if deps.PickupTimes != nil && deps.ArrivalTimes != nil {
 		app.Times = application.DayTimeBinding{ClassDayPickupReader: deps.PickupTimes, Pickups: deps.PickupTimes, Arrivals: deps.ArrivalTimes}

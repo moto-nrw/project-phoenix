@@ -337,6 +337,7 @@ export function Header() {
                 href={homeUrl}
                 label={brandLabel}
                 hideLabelBelow="md"
+                traegerName={tenantContext?.tenant?.traegerName}
               />
             ) : (
               <BrandLink

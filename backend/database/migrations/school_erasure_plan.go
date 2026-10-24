@@ -74,6 +74,7 @@ const schoolErasurePlanPart1SQL = `CREATE OR REPLACE FUNCTION platform.school_er
   {"name": "audit.guardian_financial_changes","predicate": "r.tenant_id = $1"},
   {"name": "audit.personnel_number_changes","predicate": "r.tenant_id = $1"},
   {"name": "audit.room_color_migration_backup","predicate": "r.tenant_id = $1"},
+  {"name": "audit.signatures","predicate": "r.tenant_id = $1"},
   {"name": "audit.staff_master_data_changes","predicate": "r.tenant_id = $1"},
   {"name": "audit.student_consent_changes","predicate": "r.tenant_id = $1"},
   {"name": "audit.student_deletions","predicate": "r.tenant_id = $1"},

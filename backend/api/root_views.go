@@ -25,6 +25,7 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
+	presenceStudentsHTTP "github.com/moto-nrw/project-phoenix/modules/studentpresence/http"
 	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
@@ -167,6 +168,7 @@ func buildClassDayViews(
 	settings settingsCompose.BatchSettingsService, operations timetable.OperationCapability, presence owners.PresenceOwner,
 	persons peopledirectory.Capability, groups schoolstructure.Query, rooms facilitiesModule.Catalog, renderer *lists.RendererService,
 	homework timetable.HomeworkBook,
+	emitter presenceStudentsHTTP.GuardianWake,
 ) (ClassDayViews, error) {
 	classDayReads, err := arrivalTimetable.NewPresenceReads(owners.NewTimetablePresenceProjection(db))
 	if err != nil {
@@ -175,6 +177,10 @@ func buildClassDayViews(
 	classDay := NewClassDay(classdayCompose.ClassDayDependencies{
 		Caller: caller, PickupTimes: schedules.Pickups, ArrivalTimes: schedules.Arrivals, CareDays: schedules.CareDay,
 		Companions: owners.NewStudentCompanionRepository(carePlan), ClassArrivalExceptions: schedules.Arrivals,
+		TripStatusDays: NewClassDayTripStatusDays(presenceStudentsHTTP.NewSchoolClassTrips(presenceStudentsHTTP.ResourceConfig{
+			Broadcaster: hub, Logger: env.Logger.With("service", "class-day-class-trips"), ParentEventEmitter: emitter,
+			PeopleDirectory: persons, StudentStatusDayService: presence.StatusDays,
+		})),
 		BlockStarts:                   operations,
 		MorningAttendanceDependencies: classdayCompose.MorningAttendanceDependencies{Store: presence.Presence, Now: env.Now},
 		HomeworkDependencies:          classdayCompose.HomeworkDependencies{Homework: NewClassDayHomework(homework)},

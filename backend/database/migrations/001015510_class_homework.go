@@ -21,6 +21,7 @@ func init() {
 			lehrkraftRoleVersion,     // the role the write permission goes to
 			schoolPortalRolesVersion, // auth.roles.school_portal, the school roles that get it too
 			schoolErasureVersion,     // the erasure plan this migration extends
+			signaturesVersion,        // the latest school erasure functions this migration extends and restores on down
 		},
 	})
 	Migrations.MustRegister(classHomeworkUp, classHomeworkDown)

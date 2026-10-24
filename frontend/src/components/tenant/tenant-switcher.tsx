@@ -29,6 +29,7 @@ import { ApiError } from "~/lib/api-error";
 import {
   BrandLink,
   BrandLogo,
+  BrandTraegerLine,
   brandLabelClass,
 } from "~/components/dashboard/header/brand-link";
 
@@ -44,6 +45,8 @@ interface BrandTenantSwitcherProps {
   readonly label?: string | null;
   /** Unterhalb dieser Breite nur das Logo zeigen, siehe `BrandLink`. */
   readonly hideLabelBelow?: "md" | "lg";
+  /** Träger der Schule als zweite Zeile, siehe `BrandTraegerLine`. */
+  readonly traegerName?: string | null;
 }
 
 /**
@@ -65,6 +68,7 @@ export function BrandTenantSwitcher({
   href = "/home",
   label,
   hideLabelBelow,
+  traegerName,
 }: BrandTenantSwitcherProps) {
   // The tenant layout preloads the list on the server (#2973); without a
   // seed the list is fetched once the session is authenticated.
@@ -219,7 +223,12 @@ export function BrandTenantSwitcher({
   // Single (or unknown) tenant: plain brand link, no dropdown
   if (tenants.length <= 1) {
     return (
-      <BrandLink href={href} label={label} hideLabelBelow={hideLabelBelow} />
+      <BrandLink
+        href={href}
+        label={label}
+        hideLabelBelow={hideLabelBelow}
+        traegerName={traegerName}
+      />
     );
   }
 
@@ -255,15 +264,16 @@ export function BrandTenantSwitcher({
       >
         <BrandLogo />
         <span
-          className={`${brandLabelClass(true)} ${
+          className={`min-w-0 flex-col text-left ${
             hideLabelBelow === "md"
-              ? "hidden md:inline-block"
+              ? "hidden md:flex"
               : hideLabelBelow === "lg"
-                ? "hidden lg:inline-block"
-                : ""
+                ? "hidden lg:flex"
+                : "flex"
           }`}
         >
-          {displayLabel}
+          <span className={brandLabelClass(true)}>{displayLabel}</span>
+          <BrandTraegerLine traegerName={traegerName} />
         </span>
         <svg
           className={`h-4 w-4 shrink-0 text-gray-400 transition-transform ${isOpen ? "rotate-180" : ""}`}

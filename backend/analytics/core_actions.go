@@ -563,10 +563,13 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/school/auth/switch-school"}:                                       notCaptured,
 	{http.MethodDelete, "/school/class-day/arrival-exceptions/{schoolClass}/{date}"}:      event("arrival_exception_changed"),
 	{http.MethodPut, "/school/class-day/arrival-exceptions/{schoolClass}/{date}"}:         event("arrival_exception_changed"),
-	{http.MethodPut, "/school/class-day/morning-attendance/{schoolClass}/{date}"}:         event("morning_attendance_recorded"),
+	{http.MethodPost, "/school/class-day/class-trips/{schoolClass}"}:                      event("class_trip_reported"),
+	{http.MethodDelete, "/school/class-day/handover/{schoolClass}/{date}"}:                event("class_handover_withdrawn"),
+	{http.MethodPut, "/school/class-day/handover/{schoolClass}/{date}"}:                   event("class_handed_over"),
 	{http.MethodPost, "/school/class-day/homework/{schoolClass}"}:                         event("homework_entered"),
 	{http.MethodPut, "/school/class-day/homework/{schoolClass}/{homeworkId}"}:             event("homework_changed"),
 	{http.MethodDelete, "/school/class-day/homework/{schoolClass}/{homeworkId}"}:          event("homework_deleted"),
+	{http.MethodPut, "/school/class-day/morning-attendance/{schoolClass}/{date}"}:         event("morning_attendance_recorded"),
 	{http.MethodDelete, "/school/notifications/preferences/"}:                             notCaptured,
 	{http.MethodPut, "/school/notifications/preferences/{type}"}:                          notCaptured,
 	{http.MethodDelete, "/school/notifications/push/subscriptions"}:                       notCaptured,
@@ -581,8 +584,6 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPut, "/school/supervisions/{id}/students/{student_id}/homework-feedback"}: event("homework_feedback_recorded"),
 	{http.MethodPost, "/school/supervisions/{id}/students/{student_id}/check-in"}:         event("supervision_attendance_recorded"),
 	{http.MethodPost, "/school/supervisions/{id}/students/{student_id}/check-out"}:        event("supervision_attendance_recorded"),
-	{http.MethodDelete, "/school/class-day/handover/{schoolClass}/{date}"}:                event("class_handover_withdrawn"),
-	{http.MethodPut, "/school/class-day/handover/{schoolClass}/{date}"}:                   event("class_handed_over"),
 
 	// Public demo (#3462), mounted under APP_ENV=demo only. A redeemed
 	// access enters a demo school that is ready, so the entry is the proof

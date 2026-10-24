@@ -19,6 +19,7 @@ import {
   deleteHomeworkSchool,
   fetchClassDayClassesSchool,
   fetchClassDaySchool,
+  reportClassTripSchool,
   handOverClassSchool,
   recordMorningAttendanceSchool,
   withdrawClassHandoverSchool,
@@ -40,6 +41,7 @@ function ClassFromAddress() {
       schoolClass={schoolClass}
       fetchClassDay={fetchClassDaySchool}
       fetchClasses={fetchClassDayClassesSchool}
+      reportClassTrip={reportClassTripSchool}
       recordMorningAttendance={recordMorningAttendanceSchool}
       homework={homeworkApi}
       handOverClass={handOverClassSchool}

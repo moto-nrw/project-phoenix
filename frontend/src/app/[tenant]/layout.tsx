@@ -18,6 +18,7 @@ import {
 import { RESERVED_SLUGS } from "~/lib/reserved-slugs";
 import { isValidTenantSlug } from "~/lib/tenant-slug";
 import { env } from "~/env";
+import { tenantResolutionRateLimitedError } from "~/sentry.shared";
 
 interface TenantResolveResponse {
   tenant_id: number;
@@ -26,6 +27,7 @@ interface TenantResolveResponse {
   subdomain: string;
   organization_id: number;
   organization_name: string;
+  traeger_name?: string;
   hidden?: boolean;
   settings: TenantSettings;
   presence_mode?: string;
@@ -54,18 +56,54 @@ interface TenantResolveResponse {
   child_search_only_navigation?: boolean;
 }
 
+// Next's data cache keeps only 200 responses, so a 404 for an unknown slug
+// was never cached: every scanner request for a made-up subdomain reached the
+// backend. Its anonymous rate limit counts all of them under this server's IP,
+// so a scan burst answered real tenant lookups with 429 (FRONTEND-1B). Unknown
+// slugs are remembered briefly; a school created meanwhile resolves after at
+// most this TTL.
+const UNKNOWN_TENANT_TTL_MS = 60_000;
+const UNKNOWN_TENANT_LIMIT = 1_000;
+const unknownTenantUntil = new Map<string, number>();
+
+function isRememberedUnknownTenant(slug: string): boolean {
+  const until = unknownTenantUntil.get(slug);
+  if (until === undefined) return false;
+  if (until > Date.now()) return true;
+  unknownTenantUntil.delete(slug);
+  return false;
+}
+
+function rememberUnknownTenant(slug: string): void {
+  if (unknownTenantUntil.size >= UNKNOWN_TENANT_LIMIT) {
+    const oldest = unknownTenantUntil.keys().next().value;
+    if (oldest !== undefined) unknownTenantUntil.delete(oldest);
+  }
+  unknownTenantUntil.set(slug, Date.now() + UNKNOWN_TENANT_TTL_MS);
+}
+
 /**
  * Resolve tenant metadata on the server side.
  * Uses the backend API to validate the tenant slug.
  */
 async function fetchTenantInfo(slug: string): Promise<TenantInfo | null> {
+  if (isRememberedUnknownTenant(slug)) return null;
+
   const { getServerApiUrl } = await import("~/lib/server-api-url");
   const res = await fetch(
     `${getServerApiUrl()}/auth/tenant/resolve?slug=${encodeURIComponent(slug)}`,
     { next: { revalidate: 300, tags: [`tenant-${slug}`] } },
   );
 
-  if (res.status === 404) return null;
+  if (res.status === 404) {
+    rememberUnknownTenant(slug);
+    return null;
+  }
+  if (res.status === 429) {
+    const error = new Error("Tenant resolution was rate limited (HTTP 429)");
+    error.name = tenantResolutionRateLimitedError;
+    throw error;
+  }
   if (!res.ok) {
     throw new Error(`Tenant resolution failed with HTTP ${res.status}`);
   }
@@ -82,6 +120,7 @@ async function fetchTenantInfo(slug: string): Promise<TenantInfo | null> {
     subdomain: data.subdomain,
     organizationId: data.organization_id,
     organizationName: data.organization_name,
+    traegerName: data.traeger_name,
     hidden: data.hidden === true,
     settings: data.settings ?? {},
     presenceMode: normalizePresenceMode(data.presence_mode),

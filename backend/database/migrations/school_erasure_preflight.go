@@ -15,13 +15,13 @@ func installSchoolErasurePreflight(ctx context.Context, tx bun.Tx) error {
 
 const schoolErasurePreflightSQL = schoolErasurePreflightPart1SQL + `    education.class_homework,
 ` + schoolErasurePreflightPart2SQL + `    education.homework_feedback,
-` + schoolErasurePreflightPart3SQL + `    ) AS edge) <> '4bd1f5f51e12259671e67baf34db9e7ead5994df30a247ce152b73e0e8bd8186' THEN
+` + schoolErasurePreflightPart3SQL + `    ) AS edge) <> '2316bae64fadb57c28e90bfc50ebea77bcc69a824bb76d2190c9b0866043189a' THEN
 ` + schoolErasurePreflightPart4SQL + `    UNION ALL
     SELECT 1 FROM education.class_homework AS c JOIN users.staff_school_memberships AS p ON c."created_by_staff_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
 ` + schoolErasurePreflightPart5SQL
 
 // The pre-1.15.510 definition shares the unchanged SQL sections.
-const schoolErasurePreflightWithoutHomeworkSQL = schoolErasurePreflightPart1SQL + schoolErasurePreflightPart2SQL + schoolErasurePreflightPart3SQL + `    ) AS edge) <> '4b396b704fd400fca1a02a347ac362b01314ba4ea9fb654aa50cecd2aef28334' THEN
+const schoolErasurePreflightWithoutHomeworkSQL = schoolErasurePreflightPart1SQL + schoolErasurePreflightPart2SQL + schoolErasurePreflightPart3SQL + `    ) AS edge) <> '8441a2b4fec5eb071bb272598938d610b4678ab580a53e83885ded63e284409b' THEN
 ` + schoolErasurePreflightPart4SQL + schoolErasurePreflightPart5SQL
 
 const schoolErasurePreflightPart1SQL = `CREATE OR REPLACE FUNCTION platform.school_erasure_preflight(p_school_id BIGINT,p_organization_id BIGINT)
@@ -81,6 +81,7 @@ const schoolErasurePreflightPart1SQL = `CREATE OR REPLACE FUNCTION platform.scho
     audit.guardian_financial_changes,
     audit.personnel_number_changes,
     audit.room_color_migration_backup,
+    audit.signatures,
     audit.staff_master_data_changes,
     audit.student_consent_changes,
     audit.student_deletions,
