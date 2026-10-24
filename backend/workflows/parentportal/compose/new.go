@@ -73,8 +73,7 @@ type Dependencies struct {
 	GuardianInvites     care.GuardianAccess
 	GuardianInvitations care.GuardianInvitationReads
 
-	// Messaging: the parent-OGS conversation, announcements, and the reads the
-	// request-sharing ledger joins.
+	// Messaging: conversation, announcements, surveys, request-sharing reads.
 	MessageThreadRepo         messaging.MessageThreadAccess
 	MessageRepo               messaging.MessageReads
 	MessageReadRepo           messaging.MessageInboxReads

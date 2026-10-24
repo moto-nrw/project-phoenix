@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sort"
@@ -17,9 +18,15 @@ const staffSurveyDeepLink = "/umfragen"
 // StaffSurveysToAnswer lists the open staff surveys of the school for a staff
 // member. Someone outside the staff audience gets none.
 func (s *surveyService) StaffSurveysToAnswer(ctx context.Context, accountID int64) ([]communication.SurveyToAnswer, error) {
-	member, err := s.isStaffMember(ctx, accountID)
-	if err != nil || !member {
-		return []communication.SurveyToAnswer{}, err
+	if s.staff == nil {
+		return nil, errors.New("survey: staff audience is not wired")
+	}
+	staff, err := s.staff.ListAddressableStaff(ctx, 0)
+	if err != nil {
+		return nil, fmt.Errorf("survey: list staff audience: %w", err)
+	}
+	if !inStaffAudience(staff, accountID) {
+		return []communication.SurveyToAnswer{}, nil
 	}
 	return s.store.OpenStaffSurveys(ctx, accountID, s.now())
 }
@@ -61,25 +68,25 @@ func (s *surveyService) staffSurveyFor(ctx context.Context, accountID, surveyID 
 }
 
 func (s *surveyService) isStaffMember(ctx context.Context, accountID int64) (bool, error) {
-	if accountID <= 0 {
-		return false, nil
-	}
 	staff, err := s.staffAudience(ctx)
 	if err != nil {
 		return false, err
 	}
-	for _, member := range staff {
-		if member.AccountID == accountID {
-			return true, nil
-		}
-	}
-	return false, nil
+	return inStaffAudience(staff, accountID), nil
 }
 
-// PortalSurveySummaries returns the survey state behind carrier announcements
-// of a guardian's feed.
-func (s *surveyService) PortalSurveySummaries(ctx context.Context, accountID int64, announcementIDs []int64) (map[int64]communication.PortalSurveySummary, error) {
-	return s.store.PortalSummaries(ctx, accountID, announcementIDs)
+// inStaffAudience reports whether the account is one of the staff a staff
+// survey asks; accounts of the school portal only are not.
+func inStaffAudience(staff []*communication.AddressableStaffRecord, accountID int64) bool {
+	if accountID <= 0 {
+		return false
+	}
+	for _, member := range staff {
+		if member != nil && member.AccountID == accountID && member.RoleKind != surveyLehrkraftRoleKind {
+			return true
+		}
+	}
+	return false
 }
 
 // PortalSurveyForm returns the parent survey an announcement carries.
@@ -193,17 +200,12 @@ func (s *surveyService) notifyStaff(ctx context.Context, survey *communication.S
 	return nil
 }
 
-// DeleteExpiredParentSurveys deletes the parent surveys past the window.
-func (s *surveyService) DeleteExpiredParentSurveys(ctx context.Context, retentionDays int) (int, error) {
-	return s.deleteExpired(ctx, communication.SurveyAudienceParents, retentionDays)
-}
-
-// DeleteExpiredStaffSurveys deletes the staff surveys past the window.
-func (s *surveyService) DeleteExpiredStaffSurveys(ctx context.Context, retentionDays int) (int, error) {
-	return s.deleteExpired(ctx, communication.SurveyAudienceStaff, retentionDays)
-}
-
-func (s *surveyService) deleteExpired(ctx context.Context, audience string, retentionDays int) (int, error) {
+// DeleteExpiredSurveys deletes the surveys of one audience past the window,
+// each with its carrier announcement.
+func (s *surveyService) DeleteExpiredSurveys(ctx context.Context, audience string, retentionDays int) (int, error) {
+	if audience != communication.SurveyAudienceParents && audience != communication.SurveyAudienceStaff {
+		return 0, fmt.Errorf("survey: unknown audience %q", audience)
+	}
 	if retentionDays <= 0 {
 		return 0, fmt.Errorf("survey: retention window must be positive, got %d", retentionDays)
 	}

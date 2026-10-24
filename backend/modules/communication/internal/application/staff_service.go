@@ -12,8 +12,6 @@ import (
 	"net/url"
 	"strings"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 type service struct {
@@ -459,15 +457,7 @@ func publishMailSpec(a *StaffParentAnnouncement) mailSpec {
 	}
 	// A poll says so in the mail: the kicker and intro differ, the rest of the
 	// template (and the deliberate absence of the body) is identical.
-	if a.IsSystem() && *a.SystemKind == StaffParentAnnouncementSystemKindSurvey {
-		spec.kicker = surveyEmailKicker
-		intro := "die Schule bittet Sie um Ihre Meinung. Die Umfrage finden Sie im Eltern-Portal."
-		if a.ExpiresAt != nil {
-			intro = fmt.Sprintf("die Schule bittet Sie bis zum %s um Ihre Meinung. Die Umfrage finden Sie im Eltern-Portal.",
-				a.ExpiresAt.In(calendar.Berlin).Format("02.01.2006"))
-		}
-		spec.intro = func(string) string { return intro }
-	}
+	spec = surveyMailSpec(a, spec)
 	if a.IsPoll() {
 		spec.kicker = pollEmailKicker
 		intro := "wir bitten Sie um eine kurze Rückmeldung. Die Umfrage finden Sie im Eltern-Portal."
@@ -802,15 +792,4 @@ func normalizeLetterDelivery(in *Input) error {
 	}
 
 	return nil
-}
-
-func withoutSurveyCarriers(rows []*StaffParentAnnouncement) []*StaffParentAnnouncement {
-	out := rows[:0:0]
-	for _, a := range rows {
-		if a.IsSystem() && *a.SystemKind == StaffParentAnnouncementSystemKindSurvey {
-			continue
-		}
-		out = append(out, a)
-	}
-	return out
 }

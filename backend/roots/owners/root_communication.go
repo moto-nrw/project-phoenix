@@ -41,7 +41,7 @@ func BuildParentEventEmitter(
 // (#2601), together with the surveys (#4781) whose parent edition rides on a
 // system announcement. File Storage hands it the attachment side at construction (#2890).
 func BuildParentAnnouncements(
-	db transactionruntime.Database, env RootEnvironment, settings settingsCompose.BatchSettingsService, outbox *deliveryCompose.EmailOutbox, module deliveryModule.Capability,
+	env RootEnvironment, settings settingsCompose.BatchSettingsService, outbox *deliveryCompose.EmailOutbox, module deliveryModule.Capability,
 	notifications DeliveryNotifications, messaging parentStore.MessagingRepositories,
 	attachments communication.ParentAnnouncementAttachmentPurger,
 ) (communication.ParentAnnouncementCapability, error) {
@@ -52,7 +52,7 @@ func BuildParentAnnouncements(
 		Deliveries: announcementDeliveryAdapter{module: module}, ParentsURL: env.Links.ParentsURL,
 		Fingerprints: SecurityFingerprints{}, Logger: env.Logger.With("service", "announcement"),
 		// The surveys (#4781) ask the colleagues of the team chat.
-		Surveys: &communicationCompose.SurveyWiring{DB: db.Pool(), Staff: messaging.StaffMessageRead},
+		SurveyStaff: messaging.StaffMessageRead,
 	}, attachments, CommunicationRequestRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 }
 

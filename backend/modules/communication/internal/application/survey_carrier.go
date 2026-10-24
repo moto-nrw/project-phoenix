@@ -137,3 +137,32 @@ func (s *service) remindSurveyGuardians(ctx context.Context, survey *communicati
 	)
 	return len(delivered), nil
 }
+
+// surveyMailSpec words the publish mail of a survey carrier; any other
+// announcement keeps its spec.
+func surveyMailSpec(a *StaffParentAnnouncement, spec mailSpec) mailSpec {
+	if !a.IsSystem() || *a.SystemKind != StaffParentAnnouncementSystemKindSurvey {
+		return spec
+	}
+	spec.kicker = surveyEmailKicker
+	intro := "die Schule bittet Sie um Ihre Meinung. Die Umfrage finden Sie im Eltern-Portal."
+	if a.ExpiresAt != nil {
+		intro = fmt.Sprintf("die Schule bittet Sie bis zum %s um Ihre Meinung. Die Umfrage finden Sie im Eltern-Portal.",
+			a.ExpiresAt.In(calendar.Berlin).Format("02.01.2006"))
+	}
+	spec.intro = func(string) string { return intro }
+	return spec
+}
+
+// withoutSurveyCarriers drops survey carriers from the announcement list:
+// they belong to the survey list, where they can be managed.
+func withoutSurveyCarriers(rows []*StaffParentAnnouncement) []*StaffParentAnnouncement {
+	out := rows[:0:0]
+	for _, a := range rows {
+		if a.IsSystem() && *a.SystemKind == StaffParentAnnouncementSystemKindSurvey {
+			continue
+		}
+		out = append(out, a)
+	}
+	return out
+}

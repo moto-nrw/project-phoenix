@@ -111,51 +111,44 @@ func (s *Service) attachSurveyData(ctx context.Context, accountID int64, items [
 // GetAnnouncementSurvey returns the survey an announcement of the guardian's
 // feed carries. Outside the audience it is 404, like the announcement.
 func (s *Service) GetAnnouncementSurvey(ctx context.Context, accountID, announcementID int64) (*SurveyForm, error) {
-	var form *SurveyForm
-	err := s.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
-		a, err := s.surveyCarrier(adminCtx, announcementID, accountID)
-		if err != nil {
-			return err
-		}
-		form, err = s.Surveys.SurveyForm(adminCtx, a.GetTenantID(), announcementID, accountID)
-		return err
-	})
+	tenantID, err := s.surveyTenant(ctx, accountID, announcementID)
 	if err != nil {
 		return nil, err
 	}
-	return form, nil
+	var form *SurveyForm
+	err = s.Runtime.WithinTenant(ctx, tenantID, func(txCtx context.Context) error {
+		form, err = s.Surveys.SurveyForm(txCtx, tenantID, announcementID, accountID)
+		return err
+	})
+	return form, err
 }
 
-// SubmitAnnouncementSurvey stores the guardian's answers once per account.
+// SubmitAnnouncementSurvey stores the guardian's answers once per account,
+// in a transaction of the survey's school.
 func (s *Service) SubmitAnnouncementSurvey(ctx context.Context, accountID, announcementID int64, answers []SurveyAnswer) error {
-	return s.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
-		a, err := s.surveyCarrier(adminCtx, announcementID, accountID)
-		if err != nil {
-			return err
-		}
-		return s.Surveys.SubmitSurvey(adminCtx, a.GetTenantID(), announcementID, accountID, answers)
+	tenantID, err := s.surveyTenant(ctx, accountID, announcementID)
+	if err != nil {
+		return err
+	}
+	return s.Runtime.WithinTenant(ctx, tenantID, func(txCtx context.Context) error {
+		return s.Surveys.SubmitSurvey(txCtx, tenantID, announcementID, accountID, answers)
 	})
 }
 
-// surveyCarrier loads a live survey announcement the account belongs to the
-// audience of. Every miss is the same 404.
-func (s *Service) surveyCarrier(adminCtx context.Context, announcementID, accountID int64) (*ParentAnnouncement, error) {
-	if accountID <= 0 || announcementID <= 0 || s.Surveys == nil {
-		return nil, ErrAnnouncementNotFound
+// surveyTenant is the school of a live announcement the account belongs to
+// the audience of: the same gate as the announcement's attachments. Every
+// miss is the same 404; an announcement that carries no survey fails later
+// with the same 404.
+func (s *Service) surveyTenant(ctx context.Context, accountID, announcementID int64) (int64, error) {
+	if s.Surveys == nil {
+		return 0, ErrAnnouncementNotFound
 	}
-	a, err := s.AnnouncementRepo.FindByID(adminCtx, announcementID)
+	tenantID, err := s.GuardianAnnouncementTenant(ctx, accountID, announcementID)
 	if err != nil {
-		return nil, fmt.Errorf("parent: load announcement: %w", err)
+		return 0, fmt.Errorf("parent: resolve survey school: %w", err)
 	}
-	if a == nil || !announcementIsLive(a) || !isSurveyCarrier(a.SystemKind) {
-		return nil, ErrAnnouncementNotFound
+	if tenantID == 0 {
+		return 0, ErrAnnouncementNotFound
 	}
-	matched, err := s.AnnouncementRepo.AccountMatchesAnnouncement(adminCtx, a.GetTenantID(), announcementID, accountID)
-	if err != nil {
-		return nil, fmt.Errorf("parent: match announcement audience: %w", err)
-	}
-	if !matched {
-		return nil, ErrAnnouncementNotFound
-	}
-	return a, nil
+	return tenantID, nil
 }

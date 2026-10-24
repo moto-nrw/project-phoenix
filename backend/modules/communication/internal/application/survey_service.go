@@ -12,23 +12,12 @@ import (
 )
 
 // SurveyStore is the persistence of the surveys (#4781).
-type SurveyStore interface {
-	ListSurveys(ctx context.Context) ([]communication.Survey, error)
-	FindSurvey(ctx context.Context, id int64, lock bool) (*communication.Survey, error)
-	FindPortalSurvey(ctx context.Context, tenantID, announcementID int64) (*communication.Survey, error)
-	CreateSurvey(ctx context.Context, in communication.SurveyInput, createdBy *int64) (*communication.Survey, error)
-	ReplaceDraft(ctx context.Context, id int64, in communication.SurveyInput) (bool, error)
-	MarkPublished(ctx context.Context, id int64, at time.Time, announcementID *int64) (bool, error)
-	SetClosesAt(ctx context.Context, id int64, at time.Time) error
-	DeleteSurvey(ctx context.Context, id int64) error
-	ExpiredSurveys(ctx context.Context, audience string, cutoff time.Time) ([]communication.Survey, error)
-	OpenStaffSurveys(ctx context.Context, accountID int64, now time.Time) ([]communication.SurveyToAnswer, error)
-	PortalSummaries(ctx context.Context, accountID int64, announcementIDs []int64) (map[int64]communication.PortalSurveySummary, error)
-	RecordSubmission(ctx context.Context, tenantID, surveyID, accountID int64, named bool, answers []communication.SurveyAnswerInput) (bool, error)
-	HasParticipated(ctx context.Context, tenantID, surveyID, accountID int64) (bool, error)
-	ParticipantAccounts(ctx context.Context, surveyID int64) ([]int64, error)
-	Tally(ctx context.Context, surveyID int64) (*communication.SurveyTally, error)
-	NamedResponses(ctx context.Context, surveyID int64) ([]communication.SurveyNamedResponse, error)
+type SurveyStore interface{ communication.SurveyRecords }
+
+// surveyStoreSource is an announcement source that also keeps the surveys:
+// the users.* persistence of the same owner over the same database.
+type surveyStoreSource interface {
+	SurveyRecords() communication.SurveyRecords
 }
 
 // SurveyStaff is the school's staff a staff survey asks: the colleagues of
@@ -37,41 +26,71 @@ type SurveyStaff interface {
 	ListAddressableStaff(ctx context.Context, viewerAccountID int64) ([]*communication.AddressableStaffRecord, error)
 }
 
-// SurveyConfig wires the survey service.
-type SurveyConfig struct {
-	Announcements ServiceConfig
-	Store         SurveyStore
-	Staff         SurveyStaff
-}
-
 // surveyLehrkraftRoleKind is the role kind of an account that only uses the
 // school portal (#2208); a staff survey is answered in the OGS portal.
 const surveyLehrkraftRoleKind = "lehrkraft"
 
+// surveyReads are the store reads the capability serves as they are.
+type surveyReads interface {
+	ListSurveys(ctx context.Context) ([]communication.Survey, error)
+	PortalSurveySummaries(ctx context.Context, accountID int64, announcementIDs []int64) (map[int64]communication.PortalSurveySummary, error)
+}
+
 type surveyService struct {
+	surveyReads
 	announcements *service
 	store         SurveyStore
 	staff         SurveyStaff
-	runtime       Runtime
 	logger        *slog.Logger
 	now           func() time.Time
 	shuffle       func([]string)
 }
 
-// NewSurveyService builds the surveys over an announcement service of their
-// own, which publishes the carrier of a parent survey.
-func NewSurveyService(cfg SurveyConfig, runtime Runtime, policy ParentDeliveryPolicy) communication.SurveyCapability {
-	announcements, _ := NewService(cfg.Announcements, runtime, policy).(*service)
+// announcementsWithSurveys is the parent announcement capability with the
+// surveys of the same owner. Its retention stays reachable the way the
+// Worker asks for it.
+type announcementsWithSurveys struct {
+	communication.ParentAnnouncementCapability
+	communication.ParentAnnouncementRetention
+	communication.SurveyCapability
+}
+
+// WithSurveys adds the surveys (#4781) to the parent announcements. A parent
+// survey is carried by a system announcement of the same service; the
+// surveys' store comes with the announcement source. Without a staff
+// relation the announcements stay without surveys.
+func WithSurveys(announcements communication.ParentAnnouncementCapability, source StaffAnnouncementSource, staff SurveyStaff) (communication.ParentAnnouncementCapability, error) {
+	if staff == nil {
+		return announcements, nil
+	}
+	facade, ok := announcements.(*parentAnnouncements)
+	if !ok {
+		return nil, fmt.Errorf("surveys: parent announcements %T are not this owner's", announcements)
+	}
+	inner, ok := facade.service.(*service)
+	if !ok {
+		return nil, fmt.Errorf("surveys: announcement service %T is not this owner's", facade.service)
+	}
+	records, ok := source.(surveyStoreSource)
+	if !ok || records.SurveyRecords() == nil {
+		return nil, fmt.Errorf("surveys: announcement source %T keeps no surveys", source)
+	}
+	return announcementsWithSurveys{
+		ParentAnnouncementCapability: announcements, ParentAnnouncementRetention: facade,
+		SurveyCapability: newSurveyService(inner, records.SurveyRecords(), staff),
+	}, nil
+}
+
+// newSurveyService builds the surveys over the announcement service that
+// publishes the carrier of a parent survey.
+func newSurveyService(announcements *service, store SurveyStore, staff SurveyStaff) *surveyService {
 	return &surveyService{
-		announcements: announcements, store: cfg.Store, staff: cfg.Staff, runtime: runtime,
+		surveyReads: store, announcements: announcements, store: store, staff: staff,
 		logger: announcements.logger.With("service", "survey"), now: time.Now, shuffle: shuffleTexts,
 	}
 }
 
-func (s *surveyService) ListSurveys(ctx context.Context) ([]communication.Survey, error) {
-	return s.store.ListSurveys(ctx)
-}
-
+// GetSurvey reads one survey of the school.
 func (s *surveyService) GetSurvey(ctx context.Context, id int64) (*communication.Survey, error) {
 	return s.find(ctx, id, false)
 }
@@ -245,9 +264,12 @@ func (s *surveyService) RemindSurvey(ctx context.Context, id int64) (int, error)
 }
 
 func (s *surveyService) SurveyResults(ctx context.Context, id int64) (*communication.SurveyResults, error) {
-	survey, err := s.find(ctx, id, false)
+	survey, err := s.store.FindSurvey(ctx, id, false)
 	if err != nil {
 		return nil, err
+	}
+	if survey == nil {
+		return nil, communication.ErrSurveyNotFound
 	}
 	tally, err := s.store.Tally(ctx, id)
 	if err != nil {

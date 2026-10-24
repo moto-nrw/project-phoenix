@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 
 	birthdaysAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/birthdays"
@@ -314,7 +315,7 @@ func composeServeRoot(
 			return
 		},
 		func() (err error) {
-			announcements, err = owners.BuildParentAnnouncements(db, env, settings.Service, delivery.Outbox, owners.DeliveryModuleOf(delivery),
+			announcements, err = owners.BuildParentAnnouncements(env, settings.Service, delivery.Outbox, owners.DeliveryModuleOf(delivery),
 				notifications, messaging, purger)
 			return
 		},
@@ -554,11 +555,9 @@ func composeServeRoot(
 				membership, classListEntries, databaseStats, dataImports, persons, gradeTransition, enrollmentResource)
 			mountPeopleRoutes(tenant, db, logger, reports, renderer, persons, services.Guardian, identity, caller, feedback, mealPlan,
 				birthdays, emergency)
-			if err := mountCommunicationRoutes(tenant, chat, announcements, reminders, deliveryDevices, communication); err != nil {
-				return err
-			}
 			mountCalendarRoutes(router, tenant, logger, calendarApp)
-			return mountDeliveryRoutes(router, tenant, logger, fileStore, parent, hub, caller, identity)
+			return errors.Join(mountCommunicationRoutes(tenant, chat, announcements, reminders, deliveryDevices, communication),
+				mountDeliveryRoutes(router, tenant, logger, fileStore, parent, hub, caller, identity))
 		},
 		func() error {
 			operator, err := newOperatorRouter(db, logger, sessionAuth, limiters, iot, organizations, settings.Service, hub,

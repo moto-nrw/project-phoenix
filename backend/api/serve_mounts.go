@@ -10,7 +10,6 @@ import (
 	requestFeedCompose "github.com/moto-nrw/project-phoenix/modules/careplan/requestfeed/compose"
 	requestFeedHTTP "github.com/moto-nrw/project-phoenix/modules/careplan/requestfeed/http"
 	communicationModule "github.com/moto-nrw/project-phoenix/modules/communication"
-	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	announcementAPI "github.com/moto-nrw/project-phoenix/modules/communication/http/parentannouncements"
 	messagingAPI "github.com/moto-nrw/project-phoenix/modules/communication/http/parentmessages"
 	platformAnnouncementsHTTP "github.com/moto-nrw/project-phoenix/modules/communication/http/platformannouncements"
@@ -111,7 +110,7 @@ func mountCommunicationRoutes(
 	tenant chi.Router, chat owners.CommunicationMessaging, announcements communicationModule.ParentAnnouncementCapability,
 	reminders reminder.Capability, devices owners.DeliveryDevices, communication communicationModule.Capability,
 ) error {
-	surveys, err := communicationCompose.SurveysOf(announcements)
+	surveys, err := communicationModule.SurveysOf(announcements)
 	if err != nil {
 		return err
 	}

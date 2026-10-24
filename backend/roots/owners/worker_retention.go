@@ -488,9 +488,13 @@ func schoolContentRetentionSteps(
 func surveyRetentionSteps(settings settingsModule.StatisticsRetentionSource, surveys communicationModule.SurveyRetention) []schedulerPorts.RetentionStep {
 	return []schedulerPorts.RetentionStep{
 		windowRetentionStep(auditModels.DeletionTypeParentSurveyRetention,
-			settingsModule.ParentAnnouncementRetentionWindow(settings), nil, surveys.DeleteExpiredParentSurveys),
+			settingsModule.ParentAnnouncementRetentionWindow(settings), nil, func(ctx context.Context, days int) (int, error) {
+				return surveys.DeleteExpiredSurveys(ctx, communicationModule.SurveyAudienceParents, days)
+			}),
 		windowRetentionStep(auditModels.DeletionTypeStaffSurveyRetention,
-			settingsModule.StaffNoticeRetentionWindow(settings), nil, surveys.DeleteExpiredStaffSurveys),
+			settingsModule.StaffNoticeRetentionWindow(settings), nil, func(ctx context.Context, days int) (int, error) {
+				return surveys.DeleteExpiredSurveys(ctx, communicationModule.SurveyAudienceStaff, days)
+			}),
 	}
 }
 

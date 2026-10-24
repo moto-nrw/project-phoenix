@@ -32,9 +32,7 @@ type ParentAnnouncementConfig struct {
 	Fingerprints     deliveryPorts.Fingerprints
 	ParentsURL       string
 	Logger           *slog.Logger
-	// Surveys, when set, adds the surveys (#4781) to the capability: a
-	// parent survey is carried by a system announcement of this service.
-	Surveys *SurveyWiring
+	SurveyStaff      deliveryPorts.SurveyStaff // with it, the surveys (#4781)
 }
 
 type ParentAnnouncementEmailConfig communication.MailRendererConfig
@@ -52,17 +50,11 @@ func NewParentAnnouncementsWithAttachments(cfg ParentAnnouncementConfig, attachm
 	if cfg.Deliveries != nil {
 		deliveries = deliveryPorts.NewParentAnnouncementDeliveryAdapter(cfg.Deliveries)
 	}
-	serviceConfig := deliveryPorts.ServiceConfig{
+	return deliveryPorts.WithSurveys(deliveryPorts.NewParentAnnouncementFacade(deliveryPorts.NewService(deliveryPorts.ServiceConfig{
 		Repo: records.NewRepository(cfg.Repo), Settings: cfg.Settings, Outbox: cfg.Outbox, PushOutbox: cfg.PushOutbox, Notifier: deliveryPorts.NewNotificationSender(cfg.Notifier),
-		ReminderNotifier: deliveryPorts.NewDurableNotificationSender(cfg.ReminderNotifier),
-		Preferences:      cfg.Preferences, Deliveries: deliveries,
+		ReminderNotifier: deliveryPorts.NewDurableNotificationSender(cfg.ReminderNotifier), Preferences: cfg.Preferences, Deliveries: deliveries,
 		ParentsURL: cfg.ParentsURL, Logger: cfg.Logger, Fingerprints: cfg.Fingerprints, Attachments: attachments,
-	}
-	announcements := deliveryPorts.NewParentAnnouncementFacade(deliveryPorts.NewService(serviceConfig, runtime, policy))
-	if cfg.Surveys == nil {
-		return announcements, nil
-	}
-	return withSurveys(announcements, serviceConfig, *cfg.Surveys, runtime, policy)
+	}, runtime, policy)), cfg.Repo, cfg.SurveyStaff)
 }
 
 func NewParentAnnouncementRenderer(cfg ParentAnnouncementEmailConfig) communication.MailRenderer {

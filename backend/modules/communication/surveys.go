@@ -3,6 +3,7 @@ package communication
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 )
 
@@ -261,6 +262,46 @@ type SurveyNamedResponse struct {
 	Answers   []SurveyAnswerInput
 }
 
+// SurveyRecords is the persistence of the surveys: the survey itself and,
+// apart, who took part and what was answered.
+type SurveyRecords interface {
+	SurveyDraftRecords
+	SurveyAnswerRecords
+}
+
+// SurveyDraftRecords stores the surveys and their questions.
+type SurveyDraftRecords interface {
+	ListSurveys(ctx context.Context) ([]Survey, error)
+	FindSurvey(ctx context.Context, id int64, lock bool) (*Survey, error)
+	FindPortalSurvey(ctx context.Context, tenantID, announcementID int64) (*Survey, error)
+	CreateSurvey(ctx context.Context, in SurveyInput, createdBy *int64) (*Survey, error)
+	ReplaceDraft(ctx context.Context, id int64, in SurveyInput) (bool, error)
+	MarkPublished(ctx context.Context, id int64, at time.Time, announcementID *int64) (bool, error)
+	SetClosesAt(ctx context.Context, id int64, at time.Time) error
+	DeleteSurvey(ctx context.Context, id int64) error
+	ExpiredSurveys(ctx context.Context, audience string, cutoff time.Time) ([]Survey, error)
+}
+
+// SurveyAnswerRecords stores participation and answers apart and counts them.
+type SurveyAnswerRecords interface {
+	OpenStaffSurveys(ctx context.Context, accountID int64, now time.Time) ([]SurveyToAnswer, error)
+	PortalSurveySummaries(ctx context.Context, accountID int64, announcementIDs []int64) (map[int64]PortalSurveySummary, error)
+	RecordSubmission(ctx context.Context, tenantID, surveyID, accountID int64, named bool, answers []SurveyAnswerInput) (bool, error)
+	HasParticipated(ctx context.Context, tenantID, surveyID, accountID int64) (bool, error)
+	ParticipantAccounts(ctx context.Context, surveyID int64) ([]int64, error)
+	Tally(ctx context.Context, surveyID int64) (*SurveyTally, error)
+	NamedResponses(ctx context.Context, surveyID int64) ([]SurveyNamedResponse, error)
+}
+
+// SurveysOf returns the surveys composed with the parent announcements.
+func SurveysOf(announcements ParentAnnouncementCapability) (SurveyCapability, error) {
+	surveys, ok := announcements.(SurveyCapability)
+	if !ok {
+		return nil, fmt.Errorf("surveys: parent announcements %T were composed without surveys", announcements)
+	}
+	return surveys, nil
+}
+
 // SurveyManagement authors and evaluates the school's surveys. It runs in the
 // request's school transaction behind the surveys:manage permission.
 type SurveyManagement interface {
@@ -297,12 +338,12 @@ type PortalSurveys interface {
 	SubmitPortalSurvey(ctx context.Context, tenantID, announcementID, accountID int64, answers []SurveyAnswerInput) error
 }
 
-// SurveyRetention deletes surveys the school's window has passed: parent
-// surveys after the parent message window, staff surveys after the staff
-// message window, counted from closing (a draft from its last change).
+// SurveyRetention deletes the surveys of one audience the school's window
+// has passed, counted from closing (a draft from its last change): parent
+// surveys go after the parent message window, staff surveys after the staff
+// message window.
 type SurveyRetention interface {
-	DeleteExpiredParentSurveys(ctx context.Context, retentionDays int) (int, error)
-	DeleteExpiredStaffSurveys(ctx context.Context, retentionDays int) (int, error)
+	DeleteExpiredSurveys(ctx context.Context, audience string, retentionDays int) (int, error)
 }
 
 // SurveyCapability is the whole survey surface.

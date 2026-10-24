@@ -374,12 +374,12 @@ func (s *SurveyStore) OpenStaffSurveys(ctx context.Context, accountID int64, now
 	return result, nil
 }
 
-// PortalSummaries returns the survey behind each of the given carrier
+// PortalSurveySummaries returns the survey behind each of the given carrier
 // announcements, across the guardian's schools, with whether the account took
 // part. The caller passes only announcements the guardian's feed holds.
-func (s *SurveyStore) PortalSummaries(ctx context.Context, accountID int64, announcementIDs []int64) (map[int64]communication.PortalSurveySummary, error) {
+func (s *SurveyStore) PortalSurveySummaries(ctx context.Context, accountID int64, announcementIDs []int64) (map[int64]communication.PortalSurveySummary, error) {
 	result := make(map[int64]communication.PortalSurveySummary, len(announcementIDs))
-	if len(announcementIDs) == 0 {
+	if accountID <= 0 || len(announcementIDs) == 0 {
 		return result, nil
 	}
 	db, err := s.anyDB(ctx)

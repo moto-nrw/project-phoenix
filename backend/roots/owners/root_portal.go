@@ -47,7 +47,7 @@ func BuildParentPortal(
 	emitter eventContract.Emitter, notifications DeliveryNotifications, identity identityaccess.Owner,
 	enrollment EnrollmentRows, notices EnrollmentNotices, announcements communication.ParentAnnouncementCapability,
 ) (*parentportal.Portal, error) {
-	surveys, err := communicationCompose.SurveysOf(announcements)
+	surveys, err := communication.SurveysOf(announcements)
 	if err != nil {
 		return nil, err
 	}

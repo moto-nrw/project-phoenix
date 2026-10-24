@@ -165,26 +165,9 @@ func normalizeSurveyOptions(options []string) ([]string, error) {
 // question must be answered; unknown questions, foreign options and a second
 // answer to the same question are refused.
 func normalizeSurveyAnswers(survey *communication.Survey, answers []communication.SurveyAnswerInput) ([]communication.SurveyAnswerInput, error) {
-	byID := make(map[int64]communication.SurveyQuestion, len(survey.Questions))
-	for _, q := range survey.Questions {
-		byID[q.ID] = q
-	}
-	given := make(map[int64]communication.SurveyAnswerInput, len(answers))
-	for _, a := range answers {
-		q, ok := byID[a.QuestionID]
-		if !ok {
-			return nil, surveyInvalid("answer to an unknown question")
-		}
-		if _, dup := given[a.QuestionID]; dup {
-			return nil, surveyInvalid("two answers to one question")
-		}
-		normalized, answered, err := normalizeSurveyAnswer(q, a)
-		if err != nil {
-			return nil, err
-		}
-		if answered {
-			given[a.QuestionID] = normalized
-		}
+	given, err := surveyAnswersByQuestion(survey, answers)
+	if err != nil {
+		return nil, err
 	}
 	out := make([]communication.SurveyAnswerInput, 0, len(given))
 	for _, q := range survey.Questions {
@@ -198,6 +181,35 @@ func normalizeSurveyAnswers(survey *communication.Survey, answers []communicatio
 		out = append(out, a)
 	}
 	return out, nil
+}
+
+// surveyAnswersByQuestion checks every given answer against its question and
+// keeps the answered ones.
+func surveyAnswersByQuestion(survey *communication.Survey, answers []communication.SurveyAnswerInput) (map[int64]communication.SurveyAnswerInput, error) {
+	byID := make(map[int64]communication.SurveyQuestion, len(survey.Questions))
+	for _, q := range survey.Questions {
+		byID[q.ID] = q
+	}
+	given := make(map[int64]communication.SurveyAnswerInput, len(answers))
+	seen := make(map[int64]bool, len(answers))
+	for _, a := range answers {
+		q, ok := byID[a.QuestionID]
+		if !ok {
+			return nil, surveyInvalid("answer to an unknown question")
+		}
+		if seen[a.QuestionID] {
+			return nil, surveyInvalid("two answers to one question")
+		}
+		seen[a.QuestionID] = true
+		normalized, answered, err := normalizeSurveyAnswer(q, a)
+		if err != nil {
+			return nil, err
+		}
+		if answered {
+			given[a.QuestionID] = normalized
+		}
+	}
+	return given, nil
 }
 
 // normalizeSurveyAnswer checks one answer; answered is false for an empty
