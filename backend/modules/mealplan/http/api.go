@@ -78,6 +78,8 @@ type MealPlanEntryResponse struct {
 	Position int     `json:"position"`
 	Dish     string  `json:"dish"`
 	Note     *string `json:"note,omitempty"`
+	// Allergens are the codes of the main allergens; empty when unmarked.
+	Allergens []string `json:"allergens"`
 }
 
 type DailyParticipantResponse struct {
@@ -139,6 +141,8 @@ func cutoffsResponse(cutoffs mealplanModule.Cutoffs) CutoffsResponse {
 type DishRequest struct {
 	Dish string  `json:"dish"`
 	Note *string `json:"note"`
+	// Allergens are codes of the main allergens; omitted means none.
+	Allergens []string `json:"allergens"`
 }
 
 type SetDayRequest struct {
@@ -167,7 +171,7 @@ func (rs *Resource) getWeek(w http.ResponseWriter, r *http.Request) {
 	responses := make([]MealPlanEntryResponse, 0, len(entries))
 	for _, entry := range entries {
 		responses = append(responses, MealPlanEntryResponse{
-			Date: string(entry.Date), Position: entry.Position, Dish: entry.Dish, Note: entry.Note,
+			Date: string(entry.Date), Position: entry.Position, Dish: entry.Dish, Note: entry.Note, Allergens: entry.AllergenCodes(),
 		})
 	}
 	rs.runtime.Success(w, r, http.StatusOK, responses, "Meal plan retrieved successfully")
@@ -187,7 +191,11 @@ func (rs *Resource) setDay(w http.ResponseWriter, r *http.Request) {
 	}
 	dishes := make([]mealplanModule.Dish, 0, len(*request.Dishes))
 	for _, dish := range *request.Dishes {
-		dishes = append(dishes, mealplanModule.Dish{Dish: dish.Dish, Note: dish.Note})
+		allergens := make([]mealplanModule.Allergen, 0, len(dish.Allergens))
+		for _, code := range dish.Allergens {
+			allergens = append(allergens, mealplanModule.Allergen(code))
+		}
+		dishes = append(dishes, mealplanModule.Dish{Dish: dish.Dish, Note: dish.Note, Allergens: allergens})
 	}
 	if err := rs.module.ReplaceDay(r.Context(), mealplanModule.ReplaceDay{Date: parsed, Dishes: dishes}); err != nil {
 		rs.runtime.ModuleFailure(w, r, err, "failed to save meal")

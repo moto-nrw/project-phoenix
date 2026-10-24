@@ -76,7 +76,7 @@ func NewSessionMaintenance(deps SessionMaintenanceDependencies) (*SessionMainten
 	module, err := New(Dependencies{
 		DB: deps.DB, Observe: func(Observation) {}, TenantRuntime: deps.Runtime,
 		Sessions: &identityPorts.SessionDependencies{
-			Schools: deps.Schools, Persons: deps.Persons, Passwords: application.UnusablePasswords{},
+			Schools: deps.Schools, Persons: deps.Persons, Passwords: application.UnusablePasswords{}, PasswordLoginPolicy: application.UnavailablePasswordLoginPolicy,
 			Codec: application.UnsignedSessions{}, MFALock: application.UnlockedMFAPolicy{}, Audit: deps.Audit, Push: deps.Push,
 			Logger: deps.Logger,
 		},

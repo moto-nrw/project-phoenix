@@ -47,12 +47,13 @@ const RefreshTokenIdentifier = "Service login"
 // LoginAccount is the platform account a login authenticates. PasswordHash is
 // empty for accounts without a password.
 type LoginAccount struct {
-	ID           int64
-	Email        string
-	Username     string
-	PasswordHash string
-	Active       bool
-	UpdatedAt    time.Time
+	MFAResetGeneration int64
+	ID                 int64
+	Email              string
+	Username           string
+	PasswordHash       string
+	Active             bool
+	UpdatedAt          time.Time
 }
 
 // RoleAssignment is one role an account holds at a school, with the facts the

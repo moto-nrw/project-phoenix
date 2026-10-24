@@ -37,6 +37,7 @@ const (
 	CodeIotStudentNotPresent                          = "iot.student_not_present"
 	CodeIotWcNeedsStaff                               = "iot.wc_needs_staff"
 	CodeIotWcNotConfigured                            = "iot.wc_not_configured"
+	CodeMealsInvalidAllergens                         = "meals.invalid_allergens"
 	CodeMealsInvalidDishes                            = "meals.invalid_dishes"
 	CodeMealsInvalidMealDate                          = "meals.invalid_meal_date"
 	CodeMealsInvalidParticipation                     = "meals.invalid_participation"
@@ -301,7 +302,6 @@ const (
 	CodeTimetableStudentNotCheckedIn                  = "timetable.student_not_checked_in"
 	CodeTimetableStudentNotFound                      = "timetable.student_not_found"
 	CodeTimetableStudentsNotPresent                   = "timetable.students_not_present"
-	CodeTimetableSubstituteAbsent                     = "timetable.substitute_absent"
 )
 
 var errorCodeClasses1 = map[string]string{
@@ -340,6 +340,7 @@ var errorCodeClasses1 = map[string]string{
 	"iot.student_not_present":                             "business_rejection",
 	"iot.wc_needs_staff":                                  "server",
 	"iot.wc_not_configured":                               "server",
+	"meals.invalid_allergens":                             "input",
 	"meals.invalid_dishes":                                "input",
 	"meals.invalid_meal_date":                             "input",
 	"meals.invalid_participation":                         "input",
@@ -604,7 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.student_not_checked_in":                    "business_rejection",
 	"timetable.student_not_found":                         "business_rejection",
 	"timetable.students_not_present":                      "business_rejection",
-	"timetable.substitute_absent":                         "input",
 }
 
 func init() {

@@ -81,6 +81,24 @@ describe("student export metadata", () => {
     expect(dailyPreset?.columns).toContain("daily_status");
   });
 
+  // Die Checkliste druckt eine leere Spalte zum Abhaken (#2077).
+  it("offers the checklist column and includes it in the Checkliste preset", () => {
+    const checklist = STUDENT_EXPORT_COLUMNS.find(
+      (column) => column.id === "checklist",
+    );
+    expect(checklist?.label).toBe("Abhaken");
+
+    const checklistPreset = STUDENT_EXPORT_PRESETS.find(
+      (preset) => preset.id === "blank_checklist",
+    );
+    expect(checklistPreset?.columns).toEqual([
+      "name",
+      "school_class",
+      "group",
+      "checklist",
+    ]);
+  });
+
   it("keeps the enrollment status selectable for every list", () => {
     const ids = STUDENT_EXPORT_COLUMNS.map((column) => column.id);
     expect(ids).toContain("enrollment_summary");

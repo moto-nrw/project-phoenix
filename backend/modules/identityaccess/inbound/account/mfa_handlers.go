@@ -93,7 +93,7 @@ func (rs *Resource) mfaVerify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rs.completeMFAExchange(w, r, verified.AccountID, verified.TenantID, req.RememberDevice)
+	rs.completeMFAExchange(w, r, verified, req.RememberDevice)
 }
 
 // ----- /mfa/resend -----
@@ -203,7 +203,8 @@ func (rs *Resource) mfaEnrollConfirm(w http.ResponseWriter, r *http.Request) {
 	// id to verify against, so without the scope the account's newest active
 	// code answers — and since #2207 that can be a school-portal login
 	// challenge, which would mint a tenant session off a school code.
-	if err := rs.MFAService.VerifyMFACodeForAccount(ctx, accountID, claims.TenantID, req.Code, identityaccess.MFAChallengeScopeTenant); err != nil {
+	verified, err := rs.MFAService.VerifyMFACodeForAccount(ctx, accountID, claims.TenantID, req.Code, identityaccess.MFAChallengeScopeTenant)
+	if err != nil {
 		mapMFAError(w, r, err)
 		return
 	}
@@ -220,7 +221,7 @@ func (rs *Resource) mfaEnrollConfirm(w http.ResponseWriter, r *http.Request) {
 	// Mint the real session now that the second factor is set up. Mirrors
 	// the verify-flow's completeMFAExchange so the frontend handles the
 	// response shape identically.
-	rs.completeMFAExchange(w, r, accountID, claims.TenantID, req.RememberDevice)
+	rs.completeMFAExchange(w, r, verified, req.RememberDevice)
 }
 
 // ----- /mfa/trusted-devices -----
@@ -297,7 +298,8 @@ func (rs *Resource) mfaRevokeTrustedDevice(w http.ResponseWriter, r *http.Reques
 // access/refresh token pair, optionally issues a trusted-device cookie, and
 // writes the response. Both the email-code and recovery-code paths funnel
 // through here so cookie-handling stays in one place.
-func (rs *Resource) completeMFAExchange(w http.ResponseWriter, r *http.Request, accountID, tenantID int64, rememberDevice bool) {
+func (rs *Resource) completeMFAExchange(w http.ResponseWriter, r *http.Request, proof identityaccess.VerifiedMFAChallenge, rememberDevice bool) {
+	accountID, tenantID := proof.AccountID, proof.TenantID
 	ipAddress := getClientIP(r)
 	userAgent := r.Header.Get(headerUserAgent)
 
@@ -318,26 +320,11 @@ func (rs *Resource) completeMFAExchange(w http.ResponseWriter, r *http.Request, 
 		issueTrustedDevice = nil
 	}
 
-	accessToken, refreshToken, err := rs.Sessions.IssueTokensForAuthenticatedAccount(
-		r.Context(), accountID, tenantID, ipAddress, userAgent,
+	accessToken, refreshToken, err := rs.Sessions.IssueTokensForVerifiedMFA(
+		r.Context(), proof, ipAddress, userAgent,
 	)
 	if err != nil {
-		var authErr *identityaccess.AuthenticationError
-		if errors.As(err, &authErr) {
-			switch {
-			case errors.Is(err, identityaccess.ErrAccountNotFound):
-				common.RenderError(w, r, common.ErrorUnauthorizedWithCode(identityaccess.ErrInvalidCredentials, common.CodeIdentityInvalidCredentials))
-			case errors.Is(err, identityaccess.ErrAccountInactive):
-				common.RenderError(w, r, common.ErrorUnauthorizedWithCode(identityaccess.ErrAccountInactive, common.CodeIdentitySessionAccountInactive))
-			case errors.Is(err, identityaccess.ErrMustUseSchoolPortal):
-				common.RenderError(w, r, common.ErrorForbiddenWithCode(
-					identityaccess.ErrMustUseSchoolPortal, common.CodeIdentityUseSchoolPortal))
-			default:
-				common.RenderError(w, r, common.ErrorInternalServer(err))
-			}
-			return
-		}
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		renderMFAExchangeError(w, r, err)
 		return
 	}
 
@@ -396,4 +383,27 @@ func (rs *Resource) issueTrustedDeviceCookie(w http.ResponseWriter, r *http.Requ
 // nil when the header value is empty or unparseable.
 func parseClientIP(r *http.Request) net.IP {
 	return common.ParseClientIP(r)
+}
+
+func renderMFAExchangeError(w http.ResponseWriter, r *http.Request, err error) {
+	if errors.Is(err, identityaccess.ErrInvalidToken) {
+		common.RenderError(w, r, common.ErrorUnauthorizedWithCode(identityaccess.ErrMFACodeInvalid, common.CodeIdentityMfaCodeInvalid))
+		return
+	}
+	var authErr *identityaccess.AuthenticationError
+	if errors.As(err, &authErr) {
+		switch {
+		case errors.Is(err, identityaccess.ErrAccountNotFound):
+			common.RenderError(w, r, common.ErrorUnauthorizedWithCode(identityaccess.ErrInvalidCredentials, common.CodeIdentityInvalidCredentials))
+		case errors.Is(err, identityaccess.ErrAccountInactive):
+			common.RenderError(w, r, common.ErrorUnauthorizedWithCode(identityaccess.ErrAccountInactive, common.CodeIdentitySessionAccountInactive))
+		case errors.Is(err, identityaccess.ErrMustUseSchoolPortal):
+			common.RenderError(w, r, common.ErrorForbiddenWithCode(
+				identityaccess.ErrMustUseSchoolPortal, common.CodeIdentityUseSchoolPortal))
+		default:
+			common.RenderError(w, r, common.ErrorInternalServer(err))
+		}
+		return
+	}
+	common.RenderError(w, r, common.ErrorInternalServer(err))
 }
