@@ -57,6 +57,7 @@ type Store interface {
 	UnclaimedStore
 	AttendanceStore
 	MorningAttendanceStore
+	ClassHandoverStore
 	ActivitySessionStore
 	SessionAttendanceStore
 	VisitStore
