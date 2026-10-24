@@ -28,6 +28,7 @@ const (
 	CodeMealsPlanDisabled                             = "meals.plan_disabled"
 	CodeMealsPlanWeekOutOfRange                       = "meals.plan_week_out_of_range"
 	CodeMealsRegistrationDisabled                     = "meals.registration_disabled"
+	CodeOperatorAuditUnavailable                      = "operator.audit_unavailable"
 	CodePickupBulkExceptionConfirmationRequired       = "pickup.bulk_exception_confirmation_required"
 	CodePickupFutureManualReset                       = "pickup.future_manual_reset"
 	CodePickupInvalid                                 = "pickup.invalid"
@@ -301,7 +302,6 @@ const (
 	CodeTimetableTemplateRosterRebaseConflict         = "timetable.template_roster_rebase_conflict"
 	CodeTimetableTemplateSplitInPast                  = "timetable.template_split_in_past"
 	CodeTimetableTemplateSplitInvalid                 = "timetable.template_split_invalid"
-	CodeTimetableTemplateStartInPast                  = "timetable.template_start_in_past"
 )
 
 var errorCodeClasses1 = map[string]string{
@@ -331,6 +331,7 @@ var errorCodeClasses1 = map[string]string{
 	"meals.plan_disabled":                                 "permission",
 	"meals.plan_week_out_of_range":                        "input",
 	"meals.registration_disabled":                         "permission",
+	"operator.audit_unavailable":                          "unavailable",
 	"pickup.bulk_exception_confirmation_required":         "input",
 	"pickup.future_manual_reset":                          "business_rejection",
 	"pickup.invalid":                                      "input",
@@ -604,7 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.template_roster_rebase_conflict":           "business_rejection",
 	"timetable.template_split_in_past":                    "input",
 	"timetable.template_split_invalid":                    "input",
-	"timetable.template_start_in_past":                    "input",
 }
 
 func init() {

@@ -9,6 +9,7 @@ import (
 // Operator audit vocabulary the provisioning flows record (#3253). The
 // values are the stored platform.operator_audit_log strings.
 const (
+	AuditActionView         = "view"
 	AuditActionCreate       = "create"
 	AuditActionUpdate       = "update"
 	AuditActionDelete       = "delete"
@@ -23,6 +24,8 @@ const (
 	AuditResourceDevice       = "device"
 	AuditResourceAccount      = "account"
 	AuditResourcePerson       = "person"
+	AuditResourceAnnouncement = "announcement"
+	AuditResourceTagScan      = "unregistered_tag_scan"
 )
 
 // Device vocabulary shared with Device Fleet.
