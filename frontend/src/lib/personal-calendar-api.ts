@@ -13,11 +13,26 @@ interface ApiEnvelope<T> {
   readonly data?: T;
 }
 
-type CalendarSource = "appointment" | "timetable" | "shift";
+// "closing_day" und "holiday" liefert das Backend nicht als Termin: moto
+// schule baut sie aus closing_days/holidays, damit Schließtage und Ferien im
+// selben Raster stehen (#4798).
+type CalendarSource =
+  "appointment" | "timetable" | "shift" | "closing_day" | "holiday";
 export type CalendarDeliveryMode = "rsvp_required" | "informational";
 export type CalendarOverviewVisibility = "organizer" | "staff" | "all";
 export type CalendarResponseStatus =
   "pending" | "accepted" | "declined" | "info";
+
+/** Art eines Schultermins, den eine Lehrkraft in moto schule anlegt (#4798). */
+export type SchoolEventType =
+  "ausflug" | "paedagogischer_tag" | "unterrichtsende" | "sonstiges";
+
+export const SCHOOL_EVENT_TYPE_LABELS: Record<SchoolEventType, string> = {
+  ausflug: "Ausflug",
+  paedagogischer_tag: "Pädagogischer Tag",
+  unterrichtsende: "Unterrichtsende",
+  sonstiges: "Sonstiges",
+};
 
 export interface CalendarEvent {
   readonly id: string;
@@ -48,6 +63,8 @@ export interface CalendarEvent {
   readonly can_respond: boolean;
   readonly can_edit: boolean;
   readonly can_view_overview?: boolean;
+  /** Gesetzt, wenn eine Lehrkraft den Termin als Schultermin angelegt hat. */
+  readonly school_event_type?: SchoolEventType;
 }
 
 export interface CalendarResponse {
@@ -60,6 +77,7 @@ export type CalendarTargetType =
   | "staff"
   | "guardian_profile"
   | "all_staff"
+  | "all_teachers"
   | "all_school_parents"
   | "parents_by_class"
   | "parents_by_group"
@@ -390,4 +408,89 @@ export function getCalendarRecipientOptions(query: string) {
   return fetchJSON<CalendarRecipientOptions>(
     `/api/calendar/recipient-options?${params}`,
   );
+}
+
+// Kalender in moto schule (#4798): dieselben Termine über die school-Session
+// und die Proxy-Routen unter /api/school/calendar, dazu Schließtage, Ferien
+// und die Klassen der Lehrkraft.
+
+export interface SchoolCalendarDays {
+  readonly id: string;
+  readonly name: string;
+  readonly start_date: string;
+  readonly end_date: string;
+}
+
+export interface SchoolCalendarResponse extends CalendarResponse {
+  readonly closing_days: SchoolCalendarDays[];
+  readonly holidays: SchoolCalendarDays[];
+  readonly classes: string[];
+}
+
+/** Welche Eltern einen Schultermin sehen. OGS und Lehrkräfte sehen ihn immer. */
+export type SchoolAppointmentParents = "none" | "classes" | "school";
+
+export interface SchoolAppointmentRequest {
+  readonly title: string;
+  readonly description?: string;
+  readonly location?: string;
+  readonly start_date: string;
+  readonly end_date: string;
+  readonly start_time: string;
+  readonly end_time: string;
+  readonly all_day: boolean;
+  readonly school_event_type: SchoolEventType;
+  /** Nur beim Anlegen gelesen; der Empfängerkreis bleibt danach gleich. */
+  readonly parents: SchoolAppointmentParents;
+  readonly classes?: string[];
+}
+
+export function getSchoolCalendar(from: Date, to: Date) {
+  return fetchJSON<SchoolCalendarResponse>(
+    `/api/school/calendar/my?${buildCalendarQuery(from, to)}`,
+  );
+}
+
+export function createSchoolAppointment(body: SchoolAppointmentRequest) {
+  return fetchJSON("/api/school/calendar/appointments", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function updateSchoolAppointment(
+  appointmentId: string,
+  body: SchoolAppointmentRequest,
+) {
+  return fetchJSON(
+    `/api/school/calendar/appointments/${encodeURIComponent(appointmentId)}`,
+    { method: "PUT", body: JSON.stringify(body) },
+  );
+}
+
+export function deleteSchoolAppointment(appointmentId: string) {
+  return fetchJSON(
+    `/api/school/calendar/appointments/${encodeURIComponent(appointmentId)}`,
+    { method: "DELETE" },
+  );
+}
+
+export function respondSchoolCalendar(
+  recipientId: string,
+  status: "accepted" | "declined",
+) {
+  return fetchJSON(
+    `/api/school/calendar/recipients/${encodeURIComponent(recipientId)}/response`,
+    { method: "POST", body: JSON.stringify({ status }) },
+  );
+}
+
+export function getSchoolCalendarFeed() {
+  return fetchJSON<CalendarFeedInfo>("/api/school/calendar/feed");
+}
+
+export function rotateSchoolCalendarFeed() {
+  return fetchJSON<CalendarFeedInfo>("/api/school/calendar/feed/rotate", {
+    method: "POST",
+  });
 }

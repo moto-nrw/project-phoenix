@@ -4,20 +4,22 @@ import (
 	"time"
 ) // Complete native values retain source metadata, nullable fields and JSON presence.
 type PortalAnnouncementDeclarationSettings struct {
-	Kind             string
-	Signers          string
-	Revocable        bool
-	RequiresPassword bool
+	Kind              string
+	Signers           string
+	Revocable         bool
+	RequiresPassword  bool
+	RequiresSignature bool
 }
 type PortalAnnouncementFeedDeclaration struct {
-	Kind             string
-	Signers          string
-	Revocable        bool
-	RequiresPassword bool
-	Deadline         *time.Time
-	Closed           bool
-	Version          *PortalDeclarationVersion
-	Children         []*PortalAnnouncementFeedDeclarationChild
+	Kind              string
+	Signers           string
+	Revocable         bool
+	RequiresPassword  bool
+	RequiresSignature bool
+	Deadline          *time.Time
+	Closed            bool
+	Version           *PortalDeclarationVersion
+	Children          []*PortalAnnouncementFeedDeclarationChild
 }
 type PortalAnnouncementFeedDeclarationChild struct {
 	StudentID      int64
@@ -84,6 +86,7 @@ type PortalDeclarationSubmission struct {
 	ContentHash       string
 	RecordHash        string
 	SubmittedAt       time.Time
+	SignatureID       *int64
 }
 type PortalDeclarationVersion struct {
 	ID             int64

@@ -2,6 +2,8 @@
 package common
 
 const (
+	CodeImportFileColumnsMissing                      = "import.file_columns_missing"
+	CodeImportFileMissing                             = "import.file_missing"
 	CodeImportFileNoRows                              = "import.file_no_rows"
 	CodeImportFileRowInvalid                          = "import.file_row_invalid"
 	CodeImportFileTooLarge                            = "import.file_too_large"
@@ -300,11 +302,11 @@ const (
 	CodeTimetableStaffAbsentOnSource                  = "timetable.staff_absent_on_source"
 	CodeTimetableStaffAbsentOnTarget                  = "timetable.staff_absent_on_target"
 	CodeTimetableStaffAlreadyOnTarget                 = "timetable.staff_already_on_target"
-	CodeTimetableStaffNotFound                        = "timetable.staff_not_found"
-	CodeTimetableStaffNotOnSource                     = "timetable.staff_not_on_source"
 )
 
 var errorCodeClasses1 = map[string]string{
+	"import.file_columns_missing":                         "input",
+	"import.file_missing":                                 "input",
 	"import.file_no_rows":                                 "input",
 	"import.file_row_invalid":                             "input",
 	"import.file_too_large":                               "input",
@@ -603,8 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.staff_absent_on_source":                    "input",
 	"timetable.staff_absent_on_target":                    "business_rejection",
 	"timetable.staff_already_on_target":                   "business_rejection",
-	"timetable.staff_not_found":                           "business_rejection",
-	"timetable.staff_not_on_source":                       "input",
 }
 
 func init() {

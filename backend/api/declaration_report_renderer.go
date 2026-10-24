@@ -51,7 +51,7 @@ func reportRecord(card announcementAPI.ReportCard) lists.Record {
 func reportFields(fields []announcementAPI.ReportField) []lists.Field {
 	out := make([]lists.Field, 0, len(fields))
 	for _, f := range fields {
-		out = append(out, lists.Field{Label: reportText(f.Label), Value: reportText(f.Value)})
+		out = append(out, lists.Field{Label: reportText(f.Label), Value: reportText(f.Value), PNG: f.PNG})
 	}
 	return out
 }

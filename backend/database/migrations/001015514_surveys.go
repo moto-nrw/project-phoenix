@@ -24,6 +24,7 @@ func init() {
 		Description: surveysDescription,
 		DependsOn: []string{
 			schoolPortalClassTripsVersion, // previous head
+			signaturesVersion,             // its erasure plan entries stay in the refreshed plan
 			classHandoverVersion,          // previous head; its erasure plan entries stay in the refreshed plan
 			"1.15.501",                    // previous head
 			"1.15.499",                    // previous head

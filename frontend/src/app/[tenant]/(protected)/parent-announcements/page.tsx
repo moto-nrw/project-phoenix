@@ -1048,6 +1048,8 @@ function AnnouncementFormModal({
   );
   const [declarationRequiresPassword, setDeclarationRequiresPassword] =
     useState(announcement?.declaration_requires_password ?? false);
+  const [declarationRequiresSignature, setDeclarationRequiresSignature] =
+    useState(announcement?.declaration_requires_signature ?? false);
   const [deadline, setDeadline] = useState<Date | null>(
     announcement?.response_deadline
       ? berlinDayFromISO(announcement.response_deadline)
@@ -1311,6 +1313,7 @@ function AnnouncementFormModal({
             declaration_signers: declarationSigners,
             declaration_revocable: declarationRevocable,
             declaration_requires_password: declarationRequiresPassword,
+            declaration_requires_signature: declarationRequiresSignature,
           }
         : {}),
     };
@@ -1678,6 +1681,26 @@ function AnnouncementFormModal({
                         <span className="block text-xs text-gray-500">
                           Eltern können eine Zustimmung später zurücknehmen,
                           auch nach der Frist.
+                        </span>
+                      </span>
+                    </label>
+
+                    <label
+                      htmlFor="declaration-signature"
+                      className="flex cursor-pointer items-start gap-3"
+                    >
+                      <Checkbox
+                        id="declaration-signature"
+                        checked={declarationRequiresSignature}
+                        onChange={(e) =>
+                          setDeclarationRequiresSignature(e.target.checked)
+                        }
+                      />
+                      <span className="text-sm text-gray-800">
+                        <span className="block">Mit Unterschrift</span>
+                        <span className="block text-sm text-gray-500">
+                          Eltern unterschreiben die Zustimmung mit dem Finger
+                          oder der Maus. Ablehnen geht ohne Unterschrift.
                         </span>
                       </span>
                     </label>

@@ -170,6 +170,10 @@ const (
 const (
 	CalendarOwn    = ResourceCalendar + ":own"    // Personal calendar access and own invitation responses
 	CalendarManage = ResourceCalendar + ":manage" // Create and manage appointments/invitations
+	// CalendarSchool opens the calendar in moto schule (#4798): the
+	// appointments visible to Lehrkräfte, closing days and holidays, the own
+	// Schultermine and the subscription feed.
+	CalendarSchool = ResourceCalendar + ":school"
 )
 
 // Substitution permissions

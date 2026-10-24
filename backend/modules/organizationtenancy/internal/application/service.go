@@ -259,6 +259,35 @@ func (s *Service) ListOrganizationsByID(ctx context.Context, ids []int64) (resul
 	return result, err
 }
 
+// minVisibleTraegerSchools is the smallest number of operational schools at
+// which a Träger becomes visible in the school portal. A Träger with a single
+// OGS keeps the portal as it is (#4611, Story 13).
+const minVisibleTraegerSchools = 2
+
+// FindVisibleTraegerName answers the school portal: the organization's name
+// once it runs at least two operational schools, else "". It reads the count
+// and the name in one transaction and returns nothing about the other schools.
+func (s *Service) FindVisibleTraegerName(ctx context.Context, organizationID int64) (result string, err error) {
+	if organizationID <= 0 {
+		return "", organizationtenancy.ErrInvalidOrganization
+	}
+	err = s.runRead(ctx, "find_visible_traeger_name", func(txCtx context.Context, stats *domain.OperationStats) error {
+		schools, queryStats, err := s.store.ListSchools(txCtx, nil, &organizationID, "active")
+		stats.Add(queryStats)
+		if err != nil || len(schools) < minVisibleTraegerSchools {
+			return err
+		}
+		organization, found, queryStats, err := s.store.FindByID(txCtx, organizationID, "")
+		stats.Add(queryStats)
+		if err != nil || !found || organization.IsDeleted() {
+			return err
+		}
+		result = organization.Name
+		return nil
+	})
+	return result, err
+}
+
 func (s *Service) CountOrganizationsByID(ctx context.Context, ids []int64) (result int, err error) {
 	if len(ids) == 0 {
 		return 0, nil

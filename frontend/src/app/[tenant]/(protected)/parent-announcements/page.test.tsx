@@ -705,7 +705,37 @@ describe("ParentAnnouncementsPage: Einverständnisse (#3430)", () => {
           declaration_signers: "any",
           declaration_revocable: true,
           declaration_requires_password: false,
+          declaration_requires_signature: false,
         }),
+      ),
+    );
+  });
+
+  it("asks for a signature when the school ticks it (#4785)", async () => {
+    searchParams.set("art", "erklaerungen");
+    searchParams.set("bearbeiten", "9");
+    listState.data = [declarationDraft];
+    render(<ParentAnnouncementsPage />);
+
+    const signature = await screen.findByRole("checkbox", {
+      name: /Mit Unterschrift/,
+    });
+    expect(signature).not.toBeChecked();
+    expect(
+      screen.getByText(
+        /Eltern unterschreiben die Zustimmung mit dem Finger oder der Maus\./,
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(signature);
+    fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Als Entwurf speichern" }),
+    );
+
+    await waitFor(() =>
+      expect(updateAnnouncement).toHaveBeenCalledWith(
+        "9",
+        expect.objectContaining({ declaration_requires_signature: true }),
       ),
     );
   });

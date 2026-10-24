@@ -5,10 +5,11 @@ import "time"
 // DeclarationSettings are the Erklärung columns of an announcement (#3430).
 // Kind is empty for every other delivery mode.
 type DeclarationSettings struct {
-	Kind             string
-	Signers          string
-	Revocable        bool
-	RequiresPassword bool
+	Kind              string
+	Signers           string
+	Revocable         bool
+	RequiresPassword  bool
+	RequiresSignature bool
 }
 
 // DeclarationAttachmentDigest identifies one attachment of a frozen version by
@@ -53,4 +54,5 @@ type DeclarationSubmission struct {
 	ContentHash       string
 	RecordHash        string
 	SubmittedAt       time.Time
+	SignatureID       *int64
 }

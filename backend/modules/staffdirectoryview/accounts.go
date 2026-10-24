@@ -171,6 +171,40 @@ func (d *Directory) StaffWithPermission(ctx context.Context, permission string) 
 	return result, nil
 }
 
+// SchoolPortalStaffIDs lists the live staff of the request's school whose
+// active account holds a school-portal role there: the Lehrkräfte who use
+// moto schule (#4798).
+func (d *Directory) SchoolPortalStaffIDs(ctx context.Context) (map[int64]bool, error) {
+	tenantID := d.deps.CallerTenant(ctx)
+	values, err := d.listStaff(ctx, schoolmembership.StaffFilter{MembershipOnly: true})
+	if err != nil {
+		return nil, err
+	}
+	links, err := d.resolveStaffAccounts(ctx, values)
+	if err != nil {
+		return nil, err
+	}
+	accountIDs := make([]int64, 0, len(links))
+	for _, link := range links {
+		accountIDs = append(accountIDs, link.accountID)
+	}
+	active, err := d.deps.Accounts.ListActiveAccountIDsForTenant(ctx, tenantID, accountIDs)
+	if err != nil {
+		return nil, err
+	}
+	schoolPortal, err := d.deps.Accounts.SchoolPortalAccountIDs(ctx, tenantID, active)
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[int64]bool, len(schoolPortal))
+	for _, link := range links {
+		if schoolPortal[link.accountID] {
+			result[link.staff.ID] = true
+		}
+	}
+	return result, nil
+}
+
 // ReachableStaffIDs keeps the selected staff members whose active account
 // at the request's school holds permission.
 func (d *Directory) ReachableStaffIDs(ctx context.Context, ids []int64, permission string) (map[int64]bool, error) {

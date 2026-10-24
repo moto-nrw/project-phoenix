@@ -64,6 +64,7 @@ export const actionLabels: Record<string, string> = {
   health: "Gesundheitsdaten",
   legal: "Sorgerecht",
   arrival_exception_write: "Ankunftszeit ändern",
+  school: "In moto schule",
   class_trip_write: "Ausflug melden",
   morning_attendance_write: "Anwesenheit am Vormittag eintragen",
   handover_write: "Klasse an die OGS übergeben",
@@ -265,6 +266,8 @@ const permissionDescriptions: Record<string, string> = {
   // Calendar
   "calendar:own": "Eigenen Kalender nutzen und Einladungen beantworten",
   "calendar:manage": "Termine und Einladungen erstellen und verwalten",
+  "calendar:school":
+    "Kalender in moto schule nutzen und Schultermine eintragen",
 
   // Grade Transitions
   "grade_transitions:read": "Schuljahreswechsel ansehen",

@@ -7,22 +7,24 @@ import (
 
 func parentMessagingFromOwnerAnnouncementDeclarationSettings(v communication.PortalAnnouncementDeclarationSettings) parentportal.AnnouncementDeclarationSettings {
 	return parentportal.AnnouncementDeclarationSettings{
-		Kind:             v.Kind,
-		Signers:          v.Signers,
-		Revocable:        v.Revocable,
-		RequiresPassword: v.RequiresPassword,
+		Kind:              v.Kind,
+		Signers:           v.Signers,
+		Revocable:         v.Revocable,
+		RequiresPassword:  v.RequiresPassword,
+		RequiresSignature: v.RequiresSignature,
 	}
 }
 
 func parentMessagingFromOwnerAnnouncementFeedDeclaration(v communication.PortalAnnouncementFeedDeclaration) parentportal.AnnouncementFeedDeclaration {
 	return parentportal.AnnouncementFeedDeclaration{
-		Kind:             v.Kind,
-		Signers:          v.Signers,
-		Revocable:        v.Revocable,
-		RequiresPassword: v.RequiresPassword,
-		Deadline:         v.Deadline,
-		Closed:           v.Closed,
-		Version:          ParentMessagingPointer(v.Version, ParentMessagingFromOwnerDeclarationVersion),
+		Kind:              v.Kind,
+		Signers:           v.Signers,
+		Revocable:         v.Revocable,
+		RequiresPassword:  v.RequiresPassword,
+		RequiresSignature: v.RequiresSignature,
+		Deadline:          v.Deadline,
+		Closed:            v.Closed,
+		Version:           ParentMessagingPointer(v.Version, ParentMessagingFromOwnerDeclarationVersion),
 		Children: ParentMessagingSlice(v.Children, func(row *communication.PortalAnnouncementFeedDeclarationChild) *parentportal.AnnouncementFeedDeclarationChild {
 			return ParentMessagingPointer(row, parentMessagingFromOwnerAnnouncementFeedDeclarationChild)
 		}),
@@ -123,6 +125,7 @@ func ParentMessagingToOwnerDeclarationSubmission(v parentportal.DeclarationSubmi
 		ContentHash:       v.ContentHash,
 		RecordHash:        v.RecordHash,
 		SubmittedAt:       v.SubmittedAt,
+		SignatureID:       v.SignatureID,
 	}
 }
 
@@ -144,6 +147,7 @@ func ParentMessagingFromOwnerDeclarationSubmission(v communication.PortalDeclara
 		ContentHash:       v.ContentHash,
 		RecordHash:        v.RecordHash,
 		SubmittedAt:       v.SubmittedAt,
+		SignatureID:       v.SignatureID,
 	}
 }
 

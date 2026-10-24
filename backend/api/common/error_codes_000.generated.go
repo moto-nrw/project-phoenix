@@ -30,6 +30,8 @@ const (
 	CodeCareDeclarationNotPermitted                      = "care.declaration_not_permitted"
 	CodeCareDeclarationPasswordIncorrect                 = "care.declaration_password_incorrect"
 	CodeCareDeclarationPasswordRequired                  = "care.declaration_password_required"
+	CodeCareDeclarationSignatureInvalid                  = "care.declaration_signature_invalid"
+	CodeCareDeclarationSignatureRequired                 = "care.declaration_signature_required"
 	CodeCareDeclarationVersionChanged                    = "care.declaration_version_changed"
 	CodeCareExcusedRequestNotPending                     = "care.excused_request_not_pending"
 	CodeCareExcusedRequestOverlap                        = "care.excused_request_overlap"
@@ -304,8 +306,6 @@ const (
 	CodeIdentityUseParentPortal                          = "identity.use_parent_portal"
 	CodeIdentityUseSchoolPortal                          = "identity.use_school_portal"
 	CodeIdentityUsernameTaken                            = "identity.username_taken"
-	CodeImportFileColumnsMissing                         = "import.file_columns_missing"
-	CodeImportFileMissing                                = "import.file_missing"
 )
 
 var errorCodeClasses0 = map[string]string{
@@ -337,6 +337,8 @@ var errorCodeClasses0 = map[string]string{
 	"care.declaration_not_permitted":                       "permission",
 	"care.declaration_password_incorrect":                  "input",
 	"care.declaration_password_required":                   "input",
+	"care.declaration_signature_invalid":                   "input",
+	"care.declaration_signature_required":                  "input",
 	"care.declaration_version_changed":                     "business_rejection",
 	"care.excused_request_not_pending":                     "business_rejection",
 	"care.excused_request_overlap":                         "business_rejection",
@@ -611,8 +613,6 @@ var errorCodeClasses0 = map[string]string{
 	"identity.use_parent_portal":                           "permission",
 	"identity.use_school_portal":                           "permission",
 	"identity.username_taken":                              "business_rejection",
-	"import.file_columns_missing":                          "input",
-	"import.file_missing":                                  "input",
 }
 
 func init() {

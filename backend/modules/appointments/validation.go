@@ -74,9 +74,23 @@ func ValidateAppointmentFields(fields AppointmentFields) (AppointmentFields, err
 	}
 	switch fields.OverviewVisibility {
 	case OverviewVisibilityOrganizer, OverviewVisibilityStaff, OverviewVisibilityAll:
-		return fields, nil
 	default:
 		return fields, invalid("overview_visibility must be organizer, staff, or all")
+	}
+	if fields.SchoolEventType != nil && !ValidSchoolEventType(*fields.SchoolEventType) {
+		return fields, invalid("invalid school_event_type")
+	}
+	return fields, nil
+}
+
+// ValidSchoolEventType reports whether value is one of the SchoolEventType
+// values.
+func ValidSchoolEventType(value string) bool {
+	switch value {
+	case SchoolEventTypeTrip, SchoolEventTypePedagogicDay, SchoolEventTypeLessonsEnd, SchoolEventTypeOther:
+		return true
+	default:
+		return false
 	}
 }
 
@@ -86,7 +100,7 @@ func fieldsFromAppointment(value *Appointment) AppointmentFields {
 		Location: value.Location, StartDate: value.StartDate, EndDate: value.EndDate,
 		StartTime: value.StartTime, EndTime: value.EndTime, AllDay: value.AllDay,
 		DeliveryMode: value.DeliveryMode, OverviewVisibility: value.OverviewVisibility,
-		NotifyGuardians: value.NotifyGuardians,
+		NotifyGuardians: value.NotifyGuardians, SchoolEventType: value.SchoolEventType,
 	}
 }
 
@@ -103,6 +117,7 @@ func applyFields(value *Appointment, fields AppointmentFields) {
 	value.DeliveryMode = fields.DeliveryMode
 	value.OverviewVisibility = fields.OverviewVisibility
 	value.NotifyGuardians = fields.NotifyGuardians
+	value.SchoolEventType = fields.SchoolEventType
 }
 
 func normalizeWallClock(value time.Time) time.Time {

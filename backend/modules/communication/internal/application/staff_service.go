@@ -26,6 +26,7 @@ type service struct {
 	preferences      NotificationPreferences
 	deliveries       DeliveryRecorder
 	fingerprints     Fingerprints
+	signatures       DeclarationSignatures
 	parentsURL       string
 	// attachments is the file side of #2890, injected after construction (the
 	// two services point at each other).

@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 )
 
@@ -94,6 +95,12 @@ type ShiftType struct {
 type StaffDirectory interface {
 	ListAllWithPerson(context.Context) ([]*Staff, error)
 	FindReachableCalendarStaffIDs(context.Context, []int64) (map[int64]bool, error)
+	// FindSchoolPortalStaffIDs returns the staff of the school whose active
+	// account holds a school-portal role there: the Lehrkräfte of moto
+	// schule (#4798).
+	FindSchoolPortalStaffIDs(context.Context) (map[int64]bool, error)
+	// FindReachableSchoolCalendarStaffIDs requires current calendar:school access.
+	FindReachableSchoolCalendarStaffIDs(context.Context, []int64) (map[int64]bool, error)
 	FindWithPersonByIDs(context.Context, []int64) (map[int64]*Staff, error)
 	FindByPersonID(context.Context, int64) (*Staff, error)
 }
@@ -126,6 +133,8 @@ type Persons interface {
 }
 type Identity interface {
 	GetCurrentStaff(context.Context) (*Staff, error)
+	// MySchoolClasses are the school classes the caller teaches.
+	MySchoolClasses(context.Context) ([]string, error)
 	GetCurrentUser(context.Context) (*Account, error)
 	MissingUser(error) bool
 	MissingStaff(error) bool
@@ -141,6 +150,14 @@ type StaffFeeds interface {
 	EnsureToken(context.Context, int64, int64, string) (string, error)
 	RotateToken(context.Context, int64, int64, string) (bool, error)
 }
+
+// SchoolDays are the School Calendar's closing days and calendar periods
+// the moto schule calendar shows (#4798).
+type SchoolDays interface {
+	ListCalendarPeriods(context.Context, schoolcalendar.CalendarPeriodFilter) ([]schoolcalendar.CalendarPeriod, error)
+	ListClosingDays(context.Context, schoolcalendar.ClosingDayFilter) ([]schoolcalendar.ClosingDay, error)
+}
+
 type Rooms interface {
 	FindByIDs(context.Context, []int64) ([]*Room, error)
 }

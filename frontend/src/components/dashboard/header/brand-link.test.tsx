@@ -88,6 +88,24 @@ describe("BrandLink", () => {
   });
 });
 
+describe("BrandLink Träger line (#4656)", () => {
+  it("names the Träger under the school name", () => {
+    render(<BrandLink label="Demo School" traegerName="Demo-Träger Nord" />);
+
+    const school = screen.getByText("Demo School");
+    const traeger = screen.getByText("Träger: Demo-Träger Nord");
+    expect(traeger.parentElement).toBe(school.parentElement);
+    expect(traeger).toHaveClass("truncate", "text-xs");
+  });
+
+  it("keeps the brand unchanged without a Träger name", () => {
+    render(<BrandLink label="Demo School" />);
+
+    expect(screen.getByText("Demo School")).toBeInTheDocument();
+    expect(screen.queryByText(/Träger:/)).not.toBeInTheDocument();
+  });
+});
+
 describe("BreadcrumbDivider", () => {
   it("renders a vertical separator", () => {
     const { container } = render(<BreadcrumbDivider />);

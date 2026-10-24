@@ -129,6 +129,7 @@ var tableRetentions = map[string]tableRetention{
 	"audit.export_transfers":                                own("nightly retention step export_transfer_retention, JournalRetention.DeleteExpiredTransfers -> SQL audit.delete_expired_export_transfers (end of the following year)"),
 	"audit.file_events":                                     own("nightly retention step file_event_retention, Command.DeleteExpiredProtocol -> SQL audit.delete_expired_protocol (end of the following year)"),
 	"audit.guardian_changes":                                parent("users.student_profiles"),
+	"audit.signatures":                                      parent("users.student_profiles"),
 	"audit.guardian_financial_changes":                      own("nightly retention step guardian_financial_change_retention, Command.DeleteExpiredProtocol -> SQL audit.delete_expired_protocol (3 years)"),
 	"audit.personnel_number_changes":                        own("nightly retention step personnel_number_change_retention, Command.DeleteExpiredProtocol -> SQL audit.delete_expired_protocol (3 years)"),
 	"audit.room_color_migration_backup":                     notPersonal("one-off migration backup of room names"),

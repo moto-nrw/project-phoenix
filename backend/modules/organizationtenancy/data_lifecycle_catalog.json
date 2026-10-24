@@ -51,6 +51,7 @@
     {"name": "audit.guardian_financial_changes", "scope": "tenant", "export": "include"},
     {"name": "audit.personnel_number_changes", "scope": "tenant", "export": "include"},
     {"name": "audit.room_color_migration_backup", "scope": "tenant", "export": "excludeInternal", "exportReason": "Administrative migration backup; current room data is returned from facilities.rooms."},
+    {"name": "audit.signatures", "scope": "tenant", "export": "include", "allowedSensitiveColumns": {"record_hash": "Integrity digest of the signature record, not a credential."}, "personKeys": {"student_id": "users.student_profiles.id", "enrollment_request_id": "enrollment.requests.id", "signer_account_id": "auth.accounts.id"}},
     {"name": "audit.staff_master_data_changes", "scope": "tenant", "export": "include"},
     {"name": "audit.student_consent_changes", "scope": "tenant", "export": "include", "allowedSensitiveColumns": {"consent_key": "Consent category identifier, not a credential."}, "personKeys": {"student_id": "users.student_profiles.id", "actor_account_id": "auth.accounts.id"}},
     {"name": "audit.student_deletions", "scope": "tenant", "export": "include"},
