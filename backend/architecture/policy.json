@@ -5558,17 +5558,6 @@
       "target_role": "public"
     },
     {
-      "id": "parent-portal.application.file-storage.public",
-      "description": "The guardian attachment entry reads announcement attachments through File Storage's tenant-scoped capability after deciding the audience (#4825).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "parent-portal",
-      "source_role": "application",
-      "target_owner": "file-storage",
-      "target_role": "public"
-    },
-    {
       "id": "parent-portal.application.care-plan.contract",
       "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
       "scopes": [

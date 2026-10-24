@@ -129,7 +129,7 @@ func mountCommunicationRoutes(
 // SchoolMiddleware authenticate them.
 func mountDeliveryRoutes(root, tenant chi.Router, logger *slog.Logger, fileStore filestorageModule.Capability, parent *parentportal.Portal, hub *realtime.Hub, caller *owners.CallerRows, identity identityaccess.Owner) error {
 	files := filestoreAPI.NewResource(fileStore, logger.With("handler", "filestore"))
-	guardianAttachments, err := parentportal.NewAnnouncementAttachments(parent, fileStore)
+	guardianAttachments, err := owners.NewParentGuardianAttachments(parent, fileStore)
 	if err != nil {
 		return err
 	}

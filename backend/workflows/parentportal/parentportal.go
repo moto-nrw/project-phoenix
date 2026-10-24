@@ -32,7 +32,13 @@ type (
 	AnnouncementAttachments = messaging.AnnouncementAttachments
 	AttachmentAudience      = messaging.AttachmentAudience
 	AttachmentFiles         = messaging.AttachmentFiles
+	Attachment              = messaging.Attachment
+	AttachmentObject        = messaging.AttachmentObject
+	AttachmentContent       = messaging.AttachmentContent
 )
+
+// ErrAttachmentNotFound is every refusal of the guardian attachment entry.
+var ErrAttachmentNotFound = messaging.ErrAttachmentNotFound
 
 // NewChildFlows builds the child flows from the workflow's read and command
 // ports, retaining the required request-sharing collaborator.

@@ -6,8 +6,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/moto-nrw/project-phoenix/modules/filestorage"
 )
 
 // attachmentCalls records the entry's calls in order. Each audience answer is
@@ -35,19 +33,19 @@ func (c *attachmentCalls) GuardianDeclarationProofAttachmentTenant(context.Conte
 	return c.tenant(), nil
 }
 
-func (c *attachmentCalls) ListAnnouncementAttachmentsInTenant(context.Context, int64, int64) ([]filestorage.Attachment, error) {
+func (c *attachmentCalls) ListAnnouncementAttachmentsInTenant(context.Context, int64, int64) ([]Attachment, error) {
 	c.calls = append(c.calls, "list")
-	return []filestorage.Attachment{{ID: 73}}, nil
+	return []Attachment{{ID: 73}}, nil
 }
 
-func (c *attachmentCalls) FindAnnouncementAttachmentInTenant(context.Context, int64, int64, int64) (filestorage.Attachment, error) {
+func (c *attachmentCalls) FindAnnouncementAttachmentInTenant(context.Context, int64, int64, int64) (Attachment, error) {
 	c.calls = append(c.calls, "find")
-	return filestorage.Attachment{ID: 73}, nil
+	return Attachment{ID: 73}, nil
 }
 
-func (c *attachmentCalls) OpenAnnouncementAttachmentInTenant(context.Context, int64, int64, int64) (filestorage.Content, error) {
+func (c *attachmentCalls) OpenAnnouncementAttachmentInTenant(context.Context, int64, int64, int64) (AttachmentContent, error) {
 	c.calls = append(c.calls, "open")
-	return filestorage.Content{Filename: "brief.pdf"}, nil
+	return AttachmentContent{Filename: "brief.pdf"}, nil
 }
 
 func newAttachmentEntry(t *testing.T, tenants ...int64) (*AnnouncementAttachments, *attachmentCalls) {
@@ -63,7 +61,7 @@ func TestAnnouncementAttachmentsAskTheAudienceAgainBeforeHandingOut(t *testing.T
 	entry, calls := newAttachmentEntry(t, 17)
 	attachments, err := entry.ListGuardianAttachments(t.Context(), 29, 41)
 	require.NoError(t, err)
-	assert.Equal(t, []filestorage.Attachment{{ID: 73}}, attachments)
+	assert.Equal(t, []Attachment{{ID: 73}}, attachments)
 	assert.Equal(t, []string{"audience", "list", "audience"}, calls.calls)
 
 	entry, calls = newAttachmentEntry(t, 17)
@@ -82,11 +80,11 @@ func TestAnnouncementAttachmentsRefuseOutsideTheAudience(t *testing.T) {
 	t.Parallel()
 	entry, calls := newAttachmentEntry(t, 0)
 	_, err := entry.ListGuardianAttachments(t.Context(), 29, 41)
-	require.ErrorIs(t, err, filestorage.ErrAttachmentNotFound)
+	require.ErrorIs(t, err, ErrAttachmentNotFound)
 	_, err = entry.OpenGuardianAttachment(t.Context(), 29, 41, 73)
-	require.ErrorIs(t, err, filestorage.ErrAttachmentNotFound)
+	require.ErrorIs(t, err, ErrAttachmentNotFound)
 	_, err = entry.OpenGuardianDeclarationProofAttachment(t.Context(), 29, 41, 53, 73)
-	require.ErrorIs(t, err, filestorage.ErrAttachmentNotFound)
+	require.ErrorIs(t, err, ErrAttachmentNotFound)
 	assert.Equal(t, []string{"audience", "audience", "proof"}, calls.calls, "no file is read for a stranger")
 }
 
@@ -97,12 +95,12 @@ func TestAnnouncementAttachmentsRefuseWhenTheAudienceChangedMeanwhile(t *testing
 			t.Parallel()
 			entry, calls := newAttachmentEntry(t, 17, second)
 			_, err := entry.OpenGuardianAttachment(t.Context(), 29, 41, 73)
-			require.ErrorIs(t, err, filestorage.ErrAttachmentNotFound)
+			require.ErrorIs(t, err, ErrAttachmentNotFound)
 			assert.Equal(t, []string{"audience", "find", "audience"}, calls.calls, "the bytes are never opened")
 
 			entry, calls = newAttachmentEntry(t, 17, second)
 			_, err = entry.ListGuardianAttachments(t.Context(), 29, 41)
-			require.ErrorIs(t, err, filestorage.ErrAttachmentNotFound)
+			require.ErrorIs(t, err, ErrAttachmentNotFound)
 			assert.Equal(t, []string{"audience", "list", "audience"}, calls.calls)
 		})
 	}
@@ -112,11 +110,11 @@ func TestAnnouncementAttachmentsRefuseInvalidIDsWithoutAsking(t *testing.T) {
 	t.Parallel()
 	entry, calls := newAttachmentEntry(t, 17)
 	_, err := entry.ListGuardianAttachments(t.Context(), 0, 41)
-	require.ErrorIs(t, err, filestorage.ErrAttachmentNotFound)
+	require.ErrorIs(t, err, ErrAttachmentNotFound)
 	_, err = entry.OpenGuardianAttachment(t.Context(), 29, 0, 73)
-	require.ErrorIs(t, err, filestorage.ErrAttachmentNotFound)
+	require.ErrorIs(t, err, ErrAttachmentNotFound)
 	_, err = entry.OpenGuardianDeclarationProofAttachment(t.Context(), 29, 41, 0, 73)
-	require.ErrorIs(t, err, filestorage.ErrAttachmentNotFound)
+	require.ErrorIs(t, err, ErrAttachmentNotFound)
 	assert.Empty(t, calls.calls)
 
 	_, err = NewAnnouncementAttachments(nil, calls)
