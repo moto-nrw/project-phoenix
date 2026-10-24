@@ -162,8 +162,14 @@ func TestClassHandoverGates(t *testing.T) {
 		fmt.Sprintf(`{"absent_student_ids":[%d]}`, f.other), classHandoverPermission)
 	require.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
 	assert.Contains(t, rec.Body.String(), "classday.class_handover_unknown_child")
+	// List entries number apart from students; skip one whose ID a roster
+	// child happens to share.
+	entry := f.listEntry
+	for entry == f.sick || entry == f.present {
+		entry = testpkg.CreateTestClassListEntry(t, f.db, "Lena", "Liste", f.class).ID
+	}
 	assert.Equal(t, http.StatusConflict, f.handOver(t, morningMonday,
-		fmt.Sprintf(`{"absent_student_ids":[%d]}`, f.listEntry), classHandoverPermission), "a class-list-only entry does not go to the OGS")
+		fmt.Sprintf(`{"absent_student_ids":[%d]}`, entry), classHandoverPermission), "a class-list-only entry does not go to the OGS")
 
 	// Only assigned classes, and well-formed IDs.
 	rec = f.do(t, http.MethodPut, "/handover/"+f.class+"x/"+morningMonday, body, classHandoverPermission)
