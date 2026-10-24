@@ -62,6 +62,9 @@ type RequestSignatureProof struct {
 	Status    *RequestStatus
 	Guardians []*RequestGuardian
 	Signature *RequestSignature
+	// SignatureRequired reports whether the request's form asks the parent
+	// to sign every edit, so the status page offers only the full form.
+	SignatureRequired bool
 }
 
 // IntakeSignatureProofs reads the signature of a request. Neither read

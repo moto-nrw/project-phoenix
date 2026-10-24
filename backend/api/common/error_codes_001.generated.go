@@ -2,6 +2,8 @@
 package common
 
 const (
+	CodeIdentityUseSchoolPortal                       = "identity.use_school_portal"
+	CodeIdentityUsernameTaken                         = "identity.username_taken"
 	CodeImportFileColumnsMissing                      = "import.file_columns_missing"
 	CodeImportFileMissing                             = "import.file_missing"
 	CodeImportFileNoRows                              = "import.file_no_rows"
@@ -300,11 +302,11 @@ const (
 	CodeTimetableSpontaneousCategoryArchived          = "timetable.spontaneous_category_archived"
 	CodeTimetableStaffAbsentOnDate                    = "timetable.staff_absent_on_date"
 	CodeTimetableStaffAbsentOnSource                  = "timetable.staff_absent_on_source"
-	CodeTimetableStaffAbsentOnTarget                  = "timetable.staff_absent_on_target"
-	CodeTimetableStaffAlreadyOnTarget                 = "timetable.staff_already_on_target"
 )
 
 var errorCodeClasses1 = map[string]string{
+	"identity.use_school_portal":                          "permission",
+	"identity.username_taken":                             "business_rejection",
 	"import.file_columns_missing":                         "input",
 	"import.file_missing":                                 "input",
 	"import.file_no_rows":                                 "input",
@@ -603,8 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.spontaneous_category_archived":             "business_rejection",
 	"timetable.staff_absent_on_date":                      "business_rejection",
 	"timetable.staff_absent_on_source":                    "input",
-	"timetable.staff_absent_on_target":                    "business_rejection",
-	"timetable.staff_already_on_target":                   "business_rejection",
 }
 
 func init() {

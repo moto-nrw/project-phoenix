@@ -160,6 +160,7 @@ func (rs *Resource) mountPublicRoutes(r chi.Router) {
 	r.Post("/requests/{statusToken}/change-requests/{changeRequestId}/messages", rs.replyToChangeRequest)
 	r.Post("/requests/{statusToken}/withdraw", rs.withdrawStatus)
 	r.Post("/requests/{statusToken}/confirm-renewal", rs.confirmRenewal)
+	r.Get("/requests/{statusToken}/signature-proof", rs.getStatusSignatureProof)
 }
 
 // mountConfigRoutes registers the form schemas, the legal documents and the
@@ -269,6 +270,7 @@ func (rs *Resource) mountAdminRequestRoutes(r chi.Router) {
 		r.With(common.RequiresPermission("config:manage")).Post("/mark-all-read", rs.markAllAdminRequestsRead)
 		r.Route("/{id}", func(r chi.Router) {
 			r.With(common.RequiresPermission("config:manage")).Get("/", rs.getAdminRequest)
+			r.With(common.RequiresPermission("config:manage")).Get("/signature-proof", rs.getAdminRequestSignatureProof)
 			// Opening a parent's file needs its own permission on top of the
 			// detail (#4783); every open is recorded in the access log.
 			r.Route("/uploads", func(r chi.Router) {

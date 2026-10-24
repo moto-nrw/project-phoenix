@@ -813,6 +813,18 @@
       "legacy": "enrollment.invalid_email"
     },
     {
+      "code": "enrollment.signature_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.signature_invalid"
+    },
+    {
+      "code": "enrollment.signature_required",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.signature_required"
+    },
+    {
       "code": "enrollment.invalid_phone",
       "class": "input",
       "parameters": [],

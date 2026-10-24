@@ -200,6 +200,14 @@ func (s *Intake) SignatureProofByStatusToken(ctx context.Context, token string) 
 		return nil, err
 	}
 	proof := &enrollmentNative.RequestSignatureProof{Status: status}
+	tenantCtx := s.deps.Runtime.WithTenant(ctx, req.TenantID)
+	if req.SchemaID != nil {
+		schema, err := s.intakeSchema(tenantCtx, *req.SchemaID)
+		if err != nil {
+			return nil, fmt.Errorf("signature proof: load pinned schema: %w", err)
+		}
+		proof.SignatureRequired = signatureRequired(schema, req.SubmissionSource)
+	}
 	if s.deps.Runtime.IsAdminTx(ctx) {
 		ctx = s.deps.Runtime.DetachTransaction(ctx)
 	}

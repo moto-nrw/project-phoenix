@@ -45,6 +45,12 @@ type StatusResponse struct {
 	// invitation, or contact_ogs. It is sent with HasParentAccount only while
 	// a child is taken over into care.
 	ParentPortalAccess *string `json:"parent_portal_access,omitempty"`
+	// SignatureRequired: the form asks the parent to sign every edit
+	// (#4786), so the page offers the full form instead of the field edit.
+	SignatureRequired bool `json:"signature_required"`
+	// Signature describes the signature of the current version, without
+	// the image; the proof PDF carries it.
+	Signature *RequestSignatureResponse `json:"signature,omitempty"`
 }
 
 // StatusGuardianResponse is one additional guardian on the public status
@@ -147,6 +153,7 @@ func (rs *Resource) getStatus(w http.ResponseWriter, r *http.Request) {
 		children  []*RequestChild
 		guardians []*capability.RequestGuardian
 		editMode  string
+		proof     *SignatureProof
 		statusErr error
 	)
 	err := withinAdmin(r.Context(), func(adminCtx context.Context) error {
@@ -162,6 +169,10 @@ func (rs *Resource) getStatus(w http.ResponseWriter, r *http.Request) {
 			return statusErr
 		}
 		editMode = mode
+		if proof, statusErr = rs.RequestService.SignatureProofByStatusToken(adminCtx, token); statusErr != nil {
+			statusErr = fmt.Errorf("status: load signature: %w", statusErr)
+			return statusErr
+		}
 		// Best-effort: a failure here must not hide the request status, but a
 		// silent drop would mask a permission/RLS/DB problem behind a 200 with
 		// missing co-guardians. Log it so the failure is visible.
@@ -183,6 +194,8 @@ func (rs *Resource) getStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp, anyLocked := newStatusResponse(req, editMode, children, guardians)
+	resp.SignatureRequired = proof.SignatureRequired
+	resp.Signature = newRequestSignatureResponse(proof.Signature, false)
 	if anyLocked {
 		resp.HasParentAccount, resp.ParentPortalAccess = rs.statusParentAccount(r.Context(), token, req.ID)
 	}
@@ -434,6 +447,8 @@ func (rs *Resource) patchStatus(w http.ResponseWriter, r *http.Request) {
 			common.RenderError(w, r, common.ErrorForbiddenWithCode(err, common.CodeEnrollmentEditNotAllowed))
 		case errors.Is(err, capability.ErrInvalidGuardianPhone):
 			common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentInvalidPhone))
+		case errors.Is(err, capability.ErrSignatureRequired):
+			common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentSignatureRequired))
 		default:
 			common.RenderError(w, r, common.ErrorInternalServerWrap("enrollment operation failed", err))
 		}

@@ -65,6 +65,9 @@ type AdminRequestDetail struct {
 	// CanViewUploads and Uploads carry the files parents attached (#4783).
 	CanViewUploads bool                 `json:"can_view_uploads"`
 	Uploads        []AdminRequestUpload `json:"uploads"`
+	// Signature is the parent's signature of the current version (#4786),
+	// absent when the request was not signed.
+	Signature *RequestSignatureResponse `json:"signature,omitempty"`
 }
 
 // AdminRequestGuardian is one additional guardian (co-guardian) within an
@@ -318,6 +321,9 @@ func (rs *Resource) getAdminRequest(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		detail = rs.toAdminRequestDetail(ctx, s)
+		if e := rs.attachAdminSignature(ctx, &detail, id); e != nil {
+			return e
+		}
 		return rs.attachAdminUploads(ctx, &detail, id)
 	})
 	if err != nil {

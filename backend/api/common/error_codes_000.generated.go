@@ -221,6 +221,8 @@ const (
 	CodeEnrollmentSchemaNameRequired                     = "enrollment.schema_name_required"
 	CodeEnrollmentSchemaNotFound                         = "enrollment.schema_not_found"
 	CodeEnrollmentSelectedDayNotAvailable                = "enrollment.selected_day_not_available"
+	CodeEnrollmentSignatureInvalid                       = "enrollment.signature_invalid"
+	CodeEnrollmentSignatureRequired                      = "enrollment.signature_required"
 	CodeEnrollmentStatusLinkInvalid                      = "enrollment.status_link_invalid"
 	CodeEnrollmentStudentExists                          = "enrollment.student_exists"
 	CodeEnrollmentSubmissionRateLimited                  = "enrollment.submission_rate_limited"
@@ -300,8 +302,6 @@ const (
 	CodeIdentityTenantAccessDenied                       = "identity.tenant_access_denied"
 	CodeIdentityTenantAccessNotFound                     = "identity.tenant_access_not_found"
 	CodeIdentityUseParentPortal                          = "identity.use_parent_portal"
-	CodeIdentityUseSchoolPortal                          = "identity.use_school_portal"
-	CodeIdentityUsernameTaken                            = "identity.username_taken"
 )
 
 var errorCodeClasses0 = map[string]string{
@@ -524,6 +524,8 @@ var errorCodeClasses0 = map[string]string{
 	"enrollment.schema_name_required":                      "input",
 	"enrollment.schema_not_found":                          "business_rejection",
 	"enrollment.selected_day_not_available":                "input",
+	"enrollment.signature_invalid":                         "input",
+	"enrollment.signature_required":                        "input",
 	"enrollment.status_link_invalid":                       "business_rejection",
 	"enrollment.student_exists":                            "business_rejection",
 	"enrollment.submission_rate_limited":                   "unavailable",
@@ -603,8 +605,6 @@ var errorCodeClasses0 = map[string]string{
 	"identity.tenant_access_denied":                        "permission",
 	"identity.tenant_access_not_found":                     "business_rejection",
 	"identity.use_parent_portal":                           "permission",
-	"identity.use_school_portal":                           "permission",
-	"identity.username_taken":                              "business_rejection",
 }
 
 func init() {
