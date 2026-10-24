@@ -471,10 +471,7 @@ func linkDeveloperAdmin(ctx context.Context, primary, target *Runtime, state *Se
 	if !errors.As(err, &denied) || (denied.StatusCode != 401 && denied.StatusCode != 403) {
 		return fmt.Errorf("isolated school admin switch must be denied, got %v", err)
 	}
-	// Keep the shared developer's cached primary-school session live for the
-	// next profile, without requesting another MFA email code.
-	_, err = switchSeedTenant(target, switched, primary.Bootstrap.TenantSlug)
-	return err
+	return nil
 }
 
 func enrollmentProfileParentEmail(rt *Runtime, index int) string {
