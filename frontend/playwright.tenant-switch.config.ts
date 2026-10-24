@@ -4,8 +4,9 @@ import network from "./playwright.network.config";
 /** @public Real Auth.js domain cookies and UI, synthetic localhost backend. */
 export default defineConfig({
   ...network,
+  testDir: "./e2e/network",
   testMatch: "tenant-mfa-switch.spec.ts",
-  testIgnore: [],
+  testIgnore: "portal-network.spec.ts",
   outputDir: "test-results/tenant-switch",
   webServer: {
     url: "http://127.0.0.1:13845/api/health",
