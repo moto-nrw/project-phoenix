@@ -4253,6 +4253,15 @@
       "legacy": "settings.module_required_by"
     },
     {
+      "code": "module.not_booked",
+      "class": "permission",
+      "parameters": [
+        "module",
+        "module_label"
+      ],
+      "legacy": "module.not_booked"
+    },
+    {
       "code": "communication.announcement_not_found",
       "class": "business_rejection",
       "parameters": [],

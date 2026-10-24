@@ -28,7 +28,6 @@ import { createLogger } from "~/lib/logger";
 import { BinaryModeGuard } from "~/components/tenant/binary-mode-guard";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { useTenantAwarePath } from "~/lib/tenant-path";
-import { NfcModeGuard } from "~/components/tenant/nfc-mode-guard";
 import {
   MOBILE_CREATE_FAB_MEDIA_QUERY,
   useFloatingFabOffset,
@@ -54,11 +53,9 @@ interface ActivitiesPageData {
 // page's main function — React rules forbid conditional hooks.
 export default function ActivitiesPage() {
   return (
-    <NfcModeGuard title="Aktivitäten">
-      <BinaryModeGuard title="Aktivitäten">
-        <ActivitiesPageContent />
-      </BinaryModeGuard>
-    </NfcModeGuard>
+    <BinaryModeGuard title="Aktivitäten">
+      <ActivitiesPageContent />
+    </BinaryModeGuard>
   );
 }
 

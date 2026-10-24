@@ -3040,9 +3040,9 @@ function groupsCatalogTopic(groupMode: HelpGroupMode): HelpTopic {
 }
 
 /**
- * Aktivitaetenkatalog unter `/database/activities`. Nur mit NFC: die Route
- * liegt hinter `NfcModeGuard`, und der Eintrag steht in `NFC_ONLY_HREFS`
- * (dashboard/sidebar.tsx). Deshalb auch in NFC_ONLY_TOPIC_IDS.
+ * Aktivitaetenkatalog unter `/database/activities`. Nur mit NFC: die Seite
+ * gehört im Modul-Register (lib/module-register.ts) zu NFC-Anwesenheit.
+ * Deshalb auch in NFC_ONLY_TOPIC_IDS.
  */
 function activitiesCatalogTopic(): HelpTopic {
   return {

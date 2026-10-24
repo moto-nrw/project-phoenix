@@ -20,6 +20,7 @@ import { Alert } from "~/components/ui/alert";
 import { AnchoredPopover } from "~/components/ui/anchored-popover";
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
+import { ModuleNotBookedState } from "~/components/ui/module-not-booked-state";
 import type { FormErrorDetail } from "~/components/ui/form-error";
 import { errorAlertActions } from "~/components/ui/form-error-alert";
 import { BackLink } from "~/components/ui/back-link";
@@ -1003,6 +1004,20 @@ function TenantPageBody({
   empty?: TenantPageProps["empty"];
   children?: ReactNode;
 }>) {
+  // Eine Anfrage, die das Backend mit `module.not_booked` ablehnt, ist kein
+  // Fehler der Seite: die Schule hat das Modul nicht gebucht (#4894). Statt
+  // der roten Meldung steht der erklärende Zustand.
+  const notBookedModule =
+    typeof error === "object" && error !== null && "notBookedModule" in error
+      ? error.notBookedModule
+      : undefined;
+  if (notBookedModule) {
+    return (
+      <SectionCard>
+        <ModuleNotBookedState module={notBookedModule} />
+      </SectionCard>
+    );
+  }
   const errorParts =
     typeof error === "string"
       ? { message: error }

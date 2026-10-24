@@ -2938,6 +2938,9 @@
         "module_requires": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "module_required_by": "Nuk u ruajt: {object}. Kontrolloni të dhënat."
       },
+      "module": {
+        "not_booked": "Shkolla juaj nuk e ka rezervuar modulin {module_label}. Për ta rezervuar, kontaktoni ekipin e moto."
+      },
       "devices": {
         "tag_scan_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "tag_scan_already_resolved": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
