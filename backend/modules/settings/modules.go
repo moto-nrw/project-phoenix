@@ -57,18 +57,19 @@ type ModuleNotBookedError = configModel.ModuleNotBookedError
 // ErrUnknownModule reports a module key that is not in the module list.
 var ErrUnknownModule = errors.New("unknown module")
 
-// ModuleBookingReader is the settings access ModuleBooking needs: the
-// request tenant's value inside tenant middleware, an explicit tenant's
-// value outside it (scheduler, device auth, login). Both read through the
-// settings service and its request cache, never an environment variable.
+// ModuleBookingReader is the settings access ModuleBooking needs: an
+// explicit school's switch, read through the settings service and its
+// request cache, never an environment variable.
 type ModuleBookingReader interface {
-	ResolveBool(ctx context.Context, key string) (bool, error)
 	ResolveBoolForTenant(ctx context.Context, tenantID int64, key string) (bool, error)
 }
 
 // ModuleBooking answers whether a school booked a module. Routes, jobs and
 // portals use it to treat a module that is not booked as removed (#4893,
 // #4894, #4895). A failed read is an error, never "booked" or "not booked".
+// It reads in a tenant transaction of its own, so it also serves callers
+// outside the tenant middleware: the route lock before the request
+// transaction, the scheduler, login and refresh of the portals, devices.
 type ModuleBooking struct {
 	reader ModuleBookingReader
 }
@@ -82,48 +83,20 @@ func NewModuleBooking(reader ModuleBookingReader) (*ModuleBooking, error) {
 	return &ModuleBooking{reader: reader}, nil
 }
 
-// IsBooked reports whether the school of the request tenant booked module.
-func (b *ModuleBooking) IsBooked(ctx context.Context, module ModuleKey) (bool, error) {
-	return b.booked(ctx, nil, module)
-}
-
 // IsBookedForTenant reports whether school tenantID booked module.
 func (b *ModuleBooking) IsBookedForTenant(ctx context.Context, tenantID int64, module ModuleKey) (bool, error) {
-	return b.booked(ctx, &tenantID, module)
-}
-
-// booked resolves the switch of module for the request tenant (tenantID nil)
-// or for an explicit school.
-func (b *ModuleBooking) booked(ctx context.Context, tenantID *int64, module ModuleKey) (bool, error) {
 	definition, ok := configModel.LookupModule(module)
 	if !ok {
 		return false, fmt.Errorf("%w: %q", ErrUnknownModule, module)
 	}
-	if tenantID == nil {
-		return b.reader.ResolveBool(ctx, definition.SettingKey)
-	}
-	return b.reader.ResolveBoolForTenant(ctx, *tenantID, definition.SettingKey)
+	return b.reader.ResolveBoolForTenant(ctx, tenantID, definition.SettingKey)
 }
 
-// Require returns a *ModuleNotBookedError for the first of modules the
-// request tenant's school has not booked. tenantID names the school in the
-// error; read errors pass through.
-func (b *ModuleBooking) Require(ctx context.Context, tenantID int64, modules ...ModuleKey) error {
-	return requireModules(tenantID, modules, func(module ModuleKey) (bool, error) {
-		return b.IsBooked(ctx, module)
-	})
-}
-
-// RequireForTenant is Require outside tenant middleware.
+// RequireForTenant returns a *ModuleNotBookedError for the first of modules
+// school tenantID has not booked; read errors pass through.
 func (b *ModuleBooking) RequireForTenant(ctx context.Context, tenantID int64, modules ...ModuleKey) error {
-	return requireModules(tenantID, modules, func(module ModuleKey) (bool, error) {
-		return b.IsBookedForTenant(ctx, tenantID, module)
-	})
-}
-
-func requireModules(tenantID int64, modules []ModuleKey, booked func(ModuleKey) (bool, error)) error {
 	for _, module := range modules {
-		ok, err := booked(module)
+		ok, err := b.IsBookedForTenant(ctx, tenantID, module)
 		if err != nil {
 			return err
 		}

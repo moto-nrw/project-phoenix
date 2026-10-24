@@ -11,16 +11,10 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
 )
 
-// fakeModuleReader answers module switches per tenant; requestTenant stands
-// for the tenant of the request context.
+// fakeModuleReader answers module switches per tenant.
 type fakeModuleReader struct {
-	requestTenant int64
-	values        map[int64]map[string]bool
-	err           error
-}
-
-func (r *fakeModuleReader) ResolveBool(ctx context.Context, key string) (bool, error) {
-	return r.ResolveBoolForTenant(ctx, r.requestTenant, key)
+	values map[int64]map[string]bool
+	err    error
 }
 
 func (r *fakeModuleReader) ResolveBoolForTenant(_ context.Context, tenantID int64, key string) (bool, error) {
@@ -42,14 +36,14 @@ const (
 
 func TestModuleBookingReadsEachSchoolsOwnBooking(t *testing.T) {
 	t.Parallel()
-	reader := &fakeModuleReader{requestTenant: requestSchool, values: map[int64]map[string]bool{
+	reader := &fakeModuleReader{values: map[int64]map[string]bool{
 		requestSchool: {configModel.KeyModuleZeiterfassung: false},
 	}}
 	booking, err := NewModuleBooking(reader)
 	require.NoError(t, err)
 	ctx := context.Background()
 
-	booked, err := booking.IsBooked(ctx, ModuleZeiterfassung)
+	booked, err := booking.IsBookedForTenant(ctx, requestSchool, ModuleZeiterfassung)
 	require.NoError(t, err)
 	assert.False(t, booked)
 	booked, err = booking.IsBookedForTenant(ctx, otherSchool, ModuleZeiterfassung)
@@ -57,7 +51,7 @@ func TestModuleBookingReadsEachSchoolsOwnBooking(t *testing.T) {
 	assert.True(t, booked, "the other school keeps the default")
 
 	var notBooked *ModuleNotBookedError
-	require.ErrorAs(t, booking.Require(ctx, requestSchool, ModuleDienstplan, ModuleZeiterfassung), &notBooked)
+	require.ErrorAs(t, booking.RequireForTenant(ctx, requestSchool, ModuleDienstplan, ModuleZeiterfassung), &notBooked)
 	assert.Equal(t, ModuleZeiterfassung, notBooked.Module)
 	assert.Equal(t, requestSchool, notBooked.TenantID)
 	require.NoError(t, booking.RequireForTenant(ctx, otherSchool, ModuleZeiterfassung))
@@ -70,7 +64,7 @@ func TestModuleBookingPassesReadErrorsThrough(t *testing.T) {
 	booking, err := NewModuleBooking(&fakeModuleReader{err: readErr})
 	require.NoError(t, err)
 
-	_, err = booking.IsBooked(context.Background(), ModuleMittagessen)
+	_, err = booking.IsBookedForTenant(context.Background(), requestSchool, ModuleMittagessen)
 	require.ErrorIs(t, err, readErr)
 	err = booking.RequireForTenant(context.Background(), otherSchool, ModuleMittagessen)
 	require.ErrorIs(t, err, readErr)
@@ -82,7 +76,7 @@ func TestModuleBookingRejectsUnknownModules(t *testing.T) {
 	t.Parallel()
 	booking, err := NewModuleBooking(&fakeModuleReader{})
 	require.NoError(t, err)
-	_, err = booking.IsBooked(context.Background(), ModuleKey("basis"))
+	_, err = booking.IsBookedForTenant(context.Background(), requestSchool, ModuleKey("basis"))
 	require.ErrorIs(t, err, ErrUnknownModule)
 }
 
