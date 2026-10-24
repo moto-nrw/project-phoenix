@@ -316,6 +316,10 @@ func (s *Intake) createSubmittedRequest(ctx context.Context, req *SubmitRequest,
 	if err != nil {
 		return nil, fmt.Errorf("submit: create request: %w", err)
 	}
+	claims, err := s.resolveFileAnswers(ctx, plan.phase.ID, plan.schema, 0, req.CustomData)
+	if err != nil {
+		return nil, err
+	}
 	statusExpiresAt := plan.statusExpiresAt
 	request := &Request{
 		SchemaID: schemaID, PhaseID: plan.phase.ID, GuardianAccountID: req.GuardianAccountID,
@@ -328,6 +332,9 @@ func (s *Intake) createSubmittedRequest(ctx context.Context, req *SubmitRequest,
 	}
 	if err := createDecodedRequest(ctx, s.deps.Requests, request); err != nil {
 		return nil, fmt.Errorf("submit: create request: %w", err)
+	}
+	if err := s.claimFileUploads(ctx, claims, request.ID); err != nil {
+		return nil, fmt.Errorf("submit: %w", err)
 	}
 	if lateInvite != nil {
 		if err := s.deps.LateInvites.MarkLateInviteUsed(ctx, lateInvite.ID, request.ID, time.Now()); err != nil {

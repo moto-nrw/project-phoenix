@@ -29704,6 +29704,30 @@
     },
     {
       "source_owner": "enrollment",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.UploadFileStore.Save",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/adapters/documents.Coordinator.Save",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/adapters/documents.Coordinator.Save",
+      "target_owner": "file-storage",
+      "binding_digest": "d381b86da693d4c6e2ba38f168d45a15",
+      "effect": "mutation",
+      "classification": "leaf",
+      "adr": "0067",
+      "approval_adr": "0083",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/filestorage/internal/adapters/documents.Coordinator.Save; modules/filestorage/internal/adapters/documents/coordinator.go:91. "
+    },
+    {
+      "source_owner": "enrollment",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.UploadFileStore.ServeInline",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/adapters/documents.Coordinator.ServeInline",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/adapters/documents.Coordinator.ServeInline",
+      "target_owner": "file-storage",
+      "binding_digest": "701475165b06f516c89be161d2c83147",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/filestorage/internal/adapters/documents.Coordinator.ServeInline; modules/filestorage/internal/adapters/documents/coordinator.go:122. May-bind method surface, not a production-call/liveness claim."
+    },
+    {
+      "source_owner": "enrollment",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.CalendarPeriods.FindCalendarPeriod",
       "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.FindCalendarPeriod",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.FindCalendarPeriod",

@@ -4186,6 +4186,14 @@
       "write_owner": "enrollment"
     },
     {
+      "name": "enrollment.request_upload_cleanup",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.request_uploads",
+      "write_owner": "enrollment"
+    },
+    {
       "name": "enrollment.requests",
       "write_owner": "enrollment"
     },

@@ -1155,7 +1155,8 @@
       "pickupConfirm": "Bitte die Abholregelung bestätigen (Tage auswählen oder leer lassen).",
       "weekdayRequired": "Bitte mindestens einen Wochentag auswählen.",
       "weekdayModeConfirm": "Bitte die Geh- und Abholregelung bestätigen.",
-      "weekdayMultiModeRequired": "Bitte für jeden Betreuungstag mindestens einen Heimweg auswählen."
+      "weekdayMultiModeRequired": "Bitte für jeden Betreuungstag mindestens einen Heimweg auswählen.",
+      "file": "Bitte laden Sie mindestens eine Datei hoch."
     },
     "actions": {
       "addChild": "Weiteres Kind",
@@ -1305,6 +1306,23 @@
       "noCare": "Keine Angebote gebucht.",
       "hint": "Änderungen für {name} laufen jetzt über die Eltern-App.",
       "noAccess": "Sie kommen nicht in die Eltern-App? Bitte melden Sie sich bei der OGS."
+    },
+    "upload": {
+      "errorObject": "die Datei",
+      "choose": "Datei auswählen",
+      "chooseMore": "Weitere Datei auswählen",
+      "allowed": "Erlaubt: {types}, höchstens {max} MB je Datei.",
+      "upTo": "Bis zu {count} Dateien.",
+      "camera": "Auf dem Handy können Sie auch ein Foto machen.",
+      "uploading": "Wird hochgeladen …",
+      "remove": "{name} entfernen",
+      "wrongType": "Diese Datei hat die falsche Art. Erlaubt sind: {types}.",
+      "tooLarge": "Diese Datei ist zu groß. Erlaubt sind höchstens {max} MB.",
+      "empty": "Diese Datei ist leer. Bitte wählen Sie eine andere Datei.",
+      "onlyOne": "Sie können hier nur eine Datei hochladen.",
+      "tooMany": "Sie können hier höchstens {count} Dateien hochladen.",
+      "pendingSubmit": "Bitte warten Sie, bis alle Dateien hochgeladen sind.",
+      "previewDisabled": "In der Vorschau können Sie keine Dateien hochladen."
     }
   },
   "enrollmentStatus": {
@@ -2329,6 +2347,11 @@
         "legal_block_key_invalid": "Dieser Rechtstext lässt sich so nicht speichern. Bitte entfernen Sie ihn und legen Sie ihn neu an.",
         "legal_block_required_not_allowed": "Hinweise und Einwilligungen dürfen keine Pflicht sein. Bitte nehmen Sie den Haken bei Pflicht heraus.",
         "legal_document_invalid": "Bitte wählen Sie eine PDF-Datei mit höchstens {max_mb} MB.",
+        "form_field_file_options_invalid": "Bitte prüfen Sie die Dateifrage. Wählen Sie mindestens eine Dateiart und eine Größe von 1 bis 10 MB.",
+        "upload_invalid": "Diese Datei passt nicht. Bitte wählen Sie eine erlaubte Dateiart mit höchstens {max_mb} MB.",
+        "upload_expired": "Eine hochgeladene Datei ist abgelaufen. Bitte laden Sie sie erneut hoch.",
+        "upload_rate_limited": "Es wurden zu viele Dateien hochgeladen. Bitte versuchen Sie es später noch einmal.",
+        "upload_not_found": "Diese Datei gibt es nicht mehr. Bitte laden Sie sie erneut hoch.",
         "message_required": "Bitte schreiben Sie eine Nachricht.",
         "offering_adjustment_invalid": "Diese Änderung der Angebote ist so nicht möglich. Bitte prüfen Sie Angebote und Datum.",
         "phase_care_offering_conflict": "Die Änderung passt nicht zu einem Betreuungsangebot der Phase. Bitte prüfen Sie die Angebote.",
