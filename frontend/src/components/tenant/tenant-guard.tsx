@@ -16,7 +16,6 @@ import { Button } from "~/components/ui/button";
 import { credentialError } from "~/components/auth/credential-error";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { useApiErrorDisplay, useApiLoadError } from "~/contexts/ToastContext";
-import { reloginAtTenant } from "./tenant-relogin";
 
 const logger = createLogger({ component: "TenantGuard" });
 
@@ -390,11 +389,13 @@ function GuardedTenant({
                   type="button"
                   size="md"
                   onClick={() => {
-                    void reloginAtTenant(urlSubdomain!).catch(
-                      (err: unknown) => {
+                    void import("./tenant-relogin")
+                      .then(({ reloginAtTenant }) =>
+                        reloginAtTenant(urlSubdomain!),
+                      )
+                      .catch((err: unknown) => {
                         void showActionError(err, { object: "die Abmeldung" });
-                      },
-                    );
+                      });
                   }}
                 >
                   Zur Schulanmeldung

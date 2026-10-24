@@ -26,7 +26,6 @@ import { Alert } from "~/components/ui/alert";
 import { credentialError } from "~/components/auth/credential-error";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
-import { reloginAtTenant } from "./tenant-relogin";
 import {
   BrandLink,
   BrandLogo,
@@ -177,14 +176,16 @@ export function BrandTenantSwitcher({
           setSchoolPortalHint({ url: portalUrl });
         } else {
           const openTargetLogin = () => {
-            void reloginAtTenant(targetTenant.subdomain).catch(
-              (error: unknown) => {
+            void import("./tenant-relogin")
+              .then(({ reloginAtTenant }) =>
+                reloginAtTenant(targetTenant.subdomain),
+              )
+              .catch((error: unknown) => {
                 void showSwitchError(error, {
                   object: "die Abmeldung",
                   retry: openTargetLogin,
                 });
-              },
-            );
+              });
           };
           // Kein Zugang zur Schule kommt als 401: ohne den Code-Abgleich
           // spränge der Fehlerweg wortlos zur Anmeldung (#2517).
