@@ -54500,6 +54500,39 @@
     },
     {
       "source_owner": "timetable-activities",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/http.TeacherHints.TeacherHints",
+      "binding": "github.com/moto-nrw/project-phoenix/api.timetableTeacherHints.TeacherHints",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListSchoolDayHints",
+      "target_owner": "people-directory",
+      "binding_digest": "b75c8c566fc4baaf0b2fe44342001c52",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory.Capability.ListSchoolDayHints; modules/peopledirectory.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+    },
+    {
+      "source_owner": "timetable-activities",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/http.TeacherHints.TeacherHints",
+      "binding": "github.com/moto-nrw/project-phoenix/api.timetableTeacherHints.TeacherHints",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListSchoolDayHints",
+      "target_owner": "people-directory",
+      "binding_digest": "f0903c2447783b02b81b23d5dba34c7f",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory.Owner.ListSchoolDayHints; modules/peopledirectory.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+    },
+    {
+      "source_owner": "timetable-activities",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/http.TeacherHints.TeacherHints",
+      "binding": "github.com/moto-nrw/project-phoenix/api.timetableTeacherHints.TeacherHints",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.SchoolDayHintQuery.ListSchoolDayHints",
+      "target_owner": "people-directory",
+      "binding_digest": "d4495e5d1e59e815db27f9a7cc9eb363",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory.SchoolDayHintQuery.ListSchoolDayHints; modules/peopledirectory.SchoolDayHintQuery (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+    },
+    {
+      "source_owner": "timetable-activities",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable/http/activities.CallerContext.CurrentPersonName",
       "binding": "*github.com/moto-nrw/project-phoenix/roots/owners.CallerRows.CurrentPersonName",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.CallerContext.Person",

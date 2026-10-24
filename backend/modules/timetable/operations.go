@@ -203,6 +203,19 @@ type OperationRosterRow struct {
 	// The rows stay in the payload so a child who turns up anyway can still
 	// be checked in with one tap.
 	CareDayStatus CareDayStatus `json:"care_day_status"`
+	// TeacherHints are the Lehrkraft's hints for the OGS for the block's day
+	// (#4795), for this child or its class; only with users:read.
+	TeacherHints []OperationTeacherHint `json:"teacher_hints,omitempty"`
+}
+
+// OperationTeacherHint is a Lehrkraft's hint for the OGS for one day (#4795),
+// written in moto schule for the child or for its whole class.
+type OperationTeacherHint struct {
+	Body string `json:"body"`
+	// AuthorName is the Lehrkraft's name, empty when the person is gone.
+	AuthorName string `json:"author_name,omitempty"`
+	// SchoolClass is set when the hint is for the whole class.
+	SchoolClass string `json:"school_class,omitempty"`
 }
 
 // OperationParallelPresence identifies the other running block a roster

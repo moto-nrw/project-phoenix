@@ -264,7 +264,8 @@ export function ClassDayClass({
   const hintOptions = [
     {
       value: CLASS_TARGET,
-      label: `Ganze Klasse ${schoolClassLabel(schoolClass)}`,
+      // schoolClassLabel beginnt immer mit „Klasse“: „Die ganze Klasse 3b“.
+      label: `Die ganze ${schoolClassLabel(schoolClass)}`,
     },
     ...hintChildren.map((row) => ({
       value: String(row.student_id),

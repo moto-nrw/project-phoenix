@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -158,6 +159,9 @@ func (rs *Resource) operationsRoster(w http.ResponseWriter, r *http.Request) {
 		if err == nil && !canViewOperationPickupTimes(r.Context()) {
 			redactOperationRosterPickupTimes(roster)
 		}
+		if err == nil {
+			err = rs.attachTeacherHints(r.Context(), roster)
+		}
 		return roster, err
 	}, "Timetable roster retrieved")
 }
@@ -179,6 +183,10 @@ func (rs *Resource) operationsRosterByActiveGroup(w http.ResponseWriter, r *http
 	}
 	if !canViewOperationPickupTimes(r.Context()) {
 		redactOperationRosterPickupTimes(result)
+	}
+	if err := rs.attachTeacherHints(r.Context(), result); err != nil {
+		rs.renderOperationsError(w, r, err)
+		return
 	}
 	common.Respond(w, r, http.StatusOK, result, "Timetable roster retrieved")
 }
@@ -566,6 +574,32 @@ func (rs *Resource) operationsPatchAttendance(w http.ResponseWriter, r *http.Req
 func canViewOperationPickupTimes(ctx context.Context) bool {
 	return common.IsAssignmentBoundPortal(ctx) ||
 		securityruntime.HasPermission(permissions.UsersRead, sessiontoken.PermissionsFromCtx(ctx))
+}
+
+// attachTeacherHints puts the Lehrkraft's hints of the block's day (#4795)
+// on the roster rows. They are notes about the child, so they need users:read
+// like every other note; the school portal's own supervisions show none.
+func (rs *Resource) attachTeacherHints(ctx context.Context, roster *timetable.OperationRoster) error {
+	if rs.TeacherHints == nil || roster == nil || len(roster.Rows) == 0 ||
+		!securityruntime.HasPermission(permissions.UsersRead, sessiontoken.PermissionsFromCtx(ctx)) {
+		return nil
+	}
+	day, err := calendar.ParseDate(roster.Instance.Date)
+	if err != nil {
+		return fmt.Errorf("teacher hints: roster date: %w", err)
+	}
+	studentIDs := make([]int64, 0, len(roster.Rows))
+	for _, row := range roster.Rows {
+		studentIDs = append(studentIDs, row.StudentID)
+	}
+	hints, err := rs.TeacherHints.TeacherHints(ctx, studentIDs, day)
+	if err != nil {
+		return fmt.Errorf("teacher hints: %w", err)
+	}
+	for i := range roster.Rows {
+		roster.Rows[i].TeacherHints = hints[roster.Rows[i].StudentID]
+	}
+	return nil
 }
 
 func redactOperationRosterPickupTimes(roster *timetable.OperationRoster) {

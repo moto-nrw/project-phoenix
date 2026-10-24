@@ -1,6 +1,7 @@
 // lib/student-helpers.ts
 // Type definitions and helper functions for students
 
+import { schoolClassLabel } from "./school-class-label";
 import type {
   CompanionExtensionConfirmation,
   StudentCompanion,
@@ -640,7 +641,10 @@ export interface TeacherHint {
 /** Die Zeile, mit der eine OGS-Ansicht einen Hinweis der Lehrkraft zeigt. */
 export function teacherHintText(hint: TeacherHint): string {
   const author = hint.author_name ? ` ${hint.author_name}` : "";
-  const target = hint.school_class ? ` an die Klasse ${hint.school_class}` : "";
+  // schoolClassLabel macht aus „3b“ und „Klasse 3b“ beide „Klasse 3b“.
+  const target = hint.school_class
+    ? ` an die ${schoolClassLabel(hint.school_class)}`
+    : "";
   return `Hinweis der Lehrkraft${author}${target}: ${hint.body}`;
 }
 

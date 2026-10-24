@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { mapVisitsToSupervisionStudents } from "~/components/active-supervisions/view-model";
 import { mapSlimStudentResponse, teacherHintText } from "./student-helpers";
+import { mapRoster } from "./timetable-operations-types";
 
 // Der Hinweis der Lehrkraft (#4795) steht in Aufsicht, Gruppe und Kindersuche
 // am Kind, gekennzeichnet als „Hinweis der Lehrkraft“.
@@ -63,5 +64,34 @@ describe("teacher hints on the child", () => {
     );
     expect(ida?.teacher_hints).toEqual([{ body: "Hat Bauchweh" }]);
     expect(bruno?.teacher_hints).toBeUndefined();
+  });
+
+  it("reaches the block roster row and stays absent without hints", () => {
+    const roster = mapRoster({
+      instance: {
+        id: 1,
+        title: "Lesen",
+        status: "active",
+        room_id: 2,
+        date: "2099-03-02",
+      },
+      rows: [
+        {
+          student_id: 7,
+          student_name: "Ida Hinweis",
+          planned: true,
+          status: "present",
+          teacher_hints: [{ body: "Hat Bauchweh" }],
+        },
+        {
+          student_id: 8,
+          student_name: "Bruno Banknachbar",
+          planned: true,
+          status: "expected",
+        },
+      ],
+    } as Parameters<typeof mapRoster>[0]);
+    expect(roster.rows[0]?.teacherHints).toEqual([{ body: "Hat Bauchweh" }]);
+    expect(roster.rows[1]).not.toHaveProperty("teacherHints");
   });
 });
