@@ -101,6 +101,8 @@
     "/[tenant]/team-chat/[threadID]": 973023,
     "/[tenant]/time-tracking": 1274930,
     "/[tenant]/timetables": 946076,
+    "/[tenant]/umfragen": 1043398,
+    "/[tenant]/umfragen/[id]": 1042063,
     "/[tenant]/vertretung": 1077051,
     "/[tenant]/vertretungsplan": 946073,
     "/demo": 501517,

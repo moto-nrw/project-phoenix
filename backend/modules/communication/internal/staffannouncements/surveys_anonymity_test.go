@@ -283,7 +283,7 @@ func TestAnonymousSurvey_LogsNameNeitherAccountNorAnswer(t *testing.T) {
 		var record map[string]any
 		require.NoError(t, json.Unmarshal([]byte(line), &record))
 		for key, value := range record {
-			if key == "time" {
+			if key == "time" || key == "survey_id" {
 				continue
 			}
 			for i, member := range f.staff {
@@ -293,6 +293,7 @@ func TestAnonymousSurvey_LogsNameNeitherAccountNorAnswer(t *testing.T) {
 				}
 			}
 		}
+		assert.Equal(t, float64(survey.ID), record["survey_id"])
 		assert.NotContains(t, record, "response_id")
 		assert.NotContains(t, record, "account_id")
 	}

@@ -302,10 +302,6 @@ const (
 	CodeIdentityRolePlatformPermission                   = "identity.role_platform_permission"
 	CodeIdentitySessionAccountInactive                   = "identity.session_account_inactive"
 	CodeIdentityTenantAccessDenied                       = "identity.tenant_access_denied"
-	CodeIdentityTenantAccessNotFound                     = "identity.tenant_access_not_found"
-	CodeIdentityUseParentPortal                          = "identity.use_parent_portal"
-	CodeIdentityUseSchoolPortal                          = "identity.use_school_portal"
-	CodeIdentityUsernameTaken                            = "identity.username_taken"
 )
 
 var errorCodeClasses0 = map[string]string{
@@ -609,10 +605,6 @@ var errorCodeClasses0 = map[string]string{
 	"identity.role_platform_permission":                    "input",
 	"identity.session_account_inactive":                    "permission",
 	"identity.tenant_access_denied":                        "permission",
-	"identity.tenant_access_not_found":                     "business_rejection",
-	"identity.use_parent_portal":                           "permission",
-	"identity.use_school_portal":                           "permission",
-	"identity.username_taken":                              "business_rejection",
 }
 
 func init() {
