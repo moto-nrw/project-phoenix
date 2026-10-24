@@ -23,7 +23,6 @@ type (
 	EmergencyContacts             = application.EmergencyContacts
 	AccessRecord                  = application.AccessRecord
 	AccessLog                     = application.AccessLog
-	BlockStarts                   = application.BlockStarts
 	ArrivalScheduleAnnouncer      = application.ArrivalScheduleAnnouncer
 	MorningAttendanceDependencies = application.MorningAttendanceDependencies
 	HomeworkDependencies          = application.HomeworkDependencies
@@ -46,7 +45,7 @@ type ClassDayDependencies struct {
 	AccessLog              AccessLog
 	ClassArrivalExceptions careplan.ClassArrivalExceptions
 	WriteScope             ArrivalWriteScope
-	BlockStarts            BlockStarts
+	BlockStarts            application.BlockStarts
 	Announcer              ArrivalScheduleAnnouncer
 	MorningAttendanceDependencies
 	HomeworkDependencies
