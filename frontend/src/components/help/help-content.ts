@@ -1798,6 +1798,9 @@ function staffSurveysTopic(): HelpTopic {
       "Sehen Sie die Reiter `Alle Umfragen` und `Für Sie`? Dann dürfen Sie Umfragen auch anlegen. Ihre eigenen offenen Umfragen stehen unter `Für Sie`.",
       "Steht dort `Keine offenen Umfragen`? Dann hat Ihre Schule gerade keine Umfrage an das Team.",
     ],
+    image: "/help/screens/umfrage-beantworten.webp",
+    imageAlt:
+      "Fragebogen einer anonymen Umfrage. Oben steht, dass die Schule nicht sieht, wer was geantwortet hat.",
     related: [HELP_TOPICS.teamChat, HELP_TOPICS.leadSurveys],
   };
 }
@@ -4074,7 +4077,7 @@ function parentLetterTopic(): HelpTopic {
 function parentSurveyTopic(): HelpTopic {
   return {
     id: HELP_TOPICS.leadParentSurvey,
-    title: "Eine Umfrage erstellen",
+    title: "Eine kurze Elternumfrage erstellen",
     question: "Wie frage ich die Eltern nach ihrer Rückmeldung?",
     summary: "Eine Umfrage sammelt die Antworten der Eltern an einem Ort.",
     group: "elternarbeit",
@@ -4185,6 +4188,9 @@ function leadSurveysTopic(): HelpTopic {
       "Sehen Sie `Umfrage anlegen` nicht? Dann fehlt Ihnen die Berechtigung `Umfragen: Verwalten`. Die Leitung vergibt sie über die Rollen.",
       "Steht im Reiter `Auswertung` `Noch keine Auswertung`? Dann haben weniger als 5 Personen geantwortet.",
     ],
+    image: "/help/screens/umfrage-auswertung.webp",
+    imageAlt:
+      "Auswertung einer Umfrage mit Stärken, Verbesserungsbedarf und der Verteilung je Frage.",
     related: [
       HELP_TOPICS.leadParentSurvey,
       HELP_TOPICS.staffSurveys,
@@ -7022,6 +7028,9 @@ function parentSurveysTopic(): HelpTopic {
     differences: [
       "Steht dort `Die Teilnahme ist beendet.`? Dann ist die Frist vorbei. Antworten geht nicht mehr.",
     ],
+    image: "/help/screens/umfrage-eltern.webp",
+    imageAlt:
+      "Umfrage im Elternportal. Vor der ersten Frage steht, ob sie anonym ist.",
     related: [HELP_TOPICS.parentNews, HELP_TOPICS.parentNotifications],
   };
 }

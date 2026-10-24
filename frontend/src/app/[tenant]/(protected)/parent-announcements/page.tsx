@@ -176,6 +176,8 @@ const KIND_COPY: Record<
     ariaLabel: string;
     emptyTitle: string;
     emptyBody: string;
+    // Sets this tab apart from a neighbour with a similar name (#4781).
+    info?: string;
   }
 > = {
   announcement: {
@@ -200,6 +202,7 @@ const KIND_COPY: Record<
     emptyTitle: "Keine Umfragen",
     emptyBody:
       "Stellen Sie den Eltern eine Frage, zum Beispiel ob ihr Kind zum Sommerfest kommt.",
+    info: "Hier stellen Sie den Eltern eine kurze Frage zu jedem Kind. Für mehrere Fragen, auch anonym oder an das Team, gibt es den Bereich Team › Umfragen.",
   },
   declaration: {
     title: "Einverständnisse",
@@ -630,6 +633,7 @@ function ParentAnnouncementsContent() {
   return (
     <TenantPage
       title={copy.title}
+      info={copy.info}
       stats={kindSummary}
       statsLoading={isLoading && !announcements}
       actions={
