@@ -37,6 +37,10 @@ func TestScopePredicatesOpenOnlyForTheirValue(t *testing.T) {
 		SchoolPortalWritesClassTrips([]string{SchoolPortalWriteScopeClassArrivalExceptions}) || SchoolPortalWritesClassTrips([]string{}) || SchoolPortalWritesClassTrips(nil) {
 		t.Error("only a scope listing class trips opens the class trip report")
 	}
+	if !SchoolPortalWritesDayHints([]string{SchoolPortalWriteScopeDayHints}) ||
+		SchoolPortalWritesDayHints([]string{SchoolPortalWriteScopeClassArrivalExceptions, SchoolPortalWriteScopeClassTrips}) || SchoolPortalWritesDayHints(nil) {
+		t.Error("only the day hint value opens the day hints (#4795)")
+	}
 	if !IsBinaryPresence(PresenceModeBinary) || IsBinaryPresence(PresenceModeDetailed) || IsBinaryPresence("") {
 		t.Error("only the binary value is the binary presence mode")
 	}

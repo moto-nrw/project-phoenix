@@ -30,8 +30,8 @@ import (
 
 // NewClassDay composes the school portal's class-day capability. deps
 // carries the caller, the pickup and arrival times, the care days, the
-// companions, the class arrival exceptions and the block starts; the
-// remaining ports are bound here over the reports, the status days, the
+// companions, the class arrival exceptions, the block starts and People
+// Directory's day hints (#4795); the remaining ports are bound here over the reports, the status days, the
 // student, person and contact rows, the access log, the write-scope settings
 // and the broadcaster. Without a broadcaster no arrival schedule change is
 // announced.

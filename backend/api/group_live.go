@@ -18,6 +18,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	groupLiveHTTP "github.com/moto-nrw/project-phoenix/modules/grouplive/http"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
@@ -121,7 +123,9 @@ type groupLiveSources struct {
 var errGroupLiveSources = errors.New("OGS group live adapters are not fully configured")
 
 // newGroupLive binds the owner reads to the live-group projection's ports.
-func newGroupLive(sources groupLiveSources) (grouplive.Query, error) {
+// hints are People Directory's day hints of the Lehrkraft (#4795); nil
+// attaches none.
+func newGroupLive(sources groupLiveSources, hints peopledirectory.SchoolDayHintQuery) (grouplive.Query, error) {
 	if sources.Presence == nil || sources.People == nil || sources.Education == nil ||
 		sources.Substitutions == nil || sources.UserContext == nil || sources.Active == nil ||
 		sources.Settings == nil || sources.Pickups == nil || sources.Arrivals == nil ||
@@ -142,8 +146,32 @@ func newGroupLive(sources groupLiveSources) (grouplive.Query, error) {
 		Settings:        groupLiveSettings{settings: sources.Settings},
 		Calendar:        groupLiveCalendar{now: sources.Now},
 		ExcusedRequests: sources.ExcusedRequests,
+		TeacherHints:    groupLiveTeacherHints(hints),
 		Logger:          sources.Logger,
 	}), nil
+}
+
+// groupLiveTeacherHints binds People Directory's day hints (#4795); without
+// the directory no hint is attached.
+func groupLiveTeacherHints(hints peopledirectory.SchoolDayHintQuery) grouplive.TeacherHintReader {
+	if hints == nil {
+		return nil
+	}
+	return groupLiveTeacherHintReader{hints: hints}
+}
+
+type groupLiveTeacherHintReader struct {
+	hints peopledirectory.SchoolDayHintQuery
+}
+
+func (b groupLiveTeacherHintReader) TeacherHints(ctx context.Context, studentIDs []int64, date grouplive.Date) (map[int64][]grouplive.TeacherHint, error) {
+	day, err := groupLiveDay(date)
+	if err != nil {
+		return nil, err
+	}
+	return teacherHintsByStudent(ctx, b.hints, day, studentIDs, func(hint peopledirectory.SchoolDayHint) grouplive.TeacherHint {
+		return grouplive.TeacherHint{Body: hint.Body, AuthorName: hint.AuthorName, SchoolClass: hint.SchoolClass}
+	})
 }
 
 type groupLiveAccess struct {

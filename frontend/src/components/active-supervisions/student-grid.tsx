@@ -1,5 +1,7 @@
 "use client";
 
+import { teacherHintText } from "~/lib/student-helpers";
+import { StickyNote } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { StudentPresenceBadge } from "@/components/ui/student-presence-badge";
 import { EmptyStudentResults } from "~/components/ui/empty-student-results";
@@ -297,6 +299,20 @@ export function SupervisionStudentGrid({
                       note={student.pending_excused_note}
                     />
                   )}
+                  {(student.teacher_hints ?? []).map((hint) => (
+                    <StudentInfoRow
+                      key={`${hint.school_class ?? ""}-${hint.body}`}
+                      icon={
+                        <StickyNote
+                          className="h-3.5 w-3.5 text-gray-400"
+                          aria-hidden="true"
+                        />
+                      }
+                      wrap
+                    >
+                      {teacherHintText(hint)}
+                    </StudentInfoRow>
+                  ))}
                   {(() => {
                     const absence = getStudentAbsence({
                       sick: presentStudent.sick,

@@ -45,6 +45,16 @@ func (b ClassDayWriteScope) SchoolMayReportClassTrips(ctx context.Context) (bool
 	return configModels.SchoolPortalWritesClassTrips(scope), nil
 }
 
+// SchoolMayWriteDayHints reports whether a Lehrkraft may leave today's hint
+// for the OGS through the school portal (#4795).
+func (b ClassDayWriteScope) SchoolMayWriteDayHints(ctx context.Context) (bool, error) {
+	scope, err := b.scope(ctx)
+	if err != nil {
+		return false, err
+	}
+	return configModels.SchoolPortalWritesDayHints(scope), nil
+}
+
 func (b ClassDayWriteScope) scope(ctx context.Context) ([]string, error) {
 	value, err := b.Settings.Resolve(ctx, configModels.KeySchoolPortalWriteScope)
 	if err != nil {

@@ -23,6 +23,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	educationService "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	settingsplatform "github.com/moto-nrw/project-phoenix/modules/settings"
@@ -759,4 +760,37 @@ func (supervisionCalendar) Clock(at time.Time) string {
 // date value.
 func supervisionDay(date supervisiondashboard.Date) (calendarpkg.Date, error) {
 	return calendarpkg.ParseDate(string(date))
+}
+
+// newSupervisionTeacherHints binds People Directory's day hints of the
+// Lehrkraft (#4795); without the directory no hint is attached.
+func newSupervisionTeacherHints(hints peopledirectory.SchoolDayHintQuery) supervisiondashboard.TeacherHintReader {
+	if hints == nil {
+		return nil
+	}
+	return supervisionTeacherHints{hints: hints}
+}
+
+type supervisionTeacherHints struct {
+	hints peopledirectory.SchoolDayHintQuery
+}
+
+func (b supervisionTeacherHints) TeacherHints(ctx context.Context, studentIDs []int64, date supervisiondashboard.Date) ([]supervisiondashboard.TeacherHint, error) {
+	day, err := calendarpkg.ParseDate(string(date))
+	if err != nil {
+		return nil, err
+	}
+	rows, err := teacherHintsByStudent(ctx, b.hints, day, studentIDs, func(hint peopledirectory.SchoolDayHint) supervisiondashboard.TeacherHint {
+		return supervisiondashboard.TeacherHint{
+			StudentID: hint.StudentID, Body: hint.Body, AuthorName: hint.AuthorName, SchoolClass: hint.SchoolClass,
+		}
+	})
+	if err != nil {
+		return nil, err
+	}
+	result := make([]supervisiondashboard.TeacherHint, 0, len(rows))
+	for _, id := range studentIDs {
+		result = append(result, rows[id]...)
+	}
+	return result, nil
 }

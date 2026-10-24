@@ -139,6 +139,14 @@ export const ERROR_CATALOG = {
         "Für ein Kind steht an einem dieser Tage schon etwas, zum Beispiel krank. Es wurde nichts gespeichert. Bitte sprechen Sie mit der OGS.",
       "classday.class_trip_student_not_in_class":
         "Ein Kind ist nicht mehr in dieser Klasse. Bitte laden Sie die Seite neu.",
+      "classday.day_hint_class_empty":
+        "In dieser Klasse ist kein Kind in der OGS. Ein Hinweis für die ganze Klasse ist deshalb nicht möglich.",
+      "classday.day_hint_invalid":
+        "Der Hinweis braucht einen Text. Er darf höchstens 500 Zeichen lang sein.",
+      "classday.day_hint_not_today":
+        "Einen Hinweis für die OGS können Sie nur für heute schreiben.",
+      "classday.day_hint_student_not_in_class":
+        "Dieses Kind ist heute nicht in Ihrer Klasse. Bitte laden Sie die Seite neu.",
       "classday.school_write_disabled":
         "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
       "communication.announcement_reminder_sent":
@@ -1310,6 +1318,14 @@ export const ERROR_CATALOG = {
         "{object} contains invalid details. Please check your entries.",
       "care.sick_note_disabled":
         "{object} is not available here at the moment. Please ask your contact person.",
+      "classday.day_hint_class_empty":
+        "No child in this class attends the OGS. A note for the whole class is therefore not possible.",
+      "classday.day_hint_invalid":
+        "The note needs a text. It may be at most 500 characters long.",
+      "classday.day_hint_not_today":
+        "You can only write a note for the OGS for today.",
+      "classday.day_hint_student_not_in_class":
+        "This child is not in your class today. Please reload the page.",
       "enrollment.care_offering_day_conflict":
         "Two options that do not go together are chosen for the same day. Please choose only one per day.",
       "enrollment.care_offering_exactly_one":
@@ -1593,6 +1609,10 @@ export const ERROR_CATALOG = {
         "Указаны неверные данные: {object}. Проверьте введённые данные.",
       "care.sick_note_disabled":
         "Сейчас здесь недоступно: {object}. Обратитесь к контактному лицу.",
+      "classday.day_hint_class_empty":
+        "Не удалось сохранить: {object}. Проверьте введённые данные.",
+      "classday.day_hint_student_not_in_class":
+        "Не удалось сохранить: {object}. Проверьте введённые данные.",
       "enrollment.care_offering_day_conflict":
         "На один день выбраны две программы, которые нельзя совмещать. Выберите только одну на день.",
       "enrollment.care_offering_exactly_one":
@@ -1862,6 +1882,10 @@ export const ERROR_CATALOG = {
         "Ka të dhëna të pavlefshme: {object}. Kontrolloni çfarë keni shkruar.",
       "care.sick_note_disabled":
         "Për momentin nuk është i disponueshëm këtu: {object}. Pyetni personin tuaj të kontaktit.",
+      "classday.day_hint_class_empty":
+        "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+      "classday.day_hint_student_not_in_class":
+        "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
       "enrollment.care_offering_day_conflict":
         "Për të njëjtën ditë janë zgjedhur dy oferta që nuk shkojnë bashkë. Ju lutemi zgjidhni vetëm një për ditë.",
       "enrollment.care_offering_exactly_one":
@@ -2142,6 +2166,10 @@ export const ERROR_CATALOG = {
         "Nieprawidłowe dane: {object}. Sprawdź wpisane dane.",
       "care.sick_note_disabled":
         "Obecnie niedostępne tutaj: {object}. Zapytaj swoją osobę kontaktową.",
+      "classday.day_hint_class_empty":
+        "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+      "classday.day_hint_student_not_in_class":
+        "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
       "enrollment.care_offering_day_conflict":
         "Na ten sam dzień wybrano dwie oferty, których nie można łączyć. Wybierz tylko jedną na dzień.",
       "enrollment.care_offering_exactly_one":
@@ -2411,6 +2439,10 @@ export const ERROR_CATALOG = {
         "{object} geçersiz bilgiler içeriyor. Lütfen girdiğiniz bilgileri kontrol edin.",
       "care.sick_note_disabled":
         "{object} şu anda burada kullanılamıyor. Lütfen ilgili kişinize danışın.",
+      "classday.day_hint_class_empty":
+        "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+      "classday.day_hint_student_not_in_class":
+        "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
       "enrollment.care_offering_day_conflict":
         "Aynı gün için birlikte seçilemeyen iki hizmet seçildi. Lütfen her gün için yalnızca birini seçin.",
       "enrollment.care_offering_exactly_one":
@@ -2683,6 +2715,10 @@ export const ERROR_CATALOG = {
         "Указано неправильні дані: {object}. Перевірте введені дані.",
       "care.sick_note_disabled":
         "Зараз тут недоступно: {object}. Зверніться до контактної особи.",
+      "classday.day_hint_class_empty":
+        "Не вдалося зберегти: {object}. Перевірте введені дані.",
+      "classday.day_hint_student_not_in_class":
+        "Не вдалося зберегти: {object}. Перевірте введені дані.",
       "enrollment.care_offering_day_conflict":
         "На один день обрано дві програми, які не можна поєднувати. Оберіть лише одну на день.",
       "enrollment.care_offering_exactly_one":

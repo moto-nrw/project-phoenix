@@ -499,6 +499,30 @@
       "legacy": "classday.class_trip_student_not_in_class"
     },
     {
+      "code": "classday.day_hint_class_empty",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "classday.day_hint_class_empty"
+    },
+    {
+      "code": "classday.day_hint_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "classday.day_hint_invalid"
+    },
+    {
+      "code": "classday.day_hint_not_today",
+      "class": "input",
+      "parameters": [],
+      "legacy": "classday.day_hint_not_today"
+    },
+    {
+      "code": "classday.day_hint_student_not_in_class",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "classday.day_hint_student_not_in_class"
+    },
+    {
       "code": "classday.school_write_disabled",
       "class": "permission",
       "parameters": [],

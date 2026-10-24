@@ -27,6 +27,7 @@ type studentNoteRow struct {
 	SubjectDate        *calendar.Date `bun:"subject_date,type:date"`
 	ActivityGroupID    *int64         `bun:"activity_group_id"`
 	EducationGroupID   *int64         `bun:"education_group_id"`
+	SchoolClass        *string        `bun:"school_class"`
 	DeletedAt          *time.Time     `bun:"deleted_at"`
 	DeletedByAccountID *int64         `bun:"deleted_by_account_id"`
 	CreatedAt          time.Time      `bun:"created_at,nullzero,notnull,default:current_timestamp"`
@@ -336,6 +337,135 @@ func (s *StudentNoteStore) insertPermanentHint(
 	return stats, nil
 }
 
+// schoolDayHintConflict is the arbiter of uniq_student_notes_school_day_hint
+// (1.15.492): one live hint per author, child, day and target, the class
+// compared the way every class is (trimmed, case-insensitive).
+const schoolDayHintConflict = `CONFLICT (tenant_id, student_id, subject_date, author_account_id, ` +
+	`(LOWER(BTRIM(COALESCE(school_class, ''))))) ` +
+	`WHERE origin = 'school' AND deleted_at IS NULL DO UPDATE`
+
+// ListSchoolDayHints reads the live day hints of one day for the named
+// children. Oldest first, so a class hint and a later hint for one child read
+// in the order they were written.
+func (s *StudentNoteStore) ListSchoolDayHints(
+	ctx context.Context, filter domain.SchoolDayHintFilter,
+) ([]domain.StudentNote, domain.OperationStats, error) {
+	if len(filter.StudentIDs) == 0 {
+		return nil, domain.OperationStats{}, nil
+	}
+	db, scope, err := s.tenantDatabase(ctx)
+	if err != nil {
+		return nil, domain.OperationStats{}, err
+	}
+	var rows []studentNoteRow
+	stats := domain.OperationStats{Queries: 1}
+	started := time.Now()
+	err = db.NewSelect().
+		Model(&rows).
+		ModelTableExpr(studentNotesTable+" AS note").
+		Where(`"note".tenant_id = ?`, scope.TenantID).
+		Where(`"note".origin = ?`, domain.StudentNoteOriginSchool).
+		Where(`"note".subject_date = ?`, filter.Date).
+		Where(`"note".student_id IN (?)`, bun.List(filter.StudentIDs)).
+		Where(`"note".deleted_at IS NULL`).
+		OrderExpr(`"note".created_at ASC, "note".id ASC`).
+		Scan(ctx)
+	stats.StatementDuration = time.Since(started)
+	if err != nil {
+		return nil, stats, fmt.Errorf("list school day hints: %w", err)
+	}
+	stats.Rows = int64(len(rows))
+	notes := make([]domain.StudentNote, 0, len(rows))
+	for _, row := range rows {
+		notes = append(notes, row.toDomain())
+	}
+	return notes, stats, nil
+}
+
+// UpsertSchoolDayHints writes one row per named child in one statement. A
+// live hint of the same author for the same child, day and target takes the
+// new wording; updated_at moves through the table's trigger.
+func (s *StudentNoteStore) UpsertSchoolDayHints(
+	ctx context.Context, hint domain.SetSchoolDayHint,
+) (domain.OperationStats, error) {
+	db, scope, err := s.tenantDatabase(ctx)
+	if err != nil {
+		return domain.OperationStats{}, err
+	}
+	author := hint.AuthorAccountID
+	date := hint.Date
+	rows := make([]studentNoteRow, 0, len(hint.StudentIDs))
+	for _, studentID := range hint.StudentIDs {
+		rows = append(rows, studentNoteRow{
+			TenantID: scope.TenantID, StudentID: studentID, AuthorAccountID: &author,
+			Origin: domain.StudentNoteOriginSchool, Kind: domain.StudentNoteKindJournal,
+			Visibility: domain.StudentNoteVisibilityAllStaff, Body: hint.Body,
+			SubjectDate: &date, SchoolClass: optionalText(hint.SchoolClass),
+		})
+	}
+	stats := domain.OperationStats{Queries: 1}
+	started := time.Now()
+	result, err := db.NewInsert().
+		Model(&rows).
+		ModelTableExpr(studentNotesTable).
+		ExcludeColumn("id", "created_at", "updated_at", "deleted_at", "deleted_by_account_id").
+		On(schoolDayHintConflict).
+		Set("body = EXCLUDED.body").
+		Exec(ctx)
+	stats.StatementDuration = time.Since(started)
+	if err != nil {
+		return stats, fmt.Errorf("upsert school day hints: %w", err)
+	}
+	if stats.Rows, err = result.RowsAffected(); err != nil {
+		return stats, fmt.Errorf("upsert school day hints: %w", err)
+	}
+	return stats, nil
+}
+
+// RetireSchoolDayHints soft-deletes the author's live hints of one target and
+// returns the rows it hid, so the caller can record each removal.
+func (s *StudentNoteStore) RetireSchoolDayHints(
+	ctx context.Context, target domain.ClearSchoolDayHint, keep []int64,
+) ([]domain.StudentNote, domain.OperationStats, error) {
+	db, scope, err := s.tenantDatabase(ctx)
+	if err != nil {
+		return nil, domain.OperationStats{}, err
+	}
+	var rows []studentNoteRow
+	query := db.NewUpdate().
+		Model((*studentNoteRow)(nil)).
+		ModelTableExpr(studentNotesTable+" AS note").
+		Set("deleted_at = clock_timestamp()").
+		Set("deleted_by_account_id = ?", target.AuthorAccountID).
+		Where(`"note".tenant_id = ?`, scope.TenantID).
+		Where(`"note".origin = ?`, domain.StudentNoteOriginSchool).
+		Where(`"note".author_account_id = ?`, target.AuthorAccountID).
+		Where(`"note".subject_date = ?`, target.Date).
+		Where(`"note".deleted_at IS NULL`)
+	if target.SchoolClass != "" {
+		query = query.Where(`LOWER(BTRIM("note".school_class)) = LOWER(BTRIM(?))`, target.SchoolClass)
+		if len(keep) > 0 {
+			query = query.Where(`"note".student_id NOT IN (?)`, bun.List(keep))
+		}
+	} else {
+		query = query.Where(`"note".school_class IS NULL`).
+			Where(`"note".student_id = ?`, target.StudentID)
+	}
+	stats := domain.OperationStats{Queries: 1}
+	started := time.Now()
+	err = query.Returning(`"note".*`).Scan(ctx, &rows)
+	stats.StatementDuration = time.Since(started)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, stats, fmt.Errorf("retire school day hints: %w", err)
+	}
+	stats.Rows = int64(len(rows))
+	notes := make([]domain.StudentNote, 0, len(rows))
+	for _, row := range rows {
+		notes = append(notes, row.toDomain())
+	}
+	return notes, stats, nil
+}
+
 func (r studentNoteRow) toDomain() domain.StudentNote {
 	note := domain.StudentNote{
 		ID: r.ID, TenantID: r.TenantID, StudentID: r.StudentID,
@@ -349,6 +479,9 @@ func (r studentNoteRow) toDomain() domain.StudentNote {
 	}
 	if r.Category != nil {
 		note.Category = *r.Category
+	}
+	if r.SchoolClass != nil {
+		note.Subject.SchoolClass = *r.SchoolClass
 	}
 	note.Subject.Date = r.SubjectDate
 	return note

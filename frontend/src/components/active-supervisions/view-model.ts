@@ -1,5 +1,5 @@
 import type { StatusBadgeTone } from "~/components/ui/status-badge";
-import type { Student } from "~/lib/student-helpers";
+import type { Student, TeacherHint } from "~/lib/student-helpers";
 import type { TimetableRoster } from "~/lib/timetable-operations-types";
 
 export const SCHULHOF_ROOM_NAME = "Schulhof";
@@ -618,6 +618,7 @@ function mapVisitToSupervisionStudent(
     roomName?: string;
     roomColor?: string | null;
     groupNameToId?: Map<string, string>;
+    teacherHints?: ReadonlyMap<string, TeacherHint[]>;
   },
 ): ActiveSupervisionStudent {
   const nameParts = visit.studentName?.split(" ") ?? ["", ""];
@@ -654,6 +655,7 @@ function mapVisitToSupervisionStudent(
         ? visit.checkInTime
         : new Date(visit.checkInTime),
     photo_url: visit.photoUrl,
+    teacher_hints: options.teacherHints?.get(visit.studentId),
   } as ActiveSupervisionStudent;
 }
 
@@ -663,6 +665,8 @@ export function mapVisitsToSupervisionStudents(
     roomName?: string;
     roomColor?: string | null;
     groupNameToId?: Map<string, string>;
+    /** Hinweise der Lehrkraft für heute (#4795), je Kind. */
+    teacherHints?: ReadonlyMap<string, TeacherHint[]>;
   },
 ): ActiveSupervisionStudent[] {
   return visits

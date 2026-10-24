@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	classdayCompose "github.com/moto-nrw/project-phoenix/modules/classday/compose"
@@ -73,6 +75,7 @@ func NewClassDayTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 			StudentStatusDayService: presenceservice.NewStatusDays(rCare.StudentStatusDay, owners.NewManualPartialAbsenceDates(rCare.CarePlan),
 				db.Pool(), rCare.CarePlan.LockExceptionDay, clockOrNow(clocks)),
 		})),
+		DayHints: people, Today: calendar.CalendarDateClock(clocks...),
 	}, reports, rCare.StudentStatusDay, r.Student, r.Person, r.StudentGuardian, rAudit.DataAccessLog, activeSettings.Settings,
 		hub, slog.Default())
 	return ClassDayTestModule{ClassDay: classDay}, nil

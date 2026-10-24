@@ -333,6 +333,12 @@ const (
 	// operations.school_portal_write_scope unlocks it, the
 	// education.class_teachers assignment decides for which class.
 	ClassDayClassTripWrite = ResourceClassDay + ":class_trip_write"
+	// ClassDayDayHintWrite lets a Lehrkraft leave today's hint for the OGS on
+	// one of her assigned classes or on one of its children (#4795). The
+	// school's setting operations.school_portal_write_scope decides whether it
+	// is unlocked, and the education.class_teachers assignment decides for
+	// which class.
+	ClassDayDayHintWrite = ResourceClassDay + ":day_hint_write"
 )
 
 // Supervision permission for the school portal (#2527). supervision:own gates

@@ -52,7 +52,12 @@ const (
 const (
 	StudentNoteOriginStaff      = "staff"
 	StudentNoteOriginMasterData = "master_data"
+	// StudentNoteOriginSchool is a Lehrkraft's day hint from moto schule.
+	StudentNoteOriginSchool = "school"
 )
+
+// MaxSchoolDayHintRunes bounds a Lehrkraft's day hint (#4795).
+const MaxSchoolDayHintRunes = 500
 
 // Note categories.
 const (
@@ -71,6 +76,9 @@ type StudentNoteSubject struct {
 	Date             *calendar.Date
 	ActivityGroupID  *int64
 	EducationGroupID *int64
+	// SchoolClass names the class of a day hint for the whole class; it is
+	// set only on origin school and is never a write input of the note card.
+	SchoolClass string
 }
 
 // StudentNote is one entry of a child's note card.
@@ -195,6 +203,65 @@ type StudentNoteCommand interface {
 	// author and ErrStudentNoteImmutable for a carried-over hint.
 	UpdateStudentNote(context.Context, UpdateStudentNote) (StudentNote, error)
 	DeleteStudentNote(context.Context, DeleteStudentNote) error
+}
+
+// SchoolDayHint is a Lehrkraft's hint for the OGS for one day and one child
+// (#4795). A hint for the whole class reaches each child as one SchoolDayHint
+// carrying the class.
+type SchoolDayHint struct {
+	ID        int64
+	StudentID int64
+	Date      calendar.Date
+	// SchoolClass is set for a hint to the whole class, empty for a hint to
+	// this child alone.
+	SchoolClass     string
+	Body            string
+	AuthorAccountID *int64
+	// AuthorName is the author's current name, empty when the person is gone.
+	AuthorName string
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
+}
+
+// SetSchoolDayHint writes a Lehrkraft's day hint. With SchoolClass it is the
+// hint for the whole class and StudentIDs are the children of the class that
+// day; without it StudentIDs names exactly one child. Writing it again for the
+// same author, day and target replaces the wording.
+type SetSchoolDayHint struct {
+	AuthorAccountID int64
+	Date            calendar.Date
+	SchoolClass     string
+	StudentIDs      []int64
+	Body            string
+}
+
+// ClearSchoolDayHint withdraws one of the author's day hints: the class hint
+// when SchoolClass is set, otherwise the hint for StudentID.
+type ClearSchoolDayHint struct {
+	AuthorAccountID int64
+	Date            calendar.Date
+	SchoolClass     string
+	StudentID       int64
+}
+
+// SchoolDayHintQuery reads the day hints for the OGS views. Every hint is
+// readable by all staff who may read the child's notes; the caller decides
+// whether this reader may.
+type SchoolDayHintQuery interface {
+	// ListSchoolDayHints returns the live hints of one day for the named
+	// children, oldest first.
+	ListSchoolDayHints(ctx context.Context, date calendar.Date, studentIDs []int64) ([]SchoolDayHint, error)
+}
+
+// SchoolDayHintCommand writes the day hints. Who may write one, for which
+// class and on which day stays with the caller.
+type SchoolDayHintCommand interface {
+	// SetSchoolDayHint returns ErrStudentNoteInvalid for a malformed hint and
+	// ErrStudentNotFound when the one child of a child hint left.
+	SetSchoolDayHint(context.Context, SetSchoolDayHint) error
+	// ClearSchoolDayHint returns ErrStudentNoteNotFound when the author has
+	// no such hint.
+	ClearSchoolDayHint(context.Context, ClearSchoolDayHint) error
 }
 
 // ValidStudentNoteKind reports whether kind is a known lifetime.

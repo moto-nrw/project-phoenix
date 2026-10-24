@@ -2,6 +2,10 @@
 package common
 
 const (
+	CodeIotDeviceIdTaken                              = "iot.device_id_taken"
+	CodeIotDeviceInactive                             = "iot.device_inactive"
+	CodeIotDevicePinInvalid                           = "iot.device_pin_invalid"
+	CodeIotDevicePinRequired                          = "iot.device_pin_required"
 	CodeIotInvalidRfidTag                             = "iot.invalid_rfid_tag"
 	CodeIotInvalidStaffClockRequest                   = "iot.invalid_staff_clock_request"
 	CodeIotInvalidStaffClockState                     = "iot.invalid_staff_clock_state"
@@ -298,13 +302,13 @@ const (
 	CodeTimetableSubstituteSelf                       = "timetable.substitute_self"
 	CodeTimetableSubstituteSingleOnly                 = "timetable.substitute_single_only"
 	CodeTimetableTemplateCareOfferingConflict         = "timetable.template_care_offering_conflict"
-	CodeTimetableTemplateCategoryUnavailable          = "timetable.template_category_unavailable"
-	CodeTimetableTemplateEducationGroupInvalid        = "timetable.template_education_group_invalid"
-	CodeTimetableTemplateEndBeforeStart               = "timetable.template_end_before_start"
-	CodeTimetableTemplateGradeAboveMax                = "timetable.template_grade_above_max"
 )
 
 var errorCodeClasses1 = map[string]string{
+	"iot.device_id_taken":                                 "business_rejection",
+	"iot.device_inactive":                                 "permission",
+	"iot.device_pin_invalid":                              "permission",
+	"iot.device_pin_required":                             "permission",
 	"iot.invalid_rfid_tag":                                "input",
 	"iot.invalid_staff_clock_request":                     "input",
 	"iot.invalid_staff_clock_state":                       "business_rejection",
@@ -601,10 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.substitute_self":                           "input",
 	"timetable.substitute_single_only":                    "input",
 	"timetable.template_care_offering_conflict":           "input",
-	"timetable.template_category_unavailable":             "business_rejection",
-	"timetable.template_education_group_invalid":          "input",
-	"timetable.template_end_before_start":                 "input",
-	"timetable.template_grade_above_max":                  "input",
 }
 
 func init() {

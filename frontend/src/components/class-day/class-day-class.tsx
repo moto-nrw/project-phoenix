@@ -13,19 +13,27 @@ import { useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
+import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
+import { CustomSelect } from "~/components/ui/custom-select";
+import { EditActions } from "~/components/ui/edit-actions";
 import { EmptyState } from "~/components/ui/empty-state";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { FormModal } from "~/components/ui/form-modal";
+import { Textarea } from "~/components/ui/textarea";
+import { useApiFormError } from "~/contexts/ToastContext";
 import NavigationLink from "~/components/ui/navigation-link";
 import { Skeleton } from "~/components/ui/skeleton";
 import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
-import type { ClassDayReport } from "~/lib/class-day-api";
+import type { ClassDayHint, ClassDayReport } from "~/lib/class-day-api";
 import { formatDate, parseISODate, todayISO } from "~/lib/date-helpers";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
-import type {
-  ClassDayClasses,
-  ClassTripReportInput,
-  ClassTripReportResult,
+import {
+  type ClassDayClasses,
+  type ClassTripReportInput,
+  type ClassTripReportResult,
+  deleteDayHintSchool,
+  saveDayHintSchool,
 } from "~/lib/school-class-day-api";
 import { schoolClassLabel } from "~/lib/school-class-label";
 import { schoolPath } from "~/lib/school-url";
@@ -44,6 +52,18 @@ import { Section } from "./student-row";
 const logger = createLogger({ component: "ClassDayClass" });
 
 const REPORT_FOCUS_THROTTLE_MS = 60 * 1000;
+
+/** Höchstlänge eines Hinweises an die OGS (#4795), wie im Backend. */
+const DAY_HINT_MAX_LENGTH = 500;
+
+/** Ziel des Hinweises: die ganze Klasse oder ein Kind (seine ID als Text). */
+const CLASS_TARGET = "class";
+
+/** Der Verfasser eines Hinweises, wenn er nicht von der Lehrkraft selbst ist. */
+function dayHintAuthorSuffix(hint: ClassDayHint): string {
+  if (hint.own || !hint.author_name) return "";
+  return ` (von ${hint.author_name})`;
+}
 
 /**
  * Die Klassen-Tagesausnahme als eine Zeile (#2962/#2970): "Heute kommt die
@@ -119,6 +139,16 @@ export function ClassDayClass({
   const [exceptionDialogOpen, setExceptionDialogOpen] = useState(false);
   const [tripModalOpen, setTripModalOpen] = useState(false);
   const [tripSaved, setTripSaved] = useState<string | null>(null);
+  // Hinweis an die OGS (#4795): Ziel, Text und der Ablauf von Speichern und
+  // Löschen. Fehler stehen im Dialog: das Schul-Portal hat keine Toasts.
+  const [hintOpen, setHintOpen] = useState(false);
+  const [hintTarget, setHintTarget] = useState(CLASS_TARGET);
+  const [hintBody, setHintBody] = useState("");
+  const [hintSaving, setHintSaving] = useState(false);
+  const [hintDeleteOpen, setHintDeleteOpen] = useState(false);
+  const [hintDeleting, setHintDeleting] = useState(false);
+  const hintErrors = useApiFormError();
+  const hintDeleteErrors = useApiFormError();
 
   // Das Schreib-Flag kommt von der Klassenliste (Berechtigung UND Freigabe
   // der OGS). Bei "nicht freigegeben" gibt es keinen Knopf und keinen
@@ -223,6 +253,93 @@ export function ClassDayClass({
       ? classArrivalExceptionLine(report, dateISO, todayISO())
       : null;
   const isToday = dateISO === todayISO();
+  const classHints = report && !weekend ? (report.class_day_hints ?? []) : [];
+  const canWriteDayHints =
+    report?.can_write_day_hints === true && isAssignedClass && !weekend;
+  // Nur Kinder mit OGS-Datensatz: ein Klassenlisteneintrag hat keine
+  // Kindakte, an der ein Hinweis stehen könnte.
+  const hintChildren = rows.filter(
+    (row) => !row.list_entry && row.student_id > 0,
+  );
+  const hintOptions = [
+    {
+      value: CLASS_TARGET,
+      label: `Ganze Klasse ${schoolClassLabel(schoolClass)}`,
+    },
+    ...hintChildren.map((row) => ({
+      value: String(row.student_id),
+      label: `${row.last_name}, ${row.first_name}`,
+    })),
+  ];
+  const ownHintFor = (target: string): ClassDayHint | undefined => {
+    if (target === CLASS_TARGET) return classHints.find((hint) => hint.own);
+    const row = hintChildren.find(
+      (child) => String(child.student_id) === target,
+    );
+    return row?.day_hints?.find((hint) => hint.own);
+  };
+  const existingHint = ownHintFor(hintTarget);
+  const trimmedHint = hintBody.trim();
+  const hintStudentId =
+    hintTarget === CLASS_TARGET ? undefined : Number(hintTarget);
+
+  const chooseHintTarget = (target: string) => {
+    setHintTarget(target);
+    setHintBody(ownHintFor(target)?.body ?? "");
+    hintErrors.clear();
+  };
+  const openHint = () => {
+    chooseHintTarget(CLASS_TARGET);
+    setHintOpen(true);
+  };
+  const closeHint = () => {
+    setHintOpen(false);
+    hintErrors.clear();
+  };
+  const saveHint = async () => {
+    if (trimmedHint === "") {
+      hintErrors.invalid("Bitte schreiben Sie einen Hinweis.", {
+        day_hint: "Bitte schreiben Sie einen Hinweis.",
+      });
+      return;
+    }
+    setHintSaving(true);
+    hintErrors.clear();
+    try {
+      await saveDayHintSchool(schoolClass, dateISO, trimmedHint, hintStudentId);
+      setHintOpen(false);
+      await refetchReport();
+    } catch (err) {
+      logger.error("class_day_hint_save_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      await hintErrors.show(err, {
+        object: "der Hinweis",
+        retry: () => void saveHint(),
+      });
+    } finally {
+      setHintSaving(false);
+    }
+  };
+  const deleteHint = async () => {
+    setHintDeleting(true);
+    hintDeleteErrors.clear();
+    try {
+      await deleteDayHintSchool(schoolClass, dateISO, hintStudentId);
+      setHintDeleteOpen(false);
+      setHintOpen(false);
+      await refetchReport();
+    } catch (err) {
+      logger.error("class_day_hint_delete_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      // Der Dialog bleibt offen; ein zweiter Klick ist der neue Versuch.
+      await hintDeleteErrors.show(err, { object: "der Hinweis" });
+    } finally {
+      setHintDeleting(false);
+    }
+  };
+
   // Nur Kinder mit OGS-Datensatz lassen sich melden; Klassenlisteneinträge
   // ("Keine Betreuung") hat die OGS nicht.
   const tripStudents = useMemo(
@@ -291,6 +408,17 @@ export function ClassDayClass({
             {exceptionLine}
           </p>
         ) : null}
+        {/* Hinweise an die OGS für die ganze Klasse (#4795); die Hinweise
+            für ein Kind stehen am Kind. */}
+        {classHints.map((hint) => (
+          <p
+            key={`${hint.author_name ?? ""}-${hint.updated_at}`}
+            className="mt-1 text-sm break-words text-gray-900"
+          >
+            <span className="font-medium">Hinweis an die OGS:</span> {hint.body}
+            {dayHintAuthorSuffix(hint)}
+          </p>
+        ))}
         {/* Nur mit Freigabe der OGS (#2970). Der Knopf nennt den Tag, den er
             vorbelegt: "heute" nur, wenn heute angezeigt wird. */}
         {schoolClass && !weekend && canWriteArrivalException ? (
@@ -320,6 +448,19 @@ export function ClassDayClass({
               disabled={tripStudents.length === 0}
             >
               Ausflug oder Klassenfahrt melden
+            </Button>
+          </div>
+        ) : null}
+        {/* Hinweis an die OGS (#4795): nur heute und nur mit Freigabe. */}
+        {schoolClass && canWriteDayHints ? (
+          <div className="mt-3">
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              onClick={openHint}
+            >
+              Hinweis für die OGS
             </Button>
           </div>
         ) : null}
@@ -451,6 +592,102 @@ export function ClassDayClass({
           weekendOpen={weekendOpen}
         />
       ) : null}
+
+      {schoolClass && canWriteDayHints ? (
+        <FormModal
+          isOpen={hintOpen}
+          suspended={hintDeleteOpen}
+          onClose={closeHint}
+          title="Hinweis für die OGS"
+          size="md"
+          mobilePosition="bottom"
+          error={hintErrors.error}
+          isBackdropDismissDisabled={trimmedHint !== ""}
+          footer={
+            <div className="flex flex-wrap items-center justify-between gap-2 p-4">
+              {existingHint ? (
+                <Button
+                  type="button"
+                  variant="outline_danger"
+                  size="md"
+                  onClick={() => {
+                    hintDeleteErrors.clear();
+                    setHintDeleteOpen(true);
+                  }}
+                  disabled={hintSaving}
+                >
+                  Hinweis löschen
+                </Button>
+              ) : (
+                <span />
+              )}
+              <EditActions
+                onCancel={closeHint}
+                onSave={() => void saveHint()}
+                saving={hintSaving}
+              />
+            </div>
+          }
+        >
+          <div className="space-y-4 p-4">
+            <p className="text-sm text-gray-600">
+              Die OGS sieht den Hinweis heute am Kind, in Aufsicht, Gruppe und
+              Kindersuche. Morgen ist er weg.
+            </p>
+            <div>
+              <label
+                id="day-hint-target-label"
+                htmlFor="day-hint-target"
+                className="mb-2 block text-sm font-medium text-gray-700"
+              >
+                Für wen ist der Hinweis?
+              </label>
+              <CustomSelect
+                value={hintTarget}
+                options={hintOptions}
+                onChange={chooseHintTarget}
+                id="day-hint-target"
+                ariaLabelledBy="day-hint-target-label"
+              />
+            </div>
+            <div>
+              <Textarea
+                id="day-hint-body"
+                name="day_hint"
+                label="Hinweis"
+                rows={4}
+                maxLength={DAY_HINT_MAX_LENGTH}
+                value={hintBody}
+                onChange={(event) => setHintBody(event.target.value)}
+                placeholder="Zum Beispiel: Hat heute Bauchweh, bitte im Blick behalten."
+                error={hintErrors.fieldError("day_hint")}
+              />
+              <p className="mt-1 text-right text-xs text-gray-500 tabular-nums">
+                {hintBody.length} von {DAY_HINT_MAX_LENGTH} Zeichen
+              </p>
+            </div>
+          </div>
+        </FormModal>
+      ) : null}
+
+      <ConfirmDeleteModal
+        isOpen={hintDeleteOpen}
+        title="Hinweis löschen?"
+        description={
+          <p>
+            Die OGS sieht den Hinweis danach nicht mehr. Sie können jederzeit
+            einen neuen schreiben.
+          </p>
+        }
+        gate={{ mode: "twoStep", firstStepLabel: "Ja, löschen" }}
+        confirmLabel="Endgültig löschen"
+        loadingLabel="Wird gelöscht…"
+        loading={hintDeleting}
+        error={hintDeleteErrors.error?.message ?? ""}
+        onConfirm={() => void deleteHint()}
+        onClose={() => setHintDeleteOpen(false)}
+        mobileSheet
+      />
     </div>
   );
 }

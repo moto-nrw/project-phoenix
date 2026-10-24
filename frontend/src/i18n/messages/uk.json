@@ -2238,6 +2238,10 @@
         "class_trip_return_time_weekend": "Не вдалося зберегти: {object}. Перевірте введені дані.",
         "class_trip_status_conflict": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "class_trip_student_not_in_class": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "day_hint_class_empty": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+        "day_hint_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+        "day_hint_not_today": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+        "day_hint_student_not_in_class": "Не вдалося зберегти: {object}. Перевірте введені дані.",
         "school_write_disabled": "У вас немає доступу до: {object}. Зверніться до школи."
       },
       "communication": {

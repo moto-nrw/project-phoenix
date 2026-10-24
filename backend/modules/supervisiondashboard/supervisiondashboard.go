@@ -45,7 +45,8 @@ type Query interface {
 }
 
 // Dependencies are the consumer-owned ports the projection reads through.
-// Now defaults to time.Now; every other field is required.
+// Now defaults to time.Now; TeacherHints is optional (without it no hint of
+// the Lehrkraft is attached); every other field is required.
 type Dependencies struct {
 	Access   Access
 	Sessions SessionDirectory
@@ -58,7 +59,9 @@ type Dependencies struct {
 	Settings Settings
 	Staff    Staff
 	Calendar Calendar
-	Now      func() time.Time
+	// TeacherHints reads the Lehrkraft's day hints (#4795).
+	TeacherHints TeacherHintReader
+	Now          func() time.Time
 }
 
 func (d Dependencies) complete() bool {
@@ -322,6 +325,9 @@ type Projection struct {
 	TrackingIndicators TrackingIndicators `json:"tracking_indicators"`
 	PickupTimes        []PickupTime       `json:"pickup_times"`
 	ArrivalTimes       []ArrivalTime      `json:"arrival_times"`
+	// TeacherHints are today's hints of the Lehrkraft (#4795) for the
+	// children in the projection, oldest first; with users:read only.
+	TeacherHints []TeacherHint `json:"teacher_hints"`
 }
 
 func emptyProjection() *Projection {
@@ -336,6 +342,7 @@ func emptyProjection() *Projection {
 		TrackingIndicators: TrackingIndicators{Labels: []string{}, Results: map[int64][]bool{}},
 		PickupTimes:        []PickupTime{},
 		ArrivalTimes:       []ArrivalTime{},
+		TeacherHints:       []TeacherHint{},
 	}
 }
 
@@ -753,7 +760,7 @@ func (s *service) loadPlanningTimes(ctx context.Context, projection *Projection,
 			projection.ArrivalTimes = append(projection.ArrivalTimes, arrivalTimeFromEffective(id, effective))
 		}
 	}
-	return nil
+	return s.loadTeacherHints(ctx, projection, studentIDs, businessDay)
 }
 
 func pickupTimeFromEffective(studentID int64, effective Pickup) PickupTime {

@@ -2238,6 +2238,10 @@
         "class_trip_return_time_weekend": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "class_trip_status_conflict": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "class_trip_student_not_in_class": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "day_hint_class_empty": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "day_hint_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "day_hint_not_today": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "day_hint_student_not_in_class": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "school_write_disabled": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą."
       },
       "communication": {

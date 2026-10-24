@@ -436,6 +436,14 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
     "GET school /school/class-day/arrival-exceptions/block-start",
   ],
   "api/school/class-day/classes": ["GET school /school/class-day/classes"],
+  "api/school/class-day/day-hints/[schoolClass]/[date]": [
+    "DELETE school /school/class-day/day-hints/schoolClass%2F1/date%2F1",
+    "PUT school /school/class-day/day-hints/schoolClass%2F1/date%2F1",
+  ],
+  "api/school/class-day/day-hints/[schoolClass]/[date]/students/[studentId]": [
+    "DELETE school /school/class-day/day-hints/schoolClass%2F1/date%2F1/students/studentId%2F1",
+    "PUT school /school/class-day/day-hints/schoolClass%2F1/date%2F1/students/studentId%2F1",
+  ],
   "api/school/notifications/preferences": [
     "DELETE school /school/notifications/preferences/",
     "GET school /school/notifications/preferences/",

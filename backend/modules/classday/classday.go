@@ -113,6 +113,33 @@ type ClassTripResult struct {
 	DateCount    int    `json:"date_count"`
 }
 
+// ErrDayHintsNotConfigured is returned by every day-hint capability when the
+// projection was composed without the day-hint seam (#4795).
+var ErrDayHintsNotConfigured = errors.New("day hints are not configured")
+
+// Sentinels the HTTP layer classifies for the Lehrkraft's day hints (#4795).
+var (
+	// ErrDayHintNotToday refuses a write or removal for any day but today:
+	// the hint is a message for this afternoon, not a plan.
+	ErrDayHintNotToday = errors.New("a day hint can only be written for today")
+	// ErrDayHintStudentNotInClass refuses a hint for a child that is not in
+	// the class on that day.
+	ErrDayHintStudentNotInClass = errors.New("the child is not in this class")
+	// ErrDayHintClassEmpty refuses a class hint for a class without a child
+	// in OGS care records.
+	ErrDayHintClassEmpty = errors.New("the class has no children with an OGS record")
+	// ErrDayHintInvalid refuses an empty or too long hint.
+	ErrDayHintInvalid = errors.New("a day hint needs between 1 and 500 characters")
+	// ErrDayHintsClosed refuses every write while the school keeps the day
+	// hints closed (operations.school_portal_write_scope).
+	ErrDayHintsClosed = errors.New("die OGS hat Hinweise der Schule nicht freigegeben")
+	// ErrDayHintNotFound means there is no such hint of the caller to remove.
+	ErrDayHintNotFound = errors.New("day hint not found")
+)
+
+// MaxDayHintRunes bounds a day hint.
+const MaxDayHintRunes = 500
+
 // ArrivalExceptionOriginSchool marks an entry a Lehrkraft made through the
 // school portal; ArrivalExceptionOriginOGS one the OGS made, and every entry
 // older than the origin stamp.
@@ -163,6 +190,40 @@ type DayRow struct {
 	// ReportedAt is when the deviation became known. Empty for rows without
 	// a deviation.
 	ReportedAt *time.Time `json:"reported_at,omitempty"`
+	// DayHints are the Lehrkraft hints of the day for this child alone
+	// (#4795); the hints for the whole class are on the report.
+	DayHints []DayHint `json:"day_hints,omitempty"`
+}
+
+// DayHint is a Lehrkraft's hint for the OGS for one day (#4795), for one
+// child or for the whole class.
+type DayHint struct {
+	Body string `json:"body"`
+	// AuthorName is the author's current name, empty when the person is gone.
+	AuthorName string `json:"author_name,omitempty"`
+	// Own marks a hint of the caller, the only ones the caller may change.
+	Own       bool      `json:"own"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// DayHintWrite is one day hint as the Lehrkraft enters it: for the whole
+// class when StudentID is 0, otherwise for that child of the class.
+type DayHintWrite struct {
+	SchoolClass string
+	Date        Date
+	StudentID   int64
+	Body        string
+	// AuthorAccountID is the caller's account.
+	AuthorAccountID int64
+}
+
+// DayHintTarget names one of the caller's day hints: the class hint when
+// StudentID is 0, otherwise the hint for that child.
+type DayHintTarget struct {
+	SchoolClass     string
+	Date            Date
+	StudentID       int64
+	AuthorAccountID int64
 }
 
 // DayTotals summarize one day report.
@@ -201,6 +262,13 @@ type DayReport struct {
 	// ClassArrivalException is the class-wide arrival day exception of the
 	// date (#2962/#2970), whoever entered it.
 	ClassArrivalException *DayArrivalException `json:"class_arrival_exception,omitempty"`
+	// ClassDayHints are the Lehrkraft hints of the day for the whole class
+	// (#4795), oldest first.
+	ClassDayHints []DayHint `json:"class_day_hints,omitempty"`
+	// CanWriteDayHints is true when the caller may write today's hints for
+	// this class: the date is today and the school opened it (projection),
+	// and the token holds the permission (HTTP adapter).
+	CanWriteDayHints bool `json:"can_write_day_hints"`
 }
 
 // ArrivalException is one class-wide arrival day exception.
@@ -341,4 +409,17 @@ type SupervisionSheetInput struct {
 	CompanionBoundary []int64
 	ActorAccountID    int64
 	ActorRole         string
+}
+
+// DayHints is the day-hint write of the school portal (#4795), a facade of its
+// own beside ClassDay: the Lehrkraft writes today's hint for an assigned class
+// or one of its children. The day report carries the hints; this writes them.
+// The capability ClassDay returns implements it.
+type DayHints interface {
+	// SetDayHint writes or rewords the caller's day hint for the class or
+	// one of its children, today only. ErrDayHintsClosed when the school's
+	// operations.school_portal_write_scope does not open the day hints.
+	SetDayHint(ctx context.Context, in DayHintWrite) error
+	// ClearDayHint removes one of the caller's day hints, today only.
+	ClearDayHint(ctx context.Context, target DayHintTarget) error
 }

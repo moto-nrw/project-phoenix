@@ -33,6 +33,7 @@ func TestDayReportKeepsTheWireShape(t *testing.T) {
 				StudentID: 11, FirstName: "Klara", LastName: "Klassentag", GroupName: "Delfine", Registered: true,
 				StaysToday: true, Offerings: []string{"Lernzeit"}, Arrival: "11:45", Pickup: "15:00", Departure: "Abholung",
 				PickupChanged: true, PickupRegular: "16:00", ReportedAt: &reportedAt,
+				DayHints: []classday.DayHint{{Body: "Hat Bauchweh", AuthorName: "Frau Kurz", Own: true, UpdatedAt: reportedAt}},
 			},
 			{
 				StudentID: 12, FirstName: "Nico", LastName: "Krank", Registered: true, Offerings: []string{},
@@ -43,6 +44,8 @@ func TestDayReportKeepsTheWireShape(t *testing.T) {
 			},
 		},
 		ClassArrivalException: &classday.DayArrivalException{ArrivalTime: "12:45", Reason: "Unterricht fällt aus", Origin: "school"},
+		ClassDayHints:         []classday.DayHint{{Body: "Sportzeug mitgeben", UpdatedAt: reportedAt}},
+		CanWriteDayHints:      true,
 	}
 
 	got, err := json.Marshal(report)
@@ -55,13 +58,16 @@ func TestDayReportKeepsTheWireShape(t *testing.T) {
 			{"student_id": 11, "first_name": "Klara", "last_name": "Klassentag", "group_name": "Delfine",
 			 "registered": true, "stays_today": true, "offerings": ["Lernzeit"], "arrival": "11:45",
 			 "pickup": "15:00", "departure": "Abholung", "pickup_changed": true, "pickup_regular": "16:00",
-			 "reported_at": "2026-08-05T05:00:00Z"},
+			 "reported_at": "2026-08-05T05:00:00Z",
+			 "day_hints": [{"body": "Hat Bauchweh", "author_name": "Frau Kurz", "own": true, "updated_at": "2026-08-05T05:00:00Z"}]},
 			{"student_id": 12, "first_name": "Nico", "last_name": "Krank", "registered": true, "stays_today": false,
 			 "offerings": [], "departure": "Keine Angabe", "status": "sick", "reported_at": "2026-08-05T05:00:00Z"},
 			{"student_id": 0, "first_name": "Lisa", "last_name": "NurListe", "list_entry": true,
 			 "list_entry_id": "9007199254740993", "registered": false, "stays_today": false, "offerings": []}
 		],
-		"class_arrival_exception": {"arrival_time": "12:45", "reason": "Unterricht fällt aus", "origin": "school"}
+		"class_arrival_exception": {"arrival_time": "12:45", "reason": "Unterricht fällt aus", "origin": "school"},
+		"class_day_hints": [{"body": "Sportzeug mitgeben", "own": false, "updated_at": "2026-08-05T05:00:00Z"}],
+		"can_write_day_hints": true
 	}`, string(got))
 
 	// The optionals stay omitted.

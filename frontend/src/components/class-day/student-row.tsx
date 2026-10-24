@@ -63,6 +63,17 @@ export function StudentRow({
             {reported}
           </p>
         ) : null}
+        {/* Hinweise an die OGS für dieses Kind (#4795). Ganzer Text statt
+            abgeschnitten: der Hinweis ist die Nachricht selbst. */}
+        {(row.day_hints ?? []).map((hint) => (
+          <p
+            key={`${hint.author_name ?? ""}-${hint.updated_at}`}
+            className="text-xs break-words text-gray-700"
+          >
+            <span className="font-medium">Hinweis an die OGS:</span> {hint.body}
+            {hint.own || !hint.author_name ? "" : ` (von ${hint.author_name})`}
+          </p>
+        ))}
       </div>
       {/* Auf schmalen Bildschirmen stapeln sich Zeit und Kennzeichen, statt
           die Zeile über den Rand zu schieben; ab sm stehen sie nebeneinander. */}
