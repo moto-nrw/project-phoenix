@@ -191,6 +191,10 @@ jobs:
           scripts/backend-test-matrix_test.sh
           scripts/test-changed_test.sh
 
+      - name: Verify snapshot roles match migrations
+        if: matrix.shard == 0
+        run: node --test scripts/db-snapshot-roles.test.mjs
+
       - name: Restore migrated DB snapshot
         if: ${{ matrix.shard != 1 }}
         id: db-snapshot
@@ -210,11 +214,11 @@ jobs:
           PHOENIX_DEMO_PASSWORD: phoenix_demo_test
         run: |
           # pg_dump omits global objects (roles, ALTER ROLE ... SET). Recreate
-          # them exactly as migration 001014001_create_tenant_roles.go does,
+          # them with the attributes, memberships and settings from migrations,
           # BEFORE restoring the dump — it contains GRANTs and RLS policies
-          # referencing these roles. If a future migration adds a role, update
-          # this block too; drift fails loudly (ON_ERROR_STOP on the restore),
-          # never silently, because new migrations also change the cache key.
+          # referencing these roles. The snapshot-role guard checks names,
+          # memberships and settings even when no database object references
+          # a role (pg_dump cannot detect that missing global state).
           # Everything runs inside the postgres:17 service container: the
           # local socket is trust-auth and the runner's psql is v16, which
           # refuses a v17 server.
@@ -226,8 +230,10 @@ jobs:
           CREATE ROLE phoenix_diagnostics NOLOGIN NOINHERIT;
           CREATE ROLE phoenix_school_erasure NOLOGIN NOINHERIT NOBYPASSRLS;
           CREATE ROLE phoenix_billing_retention NOLOGIN NOINHERIT NOBYPASSRLS;
+          CREATE ROLE phoenix_tenant_export NOLOGIN BYPASSRLS;
           GRANT phoenix_tenant TO phoenix_auth;
           GRANT phoenix_admin TO phoenix_auth;
+          GRANT pg_read_all_data TO phoenix_tenant_export;
           ALTER ROLE phoenix_auth SET search_path TO public, platform;
           EOF
           docker exec -i "$PG_CONTAINER" psql -q -v ON_ERROR_STOP=1 -U postgres -d phoenix_test \
