@@ -1,6 +1,6 @@
 # Interne Auskunft und Datenrückgabe
 
-Stand: 23.10.2026, Slice 3838-a, Refs #3838, Teil von #3846.
+Stand: 24.10.2026, Slices 3838-a/b/c, Refs #3838, Teil von #3846.
 Grundlage: [ADR 0092](../adr/0092-mandanten-datenlebenszyklus-nutzt-einen-gemeinsamen-katalog.md),
 [ADR 0097](../adr/0097-mandantenrueckgabe-hat-einen-eigenen-leseadapter.md)
 und [Datenkatalog](../reference/datenkatalog.md).
@@ -16,10 +16,13 @@ die Rolle `phoenix_tenant_export` bereit: `NOLOGIN`, keine Schreibrechte,
 keine Mitgliedschaft für `phoenix_auth`. Der administrative Leser kann RLS
 umgehen; jede Datenauswahl bleibt deshalb ausdrücklich schulbezogen.
 
-**Kein vollständiger Art.-15-Auskunftsprozess:** Die personenbezogene Auswahl
-für Kind, Erziehungsberechtigte oder Beschäftigte, Drittpersonenprüfung und
-redigierte Zusammenstellung folgen in Slice 3838-b. Ein Gesamtexport darf
-nicht als Antwort an eine einzelne betroffene Person weitergegeben werden.
+**Personenbezogenes internes Prüfpaket im Code:** `tenant export --person …`
+leitet aus denselben freigegebenen Schulzeilen ein Paket für Kind,
+Erziehungsberechtigte oder Beschäftigte ab. Es enthält Zeilen-/Dateimarkierungen
+in `review.json`; `manifest.json` setzt `reviewRequired: true`. Das ist keine
+automatisch vollständige oder freigegebene Art.-15-Antwort. Die zuständige
+Person muss die Ergänzungs- und Drittpersonenprüfung in Abschnitt 6 abschließen.
+Weder Gesamtexport noch internes Prüfpaket unverändert an Betroffene geben.
 
 **Weiter offen:** geprüfte Projektionen nicht geheimer Werte aus den bewusst
 ausgeschlossenen Settings-/Zustellcontainern, erforderlicher Kontext aus
@@ -43,13 +46,15 @@ Sicherungen sind nicht Bestandteil dieses PostgreSQL-/Upload-Exports.
    Auftrag benennen. Diese organisatorische Zuordnung ist noch offen und
    darf nicht durch einen CLI-Erfolg ersetzt werden.
 3. Eingang binnen **2 Arbeitstagen** bestätigen, Zusammenstellung binnen
-   **10 Arbeitstagen** bereitstellen. Gesetzliche oder kundenseitige kürzere
+   **10 Arbeitstagen** der Schule bereitstellen. Diese internen Zielwerte
+   sind **vorläufig; die organisatorische Bestätigung ist offen (3838-d)**.
+   Die Schule bleibt für ihre Antwortfrist verantwortlich. Gesetzliche oder kundenseitige kürzere
    Fristen haben Vorrang. Verzögerungen früh melden und eskalieren, damit
    der Kunde insbesondere seine regelmäßig einmonatige Antwortfrist bei
    Betroffenenanfragen einhalten kann. Keine automatische Fristverlängerung.
 4. Ausschlüsse und gemeinsame Kontodaten mit dem Auftrag abgleichen. Eine
    Schulmitgliedschaft gestattet keinen ungefilterten Export anderer
-   Schulmitgliedschaften. Personenbezogene Einzelanfragen an 3838-b geben.
+   Schulmitgliedschaften. Personenbezogene Einzelanfragen nach Abschnitt 6 bearbeiten.
 
 ## 2. Geschützten lokalen Arbeitsstand vorbereiten
 
@@ -202,3 +207,146 @@ festlegen; nicht pauschal unbegrenzt aufbewahren.
 Der Nachweis trennt **Code-Lauf erfolgreich**, **Rückgabe fachlich geprüft**
 und **produktive Durchführung belegt**. Ein offener Teil darf keinen
 Gesamterfolg erhalten.
+
+## 6. Personenauskunft auf Weisung der Schule
+
+### Eingang, Identität und Auswahl
+
+1. Direkt bei moto eingehende Betroffenenanfragen unverzüglich an die Schule
+   weiterleiten. moto handelt nur auf dokumentierte Weisung der Schule,
+   nicht auf die bloße Behauptung einer Person oder deren Schulmitgliedschaft.
+   Die Schule prüft Identität, Vertretung, Sorgerecht und Umfang der Berechtigung.
+   Der anfragende Elternteil erhält nicht automatisch Daten anderer
+   Erziehungsberechtigter oder aller Geschwister. Auftrag und Antwortempfänger
+   getrennt prüfen; keine Ausweiskopien in technische Protokolle übernehmen.
+2. Zuständige Person, Vertretung und zweite prüfende Person im geschützten
+   Auftrag benennen. Eingang/Prüfung binnen 2, Bereitstellung an die Schule
+   binnen 10 Arbeitstagen gemäß Abschnitt 1 planen. Unklare Berechtigung oder
+   drohende Fristüberschreitung sofort an die Schule eskalieren; keine
+   eigenmächtige Verlängerung. Der Monat läuft nicht erst ab CLI-Ausführung.
+3. Die Schule bestätigt Schul-ID und Personen-ID: `kind` verwendet
+   `users.student_profiles.id`, `guardian` verwendet `users.guardian_profiles.id`,
+   `staff` verwendet `users.staff_school_memberships.id`, nicht Konto-/Personen-ID.
+   Bei mehreren Schulen jede einzeln beauftragen. Vollständig gelöschte
+   Identitäten können nicht automatisch zugeordnet werden; historische IDs,
+   Umbenennungen und frühere Rollen ausdrücklich im Auftrag prüfen.
+4. Den lokalen, geschützten Stand wie in Abschnitt 2 vorbereiten. Keine
+   zusätzlichen Anwendungsrechte oder Kundenschnittstelle einrichten.
+
+```bash
+umask 077
+scripts/dev-native.sh backend go run . tenant export \
+  --school "$SCHOOL_ID" --person "${PERSON_SELECTOR:?Personenauswahl erforderlich}" \
+  --uploads "$UPLOADS_SNAPSHOT" --out "$PERSON_REVIEW_DIR"
+```
+
+`PERSON_SELECTOR` ist beispielsweise `kind:<ID>`, ohne spitze Klammern.
+Das Ziel muss neu sein. Fehlende/mehrdeutige Identität der beauftragten Schule,
+ungültige Auswahl, fehlende benötigte Originale und Teilfehler brechen ohne
+`COMPLETE` ab. Keine Umgehung durch die ID derselben Person an einer anderen
+Schule. Fehlversuche können im privaten Arbeitsverzeichnis noch Schulzeilen
+und `.person`-Zwischendateien enthalten: sperren, nicht übergeben und entfernen.
+
+### Auswahl und Markierungsregeln
+
+Die Ableitung läuft im bestehenden Leseadapter nach dem Tabellenexport und
+vor der Dateikopie. Sie verwendet denselben Katalog, die exportierten
+Fremdschlüssel und ausdrücklich bekannte historische Audit-IDs. Es gibt
+keinen zweiten SQL-Lesepfad, kein neues Recht und keine Migration.
+Nur Schlüssel/Beziehungen bleiben im Arbeitsspeicher, Inhalte werden gestreamt.
+
+1. Eigene Profil-/Schulmitgliedschaft, eigene Person und eigenes Konto sind
+   die Startpunkte. Davon abhängige Schulzeilen sind personenbezogene Treffer.
+   Bei zusammengesetzten FKs ist `tenant_id` keine Personenkante. Die
+   vorhandene Exportauswahl hat die Schulgrenze bereits angewandt.
+2. Benötigte Elternzeilen liefern Kontext, begründen aber **keinen** weiteren
+   Personenexport. Gemeinsame Erziehungsberechtigte führen deshalb nicht zu
+   Geschwisterakten. Ein Beschäftigtenkonto an zwei Schulen führt nicht zum
+   Bestand der anderen Schule. Andere Identitätsketten werden nicht verfolgt.
+3. Gesprächsinhalte, Versionen/Optionen und Anhänge einer relevanten
+   Elternmitteilung sowie Änderungsnachrichten eines relevanten Anmeldeantrags
+   sind Kontext. Die begrenzten Regeln stehen in `personContentChild`.
+   Ein gemeinsamer Anmeldeantrag lädt nicht automatisch alle Kindzeilen nach;
+   sein eigener Snapshot kann dennoch Geschwisterdaten enthalten.
+4. Historische Auditbezüge ohne FK (`student_id`, `matched_student_id`,
+   `guardian_profile_id`, `staff_id`, `target_staff_id`, `account_id`, `actor_account_id`,
+   `request_id`) sowie typisierte Finanz-/Dokumentzugriffe und Personalvorschau
+   werden zugeordnet. Nicht eindeutige Akteurskennungen und Sammelzugriffe
+   bleiben Gegenstand der manuellen Vollständigkeitsprüfung.
+5. Nur Originale aus den ausgewählten Zeilen und ihrem Kontext werden kopiert,
+   darunter Foto-, Dokument- und freigegebene Anmelde-PDF-Referenzen.
+   Nicht zugeordnete Schulobjekte werden gezählt, nicht still ausgeliefert.
+   Fehlende referenzierte Originale bleiben Fehler. Geheimnisausschlüsse aus
+   dem Katalog gelten unverändert, auch für geteilte Konten und MFA-Daten.
+
+`review.json` markiert **jede** ausgegebene Zeile (`table`, einsbasierte `row`
+im gefilterten JSONL) mit `third-party-review`. Zusätzlich gelten:
+
+| Regel | Verbindliche Prüfung |
+|---|---|
+| `context-not-subject` | Gehört der Kontext zur Anfrage? Andere Erziehungsberechtigte, Geschwister, Beschäftigte und deren Kennungen entfernen oder begründet freigeben. |
+| `free-text-snapshots-and-embedded-persons` | Freitexte, Nachrichten, frühere/neue Werte, JSON und Formulare auf eingebettete Drittpersonen und Geheimnisse prüfen. Keine bloße Suche nach Spaltennamen. |
+| `audit-actors-and-historical-values` | Akteure und historische Werte prüfen; den erforderlichen Auskunftskontext nicht pauschal als „intern“ zurückhalten. |
+| `original-content-and-group-photos` | Jede markierte Originaldatei ansehen. Gruppenfotos und Mehrpersonen-Dokumente redigieren oder begründet zurückhalten; das Original bleibt nur im internen Paket. |
+
+Die Markierungen sind bewusst konservativ, keine automatische juristische
+Entscheidung. Ein leerer Objektzähler oder unveränderte Prüfsummen beweisen
+keine Vollständigkeit. `COMPLETE` bestätigt nur den technischen Lauf.
+
+### Ergänzen, freigeben und sicher übergeben
+
+1. Die erste prüfende Person arbeitet alle `requiredChecks` und Markierungen
+   ab. Gegen den [Datenkatalog](../reference/datenkatalog.md) prüfen:
+   Stammdaten, Sorge-/Kontaktbeziehungen, Anwesenheit und Raumhistorie,
+   Gesundheit, Betreuung/Planung, Personal/Finanzen, Nachrichten/Elternbriefe,
+   Erklärungen, Anmeldungen, Änderungsanfragen, Dateien und Protokolle.
+   Für indirekte Namens-/Freitextbezüge und verwaiste Dateien nötigenfalls
+   einen getrennten vollständigen Schul-Export mit dem vorhandenen Befehl
+   erzeugen und ausschließlich im geschützten Arbeitsbereich prüfen.
+2. Die Nichttreffer, frühere Identitäten, nicht verknüpfte Anmeldesnapshots,
+   Sammelzugriffe und `unassignedObjects` prüfen. Zusätzlich die Ausschlüsse
+   aus Manifest/Katalog auf erforderlichen nicht geheimen Kontext prüfen,
+   insbesondere Settings, Zustellcontainer und Operator-Protokolle.
+   **Keine** Rohcontainer, Kennwörter, Hashes, Tokens, Schlüssel oder MFA-
+   Geheimnisse ergänzen. Fehlt eine sichere Projektion, den offenen Teil
+   dokumentieren und zur fachlichen/technischen Ergänzung eskalieren, nicht
+   als erledigt markieren. Externe Systeme gesondert durch berechtigte Menschen
+   abgleichen; Agents greifen nicht auf Produktiv-/Staging-Systeme zu.
+3. Die Schule ergänzt die Art.-15-Angaben zu Zwecken, Kategorien, Empfängern,
+   Herkunft, Speicherfristen und Rechten sowie gegebenenfalls weiteren
+   einschlägigen Angaben. Sie entscheidet über Rechte Dritter und begründet
+   Beschränkungen. Art. 15 nicht mit Art. 20 gleichsetzen. Offene Pflichtdaten
+   verhindern die Freigabe als vollständige Auskunft.
+4. Eine separate, redigierte Übergabekopie erstellen. Zweite prüfende Person
+   prüft Umfang, Drittpersonen, Ausschlüsse und Ergänzungen; die Schule gibt
+   Empfänger und Inhalt frei. Ursprüngliche Manifest-Prüfsumme als internen
+   Quellenbeleg erhalten, Prüfsummen der Übergabekopie neu bilden. Nicht das
+   interne Prüfpaket als fertige Auskunft tarnen oder dessen `COMPLETE` als
+   Freigabe nutzen. Danach verschlüsselt nach Abschnitt 4 an die Schule oder
+   deren ausdrücklich benannten Empfänger übergeben.
+5. Nach Abschnitt 5 nur Prüfschritte, Mengen, Entscheidungen und Prüfsummen
+   protokollieren, keine Auskunftsinhalte. Empfang bestätigen und alle lokalen
+   Arbeits-/Gesamtexport-/Zwischenkopien einschließlich Fehlversuchen löschen.
+   Benannte Rollen, Fristenbestätigung und ein praktischer Durchlauf sind
+   **produktive Mensch-Nachweise**, nicht durch lokale Tests erledigt.
+
+## 7. Anbieterwechsel: Rückgabe und anschließende Löschung
+
+1. Kundenwahl, autorisierte Schulen, Zielanbieter, Umfang, Zeitpunkt und
+   zulässige Aufbewahrung dokumentieren. Keine Löschung allein aus einem
+   Auskunftsauftrag ableiten. Auskunftspaket und vollständige Rückgabe sind
+   verschiedene Aufträge.
+2. Den vollständigen Schulbestand nach Abschnitten 2 bis 5 zurückgeben,
+   Modell, Originale und fachliche Ergänzungen prüfen, sicheren Empfang und
+   Nutzbarkeit bestätigen lassen. Ein Prüfpaket für eine Person ersetzt die
+   Rückgabe nicht.
+3. Die getrennte Löschweisung nach [tenant-erasure.md](tenant-erasure.md)
+   ausführen: DB-/Dateiphase, Nebensysteme, beschränkte gesetzliche
+   Aufbewahrung, Sicherungszyklus und Wiederholung nach Restore nachweisen.
+   Die CLI-Nachweise allein bedeuten nicht „vollständig gelöscht“.
+
+**AK6 offen, Recht 3838-e:** Data-Act-Schnittstellen, Wechselunterstützung,
+Wechsel-/Abruffristen und Abrufmöglichkeiten gesondert rechtlich und technisch
+abgleichen. Dieses Runbook und die interne Export-CLI setzen diese offenen
+Verträge nicht fest. Kein jederzeitiger Selbstdownload und keine vollständige
+Data-Act-Erfüllung zugesagt.

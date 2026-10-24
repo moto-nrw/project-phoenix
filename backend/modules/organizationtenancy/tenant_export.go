@@ -19,6 +19,10 @@ type TenantExporter interface {
 
 type TenantExportOptions struct {
 	SchoolID int64
+	// Person optionally derives an INTERNAL review workspace: kind:<profile ID>,
+	// guardian:<profile ID>, staff:<school membership ID>. Never hand it over
+	// without the completeness and third-party review in the runbook.
+	Person string
 	// Output must not exist. Failed attempts have no COMPLETE marker and must
 	// never be handed over. Retry into a new directory, not a previous attempt.
 	Output string
@@ -30,6 +34,7 @@ type TenantExportOptions struct {
 // ExportManifest contains no row contents or original object names. Original
 // names and their mapping live in objects.jsonl, inside the protected export.
 type ExportManifest struct {
+	ReviewRequired bool             `json:"reviewRequired,omitempty"`
 	FormatVersion  int              `json:"formatVersion"`
 	CatalogVersion int              `json:"catalogVersion"`
 	CatalogSHA256  string           `json:"catalogSHA256"`

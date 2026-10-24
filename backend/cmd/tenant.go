@@ -93,12 +93,16 @@ func tenantCommand(run func(*cobra.Command, organizationtenancy.TenantExportOpti
 		Use: "export", Short: "Return one school's data to a new private local directory", Args: cobra.NoArgs,
 		SilenceErrors: true, SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			if cmd.Flags().Changed("person") && options.Person == "" {
+				return errors.New("tenant export: --person must not be empty")
+			}
 			return run(cmd, options)
 		},
 	}
 	export.Flags().Int64Var(&options.SchoolID, "school", 0, "Authorized school ID")
 	export.Flags().StringVar(&options.Output, "out", "", "New private output directory")
 	export.Flags().StringVar(&options.Uploads, "uploads", "", "Complete stable uploads root")
+	export.Flags().StringVar(&options.Person, "person", "", "Internal review only: kind:<profile ID>, guardian:<profile ID>, staff:<school membership ID>")
 	parent.AddCommand(export)
 	return parent
 }
@@ -121,6 +125,10 @@ func runTenantExport(cmd *cobra.Command, options organizationtenancy.TenantExpor
 	if err := exporter.Export(cmd.Context(), options); err != nil {
 		return err
 	}
-	_, err = fmt.Fprintln(cmd.OutOrStdout(), "Tenant export complete; verify COMPLETE and manifest before handover.")
+	message := "Tenant export complete; verify COMPLETE and manifest before handover."
+	if options.Person != "" {
+		message = "Person review workspace created; completeness, third-party review and school approval REQUIRED before handover."
+	}
+	_, err = fmt.Fprintln(cmd.OutOrStdout(), message)
 	return err
 }
