@@ -3,6 +3,7 @@ package compose_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
@@ -11,6 +12,7 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 // TestClassHandoverReplacesAndWithdraws pins the class handover store
@@ -139,4 +141,64 @@ func TestMorningAttendanceRetentionDeletesClassHandovers(t *testing.T) {
 	left, err := module.ClassHandoversOn(ctx, kept)
 	require.NoError(t, err)
 	assert.Len(t, left, 1)
+}
+
+// A second submission must replace even an uncommitted first handover,
+// including its entire absence list, without a unique-constraint error.
+func TestClassHandoverConcurrentReplacement(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
+	defer cancel()
+	module, err := compose.New(compose.Dependencies{DB: db, Observe: func(compose.Observation) {}})
+	require.NoError(t, err)
+	first := testpkg.CreateTestStudent(t, db, "Erste", "Übergabe", "3c")
+	second := testpkg.CreateTestStudent(t, db, "Zweite", "Übergabe", "3c")
+	firstStaff := testpkg.CreateTestStaff(t, db, "Erste", "Lehrkraft")
+	secondStaff := testpkg.CreateTestStaff(t, db, "Zweite", "Lehrkraft")
+	day := calendar.NewDate(2099, 3, 2)
+	type result struct {
+		replaced bool
+		err      error
+	}
+	completed := make(chan result, 1)
+	err = testpkg.WithTenantTx(t, ctx, db, testpkg.Tenant(t), func(txCtx context.Context, tx bun.Tx) error {
+		_, changeErr := module.ChangeClassHandover(txCtx, studentpresence.ClassHandoverChange{
+			SchoolClass: "3c", Date: day, HandedOverBy: firstStaff.ID, AbsentStudentIDs: []int64{first.ID},
+		})
+		require.NoError(t, changeErr)
+		var holderPID int
+		require.NoError(t, tx.NewRaw("SELECT pg_backend_pid()").Scan(txCtx, &holderPID))
+		go func() {
+			replaced, changeErr := module.ChangeClassHandover(ctx, studentpresence.ClassHandoverChange{
+				SchoolClass: " 3C ", Date: day, HandedOverBy: secondStaff.ID, AbsentStudentIDs: []int64{second.ID},
+			})
+			completed <- result{replaced, changeErr}
+		}()
+		// Wait until the second transaction actually contends with the first.
+		// Without serialization it waits at INSERT after deleting zero rows.
+		require.Eventually(t, func() bool {
+			var blocked bool
+			queryErr := db.NewRaw(`SELECT EXISTS (
+				SELECT 1 FROM pg_stat_activity
+				WHERE datname = current_database() AND ? = ANY(pg_blocking_pids(pid))
+			)`, holderPID).Scan(ctx, &blocked)
+			require.NoError(t, queryErr)
+			return blocked
+		}, 5*time.Second, 10*time.Millisecond)
+		return nil
+	})
+	require.NoError(t, err)
+	select {
+	case replacement := <-completed:
+		require.NoError(t, replacement.err)
+		assert.True(t, replacement.replaced)
+	case <-ctx.Done():
+		t.Fatal("concurrent handover did not finish", ctx.Err())
+	}
+	handovers, err := module.ClassHandoversOn(ctx, day)
+	require.NoError(t, err)
+	require.Len(t, handovers, 1)
+	assert.Equal(t, secondStaff.ID, handovers[0].HandedOverByStaffID)
+	assert.Equal(t, []int64{second.ID}, handovers[0].AbsentStudentIDs)
 }

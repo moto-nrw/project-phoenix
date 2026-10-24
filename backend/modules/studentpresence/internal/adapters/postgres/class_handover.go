@@ -128,13 +128,24 @@ func (s *Store) DeleteClassHandover(ctx context.Context, normalizedClass string,
 	if err != nil {
 		return ports.Stats{}, err
 	}
+	// Lock before DELETE even when no row exists yet. Replacements call this
+	// method too, so both replacement and withdrawal hold the same lock until
+	// their surrounding tenant transaction commits or rolls back.
+	key := fmt.Sprintf("class-handover:%d:%s:%s", tenantID, date, normalizedClass)
 	started := time.Now()
+	_, err = db.ExecContext(ctx, "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", key)
+	stats := ports.Stats{Queries: 1, StatementDuration: time.Since(started)}
+	if err != nil {
+		return stats, fmt.Errorf("lock class handover: %w", err)
+	}
+	started = time.Now()
 	result, err := db.NewDelete().Model((*classHandoverRow)(nil)).
 		Where("class_handover.tenant_id = ?", tenantID).
 		Where(classHandoverClassMatch, normalizedClass).
 		Where("class_handover.date = ?", date).
 		Exec(ctx)
-	stats := ports.Stats{Queries: 1, StatementDuration: time.Since(started)}
+	stats.Queries++
+	stats.StatementDuration += time.Since(started)
 	if err != nil {
 		return stats, fmt.Errorf("delete class handover: %w", err)
 	}
