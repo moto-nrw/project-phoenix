@@ -73226,19 +73226,6 @@
     },
     {
       "source_owner": "student-presence",
-      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.AttendanceRetention.DeleteExpiredAttendance",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteExpiredAttendance",
-      "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.observe",
-      "target_owner": "",
-      "binding_digest": "e227a8013824f329765590468b7e22d7",
-      "effect": "unresolved",
-      "classification": "unresolved",
-      "adr": "0083",
-      "approval_adr": "0098",
-      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/studentpresence/internal/application.Service.observe. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR."
-    },
-    {
-      "source_owner": "student-presence",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.AttendanceSyncer.MirrorCheckInAtBatch",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.PresenceAttendanceMirror.MirrorCheckInAtBatch",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.AttendanceMirror.MirrorCheckInAtBatch",
@@ -75324,6 +75311,19 @@
     },
     {
       "source_owner": "student-presence",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteExpiredMorningAttendance",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.DeleteExpiredMorningAttendance",
+      "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.observe",
+      "target_owner": "",
+      "binding_digest": "e227a8013824f329765590468b7e22d7",
+      "effect": "unresolved",
+      "classification": "unresolved",
+      "adr": "0083",
+      "approval_adr": "0100",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/studentpresence/internal/application.Service.observe. Morning attendance operation of #4790 through the module's observer, approved by ADR 0100; a changed value or closure needs a fresh approval ADR."
+    },
+    {
+      "source_owner": "student-presence",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteGroupMapping",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.DeleteGroupMapping",
       "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.observe",
@@ -76078,6 +76078,19 @@
     },
     {
       "source_owner": "student-presence",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.MorningAttendanceOn",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.MorningAttendanceOn",
+      "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.observe",
+      "target_owner": "",
+      "binding_digest": "e227a8013824f329765590468b7e22d7",
+      "effect": "unresolved",
+      "classification": "unresolved",
+      "adr": "0083",
+      "approval_adr": "0100",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/studentpresence/internal/application.Service.observe. Morning attendance operation of #4790 through the module's observer, approved by ADR 0100; a changed value or closure needs a fresh approval ADR."
+    },
+    {
+      "source_owner": "student-presence",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.OccupiedActivityGroupIDs",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.OccupiedActivityGroupIDs",
       "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.observe",
@@ -76244,6 +76257,19 @@
       "adr": "0083",
       "approval_adr": "0098",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/studentpresence/internal/application.Service.observe. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR."
+    },
+    {
+      "source_owner": "student-presence",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.RecordMorningAttendance",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.RecordMorningAttendance",
+      "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.observe",
+      "target_owner": "",
+      "binding_digest": "e227a8013824f329765590468b7e22d7",
+      "effect": "unresolved",
+      "classification": "unresolved",
+      "adr": "0083",
+      "approval_adr": "0100",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/studentpresence/internal/application.Service.observe. Morning attendance operation of #4790 through the module's observer, approved by ADR 0100; a changed value or closure needs a fresh approval ADR."
     },
     {
       "source_owner": "student-presence",
@@ -82407,6 +82433,17 @@
     },
     {
       "source_owner": "student-presence",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.Store.DeleteMorningAttendanceBefore",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/adapters/postgres.Store.DeleteMorningAttendanceBefore",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "fb0eab4ca11fb48b2c18d763ad42a20c",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read-only newly exposed target: student-presence reaches tenant.CurrentTenantTransaction (tenant-runtime) through modules/studentpresence/internal/adapters/postgres.Store.DeleteMorningAttendanceBefore. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+    },
+    {
+      "source_owner": "student-presence",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.Store.DeleteVisit",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/adapters/postgres.Store.DeleteVisit",
       "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
@@ -82679,6 +82716,17 @@
       "effect": "query",
       "classification": "query",
       "reason": "Read-only newly exposed target: student-presence reaches tenant.CurrentTenantTransaction (tenant-runtime) through modules/studentpresence/internal/adapters/postgres.Store.ListGroupMappings. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+    },
+    {
+      "source_owner": "student-presence",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.Store.ListMorningAttendance",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/adapters/postgres.Store.ListMorningAttendance",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "fb0eab4ca11fb48b2c18d763ad42a20c",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read-only newly exposed target: student-presence reaches tenant.CurrentTenantTransaction (tenant-runtime) through modules/studentpresence/internal/adapters/postgres.Store.ListMorningAttendance. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
     },
     {
       "source_owner": "student-presence",
@@ -83416,6 +83464,17 @@
       "effect": "query",
       "classification": "query",
       "reason": "Read-only newly exposed target: student-presence reaches tenant.CurrentTenantTransaction (tenant-runtime) through modules/studentpresence/internal/adapters/postgres.Store.UnclaimedGroups. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+    },
+    {
+      "source_owner": "student-presence",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.Store.UpsertMorningAttendance",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/adapters/postgres.Store.UpsertMorningAttendance",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "fb0eab4ca11fb48b2c18d763ad42a20c",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read-only newly exposed target: student-presence reaches tenant.CurrentTenantTransaction (tenant-runtime) through modules/studentpresence/internal/adapters/postgres.Store.UpsertMorningAttendance. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
     },
     {
       "source_owner": "student-presence",
@@ -90397,6 +90456,30 @@
     },
     {
       "source_owner": "timetable-activities",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteExpiredMorningAttendance",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.DeleteExpiredMorningAttendance",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.DeleteExpiredMorningAttendance",
+      "target_owner": "student-presence",
+      "binding_digest": "c2a9f7c189f73d6ca1943e57841158cd",
+      "effect": "mutation",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/studentpresence/internal/application.Service.DeleteExpiredMorningAttendance; modules/studentpresence/internal/application/morning_attendance.go:73.  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+    },
+    {
+      "source_owner": "timetable-activities",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteExpiredMorningAttendance",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteExpiredMorningAttendance",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteExpiredMorningAttendance",
+      "target_owner": "student-presence",
+      "binding_digest": "68ba01e9522cf5948b5423e152c624ae",
+      "effect": "mutation",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/studentpresence.Owner.DeleteExpiredMorningAttendance; modules/studentpresence.Owner (supplied contract method).  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+    },
+    {
+      "source_owner": "timetable-activities",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteGroupMapping",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.DeleteGroupMapping",
       "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.DeleteGroupMapping",
@@ -91707,6 +91790,28 @@
     },
     {
       "source_owner": "timetable-activities",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.MorningAttendanceOn",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.MorningAttendanceOn",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.MorningAttendanceOn",
+      "target_owner": "student-presence",
+      "binding_digest": "c537206b2cc1e20820eeb33ef3a332c8",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence/internal/application.Service.MorningAttendanceOn; modules/studentpresence/internal/application/morning_attendance.go:14. May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+    },
+    {
+      "source_owner": "timetable-activities",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.MorningAttendanceOn",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.MorningAttendanceOn",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.MorningAttendanceOn",
+      "target_owner": "student-presence",
+      "binding_digest": "9508c7c1f243f4668cf2303984c5fbb9",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Owner.MorningAttendanceOn; modules/studentpresence.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+    },
+    {
+      "source_owner": "timetable-activities",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.OccupiedActivityGroupIDs",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.OccupiedActivityGroupIDs",
       "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.OccupiedActivityGroupIDs",
@@ -92010,6 +92115,30 @@
       "classification": "leaf",
       "adr": "0067",
       "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/studentpresence.Owner.RecordGroup; modules/studentpresence.Owner (supplied contract method).  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+    },
+    {
+      "source_owner": "timetable-activities",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.RecordMorningAttendance",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.RecordMorningAttendance",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.RecordMorningAttendance",
+      "target_owner": "student-presence",
+      "binding_digest": "0816aef300cd2bb5aa75dc61c6c59100",
+      "effect": "mutation",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/studentpresence/internal/application.Service.RecordMorningAttendance; modules/studentpresence/internal/application/morning_attendance.go:42.  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+    },
+    {
+      "source_owner": "timetable-activities",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.RecordMorningAttendance",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.RecordMorningAttendance",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.RecordMorningAttendance",
+      "target_owner": "student-presence",
+      "binding_digest": "265b2eb320f1bc6223a20bca3b9609e3",
+      "effect": "mutation",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/studentpresence.Owner.RecordMorningAttendance; modules/studentpresence.Owner (supplied contract method).  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
     },
     {
       "source_owner": "timetable-activities",

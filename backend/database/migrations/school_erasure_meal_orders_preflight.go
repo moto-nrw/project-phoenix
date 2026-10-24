@@ -29,6 +29,7 @@ const mealOrderErasurePreflightSQL = `CREATE OR REPLACE FUNCTION platform.school
     active.group_mappings,
     active.group_supervisors,
     active.groups,
+    active.morning_attendance,
     active.presence_backfill_batches,
     active.presence_backfill_checkpoints,
     active.scheduled_checkouts,
@@ -293,6 +294,10 @@ const mealOrderErasurePreflightSQL = `CREATE OR REPLACE FUNCTION platform.school
    -- Generated incoming-FK scope checks. Never cascade into foreign rows.
    IF EXISTS (
     SELECT 1 FROM active.excused_absence_requests AS c JOIN users.student_profiles AS p ON c."student_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
+    UNION ALL
+    SELECT 1 FROM active.morning_attendance AS c JOIN users.class_list_entries AS p ON c."class_list_entry_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
+    UNION ALL
+    SELECT 1 FROM active.morning_attendance AS c JOIN users.staff_school_memberships AS p ON c."recorded_by_staff_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
     UNION ALL
     SELECT 1 FROM active.staff_absence_audit AS c JOIN active.staff_absences AS p ON c."absence_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
     UNION ALL

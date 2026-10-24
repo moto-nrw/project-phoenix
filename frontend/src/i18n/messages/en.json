@@ -2338,6 +2338,9 @@
         "arrival_exception_editor_required": "You cannot access {object}. Please contact the school.",
         "arrival_exception_past_date": "{object} could not be saved. Please check your entries.",
         "arrival_exception_weekend": "{object} could not be saved. Please check your entries.",
+        "morning_attendance_no_school_day": "Today is not a school day. Attendance can only be recorded on school days.",
+        "morning_attendance_not_today": "Attendance can only be recorded for today. Please open today.",
+        "morning_attendance_unknown_child": "A child no longer belongs to this class. Please reload the page.",
         "school_write_disabled": "You cannot access {object}. Please contact the school."
       },
       "communication": {

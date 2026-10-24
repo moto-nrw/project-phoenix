@@ -361,6 +361,18 @@ var operations_init_aufsicht_6Definitions = []config.Definition{
 			},
 		},
 	},
+	{
+		Key:             config.KeySchoolPortalMorningAttendance,
+		Label:           "Lehrkräfte tragen in moto schule ein, wer am Vormittag da ist",
+		Description:     "Die Lehrkraft markiert für ihre Klasse heute bei jedem Kind „da“ oder „fehlt“. Die Anwesenheit in der OGS ändert sich dadurch nicht.",
+		Type:            config.FieldBoolean,
+		Default:         true,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "aufsicht",
+		SortOrder:       4,
+	},
 }
 
 var operations_init_zeiterfassung_7Definitions = []config.Definition{

@@ -19,8 +19,9 @@ func init() {
 		Description: mealAbsenceHistoryDescription,
 		DependsOn: []string{
 			statusDayRetentionPurgeVersion, // the trigger function this one replaces
-			mealPlanAllergensVersion,       // development's latest migrations: meal plan allergens
-			"1.15.499",                     // and password login protection
+			mealPlanAllergensVersion,       // development's latest migrations: meal plan allergens,
+			"1.15.499",                     // password login protection
+			morningAttendanceVersion,       // and morning attendance
 		},
 	})
 	Migrations.MustRegister(mealAbsenceHistoryUp, mealAbsenceHistoryDown)

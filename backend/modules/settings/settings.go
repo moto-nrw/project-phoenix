@@ -49,6 +49,7 @@ const (
 	KeyGDPRWithdrawnEnrollmentRetentionDays  = configModel.KeyGDPRWithdrawnEnrollmentRetentionDays
 	KeyGDPRStatusDayRetentionDays            = configModel.KeyGDPRStatusDayRetentionDays
 	KeyGDPRAttendanceRetentionDays           = configModel.KeyGDPRAttendanceRetentionDays
+	KeyGDPRMorningAttendanceRetentionDays    = configModel.KeyGDPRMorningAttendanceRetentionDays
 	KeyGDPRStaffSickNoteRetentionDays        = configModel.KeyGDPRStaffSickNoteRetentionDays
 	KeyGDPRStudentRetentionDays              = configModel.KeyGDPRStudentRetentionDays
 	KeyGDPRTimetableRetentionDays            = configModel.KeyGDPRTimetableRetentionDays

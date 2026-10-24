@@ -31,6 +31,7 @@ const mealOrderErasurePreviewSQL = `
  v_counts := v_counts || jsonb_build_object('active.group_mappings',(SELECT count(*) FROM active.group_mappings AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('active.group_supervisors',(SELECT count(*) FROM active.group_supervisors AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('active.groups',(SELECT count(*) FROM active.groups AS r WHERE r.tenant_id = p_school));
+ v_counts := v_counts || jsonb_build_object('active.morning_attendance',(SELECT count(*) FROM active.morning_attendance AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('active.presence_backfill_batches',(SELECT count(*) FROM active.presence_backfill_batches AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('active.presence_backfill_checkpoints',(SELECT count(*) FROM active.presence_backfill_checkpoints AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('active.scheduled_checkouts',(SELECT count(*) FROM active.scheduled_checkouts AS r WHERE r.tenant_id = p_school));
