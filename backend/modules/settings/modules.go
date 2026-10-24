@@ -34,9 +34,6 @@ const (
 // Modules returns the central module list in catalog order.
 func Modules() []ModuleDefinition { return configModel.Modules() }
 
-// LookupModule returns the definition of a module key.
-func LookupModule(key ModuleKey) (ModuleDefinition, bool) { return configModel.LookupModule(key) }
-
 // ModuleSettingKeys lists the setting key of every module switch, for a
 // caller that batch-resolves them (PrefetchSettings, ResolveManyForTenant).
 func ModuleSettingKeys() []string {

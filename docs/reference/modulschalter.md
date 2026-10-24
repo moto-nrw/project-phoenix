@@ -76,7 +76,7 @@ Die Folge-Issues setzen auf diese Teile auf. Neue Module kommen nur über die Mo
 **Backend, Paket `modules/settings`:**
 
 - `settings.ModuleKey` und die Konstanten `settings.ModuleNFCAnwesenheit` bis `settings.ModuleElternbeitraege`.
-- `settings.Modules()` liefert die Liste in Katalogreihenfolge, `settings.LookupModule(key)` ein Modul, `settings.ModuleSettingKeys()` alle Einstellungen für ein gebündeltes Lesen.
+- `settings.Modules()` liefert die Liste in Katalogreihenfolge mit Namen und Voraussetzungen, `settings.ModuleSettingKeys()` alle Einstellungen für ein gebündeltes Lesen.
 - `settings.NewModuleBooking(reader)` baut den Helfer. `reader` ist der Settings-Service (`ResolveBool`, `ResolveBoolForTenant`). Er liest über den Request-Cache, nie aus einer Umgebungsvariable.
   - `IsBooked(ctx, module)` und `Require(ctx, tenantID, modules...)` für Routen in der Tenant-Middleware (#4893). `tenantID` benennt die Schule nur im Fehler.
   - `IsBookedForTenant(ctx, tenantID, module)` und `RequireForTenant(...)` außerhalb der Middleware: Scheduler, Login und Refresh der Portale, Geräte (#4895, #4896).
