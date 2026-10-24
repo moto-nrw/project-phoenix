@@ -4095,6 +4095,10 @@
       "write_owner": "timetable-activities"
     },
     {
+      "name": "education.class_homework",
+      "write_owner": "timetable-activities"
+    },
+    {
       "name": "education.class_teachers",
       "write_owner": "school-membership"
     },
@@ -4129,6 +4133,10 @@
     {
       "name": "education.groups",
       "write_owner": "school-structure"
+    },
+    {
+      "name": "education.homework_feedback",
+      "write_owner": "timetable-activities"
     },
     {
       "name": "enrollment.care_offering_auto_triggers",

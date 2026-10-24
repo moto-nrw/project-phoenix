@@ -110,6 +110,7 @@ func TestWorkerRetentionPreloadsRetentionWindows(t *testing.T) {
 		settingsModule.KeyGDPRStatusDayRetentionDays,
 		settingsModule.KeyGDPRAttendanceRetentionDays,
 		settingsModule.KeyGDPRMorningAttendanceRetentionDays,
+		settingsModule.KeyGDPRHomeworkRetentionDays,
 		settingsModule.KeyGDPRParentMessageRetentionDays,
 		settingsModule.KeyGDPRStaffMessageRetentionDays,
 		settingsModule.KeyGDPRTimetableRetentionDays,
@@ -292,6 +293,48 @@ func TestNightlyRetentionDeletesMorningAttendanceAfterItsWindow(t *testing.T) {
 	assert.True(t, suite.exists(t, "active.morning_attendance", otherExpired), "the run of one school never touches another")
 	assert.Equal(t, []int{1}, suite.loggedDeletions(t, school, auditModels.DeletionTypeMorningAttendanceRetention))
 	assert.Empty(t, suite.loggedDeletions(t, otherSchool, auditModels.DeletionTypeMorningAttendanceRetention))
+}
+
+// insertHomework stores a homework entry of class 3a and the feedback of
+// studentID daysAgo Berlin calendar days back (#4796) and returns both IDs.
+func (s retentionSuite) insertHomework(t *testing.T, tenantID, studentID int64, daysAgo int) (int64, int64) {
+	t.Helper()
+	entry := s.insertID(t, `INSERT INTO education.class_homework (tenant_id, school_class, date, description)
+		VALUES (?, '3a', (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Berlin')::date - ?, 'Lesen')
+		RETURNING id`, tenantID, daysAgo)
+	feedback := s.insertID(t, `INSERT INTO education.homework_feedback (tenant_id, student_id, date, status)
+		VALUES (?, ?, (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Berlin')::date - ?, 'done')
+		RETURNING id`, tenantID, studentID, daysAgo)
+	return entry, feedback
+}
+
+func TestNightlyRetentionDeletesHomeworkAfterItsWindow(t *testing.T) {
+	t.Parallel()
+	suite := newRetentionSuite(t)
+	school := testpkg.Tenant(t)
+	otherSchool, _ := testpkg.CreateTestTenant(t, suite.admin)
+	expiredChild := testpkg.CreateTestStudent(t, suite.admin, "Haus", "Alt", "3a")
+	keptChild := testpkg.CreateTestStudent(t, suite.admin, "Haus", "Frist", "3a")
+	otherChild := testpkg.CreateTestStudentForTenant(t, suite.admin, otherSchool, "Andere", "Schule", "3a")
+	_, err := suite.admin.ExecContext(context.Background(), `INSERT INTO config.setting_values (tenant_id, setting_key, value)
+		VALUES (?, 'gdpr.homework_retention_days', '30'::jsonb)`, school)
+	require.NoError(t, err)
+
+	expiredEntry, expiredFeedback := suite.insertHomework(t, school, expiredChild.ID, 31)
+	keptEntry, keptFeedback := suite.insertHomework(t, school, keptChild.ID, 30)
+	otherEntry, otherFeedback := suite.insertHomework(t, otherSchool, otherChild.ID, 400)
+
+	suite.run(t, school)
+
+	assert.False(t, suite.exists(t, "education.class_homework", expiredEntry), "an entry older than the school's window is deleted")
+	assert.False(t, suite.exists(t, "education.homework_feedback", expiredFeedback), "feedback older than the window is deleted")
+	assert.True(t, suite.exists(t, "education.class_homework", keptEntry), "the day exactly 30 days back is still inside the window")
+	assert.True(t, suite.exists(t, "education.homework_feedback", keptFeedback))
+	assert.True(t, suite.exists(t, "education.class_homework", otherEntry), "the run of one school never touches another")
+	assert.True(t, suite.exists(t, "education.homework_feedback", otherFeedback))
+	assert.Equal(t, []int{2}, suite.loggedDeletions(t, school, auditModels.DeletionTypeHomeworkRetention),
+		"one log row counts the entry and the feedback")
+	assert.Empty(t, suite.loggedDeletions(t, otherSchool, auditModels.DeletionTypeHomeworkRetention))
 }
 
 type parentThreadFixture struct {

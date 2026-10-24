@@ -245,6 +245,9 @@ type DayRow struct {
 	// excused or class-trip day. Nil when neither exists or on a day without
 	// school.
 	MorningAttendance *DayMorningAttendance `json:"morning_attendance,omitempty"`
+	// HomeworkFeedback is what the OGS fed back on the class's homework of
+	// the date (#4796). Nil without feedback and for class-list-only entries.
+	HomeworkFeedback *DayHomeworkFeedback `json:"homework_feedback,omitempty"`
 	// HandoverAbsent is true when the Lehrkraft marked the child "nicht da"
 	// at today's handover of the class (#4794).
 	HandoverAbsent bool `json:"handover_absent,omitempty"`
@@ -300,6 +303,12 @@ type DayReport struct {
 	// school day, the school left the setting on, and the token holds
 	// class_day:morning_attendance_write.
 	CanRecordMorningAttendance bool `json:"can_record_morning_attendance"`
+	// Homework lists the class's homework of the date (#4796), oldest first.
+	// Omitted when there is none.
+	Homework []DayHomework `json:"homework,omitempty"`
+	// CanWriteHomework is true when the caller may enter homework for this
+	// class: the token holds class_day:homework_write. The HTTP layer sets it.
+	CanWriteHomework bool `json:"can_write_homework"`
 	// Handover is the class's handover to the OGS on the date (#4794), nil
 	// while the class has not been handed over.
 	Handover *DayHandover `json:"handover,omitempty"`
@@ -427,6 +436,9 @@ type ClassDay interface {
 	// on the class roster of the day, and only while the school leaves the
 	// setting on. It never changes the OGS attendance.
 	RecordMorningAttendance(ctx context.Context, in MorningAttendanceWrite) error
+	// ClassHomework enters, changes and deletes the homework of a class
+	// (#4796).
+	ClassHomework
 	// ChangeClassHandover hands one class the caller may see over to the OGS
 	// or takes today's handover back (#4794): only for today, on a school day,
 	// for children with an OGS record on the class roster of the day, and

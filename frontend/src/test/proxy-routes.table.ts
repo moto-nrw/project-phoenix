@@ -471,6 +471,13 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   "api/school/class-day/class-trips/[schoolClass]": [
     "POST school /school/class-day/class-trips/schoolClass%2F1",
   ],
+  "api/school/class-day/homework/[schoolClass]": [
+    "POST school /school/class-day/homework/schoolClass%2F1",
+  ],
+  "api/school/class-day/homework/[schoolClass]/[homeworkId]": [
+    "DELETE school /school/class-day/homework/schoolClass%2F1/homeworkId%2F1",
+    "PUT school /school/class-day/homework/schoolClass%2F1/homeworkId%2F1",
+  ],
   "api/school/class-day/handover/[schoolClass]/[date]": [
     "DELETE school /school/class-day/handover/schoolClass%2F1/date%2F1",
     "PUT school /school/class-day/handover/schoolClass%2F1/date%2F1",
@@ -523,6 +530,9 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   ],
   "api/school/supervisions/[id]/students/[studentId]/check-out": [
     "POST school /school/supervisions/id/1/students/studentId/1/check-out",
+  ],
+  "api/school/supervisions/[id]/students/[studentId]/homework-feedback": [
+    "PUT school /school/supervisions/id%2F1/students/studentId%2F1/homework-feedback",
   ],
   "api/school/supervisions/[id]/students/[studentId]/sheet": [
     "GET school /school/supervisions/id/1/students/studentId/1/sheet",
@@ -921,6 +931,10 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   "api/timetable/operations/instances/[id]/students/[studentId]/check-out": [
     "POST tenant /api/timetable/operations/instances/id%2F1/students/studentId%2F1/check-out",
   ],
+  "api/timetable/operations/instances/[id]/students/[studentId]/homework-feedback":
+    [
+      "PUT tenant /api/timetable/operations/instances/id%2F1/students/studentId%2F1/homework-feedback",
+    ],
   "api/timetable/operations/instances/[id]/students/check-in": [
     "POST tenant /api/timetable/operations/instances/id%2F1/students/check-in",
   ],

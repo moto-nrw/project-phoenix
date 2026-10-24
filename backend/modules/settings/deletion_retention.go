@@ -14,6 +14,7 @@ func RetentionWindowKeys() []string {
 		configModel.KeyGDPRStatusDayRetentionDays,
 		configModel.KeyGDPRAttendanceRetentionDays,
 		configModel.KeyGDPRMorningAttendanceRetentionDays,
+		configModel.KeyGDPRHomeworkRetentionDays,
 		configModel.KeyGDPRParentMessageRetentionDays,
 		configModel.KeyGDPRStaffMessageRetentionDays,
 		configModel.KeyGDPRTimetableRetentionDays,
@@ -66,6 +67,12 @@ type RetentionWindow struct {
 // announcements: the school's parent message window.
 func ParentAnnouncementRetentionWindow(source StatisticsRetentionSource) RetentionWindow {
 	return RetentionWindow{source: source, key: configModel.KeyGDPRParentMessageRetentionDays}
+}
+
+// HomeworkRetentionWindow is the window of the homework and the OGS
+// feedback on it (#4796), counted from the homework day.
+func HomeworkRetentionWindow(source StatisticsRetentionSource) RetentionWindow {
+	return RetentionWindow{source: source, key: configModel.KeyGDPRHomeworkRetentionDays}
 }
 
 // StaffNoticeRetentionWindow is the window of the staff notices: the
