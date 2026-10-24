@@ -139,7 +139,7 @@ func BuildIdentityAccess(
 	// retained records.
 	usercontextLogger := env.Logger.With("service", "usercontext")
 	caller, err := NewCallerContext(tokens, module, CallerPersons{Rows: people.Persons, People: persons}, membership, staffGroups,
-		activityGroups, presence, settings, usercontextLogger)
+		people.Students, activityGroups, presence, settings, usercontextLogger)
 	if err != nil {
 		return nil, nil, err
 	}

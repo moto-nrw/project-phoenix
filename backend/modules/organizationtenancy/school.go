@@ -3,6 +3,7 @@ package organizationtenancy
 import (
 	"encoding/json"
 	"errors"
+	"net/mail"
 	"strings"
 	"time"
 )
@@ -130,7 +131,28 @@ func NormalizeCreateSchool(input *CreateSchool) error {
 		return invalidSchool("school is required")
 	}
 	NormalizeSchool(&input.Name, &input.Slug, &input.Subdomain)
-	return ValidateSchool(input.OrganizationID, input.Name, input.Slug, input.Subdomain, input.Email)
+	if err := ValidateSchool(input.OrganizationID, input.Name, input.Slug, input.Subdomain, input.Email); err != nil {
+		return err
+	}
+	return ValidateSchoolContactEmail(input.Email)
+}
+
+// ValidateSchoolContactEmail checks the contact address a school must have.
+// Mail is sent from a central noreply address, so replies from parents reach
+// the school only through this address, and moto must not receive them
+// (#2872). It is required and must be a bare mailbox address.
+func ValidateSchoolContactEmail(email string) error {
+	if email == "" {
+		return invalidSchool("email is required")
+	}
+	if len(email) > MaxEmailLength {
+		return invalidSchool("email must not exceed 255 characters")
+	}
+	parsed, err := mail.ParseAddress(email)
+	if err != nil || parsed.Address != email {
+		return invalidSchool("email must be a valid address")
+	}
+	return nil
 }
 
 // ValidateSchool checks the shared school fields after normalization.

@@ -26,6 +26,7 @@ const EXPECTED: Record<SystemRoleName, string> = {
   admin: "Verwaltung",
   user: "Betreuung",
   lehrkraft: "Lehrkraft",
+  schulverwaltung: "Schulverwaltung",
   guardian: "Eltern",
   guest: "Gast",
   "ag-leitung": "AG-Leitung",
@@ -65,6 +66,14 @@ describe("role labels", () => {
       isLehrkraftRole({
         name: "klassenleitung",
         isSystem: false,
+        schoolPortal: true,
+      }),
+    ).toBe(true);
+    // The system role Schulverwaltung (#4789) works in moto schule too.
+    expect(
+      isLehrkraftRole({
+        name: "schulverwaltung",
+        isSystem: true,
         schoolPortal: true,
       }),
     ).toBe(true);

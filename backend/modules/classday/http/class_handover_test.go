@@ -179,10 +179,11 @@ func TestClassHandoverGates(t *testing.T) {
 		fmt.Sprintf(`{"present_student_ids":[%d],"absent_student_ids":[%d]}`, f.present, f.present), classHandoverPermission),
 		"a child is either da or nicht da")
 	// List entries number apart from students; skip one whose ID a roster
-	// child happens to share.
-	entry := f.listEntry
-	for entry == f.sick || entry == f.present {
-		entry = testpkg.CreateTestClassListEntry(t, f.db, "Lena", "Liste", f.class).ID
+	// child happens to share. Start with a roster ID to exercise the collision
+	// path on every run; each retry needs its own name within the class.
+	entry := f.present
+	for attempt := 0; entry == f.sick || entry == f.present; attempt++ {
+		entry = testpkg.CreateTestClassListEntry(t, f.db, "Lena", fmt.Sprintf("Liste-%d", attempt), f.class).ID
 	}
 	assert.Equal(t, http.StatusConflict, f.handOver(t, morningMonday,
 		fmt.Sprintf(`{"absent_student_ids":[%d]}`, entry), classHandoverPermission), "a class-list-only entry does not go to the OGS")

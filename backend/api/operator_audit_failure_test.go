@@ -85,7 +85,7 @@ func TestOperatorAuditFailureRollsBackDeletesAndTransfer(t *testing.T) {
 	operatorID := testpkg.CreateTestOperator(t, db).ID
 	organizationID, schoolID := provisionTestSchool(t, db, service, operatorID, "audit-deletes")
 	target, err := service.CreateSchool(ctx, &organizationtenancy.CreateSchool{
-		OrganizationID: organizationID, Name: "Audit Target", Slug: "audit-target", Subdomain: "audit-target", Active: true,
+		OrganizationID: organizationID, Name: "Audit Target", Slug: "audit-target", Subdomain: "audit-target", Email: "audit-target@example.test", Active: true,
 	}, operatorID, provisioningTestClientIP)
 	require.NoError(t, err)
 	organization, err := service.CreateOrganization(ctx, &organizationtenancy.CreateOrganization{Name: "Empty Audit Organization", Slug: "empty-audit-org", Active: true}, operatorID, provisioningTestClientIP)

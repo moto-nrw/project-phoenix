@@ -18,14 +18,14 @@ type CallerMembership interface {
 	FindTeacherByStaff(ctx context.Context, staffID int64) (teacherID int64, found bool, err error)
 }
 
-// CallerStructure is the School Structure seam: a teacher's groups, the
-// groups a staff member substitutes for on the school's current day
-// (flagging an unassigned regular staff slot) and a staff member's school
-// classes.
+// CallerStructure is the School Structure seam: a teacher's groups, the groups
+// a staff member substitutes for today (flagging an unassigned regular staff
+// slot), a staff member's school classes and all classes of the school (#4789).
 type CallerStructure interface {
 	TeacherGroupIDs(ctx context.Context, teacherID int64) ([]int64, error)
 	SubstitutedGroups(ctx context.Context, staffID int64) (map[int64]bool, error)
 	SchoolClasses(ctx context.Context, staffID int64) ([]string, error)
+	ListSchoolClasses(ctx context.Context) ([]string, error)
 }
 
 // CallerActivities is the Timetable seam: the activity groups a staff

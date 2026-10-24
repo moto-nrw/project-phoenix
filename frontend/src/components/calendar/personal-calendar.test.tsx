@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 // Vaul rendert im jsdom einen echten Dialog und blendet den Hintergrund per
@@ -155,6 +155,36 @@ describe("PersonalCalendar", () => {
     ).not.toBeInTheDocument();
   });
 
+  // Ein Schultermin einer Lehrkraft (#4798) trägt Farbe, Legende und Art.
+  it("marks a Schultermin with its kind in the detail sheet", () => {
+    const schoolEvent: CalendarEvent = {
+      ...shift,
+      id: "appointment:3:2026-01-07",
+      source: "appointment",
+      appointment_id: "3",
+      title: "Zoo-Ausflug 3b",
+      school_event_type: "ausflug",
+    };
+    render(
+      <PersonalCalendar
+        events={[schoolEvent]}
+        weekStart={new Date(2026, 0, 5)}
+      />,
+    );
+
+    const legend = screen.getAllByLabelText("Legende Terminarten")[0]!;
+    expect(within(legend).getByText("Schultermin")).toBeInTheDocument();
+    // Die Legende nennt nur, was im Zeitraum vorkommt.
+    expect(within(legend).queryByText("Schicht")).not.toBeInTheDocument();
+
+    const schulterminBefore = screen.getAllByText("Schultermin").length;
+    openEvent("Zoo-Ausflug 3b");
+    expect(screen.getAllByText("Schultermin")).toHaveLength(
+      schulterminBefore + 1,
+    );
+    expect(screen.getAllByText("Ausflug").length).toBeGreaterThan(0);
+  });
+
   it("labels a duty from the Betreuungsplan as Dienst, not Betreuung (#3822)", () => {
     const duty: CalendarEvent = {
       ...shift,
@@ -170,11 +200,12 @@ describe("PersonalCalendar", () => {
     );
 
     const dienstBefore = screen.getAllByText("Dienst").length;
-    const betreuungBefore = screen.getAllByText("Betreuung").length;
+    // Die Legende nennt nur vorkommende Arten (#4798): „Betreuung“ fehlt.
+    const betreuungBefore = screen.queryAllByText("Betreuung").length;
     openEvent("Busaufsicht");
     // The detail sheet badge names the source of the event.
     expect(screen.getAllByText("Dienst")).toHaveLength(dienstBefore + 1);
-    expect(screen.getAllByText("Betreuung")).toHaveLength(betreuungBefore);
+    expect(screen.queryAllByText("Betreuung")).toHaveLength(betreuungBefore);
   });
 
   it("renders appointment and timetable events with RSVP actions", () => {

@@ -1202,6 +1202,7 @@ function myScheduleTopic(): HelpTopic {
           "Grün zeigt Termine und Einladungen.",
           "Blau zeigt Ihre Einsätze im Betreuungsplan.",
           "Orange zeigt Ihre Schichten aus dem Dienstplan.",
+          "Lila zeigt Schultermine. Eine Lehrkraft hat sie in moto schule eingetragen, zum Beispiel einen Ausflug. Die Art steht im geöffneten Termin.",
         ],
       },
       {
@@ -1221,6 +1222,7 @@ function myScheduleTopic(): HelpTopic {
     notes: [
       "Mit `Sa/So` blenden Sie das Wochenende ein. Eine Zahl zeigt, dass dort Einträge liegen.",
       "Bei einer Einladung wählen Sie im geöffneten Termin `Zusagen` oder `Absagen`.",
+      "Legen Sie einen Termin an und wählen Sie `Alle Lehrkräfte`. Dann sehen die Lehrkräfte ihn in moto schule.",
     ],
     differences: [
       "Das Kalender-Abo ist nur zum Lesen. Änderungen in Ihrem persönlichen Kalender werden nicht an moto übertragen.",
@@ -4710,7 +4712,7 @@ function inviteStaffTopic(): HelpTopic {
     ],
     differences: [
       "Beim Import muss die Spalte `Rolle` genau einer vorhandenen Rolle entsprechen.",
-      "Zur Wahl stehen `Verwaltung`, `Betreuung`, `Lehrkraft`, `AG-Leitung`, `Gast` und die eigenen Rollen der Schule. Die alten Namen `Administrator` und `Betreuer` erkennt moto auch.",
+      "Zur Wahl stehen `Verwaltung`, `Betreuung`, `Lehrkraft`, `Schulverwaltung`, `AG-Leitung`, `Gast` und die eigenen Rollen der Schule. Die alten Namen `Administrator` und `Betreuer` erkennt moto auch.",
       "`Nur ansehen` fehlt bei einer externen Person? Diesen Zugang darf nur vergeben, wer Personal verwalten darf.",
       "Fehlt in einer Zeile die E-Mail-Adresse, gibt es keinen Zugang. Die Person steht dann nur in der Liste.",
       "Auf dem Handy steht `+ Personal` als runder Knopf unten rechts. Er öffnet dieselbe Auswahl.",
@@ -4967,7 +4969,7 @@ function staffPermissionsTopic(): HelpTopic {
       "Mit `AG-Leitung` oder `Gast` sieht die Person keine Zeiterfassung, keine Einstellungen und kein Personal.",
     ],
     differences: [
-      "moto bringt einige Rollen schon mit: `Verwaltung`, `Betreuung`, `Lehrkraft`, `AG-Leitung` und `Gast`. Sie sind als `Vorgegeben` markiert.",
+      "moto bringt einige Rollen schon mit: `Verwaltung`, `Betreuung`, `Lehrkraft`, `Schulverwaltung`, `AG-Leitung` und `Gast`. Sie sind als `Vorgegeben` markiert.",
       "Bei einer vorgegebenen Rolle fehlen `Bearbeiten` und `Löschen`. Zum Ändern von Rechten legen Sie deshalb eine eigene Rolle an.",
       "Einige Rechte stehen nicht zur Auswahl. Sie gehören nur der Rolle `Verwaltung` oder dem moto-Team.",
     ],
@@ -5014,6 +5016,8 @@ function leadTeacherAccessTopic(): HelpTopic {
       "Eine Lehrkraft sieht nur ihre Klassen, keine Stammdaten und keine Kontaktdaten.",
     ],
     differences: [
+      "Für Sekretariat und Schulleitung wählen Sie die Rolle `Schulverwaltung`. Sie sieht alle Klassen der Schule. Den Reiter `Klassen` brauchen Sie dafür nicht.",
+      "Neue Klassen sieht die `Schulverwaltung` von selbst.",
       "moto schule hat eine eigene Adresse. Der Link in der Einladung führt dorthin.",
       "Über die Adresse Ihrer OGS kommt eine Lehrkraft nicht hinein.",
     ],
@@ -7980,6 +7984,56 @@ function teacherNoticesTopic(): HelpTopic {
   };
 }
 
+function teacherCalendarTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.teacherCalendar,
+    title: "Den Kalender nutzen",
+    question: "Wie trage ich einen Ausflug oder Schultermin ein?",
+    summary:
+      "Der Kalender zeigt Termine der OGS, Schließtage, Ferien und Ihre Schultermine.",
+    group: "nachrichten",
+    audience: "teacher",
+    icon: "CalendarDays",
+    steps: [],
+    instructionGroups: [
+      {
+        title: "Einen Schultermin eintragen",
+        steps: [
+          "Öffnen Sie `Kalender`.",
+          "Wählen Sie `Neuer Termin`.",
+          "Geben Sie einen Titel ein und wählen Sie die Art, zum Beispiel `Ausflug`.",
+          "Wählen Sie Tag und Uhrzeit. Oder setzen Sie den Haken bei `Ganztägig`.",
+          "Wählen Sie unter `Wer sieht den Termin?`, ob auch Eltern ihn sehen.",
+          "Wählen Sie `Speichern`.",
+        ],
+      },
+      {
+        title: "Auf eine Einladung der OGS antworten",
+        steps: [
+          "Wählen Sie den Termin im Kalender.",
+          "Wählen Sie `Zusagen` oder `Absagen`.",
+        ],
+      },
+    ],
+    result:
+      "Die OGS und alle Lehrkräfte sehen Ihren Schultermin. Die Eltern sehen ihn nur, wenn Sie das gewählt haben.",
+    notes: [
+      "Ihre eigenen Schultermine öffnen Sie im Kalender. Dort finden Sie `Bearbeiten` und `Löschen`.",
+      "Schließtage und Ferien trägt die OGS ein. Sie stehen ganztägig im Kalender.",
+      "Unter `Kalender abonnieren` holen Sie die Termine in Ihren Handy-Kalender.",
+    ],
+    differences: [
+      "Wer den Termin sieht, wählen Sie nur beim Anlegen. Beim Ändern bleibt es gleich.",
+      "`Eltern meiner Klassen` ist grau? Dann ist Ihnen keine Klasse zugeordnet.",
+    ],
+    related: [
+      HELP_TOPICS.teacherNotices,
+      HELP_TOPICS.teacherMessages,
+      HELP_TOPICS.teacherFeatureMissing,
+    ],
+  };
+}
+
 /** Problemartikel: falsches Portal ist die haeufigste Ursache. */
 function teacherLoginProblemTopic(): HelpTopic {
   return {
@@ -8039,6 +8093,7 @@ function teacherNoClassesTopic(): HelpTopic {
       "Die Schreibweise muss zur Klasse der Kinder passen. Groß- und Kleinschreibung spielt keine Rolle.",
     ],
     differences: [
+      "Mit der Rolle `Schulverwaltung` sehen Sie alle Klassen der Schule. Dafür braucht es keine Zuweisung.",
       "Sie sehen eine Klasse, aber keine Kinder? Dann ist die Klasse anders geschrieben als bei den Kindern.",
       "Nach einem Schuljahreswechsel wandern die Klassen automatisch mit.",
     ],
@@ -8091,7 +8146,7 @@ function teacherFeatureMissingTopic(): HelpTopic {
 
 // Portal "moto schule" (#2207). Geruest nach der echten Navigation des
 // Schul-Portals (`SCHOOL_PRIMARY_NAV`): Klassenansicht, Meine Aufsichten,
-// Nachrichten, Tagesinformationen.
+// Nachrichten, Tagesinformationen, Kalender.
 //
 // Eine Lehrkraft sieht bewusst wenig: ihre Klassen und ihre eigenen
 // Aufsichten. Abhol- und Notfallkontakte gibt es nur zu den Kindern einer
@@ -8122,6 +8177,7 @@ const TEACHER_DRAFT_TOPICS: readonly HelpTopic[] = [
   // --- Nachrichten und Infos ---
   teacherMessagesTopic(),
   teacherNoticesTopic(),
+  teacherCalendarTopic(),
 
   // --- Wenn etwas nicht klappt ---
   teacherLoginProblemTopic(),

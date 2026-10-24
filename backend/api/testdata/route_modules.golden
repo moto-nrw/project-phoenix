@@ -964,11 +964,14 @@ online_anmeldung
 	PUT /api/enrollment/schema/{id}
 
 unterricht_vormittag
+	DELETE /school/calendar/appointments/{appointmentId}  (#4895 Schulportal, an der Schul-Sitzung)
 	DELETE /school/class-day/arrival-exceptions/{schoolClass}/{date}  (#4895 Schulportal, an der Schul-Sitzung)
 	DELETE /school/class-day/handover/{schoolClass}/{date}  (#4895 Schulportal, an der Schul-Sitzung)
 	DELETE /school/notifications/preferences/  (#4895 Schulportal, an der Schul-Sitzung)
 	DELETE /school/notifications/push/subscriptions  (#4895 Schulportal, an der Schul-Sitzung)
 	GET /school-sse/events  (#4895 Schulportal, an der Schul-Sitzung)
+	GET /school/calendar/feed  (#4895 Schulportal, an der Schul-Sitzung)
+	GET /school/calendar/my  (#4895 Schulportal, an der Schul-Sitzung)
 	GET /school/class-day/  (#4895 Schulportal, an der Schul-Sitzung)
 	GET /school/class-day/arrival-exceptions  (#4895 Schulportal, an der Schul-Sitzung)
 	GET /school/class-day/arrival-exceptions/block-start  (#4895 Schulportal, an der Schul-Sitzung)
@@ -992,6 +995,9 @@ unterricht_vormittag
 	POST /school/auth/password-reset  (#4895 Schulportal, an der Schul-Sitzung)
 	POST /school/auth/password-reset/confirm  (#4895 Schulportal, an der Schul-Sitzung)
 	POST /school/auth/switch-school  (#4895 Schulportal, an der Schul-Sitzung)
+	POST /school/calendar/appointments  (#4895 Schulportal, an der Schul-Sitzung)
+	POST /school/calendar/feed/rotate  (#4895 Schulportal, an der Schul-Sitzung)
+	POST /school/calendar/recipients/{recipientId}/response  (#4895 Schulportal, an der Schul-Sitzung)
 	POST /school/class-day/class-trips/{schoolClass}  (#4895 Schulportal, an der Schul-Sitzung)
 	POST /school/notifications/push/subscriptions  (#4895 Schulportal, an der Schul-Sitzung)
 	POST /school/notifications/test  (#4895 Schulportal, an der Schul-Sitzung)
@@ -1002,6 +1008,7 @@ unterricht_vormittag
 	POST /school/supervisions/{id}/start  (#4895 Schulportal, an der Schul-Sitzung)
 	POST /school/supervisions/{id}/students/{student_id}/check-in  (#4895 Schulportal, an der Schul-Sitzung)
 	POST /school/supervisions/{id}/students/{student_id}/check-out  (#4895 Schulportal, an der Schul-Sitzung)
+	PUT /school/calendar/appointments/{appointmentId}  (#4895 Schulportal, an der Schul-Sitzung)
 	PUT /school/class-day/arrival-exceptions/{schoolClass}/{date}  (#4895 Schulportal, an der Schul-Sitzung)
 	PUT /school/class-day/handover/{schoolClass}/{date}  (#4895 Schulportal, an der Schul-Sitzung)
 	PUT /school/class-day/morning-attendance/{schoolClass}/{date}  (#4895 Schulportal, an der Schul-Sitzung)

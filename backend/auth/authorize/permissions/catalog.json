@@ -56,6 +56,14 @@
     "action": "own"
   },
   {
+    "resource": "calendar",
+    "action": "school"
+  },
+  {
+    "resource": "class_day",
+    "action": "all_classes"
+  },
+  {
     "resource": "class_day",
     "action": "arrival_exception_write"
   },

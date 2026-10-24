@@ -440,6 +440,8 @@ const SCHOOL_PROTECTED_PATHS = [
   "/nachrichten",
   // Tagesinformationen der OGS-Leitung für Lehrkräfte (#2208).
   "/tagesinformationen",
+  // Kalender der Lehrkraft mit Schulterminen (#4798).
+  "/kalender",
   "/einstellungen",
 ];
 const SCHOOL_INVITATION_API_PATHS = [
