@@ -45,6 +45,7 @@ export function MealOrderWeek({
   const { error, show, clear } = useApiLoadError();
   const { show: showActionError } = useApiErrorDisplay();
   const reloadRef = useRef<() => void>(() => undefined);
+  const requestGeneration = useRef(0);
 
   const friday = useMemo(() => {
     const date = parseISODate(mondayISO);
@@ -68,12 +69,16 @@ export function MealOrderWeek({
   );
 
   const load = useCallback(async () => {
+    const generation = ++requestGeneration.current;
     setLoading(true);
     clear();
     try {
       const orders = await getMealOrders(mondayISO, friday);
+      if (generation !== requestGeneration.current) return;
       setDays(orders.days);
     } catch (cause) {
+      // A superseded request must not replace the current week's view.
+      if (generation !== requestGeneration.current) return;
       logger.error("meal_orders_load_failed", {
         error: cause instanceof Error ? cause.message : String(cause),
       });
@@ -83,15 +88,19 @@ export function MealOrderWeek({
         retry: () => reloadRef.current(),
       });
     } finally {
-      setLoading(false);
+      if (generation === requestGeneration.current) setLoading(false);
     }
   }, [clear, friday, mondayISO, show, t]);
+  const invalidateRequests = useCallback(() => {
+    requestGeneration.current++;
+  }, []);
   useEffect(() => {
     reloadRef.current = () => void load();
   });
   useEffect(() => {
     void load();
-  }, [load, refreshVersion]);
+    return invalidateRequests;
+  }, [invalidateRequests, load, refreshVersion]);
 
   async function downloadDeliveries(format: "pdf" | "xlsx" | "csv") {
     try {
