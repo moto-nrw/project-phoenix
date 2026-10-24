@@ -60,15 +60,15 @@ func TestMealOrderErasureRoundTrip(t *testing.T) {
 	require.Contains(t, withMeals, "schedule.meal_orders")
 	require.NoError(t, mealOrderErasureDown(t.Context(), db))
 	without := planNames()
-	assert.Len(t, without, len(withMeals)-7)
+	assert.Len(t, without, len(withMeals)-8)
 	assert.NotContains(t, without, "auth.caterer_schools")
 	require.NoError(t, mealOrderErasureUp(t.Context(), db))
 	assert.Equal(t, withMeals, planNames())
 }
 
-// mealOrderErasureTables are the seven school-scoped tables 1.15.519 adds to
+// mealOrderErasureTables are the eight school-scoped tables 1.15.519 adds to
 // development's school erasure functions.
-var mealOrderErasureTables = regexp.MustCompile(`\b(schedule\.(meal_order_changes|meal_order_lines|meal_order_days|meal_orders|meal_registration_changes)|auth\.caterer_(invitations|schools))\b`)
+var mealOrderErasureTables = regexp.MustCompile(`\b(schedule\.(meal_order_changes|meal_order_change_counters|meal_order_lines|meal_order_days|meal_orders|meal_registration_changes)|auth\.caterer_(invitations|schools))\b`)
 
 var schoolErasureFingerprint = regexp.MustCompile(`<> '[0-9a-f]{64}' THEN`)
 
@@ -111,7 +111,7 @@ func TestMealOrderErasureCopiesTrackDevelopmentsErasureFunctions(t *testing.T) {
 		for _, name := range mealOrderErasureTables.FindAllString(pair.meal, -1) {
 			names[name] = true
 		}
-		assert.Len(t, names, 7, "%s: the copy names all seven meal tables", pair.name)
+		assert.Len(t, names, 8, "%s: the copy names all eight meal tables", pair.name)
 		assert.Equal(t, withoutMealOrderErasureTables(pair.development), withoutMealOrderErasureTables(pair.meal),
 			"%s: the 1.15.519 copy drifted from development's current erasure function", pair.name)
 	}

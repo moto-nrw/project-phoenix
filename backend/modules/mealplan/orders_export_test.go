@@ -27,6 +27,21 @@ func TestMonthExportCountsOrderedMealsPerChild(t *testing.T) {
 	assert.Equal(t, "mittagessen-2026-09", export.Filename)
 }
 
+// The meals of deleted children stay billed, per class, without a child.
+func TestMonthExportCountsDeletedChildrenPerClass(t *testing.T) {
+	t.Parallel()
+	deletedA := mealplan.OrderChild{SchoolClass: "2a"}
+	deletedB := mealplan.OrderChild{SchoolClass: "3b"}
+	week := mealplan.OrderWeek{Days: []mealplan.OrderDay{
+		{Date: "2026-09-07", Status: mealplan.OrderOrdered, Children: []mealplan.OrderChild{deletedA, deletedA, deletedB}},
+		{Date: "2026-09-08", Status: mealplan.OrderOrdered, Children: []mealplan.OrderChild{deletedA}},
+	}}
+
+	export, err := week.MonthExport("2026-09-01")
+	require.NoError(t, err)
+	assert.Equal(t, [][]string{{"Gelöschte Kinder", "2a", "3"}, {"Gelöschte Kinder", "3b", "1"}}, export.Lines)
+}
+
 func TestMonthWindowCoversTheWholeMonth(t *testing.T) {
 	t.Parallel()
 	from, to, err := mealplan.MonthWindow("2026-02-17")

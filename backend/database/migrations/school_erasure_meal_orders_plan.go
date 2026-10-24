@@ -6,7 +6,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// 1.15.519 (#3873): the installed erasure plan with the seven school-scoped
+// 1.15.519 (#3873): the installed erasure plan with the eight school-scoped
 // meal ordering tables, inserted before the meal participation overrides.
 func installMealOrderErasurePlan(ctx context.Context, tx bun.Tx) error {
 	_, err := tx.ExecContext(ctx, mealOrderErasurePlanSQL)
@@ -172,6 +172,7 @@ const mealOrderErasurePlanSQL = `CREATE OR REPLACE FUNCTION platform.school_eras
   {"name": "schedule.meal_order_lines","predicate": "r.tenant_id = $1"},
   {"name": "schedule.meal_order_days","predicate": "r.tenant_id = $1"},
   {"name": "schedule.meal_orders","predicate": "r.tenant_id = $1"},
+  {"name": "schedule.meal_order_change_counters","predicate": "r.tenant_id = $1"},
   {"name": "schedule.meal_registration_changes","predicate": "r.tenant_id = $1"},
   {"name": "auth.caterer_invitations","predicate": "r.tenant_id = $1"},
   {"name": "auth.caterer_schools","predicate": "r.tenant_id = $1"},

@@ -331,6 +331,8 @@ const mealOrderErasureResidualSQL = `CREATE OR REPLACE FUNCTION platform.school_
     UNION ALL
     SELECT 1 FROM schedule.meal_orders AS r WHERE r.tenant_id = p_school_id
     UNION ALL
+    SELECT 1 FROM schedule.meal_order_change_counters AS r WHERE r.tenant_id = p_school_id
+    UNION ALL
     SELECT 1 FROM schedule.meal_registration_changes AS r WHERE r.tenant_id = p_school_id
     UNION ALL
     SELECT 1 FROM auth.caterer_invitations AS r WHERE r.tenant_id = p_school_id

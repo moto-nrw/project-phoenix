@@ -26,7 +26,7 @@ func init() {
 
 // The installed erasure plan is a frozen projection of the data lifecycle
 // catalog (ADR 0092): a new school-scoped table needs a migration updating
-// the school erasure functions. Up installs them with the seven
+// the school erasure functions. Up installs them with the eight
 // school-scoped tables of the meal ordering (#3873) on top of development's
 // current functions (the school_erasure_*.go constants, last reinstalled by
 // 1.15.502); Down installs development's current functions. The caterer

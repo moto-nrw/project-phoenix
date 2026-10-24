@@ -132,10 +132,10 @@ DB-Aufträge ohne Inventar können nicht automatisch abgeschlossen werden.
 Die Migration installiert einen eingefrorenen, generierten Plan und statische
 SQL-Blöcke aus dem
 [gemeinsamen Katalog](datenkatalog.md), keinen zweiten fachlichen Katalog.
-Er umfasst 237 Löschziele: `tenant`, `tenantChild` und die Schulwurzel.
+Er umfasst 238 Löschziele: `tenant`, `tenantChild` und die Schulwurzel.
 Migration `1.15.519` installiert Plan, Sperrliste, Löschung, Restprüfung und
-Probelauf erneut mit den sieben schulbezogenen Mittagessen-Tabellen
-(Bestellungen, Anmeldeänderungen, Caterer-Einladungen und Belieferungen, #3873).
+Probelauf erneut mit den acht schulbezogenen Mittagessen-Tabellen
+(Bestellungen mit Zähler der Nachmeldungen, Anmeldeänderungen, Caterer-Einladungen und Belieferungen, #3873).
 Der schulübergreifende Caterer-Betrieb und seine Konten bleiben erhalten.
 `platform.billing_key_date_counts.school_id` ist die explizite Ausnahme nach
 [ADR 0092](../adr/0092-mandanten-datenlebenszyklus-nutzt-einen-gemeinsamen-katalog.md#ergänzung-aufbewahrung-der-abrechnungszählungen-3837-b-runde-2).
@@ -288,7 +288,7 @@ Fristausführung sind menschlich nachzuweisen.
    Superuser oder mit `BYPASSRLS`; die CLI-Rolle selbst darf dies nicht.
    Ownerprüfung und Rollenmitgliedschaften ohne Zugangsdaten dokumentieren.
    Nachweise im Produktivsystem sind noch offen.
-5. Das Wartungsfenster für 237 Löschziele und eingehende FK-Quellen einplanen.
+5. Das Wartungsfenster für 238 Löschziele und eingehende FK-Quellen einplanen.
    `SHARE ROW EXCLUSIVE` kann Schreibzugriffe anderer Schulen blockieren.
    Lock-/Statement-Zeitlimits und die Behandlung eines abgebrochenen Versuchs
    bleiben Aufgabe von 3837-c. Der Write-Fence-Wächter prüft `tenant_id`, nicht

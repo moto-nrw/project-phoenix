@@ -179,6 +179,7 @@ const mealOrderErasurePreviewSQL = `
  v_counts := v_counts || jsonb_build_object('schedule.meal_order_lines',(SELECT count(*) FROM schedule.meal_order_lines AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('schedule.meal_order_days',(SELECT count(*) FROM schedule.meal_order_days AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('schedule.meal_orders',(SELECT count(*) FROM schedule.meal_orders AS r WHERE r.tenant_id = p_school));
+ v_counts := v_counts || jsonb_build_object('schedule.meal_order_change_counters',(SELECT count(*) FROM schedule.meal_order_change_counters AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('schedule.meal_registration_changes',(SELECT count(*) FROM schedule.meal_registration_changes AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('auth.caterer_invitations',(SELECT count(*) FROM auth.caterer_invitations AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('auth.caterer_schools',(SELECT count(*) FROM auth.caterer_schools AS r WHERE r.tenant_id = p_school));

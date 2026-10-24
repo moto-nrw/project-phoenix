@@ -252,7 +252,7 @@ func unnamedChildren(view domain.OrderView, names map[int64]domain.DailyCandidat
 	seen := make(map[int64]bool)
 	var missing []int64
 	add := func(studentID int64) {
-		if _, named := names[studentID]; !named && !seen[studentID] {
+		if _, named := names[studentID]; !named && !seen[studentID] && !domain.IsDeletedChild(studentID) {
 			missing, seen[studentID] = append(missing, studentID), true
 		}
 	}

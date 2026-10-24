@@ -329,3 +329,63 @@ func TestReadsShowWhatTheWorkerWillStoreWithoutWriting(t *testing.T) {
 	require.Len(t, settled.Changes, 1)
 	assert.Equal(t, 1, settled.Changes[0].Sequence)
 }
+
+// #3873: deleting a child never rewrites an order the caterer saw. Its
+// lines and changes stay with their class and lose only the child, and the
+// next change gets the next number, never one already shown.
+func TestDeletingAChildKeepsTheFrozenOrderAndItsNumbers(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	stays := testpkg.CreateTestStudent(t, db, "Ada", "Bleibt", "2a")
+	leaves := testpkg.CreateTestStudent(t, db, "Ben", "Geht", "2a")
+	parent := testpkg.CreateTestAccount(t, db, "meal-deleted-child-parent")
+	staff := testpkg.CreateTestAccount(t, db, "meal-deleted-child-staff")
+	ctx := testpkg.Ctx(t)
+	early := buildModuleAt(t, db, true, nil, time.Date(2026, 9, 7, 8, 0, 0, 0, testBerlin))
+	for _, student := range []int64{stays.ID, leaves.ID} {
+		require.NoError(t, early.SetParticipationForDay(ctx, mealplan.SetParticipationDay{StudentID: student, GuardianAccountID: parent.ID, Date: "2026-09-07", Participating: true}))
+	}
+	late := buildModuleAt(t, db, true, nil, time.Date(2026, 9, 7, 10, 0, 0, 0, testBerlin))
+	require.NoError(t, late.SettleOrders(ctx))
+	require.NoError(t, late.SetParticipationBySchool(ctx, mealplan.SchoolChange{StudentID: leaves.ID, StaffAccountID: staff.ID, Date: "2026-09-07", Participating: false}))
+	before, err := late.Orders(ctx, "2026-09-07", "2026-09-07")
+	require.NoError(t, err)
+
+	_, err = db.NewRaw(`DELETE FROM users.student_profiles WHERE id = ?`, leaves.ID).Exec(context.Background())
+	require.NoError(t, err)
+
+	var kept struct{ Lines, DeletedLines, Changes, DeletedChanges int }
+	require.NoError(t, db.NewRaw(`SELECT
+		(SELECT count(*) FROM schedule.meal_order_lines WHERE tenant_id = ?) AS lines,
+		(SELECT count(*) FROM schedule.meal_order_lines WHERE tenant_id = ? AND student_id IS NULL) AS deleted_lines,
+		(SELECT count(*) FROM schedule.meal_order_changes WHERE tenant_id = ?) AS changes,
+		(SELECT count(*) FROM schedule.meal_order_changes WHERE tenant_id = ? AND student_id IS NULL) AS deleted_changes`,
+		stays.TenantID, stays.TenantID, stays.TenantID, stays.TenantID).Scan(context.Background(), &kept))
+	assert.Equal(t, struct{ Lines, DeletedLines, Changes, DeletedChanges int }{2, 1, 1, 1}, kept, "the order keeps the deleted child's line and change, without the child")
+
+	later := buildModuleAt(t, db, true, nil, time.Date(2026, 9, 7, 10, 30, 0, 0, testBerlin))
+	require.NoError(t, later.SettleOrders(ctx))
+	assert.Len(t, orderChangesOf(t, db, stays.TenantID), 1, "the deleted child's meal is no new change")
+	after, err := later.Orders(ctx, "2026-09-07", "2026-09-07")
+	require.NoError(t, err)
+	monday, frozen := orderDay(t, after, "2026-09-07"), orderDay(t, before, "2026-09-07")
+	assert.Equal(t, frozen.Total, monday.Total, "the frozen order keeps its count")
+	assert.Equal(t, frozen.Classes, monday.Classes)
+	require.Len(t, monday.Changes, 1)
+	assert.Equal(t, frozen.Changes[0].Sequence, monday.Changes[0].Sequence)
+	assert.Equal(t, "2a", monday.Changes[0].Child.SchoolClass)
+	assert.Equal(t, []int64{stays.ID}, childIDs(monday.Children), "the cancelled deleted child eats no more")
+
+	require.NoError(t, later.SetParticipationBySchool(ctx, mealplan.SchoolChange{StudentID: stays.ID, StaffAccountID: staff.ID, Date: "2026-09-07", Participating: false}))
+	var sequences []int
+	require.NoError(t, db.NewRaw(`SELECT sequence FROM schedule.meal_order_changes WHERE tenant_id = ? ORDER BY sequence`, stays.TenantID).Scan(context.Background(), &sequences))
+	assert.Equal(t, []int{1, 2}, sequences)
+
+	// Even a change that is gone never gives its number again.
+	_, err = db.NewRaw(`DELETE FROM schedule.meal_order_changes WHERE tenant_id = ?`, stays.TenantID).Exec(context.Background())
+	require.NoError(t, err)
+	require.NoError(t, later.SetParticipationBySchool(ctx, mealplan.SchoolChange{StudentID: stays.ID, StaffAccountID: staff.ID, Date: "2026-09-07", Participating: true}))
+	require.NoError(t, db.NewRaw(`SELECT sequence FROM schedule.meal_order_changes WHERE tenant_id = ? ORDER BY sequence`, stays.TenantID).Scan(context.Background(), &sequences))
+	require.NotEmpty(t, sequences)
+	assert.Equal(t, 3, sequences[0], "numbering goes on after the last number given")
+}

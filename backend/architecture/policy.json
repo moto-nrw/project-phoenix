@@ -4421,6 +4421,10 @@
       "write_owner": "meal-plan"
     },
     {
+      "name": "schedule.meal_order_change_counters",
+      "write_owner": "meal-plan"
+    },
+    {
       "name": "schedule.meal_order_changes",
       "write_owner": "meal-plan"
     },
