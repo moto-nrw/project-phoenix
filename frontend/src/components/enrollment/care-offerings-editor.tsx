@@ -38,14 +38,12 @@ import {
 import {
   type CareOfferingBookingStats,
   fetchCareOfferingBookingStats,
-  offeringOccupancy,
   totalFreePlaces,
 } from "~/lib/care-offering-booking-stats";
 import {
-  OfferingFullBadge,
-  OfferingOccupancyCell,
-  formatOfferingCapacity,
-  occupancySortValue,
+  offeringCapacityColumn,
+  offeringOccupancyColumn,
+  offeringStatusColumn,
 } from "~/components/enrollment/offering-occupancy";
 import { TranslationsSection } from "~/components/enrollment/translations-section";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
@@ -79,11 +77,7 @@ import {
   copyStableObjectKey,
   getStableObjectKey,
 } from "~/lib/stable-object-key";
-import {
-  DataTable,
-  DataTableStatusBadge,
-  type DataTableColumn,
-} from "~/components/ui/data-table";
+import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { FeaturePill } from "~/components/enrollment/feature-pill";
@@ -881,27 +875,8 @@ export function CareOfferingsEditor({
           </div>
         ),
       },
-      {
-        key: "capacity",
-        header: "Kapazität",
-        sortValue: (offering) => offering.capacity ?? Number.POSITIVE_INFINITY,
-        render: (offering) => (
-          <span className="text-sm text-gray-700">
-            {formatOfferingCapacity(offering.capacity)}
-          </span>
-        ),
-      },
-      {
-        key: "occupancy",
-        header: "Belegt",
-        sortValue: (offering) =>
-          occupancySortValue(offeringOccupancy(bookingStats[offering.id])),
-        render: (offering) => (
-          <OfferingOccupancyCell
-            occupancy={offeringOccupancy(bookingStats[offering.id])}
-          />
-        ),
-      },
+      offeringCapacityColumn(),
+      offeringOccupancyColumn(bookingStats),
       {
         key: "price",
         header: "Preis",
@@ -912,19 +887,7 @@ export function CareOfferingsEditor({
           </span>
         ),
       },
-      {
-        key: "status",
-        header: "Status",
-        sortValue: (offering) => (offering.is_active ? 1 : 0),
-        render: (offering) => (
-          <div className="flex flex-wrap items-center gap-1.5">
-            <DataTableStatusBadge active={offering.is_active} />
-            <OfferingFullBadge
-              occupancy={offeringOccupancy(bookingStats[offering.id])}
-            />
-          </div>
-        ),
-      },
+      offeringStatusColumn(bookingStats),
       {
         key: "actions",
         header: "Aktionen",

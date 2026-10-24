@@ -7,22 +7,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
+import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import {
-  DataTable,
-  DataTableStatusBadge,
-  type DataTableColumn,
-} from "~/components/ui/data-table";
-import {
-  OfferingFullBadge,
-  OfferingOccupancyCell,
-  formatOfferingCapacity,
-  occupancySortValue,
+  offeringCapacityColumn,
+  offeringOccupancyColumn,
+  offeringStatusColumn,
 } from "~/components/enrollment/offering-occupancy";
 import { type CareOffering, listCareOfferings } from "~/lib/care-offering-api";
 import {
   type CareOfferingBookingStats,
   fetchCareOfferingBookingStats,
-  offeringOccupancy,
   totalFreePlaces,
 } from "~/lib/care-offering-booking-stats";
 import { createLogger } from "~/lib/logger";
@@ -73,41 +67,9 @@ export function PhaseOfferingOccupancy({
           <span className="font-medium text-gray-900">{offering.name}</span>
         ),
       },
-      {
-        key: "capacity",
-        header: "Kapazität",
-        sortValue: (offering) => offering.capacity ?? Number.POSITIVE_INFINITY,
-        render: (offering) => (
-          <span className="text-sm text-gray-700">
-            {formatOfferingCapacity(offering.capacity)}
-          </span>
-        ),
-      },
-      {
-        key: "occupancy",
-        header: "Belegt",
-        sortValue: (offering) =>
-          occupancySortValue(offeringOccupancy(stats[offering.id])),
-        render: (offering) => (
-          <OfferingOccupancyCell
-            occupancy={offeringOccupancy(stats[offering.id])}
-          />
-        ),
-      },
-      {
-        key: "status",
-        header: "Status",
-        stacked: "meta",
-        sortValue: (offering) => (offering.is_active ? 1 : 0),
-        render: (offering) => (
-          <div className="flex flex-wrap items-center gap-1.5">
-            <DataTableStatusBadge active={offering.is_active} />
-            <OfferingFullBadge
-              occupancy={offeringOccupancy(stats[offering.id])}
-            />
-          </div>
-        ),
-      },
+      offeringCapacityColumn(),
+      offeringOccupancyColumn(stats),
+      { ...offeringStatusColumn(stats), stacked: "meta" },
     ];
   }, [data]);
 
@@ -123,7 +85,7 @@ export function PhaseOfferingOccupancy({
           <StatusBadge label={`${freePlaces} frei`} tone="gray" />
         )
       }
-      description="Belegt zählt die Kinder, die das Angebot zur selben Zeit gebucht haben."
+      description="„Belegt“ zählt die Kinder am vollsten Tag bis zum Ende der Phase."
     >
       <DataTable
         columns={columns}

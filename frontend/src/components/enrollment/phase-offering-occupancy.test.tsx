@@ -47,8 +47,14 @@ function stats(
   };
 }
 
+// The table renders a phone list next to it (stackedOnMobile); the rows
+// are asserted in the table.
+function table() {
+  return within(screen.getByTestId("data-table-table"));
+}
+
 function rowOf(text: string) {
-  return within(screen.getByText(text).closest("tr") as HTMLElement);
+  return within(table().getByText(text).closest("tr") as HTMLElement);
 }
 
 beforeEach(() => {
@@ -93,6 +99,11 @@ describe("PhaseOfferingOccupancy (#4782)", () => {
     expect(unlimited.getByText("Unbegrenzt")).toBeInTheDocument();
     expect(unlimited.getByText("4")).toBeInTheDocument();
 
+    // The phone list carries the same numbers.
+    expect(
+      within(screen.getByTestId("data-table-stacked")).getByText("7 von 10"),
+    ).toBeInTheDocument();
+
     // Free places of the phase next to the heading: 3 + 0.
     const heading = screen.getByRole("heading", {
       name: "Freie Plätze je Angebot",
@@ -100,17 +111,22 @@ describe("PhaseOfferingOccupancy (#4782)", () => {
     expect(heading.parentElement).toHaveTextContent("3 frei");
   });
 
-  it("never shows child names, only sums", async () => {
+  it("renders only the four sum columns per offering", async () => {
     mocks.listCareOfferings.mockResolvedValue([offering({ id: "1" })]);
     mocks.fetchCareOfferingBookingStats.mockResolvedValue({
       "1": stats("1", 10, 7),
     });
 
-    const { container } = render(<PhaseOfferingOccupancy phaseId="7" />);
+    render(<PhaseOfferingOccupancy phaseId="7" />);
 
-    expect(await screen.findByText("7 von 10")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Freie Plätze je Angebot"),
+    ).toBeInTheDocument();
+    expect(table().getByText("7 von 10")).toBeInTheDocument();
     // Booking stats carry no identities; the section renders four columns.
-    expect(container.querySelectorAll("tbody tr td")).toHaveLength(4);
+    expect(
+      screen.getByTestId("data-table-table").querySelectorAll("tbody tr td"),
+    ).toHaveLength(4);
   });
 
   it("hides the section when the occupancy fails to load", async () => {

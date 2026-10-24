@@ -91,8 +91,7 @@ export function formatOfferingOccupancy(
 export function offeringIsFull(
   stats: CareOfferingBookingStats | null | undefined,
 ): boolean {
-  if (!stats || stats.capacity == null) return false;
-  return stats.booked >= stats.capacity;
+  return offeringOccupancy(stats)?.full ?? false;
 }
 
 /** An offering's occupancy for the list displays (#4782). */
@@ -126,22 +125,23 @@ export function offeringOccupancy(
 }
 
 /**
- * Free places summed over the offerings that have a capacity limit, the
- * same offerings the capacity total adds up. null when none has a limit, or
- * when the stats of one of them are missing: an incomplete sum would read as
- * fewer free places than there are.
+ * Free places summed over the active offerings that have a capacity limit:
+ * an inactive offering cannot be booked, so its places are not free. null
+ * when none has a limit, or when the stats of one of them are missing: an
+ * incomplete sum would read as fewer free places than there are.
  */
 export function totalFreePlaces(
   offerings: readonly {
     readonly id: string;
     readonly capacity?: number | null;
+    readonly is_active: boolean;
   }[],
   statsById: Readonly<Record<string, CareOfferingBookingStats>>,
 ): number | null {
   let total = 0;
   let limited = false;
   for (const offering of offerings) {
-    if (offering.capacity == null) continue;
+    if (!offering.is_active || offering.capacity == null) continue;
     const free = offeringOccupancy(statsById[offering.id])?.free;
     if (free == null) return null;
     limited = true;
