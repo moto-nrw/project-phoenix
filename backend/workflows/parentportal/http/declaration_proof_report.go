@@ -137,16 +137,14 @@ func proofHistoryCards(proof *parentService.DeclarationProof) []ReportCard {
 			{Label: "Fassung", Value: version},
 			{Label: "Passwort bestätigt", Value: confirmed},
 		}
-		if sub.SignatureID != nil {
-			if s, ok := proof.Signatures[*sub.SignatureID]; ok {
-				typed := ""
-				if s.TypedName != "" {
-					typed = "Name getippt: " + s.TypedName
-				}
-				fields = append(fields,
-					ReportField{Label: "Unterschrift", Value: typed, PNG: s.PNG},
-					ReportField{Label: "Prüfsumme der unterschriebenen Fassung", Value: s.DocumentSHA256})
+		if s := proofSignatureForRendering(proof, sub); s != nil {
+			typed := ""
+			if s.TypedName != "" {
+				typed = "Name getippt: " + s.TypedName
 			}
+			fields = append(fields,
+				ReportField{Label: "Unterschrift", Value: typed, PNG: s.PNG},
+				ReportField{Label: "Prüfsumme der unterschriebenen Fassung", Value: s.DocumentSHA256})
 		}
 		cards = append(cards, ReportCard{
 			Title:  labelOr(proofActionLabels, sub.Action) + " am " + proofStamp(sub.SubmittedAt),

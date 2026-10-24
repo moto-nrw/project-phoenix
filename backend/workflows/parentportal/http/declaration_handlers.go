@@ -254,11 +254,8 @@ type proofSignatureResponse struct {
 }
 
 func toProofSignatureResponse(proof *parentService.DeclarationProof, sub *parentService.DeclarationSubmission) *proofSignatureResponse {
-	if sub.SignatureID == nil {
-		return nil
-	}
-	s, ok := proof.Signatures[*sub.SignatureID]
-	if !ok {
+	s := proofSignatureForRendering(proof, sub)
+	if s == nil {
 		return nil
 	}
 	out := &proofSignatureResponse{
@@ -270,6 +267,21 @@ func toProofSignatureResponse(proof *parentService.DeclarationProof, sub *parent
 		out.TypedName = &typed
 	}
 	return out
+}
+
+// proofSignatureForRendering returns only a signature from a proof whose
+// checks, including its declaration and child binding, have passed. A proof
+// with an altered entry must keep its warning without rendering stored data
+// as the guardian's signature.
+func proofSignatureForRendering(proof *parentService.DeclarationProof, sub *parentService.DeclarationSubmission) *parentService.DeclarationSignature {
+	if !proof.IntegrityOK || sub.SignatureID == nil {
+		return nil
+	}
+	s, ok := proof.Signatures[*sub.SignatureID]
+	if !ok || s == nil || !s.IntegrityOK {
+		return nil
+	}
+	return s
 }
 
 // proofMethodLabel names the procedure of the proof: the signature
