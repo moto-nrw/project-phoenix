@@ -295,11 +295,19 @@ jobs:
       # A large refactor must not squeeze almost the whole suite through the
       # affected-only runner. This cheap file-list check also avoids a serial
       # Go planning job for changes that are already obviously broad.
+      # Linux caps one environment value at 128 KiB; a list of thousands of
+      # paths stops bash from starting at all. At 500 files and more the list
+      # stays out of the environment and the scope is full. Keep both 500s equal.
       - name: Size backend test scope
         id: backend-size
         env:
-          CHANGED_FILES: ${{ steps.filter.outputs.backend-tests_files }}
+          CHANGED_COUNT: ${{ steps.filter.outputs.backend-tests_count }}
+          CHANGED_FILES: ${{ fromJSON(steps.filter.outputs.backend-tests_count) < 500 && steps.filter.outputs.backend-tests_files || '[]' }}
         run: |
+          if [ "${CHANGED_COUNT:-0}" -ge 500 ]; then
+            echo "full=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           : "${CHANGED_FILES:?changed-file list is required}"
           full=$(jq 'any(.[]; . == "backend/go.mod" or . == "backend/go.sum") or
             (map(select(endswith(".go")) | split("/")[:-1] | join("/")) | unique | length >= 64)' <<< "$CHANGED_FILES")

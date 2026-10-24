@@ -371,6 +371,17 @@ for manifest in go.mod go.sum; do
   grep -qx 'full=true' "$fixture/scope-size"
   rm "$fixture/scope-size"
 done
+# A release-sized list never reaches the environment (128 KiB per value), so
+# the guard decides from the count alone and must not read the empty list.
+for count in 499 500; do
+  CHANGED_COUNT="$count" CHANGED_FILES='[]' GITHUB_OUTPUT="$fixture/scope-size" bash -euo pipefail <<<"$size_script"
+  expected=false
+  [ "$count" -lt 500 ] || expected=true
+  grep -qx "full=$expected" "$fixture/scope-size"
+  rm "$fixture/scope-size"
+done
+grep -qF "fromJSON(steps.filter.outputs.backend-tests_count) < 500 && steps.filter.outputs.backend-tests_files || '[]'" "$repo_root/.github/workflows/main.yml" ||
+  { echo 'backend scope size guard must keep long file lists out of the environment' >&2; exit 1; }
 
 # Execute the actual workflow guard: architecture-only changes may skip both
 # reusable jobs, but each independently requested job must run.
