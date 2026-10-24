@@ -87,10 +87,14 @@ type updateGuardianRelationshipRequest struct {
 // app access, which remains the responsibility of related-accounts invitations.
 type createGuardianContactRequest struct {
 	updateGuardianContactRequest
-	RelationshipType   string  `json:"relationship_type"`
-	CanPickup          bool    `json:"can_pickup"`
-	IsEmergencyContact bool    `json:"is_emergency_contact"`
-	PickupNotes        *string `json:"pickup_notes"`
+	RelationshipType string `json:"relationship_type"`
+	// CanPickup asks the OGS to let the new contact collect the child on
+	// PickupWeekdays (empty: every day), signed (#4780).
+	CanPickup          bool                         `json:"can_pickup"`
+	PickupWeekdays     []int                        `json:"pickup_weekdays"`
+	PickupSignature    *declarationSignatureRequest `json:"pickup_signature,omitempty"`
+	IsEmergencyContact bool                         `json:"is_emergency_contact"`
+	PickupNotes        *string                      `json:"pickup_notes"`
 }
 
 // listChildGuardians returns the guardians of the parent's child with contact +
@@ -140,6 +144,8 @@ func (rs *Resource) createGuardianContact(w http.ResponseWriter, r *http.Request
 		Contact:            guardianContactInput(body.updateGuardianContactRequest),
 		RelationshipType:   body.RelationshipType,
 		CanPickup:          body.CanPickup,
+		PickupWeekdays:     body.PickupWeekdays,
+		PickupSignature:    body.PickupSignature.pickupInput(),
 		IsEmergencyContact: body.IsEmergencyContact,
 		PickupNotes:        body.PickupNotes,
 	})

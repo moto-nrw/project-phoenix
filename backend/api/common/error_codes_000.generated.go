@@ -68,6 +68,12 @@ const (
 	CodeCarePhotoConsentNotWithdrawn                     = "care.photo_consent_not_withdrawn"
 	CodeCarePickupChangeCutoffPassed                     = "care.pickup_change_cutoff_passed"
 	CodeCarePickupChangeDisabled                         = "care.pickup_change_disabled"
+	CodeCarePickupPermissionRequestRequired              = "care.pickup_permission_request_required"
+	CodeCarePickupPermissionUnchanged                    = "care.pickup_permission_unchanged"
+	CodeCarePickupPersonNotLinked                        = "care.pickup_person_not_linked"
+	CodeCarePickupProofNotFound                          = "care.pickup_proof_not_found"
+	CodeCarePickupSignatureInvalid                       = "care.pickup_signature_invalid"
+	CodeCarePickupSignatureRequired                      = "care.pickup_signature_required"
 	CodeCarePollClosed                                   = "care.poll_closed"
 	CodeCarePrimaryGuardianProtected                     = "care.primary_guardian_protected"
 	CodeCareRemoveDisabled                               = "care.remove_disabled"
@@ -296,12 +302,6 @@ const (
 	CodeIdentityReadOnlyPreview                          = "identity.read_only_preview"
 	CodeIdentityRoleNameTaken                            = "identity.role_name_taken"
 	CodeIdentityRolePlatformPermission                   = "identity.role_platform_permission"
-	CodeIdentitySessionAccountInactive                   = "identity.session_account_inactive"
-	CodeIdentityTenantAccessDenied                       = "identity.tenant_access_denied"
-	CodeIdentityTenantAccessNotFound                     = "identity.tenant_access_not_found"
-	CodeIdentityUseParentPortal                          = "identity.use_parent_portal"
-	CodeIdentityUseSchoolPortal                          = "identity.use_school_portal"
-	CodeIdentityUsernameTaken                            = "identity.username_taken"
 )
 
 var errorCodeClasses0 = map[string]string{
@@ -371,6 +371,12 @@ var errorCodeClasses0 = map[string]string{
 	"care.photo_consent_not_withdrawn":                     "business_rejection",
 	"care.pickup_change_cutoff_passed":                     "business_rejection",
 	"care.pickup_change_disabled":                          "permission",
+	"care.pickup_permission_request_required":              "business_rejection",
+	"care.pickup_permission_unchanged":                     "business_rejection",
+	"care.pickup_person_not_linked":                        "input",
+	"care.pickup_proof_not_found":                          "business_rejection",
+	"care.pickup_signature_invalid":                        "input",
+	"care.pickup_signature_required":                       "input",
 	"care.poll_closed":                                     "business_rejection",
 	"care.primary_guardian_protected":                      "permission",
 	"care.remove_disabled":                                 "permission",
@@ -599,12 +605,6 @@ var errorCodeClasses0 = map[string]string{
 	"identity.read_only_preview":                           "permission",
 	"identity.role_name_taken":                             "business_rejection",
 	"identity.role_platform_permission":                    "input",
-	"identity.session_account_inactive":                    "permission",
-	"identity.tenant_access_denied":                        "permission",
-	"identity.tenant_access_not_found":                     "business_rejection",
-	"identity.use_parent_portal":                           "permission",
-	"identity.use_school_portal":                           "permission",
-	"identity.username_taken":                              "business_rejection",
 }
 
 func init() {

@@ -565,6 +565,9 @@ func parseSickNoteDates(raw []string) ([]timezone.Date, error) {
 
 // renderParentWriteError maps the service sentinels to stable HTTP codes.
 func renderParentWriteError(w http.ResponseWriter, r *http.Request, err error) {
+	if renderParentPickupPermissionError(w, r, err) {
+		return
+	}
 	if renderParentCareWriteError(w, r, err) {
 		return
 	}

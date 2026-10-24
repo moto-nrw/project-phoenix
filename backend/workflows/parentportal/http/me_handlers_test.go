@@ -277,6 +277,34 @@ func (f *fakeParentService) SubmitCareExceptionWithReason(_ context.Context, acc
 	return f.careException, f.careExceptionErr
 }
 
+func (f *fakeParentService) SubmitPickupChange(ctx context.Context, accountID, studentID int64, submission parentService.PickupChangeSubmission) (*careplan.CareScheduleChangeRequest, error) {
+	return f.SubmitPickupChangeRequest(ctx, accountID, studentID, submission.Date, submission.PickupTime, submission.DepartureMode, submission.Reason, submission.RecipientGuardianProfileIDs)
+}
+
+func (f *fakeParentService) EditPickupChange(ctx context.Context, accountID, studentID, requestID int64, edit parentService.PickupChangeEdit) (*careplan.CareScheduleChangeRequest, error) {
+	return f.EditPickupChangeRequest(ctx, accountID, studentID, requestID, edit.Date, edit.PickupTime, edit.DepartureMode, edit.Reason, edit.ExpectedVersion)
+}
+
+func (f *fakeParentService) CreateSignedCareScheduleRequest(ctx context.Context, accountID, studentID int64, payload map[string]any, _ *parentService.PickupSignatureInput) (*parentService.ChildCareSchedule, error) {
+	return f.CreateCareScheduleRequest(ctx, accountID, studentID, payload)
+}
+
+func (f *fakeParentService) EditSignedCareScheduleRequest(ctx context.Context, accountID, studentID, requestID int64, payload map[string]any, expectedVersion string, _ *parentService.PickupSignatureInput) (*parentService.ChildCareSchedule, error) {
+	return f.EditCareScheduleRequest(ctx, accountID, studentID, requestID, payload, expectedVersion)
+}
+
+func (f *fakeParentService) SubmitPickupPermissionRequest(context.Context, int64, int64, int64, parentService.PickupPermissionInput) (*careplan.CareScheduleChangeRequest, error) {
+	return nil, errors.New("fake: pickup permission request not stubbed")
+}
+
+func (f *fakeParentService) ListPickupPermissionRequests(context.Context, int64, int64) ([]careplan.CareScheduleChangeRequest, error) {
+	return nil, nil
+}
+
+func (f *fakeParentService) PickupRequestProof(context.Context, int64, int64, int64) (*parentService.PickupProof, error) {
+	return nil, parentService.ErrPickupProofNotFound
+}
+
 func (f *fakeParentService) SubmitPickupChangeRequest(_ context.Context, accountID, studentID int64, date timezone.Date, pickup time.Time, departureMode, reason string, _ []int64) (*careplan.CareScheduleChangeRequest, error) {
 	f.gotCareAccount = accountID
 	f.gotCareStudent = studentID

@@ -2,6 +2,12 @@
 package common
 
 const (
+	CodeIdentitySessionAccountInactive                = "identity.session_account_inactive"
+	CodeIdentityTenantAccessDenied                    = "identity.tenant_access_denied"
+	CodeIdentityTenantAccessNotFound                  = "identity.tenant_access_not_found"
+	CodeIdentityUseParentPortal                       = "identity.use_parent_portal"
+	CodeIdentityUseSchoolPortal                       = "identity.use_school_portal"
+	CodeIdentityUsernameTaken                         = "identity.username_taken"
 	CodeImportFileColumnsMissing                      = "import.file_columns_missing"
 	CodeImportFileMissing                             = "import.file_missing"
 	CodeImportFileNoRows                              = "import.file_no_rows"
@@ -189,6 +195,8 @@ const (
 	CodeStudentsPickupChangeConflict                  = "students.pickup_change_conflict"
 	CodeStudentsPickupChangeExpired                   = "students.pickup_change_expired"
 	CodeStudentsPickupChangeImpactChanged             = "students.pickup_change_impact_changed"
+	CodeStudentsPickupPermissionContactGone           = "students.pickup_permission_contact_gone"
+	CodeStudentsPickupProofNotFound                   = "students.pickup_proof_not_found"
 	CodeStudentsPickupResetRequiresOffering           = "students.pickup_reset_requires_offering"
 	CodeStudentsReasonRequired                        = "students.reason_required"
 	CodeStudentsRequestNotDecided                     = "students.request_not_decided"
@@ -294,17 +302,15 @@ const (
 	CodeTimetableSlotListDrifted                      = "timetable.slot_list_drifted"
 	CodeTimetableSlotListGroupingInvalid              = "timetable.slot_list_grouping_invalid"
 	CodeTimetableSlotListPickupPastDate               = "timetable.slot_list_pickup_past_date"
-	CodeTimetableSlotListReconciliationFutureDate     = "timetable.slot_list_reconciliation_future_date"
-	CodeTimetableSlotListsDisabled                    = "timetable.slot_lists_disabled"
-	CodeTimetableSpontaneousActivitiesDisabled        = "timetable.spontaneous_activities_disabled"
-	CodeTimetableSpontaneousCategoryArchived          = "timetable.spontaneous_category_archived"
-	CodeTimetableStaffAbsentOnDate                    = "timetable.staff_absent_on_date"
-	CodeTimetableStaffAbsentOnSource                  = "timetable.staff_absent_on_source"
-	CodeTimetableStaffAbsentOnTarget                  = "timetable.staff_absent_on_target"
-	CodeTimetableStaffAlreadyOnTarget                 = "timetable.staff_already_on_target"
 )
 
 var errorCodeClasses1 = map[string]string{
+	"identity.session_account_inactive":                   "permission",
+	"identity.tenant_access_denied":                       "permission",
+	"identity.tenant_access_not_found":                    "business_rejection",
+	"identity.use_parent_portal":                          "permission",
+	"identity.use_school_portal":                          "permission",
+	"identity.username_taken":                             "business_rejection",
 	"import.file_columns_missing":                         "input",
 	"import.file_missing":                                 "input",
 	"import.file_no_rows":                                 "input",
@@ -492,6 +498,8 @@ var errorCodeClasses1 = map[string]string{
 	"students.pickup_change_conflict":                     "business_rejection",
 	"students.pickup_change_expired":                      "business_rejection",
 	"students.pickup_change_impact_changed":               "business_rejection",
+	"students.pickup_permission_contact_gone":             "business_rejection",
+	"students.pickup_proof_not_found":                     "business_rejection",
 	"students.pickup_reset_requires_offering":             "business_rejection",
 	"students.reason_required":                            "input",
 	"students.request_not_decided":                        "business_rejection",
@@ -597,14 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.slot_list_drifted":                         "business_rejection",
 	"timetable.slot_list_grouping_invalid":                "input",
 	"timetable.slot_list_pickup_past_date":                "input",
-	"timetable.slot_list_reconciliation_future_date":      "input",
-	"timetable.slot_lists_disabled":                       "permission",
-	"timetable.spontaneous_activities_disabled":           "permission",
-	"timetable.spontaneous_category_archived":             "business_rejection",
-	"timetable.staff_absent_on_date":                      "business_rejection",
-	"timetable.staff_absent_on_source":                    "input",
-	"timetable.staff_absent_on_target":                    "business_rejection",
-	"timetable.staff_already_on_target":                   "business_rejection",
 }
 
 func init() {
