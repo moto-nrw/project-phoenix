@@ -23,6 +23,23 @@ type unavailableStatusSignatureService struct {
 	signatureProofCalls  int
 }
 
+type unavailableAdminSignatureDecisionService struct {
+	DecisionService
+	summary *RequestSummary
+}
+
+func (s unavailableAdminSignatureDecisionService) Get(context.Context, int64) (*RequestSummary, error) {
+	return s.summary, nil
+}
+
+func (unavailableAdminSignatureDecisionService) MarkRequestsRead(context.Context, int64, []int64) error {
+	return nil
+}
+
+func (unavailableAdminSignatureDecisionService) ListChildOfferings(context.Context, int64) (map[int64]ChildOfferingSet, error) {
+	return nil, nil
+}
+
 func (s *unavailableStatusSignatureService) GetByStatusToken(context.Context, string) (*Request, []*RequestChild, error) {
 	return &Request{}, nil, nil
 }
@@ -45,7 +62,7 @@ func (s *unavailableStatusSignatureService) SignatureProof(context.Context, int6
 	return nil, errStatusSignatureUnavailable
 }
 
-func statusSignatureTestContext(t *testing.T, adminTransactions *int, savepointActions *[]tenant.SavepointAction) context.Context {
+func signatureResilienceTestContext(t *testing.T, adminTransactions *int, savepointActions *[]tenant.SavepointAction) context.Context {
 	t.Helper()
 	runtime, err := tenant.NewUnitOfWork(
 		func(ctx context.Context, _ int64, fn func(context.Context, any) error) error {
@@ -75,7 +92,7 @@ func TestStatusSignatureFailureDoesNotHideJSONStatus(t *testing.T) {
 	request := httptest.NewRequest(http.MethodGet, "/requests/token", nil)
 	route := chi.NewRouteContext()
 	route.URLParams.Add("statusToken", "token")
-	request = request.WithContext(context.WithValue(statusSignatureTestContext(t, &adminTransactions, &savepointActions), chi.RouteCtxKey, route))
+	request = request.WithContext(context.WithValue(signatureResilienceTestContext(t, &adminTransactions, &savepointActions), chi.RouteCtxKey, route))
 	response := httptest.NewRecorder()
 
 	rs.getStatus(response, request)
@@ -107,7 +124,7 @@ func TestStatusSignatureProofFailureStillRejectsPDF(t *testing.T) {
 	request := httptest.NewRequest(http.MethodGet, "/requests/token?format=pdf", nil)
 	route := chi.NewRouteContext()
 	route.URLParams.Add("statusToken", "token")
-	request = request.WithContext(context.WithValue(statusSignatureTestContext(t, &adminTransactions, &savepointActions), chi.RouteCtxKey, route))
+	request = request.WithContext(context.WithValue(signatureResilienceTestContext(t, &adminTransactions, &savepointActions), chi.RouteCtxKey, route))
 	response := httptest.NewRecorder()
 
 	rs.getStatus(response, request)
@@ -117,4 +134,59 @@ func TestStatusSignatureProofFailureStillRejectsPDF(t *testing.T) {
 	assert.Equal(t, 1, service.signatureProofCalls)
 	assert.Equal(t, 1, adminTransactions)
 	assert.Equal(t, []tenant.SavepointAction{tenant.CreateSavepoint, tenant.ReleaseSavepoint}, savepointActions)
+}
+
+func TestAdminSignatureFailureDoesNotHideJSONDetail(t *testing.T) {
+	t.Parallel()
+	service := &unavailableStatusSignatureService{}
+	rs := &Resource{
+		RequestService: service,
+		DecisionService: unavailableAdminSignatureDecisionService{summary: &RequestSummary{
+			Request: &Request{ID: 42, GuardianFirstName: "Anna", GuardianLastName: "Beispiel"},
+		}},
+	}
+	adminTransactions := 0
+	var savepointActions []tenant.SavepointAction
+
+	request := httptest.NewRequest(http.MethodGet, "/admin/requests/42", nil)
+	route := chi.NewRouteContext()
+	route.URLParams.Add("id", "42")
+	request = request.WithContext(context.WithValue(signatureResilienceTestContext(t, &adminTransactions, &savepointActions), chi.RouteCtxKey, route))
+	response := httptest.NewRecorder()
+
+	rs.getAdminRequest(response, request)
+
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+	assert.NotContains(t, response.Body.String(), `"signature"`)
+	assert.Equal(t, 1, service.signatureProofCalls)
+	assert.Zero(t, adminTransactions)
+	assert.Equal(t, []tenant.SavepointAction{
+		tenant.CreateSavepoint, tenant.RollbackSavepoint, tenant.ReleaseSavepoint,
+	}, savepointActions)
+}
+
+func TestAdminSignatureProofFailureStillRejectsPDF(t *testing.T) {
+	t.Parallel()
+	service := &unavailableStatusSignatureService{}
+	rs := &Resource{
+		RequestService: service,
+		DecisionService: unavailableAdminSignatureDecisionService{summary: &RequestSummary{
+			Request: &Request{ID: 42, GuardianFirstName: "Anna", GuardianLastName: "Beispiel"},
+		}},
+	}
+	adminTransactions := 0
+	var savepointActions []tenant.SavepointAction
+
+	request := httptest.NewRequest(http.MethodGet, "/admin/requests/42?format=pdf", nil)
+	route := chi.NewRouteContext()
+	route.URLParams.Add("id", "42")
+	request = request.WithContext(context.WithValue(signatureResilienceTestContext(t, &adminTransactions, &savepointActions), chi.RouteCtxKey, route))
+	response := httptest.NewRecorder()
+
+	rs.getAdminRequest(response, request)
+
+	assert.Equal(t, http.StatusInternalServerError, response.Code, response.Body.String())
+	assert.Equal(t, 1, service.signatureProofCalls)
+	assert.Zero(t, adminTransactions)
+	assert.Empty(t, savepointActions, "the required PDF proof must not be downgraded to best-effort")
 }

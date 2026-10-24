@@ -306,6 +306,7 @@ func (rs *Resource) getAdminRequest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	claims := sessiontoken.ClaimsFromCtx(r.Context())
+	proofRequested := wantsProofPDF(r)
 	var (
 		detail    AdminRequestDetail
 		summary   *RequestSummary
@@ -326,7 +327,7 @@ func (rs *Resource) getAdminRequest(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		detail = rs.toAdminRequestDetail(ctx, s)
-		if signature, e = rs.attachAdminSignature(ctx, &detail, id); e != nil {
+		if signature, e = rs.loadAdminSignature(ctx, &detail, id, proofRequested); e != nil {
 			return e
 		}
 		return rs.attachAdminUploads(ctx, &detail, id)
@@ -340,7 +341,7 @@ func (rs *Resource) getAdminRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// ?format=pdf downloads the proof of the parent's signature (#4786).
-	if wantsProofPDF(r) {
+	if proofRequested {
 		rs.writeAdminSignatureProof(w, r, summary, signature)
 		return
 	}

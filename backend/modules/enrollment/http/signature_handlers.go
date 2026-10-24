@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"sort"
 	"strconv"
@@ -14,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/tenant"
 
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 )
@@ -76,6 +78,26 @@ func (rs *Resource) attachAdminSignature(ctx context.Context, detail *AdminReque
 	}
 	detail.Signature = newRequestSignatureResponse(proof.Signature, true)
 	return proof, nil
+}
+
+// loadAdminSignature enriches the JSON detail without hiding the enrollment
+// when the optional signature read is unavailable. The PDF needs the complete
+// proof, so it deliberately retains that read's failure.
+func (rs *Resource) loadAdminSignature(ctx context.Context, detail *AdminRequestDetail, requestID int64, proofRequested bool) (*SignatureProof, error) {
+	if proofRequested {
+		return rs.attachAdminSignature(ctx, detail, requestID)
+	}
+	if err := tenant.WithSavepoint(ctx, func(savepointCtx context.Context) error {
+		_, err := rs.attachAdminSignature(savepointCtx, detail, requestID)
+		return err
+	}); err != nil {
+		rs.logger().Warn("enrollment detail: load signature failed",
+			slog.String("error", err.Error()))
+		if errors.Is(err, tenant.ErrSavepointControl) {
+			return nil, err
+		}
+	}
+	return nil, nil
 }
 
 // signatureProof is what a proof PDF prints.
