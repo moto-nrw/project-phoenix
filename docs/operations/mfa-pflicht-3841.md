@@ -173,7 +173,7 @@ Anhang 1, Ziff. 2 „Zugang“, als konkreten Text prüfen:
 > Privilegierte Kundenkonten einschließlich Verwaltungsrechten sowie Zugriffe
 > auf Gesundheitsdokumente, Personalstammdaten, allgemeine Personaldokumente und
 > Personalfinanzdaten verlangen einen zusätzlichen Anmeldenachweis unabhängig
-> von der Schuleinstellung. Das gilt auch für das Verwalten fremder Arbeitszeiten
+> von der Schuleinstellung. Das gilt ebenso für Einkommensnachweise der Eltern. Das gilt auch für das Verwalten fremder Arbeitszeiten
 > und das Genehmigen von Urlaub. Das alleinige Leserecht `users:read`, auch für
 > Gesundheitshinweise der Kinder, löst diese Pflicht nicht aus. Sitzungen ohne diesen
 > Nachweis werden bei der nächsten Erneuerung zur erneuten Anmeldung gezwungen.
