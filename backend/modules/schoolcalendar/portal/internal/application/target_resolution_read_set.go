@@ -76,11 +76,38 @@ func (s *service) loadTargetStaff(ctx context.Context, selection targetSelection
 		readSet.reachableStaff = reachable
 	}
 	if selection.allTeachers {
-		teachers, err := s.cfg.StaffRepo.FindSchoolPortalStaffIDs(ctx)
+		return s.loadTargetTeachers(ctx, selection, readSet)
+	}
+	return nil
+}
+
+func (s *service) loadTargetTeachers(ctx context.Context, selection targetSelection, readSet *targetResolutionReadSet) error {
+	teachers, err := s.cfg.StaffRepo.FindSchoolPortalStaffIDs(ctx)
+	if err != nil {
+		return err
+	}
+	if len(teachers) == 0 {
+		return nil
+	}
+	ids := make([]int64, 0, len(teachers))
+	for id := range teachers {
+		ids = append(ids, id)
+	}
+	schoolReachable, err := s.cfg.StaffRepo.FindReachableSchoolCalendarStaffIDs(ctx, ids)
+	if err != nil {
+		return err
+	}
+	staffReachable := readSet.reachableStaff
+	if !selection.allStaff {
+		staffReachable, err = s.cfg.StaffRepo.FindReachableCalendarStaffIDs(ctx, ids)
 		if err != nil {
 			return err
 		}
-		readSet.teachers = teachers
+	}
+	for id := range teachers {
+		if schoolReachable[id] || staffReachable[id] {
+			readSet.teachers[id] = true
+		}
 	}
 	return nil
 }

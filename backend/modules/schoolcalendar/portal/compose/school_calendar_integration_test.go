@@ -349,3 +349,46 @@ func TestSchoolCalendarIntegration_FeedRequiresCurrentCalendarPermission(t *test
 	_, err = service.AuthenticateStaffCalDAV(testpkg.Ctx(t), account.Email, token)
 	require.NoError(t, err)
 }
+
+func TestSchoolCalendarIntegration_TeacherTargetsRequireCalendarAccess(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	service, _ := setupSchoolCalendarService(t, db)
+	_, organizer := testpkg.CreateTestCalendarStaff(t, db, "OGS", "Einladungen")
+	expected := make(map[int64]bool)
+	for _, permission := range []string{"calendar:school", "calendar:own", ""} {
+		staff, account := testpkg.CreateTestStaffWithAccount(t, db, "Schulportal", "Kalenderrecht")
+		role := testpkg.CreateTestRole(t, db, "teacher-target")
+		_, err := db.ExecContext(testpkg.Ctx(t), "UPDATE auth.roles SET school_portal = TRUE WHERE id = ?", role.ID)
+		require.NoError(t, err)
+		_, err = db.ExecContext(testpkg.Ctx(t), "INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)", account.ID, role.ID, testpkg.Tenant(t))
+		require.NoError(t, err)
+		// Start with school access in every case, then revoke it where appropriate.
+		_, err = db.ExecContext(testpkg.Ctx(t), `INSERT INTO auth.role_permissions (role_id, permission_id)
+			SELECT ?, id FROM auth.permissions WHERE name = 'calendar:school'`, role.ID)
+		require.NoError(t, err)
+		if permission != "calendar:school" {
+			_, err = db.ExecContext(testpkg.Ctx(t), "DELETE FROM auth.role_permissions WHERE role_id = ?", role.ID)
+			require.NoError(t, err)
+		}
+		if permission == "calendar:own" {
+			testpkg.GrantTestPermission(t, db, testpkg.Tenant(t), account.ID, permission)
+		}
+		if permission != "" {
+			expected[staff.ID] = true
+		}
+	}
+
+	detail, err := testpkg.TenantQuery1(t, calendarContext(t, organizer.ID), db, service.CreateStaffAppointment, calendarSvc.CreateAppointmentRequest{
+		Title: "Einladung an erreichbare Lehrkräfte", StartDate: portalDate(2026, 3, 5),
+		StartTime: wallClock(18, 0), EndTime: wallClock(19, 0),
+		DeliveryMode: appointments.DeliveryModeRSVPRequired,
+		Targets:      []calendarSvc.AppointmentTarget{{Type: appointments.TargetTypeAllTeachers}},
+	})
+	require.NoError(t, err)
+	require.Len(t, detail.Recipients, len(expected), "teachers without either calendar permission receive no pending invitation")
+	for staffID := range expected {
+		assert.NotZero(t, findRecipientByStaff(t, detail, staffID))
+	}
+}

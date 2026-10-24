@@ -23,9 +23,8 @@ func (r *targetRecipients) addTarget(readSet *targetResolutionReadSet, target Ap
 		// staff would leave RSVP appointments permanently pending.
 		r.addStaff(readSet.reachableStaff)
 	case appointmentcap.TargetTypeAllTeachers:
-		// The Lehrkräfte reach the calendar in moto schule, not through
-		// calendar:own; a school without them simply adds nobody, like a
-		// school without staff for all_staff.
+		// Only invite school-portal staff with calendar:school or calendar:own;
+		// unreachable teachers would leave RSVP appointments pending.
 		r.addStaff(readSet.teachers)
 	case appointmentcap.TargetTypeStaff:
 		if !readSet.reachableStaff[*target.ID] {
