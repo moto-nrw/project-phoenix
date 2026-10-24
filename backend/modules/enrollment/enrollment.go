@@ -56,4 +56,5 @@ type Owner interface {
 	SubmissionRateLimitRetention
 	SubmittedOfferingQueries
 	SubmittedOfferingCommands
+	RequestUploadRecords
 }

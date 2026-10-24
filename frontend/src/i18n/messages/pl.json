@@ -1155,7 +1155,8 @@
       "pickupConfirm": "Proszę potwierdzić zasady odbioru (wybrać dni lub zostawić puste).",
       "weekdayRequired": "Proszę wybrać co najmniej jeden dzień tygodnia.",
       "weekdayModeConfirm": "Proszę potwierdzić zasady powrotu do domu i odbioru.",
-      "weekdayMultiModeRequired": "Proszę wybrać dla każdego dnia opieki co najmniej jeden sposób powrotu do domu."
+      "weekdayMultiModeRequired": "Proszę wybrać dla każdego dnia opieki co najmniej jeden sposób powrotu do domu.",
+      "file": "Prześlij co najmniej jeden plik."
     },
     "actions": {
       "addChild": "Kolejne dziecko",
@@ -1305,6 +1306,23 @@
       "noCare": "Nie zarezerwowano żadnych ofert.",
       "hint": "Zmiany dla dziecka {name} wprowadzają Państwo teraz w aplikacji dla rodziców.",
       "noAccess": "Nie mogą Państwo korzystać z aplikacji dla rodziców? Proszę skontaktować się z OGS."
+    },
+    "upload": {
+      "errorObject": "plik",
+      "choose": "Wybierz plik",
+      "chooseMore": "Wybierz kolejny plik",
+      "allowed": "Dozwolone: {types}, najwyżej {max} MB na plik.",
+      "upTo": "Do {count} plików.",
+      "camera": "Na telefonie możesz też zrobić zdjęcie.",
+      "uploading": "Przesyłanie …",
+      "remove": "Usuń {name}",
+      "wrongType": "Ten plik ma niewłaściwy rodzaj. Dozwolone: {types}.",
+      "tooLarge": "Ten plik jest za duży. Dozwolone jest najwyżej {max} MB.",
+      "empty": "Ten plik jest pusty. Wybierz inny plik.",
+      "onlyOne": "Tutaj możesz przesłać tylko jeden plik.",
+      "tooMany": "Tutaj możesz przesłać najwyżej {count} plików.",
+      "pendingSubmit": "Poczekaj, aż wszystkie pliki zostaną przesłane.",
+      "previewDisabled": "W podglądzie nie można przesyłać plików."
     }
   },
   "enrollmentStatus": {
@@ -2329,6 +2347,11 @@
         "legal_block_key_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "legal_block_required_not_allowed": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "legal_document_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "form_field_file_options_invalid": "Sprawdź pytanie o plik. Wybierz co najmniej jeden rodzaj pliku i rozmiar od 1 do 10 MB.",
+        "upload_invalid": "Ten plik nie pasuje. Wybierz dozwolony rodzaj pliku o rozmiarze najwyżej {max_mb} MB.",
+        "upload_expired": "Przesłany plik wygasł. Prześlij go ponownie.",
+        "upload_rate_limited": "Przesłano zbyt wiele plików. Spróbuj ponownie później.",
+        "upload_not_found": "Tego pliku już nie ma. Prześlij go ponownie.",
         "message_required": "Napisz wiadomość.",
         "offering_adjustment_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "phase_care_offering_conflict": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",

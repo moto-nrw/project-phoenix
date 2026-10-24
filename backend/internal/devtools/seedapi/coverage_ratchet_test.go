@@ -85,6 +85,7 @@ var seedCoverageExemptions = map[string]string{
 	"education.grade_transition_class_teachers":     "empty in prod too",
 
 	"enrollment.care_offering_auto_triggers": "empty in prod too",
+	"enrollment.request_upload_cleanup":      "holds the file removal of a deleted parent upload (#4783); the seed deletes no upload",
 
 	"feedback.entries": "empty in prod too",
 

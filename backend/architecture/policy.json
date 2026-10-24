@@ -1039,6 +1039,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/organizationtenancy/erasureledger",
+      "owner": "organization-tenancy",
+      "role": "public",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
       "path": "modules/organizationtenancy/internal/adapters/postgres",
       "owner": "organization-tenancy",
       "role": "postgres",
@@ -4176,6 +4183,14 @@
     },
     {
       "name": "enrollment.request_reads",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.request_upload_cleanup",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.request_uploads",
       "write_owner": "enrollment"
     },
     {

@@ -154,6 +154,7 @@ const (
 	CodeEnrollmentFormAttachmentInvalid                  = "enrollment.form_attachment_invalid"
 	CodeEnrollmentFormFieldAllowedTimesInvalid           = "enrollment.form_field_allowed_times_invalid"
 	CodeEnrollmentFormFieldContentRequired               = "enrollment.form_field_content_required"
+	CodeEnrollmentFormFieldFileOptionsInvalid            = "enrollment.form_field_file_options_invalid"
 	CodeEnrollmentFormFieldKeyDuplicate                  = "enrollment.form_field_key_duplicate"
 	CodeEnrollmentFormFieldKeyInvalid                    = "enrollment.form_field_key_invalid"
 	CodeEnrollmentFormFieldLabelRequired                 = "enrollment.form_field_label_required"
@@ -204,6 +205,10 @@ const (
 	CodeEnrollmentStatusLinkInvalid                      = "enrollment.status_link_invalid"
 	CodeEnrollmentStudentExists                          = "enrollment.student_exists"
 	CodeEnrollmentSubmissionRateLimited                  = "enrollment.submission_rate_limited"
+	CodeEnrollmentUploadExpired                          = "enrollment.upload_expired"
+	CodeEnrollmentUploadInvalid                          = "enrollment.upload_invalid"
+	CodeEnrollmentUploadNotFound                         = "enrollment.upload_not_found"
+	CodeEnrollmentUploadRateLimited                      = "enrollment.upload_rate_limited"
 	CodeEnrollmentWaitlistDisabled                       = "enrollment.waitlist_disabled"
 	CodeEnrollmentWindowClosed                           = "enrollment.window_closed"
 	CodeEnrollmentWithdrawNotAllowed                     = "enrollment.withdraw_not_allowed"
@@ -297,11 +302,6 @@ const (
 	CodeIotInvalidRfidTag                                = "iot.invalid_rfid_tag"
 	CodeIotInvalidStaffClockRequest                      = "iot.invalid_staff_clock_request"
 	CodeIotInvalidStaffClockState                        = "iot.invalid_staff_clock_state"
-	CodeIotNoActiveGroupsInRoom                          = "iot.no_active_groups_in_room"
-	CodeIotNoActiveSession                               = "iot.no_active_session"
-	CodeIotNoAttendanceRecordToday                       = "iot.no_attendance_record_today"
-	CodeIotNoRoomAvailable                               = "iot.no_room_available"
-	CodeIotNoSessionToEnd                                = "iot.no_session_to_end"
 )
 
 var errorCodeClasses0 = map[string]string{
@@ -457,6 +457,7 @@ var errorCodeClasses0 = map[string]string{
 	"enrollment.form_attachment_invalid":                   "input",
 	"enrollment.form_field_allowed_times_invalid":          "input",
 	"enrollment.form_field_content_required":               "input",
+	"enrollment.form_field_file_options_invalid":           "input",
 	"enrollment.form_field_key_duplicate":                  "input",
 	"enrollment.form_field_key_invalid":                    "input",
 	"enrollment.form_field_label_required":                 "input",
@@ -507,6 +508,10 @@ var errorCodeClasses0 = map[string]string{
 	"enrollment.status_link_invalid":                       "business_rejection",
 	"enrollment.student_exists":                            "business_rejection",
 	"enrollment.submission_rate_limited":                   "unavailable",
+	"enrollment.upload_expired":                            "input",
+	"enrollment.upload_invalid":                            "input",
+	"enrollment.upload_not_found":                          "business_rejection",
+	"enrollment.upload_rate_limited":                       "unavailable",
 	"enrollment.waitlist_disabled":                         "business_rejection",
 	"enrollment.window_closed":                             "business_rejection",
 	"enrollment.withdraw_not_allowed":                      "permission",
@@ -600,11 +605,6 @@ var errorCodeClasses0 = map[string]string{
 	"iot.invalid_rfid_tag":                                 "input",
 	"iot.invalid_staff_clock_request":                      "input",
 	"iot.invalid_staff_clock_state":                        "business_rejection",
-	"iot.no_active_groups_in_room":                         "input",
-	"iot.no_active_session":                                "input",
-	"iot.no_attendance_record_today":                       "input",
-	"iot.no_room_available":                                "input",
-	"iot.no_session_to_end":                                "input",
 }
 
 func init() {

@@ -565,7 +565,7 @@ func composeServeRoot(
 				return err
 			}
 			mountPortalRoutes(router, limiters, newAccountResource(db, identity, organizations, services.CaregiverCapability, settings.Service),
-				operator, newParentResource(identity, parent, calendarApp, flows, guardianProfiles, organizations, deliveryDevices, notifications))
+				operator, newParentResource(logger, identity, parent, calendarApp, flows, guardianProfiles, organizations, deliveryDevices, notifications))
 			return nil
 		},
 	)

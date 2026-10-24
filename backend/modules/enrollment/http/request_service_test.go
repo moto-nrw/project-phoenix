@@ -271,6 +271,7 @@ func setupRequestTest(t *testing.T) *requestTestEnv {
 		SchoolRepo:       factorySchools{repos: repoFactorySchools},
 		RateLimitRepo:    repoFactory.Enrollment(),
 		LateInviteRepo:   repoFactory.Enrollment(),
+		Uploads:          repoFactory.Enrollment(),
 		OutboxEnqueuer:   outbox,
 		Settings:         settings,
 		FrontendURL:      "http://localhost:3000",

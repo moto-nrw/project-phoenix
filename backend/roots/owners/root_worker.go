@@ -87,6 +87,7 @@ func workerRetentionOf(
 		workforceCompose.NewSickNoteRetention(StaffSickNoteRetentionSettings{Settings: settings}),
 		audit, deliveryCompose.NewRetention(),
 	)
+	steps = append(steps, enrollmentUploadRetentionStep(settings, logger))
 	steps = append(steps, protocolRetentionSteps(
 		audit, settingsCompose.NewAuditRetention(), exportTransferCompose.NewJournalRetention(),
 	)...)

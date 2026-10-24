@@ -298,6 +298,40 @@ func (rs *Resource) submitParentEnrollment(w http.ResponseWriter, r *http.Reques
 	rs.respondParentEnrollment(w, r, out)
 }
 
+// uploadParentEnrollment stores a file for the authenticated parents-portal
+// form. It uses the same school and audience checks as form bootstrap, then
+// hands only those server-derived facts to Enrollment.
+func (rs *Resource) uploadParentEnrollment(w http.ResponseWriter, r *http.Request) {
+	if rs.EnrollmentForms == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("parent enrollment uploads not configured")))
+		return
+	}
+	if rs.ParentService == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("parent enrollment uploads: parent service missing")))
+		return
+	}
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
+	if claims.ID == 0 {
+		common.RenderError(w, r, common.ErrorUnauthorized(sessiontoken.ErrTokenUnauthorized))
+		return
+	}
+	slug := strings.TrimSpace(chi.URLParam(r, "tenantSlug"))
+	if slug == "" {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("tenant slug is required")))
+		return
+	}
+	school, err := rs.resolveEnrollmentSchool(r.Context(), slug)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorNotFound(err))
+		return
+	}
+	linkedParents, existingStudents, ok := rs.enrollmentBootstrapAudience(w, r, int64(claims.ID), school.ID, school)
+	if !ok {
+		return
+	}
+	rs.EnrollmentForms.StoreUpload(w, r, school.ID, linkedParents, existingStudents)
+}
+
 // parentSubmitOutcome captures the mutually-distinguished results of the
 // tenant-tx submit closure so the post-tx mapping can pick the right response.
 type parentSubmitOutcome struct {

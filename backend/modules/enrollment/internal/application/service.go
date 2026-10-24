@@ -9,6 +9,7 @@ import (
 
 type Store interface {
 	DirectStore
+	enrollment.RequestUploadRecords
 	ApprovedOfferingChildrenForStudents(context.Context, []int64) ([]enrollment.OfferingChildFacts, error)
 	OfferingChildren(context.Context, []int64) ([]enrollment.OfferingChildFacts, error)
 	enrollment.SubmittedOfferingQueries

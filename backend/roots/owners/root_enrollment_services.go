@@ -138,6 +138,8 @@ type EnrollmentFlows struct {
 	Reports        enrollmentOwner.Reports
 	ChangeRequests enrollmentOwner.ChangeRequests
 	Rollovers      enrollmentOwner.Rollovers
+	// Uploads serves the files parents attach to staff (#4783).
+	Uploads *enrollmentOwner.RequestUploads
 }
 
 // BuildEnrollmentFlows binds the intake, the reports, the change requests and
@@ -159,7 +161,7 @@ func BuildEnrollmentFlows(
 			Guardians: records, LateInviteRepo: records, CareOfferingRepo: notices.CareOfferings,
 			Capacity: capacity, Catalog: records, SchoolRepo: EnrollmentSchoolDirectory{Schools: organizations},
 			Notifications: notices.Notifications, StudentRepo: people.Students, GuardianAuthorizer: people.StudentGuardians,
-			RateLimitRepo: records, OutboxEnqueuer: intakeMailOutbox(outbox), Settings: settings,
+			RateLimitRepo: records, Uploads: records, OutboxEnqueuer: intakeMailOutbox(outbox), Settings: settings,
 			AdminSubscribers: NewEnrollmentAdminSubscribers(consent, identity), ManualDecider: decisions,
 			FrontendURL: links.FrontendURL, ParentsURL: links.ParentsURL, Logger: env.Logger.With("service", "enrollment-request"),
 		}),
@@ -181,6 +183,7 @@ func BuildEnrollmentFlows(
 			Settings:             settings, OutboxEnqueuer: intakeMailOutbox(outbox), FrontendURL: links.FrontendURL, ParentsURL: links.ParentsURL,
 			Logger: env.Logger.With("service", "enrollment-change-request"),
 		}),
+		Uploads: NewEnrollmentRequestUploads(records, audit.Persistence.DataAccessLog, settings, env.Logger.With("service", "enrollment-uploads")),
 		Rollovers: NewEnrollmentRollovers(EnrollmentRolloverSources{
 			Bookings: enrollment.CareBookings, Phases: records, Requests: records, Children: records,
 			Catalog: offerings.Catalog, Notifications: notices.Notifications, PhaseEligibility: phases,

@@ -1155,7 +1155,8 @@
       "pickupConfirm": "Lütfen teslim alma düzenini onaylayın (günleri seçin veya boş bırakın).",
       "weekdayRequired": "Lütfen haftanın en az bir gününü seçin.",
       "weekdayModeConfirm": "Lütfen eve gidiş ve teslim alma düzenini onaylayın.",
-      "weekdayMultiModeRequired": "Lütfen her bakım günü için en az bir eve dönüş yolu seçin."
+      "weekdayMultiModeRequired": "Lütfen her bakım günü için en az bir eve dönüş yolu seçin.",
+      "file": "Lütfen en az bir dosya yükleyin."
     },
     "actions": {
       "addChild": "Başka çocuk ekle",
@@ -1305,6 +1306,23 @@
       "noCare": "Seçilen teklif yok.",
       "hint": "{name} için değişiklikler artık veli uygulaması üzerinden yapılır.",
       "noAccess": "Veli uygulamasına giremiyor musunuz? Lütfen OGS ile iletişime geçin."
+    },
+    "upload": {
+      "errorObject": "dosya",
+      "choose": "Dosya seç",
+      "chooseMore": "Başka dosya seç",
+      "allowed": "İzin verilenler: {types}, dosya başına en fazla {max} MB.",
+      "upTo": "En fazla {count} dosya.",
+      "camera": "Telefonda fotoğraf da çekebilirsiniz.",
+      "uploading": "Yükleniyor …",
+      "remove": "{name} kaldır",
+      "wrongType": "Bu dosyanın türü yanlış. İzin verilenler: {types}.",
+      "tooLarge": "Bu dosya çok büyük. En fazla {max} MB izin verilir.",
+      "empty": "Bu dosya boş. Lütfen başka bir dosya seçin.",
+      "onlyOne": "Buraya yalnızca bir dosya yükleyebilirsiniz.",
+      "tooMany": "Buraya en fazla {count} dosya yükleyebilirsiniz.",
+      "pendingSubmit": "Lütfen tüm dosyalar yüklenene kadar bekleyin.",
+      "previewDisabled": "Önizlemede dosya yükleyemezsiniz."
     }
   },
   "enrollmentStatus": {
@@ -2329,6 +2347,11 @@
         "legal_block_key_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "legal_block_required_not_allowed": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "legal_document_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "form_field_file_options_invalid": "Lütfen dosya sorusunu kontrol edin. En az bir dosya türü ve 1 ile 10 MB arasında bir boyut seçin.",
+        "upload_invalid": "Bu dosya uygun değil. Lütfen en fazla {max_mb} MB olan izin verilen bir dosya türü seçin.",
+        "upload_expired": "Yüklenen bir dosyanın süresi doldu. Lütfen dosyayı tekrar yükleyin.",
+        "upload_rate_limited": "Çok fazla dosya yüklendi. Lütfen daha sonra tekrar deneyin.",
+        "upload_not_found": "Bu dosya artık yok. Lütfen dosyayı tekrar yükleyin.",
         "message_required": "Lütfen bir mesaj yazın.",
         "offering_adjustment_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "phase_care_offering_conflict": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
