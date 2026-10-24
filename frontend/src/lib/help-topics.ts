@@ -99,6 +99,8 @@ export const HELP_TOPICS = {
   nfcProblem: "nfc-tablet-funktioniert-nicht",
   loginProblem: "anmeldung-funktioniert-nicht",
   errorMessages: "fehlermeldungen",
+  // Eigene Einwilligung zur Nutzungsanalyse (#4901), in allen drei Portalen.
+  analyticsConsent: "nutzungsanalyse-erlauben-oder-ablehnen",
   dataManagement: "datenverwaltung",
   enrollments: "anmeldungen-pruefen",
   settings: "einstellungen-ueberblick",

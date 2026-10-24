@@ -354,6 +354,7 @@ type Owner interface {
 	AccountSessionAccess
 	RFIDQuery
 	AccountProfiles
+	AccountAnalyticsConsent
 	SchoolAccountQuery
 	InvitedPersonQuery
 	StudentGuardianInvitationQuery

@@ -83,6 +83,7 @@ basis
 	DELETE /operator/schools/{id}/settings/values/{key}
 	GET /
 	GET /.well-known/caldav
+	GET /analytics-consent/
 	GET /analytics-policy
 	GET /api/active/analytics/dashboard
 	GET /api/active/combined/
@@ -596,6 +597,7 @@ basis
 	POST /operator/staff-person-merges/{schoolId}
 	POST /operator/unregistered-tag-scans/{id}/resolve
 	PUT /.well-known/caldav
+	PUT /analytics-consent/
 	PUT /api/active/combined/{id}
 	PUT /api/active/groups/{id}
 	PUT /api/active/supervisors/{id}
