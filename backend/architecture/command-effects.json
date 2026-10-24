@@ -73066,7 +73066,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0098",
+      "approval_adr": "0101",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/studentpresence/internal/application.Service.observe. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR."
     },
     {
