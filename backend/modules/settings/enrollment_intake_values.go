@@ -28,8 +28,12 @@ func NewEnrollmentIntakeValues(source EnrollmentIntakeSource) EnrollmentIntakeVa
 	return EnrollmentIntakeValues{source: source}
 }
 
+// EnrollmentEnabled opens the public intake only while the school booked
+// the module Online-Anmeldung and switched enrollment.enabled on (#4893): the
+// school switch fine-tunes inside the module, it never opens a cancelled one.
 func (v EnrollmentIntakeValues) EnrollmentEnabled(ctx context.Context) bool {
-	return configSvc.ResolveBoolOrDefault(ctx, v.source, configModel.KeyEnrollmentEnabled, false, nil)
+	return configSvc.ResolveBoolOrDefault(ctx, v.source, configModel.KeyModuleOnlineAnmeldung, false, nil) &&
+		configSvc.ResolveBoolOrDefault(ctx, v.source, configModel.KeyEnrollmentEnabled, false, nil)
 }
 
 func (v EnrollmentIntakeValues) AllowSubmissionEdit(ctx context.Context) (bool, error) {
