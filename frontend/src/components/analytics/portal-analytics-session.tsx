@@ -10,7 +10,7 @@ import {
   stopAnalyticsConsent,
 } from "~/lib/analytics-consent";
 import {
-  germanAnalyticsConsentCopy,
+  SCHOOL_ANALYTICS_CONSENT_COPY,
   useParentAnalyticsConsentCopy,
 } from "~/components/analytics/analytics-consent-copy";
 import { AnalyticsConsentPrompt } from "~/components/analytics/analytics-consent-prompt";
@@ -19,8 +19,6 @@ const PORTALS = {
   parents: { scope: "parent", role: "guardian", consent: "parent" },
   school: { scope: "school", role: "lehrkraft", consent: "school" },
 } as const;
-
-const SCHOOL_CONSENT_COPY = germanAnalyticsConsentCopy("Einstellungen");
 
 function ParentConsentPrompt() {
   return (
@@ -114,6 +112,9 @@ export function PortalAnalyticsSession({
   return surface === "parents" ? (
     <ParentConsentPrompt />
   ) : (
-    <AnalyticsConsentPrompt portal="school" copy={SCHOOL_CONSENT_COPY} />
+    <AnalyticsConsentPrompt
+      portal="school"
+      copy={SCHOOL_ANALYTICS_CONSENT_COPY}
+    />
   );
 }

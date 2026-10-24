@@ -77,7 +77,7 @@ func (res *AnalyticsConsentResource) get(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	consent, err := res.consent.FindAnalyticsConsent(r.Context(), accountID)
-	res.respondConsent(w, r, consent.Granted, err)
+	res.respondConsent(w, r, consent.Granted, err, "Analytics consent retrieved successfully")
 }
 
 func (res *AnalyticsConsentResource) decide(w http.ResponseWriter, r *http.Request) {
@@ -92,10 +92,10 @@ func (res *AnalyticsConsentResource) decide(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	consent, err := res.consent.DecideAnalyticsConsent(r.Context(), accountID, *req.Granted)
-	res.respondConsent(w, r, consent.Granted, err)
+	res.respondConsent(w, r, consent.Granted, err, "Analytics consent saved successfully")
 }
 
-func (res *AnalyticsConsentResource) respondConsent(w http.ResponseWriter, r *http.Request, granted *bool, err error) {
+func (res *AnalyticsConsentResource) respondConsent(w http.ResponseWriter, r *http.Request, granted *bool, err error, message string) {
 	switch {
 	case errors.Is(err, identityaccess.ErrAccountNotFound):
 		common.RenderError(w, r, common.ErrorUnauthorized(err))
@@ -103,6 +103,6 @@ func (res *AnalyticsConsentResource) respondConsent(w http.ResponseWriter, r *ht
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 	default:
 		w.Header().Set("Cache-Control", "no-store")
-		common.Respond(w, r, http.StatusOK, analyticsConsentResponse{Granted: granted}, "Analytics consent retrieved successfully")
+		common.Respond(w, r, http.StatusOK, analyticsConsentResponse{Granted: granted}, message)
 	}
 }

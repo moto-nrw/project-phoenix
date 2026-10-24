@@ -73,7 +73,10 @@ describe("AnalyticsConsentSection", () => {
     vi.stubGlobal("fetch", vi.fn());
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    // Ends the session of this test's module, with its visibility listener.
+    const consent = await import("~/lib/analytics-consent");
+    consent.stopAnalyticsConsent("tenant");
     vi.unstubAllGlobals();
   });
 

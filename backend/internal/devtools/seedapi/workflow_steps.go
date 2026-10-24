@@ -260,8 +260,7 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 		steps = append(steps, parentRequestsSeedStep{seeder: seeder}, seedEnrollmentIncomeProofStep{}, seedOfferingRosterStep{seeder: seeder}, seedFamilyAppAccountsStep{seeder: seeder})
 	}
 	steps = append(steps,
-		seedParentEngagementStep{},
-		seedAnalyticsConsentStep{},
+		seedParentEngagementStep{}, seedAnalyticsConsentStep{},
 		seedGradeTransitionStep{},
 		seedParentLetterStep{},
 		seedParentPollStep{},

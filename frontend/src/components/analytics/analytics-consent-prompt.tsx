@@ -37,6 +37,9 @@ export function AnalyticsConsentPrompt({
   const consent = useAnalyticsConsent();
   const [saving, setSaving] = useState<boolean | null>(null);
   const errors = useApiFormError();
+  const recordingText = recording
+    ? copy.recordingActive
+    : copy.recordingPossible;
   const open =
     consent.portal === portal &&
     consent.status === "ready" &&
@@ -104,9 +107,7 @@ export function AnalyticsConsentPrompt({
         <p>
           {copy.promptIntro} {copy.promptPrivacy}
         </p>
-        {recording && copy.promptRecording ? (
-          <p>{copy.promptRecording}</p>
-        ) : null}
+        {recordingText ? <p>{recordingText}</p> : null}
         <p>
           {copy.promptNoDisadvantage} {copy.promptChangeLater}
         </p>

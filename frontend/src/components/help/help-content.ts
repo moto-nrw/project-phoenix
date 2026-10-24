@@ -8239,10 +8239,10 @@ function analyticsConsentTopic(): HelpTopic {
       "Ihre Wahl gilt für Ihr Konto, in jeder Schule. Schalten Sie aus, endet die Zählung sofort.",
     notes: [
       "Ihre Schule kann die Nutzungsanalyse für alle ausschalten. Dann fragt moto Sie nicht. Ihre Wahl gilt wieder, sobald die Schule einschaltet.",
-      "Hat Ihre Schule Aufzeichnungen erlaubt, steht das im OGS-Portal bei `Nutzungsanalyse`. Texte, Eingaben und Bilder sind darin unkenntlich.",
+      "Im OGS-Portal gilt Ihre Wahl auch für Aufzeichnungen, wenn Ihre Schule sie erlaubt. Texte, Eingaben und Bilder sind darin unkenntlich.",
+      "Sie haben die Frage über das Kreuz oben rechts geschlossen? Dann zählt moto nichts. moto fragt beim nächsten Öffnen noch einmal.",
     ],
     differences: [
-      "Sie haben den Dialog geschlossen, ohne zu wählen? Dann zählt moto nichts. moto fragt bei der nächsten Anmeldung noch einmal.",
       "Am Computer steht `Einstellungen` in der Eltern-App in der Navigation statt hinter `Mehr`.",
     ],
     related: [],

@@ -3,7 +3,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ChartLine } from "lucide-react";
 import {
-  germanAnalyticsConsentCopy,
+  SCHOOL_ANALYTICS_CONSENT_COPY,
+  TENANT_ANALYTICS_CONSENT_COPY,
   useParentAnalyticsConsentCopy,
   type AnalyticsConsentCopy,
 } from "~/components/analytics/analytics-consent-copy";
@@ -47,6 +48,9 @@ export function AnalyticsConsentSection({
   const latestToggleRef = useRef<(next: boolean) => void>(() => undefined);
   const shownLoadErrorRef = useRef<unknown>(null);
   const failed = consent.portal === portal && consent.status === "error";
+  const recordingText = recording
+    ? copy.recordingActive
+    : copy.recordingPossible;
 
   useEffect(() => {
     if (!failed || shownLoadErrorRef.current === consent.error) return;
@@ -107,8 +111,8 @@ export function AnalyticsConsentSection({
           {consent.schoolAllows ? null : (
             <p className="text-sm text-gray-600">{copy.schoolOff}</p>
           )}
-          {recording && copy.recording ? (
-            <p className="text-sm text-gray-600">{copy.recording}</p>
+          {recordingText ? (
+            <p className="text-sm text-gray-600">{recordingText}</p>
           ) : null}
         </div>
       )}
@@ -116,16 +120,13 @@ export function AnalyticsConsentSection({
   );
 }
 
-const TENANT_COPY = germanAnalyticsConsentCopy("Profil");
-const SCHOOL_COPY = germanAnalyticsConsentCopy("Einstellungen");
-
 /** OGS profile: also names the recordings of a school with Analyse-Freigabe. */
 export function TenantAnalyticsConsentSection() {
   const { tenant } = useTenant();
   return (
     <AnalyticsConsentSection
       portal="tenant"
-      copy={TENANT_COPY}
+      copy={TENANT_ANALYTICS_CONSENT_COPY}
       recording={
         tenant?.analyticsEnabled === true && tenant.analyticsFreigabe === true
       }
@@ -134,7 +135,12 @@ export function TenantAnalyticsConsentSection() {
 }
 
 export function SchoolAnalyticsConsentSection() {
-  return <AnalyticsConsentSection portal="school" copy={SCHOOL_COPY} />;
+  return (
+    <AnalyticsConsentSection
+      portal="school"
+      copy={SCHOOL_ANALYTICS_CONSENT_COPY}
+    />
+  );
 }
 
 export function ParentAnalyticsConsentSection() {

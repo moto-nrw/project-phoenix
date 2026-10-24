@@ -32,7 +32,7 @@ vi.mock("~/components/analytics/analytics-consent-prompt", () => ({
   AnalyticsConsentPrompt: () => null,
 }));
 vi.mock("~/components/analytics/analytics-consent-copy", () => ({
-  germanAnalyticsConsentCopy: () => ({}),
+  SCHOOL_ANALYTICS_CONSENT_COPY: {},
   useParentAnalyticsConsentCopy: () => ({}),
 }));
 

@@ -16,7 +16,7 @@ import * as z from "zod/mini";
 import { clientEnv } from "~/env.client";
 import { analyticsDeployment } from "~/lib/analytics-deployment";
 import type { AnalyticsSurface } from "~/lib/analytics-policy";
-import { apiErrorFromBody, transportFetch } from "~/lib/api-error";
+import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
 import {
   analyticsHostSurface,
   setAnalyticsContext,
@@ -68,6 +68,12 @@ const consentResponseSchema = z.object({
 let state = IDLE;
 let sessionKey: string | null = null;
 let sequence = 0;
+let revocationPending = false;
+let deciding = false;
+let stopRefresh: (() => void) | null = null;
+
+/** How often an open, visible page re-reads the answer of its session. */
+const REFRESH_INTERVAL_MS = 5 * 60 * 1_000;
 const listeners = new Set<() => void>();
 
 function update(next: Partial<AnalyticsConsentState>): void {
@@ -96,21 +102,21 @@ async function requestConsent(
     ...init,
     headers: { "Content-Type": "application/json", ...init?.headers },
   });
-  const text = await response.text();
-  let body: unknown = null;
-  try {
-    body = text ? (JSON.parse(text) as unknown) : null;
-  } catch {
-    body = null;
-  }
   if (!response.ok) {
-    throw apiErrorFromBody(
+    throw await apiErrorFromResponse(
+      response,
       `Nutzungsstatistik-Einwilligung fehlgeschlagen (${response.status}).`,
-      response.status,
-      body,
     );
   }
-  return consentResponseSchema.parse(body).data.granted;
+  return consentResponseSchema.parse(await response.json()).data.granted;
+}
+
+/**
+ * Collection follows the stored answer, except after a revocation that could
+ * not be saved: that one keeps this page off until a decision is stored.
+ */
+function publishStored(): void {
+  publishConsent(state.granted === true && !revocationPending);
 }
 
 /**
@@ -137,13 +143,51 @@ export function startAnalyticsConsent(
   const key = `${portal}:${accountKey}`;
   if (sessionKey === key) {
     // A cleared analytics context forgets the answer; the session keeps it.
-    if (state.status === "ready") publishConsent(state.granted === true);
+    if (state.status === "ready") publishStored();
     return;
   }
   sessionKey = key;
+  revocationPending = false;
   publishConsent(false);
   update({ ...IDLE, portal, status: "loading" });
+  watchOtherTabs();
   void loadAnalyticsConsent();
+}
+
+/**
+ * A revocation in another tab or portal reaches this page when it becomes
+ * visible again and every five minutes while it stays visible. The re-read
+ * is quiet: the settings card keeps its state, and a failed read denies.
+ */
+function watchOtherTabs(): void {
+  stopRefresh?.();
+  const refreshVisible = () => {
+    if (document.visibilityState === "visible") void refreshAnalyticsConsent();
+  };
+  document.addEventListener("visibilitychange", refreshVisible);
+  const interval = window.setInterval(refreshVisible, REFRESH_INTERVAL_MS);
+  stopRefresh = () => {
+    document.removeEventListener("visibilitychange", refreshVisible);
+    window.clearInterval(interval);
+    stopRefresh = null;
+  };
+}
+
+async function refreshAnalyticsConsent(): Promise<void> {
+  const portal = state.portal;
+  // A decision in flight owns the answer; its own result follows.
+  if (!portal || state.status !== "ready" || deciding) return;
+  const current = ++sequence;
+  try {
+    const granted = await requestConsent(portal);
+    if (current !== sequence) return;
+    update({ granted });
+    publishStored();
+  } catch {
+    // A failed re-read is not shown: the card keeps the last stored answer,
+    // and collection stays off until a read or decision succeeds.
+    if (current === sequence) publishConsent(false);
+  }
 }
 
 /** (Re)reads the current session's answer; also the retry of a failed read. */
@@ -155,8 +199,8 @@ export async function loadAnalyticsConsent(): Promise<void> {
   try {
     const granted = await requestConsent(portal);
     if (current !== sequence) return;
-    publishConsent(granted === true);
     update({ status: "ready", granted });
+    publishStored();
   } catch (error) {
     if (current !== sequence) return;
     publishConsent(false);
@@ -169,6 +213,8 @@ export function stopAnalyticsConsent(portal: AnalyticsConsentPortal): void {
   if (state.portal !== portal && !ownsHost(portal)) return;
   sessionKey = null;
   sequence++;
+  revocationPending = false;
+  stopRefresh?.();
   if (state.portal) publishConsent(false);
   update(IDLE);
 }
@@ -190,15 +236,26 @@ export function setAnalyticsConsentSchool(
 export async function decideAnalyticsConsent(granted: boolean): Promise<void> {
   const portal = state.portal;
   if (!portal) return;
-  if (!granted) publishConsent(false);
+  if (!granted) {
+    // Stays in force for this page even if saving fails.
+    revocationPending = true;
+    publishConsent(false);
+  }
   const current = ++sequence;
-  const stored = await requestConsent(portal, {
-    method: "PUT",
-    body: JSON.stringify({ granted }),
-  });
+  deciding = true;
+  let stored: boolean | null;
+  try {
+    stored = await requestConsent(portal, {
+      method: "PUT",
+      body: JSON.stringify({ granted }),
+    });
+  } finally {
+    deciding = false;
+  }
   if (current !== sequence) return;
-  publishConsent(stored === true);
+  revocationPending = false;
   update({ status: "ready", granted: stored, error: null, dismissed: true });
+  publishStored();
 }
 
 /** Closes the prompt without an answer; it returns with the next page load. */

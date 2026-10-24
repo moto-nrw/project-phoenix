@@ -48,7 +48,9 @@ both outside the demo. The consent belongs to the account and holds in every
 portal and school. Undecided, refused, failed reads, previews and anonymous
 pages (login, public enrollment, status pages) load no SDK and send no
 `X-POSTHOG-SESSION-ID`; a revocation stops capture, recording and the header
-before it is saved, a consent applies only once stored. The prompt asks only
+before it is saved and holds on that page even if saving fails, a consent
+applies only once stored. Open pages re-read the answer when they become
+visible and every five minutes, so a revocation reaches other tabs. The prompt asks only
 undecided accounts of a school that allows collection, on deployments with a
 PostHog key; the demo is exempt. Backend core actions of an account without
 consent keep counting for the school but carry no `$session_id` and no

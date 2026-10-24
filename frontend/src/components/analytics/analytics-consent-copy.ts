@@ -11,7 +11,6 @@ export interface AnalyticsConsentCopy {
   readonly promptTitle: string;
   readonly promptIntro: string;
   readonly promptPrivacy: string;
-  readonly promptRecording: string;
   readonly promptNoDisadvantage: string;
   readonly promptChangeLater: string;
   readonly allow: string;
@@ -21,16 +20,20 @@ export interface AnalyticsConsentCopy {
   readonly sectionDescription: string;
   readonly switchLabel: string;
   readonly schoolOff: string;
-  readonly recording: string;
+  /**
+   * Recordings exist only in the OGS portal of a school with Analyse-Freigabe.
+   * The consent covers them, so the OGS texts say so before and while they
+   * run; portals without recordings leave both empty.
+   */
+  readonly recordingActive: string;
+  readonly recordingPossible: string;
   /** Noun phrase with article for the shared error display. */
   readonly errorObject: string;
 }
 
-/** Where the person changes the answer later, as the navigation names it. */
-type SettingsPlace = "Profil" | "Einstellungen";
-
-export function germanAnalyticsConsentCopy(
-  place: SettingsPlace,
+function germanCopy(
+  place: "Profil" | "Einstellungen",
+  recordings: boolean,
 ): AnalyticsConsentCopy {
   return {
     title: "Nutzungsanalyse",
@@ -38,10 +41,8 @@ export function germanAnalyticsConsentCopy(
     promptIntro:
       "moto möchte zählen, welche Seiten und Schaltflächen Sie nutzen. So machen wir moto besser.",
     promptPrivacy: "Namen und Eingaben sieht moto dabei nicht.",
-    promptRecording:
-      "Ihre Schule hat zusätzlich Aufzeichnungen erlaubt. Texte, Eingaben und Bilder sind darin unkenntlich.",
     promptNoDisadvantage: "Wenn Sie ablehnen, können Sie moto genauso nutzen.",
-    promptChangeLater: `Sie können das jederzeit unter „${place}“ ändern.`,
+    promptChangeLater: `Ihre Wahl gilt für Ihr Konto. Sie können sie jederzeit unter „${place}“ ändern.`,
     allow: "Erlauben",
     refuse: "Ablehnen",
     saving: "Wird gespeichert…",
@@ -51,11 +52,21 @@ export function germanAnalyticsConsentCopy(
     switchLabel: "Nutzungsanalyse erlauben",
     schoolOff:
       "Ihre Schule hat die Nutzungsanalyse ausgeschaltet. Ihre Wahl gilt, sobald die Schule sie wieder einschaltet.",
-    recording:
-      "Ihre Schule hat zusätzlich Aufzeichnungen erlaubt. Texte, Eingaben und Bilder sind darin unkenntlich. Niemand wird damit bewertet.",
+    recordingActive: recordings
+      ? "Ihre Schule hat zusätzlich Aufzeichnungen erlaubt. Ihre Wahl gilt auch dafür. Texte, Eingaben und Bilder sind darin unkenntlich. Niemand wird damit bewertet."
+      : "",
+    recordingPossible: recordings
+      ? "Erlaubt Ihre Schule Aufzeichnungen, gilt Ihre Wahl auch dafür. Texte, Eingaben und Bilder sind darin unkenntlich."
+      : "",
     errorObject: "die Einstellung zur Nutzungsanalyse",
   };
 }
+
+/** OGS portal: changed under „Profil“, the only portal with recordings. */
+export const TENANT_ANALYTICS_CONSENT_COPY = germanCopy("Profil", true);
+
+/** moto schule: changed under „Einstellungen“, never recorded. */
+export const SCHOOL_ANALYTICS_CONSENT_COPY = germanCopy("Einstellungen", false);
 
 export function useParentAnalyticsConsentCopy(): AnalyticsConsentCopy {
   const t = useTranslations("analyticsConsent");
@@ -64,8 +75,6 @@ export function useParentAnalyticsConsentCopy(): AnalyticsConsentCopy {
     promptTitle: t("promptTitle"),
     promptIntro: t("promptIntro"),
     promptPrivacy: t("promptPrivacy"),
-    // Recordings exist only in the OGS portal of a school with Freigabe.
-    promptRecording: "",
     promptNoDisadvantage: t("promptNoDisadvantage"),
     promptChangeLater: t("promptChangeLater"),
     allow: t("allow"),
@@ -75,7 +84,9 @@ export function useParentAnalyticsConsentCopy(): AnalyticsConsentCopy {
     sectionDescription: t("sectionDescription"),
     switchLabel: t("switchLabel"),
     schoolOff: t("schoolOff"),
-    recording: "",
+    // The parents portal is never recorded.
+    recordingActive: "",
+    recordingPossible: "",
     errorObject: t("errorObject"),
   };
 }

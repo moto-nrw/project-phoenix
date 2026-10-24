@@ -60,7 +60,12 @@ describe("analytics consent", () => {
     vi.stubGlobal("fetch", fetchMock);
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    // Ends the session of this test's module, with its visibility listener.
+    const consent = await load();
+    for (const portal of ["tenant", "parent", "school"] as const)
+      consent.stopAnalyticsConsent(portal);
+    vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });
 
@@ -193,6 +198,65 @@ describe("analytics consent", () => {
     fetchMock.mockResolvedValueOnce(answer(null));
     startAnalyticsConsent("tenant", "8");
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("follows a revocation from another tab when the page becomes visible", async () => {
+    fetchMock.mockResolvedValueOnce(answer(true));
+    const { startAnalyticsConsent, stopAnalyticsConsent } = await load();
+    startAnalyticsConsent("tenant", "7");
+    await vi.waitFor(() => expect(published()).toEqual([false, true]));
+
+    // The other tab revoked; this one is hidden, so it does not ask yet.
+    const visibility = vi.spyOn(document, "visibilityState", "get");
+    visibility.mockReturnValue("hidden");
+    document.dispatchEvent(new Event("visibilitychange"));
+    expect(fetchMock).toHaveBeenCalledOnce();
+
+    fetchMock.mockResolvedValueOnce(answer(false));
+    visibility.mockReturnValue("visible");
+    document.dispatchEvent(new Event("visibilitychange"));
+    await vi.waitFor(() => expect(published()).toEqual([false, true, false]));
+
+    // A failed re-read denies as well.
+    fetchMock.mockResolvedValueOnce(answer(null, 500));
+    document.dispatchEvent(new Event("visibilitychange"));
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+    expect(published().at(-1)).toBe(false);
+
+    // Logout stops the re-reads.
+    stopAnalyticsConsent("tenant");
+    document.dispatchEvent(new Event("visibilitychange"));
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    visibility.mockRestore();
+  });
+
+  it("keeps a revocation that could not be saved in force on this page", async () => {
+    fetchMock.mockResolvedValueOnce(answer(true));
+    const { startAnalyticsConsent, decideAnalyticsConsent } = await load();
+    startAnalyticsConsent("tenant", "7");
+    await vi.waitFor(() => expect(published()).toEqual([false, true]));
+
+    fetchMock.mockResolvedValueOnce(answer(null, 500));
+    await expect(decideAnalyticsConsent(false)).rejects.toMatchObject({
+      status: 500,
+    });
+    expect(published().at(-1)).toBe(false);
+
+    // Neither the session's republish nor a re-read with the old stored
+    // answer turns collection back on.
+    startAnalyticsConsent("tenant", "7");
+    expect(published().at(-1)).toBe(false);
+    fetchMock.mockResolvedValueOnce(answer(true));
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
+    document.dispatchEvent(new Event("visibilitychange"));
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+    await new Promise((done) => setTimeout(done, 0));
+    expect(published().at(-1)).toBe(false);
+
+    // A saved answer ends the block.
+    fetchMock.mockResolvedValueOnce(answer(true));
+    await decideAnalyticsConsent(true);
+    expect(published().at(-1)).toBe(true);
   });
 
   it.each([

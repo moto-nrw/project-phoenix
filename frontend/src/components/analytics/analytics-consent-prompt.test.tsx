@@ -40,11 +40,11 @@ async function signedIn(granted: boolean | null, schoolAllows = true) {
   consent.setAnalyticsConsentSchool("tenant", schoolAllows);
   await act(async () => {});
   const { AnalyticsConsentPrompt } = await import("./analytics-consent-prompt");
-  const { germanAnalyticsConsentCopy } =
+  const { TENANT_ANALYTICS_CONSENT_COPY } =
     await import("./analytics-consent-copy");
   // Same module instance as the component after vi.resetModules().
   const { ToastProvider } = await import("~/contexts/ToastContext");
-  const copy = germanAnalyticsConsentCopy("Profil");
+  const copy = TENANT_ANALYTICS_CONSENT_COPY;
   return {
     consent,
     copy,
@@ -53,7 +53,7 @@ async function signedIn(granted: boolean | null, schoolAllows = true) {
       render(
         <AnalyticsConsentPrompt
           portal="tenant"
-          copy={germanAnalyticsConsentCopy("Profil")}
+          copy={copy}
           recording={recording}
         />,
         { wrapper: ToastProvider },
@@ -77,7 +77,10 @@ describe("AnalyticsConsentPrompt", () => {
     vi.stubGlobal("fetch", vi.fn());
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    // Ends the session of this test's module, with its visibility listener.
+    const consent = await import("~/lib/analytics-consent");
+    consent.stopAnalyticsConsent("tenant");
     vi.unstubAllGlobals();
   });
 
@@ -99,8 +102,11 @@ describe("AnalyticsConsentPrompt", () => {
     expect(allow.className).toBe(refuse.className);
     expect(document.activeElement).not.toBe(allow);
     expect(document.activeElement).not.toBe(refuse);
-    // No recording sentence without the school's Analyse-Freigabe.
-    expect(dialog).not.toHaveTextContent("Aufzeichnungen");
+    // The consent covers recordings a school may allow later (#4901).
+    expect(dialog).toHaveTextContent(
+      "Erlaubt Ihre Schule Aufzeichnungen, gilt Ihre Wahl auch dafür.",
+    );
+    expect(dialog).toHaveTextContent("Ihre Wahl gilt für Ihr Konto.");
     expect(lastConsent()).toBe(false);
   });
 

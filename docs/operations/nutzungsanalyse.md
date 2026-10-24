@@ -291,13 +291,19 @@ zum Konto (`auth.accounts.analytics_consent`, Zeitpunkt in
 Vorschausitzungen werden abgewiesen.
 
 - Nach dem Login fragt ein Dialog einmalig, solange das Konto nicht
-  entschieden hat und die Schule die Analyse erlaubt. `Erlauben` und
+  entschieden hat und die Schule die Analyse erlaubt. Er nennt den Kontobezug
+  und im OGS-Portal, dass die Wahl auch für Aufzeichnungen gilt. `Erlauben` und
   `Ablehnen` sind gleich gestaltet, der Fokus liegt auf dem Titel. Schließen
   entscheidet nichts; der Dialog kommt beim nächsten Seitenaufruf wieder.
 - Widerruf jederzeit: OGS-Profil, Eltern-Einstellungen und
   Schul-Einstellungen, Karte `Nutzungsanalyse`. Ein Widerruf stoppt Erfassung,
   Aufzeichnung und den Header `X-POSTHOG-SESSION-ID` sofort, noch vor dem
-  Speichern. Eine Einwilligung wirkt erst nach dem Speichern.
+  Speichern; scheitert das Speichern, bleibt diese Seite trotzdem aus. Eine
+  Einwilligung wirkt erst nach dem Speichern. Andere offene Tabs lesen die
+  Antwort neu, sobald sie wieder sichtbar werden, sonst alle fünf Minuten.
+- Ein bereits geladenes SDK bleibt nach Widerruf oder Abmeldung bis zum
+  nächsten Seitenaufruf im Speicher. Es ist abgemeldet (`opt_out`), sendet
+  nichts und setzt keinen Header mehr.
 - Ohne Einwilligung: kein SDK, kein Sitzungs-Header. Das Backend entfernt
   zusätzlich `$session_id` und die pseudonyme Person aus Kernaktionen, deren
   Konto nicht eingewilligt hat; die Kernaktion zählt nur noch für die Schule.
