@@ -1,6 +1,6 @@
 "use client";
 
-import { teacherHintText } from "~/lib/student-helpers";
+import { teacherHintKey, teacherHintText } from "~/lib/student-helpers";
 import {
   Fragment,
   useEffect,
@@ -521,7 +521,7 @@ function TimetableRosterStudentRow({
         {/* Hinweise der Lehrkraft (#4795): dieselbe Zeile wie auf den Karten. */}
         {(row.teacherHints ?? []).map((hint) => (
           <div
-            key={`${hint.school_class ?? ""}-${hint.body}`}
+            key={teacherHintKey(hint)}
             className="mt-0.5 text-sm break-words text-gray-700"
           >
             {teacherHintText(hint)}

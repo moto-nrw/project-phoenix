@@ -11,6 +11,7 @@ import { SegmentedControl } from "~/components/ui/segmented-control";
 import type { SegmentedControlItem } from "~/components/ui/segmented-control";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { LOCATION_COLORS } from "~/lib/location-helper";
+import { dayHintAuthorSuffix } from "~/lib/class-day-api";
 import type { ClassDayRow, MorningAttendanceStatus } from "~/lib/class-day-api";
 import { reportedTodayLabel } from "./day-changes";
 import {
@@ -102,7 +103,7 @@ export function StudentRow({
             className="text-xs break-words text-gray-700"
           >
             <span className="font-medium">Hinweis an die OGS:</span> {hint.body}
-            {hint.own || !hint.author_name ? "" : ` (von ${hint.author_name})`}
+            {dayHintAuthorSuffix(hint)}
           </p>
         ))}
       </div>

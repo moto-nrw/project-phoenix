@@ -69,6 +69,7 @@ import {
 } from "~/lib/location-helper";
 import {
   SCHOOL_YEAR_FILTER_OPTIONS,
+  teacherHintKey,
   teacherHintText,
 } from "~/lib/student-helpers";
 import { useMinuteClock } from "~/lib/pickup-helpers";
@@ -3623,7 +3624,7 @@ function SearchPageContent() {
                             )}
                           {(student.teacher_hints ?? []).map((hint) => (
                             <StudentInfoRow
-                              key={`${hint.school_class ?? ""}-${hint.body}`}
+                              key={teacherHintKey(hint)}
                               icon={
                                 <StickyNote
                                   className="h-3.5 w-3.5 text-gray-400"

@@ -62,6 +62,12 @@ export interface ClassDayHint {
   updated_at: string;
 }
 
+/** Der Verfasser eines Hinweises, wenn er nicht von der Lehrkraft selbst ist. */
+export function dayHintAuthorSuffix(hint: ClassDayHint): string {
+  if (hint.own || !hint.author_name) return "";
+  return ` (von ${hint.author_name})`;
+}
+
 interface ClassDayTotals {
   students: number;
   staying: number;

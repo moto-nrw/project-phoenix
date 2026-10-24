@@ -563,6 +563,10 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodDelete, "/school/class-day/arrival-exceptions/{schoolClass}/{date}"}:             event("arrival_exception_changed"),
 	{http.MethodPut, "/school/class-day/arrival-exceptions/{schoolClass}/{date}"}:                event("arrival_exception_changed"),
 	{http.MethodPost, "/school/class-day/class-trips/{schoolClass}"}:                             event("class_trip_reported"),
+	{http.MethodDelete, "/school/class-day/day-hints/{schoolClass}/{date}"}:                      event("day_hint_changed"),
+	{http.MethodPut, "/school/class-day/day-hints/{schoolClass}/{date}"}:                         event("day_hint_changed"),
+	{http.MethodDelete, "/school/class-day/day-hints/{schoolClass}/{date}/students/{studentId}"}: event("day_hint_changed"),
+	{http.MethodPut, "/school/class-day/day-hints/{schoolClass}/{date}/students/{studentId}"}:    event("day_hint_changed"),
 	{http.MethodDelete, "/school/class-day/handover/{schoolClass}/{date}"}:                       event("class_handover_withdrawn"),
 	{http.MethodPut, "/school/class-day/handover/{schoolClass}/{date}"}:                          event("class_handed_over"),
 	{http.MethodPut, "/school/class-day/morning-attendance/{schoolClass}/{date}"}:                event("morning_attendance_recorded"),
@@ -579,10 +583,6 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPatch, "/school/supervisions/{id}/students/{student_id}/attendance"}:             event("supervision_attendance_recorded"),
 	{http.MethodPost, "/school/supervisions/{id}/students/{student_id}/check-in"}:                event("supervision_attendance_recorded"),
 	{http.MethodPost, "/school/supervisions/{id}/students/{student_id}/check-out"}:               event("supervision_attendance_recorded"),
-	{http.MethodDelete, "/school/class-day/day-hints/{schoolClass}/{date}"}:                      event("day_hint_changed"),
-	{http.MethodPut, "/school/class-day/day-hints/{schoolClass}/{date}"}:                         event("day_hint_changed"),
-	{http.MethodDelete, "/school/class-day/day-hints/{schoolClass}/{date}/students/{studentId}"}: event("day_hint_changed"),
-	{http.MethodPut, "/school/class-day/day-hints/{schoolClass}/{date}/students/{studentId}"}:    event("day_hint_changed"),
 
 	// Public demo (#3462), mounted under APP_ENV=demo only. A redeemed
 	// access enters a demo school that is ready, so the entry is the proof

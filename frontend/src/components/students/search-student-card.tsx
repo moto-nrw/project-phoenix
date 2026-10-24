@@ -11,7 +11,7 @@
 // building JSX (badges, rows, indicators) in the page and handing it down as
 // props would defeat the memo again, because JSX is a new object every render.
 
-import { teacherHintText } from "~/lib/student-helpers";
+import { teacherHintKey, teacherHintText } from "~/lib/student-helpers";
 import { StickyNote } from "lucide-react";
 import {
   HANDOVER_ABSENT_WORDING,
@@ -261,7 +261,7 @@ function SearchStudentCardImpl({
             )}
           {(student.teacher_hints ?? []).map((hint) => (
             <StudentInfoRow
-              key={`${hint.school_class ?? ""}-${hint.body}`}
+              key={teacherHintKey(hint)}
               icon={
                 <StickyNote
                   className="h-3.5 w-3.5 text-gray-400"

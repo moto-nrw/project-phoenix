@@ -37,6 +37,7 @@ import type {
   ClassDayRow,
   MorningAttendanceStatus,
 } from "~/lib/class-day-api";
+import { dayHintAuthorSuffix } from "~/lib/class-day-api";
 import { formatDate, parseISODate, todayISO } from "~/lib/date-helpers";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
@@ -88,12 +89,6 @@ const DAY_HINT_TOO_LONG = `Der Hinweis ist zu lang. Bitte kürzen Sie ihn auf ${
 
 /** Ziel des Hinweises: die ganze Klasse oder ein Kind (seine ID als Text). */
 const CLASS_TARGET = "class";
-
-/** Der Verfasser eines Hinweises, wenn er nicht von der Lehrkraft selbst ist. */
-function dayHintAuthorSuffix(hint: ClassDayHint): string {
-  if (hint.own || !hint.author_name) return "";
-  return ` (von ${hint.author_name})`;
-}
 
 /**
  * Die Klassen-Tagesausnahme als eine Zeile (#2962/#2970): "Heute kommt die

@@ -629,6 +629,9 @@ func (s *service) loadPresenceSections(ctx context.Context, projection *Projecti
 	if err := s.loadPlanningTimes(ctx, projection, caller, studentIDs, fullAccess, businessDay); err != nil {
 		return err
 	}
+	if err := s.loadTeacherHints(ctx, projection, caller, studentIDs, fullAccess, businessDay); err != nil {
+		return err
+	}
 	return s.applyClassHandovers(ctx, projection, caller, businessDay)
 }
 

@@ -655,6 +655,14 @@ export function teacherHintText(hint: TeacherHint): string {
   return `Hinweis der Lehrkraft${author}${target}: ${hint.body}`;
 }
 
+/**
+ * Der React-Schlüssel eines Hinweises. Je Lehrkraft, Kind und Ziel gibt es
+ * einen Hinweis; zwei Lehrkräfte mit demselben Text bleiben getrennt.
+ */
+export function teacherHintKey(hint: TeacherHint): string {
+  return `${hint.school_class ?? ""}|${hint.author_name ?? ""}|${hint.body}`;
+}
+
 export interface Student {
   id: string;
   name: string; // Derived from FirstName + SecondName

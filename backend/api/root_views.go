@@ -182,6 +182,7 @@ func buildClassDayViews(
 			Broadcaster: hub, Logger: env.Logger.With("service", "class-day-class-trips"), ParentEventEmitter: emitter,
 			PeopleDirectory: persons, StudentStatusDayService: presence.StatusDays,
 		})),
+		BlockStarts:                   operations,
 		DayHintDependencies:           classdayCompose.DayHintDependencies{DayHints: persons, Today: calendar.CalendarDateClock(env.Now)},
 		MorningAttendanceDependencies: classdayCompose.MorningAttendanceDependencies{Store: presence.Presence, Now: env.Now},
 		ClassHandoverDependencies: classdayCompose.ClassHandoverDependencies{

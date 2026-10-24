@@ -6,8 +6,7 @@ import (
 )
 
 // The planning times (#2703): the effective pickup and arrival of each child
-// in the projection, behind the planning gate. Today's hints of the Lehrkraft
-// (#4795) are read behind the same gate.
+// in the projection, behind the planning gate.
 
 // PickupTime / ArrivalTime keep the field names of the bulk endpoints they
 // replace so the frontend mapping stays identical.
@@ -39,7 +38,7 @@ type ArrivalTime struct {
 // empty. Times are additionally scoped to full-access callers, matching the
 // actual arrival/pickup gate on the visit rows.
 func (s *service) loadPlanningTimes(ctx context.Context, projection *Projection, caller Caller, studentIDs []int64, fullAccess bool, businessDay Date) error {
-	if len(studentIDs) == 0 || !fullAccess || !caller.CanReadStudents {
+	if !planningVisible(caller, studentIDs, fullAccess) {
 		return nil
 	}
 	pickups, err := s.deps.Planning.Pickups(ctx, studentIDs, businessDay)
@@ -59,7 +58,14 @@ func (s *service) loadPlanningTimes(ctx context.Context, projection *Projection,
 			projection.ArrivalTimes = append(projection.ArrivalTimes, arrivalTimeFromEffective(id, effective))
 		}
 	}
-	return s.loadTeacherHints(ctx, projection, studentIDs, businessDay)
+	return nil
+}
+
+// planningVisible is the planning gate: users:read and full access, for at
+// least one child. The planning times and today's hints of the Lehrkraft
+// (#4795) share it.
+func planningVisible(caller Caller, studentIDs []int64, fullAccess bool) bool {
+	return len(studentIDs) > 0 && fullAccess && caller.CanReadStudents
 }
 
 func pickupTimeFromEffective(studentID int64, effective Pickup) PickupTime {

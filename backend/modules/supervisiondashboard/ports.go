@@ -230,7 +230,6 @@ type Arrival struct {
 	DayNotes    []DayNote
 }
 
-// Planning reads the effective day plans of students.
 // TeacherHint is a Lehrkraft's hint for the OGS for today (#4795), written in
 // moto schule for the child or for its whole class.
 type TeacherHint struct {
@@ -248,6 +247,7 @@ type TeacherHintReader interface {
 	TeacherHints(ctx context.Context, studentIDs []int64, date Date) ([]TeacherHint, error)
 }
 
+// Planning reads the effective day plans of students.
 type Planning interface {
 	Pickups(ctx context.Context, studentIDs []int64, date Date) (map[int64]Pickup, error)
 	Arrivals(ctx context.Context, studentIDs []int64, date Date) (map[int64]Arrival, error)

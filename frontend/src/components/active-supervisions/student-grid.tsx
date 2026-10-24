@@ -1,6 +1,6 @@
 "use client";
 
-import { teacherHintText } from "~/lib/student-helpers";
+import { teacherHintKey, teacherHintText } from "~/lib/student-helpers";
 import { StickyNote } from "lucide-react";
 import {
   HANDOVER_ABSENT_WORDING,
@@ -317,7 +317,7 @@ export function SupervisionStudentGrid({
                     ))}
                   {(student.teacher_hints ?? []).map((hint) => (
                     <StudentInfoRow
-                      key={`${hint.school_class ?? ""}-${hint.body}`}
+                      key={teacherHintKey(hint)}
                       icon={
                         <StickyNote
                           className="h-3.5 w-3.5 text-gray-400"
