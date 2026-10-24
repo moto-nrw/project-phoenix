@@ -1,7 +1,6 @@
 package compose
 
 import (
-	"context"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
@@ -109,7 +108,7 @@ func TestBindScheduleReplacesOnlyTheBinding(t *testing.T) {
 	require.ErrorIs(t, err, schoolmembership.ErrInvalidMembership)
 }
 
-func TestWithLiveStaffWritesOnlyForALiveMembership(t *testing.T) {
+func TestLockLiveStaffRefusesARetiredOrInvalidMembership(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	module, err := New(Dependencies{DB: db, Observe: func(Observation) {}, Employment: newMemoryEmployment()})
@@ -117,13 +116,9 @@ func TestWithLiveStaffWritesOnlyForALiveMembership(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	created := createStaff(t, ctx, db, module, "Live", "Staff", schoolmembership.StaffFields{})
 
-	writes := 0
-	write := func(context.Context) error { writes++; return nil }
-	require.NoError(t, module.WithLiveStaff(ctx, created.ID, write))
-	assert.Equal(t, 1, writes)
+	require.NoError(t, module.LockLiveStaff(ctx, created.ID))
 
 	require.NoError(t, module.DeleteStaff(ctx, created.ID))
-	require.ErrorIs(t, module.WithLiveStaff(ctx, created.ID, write), schoolmembership.ErrStaffNotFound)
-	require.ErrorIs(t, module.WithLiveStaff(ctx, 0, write), schoolmembership.ErrInvalidMembership)
-	assert.Equal(t, 1, writes, "a retired or invalid membership is never written")
+	require.ErrorIs(t, module.LockLiveStaff(ctx, created.ID), schoolmembership.ErrStaffNotFound)
+	require.ErrorIs(t, module.LockLiveStaff(ctx, 0), schoolmembership.ErrInvalidMembership)
 }

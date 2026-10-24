@@ -33,9 +33,9 @@ var _ = map[bool]struct{}{
 }
 
 // staffAbsenceDeletionRecord is the time-tracking deletion record of one
-// absence the offboarding removes, as the workflow builds it.
+// absence the offboarding removes, as Workforce builds it.
 func staffAbsenceDeletionRecord(absence workforce.StaffAbsence, actorID int64) (any, error) {
-	deletion, err := staffoffboarding.NewAbsenceDeletion(absence, actorID)
+	deletion, err := workforce.NewOffboardingAbsenceDeletion(absence, actorID)
 	if err != nil {
 		return nil, err
 	}

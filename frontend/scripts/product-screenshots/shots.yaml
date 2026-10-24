@@ -160,7 +160,7 @@ shots:
     pfad: /parent-announcements
   # Hilfe essensplan-veroeffentlichen
   - id: essensplan
-    titel: Essensplan der Woche
+    titel: Speiseplan der Woche
     portal: tenant
     rolle: admin
     pfad: /meal-plan

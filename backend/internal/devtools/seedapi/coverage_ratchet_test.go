@@ -66,8 +66,6 @@ var seedCoverageExemptions = map[string]string{
 	"auth.caterer_invitations":                  "a caterer exists only through the link its school mails to it, which no API returns (ADR 0077); the seeder cannot accept an invitation it never receives",
 	"auth.caterer_schools":                      "a caterer exists only through the link its school mails to it, which no API returns (ADR 0077); the seeder cannot accept an invitation it never receives",
 	"auth.caterers":                             "a caterer exists only through the link its school mails to it, which no API returns (ADR 0077); the seeder cannot accept an invitation it never receives",
-	"auth.mfa_credentials":                      "empty in prod too",
-	"auth.mfa_email_challenges":                 "empty in prod too",
 	"auth.mfa_overrides":                        "empty in prod too",
 	"auth.mfa_trusted_devices":                  "empty in prod too",
 	"auth.passkey_credentials":                  "empty in prod too",
@@ -89,6 +87,7 @@ var seedCoverageExemptions = map[string]string{
 	"education.grade_transition_class_teachers":     "empty in prod too",
 
 	"enrollment.care_offering_auto_triggers": "empty in prod too",
+	"enrollment.request_upload_cleanup":      "holds the file removal of a deleted parent upload (#4783); the seed deletes no upload",
 
 	"feedback.entries": "empty in prod too",
 
@@ -137,8 +136,9 @@ var seedCoverageDebt = map[string]string{}
 // their lifecycle completes. Unlike exemptions, a populated transient table
 // is not stale classification debt.
 var seedCoverageTransient = map[string]string{
-	"auth.invitation_tokens": "short-lived invitation state; the seed accepts some and leaves some open",
-	"platform.push_outbox":   "transient delivery state that requires an honest browser/VAPID-bound push subscription, which the server-side seed cannot create",
+	"auth.account_avatar_file_cleanup": "transient deletion intents for anonymized accounts; drained hourly, never create orphan files as demo data",
+	"auth.invitation_tokens":           "short-lived invitation state; the seed accepts some and leaves some open",
+	"platform.push_outbox":             "transient delivery state that requires an honest browser/VAPID-bound push subscription, which the server-side seed cannot create",
 }
 
 var seedCoverageAllowlist = mergeCoverageClassifications(seedCoverageExemptions, seedCoverageTransient, seedCoverageDebt)

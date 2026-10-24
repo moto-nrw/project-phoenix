@@ -21,7 +21,7 @@ var mealDeadlineKindOptions = &config.SelectOptions{Static: []config.SelectOptio
 var mealDefinitions = []config.Definition{
 	{
 		Key:             config.KeyMealPlanEnabled,
-		Label:           "Essensplan",
+		Label:           "Speiseplan",
 		Description:     "Das Team trägt pro Tag ein Gericht ein, auf Wunsch mit Hinweis. Eltern sehen den Plan für diese und nächste Woche im Elternportal.",
 		Type:            config.FieldBoolean,
 		Default:         true,

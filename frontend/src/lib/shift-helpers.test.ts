@@ -48,7 +48,7 @@ describe("mapStaffShift", () => {
     });
   });
 
-  it("maps the embedded Schichtart name and color (#1844)", () => {
+  it("maps the embedded Dienstart name and color (#1844)", () => {
     const mapped = mapStaffShift({
       id: "42",
       staff_id: 7,

@@ -52,8 +52,9 @@ export const PLANNING_SUB_PAGES: readonly PlanningSubPage[] = [
   },
   {
     // „Vertretungsplan", nicht „Terminvertretungen": neben Betreuungsplan und
-    // Dienstplan die dritte Planung; die Endung zeigt die Grenze zur
-    // Tagesübersicht „Vertretungen" im Tagesbetrieb (#2826).
+    // Dienstplan die dritte Planung. Die Tagesübersicht im Tagesbetrieb heißt
+    // „Übergaben" (#4778), damit kein Navigationseintrag mit „Vertretung"
+    // daneben steht (#2826).
     href: "/vertretung",
     label: "Vertretungsplan",
     legacyPrefixes: ["/vertretungsplan"],
@@ -79,7 +80,7 @@ export const PLANNING_SUB_PAGES: readonly PlanningSubPage[] = [
     // Zeiträume und Schließtage schreibt das Backend mit den schedules-
     // Rechten; schedules:manage steht für die Leitung, die sie pflegt.
     href: "/calendar-periods",
-    label: "Schuljahr und Ferien",
+    label: "Schuljahr und Kalender",
     legacyPrefixes: [],
     showInMobileNav: true,
     nonAdminPermission: "schedules:manage",

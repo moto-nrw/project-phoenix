@@ -25,7 +25,7 @@ export const resourceLabels: Record<string, string> = {
   system: "System",
   admin: "Administration",
   time_tracking: "Zeiterfassung",
-  grade_transitions: "Klassenwechsel",
+  grade_transitions: "Schuljahreswechsel",
   calendar: "Kalender",
   staff: "Mitarbeitende",
   files: "Dateiablage",
@@ -33,6 +33,7 @@ export const resourceLabels: Record<string, string> = {
   guardians: "Eltern",
   staff_documents: "Personalunterlagen",
   student_documents: "Unterlagen der Kinder",
+  enrollment_uploads: "Nachweise aus Anmeldungen",
   staff_notices: "Tagesinformationen",
   class_day: "Klassenansicht",
   supervision: "Aufsichten",
@@ -238,6 +239,8 @@ const permissionDescriptions: Record<string, string> = {
     "AU-Bescheinigungen von Mitarbeitenden ansehen, hochladen und löschen",
   "student_documents:health":
     "Gesundheitsunterlagen von Kindern ansehen, hochladen und löschen (Attest, Impfnachweis, Medikamentenplan)",
+  "enrollment_uploads:read":
+    "Nachweise aus Anmeldungen ansehen, zum Beispiel Einkommensnachweise",
   "student_documents:legal":
     "Sorgerechtsnachweise von Kindern ansehen, hochladen und löschen",
 
@@ -257,11 +260,11 @@ const permissionDescriptions: Record<string, string> = {
   "calendar:manage": "Termine und Einladungen erstellen und verwalten",
 
   // Grade Transitions
-  "grade_transitions:read": "Klassenwechsel ansehen",
-  "grade_transitions:create": "Klassenwechsel erstellen",
-  "grade_transitions:update": "Klassenwechsel bearbeiten",
-  "grade_transitions:delete": "Klassenwechsel löschen",
-  "grade_transitions:apply": "Klassenwechsel anwenden/zurücksetzen",
+  "grade_transitions:read": "Schuljahreswechsel ansehen",
+  "grade_transitions:create": "Schuljahreswechsel erstellen",
+  "grade_transitions:update": "Schuljahreswechsel bearbeiten",
+  "grade_transitions:delete": "Schuljahreswechsel löschen",
+  "grade_transitions:apply": "Schuljahreswechsel anwenden/zurücksetzen",
 
   // System & Admin
   "system:manage": "Einstellungen von moto verwalten (nur moto-Team)",

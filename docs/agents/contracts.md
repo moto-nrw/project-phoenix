@@ -245,6 +245,57 @@ Backend paths in this section are relative to `backend/`:
   the challenge/enrollment claims in `modules/identityaccess/sessiontoken/`, and trusted-device settings
   `security.mfa_*`. Include the school frontend's MFA chain when changing its login.
 
+#### Privileged MFA floor (#3841, slice 3841-f)
+
+Effective school permissions, not role names, impose the MFA minimum in
+`modules/identityaccess/internal/domain/mfa_privilege.go`: administrative
+account/role/auth/security/system/staff rights, health permissions and
+`staff:financial` and `enrollment_uploads:read` (parents’ income documents),
+including matching wildcards. `off` and `required_admins`
+cannot lower it. No new `force_off` exemption is accepted for privileged
+targets, even from operators; existing exemptions lose to the runtime floor.
+
+Every account session mint and refresh rechecks policy and permissions under
+policy/account locks. Migration 1.15.484 marks existing refresh sessions
+unverified; their next refresh refuses privileged access and requires login.
+Completed email/passkey exchanges and valid school-bound trusted devices
+produce `auth.tokens.mfa_verified`; rotation and bounded hand-off recovery
+preserve it. MFA reset clears proof across existing sessions. Password reset
+issues no session. Tenant switching preserves proof only from the presented
+account's live same-portal session family, read under the account lock shared with
+MFA reset. Missing, expired, revoked, unverified or foreign-portal families
+cannot satisfy target-school MFA. Such a switch returns 401 (`identity.mfa_session_required`)
+and requires direct login at the target school; MFA lookup failures return 503.
+School-portal switching uses the same live-family proof, restricted to school scope;
+it cannot reuse a tenant-portal family. The staff switcher shows the refusal without
+expiring the source session. Its explicit target-login action first requests
+revocation of the source refresh family through `/api/auth/logout`, then deletes
+the shared domain Auth.js cookie via `signOut({ callbackUrl: targetLoginUrl })`. Auth.js itself
+then navigates to the target school’s existing login page before notifying local
+required-session consumers; manual navigation after `redirect: false` can race
+their source-school redirects. Navigation alone is not reauthentication:
+the domain cookie would reach the target guard unchanged. The guard handles the
+same MFA refusal without SessionExpired redirects or automatic retries and
+offers this same explicit logout-and-login action. An HTTP error returned by
+the logout BFF stays visible and prevents navigation; 401 is treated as already
+unauthenticated. This does not confirm database revocation: the existing backend
+`/auth/logout` logs `LogoutWithAudit` failures, including database revocation
+failures, and still responds 204. The browser cannot distinguish that failure
+from success.
+If Auth.js fails to clear the cookie, the target guard still blocks access and
+offers explicit reauthentication instead of redirecting in a loop.
+School-portal cookies remain host-only and are neither used nor cleared by the tenant action; the school portal currently has no
+frontend school-switch/auto-switch consumer. Its backend switch still requires
+school-scoped live-family proof.
+Parent-scope sessions remain separate and carry no staff permissions.
+
+Enrollment uses the existing email-code flow in tenant and school portals;
+mail delivery/verification failures issue no completed session. Passkeys for
+school personnel already require verified email registration and WebAuthn user
+verification at login. Local seed tools complete the same email flow through
+local Mailpit, with no production bypass. Human rollout/recovery and count-only
+inventory: [MFA runbook](../operations/mfa-pflicht-3841.md).
+
 Token lifetimes come from `AUTH_JWT_EXPIRY` / `AUTH_JWT_REFRESH_EXPIRY`;
 do not infer them from stale examples. Check credentials, challenge completion,
 refresh, tenant switching, and wrong-portal rejection for affected flows.
@@ -256,6 +307,14 @@ refresh, tenant switching, and wrong-portal rejection for affected flows.
 `[tenant]/layout.tsx` resolves slugs through `/auth/tenant/resolve?slug=...`
 (cached five minutes). `POST /auth/switch-tenant` returns a tenant-session JWT
 for the target school, not a `scope=school` portal token.
+Verified MFA belongs to the live tenant-session family of the same account,
+not its school or organization. A permitted switch across organizations preserves
+that proof while rechecking the target school's permissions and MFA policy.
+After reset, logout, expiry or elapsed switch-retirement grace, a privileged
+target requires a fresh MFA login: 401 `identity.mfa_session_required`. Clients
+must replace the presented session with the returned tokens; login caches must
+invalidate the retired login after a successful switch. See
+[ADR 0093](../adr/0093-privilegierte-rechte-erzwingen-einen-zweiten-anmeldenachweis.md).
 A switch to a school the account cannot access answers 401 with the code
 `identity.tenant_access_denied`, which `frontend/src/lib/tenant-api.ts` reads;
 coordinate producer and consumer changes.

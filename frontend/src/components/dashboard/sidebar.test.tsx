@@ -373,7 +373,7 @@ describe("Sidebar", () => {
 
       // Admin-only items
       expect(screen.getByText("Startseite")).toBeInTheDocument();
-      expect(screen.getByText("Vertretungen")).toBeInTheDocument();
+      expect(screen.getByText("Übergaben")).toBeInTheDocument();
       expect(screen.getByText("Datenverwaltung")).toBeInTheDocument();
       // Die Planungsbereiche sind Unterpunkte des Planung-Akkordeons (#1946),
       // inklusive Schuljahr und Ferien.
@@ -381,7 +381,7 @@ describe("Sidebar", () => {
       expect(screen.getByText("Betreuungsplan")).toBeInTheDocument();
       expect(screen.getByText("Dienstplan")).toBeInTheDocument();
       expect(screen.getByText("Vertretungsplan")).toBeInTheDocument();
-      expect(screen.getByText("Schuljahr und Ferien")).toBeInTheDocument();
+      expect(screen.getByText("Schuljahr und Kalender")).toBeInTheDocument();
     });
 
     it("labels the personal calendar entry 'Mein Kalender'", () => {
@@ -768,7 +768,7 @@ describe("Sidebar", () => {
       );
     });
 
-    it("highlights Schuljahr und Ferien on /calendar-periods", () => {
+    it("highlights Schuljahr und Kalender on /calendar-periods", () => {
       // Die Zeitraum-Verwaltung ist eigener Unterpunkt im Planung-Akkordeon
       // (#1946) und leuchtet dort selbst, nicht mehr im Betreuungsplan.
       mockUsePathname.mockReturnValue("/calendar-periods");
@@ -777,7 +777,9 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
-      const periodsLink = screen.getByText("Schuljahr und Ferien").closest("a");
+      const periodsLink = screen
+        .getByText("Schuljahr und Kalender")
+        .closest("a");
       const betreuungsplanLink = screen
         .getByText("Betreuungsplan")
         .closest("a");
@@ -2305,7 +2307,7 @@ describe("Sidebar", () => {
         "Dienstplan",
         "Vertretungsplan",
         "Tageslisten",
-        "Schuljahr und Ferien",
+        "Schuljahr und Kalender",
         "Abrechnung",
         "Anmeldungen",
         "Elternzugänge",
@@ -2350,7 +2352,7 @@ describe("Sidebar", () => {
       "Nachrichten",
       "Räume",
       "Aktivitäten",
-      "Vertretungen",
+      "Übergaben",
       "Notfall",
     ];
 
@@ -2546,7 +2548,7 @@ describe("Sidebar", () => {
       } as unknown as ReturnType<typeof useSWR>);
     });
 
-    it("keeps Schuljahr und Ferien and Abrechnung when timetable.enabled is false", () => {
+    it("keeps Schuljahr und Kalender and Abrechnung when timetable.enabled is false", () => {
       mockUseSWRDefault.mockReturnValue({
         data: {
           tabs: [
@@ -2568,7 +2570,7 @@ describe("Sidebar", () => {
       // Schuljahr und Ferien bleiben erreichbar — die Anmeldephasen hängen
       // daran; nur die timetable-spezifischen Seiten verschwinden.
       expect(screen.getByText("Planung")).toBeInTheDocument();
-      expect(screen.getByText("Schuljahr und Ferien")).toBeInTheDocument();
+      expect(screen.getByText("Schuljahr und Kalender")).toBeInTheDocument();
       expect(screen.queryByText("Betreuungsplan")).not.toBeInTheDocument();
       expect(screen.queryByText("Dienstplan")).not.toBeInTheDocument();
       expect(screen.queryByText("Vertretungsplan")).not.toBeInTheDocument();
@@ -2722,7 +2724,7 @@ describe("Sidebar", () => {
     });
   });
 
-  describe("Vertretungen navigation (#2806)", () => {
+  describe("Übergaben navigation (#2806)", () => {
     beforeEach(() => {
       mockIsAdmin.mockReturnValue(true);
       mockUseSession.mockReturnValue(createMockSession(true));
@@ -2732,27 +2734,27 @@ describe("Sidebar", () => {
       mockUseOpenCareGroupMode.mockReturnValue(false);
     });
 
-    it("keeps Vertretungen for open-care tenants", () => {
+    it("keeps Übergaben for open-care tenants", () => {
       mockUseOpenCareGroupMode.mockReturnValue(true);
 
       render(<Sidebar />);
 
-      expect(screen.getByText("Vertretungen")).toBeInTheDocument();
+      expect(screen.getByText("Übergaben")).toBeInTheDocument();
     });
 
-    it("shows Vertretungen for fixed-groups tenants", () => {
+    it("shows Übergaben for fixed-groups tenants", () => {
       render(<Sidebar />);
 
-      expect(screen.getByText("Vertretungen")).toBeInTheDocument();
+      expect(screen.getByText("Übergaben")).toBeInTheDocument();
     });
 
-    it("shows Vertretungen to staff", () => {
+    it("shows Übergaben to staff", () => {
       mockIsAdmin.mockReturnValue(false);
       mockUseSession.mockReturnValue(createMockSession(false));
 
       render(<Sidebar />);
 
-      expect(screen.getByText("Vertretungen")).toBeInTheDocument();
+      expect(screen.getByText("Übergaben")).toBeInTheDocument();
     });
   });
 

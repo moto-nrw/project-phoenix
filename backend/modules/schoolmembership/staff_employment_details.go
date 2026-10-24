@@ -29,10 +29,9 @@ type BindSchedule struct {
 type StaffEmploymentCommands interface {
 	UpdateEmploymentDetails(context.Context, UpdateEmploymentDetails) (Staff, error)
 	BindSchedule(context.Context, BindSchedule) (Staff, error)
-	// WithLiveStaff runs write only for a live membership. Inside the
-	// caller's transaction the membership stays locked until it commits;
-	// without one the check and the write are two short transactions, and an
-	// offboarding that commits in between leaves the write on the retired
-	// member, which nothing reads for live staff.
-	WithLiveStaff(ctx context.Context, staffID int64, write func(context.Context) error) error
+	// LockLiveStaff locks a live membership and refuses a retired or unknown
+	// one with ErrStaffNotFound. Inside the caller's transaction the
+	// membership stays locked until it commits, so a write the caller makes
+	// after it cannot land on a member an offboarding retires meanwhile.
+	LockLiveStaff(ctx context.Context, staffID int64) error
 }

@@ -115,6 +115,7 @@ func TestSchoolErasurePlanCoversCatalogAndDeleteTriggers(t *testing.T) {
   WHERE NOT tr.tgisinternal AND (tr.tgtype::int & 8) <> 0 ORDER BY 1`).Scan(t.Context(), &triggers))
 	assert.Equal(t, []string{
 		"active.student_status_days:schedule.record_meal_sickness_status",
+		"enrollment.request_uploads:enrollment.queue_request_upload_cleanup",
 		"schedule.activity_instances:calendar.capture_activity_instance_feed_tombstones",
 		"schedule.instance_staff:calendar.capture_instance_staff_feed_tombstone",
 		"schedule.staff_shifts:calendar.capture_staff_shift_feed_tombstone",

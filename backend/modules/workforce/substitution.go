@@ -372,13 +372,3 @@ type SubstitutionEndRequest struct {
 	Type SubstitutionTargetType
 	ID   int64
 }
-
-// Substitutions is the operations capability behind /api/substitutions: the
-// overview of running handovers and supervisions, assigning a substitute, and
-// ending an assignment. Every operation runs for the given caller and
-// enforces that caller's access itself.
-type Substitutions interface {
-	Overview(context.Context, SubstitutionCaller, SubstitutionOverviewQuery) (*SubstitutionOverviewResult, error)
-	Assign(context.Context, SubstitutionCaller, SubstitutionAssignment) (*SubstitutionAssignmentResult, error)
-	End(context.Context, SubstitutionCaller, SubstitutionEndRequest) error
-}

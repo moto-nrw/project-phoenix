@@ -142,16 +142,20 @@ func newOperatorRouter(
 // newParentResource composes the cross-tenant guardian portal: public
 // /parent/auth/login and the protected /parent/* routes.
 func newParentResource(
-	identity identityaccess.Owner, parent *parentportal.Portal, calendarApp calendarCompose.Application, flows owners.EnrollmentFlows,
+	logger *slog.Logger, identity identityaccess.Owner, parent *parentportal.Portal, calendarApp calendarCompose.Application, flows owners.EnrollmentFlows,
 	guardianProfiles *peopleCompose.GuardianProfileLoader, organizations organizationtenancy.Query,
 	devices owners.DeliveryDevices, notifications owners.DeliveryNotifications,
 ) *parentAPI.Resource {
 	return parentAPI.NewResource(parentAPI.ResourceConfig{
-		Auth:                  parentPortalLogin(identity),
-		Resets:                parentPasswordResets(identity),
-		Parent:                parent,
-		Calendar:              calendarApp,
-		Enrollment:            parentEnrollmentForms(enrollmentAPI.NewRequestService(flows.Intake)),
+		Auth:     parentPortalLogin(identity),
+		Resets:   parentPasswordResets(identity),
+		Parent:   parent,
+		Calendar: calendarApp,
+		Enrollment: parentEnrollmentForms(
+			enrollmentAPI.NewRequestService(flows.Intake),
+			enrollmentUploadUnits{intake: flows.Intake, records: owners.NewEnrollmentBookings(), reads: flows.Uploads},
+			NewEnrollmentUploadStorage(logger.With("handler", "parent-enrollment-uploads")),
+		),
 		GuardianProfileLoader: newParentGuardianProfiles(guardianProfiles),
 		Schools:               parentSchoolDirectory{schools: organizations},
 		Push:                  bindParentPushSubscriptions(devices.PushSubscriptions),

@@ -229,10 +229,18 @@ func (r *refreshRotation) run(ctx context.Context) error {
 	if err := r.validateLineage(ctx, current); err != nil || r.rejectAfterCommit != nil {
 		return err
 	}
+	if err := r.service.requireSessionMFA(ctx, r.account.ID, current.TenantID, current.PortalScope, current.MFAVerified); err != nil {
+		return err
+	}
 	return r.persist(ctx, current, wasRecovered, now)
 }
 
 func (r *refreshRotation) lockAccount(ctx context.Context) error {
+	if r.service.mfa.Configured() && r.claims.Scope != domain.ScopeParent && r.claims.TenantID > 0 {
+		if err := r.service.lockMFAPolicyForMint(ctx, r.claims.AccountID, r.claims.TenantID); err != nil {
+			return err
+		}
+	}
 	unlocked, err := r.service.sessions.findAccountSessionByToken(ctx, r.claims.Token)
 	if err != nil {
 		if errors.Is(err, identityaccess.ErrAccountSessionNotFound) {
@@ -407,6 +415,7 @@ func (s *AccountAuthentication) createAndPersistSuccessor(ctx context.Context, p
 		FamilyExpiryCap: predecessor.FamilyExpiryCap,
 		Generation:      predecessor.Generation + 1,
 		PortalScope:     domain.PersistedPortalScope(scope),
+		MFAVerified:     predecessor.MFAVerified,
 		CreatedAt:       now,
 		UpdatedAt:       now,
 	}

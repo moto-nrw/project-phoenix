@@ -56,7 +56,6 @@ import (
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/observability"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	parentportal "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 
 	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
 	"github.com/moto-nrw/project-phoenix/workflows/studentdeletion"
@@ -87,6 +86,7 @@ func workerRetentionOf(
 		workforceCompose.NewSickNoteRetention(StaffSickNoteRetentionSettings{Settings: settings}),
 		audit, deliveryCompose.NewRetention(),
 	)
+	steps = append(steps, enrollmentUploadRetentionStep(settings, logger))
 	steps = append(steps, protocolRetentionSteps(
 		audit, settingsCompose.NewAuditRetention(), exportTransferCompose.NewJournalRetention(),
 	)...)
@@ -275,7 +275,6 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 		requests         CarePlanRequests
 		chat             CommunicationMessaging
 		calendarApp      calendarCompose.Application
-		parent           *parentportal.Portal
 		fileStore        filestorageModule.Capability
 		planExport       planexport.Service
 		workforce        WorkforcePlanning
@@ -500,12 +499,7 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 			return nil
 		},
 		func() (err error) {
-			parent, err = BuildParentPortal(db, env, hub, settings.Service, people, portalReads, messaging, presence, carePlanRows,
-				carePlan, persons, mealPlan, schedules, requests, services, emitter, notifications, identity, enrollment, notices)
-			return
-		},
-		func() (err error) {
-			fileStore, err = BuildFileStore(db, env, objects, identity, persons, settings.Service, audit, announcements, parent)
+			fileStore, err = BuildFileStore(db, env, objects, identity, persons, settings.Service, audit, announcements)
 			return
 		},
 		func() (err error) {

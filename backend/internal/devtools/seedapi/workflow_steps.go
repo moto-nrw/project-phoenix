@@ -219,7 +219,7 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 	}
 	steps = append(steps, parentEnrollmentSeedStep{seeder: seeder})
 	if !seeder.options.DeferHistory {
-		steps = append(steps, parentRequestsSeedStep{seeder: seeder}, seedOfferingRosterStep{seeder: seeder}, seedFamilyAppAccountsStep{seeder: seeder})
+		steps = append(steps, parentRequestsSeedStep{seeder: seeder}, seedEnrollmentIncomeProofStep{}, seedOfferingRosterStep{seeder: seeder}, seedFamilyAppAccountsStep{seeder: seeder})
 	}
 	steps = append(steps,
 		seedParentEngagementStep{},
@@ -276,7 +276,7 @@ func deferredPastSteps() []Step {
 // counts them, so both follow.
 func deferredDemoSteps(seeder *Seeder) []Step {
 	return append(deferredPastSteps(),
-		parentRequestsSeedStep{seeder: seeder}, seedOfferingRosterStep{seeder: seeder}, seedFamilyAppAccountsStep{seeder: seeder},
+		parentRequestsSeedStep{seeder: seeder}, seedEnrollmentIncomeProofStep{}, seedOfferingRosterStep{seeder: seeder}, seedFamilyAppAccountsStep{seeder: seeder},
 		seedChildQuotaStep{}, seedBillingKeyDateCountsStep{})
 }
 

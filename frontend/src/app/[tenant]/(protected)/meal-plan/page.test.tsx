@@ -89,7 +89,7 @@ function renderPage() {
   );
 }
 
-describe("Essensplan: Statuszeile bei Ladefehler (#2517)", () => {
+describe("Speiseplan: Statuszeile bei Ladefehler (#2517)", () => {
   beforeEach(() => {
     getMealPlanWeek.mockReset();
     getMealOrders.mockReset();
@@ -121,7 +121,7 @@ describe("Essensplan: Statuszeile bei Ladefehler (#2517)", () => {
 
     expect(
       await screen.findByText(
-        catalogText("general.unavailable", "die Woche im Essensplan"),
+        catalogText("general.unavailable", "die Woche im Speiseplan"),
       ),
     ).toBeInTheDocument();
     expect(screen.queryByText(/Tagen geplant/)).not.toBeInTheDocument();

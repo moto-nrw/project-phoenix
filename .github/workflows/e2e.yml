@@ -28,6 +28,7 @@ on:
       - "!frontend/e2e/layout/**"
       - "frontend/playwright.config.ts"
       - "frontend/playwright.network.config.ts"
+      - "frontend/playwright.tenant-switch.config.ts"
       - "frontend/scripts/seed-state.ts"
       - "frontend/package.json"
       - "frontend/pnpm-lock.yaml"
@@ -228,6 +229,18 @@ jobs:
           name: portal-network-evidence-${{ github.run_id }}
           path: frontend/test-results/network/*/network*.json
           if-no-files-found: error
+
+      - name: Run shared-cookie tenant-switch regression
+        working-directory: frontend
+        env:
+          NODE_OPTIONS: "--require ./e2e/network/no-subdomain-dns.cjs"
+        # Different fixture domains/keys must not reuse a stale Turbopack dev
+        # graph (observed HMR reload loop). Leave the seeded flow a fresh cache.
+        run: |
+          mfa_switch_cache=$(mktemp -d "${RUNNER_TEMP}/tenant-switch-cache.XXXXXX")
+          if [ -d .next/dev ]; then mv .next/dev "$mfa_switch_cache/before"; fi
+          trap 'if [ -d .next/dev ]; then mv .next/dev "$mfa_switch_cache/after"; fi' EXIT
+          pnpm run test:tenant-switch
 
       # playwright.config.ts starts `next dev` on port 3000 itself (CI=true
       # disables reuseExistingServer) and runs one worker.

@@ -1378,7 +1378,7 @@ function RowStatusBadge({ status }: { readonly status: RowStatus }) {
     // Homeoffice.
     return (
       <StatusColorBadge
-        label="Homeoffice"
+        label="Unterwegs"
         color={MOTO_COLOR_PALETTE.timeTracking.base}
       />
     );

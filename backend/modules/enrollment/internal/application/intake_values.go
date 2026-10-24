@@ -15,6 +15,9 @@ import (
 
 // SubmitRequest is a decoded submission.
 type SubmitRequest struct {
+	// uploadAttempt counts an upload of the public form (#4783) in the IP's
+	// upload bucket instead of the submission buckets.
+	uploadAttempt            bool
 	TenantID                 int64
 	PhaseID                  int64
 	RemoteIP                 string

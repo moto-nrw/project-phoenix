@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -16,7 +17,7 @@ func berlinAt(year int, month time.Month, day, hour, minute, second int) time.Ti
 
 func sameDayCutoff(t *testing.T, clock string, now time.Time) careplan.SameDayCutoff {
 	t.Helper()
-	cutoff, err := careplan.NewSameDayCutoff(clock, now)
+	cutoff, err := carerequests.NewSameDayCutoff(clock, now)
 	require.NoError(t, err)
 	return cutoff
 }
@@ -71,12 +72,19 @@ func TestSameDayCutoffAtUsesTimeAtValidation(t *testing.T) {
 	t.Parallel()
 
 	now := berlinAt(2026, 8, 24, 10, 59, 0)
-	cutoff, err := careplan.NewSameDayCutoffAt("11:00", func() time.Time { return now })
+	cutoff, err := carerequests.NewSameDayCutoffAt("11:00", func() time.Time { return now })
 	require.NoError(t, err)
 
 	assert.False(t, cutoff.Closed(calendar.NewDate(2026, 8, 24)))
 	now = berlinAt(2026, 8, 24, 11, 1, 0)
 	assert.True(t, cutoff.Closed(calendar.NewDate(2026, 8, 24)))
+	assert.False(t, cutoff.Closed(calendar.NewDate(2026, 8, 25)))
+
+	trimmed, err := carerequests.NewSameDayCutoffAt(" 11:00 ", func() time.Time { return now })
+	require.NoError(t, err)
+	assert.Equal(t, "11:00", trimmed.Clock)
+	_, err = carerequests.NewSameDayCutoffAt("11:00", nil)
+	require.EqualError(t, err, "schedule: same-day cutoff clock is nil")
 }
 
 // The cutoff is a Berlin wall-clock time. The same instant in UTC sits one
@@ -126,7 +134,7 @@ func TestNewSameDayCutoffRejectsMalformedClock(t *testing.T) {
 	t.Parallel()
 
 	for _, clock := range []string{"11", "25:00", "11:60", "elf"} {
-		_, err := careplan.NewSameDayCutoff(clock, berlinAt(2026, 8, 24, 10, 0, 0))
+		_, err := carerequests.NewSameDayCutoff(clock, berlinAt(2026, 8, 24, 10, 0, 0))
 		require.Error(t, err, clock)
 	}
 	// A hand-built value that bypassed validation fails closed for today only.

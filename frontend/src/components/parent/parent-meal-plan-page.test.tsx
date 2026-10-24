@@ -81,7 +81,7 @@ describe("ParentMealPlanPage", () => {
       screen.getByRole("heading", { name: "Mittagessen", level: 1 }),
     ).toBeInTheDocument();
     const loadingStatus = screen.getByRole("status", {
-      name: "Essensplan wird geladen",
+      name: "Speiseplan wird geladen",
     });
     const skeleton = screen.getByTestId("meal-plan-week-skeleton");
     const desktopGrid = skeleton.querySelector(".grid-cols-5");
@@ -113,7 +113,7 @@ describe("ParentMealPlanPage", () => {
     expect(previousWeek).toBeDisabled();
     expect(
       await screen.findByText(
-        "Für diese Woche ist noch kein Essensplan eingetragen",
+        "Für diese Woche ist noch kein Speiseplan eingetragen",
       ),
     ).toBeInTheDocument();
     expect(nextWeek).toBeEnabled();
@@ -289,7 +289,7 @@ describe("ParentMealPlanPage", () => {
 
     expect(
       await screen.findByText(
-        "Für diese Woche ist noch kein Essensplan eingetragen",
+        "Für diese Woche ist noch kein Speiseplan eingetragen",
       ),
     ).toBeInTheDocument();
     const navigation = screen.getByRole("navigation", {
@@ -319,7 +319,7 @@ describe("ParentMealPlanPage", () => {
 
     expect(
       await screen.findByText(
-        "Für diese Woche ist noch kein Essensplan eingetragen",
+        "Für diese Woche ist noch kein Speiseplan eingetragen",
       ),
     ).toBeInTheDocument();
     expect(
@@ -350,7 +350,7 @@ describe("ParentMealPlanPage", () => {
     expect(screen.getAllByText("mit Salat")).not.toHaveLength(0);
     expect(
       screen.queryByText(
-        "Für diese Woche ist noch kein Essensplan eingetragen",
+        "Für diese Woche ist noch kein Speiseplan eingetragen",
       ),
     ).not.toBeInTheDocument();
   });
@@ -683,7 +683,7 @@ describe("ParentMealPlanPage", () => {
     ).toBeInTheDocument();
     expect(
       screen.queryByText(
-        "Für Ihre Schule ist der Essensplan derzeit nicht freigeschaltet.",
+        "Für Ihre Schule ist der Speiseplan derzeit nicht freigeschaltet.",
       ),
     ).not.toBeInTheDocument();
 
@@ -702,7 +702,7 @@ describe("ParentMealPlanPage", () => {
 
     expect(
       await screen.findByText(
-        "Für Ihre Schule ist der Essensplan derzeit nicht freigeschaltet.",
+        "Für Ihre Schule ist der Speiseplan derzeit nicht freigeschaltet.",
       ),
     ).toBeInTheDocument();
   });
@@ -716,7 +716,7 @@ describe("ParentMealPlanPage", () => {
     expect(screen.getByRole("button", { name: "Wiederholen" })).toBeVisible();
     expect(
       screen.queryByText(
-        "Für diese Woche ist noch kein Essensplan eingetragen",
+        "Für diese Woche ist noch kein Speiseplan eingetragen",
       ),
     ).not.toBeInTheDocument();
   });
@@ -729,7 +729,7 @@ describe("ParentMealPlanPage", () => {
     expect(await screen.findByText(WEEK_ERROR)).toBeInTheDocument();
     expect(
       screen.queryByText(
-        "Für diese Woche ist noch kein Essensplan eingetragen",
+        "Für diese Woche ist noch kein Speiseplan eingetragen",
       ),
     ).not.toBeInTheDocument();
   });
@@ -806,7 +806,7 @@ describe("ParentMealPlanPage", () => {
     render(<ParentMealPlanPage key="empty-week" />);
     expect(
       await screen.findByText(
-        "Für diese Woche ist noch kein Essensplan eingetragen",
+        "Für diese Woche ist noch kein Speiseplan eingetragen",
       ),
     ).toBeInTheDocument();
     expect(screen.queryByText(SUBTITLE_MEALS_ONLY)).not.toBeInTheDocument();
@@ -851,7 +851,7 @@ describe("ParentMealPlanPage", () => {
     rerender(<ParentMealPlanPage key="disabled-school" />);
     expect(
       await screen.findByText(
-        "Für Ihre Schule ist der Essensplan derzeit nicht freigeschaltet.",
+        "Für Ihre Schule ist der Speiseplan derzeit nicht freigeschaltet.",
       ),
     ).toBeInTheDocument();
     expect(screen.queryByText(SUBTITLE_MEALS_ONLY)).not.toBeInTheDocument();
@@ -874,7 +874,7 @@ describe("ParentMealPlanPage", () => {
 
     expect(
       await screen.findByText(
-        "Für diese Woche ist noch kein Essensplan eingetragen",
+        "Für diese Woche ist noch kein Speiseplan eingetragen",
       ),
     ).toBeInTheDocument();
     expect(screen.queryByText(SCHOOLS_ERROR)).not.toBeInTheDocument();
@@ -890,7 +890,7 @@ describe("ParentMealPlanPage", () => {
 
     expect(
       await screen.findByText(
-        "Für diese Woche ist noch kein Essensplan eingetragen",
+        "Für diese Woche ist noch kein Speiseplan eingetragen",
       ),
     ).toBeInTheDocument();
     expect(screen.queryByText(WEEK_ERROR)).not.toBeInTheDocument();

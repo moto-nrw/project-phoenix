@@ -82,6 +82,10 @@ ADR 0083 describes its original pre-merge census, not this register.
 
 ## Explicit remaining boundary: domain-owned callable fields (M3)
 
+[ADR 0098](0098-command-effect-binding-flow-and-platform-protocols.md) later
+closes this boundary, generic flow and the platform/protocol cut; the text
+below records the state at this decision.
+
 **This PR does not close #4836.** The scanner stops at a concrete receiver of
 the source owner. Therefore the root closure passed to
 `communication.NewStaffColleagueReads` and stored as

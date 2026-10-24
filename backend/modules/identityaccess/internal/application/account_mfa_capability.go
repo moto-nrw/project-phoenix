@@ -27,8 +27,8 @@ func (c ComposedAccountMFA) ctx(ctx context.Context) context.Context {
 	return c.Attach(ctx)
 }
 
-func (c ComposedAccountMFA) IsRequired(ctx context.Context, accountID int64, roleNames []string, tenantID int64) (bool, error) {
-	required, err := c.Flows.IsRequired(c.ctx(ctx), accountID, roleNames, tenantID)
+func (c ComposedAccountMFA) IsRequired(ctx context.Context, accountID int64, permissions []string, tenantID int64) (bool, error) {
+	required, err := c.Flows.IsRequired(c.ctx(ctx), accountID, permissions, tenantID)
 	return required, MFAError(err)
 }
 
@@ -190,11 +190,11 @@ type CapabilityGate struct{ Capability identityaccess.AccountMFA }
 
 func (g CapabilityGate) Configured() bool { return g.Capability != nil }
 
-func (g CapabilityGate) IsRequired(ctx context.Context, accountID int64, _ string, roleNames []string, tenantID int64) (bool, error) {
+func (g CapabilityGate) IsRequired(ctx context.Context, accountID int64, _ string, permissions []string, tenantID int64) (bool, error) {
 	if g.Capability == nil {
 		return false, nil
 	}
-	return g.Capability.IsRequired(ctx, accountID, roleNames, tenantID)
+	return g.Capability.IsRequired(ctx, accountID, permissions, tenantID)
 }
 
 func (g CapabilityGate) ResolvePolicy(ctx context.Context, accountID, tenantID int64) (ports.MFAPolicy, error) {

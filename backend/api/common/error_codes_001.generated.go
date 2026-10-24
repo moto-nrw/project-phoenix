@@ -2,6 +2,15 @@
 package common
 
 const (
+	CodeIotDeviceInactive                             = "iot.device_inactive"
+	CodeIotDevicePinInvalid                           = "iot.device_pin_invalid"
+	CodeIotDevicePinRequired                          = "iot.device_pin_required"
+	CodeIotInvalidRfidTag                             = "iot.invalid_rfid_tag"
+	CodeIotInvalidStaffClockRequest                   = "iot.invalid_staff_clock_request"
+	CodeIotInvalidStaffClockState                     = "iot.invalid_staff_clock_state"
+	CodeIotNoActiveGroupsInRoom                       = "iot.no_active_groups_in_room"
+	CodeIotNoActiveSession                            = "iot.no_active_session"
+	CodeIotNoAttendanceRecordToday                    = "iot.no_attendance_record_today"
 	CodeIotNoRoomAvailable                            = "iot.no_room_available"
 	CodeIotNoSessionToEnd                             = "iot.no_session_to_end"
 	CodeIotOpenRoomBinaryMode                         = "iot.open_room_binary_mode"
@@ -293,18 +302,18 @@ const (
 	CodeTimetableStudentNotCheckedIn                  = "timetable.student_not_checked_in"
 	CodeTimetableStudentNotFound                      = "timetable.student_not_found"
 	CodeTimetableStudentsNotPresent                   = "timetable.students_not_present"
-	CodeTimetableSubstituteAbsent                     = "timetable.substitute_absent"
-	CodeTimetableSubstituteAbsentOnDate               = "timetable.substitute_absent_on_date"
-	CodeTimetableSubstituteConflict                   = "timetable.substitute_conflict"
-	CodeTimetableSubstituteNotOnInstances             = "timetable.substitute_not_on_instances"
-	CodeTimetableSubstituteSelf                       = "timetable.substitute_self"
-	CodeTimetableSubstituteSingleOnly                 = "timetable.substitute_single_only"
-	CodeTimetableTemplateCareOfferingConflict         = "timetable.template_care_offering_conflict"
-	CodeTimetableTemplateCategoryUnavailable          = "timetable.template_category_unavailable"
-	CodeTimetableTemplateEducationGroupInvalid        = "timetable.template_education_group_invalid"
 )
 
 var errorCodeClasses1 = map[string]string{
+	"iot.device_inactive":                                 "permission",
+	"iot.device_pin_invalid":                              "permission",
+	"iot.device_pin_required":                             "permission",
+	"iot.invalid_rfid_tag":                                "input",
+	"iot.invalid_staff_clock_request":                     "input",
+	"iot.invalid_staff_clock_state":                       "business_rejection",
+	"iot.no_active_groups_in_room":                        "input",
+	"iot.no_active_session":                               "input",
+	"iot.no_attendance_record_today":                      "input",
 	"iot.no_room_available":                               "input",
 	"iot.no_session_to_end":                               "input",
 	"iot.open_room_binary_mode":                           "business_rejection",
@@ -596,15 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.student_not_checked_in":                    "business_rejection",
 	"timetable.student_not_found":                         "business_rejection",
 	"timetable.students_not_present":                      "business_rejection",
-	"timetable.substitute_absent":                         "input",
-	"timetable.substitute_absent_on_date":                 "input",
-	"timetable.substitute_conflict":                       "business_rejection",
-	"timetable.substitute_not_on_instances":               "input",
-	"timetable.substitute_self":                           "input",
-	"timetable.substitute_single_only":                    "input",
-	"timetable.template_care_offering_conflict":           "input",
-	"timetable.template_category_unavailable":             "business_rejection",
-	"timetable.template_education_group_invalid":          "input",
 }
 
 func init() {

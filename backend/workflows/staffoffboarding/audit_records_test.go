@@ -1,32 +1,15 @@
 package staffoffboarding_test
 
 import (
-	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/workflows/staffoffboarding"
 )
-
-func TestNewAbsenceDeletionKeepsTheDeletedRowAsPayload(t *testing.T) {
-	t.Parallel()
-	staffID, absenceID, actorID := int64(41), int64(73), int64(29)
-	absence := workforce.StaffAbsence{ID: absenceID, StaffID: staffID, AbsenceType: "vacation", DateStart: "2026-10-12", DateEnd: "2026-10-16"}
-
-	deletion, err := staffoffboarding.NewAbsenceDeletion(absence, actorID)
-
-	require.NoError(t, err)
-	payload, err := json.Marshal(absence)
-	require.NoError(t, err)
-	assert.Equal(t, staffoffboarding.AbsenceDeletion{
-		StaffID: staffID, AbsenceID: absenceID, DeletedBy: actorID, Payload: payload, Note: "Personal-Offboarding",
-	}, deletion)
-}
 
 func TestNewStaffDeletionCountsTheRemovedRowsAndTheStaffMember(t *testing.T) {
 	t.Parallel()

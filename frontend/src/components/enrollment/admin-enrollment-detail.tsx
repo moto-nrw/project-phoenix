@@ -69,6 +69,7 @@ import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import { Textarea } from "~/components/ui/textarea";
 import { Checkbox } from "~/components/ui/checkbox";
 import { formatCustomValue } from "~/lib/enrollment-custom-value-format";
+import { EnrollmentRequestUploadList } from "~/components/enrollment/admin-enrollment-upload-list";
 import { formatCalendarDate } from "~/lib/localized-date-format";
 import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import { AdminChildDataCorrection } from "~/components/enrollment/admin-child-data-correction";
@@ -1062,8 +1063,21 @@ export function RequestExtraSection({
               );
               if (formatted === null) return null;
               return (
-                <DataField key={f.key} label={f.label}>
-                  {formatted}
+                <DataField
+                  key={f.key}
+                  label={f.label}
+                  fullWidth={f.type === "file"}
+                >
+                  {f.type === "file" ? (
+                    <EnrollmentRequestUploadList
+                      requestId={request.id}
+                      value={request.custom_data?.[f.key]}
+                      uploads={request.uploads}
+                      canView={request.can_view_uploads}
+                    />
+                  ) : (
+                    formatted
+                  )}
                 </DataField>
               );
             })}

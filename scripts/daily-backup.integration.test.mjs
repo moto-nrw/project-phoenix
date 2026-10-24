@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 
 const scripts = dirname(fileURLToPath(import.meta.url));
-test('encrypted daily backup restores an isolated cluster and files, prunes by age and fails closed', { timeout: 600000 }, t => {
+test('encrypted daily backup restores an isolated cluster and files, prunes by age and fails closed', { timeout: 1200000 }, t => {
   const root = mkdtempSync(join(tmpdir(), 'moto-daily-test-'));
   const project = `moto-daily-${process.pid}-${Date.now()}`;
   const volume = `${project}-uploads`;
@@ -18,6 +18,8 @@ test('encrypted daily backup restores an isolated cluster and files, prunes by a
   const marker = randomBytes(24).toString('hex');
   const credential = randomBytes(24).toString('hex');
   const compose = join(root, 'compose.yml');
+  const ledger = join(root, 'erasure-ledger');
+  writeFileSync(ledger, 'moto-erasure-ledger-v1\n', { mode: 0o600 });
   writeFileSync(join(root, '.env'), `PRIVATE_MARKER=${credential}\nPOSTGRES_PASSWORD=${credential}\n`);
   writeFileSync(compose, `services:
   postgres:
@@ -57,10 +59,23 @@ volumes:
   };
   const docker = (...args) => run('docker', args);
   const dc = (...args) => docker('compose', '--env-file', join(root, '.env'), '-f', compose, '-p', project, ...args);
-  const sql = query => run('docker', ['compose', '--env-file', join(root, '.env'), '-f', compose, '-p', project,
-    'exec', '-T', 'postgres', 'psql', '-X', '-U', 'postgres', '-d', 'postgres', '-At', '-v', 'ON_ERROR_STOP=1'], query);
+  const databaseSQL = (database, query) => run('docker', ['compose', '--env-file', join(root, '.env'), '-f', compose, '-p', project,
+    'exec', '-T', 'postgres', 'psql', '-X', '-U', 'postgres', '-d', database, '-At', '-v', 'ON_ERROR_STOP=1'], query);
+  const sql = query => databaseSQL('postgres', query);
+  // Main recovery above still destroys the actual volume. For the expanded
+  // role matrix, reset this private cluster's DB and non-system roles instead
+  // of restarting initdb for every source and target. Restore's real fresh-target guards still run.
+  const resetCluster = () => {
+    databaseSQL('template1', 'DROP DATABASE postgres WITH (FORCE);');
+    databaseSQL('template1', `DO $$ DECLARE r record; BEGIN
+      FOR r IN SELECT rolname FROM pg_roles WHERE rolname !~ '^pg_' AND rolname <> 'postgres' LOOP
+        EXECUTE format('DROP ROLE %I', r.rolname);
+      END LOOP;
+    END $$;`);
+    databaseSQL('template1', 'CREATE DATABASE postgres TEMPLATE template0;');
+  };
   const backup = (overrides = {}) => invoke('bash', [join(scripts, 'daily-backup.sh')], undefined, overrides);
-  const restore = (name, overrides = {}) => invoke('bash', [join(scripts, 'restore-daily-backup.sh'), name], undefined,
+  const restore = (name, overrides = {}) => invoke('bash', [join(scripts, 'restore-daily-backup.sh'), name, ledger], undefined,
     { BACKUP_UPLOADS_VOLUME: restoredVolume, BACKUP_AGE_IDENTITY_FILE: join(root, 'identity'), ...overrides });
   t.after(() => {
     invoke('docker', ['compose', '-f', compose, '-p', project, 'down', '-v', '--remove-orphans']);
@@ -97,7 +112,17 @@ CREATE ROLE phoenix_demo LOGIN;
 CREATE ROLE phoenix_diagnostics NOLOGIN NOINHERIT;
 CREATE ROLE "diagnose synthetic" LOGIN NOINHERIT;
 GRANT phoenix_diagnostics TO "diagnose synthetic";
+CREATE ROLE phoenix_school_erasure NOLOGIN NOINHERIT;
+CREATE ROLE "erase synthetic" LOGIN NOINHERIT;
+GRANT phoenix_school_erasure TO "erase synthetic";
+CREATE ROLE phoenix_billing_retention NOLOGIN NOINHERIT;
+CREATE ROLE "billing synthetic" LOGIN NOINHERIT;
+GRANT phoenix_billing_retention TO "billing synthetic";
 CREATE ROLE tenant_scope;
+CREATE SCHEMA platform;
+CREATE TABLE platform.schools(id bigserial PRIMARY KEY);
+INSERT INTO platform.schools VALUES (41), (42);
+SELECT setval('platform.schools_id_seq',42);
 GRANT tenant_scope TO phoenix_auth;
 CREATE TABLE records(tenant_id bigint, marker text);
 ALTER TABLE records ENABLE ROW LEVEL SECURITY;
@@ -151,6 +176,14 @@ with tarfile.open(sys.argv[1]) as source, tarfile.open(sys.argv[2],'w') as targe
   assert.notEqual(result.status, 0); assert.match(result.stdout, /step=fresh_target/); // Running application is never an eligible restore target.
   assert.equal(sql('SELECT count(*) FROM records;'), '2');
   const rowsBefore = createHash('sha256').update(sql('SELECT tenant_id, marker FROM records ORDER BY tenant_id, marker;')).digest('hex');
+  // Simulate a completed A erasure after this older backup was made. Its
+  // independent record survives restoring the DB state which knew no erasure.
+  const header = 'moto-erasure-ledger-v1\n';
+  const entry = JSON.stringify({ school_id: 41, order_reference: 'ORDER-RESTORE',
+    completed_at: '2026-10-24T12:00:00Z', receipt_sha256: 'a'.repeat(64) });
+  const head = createHash('sha256').update(header).digest('hex');
+  const digest = createHash('sha256').update(`${head}\n${entry}`).digest('hex');
+  writeFileSync(ledger, `${header}${digest} ${entry}\n`);
   dc('down', '-v'); // Destroy database storage, not just its rows.
   docker('volume', 'rm', volume);
   dc('up', '-d', '--wait', 'postgres');
@@ -178,13 +211,44 @@ exec '${realDocker}' "$@"
   // Operator removes it only after discarding the failed isolated target.
   rmSync(reviewMarker);
   result = restore(name);
-  assert.equal(result.status, 0, result.stdout);
-  assert.match(result.stdout, /restore_result=ok step=deletion_review_required app_start=blocked/);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stdout, /restore_result=failed step=erasure_replay_required app_start=blocked/);
   assert.match(result.stdout, /restore_diagnostics_disabled=1/);
+  assert.match(result.stdout, /restore_school_erasure_disabled=1/);
+  assert.match(result.stdout, /restore_billing_retention_disabled=1/);
   assert.equal(sql(`SELECT rolcanlogin FROM pg_roles WHERE rolname = 'diagnose synthetic';`), 'f');
   assert.equal(sql(`SELECT pg_has_role('diagnose synthetic', 'phoenix_diagnostics', 'SET');`), 't');
+  for (const [login, group] of [['erase synthetic', 'phoenix_school_erasure'], ['billing synthetic', 'phoenix_billing_retention']]) {
+    assert.equal(sql(`SELECT rolcanlogin FROM pg_roles WHERE rolname = '${login}';`), 'f');
+    assert.equal(sql(`SELECT pg_has_role('${login}', '${group}', 'SET');`), 't');
+  }
   assert.equal(sql('SELECT count(*) FROM records;'), '2');
   assert.equal(createHash('sha256').update(sql('SELECT tenant_id, marker FROM records ORDER BY tenant_id, marker;')).digest('hex'), rowsBefore);
+  const verifyErasures = () => invoke('python3', [join(scripts, 'daily_backup.py'), 'verify-erasures', ledger]);
+  result = verifyErasures();
+  assert.notEqual(result.status, 0);
+  assert.equal(result.stdout, 'restore_result=failed step=erasure_replay_required app_start=blocked\n');
+  assert.equal(JSON.parse(readFileSync(reviewMarker, 'utf8')).app_start, 'blocked');
+  assert.equal(sql('SELECT string_agg(id::text,\',\' ORDER BY id) FROM platform.schools;'), '41,42');
+  sql('DELETE FROM platform.schools WHERE id=41;'); // Repeat A, B is untouched.
+  assert.equal(verifyErasures().status, 0);
+  assert.equal(sql('SELECT id FROM platform.schools;'), '42');
+  // A was created and erased AFTER the old backup: no root to find, but the
+  // restored sequence must be fenced before creating new schools.
+  const laterEntry = JSON.stringify({ school_id: 77, order_reference: 'ORDER-LATER',
+    completed_at: '2026-10-24T12:00:00Z', receipt_sha256: 'b'.repeat(64) });
+  const laterDigest = createHash('sha256').update(`${digest}\n${laterEntry}`).digest('hex');
+  writeFileSync(ledger, `${header}${digest} ${entry}\n${laterDigest} ${laterEntry}\n`);
+  assert.match(verifyErasures().stdout, /failed step=erasure_sequence_review_required app_start=blocked/);
+  sql("SELECT setval('platform.schools_id_seq',77);");
+  assert.equal(verifyErasures().status, 0);
+  assert.equal(sql('SELECT id FROM platform.schools;'), '42');
+  // Neither missing nor damaged independent state can grant release.
+  rmSync(ledger);
+  assert.match(verifyErasures().stdout, /failed step=erasure_ledger app_start=blocked/);
+  writeFileSync(ledger, `${header}${digest} ${entry}`, { mode: 0o600 });
+  assert.match(verifyErasures().stdout, /failed step=erasure_ledger app_start=blocked/);
+  writeFileSync(ledger, header);
   // Passwordless role dumps are not usable app logins until explicitly re-keyed.
   for (const [role, key] of [['postgres', 'POSTGRES_PASSWORD'], ['phoenix_auth', 'PHOENIX_AUTH_PASSWORD'], ['phoenix_demo', 'PHOENIX_DEMO_PASSWORD']]) {
     const login = invoke('docker', ['compose', '--env-file', join(root, '.env'), '-f', compose, '-p', project,
@@ -253,27 +317,48 @@ exec '${realDocker}' "$@"
     'ALTER DEFAULT PRIVILEGES GRANT SELECT ON TABLES TO "diagnose synthetic";',
     'GRANT pg_monitor TO phoenix_diagnostics;',
   ];
-  for (const [index, unsafe] of unsafeRoles.entries()) {
-    dc('down', '-v');
-    dc('up', '-d', '--wait', 'postgres');
-    rmSync(reviewMarker, { force: true });
-    sql(`CREATE ROLE phoenix_diagnostics NOLOGIN NOINHERIT;
+  const profiles = [
+    { group: 'phoenix_diagnostics', login: 'diagnose synthetic', label: 'diagnostics' },
+    { group: 'phoenix_school_erasure', login: 'erase synthetic', label: 'school_erasure' },
+    { group: 'phoenix_billing_retention', login: 'billing synthetic', label: 'billing_retention' },
+  ];
+  for (const profile of profiles) {
+    const otherGroup = profile.group === 'phoenix_school_erasure' ? 'phoenix_billing_retention' : 'phoenix_school_erasure';
+    const dualMembership = `CREATE ROLE ${otherGroup} NOLOGIN NOINHERIT; GRANT ${otherGroup} TO "diagnose synthetic";`;
+    // A reserved group must not masquerade as an otherwise eligible login.
+    const groupLogin = `CREATE ROLE ${otherGroup} LOGIN NOINHERIT; GRANT ${profile.group} TO ${otherGroup};`;
+    for (const [index, unsafe] of ['', ...unsafeRoles, dualMembership, groupLogin].entries()) {
+      resetCluster();
+      rmSync(reviewMarker, { force: true });
+      const statements = `CREATE ROLE ${profile.group} NOLOGIN NOINHERIT;
 CREATE ROLE "diagnose synthetic" LOGIN NOINHERIT;
-GRANT phoenix_diagnostics TO "diagnose synthetic";
+GRANT ${profile.group} TO "diagnose synthetic";
 CREATE ROLE tenant_scope;
 CREATE TABLE records(tenant_id bigint);
-${unsafe}`);
-    const destination = join(root, `unsafe-${index}`); mkdirSync(destination);
-    result = backup({ BACKUP_UPLOADS_VOLUME: restoredVolume, BACKUP_TARGET: destination });
-    assert.equal(result.status, 0, result.stdout);
-    const unsafeName = readdirSync(destination).find(n => n.endsWith('.age'));
-    dc('down', '-v');
-    dc('up', '-d', '--wait', 'postgres');
-    result = restore(unsafeName, { BACKUP_TARGET: destination, BACKUP_UPLOADS_VOLUME: `${project}-rejected` });
-    assert.notEqual(result.status, 0, `unsafe role case ${index} must fail`);
-    assert.equal(result.stdout, 'restore_result=failed step=role_passwords app_start=blocked\n');
-    assert.equal(result.stderr, '');
-    assert.equal(JSON.parse(readFileSync(reviewMarker, 'utf8')).app_start, 'blocked');
-    assert.notEqual(invoke('docker', ['volume', 'inspect', `${project}-rejected`]).status, 0);
+${unsafe.replaceAll('phoenix_diagnostics', profile.group)}`;
+      sql(statements.replaceAll('diagnose synthetic', profile.login));
+      const destination = join(root, `${profile.label}-${index}`); mkdirSync(destination);
+      result = backup({ BACKUP_UPLOADS_VOLUME: restoredVolume, BACKUP_TARGET: destination });
+      assert.equal(result.status, 0, result.stdout);
+      const unsafeName = readdirSync(destination).find(n => n.endsWith('.age'));
+      resetCluster();
+      result = restore(unsafeName, { BACKUP_TARGET: destination, BACKUP_UPLOADS_VOLUME: `${project}-rejected` });
+      if (!unsafe) {
+        assert.equal(result.status, 0, `safe ${profile.label} login alone must be quarantined`);
+        assert.match(result.stdout, /^restore_result=ok step=deletion_review_required app_start=blocked$/m);
+        assert.match(result.stdout, new RegExp(`restore_${profile.label}_disabled=1`));
+        assert.equal(sql(`SELECT rolcanlogin FROM pg_roles WHERE rolname='${profile.login}';`), 'f');
+        assert.equal(sql(`SELECT pg_has_role('${profile.login}', '${profile.group}', 'SET');`), 't');
+        docker('volume', 'rm', `${project}-rejected`);
+      } else {
+        assert.notEqual(result.status, 0, `unsafe ${profile.label} role case ${index} must fail`);
+        assert.equal(result.stdout, 'restore_result=failed step=role_passwords app_start=blocked\n');
+        assert.equal(JSON.parse(readFileSync(reviewMarker, 'utf8')).app_start, 'blocked');
+        assert.notEqual(invoke('docker', ['volume', 'inspect', `${project}-rejected`]).status, 0);
+      }
+      assert(!result.stdout.includes(profile.login));
+      assert.equal(result.stderr, '');
+    }
   }
+  t.diagnostic('role restore matrix: 3 accepted NOLOGIN profiles and 45 rejected profiles');
 });

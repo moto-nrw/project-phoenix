@@ -50,6 +50,7 @@ type AccountSession struct {
 	Mobile            bool
 	Identifier        *string
 	PortalScope       string
+	MFAVerified       bool
 	FamilyID          string
 	FamilyExpiryCap   *time.Time
 	Generation        int

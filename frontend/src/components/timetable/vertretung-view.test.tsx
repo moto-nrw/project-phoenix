@@ -673,7 +673,7 @@ describe("VertretungView", () => {
     // Anker: das Skelett des Gerüsts.
     expect(
       screen.getByRole("status", {
-        name: "Der Bereich „Vertretung“ wird geladen…",
+        name: "Der Bereich „Vertretungsplan“ wird geladen…",
       }),
     ).toHaveAttribute("aria-busy", "true");
     expect(screen.queryByTestId("calendar-grid")).not.toBeInTheDocument();
@@ -1051,6 +1051,9 @@ describe("VertretungView", () => {
     render(<VertretungView />);
 
     expect(screen.getByTestId("vertretung-disabled-state")).toBeVisible();
+    expect(
+      screen.getByText("Der Vertretungsplan ist ausgeschaltet"),
+    ).toBeVisible();
     expect(screen.queryByTestId("day-list")).not.toBeInTheDocument();
   });
 

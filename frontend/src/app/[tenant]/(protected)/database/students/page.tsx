@@ -584,7 +584,7 @@ function StudentsPageContent() {
                 ...(hasPermission(session, "grade_transitions:read")
                   ? [
                       {
-                        label: "Jahrgangswechsel",
+                        label: "Schuljahreswechsel",
                         icon: <GraduationCap className="h-4 w-4" aria-hidden />,
                         href: tenantPath("/database/grade-transitions"),
                         // Navigation only: OverflowMenu verlangt onClick auch bei href.

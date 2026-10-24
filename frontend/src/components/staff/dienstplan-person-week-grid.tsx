@@ -664,7 +664,7 @@ export function DienstplanPersonWeekGrid({
         <div className="border-t border-gray-200 px-4 py-2">
           <PlanLegend
             entries={legendEntries}
-            aria-label="Legende Schichtarten und Zustände"
+            aria-label="Legende Dienstarten und Zustände"
           />
         </div>
       </SectionCard>

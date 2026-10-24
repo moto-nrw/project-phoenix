@@ -2,6 +2,8 @@ package email
 
 import (
 	"context"
+	"encoding/json"
+	"net"
 	"testing"
 
 	mailcontract "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
@@ -18,6 +20,52 @@ func (m *recordingMailer) Send(message mailcontract.Message) error {
 }
 
 const mfaCodeTemplate = "mfa-email-code.html"
+
+func TestDemoMFAProvisioningAndRepeatedLoginUseInternalCodes(t *testing.T) {
+	t.Parallel()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	done := make(chan struct{})
+	codes := make(chan string, 2)
+	go func() {
+		defer close(done)
+		for range 2 {
+			conn, err := listener.Accept()
+			if err != nil {
+				return
+			}
+			var message demoCode
+			if json.NewDecoder(conn).Decode(&message) == nil {
+				codes <- message.Code
+				_, _ = conn.Write([]byte{1})
+			}
+			_ = conn.Close()
+		}
+	}()
+	defer func() { _ = listener.Close(); <-done }()
+	transport := &recordingMailer{}
+	mailer := RestrictToDemoMails(transport, "demo", nil).(demoRestrictedMailer)
+	mailer.codeAddress = listener.Addr().String()
+	for range 2 { // initial enrollment and the simulator's subsequent login
+		require.NoError(t, mailer.Send(mailcontract.Message{
+			Template: mfaCodeTemplate, To: mailcontract.NewEmail("", "demo-admin@example.test"),
+			Content: map[string]any{"Code": "123456"},
+		}))
+		code := <-codes
+		require.Equal(t, "123456", code)
+	}
+	require.Empty(t, transport.templates, "no MFA code may reach an external recipient")
+}
+
+func TestDemoCodeDeliveryFailsClosedWithoutReceiver(t *testing.T) {
+	t.Parallel()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	address := listener.Addr().String()
+	require.NoError(t, listener.Close())
+	message := mailcontract.Message{To: mailcontract.NewEmail("", "demo@example.test"), Content: map[string]any{"Code": "123456"}}
+	require.ErrorIs(t, sendDemoCode(context.Background(), address, message), mailcontract.ErrNotDeliveredInDemo)
+}
 
 var blockedInTheDemo = []string{"invitation.html", "password-reset.html", "guardian-invitation.html", mfaCodeTemplate, ""}
 

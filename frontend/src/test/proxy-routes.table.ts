@@ -177,6 +177,22 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   "api/meal-plan/participants/week": [
     "GET tenant /api/meal-plan/participants/week",
   ],
+  "api/messages/group-threads": [
+    "GET tenant /api/messages/group-threads",
+    "POST tenant /api/messages/group-threads",
+  ],
+  "api/messages/group-threads/[groupThreadId]": [
+    "GET tenant /api/messages/group-threads/groupThreadId%2F1",
+  ],
+  "api/messages/group-threads/[groupThreadId]/close": [
+    "POST tenant /api/messages/group-threads/groupThreadId%2F1/close",
+  ],
+  "api/messages/group-threads/[groupThreadId]/messages": [
+    "POST tenant /api/messages/group-threads/groupThreadId%2F1/messages",
+  ],
+  "api/messages/group-threads/audience": [
+    "GET tenant /api/messages/group-threads/audience",
+  ],
   "api/messages/reachable-students": [
     "GET tenant /api/messages/reachable-students",
   ],
@@ -397,6 +413,12 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   ],
   "api/parent/me/messages/children/[studentId]/threads": [
     "GET parent /parent/me/messages/children/studentId%2F1/threads",
+  ],
+  "api/parent/me/messages/group-threads": [
+    "GET parent /parent/me/messages/group-threads",
+  ],
+  "api/parent/me/messages/group-threads/[groupThreadId]": [
+    "GET parent /parent/me/messages/group-threads/groupThreadId%2F1",
   ],
   "api/parent/me/messages/unread-count": [
     "GET parent /parent/me/messages/unread-count",

@@ -5,6 +5,7 @@ Only ciphertext crosses the transport boundary. Subprocess diagnostics are not
 forwarded: tools can print SQL, paths, credentials or upload names on failure.
 """
 import datetime as dt
+import fcntl
 import hashlib
 import json
 import os
@@ -13,6 +14,7 @@ import re
 import secrets
 import shutil
 import signal
+import stat
 import subprocess
 import sys
 import tarfile
@@ -23,6 +25,9 @@ from urllib.parse import urlparse
 FILES = ('database.dump', 'roles.sql', 'uploads.tar.gz')
 LOGIN_PASSWORDS = {'postgres': 'POSTGRES_PASSWORD', 'phoenix_auth': 'PHOENIX_AUTH_PASSWORD',
                    'phoenix_demo': 'PHOENIX_DEMO_PASSWORD'}
+QUARANTINE_GROUPS = {'phoenix_diagnostics': 'diagnostics',
+                     'phoenix_school_erasure': 'school_erasure',
+                     'phoenix_billing_retention': 'billing_retention'}
 BUNDLE_NAME = r'daily-[0-9]{8}T[0-9]{6}Z-[a-f0-9]{16}\.tar\.age'
 step = 'configuration'
 
@@ -53,6 +58,44 @@ def command(args, *, stdin=None, stdout=None, data=None, env=None):
 def sha256(path):
     with path.open('rb') as file:
         return hashlib.file_digest(file, 'sha256').hexdigest()
+
+
+def read_erasure_ledger(path):
+    """Read the independently retained, hash-chained ledger, never a dump copy.
+
+    Hashes detect damage, not an administrator replacing/truncating the whole
+    ledger. Operators verify its current head against the separate catalog.
+    """
+    require(path.is_absolute())
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    with os.fdopen(fd, 'rb') as file:
+        fcntl.flock(file, fcntl.LOCK_SH | fcntl.LOCK_NB)
+        info = os.fstat(file.fileno())
+        require(stat.S_ISREG(info.st_mode) and stat.S_IMODE(info.st_mode) == 0o600)
+        require(os.path.samestat(info, path.stat()))
+        header = file.readline(4096)
+        require(header == b'moto-erasure-ledger-v1\n')
+        previous = hashlib.sha256(header).hexdigest().encode()
+        schools = {}
+        entries = []
+        while line := file.readline(4096):
+            require(line.endswith(b'\n') and len(line) < 4096)
+            checksum, payload = line[:-1].split(b' ', 1)
+            require(hashlib.sha256(previous + b'\n' + payload).hexdigest().encode() == checksum)
+            entry = json.loads(payload)
+            require(set(entry) == {'school_id', 'order_reference', 'completed_at', 'receipt_sha256'})
+            school = entry['school_id']
+            require(type(school) is int and 0 < school <= 9223372036854775807)
+            require(re.fullmatch(r'[A-Z][A-Z0-9-]{2,39}', entry['order_reference']))
+            require(re.fullmatch(r'[0-9a-f]{64}', entry['receipt_sha256']))
+            timestamp = entry['completed_at']
+            require(re.fullmatch(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?Z', timestamp))
+            dt.datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+            require(school not in schools or schools[school] == entry['order_reference'])
+            schools[school] = entry['order_reference']
+            entries.append(entry)
+            previous = checksum
+        return entries
 
 
 def regular_archive(path, *, expected=None):
@@ -122,10 +165,27 @@ class Recovery:
             self.retention = int(days)
             self.recipient = required('BACKUP_AGE_RECIPIENT')
             require(re.fullmatch(r'age1[0-9a-z]+', self.recipient))
-        else:
+        elif mode == 'restore':
             self.passwords = {role: required(key) for role, key in LOGIN_PASSWORDS.items()}
             self.identity = Path(required('BACKUP_AGE_IDENTITY_FILE'))
             require(self.identity.is_absolute() and self.identity.is_file())
+
+    def check_erasures(self, ledger):
+        global step
+        step = 'erasure_ledger'
+        entries = read_erasure_ledger(ledger)
+        step = 'erasure_replay_required'
+        # IDs are strictly parsed positive int64s, not SQL fragments. Keep the
+        # query/output bounded and read-only; retry uses the dedicated CLI.
+        for school in {entry['school_id'] for entry in entries}:
+            require(self.sql(f'SELECT count(*) FROM platform.schools WHERE id = {school};') == '0')
+        if entries:
+            # A school created AND erased after the backup is absent there,
+            # but its ID must never be reissued after restoring an older sequence.
+            step = 'erasure_sequence_review_required'
+            highest = max(entry['school_id'] for entry in entries)
+            require(self.sql('SELECT CASE WHEN is_called AND last_value >= '
+                             f'{highest} THEN 1 ELSE 0 END FROM platform.schools_id_seq;') == '1')
 
     def check_capacity(self):
         # Operator sizes this reservation from measured uncompressed data plus
@@ -221,7 +281,68 @@ class Recovery:
                 timestamp = dt.datetime.strptime(obj['Path'][6:22], '%Y%m%dT%H%M%SZ').replace(tzinfo=dt.timezone.utc)
                 require(timestamp > cutoff)
 
-    def restore(self, work, cipher, name):
+    def quarantine_internal_logins(self):
+        # One narrow shape for diagnostics and internal erasure/retention
+        # logins. Names stay inside SQL; only OIDs cross into the verifier.
+        quarantined = json.loads(self.sql("""
+            SELECT COALESCE(json_agg(oid), '[]') FROM pg_roles
+            WHERE rolcanlogin AND rolname NOT IN ('postgres', 'phoenix_auth', 'phoenix_demo');
+        """))
+        if not quarantined:
+            return quarantined
+        # This list is code-owned, never supplied by a role or environment.
+        groups = ','.join("'" + group + "'" for group in QUARANTINE_GROUPS)
+        self.sql(f"""
+            DO $$ DECLARE r record; BEGIN
+                IF EXISTS (SELECT FROM pg_roles g WHERE g.rolname IN ({groups}) AND (
+                    g.rolcanlogin OR g.rolinherit OR g.rolsuper OR g.rolcreatedb
+                    OR g.rolcreaterole OR g.rolreplication OR g.rolbypassrls
+                    OR EXISTS (SELECT FROM pg_auth_members m WHERE m.member = g.oid)))
+                THEN RAISE EXCEPTION 'unsafe internal group'; END IF;
+                FOR r IN SELECT * FROM pg_roles WHERE rolcanlogin
+                    AND rolname NOT IN ('postgres', 'phoenix_auth', 'phoenix_demo') LOOP
+                    IF r.rolinherit OR r.rolsuper OR r.rolcreatedb OR r.rolcreaterole
+                        OR r.rolreplication OR r.rolbypassrls OR r.rolconnlimit <> -1
+                        OR r.rolvaliduntil IS NOT NULL OR r.rolconfig IS NOT NULL
+                        OR (SELECT count(*) FROM pg_auth_members WHERE member = r.oid) <> 1
+                        OR NOT EXISTS (SELECT FROM pg_auth_members m
+                            JOIN pg_roles g ON g.oid = m.roleid
+                            WHERE m.member = r.oid AND g.rolname IN ({groups})
+                                AND NOT m.admin_option AND NOT m.inherit_option AND m.set_option)
+                        OR EXISTS (SELECT FROM pg_auth_members WHERE roleid = r.oid)
+                        OR EXISTS (SELECT FROM pg_db_role_setting WHERE setrole = r.oid)
+                    THEN RAISE EXCEPTION 'unmapped login role'; END IF;
+                    EXECUTE format('ALTER ROLE %I NOLOGIN', r.rolname);
+                END LOOP;
+            END $$;
+        """)
+        return quarantined
+
+    def verify_quarantined_logins(self, quarantined):
+        global step
+        if not quarantined:
+            return
+        step = 'role_passwords'
+        # Object ACLs, ownership, default ACLs and policy references exist
+        # only after pg_restore. Reject all direct dependencies, cluster-wide.
+        # OIDs come from PostgreSQL as integers, never from role names.
+        oids = ','.join(str(int(oid)) for oid in quarantined)
+        require(self.sql("SELECT count(*) FROM pg_shdepend WHERE refclassid = 'pg_authid'::regclass "
+                         f"AND refobjid = ANY(ARRAY[{oids}]::oid[]);") == '0')
+        groups = ','.join("'" + group + "'" for group in QUARANTINE_GROUPS)
+        counts = json.loads(self.sql(f"""
+            SELECT COALESCE(json_object_agg(group_name, n), '{{}}') FROM (
+                SELECT g.rolname AS group_name, count(*) AS n FROM pg_auth_members m
+                JOIN pg_roles g ON g.oid = m.roleid
+                WHERE m.member = ANY(ARRAY[{oids}]::oid[]) AND g.rolname IN ({groups})
+                GROUP BY g.rolname
+            ) AS totals;
+        """))
+        for group, label in QUARANTINE_GROUPS.items():
+            if counts.get(group, 0):
+                print(f'restore_{label}_disabled={int(counts[group])}', flush=True)
+
+    def restore(self, work, cipher, name, ledger):
         global step
         require(re.fullmatch(BUNDLE_NAME, name))
         step = 'download'
@@ -270,39 +391,7 @@ class Recovery:
         self.dc('exec', '-T', 'postgres', 'psql', '-X', '-U', 'postgres', '-d', 'postgres',
                 '-v', 'ON_ERROR_STOP=1', data=roles.encode())
         step = 'role_passwords'
-        # Personal diagnostics accounts have no password mapping. Quarantine
-        # only this exact unprivileged shape, before importing any app data.
-        # Names never leave SQL (including unusual identifiers) or enter logs.
-        diagnostics = json.loads(self.sql("""
-            SELECT COALESCE(json_agg(oid), '[]') FROM pg_roles
-            WHERE rolcanlogin AND rolname NOT IN ('postgres', 'phoenix_auth', 'phoenix_demo');
-        """))
-        if diagnostics:
-            self.sql("""
-                DO $$ DECLARE r record; BEGIN
-                    IF NOT EXISTS (SELECT FROM pg_roles g
-                        WHERE g.rolname = 'phoenix_diagnostics' AND NOT
-                            (g.rolcanlogin OR g.rolinherit OR g.rolsuper OR g.rolcreatedb
-                             OR g.rolcreaterole OR g.rolreplication OR g.rolbypassrls)
-                        AND NOT EXISTS (SELECT FROM pg_auth_members m WHERE m.member = g.oid)) THEN
-                        RAISE EXCEPTION 'unsafe diagnostics group';
-                    END IF;
-                    FOR r IN SELECT * FROM pg_roles WHERE rolcanlogin
-                        AND rolname NOT IN ('postgres', 'phoenix_auth', 'phoenix_demo') LOOP
-                        IF r.rolinherit OR r.rolsuper OR r.rolcreatedb OR r.rolcreaterole
-                            OR r.rolreplication OR r.rolbypassrls OR r.rolconnlimit <> -1
-                            OR r.rolvaliduntil IS NOT NULL OR r.rolconfig IS NOT NULL
-                            OR (SELECT count(*) FROM pg_auth_members WHERE member = r.oid) <> 1
-                            OR NOT EXISTS (SELECT FROM pg_auth_members
-                                WHERE member = r.oid AND roleid = 'phoenix_diagnostics'::regrole
-                                    AND NOT admin_option AND NOT inherit_option AND set_option)
-                            OR EXISTS (SELECT FROM pg_auth_members WHERE roleid = r.oid)
-                            OR EXISTS (SELECT FROM pg_db_role_setting WHERE setrole = r.oid)
-                        THEN RAISE EXCEPTION 'unmapped login role'; END IF;
-                        EXECUTE format('ALTER ROLE %I NOLOGIN', r.rolname);
-                    END LOOP;
-                END $$;
-            """)
+        quarantined = self.quarantine_internal_logins()
         logins = self.sql('SELECT rolname FROM pg_roles WHERE rolcanlogin ORDER BY rolname;').splitlines()
         require(set(logins) <= set(LOGIN_PASSWORDS))  # Unknown LOGIN roles need an explicit operator mapping.
         for role in logins:
@@ -316,19 +405,12 @@ class Recovery:
         with (work / 'database.dump').open('rb') as file:
             self.dc('exec', '-T', 'postgres', 'pg_restore', '-U', 'postgres', '-d', 'postgres',
                     '--exit-on-error', stdin=file)
-        if diagnostics:
-            step = 'role_passwords'
-            # Object ACLs, ownership, default ACLs and policy references exist
-            # only after pg_restore. Reject all direct dependencies, cluster-wide.
-            # OIDs come from PostgreSQL as integers, never from role names.
-            oids = ','.join(str(int(oid)) for oid in diagnostics)
-            require(self.sql("SELECT count(*) FROM pg_shdepend WHERE refclassid = 'pg_authid'::regclass "
-                             f"AND refobjid = ANY(ARRAY[{oids}]::oid[]);") == '0')
-            print(f'restore_diagnostics_disabled={len(diagnostics)}', flush=True)
+        self.verify_quarantined_logins(quarantined)
         step = 'uploads_restore'
         command(['docker', 'volume', 'create', self.volume])
         with (work / 'uploads.tar.gz').open('rb') as file:
             self.uploads('-xzf', '-', '-C', '/uploads', stdin=file)
+        self.check_erasures(ledger)
 
 
 def interrupted(_signum, _frame):
@@ -341,28 +423,37 @@ def main():
     signal.signal(signal.SIGTERM, interrupted)
     signal.signal(signal.SIGINT, interrupted)
     mode = sys.argv[1] if len(sys.argv) > 1 else 'backup'
-    label = 'restore' if mode == 'restore' else 'backup'
+    label = 'backup' if mode == 'backup' else 'restore'
     work = None
     lock = None
     cipher = None
     status = 1
     missing = ''
     try:
-        require((mode == 'backup' and len(sys.argv) == 2) or (mode == 'restore' and len(sys.argv) == 3))
+        require((mode == 'backup' and len(sys.argv) == 2)
+                or (mode == 'restore' and len(sys.argv) == 4)
+                or (mode == 'verify-erasures' and len(sys.argv) == 3))
         recovery = Recovery(mode)
         step = 'operation_lock'
         lock_path = recovery.compose_file.parent / '.release-operation.lock'
         lock_path.mkdir(mode=0o700)
         lock = lock_path
-        step = 'workspace_capacity'
-        recovery.check_capacity()
-        cipher = Path(tempfile.mkdtemp(prefix='daily-', dir=recovery.cipher_root))
-        work = Path(tempfile.mkdtemp(prefix='daily-', dir=recovery.work_root))
-        if mode == 'backup':
-            recovery.backup(work, cipher)
+        if mode == 'verify-erasures':
+            step = 'erasure_review'
+            require((recovery.compose_file.parent / '.daily-restore-review-required').is_file())
+            require(recovery.dc('ps', '--status', 'running', '--services').decode().split() == ['postgres'])
+            recovery.check_erasures(Path(sys.argv[2]))
+            step = 'erasure_review_complete'
         else:
-            recovery.restore(work, cipher, sys.argv[2])
-        step = 'complete' if mode == 'backup' else 'deletion_review_required'
+            step = 'workspace_capacity'
+            recovery.check_capacity()
+            cipher = Path(tempfile.mkdtemp(prefix='daily-', dir=recovery.cipher_root))
+            work = Path(tempfile.mkdtemp(prefix='daily-', dir=recovery.work_root))
+            if mode == 'backup':
+                recovery.backup(work, cipher)
+            else:
+                recovery.restore(work, cipher, sys.argv[2], Path(sys.argv[3]))
+            step = 'complete' if mode == 'backup' else 'deletion_review_required'
         status = 0
     except MissingConfiguration as error:
         missing = f' missing={error.args[0]}'
@@ -378,7 +469,7 @@ def main():
                 except Exception:
                     step = 'cleanup'
                     status = 1
-    suffix = ' app_start=blocked' if mode == 'restore' else ''
+    suffix = ' app_start=blocked' if mode != 'backup' else ''
     print(f'{label}_result={"ok" if status == 0 else "failed"} step={step}{missing}{suffix}', flush=True)
     return status
 

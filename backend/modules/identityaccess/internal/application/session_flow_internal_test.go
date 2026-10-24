@@ -195,3 +195,22 @@ func TestRefreshHandoffAcrossCatererRepinning(t *testing.T) {
 		assert.False(t, sameAccountSessionLineage(current, next))
 	}
 }
+
+func TestRefreshRequiresMFAAfterPrivilegeGrant(t *testing.T) {
+	t.Parallel()
+	f := newAuthFixture(t)
+	f.seedStaff(1, 10, "custom")
+	ctx := context.Background()
+	_, refresh, err := f.auth.loginWithAudit(ctx, "user1@example.com", "secret", "", "tests", "")
+	require.NoError(t, err)
+	f.mfa.configured = true
+	f.mfa.policyInTx = domain.MFAPolicyForMode(domain.MFAModeOff)
+	f.store.permissions[mappingKey{1, 10}] = []string{"student_documents:health"}
+	access, successor, err := f.auth.refreshTokenWithAudit(ctx, refresh, "", "tests")
+	require.ErrorIs(t, err, identityaccess.ErrInvalidToken)
+	assert.Empty(t, access)
+	assert.Empty(t, successor)
+	sessions := f.store.sessionsOf(1)
+	require.Len(t, sessions, 1)
+	assert.Nil(t, sessions[0].RotatedAt, "MFA rejection must not rotate the old session")
+}

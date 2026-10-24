@@ -685,7 +685,7 @@ interface FieldProps {
 // #3594: Hinweis bei der Art „Ferien“. Der Zeitraum sagt keine Termine ab
 // und setzt kein Soll auf null; das tut nur ein Schließtag.
 const HOLIDAY_CLOSING_DAY_HINT =
-  "Ferien allein sagen keine Termine ab. Hat die OGS geschlossen? Dann legen Sie unten auf der Seite „Zeiträume“ einen Schließtag an.";
+  "Ferien allein sagen keine Termine ab. Hat die OGS geschlossen? Dann legen Sie auf der Seite „Schuljahr und Kalender“ einen Schließtag an.";
 
 function Field({ label, htmlFor, required = false, children }: FieldProps) {
   return (
