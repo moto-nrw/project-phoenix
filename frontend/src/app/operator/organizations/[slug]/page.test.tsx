@@ -224,7 +224,7 @@ const mockSchool: {
   city: "Berlin",
   zip: "10115",
   phone: "",
-  email: "",
+  email: "info@test-school.example",
   active: true,
   hidden: false,
   deletedAt: null,
@@ -457,6 +457,9 @@ describe("OperatorOrganizationDetailPage", () => {
       target: { value: "INVALID!" },
     });
 
+    fireEvent.change(screen.getByLabelText(/E-Mail/), {
+      target: { value: "info@new-school.example" },
+    });
     fireEvent.click(screen.getByText("Erstellen"));
 
     await waitFor(() => {
@@ -488,6 +491,9 @@ describe("OperatorOrganizationDetailPage", () => {
       target: { value: "BAD DOMAIN!" },
     });
 
+    fireEvent.change(screen.getByLabelText(/E-Mail/), {
+      target: { value: "info@new-school.example" },
+    });
     fireEvent.click(screen.getByText("Erstellen"));
 
     await waitFor(() => {
@@ -521,6 +527,9 @@ describe("OperatorOrganizationDetailPage", () => {
     fireEvent.change(screen.getByLabelText(/Name/), {
       target: { value: "Dup School" },
     });
+    fireEvent.change(screen.getByLabelText(/E-Mail/), {
+      target: { value: "info@new-school.example" },
+    });
     fireEvent.click(screen.getByText("Erstellen"));
 
     expect(
@@ -544,6 +553,9 @@ describe("OperatorOrganizationDetailPage", () => {
 
     fireEvent.change(screen.getByLabelText(/Name/), {
       target: { value: "New School" },
+    });
+    fireEvent.change(screen.getByLabelText(/E-Mail/), {
+      target: { value: "info@new-school.example" },
     });
     fireEvent.click(screen.getByText("Erstellen"));
 

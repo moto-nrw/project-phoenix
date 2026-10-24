@@ -382,6 +382,7 @@ func (s *Seeder) retireAbandonedSchool(subdomain string) error {
 			OrganizationID int64  `json:"organization_id"`
 			Name           string `json:"name"`
 			Subdomain      string `json:"subdomain"`
+			Email          string `json:"email"`
 		} `json:"data"`
 	}
 	if err := parseJSON(resp, &payload); err != nil {
@@ -395,7 +396,7 @@ func (s *Seeder) retireAbandonedSchool(subdomain string) error {
 		path := fmt.Sprintf("/operator/schools/%d", school.ID)
 		if _, err := s.client.Put(path, map[string]any{
 			"organization_id": school.OrganizationID, "name": school.Name,
-			"slug": retired, "subdomain": retired, "active": false, "hidden": true,
+			"slug": retired, "subdomain": retired, "email": school.Email, "active": false, "hidden": true,
 		}); err != nil {
 			return fmt.Errorf("rename abandoned school: %w", err)
 		}
@@ -413,6 +414,8 @@ func (s *Seeder) createSeedSchool(organizationID int64, name, slug, subdomain st
 		"name":            name,
 		"slug":            slug,
 		"subdomain":       subdomain,
+		// Every school needs a contact address for replies from parents (#2872).
+		"email": fmt.Sprintf("kontakt@%s.example.test", subdomain),
 	})
 	if err != nil {
 		return 0, "", fmt.Errorf("create school: %w", err)
