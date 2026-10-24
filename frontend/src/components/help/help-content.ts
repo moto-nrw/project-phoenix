@@ -4712,7 +4712,7 @@ function inviteStaffTopic(): HelpTopic {
     ],
     differences: [
       "Beim Import muss die Spalte `Rolle` genau einer vorhandenen Rolle entsprechen.",
-      "Zur Wahl stehen `Verwaltung`, `Betreuung`, `Lehrkraft`, `AG-Leitung`, `Gast` und die eigenen Rollen der Schule. Die alten Namen `Administrator` und `Betreuer` erkennt moto auch.",
+      "Zur Wahl stehen `Verwaltung`, `Betreuung`, `Lehrkraft`, `Schulverwaltung`, `AG-Leitung`, `Gast` und die eigenen Rollen der Schule. Die alten Namen `Administrator` und `Betreuer` erkennt moto auch.",
       "`Nur ansehen` fehlt bei einer externen Person? Diesen Zugang darf nur vergeben, wer Personal verwalten darf.",
       "Fehlt in einer Zeile die E-Mail-Adresse, gibt es keinen Zugang. Die Person steht dann nur in der Liste.",
       "Auf dem Handy steht `+ Personal` als runder Knopf unten rechts. Er öffnet dieselbe Auswahl.",
@@ -4969,7 +4969,7 @@ function staffPermissionsTopic(): HelpTopic {
       "Mit `AG-Leitung` oder `Gast` sieht die Person keine Zeiterfassung, keine Einstellungen und kein Personal.",
     ],
     differences: [
-      "moto bringt einige Rollen schon mit: `Verwaltung`, `Betreuung`, `Lehrkraft`, `AG-Leitung` und `Gast`. Sie sind als `Vorgegeben` markiert.",
+      "moto bringt einige Rollen schon mit: `Verwaltung`, `Betreuung`, `Lehrkraft`, `Schulverwaltung`, `AG-Leitung` und `Gast`. Sie sind als `Vorgegeben` markiert.",
       "Bei einer vorgegebenen Rolle fehlen `Bearbeiten` und `Löschen`. Zum Ändern von Rechten legen Sie deshalb eine eigene Rolle an.",
       "Einige Rechte stehen nicht zur Auswahl. Sie gehören nur der Rolle `Verwaltung` oder dem moto-Team.",
     ],
@@ -5016,6 +5016,8 @@ function leadTeacherAccessTopic(): HelpTopic {
       "Eine Lehrkraft sieht nur ihre Klassen, keine Stammdaten und keine Kontaktdaten.",
     ],
     differences: [
+      "Für Sekretariat und Schulleitung wählen Sie die Rolle `Schulverwaltung`. Sie sieht alle Klassen der Schule. Den Reiter `Klassen` brauchen Sie dafür nicht.",
+      "Neue Klassen sieht die `Schulverwaltung` von selbst.",
       "moto schule hat eine eigene Adresse. Der Link in der Einladung führt dorthin.",
       "Über die Adresse Ihrer OGS kommt eine Lehrkraft nicht hinein.",
     ],
@@ -8044,6 +8046,7 @@ function teacherNoClassesTopic(): HelpTopic {
       "Die Schreibweise muss zur Klasse der Kinder passen. Groß- und Kleinschreibung spielt keine Rolle.",
     ],
     differences: [
+      "Mit der Rolle `Schulverwaltung` sehen Sie alle Klassen der Schule. Dafür braucht es keine Zuweisung.",
       "Sie sehen eine Klasse, aber keine Kinder? Dann ist die Klasse anders geschrieben als bei den Kindern.",
       "Nach einem Schuljahreswechsel wandern die Klassen automatisch mit.",
     ],

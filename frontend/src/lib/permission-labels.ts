@@ -63,6 +63,7 @@ export const actionLabels: Record<string, string> = {
   health: "Gesundheitsdaten",
   legal: "Sorgerecht",
   arrival_exception_write: "Ankunftszeit ändern",
+  all_classes: "Alle Klassen",
   school: "In moto schule",
   class_trip_write: "Ausflug melden",
   morning_attendance_write: "Anwesenheit am Vormittag eintragen",
@@ -241,6 +242,7 @@ const permissionDescriptions: Record<string, string> = {
 
   // Schul-Portal (moto schule)
   "class_day:read": "Tagesansicht der eigenen Klassen ansehen",
+  "class_day:all_classes": "Alle Klassen der Schule sehen, auch ohne Zuweisung",
   "class_day:arrival_exception_write":
     "Für eine eigene Klasse an einem Tag eine andere Ankunftszeit eintragen",
   "class_day:class_trip_write":
