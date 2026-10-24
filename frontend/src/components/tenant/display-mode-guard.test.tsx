@@ -27,6 +27,7 @@ function makeTenant(displayEnabled: boolean): TenantInfo {
     presenceMode: "detailed",
     studentPhotosEnabled: false,
     nfcEnabled: false,
+    bookedModules: [],
     messagingEnabled: false,
     staffMessagingEnabled: false,
     displayEnabled,

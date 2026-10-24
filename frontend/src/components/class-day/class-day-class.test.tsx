@@ -76,6 +76,45 @@ vi.mock("./class-arrival-exception-dialog", () => ({
     ) : null,
 }));
 
+vi.mock("~/components/students/class-trip-bulk-status-modal", () => ({
+  ClassTripBulkStatusModal: ({
+    isOpen,
+    students,
+    onSuccess,
+    onClose,
+    schoolReport,
+  }: {
+    isOpen: boolean;
+    students: { id: string; name: string }[];
+    onSuccess?: () => void;
+    onClose: () => void;
+    schoolReport?: { save: (input: unknown) => Promise<void> };
+  }) =>
+    isOpen ? (
+      <div role="dialog" aria-label="Ausflug melden">
+        {students.map((student) => student.name).join(", ")}
+        <button
+          type="button"
+          onClick={() =>
+            void schoolReport
+              ?.save({
+                studentIds: students.map((student) => student.id),
+                from: "2026-09-07",
+                to: "2026-09-07",
+                returnTime: "13:30",
+              })
+              .then(() => {
+                onSuccess?.();
+                onClose();
+              })
+          }
+        >
+          Melden
+        </button>
+      </div>
+    ) : null,
+}));
+
 import { ClassDayClass, classArrivalExceptionLine } from "./class-day-class";
 
 function report(overrides: Partial<ClassDayReport> = {}): ClassDayReport {
@@ -539,5 +578,322 @@ describe("ClassDayClass", () => {
         within(openChild).queryByText(/Vormittag:/),
       ).not.toBeInTheDocument();
     });
+  });
+
+  describe("class handover (#4794)", () => {
+    function handoverReport(
+      overrides: Partial<ClassDayReport> = {},
+    ): ClassDayReport {
+      return report({
+        can_hand_over: true,
+        totals: {
+          students: 3,
+          staying: 2,
+          leaving: 1,
+          absent: 0,
+          list_entries: 0,
+        },
+        rows: [
+          {
+            student_id: 1,
+            first_name: "Klara",
+            last_name: "Klassentag",
+            registered: true,
+            stays_today: true,
+            offerings: ["Ganztag"],
+          },
+          {
+            student_id: 2,
+            first_name: "Mia",
+            last_name: "Morgenfehlt",
+            registered: true,
+            stays_today: true,
+            offerings: ["Ganztag"],
+            morning_attendance: { status: "absent", source: "teacher" },
+          },
+          {
+            student_id: 3,
+            first_name: "Hugo",
+            last_name: "Heimgeher",
+            registered: true,
+            stays_today: false,
+            offerings: [],
+          },
+        ],
+        ...overrides,
+      });
+    }
+
+    function choice(name: string) {
+      return screen.getByRole("group", { name: `Übergabe von ${name}` });
+    }
+
+    it("prefills the children going to the OGS from the morning and hands the class over", async () => {
+      const handOver = vi.fn(() => Promise.resolve());
+      let current = handoverReport();
+      render(
+        <ClassDayClass
+          schoolClass="4a"
+          fetchClassDay={() => Promise.resolve(current)}
+          handOverClass={handOver}
+          withdrawClassHandover={() => Promise.resolve()}
+        />,
+      );
+
+      expect(
+        await screen.findByText(
+          "Die Klasse ist noch nicht an die OGS übergeben.",
+        ),
+      ).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Klasse übergeben" }));
+
+      // Nur wer in die OGS geht; Mia fehlt laut Vormittag.
+      expect(
+        screen.queryByRole("group", { name: "Übergabe von Hugo Heimgeher" }),
+      ).not.toBeInTheDocument();
+      expect(
+        within(choice("Mia Morgenfehlt")).getByRole("button", {
+          name: "Nicht da",
+        }),
+      ).toHaveAttribute("aria-pressed", "true");
+      expect(
+        within(choice("Klara Klassentag")).getByRole("button", { name: "Da" }),
+      ).toHaveAttribute("aria-pressed", "true");
+
+      fireEvent.click(
+        within(choice("Klara Klassentag")).getByRole("button", {
+          name: "Nicht da",
+        }),
+      );
+      fireEvent.click(
+        within(choice("Mia Morgenfehlt")).getByRole("button", { name: "Da" }),
+      );
+      current = handoverReport({
+        handover: {
+          handed_over_at: "2026-09-09T09:45:00Z",
+          handed_over_by: "Petra Lehrkraft",
+          absent_count: 1,
+        },
+      });
+      current.rows[0]!.handover_absent = true;
+      fireEvent.click(screen.getByRole("button", { name: "Übergeben" }));
+
+      await waitFor(() =>
+        expect(handOver).toHaveBeenCalledWith("4a", todayISO(), {
+          present: [2],
+          absent: [1],
+        }),
+      );
+      expect(
+        await screen.findByText(
+          "Übergeben um 11:45 Uhr von Petra Lehrkraft · 1 Kind nicht da",
+        ),
+      ).toBeInTheDocument();
+      expect(screen.getByText("Bei Übergabe nicht da")).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Übergabe zurücknehmen" }),
+      ).toBeInTheDocument();
+    });
+
+    it("reopens a stored handover with its marks to change it", async () => {
+      const handOver = vi.fn(() => Promise.resolve());
+      const report = handoverReport({
+        handover: {
+          handed_over_at: "2026-09-09T09:45:00Z",
+          absent_count: 1,
+        },
+      });
+      report.rows[0]!.handover_absent = true;
+      render(
+        <ClassDayClass
+          schoolClass="4a"
+          fetchClassDay={() => Promise.resolve(report)}
+          handOverClass={handOver}
+          withdrawClassHandover={() => Promise.resolve()}
+        />,
+      );
+
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Übergabe ändern" }),
+      );
+      // Der gespeicherte Stand, nicht der Vormittag.
+      expect(
+        within(choice("Klara Klassentag")).getByRole("button", {
+          name: "Nicht da",
+        }),
+      ).toHaveAttribute("aria-pressed", "true");
+      expect(
+        within(choice("Mia Morgenfehlt")).getByRole("button", { name: "Da" }),
+      ).toHaveAttribute("aria-pressed", "true");
+      fireEvent.click(screen.getByRole("button", { name: "Übergeben" }));
+      await waitFor(() =>
+        expect(handOver).toHaveBeenCalledWith("4a", todayISO(), {
+          present: [2],
+          absent: [1],
+        }),
+      );
+    });
+
+    it("takes the handover back only after the confirmation", async () => {
+      const withdraw = vi.fn(() => Promise.resolve());
+      render(
+        <ClassDayClass
+          schoolClass="4a"
+          fetchClassDay={() =>
+            Promise.resolve(
+              handoverReport({
+                handover: {
+                  handed_over_at: "2026-09-09T09:45:00Z",
+                  absent_count: 0,
+                },
+              }),
+            )
+          }
+          handOverClass={() => Promise.resolve()}
+          withdrawClassHandover={withdraw}
+        />,
+      );
+
+      expect(
+        await screen.findByText("Übergeben um 11:45 Uhr · alle da"),
+      ).toBeInTheDocument();
+      fireEvent.click(
+        screen.getByRole("button", { name: "Übergabe zurücknehmen" }),
+      );
+      expect(withdraw).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByRole("button", { name: "Zurücknehmen" }));
+      await waitFor(() =>
+        expect(withdraw).toHaveBeenCalledWith("4a", todayISO()),
+      );
+    });
+
+    it("shows the handover as a plain line without the write verdict", async () => {
+      render(
+        <ClassDayClass
+          schoolClass="4a"
+          fetchClassDay={() =>
+            Promise.resolve(
+              handoverReport({
+                can_hand_over: false,
+                handover: {
+                  handed_over_at: "2026-09-09T09:45:00Z",
+                  handed_over_by: "Petra Lehrkraft",
+                  absent_count: 2,
+                },
+              }),
+            )
+          }
+          handOverClass={() => Promise.resolve()}
+          withdrawClassHandover={() => Promise.resolve()}
+        />,
+      );
+
+      expect(
+        await screen.findByText(
+          "Übergeben um 11:45 Uhr von Petra Lehrkraft · 2 Kinder nicht da",
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: /übergeben|zurücknehmen/i }),
+      ).not.toBeInTheDocument();
+    });
+  });
+});
+
+describe("ClassDayClass class trips (#4799)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockSearchParams.delete("tag");
+    setTestClock(new Date("2026-09-07T12:00:00+02:00"));
+  });
+
+  const withListEntry = () =>
+    report({
+      rows: [
+        ...report().rows,
+        {
+          student_id: 0,
+          list_entry: true,
+          list_entry_id: "77",
+          first_name: "Lena",
+          last_name: "Liste",
+          registered: false,
+          stays_today: false,
+          offerings: [],
+        },
+      ],
+    });
+
+  it("reports a trip for the OGS children of the class and confirms it on the page", async () => {
+    const reportClassTrip = vi.fn().mockResolvedValue({
+      kind: "return_time",
+      student_count: 1,
+      date_count: 1,
+    });
+    render(
+      <ClassDayClass
+        schoolClass="4a"
+        fetchClassDay={() => Promise.resolve(withListEntry())}
+        fetchClasses={() =>
+          Promise.resolve({
+            classes: ["4a"],
+            can_write_arrival_exception: false,
+            can_report_class_trip: true,
+          })
+        }
+        reportClassTrip={reportClassTrip}
+      />,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Ausflug oder Klassenfahrt melden",
+      }),
+    );
+    const dialog = screen.getByRole("dialog", { name: "Ausflug melden" });
+    // Only children with an OGS record can be reported.
+    expect(dialog).toHaveTextContent("Klara Klassentag");
+    expect(dialog).not.toHaveTextContent("Lena Liste");
+
+    fireEvent.click(screen.getByRole("button", { name: "Melden" }));
+    await waitFor(() => {
+      expect(reportClassTrip).toHaveBeenCalledWith("4a", {
+        studentIds: ["1"],
+        from: "2026-09-07",
+        to: "2026-09-07",
+        returnTime: "13:30",
+      });
+    });
+    expect(
+      await screen.findByText(
+        "Gespeichert. 1 Kind kommt um 13:30 Uhr in die OGS.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("offers no trip report without the release of the OGS", async () => {
+    render(
+      <ClassDayClass
+        schoolClass="4a"
+        fetchClassDay={() => Promise.resolve(report())}
+        fetchClasses={() =>
+          Promise.resolve({
+            classes: ["4a"],
+            can_write_arrival_exception: true,
+            can_report_class_trip: false,
+          })
+        }
+        reportClassTrip={vi.fn()}
+      />,
+    );
+
+    expect(
+      await screen.findByRole("button", { name: "Ankunft heute ändern" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", {
+        name: "Ausflug oder Klassenfahrt melden",
+      }),
+    ).not.toBeInTheDocument();
   });
 });

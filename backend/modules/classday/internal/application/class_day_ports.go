@@ -186,6 +186,25 @@ type (
 	ArrivalWriteScope interface {
 		SchoolMayWriteClassArrivalExceptions(ctx context.Context) (bool, error)
 	}
+	// ClassTripWriteScope applies operations.school_portal_write_scope to
+	// class trips (#4799).
+	ClassTripWriteScope interface {
+		SchoolMayReportClassTrips(ctx context.Context) (bool, error)
+	}
+	// SchoolWriteScope is operations.school_portal_write_scope for both
+	// writes of moto schule; the root binds one value to both ports.
+	SchoolWriteScope interface {
+		ArrivalWriteScope
+		ClassTripWriteScope
+	}
+	// ClassTripStatusDays records the status "Klassenfahrt" for children of
+	// one class on the given days: the OGS's own status-day write, which
+	// re-checks under lock that each child is still in the class. Refusals
+	// answer errors.Is for classday.ErrClassTripStatusConflict and
+	// classday.ErrClassTripStudentNotInClass; nothing is written then.
+	ClassTripStatusDays interface {
+		RecordClassTrip(ctx context.Context, schoolClass string, studentIDs []int64, dates []calendar.Date, reason string) error
+	}
 	// BlockStarts answers the "Unterricht fällt aus" preset.
 	BlockStarts interface {
 		EarliestPlannedBlockStartForClass(ctx context.Context, schoolClass string, date calendar.Date) (string, error)

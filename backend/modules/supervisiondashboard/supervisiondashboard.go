@@ -59,6 +59,8 @@ type Dependencies struct {
 	Staff    Staff
 	Calendar Calendar
 	Now      func() time.Time
+	// Handovers is optional (#4794): without it no child is marked.
+	Handovers HandoverReader
 }
 
 func (d Dependencies) complete() bool {
@@ -211,6 +213,8 @@ type RosterRow struct {
 	Warnings          []RosterWarning   `json:"warnings,omitempty"`
 	ParallelPresentIn *ParallelPresence `json:"parallel_present_in,omitempty"`
 	CareDayStatus     string            `json:"care_day_status"`
+	// ClassHandover: today's handover of the child to the OGS (#4794).
+	ClassHandover *ClassHandover `json:"class_handover,omitempty"`
 }
 
 // RosterWarning is one arrival or group warning on a roster row.
@@ -262,6 +266,8 @@ type Visit struct {
 	Excused           bool       `json:"excused"`
 	ExcusedSince      *time.Time `json:"excused_since,omitempty"`
 	PhotoURL          string     `json:"photo_url,omitempty"`
+	// ClassHandover: today's handover of the child to the OGS (#4794).
+	ClassHandover *ClassHandover `json:"class_handover,omitempty"`
 }
 
 type TrackingIndicators struct {
@@ -638,7 +644,10 @@ func (s *service) loadPresenceSections(ctx context.Context, projection *Projecti
 	}
 	projection.TrackingIndicators = tracking
 
-	return s.loadPlanningTimes(ctx, projection, caller, studentIDs, fullAccess, businessDay)
+	if err := s.loadPlanningTimes(ctx, projection, caller, studentIDs, fullAccess, businessDay); err != nil {
+		return err
+	}
+	return s.applyClassHandovers(ctx, projection, caller, businessDay)
 }
 
 func unionStudentIDs(selected []VisitRecord, openRoomStudents []int64) []int64 {

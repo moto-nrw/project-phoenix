@@ -49,6 +49,7 @@ const TAB_LABELS: Record<string, string> = {
   system: "System",
   general: "Allgemein",
   startseite: "Startseite für alle",
+  modules: "Module",
 };
 
 // Konzept je Einstellungs-Tab, fuer die Kachel im Sektions-Header. Faellt auf

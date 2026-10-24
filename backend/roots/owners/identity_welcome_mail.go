@@ -64,8 +64,8 @@ func welcomeHelpURL(ctx context.Context, origin, role string, tenantID int64, se
 		failures = append(failures, err)
 	}
 	if settings != nil {
-		if nfc, err := settings.ResolveBool(ctx, configModels.KeyAttendanceNFCEnabled); err != nil {
-			fail(configModels.KeyAttendanceNFCEnabled, err)
+		if nfc, err := settings.ResolveBool(ctx, configModels.KeyModuleNFCAnwesenheit); err != nil {
+			fail(configModels.KeyModuleNFCAnwesenheit, err)
 		} else {
 			resolved.NFCEnabled = &nfc
 		}

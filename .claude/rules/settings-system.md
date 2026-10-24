@@ -124,7 +124,7 @@ GetLoginImageURL / SetLoginImageURL / ClearLoginImageURL(ctx, tenantID, ...) // 
 ### Access Control — Two Dimensions
 
 1. **Permissions** (`ReadPermission` / `WritePermission`): `config:update` for operational settings, `config:manage` for GDPR/security. Route-level auth accepts either; service-level `checkWritePermission` is wildcard-aware (`admin:*` works).
-2. **AccessPolicy** (`shared` | `admin_only` | `operator_only` | `operator_managed`, default `shared`): who may see/change the setting at all. `operator_only` settings (e.g. `operations.presence_mode`, `attendance.nfc_enabled`, the session-lifecycle settings, `gdpr.data_cleanup_enabled`, `gdpr.data_cleanup_timeout_minutes`) are hidden from the tenant schema and managed via the operator portal; `admin_only` (e.g. `security.ogs_device_pin`) is hidden from operators. `operator_managed` (ADR 0048) is for the retention windows: operators write them, the tenant schema shows them with `writable: false`, and tenant set/reset answers 403. Every retention window of school data uses it. Settings without an explicit policy are `shared` (e.g. `gdpr.data_cleanup_time` stays tenant-writable).
+2. **AccessPolicy** (`shared` | `admin_only` | `operator_only` | `operator_managed`, default `shared`): who may see/change the setting at all. `operator_only` settings (e.g. `operations.presence_mode`, the session-lifecycle settings, `gdpr.data_cleanup_enabled`, `gdpr.data_cleanup_timeout_minutes`) are hidden from the tenant schema and managed via the operator portal; `admin_only` (e.g. `security.ogs_device_pin`) is hidden from operators. `operator_managed` (ADR 0048) is for the retention windows: operators write them, the tenant schema shows them with `writable: false`, and tenant set/reset answers 403. Every retention window of school data uses it, and so does every module switch `module.<key>` ([module switches](../../docs/reference/modulschalter.md)). Settings without an explicit policy are `shared` (e.g. `gdpr.data_cleanup_time` stays tenant-writable).
 
 ### Frontend
 
@@ -274,7 +274,7 @@ Also run tests for affected consumers and the backend architecture checks.
 
 ## Available Field Types
 
-8 types (`modules/settings/records/registry.go`): `boolean`, `number`, `time` (HH:MM), `date`, `text`, `textarea`, `password`, `select` (requires `Options.Static`). Boolean/select save immediately; text/number/time debounce; password has an explicit save.
+9 types (`modules/settings/records/registry.go`): `boolean`, `number`, `time` (HH:MM), `date`, `text`, `textarea`, `password`, `select` (requires `Options.Static`), `multiselect` (requires `Options.Static`; the value is the list of chosen option values, stored in option order). Boolean/select/multiselect save immediately; text/number/time debounce; password has an explicit save.
 
 ## Conditional Visibility (DependsOn)
 
