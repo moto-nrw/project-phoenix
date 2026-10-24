@@ -25,6 +25,7 @@ import (
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/workflows/shiftplansync"
 	shiftplansyncCompose "github.com/moto-nrw/project-phoenix/workflows/shiftplansync/compose"
 )
 
@@ -35,6 +36,9 @@ type WorkforceTestModule struct {
 	// TimeTracking is the Workforce time-tracking side composed the way
 	// the service graph composes it (#3413).
 	TimeTracking *workforceCompose.TimeTracking
+	// SickReports is the shift-plan-sync entry of the sick-report writes,
+	// bound to the real cascade the way the service graph binds it (#4825).
+	SickReports owners.WorkforceAbsenceWrites
 }
 
 // NewWorkforceTestModule composes the Workforce owner over db and returns it
@@ -132,14 +136,14 @@ func NewWorkforceTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 			DataAccessLog: audits.DataAccessLog, TimeTrackingAuditLog: audits.TimeTrackingAuditLog,
 		},
 		People: usersService, Holidays: nonWorkingDayService,
-		Events:        owners.TimeTrackingEvents(realtimeHub),
-		ShiftPlanSync: shiftPlanSyncer,
-		Logger:        logger, Today: today,
+		Events: owners.TimeTrackingEvents(realtimeHub),
+		Logger: logger, Today: today,
 	})
 	if err != nil {
 		return WorkforceTestModule{}, nil, err
 	}
-	return WorkforceTestModule{StaffAdmin: staffAdmin, TimeTracking: timeTracking}, usersService, nil
+	sickReports, err := shiftplansync.NewSickReports(timeTracking.StaffAbsences, shiftPlanSyncer, tenant.NewTransactionRunner().RunInTx)
+	return WorkforceTestModule{StaffAdmin: staffAdmin, TimeTracking: timeTracking, SickReports: sickReports}, usersService, err
 }
 
 // MustNewStaffEmployment is workforceCompose.MustNewStaffEmployment for the

@@ -293,18 +293,18 @@ func (s *Service) DeleteAttachment(ctx context.Context, announcementID, attachme
 	})
 }
 
-// --- parent side --------------------------------------------------------------
+// --- tenant-scoped reads ------------------------------------------------------
 
-// ListGuardianAttachments returns the attachments a guardian account may see,
-// or ErrAttachmentNotFound when the account is outside the audience.
-func (s *Service) ListGuardianAttachments(ctx context.Context, accountID, announcementID int64) ([]filestorage.Attachment, error) {
+// ListAnnouncementAttachmentsInTenant returns an announcement's live
+// attachments under tenantID's RLS. The caller decided the audience; the
+// parents portal is cross-tenant, so the announcement's school is named.
+func (s *Service) ListAnnouncementAttachmentsInTenant(ctx context.Context, tenantID, announcementID int64) ([]filestorage.Attachment, error) {
 	var attachments []domain.Document
-	err := s.run("list_guardian_attachments", func(o *op) error {
-		tenantID, err := s.guardianTenant(ctx, accountID, announcementID)
-		if err != nil {
-			return err
+	err := s.run("list_announcement_attachments_in_tenant", func(o *op) error {
+		if tenantID <= 0 || announcementID <= 0 {
+			return filestorage.ErrAttachmentNotFound
 		}
-		if err := s.deps.Tx.RunInTenant(ctx, tenantID, func(txCtx context.Context) error {
+		return s.deps.Tx.RunInTenant(ctx, tenantID, func(txCtx context.Context) error {
 			found, stats, err := s.deps.Attachments.ListByOwner(txCtx, announcementID)
 			o.add(stats)
 			if err != nil {
@@ -312,10 +312,7 @@ func (s *Service) ListGuardianAttachments(ctx context.Context, accountID, announ
 			}
 			attachments = found
 			return nil
-		}); err != nil {
-			return err
-		}
-		return s.revalidateGuardianAccess(ctx, accountID, announcementID, tenantID)
+		})
 	})
 	if err != nil {
 		return nil, err
@@ -323,31 +320,29 @@ func (s *Service) ListGuardianAttachments(ctx context.Context, accountID, announ
 	return toAttachments(attachments), nil
 }
 
-// OpenGuardianAttachment resolves one attachment for a guardian and opens its
-// bytes under the announcement's school.
-func (s *Service) OpenGuardianAttachment(ctx context.Context, accountID, announcementID, attachmentID int64) (filestorage.Content, error) {
+// FindAnnouncementAttachmentInTenant reads one attachment row under
+// tenantID's RLS without opening its bytes.
+func (s *Service) FindAnnouncementAttachmentInTenant(ctx context.Context, tenantID, announcementID, attachmentID int64) (filestorage.Attachment, error) {
+	var attachment domain.Document
+	err := s.run("find_announcement_attachment_in_tenant", func(o *op) error {
+		var err error
+		attachment, err = s.findAttachmentInTenant(ctx, o, tenantID, announcementID, attachmentID)
+		return err
+	})
+	if err != nil {
+		return filestorage.Attachment{}, err
+	}
+	return toAttachment(attachment), nil
+}
+
+// OpenAnnouncementAttachmentInTenant reads one attachment row under
+// tenantID's RLS and opens its bytes under that school.
+func (s *Service) OpenAnnouncementAttachmentInTenant(ctx context.Context, tenantID, announcementID, attachmentID int64) (filestorage.Content, error) {
 	var attachment domain.Document
 	var object ports.Object
-	err := s.run("open_guardian_attachment", func(o *op) error {
-		tenantID, err := s.guardianTenant(ctx, accountID, announcementID)
-		if err != nil {
-			return err
-		}
-		if err := s.deps.Tx.RunInTenant(ctx, tenantID, func(txCtx context.Context) error {
-			found, ok, stats, err := s.deps.Attachments.FindForOwner(txCtx, announcementID, attachmentID, false)
-			o.add(stats)
-			if err != nil {
-				return err
-			}
-			if !ok {
-				return filestorage.ErrAttachmentNotFound
-			}
-			attachment = found
-			return nil
-		}); err != nil {
-			return err
-		}
-		if err := s.revalidateGuardianAccess(ctx, accountID, announcementID, tenantID); err != nil {
+	err := s.run("open_announcement_attachment_in_tenant", func(o *op) error {
+		var err error
+		if attachment, err = s.findAttachmentInTenant(ctx, o, tenantID, announcementID, attachmentID); err != nil {
 			return err
 		}
 		object, err = s.openObject(ctx, s.attachments(), tenantID, attachment)
@@ -359,104 +354,24 @@ func (s *Service) OpenGuardianAttachment(ctx context.Context, accountID, announc
 	return toContent(attachment, object), nil
 }
 
-// OpenGuardianDeclarationProofAttachment resolves one attachment that was
-// frozen in the caller's own declaration proof. Unlike the live-announcement
-// path, this remains available after expiry or withdrawal; the proof gate
-// verifies the relationship, submission and frozen attachment together.
-func (s *Service) OpenGuardianDeclarationProofAttachment(ctx context.Context, accountID, announcementID, studentID, attachmentID int64) (filestorage.Content, error) {
+func (s *Service) findAttachmentInTenant(ctx context.Context, o *op, tenantID, announcementID, attachmentID int64) (domain.Document, error) {
+	if tenantID <= 0 || announcementID <= 0 || attachmentID <= 0 {
+		return domain.Document{}, filestorage.ErrAttachmentNotFound
+	}
 	var attachment domain.Document
-	var object ports.Object
-	err := s.run("open_guardian_declaration_proof_attachment", func(o *op) error {
-		tenantID, err := s.guardianDeclarationProofAttachmentTenant(ctx, accountID, announcementID, studentID, attachmentID)
+	err := s.deps.Tx.RunInTenant(ctx, tenantID, func(txCtx context.Context) error {
+		found, ok, stats, err := s.deps.Attachments.FindForOwner(txCtx, announcementID, attachmentID, false)
+		o.add(stats)
 		if err != nil {
 			return err
 		}
-		if err := s.deps.Tx.RunInTenant(ctx, tenantID, func(txCtx context.Context) error {
-			found, ok, stats, err := s.deps.Attachments.FindForOwner(txCtx, announcementID, attachmentID, false)
-			o.add(stats)
-			if err != nil {
-				return err
-			}
-			if !ok {
-				return filestorage.ErrAttachmentNotFound
-			}
-			attachment = found
-			return nil
-		}); err != nil {
-			return err
+		if !ok {
+			return filestorage.ErrAttachmentNotFound
 		}
-		if err := s.revalidateGuardianDeclarationProofAttachmentAccess(ctx, accountID, announcementID, studentID, attachmentID, tenantID); err != nil {
-			return err
-		}
-		object, err = s.openObject(ctx, s.attachments(), tenantID, attachment)
-		return err
+		attachment = found
+		return nil
 	})
-	if err != nil {
-		return filestorage.Content{}, err
-	}
-	return toContent(attachment, object), nil
-}
-
-// revalidateGuardianAccess asks the audience a second time, after the rows
-// have been read and before anything is handed out. Die erste Prüfung und das
-// Lesen laufen in getrennten Transaktionen; zwischen beiden kann die Mitteilung
-// zurückgezogen worden sein. Eine abweichende Schule wird wie „nicht sichtbar"
-// behandelt.
-func (s *Service) revalidateGuardianAccess(ctx context.Context, accountID, announcementID, expectedTenantID int64) error {
-	tenantID, err := s.guardianTenant(ctx, accountID, announcementID)
-	if err != nil {
-		return err
-	}
-	if tenantID != expectedTenantID {
-		return filestorage.ErrAttachmentNotFound
-	}
-	return nil
-}
-
-func (s *Service) revalidateGuardianDeclarationProofAttachmentAccess(ctx context.Context, accountID, announcementID, studentID, attachmentID, expectedTenantID int64) error {
-	tenantID, err := s.guardianDeclarationProofAttachmentTenant(ctx, accountID, announcementID, studentID, attachmentID)
-	if err != nil {
-		return err
-	}
-	if tenantID != expectedTenantID {
-		return filestorage.ErrAttachmentNotFound
-	}
-	return nil
-}
-
-// guardianTenant resolves the announcement's school after the audience check.
-func (s *Service) guardianTenant(ctx context.Context, accountID, announcementID int64) (int64, error) {
-	if accountID <= 0 || announcementID <= 0 {
-		return 0, filestorage.ErrAttachmentNotFound
-	}
-	if s.deps.GuardianAudience == nil {
-		return 0, errors.New("announcement audience is not wired; refusing attachment read")
-	}
-	tenantID, err := s.deps.GuardianAudience.GuardianAnnouncementTenant(ctx, accountID, announcementID)
-	if err != nil {
-		return 0, err
-	}
-	if tenantID <= 0 {
-		return 0, filestorage.ErrAttachmentNotFound
-	}
-	return tenantID, nil
-}
-
-func (s *Service) guardianDeclarationProofAttachmentTenant(ctx context.Context, accountID, announcementID, studentID, attachmentID int64) (int64, error) {
-	if accountID <= 0 || announcementID <= 0 || studentID <= 0 || attachmentID <= 0 {
-		return 0, filestorage.ErrAttachmentNotFound
-	}
-	if s.deps.GuardianAudience == nil {
-		return 0, errors.New("declaration proof attachment audience is not wired; refusing attachment read")
-	}
-	tenantID, err := s.deps.GuardianAudience.GuardianDeclarationProofAttachmentTenant(ctx, accountID, announcementID, studentID, attachmentID)
-	if err != nil {
-		return 0, err
-	}
-	if tenantID <= 0 {
-		return 0, filestorage.ErrAttachmentNotFound
-	}
-	return tenantID, nil
+	return attachment, err
 }
 
 // --- announcement-side promises ------------------------------------------------

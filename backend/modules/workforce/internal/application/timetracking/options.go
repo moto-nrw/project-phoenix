@@ -101,12 +101,6 @@ func WithAbsenceDeletionAudit(audit TimeTrackingDeletionAudit) StaffAbsenceOptio
 	return func(s *staffAbsenceService) { s.deletionRepo = audit }
 }
 
-// WithAbsenceShiftPlanSyncer binds the #1843 sick cascade, which
-// NewStaffAbsenceService requires.
-func WithAbsenceShiftPlanSyncer(syncer ShiftPlanSyncer) StaffAbsenceOption {
-	return func(s *staffAbsenceService) { s.shiftPlanSyncer = syncer }
-}
-
 // WithAbsenceEvents binds the time-account change notification.
 func WithAbsenceEvents(publisher EventPublisher) StaffAbsenceOption {
 	return func(s *staffAbsenceService) { s.broadcaster = publisher }

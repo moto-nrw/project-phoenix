@@ -60,25 +60,20 @@ type Events = ports.Events
 // attachments; see ports.Announcements.
 type Announcements = ports.Announcements
 
-// GuardianAudience is the parents-portal surface for the guardian side of
-// attachments; see ports.GuardianAudience.
-type GuardianAudience = ports.GuardianAudience
-
-// Dependencies are the bindings composition supplies. Announcements and
-// GuardianAudience are optional: a setup without them serves folders and
-// files and refuses every attachment path loudly.
+// Dependencies are the bindings composition supplies. Announcements is
+// optional: a setup without it serves folders and files and refuses every
+// staff attachment path loudly.
 type Dependencies struct {
-	DB               *bun.DB
-	Objects          ObjectBackend
-	Identity         Identity
-	People           People
-	Settings         Settings
-	Events           Events
-	HasPermission    func(required string, permissions []string) bool
-	Announcements    Announcements
-	GuardianAudience GuardianAudience
-	Observe          func(Observation)
-	Logger           *slog.Logger
+	DB            *bun.DB
+	Objects       ObjectBackend
+	Identity      Identity
+	People        People
+	Settings      Settings
+	Events        Events
+	HasPermission func(required string, permissions []string) bool
+	Announcements Announcements
+	Observe       func(Observation)
+	Logger        *slog.Logger
 	// Now is the clock; nil means time.Now.
 	Now func() time.Time
 }
@@ -136,7 +131,6 @@ func New(dependencies Dependencies) (filestorage.Capability, error) {
 		Settings:           dependencies.Settings,
 		Events:             dependencies.Events,
 		Announcements:      dependencies.Announcements,
-		GuardianAudience:   dependencies.GuardianAudience,
 		Tx:                 transaction{},
 		StoredNames:        apiDocuments.NewStoredName,
 		Observe:            dependencies.Observe,

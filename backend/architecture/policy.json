@@ -10775,17 +10775,6 @@
       "target_role": "public"
     },
     {
-      "id": "staff-offboarding.compose.offboarding.workforce.public",
-      "description": "Wire the staff lifecycle owner workflow required by #2709 without legacy repository orchestration.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "staff-offboarding",
-      "source_role": "compose",
-      "target_owner": "workforce",
-      "target_role": "public"
-    },
-    {
       "id": "people-directory.contracttest.staff-offboarding.public",
       "description": "The People Directory contract suite wires the staff lifecycle owner workflow required by #2709 (moved from services/users with #3755).",
       "scopes": [

@@ -58,10 +58,10 @@ type SubstitutionAdapterDependencies struct {
 	Logger        *slog.Logger
 }
 
-// SubstitutionAdapter serves the schedule half of the substitution module: the
-// appointment overview, the deviation writes and ending one substitution. It
-// implements education.ScheduleAdapter directly, so the composition root needs
-// no mapping bridge of its own.
+// SubstitutionAdapter serves the schedule writes of the Terminvertretung
+// entry: the appointment overview, the deviation writes and ending one
+// substitution, in School Structure's substitution vocabulary, so the
+// composition root needs no mapping bridge of its own.
 type SubstitutionAdapter struct {
 	deps SubstitutionAdapterDependencies
 }

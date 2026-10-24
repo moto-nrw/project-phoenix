@@ -45,6 +45,6 @@ func NewStaffOffboardingOwners(db transactionruntime.Database, people staffoffbo
 	return offboardingcompose.Dependencies{
 		DB: db.Pool(), People: people, Membership: membership, Retirement: retirement, Timetable: timetable,
 		LockSupervision: presence.LockStaffSupervision,
-		Audit:           audit, AbsenceDeletionRecord: staffAbsenceDeletionRecord, StaffDeletionRecord: staffOffboardingRecord,
+		Audit:           audit, StaffDeletionRecord: staffOffboardingRecord,
 	}, nil
 }

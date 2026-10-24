@@ -671,7 +671,7 @@ func (rs *StaffAdminResource) adminCreateStaffAbsence(w http.ResponseWriter, r *
 		return
 	}
 	actorAccountID := claims.AccountID
-	resp, err := rs.StaffAbsenceService.CreateAbsenceFor(r.Context(), staffID, editorStaffID, &actorAccountID, req)
+	resp, err := rs.AbsenceWrites.CreateAbsenceFor(r.Context(), staffID, editorStaffID, &actorAccountID, req)
 	if err != nil {
 		tenant.MarkRollback(r.Context())
 		common.RenderError(w, r, renderAdminAbsenceError(err))
@@ -709,7 +709,7 @@ func (rs *StaffAdminResource) adminDeleteStaffAbsence(w http.ResponseWriter, r *
 		return
 	}
 	actorAccountID := claims.AccountID
-	if err := rs.StaffAbsenceService.DeleteAbsenceFor(r.Context(), staffID, editorStaffID, &actorAccountID, absenceID); err != nil {
+	if err := rs.AbsenceWrites.DeleteAbsenceFor(r.Context(), staffID, editorStaffID, &actorAccountID, absenceID); err != nil {
 		tenant.MarkRollback(r.Context())
 		common.RenderError(w, r, renderAdminAbsenceError(err))
 		return
