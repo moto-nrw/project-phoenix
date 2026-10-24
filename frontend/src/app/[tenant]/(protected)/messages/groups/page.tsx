@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import useSWR from "swr";
 import { Button } from "~/components/ui/button";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
@@ -12,6 +12,7 @@ import { TileCard } from "~/components/ui/tile-card";
 import { messagesTabs } from "~/components/messaging/messages-tabs";
 import { NewGroupMessageModal } from "~/components/messaging/new-group-message-modal";
 import { formatChatDateTime } from "~/lib/date-helpers";
+import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
 import {
@@ -47,6 +48,11 @@ function GroupMessagesContent() {
         }),
     },
   );
+  // Group-thread changes use the shared staff messaging event. Revalidation
+  // only reloads the list; it does not advance a read cursor, even in a
+  // background tab.
+  const refreshGroupThreads = useCallback(() => void mutate(), [mutate]);
+  useMessagesActivity({ onMatch: refreshGroupThreads, marksRead: false });
   const loadError = useSwrLoadError(
     error,
     "die Liste der Gruppennachrichten",

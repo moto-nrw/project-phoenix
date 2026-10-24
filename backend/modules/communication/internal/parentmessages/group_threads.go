@@ -150,6 +150,9 @@ func (s *Service) CloseParentGroupThread(ctx context.Context, threadID int64) (*
 		return nil, err
 	}
 	if thread.ClosedAt == nil {
+		if err := s.requireEnabled(ctx); err != nil {
+			return nil, deliveryPorts.ErrParentGroupMessagingDisabled
+		}
 		recipientAccountIDs, err := s.GroupThreads.RecipientAccountIDs(ctx, thread.ID)
 		if err != nil {
 			return nil, fmt.Errorf("messaging: list group thread recipients: %w", err)

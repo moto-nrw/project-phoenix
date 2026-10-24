@@ -1,4 +1,5 @@
 import {
+  act,
   fireEvent,
   render as rtlRender,
   screen,
@@ -12,9 +13,10 @@ function render(ui: ReactElement) {
   return rtlRender(ui, { wrapper: ToastProvider });
 }
 
-const { state, push } = vi.hoisted(() => ({
+const { state, push, mutate } = vi.hoisted(() => ({
   state: { threads: [] as Array<Record<string, unknown>>, enabled: true },
   push: vi.fn(),
+  mutate: vi.fn(),
 }));
 
 vi.mock("swr", () => ({
@@ -22,7 +24,7 @@ vi.mock("swr", () => ({
     data: state.threads,
     error: undefined,
     isLoading: false,
-    mutate: vi.fn(() => Promise.resolve(undefined)),
+    mutate,
   }),
 }));
 vi.mock("next/navigation", () => ({
@@ -49,6 +51,7 @@ import GroupMessagesPage from "./page";
 describe("Gruppennachrichten: Liste", () => {
   beforeEach(() => {
     push.mockReset();
+    mutate.mockReset();
     state.enabled = true;
     state.threads = [
       {
@@ -111,6 +114,14 @@ describe("Gruppennachrichten: Liste", () => {
     expect(
       screen.getByText("2 Gruppennachrichten · 1 offen"),
     ).toBeInTheDocument();
+  });
+
+  it("reloads after a group-message activity event", () => {
+    render(<GroupMessagesPage />);
+    act(() => {
+      window.dispatchEvent(new CustomEvent("messages-activity"));
+    });
+    expect(mutate).toHaveBeenCalledTimes(1);
   });
 
   it("links both registers of Nachrichten", () => {

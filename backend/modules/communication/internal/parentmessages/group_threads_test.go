@@ -295,6 +295,36 @@ func TestGroupThread_ClosedThreadTakesNoAnswersOrMessages(t *testing.T) {
 	}), communication.ErrParentGroupThreadClosed)
 }
 
+func TestGroupThread_DisabledFeatureRefusesClose(t *testing.T) {
+	t.Parallel()
+	f, run := newGroupFixture(t)
+	staffCtx := adminCtx(t, f.staff)
+
+	var threadID int64
+	require.NoError(t, run(staffCtx, func(ctx context.Context) error {
+		detail, err := f.svc.CreateParentGroupThread(ctx, communication.ParentGroupThreadInput{
+			Target: classTarget("1a"), Title: "Info", Body: "Hallo",
+		})
+		if err == nil {
+			threadID = detail.Thread.ID
+		}
+		return err
+	}))
+
+	f.svc.Settings = configModels.NewParentMessagingValues(stubSettings{messagingEnabled: false})
+	require.ErrorIs(t, run(staffCtx, func(ctx context.Context) error {
+		_, err := f.svc.CloseParentGroupThread(ctx, threadID)
+		return err
+	}), communication.ErrParentMessagingDisabled)
+
+	require.NoError(t, run(staffCtx, func(ctx context.Context) error {
+		detail, err := f.svc.GetParentGroupThread(ctx, threadID)
+		require.NoError(t, err)
+		assert.Nil(t, detail.Thread.ClosedAt, "disabled messaging must not close the thread")
+		return nil
+	}))
+}
+
 func TestGroupThread_PreviewMarksChildrenWithoutReachableParents(t *testing.T) {
 	t.Parallel()
 	f, run := newGroupFixture(t)
