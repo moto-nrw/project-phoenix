@@ -50,7 +50,6 @@ type GuardianInvitation struct {
 type PendingGuardianInvitation struct {
 	ID                int64
 	GuardianProfileID int64
-	Token             string
 	CreatedAt         time.Time
 	ExpiresAt         time.Time
 	EmailSentAt       *time.Time

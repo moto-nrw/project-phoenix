@@ -19,7 +19,7 @@ func insertOperatorSession(t *testing.T, db *bun.DB, operatorID int64) {
 	t.Helper()
 	_, err := db.ExecContext(context.Background(), `INSERT INTO platform.operator_refresh_tokens
 		(operator_id, token, expiry, family_id) VALUES (?, ?, now() + interval '1 day', ?)`,
-		operatorID, uniqueOperatorEmail("session-token"), uniqueOperatorEmail("session-family"))
+		operatorID, sha256Hex(uniqueOperatorEmail("session-token")), uniqueOperatorEmail("session-family"))
 	require.NoError(t, err)
 }
 

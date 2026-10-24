@@ -47,7 +47,7 @@ func (s *AccountAuthentication) validateOperatorSession(ctx context.Context, cla
 		return nil
 	}
 	session, err := s.sessions.findOperatorSessionForUpdate(ctx, refreshClaims.Token)
-	if err != nil || session.OperatorID != operator.ID || !session.Expiry.After(time.Now()) || session.RotatedAt != nil || session.ReplacementToken != nil || session.FamilyID != claims.FamilyID {
+	if err != nil || session.OperatorID != operator.ID || !session.Expiry.After(time.Now()) || session.RotatedAt != nil || session.ReplacementTokenHash != nil || session.FamilyID != claims.FamilyID {
 		return identityaccess.ErrInvalidToken
 	}
 	return nil
@@ -83,7 +83,7 @@ func (s *AccountAuthentication) validateSessionInTx(txCtx context.Context, claim
 		return nil
 	}
 	session, err := s.sessions.findAccountSessionByToken(txCtx, refreshClaims.Token)
-	if err != nil || session.AccountID != account.ID || (claims.TenantID > 0 && session.TenantID != claims.TenantID) || session.PortalScope != domain.PersistedPortalScope(claims.Scope) || !session.Expiry.After(time.Now()) || session.RotatedAt != nil || session.ReplacementToken != nil || session.FamilyID != claims.FamilyID {
+	if err != nil || session.AccountID != account.ID || (claims.TenantID > 0 && session.TenantID != claims.TenantID) || session.PortalScope != domain.PersistedPortalScope(claims.Scope) || !session.Expiry.After(time.Now()) || session.RotatedAt != nil || session.ReplacementTokenHash != nil || session.FamilyID != claims.FamilyID {
 		return identityaccess.ErrInvalidToken
 	}
 	return nil

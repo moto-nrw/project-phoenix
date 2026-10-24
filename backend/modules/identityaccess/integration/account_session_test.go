@@ -84,11 +84,11 @@ func TestAccountSessionLifecycle(t *testing.T) {
 	mobile := true
 	mobileSession := newAccountSession(account.ID, "parent", newFamilyID(), 0)
 	mobileSession.Mobile = true
-	_, err = access.CreateAccountSession(ctx, mobileSession)
+	mobileCreated, err := access.CreateAccountSession(ctx, mobileSession)
 	require.NoError(t, err)
 	expired := newAccountSession(account.ID, "parent", newFamilyID(), 0)
 	expired.Expiry = time.Now().Add(-time.Minute)
-	_, err = access.CreateAccountSession(ctx, expired)
+	expiredCreated, err := access.CreateAccountSession(ctx, expired)
 	require.NoError(t, err)
 
 	all, err := access.ListAccountSessions(ctx, identityaccess.AccountSessionFilter{AccountID: account.ID})
@@ -100,11 +100,11 @@ func TestAccountSessionLifecycle(t *testing.T) {
 	expiredOnly, err := access.ListAccountSessions(ctx, identityaccess.AccountSessionFilter{AccountID: account.ID, Liveness: identityaccess.AccountSessionsExpired})
 	require.NoError(t, err)
 	require.Len(t, expiredOnly, 1)
-	assert.Equal(t, expired.Token, expiredOnly[0].Token)
+	assert.Equal(t, expiredCreated.ID, expiredOnly[0].ID)
 	mobileOnly, err := access.ListAccountSessions(ctx, identityaccess.AccountSessionFilter{AccountID: account.ID, Mobile: &mobile})
 	require.NoError(t, err)
 	require.Len(t, mobileOnly, 1)
-	assert.Equal(t, mobileSession.Token, mobileOnly[0].Token)
+	assert.Equal(t, mobileCreated.ID, mobileOnly[0].ID)
 	family, err := access.ListAccountSessions(ctx, identityaccess.AccountSessionFilter{FamilyID: familyID})
 	require.NoError(t, err)
 	assert.Len(t, family, 2)
@@ -140,8 +140,8 @@ func TestAccountSessionRotationHandoff(t *testing.T) {
 	stored, err := access.FindAccountSession(ctx, predecessor.Token)
 	require.NoError(t, err)
 	require.NotNil(t, stored.RotatedAt)
-	require.NotNil(t, stored.ReplacementToken)
-	assert.Equal(t, successor.Token, *stored.ReplacementToken)
+	require.NotNil(t, stored.ReplacementTokenHash)
+	assert.Equal(t, testpkg.TokenHash(t, db, successor.Token), *stored.ReplacementTokenHash, "the hand-off names its successor by hash only")
 	assert.Equal(t, proof, stored.RecoveryProofHash)
 
 	// A rotated predecessor stays as replay evidence until its refresh JWT
@@ -329,10 +329,10 @@ func TestAccountSessionRevocations(t *testing.T) {
 	_, err = db.NewRaw(`
 		INSERT INTO auth.tokens (account_id, token, expiry, tenant_id, portal_scope, family_id, generation, created_at)
 		VALUES (?, ?, ?, ?, 'tenant', ?, 0, ?), (?, ?, ?, ?, 'tenant', ?, 1, ?), (?, ?, ?, ?, 'tenant', '', 0, ?), (?, ?, ?, ?, 'tenant', ?, 0, ?)`,
-		account.ID, uuid.Must(uuid.NewV4()).String(), time.Now().Add(time.Hour), testpkg.Tenant(t), preexisting, cutoff.Add(-time.Minute),
-		account.ID, uuid.Must(uuid.NewV4()).String(), time.Now().Add(time.Hour), testpkg.Tenant(t), preexisting, cutoff.Add(time.Minute),
-		account.ID, uuid.Must(uuid.NewV4()).String(), time.Now().Add(time.Hour), testpkg.Tenant(t), cutoff.Add(time.Minute),
-		account.ID, uuid.Must(uuid.NewV4()).String(), time.Now().Add(time.Hour), testpkg.Tenant(t), newFamily, cutoff.Add(time.Minute),
+		account.ID, testpkg.TokenHash(t, db, uuid.Must(uuid.NewV4()).String()), time.Now().Add(time.Hour), testpkg.Tenant(t), preexisting, cutoff.Add(-time.Minute),
+		account.ID, testpkg.TokenHash(t, db, uuid.Must(uuid.NewV4()).String()), time.Now().Add(time.Hour), testpkg.Tenant(t), preexisting, cutoff.Add(time.Minute),
+		account.ID, testpkg.TokenHash(t, db, uuid.Must(uuid.NewV4()).String()), time.Now().Add(time.Hour), testpkg.Tenant(t), cutoff.Add(time.Minute),
+		account.ID, testpkg.TokenHash(t, db, uuid.Must(uuid.NewV4()).String()), time.Now().Add(time.Hour), testpkg.Tenant(t), newFamily, cutoff.Add(time.Minute),
 	).Exec(ctx)
 	require.NoError(t, err)
 	older, err := access.RevokeAccountSessionsCreatedAtOrBefore(ctx, account.ID, cutoff)
@@ -589,7 +589,7 @@ func TestAccountRefreshRollsBackAfterEachWrite(t *testing.T) {
 			stored, err := access.FindAccountSession(testpkg.Ctx(t), predecessor.Token)
 			require.NoError(t, err, "the predecessor must survive the rollback")
 			assert.Nil(t, stored.RotatedAt, "the rolled-back hand-off must not be recorded")
-			assert.Nil(t, stored.ReplacementToken)
+			assert.Nil(t, stored.ReplacementTokenHash)
 			if state.successor.Token != "" {
 				_, err = access.FindAccountSession(testpkg.Ctx(t), state.successor.Token)
 				require.ErrorIs(t, err, identityaccess.ErrAccountSessionNotFound, "the rolled-back successor must not exist")

@@ -24,13 +24,18 @@ func TestVisitListPresenceCutoverPreservesStatusAndGroupFilters(t *testing.T) {
 	group := testpkg.CreateTestActiveGroup(t, tc.db, activity.ID, room.ID)
 	otherGroup := testpkg.CreateTestActiveGroup(t, tc.db, activity.ID, room.ID)
 	otherStudent := testpkg.CreateTestStudent(t, tc.db, "Other", "HTTP", "3a")
-	// Completed visits remain readable without the attendance log only from the
-	// current Berlin calendar day. Keep this fixture on that day even directly
-	// after midnight.
-	at := calendar.Today().Add(8 * time.Hour)
-	exit := at.Add(10 * time.Minute)
+	// The visits lie in the past but within today: without the attendance
+	// log, closed visits before today's midnight are hidden, which would make
+	// this test fail between 00:00 and 01:00.
+	now := time.Now()
+	at := now.Add(-time.Hour)
+	if midnight := calendar.TodayDate().BerlinMidnight(); at.Before(midnight) {
+		at = midnight
+	}
+	step := now.Sub(at) / 3
+	exit := at.Add(step)
 	closed := testpkg.CreateTestVisit(t, tc.db, student.ID, group.ID, at, &exit)
-	open := testpkg.CreateTestVisit(t, tc.db, student.ID, group.ID, at.Add(20*time.Minute), nil)
+	open := testpkg.CreateTestVisit(t, tc.db, student.ID, group.ID, at.Add(2*step), nil)
 	testpkg.CreateTestVisit(t, tc.db, otherStudent.ID, otherGroup.ID, at, nil)
 	for _, test := range []struct {
 		status string

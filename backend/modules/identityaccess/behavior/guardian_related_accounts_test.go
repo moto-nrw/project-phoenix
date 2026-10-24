@@ -461,7 +461,10 @@ func TestInviteToStudent_PendingApprovalTokenIsNotDeliverableOrRedeemable(t *tes
 	require.NotNil(t, result.InvitationID)
 	require.Empty(t, outbox.Requests(), "a queued request mails nothing before staff decide")
 
+	// Only the hash of the frozen link is stored and the link was never
+	// mailed (#4902): the stored value redeems nothing.
 	invitation := testpkg.GuardianInvitationByID(t, env.db, *result.InvitationID)
+	frozenHash := invitation.Token
 
 	_, err = env.service.ValidateGuardianInvitation(context.Background(), invitation.Token)
 	require.ErrorIs(t, err, identityaccess.ErrInvitationNotFound)
@@ -479,7 +482,10 @@ func TestInviteToStudent_PendingApprovalTokenIsNotDeliverableOrRedeemable(t *tes
 	require.Len(t, outbox.Requests(), 2, "the released invitation and its welcome (#3534)")
 	assert.Equal(t, emailKindGuardianInvitation, outbox.Requests()[0].Kind)
 	assert.Equal(t, "guardian_welcome", outbox.Requests()[1].Kind)
-	preview, err := env.service.ValidateGuardianInvitation(context.Background(), invitation.Token)
+	released := mailedLinkTokenPattern.FindStringSubmatch(fmt.Sprint(outbox.Requests()[0].Payload["invitation_url"]))
+	require.Len(t, released, 2, "the released mail carries a link")
+	assert.NotEqual(t, frozenHash, testpkg.GuardianInvitationByID(t, env.db, invitation.ID).Token, "the release issues a new link")
+	preview, err := env.service.ValidateGuardianInvitation(context.Background(), released[1])
 	require.NoError(t, err)
 	assert.Equal(t, email, preview.Email)
 }

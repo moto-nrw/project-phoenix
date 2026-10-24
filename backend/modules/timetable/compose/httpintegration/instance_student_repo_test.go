@@ -1742,8 +1742,11 @@ func TestInstanceStudentRepository_ArchivePlannedByStudentIDsFrom_ManualStatusRo
 	inst, cleanupInst := createInstanceFixture(t, db, "manualtoday", today)
 	defer cleanupInst()
 
-	beforeStart := time.Date(today.Year(), today.Month(), today.Day(), 12, 0, 0, 0, calendar.Berlin)
-	afterStart := time.Date(today.Year(), today.Month(), today.Day(), 14, 30, 0, 0, calendar.Berlin)
+	// Wall-clock times on today's date: midnight plus a duration is an hour
+	// off on a day with a clock change (25 October 2026 has 25 hours).
+	berlin := today.BerlinMidnight().Location()
+	beforeStart := time.Date(today.Year(), today.Month(), today.Day(), 12, 0, 0, 0, berlin)
+	afterStart := time.Date(today.Year(), today.Month(), today.Day(), 14, 30, 0, 0, berlin)
 
 	graduate := testpkg.CreateTestStudent(t, db, "Abgang", fmt.Sprintf("M-%d", time.Now().UnixNano()), "4a")
 

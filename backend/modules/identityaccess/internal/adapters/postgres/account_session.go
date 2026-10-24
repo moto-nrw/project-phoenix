@@ -13,42 +13,43 @@ import (
 
 // accountSessionRow mirrors auth.tokens. The default tags keep the insert
 // semantics of the retained model: zero timestamps take the database clock
-// and an unset portal scope stores the column default.
+// and an unset portal scope stores the column default. The token columns
+// hold hex SHA-256 digests only (#4902); the raw value never reaches SQL.
 type accountSessionRow struct {
-	bun.BaseModel     `bun:"table:auth.tokens,alias:token"`
-	ID                int64      `bun:"id,pk,autoincrement"`
-	TenantID          int64      `bun:"tenant_id,notnull"`
-	AccountID         int64      `bun:"account_id,notnull"`
-	Token             string     `bun:"token,notnull"`
-	Expiry            time.Time  `bun:"expiry,notnull"`
-	Mobile            bool       `bun:"mobile,notnull,default:false"`
-	Identifier        *string    `bun:"identifier"`
-	PortalScope       string     `bun:"portal_scope,notnull,default:'unknown'"`
-	MFAVerified       bool       `bun:"mfa_verified,notnull,default:false"`
-	FamilyID          string     `bun:"family_id"`
-	FamilyExpiryCap   *time.Time `bun:"family_expiry_cap"`
-	Generation        int        `bun:"generation,default:0"`
-	RotatedAt         *time.Time `bun:"rotated_at"`
-	ReplacementToken  *string    `bun:"replacement_token"`
-	RecoveryProofHash []byte     `bun:"recovery_proof_hash"`
-	CreatedAt         time.Time  `bun:"created_at,nullzero,notnull,default:current_timestamp"`
-	UpdatedAt         time.Time  `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
+	bun.BaseModel        `bun:"table:auth.tokens,alias:token"`
+	ID                   int64      `bun:"id,pk,autoincrement"`
+	TenantID             int64      `bun:"tenant_id,notnull"`
+	AccountID            int64      `bun:"account_id,notnull"`
+	TokenHash            string     `bun:"token,notnull"`
+	Expiry               time.Time  `bun:"expiry,notnull"`
+	Mobile               bool       `bun:"mobile,notnull,default:false"`
+	Identifier           *string    `bun:"identifier"`
+	PortalScope          string     `bun:"portal_scope,notnull,default:'unknown'"`
+	MFAVerified          bool       `bun:"mfa_verified,notnull,default:false"`
+	FamilyID             string     `bun:"family_id"`
+	FamilyExpiryCap      *time.Time `bun:"family_expiry_cap"`
+	Generation           int        `bun:"generation,default:0"`
+	RotatedAt            *time.Time `bun:"rotated_at"`
+	ReplacementTokenHash *string    `bun:"replacement_token"`
+	RecoveryProofHash    []byte     `bun:"recovery_proof_hash"`
+	CreatedAt            time.Time  `bun:"created_at,nullzero,notnull,default:current_timestamp"`
+	UpdatedAt            time.Time  `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
 }
 
 func (r accountSessionRow) toDomain() domain.AccountSession {
 	return domain.AccountSession{
-		ID: r.ID, TenantID: r.TenantID, AccountID: r.AccountID, Token: r.Token, Expiry: r.Expiry, Mobile: r.Mobile,
+		ID: r.ID, TenantID: r.TenantID, AccountID: r.AccountID, TokenHash: r.TokenHash, Expiry: r.Expiry, Mobile: r.Mobile,
 		Identifier: r.Identifier, PortalScope: r.PortalScope, MFAVerified: r.MFAVerified, FamilyID: r.FamilyID, FamilyExpiryCap: r.FamilyExpiryCap,
-		Generation: r.Generation, RotatedAt: r.RotatedAt, ReplacementToken: r.ReplacementToken, RecoveryProofHash: r.RecoveryProofHash,
+		Generation: r.Generation, RotatedAt: r.RotatedAt, ReplacementTokenHash: r.ReplacementTokenHash, RecoveryProofHash: r.RecoveryProofHash,
 		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
 	}
 }
 
 func accountSessionRowFromDomain(session domain.AccountSession) accountSessionRow {
 	return accountSessionRow{
-		ID: session.ID, TenantID: session.TenantID, AccountID: session.AccountID, Token: session.Token, Expiry: session.Expiry, Mobile: session.Mobile,
+		ID: session.ID, TenantID: session.TenantID, AccountID: session.AccountID, TokenHash: domain.HashToken(session.Token), Expiry: session.Expiry, Mobile: session.Mobile,
 		Identifier: session.Identifier, PortalScope: session.PortalScope, MFAVerified: session.MFAVerified, FamilyID: session.FamilyID, FamilyExpiryCap: session.FamilyExpiryCap,
-		Generation: session.Generation, RotatedAt: session.RotatedAt, ReplacementToken: session.ReplacementToken, RecoveryProofHash: session.RecoveryProofHash,
+		Generation: session.Generation, RotatedAt: session.RotatedAt, ReplacementTokenHash: session.ReplacementTokenHash, RecoveryProofHash: session.RecoveryProofHash,
 		CreatedAt: session.CreatedAt, UpdatedAt: session.UpdatedAt,
 	}
 }
@@ -90,7 +91,7 @@ func (s *Store) FindAccountSessionByToken(ctx context.Context, token string, for
 		return domain.AccountSession{}, false, domain.OperationStats{}, err
 	}
 	var row accountSessionRow
-	query := withTenantFilter(s.scope(ctx), db.NewSelect().Model(&row).Where(`"token".token = ?`, token))
+	query := withTenantFilter(s.scope(ctx), db.NewSelect().Model(&row).Where(`"token".token = ?`, domain.HashToken(token)))
 	if forUpdate {
 		query = query.For("UPDATE")
 	}
@@ -103,7 +104,9 @@ func (s *Store) FindAccountSessionByToken(ctx context.Context, token string, for
 	if err != nil {
 		return domain.AccountSession{}, false, stats, fmt.Errorf("identity access postgres: find account session: %w", err)
 	}
-	return row.toDomain(), true, stats, nil
+	session := row.toDomain()
+	session.Token = token
+	return session, true, stats, nil
 }
 
 func (s *Store) LatestAccountSessionInFamily(ctx context.Context, familyID string) (domain.AccountSession, bool, domain.OperationStats, error) {
@@ -225,7 +228,9 @@ func (s *Store) InsertAccountSession(ctx context.Context, session domain.Account
 		return domain.AccountSession{}, stats, fmt.Errorf("identity access postgres: insert account session: %w", err)
 	}
 	stats.Rows, _ = result.RowsAffected()
-	return row.toDomain(), stats, nil
+	created := row.toDomain()
+	created.Token = session.Token
+	return created, stats, nil
 }
 
 func (s *Store) MarkAccountSessionRotated(ctx context.Context, id int64, replacementToken string, recoveryProofHash []byte, rotatedAt time.Time) (bool, domain.OperationStats, error) {
@@ -235,7 +240,7 @@ func (s *Store) MarkAccountSessionRotated(ctx context.Context, id int64, replace
 	}
 	query := withTenantFilter(s.scope(ctx), db.NewUpdate().Model((*accountSessionRow)(nil)).
 		Set(`rotated_at = ?`, rotatedAt).
-		Set(`replacement_token = ?`, replacementToken).
+		Set(`replacement_token = ?`, domain.HashToken(replacementToken)).
 		Set(`recovery_proof_hash = ?`, recoveryProofHash).
 		Where(`"token".id = ?`, id).
 		Where(`"token".rotated_at IS NULL`))

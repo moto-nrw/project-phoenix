@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -62,7 +63,9 @@ func setupExternalCaregiverRoute(t *testing.T, appEnv string) *externalRoute {
 	require.NoError(t, err)
 	membership, err := owners.NewSchoolMembership(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	auth, err := NewAuthTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
+	// The module queues the invitation mails: the stored row holds only the
+	// hash of the link (#4902), so the tests follow it from the mail.
+	auth, err := NewAuthTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), WithAuthTestMailer(testpkg.NewCapturingMailer()))
 	require.NoError(t, err)
 	resource := newStaffTestResource(membership, svc, work, auth.Auth, appEnv, testpkg.NewDatabase(t, db), slog.Default())
 
@@ -133,13 +136,23 @@ func (e *externalRoute) personsNamed(t *testing.T, lastName string) int {
 	return e.count(t, `SELECT count(*) FROM users.persons WHERE tenant_id = ? AND last_name = ?`, e.tenantID, lastName)
 }
 
-// pendingToken reads the open invitation of a person.
+// pendingToken reads the open invitation of a person and the link its mail
+// carries; the row stores only the hash of the link (#4902).
 func (e *externalRoute) pendingToken(t *testing.T, personID string) (token string, roleID, tenantID int64) {
 	t.Helper()
-	require.NoError(t, e.db.NewRaw(`SELECT token, role_id, tenant_id FROM auth.invitation_tokens
-		WHERE person_id = ? AND used_at IS NULL AND expires_at > NOW()`, personID).Scan(context.Background(), &token, &roleID, &tenantID))
-	return token, roleID, tenantID
+	var address string
+	require.NoError(t, e.db.NewRaw(`SELECT email, role_id, tenant_id FROM auth.invitation_tokens
+		WHERE person_id = ? AND used_at IS NULL AND expires_at > NOW()`, personID).Scan(context.Background(), &address, &roleID, &tenantID))
+	var mail string
+	require.NoError(t, e.db.NewRaw(`SELECT payload::text FROM platform.email_outbox
+		WHERE strpos(lower(payload::text), lower(?)) > 0 AND strpos(payload::text, 'invite?token=') > 0
+		ORDER BY id DESC LIMIT 1`, address).Scan(context.Background(), &mail), "the invitation to %s is mailed", address)
+	match := invitationLinkToken.FindStringSubmatch(mail)
+	require.Len(t, match, 2, "the invitation mail carries a link")
+	return match[1], roleID, tenantID
 }
+
+var invitationLinkToken = regexp.MustCompile(`invite\?token=([A-Za-z0-9_-]+)`)
 
 func (e *externalRoute) accept(t *testing.T, token string) error {
 	t.Helper()
