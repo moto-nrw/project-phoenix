@@ -432,9 +432,9 @@ function appOverviewTopic(): HelpTopic {
     differences: [
       "Welche Bereiche Sie sehen, hängt von Ihrer Rolle und den Einstellungen Ihrer OGS ab.",
       "Unter `Bausteine` fehlt eine Karte? Dann steht sie schon auf Ihrer Startseite. Oder Ihre Rolle oder Ihre OGS sieht sie nicht vor.",
-      // Header-Zeile aus BrandTraegerLine (#4656): nur bei einem Träger mit
-      // mehreren Schulen, und nur ab Tablet-Breite wie der Schulname.
-      "Oben links steht unter dem Namen Ihrer Schule `Träger:` mit einem Namen? Das ist der Träger Ihrer Schule. Die Zeile steht nur da, wenn Ihr Träger mehrere Schulen hat.",
+      // Kopfzeile aus BrandTraegerLine (#4656): nur bei einem Träger mit
+      // mehreren Schulen, und nur am Computer, wo auch der Schulname steht.
+      "Steht am Computer oben links unter dem Namen Ihrer Schule `Träger:` und ein Name? Das ist der Träger Ihrer Schule. Die Zeile gibt es nur, wenn Ihr Träger mehrere Schulen hat.",
     ],
     notes: [
       "Die Karte `Kinder` zählt die Kinder nach `Anwesend`, `Schule`, `Zuhause`, `Krank` und `Entschuldigt`. Ein Klick auf eine Zahl öffnet `Alle Kinder` mit diesem Filter. `Entschuldigt` zeigt auch Kinder auf Klassenfahrt. `Zuhause` zeigt auch Kinder, die heute nicht kommen.",
