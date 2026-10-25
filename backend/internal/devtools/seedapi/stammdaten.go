@@ -736,7 +736,8 @@ func (s *FixedSeeder) MarkStudentsSick(_ context.Context, result *FixedResult) e
 	groupCheckedInSick := make(map[string]bool)    // groupKey -> has checked-in sick student
 	groupNotCheckedInSick := make(map[string]bool) // groupKey -> has not-checked-in sick student
 
-	for i, student := range DemoStudents {
+	for _, i := range sickDemoCandidates() {
+		student := DemoStudents[i]
 		studentID, ok := s.studentIDByIndex[i]
 		if !ok {
 			return fmt.Errorf("student ID not found for sickness demo index %d", i)

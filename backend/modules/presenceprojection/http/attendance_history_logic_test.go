@@ -63,7 +63,7 @@ func TestParseAttendanceHistoryRange_StartAfterEnd(t *testing.T) {
 func TestClampAttendanceHistoryRange_ClampsFutureEndAndVisibilityCap(t *testing.T) {
 	t.Parallel()
 
-	endOfToday := calendar.NewDate(2026, 3, 20).EndOfDay()
+	endOfToday := time.Date(2026, 3, 20, 23, 59, 59, 0, time.UTC)
 	start := endOfToday.AddDate(0, 0, -60)
 	end := endOfToday.AddDate(0, 0, 5)
 
@@ -71,20 +71,7 @@ func TestClampAttendanceHistoryRange_ClampsFutureEndAndVisibilityCap(t *testing.
 	require.NoError(t, err)
 	assert.True(t, clamped)
 	assert.Equal(t, endOfToday, gotEnd)
-	assert.Equal(t, calendar.NewDate(2026, 2, 19).BerlinMidnight(), gotStart)
-}
-
-func TestClampAttendanceHistoryRange_DoesNotClampDefaultRangeAcrossDaylightSavingTime(t *testing.T) {
-	t.Parallel()
-
-	endOfToday := calendar.NewDate(2026, 10, 25).EndOfDay()
-	defaultStart := calendar.NewDate(2026, 9, 26).BerlinMidnight()
-
-	gotStart, gotEnd, clamped, err := clampAttendanceHistoryRange(defaultStart, endOfToday, endOfToday, 30)
-	require.NoError(t, err)
-	assert.False(t, clamped)
-	assert.Equal(t, defaultStart, gotStart)
-	assert.Equal(t, endOfToday, gotEnd)
+	assert.Equal(t, endOfToday.Add(-30*24*time.Hour).Add(time.Second), gotStart)
 }
 
 // The cap counts calendar days: the default window across the end of summer

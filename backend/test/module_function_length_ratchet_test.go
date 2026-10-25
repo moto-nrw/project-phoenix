@@ -561,6 +561,8 @@ var moduleFuncLenAllowlist = map[string]int{
 	// ADR 0087.
 	"internal/devtools/seedapi/seed_phase_periods.go:seedPhaseSchoolYear": 69,
 	// ADR 0087.
+	"internal/devtools/seedapi/seed_staff_messaging.go:(seedStaffMessagingStep).Run": 85,
+	// ADR 0087.
 	"internal/devtools/seedapi/seed_staff_notices.go:(seedStaffNoticesStep).Run": 65,
 	// ADR 0087.
 	"internal/devtools/seedapi/seed_student_notes.go:(seedStudentNotesStep).Run": 88,
@@ -585,7 +587,7 @@ var moduleFuncLenAllowlist = map[string]int{
 	// ADR 0087.
 	"internal/devtools/seedapi/stammdaten.go:(*FixedSeeder).seedStudents": 119,
 	// ADR 0087.
-	"internal/devtools/seedapi/workflow_steps.go:fullDemoWorkflow": 75,
+	"internal/devtools/seedapi/workflow_steps.go:fullDemoWorkflow": 77,
 	// ADR 0087.
 	"internal/devtools/simulate/demo.go:(*DemoTicker).Tick": 84,
 	// ADR 0087.
@@ -610,7 +612,6 @@ var moduleFuncLenAllowlist = map[string]int{
 	"roots/owners/root_identity.go:BuildIdentityAccess":                                      106,
 	"roots/owners/root_worker.go:ComposeWorker":                                              345,
 	"roots/owners/worker.go:NewWorker":                                                       91,
-	// ADR 0087.
 	// ADR 0087.
 	"test/booking_consistency_audit_fixture.go:VerifyBookingConsistencyAuditIgnoresRuntimeFilteredPlanningRows": 72,
 	// ADR 0087.

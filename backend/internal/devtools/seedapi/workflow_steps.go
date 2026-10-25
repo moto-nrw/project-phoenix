@@ -108,7 +108,7 @@ func (seedFamilyProtectionStep) Run(_ context.Context, rt *Runtime) error {
 	}
 	_, err := rt.Client.Put(fmt.Sprintf("/api/students/%d/family-protection", studentID), map[string]any{
 		"enabled": true,
-		"reason":  "Demo: private Familienangaben schützen",
+		"reason":  "Private Familienangaben schützen",
 	})
 	if err != nil {
 		return fmt.Errorf("seed family protection: %w", err)
@@ -255,9 +255,12 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 	if !seeder.options.DeferHistory {
 		steps = append(steps, deferredPastSteps()...)
 	}
-	steps = append(steps, enrollmentWorkflowSteps(seeder)...)
+	steps = append(steps, parentEnrollmentSeedStep{seeder: seeder})
+	if !seeder.options.DeferHistory {
+		steps = append(steps, parentRequestsSeedStep{seeder: seeder}, seedEnrollmentPlacementStep{}, seedEnrollmentIncomeProofStep{}, seedEnrollmentSignatureStep{}, seedOfferingRosterStep{seeder: seeder}, seedFamilyAppAccountsStep{seeder: seeder})
+	}
 	steps = append(steps,
-		seedParentEngagementStep{}, seedAnalyticsConsentStep{},
+		seedParentEngagementStep{}, seedAnalyticsConsentStep{}, seedSchoolLifeStep{},
 		seedGradeTransitionStep{},
 		seedParentLetterStep{},
 		seedParentPollStep{},
@@ -274,7 +277,6 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 			manualProfileStep{seeder: seeder},
 			seedEnrollmentWeeklyProfileStep{seeder: seeder},
 			seedEnrollmentBookingsProfileStep{seeder: seeder},
-			seedMarketingProfileStep{seeder: seeder},
 		)
 	}
 	steps = append(steps, seedStaffPersonMergeStep{}, seedTraegerBueroStep{})
@@ -286,20 +288,6 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 		printSummaryStep{seeder: seeder},
 	)
 	return Workflow{Name: "full-demo", Steps: steps}
-}
-
-func enrollmentWorkflowSteps(seeder *Seeder) []Step {
-	steps := []Step{parentEnrollmentSeedStep{seeder: seeder}}
-	if seeder.options.DeferHistory {
-		return steps
-	}
-	return append(steps,
-		parentRequestsSeedStep{seeder: seeder},
-		seedEnrollmentIncomeProofStep{},
-		seedEnrollmentSignatureStep{},
-		seedOfferingRosterStep{seeder: seeder},
-		seedFamilyAppAccountsStep{seeder: seeder},
-	)
 }
 
 // deferredPastSteps fill the past only: the time-tracking history, the export
@@ -323,6 +311,6 @@ func deferredPastSteps() []Step {
 // counts them, so both follow.
 func deferredDemoSteps(seeder *Seeder) []Step {
 	return append(deferredPastSteps(),
-		parentRequestsSeedStep{seeder: seeder}, seedEnrollmentIncomeProofStep{}, seedEnrollmentSignatureStep{}, seedOfferingRosterStep{seeder: seeder}, seedFamilyAppAccountsStep{seeder: seeder},
+		parentRequestsSeedStep{seeder: seeder}, seedEnrollmentPlacementStep{}, seedEnrollmentIncomeProofStep{}, seedEnrollmentSignatureStep{}, seedOfferingRosterStep{seeder: seeder}, seedFamilyAppAccountsStep{seeder: seeder},
 		seedChildQuotaStep{}, seedBillingKeyDateCountsStep{})
 }

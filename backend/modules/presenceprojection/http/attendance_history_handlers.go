@@ -401,9 +401,12 @@ func clampAttendanceHistoryRange(start, end, endOfToday time.Time, attendanceCap
 		return time.Time{}, time.Time{}, false, errors.New("start must not be in the future")
 	}
 
-	firstAllowedDate := calendar.DateFromTime(end).AddDays(-(attendanceCap - 1))
-	if calendar.DateFromTime(start).Before(firstAllowedDate) {
-		start = firstAllowedDate.BerlinMidnight()
+	// The cap counts calendar days in the school's wall clock: a day with a
+	// clock change has 23 or 25 hours, so 24-hour spans would clamp the
+	// default window and cut an hour off its first day.
+	limit := end.In(endOfToday.Location()).AddDate(0, 0, -attendanceCap)
+	if start.Before(limit) {
+		start = limit.Add(time.Second)
 		clamped = true
 	}
 	return start, end, clamped, nil

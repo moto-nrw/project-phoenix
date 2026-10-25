@@ -139,6 +139,10 @@ func (a *AccountAdministration) listManageableAccounts(ctx context.Context, filt
 
 // ListManageableAccountsByRole lists the accounts holding the named role at
 // a school the caller may administer.
+//
+// An organisation-scoped caller reads it administratively: the assignment
+// and mapping rows it has to join belong to several schools, and the
+// caller's own school transaction cannot see past its own.
 func (a *AccountAdministration) ListManageableAccountsByRole(ctx context.Context, roleName string) (_ []identityaccess.ManagedAccount, err error) {
 	if a == nil {
 		return nil, errAccountAdministrationUnavailable

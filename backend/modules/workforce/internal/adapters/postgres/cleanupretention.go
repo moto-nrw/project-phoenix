@@ -16,7 +16,7 @@ func (s *Store) DeleteFinishedStaffDocumentFileCleanups(ctx context.Context, win
 		return 0, err
 	}
 	var deleted int64
-	if err := db.NewRaw(`SELECT users.delete_finished_staff_document_file_cleanups(?, statement_timestamp() - (? * INTERVAL '1 day'))`, scope.TenantID, window.Hours()/24).Scan(ctx, &deleted); err != nil {
+	if err := db.NewRaw(`SELECT users.delete_finished_staff_document_file_cleanups(?, statement_timestamp() - (? * INTERVAL '1 second'))`, scope.TenantID, window.Seconds()).Scan(ctx, &deleted); err != nil {
 		return 0, fmt.Errorf("workforce postgres: delete finished staff document file cleanups: %w", err)
 	}
 	return int(deleted), nil
@@ -28,7 +28,7 @@ func (s *Store) DeleteCompletedOffboardingCleanups(ctx context.Context, window t
 		return 0, err
 	}
 	result, err := db.NewRaw(`DELETE FROM users.staff_offboarding_cleanup
-		WHERE tenant_id = ? AND completed_at IS NOT NULL AND completed_at < statement_timestamp() - (? * INTERVAL '1 day')`, scope.TenantID, window.Hours()/24).Exec(ctx)
+		WHERE tenant_id = ? AND completed_at IS NOT NULL AND completed_at < statement_timestamp() - (? * INTERVAL '1 second')`, scope.TenantID, window.Seconds()).Exec(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("workforce postgres: delete completed offboarding cleanups: %w", err)
 	}

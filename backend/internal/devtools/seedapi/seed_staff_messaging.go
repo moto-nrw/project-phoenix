@@ -17,17 +17,6 @@ import (
 // flips back, every send below fails with 403 and the seeder stops loudly.
 type seedStaffMessagingStep struct{}
 
-type staffMessageConversation struct {
-	from     StaffCredentials
-	to       StaffCredentials
-	messages []string
-}
-
-type openedStaffMessageThread struct {
-	id     string
-	reader StaffCredentials
-}
-
 func (seedStaffMessagingStep) Name() string { return "Seeding staff messages" }
 
 func (seedStaffMessagingStep) Run(_ context.Context, rt *Runtime) error {
@@ -46,84 +35,104 @@ func (seedStaffMessagingStep) Run(_ context.Context, rt *Runtime) error {
 		return fmt.Errorf("staff messages require at least three staff accounts, got %d", len(staff))
 	}
 
-	// The first recipient lookup runs before any staff login, so it uses the
-	// admin session; the deferred bind hands that session back to later steps.
-	rt.Client.BindAuth(rt.TenantAuth)
+	// The deferred bind hands the admin session back to later steps.
 	defer rt.Client.BindAuth(rt.TenantAuth)
 
-	// Two conversations, each opened by a different person, so the demo data
-	// shows both an unread and an already-answered thread.
-	conversations := []staffMessageConversation{
-		{
-			from: staff[0],
-			to:   staff[1],
-			messages: []string{
-				"Kannst du heute die 2a übernehmen? Ich bin bis 14 Uhr im Elterngespräch.",
-				"Danke dir! Die Liste liegt im Gruppenraum.",
-			},
-		},
-		{
-			from: staff[1],
-			to:   staff[2],
-			messages: []string{
-				"Die Materialliste für die Bastel-AG liegt im OGS-Büro.",
-			},
-		},
+	conversations := staffChatConversations(staff)
+
+	// Wer welche Unterhaltung danach oeffnet. Ohne dieses zweite Durchgehen
+	// entstehen KEINE Zeilen in users.staff_message_reads: Lesecursor schreibt
+	// allein GetThread, und der Sendepfad tut es bewusst nicht mehr (er wuerde
+	// sonst die Nachrichten der Gegenseite mit als gelesen markieren, #2598).
+	type openedThread struct {
+		id     string
+		reader StaffCredentials
+	}
+	var opened []openedThread
+
+	sent := 0
+	for _, c := range conversations {
+		// Look the recipient up as the sender: the list leaves out the caller,
+		// and the previous sender may be this recipient.
+		if err := rt.Client.Login(c.from.Email, c.from.Password); err != nil {
+			return fmt.Errorf("login as staff message sender %s: %w", c.from.Email, err)
+		}
+		recipientID, err := staffAccountID(rt, c.to)
+		if err != nil {
+			return err
+		}
+
+		raw, err := rt.Client.Post(
+			"/api/staff-messages/threads/open",
+			map[string]any{"account_id": fmt.Sprintf("%d", recipientID)},
+		)
+		if err != nil {
+			return fmt.Errorf("open staff conversation: %w", err)
+		}
+		threadID, err := threadIDFromResponse(raw)
+		if err != nil {
+			return fmt.Errorf("decode POST /api/staff-messages/threads/open response: %w", err)
+		}
+
+		for _, body := range c.messages {
+			if _, err := rt.Client.Post(
+				"/api/staff-messages/threads/"+threadID,
+				map[string]any{"body": body},
+			); err != nil {
+				return fmt.Errorf("send staff message to thread %s: %w", threadID, err)
+			}
+			sent++
+		}
+
+		// Die Gegenseite liest spaeter - das ist der realistische Ablauf und
+		// zugleich der einzige Weg, wie ein Lesecursor entsteht.
+		opened = append(opened, openedThread{id: threadID, reader: c.to})
 	}
 
-	sent, opened, err := seedStaffConversations(rt, conversations)
-	if err != nil {
-		return err
-	}
-	read, err := openStaffMessageThreads(rt, opened)
-	if err != nil {
-		return err
+	// Zweiter Durchgang: jede Empfaengerin oeffnet ihre Unterhaltung einmal.
+	read := 0
+	for _, o := range opened {
+		if err := rt.Client.Login(o.reader.Email, o.reader.Password); err != nil {
+			return fmt.Errorf("login as staff message reader %s: %w", o.reader.Email, err)
+		}
+		if _, err := rt.Client.Get("/api/staff-messages/threads/" + o.id); err != nil {
+			return fmt.Errorf("read staff conversation %s: %w", o.id, err)
+		}
+		read++
 	}
 
 	fmt.Printf("  %d staff messages created, %d conversations read\n", sent, read)
 	return nil
 }
 
-func seedStaffConversations(rt *Runtime, conversations []staffMessageConversation) (int, []openedStaffMessageThread, error) {
-	opened := make([]openedStaffMessageThread, 0, len(conversations))
-	sent := 0
-	for _, conversation := range conversations {
-		recipientID, err := staffAccountID(rt, conversation.to)
-		if err != nil {
-			return 0, nil, err
-		}
-		if err := rt.Client.Login(conversation.from.Email, conversation.from.Password); err != nil {
-			return 0, nil, fmt.Errorf("login as staff message sender %s: %w", conversation.from.Email, err)
-		}
-		raw, err := rt.Client.Post("/api/staff-messages/threads/open", map[string]any{"account_id": fmt.Sprintf("%d", recipientID)})
-		if err != nil {
-			return 0, nil, fmt.Errorf("open staff conversation: %w", err)
-		}
-		threadID, err := threadIDFromResponse(raw)
-		if err != nil {
-			return 0, nil, fmt.Errorf("decode POST /api/staff-messages/threads/open response: %w", err)
-		}
-		for _, body := range conversation.messages {
-			if _, err := rt.Client.Post("/api/staff-messages/threads/"+threadID, map[string]any{"body": body}); err != nil {
-				return 0, nil, fmt.Errorf("send staff message to thread %s: %w", threadID, err)
-			}
-			sent++
-		}
-		opened = append(opened, openedStaffMessageThread{id: threadID, reader: conversation.to})
-	}
-	return sent, opened, nil
+type staffChatConversation struct {
+	from, to StaffCredentials
+	messages []string
 }
 
-func openStaffMessageThreads(rt *Runtime, opened []openedStaffMessageThread) (int, error) {
-	for _, thread := range opened {
-		if err := rt.Client.Login(thread.reader.Email, thread.reader.Password); err != nil {
-			return 0, fmt.Errorf("login as staff message reader %s: %w", thread.reader.Email, err)
-		}
-		if _, err := rt.Client.Get("/api/staff-messages/threads/" + thread.id); err != nil {
-			return 0, fmt.Errorf("read staff conversation %s: %w", thread.id, err)
-		}
+// staffChatConversations are the demo team chats, each opened by a different
+// person, so the data shows unread and already-answered threads. The second
+// staff member (the admin of the product screenshots) takes part in most.
+func staffChatConversations(staff []StaffCredentials) []staffChatConversation {
+	conversations := []staffChatConversation{
+		{staff[0], staff[1], []string{
+			"Kannst du heute die 2a übernehmen? Ich bin bis 14 Uhr im Elterngespräch.",
+			"Danke dir! Die Liste liegt im Gruppenraum.",
+		}},
+		{staff[1], staff[2], []string{"Die Materialliste für die Bastel-AG liegt im OGS-Büro."}},
 	}
-	return len(opened), nil
+	if len(staff) >= 5 {
+		conversations = append(conversations,
+			staffChatConversation{staff[3], staff[1], []string{
+				"Ich bin morgen erst ab 11 Uhr da, ich habe einen Arzttermin. Die Frühbetreuung übernimmt Sabine.",
+			}},
+			staffChatConversation{staff[1], staff[4], []string{
+				"Denkst du an die Laternen für Freitag? Der Kleber ist fast leer.",
+				"Ich bringe morgen zwei neue Tuben mit.",
+			}},
+		)
+	}
+	return conversations
 }
 
 // staffAccountID resolves the recipient's account id from the Team-Chat's own

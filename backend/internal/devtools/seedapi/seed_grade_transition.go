@@ -17,7 +17,7 @@ func (seedGradeTransitionStep) Run(_ context.Context, rt *Runtime) error {
 		return fmt.Errorf("grade transition demo group not available")
 	}
 	if _, err := rt.Client.Post("/api/students", map[string]any{
-		"first_name": "Alumni", "last_name": "Demo", "school_class": "Klasse 4z",
+		"first_name": "Jonas", "last_name": "Engel", "school_class": "Klasse 4c",
 		"group_id": groupID, "birthday": "2015-06-01", "pickup_status": "self",
 	}); err != nil {
 		return fmt.Errorf("create graduation demo student: %w", err)
@@ -25,10 +25,9 @@ func (seedGradeTransitionStep) Run(_ context.Context, rt *Runtime) error {
 	year := time.Now().In(seedBerlinLocation()).Year()
 	raw, err := rt.Client.Post("/api/admin/grade-transitions/", map[string]any{
 		"academic_year": fmt.Sprintf("%d-%d", year, year+1),
-		"notes":         "Demo für den Schuljahreswechsel",
+		"notes":         "Verabschiedung der Viertklässler",
 		"mappings": []map[string]any{
-			{"from_class": "Klasse 1a", "to_class": "Klasse 2a"},
-			{"from_class": "Klasse 4z", "to_class": nil},
+			{"from_class": "Klasse 4c", "to_class": nil},
 		},
 	})
 	if err != nil {

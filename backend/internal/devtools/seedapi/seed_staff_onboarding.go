@@ -5,12 +5,12 @@ import (
 	"fmt"
 )
 
-// seedStaffOnboardingStep gives two care workers of the demo school progress
-// in their first steps (#3748), through the public routes and each under the
-// person's own login: the first has finished one tour and skipped another, so
-// the checklist shows all three states; the second has hidden it. Every other
-// seeded staff member has not started and sees the full checklist, which is
-// what a person invited into a running school sees.
+// seedStaffOnboardingStep sets the first steps of the demo school's staff
+// (#3748), through the public routes and each under the person's own login:
+// the first has finished one tour and skipped another, so the checklist shows
+// all three states; everybody else has hidden it, as the team of a running
+// school has. The product screenshots and the demo show those people, and the
+// floating checklist would cover their screens.
 type seedStaffOnboardingStep struct{}
 
 func (seedStaffOnboardingStep) Name() string { return "Seeding staff first steps" }
@@ -38,14 +38,22 @@ func (seedStaffOnboardingStep) Run(_ context.Context, rt *Runtime) error {
 		}
 	}
 
-	dismissed := staff[1]
-	if err := rt.Client.Login(dismissed.Email, dismissed.Password); err != nil {
-		return fmt.Errorf("login as staff %s: %w", dismissed.Email, err)
-	}
-	if _, err := rt.Client.Put("/api/staff-onboarding/dismissal", map[string]any{"dismissed": true}); err != nil {
-		return fmt.Errorf("dismiss staff first steps: %w", err)
+	// seedInactiveAccountStep has offboarded the last guest; it cannot log in.
+	offboarded := rt.FixedSeeder.staffCredentials[len(rt.FixedSeeder.staffCredentials)-1].Email
+	hidden := 0
+	for _, dismissed := range staff[1:] {
+		if dismissed.Email == offboarded {
+			continue
+		}
+		hidden++
+		if err := rt.Client.Login(dismissed.Email, dismissed.Password); err != nil {
+			return fmt.Errorf("login as staff %s: %w", dismissed.Email, err)
+		}
+		if _, err := rt.Client.Put("/api/staff-onboarding/dismissal", map[string]any{"dismissed": true}); err != nil {
+			return fmt.Errorf("dismiss staff first steps for %s: %w", dismissed.Email, err)
+		}
 	}
 
-	fmt.Println("  staff first steps: one started, one hidden")
+	fmt.Printf("  staff first steps: one started, %d hidden\n", hidden)
 	return nil
 }
