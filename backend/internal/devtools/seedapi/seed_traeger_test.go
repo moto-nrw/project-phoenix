@@ -181,6 +181,15 @@ func TestSeedTraegerStepsShareOneTraegerSession(t *testing.T) {
 		case "/traeger/holiday-periods/":
 			w.WriteHeader(http.StatusCreated)
 			_, _ = w.Write([]byte(`{"status":"success","data":{"id":5}}`))
+		case "/traeger/holiday-periods/5/publish":
+			_, _ = w.Write([]byte(`{"status":"success","data":{"id":5,"status":"published","public_token":"link-key","weeks":[` +
+				`{"id":51,"time_models":[{"id":61},{"id":62}]},{"id":52,"time_models":[{"id":63},{"id":64}]}]}}`))
+		case "/traeger/holiday-registrations/link-key":
+			// The public registration of the holiday step (#4661) has no
+			// session by design; it is no Träger request of the shared one.
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{"status":"success","data":{"id":9}}`))
+			return
 		default:
 			_, _ = w.Write([]byte(`{"status":"success","data":{"id":5}}`))
 		}
