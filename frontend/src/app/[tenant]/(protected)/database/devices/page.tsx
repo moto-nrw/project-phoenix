@@ -39,7 +39,7 @@ import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { createLogger } from "~/lib/logger";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
-import { NfcModeGuard } from "~/components/tenant/nfc-mode-guard";
+import { ModuleRouteGuard } from "~/components/tenant/module-route-guard";
 
 const logger = createLogger({ component: "DatabaseDevicesPage" });
 
@@ -63,11 +63,11 @@ function parseDevicesGrouping(value: string | null): DevicesGroupingMode {
 
 export default function DevicesPage() {
   return (
-    <NfcModeGuard title="Geräte">
+    <ModuleRouteGuard module="nfc_anwesenheit" title="Geräte">
       <Suspense fallback={null}>
         <DevicesPageContent />
       </Suspense>
-    </NfcModeGuard>
+    </ModuleRouteGuard>
   );
 }
 

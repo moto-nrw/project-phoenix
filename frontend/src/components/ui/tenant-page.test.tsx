@@ -4,6 +4,11 @@ import { describe, expect, it, vi } from "vitest";
 import Link from "next/link";
 import { TenantPage, TenantPageStats } from "./tenant-page";
 
+// Der Zustand für nicht gebuchte Module liest die Sitzung (#4894).
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({ data: null, status: "unauthenticated" }),
+}));
+
 vi.mock("next/link", () => ({
   default: ({ href, children, ...props }: ComponentProps<"a">) => (
     <a href={href} {...props}>
@@ -557,5 +562,28 @@ describe("TenantPage", () => {
     expect(
       screen.getByRole("button", { name: "Erneut versuchen" }),
     ).toBeInTheDocument();
+  });
+});
+
+// Eine mit module.not_booked abgelehnte Anfrage (#4894) ersetzt den Inhalt
+// durch den erklärenden Zustand statt durch eine rote Fehlermeldung.
+describe("TenantPage mit nicht gebuchtem Modul", () => {
+  it("erklärt das Modul statt einen Fehler zu zeigen", () => {
+    render(
+      <TenantPage
+        title="Mein Dienstplan"
+        error={{
+          message:
+            "Ihre Schule hat das Modul Dienstplan nicht gebucht. Für eine Buchung wenden Sie sich an das moto-Team.",
+          notBookedModule: "dienstplan",
+        }}
+      >
+        <p>Inhalt</p>
+      </TenantPage>,
+    );
+
+    expect(screen.getByText("Dienstplan ist nicht gebucht")).toBeVisible();
+    expect(screen.queryByText("Inhalt")).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });

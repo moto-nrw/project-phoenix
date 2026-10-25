@@ -57,7 +57,7 @@ import {
 import { schoolPortalLoginUrl } from "~/lib/school-url";
 import { useSWRAuth } from "~/lib/swr/hooks";
 import {
-  useNFCEnabled,
+  useBookedModules,
   useOpenCareGroupMode,
   usePresenceMode,
   useTenantSafe,
@@ -65,6 +65,7 @@ import {
   useTimetableEnabled,
 } from "~/lib/tenant-context";
 import { useTenantAwarePath } from "~/lib/tenant-path";
+import { isScopeBooked, PAGE_MODULES } from "~/lib/module-register";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { UserContextProvider } from "~/lib/usercontext-context";
 import { DashboardSkeleton } from "./page-skeleton";
@@ -95,7 +96,7 @@ const ANALYTICS_BLOCKS: readonly HomeBlockKey[] = [
 function HomeContent() {
   const router = useTenantRouter();
   const tenantPath = useTenantAwarePath();
-  const nfcEnabled = useNFCEnabled();
+  const bookedModules = useBookedModules();
   const openCareGroupMode = useOpenCareGroupMode();
   const presenceMode = usePresenceMode();
   const timetableEnabled = useTimetableEnabled();
@@ -103,7 +104,10 @@ function HomeContent() {
   // Nachrichten und Team-Chat sind Schulschalter aus dem Tenant-Resolve,
   // wie in der Seitenleiste.
   const tenant = useTenantSafe()?.tenant;
-  const messagingEnabled = tenant?.messagingEnabled === true;
+  // Eltern-Nachrichten zählen nur mit dem Modul Eltern-App (#4894).
+  const messagingEnabled =
+    tenant?.messagingEnabled === true &&
+    isScopeBooked(PAGE_MODULES["/messages"], bookedModules);
   const staffMessagingEnabled = tenant?.staffMessagingEnabled === true;
   const access = useHomeBlockAccess();
   const { data: session, status } = useSession({
@@ -141,7 +145,7 @@ function HomeContent() {
     () => ({
       detailed: presenceMode !== "binary",
       openCareGroupMode,
-      nfcEnabled,
+      bookedModules,
       birthdaysEnabled,
       timetableEnabled,
       remindersEnabled,
@@ -152,7 +156,7 @@ function HomeContent() {
     [
       presenceMode,
       openCareGroupMode,
-      nfcEnabled,
+      bookedModules,
       birthdaysEnabled,
       timetableEnabled,
       remindersEnabled,

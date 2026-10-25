@@ -1,3 +1,4 @@
+import { MODULE_KEYS } from "~/lib/modules";
 import {
   fireEvent,
   render as rtlRender,
@@ -103,7 +104,7 @@ function context(access: HomeBlockAccess): HomeBlockContext {
   return {
     detailed: true,
     openCareGroupMode: false,
-    nfcEnabled: true,
+    bookedModules: MODULE_KEYS,
     birthdaysEnabled: true,
     timetableEnabled: true,
     remindersEnabled: true,

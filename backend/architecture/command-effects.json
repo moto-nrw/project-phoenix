@@ -31053,6 +31053,17 @@
     },
     {
       "source_owner": "enrollment",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.IntakeSettings.OnlineAnmeldungBooked",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentIntakeSettings.OnlineAnmeldungBooked",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings.EnrollmentIntakeValues.OnlineAnmeldungBooked",
+      "target_owner": "settings-platform",
+      "binding_digest": "de90e3111cc9e0a802dae91dd963f109",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read-only: enrollment reads the module switch module.online_anmeldung of the request's school through roots/owners.enrollmentIntakeSettings to close status links of a cancelled module (#4893). No persistent, lock or scope effect (ADR 0098)."
+    },
+    {
+      "source_owner": "enrollment",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.IntakeSettings.StatusTokenTTLDays",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentIntakeSettings.StatusTokenTTLDays",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings.EnrollmentIntakeValues.StatusTokenTTLDays",

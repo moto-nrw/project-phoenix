@@ -5,7 +5,7 @@ import { ABSENCES_REFRESH_EVENT } from "~/lib/absence-helpers";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import { staffAbsenceService } from "~/lib/staff-api";
-import { useTenantSlugSafe } from "~/lib/tenant-context";
+import { useModuleBooked, useTenantSlugSafe } from "~/lib/tenant-context";
 import { useShellSeed } from "~/lib/shell-seed";
 import { useUnreadCount } from "./use-unread-count";
 
@@ -36,8 +36,14 @@ export function useStaffAbsencesPending() {
     isAdmin(session) || hasPermission(session, "vacation:approve");
   const tenantSlug = useTenantSlugSafe();
   const accountId = session?.user?.id ?? "";
+  const zeiterfassungBooked = useModuleBooked("zeiterfassung");
   return useUnreadCount({
-    enabled: status === "authenticated" && mode === "teacher" && canReview,
+    // Urlaub und Abwesenheiten des Teams gehören zur Zeiterfassung (#4894).
+    enabled:
+      status === "authenticated" &&
+      mode === "teacher" &&
+      zeiterfassungBooked &&
+      canReview,
     fetcher: fetchPendingAbsenceCount,
     cacheKey: `staff_absences_pending_count:${tenantSlug ?? ""}:${accountId}`,
     eventNames: [ABSENCES_REFRESH_EVENT],

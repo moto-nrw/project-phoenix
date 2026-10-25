@@ -56,6 +56,7 @@ const (
 	CodeMealsPlanDisabled                              = "meals.plan_disabled"
 	CodeMealsPlanWeekOutOfRange                        = "meals.plan_week_out_of_range"
 	CodeMealsRegistrationDisabled                      = "meals.registration_disabled"
+	CodeModuleNotBooked                                = "module.not_booked"
 	CodeOperatorAuditUnavailable                       = "operator.audit_unavailable"
 	CodePickupBulkExceptionConfirmationRequired        = "pickup.bulk_exception_confirmation_required"
 	CodePickupFutureManualReset                        = "pickup.future_manual_reset"
@@ -301,7 +302,6 @@ const (
 	CodeTimetableSlotListReconciliationFutureDate      = "timetable.slot_list_reconciliation_future_date"
 	CodeTimetableSlotListsDisabled                     = "timetable.slot_lists_disabled"
 	CodeTimetableSpontaneousActivitiesDisabled         = "timetable.spontaneous_activities_disabled"
-	CodeTimetableSpontaneousCategoryArchived           = "timetable.spontaneous_category_archived"
 )
 
 var errorCodeClasses1 = map[string]string{
@@ -359,6 +359,7 @@ var errorCodeClasses1 = map[string]string{
 	"meals.plan_disabled":                                  "permission",
 	"meals.plan_week_out_of_range":                         "input",
 	"meals.registration_disabled":                          "permission",
+	"module.not_booked":                                    "permission",
 	"operator.audit_unavailable":                           "unavailable",
 	"pickup.bulk_exception_confirmation_required":          "input",
 	"pickup.future_manual_reset":                           "business_rejection",
@@ -604,7 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.slot_list_reconciliation_future_date":       "input",
 	"timetable.slot_lists_disabled":                        "permission",
 	"timetable.spontaneous_activities_disabled":            "permission",
-	"timetable.spontaneous_category_archived":              "business_rejection",
 }
 
 func init() {
