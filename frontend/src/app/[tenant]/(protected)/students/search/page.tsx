@@ -127,6 +127,16 @@ import {
 } from "~/lib/announcement-prefill";
 import { KIND_PARAM } from "~/components/announcements/announcement-meta";
 import { SchoolCheckinSelectionBar } from "~/components/students/school-checkin-selection-bar";
+import type { SchoolCheckinAction } from "~/lib/student-api";
+import {
+  SchoolCheckinMissingHint,
+  type MissingCheckinStudent,
+} from "~/components/students/school-checkin-missing-hint";
+import {
+  isLeftOutOfSelectAll,
+  planSelectAll,
+  type SelectAllControl,
+} from "~/components/students/school-checkin-select-all";
 import {
   checkoutConfirmationRoom,
   deriveCheckinState,
@@ -2897,9 +2907,58 @@ function SearchPageContent() {
     router.push(announcementPrefillPath(token, KIND_PARAM.letter));
   };
 
+  // „Alle N auswählen“ of the check-in mode (#4762): the cards on screen,
+  // without the children who are absent today.
+  const selectAllPlan = useMemo(
+    () => planSelectAll(filteredStudents),
+    [filteredStudents],
+  );
+  const setCheckinSelected = schoolCheckin.setSelected;
+  const checkinSelectAll: SelectAllControl = {
+    count: selectAllPlan.ids.length,
+    leftOutCount: selectAllPlan.leftOutCount,
+    allSelected: selectAllPlan.ids.every((id) =>
+      schoolCheckin.selectedIds.has(id),
+    ),
+    onSelectAll: () => setCheckinSelected(selectAllPlan.ids, true),
+  };
+
+  // After a bulk Anmelden the page names who of this list is still missing
+  // (#4762). The hint belongs to the list it was made for: a new scope or
+  // leaving the mode hides it.
+  const [missingHintScope, setMissingHintScope] = useState<string | null>(null);
+  const handleBulkRunProcessed = useCallback(
+    (action: SchoolCheckinAction) => {
+      if (action === "in") setMissingHintScope(selectionScopeSignature);
+    },
+    [selectionScopeSignature],
+  );
+  const checkinModeActive = schoolCheckin.isActive;
+  useEffect(() => {
+    if (!checkinModeActive) setMissingHintScope(null);
+  }, [checkinModeActive]);
+  const missingAfterCheckin = useMemo((): MissingCheckinStudent[] => {
+    if (missingHintScope !== selectionScopeSignature) return [];
+    const missing: MissingCheckinStudent[] = [];
+    for (const student of sortedStudents) {
+      if (isLeftOutOfSelectAll(student)) continue;
+      const label = statusLabelForStudent(student);
+      if (label !== "Schule" && label !== "Zuhause") continue;
+      missing.push({
+        id: student.id.toString(),
+        name:
+          `${student.first_name ?? ""} ${student.second_name ?? ""}`.trim() ||
+          student.name,
+        status: label === "Schule" ? "schule" : "abwesend",
+      });
+    }
+    return missing;
+  }, [missingHintScope, selectionScopeSignature, sortedStudents]);
+
   const bulkCheckin = useBulkCheckinActions(
     schoolCheckin,
     selectedStudentsForBulk,
+    handleBulkRunProcessed,
   );
   const { handleBulkAction, runningBulkAction } = bulkCheckin;
 
@@ -3381,6 +3440,7 @@ function SearchPageContent() {
                 onClearSelection={schoolCheckin.clearSelection}
                 onBulkAction={handleBulkAction}
                 runningAction={runningBulkAction}
+                selectAll={checkinSelectAll}
                 disabled={schoolCheckin.isBulkRunning}
               />
             </div>
@@ -3399,18 +3459,30 @@ function SearchPageContent() {
               onFinish={schoolCheckin.toggleActive}
               isRunning={schoolCheckin.isBulkRunning}
               runningAction={runningBulkAction}
+              selectAll={checkinSelectAll}
+            />
+          )}
+
+          {checkinModeAvailable && schoolCheckin.isActive && (
+            <SchoolCheckinMissingHint
+              students={missingAfterCheckin}
+              onShowStatus={updateAttendanceFilter}
+              onDismiss={() => setMissingHintScope(null)}
             />
           )}
 
           {/* Student Grid. Bottom padding reserves room for the mobile sticky
           bar / tablet floating FAB; desktop has neither. The active mobile bar
-          is taller (mode line + switcher, plus the bulk row in "Mehrere"). */}
+          is taller (mode line + switcher, plus the bulk row in "Mehrere" and
+          the line naming left-out children, #4762). */}
           <div
             className={
               checkinModeAvailable
                 ? schoolCheckin.isActive
                   ? schoolCheckin.selectionActive
-                    ? "pb-44 md:pb-24 lg:pb-0"
+                    ? selectAllPlan.leftOutCount > 0
+                      ? "pb-52 md:pb-24 lg:pb-0"
+                      : "pb-44 md:pb-24 lg:pb-0"
                     : "pb-36 md:pb-24 lg:pb-0"
                   : "pb-24 lg:pb-0"
                 : undefined

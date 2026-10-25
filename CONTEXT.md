@@ -969,7 +969,7 @@ _Vermeiden_: Stichtagszahl für diese Zahl.
 ## Produkt-Screenshots
 
 Ein **Produkt-Screenshot** ist ein automatisch erzeugtes, unverändertes Bild
-eines festgelegten Zustands im Tenant- oder Eltern-Portal, gedacht für
+eines festgelegten Zustands im Tenant-, Eltern- oder Träger-Portal, gedacht für
 Website, Unterlagen und Social Media. Er zeigt ausschließlich synthetische
 Daten aus einem eigenen Demo-Schulprofil.
 

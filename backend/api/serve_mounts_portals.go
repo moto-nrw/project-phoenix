@@ -11,6 +11,7 @@ import (
 	communicationModule "github.com/moto-nrw/project-phoenix/modules/communication"
 	platformAnnouncementsHTTP "github.com/moto-nrw/project-phoenix/modules/communication/http/platformannouncements"
 	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
+	deliveryRuntime "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
 	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
 	tagScanOperatorAPI "github.com/moto-nrw/project-phoenix/modules/devicefleet/inbound/operator"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
@@ -152,7 +153,7 @@ func newOperatorRouter(
 func newParentResource(
 	logger *slog.Logger, identity identityaccess.Owner, parent *parentportal.Portal, calendarApp calendarCompose.Application, flows owners.EnrollmentFlows,
 	guardianProfiles *peopleCompose.GuardianProfileLoader, organizations organizationtenancy.Query,
-	devices owners.DeliveryDevices, notifications owners.DeliveryNotifications,
+	devices owners.DeliveryDevices, notifications owners.DeliveryNotifications, delivery deliveryRuntime.Capability,
 ) *parentAPI.Resource {
 	return parentAPI.NewResource(parentAPI.ResourceConfig{
 		Auth:     parentPortalLogin(identity),
@@ -166,6 +167,7 @@ func newParentResource(
 		),
 		GuardianProfileLoader: newParentGuardianProfiles(guardianProfiles),
 		Schools:               parentSchoolDirectory{schools: organizations},
+		HolidayLinks:          newParentHolidayRegistrationLinks(organizations, delivery, logger),
 		Push:                  bindParentPushSubscriptions(devices.PushSubscriptions),
 		Preferences:           bindParentPreferences(notifications.Preferences),
 		PWAUsage:              devices.PWAUsage,

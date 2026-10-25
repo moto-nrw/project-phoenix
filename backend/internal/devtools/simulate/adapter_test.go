@@ -20,6 +20,7 @@ const (
 	simulationHTTPStatusNoContent           = testpkg.HTTPStatusNoContent
 	simulationHTTPStatusUnauthorized        = testpkg.HTTPStatusUnauthorized
 	simulationHTTPStatusConflict            = testpkg.HTTPStatusConflict
+	simulationHTTPStatusForbidden           = testpkg.HTTPStatusForbidden
 	simulationHTTPStatusInternalServerError = testpkg.HTTPStatusInternalServerError
 )
 
@@ -58,6 +59,15 @@ func (c *simulationTestClient) Login(email, password string, tenantSlug ...strin
 		slug = tenantSlug[0]
 	}
 	auth, err := c.inner.Login(context.Background(), "/auth/login", email, password, slug)
+	if err == nil {
+		c.auth = auth
+	}
+	return err
+}
+
+// LoginParent signs in to the parents portal, as the CLI's seed client does.
+func (c *simulationTestClient) LoginParent(email, password string) error {
+	auth, err := c.inner.Login(context.Background(), "/parent/auth/login", email, password, "")
 	if err == nil {
 		c.auth = auth
 	}

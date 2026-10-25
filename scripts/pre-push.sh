@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
-# Validate the complete PR diff with input-keyed static checks and stage timings.
+# Fast local gate for the complete PR diff: secrets, guidance, lint and types.
+# Expensive whole-repo analysis (build, ratchets, deadcode, knip, architecture,
+# react-doctor) and tests run in CI; license and vulnerability scans nightly.
+# PHX_PREPUSH=skip skips the gate; CI still checks the push.
 set -euo pipefail
+if [[ "${PHX_PREPUSH:-}" == skip ]]; then
+  echo 'Pre-push skipped (PHX_PREPUSH=skip). CI still checks this push.'
+  exit 0
+fi
 root=$(git rev-parse --show-toplevel)
 cd "$root"
 # Git hooks export checkout-local variables; child tools and fixture repos
@@ -13,9 +20,11 @@ head=$(git rev-parse HEAD)
 if [[ "${1:-}" == --hook ]]; then
   shift
   updates=false
+  pushed_remote=
   while read -r local_ref local_oid remote_ref remote_oid; do
     [[ "$local_oid" != 0000000000000000000000000000000000000000 ]] || continue
     updates=true
+    pushed_remote=$remote_oid
     if [[ "$remote_ref" != refs/heads/* || "$local_oid" != "$head" ]]; then
       echo 'Push one checked-out branch at a time so the hook checks the code being pushed.' >&2
       exit 1
@@ -29,6 +38,16 @@ if [[ "$base" == origin/development ]]; then
   quality_step fetch-base git fetch --quiet origin development
 fi
 merge_base=$(git merge-base "$head" "$base")
+# A conflict-free merge of the base onto the already pushed branch adds only
+# code that CI checked on the base; re-validating it locally buys nothing.
+if [[ -n "${pushed_remote:-}" && "$pushed_remote" != 0000000000000000000000000000000000000000 ]] &&
+  git rev-parse -q --verify "$head^2" >/dev/null &&
+  [[ "$(git rev-parse "$head^1")" == "$pushed_remote" ]] &&
+  git merge-base --is-ancestor "$head^2" "$base" &&
+  [[ -z "$(git diff-tree --cc --no-commit-id -p "$head")" ]]; then
+  echo 'Pre-push skipped: conflict-free merge of the base. CI still checks this push.'
+  exit 0
+fi
 backend=false
 frontend=false
 context=false
@@ -74,7 +93,8 @@ require_pinned() {
 cached() {
   local stage=$1
   shift
-  node scripts/pre-push-cache.mjs "$stage" "$base" "$@"
+  # Keyed by the merge-base, so new base commits keep results for the same diff.
+  node scripts/pre-push-cache.mjs "$stage" "$merge_base" "$@"
 }
 quality_step secrets bash scripts/check-secrets.sh pre-push "$base"
 require_pinned node
@@ -92,21 +112,16 @@ if [[ "$backend" == true ]]; then
   # Validate installed tools even on cache hits. Keep vulnerability results
   # fresh; the external vulnerability database is not a static cache input.
   scripts/run-go-toolchain.sh go version >/dev/null
+  # golangci-lint type-checks the affected packages, so it also catches build errors.
   require_pinned golangci-lint
-  require_pinned govulncheck
-  cached backend-quality scripts/run-go-toolchain.sh scripts/check-quality.sh backend
   cached backend-lint scripts/run-go-toolchain.sh scripts/check-backend-quality.sh lint "$base"
-  architecture_base=$(git rev-parse "$base")
-  cached architecture scripts/run-go-toolchain.sh scripts/backend-architecture.sh check --base-ref "$architecture_base"
-  quality_step vulnerabilities scripts/run-go-toolchain.sh scripts/check-backend-quality.sh vulnerabilities
 fi
 if [[ "$frontend" == true ]]; then
   require_pinned pnpm
   require_pinned npx
   # Frozen installation verifies the dependency state before looking up results.
   quality_step frontend-install bash -c 'cd frontend && CI=true pnpm install --frozen-lockfile'
-  cached frontend-quality bash scripts/check-quality.sh frontend
-  cached react-doctor bash scripts/check-quality.sh react-doctor "$base"
+  cached frontend-quality bash scripts/check-quality.sh frontend-fast
 fi
 # Integration/affected tests run in CI, not on every push. Explicit pre-push
 # verification by contributors still uses scripts/test-changed.sh.

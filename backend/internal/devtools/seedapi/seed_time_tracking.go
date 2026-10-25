@@ -34,8 +34,8 @@ import (
 //   - The one block with a recorded break comes from seedWorkSessionBreakStep,
 //     which walks the live clocking flow before the simulation starts.
 //   - One staff member receives an approved future 3-day vacation block via
-//     the normal vacation request/approval flow. About a quarter of the staff
-//     get a single historical sick day via POST /api/time-tracking/absences.
+//     the request flow, most others a past summer vacation (pastVacation).
+//     About a quarter get a historical sick day (POST /api/time-tracking/absences).
 type seedTimeTrackingHistoryStep struct{}
 
 func (seedTimeTrackingHistoryStep) Name() string { return "Seeding time-tracking history" }
@@ -146,7 +146,7 @@ func (seedTimeTrackingHistoryStep) Run(ctx context.Context, rt *Runtime) error {
 			client := NewClientWithAdapter(rt.Adapter, rt.Verbose)
 			admin := NewClientWithAdapter(rt.Adapter, rt.Verbose)
 			admin.BindAuth(plan.adminAuth)
-			sessionCounts[idx], absenceCounts[idx], errs[idx] = plan.seedStaff(client, admin, idx, cred, staffIDByEmail[cred.Email])
+			sessionCounts[idx], absenceCounts[idx], errs[idx] = plan.seedStaffWithVacation(client, admin, idx, cred, staffIDByEmail[cred.Email])
 		})
 	}
 	wg.Wait()
@@ -533,15 +533,15 @@ func seedSessionViaAPI(client *Client, rng *rand.Rand, day time.Time, loc *time.
 	return true, nil
 }
 
-// seedHistorySession enters one past day as the admin's Nachtrag, with the
-// times and status the live flow used to backdate.
+// seedHistorySession enters one past day as the admin's Nachtrag; staff stay
+// about 12 minutes longer than the Soll, so the Stundenkonto shows a plus.
 func seedHistorySession(admin *Client, rng *rand.Rand, staffID int64, day time.Time, loc *time.Location) error {
 	status := "present"
 	if rng.Float64() < 0.1 {
 		status = "home_office"
 	}
 	checkInWall := time.Date(day.Year(), day.Month(), day.Day(), 8, rng.IntN(20)-10, 0, 0, loc)
-	checkOutWall := time.Date(day.Year(), day.Month(), day.Day(), 16, 30+rng.IntN(30)-15, 0, 0, loc)
+	checkOutWall := time.Date(day.Year(), day.Month(), day.Day(), 16, 42+rng.IntN(30)-15, 0, 0, loc)
 	if _, err := admin.Post(fmt.Sprintf("/api/staff/%d/time-tracking/sessions", staffID), map[string]any{
 		"date":           time.Date(day.Year(), day.Month(), day.Day(), 0, 0, 0, 0, time.UTC).Format(time.RFC3339),
 		"check_in_time":  checkInWall.Format(time.RFC3339),

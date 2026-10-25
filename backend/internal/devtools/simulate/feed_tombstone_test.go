@@ -75,6 +75,8 @@ func TestRunFullDaySeedsStaffFeedTombstone(t *testing.T) {
 				return
 			}
 			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{"id": 1}})
+		case r.URL.Path == "/api/staff-shifts" || r.URL.Path == "/api/students":
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": []any{}})
 		default:
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"status": "success",

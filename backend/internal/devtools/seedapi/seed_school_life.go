@@ -8,8 +8,9 @@ import (
 
 // seedSchoolLifeStep fills the everyday surfaces of the demo school a little
 // more, the way a running school fills them: team appointments in the current
-// week, two published notices for the families, and messages from two more
-// families. The demo and the product screenshots show these pages.
+// week, two published notices for the families, messages from further
+// families, two pickup changes for today and lunch for about twenty more
+// children. The demo and the product screenshots show these pages.
 type seedSchoolLifeStep struct{}
 
 func (seedSchoolLifeStep) Name() string { return "Seeding everyday school life" }
@@ -38,7 +39,16 @@ func (seedSchoolLifeStep) Run(ctx context.Context, rt *Runtime) error {
 			return err
 		}
 	}
-	fmt.Println("  3 team appointments, 2 notices and 2 family conversations created")
+	counts := make([]int, 0, 3)
+	for _, seed := range []func(context.Context, *Runtime) (int, error){seedFamilyConversations, seedUrgentPickupChanges, seedFamilyMealParticipation} {
+		count, err := seed(ctx, rt)
+		if err != nil {
+			return err
+		}
+		counts = append(counts, count)
+	}
+	fmt.Printf("  3 team appointments, 2 notices, %d family conversations, %d pickup changes for today and %d lunch registrations created\n",
+		len(conversations)+counts[0], counts[1], counts[2])
 	return nil
 }
 
@@ -46,8 +56,7 @@ func (seedSchoolLifeStep) Run(ctx context.Context, rt *Runtime) error {
 // Monday-to-Friday week, so the staff calendar of any weekday shows a week
 // with more than the weekly team meeting.
 func seedTeamWeekAppointments(rt *Runtime) error {
-	today := todaySeedDate()
-	monday := today.AddDays(-((int(today.Weekday()) + 6) % 7))
+	monday := seedWeekMonday(todaySeedDate())
 	staff := []map[string]any{{"type": "all_staff"}}
 	appointments := []struct {
 		title, location, description string

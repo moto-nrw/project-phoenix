@@ -241,4 +241,22 @@ describe("RequestSharingControl", () => {
       ),
     ).toBeVisible();
   });
+
+  // Die Produkt-Screenshots warten, solange ein Element aria-busy trägt
+  // (scripts/product-screenshots/capture.ts).
+  it("marks the recipient loading line as busy", () => {
+    getOptions.mockReturnValue(new Promise(() => undefined));
+    render(
+      <RequestSharingSelector
+        studentId="42"
+        selected={[]}
+        onChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Empfänger werden geladen …")).toHaveAttribute(
+      "aria-busy",
+      "true",
+    );
+  });
 });
