@@ -2394,6 +2394,12 @@
         "photo_consent_not_withdrawn": "{object} could not be changed. Please check its current status.",
         "pickup_change_cutoff_passed": "{object} could not be changed. Please check its current status.",
         "pickup_change_disabled": "{object} is not available here at the moment. Please ask your contact person.",
+        "pickup_permission_request_required": "A new pickup permission needs your signature. The OGS then confirms it.",
+        "pickup_permission_unchanged": "This person may already pick up on these days.",
+        "pickup_person_not_linked": "This person is not a contact of your child. Please add them to your contacts first.",
+        "pickup_proof_not_found": "There is no proof with your signature for this request.",
+        "pickup_signature_invalid": "The signature cannot be read. Please sign again.",
+        "pickup_signature_required": "Please sign the permission and confirm your signature.",
         "poll_closed": "{object} is no longer open. Please ask your contact person.",
         "primary_guardian_protected": "You cannot access {object}. Please contact the school.",
         "remove_disabled": "{object} is not available here at the moment. Please ask your contact person.",
@@ -2828,6 +2834,8 @@
         "pickup_change_conflict": "{object} could not be changed. Please check its current status.",
         "pickup_change_expired": "{object} could not be changed. Please check its current status.",
         "pickup_change_impact_changed": "{object} could not be changed. Please check its current status.",
+        "pickup_permission_contact_gone": "{object} could not be changed. Please check the current state.",
+        "pickup_proof_not_found": "{object} could not be changed. Please check the current state.",
         "pickup_reset_requires_offering": "{object} could not be changed. Please check its current status.",
         "reason_required": "A reason is missing for {object}. Please enter one.",
         "request_not_decided": "{object} could not be changed. Please check its current status.",
@@ -3131,7 +3139,13 @@
       "traeger": {
         "access_log_export_too_large": "The export has more than {limit} entries. Please choose a shorter period or more filters.",
         "already_member": "This person already belongs to the Träger office.",
+        "bank_account_label_taken": "Another bank account already has this label. Please choose a different label.",
+        "bank_account_not_found": "This bank account no longer exists. Please reload the page.",
         "last_administrator": "The Träger office needs at least one person with the role Verwaltung. Give this role to someone else first.",
+        "logo_invalid": "The logo must be a PNG or JPG image of at most 2000 pixels in width and height. Please choose another image.",
+        "logo_not_found": "There is no logo. Please reload the page.",
+        "logo_too_large": "The logo is too large. Please choose an image up to 1 MB.",
+        "master_data_invalid": "Some details are not correct. Please check the marked fields.",
         "member_not_found": "This person no longer belongs to the Träger office. Please reload the page.",
         "no_membership": "Your account has no access to the Träger portal. Please contact the moto team.",
         "school_not_found": "This school does not belong to your Träger. Please reload the page.",
@@ -3151,6 +3165,54 @@
     "title": "The page could not be shown",
     "object": "the page",
     "home": "Go to the start page"
+  },
+  "parentPickupPermission": {
+    "days": {
+      "label": "On which days?",
+      "all": "Every day",
+      "some": "Only on certain days",
+      "pickOne": "Please choose at least one day."
+    },
+    "weekday": {
+      "1": "Mon",
+      "2": "Tue",
+      "3": "Wed",
+      "4": "Thu",
+      "5": "Fri"
+    },
+    "weekdayLong": {
+      "1": "Monday",
+      "2": "Tuesday",
+      "3": "Wednesday",
+      "4": "Thursday",
+      "5": "Friday"
+    },
+    "signature": {
+      "title": "Your permission",
+      "procedure": "You sign with a simple electronic signature with a drawn signature.",
+      "missing": "Please sign and tap “Confirm signature”."
+    },
+    "statement": {
+      "permissionAll": "I allow {person} to pick up the child from the OGS on every day.",
+      "permissionSome": "I allow {person} to pick up the child from the OGS on these days: {days}.",
+      "day": "I allow {person} to pick up the child from the OGS on {date}.",
+      "aloneDay": "I allow the child to walk home alone on {date}.",
+      "aloneWeekly": "I allow the child to walk home alone on these days: {days}."
+    },
+    "waitsForOgs": "The OGS confirms the permission. Until then it does not apply.",
+    "pendingBadge": "Waiting for the OGS",
+    "pending": "Waiting for the OGS: {days}",
+    "onlyDays": "Only {days}",
+    "requestSent": "Your request is with the OGS. You will see here when it is confirmed.",
+    "proofPdf": "Proof (PDF)",
+    "errorObjectProof": "The proof",
+    "errorObjectRequest": "The pickup permission",
+    "pickupPerson": {
+      "label": "Who picks up?",
+      "none": "As usual",
+      "hint": "Only people you have added to your contacts.",
+      "manageLink": "Add a new person to your contacts"
+    }
   },
   "surveyForm": {
     "anonymousTitle": "Anonymous",

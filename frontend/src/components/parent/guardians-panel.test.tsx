@@ -28,6 +28,9 @@ const mocks = vi.hoisted(() => ({
   removeRelatedAccount: vi.fn(),
   updateGuardianContact: vi.fn(),
   updateGuardianRelationship: vi.fn(),
+  listPickupPermissionRequests: vi.fn(),
+  submitPickupPermissionRequest: vi.fn(),
+  getPickupSignatureStatement: vi.fn(),
 }));
 
 vi.mock("~/lib/parent-api", () => {
@@ -39,8 +42,24 @@ vi.mock("~/lib/parent-api", () => {
     removeRelatedAccount: mocks.removeRelatedAccount,
     updateGuardianContact: mocks.updateGuardianContact,
     updateGuardianRelationship: mocks.updateGuardianRelationship,
+    listPickupPermissionRequests: mocks.listPickupPermissionRequests,
+    submitPickupPermissionRequest: mocks.submitPickupPermissionRequest,
+    getPickupSignatureStatement: mocks.getPickupSignatureStatement,
   };
 });
+
+// Unterschreibt im offenen Dialog mit getipptem Namen (#4780).
+async function signByTyping(container: HTMLElement, name = "Sabine Muster") {
+  fireEvent.click(
+    await within(container).findByRole("button", { name: "Namen tippen" }),
+  );
+  fireEvent.change(within(container).getByLabelText("Ihr Vor- und Nachname"), {
+    target: { value: name },
+  });
+  fireEvent.click(
+    within(container).getByRole("button", { name: "Unterschrift bestätigen" }),
+  );
+}
 
 const editableGuardian: ChildGuardian = {
   guardian_profile_id: "7",
@@ -85,9 +104,14 @@ describe("GuardiansPanel", () => {
     vi.clearAllMocks();
     mocks.listChildGuardians.mockResolvedValue([editableGuardian]);
     mocks.listRelatedAccounts.mockResolvedValue([]);
+    mocks.listPickupPermissionRequests.mockResolvedValue([]);
     mocks.updateGuardianContact.mockResolvedValue(editableGuardian);
     mocks.updateGuardianRelationship.mockResolvedValue(editableGuardian);
     mocks.createGuardianContact.mockResolvedValue(editableGuardian);
+    mocks.getPickupSignatureStatement.mockImplementation(
+      async (_studentId, input) =>
+        `Ich erlaube, dass ${input.personName} das Kind Felix Schneider ${input.weekdays?.length ? "dienstags" : "an allen Tagen"} von der OGS abholt.`,
+    );
   });
 
   it("preserves phone labels and the existing primary phone on contact save", async () => {
@@ -229,6 +253,13 @@ describe("GuardiansPanel", () => {
     fireEvent.click(
       within(dialog).getByRole("checkbox", { name: /Darf abholen/ }),
     );
+    // Die Abholerlaubnis braucht die Unterschrift der Eltern (#4780).
+    expect(
+      await within(dialog).findByText(
+        "Ich erlaube, dass Erika Klein das Kind Felix Schneider an allen Tagen von der OGS abholt.",
+      ),
+    ).toBeInTheDocument();
+    await signByTyping(dialog);
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Kontakt hinzufügen" }),
     );
@@ -241,6 +272,11 @@ describe("GuardiansPanel", () => {
           last_name: "Klein",
           relationship_type: "relative",
           can_pickup: true,
+          pickup_weekdays: [],
+          pickup_signature: expect.objectContaining({
+            method: "typed",
+            typed_name: "Sabine Muster",
+          }),
           is_emergency_contact: false,
         }),
       );
@@ -518,16 +554,21 @@ describe("GuardiansPanel", () => {
       "#guardian-can-pickup",
     )!;
     fireEvent.click(canPickup);
+    // Erteilen geht seit #4780 als unterschriebene Anfrage an die OGS.
+    await signByTyping(screen.getByRole("dialog"));
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
     await waitFor(() => {
-      expect(mocks.updateGuardianRelationship).toHaveBeenCalledTimes(1);
+      expect(mocks.submitPickupPermissionRequest).toHaveBeenCalledTimes(1);
     });
-    // Only the flag travels — no pickup_notes, so the guardian.edit gate the
-    // backend applies to notes is never tripped.
-    expect(mocks.updateGuardianRelationship).toHaveBeenCalledWith("42", "11", {
-      can_pickup: true,
-    });
+    expect(mocks.submitPickupPermissionRequest).toHaveBeenCalledWith(
+      "42",
+      "11",
+      expect.objectContaining({ weekdays: [] }),
+    );
+    // No pickup_notes travel and no direct flag write: the guardian.edit gate
+    // the backend applies to notes is never tripped.
+    expect(mocks.updateGuardianRelationship).not.toHaveBeenCalled();
   });
 
   it("offers no edit affordance for a redacted account-holder guardian", async () => {
@@ -683,5 +724,207 @@ describe("GuardiansPanel", () => {
         catalogText("care.pickup_change_disabled", "die Abholregelung"),
       ),
     ).toBeInTheDocument();
+  });
+
+  // #4780: eine Abholerlaubnis für bestimmte Wochentage geht unterschrieben an
+  // die OGS. Ohne Unterschrift wird nichts gesendet.
+  describe("Abholerlaubnis (#4780)", () => {
+    const contact: ChildGuardian = {
+      ...editableGuardian,
+      guardian_profile_id: "12",
+      student_guardian_id: "120",
+      first_name: "Rita",
+      last_name: "Klein",
+      can_pickup: false,
+      is_emergency_contact: false,
+      can_edit_contact: false,
+      can_manage_pickup: true,
+    };
+
+    it("sends chosen weekdays only after the parent signed", async () => {
+      mocks.listChildGuardians.mockResolvedValue([contact]);
+      mocks.submitPickupPermissionRequest.mockResolvedValue({});
+      render(
+        <GuardiansPanel studentId="42" canInvite={false} canRemove={false} />,
+      );
+
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Abholrecht verwalten" }),
+      );
+      const dialog = screen.getByRole("dialog");
+      fireEvent.click(
+        document.querySelector<HTMLInputElement>("#guardian-can-pickup")!,
+      );
+      fireEvent.click(
+        within(dialog).getByRole("button", {
+          name: "Nur an bestimmten Tagen",
+        }),
+      );
+      // Montag ist vorausgewählt; Dienstag dazu, Montag wieder weg.
+      fireEvent.click(
+        within(dialog).getByRole("checkbox", { name: "Dienstag" }),
+      );
+      fireEvent.click(within(dialog).getByRole("checkbox", { name: "Montag" }));
+      expect(
+        await within(dialog).findByText(
+          "Ich erlaube, dass Rita Klein das Kind Felix Schneider dienstags von der OGS abholt.",
+        ),
+      ).toBeInTheDocument();
+
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Speichern" }),
+      );
+      expect(
+        await within(dialog).findAllByText(
+          "Bitte unterschreiben Sie und tippen Sie auf „Unterschrift bestätigen“.",
+        ),
+      ).not.toHaveLength(0);
+      expect(mocks.submitPickupPermissionRequest).not.toHaveBeenCalled();
+
+      await signByTyping(dialog);
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Speichern" }),
+      );
+      await waitFor(() => {
+        expect(mocks.submitPickupPermissionRequest).toHaveBeenCalledWith(
+          "42",
+          "12",
+          expect.objectContaining({
+            weekdays: [2],
+            signature: expect.objectContaining({
+              method: "typed",
+              typedName: "Sabine Muster",
+            }),
+          }),
+        );
+      });
+      expect(mocks.updateGuardianRelationship).not.toHaveBeenCalled();
+    });
+
+    it("keeps one weekday selected in the partial permission", async () => {
+      mocks.listChildGuardians.mockResolvedValue([contact]);
+      render(
+        <GuardiansPanel studentId="42" canInvite={false} canRemove={false} />,
+      );
+
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Abholrecht verwalten" }),
+      );
+      const dialog = screen.getByRole("dialog");
+      fireEvent.click(
+        document.querySelector<HTMLInputElement>("#guardian-can-pickup")!,
+      );
+      fireEvent.click(
+        within(dialog).getByRole("button", {
+          name: "Nur an bestimmten Tagen",
+        }),
+      );
+
+      const monday = within(dialog).getByRole("checkbox", { name: "Montag" });
+      expect(monday).toBeChecked();
+      expect(monday).toBeDisabled();
+    });
+
+    it("requires a new signature after the selected weekdays change", async () => {
+      mocks.listChildGuardians.mockResolvedValue([contact]);
+      render(
+        <GuardiansPanel studentId="42" canInvite={false} canRemove={false} />,
+      );
+
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Abholrecht verwalten" }),
+      );
+      const dialog = screen.getByRole("dialog");
+      fireEvent.click(
+        document.querySelector<HTMLInputElement>("#guardian-can-pickup")!,
+      );
+      fireEvent.click(
+        within(dialog).getByRole("button", {
+          name: "Nur an bestimmten Tagen",
+        }),
+      );
+      await signByTyping(dialog);
+      fireEvent.click(
+        within(dialog).getByRole("checkbox", { name: "Dienstag" }),
+      );
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Speichern" }),
+      );
+
+      expect(
+        await within(dialog).findAllByText(
+          "Bitte unterschreiben Sie und tippen Sie auf „Unterschrift bestätigen“.",
+        ),
+      ).not.toHaveLength(0);
+      expect(mocks.submitPickupPermissionRequest).not.toHaveBeenCalled();
+    });
+
+    it("submits a related contact change with the signed permission request", async () => {
+      mocks.listChildGuardians.mockResolvedValue([contact]);
+      mocks.submitPickupPermissionRequest.mockResolvedValue({});
+      render(
+        <GuardiansPanel studentId="42" canInvite={false} canRemove={false} />,
+      );
+
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Abholrecht verwalten" }),
+      );
+      const dialog = screen.getByRole("dialog");
+      fireEvent.click(
+        document.querySelector<HTMLInputElement>("#guardian-can-pickup")!,
+      );
+      fireEvent.click(
+        document.querySelector<HTMLInputElement>("#guardian-emergency")!,
+      );
+      await signByTyping(dialog);
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Speichern" }),
+      );
+
+      await waitFor(() => {
+        expect(mocks.submitPickupPermissionRequest).toHaveBeenCalledWith(
+          "42",
+          "12",
+          expect.objectContaining({
+            relationship: { is_emergency_contact: true },
+          }),
+        );
+      });
+      expect(mocks.updateGuardianRelationship).not.toHaveBeenCalled();
+    });
+
+    it("shows a pending request and its weekdays on the contact", async () => {
+      mocks.listChildGuardians.mockResolvedValue([contact]);
+      mocks.listPickupPermissionRequests.mockResolvedValue([
+        {
+          id: "5",
+          guardian_profile_id: "12",
+          person_name: "Rita Klein",
+          weekdays: [2, 4],
+          status: "pending",
+          created_at: "2026-09-08T09:00:00Z",
+          is_self: true,
+          signed: true,
+        },
+      ]);
+      render(
+        <GuardiansPanel studentId="42" canInvite={false} canRemove={false} />,
+      );
+
+      expect(
+        await screen.findByText("Wartet auf die OGS: Di, Do"),
+      ).toBeInTheDocument();
+    });
+
+    it("labels a permission limited to weekdays", async () => {
+      mocks.listChildGuardians.mockResolvedValue([
+        { ...contact, can_pickup: true, pickup_weekdays: [1, 3] },
+      ]);
+      render(
+        <GuardiansPanel studentId="42" canInvite={false} canRemove={false} />,
+      );
+
+      expect(await screen.findByText("Nur Mo, Mi")).toBeInTheDocument();
+    });
   });
 });

@@ -19,7 +19,7 @@ import (
 // required; optional notifiers may be nil. Tests bind the ports their flows reach.
 type Dependencies struct {
 	GuardianChanges auditlog.GuardianChangeLog
-	Signatures      parentportal.SignatureLedger
+	Signatures      parentportal.Signatures
 	CarePlanPolicy  care.CarePlanPolicy
 	GuardianPolicy  care.GuardianPolicy
 	DeparturePolicy care.DeparturePolicy
@@ -125,8 +125,8 @@ func careConfig(deps Dependencies, bound owners, messagingFlows *messaging.Servi
 		CareOfferingRepo: deps.CareOfferingRepo, OfferingChanges: deps.OfferingChanges,
 		StudentAudit: deps.StudentAudit, StudentConsents: deps.StudentConsents, StudentPhotos: deps.StudentPhotos,
 		ParentRequestEvents: deps.ParentRequestEvents,
-		GuardianChanges:     newGuardianChanges(deps.GuardianChanges),
-		GuardianInvites:     deps.GuardianInvites, GuardianInvitations: deps.GuardianInvitations,
+		GuardianChanges:     newGuardianChanges(deps.GuardianChanges), PickupSignatures: deps.Signatures,
+		GuardianInvites: deps.GuardianInvites, GuardianInvitations: deps.GuardianInvitations,
 		Locales: deps.Locales, StudentUpdates: deps.StudentUpdates, GuardianPolicy: deps.GuardianPolicy, DeparturePolicy: deps.DeparturePolicy,
 		AbsenceNotifier: deps.AbsenceNotifier, Emitter: deps.Emitter,
 		SelfService:    messagingFlows,

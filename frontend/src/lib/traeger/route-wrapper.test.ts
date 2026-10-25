@@ -25,6 +25,7 @@ import {
   proxyFile,
   proxyGet,
   proxyPut,
+  proxyUpload,
 } from "./route-wrapper.server";
 
 const context = { params: Promise.resolve({}) };
@@ -330,5 +331,100 @@ describe("Träger file proxy (#4655)", () => {
         }),
       }),
     );
+  });
+});
+
+describe("Träger upload proxy (#4653)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockTraegerAuth.mockResolvedValue({ user: { token: "org-token" } });
+  });
+
+  function upload(body: BodyInit, headers: Record<string, string>) {
+    return new NextRequest(
+      "http://localhost:3000/api/traeger/master-data/logo",
+      {
+        method: "PUT",
+        body,
+        headers,
+      },
+    );
+  }
+
+  it("forwards the multipart body once more after a refreshed session", async () => {
+    const form = new FormData();
+    form.append("logo", new File(["png"], "logo.png", { type: "image/png" }));
+    const prepared = new Request("http://localhost", {
+      method: "PUT",
+      body: form,
+    });
+    const contentType = prepared.headers.get("content-type")!;
+    const bytes = await prepared.arrayBuffer();
+    mockFetch
+      .mockResolvedValueOnce(new Response(null, { status: 401 }))
+      .mockResolvedValueOnce(
+        Response.json({ status: "success", data: { width: 1 } }),
+      );
+    mockUncachedAuth.mockResolvedValue({ user: { token: "fresh-token" } });
+
+    const response = await proxyUpload("/traeger/master-data/logo", 1024)(
+      upload(bytes, { "content-type": contentType }),
+      context,
+    );
+
+    expect(response.status).toBe(200);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    const [url, init] = mockFetch.mock.calls[1]!;
+    expect(url).toBe("http://localhost:8080/traeger/master-data/logo");
+    expect(init).toMatchObject({
+      method: "PUT",
+      headers: expect.objectContaining({
+        Authorization: "Bearer fresh-token",
+        "Content-Type": contentType,
+      }),
+    });
+    expect(new Uint8Array(init.body as ArrayBuffer)).toEqual(
+      new Uint8Array(bytes),
+    );
+  });
+
+  it("refuses an oversized or non-multipart body without calling the backend", async () => {
+    const tooLarge = await proxyUpload("/traeger/master-data/logo", 10)(
+      upload(new Uint8Array(70 * 1024), {
+        "content-type": "multipart/form-data; boundary=x",
+      }),
+      context,
+    );
+    expect(tooLarge.status).toBe(400);
+    expect(await tooLarge.json()).toMatchObject({
+      code: "traeger.logo_too_large",
+    });
+
+    // Without a Content-Length the proxy stops reading past the limit.
+    const stream = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        controller.enqueue(new Uint8Array(32 * 1024));
+      },
+    });
+    const streamed = await proxyUpload("/traeger/master-data/logo", 10)(
+      new NextRequest("http://localhost:3000/api/traeger/master-data/logo", {
+        method: "PUT",
+        body: stream,
+        headers: { "content-type": "multipart/form-data; boundary=x" },
+        duplex: "half",
+      } as ConstructorParameters<typeof NextRequest>[1]),
+      context,
+    );
+    expect(streamed.status).toBe(400);
+    expect(await streamed.json()).toMatchObject({
+      code: "traeger.logo_too_large",
+    });
+
+    const notMultipart = await proxyUpload("/traeger/master-data/logo", 1024)(
+      upload("{}", { "content-type": "application/json" }),
+      context,
+    );
+    expect(notMultipart.status).toBe(400);
+    expect(mockFetch).not.toHaveBeenCalled();
   });
 });

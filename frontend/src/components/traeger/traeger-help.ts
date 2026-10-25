@@ -20,10 +20,19 @@ const TRAEGER_SETTINGS_HELP_HREF = traegerHelpLink(
   "/einstellungen",
 );
 
+const TRAEGER_BRIEFKOPF_HELP_HREF = traegerHelpLink(
+  HELP_TOPICS.traegerBriefkopf,
+  "/briefkopf",
+);
+
+function onPage(page: string, path: string): boolean {
+  return page === path || page.startsWith(`${path}/`);
+}
+
 /** The help article for a Träger page (pathname with or without /traeger). */
 export function traegerHelpHref(pathname: string): string {
   const page = pathname.replace(/^\/traeger/, "") || "/";
-  return page === "/einstellungen" || page.startsWith("/einstellungen/")
-    ? TRAEGER_SETTINGS_HELP_HREF
-    : TRAEGER_HELP_HREF;
+  if (onPage(page, "/einstellungen")) return TRAEGER_SETTINGS_HELP_HREF;
+  if (onPage(page, "/briefkopf")) return TRAEGER_BRIEFKOPF_HELP_HREF;
+  return TRAEGER_HELP_HREF;
 }

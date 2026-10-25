@@ -34,6 +34,9 @@ type PickupApproval struct {
 type PickupApplied struct {
 	PickupExceptionID    int64
 	DepartureExceptionID int64
+	// PickupNoteID is the dated pickup note that names the day's collector
+	// (#4780).
+	PickupNoteID int64
 }
 
 // PickupApprovals applies the pickup leg of an already authorized request
@@ -53,7 +56,10 @@ type PickupChange struct {
 	Date          calendar.Date
 	PickupTime    *time.Time
 	DepartureMode string
-	Reason        string
+	// PickupPerson is the contact who collects the child on that day (#4780);
+	// nil leaves the day's collector to the standing pickup permissions.
+	PickupPerson *PickupPerson
+	Reason       string
 }
 
 // RequestableDepartureMode reports whether a guardian may ask for mode on one
@@ -101,10 +107,33 @@ func pickupTerms(payload map[string]any) (PickupChange, bool) {
 		}
 		change.DepartureMode = mode
 	}
-	if change.PickupTime == nil && change.DepartureMode == "" {
+	if personRaw, present := payload["pickup_person"]; present && personRaw != nil {
+		person, ok := storedPickupPerson(personRaw)
+		if !ok {
+			return PickupChange{}, false
+		}
+		change.PickupPerson = &person
+	}
+	if change.PickupTime == nil && change.DepartureMode == "" && change.PickupPerson == nil {
 		return PickupChange{}, false
 	}
 	return change, true
+}
+
+func storedPickupPerson(raw any) (PickupPerson, bool) {
+	fields, _ := raw.(map[string]any)
+	id, _ := fields["guardian_profile_id"].(float64)
+	name, _ := fields["name"].(string)
+	if id <= 0 || strings.TrimSpace(name) == "" {
+		return PickupPerson{}, false
+	}
+	return PickupPerson{GuardianProfileID: int64(id), Name: name}, true
+}
+
+// PickupPersonAllowed reports whether a one-day collector fits the requested
+// Abholart: a child who goes alone or by bus is not collected.
+func PickupPersonAllowed(departureMode string) bool {
+	return departureMode == "" || departureMode == "pickup"
 }
 
 // ParsePickup is the strict reading the apply paths use: a valid day, at

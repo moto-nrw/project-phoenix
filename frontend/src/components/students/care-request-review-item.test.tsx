@@ -26,6 +26,7 @@ async function expectErrorToast(expected: RegExp | string) {
 import { CareRequestReviewItem } from "./care-request-review-item";
 import {
   decideCareScheduleChangeRequest,
+  downloadCareRequestProofPdf,
   type StaffCareRequest,
 } from "~/lib/care-request-review-api";
 
@@ -38,6 +39,7 @@ vi.mock("~/lib/care-request-review-api", async (importActual) => {
   return {
     ...actual,
     decideCareScheduleChangeRequest: vi.fn(),
+    downloadCareRequestProofPdf: vi.fn(),
   };
 });
 
@@ -344,6 +346,46 @@ describe("CareRequestReviewItem", () => {
     );
   });
 
+  // Abholart oder Abholperson allein verschieben keinen Termin; das Backend
+  // liefert dafür keine Vorschau und prüft keine (#3945, #4780).
+  it.each([
+    {
+      label: "27.10.2026 · Abholperson",
+      old: "",
+      new: "Rita Klein",
+      care_kind: "pickup_person" as const,
+    },
+    {
+      label: "27.10.2026 · Abholart",
+      old: "Fährt Bus",
+      new: "Wird abgeholt",
+      care_kind: "departure_mode" as const,
+      old_modes: ["bus"],
+      new_mode: "pickup",
+    },
+  ])(
+    "approves a day request without a time leg ($care_kind)",
+    async (entry) => {
+      mockDecide.mockResolvedValue(pickupRow({ status: "approved" }));
+      const onDecided = vi.fn();
+      render(
+        <CareRequestReviewItem
+          row={pickupRow({
+            impact_available: false,
+            impact_token: "",
+            affected_blocks: [],
+            diff: [entry],
+          })}
+          onDecided={onDecided}
+        />,
+      );
+      expand();
+      fireEvent.click(screen.getByRole("button", { name: "Freigeben" }));
+      await waitFor(() => expect(mockDecide).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(onDecided).toHaveBeenCalled());
+    },
+  );
+
   it("shows a generic decision error without calling onDecided", async () => {
     mockDecide.mockRejectedValueOnce(
       new ApiError("boom", 500, { code: "general.server" }),
@@ -420,5 +462,75 @@ describe("CareRequestReviewItem", () => {
     );
     // Kein Backend-Satz in der Anzeige (ADR 0006).
     expect(screen.queryByText(/managed by an offering booking/)).toBeNull();
+  });
+
+  // #4780: eine unterschriebene Anfrage nennt das Verfahren und bietet den
+  // Nachweis als PDF; eine Abholberechtigung trägt ihren eigenen Namen.
+  it("offers the proof of a signed pickup permission", async () => {
+    vi.mocked(downloadCareRequestProofPdf).mockResolvedValue(undefined);
+    mockDecide.mockResolvedValue(
+      row({ request_kind: "pickup_permission", status: "approved" }),
+    );
+    const onDecided = vi.fn();
+    render(
+      <CareRequestReviewItem
+        row={row({
+          request_kind: "pickup_permission",
+          signed: true,
+          diff: [
+            {
+              label: "Abholberechtigung · Rita Klein",
+              old: "Nicht abholberechtigt",
+              new: "Nur Di, Do",
+            },
+          ],
+        })}
+        onDecided={onDecided}
+      />,
+    );
+    expand();
+
+    expect(
+      screen.getByText(
+        /einfache elektronische Signatur mit gezeichneter Unterschrift/,
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Nachweis (PDF)" }));
+    await waitFor(() =>
+      expect(downloadCareRequestProofPdf).toHaveBeenCalledWith("200"),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Freigeben" }));
+    await waitFor(() =>
+      expect(onDecided).toHaveBeenCalledWith(
+        "Die Abholberechtigung ist eingetragen.",
+      ),
+    );
+  });
+
+  it("offers no proof for an unsigned request", () => {
+    render(<CareRequestReviewItem row={row()} onDecided={vi.fn()} />);
+    expand();
+    expect(screen.getByText("Montag · Abholzeit:")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Nachweis (PDF)" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("reports a failed proof download through the shared toast", async () => {
+    vi.mocked(downloadCareRequestProofPdf).mockRejectedValue(
+      new ApiError("x", 404, { code: "students.pickup_proof_not_found" }),
+    );
+    render(
+      <CareRequestReviewItem
+        row={pickupRow({ signed: true })}
+        onDecided={vi.fn()}
+      />,
+    );
+    expand();
+    fireEvent.click(screen.getByRole("button", { name: "Nachweis (PDF)" }));
+    await expectErrorToast(
+      catalogText("students.pickup_proof_not_found", "Der Nachweis"),
+    );
   });
 });

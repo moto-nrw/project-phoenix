@@ -36,6 +36,8 @@ type CareRequestDetailResponse struct {
 	// PickupChange is the stored ask of a pickup-change row; absent for
 	// weekly-plan rows. Dates are calendar days, times wall-clock "15:04".
 	PickupChange *CareRequestPickupChangeResponse `json:"pickup_change,omitempty"`
+	// Signed says the guardian signed the request (#4780).
+	Signed bool `json:"signed,omitempty"`
 }
 
 // CareRequestPickupChangeResponse is the stored ask of one day. PickupTime
@@ -46,6 +48,8 @@ type CareRequestPickupChangeResponse struct {
 	PreviousPickupTime     string   `json:"previous_pickup_time,omitempty"`
 	DepartureMode          string   `json:"departure_mode,omitempty"`
 	PreviousDepartureModes []string `json:"previous_departure_modes,omitempty"`
+	// PickupPerson is the one-day collector the family named (#4780).
+	PickupPerson string `json:"pickup_person,omitempty"`
 }
 
 func toCareRequestDetailResponse(item *carerequests.HistoryItem) CareRequestDetailResponse {
@@ -62,6 +66,7 @@ func toCareRequestDetailResponse(item *carerequests.HistoryItem) CareRequestDeta
 			PreviousPickupTime:     terms.PreviousPickupTime,
 			DepartureMode:          terms.DepartureMode,
 			PreviousDepartureModes: terms.PreviousDepartureModes,
+			PickupPerson:           terms.PickupPersonName,
 		}
 	}
 	var decidedAt *time.Time
@@ -84,6 +89,7 @@ func toCareRequestDetailResponse(item *carerequests.HistoryItem) CareRequestDeta
 		DecidedAt:      decidedAt,
 		DecidedByName:  item.ReviewerName,
 		PickupChange:   pickupChange,
+		Signed:         carerequests.StoredSignature(req.Payload) != nil,
 	}
 }
 

@@ -74,7 +74,10 @@ for shared or admin_only, non-password keys without side effect, lock or
 cross-field check. The Träger-Büro writes Träger values in the Träger
 transaction (`tenant.WithinTraeger`, ADR 0105/0107) through `/traeger/settings`,
 checked against `Definition.TraegerWriteRight`; every change lands in
-`config.traeger_setting_audit` in the same transaction. Schema items carry
+`config.traeger_setting_audit` in the same transaction. The first `traeger`
+keys are the branding colour and texts (`branding.*`, #4653); logo, contact
+person and bank accounts are master data of Organisation & Tenancy (ADR 0112),
+not settings. Schema items carry
 `levels`, `source` (`default`/`traeger`/`school`) and `traeger_changed_at`;
 `is_default` means the school has no override of its own. The Träger level is
 read only in the school's own tenant transaction or through the batch read

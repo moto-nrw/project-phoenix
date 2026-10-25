@@ -64,6 +64,11 @@ type SubmitCareExceptionRequest struct {
 	// RecipientGuardianProfileIDs travel with the creation so the share is
 	// written in the same transaction (#2267); empty shares with nobody.
 	RecipientGuardianProfileIDs []string `json:"recipient_guardian_profile_ids"`
+	// PickupPersonGuardianProfileID names a contact person who collects the
+	// child that day; Signature is needed for a collector or walking home
+	// alone (#4780).
+	PickupPersonGuardianProfileID *string                      `json:"pickup_person_guardian_profile_id"`
+	Signature                     *declarationSignatureRequest `json:"signature,omitempty"`
 }
 
 // CareExceptionResponse is one day's merged pickup/arrival override, projected
@@ -106,6 +111,11 @@ type PickupChangeRequestResponse struct {
 	CreatedAt              time.Time  `json:"created_at"`
 	ReviewedAt             *time.Time `json:"reviewed_at,omitempty"`
 	IsSelf                 bool       `json:"is_self"`
+	// PickupPerson is the one-day collector (#4780); Signed says the request
+	// carries a signature, whose proof the submitter can open.
+	PickupPerson                  *string `json:"pickup_person,omitempty"`
+	PickupPersonGuardianProfileID *string `json:"pickup_person_guardian_profile_id,omitempty"`
+	Signed                        bool    `json:"signed"`
 }
 
 func toPickupChangeRequestResponse(req *careplan.CareScheduleChangeRequest, accountID int64) (PickupChangeRequestResponse, error) {
@@ -134,6 +144,14 @@ func toPickupChangeRequestResponse(req *careplan.CareScheduleChangeRequest, acco
 	if terms.DepartureMode != "" {
 		response.DepartureMode = &terms.DepartureMode
 	}
+	if terms.PickupPersonName != "" {
+		response.PickupPerson = &terms.PickupPersonName
+		if req.Status == carerequests.StatusPending && req.SubmittedBy == accountID {
+			guardianProfileID := strconv.FormatInt(terms.PickupPersonGuardianProfileID, 10)
+			response.PickupPersonGuardianProfileID = &guardianProfileID
+		}
+	}
+	response.Signed = carerequests.StoredSignature(req.Payload) != nil
 	return response, nil
 }
 
@@ -152,6 +170,56 @@ func toCareExceptionResponse(c *parentService.CareException) CareExceptionRespon
 	}
 }
 
+// decodePickupChangeSubmission reads and checks the wire shape of a one-day
+// request; it renders the error and returns false on a refused input.
+func decodePickupChangeSubmission(w http.ResponseWriter, r *http.Request) (parentService.PickupChangeSubmission, bool) {
+	var none parentService.PickupChangeSubmission
+	var req SubmitCareExceptionRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid request body")))
+		return none, false
+	}
+	date, err := timezone.ParseDate(req.Date)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid date, expected YYYY-MM-DD")))
+		return none, false
+	}
+	pickup, err := parseCareExceptionTime(req.PickupTime)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return none, false
+	}
+	if req.ArrivalTime != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("parents cannot change arrival times")))
+		return none, false
+	}
+	departureMode := ""
+	if req.DepartureMode != nil {
+		departureMode = strings.TrimSpace(*req.DepartureMode)
+	}
+	personID, err := parsePickupPersonID(req.PickupPersonGuardianProfileID)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return none, false
+	}
+	if pickup == nil && departureMode == "" && personID == 0 {
+		renderParentWriteError(w, r, parentService.ErrNoCareException)
+		return none, false
+	}
+	recipients, ok := parseCreateRecipients(w, r, req.RecipientGuardianProfileIDs)
+	if !ok {
+		return none, false
+	}
+	submission := parentService.PickupChangeSubmission{
+		Date: date, DepartureMode: departureMode, Reason: req.Reason,
+		RecipientGuardianProfileIDs: recipients, PickupPersonID: personID, Signature: req.Signature.pickupInput(),
+	}
+	if pickup != nil {
+		submission.PickupTime = *pickup
+	}
+	return submission, true
+}
+
 // submitCareException sets a one-day pickup override for the parent's child.
 // The service verifies the relationship-level pickup permission.
 func (rs *Resource) submitCareException(w http.ResponseWriter, r *http.Request) {
@@ -164,44 +232,11 @@ func (rs *Resource) submitCareException(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	var req SubmitCareExceptionRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid request body")))
-		return
-	}
-
-	date, err := timezone.ParseDate(req.Date)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid date, expected YYYY-MM-DD")))
-		return
-	}
-	pickup, err := parseCareExceptionTime(req.PickupTime)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-		return
-	}
-	if req.ArrivalTime != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("parents cannot change arrival times")))
-		return
-	}
-
-	departureMode := ""
-	if req.DepartureMode != nil {
-		departureMode = strings.TrimSpace(*req.DepartureMode)
-	}
-	if pickup == nil && departureMode == "" {
-		renderParentWriteError(w, r, parentService.ErrNoCareException)
-		return
-	}
-	recipients, ok := parseCreateRecipients(w, r, req.RecipientGuardianProfileIDs)
+	submission, ok := decodePickupChangeSubmission(w, r)
 	if !ok {
 		return
 	}
-	var pickupTime time.Time
-	if pickup != nil {
-		pickupTime = *pickup
-	}
-	result, err := rs.ParentService.SubmitPickupChangeRequest(r.Context(), accountID, studentID, date, pickupTime, departureMode, req.Reason, recipients)
+	result, err := rs.ParentService.SubmitPickupChange(r.Context(), accountID, studentID, submission)
 	if err != nil {
 		renderParentRequestError(w, r, err)
 		return

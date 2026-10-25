@@ -130,6 +130,9 @@ func appliedLedgerPayload(payload map[string]any, applied carerequests.PickupApp
 	if applied.DepartureExceptionID > 0 {
 		payload["departure_exception_id"] = applied.DepartureExceptionID
 	}
+	if applied.PickupNoteID > 0 {
+		payload["pickup_note_id"] = applied.PickupNoteID
+	}
 }
 
 func (s *RequestDecisions) apply(ctx context.Context, request *carerequests.Request, input carerequests.DecideInput) (bool, carerequests.PickupApplied, error) {
@@ -143,6 +146,9 @@ func (s *RequestDecisions) apply(ctx context.Context, request *carerequests.Requ
 	if request.RequestKind == "pickup_change" {
 		applied, err := s.Plans.ApplyPickup(ctx, request, input.ExpectedImpactToken, input.RequireImpactToken)
 		return false, applied, err
+	}
+	if request.RequestKind == carerequests.KindPickupPermission {
+		return false, none, s.Plans.ApplyPickupPermission(ctx, request)
 	}
 	changed, err := s.Plans.ApplyWeekly(ctx, request, input.ReviewedBy)
 	return changed, none, err

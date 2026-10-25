@@ -30,6 +30,7 @@ type PickupApprovalRecords interface {
 	UpdatePickupException(context.Context, careplan.PickupException) error
 	ListDepartureExceptions(context.Context, careplan.StudentScheduleFilter) ([]careplan.DepartureException, error)
 	SaveDepartureException(context.Context, careplan.DepartureException) (careplan.DepartureException, error)
+	CreatePickupNote(context.Context, careplan.PickupNote) (careplan.PickupNote, error)
 }
 
 // PickupExcusalRecords is the existing owner persistence capability needed by

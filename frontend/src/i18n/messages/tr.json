@@ -2394,6 +2394,12 @@
         "photo_consent_not_withdrawn": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "pickup_change_cutoff_passed": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "pickup_change_disabled": "{object} şu anda burada kullanılamıyor. Lütfen ilgili kişinize danışın.",
+        "pickup_permission_request_required": "Yeni bir alma izni imzanızı gerektirir. Ardından OGS onaylar.",
+        "pickup_permission_unchanged": "Bu kişi bu günlerde zaten çocuğu alabilir.",
+        "pickup_person_not_linked": "Bu kişi çocuğunuzun kişileri arasında değil. Lütfen önce kişilerinize ekleyin.",
+        "pickup_proof_not_found": "Bu talep için imzanızı içeren bir belge yok.",
+        "pickup_signature_invalid": "İmza okunamıyor. Lütfen tekrar imzalayın.",
+        "pickup_signature_required": "Lütfen izni imzalayın ve imzanızı onaylayın.",
         "poll_closed": "{object} artık açık değil. Lütfen ilgili kişinize danışın.",
         "primary_guardian_protected": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
         "remove_disabled": "{object} şu anda burada kullanılamıyor. Lütfen ilgili kişinize danışın.",
@@ -2828,6 +2834,8 @@
         "pickup_change_conflict": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "pickup_change_expired": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "pickup_change_impact_changed": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "pickup_permission_contact_gone": "{object} değiştirilemedi. Lütfen güncel durumu kontrol edin.",
+        "pickup_proof_not_found": "{object} değiştirilemedi. Lütfen güncel durumu kontrol edin.",
         "pickup_reset_requires_offering": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "reason_required": "{object} için gerekçe eksik. Lütfen bir gerekçe girin.",
         "request_not_decided": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
@@ -3131,7 +3139,13 @@
       "traeger": {
         "access_log_export_too_large": "Dışa aktarma {limit} kayıttan fazla içeriyor. Lütfen daha kısa bir dönem veya daha fazla filtre seçin.",
         "already_member": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "bank_account_label_taken": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "bank_account_not_found": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "last_administrator": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "logo_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "logo_not_found": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "logo_too_large": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "master_data_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "member_not_found": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "no_membership": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
         "school_not_found": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
@@ -3151,6 +3165,54 @@
     "title": "Sayfa gösterilemedi",
     "object": "sayfa",
     "home": "Ana sayfaya git"
+  },
+  "parentPickupPermission": {
+    "days": {
+      "label": "Hangi günlerde?",
+      "all": "Her gün",
+      "some": "Sadece belirli günlerde",
+      "pickOne": "Lütfen en az bir gün seçin."
+    },
+    "weekday": {
+      "1": "Pzt",
+      "2": "Sal",
+      "3": "Çar",
+      "4": "Per",
+      "5": "Cum"
+    },
+    "weekdayLong": {
+      "1": "Pazartesi",
+      "2": "Salı",
+      "3": "Çarşamba",
+      "4": "Perşembe",
+      "5": "Cuma"
+    },
+    "signature": {
+      "title": "İzniniz",
+      "procedure": "Çizilmiş imzalı basit bir elektronik imza ile imzalıyorsunuz.",
+      "missing": "Lütfen imzalayın ve „İmzayı onayla“ ya dokunun."
+    },
+    "statement": {
+      "permissionAll": "{person} kişisinin çocuğu her gün OGS'den almasına izin veriyorum.",
+      "permissionSome": "{person} kişisinin çocuğu şu günlerde OGS'den almasına izin veriyorum: {days}.",
+      "day": "{person} kişisinin çocuğu {date} tarihinde OGS'den almasına izin veriyorum.",
+      "aloneDay": "Çocuğun {date} tarihinde eve yalnız gitmesine izin veriyorum.",
+      "aloneWeekly": "Çocuğun şu günlerde eve yalnız gitmesine izin veriyorum: {days}."
+    },
+    "waitsForOgs": "OGS izni onaylar. O zamana kadar izin geçerli değildir.",
+    "pendingBadge": "OGS onayı bekleniyor",
+    "pending": "OGS onayı bekleniyor: {days}",
+    "onlyDays": "Sadece {days}",
+    "requestSent": "Talebiniz OGS'de. Onaylandığında burada göreceksiniz.",
+    "proofPdf": "Belge (PDF)",
+    "errorObjectProof": "Belge",
+    "errorObjectRequest": "Çocuğu alma izni",
+    "pickupPerson": {
+      "label": "Kim alıyor?",
+      "none": "Her zamanki gibi",
+      "hint": "Sadece kişilerinize eklediğiniz kişiler.",
+      "manageLink": "Kişilerinize yeni bir kişi ekleyin"
+    }
   },
   "surveyForm": {
     "anonymousTitle": "Anonim",

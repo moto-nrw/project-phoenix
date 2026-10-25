@@ -21,7 +21,14 @@ type EditInput struct {
 	Date              calendar.Date
 	PickupTime        time.Time
 	DepartureMode     string
-	Reason            string
+	PickupPerson      *PickupPerson
+	// PreservePickupDeclaration keeps a signed collector or one-day-alone
+	// declaration when a compatibility client omits both declaration fields.
+	// The edit rejects a changed declaration rather than reusing its signature.
+	PreservePickupDeclaration bool
+	// Signature replaces the stored declaration signature.
+	Signature *SignedStatement
+	Reason    string
 }
 
 type Edits interface {

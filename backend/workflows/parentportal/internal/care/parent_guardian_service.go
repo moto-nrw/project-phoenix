@@ -88,7 +88,10 @@ type ChildGuardian struct {
 	IsPrimary          bool
 	IsEmergencyContact bool
 	CanPickup          bool
-	PickupNotes        string
+	// PickupWeekdays limits CanPickup to these weekdays (1 = Monday …
+	// 5 = Friday); nil means every day (#4780).
+	PickupWeekdays []int
+	PickupNotes    string
 	// HasAccount is true when the guardian holds their own portal login. Such
 	// guardians' contact data is read-only to other parents.
 	HasAccount bool
@@ -167,9 +170,15 @@ type GuardianRelationshipInput struct {
 // relationship to one child. App access is granted only by the separate
 // related-account invitation flow.
 type CreateGuardianContactInput struct {
-	Contact            GuardianContactInput
-	RelationshipType   string
+	Contact          GuardianContactInput
+	RelationshipType string
+	// CanPickup asks the OGS to let the new contact collect the child: the
+	// contact is created without the permission and a signed pickup
+	// permission request for PickupWeekdays (empty: every day) is filed in
+	// the same unit of work (#4780).
 	CanPickup          bool
+	PickupWeekdays     []int
+	PickupSignature    *PickupSignatureInput
 	IsEmergencyContact bool
 	PickupNotes        *string
 }
