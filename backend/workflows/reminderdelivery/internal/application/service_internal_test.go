@@ -957,3 +957,11 @@ func testSettingValue[T any](ctx context.Context, key string, resolve func(conte
 	}
 	return value, nil
 }
+
+func (f fakeSettings) ActivityRunningOverEnabled(ctx context.Context) (bool, error) {
+	return testSettingValue(ctx, "reminders.activity_running_over_enabled", f.ResolveBool)
+}
+
+func (f fakeSettings) ActivityRunningOverMinutes(ctx context.Context) (int, error) {
+	return testSettingValue(ctx, "reminders.activity_running_over_minutes", f.ResolveInt)
+}

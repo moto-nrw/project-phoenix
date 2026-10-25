@@ -5,7 +5,11 @@
 import { authFetch } from "./api-helpers";
 
 export type ReminderType =
-  "pickup_upcoming" | "pickup_overdue" | "activity_start" | "activity_overdue";
+  | "pickup_upcoming"
+  | "pickup_overdue"
+  | "activity_start"
+  | "activity_overdue"
+  | "activity_running_over";
 
 export interface Reminder {
   type: ReminderType;
@@ -15,6 +19,9 @@ export interface Reminder {
   subtitle?: string;
   due_time: string; // "HH:MM"
   minutes_away: number; // negative when overdue
+  // activity_running_over only: children still in the block's room whose
+  // pickup time has been reached (#4765).
+  pickup_due_count?: number;
 }
 
 export interface RemindersResult {

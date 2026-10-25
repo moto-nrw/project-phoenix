@@ -48,6 +48,9 @@ const (
 	TypePickupOverdue   = "pickup_overdue"
 	TypeActivityStart   = "activity_start"
 	TypeActivityOverdue = "activity_overdue"
+	// TypeActivityRunningOver is a started block still running a configured
+	// number of minutes after its planned end (#4765).
+	TypeActivityRunningOver = "activity_running_over"
 )
 
 // Reminder is a single visual reminder shown to staff.
@@ -62,6 +65,9 @@ type Reminder struct {
 	Subtitle           string  `json:"subtitle,omitempty"` // school class or room — optional
 	DueTime            string  `json:"due_time"`           // "HH:MM" of the relevant time
 	MinutesAway        int     `json:"minutes_away"`       // negative when overdue
+	// PickupDueCount is set on activity_running_over only: how many children
+	// still in the block's room have reached their pickup time.
+	PickupDueCount *int `json:"pickup_due_count,omitempty"`
 }
 
 // Result is the computed reminder list plus a convenience count for the badge.

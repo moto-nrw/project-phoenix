@@ -605,6 +605,10 @@ const (
 	KeyRemindersActivityStartEnabled      = "reminders.activity_start_enabled"
 	KeyRemindersActivityStartLeadMinutes  = "reminders.activity_start_lead_minutes"
 	KeyRemindersActivityOverdueEnabled    = "reminders.activity_overdue_enabled"
+	// A started block still running this many minutes after its planned end
+	// (#4765).
+	KeyRemindersActivityRunningOverEnabled = "reminders.activity_running_over_enabled"
+	KeyRemindersActivityRunningOverMinutes = "reminders.activity_running_over_minutes"
 )
 
 // Appointment reminder settings (issue #1671). Unlike the staff reminders

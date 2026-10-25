@@ -5,6 +5,7 @@ import {
   isReminderOverdue,
   reminderKey,
   reminderRelativeLabel,
+  reminderSubtitle,
   reminderToneClass,
 } from "~/lib/reminders-display";
 
@@ -16,6 +17,50 @@ function makeReminder(
 }
 
 describe("reminders-display", () => {
+  describe("activity_running_over (#4765)", () => {
+    const running: Reminder = {
+      type: "activity_running_over",
+      activity_instance_id: "7",
+      title: "Fußball-AG",
+      subtitle: "Turnhalle",
+      due_time: "16:00",
+      minutes_away: -30,
+      pickup_due_count: 2,
+    };
+
+    it("says how much longer the block runs instead of 'überfällig'", () => {
+      expect(reminderRelativeLabel(running)).toBe("30 Min länger");
+    });
+
+    it("names the room and the children whose pickup time is reached", () => {
+      expect(reminderSubtitle(running)).toBe(
+        "Turnhalle · Abholzeit erreicht: 2 Kinder",
+      );
+      expect(reminderSubtitle({ ...running, pickup_due_count: 1 })).toBe(
+        "Turnhalle · Abholzeit erreicht: 1 Kind",
+      );
+    });
+
+    it("shows only the room when no pickup time is reached", () => {
+      expect(reminderSubtitle({ ...running, pickup_due_count: 0 })).toBe(
+        "Turnhalle",
+      );
+    });
+
+    it("leaves other subtitles untouched", () => {
+      expect(reminderSubtitle({ ...makeReminder(5), subtitle: "3b" })).toBe(
+        "3b",
+      );
+    });
+
+    it("has its own section and a stable key", () => {
+      expect(REMINDER_SECTIONS.map((s) => s.type)).toContain(
+        "activity_running_over",
+      );
+      expect(reminderKey(running)).toBe("activity_running_over-activity-7");
+    });
+  });
+
   describe("reminderRelativeLabel", () => {
     it("renders overdue minutes as '… Min überfällig'", () => {
       expect(reminderRelativeLabel(makeReminder(-26))).toBe(
@@ -85,10 +130,11 @@ describe("reminders-display", () => {
   });
 
   describe("REMINDER_SECTIONS", () => {
-    it("lists the four types most-urgent-first with German titles", () => {
+    it("lists the five types most-urgent-first with German titles", () => {
       expect(REMINDER_SECTIONS.map((s) => s.type)).toEqual([
         "pickup_overdue",
         "activity_overdue",
+        "activity_running_over",
         "pickup_upcoming",
         "activity_start",
       ]);

@@ -97,4 +97,32 @@ var reminders_init_aktivitaeten_1Definitions = []config.Definition{
 		Category:        "aktivitaeten",
 		SortOrder:       12,
 	},
+	// Issue #4765: a started block that runs past its planned end, so
+	// children may still be in the room while their pickup is waiting.
+	{
+		Key:             config.KeyRemindersActivityRunningOverEnabled,
+		Label:           "AG dauert länger",
+		Description:     "Zeigt eine Erinnerung an, wenn eine gestartete Aktivität nach ihrem geplanten Ende noch läuft.",
+		Type:            config.FieldBoolean,
+		Default:         false,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "reminders",
+		Category:        "aktivitaeten",
+		SortOrder:       13,
+	},
+	{
+		Key:             config.KeyRemindersActivityRunningOverMinutes,
+		Label:           "Nachlauf in Minuten",
+		Description:     "Wie viele Minuten nach dem geplanten Ende die Erinnerung erscheint.",
+		Type:            config.FieldNumber,
+		Default:         10,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "reminders",
+		Category:        "aktivitaeten",
+		SortOrder:       14,
+		Validation:      config.Range(1, 120),
+		DependsOn:       config.DependsOnEq(config.KeyRemindersActivityRunningOverEnabled, true),
+	},
 }

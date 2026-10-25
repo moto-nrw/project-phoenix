@@ -25,6 +25,7 @@ func TestRestatedSettingKeysMatchTheRegistry(t *testing.T) {
 		"reminders.pickup_overdue_enabled",
 		"reminders.activity_start_enabled",
 		"reminders.activity_overdue_enabled",
+		"reminders.activity_running_over_enabled",
 		"operations.parent_notes_enabled",
 		"operations.staff_messaging_enabled",
 		"calendar.appointment_reminder_enabled",

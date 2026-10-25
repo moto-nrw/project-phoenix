@@ -81,6 +81,9 @@ func (s *service) loadBatchActivities(ctx context.Context, cfg batchConfig, reci
 	if err := s.loadBatchActivityRooms(ctx, cfg, in); err != nil {
 		return err
 	}
+	if err := s.loadBatchRunningOver(ctx, cfg, in); err != nil {
+		return err
+	}
 	return s.loadBatchAssignments(ctx, recipients, in)
 }
 
@@ -145,4 +148,20 @@ func plannedBatchInstanceIDs(instances []*ports.ActivityInstance) []int64 {
 		}
 	}
 	return instanceIDs
+}
+
+// loadBatchRunningOver reads the facts of every block that runs over anywhere
+// in the school. The per-recipient scope is applied when rendering, so the
+// reads stay one each no matter how many people are addressed.
+func (s *service) loadBatchRunningOver(ctx context.Context, cfg batchConfig, in *batchInputs) error {
+	if !cfg.runningOver {
+		return nil
+	}
+	due, _ := dueRunningOver(in.instances, nil, runningOverWindow{nowMin: in.nowMin, grace: cfg.runningOverGrace})
+	facts, err := s.loadRunningOverFacts(ctx, in.today, due)
+	if err != nil {
+		return err
+	}
+	in.runningOver = facts
+	return nil
 }

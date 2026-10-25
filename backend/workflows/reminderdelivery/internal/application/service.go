@@ -84,17 +84,13 @@ func (s *service) Compute(ctx context.Context, scope reminder.Scope) (*reminder.
 	if err != nil {
 		return nil, err
 	}
-	activityStart, err := s.Settings.ActivityStartEnabled(ctx)
-	if err != nil {
-		return nil, err
-	}
-	activityOverdue, err := s.Settings.ActivityOverdueEnabled(ctx)
+	gates, err := s.activityGates(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	// Default-off: nothing enabled means no work and no data exposure.
-	if !pickupUpcoming && !pickupOverdue && !activityStart && !activityOverdue {
+	if !pickupUpcoming && !pickupOverdue && !gates.any() {
 		return empty, nil
 	}
 
@@ -112,7 +108,7 @@ func (s *service) Compute(ctx context.Context, scope reminder.Scope) (*reminder.
 	if err != nil {
 		return nil, err
 	}
-	activityPart, nextChange, err = s.computeActivityPart(ctx, scope, today, nowMin, activityStart, activityOverdue, nextChange)
+	activityPart, nextChange, err = s.computeActivityPart(ctx, scope, today, nowMin, gates, nextChange)
 	if err != nil {
 		return nil, err
 	}
@@ -373,7 +369,14 @@ func (s *service) activityReminders(ctx context.Context, scope reminder.Scope, r
 	if err != nil {
 		return nil, nextChange, err
 	}
+	return s.activityRemindersFor(ctx, scope, roomIDs, instances, nowMin, lead, overdueThreshold, upcoming, overdue)
+}
 
+// activityRemindersFor evaluates start and overdue reminders over already
+// loaded instances, so Compute reads today's blocks once for every activity
+// type.
+func (s *service) activityRemindersFor(ctx context.Context, scope reminder.Scope, roomIDs []int64, instances []*ports.ActivityInstance, nowMin, lead, overdueThreshold int, upcoming, overdue bool) ([]reminder.Reminder, int, error) {
+	nextChange := -1
 	roomFilter := activityRoomFilter(scope, roomIDs)
 
 	if overdue {

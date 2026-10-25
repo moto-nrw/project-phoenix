@@ -33,35 +33,107 @@ func (s *service) computePickupPart(ctx context.Context, scope reminder.Scope, t
 	return pickupPart, nextChange, nil
 }
 
-func (s *service) computeActivityPart(ctx context.Context, scope reminder.Scope, today string, nowMin int, activityStart, activityOverdue bool, nextChange int) (activityPart []reminder.Reminder, next int, err error) {
-	if activityStart || activityOverdue {
-		// Admins see all activities (nil filter); caregivers are limited to the
-		// rooms they supervise.
-		var roomIDs []int64
-		if !scope.IsAdmin {
-			rooms, rerr := s.supervisedRoomIDs(ctx, scope)
-			if rerr != nil {
-				return nil, nextChange, rerr
-			}
-			roomIDs = rooms
-		}
-		lead, lerr := s.leadMinutes(ctx, s.Settings.ActivityLeadMinutes)
-		if lerr != nil {
-			return nil, nextChange, lerr
-		}
-		overdueThreshold, oerr := s.overdueThresholdMinutes(ctx)
-		if oerr != nil {
-			return nil, nextChange, oerr
-		}
-		activityReminders, activityNext, aerr := s.activityReminders(ctx, scope, roomIDs, today, nowMin, lead, overdueThreshold, activityStart, activityOverdue)
-		if aerr != nil {
-			return nil, nextChange, aerr
-		}
-		activityPart = activityReminders
-		nextChange = minFuture(nextChange, activityNext)
-	}
+// activityGates are the tenant's activity reminder switches.
+type activityGates struct {
+	start       bool
+	overdue     bool
+	runningOver bool
+}
 
+func (g activityGates) any() bool { return g.start || g.overdue || g.runningOver }
+
+// activityGates resolves the activity switches in a fixed order. As with the
+// pickup switches, a failed read surfaces instead of reading as "off".
+func (s *service) activityGates(ctx context.Context) (activityGates, error) {
+	var gates activityGates
+	var err error
+	if gates.start, err = s.Settings.ActivityStartEnabled(ctx); err != nil {
+		return gates, err
+	}
+	if gates.overdue, err = s.Settings.ActivityOverdueEnabled(ctx); err != nil {
+		return gates, err
+	}
+	if gates.runningOver, err = s.Settings.ActivityRunningOverEnabled(ctx); err != nil {
+		return gates, err
+	}
+	return gates, nil
+}
+
+func (s *service) computeActivityPart(ctx context.Context, scope reminder.Scope, today string, nowMin int, gates activityGates, nextChange int) (activityPart []reminder.Reminder, next int, err error) {
+	if !gates.any() {
+		return nil, nextChange, nil
+	}
+	roomIDs, instances, err := s.activityInputs(ctx, scope, today)
+	if err != nil {
+		return nil, nextChange, err
+	}
+	if gates.start || gates.overdue {
+		part, partNext, perr := s.startAndOverduePart(ctx, scope, roomIDs, instances, nowMin, gates)
+		if perr != nil {
+			return nil, nextChange, perr
+		}
+		activityPart = append(activityPart, part...)
+		nextChange = minFuture(nextChange, partNext)
+	}
+	if gates.runningOver {
+		part, partNext, rerr := s.runningOverPart(ctx, scope, roomIDs, instances, today, nowMin)
+		if rerr != nil {
+			return nil, nextChange, rerr
+		}
+		activityPart = append(activityPart, part...)
+		nextChange = minFuture(nextChange, partNext)
+	}
 	return activityPart, nextChange, nil
+}
+
+// activityInputs reads the caller's rooms and today's blocks once for every
+// activity type. Admins see all activities (nil room list); caregivers are
+// limited to the rooms they supervise. Without an instance reader the blocks
+// stay empty, so the settings are still resolved and a broken read still
+// fails the request.
+func (s *service) activityInputs(ctx context.Context, scope reminder.Scope, today string) ([]int64, []*ports.ActivityInstance, error) {
+	var roomIDs []int64
+	if !scope.IsAdmin {
+		rooms, err := s.supervisedRoomIDs(ctx, scope)
+		if err != nil {
+			return nil, nil, err
+		}
+		roomIDs = rooms
+	}
+	if s.Instance == nil {
+		return roomIDs, nil, nil
+	}
+	instances, err := s.Instance.FindByTenantAndDate(ctx, today)
+	if err != nil {
+		return nil, nil, err
+	}
+	return roomIDs, instances, nil
+}
+
+func (s *service) runningOverPart(ctx context.Context, scope reminder.Scope, roomIDs []int64, instances []*ports.ActivityInstance, today string, nowMin int) ([]reminder.Reminder, int, error) {
+	grace, err := s.runningOverMinutes(ctx)
+	if err != nil {
+		return nil, -1, err
+	}
+	if s.Instance == nil {
+		return nil, -1, nil
+	}
+	return s.runningOverReminders(ctx, scope, roomIDs, instances, today, nowMin, grace)
+}
+
+func (s *service) startAndOverduePart(ctx context.Context, scope reminder.Scope, roomIDs []int64, instances []*ports.ActivityInstance, nowMin int, gates activityGates) ([]reminder.Reminder, int, error) {
+	lead, err := s.leadMinutes(ctx, s.Settings.ActivityLeadMinutes)
+	if err != nil {
+		return nil, -1, err
+	}
+	overdueThreshold, err := s.overdueThresholdMinutes(ctx)
+	if err != nil {
+		return nil, -1, err
+	}
+	if s.Instance == nil {
+		return nil, -1, nil
+	}
+	return s.activityRemindersFor(ctx, scope, roomIDs, instances, nowMin, lead, overdueThreshold, gates.start, gates.overdue)
 }
 
 func (s *service) renderDuePickups(ctx context.Context, readable map[int64]*ports.Student, dues []duePickup, nextChange int) ([]reminder.Reminder, int, error) {

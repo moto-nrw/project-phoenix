@@ -839,3 +839,11 @@ func (w *world) BinaryPresence(ctx context.Context) (bool, error) {
 	v, err := testSettingValue(ctx, "operations.presence_mode", w.ResolveString)
 	return v == "binary", err
 }
+
+func (w *world) ActivityRunningOverEnabled(ctx context.Context) (bool, error) {
+	return testSettingValue(ctx, "reminders.activity_running_over_enabled", w.ResolveBool)
+}
+
+func (w *world) ActivityRunningOverMinutes(ctx context.Context) (int, error) {
+	return testSettingValue(ctx, "reminders.activity_running_over_minutes", w.ResolveInt)
+}

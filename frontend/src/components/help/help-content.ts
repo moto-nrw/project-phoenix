@@ -6041,11 +6041,13 @@ function settingsGuideTopic(): HelpTopic {
       },
       {
         title: "Erinnerungen",
-        description: "Hinweise rund um Abholung und Termine.",
+        description: "Hinweise rund um Abholung, Aktivitäten und Termine.",
         ordered: false,
         steps: [
           "`Anstehende Abholung`: Erinnert, wenn die Abholzeit eines Kindes näher rückt.",
           "`Überfällige Abholung`: Erinnert, wenn ein Kind nach seiner Abholzeit noch da ist.",
+          "`AG dauert länger`: Erinnert, wenn eine gestartete Aktivität nach ihrem Ende noch läuft. Sie sehen den Raum und bei wie vielen Kindern die Abholzeit erreicht ist. Bei `Nachlauf in Minuten` legen Sie fest, wie lange moto wartet.",
+          "Die Erinnerung verschwindet, sobald jemand die Aktivität beendet.",
           "`Terminerinnerung für Eltern`: Eltern bekommen vor einem Termin eine E-Mail. Das gilt nur, wenn Sie beim Anlegen `Eltern per E-Mail benachrichtigen` wählen.",
         ],
       },

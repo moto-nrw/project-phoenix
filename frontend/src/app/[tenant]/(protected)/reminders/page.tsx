@@ -11,16 +11,18 @@ import {
   isReminderOverdue,
   reminderKey,
   reminderRelativeLabel,
+  reminderSubtitle,
   reminderToneClass,
 } from "~/lib/reminders-display";
 
 function ReminderRow({ reminder }: { reminder: Reminder }) {
+  const subtitle = reminderSubtitle(reminder);
   return (
     <li className="flex items-center justify-between gap-4 px-4 py-3">
       <div className="min-w-0">
         <p className="truncate font-medium text-gray-900">{reminder.title}</p>
-        {reminder.subtitle && (
-          <p className="truncate text-sm text-gray-500">{reminder.subtitle}</p>
+        {subtitle && (
+          <p className="truncate text-sm text-gray-500">{subtitle}</p>
         )}
       </div>
       <div className="flex flex-shrink-0 flex-col items-end">

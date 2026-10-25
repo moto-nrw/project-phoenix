@@ -21,6 +21,7 @@ export const REMINDER_SECTIONS: {
 }[] = [
   { type: "pickup_overdue", title: "Überfällige Abholung" },
   { type: "activity_overdue", title: "Überfällige Aktivität" },
+  { type: "activity_running_over", title: "AG dauert länger" },
   { type: "pickup_upcoming", title: "Anstehende Abholung" },
   { type: "activity_start", title: "Aktivitätsbeginn" },
 ];
@@ -30,6 +31,11 @@ export function isReminderOverdue(reminder: Reminder): boolean {
 }
 
 export function reminderRelativeLabel(reminder: Reminder): string {
+  // Für eine laufende AG ist "überfällig" falsch: sie läuft, nur länger als
+  // geplant. Die Uhrzeit daneben ist das geplante Ende.
+  if (reminder.type === "activity_running_over") {
+    return `${Math.abs(reminder.minutes_away)} Min länger`;
+  }
   if (reminder.minutes_away < 0) {
     return `${Math.abs(reminder.minutes_away)} Min überfällig`;
   }
@@ -45,6 +51,24 @@ export function reminderToneClass(reminder: Reminder): string {
   return isReminderOverdue(reminder) ? "text-moto-red" : "text-gray-500";
 }
 
+/**
+ * Second line under the title. A running-over block names its room and,
+ * when there are any, how many children in it have reached their pickup time
+ * (#4765). Every other type shows the subtitle as sent.
+ */
+export function reminderSubtitle(reminder: Reminder): string | undefined {
+  if (reminder.type !== "activity_running_over") {
+    return reminder.subtitle;
+  }
+  const count = reminder.pickup_due_count ?? 0;
+  const pickup =
+    count === 0
+      ? undefined
+      : `Abholzeit erreicht: ${count} ${count === 1 ? "Kind" : "Kinder"}`;
+  const parts = [reminder.subtitle, pickup].filter(Boolean);
+  return parts.length > 0 ? parts.join(" · ") : undefined;
+}
+
 /** Stable React key backed by the domain entity that produced the reminder. */
 export function reminderKey(reminder: Reminder): string {
   switch (reminder.type) {
@@ -56,6 +80,7 @@ export function reminderKey(reminder: Reminder): string {
       return `${reminder.type}-student-${reminder.student_id}`;
     case "activity_start":
     case "activity_overdue":
+    case "activity_running_over":
       if (!reminder.activity_instance_id) {
         throw new Error(
           `${reminder.type} reminder is missing activity_instance_id`,
