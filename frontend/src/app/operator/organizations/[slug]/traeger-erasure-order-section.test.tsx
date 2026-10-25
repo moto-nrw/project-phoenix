@@ -76,6 +76,7 @@ const openOrder: TraegerErasureOrder = {
   confirmedOn: "2026-09-01",
   eraseNotBefore: "2026-12-31",
   recordedAt: "2026-09-02T10:00:00Z",
+  startedAt: null,
 };
 
 function renderSection(organizationActive: boolean) {
@@ -167,5 +168,22 @@ describe("TraegerErasureOrderSection", () => {
     expect(mockToastSuccess).toHaveBeenCalledWith(
       "Der Löschauftrag ist zurückgenommen.",
     );
+  });
+
+  it("offers no withdrawal once the erasure has started", async () => {
+    mockGetOrder.mockResolvedValue({
+      ...openOrder,
+      startedAt: "2027-01-02T09:00:00Z",
+    });
+
+    renderSection(false);
+
+    expect(await screen.findByText("Löschung läuft")).toBeInTheDocument();
+    expect(
+      screen.getByText(/kann nicht mehr zurückgenommen werden/),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Löschauftrag zurücknehmen" }),
+    ).not.toBeInTheDocument();
   });
 });

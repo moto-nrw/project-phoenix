@@ -95,6 +95,8 @@ func traegerLifecycleErrorRenderer(err error) (render.Renderer, bool) {
 		return common.OperatorRejection(http.StatusConflict, common.CodeProvisioningTraegerActive, "Organization is still active"), true
 	case errors.Is(err, organizationtenancy.ErrTraegerErasureOrderOpen):
 		return common.OperatorRejection(http.StatusConflict, common.CodeProvisioningTraegerErasureOrderOpen, "Organization has an open erasure order"), true
+	case errors.Is(err, organizationtenancy.ErrTraegerErasureStarted):
+		return common.OperatorRejection(http.StatusConflict, common.CodeProvisioningTraegerErasureStarted, "Organization erasure has started"), true
 	case errors.Is(err, organizationtenancy.ErrTraegerErasureOrderNotFound):
 		return common.OperatorRejection(http.StatusNotFound, common.CodeProvisioningTraegerErasureOrderNotFound, "Organization has no open erasure order"), true
 	}

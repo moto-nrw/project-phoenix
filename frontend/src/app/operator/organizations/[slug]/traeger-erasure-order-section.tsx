@@ -147,17 +147,23 @@ function OpenErasureOrder({
   return (
     <>
       <SectionCard
-        title="Löschauftrag erfasst"
-        description={`Ab dem ${formatDate(order.eraseNotBefore)} darf das moto-Team den Träger mit dem internen Löschverfahren endgültig löschen: alle Schulen mit ihren Daten, das Träger-Büro und den Träger selbst. Bis dahin können Sie den Auftrag zurücknehmen.`}
+        title={order.startedAt ? "Löschung läuft" : "Löschauftrag erfasst"}
+        description={
+          order.startedAt
+            ? "Das interne Löschverfahren hat begonnen. Der Auftrag kann nicht mehr zurückgenommen werden. Das moto-Team schließt die Löschung mit demselben Auftrag ab."
+            : `Ab dem ${formatDate(order.eraseNotBefore)} darf das moto-Team den Träger mit dem internen Löschverfahren endgültig löschen: alle Schulen mit ihren Daten, das Träger-Büro und den Träger selbst. Bis dahin können Sie den Auftrag zurücknehmen.`
+        }
         action={
-          <Button
-            type="button"
-            variant="outline"
-            size="md"
-            onClick={() => setConfirmOpen(true)}
-          >
-            Löschauftrag zurücknehmen
-          </Button>
+          order.startedAt ? undefined : (
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              onClick={() => setConfirmOpen(true)}
+            >
+              Löschauftrag zurücknehmen
+            </Button>
+          )
         }
       >
         <DataGrid>

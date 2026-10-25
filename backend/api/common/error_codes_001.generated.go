@@ -95,6 +95,7 @@ const (
 	CodeProvisioningTraegerActive                      = "provisioning.traeger_active"
 	CodeProvisioningTraegerErasureOrderNotFound        = "provisioning.traeger_erasure_order_not_found"
 	CodeProvisioningTraegerErasureOrderOpen            = "provisioning.traeger_erasure_order_open"
+	CodeProvisioningTraegerErasureStarted              = "provisioning.traeger_erasure_started"
 	CodeRolloverDeadlineRequired                       = "rollover.deadline_required"
 	CodeRolloverDuplicateName                          = "rollover.duplicate_name"
 	CodeRolloverInvalidRequest                         = "rollover.invalid_request"
@@ -301,7 +302,6 @@ const (
 	CodeTimetableSlotListDrifted                       = "timetable.slot_list_drifted"
 	CodeTimetableSlotListGroupingInvalid               = "timetable.slot_list_grouping_invalid"
 	CodeTimetableSlotListPickupPastDate                = "timetable.slot_list_pickup_past_date"
-	CodeTimetableSlotListReconciliationFutureDate      = "timetable.slot_list_reconciliation_future_date"
 )
 
 var errorCodeClasses1 = map[string]string{
@@ -398,6 +398,7 @@ var errorCodeClasses1 = map[string]string{
 	"provisioning.traeger_active":                          "business_rejection",
 	"provisioning.traeger_erasure_order_not_found":         "business_rejection",
 	"provisioning.traeger_erasure_order_open":              "business_rejection",
+	"provisioning.traeger_erasure_started":                 "business_rejection",
 	"rollover.deadline_required":                           "input",
 	"rollover.duplicate_name":                              "business_rejection",
 	"rollover.invalid_request":                             "input",
@@ -604,7 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.slot_list_drifted":                          "business_rejection",
 	"timetable.slot_list_grouping_invalid":                 "input",
 	"timetable.slot_list_pickup_past_date":                 "input",
-	"timetable.slot_list_reconciliation_future_date":       "input",
 }
 
 func init() {

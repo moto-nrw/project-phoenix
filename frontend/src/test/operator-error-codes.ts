@@ -66,6 +66,7 @@ export const OPERATOR_PORTAL_ERROR_CODES = [
   "provisioning.traeger_active",
   "provisioning.traeger_erasure_order_open",
   "provisioning.traeger_erasure_order_not_found",
+  "provisioning.traeger_erasure_started",
   "provisioning.school_not_found",
   "provisioning.school_inactive",
   "provisioning.school_already_deleted",

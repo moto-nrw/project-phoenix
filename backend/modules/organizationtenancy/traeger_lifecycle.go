@@ -24,6 +24,10 @@ var ErrTraegerStillActive = errors.New("organization must be deactivated before 
 // a second order, or reactivating the Träger before the order is withdrawn.
 var ErrTraegerErasureOrderOpen = errors.New("organization has an open erasure order")
 
+// ErrTraegerErasureStarted reports a withdrawal after the erasure CLI began:
+// a run that failed halfway is resumed with the same order.
+var ErrTraegerErasureStarted = errors.New("organization erasure has started")
+
 // ErrTraegerErasureOrderNotFound reports a withdrawal without an open order.
 var ErrTraegerErasureOrderNotFound = errors.New("organization has no open erasure order")
 
@@ -37,6 +41,9 @@ type TraegerErasureOrder struct {
 	EraseNotBefore calendar.Date `json:"erase_not_before"`
 	RecordedBy     int64         `json:"recorded_by"`
 	RecordedAt     time.Time     `json:"recorded_at"`
+	// StartedAt is set once the erasure CLI erased the first school; the
+	// order can no longer be withdrawn.
+	StartedAt *time.Time `json:"started_at,omitempty"`
 }
 
 // NewTraegerErasureOrder is an order the operator records: the case number,

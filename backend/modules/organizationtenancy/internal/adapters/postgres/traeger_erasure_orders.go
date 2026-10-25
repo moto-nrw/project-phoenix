@@ -25,17 +25,18 @@ type traegerErasureOrderRow struct {
 	EraseNotBefore calendar.Date `bun:"erase_not_before,type:date"`
 	RecordedBy     int64         `bun:"recorded_by"`
 	RecordedAt     time.Time     `bun:"recorded_at"`
+	StartedAt      *time.Time    `bun:"started_at"`
 }
 
 func (r traegerErasureOrderRow) toDomain() organizationtenancy.TraegerErasureOrder {
 	return organizationtenancy.TraegerErasureOrder{
 		ID: r.ID, OrganizationID: r.OrganizationID, OrderReference: r.OrderReference,
 		ConfirmedOn: r.ConfirmedOn, EraseNotBefore: r.EraseNotBefore,
-		RecordedBy: r.RecordedBy, RecordedAt: r.RecordedAt,
+		RecordedBy: r.RecordedBy, RecordedAt: r.RecordedAt, StartedAt: r.StartedAt,
 	}
 }
 
-const traegerErasureOrderColumns = `id, organization_id, order_reference, confirmed_on, erase_not_before, recorded_by, recorded_at`
+const traegerErasureOrderColumns = `id, organization_id, order_reference, confirmed_on, erase_not_before, recorded_by, recorded_at, started_at`
 
 const findOpenTraegerErasureOrderQuery = `SELECT ` + traegerErasureOrderColumns + `
 	FROM platform.organization_erasure_orders
@@ -95,9 +96,10 @@ func (s *Store) InsertTraegerErasureOrder(ctx context.Context, order organizatio
 
 const withdrawTraegerErasureOrderQuery = `UPDATE platform.organization_erasure_orders
 	SET withdrawn_by = ?, withdrawn_at = clock_timestamp()
-	WHERE id = ? AND withdrawn_at IS NULL AND completed_at IS NULL`
+	WHERE id = ? AND withdrawn_at IS NULL AND started_at IS NULL AND completed_at IS NULL`
 
-// WithdrawTraegerErasureOrder withdraws an open, uncompleted order.
+// WithdrawTraegerErasureOrder withdraws an open order whose erasure has not
+// started.
 func (s *Store) WithdrawTraegerErasureOrder(ctx context.Context, orderID, operatorID int64) (bool, domain.OperationStats, error) {
 	db, err := s.database(ctx)
 	if err != nil {

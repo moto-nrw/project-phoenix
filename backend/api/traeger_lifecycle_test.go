@@ -180,6 +180,17 @@ func TestOperatorRecordsAndWithdrawsTheErasureOrderOfADeactivatedTraeger(t *test
 	assert.Equal(t, http.StatusConflict, rec.Code)
 	assert.Contains(t, rec.Body.String(), `"code":"provisioning.traeger_erasure_order_open"`, "the order is withdrawn before the Träger comes back")
 
+	// Once the erasure CLI started, a run that failed halfway resumes with
+	// the same order: it can no longer be withdrawn.
+	_, err := f.db.ExecContext(f.ctx, `UPDATE platform.organization_erasure_orders SET started_at = clock_timestamp() WHERE id = ?`, recorded.ID)
+	require.NoError(t, err)
+	rec = f.call(t, http.MethodDelete, path, nil)
+	assert.Equal(t, http.StatusConflict, rec.Code)
+	assert.Contains(t, rec.Body.String(), `"code":"provisioning.traeger_erasure_started"`)
+	require.NotNil(t, f.openOrder(t, path).StartedAt, "the started order reports its start")
+	_, err = f.db.ExecContext(f.ctx, `UPDATE platform.organization_erasure_orders SET started_at = NULL WHERE id = ?`, recorded.ID)
+	require.NoError(t, err)
+
 	rec = f.call(t, http.MethodDelete, path, nil)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	rec = f.call(t, http.MethodDelete, path, nil)

@@ -164,6 +164,13 @@ func (s *Erasure) runOrganization(ctx context.Context, r organizationtenancy.Era
 	if !r.DryRun && status != "due" {
 		return nil, fmt.Errorf("erasure: organization order is %s; it needs the written confirmation recorded in the operator portal, a deactivated organization and the end of the grace period; nothing erased", status)
 	}
+	if !r.DryRun {
+		// From here on the order cannot be withdrawn: a run that fails
+		// halfway is resumed with the same order.
+		if _, err := s.store.Call(ctx, r.LockTimeout, r.StatementTimeout, "organization_begin", r.OrganizationID, r.OperatorID, r.OrderReference); err != nil {
+			return nil, err
+		}
+	}
 	ids, err := erasureSchoolIDs(ctx, s.store, r)
 	if err != nil {
 		return nil, err

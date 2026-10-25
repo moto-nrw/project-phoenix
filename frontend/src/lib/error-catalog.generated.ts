@@ -656,6 +656,8 @@ export const ERROR_CATALOG = {
         "Für diesen Träger gibt es keinen offenen Löschauftrag. Bitte laden Sie die Seite neu.",
       "provisioning.traeger_erasure_order_open":
         "Für diesen Träger ist schon ein Löschauftrag erfasst. Bitte nehmen Sie den Löschauftrag zuerst zurück.",
+      "provisioning.traeger_erasure_started":
+        "Die Löschung hat schon begonnen. Der Löschauftrag kann nicht mehr zurückgenommen werden.",
       "rollover.deadline_required":
         "Bitte geben Sie eine Frist für die Rückmeldung ein.",
       "rollover.duplicate_name":

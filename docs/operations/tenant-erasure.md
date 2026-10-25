@@ -221,7 +221,9 @@ Wiederaufnahme auch bereits entfernte Schulen mit derselben
 Referenz/Operator-ID. Erst wenn keine Schule mehr übrig ist, löscht der Lauf
 die Trägerwurzel, schreibt den Eintrag `erase` ins Operator-Audit und
 schließt den Auftrag ab. Ein erneuter Aufruf liefert dann nur den Nachweis.
-Ein offener Auftrag lässt sich bis dahin im Operator-Portal zurücknehmen.
+Ein offener Auftrag lässt sich im Operator-Portal zurücknehmen, solange der
+erste Lauf ihn nicht begonnen hat (`started_at`). Danach bleibt er bestehen;
+einen abgebrochenen Lauf mit derselben Referenz und Operator-ID fortsetzen.
 
 ## 3. Abbruch und Wiederaufnahme
 

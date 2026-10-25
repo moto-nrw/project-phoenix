@@ -232,7 +232,10 @@ keine neue Policy-Regel.
   Bedienhandlung; die Schonfrist ist das Zeitfenster für Rücknahme und
   Rückgabe.
 - **Ausführung:** Einstieg bleibt `tenant erase --organization`. Der CLI fragt
-  `platform.organization_erasure_check` vor der ersten Schule, löscht dann
+  `platform.organization_erasure_check` vor der ersten Schule, markiert den
+  Auftrag über `platform.begin_organization_erasure` als begonnen (danach
+  keine Rücknahme mehr, ein abgebrochener Lauf setzt denselben Auftrag fort),
+  löscht dann
   jede Schule über den bestehenden Schulvertrag und zuletzt die Wurzel über
   `platform.erase_organization` (`SECURITY DEFINER`, fester Suchpfad, nur
   `phoenix_school_erasure`). Die kaskadierenden FKs von Mitgliedschaft,

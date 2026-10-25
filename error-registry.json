@@ -2413,6 +2413,12 @@
       "legacy": "provisioning.traeger_erasure_order_open"
     },
     {
+      "code": "provisioning.traeger_erasure_started",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "provisioning.traeger_erasure_started"
+    },
+    {
       "code": "rollover.deadline_required",
       "class": "input",
       "parameters": [],

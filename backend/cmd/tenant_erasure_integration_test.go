@@ -290,6 +290,7 @@ func TestErasureCLIOrganizationNeedsItsDueOrderAndThenErasesTheRoot(t *testing.T
 	require.ErrorContains(t, err, "grace_period", "nothing is erased during the grace period")
 	require.Equal(t, 2, count(`SELECT count(*) FROM platform.schools WHERE organization_id = ?`, organizationID))
 	require.Zero(t, count(`SELECT count(*) FROM platform.school_erasures WHERE organization_id = ?`, organizationID))
+	require.Zero(t, count(`SELECT count(*) FROM platform.organization_erasure_orders WHERE organization_id = ? AND started_at IS NOT NULL`, organizationID), "a refused run does not start the order")
 
 	_, err = db.ExecContext(ctx, `UPDATE platform.organization_erasure_orders SET erase_not_before = '2026-01-03' WHERE organization_id = ?`, organizationID)
 	require.NoError(t, err)
@@ -309,6 +310,7 @@ func TestErasureCLIOrganizationNeedsItsDueOrderAndThenErasesTheRoot(t *testing.T
 	require.NoError(t, json.Unmarshal(results[2], &root))
 	require.NotNil(t, root.CompletedAt)
 	require.Equal(t, operator.ID, root.CompletedBy)
+	require.Equal(t, 1, count(`SELECT count(*) FROM platform.organization_erasure_orders WHERE organization_id = ? AND started_at IS NOT NULL`, organizationID), "the run marked the order as started")
 	require.Equal(t, map[string]int64{"platform.organizations": 1, "platform.organization_accounts": 1, "auth.organization_account_roles": 1, "auth.tokens": 1, "platform.school_erasures": 2}, root.RowCounts)
 	for _, query := range []string{
 		`SELECT count(*) FROM platform.organizations WHERE id = ?`,

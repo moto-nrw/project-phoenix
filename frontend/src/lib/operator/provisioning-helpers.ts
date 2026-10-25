@@ -835,6 +835,7 @@ export interface BackendTraegerErasureOrder {
   erase_not_before: string;
   recorded_by: number;
   recorded_at: string;
+  started_at?: string | null;
 }
 
 export interface TraegerErasureOrder {
@@ -844,6 +845,8 @@ export interface TraegerErasureOrder {
   confirmedOn: string;
   eraseNotBefore: string;
   recordedAt: string;
+  /** Set once the internal erasure began; then the order stays. */
+  startedAt: string | null;
 }
 
 export function mapTraegerErasureOrder(
@@ -856,6 +859,7 @@ export function mapTraegerErasureOrder(
     confirmedOn: data.confirmed_on,
     eraseNotBefore: data.erase_not_before,
     recordedAt: data.recorded_at,
+    startedAt: data.started_at ?? null,
   };
 }
 

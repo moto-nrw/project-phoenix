@@ -583,7 +583,11 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
       <div className="mt-6">
         <Tabs value={activeTab} onValueChange={handleTabValueChange}>
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <TabsList variant="line">
+            {/* Six tabs do not fit a phone: the row scrolls sideways. */}
+            <TabsList
+              variant="line"
+              className="max-w-full min-w-0 justify-start overflow-x-auto"
+            >
               {TAB_ITEMS.map((tab) => (
                 <TabsTrigger key={tab.id} value={tab.id}>
                   {tab.label}

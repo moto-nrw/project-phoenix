@@ -124,6 +124,10 @@ möglichen Datensatzinhalten in Logs oder Ausgaben übernehmen.
   Operator-Portal schreibt über `phoenix_admin` nur Erfassung und Rücknahme.
 - `platform.organization_erasure_check(organization_id, operator_id, reference)`
   liest ohne Änderung den Stand des Auftrags und die Anzahlen der Wurzel.
+- `platform.begin_organization_erasure(organization_id, operator_id, reference)`
+  setzt vor der ersten Schule `started_at`. Ab dann lässt sich der Auftrag
+  nicht mehr zurücknehmen; ein abgebrochener Lauf wird mit demselben Auftrag
+  fortgesetzt.
 - `platform.erase_organization(organization_id, operator_id, reference)`
   löscht nach Ablauf der Schonfrist einen deaktivierten Träger ohne Schulen.
   Die FKs von `platform.organization_accounts`,
@@ -134,7 +138,7 @@ möglichen Datensatzinhalten in Logs oder Ausgaben übernehmen.
 - `platform.delete_expired_organization_erasure_orders()` entfernt
   abgeschlossene und zurückgenommene Aufträge nach drei Jahren.
 
-Alle drei Funktionen sind `SECURITY DEFINER` mit festem `search_path` und nur
+Alle vier Funktionen sind `SECURITY DEFINER` mit festem `search_path` und nur
 für `phoenix_school_erasure` ausführbar.
 - `platform.school_erasure_file_phase(erasure_id, phase, counts)` speichert
   vor dem DB-Schritt neun Dateiart-Anzahlen und `files_inventory_at`.

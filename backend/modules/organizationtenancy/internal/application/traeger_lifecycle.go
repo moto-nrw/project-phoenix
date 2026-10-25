@@ -61,8 +61,8 @@ func (s *Service) CreateTraegerErasureOrder(ctx context.Context, input organizat
 	return order, err
 }
 
-// WithdrawTraegerErasureOrder withdraws the open order of the Träger. A
-// completed order is gone with its Träger and cannot be withdrawn.
+// WithdrawTraegerErasureOrder withdraws the open order of the Träger. Once
+// the erasure CLI started, the order stays: a failed run resumes with it.
 func (s *Service) WithdrawTraegerErasureOrder(ctx context.Context, organizationID, operatorID int64) (order organizationtenancy.TraegerErasureOrder, err error) {
 	if operatorID <= 0 {
 		return organizationtenancy.TraegerErasureOrder{}, invalid("operator is required")
@@ -78,6 +78,9 @@ func (s *Service) WithdrawTraegerErasureOrder(ctx context.Context, organizationI
 		}
 		if !found {
 			return organizationtenancy.ErrTraegerErasureOrderNotFound
+		}
+		if order.StartedAt != nil {
+			return organizationtenancy.ErrTraegerErasureStarted
 		}
 		withdrawn, withdrawStats, withdrawErr := s.store.WithdrawTraegerErasureOrder(txCtx, order.ID, operatorID)
 		stats.Add(withdrawStats)
