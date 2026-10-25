@@ -72,24 +72,36 @@ const operatorAuditLogCutoffSQL = `(
 )`
 
 // DeleteExpiredOperatorAuditLog removes platform-wide operator-ledger
-// entries before the database-clock cutoff (#4047). The ledger has no school,
-// so the call needs the administrative transaction of the hourly cleanup,
-// not a tenant.
+// entries before the database-clock cutoff (#4047), and with the same cutoff
+// the entries of the Träger account ledger (#4650), the other ledger without
+// a school. Neither has a school, so the call needs the administrative
+// transaction of the hourly cleanup, not a tenant.
 func (a *Appender) DeleteExpiredOperatorAuditLog(ctx context.Context) (int64, error) {
 	const operation = "delete expired operator audit log"
 	db, _, err := database(ctx, a.runtime)
 	if err != nil {
 		return 0, wrapDatabase(operation, err)
 	}
-	result, err := db.NewDelete().
+	operator, err := db.NewDelete().
 		TableExpr("platform.operator_audit_log").
 		Where("created_at < " + operatorAuditLogCutoffSQL).
 		Exec(ctx)
 	if err != nil {
 		return 0, wrapDatabase(operation, err)
 	}
-	deleted, err := result.RowsAffected()
-	return deleted, wrapDatabase(operation, err)
+	traeger, err := db.NewDelete().
+		TableExpr("audit.traeger_account_changes").
+		Where("created_at < " + operatorAuditLogCutoffSQL).
+		Exec(ctx)
+	if err != nil {
+		return 0, wrapDatabase(operation, err)
+	}
+	operatorRows, err := operator.RowsAffected()
+	if err != nil {
+		return 0, wrapDatabase(operation, err)
+	}
+	traegerRows, err := traeger.RowsAffected()
+	return operatorRows + traegerRows, wrapDatabase(operation, err)
 }
 
 // retentionTenant resolves the transaction and the school a retention call

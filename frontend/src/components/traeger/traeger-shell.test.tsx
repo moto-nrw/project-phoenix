@@ -85,5 +85,33 @@ describe("TraegerShell", () => {
     );
     fireEvent.click(screen.getAllByRole("button", { name: "Ferien" })[0]!);
     expect(mockPush).toHaveBeenCalledWith("/ferien");
+    sessionUser.permissions = [];
+  });
+
+  // #4650: the page "Personen" exists only for the right to manage accounts.
+  it("offers the page Personen only with the right to manage accounts", () => {
+    sessionUser.permissions = ["traeger_overview:read"];
+    const { unmount } = render(
+      <TraegerShell>
+        <p>Inhalt</p>
+      </TraegerShell>,
+    );
+    expect(screen.getByRole("link", { name: "Hilfe" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Personen" })).toBeNull();
+    unmount();
+
+    sessionUser.permissions = [
+      "traeger_overview:read",
+      "traeger_accounts:manage",
+    ];
+    render(
+      <TraegerShell>
+        <p>Inhalt</p>
+      </TraegerShell>,
+    );
+    fireEvent.click(screen.getAllByRole("button", { name: "Personen" })[0]!);
+    expect(mockPush).toHaveBeenLastCalledWith("/accounts");
+    expect(screen.queryByRole("button", { name: "Ferien" })).toBeNull();
+    sessionUser.permissions = [];
   });
 });

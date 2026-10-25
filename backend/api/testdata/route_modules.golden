@@ -82,6 +82,8 @@ basis
 	DELETE /operator/schools/{id}/accounts/{accountId}/caregiver-capability/
 	DELETE /operator/schools/{id}/accounts/{accountId}/mfa/
 	DELETE /operator/schools/{id}/settings/values/{key}
+	DELETE /traeger/accounts/invitations/{invitationId}
+	DELETE /traeger/accounts/{accountId}
 	GET /
 	GET /.well-known/caldav
 	GET /analytics-consent/
@@ -365,8 +367,10 @@ basis
 	GET /public/login-image/{filename}
 	GET /public/request-feed/{token}
 	GET /ready
+	GET /traeger/accounts/
 	GET /traeger/holiday-periods/
 	GET /traeger/holiday-periods/{id}
+	GET /traeger/invitations/{token}
 	GET /traeger/schools/
 	HEAD /.well-known/caldav
 	HEAD /api/caldav
@@ -604,9 +608,11 @@ basis
 	POST /operator/schools/{id}/restore
 	POST /operator/staff-person-merges/{schoolId}
 	POST /operator/unregistered-tag-scans/{id}/resolve
+	POST /traeger/accounts/invitations
 	POST /traeger/auth/login
 	POST /traeger/holiday-periods/
 	POST /traeger/holiday-periods/{id}/publish
+	POST /traeger/invitations/{token}/accept
 	PUT /.well-known/caldav
 	PUT /analytics-consent/
 	PUT /api/active/combined/{id}
@@ -684,6 +690,7 @@ basis
 	PUT /operator/schools/{id}
 	PUT /operator/schools/{id}/accounts/{accountId}/mfa/override
 	PUT /operator/schools/{id}/settings/values/{key}
+	PUT /traeger/accounts/{accountId}/roles
 	PUT /traeger/holiday-periods/{id}
 	QUERY /.well-known/caldav
 	QUERY /api/caldav

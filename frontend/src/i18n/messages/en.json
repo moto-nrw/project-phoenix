@@ -3030,6 +3030,9 @@
         "audit_unavailable": "{object} is unavailable right now. Please try again."
       },
       "traeger": {
+        "already_member": "This person already belongs to the Träger office.",
+        "last_administrator": "The Träger office needs at least one person with the role Verwaltung. Give this role to someone else first.",
+        "member_not_found": "This person no longer belongs to the Träger office. Please reload the page.",
         "no_membership": "Your account has no access to the Träger portal. Please contact the moto team."
       }
     },

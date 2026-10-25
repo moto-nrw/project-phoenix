@@ -4063,6 +4063,24 @@
       "legacy": "timetable.window_too_large"
     },
     {
+      "code": "traeger.already_member",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "traeger.already_member"
+    },
+    {
+      "code": "traeger.last_administrator",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "traeger.last_administrator"
+    },
+    {
+      "code": "traeger.member_not_found",
+      "class": "input",
+      "parameters": [],
+      "legacy": "traeger.member_not_found"
+    },
+    {
       "code": "traeger.no_membership",
       "class": "permission",
       "parameters": [],
