@@ -88,8 +88,8 @@ export function TraegerBankAccountsCard({
       key: "label",
       header: "Bezeichnung",
       render: (account) => (
-        <span className="flex flex-wrap items-center gap-2 font-medium text-gray-900">
-          {account.label}
+        <span className="flex min-w-0 flex-wrap items-center gap-2 font-medium text-gray-900">
+          <span className="min-w-0 wrap-anywhere">{account.label}</span>
           {account.isDefault ? (
             <StatusBadge label="Standard" tone="green" compact />
           ) : null}
@@ -100,7 +100,9 @@ export function TraegerBankAccountsCard({
     {
       key: "holder",
       header: "Kontoinhaber",
-      render: (account) => account.accountHolder,
+      render: (account) => (
+        <span className="wrap-anywhere">{account.accountHolder}</span>
+      ),
       stacked: "field",
     },
     {
@@ -116,8 +118,11 @@ export function TraegerBankAccountsCard({
     {
       key: "bank",
       header: "Bank",
-      render: (account) =>
-        [account.bankName, account.bic].filter(Boolean).join(" · ") || "–",
+      render: (account) => (
+        <span className="wrap-anywhere">
+          {[account.bankName, account.bic].filter(Boolean).join(" · ") || "–"}
+        </span>
+      ),
       stacked: "field",
     },
   ];
