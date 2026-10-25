@@ -531,6 +531,7 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPut, "/parent/me/children/{studentId}/guardians/{guardianProfileId}/contact"}:                     notCaptured,
 	{http.MethodPut, "/parent/me/children/{studentId}/guardians/{guardianProfileId}/pickup"}:                      notCaptured,
 	{http.MethodPost, "/parent/me/children/{studentId}/guardians/{guardianProfileId}/pickup-permission-requests"}: event("pickup_permission_requested"),
+	{http.MethodPost, "/parent/me/children/{studentId}/pickup-signature-statement"}:                               notCaptured,
 	{http.MethodPost, "/parent/me/children/{studentId}/master-data/requests"}:                                     event("master_data_change_submitted"),
 	{http.MethodPut, "/parent/me/children/{studentId}/master-data/requests/{requestId}"}:                          notCaptured,
 	{http.MethodPatch, "/parent/me/children/{studentId}/master-data/{target}/{field}"}:                            event("master_data_change_submitted"),
