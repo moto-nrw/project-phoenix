@@ -159,7 +159,7 @@ var moduleLegacyFileBudgets = map[string]int{
 // ADR 0106: the Träger-Büro account management adds exactly 24 LOC.
 // ADR 0110: the public holiday registration constructors of
 // modules/enrollment/compose (+18).
-const moduleComposeBudgetTotal = 12470
+const moduleComposeBudgetTotal = 12468
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -232,7 +232,7 @@ var moduleComposeBudgets = map[string]int{
 	"workflows/staffclock/compose":       36,
 	"workflows/staffoffboarding/compose": 76,
 	// Added by ADR 0104: construction of the Träger projection, no retained logic.
-	"modules/traegerview/compose": 22,
+	"modules/traegerview/compose": 20,
 	// Added by ADR 0076: construction and the ambient transaction guard.
 	"workflows/staffpersonmerge/compose": 31,
 	"workflows/studentdeletion/compose":  74,

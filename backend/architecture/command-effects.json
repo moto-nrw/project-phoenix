@@ -42018,6 +42018,17 @@
     {
       "source_owner": "identity-access",
       "port": "github.com/moto-nrw/project-phoenix/modules/traegerportal.TraegerRouter.TraegerRouter",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/traegerview/http.AccessLogResource.TraegerRouter",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/traegerview/http.AccessLogResource.TraegerRouter",
+      "target_owner": "traeger-view",
+      "binding_digest": "53abbd80c8b3f657c7df60188972054d",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed construction method; no owned-row mutation or locking read at this terminal. Target modules/traegerview/http.AccessLogResource.TraegerRouter mounts the Träger access log (ADR 0109, #4655); its handlers append the read to each shown school's access log through the root-bound recorder. May-bind method surface, not a production-call/liveness claim."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/traegerportal.TraegerRouter.TraegerRouter",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/traegerview/http.Resource.TraegerRouter",
       "target": "*github.com/moto-nrw/project-phoenix/modules/traegerview/http.Resource.TraegerRouter",
       "target_owner": "traeger-view",

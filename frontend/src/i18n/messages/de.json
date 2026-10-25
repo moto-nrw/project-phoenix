@@ -3143,6 +3143,7 @@
         "audit_unavailable": "Die Anfrage konnte nicht sicher protokolliert werden. Bitte versuchen Sie es später erneut."
       },
       "traeger": {
+        "access_log_export_too_large": "Der Export hat mehr als {limit} Einträge. Bitte wählen Sie einen kürzeren Zeitraum oder weitere Filter.",
         "already_member": "Diese Person gehört schon zum Träger-Büro.",
         "last_administrator": "Das Träger-Büro braucht mindestens eine Person mit der Rolle Verwaltung. Geben Sie die Rolle zuerst einer anderen Person.",
         "member_not_found": "Diese Person gehört nicht mehr zum Träger-Büro. Bitte laden Sie die Seite neu.",

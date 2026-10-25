@@ -20,8 +20,8 @@ import (
 // link of a published holiday period, without an account. Turnstile is
 // always required there.
 func mountTraegerRoutes(root chi.Router, limiters authRateLimiters, identity TraegerPortalIdentity, organizations organizationtenancy.Capability,
-	delivery deliveryRuntime.Capability, keys TurnstileKeys, logger *slog.Logger) error {
-	if err := mountTraegerPortalRoutes(root, limiters, identity, organizations); err != nil {
+	persons TraegerPersons, staff TraegerStaff, audit TraegerAudit, delivery deliveryRuntime.Capability, keys TurnstileKeys, logger *slog.Logger) error {
+	if err := mountTraegerPortalRoutes(root, limiters, identity, organizations, persons, staff, audit); err != nil {
 		return err
 	}
 	root.Mount("/traeger/holiday-registrations", NewHolidayRegistrationHTTP(organizations, delivery, keys, "", logger).Router())
