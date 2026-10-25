@@ -22,6 +22,27 @@ type MailPushProvider struct {
 	Tenants        IntentTenantTransactions
 	PushAuthorized func(context.Context, deliveryContract.ClaimedIntent) (bool, error)
 	DeferredPush   func(context.Context, deliveryContract.ClaimedIntent) error
+	// Deliverable reports whether the school still books the module a
+	// claimed mail or push belongs to (#4895). An intent of a cancelled
+	// module is cancelled, never sent; a read failure retries. Nil sends
+	// everything, for a provider that carries Basis mail only.
+	Deliverable func(context.Context, deliveryContract.ClaimedIntent) (bool, error)
+}
+
+// requireDeliverable cancels an intent of a module the school no longer
+// books.
+func (p *MailPushProvider) requireDeliverable(ctx context.Context, intent deliveryContract.ClaimedIntent) error {
+	if p.Deliverable == nil {
+		return nil
+	}
+	deliverable, err := p.Deliverable(ctx, intent)
+	if err != nil {
+		return fmt.Errorf("delivery provider: check module booking: %w", err)
+	}
+	if !deliverable {
+		return fmt.Errorf("%w: module not booked", deliveryContract.ErrCancelled)
+	}
+	return nil
 }
 
 // IntentTenantTransactions runs a provider step in the tenant transaction
@@ -34,6 +55,9 @@ type IntentTenantTransactions interface {
 // SendEmail renders the claimed e-mail in its school's tenant transaction and
 // hands it to the mailer.
 func (p *MailPushProvider) SendEmail(ctx context.Context, intent deliveryContract.ClaimedIntent) (deliveryContract.ProviderResult, error) {
+	if err := p.requireDeliverable(ctx, intent); err != nil {
+		return deliveryContract.ProviderResult{}, err
+	}
 	var payload map[string]any
 	if err := json.Unmarshal(intent.EmailPayload, &payload); err != nil {
 		return deliveryContract.ProviderResult{}, fmt.Errorf("delivery provider: decode email payload: %w", err)
@@ -71,6 +95,9 @@ func (p *MailPushProvider) SendEmail(ctx context.Context, intent deliveryContrac
 
 // SendPush sends the claimed push when its subscription is still authorized.
 func (p *MailPushProvider) SendPush(ctx context.Context, intent deliveryContract.ClaimedIntent) (deliveryContract.ProviderResult, error) {
+	if err := p.requireDeliverable(ctx, intent); err != nil {
+		return deliveryContract.ProviderResult{}, err
+	}
 	if intent.PushRecipient.Deferred {
 		if p.DeferredPush == nil {
 			return deliveryContract.ProviderResult{}, errors.New("delivery: deferred push dispatcher is not configured")

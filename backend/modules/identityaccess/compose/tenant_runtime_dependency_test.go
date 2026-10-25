@@ -56,7 +56,7 @@ func TestNew_BindsTheTenantRuntimeDependency(t *testing.T) {
 		deps.Sessions = &identityPorts.SessionDependencies{
 			PasswordLoginPolicy: func() (int, time.Duration, error) { return 5, time.Minute, nil },
 			Schools:             sweepSchools{}, Persons: sweepPersons{}, Passwords: sweepPasswords{},
-			Codec: sweepCodec{}, MFALock: sweepMFALock{}, Audit: sweepAudit{}, Push: sweepPush{},
+			Codec: sweepCodec{}, MFALock: sweepMFALock{}, Audit: sweepAudit{}, Push: sweepPush{}, PortalModules: sweepPortals{},
 			Logger: slog.New(slog.NewTextHandler(&logs, nil)),
 		}
 		module, err := New(deps)
@@ -72,3 +72,15 @@ func TestNew_BindsTheTenantRuntimeDependency(t *testing.T) {
 	require.NoError(t, err)
 	require.NotContains(t, logs, "reconciliation failed")
 }
+
+// sweepPortals stands in for the portal module booking; the sweep mints no
+// session.
+type sweepPortals struct{}
+
+func (sweepPortals) BookedParentPortalSchools(_ context.Context, tenantIDs []int64) ([]int64, error) {
+	return tenantIDs, nil
+}
+
+func (sweepPortals) RequireParentPortal(context.Context, int64) error { return nil }
+
+func (sweepPortals) RequireSchoolPortal(context.Context, int64) error { return nil }

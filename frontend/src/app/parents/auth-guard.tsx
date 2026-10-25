@@ -2,7 +2,12 @@
 
 import { redirect, usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
+import { useLocale } from "next-intl";
 import useSWR from "swr";
+import { Alert } from "~/components/ui/alert";
+import { normalizeLocale } from "~/i18n/locales";
+import { notBookedModuleOf } from "~/lib/module-not-booked";
+import { portalNotBookedExplanation } from "~/lib/portal-not-booked";
 import { fetchParentProfile, parentProfileCacheKey } from "~/lib/parent-api";
 import { parentPath } from "~/lib/parent-url";
 import { ParentShellProvider } from "~/lib/shell-auth-context";
@@ -53,7 +58,8 @@ export function ParentAuthGuard({
   );
   const { data: session, status } = useSession();
   // Der Name der Kopfzeile kommt aus dem Elternprofil (#3891).
-  const { data: profile } = useSWR(
+  const locale = normalizeLocale(useLocale());
+  const { data: profile, error: profileError } = useSWR(
     !isPublicPage && status === "authenticated" && session?.user?.id
       ? parentProfileCacheKey(session.user.id)
       : null,
@@ -87,7 +93,18 @@ export function ParentAuthGuard({
       <BreadcrumbProvider>
         {!sessionLoading ? <ParentRealtimeBridge /> : null}
         <ParentShell>
-          {sessionLoading ? <ParentPageSkeleton rows={2} /> : children}
+          {sessionLoading ? (
+            <ParentPageSkeleton rows={2} />
+          ) : notBookedModuleOf(profileError) ? (
+            // Keine Schule des Kontos nutzt das Elternportal mehr (#4895):
+            // ein Hinweis statt einer Fehlerkarte je Bereich der Seite.
+            <Alert
+              type="info"
+              message={portalNotBookedExplanation("parent", locale)}
+            />
+          ) : (
+            children
+          )}
           {!sessionLoading ? (
             <ParentNotificationOnboarding accountId={session.user.id} />
           ) : null}

@@ -4459,6 +4459,16 @@ function enrollmentFormTopic(): HelpTopic {
         ],
       },
       {
+        title: "Eltern unterschreiben lassen",
+        description:
+          "Die Eltern unterschreiben am Ende des Formulars mit dem Finger, dem Stift oder der Maus. Das Verfahren heißt einfache elektronische Signatur mit gezeichneter Unterschrift.",
+        steps: [
+          "Öffnen Sie Ihre Vorlage.",
+          "Schalten Sie im Abschnitt `Unterschrift` den Schalter `Unterschrift erforderlich` ein.",
+          "Wählen Sie `Änderungen speichern`.",
+        ],
+      },
+      {
         title: "Die Vorlage in der Anmeldephase auswählen",
         description:
           "Eine Vorlage wirkt erst, wenn eine Phase sie benutzt. Ohne diesen Schritt sehen die Eltern weiter das Basisformular.",
@@ -4497,6 +4507,8 @@ function enrollmentFormTopic(): HelpTopic {
       "Auch bei Zustimmungen können Sie mehrere PDF-Dateien hinzufügen.",
       "Beim Verwerfen werden neue, ungespeicherte Dateien entfernt. Frühere Formularfassungen behalten ihre Dateien.",
       "Eine Frage vom Typ `Datei` gilt immer für die ganze Anmeldung, nicht pro Kind.",
+      "Mit `Unterschrift erforderlich` können Eltern die Anmeldung erst nach der Unterschrift absenden. Ändern sie die Anmeldung später, unterschreiben sie neu.",
+      "Statt zu zeichnen können Eltern ihren Namen tippen. Das steht im Nachweis als `Name getippt`.",
       "Hochgeladene Nachweise öffnet nur, wer das Recht `Nachweise aus Anmeldungen ansehen` hat. Die Leitung hat es immer.",
       "Nachweise werden nach einer festen Frist gelöscht. Die Frist legt das moto-Team fest.",
     ],
@@ -4547,6 +4559,7 @@ function enrollmentReviewTopic(): HelpTopic {
       "Sie entscheiden je Kind. Eine Anmeldung kann mehrere Kinder enthalten.",
       "Auf der Seite der Phase steht unter `Freie Plätze je Angebot`, wie viele Plätze noch frei sind. `Belegt` zählt die Kinder am vollsten Tag bis zum Ende der Phase.",
       "Hochgeladene Nachweise stehen bei `Zusatzfragen (Eltern)`. Mit `Öffnen` sehen Sie die Datei in einem neuen Tab.",
+      "Hat die Vorlage `Unterschrift erforderlich`, steht die Unterschrift der Eltern im Abschnitt `Unterschrift`. Mit `Nachweis als PDF` laden Sie den Anmeldenachweis mit der Unterschrift herunter.",
       "Mit `Statusseite öffnen` sehen Sie, was die Eltern sehen.",
       "Offene Rückfragen der Eltern stehen im Bereich `Anfragen`.",
       "Die Zahl an `Anmeldungen` zeigt, wie viele neue Anmeldungen Sie noch nicht gelesen haben.",
@@ -4567,6 +4580,7 @@ function enrollmentReviewTopic(): HelpTopic {
       "Eine Anmeldung war versehentlich abgelehnt? Wählen Sie `Anmeldung wiederherstellen`.",
       "Bei einem Nachweis steht `Keine Berechtigung zum Öffnen`? Dann fehlt Ihnen das Recht `Nachweise aus Anmeldungen ansehen`. Fragen Sie Ihre Leitung.",
       "Bei einem Nachweis steht `Nachweis gelöscht (Löschfrist abgelaufen)`? Die Frist ist vorbei. Bitten Sie die Eltern bei Bedarf um einen neuen Nachweis.",
+      "Bei der Unterschrift steht `Der gespeicherte Eintrag wurde nachträglich verändert`? Dann passt die Unterschrift nicht mehr zu ihrer Prüfsumme. Wenden Sie sich an das moto-Team.",
       "Beim Bestätigen erscheint `Das Kinderkontingent Ihrer Schule ist voll`? Dann bleibt die Anmeldung offen. Für weitere Kinder melden Sie sich beim moto-Team.",
       "Kinder, die schon aktiv oder vorgemerkt sind, können Sie auch bei vollem Kinderkontingent verlängern.",
       "Bei einer Anmeldung steht `Wegen Kinderkontingent offen`? Beim Schuljahreswechsel war das Kinderkontingent voll. Das Kind wurde nicht automatisch verlängert. Entscheiden Sie selbst.",
@@ -6192,6 +6206,9 @@ function modulesTopic(): HelpTopic {
     notes: [
       "moto Basis hat jede OGS. Dazu gehören zum Beispiel Kinder, Gruppen, Räume, Anwesenheit und Kalender.",
       "Die Schalter sind nur zur Information. Welche Module Ihre OGS hat, steht im Vertrag mit moto.",
+      "Ohne `Eltern-App` gibt es kein Elternportal. Eltern können sich dort nicht anmelden. moto schickt ihnen keine E-Mails und Mitteilungen mehr, zum Beispiel zu Terminen.",
+      "Ohne `Unterricht am Vormittag` gibt es kein moto schule. Lehrkräfte können sich dort nicht anmelden.",
+      "Ohne `Online-Anmeldung` verschickt moto keine E-Mails zu Anmeldungen.",
     ],
     differences: [
       "Ein Menüpunkt hat ein Schloss? Dann gehört er zu einem Modul, das Ihre OGS nicht gebucht hat. Das Schloss sehen nur Sie als Leitung. Ihr Team sieht den Menüpunkt nicht.",
@@ -6413,6 +6430,7 @@ function parentLoginTopic(): HelpTopic {
       "Ein Passwortwechsel verkürzt diese Wartezeit nicht.",
       "moto sagt, das Konto gehöre zum Personal einer Schule? Dann melden Sie sich über die Schul-Anmeldung an.",
       "moto sagt, Ihr Konto sei deaktiviert? Wenden Sie sich an Ihre OGS.",
+      "moto sagt, Ihre Schule nutze das Elternportal zurzeit nicht? Dann bietet Ihre Schule das Elternportal nicht an. Fragen Sie bei Ihrer Schule nach.",
     ],
     related: [
       HELP_TOPICS.parentAccount,
@@ -7193,6 +7211,7 @@ function parentEnrollTopic(): HelpTopic {
       "Tippen Sie auf die passende Anmeldung. Das Formular öffnet sich sofort.",
       "Tragen Sie Ihre Kontaktdaten und die Angaben zum Kind ein.",
       "Wählen Sie unter `Zusätzlich wählen` mindestens ein Angebot. `Pflichtangebote` sind schon gesetzt.",
+      "Fragt das Formular unten nach Ihrer `Unterschrift`? Unterschreiben Sie im Feld und tippen Sie auf `Unterschrift bestätigen`.",
       "Tippen Sie auf `Anmeldung absenden`.",
     ],
     result:
@@ -7205,9 +7224,11 @@ function parentEnrollTopic(): HelpTopic {
       "Unter dem Knopf steht, welche Dateien erlaubt sind und wie groß sie sein dürfen. Meist sind es PDF, JPG oder PNG bis 10 MB.",
       "Auf dem Handy können Sie den Nachweis auch direkt fotografieren.",
       "Eine falsche Datei entfernen Sie mit dem Kreuz neben dem Dateinamen.",
+      "Statt zu zeichnen können Sie mit `Namen tippen` Ihren Vor- und Nachnamen eintippen.",
     ],
     differences: [
       "Manche Anmeldungen sind `Nur bereits angemeldete Kinder`.",
+      "Nicht jede Schule fragt nach einer Unterschrift. Ohne Feld `Unterschrift` senden Sie die Anmeldung direkt ab.",
       "An jeder Anmeldung steht `Anmeldung bis` mit der Frist.",
       "Über dem Formular steht `Zurück zu Neue Anmeldung`. Damit wählen Sie eine andere Anmeldung.",
     ],
@@ -7252,6 +7273,7 @@ function parentEnrollStatusTopic(): HelpTopic {
           "Öffnen Sie die Statusseite.",
           "Tippen Sie auf `Anmeldung bearbeiten`.",
           "Ändern Sie die Angaben.",
+          "Fragt das Formular nach Ihrer `Unterschrift`? Unterschreiben Sie neu und tippen Sie auf `Unterschrift bestätigen`.",
           "Tippen Sie auf `Änderungen speichern`.",
         ],
       },
@@ -7269,6 +7291,7 @@ function parentEnrollStatusTopic(): HelpTopic {
     notes: [
       "Zurückziehen können Sie nicht selbst rückgängig machen. Wenden Sie sich dann an die OGS.",
       "Bei Rückfragen meldet sich die OGS über die angegebene E-Mail-Adresse.",
+      "Haben Sie die Anmeldung unterschrieben, steht auf der Statusseite der Abschnitt `Unterschrift`. Mit `Nachweis als PDF` laden Sie Ihren Anmeldenachweis herunter.",
     ],
     differences: [
       "Steht dort `Bestätigung erforderlich`? Dann müssen Sie mit `Anmeldung bestätigen` zusagen, sonst läuft die Anmeldung zur Frist ab.",
@@ -7500,6 +7523,7 @@ function teacherLoginTopic(): HelpTopic {
     ],
     troubleshootingDetails: [
       "moto sagt, das Konto habe keinen Zugang zum Schul-Portal? Dann fehlt Ihnen die Rolle. Wenden Sie sich an die OGS-Verwaltung.",
+      "moto sagt, Ihre Schule nutze moto schule zurzeit nicht? Dann bietet Ihre Schule moto schule nicht an. Wenden Sie sich an die OGS-Verwaltung.",
       "moto sagt `Die E-Mail-Adresse oder das Passwort stimmt nicht.`? Prüfen Sie beides und versuchen Sie es erneut.",
     ],
     related: [

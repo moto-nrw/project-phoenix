@@ -44,7 +44,7 @@ func newProductionEnvironment(logger *slog.Logger, publicAPIURL string) (owners.
 func mountServeMiddleware(
 	router chi.Router, unit tenant.UnitOfWork, logger *slog.Logger, config ServeConfig, tracer *observability.Tracer,
 	metrics *httpMetrics, tracker analytics.Tracker, settings settingsCompose.SettingsService, policy analytics.CollectionPolicy,
-	consent identityaccess.AccountAnalyticsConsent,
+	consent identityaccess.AccountAnalyticsConsent, guardianSchools identityaccess.GuardianSchools,
 ) (*sessiontoken.TokenAuth, error) {
 	router.Use(requestIDs(tracer))
 	router.Use(apiCommon.ProblemResponseMiddleware)
@@ -84,13 +84,15 @@ func mountServeMiddleware(
 	// each protected group still rejects through the Authenticator and its
 	// scope gate. A group mounted without it fails closed.
 	router.Use(sessionAuth.Verifier())
-	// Classifies each path by module; TenantScopeMiddleware refuses a module
-	// the bound school has not booked (#4893).
+	// Classifies each path by module; TenantScopeMiddleware and
+	// SchoolScopeMiddleware refuse a module the bound school has not booked
+	// (#4893, #4895), ParentScopeMiddleware a parents portal none of the
+	// account's schools books (#4895).
 	booking, err := settingsModule.NewModuleBooking(settings)
 	if err != nil {
 		return nil, err
 	}
-	router.Use(moduleRoutesMiddleware(booking))
+	router.Use(moduleRoutesMiddleware(booking, guardianSchools))
 	// Sentry events name the session they affect (#3643).
 	router.Use(SentrySessionContext)
 	// Core actions of the portals reach the usage analytics once their

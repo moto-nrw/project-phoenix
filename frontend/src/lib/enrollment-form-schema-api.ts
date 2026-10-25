@@ -221,7 +221,11 @@ export interface FormField {
   translations?: Translations;
 }
 
-export type CoreRequirementKey = "guardian_phone";
+/**
+ * `signature` asks the parent to sign the enrollment and every later edit
+ * with a simple electronic signature with a drawn signature (#4786).
+ */
+export type CoreRequirementKey = "guardian_phone" | "signature";
 
 export type CoreRequirements = Partial<Record<CoreRequirementKey, boolean>>;
 
