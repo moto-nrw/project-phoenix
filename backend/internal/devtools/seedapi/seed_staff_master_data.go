@@ -24,7 +24,7 @@ func (seedStaffMasterDataStep) Run(_ context.Context, rt *Runtime) error {
 		"email":                   "anna.mueller@example.test",
 		"emergency_contact_name":  "Thomas Müller",
 		"emergency_contact_phone": "+49 541 7654321",
-		"note":                    "Kontaktdaten für die Demo ergänzt",
+		"note":                    "Kontaktdaten ergänzt",
 	}); err != nil {
 		return fmt.Errorf("seed staff master data: %w", err)
 	}

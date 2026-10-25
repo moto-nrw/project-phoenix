@@ -174,7 +174,7 @@ func (seedTimeTrackingHistoryStep) Run(ctx context.Context, rt *Runtime) error {
 			days   float64
 			reason string
 		}{
-			{customAbsenceTypeID, 3.5, "Demo-Anspruch"},
+			{customAbsenceTypeID, 3.5, "Sonderurlaub Umzug"},
 			{sickLeaveTypeID, 10, "Krank in den Sommerferien"},
 			{conversionTypeID, 2, "Bei der Gemeinde beantragt"},
 		}
@@ -593,14 +593,14 @@ func seedOpeningBalance(rt *Runtime, staffID int64) error {
 	if _, err := rt.Client.Post(fmt.Sprintf("/api/staff/%d/time-tracking/opening", staffID), map[string]any{
 		"effective_date":  todaySeedDate().UTCMidnight().AddDate(0, 0, -1).Format(time.DateOnly),
 		"balance_minutes": 600,
-		"note":            "Übertrag für die Demo",
+		"note":            "Übertrag aus dem Vorjahr",
 	}); err != nil {
 		return fmt.Errorf("seed opening balance for staff %d: %w", staffID, err)
 	}
 	adjustmentRaw, err := rt.Client.Post(fmt.Sprintf("/api/staff/%d/time-tracking/adjustments", staffID), map[string]any{
 		"type": "payout", "minutes_delta": -30,
 		"effective_date": todaySeedDate().String(),
-		"note":           "Korrigierter Demo-Ausgleich",
+		"note":           "Korrigierter Ausgleich",
 	})
 	if err != nil {
 		return fmt.Errorf("seed removable balance adjustment for staff %d: %w", staffID, err)
@@ -785,7 +785,7 @@ func requestAndApproveVacation(client *Client, approverAuth AuthRef, dateStart, 
 	}
 
 	approveBody := map[string]any{
-		"decision_note": "Demo-Urlaub automatisch genehmigt",
+		"decision_note": "Urlaub automatisch genehmigt",
 	}
 	if _, err := client.PostWithAuth(approverAuth, fmt.Sprintf("/api/staff/absences/%d/approve", absenceID), approveBody); err != nil {
 		return fmt.Errorf("approve vacation request: %w", err)
