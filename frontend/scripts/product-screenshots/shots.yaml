@@ -25,8 +25,10 @@
 # reguläre Ausdruck. Ins Träger-Portal meldet sich der Schul-Admin des Profils
 # an, den der Seed zur ersten Person des Träger-Büros macht.
 #
-# Ein Klick der Vorbereitung darf nichts speichern: Die Schritte laufen für
-# jedes Gerät erneut, und gespeicherte Daten verändern spätere Shots.
+# Ein Klick der Vorbereitung speichert keine Eingabe (Antwort, Entscheidung,
+# Einstellung): Die Schritte laufen für jedes Gerät erneut, und gespeicherte
+# Daten verändern spätere Shots. Dass ein geöffneter Elternbrief als gelesen
+# gilt, lässt sich nicht vermeiden.
 #
 # Auswahl (#3764, vom Maintainer bestätigt): die Flows der Hilfe und die
 # Nutzung laut PostHog (nur lesend abgefragt). Erfasst sind Seitenaufrufe der
@@ -478,7 +480,9 @@ shots:
       - klicken: 'role=link[name^="Anmeldung öffnen"] >> nth=0'
       - warten_auf: 'role=button[name="Weiteres Kind"]'
       - klicken: 'role=button[name="Weiteres Kind"]'
-  # Website: in vielen Sprachen nutzbar. Nur die Auswahl, ohne Wechsel.
+  # Website: Eltern-App in vielen Sprachen. Nur die Auswahl, ohne Wechsel:
+  # Die Sprache gilt für das Konto und damit für alle späteren Eltern-Shots.
+  # Nachrichten selbst übersetzt moto nicht.
   - id: eltern-sprache-waehlen
     titel: Sprache der Eltern-App wählen
     portal: eltern
@@ -489,7 +493,8 @@ shots:
       - warten_auf: 'role=listbox'
 
   # --- Träger-Portal ----------------------------------------------------------
-  # Website: Ferienplanung mit Wochen und Zeitmodellen
+  # Website: Ferienbetreuung des Trägers. Freie Plätze kennt das
+  # Träger-Portal noch nicht; der Shot zeigt Anmeldung, Wochen und Zeitmodelle.
   - id: traeger-ferien-planen
     titel: Ferienzeitraum mit Wochen und Zeitmodellen
     portal: traeger
@@ -498,7 +503,7 @@ shots:
     vorbereitung:
       - klicken: 'role=button[name=/^Ferienbetreuung/]'
       - warten_auf: 'text=Zeitmodelle'
-  # Website: Rollen und Zugriffe
+  # Website: Rollen und Zugriffe im Träger-Büro
   - id: traeger-person-einladen
     titel: Eine Person mit Rollen einladen
     portal: traeger
@@ -507,9 +512,3 @@ shots:
     vorbereitung:
       - klicken: 'role=button[name="Person einladen"]'
       - warten_auf: '[role="dialog"]'
-  # Website: Datenweitergabe; Export als CSV
-  - id: traeger-zugriffsprotokoll
-    titel: Zugriffsprotokoll aller Schulen
-    portal: traeger
-    rolle: traeger
-    pfad: /access-log

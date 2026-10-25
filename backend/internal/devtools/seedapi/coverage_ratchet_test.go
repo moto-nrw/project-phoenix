@@ -125,13 +125,12 @@ var seedCoverageExemptions = map[string]string{
 	"schedule.staff_shift_series_exceptions":    "empty in prod too",
 	"schedule.timetable_conflict_acks":          "empty in prod too",
 
-	"users.class_list_entries":            "not in prod yet (migration newer than the deployed image)",
-	"users.parent_announcement_responses": "empty in prod too",
-	"users.parent_request_rss_feeds":      "user-created capability credential; seeding only its hash would create an unusable subscription",
-	"users.profiles":                      "legacy compatibility table; current account provisioning uses persons plus typed staff/guardian records",
-	"users.staff_document_file_cleanup":   "empty in prod too",
-	"users.staff_documents":               "empty in prod too",
-	"users.staff_financial_data":          "empty in prod too",
+	"users.class_list_entries":          "not in prod yet (migration newer than the deployed image)",
+	"users.parent_request_rss_feeds":    "user-created capability credential; seeding only its hash would create an unusable subscription",
+	"users.profiles":                    "legacy compatibility table; current account provisioning uses persons plus typed staff/guardian records",
+	"users.staff_document_file_cleanup": "empty in prod too",
+	"users.staff_documents":             "empty in prod too",
+	"users.staff_financial_data":        "empty in prod too",
 	// Cutover #2753 froze users.staff as this rollback archive; the owner
 	// tables users.staff_school_memberships and users.staff_employment_profiles
 	// hold every seeded staff member. A fresh stack archives nothing.

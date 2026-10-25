@@ -202,36 +202,51 @@ type seedParentPollOption struct {
 // the open poll.
 func seedParentPollAnswers(rt *Runtime) (int, error) {
 	defer rt.Client.BindAuth(rt.TenantAuth)
+	if len(rt.Parents[0].StudentIDs) == 0 {
+		return 0, errors.New("the first demo parent has no children to keep the poll open for")
+	}
 	firstFamily := map[string]bool{}
+	for _, id := range rt.Parents[0].StudentIDs {
+		firstFamily[strconv.FormatInt(id, 10)] = true
+	}
 	answered := 0
-	for index, parent := range rt.Parents {
-		auth, err := rt.Adapter.LoginParent(context.Background(), parent.Email, parent.Password)
-		if err != nil {
-			return answered, fmt.Errorf("login parent to answer the poll: %w", err)
-		}
-		poll, err := seedParentPollFor(rt, auth)
+	for _, parent := range rt.Parents[1:] {
+		count, err := seedParentPollAnswer(rt, parent, firstFamily, answered)
 		if err != nil {
 			return answered, err
 		}
-		for _, child := range poll.Children {
-			if index == 0 {
-				firstFamily[child.StudentID] = true
-				continue
-			}
-			if firstFamily[child.StudentID] || len(poll.Options) == 0 {
-				continue
-			}
-			if _, err := rt.Client.PostWithAuth(auth, "/parent/me/news/"+poll.ID+"/respond", map[string]any{
-				"student_id":   child.StudentID,
-				"option_ids":   seedParentPollChoice(poll.Options, answered),
-				"published_at": poll.PublishedAt,
-			}); err != nil {
-				return answered, fmt.Errorf("answer parent poll: %w", err)
-			}
-			answered++
-		}
+		answered += count
 	}
 	return answered, nil
+}
+
+// seedParentPollAnswer answers the poll as one parent for each of their
+// children outside the first family. `previous` counts the answers so far and
+// varies the chosen appointments.
+func seedParentPollAnswer(rt *Runtime, parent ParentCredentials, firstFamily map[string]bool, previous int) (int, error) {
+	auth, err := rt.Adapter.LoginParent(context.Background(), parent.Email, parent.Password)
+	if err != nil {
+		return 0, fmt.Errorf("login parent to answer the poll: %w", err)
+	}
+	poll, err := seedParentPollFor(rt, auth)
+	if err != nil || len(poll.Options) == 0 {
+		return 0, err
+	}
+	count := 0
+	for _, child := range poll.Children {
+		if firstFamily[child.StudentID] {
+			continue
+		}
+		if _, err := rt.Client.PostWithAuth(auth, "/parent/me/news/"+poll.ID+"/respond", map[string]any{
+			"student_id":   child.StudentID,
+			"option_ids":   seedParentPollChoice(poll.Options, previous+count),
+			"published_at": poll.PublishedAt,
+		}); err != nil {
+			return count, fmt.Errorf("answer parent poll: %w", err)
+		}
+		count++
+	}
+	return count, nil
 }
 
 func seedParentPollFor(rt *Runtime, auth AuthRef) (seedParentPollItem, error) {
@@ -253,11 +268,16 @@ func seedParentPollFor(rt *Runtime, auth AuthRef) (seedParentPollItem, error) {
 	return seedParentPollItem{}, nil
 }
 
-// seedParentPollChoice spreads the answers over the first afternoon, the slots
-// the results list shows first: every family picks two of eight times.
+// seedParentPollSpread is how many appointments the answers spread over: the
+// first afternoon, the slots the results list shows first.
+const seedParentPollSpread = 8
+
+// seedParentPollChoice picks two of the first appointments for the given
+// answer, so the families' answers spread over them.
 func seedParentPollChoice(options []seedParentPollOption, answer int) []string {
-	first := options[(answer*3)%min(8, len(options))].ID
-	second := options[(answer*3+1)%min(8, len(options))].ID
+	spread := min(seedParentPollSpread, len(options))
+	first := options[(answer*3)%spread].ID
+	second := options[(answer*3+1)%spread].ID
 	if first == second {
 		return []string{first}
 	}

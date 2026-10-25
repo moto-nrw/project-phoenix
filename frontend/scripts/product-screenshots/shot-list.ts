@@ -5,6 +5,7 @@ import { z } from "zod";
 import {
   DEFAULT_DEVICES,
   DEVICE_IDS,
+  PORTALS,
   type DeviceId,
   type Portal,
 } from "./devices";
@@ -39,7 +40,7 @@ const shotSchema = z
         "id muss ein Kebab-Slug aus a-z, 0-9 und Bindestrichen sein (Umlaute als ae/oe/ue)",
       ),
     titel: z.string().min(1),
-    portal: z.enum(["tenant", "eltern", "traeger"]),
+    portal: z.enum(PORTALS),
     rolle: z.enum(["admin", "betreuer", "eltern", "traeger"]),
     pfad: z
       .string()

@@ -93,7 +93,8 @@ export function nativeSize(device: DeviceSpec): {
   };
 }
 
-export type Portal = "tenant" | "eltern" | "traeger";
+export const PORTALS = ["tenant", "eltern", "traeger"] as const;
+export type Portal = (typeof PORTALS)[number];
 
 /** Standardgeräte je Portal; ein Shot kann sie mit `geraete` überschreiben. */
 export const DEFAULT_DEVICES: Readonly<Record<Portal, readonly DeviceId[]>> = {

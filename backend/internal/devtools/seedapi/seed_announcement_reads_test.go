@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -159,15 +160,22 @@ func TestSeedParentPollAnswersForOtherFamiliesOnly(t *testing.T) {
 	t.Parallel()
 
 	// The first parent keeps the poll open: the parent portal screenshot shows
-	// the open answer form (#3759). The second parent shares Felix with them
-	// and answers only for the child that is theirs alone.
+	// the open answer form (#3759). The second parent shares the first
+	// parent's child and answers only for the child that is theirs alone.
+	pollFeed := func(studentIDs ...string) string {
+		children := make([]string, 0, len(studentIDs))
+		for _, id := range studentIDs {
+			children = append(children, fmt.Sprintf(`{"student_id":%q}`, id))
+		}
+		return `{"status":"success","data":[{"id":"73","title":"Termine für den Elternsprechtag","published_at":"2026-10-20T10:00:00Z",` +
+			`"options":[{"id":"o1"},{"id":"o2"},{"id":"o3"},{"id":"o4"},{"id":"o5"},{"id":"o6"},{"id":"o7"},{"id":"o8"}],` +
+			`"children":[` + strings.Join(children, ",") + `]}]}`
+	}
 	feeds := map[string]string{
-		"Bearer token-first":  `{"status":"success","data":[{"id":"73","title":"Termine für den Elternsprechtag","published_at":"2026-10-20T10:00:00Z","options":[{"id":"o1"},{"id":"o2"},{"id":"o3"},{"id":"o4"},{"id":"o5"},{"id":"o6"},{"id":"o7"},{"id":"o8"}],"children":[{"student_id":"1"}]}]}`,
-		"Bearer token-second": `{"status":"success","data":[{"id":"73","title":"Termine für den Elternsprechtag","published_at":"2026-10-20T10:00:00Z","options":[{"id":"o1"},{"id":"o2"},{"id":"o3"},{"id":"o4"},{"id":"o5"},{"id":"o6"},{"id":"o7"},{"id":"o8"}],"children":[{"student_id":"1"},{"student_id":"2"}]}]}`,
-		"Bearer token-third":  `{"status":"success","data":[{"id":"73","title":"Termine für den Elternsprechtag","published_at":"2026-10-20T10:00:00Z","options":[{"id":"o1"},{"id":"o2"},{"id":"o3"},{"id":"o4"},{"id":"o5"},{"id":"o6"},{"id":"o7"},{"id":"o8"}],"children":[{"student_id":"3"}]}]}`,
+		"Bearer token-second": pollFeed("1", "2"),
+		"Bearer token-third":  pollFeed("3"),
 	}
 	tokens := map[string]string{
-		"first@example.test":  "token-first",
 		"second@example.test": "token-second",
 		"third@example.test":  "token-third",
 	}
@@ -176,6 +184,7 @@ func TestSeedParentPollAnswersForOtherFamiliesOnly(t *testing.T) {
 		body map[string]any
 	}
 	var answers []answer
+	var logins []string
 	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
@@ -188,6 +197,7 @@ func TestSeedParentPollAnswersForOtherFamiliesOnly(t *testing.T) {
 				Email string `json:"email"`
 			}
 			require.NoError(t, json.NewDecoder(r.Body).Decode(&login))
+			logins = append(logins, login.Email)
 			_, _ = fmt.Fprintf(w, `{"status":"success","data":{"access_token":%q}}`, tokens[login.Email])
 		case "/parent/me/news":
 			_, _ = fmt.Fprint(w, feeds[r.Header.Get("Authorization")])
@@ -206,13 +216,15 @@ func TestSeedParentPollAnswersForOtherFamiliesOnly(t *testing.T) {
 	rt := &Runtime{
 		Client: client, Adapter: client.adapter, TenantAuth: AuthRef{Token: "staff"},
 		Parents: []ParentCredentials{
-			{Email: "first@example.test", Password: "Parent1234%"},
+			{Email: "first@example.test", Password: "Parent1234%", StudentIDs: []int64{1}},
 			{Email: "second@example.test", Password: "Parent1234%"},
 			{Email: "third@example.test", Password: "Parent1234%"},
 		},
 	}
 	require.NoError(t, (seedParentPollStep{}).Run(t.Context(), rt))
 
+	assert.Equal(t, []string{"second@example.test", "third@example.test"}, logins,
+		"the first parent never signs in to answer")
 	require.Len(t, answers, 2, "one answer per child outside the first family")
 	assert.Equal(t, "Bearer token-second", answers[0].auth)
 	assert.Equal(t, "2", answers[0].body["student_id"])
@@ -226,4 +238,32 @@ func TestSeedParentPollAnswersForOtherFamiliesOnly(t *testing.T) {
 	}
 	assert.NotEqual(t, answers[0].body["option_ids"], answers[1].body["option_ids"],
 		"families pick different appointments, so the results show a spread")
+}
+
+func TestSeedParentPollRefusesWithoutTheFirstFamilysChildren(t *testing.T) {
+	t.Parallel()
+
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/api/parent-announcements/":
+			_, _ = fmt.Fprint(w, `{"status":"success","data":{"id":"73"}}`)
+		case "/api/parent-announcements/73/publish":
+			_, _ = fmt.Fprint(w, `{"status":"success","data":null}`)
+		default:
+			t.Errorf("no parent may answer without the first family known: %s", r.URL.Path)
+			w.WriteHeader(seedHTTPStatusNotFound)
+		}
+	})
+	defer srv.Close()
+
+	client := newTestClient(srv.URL, false)
+	rt := &Runtime{
+		Client: client, Adapter: client.adapter, TenantAuth: AuthRef{Token: "staff"},
+		Parents: []ParentCredentials{
+			{Email: "first@example.test", Password: "Parent1234%"},
+			{Email: "second@example.test", Password: "Parent1234%"},
+		},
+	}
+	require.ErrorContains(t, (seedParentPollStep{}).Run(t.Context(), rt), "first demo parent has no children")
 }
