@@ -22,7 +22,11 @@ type EditInput struct {
 	PickupTime        time.Time
 	DepartureMode     string
 	PickupPerson      *PickupPerson
-	// Signature replaces the stored one; nil leaves an edit unsigned.
+	// PreservePickupDeclaration keeps a signed collector or one-day-alone
+	// declaration when a compatibility client omits both declaration fields.
+	// The edit rejects a changed declaration rather than reusing its signature.
+	PreservePickupDeclaration bool
+	// Signature replaces the stored declaration signature.
 	Signature *SignedStatement
 	Reason    string
 }

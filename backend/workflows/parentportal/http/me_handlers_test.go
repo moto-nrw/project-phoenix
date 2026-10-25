@@ -59,6 +59,7 @@ type fakeParentService struct {
 	gotCarePickup    *time.Time
 	gotCareMode      string
 	gotCareReason    string
+	gotPickupEdit    *parentService.PickupChangeEdit
 
 	childFeatures parentService.ChildFeatureFlags
 
@@ -281,8 +282,12 @@ func (f *fakeParentService) SubmitPickupChange(ctx context.Context, accountID, s
 	return f.SubmitPickupChangeRequest(ctx, accountID, studentID, submission.Date, submission.PickupTime, submission.DepartureMode, submission.Reason, submission.RecipientGuardianProfileIDs)
 }
 
-func (f *fakeParentService) EditPickupChange(ctx context.Context, accountID, studentID, requestID int64, edit parentService.PickupChangeEdit) (*careplan.CareScheduleChangeRequest, error) {
-	return f.EditPickupChangeRequest(ctx, accountID, studentID, requestID, edit.Date, edit.PickupTime, edit.DepartureMode, edit.Reason, edit.ExpectedVersion)
+func (f *fakeParentService) EditPickupChange(_ context.Context, accountID, _ int64, _ int64, edit parentService.PickupChangeEdit) (*careplan.CareScheduleChangeRequest, error) {
+	f.gotPickupEdit = &edit
+	return &careplan.CareScheduleChangeRequest{
+		ID: 1, SubmittedBy: accountID, Status: carerequests.StatusPending,
+		Payload: json.RawMessage(`{"date":"2026-11-10","reason":"Termin","pickup_time":"15:00"}`),
+	}, nil
 }
 
 func (f *fakeParentService) CreateSignedCareScheduleRequest(ctx context.Context, accountID, studentID int64, payload map[string]any, _ *parentService.PickupSignatureInput) (*parentService.ChildCareSchedule, error) {
@@ -443,6 +448,46 @@ func careExceptionRequest(body string) *http.Request {
 	route := chi.NewRouteContext()
 	route.URLParams.Add("studentId", "77")
 	return req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, route))
+}
+
+func TestEditPickupChangePreservesOmittedDeclarationFields(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeParentService{}
+	resource := &Resource{ParentService: service}
+	req := withClaims(httptest.NewRequest(http.MethodPut,
+		"/me/children/77/pickup-change-requests/88", strings.NewReader(`{"date":"2026-11-10","pickup_time":"15:00","reason":"Termin"}`)), 1234)
+	route := chi.NewRouteContext()
+	route.URLParams.Add("studentId", "77")
+	route.URLParams.Add("requestId", "88")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, route))
+
+	response := httptest.NewRecorder()
+	resource.editPickupChangeRequest(response, req)
+
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+	require.NotNil(t, service.gotPickupEdit)
+	assert.True(t, service.gotPickupEdit.PreservePickupDeclaration)
+}
+
+func TestEditPickupChangeAcceptsExplicitDeclarationClear(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeParentService{}
+	resource := &Resource{ParentService: service}
+	req := withClaims(httptest.NewRequest(http.MethodPut,
+		"/me/children/77/pickup-change-requests/88", strings.NewReader(`{"date":"2026-11-10","pickup_time":"15:00","reason":"Termin","pickup_person_guardian_profile_id":""}`)), 1234)
+	route := chi.NewRouteContext()
+	route.URLParams.Add("studentId", "77")
+	route.URLParams.Add("requestId", "88")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, route))
+
+	response := httptest.NewRecorder()
+	resource.editPickupChangeRequest(response, req)
+
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+	require.NotNil(t, service.gotPickupEdit)
+	assert.False(t, service.gotPickupEdit.PreservePickupDeclaration)
 }
 
 func mealPlanRequest() *http.Request {

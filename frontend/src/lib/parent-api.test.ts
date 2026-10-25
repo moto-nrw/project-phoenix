@@ -11,6 +11,7 @@ import {
   listSickDays,
   listExcusedRequests,
   updateExcusedRequest,
+  updatePickupChangeRequest,
   getChildFeatures,
   getChildMealPlan,
   getChildToday,
@@ -879,6 +880,35 @@ describe("updateExcusedRequest", () => {
     expect(seenURL).toContain(
       "/api/parent/me/children/84/excused-requests/req-1",
     );
+  });
+});
+
+describe("updatePickupChangeRequest", () => {
+  it("sends an explicit empty collector when the parent removes it", async () => {
+    let body = "";
+    mockFetch(async (_input, init) => {
+      body = String(init?.body);
+      return jsonResponse({
+        data: {
+          id: "req-1",
+          student_id: "84",
+          date: "2026-06-02",
+          status: "pending",
+          created_at: "2026-06-01T09:00:00Z",
+        },
+      });
+    });
+
+    await updatePickupChangeRequest("84", "req-1", {
+      date: "2026-06-02",
+      pickupTime: "15:00",
+      reason: "",
+      expectedVersion: "v2",
+    });
+
+    expect(JSON.parse(body)).toMatchObject({
+      pickup_person_guardian_profile_id: "",
+    });
   });
 });
 

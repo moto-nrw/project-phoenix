@@ -157,6 +157,7 @@ func TestPickupSignatureStatement_RejectsInvalidWeekdays(t *testing.T) {
 	for _, input := range []parentService.PickupSignatureStatementInput{
 		{Kind: parentService.PickupSignatureStatementPermission, PersonName: "Erika Muster", Weekdays: []int{0}},
 		{Kind: parentService.PickupSignatureStatementWeekly, Weekdays: []int{6}},
+		{Kind: parentService.PickupSignatureStatementDay, PersonName: "Erika Muster"},
 	} {
 		_, err := f.svc.PickupSignatureStatement(ctx, chain.AccountID, chain.StudentID, input)
 		require.ErrorIs(t, err, parentService.ErrPickupSignatureInvalid)
@@ -326,6 +327,31 @@ func TestPickupPermissionCorrectionRestoresThePreviousPermission(t *testing.T) {
 	canPickup, weekdays := pickupWeekdays(t, f.db, chain.StudentID, contactID)
 	assert.False(t, canPickup)
 	assert.Empty(t, weekdays)
+}
+
+func TestPickupChangeEditPreservesAnOmittedSignedCollector(t *testing.T) {
+	t.Parallel()
+
+	f := buildPickupPermissionService(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, f.db)
+	contactID := linkContactOnlyGuardian(t, f.db, chain.StudentID, "oma-4780-edit-compatibility")
+	ctx := testpkg.WithPackageTenantRuntime(context.Background())
+	created, err := f.svc.SubmitPickupChange(ctx, chain.AccountID, chain.StudentID, parentService.PickupChangeSubmission{
+		Date: pickupPermissionDay, PickupPersonID: contactID, Reason: "Oma holt ab", Signature: signedDayCollector(t, f, chain),
+	})
+	require.NoError(t, err)
+	originalSignature := carerequests.StoredSignature(created.Payload)
+	require.NotNil(t, originalSignature)
+
+	edited, err := f.svc.EditPickupChange(ctx, chain.AccountID, chain.StudentID, created.ID, parentService.PickupChangeEdit{
+		Date: pickupPermissionDay, Reason: "Abholung bleibt vereinbart", PreservePickupDeclaration: true,
+	})
+	require.NoError(t, err)
+	terms := carerequests.StoredPickupTerms(edited.Payload)
+	require.NotNil(t, terms)
+	assert.Equal(t, contactID, terms.PickupPersonGuardianProfileID)
+	assert.Equal(t, "Guardian Test", terms.PickupPersonName)
+	assert.Equal(t, originalSignature, carerequests.StoredSignature(edited.Payload))
 }
 
 func TestPickupPermissionCorrectionKeepsAnApprovedPermission(t *testing.T) {

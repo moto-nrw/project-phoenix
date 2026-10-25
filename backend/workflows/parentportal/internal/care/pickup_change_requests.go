@@ -20,6 +20,7 @@ func (s *Service) EditPickupChangeRequest(
 ) (*carerequests.Request, error) {
 	return s.EditPickupChange(ctx, accountID, studentID, requestID, PickupChangeEdit{
 		Date: date, PickupTime: pickupTime, DepartureMode: departureMode, Reason: reason, ExpectedVersion: expectedVersion,
+		PreservePickupDeclaration: true,
 	})
 }
 
@@ -33,6 +34,9 @@ type PickupChangeEdit struct {
 	ExpectedVersion string
 	PickupPersonID  int64
 	Signature       *PickupSignatureInput
+	// PreservePickupDeclaration is set when the client predates the signed
+	// collector fields and therefore omits them from an otherwise valid edit.
+	PreservePickupDeclaration bool
 }
 
 // EditPickupChange rewrites the caller's own pending one-day request.
@@ -87,18 +91,19 @@ func (s *Service) editPickupChangeInTx(txCtx context.Context, child *Child, acco
 		return nil, err
 	}
 	return s.CareRequests.EditRequest(txCtx, carerequests.EditInput{
-		PickupPerson:      person,
-		Signature:         signed,
-		RequestID:         requestID,
-		StudentID:         studentID,
-		GuardianAccountID: accountID,
-		ExpectedVersion:   edit.ExpectedVersion,
-		Date:              edit.Date,
-		PickupTime:        edit.PickupTime,
-		DepartureMode:     edit.DepartureMode,
-		Reason:            edit.Reason,
-		ReasonRequired:    reasonRequired,
-		Cutoff:            cutoff,
+		PickupPerson:              person,
+		Signature:                 signed,
+		RequestID:                 requestID,
+		StudentID:                 studentID,
+		GuardianAccountID:         accountID,
+		ExpectedVersion:           edit.ExpectedVersion,
+		Date:                      edit.Date,
+		PickupTime:                edit.PickupTime,
+		DepartureMode:             edit.DepartureMode,
+		PreservePickupDeclaration: edit.PreservePickupDeclaration,
+		Reason:                    edit.Reason,
+		ReasonRequired:            reasonRequired,
+		Cutoff:                    cutoff,
 	})
 }
 

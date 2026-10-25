@@ -1541,7 +1541,7 @@ export async function updatePickupChangeRequest(
       reason: input.reason,
       expected_version: input.expectedVersion,
       pickup_person_guardian_profile_id:
-        input.pickupPersonGuardianProfileId || undefined,
+        input.pickupPersonGuardianProfileId ?? "",
       ...(input.signature
         ? {
             signature: signatureRequestBody(

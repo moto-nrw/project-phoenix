@@ -194,6 +194,7 @@ func (rs *Resource) editPickupChangeRequest(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	departureMode := strings.TrimSpace(body.DepartureMode)
+	preservePickupDeclaration := body.PickupPersonGuardianProfileID == nil && body.Signature == nil
 	personID, err := parsePickupPersonID(body.PickupPersonGuardianProfileID)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
@@ -209,7 +210,7 @@ func (rs *Resource) editPickupChangeRequest(w http.ResponseWriter, r *http.Reque
 	}
 	row, err := rs.ParentService.EditPickupChange(r.Context(), target.accountID, target.studentID, target.requestID, parentService.PickupChangeEdit{
 		Date: date, PickupTime: pickupTime, DepartureMode: departureMode, Reason: body.Reason, ExpectedVersion: body.ExpectedVersion,
-		PickupPersonID: personID, Signature: body.Signature.pickupInput(),
+		PickupPersonID: personID, Signature: body.Signature.pickupInput(), PreservePickupDeclaration: preservePickupDeclaration,
 	})
 	if err != nil {
 		renderParentRequestError(w, r, err)

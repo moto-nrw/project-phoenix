@@ -71,9 +71,31 @@ func (s *RequestEdits) payload(ctx context.Context, request carerequests.Request
 			return nil, carerequests.ErrPickupChangeCutoffPassed
 		}
 	}
+	if input.PreservePickupDeclaration {
+		if err := preservePickupDeclaration(request.Payload, &input); err != nil {
+			return nil, err
+		}
+	}
 	return pickupRequestPayload(ctx, s.Pickup, s.Today(), carerequests.PickupChangeCreateInput{
 		StudentID: input.StudentID, GuardianAccountID: input.GuardianAccountID, Date: input.Date,
 		PickupTime: input.PickupTime, DepartureMode: input.DepartureMode, PickupPerson: input.PickupPerson, Signature: input.Signature,
 		Reason: input.Reason, ReasonRequired: input.ReasonRequired, Cutoff: input.Cutoff,
 	})
+}
+
+// preservePickupDeclaration keeps a signed declaration from an older client
+// that does not round-trip the collector fields. A signature never travels to
+// a changed day or departure mode: those need a freshly signed declaration.
+func preservePickupDeclaration(raw json.RawMessage, input *carerequests.EditInput) error {
+	terms, ok := carerequests.PickupTerms(raw)
+	if !ok || (terms.PickupPerson == nil && terms.DepartureMode != "alone") {
+		return nil
+	}
+	signature := carerequests.StoredSignature(raw)
+	if signature == nil || terms.Date != input.Date || terms.DepartureMode != input.DepartureMode {
+		return carerequests.ErrInvalidPayload
+	}
+	input.PickupPerson = terms.PickupPerson
+	input.Signature = signature
+	return nil
 }
