@@ -26,7 +26,7 @@ import (
 func TestOperatorAssignsTheFirstPersonOfATraegerBuero(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
-	service, identity := buildOperatorProvisioningWithIdentity(t, db)
+	service, _ := buildOperatorProvisioningWithIdentity(t, db)
 	ctx := provisioningContext(t, db)
 	operatorID := testpkg.CreateTestOperator(t, db).ID
 	organizationID, schoolID := provisionTestSchool(t, db, service, operatorID, "traeger-buero")
@@ -85,8 +85,8 @@ func TestOperatorAssignsTheFirstPersonOfATraegerBuero(t *testing.T) {
 		WHERE operator_id = ? AND action = 'view' AND changes->>'view' = 'traeger_members'`, operatorID).Scan(ctx, &audited))
 	assert.Equal(t, 1, audited, "reading the addresses is in the operator audit")
 
-	traeger := traegerPortalRouter(t, db, identity, testpkg.TenantRuntime(t, db))
-	code, answer := traegerLogin(t, traeger, account.Email, password, 0)
+	traeger, _ := traegerPortalOn(t, db, testpkg.TenantRuntime(t, db))
+	code, answer := traegerSignIn(t, traeger, account.Email, password, 0)
 	require.Equal(t, http.StatusOK, code)
 	listed, schools := traegerSchools(t, traeger, answer.AccessToken)
 	require.Equal(t, http.StatusOK, listed.Code, listed.Body.String())

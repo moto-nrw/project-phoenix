@@ -74,6 +74,43 @@ describe("traeger-api", () => {
     );
   });
 
+  it("maps the second factor the login asks for", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(200, {
+        status: "mfa_required",
+        challenge_token: "challenge",
+        masked_email: "a***@b.de",
+        organization_id: 7,
+      }),
+    );
+    await expect(
+      traegerLogin({ email: "a@b.de", password: "pw" }),
+    ).resolves.toEqual({
+      status: "mfa_required",
+      challengeToken: "challenge",
+      maskedEmail: "a***@b.de",
+      organizationId: "7",
+    });
+
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(200, {
+        status: "mfa_enrollment_required",
+        access_token: "enrollment",
+        masked_email: "a***@b.de",
+        mfa_enrollment_required: true,
+        organization_id: 7,
+      }),
+    );
+    await expect(
+      traegerLogin({ email: "a@b.de", password: "pw" }),
+    ).resolves.toEqual({
+      status: "mfa_enrollment_required",
+      enrollmentToken: "enrollment",
+      maskedEmail: "a***@b.de",
+      organizationId: "7",
+    });
+  });
+
   it("throws the backend code of a refused login", async () => {
     fetchMock.mockResolvedValue(
       jsonResponse(403, {

@@ -52,6 +52,8 @@ const (
 	MFAChallengeScopeTenant   = "tenant"
 	MFAChallengeScopePlatform = "platform"
 	MFAChallengeScopeSchool   = "school"
+	// MFAChallengeScopeOrg is the Träger-Portal (#4651).
+	MFAChallengeScopeOrg = "org"
 )
 
 // MFAEmailCodeLength is the number of decimal digits in an e-mail code. The
@@ -174,6 +176,10 @@ type AccountMFAEnrollment interface {
 	// DisableMFA removes the enrollment, revokes every trusted device and
 	// resets the lockout counter in one transaction.
 	DisableMFA(ctx context.Context, accountID int64) error
+	// ResetMFAInTransaction runs the same cascade on the caller's
+	// administrative transaction and never opens one itself (ADR 0067); the
+	// operator's reset of a Träger-Büro member participates this way.
+	ResetMFAInTransaction(ctx context.Context, accountID int64) error
 }
 
 // TrustedDeviceIssue persists a device using the policy resolved at preparation.

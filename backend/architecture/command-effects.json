@@ -43760,6 +43760,18 @@
     },
     {
       "source_owner": "organization-tenancy",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/ports.ProvisioningIdentity.ResetTraegerMFA",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ProvisioningIdentity.ResetTraegerMFA",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ResetMFAInTransaction",
+      "target_owner": "identity-access",
+      "binding_digest": "69824da0c42e956c3b0de9621cc77cae",
+      "effect": "mutation",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Guarded leaf command (ADR 0067 #4538 command participation): Identity \u0026 Access locks the account and runs the MFA reset cascade (session proof, credential, trusted devices, attempt counter) on the operator's administrative unit, which the reset of a Träger-Büro member by Organisation \u0026 Tenancy owns together with the membership check and the operator audit (ADR 0084, #4651). It refuses without that ambient administrative transaction and opens no unit, commit or scope switch itself."
+    },
+    {
+      "source_owner": "organization-tenancy",
       "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/ports.ProvisioningIdentity.RevokeSchoolSessions",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ProvisioningIdentity.RevokeSchoolSessions",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.AccountSessionMaintenance.RevokeTokensByTenantID",

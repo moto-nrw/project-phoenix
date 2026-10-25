@@ -32,7 +32,7 @@ const failingCaptcha = "refused-token"
 
 type holidayRegistrationFixture struct {
 	db      *bun.DB
-	traeger http.Handler
+	traeger *traegerPortalHandler
 	public  http.Handler
 }
 
@@ -42,9 +42,7 @@ func newHolidayRegistrationFixture(t *testing.T) holidayRegistrationFixture {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	unit := testpkg.TenantRuntime(t, db)
-	auth, err := NewAuthTestModule(testpkg.NewDatabase(t, db), unit)
-	require.NoError(t, err)
-	traeger := traegerPortalRouter(t, db, auth.Auth, unit)
+	traeger, _ := traegerPortalOn(t, db, unit)
 	organizations, err := owners.NewOrganizationTenancy(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	delivery, err := deliveryCompose.NewModule(deliveryCompose.ModuleDependencies{
