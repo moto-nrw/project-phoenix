@@ -28,7 +28,7 @@ func (s traegerMembershipsStub) ListAccountTraegerOrganizations(context.Context,
 func runTraegerMintGuard(t *testing.T, f *authFixture, presented domain.LoginAccount) (*domain.AccountClaimsPayload, error) {
 	t.Helper()
 	auth, err := NewAccountAuthentication(f.sessions, AccountAuthenticationDependencies{
-		Store: f.store, Schools: f.schools, Persons: f.persons, Passwords: fakePasswords{}, PasswordPolicy: testPasswordLoginPolicy, Codec: fakeCodec{},
+		Store: f.store, Schools: f.schools, Persons: f.persons, Passwords: fakePasswords{}, PasswordPolicy: testPasswordLoginPolicy, Codec: fakeCodec{}, PortalModules: f.portals,
 		MFA: f.mfa, MFALock: f.mfaLock, Audit: f.audit, Push: f.push, Runtime: f.runtime, Rotation: fakeRotation{},
 		Traeger: traegerMembershipsStub{organizations: []identityaccess.TraegerOrganization{{ID: 7, Name: "Träger"}}},
 		Logger:  slog.New(slog.NewTextHandler(testWriter{t}, nil)),

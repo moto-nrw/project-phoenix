@@ -86,12 +86,14 @@ func checkModuleRouteMap(t *testing.T, api *goldenRuntime) {
 			if route.module == moduleRouteBasis || lockedElsewhere(route.route) {
 				continue
 			}
-			if !slices.Contains(route.chain, "api.TenantScopeMiddleware") {
+			// The school portal binds its school like the team portal and
+			// passes the same lock in SchoolScopeMiddleware (#4895).
+			if !slices.Contains(route.chain, "api.TenantScopeMiddleware") && !slices.Contains(route.chain, "api.SchoolScopeMiddleware") {
 				unlocked = append(unlocked, route.route)
 			}
 		}
 		require.Emptyf(t, unlocked,
-			"these routes of an additional module do not pass api.TenantScopeMiddleware, so a school without the module still reaches them. Mount them in a tenant chain or name the issue that locks their surface in moduleRoutesLockedElsewhere:\n%s",
+			"these routes of an additional module pass neither api.TenantScopeMiddleware nor api.SchoolScopeMiddleware, so a school without the module still reaches them. Mount them in a tenant chain or name the issue that locks their surface in moduleRoutesLockedElsewhere:\n%s",
 			strings.Join(unlocked, "\n"))
 	})
 

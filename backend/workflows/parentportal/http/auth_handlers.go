@@ -92,6 +92,12 @@ func (rs *Resource) login(w http.ResponseWriter, r *http.Request) {
 		r.Context(), req.Email, req.Password, ipAddress, userAgent,
 	)
 	if err != nil {
+		if module, label, notBooked := rs.Auth.PortalNotBooked(err); notBooked {
+			// The parents portal needs the module Eltern-App (#4895). Told
+			// only after the password matched, like the inactive account.
+			common.RenderError(w, r, common.ErrorModuleNotBooked(err, module, label))
+			return
+		}
 		switch {
 		case rs.Auth.InvalidCredentials(err):
 			// Mask the specific cause to prevent account

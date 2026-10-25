@@ -69,6 +69,9 @@ func (s *AccountAuthentication) issueSchoolTokensForAuthenticatedAccount(ctx con
 		s.logFailedLogin(s.runtime.WithTenantID(ctx, tenantID), account.ID, ipAddress, userAgent, "No school portal role at school token issue")
 		return "", "", failed("issue school tokens", identityaccess.ErrAccountNoSchoolPortalRole)
 	}
+	if err := s.requireSchoolPortal(ctx, "issue school tokens", account.ID, tenantID); err != nil {
+		return "", "", err
+	}
 	var claims *domain.AccountClaimsPayload
 	var proof *identityaccess.VerifiedMFAChallenge
 	if len(proofs) > 0 {
@@ -118,6 +121,9 @@ func (s *AccountAuthentication) SwitchSchool(ctx context.Context, accountID int6
 	}
 	if !hasRole {
 		return "", "", failed("switch school", identityaccess.ErrAccountNoSchoolPortalRole)
+	}
+	if err := s.requireSchoolPortal(ctx, "switch school", accountID, targetTenantID); err != nil {
+		return "", "", err
 	}
 	var claims *domain.AccountClaimsPayload
 	session, err := s.createRefreshSessionGuarded(ctx, account, targetTenantID, domain.ScopeSchool, s.schoolMintGuard(accountID, targetTenantID, &claims), sourceFamilyID)
@@ -373,20 +379,50 @@ func (s *AccountAuthentication) hasSchoolPortalRoleAtTenant(ctx context.Context,
 }
 
 // findSchoolPortalTenantForAccount checks every active mapping for a
-// school-portal role and returns the first matching school that is alive
-// and active; a full sweep of school lookup failures is not masked as "no
-// portal role".
-func (s *AccountAuthentication) findSchoolPortalTenantForAccount(ctx context.Context, accountID int64) (bool, int64, error) {
+// school-portal role. Without requireBooked it returns the first matching
+// school that is alive and active; when required, it continues until it finds
+// a school that also booked Unterricht am Vormittag. A full sweep of school
+// lookup failures is not masked as "no portal role".
+func (s *AccountAuthentication) findSchoolPortalTenantForAccount(ctx context.Context, accountID int64, requireBooked bool) (bool, int64, error) {
 	hasPortalRole := false
 	var firstPortalTenantID int64
+	var portalTenantIDs []int64
 	if err := s.runtime.WithAdminTx(ctx, func(adminCtx context.Context) error {
 		var err error
+		if requireBooked {
+			portalTenantIDs, err = s.schoolPortalTenants(adminCtx, accountID)
+			hasPortalRole = len(portalTenantIDs) > 0
+			return err
+		}
 		hasPortalRole, firstPortalTenantID, err = s.firstSchoolPortalTenant(adminCtx, accountID)
 		return err
 	}); err != nil {
 		return false, 0, err
 	}
+	if requireBooked {
+		return s.findBookedSchoolPortalTenant(ctx, portalTenantIDs)
+	}
 	return hasPortalRole, firstPortalTenantID, nil
+}
+
+func (s *AccountAuthentication) findBookedSchoolPortalTenant(ctx context.Context, portalTenantIDs []int64) (bool, int64, error) {
+	var firstNotBooked error
+	for _, tenantID := range portalTenantIDs {
+		err := s.portalModules.RequireSchoolPortal(ctx, tenantID)
+		if err == nil {
+			return true, tenantID, nil
+		}
+		if _, notBooked := identityaccess.PortalNotBooked(err); !notBooked {
+			return false, 0, err
+		}
+		if firstNotBooked == nil {
+			firstNotBooked = err
+		}
+	}
+	if firstNotBooked != nil {
+		return true, portalTenantIDs[0], firstNotBooked
+	}
+	return false, 0, nil
 }
 
 // HasSchoolPortalAccess reports whether the account may still hold a school
@@ -436,5 +472,5 @@ func (s *AccountAuthentication) HasSchoolPortalAccess(ctx context.Context, accou
 // retained password-reset flow, which routes school-portal accounts to the
 // school reset link.
 func (s *AccountAuthentication) findSchoolPortalTenant(ctx context.Context, accountID int64) (bool, int64, error) {
-	return s.findSchoolPortalTenantForAccount(ctx, accountID)
+	return s.findSchoolPortalTenantForAccount(ctx, accountID, false)
 }

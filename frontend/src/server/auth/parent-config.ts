@@ -115,6 +115,9 @@ export const parentAuthConfig = {
             throw await createOperatorLoginError("account_inactive");
           if (backendCode === "care.not_a_guardian")
             throw await createOperatorLoginError("not_a_guardian");
+          // None of the guardian's schools booked Eltern-App (#4895).
+          if (backendCode === "module.not_booked")
+            throw await createOperatorLoginError("portal_not_booked");
           throw await createOperatorLoginError("invalid_credentials");
         }
 
