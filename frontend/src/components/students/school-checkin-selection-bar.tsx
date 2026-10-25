@@ -3,6 +3,10 @@
 import { CheckSquare, Loader2, LogIn, LogOut } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { SegmentedControl } from "~/components/ui/segmented-control";
+import {
+  leftOutLabel,
+  type SelectAllControl,
+} from "~/components/students/school-checkin-select-all";
 
 interface SchoolCheckinSelectionBarProps {
   /** Whether the selection sub-mode is on ("Mehrere") vs. immediate taps ("Direkt"). */
@@ -18,6 +22,8 @@ interface SchoolCheckinSelectionBarProps {
   readonly isRunning: boolean;
   /** The action currently running, so only its button shows a spinner. */
   readonly runningAction?: "in" | "out" | null;
+  /** „Alle N auswählen“ for the children on screen (#4762). */
+  readonly selectAll?: SelectAllControl;
 }
 
 /**
@@ -41,8 +47,10 @@ export function SchoolCheckinSelectionBar({
   onFinish,
   isRunning,
   runningAction = null,
+  selectAll,
 }: SchoolCheckinSelectionBarProps) {
   const noneSelected = selectedCount === 0;
+  const leftOut = selectAll ? leftOutLabel(selectAll.leftOutCount) : null;
 
   return (
     <div
@@ -85,6 +93,23 @@ export function SchoolCheckinSelectionBar({
               />
               {selectedCount} ausgewählt
             </span>
+            {selectAll ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="compact"
+                className="shadow-none"
+                onClick={selectAll.onSelectAll}
+                disabled={
+                  selectAll.count === 0 || selectAll.allSelected || isRunning
+                }
+              >
+                Alle {selectAll.count} auswählen
+              </Button>
+            ) : null}
+            {leftOut ? (
+              <span className="text-xs text-gray-600">{leftOut}</span>
+            ) : null}
             <div className="ml-auto flex items-center gap-1.5">
               <Button
                 type="button"
