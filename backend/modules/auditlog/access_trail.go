@@ -38,21 +38,26 @@ var ErrAccessTrailSchoolsRequired = errors.New("audit access trail: the school s
 
 // AccessTrailFilter selects trail entries of the school set Schools. From and
 // To bound the instant (From inclusive, To exclusive). SchoolID, AccountID and
-// Kind narrow further when set.
+// Kind narrow further when set. A ledger that records the acting staff
+// member instead of the account matches AccountID through StaffIDs, the
+// staff IDs of that account at the schools.
 type AccessTrailFilter struct {
 	Schools   []int64
 	From      time.Time
 	To        time.Time
 	SchoolID  int64
 	AccountID int64
+	StaffIDs  []int64
 	Kind      string
 	Limit     int
 	Offset    int
 }
 
-// AccessTrailEntry is one read or change. AccountID is nil when no account is
-// recorded (a system job, or an account deleted since); ActorNameSnapshot is
-// the name a ledger stored with the change, empty where it stores none.
+// AccessTrailEntry is one read or change. The actor is an account
+// (AccountID) or, where a ledger records the acting staff member, a staff ID
+// (StaffID); both are nil for a system step or an account deleted since.
+// ActorNameSnapshot is the name a ledger stored with the change, empty where
+// it stores none.
 type AccessTrailEntry struct {
 	// ID is the row of the ledger the entry comes from; Kind and Data name
 	// that ledger, so the three together identify the entry.
@@ -60,15 +65,18 @@ type AccessTrailEntry struct {
 	SchoolID          int64
 	OccurredAt        time.Time
 	AccountID         *int64
+	StaffID           *int64
 	ActorNameSnapshot string
 	Kind              string
 	Data              string
 }
 
-// AccessTrailActor is an account with at least one entry at a school.
+// AccessTrailActor is an account or a staff member (one of AccountID and
+// StaffID is set) with at least one entry at a school.
 type AccessTrailActor struct {
 	SchoolID          int64
 	AccountID         int64
+	StaffID           int64
 	ActorNameSnapshot string
 }
 

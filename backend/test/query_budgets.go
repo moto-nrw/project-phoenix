@@ -52,12 +52,13 @@ var queryBudgets = map[string]queryBudget{
 	"api.traeger.schools": {max: 3, exact: true},
 	// modules/traegerview — GET /traeger/access-log (#4655, ADR 0111): the
 	// Träger row, the school IDs of the Träger, one access trail read of the
-	// Audit Platform, the school rows, one person read and one Träger-Büro
-	// address read, in one administrative transaction; then the tenant
-	// binding of each shown school's transaction, which writes the read to
-	// that school's access log (two schools in the scenario). Flat in the
-	// number of entries.
-	"api.traeger.access_log": {max: 8, exact: true},
+	// Audit Platform, the school rows, the staff members behind staff IDs and
+	// their persons, the persons of the accounts and one Träger-Büro address
+	// read, in one administrative transaction; then the tenant binding of
+	// each shown school's transaction, which writes the read to that
+	// school's access log (two schools in the scenario). Flat in the number
+	// of entries.
+	"api.traeger.access_log": {max: 10, exact: true},
 	// organizationtenancy Provisioning.ListTraegerMembers (#4649): the Träger
 	// row, its memberships and one read of address and Träger roles for all
 	// members. Flat in the number of members.

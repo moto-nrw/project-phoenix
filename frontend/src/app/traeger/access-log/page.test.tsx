@@ -232,4 +232,38 @@ describe("TraegerAccessLogPage", () => {
     expect(screen.queryAllByText("Frieda Fachkraft")).toEqual([]);
     expect(screen.getAllByText("Lena Leitung")[0]).toBeInTheDocument();
   });
+
+  it("resets the person filter when the person leaves the window", async () => {
+    mockFetchPeople
+      .mockResolvedValueOnce([{ accountId: "12", name: "Lena Leitung" }])
+      .mockResolvedValue([]);
+    renderPage();
+    await screen.findByRole("table");
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Person" }));
+    fireEvent.click(
+      await screen.findByRole("option", { name: "Lena Leitung" }),
+    );
+    await waitFor(() =>
+      expect(mockFetchLog).toHaveBeenLastCalledWith(
+        expect.objectContaining({ accountId: "12" }),
+        1,
+        undefined,
+      ),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Sep\./ }));
+    fireEvent.click(await screen.findByRole("button", { name: "Heute" }));
+
+    await waitFor(() =>
+      expect(mockFetchLog).toHaveBeenLastCalledWith(
+        expect.objectContaining({ from: "2026-09-09", accountId: "" }),
+        1,
+        undefined,
+      ),
+    );
+    expect(screen.getByRole("combobox", { name: "Person" })).toHaveTextContent(
+      "Alle Personen",
+    );
+  });
 });

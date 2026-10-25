@@ -94,12 +94,25 @@ func recordAccessLogRead(t *testing.T, db *bun.DB, school, account int64, resour
 	require.NoError(t, err)
 }
 
-func recordAccessLogPersonnelNumberChange(t *testing.T, db *bun.DB, school, account int64, at time.Time) {
+// recordAccessLogPersonnelNumberChange records a personnel number change;
+// the ledger stores the editing staff member, not the account.
+func recordAccessLogPersonnelNumberChange(t *testing.T, db *bun.DB, school, editorStaffID int64, at time.Time) {
 	t.Helper()
 	staff := testpkg.CreateTestStaffForTenant(t, db, school, "Paula", "Personal")
 	_, err := db.ExecContext(context.Background(), `INSERT INTO audit.personnel_number_changes
 		(tenant_id, staff_id, changed_by, old_value, new_value, note, occurred_at) VALUES (?, ?, ?, '1', '2', '', ?)`,
-		school, staff.ID, account, at)
+		school, staff.ID, editorStaffID, at)
+	require.NoError(t, err)
+}
+
+// recordAccessLogSystemEdit records an automated change of a child's data:
+// the ledger stores the system actor 0 with its name.
+func recordAccessLogSystemEdit(t *testing.T, db *bun.DB, school int64, at time.Time) {
+	t.Helper()
+	student := testpkg.CreateTestStudentForTenant(t, db, school, "Mia", "Muster", "1a")
+	_, err := db.ExecContext(context.Background(), `INSERT INTO audit.student_field_edits
+		(tenant_id, student_id, edited_by, edited_by_name, field_name, created_at) VALUES (?, ?, 0, 'System', 'school_class', ?)`,
+		school, student.ID, at)
 	require.NoError(t, err)
 }
 
@@ -112,6 +125,7 @@ type traegerAccessLogFixture struct {
 	own, foreign                 int64
 	first, second, foreignSchool int64
 	staff, otherStaff, member    int64
+	otherStaffMember             int64
 	token                        string
 }
 
@@ -132,7 +146,12 @@ func newTraegerAccessLogFixture(t *testing.T, role string) traegerAccessLogFixtu
 	f.staff = testpkg.CreateTestAccount(t, db, "fachkraft").ID
 	f.otherStaff = testpkg.CreateTestAccount(t, db, "leitung").ID
 	accessLogPersonAt(t, db, f.first, f.staff, "Frieda", "Fachkraft")
-	accessLogPersonAt(t, db, f.second, f.otherStaff, "Lena", "Leitung")
+	// Lena works at the second school; ledgers name her by account or by
+	// her staff ID there.
+	lena := testpkg.CreateTestStaffForTenant(t, db, f.second, "Lena", "Leitung")
+	_, err = db.ExecContext(context.Background(), `UPDATE users.persons SET account_id = ? WHERE id = ?`, f.otherStaff, lena.PersonID)
+	require.NoError(t, err)
+	f.otherStaffMember = lena.ID
 	account := traegerAccount(t, db, password)
 	f.member = account.ID
 	testpkg.CreateTestTraegerMember(t, db, f.own, account.ID, role)
@@ -157,7 +176,7 @@ func TestTraegerAccessLogShowsOnlyTheOwnSchoolsAndIsItselfLogged(t *testing.T) {
 	t.Parallel()
 	f := newTraegerAccessLogFixture(t, identityaccess.TraegerRoleAdministration)
 	recordAccessLogRead(t, f.db, f.first, f.staff, "attendance_history", accessLogAt(9))
-	recordAccessLogPersonnelNumberChange(t, f.db, f.second, f.otherStaff, accessLogAt(10))
+	recordAccessLogPersonnelNumberChange(t, f.db, f.second, f.otherStaffMember, accessLogAt(10))
 	recordAccessLogRead(t, f.db, f.foreignSchool, f.staff, "attendance_history", accessLogAt(11))
 	recordAccessLogRead(t, f.db, f.first, f.staff, "attendance_history", accessLogDay.AddDays(-1).BerlinMidnight().Add(12*time.Hour))
 
@@ -167,7 +186,9 @@ func TestTraegerAccessLogShowsOnlyTheOwnSchoolsAndIsItselfLogged(t *testing.T) {
 	change, read := page.Entries[0], page.Entries[1]
 	assert.Equal(t, f.second, change.SchoolID, "newest first")
 	assert.Equal(t, "OGS Waldweg", change.SchoolName)
-	assert.Equal(t, "Lena Leitung", change.Person, "the person of the account at that school")
+	assert.Equal(t, "Lena Leitung", change.Person, "the ledger stores her staff ID; the log names the person behind it")
+	require.NotNil(t, change.AccountID)
+	assert.Equal(t, f.otherStaff, *change.AccountID, "and her account, so the person filter finds the change")
 	assert.Equal(t, "change", change.Kind)
 	assert.Equal(t, "Personalnummer einer Fachkraft", change.DataLabel)
 	assert.Equal(t, f.first, read.SchoolID)
@@ -186,12 +207,14 @@ func TestTraegerAccessLogFiltersByPersonSchoolPeriodAndKind(t *testing.T) {
 	f := newTraegerAccessLogFixture(t, identityaccess.TraegerRoleAdministration)
 	recordAccessLogRead(t, f.db, f.first, f.staff, "class_day_view", accessLogAt(9))
 	recordAccessLogRead(t, f.db, f.second, f.otherStaff, "staff_financial_view", accessLogAt(10))
-	recordAccessLogPersonnelNumberChange(t, f.db, f.second, f.otherStaff, accessLogAt(11))
+	recordAccessLogPersonnelNumberChange(t, f.db, f.second, f.otherStaffMember, accessLogAt(11))
 
 	page := listAccessLog(t, f.router, f.token, map[string]string{"school_id": fmt.Sprint(f.first)})
 	require.Len(t, page.Entries, 1)
 	assert.Equal(t, f.first, page.Entries[0].SchoolID)
 
+	// The personnel number ledger stores Lena's staff ID; the account filter
+	// still finds it (quorum review of #4932).
 	page = listAccessLog(t, f.router, f.token, map[string]string{"account_id": fmt.Sprint(f.otherStaff)})
 	require.Len(t, page.Entries, 2)
 	for _, entry := range page.Entries {
@@ -275,7 +298,7 @@ func TestTraegerAccessLogQueryBudgetIsFlat(t *testing.T) {
 	t.Parallel()
 	f := newTraegerAccessLogFixture(t, identityaccess.TraegerRoleAdministration)
 	recordAccessLogRead(t, f.db, f.first, f.staff, "attendance_history", accessLogAt(8))
-	recordAccessLogPersonnelNumberChange(t, f.db, f.second, f.otherStaff, accessLogAt(9))
+	recordAccessLogPersonnelNumberChange(t, f.db, f.second, f.otherStaffMember, accessLogAt(9))
 	list := func() []string {
 		counter := testpkg.CaptureQueriesForContext(t, f.db)
 		req := httptest.NewRequest(http.MethodGet, "/traeger/access-log/?"+accessLogWindow(nil).Encode(), nil)
@@ -288,7 +311,7 @@ func TestTraegerAccessLogQueryBudgetIsFlat(t *testing.T) {
 	first := list()
 	for hour := 10; hour < 14; hour++ {
 		recordAccessLogRead(t, f.db, f.first, f.staff, "class_day_view", accessLogAt(hour))
-		recordAccessLogPersonnelNumberChange(t, f.db, f.second, f.otherStaff, accessLogAt(hour))
+		recordAccessLogPersonnelNumberChange(t, f.db, f.second, f.otherStaffMember, accessLogAt(hour))
 	}
 	assert.Len(t, list(), len(first), "the access log reads the same statements for any number of entries")
 	testpkg.AssertQueryBudget(t, "api.traeger.access_log", first)
@@ -325,4 +348,22 @@ func TestTraegerAccessLogPagesEndAtTheirAsOfInstant(t *testing.T) {
 		seen[entry.ID] = true
 	}
 	assert.Len(t, seen, 51)
+}
+
+// An automated change stores the system actor 0: the log shows the stored
+// name without an account, and the person filter does not offer it.
+func TestTraegerAccessLogShowsTheSystemActorWithoutAnAccount(t *testing.T) {
+	t.Parallel()
+	f := newTraegerAccessLogFixture(t, identityaccess.TraegerRoleAdministration)
+	recordAccessLogRead(t, f.db, f.first, f.staff, "class_day_view", accessLogAt(9))
+	recordAccessLogSystemEdit(t, f.db, f.first, accessLogAt(10))
+
+	page := listAccessLog(t, f.router, f.token, map[string]string{"kind": "change"})
+	require.Len(t, page.Entries, 1)
+	assert.Equal(t, "System", page.Entries[0].Person)
+	assert.Nil(t, page.Entries[0].AccountID)
+
+	rec := accessLogRequest(t, f.router, f.token, "/traeger/access-log/people", accessLogWindow(nil))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Equal(t, []accessLogPerson{{AccountID: f.staff, Name: "Frieda Fachkraft"}}, decodeSchoolPortalData[[]accessLogPerson](t, rec.Body.Bytes()))
 }

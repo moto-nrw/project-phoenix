@@ -20,7 +20,8 @@ type Overview struct {
 	schoolIDs   traegerview.SchoolIDs
 	rows        SchoolRows
 	trail       traegerview.AccessTrail
-	persons     traegerview.PersonNames
+	persons     traegerview.PersonDirectory
+	staff       traegerview.StaffDirectory
 	bureau      traegerview.BureauAddresses
 	recorder    traegerview.AccessRecorder
 	withinAdmin func(context.Context, func(context.Context) error) error
@@ -31,11 +32,11 @@ var _ traegerview.Overview = (*Overview)(nil)
 // New builds the overview. withinAdmin opens the administrative transaction
 // the projection reads in; it is the Träger-Portal's only one (ADR 0084).
 func New(ports traegerview.Ports, rows SchoolRows, withinAdmin func(context.Context, func(context.Context) error) error) (*Overview, error) {
-	if ports.SchoolIDs == nil || rows == nil || ports.Trail == nil || ports.Persons == nil || ports.Bureau == nil || ports.Recorder == nil || withinAdmin == nil {
-		return nil, errors.New("traeger view: school IDs, rows, access trail, person names, Träger-Büro addresses, access recorder and the administrative transaction are required")
+	if ports.SchoolIDs == nil || rows == nil || ports.Trail == nil || ports.Persons == nil || ports.Staff == nil || ports.Bureau == nil || ports.Recorder == nil || withinAdmin == nil {
+		return nil, errors.New("traeger view: school IDs, rows, access trail, persons, staff, Träger-Büro addresses, access recorder and the administrative transaction are required")
 	}
 	return &Overview{
-		schoolIDs: ports.SchoolIDs, rows: rows, trail: ports.Trail, persons: ports.Persons, bureau: ports.Bureau,
+		schoolIDs: ports.SchoolIDs, rows: rows, trail: ports.Trail, persons: ports.Persons, staff: ports.Staff, bureau: ports.Bureau,
 		recorder: ports.Recorder, withinAdmin: withinAdmin,
 	}, nil
 }

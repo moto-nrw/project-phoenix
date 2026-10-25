@@ -48,7 +48,10 @@ func traegerPortalRouter(t *testing.T, db *bun.DB, identity TraegerIdentity, uni
 	require.NoError(t, err)
 	audit, err := auditCompose.NewTenantPersistence(db)
 	require.NoError(t, err)
-	portal, err := NewTraegerPortalHTTP(identity, organizations, owners.MustNewPeopleDirectory(database), TraegerAudit{Trail: audit.AccessTrail, Log: audit.DataAccessLog})
+	membership, err := owners.ComposeSchoolMembership(database)
+	require.NoError(t, err)
+	portal, err := NewTraegerPortalHTTP(identity, organizations, owners.MustNewPeopleDirectory(database), membership,
+		TraegerAudit{Trail: audit.AccessTrail, Log: audit.DataAccessLog})
 	require.NoError(t, err)
 	router := chi.NewRouter()
 	router.Use(func(next http.Handler) http.Handler {

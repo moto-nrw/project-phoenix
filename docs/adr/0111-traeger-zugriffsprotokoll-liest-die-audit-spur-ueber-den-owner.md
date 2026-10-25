@@ -48,13 +48,21 @@ und für die Stichtagszahlen (#2791).
    (`backend/test/traeger_view_scope_ratchet_test.go`) prüft das für die
    Datei, auch für jeden `UNION ALL`-Zweig.
 2. **Namen über ihre Owner.** Die Namen der Personen kommen von People
-   Directory (`ListPersonsByAccount`), und zwar nur für das Paar aus Konto
-   und Schule des Eintrags. Für Personen des Träger-Büros ohne Person an der
-   Schule kommt die E-Mail-Adresse von Identity & Access
-   (`ListTraegerAccounts`), nur für Konten mit einer Träger-Rolle bei diesem
-   Träger. Beide laufen in derselben Admin-Einheit.
+   Directory (`ListPersonsByAccount`, `ListPersonsByID`), und zwar nur für
+   das Paar aus Konto und Schule des Eintrags. Zwei Ledger speichern statt
+   des Kontos die Staff-ID der handelnden Person: `audit.personnel_number_changes`
+   immer, `audit.staff_master_data_changes` außer in den Bereichen
+   `bank-steuer`, `dokumente` und `school-classes`. Die Audit-Abfrage liefert
+   deshalb Konto-ID oder Staff-ID getrennt; eine gespeicherte 0 (System)
+   wird NULL. Staff-IDs löst School Membership (`ListStaff`, auch frühere
+   Mitarbeitende) zur Person und damit zum Konto auf; der Filter nach einer
+   Person sucht zusätzlich nach den Staff-IDs ihres Kontos an den Schulen
+   des Trägers. Für Personen des Träger-Büros ohne Person an der Schule
+   kommt die E-Mail-Adresse von Identity & Access (`ListTraegerAccounts`),
+   nur für Konten mit einer Träger-Rolle bei diesem Träger. Alles läuft in
+   derselben Admin-Einheit.
 3. **Ports gehören der Projektion.** `traegerview` deklariert die Ports
-   `AccessTrail`, `PersonNames`, `BureauAddresses` und `AccessRecorder` in
+   `AccessTrail`, `PersonDirectory`, `StaffDirectory`, `BureauAddresses` und `AccessRecorder` in
    seinem öffentlichen Paket. Die Root bindet sie
    (`backend/api/serve_mounts_traeger.go`). `traeger-view` bekommt keine
    neue Regel in `policy.json` und keinen neuen `read_projections`-Eintrag.
@@ -71,9 +79,9 @@ und für die Stichtagszahlen (#2791).
      `modules/traegerview/internal/application/overview.go`. Sie steht mit
      festem Grund in `backend/test/traeger_view_transaction.go`.
      `Overview.Schools` bleibt unverändert.
-   - Das Query-Budget `api.traeger.access_log` (8, exact) steht in
+   - Das Query-Budget `api.traeger.access_log` (10, exact) steht in
      `backend/test/query_budgets.go`.
-   - Vier Root-Bindungen kommen mit genauer Evidenz in
+   - Fünf Root-Übersetzungen kommen mit genauer Evidenz in
      `backend/architecture/passthrough.json`;
      `traegerportal.Resource.RouterWithAuthRateLimiter` fällt dort heraus,
      weil es jetzt zwei Routengruppen einhängt.

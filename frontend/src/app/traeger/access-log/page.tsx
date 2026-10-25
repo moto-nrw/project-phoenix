@@ -76,7 +76,11 @@ const COLUMNS: DataTableColumn<TraegerAccessLogEntry>[] = [
     key: "person",
     header: "Person",
     render: (entry) => (
-      <span className="font-medium text-gray-900">{entry.person}</span>
+      // A Träger-Büro address can be long; it wraps on a phone instead of
+      // running into the time beside it.
+      <span className="font-medium wrap-anywhere text-gray-900">
+        {entry.person}
+      </span>
     ),
     stacked: "title",
   },
@@ -178,7 +182,13 @@ export default function TraegerAccessLogPage() {
     let current = true;
     fetchTraegerAccessLogPeople(from, to)
       .then((loaded) => {
-        if (current) setPeople(loaded);
+        if (!current) return;
+        setPeople(loaded);
+        // A person who does not act in the new window can no longer be
+        // chosen; the filter would stay active without a visible choice.
+        setAccountId((chosen) =>
+          loaded.some((person) => person.accountId === chosen) ? chosen : "",
+        );
       })
       .catch((err: unknown) => {
         // The person filter then offers only "Alle Personen"; the list
@@ -186,7 +196,9 @@ export default function TraegerAccessLogPage() {
         logger.warn("traeger_access_log_people_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
-        if (current) setPeople([]);
+        if (!current) return;
+        setPeople([]);
+        setAccountId("");
       });
     return () => {
       current = false;

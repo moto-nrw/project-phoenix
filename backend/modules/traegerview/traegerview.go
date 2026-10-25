@@ -54,9 +54,11 @@ type Ports struct {
 	// access log of a school.
 	Trail    AccessTrail
 	Recorder AccessRecorder
-	// Persons are the persons of People Directory, Bureau the Träger-Büro
-	// addresses of Identity & Access.
-	Persons PersonNames
+	// Persons are the persons of People Directory, Staff the staff members
+	// of School Membership, Bureau the Träger-Büro addresses of Identity &
+	// Access.
+	Persons PersonDirectory
+	Staff   StaffDirectory
 	Bureau  BureauAddresses
 }
 
@@ -161,6 +163,7 @@ type AccessTrailQuery struct {
 	To        time.Time
 	SchoolID  int64
 	AccountID int64
+	StaffIDs  []int64
 	Kind      string
 	Limit     int
 	Offset    int
@@ -172,36 +175,61 @@ type AccessTrailEntry struct {
 	SchoolID          int64
 	OccurredAt        time.Time
 	AccountID         *int64
+	StaffID           *int64
 	ActorNameSnapshot string
 	Kind              string
 	Data              string
 }
 
-// AccessTrailActor is an account with an entry at a school.
+// AccessTrailActor is an account or a staff member (one of AccountID and
+// StaffID is set) with an entry at a school.
 type AccessTrailActor struct {
 	SchoolID          int64
 	AccountID         int64
+	StaffID           int64
 	ActorNameSnapshot string
 }
 
-// AccountName names an account: at a school (its person there) or, with
-// SchoolID 0, in the Träger-Büro (its e-mail address).
+// AccountName names an account in the Träger-Büro by its e-mail address.
 type AccountName struct {
 	AccountID int64
-	SchoolID  int64
 	Name      string
 }
 
-// PersonNames resolves the persons of accounts at every school, with their
-// school. People Directory serves it in the projection's administrative
-// transaction; the projection uses only the names at the Träger's schools.
-type PersonNames interface {
-	PersonNames(ctx context.Context, accountIDs []int64) ([]AccountName, error)
+// Person is a person of a school with the account it belongs to, if any.
+type Person struct {
+	PersonID  int64
+	SchoolID  int64
+	AccountID *int64
+	Name      string
+}
+
+// PersonDirectory reads persons by account and by ID, at every school.
+// People Directory serves it in the projection's administrative transaction;
+// the projection uses only the persons of the Träger's schools.
+type PersonDirectory interface {
+	PersonsByAccount(ctx context.Context, accountIDs []int64) ([]Person, error)
+	PersonsByID(ctx context.Context, personIDs []int64) ([]Person, error)
+}
+
+// StaffMember ties a staff ID at a school to its person.
+type StaffMember struct {
+	StaffID  int64
+	SchoolID int64
+	PersonID int64
+}
+
+// StaffDirectory reads staff members of the given schools, also former ones,
+// by staff ID or by person. School Membership serves it in the projection's
+// administrative transaction.
+type StaffDirectory interface {
+	StaffByID(ctx context.Context, schools, staffIDs []int64) ([]StaffMember, error)
+	StaffOfPersons(ctx context.Context, schools, personIDs []int64) ([]StaffMember, error)
 }
 
 // BureauAddresses resolves the e-mail addresses of those accounts that are
-// members of the Träger-Büro of the Träger (SchoolID 0). Identity & Access
-// serves it in the projection's administrative transaction.
+// members of the Träger-Büro of the Träger. Identity & Access serves it in
+// the projection's administrative transaction.
 type BureauAddresses interface {
 	BureauAddresses(ctx context.Context, organizationID int64, accountIDs []int64) ([]AccountName, error)
 }

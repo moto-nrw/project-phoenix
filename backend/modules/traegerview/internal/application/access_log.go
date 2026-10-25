@@ -134,11 +134,11 @@ func (o *Overview) AccessLogPeople(ctx context.Context, viewer traegerview.Viewe
 		if err != nil {
 			return err
 		}
-		accounts := make([]int64, 0, len(actors))
+		accounts, staffIDs := make([]int64, 0, len(actors)), make([]int64, 0, len(actors))
 		for _, actor := range actors {
-			accounts = append(accounts, actor.AccountID)
+			accounts, staffIDs = append(accounts, actor.AccountID), append(staffIDs, actor.StaffID)
 		}
-		names, err := o.accountNames(adminCtx, viewer.OrganizationID, accounts)
+		names, err := o.actorIndex(adminCtx, viewer.OrganizationID, schools, accounts, staffIDs)
 		if err != nil {
 			return err
 		}
@@ -155,16 +155,21 @@ func (o *Overview) AccessLogPeople(ctx context.Context, viewer traegerview.Viewe
 }
 
 // distinctPeople keeps one entry per account, named after the first school
-// that knows a person for it, ordered by name. shown counts the people each
-// school contributes.
-func distinctPeople(actors []traegerview.AccessTrailActor, names accountNameIndex) ([]traegerview.AccessLogPerson, map[int64]int) {
+// that knows a person for it, ordered by name. A staff member is listed under
+// the account of its person; one without an account cannot be chosen as a
+// filter and is left out. shown counts the people each school contributes.
+func distinctPeople(actors []traegerview.AccessTrailActor, names actorIndex) ([]traegerview.AccessLogPerson, map[int64]int) {
 	byAccount := map[int64]string{}
 	shown := map[int64]int{}
-	for _, actor := range actors {
-		shown[actor.SchoolID]++
-		name := names.person(actor.SchoolID, &actor.AccountID, actor.ActorNameSnapshot)
-		if current, found := byAccount[actor.AccountID]; !found || current == personUnknown {
-			byAccount[actor.AccountID] = name
+	for _, trailActor := range actors {
+		shown[trailActor.SchoolID]++
+		account, staff := positiveID(trailActor.AccountID), positiveID(trailActor.StaffID)
+		resolved := names.resolve(trailActor.SchoolID, account, staff, trailActor.ActorNameSnapshot)
+		if resolved.account == nil {
+			continue
+		}
+		if current, found := byAccount[*resolved.account]; !found || current == personUnknown {
+			byAccount[*resolved.account] = resolved.name
 		}
 	}
 	people := make([]traegerview.AccessLogPerson, 0, len(byAccount))
@@ -193,95 +198,64 @@ func (o *Overview) entries(adminCtx context.Context, viewer traegerview.Viewer, 
 	if len(schools) == 0 || (filter.SchoolID != 0 && !slices.Contains(schools, filter.SchoolID)) {
 		return []traegerview.AccessLogEntry{}, nil
 	}
+	var staffIDs []int64
+	if filter.AccountID != 0 {
+		var err error
+		if staffIDs, err = o.staffOfAccount(adminCtx, schools, filter.AccountID); err != nil {
+			return nil, err
+		}
+	}
 	rows, err := o.trail.ListAccessTrail(adminCtx, traegerview.AccessTrailQuery{
 		Schools: schools, From: span.from, To: span.to, SchoolID: filter.SchoolID,
-		AccountID: filter.AccountID, Kind: filter.Kind, Limit: limit, Offset: offset,
+		AccountID: filter.AccountID, StaffIDs: staffIDs, Kind: filter.Kind, Limit: limit, Offset: offset,
 	})
 	if err != nil || len(rows) == 0 {
 		return []traegerview.AccessLogEntry{}, err
 	}
-	schoolRows, err := o.rows.Schools(adminCtx, schools)
+	schoolNames, err := o.schoolNames(adminCtx, schools)
 	if err != nil {
 		return nil, err
 	}
-	schoolNames := make(map[int64]string, len(schoolRows))
-	for _, school := range schoolRows {
-		schoolNames[school.ID] = school.Name
-	}
-	accounts := make([]int64, 0, len(rows))
-	for _, row := range rows {
-		if row.AccountID != nil {
-			accounts = append(accounts, *row.AccountID)
-		}
-	}
-	names, err := o.accountNames(adminCtx, viewer.OrganizationID, accounts)
+	accounts, staff := rowActors(rows)
+	names, err := o.actorIndex(adminCtx, viewer.OrganizationID, schools, accounts, staff)
 	if err != nil {
 		return nil, err
 	}
 	entries := make([]traegerview.AccessLogEntry, 0, len(rows))
 	for _, row := range rows {
+		resolved := names.resolve(row.SchoolID, row.AccountID, row.StaffID, row.ActorNameSnapshot)
 		entries = append(entries, traegerview.AccessLogEntry{
 			ID: fmt.Sprintf("%s-%s-%d", row.Kind, row.Data, row.ID), OccurredAt: row.OccurredAt, SchoolID: row.SchoolID, SchoolName: schoolNames[row.SchoolID],
-			AccountID: row.AccountID, Person: names.person(row.SchoolID, row.AccountID, row.ActorNameSnapshot),
-			Kind: row.Kind, Data: row.Data, DataLabel: dataLabel(row.Data),
+			AccountID: resolved.account, Person: resolved.name, Kind: row.Kind, Data: row.Data, DataLabel: dataLabel(row.Data),
 		})
 	}
 	return entries, nil
 }
 
-type accountSchool struct{ account, school int64 }
-
-// accountNameIndex holds the persons of accounts at schools and the
-// addresses of the Träger-Büro.
-type accountNameIndex struct {
-	persons map[accountSchool]string
-	bureau  map[int64]string
+// schoolNames names the schools of the set.
+func (o *Overview) schoolNames(adminCtx context.Context, schools []int64) (map[int64]string, error) {
+	rows, err := o.rows.Schools(adminCtx, schools)
+	if err != nil {
+		return nil, err
+	}
+	names := make(map[int64]string, len(rows))
+	for _, school := range rows {
+		names[school.ID] = school.Name
+	}
+	return names, nil
 }
 
-func (o *Overview) accountNames(adminCtx context.Context, organizationID int64, accounts []int64) (accountNameIndex, error) {
-	index := accountNameIndex{persons: map[accountSchool]string{}, bureau: map[int64]string{}}
-	slices.Sort(accounts)
-	accounts = slices.Compact(accounts)
-	if len(accounts) == 0 {
-		return index, nil
-	}
-	persons, err := o.persons.PersonNames(adminCtx, accounts)
-	if err != nil {
-		return index, err
-	}
-	for _, name := range persons {
-		index.persons[accountSchool{account: name.AccountID, school: name.SchoolID}] = name.Name
-	}
-	addresses, err := o.bureau.BureauAddresses(adminCtx, organizationID, accounts)
-	if err != nil {
-		return index, err
-	}
-	for _, name := range addresses {
-		index.bureau[name.AccountID] = name.Name
-	}
-	return index, nil
-}
-
-// person names the actor of an entry: the person of the account at the
-// entry's school, else the name the ledger stored, else the account's
-// address in the Träger-Büro.
-func (i accountNameIndex) person(school int64, account *int64, snapshot string) string {
-	if account == nil {
-		if snapshot != "" {
-			return snapshot
+// rowActors collects the accounts and staff IDs the entries name.
+func rowActors(rows []traegerview.AccessTrailEntry) (accounts, staff []int64) {
+	for _, row := range rows {
+		if row.AccountID != nil {
+			accounts = append(accounts, *row.AccountID)
 		}
-		return personWithoutAccount
+		if row.StaffID != nil {
+			staff = append(staff, *row.StaffID)
+		}
 	}
-	if name := i.persons[accountSchool{account: *account, school: school}]; name != "" {
-		return name
-	}
-	if snapshot != "" {
-		return snapshot
-	}
-	if address := i.bureau[*account]; address != "" {
-		return address + traegerBueroSuffix
-	}
-	return personUnknown
+	return accounts, staff
 }
 
 func entrySchools(entries []traegerview.AccessLogEntry) map[int64]int {
