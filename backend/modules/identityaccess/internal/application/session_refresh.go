@@ -75,6 +75,12 @@ func (s *AccountAuthentication) doRefreshTokenWithAudit(ctx context.Context, ref
 		s.logRefreshDecision("refresh_session_rejected", "school_token_without_tenant", claims.AccountID, claims.TenantID)
 		return nil, failed("refresh school session", identityaccess.ErrTenantAccessDenied)
 	}
+	// A portal whose module the school no longer books renews no session
+	// (#4895). Refused before the rotation, like the checks above.
+	if err := s.requirePortalBookedForRefresh(ctx, claims); err != nil {
+		s.logRefreshDecision("refresh_session_rejected", "portal_module_not_booked", claims.AccountID, claims.TenantID)
+		return nil, err
+	}
 	// Every refresh carries its authorization and its claims into the
 	// rotation transaction: either the rotation and the claims commit
 	// together, or the transaction rolls back and the presented refresh

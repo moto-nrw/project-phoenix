@@ -2,6 +2,7 @@ package notifications_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -18,7 +19,7 @@ import (
 func settingsWithWindow(start, end string) *settingsDouble {
 	return &settingsDouble{
 		ResolveBoolForTenantFn: func(_ context.Context, _ int64, key string) (bool, error) {
-			return key == "notifications.dispatch_enabled", nil
+			return key == "notifications.dispatch_enabled" || strings.HasPrefix(key, "module."), nil
 		},
 		ResolveStringForTenantFn: func(_ context.Context, _ int64, key string) (string, error) {
 			switch key {

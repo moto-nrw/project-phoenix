@@ -1433,6 +1433,25 @@
       "tooMany": "Buraya en fazla {count} dosya yükleyebilirsiniz.",
       "pendingSubmit": "Lütfen tüm dosyalar yüklenene kadar bekleyin.",
       "previewDisabled": "Önizlemede dosya yükleyemezsiniz."
+    },
+    "signature": {
+      "label": "İmzanız",
+      "hint": "Alana parmağınızla, kalemle veya fareyle imza atın.",
+      "canvas": "İmza alanı",
+      "clear": "Alanı temizle",
+      "typeInstead": "Adınızı yazın",
+      "drawInstead": "Bunun yerine çiz",
+      "typedName": "Adınız ve soyadınız",
+      "confirm": "İmzayı onayla",
+      "confirmed": "İmzanız hazır.",
+      "confirmedTyped": "Yazdığınız ad hazır.",
+      "change": "Yeniden imzala",
+      "preview": "İmzanız",
+      "emptyDrawing": "Lütfen alana imza atın.",
+      "nameTooShort": "Lütfen adınızı yazın.",
+      "title": "İmza",
+      "description": "Lütfen kaydı imzalayın. İmza olmadan kayıt OGS’ye ulaşmaz.",
+      "required": "Lütfen kaydı imzalayın."
     }
   },
   "enrollmentStatus": {
@@ -1635,7 +1654,17 @@
     "noAccountHelp": "E-postayı bulamıyor musunuz? Spam klasörüne de bakın. E-posta yok veya bağlantı artık çalışmıyor mu? Lütfen OGS ile iletişime geçin.",
     "unavailableAccountTitle": "Veli uygulamasına erişemiyorsunuz",
     "unavailableAccountHelp": "Lütfen OGS ile iletişime geçin. OGS size yardımcı olacaktır.",
-    "noAccessFallback": "Henüz erişiminiz yok mu? “Einladung zum Eltern-Portal” başlıklı e-postayı açın. E-posta gelmedi mi? Lütfen OGS ile iletişime geçin."
+    "noAccessFallback": "Henüz erişiminiz yok mu? “Einladung zum Eltern-Portal” başlıklı e-postayı açın. E-posta gelmedi mi? Lütfen OGS ile iletişime geçin.",
+    "signatureTitle": "İmza",
+    "signatureSigned": "{name} tarafından {date} tarihinde imzalandı.",
+    "signatureDrawn": "Parmak, kalem veya fare ile çizildi.",
+    "signatureTyped": "Yazılan ad: {name}",
+    "signatureChanged": "Dikkat: Kayıtlı belge sonradan değiştirildi. Lütfen OGS ile iletişime geçin.",
+    "signatureDownload": "PDF olarak belge",
+    "signatureDownloading": "Belge yükleniyor …",
+    "signatureEditHint": "Kaydı değiştirirseniz yeniden imzalarsınız.",
+    "errorObjectProof": "belge",
+    "signatureEyebrow": "Belge"
   },
   "parentRequestEdit": {
     "title": "Talebi düzenle",
@@ -2532,6 +2561,9 @@
         "waitlist_disabled": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "window_closed": "Kayıt süresi bitti veya henüz başlamadı. Lütfen okulla iletişime geçin.",
         "withdraw_not_allowed": "Bu kayıt artık geri çekilemez. Lütfen okulla iletişime geçin.",
+        "signature_required": "Lütfen kaydı imzalayın.",
+        "signature_invalid": "İmza okunamadı. Lütfen tekrar imzalayın.",
+        "signature_not_found": "Bu kayıt için imza yok.",
         "holiday_host_school_outside_traeger": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "holiday_period_incomplete": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "holiday_period_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",

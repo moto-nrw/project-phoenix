@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   render,
   screen,
@@ -4618,5 +4618,149 @@ describe("anonymous enrollment information attachments", () => {
       "5",
       { lateInviteToken: undefined },
     );
+  });
+});
+
+describe("EnrollmentForm signature (#4786)", () => {
+  const PNG_DATA_URL = "data:image/png;base64,iVBORw0KGgo=";
+
+  beforeEach(() => {
+    mockIntlLocale.value = "de";
+    mockFetchPublicActiveSchema.mockReset();
+    mockFetchPublicCaptchaConfig.mockReset();
+    mockFetchPublicLegalTexts.mockReset();
+    mockFetchPublicCareOfferings.mockReset();
+    mockFetchMyEnrollmentProfile.mockReset();
+    mockSubmitEnrollment.mockReset();
+    mockFetchPublicActiveSchema.mockResolvedValue({
+      ...schema(),
+      core_requirements: { signature: true },
+    });
+    mockFetchPublicCaptchaConfig.mockResolvedValue({
+      enabled: false,
+      site_key: "",
+    });
+    mockFetchPublicLegalTexts.mockResolvedValue(legalTexts());
+    mockFetchPublicCareOfferings.mockResolvedValue({
+      offerings: [],
+      careOfferingSelectionMode: "optional",
+      careRequired: false,
+    });
+    mockFetchMyEnrollmentProfile.mockResolvedValue(null);
+    mockSubmitEnrollment.mockResolvedValue({ status_url: "/status/abc" });
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(
+      () =>
+        ({
+          clearRect: vi.fn(),
+          beginPath: vi.fn(),
+          moveTo: vi.fn(),
+          lineTo: vi.fn(),
+          stroke: vi.fn(),
+          fillText: vi.fn(),
+          measureText: vi.fn(() => ({ width: 10 })),
+        }) as unknown as CanvasRenderingContext2D,
+    );
+    vi.spyOn(HTMLCanvasElement.prototype, "toDataURL").mockReturnValue(
+      PNG_DATA_URL,
+    );
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  function sign() {
+    const canvas = screen.getByRole("img", { name: "Feld zum Unterschreiben" });
+    fireEvent.pointerDown(canvas, { clientX: 5, clientY: 5, pointerId: 1 });
+    fireEvent.pointerMove(canvas, { clientX: 30, clientY: 20, pointerId: 1 });
+    fireEvent.pointerUp(canvas, { pointerId: 1 });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Unterschrift bestätigen" }),
+    );
+  }
+
+  it("refuses to submit without the signature, then sends it", async () => {
+    renderForm();
+    await waitForLoaded();
+    expect(
+      screen.getByRole("heading", { name: "Unterschrift" }),
+    ).toBeInTheDocument();
+    await fillRequiredFields();
+
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+    expect(
+      await screen.findAllByText("Bitte unterschreiben Sie die Anmeldung."),
+    ).not.toHaveLength(0);
+    expect(mockSubmitEnrollment).not.toHaveBeenCalled();
+    expect(document.getElementById("signature-error")).toHaveTextContent(
+      "Bitte unterschreiben Sie die Anmeldung.",
+    );
+
+    sign();
+    expect(
+      screen.getByText("Ihre Unterschrift ist bereit."),
+    ).toBeInTheDocument();
+    expect(document.getElementById("signature-error")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+    await waitFor(() => {
+      expect(mockSubmitEnrollment).toHaveBeenCalledTimes(1);
+    });
+    const [, payload] = mockSubmitEnrollment.mock.calls[0] as [
+      string,
+      SubmitEnrollmentPayload,
+    ];
+    expect(payload.signature).toEqual({
+      method: "drawn",
+      image_png: "iVBORw0KGgo=",
+    });
+  });
+
+  it("requires a new signature after signed enrollment data changes", async () => {
+    renderForm();
+    await waitForLoaded();
+    await fillRequiredFields();
+    sign();
+    expect(
+      screen.getByText("Ihre Unterschrift ist bereit."),
+    ).toBeInTheDocument();
+
+    fireEvent.change(screen.getAllByLabelText("Vorname *")[0]!, {
+      target: { value: "Maria" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+
+    expect(
+      await screen.findAllByText("Bitte unterschreiben Sie die Anmeldung."),
+    ).not.toHaveLength(0);
+    expect(mockSubmitEnrollment).not.toHaveBeenCalled();
+  });
+
+  it("leaves the signature out where the form does not require it", async () => {
+    mockFetchPublicActiveSchema.mockResolvedValue(schema());
+    renderForm();
+    await waitForLoaded();
+    expect(screen.getByRole("heading", { name: "Kind 1" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("img", { name: "Feld zum Unterschreiben" }),
+    ).not.toBeInTheDocument();
+    await fillRequiredFields();
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+    await waitFor(() => {
+      expect(mockSubmitEnrollment).toHaveBeenCalledTimes(1);
+    });
+    const [, payload] = mockSubmitEnrollment.mock.calls[0] as [
+      string,
+      SubmitEnrollmentPayload,
+    ];
+    expect(payload.signature).toBeUndefined();
+  });
+
+  it("shows no signature field for a change request", async () => {
+    renderForm({ withoutSignature: true });
+    await waitForLoaded();
+    expect(screen.getByRole("heading", { name: "Kind 1" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("img", { name: "Feld zum Unterschreiben" }),
+    ).not.toBeInTheDocument();
   });
 });

@@ -2,6 +2,9 @@
 package common
 
 const (
+	CodeIdentityPreviewTokenInvalid                    = "identity.preview_token_invalid"
+	CodeIdentityReadOnlyPreview                        = "identity.read_only_preview"
+	CodeIdentityRoleNameTaken                          = "identity.role_name_taken"
 	CodeIdentityRolePlatformPermission                 = "identity.role_platform_permission"
 	CodeIdentitySessionAccountInactive                 = "identity.session_account_inactive"
 	CodeIdentityTenantAccessDenied                     = "identity.tenant_access_denied"
@@ -299,12 +302,12 @@ const (
 	CodeTimetablePickupExtensionBlockGone              = "timetable.pickup_extension_block_gone"
 	CodeTimetablePickupExtensionInvalid                = "timetable.pickup_extension_invalid"
 	CodeTimetablePickupExtensionNotFound               = "timetable.pickup_extension_not_found"
-	CodeTimetablePickupExtensionTooManyBlocks          = "timetable.pickup_extension_too_many_blocks"
-	CodeTimetablePlanningTrackArchived                 = "timetable.planning_track_archived"
-	CodeTimetablePlanningTrackInvalid                  = "timetable.planning_track_invalid"
 )
 
 var errorCodeClasses1 = map[string]string{
+	"identity.preview_token_invalid":                       "permission",
+	"identity.read_only_preview":                           "permission",
+	"identity.role_name_taken":                             "business_rejection",
 	"identity.role_platform_permission":                    "input",
 	"identity.session_account_inactive":                    "permission",
 	"identity.tenant_access_denied":                        "permission",
@@ -602,9 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.pickup_extension_block_gone":                "business_rejection",
 	"timetable.pickup_extension_invalid":                   "input",
 	"timetable.pickup_extension_not_found":                 "business_rejection",
-	"timetable.pickup_extension_too_many_blocks":           "input",
-	"timetable.planning_track_archived":                    "business_rejection",
-	"timetable.planning_track_invalid":                     "input",
 }
 
 func init() {

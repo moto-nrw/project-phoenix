@@ -76,6 +76,9 @@ type SubmitEnrollmentRequest struct {
 	Children            []SubmitChildRequest    `json:"children"`
 	CaptchaToken        string                  `json:"captcha_token,omitempty"`
 	LateInviteToken     string                  `json:"late_invite_token,omitempty"`
+	// Signature is the parent's signature (#4786), required when the form
+	// asks for one.
+	Signature *SubmitSignatureRequest `json:"signature,omitempty"`
 }
 
 // Bind defaults nil maps + slices to empty so downstream code doesn't
@@ -211,6 +214,7 @@ func buildServiceRequest(wireReq *SubmitEnrollmentRequest, tenantID int64, remot
 		ConsentFlags:      wireReq.ConsentFlags,
 		CustomData:        wireReq.CustomData,
 		LateInviteToken:   wireReq.LateInviteToken,
+		Signature:         wireReq.Signature.value(),
 	}
 	for _, g := range wireReq.AdditionalGuardians {
 		out.AdditionalGuardians = append(out.AdditionalGuardians, SubmitGuardian{

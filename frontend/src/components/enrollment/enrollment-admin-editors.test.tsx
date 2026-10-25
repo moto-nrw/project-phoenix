@@ -253,6 +253,7 @@ vi.mock("~/components/enrollment/enrollment-form", () => ({
   EnrollmentForm: (props: {
     lockChildStructure?: boolean;
     gradeLevelMax?: number;
+    withoutSignature?: boolean;
   }) => {
     mocks.enrollmentFormProps.push(props);
     return (
@@ -2598,6 +2599,7 @@ describe("PhasesEditor", () => {
     expect(mocks.enrollmentFormProps.at(-1)).toMatchObject({
       lockChildStructure: true,
       gradeLevelMax: 13,
+      withoutSignature: true,
     });
   });
 
@@ -3225,6 +3227,50 @@ describe("EnrollmentFormEditor", () => {
       );
     });
     expect(mocks.updateSchema).not.toHaveBeenCalled();
+  });
+
+  it("switches the parent's signature on for the whole form (#4786)", async () => {
+    mocks.listSchemas.mockResolvedValue([schema()]);
+    mocks.listPhases.mockResolvedValue([]);
+    mocks.updateSchema.mockResolvedValue(schema());
+
+    render(<EnrollmentFormEditor />);
+    expect(
+      await screen.findByText("Anmeldeformulare verwalten"),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Aktionen für Regelformular" }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Bearbeiten" }),
+    );
+
+    expect(
+      await screen.findByText(
+        "Eltern senden die Anmeldung ohne Unterschrift ab.",
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("switch", { name: "Unterschrift erforderlich" }),
+    );
+    expect(
+      screen.getByText(
+        /Ohne Unterschrift lässt sich die Anmeldung nicht absenden/,
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Änderungen speichern" }),
+    );
+
+    await waitFor(() => {
+      expect(mocks.updateSchema).toHaveBeenCalledWith(
+        "schema-1",
+        expect.anything(),
+        expect.objectContaining({ signature: true }),
+        expect.anything(),
+        undefined,
+      );
+    });
   });
 
   it("renames AND publishes in one atomic request when name and content both change", async () => {
