@@ -8,7 +8,7 @@
 import { clientEnv } from "~/env.client";
 
 /** The entry page on the school's host. */
-export const TRAEGER_HANDOFF_PATH = "/traeger-uebergabe";
+const TRAEGER_HANDOFF_PATH = "/traeger-uebergabe";
 
 /** Texts of the Absprung, shared by the Träger portal and the entry page. */
 export const TRAEGER_HANDOFF_OPEN = "Öffnen";
