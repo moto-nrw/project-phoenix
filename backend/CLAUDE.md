@@ -92,7 +92,9 @@ allowlist around it.
 
 ## Tenant-Scoped Settings
 
-Per-school config resolves tenant DB override → registry default only. Consumers
+Per-school config resolves school override → Träger value → registry default only
+(ADR 0086; the Träger level exists only for definitions with `Levels` `beide`
+or `traeger`). Consumers
 must not append env fallbacks, including legacy compatibility chains. Use
 `Resolve*(ctx, key)` inside tenant middleware and
 `Resolve*ForTenant(ctx, tenantID, key)` outside it (device auth, scheduler loops).

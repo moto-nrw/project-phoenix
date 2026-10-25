@@ -324,6 +324,51 @@ describe("ParentStartPage", () => {
       ).toEqual(Array(rows.length).fill("blue"));
     });
 
+    it("fuehrt eine offene Umfrage mit Fragebogen als Umfrage oben, eine beantwortete nicht", async () => {
+      mockedAnnouncements.mockResolvedValue([
+        announcement({
+          id: "news",
+          title: "Sommerfest",
+          published_at: "2026-08-16T06:00:00Z",
+        }),
+        announcement({
+          id: "survey-open",
+          title: "Elternbefragung zum Schuljahr",
+          read: true,
+          system_kind: "survey",
+          survey: {
+            survey_id: "7",
+            anonymous: true,
+            closes_at: "2026-09-30T16:00:00Z",
+            participated: false,
+          },
+        }),
+        announcement({
+          id: "survey-done",
+          title: "Befragung zum Mittagessen",
+          read: true,
+          system_kind: "survey",
+          survey: {
+            survey_id: "8",
+            anonymous: true,
+            closes_at: "2026-09-30T16:00:00Z",
+            participated: true,
+          },
+        }),
+      ]);
+
+      renderPage();
+
+      const heading = await screen.findByRole("heading", {
+        name: "Zu erledigen",
+      });
+      const rows = within(heading.closest("section")!).getAllByRole("listitem");
+      expect(rows.map((row) => row.textContent)).toEqual([
+        "Elternbefragung zum SchuljahrUmfrage · Schule am BergHeute, 08:00",
+        "Ungelesen: SommerfestElternbrief · Schule am Berg16.08., 08:00",
+      ]);
+    });
+
     it("laesst erledigte oder nicht handlungsrelevante Eintraege weg", async () => {
       mockedAnnouncements.mockResolvedValue([
         announcement({ id: "read", read: true }),

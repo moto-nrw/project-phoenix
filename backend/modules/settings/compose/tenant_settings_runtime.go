@@ -48,6 +48,11 @@ func (r TenantSettingsRuntime) WithinAdmin(ctx context.Context, fn func(context.
 	return tenant.WithAdminTx(app.AttachSettingUnit(ctx, r.unit, tenant.WithUnitOfWork), r.db, app.SettingContextCallback[bun.Tx](fn))
 }
 
+// WithinTraeger opens the Träger transaction of ADR 0086 section 5.
+func (r TenantSettingsRuntime) WithinTraeger(ctx context.Context, organizationID int64, fn func(context.Context) error) error {
+	return tenant.WithinTraeger(app.AttachSettingUnit(ctx, r.unit, tenant.WithUnitOfWork), organizationID, fn)
+}
+
 func (r TenantSettingsRuntime) AcquireLock(ctx context.Context, key string, shared bool) error {
 	return tenant.AcquireLock(app.AttachSettingUnit(ctx, r.unit, tenant.WithUnitOfWork), key, shared)
 }

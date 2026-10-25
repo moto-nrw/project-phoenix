@@ -1053,9 +1053,9 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": []any{}})
 			return
 		}
-		// The Träger-Büro step signs in to the Träger-Portal (#4650) in every
-		// profile; that login answers without the envelope, like the other
-		// portal logins.
+		// The Träger-Büro and Träger settings steps sign in to the
+		// Träger-Portal (#4650, #4652) in every profile; that login answers
+		// without the envelope, like the other portal logins.
 		if r.Method == seedHTTPMethodPost && r.URL.Path == "/traeger/auth/login" {
 			_ = json.NewEncoder(w).Encode(map[string]string{
 				"status": "authenticated", "access_token": "traeger-token", "refresh_token": "traeger-refresh",
@@ -1382,6 +1382,20 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 		// none in the range.
 		if r.Method == seedHTTPMethodGet && strings.HasPrefix(r.URL.Path, "/api/staff/") && strings.HasSuffix(r.URL.Path, "/absences") {
 			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": []any{}})
+			return
+		}
+		// Surveys (#4781): a created survey carries its questions; the
+		// parents' news lists no survey, so nobody answers it in the mock.
+		if r.Method == seedHTTPMethodPost && r.URL.Path == "/api/surveys/" {
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{
+				"id": fmt.Sprintf("%d", idCounter),
+				"questions": []map[string]any{
+					{"id": "1", "kind": "scale", "options": []any{}},
+					{"id": "2", "kind": "single", "options": []map[string]any{{"id": "21"}, {"id": "22"}}},
+					{"id": "3", "kind": "multiple", "options": []map[string]any{{"id": "31"}, {"id": "32"}, {"id": "33"}}},
+					{"id": "4", "kind": "text", "options": []any{}},
+				},
+			}})
 			return
 		}
 		if r.Method == seedHTTPMethodPost && r.URL.Path == "/api/messages/group-threads" {

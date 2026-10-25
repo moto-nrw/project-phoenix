@@ -93,19 +93,33 @@ func resolveSchemaField(key string, def *config.Definition, snapshot *config.Set
 		)
 		return nil
 	}
+	source, inherited, traegerChangedAt, err := snapshot.Layer(key)
+	if err != nil {
+		logger.Warn("failed to inspect setting level",
+			"key", key,
+			"error", err.Error(),
+		)
+		return nil
+	}
+	// IsDefault means "nothing of the school's own": a reset changes
+	// nothing. The school inherits the Träger value where there is one.
 	isDefault := !hasOverride
 	if def.Type == config.FieldBoolean {
-		isDefault = jsonValuesEqual(value, def.Default)
+		isDefault = jsonValuesEqual(value, inherited)
 	}
 	displayValue := value
 	if def.Type == config.FieldPassword && value != nil && value != "" {
 		displayValue = "••••••"
 	}
-	writable := isOperator || (def.AccessPolicy != config.AccessOperatorManaged && (def.WritePermission == "" || hasPermission(def.WritePermission, userPermissions)))
+	// A Träger-only setting has no school override: neither the school nor
+	// the moto team writes it per school (ADR 0086 section 6).
+	writable := def.Levels != config.LevelTraeger && (isOperator || (def.AccessPolicy != config.AccessOperatorManaged &&
+		(def.WritePermission == "" || hasPermission(def.WritePermission, userPermissions))))
 	return &config.ResolvedSetting{
 		Key: key, Label: def.Label, Description: def.Description, Type: def.Type, Default: def.Default,
 		Value: displayValue, IsDefault: isDefault, Writable: writable, Visible: true, SortOrder: def.SortOrder,
-		AccessPolicy: def.AccessPolicy, Validation: def.Validation, DependsOn: def.DependsOn, Options: def.Options,
+		AccessPolicy: def.AccessPolicy, Levels: def.Levels, Source: source, TraegerChangedAt: traegerChangedAt,
+		Validation: def.Validation, DependsOn: def.DependsOn, Options: def.Options,
 	}
 }
 

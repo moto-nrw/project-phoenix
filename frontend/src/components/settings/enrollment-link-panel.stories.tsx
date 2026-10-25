@@ -23,6 +23,8 @@ function buildTab(enabled: boolean): SchemaTab {
             visible: true,
             sort_order: 0,
             access_policy: "shared",
+            levels: "schule",
+            source: "school",
           },
         ],
       },

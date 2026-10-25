@@ -4,7 +4,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const { captureException } = vi.hoisted(() => ({ captureException: vi.fn() }));
 vi.mock("@sentry/nextjs", () => ({ captureException }));
 
-import { createFileExportRoute } from "./export-proxy.server";
+import {
+  createFileDownloadRoute,
+  createFileExportRoute,
+} from "./export-proxy.server";
 import type { ExtendedSession } from "~/test/route-test-helpers";
 
 // The shared body of the export routes that answer with a file. It bypasses
@@ -248,5 +251,67 @@ describe("createFileExportRoute", () => {
     expect(captureException).toHaveBeenCalledExactlyOnceWith(failure, {
       tags: { request_id: "0b6f3f4e-5c1d-4a52-9d57-2d3c1b5e8f10" },
     });
+  });
+});
+
+describe("createFileDownloadRoute", () => {
+  const download = createFileDownloadRoute<{ surveyId: string }>({
+    backendPath: ({ surveyId }) =>
+      `/api/surveys/${encodeURIComponent(surveyId)}/results/export`,
+    component: "TestDownloadRoute",
+  });
+  const request = () =>
+    new NextRequest("http://localhost:3000/api/surveys/7/results/export");
+  const context = { params: Promise.resolve({ surveyId: "7" }) };
+
+  it("refuses an unauthenticated request before calling the backend", async () => {
+    mockAuth.mockResolvedValue(null);
+    const fetchMock = vi.fn();
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const response = await download(request(), context);
+
+    expect(response.status).toBe(401);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("GETs the object path and passes the PDF with its filename through", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(fileResponse());
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const response = await download(request(), context);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://server:8080/api/surveys/7/results/export",
+      expect.objectContaining({
+        method: "GET",
+        headers: expect.objectContaining({ Authorization: "Bearer token-1" }),
+      }),
+    );
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("application/pdf");
+    expect(response.headers.get("content-disposition")).toBe(
+      'attachment; filename="Dienstplan.pdf"',
+    );
+    expect(response.headers.get("cache-control")).toBe("no-store");
+  });
+
+  it("retries once with a refreshed token after a 401", async () => {
+    mockUncachedAuth.mockResolvedValue(session("token-2"));
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(null, { status: 401 }))
+      .mockResolvedValueOnce(fileResponse());
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const response = await download(request(), context);
+
+    expect(response.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[1]?.[1]).toEqual(
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: "Bearer token-2" }),
+      }),
+    );
   });
 });

@@ -2,9 +2,10 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { _resetTraegerHostCache } from "~/lib/traeger-url";
 
-const { mockSignOut, mockPush, sessionUser } = vi.hoisted(() => ({
+const { mockSignOut, mockPush, mockPathname, sessionUser } = vi.hoisted(() => ({
   mockSignOut: vi.fn(),
   mockPush: vi.fn(),
+  mockPathname: vi.fn(() => "/"),
   sessionUser: {
     email: "buero@traeger.example",
     permissions: [] as string[],
@@ -13,7 +14,7 @@ const { mockSignOut, mockPush, sessionUser } = vi.hoisted(() => ({
 
 vi.mock("next/navigation", async (importOriginal) => ({
   ...(await importOriginal<typeof import("next/navigation")>()),
-  usePathname: () => "/",
+  usePathname: () => mockPathname(),
   useRouter: () => ({ push: mockPush }),
 }));
 
@@ -148,5 +149,34 @@ describe("TraegerShell", () => {
     );
     expect(mockPush).toHaveBeenLastCalledWith("/access-log");
     sessionUser.permissions = [];
+  });
+
+  // #4652: the settings open with the right to read the overview, and the
+  // help opens the article of the page the person is on.
+  it("leads to the settings and opens their help article there", () => {
+    sessionUser.permissions = ["traeger_overview:read"];
+    const { unmount } = render(
+      <TraegerShell>
+        <p>Inhalt</p>
+      </TraegerShell>,
+    );
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Einstellungen" })[0]!,
+    );
+    expect(mockPush).toHaveBeenLastCalledWith("/einstellungen");
+    unmount();
+
+    mockPathname.mockReturnValue("/einstellungen");
+    render(
+      <TraegerShell>
+        <p>Inhalt</p>
+      </TraegerShell>,
+    );
+    expect(screen.getByRole("link", { name: "Hilfe" })).toHaveAttribute(
+      "href",
+      "/help/traeger-einstellungen?role=traeger&return_to=%2Feinstellungen",
+    );
+    sessionUser.permissions = [];
+    mockPathname.mockReturnValue("/");
   });
 });

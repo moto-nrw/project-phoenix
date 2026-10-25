@@ -2,6 +2,10 @@
 package common
 
 const (
+	CodeIdentityPasskeyLoginFailed                     = "identity.passkey_login_failed"
+	CodeIdentityPasskeyNotFound                        = "identity.passkey_not_found"
+	CodeIdentityPasswordMismatch                       = "identity.password_mismatch"
+	CodeIdentityPasswordResetLinkInvalid               = "identity.password_reset_link_invalid"
 	CodeIdentityPasswordResetRateLimited               = "identity.password_reset_rate_limited"
 	CodeIdentityPasswordTooWeak                        = "identity.password_too_weak"
 	CodeIdentityPreviewTargetNotPreviewable            = "identity.preview_target_not_previewable"
@@ -298,13 +302,13 @@ const (
 	CodeTimetableNoStaffProfile                        = "timetable.no_staff_profile"
 	CodeTimetableOfferingSourceInactive                = "timetable.offering_source_inactive"
 	CodeTimetableOfferingSourceInvalid                 = "timetable.offering_source_invalid"
-	CodeTimetableOfferingSourceMixedPhases             = "timetable.offering_source_mixed_phases"
-	CodeTimetableOfferingSourceNotFound                = "timetable.offering_source_not_found"
-	CodeTimetableOfferingSourceOutsidePeriod           = "timetable.offering_source_outside_period"
-	CodeTimetableOfferingSourceTooMany                 = "timetable.offering_source_too_many"
 )
 
 var errorCodeClasses1 = map[string]string{
+	"identity.passkey_login_failed":                        "business_rejection",
+	"identity.passkey_not_found":                           "business_rejection",
+	"identity.password_mismatch":                           "input",
+	"identity.password_reset_link_invalid":                 "business_rejection",
 	"identity.password_reset_rate_limited":                 "unavailable",
 	"identity.password_too_weak":                           "input",
 	"identity.preview_target_not_previewable":              "permission",
@@ -601,10 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.no_staff_profile":                           "permission",
 	"timetable.offering_source_inactive":                   "business_rejection",
 	"timetable.offering_source_invalid":                    "input",
-	"timetable.offering_source_mixed_phases":               "input",
-	"timetable.offering_source_not_found":                  "business_rejection",
-	"timetable.offering_source_outside_period":             "business_rejection",
-	"timetable.offering_source_too_many":                   "input",
 }
 
 func init() {

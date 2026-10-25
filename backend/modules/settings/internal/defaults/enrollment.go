@@ -147,6 +147,7 @@ func registerEnrollmentLegalTexts() {
 var enrollment_registerEnrollmentLegalTexts_rechtstexte_0Definitions = []config.Definition{
 	{
 		Key:             config.KeyEnrollmentLegalTermsEnabled,
+		Levels:          config.LevelBoth,
 		Label:           "AGB / Teilnahmebedingungen im Anmeldeformular anzeigen",
 		Description:     "Eltern müssen im Anmeldeformular den AGB, Teilnahmebedingungen oder dem Ganztag Info-Brief zustimmen. Nur einschalten, wenn Ihr Träger wirklich Vertragsbedingungen verwendet.",
 		Type:            config.FieldBoolean,
@@ -160,6 +161,7 @@ var enrollment_registerEnrollmentLegalTexts_rechtstexte_0Definitions = []config.
 	},
 	{
 		Key:             config.KeyEnrollmentLegalAGBText,
+		Levels:          config.LevelBoth,
 		Label:           "AGB-Text (Anmeldeformular)",
 		Description:     "Legen Sie fest, ob Eltern die AGB als Text im Formular lesen oder als PDF öffnen. Über „AGB überarbeiten“ wechseln Sie die Quelle, bearbeiten den Text oder tauschen die PDF-Datei aus.",
 		Type:            config.FieldTextarea,
@@ -205,6 +207,7 @@ var enrollment_registerEnrollmentLegalTexts_rechtstexte_0Definitions = []config.
 	},
 	{
 		Key:             config.KeyEnrollmentLegalDSGVOEnabled,
+		Levels:          config.LevelBoth,
 		Label:           "Datenschutzinformation im Anmeldeformular anzeigen",
 		Description:     "Eltern bestätigen im Anmeldeformular, dass sie die Datenschutzinformation gelesen haben.",
 		Type:            config.FieldBoolean,
@@ -217,8 +220,9 @@ var enrollment_registerEnrollmentLegalTexts_rechtstexte_0Definitions = []config.
 		DependsOn:       dependsOnEnabled,
 	},
 	{
-		Key:   config.KeyEnrollmentLegalDSGVOText,
-		Label: "Datenschutzinformation (Anmeldeformular)",
+		Key:    config.KeyEnrollmentLegalDSGVOText,
+		Levels: config.LevelBoth,
+		Label:  "Datenschutzinformation (Anmeldeformular)",
 		// Wording note: enrollment data is processed on a contractual /
 		// legal-obligation basis, NOT on consent. The form therefore asks
 		// parents to ACKNOWLEDGE (Kenntnisnahme) this information, it does
@@ -236,6 +240,7 @@ var enrollment_registerEnrollmentLegalTexts_rechtstexte_0Definitions = []config.
 	},
 	{
 		Key:             config.KeyEnrollmentLegalPhotoEnabled,
+		Levels:          config.LevelBoth,
 		Label:           "Fotoeinwilligung im Anmeldeformular anzeigen",
 		Description:     "Eltern können im Anmeldeformular freiwillig in Fotos einwilligen.",
 		Type:            config.FieldBoolean,
@@ -249,6 +254,7 @@ var enrollment_registerEnrollmentLegalTexts_rechtstexte_0Definitions = []config.
 	},
 	{
 		Key:             config.KeyEnrollmentLegalPhotoText,
+		Levels:          config.LevelBoth,
 		Label:           "Hinweis zur Fotoeinwilligung (Anmeldeformular)",
 		Description:     "Erklärung zur freiwilligen Fotoeinwilligung, die Eltern jederzeit widerrufen können. Zum Beispiel, wo und wie Sie Fotos verwenden. Markdown ist möglich. Erscheint nur, wenn der Schalter an ist und hier ein Text steht.",
 		Type:            config.FieldTextarea,
@@ -262,6 +268,7 @@ var enrollment_registerEnrollmentLegalTexts_rechtstexte_0Definitions = []config.
 	},
 	{
 		Key:             config.KeyEnrollmentLegalEmailContactEnabled,
+		Levels:          config.LevelBoth,
 		Label:           "E-Mail-Kontakt im Anmeldeformular anzeigen",
 		Description:     "Zeigt im Anmeldeformular einen Hinweis, wofür Sie die E-Mail-Adresse nutzen.",
 		Type:            config.FieldBoolean,
@@ -275,6 +282,7 @@ var enrollment_registerEnrollmentLegalTexts_rechtstexte_0Definitions = []config.
 	},
 	{
 		Key:             config.KeyEnrollmentLegalEmailContactText,
+		Levels:          config.LevelBoth,
 		Label:           "Hinweis zum E-Mail-Kontakt (Anmeldeformular)",
 		Description:     "Wofür die Schule die E-Mail-Adresse nutzt, zum Beispiel für Rückfragen und Nachrichten zum Stand der Anmeldung. Markdown ist möglich. Erscheint nur, wenn der Schalter an ist und hier ein Text steht.",
 		Type:            config.FieldTextarea,

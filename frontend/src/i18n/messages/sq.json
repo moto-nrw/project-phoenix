@@ -2444,7 +2444,11 @@
         "system_announcement_immutable": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "announcement_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "group_thread_closed": "Ky mesazh grupi është mbyllur. Nuk mund të përgjigjeni më.",
-        "group_thread_no_recipients": "Asnjë fëmijë në këtë grup nuk ka prindër me qasje në moto. Mesazhi nuk u dërgua."
+        "group_thread_no_recipients": "Asnjë fëmijë në këtë grup nuk ka prindër me qasje në moto. Mesazhi nuk u dërgua.",
+        "survey_not_open": "Ky sondazh nuk pranon më përgjigje.",
+        "survey_already_answered": "Ju keni marrë pjesë tashmë në këtë sondazh. Përgjigjja nuk mund të ndryshohet.",
+        "survey_not_draft": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "survey_anonymous": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
       },
       "enrollment": {
         "form_attachment_invalid": "Ju lutemi kontrolloni emrin dhe skedarin PDF.",
@@ -3129,7 +3133,9 @@
         "already_member": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "last_administrator": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "member_not_found": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
-        "no_membership": "Nuk keni qasje te: {object}. Kontaktoni shkollën."
+        "no_membership": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
+        "school_not_found": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
+        "second_factor_required": "Nuk keni qasje te: {object}. Kontaktoni shkollën."
       }
     },
     "actions": {
@@ -3145,5 +3151,34 @@
     "title": "Faqja nuk mund të shfaqej",
     "object": "faqja",
     "home": "Te faqja kryesore"
+  },
+  "surveyForm": {
+    "anonymousTitle": "Anonim",
+    "anonymousText": "Shkolla nuk e sheh kush çfarë është përgjigjur. Rezultatet i sheh vetëm pasi të mbarojë anketa dhe kur ka {min} përgjigje.",
+    "anonymousTextHint": "Ju lutemi mos shkruani emra nëse doni të mbeteni anonim.",
+    "notAnonymousTitle": "Jo anonim",
+    "notAnonymousText": "Shkolla e sheh emrin tuaj pranë përgjigjeve tuaja.",
+    "parentOneAnswer": "Ju përgjigjeni një herë për llogarinë tuaj të prindit, jo për çdo fëmijë.",
+    "finalHint": "Pasi ta dërgoni, nuk mund ta ndryshoni më përgjigjen.",
+    "closesAt": "Pjesëmarrja deri më {date}, ora {time}",
+    "closed": "Sondazhi është mbyllur.",
+    "required": "Pyetje e detyrueshme",
+    "multipleHint": "Mund të zgjidhni disa përgjigje",
+    "scaleLegend": "1 = nuk vlen fare, 5 = vlen plotësisht",
+    "scaleLow": "nuk vlen fare",
+    "scaleHigh": "vlen plotësisht",
+    "textLabel": "Përgjigjja juaj",
+    "submit": "Dërgo përgjigjen",
+    "submitting": "Po dërgohet…",
+    "missingRequired": "Ju lutemi, përgjigjuni fillimisht të gjitha pyetjeve të detyrueshme.",
+    "missingField": "Ju lutemi, përgjigjuni kësaj pyetjeje.",
+    "thanksTitle": "Faleminderit, përgjigjja juaj u ruajt.",
+    "thanksText": "Përgjigjja juaj nuk mund të ndryshohet më.",
+    "alreadyTitle": "Ju keni marrë pjesë tashmë.",
+    "loadObject": "sondazhi",
+    "submitObject": "përgjigjja juaj",
+    "participated": "U përgjigj",
+    "needsAnswer": "Nevojitet përgjigje",
+    "questionLabel": "Pyetja {number} nga {total}"
   }
 }

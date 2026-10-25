@@ -99,6 +99,9 @@
     "/[tenant]/team-chat/[threadID]": 996976,
     "/[tenant]/time-tracking": 1294169,
     "/[tenant]/timetables": 970222,
+    "/[tenant]/traeger-uebergabe": 582395,
+    "/[tenant]/umfragen": 1071791,
+    "/[tenant]/umfragen/[id]": 1070444,
     "/[tenant]/vertretung": 1099996,
     "/[tenant]/vertretungsplan": 970219,
     "/_global-error": 304889,
@@ -168,10 +171,11 @@
     "/traeger": 526984,
     "/traeger/access-log": 574841,
     "/traeger/accounts": 548277,
+    "/traeger/einstellungen": 686866,
     "/traeger/invite": 527581,
     "/traeger/ferien": 529643,
     "/traeger/ferien/[id]": 588495,
     "/traeger/ferien/neu": 580446,
-    "/traeger/login": 527781
+    "/traeger/login": 538541
   }
 }

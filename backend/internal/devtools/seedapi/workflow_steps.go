@@ -228,7 +228,7 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 		seedGradeTransitionStep{},
 		seedParentLetterStep{},
 		seedParentPollStep{},
-		seedParentDeclarationStep{},
+		seedParentDeclarationStep{}, seedSurveysStep{},
 		seedInactiveAccountStep{},
 		// Zuletzt: Erst jetzt hat die Demo-Schule alle Daten, die der
 		// Einrichtungs-Assistent als erledigt erkennt (#2832).
@@ -243,7 +243,7 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 			seedEnrollmentBookingsProfileStep{seeder: seeder},
 		)
 	}
-	steps = append(steps, seedStaffPersonMergeStep{}, seedTraegerBueroStep{}, seedTraegerHolidayPeriodStep{}, seedTestTraegerStep{})
+	steps = append(steps, seedStaffPersonMergeStep{}, seedTraegerBueroStep{}, seedTraegerHolidayPeriodStep{}, seedTraegerSettingsStep{}, seedTestTraegerStep{})
 	if !seeder.options.DeferHistory {
 		steps = append(steps, seedChildQuotaStep{}, seedBillingKeyDateCountsStep{})
 	}

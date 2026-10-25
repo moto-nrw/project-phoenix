@@ -637,6 +637,30 @@
       "legacy": "communication.group_thread_no_recipients"
     },
     {
+      "code": "communication.survey_already_answered",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "communication.survey_already_answered"
+    },
+    {
+      "code": "communication.survey_anonymous",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "communication.survey_anonymous"
+    },
+    {
+      "code": "communication.survey_not_draft",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "communication.survey_not_draft"
+    },
+    {
+      "code": "communication.survey_not_open",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "communication.survey_not_open"
+    },
+    {
       "code": "communication.notifications_disabled",
       "class": "business_rejection",
       "parameters": [],
@@ -4201,6 +4225,18 @@
       "class": "permission",
       "parameters": [],
       "legacy": "traeger.no_membership"
+    },
+    {
+      "code": "traeger.second_factor_required",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "traeger.second_factor_required"
+    },
+    {
+      "code": "traeger.school_not_found",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "traeger.school_not_found"
     },
     {
       "code": "workforce.absence_allowance_exceeded",

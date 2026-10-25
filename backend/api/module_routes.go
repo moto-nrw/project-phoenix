@@ -92,6 +92,8 @@ var moduleRouteRules = []moduleRouteRule{
 	{"/api/statistics", moduleRouteBasis},
 	{"/api/students", moduleRouteBasis},
 	{"/api/substitutions", moduleRouteBasis},
+	// Staff and parent surveys (#4781); see docs/reference/modulschalter.md.
+	{"/api/surveys", moduleRouteBasis},
 	{"/api/timetable", moduleRouteBasis},
 	{"/api/users", moduleRouteBasis},
 

@@ -106,6 +106,9 @@ export const TRACKED_TENANT_ROUTE_TEMPLATES = [
   "/tagesplan",
   "/time-tracking",
   "/timetables",
+  // Umfragen (#4781): nur die Route, nie ein Titel oder eine Antwort.
+  "/umfragen",
+  "/umfragen/:id",
   "/vertretung",
   "/vertretungsplan",
 ] as const;
@@ -124,6 +127,7 @@ export const TRACKED_TENANT_PUBLIC_ROUTE_TEMPLATES = [
   "/display",
   "/invite",
   "/reset-password",
+  "/traeger-uebergabe",
 ] as const;
 
 /** Parents portal pages under `app/parents`, as the parents host shows them. */
@@ -179,6 +183,7 @@ export const TRACKED_TRAEGER_ROUTE_TEMPLATES = [
   "/",
   "/access-log",
   "/accounts",
+  "/einstellungen",
   "/ferien",
   "/ferien/:id",
   "/ferien/neu",

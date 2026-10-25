@@ -2,6 +2,10 @@
 package common
 
 const (
+	CodeTimetableOfferingSourceMixedPhases           = "timetable.offering_source_mixed_phases"
+	CodeTimetableOfferingSourceNotFound              = "timetable.offering_source_not_found"
+	CodeTimetableOfferingSourceOutsidePeriod         = "timetable.offering_source_outside_period"
+	CodeTimetableOfferingSourceTooMany               = "timetable.offering_source_too_many"
 	CodeTimetableOnlySupervisorReplacementRequired   = "timetable.only_supervisor_replacement_required"
 	CodeTimetableOperationNotPlanned                 = "timetable.operation_not_planned"
 	CodeTimetableOperationStale                      = "timetable.operation_stale"
@@ -77,6 +81,8 @@ const (
 	CodeTraegerLastAdministrator                     = "traeger.last_administrator"
 	CodeTraegerMemberNotFound                        = "traeger.member_not_found"
 	CodeTraegerNoMembership                          = "traeger.no_membership"
+	CodeTraegerSchoolNotFound                        = "traeger.school_not_found"
+	CodeTraegerSecondFactorRequired                  = "traeger.second_factor_required"
 	CodeWorkforceAbsenceAllowanceExceeded            = "workforce.absence_allowance_exceeded"
 	CodeWorkforceAbsenceAlreadyDecided               = "workforce.absence_already_decided"
 	CodeWorkforceAbsenceNoWorkingDays                = "workforce.absence_no_working_days"
@@ -148,6 +154,10 @@ const (
 )
 
 var errorCodeClasses2 = map[string]string{
+	"timetable.offering_source_mixed_phases":            "input",
+	"timetable.offering_source_not_found":               "business_rejection",
+	"timetable.offering_source_outside_period":          "business_rejection",
+	"timetable.offering_source_too_many":                "input",
 	"timetable.only_supervisor_replacement_required":    "business_rejection",
 	"timetable.operation_not_planned":                   "permission",
 	"timetable.operation_stale":                         "business_rejection",
@@ -223,6 +233,8 @@ var errorCodeClasses2 = map[string]string{
 	"traeger.last_administrator":                        "business_rejection",
 	"traeger.member_not_found":                          "input",
 	"traeger.no_membership":                             "permission",
+	"traeger.school_not_found":                          "permission",
+	"traeger.second_factor_required":                    "permission",
 	"workforce.absence_allowance_exceeded":              "business_rejection",
 	"workforce.absence_already_decided":                 "business_rejection",
 	"workforce.absence_no_working_days":                 "input",

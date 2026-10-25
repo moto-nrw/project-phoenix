@@ -854,6 +854,10 @@ function SidebarContent({
             return staffMessagingEnabled;
           case "staffNotices":
             return hasPermission(session, "users:read");
+          case "surveys":
+            // Jede Person im Team beantwortet hier; die Verwaltung trennt
+            // die Seite selbst nach surveys:manage (#4781).
+            return true;
         }
       }),
     [staffMessagingEnabled, session],

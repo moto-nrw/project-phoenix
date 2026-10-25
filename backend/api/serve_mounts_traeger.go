@@ -17,6 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	settingsHTTP "github.com/moto-nrw/project-phoenix/modules/settings/http"
 	"github.com/moto-nrw/project-phoenix/modules/traegerportal"
 	"github.com/moto-nrw/project-phoenix/modules/traegerview"
 	traegerViewCompose "github.com/moto-nrw/project-phoenix/modules/traegerview/compose"
@@ -27,13 +28,15 @@ import (
 
 // TraegerPortalIdentity is what the Träger-Portal serves of Identity &
 // Access: the sign-in, the account second factor, the Träger-Büro account
-// management and the Träger-Büro members' addresses.
+// management, the Träger-Büro members' addresses and the Absprung into a
+// school.
 type TraegerPortalIdentity interface {
 	identityaccess.TraegerAccountLogin
 	identityaccess.AccountMFAChallenges
 	identityaccess.AccountMFAEnrollment
 	identityaccess.TraegerAccountManagement
 	identityaccess.TraegerRoles
+	identityaccess.TraegerSchoolSessions
 }
 
 // TraegerPersons is the People Directory read the access log names people
@@ -61,8 +64,8 @@ type TraegerAudit struct {
 // #4649) at /traeger: the public sign-in and the Träger route group, which
 // accepts only Träger sessions. Token refresh and logout go through the
 // shared scope-preserving /auth/refresh and /auth/logout.
-func mountTraegerPortalRoutes(root chi.Router, limiters authRateLimiters, identity TraegerPortalIdentity, organizations organizationtenancy.TraegerMembershipQuery, persons TraegerPersons, staff TraegerStaff, audit TraegerAudit) error {
-	portal, err := NewTraegerPortalHTTP(identity, organizations, persons, staff, audit)
+func mountTraegerPortalRoutes(root chi.Router, limiters authRateLimiters, identity TraegerPortalIdentity, organizations organizationtenancy.TraegerMembershipQuery, persons TraegerPersons, staff TraegerStaff, audit TraegerAudit, settings settingsHTTP.TraegerOperations) error {
+	portal, err := NewTraegerPortalHTTP(identity, organizations, persons, staff, audit, settings)
 	if err != nil {
 		return err
 	}
@@ -71,11 +74,11 @@ func mountTraegerPortalRoutes(root chi.Router, limiters authRateLimiters, identi
 }
 
 // NewTraegerPortalHTTP binds the Träger sign-in, its second factor, the
-// account management, the Träger projection and the holiday periods of
-// Enrollment to the portal's route ports.
-func NewTraegerPortalHTTP(identity TraegerPortalIdentity, organizations organizationtenancy.TraegerMembershipQuery, persons TraegerPersons, staff TraegerStaff, audit TraegerAudit) (*traegerportal.Resource, error) {
-	if identity == nil || organizations == nil || persons == nil || staff == nil || audit.Trail == nil || audit.Log == nil {
-		return nil, errors.New("traeger portal: identity, organizations, persons, staff, the access trail and the access log are required")
+// account management, the Träger projection, the holiday periods of
+// Enrollment and the Träger settings to the portal's route ports.
+func NewTraegerPortalHTTP(identity TraegerPortalIdentity, organizations organizationtenancy.TraegerMembershipQuery, persons TraegerPersons, staff TraegerStaff, audit TraegerAudit, settings settingsHTTP.TraegerOperations) (*traegerportal.Resource, error) {
+	if identity == nil || organizations == nil || persons == nil || staff == nil || audit.Trail == nil || audit.Log == nil || settings == nil {
+		return nil, errors.New("traeger portal: identity, organizations, persons, staff, the access trail, the access log and the settings are required")
 	}
 	overview, err := traegerViewCompose.New(traegerview.Ports{
 		SchoolIDs: traegerSchoolIDs{organizations: organizations}, Trail: traegerAccessTrail{trail: audit.Trail},
@@ -87,9 +90,11 @@ func NewTraegerPortalHTTP(identity TraegerPortalIdentity, organizations organiza
 	}
 	holidayPeriods := enrollmentAPI.NewHolidayPeriodResource(enrollmentCompose.NewHolidayPeriods(),
 		common.RequiresPermission(identityaccess.TraegerRightEnrollmentManage))
+	traegerSettings := settingsHTTP.NewTraegerSettingsResource(settings, identityaccess.TraegerRightOverviewRead,
+		identityaccess.TraegerRightSettingsManage, identityaccess.TraegerRightStaffManage, identityaccess.TraegerRightBillingManage)
 	overviewRoutes := traegerViewHTTP.NewResource(overview)
 	return traegerportal.NewResource(TraegerPortalAuth(identity), TraegerPortalMFA(identity), overviewRoutes, holidayPeriods,
-		traegerViewHTTP.NewAccessLogResource(overview), identity, overviewRoutes), nil
+		traegerViewHTTP.NewAccessLogResource(overview), traegerSettings, identity, overviewRoutes, identity), nil
 }
 
 // traegerSchoolIDs binds the Träger projection's school set to Organisation &

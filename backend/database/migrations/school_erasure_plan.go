@@ -16,10 +16,25 @@ func installSchoolErasurePlan(ctx context.Context, tx bun.Tx) error {
 // requires a new migration updating the plan, not an implicit CASCADE.
 const schoolErasurePlanSQL = schoolErasurePlanPart1SQL + `  {"name": "education.class_homework","predicate": "r.tenant_id = $1"},
 ` + schoolErasurePlanPart2SQL + `  {"name": "education.homework_feedback","predicate": "r.tenant_id = $1"},
-` + schoolErasurePlanPart3SQL
+` + schoolErasurePlanPart3SQL + schoolErasurePlanSurveysSQL + schoolErasurePlanPart3bSQL
+
+// schoolErasurePlanWithoutSurveysSQL is the definition before 1.15.568 (#4781), without the
+// survey tables; the survey rollback reinstalls it.
+const schoolErasurePlanWithoutSurveysSQL = schoolErasurePlanPart1SQL + `  {"name": "education.class_homework","predicate": "r.tenant_id = $1"},
+` + schoolErasurePlanPart2SQL + `  {"name": "education.homework_feedback","predicate": "r.tenant_id = $1"},
+` + schoolErasurePlanPart3SQL + schoolErasurePlanPart3bSQL
 
 // The pre-1.15.510 definition shares the unchanged SQL sections.
-const schoolErasurePlanWithoutHomeworkSQL = schoolErasurePlanPart1SQL + schoolErasurePlanPart2SQL + schoolErasurePlanPart3SQL
+const schoolErasurePlanWithoutHomeworkSQL = schoolErasurePlanPart1SQL + schoolErasurePlanPart2SQL + schoolErasurePlanPart3SQL + schoolErasurePlanPart3bSQL
+
+// The survey tables of 1.15.568 (#4781).
+const schoolErasurePlanSurveysSQL = `  {"name": "users.survey_answers","predicate": "r.tenant_id = $1"},
+  {"name": "users.survey_responses","predicate": "r.tenant_id = $1"},
+  {"name": "users.survey_participations","predicate": "r.tenant_id = $1"},
+  {"name": "users.survey_question_options","predicate": "r.tenant_id = $1"},
+  {"name": "users.survey_questions","predicate": "r.tenant_id = $1"},
+  {"name": "users.surveys","predicate": "r.tenant_id = $1"},
+`
 
 const schoolErasurePlanPart1SQL = `CREATE OR REPLACE FUNCTION platform.school_erasure_plan()
  RETURNS JSONB LANGUAGE sql IMMUTABLE SET search_path = pg_catalog
@@ -208,7 +223,9 @@ const schoolErasurePlanPart3SQL = `  {"name": "enrollment.care_offering_auto_tri
   {"name": "users.guardian_phone_numbers","predicate": "r.tenant_id = $1"},
   {"name": "users.guardian_profiles","predicate": "r.tenant_id = $1"},
   {"name": "users.notification_preferences","predicate": "r.tenant_id = $1"},
-  {"name": "users.parent_announcement_declaration_submissions","predicate": "r.tenant_id = $1"},
+`
+
+const schoolErasurePlanPart3bSQL = `  {"name": "users.parent_announcement_declaration_submissions","predicate": "r.tenant_id = $1"},
   {"name": "users.parent_announcement_declaration_versions","predicate": "r.tenant_id = $1"},
   {"name": "users.parent_announcement_options","predicate": "r.tenant_id = $1"},
   {"name": "users.parent_announcement_reads","predicate": "r.tenant_id = $1"},
@@ -265,5 +282,10 @@ const schoolErasurePlanPart3SQL = `  {"name": "enrollment.care_offering_auto_tri
 
 func restoreSchoolErasurePlanBeforeHomework(ctx context.Context, tx bun.Tx) error {
 	_, err := tx.ExecContext(ctx, schoolErasurePlanWithoutHomeworkSQL)
+	return err
+}
+
+func restoreSchoolErasurePlanBeforeSurveys(ctx context.Context, tx bun.Tx) error {
+	_, err := tx.ExecContext(ctx, schoolErasurePlanWithoutSurveysSQL)
 	return err
 }

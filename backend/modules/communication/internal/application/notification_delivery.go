@@ -128,6 +128,7 @@ const (
 	TypeParentAnnouncement      = communication.TypeParentAnnouncement
 	TypeParentCareCancelled     = communication.TypeParentCareCancelled
 	TypeStaffMessage            = communication.TypeStaffMessage
+	TypeStaffSurvey             = communication.TypeStaffSurvey
 	ParentAnnouncementPublished = communication.ParentAnnouncementPublished
 	ParentPollPublished         = communication.ParentPollPublished
 	ParentPollReminder          = communication.ParentPollReminder

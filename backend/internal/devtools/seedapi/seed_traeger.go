@@ -49,9 +49,9 @@ func (seedTraegerBueroStep) Run(_ context.Context, rt *Runtime) error {
 // seedTraegerInvitation signs the admin in to the Träger-Portal and invites
 // the seeded colleagues through the Träger route.
 func seedTraegerInvitation(rt *Runtime) error {
-	traeger, err := rt.Client.LoginTraeger(rt.Bootstrap.AdminEmail, rt.Bootstrap.AdminPassword, rt.Bootstrap.OrganizationID)
+	traeger, err := seedTraegerSession(rt)
 	if err != nil {
-		return fmt.Errorf("sign in to the Träger-Portal: %w", err)
+		return err
 	}
 	for _, invitee := range seedTraegerInvitees {
 		if _, err := rt.Client.PostWithAuth(traeger, "/traeger/accounts/invitations", map[string]any{
@@ -79,9 +79,9 @@ func (seedTraegerHolidayPeriodStep) Run(_ context.Context, rt *Runtime) error {
 	if rt == nil || rt.Client == nil || rt.Bootstrap == nil || rt.Bootstrap.AdminEmail == "" || rt.Bootstrap.AdminPassword == "" {
 		return fmt.Errorf("the Träger holiday period seed prerequisites are not available")
 	}
-	auth, err := rt.Client.LoginTraeger(rt.Bootstrap.AdminEmail, rt.Bootstrap.AdminPassword, 0)
+	auth, err := seedTraegerSession(rt)
 	if err != nil {
-		return fmt.Errorf("sign in to the Träger-Portal: %w", err)
+		return err
 	}
 	schools, err := seedTraegerSchoolIDs(rt.Client, auth)
 	if err != nil {
@@ -103,6 +103,36 @@ func (seedTraegerHolidayPeriodStep) Run(_ context.Context, rt *Runtime) error {
 	}
 	fmt.Println("  Träger-Büro: holiday period with two weeks published")
 	return nil
+}
+
+// seedTraegerSession is the Träger-Portal session of the bootstrap admin,
+// signed in once per runtime and shared by the Träger steps. Every sign-in
+// mails a second-factor code (#4651), and Identity & Access mails at most
+// three per account in fifteen minutes; one sign-in per step would run into
+// that limit.
+func seedTraegerSession(rt *Runtime) (AuthRef, error) {
+	session := seedTraegerSessionRef{email: rt.Bootstrap.AdminEmail, organizationID: rt.Bootstrap.OrganizationID}
+	if cached, ok := rt.Values[seedTraegerSessionKey].(seedTraegerSessionRef); ok && cached.email == session.email && cached.organizationID == session.organizationID {
+		return cached.auth, nil
+	}
+	auth, err := rt.Client.LoginTraeger(rt.Bootstrap.AdminEmail, rt.Bootstrap.AdminPassword, rt.Bootstrap.OrganizationID)
+	if err != nil {
+		return AuthRef{}, fmt.Errorf("sign in to the Träger-Portal: %w", err)
+	}
+	session.auth = auth
+	if rt.Values == nil {
+		rt.Values = make(map[string]any)
+	}
+	rt.Values[seedTraegerSessionKey] = session
+	return auth, nil
+}
+
+const seedTraegerSessionKey = "traeger.session"
+
+type seedTraegerSessionRef struct {
+	email          string
+	organizationID int64
+	auth           AuthRef
 }
 
 func seedTraegerSchoolIDs(client *Client, auth AuthRef) ([]int64, error) {
@@ -148,4 +178,32 @@ func seedHolidayPeriod(today calendar.Date, host int64) map[string]any {
 		"notes": "Mittagessen gibt es vor Ort. Bitte geben Sie Ihrem Kind ein Frühstück und etwas zu trinken mit.",
 		"weeks": weeks,
 	}
+}
+
+// traegerSeedSettingKey is the setting the demo Träger sets for all its
+// schools (ADR 0086, #4652): parent news on, as the registry default already
+// has it. The value changes no behaviour, but the Träger settings page shows
+// it "vom Träger" and the school settings show where it comes from.
+const traegerSeedSettingKey = "operations.parent_news_enabled"
+
+// seedTraegerSettingsStep sets one Träger value through the Träger route in
+// the Träger-Portal session of the Träger-Büro admin, the way the
+// Träger-Büro does it.
+type seedTraegerSettingsStep struct{}
+
+func (seedTraegerSettingsStep) Name() string { return "Seeding the Träger settings" }
+
+func (seedTraegerSettingsStep) Run(_ context.Context, rt *Runtime) error {
+	if rt == nil || rt.Client == nil || rt.Bootstrap == nil || rt.Bootstrap.AdminEmail == "" || rt.Bootstrap.AdminPassword == "" {
+		return fmt.Errorf("the Träger settings seed prerequisites are not available")
+	}
+	auth, err := seedTraegerSession(rt)
+	if err != nil {
+		return err
+	}
+	if _, err := rt.Client.PutWithAuth(auth, "/traeger/settings/values/"+traegerSeedSettingKey, map[string]any{"value": true}); err != nil {
+		return fmt.Errorf("set the Träger value of %s: %w", traegerSeedSettingKey, err)
+	}
+	fmt.Println("  Träger settings: parent news set for all schools of the Träger")
+	return nil
 }

@@ -76,6 +76,9 @@ func (s *Service) ListAnnouncements(ctx context.Context, accountID int64) ([]*An
 		if err := s.attachPollData(adminCtx, accountID, rows); err != nil {
 			return err
 		}
+		if err := s.attachSurveyData(adminCtx, accountID, rows); err != nil {
+			return err
+		}
 		return s.attachDeclarationData(adminCtx, accountID, rows)
 	}); txErr != nil {
 		return nil, fmt.Errorf("parent: list announcements: %w", txErr)
@@ -142,11 +145,15 @@ func (s *Service) UnreadAnnouncementCount(ctx context.Context, accountID int64) 
 		if err != nil {
 			return err
 		}
+		unansweredSurveys, err := s.countUnansweredReadSurveysForScope(adminCtx, accountID, scope)
+		if err != nil {
+			return err
+		}
 		owed, err := s.countOwedReadDeclarations(adminCtx, accountID, scope.TenantIDs)
 		if err != nil {
 			return err
 		}
-		count = n + owed
+		count = n + unansweredSurveys + owed
 		return nil
 	}); txErr != nil {
 		return 0, fmt.Errorf("parent: unread announcement count: %w", txErr)

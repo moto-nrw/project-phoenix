@@ -1817,6 +1817,46 @@ function parentGroupMessageTopic(): HelpTopic {
   };
 }
 
+/**
+ * `/umfragen`: Umfragen der Schule an das Team beantworten (#4781). Ob die
+ * Umfrage anonym ist, steht vor der ersten Frage.
+ */
+function staffSurveysTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.staffSurveys,
+    title: "An einer Umfrage im Team teilnehmen",
+    question: "Wie beantworte ich eine Umfrage meiner Schule?",
+    summary:
+      "Ihre Schule kann dem Team Fragen stellen. Sie antworten einmal, auf Wunsch der Schule auch anonym.",
+    group: "team",
+    audience: ["caregiver", "lead"],
+    icon: "CheckSquare",
+    steps: [
+      "Klappen Sie in der Seitenleiste `Team` auf und öffnen Sie `Umfragen`.",
+      "Wählen Sie eine Umfrage mit `Antwort offen`.",
+      "Lesen Sie oben, ob die Umfrage `Anonym` oder `Nicht anonym` ist.",
+      "Beantworten Sie die Fragen. Pflichtfragen sind markiert.",
+      "Wählen Sie `Antwort absenden`.",
+    ],
+    result:
+      "Sie sehen `Danke, Ihre Antwort ist gespeichert.` Die Umfrage steht danach mit `Teilgenommen` in der Liste.",
+    notes: [
+      "`Anonym` heißt: Die Schule sieht nicht, wer was geantwortet hat. Sie sieht nur Summen, erst nach dem Ende und ab 5 Antworten.",
+      "`Nicht anonym` heißt: Die Schule sieht Ihren Namen bei Ihren Antworten.",
+      "Nach dem Absenden können Sie Ihre Antwort nicht mehr ändern.",
+      "Die Schule erfährt nie, wer noch nicht teilgenommen hat. Eine Erinnerung geht an alle, die noch offen sind.",
+    ],
+    differences: [
+      "Sehen Sie die Reiter `Alle Umfragen` und `Für Sie`? Dann dürfen Sie Umfragen auch anlegen. Ihre eigenen offenen Umfragen stehen unter `Für Sie`.",
+      "Steht dort `Keine offenen Umfragen`? Dann hat Ihre Schule gerade keine Umfrage an das Team.",
+    ],
+    image: "/help/screens/umfrage-beantworten.webp",
+    imageAlt:
+      "Fragebogen einer anonymen Umfrage. Oben steht, dass die Schule nicht sieht, wer was geantwortet hat.",
+    related: [HELP_TOPICS.teamChat, HELP_TOPICS.leadSurveys],
+  };
+}
+
 function parentRequestsTopic(groupMode: HelpGroupMode): HelpTopic {
   return {
     id: HELP_TOPICS.parentRequests,
@@ -2890,6 +2930,7 @@ function caregiverTopics(
     parentGroupMessageTopic(),
     parentRequestsTopic(groupMode),
     teamChatTopic(),
+    staffSurveysTopic(),
     findStaffTopic(presenceMode),
     sharedFilesTopic(),
     trackWorkTimeTopic(),
@@ -4089,7 +4130,7 @@ function parentLetterTopic(): HelpTopic {
 function parentSurveyTopic(): HelpTopic {
   return {
     id: HELP_TOPICS.leadParentSurvey,
-    title: "Eine Umfrage erstellen",
+    title: "Eine kurze Elternumfrage erstellen",
     question: "Wie frage ich die Eltern nach ihrer Rückmeldung?",
     summary: "Eine Umfrage sammelt die Antworten der Eltern an einem Ort.",
     group: "elternarbeit",
@@ -4111,11 +4152,104 @@ function parentSurveyTopic(): HelpTopic {
     differences: ["Das erste Feld heißt hier `Frage`, nicht `Titel`."],
     troubleshootingDetails: [
       "Brauchen Sie keine Antwort? Nehmen Sie stattdessen eine Mitteilung.",
+      "Mehrere Fragen, eine Skala oder eine anonyme Befragung? Dafür gibt es den Bereich `Umfragen`.",
     ],
     related: [
       HELP_TOPICS.leadParentAnnouncement,
       HELP_TOPICS.leadParentLetter,
+      HELP_TOPICS.leadSurveys,
       HELP_TOPICS.parentRequests,
+    ],
+  };
+}
+
+/**
+ * `/umfragen` mit `surveys:manage`: Umfragen mit Fragebogen an Eltern oder
+ * das Team (#4781). Anonym nach Variante A: Teilnahme und Antwort getrennt,
+ * Auswertung erst nach dem Ende und ab 5 Antworten. Die kurze Frage je Kind bleibt die
+ * Elternumfrage unter `Mitteilungen` (`parentSurveyTopic`).
+ */
+function leadSurveysTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.leadSurveys,
+    title: "Eine Umfrage mit Fragebogen erstellen",
+    question: "Wie befrage ich Eltern oder das Team, auch anonym?",
+    summary:
+      "Unter `Umfragen` stellen Sie mehrere Fragen, auf Wunsch anonym. Die Auswertung zeigt Stärken und Verbesserungsbedarf.",
+    group: "elternarbeit",
+    audience: "lead",
+    icon: "ChartPieSlice",
+    requirements: ["Sie haben die Berechtigung `Umfragen: Verwalten`."],
+    steps: [],
+    instructionGroups: [
+      {
+        title: "Eine Umfrage anlegen",
+        steps: [
+          "Klappen Sie in der Seitenleiste `Team` auf und öffnen Sie `Umfragen`.",
+          "Wählen Sie `Umfrage anlegen`.",
+          "Geben Sie einen `Titel` ein, bei Bedarf auch eine `Einleitung (optional)`.",
+          "Wählen Sie unter `Wer soll antworten?` `Eltern` oder `Mitarbeitende`.",
+          "Bei Eltern: Wählen Sie unter `Welche Eltern sollen antworten?` die ganze Schule, Klassen, Gruppen, AGs oder einzelne Kinder. Bei Bedarf wählen Sie `Zusätzlich per E-Mail benachrichtigen`.",
+          "Lassen Sie `Anonym` an oder schalten Sie es aus.",
+          "Wählen Sie bei `Teilnahme bis` das Datum und die `Uhrzeit`.",
+          "Geben Sie jede Frage ein und wählen Sie die Art: `Einfachauswahl`, `Mehrfachauswahl`, `Skala 1 bis 5` oder `Freitext`.",
+          "Weitere Fragen legen Sie mit `Frage hinzufügen` an. Mit `Pflichtfrage` muss jede Person die Frage beantworten.",
+          "Wählen Sie `Als Entwurf speichern`.",
+        ],
+      },
+      {
+        title: "Die Umfrage veröffentlichen",
+        description:
+          "Danach lässt sich nichts mehr ändern, auch nicht, ob die Umfrage anonym ist.",
+        steps: [
+          "Öffnen Sie die Umfrage in der Liste.",
+          "Öffnen Sie oben das Menü mit den drei Punkten.",
+          "Wählen Sie `Veröffentlichen` und prüfen Sie die Angaben.",
+          "Wählen Sie `Jetzt veröffentlichen`.",
+        ],
+      },
+      {
+        title: "Die Auswertung ansehen",
+        steps: [
+          "Öffnen Sie die Umfrage in der Liste.",
+          "Bei einer anonymen Umfrage erscheint die Auswertung, sobald die Umfrage beendet ist.",
+          "Im Reiter `Auswertung` sehen Sie je Frage die Verteilung: bei der Skala den Durchschnitt, den höchsten und den niedrigsten Wert, bei Auswahlfragen die am häufigsten und am seltensten gewählte Antwort, dazu die Freitexte.",
+          "Oben stehen `Stärken und Verbesserungsbedarf`: die Skalenfragen mit dem höchsten und dem niedrigsten Durchschnitt.",
+          "Für eine Datei öffnen Sie das Menü mit den drei Punkten und wählen `Auswertung als PDF`.",
+        ],
+      },
+      {
+        title: "Erinnern, beenden oder löschen",
+        steps: [
+          "Öffnen Sie die Umfrage und oben das Menü mit den drei Punkten.",
+          "`Erinnern` schickt allen eine Erinnerung, die noch nicht teilgenommen haben und Benachrichtigungen bekommen. Sie sehen nur die Zahl.",
+          "`Beenden` schließt die Teilnahme sofort. Die Auswertung bleibt.",
+          "`Löschen` entfernt die Umfrage mit allen Antworten.",
+        ],
+      },
+    ],
+    result:
+      "Die Eltern finden die Umfrage unter `Elternbriefe`, das Team unter `Umfragen`. Jede Person antwortet einmal, Eltern einmal je Elternkonto, nicht je Kind.",
+    notes: [
+      "Anonym heißt: Sie sehen nicht, wer was geantwortet hat. Sie sehen auch nicht, wer noch nicht teilgenommen hat. Die Auswertung zeigt nur Summen.",
+      "Die Auswertung einer anonymen Umfrage erscheint erst nach dem Ende und ab 5 Antworten. So ist niemand an seinen Antworten erkennbar. Bis dahin sehen Sie nur, wie viele teilgenommen haben.",
+      "Auch einzelne Fragen einer anonymen Umfrage zeigen ihr Ergebnis erst ab 5 Antworten. Bei weniger steht dort nur die Zahl.",
+      "Freitexte stehen ohne Namen und ohne Uhrzeit, in zufälliger Reihenfolge. Die PDF-Datei enthält dieselben Summen wie der Bildschirm.",
+      "Bei einer Umfrage, die nicht anonym ist, sehen Sie im Reiter `Antworten je Person` jede Antwort mit Namen.",
+      "Befragen Sie Mitarbeitende? Ein Fragebogen an Beschäftigte kann mitbestimmungspflichtig sein. Klären Sie das vorher mit Ihrem Betriebsrat oder Personalrat. moto prüft das nicht.",
+      "Nur eine kurze Frage zu jedem Kind, zum Beispiel zum Sommerfest? Dafür gibt es die Umfrage unter `Eltern` › `Mitteilungen`.",
+    ],
+    differences: [
+      "Sehen Sie `Umfrage anlegen` nicht? Dann fehlt Ihnen die Berechtigung `Umfragen: Verwalten`. Die Leitung vergibt sie über die Rollen.",
+      "Steht im Reiter `Auswertung` `Noch keine Auswertung`? Dann läuft die anonyme Umfrage noch, oder es haben weniger als 5 Personen geantwortet. Mit `Beenden` endet die Teilnahme sofort.",
+    ],
+    image: "/help/screens/umfrage-auswertung.webp",
+    imageAlt:
+      "Auswertung einer beendeten anonymen Umfrage mit Stärken, Verbesserungsbedarf und der Verteilung je Frage.",
+    related: [
+      HELP_TOPICS.leadParentSurvey,
+      HELP_TOPICS.staffSurveys,
+      HELP_TOPICS.leadStaffPermissions,
     ],
   };
 }
@@ -5785,11 +5919,14 @@ function settingsTopic(): HelpTopic {
       "moto legt die Löschfristen mit Ihrer Schule fest. Sie können sie nur lesen.",
       "Wer Blöcke starten oder beenden darf, legen Sie unter `Betrieb` fest: bei `Wer darf Blöcke starten?` und `Wer darf Blöcke beenden?`.",
       "`Das ganze Team` geht dort nur, wenn das Team alle Gruppen und Blöcke sieht.",
+      "Manche Werte legt Ihr Träger für alle Schulen fest. Dort steht `Vom Träger festgelegt`.",
+      "Sie können davon abweichen. `Zurücksetzen` übernimmt wieder den Wert des Trägers.",
     ],
     differences: [
       "Welche Bereiche Sie sehen, hängt von Ihren Rechten und den Funktionen Ihrer OGS ab.",
     ],
     troubleshootingDetails: [
+      "Bei einer Einstellung steht `Legt der Träger fest`? Diesen Wert ändert nur Ihr Träger.",
       "Eine Einstellung ist gesperrt? moto legt sie mit Ihrer Schule fest. Sie können sie nur lesen.",
       "Fehlt `Alte Daten automatisch löschen`? Das ist die Notbremse. Das moto-Team nutzt sie nur bei einem Vorfall.",
       "Der Wechsel des Anwesenheitsmodus wird abgelehnt? Das geht nicht, solange Kinder eingecheckt sind.",
@@ -5808,7 +5945,7 @@ function settingsTopic(): HelpTopic {
  * vollständige Liste: Die vollständige Liste steht auf `/settings` selbst, mit
  * einem Satz unter jeder Einstellung. Bezeichnungen stammen aus der Registry
  * (`backend/modules/settings/internal/defaults/`) und aus `TAB_LABELS` in
- * `components/settings/settings-page.tsx`. Wer dort umbenennt, ändert hier mit.
+ * `components/settings/settings-filter.ts`. Wer dort umbenennt, ändert hier mit.
  */
 function settingsGuideTopic(): HelpTopic {
   return {
@@ -6402,6 +6539,7 @@ function leadTopics(
     parentAnnouncementTopic(),
     parentLetterTopic(),
     parentSurveyTopic(),
+    leadSurveysTopic(),
     parentDeclarationTopic(),
     mealPlanTopic(),
     mealOrderingTopic(),
@@ -7088,6 +7226,46 @@ function parentGroupMessagesTopic(): HelpTopic {
 }
 
 /**
+ * `/parents/news`: eine Umfrage mit Fragebogen der OGS beantworten (#4781).
+ * Eine Antwort je Elternkonto, nicht je Kind.
+ */
+function parentSurveysTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.parentSurveys,
+    title: "An einer Umfrage teilnehmen",
+    question: "Was bedeutet eine anonyme Umfrage?",
+    summary:
+      "Die OGS fragt nach Ihrer Meinung. Vor der ersten Frage steht, ob die Umfrage anonym ist.",
+    group: "nachrichten",
+    audience: "parent",
+    icon: "CheckSquare",
+    steps: [
+      "Tippen Sie unten auf `Mehr`.",
+      "Wählen Sie `Elternbriefe`.",
+      "Tippen Sie unter `Offen` auf den Eintrag mit `Umfrage`.",
+      "Lesen Sie den Hinweis `Anonym` oder `Nicht anonym`.",
+      "Beantworten Sie die Fragen.",
+      "Tippen Sie auf `Antwort absenden`.",
+    ],
+    result:
+      "Sie sehen `Danke, Ihre Antwort ist gespeichert.` Der Eintrag steht danach mit `Teilgenommen` unter `Erledigt`.",
+    notes: [
+      "`Anonym` heißt: Die Schule sieht nicht, wer was geantwortet hat. Sie sieht nur Summen, erst nach dem Ende und ab 5 Antworten.",
+      "`Nicht anonym` heißt: Die Schule sieht Ihren Namen bei Ihren Antworten.",
+      "Sie antworten einmal für Ihr Elternkonto, nicht für jedes Kind.",
+      "Nach dem Absenden können Sie Ihre Antwort nicht mehr ändern.",
+    ],
+    differences: [
+      "Steht dort `Die Teilnahme ist beendet.`? Dann ist die Frist vorbei. Antworten geht nicht mehr.",
+    ],
+    image: "/help/screens/umfrage-eltern.webp",
+    imageAlt:
+      "Umfrage im Elternportal. Vor der ersten Frage steht, ob sie anonym ist.",
+    related: [HELP_TOPICS.parentNews, HELP_TOPICS.parentNotifications],
+  };
+}
+
+/**
  * `/parents/news`: Elternbriefe, Mitteilungen und Umfragen. Manche verlangen
  * eine Lesebestaetigung, Umfragen eine Antwort.
  */
@@ -7153,6 +7331,7 @@ function parentNewsTopic(): HelpTopic {
       "Fehlt `Elternbriefe` ganz? Dann nutzt Ihre OGS diese Funktion nicht.",
     ],
     related: [
+      HELP_TOPICS.parentSurveys,
       HELP_TOPICS.parentMessages,
       HELP_TOPICS.parentNotifications,
       HELP_TOPICS.parentFeatureMissing,
@@ -7571,6 +7750,7 @@ const PARENT_DRAFT_TOPICS: readonly HelpTopic[] = [
   parentMessagesTopic(),
   parentGroupMessagesTopic(),
   parentNewsTopic(),
+  parentSurveysTopic(),
   parentCalendarTopic(),
   parentMealPlanTopic(),
 
@@ -8494,6 +8674,76 @@ function traegerLoginTopic(): HelpTopic {
   };
 }
 
+/**
+ * `/traeger/einstellungen` (#4652, ADR 0086): Träger-Werte zwischen Standard
+ * und Schule. Bezeichnungen aus `settings-origin.ts` und `traeger-shell.tsx`.
+ */
+function traegerSettingsTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.traegerSettings,
+    title: "Einstellungen für alle Schulen festlegen",
+    question: "Wie lege ich Einstellungen für alle Schulen fest?",
+    summary: "Was Sie hier festlegen, gilt für alle Schulen Ihres Trägers.",
+    group: "konfiguration",
+    audience: "traeger",
+    icon: "Settings",
+    requirements: ["Sie dürfen im Träger-Büro Einstellungen ändern."],
+    steps: [
+      "Wählen Sie oben `Einstellungen`.",
+      "Suchen Sie die Einstellung, zum Beispiel unter `Anmeldung` oder `Betrieb`.",
+      "Ändern Sie den Wert. moto speichert die Änderung von selbst.",
+    ],
+    result:
+      "Der Wert gilt sofort für alle Schulen Ihres Trägers. Auch neue Schulen übernehmen ihn.",
+    notes: [
+      "Bei Ihrem Wert steht `Vom Träger festgelegt` und das Datum der letzten Änderung.",
+      "`Standard` heißt: Sie haben nichts festgelegt. Es gilt der Wert von moto.",
+      "`Zurücksetzen` entfernt Ihren Wert. Dann gilt wieder der Standard.",
+      "Eine Schule kann einen eigenen Wert eintragen. Dann gilt dort ihr Wert.",
+      "Den eigenen Wert einer Schule kann nur die Schule selbst zurücksetzen.",
+    ],
+    differences: [
+      "Sie können die Werte nur ansehen? Ihnen fehlt das Recht zum Ändern. Wenden Sie sich an das moto-Team.",
+    ],
+    related: [HELP_TOPICS.traegerLogin, HELP_TOPICS.errorMessages],
+  };
+}
+
+/** `/traeger` (#4654): Absprung in eine Schule des Trägers. */
+function traegerSchoolSwitchTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.traegerSchoolSwitch,
+    title: "In eine Schule wechseln",
+    question: "Wie arbeite ich in einer Schule meines Trägers?",
+    summary:
+      "Sie öffnen jede Schule Ihres Trägers, ohne sich dort neu anzumelden.",
+    group: "einstieg",
+    audience: "traeger",
+    icon: "ArrowsLeftRight",
+    requirements: ["Sie haben die Rolle `Verwaltung`."],
+    steps: [
+      "Wählen Sie oben `Schulen`.",
+      "Wählen Sie bei der Schule `Öffnen`.",
+    ],
+    result:
+      "moto öffnet die Schule in einem neuen Tab. Dort arbeiten Sie mit der Rolle Verwaltung der Schule.",
+    notes: [
+      "Sie können mehrere Schulen in mehreren Tabs offen haben.",
+      "Eine neue Schule Ihres Trägers können Sie sofort öffnen. Niemand muss Sie dafür freischalten.",
+      "Jedes Öffnen steht im Protokoll der Schule.",
+    ],
+    differences: [
+      "Sie sehen kein `Öffnen`? Dann haben Sie nicht die Rolle `Verwaltung`.",
+    ],
+    troubleshootingDetails: [
+      "moto zeigt `Die Schule konnte nicht geöffnet werden.`? Der Link gilt nur kurz und nur einmal. Öffnen Sie die Schule noch einmal im Träger-Portal.",
+      "moto sagt, die Schule gehöre nicht zu Ihrem Träger? Laden Sie die Seite neu. Fehlt die Schule dann, wenden Sie sich an das moto-Team.",
+      "moto bittet Sie, sich neu anzumelden? Melden Sie sich im Träger-Portal neu an und öffnen Sie die Schule noch einmal.",
+    ],
+    related: [HELP_TOPICS.traegerLogin],
+  };
+}
+
 /** `/traeger/invite` (#4650): Einladung aus der Mail annehmen. */
 function traegerInvitationTopic(): HelpTopic {
   return {
@@ -8741,10 +8991,12 @@ function traegerAccessLogTopic(): HelpTopic {
 const TRAEGER_TOPICS: readonly HelpTopic[] = [
   traegerInvitationTopic(),
   traegerLoginTopic(),
+  traegerSchoolSwitchTopic(),
   traegerTestSystemTopic(),
   traegerAccountsTopic(),
   traegerHolidayPeriodTopic(),
   traegerAccessLogTopic(),
+  traegerSettingsTopic(),
 ];
 
 const TEACHER_DRAFT_TOPICS: readonly HelpTopic[] = [

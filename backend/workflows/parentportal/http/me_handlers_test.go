@@ -385,6 +385,14 @@ func (f *fakeParentService) RespondToAnnouncement(context.Context, int64, int64,
 	return nil
 }
 
+func (f *fakeParentService) GetAnnouncementSurvey(context.Context, int64, int64) (*parentService.SurveyForm, error) {
+	return nil, parentService.ErrAnnouncementNotFound
+}
+
+func (f *fakeParentService) SubmitAnnouncementSurvey(context.Context, int64, int64, []parentService.SurveyAnswer) error {
+	return parentService.ErrAnnouncementNotFound
+}
+
 func (f *fakeParentService) SubmitDeclaration(context.Context, int64, int64, parentService.DeclarationInput, parentService.PasswordConfirmer) (*parentService.DeclarationSubmission, bool, error) {
 	return nil, false, parentService.ErrAnnouncementNotFound
 }

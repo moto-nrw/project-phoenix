@@ -651,6 +651,16 @@ OGS nutzt. Die Anmeldung im Träger-Portal ist aber getrennt von der Anmeldung i
 einer OGS, und keine beendet die andere.
 _Vermeiden_: Träger-Cockpit (Werbename), Org-Portal.
 
+## Absprung
+
+Der **Absprung** ist der Wechsel aus dem Träger-Portal in eine OGS des
+Trägers, ohne neue Anmeldung. Die Person arbeitet dort als sie selbst mit der
+Rolle Verwaltung der OGS, solange ihre Träger-Rolle das erlaubt und die OGS zum
+Träger gehört. Sie bekommt dafür keinen Zugang in der OGS selbst; jeder
+Absprung steht im Protokoll der OGS.
+_Vermeiden_: Impersonation, Einloggen als, Schulwechsel (meint den Wechsel
+zwischen eigenen OGS-Zugängen).
+
 ## Träger-Rolle
 
 Eine **Träger-Rolle** legt fest, was eine Person im Träger-Büro darf:

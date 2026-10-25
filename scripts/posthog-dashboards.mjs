@@ -271,7 +271,7 @@ export const FEATURES = Object.freeze([
   {
     name: 'Nachrichten und Elternbriefe',
     pages: {
-      ogs: ['/messages/**', '/team-chat/**', '/parent-announcements/**'],
+      ogs: ['/messages/**', '/team-chat/**', '/parent-announcements/**', '/umfragen/**'],
       parents: ['/messages/**', '/news/**'],
       school: ['/nachrichten/**'],
     },
@@ -310,7 +310,7 @@ export const FEATURES = Object.freeze([
 
 /** Login, invitation, and demo entry pages: getting in, not using a feature. */
 export const NO_FEATURE_PAGES = Object.freeze({
-  ogs: ['/', '/demo', '/display', '/invite', '/reset-password'],
+  ogs: ['/', '/demo', '/display', '/invite', '/reset-password', '/traeger-uebergabe'],
   parents: ['/login', '/invite', '/reset-password', '/demo', '/accept-guardian-invite/:token'],
   school: ['/login', '/invite', '/reset-password'],
 });
