@@ -68,6 +68,12 @@ func (rs *Resource) mountCalendarRoutes(r chi.Router, withTx common.Middleware) 
 		r.With(common.RequiresPermission(permissions.SchedulesUpdate), withTx).Put("/{id}", rs.updateClosingDay)
 		r.With(common.RequiresPermission(permissions.SchedulesDelete), withTx).Delete("/{id}", rs.deleteClosingDay)
 	})
+
+	// Statutory holidays of the school's federal state (#4775). They hold
+	// for the whole school, so the calendar page (calendar:own) and the
+	// period page (schedules:read) both read them, without a time-tracking
+	// permission.
+	r.With(common.RequiresAnyPermission(permissions.SchedulesRead, permissions.CalendarOwn), withTx).Get("/holidays", rs.listHolidays)
 }
 
 // mountInstancePlanningRoutes registers the planner's reads and writes of
