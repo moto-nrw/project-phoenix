@@ -150,7 +150,9 @@ func (p *Provisioning) UpdateOrganization(ctx context.Context, id int64, changes
 			if err != nil {
 				return nil, err
 			}
-			diff["traeger_sessions_ended"] = ended
+			if ended > 0 {
+				diff["traeger_sessions_ended"] = ended
+			}
 		}
 		return &updated, p.recordAction(adminCtx, operatorID, domain.AuditActionUpdate, domain.AuditResourceOrganization, &id, clientIP, diff)
 	})

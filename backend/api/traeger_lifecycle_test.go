@@ -27,30 +27,29 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
+// traegerLifecycleFixture holds the operator routes over one provisioned
+// Träger; the owners they were composed over stay local to the constructor.
 type traegerLifecycleFixture struct {
 	db             *bun.DB
 	ctx            context.Context
-	service        organizationtenancy.Provisioning
-	identity       identityaccess.Owner
 	operatorID     int64
 	organizationID int64
-	schoolID       int64
 	operator       http.Handler
 }
 
-func newTraegerLifecycleFixture(t *testing.T, label string) traegerLifecycleFixture {
+func newTraegerLifecycleFixture(t *testing.T, label string) (traegerLifecycleFixture, identityaccess.Owner) {
 	t.Helper()
 	db := testpkg.SetupIsolatedTestDB(t)
 	service, identity := buildOperatorProvisioningWithIdentity(t, db)
 	operatorID := testpkg.CreateTestOperator(t, db).ID
-	organizationID, schoolID := provisionTestSchool(t, db, service, operatorID, label)
+	organizationID, _ := provisionTestSchool(t, db, service, operatorID, label)
 	resource := provisioningAPI.NewProvisioningResource(provisioningAPI.ProvisioningConfig{Service: service})
 	operator := chi.NewRouter()
 	mountOperatorProvisioningRoutes(operator, resource)
 	return traegerLifecycleFixture{
-		db: db, ctx: provisioningContext(t, db), service: service, identity: identity,
-		operatorID: operatorID, organizationID: organizationID, schoolID: schoolID, operator: operator,
-	}
+		db: db, ctx: provisioningContext(t, db),
+		operatorID: operatorID, organizationID: organizationID, operator: operator,
+	}, identity
 }
 
 func (f traegerLifecycleFixture) call(t *testing.T, method, path string, body any) *httptest.ResponseRecorder {
@@ -102,12 +101,12 @@ func (f traegerLifecycleFixture) audited(t *testing.T, action string) int {
 
 func TestOperatorDeactivationEndsEveryTraegerSessionAndReactivationLetsInAgain(t *testing.T) {
 	t.Parallel()
-	f := newTraegerLifecycleFixture(t, "traeger-aus")
+	f, identity := newTraegerLifecycleFixture(t, "traeger-aus")
 	password := testpkg.NewTestPassword()
 	account := traegerAccount(t, f.db, password)
 	testpkg.CreateTestTraegerMember(t, f.db, f.organizationID, account.ID, identityaccess.TraegerRoleAdministration)
 	unit := testpkg.TenantRuntime(t, f.db)
-	traeger := traegerPortalRouter(t, f.db, f.identity, unit)
+	traeger := traegerPortalRouter(t, f.db, identity, unit)
 	code, session := traegerLogin(t, traeger, account.Email, password, 0)
 	require.Equal(t, http.StatusOK, code)
 	listed, _ := traegerSchools(t, traeger, session.AccessToken)
@@ -127,7 +126,7 @@ func TestOperatorDeactivationEndsEveryTraegerSessionAndReactivationLetsInAgain(t
 
 	listed, _ = traegerSchools(t, traeger, session.AccessToken)
 	assert.Equal(t, http.StatusUnauthorized, listed.Code, "an access token still in flight reaches no school: %s", listed.Body.String())
-	_, _, err := f.identity.RefreshTokenWithAudit(tenant.WithUnitOfWork(context.Background(), unit), session.RefreshToken, "", "", "")
+	_, _, err := identity.RefreshTokenWithAudit(tenant.WithUnitOfWork(context.Background(), unit), session.RefreshToken, "", "", "")
 	assert.Error(t, err, "the ended session cannot be refreshed")
 	code, _ = traegerLogin(t, traeger, account.Email, password, 0)
 	assert.Equal(t, http.StatusForbidden, code, "a deactivated Träger lets nobody sign in")
@@ -142,7 +141,7 @@ func TestOperatorDeactivationEndsEveryTraegerSessionAndReactivationLetsInAgain(t
 
 func TestOperatorRecordsAndWithdrawsTheErasureOrderOfADeactivatedTraeger(t *testing.T) {
 	t.Parallel()
-	f := newTraegerLifecycleFixture(t, "traeger-loeschen")
+	f, _ := newTraegerLifecycleFixture(t, "traeger-loeschen")
 	path := fmt.Sprintf("/organizations/%d/erasure-order", f.organizationID)
 	order := map[string]string{"order_reference": "LOESCH-4657", "confirmed_on": "2026-01-02", "erase_not_before": "2099-12-31"}
 
