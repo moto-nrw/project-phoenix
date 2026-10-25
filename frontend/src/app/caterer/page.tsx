@@ -6,14 +6,27 @@
 // classes, names (if the school shows them) and the confirmation. Each
 // school is read on its own; a school that ends the supply drops out.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Download, FileSpreadsheet, Printer } from "lucide-react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { Download, FileSpreadsheet, FileText, Printer } from "lucide-react";
 import { CatererSchoolOrders } from "~/components/caterer/caterer-school-orders";
 import { Button } from "~/components/ui/button";
-import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
-import { EmptyState } from "~/components/ui/empty-state";
+import {
+  DataTable,
+  DataTableSkeleton,
+  type DataTableColumn,
+} from "~/components/ui/data-table";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
-import { Loading } from "~/components/ui/loading";
+import {
+  OverflowMenu,
+  type OverflowMenuEntry,
+} from "~/components/ui/page-header/OverflowMenu";
 import { SectionCard } from "~/components/ui/section-card";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { StatusBadge } from "~/components/ui/status-badge";
@@ -91,16 +104,42 @@ function SchoolState({ orders }: Readonly<{ orders: CatererOrders }>) {
       <StatusBadge
         label={`Offen bis ${berlinDateTime(first.deadline)}`}
         tone="gray"
-        compact
       />
     );
   }
   if (live.length === 0) return null;
   return live.every((day) => day.status === "confirmed") ? (
-    <StatusBadge label="Bestätigt" tone="green" compact />
+    <StatusBadge label="Bestätigt" tone="green" />
   ) : (
-    <StatusBadge label="Bestellt" tone="blue" compact />
+    <StatusBadge label="Bestellt" tone="blue" />
   );
+}
+
+/**
+ * A school whose orders did not load, where its orders would stand: the
+ * shared load-error text with „Wiederholen“ for this one school.
+ */
+function SchoolLoadError({
+  school,
+  cause,
+  onRetry,
+}: Readonly<{
+  school: CatererSchool;
+  cause: unknown;
+  onRetry: () => Promise<void>;
+}>) {
+  const { error, show } = useApiLoadError();
+  const retryRef = useRef(onRetry);
+  useLayoutEffect(() => {
+    retryRef.current = onRetry;
+  });
+  useEffect(() => {
+    void show(cause, {
+      object: `die Bestellung von ${school.name}`,
+      retry: () => void retryRef.current(),
+    });
+  }, [cause, school.name, show]);
+  return <LoadErrorAlert error={error} />;
 }
 
 interface OverviewRow {
@@ -120,6 +159,8 @@ export default function CatererOverviewPage() {
   const [orders, setOrders] = useState<Record<string, CatererOrders | null>>(
     {},
   );
+  // Why a school's orders did not load, shown in that school's card.
+  const [failures, setFailures] = useState<Record<string, unknown>>({});
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState<string | null>(null);
   const { error, show, clear } = useApiLoadError();
@@ -146,12 +187,14 @@ export default function CatererOverviewPage() {
       )
         return;
       const next: Record<string, CatererOrders | null> = {};
+      const failed: Record<string, unknown> = {};
       results.forEach((result, index) => {
         const school = list[index]!;
         if (result.status === "fulfilled") {
           next[school.id] = result.value;
         } else {
           next[school.id] = null;
+          failed[school.id] = result.reason;
           logger.warn("caterer_orders_load_failed", {
             school_id: school.id,
             error:
@@ -162,6 +205,36 @@ export default function CatererOverviewPage() {
         }
       });
       setOrders(next);
+      setFailures(failed);
+    },
+    [from, to],
+  );
+
+  // „Wiederholen“ in the card of one school asks for that school only. A
+  // newer load of the whole page wins over a retry still on its way.
+  const retrySchool = useCallback(
+    async (school: CatererSchool) => {
+      const generation = generationRef.current;
+      const request = requestRef.current;
+      const current = () =>
+        generation === generationRef.current && request === requestRef.current;
+      try {
+        const loaded = await fetchCatererOrders(school.id, from, to);
+        if (!current()) return;
+        setOrders((previous) => ({ ...previous, [school.id]: loaded }));
+        setFailures((previous) => {
+          const next = { ...previous };
+          delete next[school.id];
+          return next;
+        });
+      } catch (cause) {
+        if (!current()) return;
+        logger.warn("caterer_orders_load_failed", {
+          school_id: school.id,
+          error: cause instanceof Error ? cause.message : String(cause),
+        });
+        setFailures((previous) => ({ ...previous, [school.id]: cause }));
+      }
     },
     [from, to],
   );
@@ -287,7 +360,6 @@ export default function CatererOverviewPage() {
               <StatusBadge
                 label={`+${added}`}
                 tone="orange"
-                compact
                 title="Nach der Frist dazugekommen"
               />
             ) : null}
@@ -295,7 +367,6 @@ export default function CatererOverviewPage() {
               <StatusBadge
                 label={`−${removed}`}
                 tone="orange"
-                compact
                 title="Nach der Frist abgemeldet"
               />
             ) : null}
@@ -317,100 +388,97 @@ export default function CatererOverviewPage() {
     },
   ];
 
+  // Eine sichtbare Aktion neben dem Zeitraum, die Formate im Menü (wie
+  // Tagesauswertung und Statistik): Drucken ist der tägliche Griff, die
+  // Dateien sind der seltene. Vorher standen vier Knöpfe in der Kopfzeile.
+  const exportMenuItems: OverflowMenuEntry[] = [
+    { kind: "header", label: "Herunterladen" },
+    ...(
+      [
+        { format: "pdf", label: "PDF", Icon: Download },
+        { format: "xlsx", label: "Excel", Icon: FileSpreadsheet },
+        { format: "csv", label: "CSV", Icon: FileText },
+      ] as {
+        format: DeliveryExportFormat;
+        label: string;
+        Icon: typeof Download;
+      }[]
+    ).map(({ format, label, Icon }) => ({
+      label: exporting === format ? "Wird exportiert…" : label,
+      icon: <Icon className="h-4 w-4" aria-hidden />,
+      onClick: () => void download(format),
+      disabled: !schools || exporting !== null,
+    })),
+  ];
+
+  // Laden, Fehler und Leer stehen in derselben Karte wie die Tabelle, die
+  // sie ersetzen; nichts steht frei auf dem Hintergrund.
+  const unavailable = Boolean(error) || (schools !== null && list.length === 0);
+
   return (
     <div className="space-y-6">
-      {loading && !schools ? (
-        <Loading message="Wird geladen …" />
-      ) : error ? (
-        <LoadErrorAlert error={error} />
-      ) : list.length === 0 ? (
-        <EmptyState
-          title="Sie beliefern zurzeit keine Schule"
-          description="Sobald eine Schule Sie einlädt, sehen Sie hier ihre Bestellungen."
-        />
-      ) : (
-        <>
-          <SectionCard
-            title={
-              schools?.catererName
-                ? `Bestellungen für ${schools.catererName}`
-                : "Bestellungen"
-            }
-            description="Eine Zahl wie +2 ist eine Änderung nach der Frist."
-            actions={
-              <div className="flex flex-wrap items-center gap-2">
-                <SegmentedControl<Period>
-                  items={PERIODS}
-                  value={period}
-                  onChange={setPeriod}
-                  ariaLabel="Zeitraum wählen"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="md"
-                  className="gap-2 bg-white"
-                  isLoading={exporting === "pdf"}
-                  loadingText="Wird erstellt …"
-                  disabled={exporting !== null}
-                  onClick={() => void download("pdf")}
-                >
-                  <Download className="h-4 w-4" aria-hidden="true" />
-                  PDF
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="md"
-                  className="gap-2 bg-white"
-                  isLoading={exporting === "xlsx"}
-                  loadingText="Wird erstellt …"
-                  disabled={exporting !== null}
-                  onClick={() => void download("xlsx")}
-                >
-                  <FileSpreadsheet className="h-4 w-4" aria-hidden="true" />
-                  Excel
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="md"
-                  className="gap-2 bg-white"
-                  isLoading={exporting === "csv"}
-                  loadingText="Wird erstellt …"
-                  disabled={exporting !== null}
-                  onClick={() => void download("csv")}
-                >
-                  <FileSpreadsheet className="h-4 w-4" aria-hidden="true" />
-                  CSV
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="md"
-                  className="gap-2 bg-white"
-                  isLoading={exporting === "print"}
-                  loadingText="Wird erstellt …"
-                  disabled={exporting !== null}
-                  onClick={() => void print()}
-                >
-                  <Printer className="h-4 w-4" aria-hidden="true" />
-                  Drucken
-                </Button>
-              </div>
-            }
-          >
-            <DataTable
-              columns={columns}
-              rows={rows}
-              getRowKey={(row) => row.key}
-              isLoading={loading}
-              stackedOnMobile
-              caption="Essen je Schule und Tag im gewählten Zeitraum"
-            />
-          </SectionCard>
+      <SectionCard
+        title={
+          schools?.catererName
+            ? `Bestellungen für ${schools.catererName}`
+            : "Bestellungen"
+        }
+        description={
+          unavailable
+            ? undefined
+            : "Eine Zahl wie +2 ist eine Änderung nach der Frist."
+        }
+        actions={
+          unavailable ? undefined : (
+            <div className="flex flex-wrap items-center gap-2">
+              <SegmentedControl<Period>
+                items={PERIODS}
+                value={period}
+                onChange={setPeriod}
+                ariaLabel="Zeitraum wählen"
+              />
+              <Button
+                type="button"
+                variant="primary"
+                size="md"
+                className="gap-2"
+                disabled={!schools || exporting !== null}
+                onClick={() => void print()}
+              >
+                <Printer className="h-4 w-4" aria-hidden />
+                {exporting === "print" ? "Wird geöffnet…" : "Drucken"}
+              </Button>
+              <OverflowMenu
+                items={exportMenuItems}
+                ariaLabel="Weitere Aktionen"
+              />
+            </div>
+          )
+        }
+      >
+        {error ? (
+          <LoadErrorAlert error={error} />
+        ) : schools !== null && list.length === 0 ? (
+          <p className="text-sm leading-6 text-gray-600">
+            Sie beliefern zurzeit keine Schule. Sobald eine Schule Sie einlädt,
+            sehen Sie hier ihre Bestellungen.
+          </p>
+        ) : (
+          <DataTable
+            columns={columns}
+            rows={rows}
+            getRowKey={(row) => row.key}
+            isLoading={loading}
+            loadingRowCount={3}
+            stackedOnMobile
+            caption="Essen je Schule und Tag im gewählten Zeitraum"
+          />
+        )}
+      </SectionCard>
 
-          {list.map((school) => {
+      {error || !schools
+        ? null
+        : list.map((school) => {
             const schoolOrders = orders[school.id];
             return (
               <SectionCard
@@ -424,23 +492,24 @@ export default function CatererOverviewPage() {
                 collapsible
                 defaultCollapsed
               >
-                {schoolOrders ? (
+                {schoolOrders === undefined ? (
+                  <DataTableSkeleton rows={3} columns={5} />
+                ) : schoolOrders ? (
                   <CatererSchoolOrders
                     school={school}
                     orders={schoolOrders}
                     onConfirmed={() => reloadRef.current()}
                   />
                 ) : (
-                  <p className="text-sm text-gray-600">
-                    Die Bestellung dieser Schule ließ sich nicht laden. Bitte
-                    laden Sie die Seite neu.
-                  </p>
+                  <SchoolLoadError
+                    school={school}
+                    cause={failures[school.id]}
+                    onRetry={() => retrySchool(school)}
+                  />
                 )}
               </SectionCard>
             );
           })}
-        </>
-      )}
     </div>
   );
 }

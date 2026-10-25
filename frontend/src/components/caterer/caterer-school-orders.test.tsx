@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 
@@ -78,6 +84,53 @@ describe("CatererSchoolOrders", () => {
       expect(mocks.confirmCatererOrder).toHaveBeenCalledWith("42", "7"),
     );
     expect(mocks.onConfirmed).toHaveBeenCalled();
+  });
+
+  it("confirms in the state column and shows the green badge there afterwards", async () => {
+    const orders = (status: string) =>
+      ({
+        school,
+        deliveryAddress: "",
+        rhythm: "weekly",
+        detail: "total",
+        days: [day("2026-09-07", { status }), day("2026-09-08", { status })],
+      }) as never;
+    const view = renderOrders(orders("ordered"));
+
+    // Anker: der Stand steht in seiner Spalte, die Bestätigung auch.
+    const stateHeaders = screen.getAllByRole("columnheader", { name: "Stand" });
+    expect(stateHeaders).toHaveLength(1);
+    expect(
+      screen.queryByRole("columnheader", { name: "Bestätigung" }),
+    ).not.toBeInTheDocument();
+    // The desktop table row; the stacked phone copy is a list item.
+    const monday = screen
+      .getAllByText("Montag, 07.09.")
+      .map((cell) => cell.closest("tr"))
+      .find(Boolean)!;
+    const stateColumn = [...stateHeaders[0]!.closest("tr")!.children].indexOf(
+      stateHeaders[0]!,
+    );
+    const stateCell = monday.children[stateColumn]!;
+    expect(
+      within(stateCell as HTMLElement).getByRole("button", {
+        name: "Erhalten bestätigen",
+      }),
+    ).toBeInTheDocument();
+
+    view.rerender(
+      <CatererSchoolOrders
+        school={school}
+        orders={orders("confirmed")}
+        onConfirmed={mocks.onConfirmed}
+      />,
+    );
+    expect(
+      within(stateCell as HTMLElement).getByText("Bestätigt"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Erhalten bestätigen" }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows classes and names only when the school shares them", async () => {

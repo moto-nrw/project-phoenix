@@ -54,6 +54,17 @@ function changesLabel(day: CatererOrderDay): string {
     .join(" · ");
 }
 
+/** Where one day stands, as one badge. */
+function DayState({ day }: Readonly<{ day: CatererOrderDay }>) {
+  if (day.closed) return <StatusBadge label="Schule geschlossen" tone="gray" />;
+  if (day.status === "unordered")
+    return <StatusBadge label="Nicht bestellt" tone="gray" />;
+  if (day.status === "open") return <StatusBadge label="Offen" tone="gray" />;
+  if (day.status === "confirmed")
+    return <StatusBadge label="Bestätigt" tone="green" />;
+  return <StatusBadge label="Bestellt" tone="blue" />;
+}
+
 /** The first day of each order in the window carries its confirmation. */
 function firstDaysOfOrders(days: readonly CatererOrderDay[]): Set<string> {
   const seen = new Set<string>();
@@ -131,21 +142,27 @@ export function CatererSchoolOrders({
         stacked: "title",
       },
       {
+        // Stand und Bestätigung in einer Spalte: der erste Tag einer
+        // bestellten Bestellung trägt den Knopf, nach dem Bestätigen steht
+        // an derselben Stelle „Bestätigt“ (das Muster der Tagesinformationen).
         key: "status",
         header: "Stand",
         render: (day) =>
-          day.closed ? (
-            <StatusBadge label="Schule geschlossen" tone="gray" />
-          ) : day.status === "unordered" ? (
-            <StatusBadge label="Nicht bestellt" tone="gray" />
-          ) : day.status === "open" ? (
-            <StatusBadge label="Offen" tone="gray" />
-          ) : day.status === "confirmed" ? (
-            <StatusBadge label="Bestätigt" tone="green" />
+          day.status === "ordered" && day.orderId && firstDays.has(day.date) ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              isLoading={confirming === day.orderId}
+              loadingText="Wird bestätigt …"
+              disabled={confirming !== null}
+              onClick={() => void confirm(day.orderId!)}
+            >
+              Erhalten bestätigen
+            </Button>
           ) : (
-            <StatusBadge label="Bestellt" tone="blue" />
+            <DayState day={day} />
           ),
-        stacked: "meta",
       },
       {
         key: "deadline",
@@ -204,33 +221,11 @@ export function CatererSchoolOrders({
         },
       });
     }
-    result.push(
-      {
-        key: "changes",
-        header: "Änderungen nach der Frist",
-        render: changesLabel,
-      },
-      {
-        key: "confirm",
-        header: "Bestätigung",
-        render: (day) =>
-          day.status === "ordered" && day.orderId && firstDays.has(day.date) ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="compact"
-              isLoading={confirming === day.orderId}
-              loadingText="Wird bestätigt …"
-              disabled={confirming !== null}
-              onClick={() => void confirm(day.orderId!)}
-            >
-              Erhalten bestätigen
-            </Button>
-          ) : (
-            "–"
-          ),
-      },
-    );
+    result.push({
+      key: "changes",
+      header: "Änderungen nach der Frist",
+      render: changesLabel,
+    });
     return result;
   }, [byClass, confirm, confirming, firstDays, named, namesShown, toggleNames]);
 
