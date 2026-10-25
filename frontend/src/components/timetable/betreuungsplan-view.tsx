@@ -565,9 +565,7 @@ function TimetablesContent() {
   // kommen dann aus der Vertretungsübersicht, die nur schedules:read braucht.
   // Auch die Monatsansicht braucht sie für die Personenauswahl.
   const { data: planStaffOverview, error: planStaffOverviewError } = useSWRAuth(
-    status === "authenticated" &&
-      !canReadTenantRosters &&
-      view !== "series"
+    status === "authenticated" && !canReadTenantRosters && view !== "series"
       ? `timetable-plan-staff-names-${fetchFromISO}-${fetchToISO}`
       : null,
     () => substitutionService.fetchScheduleOverview(fetchFromISO, fetchToISO),

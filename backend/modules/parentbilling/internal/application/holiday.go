@@ -67,8 +67,9 @@ func (h *HolidayContributions) QuoteHolidayContribution(ctx context.Context, lin
 
 // HolidayContribution reads the registration through Enrollment, which
 // checks that it belongs to the period of the session's Träger and records
-// the read, and shows its frozen contribution or a preview.
-func (h *HolidayContributions) HolidayContribution(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID, registrationID int64) (parentbilling.HolidayContribution, error) {
+// the read, and shows its frozen contribution or a preview with the
+// exemption the Träger-Büro is about to choose.
+func (h *HolidayContributions) HolidayContribution(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID, registrationID int64, benefitsExemption *bool) (parentbilling.HolidayContribution, error) {
 	if reviewer.OrganizationID <= 0 || reviewer.AccountID <= 0 {
 		return parentbilling.HolidayContribution{}, errTraegerRequired
 	}
@@ -83,7 +84,11 @@ func (h *HolidayContributions) HolidayContribution(ctx context.Context, reviewer
 	if found {
 		return frozen, nil
 	}
-	return h.compute(ctx, reviewer.OrganizationID, registration.Children, registration.BenefitsDeclared)
+	exemption := registration.BenefitsDeclared
+	if benefitsExemption != nil {
+		exemption = *benefitsExemption
+	}
+	return h.compute(ctx, reviewer.OrganizationID, registration.Children, exemption)
 }
 
 // ConfirmHolidayRegistration confirms the registration through Enrollment

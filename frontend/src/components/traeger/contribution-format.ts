@@ -14,7 +14,7 @@ export function formatEuro(cents: number): string {
 }
 
 /** 5000 → "50 %". */
-export function formatShare(basisPoints: number): string {
+function formatShare(basisPoints: number): string {
   return `${new Intl.NumberFormat("de-DE", { maximumFractionDigits: 2 }).format(basisPoints / 100)} %`;
 }
 

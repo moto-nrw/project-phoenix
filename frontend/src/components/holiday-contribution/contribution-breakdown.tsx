@@ -1,7 +1,10 @@
 // Aufschlüsselung eines Beitrags (#4664): je Kind eine Zeile je Position mit
-// dem Betrag rechts und die Summe darunter. Die Eltern sehen sie in der
-// Zusammenfassung der Ferienanmeldung, das Träger-Büro in der Anmeldung; die
-// Texte bringt der Aufrufer in seiner Sprache mit.
+// dem Betrag rechts und die Summe darunter, aus den Feldern des Kits. Die
+// Eltern sehen sie in der Zusammenfassung der Ferienanmeldung, das
+// Träger-Büro in der Anmeldung; die Texte bringt der Aufrufer in seiner
+// Sprache mit.
+
+import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 
 export interface ContributionBreakdownChild {
   readonly key: string;
@@ -26,40 +29,32 @@ export function ContributionBreakdown({
   total: string;
 }>) {
   return (
-    <div className="space-y-4 text-sm">
+    <div className="space-y-4">
       {items.map((child) => (
-        <div key={child.key} className="space-y-1">
-          <p className="font-semibold text-gray-900">{child.name}</p>
-          <ul className="divide-y divide-gray-100">
+        <div key={child.key} className="space-y-2">
+          <p className="text-sm font-semibold text-gray-900">{child.name}</p>
+          <DataGrid columns={1}>
             {child.lines.map((line, index) => (
-              <li
+              <DataField
                 key={`${child.key}-${index}`}
-                className="flex items-baseline justify-between gap-4 py-1.5"
+                label={line.label}
+                inline
               >
-                <span className="min-w-0 text-gray-700">{line.label}</span>
-                <span className="shrink-0 text-gray-900 tabular-nums">
-                  {line.amount}
-                </span>
-              </li>
+                <span className="tabular-nums">{line.amount}</span>
+              </DataField>
             ))}
-            <li className="flex items-baseline justify-between gap-4 py-1.5">
-              <span className="font-medium text-gray-900">
-                {childTotalLabel}
-              </span>
-              <span className="shrink-0 font-semibold text-gray-900 tabular-nums">
-                {child.total}
-              </span>
-            </li>
-          </ul>
+            <DataField label={childTotalLabel} inline>
+              <span className="font-semibold tabular-nums">{child.total}</span>
+            </DataField>
+          </DataGrid>
         </div>
       ))}
       {items.length > 1 ? (
-        <div className="flex items-baseline justify-between gap-4 border-t border-gray-200 pt-3">
-          <p className="font-semibold text-gray-900">{totalLabel}</p>
-          <p className="shrink-0 font-semibold text-gray-900 tabular-nums">
-            {total}
-          </p>
-        </div>
+        <DataGrid columns={1}>
+          <DataField label={totalLabel} inline>
+            <span className="font-semibold tabular-nums">{total}</span>
+          </DataField>
+        </DataGrid>
       ) : null}
     </div>
   );

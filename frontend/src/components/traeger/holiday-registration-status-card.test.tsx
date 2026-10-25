@@ -35,18 +35,21 @@ function renderCard(
   contribution: HolidayContribution = HOLIDAY_CONTRIBUTION,
   onConfirmed = vi.fn(() => Promise.resolve()),
 ) {
+  const onExemptionChange = vi.fn();
   render(
     <ToastProvider>
       <HolidayRegistrationStatusCard
         periodId="5"
         registration={registration}
         contribution={contribution}
+        exemption={registration.benefitsDeclared}
+        onExemptionChange={onExemptionChange}
         onChanged={onChanged}
         onConfirmed={onConfirmed}
       />
     </ToastProvider>,
   );
-  return { onChanged, onConfirmed };
+  return { onChanged, onConfirmed, onExemptionChange };
 }
 
 describe("HolidayRegistrationStatusCard", () => {
@@ -57,18 +60,19 @@ describe("HolidayRegistrationStatusCard", () => {
 
   it("confirms a received registration through the contribution and says parents get no message yet", async () => {
     mockConfirm.mockResolvedValue({ ...HOLIDAY_CONTRIBUTION, frozen: true });
-    const { onConfirmed } = renderCard(HOLIDAY_REGISTRATION);
+    const { onConfirmed, onExemptionChange } = renderCard(HOLIDAY_REGISTRATION);
 
     expect(
       screen.getByText(
         "Eltern bekommen beim Bestätigen noch keine Nachricht von moto.",
       ),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole("checkbox", {
-        name: "Beim Bestätigen von der Zahlung befreien (Leistungsbezug)",
-      }),
-    ).not.toBeChecked();
+    const checkbox = screen.getByRole("checkbox", {
+      name: "Beim Bestätigen von der Zahlung befreien (Leistungsbezug)",
+    });
+    expect(checkbox).not.toBeChecked();
+    fireEvent.click(checkbox);
+    expect(onExemptionChange).toHaveBeenCalledWith(true);
     fireEvent.click(screen.getByRole("button", { name: "Bestätigen" }));
 
     await waitFor(() => expect(onConfirmed).toHaveBeenCalled());

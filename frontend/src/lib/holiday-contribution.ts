@@ -5,7 +5,7 @@
  * portal's client.
  */
 
-export type ContributionLineKind = "base" | "sibling" | "benefits_exemption";
+type ContributionLineKind = "base" | "sibling" | "benefits_exemption";
 
 export interface ContributionLine {
   readonly kind: ContributionLineKind;
@@ -20,7 +20,7 @@ export interface ContributionLine {
   readonly note: string;
 }
 
-export interface ChildContribution {
+interface ChildContribution {
   /** The child of a registration; empty in a quote. */
   readonly childId: string;
   /** Place of the child in the form, from 1. */

@@ -191,8 +191,10 @@ type HolidayContributions interface {
 	// nothing.
 	QuoteHolidayContribution(ctx context.Context, link HolidayLink, children []HolidayQuoteChild, benefitsDeclared bool) (HolidayContribution, error)
 	// HolidayContribution shows the frozen contribution of a confirmed
-	// registration, or else what a confirmation would freeze now.
-	HolidayContribution(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID int64) (HolidayContribution, error)
+	// registration, or else what a confirmation would freeze now: with the
+	// exemption benefitsExemption names, or the parents' statement when it
+	// is nil.
+	HolidayContribution(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID int64, benefitsExemption *bool) (HolidayContribution, error)
 	// ConfirmHolidayRegistration confirms the registration and freezes its
 	// contribution in the same transaction. benefitsExemption applies the
 	// exemption rule.

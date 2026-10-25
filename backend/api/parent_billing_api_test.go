@@ -322,6 +322,13 @@ func TestBenefitsExemptionIsFrozenWithItsNoteOnlyWithARule(t *testing.T) {
 	preview := f.contribution(t, registration)
 	assert.True(t, preview.BenefitsExemption, "the preview follows the parents' statement")
 	assert.Equal(t, int64(0), preview.TotalCents)
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodGet, holidayContributionPath(f.period.ID, registration)+"?benefits_exemption=false", nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	withoutExemption := decodeSchoolPortalData[contributionBody](t, rec.Body.Bytes())
+	assert.False(t, withoutExemption.BenefitsExemption, "the preview follows the choice of the Träger-Büro")
+	assert.Equal(t, int64(6750+9000), withoutExemption.TotalCents)
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodGet, holidayContributionPath(f.period.ID, registration)+"?benefits_exemption=perhaps", nil)
+	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
 
 	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, holidayConfirmPath(f.period.ID, registration), map[string]any{"benefits_exemption": true})
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())

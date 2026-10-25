@@ -5,7 +5,7 @@
 // sagt, warum eine Aktion gerade fehlt. Das Bestätigen hält den Ferienbeitrag
 // fest, auf Wunsch mit der Befreiung bei Leistungsbezug (#4664).
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { ConfirmationModal } from "~/components/ui/modal";
@@ -54,6 +54,8 @@ export function HolidayRegistrationStatusCard({
   periodId,
   registration,
   contribution,
+  exemption,
+  onExemptionChange,
   onChanged,
   onConfirmed,
 }: Readonly<{
@@ -61,6 +63,9 @@ export function HolidayRegistrationStatusCard({
   registration: HolidayRegistrationDetail;
   /** The contribution a confirmation freezes; null while it loads. */
   contribution: HolidayContribution | null;
+  /** The exemption the confirmation applies; the page shows its preview. */
+  exemption: boolean;
+  onExemptionChange: (exemption: boolean) => void;
   onChanged: (registration: HolidayRegistrationDetail) => void;
   /** After a confirmation; the page reads the registration again. */
   onConfirmed: () => Promise<void>;
@@ -69,13 +74,8 @@ export function HolidayRegistrationStatusCard({
     HolidayRegistrationAction | "confirm" | null
   >(null);
   const [confirmingCancel, setConfirmingCancel] = useState(false);
-  const [exemption, setExemption] = useState(registration.benefitsDeclared);
   const errorDisplay = useApiErrorDisplay();
   const exemptionAvailable = contribution?.exemptionAvailable ?? false;
-
-  useEffect(() => {
-    setExemption(registration.benefitsDeclared);
-  }, [registration.benefitsDeclared]);
 
   const confirm = async () => {
     setRunning("confirm");
@@ -135,7 +135,7 @@ export function HolidayRegistrationStatusCard({
               id="holiday-registration-exemption"
               name="benefits_exemption"
               checked={exemption}
-              onChange={(event) => setExemption(event.target.checked)}
+              onChange={(event) => onExemptionChange(event.target.checked)}
             />
             <span>
               Beim Bestätigen von der Zahlung befreien (Leistungsbezug)

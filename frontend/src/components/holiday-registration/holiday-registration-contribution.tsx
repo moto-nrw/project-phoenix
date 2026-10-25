@@ -6,7 +6,7 @@
 // dass sie Leistungen bekommen.
 
 import { useLocale, useTranslations } from "next-intl";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { ContributionBreakdown } from "~/components/holiday-contribution/contribution-breakdown";
@@ -51,13 +51,21 @@ export function HolidayRegistrationContribution({
   );
   const benefitsDeclared = draft.benefitsDeclared;
 
+  // Only the newest request may show its answer: a quick change of the
+  // statement on benefits must not be overwritten by an older answer.
+  const latest = useRef(0);
   const load = useCallback(async () => {
+    const request = ++latest.current;
     setFailed(false);
     try {
-      setContribution(
-        await quoteHolidayContribution(token, children, benefitsDeclared),
+      const quoted = await quoteHolidayContribution(
+        token,
+        children,
+        benefitsDeclared,
       );
+      if (request === latest.current) setContribution(quoted);
     } catch (err) {
+      if (request !== latest.current) return;
       // The registration can be sent without it; the card says so.
       logger.warn("holiday_registration_contribution_failed", {
         error: err instanceof Error ? err.message : String(err),

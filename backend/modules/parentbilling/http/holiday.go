@@ -3,8 +3,10 @@ package parentbillinghttp
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -134,7 +136,16 @@ func (rs *HolidayResource) contribution(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
-	contribution, err := rs.contributions.HolidayContribution(r.Context(), reviewer, periodID, registrationID)
+	var exemption *bool
+	if raw := r.URL.Query().Get("benefits_exemption"); raw != "" {
+		parsed, err := strconv.ParseBool(raw)
+		if err != nil {
+			common.RenderError(w, r, common.ErrorInvalidRequest(fmt.Errorf("benefits_exemption must be true or false: %w", err)))
+			return
+		}
+		exemption = &parsed
+	}
+	contribution, err := rs.contributions.HolidayContribution(r.Context(), reviewer, periodID, registrationID, exemption)
 	if err != nil {
 		renderHolidayError(w, r, err)
 		return

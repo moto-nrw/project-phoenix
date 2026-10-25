@@ -14,9 +14,7 @@ import {
 import { traegerRequest } from "./traeger-api";
 
 export type {
-  ChildContribution,
   ContributionLine,
-  ContributionLineKind,
   HolidayContribution,
 } from "./holiday-contribution";
 
@@ -115,14 +113,23 @@ export async function deleteContributionRule(id: string): Promise<void> {
 const registrationPath = (periodId: string, registrationId: string) =>
   `/api/traeger/holiday-periods/${encodeURIComponent(periodId)}/registrations/${encodeURIComponent(registrationId)}`;
 
-/** The frozen contribution of a registration, or what a confirmation would freeze now. */
+/**
+ * The frozen contribution of a registration, or what a confirmation would
+ * freeze now: with the exemption the Träger-Büro is about to choose, or the
+ * parents' statement when none is given.
+ */
 export async function fetchHolidayContribution(
   periodId: string,
   registrationId: string,
+  benefitsExemption?: boolean,
 ): Promise<HolidayContribution> {
+  const query =
+    benefitsExemption === undefined
+      ? ""
+      : `?benefits_exemption=${String(benefitsExemption)}`;
   return contributionFromBackend(
     await traegerRequest<BackendContribution>(
-      `${registrationPath(periodId, registrationId)}/contribution`,
+      `${registrationPath(periodId, registrationId)}/contribution${query}`,
     ),
   );
 }
