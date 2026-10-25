@@ -1106,9 +1106,8 @@ describe("TimeTrackingPage", () => {
       const refreshOptionsFor = (matches: (key: string) => boolean) =>
         vi
           .mocked(useSWRAuth)
-          .mock.calls.find(
-            ([key]) => typeof key === "string" && matches(key),
-          )?.[2];
+          .mock.calls.filter(([key]) => typeof key === "string" && matches(key))
+          ?.at(-1)?.[2];
 
       expect(
         refreshOptionsFor((key) => key.startsWith("time-tracking-history-")),
@@ -1117,9 +1116,7 @@ describe("TimeTrackingPage", () => {
       });
       expect(
         refreshOptionsFor((key) =>
-          /^time-tracking-table-\d{4}-\d{2}-\d{2}-\d{4}-\d{2}-\d{2}$/.test(
-            key,
-          ),
+          /^time-tracking-table-\d{4}-\d{2}-\d{2}-\d{4}-\d{2}-\d{2}$/.test(key),
         ),
       ).toMatchObject({
         refreshInterval: OPEN_MONTH_REFRESH_MS,
