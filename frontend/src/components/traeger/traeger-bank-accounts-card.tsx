@@ -107,7 +107,7 @@ export function TraegerBankAccountsCard({
       key: "iban",
       header: "IBAN",
       render: (account) => (
-        <span className="whitespace-nowrap tabular-nums">
+        <span className="wrap-anywhere tabular-nums sm:whitespace-nowrap">
           {formatIBAN(account.iban)}
         </span>
       ),
