@@ -138,6 +138,7 @@
     "/parents/children": 955650,
     "/parents/children/[id]": 955650,
     "/parents/demo": 837064,
+    "/parents/ferienanmeldung/[token]": 860232,
     "/parents/invite": 847853,
     "/parents/login": 847787,
     "/parents/meal-plan": 844086,
@@ -166,7 +167,7 @@
     "/traeger/accounts": 536273,
     "/traeger/invite": 515756,
     "/traeger/ferien": 518416,
-    "/traeger/ferien/[id]": 576536,
+    "/traeger/ferien/[id]": 588163,
     "/traeger/ferien/neu": 568613,
     "/traeger/login": 518937
   }

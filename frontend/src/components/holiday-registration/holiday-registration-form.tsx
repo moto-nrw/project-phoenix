@@ -106,12 +106,32 @@ export function HolidayRegistrationForm({
   }
 
   if (step === "summary") {
+    // The security check sits next to the send button: it stays mounted
+    // while the parent reads the summary, so Turnstile renews its token
+    // instead of a stale one from the form step being sent.
     return (
       <HolidayRegistrationSummary
         draft={draft}
         offer={offer}
         submitting={submitting}
-        onBack={() => setStep("form")}
+        canSubmit={captchaToken !== ""}
+        securityCheck={
+          offer.captchaSiteKey ? (
+            <Turnstile
+              siteKey={offer.captchaSiteKey}
+              options={{ theme: "light" }}
+              onSuccess={setCaptchaToken}
+              onExpire={() => setCaptchaToken("")}
+              onError={() => setCaptchaToken("")}
+            />
+          ) : (
+            <p className="text-sm text-gray-700">{t("captchaMissing")}</p>
+          )
+        }
+        onBack={() => {
+          setCaptchaToken("");
+          setStep("form");
+        }}
         onSubmit={() => void submit()}
       />
     );
@@ -272,25 +292,7 @@ export function HolidayRegistrationForm({
         </div>
       </SectionCard>
 
-      {offer.captchaSiteKey ? (
-        <Turnstile
-          siteKey={offer.captchaSiteKey}
-          options={{ theme: "light" }}
-          onSuccess={setCaptchaToken}
-          onExpire={() => setCaptchaToken("")}
-          onError={() => setCaptchaToken("")}
-        />
-      ) : (
-        <p className="text-sm text-gray-700">{t("captchaMissing")}</p>
-      )}
-
-      <Button
-        type="submit"
-        variant="primary"
-        size="lg"
-        disabled={!captchaToken}
-        className="w-full"
-      >
+      <Button type="submit" variant="primary" size="lg" className="w-full">
         {t("toSummary")}
       </Button>
     </form>

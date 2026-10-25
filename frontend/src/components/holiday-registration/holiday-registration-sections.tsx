@@ -72,7 +72,14 @@ export function ChildCard({
   const prefix = `children.${index}`;
   const guest = child.school === OTHER_SCHOOL;
   const set = (patch: Partial<ChildDraft>) => onChange({ ...child, ...patch });
-  const bookingsError = fieldError(`${prefix}.bookings`);
+  // The server names a single booking ("children.0.bookings.1") when a week
+  // or time model went away after the page loaded; every booking control of
+  // the child carries that hint.
+  const bookingsError =
+    fieldError(`${prefix}.bookings`) ??
+    offer.weeks
+      .map((_, booking) => fieldError(`${prefix}.bookings.${booking}`))
+      .find(Boolean);
   const birthDateError = fieldError(`${prefix}.birth_date`);
 
   return (
@@ -191,6 +198,9 @@ export function ChildCard({
                 ariaLabelledBy={`${prefix}-week-${week.id}`}
                 value={child.bookings[week.id] ?? ""}
                 invalid={Boolean(bookingsError)}
+                ariaDescribedBy={
+                  bookingsError ? `${prefix}-bookings-error` : undefined
+                }
                 options={[
                   { value: "", label: t("notBooked") },
                   ...week.timeModels.map((model) => ({

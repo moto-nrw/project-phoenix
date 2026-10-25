@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
 import deMessages from "~/i18n/messages/de.json";
 import type { HolidayRegistrationOffer } from "~/lib/holiday-registration-api";
 
@@ -64,7 +65,75 @@ function type(input: HTMLElement, value: string) {
   fireEvent.change(input, { target: { value } });
 }
 
+/** Fills a complete registration of one holiday guest. */
+function fillRegistration() {
+  const [childFirst, guardianFirst] = screen.getAllByLabelText("Vorname");
+  const [childLast, guardianLast] = screen.getAllByLabelText("Nachname");
+  type(childFirst!, "Ben");
+  type(childLast!, "Muster");
+  choose(screen.getByRole("combobox", { name: "Tag" }), "4");
+  choose(screen.getByRole("combobox", { name: "Monat" }), "Mai");
+  choose(screen.getByRole("combobox", { name: "Jahr" }), "2017");
+  choose(
+    screen.getByRole("combobox", { name: "Schule" }),
+    "Eine andere Schule",
+  );
+  expect(screen.getByText(/Ihr Kind kommt als Feriengast/)).toBeInTheDocument();
+  choose(
+    screen.getByRole("combobox", { name: /04\.01\.2027 bis 08\.01\.2027/ }),
+    "bis 13 Uhr (08:00 bis 13:00 Uhr)",
+  );
+  type(guardianFirst!, "Eva");
+  type(guardianLast!, "Muster");
+  type(screen.getByLabelText("E-Mail-Adresse"), "eva@example.org");
+  type(screen.getAllByLabelText("Telefon")[0]!, "0151 1");
+  type(screen.getAllByLabelText("Name")[0]!, "Oma Muster");
+  type(screen.getAllByLabelText("Telefon")[1]!, "05402 1");
+  fireEvent.click(
+    screen.getByLabelText(/Ich bin einverstanden, dass der Träger/),
+  );
+  fireEvent.click(
+    screen.getByLabelText("Ich weiß, dass die Anmeldung verbindlich ist."),
+  );
+}
+
+async function renderFilledForm() {
+  renderForm();
+  fillRegistration();
+  fireEvent.click(
+    screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),
+  );
+  await screen.findByText("Bitte prüfen Sie Ihre Angaben");
+}
+
 describe("HolidayRegistrationForm", () => {
+  it("marks every booking control when the server refuses one booking", async () => {
+    mockSubmit.mockRejectedValue(
+      new ApiError("refused", 400, {
+        code: "enrollment.holiday_registration_invalid",
+        errors: [{ field: "children.0.bookings.0", reason: "gone" }],
+      }),
+    );
+    await renderFilledForm();
+    fireEvent.click(screen.getByRole("button", { name: "Solve captcha" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Verbindlich anmelden" }),
+    );
+
+    const week = await screen.findByRole("combobox", {
+      name: /04\.01\.2027 bis 08\.01\.2027/,
+    });
+    await waitFor(() =>
+      expect(week).toHaveAttribute(
+        "aria-describedby",
+        "children.0-bookings-error",
+      ),
+    );
+    expect(
+      document.getElementById("children.0-bookings-error"),
+    ).toHaveTextContent(/\S/);
+  });
+
   beforeEach(() => {
     mockSubmit.mockReset();
     window.scrollTo = vi.fn();
@@ -72,7 +141,6 @@ describe("HolidayRegistrationForm", () => {
 
   it("marks the missing fields instead of showing the summary", async () => {
     renderForm();
-    fireEvent.click(screen.getByRole("button", { name: "Solve captcha" }));
     fireEvent.click(
       screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),
     );
@@ -92,47 +160,10 @@ describe("HolidayRegistrationForm", () => {
     expect(mockSubmit).not.toHaveBeenCalled();
   });
 
-  it("waits for the security check before the summary", () => {
-    renderForm();
-    expect(
-      screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),
-    ).toBeDisabled();
-  });
-
   it("registers a holiday guest after the summary", async () => {
     mockSubmit.mockResolvedValue(undefined);
     renderForm();
-    const [childFirst, guardianFirst] = screen.getAllByLabelText("Vorname");
-    const [childLast, guardianLast] = screen.getAllByLabelText("Nachname");
-    type(childFirst!, "Ben");
-    type(childLast!, "Muster");
-    choose(screen.getByRole("combobox", { name: "Tag" }), "4");
-    choose(screen.getByRole("combobox", { name: "Monat" }), "Mai");
-    choose(screen.getByRole("combobox", { name: "Jahr" }), "2017");
-    choose(
-      screen.getByRole("combobox", { name: "Schule" }),
-      "Eine andere Schule",
-    );
-    expect(
-      screen.getByText(/Ihr Kind kommt als Feriengast/),
-    ).toBeInTheDocument();
-    choose(
-      screen.getByRole("combobox", { name: /04\.01\.2027 bis 08\.01\.2027/ }),
-      "bis 13 Uhr (08:00 bis 13:00 Uhr)",
-    );
-    type(guardianFirst!, "Eva");
-    type(guardianLast!, "Muster");
-    type(screen.getByLabelText("E-Mail-Adresse"), "eva@example.org");
-    type(screen.getAllByLabelText("Telefon")[0]!, "0151 1");
-    type(screen.getAllByLabelText("Name")[0]!, "Oma Muster");
-    type(screen.getAllByLabelText("Telefon")[1]!, "05402 1");
-    fireEvent.click(
-      screen.getByLabelText(/Ich bin einverstanden, dass der Träger/),
-    );
-    fireEvent.click(
-      screen.getByLabelText("Ich weiß, dass die Anmeldung verbindlich ist."),
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Solve captcha" }));
+    fillRegistration();
     fireEvent.click(
       screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),
     );
@@ -141,6 +172,12 @@ describe("HolidayRegistrationForm", () => {
       await screen.findByText("Bitte prüfen Sie Ihre Angaben"),
     ).toBeInTheDocument();
     expect(screen.getByText("Feriengast")).toBeInTheDocument();
+    // The security check sits next to the send button and is solved there,
+    // so its token is fresh when the registration leaves (quorum round 1).
+    expect(
+      screen.getByRole("button", { name: "Verbindlich anmelden" }),
+    ).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Solve captcha" }));
     fireEvent.click(
       screen.getByRole("button", { name: "Verbindlich anmelden" }),
     );

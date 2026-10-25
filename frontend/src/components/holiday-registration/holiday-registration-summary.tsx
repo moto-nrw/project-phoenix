@@ -3,6 +3,7 @@
 // Zusammenfassung vor dem Absenden der Ferienanmeldung (#4661).
 
 import { useLocale, useTranslations } from "next-intl";
+import type { ReactNode } from "react";
 import { Button } from "~/components/ui/button";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { SectionCard } from "~/components/ui/section-card";
@@ -27,12 +28,17 @@ export function HolidayRegistrationSummary({
   draft,
   offer,
   submitting,
+  canSubmit,
+  securityCheck,
   onBack,
   onSubmit,
 }: Readonly<{
   draft: RegistrationDraft;
   offer: HolidayRegistrationOffer;
   submitting: boolean;
+  /** The security check is solved; until then the send button waits. */
+  canSubmit: boolean;
+  securityCheck: ReactNode;
   onBack: () => void;
   onSubmit: () => void;
 }>) {
@@ -113,6 +119,8 @@ export function HolidayRegistrationSummary({
         </DataGrid>
       </SectionCard>
 
+      {securityCheck}
+
       <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
         <Button
           type="button"
@@ -127,7 +135,7 @@ export function HolidayRegistrationSummary({
           type="button"
           variant="primary"
           size="md"
-          disabled={submitting}
+          disabled={submitting || !canSubmit}
           onClick={onSubmit}
         >
           {submitting
