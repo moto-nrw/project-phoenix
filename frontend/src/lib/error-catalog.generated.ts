@@ -1192,6 +1192,10 @@ export const ERROR_CATALOG = {
         "Diese Person gehört nicht mehr zum Träger-Büro. Bitte laden Sie die Seite neu.",
       "traeger.no_membership":
         "Ihr Konto hat keinen Zugang zum Träger-Portal. Bitte wenden Sie sich an das moto-Team.",
+      "traeger.second_factor_required":
+        "Zum Öffnen einer Schule brauchen Sie einen zweiten Anmeldenachweis. Bitte melden Sie sich im Träger-Portal neu an.",
+      "traeger.school_not_found":
+        "Diese Schule gehört nicht zu Ihrem Träger. Bitte laden Sie die Seite neu.",
       "workforce.absence_allowance_exceeded":
         "Für diese Art sind nicht mehr genug Tage übrig. Der Anspruch muss zuerst erhöht werden.",
       "workforce.absence_already_decided":
@@ -1705,6 +1709,10 @@ export const ERROR_CATALOG = {
         "This person no longer belongs to the Träger office. Please reload the page.",
       "traeger.no_membership":
         "Your account has no access to the Träger portal. Please contact the moto team.",
+      "traeger.second_factor_required":
+        "To open a school you need a second sign-in factor. Please sign in to the Träger portal again.",
+      "traeger.school_not_found":
+        "This school does not belong to your Träger. Please reload the page.",
     },
   },
   ru: {

@@ -91,8 +91,10 @@ func (s *AccountSession) Validate() error {
 	default:
 		return errors.New("invalid portal scope")
 	}
-	if (s.PortalScope == PortalScopeOrg) != (s.OrganizationID > 0) || (s.PortalScope == PortalScopeOrg && s.TenantID != 0) {
-		return errors.New("a Träger session names its Träger and no school; no other session names a Träger")
+	// An OGS session may name the Träger of its Absprung (ADR 0084 section 5).
+	traegerSchool := s.PortalScope == PortalScopeTenant && s.OrganizationID > 0
+	if (s.PortalScope == PortalScopeOrg) != (s.OrganizationID > 0 && !traegerSchool) || (s.PortalScope == PortalScopeOrg && s.TenantID != 0) || (traegerSchool && s.TenantID <= 0) {
+		return errors.New("a Träger session names its Träger and no school; an OGS session of the Träger names both; no other session names a Träger")
 	}
 	switch {
 	case (s.RotatedAt == nil) != (s.ReplacementTokenHash == nil):
@@ -121,4 +123,16 @@ type AccountSessionFilter struct {
 	FamilyID  string
 	Mobile    *bool
 	Liveness  AccountSessionLiveness
+}
+
+// TraegerSchoolHandoffTTL is how long the hand-off refresh token of an
+// Absprung stays redeemable (ADR 0084 section 5, #4654). The school's host
+// redeems it right away; its first rotation gives the session its normal
+// lifetime.
+const TraegerSchoolHandoffTTL = 2 * time.Minute
+
+// IsTraegerSchoolSession reports an OGS session the Träger-Büro opened through
+// the Absprung: portal scope tenant with the Träger in OrganizationID.
+func IsTraegerSchoolSession(session AccountSession) bool {
+	return session.PortalScope == PortalScopeTenant && session.OrganizationID > 0
 }
