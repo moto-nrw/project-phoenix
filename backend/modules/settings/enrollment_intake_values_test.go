@@ -26,7 +26,7 @@ func (s intakeSource) HasTenantOverride(_ context.Context, key string) (bool, er
 
 func (s intakeSource) ResolveBool(_ context.Context, key string) (bool, error) {
 	value, ok := s.overrides[key].(bool)
-	if !ok && key == configModel.KeyEnrollmentAllowSubmissionEdit {
+	if !ok && (key == configModel.KeyEnrollmentAllowSubmissionEdit || key == configModel.KeyModuleOnlineAnmeldung) {
 		value = true
 	}
 	return value, s.fail
@@ -83,6 +83,15 @@ func TestEnrollmentIntakeValuesUseResolvedDefaultsAndFailClosed(t *testing.T) {
 	assert.Equal(t, 30, days)
 	assert.Equal(t, "a@b.test", values.AdminNotificationEmails(ctx))
 	assert.True(t, values.ChangeRequestMailsEnabled(ctx))
+}
+
+// A school switch never opens the intake of a cancelled module (#4893).
+func TestEnrollmentIntakeStaysClosedWithoutTheModule(t *testing.T) {
+	t.Parallel()
+	values := NewEnrollmentIntakeValues(intakeSource{overrides: map[string]any{
+		configModel.KeyEnrollmentEnabled: true, configModel.KeyModuleOnlineAnmeldung: false,
+	}})
+	assert.False(t, values.EnrollmentEnabled(context.Background()))
 }
 
 func TestEnrollmentLegalTogglesNeedAnOverride(t *testing.T) {

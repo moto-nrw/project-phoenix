@@ -36,6 +36,10 @@ func (s *erasingStore) FinishAvatarCleanup(_ context.Context, id int64, removed 
 	}
 	return s.err
 }
+
+func (s *erasingStore) DeleteUnusedCaterers(context.Context) (int, domain.OperationStats, error) {
+	return 0, domain.OperationStats{}, s.err
+}
 func unattached(ctx context.Context) context.Context                        { return ctx }
 func runAdminNow(ctx context.Context, fn func(context.Context) error) error { return fn(ctx) }
 

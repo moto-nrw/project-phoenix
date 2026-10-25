@@ -38,7 +38,7 @@ var (
 		"eltern": true, "schule": true, "school": true, "traeger": true, "grafana": true,
 		"pyreportal": true, "help": true, "admin": true, "app": true,
 		"dashboard": true, "analytics": true, "status": true, "mail": true,
-		"staging": true, "demo": true, "ingest": true,
+		"staging": true, "demo": true, "ingest": true, "caterer": true,
 	}
 
 	ErrOrganizationNotFound       = errors.New("organization not found")
@@ -58,14 +58,18 @@ type Organization struct {
 	Active    bool       `json:"active"`
 	DeletedAt *time.Time `json:"deleted_at,omitempty"`
 	Settings  string     `json:"settings,omitempty"`
+	// TestSystem marks a test Träger with test schools and invented sample
+	// data (#4658). It is set at creation and never changes.
+	TestSystem bool `json:"test_system"`
 }
 
 func (o Organization) IsDeleted() bool { return o.DeletedAt != nil }
 
 type CreateOrganization struct {
-	Name   string
-	Slug   string
-	Active bool
+	Name       string
+	Slug       string
+	Active     bool
+	TestSystem bool
 }
 
 type UpdateOrganization struct {
@@ -80,6 +84,7 @@ type Query interface {
 	SchoolQuery
 	SchoolListQuery
 	TraegerMembershipQuery
+	TraegerErasureOrderQuery
 }
 
 // OrganizationQuery reads organizations and locks them before mutation.
@@ -136,6 +141,7 @@ type Capability interface {
 	Query
 	Command
 	TraegerMembershipCommand
+	TraegerErasureOrderCommand
 }
 
 func ValidateSlug(slug string) error {

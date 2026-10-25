@@ -7,6 +7,7 @@ import {
   TRACKED_PARENT_ROUTE_TEMPLATES,
   TRACKED_PUBLIC_ROUTE_TEMPLATES,
   TRACKED_SCHOOL_ROUTE_TEMPLATES,
+  TRACKED_CATERER_ROUTE_TEMPLATES,
   TRACKED_TENANT_PUBLIC_ROUTE_TEMPLATES,
   TRACKED_TENANT_ROUTE_TEMPLATES,
   TRACKED_TRAEGER_ROUTE_TEMPLATES,
@@ -85,6 +86,11 @@ const PORTAL_PAGE_TREES: ReadonlyArray<{
     templates: TRACKED_SCHOOL_ROUTE_TEMPLATES,
   },
   {
+    name: "caterer portal",
+    directory: "caterer",
+    templates: TRACKED_CATERER_ROUTE_TEMPLATES,
+  },
+  {
     name: "Träger portal",
     directory: "traeger",
     templates: TRACKED_TRAEGER_ROUTE_TEMPLATES,
@@ -97,6 +103,7 @@ const PORTAL_PAGE_TREES: ReadonlyArray<{
       "[tenant]",
       "parents",
       "school",
+      "caterer",
       "traeger",
       "operator",
       "api",
@@ -131,6 +138,7 @@ const SURFACE_TEMPLATES: ReadonlyArray<
   ],
   ["parents", TRACKED_PARENT_ROUTE_TEMPLATES],
   ["school", TRACKED_SCHOOL_ROUTE_TEMPLATES],
+  ["caterer", TRACKED_CATERER_ROUTE_TEMPLATES],
   ["traeger", TRACKED_TRAEGER_ROUTE_TEMPLATES],
   ["public", TRACKED_PUBLIC_ROUTE_TEMPLATES],
 ];

@@ -20,6 +20,9 @@ func MapError(err error) error {
 		return identityaccess.ErrRoleNotFound
 	case errors.Is(err, domain.ErrTenantRequired):
 		return identityaccess.ErrTenantRequired
+	case errors.Is(err, domain.ErrCatererAccountJoinsNoSchool):
+		// A caterer account answers like an address that is taken (ADR 0077).
+		return fmt.Errorf("%w: %w", identityaccess.ErrEmailAlreadyExists, err)
 	case errors.Is(err, domain.ErrGuardianRoleMissing):
 		return identityaccess.ErrGuardianRoleMissing
 	case errors.Is(err, domain.ErrGuardianStudentAccessTenantMismatch):

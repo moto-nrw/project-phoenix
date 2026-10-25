@@ -131,6 +131,9 @@ type GuardianStudentAuthorizer interface {
 type IntakeSettings interface {
 	// EnrollmentEnabled defaults to false.
 	EnrollmentEnabled(ctx context.Context) bool
+	// OnlineAnmeldungBooked reports whether the school booked the module
+	// Online-Anmeldung (#4893); false on any failure.
+	OnlineAnmeldungBooked(ctx context.Context) bool
 	// AllowSubmissionEdit reports lookup failures instead of granting an edit.
 	AllowSubmissionEdit(ctx context.Context) (bool, error)
 	// StatusTokenTTLDays resolves the token lifetime or reports the read failure.
@@ -209,6 +212,10 @@ type IntakeDependencies struct {
 	// ParentChanges makes a request unread for the staff again after a
 	// parent edit or renewal confirmation (#3778). Nil skips it (focused tests).
 	ParentChanges RequestParentChanges
+	// Signatures stores and reads the parent's signature in the Audit
+	// Platform (#4786). A form that requires a signature refuses parent
+	// submissions while it is nil; reads then find none.
+	Signatures IntakeSignatures
 	// Random fills the status and late-invite tokens; Fingerprint hashes a
 	// late-invite token into its stored identity.
 	Random      func([]byte) error
@@ -228,9 +235,10 @@ type Intake struct {
 }
 
 var (
-	_ enrollmentNative.IntakeSubmissions = (*Intake)(nil)
-	_ enrollmentNative.IntakeStatus      = (*Intake)(nil)
-	_ enrollmentNative.IntakeForms       = (*Intake)(nil)
+	_ enrollmentNative.IntakeSubmissions     = (*Intake)(nil)
+	_ enrollmentNative.IntakeStatus          = (*Intake)(nil)
+	_ enrollmentNative.IntakeForms           = (*Intake)(nil)
+	_ enrollmentNative.IntakeSignatureProofs = (*Intake)(nil)
 )
 
 // NewIntake composes the intake. A nil logger falls back to slog.Default().

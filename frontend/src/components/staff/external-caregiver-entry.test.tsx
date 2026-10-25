@@ -328,7 +328,7 @@ describe("ExternalCaregiverEntry", () => {
           catalogText(code, "das Eintragen der externen Person"),
         ),
       ).toBeInTheDocument();
-      expect(email).toHaveFocus();
+      await waitFor(() => expect(email).toHaveFocus());
     },
   );
 

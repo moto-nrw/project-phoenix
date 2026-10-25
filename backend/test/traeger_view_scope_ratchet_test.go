@@ -125,8 +125,10 @@ func traegerViewDatabaseCall(name string) bool {
 	return false
 }
 
+// traegerViewStringConstants reads the package-level string constants,
+// folding concatenations of literals and other such constants.
 func traegerViewStringConstants(files []*ast.File) map[string]string {
-	constants := map[string]string{}
+	expressions := map[string]ast.Expr{}
 	for _, file := range files {
 		for _, decl := range file.Decls {
 			general, ok := decl.(*ast.GenDecl)
@@ -136,19 +138,49 @@ func traegerViewStringConstants(files []*ast.File) map[string]string {
 			for _, spec := range general.Specs {
 				value := spec.(*ast.ValueSpec)
 				for i, name := range value.Names {
-					if i >= len(value.Values) {
-						continue
-					}
-					if literal, ok := value.Values[i].(*ast.BasicLit); ok && literal.Kind == token.STRING {
-						if text, err := strconv.Unquote(literal.Value); err == nil {
-							constants[name.Name] = text
-						}
+					if i < len(value.Values) {
+						expressions[name.Name] = value.Values[i]
 					}
 				}
 			}
 		}
 	}
+	constants := map[string]string{}
+	for name, expression := range expressions {
+		if text, ok := foldStringConstant(expression, expressions, 0); ok {
+			constants[name] = text
+		}
+	}
 	return constants
+}
+
+func foldStringConstant(expression ast.Expr, expressions map[string]ast.Expr, depth int) (string, bool) {
+	if depth > 8 {
+		return "", false
+	}
+	switch node := expression.(type) {
+	case *ast.BasicLit:
+		if node.Kind != token.STRING {
+			return "", false
+		}
+		text, err := strconv.Unquote(node.Value)
+		return text, err == nil
+	case *ast.BinaryExpr:
+		if node.Op != token.ADD {
+			return "", false
+		}
+		left, ok := foldStringConstant(node.X, expressions, depth+1)
+		if !ok {
+			return "", false
+		}
+		right, ok := foldStringConstant(node.Y, expressions, depth+1)
+		return left + right, ok
+	case *ast.Ident:
+		if referenced, ok := expressions[node.Name]; ok {
+			return foldStringConstant(referenced, expressions, depth+1)
+		}
+	}
+	return "", false
 }
 
 // TestTraegerViewScopeRatchetRejectsUnfilteredQueries proves the scanner
@@ -174,5 +206,59 @@ func reads(db DB, schools []int64, query string) {
 	problems, queries := traegerViewScopeProblems(t, dir)
 	if queries != 3 || len(problems) != 5 {
 		t.Fatalf("want 3 raw queries and 5 problems (unfiltered call and constant, unbound set, computed statement, builder), got %d and %q", queries, problems)
+	}
+}
+
+// auditAccessTrailFile is the Audit Platform's access trail (#4655, ADR
+// 0109): the Träger projection calls it inside its administrative unit, so
+// it carries the same boundary as the projection's own queries.
+const auditAccessTrailFile = "modules/auditlog/internal/adapters/auditpostgres/access_trail.go"
+
+// TestAuditAccessTrailQueriesFilterOnTheSchoolSet extends the ratchet of ADR
+// 0084 section 1 to the access trail: every query is NewRaw over a filtered
+// constant with the school set bound first, and every branch of each union
+// filters on that set, so no ledger reaches a school outside it.
+func TestAuditAccessTrailQueriesFilterOnTheSchoolSet(t *testing.T) {
+	t.Parallel()
+	root, err := findBackendRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, filepath.Join(root, auditAccessTrailFile), nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	constants := traegerViewStringConstants([]*ast.File{file})
+	queries := 0
+	ast.Inspect(file, func(node ast.Node) bool {
+		call, ok := node.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		selector, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok || !traegerViewDatabaseCall(selector.Sel.Name) {
+			return true
+		}
+		position := fset.Position(call.Pos()).String()
+		if selector.Sel.Name != "NewRaw" {
+			t.Errorf("%s: only NewRaw over a filtered constant may query the access trail, found %s", position, selector.Sel.Name)
+			return true
+		}
+		queries++
+		for _, problem := range traegerViewRawProblems(position, call, constants) {
+			t.Error(problem)
+		}
+		return true
+	})
+	if queries == 0 {
+		t.Fatalf("%s holds no query; the ratchet must not pass vacuously", auditAccessTrailFile)
+	}
+	for name, value := range constants {
+		for i, branch := range strings.Split(value, "UNION ALL") {
+			if strings.Contains(strings.ToUpper(branch), "FROM AUDIT.") && !strings.Contains(branch, "tenant_id = ANY(?0)") {
+				t.Errorf("query constant %s: union branch %d reads a ledger without the filter tenant_id = ANY(?0)", name, i)
+			}
+		}
 	}
 }

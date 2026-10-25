@@ -5,6 +5,7 @@
 package traegerviewhttp
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -30,13 +31,47 @@ func NewResource(overview traegerview.Overview) *Resource {
 
 // TraegerRouter returns the routes mounted at /traeger/schools inside the
 // Träger route group the portal supplies.
-func (rs *Resource) TraegerRouter(protectedTraegerRoutes func(chi.Router, func(chi.Router))) chi.Router {
+// The projection reads in its own administrative unit, so it does not use
+// the Träger transaction the group offers.
+func (rs *Resource) TraegerRouter(protectedTraegerRoutes func(chi.Router, func(chi.Router, common.Middleware))) chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
-	protectedTraegerRoutes(r, func(r chi.Router) {
+	protectedTraegerRoutes(r, func(r chi.Router, _ common.Middleware) {
 		r.With(common.RequiresPermission(identityaccess.TraegerRightOverviewRead)).Get("/", rs.listSchools)
 	})
 	return r
+}
+
+// TraegerOrganizationRouter returns the route mounted at /traeger/organization
+// inside the Träger route group: the Träger of the session, which the portal
+// frame names and marks as a test system (#4658). It needs the overview right
+// every Träger role holds; the Träger name and its test mark are no personal
+// data, so the read is not written to the access log.
+func (rs *Resource) TraegerOrganizationRouter(protectedTraegerRoutes func(chi.Router, func(chi.Router, common.Middleware))) chi.Router {
+	r := chi.NewRouter()
+	r.Use(render.SetContentType(render.ContentTypeJSON))
+	protectedTraegerRoutes(r, func(r chi.Router, _ common.Middleware) {
+		r.With(common.RequiresPermission(identityaccess.TraegerRightOverviewRead)).Get("/", rs.getTraeger)
+	})
+	return r
+}
+
+func (rs *Resource) getTraeger(w http.ResponseWriter, r *http.Request) {
+	principal, err := common.CurrentPrincipal(r.Context())
+	if err != nil || principal.OrganizationID() <= 0 || principal.AccountID() <= 0 {
+		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
+		return
+	}
+	traeger, err := rs.overview.Traeger(r.Context(), principal.OrganizationID(), principal.AccountID())
+	if errors.Is(err, traegerview.ErrTraegerUnavailable) {
+		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
+		return
+	}
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, traeger, "Träger retrieved successfully")
 }
 
 // listSchools answers GET /traeger/schools: every school of the Träger of the
@@ -49,6 +84,11 @@ func (rs *Resource) listSchools(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	schools, err := rs.overview.Schools(r.Context(), principal.OrganizationID())
+	if errors.Is(err, traegerview.ErrTraegerUnavailable) {
+		// The moto team deactivated the Träger: its session has ended.
+		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
+		return
+	}
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return

@@ -34,22 +34,23 @@ type MealWeekday int
 type MealParticipationDay struct {
 	Date          string
 	Participating bool
+	Regular       bool
 	Source        string
 	Changeable    bool
+	CanRegister   bool
+	CanCancel     bool
+	RegisterUntil time.Time
+	CancelUntil   time.Time
 }
 
 type MealParticipationPlan struct {
-	Weekdays       []MealWeekday
-	EffectiveFrom  string
-	CutoffTime     string
-	CutoffLeadDays int
-	// CutoffWeekday 1-5 ends the changes of a week on that weekday of the
-	// week before; 0 uses CutoffLeadDays.
-	CutoffWeekday int
-	// CancellationCutoffTime is empty unless parents may cancel later.
-	CancellationCutoffTime     string
-	CancellationCutoffLeadDays int
-	Days                       []MealParticipationDay
+	Weekdays           []MealWeekday
+	EffectiveFrom      string
+	CutoffTime         string
+	Model              string
+	ScheduleChangeable bool
+	SickCancels        bool
+	Days               []MealParticipationDay
 }
 
 // ChildFeatureFlags reports the resolved per-tenant parent-portal feature

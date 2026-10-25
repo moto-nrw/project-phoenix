@@ -51,11 +51,7 @@ func BuildIdentityAccess(
 	cfg, links := env.Config, env.Links
 	authLogger := env.Logger.With("service", "auth")
 	platformLogger := env.Logger.With("service", "platform")
-	tenantDomain := strings.TrimSpace(cfg.TenantDomain)
-	if tenantDomain == "" {
-		return nil, nil, fmt.Errorf("TENANT_DOMAIN is required")
-	}
-	operatorFrontendURL, err := operatorFrontendURLOf(cfg.OperatorHostname, links.FrontendURL)
+	tenantDomain, operatorFrontendURL, err := identityPortalHosts(cfg.TenantDomain, cfg.OperatorHostname, links.FrontendURL)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -102,8 +98,12 @@ func BuildIdentityAccess(
 	}
 	// The lifecycle flows (#3225) read the role management of the module
 	// they are composed into.
+	catererMail, err := CatererInvitationDelivery(organizations, outbox, links.CatererURL)
+	if err != nil {
+		return nil, nil, err
+	}
 	lifecycle, err := LifecycleDependencies(sessionRepos.Lifecycle, audit.Command, CaregiverProfiles{Persons: persons, Membership: membership},
-		guardianMail, enrollmentClaims, authLogger)
+		guardianMail, catererMail, enrollmentClaims, authLogger)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -120,10 +120,10 @@ func BuildIdentityAccess(
 		MFA: mfa, Lifecycle: lifecycle, Operators: operators, Demo: demo,
 		Resets: PasswordResetDependencies(&PasswordResetWiring{
 			Dispatcher: mailDispatcher, DefaultFrom: mailFrom, Durable: durable,
-			StaffURL: links.FrontendURL, ParentsURL: links.ParentsURL, SchoolURL: links.SchoolURL,
+			StaffURL: links.FrontendURL, ParentsURL: links.ParentsURL, SchoolURL: links.SchoolURL, CatererURL: links.CatererURL,
 			Expiry: links.PasswordResetTokenExpiry, RateLimitEnabled: cfg.RateLimitEnabled,
 		}, authLogger),
-		Invitations: invitationDeps,
+		Invitations: invitationDeps, Traeger: traegerAccountDependencies(mailDispatcher, mailFrom, deliveryRuntime, links, authLogger),
 		OperatorProvisioning: operatorProvisioningDependencies(&operatorLinkWiring{
 			dispatcher: mailDispatcher, defaultFrom: mailFrom, durable: durable,
 			frontendURL: links.FrontendURL, operatorFrontendURL: operatorFrontendURL,
@@ -166,6 +166,7 @@ func IdentityDeliveryRenderers(module identityaccess.Owner, defaultFrom email.Em
 		identityaccess.MailKindGuardianInvitation: payloadRenderer(NewGuardianInvitationRenderer(GuardianInvitationRendererConfig{
 			DefaultFrom: defaultFrom,
 		})),
+		identityaccess.MailKindCatererInvitation: payloadRenderer(NewCatererInvitationRenderer(defaultFrom)),
 		identityaccess.MailKindGuardianWelcome: payloadRenderer(NewGuardianWelcomeRenderer(GuardianInvitationRendererConfig{
 			DefaultFrom:          defaultFrom,
 			PrecedingEmailStatus: identityaccessCompose.NewGuardianWelcomeOrder(precedingMails{status: mailState}),
@@ -175,4 +176,17 @@ func IdentityDeliveryRenderers(module identityaccess.Owner, defaultFrom email.Em
 			InvitationDeliverySent: module.SchoolInvitationDeliverySent,
 		}),
 	}
+}
+
+// identityPortalHosts validates the host configuration before composing sessions.
+func identityPortalHosts(tenantDomain, operatorHostname, frontendURL string) (string, string, error) {
+	tenantDomain = strings.TrimSpace(tenantDomain)
+	if tenantDomain == "" {
+		return "", "", fmt.Errorf("TENANT_DOMAIN is required")
+	}
+	operatorURL, err := operatorFrontendURLOf(operatorHostname, frontendURL)
+	if err != nil {
+		return "", "", err
+	}
+	return tenantDomain, operatorURL, nil
 }

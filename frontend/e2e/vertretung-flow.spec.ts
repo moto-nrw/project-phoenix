@@ -369,6 +369,9 @@ test.describe("Vertretung UI-Flow (#1886, Inkrement 2)", () => {
         waitUntil: "domcontentloaded",
       });
       const target = adjacentDayInSameWeek(day);
+      // Die Tagesleiste steht schon im Server-HTML. Erst der geladene Termin
+      // belegt, dass die View nach dem Seitenaufruf wieder interaktiv ist.
+      await expect(row).toBeVisible(DATA);
       await page
         .getByLabel(new RegExp(`${target.dd}\\.${target.mm}\\.$`))
         .click();

@@ -26,6 +26,8 @@ var ErrOrganizationInactive = errors.New("organization is inactive")
 type TraegerOrganization struct {
 	ID   int64
 	Name string
+	// TestSystem marks a test Träger (#4658).
+	TestSystem bool
 }
 
 // TraegerMembership is one account's membership at a Träger.
@@ -56,6 +58,10 @@ type TraegerMembershipCommand interface {
 	// membership at an active, undeleted Träger on the caller's
 	// administrative transaction.
 	ActivateTraegerMembership(ctx context.Context, organizationID, accountID int64) (TraegerMembership, error)
+	// DeactivateTraegerMembership ends the account's active membership on
+	// the caller's administrative transaction and reports whether one was
+	// active (#4650). The Träger roles and sessions are Identity & Access's.
+	DeactivateTraegerMembership(ctx context.Context, organizationID, accountID int64) (bool, error)
 }
 
 // ErrTraegerAccountNotFound reports an e-mail address without an account:

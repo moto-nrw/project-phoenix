@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	realtime "github.com/moto-nrw/project-phoenix/realtime"
@@ -182,6 +184,7 @@ func buildClassDayViews(
 			PeopleDirectory: persons, StudentStatusDayService: presence.StatusDays,
 		})),
 		BlockStarts:                   operations,
+		DayHintDependencies:           classdayCompose.DayHintDependencies{DayHints: persons, Today: calendar.CalendarDateClock(env.Now)},
 		MorningAttendanceDependencies: classdayCompose.MorningAttendanceDependencies{Store: presence.Presence, Now: env.Now},
 		HomeworkDependencies:          classdayCompose.HomeworkDependencies{Homework: NewClassDayHomework(homework)},
 		ClassHandoverDependencies: classdayCompose.ClassHandoverDependencies{
@@ -203,7 +206,7 @@ func buildClassDayViews(
 func buildGroupLive(
 	env owners.RootEnvironment, presence owners.PresenceOwner, users peoplePorts.PersonDirectory, structure StructureServices,
 	caller *owners.CallerRows, active studentpresence.Presence, settings settingsCompose.BatchSettingsService, schedules owners.CarePlanSchedules,
-	lifecycle owners.TimetableLifecycle, requests owners.CarePlanRequests,
+	lifecycle owners.TimetableLifecycle, requests owners.CarePlanRequests, hints peopledirectory.SchoolDayHintQuery,
 ) (grouplive.Query, error) {
 	live, err := newGroupLive(groupLiveSources{
 		Presence: presence.Presence, People: GroupRosterPeople(users), Education: structure.Education,
@@ -213,7 +216,7 @@ func buildGroupLive(
 		CareParticipation: schedules.Lifecycle, ExcusedRequests: requests.Excused, StatusDays: presence.StatusDays,
 		Handovers: groupLiveHandovers{reads: classHandoverReads{handovers: presence.Presence, staff: NewTimetablePeople(users)}},
 		Logger:    env.Logger.With("service", "ogs-group-live"), Now: env.Now,
-	})
+	}, hints)
 	if err != nil {
 		return nil, fmt.Errorf("compose OGS group live projection: %w", err)
 	}
@@ -225,6 +228,7 @@ func buildSupervisionDashboard(
 	env owners.RootEnvironment, settings settingsCompose.BatchSettingsService, caller *owners.CallerRows, active studentpresence.Presence,
 	presence owners.PresenceOwner, rooms facilitiesModule.Catalog, timetableOwner timetable.Capability, yard FacilitiesYard,
 	structure StructureServices, lifecycle owners.TimetableLifecycle, schedules owners.CarePlanSchedules, users peoplePorts.PersonDirectory,
+	hints peopledirectory.SchoolDayHintQuery,
 ) (supervisiondashboard.Query, error) {
 	supervision := SupervisionCaller{caller}
 	dashboard, err := newSupervisionDashboard(supervisiondashboard.Dependencies{
@@ -236,7 +240,8 @@ func buildSupervisionDashboard(
 		Presence: newSupervisionPresence(active, active),
 		Planning: newSupervisionPlanning(schedules.Pickups, schedules.Arrivals),
 		Settings: newSupervisionSettings(settings), Staff: NewTimetablePeople(users), Calendar: supervisionCalendar{}, Now: env.Now,
-		Handovers: supervisionHandovers{reads: classHandoverReads{handovers: presence.Presence, staff: NewTimetablePeople(users)}},
+		TeacherHints: newSupervisionTeacherHints(hints),
+		Handovers:    supervisionHandovers{reads: classHandoverReads{handovers: presence.Presence, staff: NewTimetablePeople(users)}},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("compose supervision dashboard projection: %w", err)

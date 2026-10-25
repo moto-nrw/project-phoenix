@@ -15,6 +15,7 @@ import {
   HOMEWORK_FEEDBACK_LABELS,
 } from "~/lib/homework-feedback";
 import { LOCATION_COLORS } from "~/lib/location-helper";
+import { dayHintAuthorSuffix } from "~/lib/class-day-api";
 import type { ClassDayRow, MorningAttendanceStatus } from "~/lib/class-day-api";
 import { reportedTodayLabel } from "./day-changes";
 import {
@@ -98,6 +99,17 @@ export function StudentRow({
             {reported}
           </p>
         ) : null}
+        {/* Hinweise an die OGS für dieses Kind (#4795). Ganzer Text statt
+            abgeschnitten: der Hinweis ist die Nachricht selbst. */}
+        {(row.day_hints ?? []).map((hint) => (
+          <p
+            key={`${hint.author_name ?? ""}-${hint.updated_at}`}
+            className="text-xs break-words text-gray-700"
+          >
+            <span className="font-medium">Hinweis an die OGS:</span> {hint.body}
+            {dayHintAuthorSuffix(hint)}
+          </p>
+        ))}
         {/* Die Notiz der OGS zu den Hausaufgaben (#4796), unter dem Namen. */}
         {row.homework_feedback?.note ? (
           <p className="text-xs break-words text-gray-600">

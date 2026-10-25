@@ -1,3 +1,5 @@
+import { isTraegerRole, type TraegerRole } from "~/lib/traeger-roles";
+
 // Backend response types (snake_case, int64 ids)
 
 export interface BackendProvisioningStats {
@@ -186,6 +188,7 @@ export function summaryToOrganization(
     deletedAt: summary.deletedAt,
     createdAt: summary.createdAt,
     updatedAt: summary.updatedAt,
+    testSystem: summary.testSystem,
   };
 }
 
@@ -220,6 +223,8 @@ export interface BackendOrganization {
   settings: string | null;
   created_at: string;
   updated_at: string;
+  /** Test-Träger mit Test-Schulen und erfundenen Beispieldaten (#4658). */
+  test_system?: boolean;
 }
 
 export interface BackendSchool {
@@ -272,6 +277,7 @@ export interface Organization {
   deletedAt: string | null;
   createdAt: string;
   updatedAt: string;
+  testSystem: boolean;
 }
 
 export interface School {
@@ -387,6 +393,58 @@ export interface CreateOrganizationRequest {
   slug: string;
 }
 
+/** Auftrag für ein Testsystem (#4658): Test-Träger mit Test-Schulen. */
+export interface CreateTestTraegerRequest {
+  name: string;
+  slug: string;
+  school_count: number;
+  contact_email: string;
+}
+
+export interface BackendTestTraeger {
+  organization: BackendOrganization;
+  schools: BackendSchool[];
+}
+
+export interface TestTraeger {
+  organization: Organization;
+  schools: School[];
+}
+
+export function mapTestTraeger(data: BackendTestTraeger): TestTraeger {
+  return {
+    organization: mapOrganization(data.organization),
+    schools: data.schools.map(mapSchool),
+  };
+}
+
+/** Erfundene Beispielkinder in den Test-Schulen eines Test-Trägers. */
+export interface BackendSampleChildrenResult {
+  created_count: number;
+  schools: {
+    school_id: number;
+    created_count: number;
+    skipped_count: number;
+  }[];
+}
+
+export interface SampleChildrenResult {
+  createdCount: number;
+  skippedCount: number;
+}
+
+export function mapSampleChildrenResult(
+  data: BackendSampleChildrenResult,
+): SampleChildrenResult {
+  return {
+    createdCount: data.created_count,
+    skippedCount: data.schools.reduce(
+      (sum, school) => sum + school.skipped_count,
+      0,
+    ),
+  };
+}
+
 export interface CreateSchoolRequest {
   organization_id: number;
   name: string;
@@ -430,6 +488,7 @@ export function mapOrganization(data: BackendOrganization): Organization {
     deletedAt: data.deleted_at ?? null,
     createdAt: data.created_at,
     updatedAt: data.updated_at,
+    testSystem: data.test_system ?? false,
   };
 }
 
@@ -761,22 +820,11 @@ export const API_KEY_COPY_FAILED_MESSAGE =
 
 // --- Träger-Büro (#4649) ---
 
-/** The fixed Träger roles (ADR 0084); each bundles Träger rights. */
-export const TRAEGER_ROLES = [
-  "administration",
-  "billing",
-  "personnel",
-  "read_only",
-] as const;
-
-export type TraegerRole = (typeof TRAEGER_ROLES)[number];
-
-export const TRAEGER_ROLE_LABELS: Readonly<Record<TraegerRole, string>> = {
-  administration: "Verwaltung",
-  billing: "Abrechnung",
-  personnel: "Personal",
-  read_only: "Nur lesen",
-};
+export {
+  TRAEGER_ROLES,
+  TRAEGER_ROLE_LABELS,
+  type TraegerRole,
+} from "~/lib/traeger-roles";
 
 export type TraegerMemberStatus = "active" | "pending" | "inactive";
 
@@ -804,10 +852,6 @@ export interface TraegerMember {
   activatedAt: string | null;
 }
 
-function isTraegerRole(value: string): value is TraegerRole {
-  return (TRAEGER_ROLES as readonly string[]).includes(value);
-}
-
 export function mapTraegerMember(data: BackendTraegerMember): TraegerMember {
   return {
     accountId: data.account_id.toString(),
@@ -823,4 +867,59 @@ export function mapTraegerMember(data: BackendTraegerMember): TraegerMember {
 export interface AssignTraegerMemberRequest {
   email: string;
   role: TraegerRole;
+}
+
+// Löschauftrag eines deaktivierten Trägers (#4657). Kalenderdaten bleiben
+// "YYYY-MM-DD"-Strings.
+export interface BackendTraegerErasureOrder {
+  id: number;
+  organization_id: number;
+  order_reference: string;
+  confirmed_on: string;
+  erase_not_before: string;
+  recorded_by: number;
+  recorded_at: string;
+  started_at?: string | null;
+}
+
+export interface TraegerErasureOrder {
+  id: string;
+  organizationId: string;
+  orderReference: string;
+  confirmedOn: string;
+  eraseNotBefore: string;
+  recordedAt: string;
+  /** Set once the internal erasure began; then the order stays. */
+  startedAt: string | null;
+}
+
+export function mapTraegerErasureOrder(
+  data: BackendTraegerErasureOrder,
+): TraegerErasureOrder {
+  return {
+    id: data.id.toString(),
+    organizationId: data.organization_id.toString(),
+    orderReference: data.order_reference,
+    confirmedOn: data.confirmed_on,
+    eraseNotBefore: data.erase_not_before,
+    recordedAt: data.recorded_at,
+    startedAt: data.started_at ?? null,
+  };
+}
+
+/** The backend answers without `data` when no order is open. */
+export function isBackendTraegerErasureOrder(
+  data: unknown,
+): data is BackendTraegerErasureOrder {
+  return (
+    typeof data === "object" &&
+    data !== null &&
+    typeof (data as { id?: unknown }).id === "number"
+  );
+}
+
+export interface RecordTraegerErasureOrderRequest {
+  order_reference: string;
+  confirmed_on: string;
+  erase_not_before: string;
 }

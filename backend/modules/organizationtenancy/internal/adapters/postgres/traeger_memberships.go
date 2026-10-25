@@ -117,3 +117,24 @@ func (s *Store) UpsertActiveTraegerMembership(ctx context.Context, organizationI
 	}
 	return row.toDomain(), stats, nil
 }
+
+const deactivateTraegerMembershipQuery = `UPDATE platform.organization_accounts
+	SET status = 'inactive', deactivated_at = CURRENT_TIMESTAMP
+	WHERE organization_id = ? AND account_id = ? AND status = 'active'`
+
+// DeactivateTraegerMembership ends an active membership and reports whether
+// one was active (#4650).
+func (s *Store) DeactivateTraegerMembership(ctx context.Context, organizationID, accountID int64) (bool, domain.OperationStats, error) {
+	db, err := s.database(ctx)
+	if err != nil {
+		return false, domain.OperationStats{}, err
+	}
+	started := time.Now()
+	result, err := db.NewRaw(deactivateTraegerMembershipQuery, organizationID, accountID).Exec(ctx)
+	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}
+	if err != nil {
+		return false, stats, fmt.Errorf("organization tenancy postgres: deactivate Träger membership: %w", err)
+	}
+	stats.Rows, _ = result.RowsAffected()
+	return stats.Rows == 1, stats, nil
+}

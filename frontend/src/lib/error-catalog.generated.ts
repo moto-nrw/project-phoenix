@@ -165,6 +165,14 @@ export const ERROR_CATALOG = {
         "Für ein Kind steht an einem dieser Tage schon etwas, zum Beispiel krank. Es wurde nichts gespeichert. Bitte sprechen Sie mit der OGS.",
       "classday.class_trip_student_not_in_class":
         "Ein Kind ist nicht mehr in dieser Klasse. Bitte laden Sie die Seite neu.",
+      "classday.day_hint_class_empty":
+        "In dieser Klasse ist kein Kind in der OGS. Ein Hinweis für die ganze Klasse ist deshalb nicht möglich.",
+      "classday.day_hint_invalid":
+        "Der Hinweis braucht einen Text. Er darf höchstens 500 Zeichen lang sein.",
+      "classday.day_hint_not_today":
+        "Einen Hinweis für die OGS können Sie nur für heute schreiben.",
+      "classday.day_hint_student_not_in_class":
+        "Dieses Kind ist heute nicht in Ihrer Klasse. Bitte laden Sie die Seite neu.",
       "classday.homework_not_found":
         "Diese Hausaufgabe gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "classday.morning_attendance_no_school_day":
@@ -343,8 +351,20 @@ export const ERROR_CATALOG = {
         "Bitte geben Sie Vor- und Nachnamen ein.",
       "enrollment.guardian_phone_required":
         "Bitte geben Sie eine Telefonnummer ein.",
+      "enrollment.holiday_host_school_outside_traeger":
+        "Diese Schule gehört nicht zu Ihrem Träger. Bitte wählen Sie eine Schule aus der Liste.",
+      "enrollment.holiday_period_incomplete":
+        "Der Ferienzeitraum braucht mindestens eine Woche. Jede Woche braucht mindestens ein Zeitmodell.",
+      "enrollment.holiday_period_invalid":
+        "Bitte prüfen Sie die markierten Felder.",
+      "enrollment.holiday_period_not_found":
+        "Diesen Ferienzeitraum gibt es nicht. Bitte öffnen Sie ihn aus der Liste der Ferien.",
       "enrollment.invalid_email":
         "Bitte geben Sie eine gültige E-Mail-Adresse ein.",
+      "enrollment.signature_invalid":
+        "Die Unterschrift konnte nicht gelesen werden. Bitte unterschreiben Sie noch einmal.",
+      "enrollment.signature_required":
+        "Bitte unterschreiben Sie die Anmeldung.",
       "enrollment.invalid_phone":
         "Bitte geben Sie eine gültige Telefonnummer ein.",
       "enrollment.late_invite_invalid":
@@ -418,6 +438,8 @@ export const ERROR_CATALOG = {
         "Eine hochgeladene Datei ist abgelaufen. Bitte laden Sie sie erneut hoch.",
       "enrollment.upload_invalid":
         "Diese Datei passt nicht. Bitte wählen Sie eine erlaubte Dateiart mit höchstens {max_mb} MB.",
+      "enrollment.signature_not_found":
+        "Zu dieser Anmeldung gibt es keine Unterschrift.",
       "enrollment.upload_not_found":
         "Diese Datei gibt es nicht mehr. Bitte laden Sie sie erneut hoch.",
       "enrollment.upload_rate_limited":
@@ -469,6 +491,10 @@ export const ERROR_CATALOG = {
         "Dieses Konto gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "identity.account_not_in_school":
         "Dieses Konto gehört nicht zu dieser Schule. Bitte laden Sie die Seite neu.",
+      "identity.caterer_address_taken":
+        "Diese E-Mail-Adresse gehört schon zu einem anderen moto-Konto. Bitte nehmen Sie eine andere Adresse.",
+      "identity.caterer_without_school":
+        "Sie beliefern zurzeit keine Schule über moto. Bitte fragen Sie die Schule.",
       "identity.current_password_wrong":
         "Das aktuelle Passwort stimmt nicht. Bitte prüfen Sie Ihre Eingabe.",
       "identity.demo_access_expired":
@@ -564,6 +590,10 @@ export const ERROR_CATALOG = {
         "Die Datei konnte nicht gelesen werden. Bitte nutzen Sie die Vorlage.",
       "import.mode_forbidden":
         "Bestehende Einträge dürfen Sie nicht ändern. Bitte wählen Sie „Nur neue anlegen“ oder fragen Sie die Leitung.",
+      "import.not_test_traeger":
+        "Das geht nur bei einem Test-Träger. Echte Träger bekommen keine Beispieldaten.",
+      "import.test_traeger_inactive":
+        "Der Test-Träger ist deaktiviert. Bitte aktivieren Sie ihn zuerst.",
       "iot.activity_capacity_exceeded":
         "Im Angebot {activity_name} ist kein Platz mehr. Bitte wählen Sie ein anderes Angebot.",
       "iot.deviation_reason_required":
@@ -580,6 +610,13 @@ export const ERROR_CATALOG = {
         "Im Raum {room_name} ist kein Platz mehr. Bitte wählen Sie einen anderen Raum.",
       "iot.student_already_active":
         "{object} ist bereits im Raum {room_name}. Bitte prüfen Sie den aktuellen Aufenthalt.",
+      "meals.child_not_enrolled":
+        "{object} geht nicht. Das Kind ist an diesem Tag nicht in der Betreuung.",
+      "meals.day_closed":
+        "{object} geht nicht. An diesem Tag ist die Schule geschlossen.",
+      "meals.day_past": "{object} geht nicht mehr. Der Tag ist schon vorbei.",
+      "meals.delivery_range_too_long":
+        "Die Lieferliste umfasst höchstens sieben Tage. Bitte wählen Sie einen kürzeren Zeitraum.",
       "meals.invalid_allergens":
         "Die Allergene konnten nicht gespeichert werden. Bitte wählen Sie sie neu aus.",
       "meals.invalid_dishes":
@@ -588,10 +625,18 @@ export const ERROR_CATALOG = {
         "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
       "meals.invalid_participation":
         "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
+      "meals.not_supplied":
+        "Sie beliefern diese Schule nicht mehr. Bitte fragen Sie die Schule.",
+      "meals.order_not_found":
+        "Diese Bestellung gibt es nicht. Bitte laden Sie die Seite neu.",
       "meals.plan_disabled":
         "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
       "meals.registration_disabled":
         "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
+      "meals.supply_active":
+        "{object} geht gerade nicht. Ein Caterer beliefert die Schule noch. Beenden Sie zuerst diese Belieferung.",
+      "module.not_booked":
+        "Ihre Schule hat das Modul {module_label} nicht gebucht. Für eine Buchung wenden Sie sich an das moto-Team.",
       "operator.audit_unavailable":
         "Die Anfrage konnte nicht sicher protokolliert werden. Bitte versuchen Sie es später erneut.",
       "pickup.bulk_exception_confirmation_required":
@@ -662,6 +707,14 @@ export const ERROR_CATALOG = {
         "Diesen Slug hat schon eine andere Schule dieses Trägers. Bitte wählen Sie einen anderen.",
       "provisioning.school_subdomain_taken":
         "Diese Subdomain hat schon eine andere Schule. Bitte wählen Sie eine andere.",
+      "provisioning.traeger_active":
+        "Der Träger ist noch aktiv. Bitte deaktivieren Sie ihn zuerst.",
+      "provisioning.traeger_erasure_order_not_found":
+        "Für diesen Träger gibt es keinen offenen Löschauftrag. Bitte laden Sie die Seite neu.",
+      "provisioning.traeger_erasure_order_open":
+        "Für diesen Träger ist schon ein Löschauftrag erfasst. Bitte nehmen Sie den Löschauftrag zuerst zurück.",
+      "provisioning.traeger_erasure_started":
+        "Die Löschung hat schon begonnen. Der Löschauftrag kann nicht mehr zurückgenommen werden.",
       "rollover.deadline_required":
         "Bitte geben Sie eine Frist für die Rückmeldung ein.",
       "rollover.duplicate_name":
@@ -1138,6 +1191,13 @@ export const ERROR_CATALOG = {
         "Das Enddatum darf nicht vor dem Startdatum liegen. Bitte prüfen Sie die Daten.",
       "timetable.window_too_large":
         "Der Zeitraum ist zu lang. Bitte wählen Sie höchstens {max_days} Tage.",
+      "traeger.access_log_export_too_large":
+        "Der Export hat mehr als {limit} Einträge. Bitte wählen Sie einen kürzeren Zeitraum oder weitere Filter.",
+      "traeger.already_member": "Diese Person gehört schon zum Träger-Büro.",
+      "traeger.last_administrator":
+        "Das Träger-Büro braucht mindestens eine Person mit der Rolle Verwaltung. Geben Sie die Rolle zuerst einer anderen Person.",
+      "traeger.member_not_found":
+        "Diese Person gehört nicht mehr zum Träger-Büro. Bitte laden Sie die Seite neu.",
       "traeger.no_membership":
         "Ihr Konto hat keinen Zugang zum Träger-Portal. Bitte wenden Sie sich an das moto-Team.",
       "workforce.absence_allowance_exceeded":
@@ -1403,6 +1463,14 @@ export const ERROR_CATALOG = {
         "A class can only be handed over today. Please open today.",
       "classday.class_handover_unknown_child":
         "A child no longer belongs to this class. Please reload the page.",
+      "classday.day_hint_class_empty":
+        "No child in this class attends the OGS. A note for the whole class is therefore not possible.",
+      "classday.day_hint_invalid":
+        "The note needs a text. It may be at most 500 characters long.",
+      "classday.day_hint_not_today":
+        "You can only write a note for the OGS for today.",
+      "classday.day_hint_student_not_in_class":
+        "This child is not in your class today. Please reload the page.",
       "classday.homework_not_found":
         "This homework no longer exists. Please reload the page.",
       "classday.morning_attendance_no_school_day":
@@ -1490,7 +1558,17 @@ export const ERROR_CATALOG = {
       "enrollment.guardian_name_required":
         "Please enter the first and last name.",
       "enrollment.guardian_phone_required": "Please enter a phone number.",
+      "enrollment.holiday_host_school_outside_traeger":
+        "This school does not belong to your Träger. Please choose a school from the list.",
+      "enrollment.holiday_period_incomplete":
+        "The holiday period needs at least one week. Every week needs at least one time model.",
+      "enrollment.holiday_period_invalid": "Please check the marked fields.",
+      "enrollment.holiday_period_not_found":
+        "This holiday period does not exist. Please open it from the holiday list.",
       "enrollment.invalid_email": "Please enter a valid email address.",
+      "enrollment.signature_invalid":
+        "The signature could not be read. Please sign again.",
+      "enrollment.signature_required": "Please sign the enrollment.",
       "enrollment.invalid_phone": "Please enter a valid phone number.",
       "enrollment.late_invite_invalid":
         "This link is invalid, has expired or was already used. Please contact the school.",
@@ -1513,6 +1591,8 @@ export const ERROR_CATALOG = {
         "An uploaded file has expired. Please upload it again.",
       "enrollment.upload_invalid":
         "This file does not fit. Please choose an allowed file type of at most {max_mb} MB.",
+      "enrollment.signature_not_found":
+        "There is no signature for this enrollment.",
       "enrollment.upload_not_found":
         "This file no longer exists. Please upload it again.",
       "enrollment.upload_rate_limited":
@@ -1529,6 +1609,10 @@ export const ERROR_CATALOG = {
         "This person already has access to this school. You can find them in the staff list.",
       "identity.account_inactive":
         "Your account is blocked. Please contact moto.",
+      "identity.caterer_address_taken":
+        "This email address already belongs to another moto account. Please use a different address.",
+      "identity.caterer_without_school":
+        "You do not supply any school through moto at the moment. Please ask the school.",
       "identity.demo_access_expired":
         "The demo access has expired. Please request new access.",
       "identity.demo_access_invalid":
@@ -1569,14 +1653,30 @@ export const ERROR_CATALOG = {
         "The password is too weak. It needs at least 8 characters, upper and lower case letters, a number and a special character.",
       "identity.session_account_inactive":
         "Your account is switched off. Please contact your school's management.",
+      "meals.child_not_enrolled":
+        "{object} is not possible. The child is not in care on this day.",
+      "meals.day_closed":
+        "{object} is not possible. The school is closed on this day.",
+      "meals.day_past":
+        "{object} is no longer possible. The day is already over.",
+      "meals.delivery_range_too_long":
+        "The delivery list covers at most seven days. Please choose a shorter period.",
       "meals.invalid_allergens":
         "The allergens could not be saved. Please select them again.",
       "meals.invalid_participation":
         "{object} contains invalid details. Please check your entries.",
+      "meals.not_supplied":
+        "You no longer supply this school. Please ask the school.",
+      "meals.order_not_found":
+        "This order does not exist. Please reload the page.",
       "meals.plan_disabled":
         "{object} is not available here at the moment. Please ask your contact person.",
       "meals.registration_disabled":
         "{object} is not available here at the moment. Please ask your contact person.",
+      "meals.supply_active":
+        "{object} is not possible right now. A caterer still supplies the school. Please end that supply first.",
+      "module.not_booked":
+        "Your school has not booked the module {module_label}. To book it, please contact the moto team.",
       "staff.external_access_invalid":
         "Please choose which access this person gets.",
       "staff.external_email_invalid":
@@ -1616,6 +1716,14 @@ export const ERROR_CATALOG = {
         "Homework feedback is only possible in a study time you supervise.",
       "timetable.homework_feedback_without_homework":
         "No homework is entered for this child's class today.",
+      "traeger.access_log_export_too_large":
+        "The export has more than {limit} entries. Please choose a shorter period or more filters.",
+      "traeger.already_member":
+        "This person already belongs to the Träger office.",
+      "traeger.last_administrator":
+        "The Träger office needs at least one person with the role Verwaltung. Give this role to someone else first.",
+      "traeger.member_not_found":
+        "This person no longer belongs to the Träger office. Please reload the page.",
       "traeger.no_membership":
         "Your account has no access to the Träger portal. Please contact the moto team.",
     },
@@ -1750,6 +1858,10 @@ export const ERROR_CATALOG = {
         "Передать класс можно только сегодня. Откройте сегодняшний день.",
       "classday.class_handover_unknown_child":
         "Один ребёнок больше не относится к этому классу. Обновите страницу.",
+      "classday.day_hint_class_empty":
+        "Не удалось сохранить: {object}. Проверьте введённые данные.",
+      "classday.day_hint_student_not_in_class":
+        "Не удалось сохранить: {object}. Проверьте введённые данные.",
       "classday.homework_not_found":
         "Этого домашнего задания больше нет. Обновите страницу.",
       "classday.morning_attendance_no_school_day":
@@ -1834,6 +1946,9 @@ export const ERROR_CATALOG = {
       "enrollment.guardian_name_required": "Укажите имя и фамилию.",
       "enrollment.guardian_phone_required": "Укажите номер телефона.",
       "enrollment.invalid_email": "Укажите правильный адрес электронной почты.",
+      "enrollment.signature_invalid":
+        "Не удалось прочитать подпись. Пожалуйста, подпишите ещё раз.",
+      "enrollment.signature_required": "Пожалуйста, подпишите заявку.",
       "enrollment.invalid_phone": "Укажите правильный номер телефона.",
       "enrollment.late_invite_invalid":
         "Эта ссылка недействительна, устарела или уже использована. Обратитесь в школу.",
@@ -1856,6 +1971,7 @@ export const ERROR_CATALOG = {
         "Срок действия загруженного файла истёк. Загрузите его ещё раз.",
       "enrollment.upload_invalid":
         "Этот файл не подходит. Выберите разрешённый тип файла размером не более {max_mb} МБ.",
+      "enrollment.signature_not_found": "Для этой заявки нет подписи.",
       "enrollment.upload_not_found":
         "Этого файла больше нет. Загрузите его ещё раз.",
       "enrollment.upload_rate_limited":
@@ -1872,6 +1988,10 @@ export const ERROR_CATALOG = {
         "У этого человека уже есть доступ к этой школе. Он есть в списке сотрудников.",
       "identity.account_inactive":
         "Ваш аккаунт заблокирован. Обратитесь в moto.",
+      "identity.caterer_address_taken":
+        "Этот адрес электронной почты уже принадлежит другой учётной записи moto. Пожалуйста, укажите другой адрес.",
+      "identity.caterer_without_school":
+        "Сейчас вы не снабжаете ни одну школу через moto. Пожалуйста, обратитесь в школу.",
       "identity.demo_access_expired":
         "Демо-доступ истёк. Запросите новый доступ.",
       "identity.demo_access_invalid":
@@ -1912,14 +2032,28 @@ export const ERROR_CATALOG = {
         "Пароль слишком простой. Нужно минимум 8 символов, заглавные и строчные буквы, цифра и специальный символ.",
       "identity.session_account_inactive":
         "Ваш аккаунт отключён. Обратитесь к руководству вашей школы.",
+      "meals.child_not_enrolled":
+        "Невозможно: {object}. В этот день ребёнок не находится под присмотром.",
+      "meals.day_closed": "Невозможно: {object}. В этот день школа закрыта.",
+      "meals.day_past": "Уже невозможно: {object}. Этот день уже прошёл.",
+      "meals.delivery_range_too_long":
+        "Список доставки охватывает не более семи дней. Пожалуйста, выберите более короткий период.",
       "meals.invalid_allergens":
         "Не удалось сохранить аллергены. Пожалуйста, выберите их заново.",
       "meals.invalid_participation":
         "Указаны неверные данные: {object}. Проверьте введённые данные.",
+      "meals.not_supplied":
+        "Вы больше не снабжаете эту школу. Пожалуйста, обратитесь в школу.",
+      "meals.order_not_found":
+        "Такого заказа нет. Пожалуйста, обновите страницу.",
       "meals.plan_disabled":
         "Сейчас здесь недоступно: {object}. Обратитесь к контактному лицу.",
       "meals.registration_disabled":
         "Сейчас здесь недоступно: {object}. Обратитесь к контактному лицу.",
+      "meals.supply_active":
+        "{object} сейчас невозможно. Школу ещё снабжает поставщик питания. Сначала завершите эти поставки.",
+      "module.not_booked":
+        "Ваша школа не подключила модуль {module_label}. Чтобы подключить его, обратитесь в команду moto.",
       "students.care_exception_raced":
         "Данные изменились: {object}. Проверьте свои данные ещё раз.",
       "students.care_offerings_disabled":
@@ -1947,6 +2081,8 @@ export const ERROR_CATALOG = {
         "Отзыв о домашнем задании можно дать только на занятии, которое вы ведёте.",
       "timetable.homework_feedback_without_homework":
         "Для класса этого ребёнка на сегодня нет домашних заданий.",
+      "traeger.access_log_export_too_large":
+        "В экспорте больше {limit} записей. Выберите более короткий период или другие фильтры.",
     },
   },
   sq: {
@@ -2081,6 +2217,10 @@ export const ERROR_CATALOG = {
         "Klasa dorëzohet vetëm sot. Hapni ditën e sotme.",
       "classday.class_handover_unknown_child":
         "Një fëmijë nuk i përket më kësaj klase. Ringarkoni faqen.",
+      "classday.day_hint_class_empty":
+        "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+      "classday.day_hint_student_not_in_class":
+        "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
       "classday.homework_not_found":
         "Kjo detyrë shtëpie nuk ekziston më. Ringarkoni faqen.",
       "classday.morning_attendance_no_school_day":
@@ -2175,6 +2315,9 @@ export const ERROR_CATALOG = {
         "Ju lutemi shkruani një numër telefoni.",
       "enrollment.invalid_email":
         "Ju lutemi shkruani një adresë emaili të vlefshme.",
+      "enrollment.signature_invalid":
+        "Nënshkrimi nuk mund të lexohej. Ju lutemi nënshkruani përsëri.",
+      "enrollment.signature_required": "Ju lutemi nënshkruani regjistrimin.",
       "enrollment.invalid_phone":
         "Ju lutemi shkruani një numër telefoni të vlefshëm.",
       "enrollment.late_invite_invalid":
@@ -2198,6 +2341,7 @@ export const ERROR_CATALOG = {
         "Një skedar i ngarkuar ka skaduar. Ngarkojeni përsëri.",
       "enrollment.upload_invalid":
         "Ky skedar nuk përshtatet. Zgjidhni një lloj skedari të lejuar me më së shumti {max_mb} MB.",
+      "enrollment.signature_not_found": "Për këtë regjistrim nuk ka nënshkrim.",
       "enrollment.upload_not_found":
         "Ky skedar nuk ekziston më. Ngarkojeni përsëri.",
       "enrollment.upload_rate_limited":
@@ -2214,6 +2358,10 @@ export const ERROR_CATALOG = {
         "Ky person ka tashmë qasje në këtë shkollë. E gjeni në listën e personelit.",
       "identity.account_inactive":
         "Llogaria juaj është bllokuar. Kontaktoni moto.",
+      "identity.caterer_address_taken":
+        "Kjo adresë email i përket tashmë një llogarie tjetër moto. Ju lutemi përdorni një adresë tjetër.",
+      "identity.caterer_without_school":
+        "Aktualisht nuk furnizoni asnjë shkollë përmes moto. Ju lutemi pyesni shkollën.",
       "identity.demo_access_expired":
         "Qasja demo ka skaduar. Kërkoni një qasje të re.",
       "identity.demo_access_invalid":
@@ -2254,14 +2402,29 @@ export const ERROR_CATALOG = {
         "Fjalëkalimi është shumë i dobët. Duhen të paktën 8 karaktere, shkronja të mëdha dhe të vogla, një numër dhe një karakter special.",
       "identity.session_account_inactive":
         "Llogaria juaj është e çaktivizuar. Kontaktoni drejtimin e shkollës suaj.",
+      "meals.child_not_enrolled":
+        "Nuk është e mundur: {object}. Fëmija nuk është në kujdes në këtë ditë.",
+      "meals.day_closed":
+        "Nuk është e mundur: {object}. Shkolla është e mbyllur në këtë ditë.",
+      "meals.day_past": "Nuk është më e mundur: {object}. Dita ka kaluar.",
+      "meals.delivery_range_too_long":
+        "Lista e dorëzimit përfshin të shumtën shtatë ditë. Ju lutemi zgjidhni një periudhë më të shkurtër.",
       "meals.invalid_allergens":
         "Alergjenët nuk u ruajtën. Ju lutemi zgjidhini përsëri.",
       "meals.invalid_participation":
         "Ka të dhëna të pavlefshme: {object}. Kontrolloni çfarë keni shkruar.",
+      "meals.not_supplied":
+        "Ju nuk e furnizoni më këtë shkollë. Ju lutemi pyesni shkollën.",
+      "meals.order_not_found":
+        "Kjo porosi nuk ekziston. Ju lutemi ringarkoni faqen.",
       "meals.plan_disabled":
         "Për momentin nuk është i disponueshëm këtu: {object}. Pyetni personin tuaj të kontaktit.",
       "meals.registration_disabled":
         "Për momentin nuk është i disponueshëm këtu: {object}. Pyetni personin tuaj të kontaktit.",
+      "meals.supply_active":
+        "{object} nuk është e mundur tani. Një furnizues ushqimi e furnizon ende shkollën. Përfundoni fillimisht atë furnizim.",
+      "module.not_booked":
+        "Shkolla juaj nuk e ka rezervuar modulin {module_label}. Për ta rezervuar, kontaktoni ekipin e moto.",
       "students.care_exception_raced":
         "Ndërkohë është ndryshuar: {object}. Kontrolloni përsëri të dhënat tuaja.",
       "students.care_offerings_disabled":
@@ -2290,6 +2453,8 @@ export const ERROR_CATALOG = {
         "Përgjigja për detyrat e shtëpisë jepet vetëm në orën e mësimit që mbikëqyrni.",
       "timetable.homework_feedback_without_homework":
         "Për klasën e këtij fëmije nuk ka detyra shtëpie për sot.",
+      "traeger.access_log_export_too_large":
+        "Eksporti ka më shumë se {limit} hyrje. Zgjidhni një periudhë më të shkurtër ose më shumë filtra.",
     },
   },
   pl: {
@@ -2423,6 +2588,10 @@ export const ERROR_CATALOG = {
         "Klasę można przekazać tylko dzisiaj. Otwórz dzisiejszy dzień.",
       "classday.class_handover_unknown_child":
         "Jedno dziecko nie należy już do tej klasy. Odśwież stronę.",
+      "classday.day_hint_class_empty":
+        "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+      "classday.day_hint_student_not_in_class":
+        "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
       "classday.homework_not_found":
         "Tego zadania domowego już nie ma. Odśwież stronę.",
       "classday.morning_attendance_no_school_day":
@@ -2507,6 +2676,9 @@ export const ERROR_CATALOG = {
       "enrollment.guardian_name_required": "Wpisz imię i nazwisko.",
       "enrollment.guardian_phone_required": "Wpisz numer telefonu.",
       "enrollment.invalid_email": "Wpisz prawidłowy adres e-mail.",
+      "enrollment.signature_invalid":
+        "Nie udało się odczytać podpisu. Prosimy podpisać jeszcze raz.",
+      "enrollment.signature_required": "Prosimy podpisać zgłoszenie.",
       "enrollment.invalid_phone": "Wpisz prawidłowy numer telefonu.",
       "enrollment.late_invite_invalid":
         "Ten link jest nieprawidłowy, wygasł lub został już użyty. Skontaktuj się ze szkołą.",
@@ -2529,6 +2701,7 @@ export const ERROR_CATALOG = {
         "Przesłany plik wygasł. Prześlij go ponownie.",
       "enrollment.upload_invalid":
         "Ten plik nie pasuje. Wybierz dozwolony rodzaj pliku o rozmiarze najwyżej {max_mb} MB.",
+      "enrollment.signature_not_found": "To zgłoszenie nie ma podpisu.",
       "enrollment.upload_not_found":
         "Tego pliku już nie ma. Prześlij go ponownie.",
       "enrollment.upload_rate_limited":
@@ -2545,6 +2718,10 @@ export const ERROR_CATALOG = {
         "Ta osoba ma już dostęp do tej szkoły. Znajdziesz ją na liście personelu.",
       "identity.account_inactive":
         "Twoje konto jest zablokowane. Skontaktuj się z moto.",
+      "identity.caterer_address_taken":
+        "Ten adres e-mail należy już do innego konta moto. Proszę użyć innego adresu.",
+      "identity.caterer_without_school":
+        "Obecnie nie zaopatrujesz żadnej szkoły przez moto. Proszę zapytać szkołę.",
       "identity.demo_access_expired":
         "Dostęp demo wygasł. Poproś o nowy dostęp.",
       "identity.demo_access_invalid":
@@ -2585,14 +2762,29 @@ export const ERROR_CATALOG = {
         "Hasło jest zbyt słabe. Potrzeba co najmniej 8 znaków, wielkich i małych liter, cyfry i znaku specjalnego.",
       "identity.session_account_inactive":
         "Twoje konto jest wyłączone. Skontaktuj się z dyrekcją swojej szkoły.",
+      "meals.child_not_enrolled":
+        "Nie można: {object}. Dziecko nie jest tego dnia pod opieką.",
+      "meals.day_closed":
+        "Nie można: {object}. Tego dnia szkoła jest zamknięta.",
+      "meals.day_past": "Już nie można: {object}. Ten dzień już minął.",
+      "meals.delivery_range_too_long":
+        "Lista dostaw obejmuje maksymalnie siedem dni. Proszę wybrać krótszy okres.",
       "meals.invalid_allergens":
         "Nie udało się zapisać alergenów. Prosimy wybrać je ponownie.",
       "meals.invalid_participation":
         "Nieprawidłowe dane: {object}. Sprawdź wpisane dane.",
+      "meals.not_supplied":
+        "Nie zaopatrujesz już tej szkoły. Proszę zapytać szkołę.",
+      "meals.order_not_found":
+        "To zamówienie nie istnieje. Proszę odświeżyć stronę.",
       "meals.plan_disabled":
         "Obecnie niedostępne tutaj: {object}. Zapytaj swoją osobę kontaktową.",
       "meals.registration_disabled":
         "Obecnie niedostępne tutaj: {object}. Zapytaj swoją osobę kontaktową.",
+      "meals.supply_active":
+        "{object} nie jest teraz możliwe. Szkołę nadal zaopatruje firma cateringowa. Najpierw zakończ to zaopatrzenie.",
+      "module.not_booked":
+        "Twoja szkoła nie zamówiła modułu {module_label}. Aby go zamówić, skontaktuj się z zespołem moto.",
       "students.care_exception_raced":
         "W międzyczasie zmieniono: {object}. Sprawdź ponownie swoje dane.",
       "students.care_offerings_disabled":
@@ -2620,6 +2812,8 @@ export const ERROR_CATALOG = {
         "Informację o zadaniach domowych można podać tylko w odrabianiu lekcji, które prowadzisz.",
       "timetable.homework_feedback_without_homework":
         "Dla klasy tego dziecka nie ma dziś wpisanych zadań domowych.",
+      "traeger.access_log_export_too_large":
+        "Eksport ma ponad {limit} wpisów. Wybierz krótszy okres lub więcej filtrów.",
     },
   },
   tr: {
@@ -2754,6 +2948,10 @@ export const ERROR_CATALOG = {
         "Sınıf yalnızca bugün teslim edilebilir. Lütfen bugünü açın.",
       "classday.class_handover_unknown_child":
         "Bir çocuk artık bu sınıfa ait değil. Lütfen sayfayı yenileyin.",
+      "classday.day_hint_class_empty":
+        "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+      "classday.day_hint_student_not_in_class":
+        "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
       "classday.homework_not_found":
         "Bu ev ödevi artık yok. Lütfen sayfayı yenileyin.",
       "classday.morning_attendance_no_school_day":
@@ -2843,6 +3041,9 @@ export const ERROR_CATALOG = {
       "enrollment.guardian_phone_required":
         "Lütfen bir telefon numarası girin.",
       "enrollment.invalid_email": "Lütfen geçerli bir e-posta adresi girin.",
+      "enrollment.signature_invalid":
+        "İmza okunamadı. Lütfen tekrar imzalayın.",
+      "enrollment.signature_required": "Lütfen kaydı imzalayın.",
       "enrollment.invalid_phone": "Lütfen geçerli bir telefon numarası girin.",
       "enrollment.late_invite_invalid":
         "Bu bağlantı geçersiz, süresi dolmuş veya kullanılmış. Lütfen okulla iletişime geçin.",
@@ -2865,6 +3066,7 @@ export const ERROR_CATALOG = {
         "Yüklenen bir dosyanın süresi doldu. Lütfen dosyayı tekrar yükleyin.",
       "enrollment.upload_invalid":
         "Bu dosya uygun değil. Lütfen en fazla {max_mb} MB olan izin verilen bir dosya türü seçin.",
+      "enrollment.signature_not_found": "Bu kayıt için imza yok.",
       "enrollment.upload_not_found":
         "Bu dosya artık yok. Lütfen dosyayı tekrar yükleyin.",
       "enrollment.upload_rate_limited":
@@ -2881,6 +3083,10 @@ export const ERROR_CATALOG = {
         "Bu kişinin bu okula zaten erişimi var. Kişiyi personel listesinde bulabilirsiniz.",
       "identity.account_inactive":
         "Hesabınız engellendi. Lütfen moto ile iletişime geçin.",
+      "identity.caterer_address_taken":
+        "Bu e-posta adresi zaten başka bir moto hesabına ait. Lütfen başka bir adres kullanın.",
+      "identity.caterer_without_school":
+        "Şu anda moto üzerinden hiçbir okula yemek sağlamıyorsunuz. Lütfen okula danışın.",
       "identity.demo_access_expired":
         "Demo erişiminin süresi doldu. Lütfen yeni bir erişim isteyin.",
       "identity.demo_access_invalid":
@@ -2921,14 +3127,28 @@ export const ERROR_CATALOG = {
         "Şifre çok zayıf. En az 8 karakter, büyük ve küçük harf, bir rakam ve bir özel karakter gerekir.",
       "identity.session_account_inactive":
         "Hesabınız kapalı. Lütfen okulunuzun yönetimiyle iletişime geçin.",
+      "meals.child_not_enrolled":
+        "{object} mümkün değil. Çocuk bu gün bakımda değil.",
+      "meals.day_closed": "{object} mümkün değil. Okul bu gün kapalı.",
+      "meals.day_past": "{object} artık mümkün değil. Bu gün geçti.",
+      "meals.delivery_range_too_long":
+        "Teslimat listesi en fazla yedi günü kapsar. Lütfen daha kısa bir dönem seçin.",
       "meals.invalid_allergens":
         "Alerjenler kaydedilemedi. Lütfen yeniden seçin.",
       "meals.invalid_participation":
         "{object} geçersiz bilgiler içeriyor. Lütfen girdiğiniz bilgileri kontrol edin.",
+      "meals.not_supplied":
+        "Artık bu okula yemek sağlamıyorsunuz. Lütfen okula danışın.",
+      "meals.order_not_found":
+        "Bu sipariş mevcut değil. Lütfen sayfayı yeniden yükleyin.",
       "meals.plan_disabled":
         "{object} şu anda burada kullanılamıyor. Lütfen ilgili kişinize danışın.",
       "meals.registration_disabled":
         "{object} şu anda burada kullanılamıyor. Lütfen ilgili kişinize danışın.",
+      "meals.supply_active":
+        "{object} şu anda mümkün değil. Okula hâlâ bir yemek firması yemek sağlıyor. Önce bu tedariki sonlandırın.",
+      "module.not_booked":
+        "Okulunuz {module_label} modülünü almamış. Almak için moto ekibiyle iletişime geçin.",
       "students.care_exception_raced":
         "{object} bu arada değiştirildi. Lütfen bilgilerinizi yeniden kontrol edin.",
       "students.care_offerings_disabled":
@@ -2957,6 +3177,8 @@ export const ERROR_CATALOG = {
         "Ev ödevi geri bildirimi yalnızca gözetiminizdeki etüt saatinde verilebilir.",
       "timetable.homework_feedback_without_homework":
         "Bu çocuğun sınıfı için bugün ev ödevi girilmedi.",
+      "traeger.access_log_export_too_large":
+        "Dışa aktarma {limit} kayıttan fazla içeriyor. Lütfen daha kısa bir dönem veya daha fazla filtre seçin.",
     },
   },
   uk: {
@@ -3088,6 +3310,10 @@ export const ERROR_CATALOG = {
         "Передати клас можна лише сьогодні. Відкрийте сьогоднішній день.",
       "classday.class_handover_unknown_child":
         "Одна дитина більше не належить до цього класу. Оновіть сторінку.",
+      "classday.day_hint_class_empty":
+        "Не вдалося зберегти: {object}. Перевірте введені дані.",
+      "classday.day_hint_student_not_in_class":
+        "Не вдалося зберегти: {object}. Перевірте введені дані.",
       "classday.homework_not_found":
         "Цього домашнього завдання більше немає. Оновіть сторінку.",
       "classday.morning_attendance_no_school_day":
@@ -3171,6 +3397,9 @@ export const ERROR_CATALOG = {
       "enrollment.guardian_name_required": "Вкажіть ім'я та прізвище.",
       "enrollment.guardian_phone_required": "Вкажіть номер телефону.",
       "enrollment.invalid_email": "Вкажіть правильну адресу електронної пошти.",
+      "enrollment.signature_invalid":
+        "Не вдалося прочитати підпис. Будь ласка, підпишіть ще раз.",
+      "enrollment.signature_required": "Будь ласка, підпишіть заявку.",
       "enrollment.invalid_phone": "Вкажіть правильний номер телефону.",
       "enrollment.late_invite_invalid":
         "Це посилання недійсне, застаріле або вже використане. Зверніться до школи.",
@@ -3193,6 +3422,7 @@ export const ERROR_CATALOG = {
         "Термін дії завантаженого файлу минув. Завантажте його ще раз.",
       "enrollment.upload_invalid":
         "Цей файл не підходить. Виберіть дозволений тип файлу розміром не більше {max_mb} МБ.",
+      "enrollment.signature_not_found": "Для цієї заявки немає підпису.",
       "enrollment.upload_not_found":
         "Цього файлу більше немає. Завантажте його ще раз.",
       "enrollment.upload_rate_limited":
@@ -3209,6 +3439,10 @@ export const ERROR_CATALOG = {
         "Ця особа вже має доступ до цієї школи. Її можна знайти в списку персоналу.",
       "identity.account_inactive":
         "Ваш обліковий запис заблоковано. Зверніться до moto.",
+      "identity.caterer_address_taken":
+        "Ця адреса електронної пошти вже належить іншому обліковому запису moto. Будь ласка, вкажіть іншу адресу.",
+      "identity.caterer_without_school":
+        "Зараз ви не постачаєте жодну школу через moto. Будь ласка, зверніться до школи.",
       "identity.demo_access_expired":
         "Демо-доступ закінчився. Запросіть новий доступ.",
       "identity.demo_access_invalid":
@@ -3249,14 +3483,28 @@ export const ERROR_CATALOG = {
         "Пароль надто простий. Потрібно щонайменше 8 символів, великі й малі літери, цифра і спеціальний символ.",
       "identity.session_account_inactive":
         "Ваш обліковий запис вимкнено. Зверніться до керівництва вашої школи.",
+      "meals.child_not_enrolled":
+        "Неможливо: {object}. Цього дня дитина не перебуває під доглядом.",
+      "meals.day_closed": "Неможливо: {object}. Цього дня школа зачинена.",
+      "meals.day_past": "Уже неможливо: {object}. Цей день уже минув.",
+      "meals.delivery_range_too_long":
+        "Список доставки охоплює щонайбільше сім днів. Будь ласка, виберіть коротший період.",
       "meals.invalid_allergens":
         "Не вдалося зберегти алергени. Будь ласка, виберіть їх знову.",
       "meals.invalid_participation":
         "Указано неправильні дані: {object}. Перевірте введені дані.",
+      "meals.not_supplied":
+        "Ви більше не постачаєте цю школу. Будь ласка, зверніться до школи.",
+      "meals.order_not_found":
+        "Такого замовлення немає. Будь ласка, оновіть сторінку.",
       "meals.plan_disabled":
         "Зараз тут недоступно: {object}. Зверніться до контактної особи.",
       "meals.registration_disabled":
         "Зараз тут недоступно: {object}. Зверніться до контактної особи.",
+      "meals.supply_active":
+        "{object} зараз неможливо. Школу ще постачає постачальник харчування. Спочатку завершіть ці постачання.",
+      "module.not_booked":
+        "Ваша школа не підключила модуль {module_label}. Щоб підключити його, зверніться до команди moto.",
       "students.care_exception_raced":
         "Дані змінилися: {object}. Перевірте свої дані ще раз.",
       "students.care_offerings_disabled":
@@ -3284,6 +3532,8 @@ export const ERROR_CATALOG = {
         "Відгук про домашнє завдання можна дати лише на занятті, яке ви ведете.",
       "timetable.homework_feedback_without_homework":
         "Для класу цієї дитини на сьогодні немає домашніх завдань.",
+      "traeger.access_log_export_too_large":
+        "В експорті понад {limit} записів. Виберіть коротший період або інші фільтри.",
     },
   },
 } as const;

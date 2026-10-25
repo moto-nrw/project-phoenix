@@ -136,6 +136,7 @@ type SelectOption struct {
 // TabOrder defines the display ordering of setting tabs.
 var TabOrder = []string{
 	"operations",
+	"meals",
 	"reminders",
 	"devices",
 	"enrollment",

@@ -56,6 +56,12 @@ func (s *Intake) requestByStatusToken(ctx context.Context, token string, lock bo
 	if req.StatusTokenExpires != nil && time.Now().After(*req.StatusTokenExpires) {
 		return nil, enrollmentNative.ErrRequestNotFound
 	}
+	// A school that cancelled Online-Anmeldung closes every status link: it
+	// answers like an expired link, so a family learns nothing about the
+	// school's contract (#4893). The data stays; booking again reopens it.
+	if !s.deps.Settings.OnlineAnmeldungBooked(s.deps.Runtime.WithTenant(ctx, req.TenantID)) {
+		return nil, enrollmentNative.ErrRequestNotFound
+	}
 	return req, nil
 }
 
@@ -317,6 +323,11 @@ func (s *Intake) writeEditPatch(ctx context.Context, req *Request, consentPatche
 			return fmt.Errorf("edit: load pinned schema: %w", err)
 		}
 		schema = loaded
+		// A signed form is edited through the full form, which signs the
+		// new version again (#4786); the field patch carries no signature.
+		if signatureRequired(schema, req.SubmissionSource) {
+			return enrollmentNative.InvalidInput(enrollmentNative.CodeSignatureRequired, "signature", enrollmentNative.ErrSignatureRequired)
+		}
 		byKey := buildFieldsByKey(schema)
 		req.CustomData = sanitizeVisibleAnswers(schema, false, req.CustomData,
 			fieldVisibilityContext{guardianAnswers: req.CustomData, fieldsByKey: byKey})

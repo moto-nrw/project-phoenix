@@ -291,6 +291,25 @@ func OperatorEmailChangeConfirmedMail(displayName, origin string) Mail {
 	}
 }
 
+// --- the Träger-Büro invitation ---------------------------------------------
+
+// TraegerInvitationMail is the mail carrying an invitation into a
+// Träger-Büro (#4650). The link goes to the Träger-Portal at traegerOrigin;
+// its proxy serves /invite from the Träger routes. origin serves the logo.
+func TraegerInvitationMail(invitation TraegerInvitation, traegerName, origin, traegerOrigin string, expiry time.Duration) Mail {
+	return Mail{
+		Subject:  "Einladung ins Träger-Portal von moto",
+		Template: "traeger-invitation.html",
+		Content: map[string]any{
+			"InvitationURL": fmt.Sprintf("%s/invite?token=%s", strings.TrimRight(traegerOrigin, "/"), invitation.Token),
+			"TraegerName":   traegerName,
+			"RoleNames":     TraegerRoleLabels(invitation.Roles),
+			"ExpiryHours":   int(expiry / time.Hour),
+			"LogoURL":       origin + motoLogoPath,
+		},
+	}
+}
+
 // --- the public demo ----------------------------------------------------------
 
 // The demo team receives the lead mail and the prospects' answers.

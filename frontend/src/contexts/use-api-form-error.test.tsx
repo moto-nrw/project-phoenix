@@ -5,6 +5,10 @@ import { Input } from "~/components/ui/input";
 import { ToastProvider, useApiFormError } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({ data: null, status: "unauthenticated" }),
+}));
+
 function TestForm({
   error,
   retry,
@@ -141,6 +145,24 @@ describe("useApiFormError", () => {
     expect(clipboard.writeText).toHaveBeenCalledWith("req-500");
     fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
     expect(retry).toHaveBeenCalledOnce();
+    expect(toastAlert()).not.toBeInTheDocument();
+  });
+
+  it("explains a module booking refusal to staff instead of showing an error", async () => {
+    renderForm(
+      new ApiError("module not booked", 403, {
+        code: "module.not_booked",
+        details: { module: "zeiterfassung" },
+      }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    expect(
+      await screen.findByText(
+        "Diese Seite gehört zum Modul Zeiterfassung. Ihre Schule nutzt es nicht. Wenn Sie es brauchen, sprechen Sie mit Ihrer Leitung.",
+      ),
+    ).toBeInTheDocument();
     expect(toastAlert()).not.toBeInTheDocument();
   });
 

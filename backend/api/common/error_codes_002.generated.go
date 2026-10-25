@@ -2,6 +2,33 @@
 package common
 
 const (
+	CodeTimetableMoveSameInstance                    = "timetable.move_same_instance"
+	CodeTimetableNoStaffProfile                      = "timetable.no_staff_profile"
+	CodeTimetableOfferingSourceInactive              = "timetable.offering_source_inactive"
+	CodeTimetableOfferingSourceInvalid               = "timetable.offering_source_invalid"
+	CodeTimetableOfferingSourceMixedPhases           = "timetable.offering_source_mixed_phases"
+	CodeTimetableOfferingSourceNotFound              = "timetable.offering_source_not_found"
+	CodeTimetableOfferingSourceOutsidePeriod         = "timetable.offering_source_outside_period"
+	CodeTimetableOfferingSourceTooMany               = "timetable.offering_source_too_many"
+	CodeTimetableOnlySupervisorReplacementRequired   = "timetable.only_supervisor_replacement_required"
+	CodeTimetableOperationNotPlanned                 = "timetable.operation_not_planned"
+	CodeTimetableOperationStale                      = "timetable.operation_stale"
+	CodeTimetablePickupExtensionBlockGone            = "timetable.pickup_extension_block_gone"
+	CodeTimetablePickupExtensionInvalid              = "timetable.pickup_extension_invalid"
+	CodeTimetablePickupExtensionNotFound             = "timetable.pickup_extension_not_found"
+	CodeTimetablePickupExtensionTooManyBlocks        = "timetable.pickup_extension_too_many_blocks"
+	CodeTimetablePlanningTrackArchived               = "timetable.planning_track_archived"
+	CodeTimetablePlanningTrackInvalid                = "timetable.planning_track_invalid"
+	CodeTimetablePlanningTrackNameTaken              = "timetable.planning_track_name_taken"
+	CodeTimetablePlanningTrackNotFound               = "timetable.planning_track_not_found"
+	CodeTimetablePresenceWouldOverstaff              = "timetable.presence_would_overstaff"
+	CodeTimetableReopenAttendanceChanged             = "timetable.reopen_attendance_changed"
+	CodeTimetableReopenStaffBusy                     = "timetable.reopen_staff_busy"
+	CodeTimetableReopenStudentActive                 = "timetable.reopen_student_active"
+	CodeTimetableReopenSupervisionChanged            = "timetable.reopen_supervision_changed"
+	CodeTimetableRoomOccupied                        = "timetable.room_occupied"
+	CodeTimetableSeriesEndBeforeStart                = "timetable.series_end_before_start"
+	CodeTimetableSeriesEndOutsidePeriod              = "timetable.series_end_outside_period"
 	CodeTimetableSickAbsenceScopeLocked              = "timetable.sick_absence_scope_locked"
 	CodeTimetableSlotListDrifted                     = "timetable.slot_list_drifted"
 	CodeTimetableSlotListGroupingInvalid             = "timetable.slot_list_grouping_invalid"
@@ -53,6 +80,10 @@ const (
 	CodeTimetableUnderstaffedStillStaffed            = "timetable.understaffed_still_staffed"
 	CodeTimetableWindowEndBeforeStart                = "timetable.window_end_before_start"
 	CodeTimetableWindowTooLarge                      = "timetable.window_too_large"
+	CodeTraegerAccessLogExportTooLarge               = "traeger.access_log_export_too_large"
+	CodeTraegerAlreadyMember                         = "traeger.already_member"
+	CodeTraegerLastAdministrator                     = "traeger.last_administrator"
+	CodeTraegerMemberNotFound                        = "traeger.member_not_found"
 	CodeTraegerNoMembership                          = "traeger.no_membership"
 	CodeWorkforceAbsenceAllowanceExceeded            = "workforce.absence_allowance_exceeded"
 	CodeWorkforceAbsenceAlreadyDecided               = "workforce.absence_already_decided"
@@ -125,6 +156,33 @@ const (
 )
 
 var errorCodeClasses2 = map[string]string{
+	"timetable.move_same_instance":                      "input",
+	"timetable.no_staff_profile":                        "permission",
+	"timetable.offering_source_inactive":                "business_rejection",
+	"timetable.offering_source_invalid":                 "input",
+	"timetable.offering_source_mixed_phases":            "input",
+	"timetable.offering_source_not_found":               "business_rejection",
+	"timetable.offering_source_outside_period":          "business_rejection",
+	"timetable.offering_source_too_many":                "input",
+	"timetable.only_supervisor_replacement_required":    "business_rejection",
+	"timetable.operation_not_planned":                   "permission",
+	"timetable.operation_stale":                         "business_rejection",
+	"timetable.pickup_extension_block_gone":             "business_rejection",
+	"timetable.pickup_extension_invalid":                "input",
+	"timetable.pickup_extension_not_found":              "business_rejection",
+	"timetable.pickup_extension_too_many_blocks":        "input",
+	"timetable.planning_track_archived":                 "business_rejection",
+	"timetable.planning_track_invalid":                  "input",
+	"timetable.planning_track_name_taken":               "business_rejection",
+	"timetable.planning_track_not_found":                "business_rejection",
+	"timetable.presence_would_overstaff":                "business_rejection",
+	"timetable.reopen_attendance_changed":               "business_rejection",
+	"timetable.reopen_staff_busy":                       "business_rejection",
+	"timetable.reopen_student_active":                   "business_rejection",
+	"timetable.reopen_supervision_changed":              "business_rejection",
+	"timetable.room_occupied":                           "business_rejection",
+	"timetable.series_end_before_start":                 "input",
+	"timetable.series_end_outside_period":               "input",
 	"timetable.sick_absence_scope_locked":               "business_rejection",
 	"timetable.slot_list_drifted":                       "business_rejection",
 	"timetable.slot_list_grouping_invalid":              "input",
@@ -176,6 +234,10 @@ var errorCodeClasses2 = map[string]string{
 	"timetable.understaffed_still_staffed":              "business_rejection",
 	"timetable.window_end_before_start":                 "input",
 	"timetable.window_too_large":                        "input",
+	"traeger.access_log_export_too_large":               "input",
+	"traeger.already_member":                            "business_rejection",
+	"traeger.last_administrator":                        "business_rejection",
+	"traeger.member_not_found":                          "input",
 	"traeger.no_membership":                             "permission",
 	"workforce.absence_allowance_exceeded":              "business_rejection",
 	"workforce.absence_already_decided":                 "business_rejection",

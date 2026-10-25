@@ -6,6 +6,7 @@ import { _resetRefreshState, _testHelpers } from "./shared";
 import { operatorAuthConfig } from "./operator-config";
 import { parentAuthConfig } from "./parent-config";
 import { schoolAuthConfig } from "./school-config";
+import { catererAuthConfig } from "./caterer-config";
 import type { NextAuthConfig, User } from "next-auth";
 
 // Shared JWT token constants — decoded payloads documented inline
@@ -1928,6 +1929,30 @@ describe("authConfig", () => {
       ).rejects.toMatchObject({ code: "account_inactive" });
     });
 
+    it("should throw portal_not_booked when no guardian school booked Eltern-App", async () => {
+      // #4895: the parents portal follows the module Eltern-App. The login
+      // page explains the school's decision instead of a login error.
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 403,
+        text: async () =>
+          JSON.stringify({
+            status: 403,
+            detail: "school has not booked the module eltern_app",
+            code: "module.not_booked",
+            details: { module: "eltern_app", module_label: "Eltern-App" },
+          }),
+      });
+
+      const authorize = getParentAuthorize();
+      await expect(
+        authorize(
+          { email: "parent@example.com", password: "correct" },
+          new Request("http://localhost:3000"),
+        ),
+      ).rejects.toMatchObject({ code: "portal_not_booked" });
+    });
+
     it("should throw not_a_guardian when backend returns code not_a_guardian", async () => {
       // Staff account hitting the parent portal. This code used to be
       // masked to invalid_credentials so the UI would not confirm the
@@ -2343,6 +2368,42 @@ describe("authConfig", () => {
       await expect(
         callSchoolRedirect(url, "https://schule.moto-app.de"),
       ).resolves.toBe("https://schule.moto-app.de");
+    });
+  });
+
+  // #3873: caterer sessions are host-only like school sessions, so a
+  // callback target must not leave the caterer origin either.
+  describe("caterer redirect callback", () => {
+    async function callCatererRedirect(
+      url: string,
+      baseUrl: string,
+    ): Promise<string> {
+      const redirectFn = catererAuthConfig.callbacks?.redirect;
+      if (!redirectFn) throw new Error("caterer redirect callback not found");
+      return redirectFn({ url, baseUrl });
+    }
+
+    it("allows relative paths and absolute URLs on the caterer origin", async () => {
+      await expect(
+        callCatererRedirect("/", "https://caterer.moto-app.de"),
+      ).resolves.toBe("https://caterer.moto-app.de/");
+      await expect(
+        callCatererRedirect(
+          "https://caterer.moto-app.de/login",
+          "https://caterer.moto-app.de",
+        ),
+      ).resolves.toBe("https://caterer.moto-app.de/login");
+    });
+
+    it.each([
+      "https://moto-app.de/",
+      "https://schule.moto-app.de/",
+      "https://foo.caterer.moto-app.de/",
+      "//evil.example/phish",
+    ])("blocks callback target %s outside the caterer origin", async (url) => {
+      await expect(
+        callCatererRedirect(url, "https://caterer.moto-app.de"),
+      ).resolves.toBe("https://caterer.moto-app.de");
     });
   });
 

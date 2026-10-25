@@ -280,25 +280,6 @@ export function materializedRecurrenceDates({
 
 export { toISODate };
 
-/**
- * Returns the ISO 8601 week number (1–53) of the given Date. Used for the
- * "KW 38" label in the week header.
- *
- * Reference algorithm: ISO 8601 defines the week containing the year's first
- * Thursday as week 1.
- */
-function getISOWeekNumber(d: Date): number {
-  const target = new Date(d.valueOf());
-  const dayNum = (d.getDay() + 6) % 7; // Mon=0 .. Sun=6
-  target.setDate(target.getDate() - dayNum + 3);
-  const firstThursday = target.valueOf();
-  target.setMonth(0, 1);
-  if (target.getDay() !== 4) {
-    target.setMonth(0, 1 + ((4 - target.getDay() + 7) % 7));
-  }
-  return 1 + Math.ceil((firstThursday - target.valueOf()) / 604800000);
-}
-
 const GERMAN_WEEKDAY_LONG = [
   "Sonntag",
   "Montag",
@@ -324,21 +305,8 @@ export function getGermanWeekdayShort(d: Date): string {
   return GERMAN_WEEKDAY_SHORT[d.getDay()] ?? "";
 }
 
-/**
- * "KW 38 · 22.09.–28.09.2026" — the week-navigator header. Weekday names are
- * omitted on purpose: the grid columns directly below already show Mo–So, so
- * repeating them here only bloated the label and pushed the toolbar onto a
- * second row.
- */
-export function formatWeekLabel(from: Date, to: Date): string {
-  const kw = getISOWeekNumber(from);
-  const fromDay = String(from.getDate()).padStart(2, "0");
-  const fromMonth = String(from.getMonth() + 1).padStart(2, "0");
-  const toDay = String(to.getDate()).padStart(2, "0");
-  const toMonth = String(to.getMonth() + 1).padStart(2, "0");
-  const year = to.getFullYear();
-  return `KW ${kw} · ${fromDay}.${fromMonth}.–${toDay}.${toMonth}.${year}`;
-}
+/** Lives in date-helpers so a page needs no timetable code for its week label. */
+export { formatWeekLabel } from "./date-helpers";
 
 /**
  * "Mo 22.09." — short label used as a column header on the grid and as a

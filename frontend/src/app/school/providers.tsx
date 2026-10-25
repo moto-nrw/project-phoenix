@@ -5,6 +5,7 @@ import { PortalAnalyticsSession } from "~/components/analytics/portal-analytics-
 import { SCHOOL_ANALYTICS_CONSENT_COPY } from "~/components/analytics/analytics-consent-copy";
 import { SentrySessionContext } from "~/components/auth/sentry-session-context";
 import { PushSubscriptionSync } from "~/components/notifications/service-worker-registrar";
+import { ModulePortalProvider } from "~/lib/module-portal-context";
 
 /**
  * School-scoped providers ("moto schule", #2207).
@@ -33,7 +34,7 @@ export function SchoolProviders({
         consentCopy={SCHOOL_ANALYTICS_CONSENT_COPY}
       />
       <SentrySessionContext portal="school" />
-      {children}
+      <ModulePortalProvider portal="school">{children}</ModulePortalProvider>
     </SessionProvider>
   );
 }

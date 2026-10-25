@@ -238,6 +238,15 @@ func TestStudentNoteAllowsDelete(t *testing.T) {
 	}), ErrStudentNoteDeleteForbidden,
 		"a retained leadership note must not fall back to the child's current group")
 	assert.NoError(t, note.AllowsDelete(StudentNoteDeleteAuthorization{Admin: true}))
+
+	dayHint := StudentNote{Origin: StudentNoteOriginSchool, Visibility: StudentNoteVisibilityAllStaff}
+	for _, authorization := range []StudentNoteDeleteAuthorization{
+		{Admin: true},
+		{LedEducationGroupIDs: []int64{groupID}, ChildEducationGroupID: &groupID},
+	} {
+		assert.ErrorIs(t, dayHint.AllowsDelete(authorization), ErrStudentNoteImmutable,
+			"a day hint from moto schule is withdrawn only there")
+	}
 }
 
 func TestStudentNoteEdited(t *testing.T) {

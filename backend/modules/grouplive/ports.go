@@ -15,6 +15,22 @@ type PendingExcusedReader interface {
 	PendingByStudentForDate(ctx context.Context, date excusedrequests.Date) (map[int64]*excusedrequests.Request, error)
 }
 
+// TeacherHint is a Lehrkraft's hint for the OGS for today (#4795), written in
+// moto schule for the child or for its whole class.
+type TeacherHint struct {
+	Body string `json:"body"`
+	// AuthorName is the Lehrkraft's name, empty when the person is gone.
+	AuthorName string `json:"author_name,omitempty"`
+	// SchoolClass is set when the hint is for the whole class.
+	SchoolClass string `json:"school_class,omitempty"`
+}
+
+// TeacherHintReader reads the Lehrkraft's day hints of many children, keyed
+// by child, oldest first.
+type TeacherHintReader interface {
+	TeacherHints(ctx context.Context, studentIDs []int64, date Date) (map[int64][]TeacherHint, error)
+}
+
 // Date is a calendar day (YYYY-MM-DD) without clock or zone, the same shape
 // the owner contracts the ports adapt use. Clocks travel as wall-clock
 // strings (HH:MM). Every port reads the tenant in context; none of them

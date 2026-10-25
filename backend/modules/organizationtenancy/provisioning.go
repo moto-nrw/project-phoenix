@@ -20,6 +20,8 @@ type Provisioning interface {
 	PersonProvisioning
 	ProvisioningDashboard
 	TraegerMemberProvisioning
+	TraegerLifecycleProvisioning
+	TestTraegerProvisioning
 }
 
 // OrganizationProvisioning creates, edits and retires organizations for operators.
@@ -275,6 +277,7 @@ type OrganizationSummary struct {
 	UpdatedAt     time.Time  `json:"updated_at"`
 	DeletedAt     *time.Time `json:"deleted_at,omitempty"`
 	Settings      string     `json:"settings,omitempty"`
+	TestSystem    bool       `json:"test_system"`
 	SchulenCount  int        `json:"schulen_count"`
 	KontenCount   int        `json:"konten_count"`
 	GeraeteCount  int        `json:"geraete_count"`

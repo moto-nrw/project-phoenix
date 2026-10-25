@@ -46,15 +46,17 @@ import {
   useAttendanceLogEnabled,
   useChildSearchOnlyNavigation,
   useDisplayEnabled,
-  useNFCEnabled,
   useOpenCareGroupMode,
   useStaffMessagingEnabled,
   usePresenceMode,
   useTenantRoutingModeSafe,
   useTenantSlugSafe,
+  useMealPlanEnabled,
   useTimetableEnabled,
 } from "~/lib/tenant-context";
 import { getSettingValue } from "~/lib/settings-api";
+import { useModuleNavigation } from "~/lib/hooks/use-module-navigation";
+import { ModuleLockMark } from "~/components/ui/module-lock-mark";
 import {
   getPlanningMobileActivePaths,
   isPlanningPageHref,
@@ -69,7 +71,6 @@ import {
   ENROLLMENT_SECTION,
   ENROLLMENT_SUB_PAGES,
   hasAnyDatabasePagePermission,
-  NFC_ONLY_DATABASE_HREFS,
   PARENT_SUB_PAGES,
   PLANNING_CATALOG_HREFS,
   STAFF_FLAT_PAGES,
@@ -321,6 +322,8 @@ interface AdditionalNavItem {
   comingSoon?: boolean; // Show as grayed out "coming soon" feature
   activePaths?: string[];
   newTab?: boolean; // Open in a new browser tab (e.g. public help guide)
+  // Modul nicht gebucht (#4894): nur für Leitungen, mit Schloss.
+  locked?: boolean;
 }
 
 // Operator-mode overflow items, everything reachable from the sidebar on
@@ -452,7 +455,7 @@ const PAGE_ITEMS: readonly AdditionalNavItem[] = [
     requiresPermission: "time_tracking:own",
   },
   {
-    // Eigener Dienstplan (#3821); Schulschalter in isHrefEnabled.
+    // Eigener Dienstplan (#3821); das Modul-Gate folgt in entriesToItems.
     ...STAFF_FLAT_PAGES.ownShiftPlan,
     iconKey: "dienstplan",
     concept: "staffPlan",
@@ -621,8 +624,6 @@ const TENANT_SCOPED_HREFS = new Set<string>([
   ...Object.values(SECTION_ITEMS).map((item) => item.href),
   ...DATABASE_PAGE_HREFS,
 ]);
-
-const NFC_ONLY_HREFS = new Set<string>(["/activities"]);
 
 // Nav-Einträge, die im binären Anwesenheitsmodus verborgen bleiben (#2915).
 // Gleiche fachliche Regel wie die Desktop-Sidebar (dortiges
@@ -831,9 +832,11 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   // Aufsicht am Recht der Seite, nicht am Rollennamen (#4573): mit
   // `schedules:read` allein die eigene laufende Aufsicht.
   const userCanOpenSupervision = canOpenActiveSupervision(session);
-  const nfcEnabled = useNFCEnabled();
+  // Gebuchte Module (#4894): dieselbe Regel wie in der Seitenleiste. Die
+  // Reiter unten zeigen nur offene Seiten; ein Eintrag mit Schloss steht im
+  // Mehr-Menü.
+  const moduleNav = useModuleNavigation();
   const presenceMode = usePresenceMode();
-  const showActivityNav = nfcEnabled && presenceMode !== "binary";
   const isBinaryMode = presenceMode === "binary";
   const hasGroupSupervision = !isLoadingGroups && hasGroups;
   const hasRoomSupervision = !isLoadingSupervision && isSupervising;
@@ -850,8 +853,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   const displayEnabled = useDisplayEnabled();
   const attendanceLogEnabled = useAttendanceLogEnabled();
   // Schulschalter aus dem Settings-Schema, mit demselben Lesemuster wie die
-  // Desktop-Sidebar: für Admins und config:read-Halter (der Essensplan-
-  // Eintrag hängt für sie an operations.meal_plan_enabled). `!== false` für
+  // Desktop-Sidebar: für Admins und config:read-Halter. `!== false` für
   // timetable.enabled, damit die Planungs-Einträge während des Schema-Ladens
   // nicht kurz verschwinden.
   const canReadConfig =
@@ -866,8 +868,9 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
     getSettingValue(settingsSchema, "timetable.enabled") !== false;
   const parentNewsEnabled =
     getSettingValue(settingsSchema, "operations.parent_news_enabled") === true;
-  const mealPlanEnabled =
-    getSettingValue(settingsSchema, "operations.meal_plan_enabled") === true;
+  // Vom Tenant-Resolve (#3873): eine Küchenrolle hält meals:*, aber kein
+  // config:read und liest das Settings-Schema nicht.
+  const mealPlanEnabled = useMealPlanEnabled();
   // Die Leitung landet auf dem Hub; wer nur einzelne Kataloge hält, startet
   // beim ersten erreichbaren Unterpunkt statt auf einer fast leeren Hub-Seite.
   const databaseLandingHref =
@@ -876,7 +879,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
       : DATABASE_PAGE_HREFS.find(
           (href) =>
             (!PLANNING_CATALOG_HREFS.has(href) || timetableEnabled) &&
-            (!NFC_ONLY_DATABASE_HREFS.has(href) || nfcEnabled) &&
+            moduleNav.page(href) === "open" &&
             hasAnyDatabasePagePermission(session, href),
         );
   // Elternmitteilungen (#1669) authoring is admin-only (admin:* wildcard on
@@ -898,7 +901,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
     )
     .filter(
       (item) =>
-        (showActivityNav || !NFC_ONLY_HREFS.has(item.href)) &&
+        moduleNav.page(item.href) === "open" &&
         // Binärer Anwesenheitsmodus (#2915): dieselbe Sichtbarkeitsregel wie in
         // der Desktop-Sidebar.
         !(isBinaryMode && BINARY_HIDDEN_HREFS.has(item.href)) &&
@@ -938,7 +941,11 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   // Laufzeit-Regeln je Seite (Schulschalter, Anwesenheitsmodus, Rolle) —
   // dieselben wie in der Desktop-Sidebar, damit beide dieselben Seiten
   // zeigen.
-  const isHrefEnabled = (href: string): boolean => {
+  //
+  // `locked`: das Modul der Seite ist nicht gebucht, die Person sieht den
+  // Eintrag mit Schloss. Die Schuleinstellung des Moduls (Speiseplan,
+  // Mitteilungen) zählt dann nicht, nur das Recht (#4894).
+  const isHrefEnabled = (href: string, locked = false): boolean => {
     if (href === DATABASE_SECTION.href && databaseLandingHref === undefined) {
       return false;
     }
@@ -972,19 +979,20 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
     ) {
       return false;
     }
-    if (href === "/mein-dienstplan" && !tagesplanEnabled) return false;
-    if (!showActivityNav && NFC_ONLY_HREFS.has(href)) return false;
     // Binärer Anwesenheitsmodus (#2915): auch im Mehr-Menü kein Link auf eine
     // Seite, die der BinaryModeGuard sperrt.
     if (isBinaryMode && BINARY_HIDDEN_HREFS.has(href)) return false;
     if (
       isPlanningPageHref(href) &&
-      href !== "/calendar-periods" &&
-      href !== "/payroll" &&
-      !timetableEnabled
+      PLANNING_SUB_PAGES.some(
+        (page) => page.href === href && page.requiresTimetable,
+      ) &&
+      !timetableEnabled &&
+      !locked
     ) {
       // Gilt auch für Nicht-Admins mit nonAdminPermission (#2283): die
       // Betreuungsplan-Leseansicht verschwindet mit timetable.enabled.
+      // Dienstplan und Abrechnung folgen ihren Modulen (#4894).
       return false;
     }
     // Team-Chat (#2598) ist Opt-in und faellt fail-closed: ohne eingeschalteten
@@ -995,32 +1003,39 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
     if (href === "/day-log" && !attendanceLogEnabled) return false;
     // Eltern-Seiten: dieselben Regeln wie die Sidebar-Gruppe.
     if (href === "/messages") {
-      return userIsAdmin || hasPermission(session, "users:read");
+      return locked || userIsAdmin || hasPermission(session, "users:read");
     }
     if (href === "/admin/guardian-approvals") {
-      return canReviewGuardianApprovals(session);
+      return locked || canReviewGuardianApprovals(session);
     }
     if (href === "/parent-announcements") {
-      return canAnnounce && parentNewsEnabled;
+      return locked || (canAnnounce && parentNewsEnabled);
     }
     if (href === "/eltern/bankverbindungen") {
       return hasPermission(session, "guardians:financial");
     }
     if (href === "/meal-plan") {
       return (
-        mealPlanEnabled &&
-        (userIsAdmin || hasPermission(session, "config:read"))
+        locked ||
+        (mealPlanEnabled &&
+          (userIsAdmin ||
+            hasPermission(session, "meals:read") ||
+            hasPermission(session, "meals:register")))
       );
     }
     return true;
   };
 
   const isAdditionalItemVisible = (item: AdditionalNavItem): boolean => {
-    if (!isHrefEnabled(item.href)) return false;
+    if (!isHrefEnabled(item.href, item.locked)) return false;
     // Hide items marked as hideForAdmin for admin users
     if (item.hideForAdmin && userIsAdmin && !userIsCaregiver) {
       return false;
     }
+    // Die Leitung muss ein nicht gebuchtes Modul unabhängig vom Recht seiner
+    // Zielseite finden können: der Eintrag erklärt zuerst die Buchung. Für
+    // offene Seiten bleiben die Routenrechte unten unverändert maßgeblich.
+    if (item.locked) return true;
     if (item.alwaysShow) return true;
     if (item.requiresAdmin) return userIsAdmin;
     if (item.requiresAllPermissions) {
@@ -1073,6 +1088,11 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
           ? { ...item, href: databaseLandingHref }
           : item,
       )
+      .flatMap((item) => {
+        const visibility = moduleNav.page(item.href);
+        if (visibility === "hidden") return [];
+        return visibility === "locked" ? [{ ...item, locked: true }] : [item];
+      })
       .filter(
         (item) => isAdditionalItemVisible(item) && !mainHrefs.has(item.href),
       );
@@ -1258,7 +1278,9 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                           <span className="text-base font-medium">
                             {item.label}
                           </span>
-                          {item.href === ENROLLMENT_SECTION.href ? (
+                          {item.locked ? (
+                            <ModuleLockMark className="ml-auto" />
+                          ) : item.href === ENROLLMENT_SECTION.href ? (
                             <UnreadBadge
                               count={enrollmentsUnreadCount}
                               tone="staff"

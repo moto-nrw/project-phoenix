@@ -98,6 +98,10 @@ const (
 	CodeClassdayClassTripReturnTimeWeekend               = "classday.class_trip_return_time_weekend"
 	CodeClassdayClassTripStatusConflict                  = "classday.class_trip_status_conflict"
 	CodeClassdayClassTripStudentNotInClass               = "classday.class_trip_student_not_in_class"
+	CodeClassdayDayHintClassEmpty                        = "classday.day_hint_class_empty"
+	CodeClassdayDayHintInvalid                           = "classday.day_hint_invalid"
+	CodeClassdayDayHintNotToday                          = "classday.day_hint_not_today"
+	CodeClassdayDayHintStudentNotInClass                 = "classday.day_hint_student_not_in_class"
 	CodeClassdayHomeworkNotFound                         = "classday.homework_not_found"
 	CodeClassdayMorningAttendanceNoSchoolDay             = "classday.morning_attendance_no_school_day"
 	CodeClassdayMorningAttendanceNotToday                = "classday.morning_attendance_not_today"
@@ -195,6 +199,10 @@ const (
 	CodeEnrollmentGuardianEmailRequired                  = "enrollment.guardian_email_required"
 	CodeEnrollmentGuardianNameRequired                   = "enrollment.guardian_name_required"
 	CodeEnrollmentGuardianPhoneRequired                  = "enrollment.guardian_phone_required"
+	CodeEnrollmentHolidayHostSchoolOutsideTraeger        = "enrollment.holiday_host_school_outside_traeger"
+	CodeEnrollmentHolidayPeriodIncomplete                = "enrollment.holiday_period_incomplete"
+	CodeEnrollmentHolidayPeriodInvalid                   = "enrollment.holiday_period_invalid"
+	CodeEnrollmentHolidayPeriodNotFound                  = "enrollment.holiday_period_not_found"
 	CodeEnrollmentInvalidEmail                           = "enrollment.invalid_email"
 	CodeEnrollmentInvalidPhone                           = "enrollment.invalid_phone"
 	CodeEnrollmentLateInviteInvalid                      = "enrollment.late_invite_invalid"
@@ -228,6 +236,9 @@ const (
 	CodeEnrollmentSchemaNameRequired                     = "enrollment.schema_name_required"
 	CodeEnrollmentSchemaNotFound                         = "enrollment.schema_not_found"
 	CodeEnrollmentSelectedDayNotAvailable                = "enrollment.selected_day_not_available"
+	CodeEnrollmentSignatureInvalid                       = "enrollment.signature_invalid"
+	CodeEnrollmentSignatureNotFound                      = "enrollment.signature_not_found"
+	CodeEnrollmentSignatureRequired                      = "enrollment.signature_required"
 	CodeEnrollmentStatusLinkInvalid                      = "enrollment.status_link_invalid"
 	CodeEnrollmentStudentExists                          = "enrollment.student_exists"
 	CodeEnrollmentSubmissionRateLimited                  = "enrollment.submission_rate_limited"
@@ -264,6 +275,8 @@ const (
 	CodeIdentityAccountInactive                          = "identity.account_inactive"
 	CodeIdentityAccountNotFound                          = "identity.account_not_found"
 	CodeIdentityAccountNotInSchool                       = "identity.account_not_in_school"
+	CodeIdentityCatererAddressTaken                      = "identity.caterer_address_taken"
+	CodeIdentityCatererWithoutSchool                     = "identity.caterer_without_school"
 	CodeIdentityCurrentPasswordWrong                     = "identity.current_password_wrong"
 	CodeIdentityDemoAccessExpired                        = "identity.demo_access_expired"
 	CodeIdentityDemoAccessInvalid                        = "identity.demo_access_invalid"
@@ -289,19 +302,6 @@ const (
 	CodeIdentityMfaNotEnrolled                           = "identity.mfa_not_enrolled"
 	CodeIdentityMfaSessionRequired                       = "identity.mfa_session_required"
 	CodeIdentityMfaStatusUnavailable                     = "identity.mfa_status_unavailable"
-	CodeIdentityOperatorInvitationInvalid                = "identity.operator_invitation_invalid"
-	CodeIdentityOperatorSelfDeactivation                 = "identity.operator_self_deactivation"
-	CodeIdentityPasskeyLoginFailed                       = "identity.passkey_login_failed"
-	CodeIdentityPasskeyNotFound                          = "identity.passkey_not_found"
-	CodeIdentityPasswordMismatch                         = "identity.password_mismatch"
-	CodeIdentityPasswordResetLinkInvalid                 = "identity.password_reset_link_invalid"
-	CodeIdentityPasswordResetRateLimited                 = "identity.password_reset_rate_limited"
-	CodeIdentityPasswordTooWeak                          = "identity.password_too_weak"
-	CodeIdentityPreviewTargetNotPreviewable              = "identity.preview_target_not_previewable"
-	CodeIdentityPreviewTargetSchoolPortal                = "identity.preview_target_school_portal"
-	CodeIdentityPreviewTokenInvalid                      = "identity.preview_token_invalid"
-	CodeIdentityReadOnlyPreview                          = "identity.read_only_preview"
-	CodeIdentityRoleNameTaken                            = "identity.role_name_taken"
 )
 
 var errorCodeClasses0 = map[string]string{
@@ -401,6 +401,10 @@ var errorCodeClasses0 = map[string]string{
 	"classday.class_trip_return_time_weekend":              "input",
 	"classday.class_trip_status_conflict":                  "business_rejection",
 	"classday.class_trip_student_not_in_class":             "business_rejection",
+	"classday.day_hint_class_empty":                        "business_rejection",
+	"classday.day_hint_invalid":                            "input",
+	"classday.day_hint_not_today":                          "input",
+	"classday.day_hint_student_not_in_class":               "business_rejection",
 	"classday.homework_not_found":                          "business_rejection",
 	"classday.morning_attendance_no_school_day":            "input",
 	"classday.morning_attendance_not_today":                "input",
@@ -498,6 +502,10 @@ var errorCodeClasses0 = map[string]string{
 	"enrollment.guardian_email_required":                   "input",
 	"enrollment.guardian_name_required":                    "input",
 	"enrollment.guardian_phone_required":                   "input",
+	"enrollment.holiday_host_school_outside_traeger":       "input",
+	"enrollment.holiday_period_incomplete":                 "business_rejection",
+	"enrollment.holiday_period_invalid":                    "input",
+	"enrollment.holiday_period_not_found":                  "business_rejection",
 	"enrollment.invalid_email":                             "input",
 	"enrollment.invalid_phone":                             "input",
 	"enrollment.late_invite_invalid":                       "input",
@@ -531,6 +539,9 @@ var errorCodeClasses0 = map[string]string{
 	"enrollment.schema_name_required":                      "input",
 	"enrollment.schema_not_found":                          "business_rejection",
 	"enrollment.selected_day_not_available":                "input",
+	"enrollment.signature_invalid":                         "input",
+	"enrollment.signature_not_found":                       "business_rejection",
+	"enrollment.signature_required":                        "input",
 	"enrollment.status_link_invalid":                       "business_rejection",
 	"enrollment.student_exists":                            "business_rejection",
 	"enrollment.submission_rate_limited":                   "unavailable",
@@ -567,6 +578,8 @@ var errorCodeClasses0 = map[string]string{
 	"identity.account_inactive":                            "permission",
 	"identity.account_not_found":                           "business_rejection",
 	"identity.account_not_in_school":                       "business_rejection",
+	"identity.caterer_address_taken":                       "business_rejection",
+	"identity.caterer_without_school":                      "permission",
 	"identity.current_password_wrong":                      "input",
 	"identity.demo_access_expired":                         "business_rejection",
 	"identity.demo_access_invalid":                         "input",
@@ -592,19 +605,6 @@ var errorCodeClasses0 = map[string]string{
 	"identity.mfa_not_enrolled":                            "business_rejection",
 	"identity.mfa_session_required":                        "permission",
 	"identity.mfa_status_unavailable":                      "unavailable",
-	"identity.operator_invitation_invalid":                 "business_rejection",
-	"identity.operator_self_deactivation":                  "business_rejection",
-	"identity.passkey_login_failed":                        "business_rejection",
-	"identity.passkey_not_found":                           "business_rejection",
-	"identity.password_mismatch":                           "input",
-	"identity.password_reset_link_invalid":                 "business_rejection",
-	"identity.password_reset_rate_limited":                 "unavailable",
-	"identity.password_too_weak":                           "input",
-	"identity.preview_target_not_previewable":              "permission",
-	"identity.preview_target_school_portal":                "permission",
-	"identity.preview_token_invalid":                       "permission",
-	"identity.read_only_preview":                           "permission",
-	"identity.role_name_taken":                             "business_rejection",
 }
 
 func init() {

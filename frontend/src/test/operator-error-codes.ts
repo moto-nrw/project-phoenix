@@ -62,6 +62,15 @@ export const OPERATOR_PORTAL_ERROR_CODES = [
   "provisioning.organization_not_deleted",
   "provisioning.organization_has_schools",
   "provisioning.organization_deleted",
+  // Träger lifecycle (`inbound/operator/traeger_lifecycle.go`, #4657).
+  "provisioning.traeger_active",
+  "provisioning.traeger_erasure_order_open",
+  "provisioning.traeger_erasure_order_not_found",
+  "provisioning.traeger_erasure_started",
+  // Test-Träger and their sample children (#4658,
+  // `modules/dataimport/http/sample_children.go`).
+  "import.not_test_traeger",
+  "import.test_traeger_inactive",
   "provisioning.school_not_found",
   "provisioning.school_inactive",
   "provisioning.school_already_deleted",

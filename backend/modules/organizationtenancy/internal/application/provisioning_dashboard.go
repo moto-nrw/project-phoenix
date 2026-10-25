@@ -69,7 +69,7 @@ func (p *Provisioning) ListOrganizationSummaries(ctx context.Context) ([]*organi
 		for _, row := range rows {
 			result = append(result, &organizationtenancy.OrganizationSummary{
 				ID: row.ID, Name: row.Name, Slug: row.Slug, Active: row.Active,
-				CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, DeletedAt: row.DeletedAt, Settings: row.Settings,
+				CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, DeletedAt: row.DeletedAt, Settings: row.Settings, TestSystem: row.TestSystem,
 				SchulenCount: row.SchoolCount, KontenCount: row.AccountCount,
 				GeraeteCount: deviceTotals[row.ID], PersonenCount: personTotals[row.ID],
 			})

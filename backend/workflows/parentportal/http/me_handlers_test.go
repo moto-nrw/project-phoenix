@@ -186,6 +186,9 @@ func (f *fakeParentService) ReplaceMealParticipationSchedule(context.Context, in
 func (f *fakeParentService) SetMealParticipationDay(context.Context, int64, int64, timezone.Date, bool) error {
 	return nil
 }
+func (f *fakeParentService) SetMealParticipationWeek(context.Context, int64, int64, timezone.Date, bool) (parentService.MealWeekChange, error) {
+	return parentService.MealWeekChange{Changed: []string{"2026-09-10"}, Locked: []string{"2026-09-09"}}, nil
+}
 func (f *fakeParentService) ClearMealParticipationDay(context.Context, int64, int64, timezone.Date) error {
 	return nil
 }
@@ -566,16 +569,50 @@ func TestGetChildMealPlan_DisabledContract(t *testing.T) {
 func TestGetMealParticipation_ResponseContract(t *testing.T) {
 	t.Parallel()
 	rs := &Resource{ParentService: &fakeParentService{mealParticipation: parentService.MealParticipationPlan{
-		Weekdays: []parentService.MealWeekday{1, 3}, EffectiveFrom: "2026-08-24", CutoffTime: "09:00", CutoffLeadDays: 2,
-		CutoffWeekday: 3, CancellationCutoffTime: "16:00", CancellationCutoffLeadDays: 1,
-		Days: []parentService.MealParticipationDay{{Date: "2026-08-24", Participating: true, Source: "regular", Changeable: false}},
+		Weekdays: []parentService.MealWeekday{1, 3}, EffectiveFrom: "2026-08-24", CutoffTime: "09:00",
+		Model: "ongoing_split", ScheduleChangeable: true, SickCancels: true,
+		Days: []parentService.MealParticipationDay{{
+			Date: "2026-08-24", Participating: true, Regular: true, Source: "regular", Changeable: true, CanRegister: false, CanCancel: true,
+			RegisterUntil: time.Date(2026, 8, 20, 10, 0, 0, 0, time.UTC), CancelUntil: time.Date(2026, 8, 24, 6, 0, 0, 0, time.UTC),
+		}},
 	}}}
 	w := httptest.NewRecorder()
 
 	rs.getMealParticipation(w, mealParticipationRequest())
 
 	require.Equal(t, http.StatusOK, w.Code)
-	assert.JSONEq(t, `{"status":"success","data":{"weekdays":[1,3],"effective_from":"2026-08-24","cutoff_time":"09:00","cutoff_lead_days":2,"cutoff_weekday":3,"cancellation_cutoff_time":"16:00","cancellation_cutoff_lead_days":1,"days":[{"date":"2026-08-24","participating":true,"source":"regular","changeable":false}]},"message":"Meal participation retrieved"}`, w.Body.String())
+	assert.JSONEq(t, `{"status":"success","data":{"weekdays":[1,3],"effective_from":"2026-08-24","cutoff_time":"09:00","model":"ongoing_split","schedule_changeable":true,"sick_cancels_after_deadline":true,"days":[{"date":"2026-08-24","participating":true,"regular_participating":true,"source":"regular","changeable":true,"can_register":false,"can_cancel":true,"register_until":"2026-08-20T10:00:00Z","cancel_until":"2026-08-24T06:00:00Z"}]},"message":"Meal participation retrieved"}`, w.Body.String())
+}
+
+func TestSetMealParticipationWeek_ResponseContract(t *testing.T) {
+	t.Parallel()
+	rs := &Resource{ParentService: &fakeParentService{}}
+	req := withClaims(httptest.NewRequest(http.MethodPut,
+		"/me/children/77/meal-participation/weeks/2026-09-09", strings.NewReader(`{"participating":false}`)), 1234)
+	route := chi.NewRouteContext()
+	route.URLParams.Add("studentId", "77")
+	route.URLParams.Add("date", "2026-09-09")
+	w := httptest.NewRecorder()
+
+	rs.setMealParticipationWeek(w, req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, route)))
+
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	assert.JSONEq(t, `{"status":"success","data":{"changed":["2026-09-10"],"locked":["2026-09-09"]},"message":"Meal participation week saved"}`, w.Body.String())
+}
+
+func TestSetMealParticipationWeek_RequiresParticipating(t *testing.T) {
+	t.Parallel()
+	rs := &Resource{ParentService: &fakeParentService{}}
+	req := withClaims(httptest.NewRequest(http.MethodPut,
+		"/me/children/77/meal-participation/weeks/2026-09-09", strings.NewReader(`{}`)), 1234)
+	route := chi.NewRouteContext()
+	route.URLParams.Add("studentId", "77")
+	route.URLParams.Add("date", "2026-09-09")
+	w := httptest.NewRecorder()
+
+	rs.setMealParticipationWeek(w, req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, route)))
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestSubmitCareException_PassesRequiredReasonAndReturnsIt(t *testing.T) {

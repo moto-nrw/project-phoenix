@@ -9,6 +9,7 @@ import type {
   SubmitEnrollmentResult,
 } from "~/lib/enrollment-submission-api";
 import { downloadBlob, filenameFromDisposition } from "~/lib/file-download";
+import type { EnrollmentSignature } from "~/lib/enrollment-submission-api";
 
 const logger = createLogger({ component: "EnrollmentAdminAPI" });
 
@@ -267,6 +268,8 @@ export interface AdminRequestDetail extends AdminRequestSummary {
   status_token: string;
   late_invite_guardian_email?: string;
   late_invite_email_mismatch?: boolean;
+  /** The parent's signature of the current version (#4786), with image. */
+  signature?: EnrollmentSignature;
 }
 
 interface AdminEnrollmentDeletionCounts {
@@ -636,6 +639,23 @@ export async function exportStudentEnrollmentRequests(
   downloadBlob(
     await response.blob(),
     filenameFromDisposition(response) ?? `anmeldungen.${format}`,
+  );
+}
+
+/** Downloads the proof of the parent's signature of a request (#4786). */
+export async function downloadAdminEnrollmentSignatureProof(
+  requestId: string,
+): Promise<void> {
+  const response = await send(
+    `${BASE}/${encodeURIComponent(requestId)}/signature-proof`,
+    { cache: "no-store" },
+  );
+  if (!response.ok) {
+    throw await readError(response, "Nachweis konnte nicht geladen werden");
+  }
+  downloadBlob(
+    await response.blob(),
+    filenameFromDisposition(response) ?? "anmeldenachweis.pdf",
   );
 }
 

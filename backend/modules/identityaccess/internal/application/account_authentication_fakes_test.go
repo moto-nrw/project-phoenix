@@ -291,6 +291,10 @@ func (s *fakeStore) LockLoginAccountByEmail(ctx context.Context, email string) (
 	return s.FindLoginAccountByEmail(ctx, email)
 }
 
+func (s *fakeStore) FindCatererOfAccount(context.Context, int64) (domain.Caterer, bool, domain.OperationStats, error) {
+	return domain.Caterer{}, false, domain.OperationStats{}, nil
+}
+
 func (s *fakeStore) FindLoginAccount(_ context.Context, id int64, forUpdate bool) (domain.LoginAccount, bool, domain.OperationStats, error) {
 	if forUpdate {
 		s.record("FindLoginAccount(forUpdate)")
@@ -1065,6 +1069,7 @@ type authFixture struct {
 	push     *fakePush
 	runtime  *fakeRuntime
 	sessions *Service
+	portals  *fakePortalModules
 }
 
 func newAuthFixture(t *testing.T) *authFixture {
@@ -1078,13 +1083,14 @@ func newAuthFixture(t *testing.T) *authFixture {
 	lock := &fakeMFALock{store: store}
 	audit := &fakeAudit{}
 	push := &fakePush{}
+	portals := &fakePortalModules{}
 	auth, err := NewAccountAuthentication(sessions, AccountAuthenticationDependencies{
-		Store: store, Schools: schools, Persons: persons, Passwords: fakePasswords{}, PasswordPolicy: testPasswordLoginPolicy, Codec: fakeCodec{},
+		Store: store, Schools: schools, Persons: persons, Passwords: fakePasswords{}, PasswordPolicy: testPasswordLoginPolicy, Codec: fakeCodec{}, PortalModules: portals,
 		MFA: mfa, MFALock: lock, Audit: audit, Push: push, Runtime: runtime, Rotation: fakeRotation{},
 		Logger: slog.New(slog.NewTextHandler(testWriter{t}, nil)),
 	})
 	require.NoError(t, err)
-	return &authFixture{auth: auth, store: store, schools: schools, persons: persons, mfa: mfa, mfaLock: lock, audit: audit, push: push, runtime: runtime, sessions: sessions}
+	return &authFixture{auth: auth, store: store, schools: schools, persons: persons, mfa: mfa, mfaLock: lock, audit: audit, push: push, runtime: runtime, sessions: sessions, portals: portals}
 }
 
 type testWriter struct{ t *testing.T }

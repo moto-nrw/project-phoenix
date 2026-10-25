@@ -3,9 +3,13 @@ package securityruntime
 // The configuration permissions restate the permission registry's names,
 // which this public package may not import; a test pins them to it.
 const (
-	permissionConfigRead   = "config:read"
-	permissionConfigUpdate = "config:update"
-	permissionUsersRead    = "users:read"
+	permissionConfigRead    = "config:read"
+	permissionConfigUpdate  = "config:update"
+	permissionUsersRead     = "users:read"
+	permissionMealsRead     = "meals:read"
+	permissionMealsManage   = "meals:manage"
+	permissionMealsOrders   = "meals:orders"
+	permissionMealsRegister = "meals:register"
 )
 
 // AccessRule is the permission check of a route: any one of Permissions
@@ -13,6 +17,25 @@ const (
 type AccessRule struct {
 	Permissions []string
 	RequireAll  bool
+}
+
+// AllowedBy reports whether a caller holding the permissions hasPermission
+// answers for passes the rule.
+func (rule AccessRule) AllowedBy(hasPermission func(string) bool) bool {
+	if rule.RequireAll {
+		for _, permission := range rule.Permissions {
+			if !hasPermission(permission) {
+				return false
+			}
+		}
+		return len(rule.Permissions) > 0
+	}
+	for _, permission := range rule.Permissions {
+		if hasPermission(permission) {
+			return true
+		}
+	}
+	return false
 }
 
 // ConfigAccess is an access level of the settings routes.
@@ -68,31 +91,33 @@ const (
 	MealPlanAccessWrite MealPlanAccess = iota
 	MealPlanAccessRead
 	MealPlanAccessParticipants
-	// MealPlanAccessParticipantsWrite changes a child's day on the kitchen
-	// list.
-	MealPlanAccessParticipantsWrite
+	// MealPlanAccessRegister changes a child's registration for the school.
+	MealPlanAccessRegister
+	MealPlanAccessDailyParticipants
 )
 
-// MealPlanAccessPermissions names the permissions of a meal plan access
-// level: reading takes config:read, the kitchen list both config:read and
-// users:read (it combines the meal settings with student directory data),
-// changing a child's day on it config:update and users:read, and writing
-// (the default) config:update.
+// MealPlanAccessPermissions names the permission of a meal plan access level
+// (#3873): reading takes meals:read, exports meals:orders, and changing
+// a child's registration meals:register. The daily child list accepts either,
+// and writing (the default) meals:manage. A kitchen role no longer needs the
+// configuration or every child's data, and seeing names opens no change.
 func MealPlanAccessPermissions(level MealPlanAccess) AccessRule {
 	switch level {
+	case MealPlanAccessDailyParticipants:
+		return AccessRule{Permissions: []string{permissionMealsOrders, permissionMealsRegister}}
+	case MealPlanAccessRegister:
+		return AccessRule{Permissions: []string{permissionMealsRegister}}
 	case MealPlanAccessParticipants:
-		return AccessRule{Permissions: MealParticipantsPermissions(), RequireAll: true}
-	case MealPlanAccessParticipantsWrite:
-		return AccessRule{Permissions: []string{permissionConfigUpdate, permissionUsersRead}, RequireAll: true}
+		return AccessRule{Permissions: MealParticipantsPermissions()}
 	case MealPlanAccessRead:
-		return AccessRule{Permissions: []string{permissionConfigRead}}
+		return AccessRule{Permissions: []string{permissionMealsRead}}
 	default:
-		return AccessRule{Permissions: []string{permissionConfigUpdate}}
+		return AccessRule{Permissions: []string{permissionMealsManage}}
 	}
 }
 
-// MealParticipantsPermissions are the permissions the kitchen list needs,
-// all of them.
+// MealParticipantsPermissions are the permissions the lists with children's
+// names need.
 func MealParticipantsPermissions() []string {
-	return []string{permissionConfigRead, permissionUsersRead}
+	return []string{permissionMealsOrders}
 }

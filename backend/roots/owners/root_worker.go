@@ -31,6 +31,7 @@ import (
 	filestorageModule "github.com/moto-nrw/project-phoenix/modules/filestorage"
 	filestorageCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
@@ -225,6 +226,7 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 		carePlan         carePlanModule.Owner
 		appointments     appointmentsModule.Capability
 		operatorAuditLog OperatorAuditEntries
+		mealPlan         mealplanModule.Capability
 		feedbackSettings *feedbackCompose.Settings
 		feedback         feedbackModule.Capability
 		structure        StructureRows
@@ -333,6 +335,7 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 		},
 		func() (err error) { appointments, err = BuildServeAppointments(db); return },
 		func() error { operatorAuditLog = NewOperatorAuditLog(db); return nil },
+		func() (err error) { mealPlan, err = workerMealPlan(db, settings, people, persons, calendar); return },
 		func() (err error) { feedbackSettings, err = BuildFeedbackSettings(settings.Service); return },
 		func() (err error) { feedback, err = BuildServeFeedback(db, feedbackSettings); return },
 		func() (err error) {
@@ -528,7 +531,7 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 		},
 		func() (err error) {
 			outbox, err = BuildDeliveryWorker(db, env, mailSender, mailFrom, pushVAPID, mailIdentity, delivery, BuildCalendarAppointmentRenderer(db, mailFrom, people),
-				IdentityDeliveryRenderers(identity, mailFrom, mailIdentity, delivery.Runtime.EmailStatus, env), calendarApp)
+				IdentityDeliveryRenderers(identity, mailFrom, mailIdentity, delivery.Runtime.EmailStatus, env), calendarApp, settings.Service)
 			return
 		},
 	)
@@ -538,7 +541,7 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 	return NewWorker(db, env.Logger, tracer, hub, settings.Service, audit.Command, deviceFleet, carePlan, persons, people,
 		organizations, identity, facilities, timetableRepos, workTime, staffAdmin, workforce, active, reports, lifecycle, days,
 		materialization, schedules, requests.Documents, services, studentAudit, notices, flows, studentDeletion, feedback, calendarApp,
-		notifications, deliveryDevices.PWAUsage, chat.StaffMessaging, outbox, reminders, fileStore, announcements, schoolNames(tracker))
+		notifications, deliveryDevices.PWAUsage, chat.StaffMessaging, outbox, reminders, fileStore, announcements, mealPlan, schoolNames(tracker))
 }
 
 func buildWorkerAnalyticsSettings(db transactionruntime.Database, unit rootUnitOfWork, env RootEnvironment, organizations organizationtenancy.Capability, hub *realtime.Hub, bookings enrollmentPhaseRestrictions, tracker ProductEventTracker, bind func(ProductEventTracker, settingsValues.TenantReader, bool) ProductEventTracker) (SettingsOwner, ProductEventTracker, error) {
@@ -547,4 +550,14 @@ func buildWorkerAnalyticsSettings(db transactionruntime.Database, unit rootUnitO
 		return SettingsOwner{}, nil, err
 	}
 	return values, bind(tracker, values.Service, email.IsDemoEnvironment(env.Config.AppEnv)), nil
+}
+
+// workerMealPlan composes the Meal Plan whose orders the worker settles
+// at their deadline (ADR 0078).
+func workerMealPlan(db transactionruntime.Database, settings SettingsOwner, people PeopleRows, persons *peopleCompose.Directory, calendar schoolcalendar.Days) (mealplanModule.Capability, error) {
+	mealPlanSettings, err := BuildMealPlanSettings(settings.Service)
+	if err != nil {
+		return nil, err
+	}
+	return BuildServeMealPlan(db, mealPlanSettings, NewStudentRootReads(people.Students), persons, calendar)
 }

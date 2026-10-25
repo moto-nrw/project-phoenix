@@ -376,6 +376,7 @@ type Owner interface {
 	OperatorProvisioning
 	OperatorStatus
 	TraegerRoles
+	TraegerAccountManagement
 	// AccountHoldsRole reports whether the account holds the role of that
 	// exact name. A failed lookup counts as not holding it: the answer only
 	// ever withholds.
@@ -383,6 +384,9 @@ type Owner interface {
 	// DemoAccess returns the demo-only capability when the owner was
 	// composed in the demo environment, and nil otherwise.
 	DemoAccess() *DemoAccess
+	// Caterers returns the caterer flows (ADR 0077) when the owner was
+	// composed with their dependencies, and nil otherwise.
+	Caterers() *CatererAccess
 }
 
 // InvitedPersonQuery retains the person identities of unused invitations in

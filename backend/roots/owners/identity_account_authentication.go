@@ -29,20 +29,22 @@ type sessionRepositories struct {
 	persons           personRows
 	authEvents        authEventLedger
 	pushSubscriptions pushSubscriptionRows
-	Lifecycle         LifecycleRepositories
+	// traeger serves the Träger-Büro account management's membership port.
+	traeger   organizationtenancy.Capability
+	Lifecycle LifecycleRepositories
 }
 
 // SessionRepositoriesOf binds the session seams to the identity chain rows
 // in people (persons, staff, teachers, students, guardian profiles and
 // relationships) and the given ledgers.
-func SessionRepositoriesOf(people LifecycleRepositories, organizations organizationtenancy.Query, authEvents authEventLedger, pushSubscriptions pushSubscriptionRows) sessionRepositories {
+func SessionRepositoriesOf(people LifecycleRepositories, organizations organizationtenancy.Capability, authEvents authEventLedger, pushSubscriptions pushSubscriptionRows) sessionRepositories {
 	if people.Persons == nil {
 		return sessionRepositories{}
 	}
 	lifecycle := people
 	lifecycle.AuthEvents = authEvents
 	return sessionRepositories{
-		schools: SchoolDirectory{Schools: organizations},
+		schools: SchoolDirectory{Schools: organizations}, traeger: organizations,
 		persons: people.Persons, authEvents: authEvents, pushSubscriptions: pushSubscriptions,
 		Lifecycle: lifecycle,
 	}
@@ -62,9 +64,14 @@ func NewIdentityAccessWithSessions(base identityaccessCompose.Dependencies, repo
 	if repos.schools.Schools == nil || repos.persons == nil || repos.authEvents == nil || repos.pushSubscriptions == nil || codec == nil || audit == nil {
 		return nil, errors.New("identity access composition: repositories, token codec and audit command are required")
 	}
+	portalModules, err := NewPortalModuleBooking(settings)
+	if err != nil {
+		return nil, fmt.Errorf("identity access composition: %w", err)
+	}
 	base.Sessions = &identityBindingPorts.SessionDependencies{
 		Schools:             repos.schools,
 		Traeger:             TraegerMembershipDirectory{Memberships: repos.schools.Schools},
+		PortalModules:       portalModules,
 		Persons:             PersonDirectory{Persons: repos.persons},
 		Passwords:           passwordVerifier{},
 		PasswordLoginPolicy: passwordLoginPolicy,
@@ -73,6 +80,12 @@ func NewIdentityAccessWithSessions(base identityaccessCompose.Dependencies, repo
 		Audit:               AuthAudit{Command: audit, Events: repos.authEvents},
 		Push:                PushSubscriptionCleanup{Subscriptions: repos.pushSubscriptions},
 		Logger:              logger,
+	}
+	if base.Traeger != nil {
+		traeger := *base.Traeger
+		traeger.Memberships = TraegerBueroDirectory{Organizations: repos.traeger}
+		traeger.Audit = TraegerAccountLedger{Command: audit}
+		base.Traeger = &traeger
 	}
 	return identityaccessCompose.New(base)
 }
@@ -227,7 +240,7 @@ func (d TraegerMembershipDirectory) ListAccountTraegerOrganizations(ctx context.
 	}
 	result := make([]identityaccess.TraegerOrganization, 0, len(organizations))
 	for _, organization := range organizations {
-		result = append(result, identityaccess.TraegerOrganization(organization))
+		result = append(result, identityaccess.TraegerOrganization{ID: organization.ID, Name: organization.Name})
 	}
 	return result, nil
 }

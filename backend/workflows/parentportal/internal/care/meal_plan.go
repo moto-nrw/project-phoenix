@@ -86,7 +86,7 @@ func (s *Service) MealParticipation(ctx context.Context, accountID, studentID in
 		return MealParticipationPlan{}, err
 	}
 	currentMonday := s.todayDate().StartOfISOWeek()
-	if from.Before(currentMonday) || to.After(currentMonday.AddDays(11)) || to.Before(from) {
+	if from.Before(currentMonday) || to.After(lastMealParticipationDay(currentMonday)) || to.Before(from) {
 		return MealParticipationPlan{}, ErrMealParticipationOutOfRange
 	}
 	var plan MealParticipationPlan
@@ -130,6 +130,43 @@ func (s *Service) SetMealParticipationDay(ctx context.Context, accountID, studen
 	})
 }
 
+// SetMealParticipationWeek registers or cancels the remaining weekdays of the
+// week containing date. Days past their deadline stay and come back as
+// locked.
+func (s *Service) SetMealParticipationWeek(ctx context.Context, accountID, studentID int64, date calendar.Date, participating bool) (MealWeekChange, error) {
+	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionMealParticipationManage)
+	if err != nil {
+		return MealWeekChange{}, err
+	}
+	if err := child.RequireCareRunning(); err != nil {
+		return MealWeekChange{}, err
+	}
+	monday := date.StartOfISOWeek()
+	if monday.AddDays(4).Before(s.todayDate()) || monday.After(lastMealParticipationDay(s.todayDate().StartOfISOWeek())) {
+		return MealWeekChange{}, ErrMealParticipationOutOfRange
+	}
+	var result MealWeekChange
+	err = s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+		if err := s.RequireCareRunningForUpdate(txCtx, studentID); err != nil {
+			return err
+		}
+		var writeErr error
+		result, writeErr = s.MealPlan.SetParticipationForWeek(txCtx, MealParticipationChange{StudentID: studentID, GuardianAccountID: accountID, Date: monday, Participating: participating})
+		return writeErr
+	})
+	if err != nil {
+		return MealWeekChange{}, mapMealParticipationError(err)
+	}
+	return result, nil
+}
+
+// lastMealParticipationDay is the last day a parent reads or changes: the
+// Friday three weeks after the current week, so deadlines with a lead time
+// stay reachable.
+func lastMealParticipationDay(currentMonday calendar.Date) calendar.Date {
+	return currentMonday.AddDays(25)
+}
+
 func (s *Service) ClearMealParticipationDay(ctx context.Context, accountID, studentID int64, date calendar.Date) error {
 	return s.changeMealParticipationDay(ctx, accountID, studentID, date, func(txCtx context.Context) error {
 		return s.MealPlan.ClearParticipationForDay(txCtx, MealParticipationChange{StudentID: studentID, GuardianAccountID: accountID, Date: date})
@@ -145,7 +182,7 @@ func (s *Service) changeMealParticipationDay(ctx context.Context, accountID, stu
 		return err
 	}
 	today := s.todayDate()
-	if date.Before(today) || date.After(today.StartOfISOWeek().AddDays(11)) {
+	if date.Before(today) || date.After(lastMealParticipationDay(today.StartOfISOWeek())) {
 		return ErrMealParticipationOutOfRange
 	}
 	err = s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {

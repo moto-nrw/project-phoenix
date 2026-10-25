@@ -1054,6 +1054,21 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": []any{}})
 			return
 		}
+		// The Träger-Büro step signs in to the Träger-Portal (#4650) in every
+		// profile; that login answers without the envelope, like the other
+		// portal logins.
+		if r.Method == seedHTTPMethodPost && r.URL.Path == "/traeger/auth/login" {
+			_ = json.NewEncoder(w).Encode(map[string]string{
+				"status": "authenticated", "access_token": "traeger-token", "refresh_token": "traeger-refresh",
+			})
+			return
+		}
+		if r.Method == seedHTTPMethodPost && r.URL.Path == "/operator/organizations/test-traeger" {
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{
+				"organization": map[string]any{"id": 9100, "test_system": true}, "schools": []any{},
+			}})
+			return
+		}
 		if weeklyMock.serve(t, w, r) {
 			return
 		}
@@ -1735,6 +1750,16 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 				"data": map[string]any{
 					"id": fmt.Sprintf("%d", idCounter),
 				},
+			})
+
+		case "/traeger/auth/login":
+			// The Träger-Portal sign-in of the holiday period step (#4659).
+			_, _ = fmt.Fprint(w, `{"status":"authenticated","access_token":"traeger-token","refresh_token":"traeger-refresh"}`)
+
+		case "/traeger/schools/":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success",
+				"data":   []map[string]any{{"id": idCounter}},
 			})
 
 		case "/api/enrollment/vollbetrieb/submit", "/parent/enrollments/vollbetrieb/submit":

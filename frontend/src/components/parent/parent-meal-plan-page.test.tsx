@@ -1,16 +1,24 @@
 import {
   act,
   fireEvent,
-  render,
+  render as renderPlain,
   screen,
   waitFor,
   within,
 } from "@testing-library/react";
+import type React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
+import { ToastProvider } from "~/contexts/ToastContext";
 import deMessages from "~/i18n/messages/de.json";
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
+
+// A failed week registration has no dialog and reports through the toast
+// provider of the shared error path.
+function render(ui: React.ReactElement) {
+  return renderPlain(ui, { wrapper: ToastProvider });
+}
 
 const unavailable = () =>
   new ApiError("diag", 503, { code: "general.unavailable" });
@@ -29,6 +37,7 @@ const mocks = vi.hoisted(() => ({
   getMealParticipation: vi.fn(),
   replaceMealParticipationSchedule: vi.fn(),
   setMealParticipationDay: vi.fn(),
+  setMealParticipationWeek: vi.fn(),
   clearMealParticipationDay: vi.fn(),
   listMyChildren: vi.fn(),
   today: "2026-08-12",
@@ -40,6 +49,7 @@ vi.mock("~/lib/parent-api", () => ({
   getMealParticipation: mocks.getMealParticipation,
   replaceMealParticipationSchedule: mocks.replaceMealParticipationSchedule,
   setMealParticipationDay: mocks.setMealParticipationDay,
+  setMealParticipationWeek: mocks.setMealParticipationWeek,
   clearMealParticipationDay: mocks.clearMealParticipationDay,
   listMyChildren: mocks.listMyChildren,
 }));
@@ -136,8 +146,13 @@ describe("ParentMealPlanPage", () => {
     const participationDay = (date: string, changeable: boolean) => ({
       date,
       participating: true,
+      regular_participating: true,
       source: "regular",
       changeable,
+      can_register: changeable,
+      can_cancel: changeable,
+      register_until: `${date}T07:00:00Z`,
+      cancel_until: `${date}T07:00:00Z`,
     });
 
     beforeEach(() => {
@@ -153,6 +168,9 @@ describe("ParentMealPlanPage", () => {
         weekdays: [1, 2, 3, 4],
         effective_from: "2026-08-17",
         cutoff_time: "09:00",
+        model: "ongoing_single",
+        schedule_changeable: true,
+        sick_cancels_after_deadline: false,
         days: [
           participationDay("2026-08-14", false),
           participationDay("2026-08-17", true),
@@ -168,8 +186,6 @@ describe("ParentMealPlanPage", () => {
       ).getByRole("status");
       await waitFor(() => {
         expect(weekStatus).toHaveTextContent(/KW 34\s*· Nächste Woche/);
-      });
-      await waitFor(() => {
         expect(mocks.getChildMealPlan).toHaveBeenLastCalledWith(
           "child-1",
           "2026-08-17",
@@ -194,6 +210,9 @@ describe("ParentMealPlanPage", () => {
         weekdays: [1, 2, 3, 4],
         effective_from: "2026-08-13",
         cutoff_time: "09:00",
+        model: "ongoing_single",
+        schedule_changeable: true,
+        sick_cancels_after_deadline: false,
         days: [
           participationDay("2026-08-12", false),
           participationDay("2026-08-13", true),
@@ -219,6 +238,9 @@ describe("ParentMealPlanPage", () => {
           weekdays: [1, 2, 3, 4],
           effective_from: "2026-08-14",
           cutoff_time: "09:00",
+          model: "ongoing_single",
+          schedule_changeable: true,
+          sick_cancels_after_deadline: false,
           days: [
             participationDay("2026-08-14", true),
             participationDay("2026-08-17", true),
@@ -228,6 +250,9 @@ describe("ParentMealPlanPage", () => {
           weekdays: [1, 2, 3, 4],
           effective_from: "2026-08-16",
           cutoff_time: "09:00",
+          model: "ongoing_single",
+          schedule_changeable: true,
+          sick_cancels_after_deadline: false,
           days: [
             participationDay("2026-08-14", false),
             participationDay("2026-08-17", true),
@@ -252,7 +277,7 @@ describe("ParentMealPlanPage", () => {
         expect(mocks.getMealParticipation).toHaveBeenLastCalledWith(
           "child-1",
           "2026-08-10",
-          "2026-08-21",
+          "2026-09-04",
         );
         expect(weekStatus).toHaveTextContent(/KW 34\s*· Nächste Woche/);
       });
@@ -410,18 +435,31 @@ describe("ParentMealPlanPage", () => {
       weekdays: [1, 3],
       effective_from: "2026-08-10",
       cutoff_time: "09:00",
+      model: "ongoing_single",
+      schedule_changeable: true,
+      sick_cancels_after_deadline: false,
       days: [
         {
           date: "2026-08-12",
           participating: false,
+          regular_participating: false,
           source: "none",
           changeable: true,
+          can_register: true,
+          can_cancel: true,
+          register_until: "2026-08-12T07:00:00Z",
+          cancel_until: "2026-08-12T07:00:00Z",
         },
         {
           date: "2026-08-14",
           participating: true,
+          regular_participating: false,
           source: "override",
           changeable: true,
+          can_register: true,
+          can_cancel: true,
+          register_until: "2026-08-12T07:00:00Z",
+          cancel_until: "2026-08-12T07:00:00Z",
         },
       ],
     });
@@ -441,7 +479,7 @@ describe("ParentMealPlanPage", () => {
     const childSelect = screen.getByRole("combobox", { name: "Kind" });
     expect(
       await screen.findByText(
-        "Sie können die Anmeldung am selben Tag bis 09:00 Uhr ändern.",
+        "Bis wann Sie ändern können, steht bei jedem Tag.",
       ),
     ).toBeInTheDocument();
     expect(screen.getByText("Montag und Mittwoch")).toBeInTheDocument();
@@ -449,11 +487,11 @@ describe("ParentMealPlanPage", () => {
     expect(screen.getByText("mit Salat")).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Eine bestätigte Krankmeldung bis 09:00 Uhr meldet Ihr Kind vom Essen ab. Danach bleibt die Anmeldung bestehen.",
+        "Eine bestätigte Krankmeldung oder Abwesenheit bis zur Frist eines Tages meldet Ihr Kind vom Essen ab. Danach bleibt das Essen bestellt.",
       ),
     ).toBeInTheDocument();
     expect(
-      screen.queryByText("parentMealPlan.participationSickness"),
+      screen.queryByText("parentMealPlan.participationSicknessDeadline"),
     ).not.toBeInTheDocument();
 
     expect(
@@ -555,7 +593,7 @@ describe("ParentMealPlanPage", () => {
     });
   });
 
-  it("names the lead days of the school's cutoff", async () => {
+  it("shows the school's per-day deadlines", async () => {
     mocks.getChildFeatures.mockResolvedValue({
       meal_plan_enabled: true,
       meal_registration_enabled: true,
@@ -577,23 +615,16 @@ describe("ParentMealPlanPage", () => {
 
     render(<ParentMealPlanPage />);
 
-    // The global next-intl mock leaves ICU plurals unformatted; the wording
-    // per count is pinned in src/i18n/meal-cutoff-messages.test.ts.
     expect(
       await screen.findByText(
-        /^Sie können die Anmeldung bis 14:00 Uhr .*ändern\.$/,
+        "Bis wann Sie ändern können, steht bei jedem Tag.",
       ),
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        /^Eine bestätigte Krankmeldung bis 14:00 Uhr .*Danach bleibt die Anmeldung bestehen\.$/,
+        "Eine bestätigte Krankmeldung oder Abwesenheit bis zur Frist eines Tages meldet Ihr Kind vom Essen ab. Danach bleibt das Essen bestellt.",
       ),
     ).toBeInTheDocument();
-    expect(
-      screen.queryByText(
-        "Sie können die Anmeldung am selben Tag bis 14:00 Uhr ändern.",
-      ),
-    ).not.toBeInTheDocument();
   });
 
   it("marks each participation state with its own icon next to the text", async () => {
@@ -662,8 +693,13 @@ describe("ParentMealPlanPage", () => {
         {
           date: "2026-08-14",
           participating: false,
+          regular_participating: false,
           source: "none",
           changeable: true,
+          can_register: true,
+          can_cancel: true,
+          register_until: "2026-08-14T07:00:00Z",
+          cancel_until: "2026-08-14T07:00:00Z",
         },
       ],
     });
@@ -776,6 +812,9 @@ describe("ParentMealPlanPage", () => {
       weekdays: [],
       effective_from: "2026-08-10",
       cutoff_time: "09:00",
+      model: "ongoing_single",
+      schedule_changeable: true,
+      sick_cancels_after_deadline: false,
       days: [],
     });
 
@@ -909,12 +948,20 @@ describe("ParentMealPlanPage", () => {
       weekdays: [1, 3],
       effective_from: "2026-08-10",
       cutoff_time: "09:00",
+      model: "ongoing_single",
+      schedule_changeable: true,
+      sick_cancels_after_deadline: false,
       days: [
         {
           date: "2026-08-12",
           participating: false,
+          regular_participating: false,
           source: "none",
           changeable: true,
+          can_register: true,
+          can_cancel: true,
+          register_until: "2026-08-12T07:00:00Z",
+          cancel_until: "2026-08-12T07:00:00Z",
         },
       ],
     };
@@ -1037,47 +1084,53 @@ describe("ParentMealPlanPage", () => {
     });
   });
 
-  describe("#3164 weekday cutoff, closed days and the whole week", () => {
-    const plan = () => ({
-      weekdays: [4],
+  // #3873: deadlines per day, the annual registration and the week change.
+  describe("ordering rules", () => {
+    const day = (
+      date: string,
+      overrides: Partial<{
+        participating: boolean;
+        regular_participating: boolean;
+        source: string;
+        can_register: boolean;
+        can_cancel: boolean;
+        register_until: string;
+        cancel_until: string;
+      }> = {},
+    ) => {
+      const value = {
+        date,
+        participating: true,
+        regular_participating: true,
+        source: "regular",
+        can_register: true,
+        can_cancel: true,
+        // 12:00 Berlin on the Thursday before, 08:00 Berlin on the day.
+        register_until: "2026-08-06T10:00:00Z",
+        cancel_until: `${date}T06:00:00Z`,
+        ...overrides,
+      };
+      return {
+        ...value,
+        changeable: value.can_register || value.can_cancel,
+      };
+    };
+    const plan = (
+      overrides: Partial<{
+        model: string;
+        schedule_changeable: boolean;
+        sick_cancels_after_deadline: boolean;
+        days: ReturnType<typeof day>[];
+      }> = {},
+    ) => ({
+      weekdays: [1, 3],
       effective_from: "2026-08-10",
-      cutoff_time: "16:00",
-      cutoff_lead_days: 0,
-      cutoff_weekday: 3,
-      cancellation_cutoff_time: "09:00",
-      cancellation_cutoff_lead_days: 0,
-      days: [
-        {
-          date: "2026-08-10",
-          participating: false,
-          source: "none",
-          changeable: false,
-        },
-        {
-          date: "2026-08-11",
-          participating: false,
-          source: "none",
-          changeable: false,
-        },
-        {
-          date: "2026-08-12",
-          participating: false,
-          source: "none",
-          changeable: true,
-        },
-        {
-          date: "2026-08-13",
-          participating: true,
-          source: "regular",
-          changeable: true,
-        },
-        {
-          date: "2026-08-14",
-          participating: false,
-          source: "closed",
-          changeable: false,
-        },
-      ],
+      cutoff_time: "12:00",
+      model: "ongoing_split",
+      schedule_changeable: true,
+      sick_cancels_after_deadline: false,
+      days: [],
+      ...overrides,
     });
 
     beforeEach(() => {
@@ -1085,102 +1138,476 @@ describe("ParentMealPlanPage", () => {
         meal_plan_enabled: true,
         meal_registration_enabled: true,
       });
-      mocks.getMealParticipation.mockResolvedValue(plan());
-      mocks.setMealParticipationDay.mockResolvedValue(undefined);
     });
 
-    it("names the weekday cutoff, the later cancellation and closed days", async () => {
+    it("shows each deadline of a day and offers only what is still open", async () => {
+      mocks.getMealParticipation.mockResolvedValue(
+        plan({
+          days: [
+            day("2026-08-12", { can_register: false }),
+            day("2026-08-13", {
+              participating: false,
+              regular_participating: false,
+              source: "none",
+              can_register: false,
+            }),
+          ],
+        }),
+      );
+
+      render(<ParentMealPlanPage />);
+
+      expect(await screen.findAllByText(/^Abmelden bis .*08:00/)).toHaveLength(
+        2,
+      );
+      expect(screen.queryByText(/^Anmelden bis/)).not.toBeInTheDocument();
+
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: "Anmeldung ändern: Mittwoch, 12. August",
+        }),
+      );
+      const editor = screen.getByRole("group", {
+        name: "Anmeldung ändern: Mittwoch, 12. August",
+      });
+      expect(
+        within(editor).getByRole("button", { name: "Abmelden" }),
+      ).toBeInTheDocument();
+      fireEvent.click(
+        within(editor).getByRole("button", { name: "Abbrechen" }),
+      );
+
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: "Anmeldung ändern: Donnerstag, 13. August",
+        }),
+      );
+      const closedEditor = screen.getByRole("group", {
+        name: "Anmeldung ändern: Donnerstag, 13. August",
+      });
+      expect(
+        within(closedEditor).queryByRole("button", { name: "Anmelden" }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("locks the regular days once the school year registration closed", async () => {
+      mocks.getMealParticipation.mockResolvedValue(
+        plan({
+          model: "annual",
+          schedule_changeable: false,
+          days: [day("2026-08-12", { can_register: false })],
+        }),
+      );
+
       render(<ParentMealPlanPage />);
 
       expect(
         await screen.findByText(
-          "Sie können die Anmeldung bis Mittwoch, 16:00 Uhr, für die ganze nächste Woche ändern.",
+          "Die Anmeldung für das Schuljahr ist abgeschlossen. Feste Tage ändert jetzt nur die Schule.",
         ),
       ).toBeInTheDocument();
       expect(
-        screen.getByText(/^Abmelden geht länger: bis 09:00 Uhr/),
-      ).toBeInTheDocument();
-      // A sick note counts until the cancellation cutoff.
+        screen.queryByRole("button", { name: "Ändern" }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("tells parents when a late sick note still cancels the meal", async () => {
+      mocks.getMealParticipation.mockResolvedValue(
+        plan({ sick_cancels_after_deadline: true }),
+      );
+
+      render(<ParentMealPlanPage />);
+
       expect(
-        screen.getByText(
-          "Eine bestätigte Krankmeldung bis 09:00 Uhr meldet Ihr Kind vom Essen ab. Danach bleibt die Anmeldung bestehen.",
+        await screen.findByText(
+          "Eine bestätigte Krankmeldung oder Abwesenheit bis zum Essenstag meldet Ihr Kind vom Essen ab.",
         ),
       ).toBeInTheDocument();
+    });
+
+    it("cancels the remaining days of a week and names the days already ordered", async () => {
+      mocks.getMealParticipation.mockResolvedValue(
+        plan({
+          days: [
+            day("2026-08-12", { can_cancel: false, can_register: false }),
+            day("2026-08-13"),
+          ],
+        }),
+      );
+      mocks.setMealParticipationWeek.mockResolvedValue({
+        changed: ["2026-08-13", "2026-08-14"],
+        locked: ["2026-08-12"],
+      });
+
+      render(<ParentMealPlanPage />);
+
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Woche abmelden" }),
+      );
+      const dialog = await screen.findByRole("dialog");
       expect(
-        screen.getByText("Kein Essen: Feiertag oder Schließtag"),
+        within(dialog).getByText(
+          "Mia Muster wird an allen Tagen dieser Woche abgemeldet, die Sie noch ändern können.",
+        ),
       ).toBeInTheDocument();
-      // Monday and Tuesday are past, Friday is closed: only past days say so.
-      expect(screen.getAllByText("Nicht mehr änderbar")).toHaveLength(2);
-    });
+      fireEvent.click(within(dialog).getByRole("button", { name: "Abmelden" }));
 
-    it("signs the child up for every open day of the week", async () => {
-      render(<ParentMealPlanPage />);
-
-      fireEvent.click(
-        await screen.findByRole("button", { name: "Ganze Woche anmelden" }),
-      );
-
-      await waitFor(() => {
-        expect(mocks.setMealParticipationDay).toHaveBeenCalledTimes(1);
-      });
-      expect(mocks.setMealParticipationDay).toHaveBeenCalledWith(
-        "child-1",
-        "2026-08-12",
-        true,
-      );
-      await waitFor(() => {
-        expect(mocks.getMealParticipation).toHaveBeenCalledTimes(2);
-      });
-    });
-
-    it("asks before signing the child off for the whole week", async () => {
-      render(<ParentMealPlanPage />);
-
-      fireEvent.click(
-        await screen.findByRole("button", { name: "Ganze Woche abmelden" }),
-      );
-      const dialog = await screen.findByRole("dialog", {
-        name: "Ganze Woche abmelden?",
-      });
-      expect(mocks.setMealParticipationDay).not.toHaveBeenCalled();
-      // The global next-intl mock leaves the plural unformatted; the
-      // wording per count is pinned in meal-cutoff-messages.test.ts.
-      expect(dialog).toHaveTextContent(
-        /Mia Muster wird an .* dieser Woche vom Mittagessen abgemeldet\./,
-      );
-
-      fireEvent.click(
-        within(dialog).getByRole("button", { name: "Ganze Woche abmelden" }),
-      );
-
-      await waitFor(() => {
-        expect(mocks.setMealParticipationDay).toHaveBeenCalledWith(
+      await waitFor(() =>
+        expect(mocks.setMealParticipationWeek).toHaveBeenCalledWith(
           "child-1",
-          "2026-08-13",
+          "2026-08-10",
           false,
-        );
-      });
-      expect(mocks.setMealParticipationDay).toHaveBeenCalledTimes(1);
+        ),
+      );
+      expect(
+        await screen.findByText(
+          "Die Woche ist abgemeldet. Diese Tage waren schon bestellt und bleiben angemeldet: Mittwoch.",
+        ),
+      ).toBeInTheDocument();
+      expect(mocks.getMealParticipation).toHaveBeenCalledTimes(2);
     });
 
-    it("shows a failed week change and reloads what was saved", async () => {
-      mocks.setMealParticipationDay.mockRejectedValue(unavailable());
+    it("keeps the week cancellation dialog open on a failure and retries from it", async () => {
+      mocks.getMealParticipation.mockResolvedValue(
+        plan({ days: [day("2026-08-13")] }),
+      );
+      mocks.setMealParticipationWeek
+        .mockRejectedValueOnce(unavailable())
+        .mockResolvedValue({ changed: ["2026-08-13"], locked: [] });
+
       render(<ParentMealPlanPage />);
 
       fireEvent.click(
-        await screen.findByRole("button", { name: "Ganze Woche anmelden" }),
+        await screen.findByRole("button", { name: "Woche abmelden" }),
+      );
+      const dialog = await screen.findByRole("dialog");
+      fireEvent.click(within(dialog).getByRole("button", { name: "Abmelden" }));
+
+      expect(
+        await within(dialog).findByText(
+          catalogText(
+            "general.unavailable",
+            deMessages.parentMealPlan.errorObjectWeekCancel,
+          ),
+          { exact: false },
+        ),
+      ).toBeInTheDocument();
+      expect(screen.getByRole("dialog")).toBe(dialog);
+
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Wiederholen" }),
+      );
+
+      await waitFor(() =>
+        expect(mocks.setMealParticipationWeek).toHaveBeenCalledTimes(2),
+      );
+      expect(mocks.setMealParticipationWeek).toHaveBeenLastCalledWith(
+        "child-1",
+        "2026-08-10",
+        false,
+      );
+      expect(
+        await screen.findByText("Die Woche ist abgemeldet."),
+      ).toBeInTheDocument();
+      await waitFor(() =>
+        expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+      );
+    });
+
+    it("registers the open days of a week without asking and names the days past their deadline", async () => {
+      mocks.getMealParticipation.mockResolvedValue(
+        plan({
+          days: [
+            day("2026-08-12", {
+              participating: false,
+              regular_participating: false,
+              source: "none",
+              can_register: false,
+            }),
+            day("2026-08-13", {
+              participating: false,
+              regular_participating: false,
+              source: "none",
+            }),
+          ],
+        }),
+      );
+      mocks.setMealParticipationWeek.mockResolvedValue({
+        changed: ["2026-08-13"],
+        locked: ["2026-08-12"],
+      });
+
+      render(<ParentMealPlanPage />);
+
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Woche anmelden" }),
+      );
+
+      await waitFor(() =>
+        expect(mocks.setMealParticipationWeek).toHaveBeenCalledWith(
+          "child-1",
+          "2026-08-10",
+          true,
+        ),
+      );
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(
+        await screen.findByText(
+          "Die Woche ist angemeldet. Für diese Tage ist die Anmeldefrist vorbei, sie bleiben abgemeldet: Mittwoch.",
+        ),
+      ).toBeInTheDocument();
+      expect(mocks.getMealParticipation).toHaveBeenCalledTimes(2);
+    });
+
+    it("offers no week registration for sick, absent or closed days", async () => {
+      mocks.getMealParticipation.mockResolvedValue(
+        plan({
+          days: [
+            day("2026-08-12", { participating: false, source: "sick" }),
+            day("2026-08-13", { participating: false, source: "absent" }),
+            day("2026-08-14", {
+              participating: false,
+              source: "closed",
+              can_register: false,
+              can_cancel: false,
+            }),
+          ],
+        }),
+      );
+
+      render(<ParentMealPlanPage />);
+
+      expect(
+        await screen.findByText("Abgemeldet, weil Ihr Kind fehlt"),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Woche anmelden" }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("shows a failed week registration with the week as object", async () => {
+      mocks.getMealParticipation.mockResolvedValue(
+        plan({
+          days: [
+            day("2026-08-13", {
+              participating: false,
+              regular_participating: false,
+              source: "none",
+            }),
+          ],
+        }),
+      );
+      mocks.setMealParticipationWeek.mockRejectedValue(unavailable());
+
+      render(<ParentMealPlanPage />);
+
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Woche anmelden" }),
       );
 
       expect(
         await screen.findByText(
           catalogText(
             "general.unavailable",
-            deMessages.parentMealPlan.errorObjectParticipation,
+            deMessages.parentMealPlan.errorObjectWeekRegister,
           ),
           { exact: false },
         ),
       ).toBeInTheDocument();
-      expect(mocks.getMealParticipation).toHaveBeenCalledTimes(2);
+      fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+      expect(mocks.setMealParticipationWeek).toHaveBeenCalledTimes(2);
+      expect(mocks.setMealParticipationWeek).toHaveBeenLastCalledWith(
+        "child-1",
+        "2026-08-10",
+        true,
+      );
+    });
+
+    it.each(["child", "school", "week"])(
+      "invalidates a failed registration retry after changing %s",
+      async (context) => {
+        mocks.listMyChildren.mockResolvedValue([
+          {
+            student_id: "child-1",
+            tenant_id: "school-1",
+            first_name: "Mia",
+            last_name: "Muster",
+            school_name: "OGS Am Berg",
+          },
+          {
+            student_id: "child-2",
+            tenant_id: context === "school" ? "school-2" : "school-1",
+            first_name: "Noah",
+            last_name: "Beispiel",
+            school_name: "OGS Am Park",
+          },
+        ]);
+        mocks.getMealParticipation.mockResolvedValue(
+          plan({
+            days: [
+              day("2026-08-13", {
+                participating: false,
+                regular_participating: false,
+                source: "none",
+              }),
+            ],
+          }),
+        );
+        mocks.setMealParticipationWeek.mockRejectedValue(unavailable());
+        render(<ParentMealPlanPage />);
+        fireEvent.click(
+          await screen.findByRole("button", { name: "Woche anmelden" }),
+        );
+        const retry = await screen.findByRole("button", {
+          name: "Wiederholen",
+        });
+        if (context === "week") {
+          fireEvent.click(
+            screen.getByRole("button", { name: "Nächste Woche" }),
+          );
+          await waitFor(() =>
+            expect(mocks.getChildMealPlan).toHaveBeenLastCalledWith(
+              "child-1",
+              "2026-08-17",
+            ),
+          );
+        } else {
+          fireEvent.click(screen.getByRole("combobox", { name: "Kind" }));
+          fireEvent.click(
+            await screen.findByRole("option", {
+              name: "Noah Beispiel · OGS Am Park",
+            }),
+          );
+          await waitFor(() =>
+            expect(mocks.getMealParticipation).toHaveBeenLastCalledWith(
+              "child-2",
+              "2026-08-10",
+              "2026-09-04",
+            ),
+          );
+        }
+        fireEvent.click(retry);
+        expect(mocks.setMealParticipationWeek).toHaveBeenCalledTimes(1);
+      },
+    );
+
+    it("names absent and closed days without a change button", async () => {
+      mocks.getMealParticipation.mockResolvedValue(
+        plan({
+          days: [
+            day("2026-08-12", { participating: false, source: "absent" }),
+            day("2026-08-13", {
+              participating: false,
+              source: "closed",
+              can_register: false,
+              can_cancel: false,
+            }),
+          ],
+        }),
+      );
+
+      render(<ParentMealPlanPage />);
+
+      expect(
+        await screen.findByText("Abgemeldet, weil Ihr Kind fehlt"),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText("An diesem Tag ist die OGS zu"),
+      ).toBeInTheDocument();
+      expect(screen.queryByText("Nicht mehr änderbar")).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", {
+          name: "Anmeldung ändern: Mittwoch, 12. August",
+        }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", {
+          name: "Anmeldung ändern: Donnerstag, 13. August",
+        }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("steps back to next week when the other school has no registration", async () => {
+      mocks.listMyChildren.mockResolvedValue([
+        {
+          student_id: "child-1",
+          tenant_id: "school-1",
+          first_name: "Mia",
+          last_name: "Muster",
+          school_name: "OGS Am Berg",
+        },
+        {
+          student_id: "child-2",
+          tenant_id: "school-2",
+          first_name: "Noah",
+          last_name: "Beispiel",
+          school_name: "OGS Am Park",
+        },
+      ]);
+      mocks.getChildFeatures.mockImplementation(async (studentId: string) => ({
+        meal_plan_enabled: true,
+        meal_registration_enabled: studentId === "child-1",
+      }));
+      mocks.getMealParticipation.mockResolvedValue(plan());
+
+      render(<ParentMealPlanPage />);
+
+      const navigation = await screen.findByRole("navigation", {
+        name: "Kalenderwoche wechseln",
+      });
+      const weekStatus = within(navigation).getByRole("status");
+      const nextWeek = within(navigation).getByRole("button", {
+        name: "Nächste Woche",
+      });
+      for (const label of [/Nächste Woche/, /In 2 Wochen/]) {
+        await waitFor(() => expect(nextWeek).toBeEnabled());
+        fireEvent.click(nextWeek);
+        await waitFor(() => expect(weekStatus).toHaveTextContent(label));
+      }
+
+      fireEvent.click(screen.getByRole("combobox", { name: "Kind" }));
+      fireEvent.click(
+        await screen.findByRole("option", {
+          name: "Noah Beispiel · OGS Am Park",
+        }),
+      );
+
+      await waitFor(() =>
+        expect(
+          within(
+            screen.getByRole("navigation", { name: "Kalenderwoche wechseln" }),
+          ).getByRole("status"),
+        ).toHaveTextContent(/Nächste Woche/),
+      );
+    });
+
+    it("reaches four weeks and loads the meal plan only for the first two", async () => {
+      mocks.getMealParticipation.mockResolvedValue(plan());
+
+      render(<ParentMealPlanPage />);
+
+      const navigation = await screen.findByRole("navigation", {
+        name: "Kalenderwoche wechseln",
+      });
+      const nextWeek = within(navigation).getByRole("button", {
+        name: "Nächste Woche",
+      });
+      const weekStatus = within(navigation).getByRole("status");
+      for (const label of [/Nächste Woche/, /In 2 Wochen/, /In 3 Wochen/]) {
+        await waitFor(() => expect(nextWeek).toBeEnabled());
+        fireEvent.click(nextWeek);
+        await waitFor(() => expect(weekStatus).toHaveTextContent(label));
+      }
+      await waitFor(() => expect(nextWeek).toBeDisabled());
+      expect(screen.getAllByText("Speiseplan folgt")).toHaveLength(5);
+      expect(mocks.getChildMealPlan).not.toHaveBeenCalledWith(
+        "child-1",
+        "2026-08-24",
+      );
+      expect(mocks.getChildMealPlan).not.toHaveBeenCalledWith(
+        "child-1",
+        "2026-08-31",
+      );
     });
   });
 });

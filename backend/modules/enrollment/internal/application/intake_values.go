@@ -38,6 +38,7 @@ type SubmitRequest struct {
 	GuardianSubmitEligible   bool
 	Children                 []SubmitChild
 	AdditionalGuardians      []SubmitGuardian
+	Signature                *enrollment.SubmitSignature
 }
 
 // SubmitGuardian is one decoded co-guardian.
@@ -80,7 +81,7 @@ func decodeSubmitRequest(in enrollment.SubmitRequest) (SubmitRequest, error) {
 		SubmissionSource: in.SubmissionSource, GuardianFirstName: in.GuardianFirstName,
 		GuardianLastName: in.GuardianLastName, GuardianEmail: in.GuardianEmail, GuardianPhone: in.GuardianPhone,
 		GuardianAccountID: in.GuardianAccountID, GuardianSubmitEligible: in.GuardianSubmitEligible,
-		AdditionalGuardians: in.AdditionalGuardians,
+		AdditionalGuardians: in.AdditionalGuardians, Signature: in.Signature,
 	}
 	var err error
 	if out.SourceMetadata, err = decodeJSONMap(in.SourceMetadata, "source metadata"); err != nil {

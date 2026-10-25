@@ -49,7 +49,22 @@ var queryBudgets = map[string]queryBudget{
 	// modules/traegerview — GET /traeger/schools (ADR 0084, #4649): the Träger
 	// row, the school IDs of the Träger and the school rows of that set, in
 	// one administrative transaction. Flat in the number of schools.
-	"api.traeger.schools": {max: 3, exact: true},
+	"api.traeger.schools":  {max: 3, exact: true},
+	"api.traeger.accounts": {max: 8, exact: true},
+	// modules/enrollment — GET /traeger/holiday-periods (#4659): the Träger
+	// binding of the Träger transaction, then the periods of the Träger,
+	// their weeks and their time models. Flat in the number of periods and
+	// weeks.
+	"api.traeger.holiday_periods": {max: 4, exact: true},
+	// modules/traegerview — GET /traeger/access-log (#4655, ADR 0109): the
+	// Träger row, the school IDs of the Träger, one access trail read of the
+	// Audit Platform, the school rows, the staff members behind staff IDs and
+	// their persons, the persons of the accounts and one Träger-Büro address
+	// read, in one administrative transaction; then the tenant binding of
+	// each shown school's transaction, which writes the read to that
+	// school's access log (two schools in the scenario). Flat in the number
+	// of entries.
+	"api.traeger.access_log": {max: 10, exact: true},
 	// organizationtenancy Provisioning.ListTraegerMembers (#4649): the Träger
 	// row, its memberships and one read of address and Träger roles for all
 	// members. Flat in the number of members.
@@ -227,11 +242,21 @@ var queryBudgets = map[string]queryBudget{
 	"services.auth.pending_guardian_approvals.reads":       {max: 6},
 	"services.auth.pending_invitations.reads":              {max: 1, exact: true},
 	"services.platform.pending_operator_invitations.reads": {max: 1, exact: true},
-	"services.education.suggest_mappings.reads":            {max: 4},
-	"services.reminders.present_students_in_rooms.reads":   {max: 6},
-	"services.users.list_guardians.reads":                  {max: 2},
-	"services.users.student_guardians.reads":               {max: 4},
-	"api.active.combination_groups.reads":                  {max: 3, exact: true},
+	// ADR 0077: the school's caterer invitations and the caterer's schools,
+	// including one bulk school-directory read to exclude deleted schools.
+	"modules.identityaccess.caterer_invitations.reads": {max: 1, exact: true},
+	"modules.identityaccess.caterer_schools.reads":     {max: 3, exact: true},
+	// ADR 0077: the caterer's delivery list of a week over three schools
+	// through the production router. Each school runs in its own
+	// transaction with the supply check and the order read of
+	// modules.mealplan.orders.read_week, so it grows by a fixed number per
+	// school and never with the children; the window is at most a week.
+	"workflows.catererportal.delivery_export":            {max: 112, exact: true},
+	"services.education.suggest_mappings.reads":          {max: 4},
+	"services.reminders.present_students_in_rooms.reads": {max: 6},
+	"services.users.list_guardians.reads":                {max: 2},
+	"services.users.student_guardians.reads":             {max: 4},
+	"api.active.combination_groups.reads":                {max: 3, exact: true},
 	// Enrollment decision and Care Plan offering source reads (formerly
 	// services/enrollment) stay flat as rows grow (#2941).
 	"services.enrollment.list_child_offerings.reads":    {max: 5},
@@ -266,6 +291,10 @@ var queryBudgets = map[string]queryBudget{
 	// Every read is a bulk load by ID set; the count must not move with the
 	// roster.
 	"modules.classday.slot_list.build": {max: 16},
+	// modules/mealplan — a week of orders reads each weekday in bulk (#3873),
+	// without a lock or a write; a due order not stored yet shares its day's
+	// reads with the current registration (ADR 0077).
+	"modules.mealplan.orders.read_week": {max: 27},
 	// modules/timetable — group and target lookups stay one bulk query as IDs grow.
 	"modules.timetable.groups.list":              {max: 1, exact: true},
 	"modules.timetable.group_targets.list":       {max: 1, exact: true},

@@ -131,6 +131,8 @@ export const HELP_TOPICS = {
   leadParentSurvey: "elternumfrage-erstellen",
   leadParentDeclaration: "elternerklaerung-einholen",
   leadMealPlan: "essensplan-veroeffentlichen",
+  leadMealOrdering: "mittagessen-fristen-festlegen",
+  leadMealCaterer: "caterer-einladen",
   leadBankDetails: "bankverbindungen-einsehen",
   leadEnrollmentSetup: "anmeldung-vorbereiten",
   leadEnrollmentForm: "anmeldeformular-anlegen",
@@ -161,6 +163,7 @@ export const HELP_TOPICS = {
   leadInfoDisplays: "info-display-verwalten",
   leadBirthdays: "geburtstage-auf-der-startseite",
   leadMissingMenu: "person-sieht-einen-menuepunkt-nicht",
+  leadModules: "welche-module-hat-meine-schule",
 
   // Eltern-Portal. Das Gerüst folgt der echten Navigation der Eltern-App
   // (`PARENT_PRIMARY_NAV` und `PARENT_MORE_NAV` in
@@ -199,6 +202,11 @@ export const HELP_TOPICS = {
   teacherAccess: "zugang-zu-moto-schule-einrichten",
   teacherLogin: "bei-moto-schule-anmelden",
   traegerLogin: "traeger-anmelden",
+  traegerTestSystem: "traeger-testsystem",
+  traegerInvitation: "einladung-ins-traeger-buero-annehmen",
+  traegerAccounts: "personen-ins-traeger-buero-einladen",
+  traegerHolidayPeriod: "traeger-ferienzeitraum",
+  traegerAccessLog: "zugriffsprotokoll-des-traegers-lesen",
   teacherSettings: "als-lehrkraft-benachrichtigungen-einstellen",
   teacherClassDay: "meinen-klassentag-ansehen",
   teacherClassList: "die-liste-einer-klasse-lesen",
@@ -208,6 +216,7 @@ export const HELP_TOPICS = {
   teacherChildDetails: "als-lehrkraft-angaben-zu-einem-kind-ansehen",
   teacherArrivalChange: "ankunftszeit-meiner-klasse-aendern",
   teacherClassTrip: "ausflug-oder-klassenfahrt-melden",
+  teacherDayHint: "der-ogs-einen-hinweis-fuer-heute-geben",
   teacherSupervision: "meine-aufsichten-ansehen",
   teacherStartSupervision: "eine-aufsicht-starten",
   teacherSupervisionRoster: "kinder-meiner-aufsicht-sehen",

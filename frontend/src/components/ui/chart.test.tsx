@@ -311,7 +311,7 @@ describe("ChartTooltipContent", () => {
     });
 
     expect(screen.getByText("Revenue")).toBeInTheDocument();
-    expect(screen.getByText("1,234")).toBeInTheDocument();
+    expect(screen.getByText((1234).toLocaleString())).toBeInTheDocument();
   });
 
   it("shows label from config when label matches a config key", () => {
@@ -345,7 +345,7 @@ describe("ChartTooltipContent", () => {
     });
 
     // Anker: der Tooltip zeigt seinen Eintrag, nur das Label fehlt.
-    expect(screen.getByText("1,234")).toBeInTheDocument();
+    expect(screen.getByText((1234).toLocaleString())).toBeInTheDocument();
     expect(screen.queryByText("January")).toBeNull();
   });
 
@@ -357,7 +357,7 @@ describe("ChartTooltipContent", () => {
     });
 
     // Anker: der Tooltip zeigt seinen Eintrag, nur der Indikator fehlt.
-    expect(screen.getByText("1,234")).toBeInTheDocument();
+    expect(screen.getByText((1234).toLocaleString())).toBeInTheDocument();
 
     // No indicator div with --color-bg style
     const indicators = container.querySelectorAll("[style*='--color-bg']");
@@ -519,7 +519,7 @@ describe("ChartTooltipContent", () => {
     });
 
     expect(screen.getByText("January")).toBeInTheDocument();
-    expect(screen.getByText("1,000")).toBeInTheDocument();
+    expect(screen.getByText((1000).toLocaleString())).toBeInTheDocument();
     expect(screen.getByText("500")).toBeInTheDocument();
   });
 
@@ -654,7 +654,7 @@ describe("ChartTooltipContent", () => {
     });
 
     // Should still render without crashing; label falls back to item.name
-    expect(screen.getByText("1,234")).toBeInTheDocument();
+    expect(screen.getByText((1234).toLocaleString())).toBeInTheDocument();
   });
 
   it("uses index as key when itemDataKey is undefined (function dataKey)", () => {

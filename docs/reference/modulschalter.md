@@ -41,7 +41,7 @@ Ein Modul, das es noch nicht gibt, hat trotzdem einen Schalter. Er hält fest, w
 
 - Ferienbetreuung setzt Online-Anmeldung voraus.
 - Elternbeiträge und Abrechnung setzt Verträge und Dokumente voraus.
-- Dienstplan setzt nur Basis voraus. Heute blendet `timetable.enabled` den Dienstplan nebenbei aus; das löst #4894 vom Dienstplan.
+- Dienstplan setzt nur Basis voraus. Seit #4894 hängen `Dienstplan`, `Mein Dienstplan` und die Dienstarten nicht mehr an `timetable.enabled`, sondern am Modul Dienstplan.
 - Der Reiter Arbeitszeitmodell gehört zu Zeiterfassung.
 - Stempeln am Kiosk braucht Zeiterfassung und NFC-Anwesenheit. Das ist keine Abhängigkeit zwischen Schaltern: Beide Module bleiben einzeln buchbar, das Stempeln prüft beide (#4896).
 
@@ -79,14 +79,12 @@ Die Folge-Issues setzen auf diese Teile auf. Neue Module kommen nur über die Mo
 - Je Modul die Einstellung `module.<schlüssel>`. Lesen heißt: `ResolveBool` des Settings-Service für die Schule der Anfrage, `ResolveBoolForTenant` außerhalb der Tenant-Middleware. Beide gehen über den Request-Cache, nie über eine Umgebungsvariable.
 - `settings.ModuleSettingKeys()` für ein gebündeltes Lesen, `settings.BookedModules(readBool)` für die gebuchten Module aus einem schon geladenen Satz Einstellungen (so liest die Mandanten-Auflösung).
 
-**Backend, Helfer `ModuleBooking` (kommt mit #4893):**
+**Backend, Helfer `ModuleBooking` (seit #4893):**
 
-Das Deadcode-Gate (`scripts/check-deadcode.sh`) lässt keine Produktionsfunktion zu, die nur Tests erreichen. Der Helfer entsteht deshalb im selben PR wie sein erster Aufrufer, der Routen-Sperre. Die Form ist festgelegt; ein fertiger Entwurf mit Tests steht im ersten Commit von #4892 (`backend/modules/settings/modules.go`, `modules_test.go`):
-
-- `settings.NewModuleBooking(reader)`; `reader` ist der Settings-Service (`ResolveBool`, `ResolveBoolForTenant`).
-- `IsBooked(ctx, module)` und `Require(ctx, tenantID, modules...)` für Routen in der Tenant-Middleware (#4893). `tenantID` benennt die Schule nur im Fehler.
-- `IsBookedForTenant(ctx, tenantID, module)` und `RequireForTenant(...)` außerhalb der Middleware: Scheduler, Login und Refresh der Portale, Geräte (#4895, #4896).
-- `Require` liefert `*settings.ModuleNotBookedError{TenantID, Module}` für das erste fehlende Modul. Daraus macht #4893 den Fehlercode für nicht gebuchte Module mit dem Modulschlüssel im Fehler-Umschlag. Ein Lesefehler bleibt ein Fehler und wird nie als „gebucht“ oder „nicht gebucht“ gewertet. Ein unbekannter Schlüssel ist ein Fehler.
+- `settings.NewModuleBooking(reader)`; `reader` ist der Settings-Service (`ResolveBoolForTenant`). Ohne Reader liefert der Aufruf einen Fehler, die Komposition bricht ab.
+- `RequireForTenant(ctx, tenantID, modules...)` liest in einer eigenen Tenant-Transaktion und über den Request-Cache. Das passt für die Routensperre vor der Transaktion der Anfrage ebenso wie für Scheduler, Login und Refresh der Portale und Geräte (#4895, #4896).
+- `RequireForTenant` liefert `*settings.ModuleNotBookedError{TenantID, Module}` für das erste fehlende Modul. Ein Lesefehler bleibt ein Fehler und wird nie als „gebucht“ oder „nicht gebucht“ gewertet. Ein unbekannter Schlüssel ist ein Fehler (`settings.ErrUnknownModule`).
+- Fehlercode `module.not_booked` (403, Klasse `permission`). `details.module` ist der Modulschlüssel, `details.module_label` der Name. Das Frontend erklärt damit den fehlenden Modulzustand (#4894).
 
 **Frontend:**
 
@@ -94,3 +92,90 @@ Das Deadcode-Gate (`scripts/check-deadcode.sh`) lässt keine Produktionsfunktion
 - `frontend/src/lib/modules.ts`: Typ `ModuleKey`, `MODULE_KEYS`, `moduleSettingKey`, `parseBookedModules`. Unbekannte Schlüssel fallen weg, eine fehlende Liste bucht nichts.
 - `useBookedModules()` und `useModuleBooked(module)` aus `~/lib/tenant-context`. Ohne Mandantendaten ist nichts gebucht. `useNFCEnabled()` folgt dem Modul NFC-Anwesenheit.
 - Eine Änderung eines Modulschalters leert den Cache der Mandantendaten sofort (`TENANT_RESOLVE_AFFECTING_KEYS`).
+
+## Navigation, Kacheln und erklärender Zustand (#4894)
+
+Das Modul-Register `frontend/src/lib/module-register.ts` ordnet jede Seite der Mitarbeiter-Navigation, jeden Bereich der Seitenleiste, jeden Baustein der Startseite und jeden Reiter der Personalakte einem Modul oder der Basis zu. Seitenleiste, mobile Navigation, Startseite, Datenverwaltung und die Personalakte lesen nur dieses Register; `module-register.test.ts` schlägt an, wenn eine Seite oder ein Baustein fehlt.
+
+- **Darstellung C.** Wer die Schule leitet (Adminzuschnitt oder `config:manage`), sieht den Eintrag eines nicht gebuchten Moduls mit Schloss. Der Eintrag führt auf die Seite. Alle anderen sehen ihn nicht. Die Reiter unten in der mobilen Navigation zeigen nur offene Seiten; ein Eintrag mit Schloss steht im Mehr-Menü.
+- **Feinsteuerung.** Schul-Einstellungen wie `operations.meal_plan_enabled` oder `timetable.enabled` gelten nur bei gebuchtem Modul. Bei nicht gebuchtem Modul sieht die Leitung das Schloss, auch wenn die Einstellung aus ist.
+- **Startseite und Reiter.** Bausteine und Reiter der Personalakte eines nicht gebuchten Moduls fehlen für alle, ohne Schloss: eine Kachel ohne Daten belegt nur Platz, und die Leitung sieht das Modul in der Navigation und unter Einstellungen.
+- **Erklärender Zustand.** `TenantPage`, das Gerüst jeder Seite, zeigt auf jeder Seite eines nicht gebuchten Moduls statt des Inhalts, zu welchem Modul sie gehört und wer handelt: die Leitung das moto-Team, alle anderen ihre Leitung. Lehnt eine Anfrage mit `module.not_booked` ab, zeigen `TenantPage`, `LoadErrorAlert` und `FormErrorAlert` denselben Zustand als Hinweis statt als Fehler, und die Mandantendaten laden neu.
+- **Bewusste Abweichungen vom Backend.** Aktivitäten (`/activities`, `/database/activities`) gehören im Register zu NFC-Anwesenheit, weil sie vor den Modulen nur mit NFC zu sehen waren. Geräte (`/database/devices`) folgen NFC-Anwesenheit, obwohl das Backend sie erst mit #4896 sperrt.
+
+## Routen
+
+Seit #4893 gehört jede Route des Produktions-Routers genau einem Modul oder der Basis. Die Zuordnung steht in `backend/api/module_routes.go` (`moduleRouteRules`), die ganze Liste in `backend/api/testdata/route_modules.golden`.
+
+- **Regeln nach Pfad.** Eine Regel nennt einen Pfadanfang und ein Modul. Die genaueste Regel gewinnt. `*` steht für genau einen Pfadteil, etwa eine ID. Es gibt keine Regel für alles: Eine Route unter einem neuen Pfadanfang lässt `TestFullProductionRouterGolden` scheitern, bis eine Regel sie zuordnet.
+- **Sperre.** Ein Router-weiter Schritt ordnet jede Anfrage nach diesen Regeln ein. `api.TenantScopeMiddleware` prüft nach dem Binden der Schule, ob das Modul gebucht ist, und antwortet sonst mit 403 `module.not_booked`. Basis-Routen und das Operator-Portal sind nicht betroffen. Ein Plattform-Token ohne Schule läuft durch.
+- **Kosten.** Die Prüfung liest den Schalter in einer eigenen kurzen Lesetransaktion vor der Transaktion der Anfrage. Der Budget-Test der Anmeldungs-Rückläufe hält diese Form fest (genau ein Select des Schalters), das Budget der Route selbst bleibt unverändert.
+- **Öffentliche Anmeldung.** Die öffentlichen Routen lösen die Schule über den Pfad auf, nicht über eine Sitzung. `enrollment.enabled` gilt dort nur, wenn das Modul Online-Anmeldung gebucht ist. Phasenliste, Formular, Uploads und Absenden antworten dann mit `enrollment.disabled`. Formularaufbau, Angebotsliste, Rechtstexte und Captcha einer Phase enthalten keine Personendaten und bleiben lesbar. Auch der Statuslink einer abgeschickten Anmeldung schließt sich und antwortet wie ein abgelaufener Link. So erfährt die Familie nichts über den Vertrag der Schule. Die Anmeldung bleibt gespeichert; nach erneutem Buchen gilt der Link wieder.
+- **Portale.** Elternportal und Schulportal sperrt #4895 an der Sitzung, siehe unten. Geräte (`/api/iot` samt Geräteverwaltung im Team-Portal, Armband zuordnen unter `/api/students/{id}/rfid`) sperrt #4896 zusammen mit PyrePortal. Bis dahin behält eine Schule ohne NFC-Anwesenheit ihre Geräteverwaltung. Ihre Regeln nennen das Modul schon. Welche Flächen anderswo gesperrt werden, steht in `moduleRoutesLockedElsewhere`; der Golden-Test verlangt für jede andere Modulroute die Sperre.
+
+## Jobs, Portale, E-Mail und Push (#4895)
+
+### Hintergrundjobs
+
+`workerJobScopes` in `backend/modules/schedulerruntime/internal/application/job_modules.go` ordnet jeden Job des Workers einem Modul, der Basis oder der Aufbewahrung zu. `TestEveryWorkerJobHasAScope` schlägt an, wenn ein neuer Job fehlt. Ein Job eines Moduls überspringt jede Schule, die das Modul nicht gebucht hat. Jobs über `forEachTenantSettings` lesen den Schalter aus dem Einstellungs-Schnappschuss der Minute (`schedulerPollingSettingKeys`) ohne zusätzliche Abfrage; `break-auto-end` und `booking-consistency-audit` laufen über `forEachTenant` und lesen ihn in der Tenant-Transaktion der Schule. Ein unlesbarer Schalter zählt die Schule als fehlgeschlagen, der nächste Lauf versucht es erneut. Eine übersprungene Schule gilt für den Lauf als erledigt: Erinnerungen, die fällig wurden, während das Modul abbestellt war, holt der Job nach erneutem Buchen nicht nach.
+
+| Job | Zuordnung |
+|---|---|
+| `break-auto-end`, `auto-checkout` | Zeiterfassung |
+| `appointment-reminders`, `announcement-reminders` | Eltern-App (Erinnerungen an Eltern) |
+| `rollover-deadline` | Online-Anmeldung (Fristen der Rückmeldephasen) |
+| `visit-cleanup`, `timetable-cleanup`, `time-tracking-cleanup`, `student-change-log-cleanup`, `pwa-usage-cleanup`, `staff-message-cleanup`, `token-cleanup`, `staff-document-file-cleanup`, `student-document-file-cleanup`, `file-store-cleanup` | Aufbewahrung, läuft immer |
+| alle übrigen, auch `reminder-notifications` (Abholung und Aktivitäten für das Team) und `email-outbox` | Basis |
+
+Die Bereinigungsbefehle `cleanup …` in `backend/cmd/cleanup.go` sind Aufbewahrung oder Basis (`cleanupCommandScopes`, geprüft von `TestEveryCleanupCommandHasAScope`). Das moto-Team ruft sie von Hand für alle Schulen auf.
+
+Einen Hintergrundjob für den Versand ans Lohnbüro oder für Essensfristen gibt es nicht. Der Versand ans Lohnbüro läuft beim Export (`/api/time-tracking/...`, Zeiterfassung, seit #4893 gesperrt); `exporttransfer`-Wiederherstellung im Worker schließt nur unklare Übertragungen ab und sendet nichts. Essensfristen prüft der Speiseplan beim Ändern der Teilnahme; diese Wege sind mit dem Modul Mittagessen gesperrt.
+
+### Elternportal
+
+Das Elternportal gehört zum Modul Eltern-App. Es reicht über Schulen hinweg, deshalb sperrt es das Konto, nicht eine Schule: Es bleibt offen, solange mindestens eine Schule mit der Eltern-Rolle des Kontos Eltern-App gebucht hat.
+
+- **Login** (`/parent/auth/login`, auch der Demo-Zugang `/access/sessions`) stellt sonst keine Sitzung aus und antwortet mit 403 `module.not_booked`, `details.module = eltern_app`. Die Sitzung wird an die erste Schule mit gebuchtem Modul gebunden.
+- **Refresh** (`/auth/refresh`) erneuert sonst keine Sitzung, mit derselben Antwort. Das Backend lässt den vorgelegten Refresh-Token unberührt. Das Frontend wertet jede 403 beim Refresh als Ende der Sitzung; die nächste Anmeldung erklärt dann den Zustand.
+- **Laufende Anfragen**: `ParentScopeMiddleware` prüft jede Anfrage an `/parent/*`, `/parent-sse` und `/parent-news-attachments` (Gastgeber: die Root mit `ListGuardianSchoolIDs` und `ModuleBooking`). So endet eine offene Sitzung sofort, nicht erst mit dem Ablauf des Zugangstokens.
+- **Einladung annehmen** (`/auth/guardian-invitations/{token}`) legt nur das Konto an und stellt keine Sitzung aus; der Login danach sperrt. Das Wiederversenden durch das Team (`.../{id}/resend`) ist eine Route der Eltern-App und mit #4893 gesperrt.
+- **Anmeldung im Elternportal** (`/parent/enrollments/...`) braucht zusätzlich Online-Anmeldung der Zielschule: `enrollment.enabled` zählt nur bei gebuchtem Modul. Die Liste der Anmeldungen und der Schulen zum Anmelden folgt Online-Anmeldung, nicht Eltern-App.
+- **Zwei Schulen**: Eltern mit Kindern an zwei Schulen, von denen nur eine Eltern-App gebucht hat, behalten das Portal. Die Kinder der anderen Schule blendet es aus (`ParentChildReadsForBookedSchools` in `roots/owners`): Kinderliste, Nachrichten, Elternbriefe und jeder Weg zu einem einzelnen Kind lesen die Kinder dort. Ein Kind einer solchen Schule gilt für das Portal als nicht verknüpft. Der Kalender der Eltern liest seine Termine über den Kalender der Schule, nicht über diese Kinderliste; neue Termine an Eltern verschickt eine Schule ohne Eltern-App nicht (siehe E-Mail und Push).
+
+### Schulportal
+
+moto schule gehört zum Modul Unterricht am Vormittag und ist an eine Schule gebunden.
+
+- **Login, zweiter Faktor und Schulwechsel** (`/school/auth/*`) prüfen das Modul in Identity & Access vor jeder Sitzung, beim Login schon vor dem Versand des Codes. Antwort: 403 `module.not_booked`, `details.module = unterricht_vormittag`.
+- **Refresh** erneuert die Sitzung nicht; wie im Elternportal endet die Sitzung im Frontend.
+- **Laufende Anfragen**: `SchoolScopeMiddleware` sperrt jede Route unter `/school` und `/school-sse` wie `TenantScopeMiddleware` die Team-Routen. Der Golden-Test verlangt eine der beiden Sperren für jede Modulroute.
+
+Das Frontend erklärt beides statt einer Fehlerseite: Die Login-Seiten zeigen einen Hinweis (Eltern in ihrer Sprache, `frontend/src/lib/portal-not-booked.ts`), und eine abgelehnte Anfrage einer offenen Sitzung zeigt denselben Satz (`ModulePortalProvider` in beiden Portalen).
+
+### E-Mail und Push
+
+- **Push**: Der Benachrichtigungs-Router prüft jede Mitteilung vor allen Kanälen. Eine Mitteilung an Eltern (`ScopeGuardian`) braucht Eltern-App, sonst antwortet er `ErrDisabled`, das jeder Erzeuger schon als stilles Nein behandelt. Geräte von moto schule bekommen nur bei gebuchtem Unterricht am Vormittag etwas; das Team-Portal bekommt seine Mitteilung trotzdem.
+- **Bereits eingereiht**: Der Versand des Outbox-Workers fragt vor jeder E-Mail und jedem Push `Deliverable` (`roots/owners/delivery_module_gate.go`). E-Mails an Eltern (Elternbriefe, Nachrichten, Termine, Einladung, Willkommen) gehören zu Eltern-App, E-Mails der Anmeldung zu Online-Anmeldung. Jede Mail-Art des Workers muss einem Modul oder der Basis zugeordnet sein, sonst startet er nicht (`requireClassified`). Pushes an das Elternportal zu Eltern-App, an moto schule zu Unterricht am Vormittag. Ein Auftrag eines abbestellten Moduls wird abgebrochen, nicht später nachgeholt. Ein unlesbarer Schalter versucht es erneut.
+- Alle übrigen E-Mails (Anmeldecodes, Passwort, Einladungen des Teams, Abwesenheiten des Personals) sind Basis.
+
+### Grenzfälle
+
+| Route | Zuordnung | Begründung |
+|---|---|---|
+| `/api/meal-caterer`, `/caterer` | Mittagessen und Catering | Die Schule verwaltet ihren Caterer in ihrer Mandanten-Sitzung. Das Caterer-Portal hat eine schulübergreifende Sitzung; seine Modulsperre folgt mit den übrigen Portalen in #4895. Der Zugriff je Schule verlangt weiterhin eine Belieferung. |
+| `/api/guardians/...` | Basis | Erziehungsberechtigte und Abholberechtigte braucht jede Schule. |
+| `/api/guardians/invitations`, `invitable`, `bulk-invite`, `without-account`, `.../invite` | Eltern-App | Einladungen gibt es nur für das Elternportal. |
+| `/api/guardians/payment-overview`, `.../payment` | Basis | Bankdaten der Eltern gibt es heute ohne Abrechnung. Wenn Elternbeiträge und Abrechnung gebaut wird, wandern sie dorthin. |
+| `/api/students/change-requests`, `.../excused-absence-requests`, `.../offering-change-requests`, `.../care-schedule-change-requests`, `.../master-data-change-requests` | Basis | Der Anfragen-Eingang mischt Eltern-App und Online-Anmeldung. Ohne Eltern-App kommen keine neuen Anfragen, offene kann die Schule abschließen. |
+| `/api/messages`, `/api/parent-announcements`, `/api/announcement-attachments` | Eltern-App | Nachrichten und Elternbriefe an Eltern. Der Team-Chat (`/api/staff-messages`) ist Basis. |
+| `/api/time-tracking/assignments`, `.../holidays`, `.../closing-days` | Basis | Eigene Blöcke aus dem Betreuungsplan auf der Startseite, Feiertage und Schließtage der Planung. |
+| `/api/time-tracking/shifts` | Dienstplan | Eigene Dienste unter „Mein Dienstplan“. Die übrigen Routen unter `/api/time-tracking` sind Zeiterfassung. |
+| `/api/enrollment/...` | Online-Anmeldung | Auch die Betreuungsangebote: Ihre Verwaltung liegt im Bereich Anmeldungen. Die Angebote eines Kindes (`/api/students/care-offerings`, `.../pickup-schedules`) bleiben Basis. |
+| `/api/staff/{id}/schedule`, `.../payroll-number`, `.../target-overrides`, `.../vacation`, `.../absences`, `/api/staff/absences`, `/api/absence-types`, `/api/work-time-models` | Zeiterfassung | Arbeitszeitmodell, Urlaub und Personalnummer für den Lohnexport. |
+| `/api/settings/payroll-status`, `/api/import/opening-balances` | Zeiterfassung | Lohnbüro-Versand und Startsalden der Stundenkonten. |
+| `/api/staff/{id}/stammdaten`, `.../documents`, `documents-directory`, `documents-profile`, `financial-profile` | Personalakte | Personalstammdaten, Dokumente, Bank- und Steuerdaten. |
+| `/api/staff/dashboard-summary`, `/api/staff/externals` | Basis | Kachel „Personal heute“ und externe Betreuungskräfte. |
+| `/api/timetable/shift-coverage` | Dienstplan | Besetzung aus dem Dienstplan im Terminformular. Die übrige Planung ist Basis. |
+| `/api/substitutions`, `/api/timetable/substitutions` | Basis | Übergaben einer Gruppe gibt es ohne Dienstplan. |
+| `/api/class-list-entries`, `/api/students/class-arrival-*`, `/api/students/school-checkin` | Basis | Klassenlisten und Ankunft aus der Schule pflegt das OGS-Team. Das Schulportal der Lehrkräfte ist Unterricht am Vormittag. |
+| `/api/feedback` | Basis | Rückmeldungen der Kinder am Tablet, auch zum Essen. Die Rückmeldung gibt es ohne das Modul Mittagessen. |

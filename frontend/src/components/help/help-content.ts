@@ -495,7 +495,12 @@ function studentSearchTopic(
       },
       {
         title: "Angaben ansehen",
-        steps: ["Wählen Sie die Karte des Kindes.", currentStatusStep],
+        steps: [
+          "Wählen Sie die Karte des Kindes.",
+          currentStatusStep,
+          // #4795: dieselbe Zeile steht in der Aufsicht und in der Gruppe.
+          "Steht auf der Karte `Hinweis der Lehrkraft`? Den hat die Lehrkraft heute in moto schule geschrieben. Morgen ist er weg.",
+        ],
       },
       {
         title: "Den passenden Bereich wählen",
@@ -3092,9 +3097,9 @@ function groupsCatalogTopic(groupMode: HelpGroupMode): HelpTopic {
 }
 
 /**
- * Aktivitaetenkatalog unter `/database/activities`. Nur mit NFC: die Route
- * liegt hinter `NfcModeGuard`, und der Eintrag steht in `NFC_ONLY_HREFS`
- * (dashboard/sidebar.tsx). Deshalb auch in NFC_ONLY_TOPIC_IDS.
+ * Aktivitaetenkatalog unter `/database/activities`. Nur mit NFC: die Seite
+ * gehört im Modul-Register (lib/module-register.ts) zu NFC-Anwesenheit.
+ * Deshalb auch in NFC_ONLY_TOPIC_IDS.
  */
 function activitiesCatalogTopic(): HelpTopic {
   return {
@@ -4195,8 +4200,8 @@ function mealPlanTopic(): HelpTopic {
     steps: [
       "Klappen Sie in der Seitenleiste `Eltern` auf.",
       "Öffnen Sie `Speiseplan`.",
-      "Blättern Sie mit den Pfeilen zur gewünschten Woche.",
-      "Tragen Sie bei einem Tag unter `Gericht eintragen...` das Gericht ein.",
+      "Blättern Sie oben unter dem Titel mit den Pfeilen zur gewünschten Woche. `Diese Woche` bringt Sie zurück.",
+      "Tragen Sie bei einem Tag unter `Gericht eintragen…` das Gericht ein.",
       "Tragen Sie bei Bedarf einen `Hinweis (optional)` dazu ein.",
       "Öffnen Sie unter dem Gericht die Auswahl `Allergene` und haken Sie die Allergene an. Danach stehen dort die Buchstaben, zum Beispiel `A, G`.",
       "Mit `+ Gericht` ergänzen Sie ein zweites Gericht für denselben Tag.",
@@ -4209,28 +4214,119 @@ function mealPlanTopic(): HelpTopic {
       "Eltern sehen die Buchstaben am Gericht und darunter die Erklärung. Dort steht auch, dass die Angaben von der Schule oder vom Caterer kommen.",
       "Mit `Vorwoche übernehmen` holen Sie die Gerichte der Vorwoche in diese Woche.",
       "Der heutige Tag trägt das Kennzeichen `Heute`.",
-      "Unter dem Plan steht die Liste für die Küche. Mit `Tag` und `Woche` wechseln Sie die Ansicht.",
+      "Die Woche oben gilt für den Plan und für die `Bestellung` darunter.",
+      "Ganz unten steht die Liste für die Küche. Mit `Tag` und `Woche` wechseln Sie die Ansicht.",
       "Die Wochenliste zeigt jedes angemeldete Kind mit einem Haken je Tag. Darüber steht, wie viele Kinder an jedem Tag essen.",
       "Öffnen Sie `Tagesliste herunterladen` oder `Wochenliste herunterladen`. Wählen Sie `PDF` oder `Excel`.",
-      "Bis wann Eltern ändern können, legen Sie in den Einstellungen fest: `Änderungsfrist für das Mittagessen` und `Vorlauf für das Mittagessen (Werktage)`. Wochenende, Feiertage und Schließtage zählen beim Vorlauf nicht mit.",
-      "Bestellt Ihre Küche für eine ganze Woche? Dann wählen Sie `Wochenfrist für das Mittagessen`, zum Beispiel `Mittwoch der Vorwoche`.",
-      "Mit `Späteres Abmelden vom Mittagessen` können Eltern ihr Kind später abmelden als anmelden. Die Frist dafür stellen Sie unter `Abmeldefrist für das Mittagessen` und `Vorlauf für das Abmelden vom Mittagessen (Werktage)` ein.",
-      "Ruft eine Familie nach der Frist an? Mit `Kind anmelden` über der Tagesliste melden Sie ein Kind an. Über das Menü `⋮` in seiner Zeile melden Sie es ab. Das geht für heute und spätere Tage.",
-      "An Feiertagen und Schließtagen steht `Kein Essen an diesem Tag`. Die Wochenliste zeigt dort `kein Essen`.",
+      "Bis wann Eltern ändern können, legen Sie unter `Einstellungen` im Bereich `Mittagessen` fest.",
+      "An Feiertagen und Schließtagen gibt es kein Essen. Die Wochenliste zeigt dort `kein Essen`.",
     ],
     differences: [
       "Ihre Änderungen zählen erst mit `Speichern`. Vorher steht `Verwerfen` daneben.",
       "Beim Wechseln der Woche mit offenen Änderungen fragt moto nach.",
-      "Fehlt `Kind anmelden`? Dafür brauchen Sie das Recht, Einstellungen zu ändern und Kinder zu sehen. Für vergangene Tage gibt es den Knopf nicht.",
     ],
     troubleshootingDetails: [
-      "Fehlt `Speiseplan` in der Seitenleiste? Dann ist die Funktion für Ihre OGS ausgeschaltet.",
+      "Fehlt `Speiseplan` in der Seitenleiste? Dann ist die Funktion für Ihre OGS ausgeschaltet, oder Ihrer Rolle fehlt das Recht `Mittagessen: Lesen`.",
     ],
     related: [
       HELP_TOPICS.leadParentAnnouncement,
       HELP_TOPICS.leadParentVisibility,
       HELP_TOPICS.settings,
     ],
+  };
+}
+
+/**
+ * Anmeldemodell und Fristen fürs Mittagessen (#3873): Einstellungen, Reiter
+ * `Mittagessen`. Die Fristen gelten für Eltern; die Schule ändert jederzeit.
+ */
+function mealOrderingTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.leadMealOrdering,
+    title: "Fristen für das Mittagessen festlegen",
+    question: "Bis wann melden Eltern ihr Kind zum Essen an oder ab?",
+    summary:
+      "Sie legen fest, wie Eltern anmelden und bis wann sie ändern dürfen.",
+    group: "elternarbeit",
+    audience: "lead",
+    icon: "Hourglass",
+    requirements: ["`Anmeldung zum Mittagessen` ist eingeschaltet."],
+    steps: [
+      "Wählen Sie unten in der Seitenleiste `Einstellungen`.",
+      "Wählen Sie oben den Reiter `Mittagessen`.",
+      "Wählen Sie bei `Wie Eltern anmelden` eine Möglichkeit.",
+      "Legen Sie unter `Fristen` die `Anmeldefrist` fest: Tage vor dem Essenstag oder ein Wochentag der Vorwoche, dazu die Uhrzeit.",
+      "Nutzen Sie eine eigene Abmeldefrist, legen Sie auch die `Abmeldefrist` fest.",
+      "Wählen Sie bei `Krank oder abwesend nach der Frist`, was mit dem Essen passiert.",
+    ],
+    result:
+      "Eltern sehen bei jedem Tag, bis wann sie an- oder abmelden können.",
+    notes: [
+      "`Laufend, eine Frist` ist der Standard: Bis zur Frist dürfen Eltern an- und abmelden.",
+      "`Laufend, mit eigener Abmeldefrist` passt, wenn der Caterer früh bestellt, Abmelden aber später noch geht.",
+      "`Für das Schuljahr`: Eltern melden bis zum `Anmeldeschluss für das Schuljahr` an. Danach meldet nur die Schule an.",
+      "Bei `Abmelden nach dem Anmeldeschluss` legen Sie fest, ob Eltern danach noch Tage oder Wochen abmelden.",
+      "An Schließtagen und Feiertagen isst niemand. In den Ferien gelten die festen Tage nicht, einzeln angemeldete Tage zählen.",
+      "`Entschuldigt` und `Klassenfahrt` melden das Essen ab wie eine Krankmeldung.",
+      "Für die Küche legen Sie eine Rolle mit den Rechten unter `Mittagessen` an. Sie braucht keinen Zugriff auf alle Kinderdaten.",
+      "Zur Frist friert moto die Bestellung ein. Unter `Speiseplan` zeigt `Bestellung` je Tag `Offen`, `Bestellt` oder `Vom Caterer bestätigt`, dazu die `Frist`, die Zahl der Essen und die `Nachmeldungen` danach.",
+      "Tage vor dem Start der Bestellung stehen auf `Nicht bestellt`. Sie zählen nicht.",
+      "Die bestellten Essen je Kind für einen Monat bekommen Sie bei `Bestellung` über das Menü mit den drei Punkten, zum Beispiel für die Essenspauschale. Wählen Sie unter `Monatsübersicht` den Eintrag `PDF` oder `Excel`. Liegt die Woche in zwei Monaten, steht dort `Exportieren…`: Wählen Sie dann den Monat, `PDF` oder `Excel` und `Herunterladen`.",
+    ],
+    differences: [
+      "Wochenenden zählen bei `Tage vorher` mit. 1 heißt immer: am Tag davor.",
+      "Die Schule ändert eine Anmeldung auch nach der Frist: unter `Speiseplan` in der Tagesliste. `Anmeldung ändern` öffnet ein Fenster, in dem Sie das Kind wählen. Für ein Kind aus der Liste wählen Sie im Menü mit den drei Punkten in seiner Zeile `Anmeldung ändern…`. Das geht für einen Tag, zurück `Wie an festen Tagen` oder für die festen Tage ab einem Datum. moto hält jede Änderung mit Konto und Zeit fest.",
+    ],
+    troubleshootingDetails: [
+      "Fehlen die Fristen? Dann ist `Anmeldung zum Mittagessen` noch aus.",
+      "Fehlt `Anmeldung ändern`? Wählen Sie die Ansicht `Tag`. Fehlt es dann noch, braucht Ihr Konto das Recht `Anmeldung eines Kindes ändern, auch nach der Frist`.",
+      "Ist `Anmeldung ändern` grau? Für vergangene Tage und für Tage, an denen die OGS geschlossen ist, lässt sich die Anmeldung nicht ändern.",
+    ],
+    related: [HELP_TOPICS.leadMealPlan, HELP_TOPICS.settings],
+  };
+}
+
+/**
+ * Der Caterer der Schule (ADR 0077): Einladung per E-Mail unter
+ * `Speiseplan`, Ende der Belieferung, und was der Caterer sieht.
+ */
+function mealCatererTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.leadMealCaterer,
+    title: "Caterer einladen",
+    question: "Wie sieht unser Caterer die Bestellungen?",
+    summary:
+      "Sie laden Ihren Caterer per E-Mail ein. Er sieht dann die Bestellungen.",
+    group: "elternarbeit",
+    audience: "lead",
+    icon: "Truck",
+    requirements: [
+      "`Anmeldung zum Mittagessen` ist eingeschaltet.",
+      "Sie sind Admin Ihrer Schule. Nur Admins laden einen Caterer ein oder beenden die Belieferung.",
+    ],
+    steps: [
+      "Öffnen Sie in der Seitenleiste `Speiseplan`.",
+      "Gehen Sie zur Karte `Caterer`. Sie steht unter `Bestellung`.",
+      "Wählen Sie `Caterer einladen`. Ein Fenster öffnet sich.",
+      "Tragen Sie `Name des Caterers` und `E-Mail-Adresse des Caterers` ein. Die Lieferadresse ist freiwillig.",
+      "Wählen Sie `Einladung senden`.",
+    ],
+    result:
+      "Der Caterer bekommt eine E-Mail mit einem Link. Damit legt er sein Passwort fest. Danach sieht er die Bestellungen Ihrer Schule.",
+    notes: [
+      "Den Link sieht nur der Caterer. Er gilt 14 Tage.",
+      "Der Caterer sieht nur Zahlen: je Tag und, wenn Sie so bestellen, je Klasse. Namen sieht er nur, wenn Sie unter `Einstellungen` → `Datenschutz` `Namen der Kinder für den Caterer` einschalten.",
+      "Der Caterer kann eine Bestellung nur bestätigen. Dann steht bei Ihnen `Vom Caterer bestätigt`.",
+      "Beliefert der Caterer schon andere Schulen, bestätigt er mit seinem Passwort. Ihre Schule kommt dann zu seinen Schulen dazu.",
+      "Die Belieferung beenden Sie auf der Karte `Caterer` über das Menü mit den drei Punkten: `Belieferung beenden`. moto fragt vorher nach. Danach sieht der Caterer Ihre Schule nicht mehr, und Sie können einen neuen Caterer einladen.",
+      "Die Lieferliste bekommen Sie bei `Bestellung` über das Menü mit den drei Punkten. Wählen Sie unter `Lieferliste der Woche` `PDF`, `Excel` oder `CSV`. Die Woche wählen Sie oben unter dem Titel. Es ist dieselbe Liste, die Ihr Caterer sieht, ohne Namen.",
+    ],
+    troubleshootingDetails: [
+      "Kam keine E-Mail an? Widerrufen Sie die Einladung unter `Offene Einladungen` im Menü mit den drei Punkten mit `Widerrufen`. Senden Sie dann eine neue.",
+      "Fehlt die Karte `Caterer`? Dann ist `Anmeldung zum Mittagessen` aus, oder Ihr Konto darf den Speiseplan nicht bearbeiten.",
+      "Steht auf der Karte nur „Einen Caterer einladen können nur Admins Ihrer Schule.“? Dann bitten Sie einen Admin Ihrer Schule um die Einladung.",
+    ],
+    related: [HELP_TOPICS.leadMealOrdering, HELP_TOPICS.leadMealPlan],
   };
 }
 
@@ -4463,6 +4559,16 @@ function enrollmentFormTopic(): HelpTopic {
         ],
       },
       {
+        title: "Eltern unterschreiben lassen",
+        description:
+          "Die Eltern unterschreiben am Ende des Formulars mit dem Finger, dem Stift oder der Maus. Das Verfahren heißt einfache elektronische Signatur mit gezeichneter Unterschrift.",
+        steps: [
+          "Öffnen Sie Ihre Vorlage.",
+          "Schalten Sie im Abschnitt `Unterschrift` den Schalter `Unterschrift erforderlich` ein.",
+          "Wählen Sie `Änderungen speichern`.",
+        ],
+      },
+      {
         title: "Die Vorlage in der Anmeldephase auswählen",
         description:
           "Eine Vorlage wirkt erst, wenn eine Phase sie benutzt. Ohne diesen Schritt sehen die Eltern weiter das Basisformular.",
@@ -4501,6 +4607,8 @@ function enrollmentFormTopic(): HelpTopic {
       "Auch bei Zustimmungen können Sie mehrere PDF-Dateien hinzufügen.",
       "Beim Verwerfen werden neue, ungespeicherte Dateien entfernt. Frühere Formularfassungen behalten ihre Dateien.",
       "Eine Frage vom Typ `Datei` gilt immer für die ganze Anmeldung, nicht pro Kind.",
+      "Mit `Unterschrift erforderlich` können Eltern die Anmeldung erst nach der Unterschrift absenden. Ändern sie die Anmeldung später, unterschreiben sie neu.",
+      "Statt zu zeichnen können Eltern ihren Namen tippen. Das steht im Nachweis als `Name getippt`.",
       "Hochgeladene Nachweise öffnet nur, wer das Recht `Nachweise aus Anmeldungen ansehen` hat. Die Leitung hat es immer.",
       "Nachweise werden nach einer festen Frist gelöscht. Die Frist legt das moto-Team fest.",
     ],
@@ -4551,6 +4659,7 @@ function enrollmentReviewTopic(): HelpTopic {
       "Sie entscheiden je Kind. Eine Anmeldung kann mehrere Kinder enthalten.",
       "Auf der Seite der Phase steht unter `Freie Plätze je Angebot`, wie viele Plätze noch frei sind. `Belegt` zählt die Kinder am vollsten Tag bis zum Ende der Phase.",
       "Hochgeladene Nachweise stehen bei `Zusatzfragen (Eltern)`. Mit `Öffnen` sehen Sie die Datei in einem neuen Tab.",
+      "Hat die Vorlage `Unterschrift erforderlich`, steht die Unterschrift der Eltern im Abschnitt `Unterschrift`. Mit `Nachweis als PDF` laden Sie den Anmeldenachweis mit der Unterschrift herunter.",
       "Mit `Statusseite öffnen` sehen Sie, was die Eltern sehen.",
       "Offene Rückfragen der Eltern stehen im Bereich `Anfragen`.",
       "Die Zahl an `Anmeldungen` zeigt, wie viele neue Anmeldungen Sie noch nicht gelesen haben.",
@@ -4571,6 +4680,7 @@ function enrollmentReviewTopic(): HelpTopic {
       "Eine Anmeldung war versehentlich abgelehnt? Wählen Sie `Anmeldung wiederherstellen`.",
       "Bei einem Nachweis steht `Keine Berechtigung zum Öffnen`? Dann fehlt Ihnen das Recht `Nachweise aus Anmeldungen ansehen`. Fragen Sie Ihre Leitung.",
       "Bei einem Nachweis steht `Nachweis gelöscht (Löschfrist abgelaufen)`? Die Frist ist vorbei. Bitten Sie die Eltern bei Bedarf um einen neuen Nachweis.",
+      "Bei der Unterschrift steht `Der gespeicherte Eintrag wurde nachträglich verändert`? Dann passt die Unterschrift nicht mehr zu ihrer Prüfsumme. Wenden Sie sich an das moto-Team.",
       "Beim Bestätigen erscheint `Das Kinderkontingent Ihrer Schule ist voll`? Dann bleibt die Anmeldung offen. Für weitere Kinder melden Sie sich beim moto-Team.",
       "Kinder, die schon aktiv oder vorgemerkt sind, können Sie auch bei vollem Kinderkontingent verlängern.",
       "Bei einer Anmeldung steht `Wegen Kinderkontingent offen`? Beim Schuljahreswechsel war das Kinderkontingent voll. Das Kind wurde nicht automatisch verlängert. Entscheiden Sie selbst.",
@@ -5771,6 +5881,7 @@ function settingsGuideTopic(): HelpTopic {
           "`Gebuchte Module`: Zeigt die Zusatzmodule Ihrer OGS.",
           "Die Schalter sind nur zur Information. Sie können sie nicht ändern.",
           "Die gebuchten Module stehen im Vertrag mit moto. Wenn Sie etwas ändern möchten, wenden Sie sich an das moto-Team.",
+          "Mehr dazu steht in der Anleitung „Welche Module hat meine Schule?“.",
         ],
       },
       {
@@ -5860,7 +5971,7 @@ function parentVisibilityTopic(): HelpTopic {
       "Wählen Sie bei `Krankmeldungen durch Eltern` die Möglichkeit `Erst bestätigen`, wenn Ihr Team jede Meldung freigeben soll.",
       "Bei `Wer gibt Änderungswünsche von Eltern frei?` wählen Sie, wer Anfragen zu Stammdaten, Abholung und Angeboten freigibt.",
       "`Berechtigtes Team` heißt: alle, die Kinderdaten bearbeiten dürfen. Das passt auch für ein gemeinsames Tablet.",
-      "Der Speiseplan ist ein eigener Schalter.",
+      "Speiseplan und Anmeldung zum Mittagessen stehen im Reiter `Mittagessen`.",
     ],
     differences: [
       "Ist ein Schalter aus, sehen Eltern den Bereich gar nicht. Er wird nicht ausgegraut.",
@@ -6171,6 +6282,52 @@ function infoDisplaysTopic(): HelpTopic {
 }
 
 /**
+ * Gebuchte Module (#4894). Der Reiter `Module` unter Einstellungen zeigt sie
+ * lesend (#4892); Navigation, Startseite und Seiten folgen dem Modul-Register
+ * (lib/module-register.ts). Das Schloss sieht nur, wer die Schule leitet.
+ */
+function modulesTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.leadModules,
+    title: "Welche Module hat meine Schule?",
+    question: "Welche Module hat meine Schule?",
+    summary:
+      "Unter `Einstellungen` sehen Sie, welche Zusatzmodule Ihre OGS gebucht hat.",
+    group: "konfiguration",
+    audience: "lead",
+    icon: "PuzzlePiece",
+    steps: [
+      "Öffnen Sie unten in der Seitenleiste `Einstellungen`.",
+      "Wählen Sie den Reiter `Module`.",
+      "Klappen Sie `Gebuchte Module` auf. Dort steht jedes Zusatzmodul mit einem Satz, was dazugehört.",
+      "Ein eingeschalteter Schalter heißt: Ihre OGS hat das Modul gebucht.",
+    ],
+    result: "Sie wissen, welche Zusatzmodule Ihre OGS nutzen kann.",
+    notes: [
+      "moto Basis hat jede OGS. Dazu gehören zum Beispiel Kinder, Gruppen, Räume, Anwesenheit und Kalender.",
+      "Die Schalter sind nur zur Information. Welche Module Ihre OGS hat, steht im Vertrag mit moto.",
+      "Ohne `Eltern-App` gibt es kein Elternportal. Eltern können sich dort nicht anmelden. moto schickt ihnen keine E-Mails und Mitteilungen mehr, zum Beispiel zu Terminen.",
+      "Ohne `Unterricht am Vormittag` gibt es kein moto schule. Lehrkräfte können sich dort nicht anmelden.",
+      "Ohne `Online-Anmeldung` verschickt moto keine E-Mails zu Anmeldungen.",
+    ],
+    differences: [
+      "Ein Menüpunkt hat ein Schloss? Dann gehört er zu einem Modul, das Ihre OGS nicht gebucht hat. Das Schloss sehen nur Sie als Leitung. Ihr Team sieht den Menüpunkt nicht.",
+      "Eine Seite sagt `ist nicht gebucht`? Dann gehört sie zu einem Modul, das Ihre OGS nicht gebucht hat. Die Seite nennt das Modul.",
+      "Ein Bereich fehlt trotz gebuchtem Modul? Dann ist er unter `Einstellungen` ausgeschaltet, zum Beispiel der Speiseplan.",
+    ],
+    troubleshootingDetails: [
+      "Sie brauchen ein weiteres Modul, oder ein Modul ist falsch eingetragen? Wenden Sie sich an das moto-Team. Nur das moto-Team kann Module buchen oder abbestellen.",
+      "Ein Modul wurde abbestellt? Die Daten bleiben gespeichert, bis ihre Löschfrist abläuft. Brauchen Sie die Daten noch, fragen Sie das moto-Team nach einem Export.",
+    ],
+    related: [
+      HELP_TOPICS.settingsGuide,
+      HELP_TOPICS.leadMissingMenu,
+      HELP_TOPICS.settings,
+    ],
+  };
+}
+
+/**
  * Der Problemartikel der Leitung. Bewusst getrennt vom Betreuer-Thema
  * `missingMenu`: dort fehlt einem selbst etwas, hier einer anderen Person.
  */
@@ -6198,6 +6355,7 @@ function leadMissingMenuTopic(): HelpTopic {
     ],
     differences: [
       "Manche Bereiche hängen nicht an Rechten, sondern an Funktionen Ihrer OGS.",
+      "Manche Bereiche gehören zu einem Zusatzmodul. Hat Ihre OGS es nicht gebucht, sieht Ihr Team den Bereich nicht. Sie selbst sehen ihn mit Schloss.",
       "Ohne NFC fehlen `Aktivitäten` und `Geräte`. Bei einfacher Anwesenheit fehlen `Räume` und `Heute`.",
       "Ohne feste Gruppen fehlt `Gruppen`.",
       "`Info-Displays` hängt an einem eigenen Schalter in den `Einstellungen`, nicht an einem Recht.",
@@ -6208,6 +6366,7 @@ function leadMissingMenuTopic(): HelpTopic {
     ],
     related: [
       HELP_TOPICS.leadStaffPermissions,
+      HELP_TOPICS.leadModules,
       HELP_TOPICS.settings,
       HELP_TOPICS.leadInviteStaff,
     ],
@@ -6249,6 +6408,8 @@ function leadTopics(
     parentSurveyTopic(),
     parentDeclarationTopic(),
     mealPlanTopic(),
+    mealOrderingTopic(),
+    mealCatererTopic(),
     bankDetailsTopic(),
 
     // --- Anmeldungen ---
@@ -6284,6 +6445,7 @@ function leadTopics(
     // --- Einstellungen und Geräte ---
     settingsTopic(),
     settingsGuideTopic(),
+    modulesTopic(),
     parentVisibilityTopic(),
     infoDisplaysTopic(),
     leadBirthdaysTopic(),
@@ -6370,6 +6532,7 @@ function parentLoginTopic(): HelpTopic {
       "Ein Passwortwechsel verkürzt diese Wartezeit nicht.",
       "moto sagt, das Konto gehöre zum Personal einer Schule? Dann melden Sie sich über die Schul-Anmeldung an.",
       "moto sagt, Ihr Konto sei deaktiviert? Wenden Sie sich an Ihre OGS.",
+      "moto sagt, Ihre Schule nutze das Elternportal zurzeit nicht? Dann bietet Ihre Schule das Elternportal nicht an. Fragen Sie bei Ihrer Schule nach.",
     ],
     related: [
       HELP_TOPICS.parentAccount,
@@ -7065,23 +7228,52 @@ function parentMealPlanTopic(): HelpTopic {
     group: "nachrichten",
     audience: "parent",
     icon: "UtensilsCrossed",
-    steps: [
-      "Tippen Sie unten auf `Mehr`.",
-      "Wählen Sie `Mittagessen`.",
-      "Wechseln Sie bei Bedarf mit den Pfeilen die Woche.",
+    steps: [],
+    instructionGroups: [
+      {
+        title: "Plan ansehen",
+        steps: [
+          "Tippen Sie unten auf `Mehr`.",
+          "Wählen Sie `Mittagessen`.",
+          "Wechseln Sie bei Bedarf mit den Pfeilen die Woche.",
+        ],
+      },
+      {
+        title: "Einen Tag an- oder abmelden",
+        description:
+          "Das geht nur, wenn Ihre OGS die Anmeldung zum Mittagessen nutzt.",
+        steps: [
+          "Wählen Sie beim Tag `Ändern`.",
+          "Wählen Sie `Anmelden` oder `Abmelden`.",
+          "Wählen Sie `Speichern`.",
+        ],
+      },
+      {
+        title: "Eine ganze Woche abmelden",
+        steps: [
+          "Wählen Sie mit den Pfeilen die Woche.",
+          "Wählen Sie `Woche abmelden`.",
+          "Bestätigen Sie mit `Abmelden`.",
+        ],
+      },
     ],
     result: "Sie sehen je Tag das Gericht und ob Ihr Kind mitisst.",
     notes: [
       "Steht am Gericht zum Beispiel `Allergene: A, G`, enthält es diese Allergene. Unter dem Plan steht, was die Buchstaben bedeuten.",
       "Die Angaben kommen von der Schule oder vom Caterer. Ein Gericht ohne Buchstaben ist nicht sicher frei von Allergenen. Fragen Sie im Zweifel die OGS.",
       "Über dem Plan steht die Kalenderwoche, zum Beispiel `KW 38 · Diese Woche`.",
-      "Mit `Ganze Woche anmelden` oder `Ganze Woche abmelden` ändern Sie alle Tage der Woche auf einmal. Das gilt nur für Tage, die Sie noch ändern können.",
-      "Unter `Wann isst … mit?` steht, bis wann Sie ändern können. Manche Schulen erlauben das Abmelden länger als das Anmelden.",
+      "Bei jedem Tag steht, bis wann Sie ändern können, zum Beispiel `Abmelden bis Do., 17.09., 12:00`.",
+      "Mit `Woche anmelden` oder `Woche abmelden` ändern Sie alle Tage der Woche auf einmal, die Sie noch ändern können.",
+      "Die Anmeldung sehen Sie bis zu vier Wochen im Voraus. Den Speiseplan gibt es für diese und nächste Woche.",
     ],
     differences: [
       "Steht an einem Tag `Kein Essen eingetragen`, hat die OGS dafür nichts hinterlegt.",
-      "Steht an einem Tag `Kein Essen: Feiertag oder Schließtag`, gibt es an dem Tag kein Essen. Sie können ihn nicht ändern.",
       "Die Seite zeigt gleich `Nächste Woche`? Dann können Sie in dieser Woche nichts mehr ändern, zum Beispiel am Wochenende. Mit dem Pfeil nach links sehen Sie diese Woche.",
+      "Fehlt `Ändern` bei den festen Tagen? Dann ist die Anmeldung für das Schuljahr abgeschlossen. Die festen Tage ändert jetzt die Schule.",
+      "Nach `Woche abmelden` bleiben Tage angemeldet, deren Frist schon vorbei ist. moto nennt sie.",
+      "Nach `Woche anmelden` bleiben Tage abgemeldet, deren Anmeldefrist schon vorbei ist. moto nennt sie.",
+      "Steht `An diesem Tag ist die OGS zu`, gibt es an diesem Tag kein Essen.",
+      "In den Ferien gelten die festen Tage nicht. Für die Ferienbetreuung melden Sie einzelne Tage an.",
     ],
     troubleshootingDetails: [
       "moto sagt, der Speiseplan sei nicht freigeschaltet? Dann nutzt Ihre OGS diese Funktion nicht.",
@@ -7165,6 +7357,7 @@ function parentEnrollTopic(): HelpTopic {
       "Tippen Sie auf die passende Anmeldung. Das Formular öffnet sich sofort.",
       "Tragen Sie Ihre Kontaktdaten und die Angaben zum Kind ein.",
       "Wählen Sie unter `Zusätzlich wählen` mindestens ein Angebot. `Pflichtangebote` sind schon gesetzt.",
+      "Fragt das Formular unten nach Ihrer `Unterschrift`? Unterschreiben Sie im Feld und tippen Sie auf `Unterschrift bestätigen`.",
       "Tippen Sie auf `Anmeldung absenden`.",
     ],
     result:
@@ -7177,9 +7370,11 @@ function parentEnrollTopic(): HelpTopic {
       "Unter dem Knopf steht, welche Dateien erlaubt sind und wie groß sie sein dürfen. Meist sind es PDF, JPG oder PNG bis 10 MB.",
       "Auf dem Handy können Sie den Nachweis auch direkt fotografieren.",
       "Eine falsche Datei entfernen Sie mit dem Kreuz neben dem Dateinamen.",
+      "Statt zu zeichnen können Sie mit `Namen tippen` Ihren Vor- und Nachnamen eintippen.",
     ],
     differences: [
       "Manche Anmeldungen sind `Nur bereits angemeldete Kinder`.",
+      "Nicht jede Schule fragt nach einer Unterschrift. Ohne Feld `Unterschrift` senden Sie die Anmeldung direkt ab.",
       "An jeder Anmeldung steht `Anmeldung bis` mit der Frist.",
       "Über dem Formular steht `Zurück zu Neue Anmeldung`. Damit wählen Sie eine andere Anmeldung.",
     ],
@@ -7224,6 +7419,7 @@ function parentEnrollStatusTopic(): HelpTopic {
           "Öffnen Sie die Statusseite.",
           "Tippen Sie auf `Anmeldung bearbeiten`.",
           "Ändern Sie die Angaben.",
+          "Fragt das Formular nach Ihrer `Unterschrift`? Unterschreiben Sie neu und tippen Sie auf `Unterschrift bestätigen`.",
           "Tippen Sie auf `Änderungen speichern`.",
         ],
       },
@@ -7241,6 +7437,7 @@ function parentEnrollStatusTopic(): HelpTopic {
     notes: [
       "Zurückziehen können Sie nicht selbst rückgängig machen. Wenden Sie sich dann an die OGS.",
       "Bei Rückfragen meldet sich die OGS über die angegebene E-Mail-Adresse.",
+      "Haben Sie die Anmeldung unterschrieben, steht auf der Statusseite der Abschnitt `Unterschrift`. Mit `Nachweis als PDF` laden Sie Ihren Anmeldenachweis herunter.",
     ],
     differences: [
       "Steht dort `Bestätigung erforderlich`? Dann müssen Sie mit `Anmeldung bestätigen` zusagen, sonst läuft die Anmeldung zur Frist ab.",
@@ -7472,6 +7669,7 @@ function teacherLoginTopic(): HelpTopic {
     ],
     troubleshootingDetails: [
       "moto sagt, das Konto habe keinen Zugang zum Schul-Portal? Dann fehlt Ihnen die Rolle. Wenden Sie sich an die OGS-Verwaltung.",
+      "moto sagt, Ihre Schule nutze moto schule zurzeit nicht? Dann bietet Ihre Schule moto schule nicht an. Wenden Sie sich an die OGS-Verwaltung.",
       "moto sagt `Die E-Mail-Adresse oder das Passwort stimmt nicht.`? Prüfen Sie beides und versuchen Sie es erneut.",
     ],
     related: [
@@ -7881,6 +8079,46 @@ function teacherClassTripTopic(): HelpTopic {
   };
 }
 
+/**
+ * `Hinweis für die OGS` (`class-day-class.tsx`, #4795). Nur mit Freigabe der
+ * OGS; gilt nur für heute, für die Klasse oder ein Kind.
+ */
+function teacherDayHintTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.teacherDayHint,
+    title: "Der OGS einen Hinweis für heute geben",
+    question: "Wie sage ich der OGS, was sie heute wissen muss?",
+    summary:
+      "Sie schreiben einen kurzen Hinweis für Ihre Klasse oder ein Kind.",
+    group: "klasse",
+    audience: "teacher",
+    icon: "MessageSquareText",
+    steps: [
+      "Öffnen Sie die Liste Ihrer Klasse für heute.",
+      "Wählen Sie `Hinweis für die OGS`.",
+      "Wählen Sie bei `Für wen ist der Hinweis?` die ganze Klasse oder ein Kind.",
+      "Schreiben Sie den Hinweis. Er darf bis zu 500 Zeichen lang sein.",
+      "Wählen Sie `Speichern`.",
+    ],
+    result:
+      "Die OGS sieht den Hinweis sofort am Kind: in der Aufsicht, in der Gruppe und in der Kindersuche. Dort steht `Hinweis der Lehrkraft`.",
+    notes: [
+      "Der Hinweis gilt nur heute. Morgen ist er aus diesen Ansichten verschwunden.",
+      "Wählen Sie das Kind oder die Klasse noch einmal, um Ihren Hinweis zu ändern.",
+      "Mit `Hinweis löschen` nehmen Sie ihn zurück.",
+    ],
+    differences: [
+      "Fehlt `Hinweis für die OGS`? Dann hat Ihre OGS das nicht freigegeben, oder Sie sehen einen anderen Tag als heute.",
+      "Für Kinder ohne OGS-Betreuung können Sie keinen eigenen Hinweis schreiben.",
+    ],
+    related: [
+      HELP_TOPICS.teacherClassDay,
+      HELP_TOPICS.teacherArrivalChange,
+      HELP_TOPICS.teacherMessages,
+    ],
+  };
+}
+
 /** `/school/aufsichten`: die eigenen Dienste des Tages. */
 function teacherSupervisionTopic(): HelpTopic {
   return {
@@ -8202,6 +8440,7 @@ function teacherFeatureMissingTopic(): HelpTopic {
     differences: [
       "Fehlt `Nachrichten`? Dann nutzt Ihre OGS den Team-Chat nicht.",
       "Fehlt `Ankunft heute ändern`? Dann hat die OGS das Eintragen nicht freigegeben.",
+      "Fehlt `Hinweis für die OGS`? Auch das muss die OGS erst freigeben.",
       "Abhol- und Notfallkontakte gibt es nur in einer laufenden Aufsicht.",
     ],
     troubleshootingDetails: [
@@ -8253,6 +8492,7 @@ function traegerLoginTopic(): HelpTopic {
     ],
     troubleshootingDetails: [
       "moto sagt, Ihr Konto habe keinen Zugang zum Träger-Portal? Wenden Sie sich an das moto-Team.",
+      "moto meldet Sie ab und lässt Sie nicht wieder hinein? Dann ist der Zugang Ihres Trägers ausgeschaltet. Wenden Sie sich an das moto-Team.",
       "Eine Schule fehlt in der Liste? Das moto-Team ordnet die Schulen Ihrem Träger zu.",
       "moto sagt `Die E-Mail-Adresse oder das Passwort stimmt nicht.`? Prüfen Sie beides und versuchen Sie es erneut.",
     ],
@@ -8260,7 +8500,258 @@ function traegerLoginTopic(): HelpTopic {
   };
 }
 
-const TRAEGER_TOPICS: readonly HelpTopic[] = [traegerLoginTopic()];
+/** `/traeger/invite` (#4650): Einladung aus der Mail annehmen. */
+function traegerInvitationTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.traegerInvitation,
+    title: "Einladung ins Träger-Büro annehmen",
+    question: "Wie nehme ich eine Einladung ins Träger-Büro an?",
+    summary:
+      "Sie haben eine E-Mail mit einer Einladung bekommen. So kommen Sie ins Träger-Portal.",
+    group: "einstieg",
+    audience: "traeger",
+    icon: "UserRoundPlus",
+    requirements: ["Jemand aus dem Träger-Büro hat Sie per E-Mail eingeladen."],
+    steps: [
+      "Öffnen Sie die E-Mail `Einladung ins Träger-Portal von moto`.",
+      "Wählen Sie `Einladung annehmen`.",
+      "Haben Sie noch kein moto-Konto? Tragen Sie ein `Neues Passwort` ein und wiederholen Sie es.",
+      "Haben Sie schon ein moto-Konto? Tragen Sie das Passwort dieses Kontos ein.",
+      "Wählen Sie `Einladung annehmen`.",
+    ],
+    result:
+      "moto meldet Sie an und öffnet die Seite `Schulen`. Was Sie sehen, hängt von Ihrer Rolle ab.",
+    notes: [
+      "Mit derselben E-Mail-Adresse und demselben Passwort melden Sie sich später an.",
+    ],
+    troubleshootingDetails: [
+      "moto sagt, die Einladung sei abgelaufen? Bitten Sie die Person, die Sie eingeladen hat, um eine neue Einladung.",
+      "Sie kennen das Passwort Ihres vorhandenen moto-Kontos nicht mehr? Setzen Sie es in der Anmeldung Ihrer Schule über `Passwort vergessen?` zurück.",
+    ],
+    related: [HELP_TOPICS.traegerLogin],
+  };
+}
+
+/** `/traeger/ferien` (#4659): Ferienzeitraum mit Wochen und Zeitmodellen. */
+function traegerHolidayPeriodTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.traegerHolidayPeriod,
+    title: "Ferienzeitraum anlegen",
+    question: "Wie plane ich Ferienbetreuung für mehrere Schulen?",
+    summary:
+      "Ein Ferienzeitraum hat buchbare Wochen. Jede Woche findet an einer Schule Ihres Trägers statt.",
+    group: "anmeldeverwaltung",
+    audience: "traeger",
+    icon: "SunHorizon",
+    requirements: [
+      "Ihre Rolle im Träger-Büro darf Anmeldungen verwalten. Das gilt für die Rolle Verwaltung.",
+    ],
+    steps: [],
+    instructionGroups: [
+      {
+        title: "Ferienzeitraum anlegen",
+        steps: [
+          "Wählen Sie oben `Ferien`.",
+          "Wählen Sie `Ferienzeitraum anlegen`.",
+          "Tragen Sie den `Name des Ferienzeitraums` ein, zum Beispiel Osterferien 2027.",
+          "Tragen Sie `Anmeldebeginn` und `Anmeldeschluss` ein.",
+          "Ist die Anmeldung verbindlich? Dann lassen Sie den Haken bei `Die Anmeldung ist verbindlich.`.",
+          "Schreiben Sie unter `Hinweise für Eltern`, was Eltern wissen müssen. Zum Beispiel, ob es Mittagessen gibt oder ein Lunchpaket nötig ist.",
+        ],
+      },
+      {
+        title: "Wochen und Zeitmodelle planen",
+        steps: [
+          "Tragen Sie bei jeder Woche `Erster Tag` und `Letzter Tag` ein.",
+          "Wählen Sie die `Ausrichtende OGS`. Dort findet die Betreuung in dieser Woche statt.",
+          "Tragen Sie die Zeitmodelle ein, zum Beispiel „bis 13 Uhr“ und „bis 16 Uhr“. Jedes Zeitmodell hat `Beginn`, `Ende` und `Preis in Euro`.",
+          "Weitere Wochen fügen Sie mit `Woche hinzufügen` hinzu.",
+          "Wählen Sie `Speichern`.",
+        ],
+      },
+      {
+        title: "Veröffentlichen",
+        steps: [
+          "Öffnen Sie den Ferienzeitraum in der Liste `Ferien`.",
+          "Wählen Sie oben `Veröffentlichen`.",
+          "Bestätigen Sie mit `Veröffentlichen`.",
+        ],
+      },
+    ],
+    result:
+      "Der Ferienzeitraum ist für die Anmeldung freigegeben. Sie können ihn danach weiter ändern.",
+    notes: [
+      "Ein gespeicherter Ferienzeitraum ist zuerst ein Entwurf. Ein Entwurf ist nicht für die Anmeldung freigegeben.",
+      "Ein veröffentlichter Ferienzeitraum wird nicht wieder zum Entwurf.",
+    ],
+    differences: [
+      "Sie sehen oben kein `Ferien`? Ihre Rolle darf keine Anmeldungen verwalten. Fragen Sie im Träger-Büro nach der Rolle Verwaltung.",
+    ],
+    troubleshootingDetails: [
+      "`Veröffentlichen` lässt sich nicht wählen? Speichern Sie zuerst Ihre Änderungen. Jede Woche braucht mindestens ein Zeitmodell.",
+      "Eine Schule fehlt bei `Ausrichtende OGS`? Das moto-Team ordnet die Schulen Ihrem Träger zu.",
+    ],
+    related: [HELP_TOPICS.traegerLogin],
+  };
+}
+
+/** Hinweis `Testsystem` im Träger-Portal (#4658): erfundene Beispielkinder. */
+function traegerTestSystemTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.traegerTestSystem,
+    title: "Mit dem Testsystem ausprobieren",
+    question: "Was ist das Testsystem?",
+    summary:
+      "Im Testsystem probieren Sie moto mit erfundenen Kindern aus. Echte Daten gehören nicht hinein.",
+    group: "einstieg",
+    audience: "traeger",
+    icon: "PuzzlePiece",
+    requirements: [
+      "Das moto-Team hat für Ihren Träger ein Testsystem angelegt.",
+    ],
+    steps: [
+      "Melden Sie sich im Träger-Portal an.",
+      "Gehören Sie auch zum echten Träger? Wählen Sie den Test-Träger aus.",
+      "Oben steht der Hinweis `Testsystem`. So erkennen Sie das Testsystem.",
+      "Die Seite `Schulen` zeigt die Test-Schulen. Probieren Sie alles aus.",
+    ],
+    result:
+      "Wenn Sie fertig sind, löscht das moto-Team das Testsystem mit allen Test-Schulen.",
+    notes: [
+      "Alle Kinder im Testsystem sind erfunden. Tragen Sie keine echten Kinder ein.",
+    ],
+    troubleshootingDetails: [
+      "Sie sehen den Hinweis `Testsystem` nicht? Dann sind Sie beim echten Träger. Melden Sie sich ab und wählen Sie den Test-Träger.",
+    ],
+    related: [HELP_TOPICS.traegerLogin],
+  };
+}
+
+/** `/traeger/accounts` (#4650): Personen einladen, Rollen ändern, entfernen. */
+function traegerAccountsTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.traegerAccounts,
+    title: "Personen ins Träger-Büro einladen",
+    question:
+      "Wie lade ich Personen ins Träger-Büro ein und gebe ihnen Rollen?",
+    summary:
+      "Unter `Personen` laden Sie Kolleginnen und Kollegen ein. Die Rolle bestimmt, was eine Person darf.",
+    group: "einstieg",
+    audience: "traeger",
+    icon: "UsersThree",
+    requirements: ["Sie haben die Rolle `Verwaltung`."],
+    instructionGroups: [
+      {
+        title: "Person einladen",
+        steps: [
+          "Wählen Sie oben `Personen`.",
+          "Wählen Sie `Person einladen`.",
+          "Tragen Sie die `E-Mail-Adresse` ein.",
+          "Wählen Sie mindestens eine Rolle.",
+          "Wählen Sie `Einladung senden`.",
+        ],
+      },
+      {
+        title: "Rollen ändern",
+        steps: [
+          "Wählen Sie oben `Personen`.",
+          "Öffnen Sie bei der Person das Menü mit den drei Punkten.",
+          "Wählen Sie `Rollen ändern`.",
+          "Wählen Sie die Rollen und dann `Speichern`.",
+        ],
+      },
+      {
+        title: "Person entfernen",
+        steps: [
+          "Wählen Sie oben `Personen`.",
+          "Öffnen Sie bei der Person das Menü mit den drei Punkten.",
+          "Wählen Sie `Aus dem Träger-Büro entfernen`.",
+          "Wählen Sie `Ja, entfernen` und dann `Entfernen`.",
+        ],
+      },
+    ],
+    steps: [],
+    result:
+      "Die eingeladene Person steht unter `Offene Einladungen`, bis sie die Einladung annimmt.",
+    notes: [
+      "`Verwaltung` darf alles verwalten, auch Personen. `Abrechnung` darf abrechnen und Finanz-Daten exportieren. `Personal` darf das Personal verwalten. `Nur lesen` darf die Übersicht und die Berichte ansehen.",
+      "Eine Person kann mehrere Rollen haben.",
+    ],
+    differences: [
+      "Sie sehen oben kein `Personen`? Dann haben Sie nicht die Rolle `Verwaltung`.",
+      "Geänderte Rollen gelten nach wenigen Minuten. Eine entfernte Person kann sich nicht mehr anmelden. Eine offene Sitzung endet nach wenigen Minuten.",
+    ],
+    troubleshootingDetails: [
+      "moto sagt, das Träger-Büro brauche mindestens eine Person mit der Rolle Verwaltung? Geben Sie die Rolle zuerst einer anderen Person.",
+      "Die Einladung ist abgelaufen? Laden Sie die Person noch einmal ein. Die alte Einladung gilt dann nicht mehr.",
+      "Eine Einladung soll nicht mehr gelten? Wählen Sie bei der Einladung `Einladung zurücknehmen`.",
+    ],
+    related: [HELP_TOPICS.traegerInvitation],
+  };
+}
+
+/** `/traeger/access-log` (#4655): wer an den Schulen Daten gelesen oder geändert hat. */
+function traegerAccessLogTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.traegerAccessLog,
+    title: "Zugriffsprotokoll lesen",
+    question: "Wie sehe ich, wer Daten gelesen oder geändert hat?",
+    summary:
+      "Das Zugriffsprotokoll zeigt, wer an Ihren Schulen Daten von Kindern, Eltern oder Personal gelesen oder geändert hat.",
+    group: "auswertung",
+    audience: "traeger",
+    icon: "ShieldCheck",
+    requirements: [
+      "Sie haben im Träger-Büro die Rolle Verwaltung. Nur diese Rolle darf das Protokoll lesen.",
+    ],
+    steps: [],
+    instructionGroups: [
+      {
+        title: "Protokoll ansehen",
+        steps: [
+          "Melden Sie sich im Träger-Portal an.",
+          "Wählen Sie oben `Zugriffsprotokoll`.",
+          "Wählen Sie den Zeitraum. Am Anfang sind es die letzten 30 Tage.",
+          "Wählen Sie bei Bedarf eine Schule und eine Person.",
+          "Wählen Sie `Gelesen` oder `Geändert`, wenn Sie nur eine Art sehen möchten.",
+          "Gibt es mehr Einträge? Wählen Sie unten `Weitere Einträge laden`.",
+        ],
+      },
+      {
+        title: "Als CSV herunterladen",
+        description: "Für einen Nachweis, zum Beispiel in einer Tabelle.",
+        steps: [
+          "Stellen Sie die Filter ein.",
+          "Wählen Sie `Als CSV herunterladen`.",
+          "moto lädt eine Datei mit allen Einträgen zu den Filtern herunter.",
+        ],
+      },
+    ],
+    result:
+      "Jede Zeile zeigt Zeitpunkt, Person, Schule, Art und welche Daten es waren.",
+    notes: [
+      "Auch Ihr Lesen steht im Protokoll. Die Schule sieht so, dass das Träger-Büro hineingeschaut hat.",
+    ],
+    differences: [
+      "Sie sehen oben kein `Zugriffsprotokoll`? Dann hat Ihre Rolle kein Recht dazu.",
+      "Steht bei Person `Unbekannte Person`? Zu diesem Konto kennt moto an der Schule keinen Namen, zum Beispiel bei Eltern.",
+    ],
+    troubleshootingDetails: [
+      "moto sagt, der Export habe zu viele Einträge? Wählen Sie einen kürzeren Zeitraum oder eine Schule.",
+      "Sie brauchen das Recht für Ihr Konto? Wenden Sie sich an das moto-Team.",
+    ],
+    related: [HELP_TOPICS.traegerLogin],
+  };
+}
+
+const TRAEGER_TOPICS: readonly HelpTopic[] = [
+  traegerInvitationTopic(),
+  traegerLoginTopic(),
+  traegerTestSystemTopic(),
+  traegerAccountsTopic(),
+  traegerHolidayPeriodTopic(),
+  traegerAccessLogTopic(),
+];
 
 const TEACHER_DRAFT_TOPICS: readonly HelpTopic[] = [
   // --- Einstieg ---
@@ -8276,6 +8767,7 @@ const TEACHER_DRAFT_TOPICS: readonly HelpTopic[] = [
   teacherClassHandoverTopic(),
   teacherChildDetailsTopic(),
   teacherArrivalChangeTopic(),
+  teacherDayHintTopic(),
   teacherClassTripTopic(),
 
   // --- Aufsicht ---

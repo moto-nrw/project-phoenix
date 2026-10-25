@@ -23,6 +23,11 @@ import type {
   OperatorPerson,
   UnregisteredTagScan,
   CreateOrganizationRequest,
+  CreateTestTraegerRequest,
+  BackendTestTraeger,
+  TestTraeger,
+  BackendSampleChildrenResult,
+  SampleChildrenResult,
   CreateSchoolRequest,
   CreateDeviceRequest,
   InviteAdminRequest,
@@ -36,6 +41,8 @@ import type {
   AssignTraegerMemberRequest,
   BackendTraegerMember,
   TraegerMember,
+  RecordTraegerErasureOrderRequest,
+  TraegerErasureOrder,
 } from "./provisioning-helpers";
 import {
   mapOrganization,
@@ -52,6 +59,10 @@ import {
   mapDeviceTransferStatus,
   mapSchoolPWAUsage,
   mapTraegerMember,
+  isBackendTraegerErasureOrder,
+  mapTraegerErasureOrder,
+  mapTestTraeger,
+  mapSampleChildrenResult,
 } from "./provisioning-helpers";
 
 class OperatorProvisioningService {
@@ -166,6 +177,56 @@ class OperatorProvisioningService {
       { method: "POST", body: data },
     );
     return mapTraegerMember(result);
+  }
+
+  async getTraegerErasureOrder(
+    orgId: string,
+  ): Promise<TraegerErasureOrder | null> {
+    const data = await operatorFetch<unknown>(
+      `/api/operator/provisioning/organizations/${encodeURIComponent(orgId)}/erasure-order`,
+    );
+    return isBackendTraegerErasureOrder(data)
+      ? mapTraegerErasureOrder(data)
+      : null;
+  }
+
+  async recordTraegerErasureOrder(
+    orgId: string,
+    data: RecordTraegerErasureOrderRequest,
+  ): Promise<TraegerErasureOrder> {
+    const result = await operatorFetch<unknown>(
+      `/api/operator/provisioning/organizations/${encodeURIComponent(orgId)}/erasure-order`,
+      { method: "POST", body: data },
+    );
+    if (!isBackendTraegerErasureOrder(result)) {
+      throw new Error("erasure order response without order");
+    }
+    return mapTraegerErasureOrder(result);
+  }
+
+  async withdrawTraegerErasureOrder(orgId: string): Promise<void> {
+    await operatorFetch<unknown>(
+      `/api/operator/provisioning/organizations/${encodeURIComponent(orgId)}/erasure-order`,
+      { method: "DELETE" },
+    );
+  }
+
+  async createTestTraeger(
+    data: CreateTestTraegerRequest,
+  ): Promise<TestTraeger> {
+    const result = await operatorFetch<BackendTestTraeger>(
+      "/api/operator/provisioning/organizations/test-traeger",
+      { method: "POST", body: data },
+    );
+    return mapTestTraeger(result);
+  }
+
+  async createSampleChildren(orgId: string): Promise<SampleChildrenResult> {
+    const result = await operatorFetch<BackendSampleChildrenResult>(
+      `/api/operator/provisioning/organizations/${encodeURIComponent(orgId)}/sample-children`,
+      { method: "POST", body: {} },
+    );
+    return mapSampleChildrenResult(result);
   }
 
   async listAllAccounts(): Promise<OrgAccount[]> {
