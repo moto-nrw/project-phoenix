@@ -379,36 +379,33 @@ func (s *AccountAuthentication) hasSchoolPortalRoleAtTenant(ctx context.Context,
 }
 
 // findSchoolPortalTenantForAccount checks every active mapping for a
-// school-portal role and returns the first matching school that is alive
-// and active; a full sweep of school lookup failures is not masked as "no
-// portal role".
-func (s *AccountAuthentication) findSchoolPortalTenantForAccount(ctx context.Context, accountID int64) (bool, int64, error) {
+// school-portal role. Without requireBooked it returns the first matching
+// school that is alive and active; when required, it continues until it finds
+// a school that also booked Unterricht am Vormittag. A full sweep of school
+// lookup failures is not masked as "no portal role".
+func (s *AccountAuthentication) findSchoolPortalTenantForAccount(ctx context.Context, accountID int64, requireBooked bool) (bool, int64, error) {
 	hasPortalRole := false
 	var firstPortalTenantID int64
+	var portalTenantIDs []int64
 	if err := s.runtime.WithAdminTx(ctx, func(adminCtx context.Context) error {
 		var err error
+		if requireBooked {
+			portalTenantIDs, err = s.schoolPortalTenants(adminCtx, accountID)
+			hasPortalRole = len(portalTenantIDs) > 0
+			return err
+		}
 		hasPortalRole, firstPortalTenantID, err = s.firstSchoolPortalTenant(adminCtx, accountID)
 		return err
 	}); err != nil {
 		return false, 0, err
 	}
+	if requireBooked {
+		return s.findBookedSchoolPortalTenant(ctx, portalTenantIDs)
+	}
 	return hasPortalRole, firstPortalTenantID, nil
 }
 
-// findBookedSchoolPortalTenantForAccount selects the first school-portal
-// school whose module is booked. An implicit school login can therefore use a
-// later eligible school when an earlier one no longer offers the portal. A
-// requested school is handled separately and remains an explicit refusal.
-func (s *AccountAuthentication) findBookedSchoolPortalTenantForAccount(ctx context.Context, accountID int64) (bool, int64, error) {
-	var portalTenantIDs []int64
-	if err := s.runtime.WithAdminTx(ctx, func(adminCtx context.Context) error {
-		var err error
-		portalTenantIDs, err = s.schoolPortalTenants(adminCtx, accountID)
-		return err
-	}); err != nil {
-		return false, 0, err
-	}
-
+func (s *AccountAuthentication) findBookedSchoolPortalTenant(ctx context.Context, portalTenantIDs []int64) (bool, int64, error) {
 	var firstNotBooked error
 	for _, tenantID := range portalTenantIDs {
 		err := s.portalModules.RequireSchoolPortal(ctx, tenantID)
@@ -475,5 +472,5 @@ func (s *AccountAuthentication) HasSchoolPortalAccess(ctx context.Context, accou
 // retained password-reset flow, which routes school-portal accounts to the
 // school reset link.
 func (s *AccountAuthentication) findSchoolPortalTenant(ctx context.Context, accountID int64) (bool, int64, error) {
-	return s.findSchoolPortalTenantForAccount(ctx, accountID)
+	return s.findSchoolPortalTenantForAccount(ctx, accountID, false)
 }

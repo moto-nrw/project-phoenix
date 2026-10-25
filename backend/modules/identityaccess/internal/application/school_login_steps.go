@@ -10,50 +10,47 @@ import (
 )
 
 func (s *AccountAuthentication) schoolLoginTenant(ctx context.Context, account domain.LoginAccount, targetTenantSlug, ipAddress, userAgent string) (int64, error) {
-	portalTenantID := int64(0)
-	hasPortalRole := false
 	if targetTenantSlug != "" {
-		metadata, metadataErr := s.loadAccountMetadata(ctx, account, targetTenantSlug)
-		if metadataErr != nil {
-			return 0, metadataErr
-		}
-		portalTenantID = metadata.TenantID
-		hasPortalRole = domain.HasSchoolPortalRole(metadata.Roles)
-		if !hasPortalRole {
-			s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "No school portal role at requested school")
-			return 0, failed("school login", identityaccess.ErrAccountNoSchoolPortalRole)
-		}
-	} else {
-		var resolvedTenantID int64
-		var findErr error
-		hasPortalRole, resolvedTenantID, findErr = s.findBookedSchoolPortalTenantForAccount(ctx, account.ID)
-		if findErr != nil {
-			if _, notBooked := identityaccess.PortalNotBooked(findErr); notBooked {
-				s.logPortalRefusal("school login", account.ID, resolvedTenantID, findErr)
-				s.logFailedLogin(s.runtime.WithTenantID(ctx, resolvedTenantID), account.ID, ipAddress, userAgent, "School portal not booked")
-				return 0, failed("school login", findErr)
-			}
-			return 0, failed("school login: enumerate tenants", findErr)
-		}
-		if hasPortalRole {
-			portalTenantID = resolvedTenantID
-		}
+		return s.requestedSchoolLoginTenant(ctx, account, targetTenantSlug, ipAddress, userAgent)
+	}
+	return s.implicitSchoolLoginTenant(ctx, account, ipAddress, userAgent)
+}
+
+func (s *AccountAuthentication) requestedSchoolLoginTenant(ctx context.Context, account domain.LoginAccount, targetTenantSlug, ipAddress, userAgent string) (int64, error) {
+	metadata, err := s.loadAccountMetadata(ctx, account, targetTenantSlug)
+	if err != nil {
+		return 0, err
+	}
+	if !domain.HasSchoolPortalRole(metadata.Roles) {
+		s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "No school portal role at requested school")
+		return 0, failed("school login", identityaccess.ErrAccountNoSchoolPortalRole)
+	}
+	if err := s.requireSchoolPortal(ctx, "school login", account.ID, metadata.TenantID); err != nil {
+		s.logFailedLogin(s.runtime.WithTenantID(ctx, metadata.TenantID), account.ID, ipAddress, userAgent, "School portal not booked")
+		return 0, err
+	}
+	return metadata.TenantID, nil
+}
+
+func (s *AccountAuthentication) implicitSchoolLoginTenant(ctx context.Context, account domain.LoginAccount, ipAddress, userAgent string) (int64, error) {
+	hasPortalRole, portalTenantID, err := s.findSchoolPortalTenantForAccount(ctx, account.ID, true)
+	if err != nil {
+		return 0, s.implicitSchoolLoginError(ctx, account.ID, portalTenantID, ipAddress, userAgent, err)
 	}
 	if !hasPortalRole || portalTenantID == 0 {
 		s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "No school portal role at any school")
 		return 0, failed("school login", identityaccess.ErrAccountNoSchoolPortalRole)
 	}
-	// Checked before any second factor is mailed: a school without
-	// Unterricht am Vormittag has no school portal (#4895). The implicit
-	// selection already checked every eligible school and chose a booked one.
-	if targetTenantSlug != "" {
-		if err := s.requireSchoolPortal(ctx, "school login", account.ID, portalTenantID); err != nil {
-			s.logFailedLogin(s.runtime.WithTenantID(ctx, portalTenantID), account.ID, ipAddress, userAgent, "School portal not booked")
-			return 0, err
-		}
-	}
-
 	return portalTenantID, nil
+}
+
+func (s *AccountAuthentication) implicitSchoolLoginError(ctx context.Context, accountID, tenantID int64, ipAddress, userAgent string, err error) error {
+	if _, notBooked := identityaccess.PortalNotBooked(err); notBooked {
+		s.logPortalRefusal("school login", accountID, tenantID, err)
+		s.logFailedLogin(s.runtime.WithTenantID(ctx, tenantID), accountID, ipAddress, userAgent, "School portal not booked")
+		return failed("school login", err)
+	}
+	return failed("school login: enumerate tenants", err)
 }
 
 func (s *AccountAuthentication) schoolLoginMFAVerdict(ctx context.Context, accountID, portalTenantID int64, permissions []string) (mfaRequired, enrolled bool, err error) {

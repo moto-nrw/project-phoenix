@@ -236,14 +236,14 @@ func TestFindSchoolPortalTenant(t *testing.T) {
 		t.Parallel()
 		f, _ := newSchoolMintFixture(t)
 		f.store.listTenantsErr = errDB
-		_, _, err := f.auth.findSchoolPortalTenantForAccount(context.Background(), 1)
+		_, _, err := f.auth.findSchoolPortalTenantForAccount(context.Background(), 1, false)
 		require.ErrorIs(t, err, errDB)
 	})
 	t.Run("school lookup error propagates when no school qualifies", func(t *testing.T) {
 		t.Parallel()
 		f, _ := newSchoolMintFixture(t)
 		f.schools.findErr = errDB
-		_, _, err := f.auth.findSchoolPortalTenantForAccount(context.Background(), 1)
+		_, _, err := f.auth.findSchoolPortalTenantForAccount(context.Background(), 1, false)
 		require.ErrorIs(t, err, errDB, "a full sweep of lookup failures is not masked as no portal role")
 	})
 	t.Run("dead school is skipped", func(t *testing.T) {
@@ -252,7 +252,7 @@ func TestFindSchoolPortalTenant(t *testing.T) {
 		f.schools.add(10, 100, "school-10", true, true)
 		f.store.addMapping(1, 11, lehrkraftRole())
 		f.schools.add(11, 110, "school-11", true, false)
-		found, tenantID, err := f.auth.findSchoolPortalTenantForAccount(context.Background(), 1)
+		found, tenantID, err := f.auth.findSchoolPortalTenantForAccount(context.Background(), 1, false)
 		require.NoError(t, err)
 		assert.True(t, found)
 		assert.Equal(t, int64(11), tenantID)
@@ -261,14 +261,14 @@ func TestFindSchoolPortalTenant(t *testing.T) {
 		t.Parallel()
 		f, _ := newSchoolMintFixture(t)
 		f.store.listRolesErr = errDB
-		_, _, err := f.auth.findSchoolPortalTenantForAccount(context.Background(), 1)
+		_, _, err := f.auth.findSchoolPortalTenantForAccount(context.Background(), 1, false)
 		require.ErrorIs(t, err, errDB)
 	})
 	t.Run("no portal role anywhere", func(t *testing.T) {
 		t.Parallel()
 		f, _ := newSchoolMintFixture(t)
 		f.store.roles[mappingKey{1, 10}] = []domain.RoleAssignment{{RoleID: 1, Name: "user"}}
-		found, tenantID, err := f.auth.findSchoolPortalTenantForAccount(context.Background(), 1)
+		found, tenantID, err := f.auth.findSchoolPortalTenantForAccount(context.Background(), 1, false)
 		require.NoError(t, err)
 		assert.False(t, found)
 		assert.Zero(t, tenantID)
@@ -276,7 +276,7 @@ func TestFindSchoolPortalTenant(t *testing.T) {
 	t.Run("first live school with the role wins", func(t *testing.T) {
 		t.Parallel()
 		f, _ := newSchoolMintFixture(t)
-		found, tenantID, err := f.auth.findSchoolPortalTenantForAccount(context.Background(), 1)
+		found, tenantID, err := f.auth.findSchoolPortalTenantForAccount(context.Background(), 1, false)
 		require.NoError(t, err)
 		assert.True(t, found)
 		assert.Equal(t, int64(10), tenantID)
