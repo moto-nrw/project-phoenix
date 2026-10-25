@@ -82,16 +82,18 @@ type TraegerRouter interface {
 
 // Resource bundles the Träger-Portal handlers.
 type Resource struct {
-	auth    AuthRuntime
-	schools TraegerRouter
+	auth      AuthRuntime
+	schools   TraegerRouter
+	accessLog TraegerRouter
 }
 
-// NewResource builds the Träger-Portal resource.
-func NewResource(auth AuthRuntime, schools TraegerRouter) *Resource {
-	if schools == nil {
-		panic("traeger portal: the school list routes are required")
+// NewResource builds the Träger-Portal resource: the school list and the
+// access log (#4655).
+func NewResource(auth AuthRuntime, schools, accessLog TraegerRouter) *Resource {
+	if schools == nil || accessLog == nil {
+		panic("traeger portal: the school list and access log routes are required")
 	}
-	return &Resource{auth: auth, schools: schools}
+	return &Resource{auth: auth, schools: schools, accessLog: accessLog}
 }
 
 // The sentences the Träger-Portal renders for a refused login.
@@ -115,6 +117,7 @@ func (rs *Resource) RouterWithAuthRateLimiter(authRateLimiter func(http.Handler)
 		r.Post("/login", rs.login)
 	})
 	r.Mount("/schools", rs.schools.TraegerRouter(protectedTraegerRoutes))
+	r.Mount("/access-log", rs.accessLog.TraegerRouter(protectedTraegerRoutes))
 	return r
 }
 

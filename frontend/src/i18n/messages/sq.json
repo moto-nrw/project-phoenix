@@ -3019,6 +3019,7 @@
         "audit_unavailable": "{object} nuk është i disponueshëm tani. Provoni përsëri."
       },
       "traeger": {
+        "access_log_export_too_large": "Eksporti ka më shumë se {limit} hyrje. Zgjidhni një periudhë më të shkurtër ose më shumë filtra.",
         "no_membership": "Nuk keni qasje te: {object}. Kontaktoni shkollën."
       }
     },

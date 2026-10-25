@@ -1,6 +1,7 @@
 "use client";
 
 import { signOut, useSession } from "next-auth/react";
+import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { MotoBrand } from "~/components/auth/moto-brand";
 import { Button } from "~/components/ui/button";
@@ -13,10 +14,17 @@ import { TRAEGER_HELP_HREF } from "./traeger-help";
 
 const logger = createLogger({ component: "TraegerShell" });
 
+/** The Träger right that opens the access log (#4655). */
+const ACCESS_LOG_RIGHT = "traeger_access_log:read";
+
+const NAV_LINK_CLASS =
+  "rounded-md px-2.5 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none";
+
 /**
  * The shell of the Träger portal ("moto träger", #4649): the shared
- * PortalShell frame with a slim head bar. The portal has one page so far,
- * so there is no sidebar; the head carries the help and the only way out.
+ * PortalShell frame with a slim head bar. The portal has two pages, so there
+ * is no sidebar: the head carries the schools, the access log (only with the
+ * right to read it), the help and the way out.
  */
 export function TraegerShell({
   children,
@@ -24,7 +32,14 @@ export function TraegerShell({
   readonly children: React.ReactNode;
 }) {
   const { data: session } = useSession();
+  const pathname = usePathname();
   const [loggingOut, setLoggingOut] = useState(false);
+  const pages = [
+    { href: "/traeger", label: "Schulen" },
+    ...(session?.user?.permissions?.includes(ACCESS_LOG_RIGHT)
+      ? [{ href: "/traeger/access-log", label: "Zugriffsprotokoll" }]
+      : []),
+  ];
 
   const logout = async () => {
     setLoggingOut(true);
@@ -56,9 +71,26 @@ export function TraegerShell({
 
   const header = (
     <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-gray-200/70 bg-white/95 px-8 py-4 max-md:px-4">
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <MotoBrand />
         <span className="text-sm font-semibold text-gray-600">Träger</span>
+        <nav aria-label="Bereiche" className="flex items-center gap-1">
+          {pages.map((page) => {
+            // The Träger host shows the path without /traeger.
+            const href = traegerPath(page.href);
+            const current = pathname === href || pathname === page.href;
+            return (
+              <NavLink
+                key={page.href}
+                href={href}
+                aria-current={current ? "page" : undefined}
+                className={`${NAV_LINK_CLASS} ${current ? "bg-gray-100 text-gray-900" : ""}`}
+              >
+                {page.label}
+              </NavLink>
+            );
+          })}
+        </nav>
       </div>
       {/* Wraps below the brand on narrow phones (320 px) instead of overflowing. */}
       <div className="ml-auto flex items-center gap-2">
@@ -67,10 +99,7 @@ export function TraegerShell({
             {session.user.email}
           </span>
         ) : null}
-        <NavLink
-          href={TRAEGER_HELP_HREF}
-          className="rounded-md px-2.5 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-        >
+        <NavLink href={TRAEGER_HELP_HREF} className={NAV_LINK_CLASS}>
           Hilfe
         </NavLink>
         <Button

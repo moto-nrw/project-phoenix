@@ -45,6 +45,7 @@ const (
 	CodeTimetableUnderstaffedStillStaffed            = "timetable.understaffed_still_staffed"
 	CodeTimetableWindowEndBeforeStart                = "timetable.window_end_before_start"
 	CodeTimetableWindowTooLarge                      = "timetable.window_too_large"
+	CodeTraegerAccessLogExportTooLarge               = "traeger.access_log_export_too_large"
 	CodeTraegerNoMembership                          = "traeger.no_membership"
 	CodeWorkforceAbsenceAllowanceExceeded            = "workforce.absence_allowance_exceeded"
 	CodeWorkforceAbsenceAlreadyDecided               = "workforce.absence_already_decided"
@@ -160,6 +161,7 @@ var errorCodeClasses2 = map[string]string{
 	"timetable.understaffed_still_staffed":              "business_rejection",
 	"timetable.window_end_before_start":                 "input",
 	"timetable.window_too_large":                        "input",
+	"traeger.access_log_export_too_large":               "input",
 	"traeger.no_membership":                             "permission",
 	"workforce.absence_allowance_exceeded":              "business_rejection",
 	"workforce.absence_already_decided":                 "business_rejection",

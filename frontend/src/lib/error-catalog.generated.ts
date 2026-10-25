@@ -1122,6 +1122,8 @@ export const ERROR_CATALOG = {
         "Das Enddatum darf nicht vor dem Startdatum liegen. Bitte prüfen Sie die Daten.",
       "timetable.window_too_large":
         "Der Zeitraum ist zu lang. Bitte wählen Sie höchstens {max_days} Tage.",
+      "traeger.access_log_export_too_large":
+        "Der Export hat mehr als {limit} Einträge. Bitte wählen Sie einen kürzeren Zeitraum oder weitere Filter.",
       "traeger.no_membership":
         "Ihr Konto hat keinen Zugang zum Träger-Portal. Bitte wenden Sie sich an das moto-Team.",
       "workforce.absence_allowance_exceeded":
@@ -1584,6 +1586,8 @@ export const ERROR_CATALOG = {
         "Homework feedback is only possible in a study time you supervise.",
       "timetable.homework_feedback_without_homework":
         "No homework is entered for this child's class today.",
+      "traeger.access_log_export_too_large":
+        "The export has more than {limit} entries. Please choose a shorter period or more filters.",
       "traeger.no_membership":
         "Your account has no access to the Träger portal. Please contact the moto team.",
     },
@@ -1899,6 +1903,8 @@ export const ERROR_CATALOG = {
         "Отзыв о домашнем задании можно дать только на занятии, которое вы ведёте.",
       "timetable.homework_feedback_without_homework":
         "Для класса этого ребёнка на сегодня нет домашних заданий.",
+      "traeger.access_log_export_too_large":
+        "В экспорте больше {limit} записей. Выберите более короткий период или другие фильтры.",
     },
   },
   sq: {
@@ -2226,6 +2232,8 @@ export const ERROR_CATALOG = {
         "Përgjigja për detyrat e shtëpisë jepet vetëm në orën e mësimit që mbikëqyrni.",
       "timetable.homework_feedback_without_homework":
         "Për klasën e këtij fëmije nuk ka detyra shtëpie për sot.",
+      "traeger.access_log_export_too_large":
+        "Eksporti ka më shumë se {limit} hyrje. Zgjidhni një periudhë më të shkurtër ose më shumë filtra.",
     },
   },
   pl: {
@@ -2540,6 +2548,8 @@ export const ERROR_CATALOG = {
         "Informację o zadaniach domowych można podać tylko w odrabianiu lekcji, które prowadzisz.",
       "timetable.homework_feedback_without_homework":
         "Dla klasy tego dziecka nie ma dziś wpisanych zadań domowych.",
+      "traeger.access_log_export_too_large":
+        "Eksport ma ponad {limit} wpisów. Wybierz krótszy okres lub więcej filtrów.",
     },
   },
   tr: {
@@ -2861,6 +2871,8 @@ export const ERROR_CATALOG = {
         "Ev ödevi geri bildirimi yalnızca gözetiminizdeki etüt saatinde verilebilir.",
       "timetable.homework_feedback_without_homework":
         "Bu çocuğun sınıfı için bugün ev ödevi girilmedi.",
+      "traeger.access_log_export_too_large":
+        "Dışa aktarma {limit} kayıttan fazla içeriyor. Lütfen daha kısa bir dönem veya daha fazla filtre seçin.",
     },
   },
   uk: {
@@ -3172,6 +3184,8 @@ export const ERROR_CATALOG = {
         "Відгук про домашнє завдання можна дати лише на занятті, яке ви ведете.",
       "timetable.homework_feedback_without_homework":
         "Для класу цієї дитини на сьогодні немає домашніх завдань.",
+      "traeger.access_log_export_too_large":
+        "В експорті понад {limit} записів. Виберіть коротший період або інші фільтри.",
     },
   },
 } as const;

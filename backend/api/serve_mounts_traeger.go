@@ -3,22 +3,50 @@ package api
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/moto-nrw/project-phoenix/modules/auditlog"
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/traegerportal"
+	"github.com/moto-nrw/project-phoenix/modules/traegerview"
 	traegerViewCompose "github.com/moto-nrw/project-phoenix/modules/traegerview/compose"
 	traegerViewHTTP "github.com/moto-nrw/project-phoenix/modules/traegerview/http"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
+
+// TraegerIdentity is what the Träger-Portal needs from Identity & Access:
+// the sign-in and the Träger-Büro members' addresses.
+type TraegerIdentity interface {
+	identityaccess.TraegerAccountLogin
+	identityaccess.TraegerRoles
+}
+
+// TraegerPersons is the People Directory read the access log names people
+// with.
+type TraegerPersons interface {
+	ListPersonsByAccount(ctx context.Context, accountIDs []int64) ([]peopledirectory.Person, error)
+}
+
+// TraegerAudit is what the Träger-Portal reads from and writes to at the
+// Audit Platform: the access trail of the Träger's schools and the access
+// log of one school.
+type TraegerAudit struct {
+	Trail auditlog.AccessTrailQuery
+	Log   owners.DataAccessAppender
+}
 
 // mountTraegerPortalRoutes serves the Träger-Portal ("moto träger", ADR 0084,
 // #4649) at /traeger: the public sign-in and the Träger route group, which
 // accepts only Träger sessions. Token refresh and logout go through the
 // shared scope-preserving /auth/refresh and /auth/logout.
-func mountTraegerPortalRoutes(root chi.Router, limiters authRateLimiters, identity identityaccess.TraegerAccountLogin, organizations organizationtenancy.TraegerMembershipQuery) error {
-	portal, err := NewTraegerPortalHTTP(identity, organizations)
+func mountTraegerPortalRoutes(root chi.Router, limiters authRateLimiters, identity TraegerIdentity, organizations organizationtenancy.TraegerMembershipQuery, persons TraegerPersons, audit TraegerAudit) error {
+	portal, err := NewTraegerPortalHTTP(identity, organizations, persons, audit)
 	if err != nil {
 		return err
 	}
@@ -28,15 +56,116 @@ func mountTraegerPortalRoutes(root chi.Router, limiters authRateLimiters, identi
 
 // NewTraegerPortalHTTP binds the Träger sign-in and the Träger projection to
 // the portal's route ports.
-func NewTraegerPortalHTTP(identity identityaccess.TraegerAccountLogin, organizations organizationtenancy.TraegerMembershipQuery) (*traegerportal.Resource, error) {
-	if identity == nil || organizations == nil {
-		return nil, errors.New("traeger portal: identity and organizations are required")
+func NewTraegerPortalHTTP(identity TraegerIdentity, organizations organizationtenancy.TraegerMembershipQuery, persons TraegerPersons, audit TraegerAudit) (*traegerportal.Resource, error) {
+	if identity == nil || organizations == nil || persons == nil || audit.Trail == nil || audit.Log == nil {
+		return nil, errors.New("traeger portal: identity, organizations, persons, the access trail and the access log are required")
 	}
-	overview, err := traegerViewCompose.New(organizations)
+	overview, err := traegerViewCompose.New(traegerview.Ports{
+		SchoolIDs: organizations, Trail: traegerAccessTrail{trail: audit.Trail},
+		Recorder: traegerAccessRecorder{log: audit.Log}, Persons: traegerPersonNames{persons: persons},
+		Bureau: traegerBureauAddresses{roles: identity},
+	})
 	if err != nil {
 		return nil, err
 	}
-	return traegerportal.NewResource(TraegerPortalAuth(identity), traegerViewHTTP.NewResource(overview)), nil
+	return traegerportal.NewResource(TraegerPortalAuth(identity), traegerViewHTTP.NewResource(overview), traegerViewHTTP.NewAccessLogResource(overview)), nil
+}
+
+// traegerAccessTrail binds the Audit Platform's access trail to the Träger
+// projection's port.
+type traegerAccessTrail struct {
+	trail auditlog.AccessTrailQuery
+}
+
+func (t traegerAccessTrail) ListAccessTrail(ctx context.Context, query traegerview.AccessTrailQuery) ([]traegerview.AccessTrailEntry, error) {
+	rows, err := t.trail.ListAccessTrail(ctx, auditlog.AccessTrailFilter(query))
+	if err != nil {
+		return nil, err
+	}
+	entries := make([]traegerview.AccessTrailEntry, 0, len(rows))
+	for _, row := range rows {
+		entries = append(entries, traegerview.AccessTrailEntry(row))
+	}
+	return entries, nil
+}
+
+func (t traegerAccessTrail) ListAccessTrailActors(ctx context.Context, schools []int64, from, to time.Time) ([]traegerview.AccessTrailActor, error) {
+	rows, err := t.trail.ListAccessTrailActors(ctx, schools, from, to)
+	if err != nil {
+		return nil, err
+	}
+	actors := make([]traegerview.AccessTrailActor, 0, len(rows))
+	for _, row := range rows {
+		actors = append(actors, traegerview.AccessTrailActor(row))
+	}
+	return actors, nil
+}
+
+// traegerAccessActorRole is the actor role of a Träger-Portal read in the
+// access log of a school.
+const traegerAccessActorRole = "traeger"
+
+// traegerAccessRecorder appends a Träger-Portal read to the access log of one
+// school in that school's tenant transaction (ADR 0084 section 7).
+type traegerAccessRecorder struct {
+	log owners.DataAccessAppender
+}
+
+func (r traegerAccessRecorder) RecordTraegerAccess(ctx context.Context, access traegerview.TraegerAccess) error {
+	school, err := tenant.NewTenantID(access.SchoolID)
+	if err != nil {
+		return err
+	}
+	return tenant.WithinTenant(ctx, school, func(txCtx context.Context) error {
+		metadata := map[string]any{"channel": "traeger_portal", "organization_id": access.OrganizationID, "view": access.View, "rows": access.Rows}
+		if access.Page > 0 {
+			metadata["page"] = access.Page
+		}
+		return r.log.Create(txCtx, &auditModels.DataAccessLog{
+			ActorAccountID: access.AccountID, ActorRole: traegerAccessActorRole, ResourceType: access.ResourceType,
+			RangeStart: access.RangeStart, RangeEnd: access.RangeEnd, Metadata: metadata,
+		})
+	})
+}
+
+// traegerPersonNames names accounts after their persons at each school.
+type traegerPersonNames struct {
+	persons TraegerPersons
+}
+
+func (n traegerPersonNames) PersonNames(ctx context.Context, accountIDs []int64) ([]traegerview.AccountName, error) {
+	persons, err := n.persons.ListPersonsByAccount(ctx, accountIDs)
+	if err != nil {
+		return nil, err
+	}
+	latest := peopledirectory.LatestPersonsByAccountSchool(persons)
+	names := make([]traegerview.AccountName, 0, len(latest))
+	for key, person := range latest {
+		names = append(names, traegerview.AccountName{
+			AccountID: key.AccountID, SchoolID: key.TenantID, Name: peopledirectory.PersonDisplayName(person.FirstName, person.LastName),
+		})
+	}
+	return names, nil
+}
+
+// traegerBureauAddresses names the members of the Träger-Büro by address.
+// Accounts without a Träger role at the Träger stay unnamed.
+type traegerBureauAddresses struct {
+	roles identityaccess.TraegerRoles
+}
+
+func (b traegerBureauAddresses) BureauAddresses(ctx context.Context, organizationID int64, accountIDs []int64) ([]traegerview.AccountName, error) {
+	accounts, err := b.roles.ListTraegerAccounts(ctx, organizationID, accountIDs)
+	if err != nil {
+		return nil, err
+	}
+	names := make([]traegerview.AccountName, 0, len(accounts))
+	for _, account := range accounts {
+		if len(account.Roles) > 0 {
+			names = append(names, traegerview.AccountName{AccountID: account.AccountID, Name: account.Email})
+		}
+	}
+	return names, nil
 }
 
 // TraegerPortalAuth binds the Träger-Portal's session port to Identity &

@@ -3019,6 +3019,7 @@
         "audit_unavailable": "{object} is unavailable right now. Please try again."
       },
       "traeger": {
+        "access_log_export_too_large": "The export has more than {limit} entries. Please choose a shorter period or more filters.",
         "no_membership": "Your account has no access to the Träger portal. Please contact the moto team."
       }
     },

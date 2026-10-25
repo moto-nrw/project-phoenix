@@ -10,6 +10,7 @@ import "maps"
 var traegerViewTransactionSites = map[string]string{
 	"modules/traegerview/compose/compose.go:New:tenant.WithinAdmin#1":                        "ADR 0084 section 1: the Träger projection composition binds its one administrative read unit; every query in its Postgres package filters on the schools of the Träger, held by TestTraegerViewQueriesFilterOnTheTraegerSchools.",
 	"modules/traegerview/internal/application/overview.go:*Overview.Schools:o.withinAdmin#1": "ADR 0084 section 1: the Träger overview reads the school set of the session's Träger and its rows in one administrative unit; it never writes and opens no tenant transaction.",
+	"modules/traegerview/internal/application/overview.go:*Overview.read:o.withinAdmin#1":    "ADR 0111: the Träger access log reads the school set of the session's Träger, the Audit Platform's access trail of that set and the names of its people in one administrative unit; it writes nothing in it, and the access log of each shown school is written afterwards in that school's tenant transaction.",
 }
 
 // withoutReviewedTraegerViewTransactions removes exactly the reviewed Träger

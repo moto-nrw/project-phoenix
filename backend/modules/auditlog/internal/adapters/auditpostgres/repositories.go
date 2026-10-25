@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/auditlog"
 	auditModel "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/uptrace/bun"
 )
@@ -43,6 +44,9 @@ type Repositories struct {
 	// BookingConsistency is the cross-domain booking audit; nil when the
 	// composition was built without the Enrollment projection.
 	BookingConsistency auditModel.BookingConsistencyRepository
+	// AccessTrail reads who read or changed personal data at a school set
+	// (#4655), for the Träger-Portal's access log.
+	AccessTrail auditlog.AccessTrailQuery
 	// RetentionSummaries is the cleanup read over the deletion ledger, kept
 	// apart so the producer-facing DataDeletionRepository stays narrow.
 	RetentionSummaries RetentionSummaries
@@ -66,6 +70,7 @@ func NewRepositories(reads, appends Runtime) *Repositories {
 		EnrollmentDeletionAudit:      NewEnrollmentDeletionRepository(reads),
 		EnrollmentRestorationAudit:   NewEnrollmentRestorationRepository(reads),
 		DataAccessLog:                NewDataAccessLogRepository(reads),
+		AccessTrail:                  NewAccessTrail(reads),
 		EnrollmentOfferingAdjustment: NewEnrollmentOfferingAdjustmentRepository(reads),
 		GuardianChange:               NewGuardianChangeRepository(reads),
 		StudentConsentChange:         NewStudentConsentChangeRepository(reads),

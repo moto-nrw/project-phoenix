@@ -1,22 +1,20 @@
 // Package compose builds the Träger projection (ADR 0084 section 1, ADR
-// 0104): its administrative read unit, the Postgres reads and the school set
-// Organisation & Tenancy supplies.
+// 0104, ADR 0111): its administrative read unit and the Postgres reads over
+// the ports the root binds.
 package compose
 
 import (
-	"errors"
-
 	"github.com/moto-nrw/project-phoenix/modules/traegerview"
 	"github.com/moto-nrw/project-phoenix/modules/traegerview/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/traegerview/internal/application"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-// New builds the Träger projection over the school set of Organisation &
-// Tenancy.
-func New(schoolIDs traegerview.SchoolIDs) (traegerview.Overview, error) {
-	if schoolIDs == nil {
-		return nil, errors.New("traeger view compose: the school IDs of Organisation & Tenancy are required")
+// New builds the Träger projection.
+func New(ports traegerview.Ports) (traegerview.Overview, error) {
+	overview, err := application.New(ports, postgres.New(postgres.AmbientAdminDB), tenant.WithinAdmin)
+	if err != nil {
+		return nil, err
 	}
-	return application.New(schoolIDs, postgres.New(postgres.AmbientAdminDB), tenant.WithinAdmin), nil
+	return overview, nil
 }

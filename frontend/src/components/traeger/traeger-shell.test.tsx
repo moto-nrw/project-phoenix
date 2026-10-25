@@ -2,20 +2,33 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { _resetTraegerHostCache } from "~/lib/traeger-url";
 
-const { mockSignOut } = vi.hoisted(() => ({ mockSignOut: vi.fn() }));
+const { mockSignOut, mockPermissions } = vi.hoisted(() => ({
+  mockSignOut: vi.fn(),
+  mockPermissions: { current: [] as string[] },
+}));
 
 vi.mock("next-auth/react", () => ({
   signOut: mockSignOut,
   useSession: () => ({
-    data: { user: { email: "buero@traeger.example" } },
+    data: {
+      user: {
+        email: "buero@traeger.example",
+        permissions: mockPermissions.current,
+      },
+    },
     status: "authenticated",
   }),
+}));
+vi.mock("next/navigation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/navigation")>()),
+  usePathname: () => "/access-log",
 }));
 
 import { TraegerShell } from "./traeger-shell";
 
 describe("TraegerShell", () => {
   beforeEach(() => {
+    mockPermissions.current = [];
     mockSignOut.mockReset();
     mockSignOut.mockResolvedValue(undefined);
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null)));
@@ -51,5 +64,34 @@ describe("TraegerShell", () => {
       expect.objectContaining({ method: "POST" }),
     );
     expect(mockSignOut).toHaveBeenCalledWith({ redirect: false });
+  });
+
+  // #4655: the access log is a link only for those who may read it.
+  it("links the access log only with the right to read it", () => {
+    const { unmount } = render(
+      <TraegerShell>
+        <p>Inhalt</p>
+      </TraegerShell>,
+    );
+    const nav = screen.getByRole("navigation", { name: "Bereiche" });
+    expect(screen.getByRole("link", { name: "Schulen" })).toHaveAttribute(
+      "href",
+      "/",
+    );
+    expect(nav).not.toHaveTextContent("Zugriffsprotokoll");
+    unmount();
+
+    mockPermissions.current = [
+      "traeger_overview:read",
+      "traeger_access_log:read",
+    ];
+    render(
+      <TraegerShell>
+        <p>Inhalt</p>
+      </TraegerShell>,
+    );
+    const link = screen.getByRole("link", { name: "Zugriffsprotokoll" });
+    expect(link).toHaveAttribute("href", "/access-log");
+    expect(link).toHaveAttribute("aria-current", "page");
   });
 });

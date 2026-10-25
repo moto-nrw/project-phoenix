@@ -4,6 +4,7 @@ import { traegerAuth } from "~/server/auth/traeger";
 import { withTraegerAuth } from "~/server/auth/traeger-route";
 import { incomingAnalyticsSessionHeaders } from "../analytics-session-header.server";
 import { handleApiError } from "../api-helpers.server";
+import { forwardBackendResponse } from "../backend-proxy-response.server";
 import {
   backendResponseError,
   isApiResponseError,
@@ -19,8 +20,8 @@ import {
  * Träger-portal route wrapper ("moto träger", #4649). Mirrors
  * lib/school/route-wrapper.server.ts, but reads the Träger NextAuth session
  * (traeger.session-token) so a Träger route can never forward a tenant,
- * parent, or school token. Only reads exist so far: the portal shows the
- * schools of the Träger and writes nothing.
+ * parent, or school token. Only reads exist so far: the schools of the
+ * Träger and its access log, with the access log's CSV export.
  */
 
 async function traegerServerGet<T>(
@@ -91,6 +92,70 @@ export function proxyGet<T>(endpoint: string) {
         }
         return createTokenExpiredResponse(request);
       }
+    } catch (error) {
+      return handleApiError(error, request);
+    }
+  });
+}
+
+async function traegerServerFile(
+  endpoint: string,
+  token: string,
+): Promise<Response> {
+  const { getServerApiUrl } = await import("~/lib/server-api-url");
+  return fetch(`${getServerApiUrl()}${endpoint}`, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      ...(await incomingAnalyticsSessionHeaders()),
+    },
+    cache: "no-store",
+  });
+}
+
+/** Hands the backend's file through, with its type and file name. */
+function fileResponse(backend: Response, request: NextRequest): Response {
+  if (!backend.ok || !backend.body) {
+    const response = forwardBackendResponse(backend, request);
+    response.headers.set("Cache-Control", "no-store");
+    return response;
+  }
+  const headers = new Headers({ "Cache-Control": "no-store" });
+  for (const name of [
+    "Content-Type",
+    "Content-Disposition",
+    "Content-Length",
+  ]) {
+    const value = backend.headers.get(name);
+    if (value) headers.set(name, value);
+  }
+  return new Response(backend.body, { status: backend.status, headers });
+}
+
+/**
+ * GET proxy for a Träger file export (#4655): forwards the query and streams
+ * the file back. A backend error keeps its problem body, so the client shows
+ * the catalog text for its code.
+ */
+export function proxyFile(endpoint: string) {
+  return withTraegerAuth(async (request: NextRequest) => {
+    try {
+      const session = await traegerAuth();
+      const token = session?.user?.token;
+      if (!token) return createUnauthorizedResponse(request);
+
+      const target = `${endpoint}${buildQueryString(request)}`;
+      const first = await traegerServerFile(target, token);
+      if (first.status !== 401) return fileResponse(first, request);
+
+      const { uncachedTraegerAuth } = await import("~/server/auth/traeger");
+      const updated = await uncachedTraegerAuth();
+      if (!updated?.user?.token || updated.user.token === token) {
+        return createTokenExpiredResponse(request);
+      }
+      const retried = await traegerServerFile(target, updated.user.token);
+      if (retried.status === 401) return createTokenExpiredResponse(request);
+      return fileResponse(retried, request);
     } catch (error) {
       return handleApiError(error, request);
     }

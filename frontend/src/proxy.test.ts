@@ -895,10 +895,22 @@ describe("proxy", () => {
       );
     });
 
+    it("rewrites /access-log to /traeger/access-log (#4655)", () => {
+      const res = proxy(
+        makeRequest(`http://${TRAEGER_HOSTNAME}/access-log`, TRAEGER_HOSTNAME),
+      );
+
+      expect(res.headers.get("location")).toBeNull();
+      expect(res.headers.get("x-middleware-rewrite")).toContain(
+        "/traeger/access-log",
+      );
+    });
+
     it("passes through /api/traeger/* without rewriting", () => {
       for (const path of [
         "/api/traeger/auth/session",
         "/api/traeger/schools",
+        "/api/traeger/access-log/export",
       ]) {
         const res = proxy(
           makeRequest(`http://${TRAEGER_HOSTNAME}${path}`, TRAEGER_HOSTNAME),

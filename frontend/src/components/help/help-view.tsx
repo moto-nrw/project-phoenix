@@ -77,7 +77,7 @@ const GROUP_ORDER_BY_ROLE: Readonly<
   ],
   parent: ["einstieg", "mein-kind", "nachrichten", "anmeldung", "probleme"],
   teacher: ["einstieg", "klasse", "aufsicht", "nachrichten", "probleme"],
-  traeger: ["einstieg", "probleme"],
+  traeger: ["einstieg", "auswertung", "probleme"],
 };
 
 // Wer die geoeffnete Anleitung liest. Steht ueber dem Titel der Startseite,
