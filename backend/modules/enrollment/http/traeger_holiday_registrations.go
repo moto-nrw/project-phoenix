@@ -24,7 +24,9 @@ import (
 // 0114), mounted below /traeger/holiday-periods/{id}/registrations with the
 // holiday periods: the same Träger session, the right "Anmeldung verwalten"
 // and the Träger transaction of the session's Träger. The Träger and the
-// person come from the session, never from the request.
+// person come from the session, never from the request. A confirmation
+// freezes the contribution, so the Elternabrechnung serves it at
+// /traeger/holiday-contributions (#4664, ADR 0115).
 
 // registrationRoutes adds the review routes to the period routes.
 func (rs *HolidayPeriodResource) registrationRoutes(r chi.Router, withTx common.Middleware) {
@@ -32,7 +34,6 @@ func (rs *HolidayPeriodResource) registrationRoutes(r chi.Router, withTx common.
 	review.Get("/{id}/registrations", rs.listRegistrations)
 	r.With(rs.requireManage, rs.withSchoolNames, withTx).Get("/{id}/registrations/export", rs.exportRegistrations)
 	review.Get("/{id}/registrations/{registrationId}", rs.getRegistration)
-	review.Post("/{id}/registrations/{registrationId}/confirm", rs.registrationAction(capability.HolidayAuditConfirm))
 	review.Post("/{id}/registrations/{registrationId}/cancel", rs.registrationAction(capability.HolidayAuditCancel))
 	review.Post("/{id}/registrations/{registrationId}/freeze", rs.registrationAction(capability.HolidayAuditFreeze))
 	review.Post("/{id}/registrations/{registrationId}/reopen", rs.registrationAction(capability.HolidayAuditReopen))
@@ -103,8 +104,8 @@ func (rs *HolidayPeriodResource) getRegistration(w http.ResponseWriter, r *http.
 	common.Respond(w, r, http.StatusOK, detail, "Holiday registration retrieved successfully")
 }
 
-// registrationAction answers confirm, cancel, freeze and reopen with the
-// changed registration.
+// registrationAction answers cancel, freeze and reopen with the changed
+// registration.
 func (rs *HolidayPeriodResource) registrationAction(action string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		reviewer, periodID, registrationID, ok := registrationKey(w, r)

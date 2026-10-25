@@ -438,7 +438,11 @@ func (p *Policy) validateOwners(ownerKinds map[string]bool) (map[string]Owner, e
 	return owners, nil
 }
 
-// validateCanonicalOwners pins moto's module map from ADRs 0010/0012 and #2580.
+// parentBillingPolicyEpoch is the policy epoch that adds the domain
+// parent-billing (ADR 0088, #4664).
+const parentBillingPolicyEpoch = 95
+
+// validateCanonicalOwners pins moto's module map from ADRs 0010/0012/0088 and #2580.
 // Evaluator fixtures use independent module paths and their own small maps.
 func (p *Policy) validateCanonicalOwners() error {
 	if p.ModulePath != "github.com/moto-nrw/project-phoenix" {
@@ -449,18 +453,26 @@ func (p *Policy) validateCanonicalOwners() error {
 		"observability", "scheduler-runtime", "security-runtime", "settings-platform",
 		"tenant-runtime", "transaction-runtime",
 	}
-	const decision = "ADRs 0010 and 0012"
+	const decision = "ADRs 0010, 0012 and 0088"
+	domainOwners := []string{
+		"appointments", "care-plan", "communication", "device-fleet",
+		"enrollment", "facilities", "feedback", "file-storage", "identity-access",
+		"meal-plan", "organization-tenancy", "people-directory", "school-calendar",
+		"school-membership", "school-structure", "student-presence",
+		"timetable-activities", "workforce",
+	}
+	// ADR 0088 adds the Elternabrechnung with policy epoch 95 (#4664); an
+	// older policy, such as the base of the pull request that adds it, keeps
+	// the eighteen domains.
+	if p.PolicyEpoch >= parentBillingPolicyEpoch {
+		domainOwners = append(domainOwners, "parent-billing")
+		slices.Sort(domainOwners)
+	}
 	canonicalOwners := []struct {
 		kind string
 		ids  []string
 	}{
-		{kind: "domain", ids: []string{
-			"appointments", "care-plan", "communication", "device-fleet",
-			"enrollment", "facilities", "feedback", "file-storage", "identity-access",
-			"meal-plan", "organization-tenancy", "people-directory", "school-calendar",
-			"school-membership", "school-structure", "student-presence",
-			"timetable-activities", "workforce",
-		}},
+		{kind: "domain", ids: domainOwners},
 		{kind: "platform", ids: platformOwners},
 	}
 	if p.SchemaVersion >= 5 {

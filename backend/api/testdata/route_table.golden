@@ -123,6 +123,7 @@ DELETE /school/notifications/preferences/
 DELETE /school/notifications/push/subscriptions
 DELETE /traeger/accounts/invitations/{invitationId}
 DELETE /traeger/accounts/{accountId}
+DELETE /traeger/contribution-rules/{id}
 DELETE /traeger/master-data/bank-accounts/{id}
 DELETE /traeger/master-data/logo
 DELETE /traeger/settings/values/{key}
@@ -638,6 +639,8 @@ GET /traeger/access-log/
 GET /traeger/access-log/export
 GET /traeger/access-log/people
 GET /traeger/accounts/
+GET /traeger/contribution-rules/
+GET /traeger/holiday-contributions/{periodId}/registrations/{registrationId}
 GET /traeger/holiday-periods/
 GET /traeger/holiday-periods/{id}
 GET /traeger/holiday-periods/{id}/registrations
@@ -1059,12 +1062,14 @@ POST /traeger/auth/mfa/enroll/confirm
 POST /traeger/auth/mfa/enroll/start
 POST /traeger/auth/mfa/resend
 POST /traeger/auth/mfa/verify
+POST /traeger/contribution-rules/
+POST /traeger/holiday-contributions/{periodId}/registrations/{registrationId}/confirm
 POST /traeger/holiday-periods/
 POST /traeger/holiday-periods/{id}/publish
 POST /traeger/holiday-periods/{id}/registrations/{registrationId}/cancel
-POST /traeger/holiday-periods/{id}/registrations/{registrationId}/confirm
 POST /traeger/holiday-periods/{id}/registrations/{registrationId}/freeze
 POST /traeger/holiday-periods/{id}/registrations/{registrationId}/reopen
+POST /traeger/holiday-quotes/{token}
 POST /traeger/holiday-registrations/{token}
 POST /traeger/invitations/{token}/accept
 POST /traeger/master-data/bank-accounts
@@ -1205,6 +1210,7 @@ PUT /school/class-day/morning-attendance/{schoolClass}/{date}
 PUT /school/notifications/preferences/{type}
 PUT /school/supervisions/{id}/students/{student_id}/homework-feedback
 PUT /traeger/accounts/{accountId}/roles
+PUT /traeger/contribution-rules/{id}
 PUT /traeger/holiday-periods/{id}
 PUT /traeger/holiday-periods/{id}/registrations/{registrationId}/children/{childId}/bookings
 PUT /traeger/master-data/bank-accounts/{id}

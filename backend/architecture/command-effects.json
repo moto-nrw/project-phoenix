@@ -44899,6 +44899,52 @@
       "reason": "Read-only newly exposed target: organization-tenancy reaches modules/settings/records.SettingsService.ResolveIntForTenant (settings-platform) through roots/owners.provisioningSettings.DeviceOnlineWindowMinutes. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
     },
     {
+      "source_owner": "parent-billing",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayRegistrations.ConfirmHolidayRegistration",
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingHolidayRegistrations.ConfirmHolidayRegistration",
+      "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayRegistrationReview.ChangeHolidayRegistration",
+      "target_owner": "enrollment",
+      "binding_digest": "e3100902cc0d002a139bbdf52f6be208",
+      "effect": "mutation",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/enrollment.HolidayRegistrationReview.ChangeHolidayRegistration with HolidayAuditConfirm: Enrollment locks the period and the registration, confirms it and appends its audit entry in the caller's Träger transaction; the Elternabrechnung freezes the contribution from the returned bookings in the same unit and the route rolls back on any later refusal (ADR 0115)."
+    },
+    {
+      "source_owner": "parent-billing",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayRegistrations.HolidayRegistration",
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingHolidayRegistrations.HolidayRegistration",
+      "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayRegistrationReview.HolidayRegistration",
+      "target_owner": "enrollment",
+      "binding_digest": "96c2b54d1b22e69174bc0600f9208202",
+      "effect": "mutation",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target modules/enrollment.HolidayRegistrationReview.HolidayRegistration: Enrollment checks the period and the registration of the session's Träger and appends the read to the registration's audit trail (ADR 0114) in the caller's Träger transaction before the Elternabrechnung shows the contribution (ADR 0115)."
+    },
+    {
+      "source_owner": "parent-billing",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayRegistrations.HolidayWeeks",
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingHolidayRegistrations.HolidayWeeks",
+      "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayRegistrations.HolidayRegistrationOffer",
+      "target_owner": "enrollment",
+      "binding_digest": "82fbb0d59ad14384dd1a0fffdbd5b869",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/enrollment.HolidayRegistrations.HolidayRegistrationOffer: the published period of a resolved link with the prices of its time models, read in the Träger transaction of the link's Träger for the public contribution (ADR 0115)."
+    },
+    {
+      "source_owner": "parent-billing",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayRegistrations.ResolveHolidayLink",
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingHolidayRegistrations.ResolveHolidayLink",
+      "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayRegistrations.ResolveHolidayRegistrationLink",
+      "target_owner": "enrollment",
+      "binding_digest": "ef2051c6014ac358119f4e3e96343e26",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/enrollment.HolidayRegistrations.ResolveHolidayRegistrationLink: resolves the Träger and the published period of a public link in the administrative transaction, like the registration form (ADR 0110, ADR 0115)."
+    },
+    {
       "source_owner": "people-directory",
       "port": "github.com/moto-nrw/project-phoenix/api/common.StudentAccessSource.StudentAccessFacts",
       "binding": "*github.com/moto-nrw/project-phoenix/roots/owners.CallerRows.StudentAccessFacts",

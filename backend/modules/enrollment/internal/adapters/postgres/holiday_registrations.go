@@ -95,9 +95,9 @@ func (s *HolidayRegistrationStore) CountHolidayRegistrationAttempt(ctx context.C
 const (
 	insertHolidayRegistrationQuery = `INSERT INTO enrollment.holiday_registrations
 			(organization_id, holiday_period_id, guardian_first_name, guardian_last_name, guardian_email, guardian_phone,
-			 privacy_consent_at, health_consent_at, binding_confirmed_at)
+			 privacy_consent_at, health_consent_at, binding_confirmed_at, benefits_declared)
 		VALUES (?, ?, ?, ?, ?, ?, statement_timestamp(),
-			CASE WHEN ? THEN statement_timestamp() END, CASE WHEN ? THEN statement_timestamp() END)
+			CASE WHEN ? THEN statement_timestamp() END, CASE WHEN ? THEN statement_timestamp() END, ?)
 		RETURNING id, submitted_at`
 	insertHolidayBookingsQuery = `INSERT INTO enrollment.holiday_registration_bookings
 			(organization_id, holiday_period_id, holiday_registration_child_id, holiday_period_week_id, holiday_week_time_model_id)
@@ -144,7 +144,7 @@ func (s *HolidayRegistrationStore) InsertHolidayRegistration(ctx context.Context
 	}
 	guardian := input.Guardian
 	if err := db.NewRaw(insertHolidayRegistrationQuery, organizationID, periodID, guardian.FirstName, guardian.LastName,
-		guardian.Email, guardian.Phone, input.HealthConsent, input.BindingConfirmed).Scan(ctx, &receipt); err != nil {
+		guardian.Email, guardian.Phone, input.HealthConsent, input.BindingConfirmed, input.BenefitsDeclared).Scan(ctx, &receipt); err != nil {
 		return enrollment.HolidayRegistrationReceipt{}, fmt.Errorf("enrollment postgres: insert holiday registration: %w", err)
 	}
 	var childIDs, weekIDs, modelIDs []int64
