@@ -137,6 +137,13 @@ func (m *weeklyProfileAPIMock) serve(t *testing.T, w seedHTTPResponseWriter, r *
 		return true
 	case path == "/traeger/schools/":
 		data = []map[string]any{{"id": 1}}
+	case strings.HasPrefix(path, "/traeger/holiday-periods/") && strings.HasSuffix(path, "/publish"):
+		// The published period carries its public link and weeks for the
+		// holiday registration of the same step (#4661).
+		data = map[string]any{"id": 5, "status": "published", "public_token": "link-key", "weeks": []map[string]any{
+			{"id": 51, "time_models": []map[string]any{{"id": 61}, {"id": 62}}},
+			{"id": 52, "time_models": []map[string]any{{"id": 63}, {"id": 64}}},
+		}}
 	case path == "/auth/login":
 		token := "weekly-admin"
 		if body["tenant_slug"] == "vollbetrieb" {

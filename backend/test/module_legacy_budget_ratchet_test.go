@@ -161,9 +161,11 @@ var moduleLegacyFileBudgets = map[string]int{
 // ADR 0106: the Träger-Büro account management adds exactly 24 LOC.
 // ADR 0107: the Träger settings of modules/settings/compose add exactly
 // 14 LOC.
+// ADR 0110: the public holiday registration constructors of
+// modules/enrollment/compose (+18).
 // ADR 0112: the Träger master data constructor of
 // modules/organizationtenancy/compose adds exactly 13 LOC.
-const moduleComposeBudgetTotal = 12594
+const moduleComposeBudgetTotal = 12612
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -189,8 +191,9 @@ var moduleComposeBudgets = map[string]int{
 	"modules/devicefleet/compose/repositoryadapter": 10,
 	"modules/devicescan/compose":                    531,
 	"modules/emergencysnapshot/compose":             13,
-	// Raised by ADR 0105: the holiday period constructor (+13).
-	"modules/enrollment/compose":                   553,
+	// Raised by ADR 0105: the holiday period constructor (+13); by ADR 0110:
+	// the public holiday registration constructors (+18).
+	"modules/enrollment/compose":                   571,
 	"modules/exporttransfer/compose":               149,
 	"modules/facilities/compose":                   184,
 	"modules/facilities/compose/repositoryadapter": 11,

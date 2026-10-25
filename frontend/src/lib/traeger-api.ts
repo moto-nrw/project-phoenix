@@ -237,6 +237,10 @@ export interface HolidayPeriod extends HolidayPeriodInput {
   readonly id: string;
   readonly status: "draft" | "published";
   readonly publishedAt: string | null;
+  /** Key of the period's one public registration link (#4661). */
+  readonly publicToken: string;
+  /** Registrations received so far, a summed figure. */
+  readonly registrationCount: number;
 }
 
 interface BackendTimeModel {
@@ -264,6 +268,8 @@ interface BackendHolidayPeriod {
   notes: string;
   status: "draft" | "published";
   published_at: string | null;
+  public_token?: string;
+  registration_count?: number;
   weeks?: BackendWeek[] | null;
 }
 
@@ -277,6 +283,8 @@ function holidayPeriodFromBackend(period: BackendHolidayPeriod): HolidayPeriod {
     notes: period.notes,
     status: period.status,
     publishedAt: period.published_at,
+    publicToken: period.public_token ?? "",
+    registrationCount: period.registration_count ?? 0,
     weeks: (period.weeks ?? []).map((week) => ({
       id: String(week.id),
       startsOn: week.starts_on,

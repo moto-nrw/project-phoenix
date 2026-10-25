@@ -1,0 +1,218 @@
+// Entwurf, Prüfung und Versand der öffentlichen Ferienanmeldung (#4661).
+// Die Feldnamen folgen dem Backend ("children.0.first_name"), damit Fehler
+// vom Server am selben Feld landen wie die eigene Prüfung.
+
+import type {
+  HolidayContactPayload,
+  HolidayRegistrationOffer,
+  HolidayRegistrationPayload,
+} from "~/lib/holiday-registration-api";
+
+export const MAX_CHILDREN = 3;
+export const MAX_EMERGENCY_CONTACTS = 3;
+export const MAX_PICKUP_PERSONS = 5;
+
+/** The school choice of a child who attends no school of the Träger. */
+export const OTHER_SCHOOL = "other";
+
+export interface ChildDraft {
+  readonly key: string;
+  readonly firstName: string;
+  readonly lastName: string;
+  readonly birthDate: string;
+  /** A school ID of the Träger, OTHER_SCHOOL or "" before a choice. */
+  readonly school: string;
+  readonly guestSchoolName: string;
+  readonly allergies: string;
+  readonly medication: string;
+  readonly healthNotes: string;
+  /** Week ID → time model ID; a missing week is not booked. */
+  readonly bookings: Readonly<Record<string, string>>;
+}
+
+export interface ContactDraft {
+  readonly key: string;
+  readonly name: string;
+  readonly phone: string;
+  readonly relationship: string;
+}
+
+export interface RegistrationDraft {
+  readonly guardian: {
+    readonly firstName: string;
+    readonly lastName: string;
+    readonly email: string;
+    readonly phone: string;
+  };
+  readonly children: readonly ChildDraft[];
+  readonly emergencyContacts: readonly ContactDraft[];
+  readonly pickupPersons: readonly ContactDraft[];
+  readonly privacyConsent: boolean;
+  readonly healthConsent: boolean;
+  readonly bindingConfirmed: boolean;
+}
+
+/** The reason a field is refused, as a key of `holidayRegistration.errors`. */
+export type FieldErrorKey =
+  "required" | "email" | "school" | "weeks" | "privacy" | "health" | "binding";
+
+let keyCounter = 0;
+const nextKey = (prefix: string) => `${prefix}-${++keyCounter}`;
+
+export function emptyChild(): ChildDraft {
+  return {
+    key: nextKey("child"),
+    firstName: "",
+    lastName: "",
+    birthDate: "",
+    school: "",
+    guestSchoolName: "",
+    allergies: "",
+    medication: "",
+    healthNotes: "",
+    bookings: {},
+  };
+}
+
+export function emptyContact(): ContactDraft {
+  return { key: nextKey("contact"), name: "", phone: "", relationship: "" };
+}
+
+export function emptyRegistration(): RegistrationDraft {
+  return {
+    guardian: { firstName: "", lastName: "", email: "", phone: "" },
+    children: [emptyChild()],
+    emergencyContacts: [emptyContact()],
+    pickupPersons: [],
+    privacyConsent: false,
+    healthConsent: false,
+    bindingConfirmed: false,
+  };
+}
+
+function childHasHealthInfo(child: ChildDraft): boolean {
+  return [child.allergies, child.medication, child.healthNotes].some(
+    (value) => value.trim() !== "",
+  );
+}
+
+export function hasHealthInfo(draft: RegistrationDraft): boolean {
+  return draft.children.some(childHasHealthInfo);
+}
+
+/** The bookings of a child in the order of the period's weeks. */
+export function bookedWeeks(
+  child: ChildDraft,
+  offer: HolidayRegistrationOffer,
+): { weekId: string; timeModelId: string }[] {
+  return offer.weeks.flatMap((week) => {
+    const timeModelId = child.bookings[week.id];
+    return timeModelId ? [{ weekId: week.id, timeModelId }] : [];
+  });
+}
+
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function requireText(
+  errors: Record<string, FieldErrorKey>,
+  field: string,
+  value: string,
+) {
+  if (value.trim() === "") errors[field] = "required";
+}
+
+function validateContacts(
+  errors: Record<string, FieldErrorKey>,
+  prefix: string,
+  contacts: readonly ContactDraft[],
+  phoneRequired: boolean,
+) {
+  contacts.forEach((contact, index) => {
+    requireText(errors, `${prefix}.${index}.name`, contact.name);
+    if (phoneRequired) {
+      requireText(errors, `${prefix}.${index}.phone`, contact.phone);
+    }
+  });
+}
+
+/** Checks a registration before the summary; empty means complete. */
+export function validateRegistration(
+  draft: RegistrationDraft,
+  offer: HolidayRegistrationOffer,
+): Record<string, FieldErrorKey> {
+  const errors: Record<string, FieldErrorKey> = {};
+  requireText(errors, "guardian.first_name", draft.guardian.firstName);
+  requireText(errors, "guardian.last_name", draft.guardian.lastName);
+  requireText(errors, "guardian.phone", draft.guardian.phone);
+  if (!EMAIL.test(draft.guardian.email.trim())) {
+    errors["guardian.email"] =
+      draft.guardian.email.trim() === "" ? "required" : "email";
+  }
+  draft.children.forEach((child, index) => {
+    const prefix = `children.${index}`;
+    requireText(errors, `${prefix}.first_name`, child.firstName);
+    requireText(errors, `${prefix}.last_name`, child.lastName);
+    requireText(errors, `${prefix}.birth_date`, child.birthDate);
+    if (child.school === "") errors[`${prefix}.home_school_id`] = "school";
+    if (bookedWeeks(child, offer).length === 0) {
+      errors[`${prefix}.bookings`] = "weeks";
+    }
+  });
+  validateContacts(errors, "emergency_contacts", draft.emergencyContacts, true);
+  validateContacts(errors, "pickup_persons", draft.pickupPersons, false);
+  if (!draft.privacyConsent) errors.privacy_consent = "privacy";
+  if (hasHealthInfo(draft) && !draft.healthConsent) {
+    errors.health_consent = "health";
+  }
+  if (offer.binding && !draft.bindingConfirmed) {
+    errors.binding_confirmed = "binding";
+  }
+  return errors;
+}
+
+function contactPayload(contact: ContactDraft): HolidayContactPayload {
+  return {
+    name: contact.name.trim(),
+    phone: contact.phone.trim(),
+    relationship: contact.relationship.trim(),
+  };
+}
+
+/** The registration as the backend reads it. */
+export function payloadFromDraft(
+  draft: RegistrationDraft,
+  offer: HolidayRegistrationOffer,
+  captchaToken: string,
+): HolidayRegistrationPayload {
+  return {
+    guardian: {
+      first_name: draft.guardian.firstName.trim(),
+      last_name: draft.guardian.lastName.trim(),
+      email: draft.guardian.email.trim(),
+      phone: draft.guardian.phone.trim(),
+    },
+    children: draft.children.map((child) => {
+      const guest = child.school === OTHER_SCHOOL;
+      return {
+        first_name: child.firstName.trim(),
+        last_name: child.lastName.trim(),
+        birth_date: child.birthDate,
+        home_school_id: guest ? 0 : Number(child.school),
+        guest_school_name: guest ? child.guestSchoolName.trim() : "",
+        allergies: child.allergies.trim(),
+        medication: child.medication.trim(),
+        health_notes: child.healthNotes.trim(),
+        bookings: bookedWeeks(child, offer).map((booking) => ({
+          week_id: Number(booking.weekId),
+          time_model_id: Number(booking.timeModelId),
+        })),
+      };
+    }),
+    emergency_contacts: draft.emergencyContacts.map(contactPayload),
+    pickup_persons: draft.pickupPersons.map(contactPayload),
+    privacy_consent: draft.privacyConsent,
+    health_consent: hasHealthInfo(draft) && draft.healthConsent,
+    binding_confirmed: offer.binding && draft.bindingConfirmed,
+    captcha_token: captchaToken,
+  };
+}

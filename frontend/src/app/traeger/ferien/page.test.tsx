@@ -28,6 +28,8 @@ const period: HolidayPeriod = {
   notes: "",
   status: "published",
   publishedAt: "2027-01-04T09:00:00Z",
+  publicToken: "token",
+  registrationCount: 0,
   weeks: [
     {
       id: "7",

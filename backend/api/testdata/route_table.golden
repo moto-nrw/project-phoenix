@@ -639,6 +639,7 @@ GET /traeger/access-log/people
 GET /traeger/accounts/
 GET /traeger/holiday-periods/
 GET /traeger/holiday-periods/{id}
+GET /traeger/holiday-registrations/{token}
 GET /traeger/invitations/{token}
 GET /traeger/master-data/
 GET /traeger/master-data/logo
@@ -1056,6 +1057,7 @@ POST /traeger/auth/mfa/resend
 POST /traeger/auth/mfa/verify
 POST /traeger/holiday-periods/
 POST /traeger/holiday-periods/{id}/publish
+POST /traeger/holiday-registrations/{token}
 POST /traeger/invitations/{token}/accept
 POST /traeger/master-data/bank-accounts
 POST /traeger/school-sessions/

@@ -71,6 +71,8 @@ func seedTraegerInvitation(rt *Runtime) error {
 // school, each with a morning and a full-day time model. The Träger's other
 // school is the manual test school, which no family would be sent to. Published today, it
 // opens registration today and closes it a week before the Ferien.
+// A family then registers two siblings through the period's public link
+// (#4661): one child of the Träger's first school and a holiday guest.
 type seedTraegerHolidayPeriodStep struct{}
 
 func (seedTraegerHolidayPeriodStep) Name() string { return "Seeding a Träger holiday period" }
@@ -98,11 +100,64 @@ func (seedTraegerHolidayPeriodStep) Run(_ context.Context, rt *Runtime) error {
 	if err != nil {
 		return fmt.Errorf("read the holiday period: %w", err)
 	}
-	if _, err := rt.Client.PostWithAuth(auth, fmt.Sprintf("/traeger/holiday-periods/%d/publish", periodID), map[string]any{}); err != nil {
+	published, err := rt.Client.PostWithAuth(auth, fmt.Sprintf("/traeger/holiday-periods/%d/publish", periodID), map[string]any{})
+	if err != nil {
 		return fmt.Errorf("publish the holiday period: %w", err)
 	}
 	fmt.Println("  Träger-Büro: holiday period with two weeks published")
+	token, registration, err := seedHolidayRegistration(published, schools[0])
+	if err != nil {
+		return err
+	}
+	if _, err := rt.Client.PostPublic("/traeger/holiday-registrations/"+token, registration); err != nil {
+		return fmt.Errorf("register for the holiday period: %w", err)
+	}
+	fmt.Println("  Ferienanmeldung: two siblings registered, one of them a holiday guest")
 	return nil
+}
+
+// seedTurnstileTestToken is the token Cloudflare's Turnstile test keys of
+// the dev and CI environments accept (dev.env.example).
+const seedTurnstileTestToken = "XXXX.DUMMY.TOKEN.XXXX"
+
+// seedHolidayRegistration builds the public registration of two siblings for
+// the published period: a child of homeSchool for the first week and a
+// holiday guest for both weeks. All names are invented.
+func seedHolidayRegistration(published []byte, homeSchool int64) (string, map[string]any, error) {
+	var envelope struct {
+		Data struct {
+			PublicToken string `json:"public_token"`
+			Weeks       []struct {
+				ID         int64 `json:"id"`
+				TimeModels []struct {
+					ID int64 `json:"id"`
+				} `json:"time_models"`
+			} `json:"weeks"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(published, &envelope); err != nil {
+		return "", nil, fmt.Errorf("read the published holiday period: %w", err)
+	}
+	period := envelope.Data
+	if period.PublicToken == "" || len(period.Weeks) < 2 || len(period.Weeks[0].TimeModels) < 2 || len(period.Weeks[1].TimeModels) < 1 {
+		return "", nil, fmt.Errorf("the published holiday period has no link or no bookable weeks")
+	}
+	booking := func(week, model int) map[string]any {
+		return map[string]any{"week_id": period.Weeks[week].ID, "time_model_id": period.Weeks[week].TimeModels[model].ID}
+	}
+	return period.PublicToken, map[string]any{
+		"guardian": map[string]any{"first_name": "Sabine", "last_name": "Ferienkind", "email": "sabine.ferienkind@example.org", "phone": "0151 0000001"},
+		"children": []map[string]any{
+			{"first_name": "Lotta", "last_name": "Ferienkind", "birth_date": "2018-04-12", "home_school_id": homeSchool,
+				"allergies": "Erdnüsse", "bookings": []map[string]any{booking(0, 1)}},
+			{"first_name": "Jonas", "last_name": "Ferienkind", "birth_date": "2016-09-03", "home_school_id": 0,
+				"guest_school_name": "Grundschule am See", "bookings": []map[string]any{booking(0, 0), booking(1, 0)}},
+		},
+		"emergency_contacts": []map[string]any{{"name": "Helga Ferienkind", "phone": "05402 000002", "relationship": "Großmutter"}},
+		"pickup_persons":     []map[string]any{{"name": "Peter Ferienkind", "relationship": "Onkel"}},
+		"privacy_consent":    true, "health_consent": true, "binding_confirmed": true,
+		"captcha_token": seedTurnstileTestToken,
+	}, nil
 }
 
 // seedTraegerSession is the Träger-Portal session of the bootstrap admin,

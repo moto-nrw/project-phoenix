@@ -1233,6 +1233,30 @@
       "legacy": "enrollment.holiday_period_not_found"
     },
     {
+      "code": "enrollment.holiday_registration_closed",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.holiday_registration_closed"
+    },
+    {
+      "code": "enrollment.holiday_registration_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.holiday_registration_invalid"
+    },
+    {
+      "code": "enrollment.holiday_registration_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.holiday_registration_not_found"
+    },
+    {
+      "code": "enrollment.holiday_week_booked",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.holiday_week_booked"
+    },
+    {
       "code": "enrollment.invalid_email",
       "class": "input",
       "parameters": [],

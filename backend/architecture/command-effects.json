@@ -29092,6 +29092,50 @@
     },
     {
       "source_owner": "enrollment",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayTraegerDirectory.HolidayTraeger",
+      "binding": "github.com/moto-nrw/project-phoenix/api.holidayTraegerDirectory.HolidayTraeger",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.FindOrganization",
+      "target_owner": "organization-tenancy",
+      "binding_digest": "395691a599a5829943bc2e426b64afea",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.Capability.FindOrganization. ADR 0110: the public holiday registration resolves the Träger of its link and its undeleted schools in the administrative transaction of the link lookup."
+    },
+    {
+      "source_owner": "enrollment",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayTraegerDirectory.HolidayTraeger",
+      "binding": "github.com/moto-nrw/project-phoenix/api.holidayTraegerDirectory.HolidayTraeger",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.ListSchoolsByOrganization",
+      "target_owner": "organization-tenancy",
+      "binding_digest": "b81366a48d0e09b20f8a6821dc1da174",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.Capability.ListSchoolsByOrganization. ADR 0110: the public holiday registration resolves the Träger of its link and its undeleted schools in the administrative transaction of the link lookup."
+    },
+    {
+      "source_owner": "enrollment",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayTraegerDirectory.HolidayTraeger",
+      "binding": "github.com/moto-nrw/project-phoenix/api.holidayTraegerDirectory.HolidayTraeger",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Organization.IsDeleted",
+      "target_owner": "organization-tenancy",
+      "binding_digest": "a2654b02c7ddd6390f10ddc6b7005753",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.Organization.IsDeleted. ADR 0110: the public holiday registration resolves the Träger of its link and its undeleted schools in the administrative transaction of the link lookup."
+    },
+    {
+      "source_owner": "enrollment",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayTraegerDirectory.HolidayTraeger",
+      "binding": "github.com/moto-nrw/project-phoenix/api.holidayTraegerDirectory.HolidayTraeger",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.School.IsDeleted",
+      "target_owner": "organization-tenancy",
+      "binding_digest": "ebc72ba17d1d397ddadea255e2df5e84",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.School.IsDeleted. ADR 0110: the public holiday registration resolves the Träger of its link and its undeleted schools in the administrative transaction of the link lookup."
+    },
+    {
+      "source_owner": "enrollment",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.IntakeSignatureLedger.LatestEnrollmentSignatures",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentSignatures.LatestEnrollmentSignatures",
       "target": "github.com/moto-nrw/project-phoenix/modules/auditlog.SignatureLedger.LatestEnrollmentSignatures",
@@ -29913,6 +29957,18 @@
       "adr": "0067",
       "approval_adr": "0083",
       "reason": "E1 existing decision/renewal/approved-child-sync surface: decision_ports.go, approval.go, guardian_profiles.go, guardian_links.go, approved_child_sync.go and change_request_apply.go; caller tenant unit, request/class/recurrence/child ordering and account-before-roster protocol remain as documented in the #4538 inventory. This exact binding is retained coordination, including raw record halves, not newly approved as a guarded leaf. Target: modules/careplan.BookingMaterializationCapability.ResyncTemplatesSourcedFromOffering."
+    },
+    {
+      "source_owner": "enrollment",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.TraegerMailOutbox.EnqueueTraegerMail",
+      "binding": "github.com/moto-nrw/project-phoenix/api.holidayTraegerMail.EnqueueTraegerMail",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.EnqueueEmail",
+      "target_owner": "delivery-platform",
+      "binding_digest": "cf41f0450ffad4a8030df68c6307b20d",
+      "effect": "durable",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (durable): enrollment reaches modules/delivery/runtime.Capability.EnqueueEmail (delivery-platform) through api.holidayTraegerMail.EnqueueTraegerMail. The receipt of a public holiday registration is a mail of the Träger, enqueued in the caller's Träger transaction with the registration (ADR 0110); transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
     },
     {
       "source_owner": "enrollment",
