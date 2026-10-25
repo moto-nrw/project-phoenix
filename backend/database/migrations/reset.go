@@ -58,8 +58,7 @@ func resetDatabase(ctx context.Context, db *bun.DB, logger *slog.Logger) error {
 	logger = migrationLogger(logger)
 	logger.InfoContext(ctx, "dropping and recreating all schemas")
 
-	// List of schemas to drop and recreate.
-	// NOTE: keep in sync with all CREATE SCHEMA calls across migrations,
+	// List of schemas to drop and recreate. NOTE: keep in sync with all CREATE SCHEMA calls across migrations,
 	// INCLUDING a schema a later migration drops again. A reset replays the
 	// full history, so 1.9.1 recreates suggestions long before 1.15.315 drops
 	// it. Leaving a stale copy in place makes the intervening
