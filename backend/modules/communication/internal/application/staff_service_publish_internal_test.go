@@ -31,6 +31,17 @@ type fakeAnnouncementRepo struct {
 	editOnPublish *StaffParentAnnouncement
 }
 
+func (f *fakeAnnouncementRepo) Create(_ context.Context, announcement *StaffParentAnnouncement) error {
+	if announcement.ID == 0 {
+		announcement.ID = 1
+	}
+	if announcement.TenantID == 0 {
+		announcement.TenantID = 1
+	}
+	f.announcement = announcement
+	return nil
+}
+
 func (f *fakeAnnouncementRepo) FindByID(_ context.Context, _ int64) (*StaffParentAnnouncement, error) {
 	return f.announcement, nil
 }

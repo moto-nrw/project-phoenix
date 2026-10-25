@@ -38,7 +38,8 @@ func BuildParentEventEmitter(
 
 // BuildParentAnnouncements builds the staff-side parent broadcast news
 // (#1669), whose cancellation notices the instance lifecycle publishes
-// (#2601). File Storage hands it the attachment side at construction (#2890).
+// (#2601), together with the surveys (#4781) whose parent edition rides on a
+// system announcement. File Storage hands it the attachment side at construction (#2890).
 func BuildParentAnnouncements(
 	env RootEnvironment, settings settingsCompose.BatchSettingsService, outbox *deliveryCompose.EmailOutbox, module deliveryModule.Capability,
 	notifications DeliveryNotifications, messaging parentStore.MessagingRepositories,
@@ -51,6 +52,8 @@ func BuildParentAnnouncements(
 		Deliveries: announcementDeliveryAdapter{module: module}, ParentsURL: env.Links.ParentsURL,
 		Fingerprints: SecurityFingerprints{}, Signatures: CommunicationSignatures{Ledger: SignatureLedger()},
 		Logger: env.Logger.With("service", "announcement"),
+		// The surveys (#4781) ask the colleagues of the team chat.
+		SurveyStaff: messaging.StaffMessageRead,
 	}, attachments, CommunicationRequestRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 }
 

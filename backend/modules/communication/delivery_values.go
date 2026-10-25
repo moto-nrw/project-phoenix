@@ -35,6 +35,7 @@ const (
 	TypeParentAnnouncement      = "parent_announcement"
 	TypeParentCareCancelled     = "parent_care_cancelled"
 	TypeStaffMessage            = "staff_message"
+	TypeStaffSurvey             = "staff_survey"
 	ParentAnnouncementPublished = "announcement"
 	ParentPollPublished         = "poll"
 	ParentPollReminder          = "poll_reminder"

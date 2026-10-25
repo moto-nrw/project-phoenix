@@ -234,6 +234,15 @@ const (
 	CommunicationsAnnounce = ResourceCommunications + ":announce"
 )
 
+// Survey permissions (#4781). surveys:manage creates, publishes and
+// evaluates the school's surveys to parents or staff. Answering needs no
+// permission: the audience of the survey decides who may answer.
+const (
+	ResourceSurveys = "surveys"
+
+	SurveysManage = ResourceSurveys + ":" + ActionManage
+)
+
 // Staff permissions (#1423). staff:financial gates the bank & tax section
 // of the Stammdaten tab (IBAN, Steuer-ID, SV-Nummer) — deliberately its own
 // permission instead of users:update: the directory maintainers are not the

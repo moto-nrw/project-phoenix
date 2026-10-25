@@ -81,6 +81,7 @@ export const HELP_TOPICS = {
   parentGroupMessage: "gruppe-eine-nachricht-schreiben",
   parentRequests: "elternanfragen-bearbeiten",
   teamChat: "team-chat-nutzen",
+  staffSurveys: "an-einer-umfrage-im-team-teilnehmen",
   findStaff: "person-im-team-finden",
   sharedFiles: "gemeinsame-datei-oeffnen-oder-hochladen",
   trackWorkTime: "arbeitszeit-und-pausen-erfassen",
@@ -129,6 +130,7 @@ export const HELP_TOPICS = {
   leadParentAnnouncement: "elternmitteilung-veroeffentlichen",
   leadParentLetter: "elternbrief-versenden",
   leadParentSurvey: "elternumfrage-erstellen",
+  leadSurveys: "umfrage-mit-fragebogen-erstellen",
   leadParentDeclaration: "elternerklaerung-einholen",
   leadMealPlan: "essensplan-veroeffentlichen",
   leadMealOrdering: "mittagessen-fristen-festlegen",
@@ -186,6 +188,7 @@ export const HELP_TOPICS = {
   parentMessages: "als-elternteil-nachrichten-lesen",
   parentGroupMessages: "als-elternteil-gruppennachrichten-lesen",
   parentNews: "elternbriefe-lesen",
+  parentSurveys: "an-einer-umfrage-der-ogs-teilnehmen",
   parentCalendar: "als-elternteil-den-kalender-ansehen",
   parentMealPlan: "mittagessen-ansehen",
   parentEnroll: "mein-kind-anmelden",
@@ -248,6 +251,9 @@ const EXACT_HELP_TOPICS: Readonly<Record<string, HelpTopicId>> = {
   "/rooms": HELP_TOPICS.rooms,
   "/staff": HELP_TOPICS.findStaff,
   "/tagesinformationen": HELP_TOPICS.leadStaffNotices,
+  // Umfragen (#4781): die Liste beantwortet jede Person im Team; die
+  // Objektseite einer Umfrage gehört der Verwaltung (Präfix unten).
+  "/umfragen": HELP_TOPICS.staffSurveys,
   "/time-tracking": HELP_TOPICS.trackWorkTime,
   "/mein-dienstplan": HELP_TOPICS.ownShiftPlan,
   "/settings": HELP_TOPICS.settings,
@@ -304,6 +310,7 @@ const PREFIX_HELP_TOPICS: ReadonlyArray<
   ["/parent-announcements", HELP_TOPICS.leadParentAnnouncement],
   ["/rooms", HELP_TOPICS.rooms],
   ["/team-chat", HELP_TOPICS.teamChat],
+  ["/umfragen", HELP_TOPICS.leadSurveys],
   // Der erste Treffer gewinnt, nicht der längste: die Unterbereiche der
   // Datenverwaltung müssen vor `/database` stehen.
   ["/database/students/class-list", HELP_TOPICS.leadClassListEntries],

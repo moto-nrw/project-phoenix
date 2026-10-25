@@ -2444,7 +2444,11 @@
         "system_announcement_immutable": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "announcement_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "group_thread_closed": "Bu grup mesajı kapatıldı. Artık yanıt veremezsiniz.",
-        "group_thread_no_recipients": "Bu gruptaki hiçbir çocuğun moto erişimi olan velisi yok. Mesaj gönderilmedi."
+        "group_thread_no_recipients": "Bu gruptaki hiçbir çocuğun moto erişimi olan velisi yok. Mesaj gönderilmedi.",
+        "survey_not_open": "Bu anket artık yanıt kabul etmiyor.",
+        "survey_already_answered": "Bu ankete zaten katıldınız. Yanıtınız değiştirilemez.",
+        "survey_not_draft": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "survey_anonymous": "{object} değiştirilemedi. Güncel durumu kontrol edin."
       },
       "enrollment": {
         "form_attachment_invalid": "Lütfen adı ve PDF dosyasını kontrol edin.",
@@ -3147,5 +3151,34 @@
     "title": "Sayfa gösterilemedi",
     "object": "sayfa",
     "home": "Ana sayfaya git"
+  },
+  "surveyForm": {
+    "anonymousTitle": "Anonim",
+    "anonymousText": "Okul kimin ne cevap verdiğini görmez. Sonuçları ancak anket bittikten sonra ve {min} yanıttan itibaren görür.",
+    "anonymousTextHint": "Anonim kalmak istiyorsanız lütfen isim yazmayın.",
+    "notAnonymousTitle": "Anonim değil",
+    "notAnonymousText": "Okul, yanıtlarınızın yanında adınızı görür.",
+    "parentOneAnswer": "Her çocuk için değil, veli hesabınız için bir kez yanıt verirsiniz.",
+    "finalHint": "Gönderdikten sonra yanıtınızı değiştiremezsiniz.",
+    "closesAt": "Katılım son tarihi: {date}, saat {time}",
+    "closed": "Anket sona erdi.",
+    "required": "Zorunlu soru",
+    "multipleHint": "Birden fazla yanıt seçebilirsiniz",
+    "scaleLegend": "1 = hiç katılmıyorum, 5 = tamamen katılıyorum",
+    "scaleLow": "hiç katılmıyorum",
+    "scaleHigh": "tamamen katılıyorum",
+    "textLabel": "Yanıtınız",
+    "submit": "Yanıtı gönder",
+    "submitting": "Gönderiliyor…",
+    "missingRequired": "Lütfen önce tüm zorunlu soruları yanıtlayın.",
+    "missingField": "Lütfen bu soruyu yanıtlayın.",
+    "thanksTitle": "Teşekkürler, yanıtınız kaydedildi.",
+    "thanksText": "Yanıtınız artık değiştirilemez.",
+    "alreadyTitle": "Bu ankete zaten katıldınız.",
+    "loadObject": "anket",
+    "submitObject": "yanıtınız",
+    "participated": "Yanıtlandı",
+    "needsAnswer": "Yanıt gerekli",
+    "questionLabel": "Soru {number} / {total}"
   }
 }

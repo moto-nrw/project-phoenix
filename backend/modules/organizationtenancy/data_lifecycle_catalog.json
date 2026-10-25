@@ -281,6 +281,12 @@
     {"name": "users.student_notes", "scope": "tenant", "export": "include", "personKeys": {"student_id": "users.student_profiles.id", "author_account_id": "auth.accounts.id", "deleted_by_account_id": "auth.accounts.id"}},
     {"name": "users.student_profiles", "scope": "tenant", "export": "include", "allowedSensitiveColumns": {"address_postal_code": "Postal address, not an authentication code."}, "personKeys": {"person_id": "users.persons.id", "photo_consent_given_by": "auth.accounts.id"}},
     {"name": "users.student_school_memberships", "scope": "tenant", "export": "include", "personKeys": {"student_profile_id": "users.student_profiles.id"}},
+    {"name": "users.survey_answers", "scope": "tenant", "export": "excludeSecret", "exportReason": "Single answers of a survey, anonymous ones included; rows would allow cross-tabulating one person's answers, the school receives the sums of the evaluation (#4781)."},
+    {"name": "users.survey_participations", "scope": "tenant", "export": "excludeSecret", "exportReason": "Who took part in a survey; two exports compared would point to the answers of whoever took part in between (#4781).", "personKeys": {"account_id": "auth.accounts.id"}},
+    {"name": "users.survey_question_options", "scope": "tenant", "export": "include"},
+    {"name": "users.survey_questions", "scope": "tenant", "export": "include"},
+    {"name": "users.survey_responses", "scope": "tenant", "export": "excludeSecret", "exportReason": "One row per answered survey; it groups a person's answers, the school receives the sums of the evaluation (#4781).", "personKeys": {"account_id": "auth.accounts.id"}},
+    {"name": "users.surveys", "scope": "tenant", "export": "include", "personKeys": {"created_by": "auth.accounts.id"}},
     {"name": "users.teachers", "scope": "tenant", "export": "include", "personKeys": {"staff_id": "users.staff_school_memberships.id"}}
   ],
   "files": [
