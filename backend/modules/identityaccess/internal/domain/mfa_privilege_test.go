@@ -130,6 +130,7 @@ func TestMFAPermissionCatalogIsClassified(t *testing.T) {
 		"substitutions:read":                 false,
 		"substitutions:update":               false,
 		"supervision:own":                    false,
+		"surveys:manage":                     false,
 		"system:manage":                      true,
 		"time_tracking:manage":               true,
 		"time_tracking:own":                  false,
