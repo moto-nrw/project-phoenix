@@ -2040,24 +2040,32 @@ describe("PickupTimeModal, Abholperson an einem Tag", () => {
           is_self: false,
         } as unknown as parentApi.ChildGuardian,
       ]);
-    renderModal({
-      studentId: "1",
-      pickupChangeRequests: [
-        {
-          id: "request-collector",
-          date: todayISO(),
-          pickup_time: null,
-          departure_mode: "pickup",
-          pickup_person: "Rita Klein",
-          pickup_person_guardian_profile_id: "12",
-          signed: true,
-          reason: "Oma holt ab",
-          status: "pending",
-          created_at: "2026-09-08T09:00:00Z",
-        },
-      ],
-      departureModeEnabled: true,
-    });
+    render(
+      <PickupTimeModal
+        studentId="1"
+        careExceptions={[]}
+        careExceptionsLoaded
+        pickupChangeEnabled
+        pickupChangeRequests={[
+          {
+            id: "request-collector",
+            date: todayISO(),
+            pickup_time: null,
+            departure_mode: "pickup",
+            pickup_person: "Rita Klein",
+            pickup_person_guardian_profile_id: "12",
+            signed: true,
+            reason: "Oma holt ab",
+            status: "pending",
+            created_at: "2026-09-08T09:00:00Z",
+          },
+        ]}
+        departureModeEnabled
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        onRemove={vi.fn()}
+      />,
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "Anfrage bearbeiten" }));
 
