@@ -91,7 +91,7 @@ describe("TraegerHolidayRegistrationsPage", () => {
     expect(table.getByText("Mögliche Doppelanmeldung")).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Ein Kind ist vielleicht doppelt angemeldet. Prüfen Sie die markierte Anmeldung.",
+        "In einer Anmeldung ist ein Kind vielleicht doppelt angemeldet. Prüfen Sie die markierte Anmeldung.",
       ),
     ).toBeInTheDocument();
     expect(table.getByText("Eingegangen")).toBeInTheDocument();
@@ -107,7 +107,8 @@ describe("TraegerHolidayRegistrationsPage", () => {
     renderPage();
     await within(await screen.findByRole("table")).findByText("Eva Muster");
 
-    fireEvent.click(screen.getByRole("button", { name: "Bestätigt" }));
+    fireEvent.click(screen.getByRole("combobox", { name: "Status" }));
+    fireEvent.click(await screen.findByRole("option", { name: "Bestätigt" }));
     await waitFor(() =>
       expect(mockFetchList).toHaveBeenLastCalledWith(
         "5",

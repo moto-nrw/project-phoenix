@@ -176,6 +176,8 @@
     "/traeger/einstellungen": 686866,
     "/traeger/ferien": 531765,
     "/traeger/ferien/[id]": 590457,
+    "/traeger/ferien/[id]/anmeldungen": 544128,
+    "/traeger/ferien/[id]/anmeldungen/[registrationId]": 561684,
     "/traeger/ferien/neu": 582557,
     "/traeger/invite": 529621,
     "/traeger/login": 549764

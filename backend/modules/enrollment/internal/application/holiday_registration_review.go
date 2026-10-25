@@ -117,10 +117,16 @@ func (h *HolidayRegistrationReview) HolidayRegistration(ctx context.Context, rev
 	if err != nil {
 		return enrollment.HolidayRegistrationDetail{}, err
 	}
+	detail, err := h.detail(ctx, reviewer, period, registrationID)
+	if err != nil {
+		return enrollment.HolidayRegistrationDetail{}, err
+	}
+	// The read is recorded once the registration is known to belong to the
+	// period; the entry commits with the answer in the same transaction.
 	if err := h.audit(ctx, reviewer, periodID, registrationID, enrollment.HolidayAuditRead, nil); err != nil {
 		return enrollment.HolidayRegistrationDetail{}, err
 	}
-	return h.detail(ctx, reviewer, period, registrationID)
+	return detail, nil
 }
 
 // ChangeHolidayRegistration confirms, cancels, freezes or reopens a

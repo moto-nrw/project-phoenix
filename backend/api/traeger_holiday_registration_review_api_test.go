@@ -249,6 +249,17 @@ func TestTraegerConfirmsAndCancelsHolidayRegistrationsWithHistory(t *testing.T) 
 	assert.Equal(t, "confirmed", cancelledLater.History[1].Details["from"])
 	require.NotNil(t, cancelledLater.History[0].ActorAccountID)
 
+	// A registration of another period of the same Träger, or none at all,
+	// answers 404 for the read and is not written to the audit trail.
+	other := januaryHolidays(f.office)
+	other.Name = "Osterferien 2027"
+	otherPeriod := createHolidayPeriod(t, f.traeger, f.office, other)
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodGet,
+		fmt.Sprintf("%s/registrations/%d", holidayPeriodPath(otherPeriod.ID), f.siblings), nil)
+	require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
+	code, _ = registrationRefusalOf(t, rec)
+	assert.Equal(t, "enrollment.holiday_registration_entry_not_found", code)
+
 	rec = f.act(t, f.siblings+f.again+1000, "confirm")
 	require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
 	code, _ = registrationRefusalOf(t, rec)

@@ -23,10 +23,6 @@ import { CustomSelect } from "~/components/ui/custom-select";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
-import {
-  SegmentedControl,
-  type SegmentedControlItem,
-} from "~/components/ui/segmented-control";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { useApiErrorDisplay, useApiLoadError } from "~/contexts/ToastContext";
 import { formatBerlinDate } from "~/lib/date-helpers";
@@ -48,8 +44,9 @@ const logger = createLogger({ component: "TraegerHolidayRegistrationsPage" });
 
 type StatusChoice = HolidayRegistrationStatus | "all";
 
-const STATUS_ITEMS: readonly SegmentedControlItem<StatusChoice>[] = [
-  { value: "all", label: "Alle" },
+// A select, not a segmented control: four choices do not fit a phone.
+const STATUS_OPTIONS: { value: StatusChoice; label: string }[] = [
+  { value: "all", label: "Alle Status" },
   { value: "received", label: "Eingegangen" },
   { value: "confirmed", label: "Bestätigt" },
   { value: "cancelled", label: "Storniert" },
@@ -148,15 +145,13 @@ function statusLine(list: HolidayRegistrationList): string {
   return `${total} · ${list.statusCounts.received} eingegangen · ${list.statusCounts.confirmed} bestätigt · ${list.statusCounts.cancelled} storniert`;
 }
 
+/** Registrations with a child that is maybe registered twice. */
 function duplicateCount(list: HolidayRegistrationList | null): number {
-  return (list?.registrations ?? []).reduce(
-    (sum, registration) =>
-      sum +
-      registration.children.filter(
-        (child) => child.duplicateRegistrationIds.length > 0,
-      ).length,
-    0,
-  );
+  return (list?.registrations ?? []).filter((registration) =>
+    registration.children.some(
+      (child) => child.duplicateRegistrationIds.length > 0,
+    ),
+  ).length;
 }
 
 export default function TraegerHolidayRegistrationsPage() {
@@ -319,11 +314,12 @@ export default function TraegerHolidayRegistrationsPage() {
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
-        <SegmentedControl
-          items={STATUS_ITEMS}
+        <CustomSelect
           value={status}
-          onChange={setStatus}
+          options={STATUS_OPTIONS}
+          onChange={(value) => setStatus(value as StatusChoice)}
           ariaLabel="Status"
+          className="w-full sm:w-44"
         />
         <CustomSelect
           value={school}
@@ -353,8 +349,8 @@ export default function TraegerHolidayRegistrationsPage() {
           type="warning"
           message={
             duplicates === 1
-              ? "Ein Kind ist vielleicht doppelt angemeldet. Prüfen Sie die markierte Anmeldung."
-              : `${duplicates} Kinder sind vielleicht doppelt angemeldet. Prüfen Sie die markierten Anmeldungen.`
+              ? "In einer Anmeldung ist ein Kind vielleicht doppelt angemeldet. Prüfen Sie die markierte Anmeldung."
+              : `In ${duplicates} Anmeldungen ist ein Kind vielleicht doppelt angemeldet. Prüfen Sie die markierten Anmeldungen.`
           }
         />
       ) : null}
