@@ -38,8 +38,8 @@ type TraegerAccountStore interface {
 	// accounts: every change that could remove the last one queues behind
 	// the others.
 	LockTraegerAdministrators(ctx context.Context, organizationID int64) ([]int64, domain.OperationStats, error)
-	// DeleteTraegerSessions ends every session of the account at the Träger.
-	DeleteTraegerSessions(ctx context.Context, organizationID, accountID int64) (domain.OperationStats, error)
+	// DeleteTraegerAccountSessions ends every session of the account at the Träger.
+	DeleteTraegerAccountSessions(ctx context.Context, organizationID, accountID int64) (domain.OperationStats, error)
 	FindLoginAccountByEmail(ctx context.Context, email string) (domain.LoginAccount, bool, domain.OperationStats, error)
 	// FindLoginAccount reads a live account; the acting person's account
 	// must still be switched on.

@@ -227,17 +227,17 @@ func (s *Store) ReplaceTraegerRoles(ctx context.Context, organizationID, account
 	return stats, nil
 }
 
-const deleteTraegerSessionsQuery = `DELETE FROM auth.tokens
+const deleteTraegerAccountSessionsQuery = `DELETE FROM auth.tokens
 	WHERE account_id = ? AND organization_id = ? AND portal_scope = 'org'`
 
-// DeleteTraegerSessions ends every session of the account at the Träger.
-func (s *Store) DeleteTraegerSessions(ctx context.Context, organizationID, accountID int64) (domain.OperationStats, error) {
+// DeleteTraegerAccountSessions ends every session of the account at the Träger.
+func (s *Store) DeleteTraegerAccountSessions(ctx context.Context, organizationID, accountID int64) (domain.OperationStats, error) {
 	db, err := s.database(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
 	started := time.Now()
-	result, err := db.NewRaw(deleteTraegerSessionsQuery, accountID, organizationID).Exec(ctx)
+	result, err := db.NewRaw(deleteTraegerAccountSessionsQuery, accountID, organizationID).Exec(ctx)
 	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}
 	if err != nil {
 		return stats, fmt.Errorf("identity access postgres: delete Träger sessions: %w", err)

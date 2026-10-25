@@ -334,7 +334,7 @@ func (t *TraegerAccounts) RemoveTraegerMember(ctx context.Context, actor identit
 		if err := t.memberships.DeactivateTraegerMembership(txCtx, actor.OrganizationID, accountID); err != nil {
 			return err
 		}
-		if _, err := t.store.DeleteTraegerSessions(txCtx, actor.OrganizationID, accountID); err != nil {
+		if _, err := t.store.DeleteTraegerAccountSessions(txCtx, actor.OrganizationID, accountID); err != nil {
 			return err
 		}
 		return t.record(txCtx, actor, identityaccess.TraegerAccountMemberRemoved, &accountID, &accounts[0].Email, before, nil)
