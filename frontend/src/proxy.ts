@@ -530,8 +530,10 @@ function handleSchoolSubdomain(request: NextRequest): NextResponse {
 // --- Träger subdomain handling ("moto träger", Träger-Büro portal, #4649) ---
 
 /** Paths the Träger subdomain serves (without /traeger prefix). The school
- * list itself lives at the root ("/" → /traeger). */
+ * list itself lives at the root ("/" → /traeger). The auth guard sends a
+ * visitor without a Träger session from a protected path to the login. */
 const TRAEGER_PUBLIC_PATHS = ["/login"];
+const TRAEGER_PROTECTED_PATHS = ["/einstellungen"];
 
 function isTraegerHost(hostname: string): boolean {
   return hostname === TRAEGER_HOSTNAME;
@@ -568,7 +570,7 @@ function handleTraegerSubdomain(request: NextRequest): NextResponse {
   }
 
   if (
-    TRAEGER_PUBLIC_PATHS.some(
+    [...TRAEGER_PUBLIC_PATHS, ...TRAEGER_PROTECTED_PATHS].some(
       (p) => pathname === p || pathname.startsWith(`${p}/`),
     )
   ) {

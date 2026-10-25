@@ -1011,6 +1011,7 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
     "POST tenant /api/timetable/templates/id%2F1/split",
   ],
   "api/traeger/schools": ["GET traeger /traeger/schools"],
+  "api/traeger/settings/schema": ["GET traeger /traeger/settings/schema"],
   "api/work-time-models": [
     "GET tenant /api/work-time-models",
     "POST tenant /api/work-time-models",

@@ -20,6 +20,8 @@ function retentionSetting(
     visible: true,
     sort_order: 16,
     access_policy: "operator_managed",
+    levels: "schule",
+    source: "default",
     validation: { min: 30, max: 730 },
     depends_on: null,
     options: null,

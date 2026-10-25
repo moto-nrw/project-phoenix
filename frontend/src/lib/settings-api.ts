@@ -31,6 +31,15 @@ type AccessPolicy =
   // Operator ändert, Schule liest (ADR 0048): die Löschfristen.
   | "operator_managed";
 
+/**
+ * Where a value may be set (ADR 0086): only at the school, at the Träger with
+ * a school deviation allowed, or only at the Träger.
+ */
+export type SettingLevels = "schule" | "beide" | "traeger";
+
+/** Where the effective value comes from: registry default, Träger, school. */
+export type SettingSource = "default" | "traeger" | "school";
+
 export interface ResolvedSetting {
   key: string;
   label: string;
@@ -47,11 +56,23 @@ export interface ResolvedSetting {
     | "multiselect";
   default: unknown;
   value: unknown;
+  /**
+   * School schema: the school has no value of its own, so a reset changes
+   * nothing (booleans: the value equals the inherited one). Träger schema:
+   * the Träger has no value.
+   */
   is_default: boolean;
   writable: boolean;
   visible: boolean;
   sort_order: number;
   access_policy: AccessPolicy;
+  levels: SettingLevels;
+  source: SettingSource;
+  /**
+   * Last change of the Träger value (ISO timestamp). Absent without a Träger
+   * value; stays set beneath a school deviation.
+   */
+  traeger_changed_at?: string | null;
   validation?: {
     required?: boolean;
     min?: number;
@@ -93,6 +114,20 @@ interface ApiResponse<T> {
 }
 
 // --- Optimistic Update Helper ---
+
+/**
+ * The value a boolean falls back to without the school's own value: the
+ * default, or the Träger value where there is one (ADR 0086). The schema
+ * carries no Träger value of its own; for a boolean it is the current value
+ * while it comes from the Träger or equals it, and its opposite otherwise.
+ */
+function inheritedBooleanValue(item: ResolvedSetting): unknown {
+  if (!item.traeger_changed_at || typeof item.value !== "boolean") {
+    return item.default;
+  }
+  if (item.source === "traeger" || item.is_default) return item.value;
+  return !item.value;
+}
 
 /**
  * Returns a new schema with `key` set to `value` and every entry's `visible`
@@ -166,12 +201,15 @@ export function applyOptimisticSchemaUpdate(
           const optimisticValue = item.type === "password" ? "••••••" : value;
           // Mirror the backend's is_default semantics (issue #1680): boolean
           // toggles are value-based (no reset button, so toggling back to the
-          // default must restore the "Standard" badge without a refetch). All
-          // other types just got an override row written, so is_default is
-          // false and the reset button stays available.
+          // inherited value must restore the "Standard" badge without a
+          // refetch). The inherited value is the Träger value where there is
+          // one (ADR 0086), else the default. All other
+          // types just got an override row written, so is_default is false
+          // and the reset button stays available.
           const optimisticIsDefault =
             item.type === "boolean"
-              ? JSON.stringify(value) === JSON.stringify(item.default)
+              ? JSON.stringify(value) ===
+                JSON.stringify(inheritedBooleanValue(item))
               : false;
           const updated =
             item.key === key
@@ -179,6 +217,8 @@ export function applyOptimisticSchemaUpdate(
                   ...item,
                   value: optimisticValue,
                   is_default: optimisticIsDefault,
+                  // A school save always writes the school's own value.
+                  source: "school" as const,
                 }
               : item;
           return { ...updated, visible: evaluateVisibility(updated) };

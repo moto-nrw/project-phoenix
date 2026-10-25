@@ -199,6 +199,7 @@ export const HELP_TOPICS = {
   teacherAccess: "zugang-zu-moto-schule-einrichten",
   teacherLogin: "bei-moto-schule-anmelden",
   traegerLogin: "traeger-anmelden",
+  traegerSettings: "traeger-einstellungen",
   teacherSettings: "als-lehrkraft-benachrichtigungen-einstellen",
   teacherClassDay: "meinen-klassentag-ansehen",
   teacherClassList: "die-liste-einer-klasse-lesen",

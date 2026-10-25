@@ -5,6 +5,7 @@
  */
 
 import { apiErrorFromBody, transportFetch } from "./api-error";
+import type { SettingsSchema } from "./settings-api";
 
 /** A Träger the person can open, offered when they belong to several. */
 export interface TraegerChoice {
@@ -131,4 +132,60 @@ export async function fetchTraegerSchools(): Promise<TraegerSchool[]> {
     subdomain: school.subdomain,
     city: school.city ?? "",
   }));
+}
+
+async function failOnError(response: Response): Promise<unknown> {
+  const data = await readJson(response);
+  if (!response.ok) {
+    throw apiErrorFromBody(
+      `Request failed (${response.status})`,
+      response.status,
+      data,
+    );
+  }
+  return data;
+}
+
+/**
+ * The settings the Träger sets for all its schools (ADR 0086, #4652): only
+ * settings with the levels `beide` or `traeger`, each with the Träger value
+ * or the registry default.
+ */
+export async function fetchTraegerSettingsSchema(): Promise<SettingsSchema> {
+  const response = await transportFetch("/api/traeger/settings/schema", {
+    credentials: "include",
+    cache: "no-store",
+  });
+  const data = await failOnError(response);
+  const schema = (data as { data?: SettingsSchema } | null)?.data;
+  return { tabs: schema?.tabs ?? [] };
+}
+
+/** Sets the Träger value of one setting. Throws an ApiError on failure. */
+export async function saveTraegerSettingValue(
+  key: string,
+  value: unknown,
+): Promise<void> {
+  const response = await transportFetch(
+    `/api/traeger/settings/values/${encodeURIComponent(key)}`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ value }),
+    },
+  );
+  await failOnError(response);
+}
+
+/**
+ * Removes the Träger value of one setting: schools fall back to the default
+ * or keep their own value. Throws an ApiError on failure.
+ */
+export async function clearTraegerSettingValue(key: string): Promise<void> {
+  const response = await transportFetch(
+    `/api/traeger/settings/values/${encodeURIComponent(key)}`,
+    { method: "DELETE", credentials: "include" },
+  );
+  await failOnError(response);
 }

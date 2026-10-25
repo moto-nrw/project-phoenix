@@ -25,6 +25,8 @@ function makeSetting(
     visible: true,
     sort_order: 1,
     access_policy: "shared",
+    levels: "schule",
+    source: "school",
     validation: null,
     depends_on: null,
     options: null,
