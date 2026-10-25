@@ -17,6 +17,7 @@ import {
   type PlanExportTemplate,
   type PlanExportVariant,
 } from "~/lib/plan-export-api";
+import { isPlanFilterActive, type PlanFilter } from "~/lib/plan-filter";
 
 const PLAN_EXPORT_FORMATS: readonly PlanExportFormat[] = ["pdf", "xlsx"];
 
@@ -39,6 +40,13 @@ interface PlanExportModalProps {
   readonly isWeekOnScreen: boolean;
   /** Internal exports can contain sensitive absence and cancellation details. */
   readonly canExportInternal: boolean;
+  /**
+   * Gruppen- und Personenfilter des Betreuungsplans (#4766). Der Druck zeigt
+   * dann nur die Blöcke, die der Plan auf dem Bildschirm zeigt.
+   */
+  readonly filter?: PlanFilter;
+  /** Was der Filter zeigt, z. B. „Gruppe Sonnen“; steht im Dialog. */
+  readonly filterLabel?: string;
   readonly onClose: () => void;
 }
 
@@ -57,6 +65,8 @@ export function PlanExportModal({
   weekDay,
   isWeekOnScreen,
   canExportInternal,
+  filter,
+  filterLabel,
   onClose,
 }: PlanExportModalProps) {
   const templates = PLAN_EXPORT_TEMPLATES[plan];
@@ -106,6 +116,7 @@ export function PlanExportModal({
     to: range.to,
     template,
     variant: showsVariant ? variant : "aushang",
+    ...(filter && isPlanFilterActive(filter) ? { filter } : {}),
   });
 
   const run = useExportRun({
@@ -169,6 +180,15 @@ export function PlanExportModal({
               />
             ))}
           </div>
+        </section>
+      )}
+
+      {filterLabel && filter && isPlanFilterActive(filter) && (
+        <section>
+          <p className="text-sm font-medium text-gray-900">Auswahl</p>
+          <p className="mt-1 text-sm text-gray-600">
+            Gedruckt werden nur die Termine für {filterLabel}, wie im Plan.
+          </p>
         </section>
       )}
 

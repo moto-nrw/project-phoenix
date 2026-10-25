@@ -1284,11 +1284,15 @@ function carePlanTopic(presenceMode: HelpPresenceMode): HelpTopic {
       "Steht oben rechts `Nur ansehen`? Dann dürfen Sie den Plan lesen, aber nicht ändern.",
     ],
     notes: [
+      // #4766: Filter Gruppe und Person, auch in der Leseansicht.
+      "Nur eine Gruppe oder eine Person sehen? Wählen Sie oben bei `Alle Gruppen` eine Gruppe oder bei `Alle Personen` eine Person. Die Person sieht auch ihre Vertretungen.",
+      "Die Adresse der Seite behält Ihre Auswahl. So können Sie den gefilterten Plan teilen.",
       "Betreut Ihre OGS am Wochenende? Dann zeigt die Wochenansicht auch Samstag und Sonntag. Dort gilt der Freitagsplan.",
     ],
     troubleshootingDetails: [
       "Der Tab `Betreuungsplan` fehlt? Bitten Sie Ihre Leitung, Ihren Zugang zu prüfen.",
       "Steht dort `Noch kein Planungszeitraum`? Dann hat Ihre Leitung den Zeitraum noch nicht angelegt.",
+      "Steht dort `Für diese Auswahl ist nichts geplant`? Wählen Sie `Alle Gruppen` und `Alle Personen`.",
     ],
     related: [HELP_TOPICS.mySchedule, HELP_TOPICS.activeSupervision],
   };
@@ -5526,6 +5530,9 @@ function leadCarePlanTopic(): HelpTopic {
       "Hat die externe Person `Kein Zugang`, startet eine OGS-Kraft den Termin. Mit `Eigene Termine betreuen` startet sie ihn selbst.",
       "Eine externe Person kann einen Termin allein betreuen. Sie kann auch die `Zuständige Person` sein.",
       "Wählen Sie im Drei-Punkte-Menü `Drucken oder exportieren`. Wählen Sie Vorlage, Fassung und Zeitraum. `Drucken` öffnet die Druckansicht. Für eine Datei wählen Sie das Format und `Herunterladen`.",
+      // #4766: Filter Gruppe und Person in Tag, Woche und Monat.
+      "Nur eine Gruppe oder eine Person planen? Wählen Sie oben bei `Alle Gruppen` eine OGS-Gruppe oder bei `Alle Personen` eine Person. Die Gruppe zeigt Termine mit Kindern der Gruppe oder mit der Gruppe als Teilnehmer. Die Person zeigt auch ihre Vertretungen.",
+      "Ist ein Filter gewählt, druckt `Drucken oder exportieren` nur die gefilterten Termine.",
       "Betreut Ihre OGS am Wochenende? Dann zeigt die Wochenansicht auch Samstag und Sonntag. Dort gilt der Freitagsplan.",
     ],
     differences: [
@@ -9012,6 +9019,86 @@ function traegerHolidayPeriodTopic(): HelpTopic {
   };
 }
 
+/** `/traeger/ferien/[id]/anmeldungen` (#4663): Anmeldungen prüfen. */
+function traegerHolidayRegistrationReviewTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.traegerHolidayRegistrationReview,
+    title: "Ferienanmeldungen prüfen",
+    question: "Wie bestätige, storniere und buche ich Ferienanmeldungen um?",
+    summary:
+      "Sie sehen alle Anmeldungen eines Ferienzeitraums in einer Liste. Dort bestätigen, stornieren und buchen Sie um.",
+    group: "anmeldeverwaltung",
+    audience: "traeger",
+    icon: "ListChecks",
+    requirements: [
+      "Ihre Rolle im Träger-Büro darf Anmeldungen verwalten. Das gilt für die Rolle Verwaltung.",
+    ],
+    steps: [],
+    instructionGroups: [
+      {
+        title: "Liste öffnen und filtern",
+        steps: [
+          "Wählen Sie oben `Ferien`.",
+          "Öffnen Sie den Ferienzeitraum.",
+          "Wählen Sie `Anmeldungen prüfen`.",
+          "Filtern Sie nach Status, `Schule`, `Woche` oder `Zeitmodell`. Unter `Schule` finden Sie auch `Feriengäste`.",
+          "Wählen Sie eine Anmeldung, um sie zu öffnen.",
+        ],
+      },
+      {
+        title: "Bestätigen oder stornieren",
+        steps: [
+          "Prüfen Sie die Angaben der Eltern und der Kinder.",
+          "Wählen Sie `Bestätigen`.",
+          "Oder wählen Sie `Stornieren` und bestätigen Sie mit `Stornieren`.",
+        ],
+      },
+      {
+        title: "Umbuchen",
+        steps: [
+          "Wählen Sie beim Kind `Umbuchen`.",
+          "Wählen Sie je Woche ein Zeitmodell oder `Nicht angemeldet`.",
+          "Wählen Sie `Speichern`.",
+        ],
+      },
+      {
+        title: "Einfrieren und wieder öffnen",
+        steps: [
+          "Nach dem Anmeldeschluss ist jede Anmeldung von selbst eingefroren.",
+          "Wollen Sie eine Anmeldung vorher festhalten? Wählen Sie `Einfrieren`.",
+          "Wollen Sie eine eingefrorene Anmeldung ändern? Wählen Sie `Wieder öffnen`.",
+        ],
+      },
+      {
+        title: "Exportieren",
+        steps: [
+          "Stellen Sie die Filter ein, zum Beispiel eine Schule.",
+          "Wählen Sie `Als CSV herunterladen` oder `Als Excel herunterladen`.",
+        ],
+      },
+    ],
+    result:
+      "Unter `Verlauf` steht bei jeder Anmeldung, wann sie bestätigt, storniert, umgebucht, eingefroren oder wieder geöffnet wurde.",
+    notes: [
+      "Eltern bekommen beim Bestätigen und Stornieren noch keine Nachricht von moto.",
+      "Eine eingefrorene Anmeldung können Sie bestätigen. Stornieren und Umbuchen gehen erst nach `Wieder öffnen`.",
+      "Der Export hat eine Zeile je Kind und Woche. Gesundheitsangaben stehen nicht darin.",
+      "Jedes Öffnen und jeder Export steht im Protokoll des Trägers.",
+    ],
+    differences: [
+      "Ein Kind ist als `Mögliche Doppelanmeldung` markiert? Ein Kind mit gleichem Namen und Geburtsdatum steht auch in einer anderen Anmeldung. Öffnen Sie beide und stornieren Sie die doppelte.",
+    ],
+    troubleshootingDetails: [
+      "`Umbuchen` fehlt? Die Anmeldung ist eingefroren oder storniert. Eine eingefrorene Anmeldung öffnen Sie mit `Wieder öffnen`.",
+      "Eine stornierte Anmeldung lässt sich nicht wieder öffnen. Die Eltern melden das Kind dann neu an.",
+    ],
+    related: [
+      HELP_TOPICS.traegerHolidayRegistration,
+      HELP_TOPICS.traegerHolidayPeriod,
+    ],
+  };
+}
+
 /** Der Link eines veröffentlichten Ferienzeitraums (#4661). */
 function traegerHolidayRegistrationTopic(): HelpTopic {
   return {
@@ -9210,6 +9297,7 @@ const TRAEGER_TOPICS: readonly HelpTopic[] = [
   traegerAccountsTopic(),
   traegerHolidayPeriodTopic(),
   traegerHolidayRegistrationTopic(),
+  traegerHolidayRegistrationReviewTopic(),
   traegerAccessLogTopic(),
   traegerBriefkopfTopic(),
   traegerSettingsTopic(),

@@ -47,6 +47,7 @@ type Store interface {
 	FindGroup(context.Context, int64, string) (timetable.Group, bool, domain.OperationStats, error)
 	FindGroupByName(context.Context, string) (timetable.Group, bool, domain.OperationStats, error)
 	ListGroups(context.Context, timetable.GroupFilter) ([]timetable.Group, domain.OperationStats, error)
+	ListBlockGroupCandidates(context.Context, []int64) ([]domain.BlockGroupCandidate, domain.OperationStats, error)
 	ListCourseGroups(context.Context, timetable.CourseGroupFilter) ([]timetable.CourseGroup, domain.OperationStats, error)
 	ListTemplateRows(context.Context, *int64, string) ([]timetable.TemplateListRow, domain.OperationStats, error)
 	ListTemplateRowsForTemplatePeriod(context.Context, int64, int64, string) ([]timetable.TemplateListRow, domain.OperationStats, error)

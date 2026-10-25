@@ -111,7 +111,10 @@ type Dependencies struct {
 	TimetableData         timetable.TimetableDataCapability
 	// ConflictDetection serves the conflict warnings, the staff pool and the
 	// shift-coverage probe from the Timetable owner (#3550).
-	ConflictDetection  timetable.ConflictDetectionCapability
+	ConflictDetection timetable.ConflictDetectionCapability
+	// BlockGroups names the OGS groups of the listed blocks for the
+	// Betreuungsplan's group filter (#4766).
+	BlockGroups        timetable.BlockGroupQuery
 	CareDayService     careplan.CareDayQuery
 	UserContextService interface {
 		HasCurrentStaff(context.Context) (bool, error)

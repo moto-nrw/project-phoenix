@@ -2664,8 +2664,11 @@
         "holiday_period_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
         "holiday_period_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "holiday_registration_closed": "Запис на ці канікули не відкритий. Будь ласка, перевірте початок і кінець запису.",
+        "holiday_registration_entry_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "holiday_registration_frozen": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "holiday_registration_invalid": "Будь ласка, перевірте позначені поля.",
         "holiday_registration_not_found": "Такого посилання для запису немає. Будь ласка, скористайтеся посиланням, яке ви отримали від організатора.",
+        "holiday_registration_state_conflict": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "holiday_week_booked": "Не вдалося змінити: {object}. Перевірте поточний стан."
       },
       "files": {

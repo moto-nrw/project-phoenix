@@ -2664,8 +2664,11 @@
         "holiday_period_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "holiday_period_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "holiday_registration_closed": "Regjistrimi për këto pushime nuk është i hapur. Ju lutemi kontrolloni fillimin dhe mbarimin e regjistrimit.",
+        "holiday_registration_entry_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "holiday_registration_frozen": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "holiday_registration_invalid": "Ju lutemi kontrolloni fushat e shënuara.",
         "holiday_registration_not_found": "Kjo lidhje regjistrimi nuk ekziston. Ju lutemi përdorni lidhjen që morët nga organizatori.",
+        "holiday_registration_state_conflict": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "holiday_week_booked": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
       },
       "files": {

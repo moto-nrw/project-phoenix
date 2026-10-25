@@ -92,6 +92,7 @@ func NewTraegerPortalHTTP(identity TraegerPortalIdentity, organizations organiza
 		return nil, err
 	}
 	holidayPeriods := enrollmentAPI.NewHolidayPeriodResource(enrollmentCompose.NewHolidayPeriods(),
+		enrollmentCompose.NewHolidayRegistrationReview(), holidaySchoolNames{overview: overview},
 		common.RequiresPermission(identityaccess.TraegerRightEnrollmentManage))
 	traegerSettings := settingsHTTP.NewTraegerSettingsResource(settings, identityaccess.TraegerRightOverviewRead,
 		identityaccess.TraegerRightSettingsManage, identityaccess.TraegerRightStaffManage, identityaccess.TraegerRightBillingManage)
@@ -100,6 +101,24 @@ func NewTraegerPortalHTTP(identity TraegerPortalIdentity, organizations organiza
 	overviewRoutes := traegerViewHTTP.NewResource(overview)
 	return traegerportal.NewResource(TraegerPortalAuth(identity), TraegerPortalMFA(identity), overviewRoutes, holidayPeriods,
 		traegerViewHTTP.NewAccessLogResource(overview), traegerSettings, masterData, identity, overviewRoutes, identity), nil
+}
+
+// holidaySchoolNames binds the school names of the holiday registration
+// export to the Träger projection's school list (#4663, ADR 0114).
+type holidaySchoolNames struct {
+	overview traegerview.Overview
+}
+
+func (n holidaySchoolNames) HolidaySchoolNames(ctx context.Context, organizationID int64) (map[int64]string, error) {
+	schools, err := n.overview.Schools(ctx, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	names := make(map[int64]string, len(schools))
+	for _, school := range schools {
+		names[school.ID] = school.Name
+	}
+	return names, nil
 }
 
 // traegerSchoolIDs binds the Träger projection's school set to Organisation &

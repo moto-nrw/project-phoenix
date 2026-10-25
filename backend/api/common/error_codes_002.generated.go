@@ -2,6 +2,9 @@
 package common
 
 const (
+	CodeTimetableInstanceNotActive                   = "timetable.instance_not_active"
+	CodeTimetableInstanceNotConvertible              = "timetable.instance_not_convertible"
+	CodeTimetableInstanceNotEditable                 = "timetable.instance_not_editable"
 	CodeTimetableInstanceNotFound                    = "timetable.instance_not_found"
 	CodeTimetableInstanceOutsidePeriod               = "timetable.instance_outside_period"
 	CodeTimetableInstanceSelectionInvalid            = "timetable.instance_selection_invalid"
@@ -173,6 +176,9 @@ const (
 )
 
 var errorCodeClasses2 = map[string]string{
+	"timetable.instance_not_active":                     "business_rejection",
+	"timetable.instance_not_convertible":                "business_rejection",
+	"timetable.instance_not_editable":                   "business_rejection",
 	"timetable.instance_not_found":                      "business_rejection",
 	"timetable.instance_outside_period":                 "input",
 	"timetable.instance_selection_invalid":              "input",

@@ -208,8 +208,11 @@ const (
 	CodeEnrollmentHolidayPeriodInvalid                   = "enrollment.holiday_period_invalid"
 	CodeEnrollmentHolidayPeriodNotFound                  = "enrollment.holiday_period_not_found"
 	CodeEnrollmentHolidayRegistrationClosed              = "enrollment.holiday_registration_closed"
+	CodeEnrollmentHolidayRegistrationEntryNotFound       = "enrollment.holiday_registration_entry_not_found"
+	CodeEnrollmentHolidayRegistrationFrozen              = "enrollment.holiday_registration_frozen"
 	CodeEnrollmentHolidayRegistrationInvalid             = "enrollment.holiday_registration_invalid"
 	CodeEnrollmentHolidayRegistrationNotFound            = "enrollment.holiday_registration_not_found"
+	CodeEnrollmentHolidayRegistrationStateConflict       = "enrollment.holiday_registration_state_conflict"
 	CodeEnrollmentHolidayWeekBooked                      = "enrollment.holiday_week_booked"
 	CodeEnrollmentInvalidEmail                           = "enrollment.invalid_email"
 	CodeEnrollmentInvalidPhone                           = "enrollment.invalid_phone"
@@ -299,9 +302,6 @@ const (
 	CodeIdentityEmailChangeSameEmail                     = "identity.email_change_same_email"
 	CodeIdentityInvalidCredentials                       = "identity.invalid_credentials"
 	CodeIdentityInvitationAccountLoginRequired           = "identity.invitation_account_login_required"
-	CodeIdentityInvitationAccountMismatch                = "identity.invitation_account_mismatch"
-	CodeIdentityInvitationExpired                        = "identity.invitation_expired"
-	CodeIdentityInvitationNotFound                       = "identity.invitation_not_found"
 )
 
 var errorCodeClasses0 = map[string]string{
@@ -511,8 +511,11 @@ var errorCodeClasses0 = map[string]string{
 	"enrollment.holiday_period_invalid":                    "input",
 	"enrollment.holiday_period_not_found":                  "business_rejection",
 	"enrollment.holiday_registration_closed":               "business_rejection",
+	"enrollment.holiday_registration_entry_not_found":      "business_rejection",
+	"enrollment.holiday_registration_frozen":               "business_rejection",
 	"enrollment.holiday_registration_invalid":              "input",
 	"enrollment.holiday_registration_not_found":            "business_rejection",
+	"enrollment.holiday_registration_state_conflict":       "business_rejection",
 	"enrollment.holiday_week_booked":                       "business_rejection",
 	"enrollment.invalid_email":                             "input",
 	"enrollment.invalid_phone":                             "input",
@@ -602,9 +605,6 @@ var errorCodeClasses0 = map[string]string{
 	"identity.email_change_same_email":                     "input",
 	"identity.invalid_credentials":                         "input",
 	"identity.invitation_account_login_required":           "permission",
-	"identity.invitation_account_mismatch":                 "permission",
-	"identity.invitation_expired":                          "business_rejection",
-	"identity.invitation_not_found":                        "input",
 }
 
 func init() {

@@ -2,6 +2,9 @@
 package common
 
 const (
+	CodeIdentityInvitationAccountMismatch              = "identity.invitation_account_mismatch"
+	CodeIdentityInvitationExpired                      = "identity.invitation_expired"
+	CodeIdentityInvitationNotFound                     = "identity.invitation_not_found"
 	CodeIdentityInvitationRateLimited                  = "identity.invitation_rate_limited"
 	CodeIdentityLehrkraftRoleImmutable                 = "identity.lehrkraft_role_immutable"
 	CodeIdentityMfaAlreadyEnrolled                     = "identity.mfa_already_enrolled"
@@ -299,12 +302,12 @@ const (
 	CodeTimetableInstanceInPast                        = "timetable.instance_in_past"
 	CodeTimetableInstanceInvalid                       = "timetable.instance_invalid"
 	CodeTimetableInstanceMoved                         = "timetable.instance_moved"
-	CodeTimetableInstanceNotActive                     = "timetable.instance_not_active"
-	CodeTimetableInstanceNotConvertible                = "timetable.instance_not_convertible"
-	CodeTimetableInstanceNotEditable                   = "timetable.instance_not_editable"
 )
 
 var errorCodeClasses1 = map[string]string{
+	"identity.invitation_account_mismatch":                 "permission",
+	"identity.invitation_expired":                          "business_rejection",
+	"identity.invitation_not_found":                        "input",
 	"identity.invitation_rate_limited":                     "unavailable",
 	"identity.lehrkraft_role_immutable":                    "business_rejection",
 	"identity.mfa_already_enrolled":                        "business_rejection",
@@ -602,9 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.instance_in_past":                           "input",
 	"timetable.instance_invalid":                           "input",
 	"timetable.instance_moved":                             "business_rejection",
-	"timetable.instance_not_active":                        "business_rejection",
-	"timetable.instance_not_convertible":                   "business_rejection",
-	"timetable.instance_not_editable":                      "business_rejection",
 }
 
 func init() {

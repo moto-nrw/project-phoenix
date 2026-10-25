@@ -211,6 +211,7 @@ export const HELP_TOPICS = {
   traegerAccounts: "personen-ins-traeger-buero-einladen",
   traegerHolidayPeriod: "traeger-ferienzeitraum",
   traegerHolidayRegistration: "traeger-ferienanmeldung-teilen",
+  traegerHolidayRegistrationReview: "traeger-ferienanmeldungen-pruefen",
   traegerAccessLog: "zugriffsprotokoll-des-traegers-lesen",
   traegerSettings: "traeger-einstellungen",
   traegerBriefkopf: "briefkopf-des-traegers",

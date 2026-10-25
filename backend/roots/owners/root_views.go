@@ -196,6 +196,7 @@ func BuildPlanExport(env RootEnvironment, shifts *workforceCompose.ShiftPlanning
 		Students:      repos.ParticipantCounts(), Rooms: rooms, Staff: planExportStaffNames{staff: people.Staff},
 		ActivityGroups: arrivalTimetable.NewTimetableGroupReads(repos.Timetable), PlanningTracks: timetableOwner,
 		ClosingDays: planExportClosingDays{calendar: calendar}, Holidays: planExportHolidays{calendar: calendar},
+		BlockGroups: timetableOwner, EducationGroupNames: owner.EducationGroupNames,
 		Renderer: renderer, Logger: env.Logger.With("service", "plan_export"),
 	})
 }

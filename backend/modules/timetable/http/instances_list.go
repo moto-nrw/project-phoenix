@@ -1,9 +1,10 @@
 // Package timetablehttp — WP-F2 backend prerequisite: weekly instance list.
 //
-//	GET /api/timetable/instances?from=YYYY-MM-DD&to=YYYY-MM-DD
+//	GET /api/timetable/instances?from=YYYY-MM-DD&to=YYYY-MM-DD[&group_id=&staff_id=]
 //
 // Lists all materialized activity instances in the requested window for the
-// current tenant, enriched with room name, activity-group type, staffing
+// current tenant, optionally narrowed to one OGS group and/or one staff
+// member (#4766), enriched with room name, activity-group type, staffing
 // counts, and expected/present student counts. Powers the admin weekly
 // planner UI (database/timetables). Permission: SchedulesRead.
 //
@@ -21,6 +22,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
@@ -174,39 +176,17 @@ func (rs *Resource) listInstances(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-
-	ctx := r.Context()
-
-	instances, err := rs.TimetableData.ListScheduledInstances(ctx, from, to)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServerWrap(
-			"load instances failed", err))
+	filter, ok := parseBlockFilter(w, r)
+	if !ok {
 		return
 	}
 
-	// Resolved once per request (not per instance) — the Betreuungsschlüssel
-	// setting is tenant-wide, not per-block.
-	ratio := rs.childrenPerStaffRatio(ctx)
-
-	careDays, err := rs.resolveCareDays(ctx, instances, from, to)
+	enriched, err := rs.listWindow(r.Context(), from, to, filter)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap(
-			"resolve care days failed", err))
+			"list instances failed", err))
 		return
 	}
-
-	enriched, conflictInputs, err := rs.enrichInstances(ctx, instances, ratio, careDays)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServerWrap(
-			"enrich instances failed", err))
-		return
-	}
-
-	// Window-wide person double-bookings (#2139): the banner's "diese Woche" /
-	// "diesen Monat" claim holds because detection covers exactly the
-	// requested window, not just today. The rows were already loaded for
-	// enrichment, so this adds no queries.
-	applyWindowConflicts(enriched, rs.detectWindowConflicts(conflictInputs))
 
 	resp := weeklyInstancesResponse{
 		From:      from.Format(dateLayout),
@@ -220,6 +200,42 @@ func (rs *Resource) listInstances(w http.ResponseWriter, r *http.Request) {
 		slog.Int("instance_count", len(enriched)),
 	)
 	common.Respond(w, r, http.StatusOK, resp, "Instances retrieved")
+}
+
+// listWindow projects the blocks of the window that pass the filter.
+func (rs *Resource) listWindow(ctx context.Context, from, to calendar.Date, filter timetable.BlockFilter) ([]enrichedInstance, error) {
+	instances, err := rs.TimetableData.ListScheduledInstances(ctx, from, to)
+	if err != nil {
+		return nil, fmt.Errorf("load instances: %w", err)
+	}
+
+	// Resolved once per request (not per instance) — the Betreuungsschlüssel
+	// setting is tenant-wide, not per-block.
+	ratio := rs.childrenPerStaffRatio(ctx)
+
+	careDays, err := rs.resolveCareDays(ctx, instances, from, to)
+	if err != nil {
+		return nil, fmt.Errorf("resolve care days: %w", err)
+	}
+
+	selection, err := rs.blockSelection(ctx, filter, instances)
+	if err != nil {
+		return nil, fmt.Errorf("resolve block groups: %w", err)
+	}
+
+	enriched, conflictInputs, matches, err := rs.enrichInstances(ctx, instances, ratio, careDays, selection)
+	if err != nil {
+		return nil, fmt.Errorf("enrich instances: %w", err)
+	}
+
+	// Window-wide person double-bookings (#2139): the banner's "diese Woche" /
+	// "diesen Monat" claim holds because detection covers exactly the
+	// requested window, not just today. The rows were already loaded for
+	// enrichment, so this adds no queries. The filter applies after
+	// detection, so a conflict with a block the filter hides still marks the
+	// block that stays visible.
+	applyWindowConflicts(enriched, rs.detectWindowConflicts(conflictInputs))
+	return keepMatchingInstances(enriched, matches), nil
 }
 
 // parseInstanceListWindow reads the from/to window of GET /instances. It
@@ -265,6 +281,79 @@ func parseDateWindow(w http.ResponseWriter, r *http.Request, maxDays int) (from,
 		return from, to, false
 	}
 	return from, to, true
+}
+
+// parseBlockFilter reads the optional group_id and staff_id of GET
+// /instances (#4766). It returns ok=false after rendering the 400 for a
+// value that is not a positive id.
+func parseBlockFilter(w http.ResponseWriter, r *http.Request) (timetable.BlockFilter, bool) {
+	var filter timetable.BlockFilter
+	q := r.URL.Query()
+	for _, param := range []struct {
+		name   string
+		target **int64
+	}{{"group_id", &filter.EducationGroupID}, {"staff_id", &filter.StaffID}} {
+		raw := q.Get(param.name)
+		if raw == "" {
+			continue
+		}
+		id, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil || id <= 0 {
+			common.RenderError(w, r, common.ErrorInvalidRequest(
+				fmt.Errorf("invalid %s, expected a positive id", param.name)))
+			return timetable.BlockFilter{}, false
+		}
+		*param.target = &id
+	}
+	return filter, true
+}
+
+// blockSelection is an active group and person filter with the OGS groups
+// of the window's blocks (#4766).
+type blockSelection struct {
+	filter timetable.BlockFilter
+	groups map[int64][]int64
+}
+
+// blockSelection resolves the filter for the window. It returns nil without
+// an active filter and asks the Timetable owner for the blocks' groups only
+// when the filter names a group.
+func (rs *Resource) blockSelection(ctx context.Context, filter timetable.BlockFilter, instances []timetable.ScheduledInstance) (*blockSelection, error) {
+	if !filter.Active() {
+		return nil, nil
+	}
+	selection := &blockSelection{filter: filter}
+	if filter.EducationGroupID == nil || len(instances) == 0 {
+		return selection, nil
+	}
+	if rs.BlockGroups == nil {
+		return nil, errors.New("block group query not wired")
+	}
+	ids := make([]int64, 0, len(instances))
+	for _, inst := range instances {
+		ids = append(ids, inst.ID)
+	}
+	groups, err := rs.BlockGroups.BlockEducationGroups(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	selection.groups = groups
+	return selection, nil
+}
+
+// keepMatchingInstances drops the blocks the filter rejected; a nil matches
+// slice keeps every block.
+func keepMatchingInstances(enriched []enrichedInstance, matches []bool) []enrichedInstance {
+	if matches == nil {
+		return enriched
+	}
+	kept := make([]enrichedInstance, 0, len(enriched))
+	for i := range enriched {
+		if matches[i] {
+			kept = append(kept, enriched[i])
+		}
+	}
+	return kept
 }
 
 // applyWindowConflicts attaches each instance's window conflicts.
@@ -316,15 +405,18 @@ func (rs *Resource) enrichWrittenInstance(ctx context.Context, instanceID int64)
 
 // enrichInstances projects a list window: the per-instance rows come from one
 // batched read per kind (#2940), the caches are shared across the window.
+// matches is aligned with the projected blocks and nil without a selection;
+// the person filter reuses the staff rows already loaded (#4766).
 func (rs *Resource) enrichInstances(
 	ctx context.Context,
 	instances []timetable.ScheduledInstance,
 	childrenPerStaffRatio int,
 	careDays map[int64]map[calendar.Date]careplan.CareDayStatus,
-) ([]enrichedInstance, []timetable.WindowConflictBlock, error) {
+	selection *blockSelection,
+) ([]enrichedInstance, []timetable.WindowConflictBlock, []bool, error) {
 	rows, err := rs.TimetableData.ListScheduledInstanceRows(ctx, instances)
 	if err != nil {
-		return nil, nil, fmt.Errorf("load instance rows: %w", err)
+		return nil, nil, nil, fmt.Errorf("load instance rows: %w", err)
 	}
 	instanceIDs := make([]int64, 0, len(instances))
 	for _, inst := range instances {
@@ -332,20 +424,27 @@ func (rs *Resource) enrichInstances(
 	}
 	metadata, err := rs.TimetableData.BlockDisplayMetadata(ctx, instanceIDs)
 	if err != nil {
-		return nil, nil, fmt.Errorf("load block display metadata: %w", err)
+		return nil, nil, nil, fmt.Errorf("load block display metadata: %w", err)
 	}
 	offeringSourceCache := make(map[int64]timetable.EmptyOfferingRosterExplainer)
 	enriched := make([]enrichedInstance, 0, len(instances))
 	conflictInputs := make([]timetable.WindowConflictBlock, 0, len(instances))
+	var matches []bool
+	if selection != nil {
+		matches = make([]bool, 0, len(instances))
+	}
 	for _, inst := range instances {
 		item, staffRows, studentRows, err := rs.enrichInstance(ctx, inst, rows, metadata[inst.ID], offeringSourceCache, childrenPerStaffRatio, careDays)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 		enriched = append(enriched, item)
 		conflictInputs = append(conflictInputs, windowConflictBlock(inst, staffRows, studentRows))
+		if matches != nil {
+			matches = append(matches, selection.filter.Matches(staffRows, selection.groups[inst.ID]))
+		}
 	}
-	return enriched, conflictInputs, nil
+	return enriched, conflictInputs, matches, nil
 }
 
 // windowConflictBlock maps one listed block and its rows onto the input of

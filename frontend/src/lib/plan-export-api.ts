@@ -4,6 +4,7 @@
 // rendering path.
 
 import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
+import type { PlanFilter } from "~/lib/plan-filter";
 import {
   downloadBlob,
   filenameFromDisposition,
@@ -23,6 +24,20 @@ export interface PlanExportRequest {
   to: string;
   template: PlanExportTemplate;
   variant: PlanExportVariant;
+  /**
+   * Gruppen- und Personenfilter des Betreuungsplans (#4766); der Druck zeigt
+   * dann dieselben Blöcke wie der Bildschirm. Der Dienstplan sendet keinen.
+   */
+  filter?: PlanFilter;
+}
+
+/** Der Filter im Body der Export-Anfrage; IDs reisen verlustfrei als Strings. */
+function filterBody(filter: PlanFilter | undefined): Record<string, string> {
+  if (!filter) return {};
+  return {
+    ...(filter.groupId ? { group_id: filter.groupId } : {}),
+    ...(filter.staffId ? { staff_id: filter.staffId } : {}),
+  };
 }
 
 const ROUTES: Record<PlanExportPlan, string> = {
@@ -114,7 +129,14 @@ export async function exportPlan(
     const response = await transportFetch(ROUTES[plan], {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...request, format }),
+      body: JSON.stringify({
+        from: request.from,
+        to: request.to,
+        template: request.template,
+        variant: request.variant,
+        ...filterBody(request.filter),
+        format,
+      }),
     });
 
     if (!response.ok) {

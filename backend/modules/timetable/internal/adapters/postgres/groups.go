@@ -69,6 +69,14 @@ type groupTargetRow struct {
 	EducationGroupName string    `bun:"education_group_name,scanonly"`
 }
 
+type blockGroupCandidateRow struct {
+	InstanceID               int64  `bun:"instance_id"`
+	TemplateEducationGroupID *int64 `bun:"template_education_group_id"`
+	TargetGroupType          string `bun:"target_group_type"`
+	TargetEducationGroupID   *int64 `bun:"target_education_group_id"`
+	StudentID                *int64 `bun:"student_id"`
+}
+
 func (s *Store) FindGroup(ctx context.Context, id int64, lock string) (timetable.Group, bool, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
@@ -112,6 +120,46 @@ func (s *Store) ListGroups(ctx context.Context, filter timetable.GroupFilter) ([
 	result := make([]timetable.Group, 0, len(rows))
 	for _, row := range rows {
 		result = append(result, groupToDomain(row, true))
+	}
+	stats.Rows = int64(len(result))
+	return result, stats, nil
+}
+
+// ListBlockGroupCandidates batches the template group, participant-source
+// groups and planned children for the Betreuungsplan's group filter.
+func (s *Store) ListBlockGroupCandidates(ctx context.Context, instanceIDs []int64) ([]domain.BlockGroupCandidate, domain.OperationStats, error) {
+	if len(instanceIDs) == 0 {
+		return []domain.BlockGroupCandidate{}, domain.OperationStats{}, nil
+	}
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return nil, domain.OperationStats{}, err
+	}
+	rows := []blockGroupCandidateRow{}
+	query := db.NewSelect().Model(&rows).
+		ModelTableExpr(`schedule.activity_instances AS "instance"`).
+		ColumnExpr(`"instance".id AS instance_id, "template".education_group_id AS template_education_group_id,
+			COALESCE("target".target_group_type, '') AS target_group_type, "target".education_group_id AS target_education_group_id,
+			"student".student_id`).
+		Join(`LEFT JOIN activities.groups AS "template" ON "template".id = "instance".activity_group_id AND "template".tenant_id = "instance".tenant_id`).
+		Join(`LEFT JOIN activities.group_targets AS "target" ON "target".activity_group_id = "template".id AND "target".tenant_id = "instance".tenant_id`).
+		Join(`LEFT JOIN schedule.instance_students AS "student" ON "student".instance_id = "instance".id AND "student".tenant_id = "instance".tenant_id`).
+		Where(`"instance".tenant_id = ?`, tenantID).
+		Where(`"instance".id IN (?)`, bun.List(instanceIDs)).
+		OrderExpr(`"instance".id ASC`)
+	stats, err := scanAll(ctx, query, "list block group candidates")
+	if err != nil {
+		return nil, stats, err
+	}
+	result := make([]domain.BlockGroupCandidate, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, domain.BlockGroupCandidate{
+			InstanceID:               row.InstanceID,
+			TemplateEducationGroupID: row.TemplateEducationGroupID,
+			TargetGroupType:          row.TargetGroupType,
+			TargetEducationGroupID:   row.TargetEducationGroupID,
+			StudentID:                row.StudentID,
+		})
 	}
 	stats.Rows = int64(len(result))
 	return result, stats, nil

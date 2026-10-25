@@ -167,7 +167,9 @@ var moduleLegacyFileBudgets = map[string]int{
 // modules/organizationtenancy/compose adds exactly 13 LOC.
 // ADR 0113: the holiday registration prefill's data access port of
 // workflows/parentportal/compose adds exactly 1 LOC.
-const moduleComposeBudgetTotal = 12613
+// ADR 0114: the holiday registration review constructor of
+// modules/enrollment/compose adds exactly 7 LOC.
+const moduleComposeBudgetTotal = 12620
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -194,8 +196,9 @@ var moduleComposeBudgets = map[string]int{
 	"modules/devicescan/compose":                    531,
 	"modules/emergencysnapshot/compose":             13,
 	// Raised by ADR 0105: the holiday period constructor (+13); by ADR 0110:
-	// the public holiday registration constructors (+18).
-	"modules/enrollment/compose":                   571,
+	// the public holiday registration constructors (+18); by ADR 0114: the
+	// holiday registration review constructor (+7).
+	"modules/enrollment/compose":                   578,
 	"modules/exporttransfer/compose":               149,
 	"modules/facilities/compose":                   184,
 	"modules/facilities/compose/repositoryadapter": 11,

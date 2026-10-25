@@ -29,3 +29,10 @@ func NewHolidayRegistrations(traeger enrollment.HolidayTraegerDirectory, mail en
 func NewHolidayRegistrationRetention() enrollment.HolidayRegistrationRetention {
 	return applicationNative.NewHolidayRegistrationRetention(postgres.NewHolidayRegistrationStore(), nil)
 }
+
+// NewHolidayRegistrationReview builds the review of the holiday registrations
+// by the Träger-Büro (#4663). It runs in the Träger transaction the
+// Träger-Portal route opens (ADR 0114).
+func NewHolidayRegistrationReview() enrollment.HolidayRegistrationReview {
+	return applicationNative.NewHolidayRegistrationReview(postgres.NewHolidayRegistrationStore(), postgres.NewHolidayPeriodStore(), nil)
+}
