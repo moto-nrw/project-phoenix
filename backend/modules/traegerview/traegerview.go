@@ -102,16 +102,21 @@ type Viewer struct {
 
 // AccessLogFilter selects entries: the Berlin days From to To (both
 // included, required) and optionally one school, one person and one kind.
+// AsOf, when set, keeps a list to the entries before that instant: the first
+// page answers its AsOf, and the following pages send it back, so the reads
+// the access log itself records meanwhile never shift a later page.
 type AccessLogFilter struct {
 	From      calendar.Date
 	To        calendar.Date
 	SchoolID  int64
 	AccountID int64
 	Kind      string
+	AsOf      time.Time
 }
 
-// AccessLogEntry is one read or change. ID is stable across pages. AccountID is nil when no person is
-// recorded; Person is the display name, a fallback text when none is known.
+// AccessLogEntry is one read or change. ID is stable across pages.
+// AccountID is nil when no person is recorded; Person is the display name, a
+// fallback text when none is known.
 // Data names the data that was read or changed; DataLabel says it in plain
 // German.
 type AccessLogEntry struct {
@@ -130,6 +135,8 @@ type AccessLogEntry struct {
 type AccessLogPage struct {
 	Entries []AccessLogEntry `json:"entries"`
 	HasMore bool             `json:"has_more"`
+	// AsOf is the instant the list reads up to; the next page sends it back.
+	AsOf time.Time `json:"as_of"`
 }
 
 // AccessLogPerson is a person the access log can be filtered by.

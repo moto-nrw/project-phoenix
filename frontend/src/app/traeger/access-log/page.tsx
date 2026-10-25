@@ -4,7 +4,7 @@
 // Trägers Daten gelesen oder geändert hat. Nur zum Lesen, mit Filtern und
 // CSV-Export. Jedes Öffnen steht selbst im Protokoll der gezeigten Schulen.
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ScrollText } from "lucide-react";
 import type { DateRange } from "react-day-picker";
 import { Button } from "~/components/ui/button";
@@ -138,6 +138,10 @@ export default function TraegerAccessLogPage() {
   const [people, setPeople] = useState<TraegerAccessLogPerson[]>([]);
   const [entries, setEntries] = useState<TraegerAccessLogEntry[]>([]);
   const [page, setPage] = useState(1);
+  const [asOf, setAsOf] = useState("");
+  // Each new filter starts a new list. An answer for an older list (a slow
+  // first page, a pending "Weitere Einträge laden") is dropped.
+  const listGeneration = useRef(0);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -171,28 +175,39 @@ export default function TraegerAccessLogPage() {
 
   useEffect(() => {
     if (!from) return;
+    let current = true;
     fetchTraegerAccessLogPeople(from, to)
-      .then(setPeople)
+      .then((loaded) => {
+        if (current) setPeople(loaded);
+      })
       .catch((err: unknown) => {
         // The person filter then offers only "Alle Personen"; the list
         // itself still loads and shows its own error.
         logger.warn("traeger_access_log_people_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
-        setPeople([]);
+        if (current) setPeople([]);
       });
+    return () => {
+      current = false;
+    };
   }, [from, to]);
 
   const load = useCallback(async () => {
     if (!filter) return;
+    const generation = ++listGeneration.current;
     setLoading(true);
+    setLoadingMore(false);
     try {
       const result = await fetchTraegerAccessLog(filter, 1);
+      if (generation !== listGeneration.current) return;
       setEntries(result.entries);
       setHasMore(result.hasMore);
+      setAsOf(result.asOf);
       setPage(1);
       clearLoadError();
     } catch (err) {
+      if (generation !== listGeneration.current) return;
       logger.error("traeger_access_log_load_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
@@ -203,7 +218,7 @@ export default function TraegerAccessLogPage() {
         retry: () => void load(),
       });
     } finally {
-      setLoading(false);
+      if (generation === listGeneration.current) setLoading(false);
     }
   }, [filter, clearLoadError, showLoadError]);
 
@@ -213,19 +228,22 @@ export default function TraegerAccessLogPage() {
 
   const loadMore = async () => {
     if (!filter) return;
+    const generation = listGeneration.current;
     setLoadingMore(true);
     try {
-      const result = await fetchTraegerAccessLog(filter, page + 1);
+      const result = await fetchTraegerAccessLog(filter, page + 1, asOf);
+      if (generation !== listGeneration.current) return;
       setEntries((current) => [...current, ...result.entries]);
       setHasMore(result.hasMore);
       setPage(page + 1);
     } catch (err) {
+      if (generation !== listGeneration.current) return;
       logger.error("traeger_access_log_load_more_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
       await showActionError(err, { object: "die weiteren Einträge" });
     } finally {
-      setLoadingMore(false);
+      if (generation === listGeneration.current) setLoadingMore(false);
     }
   };
 

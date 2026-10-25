@@ -29,8 +29,11 @@ const {
 
 vi.mock("~/lib/traeger-api", () => ({
   fetchTraegerSchools: () => mockFetchSchools(),
-  fetchTraegerAccessLog: (filter: TraegerAccessLogFilter, page: number) =>
-    mockFetchLog(filter, page),
+  fetchTraegerAccessLog: (
+    filter: TraegerAccessLogFilter,
+    page: number,
+    asOf?: string,
+  ) => mockFetchLog(filter, page, asOf),
   fetchTraegerAccessLogPeople: (from: string, to: string) =>
     mockFetchPeople(from, to),
   downloadTraegerAccessLog: (filter: TraegerAccessLogFilter) =>
@@ -41,6 +44,8 @@ vi.mock("~/lib/file-download", () => ({
 }));
 
 import TraegerAccessLogPage from "./page";
+
+const AS_OF = "2026-09-09T10:00:00Z";
 
 const READ: TraegerAccessLogEntry = {
   id: "read-attendance_history-7",
@@ -83,7 +88,11 @@ describe("TraegerAccessLogPage", () => {
       { accountId: "11", name: "Frieda Fachkraft" },
       { accountId: "12", name: "Lena Leitung" },
     ]);
-    mockFetchLog.mockResolvedValue({ entries: [READ, CHANGE], hasMore: false });
+    mockFetchLog.mockResolvedValue({
+      entries: [READ, CHANGE],
+      hasMore: false,
+      asOf: AS_OF,
+    });
   });
 
   it("shows the last 30 days as a read-only table in Berlin time", async () => {
@@ -108,6 +117,7 @@ describe("TraegerAccessLogPage", () => {
         kind: "",
       },
       1,
+      undefined,
     );
     expect(mockFetchPeople).toHaveBeenCalledWith("2026-08-11", "2026-09-09");
     // Anker: die Zeilen sind geladen; sie sind reine Anzeige.
@@ -127,14 +137,19 @@ describe("TraegerAccessLogPage", () => {
       expect(mockFetchLog).toHaveBeenLastCalledWith(
         expect.objectContaining({ kind: "change" }),
         1,
+        undefined,
       ),
     );
   });
 
   it("loads the next page below the list", async () => {
     mockFetchLog
-      .mockResolvedValueOnce({ entries: [READ], hasMore: true })
-      .mockResolvedValueOnce({ entries: [CHANGE], hasMore: false });
+      .mockResolvedValueOnce({ entries: [READ], hasMore: true, asOf: AS_OF })
+      .mockResolvedValueOnce({
+        entries: [CHANGE],
+        hasMore: false,
+        asOf: AS_OF,
+      });
     renderPage();
 
     fireEvent.click(
@@ -142,7 +157,8 @@ describe("TraegerAccessLogPage", () => {
     );
 
     expect((await screen.findAllByText("Lena Leitung"))[0]).toBeInTheDocument();
-    expect(mockFetchLog).toHaveBeenLastCalledWith(expect.anything(), 2);
+    // The next page reads up to the first page's instant.
+    expect(mockFetchLog).toHaveBeenLastCalledWith(expect.anything(), 2, AS_OF);
     expect(screen.getAllByText("Frieda Fachkraft")[0]).toBeInTheDocument();
   });
 
@@ -185,5 +201,35 @@ describe("TraegerAccessLogPage", () => {
       await screen.findByText(/Der Export hat mehr als 10000 Einträge/),
     ).toBeInTheDocument();
     expect(mockDownloadBlob).not.toHaveBeenCalled();
+  });
+
+  it("drops the answer of a list whose filter has changed meanwhile", async () => {
+    let resolveFirst: (page: unknown) => void = () => undefined;
+    mockFetchLog
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveFirst = resolve;
+        }),
+      )
+      .mockResolvedValueOnce({
+        entries: [CHANGE],
+        hasMore: false,
+        asOf: AS_OF,
+      });
+    renderPage();
+    await waitFor(() => expect(mockFetchLog).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole("button", { name: "Geändert" }));
+    expect((await screen.findAllByText("Lena Leitung"))[0]).toBeInTheDocument();
+
+    // The slow first answer arrives after the change of the filter.
+    resolveFirst({ entries: [READ], hasMore: true, asOf: AS_OF });
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("button", { name: "Weitere Einträge laden" }),
+      ).toBeNull(),
+    );
+    expect(screen.queryAllByText("Frieda Fachkraft")).toEqual([]);
+    expect(screen.getAllByText("Lena Leitung")[0]).toBeInTheDocument();
   });
 });

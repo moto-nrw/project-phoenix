@@ -32,6 +32,7 @@ func accessLogAt(hour int) time.Time {
 }
 
 type accessLogEntry struct {
+	ID         string    `json:"id"`
 	OccurredAt time.Time `json:"occurred_at"`
 	SchoolID   int64     `json:"school_id"`
 	SchoolName string    `json:"school_name"`
@@ -45,6 +46,7 @@ type accessLogEntry struct {
 type accessLogPage struct {
 	Entries []accessLogEntry `json:"entries"`
 	HasMore bool             `json:"has_more"`
+	AsOf    time.Time        `json:"as_of"`
 }
 
 type accessLogPerson struct {
@@ -290,4 +292,37 @@ func TestTraegerAccessLogQueryBudgetIsFlat(t *testing.T) {
 	}
 	assert.Len(t, list(), len(first), "the access log reads the same statements for any number of entries")
 	testpkg.AssertQueryBudget(t, "api.traeger.access_log", first)
+}
+
+// The pages of one list end at its as_of instant, so entries recorded after
+// the first page, such as the reads the access log itself records, never
+// shift an entry onto the next page twice (quorum review of #4932).
+func TestTraegerAccessLogPagesEndAtTheirAsOfInstant(t *testing.T) {
+	t.Parallel()
+	f := newTraegerAccessLogFixture(t, identityaccess.TraegerRoleAdministration)
+	start := accessLogAt(6)
+	for i := 0; i < 51; i++ {
+		recordAccessLogRead(t, f.db, f.first, f.staff, "attendance_history", start.Add(time.Duration(i)*time.Minute))
+	}
+	asOf := accessLogAt(12)
+	recordAccessLogRead(t, f.db, f.first, f.staff, "class_day_view", accessLogAt(13))
+	window := map[string]string{"as_of": asOf.Format(time.RFC3339Nano)}
+
+	first := listAccessLog(t, f.router, f.token, window)
+	require.Len(t, first.Entries, 50)
+	assert.True(t, first.HasMore)
+	assert.True(t, first.AsOf.Equal(asOf), "the list answers the instant it reads up to")
+	for _, entry := range first.Entries {
+		assert.Equal(t, "attendance_history", entry.Data, "nothing after as_of is listed")
+	}
+	window["page"] = "2"
+	second := listAccessLog(t, f.router, f.token, window)
+	require.Len(t, second.Entries, 1)
+	assert.False(t, second.HasMore)
+	seen := map[string]bool{}
+	for _, entry := range append(first.Entries, second.Entries...) {
+		assert.False(t, seen[entry.ID], "entry %s is listed twice", entry.ID)
+		seen[entry.ID] = true
+	}
+	assert.Len(t, seen, 51)
 }

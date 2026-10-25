@@ -166,6 +166,8 @@ export interface TraegerAccessLogEntry {
 export interface TraegerAccessLogPage {
   readonly entries: TraegerAccessLogEntry[];
   readonly hasMore: boolean;
+  /** The instant the list reads up to; later pages of the list send it back. */
+  readonly asOf: string;
 }
 
 /** A person the access log can be filtered by. */
@@ -189,12 +191,14 @@ interface BackendAccessLogEntry {
 function traegerAccessLogQuery(
   filter: TraegerAccessLogFilter,
   page?: number,
+  asOf?: string,
 ): string {
   const params = new URLSearchParams({ from: filter.from, to: filter.to });
   if (filter.schoolId) params.set("school_id", filter.schoolId);
   if (filter.accountId) params.set("account_id", filter.accountId);
   if (filter.kind) params.set("kind", filter.kind);
   if (page !== undefined) params.set("page", String(page));
+  if (asOf) params.set("as_of", asOf);
   return params.toString();
 }
 
@@ -214,14 +218,23 @@ async function traegerGet(path: string): Promise<unknown> {
   return (data as { data?: unknown } | null)?.data ?? null;
 }
 
-/** One page of the access log, newest first. Pages start at 1. */
+/**
+ * One page of the access log, newest first. Pages start at 1; the pages after
+ * the first pass the first page's `asOf`, so entries recorded meanwhile
+ * (including this read itself) never shift into a later page.
+ */
 export async function fetchTraegerAccessLog(
   filter: TraegerAccessLogFilter,
   page: number,
+  asOf?: string,
 ): Promise<TraegerAccessLogPage> {
   const data = (await traegerGet(
-    `/api/traeger/access-log?${traegerAccessLogQuery(filter, page)}`,
-  )) as { entries?: BackendAccessLogEntry[]; has_more?: boolean } | null;
+    `/api/traeger/access-log?${traegerAccessLogQuery(filter, page, asOf)}`,
+  )) as {
+    entries?: BackendAccessLogEntry[];
+    has_more?: boolean;
+    as_of?: string;
+  } | null;
   return {
     entries: (data?.entries ?? []).map((entry) => ({
       id: entry.id,
@@ -234,6 +247,7 @@ export async function fetchTraegerAccessLog(
       dataLabel: entry.data_label,
     })),
     hasMore: data?.has_more ?? false,
+    asOf: data?.as_of ?? "",
   };
 }
 

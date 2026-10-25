@@ -61,9 +61,18 @@ func (o *Overview) AccessLog(ctx context.Context, viewer traegerview.Viewer, fil
 	if page < 1 {
 		return traegerview.AccessLogPage{}, fmt.Errorf("%w: the page starts at 1", traegerview.ErrInvalidAccessLogFilter)
 	}
-	result := traegerview.AccessLogPage{Entries: []traegerview.AccessLogEntry{}}
+	result := traegerview.AccessLogPage{Entries: []traegerview.AccessLogEntry{}, AsOf: filter.AsOf}
+	if result.AsOf.IsZero() {
+		result.AsOf = time.Now()
+	}
+	// The pages of one list end at the same instant, so the reads this list
+	// records below never push an earlier entry onto a later page.
+	listed := span
+	if result.AsOf.Before(listed.to) {
+		listed.to = result.AsOf
+	}
 	err = o.read(ctx, viewer.OrganizationID, func(adminCtx context.Context, schools []int64) error {
-		entries, err := o.entries(adminCtx, viewer, schools, filter, span, traegerview.AccessLogPageSize+1, (page-1)*traegerview.AccessLogPageSize)
+		entries, err := o.entries(adminCtx, viewer, schools, filter, listed, traegerview.AccessLogPageSize+1, (page-1)*traegerview.AccessLogPageSize)
 		if err != nil {
 			return err
 		}

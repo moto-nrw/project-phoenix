@@ -166,6 +166,11 @@ func accessLogFilter(r *http.Request) (traegerview.AccessLogFilter, error) {
 		return traegerview.AccessLogFilter{}, err
 	}
 	filter := traegerview.AccessLogFilter{From: from, To: to, Kind: r.URL.Query().Get("kind")}
+	if raw := r.URL.Query().Get("as_of"); raw != "" {
+		if filter.AsOf, err = time.Parse(time.RFC3339Nano, raw); err != nil {
+			return traegerview.AccessLogFilter{}, fmt.Errorf("%w: as_of must be an RFC 3339 instant", traegerview.ErrInvalidAccessLogFilter)
+		}
+	}
 	if filter.SchoolID, err = optionalID(r, "school_id"); err != nil {
 		return traegerview.AccessLogFilter{}, err
 	}
