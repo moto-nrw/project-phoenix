@@ -99,7 +99,7 @@ func (s *Seeder) bootstrapManualProfile(ctx context.Context, rt *Runtime, defini
 		OrganizationID: rt.Bootstrap.OrganizationID, OrganizationName: rt.Bootstrap.OrganizationName,
 		OrganizationSlug: rt.Bootstrap.OrganizationSlug, SchoolID: schoolID, SchoolName: name,
 		SchoolSlug: slug, TenantSlug: tenantSlug, AdminEmail: email, AdminPassword: password,
-		AdminName: "Seed Admin", AdminPosition: manualAdminPosition,
+		AdminName: seedAdminFirstName + " " + seedAdminLastName, AdminPosition: manualAdminPosition,
 	}, auth, nil
 }
 

@@ -90,7 +90,7 @@ func (s parentRequestsSeedStep) Run(ctx context.Context, rt *Runtime) error {
 	}
 
 	if len(parents) > 0 {
-		actions, err := step.seedParentPortalActions(rt, parentAuths[parents[0].Email], parents[0])
+		actions, err := step.seedParentPortalActions(rt, parentAuths, parents)
 		if err != nil {
 			return err
 		}
@@ -101,10 +101,12 @@ func (s parentRequestsSeedStep) Run(ctx context.Context, rt *Runtime) error {
 		if err := step.seedRejectedPickupChange(rt, adminAuth, parentAuths[parents[0].Email], parents[0]); err != nil {
 			return err
 		}
-		if err := step.seedDayDepartureRequests(rt, adminAuth, parentAuths[parents[0].Email], parents[0]); err != nil {
+		departure := requestParent(parents, 4)
+		if err := step.seedDayDepartureRequests(rt, adminAuth, parentAuths[departure.Email], departure); err != nil {
 			return err
 		}
-		if err := step.seedPendingLaterPickupChange(rt, adminAuth, parents, parentAuths); err != nil {
+		// Families other than Felix's first, so the inbox spreads over children.
+		if err := step.seedPendingLaterPickupChange(rt, adminAuth, slices.Concat(parents[min(2, len(parents)):], parents[:min(2, len(parents))]), parentAuths); err != nil {
 			return err
 		}
 	}
@@ -164,10 +166,9 @@ func (s parentEnrollmentSeedStep) seedParentAccounts(ctx context.Context, rt *Ru
 		return nil, nil, err
 	}
 
-	guardianIndexes := []int{0, 1, 5, 19, 32, 54}
-	parents := make([]ParentCredentials, 0, len(guardianIndexes))
-	parentAuths := make(map[string]AuthRef, len(guardianIndexes))
-	for _, idx := range guardianIndexes {
+	parents := make([]ParentCredentials, 0, len(parentAccountGuardianIndexes))
+	parentAuths := make(map[string]AuthRef, len(parentAccountGuardianIndexes))
+	for _, idx := range parentAccountGuardianIndexes {
 		if idx < 0 || idx >= len(DemoGuardians) {
 			return nil, nil, fmt.Errorf("demo guardian index %d out of range", idx)
 		}
@@ -362,119 +363,119 @@ func (s parentEnrollmentSeedStep) seedEnrollment(rt *Runtime, adminAuth AuthRef,
 			[]string{"ogs-ganztag", "mittagessen", "ag-theater"}, map[string][]string{
 				"ogs-ganztag": {"mon", "wed", "fri"},
 				"mittagessen": {"mon", "wed", "fri"},
-			}, "approved", "Demo-Zusage: drei Betreuungstage"),
+			}, "approved", "Zusage: drei Betreuungstage"),
 		seedSubmission("public", "Emma", "Klein", "2019-01-11", 1,
 			"Katharina", "Klein", "katharina.klein@example.test", "approved-1-day",
 			[]string{"ogs-kurz", "mittagessen"}, map[string][]string{
 				"ogs-kurz":    {"mon"},
 				"mittagessen": {"mon"},
-			}, "approved", "Demo-Zusage: ein Betreuungstag"),
+			}, "approved", "Zusage: ein Betreuungstag"),
 		seedSubmission("public", "Oskar", "Wolf", "2018-09-29", 1,
 			"Martin", "Wolf", "martin.wolf@example.test", "approved-1-day",
 			[]string{"ogs-ganztag", "mittagessen"}, map[string][]string{
 				"ogs-ganztag": {"fri"},
 				"mittagessen": {"fri"},
-			}, "approved", "Demo-Zusage: ein Betreuungstag"),
+			}, "approved", "Zusage: ein Betreuungstag"),
 		seedSubmission("public", "Mia", "Berger", "2018-05-17", 2,
 			"Julia", "Berger", "julia.berger@example.test", "approved-1-day",
 			[]string{"ogs-kurz", "mittagessen"}, map[string][]string{
 				"ogs-kurz":    {"tue"},
 				"mittagessen": {"tue"},
-			}, "approved", "Demo-Zusage: ein Betreuungstag"),
+			}, "approved", "Zusage: ein Betreuungstag"),
 		seedSubmission("public", "Ben", "Hartmann", "2018-12-02", 1,
 			"Nadine", "Hartmann", "nadine.hartmann@example.test", "approved-2-days",
 			[]string{"ogs-kurz", "mittagessen"}, map[string][]string{
 				"ogs-kurz":    {"tue", "thu"},
 				"mittagessen": {"tue", "thu"},
-			}, "approved", "Demo-Zusage: zwei Betreuungstage"),
+			}, "approved", "Zusage: zwei Betreuungstage"),
 		seedSubmission("public", "Clara", "Neumann", "2017-10-09", 2,
 			"Sven", "Neumann", "sven.neumann@example.test", "approved-2-days",
 			[]string{"ogs-ganztag", "mittagessen"}, map[string][]string{
 				"ogs-ganztag": {"mon", "wed"},
 				"mittagessen": {"mon", "wed"},
-			}, "approved", "Demo-Zusage: zwei Betreuungstage"),
+			}, "approved", "Zusage: zwei Betreuungstage"),
 		seedSubmission("public", "Paul", "Seidel", "2017-03-27", 3,
 			"Anja", "Seidel", "anja.seidel@example.test", "approved-2-days",
 			[]string{"ogs-kurz", "mittagessen"}, map[string][]string{
 				"ogs-kurz":    {"mon", "fri"},
 				"mittagessen": {"mon", "fri"},
-			}, "approved", "Demo-Zusage: zwei Betreuungstage"),
+			}, "approved", "Zusage: zwei Betreuungstage"),
 		seedSubmission("public", "Jonas", "Krüger", "2017-08-15", 2,
 			"Petra", "Krüger", "petra.krueger@example.test", "approved-3-days",
 			[]string{"ogs-kurz", "mittagessen"}, map[string][]string{
 				"ogs-kurz":    {"mon", "wed", "fri"},
 				"mittagessen": {"mon", "wed", "fri"},
-			}, "approved", "Demo-Zusage: drei Betreuungstage"),
+			}, "approved", "Zusage: drei Betreuungstage"),
 		seedSubmission("public", "Amelie", "Vogt", "2016-11-20", 3,
 			"Jan", "Vogt", "jan.vogt@example.test", "approved-3-days",
 			[]string{"ogs-ganztag", "mittagessen"}, map[string][]string{
 				"ogs-ganztag": {"tue", "thu", "fri"},
 				"mittagessen": {"tue", "thu", "fri"},
-			}, "approved", "Demo-Zusage: drei Betreuungstage"),
+			}, "approved", "Zusage: drei Betreuungstage"),
 		seedSubmission("public", "Felix", "Braun", "2016-02-06", 4,
 			"Birgit", "Braun", "birgit.braun.eltern@example.test", "approved-3-days",
 			[]string{"ogs-kurz", "mittagessen"}, map[string][]string{
 				"ogs-kurz":    {"mon", "tue", "wed"},
 				"mittagessen": {"mon", "tue", "wed"},
-			}, "approved", "Demo-Zusage: drei Betreuungstage"),
+			}, "approved", "Zusage: drei Betreuungstage"),
 		seedSubmission("public", "Hannah", "Schmitz", "2017-06-30", 2,
 			"Carsten", "Schmitz", "carsten.schmitz@example.test", "approved-4-days",
 			[]string{"ogs-ganztag", "mittagessen"}, map[string][]string{
 				"ogs-ganztag": {"mon", "tue", "wed", "fri"},
 				"mittagessen": {"mon", "tue", "wed", "fri"},
-			}, "approved", "Demo-Zusage: vier Betreuungstage"),
+			}, "approved", "Zusage: vier Betreuungstage"),
 		seedSubmission("public", "David", "Keller", "2016-04-03", 4,
 			"Verena", "Keller", "verena.keller@example.test", "approved-4-days",
 			[]string{"ogs-kurz", "mittagessen"}, map[string][]string{
 				"ogs-kurz":    {"tue", "wed", "thu", "fri"},
 				"mittagessen": {"tue", "wed", "thu", "fri"},
-			}, "approved", "Demo-Zusage: vier Betreuungstage"),
+			}, "approved", "Zusage: vier Betreuungstage"),
 		seedSubmission("public", "Elias", "Sommerfeld", "2019-07-08", 1,
 			"Marco", "Sommerfeld", "marco.sommerfeld@example.test", "approved-5-days",
 			[]string{"ogs-ganztag", "mittagessen"}, map[string][]string{
 				"ogs-ganztag": {"mon", "tue", "wed", "thu", "fri"},
 				"mittagessen": {"mon", "tue", "wed", "thu", "fri"},
-			}, "approved", "Demo-Zusage: fünf Betreuungstage"),
+			}, "approved", "Zusage: fünf Betreuungstage"),
 		seedSubmission("public", "Sophie", "Adler", "2016-12-19", 3,
 			"Florian", "Adler", "florian.adler@example.test", "approved-5-days-holiday",
 			[]string{"ferienbetreuung", "mittagessen"}, map[string][]string{
 				"mittagessen": {"mon", "tue", "wed", "thu", "fri"},
-			}, "approved", "Demo-Zusage: Ferienbetreuung"),
+			}, "approved", "Zusage: Ferienbetreuung"),
 		seedSubmission("public", "Marie", "Busch", "2017-05-24", 3,
 			"Silke", "Busch", "silke.busch@example.test", "approved-5-days",
 			[]string{"ogs-ganztag", "mittagessen"}, map[string][]string{
 				"ogs-ganztag": {"mon", "tue", "wed", "thu", "fri"},
 				"mittagessen": {"mon", "tue", "wed", "thu", "fri"},
-			}, "approved", "Demo-Zusage: fünf Betreuungstage"),
+			}, "approved", "Zusage: fünf Betreuungstage"),
 		seedSubmission("public", "Mika", "Winter", "2018-11-03", 2,
 			"Robert", "Winter", "robert.winter@example.test", "waitlisted-holiday",
 			[]string{"ferienbetreuung", "mittagessen"}, map[string][]string{
 				"mittagessen": {"mon", "tue", "wed", "thu", "fri"},
-			}, "waitlisted", "Demo-Warteliste wegen begrenzter Plätze"),
+			}, "waitlisted", "Warteliste wegen begrenzter Plätze"),
 		seedSubmission("public", "Tom", "Ahrens", "2017-09-13", 2,
 			"Melanie", "Ahrens", "melanie.ahrens@example.test", "waitlisted-3-days",
 			[]string{"ogs-ganztag", "mittagessen"}, map[string][]string{
 				"ogs-ganztag": {"mon", "wed", "fri"},
 				"mittagessen": {"mon", "wed", "fri"},
-			}, "waitlisted", "Demo-Warteliste: drei Betreuungstage"),
+			}, "waitlisted", "Warteliste: drei Betreuungstage"),
 		seedSubmission("public", "Ella", "Franke", "2019-03-01", 1,
 			"Steffen", "Franke", "steffen.franke@example.test", "waitlisted-2-days",
 			[]string{"ogs-kurz", "mittagessen"}, map[string][]string{
 				"ogs-kurz":    {"tue", "thu"},
 				"mittagessen": {"tue", "thu"},
-			}, "waitlisted", "Demo-Warteliste: zwei Betreuungstage"),
+			}, "waitlisted", "Warteliste: zwei Betreuungstage"),
 		seedSubmission("public", "Nora", "Brandt", "2017-07-22", 3,
 			"Elena", "Brandt", "elena.brandt@example.test", "public-reject",
 			[]string{"ogs-kurz", "mittagessen"}, map[string][]string{
 				"ogs-kurz":    {"tue", "thu"},
 				"mittagessen": {"tue", "thu"},
-			}, "rejected", "Demo-Absage für Testdaten"),
+			}, "rejected", "Absage: Für diese Tage sind keine Plätze mehr frei."),
 		seedSubmission("public", "Mats", "Hoffmann", "2018-01-26", 1,
 			"Kerstin", "Hoffmann", "kerstin.hoffmann@example.test", "rejected-3-days",
 			[]string{"ogs-ganztag", "mittagessen"}, map[string][]string{
 				"ogs-ganztag": {"mon", "wed", "fri"},
 				"mittagessen": {"mon", "wed", "fri"},
-			}, "rejected", "Demo-Absage: drei Betreuungstage"),
+			}, "rejected", "Absage: drei Betreuungstage"),
 		{
 			source: "public",
 			path:   "/api/enrollment/" + rt.Bootstrap.TenantSlug + "/submit",
@@ -517,7 +518,7 @@ func (s parentEnrollmentSeedStep) seedEnrollment(rt *Runtime, adminAuth AuthRef,
 				},
 			),
 			status: "approved",
-			reason: "Demo-Zusage: vier Betreuungstage",
+			reason: "Zusage: vier Betreuungstage",
 		})
 	}
 	lateInviteBody := s.enrollmentSubmissionWithDays(phaseID, offerings, "Miriam", "Nachtrag", "2018-10-12", 2,
@@ -635,7 +636,7 @@ func (s parentEnrollmentSeedStep) seedOfferingChange(rt *Runtime, adminAuth, par
 		return fmt.Errorf("parse offering change request: %w", err)
 	}
 	_, err = rt.Client.PostWithAuth(adminAuth, fmt.Sprintf("/api/students/offering-change-requests/%d/decide", changeID), map[string]any{
-		"approve": true, "effective_from": effectiveFrom, "reason": "Demo-Zusage zum Angebotswechsel",
+		"approve": true, "effective_from": effectiveFrom, "reason": "Wechsel bestätigt.",
 	})
 	if err != nil {
 		return fmt.Errorf("approve offering change: %w", err)
@@ -699,7 +700,7 @@ func (s parentEnrollmentSeedStep) seedEnrollmentDeletion(rt *Runtime, auth AuthR
 		return fmt.Errorf("preview enrollment deletion: %w", err)
 	}
 	if _, err := rt.Client.DeleteWithAuthBody(auth, requestPath, map[string]any{
-		"reason": "Demo-Löschung zur Dokumentation des Datenschutz-Ablaufs",
+		"reason": "Löschung auf Wunsch der Familie",
 	}); err != nil {
 		return fmt.Errorf("delete enrollment demo request: %w", err)
 	}
@@ -760,7 +761,7 @@ func seedCourseTemplate(rt *Runtime, name string, weekday int, offeringID int64,
 	roomID := rt.FixedSeeder.roomIDs["Sporthalle"]
 	categoryID := seedAnyCategoryID(rt)
 	staffIDs := orderedSeedStaffIDs(rt.FixedSeeder)
-	if roomID == 0 || categoryID == 0 || len(staffIDs) == 0 {
+	if roomID == 0 || categoryID == 0 || len(staffIDs) < 4 {
 		return fmt.Errorf("course template references not available")
 	}
 	today := todaySeedDate()
@@ -770,7 +771,8 @@ func seedCourseTemplate(rt *Runtime, name string, weekday int, offeringID int64,
 		"weekdays": []int{weekday}, "start_time": "14:00", "end_time": "15:00",
 		"room_id": roomID, "category_id": categoryID, "week_pattern": 0,
 		"max_participants": maxParticipants,
-		"staff_ids":        staffIDs[:1], "primary_staff_id": staffIDs[0],
+		// The fourth caregiver: the first three run "AG Klasse 1a" at 14:00.
+		"staff_ids": staffIDs[3:4], "primary_staff_id": staffIDs[3],
 		"materialize_from": today.String(), "materialize_to": today.AddDays(6).String(),
 	})
 	if err != nil {
@@ -813,7 +815,7 @@ func (s parentEnrollmentSeedStep) createEnrollmentSchema(rt *Runtime, auth AuthR
 		"text": "Moje dziecko umie pływać.", "source": "Mein Kind kann schwimmen.",
 	}}
 	raw, err := rt.Client.PostWithAuth(auth, "/api/enrollment/schema/", map[string]any{
-		"name": "Demo-Anmeldeformular",
+		"name": "Anmeldeformular Ganztag",
 		"fields": append([]map[string]any{
 			{"key": "ogs_information", "type": "information", "label": "Hinweise zur OGS", "content": "Hier finden Sie Informationen zum Schulstart und zum Abholen.", "sort_order": 0, "attachments": attachments},
 			{
@@ -852,11 +854,11 @@ func (s parentEnrollmentSeedStep) createEnrollmentPhase(rt *Runtime, auth AuthRe
 	if err != nil {
 		return 0, nil, err
 	}
-	name := fmt.Sprintf("Demo Anmeldung %d/%d", startYear, startYear+1)
+	name := fmt.Sprintf("Anmeldung Schuljahr %d/%d", startYear, startYear+1)
 	body := map[string]any{
 		"name": name,
 		"translations": seedTranslations("name", name, map[string]string{
-			"en": fmt.Sprintf("Demo enrollment %d/%d", startYear, startYear+1),
+			"en": fmt.Sprintf("Enrollment school year %d/%d", startYear, startYear+1),
 			"ru": fmt.Sprintf("Демо-запись %d/%d", startYear, startYear+1),
 			"uk": fmt.Sprintf("Демо-запис %d/%d", startYear, startYear+1),
 		}),
@@ -1017,7 +1019,7 @@ func (s parentEnrollmentSeedStep) enrollmentSubmissionWithDays(phaseID int64, of
 		"guardian_phone":      phone,
 		"additional_guardians": []map[string]any{
 			{
-				"first_name": "Co",
+				"first_name": coGuardianFirstName(guardianLastName),
 				"last_name":  guardianLastName,
 				"email":      additionalEmail,
 			},
@@ -1028,7 +1030,7 @@ func (s parentEnrollmentSeedStep) enrollmentSubmissionWithDays(phaseID int64, of
 		},
 		"custom_data": map[string]any{
 			"seed_source": source,
-			"note":        "Demo-Datensatz für Anmeldung und Elternportal",
+			"note":        "Anmeldung über die Website",
 		},
 		"children": []map[string]any{
 			{
@@ -1153,79 +1155,61 @@ func (s parentEnrollmentSeedStep) decideEnrollmentChild(rt *Runtime, auth AuthRe
 	return nil
 }
 
-func (s parentEnrollmentSeedStep) seedParentPortalActions(rt *Runtime, parentAuth AuthRef, parent ParentCredentials) ([]SeedParentPortalAction, error) {
-	if len(parent.StudentIDs) == 0 {
+func (s parentEnrollmentSeedStep) seedParentPortalActions(rt *Runtime, parentAuths map[string]AuthRef, parents []ParentCredentials) ([]SeedParentPortalAction, error) {
+	first := parents[0]
+	if len(first.StudentIDs) == 0 {
 		return nil, nil
 	}
-	studentID := parent.StudentIDs[0]
-	if _, err := rt.Client.GetWithAuth(parentAuth, "/parent/me/profile"); err != nil {
-		return nil, fmt.Errorf("load parent profile: %w", err)
-	}
-	if _, err := rt.Client.GetWithAuth(parentAuth, "/parent/me/children"); err != nil {
-		return nil, fmt.Errorf("load parent children: %w", err)
-	}
-	if _, err := rt.Client.GetWithAuth(parentAuth, fmt.Sprintf("/parent/me/children/%d/features", studentID)); err != nil {
-		return nil, fmt.Errorf("load parent child features: %w", err)
+	for _, page := range []string{"/parent/me/profile", "/parent/me/children", fmt.Sprintf("/parent/me/children/%d/features", first.StudentIDs[0])} {
+		if _, err := rt.Client.GetWithAuth(parentAuths[first.Email], page); err != nil {
+			return nil, fmt.Errorf("load parent portal %s: %w", page, err)
+		}
 	}
 
+	// One request per family where the request names no family member, so
+	// the OGS inbox lists several children (parents 2 and 3 are the Richter
+	// and the third family; 0 is Felix Schneider's mother).
+	sick, excused := requestParent(parents, 2), requestParent(parents, 3)
 	actions := []struct {
+		parent     ParentCredentials
 		actionType string
-		path       string
+		route      string
 		body       map[string]any
 	}{
-		{
-			actionType: "sick-note",
-			path:       fmt.Sprintf("/parent/me/children/%d/sick-note", studentID),
-			body: map[string]any{
-				"dates":  []string{time.Now().AddDate(0, 0, 2).Format("2006-01-02")},
-				"reason": "Demo-Krankmeldung aus dem Elternportal",
-			},
-		},
-		{
-			actionType: "excused-note",
-			path:       fmt.Sprintf("/parent/me/children/%d/sick-note", studentID),
-			body: map[string]any{
-				"dates":  []string{todaySeedDate().AddDays(4).String()},
-				"status": "excused",
-				"reason": "Demo-Entschuldigung aus dem Elternportal",
-			},
-		},
-		{
-			actionType: "care-exception",
-			path:       fmt.Sprintf("/parent/me/children/%d/care-exception", studentID),
-			body: map[string]any{
-				"date":        time.Now().AddDate(0, 0, 3).Format("2006-01-02"),
-				"pickup_time": "14:30",
-				"reason":      "Demo-Abholänderung aus dem Elternportal",
-			},
-		},
-		{
-			actionType: "related-account",
-			path:       fmt.Sprintf("/parent/me/children/%d/related-accounts", studentID),
-			body: map[string]any{
-				"email":      "oma.schneider@example.test",
-				"first_name": "Elke",
-				"last_name":  "Schneider",
-			},
-		},
+		{sick, "sick-note", "sick-note", map[string]any{
+			"dates":  []string{time.Now().AddDate(0, 0, 2).Format("2006-01-02")},
+			"reason": "Fieber seit heute Nacht, wir bleiben zu Hause.",
+		}},
+		{excused, "excused-note", "sick-note", map[string]any{
+			"dates":  []string{todaySeedDate().AddDays(4).String()},
+			"status": "excused",
+			"reason": "Familienfeier bei den Großeltern.",
+		}},
+		{first, "care-exception", "care-exception", map[string]any{
+			"date":        time.Now().AddDate(0, 0, 3).Format("2006-01-02"),
+			"pickup_time": "14:30",
+			"reason":      "Das Training fällt aus, ich hole früher ab.",
+		}},
+		{first, "related-account", "related-accounts", map[string]any{
+			"email":      "oma.schneider@example.test",
+			"first_name": "Elke",
+			"last_name":  "Schneider",
+		}},
 	}
 
 	out := make([]SeedParentPortalAction, 0, len(actions))
 	for _, action := range actions {
-		body, err := rt.Client.PostWithAuth(parentAuth, action.path, action.body)
+		auth, studentID := parentAuths[action.parent.Email], action.parent.StudentIDs[0]
+		body, err := rt.Client.PostWithAuth(auth, fmt.Sprintf("/parent/me/children/%d/%s", studentID, action.route), action.body)
 		if err != nil {
 			return nil, fmt.Errorf("create parent portal action %s: %w", action.actionType, err)
 		}
 		if action.actionType == "care-exception" {
-			if err := s.shareSeedPickupRequest(rt, parentAuth, parent, body); err != nil {
+			if err := s.shareSeedPickupRequest(rt, auth, action.parent, body); err != nil {
 				return nil, err
 			}
 		}
-		out = append(out, SeedParentPortalAction{
-			ParentEmail: parent.Email,
-			StudentID:   studentID,
-			Type:        action.actionType,
-		})
+		out = append(out, SeedParentPortalAction{ParentEmail: action.parent.Email, StudentID: studentID, Type: action.actionType})
 	}
 	return out, nil
 }

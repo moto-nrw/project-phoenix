@@ -195,7 +195,7 @@ func (s parentEnrollmentSeedStep) submitRenewal(rt *Runtime, adminAuth AuthRef, 
 		return err
 	}
 	for _, childID := range detail.ChildIDs {
-		if err := s.decideEnrollmentChild(rt, adminAuth, request.RequestID, childID, status, "Demo-Zusage: Wiederanmeldung"); err != nil {
+		if err := s.decideEnrollmentChild(rt, adminAuth, request.RequestID, childID, status, "Zusage: Wiederanmeldung"); err != nil {
 			return err
 		}
 	}
