@@ -22,7 +22,7 @@ export interface HolidayRegistrationWeek {
   readonly timeModels: readonly HolidayRegistrationTimeModel[];
 }
 
-export interface HolidayRegistrationSchool {
+interface HolidayRegistrationSchool {
   readonly id: string;
   readonly name: string;
 }

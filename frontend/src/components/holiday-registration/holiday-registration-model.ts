@@ -90,7 +90,7 @@ export function emptyRegistration(): RegistrationDraft {
   };
 }
 
-export function childHasHealthInfo(child: ChildDraft): boolean {
+function childHasHealthInfo(child: ChildDraft): boolean {
   return [child.allergies, child.medication, child.healthNotes].some(
     (value) => value.trim() !== "",
   );
