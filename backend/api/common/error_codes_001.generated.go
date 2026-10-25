@@ -2,6 +2,10 @@
 package common
 
 const (
+	CodeIdentityPasswordMismatch                       = "identity.password_mismatch"
+	CodeIdentityPasswordResetLinkInvalid               = "identity.password_reset_link_invalid"
+	CodeIdentityPasswordResetRateLimited               = "identity.password_reset_rate_limited"
+	CodeIdentityPasswordTooWeak                        = "identity.password_too_weak"
 	CodeIdentityPreviewTargetNotPreviewable            = "identity.preview_target_not_previewable"
 	CodeIdentityPreviewTargetSchoolPortal              = "identity.preview_target_school_portal"
 	CodeIdentityPreviewTokenInvalid                    = "identity.preview_token_invalid"
@@ -298,13 +302,13 @@ const (
 	CodeTimetablePickupExtensionInvalid                = "timetable.pickup_extension_invalid"
 	CodeTimetablePickupExtensionNotFound               = "timetable.pickup_extension_not_found"
 	CodeTimetablePickupExtensionTooManyBlocks          = "timetable.pickup_extension_too_many_blocks"
-	CodeTimetablePlanningTrackArchived                 = "timetable.planning_track_archived"
-	CodeTimetablePlanningTrackInvalid                  = "timetable.planning_track_invalid"
-	CodeTimetablePlanningTrackNameTaken                = "timetable.planning_track_name_taken"
-	CodeTimetablePlanningTrackNotFound                 = "timetable.planning_track_not_found"
 )
 
 var errorCodeClasses1 = map[string]string{
+	"identity.password_mismatch":                           "input",
+	"identity.password_reset_link_invalid":                 "business_rejection",
+	"identity.password_reset_rate_limited":                 "unavailable",
+	"identity.password_too_weak":                           "input",
 	"identity.preview_target_not_previewable":              "permission",
 	"identity.preview_target_school_portal":                "permission",
 	"identity.preview_token_invalid":                       "permission",
@@ -601,10 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.pickup_extension_invalid":                   "input",
 	"timetable.pickup_extension_not_found":                 "business_rejection",
 	"timetable.pickup_extension_too_many_blocks":           "input",
-	"timetable.planning_track_archived":                    "business_rejection",
-	"timetable.planning_track_invalid":                     "input",
-	"timetable.planning_track_name_taken":                  "business_rejection",
-	"timetable.planning_track_not_found":                   "business_rejection",
 }
 
 func init() {

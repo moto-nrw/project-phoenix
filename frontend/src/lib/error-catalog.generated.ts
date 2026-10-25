@@ -153,6 +153,14 @@ export const ERROR_CATALOG = {
         "Für ein Kind steht an einem dieser Tage schon etwas, zum Beispiel krank. Es wurde nichts gespeichert. Bitte sprechen Sie mit der OGS.",
       "classday.class_trip_student_not_in_class":
         "Ein Kind ist nicht mehr in dieser Klasse. Bitte laden Sie die Seite neu.",
+      "classday.day_hint_class_empty":
+        "In dieser Klasse ist kein Kind in der OGS. Ein Hinweis für die ganze Klasse ist deshalb nicht möglich.",
+      "classday.day_hint_invalid":
+        "Der Hinweis braucht einen Text. Er darf höchstens 500 Zeichen lang sein.",
+      "classday.day_hint_not_today":
+        "Einen Hinweis für die OGS können Sie nur für heute schreiben.",
+      "classday.day_hint_student_not_in_class":
+        "Dieses Kind ist heute nicht in Ihrer Klasse. Bitte laden Sie die Seite neu.",
       "classday.homework_not_found":
         "Diese Hausaufgabe gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "classday.morning_attendance_no_school_day":
@@ -1154,6 +1162,8 @@ export const ERROR_CATALOG = {
         "Das Enddatum darf nicht vor dem Startdatum liegen. Bitte prüfen Sie die Daten.",
       "timetable.window_too_large":
         "Der Zeitraum ist zu lang. Bitte wählen Sie höchstens {max_days} Tage.",
+      "traeger.access_log_export_too_large":
+        "Der Export hat mehr als {limit} Einträge. Bitte wählen Sie einen kürzeren Zeitraum oder weitere Filter.",
       "traeger.already_member": "Diese Person gehört schon zum Träger-Büro.",
       "traeger.last_administrator":
         "Das Träger-Büro braucht mindestens eine Person mit der Rolle Verwaltung. Geben Sie die Rolle zuerst einer anderen Person.",
@@ -1412,6 +1422,14 @@ export const ERROR_CATALOG = {
         "A class can only be handed over today. Please open today.",
       "classday.class_handover_unknown_child":
         "A child no longer belongs to this class. Please reload the page.",
+      "classday.day_hint_class_empty":
+        "No child in this class attends the OGS. A note for the whole class is therefore not possible.",
+      "classday.day_hint_invalid":
+        "The note needs a text. It may be at most 500 characters long.",
+      "classday.day_hint_not_today":
+        "You can only write a note for the OGS for today.",
+      "classday.day_hint_student_not_in_class":
+        "This child is not in your class today. Please reload the page.",
       "classday.homework_not_found":
         "This homework no longer exists. Please reload the page.",
       "classday.morning_attendance_no_school_day":
@@ -1638,6 +1656,8 @@ export const ERROR_CATALOG = {
         "Homework feedback is only possible in a study time you supervise.",
       "timetable.homework_feedback_without_homework":
         "No homework is entered for this child's class today.",
+      "traeger.access_log_export_too_large":
+        "The export has more than {limit} entries. Please choose a shorter period or more filters.",
       "traeger.already_member":
         "This person already belongs to the Träger office.",
       "traeger.last_administrator":
@@ -1766,6 +1786,10 @@ export const ERROR_CATALOG = {
         "Передать класс можно только сегодня. Откройте сегодняшний день.",
       "classday.class_handover_unknown_child":
         "Один ребёнок больше не относится к этому классу. Обновите страницу.",
+      "classday.day_hint_class_empty":
+        "Не удалось сохранить: {object}. Проверьте введённые данные.",
+      "classday.day_hint_student_not_in_class":
+        "Не удалось сохранить: {object}. Проверьте введённые данные.",
       "classday.homework_not_found":
         "Этого домашнего задания больше нет. Обновите страницу.",
       "classday.morning_attendance_no_school_day":
@@ -1968,6 +1992,8 @@ export const ERROR_CATALOG = {
         "Отзыв о домашнем задании можно дать только на занятии, которое вы ведёте.",
       "timetable.homework_feedback_without_homework":
         "Для класса этого ребёнка на сегодня нет домашних заданий.",
+      "traeger.access_log_export_too_large":
+        "В экспорте больше {limit} записей. Выберите более короткий период или другие фильтры.",
     },
   },
   sq: {
@@ -2090,6 +2116,10 @@ export const ERROR_CATALOG = {
         "Klasa dorëzohet vetëm sot. Hapni ditën e sotme.",
       "classday.class_handover_unknown_child":
         "Një fëmijë nuk i përket më kësaj klase. Ringarkoni faqen.",
+      "classday.day_hint_class_empty":
+        "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+      "classday.day_hint_student_not_in_class":
+        "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
       "classday.homework_not_found":
         "Kjo detyrë shtëpie nuk ekziston më. Ringarkoni faqen.",
       "classday.morning_attendance_no_school_day":
@@ -2304,6 +2334,8 @@ export const ERROR_CATALOG = {
         "Përgjigja për detyrat e shtëpisë jepet vetëm në orën e mësimit që mbikëqyrni.",
       "timetable.homework_feedback_without_homework":
         "Për klasën e këtij fëmije nuk ka detyra shtëpie për sot.",
+      "traeger.access_log_export_too_large":
+        "Eksporti ka më shumë se {limit} hyrje. Zgjidhni një periudhë më të shkurtër ose më shumë filtra.",
     },
   },
   pl: {
@@ -2425,6 +2457,10 @@ export const ERROR_CATALOG = {
         "Klasę można przekazać tylko dzisiaj. Otwórz dzisiejszy dzień.",
       "classday.class_handover_unknown_child":
         "Jedno dziecko nie należy już do tej klasy. Odśwież stronę.",
+      "classday.day_hint_class_empty":
+        "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+      "classday.day_hint_student_not_in_class":
+        "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
       "classday.homework_not_found":
         "Tego zadania domowego już nie ma. Odśwież stronę.",
       "classday.morning_attendance_no_school_day":
@@ -2628,6 +2664,8 @@ export const ERROR_CATALOG = {
         "Informację o zadaniach domowych można podać tylko w odrabianiu lekcji, które prowadzisz.",
       "timetable.homework_feedback_without_homework":
         "Dla klasy tego dziecka nie ma dziś wpisanych zadań domowych.",
+      "traeger.access_log_export_too_large":
+        "Eksport ma ponad {limit} wpisów. Wybierz krótszy okres lub więcej filtrów.",
     },
   },
   tr: {
@@ -2750,6 +2788,10 @@ export const ERROR_CATALOG = {
         "Sınıf yalnızca bugün teslim edilebilir. Lütfen bugünü açın.",
       "classday.class_handover_unknown_child":
         "Bir çocuk artık bu sınıfa ait değil. Lütfen sayfayı yenileyin.",
+      "classday.day_hint_class_empty":
+        "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+      "classday.day_hint_student_not_in_class":
+        "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
       "classday.homework_not_found":
         "Bu ev ödevi artık yok. Lütfen sayfayı yenileyin.",
       "classday.morning_attendance_no_school_day":
@@ -2958,6 +3000,8 @@ export const ERROR_CATALOG = {
         "Ev ödevi geri bildirimi yalnızca gözetiminizdeki etüt saatinde verilebilir.",
       "timetable.homework_feedback_without_homework":
         "Bu çocuğun sınıfı için bugün ev ödevi girilmedi.",
+      "traeger.access_log_export_too_large":
+        "Dışa aktarma {limit} kayıttan fazla içeriyor. Lütfen daha kısa bir dönem veya daha fazla filtre seçin.",
     },
   },
   uk: {
@@ -3077,6 +3121,10 @@ export const ERROR_CATALOG = {
         "Передати клас можна лише сьогодні. Відкрийте сьогоднішній день.",
       "classday.class_handover_unknown_child":
         "Одна дитина більше не належить до цього класу. Оновіть сторінку.",
+      "classday.day_hint_class_empty":
+        "Не вдалося зберегти: {object}. Перевірте введені дані.",
+      "classday.day_hint_student_not_in_class":
+        "Не вдалося зберегти: {object}. Перевірте введені дані.",
       "classday.homework_not_found":
         "Цього домашнього завдання більше немає. Оновіть сторінку.",
       "classday.morning_attendance_no_school_day":
@@ -3279,6 +3327,8 @@ export const ERROR_CATALOG = {
         "Відгук про домашнє завдання можна дати лише на занятті, яке ви ведете.",
       "timetable.homework_feedback_without_homework":
         "Для класу цієї дитини на сьогодні немає домашніх завдань.",
+      "traeger.access_log_export_too_large":
+        "В експорті понад {limit} записів. Виберіть коротший період або інші фільтри.",
     },
   },
 } as const;

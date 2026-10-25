@@ -2372,6 +2372,10 @@
         "class_trip_return_time_weekend": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "class_trip_status_conflict": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "class_trip_student_not_in_class": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "day_hint_class_empty": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "day_hint_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "day_hint_not_today": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "day_hint_student_not_in_class": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "homework_not_found": "Kjo detyrë shtëpie nuk ekziston më. Ringarkoni faqen.",
         "morning_attendance_no_school_day": "Sot nuk është ditë shkolle. Prania shënohet vetëm në ditë shkolle.",
         "morning_attendance_not_today": "Prania shënohet vetëm për sot. Hapni ditën e sotme.",
@@ -3066,6 +3070,7 @@
         "audit_unavailable": "{object} nuk është i disponueshëm tani. Provoni përsëri."
       },
       "traeger": {
+        "access_log_export_too_large": "Eksporti ka më shumë se {limit} hyrje. Zgjidhni një periudhë më të shkurtër ose më shumë filtra.",
         "already_member": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "last_administrator": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "member_not_found": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",

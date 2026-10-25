@@ -112,6 +112,8 @@ DELETE /parent/me/notification-preferences/
 DELETE /parent/me/push/subscriptions
 DELETE /school/calendar/appointments/{appointmentId}
 DELETE /school/class-day/arrival-exceptions/{schoolClass}/{date}
+DELETE /school/class-day/day-hints/{schoolClass}/{date}
+DELETE /school/class-day/day-hints/{schoolClass}/{date}/students/{studentId}
 DELETE /school/class-day/handover/{schoolClass}/{date}
 DELETE /school/class-day/homework/{schoolClass}/{homeworkId}
 DELETE /school/notifications/preferences/
@@ -613,6 +615,9 @@ GET /school/staff-notices/today
 GET /school/supervisions/
 GET /school/supervisions/{id}/roster
 GET /school/supervisions/{id}/students/{student_id}/sheet
+GET /traeger/access-log/
+GET /traeger/access-log/export
+GET /traeger/access-log/people
 GET /traeger/accounts/
 GET /traeger/holiday-periods/
 GET /traeger/holiday-periods/{id}
@@ -1142,6 +1147,8 @@ PUT /parent/me/notification-preferences/{type}
 PUT /parent/me/profile
 PUT /school/calendar/appointments/{appointmentId}
 PUT /school/class-day/arrival-exceptions/{schoolClass}/{date}
+PUT /school/class-day/day-hints/{schoolClass}/{date}
+PUT /school/class-day/day-hints/{schoolClass}/{date}/students/{studentId}
 PUT /school/class-day/handover/{schoolClass}/{date}
 PUT /school/class-day/homework/{schoolClass}/{homeworkId}
 PUT /school/class-day/morning-attendance/{schoolClass}/{date}

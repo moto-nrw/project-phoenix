@@ -173,6 +173,7 @@ export const TRACKED_SCHOOL_ROUTE_TEMPLATES = [
 /** Träger portal pages under `app/traeger`, as the Träger host shows them. */
 export const TRACKED_TRAEGER_ROUTE_TEMPLATES = [
   "/",
+  "/access-log",
   "/accounts",
   "/ferien",
   "/ferien/:id",

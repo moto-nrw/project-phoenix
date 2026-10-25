@@ -393,6 +393,9 @@ const (
 	// SchoolPortalWriteScopeClassTrips lets a Lehrkraft report a class trip
 	// (Ausflug or Klassenfahrt) for her assigned classes (#4799).
 	SchoolPortalWriteScopeClassTrips = "class_trips"
+	// SchoolPortalWriteScopeDayHints lets a Lehrkraft leave today's hint for
+	// the OGS on one of her assigned classes or on one of its children (#4795).
+	SchoolPortalWriteScopeDayHints = "day_hints"
 )
 
 // SchoolPortalWriteScopeIncludes reports whether the resolved write scope

@@ -616,12 +616,13 @@ describe("getParentHelpTopicForPath", () => {
     ).filter((topic) => helpTopicMatchesRole(topic, "teacher"));
     const visible = new Set(teacherTopics.map((topic) => topic.id));
 
-    // 22 seit #4901: die eigene Einwilligung zur Nutzungsanalyse.
-    expect(teacherTopics).toHaveLength(22);
+    // 23 seit #4795: der Hinweis für heute an die OGS (22 seit #4901).
+    expect(teacherTopics).toHaveLength(23);
     expect([...visible]).toEqual(
       expect.arrayContaining([
         HELP_TOPICS.teacherHomework,
         HELP_TOPICS.teacherClassHandover,
+        HELP_TOPICS.teacherDayHint,
       ]),
     );
     expect(visible.has(HELP_TOPICS.teacherCalendar)).toBe(true);
@@ -662,11 +663,13 @@ describe("getParentHelpTopicForPath", () => {
       HELP_TOPICS.traegerLogin,
       HELP_TOPICS.traegerAccounts,
       HELP_TOPICS.traegerHolidayPeriod,
+      HELP_TOPICS.traegerAccessLog,
       HELP_TOPICS.errorMessages,
     ]);
     expect([...new Set(traegerTopics.map((topic) => topic.group))]).toEqual([
       "einstieg",
       "anmeldeverwaltung",
+      "auswertung",
       "probleme",
     ]);
     // Das Träger-Portal ist ein eigenes Portal: kein Verweis führt in die
@@ -677,11 +680,12 @@ describe("getParentHelpTopicForPath", () => {
         .map((id) => `${topic.id} -> ${id}`),
     );
     expect(unreachable).toEqual([]);
-    // Kein anderer Leser sieht den Träger-Artikel.
-    const login = traegerTopics.find(
-      (topic) => topic.id === HELP_TOPICS.traegerLogin,
-    );
-    expect(login?.audience).toBe("traeger");
+    // Kein anderer Leser sieht die Träger-Artikel.
+    for (const id of [HELP_TOPICS.traegerLogin, HELP_TOPICS.traegerAccessLog]) {
+      expect(traegerTopics.find((topic) => topic.id === id)?.audience).toBe(
+        "traeger",
+      );
+    }
   });
 
   it("hides every room-only article when attendance is simple", () => {

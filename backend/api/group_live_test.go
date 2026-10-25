@@ -15,7 +15,7 @@ import (
 func TestGroupLiveRejectsMissingSourcesAtComposition(t *testing.T) {
 	t.Parallel()
 
-	query, err := newGroupLive(groupLiveSources{})
+	query, err := newGroupLive(groupLiveSources{}, nil)
 
 	assert.ErrorIs(t, err, errGroupLiveSources, "missing wiring fails composition, not the first request")
 	assert.Nil(t, query)

@@ -462,12 +462,12 @@ func composeServeRoot(
 		},
 		func() (err error) {
 			groupLive, err = buildGroupLive(env, presence, services.Users, structureViews, caller, active, settings.Service, schedules,
-				lifecycle, requests)
+				lifecycle, requests, persons)
 			return
 		},
 		func() (err error) {
 			dashboard, err = buildSupervisionDashboard(env, settings.Service, caller, active, presence, rooms, timetableOwner, yard,
-				structureViews, lifecycle, schedules, services.Users)
+				structureViews, lifecycle, schedules, services.Users, persons)
 			return
 		},
 		func() (err error) {
@@ -567,7 +567,7 @@ func composeServeRoot(
 			}
 			mountPortalRoutes(router, limiters, newAccountResource(db, identity, organizations, services.CaregiverCapability, settings.Service),
 				operator, newParentResource(logger, identity, parent, calendarApp, flows, guardianProfiles, organizations, deliveryDevices, notifications))
-			return mountTraegerPortalRoutes(router, limiters, identity, organizations)
+			return mountTraegerPortalRoutes(router, limiters, identity, organizations, persons, membership, TraegerAudit{Trail: audit.Persistence.AccessTrail, Log: audit.Persistence.DataAccessLog})
 		},
 	)
 	if err != nil {

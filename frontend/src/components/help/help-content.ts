@@ -495,7 +495,12 @@ function studentSearchTopic(
       },
       {
         title: "Angaben ansehen",
-        steps: ["Wählen Sie die Karte des Kindes.", currentStatusStep],
+        steps: [
+          "Wählen Sie die Karte des Kindes.",
+          currentStatusStep,
+          // #4795: dieselbe Zeile steht in der Aufsicht und in der Gruppe.
+          "Steht auf der Karte `Hinweis der Lehrkraft`? Den hat die Lehrkraft heute in moto schule geschrieben. Morgen ist er weg.",
+        ],
       },
       {
         title: "Den passenden Bereich wählen",
@@ -8110,6 +8115,46 @@ function teacherClassTripTopic(): HelpTopic {
   };
 }
 
+/**
+ * `Hinweis für die OGS` (`class-day-class.tsx`, #4795). Nur mit Freigabe der
+ * OGS; gilt nur für heute, für die Klasse oder ein Kind.
+ */
+function teacherDayHintTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.teacherDayHint,
+    title: "Der OGS einen Hinweis für heute geben",
+    question: "Wie sage ich der OGS, was sie heute wissen muss?",
+    summary:
+      "Sie schreiben einen kurzen Hinweis für Ihre Klasse oder ein Kind.",
+    group: "klasse",
+    audience: "teacher",
+    icon: "MessageSquareText",
+    steps: [
+      "Öffnen Sie die Liste Ihrer Klasse für heute.",
+      "Wählen Sie `Hinweis für die OGS`.",
+      "Wählen Sie bei `Für wen ist der Hinweis?` die ganze Klasse oder ein Kind.",
+      "Schreiben Sie den Hinweis. Er darf bis zu 500 Zeichen lang sein.",
+      "Wählen Sie `Speichern`.",
+    ],
+    result:
+      "Die OGS sieht den Hinweis sofort am Kind: in der Aufsicht, in der Gruppe und in der Kindersuche. Dort steht `Hinweis der Lehrkraft`.",
+    notes: [
+      "Der Hinweis gilt nur heute. Morgen ist er aus diesen Ansichten verschwunden.",
+      "Wählen Sie das Kind oder die Klasse noch einmal, um Ihren Hinweis zu ändern.",
+      "Mit `Hinweis löschen` nehmen Sie ihn zurück.",
+    ],
+    differences: [
+      "Fehlt `Hinweis für die OGS`? Dann hat Ihre OGS das nicht freigegeben, oder Sie sehen einen anderen Tag als heute.",
+      "Für Kinder ohne OGS-Betreuung können Sie keinen eigenen Hinweis schreiben.",
+    ],
+    related: [
+      HELP_TOPICS.teacherClassDay,
+      HELP_TOPICS.teacherArrivalChange,
+      HELP_TOPICS.teacherMessages,
+    ],
+  };
+}
+
 /** `/school/aufsichten`: die eigenen Dienste des Tages. */
 function teacherSupervisionTopic(): HelpTopic {
   return {
@@ -8431,6 +8476,7 @@ function teacherFeatureMissingTopic(): HelpTopic {
     differences: [
       "Fehlt `Nachrichten`? Dann nutzt Ihre OGS den Team-Chat nicht.",
       "Fehlt `Ankunft heute ändern`? Dann hat die OGS das Eintragen nicht freigegeben.",
+      "Fehlt `Hinweis für die OGS`? Auch das muss die OGS erst freigeben.",
       "Abhol- und Notfallkontakte gibt es nur in einer laufenden Aufsicht.",
     ],
     troubleshootingDetails: [
@@ -8648,11 +8694,66 @@ function traegerAccountsTopic(): HelpTopic {
   };
 }
 
+/** `/traeger/access-log` (#4655): wer an den Schulen Daten gelesen oder geändert hat. */
+function traegerAccessLogTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.traegerAccessLog,
+    title: "Zugriffsprotokoll lesen",
+    question: "Wie sehe ich, wer Daten gelesen oder geändert hat?",
+    summary:
+      "Das Zugriffsprotokoll zeigt, wer an Ihren Schulen Daten von Kindern, Eltern oder Personal gelesen oder geändert hat.",
+    group: "auswertung",
+    audience: "traeger",
+    icon: "ShieldCheck",
+    requirements: [
+      "Sie haben im Träger-Büro die Rolle Verwaltung. Nur diese Rolle darf das Protokoll lesen.",
+    ],
+    steps: [],
+    instructionGroups: [
+      {
+        title: "Protokoll ansehen",
+        steps: [
+          "Melden Sie sich im Träger-Portal an.",
+          "Wählen Sie oben `Zugriffsprotokoll`.",
+          "Wählen Sie den Zeitraum. Am Anfang sind es die letzten 30 Tage.",
+          "Wählen Sie bei Bedarf eine Schule und eine Person.",
+          "Wählen Sie `Gelesen` oder `Geändert`, wenn Sie nur eine Art sehen möchten.",
+          "Gibt es mehr Einträge? Wählen Sie unten `Weitere Einträge laden`.",
+        ],
+      },
+      {
+        title: "Als CSV herunterladen",
+        description: "Für einen Nachweis, zum Beispiel in einer Tabelle.",
+        steps: [
+          "Stellen Sie die Filter ein.",
+          "Wählen Sie `Als CSV herunterladen`.",
+          "moto lädt eine Datei mit allen Einträgen zu den Filtern herunter.",
+        ],
+      },
+    ],
+    result:
+      "Jede Zeile zeigt Zeitpunkt, Person, Schule, Art und welche Daten es waren.",
+    notes: [
+      "Auch Ihr Lesen steht im Protokoll. Die Schule sieht so, dass das Träger-Büro hineingeschaut hat.",
+    ],
+    differences: [
+      "Sie sehen oben kein `Zugriffsprotokoll`? Dann hat Ihre Rolle kein Recht dazu.",
+      "Steht bei Person `Unbekannte Person`? Zu diesem Konto kennt moto an der Schule keinen Namen, zum Beispiel bei Eltern.",
+    ],
+    troubleshootingDetails: [
+      "moto sagt, der Export habe zu viele Einträge? Wählen Sie einen kürzeren Zeitraum oder eine Schule.",
+      "Sie brauchen das Recht für Ihr Konto? Wenden Sie sich an das moto-Team.",
+    ],
+    related: [HELP_TOPICS.traegerLogin],
+  };
+}
+
 const TRAEGER_TOPICS: readonly HelpTopic[] = [
   traegerInvitationTopic(),
   traegerLoginTopic(),
   traegerAccountsTopic(),
   traegerHolidayPeriodTopic(),
+  traegerAccessLogTopic(),
 ];
 
 const TEACHER_DRAFT_TOPICS: readonly HelpTopic[] = [
@@ -8669,6 +8770,7 @@ const TEACHER_DRAFT_TOPICS: readonly HelpTopic[] = [
   teacherClassHandoverTopic(),
   teacherChildDetailsTopic(),
   teacherArrivalChangeTopic(),
+  teacherDayHintTopic(),
   teacherClassTripTopic(),
 
   // --- Aufsicht ---

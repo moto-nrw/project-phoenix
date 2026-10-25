@@ -361,6 +361,12 @@ const (
 	// operations.school_portal_write_scope unlocks it, the
 	// education.class_teachers assignment decides for which class.
 	ClassDayClassTripWrite = ResourceClassDay + ":class_trip_write"
+	// ClassDayDayHintWrite lets a Lehrkraft leave today's hint for the OGS on
+	// one of her assigned classes or on one of its children (#4795). The
+	// school's setting operations.school_portal_write_scope decides whether it
+	// is unlocked, and the education.class_teachers assignment decides for
+	// which class.
+	ClassDayDayHintWrite = ResourceClassDay + ":day_hint_write"
 	// ClassDayMorningAttendanceWrite lets a Lehrkraft mark each child of her
 	// assigned classes present or absent for today's school morning (#4790).
 	// The school's setting operations.school_portal_morning_attendance

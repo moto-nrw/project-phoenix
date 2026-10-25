@@ -2,6 +2,10 @@
 package common
 
 const (
+	CodeTimetablePlanningTrackArchived               = "timetable.planning_track_archived"
+	CodeTimetablePlanningTrackInvalid                = "timetable.planning_track_invalid"
+	CodeTimetablePlanningTrackNameTaken              = "timetable.planning_track_name_taken"
+	CodeTimetablePlanningTrackNotFound               = "timetable.planning_track_not_found"
 	CodeTimetablePresenceWouldOverstaff              = "timetable.presence_would_overstaff"
 	CodeTimetableReopenAttendanceChanged             = "timetable.reopen_attendance_changed"
 	CodeTimetableReopenStaffBusy                     = "timetable.reopen_staff_busy"
@@ -61,6 +65,7 @@ const (
 	CodeTimetableUnderstaffedStillStaffed            = "timetable.understaffed_still_staffed"
 	CodeTimetableWindowEndBeforeStart                = "timetable.window_end_before_start"
 	CodeTimetableWindowTooLarge                      = "timetable.window_too_large"
+	CodeTraegerAccessLogExportTooLarge               = "traeger.access_log_export_too_large"
 	CodeTraegerAlreadyMember                         = "traeger.already_member"
 	CodeTraegerLastAdministrator                     = "traeger.last_administrator"
 	CodeTraegerMemberNotFound                        = "traeger.member_not_found"
@@ -136,6 +141,10 @@ const (
 )
 
 var errorCodeClasses2 = map[string]string{
+	"timetable.planning_track_archived":                 "business_rejection",
+	"timetable.planning_track_invalid":                  "input",
+	"timetable.planning_track_name_taken":               "business_rejection",
+	"timetable.planning_track_not_found":                "business_rejection",
 	"timetable.presence_would_overstaff":                "business_rejection",
 	"timetable.reopen_attendance_changed":               "business_rejection",
 	"timetable.reopen_staff_busy":                       "business_rejection",
@@ -195,6 +204,7 @@ var errorCodeClasses2 = map[string]string{
 	"timetable.understaffed_still_staffed":              "business_rejection",
 	"timetable.window_end_before_start":                 "input",
 	"timetable.window_too_large":                        "input",
+	"traeger.access_log_export_too_large":               "input",
 	"traeger.already_member":                            "business_rejection",
 	"traeger.last_administrator":                        "business_rejection",
 	"traeger.member_not_found":                          "input",
