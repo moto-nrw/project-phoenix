@@ -653,7 +653,7 @@ func TestPersonalRemindersKeyIdentifiesTheNotifiedOccurrences(t *testing.T) {
 		map[int64]*Result{caregiverStaffID: resultOf(pickupFixture("11", "10:00"))},
 		consent,
 	)
-	now := time.Now()
+	now := calendar.NewDate(2026, time.October, 26).BerlinMidnight().Add(14 * time.Hour)
 
 	setup.notify(context.Background(), now)
 	setup.computer.results[caregiverStaffID] = resultOf(pickupFixture("12", "14:00"))
