@@ -2,6 +2,10 @@
 package common
 
 const (
+	CodeIdentityRolePlatformPermission                 = "identity.role_platform_permission"
+	CodeIdentitySessionAccountInactive                 = "identity.session_account_inactive"
+	CodeIdentityTenantAccessDenied                     = "identity.tenant_access_denied"
+	CodeIdentityTenantAccessNotFound                   = "identity.tenant_access_not_found"
 	CodeIdentityUseParentPortal                        = "identity.use_parent_portal"
 	CodeIdentityUseSchoolPortal                        = "identity.use_school_portal"
 	CodeIdentityUsernameTaken                          = "identity.username_taken"
@@ -298,13 +302,13 @@ const (
 	CodeTimetablePickupExtensionTooManyBlocks          = "timetable.pickup_extension_too_many_blocks"
 	CodeTimetablePlanningTrackArchived                 = "timetable.planning_track_archived"
 	CodeTimetablePlanningTrackInvalid                  = "timetable.planning_track_invalid"
-	CodeTimetablePlanningTrackNameTaken                = "timetable.planning_track_name_taken"
-	CodeTimetablePlanningTrackNotFound                 = "timetable.planning_track_not_found"
-	CodeTimetablePresenceWouldOverstaff                = "timetable.presence_would_overstaff"
-	CodeTimetableReopenAttendanceChanged               = "timetable.reopen_attendance_changed"
 )
 
 var errorCodeClasses1 = map[string]string{
+	"identity.role_platform_permission":                    "input",
+	"identity.session_account_inactive":                    "permission",
+	"identity.tenant_access_denied":                        "permission",
+	"identity.tenant_access_not_found":                     "business_rejection",
 	"identity.use_parent_portal":                           "permission",
 	"identity.use_school_portal":                           "permission",
 	"identity.username_taken":                              "business_rejection",
@@ -601,10 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.pickup_extension_too_many_blocks":           "input",
 	"timetable.planning_track_archived":                    "business_rejection",
 	"timetable.planning_track_invalid":                     "input",
-	"timetable.planning_track_name_taken":                  "business_rejection",
-	"timetable.planning_track_not_found":                   "business_rejection",
-	"timetable.presence_would_overstaff":                   "business_rejection",
-	"timetable.reopen_attendance_changed":                  "business_rejection",
 }
 
 func init() {

@@ -2530,7 +2530,11 @@
         "submission_rate_limited": "Wysłano zbyt wiele zapisów. Spróbuj ponownie za godzinę.",
         "waitlist_disabled": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "window_closed": "Termin zapisów minął lub jeszcze się nie zaczął. Skontaktuj się ze szkołą.",
-        "withdraw_not_allowed": "Tego zapisu nie można już wycofać. Skontaktuj się ze szkołą."
+        "withdraw_not_allowed": "Tego zapisu nie można już wycofać. Skontaktuj się ze szkołą.",
+        "holiday_host_school_outside_traeger": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "holiday_period_incomplete": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "holiday_period_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "holiday_period_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
       },
       "files": {
         "announcement_published": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",

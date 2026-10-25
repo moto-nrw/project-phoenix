@@ -189,6 +189,10 @@ const (
 	CodeEnrollmentGuardianEmailRequired                  = "enrollment.guardian_email_required"
 	CodeEnrollmentGuardianNameRequired                   = "enrollment.guardian_name_required"
 	CodeEnrollmentGuardianPhoneRequired                  = "enrollment.guardian_phone_required"
+	CodeEnrollmentHolidayHostSchoolOutsideTraeger        = "enrollment.holiday_host_school_outside_traeger"
+	CodeEnrollmentHolidayPeriodIncomplete                = "enrollment.holiday_period_incomplete"
+	CodeEnrollmentHolidayPeriodInvalid                   = "enrollment.holiday_period_invalid"
+	CodeEnrollmentHolidayPeriodNotFound                  = "enrollment.holiday_period_not_found"
 	CodeEnrollmentInvalidEmail                           = "enrollment.invalid_email"
 	CodeEnrollmentInvalidPhone                           = "enrollment.invalid_phone"
 	CodeEnrollmentLateInviteInvalid                      = "enrollment.late_invite_invalid"
@@ -298,10 +302,6 @@ const (
 	CodeIdentityPreviewTokenInvalid                      = "identity.preview_token_invalid"
 	CodeIdentityReadOnlyPreview                          = "identity.read_only_preview"
 	CodeIdentityRoleNameTaken                            = "identity.role_name_taken"
-	CodeIdentityRolePlatformPermission                   = "identity.role_platform_permission"
-	CodeIdentitySessionAccountInactive                   = "identity.session_account_inactive"
-	CodeIdentityTenantAccessDenied                       = "identity.tenant_access_denied"
-	CodeIdentityTenantAccessNotFound                     = "identity.tenant_access_not_found"
 )
 
 var errorCodeClasses0 = map[string]string{
@@ -492,6 +492,10 @@ var errorCodeClasses0 = map[string]string{
 	"enrollment.guardian_email_required":                   "input",
 	"enrollment.guardian_name_required":                    "input",
 	"enrollment.guardian_phone_required":                   "input",
+	"enrollment.holiday_host_school_outside_traeger":       "input",
+	"enrollment.holiday_period_incomplete":                 "business_rejection",
+	"enrollment.holiday_period_invalid":                    "input",
+	"enrollment.holiday_period_not_found":                  "business_rejection",
 	"enrollment.invalid_email":                             "input",
 	"enrollment.invalid_phone":                             "input",
 	"enrollment.late_invite_invalid":                       "input",
@@ -601,10 +605,6 @@ var errorCodeClasses0 = map[string]string{
 	"identity.preview_token_invalid":                       "permission",
 	"identity.read_only_preview":                           "permission",
 	"identity.role_name_taken":                             "business_rejection",
-	"identity.role_platform_permission":                    "input",
-	"identity.session_account_inactive":                    "permission",
-	"identity.tenant_access_denied":                        "permission",
-	"identity.tenant_access_not_found":                     "business_rejection",
 }
 
 func init() {

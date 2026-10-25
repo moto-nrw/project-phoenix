@@ -64,6 +64,7 @@ const (
 type UnitOfWork struct {
 	withinTenant    func(context.Context, int64, func(context.Context, any) error) error
 	withinAdmin     func(context.Context, func(context.Context, any) error) error
+	withinTraeger   func(context.Context, int64, func(context.Context, any) error) error
 	savepoint       func(context.Context, SavepointAction) error
 	retryable       func(error) bool
 	acquireLock     func(context.Context, string, bool) error

@@ -2530,7 +2530,11 @@
         "submission_rate_limited": "Çok fazla kayıt gönderildi. Lütfen bir saat sonra tekrar deneyin.",
         "waitlist_disabled": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "window_closed": "Kayıt süresi bitti veya henüz başlamadı. Lütfen okulla iletişime geçin.",
-        "withdraw_not_allowed": "Bu kayıt artık geri çekilemez. Lütfen okulla iletişime geçin."
+        "withdraw_not_allowed": "Bu kayıt artık geri çekilemez. Lütfen okulla iletişime geçin.",
+        "holiday_host_school_outside_traeger": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "holiday_period_incomplete": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "holiday_period_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "holiday_period_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin."
       },
       "files": {
         "announcement_published": "{object} değiştirilemedi. Güncel durumu kontrol edin.",

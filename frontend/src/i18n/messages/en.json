@@ -2530,7 +2530,11 @@
         "submission_rate_limited": "Too many enrollments were sent. Please try again in an hour.",
         "waitlist_disabled": "{object} could not be changed. Please check its current status.",
         "window_closed": "The enrollment period has ended or has not started yet. Please contact the school.",
-        "withdraw_not_allowed": "This enrollment can no longer be withdrawn. Please contact the school."
+        "withdraw_not_allowed": "This enrollment can no longer be withdrawn. Please contact the school.",
+        "holiday_host_school_outside_traeger": "This school does not belong to your Träger. Please choose a school from the list.",
+        "holiday_period_incomplete": "The holiday period needs at least one week. Every week needs at least one time model.",
+        "holiday_period_invalid": "Please check the marked fields.",
+        "holiday_period_not_found": "This holiday period does not exist. Please open it from the holiday list."
       },
       "files": {
         "announcement_published": "{object} could not be changed. Please check its current status.",

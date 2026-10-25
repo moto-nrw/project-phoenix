@@ -4264,6 +4264,18 @@
       "write_owner": "enrollment"
     },
     {
+      "name": "enrollment.holiday_period_weeks",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.holiday_periods",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.holiday_week_time_models",
+      "write_owner": "enrollment"
+    },
+    {
       "name": "enrollment.late_invites",
       "write_owner": "enrollment"
     },

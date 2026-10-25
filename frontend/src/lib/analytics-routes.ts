@@ -175,7 +175,13 @@ export const TRACKED_CATERER_ROUTE_TEMPLATES = [
   "/reset-password",
 ] as const;
 /** Träger portal pages under `app/traeger`, as the Träger host shows them. */
-export const TRACKED_TRAEGER_ROUTE_TEMPLATES = ["/", "/login"] as const;
+export const TRACKED_TRAEGER_ROUTE_TEMPLATES = [
+  "/",
+  "/ferien",
+  "/ferien/:id",
+  "/ferien/neu",
+  "/login",
+] as const;
 
 /** Public pages of the bare domain: school choice, start, demo, help. */
 export const TRACKED_PUBLIC_ROUTE_TEMPLATES = [
