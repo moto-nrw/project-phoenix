@@ -22,6 +22,7 @@ import {
 } from "./network-activity";
 import {
   BrokenShotError,
+  brokenShotsError,
   findBrokenReasons,
   isIgnoredResponse,
   type FailedResponse,
@@ -558,8 +559,9 @@ function assertNativeSize(
 }
 
 /**
- * Fotografiert alle Shots auf allen ihren Geräten. Der erste kaputte Shot wirft
- * (BrokenShotError) und beendet den Lauf; es gibt keine Teilergebnisse.
+ * Fotografiert alle Shots auf allen ihren Geräten. Ein kaputter Shot überspringt
+ * seine übrigen Geräte; am Ende wirft der Lauf alle kaputten Shots zusammen
+ * (BrokenShotError) und gibt keine Teilergebnisse aus.
  */
 export async function captureShots(
   options: CaptureOptions,
@@ -574,6 +576,7 @@ export async function captureShots(
       Awaited<ReturnType<BrowserContext["storageState"]>>
     >();
     const raws: RawShot[] = [];
+    const broken: BrokenShotError[] = [];
     for (const shot of options.shots) {
       const { origin } = accessForShot(options.access, shot);
       const storageState = await sessionFor(
@@ -584,18 +587,26 @@ export async function captureShots(
       );
       for (const deviceId of devicesFor(shot)) {
         log(`Fotografiere ${shot.id} auf ${deviceId}`);
-        const png = await captureOne(
-          browser,
-          storageState,
-          DEVICES[deviceId],
-          shot,
-          origin,
-          now,
-          loadTimeoutMs,
-        );
-        raws.push({ shotId: shot.id, device: deviceId, png });
+        try {
+          const png = await captureOne(
+            browser,
+            storageState,
+            DEVICES[deviceId],
+            shot,
+            origin,
+            now,
+            loadTimeoutMs,
+          );
+          raws.push({ shotId: shot.id, device: deviceId, png });
+        } catch (error) {
+          if (!(error instanceof BrokenShotError)) throw error;
+          log(error.message);
+          broken.push(error);
+          break;
+        }
       }
     }
+    if (broken.length > 0) throw brokenShotsError(broken);
     return raws;
   } finally {
     await browser.close();

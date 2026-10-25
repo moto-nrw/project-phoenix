@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   BrokenShotError,
+  brokenShotsError,
   findBrokenReasons,
   isIgnoredResponse,
   type ShotObservation,
@@ -124,6 +125,26 @@ describe("BrokenShotError", () => {
     expect(error.message).toContain("iphone");
     expect(error.message).toContain("- HTTP 500");
     expect(error.message).toContain("- Konsolenfehler: x");
+  });
+});
+
+describe("brokenShotsError", () => {
+  it("nennt jeden kaputten Shot und bleibt ein BrokenShotError", () => {
+    const error = brokenShotsError([
+      new BrokenShotError("kinder-zuhause", "iphone", ["HTTP 500"]),
+      new BrokenShotError("raeume", "macbook", ["Ladeanzeige sichtbar"]),
+    ]);
+    expect(error).toBeInstanceOf(BrokenShotError);
+    expect(error.message).toContain("2 Shots sind kaputt");
+    expect(error.message).toContain("kinder-zuhause (iphone)");
+    expect(error.message).toContain("- HTTP 500");
+    expect(error.message).toContain("raeume (macbook)");
+    expect(error.message).toContain("- Ladeanzeige sichtbar");
+  });
+
+  it("gibt einen einzelnen kaputten Shot unverändert weiter", () => {
+    const single = new BrokenShotError("raeume", "ipad", ["HTTP 404"]);
+    expect(brokenShotsError([single])).toBe(single);
   });
 });
 

@@ -104,7 +104,9 @@ shots:
       - klicken: 'main button:has-text("Krank melden")'
       - warten_auf: '[role="dialog"]'
       # Ein Tag der Woche schaltet „Krankmelden“ frei; abgeschickt wird nicht.
-      - klicken: '[role="dialog"] button:not([disabled]):has(span:text-is("Mi"))'
+      # Der letzte freie Tag: Der Seed meldet Noah für den nächsten Werktag
+      # schon krank, dessen Kachel ist gesperrt.
+      - klicken: '[role="dialog"] div.grid-cols-5 > button:not([disabled]) >> nth=-1'
       - tippen:
           feld: '[role="dialog"] textarea'
           text: 'Mutter hat angerufen: Noah hat Fieber.'
