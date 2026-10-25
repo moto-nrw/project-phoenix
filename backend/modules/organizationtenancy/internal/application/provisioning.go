@@ -145,14 +145,8 @@ func (p *Provisioning) UpdateOrganization(ctx context.Context, id int64, changes
 			return nil, mapOrganizationError(err, id)
 		}
 		diff := organizationDiff(existing, updated)
-		if existing.Active && !updated.Active {
-			ended, err := p.identity.EndTraegerSessions(adminCtx, id)
-			if err != nil {
-				return nil, err
-			}
-			if ended > 0 {
-				diff["traeger_sessions_ended"] = ended
-			}
+		if err := p.endSessionsOfDeactivatedTraeger(adminCtx, existing, updated, diff); err != nil {
+			return nil, err
 		}
 		return &updated, p.recordAction(adminCtx, operatorID, domain.AuditActionUpdate, domain.AuditResourceOrganization, &id, clientIP, diff)
 	})
@@ -171,6 +165,22 @@ func (p *Provisioning) guardReactivation(adminCtx context.Context, existing orga
 	}
 	if open {
 		return organizationtenancy.ErrTraegerErasureOrderOpen
+	}
+	return nil
+}
+
+// endSessionsOfDeactivatedTraeger ends every Träger session when the update
+// deactivates the Träger and adds their number to the audit diff.
+func (p *Provisioning) endSessionsOfDeactivatedTraeger(adminCtx context.Context, existing, updated organizationtenancy.Organization, diff map[string]any) error {
+	if !existing.Active || updated.Active {
+		return nil
+	}
+	ended, err := p.identity.EndTraegerSessions(adminCtx, existing.ID)
+	if err != nil {
+		return err
+	}
+	if ended > 0 {
+		diff["traeger_sessions_ended"] = ended
 	}
 	return nil
 }
