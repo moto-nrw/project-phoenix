@@ -1098,6 +1098,10 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   "api/traeger/accounts/invitations/[invitationId]": [
     "DELETE traeger /traeger/accounts/invitations/invitationId%2F1",
   ],
+  "api/traeger/contribution-rules": [
+    "GET traeger /traeger/contribution-rules",
+    "POST traeger /traeger/contribution-rules",
+  ],
   "api/traeger/holiday-periods": [
     "GET traeger /traeger/holiday-periods",
     "POST traeger /traeger/holiday-periods",
@@ -1123,8 +1127,12 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
       "PUT traeger /traeger/holiday-periods/id%2F1/registrations/registrationId%2F1/children/childId%2F1/bookings",
     ],
   "api/traeger/holiday-periods/[id]/registrations/[registrationId]/confirm": [
-    "POST traeger /traeger/holiday-periods/id%2F1/registrations/registrationId%2F1/confirm",
+    "POST traeger /traeger/holiday-contributions/id%2F1/registrations/registrationId%2F1/confirm",
   ],
+  "api/traeger/holiday-periods/[id]/registrations/[registrationId]/contribution":
+    [
+      "GET traeger /traeger/holiday-contributions/id%2F1/registrations/registrationId%2F1",
+    ],
   "api/traeger/holiday-periods/[id]/registrations/[registrationId]/freeze": [
     "POST traeger /traeger/holiday-periods/id%2F1/registrations/registrationId%2F1/freeze",
   ],

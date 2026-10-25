@@ -1727,7 +1727,17 @@
     "checkFields": "Ju lutemi kontrolloni fushat e shënuara.",
     "summaryTitle": "Ju lutemi kontrolloni të dhënat",
     "summaryText": "Regjistrimi vlen vetëm pasi ta dërgoni.",
-    "summaryFee": "Pagesën jua tregon organizatori.",
+    "contributionTitle": "Pagesa",
+    "contributionText": "Kaq kushton kujdesi gjatë pushimeve. Pagesa vlen sapo organizatori ta konfirmojë regjistrimin.",
+    "contributionLoading": "Pagesa po llogaritet …",
+    "contributionError": "Pagesa nuk mund të shfaqet tani. Megjithatë mund ta dërgoni regjistrimin. Organizatori ju tregon pastaj pagesën.",
+    "contributionRetry": "Provo përsëri",
+    "contributionSibling": "Vëllezër e motra: fëmija i {rank}-të, {discount} më pak",
+    "contributionExemption": "I përjashtuar për shkak të ndihmave: {note}",
+    "contributionChildTotal": "Shuma",
+    "contributionTotal": "Gjithsej",
+    "benefitsLabel": "Ne marrim ndihma, për shembull Bürgergeld, ndihmë për banesën (Wohngeld) ose shtesë për fëmijën (Kinderzuschlag).",
+    "benefitsHint": "Atëherë nuk paguani asgjë. Organizatori ka nevojë për një vërtetim.",
     "guest": "Mysafir për pushimet",
     "none": "Pa të dhëna",
     "back": "Kthehu dhe ndrysho",
@@ -2818,6 +2828,13 @@
         "not_supplied": "Ju nuk e furnizoni më këtë shkollë. Ju lutemi pyesni shkollën.",
         "order_not_found": "Kjo porosi nuk ekziston. Ju lutemi ringarkoni faqen.",
         "supply_active": "{object} nuk është e mundur tani. Një furnizues ushqimi e furnizon ende shkollën. Përfundoni fillimisht atë furnizim."
+      },
+      "parent_billing": {
+        "benefits_exemption_unavailable": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "contribution_rule_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "contribution_rule_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "contribution_rule_overlap": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "holiday_quote_invalid": "Pagesa për këto javë nuk mund të llogaritet. Ju lutemi ringarkoni faqen."
       },
       "pickup": {
         "bulk_exception_confirmation_required": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",

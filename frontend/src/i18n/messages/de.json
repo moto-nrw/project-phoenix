@@ -1727,7 +1727,17 @@
     "checkFields": "Bitte prüfen Sie die markierten Felder.",
     "summaryTitle": "Bitte prüfen Sie Ihre Angaben",
     "summaryText": "Erst mit dem Absenden ist die Anmeldung gültig.",
-    "summaryFee": "Den Beitrag nennt Ihnen der Träger.",
+    "contributionTitle": "Beitrag",
+    "contributionText": "So viel kostet die Ferienbetreuung. Der Beitrag gilt, sobald der Träger die Anmeldung bestätigt.",
+    "contributionLoading": "Der Beitrag wird berechnet …",
+    "contributionError": "Der Beitrag lässt sich gerade nicht anzeigen. Sie können trotzdem absenden. Der Träger nennt Ihnen dann den Beitrag.",
+    "contributionRetry": "Noch einmal versuchen",
+    "contributionSibling": "Geschwister: {rank}. Kind, {discount} weniger",
+    "contributionExemption": "Befreit wegen Leistungsbezug: {note}",
+    "contributionChildTotal": "Summe",
+    "contributionTotal": "Gesamt",
+    "benefitsLabel": "Wir bekommen Leistungen, zum Beispiel Bürgergeld, Wohngeld oder Kinderzuschlag.",
+    "benefitsHint": "Dann zahlen Sie nichts. Der Träger braucht dafür einen Nachweis.",
     "guest": "Feriengast",
     "none": "Keine Angabe",
     "back": "Zurück und ändern",
@@ -2818,6 +2828,13 @@
         "not_supplied": "Sie beliefern diese Schule nicht mehr. Bitte fragen Sie die Schule.",
         "order_not_found": "Diese Bestellung gibt es nicht. Bitte laden Sie die Seite neu.",
         "supply_active": "{object} geht gerade nicht. Ein Caterer beliefert die Schule noch. Beenden Sie zuerst diese Belieferung."
+      },
+      "parent_billing": {
+        "benefits_exemption_unavailable": "Für eine Befreiung bei Leistungsbezug braucht es eine Regel unter „Beiträge“. Bitte fragen Sie die Abrechnung.",
+        "contribution_rule_invalid": "Bitte prüfen Sie die markierten Felder.",
+        "contribution_rule_not_found": "Diese Regel gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+        "contribution_rule_overlap": "In dieser Zeit gilt schon eine Regel dieser Art. Bitte ändern Sie zuerst „Gilt bis“ der anderen Regel.",
+        "holiday_quote_invalid": "Der Beitrag lässt sich für diese Wochen nicht berechnen. Bitte laden Sie die Seite neu."
       },
       "pickup": {
         "bulk_exception_confirmation_required": "Für {object} fehlt eine Angabe. Bitte ergänzen Sie das markierte Feld.",

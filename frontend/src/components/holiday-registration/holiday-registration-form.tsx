@@ -126,6 +126,7 @@ export function HolidayRegistrationForm({
     // instead of a stale one from the form step being sent.
     return (
       <HolidayRegistrationSummary
+        token={token}
         draft={draft}
         offer={offer}
         submitting={submitting}
@@ -148,6 +149,9 @@ export function HolidayRegistrationForm({
           setStep("form");
         }}
         onSubmit={() => void submit()}
+        onBenefitsDeclaredChange={(benefitsDeclared) =>
+          setDraft((current) => ({ ...current, benefitsDeclared }))
+        }
       />
     );
   }

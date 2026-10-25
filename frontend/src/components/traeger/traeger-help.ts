@@ -25,6 +25,11 @@ const TRAEGER_BRIEFKOPF_HELP_HREF = traegerHelpLink(
   "/briefkopf",
 );
 
+const TRAEGER_CONTRIBUTION_HELP_HREF = traegerHelpLink(
+  HELP_TOPICS.traegerHolidayContribution,
+  "/beitraege",
+);
+
 /** `/ferien/{id}/anmeldungen` and its registrations (#4663). */
 const HOLIDAY_REGISTRATIONS_PAGE = /^\/ferien\/[^/]+\/anmeldungen(?:\/|$)/;
 
@@ -37,6 +42,7 @@ export function traegerHelpHref(pathname: string): string {
   const page = pathname.replace(/^\/traeger/, "") || "/";
   if (onPage(page, "/einstellungen")) return TRAEGER_SETTINGS_HELP_HREF;
   if (onPage(page, "/briefkopf")) return TRAEGER_BRIEFKOPF_HELP_HREF;
+  if (onPage(page, "/beitraege")) return TRAEGER_CONTRIBUTION_HELP_HREF;
   if (HOLIDAY_REGISTRATIONS_PAGE.test(page)) {
     return traegerHelpLink(HELP_TOPICS.traegerHolidayRegistrationReview, page);
   }

@@ -1727,7 +1727,17 @@
     "checkFields": "Lütfen işaretli alanları kontrol edin.",
     "summaryTitle": "Lütfen bilgilerinizi kontrol edin",
     "summaryText": "Kayıt ancak gönderildikten sonra geçerlidir.",
-    "summaryFee": "Ücreti size kurum bildirir.",
+    "contributionTitle": "Ücret",
+    "contributionText": "Tatil bakımı bu kadar tutar. Ücret, kurum kaydı onayladığında geçerli olur.",
+    "contributionLoading": "Ücret hesaplanıyor …",
+    "contributionError": "Ücret şu anda gösterilemiyor. Kaydı yine de gönderebilirsiniz. Kurum size ücreti bildirir.",
+    "contributionRetry": "Tekrar dene",
+    "contributionSibling": "Kardeşler: {rank}. çocuk, {discount} daha az",
+    "contributionExemption": "Sosyal yardım nedeniyle muaf: {note}",
+    "contributionChildTotal": "Toplam",
+    "contributionTotal": "Genel toplam",
+    "benefitsLabel": "Sosyal yardım alıyoruz, örneğin Bürgergeld, konut yardımı (Wohngeld) veya çocuk ek ödeneği (Kinderzuschlag).",
+    "benefitsHint": "O zaman hiçbir şey ödemezsiniz. Kurumun bunun için bir belgeye ihtiyacı var.",
     "guest": "Tatil misafiri",
     "none": "Bilgi yok",
     "back": "Geri dön ve değiştir",
@@ -2818,6 +2828,13 @@
         "not_supplied": "Artık bu okula yemek sağlamıyorsunuz. Lütfen okula danışın.",
         "order_not_found": "Bu sipariş mevcut değil. Lütfen sayfayı yeniden yükleyin.",
         "supply_active": "{object} şu anda mümkün değil. Okula hâlâ bir yemek firması yemek sağlıyor. Önce bu tedariki sonlandırın."
+      },
+      "parent_billing": {
+        "benefits_exemption_unavailable": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "contribution_rule_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "contribution_rule_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "contribution_rule_overlap": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "holiday_quote_invalid": "Bu haftalar için ücret hesaplanamıyor. Lütfen sayfayı yeniden yükleyin."
       },
       "pickup": {
         "bulk_exception_confirmation_required": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
