@@ -209,9 +209,9 @@ func seedCarePlanDeviations(rt *Runtime, studentIDs []int64) error {
 // seedTodayHomeChanges gives two children a one-day change of their way home,
 // so the strip on the Kinderkarte shows on every dev machine (#3946): index 5
 // is picked up at 13:30 instead of its Gehzeit, index 4, who goes home alone
-// every weekday, is picked up today. The day Abholart of index 0 above does
-// not show, because that child is the group's sick one. On a weekend the
-// changes land on Monday, which has a plan to deviate from.
+// every weekday, is picked up today. Index 0 above shows its day Abholart
+// too. On a weekend the changes land on Monday, which has a plan to deviate
+// from.
 func seedTodayHomeChanges(rt *Runtime, studentIDs []int64) error {
 	if len(studentIDs) < 6 {
 		return fmt.Errorf("today home change students not available")

@@ -19,7 +19,9 @@
 # Standardprofil des Seeders und der Demo, nach `simulate full-day`. Das erste
 # Elternkonto (Sabine Schneider) ist das Elternteil von Felix Schneider; die
 # Kinderakte zeigt Noah Richter. Kinder mit Elternkonto meldet der Seed nie
-# krank, beide sind anwesend.
+# krank, beide sind anwesend. An Betreuungstagen hängt die Kinderkarte Noahs
+# Tagesänderung an den Namen („Noah Richter, … - Details öffnen“), daher der
+# reguläre Ausdruck.
 #
 # Auswahl (#3764, vom Maintainer bestätigt): die Flows der Hilfe und die
 # Nutzung laut PostHog (nur lesend abgefragt). Erfasst sind Seitenaufrufe der
@@ -60,7 +62,7 @@ shots:
     rolle: admin
     pfad: /students/search
     vorbereitung:
-      - klicken: 'role=button[name="Noah Richter - Details öffnen"]'
+      - klicken: 'role=button[name=/^Noah Richter\b.*Details öffnen$/]'
       - warten_auf: 'role=tab[name="Stammdaten"]'
   # Hilfe betreuungszeiten-eintragen, kind-angaben-aendern
   - id: betreuungszeiten-pflegen
@@ -69,7 +71,7 @@ shots:
     rolle: admin
     pfad: /students/search
     vorbereitung:
-      - klicken: 'role=button[name="Noah Richter - Details öffnen"]'
+      - klicken: 'role=button[name=/^Noah Richter\b.*Details öffnen$/]'
       - warten_auf: 'role=tab[name="Stammdaten"]'
       - klicken: '[role="tab"][data-tab-value="betreuungszeiten"]'
   # Hilfe abwesenheiten; PostHog: 253 Abwesenheitsmeldungen
@@ -79,7 +81,7 @@ shots:
     rolle: admin
     pfad: /students/search
     vorbereitung:
-      - klicken: 'role=button[name="Noah Richter - Details öffnen"]'
+      - klicken: 'role=button[name=/^Noah Richter\b.*Details öffnen$/]'
       - warten_auf: 'role=tab[name="Stammdaten"]'
       - klicken: 'main button:has-text("Krank melden")'
       - warten_auf: '[role="dialog"]'
