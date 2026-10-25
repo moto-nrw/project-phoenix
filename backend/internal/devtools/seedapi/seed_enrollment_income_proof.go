@@ -49,7 +49,7 @@ func (seedEnrollmentIncomeProofStep) Run(_ context.Context, rt *Runtime) error {
 	rt.Client.BindAuth(rt.TenantAuth)
 	slug := rt.Bootstrap.TenantSlug
 	raw, err := rt.Client.PostFileWithFields("/api/enrollment/"+slug+"/uploads", "file", "Einkommensbescheid-2025.pdf",
-		demoPDF("Einkommensbescheid 2025", []string{"Familie Lorenz", "Jahreseinkommen laut Steuerbescheid", "Kopie für die Anmeldung"}),
+		demoPDF("Einkommensbescheid 2025", []string{"Familie Rahimi", "Jahreseinkommen laut Steuerbescheid", "Kopie für die Anmeldung"}),
 		map[string]string{"phase_id": strconv.FormatInt(rt.Enrollment.PhaseID, 10), "field_key": seedIncomeProofKey})
 	if err != nil {
 		return fmt.Errorf("upload income proof: %w", err)
@@ -64,9 +64,9 @@ func (seedEnrollmentIncomeProofStep) Run(_ context.Context, rt *Runtime) error {
 	}
 	body := map[string]any{
 		"phase_id":            rt.Enrollment.PhaseID,
-		"guardian_first_name": "Katrin",
-		"guardian_last_name":  "Lorenz",
-		"guardian_email":      "katrin.lorenz@example.test",
+		"guardian_first_name": "Zahra",
+		"guardian_last_name":  "Rahimi",
+		"guardian_email":      "zahra.rahimi@example.test",
 		"guardian_phone":      "+49 221 555 991",
 		"consent_flags":       map[string]any{"data_processing": true},
 		"custom_data": map[string]any{
@@ -74,7 +74,7 @@ func (seedEnrollmentIncomeProofStep) Run(_ context.Context, rt *Runtime) error {
 			seedIncomeProofKey: []map[string]any{{"token": upload.Data.Token}},
 		},
 		"children": []map[string]any{{
-			"first_name": "Finn", "last_name": "Lorenz", "date_of_birth": "2019-05-12", "target_grade_level": 1,
+			"first_name": "Ahmad", "last_name": "Rahimi", "date_of_birth": "2019-05-12", "target_grade_level": 1,
 			"offering_ids":  []int64{rt.Enrollment.Offerings["ogs-kurz"], rt.Enrollment.Offerings["mittagessen"]},
 			"offering_days": []map[string]any{{"offering_id": rt.Enrollment.Offerings["ogs-kurz"], "selected_days": []string{"tue", "thu"}}, {"offering_id": rt.Enrollment.Offerings["mittagessen"], "selected_days": []string{"tue", "thu"}}},
 			"custom_data":   map[string]any{"allergies": "keine"},

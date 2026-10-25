@@ -4227,6 +4227,18 @@
       "legacy": "traeger.no_membership"
     },
     {
+      "code": "traeger.second_factor_required",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "traeger.second_factor_required"
+    },
+    {
+      "code": "traeger.school_not_found",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "traeger.school_not_found"
+    },
+    {
       "code": "workforce.absence_allowance_exceeded",
       "class": "business_rejection",
       "parameters": [],

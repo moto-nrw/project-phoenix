@@ -1033,6 +1033,7 @@ POST /traeger/holiday-periods/
 POST /traeger/holiday-periods/{id}/publish
 POST /traeger/holiday-registrations/{token}
 POST /traeger/invitations/{token}/accept
+POST /traeger/school-sessions/
 PUT /.well-known/caldav
 PUT /analytics-consent/
 PUT /api/absence-types/{id}

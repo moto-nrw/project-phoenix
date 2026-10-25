@@ -50,13 +50,13 @@ func (seedEnrollmentSignatureStep) Run(_ context.Context, rt *Runtime) error {
 	}
 	body := map[string]any{
 		"phase_id":            phaseID,
-		"guardian_first_name": "Sabine",
-		"guardian_last_name":  "Wolff",
-		"guardian_email":      "sabine.wolff@example.test",
+		"guardian_first_name": "Abena",
+		"guardian_last_name":  "Mensah",
+		"guardian_email":      "abena.mensah@example.test",
 		"guardian_phone":      "+49 221 555 734",
 		"consent_flags":       map[string]any{"data_processing": true},
 		"children": []map[string]any{{
-			"first_name": "Lotta", "last_name": "Wolff", "date_of_birth": "2018-03-21", "target_grade_level": 2,
+			"first_name": "Ama", "last_name": "Mensah", "date_of_birth": "2018-03-21", "target_grade_level": 2,
 			"custom_data": map[string]any{"allergies": "Nüsse"},
 		}},
 		"signature": map[string]any{"method": "drawn", "image_png": signature},

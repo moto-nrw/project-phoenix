@@ -31,7 +31,7 @@ func TestFixedSeederSeedGroupHandover(t *testing.T) {
 
 	seeder := NewFixedSeeder(newTestClient(server.URL, false), false, "")
 	seeder.groupIDs["sternengruppe"] = 12
-	seeder.staffIDs["Birgit Braun"] = 34
+	seeder.staffIDs["Daria Nowak"] = 34
 	require.NoError(t, seeder.seedGroupHandover(context.Background()))
 
 	require.NoError(t, decodeErr)
