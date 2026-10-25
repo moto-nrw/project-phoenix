@@ -78,10 +78,11 @@ func (s *AccountAuthentication) StartTraegerSchoolSession(ctx context.Context, r
 
 // traegerSchoolHandoffGuard adds to the school guard what only the Absprung
 // needs: the second-factor proof of the Träger session must still hold under
-// the account lock, and the Absprung enters the school's audit in the mint
+// the account lock. The Absprung enters the school's audit in the mint
 // transaction, so no session exists without its audit entry.
 func (s *AccountAuthentication) traegerSchoolHandoffGuard(request identityaccess.TraegerSchoolSessionRequest, proof bool, next mintGuard) mintGuard {
-	return func(ctx context.Context, account domain.LoginAccount) error {
+	proven := func(ctx context.Context, account domain.LoginAccount) error {
+		// next takes the account lock MFA reset shares.
 		if err := next(ctx, account); err != nil {
 			return err
 		}
@@ -92,13 +93,26 @@ func (s *AccountAuthentication) traegerSchoolHandoffGuard(request identityaccess
 		if proof && !current {
 			return failed("Träger school session", identityaccess.ErrInvalidToken)
 		}
-		ipAddress := request.IPAddress
-		if ipAddress == "" {
-			ipAddress = domain.AccessAuditIP
+		return nil
+	}
+	return s.traegerSchoolAuditGuard(request.OrganizationID, request.SchoolID, request.IPAddress, request.UserAgent, proven)
+}
+
+// traegerSchoolAuditGuard runs next and files traeger_school_switch with the
+// Träger in the school's authentication ledger, on the mint transaction:
+// every school a Träger session reaches, by Absprung or by a tab switch
+// within the Träger, has its entry or no session.
+func (s *AccountAuthentication) traegerSchoolAuditGuard(organizationID, schoolID int64, ipAddress, userAgent string, next mintGuard) mintGuard {
+	if ipAddress == "" {
+		ipAddress = domain.AccessAuditIP
+	}
+	return func(ctx context.Context, account domain.LoginAccount) error {
+		if err := next(ctx, account); err != nil {
+			return err
 		}
 		return s.audit.RecordAuthEvent(ctx, domain.AuthEvent{
-			AccountID: account.ID, TenantID: request.SchoolID, Type: domain.AuthEventTraegerSchoolSwitch, Success: true,
-			IPAddress: ipAddress, UserAgent: request.UserAgent, OrganizationID: request.OrganizationID,
+			AccountID: account.ID, TenantID: schoolID, Type: domain.AuthEventTraegerSchoolSwitch, Success: true,
+			IPAddress: ipAddress, UserAgent: userAgent, OrganizationID: organizationID,
 		})
 	}
 }
@@ -269,12 +283,14 @@ func (s *AccountAuthentication) traegerSwitchTarget(ctx context.Context, account
 
 // switchTraegerSchool moves a Träger school session to another school of the
 // same Träger, the switch a second tab triggers (#4654). The presented family
-// is retired like any switch and supplies the second-factor proof.
+// is retired like any switch and supplies the second-factor proof; the target
+// school files the switch like an Absprung.
 func (s *AccountAuthentication) switchTraegerSchool(ctx context.Context, account domain.LoginAccount, school domain.School, presentedFamilyID string) (string, string, error) {
 	var metadata *domain.AccountClaimsPayload
 	session := s.newRefreshSession(account.ID, domain.ScopeTenant)
 	session.OrganizationID = school.OrganizationID
-	session, err := s.persistNewSession(ctx, account, session, school.ID, s.traegerSchoolMintGuard(school.OrganizationID, school.ID, &metadata), presentedFamilyID)
+	guard := s.traegerSchoolAuditGuard(school.OrganizationID, school.ID, "", "", s.traegerSchoolMintGuard(school.OrganizationID, school.ID, &metadata))
+	session, err := s.persistNewSession(ctx, account, session, school.ID, guard, presentedFamilyID)
 	if err != nil {
 		return "", "", err
 	}

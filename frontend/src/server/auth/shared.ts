@@ -636,7 +636,9 @@ async function getRefreshAuditHeaders(): Promise<Record<string, string>> {
  * Redeems the hand-off token of an Absprung from the Träger portal (#4654)
  * on the school's host. The token is a short-lived refresh token of a new
  * OGS session; its first rotation here makes it single-use and gives the
- * session its normal lifetime. Null when the backend refuses it.
+ * session its normal lifetime. Its recovery proof is random, so a replay of
+ * the token is refused even within the recovery window. Null when the
+ * backend refuses it.
  */
 export async function redeemTraegerHandoff(
   handoffToken: string,
@@ -654,7 +656,10 @@ export async function redeemTraegerHandoff(
       headers: {
         Authorization: `Bearer ${handoffToken}`,
         "Content-Type": "application/json",
-        "X-Refresh-Recovery-Proof": deriveRefreshRecoveryProof(handoffToken),
+        // A fresh proof per redemption: the hand-off token alone, replayed
+        // within the recovery window, must not recover the session it
+        // opened. A lost answer means opening the school again.
+        "X-Refresh-Recovery-Proof": createRefreshRecoveryProof(),
         ...(await getRefreshAuditHeaders()),
       },
       cache: "no-store",

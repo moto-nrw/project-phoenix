@@ -276,4 +276,10 @@ func TestTraegerSchoolSessionsInTwoTabsStaySignedIn(t *testing.T) {
 
 	_, _, err = identity.SwitchTenant(ctx, account.ID, schoolSubdomain(t, db, foreignSchool), switchedClaims["family_id"].(string))
 	assert.ErrorIs(t, err, identityaccess.ErrTenantAccessDenied, "a switch leaves the Träger only through the account's own mapping")
+
+	var switches int
+	require.NoError(t, db.NewRaw(`SELECT COUNT(*) FROM audit.auth_events
+		WHERE tenant_id = ? AND account_id = ? AND event_type = 'traeger_school_switch' AND (metadata->>'organization_id')::bigint = ?`,
+		second, account.ID, organization).Scan(context.Background(), &switches))
+	assert.Equal(t, 2, switches, "the tab switch into the second school is in its audit like the Absprung")
 }

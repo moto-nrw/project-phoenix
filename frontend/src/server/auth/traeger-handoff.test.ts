@@ -94,6 +94,29 @@ describe("Absprung from the Träger portal (#4654)", () => {
     );
   });
 
+  it("binds every redemption to a proof of its own, so a replayed token recovers nothing", async () => {
+    mockFetch.mockResolvedValue({ ok: false, status: 401 });
+
+    await tenantAuthorize()(
+      { traegerHandoff: HANDOFF },
+      new Request("https://am-bach.moto-app.de"),
+    );
+    await tenantAuthorize()(
+      { traegerHandoff: HANDOFF },
+      new Request("https://am-bach.moto-app.de"),
+    );
+
+    const proofs = mockFetch.mock.calls.map(
+      ([, init]) =>
+        (init as RequestInit & { headers: Record<string, string> }).headers[
+          "X-Refresh-Recovery-Proof"
+        ],
+    );
+    expect(proofs).toHaveLength(2);
+    expect(proofs[0]).toBeTruthy();
+    expect(proofs[0]).not.toBe(proofs[1]);
+  });
+
   it("refuses a session that did not come through the Träger", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
