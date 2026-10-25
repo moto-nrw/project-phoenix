@@ -206,6 +206,10 @@ func TestSurveyInputRules(t *testing.T) {
 		func(in *communication.SurveyInput) {
 			in.Targets = []communication.SurveyTarget{{TargetType: "school_all"}}
 		},
+		func(in *communication.SurveyInput) {
+			in.Audience = communication.SurveyAudienceParents
+			in.Targets = []communication.SurveyTarget{{TargetType: AnnouncementTargetPendingEnrollment}}
+		},
 		func(in *communication.SurveyInput) { in.Questions = nil },
 		func(in *communication.SurveyInput) {
 			in.Questions = []communication.SurveyQuestionInput{{Kind: communication.SurveyQuestionSingle, Prompt: "Eine?", Options: []string{"Nur eine"}}}

@@ -81,6 +81,9 @@ func normalizeSurveyTargets(targets []communication.SurveyTarget) ([]communicati
 	seen := make(map[string]bool, len(targets))
 	out := make([]communication.SurveyTarget, 0, len(targets))
 	for _, t := range targets {
+		if t.TargetType == AnnouncementTargetPendingEnrollment {
+			return nil, surveyInvalid("pending_enrollment cannot be targeted by a survey")
+		}
 		target, err := normalizeAnnouncementTarget(TargetInput{TargetType: t.TargetType, RefID: t.RefID, RefText: t.RefText}, StaffParentAnnouncementResponseNone)
 		if err != nil {
 			return nil, surveyInvalid(err.Error())
