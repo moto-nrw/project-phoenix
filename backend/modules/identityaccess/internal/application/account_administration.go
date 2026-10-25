@@ -141,10 +141,6 @@ func (a *AccountAdministration) listManageableAccounts(ctx context.Context, filt
 
 // ListManageableAccountsByRole lists the accounts holding the named role at
 // a school the caller may administer.
-//
-// An organisation-scoped caller reads it administratively: the assignment
-// and mapping rows it has to join belong to several schools, and the
-// caller's own school transaction cannot see past its own.
 func (a *AccountAdministration) ListManageableAccountsByRole(ctx context.Context, roleName string) (_ []identityaccess.ManagedAccount, err error) {
 	if a == nil {
 		return nil, errAccountAdministrationUnavailable
@@ -159,21 +155,10 @@ func (a *AccountAdministration) ListManageableAccountsByRole(ctx context.Context
 		accounts, _, listErr := a.store.ListManageableAccountRecordsByRole(readCtx, roleName, visibility)
 		return accounts, listErr
 	}
-	if visibility.Kind != domain.AccountVisibilityOrganization {
-		var accounts []domain.ManagedAccountRecord
-		listErr := a.runtime.RunInTx(ctx, func(txCtx context.Context) error { var err error; accounts, err = read(txCtx); return err })
-		if listErr != nil {
-			return nil, failed(opAccountsByRole, listErr)
-		}
-		return publicManagedAccounts(accounts), nil
-	}
 	var accounts []domain.ManagedAccountRecord
-	if err := a.runtime.WithAdminTx(a.runtime.WithoutTransaction(ctx), func(adminCtx context.Context) error {
-		listed, listErr := read(adminCtx)
-		accounts = listed
-		return listErr
-	}); err != nil {
-		return nil, failed(opAccountsByRole, err)
+	listErr := a.runtime.RunInTx(ctx, func(txCtx context.Context) error { var err error; accounts, err = read(txCtx); return err })
+	if listErr != nil {
+		return nil, failed(opAccountsByRole, listErr)
 	}
 	return publicManagedAccounts(accounts), nil
 }
