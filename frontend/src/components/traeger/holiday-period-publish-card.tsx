@@ -2,11 +2,12 @@
 
 // Veröffentlichen eines Ferienzeitraums (#4659). Die Karte sagt, was fehlt,
 // bevor der Knopf wirkt, und was danach gilt. Ein veröffentlichter Zeitraum
-// zeigt den einen Link für Eltern und die Zahl der Anmeldungen (#4661).
+// zeigt den einen Link für Eltern und die Zahl der Anmeldungen (#4661) mit
+// dem Weg zu ihrer Prüfung (#4663).
 
 import { useState } from "react";
 import { PublicLinkCopyButton } from "~/components/enrollment/public-link-copy-button";
-import { Button } from "~/components/ui/button";
+import { Button, ButtonLink } from "~/components/ui/button";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { SectionCard } from "~/components/ui/section-card";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
@@ -14,6 +15,7 @@ import { formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import { parentsPortalUrl } from "~/lib/parent-url";
 import { type HolidayPeriod, publishHolidayPeriod } from "~/lib/traeger-api";
+import { traegerPath } from "~/lib/traeger-url";
 import { holidayPeriodComplete } from "./holiday-period-model";
 
 const logger = createLogger({ component: "HolidayPeriodPublishCard" });
@@ -55,7 +57,16 @@ export function HolidayPeriodPublishCard({
             Änderungen gelten sofort nach dem Speichern.
           </p>
           <HolidayRegistrationLink period={period} />
-          <p>{registrationCountText(period.registrationCount)}</p>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p>{registrationCountText(period.registrationCount)}</p>
+            <ButtonLink
+              href={traegerPath(`/traeger/ferien/${period.id}/anmeldungen`)}
+              variant="outline"
+              size="md"
+            >
+              Anmeldungen prüfen
+            </ButtonLink>
+          </div>
         </div>
       </SectionCard>
     );

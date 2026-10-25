@@ -2660,8 +2660,11 @@
         "holiday_period_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "holiday_period_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "holiday_registration_closed": "Bu tatil için kayıt açık değil. Lütfen kaydın başlangıç ve bitiş tarihlerini kontrol edin.",
+        "holiday_registration_entry_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "holiday_registration_frozen": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "holiday_registration_invalid": "Lütfen işaretli alanları kontrol edin.",
         "holiday_registration_not_found": "Bu kayıt bağlantısı mevcut değil. Lütfen kurumdan aldığınız bağlantıyı kullanın.",
+        "holiday_registration_state_conflict": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "holiday_week_booked": "{object} değiştirilemedi. Güncel durumu kontrol edin."
       },
       "files": {

@@ -2660,8 +2660,11 @@
         "holiday_period_invalid": "Bitte prüfen Sie die markierten Felder.",
         "holiday_period_not_found": "Diesen Ferienzeitraum gibt es nicht. Bitte öffnen Sie ihn aus der Liste der Ferien.",
         "holiday_registration_closed": "Die Anmeldung für diese Ferien ist nicht offen. Bitte achten Sie auf Anmeldebeginn und Anmeldeschluss.",
+        "holiday_registration_entry_not_found": "Diese Anmeldung gibt es nicht mehr. Bitte laden Sie die Liste neu.",
+        "holiday_registration_frozen": "Die Anmeldung ist eingefroren. Wählen Sie zuerst „Wieder öffnen“.",
         "holiday_registration_invalid": "Bitte prüfen Sie die markierten Felder.",
         "holiday_registration_not_found": "Diesen Anmeldelink gibt es nicht. Bitte nutzen Sie den Link, den Sie vom Träger bekommen haben.",
+        "holiday_registration_state_conflict": "Das geht bei dieser Anmeldung gerade nicht. Bitte laden Sie die Seite neu.",
         "holiday_week_booked": "Für diese Woche gibt es schon Anmeldungen. Darum lassen sich die Woche und ihre gebuchten Zeitmodelle nicht entfernen."
       },
       "files": {

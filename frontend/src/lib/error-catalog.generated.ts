@@ -369,10 +369,16 @@ export const ERROR_CATALOG = {
         "Diesen Ferienzeitraum gibt es nicht. Bitte öffnen Sie ihn aus der Liste der Ferien.",
       "enrollment.holiday_registration_closed":
         "Die Anmeldung für diese Ferien ist nicht offen. Bitte achten Sie auf Anmeldebeginn und Anmeldeschluss.",
+      "enrollment.holiday_registration_entry_not_found":
+        "Diese Anmeldung gibt es nicht mehr. Bitte laden Sie die Liste neu.",
+      "enrollment.holiday_registration_frozen":
+        "Die Anmeldung ist eingefroren. Wählen Sie zuerst „Wieder öffnen“.",
       "enrollment.holiday_registration_invalid":
         "Bitte prüfen Sie die markierten Felder.",
       "enrollment.holiday_registration_not_found":
         "Diesen Anmeldelink gibt es nicht. Bitte nutzen Sie den Link, den Sie vom Träger bekommen haben.",
+      "enrollment.holiday_registration_state_conflict":
+        "Das geht bei dieser Anmeldung gerade nicht. Bitte laden Sie die Seite neu.",
       "enrollment.holiday_week_booked":
         "Für diese Woche gibt es schon Anmeldungen. Darum lassen sich die Woche und ihre gebuchten Zeitmodelle nicht entfernen.",
       "enrollment.invalid_email":
@@ -1602,10 +1608,16 @@ export const ERROR_CATALOG = {
         "This holiday period does not exist. Please open it from the holiday list.",
       "enrollment.holiday_registration_closed":
         "Registration for these holidays is not open. Please check the start and end of registration.",
+      "enrollment.holiday_registration_entry_not_found":
+        "This registration no longer exists. Please reload the list.",
+      "enrollment.holiday_registration_frozen":
+        "The registration is frozen. Choose “Reopen” first.",
       "enrollment.holiday_registration_invalid":
         "Please check the marked fields.",
       "enrollment.holiday_registration_not_found":
         "This registration link does not exist. Please use the link you received from the provider.",
+      "enrollment.holiday_registration_state_conflict":
+        "This is not possible for this registration right now. Please reload the page.",
       "enrollment.holiday_week_booked":
         "This week already has registrations. That is why the week and its booked time models cannot be removed.",
       "enrollment.invalid_email": "Please enter a valid email address.",
