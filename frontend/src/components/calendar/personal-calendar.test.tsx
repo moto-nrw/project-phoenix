@@ -165,9 +165,7 @@ describe("PersonalCalendar", () => {
       />,
     );
 
-    expect(screen.getAllByText("Heilige Drei Könige").length).toBeGreaterThan(
-      0,
-    );
+    expect(screen.getAllByText("Heilige Drei Könige").length).toBeGreaterThan(0);
     expect(
       screen.queryByRole("button", { name: /Heilige Drei Könige/ }),
     ).not.toBeInTheDocument();
