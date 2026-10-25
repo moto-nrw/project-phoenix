@@ -17,6 +17,28 @@ type IntakeOwner interface {
 	capability.IntakeSubmissions
 	capability.IntakeStatus
 	capability.IntakeForms
+	capability.IntakeSignatureProofs
+}
+
+// SignatureProof is the request behind a status token with its signature,
+// decoded for the proof (#4786). SignatureRequired reports whether the
+// request's form asks the parent to sign every edit.
+type SignatureProof struct {
+	Request            *Request
+	Children           []*RequestChild
+	Guardians          []*capability.RequestGuardian
+	Schema             *capability.FormSchema
+	OfferingSelections []*capability.RequestChildOfferingRecord
+	OfferingNames      map[int64]string
+	Signature          *capability.RequestSignature
+	SignatureRequired  bool
+}
+
+// StatusSignature is the signature metadata shown on the public status page.
+// The PDF path loads SignatureProof instead.
+type StatusSignature struct {
+	Signature         *capability.RequestSignature
+	SignatureRequired bool
 }
 
 // Intake values the owner's contract carries unchanged.
@@ -64,6 +86,7 @@ type SubmitRequest struct {
 	GuardianSubmitEligible   bool
 	Children                 []SubmitChild
 	AdditionalGuardians      []SubmitGuardian
+	Signature                *capability.SubmitSignature
 }
 
 // SubmitChild is one child of a submission with its answers decoded.
@@ -167,6 +190,13 @@ type RequestService interface {
 	LoadManualEnrollmentBootstrap(ctx context.Context, phaseID int64) (*PublicFormBootstrapData, error)
 	CreateManualApprovedEnrollment(ctx context.Context, input ManualApprovedEnrollmentInput) (*ManualApprovedEnrollmentResult, error)
 	PublicActiveSchema(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*capability.FormSchema, error)
+	// SignatureProof loads a request with its signature (#4786): behind its
+	// status token when token is set, otherwise the request of the school
+	// in the caller's tenant transaction.
+	SignatureProof(ctx context.Context, requestID int64, token string) (*SignatureProof, error)
+	// StatusSignature loads only the signature metadata shown on the public
+	// status page. It is authorized by the status token.
+	StatusSignature(ctx context.Context, token string) (*StatusSignature, error)
 }
 
 // NewRequestService decodes the owner's intake for these routes and the
@@ -188,7 +218,7 @@ func encodeSubmitRequest(in SubmitRequest) (capability.SubmitRequest, error) {
 		SubmissionSource: in.SubmissionSource, GuardianFirstName: in.GuardianFirstName,
 		GuardianLastName: in.GuardianLastName, GuardianEmail: in.GuardianEmail, GuardianPhone: in.GuardianPhone,
 		GuardianAccountID: in.GuardianAccountID, GuardianSubmitEligible: in.GuardianSubmitEligible,
-		AdditionalGuardians: in.AdditionalGuardians,
+		AdditionalGuardians: in.AdditionalGuardians, Signature: in.Signature,
 	}
 	var err error
 	if out.SourceMetadata, err = encodeJSONObject(in.SourceMetadata); err != nil {
@@ -401,4 +431,39 @@ func (s intakeService) CreateManualApprovedEnrollment(ctx context.Context, input
 
 func (s intakeService) PublicActiveSchema(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*capability.FormSchema, error) {
 	return s.owner.PublicActiveSchema(ctx, phaseID, now, lateInviteToken)
+}
+
+func (s intakeService) SignatureProof(ctx context.Context, requestID int64, token string) (*SignatureProof, error) {
+	if token != "" {
+		return signatureProofValue(s.owner.SignatureProofByStatusToken(ctx, token))
+	}
+	return signatureProofValue(s.owner.SignatureProof(ctx, requestID))
+}
+
+func (s intakeService) StatusSignature(ctx context.Context, token string) (*StatusSignature, error) {
+	status, err := s.owner.SignatureStatusByStatusToken(ctx, token)
+	if err != nil {
+		return nil, err
+	}
+	return &StatusSignature{Signature: status.Signature, SignatureRequired: status.SignatureRequired}, nil
+}
+
+// signatureProofValue decodes the owner's proof for these routes.
+func signatureProofValue(proof *capability.RequestSignatureProof, err error) (*SignatureProof, error) {
+	if err != nil {
+		return nil, err
+	}
+	request, err := requestValue(proof.Status.Request)
+	if err != nil {
+		return nil, err
+	}
+	children, err := childValues(proof.Status.Children)
+	if err != nil {
+		return nil, err
+	}
+	return &SignatureProof{
+		Request: request, Children: children, Guardians: proof.Guardians,
+		Schema: proof.Schema, OfferingSelections: proof.OfferingSelections, OfferingNames: proof.OfferingNames,
+		Signature: proof.Signature, SignatureRequired: proof.SignatureRequired,
+	}, nil
 }

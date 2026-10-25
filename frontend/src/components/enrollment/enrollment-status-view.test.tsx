@@ -9,6 +9,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   confirmRenewal,
+  downloadEnrollmentSignatureProof,
   fetchStatus,
   listEnrollmentChangeRequests,
   patchStatus,
@@ -38,6 +39,7 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("~/lib/enrollment-submission-api", () => ({
   confirmRenewal: vi.fn(),
+  downloadEnrollmentSignatureProof: vi.fn(),
   fetchStatus: vi.fn(),
   listEnrollmentChangeRequests: vi.fn(),
   patchStatus: vi.fn(),
@@ -1048,6 +1050,56 @@ describe("EnrollmentStatusView renewal adjust (#2251)", () => {
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("link", { name: "Angebote und Wochentage anpassen" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows the parent's signature and downloads its proof (#4786)", async () => {
+    mockFetchStatus.mockResolvedValueOnce(
+      status({
+        signature_required: true,
+        signature: {
+          method: "typed",
+          typed_name: "Mara Muster",
+          signer_name: "Mara Muster",
+          signed_at: "2026-09-09T08:30:00Z",
+          document_sha256: "ab".repeat(32),
+          integrity_ok: true,
+        },
+      }),
+    );
+    vi.mocked(downloadEnrollmentSignatureProof).mockResolvedValueOnce();
+
+    render(<EnrollmentStatusView token="tok" />);
+
+    expect(
+      await screen.findByRole("heading", { name: "Unterschrift" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Name getippt: Mara Muster/)).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Wenn Sie die Anmeldung ändern, unterschreiben Sie sie neu.",
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Nachweis als PDF" }));
+    await waitFor(() => {
+      expect(downloadEnrollmentSignatureProof).toHaveBeenCalledWith("tok");
+    });
+  });
+
+  it("edits a signed enrollment only through the full form (#4786)", async () => {
+    mockFetchStatus.mockResolvedValueOnce(status({ signature_required: true }));
+
+    render(<EnrollmentStatusView token="tok" />);
+
+    const contact = await screen.findByRole("heading", {
+      name: "Erziehungsberechtigte",
+    });
+    const section = contact.closest("section") as HTMLElement;
+    expect(
+      within(section).getByRole("link", { name: "Bearbeiten" }),
+    ).toHaveAttribute("href", "/anmeldung/status/tok/edit");
+    expect(
+      within(section).queryByRole("button", { name: "Bearbeiten" }),
     ).not.toBeInTheDocument();
   });
 });

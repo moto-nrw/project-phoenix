@@ -2,6 +2,9 @@
 package common
 
 const (
+	CodeIdentityPreviewTargetNotPreviewable            = "identity.preview_target_not_previewable"
+	CodeIdentityPreviewTargetSchoolPortal              = "identity.preview_target_school_portal"
+	CodeIdentityPreviewTokenInvalid                    = "identity.preview_token_invalid"
 	CodeIdentityReadOnlyPreview                        = "identity.read_only_preview"
 	CodeIdentityRoleNameTaken                          = "identity.role_name_taken"
 	CodeIdentityRolePlatformPermission                 = "identity.role_platform_permission"
@@ -299,12 +302,12 @@ const (
 	CodeTimetablePlanningTrackInvalid                  = "timetable.planning_track_invalid"
 	CodeTimetablePlanningTrackNameTaken                = "timetable.planning_track_name_taken"
 	CodeTimetablePlanningTrackNotFound                 = "timetable.planning_track_not_found"
-	CodeTimetablePresenceWouldOverstaff                = "timetable.presence_would_overstaff"
-	CodeTimetableReopenAttendanceChanged               = "timetable.reopen_attendance_changed"
-	CodeTimetableReopenStaffBusy                       = "timetable.reopen_staff_busy"
 )
 
 var errorCodeClasses1 = map[string]string{
+	"identity.preview_target_not_previewable":              "permission",
+	"identity.preview_target_school_portal":                "permission",
+	"identity.preview_token_invalid":                       "permission",
 	"identity.read_only_preview":                           "permission",
 	"identity.role_name_taken":                             "business_rejection",
 	"identity.role_platform_permission":                    "input",
@@ -602,9 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.planning_track_invalid":                     "input",
 	"timetable.planning_track_name_taken":                  "business_rejection",
 	"timetable.planning_track_not_found":                   "business_rejection",
-	"timetable.presence_would_overstaff":                   "business_rejection",
-	"timetable.reopen_attendance_changed":                  "business_rejection",
-	"timetable.reopen_staff_busy":                          "business_rejection",
 }
 
 func init() {

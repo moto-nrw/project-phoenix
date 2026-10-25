@@ -44,6 +44,8 @@ type replacePlan struct {
 	eligibilityEnforced bool
 	matchedExisting     []*RequestChild
 	overrides           map[int]string
+	// signatureRequired: the parent signs the edited version (#4786).
+	signatureRequired bool
 }
 
 func (s *Intake) replaceEditable(ctx context.Context, token string, incoming SubmitRequest) (*submitOutcome, error) {
@@ -100,6 +102,12 @@ func (s *Intake) replaceInTenant(ctx context.Context, token string, tenantID int
 		return err
 	}
 	outcome.Request = plan.req
+	if plan.signatureRequired {
+		doc := newSignedEnrollmentDocument(plan.req, editReq.Children, editReq.AdditionalGuardians, plan.selections)
+		if err := s.recordSignature(ctx, plan.req, editReq.Signature, doc); err != nil {
+			return err
+		}
+	}
 	if err := s.markParentChanged(ctx, plan.req.ID); err != nil {
 		return err
 	}
@@ -179,6 +187,10 @@ func (s *Intake) planReplacementCatalog(ctx context.Context, editReq *SubmitRequ
 func (s *Intake) planReplacementContract(ctx context.Context, editReq *SubmitRequest, plan *replacePlan) error {
 	var err error
 	if plan.schema, err = s.schemaForEditableRequest(ctx, plan.req); err != nil {
+		return err
+	}
+	plan.signatureRequired = signatureRequired(plan.schema, plan.req.SubmissionSource)
+	if err := s.requireSignature(plan.signatureRequired, editReq.Signature); err != nil {
 		return err
 	}
 	texts, err := s.legalTexts(ctx)
