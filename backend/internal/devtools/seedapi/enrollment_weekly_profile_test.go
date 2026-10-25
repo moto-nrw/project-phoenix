@@ -121,6 +121,12 @@ func (m *weeklyProfileAPIMock) serve(t *testing.T, w seedHTTPResponseWriter, r *
 		data = map[string]any{"id": schoolID, "subdomain": body["slug"]}
 	case strings.HasSuffix(path, "/invite-admin"):
 		data = map[string]any{"token": "weekly-admin"}
+	case path == "/traeger/auth/login":
+		// The Träger-Portal sign-in of the holiday period step (#4659).
+		_ = json.NewEncoder(w).Encode(map[string]any{"status": "authenticated", "access_token": "traeger-token", "refresh_token": "refresh"})
+		return true
+	case path == "/traeger/schools/":
+		data = []map[string]any{{"id": 1}}
 	case path == "/auth/login":
 		token := "weekly-admin"
 		if body["tenant_slug"] == "vollbetrieb" {

@@ -60,7 +60,7 @@ func (seedTraegerHolidayPeriodStep) Run(_ context.Context, rt *Runtime) error {
 	if err != nil {
 		return fmt.Errorf("read the holiday period: %w", err)
 	}
-	if _, err := rt.Client.PostWithAuth(auth, fmt.Sprintf("/traeger/holiday-periods/%d/publish", periodID), nil); err != nil {
+	if _, err := rt.Client.PostWithAuth(auth, fmt.Sprintf("/traeger/holiday-periods/%d/publish", periodID), map[string]any{}); err != nil {
 		return fmt.Errorf("publish the holiday period: %w", err)
 	}
 	fmt.Println("  Träger-Büro: holiday period with two weeks published")
