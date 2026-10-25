@@ -155,15 +155,14 @@ function createTraegerWithBodyHandler<T, B>(
 }
 
 /** Proxy factories of the Träger portal: forward the query or body, unwrap `data`. */
-export const { proxyGet, proxyPost, proxyPut, proxyDelete } =
-  makeProxyFactories({
-    get: createTraegerNoBodyHandler,
-    post: createTraegerWithBodyHandler,
-    put: createTraegerWithBodyHandler,
-    del: createTraegerNoBodyHandler,
-    apiGet: traegerApiGet,
-    apiPost: traegerApiPost,
-    apiPut: traegerApiPut,
-    apiDelete: traegerApiDelete,
-    fetcherUnwrapsData: true,
-  });
+export const { proxyGet, proxyPost, proxyPut } = makeProxyFactories({
+  get: createTraegerNoBodyHandler,
+  post: createTraegerWithBodyHandler,
+  put: createTraegerWithBodyHandler,
+  del: createTraegerNoBodyHandler,
+  apiGet: traegerApiGet,
+  apiPost: traegerApiPost,
+  apiPut: traegerApiPut,
+  apiDelete: traegerApiDelete,
+  fetcherUnwrapsData: true,
+});
