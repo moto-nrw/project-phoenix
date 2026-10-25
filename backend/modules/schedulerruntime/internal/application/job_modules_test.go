@@ -53,6 +53,13 @@ func (m *moduleSwitches) ResolveBool(ctx context.Context, key string) (bool, err
 	return !slices.Contains(m.off[tenantID], key), nil
 }
 
+// bookedModules is a settings fixture for module jobs whose test is not
+// about the booking: every module switch reads as booked, the registry
+// default (#4895).
+func bookedModules() ports.SettingsResolver {
+	return &moduleSwitches{}
+}
+
 func withWorkerJob(id ports.JobID) context.Context {
 	return context.WithValue(context.Background(), workerJobIDKey{}, id)
 }
