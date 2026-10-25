@@ -17,8 +17,7 @@ export type HolidayRegistrationStatus = "received" | "confirmed" | "cancelled";
 export type HolidayRegistrationAction =
   "confirm" | "cancel" | "freeze" | "reopen";
 
-export type HolidayRegistrationEventAction =
-  HolidayRegistrationAction | "rebook";
+type HolidayRegistrationEventAction = HolidayRegistrationAction | "rebook";
 
 /** The filter of the list and the export. Empty values match everything. */
 export interface HolidayRegistrationFilter {
@@ -37,7 +36,7 @@ export const EMPTY_HOLIDAY_REGISTRATION_FILTER: HolidayRegistrationFilter = {
   timeModel: "",
 };
 
-export interface HolidayRegistrationBooking {
+interface HolidayRegistrationBooking {
   readonly weekId: string;
   /** Calendar dates "YYYY-MM-DD". */
   readonly weekStartsOn: string;
@@ -265,7 +264,7 @@ const registrationPath = (periodId: string, registrationId: string) =>
   `${registrationsPath(periodId)}/${encodeURIComponent(registrationId)}`;
 
 /** The query string of a filter, empty values left out. */
-export function holidayRegistrationQuery(
+function holidayRegistrationQuery(
   filter: HolidayRegistrationFilter,
   extra: Record<string, string> = {},
 ): string {
