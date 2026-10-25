@@ -339,6 +339,54 @@ func TestSurvey_PublishedSurveyIsFrozenAndClosedSurveyTakesNoAnswers(t *testing.
 	require.ErrorIs(t, err, communication.ErrSurveyNotOpen)
 }
 
+func TestSurvey_ClosingWhileSubmissionWaitsRejectsTheSubmission(t *testing.T) {
+	t.Parallel()
+	f := newSurveyFixture(t, 1)
+	survey := f.publishStaffSurvey(t, true)
+
+	closing := make(chan int, 1)
+	commitClose := make(chan struct{})
+	closed := make(chan error, 1)
+	go func() {
+		closed <- f.inSchool(t, func(ctx context.Context) error {
+			var pid int
+			if err := f.db.NewRaw("SELECT pg_backend_pid()").Scan(ctx, &pid); err != nil {
+				return err
+			}
+			if _, err := f.surveys.CloseSurvey(ctx, survey.ID); err != nil {
+				return err
+			}
+			closing <- pid
+			<-commitClose
+			return nil
+		})
+	}()
+	closePID := <-closing
+
+	submitted := make(chan error, 1)
+	go func() {
+		submitted <- f.inSchool(t, func(ctx context.Context) error {
+			return f.surveys.SubmitStaffSurvey(ctx, f.staff[0].AccountID, survey.ID, answersFor(survey, 0))
+		})
+	}()
+	require.Eventually(t, func() bool {
+		var waiting bool
+		err := f.db.NewRaw(`SELECT EXISTS (
+			SELECT 1 FROM pg_locks l
+			WHERE NOT l.granted AND ? = ANY(pg_blocking_pids(l.pid))
+		)`, closePID).Scan(testpkg.Ctx(t), &waiting)
+		return err == nil && waiting
+	}, 5*time.Second, 10*time.Millisecond, "submission must wait for the closing survey row lock")
+
+	close(commitClose)
+	require.NoError(t, <-closed)
+	require.ErrorIs(t, <-submitted, communication.ErrSurveyNotOpen)
+
+	var responses int
+	require.NoError(t, f.db.NewRaw(`SELECT count(*) FROM users.survey_responses WHERE survey_id = ?`, survey.ID).Scan(testpkg.Ctx(t), &responses))
+	assert.Zero(t, responses, "a submission released after closing commits writes no response")
+}
+
 func TestSurvey_StaffOutsideTheAudienceCannotAnswer(t *testing.T) {
 	t.Parallel()
 	f := newSurveyFixture(t, 1)

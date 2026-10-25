@@ -2,6 +2,8 @@ package parentpostgres
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/modules/communication"
@@ -47,6 +49,9 @@ func (s *SurveyStore) RecordSubmission(ctx context.Context, tenantID, surveyID, 
 	if err != nil {
 		return false, err
 	}
+	if err := lockOpenSurveyForSubmission(ctx, db, tenantID, surveyID); err != nil {
+		return false, err
+	}
 	result, err := db.NewInsert().Model(&surveyParticipationRow{TenantID: tenantID, SurveyID: surveyID, AccountID: accountID}).
 		On("CONFLICT (survey_id, account_id) DO NOTHING").Exec(ctx)
 	if err != nil {
@@ -70,6 +75,26 @@ func (s *SurveyStore) RecordSubmission(ctx context.Context, tenantID, surveyID, 
 		return false, fmt.Errorf("record survey answers: %w", err)
 	}
 	return true, nil
+}
+
+// lockOpenSurveyForSubmission serializes the final open check with closing a
+// survey. PostgreSQL rechecks the predicate after waiting for a concurrent
+// FOR UPDATE lock, so a submission that waited for CloseSurvey observes its
+// committed close and writes nothing.
+func lockOpenSurveyForSubmission(ctx context.Context, db bun.IDB, tenantID, surveyID int64) error {
+	var row struct {
+		Open bool `bun:"open"`
+	}
+	err := db.NewSelect().TableExpr("users.surveys").ColumnExpr("TRUE AS open").
+		Where("id = ? AND tenant_id = ? AND published_at IS NOT NULL AND closes_at > clock_timestamp()", surveyID, tenantID).
+		For("UPDATE").Scan(ctx, &row)
+	if errors.Is(err, sql.ErrNoRows) {
+		return communication.ErrSurveyNotOpen
+	}
+	if err != nil {
+		return fmt.Errorf("lock open survey for submission: %w", err)
+	}
+	return nil
 }
 
 func answerRows(tenantID int64, responseID string, answers []communication.SurveyAnswerInput) []surveyAnswerRow {
