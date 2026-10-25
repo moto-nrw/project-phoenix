@@ -86,9 +86,9 @@ func (s *Service) provisionalWindow(ctx context.Context, rules domain.OrderingRu
 
 // settleDueOrders fixes the school's due orders and records every change of an
 // ordered day since (#3873). The worker runs it every few minutes, so an order
-// is fixed close to its deadline and a change nobody reads is still recorded
-// before its day ends. A school without meal registration has nothing to
-// settle.
+// is fixed close to its deadline. With late sick cancellations, the previous
+// day is reconciled too: a report just before midnight can miss the last poll.
+// A school without meal registration has nothing to settle.
 func (s *Service) settleDueOrders(ctx context.Context) error {
 	return s.run(ctx, "settle_orders", func(txCtx context.Context) (domain.OperationStats, error) {
 		rules, err := s.requireRegistration(txCtx)
@@ -100,11 +100,12 @@ func (s *Service) settleDueOrders(ctx context.Context) error {
 		}
 		now := s.now()
 		today := domain.DateFromInstant(now)
-		window, stats, err := s.lockedWindow(txCtx, rules, today, today.AddDays(orderReachDays), now)
+		from := reconciliationStart(rules, today)
+		window, stats, err := s.lockedWindow(txCtx, rules, from, today.AddDays(orderReachDays), now)
 		if err != nil {
 			return stats, err
 		}
-		_, _, recordStats, err := s.recordWindow(txCtx, rules, window, today, today.AddDays(orderReachDays), now, nil, false)
+		_, _, recordStats, err := s.recordWindow(txCtx, rules, window, from, today.AddDays(orderReachDays), now, nil, false)
 		return addStats(stats, recordStats), err
 	})
 }
@@ -134,10 +135,19 @@ func (s *Service) settleWrite(ctx context.Context, rules domain.OrderingRules, f
 	return addStats(stats, recordStats), err
 }
 
+// reconciliationStart includes the completed day whose final absence changes
+// may not have been observed by the worker yet. Other past orders stay fixed.
+func reconciliationStart(rules domain.OrderingRules, today domain.Date) domain.Date {
+	if rules.Sick == domain.SickCancelled {
+		return today.AddDays(-1)
+	}
+	return today
+}
+
 // recordWindow resolves who eats on the ordered days of [from, to] from
-// today on and records their changes.
+// the reconciliation start on and records their changes.
 func (s *Service) recordWindow(ctx context.Context, rules domain.OrderingRules, window orderWindow, from, to domain.Date, now time.Time, author *changeAuthor, all bool) (map[domain.Date]dayChildren, []domain.OrderChange, domain.OperationStats, error) {
-	today := domain.DateFromInstant(now)
+	today := reconciliationStart(rules, domain.DateFromInstant(now))
 	current, stats, err := s.currentChildren(ctx, rules, window, from, to, today, all, nil)
 	if err != nil {
 		return nil, nil, stats, err
@@ -146,8 +156,8 @@ func (s *Service) recordWindow(ctx context.Context, rules domain.OrderingRules, 
 	return current, numbered, addStats(stats, insertStats), err
 }
 
-// currentChildren resolves who eats on each weekday of [from, to] from today
-// on as the registration stands now: the ordered days, and with all the
+// currentChildren resolves who eats on each weekday of [from, to] from the
+// reconciliation start on: the ordered days, and with all the
 // open days too, for the view.
 func (s *Service) currentChildren(ctx context.Context, rules domain.OrderingRules, window orderWindow, from, to, today domain.Date, all bool, seen registrations) (map[domain.Date]dayChildren, domain.OperationStats, error) {
 	current := make(map[domain.Date]dayChildren)
@@ -180,12 +190,13 @@ func (s *Service) provisionalOrders(ctx context.Context, rules domain.OrderingRu
 	if err != nil {
 		return domain.OrderView{}, stats, err
 	}
-	current, currentStats, err := s.currentChildren(ctx, rules, window, from, to, today, true, seen)
+	since := reconciliationStart(rules, today)
+	current, currentStats, err := s.currentChildren(ctx, rules, window, from, to, since, true, seen)
 	stats = addStats(stats, currentStats)
 	if err != nil {
 		return domain.OrderView{}, stats, err
 	}
-	for _, change := range recordChanges(window.state, current, today, nil) {
+	for _, change := range recordChanges(window.state, current, since, nil) {
 		change.DetectedAt = now
 		window.state.Changes = append(window.state.Changes, change)
 	}
