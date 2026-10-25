@@ -85,13 +85,9 @@ func lifecycleTestModule(db transactionruntime.Database, unit tenant.UnitOfWork,
 	if err != nil {
 		return nil, err
 	}
-	settings, err := owners.NewSettingsTestModule(db, unit)
-	if err != nil {
-		return nil, err
-	}
 	identityAccess, err := owners.NewIdentityAccessWithSessions(identityaccessCompose.Dependencies{
 		DB: db.Pool(), Observe: func(identityaccessCompose.Observation) {}, Lifecycle: lifecycle, TenantRuntime: unit,
-	}, sessionRepos, codec, settings.Settings, audit, logger)
+	}, sessionRepos, codec, NewAuthTestSettings(db, unit), audit, logger)
 	if err != nil {
 		return nil, err
 	}

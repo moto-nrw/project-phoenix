@@ -253,19 +253,7 @@ func (r *router) Notify(ctx context.Context, event Event) error {
 		event.Priority = PriorityNormal
 	}
 
-	if r.settings == nil {
-		return errors.New("notifications service has no settings service configured")
-	}
-	// ResolveBoolForTenant works with and without tenant middleware, so
-	// scheduler-style producers can notify outside a request context.
-	enabled, err := r.settings.ResolveBoolForTenant(ctx, event.Audience.TenantID, settingDispatchEnabled)
-	if err != nil {
-		return fmt.Errorf("resolving notification feature flag: %w", err)
-	}
-	if !enabled {
-		return ErrDisabled
-	}
-	if err := r.requireEventModules(ctx, &event); err != nil {
+	if err := r.requireEnabledEvent(ctx, &event); err != nil {
 		return err
 	}
 
@@ -302,6 +290,24 @@ func (r *router) Notify(ctx context.Context, event Event) error {
 		r.deliver(dispatchCtx, event)
 	})
 	return nil
+}
+
+// requireEnabledEvent applies the school's notification feature flag and
+// the booked modules (#4895) to one event before Notify delivers it.
+func (r *router) requireEnabledEvent(ctx context.Context, event *Event) error {
+	if r.settings == nil {
+		return errors.New("notifications service has no settings service configured")
+	}
+	// ResolveBoolForTenant works with and without tenant middleware, so
+	// scheduler-style producers can notify outside a request context.
+	enabled, err := r.settings.ResolveBoolForTenant(ctx, event.Audience.TenantID, settingDispatchEnabled)
+	if err != nil {
+		return fmt.Errorf("resolving notification feature flag: %w", err)
+	}
+	if !enabled {
+		return ErrDisabled
+	}
+	return r.requireEventModules(ctx, event)
 }
 
 // NotifyBatch dispatches many events that share one tenant in a single

@@ -29,10 +29,9 @@ func newAccountAuthentication(service *application.Service, store ports.AccountL
 	attach := deps.TenantRuntime
 	return application.NewAccountAuthentication(service, application.AccountAuthenticationDependencies{
 		Store:   store,
-		Schools: application.SchoolDirectory{SchoolDirectory: deps.Schools}, Traeger: deps.Traeger,
-		PortalModules: deps.PortalModules,
-		Persons:       deps.Persons,
-		Passwords:     deps.Passwords, PasswordPolicy: deps.PasswordLoginPolicy,
+		Schools: application.SchoolDirectory{SchoolDirectory: deps.Schools}, Traeger: deps.Traeger, PortalModules: deps.PortalModules,
+		Persons:   deps.Persons,
+		Passwords: deps.Passwords, PasswordPolicy: deps.PasswordLoginPolicy,
 		Codec:    application.TokenCodec{TokenCodec: deps.Codec},
 		MFA:      mfa,
 		MFALock:  deps.MFALock,

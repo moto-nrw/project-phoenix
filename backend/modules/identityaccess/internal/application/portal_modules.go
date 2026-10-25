@@ -51,7 +51,7 @@ func (s *AccountAuthentication) bookedGuardianSchools(ctx context.Context, op st
 // once none of the account's guardian schools books Eltern-App. An account
 // without any guardian school keeps the refresh behaviour it had before.
 func (s *AccountAuthentication) requireParentPortalForAccount(ctx context.Context, op string, accountID int64) error {
-	guardianTenantIDs, err := s.listGuardianTenantsForAccount(ctx, accountID)
+	guardianTenantIDs, err := s.findGuardianTenantForAccount(ctx, accountID)
 	if err != nil {
 		return failed(op+": enumerate tenants", err)
 	}
