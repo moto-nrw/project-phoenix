@@ -144,6 +144,9 @@ func (m *weeklyProfileAPIMock) serve(t *testing.T, w seedHTTPResponseWriter, r *
 			{"id": 51, "time_models": []map[string]any{{"id": 61}, {"id": 62}}},
 			{"id": 52, "time_models": []map[string]any{{"id": 63}, {"id": 64}}},
 		}}
+	case path == "/parent/holiday-registrations/link-key/family":
+		// The first seeded parent's prefill of the same link (#4662).
+		data = map[string]any{"guardian": map[string]any{}, "children": []map[string]any{{"student_id": "9", "school_id": "1"}}}
 	case path == "/auth/login":
 		token := "weekly-admin"
 		if body["tenant_slug"] == "vollbetrieb" {

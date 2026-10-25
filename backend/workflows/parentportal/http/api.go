@@ -40,9 +40,11 @@ type Resource struct {
 	EnrollmentForms       EnrollmentForms
 	GuardianProfileLoader GuardianProfileLoader
 	SchoolService         SchoolDirectory
-	PushService           PushSubscriptions
-	PreferenceService     NotificationPreferences
-	PWAUsageService       PWAUsage
+	// HolidayLinks resolves the link of the holiday registration (#4662).
+	HolidayLinks      HolidayRegistrationLinks
+	PushService       PushSubscriptions
+	PreferenceService NotificationPreferences
+	PWAUsageService   PWAUsage
 	// Reports renders the Erklärung proof PDF (#3430).
 	Reports ReportRenderer
 	// SupportedLocale is bound to the shared language catalog by the root.
@@ -63,6 +65,8 @@ type ResourceConfig struct {
 	Enrollment            EnrollmentForms
 	GuardianProfileLoader GuardianProfileLoader
 	Schools               SchoolDirectory
+	// HolidayLinks resolves the link of the holiday registration (#4662).
+	HolidayLinks HolidayRegistrationLinks
 	// Push is the Web Push subscription service (#2003).
 	Push PushSubscriptions
 	// Preferences is the notification consent service.
@@ -94,6 +98,7 @@ func NewResource(cfg ResourceConfig) *Resource {
 		EnrollmentForms:       cfg.Enrollment,
 		GuardianProfileLoader: cfg.GuardianProfileLoader,
 		SchoolService:         cfg.Schools,
+		HolidayLinks:          cfg.HolidayLinks,
 		PushService:           cfg.Push,
 		PreferenceService:     cfg.Preferences,
 		PWAUsageService:       cfg.PWAUsage,

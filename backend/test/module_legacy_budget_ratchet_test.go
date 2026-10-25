@@ -165,7 +165,9 @@ var moduleLegacyFileBudgets = map[string]int{
 // modules/enrollment/compose (+18).
 // ADR 0112: the Träger master data constructor of
 // modules/organizationtenancy/compose adds exactly 13 LOC.
-const moduleComposeBudgetTotal = 12612
+// ADR 0113: the holiday registration prefill's data access port of
+// workflows/parentportal/compose adds exactly 1 LOC.
+const moduleComposeBudgetTotal = 12613
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -235,7 +237,8 @@ var moduleComposeBudgets = map[string]int{
 	"workflows/catererportal/compose":    37, // added by ADR 0077
 	"workflows/gradetransition/compose":  49,
 	"workflows/openroommove/compose":     46,
-	"workflows/parentportal/compose":     307, // raised by ADR 0078
+	// Raised by ADR 0078; by ADR 0113: the prefill's data access port (+1).
+	"workflows/parentportal/compose":     308,
 	"workflows/reminderdelivery/compose": 30,
 	"workflows/sessionend/compose":       59,
 	"workflows/shiftplansync/compose":    124,

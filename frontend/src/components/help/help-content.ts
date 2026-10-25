@@ -7604,6 +7604,8 @@ function parentHolidayRegistrationTopic(): HelpTopic {
     ],
     differences: [
       "Ist die Anmeldung verbindlich, heißt der Knopf `Verbindlich anmelden`.",
+      "Sind Sie mit Ihrem Elternkonto in moto angemeldet? Dann steht unter `Kinder` der Abschnitt `Ihre Kinder aus dem Elternkonto`. Setzen Sie den Haken bei Ihrem Kind. Name, Geburtsdatum und Schule stehen dann schon im Formular, Ihre Angaben auch.",
+      "Sie können diese Angaben vor dem Absenden ändern. Das gilt nur für die Ferienanmeldung. Bei der Schule ändert sich nichts.",
     ],
     troubleshootingDetails: [
       "moto sagt, die Anmeldung sei nicht offen? Oben auf der Seite stehen die Tage, an denen Sie anmelden können.",

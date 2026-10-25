@@ -1,11 +1,18 @@
 import { describe, expect, it } from "vitest";
-import type { HolidayRegistrationOffer } from "~/lib/holiday-registration-api";
+import type {
+  HolidayKnownChild,
+  HolidayRegistrationOffer,
+} from "~/lib/holiday-registration-api";
 import {
+  emptyChild,
   emptyContact,
   emptyRegistration,
+  hasRoomForKnownChild,
   OTHER_SCHOOL,
   payloadFromDraft,
   type RegistrationDraft,
+  registrationFromFamily,
+  toggleKnownChild,
   validateRegistration,
 } from "./holiday-registration-model";
 
@@ -141,5 +148,80 @@ describe("payloadFromDraft", () => {
     );
     expect(payload.children[0]?.home_school_id).toBe(31);
     expect(payload.children[0]?.guest_school_name).toBe("");
+  });
+});
+
+describe("known children of a parent account (#4662)", () => {
+  const felix: HolidayKnownChild = {
+    studentId: "41",
+    schoolId: "31",
+    firstName: "Felix",
+    lastName: "Schneider",
+    birthDate: "2018-03-01",
+  };
+  const known = (studentId: string): HolidayKnownChild => ({
+    ...felix,
+    studentId,
+  });
+
+  it("prefills the parent fields and nothing else", () => {
+    const draft = registrationFromFamily({
+      guardian: {
+        firstName: "Sabine",
+        lastName: "Schneider",
+        email: "s@example.org",
+        phone: "0151",
+      },
+      children: [felix],
+    });
+    expect(draft.guardian.email).toBe("s@example.org");
+    expect(draft.children).toHaveLength(1);
+    expect(draft.children[0]!.firstName).toBe("");
+    expect(registrationFromFamily(null).guardian.email).toBe("");
+  });
+
+  it("puts a picked child in place of the empty child and drops it again", () => {
+    const picked = toggleKnownChild(emptyRegistration(), felix, offer);
+    expect(picked.children).toHaveLength(1);
+    expect(picked.children[0]).toEqual(
+      expect.objectContaining({
+        firstName: "Felix",
+        birthDate: "2018-03-01",
+        school: "31",
+        knownStudentId: "41",
+      }),
+    );
+    const dropped = toggleKnownChild(picked, felix, offer);
+    expect(dropped.children).toHaveLength(1);
+    expect(dropped.children[0]!.knownStudentId).toBeUndefined();
+  });
+
+  it("keeps a typed child and leaves an unknown school for the parent", () => {
+    const typed: RegistrationDraft = {
+      ...emptyRegistration(),
+      children: [{ ...emptyChild(), firstName: "Ben" }],
+    };
+    const picked = toggleKnownChild(typed, { ...felix, schoolId: "99" }, offer);
+    expect(picked.children.map((child) => child.firstName)).toEqual([
+      "Ben",
+      "Felix",
+    ]);
+    expect(picked.children[1]!.school).toBe("");
+  });
+
+  it("adds no fourth child", () => {
+    let draft = emptyRegistration();
+    for (const id of ["1", "2", "3"]) {
+      draft = toggleKnownChild(draft, known(id), offer);
+    }
+    expect(hasRoomForKnownChild(draft)).toBe(false);
+    expect(toggleKnownChild(draft, known("4"), offer)).toBe(draft);
+  });
+
+  it("sends no reference to the school record", () => {
+    const draft = toggleKnownChild(emptyRegistration(), felix, offer);
+    const payload = payloadFromDraft(draft, offer, "token");
+    expect(Object.keys(payload.children[0]!)).not.toContain("known_student_id");
+    expect(JSON.stringify(payload)).not.toContain("41");
   });
 });
