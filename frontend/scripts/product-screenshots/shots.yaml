@@ -110,10 +110,9 @@ shots:
       - klicken: 'main button:has-text("Krank melden")'
       - warten_auf: '[role="dialog"]'
       # Ein Tag der Woche schaltet „Krankmelden“ frei; abgeschickt wird nicht.
-      # Der erste freie Tag nach der Krankmeldung aus dem Seed: Er meldet
-      # Baran für den nächsten Werktag schon krank, dessen Kachel ist
-      # gesperrt (planned-status-days-modal.tsx sperrt nur gemeldete Tage).
-      - klicken: '[role="dialog"] div.grid-cols-5 > button[disabled] ~ button:not([disabled]) >> nth=0'
+      # Der letzte freie Tag der Woche; gesperrt sind nur schon gemeldete Tage
+      # (planned-status-days-modal.tsx).
+      - klicken: '[role="dialog"] div.grid-cols-5 > button:not([disabled]) >> nth=-1'
       - tippen:
           feld: '[role="dialog"] textarea'
           text: 'Mutter hat angerufen: Baran hat Fieber.'
