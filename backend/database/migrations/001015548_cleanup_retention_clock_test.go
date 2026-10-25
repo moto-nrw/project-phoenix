@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// retentionClockGuard is one retention function of 1.15.534 with the window
+// retentionClockGuard is one retention function of 1.15.548 with the window
 // its owner applies: days times 24 hours, or, without days, the same UTC clock
 // time three years earlier.
 type retentionClockGuard struct {

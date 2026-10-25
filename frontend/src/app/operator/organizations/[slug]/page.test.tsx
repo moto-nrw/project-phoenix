@@ -601,6 +601,13 @@ describe("OperatorOrganizationDetailPage", () => {
 
     const toggleButton = await screen.findByLabelText("Deaktivieren");
     fireEvent.click(toggleButton);
+    // Deactivation signs the Träger-Büro out (#4657), so it asks first.
+    expect(mockUpdateOrganization).not.toHaveBeenCalled();
+    const dialog = await screen.findByRole("dialog", {
+      name: "Träger deaktivieren?",
+    });
+    expect(dialog).toHaveTextContent(/sofort\s+abgemeldet/);
+    fireEvent.click(screen.getByTestId("confirm-btn"));
 
     await waitFor(() => {
       expect(mockUpdateOrganization).toHaveBeenCalledWith(
@@ -990,6 +997,7 @@ describe("OperatorOrganizationDetailPage", () => {
     await renderPage();
 
     fireEvent.click(await screen.findByLabelText("Deaktivieren"));
+    fireEvent.click(await screen.findByTestId("confirm-btn"));
 
     // #2519: catalog text by code in a toast, not a local sentence.
     expect(

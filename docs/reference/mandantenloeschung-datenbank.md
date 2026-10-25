@@ -114,6 +114,32 @@ möglichen Datensatzinhalten in Logs oder Ausgaben übernehmen.
 - `platform.school_erasure_schools(organization_id, operator_id, reference)`
   liefert Schul-IDs des Trägers sowie bereits gelöschte Schulen desselben
   Vorgangs für die Wiederaufnahme. Kein Löschen der Trägerwurzel.
+
+## Trägerwurzel (#4657, Migration 1.15.533)
+
+- `platform.organization_erasure_orders` hält den Löschauftrag eines Trägers:
+  Vorgangsnummer, Datum der schriftlichen Bestätigung, `erase_not_before`
+  (Ende der Schonfrist), Operator-IDs für Erfassung, Rücknahme und Abschluss.
+  Keine FKs, keine Namen. Höchstens ein offener Auftrag je Träger. Das
+  Operator-Portal schreibt über `phoenix_admin` nur Erfassung und Rücknahme.
+- `platform.organization_erasure_check(organization_id, operator_id, reference)`
+  liest ohne Änderung den Stand des Auftrags und die Anzahlen der Wurzel.
+- `platform.begin_organization_erasure(organization_id, operator_id, reference)`
+  setzt vor der ersten Schule `started_at`. Ab dann lässt sich der Auftrag
+  nicht mehr zurücknehmen; ein abgebrochener Lauf wird mit demselben Auftrag
+  fortgesetzt.
+- `platform.erase_organization(organization_id, operator_id, reference)`
+  löscht nach Ablauf der Schonfrist einen deaktivierten Träger ohne Schulen.
+  Die FKs von `platform.organization_accounts`,
+  `auth.organization_account_roles` und `auth.tokens` (Träger-Sitzungen)
+  laufen mit. Im selben Schritt entstehen der Operator-Audit-Eintrag `erase`
+  und der Abschluss des Auftrags mit Anzahlen; ein erneuter Aufruf liefert den
+  Nachweis. `platform.billing_key_date_counts` bleibt wie bei Schulen erhalten.
+- `platform.delete_expired_organization_erasure_orders()` entfernt
+  abgeschlossene und zurückgenommene Aufträge nach drei Jahren.
+
+Alle vier Funktionen sind `SECURITY DEFINER` mit festem `search_path` und nur
+für `phoenix_school_erasure` ausführbar.
 - `platform.school_erasure_file_phase(erasure_id, phase, counts)` speichert
   vor dem DB-Schritt neun Dateiart-Anzahlen und `files_inventory_at`.
   Nach `db_done_at` sind `files_done`, danach `completed` erlaubt; ein
@@ -133,7 +159,7 @@ Die Migration installiert einen eingefrorenen, generierten Plan und statische
 SQL-Blöcke aus dem
 [gemeinsamen Katalog](datenkatalog.md), keinen zweiten fachlichen Katalog.
 Er umfasst 241 Löschziele: `tenant`, `tenantChild` und die Schulwurzel.
-Migration `1.15.533` installiert Plan, Sperrliste, Löschung, Restprüfung und
+Migration `1.15.547` installiert Plan, Sperrliste, Löschung, Restprüfung und
 Probelauf erneut mit den acht schulbezogenen Mittagessen-Tabellen
 (Bestellungen mit Zähler der Nachmeldungen, Anmeldeänderungen, Caterer-Einladungen und Belieferungen, #3873).
 Der schulübergreifende Caterer-Betrieb und seine Konten bleiben erhalten.
@@ -145,8 +171,8 @@ Trägerwurzel bleiben unangetastet. `platform.demo_school_states` ist dagegen
 als `tenant` eingestuft und wird für die konkrete Schule entfernt.
 
 Die Träger-ID im Nachweis berechtigt **nicht** zur Löschung anderer Schulen
-oder des Trägers. Ein Trägerauftrag muss später alle berechtigten Schulen
-separat behandeln und erst danach die Trägerwurzel prüfen. Gemeinsame Konten
+oder des Trägers. Ein Trägerauftrag behandelt alle berechtigten Schulen
+separat und löscht erst danach die Trägerwurzel (siehe oben). Gemeinsame Konten
 werden nicht gelöscht: Die Schulzuordnungen verschwinden, danach greift der
 bestehende Job `auth.erase_unused_accounts`, soweit keine andere Schule das
 Konto benötigt. Globale Operator-Protokolle werden nicht pauschal gelöscht.

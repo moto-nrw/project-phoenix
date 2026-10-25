@@ -4876,6 +4876,10 @@
       "write_owner": "organization-tenancy"
     },
     {
+      "name": "platform.organization_erasure_orders",
+      "write_owner": "organization-tenancy"
+    },
+    {
       "name": "auth.organization_account_roles",
       "write_owner": "identity-access"
     }

@@ -66,7 +66,7 @@ func TestMealOrderErasureRoundTrip(t *testing.T) {
 	assert.Equal(t, withMeals, planNames())
 }
 
-// mealOrderErasureTables are the eight school-scoped tables 1.15.533 adds to
+// mealOrderErasureTables are the eight school-scoped tables 1.15.547 adds to
 // development's school erasure functions.
 var mealOrderErasureTables = regexp.MustCompile(`\b(schedule\.(meal_order_changes|meal_order_change_counters|meal_order_lines|meal_order_days|meal_orders|meal_registration_changes)|auth\.caterer_(invitations|schools))\b`)
 
@@ -89,10 +89,10 @@ func withoutMealOrderErasureTables(sql string) string {
 	return schoolErasureFingerprint.ReplaceAllString(strings.Join(kept, "\n"), "<> 'fingerprint' THEN")
 }
 
-// The erasure functions 1.15.533 installs are static copies (new migrations
+// The erasure functions 1.15.547 installs are static copies (new migrations
 // take static SQL only). Development keeps its current definition in the
 // school_erasure_{plan,preflight,residual,delete,preview}.go constants and
-// every erasure migration reinstalls them, so 1.15.533 running last would
+// every erasure migration reinstalls them, so 1.15.547 running last would
 // silently drop a table development added after the copies were taken. Each
 // copy must therefore equal development's current function with exactly the
 // meal tables added: when this fails, rebuild the copy from development's
@@ -113,13 +113,13 @@ func TestMealOrderErasureCopiesTrackDevelopmentsErasureFunctions(t *testing.T) {
 		}
 		assert.Len(t, names, 8, "%s: the copy names all eight meal tables", pair.name)
 		assert.Equal(t, withoutMealOrderErasureTables(pair.development), withoutMealOrderErasureTables(pair.meal),
-			"%s: the 1.15.533 copy drifted from development's current erasure function", pair.name)
+			"%s: the 1.15.547 copy drifted from development's current erasure function", pair.name)
 	}
 }
 
 var schoolErasureInstall = regexp.MustCompile(`\binstallSchoolErasure(Functions|Plan|Preflight|Residual|Delete|Preview)?\(ctx`)
 
-// 1.15.533 must run after the newest development migration that reinstalls
+// 1.15.547 must run after the newest development migration that reinstalls
 // the school erasure functions, or that migration overwrites the meal
 // tables (and a newer one would need its function rebuilt here first).
 func TestMealOrderErasureRunsAfterEveryErasureReinstall(t *testing.T) {
@@ -129,7 +129,7 @@ func TestMealOrderErasureRunsAfterEveryErasureReinstall(t *testing.T) {
 	newest := ""
 	for _, entry := range entries {
 		name := entry.Name()
-		if len(name) < 10 || name[9] != '_' || strings.HasSuffix(name, "_test.go") || strings.HasPrefix(name, "001015533_") {
+		if len(name) < 10 || name[9] != '_' || strings.HasSuffix(name, "_test.go") || strings.HasPrefix(name, "001015547_") {
 			continue
 		}
 		source, err := os.ReadFile(name)

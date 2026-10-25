@@ -26,6 +26,8 @@ export const ERROR_CATALOG = {
         "Der Anwesenheitsverlauf ist an dieser Schule ausgeschaltet.",
       "attendance.web_disabled":
         "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
+      "billing.invalid_key_day":
+        "Der Stichtag muss zwischen dem 1. und dem 28. des Monats liegen. Bitte wählen Sie einen dieser Tage.",
       "care.announcement_stale":
         "{object} wurde inzwischen geändert. Bitte laden Sie die Seite neu.",
       "care.care_exception_conflict":
@@ -151,6 +153,8 @@ export const ERROR_CATALOG = {
         "Für ein Kind steht an einem dieser Tage schon etwas, zum Beispiel krank. Es wurde nichts gespeichert. Bitte sprechen Sie mit der OGS.",
       "classday.class_trip_student_not_in_class":
         "Ein Kind ist nicht mehr in dieser Klasse. Bitte laden Sie die Seite neu.",
+      "classday.homework_not_found":
+        "Diese Hausaufgabe gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "classday.morning_attendance_no_school_day":
         "Heute ist kein Schultag. Die Anwesenheit lässt sich nur an Schultagen eintragen.",
       "classday.morning_attendance_not_today":
@@ -159,10 +163,16 @@ export const ERROR_CATALOG = {
         "Ein Kind gehört nicht mehr zu dieser Klasse. Bitte laden Sie die Seite neu.",
       "classday.school_write_disabled":
         "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
+      "communication.announcement_not_found":
+        "Diese Ankündigung gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "communication.announcement_reminder_sent":
         "Die Erinnerung ist schon verschickt. Sie lässt sich nicht mehr ändern.",
       "communication.declaration_has_submissions":
         "Auf dieses Einverständnis haben Eltern schon geantwortet. Deshalb lässt es sich nicht löschen. Sie können es zurückziehen, dann sehen Eltern es nicht mehr.",
+      "communication.group_thread_closed":
+        "Diese Gruppennachricht ist geschlossen. Eine Antwort ist nicht mehr möglich.",
+      "communication.group_thread_no_recipients":
+        "Niemand in dieser Gruppe hat Eltern mit Zugang zu moto. Die Nachricht wurde nicht verschickt.",
       "communication.notifications_disabled":
         "Ihre Schule hat Benachrichtigungen ausgeschaltet. Eine Testbenachrichtigung ist deshalb nicht möglich.",
       "communication.parent_news_disabled":
@@ -173,6 +183,10 @@ export const ERROR_CATALOG = {
         "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
       "communication.staff_notice_outdated":
         "Diese Tagesinformation hat sich inzwischen geändert. Bitte laden Sie die Seite neu.",
+      "devices.tag_scan_already_resolved":
+        "Dieser Scan ist schon erledigt. Bitte laden Sie die Seite neu.",
+      "devices.tag_scan_not_found":
+        "Diesen Scan gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "display.disabled":
         "Die Anzeigetafel ist an dieser Schule ausgeschaltet.",
       "enrollment.approval_care_offering_day_conflict":
@@ -181,6 +195,18 @@ export const ERROR_CATALOG = {
         "Für dieses Kind muss genau ein Betreuungsangebot gebucht sein. Die Familie muss die Auswahl ändern.",
       "enrollment.approval_care_offering_missing":
         "Für dieses Kind ist kein Betreuungsangebot gebucht. Die Familie muss zuerst ein Angebot ergänzen.",
+      "enrollment.approval_data_invalid":
+        "Die Angaben dieser Anmeldung sind unvollständig. Bitte korrigieren Sie die Daten des Kindes.",
+      "enrollment.captcha_failed":
+        "Die Sicherheitsabfrage hat nicht geklappt. Bitte versuchen Sie es noch einmal.",
+      "enrollment.captcha_required":
+        "Bitte bestätigen Sie die Sicherheitsabfrage.",
+      "enrollment.care_offering_auto_add_invalid":
+        "Die automatische Zubuchung passt so nicht. Bitte prüfen Sie die auslösenden Angebote und die Tagesauswahl.",
+      "enrollment.care_offering_capacity_invalid":
+        "Bitte prüfen Sie die Zahl der Plätze. Ein Pflichtangebot hat keine Platzgrenze.",
+      "enrollment.care_offering_closed":
+        "Ein gewähltes Betreuungsangebot nimmt gerade keine Anmeldungen an. Bitte wählen Sie ein anderes Angebot.",
       "enrollment.care_offering_day_conflict":
         "An einem Tag sind zwei Angebote gewählt, die nicht zusammen gehen. Bitte wählen Sie pro Tag nur eines.",
       "enrollment.care_offering_days_required":
@@ -193,8 +219,18 @@ export const ERROR_CATALOG = {
         "{object} wird bereits verwendet. Bitte prüfen Sie den aktuellen Stand.",
       "enrollment.care_offering_missing":
         "Bitte wählen Sie für jedes Kind mindestens ein Betreuungsangebot.",
+      "enrollment.care_offering_name_required":
+        "Bitte geben Sie einen Namen für das Betreuungsangebot ein.",
+      "enrollment.care_offering_not_found":
+        "Dieses Betreuungsangebot gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "enrollment.care_offering_pickup_time_invalid":
+        "Bitte geben Sie die Gehzeit als Uhrzeit ein, zum Beispiel 15:30.",
       "enrollment.care_offering_pickup_times_required":
         "Bitte tragen Sie für jeden Betreuungstag eine Gehzeit ein.",
+      "enrollment.care_offering_price_invalid":
+        "Der Preis darf nicht kleiner als 0 sein.",
+      "enrollment.care_offering_selection_invalid":
+        "Bitte prüfen Sie die Auswahlregel. Alle Angebote einer Auswahlgruppe brauchen dieselbe Regel.",
       "enrollment.care_offering_template_period_mismatch":
         "Der Regeltermin muss den ganzen Betreuungszeitraum abdecken. Bitte wählen Sie einen passenden Regeltermin.",
       "enrollment.care_offering_unavailable":
@@ -205,46 +241,145 @@ export const ERROR_CATALOG = {
         "Dieses Kind ist schon in der Betreuung. Änderungen machen Sie bitte in der Eltern-App.",
       "enrollment.change_request_conflict":
         "{object} wurde inzwischen geändert. Bitte prüfen Sie Ihre Angaben erneut.",
+      "enrollment.change_request_guardian_linked":
+        "Diese Angaben ändern Sie bitte in der Eltern-App.",
+      "enrollment.change_request_not_allowed":
+        "Diese Anmeldung kann gerade nicht geändert werden. Bitte wenden Sie sich an die Schule.",
+      "enrollment.change_request_not_found":
+        "Diese Änderungsanfrage gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "enrollment.change_request_note_required":
+        "Bitte schreiben Sie eine kurze Begründung für die Familie.",
+      "enrollment.change_request_status_changed":
+        "Der Stand dieser Änderungsanfrage hat sich geändert. Bitte laden Sie die Seite neu.",
       "enrollment.child_already_enrolled":
         "Dieses Kind ist an der Schule schon angemeldet. Diese Anmeldung ist nur für neue Kinder.",
+      "enrollment.child_already_requested":
+        "Eine andere Person hat dieses Kind schon angemeldet. Bitte wenden Sie sich an die Schule.",
       "enrollment.child_ambiguous":
         "Wir konnten das Kind nicht eindeutig zuordnen. Bitte wenden Sie sich an die Schule.",
+      "enrollment.child_birth_date_invalid":
+        "Bitte geben Sie das Geburtsdatum des Kindes ein.",
+      "enrollment.child_grade_required":
+        "Bitte wählen Sie die Klassenstufe des Kindes.",
+      "enrollment.child_name_required":
+        "Bitte geben Sie Vor- und Nachnamen des Kindes ein.",
       "enrollment.child_not_enrolled":
         "Dieses Kind ist an der Schule noch nicht angemeldet. Diese Anmeldung ist nur für Kinder der Schule.",
       "enrollment.child_not_permitted":
         "Sie dürfen dieses Kind nicht erneut anmelden. Bitte wenden Sie sich an die Schule.",
+      "enrollment.child_required": "Bitte fügen Sie mindestens ein Kind hinzu.",
       "enrollment.class_not_eligible":
         "Diese Anmeldung gilt nur für bestimmte Klassen. Bitte prüfen Sie die Klasse Ihres Kindes.",
+      "enrollment.companion_note_required":
+        "Bitte geben Sie an, mit wem das Kind nach Hause geht.",
       "enrollment.complete_withdrawal_confirmation_required":
         "{object} kann noch nicht abgemeldet werden. Bitte bestätigen Sie mit {confirmation}.",
+      "enrollment.consent_required":
+        "Bitte bestätigen Sie alle Pflicht-Zustimmungen.",
+      "enrollment.correction_reason_required":
+        "Bitte geben Sie einen Grund für die Korrektur ein.",
+      "enrollment.correction_school_class_mismatch":
+        "Die Klasse passt nicht zur Klassenstufe. Bitte wählen Sie eine passende Klasse.",
       "enrollment.day_selection_not_allowed":
         "Bei diesem Angebot stehen die Tage fest. Sie können keine Tage auswählen.",
       "enrollment.day_selection_required":
         "Bitte wählen Sie für dieses Angebot mindestens einen Wochentag.",
+      "enrollment.decision_already_final":
+        "Über dieses Kind wurde schon entschieden. Bitte laden Sie die Seite neu.",
+      "enrollment.deletion_reason_invalid":
+        "Bitte geben Sie einen Grund mit 3 bis 500 Zeichen ein.",
       "enrollment.departure_mode_limit":
         "Bitte wählen Sie pro Wochentag nur einen Heimweg.",
       "enrollment.disabled":
         "Die Online-Anmeldung ist an dieser Schule gerade nicht möglich. Bitte wenden Sie sich an die Schule.",
+      "enrollment.edit_not_allowed":
+        "Diese Anmeldung kann nicht mehr geändert werden. Bitte wenden Sie sich an die Schule.",
+      "enrollment.export_too_large":
+        "Diese Anmeldephase hat zu viele Anmeldungen für einen Export. Bitte melden Sie sich beim moto-Team.",
+      "enrollment.field_required": "Bitte füllen Sie alle Pflichtfelder aus.",
+      "enrollment.form_attachment_invalid":
+        "Bitte prüfen Sie die Bezeichnung und die PDF-Datei.",
+      "enrollment.form_field_allowed_times_invalid":
+        "Bitte prüfen Sie die Abholzeiten. Jede Uhrzeit darf nur einmal vorkommen, zum Beispiel 15:30.",
+      "enrollment.form_field_content_required":
+        "Bitte geben Sie für den Hinweistext einen Text ein.",
+      "enrollment.form_field_file_options_invalid":
+        "Bitte prüfen Sie die Dateifrage. Wählen Sie mindestens eine Dateiart und eine Größe von 1 bis 10 MB.",
+      "enrollment.form_field_key_duplicate":
+        "Zwei Fragen haben denselben Text. Bitte ändern Sie den Text der markierten Frage.",
+      "enrollment.form_field_key_invalid":
+        "Diese Frage lässt sich so nicht speichern. Bitte ändern Sie ihren Text.",
+      "enrollment.form_field_label_required":
+        "Bitte geben Sie jedem Feld eine Beschriftung.",
+      "enrollment.form_field_options_invalid":
+        "Auswahlfelder brauchen mindestens eine Option. Andere Felder haben keine Optionen.",
+      "enrollment.form_field_target_duplicate":
+        "Diese Zuordnung gibt es im Formular schon. Jede Zuordnung darf nur einmal vorkommen.",
+      "enrollment.form_field_target_invalid":
+        "Dieses Feld passt nicht zu seiner Zuordnung. Bitte wählen Sie die Zuordnung neu.",
+      "enrollment.form_field_visibility_invalid":
+        "Die Anzeigebedingung passt nicht. Bitte wählen Sie als Bedingung eine Ja-Nein-Frage oder eine Auswahlfrage.",
+      "enrollment.form_grade_collection_required":
+        "Die Heimweg-Beschränkung braucht die Abfrage der Klassenstufe. Bitte schalten Sie sie in den Einstellungen ein.",
+      "enrollment.form_not_found":
+        "Dieses Anmeldeformular gibt es nicht. Bitte prüfen Sie den Link oder fragen Sie die Schule.",
       "enrollment.grade_not_eligible":
         "Diese Anmeldung gilt nur für bestimmte Klassenstufen. Bitte prüfen Sie die Klassenstufe Ihres Kindes.",
+      "enrollment.guardian_email_required":
+        "Bitte geben Sie eine E-Mail-Adresse ein.",
+      "enrollment.guardian_name_required":
+        "Bitte geben Sie Vor- und Nachnamen ein.",
+      "enrollment.guardian_phone_required":
+        "Bitte geben Sie eine Telefonnummer ein.",
       "enrollment.invalid_email":
         "Bitte geben Sie eine gültige E-Mail-Adresse ein.",
       "enrollment.invalid_phone":
         "Bitte geben Sie eine gültige Telefonnummer ein.",
       "enrollment.late_invite_invalid":
         "Dieser Link ist ungültig, abgelaufen oder schon benutzt. Bitte wenden Sie sich an die Schule.",
+      "enrollment.legal_block_incomplete":
+        "Bitte geben Sie jedem eingeschalteten Rechtstext einen Titel und eine Beschriftung.",
+      "enrollment.legal_block_key_duplicate":
+        "Ein Rechtstext kommt doppelt vor. Bitte entfernen Sie den doppelten Rechtstext.",
+      "enrollment.legal_block_key_invalid":
+        "Dieser Rechtstext lässt sich so nicht speichern. Bitte entfernen Sie ihn und legen Sie ihn neu an.",
+      "enrollment.legal_block_required_not_allowed":
+        "Hinweise und Einwilligungen dürfen keine Pflicht sein. Bitte nehmen Sie den Haken bei Pflicht heraus.",
+      "enrollment.legal_document_invalid":
+        "Bitte wählen Sie eine PDF-Datei mit höchstens {max_mb} MB.",
+      "enrollment.message_required": "Bitte schreiben Sie eine Nachricht.",
+      "enrollment.offering_adjustment_invalid":
+        "Diese Änderung der Angebote ist so nicht möglich. Bitte prüfen Sie Angebote und Datum.",
       "enrollment.phase_care_offering_conflict":
         "Die Änderung passt nicht zu einem Betreuungsangebot der Phase. Bitte prüfen Sie die Angebote.",
+      "enrollment.phase_eligibility_setting_required":
+        "Für eine Einschränkung nach Klasse oder Klassenstufe muss die passende Abfrage eingeschaltet sein. Bitte schalten Sie sie in den Einstellungen ein.",
       "enrollment.phase_name_exists":
         "Es gibt schon eine Anmeldephase mit diesem Namen. Bitte wählen Sie einen anderen Namen.",
+      "enrollment.phase_name_required":
+        "Bitte geben Sie einen Namen für die Anmeldephase ein.",
       "enrollment.phase_not_eligible":
         "Diese Anmeldung ist für Ihr Konto nicht freigegeben. Bitte melden Sie sich in der Eltern-App an oder fragen Sie die Schule.",
+      "enrollment.phase_not_found":
+        "Diese Anmeldephase gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "enrollment.phase_school_classes_invalid":
+        "Die angebotenen und die zugelassenen Klassen passen nicht zusammen. Bitte prüfen Sie die Klassen.",
+      "enrollment.phase_service_period_invalid":
+        "Der Betreuungszeitraum ist unvollständig oder endet vor dem Beginn. Bitte prüfen Sie Beginn und Ende.",
+      "enrollment.phase_window_invalid":
+        "Das Anmeldefenster endet vor seinem Start. Bitte prüfen Sie Öffnung und Schließung.",
       "enrollment.pickup_time_not_allowed":
         "Bitte wählen Sie nur Abholzeiten aus der Liste. Die markierte Zeit gibt es nicht mehr.",
+      "enrollment.request_duplicate":
+        "Für dieses Kind gibt es in dieser Anmeldephase schon eine Anmeldung.",
+      "enrollment.request_not_found":
+        "Diese Anmeldung gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "enrollment.required_care_offering_missing":
         "Bitte wählen Sie für jedes Kind das Pflichtangebot aus.",
       "enrollment.restore_duplicate":
         "Für ein Kind gibt es in dieser Phase schon eine andere aktive Anmeldung. Bitte prüfen Sie die Anmeldungen.",
+      "enrollment.restore_nothing_withdrawn":
+        "In dieser Anmeldung ist kein Kind abgemeldet. Es gibt nichts wiederherzustellen.",
       "enrollment.restore_offering_closed":
         "Ein gewähltes Betreuungsangebot ist inzwischen ausgeschaltet. Bitte prüfen Sie die Angebote der Phase.",
       "enrollment.restore_phase_inactive":
@@ -255,14 +390,32 @@ export const ERROR_CATALOG = {
         "Mit dieser Formularvorlage gibt es schon Anmeldungen. Darum kann sie nicht gelöscht werden.",
       "enrollment.schema_name_exists":
         "Es gibt schon eine Formularvorlage mit diesem Namen. Bitte wählen Sie einen anderen Namen.",
+      "enrollment.schema_name_required":
+        "Bitte geben Sie einen Namen für die Formularvorlage ein.",
+      "enrollment.schema_not_found":
+        "Diese Formularvorlage gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "enrollment.selected_day_not_available":
         "Dieser Wochentag ist für das Angebot nicht möglich. Bitte wählen Sie nur die angezeigten Tage.",
+      "enrollment.status_link_invalid":
+        "Dieser Link ist ungültig oder abgelaufen. Bitte nutzen Sie den Link aus Ihrer E-Mail.",
       "enrollment.student_exists":
         "{object} gibt es bereits. Bitte wählen Sie eine andere Angabe.",
+      "enrollment.submission_rate_limited":
+        "Es wurden zu viele Anmeldungen gesendet. Bitte versuchen Sie es in einer Stunde noch einmal.",
+      "enrollment.upload_expired":
+        "Eine hochgeladene Datei ist abgelaufen. Bitte laden Sie sie erneut hoch.",
+      "enrollment.upload_invalid":
+        "Diese Datei passt nicht. Bitte wählen Sie eine erlaubte Dateiart mit höchstens {max_mb} MB.",
+      "enrollment.upload_not_found":
+        "Diese Datei gibt es nicht mehr. Bitte laden Sie sie erneut hoch.",
+      "enrollment.upload_rate_limited":
+        "Es wurden zu viele Dateien hochgeladen. Bitte versuchen Sie es später noch einmal.",
       "enrollment.waitlist_disabled":
         "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
       "enrollment.window_closed":
         "Die Anmeldefrist ist vorbei oder hat noch nicht begonnen. Bitte wenden Sie sich an die Schule.",
+      "enrollment.withdraw_not_allowed":
+        "Diese Anmeldung kann nicht mehr zurückgezogen werden. Bitte wenden Sie sich an die Schule.",
       "feedback.disabled": "Rückmeldungen sind an dieser Schule ausgeschaltet.",
       "files.announcement_published":
         "Die Mitteilung ist schon veröffentlicht. Ihre Anhänge lassen sich nicht mehr ändern.",
@@ -294,10 +447,22 @@ export const ERROR_CATALOG = {
         "Inzwischen gibt es einen neueren Schuljahreswechsel. Er muss zuerst zurückgesetzt werden.",
       "grade_transition.preview_stale":
         "Klassen oder Zuordnungen haben sich seit dem Öffnen geändert. Die Vorschau ist neu geladen. Bitte prüfen Sie sie noch einmal.",
+      "identity.access_name_required":
+        "Für diese Schule fehlt der Name der Person. Bitte geben Sie Vor- und Nachnamen ein.",
       "identity.account_already_has_tenant_access":
         "Diese Person hat schon Zugang zu dieser Schule. Sie finden sie in der Personalliste.",
       "identity.account_inactive":
         "Ihr Konto ist gesperrt. Bitte wenden Sie sich an moto.",
+      "identity.account_not_found":
+        "Dieses Konto gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "identity.account_not_in_school":
+        "Dieses Konto gehört nicht zu dieser Schule. Bitte laden Sie die Seite neu.",
+      "identity.caterer_address_taken":
+        "Diese E-Mail-Adresse gehört schon zu einem anderen moto-Konto. Bitte nehmen Sie eine andere Adresse.",
+      "identity.caterer_without_school":
+        "Sie beliefern zurzeit keine Schule über moto. Bitte fragen Sie die Schule.",
+      "identity.current_password_wrong":
+        "Das aktuelle Passwort stimmt nicht. Bitte prüfen Sie Ihre Eingabe.",
       "identity.demo_access_expired":
         "Der Demo-Zugang ist abgelaufen. Bitte fordern Sie einen neuen Zugang an.",
       "identity.demo_access_invalid":
@@ -312,42 +477,70 @@ export const ERROR_CATALOG = {
         "Die Demo-Schule wird gerade vorbereitet. Bitte versuchen Sie es gleich noch einmal.",
       "identity.email_already_exists":
         "Für diese E-Mail-Adresse gibt es schon ein Konto. Bitte verwenden Sie eine andere Adresse.",
-      "identity.role_name_taken":
-        "Eine Rolle mit diesem Namen gibt es schon. Bitte wählen Sie einen anderen Namen.",
-      "identity.role_platform_permission":
-        "Eigene Rollen können dieses Recht nicht bekommen.",
+      "identity.email_change_link_invalid":
+        "Dieser Bestätigungslink ist abgelaufen oder ungültig. Bitte ändern Sie die E-Mail-Adresse erneut.",
+      "identity.email_change_rate_limited":
+        "Die E-Mail-Adresse wurde zu oft geändert. Bitte versuchen Sie es in einer Stunde erneut.",
+      "identity.email_change_same_email":
+        "Die neue E-Mail-Adresse ist dieselbe wie die bisherige. Bitte geben Sie eine andere ein.",
+      "identity.invalid_credentials":
+        "Die E-Mail-Adresse oder das Passwort stimmt nicht. Bitte prüfen Sie Ihre Eingabe.",
       "identity.invitation_account_login_required":
         "Für diese E-Mail-Adresse gibt es schon ein Konto. Bitte melden Sie sich zuerst damit an und öffnen Sie dann die Einladung erneut.",
       "identity.invitation_account_mismatch":
         "Sie sind mit einem anderen Konto angemeldet. Bitte melden Sie sich mit der eingeladenen E-Mail-Adresse an.",
-      "identity.preview_token_invalid":
-        "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
-      "identity.read_only_preview":
-        "In der Vorschau können Sie nur lesen. Bitte beenden Sie die Vorschau, um etwas zu ändern.",
-      "identity.session_account_inactive":
-        "Ihr Konto ist ausgeschaltet. Bitte wenden Sie sich an die Leitung Ihrer Schule.",
-      "identity.invalid_credentials":
-        "Die E-Mail-Adresse oder das Passwort stimmt nicht. Bitte prüfen Sie Ihre Eingabe.",
-      "identity.current_password_wrong":
-        "Das aktuelle Passwort stimmt nicht. Bitte prüfen Sie Ihre Eingabe.",
-      "identity.password_too_weak":
-        "Das Passwort ist zu schwach. Es braucht mindestens 8 Zeichen, Groß- und Kleinbuchstaben, eine Zahl und ein Sonderzeichen.",
+      "identity.invitation_expired":
+        "Diese Einladung ist abgelaufen oder wurde schon benutzt. Bitte fragen Sie Ihre Schule nach einer neuen Einladung.",
+      "identity.invitation_not_found":
+        "Diese Einladung gibt es nicht. Bitte prüfen Sie den Link in der E-Mail.",
+      "identity.invitation_rate_limited":
+        "Es wurden zu viele Einladungen verschickt. Bitte versuchen Sie es in einer Stunde erneut.",
+      "identity.lehrkraft_role_immutable":
+        "Ein Lehrkraft-Konto behält seine Rolle. Für eine andere Rolle braucht die Person ein neues Konto.",
+      "identity.mfa_already_enrolled":
+        "Die Zwei-Faktor-Anmeldung ist schon eingerichtet. Bitte laden Sie die Seite neu.",
+      "identity.mfa_blocked":
+        "Das waren zu viele Versuche. Bitte warten Sie einige Minuten und versuchen Sie es dann erneut.",
+      "identity.mfa_code_invalid":
+        "Der Code stimmt nicht oder ist abgelaufen. Bitte geben Sie ihn erneut ein oder fordern Sie einen neuen Code an.",
+      "identity.mfa_not_enrolled":
+        "Die Zwei-Faktor-Anmeldung ist noch nicht eingerichtet. Bitte richten Sie sie zuerst ein.",
+      "identity.mfa_session_required":
+        "Für die Anmeldung bei {object} brauchen Sie einen zweiten Anmeldenachweis. Wählen Sie „Zur Schulanmeldung“. Sie werden abgemeldet. Melden Sie sich danach dort neu an und bestätigen Sie die Anmeldung.",
+      "identity.mfa_status_unavailable":
+        "Die Sicherheitsabfrage ist gerade nicht möglich. Bitte versuchen Sie es erneut.",
+      "identity.operator_invitation_invalid":
+        "Dieser Einladungslink ist abgelaufen oder ungültig. Bitte lassen Sie sich neu einladen.",
+      "identity.operator_self_deactivation":
+        "Sie können Ihr eigenes Konto nicht deaktivieren. Bitten Sie eine andere Person aus dem Team darum.",
+      "identity.passkey_login_failed":
+        "Die Anmeldung mit Passkey hat nicht geklappt. Bitte melden Sie sich mit E-Mail-Adresse und Passwort an.",
+      "identity.passkey_not_found":
+        "Diesen Passkey gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "identity.password_mismatch":
+        "Die beiden Passwörter stimmen nicht überein. Bitte geben Sie sie erneut ein.",
       "identity.password_reset_link_invalid":
         "Der Link ist abgelaufen oder wurde schon benutzt. Bitte fordern Sie einen neuen Link an.",
       "identity.password_reset_rate_limited":
         "Sie haben zu oft einen Link angefordert. Bitte warten Sie etwas und versuchen Sie es dann erneut.",
-      "identity.mfa_code_invalid":
-        "Der Code stimmt nicht oder ist abgelaufen. Bitte geben Sie ihn erneut ein oder fordern Sie einen neuen Code an.",
-      "identity.mfa_blocked":
-        "Das waren zu viele Versuche. Bitte warten Sie einige Minuten und versuchen Sie es dann erneut.",
-      "identity.invitation_not_found":
-        "Diese Einladung gibt es nicht. Bitte prüfen Sie den Link in der E-Mail.",
-      "identity.invitation_expired":
-        "Diese Einladung ist abgelaufen oder wurde schon benutzt. Bitte fragen Sie Ihre Schule nach einer neuen Einladung.",
-      "identity.passkey_login_failed":
-        "Die Anmeldung mit Passkey hat nicht geklappt. Bitte melden Sie sich mit E-Mail-Adresse und Passwort an.",
+      "identity.password_too_weak":
+        "Das Passwort ist zu schwach. Es braucht mindestens 8 Zeichen, Groß- und Kleinbuchstaben, eine Zahl und ein Sonderzeichen.",
+      "identity.preview_token_invalid":
+        "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
+      "identity.read_only_preview":
+        "In der Vorschau können Sie nur lesen. Bitte beenden Sie die Vorschau, um etwas zu ändern.",
+      "identity.role_name_taken":
+        "Eine Rolle mit diesem Namen gibt es schon. Bitte wählen Sie einen anderen Namen.",
+      "identity.role_platform_permission":
+        "Eigene Rollen können dieses Recht nicht bekommen.",
+      "identity.session_account_inactive":
+        "Ihr Konto ist ausgeschaltet. Bitte wenden Sie sich an die Leitung Ihrer Schule.",
       "identity.tenant_access_denied":
         "Ihr Konto hat keinen Zugang zu dieser Schule. Bitte melden Sie sich neu an.",
+      "identity.tenant_access_not_found":
+        "Dieses Konto hat keinen Zugang zu dieser Schule mehr. Bitte laden Sie die Seite neu.",
+      "identity.username_taken":
+        "Der erzeugte Benutzername war schon vergeben. Bitte versuchen Sie es noch einmal.",
       "import.file_columns_missing":
         "In der Datei fehlen Spalten: {columns}. Bitte nutzen Sie die Vorlage.",
       "import.file_missing": "Bitte wählen Sie eine Datei aus.",
@@ -384,6 +577,8 @@ export const ERROR_CATALOG = {
       "meals.day_closed":
         "{object} geht nicht. An diesem Tag ist die Schule geschlossen.",
       "meals.day_past": "{object} geht nicht mehr. Der Tag ist schon vorbei.",
+      "meals.delivery_range_too_long":
+        "Die Lieferliste umfasst höchstens sieben Tage. Bitte wählen Sie einen kürzeren Zeitraum.",
       "meals.invalid_allergens":
         "Die Allergene konnten nicht gespeichert werden. Bitte wählen Sie sie neu aus.",
       "meals.invalid_dishes":
@@ -392,10 +587,20 @@ export const ERROR_CATALOG = {
         "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
       "meals.invalid_participation":
         "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
+      "meals.not_supplied":
+        "Sie beliefern diese Schule nicht mehr. Bitte fragen Sie die Schule.",
+      "meals.order_not_found":
+        "Diese Bestellung gibt es nicht. Bitte laden Sie die Seite neu.",
       "meals.plan_disabled":
         "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
       "meals.registration_disabled":
         "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
+      "meals.supply_active":
+        "{object} geht gerade nicht. Ein Caterer beliefert die Schule noch. Beenden Sie zuerst diese Belieferung.",
+      "module.not_booked":
+        "Ihre Schule hat das Modul {module_label} nicht gebucht. Für eine Buchung wenden Sie sich an das moto-Team.",
+      "operator.audit_unavailable":
+        "Die Anfrage konnte nicht sicher protokolliert werden. Bitte versuchen Sie es später erneut.",
       "pickup.bulk_exception_confirmation_required":
         "Für {object} fehlt eine Angabe. Bitte ergänzen Sie das markierte Feld.",
       "pickup.invalid":
@@ -414,6 +619,66 @@ export const ERROR_CATALOG = {
         "Der Raum {room_name}: {current_occupancy} von {max_capacity} Plätzen sind belegt. Freie Plätze: {free_slots}. Es sollen {incoming_students} Kinder dazukommen.",
       "presence.statistics_range_invalid":
         "Der Zeitraum passt nicht. Er darf höchstens ein Jahr lang sein und nicht in der Zukunft enden.",
+      "provisioning.caregiver_capability_blocked":
+        "Die Betreuungsrolle kann noch nicht entfernt werden, weil die Person noch eingeplant ist. Bitte lösen Sie diese Zuordnungen zuerst.",
+      "provisioning.device_active_session":
+        "Auf dem Gerät läuft gerade eine Sitzung. Bitte beenden Sie sie und versuchen Sie es dann erneut.",
+      "provisioning.device_api_key_taken":
+        "Diesen API-Key nutzt schon ein anderes Gerät. Bitte wählen Sie einen anderen.",
+      "provisioning.device_id_taken":
+        "Diese Geräte-ID gibt es an der Schule schon. Bitte wählen Sie eine andere.",
+      "provisioning.device_in_use":
+        "Mit diesem Gerät wurden schon Anwesenheiten oder Sitzungen erfasst. Es kann nicht gelöscht werden.",
+      "provisioning.device_not_found":
+        "Dieses Gerät gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "provisioning.device_online":
+        "Das Gerät ist gerade online. Bitte schalten Sie es aus und versuchen Sie es dann erneut.",
+      "provisioning.device_other_organization":
+        "Ein Gerät kann nur zu einer Schule desselben Trägers umziehen. Bitte wählen Sie eine andere Schule.",
+      "provisioning.device_protected":
+        "Dieses Systemgerät kann nicht gelöscht werden.",
+      "provisioning.device_same_school":
+        "Das Gerät gehört schon zu dieser Schule. Bitte wählen Sie eine andere Schule.",
+      "provisioning.device_transfer_protected":
+        "Dieses Systemgerät kann nicht umgezogen werden.",
+      "provisioning.organization_already_deleted":
+        "Dieser Träger ist schon gelöscht. Bitte laden Sie die Seite neu.",
+      "provisioning.organization_deleted":
+        "Der Träger ist gelöscht. Bitte wählen Sie einen anderen Träger.",
+      "provisioning.organization_has_schools":
+        "Zu diesem Träger gehören noch Schulen (Anzahl: {school_count}). Bitte löschen Sie zuerst alle Schulen des Trägers.",
+      "provisioning.organization_not_deleted":
+        "Dieser Träger ist nicht gelöscht. Bitte laden Sie die Seite neu.",
+      "provisioning.organization_not_found":
+        "Diesen Träger gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "provisioning.organization_slug_taken":
+        "Diesen Slug hat schon ein anderer Träger. Bitte wählen Sie einen anderen.",
+      "provisioning.person_has_supervisions":
+        "Diese Person führt gerade eine Aufsicht. Bitte beenden Sie die Aufsicht zuerst.",
+      "provisioning.person_not_found":
+        "Diese Person gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "provisioning.school_already_deleted":
+        "Diese Schule ist schon gelöscht. Bitte laden Sie die Seite neu.",
+      "provisioning.school_inactive":
+        "Die Schule ist ausgeschaltet. Bitte schalten Sie sie zuerst ein.",
+      "provisioning.school_not_deleted":
+        "Diese Schule ist nicht gelöscht. Bitte laden Sie die Seite neu.",
+      "provisioning.school_not_found":
+        "Diese Schule gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "provisioning.school_slug_taken":
+        "Diesen Slug hat schon eine andere Schule dieses Trägers. Bitte wählen Sie einen anderen.",
+      "provisioning.school_subdomain_taken":
+        "Diese Subdomain hat schon eine andere Schule. Bitte wählen Sie eine andere.",
+      "provisioning.traeger_active":
+        "Der Träger ist noch aktiv. Bitte deaktivieren Sie ihn zuerst.",
+      "provisioning.traeger_erasure_order_not_found":
+        "Für diesen Träger gibt es keinen offenen Löschauftrag. Bitte laden Sie die Seite neu.",
+      "provisioning.traeger_erasure_order_open":
+        "Für diesen Träger ist schon ein Löschauftrag erfasst. Bitte nehmen Sie den Löschauftrag zuerst zurück.",
+      "provisioning.traeger_erasure_started":
+        "Die Löschung hat schon begonnen. Der Löschauftrag kann nicht mehr zurückgenommen werden.",
+      "rollover.deadline_required":
+        "Bitte geben Sie eine Frist für die Rückmeldung ein.",
       "rollover.duplicate_name":
         "Es gibt schon eine Phase mit diesem Namen. Bitte wählen Sie einen anderen Namen.",
       "rollover.invalid_request":
@@ -436,6 +701,37 @@ export const ERROR_CATALOG = {
         "Die Einrichtung der Schule ist schon abgeschlossen. Bitte laden Sie die Seite neu.",
       "school.setup_incomplete":
         "Die Einrichtung ist noch nicht fertig. Bitte schließen Sie zuerst die offenen Schritte ab.",
+      "settings.admin_only": "Diese Einstellung ändert nur die Schule selbst.",
+      "settings.attendance_retention_below_visible":
+        "Das Team sieht die Anwesenheit {visible_days} Tage zurück. Die Aufbewahrung muss mindestens so lang sein.",
+      "settings.attendance_visible_exceeds_retention":
+        "Das Team kann die Anwesenheit höchstens {retention_days} Tage zurück sehen. So lange bewahrt moto sie auf.",
+      "settings.booking_authority_blocked":
+        "Der Buchungsmodus wurde nicht aktiviert: Für mindestens ein betreutes Kind ist kein Betreuungstag gebucht. Bitte prüfen Sie die Auswirkungen erneut.",
+      "settings.invalid_value":
+        "Der Wert für {object} ist nicht erlaubt. Bitte prüfen Sie die Eingabe.",
+      "settings.managed_by_upload":
+        "Dieser Wert entsteht beim Hochladen der Datei. Bitte laden Sie die Datei neu hoch.",
+      "settings.module_required_by":
+        "{module} kann nicht abbestellt werden, solange {dependents} gebucht ist. Bitte bestellen Sie zuerst {dependents} ab.",
+      "settings.module_requires":
+        "{module} braucht das Modul {required}. Bitte buchen Sie zuerst {required}.",
+      "settings.not_found":
+        "Diese Einstellung gibt es nicht. Bitte laden Sie die Seite neu.",
+      "settings.presence_mode_switch_blocked":
+        "Der Anwesenheitsmodus kann erst nach dem Tagesabschluss gewechselt werden. Bitte beenden Sie zuerst den laufenden Tag.",
+      "staff.external_access_invalid":
+        "Bitte wählen Sie, welchen Zugang die Person bekommt.",
+      "staff.external_email_invalid":
+        "Diese E-Mail-Adresse ist nicht gültig. Bitte prüfen Sie sie.",
+      "staff.external_email_invited":
+        "Diese E-Mail-Adresse hat schon eine offene Einladung für eine andere Person. Bitte nehmen Sie eine andere Adresse.",
+      "staff.external_email_required":
+        "Bitte geben Sie eine E-Mail-Adresse ein.",
+      "staff.external_has_account":
+        "Diese Person hat schon ein Konto. Eine Einladung ist nicht nötig.",
+      "staff.not_external":
+        "Diese Person ist nicht als extern eingetragen. Bitte laden Sie sie wie andere Mitarbeitende ein.",
       "students.absence_read_required":
         "Für {object} brauchen Sie zusätzlich das Recht „Kinder sehen“. Bitte fragen Sie die Schulleitung.",
       "students.bulk_approval_ineligible":
@@ -492,6 +788,14 @@ export const ERROR_CATALOG = {
         "Die Notiz ist zu lang. Bitte kürzen Sie sie.",
       "students.child_quota_reached":
         "Das Kinderkontingent Ihrer Schule ist voll ({occupied_places} von {booked_places} Kindern). Bitte melden Sie sich beim moto-Team.",
+      "students.class_list_entry_assign_mismatch":
+        "Das gewählte Kind passt nicht zum Eintrag. Name und Klasse müssen gleich sein.",
+      "students.class_list_entry_duplicate":
+        "Ein Eintrag mit diesem Namen steht schon in dieser Klasse.",
+      "students.class_list_entry_student_exists":
+        "Ein Kind mit diesem Namen ist in dieser Klasse schon in moto angelegt.",
+      "students.class_list_entry_student_not_found":
+        "Das gewählte Kind gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "students.companion_lock_busy":
         "Gerade ändert jemand anderes die Laufgemeinschaft. Bitte versuchen Sie es gleich noch einmal.",
       "students.companion_plan_conflict":
@@ -504,24 +808,16 @@ export const ERROR_CATALOG = {
         "Diese Anfragen lassen sich nicht gemeinsam entscheiden. Bitte entscheiden Sie sie einzeln.",
       "students.correction_unsupported":
         "Diese Entscheidung lässt sich nicht zurücknehmen. Bitte ändern Sie den Eintrag direkt beim Kind.",
+      "students.day_log_disabled":
+        "Das Anwesenheitsprotokoll ist für Ihre Schule ausgeschaltet. Ihre Leitung kann es in den Einstellungen unter Datenschutz einschalten.",
+      "students.day_log_no_groups":
+        "Für Ihr Konto ist keine Gruppe sichtbar. Bitte wenden Sie sich an Ihre Leitung.",
       "students.deletion_acknowledgement_required":
         "Für {object} fehlt eine Angabe. Bitte ergänzen Sie das markierte Feld.",
       "students.deletion_companion_lock_busy":
         "Gerade ändert jemand anderes die Laufgemeinschaft. Bitte versuchen Sie es gleich noch einmal.",
       "students.deletion_constraints_changed":
         "{object} wurde inzwischen geändert. Bitte laden Sie die Seite neu.",
-      "students.class_list_entry_assign_mismatch":
-        "Das gewählte Kind passt nicht zum Eintrag. Name und Klasse müssen gleich sein.",
-      "students.class_list_entry_duplicate":
-        "Ein Eintrag mit diesem Namen steht schon in dieser Klasse.",
-      "students.class_list_entry_student_exists":
-        "Ein Kind mit diesem Namen ist in dieser Klasse schon in moto angelegt.",
-      "students.class_list_entry_student_not_found":
-        "Das gewählte Kind gibt es nicht mehr. Bitte laden Sie die Seite neu.",
-      "students.day_log_disabled":
-        "Das Anwesenheitsprotokoll ist für Ihre Schule ausgeschaltet. Ihre Leitung kann es in den Einstellungen unter Datenschutz einschalten.",
-      "students.day_log_no_groups":
-        "Für Ihr Konto ist keine Gruppe sichtbar. Bitte wenden Sie sich an Ihre Leitung.",
       "students.deletion_invalid_reason":
         "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
       "students.deletion_preview_changed":
@@ -657,6 +953,12 @@ export const ERROR_CATALOG = {
         "Der Termin liegt in der Vergangenheit. Eine Nachricht an die Eltern ist nicht mehr möglich.",
       "timetable.guardian_notice_text_invalid":
         "Bitte geben Sie Betreff und Text für die Eltern ein. Der Text darf höchstens 4000 Zeichen haben.",
+      "timetable.homework_feedback_child_not_in_supervision":
+        "Dieses Kind gehört nicht zu dieser Aufsicht. Bitte laden Sie die Seite neu.",
+      "timetable.homework_feedback_not_allowed":
+        "Eine Rückmeldung zu Hausaufgaben geht nur in einer Lernzeit, die Sie betreuen.",
+      "timetable.homework_feedback_without_homework":
+        "Für die Klasse dieses Kindes sind heute keine Hausaufgaben eingetragen.",
       "timetable.idempotency_key_reused":
         "Dieser Termin wurde schon angelegt. Bitte laden Sie die Seite neu.",
       "timetable.instance_end_before_start":
@@ -855,9 +1157,9 @@ export const ERROR_CATALOG = {
         "Über {object} wurde schon entschieden. Bitte laden Sie die Seite neu.",
       "workforce.absence_no_working_days":
         "In diesem Zeitraum gibt es keinen Arbeitstag. Bitte wählen Sie andere Tage.",
-      "workforce.absence_not_found": "Abwesenheit nicht gefunden.",
       "workforce.absence_not_cancelable":
         "{object} kann nicht mehr zurückgezogen werden. Bitte laden Sie die Seite neu.",
+      "workforce.absence_not_found": "Abwesenheit nicht gefunden.",
       "workforce.absence_not_owned":
         "Sie können nur eigene Abwesenheiten ändern.",
       "workforce.absence_overlap":
@@ -930,11 +1232,11 @@ export const ERROR_CATALOG = {
         "Bitte buchen Sie höchstens {limit} Einträge auf einmal um.",
       "workforce.replacement_outside_origin":
         "Eine Vertretung muss am Tag und in der Zeit der ausgefallenen Schicht liegen.",
-      "workforce.session_note_required":
-        "Bitte geben Sie einen Grund für die Änderung an.",
       "workforce.session_not_found": "Eintrag nicht gefunden.",
       "workforce.session_not_owned":
         "Sie können nur eigene Einträge bearbeiten.",
+      "workforce.session_note_required":
+        "Bitte geben Sie einen Grund für die Änderung an.",
       "workforce.session_times_invalid":
         "Das Ende muss nach dem Beginn liegen. Bitte prüfen Sie Beginn, Ende und Pause.",
       "workforce.shift_changed":
@@ -979,300 +1281,6 @@ export const ERROR_CATALOG = {
         "Urlaub können Sie nur ab heute beantragen. Bitte wählen Sie ein anderes Datum.",
       "workforce.work_session_overlap":
         "Die Zeit überschneidet sich mit einem anderen Eintrag an diesem Tag. Bitte prüfen Sie Beginn und Ende.",
-      "enrollment.phase_name_required":
-        "Bitte geben Sie einen Namen für die Anmeldephase ein.",
-      "enrollment.phase_service_period_invalid":
-        "Der Betreuungszeitraum ist unvollständig oder endet vor dem Beginn. Bitte prüfen Sie Beginn und Ende.",
-      "enrollment.phase_window_invalid":
-        "Das Anmeldefenster endet vor seinem Start. Bitte prüfen Sie Öffnung und Schließung.",
-      "enrollment.phase_school_classes_invalid":
-        "Die angebotenen und die zugelassenen Klassen passen nicht zusammen. Bitte prüfen Sie die Klassen.",
-      "enrollment.phase_not_found":
-        "Diese Anmeldephase gibt es nicht mehr. Bitte laden Sie die Seite neu.",
-      "enrollment.care_offering_name_required":
-        "Bitte geben Sie einen Namen für das Betreuungsangebot ein.",
-      "enrollment.care_offering_capacity_invalid":
-        "Bitte prüfen Sie die Zahl der Plätze. Ein Pflichtangebot hat keine Platzgrenze.",
-      "enrollment.care_offering_price_invalid":
-        "Der Preis darf nicht kleiner als 0 sein.",
-      "enrollment.care_offering_selection_invalid":
-        "Bitte prüfen Sie die Auswahlregel. Alle Angebote einer Auswahlgruppe brauchen dieselbe Regel.",
-      "enrollment.care_offering_pickup_time_invalid":
-        "Bitte geben Sie die Gehzeit als Uhrzeit ein, zum Beispiel 15:30.",
-      "enrollment.care_offering_auto_add_invalid":
-        "Die automatische Zubuchung passt so nicht. Bitte prüfen Sie die auslösenden Angebote und die Tagesauswahl.",
-      "enrollment.care_offering_not_found":
-        "Dieses Betreuungsangebot gibt es nicht mehr. Bitte laden Sie die Seite neu.",
-      "enrollment.schema_name_required":
-        "Bitte geben Sie einen Namen für die Formularvorlage ein.",
-      "enrollment.schema_not_found":
-        "Diese Formularvorlage gibt es nicht mehr. Bitte laden Sie die Seite neu.",
-      "enrollment.form_grade_collection_required":
-        "Die Heimweg-Beschränkung braucht die Abfrage der Klassenstufe. Bitte schalten Sie sie in den Einstellungen ein.",
-      "enrollment.form_field_key_invalid":
-        "Diese Frage lässt sich so nicht speichern. Bitte ändern Sie ihren Text.",
-      "enrollment.form_field_key_duplicate":
-        "Zwei Fragen haben denselben Text. Bitte ändern Sie den Text der markierten Frage.",
-      "enrollment.form_field_label_required":
-        "Bitte geben Sie jedem Feld eine Beschriftung.",
-      "enrollment.form_attachment_invalid":
-        "Bitte prüfen Sie die Bezeichnung und die PDF-Datei.",
-      "enrollment.form_field_content_required":
-        "Bitte geben Sie für den Hinweistext einen Text ein.",
-      "enrollment.form_field_options_invalid":
-        "Auswahlfelder brauchen mindestens eine Option. Andere Felder haben keine Optionen.",
-      "enrollment.form_field_allowed_times_invalid":
-        "Bitte prüfen Sie die Abholzeiten. Jede Uhrzeit darf nur einmal vorkommen, zum Beispiel 15:30.",
-      "enrollment.form_field_target_invalid":
-        "Dieses Feld passt nicht zu seiner Zuordnung. Bitte wählen Sie die Zuordnung neu.",
-      "enrollment.form_field_target_duplicate":
-        "Diese Zuordnung gibt es im Formular schon. Jede Zuordnung darf nur einmal vorkommen.",
-      "enrollment.form_field_visibility_invalid":
-        "Die Anzeigebedingung passt nicht. Bitte wählen Sie als Bedingung eine Ja-Nein-Frage oder eine Auswahlfrage.",
-      "enrollment.legal_block_key_invalid":
-        "Dieser Rechtstext lässt sich so nicht speichern. Bitte entfernen Sie ihn und legen Sie ihn neu an.",
-      "enrollment.legal_block_key_duplicate":
-        "Ein Rechtstext kommt doppelt vor. Bitte entfernen Sie den doppelten Rechtstext.",
-      "enrollment.legal_block_incomplete":
-        "Bitte geben Sie jedem eingeschalteten Rechtstext einen Titel und eine Beschriftung.",
-      "enrollment.legal_block_required_not_allowed":
-        "Hinweise und Einwilligungen dürfen keine Pflicht sein. Bitte nehmen Sie den Haken bei Pflicht heraus.",
-      "enrollment.legal_document_invalid":
-        "Bitte wählen Sie eine PDF-Datei mit höchstens {max_mb} MB.",
-      "enrollment.form_field_file_options_invalid":
-        "Bitte prüfen Sie die Dateifrage. Wählen Sie mindestens eine Dateiart und eine Größe von 1 bis 10 MB.",
-      "enrollment.upload_invalid":
-        "Diese Datei passt nicht. Bitte wählen Sie eine erlaubte Dateiart mit höchstens {max_mb} MB.",
-      "enrollment.upload_expired":
-        "Eine hochgeladene Datei ist abgelaufen. Bitte laden Sie sie erneut hoch.",
-      "enrollment.upload_rate_limited":
-        "Es wurden zu viele Dateien hochgeladen. Bitte versuchen Sie es später noch einmal.",
-      "enrollment.upload_not_found":
-        "Diese Datei gibt es nicht mehr. Bitte laden Sie sie erneut hoch.",
-      "enrollment.request_not_found":
-        "Diese Anmeldung gibt es nicht mehr. Bitte laden Sie die Seite neu.",
-      "enrollment.restore_nothing_withdrawn":
-        "In dieser Anmeldung ist kein Kind abgemeldet. Es gibt nichts wiederherzustellen.",
-      "enrollment.decision_already_final":
-        "Über dieses Kind wurde schon entschieden. Bitte laden Sie die Seite neu.",
-      "enrollment.approval_data_invalid":
-        "Die Angaben dieser Anmeldung sind unvollständig. Bitte korrigieren Sie die Daten des Kindes.",
-      "enrollment.offering_adjustment_invalid":
-        "Diese Änderung der Angebote ist so nicht möglich. Bitte prüfen Sie Angebote und Datum.",
-      "enrollment.deletion_reason_invalid":
-        "Bitte geben Sie einen Grund mit 3 bis 500 Zeichen ein.",
-      "enrollment.export_too_large":
-        "Diese Anmeldephase hat zu viele Anmeldungen für einen Export. Bitte melden Sie sich beim moto-Team.",
-      "enrollment.change_request_note_required":
-        "Bitte schreiben Sie eine kurze Begründung für die Familie.",
-      "enrollment.correction_reason_required":
-        "Bitte geben Sie einen Grund für die Korrektur ein.",
-      "enrollment.correction_school_class_mismatch":
-        "Die Klasse passt nicht zur Klassenstufe. Bitte wählen Sie eine passende Klasse.",
-      "rollover.deadline_required":
-        "Bitte geben Sie eine Frist für die Rückmeldung ein.",
-      "enrollment.form_not_found":
-        "Dieses Anmeldeformular gibt es nicht. Bitte prüfen Sie den Link oder fragen Sie die Schule.",
-      "enrollment.status_link_invalid":
-        "Dieser Link ist ungültig oder abgelaufen. Bitte nutzen Sie den Link aus Ihrer E-Mail.",
-      "enrollment.edit_not_allowed":
-        "Diese Anmeldung kann nicht mehr geändert werden. Bitte wenden Sie sich an die Schule.",
-      "enrollment.withdraw_not_allowed":
-        "Diese Anmeldung kann nicht mehr zurückgezogen werden. Bitte wenden Sie sich an die Schule.",
-      "enrollment.captcha_required":
-        "Bitte bestätigen Sie die Sicherheitsabfrage.",
-      "enrollment.captcha_failed":
-        "Die Sicherheitsabfrage hat nicht geklappt. Bitte versuchen Sie es noch einmal.",
-      "enrollment.submission_rate_limited":
-        "Es wurden zu viele Anmeldungen gesendet. Bitte versuchen Sie es in einer Stunde noch einmal.",
-      "enrollment.request_duplicate":
-        "Für dieses Kind gibt es in dieser Anmeldephase schon eine Anmeldung.",
-      "enrollment.child_already_requested":
-        "Eine andere Person hat dieses Kind schon angemeldet. Bitte wenden Sie sich an die Schule.",
-      "enrollment.care_offering_closed":
-        "Ein gewähltes Betreuungsangebot nimmt gerade keine Anmeldungen an. Bitte wählen Sie ein anderes Angebot.",
-      "enrollment.consent_required":
-        "Bitte bestätigen Sie alle Pflicht-Zustimmungen.",
-      "enrollment.child_required": "Bitte fügen Sie mindestens ein Kind hinzu.",
-      "enrollment.child_name_required":
-        "Bitte geben Sie Vor- und Nachnamen des Kindes ein.",
-      "enrollment.child_birth_date_invalid":
-        "Bitte geben Sie das Geburtsdatum des Kindes ein.",
-      "enrollment.child_grade_required":
-        "Bitte wählen Sie die Klassenstufe des Kindes.",
-      "enrollment.guardian_name_required":
-        "Bitte geben Sie Vor- und Nachnamen ein.",
-      "enrollment.guardian_email_required":
-        "Bitte geben Sie eine E-Mail-Adresse ein.",
-      "enrollment.guardian_phone_required":
-        "Bitte geben Sie eine Telefonnummer ein.",
-      "enrollment.field_required": "Bitte füllen Sie alle Pflichtfelder aus.",
-      "enrollment.companion_note_required":
-        "Bitte geben Sie an, mit wem das Kind nach Hause geht.",
-      "enrollment.message_required": "Bitte schreiben Sie eine Nachricht.",
-      "enrollment.change_request_guardian_linked":
-        "Diese Angaben ändern Sie bitte in der Eltern-App.",
-      "enrollment.change_request_not_found":
-        "Diese Änderungsanfrage gibt es nicht mehr. Bitte laden Sie die Seite neu.",
-      "enrollment.change_request_not_allowed":
-        "Diese Anmeldung kann gerade nicht geändert werden. Bitte wenden Sie sich an die Schule.",
-      "enrollment.change_request_status_changed":
-        "Der Stand dieser Änderungsanfrage hat sich geändert. Bitte laden Sie die Seite neu.",
-      "enrollment.phase_eligibility_setting_required":
-        "Für eine Einschränkung nach Klasse oder Klassenstufe muss die passende Abfrage eingeschaltet sein. Bitte schalten Sie sie in den Einstellungen ein.",
-      "identity.username_taken":
-        "Der erzeugte Benutzername war schon vergeben. Bitte versuchen Sie es noch einmal.",
-      "identity.password_mismatch":
-        "Die beiden Passwörter stimmen nicht überein. Bitte geben Sie sie erneut ein.",
-      "identity.operator_invitation_invalid":
-        "Dieser Einladungslink ist abgelaufen oder ungültig. Bitte lassen Sie sich neu einladen.",
-      "identity.operator_self_deactivation":
-        "Sie können Ihr eigenes Konto nicht deaktivieren. Bitten Sie eine andere Person aus dem Team darum.",
-      "identity.invitation_rate_limited":
-        "Es wurden zu viele Einladungen verschickt. Bitte versuchen Sie es in einer Stunde erneut.",
-      "identity.email_change_rate_limited":
-        "Die E-Mail-Adresse wurde zu oft geändert. Bitte versuchen Sie es in einer Stunde erneut.",
-      "identity.email_change_same_email":
-        "Die neue E-Mail-Adresse ist dieselbe wie die bisherige. Bitte geben Sie eine andere ein.",
-      "identity.email_change_link_invalid":
-        "Dieser Bestätigungslink ist abgelaufen oder ungültig. Bitte ändern Sie die E-Mail-Adresse erneut.",
-      "identity.mfa_status_unavailable":
-        "Die Sicherheitsabfrage ist gerade nicht möglich. Bitte versuchen Sie es erneut.",
-      "identity.mfa_session_required":
-        "Für die Anmeldung bei {object} brauchen Sie einen zweiten Anmeldenachweis. Wählen Sie „Zur Schulanmeldung“. Sie werden abgemeldet. Melden Sie sich danach dort neu an und bestätigen Sie die Anmeldung.",
-      "identity.mfa_not_enrolled":
-        "Die Zwei-Faktor-Anmeldung ist noch nicht eingerichtet. Bitte richten Sie sie zuerst ein.",
-      "identity.mfa_already_enrolled":
-        "Die Zwei-Faktor-Anmeldung ist schon eingerichtet. Bitte laden Sie die Seite neu.",
-      "identity.passkey_not_found":
-        "Diesen Passkey gibt es nicht mehr. Bitte laden Sie die Seite neu.",
-      "identity.account_not_found":
-        "Dieses Konto gibt es nicht mehr. Bitte laden Sie die Seite neu.",
-      "identity.tenant_access_not_found":
-        "Dieses Konto hat keinen Zugang zu dieser Schule mehr. Bitte laden Sie die Seite neu.",
-      "identity.account_not_in_school":
-        "Dieses Konto gehört nicht zu dieser Schule. Bitte laden Sie die Seite neu.",
-      "identity.lehrkraft_role_immutable":
-        "Ein Lehrkraft-Konto behält seine Rolle. Für eine andere Rolle braucht die Person ein neues Konto.",
-      "identity.access_name_required":
-        "Für diese Schule fehlt der Name der Person. Bitte geben Sie Vor- und Nachnamen ein.",
-      "provisioning.organization_slug_taken":
-        "Diesen Slug hat schon ein anderer Träger. Bitte wählen Sie einen anderen.",
-      "provisioning.school_subdomain_taken":
-        "Diese Subdomain hat schon eine andere Schule. Bitte wählen Sie eine andere.",
-      "provisioning.school_slug_taken":
-        "Diesen Slug hat schon eine andere Schule dieses Trägers. Bitte wählen Sie einen anderen.",
-      "provisioning.device_api_key_taken":
-        "Diesen API-Key nutzt schon ein anderes Gerät. Bitte wählen Sie einen anderen.",
-      "provisioning.device_id_taken":
-        "Diese Geräte-ID gibt es an der Schule schon. Bitte wählen Sie eine andere.",
-      "provisioning.organization_not_found":
-        "Diesen Träger gibt es nicht mehr. Bitte laden Sie die Seite neu.",
-      "provisioning.organization_already_deleted":
-        "Dieser Träger ist schon gelöscht. Bitte laden Sie die Seite neu.",
-      "provisioning.organization_not_deleted":
-        "Dieser Träger ist nicht gelöscht. Bitte laden Sie die Seite neu.",
-      "provisioning.organization_has_schools":
-        "Zu diesem Träger gehören noch Schulen (Anzahl: {school_count}). Bitte löschen Sie zuerst alle Schulen des Trägers.",
-      "provisioning.organization_deleted":
-        "Der Träger ist gelöscht. Bitte wählen Sie einen anderen Träger.",
-      "provisioning.school_not_found":
-        "Diese Schule gibt es nicht mehr. Bitte laden Sie die Seite neu.",
-      "provisioning.school_inactive":
-        "Die Schule ist ausgeschaltet. Bitte schalten Sie sie zuerst ein.",
-      "provisioning.school_already_deleted":
-        "Diese Schule ist schon gelöscht. Bitte laden Sie die Seite neu.",
-      "provisioning.school_not_deleted":
-        "Diese Schule ist nicht gelöscht. Bitte laden Sie die Seite neu.",
-      "provisioning.device_not_found":
-        "Dieses Gerät gibt es nicht mehr. Bitte laden Sie die Seite neu.",
-      "provisioning.device_in_use":
-        "Mit diesem Gerät wurden schon Anwesenheiten oder Sitzungen erfasst. Es kann nicht gelöscht werden.",
-      "provisioning.device_protected":
-        "Dieses Systemgerät kann nicht gelöscht werden.",
-      "provisioning.device_transfer_protected":
-        "Dieses Systemgerät kann nicht umgezogen werden.",
-      "provisioning.device_online":
-        "Das Gerät ist gerade online. Bitte schalten Sie es aus und versuchen Sie es dann erneut.",
-      "provisioning.device_active_session":
-        "Auf dem Gerät läuft gerade eine Sitzung. Bitte beenden Sie sie und versuchen Sie es dann erneut.",
-      "provisioning.device_other_organization":
-        "Ein Gerät kann nur zu einer Schule desselben Trägers umziehen. Bitte wählen Sie eine andere Schule.",
-      "provisioning.device_same_school":
-        "Das Gerät gehört schon zu dieser Schule. Bitte wählen Sie eine andere Schule.",
-      "provisioning.person_not_found":
-        "Diese Person gibt es nicht mehr. Bitte laden Sie die Seite neu.",
-      "provisioning.person_has_supervisions":
-        "Diese Person führt gerade eine Aufsicht. Bitte beenden Sie die Aufsicht zuerst.",
-      "provisioning.caregiver_capability_blocked":
-        "Die Betreuungsrolle kann noch nicht entfernt werden, weil die Person noch eingeplant ist. Bitte lösen Sie diese Zuordnungen zuerst.",
-      "settings.not_found":
-        "Diese Einstellung gibt es nicht. Bitte laden Sie die Seite neu.",
-      "settings.admin_only": "Diese Einstellung ändert nur die Schule selbst.",
-      "settings.managed_by_upload":
-        "Dieser Wert entsteht beim Hochladen der Datei. Bitte laden Sie die Datei neu hoch.",
-      "settings.invalid_value":
-        "Der Wert für {object} ist nicht erlaubt. Bitte prüfen Sie die Eingabe.",
-      "settings.presence_mode_switch_blocked":
-        "Der Anwesenheitsmodus kann erst nach dem Tagesabschluss gewechselt werden. Bitte beenden Sie zuerst den laufenden Tag.",
-      "settings.booking_authority_blocked":
-        "Der Buchungsmodus wurde nicht aktiviert: Für mindestens ein betreutes Kind ist kein Betreuungstag gebucht. Bitte prüfen Sie die Auswirkungen erneut.",
-      "settings.attendance_visible_exceeds_retention":
-        "Das Team kann die Anwesenheit höchstens {retention_days} Tage zurück sehen. So lange bewahrt moto sie auf.",
-      "settings.attendance_retention_below_visible":
-        "Das Team sieht die Anwesenheit {visible_days} Tage zurück. Die Aufbewahrung muss mindestens so lang sein.",
-      "settings.module_requires":
-        "{module} braucht das Modul {required}. Bitte buchen Sie zuerst {required}.",
-      "settings.module_required_by":
-        "{module} kann nicht abbestellt werden, solange {dependents} gebucht ist. Bitte bestellen Sie zuerst {dependents} ab.",
-      "communication.announcement_not_found":
-        "Diese Ankündigung gibt es nicht mehr. Bitte laden Sie die Seite neu.",
-      "devices.tag_scan_not_found":
-        "Diesen Scan gibt es nicht mehr. Bitte laden Sie die Seite neu.",
-      "devices.tag_scan_already_resolved":
-        "Dieser Scan ist schon erledigt. Bitte laden Sie die Seite neu.",
-      "billing.invalid_key_day":
-        "Der Stichtag muss zwischen dem 1. und dem 28. des Monats liegen. Bitte wählen Sie einen dieser Tage.",
-      "identity.caterer_address_taken":
-        "Diese E-Mail-Adresse gehört schon zu einem anderen moto-Konto. Bitte nehmen Sie eine andere Adresse.",
-      "identity.caterer_without_school":
-        "Sie beliefern zurzeit keine Schule über moto. Bitte fragen Sie die Schule.",
-      "meals.delivery_range_too_long":
-        "Die Lieferliste umfasst höchstens sieben Tage. Bitte wählen Sie einen kürzeren Zeitraum.",
-      "meals.not_supplied":
-        "Sie beliefern diese Schule nicht mehr. Bitte fragen Sie die Schule.",
-      "meals.order_not_found":
-        "Diese Bestellung gibt es nicht. Bitte laden Sie die Seite neu.",
-      "meals.supply_active":
-        "{object} geht gerade nicht. Ein Caterer beliefert die Schule noch. Beenden Sie zuerst diese Belieferung.",
-      "staff.external_email_required":
-        "Bitte geben Sie eine E-Mail-Adresse ein.",
-      "staff.external_email_invalid":
-        "Diese E-Mail-Adresse ist nicht gültig. Bitte prüfen Sie sie.",
-      "staff.not_external":
-        "Diese Person ist nicht als extern eingetragen. Bitte laden Sie sie wie andere Mitarbeitende ein.",
-      "staff.external_has_account":
-        "Diese Person hat schon ein Konto. Eine Einladung ist nicht nötig.",
-      "staff.external_email_invited":
-        "Diese E-Mail-Adresse hat schon eine offene Einladung für eine andere Person. Bitte nehmen Sie eine andere Adresse.",
-      "staff.external_access_invalid":
-        "Bitte wählen Sie, welchen Zugang die Person bekommt.",
-      "communication.group_thread_closed":
-        "Diese Gruppennachricht ist geschlossen. Eine Antwort ist nicht mehr möglich.",
-      "communication.group_thread_no_recipients":
-        "Niemand in dieser Gruppe hat Eltern mit Zugang zu moto. Die Nachricht wurde nicht verschickt.",
-      "operator.audit_unavailable":
-        "Die Anfrage konnte nicht sicher protokolliert werden. Bitte versuchen Sie es später erneut.",
-      "classday.homework_not_found":
-        "Diese Hausaufgabe gibt es nicht mehr. Bitte laden Sie die Seite neu.",
-      "timetable.homework_feedback_child_not_in_supervision":
-        "Dieses Kind gehört nicht zu dieser Aufsicht. Bitte laden Sie die Seite neu.",
-      "timetable.homework_feedback_not_allowed":
-        "Eine Rückmeldung zu Hausaufgaben geht nur in einer Lernzeit, die Sie betreuen.",
-      "timetable.homework_feedback_without_homework":
-        "Für die Klasse dieses Kindes sind heute keine Hausaufgaben eingetragen.",
-      "module.not_booked":
-        "Ihre Schule hat das Modul {module_label} nicht gebucht. Für eine Buchung wenden Sie sich an das moto-Team.",
     },
   },
   en: {
@@ -1394,12 +1402,23 @@ export const ERROR_CATALOG = {
         "A class can only be handed over today. Please open today.",
       "classday.class_handover_unknown_child":
         "A child no longer belongs to this class. Please reload the page.",
+      "classday.homework_not_found":
+        "This homework no longer exists. Please reload the page.",
       "classday.morning_attendance_no_school_day":
         "Today is not a school day. Attendance can only be recorded on school days.",
       "classday.morning_attendance_not_today":
         "Attendance can only be recorded for today. Please open today.",
       "classday.morning_attendance_unknown_child":
         "A child no longer belongs to this class. Please reload the page.",
+      "communication.group_thread_closed":
+        "This group message is closed. You can no longer reply.",
+      "communication.group_thread_no_recipients":
+        "No child in this group has parents with access to moto. The message was not sent.",
+      "enrollment.captcha_failed":
+        "The security check did not work. Please try again.",
+      "enrollment.captcha_required": "Please complete the security check.",
+      "enrollment.care_offering_closed":
+        "A selected care option is not accepting enrollments right now. Please choose another option.",
       "enrollment.care_offering_day_conflict":
         "Two options that do not go together are chosen for the same day. Please choose only one per day.",
       "enrollment.care_offering_exactly_one":
@@ -1416,18 +1435,37 @@ export const ERROR_CATALOG = {
         "This child is already in care. Please make changes in the parent app.",
       "enrollment.change_request_conflict":
         "{object} has been changed in the meantime. Please check your details again.",
+      "enrollment.change_request_guardian_linked":
+        "Please change these details in the parent app.",
+      "enrollment.change_request_not_allowed":
+        "This enrollment cannot be changed right now. Please contact the school.",
+      "enrollment.change_request_not_found":
+        "This change request no longer exists. Please reload the page.",
+      "enrollment.change_request_status_changed":
+        "The status of this change request has changed. Please reload the page.",
       "enrollment.child_already_enrolled":
         "This child is already enrolled at the school. This enrollment is only for new children.",
+      "enrollment.child_already_requested":
+        "Another person has already enrolled this child. Please contact the school.",
       "enrollment.child_ambiguous":
         "We could not clearly identify the child. Please contact the school.",
+      "enrollment.child_birth_date_invalid":
+        "Please enter the child's date of birth.",
+      "enrollment.child_grade_required": "Please select the child's grade.",
+      "enrollment.child_name_required":
+        "Please enter the child's first and last name.",
       "enrollment.child_not_enrolled":
         "This child is not enrolled at the school yet. This enrollment is only for children of the school.",
       "enrollment.child_not_permitted":
         "You are not allowed to enroll this child again. Please contact the school.",
+      "enrollment.child_required": "Please add at least one child.",
       "enrollment.class_not_eligible":
         "This enrollment is only for certain classes. Please check your child's class.",
+      "enrollment.companion_note_required":
+        "Please state who the child goes home with.",
       "enrollment.complete_withdrawal_confirmation_required":
         "{object} cannot be withdrawn yet. Please confirm with {confirmation}.",
+      "enrollment.consent_required": "Please confirm all required consents.",
       "enrollment.day_selection_not_allowed":
         "The days for this option are fixed. You cannot choose days.",
       "enrollment.day_selection_required":
@@ -1436,22 +1474,52 @@ export const ERROR_CATALOG = {
         "Please choose only one way home per weekday.",
       "enrollment.disabled":
         "Online enrollment is not available at this school right now. Please contact the school.",
+      "enrollment.edit_not_allowed":
+        "This enrollment can no longer be changed. Please contact the school.",
+      "enrollment.field_required": "Please fill in all required fields.",
+      "enrollment.form_attachment_invalid":
+        "Please check the label and the PDF file.",
+      "enrollment.form_field_file_options_invalid":
+        "Please check the file question. Choose at least one file type and a size from 1 to 10 MB.",
+      "enrollment.form_not_found":
+        "This enrollment form does not exist. Please check the link or ask the school.",
       "enrollment.grade_not_eligible":
         "This enrollment is only for certain grades. Please check your child's grade.",
+      "enrollment.guardian_email_required": "Please enter an email address.",
+      "enrollment.guardian_name_required":
+        "Please enter the first and last name.",
+      "enrollment.guardian_phone_required": "Please enter a phone number.",
       "enrollment.invalid_email": "Please enter a valid email address.",
       "enrollment.invalid_phone": "Please enter a valid phone number.",
       "enrollment.late_invite_invalid":
         "This link is invalid, has expired or was already used. Please contact the school.",
+      "enrollment.message_required": "Please write a message.",
       "enrollment.phase_not_eligible":
         "This enrollment is not available for your account. Please sign in to the parent app or ask the school.",
       "enrollment.pickup_time_not_allowed":
         "Please only choose pick-up times from the list. The marked time is no longer available.",
+      "enrollment.request_duplicate":
+        "This child already has an enrollment in this enrollment period.",
       "enrollment.required_care_offering_missing":
         "Please select the required care option for each child.",
       "enrollment.selected_day_not_available":
         "This weekday is not available for this option. Please only choose the days shown.",
+      "enrollment.status_link_invalid":
+        "This link is invalid or has expired. Please use the link from your email.",
+      "enrollment.submission_rate_limited":
+        "Too many enrollments were sent. Please try again in an hour.",
+      "enrollment.upload_expired":
+        "An uploaded file has expired. Please upload it again.",
+      "enrollment.upload_invalid":
+        "This file does not fit. Please choose an allowed file type of at most {max_mb} MB.",
+      "enrollment.upload_not_found":
+        "This file no longer exists. Please upload it again.",
+      "enrollment.upload_rate_limited":
+        "Too many files were uploaded. Please try again later.",
       "enrollment.window_closed":
         "The enrollment period has ended or has not started yet. Please contact the school.",
+      "enrollment.withdraw_not_allowed":
+        "This enrollment can no longer be withdrawn. Please contact the school.",
       "files.file_name_invalid":
         "This file name is not allowed. Please choose the file again.",
       "general.request_too_large":
@@ -1460,6 +1528,10 @@ export const ERROR_CATALOG = {
         "This person already has access to this school. You can find them in the staff list.",
       "identity.account_inactive":
         "Your account is blocked. Please contact moto.",
+      "identity.caterer_address_taken":
+        "This email address already belongs to another moto account. Please use a different address.",
+      "identity.caterer_without_school":
+        "You do not supply any school through moto at the moment. Please ask the school.",
       "identity.demo_access_expired":
         "The demo access has expired. Please request new access.",
       "identity.demo_access_invalid":
@@ -1474,40 +1546,67 @@ export const ERROR_CATALOG = {
         "The demo school is being prepared. Please try again in a moment.",
       "identity.email_already_exists":
         "There is already an account for this email address. Please use a different address.",
+      "identity.invalid_credentials":
+        "The email address or the password is not correct. Please check your entry.",
       "identity.invitation_account_login_required":
         "There is already an account for this email address. Please sign in with it first and then open the invitation again.",
       "identity.invitation_account_mismatch":
         "You are signed in with a different account. Please sign in with the invited email address.",
-      "identity.session_account_inactive":
-        "Your account is switched off. Please contact your school's management.",
-      "identity.invalid_credentials":
-        "The email address or the password is not correct. Please check your entry.",
-      "identity.password_too_weak":
-        "The password is too weak. It needs at least 8 characters, upper and lower case letters, a number and a special character.",
+      "identity.invitation_expired":
+        "This invitation has expired or has already been used. Please ask your school for a new invitation.",
+      "identity.invitation_not_found":
+        "This invitation does not exist. Please check the link in the email.",
+      "identity.mfa_blocked":
+        "Too many attempts. Please wait a few minutes and then try again.",
+      "identity.mfa_session_required":
+        "Signing in to {object} requires a second verification. Use the button to sign out and open that school’s sign-in page. Sign in there again and complete the verification.",
+      "identity.mfa_status_unavailable":
+        "Sign-in verification is currently unavailable. Please try again.",
+      "identity.operator_self_deactivation":
+        "You cannot deactivate your own account. Ask another team member to do this.",
       "identity.password_reset_link_invalid":
         "The link has expired or has already been used. Please request a new link.",
       "identity.password_reset_rate_limited":
         "You have requested a link too often. Please wait a while and then try again.",
-      "identity.mfa_blocked":
-        "Too many attempts. Please wait a few minutes and then try again.",
-      "identity.invitation_not_found":
-        "This invitation does not exist. Please check the link in the email.",
-      "identity.invitation_expired":
-        "This invitation has expired or has already been used. Please ask your school for a new invitation.",
+      "identity.password_too_weak":
+        "The password is too weak. It needs at least 8 characters, upper and lower case letters, a number and a special character.",
+      "identity.session_account_inactive":
+        "Your account is switched off. Please contact your school's management.",
       "meals.child_not_enrolled":
         "{object} is not possible. The child is not in care on this day.",
       "meals.day_closed":
         "{object} is not possible. The school is closed on this day.",
       "meals.day_past":
         "{object} is no longer possible. The day is already over.",
+      "meals.delivery_range_too_long":
+        "The delivery list covers at most seven days. Please choose a shorter period.",
       "meals.invalid_allergens":
         "The allergens could not be saved. Please select them again.",
       "meals.invalid_participation":
         "{object} contains invalid details. Please check your entries.",
+      "meals.not_supplied":
+        "You no longer supply this school. Please ask the school.",
+      "meals.order_not_found":
+        "This order does not exist. Please reload the page.",
       "meals.plan_disabled":
         "{object} is not available here at the moment. Please ask your contact person.",
       "meals.registration_disabled":
         "{object} is not available here at the moment. Please ask your contact person.",
+      "meals.supply_active":
+        "{object} is not possible right now. A caterer still supplies the school. Please end that supply first.",
+      "module.not_booked":
+        "Your school has not booked the module {module_label}. To book it, please contact the moto team.",
+      "staff.external_access_invalid":
+        "Please choose which access this person gets.",
+      "staff.external_email_invalid":
+        "This email address is not valid. Please check it.",
+      "staff.external_email_invited":
+        "This email address already has an open invitation for someone else. Please use another address.",
+      "staff.external_email_required": "Please enter an email address.",
+      "staff.external_has_account":
+        "This person already has an account. No invitation is needed.",
+      "staff.not_external":
+        "This person is not listed as external. Please invite them like other staff members.",
       "students.care_exception_raced":
         "{object} has been changed in the meantime. Please check your details again.",
       "students.care_offerings_disabled":
@@ -1526,105 +1625,14 @@ export const ERROR_CATALOG = {
         "The parents set this time. Only someone with a staff profile can change it.",
       "students.status_day_conflict":
         "Some days already have an entry. These days were not changed.",
-      "traeger.no_membership":
-        "Your account has no access to the Träger portal. Please contact the moto team.",
-      "enrollment.form_attachment_invalid":
-        "Please check the label and the PDF file.",
-      "enrollment.form_field_file_options_invalid":
-        "Please check the file question. Choose at least one file type and a size from 1 to 10 MB.",
-      "enrollment.upload_invalid":
-        "This file does not fit. Please choose an allowed file type of at most {max_mb} MB.",
-      "enrollment.upload_expired":
-        "An uploaded file has expired. Please upload it again.",
-      "enrollment.upload_rate_limited":
-        "Too many files were uploaded. Please try again later.",
-      "enrollment.upload_not_found":
-        "This file no longer exists. Please upload it again.",
-      "enrollment.form_not_found":
-        "This enrollment form does not exist. Please check the link or ask the school.",
-      "enrollment.status_link_invalid":
-        "This link is invalid or has expired. Please use the link from your email.",
-      "enrollment.edit_not_allowed":
-        "This enrollment can no longer be changed. Please contact the school.",
-      "enrollment.withdraw_not_allowed":
-        "This enrollment can no longer be withdrawn. Please contact the school.",
-      "enrollment.captcha_required": "Please complete the security check.",
-      "enrollment.captcha_failed":
-        "The security check did not work. Please try again.",
-      "enrollment.submission_rate_limited":
-        "Too many enrollments were sent. Please try again in an hour.",
-      "enrollment.request_duplicate":
-        "This child already has an enrollment in this enrollment period.",
-      "enrollment.child_already_requested":
-        "Another person has already enrolled this child. Please contact the school.",
-      "enrollment.care_offering_closed":
-        "A selected care option is not accepting enrollments right now. Please choose another option.",
-      "enrollment.consent_required": "Please confirm all required consents.",
-      "enrollment.child_required": "Please add at least one child.",
-      "enrollment.child_name_required":
-        "Please enter the child's first and last name.",
-      "enrollment.child_birth_date_invalid":
-        "Please enter the child's date of birth.",
-      "enrollment.child_grade_required": "Please select the child's grade.",
-      "enrollment.guardian_name_required":
-        "Please enter the first and last name.",
-      "enrollment.guardian_email_required": "Please enter an email address.",
-      "enrollment.guardian_phone_required": "Please enter a phone number.",
-      "enrollment.field_required": "Please fill in all required fields.",
-      "enrollment.companion_note_required":
-        "Please state who the child goes home with.",
-      "enrollment.message_required": "Please write a message.",
-      "enrollment.change_request_guardian_linked":
-        "Please change these details in the parent app.",
-      "enrollment.change_request_not_found":
-        "This change request no longer exists. Please reload the page.",
-      "enrollment.change_request_not_allowed":
-        "This enrollment cannot be changed right now. Please contact the school.",
-      "enrollment.change_request_status_changed":
-        "The status of this change request has changed. Please reload the page.",
-      "identity.operator_self_deactivation":
-        "You cannot deactivate your own account. Ask another team member to do this.",
-      "identity.mfa_status_unavailable":
-        "Sign-in verification is currently unavailable. Please try again.",
-      "identity.mfa_session_required":
-        "Signing in to {object} requires a second verification. Use the button to sign out and open that school’s sign-in page. Sign in there again and complete the verification.",
-      "identity.caterer_address_taken":
-        "This email address already belongs to another moto account. Please use a different address.",
-      "identity.caterer_without_school":
-        "You do not supply any school through moto at the moment. Please ask the school.",
-      "meals.delivery_range_too_long":
-        "The delivery list covers at most seven days. Please choose a shorter period.",
-      "meals.not_supplied":
-        "You no longer supply this school. Please ask the school.",
-      "meals.order_not_found":
-        "This order does not exist. Please reload the page.",
-      "meals.supply_active":
-        "{object} is not possible right now. A caterer still supplies the school. Please end that supply first.",
-      "staff.external_email_required": "Please enter an email address.",
-      "staff.external_email_invalid":
-        "This email address is not valid. Please check it.",
-      "staff.not_external":
-        "This person is not listed as external. Please invite them like other staff members.",
-      "staff.external_has_account":
-        "This person already has an account. No invitation is needed.",
-      "staff.external_email_invited":
-        "This email address already has an open invitation for someone else. Please use another address.",
-      "staff.external_access_invalid":
-        "Please choose which access this person gets.",
-      "communication.group_thread_closed":
-        "This group message is closed. You can no longer reply.",
-      "communication.group_thread_no_recipients":
-        "No child in this group has parents with access to moto. The message was not sent.",
-      "classday.homework_not_found":
-        "This homework no longer exists. Please reload the page.",
       "timetable.homework_feedback_child_not_in_supervision":
         "This child is not part of this supervision. Please reload the page.",
       "timetable.homework_feedback_not_allowed":
         "Homework feedback is only possible in a study time you supervise.",
       "timetable.homework_feedback_without_homework":
         "No homework is entered for this child's class today.",
-      "module.not_booked":
-        "Your school has not booked the module {module_label}. To book it, please contact the moto team.",
+      "traeger.no_membership":
+        "Your account has no access to the Träger portal. Please contact the moto team.",
     },
   },
   ru: {
@@ -1745,12 +1753,23 @@ export const ERROR_CATALOG = {
         "Передать класс можно только сегодня. Откройте сегодняшний день.",
       "classday.class_handover_unknown_child":
         "Один ребёнок больше не относится к этому классу. Обновите страницу.",
+      "classday.homework_not_found":
+        "Этого домашнего задания больше нет. Обновите страницу.",
       "classday.morning_attendance_no_school_day":
         "Сегодня не учебный день. Посещаемость можно отмечать только в учебные дни.",
       "classday.morning_attendance_not_today":
         "Посещаемость можно отметить только за сегодня. Откройте сегодняшний день.",
       "classday.morning_attendance_unknown_child":
         "Один ребёнок больше не относится к этому классу. Обновите страницу.",
+      "communication.group_thread_closed":
+        "Это групповое сообщение закрыто. Ответить больше нельзя.",
+      "communication.group_thread_no_recipients":
+        "Ни у одного ребёнка в этой группе нет родителей с доступом к moto. Сообщение не отправлено.",
+      "enrollment.captcha_failed":
+        "Проверка безопасности не пройдена. Попробуйте ещё раз.",
+      "enrollment.captcha_required": "Пройдите проверку безопасности.",
+      "enrollment.care_offering_closed":
+        "Выбранная программа присмотра сейчас не принимает заявки. Выберите другую.",
       "enrollment.care_offering_day_conflict":
         "На один день выбраны две программы, которые нельзя совмещать. Выберите только одну на день.",
       "enrollment.care_offering_exactly_one":
@@ -1767,18 +1786,35 @@ export const ERROR_CATALOG = {
         "Этот ребёнок уже посещает присмотр. Вносите изменения в приложении для родителей.",
       "enrollment.change_request_conflict":
         "Данные изменились: {object}. Проверьте свои данные ещё раз.",
+      "enrollment.change_request_guardian_linked":
+        "Измените эти данные в приложении для родителей.",
+      "enrollment.change_request_not_allowed":
+        "Эту запись сейчас нельзя изменить. Обратитесь в школу.",
+      "enrollment.change_request_not_found":
+        "Этого запроса на изменение больше нет. Обновите страницу.",
+      "enrollment.change_request_status_changed":
+        "Статус этого запроса на изменение изменился. Обновите страницу.",
       "enrollment.child_already_enrolled":
         "Этот ребёнок уже записан в школу. Эта запись только для новых детей.",
+      "enrollment.child_already_requested":
+        "Другой человек уже записал этого ребёнка. Обратитесь в школу.",
       "enrollment.child_ambiguous":
         "Не удалось однозначно определить ребёнка. Обратитесь в школу.",
+      "enrollment.child_birth_date_invalid": "Укажите дату рождения ребёнка.",
+      "enrollment.child_grade_required": "Выберите класс ребёнка.",
+      "enrollment.child_name_required": "Укажите имя и фамилию ребёнка.",
       "enrollment.child_not_enrolled":
         "Этот ребёнок ещё не записан в школу. Эта запись только для детей школы.",
       "enrollment.child_not_permitted":
         "Вы не можете повторно записать этого ребёнка. Обратитесь в школу.",
+      "enrollment.child_required": "Добавьте хотя бы одного ребёнка.",
       "enrollment.class_not_eligible":
         "Эта запись только для определённых классов. Проверьте класс ребёнка.",
+      "enrollment.companion_note_required":
+        "Укажите, с кем ребёнок идёт домой.",
       "enrollment.complete_withdrawal_confirmation_required":
         "Пока нельзя отменить запись: {object}. Подтвердите с помощью {confirmation}.",
+      "enrollment.consent_required": "Подтвердите все обязательные согласия.",
       "enrollment.day_selection_not_allowed":
         "Дни этой программы заданы заранее. Выбрать дни нельзя.",
       "enrollment.day_selection_required":
@@ -1787,22 +1823,50 @@ export const ERROR_CATALOG = {
         "Выберите только один способ возвращения домой на каждый день недели.",
       "enrollment.disabled":
         "Онлайн-запись в этой школе сейчас недоступна. Обратитесь в школу.",
+      "enrollment.edit_not_allowed":
+        "Эту запись больше нельзя изменить. Обратитесь в школу.",
+      "enrollment.field_required": "Заполните все обязательные поля.",
+      "enrollment.form_attachment_invalid": "Проверьте название и PDF-файл.",
+      "enrollment.form_field_file_options_invalid":
+        "Проверьте вопрос с файлом. Выберите хотя бы один тип файла и размер от 1 до 10 МБ.",
+      "enrollment.form_not_found":
+        "Эта форма записи не найдена. Проверьте ссылку или обратитесь в школу.",
       "enrollment.grade_not_eligible":
         "Эта запись только для определённых годов обучения. Проверьте класс ребёнка.",
+      "enrollment.guardian_email_required": "Укажите адрес электронной почты.",
+      "enrollment.guardian_name_required": "Укажите имя и фамилию.",
+      "enrollment.guardian_phone_required": "Укажите номер телефона.",
       "enrollment.invalid_email": "Укажите правильный адрес электронной почты.",
       "enrollment.invalid_phone": "Укажите правильный номер телефона.",
       "enrollment.late_invite_invalid":
         "Эта ссылка недействительна, устарела или уже использована. Обратитесь в школу.",
+      "enrollment.message_required": "Напишите сообщение.",
       "enrollment.phase_not_eligible":
         "Эта запись недоступна для вашего аккаунта. Войдите в приложение для родителей или обратитесь в школу.",
       "enrollment.pickup_time_not_allowed":
         "Выбирайте время забора только из списка. Отмеченного времени больше нет.",
+      "enrollment.request_duplicate":
+        "Для этого ребёнка уже есть заявка в этот период записи.",
       "enrollment.required_care_offering_missing":
         "Выберите обязательную программу для каждого ребёнка.",
       "enrollment.selected_day_not_available":
         "Этот день недели недоступен для программы. Выбирайте только показанные дни.",
+      "enrollment.status_link_invalid":
+        "Эта ссылка недействительна или устарела. Используйте ссылку из вашего письма.",
+      "enrollment.submission_rate_limited":
+        "Отправлено слишком много заявок. Попробуйте снова через час.",
+      "enrollment.upload_expired":
+        "Срок действия загруженного файла истёк. Загрузите его ещё раз.",
+      "enrollment.upload_invalid":
+        "Этот файл не подходит. Выберите разрешённый тип файла размером не более {max_mb} МБ.",
+      "enrollment.upload_not_found":
+        "Этого файла больше нет. Загрузите его ещё раз.",
+      "enrollment.upload_rate_limited":
+        "Загружено слишком много файлов. Попробуйте позже.",
       "enrollment.window_closed":
         "Срок записи истёк или ещё не начался. Обратитесь в школу.",
+      "enrollment.withdraw_not_allowed":
+        "Эту запись больше нельзя отозвать. Обратитесь в школу.",
       "files.file_name_invalid":
         "Имя файла недопустимо. Выберите файл ещё раз.",
       "general.request_too_large":
@@ -1811,6 +1875,10 @@ export const ERROR_CATALOG = {
         "У этого человека уже есть доступ к этой школе. Он есть в списке сотрудников.",
       "identity.account_inactive":
         "Ваш аккаунт заблокирован. Обратитесь в moto.",
+      "identity.caterer_address_taken":
+        "Этот адрес электронной почты уже принадлежит другой учётной записи moto. Пожалуйста, укажите другой адрес.",
+      "identity.caterer_without_school":
+        "Сейчас вы не снабжаете ни одну школу через moto. Пожалуйста, обратитесь в школу.",
       "identity.demo_access_expired":
         "Демо-доступ истёк. Запросите новый доступ.",
       "identity.demo_access_invalid":
@@ -1825,38 +1893,54 @@ export const ERROR_CATALOG = {
         "Демо-школа сейчас готовится. Попробуйте ещё раз через минуту.",
       "identity.email_already_exists":
         "Для этого адреса электронной почты уже есть учётная запись. Укажите другой адрес.",
+      "identity.invalid_credentials":
+        "Неверный адрес электронной почты или пароль. Проверьте введённые данные.",
       "identity.invitation_account_login_required":
         "Для этого адреса электронной почты уже есть аккаунт. Сначала войдите в него, затем снова откройте приглашение.",
       "identity.invitation_account_mismatch":
         "Вы вошли в другой аккаунт. Войдите с адресом электронной почты из приглашения.",
-      "identity.session_account_inactive":
-        "Ваш аккаунт отключён. Обратитесь к руководству вашей школы.",
-      "identity.invalid_credentials":
-        "Неверный адрес электронной почты или пароль. Проверьте введённые данные.",
-      "identity.password_too_weak":
-        "Пароль слишком простой. Нужно минимум 8 символов, заглавные и строчные буквы, цифра и специальный символ.",
+      "identity.invitation_expired":
+        "Это приглашение истекло или уже было использовано. Попросите в школе новое приглашение.",
+      "identity.invitation_not_found":
+        "Такого приглашения нет. Проверьте ссылку в письме.",
+      "identity.mfa_blocked":
+        "Слишком много попыток. Подождите несколько минут и попробуйте снова.",
+      "identity.mfa_session_required":
+        "Для входа в {object} требуется дополнительное подтверждение. Кнопка завершит текущий сеанс и откроет страницу входа этой школы. Войдите там заново и подтвердите вход.",
+      "identity.mfa_status_unavailable":
+        "Подтверждение входа сейчас недоступно. Попробуйте ещё раз.",
+      "identity.operator_self_deactivation":
+        "Вы не можете деактивировать свою учётную запись. Попросите об этом другого участника команды.",
       "identity.password_reset_link_invalid":
         "Срок действия ссылки истёк, или она уже была использована. Запросите новую ссылку.",
       "identity.password_reset_rate_limited":
         "Вы слишком часто запрашивали ссылку. Подождите немного и попробуйте снова.",
-      "identity.mfa_blocked":
-        "Слишком много попыток. Подождите несколько минут и попробуйте снова.",
-      "identity.invitation_not_found":
-        "Такого приглашения нет. Проверьте ссылку в письме.",
-      "identity.invitation_expired":
-        "Это приглашение истекло или уже было использовано. Попросите в школе новое приглашение.",
+      "identity.password_too_weak":
+        "Пароль слишком простой. Нужно минимум 8 символов, заглавные и строчные буквы, цифра и специальный символ.",
+      "identity.session_account_inactive":
+        "Ваш аккаунт отключён. Обратитесь к руководству вашей школы.",
       "meals.child_not_enrolled":
         "Невозможно: {object}. В этот день ребёнок не находится под присмотром.",
       "meals.day_closed": "Невозможно: {object}. В этот день школа закрыта.",
       "meals.day_past": "Уже невозможно: {object}. Этот день уже прошёл.",
+      "meals.delivery_range_too_long":
+        "Список доставки охватывает не более семи дней. Пожалуйста, выберите более короткий период.",
       "meals.invalid_allergens":
         "Не удалось сохранить аллергены. Пожалуйста, выберите их заново.",
       "meals.invalid_participation":
         "Указаны неверные данные: {object}. Проверьте введённые данные.",
+      "meals.not_supplied":
+        "Вы больше не снабжаете эту школу. Пожалуйста, обратитесь в школу.",
+      "meals.order_not_found":
+        "Такого заказа нет. Пожалуйста, обновите страницу.",
       "meals.plan_disabled":
         "Сейчас здесь недоступно: {object}. Обратитесь к контактному лицу.",
       "meals.registration_disabled":
         "Сейчас здесь недоступно: {object}. Обратитесь к контактному лицу.",
+      "meals.supply_active":
+        "{object} сейчас невозможно. Школу ещё снабжает поставщик питания. Сначала завершите эти поставки.",
+      "module.not_booked":
+        "Ваша школа не подключила модуль {module_label}. Чтобы подключить его, обратитесь в команду moto.",
       "students.care_exception_raced":
         "Данные изменились: {object}. Проверьте свои данные ещё раз.",
       "students.care_offerings_disabled":
@@ -1874,88 +1958,12 @@ export const ERROR_CATALOG = {
         "Это время установили родители. Изменить его может только сотрудник с профилем персонала.",
       "students.status_day_conflict":
         "На некоторые дни уже есть запись. Эти дни не изменены.",
-      "enrollment.form_attachment_invalid": "Проверьте название и PDF-файл.",
-      "enrollment.form_field_file_options_invalid":
-        "Проверьте вопрос с файлом. Выберите хотя бы один тип файла и размер от 1 до 10 МБ.",
-      "enrollment.upload_invalid":
-        "Этот файл не подходит. Выберите разрешённый тип файла размером не более {max_mb} МБ.",
-      "enrollment.upload_expired":
-        "Срок действия загруженного файла истёк. Загрузите его ещё раз.",
-      "enrollment.upload_rate_limited":
-        "Загружено слишком много файлов. Попробуйте позже.",
-      "enrollment.upload_not_found":
-        "Этого файла больше нет. Загрузите его ещё раз.",
-      "enrollment.form_not_found":
-        "Эта форма записи не найдена. Проверьте ссылку или обратитесь в школу.",
-      "enrollment.status_link_invalid":
-        "Эта ссылка недействительна или устарела. Используйте ссылку из вашего письма.",
-      "enrollment.edit_not_allowed":
-        "Эту запись больше нельзя изменить. Обратитесь в школу.",
-      "enrollment.withdraw_not_allowed":
-        "Эту запись больше нельзя отозвать. Обратитесь в школу.",
-      "enrollment.captcha_required": "Пройдите проверку безопасности.",
-      "enrollment.captcha_failed":
-        "Проверка безопасности не пройдена. Попробуйте ещё раз.",
-      "enrollment.submission_rate_limited":
-        "Отправлено слишком много заявок. Попробуйте снова через час.",
-      "enrollment.request_duplicate":
-        "Для этого ребёнка уже есть заявка в этот период записи.",
-      "enrollment.child_already_requested":
-        "Другой человек уже записал этого ребёнка. Обратитесь в школу.",
-      "enrollment.care_offering_closed":
-        "Выбранная программа присмотра сейчас не принимает заявки. Выберите другую.",
-      "enrollment.consent_required": "Подтвердите все обязательные согласия.",
-      "enrollment.child_required": "Добавьте хотя бы одного ребёнка.",
-      "enrollment.child_name_required": "Укажите имя и фамилию ребёнка.",
-      "enrollment.child_birth_date_invalid": "Укажите дату рождения ребёнка.",
-      "enrollment.child_grade_required": "Выберите класс ребёнка.",
-      "enrollment.guardian_name_required": "Укажите имя и фамилию.",
-      "enrollment.guardian_email_required": "Укажите адрес электронной почты.",
-      "enrollment.guardian_phone_required": "Укажите номер телефона.",
-      "enrollment.field_required": "Заполните все обязательные поля.",
-      "enrollment.companion_note_required":
-        "Укажите, с кем ребёнок идёт домой.",
-      "enrollment.message_required": "Напишите сообщение.",
-      "enrollment.change_request_guardian_linked":
-        "Измените эти данные в приложении для родителей.",
-      "enrollment.change_request_not_found":
-        "Этого запроса на изменение больше нет. Обновите страницу.",
-      "enrollment.change_request_not_allowed":
-        "Эту запись сейчас нельзя изменить. Обратитесь в школу.",
-      "enrollment.change_request_status_changed":
-        "Статус этого запроса на изменение изменился. Обновите страницу.",
-      "identity.operator_self_deactivation":
-        "Вы не можете деактивировать свою учётную запись. Попросите об этом другого участника команды.",
-      "identity.mfa_status_unavailable":
-        "Подтверждение входа сейчас недоступно. Попробуйте ещё раз.",
-      "identity.mfa_session_required":
-        "Для входа в {object} требуется дополнительное подтверждение. Кнопка завершит текущий сеанс и откроет страницу входа этой школы. Войдите там заново и подтвердите вход.",
-      "identity.caterer_address_taken":
-        "Этот адрес электронной почты уже принадлежит другой учётной записи moto. Пожалуйста, укажите другой адрес.",
-      "identity.caterer_without_school":
-        "Сейчас вы не снабжаете ни одну школу через moto. Пожалуйста, обратитесь в школу.",
-      "meals.delivery_range_too_long":
-        "Список доставки охватывает не более семи дней. Пожалуйста, выберите более короткий период.",
-      "meals.not_supplied":
-        "Вы больше не снабжаете эту школу. Пожалуйста, обратитесь в школу.",
-      "meals.order_not_found":
-        "Такого заказа нет. Пожалуйста, обновите страницу.",
-      "meals.supply_active":
-        "{object} сейчас невозможно. Школу ещё снабжает поставщик питания. Сначала завершите эти поставки.",
-      "communication.group_thread_closed":
-        "Это групповое сообщение закрыто. Ответить больше нельзя.",
-      "communication.group_thread_no_recipients":
-        "Ни у одного ребёнка в этой группе нет родителей с доступом к moto. Сообщение не отправлено.",
-      "classday.homework_not_found":
-        "Этого домашнего задания больше нет. Обновите страницу.",
       "timetable.homework_feedback_child_not_in_supervision":
         "Этот ребёнок не относится к этому присмотру. Обновите страницу.",
       "timetable.homework_feedback_not_allowed":
         "Отзыв о домашнем задании можно дать только на занятии, которое вы ведёте.",
       "timetable.homework_feedback_without_homework":
         "Для класса этого ребёнка на сегодня нет домашних заданий.",
-      "module.not_booked":
-        "Ваша школа не подключила модуль {module_label}. Чтобы подключить его, обратитесь в команду moto.",
     },
   },
   sq: {
@@ -2078,12 +2086,24 @@ export const ERROR_CATALOG = {
         "Klasa dorëzohet vetëm sot. Hapni ditën e sotme.",
       "classday.class_handover_unknown_child":
         "Një fëmijë nuk i përket më kësaj klase. Ringarkoni faqen.",
+      "classday.homework_not_found":
+        "Kjo detyrë shtëpie nuk ekziston më. Ringarkoni faqen.",
       "classday.morning_attendance_no_school_day":
         "Sot nuk është ditë shkolle. Prania shënohet vetëm në ditë shkolle.",
       "classday.morning_attendance_not_today":
         "Prania shënohet vetëm për sot. Hapni ditën e sotme.",
       "classday.morning_attendance_unknown_child":
         "Një fëmijë nuk i përket më kësaj klase. Ringarkoni faqen.",
+      "communication.group_thread_closed":
+        "Ky mesazh grupi është mbyllur. Nuk mund të përgjigjeni më.",
+      "communication.group_thread_no_recipients":
+        "Asnjë fëmijë në këtë grup nuk ka prindër me qasje në moto. Mesazhi nuk u dërgua.",
+      "enrollment.captcha_failed":
+        "Kontrolli i sigurisë nuk funksionoi. Ju lutemi provoni përsëri.",
+      "enrollment.captcha_required":
+        "Ju lutemi plotësoni kontrollin e sigurisë.",
+      "enrollment.care_offering_closed":
+        "Një ofertë kujdesi e zgjedhur nuk pranon regjistrime tani. Ju lutemi zgjidhni një tjetër.",
       "enrollment.care_offering_day_conflict":
         "Për të njëjtën ditë janë zgjedhur dy oferta që nuk shkojnë bashkë. Ju lutemi zgjidhni vetëm një për ditë.",
       "enrollment.care_offering_exactly_one":
@@ -2100,18 +2120,38 @@ export const ERROR_CATALOG = {
         "Ky fëmijë është tashmë në kujdes. Ju lutemi bëni ndryshimet në aplikacionin për prindër.",
       "enrollment.change_request_conflict":
         "Ndërkohë është ndryshuar: {object}. Kontrolloni përsëri të dhënat tuaja.",
+      "enrollment.change_request_guardian_linked":
+        "Ju lutemi ndryshoni këto të dhëna në aplikacionin për prindër.",
+      "enrollment.change_request_not_allowed":
+        "Ky regjistrim nuk mund të ndryshohet tani. Ju lutemi kontaktoni shkollën.",
+      "enrollment.change_request_not_found":
+        "Kjo kërkesë për ndryshim nuk ekziston më. Ju lutemi ringarkoni faqen.",
+      "enrollment.change_request_status_changed":
+        "Gjendja e kësaj kërkese për ndryshim ka ndryshuar. Ju lutemi ringarkoni faqen.",
       "enrollment.child_already_enrolled":
         "Ky fëmijë është i regjistruar tashmë në shkollë. Ky regjistrim është vetëm për fëmijë të rinj.",
+      "enrollment.child_already_requested":
+        "Një person tjetër e ka regjistruar tashmë këtë fëmijë. Ju lutemi kontaktoni shkollën.",
       "enrollment.child_ambiguous":
         "Nuk mundëm ta identifikojmë qartë fëmijën. Ju lutemi kontaktoni shkollën.",
+      "enrollment.child_birth_date_invalid":
+        "Ju lutemi shkruani datëlindjen e fëmijës.",
+      "enrollment.child_grade_required": "Ju lutemi zgjidhni klasën e fëmijës.",
+      "enrollment.child_name_required":
+        "Ju lutemi shkruani emrin dhe mbiemrin e fëmijës.",
       "enrollment.child_not_enrolled":
         "Ky fëmijë nuk është ende i regjistruar në shkollë. Ky regjistrim është vetëm për fëmijët e shkollës.",
       "enrollment.child_not_permitted":
         "Nuk keni leje ta regjistroni përsëri këtë fëmijë. Ju lutemi kontaktoni shkollën.",
+      "enrollment.child_required": "Ju lutemi shtoni të paktën një fëmijë.",
       "enrollment.class_not_eligible":
         "Ky regjistrim vlen vetëm për disa klasa. Kontrolloni klasën e fëmijës suaj.",
+      "enrollment.companion_note_required":
+        "Ju lutemi shkruani me kë shkon fëmija në shtëpi.",
       "enrollment.complete_withdrawal_confirmation_required":
         "Ende nuk mund të çregjistrohet: {object}. Konfirmoni me {confirmation}.",
+      "enrollment.consent_required":
+        "Ju lutemi konfirmoni të gjitha pëlqimet e detyrueshme.",
       "enrollment.day_selection_not_allowed":
         "Ditët e kësaj oferte janë të caktuara. Nuk mund të zgjidhni ditë.",
       "enrollment.day_selection_required":
@@ -2120,24 +2160,57 @@ export const ERROR_CATALOG = {
         "Ju lutemi zgjidhni vetëm një mënyrë kthimi në shtëpi për çdo ditë.",
       "enrollment.disabled":
         "Regjistrimi online nuk është i mundur tani në këtë shkollë. Ju lutemi kontaktoni shkollën.",
+      "enrollment.edit_not_allowed":
+        "Ky regjistrim nuk mund të ndryshohet më. Ju lutemi kontaktoni shkollën.",
+      "enrollment.field_required":
+        "Ju lutemi plotësoni të gjitha fushat e detyrueshme.",
+      "enrollment.form_attachment_invalid":
+        "Ju lutemi kontrolloni emrin dhe skedarin PDF.",
+      "enrollment.form_field_file_options_invalid":
+        "Kontrolloni pyetjen për skedarin. Zgjidhni të paktën një lloj skedari dhe një madhësi nga 1 deri në 10 MB.",
+      "enrollment.form_not_found":
+        "Ky formular regjistrimi nuk ekziston. Kontrolloni lidhjen ose pyesni shkollën.",
       "enrollment.grade_not_eligible":
         "Ky regjistrim vlen vetëm për disa nivele klase. Kontrolloni nivelin e klasës së fëmijës.",
+      "enrollment.guardian_email_required":
+        "Ju lutemi shkruani një adresë emaili.",
+      "enrollment.guardian_name_required":
+        "Ju lutemi shkruani emrin dhe mbiemrin.",
+      "enrollment.guardian_phone_required":
+        "Ju lutemi shkruani një numër telefoni.",
       "enrollment.invalid_email":
         "Ju lutemi shkruani një adresë emaili të vlefshme.",
       "enrollment.invalid_phone":
         "Ju lutemi shkruani një numër telefoni të vlefshëm.",
       "enrollment.late_invite_invalid":
         "Kjo lidhje nuk është e vlefshme, ka skaduar ose është përdorur. Ju lutemi kontaktoni shkollën.",
+      "enrollment.message_required": "Ju lutemi shkruani një mesazh.",
       "enrollment.phase_not_eligible":
         "Ky regjistrim nuk është i hapur për llogarinë tuaj. Hyni në aplikacionin për prindër ose pyesni shkollën.",
       "enrollment.pickup_time_not_allowed":
         "Ju lutemi zgjidhni vetëm orë marrjeje nga lista. Ora e shënuar nuk ofrohet më.",
+      "enrollment.request_duplicate":
+        "Për këtë fëmijë ka tashmë një regjistrim në këtë periudhë.",
       "enrollment.required_care_offering_missing":
         "Ju lutemi zgjidhni ofertën e detyrueshme për çdo fëmijë.",
       "enrollment.selected_day_not_available":
         "Kjo ditë nuk ofrohet për këtë ofertë. Ju lutemi zgjidhni vetëm ditët e treguara.",
+      "enrollment.status_link_invalid":
+        "Kjo lidhje nuk është e vlefshme ose ka skaduar. Përdorni lidhjen nga emaili juaj.",
+      "enrollment.submission_rate_limited":
+        "U dërguan shumë regjistrime. Ju lutemi provoni përsëri pas një ore.",
+      "enrollment.upload_expired":
+        "Një skedar i ngarkuar ka skaduar. Ngarkojeni përsëri.",
+      "enrollment.upload_invalid":
+        "Ky skedar nuk përshtatet. Zgjidhni një lloj skedari të lejuar me më së shumti {max_mb} MB.",
+      "enrollment.upload_not_found":
+        "Ky skedar nuk ekziston më. Ngarkojeni përsëri.",
+      "enrollment.upload_rate_limited":
+        "U ngarkuan shumë skedarë. Provoni përsëri më vonë.",
       "enrollment.window_closed":
         "Afati i regjistrimit ka mbaruar ose nuk ka filluar ende. Ju lutemi kontaktoni shkollën.",
+      "enrollment.withdraw_not_allowed":
+        "Ky regjistrim nuk mund të tërhiqet më. Ju lutemi kontaktoni shkollën.",
       "files.file_name_invalid":
         "Emri i skedarit nuk lejohet. Ju lutemi zgjidhni skedarin përsëri.",
       "general.request_too_large":
@@ -2146,6 +2219,10 @@ export const ERROR_CATALOG = {
         "Ky person ka tashmë qasje në këtë shkollë. E gjeni në listën e personelit.",
       "identity.account_inactive":
         "Llogaria juaj është bllokuar. Kontaktoni moto.",
+      "identity.caterer_address_taken":
+        "Kjo adresë email i përket tashmë një llogarie tjetër moto. Ju lutemi përdorni një adresë tjetër.",
+      "identity.caterer_without_school":
+        "Aktualisht nuk furnizoni asnjë shkollë përmes moto. Ju lutemi pyesni shkollën.",
       "identity.demo_access_expired":
         "Qasja demo ka skaduar. Kërkoni një qasje të re.",
       "identity.demo_access_invalid":
@@ -2160,39 +2237,55 @@ export const ERROR_CATALOG = {
         "Shkolla demo po përgatitet. Provoni përsëri pas pak.",
       "identity.email_already_exists":
         "Për këtë adresë email ka tashmë një llogari. Ju lutemi përdorni një adresë tjetër.",
+      "identity.invalid_credentials":
+        "Adresa e email-it ose fjalëkalimi nuk është i saktë. Kontrolloni të dhënat.",
       "identity.invitation_account_login_required":
         "Për këtë adresë e-maili ekziston tashmë një llogari. Fillimisht hyni me të dhe pastaj hapeni përsëri ftesën.",
       "identity.invitation_account_mismatch":
         "Jeni i identifikuar me një llogari tjetër. Hyni me adresën e e-mailit që është ftuar.",
-      "identity.session_account_inactive":
-        "Llogaria juaj është e çaktivizuar. Kontaktoni drejtimin e shkollës suaj.",
-      "identity.invalid_credentials":
-        "Adresa e email-it ose fjalëkalimi nuk është i saktë. Kontrolloni të dhënat.",
-      "identity.password_too_weak":
-        "Fjalëkalimi është shumë i dobët. Duhen të paktën 8 karaktere, shkronja të mëdha dhe të vogla, një numër dhe një karakter special.",
+      "identity.invitation_expired":
+        "Kjo ftesë ka skaduar ose është përdorur tashmë. Kërkojini shkollës suaj një ftesë të re.",
+      "identity.invitation_not_found":
+        "Kjo ftesë nuk ekziston. Kontrolloni lidhjen në e-mail.",
+      "identity.mfa_blocked":
+        "Shumë përpjekje. Prisni disa minuta dhe provoni përsëri.",
+      "identity.mfa_session_required":
+        "Hyrja në {object} kërkon një verifikim të dytë. Butoni ju nxjerr nga llogaria dhe hap hyrjen e asaj shkolle. Hyni atje përsëri dhe konfirmoni hyrjen.",
+      "identity.mfa_status_unavailable":
+        "Verifikimi i hyrjes nuk është i disponueshëm tani. Provoni përsëri.",
+      "identity.operator_self_deactivation":
+        "Nuk mund ta çaktivizoni llogarinë tuaj. Kërkojini një personi tjetër nga ekipi ta bëjë këtë.",
       "identity.password_reset_link_invalid":
         "Lidhja ka skaduar ose është përdorur tashmë. Kërkoni një lidhje të re.",
       "identity.password_reset_rate_limited":
         "Keni kërkuar një lidhje shumë shpesh. Prisni pak dhe provoni përsëri.",
-      "identity.mfa_blocked":
-        "Shumë përpjekje. Prisni disa minuta dhe provoni përsëri.",
-      "identity.invitation_not_found":
-        "Kjo ftesë nuk ekziston. Kontrolloni lidhjen në e-mail.",
-      "identity.invitation_expired":
-        "Kjo ftesë ka skaduar ose është përdorur tashmë. Kërkojini shkollës suaj një ftesë të re.",
+      "identity.password_too_weak":
+        "Fjalëkalimi është shumë i dobët. Duhen të paktën 8 karaktere, shkronja të mëdha dhe të vogla, një numër dhe një karakter special.",
+      "identity.session_account_inactive":
+        "Llogaria juaj është e çaktivizuar. Kontaktoni drejtimin e shkollës suaj.",
       "meals.child_not_enrolled":
         "Nuk është e mundur: {object}. Fëmija nuk është në kujdes në këtë ditë.",
       "meals.day_closed":
         "Nuk është e mundur: {object}. Shkolla është e mbyllur në këtë ditë.",
       "meals.day_past": "Nuk është më e mundur: {object}. Dita ka kaluar.",
+      "meals.delivery_range_too_long":
+        "Lista e dorëzimit përfshin të shumtën shtatë ditë. Ju lutemi zgjidhni një periudhë më të shkurtër.",
       "meals.invalid_allergens":
         "Alergjenët nuk u ruajtën. Ju lutemi zgjidhini përsëri.",
       "meals.invalid_participation":
         "Ka të dhëna të pavlefshme: {object}. Kontrolloni çfarë keni shkruar.",
+      "meals.not_supplied":
+        "Ju nuk e furnizoni më këtë shkollë. Ju lutemi pyesni shkollën.",
+      "meals.order_not_found":
+        "Kjo porosi nuk ekziston. Ju lutemi ringarkoni faqen.",
       "meals.plan_disabled":
         "Për momentin nuk është i disponueshëm këtu: {object}. Pyetni personin tuaj të kontaktit.",
       "meals.registration_disabled":
         "Për momentin nuk është i disponueshëm këtu: {object}. Pyetni personin tuaj të kontaktit.",
+      "meals.supply_active":
+        "{object} nuk është e mundur tani. Një furnizues ushqimi e furnizon ende shkollën. Përfundoni fillimisht atë furnizim.",
+      "module.not_booked":
+        "Shkolla juaj nuk e ka rezervuar modulin {module_label}. Për ta rezervuar, kontaktoni ekipin e moto.",
       "students.care_exception_raced":
         "Ndërkohë është ndryshuar: {object}. Kontrolloni përsëri të dhënat tuaja.",
       "students.care_offerings_disabled":
@@ -2211,97 +2304,12 @@ export const ERROR_CATALOG = {
         "Këtë orë e kanë vendosur prindërit. Vetëm dikush me profil stafi mund ta ndryshojë.",
       "students.status_day_conflict":
         "Disa ditë kanë tashmë një regjistrim. Këto ditë nuk u ndryshuan.",
-      "enrollment.form_attachment_invalid":
-        "Ju lutemi kontrolloni emrin dhe skedarin PDF.",
-      "enrollment.form_field_file_options_invalid":
-        "Kontrolloni pyetjen për skedarin. Zgjidhni të paktën një lloj skedari dhe një madhësi nga 1 deri në 10 MB.",
-      "enrollment.upload_invalid":
-        "Ky skedar nuk përshtatet. Zgjidhni një lloj skedari të lejuar me më së shumti {max_mb} MB.",
-      "enrollment.upload_expired":
-        "Një skedar i ngarkuar ka skaduar. Ngarkojeni përsëri.",
-      "enrollment.upload_rate_limited":
-        "U ngarkuan shumë skedarë. Provoni përsëri më vonë.",
-      "enrollment.upload_not_found":
-        "Ky skedar nuk ekziston më. Ngarkojeni përsëri.",
-      "enrollment.form_not_found":
-        "Ky formular regjistrimi nuk ekziston. Kontrolloni lidhjen ose pyesni shkollën.",
-      "enrollment.status_link_invalid":
-        "Kjo lidhje nuk është e vlefshme ose ka skaduar. Përdorni lidhjen nga emaili juaj.",
-      "enrollment.edit_not_allowed":
-        "Ky regjistrim nuk mund të ndryshohet më. Ju lutemi kontaktoni shkollën.",
-      "enrollment.withdraw_not_allowed":
-        "Ky regjistrim nuk mund të tërhiqet më. Ju lutemi kontaktoni shkollën.",
-      "enrollment.captcha_required":
-        "Ju lutemi plotësoni kontrollin e sigurisë.",
-      "enrollment.captcha_failed":
-        "Kontrolli i sigurisë nuk funksionoi. Ju lutemi provoni përsëri.",
-      "enrollment.submission_rate_limited":
-        "U dërguan shumë regjistrime. Ju lutemi provoni përsëri pas një ore.",
-      "enrollment.request_duplicate":
-        "Për këtë fëmijë ka tashmë një regjistrim në këtë periudhë.",
-      "enrollment.child_already_requested":
-        "Një person tjetër e ka regjistruar tashmë këtë fëmijë. Ju lutemi kontaktoni shkollën.",
-      "enrollment.care_offering_closed":
-        "Një ofertë kujdesi e zgjedhur nuk pranon regjistrime tani. Ju lutemi zgjidhni një tjetër.",
-      "enrollment.consent_required":
-        "Ju lutemi konfirmoni të gjitha pëlqimet e detyrueshme.",
-      "enrollment.child_required": "Ju lutemi shtoni të paktën një fëmijë.",
-      "enrollment.child_name_required":
-        "Ju lutemi shkruani emrin dhe mbiemrin e fëmijës.",
-      "enrollment.child_birth_date_invalid":
-        "Ju lutemi shkruani datëlindjen e fëmijës.",
-      "enrollment.child_grade_required": "Ju lutemi zgjidhni klasën e fëmijës.",
-      "enrollment.guardian_name_required":
-        "Ju lutemi shkruani emrin dhe mbiemrin.",
-      "enrollment.guardian_email_required":
-        "Ju lutemi shkruani një adresë emaili.",
-      "enrollment.guardian_phone_required":
-        "Ju lutemi shkruani një numër telefoni.",
-      "enrollment.field_required":
-        "Ju lutemi plotësoni të gjitha fushat e detyrueshme.",
-      "enrollment.companion_note_required":
-        "Ju lutemi shkruani me kë shkon fëmija në shtëpi.",
-      "enrollment.message_required": "Ju lutemi shkruani një mesazh.",
-      "enrollment.change_request_guardian_linked":
-        "Ju lutemi ndryshoni këto të dhëna në aplikacionin për prindër.",
-      "enrollment.change_request_not_found":
-        "Kjo kërkesë për ndryshim nuk ekziston më. Ju lutemi ringarkoni faqen.",
-      "enrollment.change_request_not_allowed":
-        "Ky regjistrim nuk mund të ndryshohet tani. Ju lutemi kontaktoni shkollën.",
-      "enrollment.change_request_status_changed":
-        "Gjendja e kësaj kërkese për ndryshim ka ndryshuar. Ju lutemi ringarkoni faqen.",
-      "identity.operator_self_deactivation":
-        "Nuk mund ta çaktivizoni llogarinë tuaj. Kërkojini një personi tjetër nga ekipi ta bëjë këtë.",
-      "identity.mfa_status_unavailable":
-        "Verifikimi i hyrjes nuk është i disponueshëm tani. Provoni përsëri.",
-      "identity.mfa_session_required":
-        "Hyrja në {object} kërkon një verifikim të dytë. Butoni ju nxjerr nga llogaria dhe hap hyrjen e asaj shkolle. Hyni atje përsëri dhe konfirmoni hyrjen.",
-      "identity.caterer_address_taken":
-        "Kjo adresë email i përket tashmë një llogarie tjetër moto. Ju lutemi përdorni një adresë tjetër.",
-      "identity.caterer_without_school":
-        "Aktualisht nuk furnizoni asnjë shkollë përmes moto. Ju lutemi pyesni shkollën.",
-      "meals.delivery_range_too_long":
-        "Lista e dorëzimit përfshin të shumtën shtatë ditë. Ju lutemi zgjidhni një periudhë më të shkurtër.",
-      "meals.not_supplied":
-        "Ju nuk e furnizoni më këtë shkollë. Ju lutemi pyesni shkollën.",
-      "meals.order_not_found":
-        "Kjo porosi nuk ekziston. Ju lutemi ringarkoni faqen.",
-      "meals.supply_active":
-        "{object} nuk është e mundur tani. Një furnizues ushqimi e furnizon ende shkollën. Përfundoni fillimisht atë furnizim.",
-      "communication.group_thread_closed":
-        "Ky mesazh grupi është mbyllur. Nuk mund të përgjigjeni më.",
-      "communication.group_thread_no_recipients":
-        "Asnjë fëmijë në këtë grup nuk ka prindër me qasje në moto. Mesazhi nuk u dërgua.",
-      "classday.homework_not_found":
-        "Kjo detyrë shtëpie nuk ekziston më. Ringarkoni faqen.",
       "timetable.homework_feedback_child_not_in_supervision":
         "Ky fëmijë nuk i përket këtij mbikëqyrjeje. Ringarkoni faqen.",
       "timetable.homework_feedback_not_allowed":
         "Përgjigja për detyrat e shtëpisë jepet vetëm në orën e mësimit që mbikëqyrni.",
       "timetable.homework_feedback_without_homework":
         "Për klasën e këtij fëmije nuk ka detyra shtëpie për sot.",
-      "module.not_booked":
-        "Shkolla juaj nuk e ka rezervuar modulin {module_label}. Për ta rezervuar, kontaktoni ekipin e moto.",
     },
   },
   pl: {
@@ -2423,12 +2431,23 @@ export const ERROR_CATALOG = {
         "Klasę można przekazać tylko dzisiaj. Otwórz dzisiejszy dzień.",
       "classday.class_handover_unknown_child":
         "Jedno dziecko nie należy już do tej klasy. Odśwież stronę.",
+      "classday.homework_not_found":
+        "Tego zadania domowego już nie ma. Odśwież stronę.",
       "classday.morning_attendance_no_school_day":
         "Dziś nie ma lekcji. Obecność można wpisać tylko w dni szkolne.",
       "classday.morning_attendance_not_today":
         "Obecność można wpisać tylko na dziś. Otwórz dzisiejszy dzień.",
       "classday.morning_attendance_unknown_child":
         "Jedno dziecko nie należy już do tej klasy. Odśwież stronę.",
+      "communication.group_thread_closed":
+        "Ta wiadomość grupowa jest zamknięta. Nie można już odpowiedzieć.",
+      "communication.group_thread_no_recipients":
+        "Żadne dziecko w tej grupie nie ma rodziców z dostępem do moto. Wiadomość nie została wysłana.",
+      "enrollment.captcha_failed":
+        "Weryfikacja bezpieczeństwa nie powiodła się. Spróbuj ponownie.",
+      "enrollment.captcha_required": "Potwierdź weryfikację bezpieczeństwa.",
+      "enrollment.care_offering_closed":
+        "Wybrana oferta opieki nie przyjmuje teraz zapisów. Wybierz inną ofertę.",
       "enrollment.care_offering_day_conflict":
         "Na ten sam dzień wybrano dwie oferty, których nie można łączyć. Wybierz tylko jedną na dzień.",
       "enrollment.care_offering_exactly_one":
@@ -2445,18 +2464,35 @@ export const ERROR_CATALOG = {
         "To dziecko jest już pod opieką. Zmiany wprowadzaj w aplikacji dla rodziców.",
       "enrollment.change_request_conflict":
         "W międzyczasie zmieniono: {object}. Sprawdź ponownie swoje dane.",
+      "enrollment.change_request_guardian_linked":
+        "Zmień te dane w aplikacji dla rodziców.",
+      "enrollment.change_request_not_allowed":
+        "Tego zapisu nie można teraz zmienić. Skontaktuj się ze szkołą.",
+      "enrollment.change_request_not_found":
+        "Ta prośba o zmianę już nie istnieje. Odśwież stronę.",
+      "enrollment.change_request_status_changed":
+        "Stan tej prośby o zmianę się zmienił. Odśwież stronę.",
       "enrollment.child_already_enrolled":
         "To dziecko jest już zapisane do szkoły. Ten zapis jest tylko dla nowych dzieci.",
+      "enrollment.child_already_requested":
+        "Inna osoba już zapisała to dziecko. Skontaktuj się ze szkołą.",
       "enrollment.child_ambiguous":
         "Nie udało się jednoznacznie przypisać dziecka. Skontaktuj się ze szkołą.",
+      "enrollment.child_birth_date_invalid": "Wpisz datę urodzenia dziecka.",
+      "enrollment.child_grade_required": "Wybierz klasę dziecka.",
+      "enrollment.child_name_required": "Wpisz imię i nazwisko dziecka.",
       "enrollment.child_not_enrolled":
         "To dziecko nie jest jeszcze zapisane do szkoły. Ten zapis jest tylko dla dzieci tej szkoły.",
       "enrollment.child_not_permitted":
         "Nie możesz ponownie zapisać tego dziecka. Skontaktuj się ze szkołą.",
+      "enrollment.child_required": "Dodaj co najmniej jedno dziecko.",
       "enrollment.class_not_eligible":
         "Ten zapis dotyczy tylko wybranych klas. Sprawdź klasę dziecka.",
+      "enrollment.companion_note_required":
+        "Podaj, z kim dziecko wraca do domu.",
       "enrollment.complete_withdrawal_confirmation_required":
         "Nie można jeszcze wypisać: {object}. Potwierdź, wpisując {confirmation}.",
+      "enrollment.consent_required": "Potwierdź wszystkie wymagane zgody.",
       "enrollment.day_selection_not_allowed":
         "Dni tej oferty są ustalone. Nie możesz wybierać dni.",
       "enrollment.day_selection_required":
@@ -2465,22 +2501,50 @@ export const ERROR_CATALOG = {
         "Wybierz tylko jeden sposób powrotu do domu na każdy dzień tygodnia.",
       "enrollment.disabled":
         "Zapis online w tej szkole jest teraz niedostępny. Skontaktuj się ze szkołą.",
+      "enrollment.edit_not_allowed":
+        "Tego zapisu nie można już zmienić. Skontaktuj się ze szkołą.",
+      "enrollment.field_required": "Wypełnij wszystkie wymagane pola.",
+      "enrollment.form_attachment_invalid": "Sprawdź nazwę i plik PDF.",
+      "enrollment.form_field_file_options_invalid":
+        "Sprawdź pytanie o plik. Wybierz co najmniej jeden rodzaj pliku i rozmiar od 1 do 10 MB.",
+      "enrollment.form_not_found":
+        "Ten formularz zapisu nie istnieje. Sprawdź link lub zapytaj szkołę.",
       "enrollment.grade_not_eligible":
         "Ten zapis dotyczy tylko wybranych roczników. Sprawdź klasę dziecka.",
+      "enrollment.guardian_email_required": "Wpisz adres e-mail.",
+      "enrollment.guardian_name_required": "Wpisz imię i nazwisko.",
+      "enrollment.guardian_phone_required": "Wpisz numer telefonu.",
       "enrollment.invalid_email": "Wpisz prawidłowy adres e-mail.",
       "enrollment.invalid_phone": "Wpisz prawidłowy numer telefonu.",
       "enrollment.late_invite_invalid":
         "Ten link jest nieprawidłowy, wygasł lub został już użyty. Skontaktuj się ze szkołą.",
+      "enrollment.message_required": "Napisz wiadomość.",
       "enrollment.phase_not_eligible":
         "Ten zapis nie jest dostępny dla Twojego konta. Zaloguj się w aplikacji dla rodziców lub zapytaj szkołę.",
       "enrollment.pickup_time_not_allowed":
         "Wybieraj tylko godziny odbioru z listy. Zaznaczona godzina nie jest już dostępna.",
+      "enrollment.request_duplicate":
+        "To dziecko ma już zapis w tym okresie zapisów.",
       "enrollment.required_care_offering_missing":
         "Wybierz obowiązkową ofertę dla każdego dziecka.",
       "enrollment.selected_day_not_available":
         "Ten dzień tygodnia nie jest dostępny dla oferty. Wybieraj tylko pokazane dni.",
+      "enrollment.status_link_invalid":
+        "Ten link jest nieprawidłowy lub wygasł. Użyj linku z e-maila.",
+      "enrollment.submission_rate_limited":
+        "Wysłano zbyt wiele zapisów. Spróbuj ponownie za godzinę.",
+      "enrollment.upload_expired":
+        "Przesłany plik wygasł. Prześlij go ponownie.",
+      "enrollment.upload_invalid":
+        "Ten plik nie pasuje. Wybierz dozwolony rodzaj pliku o rozmiarze najwyżej {max_mb} MB.",
+      "enrollment.upload_not_found":
+        "Tego pliku już nie ma. Prześlij go ponownie.",
+      "enrollment.upload_rate_limited":
+        "Przesłano zbyt wiele plików. Spróbuj ponownie później.",
       "enrollment.window_closed":
         "Termin zapisów minął lub jeszcze się nie zaczął. Skontaktuj się ze szkołą.",
+      "enrollment.withdraw_not_allowed":
+        "Tego zapisu nie można już wycofać. Skontaktuj się ze szkołą.",
       "files.file_name_invalid":
         "Nazwa pliku jest niedozwolona. Wybierz plik ponownie.",
       "general.request_too_large":
@@ -2489,6 +2553,10 @@ export const ERROR_CATALOG = {
         "Ta osoba ma już dostęp do tej szkoły. Znajdziesz ją na liście personelu.",
       "identity.account_inactive":
         "Twoje konto jest zablokowane. Skontaktuj się z moto.",
+      "identity.caterer_address_taken":
+        "Ten adres e-mail należy już do innego konta moto. Proszę użyć innego adresu.",
+      "identity.caterer_without_school":
+        "Obecnie nie zaopatrujesz żadnej szkoły przez moto. Proszę zapytać szkołę.",
       "identity.demo_access_expired":
         "Dostęp demo wygasł. Poproś o nowy dostęp.",
       "identity.demo_access_invalid":
@@ -2503,39 +2571,55 @@ export const ERROR_CATALOG = {
         "Szkoła demo jest właśnie przygotowywana. Spróbuj ponownie za chwilę.",
       "identity.email_already_exists":
         "Dla tego adresu e-mail istnieje już konto. Użyj innego adresu.",
+      "identity.invalid_credentials":
+        "Adres e-mail lub hasło są nieprawidłowe. Sprawdź wpisane dane.",
       "identity.invitation_account_login_required":
         "Dla tego adresu e-mail istnieje już konto. Najpierw zaloguj się na nie, a potem ponownie otwórz zaproszenie.",
       "identity.invitation_account_mismatch":
         "Jesteś zalogowany na inne konto. Zaloguj się adresem e-mail, na który przyszło zaproszenie.",
-      "identity.session_account_inactive":
-        "Twoje konto jest wyłączone. Skontaktuj się z dyrekcją swojej szkoły.",
-      "identity.invalid_credentials":
-        "Adres e-mail lub hasło są nieprawidłowe. Sprawdź wpisane dane.",
-      "identity.password_too_weak":
-        "Hasło jest zbyt słabe. Potrzeba co najmniej 8 znaków, wielkich i małych liter, cyfry i znaku specjalnego.",
+      "identity.invitation_expired":
+        "To zaproszenie wygasło lub zostało już użyte. Poproś swoją szkołę o nowe zaproszenie.",
+      "identity.invitation_not_found":
+        "To zaproszenie nie istnieje. Sprawdź link w e-mailu.",
+      "identity.mfa_blocked":
+        "Zbyt wiele prób. Odczekaj kilka minut i spróbuj ponownie.",
+      "identity.mfa_session_required":
+        "Logowanie do {object} wymaga dodatkowego potwierdzenia. Przycisk wyloguje Cię i otworzy stronę logowania tej szkoły. Zaloguj się tam ponownie i potwierdź logowanie.",
+      "identity.mfa_status_unavailable":
+        "Weryfikacja logowania jest teraz niedostępna. Spróbuj ponownie.",
+      "identity.operator_self_deactivation":
+        "Nie możesz dezaktywować własnego konta. Poproś o to inną osobę z zespołu.",
       "identity.password_reset_link_invalid":
         "Link wygasł lub został już użyty. Poproś o nowy link.",
       "identity.password_reset_rate_limited":
         "Link był wysyłany zbyt często. Odczekaj chwilę i spróbuj ponownie.",
-      "identity.mfa_blocked":
-        "Zbyt wiele prób. Odczekaj kilka minut i spróbuj ponownie.",
-      "identity.invitation_not_found":
-        "To zaproszenie nie istnieje. Sprawdź link w e-mailu.",
-      "identity.invitation_expired":
-        "To zaproszenie wygasło lub zostało już użyte. Poproś swoją szkołę o nowe zaproszenie.",
+      "identity.password_too_weak":
+        "Hasło jest zbyt słabe. Potrzeba co najmniej 8 znaków, wielkich i małych liter, cyfry i znaku specjalnego.",
+      "identity.session_account_inactive":
+        "Twoje konto jest wyłączone. Skontaktuj się z dyrekcją swojej szkoły.",
       "meals.child_not_enrolled":
         "Nie można: {object}. Dziecko nie jest tego dnia pod opieką.",
       "meals.day_closed":
         "Nie można: {object}. Tego dnia szkoła jest zamknięta.",
       "meals.day_past": "Już nie można: {object}. Ten dzień już minął.",
+      "meals.delivery_range_too_long":
+        "Lista dostaw obejmuje maksymalnie siedem dni. Proszę wybrać krótszy okres.",
       "meals.invalid_allergens":
         "Nie udało się zapisać alergenów. Prosimy wybrać je ponownie.",
       "meals.invalid_participation":
         "Nieprawidłowe dane: {object}. Sprawdź wpisane dane.",
+      "meals.not_supplied":
+        "Nie zaopatrujesz już tej szkoły. Proszę zapytać szkołę.",
+      "meals.order_not_found":
+        "To zamówienie nie istnieje. Proszę odświeżyć stronę.",
       "meals.plan_disabled":
         "Obecnie niedostępne tutaj: {object}. Zapytaj swoją osobę kontaktową.",
       "meals.registration_disabled":
         "Obecnie niedostępne tutaj: {object}. Zapytaj swoją osobę kontaktową.",
+      "meals.supply_active":
+        "{object} nie jest teraz możliwe. Szkołę nadal zaopatruje firma cateringowa. Najpierw zakończ to zaopatrzenie.",
+      "module.not_booked":
+        "Twoja szkoła nie zamówiła modułu {module_label}. Aby go zamówić, skontaktuj się z zespołem moto.",
       "students.care_exception_raced":
         "W międzyczasie zmieniono: {object}. Sprawdź ponownie swoje dane.",
       "students.care_offerings_disabled":
@@ -2553,88 +2637,12 @@ export const ERROR_CATALOG = {
         "Ten czas ustawili rodzice. Zmienić go może tylko osoba z profilem pracownika.",
       "students.status_day_conflict":
         "Niektóre dni mają już wpis. Tych dni nie zmieniono.",
-      "enrollment.form_attachment_invalid": "Sprawdź nazwę i plik PDF.",
-      "enrollment.form_field_file_options_invalid":
-        "Sprawdź pytanie o plik. Wybierz co najmniej jeden rodzaj pliku i rozmiar od 1 do 10 MB.",
-      "enrollment.upload_invalid":
-        "Ten plik nie pasuje. Wybierz dozwolony rodzaj pliku o rozmiarze najwyżej {max_mb} MB.",
-      "enrollment.upload_expired":
-        "Przesłany plik wygasł. Prześlij go ponownie.",
-      "enrollment.upload_rate_limited":
-        "Przesłano zbyt wiele plików. Spróbuj ponownie później.",
-      "enrollment.upload_not_found":
-        "Tego pliku już nie ma. Prześlij go ponownie.",
-      "enrollment.form_not_found":
-        "Ten formularz zapisu nie istnieje. Sprawdź link lub zapytaj szkołę.",
-      "enrollment.status_link_invalid":
-        "Ten link jest nieprawidłowy lub wygasł. Użyj linku z e-maila.",
-      "enrollment.edit_not_allowed":
-        "Tego zapisu nie można już zmienić. Skontaktuj się ze szkołą.",
-      "enrollment.withdraw_not_allowed":
-        "Tego zapisu nie można już wycofać. Skontaktuj się ze szkołą.",
-      "enrollment.captcha_required": "Potwierdź weryfikację bezpieczeństwa.",
-      "enrollment.captcha_failed":
-        "Weryfikacja bezpieczeństwa nie powiodła się. Spróbuj ponownie.",
-      "enrollment.submission_rate_limited":
-        "Wysłano zbyt wiele zapisów. Spróbuj ponownie za godzinę.",
-      "enrollment.request_duplicate":
-        "To dziecko ma już zapis w tym okresie zapisów.",
-      "enrollment.child_already_requested":
-        "Inna osoba już zapisała to dziecko. Skontaktuj się ze szkołą.",
-      "enrollment.care_offering_closed":
-        "Wybrana oferta opieki nie przyjmuje teraz zapisów. Wybierz inną ofertę.",
-      "enrollment.consent_required": "Potwierdź wszystkie wymagane zgody.",
-      "enrollment.child_required": "Dodaj co najmniej jedno dziecko.",
-      "enrollment.child_name_required": "Wpisz imię i nazwisko dziecka.",
-      "enrollment.child_birth_date_invalid": "Wpisz datę urodzenia dziecka.",
-      "enrollment.child_grade_required": "Wybierz klasę dziecka.",
-      "enrollment.guardian_name_required": "Wpisz imię i nazwisko.",
-      "enrollment.guardian_email_required": "Wpisz adres e-mail.",
-      "enrollment.guardian_phone_required": "Wpisz numer telefonu.",
-      "enrollment.field_required": "Wypełnij wszystkie wymagane pola.",
-      "enrollment.companion_note_required":
-        "Podaj, z kim dziecko wraca do domu.",
-      "enrollment.message_required": "Napisz wiadomość.",
-      "enrollment.change_request_guardian_linked":
-        "Zmień te dane w aplikacji dla rodziców.",
-      "enrollment.change_request_not_found":
-        "Ta prośba o zmianę już nie istnieje. Odśwież stronę.",
-      "enrollment.change_request_not_allowed":
-        "Tego zapisu nie można teraz zmienić. Skontaktuj się ze szkołą.",
-      "enrollment.change_request_status_changed":
-        "Stan tej prośby o zmianę się zmienił. Odśwież stronę.",
-      "identity.operator_self_deactivation":
-        "Nie możesz dezaktywować własnego konta. Poproś o to inną osobę z zespołu.",
-      "identity.mfa_status_unavailable":
-        "Weryfikacja logowania jest teraz niedostępna. Spróbuj ponownie.",
-      "identity.mfa_session_required":
-        "Logowanie do {object} wymaga dodatkowego potwierdzenia. Przycisk wyloguje Cię i otworzy stronę logowania tej szkoły. Zaloguj się tam ponownie i potwierdź logowanie.",
-      "identity.caterer_address_taken":
-        "Ten adres e-mail należy już do innego konta moto. Proszę użyć innego adresu.",
-      "identity.caterer_without_school":
-        "Obecnie nie zaopatrujesz żadnej szkoły przez moto. Proszę zapytać szkołę.",
-      "meals.delivery_range_too_long":
-        "Lista dostaw obejmuje maksymalnie siedem dni. Proszę wybrać krótszy okres.",
-      "meals.not_supplied":
-        "Nie zaopatrujesz już tej szkoły. Proszę zapytać szkołę.",
-      "meals.order_not_found":
-        "To zamówienie nie istnieje. Proszę odświeżyć stronę.",
-      "meals.supply_active":
-        "{object} nie jest teraz możliwe. Szkołę nadal zaopatruje firma cateringowa. Najpierw zakończ to zaopatrzenie.",
-      "communication.group_thread_closed":
-        "Ta wiadomość grupowa jest zamknięta. Nie można już odpowiedzieć.",
-      "communication.group_thread_no_recipients":
-        "Żadne dziecko w tej grupie nie ma rodziców z dostępem do moto. Wiadomość nie została wysłana.",
-      "classday.homework_not_found":
-        "Tego zadania domowego już nie ma. Odśwież stronę.",
       "timetable.homework_feedback_child_not_in_supervision":
         "To dziecko nie należy do tej opieki. Odśwież stronę.",
       "timetable.homework_feedback_not_allowed":
         "Informację o zadaniach domowych można podać tylko w odrabianiu lekcji, które prowadzisz.",
       "timetable.homework_feedback_without_homework":
         "Dla klasy tego dziecka nie ma dziś wpisanych zadań domowych.",
-      "module.not_booked":
-        "Twoja szkoła nie zamówiła modułu {module_label}. Aby go zamówić, skontaktuj się z zespołem moto.",
     },
   },
   tr: {
@@ -2757,12 +2765,24 @@ export const ERROR_CATALOG = {
         "Sınıf yalnızca bugün teslim edilebilir. Lütfen bugünü açın.",
       "classday.class_handover_unknown_child":
         "Bir çocuk artık bu sınıfa ait değil. Lütfen sayfayı yenileyin.",
+      "classday.homework_not_found":
+        "Bu ev ödevi artık yok. Lütfen sayfayı yenileyin.",
       "classday.morning_attendance_no_school_day":
         "Bugün okul günü değil. Devam durumu yalnızca okul günlerinde girilebilir.",
       "classday.morning_attendance_not_today":
         "Devam durumu yalnızca bugün için girilebilir. Lütfen bugünü açın.",
       "classday.morning_attendance_unknown_child":
         "Bir çocuk artık bu sınıfa ait değil. Lütfen sayfayı yenileyin.",
+      "communication.group_thread_closed":
+        "Bu grup mesajı kapatıldı. Artık yanıt veremezsiniz.",
+      "communication.group_thread_no_recipients":
+        "Bu gruptaki hiçbir çocuğun moto erişimi olan velisi yok. Mesaj gönderilmedi.",
+      "enrollment.captcha_failed":
+        "Güvenlik doğrulaması başarısız oldu. Lütfen tekrar deneyin.",
+      "enrollment.captcha_required":
+        "Lütfen güvenlik doğrulamasını tamamlayın.",
+      "enrollment.care_offering_closed":
+        "Seçilen bakım hizmeti şu anda kayıt kabul etmiyor. Lütfen başka bir hizmet seçin.",
       "enrollment.care_offering_day_conflict":
         "Aynı gün için birlikte seçilemeyen iki hizmet seçildi. Lütfen her gün için yalnızca birini seçin.",
       "enrollment.care_offering_exactly_one":
@@ -2779,18 +2799,37 @@ export const ERROR_CATALOG = {
         "Bu çocuk zaten bakımda. Değişiklikleri lütfen veli uygulamasında yapın.",
       "enrollment.change_request_conflict":
         "{object} bu arada değiştirildi. Lütfen bilgilerinizi yeniden kontrol edin.",
+      "enrollment.change_request_guardian_linked":
+        "Lütfen bu bilgileri veli uygulamasında değiştirin.",
+      "enrollment.change_request_not_allowed":
+        "Bu kayıt şu anda değiştirilemez. Lütfen okulla iletişime geçin.",
+      "enrollment.change_request_not_found":
+        "Bu değişiklik talebi artık yok. Lütfen sayfayı yenileyin.",
+      "enrollment.change_request_status_changed":
+        "Bu değişiklik talebinin durumu değişti. Lütfen sayfayı yenileyin.",
       "enrollment.child_already_enrolled":
         "Bu çocuk okulda zaten kayıtlı. Bu kayıt yalnızca yeni çocuklar içindir.",
+      "enrollment.child_already_requested":
+        "Bu çocuğu başka bir kişi zaten kaydetti. Lütfen okulla iletişime geçin.",
       "enrollment.child_ambiguous":
         "Çocuğu kesin olarak eşleştiremedik. Lütfen okulla iletişime geçin.",
+      "enrollment.child_birth_date_invalid":
+        "Lütfen çocuğun doğum tarihini girin.",
+      "enrollment.child_grade_required": "Lütfen çocuğun sınıf düzeyini seçin.",
+      "enrollment.child_name_required":
+        "Lütfen çocuğun adını ve soyadını girin.",
       "enrollment.child_not_enrolled":
         "Bu çocuk henüz okula kayıtlı değil. Bu kayıt yalnızca okulun çocukları içindir.",
       "enrollment.child_not_permitted":
         "Bu çocuğu yeniden kaydetme izniniz yok. Lütfen okulla iletişime geçin.",
+      "enrollment.child_required": "Lütfen en az bir çocuk ekleyin.",
       "enrollment.class_not_eligible":
         "Bu kayıt yalnızca belirli sınıflar içindir. Lütfen çocuğunuzun sınıfını kontrol edin.",
+      "enrollment.companion_note_required":
+        "Lütfen çocuğun eve kiminle gittiğini belirtin.",
       "enrollment.complete_withdrawal_confirmation_required":
         "{object} henüz kayıttan çıkarılamaz. Lütfen {confirmation} ile onaylayın.",
+      "enrollment.consent_required": "Lütfen tüm zorunlu onayları verin.",
       "enrollment.day_selection_not_allowed":
         "Bu hizmetin günleri sabittir. Gün seçemezsiniz.",
       "enrollment.day_selection_required":
@@ -2799,22 +2838,52 @@ export const ERROR_CATALOG = {
         "Lütfen her gün için yalnızca bir eve dönüş yolu seçin.",
       "enrollment.disabled":
         "Bu okulda çevrim içi kayıt şu anda mümkün değil. Lütfen okulla iletişime geçin.",
+      "enrollment.edit_not_allowed":
+        "Bu kayıt artık değiştirilemez. Lütfen okulla iletişime geçin.",
+      "enrollment.field_required": "Lütfen tüm zorunlu alanları doldurun.",
+      "enrollment.form_attachment_invalid":
+        "Lütfen adı ve PDF dosyasını kontrol edin.",
+      "enrollment.form_field_file_options_invalid":
+        "Lütfen dosya sorusunu kontrol edin. En az bir dosya türü ve 1 ile 10 MB arasında bir boyut seçin.",
+      "enrollment.form_not_found":
+        "Bu kayıt formu bulunamadı. Bağlantıyı kontrol edin veya okula sorun.",
       "enrollment.grade_not_eligible":
         "Bu kayıt yalnızca belirli sınıf düzeyleri içindir. Lütfen çocuğunuzun sınıf düzeyini kontrol edin.",
+      "enrollment.guardian_email_required": "Lütfen bir e-posta adresi girin.",
+      "enrollment.guardian_name_required": "Lütfen adı ve soyadı girin.",
+      "enrollment.guardian_phone_required":
+        "Lütfen bir telefon numarası girin.",
       "enrollment.invalid_email": "Lütfen geçerli bir e-posta adresi girin.",
       "enrollment.invalid_phone": "Lütfen geçerli bir telefon numarası girin.",
       "enrollment.late_invite_invalid":
         "Bu bağlantı geçersiz, süresi dolmuş veya kullanılmış. Lütfen okulla iletişime geçin.",
+      "enrollment.message_required": "Lütfen bir mesaj yazın.",
       "enrollment.phase_not_eligible":
         "Bu kayıt hesabınız için açık değil. Lütfen veli uygulamasına giriş yapın veya okula sorun.",
       "enrollment.pickup_time_not_allowed":
         "Lütfen yalnızca listedeki alma saatlerini seçin. İşaretli saat artık yok.",
+      "enrollment.request_duplicate":
+        "Bu çocuk için bu kayıt döneminde zaten bir kayıt var.",
       "enrollment.required_care_offering_missing":
         "Lütfen her çocuk için zorunlu hizmeti seçin.",
       "enrollment.selected_day_not_available":
         "Bu gün bu hizmet için mümkün değil. Lütfen yalnızca gösterilen günleri seçin.",
+      "enrollment.status_link_invalid":
+        "Bu bağlantı geçersiz veya süresi dolmuş. Lütfen e-postanızdaki bağlantıyı kullanın.",
+      "enrollment.submission_rate_limited":
+        "Çok fazla kayıt gönderildi. Lütfen bir saat sonra tekrar deneyin.",
+      "enrollment.upload_expired":
+        "Yüklenen bir dosyanın süresi doldu. Lütfen dosyayı tekrar yükleyin.",
+      "enrollment.upload_invalid":
+        "Bu dosya uygun değil. Lütfen en fazla {max_mb} MB olan izin verilen bir dosya türü seçin.",
+      "enrollment.upload_not_found":
+        "Bu dosya artık yok. Lütfen dosyayı tekrar yükleyin.",
+      "enrollment.upload_rate_limited":
+        "Çok fazla dosya yüklendi. Lütfen daha sonra tekrar deneyin.",
       "enrollment.window_closed":
         "Kayıt süresi bitti veya henüz başlamadı. Lütfen okulla iletişime geçin.",
+      "enrollment.withdraw_not_allowed":
+        "Bu kayıt artık geri çekilemez. Lütfen okulla iletişime geçin.",
       "files.file_name_invalid":
         "Dosya adı kabul edilmiyor. Lütfen dosyayı yeniden seçin.",
       "general.request_too_large":
@@ -2823,6 +2892,10 @@ export const ERROR_CATALOG = {
         "Bu kişinin bu okula zaten erişimi var. Kişiyi personel listesinde bulabilirsiniz.",
       "identity.account_inactive":
         "Hesabınız engellendi. Lütfen moto ile iletişime geçin.",
+      "identity.caterer_address_taken":
+        "Bu e-posta adresi zaten başka bir moto hesabına ait. Lütfen başka bir adres kullanın.",
+      "identity.caterer_without_school":
+        "Şu anda moto üzerinden hiçbir okula yemek sağlamıyorsunuz. Lütfen okula danışın.",
       "identity.demo_access_expired":
         "Demo erişiminin süresi doldu. Lütfen yeni bir erişim isteyin.",
       "identity.demo_access_invalid":
@@ -2837,38 +2910,54 @@ export const ERROR_CATALOG = {
         "Demo okul hazırlanıyor. Lütfen birazdan tekrar deneyin.",
       "identity.email_already_exists":
         "Bu e-posta adresi için zaten bir hesap var. Lütfen başka bir adres kullanın.",
+      "identity.invalid_credentials":
+        "E-posta adresi veya şifre doğru değil. Lütfen girdiğiniz bilgileri kontrol edin.",
       "identity.invitation_account_login_required":
         "Bu e-posta adresi için zaten bir hesap var. Lütfen önce bu hesapla giriş yapın, sonra daveti yeniden açın.",
       "identity.invitation_account_mismatch":
         "Başka bir hesapla giriş yaptınız. Lütfen davet edilen e-posta adresiyle giriş yapın.",
-      "identity.session_account_inactive":
-        "Hesabınız kapalı. Lütfen okulunuzun yönetimiyle iletişime geçin.",
-      "identity.invalid_credentials":
-        "E-posta adresi veya şifre doğru değil. Lütfen girdiğiniz bilgileri kontrol edin.",
-      "identity.password_too_weak":
-        "Şifre çok zayıf. En az 8 karakter, büyük ve küçük harf, bir rakam ve bir özel karakter gerekir.",
+      "identity.invitation_expired":
+        "Bu davetin süresi dolmuş veya davet zaten kullanılmış. Lütfen okulunuzdan yeni bir davet isteyin.",
+      "identity.invitation_not_found":
+        "Bu davet mevcut değil. Lütfen e-postadaki bağlantıyı kontrol edin.",
+      "identity.mfa_blocked":
+        "Çok fazla deneme yapıldı. Lütfen birkaç dakika bekleyin ve sonra yeniden deneyin.",
+      "identity.mfa_session_required":
+        "{object} okuluna giriş için ikinci bir doğrulama gerekiyor. Düğme oturumunuzu kapatır ve o okulun giriş sayfasını açar. Orada yeniden giriş yapın ve doğrulamayı tamamlayın.",
+      "identity.mfa_status_unavailable":
+        "Giriş doğrulaması şu anda kullanılamıyor. Lütfen tekrar deneyin.",
+      "identity.operator_self_deactivation":
+        "Kendi hesabınızı devre dışı bırakamazsınız. Bunu ekipten başka bir kişiden isteyin.",
       "identity.password_reset_link_invalid":
         "Bağlantının süresi dolmuş veya bağlantı zaten kullanılmış. Lütfen yeni bir bağlantı isteyin.",
       "identity.password_reset_rate_limited":
         "Çok sık bağlantı istediniz. Lütfen biraz bekleyin ve sonra yeniden deneyin.",
-      "identity.mfa_blocked":
-        "Çok fazla deneme yapıldı. Lütfen birkaç dakika bekleyin ve sonra yeniden deneyin.",
-      "identity.invitation_not_found":
-        "Bu davet mevcut değil. Lütfen e-postadaki bağlantıyı kontrol edin.",
-      "identity.invitation_expired":
-        "Bu davetin süresi dolmuş veya davet zaten kullanılmış. Lütfen okulunuzdan yeni bir davet isteyin.",
+      "identity.password_too_weak":
+        "Şifre çok zayıf. En az 8 karakter, büyük ve küçük harf, bir rakam ve bir özel karakter gerekir.",
+      "identity.session_account_inactive":
+        "Hesabınız kapalı. Lütfen okulunuzun yönetimiyle iletişime geçin.",
       "meals.child_not_enrolled":
         "{object} mümkün değil. Çocuk bu gün bakımda değil.",
       "meals.day_closed": "{object} mümkün değil. Okul bu gün kapalı.",
       "meals.day_past": "{object} artık mümkün değil. Bu gün geçti.",
+      "meals.delivery_range_too_long":
+        "Teslimat listesi en fazla yedi günü kapsar. Lütfen daha kısa bir dönem seçin.",
       "meals.invalid_allergens":
         "Alerjenler kaydedilemedi. Lütfen yeniden seçin.",
       "meals.invalid_participation":
         "{object} geçersiz bilgiler içeriyor. Lütfen girdiğiniz bilgileri kontrol edin.",
+      "meals.not_supplied":
+        "Artık bu okula yemek sağlamıyorsunuz. Lütfen okula danışın.",
+      "meals.order_not_found":
+        "Bu sipariş mevcut değil. Lütfen sayfayı yeniden yükleyin.",
       "meals.plan_disabled":
         "{object} şu anda burada kullanılamıyor. Lütfen ilgili kişinize danışın.",
       "meals.registration_disabled":
         "{object} şu anda burada kullanılamıyor. Lütfen ilgili kişinize danışın.",
+      "meals.supply_active":
+        "{object} şu anda mümkün değil. Okula hâlâ bir yemek firması yemek sağlıyor. Önce bu tedariki sonlandırın.",
+      "module.not_booked":
+        "Okulunuz {module_label} modülünü almamış. Almak için moto ekibiyle iletişime geçin.",
       "students.care_exception_raced":
         "{object} bu arada değiştirildi. Lütfen bilgilerinizi yeniden kontrol edin.",
       "students.care_offerings_disabled":
@@ -2887,93 +2976,12 @@ export const ERROR_CATALOG = {
         "Bu saati veliler belirledi. Yalnızca personel profili olan biri değiştirebilir.",
       "students.status_day_conflict":
         "Bazı günlerde zaten bir kayıt var. Bu günler değiştirilmedi.",
-      "enrollment.form_attachment_invalid":
-        "Lütfen adı ve PDF dosyasını kontrol edin.",
-      "enrollment.form_field_file_options_invalid":
-        "Lütfen dosya sorusunu kontrol edin. En az bir dosya türü ve 1 ile 10 MB arasında bir boyut seçin.",
-      "enrollment.upload_invalid":
-        "Bu dosya uygun değil. Lütfen en fazla {max_mb} MB olan izin verilen bir dosya türü seçin.",
-      "enrollment.upload_expired":
-        "Yüklenen bir dosyanın süresi doldu. Lütfen dosyayı tekrar yükleyin.",
-      "enrollment.upload_rate_limited":
-        "Çok fazla dosya yüklendi. Lütfen daha sonra tekrar deneyin.",
-      "enrollment.upload_not_found":
-        "Bu dosya artık yok. Lütfen dosyayı tekrar yükleyin.",
-      "enrollment.form_not_found":
-        "Bu kayıt formu bulunamadı. Bağlantıyı kontrol edin veya okula sorun.",
-      "enrollment.status_link_invalid":
-        "Bu bağlantı geçersiz veya süresi dolmuş. Lütfen e-postanızdaki bağlantıyı kullanın.",
-      "enrollment.edit_not_allowed":
-        "Bu kayıt artık değiştirilemez. Lütfen okulla iletişime geçin.",
-      "enrollment.withdraw_not_allowed":
-        "Bu kayıt artık geri çekilemez. Lütfen okulla iletişime geçin.",
-      "enrollment.captcha_required":
-        "Lütfen güvenlik doğrulamasını tamamlayın.",
-      "enrollment.captcha_failed":
-        "Güvenlik doğrulaması başarısız oldu. Lütfen tekrar deneyin.",
-      "enrollment.submission_rate_limited":
-        "Çok fazla kayıt gönderildi. Lütfen bir saat sonra tekrar deneyin.",
-      "enrollment.request_duplicate":
-        "Bu çocuk için bu kayıt döneminde zaten bir kayıt var.",
-      "enrollment.child_already_requested":
-        "Bu çocuğu başka bir kişi zaten kaydetti. Lütfen okulla iletişime geçin.",
-      "enrollment.care_offering_closed":
-        "Seçilen bakım hizmeti şu anda kayıt kabul etmiyor. Lütfen başka bir hizmet seçin.",
-      "enrollment.consent_required": "Lütfen tüm zorunlu onayları verin.",
-      "enrollment.child_required": "Lütfen en az bir çocuk ekleyin.",
-      "enrollment.child_name_required":
-        "Lütfen çocuğun adını ve soyadını girin.",
-      "enrollment.child_birth_date_invalid":
-        "Lütfen çocuğun doğum tarihini girin.",
-      "enrollment.child_grade_required": "Lütfen çocuğun sınıf düzeyini seçin.",
-      "enrollment.guardian_name_required": "Lütfen adı ve soyadı girin.",
-      "enrollment.guardian_email_required": "Lütfen bir e-posta adresi girin.",
-      "enrollment.guardian_phone_required":
-        "Lütfen bir telefon numarası girin.",
-      "enrollment.field_required": "Lütfen tüm zorunlu alanları doldurun.",
-      "enrollment.companion_note_required":
-        "Lütfen çocuğun eve kiminle gittiğini belirtin.",
-      "enrollment.message_required": "Lütfen bir mesaj yazın.",
-      "enrollment.change_request_guardian_linked":
-        "Lütfen bu bilgileri veli uygulamasında değiştirin.",
-      "enrollment.change_request_not_found":
-        "Bu değişiklik talebi artık yok. Lütfen sayfayı yenileyin.",
-      "enrollment.change_request_not_allowed":
-        "Bu kayıt şu anda değiştirilemez. Lütfen okulla iletişime geçin.",
-      "enrollment.change_request_status_changed":
-        "Bu değişiklik talebinin durumu değişti. Lütfen sayfayı yenileyin.",
-      "identity.operator_self_deactivation":
-        "Kendi hesabınızı devre dışı bırakamazsınız. Bunu ekipten başka bir kişiden isteyin.",
-      "identity.mfa_status_unavailable":
-        "Giriş doğrulaması şu anda kullanılamıyor. Lütfen tekrar deneyin.",
-      "identity.mfa_session_required":
-        "{object} okuluna giriş için ikinci bir doğrulama gerekiyor. Düğme oturumunuzu kapatır ve o okulun giriş sayfasını açar. Orada yeniden giriş yapın ve doğrulamayı tamamlayın.",
-      "identity.caterer_address_taken":
-        "Bu e-posta adresi zaten başka bir moto hesabına ait. Lütfen başka bir adres kullanın.",
-      "identity.caterer_without_school":
-        "Şu anda moto üzerinden hiçbir okula yemek sağlamıyorsunuz. Lütfen okula danışın.",
-      "meals.delivery_range_too_long":
-        "Teslimat listesi en fazla yedi günü kapsar. Lütfen daha kısa bir dönem seçin.",
-      "meals.not_supplied":
-        "Artık bu okula yemek sağlamıyorsunuz. Lütfen okula danışın.",
-      "meals.order_not_found":
-        "Bu sipariş mevcut değil. Lütfen sayfayı yeniden yükleyin.",
-      "meals.supply_active":
-        "{object} şu anda mümkün değil. Okula hâlâ bir yemek firması yemek sağlıyor. Önce bu tedariki sonlandırın.",
-      "communication.group_thread_closed":
-        "Bu grup mesajı kapatıldı. Artık yanıt veremezsiniz.",
-      "communication.group_thread_no_recipients":
-        "Bu gruptaki hiçbir çocuğun moto erişimi olan velisi yok. Mesaj gönderilmedi.",
-      "classday.homework_not_found":
-        "Bu ev ödevi artık yok. Lütfen sayfayı yenileyin.",
       "timetable.homework_feedback_child_not_in_supervision":
         "Bu çocuk bu gözetime ait değil. Lütfen sayfayı yenileyin.",
       "timetable.homework_feedback_not_allowed":
         "Ev ödevi geri bildirimi yalnızca gözetiminizdeki etüt saatinde verilebilir.",
       "timetable.homework_feedback_without_homework":
         "Bu çocuğun sınıfı için bugün ev ödevi girilmedi.",
-      "module.not_booked":
-        "Okulunuz {module_label} modülünü almamış. Almak için moto ekibiyle iletişime geçin.",
     },
   },
   uk: {
@@ -3093,12 +3101,23 @@ export const ERROR_CATALOG = {
         "Передати клас можна лише сьогодні. Відкрийте сьогоднішній день.",
       "classday.class_handover_unknown_child":
         "Одна дитина більше не належить до цього класу. Оновіть сторінку.",
+      "classday.homework_not_found":
+        "Цього домашнього завдання більше немає. Оновіть сторінку.",
       "classday.morning_attendance_no_school_day":
         "Сьогодні не навчальний день. Присутність можна позначати лише в навчальні дні.",
       "classday.morning_attendance_not_today":
         "Присутність можна позначити лише на сьогодні. Відкрийте сьогоднішній день.",
       "classday.morning_attendance_unknown_child":
         "Одна дитина більше не належить до цього класу. Оновіть сторінку.",
+      "communication.group_thread_closed":
+        "Це групове повідомлення закрито. Відповісти більше не можна.",
+      "communication.group_thread_no_recipients":
+        "Жодна дитина в цій групі не має батьків із доступом до moto. Повідомлення не надіслано.",
+      "enrollment.captcha_failed":
+        "Перевірка безпеки не вдалася. Спробуйте ще раз.",
+      "enrollment.captcha_required": "Пройдіть перевірку безпеки.",
+      "enrollment.care_offering_closed":
+        "Обрана програма догляду зараз не приймає заявки. Оберіть іншу.",
       "enrollment.care_offering_day_conflict":
         "На один день обрано дві програми, які не можна поєднувати. Оберіть лише одну на день.",
       "enrollment.care_offering_exactly_one":
@@ -3115,18 +3134,34 @@ export const ERROR_CATALOG = {
         "Ця дитина вже під доглядом. Вносьте зміни в застосунку для батьків.",
       "enrollment.change_request_conflict":
         "Дані змінилися: {object}. Перевірте свої дані ще раз.",
+      "enrollment.change_request_guardian_linked":
+        "Змініть ці дані в застосунку для батьків.",
+      "enrollment.change_request_not_allowed":
+        "Цей запис зараз не можна змінити. Зверніться до школи.",
+      "enrollment.change_request_not_found":
+        "Цього запиту на зміну більше немає. Оновіть сторінку.",
+      "enrollment.change_request_status_changed":
+        "Статус цього запиту на зміну змінився. Оновіть сторінку.",
       "enrollment.child_already_enrolled":
         "Ця дитина вже записана до школи. Цей запис лише для нових дітей.",
+      "enrollment.child_already_requested":
+        "Інша людина вже записала цю дитину. Зверніться до школи.",
       "enrollment.child_ambiguous":
         "Не вдалося однозначно визначити дитину. Зверніться до школи.",
+      "enrollment.child_birth_date_invalid": "Вкажіть дату народження дитини.",
+      "enrollment.child_grade_required": "Оберіть клас дитини.",
+      "enrollment.child_name_required": "Вкажіть ім'я та прізвище дитини.",
       "enrollment.child_not_enrolled":
         "Ця дитина ще не записана до школи. Цей запис лише для дітей школи.",
       "enrollment.child_not_permitted":
         "Ви не можете повторно записати цю дитину. Зверніться до школи.",
+      "enrollment.child_required": "Додайте хоча б одну дитину.",
       "enrollment.class_not_eligible":
         "Цей запис лише для певних класів. Перевірте клас дитини.",
+      "enrollment.companion_note_required": "Вкажіть, з ким дитина йде додому.",
       "enrollment.complete_withdrawal_confirmation_required":
         "Поки не можна скасувати запис: {object}. Підтвердьте за допомогою {confirmation}.",
+      "enrollment.consent_required": "Підтвердіть усі обов'язкові згоди.",
       "enrollment.day_selection_not_allowed":
         "Дні цієї програми визначені заздалегідь. Обрати дні не можна.",
       "enrollment.day_selection_required":
@@ -3135,22 +3170,50 @@ export const ERROR_CATALOG = {
         "Оберіть лише один спосіб повернення додому на кожен день тижня.",
       "enrollment.disabled":
         "Онлайн-запис у цій школі зараз недоступний. Зверніться до школи.",
+      "enrollment.edit_not_allowed":
+        "Цей запис більше не можна змінити. Зверніться до школи.",
+      "enrollment.field_required": "Заповніть усі обов'язкові поля.",
+      "enrollment.form_attachment_invalid": "Перевірте назву та PDF-файл.",
+      "enrollment.form_field_file_options_invalid":
+        "Перевірте запитання з файлом. Виберіть хоча б один тип файлу і розмір від 1 до 10 МБ.",
+      "enrollment.form_not_found":
+        "Цієї форми запису не існує. Перевірте посилання або зверніться до школи.",
       "enrollment.grade_not_eligible":
         "Цей запис лише для певних років навчання. Перевірте клас дитини.",
+      "enrollment.guardian_email_required": "Вкажіть адресу електронної пошти.",
+      "enrollment.guardian_name_required": "Вкажіть ім'я та прізвище.",
+      "enrollment.guardian_phone_required": "Вкажіть номер телефону.",
       "enrollment.invalid_email": "Вкажіть правильну адресу електронної пошти.",
       "enrollment.invalid_phone": "Вкажіть правильний номер телефону.",
       "enrollment.late_invite_invalid":
         "Це посилання недійсне, застаріле або вже використане. Зверніться до школи.",
+      "enrollment.message_required": "Напишіть повідомлення.",
       "enrollment.phase_not_eligible":
         "Цей запис недоступний для вашого облікового запису. Увійдіть у застосунок для батьків або зверніться до школи.",
       "enrollment.pickup_time_not_allowed":
         "Обирайте час забирання лише зі списку. Позначеного часу більше немає.",
+      "enrollment.request_duplicate":
+        "Для цієї дитини вже є заявка в цей період запису.",
       "enrollment.required_care_offering_missing":
         "Оберіть обов'язкову програму для кожної дитини.",
       "enrollment.selected_day_not_available":
         "Цей день тижня недоступний для програми. Обирайте лише показані дні.",
+      "enrollment.status_link_invalid":
+        "Це посилання недійсне або застаріле. Скористайтеся посиланням з вашого листа.",
+      "enrollment.submission_rate_limited":
+        "Надіслано забагато заявок. Спробуйте ще раз через годину.",
+      "enrollment.upload_expired":
+        "Термін дії завантаженого файлу минув. Завантажте його ще раз.",
+      "enrollment.upload_invalid":
+        "Цей файл не підходить. Виберіть дозволений тип файлу розміром не більше {max_mb} МБ.",
+      "enrollment.upload_not_found":
+        "Цього файлу більше немає. Завантажте його ще раз.",
+      "enrollment.upload_rate_limited":
+        "Завантажено забагато файлів. Спробуйте пізніше.",
       "enrollment.window_closed":
         "Термін запису минув або ще не почався. Зверніться до школи.",
+      "enrollment.withdraw_not_allowed":
+        "Цей запис більше не можна відкликати. Зверніться до школи.",
       "files.file_name_invalid":
         "Назва файлу не дозволена. Виберіть файл ще раз.",
       "general.request_too_large":
@@ -3159,6 +3222,10 @@ export const ERROR_CATALOG = {
         "Ця особа вже має доступ до цієї школи. Її можна знайти в списку персоналу.",
       "identity.account_inactive":
         "Ваш обліковий запис заблоковано. Зверніться до moto.",
+      "identity.caterer_address_taken":
+        "Ця адреса електронної пошти вже належить іншому обліковому запису moto. Будь ласка, вкажіть іншу адресу.",
+      "identity.caterer_without_school":
+        "Зараз ви не постачаєте жодну школу через moto. Будь ласка, зверніться до школи.",
       "identity.demo_access_expired":
         "Демо-доступ закінчився. Запросіть новий доступ.",
       "identity.demo_access_invalid":
@@ -3173,38 +3240,54 @@ export const ERROR_CATALOG = {
         "Демо-школа зараз готується. Спробуйте ще раз за хвилину.",
       "identity.email_already_exists":
         "Для цієї адреси електронної пошти вже є обліковий запис. Укажіть іншу адресу.",
+      "identity.invalid_credentials":
+        "Неправильна адреса електронної пошти або пароль. Перевірте введені дані.",
       "identity.invitation_account_login_required":
         "Для цієї адреси ел. пошти вже є обліковий запис. Спочатку увійдіть у нього, а потім знову відкрийте запрошення.",
       "identity.invitation_account_mismatch":
         "Ви увійшли в інший обліковий запис. Увійдіть з адресою ел. пошти, на яку надійшло запрошення.",
-      "identity.session_account_inactive":
-        "Ваш обліковий запис вимкнено. Зверніться до керівництва вашої школи.",
-      "identity.invalid_credentials":
-        "Неправильна адреса електронної пошти або пароль. Перевірте введені дані.",
-      "identity.password_too_weak":
-        "Пароль надто простий. Потрібно щонайменше 8 символів, великі й малі літери, цифра і спеціальний символ.",
+      "identity.invitation_expired":
+        "Це запрошення вже недійсне або його вже використали. Попросіть у школи нове запрошення.",
+      "identity.invitation_not_found":
+        "Такого запрошення немає. Перевірте посилання в листі.",
+      "identity.mfa_blocked":
+        "Забагато спроб. Зачекайте кілька хвилин і спробуйте ще раз.",
+      "identity.mfa_session_required":
+        "Для входу до {object} потрібне додаткове підтвердження. Кнопка завершить поточний сеанс і відкриє сторінку входу цієї школи. Увійдіть там знову й підтвердьте вхід.",
+      "identity.mfa_status_unavailable":
+        "Підтвердження входу зараз недоступне. Спробуйте ще раз.",
+      "identity.operator_self_deactivation":
+        "Ви не можете деактивувати власний обліковий запис. Попросіть іншу людину з команди зробити це.",
       "identity.password_reset_link_invalid":
         "Посилання вже недійсне або його вже використали. Запросіть нове посилання.",
       "identity.password_reset_rate_limited":
         "Ви надто часто запитували посилання. Зачекайте трохи і спробуйте ще раз.",
-      "identity.mfa_blocked":
-        "Забагато спроб. Зачекайте кілька хвилин і спробуйте ще раз.",
-      "identity.invitation_not_found":
-        "Такого запрошення немає. Перевірте посилання в листі.",
-      "identity.invitation_expired":
-        "Це запрошення вже недійсне або його вже використали. Попросіть у школи нове запрошення.",
+      "identity.password_too_weak":
+        "Пароль надто простий. Потрібно щонайменше 8 символів, великі й малі літери, цифра і спеціальний символ.",
+      "identity.session_account_inactive":
+        "Ваш обліковий запис вимкнено. Зверніться до керівництва вашої школи.",
       "meals.child_not_enrolled":
         "Неможливо: {object}. Цього дня дитина не перебуває під доглядом.",
       "meals.day_closed": "Неможливо: {object}. Цього дня школа зачинена.",
       "meals.day_past": "Уже неможливо: {object}. Цей день уже минув.",
+      "meals.delivery_range_too_long":
+        "Список доставки охоплює щонайбільше сім днів. Будь ласка, виберіть коротший період.",
       "meals.invalid_allergens":
         "Не вдалося зберегти алергени. Будь ласка, виберіть їх знову.",
       "meals.invalid_participation":
         "Указано неправильні дані: {object}. Перевірте введені дані.",
+      "meals.not_supplied":
+        "Ви більше не постачаєте цю школу. Будь ласка, зверніться до школи.",
+      "meals.order_not_found":
+        "Такого замовлення немає. Будь ласка, оновіть сторінку.",
       "meals.plan_disabled":
         "Зараз тут недоступно: {object}. Зверніться до контактної особи.",
       "meals.registration_disabled":
         "Зараз тут недоступно: {object}. Зверніться до контактної особи.",
+      "meals.supply_active":
+        "{object} зараз неможливо. Школу ще постачає постачальник харчування. Спочатку завершіть ці постачання.",
+      "module.not_booked":
+        "Ваша школа не підключила модуль {module_label}. Щоб підключити його, зверніться до команди moto.",
       "students.care_exception_raced":
         "Дані змінилися: {object}. Перевірте свої дані ще раз.",
       "students.care_offerings_disabled":
@@ -3222,87 +3305,12 @@ export const ERROR_CATALOG = {
         "Цей час встановили батьки. Змінити його може лише працівник із профілем персоналу.",
       "students.status_day_conflict":
         "На деякі дні вже є запис. Ці дні не змінено.",
-      "enrollment.form_attachment_invalid": "Перевірте назву та PDF-файл.",
-      "enrollment.form_field_file_options_invalid":
-        "Перевірте запитання з файлом. Виберіть хоча б один тип файлу і розмір від 1 до 10 МБ.",
-      "enrollment.upload_invalid":
-        "Цей файл не підходить. Виберіть дозволений тип файлу розміром не більше {max_mb} МБ.",
-      "enrollment.upload_expired":
-        "Термін дії завантаженого файлу минув. Завантажте його ще раз.",
-      "enrollment.upload_rate_limited":
-        "Завантажено забагато файлів. Спробуйте пізніше.",
-      "enrollment.upload_not_found":
-        "Цього файлу більше немає. Завантажте його ще раз.",
-      "enrollment.form_not_found":
-        "Цієї форми запису не існує. Перевірте посилання або зверніться до школи.",
-      "enrollment.status_link_invalid":
-        "Це посилання недійсне або застаріле. Скористайтеся посиланням з вашого листа.",
-      "enrollment.edit_not_allowed":
-        "Цей запис більше не можна змінити. Зверніться до школи.",
-      "enrollment.withdraw_not_allowed":
-        "Цей запис більше не можна відкликати. Зверніться до школи.",
-      "enrollment.captcha_required": "Пройдіть перевірку безпеки.",
-      "enrollment.captcha_failed":
-        "Перевірка безпеки не вдалася. Спробуйте ще раз.",
-      "enrollment.submission_rate_limited":
-        "Надіслано забагато заявок. Спробуйте ще раз через годину.",
-      "enrollment.request_duplicate":
-        "Для цієї дитини вже є заявка в цей період запису.",
-      "enrollment.child_already_requested":
-        "Інша людина вже записала цю дитину. Зверніться до школи.",
-      "enrollment.care_offering_closed":
-        "Обрана програма догляду зараз не приймає заявки. Оберіть іншу.",
-      "enrollment.consent_required": "Підтвердіть усі обов'язкові згоди.",
-      "enrollment.child_required": "Додайте хоча б одну дитину.",
-      "enrollment.child_name_required": "Вкажіть ім'я та прізвище дитини.",
-      "enrollment.child_birth_date_invalid": "Вкажіть дату народження дитини.",
-      "enrollment.child_grade_required": "Оберіть клас дитини.",
-      "enrollment.guardian_name_required": "Вкажіть ім'я та прізвище.",
-      "enrollment.guardian_email_required": "Вкажіть адресу електронної пошти.",
-      "enrollment.guardian_phone_required": "Вкажіть номер телефону.",
-      "enrollment.field_required": "Заповніть усі обов'язкові поля.",
-      "enrollment.companion_note_required": "Вкажіть, з ким дитина йде додому.",
-      "enrollment.message_required": "Напишіть повідомлення.",
-      "enrollment.change_request_guardian_linked":
-        "Змініть ці дані в застосунку для батьків.",
-      "enrollment.change_request_not_found":
-        "Цього запиту на зміну більше немає. Оновіть сторінку.",
-      "enrollment.change_request_not_allowed":
-        "Цей запис зараз не можна змінити. Зверніться до школи.",
-      "enrollment.change_request_status_changed":
-        "Статус цього запиту на зміну змінився. Оновіть сторінку.",
-      "identity.operator_self_deactivation":
-        "Ви не можете деактивувати власний обліковий запис. Попросіть іншу людину з команди зробити це.",
-      "identity.mfa_status_unavailable":
-        "Підтвердження входу зараз недоступне. Спробуйте ще раз.",
-      "identity.mfa_session_required":
-        "Для входу до {object} потрібне додаткове підтвердження. Кнопка завершить поточний сеанс і відкриє сторінку входу цієї школи. Увійдіть там знову й підтвердьте вхід.",
-      "identity.caterer_address_taken":
-        "Ця адреса електронної пошти вже належить іншому обліковому запису moto. Будь ласка, вкажіть іншу адресу.",
-      "identity.caterer_without_school":
-        "Зараз ви не постачаєте жодну школу через moto. Будь ласка, зверніться до школи.",
-      "meals.delivery_range_too_long":
-        "Список доставки охоплює щонайбільше сім днів. Будь ласка, виберіть коротший період.",
-      "meals.not_supplied":
-        "Ви більше не постачаєте цю школу. Будь ласка, зверніться до школи.",
-      "meals.order_not_found":
-        "Такого замовлення немає. Будь ласка, оновіть сторінку.",
-      "meals.supply_active":
-        "{object} зараз неможливо. Школу ще постачає постачальник харчування. Спочатку завершіть ці постачання.",
-      "communication.group_thread_closed":
-        "Це групове повідомлення закрито. Відповісти більше не можна.",
-      "communication.group_thread_no_recipients":
-        "Жодна дитина в цій групі не має батьків із доступом до moto. Повідомлення не надіслано.",
-      "classday.homework_not_found":
-        "Цього домашнього завдання більше немає. Оновіть сторінку.",
       "timetable.homework_feedback_child_not_in_supervision":
         "Ця дитина не належить до цього нагляду. Оновіть сторінку.",
       "timetable.homework_feedback_not_allowed":
         "Відгук про домашнє завдання можна дати лише на занятті, яке ви ведете.",
       "timetable.homework_feedback_without_homework":
         "Для класу цієї дитини на сьогодні немає домашніх завдань.",
-      "module.not_booked":
-        "Ваша школа не підключила модуль {module_label}. Щоб підключити його, зверніться до команди moto.",
     },
   },
 } as const;

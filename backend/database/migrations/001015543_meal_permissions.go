@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	mealPermissionsVersion     = "1.15.529"
+	mealPermissionsVersion     = "1.15.543"
 	mealPermissionsDescription = "Mittagessen: eigene Rechte meals:read, meals:manage und meals:orders statt Konfiguration und Benutzerdaten (#3873)"
 )
 

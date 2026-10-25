@@ -6,7 +6,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// 1.15.533 (#3873): the installed preflight that also locks the meal
+// 1.15.547 (#3873): the installed preflight that also locks the meal
 // ordering tables. Their foreign keys to platform.schools, to
 // users.student_profiles and among themselves change the fingerprint.
 func installMealOrderErasurePreflight(ctx context.Context, tx bun.Tx) error {
