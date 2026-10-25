@@ -613,6 +613,7 @@ GET /traeger/accounts/
 GET /traeger/holiday-periods/
 GET /traeger/holiday-periods/{id}
 GET /traeger/invitations/{token}
+GET /traeger/organization/
 GET /traeger/schools/
 HEAD /.well-known/caldav
 HEAD /api/caldav
@@ -944,8 +945,10 @@ POST /operator/invitations/{id}/resend
 POST /operator/operators/{id}/deactivate
 POST /operator/operators/{id}/reactivate
 POST /operator/organizations/
+POST /operator/organizations/test-traeger
 POST /operator/organizations/{id}/erasure-order
 POST /operator/organizations/{id}/restore
+POST /operator/organizations/{id}/sample-children
 POST /operator/organizations/{id}/traeger-members
 POST /operator/profile/email-change
 POST /operator/profile/password

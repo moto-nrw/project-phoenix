@@ -27,6 +27,7 @@ type organizationRow struct {
 	Active        bool       `bun:"active,notnull"`
 	DeletedAt     *time.Time `bun:"deleted_at"`
 	Settings      string     `bun:"settings,nullzero,default:'{}'"`
+	TestSystem    bool       `bun:"test_system,notnull"`
 }
 
 func New(database Database) *Store {
@@ -41,7 +42,7 @@ func (s *Store) Create(ctx context.Context, input organizationtenancy.CreateOrga
 	if err != nil {
 		return organizationtenancy.Organization{}, domain.OperationStats{}, err
 	}
-	row := organizationRow{Name: input.Name, Slug: input.Slug, Active: input.Active}
+	row := organizationRow{Name: input.Name, Slug: input.Slug, Active: input.Active, TestSystem: input.TestSystem}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	err = db.NewInsert().Model(&row).ModelTableExpr(`platform.organizations`).Returning("*").Scan(ctx)
@@ -242,7 +243,7 @@ func toDomain(row organizationRow) organizationtenancy.Organization {
 	return organizationtenancy.Organization{
 		ID: row.ID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		Name: row.Name, Slug: row.Slug, Active: row.Active,
-		DeletedAt: row.DeletedAt, Settings: row.Settings,
+		DeletedAt: row.DeletedAt, Settings: row.Settings, TestSystem: row.TestSystem,
 	}
 }
 

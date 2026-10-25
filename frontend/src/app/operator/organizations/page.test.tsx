@@ -127,6 +127,12 @@ vi.mock("~/components/ui/modal", () => ({
     ) : null,
 }));
 
+// The test-system dialog has its own tests; here it only has to open.
+vi.mock("../provisioning/create-test-traeger-modal", () => ({
+  CreateTestTraegerModal: ({ isOpen }: { isOpen: boolean }) =>
+    isOpen ? <div role="dialog" aria-label="Test-Träger anlegen" /> : null,
+}));
+
 vi.mock("~/components/ui/skeleton", () => ({
   Skeleton: ({ className }: any) => (
     <div data-testid="skeleton" className={className} />
@@ -179,6 +185,32 @@ describe("OperatorOrganizationsPage", () => {
     expect(screen.getByText("Test Org")).toBeInTheDocument();
     expect(screen.getByText("test-org")).toBeInTheDocument();
     expect(screen.getByText("Aktiv")).toBeInTheDocument();
+  });
+
+  it("marks a test Träger in the list and offers the test system", async () => {
+    withDefaultSWR({
+      orgs: [
+        mockOrg,
+        {
+          ...mockOrg,
+          id: "9",
+          slug: "test-bissendorf",
+          name: "Test Bissendorf",
+          testSystem: true,
+        },
+      ],
+    });
+
+    render(<OperatorOrganizationsPage />);
+
+    expect(screen.getByText("Test Bissendorf")).toBeInTheDocument();
+    expect(screen.getAllByText("Test-Träger")).toHaveLength(1);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Test-Träger anlegen" }),
+    );
+    expect(
+      await screen.findByRole("dialog", { name: "Test-Träger anlegen" }),
+    ).toBeInTheDocument();
   });
 
   it("opens the create-organization modal from the empty state action button", async () => {

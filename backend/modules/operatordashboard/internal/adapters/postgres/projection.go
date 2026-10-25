@@ -129,6 +129,7 @@ SELECT
 	"o".updated_at,
 	"o".deleted_at,
 	COALESCE("o".settings, '{}') AS settings,
+	"o".test_system,
 	COALESCE("sa".school_count, 0) AS school_count
 FROM platform.organizations AS "o"
 LEFT JOIN school_agg AS "sa" ON "sa".organization_id = "o".id

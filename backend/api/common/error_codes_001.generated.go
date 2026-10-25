@@ -23,6 +23,8 @@ const (
 	CodeImportFileUnreadable                           = "import.file_unreadable"
 	CodeImportImportBatchFailed                        = "import.import_batch_failed"
 	CodeImportModeForbidden                            = "import.mode_forbidden"
+	CodeImportNotTestTraeger                           = "import.not_test_traeger"
+	CodeImportTestTraegerInactive                      = "import.test_traeger_inactive"
 	CodeIotActivityCapacityExceeded                    = "iot.activity_capacity_exceeded"
 	CodeIotDeviationReasonRequired                     = "iot.deviation_reason_required"
 	CodeIotDeviceApiKeyFormatInvalid                   = "iot.device_api_key_format_invalid"
@@ -300,8 +302,6 @@ const (
 	CodeTimetablePickupExtensionTooManyBlocks          = "timetable.pickup_extension_too_many_blocks"
 	CodeTimetablePlanningTrackArchived                 = "timetable.planning_track_archived"
 	CodeTimetablePlanningTrackInvalid                  = "timetable.planning_track_invalid"
-	CodeTimetablePlanningTrackNameTaken                = "timetable.planning_track_name_taken"
-	CodeTimetablePlanningTrackNotFound                 = "timetable.planning_track_not_found"
 )
 
 var errorCodeClasses1 = map[string]string{
@@ -326,6 +326,8 @@ var errorCodeClasses1 = map[string]string{
 	"import.file_unreadable":                               "input",
 	"import.import_batch_failed":                           "server",
 	"import.mode_forbidden":                                "permission",
+	"import.not_test_traeger":                              "business_rejection",
+	"import.test_traeger_inactive":                         "business_rejection",
 	"iot.activity_capacity_exceeded":                       "business_rejection",
 	"iot.deviation_reason_required":                        "input",
 	"iot.device_api_key_format_invalid":                    "permission",
@@ -603,8 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.pickup_extension_too_many_blocks":           "input",
 	"timetable.planning_track_archived":                    "business_rejection",
 	"timetable.planning_track_invalid":                     "input",
-	"timetable.planning_track_name_taken":                  "business_rejection",
-	"timetable.planning_track_not_found":                   "business_rejection",
 }
 
 func init() {

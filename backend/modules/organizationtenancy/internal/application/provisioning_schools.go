@@ -42,27 +42,33 @@ func (p *Provisioning) CreateSchool(ctx context.Context, input *organizationtena
 		return nil, &organizationtenancy.InvalidProvisioningDataError{Err: err}
 	}
 	return adminValue(ctx, p, func(adminCtx context.Context) (*organizationtenancy.School, error) {
-		if err := p.validateSchoolCreate(adminCtx, school); err != nil {
-			return nil, err
-		}
-		created, err := p.organizations.CreateSchool(adminCtx, school)
-		if err != nil {
-			return nil, mapSchoolError(err, 0, school.OrganizationID)
-		}
-		if err := p.categories.SeedCategories(adminCtx, created.ID, defaultActivityCategories); err != nil {
-			return nil, err
-		}
-		if err := p.createWebManualDevice(adminCtx, created.ID); err != nil {
-			return nil, err
-		}
-		p.logAction(adminCtx, operatorID, domain.AuditActionCreate, domain.AuditResourceSchool, &created.ID, clientIP, map[string]any{
-			"name":           created.Name,
-			"slug":           created.Slug,
-			"subdomain":      created.Subdomain,
-			"organizationID": created.OrganizationID,
-		})
-		return &created, nil
+		return p.createSchool(adminCtx, school, operatorID, clientIP)
 	})
+}
+
+// createSchool creates a normalized school on the caller's administrative
+// unit, with its categories, its virtual device and the operator audit entry.
+func (p *Provisioning) createSchool(adminCtx context.Context, school organizationtenancy.CreateSchool, operatorID int64, clientIP net.IP) (*organizationtenancy.School, error) {
+	if err := p.validateSchoolCreate(adminCtx, school); err != nil {
+		return nil, err
+	}
+	created, err := p.organizations.CreateSchool(adminCtx, school)
+	if err != nil {
+		return nil, mapSchoolError(err, 0, school.OrganizationID)
+	}
+	if err := p.categories.SeedCategories(adminCtx, created.ID, defaultActivityCategories); err != nil {
+		return nil, err
+	}
+	if err := p.createWebManualDevice(adminCtx, created.ID); err != nil {
+		return nil, err
+	}
+	p.logAction(adminCtx, operatorID, domain.AuditActionCreate, domain.AuditResourceSchool, &created.ID, clientIP, map[string]any{
+		"name":           created.Name,
+		"slug":           created.Slug,
+		"subdomain":      created.Subdomain,
+		"organizationID": created.OrganizationID,
+	})
+	return &created, nil
 }
 
 func (p *Provisioning) validateSchoolCreate(ctx context.Context, school organizationtenancy.CreateSchool) error {
