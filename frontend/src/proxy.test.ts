@@ -224,6 +224,9 @@ describe("Turnstile CSP", () => {
     ["school-a.localhost:3000", "/anmeldung/5"],
     ["school-a.localhost:3000", "/school-a/anmeldung/5"],
     ["localhost:3000", "/school-a/anmeldung/5"],
+    // The public holiday registration of a Träger (#4661).
+    [PARENTS_HOSTNAME, "/ferienanmeldung/link-key"],
+    [PARENTS_HOSTNAME, "/parents/ferienanmeldung/link-key"],
   ])("allows only Turnstile scripts and frames on %s%s", (host, path) => {
     const res = proxy(makeRequest(`http://${host}${path}`, host));
     expect(res.status).toBe(200);
@@ -246,6 +249,9 @@ describe("Turnstile CSP", () => {
     ["school-a.localhost:3000", "/anmeldung/status/request/edit"],
     [PARENTS_HOSTNAME, "/anmeldung/school-a/5"],
     [PARENTS_HOSTNAME, "/parents/anmeldung/school-a/5"],
+    [PARENTS_HOSTNAME, "/ferienanmeldung"],
+    [PARENTS_HOSTNAME, "/ferienanmeldung/link-key/extra"],
+    ["school-a.localhost:3000", "/ferienanmeldung/link-key"],
     [SCHOOL_HOSTNAME, "/anmeldung/5"],
     [OPERATOR_HOSTNAME, "/anmeldung/5"],
     ["school-a.localhost:3000", "/api/enrollment/captcha-config/school-a"],

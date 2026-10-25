@@ -1,0 +1,184 @@
+// Öffentliche Ferienanmeldung (#4661): der eine Link eines Ferienzeitraums
+// für alle Schulen des Trägers, ohne Elternkonto.
+
+import { unavailableApiError, type ApiError } from "~/lib/api-error";
+import { readEnrollmentError } from "~/lib/enrollment-api-error";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "HolidayRegistrationApi" });
+
+export interface HolidayRegistrationTimeModel {
+  readonly id: string;
+  readonly name: string;
+  readonly startsAt: string;
+  readonly endsAt: string;
+}
+
+export interface HolidayRegistrationWeek {
+  readonly id: string;
+  readonly startsOn: string;
+  readonly endsOn: string;
+  readonly hostSchoolName: string;
+  readonly timeModels: readonly HolidayRegistrationTimeModel[];
+}
+
+export interface HolidayRegistrationSchool {
+  readonly id: string;
+  readonly name: string;
+}
+
+/** The published holiday period behind a link. */
+export interface HolidayRegistrationOffer {
+  readonly traegerName: string;
+  readonly name: string;
+  readonly registrationOpensOn: string;
+  readonly registrationClosesOn: string;
+  readonly binding: boolean;
+  readonly notes: string;
+  readonly open: boolean;
+  readonly weeks: readonly HolidayRegistrationWeek[];
+  readonly schools: readonly HolidayRegistrationSchool[];
+  readonly captchaSiteKey: string;
+}
+
+interface BackendOffer {
+  traeger_name: string;
+  name: string;
+  registration_opens_on: string;
+  registration_closes_on: string;
+  binding: boolean;
+  notes: string;
+  open: boolean;
+  weeks?:
+    | {
+        id: number;
+        starts_on: string;
+        ends_on: string;
+        host_school_name: string;
+        time_models?:
+          | { id: number; name: string; starts_at: string; ends_at: string }[]
+          | null;
+      }[]
+    | null;
+  schools?: { id: number; name: string }[] | null;
+  captcha_site_key: string;
+}
+
+/** The registration as the backend reads it; IDs travel as numbers. */
+export interface HolidayRegistrationPayload {
+  readonly guardian: {
+    readonly first_name: string;
+    readonly last_name: string;
+    readonly email: string;
+    readonly phone: string;
+  };
+  readonly children: readonly {
+    readonly first_name: string;
+    readonly last_name: string;
+    readonly birth_date: string;
+    readonly home_school_id: number;
+    readonly guest_school_name: string;
+    readonly allergies: string;
+    readonly medication: string;
+    readonly health_notes: string;
+    readonly bookings: readonly {
+      readonly week_id: number;
+      readonly time_model_id: number;
+    }[];
+  }[];
+  readonly emergency_contacts: readonly HolidayContactPayload[];
+  readonly pickup_persons: readonly HolidayContactPayload[];
+  readonly privacy_consent: boolean;
+  readonly health_consent: boolean;
+  readonly binding_confirmed: boolean;
+  readonly captcha_token: string;
+}
+
+export interface HolidayContactPayload {
+  readonly name: string;
+  readonly phone: string;
+  readonly relationship: string;
+}
+
+function offerFromBackend(offer: BackendOffer): HolidayRegistrationOffer {
+  return {
+    traegerName: offer.traeger_name,
+    name: offer.name,
+    registrationOpensOn: offer.registration_opens_on,
+    registrationClosesOn: offer.registration_closes_on,
+    binding: offer.binding,
+    notes: offer.notes,
+    open: offer.open,
+    weeks: (offer.weeks ?? []).map((week) => ({
+      id: String(week.id),
+      startsOn: week.starts_on,
+      endsOn: week.ends_on,
+      hostSchoolName: week.host_school_name,
+      timeModels: (week.time_models ?? []).map((model) => ({
+        id: String(model.id),
+        name: model.name,
+        startsAt: model.starts_at,
+        endsAt: model.ends_at,
+      })),
+    })),
+    schools: (offer.schools ?? []).map((school) => ({
+      id: String(school.id),
+      name: school.name,
+    })),
+    captchaSiteKey: offer.captcha_site_key,
+  };
+}
+
+function registrationPath(token: string): string {
+  return `/api/holiday-registrations/${encodeURIComponent(token)}`;
+}
+
+async function request(input: string, init?: RequestInit): Promise<Response> {
+  try {
+    return await fetch(input, init);
+  } catch (cause) {
+    throw unavailableApiError(cause);
+  }
+}
+
+function readError(response: Response, fallback: string): Promise<ApiError> {
+  return readEnrollmentError(
+    response,
+    fallback,
+    logger,
+    "holiday_registration_api_failed",
+  );
+}
+
+export async function fetchHolidayRegistrationOffer(
+  token: string,
+): Promise<HolidayRegistrationOffer> {
+  const response = await request(registrationPath(token), {
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw await readError(
+      response,
+      "Ferienanmeldung konnte nicht geladen werden",
+    );
+  }
+  const body = (await response.json()) as { data: BackendOffer };
+  return offerFromBackend(body.data);
+}
+
+export async function submitHolidayRegistration(
+  token: string,
+  payload: HolidayRegistrationPayload,
+): Promise<void> {
+  const response = await request(registrationPath(token), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    throw await readError(
+      response,
+      "Ferienanmeldung konnte nicht gesendet werden",
+    );
+  }
+}

@@ -1,0 +1,32 @@
+{{define "holiday-registration-received.html"}}
+{{template "header" .}}
+
+<div class="email-body">
+    <h1>Ferienanmeldung eingegangen</h1>
+
+    <p>Guten Tag {{.GuardianName}},</p>
+
+    <p>wir haben Ihre Anmeldung für <strong>{{.PeriodName}}</strong> bei <strong>{{.SchoolName}}</strong> erhalten.</p>
+
+    {{range .Children}}
+    <div class="highlight-box">
+        <p style="margin: 0 0 8px 0; font-size: 14px;"><strong>{{.Name}}</strong>{{if .Guest}} (Feriengast){{end}}</p>
+        <ul style="margin: 0; padding-left: 20px; font-size: 14px;">
+            {{range .Weeks}}
+            <li>{{.}}</li>
+            {{end}}
+        </ul>
+    </div>
+    {{end}}
+
+    <div class="highlight-box" style="margin-top: 24px;">
+        <p style="margin: 0; font-size: 14px;"><strong>Wie geht es weiter?</strong></p>
+        <p style="margin: 8px 0 0 0; font-size: 14px;">Das ist noch keine Zusage. Der Träger prüft Ihre Anmeldung und schreibt Ihnen, ob Ihr Kind einen Platz bekommt.</p>
+        {{if .Binding}}<p style="margin: 8px 0 0 0; font-size: 14px;">Die Anmeldung ist verbindlich.</p>{{end}}
+    </div>
+
+    <p class="security-note">Bitte antworten Sie nicht auf diese E-Mail. Bei Fragen wenden Sie sich an {{.SchoolName}}.</p>
+</div>
+
+{{template "footer" .}}
+{{end}}

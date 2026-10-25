@@ -2,6 +2,10 @@
 package common
 
 const (
+	CodeIdentityReadOnlyPreview                        = "identity.read_only_preview"
+	CodeIdentityRoleNameTaken                          = "identity.role_name_taken"
+	CodeIdentityRolePlatformPermission                 = "identity.role_platform_permission"
+	CodeIdentitySessionAccountInactive                 = "identity.session_account_inactive"
 	CodeIdentityTenantAccessDenied                     = "identity.tenant_access_denied"
 	CodeIdentityTenantAccessNotFound                   = "identity.tenant_access_not_found"
 	CodeIdentityUseParentPortal                        = "identity.use_parent_portal"
@@ -298,13 +302,13 @@ const (
 	CodeTimetablePresenceWouldOverstaff                = "timetable.presence_would_overstaff"
 	CodeTimetableReopenAttendanceChanged               = "timetable.reopen_attendance_changed"
 	CodeTimetableReopenStaffBusy                       = "timetable.reopen_staff_busy"
-	CodeTimetableReopenStudentActive                   = "timetable.reopen_student_active"
-	CodeTimetableReopenSupervisionChanged              = "timetable.reopen_supervision_changed"
-	CodeTimetableRoomOccupied                          = "timetable.room_occupied"
-	CodeTimetableSeriesEndBeforeStart                  = "timetable.series_end_before_start"
 )
 
 var errorCodeClasses1 = map[string]string{
+	"identity.read_only_preview":                           "permission",
+	"identity.role_name_taken":                             "business_rejection",
+	"identity.role_platform_permission":                    "input",
+	"identity.session_account_inactive":                    "permission",
 	"identity.tenant_access_denied":                        "permission",
 	"identity.tenant_access_not_found":                     "business_rejection",
 	"identity.use_parent_portal":                           "permission",
@@ -601,10 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.presence_would_overstaff":                   "business_rejection",
 	"timetable.reopen_attendance_changed":                  "business_rejection",
 	"timetable.reopen_staff_busy":                          "business_rejection",
-	"timetable.reopen_student_active":                      "business_rejection",
-	"timetable.reopen_supervision_changed":                 "business_rejection",
-	"timetable.room_occupied":                              "business_rejection",
-	"timetable.series_end_before_start":                    "input",
 }
 
 func init() {

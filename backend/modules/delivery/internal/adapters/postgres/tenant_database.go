@@ -60,3 +60,18 @@ func (s *Store) inAdminTransaction(ctx context.Context, fn func(context.Context,
 	}
 	return fn(ctx, db)
 }
+
+// RequireTraegerDatabase resolves only the caller's Träger transaction of
+// organizationID (ADR 0105, ADR 0106): a mail of a Träger commits with the
+// Träger write that causes it.
+func RequireTraegerDatabase(ctx context.Context, organizationID int64) (bun.IDB, error) {
+	raw, ok := tenant.TransactionFromContext(ctx)
+	if !ok || organizationID <= 0 || tenant.TraegerTransactionFromContext(ctx) != organizationID {
+		return nil, errors.New("delivery postgres: the Träger transaction of this Träger is required")
+	}
+	tx, ok := raw.(bun.Tx)
+	if !ok {
+		return nil, fmt.Errorf("delivery postgres: unsupported transaction %T", raw)
+	}
+	return tx, nil
+}

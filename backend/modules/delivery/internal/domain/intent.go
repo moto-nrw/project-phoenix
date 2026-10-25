@@ -46,6 +46,7 @@ type EmailDelivery struct {
 type Intent struct {
 	ID                int64
 	TenantID          int64
+	OrganizationID    int64
 	Transport         Transport
 	Template          string
 	IdempotencyKey    *string

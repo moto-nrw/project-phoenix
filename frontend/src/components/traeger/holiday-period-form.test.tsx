@@ -41,6 +41,8 @@ const stored: HolidayPeriod = {
   notes: "",
   status: "draft",
   publishedAt: null,
+  publicToken: "token",
+  registrationCount: 0,
   weeks: [
     {
       id: "7",

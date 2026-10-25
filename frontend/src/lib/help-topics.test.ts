@@ -143,6 +143,7 @@ describe("getParentHelpTopicForPath", () => {
     ["/settings", HELP_TOPICS.parentNotifications],
     ["/anmeldung", HELP_TOPICS.parentEnroll],
     ["/anmeldung/demo-school/1", HELP_TOPICS.parentEnroll],
+    ["/ferienanmeldung/link-key", HELP_TOPICS.parentHolidayRegistration],
     // Auf der Eltern-Subdomain fehlt das Praefix, im Tenant-Kontext
     // steht es davor. Beide Formen fuehren zum selben Artikel.
     ["/parents/children", HELP_TOPICS.parentChildOverview],
@@ -579,7 +580,7 @@ describe("getParentHelpTopicForPath", () => {
     const visible = new Set(parentTopics.map((topic) => topic.id));
 
     // 24 seit #4901: die eigene Einwilligung zur Nutzungsanalyse.
-    expect(parentTopics).toHaveLength(24);
+    expect(parentTopics).toHaveLength(25);
     expect(
       parentTopics.every(
         (topic) =>
@@ -657,6 +658,7 @@ describe("getParentHelpTopicForPath", () => {
     expect(traegerTopics.map((topic) => topic.id)).toEqual([
       HELP_TOPICS.traegerLogin,
       HELP_TOPICS.traegerHolidayPeriod,
+      HELP_TOPICS.traegerHolidayRegistration,
       HELP_TOPICS.errorMessages,
     ]);
     expect([...new Set(traegerTopics.map((topic) => topic.group))]).toEqual([

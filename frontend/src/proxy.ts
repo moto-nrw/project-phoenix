@@ -97,6 +97,18 @@ function isPublicEnrollmentForm(pathname: string): boolean {
   );
 }
 
+/** The public holiday registration (#4661) mounts Turnstile on the parents
+ * host: /ferienanmeldung/{token}, rewritten to /parents/ferienanmeldung/…. */
+function isPublicHolidayRegistration(pathname: string): boolean {
+  const [, portal, surface, token, extra] = pathname.split("/");
+  return (
+    portal === "parents" &&
+    surface === "ferienanmeldung" &&
+    !!token &&
+    extra === undefined
+  );
+}
+
 // --- PostHog reverse proxy (#3601) ---
 
 const POSTHOG_PROXY_PREFIX = "/ingest";
@@ -340,6 +352,8 @@ const PARENTS_PUBLIC_PATHS = [
   "/calendar",
   "/settings",
   "/anmeldung",
+  // Public holiday registration of a Träger (#4661), gated by its link.
+  "/ferienanmeldung",
   "/accept-guardian-invite",
   // Entry page of the public demo in the role parent (#3468).
   "/demo",
@@ -814,7 +828,10 @@ export function proxy(request: NextRequest): NextResponse {
   const pagePath = new URL(
     response.headers.get("x-middleware-rewrite") ?? request.url,
   ).pathname;
-  if (servedAsIs && isPublicEnrollmentForm(pagePath)) {
+  if (
+    servedAsIs &&
+    (isPublicEnrollmentForm(pagePath) || isPublicHolidayRegistration(pagePath))
+  ) {
     response.headers.set("Content-Security-Policy", TURNSTILE_CSP_HEADER);
   }
   return response;

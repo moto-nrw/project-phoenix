@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactElement } from "react";
 import { ToastProvider } from "~/contexts/ToastContext";
 import type { HolidayPeriod } from "~/lib/traeger-api";
@@ -24,6 +24,8 @@ const complete: HolidayPeriod = {
   notes: "",
   status: "draft",
   publishedAt: null,
+  publicToken: "abc123",
+  registrationCount: 0,
   weeks: [
     {
       id: "7",
@@ -44,7 +46,11 @@ const complete: HolidayPeriod = {
 };
 
 describe("HolidayPeriodPublishCard", () => {
-  beforeEach(() => mockPublish.mockReset());
+  beforeEach(() => {
+    mockPublish.mockReset();
+    vi.stubEnv("NEXT_PUBLIC_PARENTS_HOSTNAME", "parents.localhost:3000");
+  });
+  afterEach(() => vi.unstubAllEnvs());
 
   it("names what is missing instead of offering the button", () => {
     renderCard(
@@ -125,7 +131,46 @@ describe("HolidayPeriodPublishCard", () => {
     expect(
       screen.getByText(/Seit 25\.10\.2026 für die Anmeldung freigegeben\./),
     ).toBeInTheDocument();
-    expect(screen.queryByRole("button")).toBeNull();
+    // The only control left is the copy button of the parents' link (#4661).
+    expect(screen.getAllByRole("button")).toHaveLength(1);
+    expect(
+      screen.getByRole("button", { name: "Link kopieren" }),
+    ).toBeInTheDocument();
     expect(screen.getByText("Veröffentlicht")).toBeInTheDocument();
+  });
+
+  it("shows the one link for parents and the registrations received", () => {
+    renderCard(
+      <HolidayPeriodPublishCard
+        period={{
+          ...complete,
+          status: "published",
+          publishedAt: "2026-10-25T09:00:00Z",
+          registrationCount: 3,
+        }}
+        unsavedChanges={false}
+        onPublished={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getByText("http://parents.localhost:3000/ferienanmeldung/abc123"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Bisher sind 3 Anmeldungen eingegangen."),
+    ).toBeInTheDocument();
+  });
+
+  it("tells a draft that the link for parents comes with publishing", () => {
+    renderCard(
+      <HolidayPeriodPublishCard
+        period={complete}
+        unsavedChanges={false}
+        onPublished={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getByText("Den Link für Eltern gibt es nach dem Veröffentlichen."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/ferienanmeldung/)).toBeNull();
   });
 });

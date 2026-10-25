@@ -117,6 +117,13 @@ type AccountRetention interface {
 	CleanupErasedAccountAvatars(ctx context.Context) (int, error)
 }
 
+// HolidayRegistrationRetention deletes the public holiday registrations of
+// every Träger three months after their period ended (#4661) in the hourly
+// cleanup.
+type HolidayRegistrationRetention interface {
+	DeleteExpiredHolidayRegistrations(ctx context.Context) (int, error)
+}
+
 // SignInDataCleaner exposes the fixed retention of the short-lived sign-in
 // data Identity & Access owns (#3954): invitations for parents, e-mail codes
 // and passkey ceremonies of accounts and operators, and expired operator

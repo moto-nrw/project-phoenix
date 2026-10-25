@@ -161,6 +161,9 @@ type MailRenderers struct {
 	ChangeRequestRejected    MailRenderer
 	RolloverOptIn            MailRenderer
 	RolloverOptOut           MailRenderer
+	// HolidayRegistrationReceived renders the receipt of a public holiday
+	// registration (#4661), a mail of the Träger.
+	HolidayRegistrationReceived MailRenderer
 }
 
 // CaptchaVerifier verifies a parent-submitted captcha token against the

@@ -37,6 +37,9 @@ const PARENT_PUBLIC_PAGES = [
   // when the parent isn't logged in.
   "/parents/anmeldung/status",
   "/anmeldung/status",
+  // The public holiday registration of a Träger, gated by its link (#4661).
+  "/parents/ferienanmeldung",
+  "/ferienanmeldung",
   // The public demo's entry page signs the visitor in itself (#3468).
   "/parents/demo",
   "/demo",

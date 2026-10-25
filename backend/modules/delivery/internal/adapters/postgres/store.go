@@ -25,10 +25,10 @@ type Store struct {
 const emailEnqueueSQL = `
 	WITH inserted AS (
 		INSERT INTO platform.email_outbox (
-			tenant_id, kind, idempotency_key, related_entity_type,
+			tenant_id, organization_id, kind, idempotency_key, related_entity_type,
 			related_entity_id, recipient, payload, status, next_retry_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?)
-		ON CONFLICT (tenant_id, idempotency_key)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)
+		ON CONFLICT (tenant_id, organization_id, idempotency_key)
 			WHERE idempotency_key IS NOT NULL DO NOTHING
 		RETURNING id
 	)
@@ -39,7 +39,8 @@ const emailEnqueueSQL = `
 		 AND COALESCE(related_entity_type, '') = COALESCE(?, '')
 		 AND COALESCE(related_entity_id, 0) = COALESCE(?, 0)) AS conflict
 	FROM platform.email_outbox
-	WHERE ? IS NOT NULL AND COALESCE(tenant_id, 0) = COALESCE(?, 0) AND idempotency_key = ?
+	WHERE ? IS NOT NULL AND COALESCE(tenant_id, 0) = COALESCE(?, 0)
+		AND COALESCE(organization_id, 0) = COALESCE(?, 0) AND idempotency_key = ?
 		AND NOT EXISTS (SELECT 1 FROM inserted)
 	LIMIT 1`
 
@@ -70,7 +71,8 @@ const emailExistingEnqueueSQL = `
 		 AND COALESCE(related_entity_type, '') = COALESCE(?, '')
 		 AND COALESCE(related_entity_id, 0) = COALESCE(?, 0)) AS conflict
 	FROM platform.email_outbox
-	WHERE COALESCE(tenant_id, 0) = COALESCE(?, 0) AND idempotency_key = ?
+	WHERE COALESCE(tenant_id, 0) = COALESCE(?, 0) AND COALESCE(organization_id, 0) = COALESCE(?, 0)
+		AND idempotency_key = ?
 	LIMIT 1`
 
 const pushExistingEnqueueSQL = `
@@ -198,6 +200,7 @@ type intentRow struct {
 	bun.BaseModel     `bun:"-"`
 	ID                int64           `bun:"id"`
 	TenantID          int64           `bun:"tenant_id"`
+	OrganizationID    *int64          `bun:"organization_id"`
 	Kind              string          `bun:"kind"`
 	IdempotencyKey    *string         `bun:"idempotency_key"`
 	RelatedEntityType *string         `bun:"related_entity_type"`
@@ -253,46 +256,21 @@ func New(tenantDB TenantDatabase, adminDB AdminDatabase) *Store {
 }
 
 func (s *Store) Enqueue(ctx context.Context, intent domain.Intent) (domain.Enqueued, error) {
-	db, err := s.tenantDB(ctx, intent.TenantID)
+	db, err := s.intentDB(ctx, intent)
 	if err != nil {
 		return domain.Enqueued{}, err
 	}
-	var scope any = intent.TenantID
-	if intent.Transport == domain.TransportEmail && intent.TenantID == 0 {
-		scope = nil
-	}
 	var result domain.Enqueued
-	args := []any{
-		scope, intent.Template, intent.IdempotencyKey, intent.RelatedEntityType,
-		intent.RelatedEntityID, intent.Recipient, intent.Payload, intent.NextRetryAt,
-		intent.Template, intent.Recipient, intent.Payload, intent.RelatedEntityType, intent.RelatedEntityID,
-		intent.IdempotencyKey, scope, intent.IdempotencyKey,
-	}
 	switch intent.Transport {
 	case domain.TransportEmail:
-		err = db.NewRaw(emailEnqueueSQL, args...).Scan(ctx, &result)
+		result, err = enqueueEmailIntent(ctx, db, intent)
 	case domain.TransportPush:
-		err = db.NewRaw(pushEnqueueSQL, args...).Scan(ctx, &result)
+		result, err = enqueuePushIntent(ctx, db, intent)
 	default:
 		return domain.Enqueued{}, unknownTransport(intent.Transport)
 	}
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return domain.Enqueued{}, fmt.Errorf("delivery postgres: enqueue %s: %w", intent.Transport, err)
-	}
-	if result.ID <= 0 && intent.IdempotencyKey != nil {
-		existingArgs := []any{
-			intent.Template, intent.Recipient, intent.Payload, intent.RelatedEntityType, intent.RelatedEntityID,
-			scope, intent.IdempotencyKey,
-		}
-		switch intent.Transport {
-		case domain.TransportEmail:
-			err = db.NewRaw(emailExistingEnqueueSQL, existingArgs...).Scan(ctx, &result)
-		case domain.TransportPush:
-			err = db.NewRaw(pushExistingEnqueueSQL, existingArgs...).Scan(ctx, &result)
-		}
-		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			return domain.Enqueued{}, fmt.Errorf("delivery postgres: read existing %s intent: %w", intent.Transport, err)
-		}
+	if err != nil {
+		return domain.Enqueued{}, err
 	}
 	if result.ID <= 0 {
 		return domain.Enqueued{}, errors.New("delivery postgres: enqueue returned no intent")
@@ -301,6 +279,79 @@ func (s *Store) Enqueue(ctx context.Context, intent domain.Intent) (domain.Enque
 		return domain.Enqueued{}, fmt.Errorf("delivery postgres: %w", domain.ErrIdempotencyConflict)
 	}
 	return result, nil
+}
+
+// enqueueEmailIntent inserts an e-mail intent or reads the one with its
+// idempotency key. A mail of no school is a system mail or, with a Träger,
+// a mail of that Träger (ADR 0106).
+func enqueueEmailIntent(ctx context.Context, db bun.IDB, intent domain.Intent) (domain.Enqueued, error) {
+	var scope, organization any
+	if intent.TenantID != 0 {
+		scope = intent.TenantID
+	}
+	if intent.OrganizationID > 0 {
+		organization = intent.OrganizationID
+	}
+	var result domain.Enqueued
+	err := db.NewRaw(emailEnqueueSQL,
+		scope, organization, intent.Template, intent.IdempotencyKey, intent.RelatedEntityType,
+		intent.RelatedEntityID, intent.Recipient, intent.Payload, intent.NextRetryAt,
+		intent.Template, intent.Recipient, intent.Payload, intent.RelatedEntityType, intent.RelatedEntityID,
+		intent.IdempotencyKey, scope, organization, intent.IdempotencyKey,
+	).Scan(ctx, &result)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return domain.Enqueued{}, fmt.Errorf("delivery postgres: enqueue %s: %w", intent.Transport, err)
+	}
+	if result.ID > 0 || intent.IdempotencyKey == nil {
+		return result, nil
+	}
+	err = db.NewRaw(emailExistingEnqueueSQL,
+		intent.Template, intent.Recipient, intent.Payload, intent.RelatedEntityType, intent.RelatedEntityID,
+		scope, organization, intent.IdempotencyKey,
+	).Scan(ctx, &result)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return domain.Enqueued{}, fmt.Errorf("delivery postgres: read existing %s intent: %w", intent.Transport, err)
+	}
+	return result, nil
+}
+
+// enqueuePushIntent inserts a push intent of a school or reads the one with
+// its idempotency key.
+func enqueuePushIntent(ctx context.Context, db bun.IDB, intent domain.Intent) (domain.Enqueued, error) {
+	var result domain.Enqueued
+	err := db.NewRaw(pushEnqueueSQL,
+		intent.TenantID, intent.Template, intent.IdempotencyKey, intent.RelatedEntityType,
+		intent.RelatedEntityID, intent.Recipient, intent.Payload, intent.NextRetryAt,
+		intent.Template, intent.Recipient, intent.Payload, intent.RelatedEntityType, intent.RelatedEntityID,
+		intent.IdempotencyKey, intent.TenantID, intent.IdempotencyKey,
+	).Scan(ctx, &result)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return domain.Enqueued{}, fmt.Errorf("delivery postgres: enqueue %s: %w", intent.Transport, err)
+	}
+	if result.ID > 0 || intent.IdempotencyKey == nil {
+		return result, nil
+	}
+	err = db.NewRaw(pushExistingEnqueueSQL,
+		intent.Template, intent.Recipient, intent.Payload, intent.RelatedEntityType, intent.RelatedEntityID,
+		intent.TenantID, intent.IdempotencyKey,
+	).Scan(ctx, &result)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return domain.Enqueued{}, fmt.Errorf("delivery postgres: read existing %s intent: %w", intent.Transport, err)
+	}
+	return result, nil
+}
+
+// intentDB resolves the caller's unit of an intent: the Träger transaction
+// for a mail of a Träger (ADR 0106), the tenant or administrative one
+// otherwise.
+func (s *Store) intentDB(ctx context.Context, intent domain.Intent) (bun.IDB, error) {
+	if intent.OrganizationID > 0 {
+		if intent.Transport != domain.TransportEmail || intent.TenantID != 0 {
+			return nil, errors.New("delivery postgres: a Träger intent is an e-mail without a school")
+		}
+		return RequireTraegerDatabase(ctx, intent.OrganizationID)
+	}
+	return s.tenantDB(ctx, intent.TenantID)
 }
 
 func (s *Store) Claim(ctx context.Context, transport domain.Transport, limit int, now, leaseExpiresAt time.Time) ([]domain.Intent, error) {
@@ -730,8 +781,12 @@ func unknownTransport(transport domain.Transport) error {
 func toDomainRows(transport domain.Transport, rows []intentRow) []domain.Intent {
 	result := make([]domain.Intent, 0, len(rows))
 	for _, row := range rows {
+		var organizationID int64
+		if row.OrganizationID != nil {
+			organizationID = *row.OrganizationID
+		}
 		result = append(result, domain.Intent{
-			ID: row.ID, TenantID: row.TenantID, Transport: transport, Template: row.Kind,
+			ID: row.ID, TenantID: row.TenantID, OrganizationID: organizationID, Transport: transport, Template: row.Kind,
 			IdempotencyKey: row.IdempotencyKey, RelatedEntityType: row.RelatedEntityType,
 			RelatedEntityID: row.RelatedEntityID, Recipient: row.Recipient, Payload: row.Payload,
 			Status: row.Status, Attempts: row.Attempts, NextRetryAt: row.NextRetryAt,

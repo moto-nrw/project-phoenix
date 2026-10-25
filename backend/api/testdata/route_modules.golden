@@ -367,6 +367,7 @@ basis
 	GET /ready
 	GET /traeger/holiday-periods/
 	GET /traeger/holiday-periods/{id}
+	GET /traeger/holiday-registrations/{token}
 	GET /traeger/schools/
 	HEAD /.well-known/caldav
 	HEAD /api/caldav
@@ -607,6 +608,7 @@ basis
 	POST /traeger/auth/login
 	POST /traeger/holiday-periods/
 	POST /traeger/holiday-periods/{id}/publish
+	POST /traeger/holiday-registrations/{token}
 	PUT /.well-known/caldav
 	PUT /analytics-consent/
 	PUT /api/active/combined/{id}

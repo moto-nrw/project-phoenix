@@ -193,6 +193,10 @@ const (
 	CodeEnrollmentHolidayPeriodIncomplete                = "enrollment.holiday_period_incomplete"
 	CodeEnrollmentHolidayPeriodInvalid                   = "enrollment.holiday_period_invalid"
 	CodeEnrollmentHolidayPeriodNotFound                  = "enrollment.holiday_period_not_found"
+	CodeEnrollmentHolidayRegistrationClosed              = "enrollment.holiday_registration_closed"
+	CodeEnrollmentHolidayRegistrationInvalid             = "enrollment.holiday_registration_invalid"
+	CodeEnrollmentHolidayRegistrationNotFound            = "enrollment.holiday_registration_not_found"
+	CodeEnrollmentHolidayWeekBooked                      = "enrollment.holiday_week_booked"
 	CodeEnrollmentInvalidEmail                           = "enrollment.invalid_email"
 	CodeEnrollmentInvalidPhone                           = "enrollment.invalid_phone"
 	CodeEnrollmentLateInviteInvalid                      = "enrollment.late_invite_invalid"
@@ -298,10 +302,6 @@ const (
 	CodeIdentityPreviewTargetNotPreviewable              = "identity.preview_target_not_previewable"
 	CodeIdentityPreviewTargetSchoolPortal                = "identity.preview_target_school_portal"
 	CodeIdentityPreviewTokenInvalid                      = "identity.preview_token_invalid"
-	CodeIdentityReadOnlyPreview                          = "identity.read_only_preview"
-	CodeIdentityRoleNameTaken                            = "identity.role_name_taken"
-	CodeIdentityRolePlatformPermission                   = "identity.role_platform_permission"
-	CodeIdentitySessionAccountInactive                   = "identity.session_account_inactive"
 )
 
 var errorCodeClasses0 = map[string]string{
@@ -496,6 +496,10 @@ var errorCodeClasses0 = map[string]string{
 	"enrollment.holiday_period_incomplete":                 "business_rejection",
 	"enrollment.holiday_period_invalid":                    "input",
 	"enrollment.holiday_period_not_found":                  "business_rejection",
+	"enrollment.holiday_registration_closed":               "business_rejection",
+	"enrollment.holiday_registration_invalid":              "input",
+	"enrollment.holiday_registration_not_found":            "business_rejection",
+	"enrollment.holiday_week_booked":                       "business_rejection",
 	"enrollment.invalid_email":                             "input",
 	"enrollment.invalid_phone":                             "input",
 	"enrollment.late_invite_invalid":                       "input",
@@ -601,10 +605,6 @@ var errorCodeClasses0 = map[string]string{
 	"identity.preview_target_not_previewable":              "permission",
 	"identity.preview_target_school_portal":                "permission",
 	"identity.preview_token_invalid":                       "permission",
-	"identity.read_only_preview":                           "permission",
-	"identity.role_name_taken":                             "business_rejection",
-	"identity.role_platform_permission":                    "input",
-	"identity.session_account_inactive":                    "permission",
 }
 
 func init() {

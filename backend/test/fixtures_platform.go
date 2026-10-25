@@ -202,8 +202,14 @@ func cleanupTraegerMember(tb testing.TB, db *bun.DB, organizationID, accountID i
 func OwnTraegerHolidayPeriods(tb testing.TB, db *bun.DB, organizationID int64) {
 	tb.Helper()
 	tb.Cleanup(func() {
+		// The periods take their registrations along (#4661); the abuse
+		// counters and the Träger's mails belong to the Träger itself.
 		_, err := db.ExecContext(context.Background(), `DELETE FROM enrollment.holiday_periods WHERE organization_id = ?`, organizationID)
 		require.NoError(tb, err, "Failed to clean up test holiday periods")
+		_, err = db.ExecContext(context.Background(), `DELETE FROM enrollment.holiday_registration_rate_limits WHERE organization_id = ?`, organizationID)
+		require.NoError(tb, err, "Failed to clean up test holiday registration counters")
+		_, err = db.ExecContext(context.Background(), `DELETE FROM platform.email_outbox WHERE organization_id = ?`, organizationID)
+		require.NoError(tb, err, "Failed to clean up test Träger mails")
 	})
 }
 

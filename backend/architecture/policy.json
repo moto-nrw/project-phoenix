@@ -4217,6 +4217,26 @@
       "write_owner": "enrollment"
     },
     {
+      "name": "enrollment.holiday_registration_bookings",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.holiday_registration_children",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.holiday_registration_contacts",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.holiday_registration_rate_limits",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.holiday_registrations",
+      "write_owner": "enrollment"
+    },
+    {
       "name": "enrollment.holiday_week_time_models",
       "write_owner": "enrollment"
     },

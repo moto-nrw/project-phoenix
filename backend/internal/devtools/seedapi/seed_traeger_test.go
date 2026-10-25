@@ -51,7 +51,7 @@ func TestSeedTraegerHolidayPeriodStepPublishesAPeriodAtTheTraegerSchools(t *test
 	t.Parallel()
 
 	var calls []string
-	var period map[string]any
+	var period, registration map[string]any
 	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
 		calls = append(calls, r.Method+" "+r.URL.Path+" "+r.Header.Get("Authorization"))
 		w.Header().Set("Content-Type", "application/json")
@@ -66,8 +66,15 @@ func TestSeedTraegerHolidayPeriodStepPublishesAPeriodAtTheTraegerSchools(t *test
 			assert.NoError(t, json.Unmarshal(raw, &period))
 			w.WriteHeader(http.StatusCreated)
 			_, _ = w.Write([]byte(`{"status":"success","data":{"id":5}}`))
+		case "/traeger/holiday-periods/5/publish":
+			_, _ = w.Write([]byte(`{"status":"success","data":{"id":5,"status":"published","public_token":"link-key","weeks":[` +
+				`{"id":51,"time_models":[{"id":61},{"id":62}]},{"id":52,"time_models":[{"id":63},{"id":64}]}]}}`))
 		default:
-			_, _ = w.Write([]byte(`{"status":"success","data":{"id":5,"status":"published"}}`))
+			raw, err := io.ReadAll(r.Body)
+			assert.NoError(t, err)
+			assert.NoError(t, json.Unmarshal(raw, &registration))
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{"status":"success","data":{"id":9}}`))
 		}
 	})
 	defer srv.Close()
@@ -82,10 +89,20 @@ func TestSeedTraegerHolidayPeriodStepPublishesAPeriodAtTheTraegerSchools(t *test
 		"GET /traeger/schools/ Bearer traeger-token",
 		"POST /traeger/holiday-periods/ Bearer traeger-token",
 		"POST /traeger/holiday-periods/5/publish Bearer traeger-token",
-	}, calls)
+		"POST /traeger/holiday-registrations/link-key ",
+	}, calls, "the registration goes through the public link without a session")
 	weeks, ok := period["weeks"].([]any)
 	require.True(t, ok)
 	require.Len(t, weeks, 2)
 	assert.Equal(t, float64(31), weeks[0].(map[string]any)["host_school_id"])
 	assert.Equal(t, float64(32), weeks[1].(map[string]any)["host_school_id"], "the weeks take turns at the Träger's schools")
+	children, ok := registration["children"].([]any)
+	require.True(t, ok)
+	require.Len(t, children, 2)
+	assert.Equal(t, float64(31), children[0].(map[string]any)["home_school_id"])
+	assert.Equal(t, float64(0), children[1].(map[string]any)["home_school_id"], "the second sibling is a holiday guest")
+	assert.Equal(t, []any{
+		map[string]any{"week_id": float64(51), "time_model_id": float64(61)},
+		map[string]any{"week_id": float64(52), "time_model_id": float64(63)},
+	}, children[1].(map[string]any)["bookings"])
 }

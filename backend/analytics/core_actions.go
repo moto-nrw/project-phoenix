@@ -560,6 +560,9 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/traeger/holiday-periods/"}:             notCaptured,
 	{http.MethodPut, "/traeger/holiday-periods/{id}"}:          notCaptured,
 	{http.MethodPost, "/traeger/holiday-periods/{id}/publish"}: notCaptured,
+	// The public holiday registration of a Träger (#4661) has no session
+	// and no school, so no collection policy admits it yet.
+	{http.MethodPost, "/traeger/holiday-registrations/{token}"}: notCaptured,
 
 	// School portal (Lehrkräfte).
 	{http.MethodPost, "/school/auth/login"}:                                               session("login_success"),

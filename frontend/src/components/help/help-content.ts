@@ -7225,6 +7225,48 @@ function parentEnrollTopic(): HelpTopic {
   };
 }
 
+/** `/ferienanmeldung/<link>` (#4661): der Link eines Trägers, ohne Konto. */
+function parentHolidayRegistrationTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.parentHolidayRegistration,
+    title: "Für die Ferienbetreuung anmelden",
+    question: "Wie melde ich mein Kind für die Ferien an?",
+    summary:
+      "Der Träger gibt Ihnen einen Link. Dort melden Sie bis zu drei Kinder an.",
+    group: "anmeldung",
+    audience: "parent",
+    icon: "SunHorizon",
+    requirements: ["Sie haben den Link zur Ferienanmeldung vom Träger."],
+    steps: [
+      "Öffnen Sie den Link.",
+      "Tragen Sie unter `Kinder` Vorname, Nachname und Geburtsdatum ein.",
+      "Wählen Sie die `Schule` Ihres Kindes. Steht sie nicht in der Liste? Wählen Sie `Eine andere Schule`.",
+      "Wählen Sie unter `Wochen` für jede Woche, wie lange Ihr Kind bleibt.",
+      "Weitere Kinder fügen Sie mit `Geschwisterkind hinzufügen` hinzu.",
+      "Tragen Sie `Ihre Angaben` und die `Notfallkontakte` ein.",
+      "Tragen Sie unter `Wer darf die Kinder abholen?` alle Personen außer Ihnen ein.",
+      "Setzen Sie die Haken unter `Einverständnis`.",
+      "Wählen Sie `Weiter zur Zusammenfassung`.",
+      "Prüfen Sie alles. Wählen Sie dann `Anmeldung absenden`.",
+    ],
+    result:
+      "Sie bekommen eine E-Mail: Die Anmeldung ist eingegangen. Das ist noch keine Zusage. Der Träger schreibt Ihnen, ob Ihr Kind einen Platz bekommt.",
+    notes: [
+      "Ein Elternkonto brauchen Sie nicht.",
+      "Gesundheitsangaben sind freiwillig. Nur die Betreuung sieht sie.",
+      "Ein Kind von einer anderen Schule kommt als Feriengast.",
+    ],
+    differences: [
+      "Ist die Anmeldung verbindlich, heißt der Knopf `Verbindlich anmelden`.",
+    ],
+    troubleshootingDetails: [
+      "moto sagt, die Anmeldung sei nicht offen? Oben auf der Seite stehen die Tage, an denen Sie anmelden können.",
+      "moto sagt, den Anmeldelink gebe es nicht? Fragen Sie den Träger nach dem richtigen Link.",
+    ],
+    related: [HELP_TOPICS.parentEnroll],
+  };
+}
+
 /** Statusseite ueber den Link aus der Bestaetigungs-E-Mail. */
 function parentEnrollStatusTopic(): HelpTopic {
   return {
@@ -7427,6 +7469,7 @@ const PARENT_DRAFT_TOPICS: readonly HelpTopic[] = [
   // --- Anmeldung ---
   parentEnrollTopic(),
   parentEnrollStatusTopic(),
+  parentHolidayRegistrationTopic(),
 
   // --- Wenn etwas nicht klappt ---
   parentAccountProblemTopic(),
@@ -8352,9 +8395,51 @@ function traegerHolidayPeriodTopic(): HelpTopic {
   };
 }
 
+/** Der Link eines veröffentlichten Ferienzeitraums (#4661). */
+function traegerHolidayRegistrationTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.traegerHolidayRegistration,
+    title: "Link zur Ferienanmeldung teilen",
+    question: "Wie melden Eltern ihre Kinder für die Ferien an?",
+    summary:
+      "Jeder veröffentlichte Ferienzeitraum hat einen Link für Eltern. Er gilt für alle Wochen und Schulen.",
+    group: "anmeldeverwaltung",
+    audience: "traeger",
+    icon: "Megaphone",
+    requirements: [
+      "Ihre Rolle im Träger-Büro darf Anmeldungen verwalten. Das gilt für die Rolle Verwaltung.",
+      "Der Ferienzeitraum ist veröffentlicht.",
+    ],
+    steps: [
+      "Wählen Sie oben `Ferien`.",
+      "Öffnen Sie den Ferienzeitraum.",
+      "Unter `Link für Eltern` steht der Link. Wählen Sie daneben `Link kopieren`.",
+      "Geben Sie den Link an die Eltern weiter, zum Beispiel in einem Elternbrief der Schulen.",
+    ],
+    result:
+      "Eltern melden ihre Kinder über den Link an. Unter dem Link steht, wie viele Anmeldungen eingegangen sind.",
+    notes: [
+      "Eltern brauchen kein Elternkonto.",
+      "Ein Kind ohne Schule Ihres Trägers melden Eltern als Feriengast an. Es wird dadurch kein Schulkind einer OGS.",
+      "Eltern bekommen eine Bestätigung per E-Mail. Sie ist noch keine Zusage.",
+      "Gesundheitsangaben stehen nur in der Anmeldung. Die Bestätigung nennt sie nicht.",
+      "Drei Monate nach der letzten Woche löscht moto die Anmeldungen.",
+    ],
+    differences: [
+      "Sie sehen keinen Link? Dann ist der Ferienzeitraum noch ein Entwurf. Veröffentlichen Sie ihn zuerst.",
+    ],
+    troubleshootingDetails: [
+      "Eine Woche oder ein Zeitmodell lässt sich nicht entfernen? Dafür gibt es schon Anmeldungen.",
+      "Eltern sagen, die Anmeldung sei nicht offen? Prüfen Sie `Anmeldebeginn` und `Anmeldeschluss`.",
+    ],
+    related: [HELP_TOPICS.traegerHolidayPeriod],
+  };
+}
+
 const TRAEGER_TOPICS: readonly HelpTopic[] = [
   traegerLoginTopic(),
   traegerHolidayPeriodTopic(),
+  traegerHolidayRegistrationTopic(),
 ];
 
 const TEACHER_DRAFT_TOPICS: readonly HelpTopic[] = [

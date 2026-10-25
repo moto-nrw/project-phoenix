@@ -39,7 +39,41 @@ func NewMailRenderers() enrollment.MailRenderers {
 			phaseSubject:     "Anmeldung verlängert: %s",
 			phaseFullSubject: "Anmeldung verlängert: %s - %s",
 		})),
+		HolidayRegistrationReceived: renderHolidayRegistrationReceived,
 	}
+}
+
+// renderHolidayRegistrationReceived renders the receipt of a public holiday
+// registration from its typed payload. The Träger is the sender.
+func renderHolidayRegistrationReceived(_ context.Context, kind string, raw json.RawMessage) (*enrollment.RenderedMail, error) {
+	var payload enrollment.HolidayRegistrationMail
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return nil, fmt.Errorf("%s payload is not a holiday registration mail: %w", kind, err)
+	}
+	if strings.TrimSpace(payload.Recipient) == "" {
+		return nil, fmt.Errorf("%s payload missing recipient_email", kind)
+	}
+	subject := "Ferienanmeldung eingegangen"
+	if payload.PeriodName != "" {
+		subject = "Ferienanmeldung eingegangen: " + payload.PeriodName
+	}
+	children := make([]map[string]any, 0, len(payload.Children))
+	for _, child := range payload.Children {
+		children = append(children, map[string]any{"Name": child.Name, "Guest": child.Guest, "Weeks": child.Weeks})
+	}
+	return &enrollment.RenderedMail{
+		SenderName: schoolSender(payload.TraegerName),
+		Recipient:  payload.Recipient,
+		Subject:    subject,
+		Template:   "holiday-registration-received.html",
+		Content: map[string]any{
+			"GuardianName": payload.GuardianName,
+			"SchoolName":   payload.TraegerName,
+			"PeriodName":   payload.PeriodName,
+			"Binding":      payload.Binding,
+			"Children":     children,
+		},
+	}, nil
 }
 
 // payloadRenderer renders one mail kind from its decoded payload.
