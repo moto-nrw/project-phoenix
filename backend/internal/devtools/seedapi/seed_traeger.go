@@ -40,19 +40,10 @@ func (seedTraegerBueroStep) Run(_ context.Context, rt *Runtime) error {
 // seedTraegerInvitation signs the admin in to the Träger-Portal and invites
 // the seeded colleague through the Träger route.
 func seedTraegerInvitation(rt *Runtime) error {
-	raw, err := rt.Client.PostWithAuth(AuthRef{Kind: AuthBearer}, "/traeger/auth/login", map[string]any{
-		"email": rt.Bootstrap.AdminEmail, "password": rt.Bootstrap.AdminPassword, "organization_id": rt.Bootstrap.OrganizationID,
-	})
+	traeger, err := rt.Client.LoginTraeger(rt.Bootstrap.AdminEmail, rt.Bootstrap.AdminPassword, rt.Bootstrap.OrganizationID)
 	if err != nil {
 		return fmt.Errorf("sign in to the Träger-Portal: %w", err)
 	}
-	var login struct {
-		AccessToken string `json:"access_token"`
-	}
-	if err := json.Unmarshal(raw, &login); err != nil || login.AccessToken == "" {
-		return fmt.Errorf("sign in to the Träger-Portal: no session in %q", raw)
-	}
-	traeger := AuthRef{Kind: AuthBearer, Token: login.AccessToken, Label: "traeger"}
 	if _, err := rt.Client.PostWithAuth(traeger, "/traeger/accounts/invitations", map[string]any{
 		"email": seedTraegerInvitee, "roles": []string{"billing"},
 	}); err != nil {
@@ -75,9 +66,9 @@ func (seedTraegerHolidayPeriodStep) Run(_ context.Context, rt *Runtime) error {
 	if rt == nil || rt.Client == nil || rt.Bootstrap == nil || rt.Bootstrap.AdminEmail == "" || rt.Bootstrap.AdminPassword == "" {
 		return fmt.Errorf("the Träger holiday period seed prerequisites are not available")
 	}
-	auth, err := seedTraegerLogin(rt.Client, rt.Bootstrap.AdminEmail, rt.Bootstrap.AdminPassword)
+	auth, err := rt.Client.LoginTraeger(rt.Bootstrap.AdminEmail, rt.Bootstrap.AdminPassword, 0)
 	if err != nil {
-		return err
+		return fmt.Errorf("sign in to the Träger-Portal: %w", err)
 	}
 	schools, err := seedTraegerSchoolIDs(rt.Client, auth)
 	if err != nil {
@@ -96,20 +87,6 @@ func (seedTraegerHolidayPeriodStep) Run(_ context.Context, rt *Runtime) error {
 	}
 	fmt.Println("  Träger-Büro: holiday period with two weeks published")
 	return nil
-}
-
-func seedTraegerLogin(client *Client, email, password string) (AuthRef, error) {
-	raw, err := client.PostPublic("/traeger/auth/login", map[string]string{"email": email, "password": password})
-	if err != nil {
-		return AuthRef{}, fmt.Errorf("sign in to the Träger-Portal: %w", err)
-	}
-	var answer struct {
-		AccessToken string `json:"access_token"`
-	}
-	if err := json.Unmarshal(raw, &answer); err != nil || answer.AccessToken == "" {
-		return AuthRef{}, fmt.Errorf("the Träger-Portal sign-in returned no session")
-	}
-	return AuthRef{Kind: AuthBearer, Label: "traeger", Token: answer.AccessToken}, nil
 }
 
 func seedTraegerSchoolIDs(client *Client, auth AuthRef) ([]int64, error) {
@@ -172,9 +149,9 @@ func (seedTraegerSettingsStep) Run(_ context.Context, rt *Runtime) error {
 	if rt == nil || rt.Client == nil || rt.Bootstrap == nil || rt.Bootstrap.AdminEmail == "" || rt.Bootstrap.AdminPassword == "" {
 		return fmt.Errorf("the Träger settings seed prerequisites are not available")
 	}
-	auth, err := seedTraegerLogin(rt.Client, rt.Bootstrap.AdminEmail, rt.Bootstrap.AdminPassword)
+	auth, err := rt.Client.LoginTraeger(rt.Bootstrap.AdminEmail, rt.Bootstrap.AdminPassword, 0)
 	if err != nil {
-		return err
+		return fmt.Errorf("sign in to the Träger-Portal: %w", err)
 	}
 	if _, err := rt.Client.PutWithAuth(auth, "/traeger/settings/values/"+traegerSeedSettingKey, map[string]any{"value": true}); err != nil {
 		return fmt.Errorf("set the Träger value of %s: %w", traegerSeedSettingKey, err)

@@ -40,6 +40,8 @@ func (*fakeIdentity) ListTraegerAccounts(context.Context, int64, []int64) ([]org
 	return nil, nil
 }
 
+func (*fakeIdentity) ResetTraegerMFA(context.Context, int64) error { return nil }
+
 func (*fakeIdentity) EndTraegerSessions(context.Context, int64) (int, error) { return 0, nil }
 
 func (fakeOwnerStore) FindOpenTraegerErasureOrder(context.Context, int64, string) (organizationtenancy.TraegerErasureOrder, bool, domain.OperationStats, error) {

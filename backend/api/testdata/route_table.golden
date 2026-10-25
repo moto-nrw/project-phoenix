@@ -100,6 +100,7 @@ DELETE /operator/devices/{id}
 DELETE /operator/invitations/{id}
 DELETE /operator/organizations/{id}
 DELETE /operator/organizations/{id}/erasure-order
+DELETE /operator/organizations/{id}/traeger-members/{accountId}/mfa
 DELETE /operator/persons/{id}
 DELETE /operator/schools/{id}
 DELETE /operator/schools/{id}/accounts/{accountId}/caregiver-capability/
@@ -1025,6 +1026,10 @@ POST /school/supervisions/{id}/students/{student_id}/check-in
 POST /school/supervisions/{id}/students/{student_id}/check-out
 POST /traeger/accounts/invitations
 POST /traeger/auth/login
+POST /traeger/auth/mfa/enroll/confirm
+POST /traeger/auth/mfa/enroll/start
+POST /traeger/auth/mfa/resend
+POST /traeger/auth/mfa/verify
 POST /traeger/holiday-periods/
 POST /traeger/holiday-periods/{id}/publish
 POST /traeger/invitations/{token}/accept

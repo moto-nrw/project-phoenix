@@ -11,8 +11,8 @@ import (
 )
 
 // scopeNeedsMFA selects the sessions the school MFA policy governs. The
-// Träger-Portal is not bound to the MFA mode of any school (ADR 0084); its own
-// second-factor duty arrives with #4651.
+// Träger-Portal is not bound to the MFA mode of any school (ADR 0084): every
+// Träger session needs its second factor (#4651), see requireSessionMFA.
 func scopeNeedsMFA(scope string) bool {
 	return scope != domain.PortalScopeParent && scope != domain.PortalScopeOrg
 }
@@ -20,8 +20,20 @@ func scopeNeedsMFA(scope string) bool {
 // requireSessionMFA runs under the policy/account lock at every persistence
 // boundary, including refresh hand-off recovery. Legacy sessions have no proof.
 // Parent sessions carry no staff authority and retain their separate policy.
+// A Träger session needs its proof for every role, so a session minted before
+// the duty or one whose proof an MFA reset revoked is refused at mint and at
+// refresh.
 func (s *AccountAuthentication) requireSessionMFA(ctx context.Context, accountID, tenantID int64, scope string, verified bool) error {
-	if !s.mfa.Configured() || !scopeNeedsMFA(scope) {
+	if !s.mfa.Configured() {
+		return nil
+	}
+	if scope == domain.PortalScopeOrg {
+		if !verified {
+			return identityaccess.ErrInvalidToken
+		}
+		return nil
+	}
+	if !scopeNeedsMFA(scope) {
 		return nil
 	}
 	if _, err := s.store.LockAccountPermissionSources(ctx, accountID, tenantID); err != nil {

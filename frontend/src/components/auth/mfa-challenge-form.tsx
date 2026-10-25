@@ -51,6 +51,8 @@ interface MFAChallengeFormProps {
    * if an older backend doesn't surface the field.
    */
   readonly trustedDeviceDays?: number;
+  /** The Träger the Träger-Portal login resolved (#4651). */
+  readonly organizationId?: string;
 }
 
 export function MFAChallengeForm({
@@ -63,6 +65,7 @@ export function MFAChallengeForm({
   onCancel,
   trustedDeviceEnabled = true,
   trustedDeviceDays = 90,
+  organizationId,
 }: MFAChallengeFormProps) {
   const [rememberDevice, setRememberDevice] = useState(false);
   // Fehler über den gemeinsamen Weg (#2517). Ein abgelehnter Code bleibt im
@@ -99,6 +102,7 @@ export function MFAChallengeForm({
           challengeToken: activeToken,
           code: submittedCode,
           rememberDevice,
+          organizationId,
         });
         await onSuccess(tokens);
       } catch (err) {
@@ -123,6 +127,7 @@ export function MFAChallengeForm({
       scope,
       activeToken,
       rememberDevice,
+      organizationId,
       onSuccess,
       onError,
       clearError,

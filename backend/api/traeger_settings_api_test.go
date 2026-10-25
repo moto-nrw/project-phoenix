@@ -79,7 +79,7 @@ func TestTraegerSettingsWriteReachesOnlyTheTraegerOfTheSession(t *testing.T) {
 	foreignSchool := testpkg.CreateTestSchoolInOrganization(t, db, foreign, "OGS Nachbar")
 	admin := traegerAccount(t, db, password)
 	testpkg.CreateTestTraegerMember(t, db, own, admin.ID, identityaccess.TraegerRoleAdministration)
-	_, login := traegerLogin(t, router, admin.Email, password, 0)
+	_, login := traegerSignIn(t, router, admin.Email, password, 0)
 	key := records.KeyParentNewsEnabled
 
 	rec := traegerSettingsRequest(t, router, login.AccessToken, http.MethodPut, "/traeger/settings/values/"+key, map[string]any{"value": false})
@@ -121,7 +121,7 @@ func TestTraegerSettingsNeedTheRight(t *testing.T) {
 	organization := traegerOrganization(t, db, "Träger Rechte", true)
 	reader := traegerAccount(t, db, password)
 	testpkg.CreateTestTraegerMember(t, db, organization, reader.ID, identityaccess.TraegerRoleReadOnly)
-	_, login := traegerLogin(t, router, reader.Email, password, 0)
+	_, login := traegerSignIn(t, router, reader.Email, password, 0)
 	key := records.KeyParentNewsEnabled
 
 	code, items := traegerSchemaItems(t, router, login.AccessToken)
@@ -135,13 +135,13 @@ func TestTraegerSettingsNeedTheRight(t *testing.T) {
 
 	billing := traegerAccount(t, db, password)
 	testpkg.CreateTestTraegerMember(t, db, organization, billing.ID, identityaccess.TraegerRoleBilling)
-	_, billingLogin := traegerLogin(t, router, billing.Email, password, 0)
+	_, billingLogin := traegerSignIn(t, router, billing.Email, password, 0)
 	rec := traegerSettingsRequest(t, router, billingLogin.AccessToken, http.MethodPut, "/traeger/settings/values/"+key, map[string]any{"value": false})
 	assert.Equal(t, http.StatusForbidden, rec.Code, "the billing right does not write a setting that needs the settings right")
 
 	none := traegerAccount(t, db, password)
 	testpkg.CreateTestTraegerMember(t, db, organization, none.ID)
-	_, noneLogin := traegerLogin(t, router, none.Email, password, 0)
+	_, noneLogin := traegerSignIn(t, router, none.Email, password, 0)
 	code, _ = traegerSchemaItems(t, router, noneLogin.AccessToken)
 	assert.Equal(t, http.StatusForbidden, code, "a member without a role reads nothing")
 	var stored int
