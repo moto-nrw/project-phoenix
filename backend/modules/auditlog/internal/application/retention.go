@@ -54,7 +54,7 @@ func (c *Command) DeleteExpiredAuthEvents(ctx context.Context) (int, int, error)
 	if err != nil {
 		return 0, 0, err
 	}
-	cutoff := time.Now().AddDate(0, 0, -AuthEventRetentionDays).Add(-auditModels.RetentionClockMargin)
+	cutoff := auditRetentionCutoff(time.Now(), 0, AuthEventRetentionDays)
 	deleted, err := store.DeleteExpiredAuthEvents(ctx, cutoff)
 	return int(deleted), AuthEventRetentionDays, err
 }
@@ -110,7 +110,7 @@ func (c *Command) DeleteExpiredDeletionLog(ctx context.Context) (int, int, error
 		return 0, 0, err
 	}
 	now := time.Now()
-	cutoff := now.AddDate(-DeletionLogRetentionYears, 0, 0).Add(-auditModels.RetentionClockMargin)
+	cutoff := auditRetentionCutoff(now, DeletionLogRetentionYears, 0)
 	deleted, err := store.DeleteExpiredDataDeletions(ctx, cutoff)
 	return int(deleted), int(now.Sub(cutoff).Hours() / 24), err
 }
@@ -153,10 +153,15 @@ func (c *Command) DeleteExpiredProtocol(ctx context.Context, kind string) (int, 
 		return 0, 0, err
 	}
 	now := time.Now()
-	cutoff := now.AddDate(-DeletionLogRetentionYears, 0, 0).Add(-auditModels.RetentionClockMargin)
+	cutoff := auditRetentionCutoff(now, DeletionLogRetentionYears, 0)
 	if followingYearProtocols[kind] {
 		cutoff = followingYearCutoff(now)
 	}
 	deleted, err := store.DeleteExpiredProtocol(ctx, kind, cutoff)
 	return int(deleted), int(now.Sub(cutoff).Hours() / 24), err
+}
+
+func auditRetentionCutoff(now time.Time, years, days int) time.Time {
+	// The database guards use Berlin calendar days/years, not the host timezone.
+	return now.In(calendar.Berlin).AddDate(-years, 0, -days).Add(-auditModels.RetentionClockMargin)
 }

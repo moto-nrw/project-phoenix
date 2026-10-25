@@ -45,7 +45,7 @@ func TestCommandDeletesTheAuditLedgersInsideTheirFixedWindows(t *testing.T) {
 	store := &ledgerStore{}
 	command, err := NewCommand(store, func(AppendObservation) {})
 	require.NoError(t, err)
-	before := time.Now()
+	before := calendar.Now()
 
 	deleted, days, err := command.DeleteExpiredAuthEvents(context.Background())
 	require.NoError(t, err)
@@ -136,7 +136,7 @@ func TestCommandDeletesTheProtocolsInsideTheirFixedWindows(t *testing.T) {
 	store := &ledgerStore{}
 	command, err := NewCommand(store, func(AppendObservation) {})
 	require.NoError(t, err)
-	before := time.Now()
+	before := calendar.Now()
 
 	for _, kind := range ProtocolRetentionKinds {
 		deleted, _, err := command.DeleteExpiredProtocol(context.Background(), kind)
