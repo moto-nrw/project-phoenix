@@ -34,7 +34,7 @@ async function seedState(
             accounts: {
               admin: [
                 {
-                  key: "thomas-schmidt",
+                  key: "katarzyna-schmidt",
                   email: "admin@example.test",
                   password: "test",
                 },
