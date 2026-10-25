@@ -192,6 +192,16 @@ shots:
     portal: tenant
     rolle: admin
     pfad: /meal-plan
+  # Website: Essensbestellung und Catering. Die Bestellung der Woche je Tag
+  # und Klasse für den Caterer (#3873).
+  - id: essensbestellung
+    titel: Essensbestellung der Woche für den Caterer
+    portal: tenant
+    rolle: admin
+    pfad: /meal-plan
+    vorbereitung:
+      - warten_auf: 'role=heading[name="Bestellung"]'
+      - scrollen: 'role=heading[name="Bestellung"]'
 
   # --- Team -----------------------------------------------------------------
   # Hilfe arbeitszeit-und-pausen-erfassen; PostHog: 919 Aufrufe, 70 % mobil

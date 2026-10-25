@@ -127,10 +127,10 @@ export function mapPermissionResponse(
 // both (backend/internal/devtools/seedapi/demo_roles.go); role names are
 // stored lowercase, so "ogs-leitung" would otherwise read as „Ogs-leitung“
 // in the header and as "ogs-leitung" in every role list.
-const SCHOOL_ROLE_LABELS: Record<string, string> = {
-  "ogs-leitung": "OGS-Leitung",
-  betreuungskraft: "Betreuungskraft",
-};
+const SCHOOL_ROLE_LABELS: ReadonlyMap<string, string> = new Map([
+  ["ogs-leitung", "OGS-Leitung"],
+  ["betreuungskraft", "Betreuungskraft"],
+]);
 
 /**
  * Get the German display name for a system role (`~/lib/role-labels`) or a
@@ -139,7 +139,7 @@ const SCHOOL_ROLE_LABELS: Record<string, string> = {
 export function getRoleDisplayName(roleName: string): string {
   return (
     systemRoleLabel(roleName) ??
-    SCHOOL_ROLE_LABELS[roleName.toLowerCase()] ??
+    SCHOOL_ROLE_LABELS.get(roleName.toLowerCase()) ??
     roleName
   );
 }
@@ -184,7 +184,7 @@ export function getAccountRoleLabel(
   const schoolRole = roles.find((role) => !role.isSystem)?.name;
   if (schoolRole) {
     return (
-      SCHOOL_ROLE_LABELS[schoolRole] ??
+      SCHOOL_ROLE_LABELS.get(schoolRole) ??
       schoolRole.charAt(0).toUpperCase() + schoolRole.slice(1)
     );
   }
