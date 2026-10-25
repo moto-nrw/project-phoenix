@@ -35,7 +35,8 @@ import {
   PERIODS,
   type Period,
 } from "~/lib/caterer-period";
-import { berlinTodayISO, parseISODate } from "~/lib/date-helpers";
+import { parseISODate } from "~/lib/date-helpers";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { openBlobForPrint } from "~/lib/file-download";
 import { createLogger } from "~/lib/logger";
 
@@ -111,7 +112,7 @@ interface OverviewRow {
 }
 
 export default function CatererOverviewPage() {
-  const today = useMemo(() => berlinTodayISO(), []);
+  const today = useBerlinToday();
   const [period, setPeriod] = useState<Period>(() => defaultPeriod(today));
   const days = useMemo(() => periodDays(period, today), [period, today]);
   const from = days[0]!;
@@ -243,6 +244,8 @@ export default function CatererOverviewPage() {
   ];
   const dayOf = (row: OverviewRow, date: string) =>
     row.orders?.days.find((day) => day.date === date);
+  const totalsComplete =
+    !loading && list.every((school) => orders[school.id] != null);
   const daySum = (date: string) =>
     list.reduce(
       (sum, school) =>
@@ -276,7 +279,11 @@ export default function CatererOverviewPage() {
       align: "right" as const,
       render: (row: OverviewRow) => {
         if (!row.school)
-          return <span className="font-semibold">{daySum(date)}</span>;
+          return (
+            <span className="font-semibold">
+              {totalsComplete ? daySum(date) : "Unvollständig"}
+            </span>
+          );
         const day = dayOf(row, date);
         if (!day || day.closed || day.status === "unordered") return "–";
         const { added, removed } = changeCounts(day);
@@ -309,9 +316,13 @@ export default function CatererOverviewPage() {
       align: "right",
       render: (row) => (
         <span className="font-semibold">
-          {row.school
-            ? days.reduce((sum, date) => sum + counts(dayOf(row, date)), 0)
-            : days.reduce((sum, date) => sum + daySum(date), 0)}
+          {row.school && !row.orders
+            ? "Nicht geladen"
+            : !row.school && !totalsComplete
+              ? "Unvollständig"
+              : row.school
+                ? days.reduce((sum, date) => sum + counts(dayOf(row, date)), 0)
+                : days.reduce((sum, date) => sum + daySum(date), 0)}
         </span>
       ),
     },

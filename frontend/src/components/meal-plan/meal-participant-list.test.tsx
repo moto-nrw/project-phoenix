@@ -121,15 +121,18 @@ describe("MealParticipantList", () => {
 
   it("allows registration without exposing exports", async () => {
     render(<MealParticipantList canRegister canExport={false} />);
-    await waitFor(() =>
-      expect(mocks.getDailyMealParticipants).toHaveBeenCalledWith(
-        "2026-09-07",
-        true,
-      ),
+    // Anker: die Tagesliste zeigt ein geladenes Kind.
+    expect((await screen.findAllByText("Muster, Mia"))[0]).toBeInTheDocument();
+    expect(mocks.getDailyMealParticipants).toHaveBeenCalledWith(
+      "2026-09-07",
+      true,
     );
     expect(
       screen.getByRole("button", { name: "Anmeldung ändern" }),
     ).toBeEnabled();
+    expect(
+      screen.queryByRole("button", { name: "Woche" }),
+    ).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Tagesliste herunterladen" }),
     ).not.toBeInTheDocument();

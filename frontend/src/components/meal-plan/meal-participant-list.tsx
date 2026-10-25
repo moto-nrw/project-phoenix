@@ -110,7 +110,8 @@ export function MealParticipantList({
   const retryDownloadRef = useRef<(format: "pdf" | "xlsx") => void>(
     () => undefined,
   );
-  const [view, setView] = useState<ListView>("day");
+  const [selectedView, setView] = useState<ListView>("day");
+  const view = canExport ? selectedView : "day";
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const date = selectedDate ?? nextWeekday(today);
   const [deadline, setDeadline] = useState("");
@@ -302,15 +303,17 @@ export function MealParticipantList({
           </div>
 
           <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end lg:shrink-0">
-            <SegmentedControl
-              ariaLabel={t("viewAria")}
-              items={[
-                { value: "day", label: t("viewDay") },
-                { value: "week", label: t("viewWeek") },
-              ]}
-              value={view}
-              onChange={setView}
-            />
+            {canExport ? (
+              <SegmentedControl
+                ariaLabel={t("viewAria")}
+                items={[
+                  { value: "day", label: t("viewDay") },
+                  { value: "week", label: t("viewWeek") },
+                ]}
+                value={view}
+                onChange={setView}
+              />
+            ) : null}
             <ISODatePicker
               id="meal-participant-date"
               value={isWeek ? weekStart : date}
