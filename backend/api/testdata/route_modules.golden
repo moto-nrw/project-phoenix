@@ -856,6 +856,7 @@ eltern_app
 	GET /parent-news-attachments/{announcementId}  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	GET /parent-news-attachments/{announcementId}/{attachmentId}/download  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	GET /parent-sse/events  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	GET /parent/holiday-registrations/{token}/family  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	GET /parent/me/calendar  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	GET /parent/me/calendar/appointments/{appointmentId}/ics  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	GET /parent/me/calendar/appointments/{appointmentId}/overview  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)

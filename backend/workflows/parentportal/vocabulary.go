@@ -36,6 +36,11 @@ type (
 	ChildFeatureFlags               = care.ChildFeatureFlags
 	ChildGuardian                   = care.ChildGuardian
 	ChildMasterData                 = care.ChildMasterData
+	ChildDataAccess                 = care.ChildDataAccess
+	ChildDataAccessLog              = care.ChildDataAccessLog
+	HolidayRegistrationChild        = care.HolidayRegistrationChild
+	HolidayRegistrationFamily       = care.HolidayRegistrationFamily
+	HolidayRegistrationGuardian     = care.HolidayRegistrationGuardian
 	CreateGuardianContactInput      = care.CreateGuardianContactInput
 	GuardianAccess                  = care.GuardianAccess
 	GuardianAccessRevocation        = care.GuardianAccessRevocation
