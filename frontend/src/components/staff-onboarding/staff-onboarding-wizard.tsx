@@ -1,5 +1,6 @@
 "use client";
 
+import { isScopeBooked, PAGE_MODULES } from "~/lib/module-register";
 import {
   useCallback,
   useEffect,
@@ -36,6 +37,7 @@ import {
 import { useOptionalSupervision } from "~/lib/supervision-context";
 import {
   useAttendanceWebEnabled,
+  useBookedModules,
   useNFCEnabled,
   useChildSearchOnlyNavigation,
   useOpenCareGroupMode,
@@ -130,7 +132,13 @@ function StaffOnboardingForPerson() {
   const canSupervise =
     hasPermission(session, "groups:update") ||
     hasPermission(session, "schedules:read");
-  const canTrackWorkTime = hasPermission(session, "time_tracking:own");
+  // Arbeitszeit erfasst nur, wer das Recht hat und an einer Schule mit dem
+  // Modul Zeiterfassung arbeitet (Modul-Register, #4894). Sonst führte der
+  // Schritt auf einen Menüpunkt, den es nicht gibt.
+  const bookedModules = useBookedModules();
+  const canTrackWorkTime =
+    hasPermission(session, "time_tracking:own") &&
+    isScopeBooked(PAGE_MODULES["/time-tracking"], bookedModules);
   const steps = useMemo(
     () =>
       state

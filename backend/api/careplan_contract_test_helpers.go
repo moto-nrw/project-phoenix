@@ -30,6 +30,7 @@ type CarePlanContractSettingKeys struct {
 	DefaultActivationMode, NotifyPerDecision, NotifyPerDecisionImmediate  string
 	BookingsAuthoritative, OfferingChangesEnabled                         string
 	OfferingChangesLeadDays, ParentCourseRequestsEnabled                  string
+	ModuleOnlineAnmeldung                                                 string
 }
 
 // CarePlanContractKeys names the keys of the Settings Platform registry.
@@ -58,6 +59,7 @@ var CarePlanContractKeys = CarePlanContractSettingKeys{
 	OfferingChangesEnabled:      configModels.KeyEnrollmentOfferingChangesEnabled,
 	OfferingChangesLeadDays:     configModels.KeyEnrollmentOfferingChangesLeadDays,
 	ParentCourseRequestsEnabled: configModels.KeyEnrollmentParentCourseRequestsEnabled,
+	ModuleOnlineAnmeldung:       configModels.KeyModuleOnlineAnmeldung,
 }
 
 // NewCarePlanContractGuardianAccess composes the Identity & Access

@@ -1,8 +1,10 @@
+import { MODULE_KEYS } from "~/lib/modules";
 import { describe, expect, it } from "vitest";
 
 import {
   DEFAULT_LAYOUTS,
   HOME_BLOCKS,
+  isHomeBlockAvailable,
   appendPlacement,
   computeBoardCells,
   homeProfileFor,
@@ -66,7 +68,7 @@ const leadCareAccess: HomeBlockAccess = {
 const fullContext: HomeBlockContext = {
   detailed: true,
   openCareGroupMode: false,
-  nfcEnabled: true,
+  bookedModules: MODULE_KEYS,
   birthdaysEnabled: true,
   timetableEnabled: true,
   remindersEnabled: true,
@@ -186,7 +188,8 @@ describe("resolveHomeLayout — Standardansicht", () => {
     const switches = [
       "detailed",
       "openCareGroupMode",
-      "nfcEnabled",
+      // Das Modul NFC-Anwesenheit (#4894), vorher der Schalter nfcEnabled.
+      "bookedModules",
       "birthdaysEnabled",
       "timetableEnabled",
       "remindersEnabled",
@@ -207,7 +210,14 @@ describe("resolveHomeLayout — Standardansicht", () => {
         switches.forEach((name, bit) => {
           const on = (mask & (1 << bit)) === 0;
           Object.assign(context, {
-            [name]: name === "openCareGroupMode" ? !on : on,
+            [name]:
+              name === "openCareGroupMode"
+                ? !on
+                : name === "bookedModules"
+                  ? on
+                    ? MODULE_KEYS
+                    : MODULE_KEYS.filter((key) => key !== "nfc_anwesenheit")
+                  : on,
           });
         });
         const { placements } = resolveHomeLayout(context, [], {}, {});
@@ -836,5 +846,41 @@ describe("Raster mit Schwerkraft (#2180)", () => {
       rowStart: 6,
       rowSpan: 3,
     });
+  });
+});
+
+// Modul-Register (#4894): ein Baustein eines nicht gebuchten Moduls gibt es
+// für die Schule nicht, Basis-Bausteine bleiben.
+describe("isHomeBlockAvailable — gebuchte Module", () => {
+  const block = (key: HomeBlockKey) =>
+    HOME_BLOCKS.find((entry) => entry.key === key)!;
+
+  it("nimmt die Aktivitäten-Bausteine ohne NFC-Anwesenheit heraus", () => {
+    const withoutNfc = {
+      ...fullContext,
+      bookedModules: MODULE_KEYS.filter((key) => key !== "nfc_anwesenheit"),
+    };
+
+    expect(
+      isHomeBlockAvailable(block("tile.active_activities"), fullContext),
+    ).toBe(true);
+    expect(
+      isHomeBlockAvailable(block("tile.active_activities"), withoutNfc),
+    ).toBe(false);
+    expect(
+      isHomeBlockAvailable(block("section.current_activities"), withoutNfc),
+    ).toBe(false);
+    expect(
+      isHomeBlockAvailable(block("tile.students_present"), withoutNfc),
+    ).toBe(true);
+  });
+
+  it("lässt den Betriebsmodus auch bei gebuchtem Modul gelten", () => {
+    expect(
+      isHomeBlockAvailable(block("tile.active_activities"), {
+        ...fullContext,
+        detailed: false,
+      }),
+    ).toBe(false);
   });
 });

@@ -2,6 +2,7 @@
 package common
 
 const (
+	CodeTimetableSlotListPickupPastDate              = "timetable.slot_list_pickup_past_date"
 	CodeTimetableSlotListReconciliationFutureDate    = "timetable.slot_list_reconciliation_future_date"
 	CodeTimetableSlotListsDisabled                   = "timetable.slot_lists_disabled"
 	CodeTimetableSpontaneousActivitiesDisabled       = "timetable.spontaneous_activities_disabled"
@@ -121,6 +122,7 @@ const (
 )
 
 var errorCodeClasses2 = map[string]string{
+	"timetable.slot_list_pickup_past_date":              "input",
 	"timetable.slot_list_reconciliation_future_date":    "input",
 	"timetable.slot_lists_disabled":                     "permission",
 	"timetable.spontaneous_activities_disabled":         "permission",

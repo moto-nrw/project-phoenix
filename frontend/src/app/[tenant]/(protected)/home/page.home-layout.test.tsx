@@ -111,6 +111,21 @@ vi.mock("~/components/home/now-strip", () => ({
 
 vi.mock("~/lib/tenant-context", () => ({
   useNFCEnabled: vi.fn(() => true),
+  // Alle Module gebucht, wie die Voreinstellung der Registry (#4892).
+  useBookedModules: () => [
+    "nfc_anwesenheit",
+    "mittagessen",
+    "eltern_app",
+    "online_anmeldung",
+    "unterricht_vormittag",
+    "dienstplan",
+    "zeiterfassung",
+    "personalakte",
+    "traeger_uebersicht",
+    "ferienbetreuung",
+    "vertraege",
+    "elternbeitraege",
+  ],
   useOpenCareGroupMode: vi.fn(() => false),
   usePresenceMode: vi.fn(() => "detailed"),
   useTenantSafe: vi.fn(() => ({

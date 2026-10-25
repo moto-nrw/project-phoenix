@@ -61,6 +61,7 @@ func (stubTakeoverSettings) HasTenantOverride(_ context.Context, key string) (bo
 func (stubTakeoverSettings) ResolveBool(_ context.Context, key string) (bool, error) {
 	switch key {
 	case settingKeyEnrollmentEnabled,
+		settingKeyModuleOnlineAnmeldung,
 		settingKeyAllowSubmissionEdit,
 		settingKeyCollectGradeLevel,
 		settingKeyWaitlistEnabled:
