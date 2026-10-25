@@ -318,36 +318,173 @@ async function waitForSettled(
   };
 }
 
+type Point = readonly [number, number];
+
 /**
- * Zieht mit der Maus einen Schriftzug über die Fläche: eine Wellenlinie über
- * gut zwei Drittel der Breite, wie eine schnelle Unterschrift. Feste Punkte,
- * damit jedes Gerät dieselbe Form bekommt.
+ * Der Schriftzug „S. Schneider“ als Federzüge: je Zug ein Startpunkt, danach
+ * kubische Bézier-Abschnitte zu je drei Punkten (zwei Stützpunkte, Ziel).
+ * Einheiten frei gewählt, y wächst nach unten, die Grundlinie liegt bei 28.
+ * Zwischen den Zügen hebt der Stift ab: S, Punkt, S, „chneider“, i-Punkt
+ * und der Schwung darunter.
+ */
+// prettier-ignore
+const SIGNATURE_STROKES: readonly (readonly Point[])[] = [
+  // S
+  [[13, 9], [8, 4], [1, 7], [3, 12], [5, 16], [13, 17], [13, 22], [13, 28], [5, 31], [1, 26]],
+  // .
+  [[16.5, 27.6], [16.8, 27.9], [17.2, 28.2], [17.4, 27.9]],
+  // S
+  [[31, 10], [27, 5], [20, 8], [23, 13], [26, 17], [32, 19], [30, 24], [28, 29], [21, 29], [21, 25]],
+  // chneider
+  [
+    [34, 26],
+    // c
+    [35, 22], [38, 20], [38.5, 21.5], [36, 19.5], [33.5, 24], [34.5, 27], [35.5, 29], [38, 28], [39.5, 25.5],
+    // h
+    [41.5, 20], [43.5, 10], [42.5, 8], [41.5, 6.5], [39.5, 10], [40, 18], [40.3, 24], [40, 28], [40.1, 28],
+    [41, 22], [43.5, 20], [44.3, 22.5], [44.7, 25], [44.3, 28], [45.5, 27.5],
+    // n
+    [45.8, 23], [46.5, 21], [47, 21.5], [47.3, 24], [47, 28], [47.1, 28],
+    [48, 22], [49.5, 20.5], [50, 22.5], [50.3, 25], [50, 28], [51.5, 27],
+    // e
+    [53.5, 25], [56, 23], [55, 21], [54, 20], [51.5, 22], [52, 25.5], [52.5, 28.5], [54.5, 28.5], [56, 26.5],
+    // i
+    [57, 24], [57.5, 21.5], [57.5, 21], [57.6, 24], [57.4, 28], [59, 27],
+    // d
+    [60, 25], [62.5, 20], [63, 21.5], [61, 19.5], [58.5, 24], [59.5, 27], [60.5, 29.5], [63, 27], [63.5, 22],
+    [64, 15], [64.2, 9], [64, 8], [63.6, 14], [63.5, 24], [63.6, 27.5], [64, 28.5], [65, 28], [65.5, 26.5],
+    // e
+    [67.5, 25], [70, 23], [69, 21], [68, 20], [65.5, 22], [66, 25.5], [66.5, 28.5], [68.5, 28.5], [70, 26.5],
+    // r
+    [70.5, 23], [71, 21], [71.5, 21.5], [71.5, 24], [71.5, 28], [71.5, 28], [72, 24], [73, 21.5], [75, 22],
+  ],
+  // Punkt auf dem i
+  [[57.8, 17], [58, 16.8], [58.3, 16.9], [58.4, 17.1]],
+  // Schwung
+  [[22, 33], [37, 30], [57, 31.5], [75, 29]],
+];
+
+/** Neigung nach rechts: oben liegt ein Punkt um so viel je Einheit weiter rechts. */
+const SIGNATURE_SLANT = 0.2;
+const SIGNATURE_BASELINE = 28;
+/** Punkte je Bézier-Abschnitt. */
+const SIGNATURE_SAMPLES = 8;
+/** Anteil der Fläche, den der Schriftzug höchstens einnimmt. */
+const SIGNATURE_FILL = 0.8;
+
+function cubic(a: Point, b: Point, c: Point, d: Point, t: number): Point {
+  const u = 1 - t;
+  return [
+    u * u * u * a[0] +
+      3 * u * u * t * b[0] +
+      3 * u * t * t * c[0] +
+      t * t * t * d[0],
+    u * u * u * a[1] +
+      3 * u * u * t * b[1] +
+      3 * u * t * t * c[1] +
+      t * t * t * d[1],
+  ];
+}
+
+/** Die Züge als Punktfolgen, geneigt, noch in den Einheiten des Schriftzugs. */
+function signaturePolylines(): Point[][] {
+  return SIGNATURE_STROKES.map(([start, ...rest]) => {
+    if (!start) return [];
+    const line: Point[] = [start];
+    for (let index = 0; index + 2 < rest.length; index += 3) {
+      const from = line[line.length - 1] ?? start;
+      const [b, c, d] = [rest[index], rest[index + 1], rest[index + 2]];
+      if (!b || !c || !d) break;
+      for (let step = 1; step <= SIGNATURE_SAMPLES; step += 1) {
+        line.push(cubic(from, b, c, d, step / SIGNATURE_SAMPLES));
+      }
+    }
+    return line.map(([x, y]) => [
+      x + (SIGNATURE_BASELINE - y) * SIGNATURE_SLANT,
+      y,
+    ]);
+  });
+}
+
+/**
+ * Schreibt „S. Schneider“ mit der Maus in die Fläche: mehrere Züge mit
+ * abgesetztem Stift, leicht geneigt, auf die Fläche skaliert und mittig.
+ * Feste Punkte, damit jedes Gerät dieselbe Form bekommt. Die Maus erreicht
+ * die Fläche auch in einem Kontext mit Touch (Pointer-Events).
  */
 async function drawSignature(page: Page, selector: string): Promise<void> {
   const target = page.locator(selector).first();
   await target.scrollIntoViewIfNeeded({ timeout: 10_000 });
   const box = await target.boundingBox({ timeout: 10_000 });
   if (!box) throw new Error(`${selector} hat keine sichtbare Fläche`);
-  const at = (x: number, y: number) => ({
-    x: box.x + box.width * x,
-    y: box.y + box.height * y,
-  });
-  const steps = 48;
-  const points = Array.from({ length: steps + 1 }, (_, index) => {
-    const t = index / steps;
-    return at(
-      0.15 + 0.7 * t,
-      0.55 - 0.18 * Math.sin(t * Math.PI * 5) * (1 - 0.4 * t),
-    );
-  });
-  const [first, ...rest] = points;
-  if (!first) return;
-  await page.mouse.move(first.x, first.y);
-  await page.mouse.down();
-  for (const point of rest) {
-    await page.mouse.move(point.x, point.y, { steps: 2 });
+  const lines = signaturePolylines();
+  const all = lines.flat();
+  const xs = all.map(([x]) => x);
+  const ys = all.map(([, y]) => y);
+  const [minX, maxX] = [Math.min(...xs), Math.max(...xs)];
+  const [minY, maxY] = [Math.min(...ys), Math.max(...ys)];
+  const scale = Math.min(
+    (box.width * SIGNATURE_FILL) / (maxX - minX),
+    (box.height * SIGNATURE_FILL) / (maxY - minY),
+  );
+  const left = box.x + (box.width - (maxX - minX) * scale) / 2;
+  const top = box.y + (box.height - (maxY - minY) * scale) / 2;
+  for (const line of lines) {
+    const [first, ...rest] = line.map(([x, y]) => ({
+      x: left + (x - minX) * scale,
+      y: top + (y - minY) * scale,
+    }));
+    if (!first) continue;
+    await page.mouse.move(first.x, first.y);
+    await page.mouse.down();
+    for (const point of rest) await page.mouse.move(point.x, point.y);
+    await page.mouse.up();
   }
-  await page.mouse.up();
+}
+
+/** Wie lange ein angeklickter Reiter ausgewählt bleiben muss. */
+const TAB_STABLE_MS = 1_000;
+/** So lange wartet ein Klick auf die Auswahl, bevor er wiederholt wird. */
+const TAB_SELECT_MS = 5_000;
+const TAB_MAX_CLICKS = 3;
+
+/**
+ * Klickt das Element. Ist es ein Reiter (role="tab" ohne eigenes Menü),
+ * wartet der Schritt, bis er ausgewählt ist und es eine Sekunde bleibt. Ein
+ * Klick, der verloren geht oder den die Seite zurückdreht, wird wiederholt,
+ * höchstens dreimal insgesamt. Sonst zeigte der Shot still den alten Reiter.
+ */
+async function clickStep(page: Page, selector: string): Promise<void> {
+  const target = page.locator(selector).first();
+  await target.click({ timeout: 10_000 });
+  const isTab =
+    (await target.getAttribute("role")) === "tab" &&
+    (await target.getAttribute("aria-haspopup")) === null;
+  if (!isTab) return;
+  let clicks = 1;
+  let nextClickAt = Date.now() + TAB_SELECT_MS;
+  let selectedAt: number | null = null;
+  for (;;) {
+    const now = Date.now();
+    if ((await target.getAttribute("aria-selected")) === "true") {
+      selectedAt ??= now;
+      if (now - selectedAt >= TAB_STABLE_MS) return;
+    } else {
+      const reverted = selectedAt !== null;
+      selectedAt = null;
+      if (reverted || now >= nextClickAt) {
+        if (clicks >= TAB_MAX_CLICKS) {
+          throw new Error(
+            `${selector} blieb nach ${clicks} Klicks nicht ausgewählt`,
+          );
+        }
+        await target.click({ timeout: 10_000 });
+        clicks += 1;
+        nextClickAt = Date.now() + TAB_SELECT_MS;
+      }
+    }
+    await page.waitForTimeout(100);
+  }
 }
 
 /** Ein Schritt der Vorbereitung; exportiert für steps.pw.ts. */
@@ -357,7 +494,7 @@ export async function runStep(
   step: Step,
 ): Promise<void> {
   if ("klicken" in step) {
-    await page.locator(step.klicken).first().click({ timeout: 10_000 });
+    await clickStep(page, step.klicken);
   } else if ("warten_auf" in step) {
     // Nach einem Klick auf eine andere Seite kompiliert der Dev-Server deren
     // Route und Datenabfragen beim ersten Aufruf; solange die Seite lädt,
@@ -382,6 +519,10 @@ export async function runStep(
       .fill(step.tippen.text, { timeout: 10_000 });
   } else if ("zeichnen" in step) {
     await drawSignature(page, step.zeichnen);
+  } else if ("scrollen_im_bereich" in step) {
+    await scrollWithinArea(page, step.scrollen_im_bereich, "oben");
+  } else if ("einblenden" in step) {
+    await scrollWithinArea(page, step.einblenden, "unten");
   } else if (typeof step.scrollen === "number") {
     const offset = step.scrollen;
     await page.evaluate((top) => window.scrollTo(0, top), offset);
@@ -435,6 +576,51 @@ async function scrollToTop(page: Page, selector: string): Promise<void> {
     }
     element.scrollIntoView({ block: "start", behavior: "instant" });
   }, SCROLL_GAP_PX);
+}
+
+/** Abstand zum Rand des Bereichs bei `scrollen_im_bereich` und `einblenden`. */
+const AREA_GAP_PX = 8;
+
+/**
+ * Scrollt nur den nächsten scrollbaren Bereich um das Element (Wochenraster,
+ * Chatverlauf, Inhalt eines Dialogs), ohne Bereich die Seite: `oben` legt das
+ * Element an den oberen Rand dieses Bereichs, `unten` seine Unterkante an den
+ * unteren. Die Seite um den Bereich bleibt stehen. Am Ende des Bereichs hält
+ * der Browser an, das Element liegt dann weiter innen.
+ */
+async function scrollWithinArea(
+  page: Page,
+  selector: string,
+  edge: "oben" | "unten",
+): Promise<void> {
+  const target = page.locator(selector).first();
+  await target.waitFor({ state: "attached", timeout: 10_000 });
+  await target.evaluate(
+    (element, { edge, gap }) => {
+      let area = element.parentElement;
+      while (area) {
+        const { overflowY } = getComputedStyle(area);
+        if (
+          (overflowY === "auto" || overflowY === "scroll") &&
+          area.scrollHeight > area.clientHeight
+        ) {
+          break;
+        }
+        area = area.parentElement;
+      }
+      const scroller = area ?? document.scrollingElement;
+      if (!scroller) return;
+      const view = area
+        ? area.getBoundingClientRect()
+        : { top: 0, bottom: window.innerHeight };
+      const rect = element.getBoundingClientRect();
+      scroller.scrollTop +=
+        edge === "oben"
+          ? rect.top - view.top - gap
+          : rect.bottom - view.bottom + gap;
+    },
+    { edge, gap: AREA_GAP_PX },
+  );
 }
 
 async function captureOne(

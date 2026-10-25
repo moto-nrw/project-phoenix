@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -66,8 +67,9 @@ func seedTraegerInvitation(rt *Runtime) error {
 // seedTraegerHolidayPeriodStep plans a published holiday period for the
 // Träger-Büro (#4659) through the Träger-Portal, signed in as the bootstrap
 // school admin the previous step assigned: the two Herbstferien weeks the
-// school plans around (seedHerbstferien), hosted in turn by the Träger's
-// schools, each with a morning and a full-day time model. Published today, it
+// school plans around (seedHerbstferien), both hosted by the profile's own
+// school, each with a morning and a full-day time model. The Träger's other
+// school is the manual test school, which no family would be sent to. Published today, it
 // opens registration today and closes it a week before the Ferien.
 type seedTraegerHolidayPeriodStep struct{}
 
@@ -85,7 +87,10 @@ func (seedTraegerHolidayPeriodStep) Run(_ context.Context, rt *Runtime) error {
 	if err != nil {
 		return err
 	}
-	raw, err := rt.Client.PostWithAuth(auth, "/traeger/holiday-periods/", seedHolidayPeriod(calendar.TodayDate(), schools))
+	if !slices.Contains(schools, rt.Bootstrap.SchoolID) {
+		return fmt.Errorf("the Träger does not list school %d to host the holiday weeks", rt.Bootstrap.SchoolID)
+	}
+	raw, err := rt.Client.PostWithAuth(auth, "/traeger/holiday-periods/", seedHolidayPeriod(calendar.TodayDate(), rt.Bootstrap.SchoolID))
 	if err != nil {
 		return fmt.Errorf("create the holiday period: %w", err)
 	}
@@ -121,16 +126,15 @@ func seedTraegerSchoolIDs(client *Client, auth AuthRef) ([]int64, error) {
 }
 
 // seedHolidayPeriod is the request body: the two Herbstferien weeks, Monday
-// to Friday, hosted in turn by the Träger's schools, with prices in whole
-// cent.
-func seedHolidayPeriod(today calendar.Date, schools []int64) map[string]any {
+// to Friday, both hosted by host, with prices in whole cent.
+func seedHolidayPeriod(today calendar.Date, host int64) map[string]any {
 	ferienStart, _ := seedHerbstferien(seedDate{Time: today.UTCMidnight()})
 	firstMonday := calendar.NewDate(ferienStart.Year(), ferienStart.Month(), ferienStart.Day())
 	weeks := make([]map[string]any, 0, 2)
 	for i := range 2 {
 		monday := firstMonday.AddDays(7 * i)
 		weeks = append(weeks, map[string]any{
-			"starts_on": monday.String(), "ends_on": monday.AddDays(4).String(), "host_school_id": schools[i%len(schools)],
+			"starts_on": monday.String(), "ends_on": monday.AddDays(4).String(), "host_school_id": host,
 			"time_models": []map[string]any{
 				{"name": "bis 13 Uhr", "starts_at": "08:00", "ends_at": "13:00", "price_cents": 4500},
 				{"name": "bis 16 Uhr", "starts_at": "08:00", "ends_at": "16:00", "price_cents": 6500},

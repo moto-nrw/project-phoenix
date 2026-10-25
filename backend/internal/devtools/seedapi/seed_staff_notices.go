@@ -27,18 +27,25 @@ var staffNoticeWeekdays = [...]string{"sonntags", "montags", "dienstags", "mittw
 // exactly its share.
 func staffNotices(today seedDate) []map[string]any {
 	ferienStart, _ := seedHerbstferien(today)
+	todayOnly := []int16{int16((int(today.Weekday())+6)%7 + 1)} // ISO weekday, Monday 1
 	notice := func(title, body, priority, audience string, until seedDate, acknowledge bool) map[string]any {
+		// No weekdays means every day; a notice of one day carries its
+		// weekday, otherwise the list reads „täglich · ab 20.10. bis 20.10.“.
+		weekdays := []int16{}
+		if until.Equal(today.Time) {
+			weekdays = todayOnly
+		}
 		return map[string]any{
 			"title": title, "body": body, "priority": priority, "audience": audience,
 			"valid_from": today.String(), "valid_until": until.String(),
-			"weekdays": []int16{}, "week_pattern": 0,
+			"weekdays": weekdays, "week_pattern": 0,
 			"requires_acknowledgement": acknowledge, "active": true,
 		}
 	}
 	gym := notice("Turnhalle belegt",
 		fmt.Sprintf("Die Turnhalle ist %s bis 15 Uhr durch den Schulsport belegt. Bewegungsangebote finden bis dahin im Bewegungsraum statt.", staffNoticeWeekdays[today.Weekday()]),
 		"info", "staff", ferienStart.AddDays(-3), false)
-	gym["weekdays"] = []int16{int16((int(today.Weekday())+6)%7 + 1)}
+	gym["weekdays"] = todayOnly
 	return []map[string]any{
 		notice("Räumungsübung um 14:30 Uhr",
 			"Heute um 14:30 Uhr ertönt der Probealarm. Bitte begleiten Sie Ihre Gruppe über den Fluchtweg zum Sammelplatz auf dem Schulhof und zählen Sie die Kinder dort.",

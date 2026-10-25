@@ -88,3 +88,48 @@ func TestDemoGuardianLinkKeepsAppParentsFullRole(t *testing.T) {
 		assert.Equal(t, true, link["can_pickup"])
 	}
 }
+
+// Every demo child but the two families without the app has a guardian with
+// full rights and an app account, so a declaration reaches the family. The
+// narrower roles go to second guardians only, and both still exist.
+func TestEveryAppFamilyHasAGuardianWhoCanAnswer(t *testing.T) {
+	t.Parallel()
+
+	guardianIDs := map[string]int64{}
+	for i, guardian := range DemoGuardians {
+		if _, ok := guardianIDs[demoGuardianKey(guardian)]; !ok {
+			guardianIDs[demoGuardianKey(guardian)] = int64(1000 + i)
+		}
+	}
+	parents := make([]ParentCredentials, 0, len(parentAccountGuardianIndexes))
+	withAccount := map[string]bool{}
+	for _, index := range parentAccountGuardianIndexes {
+		key := demoGuardianKey(DemoGuardians[index])
+		parents = append(parents, ParentCredentials{GuardianID: guardianIDs[key]})
+		withAccount[key] = true
+	}
+	family, err := familyAppGuardianIndexes(guardianIDs, parents)
+	require.NoError(t, err)
+	for _, index := range family {
+		withAccount[demoGuardianKey(DemoGuardians[index])] = true
+	}
+
+	roles := map[any]int{}
+	for child := range DemoStudents {
+		answerable := false
+		for _, guardian := range DemoGuardians {
+			if guardian.StudentIndex != child {
+				continue
+			}
+			link := demoGuardianLink(1, guardian)
+			if role, limited := link["guardian_role"]; limited {
+				roles[role]++
+				assert.False(t, guardian.IsPrimary, "%s keeps the full role as primary guardian", demoGuardianKey(guardian))
+				continue
+			}
+			answerable = answerable || withAccount[demoGuardianKey(guardian)]
+		}
+		assert.Equal(t, !familiesWithoutApp[child], answerable, "child %d %s", child, DemoStudents[child].FirstName)
+	}
+	assert.Equal(t, map[any]int{"pickup_only": 1, "custom": 1}, roles)
+}

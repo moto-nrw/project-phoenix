@@ -86,6 +86,9 @@ The product screenshots photograph vollbetrieb after simulate full-day.
   --staff-password 'Test1234%' Shared password for all 20 staff accounts
   --admin-email admin@test.com Override the bootstrap school admin email
   --randomize                  Create a unique ad-hoc school instead
+  --product-screenshots        Prepare the school for the product screenshots:
+                               no weekend care plan, no statistics session at
+                               the seed time (simulate full-day fills it)
 
 DEMO SCHOOLS:
 A --tenant-slug other than the profile's own makes the run repeatable in one
@@ -122,16 +125,18 @@ Usage:
 		schoolName, _ := cmd.Flags().GetString("school-name")
 		profile, _ := cmd.Flags().GetString("profile")
 		statePath, _ := cmd.Flags().GetString("state")
+		productScreenshots, _ := cmd.Flags().GetBool("product-screenshots")
 
 		options := seedapi.SeedOptions{
-			TenantSlug:    tenantSlug,
-			StaffPassword: staffPassword,
-			AdminEmail:    adminEmail,
-			Randomize:     randomize,
-			SchoolName:    schoolName,
-			OnlyProfile:   profile,
-			StatePath:     statePath,
-			ReadMailLink:  FetchLatestMailLink,
+			TenantSlug:         tenantSlug,
+			StaffPassword:      staffPassword,
+			AdminEmail:         adminEmail,
+			Randomize:          randomize,
+			SchoolName:         schoolName,
+			OnlyProfile:        profile,
+			StatePath:          statePath,
+			ReadMailLink:       FetchLatestMailLink,
+			ProductScreenshots: productScreenshots,
 		}
 
 		return defaultSeedRoot.run(cmd.Context(), url, verbose, options, email, password, pin)
@@ -152,4 +157,5 @@ func init() {
 	seedCmd.Flags().String("profile", "", "Seed only this profile (vollbetrieb); empty seeds all four")
 	seedCmd.Flags().String("state", "", "Output path for the seed state (default .seed-state.json)")
 	seedCmd.Flags().Bool("randomize", false, "Create a unique ad-hoc school with generated admin credentials")
+	seedCmd.Flags().Bool("product-screenshots", false, "Prepare vollbetrieb for the product screenshots (no weekend care plan, no seed-time statistics session)")
 }

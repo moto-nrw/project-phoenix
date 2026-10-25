@@ -34,8 +34,8 @@ import (
 //   - The one block with a recorded break comes from seedWorkSessionBreakStep,
 //     which walks the live clocking flow before the simulation starts.
 //   - One staff member receives an approved future 3-day vacation block via
-//     the normal vacation request/approval flow. About a quarter of the staff
-//     get a single historical sick day via POST /api/time-tracking/absences.
+//     the request flow, most others a past summer vacation (pastVacation).
+//     About a quarter get a historical sick day (POST /api/time-tracking/absences).
 type seedTimeTrackingHistoryStep struct{}
 
 func (seedTimeTrackingHistoryStep) Name() string { return "Seeding time-tracking history" }
@@ -146,7 +146,7 @@ func (seedTimeTrackingHistoryStep) Run(ctx context.Context, rt *Runtime) error {
 			client := NewClientWithAdapter(rt.Adapter, rt.Verbose)
 			admin := NewClientWithAdapter(rt.Adapter, rt.Verbose)
 			admin.BindAuth(plan.adminAuth)
-			sessionCounts[idx], absenceCounts[idx], errs[idx] = plan.seedStaff(client, admin, idx, cred, staffIDByEmail[cred.Email])
+			sessionCounts[idx], absenceCounts[idx], errs[idx] = plan.seedStaffWithVacation(client, admin, idx, cred, staffIDByEmail[cred.Email])
 		})
 	}
 	wg.Wait()

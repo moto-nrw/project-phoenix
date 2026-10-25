@@ -27,6 +27,10 @@ func TestStaffNoticesHaveARealisticValidity(t *testing.T) {
 	}
 	assert.Equal(t, map[string]bool{"all": true, "staff": true, "lehrkraft": true}, audiences, "#2208: every portal sees its share")
 	assert.Equal(t, "2026-09-22", notices[0]["valid_until"], "the Räumungsübung is today")
+	assert.Equal(t, []int16{2}, notices[0]["weekdays"], "a notice of one day names its weekday, not „täglich“")
+	assert.Equal(t, "Übergabe nach der 6. Stunde", notices[3]["title"])
+	assert.Equal(t, []int16{2}, notices[3]["weekdays"], "a notice of one day names its weekday, not „täglich“")
+	assert.Equal(t, []int16{}, notices[1]["weekdays"], "the Notfallplan runs every day of its week")
 	gym := notices[2]
 	assert.Equal(t, "Turnhalle belegt", gym["title"])
 	assert.Equal(t, []int16{2}, gym["weekdays"], "every Tuesday")

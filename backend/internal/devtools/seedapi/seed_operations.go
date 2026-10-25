@@ -83,16 +83,16 @@ func seedClosingDay(rt *Runtime, today seedDate) error {
 // and the parents portal open on the current week, and the parents portal
 // also offers the next one (#3894).
 var demoMeals = [10][]map[string]any{
-	{{"dish": "Gemüsenudeln", "note": "Auch ohne Milch erhältlich", "allergens": []string{"gluten", "eggs", "milk"}}, {"dish": "Obst und Wasser"}},
+	{{"dish": "Gemüsenudeln", "note": "Auch ohne Milch erhältlich", "allergens": []string{"gluten", "eggs", "milk"}}, {"dish": "Obst und Wasser", "note": "Obst aus der Region"}},
 	{{"dish": "Hähnchen mit Reis und Erbsen", "note": "Vegetarisch: Gemüsebratling", "allergens": []string{"celery"}}},
-	{{"dish": "Kartoffelsuppe mit Brötchen", "allergens": []string{"gluten", "celery", "milk"}}, {"dish": "Joghurt mit Beeren", "allergens": []string{"milk"}}},
+	{{"dish": "Kartoffelsuppe mit Brötchen", "note": "Vegetarisch", "allergens": []string{"gluten", "celery", "milk"}}, {"dish": "Joghurt mit Beeren", "note": "Laktosefrei auf Nachfrage", "allergens": []string{"milk"}}},
 	{{"dish": "Spaghetti Bolognese", "note": "Vegetarisch: Linsen-Bolognese", "allergens": []string{"gluten", "celery"}}},
-	{{"dish": "Fischstäbchen mit Kartoffelpüree", "note": "Vegetarisch: Gemüsestäbchen", "allergens": []string{"gluten", "fish", "milk"}}, {"dish": "Obst"}},
-	{{"dish": "Milchreis mit Zimt und Kirschen", "allergens": []string{"milk"}}},
-	{{"dish": "Gemüsecurry mit Reis", "allergens": []string{"mustard", "nuts"}}, {"dish": "Apfelschnitze"}},
+	{{"dish": "Fischstäbchen mit Kartoffelpüree", "note": "Vegetarisch: Gemüsestäbchen", "allergens": []string{"gluten", "fish", "milk"}}, {"dish": "Obst", "note": "Äpfel und Bananen"}},
+	{{"dish": "Milchreis mit Zimt und Kirschen", "note": "Laktosefrei auf Nachfrage", "allergens": []string{"milk"}}},
+	{{"dish": "Gemüsecurry mit Reis", "note": "Vegan, leicht scharf", "allergens": []string{"mustard", "nuts"}}, {"dish": "Apfelschnitze", "note": "Aus der Region"}},
 	{{"dish": "Linseneintopf mit Würstchen", "note": "Vegetarisch: ohne Würstchen", "allergens": []string{"celery", "mustard", "sulphites"}}},
-	{{"dish": "Gemüselasagne", "allergens": []string{"gluten", "eggs", "milk"}}, {"dish": "Apfelkompott"}},
-	{{"dish": "Pfannkuchen mit Apfelmus", "allergens": []string{"gluten", "eggs", "milk"}}, {"dish": "Rohkost"}},
+	{{"dish": "Gemüselasagne", "note": "Vegetarisch", "allergens": []string{"gluten", "eggs", "milk"}}, {"dish": "Apfelkompott", "note": "Ohne Zuckerzusatz"}},
+	{{"dish": "Pfannkuchen mit Apfelmus", "note": "Vegetarisch", "allergens": []string{"gluten", "eggs", "milk"}}, {"dish": "Rohkost", "note": "Gurke, Möhre und Paprika"}},
 }
 
 // seedMealPlan publishes lunch for every weekday of the week today lies in

@@ -63,18 +63,19 @@ func demoGuardianStudentIDs(studentIDByIndex map[int]int64, index int) ([]int64,
 	return ids, nil
 }
 
-// demoGuardianHasAppAccount reports whether the guardian is one of the
-// scripted parents with a parent-portal account.
-func demoGuardianHasAppAccount(guardian DemoGuardian) bool {
-	return slices.ContainsFunc(parentAccountGuardianIndexes, func(index int) bool {
-		return demoGuardianKey(DemoGuardians[index]) == demoGuardianKey(guardian)
-	})
+// demoLimitedGuardianRoles are the two guardians with a narrower role: second
+// guardians outside the core family, one who may only pick the child up and
+// one with a custom role. Every child keeps a primary guardian with full
+// rights. When the narrower roles fell on every tenth and eleventh guardian,
+// they hit 19 children's only guardian, and "Für 23 Kinder kann niemand
+// antworten" stood under every declaration.
+var demoLimitedGuardianRoles = map[string]string{
+	"Katja Albrecht": "pickup_only",
+	"Milly Nikoliin": "custom",
 }
 
 // demoGuardianLink is the body that links one guardian entry to its child.
-// Every tenth and eleventh guardian gets a narrower role. The role follows the
-// person, so siblings see the same one, and the scripted parents keep the full
-// role their parent-portal flows need.
+// The role follows the person, so siblings see the same one.
 func demoGuardianLink(guardianID int64, guardian DemoGuardian) map[string]any {
 	link := map[string]any{
 		"guardian_profile_id":  guardianID,
@@ -84,14 +85,12 @@ func demoGuardianLink(guardianID int64, guardian DemoGuardian) map[string]any {
 		"can_pickup":           true,
 		"emergency_priority":   1,
 	}
-	index := demoGuardianFirstIndex(guardian)
-	switch {
-	case index < 6 || demoGuardianHasAppAccount(guardian):
-	case index%10 == 0:
+	switch demoLimitedGuardianRoles[demoGuardianKey(guardian)] {
+	case "pickup_only":
 		link["guardian_role"] = "pickup_only"
 		link["relationship_type"] = "relative"
 		link["is_emergency_contact"] = false
-	case index%11 == 0:
+	case "custom":
 		link["guardian_role"] = "custom"
 		link["relationship_type"] = "other"
 		link["is_emergency_contact"] = false
@@ -106,7 +105,9 @@ func demoGuardianLink(guardianID int64, guardian DemoGuardian) map[string]any {
 // sickDemoCandidates are the DemoStudents indexes the seed may report sick:
 // the children of every second group (DemoStudents lists ten per group), so
 // about one child in twenty is ill, and none with a parent account: the
-// parents portal, the product screenshots and the demo show those.
+// parents portal, the product screenshots and the demo show those. One of
+// them is sick all the same: Shirin Amini reports Baran sick for the seed day
+// through the parents portal (seedParentPortalActions).
 func sickDemoCandidates() []int {
 	portal := make(map[int]bool, len(parentAccountGuardianIndexes))
 	for _, guardian := range parentAccountGuardianIndexes {
@@ -166,12 +167,12 @@ func coGuardianFirstName(familyName string) string {
 	return names[len([]rune(familyName))%len(names)]
 }
 
-// demoGuardianHasLimitedRole mirrors the roles seedGuardians (stammdaten.go)
-// links the demo guardians with: from index 6 on, every tenth is pickup only
-// and every eleventh has a custom role. Their app accounts lack the full
-// parent rights, so they neither answer nor write.
+// demoGuardianHasLimitedRole reports whether seedGuardians (stammdaten.go)
+// links the demo guardian with a narrower role. An app account of theirs
+// lacks the full parent rights, so they neither answer nor write.
 func demoGuardianHasLimitedRole(index int) bool {
-	return index >= 6 && (index%10 == 0 || index%11 == 0)
+	_, limited := demoLimitedGuardianRoles[demoGuardianKey(DemoGuardians[index])]
+	return limited
 }
 
 // respondingFamilies are the accounts that answer polls and declarations:

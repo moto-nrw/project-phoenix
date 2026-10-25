@@ -42,16 +42,23 @@ func at(hour, minute int) wallClock { return wallClock(hour*60 + minute) }
 func (c wallClock) String() string { return fmt.Sprintf("%02d:%02d", int(c)/60, int(c)%60) }
 
 // The schedule of the simulated day. With a clock setter each wave runs at its
-// time; without one (a local run) every wave runs at once, in this order.
+// time; without one (a local run) every wave runs at once, in this order. The
+// planned blocks and shifts are read from today's plan; these are the times
+// the simulation acts at.
 var (
-	earlyCareStart    = at(7, 45) // Frühbetreuung: first children, one per minute
-	earlyCareEnd      = at(7, 58) // the early children leave for their lessons
-	morningShiftCheck = at(7, 58) // staff whose Dienst starts at 08:00 stamp in
-	sickCallsAt       = at(8, 30) // parents report sick children
-	lateShiftCheck    = at(11, 31)
-	sessionsStart     = at(11, 52) // one activity session per minute
+	earlyShiftCheck   = at(7, 25)  // staff of the Frühdienst stamp in
+	earlyCareStart    = at(7, 30)  // the planned Frühbetreuung starts
+	earlyTeamNote     = at(7, 45)  // a colleague of the Frühdienst writes in the Team-Chat
+	earlyCareEnd      = at(7, 58)  // the early children leave for their lessons
+	morningShiftCheck = at(7, 58)  // staff whose Dienst starts at 08:00 stamp in
+	lateMorningCheck  = at(8, 25)  // staff whose Dienst starts at 08:30 stamp in
+	sickCallsAt       = at(8, 30)  // parents report sick children and write
+	lateShiftCheck    = at(11, 31) // the late shift stamps in and writes
+	sessionsStart     = at(12, 0)  // planned blocks and kiosk sessions start together
 	middayMovesAt     = at(12, 40) // two children leave their room, released room stays
-	earlyPickupsAt    = at(12, 45) // children without a room place go home
+	earlyPickupsAt    = at(12, 45) // a few first graders go home after lunch
+	firstParentReply  = at(12, 46) // the OGS answers the first parent
+	afternoonNotesAt  = at(12, 50) // parents write, the OGS answers the morning question
 )
 
 // arrivalWave is one group of classes whose lessons end at the same time.
@@ -164,18 +171,26 @@ func fullDayScenario(close bool) Scenario {
 		verifyServerAction{},
 		loginAdminAction{},
 		assignRFIDsAction{},
+		loadTodayAction{},
+		clockStep{earlyShiftCheck}, staffClockInAction{},
 		clockStep{earlyCareStart}, earlyCareAction{},
+		clockStep{earlyTeamNote}, teamChatAction{earlyTeamNote},
+		clockStep{earlyCareEnd}, earlyCareEndAction{},
 		clockStep{morningShiftCheck}, staffClockInAction{},
-		clockStep{sickCallsAt}, sickCallsAction{},
-		clockStep{lateShiftCheck}, staffClockInAction{},
-		clockStep{sessionsStart}, startSessionsAction{},
+		clockStep{lateMorningCheck}, staffClockInAction{},
+		clockStep{sickCallsAt}, sickCallsAction{}, parentQuestionAction{},
+		arrivalsAction{name: "early arrivals", until: lateShiftCheck},
+		clockStep{lateShiftCheck}, staffClockInAction{}, teamChatAction{lateShiftCheck},
+		clockStep{sessionsStart}, startMiddayAction{},
 		seedStaffFeedTombstoneAction{},
-		recordAttendanceAction{},
-		clockStep{middayMovesAt}, middayActivityAction{},
+		arrivalsAction{name: "record attendance and checkins", until: middayMovesAt, unregisteredOK: true},
+		clockStep{middayMovesAt}, teamChatAction{middayMovesAt}, middayActivityAction{},
 		independentRoomStaysAction{},
 		openRoomBlockAction{},
 		kioskOpenRoomStayAction{},
 		clockStep{earlyPickupsAt}, earlyPickupsAction{},
+		clockStep{firstParentReply}, firstParentReplyAction{},
+		clockStep{afternoonNotesAt}, afternoonMessagesAction{},
 	}
 	if close {
 		actions = append(actions, endOfDayAction{})

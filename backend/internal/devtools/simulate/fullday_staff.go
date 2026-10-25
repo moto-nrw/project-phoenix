@@ -21,6 +21,7 @@ const shiftLead = 5 * time.Minute
 type plannedShift struct {
 	StaffID   int64  `json:"staff_id"`
 	StartTime string `json:"start_time"`
+	EndTime   string `json:"end_time"`
 	Cancelled bool   `json:"cancelled"`
 }
 
@@ -39,12 +40,7 @@ func (staffClockInAction) Run(_ context.Context, rt *Runtime) error {
 		return nil
 	}
 	now := rt.Options.now().In(simulationBerlin)
-	today := now.Format(isoDate)
-	shifts, err := todaysShifts(rt, today)
-	if err != nil {
-		return err
-	}
-	for _, shift := range shifts {
+	for _, shift := range rt.Today.Shifts {
 		account, ok := accounts[shift.StaffID]
 		if !ok || shift.Cancelled || rt.ClockedInStaff[shift.StaffID] || !shiftDue(shift, now) {
 			continue
@@ -164,33 +160,66 @@ func (rt *Runtime) isOnLeave(staffID int64) (bool, error) {
 	return rt.StaffOnLeave[staffID], nil
 }
 
-// availableCaregivers lists the caregivers who are not on leave today, in
-// seed order.
-func (rt *Runtime) availableCaregivers() ([]AccountCredentials, error) {
-	available := make([]AccountCredentials, 0, len(rt.State.Accounts.Betreuer))
+// shiftCovers reports whether the shift has begun by the time of day c, give
+// or take the stamp-in lead, and has not ended yet.
+func shiftCovers(shift plannedShift, c wallClock) bool {
+	start, ok := parseWallClock(shift.StartTime)
+	if shift.Cancelled || !ok || start > c+wallClock(shiftLead/time.Minute) {
+		return false
+	}
+	end, ok := parseWallClock(shift.EndTime)
+	return !ok || c < end
+}
+
+// onShiftAt reports whether a shift of the staff member covers the time of
+// day c. Supervision opens a work session for its supervisors, so nobody
+// without a shift may supervise: that would show more staff stamped in than
+// planned. A day without any shift (a profile without a Dienstplan, a local
+// run on a weekend) says nothing about who works, so everybody does.
+func (rt *Runtime) onShiftAt(staffID int64, c wallClock) bool {
+	if len(rt.Today.Shifts) == 0 {
+		return true
+	}
+	return slices.ContainsFunc(rt.Today.Shifts, func(shift plannedShift) bool {
+		return shift.StaffID == staffID && shiftCovers(shift, c)
+	})
+}
+
+// plannedInBlock reports whether the staff member is planned, and not marked
+// absent, on a block of today that meets [from, to), duties included.
+func (rt *Runtime) plannedInBlock(staffID int64, from, to wallClock) bool {
+	return slices.ContainsFunc(rt.Today.Blocks, func(block dayBlock) bool {
+		return block.Status != "cancelled" && block.overlaps(from, to) && slices.Contains(block.presentStaff(), staffID)
+	})
+}
+
+// freeCaregivers lists, in seed order, the caregivers who may take a room
+// over [from, to): on shift at from, not on leave, supervising no running
+// session and planned on no block in that window.
+func (rt *Runtime) freeCaregivers(from, to wallClock) ([]AccountCredentials, error) {
+	free := make([]AccountCredentials, 0, len(rt.State.Accounts.Betreuer))
 	for _, caregiver := range rt.State.Accounts.Betreuer {
-		onLeave, err := rt.isOnLeave(caregiver.StaffID)
+		id := caregiver.StaffID
+		if id == 0 || !rt.onShiftAt(id, from) || slices.Contains(rt.SupervisorStaffIDs, id) || rt.plannedInBlock(id, from, to) {
+			continue
+		}
+		onLeave, err := rt.isOnLeave(id)
 		if err != nil {
 			return nil, err
 		}
 		if !onLeave {
-			available = append(available, caregiver)
+			free = append(free, caregiver)
 		}
 	}
-	return available, nil
+	return free, nil
 }
 
-// freeCaregiver returns the first caregiver at work who supervises no running
-// session, 0 when there is none.
-func (rt *Runtime) freeCaregiver() (int64, error) {
-	available, err := rt.availableCaregivers()
-	if err != nil {
+// freeCaregiver returns the first free caregiver for [from, to), 0 when there
+// is none.
+func (rt *Runtime) freeCaregiver(from, to wallClock) (int64, error) {
+	free, err := rt.freeCaregivers(from, to)
+	if err != nil || len(free) == 0 {
 		return 0, err
 	}
-	for _, caregiver := range available {
-		if caregiver.StaffID != 0 && !slices.Contains(rt.SupervisorStaffIDs, caregiver.StaffID) {
-			return caregiver.StaffID, nil
-		}
-	}
-	return 0, nil
+	return free[0].StaffID, nil
 }

@@ -3,21 +3,22 @@ package api
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 )
 
-// seedFamilyConversationTemplates are messages from further families; %[1]s
-// is the child's first name. Some stay unanswered, so the staff inbox has
-// unread conversations.
+// seedFamilyConversationTemplates are messages from further families;
+// {child} is the child's first name. Some stay unanswered, so the staff
+// inbox has unread conversations.
 var seedFamilyConversationTemplates = []struct {
 	position        int
 	message, answer string
 }{
-	{1, "Guten Morgen! %[1]s hat heute einen Zahnarzttermin. Ich hole %[1]s um 14:30 Uhr ab.", "Danke für die Nachricht. Wir sagen %[1]s rechtzeitig Bescheid."},
-	{8, "%[1]s hat seit gestern etwas Husten. Bitte heute nicht so lange draußen spielen lassen.", ""},
-	{15, "Hallo, die Turnschuhe von %[1]s sind weg. Liegen sie vielleicht noch in der Turnhalle?", "Ja, wir haben sie gefunden. Sie stehen jetzt im Fach von %[1]s."},
-	{22, "Darf %[1]s am Donnerstag mit zu Mia nach Hause? Mias Mutter holt beide um 15 Uhr ab.", ""},
-	{29, "Ab nächster Woche hat %[1]s montags Schwimmen im Verein und geht dann schon um 15 Uhr.", "Danke, das tragen wir ein."},
+	{1, "Guten Morgen! {child} hat heute einen Zahnarzttermin. Ich hole {child} um 14:30 Uhr ab.", "Danke für die Nachricht. Wir sagen {child} rechtzeitig Bescheid."},
+	{8, "{child} hat seit gestern etwas Husten. Bitte heute nicht so lange draußen spielen lassen.", ""},
+	{15, "Hallo, die Turnschuhe von {child} sind weg. Liegen sie vielleicht noch in der Turnhalle?", "Ja, wir haben sie gefunden. Sie stehen jetzt im Fach von {child}."},
+	{22, "Darf {child} am Donnerstag mit zu Mia nach Hause? Mias Mutter holt beide um 15 Uhr ab.", ""},
+	{29, "Ab nächster Woche hat {child} montags Schwimmen im Verein und geht dann schon um 15 Uhr.", "Danke, das tragen wir ein."},
 }
 
 // seedFamilyConversations writes the conversations of further families, so
@@ -31,16 +32,18 @@ func seedFamilyConversations(ctx context.Context, rt *Runtime) (int, error) {
 			continue
 		}
 		name := demoChildFirstName(rt, parent.StudentIDs[0])
-		answer := ""
-		if c.answer != "" {
-			answer = fmt.Sprintf(c.answer, name)
-		}
-		if err := seedFamilyConversation(ctx, rt, parent, fmt.Sprintf(c.message, name), answer); err != nil {
+		if err := seedFamilyConversation(ctx, rt, parent, withChildName(c.message, name), withChildName(c.answer, name)); err != nil {
 			return written, err
 		}
 		written++
 	}
 	return written, nil
+}
+
+// withChildName puts the child's first name into a message template. A text
+// without {child} stays as it is: fmt.Sprintf would append "%!(EXTRA …)".
+func withChildName(template, name string) string {
+	return strings.ReplaceAll(template, "{child}", name)
 }
 
 // seedUrgentPickupChanges files two pickup changes for today, which the

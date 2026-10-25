@@ -336,12 +336,18 @@ cd frontend && pnpm run test:screenshots        # pipeline test against the runn
   workflow sets the runner's clock to the last Tuesday, 07:20 Berlin, after its
   downloads and before migrating and seeding, and restores it before uploading.
   `simulate full-day --clock-command "$RUNNER_TEMP/set-clock"` then moves the
-  clock forward wave by wave (`backend/internal/devtools/simulate/fullday_clock.go`):
-  early care from 07:45, staff stamping in at their shift start (08:00, 11:30),
-  sessions from 11:52, children class by class from 12:00, 12:15 and 12:35,
-  pickups at 12:45. Every stamp lies before the browser's 13:30, and `set-clock`
-  keeps the shift to the real time in `clock-shift` for the restore. Without
-  `--clock-command` (a local run) all waves run at once and carry the real time.
+  clock forward wave by wave (`backend/internal/devtools/simulate/fullday_clock.go`).
+  The waves follow today's plan, read from the API: staff stamp in at their
+  shift start, planned blocks start at their planned time with their planned
+  staff (the Frühbetreuung at 07:30, the blocks running at 12:00), and only
+  caregivers on shift without a parallel block supervise the kiosk rooms that
+  open at 12:00. Children arrive class by class from 12:00, 12:15 and 12:35 or
+  at today's arrival exception; sick or not expected children stay away.
+  Colleagues on shift, parents and the OGS write messages between 07:45 and
+  12:50. Every stamp lies before the browser's 13:30, and `set-clock` keeps the
+  shift to the real time in `clock-shift` for the restore. Without
+  `--clock-command` (a local run) all waves run at once on the plan's times
+  and carry the real time.
   Text that depends on the time of day must therefore not be rendered on the
   server: the home greeting uses `useTimeBasedGreeting` (`src/lib/greeting.ts`).
 - Adding a shot: the list follows the help flows and PostHog usage (#3764),

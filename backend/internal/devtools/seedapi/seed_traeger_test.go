@@ -103,7 +103,7 @@ func TestSeedTraegerHolidayPeriodStepPublishesAPeriodAtTheTraegerSchools(t *test
 
 	runtime := &Runtime{
 		Client:    newTestClient(srv.URL, false),
-		Bootstrap: &bootstrapSeedState{AdminEmail: "admin@example.test", AdminPassword: testpkg.NewTestPassword()},
+		Bootstrap: &bootstrapSeedState{SchoolID: 31, AdminEmail: "admin@example.test", AdminPassword: testpkg.NewTestPassword()},
 	}
 	require.NoError(t, (seedTraegerHolidayPeriodStep{}).Run(context.Background(), runtime))
 	assert.Equal(t, []string{
@@ -116,7 +116,7 @@ func TestSeedTraegerHolidayPeriodStepPublishesAPeriodAtTheTraegerSchools(t *test
 	require.True(t, ok)
 	require.Len(t, weeks, 2)
 	assert.Equal(t, float64(31), weeks[0].(map[string]any)["host_school_id"])
-	assert.Equal(t, float64(32), weeks[1].(map[string]any)["host_school_id"], "the weeks take turns at the Träger's schools")
+	assert.Equal(t, float64(31), weeks[1].(map[string]any)["host_school_id"], "the profile's school hosts both weeks, never the manual test school")
 }
 
 // The Träger plans the two Herbstferien weeks the school plans around, under
@@ -125,7 +125,7 @@ func TestSeedHolidayPeriodCoversTheSeededHerbstferien(t *testing.T) {
 	t.Parallel()
 
 	today := calendar.NewDate(2026, time.September, 23)
-	period := seedHolidayPeriod(today, []int64{31, 32})
+	period := seedHolidayPeriod(today, 31)
 	assert.Equal(t, "Ferienbetreuung Herbstferien 2026", period["name"])
 	assert.Equal(t, "2026-09-23", period["registration_opens_on"])
 	assert.Equal(t, "2026-10-05", period["registration_closes_on"], "a week before the Ferien")
@@ -137,4 +137,32 @@ func TestSeedHolidayPeriodCoversTheSeededHerbstferien(t *testing.T) {
 	assert.Equal(t, "2026-10-16", weeks[0]["ends_on"])
 	assert.Equal(t, "2026-10-19", weeks[1]["starts_on"])
 	assert.Equal(t, ferienEnd.String(), weeks[1]["ends_on"])
+}
+
+// A Träger that does not list the profile's school publishes nothing: the
+// weeks would otherwise go to a school no family of the demo attends.
+func TestSeedTraegerHolidayPeriodStepRequiresTheProfileSchool(t *testing.T) {
+	t.Parallel()
+
+	var created bool
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/traeger/auth/login":
+			_, _ = w.Write([]byte(`{"status":"authenticated","access_token":"traeger-token","refresh_token":"r"}`))
+		case "/traeger/schools/":
+			_, _ = w.Write([]byte(`{"status":"success","data":[{"id":32}]}`))
+		default:
+			created = true
+			_, _ = w.Write([]byte(`{"status":"success","data":{"id":5}}`))
+		}
+	})
+	defer srv.Close()
+
+	runtime := &Runtime{
+		Client:    newTestClient(srv.URL, false),
+		Bootstrap: &bootstrapSeedState{SchoolID: 31, AdminEmail: "admin@example.test", AdminPassword: testpkg.NewTestPassword()},
+	}
+	require.ErrorContains(t, (seedTraegerHolidayPeriodStep{}).Run(context.Background(), runtime), "does not list school 31")
+	assert.False(t, created)
 }

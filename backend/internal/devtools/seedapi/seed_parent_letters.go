@@ -120,7 +120,9 @@ func seedEarlierNotices(rt *Runtime, reader *AuthRef) error {
 	notices := []struct{ title, body string }{
 		{"Betreuung in den Herbstferien", "Liebe Eltern, in den Herbstferien ist die OGS für angemeldete Kinder von 8:00 bis 15:00 Uhr geöffnet. " +
 			"Bitte melden Sie Ihr Kind spätestens zwei Wochen vorher im OGS-Büro an."},
-		{"Neuer Caterer für das Mittagessen", "Liebe Eltern, ab Montag kocht ein neuer Caterer für unsere Mensa. " +
+		// The caterer delivers from the seed day on ("Beliefert seit" in the
+		// meal plan), so the notice says "seit dieser Woche".
+		{"Neuer Caterer für das Mittagessen", "Liebe Eltern, seit dieser Woche kocht die Frischeküche Rheinland für unsere Mensa. " +
 			"Den Speiseplan sehen Sie wie immer in moto unter Mittagessen. Ein vegetarisches Gericht gibt es weiterhin jeden Tag."},
 		{"Einladung zum Elternabend", fmt.Sprintf("Liebe Eltern, am %s um 19:00 Uhr laden wir Sie herzlich zum Elternabend ein. "+
 			"Wir stellen den Tagesablauf vor und planen die Wochen bis zu den Ferien. Bitte sagen Sie im Kalender zu oder ab.", germanDate(evening))},

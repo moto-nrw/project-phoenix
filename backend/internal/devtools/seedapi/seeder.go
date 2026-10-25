@@ -60,6 +60,12 @@ type SeedOptions struct {
 	DeferHistory bool
 	// ReadMailLink reads the caterer's invitation mail (ADR 0077); nil invites none.
 	ReadMailLink MailLinkReader
+	// ProductScreenshots prepares the school for the product screenshots,
+	// whose simulation runs a single Tuesday: no weekend runs Friday's plan,
+	// so no screen shows Saturday and Sunday columns, and no statistics
+	// session sits at the seed time, since the simulated day fills the
+	// Statistik. The public demo keeps both.
+	ProductScreenshots bool
 }
 
 // Seeder orchestrates the complete API-based seeding process
@@ -110,6 +116,9 @@ func NewSeeder(adapter Adapter, random io.Reader, verbose bool, options SeedOpti
 	definition := fullOperationProfileDefinition()
 	if options.StandingDemo {
 		definition.Settings[profileSettingAttendanceNFC] = SeedSetting{Value: []byte(`false`), ManagedBy: SettingManagedByOperator}
+	}
+	if options.ProductScreenshots {
+		definition.Settings[profileSettingWeekendFollowsFriday] = SeedSetting{Value: []byte(`false`), ManagedBy: SettingManagedByOperator}
 	}
 	return &Seeder{
 		client:     NewClientWithAdapter(newLoginCachingAdapter(adapter), verbose),

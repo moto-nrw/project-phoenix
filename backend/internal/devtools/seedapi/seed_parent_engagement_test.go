@@ -16,7 +16,7 @@ func TestSeedParentEngagementStepUsesParentFacingFlows(t *testing.T) {
 	var paths []string
 	var childMessages []map[string]any
 	var staffReplies []map[string]any
-	var mealException, contact, masterDataRequest map[string]any
+	var mealException, contact, pickupUpdate, masterDataRequest map[string]any
 	var appointments []map[string]any
 	var groupThreads []map[string]any
 	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
@@ -51,6 +51,9 @@ func TestSeedParentEngagementStepUsesParentFacingFlows(t *testing.T) {
 			_, _ = fmt.Fprint(w, `{"status":"success","data":null}`)
 		case r.URL.Path == "/parent/auth/login":
 			_, _ = fmt.Fprint(w, `{"status":"success","data":{"access_token":"parent-token"}}`)
+		case r.URL.Path == "/parent/me/children/44/guardians/93/pickup":
+			pickupUpdate = decode()
+			_, _ = fmt.Fprint(w, `{"status":"success","data":null}`)
 		case r.URL.Path == "/parent/me/children/44/guardians":
 			contact = decode()
 			_, _ = fmt.Fprint(w, `{"status":"success","data":{"guardian_profile_id":"93"}}`)
@@ -112,6 +115,8 @@ func TestSeedParentEngagementStepUsesParentFacingFlows(t *testing.T) {
 		"/api/students/44",
 		"/api/calendar/appointments", "/api/calendar/appointments", "/api/calendar/appointments", "/api/calendar/appointments",
 		"/api/calendar/appointments", "/api/calendar/appointments", "/api/calendar/appointments",
+		"/api/calendar/appointments", "/api/calendar/appointments", "/api/calendar/appointments",
+		"/api/calendar/appointments", "/api/calendar/appointments",
 	}, paths)
 
 	require.Len(t, childMessages, 4)
@@ -131,7 +136,10 @@ func TestSeedParentEngagementStepUsesParentFacingFlows(t *testing.T) {
 	assert.Equal(t, "Gruppe Sternengruppe", groupThreads[0]["target_label"])
 	assert.Equal(t, "Laternen basteln", groupThreads[0]["title"])
 
-	assert.Equal(t, "gisela.hahn@mail.example", contact["email"])
+	assert.Equal(t, "gisela.hahn@email.de", contact["email"])
+	assert.Equal(t, map[string]any{
+		"can_pickup": true, "is_emergency_contact": true, "pickup_notes": "Nur nach telefonischer Rücksprache",
+	}, pickupUpdate, "Gisela may pick the child up, after a phone call")
 	assert.Equal(t, []any{map[string]any{"phone_number": "+49 172 5550778", "phone_type": "mobile", "is_primary": true}}, contact["phones"],
 		"a mobile number without a second label")
 	assert.Equal(t, []any{map[string]any{
@@ -145,7 +153,8 @@ func TestSeedParentEngagementStepUsesParentFacingFlows(t *testing.T) {
 		assert.Equal(t, false, appointment["send_email"])
 	}
 	assert.Equal(t, []any{
-		"Elternabend der Gruppe", "Ausflug in den Zoo", "Der Schulfotograf kommt", "Elterncafé in der OGS",
+		"Elternabend der Gruppe", "Ausflug in den Zoo", "Erntedank-Frühstück", "Herbstwanderung",
+		"Elternsprechtag", "Elternsprechtag", "Elternsprechtag", "Der Schulfotograf kommt", "Elterncafé in der OGS",
 		"Anmeldeschluss für die Ferienbetreuung", "Pädagogischer Tag: OGS geschlossen", "Laternenfest",
 	}, titles)
 	assert.Equal(t, []any{
@@ -195,4 +204,33 @@ func TestSeedParentEngagementStepRequiresParentWithStudent(t *testing.T) {
 
 	err := (seedParentEngagementStep{}).Run(t.Context(), &Runtime{})
 	require.ErrorContains(t, err, "parent engagement")
+}
+
+// The families' calendar holds the Elternsprechtag on the three days its
+// poll offers, two school events of this month that already took place,
+// and the Laternenfest of the Elternbrief.
+func TestSeedSchoolAppointmentsShareTheDatesOfPollAndLetter(t *testing.T) {
+	t.Parallel()
+
+	today := mustParseSeedDate(t, "2026-10-20") // Tuesday, like the CI run
+	byTitle := map[string][]string{}
+	for _, appointment := range seedSchoolAppointments(today) {
+		title, _ := appointment["title"].(string)
+		day, _ := appointment["start_date"].(string)
+		byTitle[title] = append(byTitle[title], day)
+	}
+	assert.Equal(t, []string{"2026-10-27", "2026-10-28", "2026-10-29"}, byTitle["Elternsprechtag"])
+	for _, day := range seedParentPollDays(today) {
+		assert.Contains(t, byTitle["Elternsprechtag"], day.String())
+	}
+	assert.Equal(t, []string{"2026-10-07"}, byTitle["Erntedank-Frühstück"])
+	assert.Equal(t, []string{"2026-10-12"}, byTitle["Herbstwanderung"])
+	assert.Equal(t, []string{seedLanternFestivalDate(today).String()}, byTitle["Laternenfest"])
+
+	sunday := mustParseSeedDate(t, "2026-10-25")
+	for _, appointment := range seedPastSchoolAppointments(sunday) {
+		day := mustParseSeedDate(t, appointment["start_date"].(string))
+		assert.Negative(t, day.Compare(sunday), "%s lies in the past", appointment["title"])
+		assert.NotContains(t, []time.Weekday{time.Saturday, time.Sunday}, day.Weekday(), "%s is a school day", appointment["title"])
+	}
 }

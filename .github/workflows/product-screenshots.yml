@@ -26,7 +26,7 @@ name: Produkt-Screenshots
 #
 # Der Lauf stellt die Uhr der VM auf den letzten Dienstag, 07:20 Berlin, siehe
 # "Move the runner clock to Tuesday 07:20 Berlin", und die Simulation stellt
-# sie durch den Tag bis 12:45 vor. Die Bilder zeigen dann diesen Dienstag um
+# sie durch den Tag bis 12:50 vor. Die Bilder zeigen dann diesen Dienstag um
 # 13:30.
 
 on:
@@ -117,7 +117,7 @@ jobs:
       LOG_LEVEL: info
       LOG_TEXTLOGGING: "true"
       AUTH_JWT_SECRET: ci-test-secret-must-be-at-least-32-chars-long
-      # Die Simulation stellt die Uhr der VM in Sprüngen von 07:20 bis 12:45
+      # Die Simulation stellt die Uhr der VM in Sprüngen von 07:20 bis 12:50
       # vor. Ein Zugriffstoken muss diesen Wegwerf-Stack mit synthetischen
       # Daten deshalb über den Vormittag tragen; mit 15 Minuten lief es im
       # Lauf für PR #4947 zwischen zwei Wellen ab.
@@ -253,10 +253,12 @@ jobs:
       # Server, Seed, Datenbank und Browser lesen dieselbe Uhr der VM. Die
       # Bilder zeigen immer einen Dienstag um 13:30: Der Lauf stellt die Uhr
       # vor Migration und Seed auf den letzten Dienstag, 07:20 Berlin. Die
-      # Simulation stellt sie dann in Wellen vor (set-clock): Frühbetreuung ab
-      # 07:45, Dienstbeginn 08:00 und 11:30, Aktivitäten ab 11:52, Kinder nach
-      # Klassen ab 12:00, 12:15 und 12:35, zuletzt 12:45. So tragen Ankunft,
-      # Arbeitszeit und Aktivitäten verschiedene Zeiten, alle vor 13:30. Die
+      # Simulation stellt sie dann in Wellen vor (set-clock): Dienstbeginn nach
+      # Dienstplan ab 07:25, die geplante Frühbetreuung ab 07:30, eine Klasse
+      # mit Unterrichtsausfall um 11:00, die geplanten Blöcke und Räume um
+      # 12:00, Kinder nach Klassen ab 12:00, 12:15 und 12:35, Nachrichten im
+      # Lauf des Tages, zuletzt 12:50. So tragen Ankunft, Arbeitszeit,
+      # Aktivitäten und Nachrichten verschiedene Zeiten, alle vor 13:30. Die
       # Browser-Uhr steht auf 13:30 desselben Tages (reference-time.ts). Server
       # und Browser liegen so auf demselben Kalendertag, sonst bräche jeder
       # Shot mit einem Hydration-Fehler ab. Erst nach allen Downloads: ein
@@ -317,6 +319,7 @@ jobs:
 
       # Seeds every profile, including `vollbetrieb`, and writes
       # backend/.seed-state.json; access.ts reads the vollbetrieb logins from it.
+      # --product-screenshots: no weekend care plan, no seed-time statistics session.
       - name: Seed demo data
         working-directory: backend
         run: |
@@ -324,7 +327,8 @@ jobs:
             --email "${OPERATOR_EMAIL}" \
             --password "${OPERATOR_PASSWORD}" \
             --pin "${OGS_DEVICE_PIN}" \
-            --url http://localhost:8080
+            --url http://localhost:8080 \
+            --product-screenshots
 
       # Without it the vollbetrieb school day is nearly empty: the seed checks in
       # only a few children. The standing demo fills it with its live ticker.

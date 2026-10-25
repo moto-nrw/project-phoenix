@@ -19,8 +19,9 @@ const (
 
 var feedbackValues = []string{"positive", "neutral", "negative"}
 
-// Eight seeded sessions receive students round-robin. The 85th student would
-// become the 11th child in Leseecke, whose seeded capacity is 10.
+// fullDayCheckinLimit is how many seeded children the public demo checks into
+// its rooms in turn (demo.go). The 85th would become the 11th child in
+// Leseecke, whose seeded capacity is 10.
 const fullDayCheckinLimit = 84
 
 // FullDayOptions configures a full-day simulation run.
@@ -122,90 +123,30 @@ func (assignRFIDsAction) Run(_ context.Context, rt *Runtime) error {
 	if len(rt.State.Students) == 0 {
 		return fmt.Errorf("no students in seed state for RFID assignment")
 	}
-	rfidDevice := rt.State.Devices[deviceKeysForRFID[0]]
+	rt.DeviceKeys = deviceKeysForRFID
 
-	for _, student := range rt.State.Students {
-		rfidTag := fmt.Sprintf("DE%06X", student.ID)
-		rt.RFIDTags[student.ID] = rfidTag
-
-		body := map[string]string{"rfid_tag": rfidTag}
-		_, err := rt.Client.DevicePost(fmt.Sprintf("/api/students/%d/rfid", student.ID), body, rfidDevice.APIKey, rt.State.DevicePIN)
-		if err != nil {
-			return fmt.Errorf("assign RFID to student %d: %w", student.ID, err)
-		}
-		rt.Counts.RFIDAssigned++
+	if err := rt.assignTags(rt.State.Students); err != nil {
+		return err
 	}
 	fmt.Printf("  %d/%d RFID tags assigned\n", rt.Counts.RFIDAssigned, len(rt.State.Students))
 	return nil
 }
 
-type startSessionsAction struct{}
-
-func (startSessionsAction) Name() string { return "start sessions" }
-
-// Run starts one session per minute, each with its own caregiver.
-func (startSessionsAction) Run(ctx context.Context, rt *Runtime) error {
-	fmt.Println("\nPhase 3: Starting activity sessions...")
-
-	rt.DeviceKeys = sortedDeviceKeys(rt.State.Devices)
-	rt.ActivityNames = sortedStringKeys(rt.State.Activities)
-	betreuer, err := rt.availableCaregivers()
-	if err != nil {
-		return err
-	}
-
-	sessionsToStart := min(len(betreuer), len(rt.DeviceKeys), len(rt.ActivityNames))
-	if sessionsToStart == 0 {
-		return fmt.Errorf("no sessions can start: %d staff accounts, %d devices, %d activities", len(betreuer), len(rt.DeviceKeys), len(rt.ActivityNames))
-	}
-	if sessionsToStart > 10 {
-		sessionsToStart = 10
-	}
-
-	for i := 0; i < sessionsToStart; i++ {
-		if err := rt.advanceClock(ctx, sessionsStart+wallClock(i)); err != nil {
-			return err
+// assignTags gives every child without one a tag through the first device.
+func (rt *Runtime) assignTags(students []SeedStudent) error {
+	device := rt.State.Devices[rt.DeviceKeys[0]]
+	for _, student := range students {
+		if _, tagged := rt.RFIDTags[student.ID]; tagged {
+			continue
 		}
-		if err := rt.startSession(rt.DeviceKeys[i], rt.ActivityNames[i], betreuer[i]); err != nil {
-			if cleanupErr := endActiveSessions(rt); cleanupErr != nil {
-				return errors.Join(err, fmt.Errorf("end previously started sessions: %w", cleanupErr))
-			}
-			return err
+		rfidTag := fmt.Sprintf("DE%06X", student.ID)
+		body := map[string]string{"rfid_tag": rfidTag}
+		if _, err := rt.Client.DevicePost(fmt.Sprintf("/api/students/%d/rfid", student.ID), body, device.APIKey, rt.State.DevicePIN); err != nil {
+			return fmt.Errorf("assign RFID to student %d: %w", student.ID, err)
 		}
+		rt.RFIDTags[student.ID] = rfidTag
+		rt.Counts.RFIDAssigned++
 	}
-
-	if len(rt.ActiveRoomIDs) == 0 {
-		for _, roomID := range rt.State.Rooms {
-			rt.ActiveRoomIDs = append(rt.ActiveRoomIDs, roomID)
-		}
-	}
-
-	fmt.Printf("  %d sessions started\n", rt.Counts.SessionsStarted)
-	return nil
-}
-
-// startSession starts the activity on the device with one supervisor, in the
-// activity's room when the demo convention names one.
-func (rt *Runtime) startSession(deviceKey, actName string, supervisor AccountCredentials) error {
-	device := rt.State.Devices[deviceKey]
-	roomID := findRoomForActivity(actName, rt.State.Rooms)
-	body := map[string]any{
-		"activity_id":    rt.State.Activities[actName],
-		"supervisor_ids": []int64{supervisor.StaffID},
-	}
-	if roomID != 0 {
-		body["room_id"] = roomID
-	}
-	if _, err := rt.Client.DevicePost("/api/iot/session/start", body, device.APIKey, rt.State.DevicePIN); err != nil {
-		return fmt.Errorf("start session for %s: %w", actName, err)
-	}
-	rt.ActiveSessionDeviceKeys = append(rt.ActiveSessionDeviceKeys, deviceKey)
-	rt.SupervisorStaffIDs = append(rt.SupervisorStaffIDs, supervisor.StaffID)
-	if roomID != 0 {
-		rt.ActiveRoomIDs = append(rt.ActiveRoomIDs, roomID)
-	}
-	rt.Counts.SessionsStarted++
-	fmt.Printf("  Started: %s (device: %s, supervisor: %s)\n", actName, device.Name, supervisor.Name)
 	return nil
 }
 
@@ -473,7 +414,7 @@ func (independentRoomStaysAction) Run(_ context.Context, rt *Runtime) error {
 	fmt.Println("\nPhase 5b: Independent stays in a released room...")
 
 	sporthalle := rt.State.Rooms["Sporthalle"]
-	if sporthalle == 0 || len(rt.ActiveRoomIDs) == 0 {
+	if sporthalle == 0 || len(rt.Rooms.order) == 0 {
 		fmt.Println("  Skipped: no Sporthalle or no checked-in children in this profile")
 		return nil
 	}
@@ -497,34 +438,15 @@ func (independentRoomStaysAction) Run(_ context.Context, rt *Runtime) error {
 	return nil
 }
 
-// checkedInChildrenOutside lists, in check-in order, up to limit children who
-// stay checked in through the day and were placed outside roomID, after
-// skipping the first skip of them. Children below fullDayRoomStayLimit stay
-// checked in.
-func checkedInChildrenOutside(rt *Runtime, roomID int64, skip, limit int) []int64 {
-	ids := make([]int64, 0, limit)
-	for i := 0; i < fullDayRoomStayLimit && i < len(rt.State.Students) && len(rt.ActiveRoomIDs) > 0; i++ {
-		if rt.ActiveRoomIDs[i%len(rt.ActiveRoomIDs)] == roomID {
-			continue
-		}
-		if skip > 0 {
-			skip--
-			continue
-		}
-		ids = append(ids, rt.State.Students[i].ID)
-		if len(ids) == limit {
-			break
-		}
-	}
-	return ids
-}
-
 // openRoomBlockTitle names the timetable block the demo runs in the released
 // Sporthalle, and openRoomBlockChildren is how many children it checks in.
 const (
 	openRoomBlockTitle    = "Turnen"
 	openRoomBlockChildren = 2
 )
+
+// The block's window: after the AGs of 14:00 have their own caregivers.
+var openRoomBlockStart, openRoomBlockEnd = at(14, 0), at(15, 30)
 
 type openRoomBlockAction struct{}
 
@@ -533,14 +455,15 @@ func (openRoomBlockAction) Name() string { return "run a block in a released roo
 // Run plans a block for today in the released Sporthalle, starts it, and
 // checks a few children into it. The Sporthalle already holds the football
 // session and the independent stays, so its room page shows a block section
-// beside them (#3281). The first caregiver without a running session is
-// planned on the block, so nobody supervises two rooms at once. There is no
-// care on weekends, so the phase skips them.
+// beside them (#3281). The first caregiver who is on shift, supervises no
+// running session and has no other block at that time is planned on it, so
+// nobody supervises two rooms at once. There is no care on weekends, so the
+// phase skips them.
 func (openRoomBlockAction) Run(_ context.Context, rt *Runtime) error {
 	fmt.Println("\nPhase 5c: A block in a released room...")
 
 	sporthalle := rt.State.Rooms["Sporthalle"]
-	caregiver, err := rt.freeCaregiver()
+	caregiver, err := rt.freeCaregiver(openRoomBlockStart, openRoomBlockEnd)
 	if err != nil {
 		return err
 	}
@@ -565,8 +488,8 @@ func (openRoomBlockAction) Run(_ context.Context, rt *Runtime) error {
 
 	created, err := rt.Client.Post("/api/timetable/instances", map[string]any{
 		"date":        today.Format(isoDate),
-		"start_time":  "14:00",
-		"end_time":    "15:30",
+		"start_time":  openRoomBlockStart.String(),
+		"end_time":    openRoomBlockEnd.String(),
 		"title":       openRoomBlockTitle,
 		"room_id":     sporthalle,
 		"staff_ids":   []int64{caregiver},
@@ -697,6 +620,7 @@ func (printSummaryAction) Name() string { return "print summary" }
 func (printSummaryAction) Run(_ context.Context, rt *Runtime) error {
 	fmt.Println("\n--- Simulation Summary ---")
 	fmt.Printf("  RFID tags assigned:  %d\n", rt.Counts.RFIDAssigned)
+	fmt.Printf("  Planned blocks:      %d\n", rt.Counts.BlocksStarted)
 	fmt.Printf("  Sessions started:    %d\n", rt.Counts.SessionsStarted)
 	fmt.Printf("  Attendance records:  %d\n", rt.Counts.AttendanceRecords)
 	fmt.Printf("  Students checked in: %d\n", rt.Counts.StudentsCheckedIn)
@@ -707,6 +631,7 @@ func (printSummaryAction) Run(_ context.Context, rt *Runtime) error {
 	fmt.Printf("  Staff clocked in:    %d (%d on leave)\n", rt.Counts.StaffClockedIn, rt.Counts.StaffAbsent)
 	fmt.Printf("  Independent stays:  %d\n", rt.Counts.IndependentStays)
 	fmt.Printf("  Open-room block:    %d children\n", rt.Counts.OpenRoomBlockChildren)
+	fmt.Printf("  Messages written:   %d\n", rt.Counts.Messages)
 	if rt.Options.Close {
 		fmt.Printf("  Feedback submitted:  %d\n", rt.Counts.FeedbackSubmitted)
 		fmt.Println("  End-of-day:          completed")

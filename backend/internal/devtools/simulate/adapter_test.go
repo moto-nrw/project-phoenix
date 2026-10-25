@@ -64,6 +64,15 @@ func (c *simulationTestClient) Login(email, password string, tenantSlug ...strin
 	return err
 }
 
+// LoginParent signs in to the parents portal, as the CLI's seed client does.
+func (c *simulationTestClient) LoginParent(email, password string) error {
+	auth, err := c.inner.Login(context.Background(), "/parent/auth/login", email, password, "")
+	if err == nil {
+		c.auth = auth
+	}
+	return err
+}
+
 func (c *simulationTestClient) Get(path string) ([]byte, error) {
 	return c.raw(c.auth, "GET", path, nil)
 }

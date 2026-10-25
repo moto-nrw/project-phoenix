@@ -1378,6 +1378,12 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{"name": "Sternengruppe"}})
 			return
 		}
+		// A staff member's absences before the summer vacation is booked:
+		// none in the range.
+		if r.Method == seedHTTPMethodGet && strings.HasPrefix(r.URL.Path, "/api/staff/") && strings.HasSuffix(r.URL.Path, "/absences") {
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": []any{}})
+			return
+		}
 		if r.Method == seedHTTPMethodPost && r.URL.Path == "/api/messages/group-threads" {
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"status": "success", "data": map[string]any{"thread": map[string]any{"id": fmt.Sprintf("%d", idCounter)}},
@@ -1740,9 +1746,10 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			_, _ = fmt.Fprint(w, `{"status":"authenticated","access_token":"traeger-token","refresh_token":"traeger-refresh"}`)
 
 		case "/traeger/schools/":
+			// The Träger's two schools the operator created above.
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"status": "success",
-				"data":   []map[string]any{{"id": idCounter}},
+				"data":   []map[string]any{{"id": 1}, {"id": 2}},
 			})
 
 		case "/api/enrollment/vollbetrieb/submit", "/parent/enrollments/vollbetrieb/submit":

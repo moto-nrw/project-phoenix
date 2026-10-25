@@ -7,8 +7,12 @@ import (
 	"fmt"
 )
 
-// seedParentPollStep creates a full 60-option poll so the staff editor and
-// parent portal's long-poll layout have representative demo data (#3861).
+// seedParentPollStep creates the appointment poll for the Elternsprechtag.
+// Its 24 options are a believable school's choice and still a long poll:
+// from 11 options on, the parent portal shows compact rows and "x von y
+// gewählt" (#3861). Until round 3 of the product screenshots the seed offered
+// the maximum of 60, but the answers only reached the first twelve, so the
+// results showed 48 empty rows.
 type seedParentPollStep struct{}
 
 func (seedParentPollStep) Name() string { return "Seeding parent poll" }
@@ -39,7 +43,7 @@ func seedParentPoll(rt *Runtime) error {
 	if _, err := rt.Client.Post(fmt.Sprintf("/api/parent-announcements/%d/publish", id), nil); err != nil {
 		return fmt.Errorf("publish parent poll: %w", err)
 	}
-	fmt.Println("  1 parent poll with 60 appointment options published")
+	fmt.Printf("  1 parent poll with %d appointment options published\n", seedParentPollSlotsPerDay*len(seedParentPollDays(todaySeedDate())))
 	if len(rt.Parents) > 1 && rt.Adapter != nil {
 		answered, err := seedParentPollAnswers(rt)
 		if err != nil {
@@ -140,31 +144,48 @@ func seedParentPollFor(rt *Runtime, auth AuthRef) (seedParentPollItem, error) {
 	return seedParentPollItem{}, nil
 }
 
-// seedParentPollSlotWeights is how popular the first twelve appointments of
-// the first afternoon (14:00 to 16:45) are: few families make it at two,
-// most come after work.
-var seedParentPollSlotWeights = []int{1, 1, 2, 2, 3, 3, 4, 5, 5, 4, 3, 2}
+// seedParentPollSlotsPerDay are the appointments of one afternoon: a talk
+// of 15 minutes every half hour from 14:00 to 17:30, so the teacher has time
+// to note what was agreed.
+const seedParentPollSlotsPerDay = 8
 
-// seedParentPollChoice picks one to three adjacent appointments among the
-// first ones for the given answer, weighted by seedParentPollSlotWeights,
-// so the results show a believable spread. The same answer number always
-// picks the same appointments.
+// seedParentPollSlotWeights is how popular the appointments of an afternoon
+// are: few families make it at two, most come after work.
+var seedParentPollSlotWeights = [seedParentPollSlotsPerDay]int{1, 1, 2, 3, 4, 4, 3, 2}
+
+// seedParentPollFirstSlots lists every appointment as often as its weight,
+// on each poll day, in an order that looks random but repeats on every run.
+// Taking them in turn, the first sixty answers start at every appointment
+// at least once, and the popular ones more often.
+var seedParentPollFirstSlots = func() []int {
+	slots := make([]int, 0, 60)
+	for day := range 3 {
+		for slot, weight := range seedParentPollSlotWeights {
+			for range weight {
+				slots = append(slots, day*seedParentPollSlotsPerDay+slot)
+			}
+		}
+	}
+	for i := len(slots) - 1; i > 0; i-- {
+		j := int(seedSpread(i) % uint64(i+1))
+		slots[i], slots[j] = slots[j], slots[i]
+	}
+	return slots
+}()
+
+// seedParentPollChoice picks one to three adjacent appointments on one
+// afternoon for the given answer, so the results show a believable spread
+// over every appointment. The same answer number always picks the same
+// appointments.
 func seedParentPollChoice(options []seedParentPollOption, answer int) []string {
-	weights := seedParentPollSlotWeights[:min(len(seedParentPollSlotWeights), len(options))]
-	total := 0
-	for _, weight := range weights {
-		total += weight
+	if len(options) == 0 {
+		return nil
 	}
-	spread := seedSpread(answer)
-	pick := int(spread % uint64(total))
-	first := 0
-	for first < len(weights)-1 && pick >= weights[first] {
-		pick -= weights[first]
-		first++
-	}
-	count := 1 + int((spread>>20)%3)
+	first := seedParentPollFirstSlots[answer%len(seedParentPollFirstSlots)] % len(options)
+	dayEnd := min((first/seedParentPollSlotsPerDay+1)*seedParentPollSlotsPerDay, len(options))
+	count := 1 + int((seedSpread(answer)>>20)%3)
 	ids := make([]string, 0, count)
-	for slot := first; slot < first+count && slot < len(weights); slot++ {
+	for slot := first; slot < first+count && slot < dayEnd; slot++ {
 		ids = append(ids, options[slot].ID)
 	}
 	return ids
@@ -186,15 +207,14 @@ func seedParentPollDays(today seedDate) []seedDate {
 	return []seedDate{tuesday, tuesday.AddDays(1), tuesday.AddDays(2)}
 }
 
-// seedParentPollOptions offers twenty quarter hours from 14:00 on each poll
-// day: "Dienstag, 27. Oktober, 14:00 Uhr".
+// seedParentPollOptions offers the appointments of every poll day:
+// "Dienstag, 27. Oktober, 14:00 Uhr".
 func seedParentPollOptions(today seedDate) []string {
-	options := make([]string, 0, 60)
-	for _, day := range seedParentPollDays(today) {
-		for slot := range 20 {
-			hour := 14 + slot/4
-			minute := 15 * (slot % 4)
-			options = append(options, fmt.Sprintf("%s, %02d:%02d Uhr", germanDate(day), hour, minute))
+	days := seedParentPollDays(today)
+	options := make([]string, 0, len(days)*seedParentPollSlotsPerDay)
+	for _, day := range days {
+		for slot := range seedParentPollSlotsPerDay {
+			options = append(options, fmt.Sprintf("%s, %02d:%02d Uhr", germanDate(day), 14+slot/2, 30*(slot%2)))
 		}
 	}
 	return options

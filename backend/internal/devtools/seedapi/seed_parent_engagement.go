@@ -93,6 +93,14 @@ func seedOutingDate(today seedDate) seedDate {
 	return seedWeekdayOnOrAfter(today.AddDays(15))
 }
 
+// seedWeekdayOnOrBefore moves a date back off the weekend.
+func seedWeekdayOnOrBefore(date seedDate) seedDate {
+	for date.Weekday() == time.Saturday || date.Weekday() == time.Sunday {
+		date = date.AddDays(-1)
+	}
+	return date
+}
+
 // seedParentsEveningDate is the day of the group's parents' evening, which
 // the calendar and the invitation notice share.
 func seedParentsEveningDate(today seedDate) seedDate {
@@ -145,8 +153,55 @@ func seedGroupAppointments(today seedDate, groupID int64) []map[string]any {
 	}
 }
 
-// seedSchoolAppointments are the dates of the whole school.
+// seedSchoolAppointments are the dates of the whole school: two that have
+// already taken place this month, the Elternsprechtag on the days of its
+// poll, and the coming ones.
 func seedSchoolAppointments(today seedDate) []map[string]any {
+	return append(seedPastSchoolAppointments(today), append(seedParentDayAppointments(today), seedComingSchoolAppointments(today)...)...)
+}
+
+// seedPastSchoolAppointments are two school events of the last two weeks,
+// so the calendar does not start today.
+func seedPastSchoolAppointments(today seedDate) []map[string]any {
+	harvest := seedWeekdayOnOrBefore(today.AddDays(-13)).String()
+	hike := seedWeekdayOnOrBefore(today.AddDays(-8)).String()
+	allParents := []map[string]any{{"type": "all_school_parents"}, {"type": "all_staff"}}
+	return []map[string]any{
+		{
+			"title": "Erntedank-Frühstück", "location": "Mensa",
+			"description": "Die Kinder bringen Obst und Gemüse mit. Wir frühstücken gemeinsam in der Mensa.",
+			"start_date":  harvest, "end_date": harvest, "start_time": "08:00", "end_time": "09:30", "all_day": false,
+			"delivery_mode": "informational", "targets": allParents, "send_email": false,
+		},
+		{
+			"title": "Herbstwanderung", "location": "Treffpunkt Schulhof",
+			"description": "Wir wandern durch den Stadtwald zum Spielplatz am Weiher. Bitte feste Schuhe und Regenjacke mitgeben.",
+			"start_date":  hike, "end_date": hike, "start_time": "13:30", "end_time": "16:00", "all_day": false,
+			"delivery_mode": "informational", "targets": allParents, "send_email": false,
+		},
+	}
+}
+
+// seedParentDayAppointments are the three afternoons of the Elternsprechtag,
+// the days the poll "Termine für den Elternsprechtag" offers.
+func seedParentDayAppointments(today seedDate) []map[string]any {
+	days := seedParentPollDays(today)
+	appointments := make([]map[string]any, 0, len(days))
+	for _, day := range days {
+		appointments = append(appointments, map[string]any{
+			"title": "Elternsprechtag", "location": "Gruppenraum",
+			"description": "Wir sprechen 15 Minuten mit Ihnen über Ihr Kind. Ihren Termin wählen Sie in der Umfrage zum Elternsprechtag.",
+			"start_date":  day.String(), "end_date": day.String(), "start_time": "14:00", "end_time": "17:45", "all_day": false,
+			"delivery_mode": "informational",
+			"targets":       []map[string]any{{"type": "all_school_parents"}, {"type": "all_staff"}},
+			"send_email":    false,
+		})
+	}
+	return appointments
+}
+
+// seedComingSchoolAppointments are the school's dates of the coming weeks.
+func seedComingSchoolAppointments(today seedDate) []map[string]any {
 	photoDay := seedWeekdayOnOrAfter(today.AddDays(9)).String()
 	parentCafe := seedWeekdayOnOrAfter(today.AddDays(12)).String()
 	holidayDeadline := seedWeekdayOnOrAfter(today.AddDays(21)).String()
@@ -281,12 +336,22 @@ func seedParentConversation(rt *Runtime, auth AuthRef, studentID int64) error {
 }
 
 // seedPickupContactEmail is the address of the pickup contact the first
-// parent adds. The reserved .example domain reaches nobody.
-const seedPickupContactEmail = "gisela.hahn@mail.example"
+// parent adds, in the style of the other demo families. A demo school scopes
+// it to its own mail domain like every other seeded address, so the
+// invitation below reaches no real mailbox; without SMTP a local run only
+// logs the mail.
+func seedPickupContactEmail(rt *Runtime) string {
+	scope := ""
+	if rt.FixedSeeder != nil {
+		scope = rt.FixedSeeder.accountScope
+	}
+	return scopedEmail("gisela.hahn@email.de", scope)
+}
 
 func seedParentGuardianChanges(rt *Runtime, auth AuthRef, studentID int64) error {
+	email := seedPickupContactEmail(rt)
 	contactRaw, err := rt.Client.PostWithAuth(auth, fmt.Sprintf("/parent/me/children/%d/guardians", studentID), map[string]any{
-		"first_name": "Gisela", "last_name": "Hahn", "email": seedPickupContactEmail,
+		"first_name": "Gisela", "last_name": "Hahn", "email": email,
 		"address_street": "Nebenweg 3", "address_postal_code": "50667", "address_city": "Köln",
 		"phones":            []map[string]any{{"phone_number": "+49 172 5550778", "phone_type": "mobile", "is_primary": true}},
 		"relationship_type": "relative", "can_pickup": true, "is_emergency_contact": false,
@@ -300,13 +365,15 @@ func seedParentGuardianChanges(rt *Runtime, auth AuthRef, studentID int64) error
 	}
 	if _, err := rt.Client.PutWithAuth(auth,
 		fmt.Sprintf("/parent/me/children/%d/guardians/%d/pickup", studentID, contactID),
-		map[string]any{"can_pickup": false, "is_emergency_contact": true, "pickup_notes": "Nur nach telefonischer Rücksprache"},
+		// Gisela may pick Felix up and becomes an emergency contact: the
+		// contacts show a person outside the parents who "Darf abholen".
+		map[string]any{"can_pickup": true, "is_emergency_contact": true, "pickup_notes": "Nur nach telefonischer Rücksprache"},
 	); err != nil {
 		return fmt.Errorf("update parent-managed pickup contact: %w", err)
 	}
 	return withTemporarySeedSetting(rt, rt.TenantAuth, "guardians.parent_invite_mode", "staff_approval", "direct", func() error {
 		if _, err := rt.Client.PostWithAuth(auth, fmt.Sprintf("/parent/me/children/%d/related-accounts", studentID), map[string]any{
-			"email": seedPickupContactEmail, "confirm_role_upgrade": true,
+			"email": email, "confirm_role_upgrade": true,
 		}); err != nil {
 			return fmt.Errorf("seed pending guardian role upgrade: %w", err)
 		}

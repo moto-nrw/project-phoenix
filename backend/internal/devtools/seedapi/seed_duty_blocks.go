@@ -5,15 +5,17 @@ import "fmt"
 // Demo duties (#3822): staff tasks without children that take part in
 // absences and substitutions. „Essensausgabe“ runs in the Mensa with two
 // people required, during lunch and before their Lernzeit at 13:00;
-// „Busaufsicht“ has no room at all and lies in the Spätdienst of the fourth
-// staff member (dutySeries).
+// „Busaufsicht“ watches the bus children waiting in the Aula and lies in the
+// Spätdienst of the fourth staff member (dutySeries). The yard would be the
+// natural place, but "Schulhof" is the reserved system room that exists only
+// with the kiosk Schulhof button (ADR 0019), which the demo leaves off.
 func seedDutyBlocks(rt *Runtime, categoryID, trackID int64, staffIDs []int64) error {
 	if len(staffIDs) < 4 {
 		return fmt.Errorf("duty demo needs four staff")
 	}
-	mensaID := rt.FixedSeeder.roomIDs["Mensa"]
-	if mensaID == 0 {
-		return fmt.Errorf("duty demo needs the Mensa room")
+	mensaID, aulaID := rt.FixedSeeder.roomIDs["Mensa"], rt.FixedSeeder.roomIDs["Aula"]
+	if mensaID == 0 || aulaID == 0 {
+		return fmt.Errorf("duty demo needs the Mensa and the Aula")
 	}
 	duties := []map[string]any{
 		{
@@ -21,7 +23,7 @@ func seedDutyBlocks(rt *Runtime, categoryID, trackID int64, staffIDs []int64) er
 			"staff_ids": staffIDs[2:4], "primary_staff_id": staffIDs[2], "required_staff": 2,
 		},
 		{
-			"name": "Busaufsicht", "start_time": "16:00", "end_time": "16:30",
+			"name": "Busaufsicht", "start_time": "16:00", "end_time": "16:30", "room_id": aulaID,
 			"staff_ids": staffIDs[3:4], "primary_staff_id": staffIDs[3], "required_staff": 1,
 		},
 	}

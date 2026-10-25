@@ -39,15 +39,27 @@ type Runtime struct {
 	Client                  Client
 	Options                 FullDayOptions
 	RFIDTags                map[int64]string
-	ActiveRoomIDs           []int64
 	ActiveSessionDeviceKeys []string
 	DeviceKeys              []string
-	ActivityNames           []string
 	// OpenRoomBlockInstanceID is the block started in a released room (#3281),
 	// 0 when none runs.
 	OpenRoomBlockInstanceID int64
-	// SupervisorStaffIDs supervise the sessions started at midday.
+	// SupervisorStaffIDs supervise the running kiosk sessions.
 	SupervisorStaffIDs []int64
+	// Today is what the school plans for the simulated day (fullday_today.go).
+	Today todayPlan
+	// Blocks are the planned blocks the run started, in start order.
+	Blocks []startedBlock
+	// Children are the children of the day: the seed state's, then the
+	// children only the API lists (enrollment admissions), with today's
+	// status and arrival.
+	Children []todayChild
+	// Rooms tracks where the children of the day were checked in.
+	Rooms roomPlan
+	// Arrivals is when the children come and what they do at midday.
+	Arrivals arrivalPlan
+	// messages remembers what the run wrote (fullday_messages.go).
+	messages messageLog
 	// Present holds the children whose attendance is recorded today.
 	Present map[int64]bool
 	// ClockedInStaff holds the staff members the run stamped in or found on
@@ -85,6 +97,10 @@ type RuntimeCounts struct {
 	// members skipped for approved leave.
 	StaffClockedIn int
 	StaffAbsent    int
+	// BlocksStarted counts the planned blocks the run started.
+	BlocksStarted int
+	// Messages counts the team-chat and parent messages the run wrote.
+	Messages int
 }
 
 type Action interface {
@@ -137,6 +153,8 @@ func newRuntime(state *SeedState, client Client, opts FullDayOptions) *Runtime {
 		Present:        make(map[int64]bool),
 		ClockedInStaff: make(map[int64]bool),
 		StaffOnLeave:   make(map[int64]bool),
+		Rooms:          newRoomPlan(),
+		messages:       messageLog{threads: map[int]parentThread{}},
 	}
 }
 

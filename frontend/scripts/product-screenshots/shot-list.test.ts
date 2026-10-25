@@ -24,6 +24,8 @@ shots:
       - scrollen: "footer"
       - tippen: { feld: "#email", text: "jonas@example.org" }
       - zeichnen: "canvas"
+      - scrollen_im_bereich: "li >> nth=0"
+      - einblenden: "footer"
 `;
 
 describe("Shot-Liste", () => {
@@ -40,6 +42,8 @@ describe("Shot-Liste", () => {
       { scrollen: "footer" },
       { tippen: { feld: "#email", text: "jonas@example.org" } },
       { zeichnen: "canvas" },
+      { scrollen_im_bereich: "li >> nth=0" },
+      { einblenden: "footer" },
     ]);
   });
 
@@ -87,7 +91,9 @@ describe("Shot-Liste", () => {
     ],
     ["als bloßer Text", "{tippen: '#email'}"],
     ["mit leerem Selektor", "{zeichnen: ''}"],
-  ])("weist einen Schritt tippen/zeichnen %s ab", (_name, step) => {
+    ["im Bereich ohne Selektor", "{scrollen_im_bereich: ''}"],
+    ["einblenden ohne Selektor", "{einblenden: ''}"],
+  ])("weist einen Schritt tippen/zeichnen/scrollen %s ab", (_name, step) => {
     expect(() =>
       parseShotList(
         `shots:\n  - {id: a, titel: A, portal: tenant, rolle: admin, pfad: /, vorbereitung: [${step}]}`,

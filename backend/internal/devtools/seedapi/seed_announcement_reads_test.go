@@ -112,7 +112,9 @@ func TestDemoIllustratedPDFHasTheSizeOfAFlyer(t *testing.T) {
 		"the same input gives the same file")
 }
 
-func TestSeedParentPollCreatesSixtyAppointmentOptions(t *testing.T) {
+// The Elternsprechtag poll offers 24 appointments on three afternoons: a
+// believable choice for a school and still a long poll (#3861).
+func TestSeedParentPollCreatesTwentyFourAppointmentOptions(t *testing.T) {
 	t.Parallel()
 
 	var poll struct {
@@ -140,7 +142,8 @@ func TestSeedParentPollCreatesSixtyAppointmentOptions(t *testing.T) {
 
 	assert.Equal(t, []string{"/api/parent-announcements/", "/api/parent-announcements/73/publish"}, paths)
 	assert.Equal(t, "multi_choice", poll.ResponseType)
-	require.Len(t, poll.Options, 60)
+	require.Len(t, poll.Options, 24)
+	assert.Greater(t, len(poll.Options), 10, "from 11 options on the parent portal shows the long-poll layout")
 	option := regexp.MustCompile(`^(Dienstag|Mittwoch|Donnerstag), \d{1,2}\. \p{L}+, \d{2}:\d{2} Uhr$`)
 	for _, o := range poll.Options {
 		assert.Regexp(t, option, o)
@@ -160,46 +163,61 @@ func TestSeedParentPollOptionsFollowNextWeek(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct{ today, first, last string }{
-		{"2026-10-20", "Dienstag, 27. Oktober, 14:00 Uhr", "Donnerstag, 29. Oktober, 18:45 Uhr"}, // Tuesday
-		{"2026-10-25", "Dienstag, 27. Oktober, 14:00 Uhr", "Donnerstag, 29. Oktober, 18:45 Uhr"}, // Sunday
-		{"2026-10-26", "Dienstag, 3. November, 14:00 Uhr", "Donnerstag, 5. November, 18:45 Uhr"}, // Monday
+		{"2026-10-20", "Dienstag, 27. Oktober, 14:00 Uhr", "Donnerstag, 29. Oktober, 17:30 Uhr"}, // Tuesday
+		{"2026-10-25", "Dienstag, 27. Oktober, 14:00 Uhr", "Donnerstag, 29. Oktober, 17:30 Uhr"}, // Sunday
+		{"2026-10-26", "Dienstag, 3. November, 14:00 Uhr", "Donnerstag, 5. November, 17:30 Uhr"}, // Monday
 	}
 	for _, tc := range cases {
 		today, err := parseSeedDate(tc.today)
 		require.NoError(t, err)
 		options := seedParentPollOptions(today)
-		require.Len(t, options, 60, tc.today)
+		require.Len(t, options, 24, tc.today)
 		assert.Equal(t, tc.first, options[0], tc.today)
-		assert.True(t, strings.HasSuffix(options[1], ", 14:15 Uhr"), options[1])
-		assert.Equal(t, tc.last, options[59], tc.today)
+		assert.True(t, strings.HasSuffix(options[1], ", 14:30 Uhr"), options[1])
+		assert.True(t, strings.HasPrefix(options[8], "Mittwoch, "), options[8])
+		assert.True(t, strings.HasSuffix(options[8], ", 14:00 Uhr"), options[8])
+		assert.Equal(t, tc.last, options[23], tc.today)
 	}
 }
 
-// The answers spread over the first twelve appointments with a believable
-// weighting, one to three adjacent appointments each, the same on every run.
-func TestSeedParentPollChoiceSpreadsOverTheFirstAfternoon(t *testing.T) {
+// The answers spread over every appointment of all three afternoons with a
+// believable weighting, one to three adjacent appointments on one afternoon
+// each, the same on every run. Before, they only reached the first twelve.
+func TestSeedParentPollChoiceSpreadsOverEveryAppointment(t *testing.T) {
 	t.Parallel()
 
-	options := make([]seedParentPollOption, 60)
+	options := make([]seedParentPollOption, 24)
 	index := make(map[string]int, len(options))
 	for i := range options {
 		options[i].ID = fmt.Sprintf("o%d", i)
 		index[options[i].ID] = i
 	}
+	chosen := map[int]int{}
 	firstSlots := map[int]int{}
 	for answer := range 60 {
 		choice := seedParentPollChoice(options, answer)
 		require.NotEmpty(t, choice)
 		require.LessOrEqual(t, len(choice), 3)
 		assert.Equal(t, choice, seedParentPollChoice(options, answer), "deterministic")
+		day := index[choice[0]] / seedParentPollSlotsPerDay
 		for k, id := range choice {
-			assert.Less(t, index[id], len(seedParentPollSlotWeights), "only the first afternoon's slots")
 			assert.Equal(t, index[choice[0]]+k, index[id], "adjacent appointments")
+			assert.Equal(t, day, index[id]/seedParentPollSlotsPerDay, "on one afternoon")
+			chosen[index[id]]++
 		}
-		firstSlots[index[choice[0]]]++
+		firstSlots[index[choice[0]]%seedParentPollSlotsPerDay]++
 	}
-	assert.GreaterOrEqual(t, len(firstSlots), 8, "the answers spread over most of the slots")
-	assert.Greater(t, firstSlots[7]+firstSlots[8], firstSlots[0]+firstSlots[1], "after work is more popular than 14:00")
+	for slot := range options {
+		assert.Positive(t, chosen[slot], "appointment %d gets at least one answer", slot)
+	}
+	assert.Greater(t, firstSlots[4]+firstSlots[5], firstSlots[0]+firstSlots[1], "after work is more popular than 14:00")
+	for answer := range 10 {
+		short := seedParentPollChoice(options[:3], answer)
+		require.NotEmpty(t, short, "fewer options still give an answer")
+		for _, id := range short {
+			assert.Less(t, index[id], 3)
+		}
+	}
 }
 
 func TestSeedParentDeclarationDeclaresThroughTheParentAPI(t *testing.T) {

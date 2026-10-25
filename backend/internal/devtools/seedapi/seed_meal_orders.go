@@ -9,8 +9,9 @@ import (
 )
 
 // mealOrderChildren is how many children eat on the fixed order day before
-// the late changes, the size of a busy OGS lunch (#3873).
-const mealOrderChildren = 25
+// the late changes, the size of a busy OGS lunch (#3873): about two thirds
+// of the eighty to ninety children in care on a full day.
+const mealOrderChildren = 60
 
 // mealOrderLateAdds and mealOrderLateCancels are the school's changes after
 // the deadline: the Nachmeldungen the order week shows on the fixed day.

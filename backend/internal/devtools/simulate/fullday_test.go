@@ -381,7 +381,7 @@ func simulationAPIMockWithOptions(t *testing.T, unknownCode string, checkinLimit
 			w.WriteHeader(simulationHTTPStatusOK)
 			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{"id": 1}})
 
-		case "/api/staff-shifts", "/api/time-tracking/absences":
+		case "/api/staff-shifts", "/api/students", "/api/time-tracking/absences":
 			w.WriteHeader(simulationHTTPStatusOK)
 			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": []any{}})
 

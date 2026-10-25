@@ -11,14 +11,20 @@
 #                eltern = iphone + ipad
 #   vorbereitung optional: Schritte vor dem Foto, jeweils genau eines von
 #                klicken (Selektor), warten_auf (Selektor),
-#                scrollen (Pixel oder Selektor), tippen ({feld: Selektor,
+#                scrollen (Pixel oder Selektor), scrollen_im_bereich
+#                (Selektor), einblenden (Selektor), tippen ({feld: Selektor,
 #                text: Text}) und zeichnen (Selektor einer Zeichenfläche).
 #                Ein Klick darf auf eine andere Seite führen, etwa auf ein
 #                Kind, dessen ID erst der Seed vergibt; geprüft wird, dass
-#                `pfad` selbst erreichbar ist. `scrollen` mit Selektor legt
-#                das Element an den oberen Rand, unter die Kopfleiste.
-#                `tippen` füllt ein Feld, `zeichnen` zieht einen Schriftzug
-#                mit der Maus über die Fläche (Unterschrift).
+#                `pfad` selbst erreichbar ist. Ein Klick auf einen Reiter
+#                wartet, bis er ausgewählt bleibt, und wiederholt sich sonst.
+#                `scrollen` mit Selektor legt das Element an den oberen Rand,
+#                unter die Kopfleiste. `scrollen_im_bereich` scrollt nur den
+#                Bereich um das Element (Wochenraster, Chat, Dialog) und legt
+#                es an dessen oberen Rand; `einblenden` legt dort seine
+#                Unterkante an den unteren Rand. `tippen` füllt ein Feld,
+#                `zeichnen` schreibt mit der Maus „S. Schneider“ in die Fläche
+#                (Unterschrift).
 #
 # Unbekannte Felder schlagen beim Laden fehl. Die Daten kommen aus dem
 # Seed-Profil `vollbetrieb` (backend/internal/devtools/seedapi), dem
@@ -104,9 +110,10 @@ shots:
       - klicken: 'main button:has-text("Krank melden")'
       - warten_auf: '[role="dialog"]'
       # Ein Tag der Woche schaltet „Krankmelden“ frei; abgeschickt wird nicht.
-      # Der letzte freie Tag: Der Seed meldet Baran für den nächsten Werktag
-      # schon krank, dessen Kachel ist gesperrt.
-      - klicken: '[role="dialog"] div.grid-cols-5 > button:not([disabled]) >> nth=-1'
+      # Der erste freie Tag nach der Krankmeldung aus dem Seed: Er meldet
+      # Baran für den nächsten Werktag schon krank, dessen Kachel ist
+      # gesperrt (planned-status-days-modal.tsx sperrt nur gemeldete Tage).
+      - klicken: '[role="dialog"] div.grid-cols-5 > button[disabled] ~ button:not([disabled]) >> nth=0'
       - tippen:
           feld: '[role="dialog"] textarea'
           text: 'Mutter hat angerufen: Baran hat Fieber.'
@@ -182,6 +189,10 @@ shots:
     portal: tenant
     rolle: admin
     pfad: /anfragen
+    vorbereitung:
+      # Die erste Anfrage im Detail aufklappen; entschieden wird nicht.
+      - warten_auf: '[data-request-row] > button[aria-expanded="false"]'
+      - klicken: '[data-request-row] > button[aria-expanded="false"] >> nth=0'
   # Hilfe elternmitteilung-veroeffentlichen, elternbrief-versenden
   - id: elternbriefe
     titel: Elternmitteilungen
@@ -255,12 +266,18 @@ shots:
     portal: tenant
     rolle: admin
     pfad: /calendar
+    vorbereitung:
+      # Das Wochenraster scrollt in einem eigenen Bereich und springt beim
+      # Öffnen auf 08:00; die Frühbetreuung um 07:30 stünde angeschnitten
+      # darüber. Der erste Block um 07:30 kommt an den oberen Rand.
+      - scrollen_im_bereich: 'main button:has-text("07:30") >> nth=0'
 
   # --- Planung --------------------------------------------------------------
   # Hilfe betreuungsplan-erstellen; PostHog: 364 Aufrufe in 11 Schulen.
-  # Darstellung „Kompakt“: Mit der Standardbreite passt nur ein Tag ins Bild,
-  # und das Raster springt auf heute. Kompakt zeigt die ganze Woche; die
-  # Wahl ist reiner Seitenzustand und wird nicht gespeichert.
+  # Darstellung „Kompakt“: „Normal“ gibt jeder Spur 112 px; der heutige Tag
+  # mit vielen parallelen Blöcken ist dann breiter als das Bild, und das
+  # Raster springt auf heute. Kompakt zeigt die ganze Woche; die Wahl ist
+  # reiner Seitenzustand und wird nicht gespeichert.
   - id: betreuungsplan
     titel: Betreuungsplan der Woche
     portal: tenant
@@ -305,7 +322,9 @@ shots:
       - warten_auf: 'text=Freie Plätze je Angebot'
       - klicken: 'tr:has-text("Luka Berisha") >> role=link[name="Anmeldung ansehen"]'
       - warten_auf: 'text=Entscheidung speichern'
-      - scrollen: 'role=heading[name="Angaben der Kinder"s]'
+      # Die Karte des Kindes oben: Name, Angebote und die Entscheidung mit
+      # allen Knöpfen stehen auf beiden Geräten ganz im Bild.
+      - scrollen: 'article:has-text("Luka Berisha")'
 
   # --- Elternkommunikation --------------------------------------------------
   # Website: Elternbrief mit Rückmeldung; Stand der Einverständnisse
@@ -339,13 +358,16 @@ shots:
     vorbereitung:
       - klicken: 'role=button[name=/^Felix Schneider\b.*Details öffnen$/]'
       - warten_auf: 'role=tab[name="Stammdaten"]'
-      # Der Reiter steht im Adressparameter ?tab=. Im Lauf für PR #4947 ging
-      # ein Klick vor dem Laden der Kinderdaten verloren, ein zweiter Klick
-      # schaltet zurück. Deshalb erst die geladenen Tagesdaten abwarten, dann
-      # genau einmal klicken. Ohne die Notiz aus dem Seed schlägt der Shot fehl.
+      # Der Reiter steht im Adressparameter ?tab=. Der dauerhafte Hinweis
+      # „Braucht morgens …“ steht auch in den Stammdaten; auf ihn zu warten
+      # bewies keinen Reiterwechsel. Der Klick wartet, bis der Reiter
+      # ausgewählt bleibt; danach zählt ein Eintrag, den nur der Reiter
+      # Notizen zeigt. Ohne die Notizen aus dem Seed schlägt der Shot fehl.
       - warten_auf: 'text=Heutige Abholung'
       - klicken: '[role="tab"][data-tab-value="notizen"]'
-      - warten_auf: 'text=Braucht morgens etwas Zeit >> visible=true'
+      - warten_auf: '[role="tab"][data-tab-value="notizen"][aria-selected="true"]'
+      - warten_auf: 'text=Hat heute in der Hausaufgabenzeit >> visible=true'
+      - scrollen: 'role=heading[name="Notizen"s]'
 
   # --- Verwaltung -----------------------------------------------------------
   # Hilfe datenverwaltung; PostHog: 880 Aufrufe
@@ -453,6 +475,10 @@ shots:
     pfad: /messages
     vorbereitung:
       - warten_auf: 'main textarea'
+      # Der Verlauf öffnet am Ende. Die letzte Frage von Sabine kommt an den
+      # oberen Rand des Verlaufs, die Antwort der OGS steht darunter. Eigene
+      # Nachrichten stehen rechts (chat-bubble.tsx: items-end).
+      - scrollen_im_bereich: 'main div.overflow-y-auto div.flex.flex-col.items-end >> nth=-1'
   # Hilfe als-elternteil-den-kalender-ansehen; PostHog: 132 Aufrufe
   - id: eltern-kalender
     titel: Termine der Schule
@@ -474,6 +500,10 @@ shots:
     vorbereitung:
       - klicken: 'main button:has-text("Elternbrief: Unser Laternenfest")'
       - warten_auf: '[role="dialog"]'
+      # Der Anhang (Ablauf und Liedtexte) steht unter dem Brief; er kommt
+      # an den unteren Rand des Dialogs.
+      - warten_auf: '[role="dialog"] >> text=Dateien zu dieser Nachricht'
+      - einblenden: '[role="dialog"] div.border-t:has-text("Dateien zu dieser Nachricht") >> nth=-1'
   # Hilfe mittagessen-ansehen; PostHog: im Median 735 s offen. Die nächste
   # Woche zeigt die gebuchten Tage vollständig.
   - id: eltern-mittagessen
@@ -524,13 +554,18 @@ shots:
       - klicken: '[role="dialog"] >> role=button[name="Zustimmen"s]'
       - warten_auf: 'canvas[aria-label="Feld zum Unterschreiben"]'
       - zeichnen: 'canvas[aria-label="Feld zum Unterschreiben"]'
-  # Website: Essenstage ändern. Nur der Dialog, ohne Speichern.
+  # Website: Essenstage ändern. Nur der Dialog, ohne Speichern. Erst die
+  # nächste Woche wie bei eltern-mittagessen: Die laufende Woche listet
+  # vergangene Tage als „Nicht zum Mittagessen angemeldet“. Die Woche
+  # wechselt vor dem Öffnen; danach verlangt die Seite Speichern oder
+  # Abbrechen.
   - id: eltern-essenstage-aendern
     titel: Feste Essenstage ändern
     portal: eltern
     rolle: eltern
     pfad: /meal-plan
     vorbereitung:
+      - klicken: 'role=button[name="Nächste Woche"s]'
       - klicken: 'role=button[name=/^Ändern$/]'
       - warten_auf: 'text=Feste Tage ändern'
       - klicken: 'fieldset:has-text("Feste Tage ändern") label:has-text("Freitag")'
@@ -545,7 +580,9 @@ shots:
       - warten_auf: 'role=tab'
       - klicken: 'role=tab[name="Kontakte & Abholung"]'
       - warten_auf: 'text=Abholberechtigte und Kontakte'
-      - scrollen: 'role=heading[name="Abholberechtigte und Kontakte"s]'
+      # Die ganze Karte oben, mit ihrem Rand: an der Überschrift fehlte die
+      # Oberkante.
+      - scrollen: 'section:has-text("Abholberechtigte und Kontakte") >> nth=-1'
   # Website: Online-Anmeldung, auch für Geschwister
   - id: eltern-online-anmeldung
     titel: Online-Anmeldung mit mehreren Kindern
@@ -556,24 +593,39 @@ shots:
       - klicken: 'role=link[name^="Anmeldung öffnen"] >> nth=0'
       - warten_auf: 'role=button[name="Weiteres Kind"]'
       - klicken: 'role=button[name="Weiteres Kind"]'
-      # Zwei Geschwister ausfüllen; abgeschickt wird nicht. Die Felder der
-      # erziehungsberechtigten Person füllt das Profil vor; Vor- und Nachname
-      # stehen hier noch einmal, falls es leer bleibt. Die Kinder tragen einen
-      # Namen, den der Seed nicht vergibt.
+      # Zwei Geschwister von Felix ausfüllen; abgeschickt wird nicht. Die
+      # Felder der erziehungsberechtigten Person füllt das Profil vor; Vor- und
+      # Nachname stehen hier noch einmal, falls es leer bleibt. Die Vornamen
+      # vergibt der Seed nicht (data.go), Lotta ist älter, Emil jünger als
+      # Felix (22.09.2019, 1. Klasse).
       - tippen: { feld: 'input[name="guardian_first_name"]', text: Sabine }
       - tippen: { feld: 'input[name="guardian_last_name"]', text: Schneider }
       - tippen: { feld: 'input[name="children_0_first_name"]', text: Lotta }
-      - tippen: { feld: 'input[name="children_0_last_name"]', text: Krämer }
+      - tippen: { feld: 'input[name="children_0_last_name"]', text: Schneider }
       - klicken: '[aria-label="Tag"] >> nth=0'
       - klicken: 'role=listbox >> role=option[name="14"s]'
       - klicken: '[aria-label="Monat"] >> nth=0'
       - klicken: 'role=listbox >> role=option[name="März"s]'
       - klicken: '[aria-label="Jahr"] >> nth=0'
-      - klicken: 'role=listbox >> role=option[name="2019"s]'
+      - klicken: 'role=listbox >> role=option[name="2018"s]'
       - klicken: '#children-0-target-grade-level'
-      - klicken: 'role=listbox >> role=option[name="2. Klasse"s]'
-      - tippen: { feld: 'input[name="children_1_first_name"]', text: Jonas }
-      - tippen: { feld: 'input[name="children_1_last_name"]', text: Krämer }
+      - klicken: 'role=listbox >> role=option[name="3. Klasse"s]'
+      # Angebote erscheinen erst mit der Klassenstufe. „OGS Ganztag“ und die
+      # Tage dazu; das Pflicht-Mittagessen bucht der Seed nicht automatisch
+      # mit (kein auto_add), seine Tage sind eigene Chips. Die Karte erkennt
+      # ihr Kind am `for` des Häkchens (enrollment-form.tsx, OfferingCard),
+      # das Mittagessen an seiner Beschreibung aus parent_enrollment.go.
+      - klicken: 'label[for^="children-0-offering-"]:has-text("OGS Ganztag")'
+      - klicken: 'label[for^="children-0-offering-"]:has-text("Warme Mahlzeit") >> xpath=.. >> role=button[name="Mo"s]'
+      - klicken: 'label[for^="children-0-offering-"]:has-text("Warme Mahlzeit") >> xpath=.. >> role=button[name="Di"s]'
+      - klicken: 'label[for^="children-0-offering-"]:has-text("Warme Mahlzeit") >> xpath=.. >> role=button[name="Mi"s]'
+      - klicken: 'label[for^="children-0-offering-"]:has-text("Warme Mahlzeit") >> xpath=.. >> role=button[name="Do"s]'
+      - klicken: 'label[for^="children-0-offering-"]:has-text("OGS Ganztag") >> xpath=.. >> role=button[name="Mo"s]'
+      - klicken: 'label[for^="children-0-offering-"]:has-text("OGS Ganztag") >> xpath=.. >> role=button[name="Di"s]'
+      - klicken: 'label[for^="children-0-offering-"]:has-text("OGS Ganztag") >> xpath=.. >> role=button[name="Mi"s]'
+      - klicken: 'label[for^="children-0-offering-"]:has-text("OGS Ganztag") >> xpath=.. >> role=button[name="Do"s]'
+      - tippen: { feld: 'input[name="children_1_first_name"]', text: Emil }
+      - tippen: { feld: 'input[name="children_1_last_name"]', text: Schneider }
       - klicken: '[aria-label="Tag"] >> nth=1'
       - klicken: 'role=listbox >> role=option[name="2"s]'
       - klicken: '[aria-label="Monat"] >> nth=1'
@@ -582,7 +634,16 @@ shots:
       - klicken: 'role=listbox >> role=option[name="2020"s]'
       - klicken: '#children-1-target-grade-level'
       - klicken: 'role=listbox >> role=option[name="1. Klasse"s]'
-      - scrollen: 'role=heading[name="Kind oder Kinder"s]'
+      - klicken: 'label[for^="children-1-offering-"]:has-text("OGS Ganztag")'
+      - klicken: 'label[for^="children-1-offering-"]:has-text("Warme Mahlzeit") >> xpath=.. >> role=button[name="Mo"s]'
+      - klicken: 'label[for^="children-1-offering-"]:has-text("Warme Mahlzeit") >> xpath=.. >> role=button[name="Di"s]'
+      - klicken: 'label[for^="children-1-offering-"]:has-text("Warme Mahlzeit") >> xpath=.. >> role=button[name="Do"s]'
+      - klicken: 'label[for^="children-1-offering-"]:has-text("OGS Ganztag") >> xpath=.. >> role=button[name="Mo"s]'
+      - klicken: 'label[for^="children-1-offering-"]:has-text("OGS Ganztag") >> xpath=.. >> role=button[name="Di"s]'
+      - klicken: 'label[for^="children-1-offering-"]:has-text("OGS Ganztag") >> xpath=.. >> role=button[name="Do"s]'
+      # Lottas gewähltes Angebot oben, darunter Emils Angaben: das Ende des
+      # ersten und der Anfang des zweiten Kindes in einem Bild.
+      - scrollen: 'label[for^="children-0-offering-"]:has-text("OGS Ganztag") >> xpath=..'
   # Website: Eltern-App in vielen Sprachen. Nur die Auswahl, ohne Wechsel:
   # Die Sprache gilt für das Konto und damit für alle späteren Eltern-Shots.
   # Nachrichten selbst übersetzt moto nicht.
@@ -616,8 +677,10 @@ shots:
     vorbereitung:
       - klicken: 'role=button[name="Person einladen"]'
       - warten_auf: '[role="dialog"]'
-      # Ausgefüllt, aber nicht abgeschickt.
+      # Ausgefüllt, aber nicht abgeschickt. Eine reservierte Beispiel-Domain
+      # (RFC 2606), die sich wie eine gewöhnliche Adresse liest: Eine
+      # erfundene .de-Domain könnte einem echten Verein gehören.
       - tippen:
           feld: '#invite-traeger-account-email'
-          text: jonas.berger@ganztag-nord.example
+          text: jonas.berger@example.org
       - klicken: '[role="dialog"] label:has-text("Darf das Personal aller Schulen verwalten")'

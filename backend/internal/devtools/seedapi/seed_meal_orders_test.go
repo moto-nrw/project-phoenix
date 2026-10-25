@@ -74,7 +74,7 @@ func (s *mealOrderServer) handle(w seedHTTPResponseWriter, r *seedHTTPRequest) {
 	case path == "/api/meal-plan/participants":
 		assert.Equal(s.t, s.date, r.URL.Query().Get("date"))
 		assert.Equal(s.t, "all", r.URL.Query().Get("include"))
-		_, _ = fmt.Fprint(w, mealOrderListJSON(18, 20))
+		_, _ = fmt.Fprint(w, mealOrderListJSON(18, 50))
 	case strings.HasSuffix(path, "/schedule"):
 		s.events = append(s.events, fmt.Sprintf("schedule %s %v %s", strings.Split(path, "/")[4], body["weekdays"], body["effective_from"]))
 		_, _ = fmt.Fprint(w, `{"status":"success","data":{"effective_from":"2026-09-08"}}`)
@@ -163,8 +163,10 @@ func TestSeedMealOrdersFixesABusyDayAndConnectsTheCaterer(t *testing.T) {
 
 	require.NoError(t, seedMealOrders(context.Background(), rt, readMailLink, today))
 
-	require.Len(t, server.events, 7+1+1+2+1+2)
-	for _, event := range server.events[:7] {
+	// The families' 18 children plus the school's registrations.
+	registered := mealOrderChildren - 18
+	require.Len(t, server.events, registered+1+1+2+1+2)
+	for _, event := range server.events[:registered] {
 		assert.True(t, strings.HasPrefix(event, "schedule "), event)
 		assert.True(t, strings.HasSuffix(event, " 2026-09-08"), event)
 	}
@@ -174,12 +176,12 @@ func TestSeedMealOrdersFixesABusyDayAndConnectsTheCaterer(t *testing.T) {
 	assert.Equal(t, []string{
 		"lead 1",
 		"day 2/days/2026-09-08 false", // never the first parent's child 1
-		"day 108/days/2026-09-08 true",
-		"day 109/days/2026-09-08 true",
+		fmt.Sprintf("day %d/days/2026-09-08 true", 100+registered+1),
+		fmt.Sprintf("day %d/days/2026-09-08 true", 100+registered+2),
 		"lead 0",
 		"accept",
 		"confirm",
-	}, server.events[7:])
+	}, server.events[registered:])
 	assert.Equal(t, []string{"kontakt@frischekueche-rheinland.example", "/einladung/"}, mailed)
 	assert.Equal(t, invitedAt, mailedSince, "only a mail after the invitation counts")
 }
@@ -187,7 +189,7 @@ func TestSeedMealOrdersFixesABusyDayAndConnectsTheCaterer(t *testing.T) {
 // A failed late change still restores the school's deadline.
 func TestSeedMealOrdersRestoresTheDeadlineAfterAFailure(t *testing.T) {
 	t.Parallel()
-	server := &mealOrderServer{t: t, date: "2026-09-08", failDayFor: "/108/"}
+	server := &mealOrderServer{t: t, date: "2026-09-08", failDayFor: fmt.Sprintf("/%d/", 100+mealOrderChildren-18+1)}
 	srv := newSeedHTTPTestServer(server.handle)
 	defer srv.Close()
 	today, err := parseSeedDate("2026-09-08")

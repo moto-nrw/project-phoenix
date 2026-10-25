@@ -285,7 +285,7 @@ func deferredDemoSteps(seeder *Seeder) []Step {
 
 // fullDemoSetupSteps prepares the school before its history and parent flows.
 func fullDemoSetupSteps(seeder *Seeder) []Step {
-	return []Step{
+	steps := []Step{
 		healthCheckStep{},
 		operatorLoginStep{},
 		bootstrapTenantStep{seeder: seeder},
@@ -326,4 +326,11 @@ func fullDemoSetupSteps(seeder *Seeder) []Step {
 		// geplanten Dienst ab und bräuchte eine Begründung.
 		seedTodaysShiftsStep{},
 	}
+	// Die Produkt-Screenshots simulieren den ganzen Tag, der die Statistik
+	// füllt. Die Statistik-Sitzung stünde dort als Hausaufgaben-Block von
+	// einer Minute zur Seed-Uhrzeit im Tagesplan und in der Zeiterfassung.
+	if seeder.options.ProductScreenshots {
+		steps = slices.DeleteFunc(steps, func(step Step) bool { _, ok := step.(seedStatisticsDemoStep); return ok })
+	}
+	return steps
 }

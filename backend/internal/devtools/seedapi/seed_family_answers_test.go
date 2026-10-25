@@ -247,10 +247,12 @@ func TestFamilyAccountLeavesOutLimitedRoles(t *testing.T) {
 		Email: DemoGuardians[2].Email, Password: "Parent1234%", Name: "Petra Meyer",
 		AccountID: 9002, GuardianID: 1002, StudentIDs: []int64{501},
 	}, account)
-	_, ok = familyAccount(rt, 10, 1010, 9010, "Parent1234%")
-	assert.False(t, ok, "guardian 10 is pickup only")
-	_, ok = familyAccount(rt, 22, 1022, 9022, "Parent1234%")
-	assert.False(t, ok, "guardian 22 has a custom role")
+	require.Equal(t, "Katja Albrecht", demoGuardianKey(DemoGuardians[52]))
+	_, ok = familyAccount(rt, 52, 1052, 9052, "Parent1234%")
+	assert.False(t, ok, "Katja Albrecht is pickup only")
+	require.Equal(t, "Milly Nikoliin", demoGuardianKey(DemoGuardians[42]))
+	_, ok = familyAccount(rt, 42, 1042, 9042, "Parent1234%")
+	assert.False(t, ok, "Milly Nikoliin has a custom role")
 }
 
 func TestFridayDepartureChangeChangesOnlyFriday(t *testing.T) {
