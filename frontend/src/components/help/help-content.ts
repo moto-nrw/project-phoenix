@@ -8255,15 +8255,19 @@ function traegerAccessLogTopic(): HelpTopic {
     requirements: [
       "Sie haben im Träger-Büro die Rolle Verwaltung. Nur diese Rolle darf das Protokoll lesen.",
     ],
-    steps: [
-      "Melden Sie sich im Träger-Portal an.",
-      "Wählen Sie oben `Zugriffsprotokoll`.",
-      "Wählen Sie den Zeitraum. Am Anfang sind es die letzten 30 Tage.",
-      "Wählen Sie bei Bedarf eine Schule und eine Person.",
-      "Wählen Sie `Gelesen` oder `Geändert`, wenn Sie nur eine Art sehen möchten.",
-      "Gibt es mehr Einträge? Wählen Sie unten `Weitere Einträge laden`.",
-    ],
+    steps: [],
     instructionGroups: [
+      {
+        title: "Protokoll ansehen",
+        steps: [
+          "Melden Sie sich im Träger-Portal an.",
+          "Wählen Sie oben `Zugriffsprotokoll`.",
+          "Wählen Sie den Zeitraum. Am Anfang sind es die letzten 30 Tage.",
+          "Wählen Sie bei Bedarf eine Schule und eine Person.",
+          "Wählen Sie `Gelesen` oder `Geändert`, wenn Sie nur eine Art sehen möchten.",
+          "Gibt es mehr Einträge? Wählen Sie unten `Weitere Einträge laden`.",
+        ],
+      },
       {
         title: "Als CSV herunterladen",
         description: "Für einen Nachweis, zum Beispiel in einer Tabelle.",

@@ -84,7 +84,7 @@ const COLUMNS: DataTableColumn<TraegerAccessLogEntry>[] = [
     key: "school",
     header: "Schule",
     render: (entry) => entry.schoolName || "–",
-    stacked: "meta",
+    stacked: "field",
   },
   {
     key: "kind",
@@ -95,13 +95,13 @@ const COLUMNS: DataTableColumn<TraegerAccessLogEntry>[] = [
         label={KIND_LABELS[entry.kind]}
       />
     ),
-    stacked: "meta",
+    stacked: "field",
   },
   {
     key: "data",
     header: "Daten",
     render: (entry) => entry.dataLabel,
-    stacked: "meta",
+    stacked: "field",
   },
 ];
 
@@ -327,7 +327,6 @@ export default function TraegerAccessLogPage() {
             isLoading={loading}
             loadingRowCount={5}
             stackedOnMobile
-            stackedLayout="row"
             emptyState={
               <EmptyState
                 icon={<ScrollText className="h-12 w-12" aria-hidden="true" />}
