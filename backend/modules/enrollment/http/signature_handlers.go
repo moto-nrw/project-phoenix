@@ -231,7 +231,7 @@ func signatureProofRecord(s *capability.RequestSignature) lists.Record {
 	if s.Method == "typed" {
 		method = "Name getippt: " + s.TypedName
 	}
-	return lists.Record{Title: "Einfache elektronische Signatur mit gezeichneter Unterschrift", Fields: []lists.Field{
+	return lists.Record{Title: "Einfache elektronische Signatur", Fields: []lists.Field{
 		{Label: "Unterschrift", Value: proofText(method), PNG: s.PNG},
 		proofField("Unterschrieben von", s.SignerName),
 		proofField("Unterschrieben am", proofStamp(s.SignedAt)),

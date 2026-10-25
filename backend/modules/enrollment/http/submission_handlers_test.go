@@ -545,6 +545,35 @@ func TestSignatureProofDocument_RefusesUnreadableConsents(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestSignatureProofRecord_UsesMethodNeutralTitle(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name           string
+		signature      *capability.RequestSignature
+		wantMethodText string
+	}{
+		{
+			name:           "drawn",
+			signature:      &capability.RequestSignature{Method: "drawn"},
+			wantMethodText: "Mit Finger, Stift oder Maus gezeichnet",
+		},
+		{
+			name:           "typed",
+			signature:      &capability.RequestSignature{Method: "typed", TypedName: "Anna Beispiel"},
+			wantMethodText: "Name getippt: Anna Beispiel",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			record := signatureProofRecord(tc.signature)
+
+			assert.Equal(t, "Einfache elektronische Signatur", record.Title)
+			require.NotEmpty(t, record.Fields)
+			assert.Equal(t, tc.wantMethodText, record.Fields[0].Value)
+		})
+	}
+}
+
 func TestSignatureProofDocument_ReproducesFrozenLegalTextAndDocuments(t *testing.T) {
 	t.Parallel()
 
