@@ -2,6 +2,9 @@
 package common
 
 const (
+	CodeTimetableReopenStaffBusy                     = "timetable.reopen_staff_busy"
+	CodeTimetableReopenStudentActive                 = "timetable.reopen_student_active"
+	CodeTimetableReopenSupervisionChanged            = "timetable.reopen_supervision_changed"
 	CodeTimetableRoomOccupied                        = "timetable.room_occupied"
 	CodeTimetableSeriesEndBeforeStart                = "timetable.series_end_before_start"
 	CodeTimetableSeriesEndOutsidePeriod              = "timetable.series_end_outside_period"
@@ -131,6 +134,9 @@ const (
 )
 
 var errorCodeClasses2 = map[string]string{
+	"timetable.reopen_staff_busy":                       "business_rejection",
+	"timetable.reopen_student_active":                   "business_rejection",
+	"timetable.reopen_supervision_changed":              "business_rejection",
 	"timetable.room_occupied":                           "business_rejection",
 	"timetable.series_end_before_start":                 "input",
 	"timetable.series_end_outside_period":               "input",
