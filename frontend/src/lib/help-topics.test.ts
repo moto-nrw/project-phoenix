@@ -551,8 +551,9 @@ describe("getParentHelpTopicForPath", () => {
     // 83 seit #3821: der eigene Dienstplan ist ein geteilter Artikel.
     // 84 seit #3727: die wichtigsten Einstellungen im Überblick.
     // 86 seit #4796: die Rückmeldung zu Hausaufgaben in der Lernzeit.
-    // 87 seit #4901: die eigene Einwilligung zur Nutzungsanalyse.
-    expect(leadTopics).toHaveLength(87);
+    // 87 seit #4894: Welche Module hat meine Schule?
+    // 88 seit #4901: die eigene Einwilligung zur Nutzungsanalyse.
+    expect(leadTopics).toHaveLength(88);
     expect(
       leadTopics.every(
         (topic) =>

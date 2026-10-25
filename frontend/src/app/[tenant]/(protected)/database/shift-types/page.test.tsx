@@ -9,7 +9,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import ShiftTypesPage from "./page";
-import { useTimetableEnabled } from "~/lib/tenant-context";
+import { useModuleBooked } from "~/lib/tenant-context";
 
 const mockUpdateUrlParams = vi.hoisted(() => vi.fn());
 vi.mock("~/hooks/useUpdateUrlParams", () => ({
@@ -54,21 +54,26 @@ vi.mock("~/lib/category-api", () => ({ categoryService }));
 
 vi.mock("~/lib/tenant-context", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/lib/tenant-context")>()),
-  useTimetableEnabled: vi.fn(),
+  useModuleBooked: vi.fn(),
 }));
 
 const mockTenantMutate = vi.hoisted(() => vi.fn(() => Promise.resolve()));
 type SWRState = { data: unknown; error: unknown; isLoading: boolean };
 const swrState = vi.hoisted(() => ({
   current: {} as Record<string, SWRState>,
+  keys: [] as (string | null)[],
 }));
 vi.mock("~/lib/swr", () => ({
-  useSWRAuth: (key: string) =>
-    swrState.current[key] ?? {
-      data: undefined,
-      error: undefined,
-      isLoading: false,
-    },
+  useSWRAuth: (key: string | null) => {
+    swrState.keys.push(key);
+    return (
+      (key === null ? undefined : swrState.current[key]) ?? {
+        data: undefined,
+        error: undefined,
+        isLoading: false,
+      }
+    );
+  },
   useTenantMutate: () => mockTenantMutate,
 }));
 
@@ -97,8 +102,9 @@ function setCategories(state: Partial<SWRState>) {
 }
 
 beforeEach(() => {
-  vi.mocked(useTimetableEnabled).mockReturnValue(true);
+  vi.mocked(useModuleBooked).mockReturnValue(true);
   currentSearch = new URLSearchParams("eintrag=10");
+  swrState.keys = [];
   swrState.current = {
     "database-shift-types": {
       data: SHIFT_TYPES,
@@ -133,17 +139,15 @@ function save() {
 // löschen, also darf `category_ids` nur mitgehen, wenn die Kategorien
 // wirklich geladen sind.
 describe("Dienstarten — Kategorie-Zuordnung (#1837, #3114)", () => {
-  it("shows an unavailable state when the care plan is switched off", () => {
-    vi.mocked(useTimetableEnabled).mockReturnValue(false);
+  it("does not load data when Dienstplan is not booked", () => {
+    vi.mocked(useModuleBooked).mockReturnValue(false);
 
     render(<ShiftTypesPage />);
 
     expect(
-      screen.getByTestId("shift-types-disabled-state"),
+      screen.getByRole("status", { name: /Dienstarten.*wird geladen/ }),
     ).toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "Dienstart anlegen" }),
-    ).not.toBeInTheDocument();
+    expect(swrState.keys).toEqual([]);
   });
 
   it("preselects the categories currently mapped to the shift type", () => {

@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
   MODULE_KEYS,
+  MODULE_LABELS,
   MODULE_SETTING_KEYS,
   isModuleKey,
   moduleSettingKey,
@@ -24,6 +25,21 @@ describe("module keys", () => {
     ].map((match) => match[1]);
 
     expect(backendKeys).toEqual([...MODULE_KEYS]);
+  });
+
+  it("mirrors the backend module names", () => {
+    const source = readFileSync(
+      resolve(
+        dirname(fileURLToPath(import.meta.url)),
+        "../../../backend/modules/settings/records/modules.go",
+      ),
+      "utf8",
+    );
+    const backendLabels = [...source.matchAll(/Label: "([^"]+)"/g)].map(
+      (match) => match[1],
+    );
+
+    expect(backendLabels).toEqual(MODULE_KEYS.map((key) => MODULE_LABELS[key]));
   });
 
   it("names each switch module.<key>", () => {

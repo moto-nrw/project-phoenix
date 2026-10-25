@@ -134,8 +134,10 @@ import {
 } from "~/lib/auth-utils";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import { useChangeRequestAccess } from "~/lib/hooks/use-change-request-access";
+import { MODULE_KEYS } from "~/lib/modules";
 import {
   useAttendanceLogEnabled,
+  useBookedModules,
   useChildSearchOnlyNavigation,
   useDisplayEnabled,
   useNFCEnabled,
@@ -168,6 +170,10 @@ const mockUseChangeRequestAccess = vi.mocked(useChangeRequestAccess);
 const mockUseAttendanceLogEnabled = vi.mocked(useAttendanceLogEnabled);
 const mockUseDisplayEnabled = vi.mocked(useDisplayEnabled);
 const mockUseNFCEnabled = vi.mocked(useNFCEnabled);
+const mockUseBookedModules = vi.mocked(useBookedModules);
+/** Alle Module gebucht außer `missing` (#4894). */
+const bookedWithout = (...missing: string[]) =>
+  MODULE_KEYS.filter((key) => !missing.includes(key));
 const mockUsePresenceMode = vi.mocked(usePresenceMode);
 const mockUseTenantRoutingModeSafe = vi.mocked(useTenantRoutingModeSafe);
 const mockUseTenantSlugSafe = vi.mocked(useTenantSlugSafe);
@@ -268,6 +274,7 @@ describe("MobileBottomNav", () => {
         !mockIsAdmin(session) && CAREGIVER_NAV_PERMISSIONS.has(permission),
     );
     mockUseNFCEnabled.mockReturnValue(true);
+    mockUseBookedModules.mockReturnValue(MODULE_KEYS);
     mockUsePresenceMode.mockReturnValue("detailed");
     mockUseOpenCareGroupMode.mockReturnValue(false);
     mockUseChildSearchOnlyNavigation.mockReturnValue(false);
@@ -991,9 +998,11 @@ describe("MobileBottomNav", () => {
     });
   });
 
+  // Seit #4894 entscheidet das Modul NFC-Anwesenheit aus dem Modul-Register.
   describe("NFC visibility", () => {
     beforeEach(() => {
       mockUseNFCEnabled.mockReturnValue(false);
+      mockUseBookedModules.mockReturnValue(bookedWithout("nfc_anwesenheit"));
     });
 
     it("hides the classic activities item from staff main navigation", () => {
@@ -1028,6 +1037,7 @@ describe("MobileBottomNav", () => {
 
     it("hides the classic activities item in binary presence mode", () => {
       mockUseNFCEnabled.mockReturnValue(true);
+      mockUseBookedModules.mockReturnValue(MODULE_KEYS);
       mockUsePresenceMode.mockReturnValue("binary");
 
       render(<MobileBottomNav />);
@@ -1037,6 +1047,55 @@ describe("MobileBottomNav", () => {
         .map((link) => link.getAttribute("href"));
       expect(hrefs).not.toContain("/activities");
       expect(hrefs).toContain("/ogs-groups/overview");
+    });
+  });
+
+  // Modul-Register (#4894): dieselbe Regel wie in der Seitenleiste.
+  describe("gebuchte Module (#4894)", () => {
+    const openDrawer = () =>
+      fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
+
+    it("zeigt der Leitung ein nicht gebuchtes Modul im Mehr-Menü mit Schloss", () => {
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+      mockUseBookedModules.mockReturnValue(bookedWithout("zeiterfassung"));
+
+      render(<MobileBottomNav />);
+      openDrawer();
+
+      expect(
+        screen.getByRole("link", { name: "Zeiterfassung , nicht gebucht" }),
+      ).toBeInTheDocument();
+    });
+
+    it("zeigt einer Leitung das gesperrte Modul auch ohne Routenrecht", () => {
+      mockHasPermission.mockImplementation(
+        (_session: unknown, permission: string) =>
+          permission === "config:manage",
+      );
+      mockUseBookedModules.mockReturnValue(bookedWithout("dienstplan"));
+
+      render(<MobileBottomNav />);
+      openDrawer();
+
+      expect(
+        screen.getByRole("link", { name: "Mein Dienstplan , nicht gebucht" }),
+      ).toHaveAttribute("href", "/test-tenant/mein-dienstplan");
+    });
+
+    it("blendet ein nicht gebuchtes Modul für Betreuungskräfte aus", () => {
+      mockHasPermission.mockImplementation(
+        (_session: unknown, permission: string) =>
+          permission === "time_tracking:own" || permission === "users:read",
+      );
+      mockUseBookedModules.mockReturnValue(bookedWithout("zeiterfassung"));
+
+      render(<MobileBottomNav />);
+      openDrawer();
+
+      // Anker: das Mehr-Menü ist offen.
+      expect(screen.getByTestId("drawer-content")).toBeInTheDocument();
+      expect(screen.queryByText("Zeiterfassung")).not.toBeInTheDocument();
     });
   });
 
@@ -1892,7 +1951,9 @@ describe("MobileBottomNav", () => {
       openDrawer();
 
       expect(screen.queryByText("Betreuungsplan")).not.toBeInTheDocument();
-      expect(screen.queryByText("Dienstplan")).not.toBeInTheDocument();
+      // Der Dienstplan folgt seit #4894 seinem Modul, nicht dem
+      // Betreuungsplan.
+      expect(screen.getByText("Dienstplan")).toBeInTheDocument();
       expect(screen.queryByText("Vertretungsplan")).not.toBeInTheDocument();
       expect(screen.getByText("Schuljahr und Kalender")).toBeInTheDocument();
       expect(screen.getByText("Abrechnung")).toBeInTheDocument();

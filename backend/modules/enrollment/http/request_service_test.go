@@ -85,7 +85,7 @@ func (s *stubRequestSettings) ResolveBool(_ context.Context, key string) (bool, 
 	}
 	v, ok := s.boolValues[key]
 	if !ok {
-		return false, nil
+		return key == settingKeyModuleOnlineAnmeldung, nil
 	}
 	return v, nil
 }

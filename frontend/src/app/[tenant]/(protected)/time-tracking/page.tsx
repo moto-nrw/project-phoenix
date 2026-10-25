@@ -14,7 +14,7 @@ import { CalendarRange } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { hasPermission } from "~/lib/auth-utils";
-import { useTimetableEnabled } from "~/lib/tenant-context";
+import { useModuleBooked } from "~/lib/tenant-context";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { SkeletonRegion, TableSkeleton } from "~/components/ui/page-skeletons";
@@ -3417,9 +3417,9 @@ function TimeTrackingContent() {
     { revalidateOnFocus: false },
   );
   const ownStaffId = ownStaff?.id ?? null;
-  // Der eigene Dienstplan (#3821) zeigt nur Schichten; ohne Dienstplan in der
-  // Schule führte der Knopf auf eine leere Seite.
-  const timetableEnabled = useTimetableEnabled();
+  // Der eigene Dienstplan (#3821) folgt dem Modul Dienstplan, nicht dem
+  // Betreuungsplan-Schalter. Ohne Buchung erklärt die Zielseite das Modul.
+  const dienstplanBooked = useModuleBooked("dienstplan");
   const tenantPath = useTenantAwarePath();
 
   const {
@@ -4013,7 +4013,7 @@ function TimeTrackingContent() {
       actions={
         ownStaffId ? (
           <>
-            {timetableEnabled && (
+            {dienstplanBooked && (
               <ButtonLink
                 href={tenantPath("/mein-dienstplan")}
                 variant="outline"
