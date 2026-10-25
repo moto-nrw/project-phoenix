@@ -2,6 +2,7 @@ package compose
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"testing"
 	"time"
@@ -54,4 +55,46 @@ func TestOperatorAuditLogLosesEntriesAfterTheFollowingYear(t *testing.T) {
 
 	_, err = command.DeleteExpiredOperatorAuditLog(ctx)
 	require.Error(t, err, "outside a transaction the deletion is refused")
+}
+
+// The Träger account ledger (#4650) has no school either and keeps its
+// entries for the same window: the same hourly deletion removes them.
+func TestTraegerAccountLedgerLosesEntriesWithTheOperatorLedger(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := context.Background()
+	persistence, err := NewTenantPersistence(db)
+	require.NoError(t, err)
+	command, err := NewObservedCommand(persistence.AppendStore, slog.Default(), func(string, time.Duration, int, error) {})
+	require.NoError(t, err)
+
+	organizationID := testpkg.CreateTestOrganization(t, db, &testpkg.Organization{
+		Name: "Träger Aufbewahrung", Slug: fmt.Sprintf("traeger-ledger-%d", testpkg.UniqueTestTenantID(t)), Active: true,
+	}).ID
+	account := testpkg.CreateTestAccountWithPassword(t, db, fmt.Sprintf("ledger-%d@test.local", testpkg.UniqueTestTenantID(t)), testpkg.NewTestPassword())
+	t.Cleanup(func() {
+		_, err := db.ExecContext(context.Background(), `DELETE FROM audit.traeger_account_changes WHERE organization_id = ?`, organizationID)
+		require.NoError(t, err)
+	})
+	insert := func(at time.Time) int64 {
+		var id int64
+		require.NoError(t, db.NewRaw(`INSERT INTO audit.traeger_account_changes
+			(organization_id, actor_account_id, action, created_at)
+			VALUES (?, ?, 'members_listed', ?) RETURNING id`, organizationID, account.ID, at).Scan(ctx, &id))
+		return id
+	}
+	now := time.Now()
+	insert(now.AddDate(-3, 0, 0))
+	halfYear := insert(now.AddDate(0, -6, 0))
+	recent := insert(now)
+
+	require.NoError(t, tenant.WithinAdmin(testpkg.WithTenantRuntime(t, ctx, db), func(adminCtx context.Context) error {
+		_, err = command.DeleteExpiredOperatorAuditLog(adminCtx)
+		return err
+	}))
+
+	var remaining []int64
+	require.NoError(t, db.NewRaw(`SELECT id FROM audit.traeger_account_changes WHERE organization_id = ? ORDER BY id`, organizationID).
+		Scan(ctx, &remaining))
+	assert.Equal(t, []int64{halfYear, recent}, remaining, "only the entry before 1 January of last year goes")
 }

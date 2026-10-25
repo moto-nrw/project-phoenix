@@ -158,7 +158,8 @@ var moduleLegacyFileBudgets = map[string]int{
 // ADR 0105: the holiday period constructor of modules/enrollment/compose
 // (+13) and the Träger transaction binding of
 // modules/transactionruntime/compose (+4).
-const moduleComposeBudgetTotal = 12547
+// ADR 0106: the Träger-Büro account management adds exactly 24 LOC.
+const moduleComposeBudgetTotal = 12571
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -193,8 +194,9 @@ var moduleComposeBudgets = map[string]int{
 	"modules/filestorage/compose":                  211,
 	"modules/grouplive/compose":                    14,
 	"modules/guardianlinkview/compose":             8,
-	"modules/identityaccess/compose":               1347, // raised by ADR 0077
-	"modules/mealplan/compose":                     74,   // raised by ADR 0078
+	// Raised by ADR 0106: the Träger-Büro account management (+24).
+	"modules/identityaccess/compose": 1371, // raised by ADR 0077
+	"modules/mealplan/compose":       74,   // raised by ADR 0078
 	// ADR 0097: the isolated tenant return constructor, no retained logic moved.
 	"modules/organizationtenancy/compose":         270,
 	"modules/parentrequestfeedprojection/compose": 11,

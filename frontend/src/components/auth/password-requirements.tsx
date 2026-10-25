@@ -1,19 +1,14 @@
 import { Check, Circle } from "lucide-react";
 
-export interface PasswordRequirementStatus {
-  readonly label: string;
-  readonly met: boolean;
-}
-
 /**
- * Die Passwortanforderungen unter einem neuen Passwort, je Regel mit Haken,
- * sobald sie erfüllt ist. Geteilt von den Einladungsformularen.
+ * The password rules next to a new password, each ticked once met. The
+ * caller computes the status from `PASSWORD_RULES` (`~/lib/password-rules`).
  */
 export function PasswordRequirements({
   requirements,
-}: {
-  readonly requirements: readonly PasswordRequirementStatus[];
-}) {
+}: Readonly<{
+  requirements: readonly { readonly label: string; readonly met: boolean }[];
+}>) {
   return (
     <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
       <p className="mb-2 text-xs font-medium text-gray-700">

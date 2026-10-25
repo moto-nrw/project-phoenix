@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
+import type { Session } from "next-auth";
 import { signOut, useSession } from "next-auth/react";
 import { useState } from "react";
 import { MotoBrand } from "~/components/auth/moto-brand";
@@ -16,29 +17,55 @@ import { TRAEGER_HELP_HREF } from "./traeger-help";
 
 const logger = createLogger({ component: "TraegerShell" });
 
+/** The Träger right that opens the page "Personen" (ADR 0084, #4650). */
+const ACCOUNTS_RIGHT = "traeger_accounts:manage";
+/** The Träger right that opens the holiday periods (#4659). */
+const ENROLLMENT_RIGHT = "traeger_enrollment:manage";
+
+const navLinkClassName =
+  "rounded-md px-2.5 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none";
+
 const NAV_ITEMS = [
-  { id: "schulen", label: "Schulen", path: "/traeger" },
-  { id: "ferien", label: "Ferien", path: "/traeger/ferien" },
+  { id: "schulen", label: "Schulen", path: "/traeger", right: null },
+  {
+    id: "ferien",
+    label: "Ferien",
+    path: "/traeger/ferien",
+    right: ENROLLMENT_RIGHT,
+  },
+  {
+    id: "personen",
+    label: "Personen",
+    path: "/traeger/accounts",
+    right: ACCOUNTS_RIGHT,
+  },
 ] as const;
 
 /**
  * The pages of the portal as header tabs. The holiday periods need the right
- * "Anmeldung verwalten"; a person without it has one page and no tabs.
+ * "Anmeldung verwalten", the page "Personen" the right to manage accounts; a
+ * person with neither has one page and no tabs.
  */
-function TraegerNav({
-  canManageEnrollment,
-}: Readonly<{ canManageEnrollment: boolean }>) {
+function TraegerNav({ session }: Readonly<{ session: Session | null }>) {
   const router = useRouter();
   const pathname = usePathname() ?? "";
-  if (!canManageEnrollment) return null;
-  const onHolidays =
-    pathname.startsWith("/ferien") || pathname.startsWith("/traeger/ferien");
+  const items = NAV_ITEMS.filter(
+    (item) => item.right === null || hasPermission(session, item.right),
+  );
+  if (items.length < 2) return null;
+  const active =
+    items.find(
+      (item) =>
+        item.right !== null &&
+        (pathname.startsWith(item.path) ||
+          pathname.startsWith(item.path.slice("/traeger".length))),
+    ) ?? items[0]!;
   return (
     <NavigationTabs
-      items={NAV_ITEMS.map(({ id, label }) => ({ id, label }))}
-      activeTab={onHolidays ? "ferien" : "schulen"}
+      items={items.map(({ id, label }) => ({ id, label }))}
+      activeTab={active.id}
       onTabChange={(id) => {
-        const item = NAV_ITEMS.find((candidate) => candidate.id === id);
+        const item = items.find((candidate) => candidate.id === id);
         if (item) router.push(traegerPath(item.path));
       }}
     />
@@ -48,7 +75,8 @@ function TraegerNav({
 /**
  * The shell of the Träger portal ("moto träger", #4649): the shared
  * PortalShell frame with a slim head bar. The portal has few pages, so there
- * is no sidebar; the head carries the pages, the help and the way out.
+ * is no sidebar; the head carries the pages, the help and the way out. The
+ * pages "Ferien" (#4659) and "Personen" (#4650) show only with their rights.
  */
 export function TraegerShell({
   children,
@@ -91,24 +119,16 @@ export function TraegerShell({
       <div className="flex flex-wrap items-center gap-3">
         <MotoBrand />
         <span className="text-sm font-semibold text-gray-600">Träger</span>
-        <TraegerNav
-          canManageEnrollment={hasPermission(
-            session ?? null,
-            "traeger_enrollment:manage",
-          )}
-        />
+        <TraegerNav session={session ?? null} />
       </div>
       {/* Wraps below the brand on narrow phones (320 px) instead of overflowing. */}
-      <div className="ml-auto flex items-center gap-2">
+      <div className="ml-auto flex flex-wrap items-center gap-2">
         {session?.user?.email ? (
           <span className="text-sm text-gray-600 max-md:hidden">
             {session.user.email}
           </span>
         ) : null}
-        <NavLink
-          href={TRAEGER_HELP_HREF}
-          className="rounded-md px-2.5 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-        >
+        <NavLink href={TRAEGER_HELP_HREF} className={navLinkClassName}>
           Hilfe
         </NavLink>
         <Button

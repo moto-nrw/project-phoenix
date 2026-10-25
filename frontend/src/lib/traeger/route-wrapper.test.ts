@@ -20,7 +20,7 @@ vi.mock("~/lib/analytics-session-header.server", () => ({
 
 global.fetch = mockFetch as typeof fetch;
 
-import { proxyGet, proxyPut } from "./route-wrapper.server";
+import { proxyDelete, proxyGet, proxyPut } from "./route-wrapper.server";
 
 const context = { params: Promise.resolve({}) };
 
@@ -102,6 +102,75 @@ describe("Träger proxy", () => {
         }),
       }),
     );
+  });
+
+  // Quorum #4937: a DELETE answers null; after a refresh that is a success,
+  // not an expired session.
+  it("keeps a DELETE that succeeds after a refresh a success", async () => {
+    mockFetch
+      .mockResolvedValueOnce(
+        new Response(
+          '{"status":401,"detail":"expired","code":"general.permission"}',
+          {
+            status: 401,
+            headers: { "Content-Type": "application/problem+json" },
+          },
+        ),
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    mockUncachedAuth.mockResolvedValue({ user: { token: "fresh-token" } });
+
+    const response = await proxyDelete("/traeger/accounts/7")(
+      new NextRequest("http://localhost:3000/api/traeger/accounts/7", {
+        method: "DELETE",
+      }),
+      context,
+    );
+
+    expect(response.status).toBe(200);
+    expect(mockFetch).toHaveBeenLastCalledWith(
+      "http://localhost:8080/traeger/accounts/7",
+      expect.objectContaining({
+        method: "DELETE",
+        headers: expect.objectContaining({
+          Authorization: "Bearer fresh-token",
+        }),
+      }),
+    );
+  });
+
+  // Quorum #4937: after a refresh, a business rejection is the answer, not
+  // an expired session.
+  it("keeps a business rejection of the retried request", async () => {
+    const body =
+      '{"type":"about:blank","title":"Conflict","status":409,"detail":"last","code":"traeger.last_administrator"}';
+    mockFetch
+      .mockResolvedValueOnce(
+        new Response(
+          '{"status":401,"detail":"expired","code":"general.permission"}',
+          {
+            status: 401,
+            headers: { "Content-Type": "application/problem+json" },
+          },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(body, {
+          status: 409,
+          headers: { "Content-Type": "application/problem+json" },
+        }),
+      );
+    mockUncachedAuth.mockResolvedValue({ user: { token: "fresh-token" } });
+
+    const response = await proxyDelete("/traeger/accounts/7")(
+      new NextRequest("http://localhost:3000/api/traeger/accounts/7", {
+        method: "DELETE",
+      }),
+      context,
+    );
+
+    expect(response.status).toBe(409);
+    expect(await response.text()).toBe(body);
   });
 
   it("forwards a write with its body (#4659)", async () => {

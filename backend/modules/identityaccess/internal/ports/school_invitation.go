@@ -29,6 +29,9 @@ type SchoolInvitationStore interface {
 	ExtendSchoolInvitation(ctx context.Context, id int64, expiresAt, now time.Time, token string) (bool, domain.OperationStats, error)
 	RecordSchoolInvitationDelivery(ctx context.Context, id int64, delivery domain.TokenDelivery) (domain.OperationStats, error)
 	DeleteExpiredSchoolInvitations(ctx context.Context, now time.Time) (int, domain.OperationStats, error)
+	// DeleteExpiredTraegerInvitations deletes the expired invitations into a
+	// Träger-Büro (#4650); the same hourly cleanup removes both kinds.
+	DeleteExpiredTraegerInvitations(ctx context.Context, now time.Time) (int, domain.OperationStats, error)
 
 	AccountProvisioning
 
