@@ -16,9 +16,11 @@ func TenantScopeMiddleware(next http.Handler) http.Handler {
 	return sessiontoken.TenantMiddleware(tenant.ClaimScope{})(requireBookedModule(next))
 }
 
-// ParentScopeMiddleware accepts parents-portal tokens only and binds no tenant.
+// ParentScopeMiddleware accepts parents-portal tokens only, binds no tenant
+// and refuses an account none of whose guardian schools books Eltern-App
+// (#4895).
 func ParentScopeMiddleware(next http.Handler) http.Handler {
-	return sessiontoken.ParentMiddleware(tenant.ClaimScope{})(next)
+	return sessiontoken.ParentMiddleware(tenant.ClaimScope{})(requireParentPortal(next))
 }
 
 // TraegerScopeMiddleware accepts Träger-Portal tokens only and binds their
@@ -27,7 +29,9 @@ func TraegerScopeMiddleware(next http.Handler) http.Handler {
 	return sessiontoken.TraegerMiddleware(tenant.ClaimScope{})(next)
 }
 
-// SchoolScopeMiddleware accepts school-portal tokens only and binds their school.
+// SchoolScopeMiddleware accepts school-portal tokens only, binds their
+// school and refuses the portal of a school that has not booked Unterricht
+// am Vormittag (#4895).
 func SchoolScopeMiddleware(next http.Handler) http.Handler {
-	return sessiontoken.SchoolMiddleware(tenant.ClaimScope{})(next)
+	return sessiontoken.SchoolMiddleware(tenant.ClaimScope{})(requireBookedModule(next))
 }

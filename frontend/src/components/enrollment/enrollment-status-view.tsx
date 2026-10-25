@@ -46,6 +46,7 @@ import { EnrollmentChangeRequestDiff } from "~/components/enrollment/enrollment-
 import type { EnrollmentChangeRequestDiffCopy } from "~/lib/enrollment-change-request-diff";
 import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import { PublicEnrollmentContentSkeleton } from "~/components/enrollment/public-enrollment-shell";
+import { EnrollmentSignatureStatus } from "~/components/enrollment/enrollment-signature-status";
 
 const logger = createLogger({ component: "EnrollmentStatusView" });
 
@@ -736,7 +737,15 @@ function EnrollmentStatusContent({
         setEditLastName={setEditLastName}
         setEditPhone={setEditPhone}
         setEditing={setEditing}
+        editHref={editHref}
       />
+      {status.signature ? (
+        <EnrollmentSignatureStatus
+          token={token}
+          signature={status.signature}
+          editable={allEditable}
+        />
+      ) : null}
       {!allLocked ? (
         <WithdrawAllSection
           allWithdrawn={allWithdrawn}
@@ -1168,6 +1177,8 @@ interface GuardianSectionProps {
   readonly setEditLastName: (value: string) => void;
   readonly setEditPhone: (value: string) => void;
   readonly setEditing: (value: boolean) => void;
+  /** The full form; a signed enrollment is edited only there (#4786). */
+  readonly editHref: string;
 }
 
 function GuardianSection({
@@ -1187,6 +1198,7 @@ function GuardianSection({
   setEditLastName,
   setEditPhone,
   setEditing,
+  editHref,
 }: GuardianSectionProps) {
   const t = useTranslations("enrollmentStatus");
   const handleCancel = () => {
@@ -1207,7 +1219,18 @@ function GuardianSection({
             {t("guardianTitle")}
           </h2>
         </div>
-        {allEditable && !editing ? (
+        {allEditable && !editing && status.signature_required ? (
+          <ButtonLink
+            href={editHref}
+            variant="outline"
+            size="md"
+            className="w-full gap-2 sm:w-auto"
+          >
+            <Pencil className="h-4 w-4" aria-hidden="true" />
+            {t("edit")}
+          </ButtonLink>
+        ) : null}
+        {allEditable && !editing && !status.signature_required ? (
           <button
             type="button"
             onClick={() => setEditing(true)}

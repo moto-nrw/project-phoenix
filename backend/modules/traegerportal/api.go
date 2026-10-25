@@ -91,18 +91,20 @@ type Resource struct {
 	auth           AuthRuntime
 	schools        TraegerRouter
 	holidayPeriods TraegerRouter
+	accessLog      TraegerRouter
 	accounts       identityaccess.TraegerAccountManagement
 	schoolSessions identityaccess.TraegerSchoolSessions
 }
 
-// NewResource builds the Träger-Portal resource. accounts serves the
+// NewResource builds the Träger-Portal resource: the school list, the
+// holiday periods and the access log (#4655). accounts serves the
 // Träger-Büro account routes (#4650) and schoolSessions the Absprung into a
 // school (#4654); without them those routes answer 500.
-func NewResource(auth AuthRuntime, schools, holidayPeriods TraegerRouter, accounts identityaccess.TraegerAccountManagement, schoolSessions identityaccess.TraegerSchoolSessions) *Resource {
-	if schools == nil || holidayPeriods == nil {
-		panic("traeger portal: the school list and holiday period routes are required")
+func NewResource(auth AuthRuntime, schools, holidayPeriods, accessLog TraegerRouter, accounts identityaccess.TraegerAccountManagement, schoolSessions identityaccess.TraegerSchoolSessions) *Resource {
+	if schools == nil || holidayPeriods == nil || accessLog == nil {
+		panic("traeger portal: the school list, holiday period and access log routes are required")
 	}
-	return &Resource{auth: auth, schools: schools, holidayPeriods: holidayPeriods, accounts: accounts, schoolSessions: schoolSessions}
+	return &Resource{auth: auth, schools: schools, holidayPeriods: holidayPeriods, accessLog: accessLog, accounts: accounts, schoolSessions: schoolSessions}
 }
 
 // The sentences the Träger-Portal renders for a refused login.
@@ -129,6 +131,7 @@ func (rs *Resource) RouterWithAuthRateLimiter(authRateLimiter func(http.Handler)
 	r.Mount("/schools", rs.schools.TraegerRouter(protectedTraegerRoutes))
 	r.Mount("/holiday-periods", rs.holidayPeriods.TraegerRouter(protectedTraegerRoutes))
 	r.Mount("/accounts", rs.accountRouter(protectedTraegerRoutes))
+	r.Mount("/access-log", rs.accessLog.TraegerRouter(protectedTraegerRoutes))
 	r.Mount("/school-sessions", rs.schoolSessionRouter(protectedTraegerRoutes))
 	return r
 }

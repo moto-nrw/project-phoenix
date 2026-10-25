@@ -23,13 +23,13 @@ func newAccountAuthentication(service *application.Service, store ports.AccountL
 	}
 	switch {
 	case deps.Schools == nil, deps.Persons == nil, deps.Passwords == nil, deps.Codec == nil,
-		deps.PasswordLoginPolicy == nil, deps.MFALock == nil, deps.Audit == nil, deps.Push == nil:
+		deps.PasswordLoginPolicy == nil, deps.MFALock == nil, deps.Audit == nil, deps.Push == nil, deps.PortalModules == nil:
 		return nil, errors.New("identity access compose: every session dependency is required")
 	}
 	attach := deps.TenantRuntime
 	return application.NewAccountAuthentication(service, application.AccountAuthenticationDependencies{
 		Store:   store,
-		Schools: application.SchoolDirectory{SchoolDirectory: deps.Schools}, Traeger: deps.Traeger,
+		Schools: application.SchoolDirectory{SchoolDirectory: deps.Schools}, Traeger: deps.Traeger, PortalModules: deps.PortalModules,
 		Persons:   deps.Persons,
 		Passwords: deps.Passwords, PasswordPolicy: deps.PasswordLoginPolicy,
 		Codec:    application.TokenCodec{TokenCodec: deps.Codec},

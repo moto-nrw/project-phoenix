@@ -36,17 +36,27 @@ func (s *AccountAuthentication) IssueParentTokensForAuthenticatedAccount(ctx con
 // issueParentTokens refuses an account without a guardian role on an active
 // mapping and mints the parent-scope session.
 func (s *AccountAuthentication) issueParentTokens(ctx context.Context, account domain.LoginAccount, email, ipAddress, userAgent string) (string, string, error) {
-	hasGuardianRole, firstGuardianTenantID, err := s.findGuardianTenantForAccount(ctx, account.ID)
+	guardianTenantIDs, err := s.findGuardianTenantForAccount(ctx, account.ID)
 	if err != nil {
 		return "", "", failed("parent login: enumerate tenants", err)
 	}
-	if !hasGuardianRole {
+	if len(guardianTenantIDs) == 0 {
 		s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "Not a guardian at any school")
 		return "", "", failed("parent login", identityaccess.ErrAccountNoGuardianRole)
 	}
-	// The refresh session row is pinned to the first guardian tenant for the
-	// foreign key and RLS; the token itself is cross-tenant on read.
-	session, err := s.createRefreshSession(ctx, account, firstGuardianTenantID, domain.ScopeParent)
+	// The parents portal opens while at least one guardian school booked
+	// Eltern-App (#4895).
+	bookedTenantIDs, err := s.bookedGuardianSchools(ctx, "parent login", account.ID, guardianTenantIDs)
+	if err != nil {
+		if _, notBooked := identityaccess.PortalNotBooked(err); notBooked {
+			s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "Parents portal not booked at any guardian school")
+		}
+		return "", "", err
+	}
+	// The refresh session row is pinned to the first guardian tenant with
+	// the portal for the foreign key and RLS; the token itself is
+	// cross-tenant on read.
+	session, err := s.createRefreshSession(ctx, account, bookedTenantIDs[0], domain.ScopeParent)
 	if err != nil {
 		return "", "", err
 	}
@@ -67,12 +77,11 @@ func buildParentMetadata(account domain.LoginAccount) *domain.AccountClaimsPaylo
 	}
 }
 
-// findGuardianTenantForAccount checks every active mapping for the guardian
-// role inside an administrative transaction; the parent flows have no
-// tenant transaction yet.
-func (s *AccountAuthentication) findGuardianTenantForAccount(ctx context.Context, accountID int64) (bool, int64, error) {
-	hasGuardianRole := false
-	var firstGuardianTenantID int64
+// findGuardianTenantForAccount returns every active mapping that carries the
+// guardian role, in mapping order, read inside an administrative
+// transaction; the parent flows have no tenant transaction yet.
+func (s *AccountAuthentication) findGuardianTenantForAccount(ctx context.Context, accountID int64) ([]int64, error) {
+	var guardianTenantIDs []int64
 	if err := s.runtime.WithAdminTx(ctx, func(adminCtx context.Context) error {
 		tenantIDs, _, listErr := s.store.ListActiveTenantIDs(adminCtx, accountID)
 		if listErr != nil {
@@ -85,23 +94,25 @@ func (s *AccountAuthentication) findGuardianTenantForAccount(ctx context.Context
 				return roleErr
 			}
 			if domain.HasGuardianRole(roles) {
-				hasGuardianRole = true
-				firstGuardianTenantID = tenantID
-				return nil
+				guardianTenantIDs = append(guardianTenantIDs, tenantID)
 			}
 		}
 		return nil
 	}); err != nil {
-		return false, 0, err
+		return nil, err
 	}
-	return hasGuardianRole, firstGuardianTenantID, nil
+	return guardianTenantIDs, nil
 }
 
 // FindGuardianTenant is findGuardianTenantForAccount for the retained
 // password-reset flow, which routes guardian accounts to the parents reset
 // link.
 func (s *AccountAuthentication) findGuardianTenant(ctx context.Context, accountID int64) (bool, int64, error) {
-	return s.findGuardianTenantForAccount(ctx, accountID)
+	tenantIDs, err := s.findGuardianTenantForAccount(ctx, accountID)
+	if err != nil || len(tenantIDs) == 0 {
+		return false, 0, err
+	}
+	return true, tenantIDs[0], nil
 }
 
 // isGuardianOnlyAccountInTx is the refresh-path backward-compat check for

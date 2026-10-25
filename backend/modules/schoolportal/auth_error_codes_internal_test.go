@@ -24,6 +24,7 @@ var (
 	errFakeMFABlocked         = errors.New("fake: mfa blocked")
 	errFakeMFAUnavailable     = errors.New("fake: mfa unavailable")
 	errFakeInvalidSession     = errors.New("fake: missing mfa proof")
+	errFakePortalNotBooked    = errors.New("fake: unterricht_vormittag not booked")
 )
 
 // refusalRuntime classifies the fake sentinels like the owner's predicates
@@ -48,6 +49,12 @@ func refusalRuntime(err error) *Resource {
 		MFABlocked:         is(errFakeMFABlocked),
 		MFAUnavailable:     is(errFakeMFAUnavailable),
 		InvalidSession:     is(errFakeInvalidSession),
+		PortalNotBooked: func(got error) (string, string, bool) {
+			if errors.Is(got, errFakePortalNotBooked) {
+				return "unterricht_vormittag", "Unterricht am Vormittag", true
+			}
+			return "", "", false
+		},
 	}}
 }
 
@@ -83,6 +90,7 @@ func TestSchoolLoginRefusalsCarryIdentityCodes(t *testing.T) {
 		{errFakeSchoolAccessDenied, http.StatusUnauthorized, "identity.invalid_credentials"},
 		{errFakeMFABlocked, http.StatusTooManyRequests, "identity.mfa_blocked"},
 		{errFakeMFAUnavailable, http.StatusServiceUnavailable, "general.unavailable"},
+		{errFakePortalNotBooked, http.StatusForbidden, "module.not_booked"},
 	} {
 		t.Run(tc.err.Error(), func(t *testing.T) {
 			t.Parallel()
@@ -105,6 +113,7 @@ func TestSchoolExchangeRefusalsCarryIdentityCodes(t *testing.T) {
 		{errFakeNoPortalRole, http.StatusForbidden, "school.no_school_portal_role"},
 		{errFakeSchoolNotFound, http.StatusNotFound, "general.input"},
 		{errFakeSchoolAccessDenied, http.StatusUnauthorized, "identity.invalid_credentials"},
+		{errFakePortalNotBooked, http.StatusForbidden, "module.not_booked"},
 	} {
 		t.Run(tc.err.Error(), func(t *testing.T) {
 			t.Parallel()
@@ -129,6 +138,7 @@ func TestSchoolSwitchRefusalsCarryIdentityCodes(t *testing.T) {
 		{errFakeSchoolNotFound, http.StatusNotFound, "general.input"},
 		{errFakeSchoolAccessDenied, http.StatusUnauthorized, "identity.tenant_access_denied"},
 		{errFakeNoPortalRole, http.StatusForbidden, "school.no_school_portal_role"},
+		{errFakePortalNotBooked, http.StatusForbidden, "module.not_booked"},
 	} {
 		t.Run(tc.err.Error(), func(t *testing.T) {
 			t.Parallel()
@@ -158,4 +168,20 @@ func TestSchoolSwitchUsesFamilyFromAuthenticatedClaims(t *testing.T) {
 	response := httptest.NewRecorder()
 	resource.switchSchool(response, request)
 	require.Equal(t, http.StatusOK, response.Code)
+}
+
+// The refusal of a school without Unterricht am Vormittag names the module
+// for the explanation on the login page (#4895).
+func TestSchoolLoginPortalNotBookedNamesTheModule(t *testing.T) {
+	t.Parallel()
+
+	recorder := httptest.NewRecorder()
+	refusalRuntime(errFakePortalNotBooked).handleLoginError(recorder, httptest.NewRequest(http.MethodPost, "/auth/login", nil), errFakePortalNotBooked)
+
+	var body struct {
+		Details map[string]string `json:"details"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &body))
+	assert.Equal(t, "unterricht_vormittag", body.Details["module"])
+	assert.Equal(t, "Unterricht am Vormittag", body.Details["module_label"])
 }

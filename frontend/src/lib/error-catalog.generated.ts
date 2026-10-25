@@ -341,6 +341,10 @@ export const ERROR_CATALOG = {
         "Diesen Ferienzeitraum gibt es nicht. Bitte öffnen Sie ihn aus der Liste der Ferien.",
       "enrollment.invalid_email":
         "Bitte geben Sie eine gültige E-Mail-Adresse ein.",
+      "enrollment.signature_invalid":
+        "Die Unterschrift konnte nicht gelesen werden. Bitte unterschreiben Sie noch einmal.",
+      "enrollment.signature_required":
+        "Bitte unterschreiben Sie die Anmeldung.",
       "enrollment.invalid_phone":
         "Bitte geben Sie eine gültige Telefonnummer ein.",
       "enrollment.late_invite_invalid":
@@ -414,6 +418,8 @@ export const ERROR_CATALOG = {
         "Eine hochgeladene Datei ist abgelaufen. Bitte laden Sie sie erneut hoch.",
       "enrollment.upload_invalid":
         "Diese Datei passt nicht. Bitte wählen Sie eine erlaubte Dateiart mit höchstens {max_mb} MB.",
+      "enrollment.signature_not_found":
+        "Zu dieser Anmeldung gibt es keine Unterschrift.",
       "enrollment.upload_not_found":
         "Diese Datei gibt es nicht mehr. Bitte laden Sie sie erneut hoch.",
       "enrollment.upload_rate_limited":
@@ -1140,6 +1146,8 @@ export const ERROR_CATALOG = {
         "Das Enddatum darf nicht vor dem Startdatum liegen. Bitte prüfen Sie die Daten.",
       "timetable.window_too_large":
         "Der Zeitraum ist zu lang. Bitte wählen Sie höchstens {max_days} Tage.",
+      "traeger.access_log_export_too_large":
+        "Der Export hat mehr als {limit} Einträge. Bitte wählen Sie einen kürzeren Zeitraum oder weitere Filter.",
       "traeger.already_member": "Diese Person gehört schon zum Träger-Büro.",
       "traeger.last_administrator":
         "Das Träger-Büro braucht mindestens eine Person mit der Rolle Verwaltung. Geben Sie die Rolle zuerst einer anderen Person.",
@@ -1497,6 +1505,9 @@ export const ERROR_CATALOG = {
       "enrollment.holiday_period_not_found":
         "This holiday period does not exist. Please open it from the holiday list.",
       "enrollment.invalid_email": "Please enter a valid email address.",
+      "enrollment.signature_invalid":
+        "The signature could not be read. Please sign again.",
+      "enrollment.signature_required": "Please sign the enrollment.",
       "enrollment.invalid_phone": "Please enter a valid phone number.",
       "enrollment.late_invite_invalid":
         "This link is invalid, has expired or was already used. Please contact the school.",
@@ -1519,6 +1530,8 @@ export const ERROR_CATALOG = {
         "An uploaded file has expired. Please upload it again.",
       "enrollment.upload_invalid":
         "This file does not fit. Please choose an allowed file type of at most {max_mb} MB.",
+      "enrollment.signature_not_found":
+        "There is no signature for this enrollment.",
       "enrollment.upload_not_found":
         "This file no longer exists. Please upload it again.",
       "enrollment.upload_rate_limited":
@@ -1620,6 +1633,8 @@ export const ERROR_CATALOG = {
         "Homework feedback is only possible in a study time you supervise.",
       "timetable.homework_feedback_without_homework":
         "No homework is entered for this child's class today.",
+      "traeger.access_log_export_too_large":
+        "The export has more than {limit} entries. Please choose a shorter period or more filters.",
       "traeger.already_member":
         "This person already belongs to the Träger office.",
       "traeger.last_administrator":
@@ -1836,6 +1851,9 @@ export const ERROR_CATALOG = {
       "enrollment.guardian_name_required": "Укажите имя и фамилию.",
       "enrollment.guardian_phone_required": "Укажите номер телефона.",
       "enrollment.invalid_email": "Укажите правильный адрес электронной почты.",
+      "enrollment.signature_invalid":
+        "Не удалось прочитать подпись. Пожалуйста, подпишите ещё раз.",
+      "enrollment.signature_required": "Пожалуйста, подпишите заявку.",
       "enrollment.invalid_phone": "Укажите правильный номер телефона.",
       "enrollment.late_invite_invalid":
         "Эта ссылка недействительна, устарела или уже использована. Обратитесь в школу.",
@@ -1858,6 +1876,7 @@ export const ERROR_CATALOG = {
         "Срок действия загруженного файла истёк. Загрузите его ещё раз.",
       "enrollment.upload_invalid":
         "Этот файл не подходит. Выберите разрешённый тип файла размером не более {max_mb} МБ.",
+      "enrollment.signature_not_found": "Для этой заявки нет подписи.",
       "enrollment.upload_not_found":
         "Этого файла больше нет. Загрузите его ещё раз.",
       "enrollment.upload_rate_limited":
@@ -1947,6 +1966,8 @@ export const ERROR_CATALOG = {
         "Отзыв о домашнем задании можно дать только на занятии, которое вы ведёте.",
       "timetable.homework_feedback_without_homework":
         "Для класса этого ребёнка на сегодня нет домашних заданий.",
+      "traeger.access_log_export_too_large":
+        "В экспорте больше {limit} записей. Выберите более короткий период или другие фильтры.",
     },
   },
   sq: {
@@ -2163,6 +2184,9 @@ export const ERROR_CATALOG = {
         "Ju lutemi shkruani një numër telefoni.",
       "enrollment.invalid_email":
         "Ju lutemi shkruani një adresë emaili të vlefshme.",
+      "enrollment.signature_invalid":
+        "Nënshkrimi nuk mund të lexohej. Ju lutemi nënshkruani përsëri.",
+      "enrollment.signature_required": "Ju lutemi nënshkruani regjistrimin.",
       "enrollment.invalid_phone":
         "Ju lutemi shkruani një numër telefoni të vlefshëm.",
       "enrollment.late_invite_invalid":
@@ -2186,6 +2210,7 @@ export const ERROR_CATALOG = {
         "Një skedar i ngarkuar ka skaduar. Ngarkojeni përsëri.",
       "enrollment.upload_invalid":
         "Ky skedar nuk përshtatet. Zgjidhni një lloj skedari të lejuar me më së shumti {max_mb} MB.",
+      "enrollment.signature_not_found": "Për këtë regjistrim nuk ka nënshkrim.",
       "enrollment.upload_not_found":
         "Ky skedar nuk ekziston më. Ngarkojeni përsëri.",
       "enrollment.upload_rate_limited":
@@ -2276,6 +2301,8 @@ export const ERROR_CATALOG = {
         "Përgjigja për detyrat e shtëpisë jepet vetëm në orën e mësimit që mbikëqyrni.",
       "timetable.homework_feedback_without_homework":
         "Për klasën e këtij fëmije nuk ka detyra shtëpie për sot.",
+      "traeger.access_log_export_too_large":
+        "Eksporti ka më shumë se {limit} hyrje. Zgjidhni një periudhë më të shkurtër ose më shumë filtra.",
     },
   },
   pl: {
@@ -2481,6 +2508,9 @@ export const ERROR_CATALOG = {
       "enrollment.guardian_name_required": "Wpisz imię i nazwisko.",
       "enrollment.guardian_phone_required": "Wpisz numer telefonu.",
       "enrollment.invalid_email": "Wpisz prawidłowy adres e-mail.",
+      "enrollment.signature_invalid":
+        "Nie udało się odczytać podpisu. Prosimy podpisać jeszcze raz.",
+      "enrollment.signature_required": "Prosimy podpisać zgłoszenie.",
       "enrollment.invalid_phone": "Wpisz prawidłowy numer telefonu.",
       "enrollment.late_invite_invalid":
         "Ten link jest nieprawidłowy, wygasł lub został już użyty. Skontaktuj się ze szkołą.",
@@ -2503,6 +2533,7 @@ export const ERROR_CATALOG = {
         "Przesłany plik wygasł. Prześlij go ponownie.",
       "enrollment.upload_invalid":
         "Ten plik nie pasuje. Wybierz dozwolony rodzaj pliku o rozmiarze najwyżej {max_mb} MB.",
+      "enrollment.signature_not_found": "To zgłoszenie nie ma podpisu.",
       "enrollment.upload_not_found":
         "Tego pliku już nie ma. Prześlij go ponownie.",
       "enrollment.upload_rate_limited":
@@ -2592,6 +2623,8 @@ export const ERROR_CATALOG = {
         "Informację o zadaniach domowych można podać tylko w odrabianiu lekcji, które prowadzisz.",
       "timetable.homework_feedback_without_homework":
         "Dla klasy tego dziecka nie ma dziś wpisanych zadań domowych.",
+      "traeger.access_log_export_too_large":
+        "Eksport ma ponad {limit} wpisów. Wybierz krótszy okres lub więcej filtrów.",
     },
   },
   tr: {
@@ -2803,6 +2836,9 @@ export const ERROR_CATALOG = {
       "enrollment.guardian_phone_required":
         "Lütfen bir telefon numarası girin.",
       "enrollment.invalid_email": "Lütfen geçerli bir e-posta adresi girin.",
+      "enrollment.signature_invalid":
+        "İmza okunamadı. Lütfen tekrar imzalayın.",
+      "enrollment.signature_required": "Lütfen kaydı imzalayın.",
       "enrollment.invalid_phone": "Lütfen geçerli bir telefon numarası girin.",
       "enrollment.late_invite_invalid":
         "Bu bağlantı geçersiz, süresi dolmuş veya kullanılmış. Lütfen okulla iletişime geçin.",
@@ -2825,6 +2861,7 @@ export const ERROR_CATALOG = {
         "Yüklenen bir dosyanın süresi doldu. Lütfen dosyayı tekrar yükleyin.",
       "enrollment.upload_invalid":
         "Bu dosya uygun değil. Lütfen en fazla {max_mb} MB olan izin verilen bir dosya türü seçin.",
+      "enrollment.signature_not_found": "Bu kayıt için imza yok.",
       "enrollment.upload_not_found":
         "Bu dosya artık yok. Lütfen dosyayı tekrar yükleyin.",
       "enrollment.upload_rate_limited":
@@ -2915,6 +2952,8 @@ export const ERROR_CATALOG = {
         "Ev ödevi geri bildirimi yalnızca gözetiminizdeki etüt saatinde verilebilir.",
       "timetable.homework_feedback_without_homework":
         "Bu çocuğun sınıfı için bugün ev ödevi girilmedi.",
+      "traeger.access_log_export_too_large":
+        "Dışa aktarma {limit} kayıttan fazla içeriyor. Lütfen daha kısa bir dönem veya daha fazla filtre seçin.",
     },
   },
   uk: {
@@ -3117,6 +3156,9 @@ export const ERROR_CATALOG = {
       "enrollment.guardian_name_required": "Вкажіть ім'я та прізвище.",
       "enrollment.guardian_phone_required": "Вкажіть номер телефону.",
       "enrollment.invalid_email": "Вкажіть правильну адресу електронної пошти.",
+      "enrollment.signature_invalid":
+        "Не вдалося прочитати підпис. Будь ласка, підпишіть ще раз.",
+      "enrollment.signature_required": "Будь ласка, підпишіть заявку.",
       "enrollment.invalid_phone": "Вкажіть правильний номер телефону.",
       "enrollment.late_invite_invalid":
         "Це посилання недійсне, застаріле або вже використане. Зверніться до школи.",
@@ -3139,6 +3181,7 @@ export const ERROR_CATALOG = {
         "Термін дії завантаженого файлу минув. Завантажте його ще раз.",
       "enrollment.upload_invalid":
         "Цей файл не підходить. Виберіть дозволений тип файлу розміром не більше {max_mb} МБ.",
+      "enrollment.signature_not_found": "Для цієї заявки немає підпису.",
       "enrollment.upload_not_found":
         "Цього файлу більше немає. Завантажте його ще раз.",
       "enrollment.upload_rate_limited":
@@ -3228,6 +3271,8 @@ export const ERROR_CATALOG = {
         "Відгук про домашнє завдання можна дати лише на занятті, яке ви ведете.",
       "timetable.homework_feedback_without_homework":
         "Для класу цієї дитини на сьогодні немає домашніх завдань.",
+      "traeger.access_log_export_too_large":
+        "В експорті понад {limit} записів. Виберіть коротший період або інші фільтри.",
     },
   },
 } as const;

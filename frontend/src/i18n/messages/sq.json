@@ -1385,6 +1385,25 @@
       "tooMany": "Këtu mund të ngarkoni më së shumti {count} skedarë.",
       "pendingSubmit": "Prisni derisa të ngarkohen të gjithë skedarët.",
       "previewDisabled": "Në pamjen paraprake nuk mund të ngarkoni skedarë."
+    },
+    "signature": {
+      "label": "Nënshkrimi juaj",
+      "hint": "Nënshkruani në fushë me gisht, me laps ose me mi.",
+      "canvas": "Fusha për nënshkrimin",
+      "clear": "Pastro fushën",
+      "typeInstead": "Shkruani emrin",
+      "drawInstead": "Vizato në vend të kësaj",
+      "typedName": "Emri dhe mbiemri juaj",
+      "confirm": "Konfirmo nënshkrimin",
+      "confirmed": "Nënshkrimi juaj është gati.",
+      "confirmedTyped": "Emri i shkruar është gati.",
+      "change": "Nënshkruani përsëri",
+      "preview": "Nënshkrimi juaj",
+      "emptyDrawing": "Ju lutemi nënshkruani në fushë.",
+      "nameTooShort": "Ju lutemi shkruani emrin tuaj.",
+      "title": "Nënshkrimi",
+      "description": "Ju lutemi nënshkruani regjistrimin. Pa nënshkrim ai nuk i dërgohet shkollës ditore.",
+      "required": "Ju lutemi nënshkruani regjistrimin."
     }
   },
   "enrollmentStatus": {
@@ -1587,7 +1606,17 @@
     "noAccountHelp": "Nuk e gjeni emailin? Shikoni edhe te dosja e spamit. Emaili mungon ose lidhja nuk funksionon më? Ju lutemi kontaktoni OGS-në.",
     "unavailableAccountTitle": "Nuk mund të hyni në aplikacionin për prindër",
     "unavailableAccountHelp": "Ju lutemi kontaktoni OGS-në. OGS-ja do t'ju ndihmojë.",
-    "noAccessFallback": "Nuk keni ende akses? Hapni emailin “Einladung zum Eltern-Portal”. Nuk ju erdhi emaili? Ju lutemi kontaktoni OGS-në."
+    "noAccessFallback": "Nuk keni ende akses? Hapni emailin “Einladung zum Eltern-Portal”. Nuk ju erdhi emaili? Ju lutemi kontaktoni OGS-në.",
+    "signatureTitle": "Nënshkrimi",
+    "signatureSigned": "Nënshkruar nga {name} më {date}.",
+    "signatureDrawn": "Vizatuar me gisht, laps ose maus.",
+    "signatureTyped": "Emri i shtypur: {name}",
+    "signatureChanged": "Kujdes: Dëshmia e ruajtur është ndryshuar më vonë. Ju lutemi kontaktoni shkollën ditore.",
+    "signatureDownload": "Dëshmia si PDF",
+    "signatureDownloading": "Dëshmia po ngarkohet …",
+    "signatureEditHint": "Nëse e ndryshoni regjistrimin, e nënshkruani përsëri.",
+    "errorObjectProof": "dëshmia",
+    "signatureEyebrow": "Dëshmi"
   },
   "parentRequestEdit": {
     "title": "Ndrysho kërkesën",
@@ -2484,6 +2513,9 @@
         "waitlist_disabled": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "window_closed": "Afati i regjistrimit ka mbaruar ose nuk ka filluar ende. Ju lutemi kontaktoni shkollën.",
         "withdraw_not_allowed": "Ky regjistrim nuk mund të tërhiqet më. Ju lutemi kontaktoni shkollën.",
+        "signature_required": "Ju lutemi nënshkruani regjistrimin.",
+        "signature_invalid": "Nënshkrimi nuk mund të lexohej. Ju lutemi nënshkruani përsëri.",
+        "signature_not_found": "Për këtë regjistrim nuk ka nënshkrim.",
         "holiday_host_school_outside_traeger": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "holiday_period_incomplete": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "holiday_period_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
@@ -3030,6 +3062,7 @@
         "audit_unavailable": "{object} nuk është i disponueshëm tani. Provoni përsëri."
       },
       "traeger": {
+        "access_log_export_too_large": "Eksporti ka më shumë se {limit} hyrje. Zgjidhni një periudhë më të shkurtër ose më shumë filtra.",
         "already_member": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "last_administrator": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "member_not_found": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",

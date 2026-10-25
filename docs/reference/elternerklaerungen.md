@@ -42,7 +42,7 @@ Unterschrift auf Papier verglichen.
 Die Unterschrift ist ein gemeinsamer Baustein der Audit Platform
 (`modules/auditlog`, Tabelle `audit.signatures`). Er entscheidet nicht, wer
 unterschreiben darf; das prüft der Ablauf, der ihn nutzt. Nutzer sind
-Einverständnisse (#4785), geplant die Anmeldung (#4786) und die
+Einverständnisse (#4785) und die Anmeldung (#4786), geplant die
 Abholerlaubnis (#4780).
 
 - Prüfen: `auditlog.ParseSignatureImage(method, pngBase64, typedName)` prüft
@@ -57,9 +57,42 @@ Abholerlaubnis (#4780).
   ohne Konto).
 - Lesen: `SignatureLedger.Signatures(ctx, ids)` gibt nur Einträge der Schule
   der Transaktion zurück, jeweils mit `IntegrityOK`.
+  `SignatureLedger.LatestEnrollmentSignatures(ctx, requestIDs)` gibt je
+  Anmeldung die neueste Unterschrift dieser Schule zurück (#4786).
 - Oberfläche: `frontend/src/components/ui/signature-pad.tsx` (Zeichenfläche,
   Löschen, Bestätigen, Name tippen) und `frontend/src/lib/signature.ts` für
   den Request-Teil `signature: {method, image_png, typed_name}`.
+
+## Anmeldung mit Unterschrift (#4786)
+
+Eine Formularvorlage kann „Unterschrift erforderlich“ setzen
+(`core_requirements.signature`). Dann gilt:
+
+- Das Formular endet nach den Rechtstexten mit dem Unterschriftsfeld. Ohne
+  Unterschrift lehnt der Server das Absenden ab
+  (`enrollment.signature_required`), ein ungültiges Bild ebenso
+  (`enrollment.signature_invalid`). Das gilt öffentlich ohne Konto und im
+  Eltern-Portal.
+- Gespeichert wird über den Baustein oben, Zweck `enrollment`, Bezug die
+  Anmeldung. `DocumentSHA256` ist die Prüfsumme der abgesendeten Anmeldung:
+  Kontaktdaten, weitere Erziehungsberechtigte, Antworten, Zustimmungen, Kinder
+  mit Angebotswahl und der Rechtstext-Schnappschuss dieser Abgabe.
+- Jede Bearbeitung durch die Eltern über das Formular braucht eine neue
+  Unterschrift; die neueste gehört zur aktuellen Fassung. Die Feldbearbeitung
+  der Kontaktdaten auf der Statusseite ist bei solchen Vorlagen gesperrt.
+- Änderungsanfragen nach einer Entscheidung entscheidet die OGS; sie tragen
+  keine Unterschrift. Eine von der Verwaltung angelegte Anmeldung
+  (`admin_manual`) braucht keine.
+- Die Verwaltung sieht die Unterschrift in der Anmeldungsdetailansicht und lädt
+  den Anmeldenachweis als PDF (`GET /api/enrollment/admin/requests/{id}?format=pdf`).
+  Eltern laden ihn über den Status-Link
+  (`GET /api/enrollment/requests/{token}?format=pdf`). Der Status-Link ist die
+  einzige Berechtigung: Der Token bestimmt Schule und Anmeldung; jedes Lesen
+  danach ist auf genau diese beschränkt. Ein unbekannter, abgelaufener oder
+  veränderter Token liefert 404.
+- Die Prüfsumme belegt, was unterschrieben wurde. Spätere Korrekturen der
+  Verwaltung ändern die Anmeldung, nicht die gespeicherte Unterschrift; der
+  Nachweis zeigt die Angaben im aktuellen Stand.
 
 ## Rechtlicher Rahmen
 
@@ -130,6 +163,9 @@ Zulässig:
   Maus: eine einfache elektronische Signatur mit gezeichneter Unterschrift.“
 - „Die Unterschrift steht im Nachweis, zusammen mit Fassung, Zeitpunkt und
   Prüfsumme.“
+- „Auf Wunsch der Schule unterschreiben Eltern die Online-Anmeldung mit dem
+  Finger oder der Maus: eine einfache elektronische Signatur mit gezeichneter
+  Unterschrift. Ein Anmeldenachweis mit Unterschrift steht als PDF bereit.“
 
 Nicht zulässig:
 
@@ -144,6 +180,10 @@ Nicht zulässig:
   voller Beweiskraft“.
 - „elektronische Unterschrift“ oder „E-Signatur“ ohne den vollständigen
   Namen „einfache elektronische Signatur mit gezeichneter Unterschrift“.
+- „unterschriebener Betreuungsvertrag“, „Anmeldevertrag unterschreiben“ oder
+  „verbindlich unterschrieben wie auf Papier“ für die Anmeldung.
+- „Die Anmeldung ist damit schriftlich erfolgt“ oder jede andere Aussage, die
+  Unterschrift erfülle eine Schriftform.
 
 Quellen: [Art. 25 eIDAS](https://gesetze.legal/eu/vo_eu_2014_910/25),
 [§ 126a BGB](https://www.gesetze-im-internet.de/bgb/__126a.html),

@@ -125,6 +125,9 @@ func (rs *Resource) login(w http.ResponseWriter, r *http.Request) {
 // Credential-shaped failures mirror the parent login (enumeration-safe);
 // the portal-role refusal gets a stable code the frontend switches on.
 func (rs *Resource) handleLoginError(w http.ResponseWriter, r *http.Request, err error) {
+	if rs.renderPortalNotBooked(w, r, err) {
+		return
+	}
 	switch {
 	case rs.AuthService.InvalidCredentials(err):
 		// Mask the specific cause to prevent account enumeration.
@@ -194,6 +197,9 @@ func (rs *Resource) completeSchoolExchange(w http.ResponseWriter, r *http.Reques
 		r.Context(), proof, ipAddress, userAgent,
 	)
 	if err != nil {
+		if rs.renderPortalNotBooked(w, r, err) {
+			return
+		}
 		switch {
 		case rs.AuthService.InvalidSession(err):
 			common.RenderError(w, r, common.ErrorUnauthorizedWithCode(ErrInvalidCredentials, common.CodeIdentityMfaCodeInvalid))
@@ -386,6 +392,9 @@ func (rs *Resource) switchSchool(w http.ResponseWriter, r *http.Request) {
 		common.GetClientIPString(r), r.Header.Get(headerUserAgent), claims.FamilyID,
 	)
 	if err != nil {
+		if rs.renderPortalNotBooked(w, r, err) {
+			return
+		}
 		switch {
 		case rs.AuthService.InvalidCredentials(err):
 			common.RenderError(w, r, common.ErrorUnauthorizedWithCode(ErrAccountNotFound, common.CodeIdentityAccountNotFound))
@@ -507,4 +516,16 @@ func (rs *Resource) prepareTrustedDevice(r *http.Request, proof VerifiedChalleng
 		return nil
 	}
 	return issue
+}
+
+// renderPortalNotBooked answers 403 module.not_booked for a school that has
+// not booked Unterricht am Vormittag (#4895). It is reachable only after the
+// password or the second factor was accepted.
+func (rs *Resource) renderPortalNotBooked(w http.ResponseWriter, r *http.Request, err error) bool {
+	module, label, notBooked := rs.AuthService.PortalNotBooked(err)
+	if !notBooked {
+		return false
+	}
+	common.RenderError(w, r, common.ErrorModuleNotBooked(rs.AuthService.Cause(err), module, label))
+	return true
 }

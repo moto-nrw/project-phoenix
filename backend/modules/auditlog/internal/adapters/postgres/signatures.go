@@ -116,6 +116,31 @@ func (s *Signatures) Signatures(ctx context.Context, ids []int64) (map[int64]*au
 	return out, nil
 }
 
+func (s *Signatures) LatestEnrollmentSignatures(ctx context.Context, requestIDs []int64) (map[int64]*auditlog.Signature, error) {
+	out := make(map[int64]*auditlog.Signature, len(requestIDs))
+	if len(requestIDs) == 0 {
+		return out, nil
+	}
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var rows []signatureRow
+	if err := db.NewSelect().Model(&rows).
+		DistinctOn(`"sig".enrollment_request_id`).
+		Where(`"sig".tenant_id = ?`, tenantID).
+		Where(`"sig".purpose = ?`, auditlog.SignaturePurposeEnrollment).
+		Where(`"sig".enrollment_request_id IN (?)`, bun.List(requestIDs)).
+		OrderExpr(`"sig".enrollment_request_id, "sig".signed_at DESC, "sig".id DESC`).
+		Scan(ctx); err != nil {
+		return nil, fmt.Errorf("audit database error during read audit.signatures: %w", err)
+	}
+	for i := range rows {
+		out[*rows[i].EnrollmentRequestID] = s.value(&rows[i])
+	}
+	return out, nil
+}
+
 func (s *Signatures) value(row *signatureRow) *auditlog.Signature {
 	signature := &auditlog.Signature{
 		ID: row.ID, TenantID: row.TenantID, Purpose: row.Purpose, StudentID: row.StudentID,

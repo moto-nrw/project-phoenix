@@ -2,6 +2,9 @@
 package common
 
 const (
+	CodeTimetableReopenSupervisionChanged            = "timetable.reopen_supervision_changed"
+	CodeTimetableRoomOccupied                        = "timetable.room_occupied"
+	CodeTimetableSeriesEndBeforeStart                = "timetable.series_end_before_start"
 	CodeTimetableSeriesEndOutsidePeriod              = "timetable.series_end_outside_period"
 	CodeTimetableSickAbsenceScopeLocked              = "timetable.sick_absence_scope_locked"
 	CodeTimetableSlotListDrifted                     = "timetable.slot_list_drifted"
@@ -54,6 +57,7 @@ const (
 	CodeTimetableUnderstaffedStillStaffed            = "timetable.understaffed_still_staffed"
 	CodeTimetableWindowEndBeforeStart                = "timetable.window_end_before_start"
 	CodeTimetableWindowTooLarge                      = "timetable.window_too_large"
+	CodeTraegerAccessLogExportTooLarge               = "traeger.access_log_export_too_large"
 	CodeTraegerAlreadyMember                         = "traeger.already_member"
 	CodeTraegerLastAdministrator                     = "traeger.last_administrator"
 	CodeTraegerMemberNotFound                        = "traeger.member_not_found"
@@ -131,6 +135,9 @@ const (
 )
 
 var errorCodeClasses2 = map[string]string{
+	"timetable.reopen_supervision_changed":              "business_rejection",
+	"timetable.room_occupied":                           "business_rejection",
+	"timetable.series_end_before_start":                 "input",
 	"timetable.series_end_outside_period":               "input",
 	"timetable.sick_absence_scope_locked":               "business_rejection",
 	"timetable.slot_list_drifted":                       "business_rejection",
@@ -183,6 +190,7 @@ var errorCodeClasses2 = map[string]string{
 	"timetable.understaffed_still_staffed":              "business_rejection",
 	"timetable.window_end_before_start":                 "input",
 	"timetable.window_too_large":                        "input",
+	"traeger.access_log_export_too_large":               "input",
 	"traeger.already_member":                            "business_rejection",
 	"traeger.last_administrator":                        "business_rejection",
 	"traeger.member_not_found":                          "input",

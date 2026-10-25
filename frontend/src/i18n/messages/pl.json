@@ -1385,6 +1385,25 @@
       "tooMany": "Tutaj możesz przesłać najwyżej {count} plików.",
       "pendingSubmit": "Poczekaj, aż wszystkie pliki zostaną przesłane.",
       "previewDisabled": "W podglądzie nie można przesyłać plików."
+    },
+    "signature": {
+      "label": "Twój podpis",
+      "hint": "Podpisz się w polu palcem, rysikiem lub myszą.",
+      "canvas": "Pole na podpis",
+      "clear": "Wyczyść pole",
+      "typeInstead": "Wpisz imię i nazwisko",
+      "drawInstead": "Narysuj zamiast tego",
+      "typedName": "Twoje imię i nazwisko",
+      "confirm": "Potwierdź podpis",
+      "confirmed": "Twój podpis jest gotowy.",
+      "confirmedTyped": "Wpisane imię i nazwisko jest gotowe.",
+      "change": "Podpisz ponownie",
+      "preview": "Twój podpis",
+      "emptyDrawing": "Podpisz się w polu.",
+      "nameTooShort": "Wpisz swoje imię i nazwisko.",
+      "title": "Podpis",
+      "description": "Prosimy podpisać zgłoszenie. Bez podpisu nie trafi ono do świetlicy.",
+      "required": "Prosimy podpisać zgłoszenie."
     }
   },
   "enrollmentStatus": {
@@ -1587,7 +1606,17 @@
     "noAccountHelp": "Nie mogą Państwo znaleźć e-maila? Proszę sprawdzić też folder spam. Brak e-maila albo link już nie działa? Proszę skontaktować się z OGS.",
     "unavailableAccountTitle": "Brak dostępu do aplikacji dla rodziców",
     "unavailableAccountHelp": "Proszę skontaktować się z OGS. OGS pomoże Państwu dalej.",
-    "noAccessFallback": "Nie mają Państwo jeszcze dostępu? Proszę otworzyć e-mail „Einladung zum Eltern-Portal”. Nie dostali Państwo e-maila? Proszę skontaktować się z OGS."
+    "noAccessFallback": "Nie mają Państwo jeszcze dostępu? Proszę otworzyć e-mail „Einladung zum Eltern-Portal”. Nie dostali Państwo e-maila? Proszę skontaktować się z OGS.",
+    "signatureTitle": "Podpis",
+    "signatureSigned": "Podpisano przez {name} dnia {date}.",
+    "signatureDrawn": "Narysowany palcem, rysikiem lub myszą.",
+    "signatureTyped": "Wpisane imię i nazwisko: {name}",
+    "signatureChanged": "Uwaga: zapisane potwierdzenie zostało później zmienione. Prosimy skontaktować się ze świetlicą.",
+    "signatureDownload": "Potwierdzenie jako PDF",
+    "signatureDownloading": "Ładowanie potwierdzenia …",
+    "signatureEditHint": "Jeśli zmienią Państwo zgłoszenie, podpisują je Państwo ponownie.",
+    "errorObjectProof": "potwierdzenie",
+    "signatureEyebrow": "Potwierdzenie"
   },
   "parentRequestEdit": {
     "title": "Edytuj prośbę",
@@ -2484,6 +2513,9 @@
         "waitlist_disabled": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "window_closed": "Termin zapisów minął lub jeszcze się nie zaczął. Skontaktuj się ze szkołą.",
         "withdraw_not_allowed": "Tego zapisu nie można już wycofać. Skontaktuj się ze szkołą.",
+        "signature_required": "Prosimy podpisać zgłoszenie.",
+        "signature_invalid": "Nie udało się odczytać podpisu. Prosimy podpisać jeszcze raz.",
+        "signature_not_found": "To zgłoszenie nie ma podpisu.",
         "holiday_host_school_outside_traeger": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "holiday_period_incomplete": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "holiday_period_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
@@ -3030,6 +3062,7 @@
         "audit_unavailable": "{object} jest teraz niedostępne. Spróbuj ponownie."
       },
       "traeger": {
+        "access_log_export_too_large": "Eksport ma ponad {limit} wpisów. Wybierz krótszy okres lub więcej filtrów.",
         "already_member": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "last_administrator": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "member_not_found": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
