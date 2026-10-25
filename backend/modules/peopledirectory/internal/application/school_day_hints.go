@@ -40,6 +40,9 @@ func (s *Service) ListSchoolDayHints(ctx context.Context, date calendar.Date, st
 	if err != nil {
 		return nil, MapError(err)
 	}
+	if len(rows) == 0 {
+		return []peopledirectory.SchoolDayHint{}, nil
+	}
 	persons, _, err := notes.persons.ListByAccounts(ctx, noteAuthorAccountIDs(rows))
 	if err != nil {
 		return nil, MapError(err)

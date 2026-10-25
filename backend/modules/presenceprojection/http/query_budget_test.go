@@ -5,6 +5,9 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -67,36 +70,53 @@ func TestStudentRequestsNoInformationSchemaQueries(t *testing.T) {
 // request stays within the registered budget.
 func TestListStudentsQueryBudget(t *testing.T) {
 	t.Parallel()
-	testpkg.SetupIsolatedTestDB(t)
-	tc := setupStudentsRoute(t)
+	testpkg.SetupTestDB(t)
+	for _, instant := range []string{
+		"2026-10-19T10:00:00Z", // Monday before the clock change.
+		"2026-10-20T10:00:00Z",
+		"2026-10-21T10:00:00Z",
+		"2026-10-22T10:00:00Z",
+		"2026-10-23T10:00:00Z",
+		"2026-10-24T10:00:00Z",
+		"2026-10-25T22:30:00Z", // Last hour of the 25-hour Berlin Sunday.
+		"2026-10-25T23:30:00Z", // Monday in Berlin, still Sunday in UTC.
+	} {
+		t.Run(instant, func(t *testing.T) {
+			now, err := time.Parse(time.RFC3339, instant)
+			require.NoError(t, err)
+			t.Logf("Berlin day: %s", calendar.DateFromTime(now))
+			testpkg.SetupIsolatedTestDB(t)
+			tc := setupStudentsRoute(t, func() time.Time { return now })
 
-	created := 0
-	addStudents := func(n int) {
-		for range n {
-			testpkg.CreateTestStudent(t, tc.db, "ListBudget", fmt.Sprintf("Kind%d", created), "LB1")
-			created++
-		}
+			created := 0
+			addStudents := func(n int) {
+				for range n {
+					testpkg.CreateTestStudent(t, tc.db, "ListBudget", fmt.Sprintf("Kind%d", created), "LB1")
+					created++
+				}
+			}
+
+			counter := testpkg.CaptureQueries(t, tc.db)
+
+			run := func() int {
+				counter.Reset()
+				req := testutil.NewRequest("GET", "/?page_size=50", nil)
+				rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+				require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
+				return counter.Total()
+			}
+
+			addStudents(3)
+			smallCount := run()
+
+			addStudents(7)
+			largeCount := run()
+
+			t.Logf("query budget: 3 students → %d queries, 10 students → %d queries", smallCount, largeCount)
+
+			assert.Equal(t, smallCount, largeCount,
+				"query count must be independent of the student count (no per-student N+1)")
+			testpkg.AssertQueryBudget(t, "api.students.list", counter.Queries())
+		})
 	}
-
-	counter := testpkg.CaptureQueries(t, tc.db)
-
-	run := func() int {
-		counter.Reset()
-		req := testutil.NewRequest("GET", "/?page_size=50", nil)
-		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
-		require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
-		return counter.Total()
-	}
-
-	addStudents(3)
-	smallCount := run()
-
-	addStudents(7)
-	largeCount := run()
-
-	t.Logf("query budget: 3 students → %d queries, 10 students → %d queries", smallCount, largeCount)
-
-	assert.Equal(t, smallCount, largeCount,
-		"query count must be independent of the student count (no per-student N+1)")
-	testpkg.AssertQueryBudget(t, "api.students.list", counter.Queries())
 }
