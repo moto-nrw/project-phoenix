@@ -17,7 +17,6 @@ import (
 	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
 	feedbackCompose "github.com/moto-nrw/project-phoenix/modules/feedback/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
 	mealplanCompose "github.com/moto-nrw/project-phoenix/modules/mealplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
@@ -196,7 +195,7 @@ func BuildTraegerSettings(db transactionruntime.Database, unit rootUnitOfWork, l
 
 // BuildMealPlanSettings binds the Meal Plan's settings to the tenant
 // settings it resolves per call.
-func BuildMealPlanSettings(settings settingsCompose.SettingsService) (*mealplanCompose.Settings, error) {
+func BuildMealPlanSettings(settings settingsCompose.BatchSettingsService) (*mealplanCompose.Settings, error) {
 	return mealplanCompose.NewBoundSettings(
 		func(ctx context.Context) (bool, error) {
 			return settings.ResolveBool(ctx, configModels.KeyMealPlanEnabled)
@@ -204,39 +203,59 @@ func BuildMealPlanSettings(settings settingsCompose.SettingsService) (*mealplanC
 		func(ctx context.Context) (bool, error) {
 			return settings.ResolveBool(ctx, configModels.KeyMealRegistrationEnabled)
 		},
-		func(ctx context.Context) (mealplanModule.Cutoffs, error) {
-			return resolveMealPlanCutoffs(ctx, settings)
+		func(ctx context.Context) (mealplanCompose.OrderingSettings, error) {
+			return mealOrderingSettings(ctx, settings)
 		},
 	)
 }
 
-// resolveMealPlanCutoffs reads the meal registration and cancellation
-// cutoffs; a cancellation cutoff that is switched off stays empty.
-func resolveMealPlanCutoffs(ctx context.Context, settings settingsCompose.SettingsService) (mealplanModule.Cutoffs, error) {
-	var cutoffs mealplanModule.Cutoffs
-	var err error
-	if cutoffs.CutoffTime, err = settings.ResolveString(ctx, configModels.KeyMealRegistrationCutoffTime); err != nil {
-		return mealplanModule.Cutoffs{}, err
-	}
-	if cutoffs.CutoffLeadDays, err = settings.ResolveInt(ctx, configModels.KeyMealRegistrationCutoffLeadDays); err != nil {
-		return mealplanModule.Cutoffs{}, err
-	}
-	weekday, err := settings.ResolveInt(ctx, configModels.KeyMealRegistrationCutoffWeekday)
+// mealOrderingKeys are the settings behind a school's meal ordering rules,
+// read in one statement.
+var mealOrderingKeys = []string{
+	configModels.KeyMealRegistrationModel, configModels.KeyMealRegistrationDeadlineKind,
+	configModels.KeyMealRegistrationLeadDays, configModels.KeyMealRegistrationDeadlineWeekday,
+	configModels.KeyMealRegistrationCutoffTime, configModels.KeyMealCancellationDeadlineKind,
+	configModels.KeyMealCancellationLeadDays, configModels.KeyMealCancellationDeadlineWeekday,
+	configModels.KeyMealCancellationCutoffTime, configModels.KeyMealAnnualRegistrationDeadline,
+	configModels.KeyMealAnnualChanges, configModels.KeyMealSickAfterDeadline,
+	configModels.KeyMealOrderRhythm, configModels.KeyMealOrderDetail,
+	configModels.KeyMealCatererNamesEnabled,
+}
+
+func mealOrderingSettings(ctx context.Context, settings settingsCompose.BatchSettingsService) (mealplanCompose.OrderingSettings, error) {
+	snapshot, err := settings.ResolveMany(ctx, mealOrderingKeys)
 	if err != nil {
-		return mealplanModule.Cutoffs{}, err
+		return mealplanCompose.OrderingSettings{}, err
 	}
-	cutoffs.CutoffWeekday = mealplanModule.Weekday(weekday)
-	separate, err := settings.ResolveBool(ctx, configModels.KeyMealCancellationCutoffSeparate)
-	if err != nil || !separate {
-		return cutoffs, err
+	var result mealplanCompose.OrderingSettings
+	text := func(key string, target *string) {
+		if err == nil {
+			*target, err = snapshot.String(key)
+		}
 	}
-	if cutoffs.CancellationCutoffTime, err = settings.ResolveString(ctx, configModels.KeyMealCancellationCutoffTime); err != nil {
-		return mealplanModule.Cutoffs{}, err
+	number := func(key string, target *int) {
+		if err == nil {
+			*target, err = snapshot.Int(key)
+		}
 	}
-	if cutoffs.CancellationCutoffLeadDays, err = settings.ResolveInt(ctx, configModels.KeyMealCancellationCutoffLeadDays); err != nil {
-		return mealplanModule.Cutoffs{}, err
+	text(configModels.KeyMealRegistrationModel, &result.Model)
+	text(configModels.KeyMealRegistrationDeadlineKind, &result.RegistrationKind)
+	number(configModels.KeyMealRegistrationLeadDays, &result.RegistrationLeadDays)
+	text(configModels.KeyMealRegistrationDeadlineWeekday, &result.RegistrationWeekday)
+	text(configModels.KeyMealRegistrationCutoffTime, &result.RegistrationTime)
+	text(configModels.KeyMealCancellationDeadlineKind, &result.CancellationKind)
+	number(configModels.KeyMealCancellationLeadDays, &result.CancellationLeadDays)
+	text(configModels.KeyMealCancellationDeadlineWeekday, &result.CancellationWeekday)
+	text(configModels.KeyMealCancellationCutoffTime, &result.CancellationTime)
+	text(configModels.KeyMealAnnualRegistrationDeadline, &result.AnnualDeadline)
+	text(configModels.KeyMealAnnualChanges, &result.AnnualChanges)
+	text(configModels.KeyMealSickAfterDeadline, &result.SickAfterDeadline)
+	text(configModels.KeyMealOrderRhythm, &result.OrderRhythm)
+	text(configModels.KeyMealOrderDetail, &result.OrderDetail)
+	if err == nil {
+		result.CatererNames, err = snapshot.Bool(configModels.KeyMealCatererNamesEnabled)
 	}
-	return cutoffs, nil
+	return result, err
 }
 
 // BuildFeedbackSettings binds Feedback's settings to the tenant settings it

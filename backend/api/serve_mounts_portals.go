@@ -10,6 +10,7 @@ import (
 	carePlanModule "github.com/moto-nrw/project-phoenix/modules/careplan"
 	communicationModule "github.com/moto-nrw/project-phoenix/modules/communication"
 	platformAnnouncementsHTTP "github.com/moto-nrw/project-phoenix/modules/communication/http/platformannouncements"
+	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
 	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
 	tagScanOperatorAPI "github.com/moto-nrw/project-phoenix/modules/devicefleet/inbound/operator"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
@@ -65,6 +66,20 @@ func newAccountResource(db transactionruntime.Database, identity identityaccess.
 	return resource
 }
 
+// newOperatorIdentity binds the operator sign-in, session and account routes
+// to Identity & Access.
+func newOperatorIdentity(sessionAuth *sessiontoken.TokenAuth, identity identityaccess.Owner) operatorIdentity {
+	return operatorIdentity{
+		sessions:    identityOperatorAPI.NewSessions(sessionAuth, identity),
+		account:     identityOperatorAPI.NewResource(identity, operatorIdentityResponses()),
+		access:      identity,
+		passkeys:    identity,
+		mfa:         identity,
+		invitations: identity,
+		accountMFA:  identity,
+	}
+}
+
 // newOperatorRouter composes the operator dashboard. The Device Fleet review
 // of unregistered RFID scans answers in the operator surface's format (#3232).
 func newOperatorRouter(
@@ -73,6 +88,7 @@ func newOperatorRouter(
 	hub *realtime.Hub, active studentpresence.Presence, settingsWrites SettingsWrites, identity identityaccess.Owner,
 	provisioning organizationtenancy.Provisioning, caregivers peoplePorts.CaregiverCapabilityService,
 	lifecycle carePlanModule.CareLifecycle, communication communicationModule.Capability,
+	students importModels.RowImporter[importModels.StudentImportRow],
 ) (chi.Router, error) {
 	tagScanReview := tagScanOperatorAPI.NewResource(tagScanOperatorAPI.Config{
 		Scans:     iot.Fleet(),
@@ -99,15 +115,6 @@ func newOperatorRouter(
 		// the corresponding checkout toggle flips on).
 		OnValueSet: settingsWrites.SideEffects.Dispatch,
 	})
-	operatorIdentity := operatorIdentity{
-		sessions:    identityOperatorAPI.NewSessions(sessionAuth, identity),
-		account:     identityOperatorAPI.NewResource(identity, operatorIdentityResponses()),
-		access:      identity,
-		passkeys:    identity,
-		mfa:         identity,
-		invitations: identity,
-		accountMFA:  identity,
-	}
 	provisioningConfig := provisioningOperatorAPI.ProvisioningConfig{
 		Service:             provisioning,
 		CaregiverCapability: caregiverCapabilityViews(db, caregivers),
@@ -121,7 +128,7 @@ func newOperatorRouter(
 		return nil, err
 	}
 	return operatorRouter(
-		operatorIdentity,
+		newOperatorIdentity(sessionAuth, identity),
 		provisioningConfig,
 		provisioningOperatorAPI.NewBillingResource(billing, nil, isLocalSeedRequest),
 		&operatorSchoolSettings{
@@ -136,6 +143,7 @@ func newOperatorRouter(
 		tagScanReview.Router(),
 		limiters,
 		mergeRoutes,
+		newSampleChildrenRoute(provisioning, students),
 	), nil
 }
 

@@ -76,6 +76,7 @@ func demoRoleDefinitions() []demoRoleDefinition {
 				"files:manage",
 				"groups:assign", "groups:create", "groups:delete", "groups:list", "groups:manage", "groups:read", "groups:update",
 				"guardians:financial",
+				"meals:manage", "meals:orders", "meals:read", "meals:register",
 				"rooms:create", "rooms:delete", "rooms:list", "rooms:manage", "rooms:read", "rooms:update",
 				"schedules:create", "schedules:delete", "schedules:list", "schedules:manage", "schedules:read", "schedules:update",
 				"staff:documents", "staff:financial", "staff:manage", "staff:stammdaten",

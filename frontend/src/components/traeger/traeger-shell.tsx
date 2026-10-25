@@ -14,6 +14,7 @@ import { createLogger } from "~/lib/logger";
 import { DELIBERATE_LOGOUT_KEY, clearSessionCache } from "~/lib/session-cache";
 import { traegerPath } from "~/lib/traeger-url";
 import { traegerHelpHref } from "./traeger-help";
+import { TraegerTestSystemNotice } from "./traeger-test-system-notice";
 
 const logger = createLogger({ component: "TraegerShell" });
 
@@ -167,6 +168,7 @@ export function TraegerShell({
 
   return (
     <PortalShell header={header} sidebar={null} bottomNav={null}>
+      <TraegerTestSystemNotice />
       {children}
     </PortalShell>
   );

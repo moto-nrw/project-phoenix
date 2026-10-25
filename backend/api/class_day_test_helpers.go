@@ -6,9 +6,13 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	classdayCompose "github.com/moto-nrw/project-phoenix/modules/classday/compose"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	"github.com/moto-nrw/project-phoenix/realtime"
 
 	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 
@@ -77,18 +81,25 @@ func NewClassDayTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 		Companions: owners.NewStudentCompanionRepository(rCare.CarePlan), ClassArrivalExceptions: active.ArrivalSchedule,
 		BlockStarts:                   activeTimetable.TimetableOperations,
 		MorningAttendanceDependencies: classdayCompose.MorningAttendanceDependencies{Store: presence, Now: classDayTestClock(clocks)},
-		TripStatusDays: NewClassDayTripStatusDays(presenceStudentsHTTP.NewSchoolClassTrips(presenceStudentsHTTP.ResourceConfig{
-			Broadcaster: hub, Logger: slog.Default(), PeopleDirectory: people,
-			StudentStatusDayService: presenceservice.NewStatusDays(rCare.StudentStatusDay, owners.NewManualPartialAbsenceDates(rCare.CarePlan),
-				db.Pool(), rCare.CarePlan.LockExceptionDay, clockOrNow(clocks)),
-		})),
-		HomeworkDependencies: classdayCompose.HomeworkDependencies{Homework: NewClassDayHomework(owners.MustNewUnobservedTimetable(db))},
+		TripStatusDays:                classDayTestTrips(db, hub, people, rCare, clocks),
+		DayHintDependencies:           classdayCompose.DayHintDependencies{DayHints: people, Today: calendar.CalendarDateClock(clocks...)},
+		HomeworkDependencies:          classdayCompose.HomeworkDependencies{Homework: NewClassDayHomework(owners.MustNewUnobservedTimetable(db))},
 		ClassHandoverDependencies: classdayCompose.ClassHandoverDependencies{
 			Handovers: presence, HandoverStaffNames: classHandoverStaffNames(members.Staff),
 		},
 	}, reports, rCare.StudentStatusDay, r.Student, r.Person, r.StudentGuardian, rAudit.DataAccessLog, activeSettings.Settings,
 		hub, slog.Default())
 	return ClassDayTestModule{ClassDay: classDay}, nil
+}
+
+// classDayTestTrips is the class-trip write seam (#4799) over the test graph,
+// composed like buildClassDayViews composes it.
+func classDayTestTrips(db transactionruntime.Database, hub *realtime.Hub, people *peopleCompose.Directory, rCare owners.TimetableCarePlanRows, clocks []func() time.Time) classdayCompose.ClassTripStatusDays {
+	return NewClassDayTripStatusDays(presenceStudentsHTTP.NewSchoolClassTrips(presenceStudentsHTTP.ResourceConfig{
+		Broadcaster: hub, Logger: slog.Default(), PeopleDirectory: people,
+		StudentStatusDayService: presenceservice.NewStatusDays(rCare.StudentStatusDay, owners.NewManualPartialAbsenceDates(rCare.CarePlan),
+			db.Pool(), rCare.CarePlan.LockExceptionDay, clockOrNow(clocks)),
+	}))
 }
 
 // clockOrNow is the first clock a test passed, or the wall clock.

@@ -92,6 +92,10 @@ const (
 	CodeClassdayClassTripReturnTimeWeekend               = "classday.class_trip_return_time_weekend"
 	CodeClassdayClassTripStatusConflict                  = "classday.class_trip_status_conflict"
 	CodeClassdayClassTripStudentNotInClass               = "classday.class_trip_student_not_in_class"
+	CodeClassdayDayHintClassEmpty                        = "classday.day_hint_class_empty"
+	CodeClassdayDayHintInvalid                           = "classday.day_hint_invalid"
+	CodeClassdayDayHintNotToday                          = "classday.day_hint_not_today"
+	CodeClassdayDayHintStudentNotInClass                 = "classday.day_hint_student_not_in_class"
 	CodeClassdayHomeworkNotFound                         = "classday.homework_not_found"
 	CodeClassdayMorningAttendanceNoSchoolDay             = "classday.morning_attendance_no_school_day"
 	CodeClassdayMorningAttendanceNotToday                = "classday.morning_attendance_not_today"
@@ -265,6 +269,8 @@ const (
 	CodeIdentityAccountInactive                          = "identity.account_inactive"
 	CodeIdentityAccountNotFound                          = "identity.account_not_found"
 	CodeIdentityAccountNotInSchool                       = "identity.account_not_in_school"
+	CodeIdentityCatererAddressTaken                      = "identity.caterer_address_taken"
+	CodeIdentityCatererWithoutSchool                     = "identity.caterer_without_school"
 	CodeIdentityCurrentPasswordWrong                     = "identity.current_password_wrong"
 	CodeIdentityDemoAccessExpired                        = "identity.demo_access_expired"
 	CodeIdentityDemoAccessInvalid                        = "identity.demo_access_invalid"
@@ -296,12 +302,6 @@ const (
 	CodeIdentityPasskeyNotFound                          = "identity.passkey_not_found"
 	CodeIdentityPasswordMismatch                         = "identity.password_mismatch"
 	CodeIdentityPasswordResetLinkInvalid                 = "identity.password_reset_link_invalid"
-	CodeIdentityPasswordResetRateLimited                 = "identity.password_reset_rate_limited"
-	CodeIdentityPasswordTooWeak                          = "identity.password_too_weak"
-	CodeIdentityPreviewTargetNotPreviewable              = "identity.preview_target_not_previewable"
-	CodeIdentityPreviewTargetSchoolPortal                = "identity.preview_target_school_portal"
-	CodeIdentityPreviewTokenInvalid                      = "identity.preview_token_invalid"
-	CodeIdentityReadOnlyPreview                          = "identity.read_only_preview"
 )
 
 var errorCodeClasses0 = map[string]string{
@@ -395,6 +395,10 @@ var errorCodeClasses0 = map[string]string{
 	"classday.class_trip_return_time_weekend":              "input",
 	"classday.class_trip_status_conflict":                  "business_rejection",
 	"classday.class_trip_student_not_in_class":             "business_rejection",
+	"classday.day_hint_class_empty":                        "business_rejection",
+	"classday.day_hint_invalid":                            "input",
+	"classday.day_hint_not_today":                          "input",
+	"classday.day_hint_student_not_in_class":               "business_rejection",
 	"classday.homework_not_found":                          "business_rejection",
 	"classday.morning_attendance_no_school_day":            "input",
 	"classday.morning_attendance_not_today":                "input",
@@ -568,6 +572,8 @@ var errorCodeClasses0 = map[string]string{
 	"identity.account_inactive":                            "permission",
 	"identity.account_not_found":                           "business_rejection",
 	"identity.account_not_in_school":                       "business_rejection",
+	"identity.caterer_address_taken":                       "business_rejection",
+	"identity.caterer_without_school":                      "permission",
 	"identity.current_password_wrong":                      "input",
 	"identity.demo_access_expired":                         "business_rejection",
 	"identity.demo_access_invalid":                         "input",
@@ -599,12 +605,6 @@ var errorCodeClasses0 = map[string]string{
 	"identity.passkey_not_found":                           "business_rejection",
 	"identity.password_mismatch":                           "input",
 	"identity.password_reset_link_invalid":                 "business_rejection",
-	"identity.password_reset_rate_limited":                 "unavailable",
-	"identity.password_too_weak":                           "input",
-	"identity.preview_target_not_previewable":              "permission",
-	"identity.preview_target_school_portal":                "permission",
-	"identity.preview_token_invalid":                       "permission",
-	"identity.read_only_preview":                           "permission",
 }
 
 func init() {

@@ -5,12 +5,14 @@ import { LOCALE_SCOPE_HEADER } from "~/i18n/locales";
 const OPERATOR_HOSTNAME = "operator.localhost:3000";
 const PARENTS_HOSTNAME = "parents.localhost:3000";
 const SCHOOL_HOSTNAME = "schule.localhost:3000";
+const CATERER_HOSTNAME = "caterer.localhost:3000";
 const TRAEGER_HOSTNAME = "traeger.localhost:3000";
 const POSTHOG_KEY = "phc_test_key_123";
 
 vi.stubEnv("NEXT_PUBLIC_OPERATOR_HOSTNAME", OPERATOR_HOSTNAME);
 vi.stubEnv("NEXT_PUBLIC_PARENTS_HOSTNAME", PARENTS_HOSTNAME);
 vi.stubEnv("NEXT_PUBLIC_SCHOOL_HOSTNAME", SCHOOL_HOSTNAME);
+vi.stubEnv("NEXT_PUBLIC_CATERER_HOSTNAME", CATERER_HOSTNAME);
 vi.stubEnv("NEXT_PUBLIC_TRAEGER_HOSTNAME", TRAEGER_HOSTNAME);
 vi.stubEnv("TENANT_DOMAIN", "localhost");
 vi.stubEnv("NEXT_PUBLIC_POSTHOG_KEY", POSTHOG_KEY);
@@ -664,6 +666,108 @@ describe("proxy", () => {
       expect(res.headers.get("x-middleware-rewrite")).toContain(
         "/parents/meal-plan",
       );
+    });
+  });
+
+  describe("caterer subdomain (ADR 0077)", () => {
+    const caterer = (path: string) =>
+      proxy(makeRequest(`http://${CATERER_HOSTNAME}${path}`, CATERER_HOSTNAME));
+
+    it("rewrites / to the caterer overview", () => {
+      const res = caterer("/");
+
+      expect(res.headers.get("location")).toBeNull();
+      expect(res.headers.get("x-middleware-rewrite")).toContain("/caterer");
+    });
+
+    it("rewrites the login, the reset and the mailed invitation", () => {
+      for (const [path, target] of [
+        ["/login", "/caterer/login"],
+        ["/reset-password?token=abc", "/caterer/reset-password"],
+        ["/einladung/42/abc", "/caterer/einladung/42/abc"],
+      ] as const) {
+        expect(caterer(path).headers.get("x-middleware-rewrite")).toContain(
+          target,
+        );
+      }
+    });
+
+    it("serves only the caterer API on its host", () => {
+      expect(caterer("/api/caterer/schools").status).toBe(200);
+      for (const path of [
+        "/api/auth/session",
+        "/api/parent/auth/session",
+        "/api/school/auth/session",
+        "/api/students",
+      ]) {
+        expect(caterer(path).status).toBe(404);
+      }
+    });
+
+    it("redirects unknown paths to the overview", () => {
+      expect(caterer("/dashboard").headers.get("location")).toContain(
+        `${CATERER_HOSTNAME}/`,
+      );
+    });
+
+    it("sends /caterer on another host to the caterer host", () => {
+      const res = proxy(
+        makeRequest(
+          "http://school-a.localhost:3000/caterer/login",
+          "school-a.localhost:3000",
+        ),
+      );
+
+      expect(res.headers.get("location")).toContain(
+        `${CATERER_HOSTNAME}/login`,
+      );
+    });
+
+    it("keeps the caterer API off the parents host", () => {
+      const res = proxy(
+        makeRequest(
+          `http://${PARENTS_HOSTNAME}/api/caterer/schools`,
+          PARENTS_HOSTNAME,
+        ),
+      );
+
+      expect(res.status).toBe(404);
+    });
+
+    it.each([
+      ["operator", OPERATOR_HOSTNAME],
+      ["school", SCHOOL_HOSTNAME],
+      ["tenant", "school-a.localhost:3000"],
+      ["bare domain", "localhost:3000"],
+    ])("keeps the caterer API off the %s host", (_, host) => {
+      for (const path of [
+        "/api/caterer",
+        "/api/caterer/schools",
+        "/api/caterer/auth/login",
+      ]) {
+        expect(proxy(makeRequest(`http://${host}${path}`, host)).status).toBe(
+          404,
+        );
+      }
+    });
+
+    it("still serves other API routes on the operator and tenant hosts", () => {
+      expect(
+        proxy(
+          makeRequest(
+            `http://${OPERATOR_HOSTNAME}/api/operator/organizations`,
+            OPERATOR_HOSTNAME,
+          ),
+        ).status,
+      ).toBe(200);
+      expect(
+        proxy(
+          makeRequest(
+            "http://school-a.localhost:3000/api/groups",
+            "school-a.localhost:3000",
+          ),
+        ).status,
+      ).toBe(200);
     });
   });
 

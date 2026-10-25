@@ -14,6 +14,7 @@ import (
 // not booked the module.
 const (
 	settingModuleElternApp       = "module.eltern_app"
+	settingModuleMittagessen     = "module.mittagessen"
 	settingModuleOnlineAnmeldung = "module.online_anmeldung"
 	settingModuleZeiterfassung   = "module.zeiterfassung"
 )
@@ -73,6 +74,9 @@ var workerJobScopes = map[ports.JobID]jobScope{
 	// Eltern-App: reminders that reach parents by mail and push.
 	"appointment-reminders":  {moduleSettingKey: settingModuleElternApp},
 	"announcement-reminders": {moduleSettingKey: settingModuleElternApp},
+
+	// Mittagessen: freeze orders and record late changes for the caterer.
+	"meal-orders": {moduleSettingKey: settingModuleMittagessen},
 
 	// Online-Anmeldung: deadlines of the re-enrollment phases.
 	"rollover-deadline": {moduleSettingKey: settingModuleOnlineAnmeldung},

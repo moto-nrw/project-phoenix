@@ -49,7 +49,7 @@ func export(exportType string) CoreAction {
 
 // coreActions classifies every writing route (POST, PUT, PATCH, DELETE) of
 // the portal routers: OGS portal (/api, /auth), parents portal (/parent),
-// school portal (/school), Träger-Portal (/traeger) and the public demo
+// school portal (/school), caterer portal (/caterer), Träger portal (/traeger), and the public demo
 // (/demo). A route either names
 // its event or is notCaptured. TestFullProductionRouterGolden fails for a
 // writing route of these routers that is missing here, and for an entry
@@ -215,13 +215,17 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPut, "/api/me/profile"}:                                                                    notCaptured,
 	{http.MethodDelete, "/api/me/profile/avatar"}:                                                          notCaptured,
 	{http.MethodPost, "/api/me/profile/avatar"}:                                                            notCaptured,
+	{http.MethodPost, "/api/meal-caterer/invitations"}:                                                     event("caterer_invited"),
+	{http.MethodDelete, "/api/meal-caterer/invitations/{invitationId}"}:                                    notCaptured,
+	{http.MethodDelete, "/api/meal-caterer/supply"}:                                                        event("caterer_supply_ended"),
 	{http.MethodDelete, "/api/meal-plan/{date}"}:                                                           notCaptured,
 	{http.MethodPut, "/api/meal-plan/{date}"}:                                                              notCaptured,
+	{http.MethodDelete, "/api/meal-plan/participation/{studentId}/days/{date}"}:                            notCaptured,
+	{http.MethodPut, "/api/meal-plan/participation/{studentId}/days/{date}"}:                               notCaptured,
+	{http.MethodPut, "/api/meal-plan/participation/{studentId}/schedule"}:                                  notCaptured,
 	{http.MethodPost, "/api/messages/group-threads"}:                                                       createdEvent("parent_group_thread_created"),
 	{http.MethodPost, "/api/messages/group-threads/{groupThreadId}/close"}:                                 event("parent_group_thread_closed"),
 	{http.MethodPost, "/api/messages/group-threads/{groupThreadId}/messages"}:                              createdEvent("parent_group_message_sent"),
-	{http.MethodPut, "/api/meal-plan/participants/{studentId}/{date}"}:                                     notCaptured,
-	{http.MethodDelete, "/api/meal-plan/participants/{studentId}/{date}"}:                                  notCaptured,
 	{http.MethodPost, "/api/messages/mark-all-read"}:                                                       event("parent_messages_marked_all_read"),
 	{http.MethodPut, "/api/messages/count-scope"}:                                                          event("parent_message_count_scope_changed"),
 	{http.MethodPost, "/api/messages/threads"}:                                                             notCaptured,
@@ -536,6 +540,7 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPut, "/parent/me/children/{studentId}/meal-participation"}:                        notCaptured,
 	{http.MethodDelete, "/parent/me/children/{studentId}/meal-participation/{date}"}:              notCaptured,
 	{http.MethodPut, "/parent/me/children/{studentId}/meal-participation/{date}"}:                 notCaptured,
+	{http.MethodPut, "/parent/me/children/{studentId}/meal-participation/weeks/{date}"}:           notCaptured,
 	{http.MethodPut, "/parent/me/children/{studentId}/pickup-change-requests/{requestId}"}:        notCaptured,
 	{http.MethodPost, "/parent/me/children/{studentId}/related-accounts"}:                         notCaptured,
 	{http.MethodDelete, "/parent/me/children/{studentId}/related-accounts/{guardianProfileId}"}:   notCaptured,
@@ -569,42 +574,46 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPut, "/traeger/settings/values/{key}"}:                  notCaptured,
 
 	// School portal (Lehrkräfte).
-	{http.MethodPost, "/school/auth/login"}:                                               session("login_success"),
-	{http.MethodPost, "/school/auth/mfa/enroll/confirm"}:                                  session("login_success"),
-	{http.MethodPost, "/school/auth/mfa/enroll/start"}:                                    notCaptured,
-	{http.MethodPost, "/school/auth/mfa/resend"}:                                          notCaptured,
-	{http.MethodPost, "/school/auth/mfa/verify"}:                                          session("login_success"),
-	{http.MethodPost, "/school/auth/password-reset"}:                                      notCaptured,
-	{http.MethodPost, "/school/auth/password-reset/confirm"}:                              notCaptured,
-	{http.MethodPost, "/school/auth/switch-school"}:                                       notCaptured,
-	{http.MethodPost, "/school/calendar/appointments"}:                                    event("school_appointment_created"),
-	{http.MethodDelete, "/school/calendar/appointments/{appointmentId}"}:                  event("school_appointment_deleted"),
-	{http.MethodPut, "/school/calendar/appointments/{appointmentId}"}:                     event("school_appointment_updated"),
-	{http.MethodPost, "/school/calendar/feed/rotate"}:                                     notCaptured,
-	{http.MethodPost, "/school/calendar/recipients/{recipientId}/response"}:               notCaptured,
-	{http.MethodDelete, "/school/class-day/arrival-exceptions/{schoolClass}/{date}"}:      event("arrival_exception_changed"),
-	{http.MethodPut, "/school/class-day/arrival-exceptions/{schoolClass}/{date}"}:         event("arrival_exception_changed"),
-	{http.MethodPost, "/school/class-day/class-trips/{schoolClass}"}:                      event("class_trip_reported"),
-	{http.MethodDelete, "/school/class-day/handover/{schoolClass}/{date}"}:                event("class_handover_withdrawn"),
-	{http.MethodPut, "/school/class-day/handover/{schoolClass}/{date}"}:                   event("class_handed_over"),
-	{http.MethodPost, "/school/class-day/homework/{schoolClass}"}:                         event("homework_entered"),
-	{http.MethodPut, "/school/class-day/homework/{schoolClass}/{homeworkId}"}:             event("homework_changed"),
-	{http.MethodDelete, "/school/class-day/homework/{schoolClass}/{homeworkId}"}:          event("homework_deleted"),
-	{http.MethodPut, "/school/class-day/morning-attendance/{schoolClass}/{date}"}:         event("morning_attendance_recorded"),
-	{http.MethodDelete, "/school/notifications/preferences/"}:                             notCaptured,
-	{http.MethodPut, "/school/notifications/preferences/{type}"}:                          notCaptured,
-	{http.MethodDelete, "/school/notifications/push/subscriptions"}:                       notCaptured,
-	{http.MethodPost, "/school/notifications/push/subscriptions"}:                         notCaptured,
-	{http.MethodPost, "/school/notifications/test"}:                                       notCaptured,
-	{http.MethodPost, "/school/staff-messages/threads/open"}:                              notCaptured,
-	{http.MethodPost, "/school/staff-messages/threads/{threadID}"}:                        event("staff_message_sent"),
-	{http.MethodPost, "/school/staff-notices/{noticeId}/acknowledge"}:                     event("staff_notice_acknowledged"),
-	{http.MethodPost, "/school/supervisions/{id}/complete"}:                               event("supervision_completed"),
-	{http.MethodPost, "/school/supervisions/{id}/start"}:                                  event("supervision_started"),
-	{http.MethodPatch, "/school/supervisions/{id}/students/{student_id}/attendance"}:      event("supervision_attendance_recorded"),
-	{http.MethodPut, "/school/supervisions/{id}/students/{student_id}/homework-feedback"}: event("homework_feedback_recorded"),
-	{http.MethodPost, "/school/supervisions/{id}/students/{student_id}/check-in"}:         event("supervision_attendance_recorded"),
-	{http.MethodPost, "/school/supervisions/{id}/students/{student_id}/check-out"}:        event("supervision_attendance_recorded"),
+	{http.MethodPost, "/school/auth/login"}:                                                      session("login_success"),
+	{http.MethodPost, "/school/auth/mfa/enroll/confirm"}:                                         session("login_success"),
+	{http.MethodPost, "/school/auth/mfa/enroll/start"}:                                           notCaptured,
+	{http.MethodPost, "/school/auth/mfa/resend"}:                                                 notCaptured,
+	{http.MethodPost, "/school/auth/mfa/verify"}:                                                 session("login_success"),
+	{http.MethodPost, "/school/auth/password-reset"}:                                             notCaptured,
+	{http.MethodPost, "/school/auth/password-reset/confirm"}:                                     notCaptured,
+	{http.MethodPost, "/school/auth/switch-school"}:                                              notCaptured,
+	{http.MethodPost, "/school/calendar/appointments"}:                                           event("school_appointment_created"),
+	{http.MethodDelete, "/school/calendar/appointments/{appointmentId}"}:                         event("school_appointment_deleted"),
+	{http.MethodPut, "/school/calendar/appointments/{appointmentId}"}:                            event("school_appointment_updated"),
+	{http.MethodPost, "/school/calendar/feed/rotate"}:                                            notCaptured,
+	{http.MethodPost, "/school/calendar/recipients/{recipientId}/response"}:                      notCaptured,
+	{http.MethodDelete, "/school/class-day/arrival-exceptions/{schoolClass}/{date}"}:             event("arrival_exception_changed"),
+	{http.MethodPut, "/school/class-day/arrival-exceptions/{schoolClass}/{date}"}:                event("arrival_exception_changed"),
+	{http.MethodPost, "/school/class-day/class-trips/{schoolClass}"}:                             event("class_trip_reported"),
+	{http.MethodDelete, "/school/class-day/day-hints/{schoolClass}/{date}"}:                      event("day_hint_changed"),
+	{http.MethodPut, "/school/class-day/day-hints/{schoolClass}/{date}"}:                         event("day_hint_changed"),
+	{http.MethodDelete, "/school/class-day/day-hints/{schoolClass}/{date}/students/{studentId}"}: event("day_hint_changed"),
+	{http.MethodPut, "/school/class-day/day-hints/{schoolClass}/{date}/students/{studentId}"}:    event("day_hint_changed"),
+	{http.MethodDelete, "/school/class-day/handover/{schoolClass}/{date}"}:                       event("class_handover_withdrawn"),
+	{http.MethodPut, "/school/class-day/handover/{schoolClass}/{date}"}:                          event("class_handed_over"),
+	{http.MethodPost, "/school/class-day/homework/{schoolClass}"}:                                event("homework_entered"),
+	{http.MethodPut, "/school/class-day/homework/{schoolClass}/{homeworkId}"}:                    event("homework_changed"),
+	{http.MethodDelete, "/school/class-day/homework/{schoolClass}/{homeworkId}"}:                 event("homework_deleted"),
+	{http.MethodPut, "/school/class-day/morning-attendance/{schoolClass}/{date}"}:                event("morning_attendance_recorded"),
+	{http.MethodDelete, "/school/notifications/preferences/"}:                                    notCaptured,
+	{http.MethodPut, "/school/notifications/preferences/{type}"}:                                 notCaptured,
+	{http.MethodDelete, "/school/notifications/push/subscriptions"}:                              notCaptured,
+	{http.MethodPost, "/school/notifications/push/subscriptions"}:                                notCaptured,
+	{http.MethodPost, "/school/notifications/test"}:                                              notCaptured,
+	{http.MethodPost, "/school/staff-messages/threads/open"}:                                     notCaptured,
+	{http.MethodPost, "/school/staff-messages/threads/{threadID}"}:                               event("staff_message_sent"),
+	{http.MethodPost, "/school/staff-notices/{noticeId}/acknowledge"}:                            event("staff_notice_acknowledged"),
+	{http.MethodPost, "/school/supervisions/{id}/complete"}:                                      event("supervision_completed"),
+	{http.MethodPost, "/school/supervisions/{id}/start"}:                                         event("supervision_started"),
+	{http.MethodPatch, "/school/supervisions/{id}/students/{student_id}/attendance"}:             event("supervision_attendance_recorded"),
+	{http.MethodPut, "/school/supervisions/{id}/students/{student_id}/homework-feedback"}:        event("homework_feedback_recorded"),
+	{http.MethodPost, "/school/supervisions/{id}/students/{student_id}/check-in"}:                event("supervision_attendance_recorded"),
+	{http.MethodPost, "/school/supervisions/{id}/students/{student_id}/check-out"}:               event("supervision_attendance_recorded"),
 
 	// Public demo (#3462), mounted under APP_ENV=demo only. A redeemed
 	// access enters a demo school that is ready, so the entry is the proof
@@ -615,6 +624,14 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/demo/access-requests"}: public("demo_link_requested"),
 	{http.MethodPost, "/demo/access/sessions"}: session("demo_started"),
 	{http.MethodPost, "/demo/access/reset"}:    notCaptured,
+
+	// Caterer portal (ADR 0077). Accepting the mailed invitation starts no
+	// session yet, so it counts on the caterer surface itself.
+	{http.MethodPost, "/caterer/auth/password-reset"}:                         notCaptured,
+	{http.MethodPost, "/caterer/auth/password-reset/confirm"}:                 notCaptured,
+	{http.MethodPost, "/caterer/auth/login"}:                                  session("login_success"),
+	{http.MethodPost, "/caterer/invitations/{schoolId}/{token}/accept"}:       {Event: "caterer_invite_accepted", Surface: SurfaceCaterer},
+	{http.MethodPost, "/caterer/schools/{schoolId}/orders/{orderId}/confirm"}: event("meal_order_confirmed"),
 }
 
 // CoreActions returns a copy of the route table for the guard tests.
@@ -625,7 +642,7 @@ func CoreActions() map[RouteKey]CoreAction {
 // CoreActionPrefixes are the path prefixes of the portal routers whose
 // writing routes the table must classify.
 func CoreActionPrefixes() []string {
-	return []string{"/api/", "/auth/", "/parent/", "/school/", "/traeger/", "/demo/"}
+	return []string{"/api/", "/auth/", "/parent/", "/school/", "/caterer/", "/traeger/", "/demo/"}
 }
 
 // CoreActionExcludedPrefixes are routes under those prefixes that do not

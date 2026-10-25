@@ -6,7 +6,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/domain"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 func (s *Service) FindDevice(ctx context.Context, id int64) (devicefleet.Device, error) {
@@ -108,10 +107,15 @@ func (s *Service) IsDeviceOnline(ctx context.Context, device devicefleet.Device)
 // when the database clock runs slightly behind the owner clock.
 const retentionClockMargin = time.Minute
 
+// unregisteredTagScanRetentionWindow is the review window as elapsed time.
+// The audit retention function evaluates its 90 days in UTC (migration
+// 1.15.606), so neither side lengthens a day across a clock change.
+const unregisteredTagScanRetentionWindow = time.Duration(devicefleet.UnregisteredTagScanRetentionDays) * 24 * time.Hour
+
 // DeleteUnregisteredTagScansAfterRetention removes the caller tenant's scans
 // after the fixed review window.
 func (s *Service) DeleteUnregisteredTagScansAfterRetention(ctx context.Context) (int, int, error) {
-	cutoff := s.deps.Now().In(calendar.Berlin).AddDate(0, 0, -devicefleet.UnregisteredTagScanRetentionDays).Add(-retentionClockMargin)
+	cutoff := s.deps.Now().Add(-unregisteredTagScanRetentionWindow - retentionClockMargin)
 	deleted, err := s.DeleteExpiredUnregisteredTagScans(ctx, cutoff)
 	return int(deleted), devicefleet.UnregisteredTagScanRetentionDays, err
 }

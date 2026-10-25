@@ -81,6 +81,8 @@ const (
 	KeyStudentPhotosEnabled                  = configModel.KeyStudentPhotosEnabled
 	KeyTimetableChildrenPerStaffRatio        = configModel.KeyTimetableChildrenPerStaffRatio
 	KeyTimetableEnabled                      = configModel.KeyTimetableEnabled
+	KeyMealPlanEnabled                       = configModel.KeyMealPlanEnabled
+	KeyMealRegistrationEnabled               = configModel.KeyMealRegistrationEnabled
 	KeyTimetableEnforcePlannedEnd            = configModel.KeyTimetableEnforcePlannedEnd
 	KeyTimetableCompleteLeadMinutes          = configModel.KeyTimetableCompleteLeadMinutes
 	KeyTimetableShowExpectedChildrenCount    = configModel.KeyTimetableShowExpectedChildrenCount

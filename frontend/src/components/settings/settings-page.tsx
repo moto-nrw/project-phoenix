@@ -472,6 +472,7 @@ export function useSettingsTabs(): {
   const defaultTabConcept: MotoConceptKey = "settings";
   const tabConcepts: Record<string, MotoConceptKey> = {
     operations: "settings",
+    meals: "mealPlan",
     reminders: "notifications",
     notifications: "notifications",
     gdpr: "permissions",

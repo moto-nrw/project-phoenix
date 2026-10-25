@@ -568,8 +568,8 @@ func statusDaysToPublic(rows []studentStatusDayRow) []careplan.StudentStatusDay 
 }
 
 // DeleteStudentStatusDaysBefore removes the tenant's status days dated before
-// cutoff (#3958). The meal plan's trigger copies every deleted sick day into
-// schedule.meal_sickness_status_history as "cleared now"; for a retention
+// cutoff (#3958). The meal plan's trigger copies every deleted absence day
+// into schedule.meal_sickness_status_history as "cleared now"; for a retention
 // purge that copy would be a new health record and would rewrite past meal
 // billing, so the purge marks its transaction and the trigger skips it.
 func (s *statusDayStore) DeleteStudentStatusDaysBefore(ctx context.Context, cutoff careplan.Date) (int64, carePlanCompose.RequestStoreStats, error) {

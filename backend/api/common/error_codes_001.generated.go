@@ -2,6 +2,12 @@
 package common
 
 const (
+	CodeIdentityPasswordResetRateLimited               = "identity.password_reset_rate_limited"
+	CodeIdentityPasswordTooWeak                        = "identity.password_too_weak"
+	CodeIdentityPreviewTargetNotPreviewable            = "identity.preview_target_not_previewable"
+	CodeIdentityPreviewTargetSchoolPortal              = "identity.preview_target_school_portal"
+	CodeIdentityPreviewTokenInvalid                    = "identity.preview_token_invalid"
+	CodeIdentityReadOnlyPreview                        = "identity.read_only_preview"
 	CodeIdentityRoleNameTaken                          = "identity.role_name_taken"
 	CodeIdentityRolePlatformPermission                 = "identity.role_platform_permission"
 	CodeIdentitySessionAccountInactive                 = "identity.session_account_inactive"
@@ -19,6 +25,8 @@ const (
 	CodeImportFileUnreadable                           = "import.file_unreadable"
 	CodeImportImportBatchFailed                        = "import.import_batch_failed"
 	CodeImportModeForbidden                            = "import.mode_forbidden"
+	CodeImportNotTestTraeger                           = "import.not_test_traeger"
+	CodeImportTestTraegerInactive                      = "import.test_traeger_inactive"
 	CodeIotActivityCapacityExceeded                    = "iot.activity_capacity_exceeded"
 	CodeIotDeviationReasonRequired                     = "iot.deviation_reason_required"
 	CodeIotDeviceApiKeyFormatInvalid                   = "iot.device_api_key_format_invalid"
@@ -54,15 +62,22 @@ const (
 	CodeIotStudentNotPresent                           = "iot.student_not_present"
 	CodeIotWcNeedsStaff                                = "iot.wc_needs_staff"
 	CodeIotWcNotConfigured                             = "iot.wc_not_configured"
+	CodeMealsChildNotEnrolled                          = "meals.child_not_enrolled"
+	CodeMealsDayClosed                                 = "meals.day_closed"
+	CodeMealsDayPast                                   = "meals.day_past"
+	CodeMealsDeliveryRangeTooLong                      = "meals.delivery_range_too_long"
 	CodeMealsInvalidAllergens                          = "meals.invalid_allergens"
 	CodeMealsInvalidDishes                             = "meals.invalid_dishes"
 	CodeMealsInvalidMealDate                           = "meals.invalid_meal_date"
 	CodeMealsInvalidParticipation                      = "meals.invalid_participation"
+	CodeMealsNotSupplied                               = "meals.not_supplied"
+	CodeMealsOrderNotFound                             = "meals.order_not_found"
 	CodeMealsParticipationCutoffPassed                 = "meals.participation_cutoff_passed"
 	CodeMealsParticipationOutOfRange                   = "meals.participation_out_of_range"
 	CodeMealsPlanDisabled                              = "meals.plan_disabled"
 	CodeMealsPlanWeekOutOfRange                        = "meals.plan_week_out_of_range"
 	CodeMealsRegistrationDisabled                      = "meals.registration_disabled"
+	CodeMealsSupplyActive                              = "meals.supply_active"
 	CodeModuleNotBooked                                = "module.not_booked"
 	CodeOperatorAuditUnavailable                       = "operator.audit_unavailable"
 	CodePickupBulkExceptionConfirmationRequired        = "pickup.bulk_exception_confirmation_required"
@@ -287,24 +302,15 @@ const (
 	CodeTimetableOfferingSourceNotFound                = "timetable.offering_source_not_found"
 	CodeTimetableOfferingSourceOutsidePeriod           = "timetable.offering_source_outside_period"
 	CodeTimetableOfferingSourceTooMany                 = "timetable.offering_source_too_many"
-	CodeTimetableOnlySupervisorReplacementRequired     = "timetable.only_supervisor_replacement_required"
-	CodeTimetableOperationNotPlanned                   = "timetable.operation_not_planned"
-	CodeTimetableOperationStale                        = "timetable.operation_stale"
-	CodeTimetablePickupExtensionBlockGone              = "timetable.pickup_extension_block_gone"
-	CodeTimetablePickupExtensionInvalid                = "timetable.pickup_extension_invalid"
-	CodeTimetablePickupExtensionNotFound               = "timetable.pickup_extension_not_found"
-	CodeTimetablePickupExtensionTooManyBlocks          = "timetable.pickup_extension_too_many_blocks"
-	CodeTimetablePlanningTrackArchived                 = "timetable.planning_track_archived"
-	CodeTimetablePlanningTrackInvalid                  = "timetable.planning_track_invalid"
-	CodeTimetablePlanningTrackNameTaken                = "timetable.planning_track_name_taken"
-	CodeTimetablePlanningTrackNotFound                 = "timetable.planning_track_not_found"
-	CodeTimetablePresenceWouldOverstaff                = "timetable.presence_would_overstaff"
-	CodeTimetableReopenAttendanceChanged               = "timetable.reopen_attendance_changed"
-	CodeTimetableReopenStaffBusy                       = "timetable.reopen_staff_busy"
-	CodeTimetableReopenStudentActive                   = "timetable.reopen_student_active"
 )
 
 var errorCodeClasses1 = map[string]string{
+	"identity.password_reset_rate_limited":                 "unavailable",
+	"identity.password_too_weak":                           "input",
+	"identity.preview_target_not_previewable":              "permission",
+	"identity.preview_target_school_portal":                "permission",
+	"identity.preview_token_invalid":                       "permission",
+	"identity.read_only_preview":                           "permission",
 	"identity.role_name_taken":                             "business_rejection",
 	"identity.role_platform_permission":                    "input",
 	"identity.session_account_inactive":                    "permission",
@@ -322,6 +328,8 @@ var errorCodeClasses1 = map[string]string{
 	"import.file_unreadable":                               "input",
 	"import.import_batch_failed":                           "server",
 	"import.mode_forbidden":                                "permission",
+	"import.not_test_traeger":                              "business_rejection",
+	"import.test_traeger_inactive":                         "business_rejection",
 	"iot.activity_capacity_exceeded":                       "business_rejection",
 	"iot.deviation_reason_required":                        "input",
 	"iot.device_api_key_format_invalid":                    "permission",
@@ -357,15 +365,22 @@ var errorCodeClasses1 = map[string]string{
 	"iot.student_not_present":                              "business_rejection",
 	"iot.wc_needs_staff":                                   "server",
 	"iot.wc_not_configured":                                "server",
+	"meals.child_not_enrolled":                             "business_rejection",
+	"meals.day_closed":                                     "business_rejection",
+	"meals.day_past":                                       "business_rejection",
+	"meals.delivery_range_too_long":                        "input",
 	"meals.invalid_allergens":                              "input",
 	"meals.invalid_dishes":                                 "input",
 	"meals.invalid_meal_date":                              "input",
 	"meals.invalid_participation":                          "input",
+	"meals.not_supplied":                                   "permission",
+	"meals.order_not_found":                                "input",
 	"meals.participation_cutoff_passed":                    "business_rejection",
 	"meals.participation_out_of_range":                     "input",
 	"meals.plan_disabled":                                  "permission",
 	"meals.plan_week_out_of_range":                         "input",
 	"meals.registration_disabled":                          "permission",
+	"meals.supply_active":                                  "business_rejection",
 	"module.not_booked":                                    "permission",
 	"operator.audit_unavailable":                           "unavailable",
 	"pickup.bulk_exception_confirmation_required":          "input",
@@ -590,21 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.offering_source_not_found":                  "business_rejection",
 	"timetable.offering_source_outside_period":             "business_rejection",
 	"timetable.offering_source_too_many":                   "input",
-	"timetable.only_supervisor_replacement_required":       "business_rejection",
-	"timetable.operation_not_planned":                      "permission",
-	"timetable.operation_stale":                            "business_rejection",
-	"timetable.pickup_extension_block_gone":                "business_rejection",
-	"timetable.pickup_extension_invalid":                   "input",
-	"timetable.pickup_extension_not_found":                 "business_rejection",
-	"timetable.pickup_extension_too_many_blocks":           "input",
-	"timetable.planning_track_archived":                    "business_rejection",
-	"timetable.planning_track_invalid":                     "input",
-	"timetable.planning_track_name_taken":                  "business_rejection",
-	"timetable.planning_track_not_found":                   "business_rejection",
-	"timetable.presence_would_overstaff":                   "business_rejection",
-	"timetable.reopen_attendance_changed":                  "business_rejection",
-	"timetable.reopen_staff_busy":                          "business_rejection",
-	"timetable.reopen_student_active":                      "business_rejection",
 }
 
 func init() {

@@ -51,6 +51,7 @@ import {
   usePresenceMode,
   useTenantRoutingModeSafe,
   useTenantSlugSafe,
+  useMealPlanEnabled,
   useTimetableEnabled,
 } from "~/lib/tenant-context";
 import { getSettingValue } from "~/lib/settings-api";
@@ -852,8 +853,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   const displayEnabled = useDisplayEnabled();
   const attendanceLogEnabled = useAttendanceLogEnabled();
   // Schulschalter aus dem Settings-Schema, mit demselben Lesemuster wie die
-  // Desktop-Sidebar: für Admins und config:read-Halter (der Essensplan-
-  // Eintrag hängt für sie an operations.meal_plan_enabled). `!== false` für
+  // Desktop-Sidebar: für Admins und config:read-Halter. `!== false` für
   // timetable.enabled, damit die Planungs-Einträge während des Schema-Ladens
   // nicht kurz verschwinden.
   const canReadConfig =
@@ -868,8 +868,9 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
     getSettingValue(settingsSchema, "timetable.enabled") !== false;
   const parentNewsEnabled =
     getSettingValue(settingsSchema, "operations.parent_news_enabled") === true;
-  const mealPlanEnabled =
-    getSettingValue(settingsSchema, "operations.meal_plan_enabled") === true;
+  // Vom Tenant-Resolve (#3873): eine Küchenrolle hält meals:*, aber kein
+  // config:read und liest das Settings-Schema nicht.
+  const mealPlanEnabled = useMealPlanEnabled();
   // Die Leitung landet auf dem Hub; wer nur einzelne Kataloge hält, startet
   // beim ersten erreichbaren Unterpunkt statt auf einer fast leeren Hub-Seite.
   const databaseLandingHref =
@@ -1014,7 +1015,13 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
       return hasPermission(session, "guardians:financial");
     }
     if (href === "/meal-plan") {
-      return locked || (mealPlanEnabled && canReadConfig);
+      return (
+        locked ||
+        (mealPlanEnabled &&
+          (userIsAdmin ||
+            hasPermission(session, "meals:read") ||
+            hasPermission(session, "meals:register")))
+      );
     }
     return true;
   };

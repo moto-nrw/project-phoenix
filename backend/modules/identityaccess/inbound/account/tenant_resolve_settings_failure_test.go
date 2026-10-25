@@ -111,7 +111,7 @@ func (s tenantShellIncompleteSnapshot) ResolveManyForTenant(ctx context.Context,
 
 func TestResolveTenantRejectsUnreadablePrivacyAndPermissionSettings(t *testing.T) {
 	t.Parallel()
-	for _, key := range []string{settings.KeyAttendanceLogEnabled, settings.KeyOperationalOverviewScope, settings.KeyAttendanceEditScope, settings.KeyStudentPhotosEnabled, settings.KeyAnalyticsFreigabe, settings.KeyAnalyticsEnabled} {
+	for _, key := range []string{settings.KeyAttendanceLogEnabled, settings.KeyOperationalOverviewScope, settings.KeyAttendanceEditScope, settings.KeyStudentPhotosEnabled, settings.KeyAnalyticsFreigabe, settings.KeyAnalyticsEnabled, settings.KeyMealPlanEnabled, settings.KeyMealRegistrationEnabled} {
 		for _, batch := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%s/batch=%t", key, batch), func(t *testing.T) {
 				t.Parallel()

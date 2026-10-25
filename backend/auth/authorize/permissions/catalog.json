@@ -73,6 +73,10 @@
   },
   {
     "resource": "class_day",
+    "action": "day_hint_write"
+  },
+  {
+    "resource": "class_day",
     "action": "handover_write"
   },
   {
@@ -198,6 +202,22 @@
   {
     "resource": "iot",
     "action": "update"
+  },
+  {
+    "resource": "meals",
+    "action": "manage"
+  },
+  {
+    "resource": "meals",
+    "action": "orders"
+  },
+  {
+    "resource": "meals",
+    "action": "read"
+  },
+  {
+    "resource": "meals",
+    "action": "register"
   },
   {
     "resource": "permissions",
