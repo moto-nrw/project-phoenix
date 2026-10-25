@@ -13,10 +13,17 @@ import { TRAEGER_HELP_HREF } from "./traeger-help";
 
 const logger = createLogger({ component: "TraegerShell" });
 
+/** The Träger right that opens the page "Personen" (ADR 0084, #4650). */
+const ACCOUNTS_RIGHT = "traeger_accounts:manage";
+
+const navLinkClassName =
+  "rounded-md px-2.5 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none";
+
 /**
  * The shell of the Träger portal ("moto träger", #4649): the shared
- * PortalShell frame with a slim head bar. The portal has one page so far,
- * so there is no sidebar; the head carries the help and the only way out.
+ * PortalShell frame with a slim head bar. The portal has few pages, so there
+ * is no sidebar; the head carries its pages, the help and the way out. The
+ * page "Personen" (#4650) shows only with the right to manage accounts.
  */
 export function TraegerShell({
   children,
@@ -61,16 +68,26 @@ export function TraegerShell({
         <span className="text-sm font-semibold text-gray-600">Träger</span>
       </div>
       {/* Wraps below the brand on narrow phones (320 px) instead of overflowing. */}
-      <div className="ml-auto flex items-center gap-2">
+      <div className="ml-auto flex flex-wrap items-center gap-2">
+        <nav aria-label="Träger-Portal" className="flex items-center gap-1">
+          <NavLink href={traegerPath("/traeger")} className={navLinkClassName}>
+            Schulen
+          </NavLink>
+          {session?.user?.permissions?.includes(ACCOUNTS_RIGHT) ? (
+            <NavLink
+              href={traegerPath("/traeger/accounts")}
+              className={navLinkClassName}
+            >
+              Personen
+            </NavLink>
+          ) : null}
+        </nav>
         {session?.user?.email ? (
           <span className="text-sm text-gray-600 max-md:hidden">
             {session.user.email}
           </span>
         ) : null}
-        <NavLink
-          href={TRAEGER_HELP_HREF}
-          className="rounded-md px-2.5 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-        >
+        <NavLink href={TRAEGER_HELP_HREF} className={navLinkClassName}>
           Hilfe
         </NavLink>
         <Button

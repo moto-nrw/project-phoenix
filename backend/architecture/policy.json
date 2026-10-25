@@ -4799,6 +4799,14 @@
     {
       "name": "auth.organization_account_roles",
       "write_owner": "identity-access"
+    },
+    {
+      "name": "auth.traeger_invitations",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "audit.traeger_account_changes",
+      "write_owner": "audit-platform"
     }
   ],
   "read_projections": [

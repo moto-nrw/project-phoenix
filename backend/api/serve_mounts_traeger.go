@@ -17,7 +17,7 @@ import (
 // #4649) at /traeger: the public sign-in and the Träger route group, which
 // accepts only Träger sessions. Token refresh and logout go through the
 // shared scope-preserving /auth/refresh and /auth/logout.
-func mountTraegerPortalRoutes(root chi.Router, limiters authRateLimiters, identity identityaccess.TraegerAccountLogin, organizations organizationtenancy.TraegerMembershipQuery) error {
+func mountTraegerPortalRoutes(root chi.Router, limiters authRateLimiters, identity TraegerPortalIdentity, organizations organizationtenancy.TraegerMembershipQuery) error {
 	portal, err := NewTraegerPortalHTTP(identity, organizations)
 	if err != nil {
 		return err
@@ -26,9 +26,16 @@ func mountTraegerPortalRoutes(root chi.Router, limiters authRateLimiters, identi
 	return nil
 }
 
-// NewTraegerPortalHTTP binds the Träger sign-in and the Träger projection to
-// the portal's route ports.
-func NewTraegerPortalHTTP(identity identityaccess.TraegerAccountLogin, organizations organizationtenancy.TraegerMembershipQuery) (*traegerportal.Resource, error) {
+// TraegerPortalIdentity is what the Träger-Portal serves of Identity &
+// Access: the sign-in and the Träger-Büro account management.
+type TraegerPortalIdentity interface {
+	identityaccess.TraegerAccountLogin
+	identityaccess.TraegerAccountManagement
+}
+
+// NewTraegerPortalHTTP binds the Träger sign-in, the account management and
+// the Träger projection to the portal's route ports.
+func NewTraegerPortalHTTP(identity TraegerPortalIdentity, organizations organizationtenancy.TraegerMembershipQuery) (*traegerportal.Resource, error) {
 	if identity == nil || organizations == nil {
 		return nil, errors.New("traeger portal: identity and organizations are required")
 	}
@@ -36,7 +43,7 @@ func NewTraegerPortalHTTP(identity identityaccess.TraegerAccountLogin, organizat
 	if err != nil {
 		return nil, err
 	}
-	return traegerportal.NewResource(TraegerPortalAuth(identity), traegerViewHTTP.NewResource(overview)), nil
+	return traegerportal.NewResource(TraegerPortalAuth(identity), traegerViewHTTP.NewResource(overview), identity), nil
 }
 
 // TraegerPortalAuth binds the Träger-Portal's session port to Identity &

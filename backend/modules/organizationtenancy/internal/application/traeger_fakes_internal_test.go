@@ -26,6 +26,10 @@ func (fakeOwnerStore) UpsertActiveTraegerMembership(context.Context, int64, int6
 	return organizationtenancy.TraegerMembership{}, domain.OperationStats{}, nil
 }
 
+func (fakeOwnerStore) DeactivateTraegerMembership(context.Context, int64, int64) (bool, domain.OperationStats, error) {
+	return false, domain.OperationStats{}, nil
+}
+
 func (*fakeIdentity) FindAccountIDByEmail(context.Context, string) (int64, bool, error) {
 	return 0, false, nil
 }

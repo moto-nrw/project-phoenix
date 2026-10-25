@@ -1,5 +1,6 @@
 // Package traegerportal is the HTTP layer of the Träger-Portal ("moto
-// träger", ADR 0084, #4649): its sign-in and the mount of the Träger routes.
+// träger", ADR 0084, #4649): its sign-in, the Träger-Büro account routes
+// (#4650) and the mount of the Träger routes.
 //
 // Every route below /traeger shares two properties:
 //
@@ -27,6 +28,7 @@ import (
 	"github.com/go-ozzo/ozzo-validation/is"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 )
 
 const headerUserAgent = "User-Agent"
@@ -82,16 +84,18 @@ type TraegerRouter interface {
 
 // Resource bundles the Träger-Portal handlers.
 type Resource struct {
-	auth    AuthRuntime
-	schools TraegerRouter
+	auth     AuthRuntime
+	schools  TraegerRouter
+	accounts identityaccess.TraegerAccountManagement
 }
 
-// NewResource builds the Träger-Portal resource.
-func NewResource(auth AuthRuntime, schools TraegerRouter) *Resource {
+// NewResource builds the Träger-Portal resource. accounts serves the
+// Träger-Büro account routes (#4650); without it they answer 500.
+func NewResource(auth AuthRuntime, schools TraegerRouter, accounts identityaccess.TraegerAccountManagement) *Resource {
 	if schools == nil {
 		panic("traeger portal: the school list routes are required")
 	}
-	return &Resource{auth: auth, schools: schools}
+	return &Resource{auth: auth, schools: schools, accounts: accounts}
 }
 
 // The sentences the Träger-Portal renders for a refused login.
@@ -114,7 +118,9 @@ func (rs *Resource) RouterWithAuthRateLimiter(authRateLimiter func(http.Handler)
 		}
 		r.Post("/login", rs.login)
 	})
+	r.Mount("/invitations", rs.invitationRouter(authRateLimiter))
 	r.Mount("/schools", rs.schools.TraegerRouter(protectedTraegerRoutes))
+	r.Mount("/accounts", rs.accountRouter(protectedTraegerRoutes))
 	return r
 }
 

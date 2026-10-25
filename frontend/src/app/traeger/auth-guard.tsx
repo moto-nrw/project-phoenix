@@ -6,7 +6,12 @@ import { Loading } from "~/components/ui/loading";
 import { TraegerShell } from "~/components/traeger/traeger-shell";
 import { traegerPath } from "~/lib/traeger-url";
 
-const TRAEGER_PUBLIC_PAGES = ["/traeger/login", "/login"];
+const TRAEGER_PUBLIC_PAGES = [
+  "/traeger/login",
+  "/login",
+  "/traeger/invite",
+  "/invite",
+];
 
 /**
  * Client-side auth guard for Träger routes ("moto träger", #4649). Mirrors

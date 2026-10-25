@@ -20,7 +20,7 @@ vi.mock("~/lib/analytics-session-header.server", () => ({
 
 global.fetch = mockFetch as typeof fetch;
 
-import { proxyGet } from "./route-wrapper.server";
+import { proxyDelete, proxyGet } from "./route-wrapper.server";
 
 const context = { params: Promise.resolve({}) };
 
@@ -97,6 +97,41 @@ describe("Träger proxy", () => {
     expect(mockFetch).toHaveBeenLastCalledWith(
       "http://localhost:8080/traeger/schools",
       expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: "Bearer fresh-token",
+        }),
+      }),
+    );
+  });
+
+  // Quorum #4937: a DELETE answers null; after a refresh that is a success,
+  // not an expired session.
+  it("keeps a DELETE that succeeds after a refresh a success", async () => {
+    mockFetch
+      .mockResolvedValueOnce(
+        new Response(
+          '{"status":401,"detail":"expired","code":"general.permission"}',
+          {
+            status: 401,
+            headers: { "Content-Type": "application/problem+json" },
+          },
+        ),
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    mockUncachedAuth.mockResolvedValue({ user: { token: "fresh-token" } });
+
+    const response = await proxyDelete("/traeger/accounts/7")(
+      new NextRequest("http://localhost:3000/api/traeger/accounts/7", {
+        method: "DELETE",
+      }),
+      context,
+    );
+
+    expect(response.status).toBe(200);
+    expect(mockFetch).toHaveBeenLastCalledWith(
+      "http://localhost:8080/traeger/accounts/7",
+      expect.objectContaining({
+        method: "DELETE",
         headers: expect.objectContaining({
           Authorization: "Bearer fresh-token",
         }),

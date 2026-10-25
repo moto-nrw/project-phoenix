@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strings"
 )
 
 // Träger-Portal sign-in and Träger roles (ADR 0084, #4649). A person has one
@@ -58,6 +59,29 @@ var traegerRoleRights = map[string][]string{
 	TraegerRoleBilling:   {TraegerRightOverviewRead, TraegerRightBillingManage, TraegerRightFinanceExport, TraegerRightReportsRead},
 	TraegerRolePersonnel: {TraegerRightOverviewRead, TraegerRightStaffManage, TraegerRightReportsRead},
 	TraegerRoleReadOnly:  {TraegerRightOverviewRead, TraegerRightReportsRead},
+}
+
+// traegerRoleLabels are the German names the Träger-Portal shows.
+var traegerRoleLabels = map[string]string{
+	TraegerRoleAdministration: "Verwaltung",
+	TraegerRoleBilling:        "Abrechnung",
+	TraegerRolePersonnel:      "Personal",
+	TraegerRoleReadOnly:       "Nur lesen",
+}
+
+// TraegerRoleLabels names the roles in German, joined like a sentence:
+// „Verwaltung und Abrechnung“. Unknown role names are left out.
+func TraegerRoleLabels(roles []string) string {
+	labels := make([]string, 0, len(roles))
+	for _, role := range roles {
+		if label, ok := traegerRoleLabels[role]; ok {
+			labels = append(labels, label)
+		}
+	}
+	if len(labels) <= 1 {
+		return strings.Join(labels, "")
+	}
+	return strings.Join(labels[:len(labels)-1], ", ") + " und " + labels[len(labels)-1]
 }
 
 // IsTraegerRole reports whether role names a Träger role.

@@ -82,6 +82,8 @@ func staffRetention(owner string) tableRetention {
 // tableRetentions classifies every table of the schema.
 var tableRetentions = map[string]tableRetention{
 	"auth.organization_account_roles":                       parent("auth.accounts"),
+	"auth.traeger_invitations":                              own("hourly token-cleanup, DeleteExpiredSchoolInvitations also deletes expired Träger invitations (expires_at < now, #4650)"),
+	"audit.traeger_account_changes":                         own("hourly token-cleanup, operator audit log retention, DeleteExpiredOperatorAuditLog also deletes Träger account ledger entries (before 1 January of last year, #4650)"),
 	"platform.organization_accounts":                        parent("auth.accounts"),
 	"platform.school_erasures":                              own("administrative platform.delete_expired_school_erasures: completed evidence expires three years after completion; unresolved orders remain for recovery (#3837)"),
 	"active.activity_session_attendance":                    parent("schedule.instance_students"),

@@ -2,13 +2,20 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 )
+
+// seedTraegerInvitee is the colleague the seeded Träger-Büro has invited
+// (#4650); the address receives no mail outside the dev mail catcher.
+const seedTraegerInvitee = "traeger-abrechnung@example.test"
 
 // seedTraegerBueroStep makes the bootstrap school admin the first person of
 // the Träger-Büro (ADR 0084, #4649) through the operator route, so every dev
 // and demo database can sign in to the Träger-Portal with the admin's
-// credentials and sees the Träger's schools.
+// credentials and sees the Träger's schools. Signed in to the Träger-Portal,
+// the admin then invites a colleague with the role Abrechnung (#4650), so the
+// page "Personen" shows a person and an open invitation.
 type seedTraegerBueroStep struct{}
 
 func (seedTraegerBueroStep) Name() string { return "Seeding the Träger-Büro" }
@@ -25,5 +32,30 @@ func (seedTraegerBueroStep) Run(_ context.Context, rt *Runtime) error {
 		return fmt.Errorf("assign the Träger-Büro: %w", err)
 	}
 	fmt.Println("  Träger-Büro: school admin assigned with role Verwaltung")
+	return seedTraegerInvitation(rt)
+}
+
+// seedTraegerInvitation signs the admin in to the Träger-Portal and invites
+// the seeded colleague through the Träger route.
+func seedTraegerInvitation(rt *Runtime) error {
+	raw, err := rt.Client.PostWithAuth(AuthRef{Kind: AuthBearer}, "/traeger/auth/login", map[string]any{
+		"email": rt.Bootstrap.AdminEmail, "password": rt.Bootstrap.AdminPassword, "organization_id": rt.Bootstrap.OrganizationID,
+	})
+	if err != nil {
+		return fmt.Errorf("sign in to the Träger-Portal: %w", err)
+	}
+	var login struct {
+		AccessToken string `json:"access_token"`
+	}
+	if err := json.Unmarshal(raw, &login); err != nil || login.AccessToken == "" {
+		return fmt.Errorf("sign in to the Träger-Portal: no session in %q", raw)
+	}
+	traeger := AuthRef{Kind: AuthBearer, Token: login.AccessToken, Label: "traeger"}
+	if _, err := rt.Client.PostWithAuth(traeger, "/traeger/accounts/invitations", map[string]any{
+		"email": seedTraegerInvitee, "roles": []string{"billing"},
+	}); err != nil {
+		return fmt.Errorf("invite into the Träger-Büro: %w", err)
+	}
+	fmt.Println("  Träger-Büro: colleague invited with role Abrechnung")
 	return nil
 }

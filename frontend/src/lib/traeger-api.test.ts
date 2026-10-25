@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "./api-error";
-import { fetchTraegerSchools, traegerLogin } from "./traeger-api";
+import {
+  acceptTraegerInvitation,
+  fetchTraegerBuero,
+  fetchTraegerSchools,
+  traegerLogin,
+} from "./traeger-api";
 
 function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -109,5 +114,55 @@ describe("traeger-api", () => {
       },
     ]);
     expect(fetchMock.mock.calls[0]![0]).toBe("/api/traeger/schools");
+  });
+
+  it("maps the Träger-Büro and keeps only known roles (#4650)", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(200, {
+        status: "success",
+        data: {
+          members: [
+            { account_id: 3, email: "a@b.de", roles: ["billing", "unknown"] },
+          ],
+          invitations: [
+            {
+              id: 9,
+              email: "c@d.de",
+              roles: ["read_only"],
+              expires_at: "2026-09-11T10:00:00Z",
+            },
+          ],
+        },
+      }),
+    );
+
+    await expect(fetchTraegerBuero()).resolves.toEqual({
+      members: [{ accountId: "3", email: "a@b.de", roles: ["billing"] }],
+      invitations: [
+        {
+          id: "9",
+          email: "c@d.de",
+          roles: ["read_only"],
+          expiresAt: "2026-09-11T10:00:00Z",
+        },
+      ],
+    });
+    expect(fetchMock.mock.calls[0]![0]).toBe("/api/traeger/accounts");
+  });
+
+  it("accepts an invitation with the password and returns the address", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(200, { status: "success", data: { email: "a@b.de" } }),
+    );
+
+    await expect(
+      acceptTraegerInvitation("tok/en", { password: "pw" }),
+    ).resolves.toBe("a@b.de");
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe("/api/traeger/invitations/tok%2Fen/accept");
+    expect(JSON.parse(init!.body as string)).toEqual({
+      password: "pw",
+      confirm_password: "",
+    });
   });
 });

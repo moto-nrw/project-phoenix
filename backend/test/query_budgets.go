@@ -49,7 +49,8 @@ var queryBudgets = map[string]queryBudget{
 	// modules/traegerview — GET /traeger/schools (ADR 0084, #4649): the Träger
 	// row, the school IDs of the Träger and the school rows of that set, in
 	// one administrative transaction. Flat in the number of schools.
-	"api.traeger.schools": {max: 3, exact: true},
+	"api.traeger.schools":  {max: 3, exact: true},
+	"api.traeger.accounts": {max: 7, exact: true},
 	// organizationtenancy Provisioning.ListTraegerMembers (#4649): the Träger
 	// row, its memberships and one read of address and Träger roles for all
 	// members. Flat in the number of members.

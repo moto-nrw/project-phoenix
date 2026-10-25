@@ -162,6 +162,8 @@
     "/school/tagesinformationen": 828891,
     "/start": 491207,
     "/traeger": 513775,
+    "/traeger/accounts": 536273,
+    "/traeger/invite": 515756,
     "/traeger/login": 514262
   }
 }
