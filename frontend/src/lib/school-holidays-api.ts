@@ -3,7 +3,10 @@
 // bearbeitbar. Proxy: /api/timetable/holidays.
 
 import { apiErrorFromBody, transportFetch } from "~/lib/api-error";
+import { parseISODate, toISODate } from "~/lib/date-helpers";
 import type { CalendarEvent } from "~/lib/personal-calendar-api";
+
+const MAX_HOLIDAY_WINDOW_DAYS = 400;
 
 export interface SchoolHoliday {
   readonly date: string; // YYYY-MM-DD
@@ -24,8 +27,35 @@ interface BackendSchoolHolidays {
   readonly holidays: SchoolHoliday[] | null;
 }
 
-/** Feiertage im Fenster [from, to], beide Tage eingeschlossen. */
-export async function getSchoolHolidays(
+function holidayWindows(
+  fromISO: string,
+  toISO: string,
+): Array<{ from: string; to: string }> {
+  // Keep malformed and reversed ranges on the server's established 400 path.
+  const from = parseISODate(fromISO);
+  const last = parseISODate(toISO);
+  if (
+    toISODate(from) !== fromISO ||
+    toISODate(last) !== toISO ||
+    fromISO > toISO
+  ) {
+    return [{ from: fromISO, to: toISO }];
+  }
+
+  const windows: Array<{ from: string; to: string }> = [];
+  let windowFrom = from;
+  while (windowFrom <= last) {
+    const to = new Date(windowFrom);
+    to.setDate(to.getDate() + MAX_HOLIDAY_WINDOW_DAYS - 1);
+    if (to > last) to.setTime(last.getTime());
+    windows.push({ from: toISODate(windowFrom), to: toISODate(to) });
+    windowFrom = new Date(to);
+    windowFrom.setDate(windowFrom.getDate() + 1);
+  }
+  return windows;
+}
+
+async function getSchoolHolidayWindow(
   fromISO: string,
   toISO: string,
 ): Promise<SchoolHolidays> {
@@ -47,6 +77,27 @@ export async function getSchoolHolidays(
     federalState: envelope.data.federal_state,
     federalStateName: envelope.data.federal_state_name,
     holidays: envelope.data.holidays ?? [],
+  };
+}
+
+/** Feiertage im Fenster [from, to], beide Tage eingeschlossen. */
+export async function getSchoolHolidays(
+  fromISO: string,
+  toISO: string,
+): Promise<SchoolHolidays> {
+  const windows = await Promise.all(
+    holidayWindows(fromISO, toISO).map(({ from, to }) =>
+      getSchoolHolidayWindow(from, to),
+    ),
+  );
+  const [first] = windows;
+  if (!first) {
+    return { federalState: "", federalStateName: "", holidays: [] };
+  }
+  return {
+    federalState: first.federalState,
+    federalStateName: first.federalStateName,
+    holidays: windows.flatMap((window) => window.holidays),
   };
 }
 

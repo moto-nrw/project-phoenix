@@ -99,6 +99,20 @@ const shift: CalendarEvent = {
   can_edit: false,
 };
 
+const publicHoliday: CalendarEvent = {
+  id: "public_holiday:2026-01-06",
+  source: "public_holiday",
+  title: "Heilige Drei Könige",
+  description: "Gesetzlicher Feiertag in Bayern.",
+  start_date: "2026-01-06",
+  end_date: "2026-01-06",
+  start_time: "00:00",
+  end_time: "23:59",
+  all_day: true,
+  can_respond: false,
+  can_edit: false,
+};
+
 // RSVP, export, and management controls now live in the event detail sheet.
 // Open it by clicking the event surface (there are desktop + mobile copies;
 // either sets the same selected event).
@@ -143,6 +157,20 @@ function CalendarWithChrome(
 }
 
 describe("PersonalCalendar", () => {
+  it("renders statutory holidays as read-only calendar content", () => {
+    render(
+      <PersonalCalendar
+        events={[publicHoliday]}
+        weekStart={new Date(2026, 0, 5)}
+      />,
+    );
+
+    expect(screen.getAllByText("Heilige Drei Könige").length).toBeGreaterThan(0);
+    expect(
+      screen.queryByRole("button", { name: /Heilige Drei Könige/ }),
+    ).not.toBeInTheDocument();
+  });
+
   it("renders shift events with the Schicht badge", () => {
     render(
       <PersonalCalendar events={[shift]} weekStart={new Date(2026, 0, 5)} />,

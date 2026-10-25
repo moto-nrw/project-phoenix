@@ -2,6 +2,7 @@ package timetablehttp
 
 import (
 	"context"
+	"errors"
 	"net/http"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
@@ -34,6 +35,10 @@ type HolidaysResponse struct {
 func (rs *Resource) listHolidays(w http.ResponseWriter, r *http.Request) {
 	from, to, ok := parseDateWindow(w, r, maxHolidayRangeDays)
 	if !ok {
+		return
+	}
+	if rs.Holidays == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("holiday service is not configured")))
 		return
 	}
 	region, err := rs.Holidays.TenantHolidayRegion(r.Context())

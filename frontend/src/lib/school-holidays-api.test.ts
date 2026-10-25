@@ -66,6 +66,49 @@ describe("getSchoolHolidays", () => {
     expect(result.holidays).toEqual([]);
   });
 
+  it("splits a school year longer than the API window and combines its holidays", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: {
+            federal_state: "DE-NW",
+            federal_state_name: "Nordrhein-Westfalen",
+            holidays: [{ date: "2026-10-03", name: "Tag der Deutschen Einheit" }],
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: {
+            federal_state: "DE-NW",
+            federal_state_name: "Nordrhein-Westfalen",
+            holidays: [{ date: "2027-09-05", name: "Beispieltag" }],
+          },
+        }),
+      );
+
+    await expect(
+      getSchoolHolidays("2026-08-01", "2027-09-05"),
+    ).resolves.toEqual({
+      federalState: "DE-NW",
+      federalStateName: "Nordrhein-Westfalen",
+      holidays: [
+        { date: "2026-10-03", name: "Tag der Deutschen Einheit" },
+        { date: "2027-09-05", name: "Beispieltag" },
+      ],
+    });
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "/api/timetable/holidays?from=2026-08-01&to=2027-09-04",
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "/api/timetable/holidays?from=2027-09-05&to=2027-09-05",
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+
   it("throws the API error with its code", async () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse(

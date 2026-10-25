@@ -1084,13 +1084,16 @@ function TimeGridEventBlock({
 
 // Apple-Kalender-artige Agenda-Zeile: linksbündige Zeitspalte, farbige Leiste,
 // Titel + kompakte Unterzeile. Wird als Zeile INNERHALB des durchgehenden
-// Tages-Panels gerendert (kein eigenes Karten-Chrome). Tap öffnet das Detail.
+// Tages-Panels gerendert (kein eigenes Karten-Chrome). Gesetzliche Feiertage
+// bleiben reine Anzeige, alle anderen Einträge öffnen das Detail.
 function AgendaRow({
   event,
   actions,
 }: Readonly<{ event: CalendarEvent; actions: CalendarEventActions }>) {
   const tone = toneOf(event);
   const cancelled = event.cancelled === true;
+  const readOnly = event.source === "public_holiday";
+  const EventSurface = readOnly ? "div" : "button";
   // Präsentation hängt an event.all_day, nicht an der Datumsspanne: ein
   // mehrtägiger Termin MIT Uhrzeiten zeigt seine Zeiten, nur echte
   // Ganztägig-Einträge zeigen „ganztg.“ (isAllDayLike regelt nur die
@@ -1114,10 +1117,13 @@ function AgendaRow({
     .filter(Boolean)
     .join(" · ");
   return (
-    <button
-      type="button"
-      onClick={() => actions.onSelect?.(event)}
-      className={`flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-gray-50 ${
+    <EventSurface
+      {...(readOnly
+        ? {}
+        : { type: "button", onClick: () => actions.onSelect?.(event) })}
+      className={`flex w-full items-center gap-3 px-4 py-3 text-left ${
+        readOnly ? "" : "transition-colors hover:bg-gray-50"
+      } ${
         cancelled ? "opacity-70" : ""
       }`}
     >
@@ -1161,30 +1167,36 @@ function AgendaRow({
           </div>
         ) : null}
       </div>
-    </button>
+    </EventSurface>
   );
 }
 
 // Schmale einzeilige Pille für die Ganztägig-Zeile im Wochen-/Tagesraster und
 // für Monatszellen. Mehrtägige Einträge liegen aus Layout-Gründen ebenfalls in
 // dieser Zeile; zeitgebundene Einträge behalten dort aber ihre Zeitangabe.
-// Tap öffnet das Detail-Sheet.
+// Gesetzliche Feiertage sind nur sichtbar, alle anderen Einträge öffnen das
+// Detail-Sheet.
 function EventPill({
   event,
   actions,
 }: Readonly<{ event: CalendarEvent; actions: CalendarEventActions }>) {
   const tone = toneOf(event);
   const cancelled = event.cancelled === true;
+  const readOnly = event.source === "public_holiday";
+  const EventSurface = readOnly ? "div" : "button";
   const timeLabel = event.all_day
     ? null
     : event.start_date === event.end_date
       ? event.start_time
       : `${event.start_time}–${event.end_time}`;
   return (
-    <button
-      type="button"
-      onClick={() => actions.onSelect?.(event)}
-      className={`flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left transition-[filter] hover:brightness-95 ${
+    <EventSurface
+      {...(readOnly
+        ? {}
+        : { type: "button", onClick: () => actions.onSelect?.(event) })}
+      className={`flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left ${
+        readOnly ? "" : "transition-[filter] hover:brightness-95"
+      } ${
         cancelled ? "opacity-70" : ""
       }`}
       style={{ backgroundColor: tone.bg }}
@@ -1206,7 +1218,7 @@ function EventPill({
           {timeLabel}
         </span>
       ) : null}
-    </button>
+    </EventSurface>
   );
 }
 

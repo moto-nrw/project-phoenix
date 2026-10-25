@@ -1,6 +1,7 @@
 package timetablehttp_test
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -59,9 +60,13 @@ type holidayListBody struct {
 }
 
 func getHolidays(t *testing.T, setup holidayRouteSetup, tenantID int64, query string, granted ...string) *httptest.ResponseRecorder {
+	return getHolidaysWithContext(t, setup, context.Background(), tenantID, query, granted...)
+}
+
+func getHolidaysWithContext(t *testing.T, setup holidayRouteSetup, ctx context.Context, tenantID int64, query string, granted ...string) *httptest.ResponseRecorder {
 	t.Helper()
 	account := testpkg.CreateTestAccount(t, setup.db, fmt.Sprintf("holidays-%d", time.Now().UnixNano()))
-	req := httptest.NewRequest(http.MethodGet, "/timetable/holidays"+query, nil)
+	req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/timetable/holidays"+query, nil)
 	return apiTest.ExecuteWithAuth(t, setup.router, req, apiTest.TenantUserTestClaims(int(account.ID), tenantID, granted...))
 }
 
@@ -135,4 +140,24 @@ func TestHolidayRouteRejectsAMissingOrTooWideWindow(t *testing.T) {
 		response := getHolidays(t, setup, setup.tenantID, query, permissions.CalendarOwn)
 		assert.Equal(t, http.StatusBadRequest, response.Code, "query %q", query)
 	}
+}
+
+// The holiday calculation is local. One settings snapshot is the only owner
+// read, so the complete request must remain flat as the holiday list grows.
+func TestHolidayRouteQueryBudget(t *testing.T) {
+	t.Parallel()
+	setup := setupHolidayRoute(t)
+	counter := testpkg.CaptureQueriesForContext(t, setup.db)
+
+	response := getHolidaysWithContext(
+		t,
+		setup,
+		counter.Context(context.Background()),
+		setup.tenantID,
+		"?from=2026-08-01&to=2027-07-31",
+		permissions.CalendarOwn,
+	)
+	decodeHolidayList(t, response)
+	t.Logf("query budget: holiday list → %d queries", counter.Total())
+	testpkg.AssertQueryBudget(t, "api.timetable.holidays.list", counter.Queries())
 }
