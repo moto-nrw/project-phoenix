@@ -11,6 +11,10 @@ import { saveTraegerContact, type TraegerContact } from "~/lib/traeger-api";
 
 const logger = createLogger({ component: "TraegerContactCard" });
 
+function sameContact(a: TraegerContact, b: TraegerContact): boolean {
+  return a.name === b.name && a.phone === b.phone && a.email === b.email;
+}
+
 /**
  * The contact person of the Träger (#4653): who parents and schools reach
  * about a letter. Empty fields are left off the letter.
@@ -33,28 +37,29 @@ export function TraegerContactCard({
   // A refresh after another change on the page brings a new contact
   // object; an open draft stays until it is saved or cancelled.
   const shown = useRef(contact);
+  const [stored, setStored] = useState(contact);
   useEffect(() => {
     const before = shown.current;
     shown.current = contact;
-    setDraft((current) =>
-      current.name === before.name &&
-      current.phone === before.phone &&
-      current.email === before.email
-        ? contact
-        : current,
-    );
+    setStored(contact);
+    setDraft((current) => (sameContact(current, before) ? contact : current));
   }, [contact]);
 
-  const changed =
-    draft.name !== contact.name ||
-    draft.phone !== contact.phone ||
-    draft.email !== contact.email;
+  const changed = !sameContact(draft, stored);
 
   const submit = async () => {
     formErrors.clear();
     setSaving(true);
+    const submitted = draft;
     try {
-      await saveTraegerContact(draft);
+      const saved = await saveTraegerContact(submitted);
+      // The form shows what the backend keeps (trimmed, e-mail in lower
+      // case), unless the person typed on while it saved.
+      shown.current = saved;
+      setStored(saved);
+      setDraft((current) =>
+        sameContact(current, submitted) ? saved : current,
+      );
       success("Der Ansprechpartner ist gespeichert.");
       await onSaved();
     } catch (err) {
@@ -119,7 +124,7 @@ export function TraegerContactCard({
         {canEdit && changed ? (
           <EditActions
             onCancel={() => {
-              setDraft(contact);
+              setDraft(stored);
               formErrors.clear();
             }}
             saving={saving}

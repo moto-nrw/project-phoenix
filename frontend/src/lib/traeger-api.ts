@@ -871,14 +871,22 @@ export async function fetchTraegerMasterData(): Promise<TraegerMasterData> {
   };
 }
 
-/** Stores the contact person. Throws an ApiError on failure. */
+/**
+ * Stores the contact person and returns it as the backend keeps it: trimmed,
+ * the e-mail address in lower case. Throws an ApiError on failure.
+ */
 export async function saveTraegerContact(
   contact: TraegerContact,
-): Promise<void> {
-  await traegerRequest(`${masterDataPath}/contact`, {
-    method: "PUT",
-    body: contact,
-  });
+): Promise<TraegerContact> {
+  const saved = await traegerRequest<Partial<TraegerContact> | null>(
+    `${masterDataPath}/contact`,
+    { method: "PUT", body: contact },
+  );
+  return {
+    name: saved?.name ?? contact.name,
+    phone: saved?.phone ?? contact.phone,
+    email: saved?.email ?? contact.email,
+  };
 }
 
 /** Uploads a PNG or JPEG logo in place of the old one. */

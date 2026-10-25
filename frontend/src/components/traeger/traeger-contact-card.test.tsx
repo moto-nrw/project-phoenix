@@ -1,8 +1,9 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 
-vi.mock("~/lib/traeger-api", () => ({ saveTraegerContact: vi.fn() }));
+const { mockSave } = vi.hoisted(() => ({ mockSave: vi.fn() }));
+vi.mock("~/lib/traeger-api", () => ({ saveTraegerContact: mockSave }));
 
 import { TraegerContactCard } from "./traeger-contact-card";
 
@@ -43,5 +44,28 @@ describe("TraegerContactCard", () => {
     rerender(card({ ...SAVED, phone: "+49 5402 1234-0" }));
 
     expect(screen.getByLabelText("Telefon")).toHaveValue("+49 5402 1234-0");
+  });
+
+  it("shows the contact as the backend keeps it after saving", async () => {
+    mockSave.mockResolvedValue({
+      name: "Petra Lindner",
+      phone: "",
+      email: "buero@traeger.example",
+    });
+    render(card(SAVED));
+    fireEvent.change(screen.getByLabelText("E-Mail-Adresse"), {
+      target: { value: " Buero@Traeger.Example " },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() =>
+      expect(screen.getByLabelText("E-Mail-Adresse")).toHaveValue(
+        "buero@traeger.example",
+      ),
+    );
+    expect(
+      screen.queryByRole("button", { name: "Speichern" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Name")).toHaveValue("Petra Lindner");
   });
 });
