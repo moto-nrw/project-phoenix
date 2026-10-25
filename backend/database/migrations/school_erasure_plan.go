@@ -284,3 +284,8 @@ func restoreSchoolErasurePlanBeforeHomework(ctx context.Context, tx bun.Tx) erro
 	_, err := tx.ExecContext(ctx, schoolErasurePlanWithoutHomeworkSQL)
 	return err
 }
+
+func restoreSchoolErasurePlanBeforeSurveys(ctx context.Context, tx bun.Tx) error {
+	_, err := tx.ExecContext(ctx, schoolErasurePlanWithoutSurveysSQL)
+	return err
+}

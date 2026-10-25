@@ -529,3 +529,8 @@ func restoreSchoolErasureResidualBeforeHomework(ctx context.Context, tx bun.Tx) 
 	_, err := tx.ExecContext(ctx, schoolErasureResidualWithoutHomeworkSQL)
 	return err
 }
+
+func restoreSchoolErasureResidualBeforeSurveys(ctx context.Context, tx bun.Tx) error {
+	_, err := tx.ExecContext(ctx, schoolErasureResidualWithoutSurveysSQL)
+	return err
+}

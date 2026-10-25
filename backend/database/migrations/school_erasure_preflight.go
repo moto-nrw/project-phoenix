@@ -582,3 +582,8 @@ func restoreSchoolErasurePreflightBeforeHomework(ctx context.Context, tx bun.Tx)
 	_, err := tx.ExecContext(ctx, schoolErasurePreflightWithoutHomeworkSQL)
 	return err
 }
+
+func restoreSchoolErasurePreflightBeforeSurveys(ctx context.Context, tx bun.Tx) error {
+	_, err := tx.ExecContext(ctx, schoolErasurePreflightWithoutSurveysSQL)
+	return err
+}

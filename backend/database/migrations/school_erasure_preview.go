@@ -290,3 +290,8 @@ func restoreSchoolErasurePreviewBeforeHomework(ctx context.Context, tx bun.Tx) e
 	_, err := tx.ExecContext(ctx, schoolErasurePreviewWithoutHomeworkSQL)
 	return err
 }
+
+func restoreSchoolErasurePreviewBeforeSurveys(ctx context.Context, tx bun.Tx) error {
+	_, err := tx.ExecContext(ctx, schoolErasurePreviewWithoutSurveysSQL)
+	return err
+}
