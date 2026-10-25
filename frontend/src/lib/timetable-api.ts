@@ -12,6 +12,11 @@ import { ApiError, apiErrorFromBody, transportFetch } from "./api-error";
 
 import { getCachedSession } from "./session-cache";
 import { createLogger } from "./logger";
+import {
+  NO_PLAN_FILTER,
+  planFilterQuery,
+  type PlanFilter,
+} from "./plan-filter";
 import type {
   BackendConflictCheckResult,
   BackendShiftCoverageCheckResult,
@@ -143,15 +148,24 @@ class TimetableService {
   /**
    * GET /api/timetable/instances?from=YYYY-MM-DD&to=YYYY-MM-DD.
    * Returns the materialized instances in the requested window plus
-   * lightweight enrichment (room name, type, staff list, counts).
+   * lightweight enrichment (room name, type, staff list, counts). The
+   * optional filter narrows them to one OGS group and/or one person (#4766).
    */
-  async getWeek(from: string, to: string): Promise<WeeklyInstancesResponse> {
+  async getWeek(
+    from: string,
+    to: string,
+    filter: PlanFilter = NO_PLAN_FILTER,
+  ): Promise<WeeklyInstancesResponse> {
     const session = await getCachedSession();
     if (!session?.user?.token) {
       throw new ApiError("Nicht angemeldet", 401);
     }
 
-    const params = new URLSearchParams({ from, to });
+    const params = new URLSearchParams({
+      from,
+      to,
+      ...planFilterQuery(filter),
+    });
     const response = await transportFetch(
       `/api/timetable/instances?${params}`,
       {

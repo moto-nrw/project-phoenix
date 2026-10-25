@@ -90,6 +90,33 @@ describe("exportPlan", () => {
     );
   });
 
+  // #4766: der Druck übernimmt den Gruppen- und Personenfilter des Plans.
+  it("sends the care plan's group and person filter as numeric ids", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(fileResponse());
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    await exportPlan(
+      "betreuungsplan",
+      {
+        ...request,
+        template: "offerings",
+        filter: { groupId: "41", staffId: "17" },
+      },
+      "pdf",
+      "download",
+    );
+
+    const init = fetchMock.mock.calls[0]?.[1] as { body: string } | undefined;
+    const body = JSON.parse(init?.body ?? "{}") as Record<string, unknown>;
+    expect(body).toEqual({
+      ...request,
+      template: "offerings",
+      group_id: 41,
+      staff_id: 17,
+      format: "pdf",
+    });
+  });
+
   // The proxy route wraps the backend body in {"error": "<json>"}; without
   // unwrapping, a useful limit ("range exceeds 8 weeks") reaches the user as
   // a blob of JSON.
