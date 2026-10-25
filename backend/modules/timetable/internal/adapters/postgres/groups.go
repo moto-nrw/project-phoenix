@@ -137,7 +137,7 @@ func (s *Store) ListBlockGroupCandidates(ctx context.Context, instanceIDs []int6
 	}
 	rows := []blockGroupCandidateRow{}
 	query := db.NewSelect().Model(&rows).
-		TableExpr(`schedule.activity_instances AS "instance"`).
+		ModelTableExpr(`schedule.activity_instances AS "instance"`).
 		ColumnExpr(`"instance".id AS instance_id, "template".education_group_id AS template_education_group_id,
 			COALESCE("target".target_group_type, '') AS target_group_type, "target".education_group_id AS target_education_group_id,
 			"student".student_id`).
