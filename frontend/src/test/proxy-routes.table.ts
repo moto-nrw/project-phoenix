@@ -852,6 +852,27 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
     "POST tenant /api/substitutions",
   ],
   "api/substitutions/end": ["POST tenant /api/substitutions/end"],
+  "api/surveys": ["GET tenant /api/surveys", "POST tenant /api/surveys"],
+  "api/surveys/[surveyId]/answers": [
+    "POST tenant /api/surveys/surveyId%2F1/answers",
+  ],
+  "api/surveys/[surveyId]/close": [
+    "POST tenant /api/surveys/surveyId%2F1/close",
+  ],
+  "api/surveys/[surveyId]/form": ["GET tenant /api/surveys/surveyId%2F1/form"],
+  "api/surveys/[surveyId]/publish": [
+    "POST tenant /api/surveys/surveyId%2F1/publish",
+  ],
+  "api/surveys/[surveyId]/remind": [
+    "POST tenant /api/surveys/surveyId%2F1/remind",
+  ],
+  "api/surveys/[surveyId]/respondents": [
+    "GET tenant /api/surveys/surveyId%2F1/respondents",
+  ],
+  "api/surveys/[surveyId]/results": [
+    "GET tenant /api/surveys/surveyId%2F1/results",
+  ],
+  "api/surveys/to-answer": ["GET tenant /api/surveys/to-answer"],
   "api/time-tracking/[id]/edits": [
     "GET tenant /api/time-tracking/id%2F1/edits",
   ],
@@ -1086,7 +1107,9 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
     "POST traeger /traeger/holiday-periods/id%2F1/publish",
   ],
   "api/traeger/organization": ["GET traeger /traeger/organization"],
+  "api/traeger/school-sessions": ["POST traeger /traeger/school-sessions"],
   "api/traeger/schools": ["GET traeger /traeger/schools"],
+  "api/traeger/settings/schema": ["GET traeger /traeger/settings/schema"],
   "api/work-time-models": [
     "GET tenant /api/work-time-models",
     "POST tenant /api/work-time-models",

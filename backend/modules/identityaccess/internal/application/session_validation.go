@@ -77,11 +77,8 @@ func (s *AccountAuthentication) validateSessionInTx(txCtx context.Context, claim
 	if err != nil || !found || !account.Active {
 		return identityaccess.ErrInvalidToken
 	}
-	if claims.TenantID > 0 {
-		active, _, err := s.store.LockActiveTenantMappingShared(txCtx, account.ID, claims.TenantID)
-		if err != nil || !active {
-			return identityaccess.ErrInvalidToken
-		}
+	if !s.sessionReachesSchool(txCtx, account.ID, claims, portal) {
+		return identityaccess.ErrInvalidToken
 	}
 	if portal == domain.ScopeOrg && !s.activeTraegerMember(txCtx, account.ID, claims.OrgID) {
 		return identityaccess.ErrInvalidToken
@@ -106,8 +103,41 @@ func (s *AccountAuthentication) activeTraegerMember(ctx context.Context, account
 	return err == nil && containsTraeger(organizations, organizationID)
 }
 
-// sessionOfTraeger reports whether a Träger token's session belongs to its
-// Träger; the other portals' sessions name no Träger.
+// sessionReachesSchool re-checks the school of a school-bound token: an
+// active mapping, or for a Träger school session the Träger, which must still
+// grant the school (ADR 0084 section 5). A token without a school passes.
+func (s *AccountAuthentication) sessionReachesSchool(ctx context.Context, accountID int64, claims domain.SessionClaims, portal string) bool {
+	if claims.ViaTraeger {
+		return portal == "tenant" && claims.TenantID > 0 && claims.OrgID > 0 && s.traegerGrantsSchool(ctx, accountID, claims.OrgID, claims.TenantID)
+	}
+	if claims.TenantID <= 0 {
+		return true
+	}
+	active, _, err := s.store.LockActiveTenantMappingShared(ctx, accountID, claims.TenantID)
+	return err == nil && active
+}
+
+// traegerGrantsSchool re-checks a Träger school session: active membership,
+// the right "In OGS wechseln" and a live school of the Träger. Any failure
+// reads as no access.
+func (s *AccountAuthentication) traegerGrantsSchool(ctx context.Context, accountID, organizationID, schoolID int64) bool {
+	if s.traeger == nil || s.requireTraegerSchoolSwitch(ctx, accountID, organizationID) != nil {
+		return false
+	}
+	school, found, err := s.schools.FindSchool(ctx, schoolID)
+	return err == nil && found && !school.Deleted && school.Active && school.OrganizationID == organizationID
+}
+
+// sessionOfTraeger reports whether a token's session names the Träger the
+// token names: a Träger token its Träger, a Träger school token the Träger it
+// came through (#4654); every other session names none.
 func sessionOfTraeger(session domain.AccountSession, claims domain.SessionClaims) bool {
-	return claims.Scope != domain.ScopeOrg || session.OrganizationID == claims.OrgID
+	switch {
+	case claims.Scope == domain.ScopeOrg:
+		return session.OrganizationID == claims.OrgID
+	case claims.ViaTraeger:
+		return domain.IsTraegerSchoolSession(session) && session.OrganizationID == claims.OrgID
+	default:
+		return session.OrganizationID == 0
+	}
 }

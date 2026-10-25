@@ -4156,6 +4156,14 @@
       "write_owner": "settings-platform"
     },
     {
+      "name": "config.traeger_setting_audit",
+      "write_owner": "settings-platform"
+    },
+    {
+      "name": "config.traeger_setting_values",
+      "write_owner": "settings-platform"
+    },
+    {
       "name": "config.settings",
       "write_owner": "settings-platform"
     },
@@ -4842,6 +4850,30 @@
     {
       "name": "users.student_compatibility_writes",
       "write_owner": "migrations"
+    },
+    {
+      "name": "users.survey_answers",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.survey_participations",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.survey_question_options",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.survey_questions",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.survey_responses",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.surveys",
+      "write_owner": "communication"
     },
     {
       "name": "users.teachers",

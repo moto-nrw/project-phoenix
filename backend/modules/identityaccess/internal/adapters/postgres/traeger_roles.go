@@ -76,11 +76,14 @@ func (s *Store) InsertTraegerRole(ctx context.Context, organizationID, accountID
 	return stats, nil
 }
 
+// The Träger sessions and the school sessions opened through them (ADR 0084
+// section 5): both name the Träger in organization_id.
 const deleteTraegerSessionsQuery = `DELETE FROM auth.tokens
-	WHERE organization_id = ? AND portal_scope = 'org'`
+	WHERE organization_id = ?`
 
-// DeleteTraegerSessions deletes every Träger session of the Träger (#4657):
-// none of them can be refreshed or handed off again.
+// DeleteTraegerSessions deletes every Träger session of the Träger (#4657)
+// and every school session opened through it (#4654): none of them can be
+// refreshed or handed off again.
 func (s *Store) DeleteTraegerSessions(ctx context.Context, organizationID int64) (int64, domain.OperationStats, error) {
 	db, err := s.database(ctx)
 	if err != nil {
@@ -132,4 +135,48 @@ func (s *Store) ListTraegerAccounts(ctx context.Context, organizationID int64, a
 		accounts = append(accounts, domain.TraegerAccount{AccountID: row.AccountID, Email: row.Email, Roles: row.Roles})
 	}
 	return accounts, stats, nil
+}
+
+const findTraegerSchoolRoleQuery = `SELECT id AS role_id, name, is_system, tenant_id, school_portal FROM auth.roles
+	WHERE LOWER(name) = LOWER(?) AND (tenant_id = ? OR tenant_id IS NULL)
+	ORDER BY tenant_id IS NULL ASC, id ASC LIMIT 1`
+
+const listTraegerSchoolRolePermissionsQuery = `SELECT DISTINCT "permission".resource || ':' || "permission".action
+	FROM auth.role_permissions AS "role_permission"
+	JOIN auth.permissions AS "permission" ON "permission".id = "role_permission".permission_id
+	WHERE "role_permission".role_id = ?
+	ORDER BY 1`
+
+// FindTraegerSchoolRole resolves the role a Träger school session holds at
+// the school (ADR 0084 section 5): the school's own role of that name before
+// the system role, with its effective permissions in the resource:action
+// form the session claims carry. found is false when the school sees no such
+// role.
+func (s *Store) FindTraegerSchoolRole(ctx context.Context, name string, tenantID int64) (domain.RoleAssignment, []string, bool, domain.OperationStats, error) {
+	db, err := s.database(ctx)
+	if err != nil {
+		return domain.RoleAssignment{}, nil, false, domain.OperationStats{}, err
+	}
+	var rows []roleAssignmentRow
+	started := time.Now()
+	err = db.NewRaw(findTraegerSchoolRoleQuery, name, tenantID).Scan(ctx, &rows)
+	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started), Rows: int64(len(rows))}
+	if err != nil {
+		return domain.RoleAssignment{}, nil, false, stats, fmt.Errorf("identity access postgres: find Träger school role: %w", err)
+	}
+	if len(rows) == 0 {
+		return domain.RoleAssignment{}, nil, false, stats, nil
+	}
+	row := rows[0]
+	role := domain.RoleAssignment{RoleID: row.RoleID, Name: row.Name, IsSystem: row.IsSystem, TenantID: row.TenantID, SchoolPortal: row.SchoolPortal}
+	permissions := []string{}
+	started = time.Now()
+	err = db.NewRaw(listTraegerSchoolRolePermissionsQuery, role.RoleID).Scan(ctx, &permissions)
+	stats.Queries++
+	stats.StatementDuration += time.Since(started)
+	stats.Rows += int64(len(permissions))
+	if err != nil {
+		return domain.RoleAssignment{}, nil, false, stats, fmt.Errorf("identity access postgres: list Träger school role permissions: %w", err)
+	}
+	return role, permissions, true, stats, nil
 }

@@ -177,5 +177,6 @@ Das Frontend erklärt beides statt einer Fehlerseite: Die Login-Seiten zeigen ei
 | `/api/staff/dashboard-summary`, `/api/staff/externals` | Basis | Kachel „Personal heute“ und externe Betreuungskräfte. |
 | `/api/timetable/shift-coverage` | Dienstplan | Besetzung aus dem Dienstplan im Terminformular. Die übrige Planung ist Basis. |
 | `/api/substitutions`, `/api/timetable/substitutions` | Basis | Übergaben einer Gruppe gibt es ohne Dienstplan. |
+| `/api/surveys` | Basis | Umfragen an das Team gibt es ohne Eltern-App. Eine Umfrage an Eltern erreicht sie nur über das Elternportal (`/parent/me/news/{id}/survey`, Eltern-App) und über Mitteilungen an Eltern, die ohne Eltern-App nicht verschickt werden. Wie bei Terminen an Eltern sperrt also der Weg zu den Eltern, nicht das Anlegen. |
 | `/api/class-list-entries`, `/api/students/class-arrival-*`, `/api/students/school-checkin` | Basis | Klassenlisten und Ankunft aus der Schule pflegt das OGS-Team. Das Schulportal der Lehrkräfte ist Unterricht am Vormittag. |
 | `/api/feedback` | Basis | Rückmeldungen der Kinder am Tablet, auch zum Essen. Die Rückmeldung gibt es ohne das Modul Mittagessen. |

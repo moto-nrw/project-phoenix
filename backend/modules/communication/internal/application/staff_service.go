@@ -48,6 +48,9 @@ func (s *service) List(ctx context.Context, includeInactive bool) ([]*StaffParen
 	if err != nil {
 		return nil, fmt.Errorf("announcement: list: %w", err)
 	}
+	// A survey's carrier (#4781) belongs to the survey list; the announcement
+	// list would show it as a second, uneditable entry.
+	rows = withoutSurveyCarriers(rows)
 	// Attach poll options in one batched query so the staff list can render an
 	// Umfrage row (its options) without an N+1 fetch per announcement.
 	ids := make([]int64, 0, len(rows))
@@ -80,7 +83,7 @@ func (s *service) Get(ctx context.Context, id int64) (*StaffParentAnnouncement, 
 	if err != nil {
 		return nil, fmt.Errorf("announcement: get: %w", err)
 	}
-	if a == nil {
+	if a == nil || isSurveyCarrier(a) {
 		return nil, ErrNotFound
 	}
 	targets, err := s.repo.ListTargets(ctx, id)
@@ -455,6 +458,7 @@ func publishMailSpec(a *StaffParentAnnouncement) mailSpec {
 	}
 	// A poll says so in the mail: the kicker and intro differ, the rest of the
 	// template (and the deliberate absence of the body) is identical.
+	spec = surveyMailSpec(a, spec)
 	if a.IsPoll() {
 		spec.kicker = pollEmailKicker
 		intro := "wir bitten Sie um eine kurze Rückmeldung. Die Umfrage finden Sie im Eltern-Portal."
@@ -625,7 +629,7 @@ func (s *service) Stats(ctx context.Context, id int64) (*StaffAnnouncementStats,
 	if err != nil {
 		return nil, fmt.Errorf("announcement: load for stats: %w", err)
 	}
-	if a == nil {
+	if a == nil || isSurveyCarrier(a) {
 		return nil, ErrNotFound
 	}
 	stats, err := s.repo.Stats(ctx, a.GetTenantID(), id)
@@ -643,7 +647,7 @@ func (s *service) Recipients(ctx context.Context, id int64) ([]*StaffAnnouncemen
 	if err != nil {
 		return nil, fmt.Errorf("announcement: load for recipients: %w", err)
 	}
-	if a == nil {
+	if a == nil || isSurveyCarrier(a) {
 		return nil, ErrNotFound
 	}
 	recipients, err := s.repo.AudienceRecipients(ctx, a.GetTenantID(), id)

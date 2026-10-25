@@ -4,7 +4,7 @@ status: accepted
 
 # Abholberechtigungen werden bei Freigabe im Elternportal koordiniert
 
-Entscheidung vom 25.10.2026 für #4780 (ADR 0107).
+Entscheidung vom 25.10.2026 für #4780 (ADR 0111).
 
 ## Entscheidung
 

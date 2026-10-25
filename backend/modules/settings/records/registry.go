@@ -59,11 +59,48 @@ var validAccessPolicies = map[AccessPolicy]bool{
 	AccessOperatorManaged: true,
 }
 
+// Level names where a setting may hold a value besides its registry default
+// (ADR 0086 section 3).
+type Level string
+
+const (
+	// LevelSchool: only the school overrides the default. The value when the
+	// field is left unset; every setting had this level before the Träger.
+	LevelSchool Level = "schule"
+	// LevelTraeger: only the Träger sets a value; schools see it read-only
+	// and cannot deviate.
+	LevelTraeger Level = "traeger"
+	// LevelBoth: the Träger sets a value for all its schools, and a school may
+	// deviate with its own override.
+	LevelBoth Level = "beide"
+)
+
+var validLevels = map[Level]bool{LevelSchool: true, LevelTraeger: true, LevelBoth: true}
+
+// AtTraeger reports whether the Träger may hold a value of the setting.
+func (l Level) AtTraeger() bool { return l == LevelTraeger || l == LevelBoth }
+
+// TraegerRight names the Träger right that writes a Träger value (ADR 0086
+// section 6). Identity & Access owns the rights; the composition root maps
+// these names to them, so the registry does not name the owner's contract.
+type TraegerRight string
+
+const (
+	// TraegerRightSettings is the default: the right "Einstellungen".
+	TraegerRightSettings TraegerRight = "settings"
+	// TraegerRightStaff is "Personal", for staff and payroll settings.
+	TraegerRightStaff TraegerRight = "staff"
+	// TraegerRightBilling is "Abrechnung", for parent billing settings.
+	TraegerRightBilling TraegerRight = "billing"
+)
+
+var validTraegerRights = map[TraegerRight]bool{TraegerRightSettings: true, TraegerRightStaff: true, TraegerRightBilling: true}
+
 // Definition describes a single setting: its type, default, permissions,
 // categorization, dependencies, and select options.
 //
-// In v1, all settings are tenant-scoped with a system default from the registry.
-// Adding more scopes later is a ~10 line change (no migration needed).
+// A value resolves registry default, then the Träger value, then the school
+// override (ADR 0086); Levels says which of the two may exist.
 type Definition struct {
 	Key         string    `json:"key"`
 	Label       string    `json:"label"`
@@ -87,6 +124,15 @@ type Definition struct {
 	// in Register() — preserves existing behaviour for all previously
 	// registered settings and future settings that don't declare a policy.
 	AccessPolicy AccessPolicy `json:"access_policy,omitempty"`
+
+	// Levels says whether a Träger value may exist. Empty defaults to
+	// LevelSchool in Register(). LevelTraeger and LevelBoth require a shared
+	// or admin_only, non-password definition; validateTraegerLevel holds the
+	// part of ADR 0086 section 3 the definition itself shows.
+	Levels Level `json:"levels,omitempty"`
+	// TraegerWriteRight is the Träger right that writes the Träger value.
+	// Empty defaults to TraegerRightSettings for Träger-level definitions.
+	TraegerWriteRight TraegerRight `json:"-"`
 }
 
 // ValidationRules defines constraints on a setting value.
@@ -182,6 +228,31 @@ func (d *Definition) validateShape() error {
 	if d.AccessPolicy != "" && !validAccessPolicies[d.AccessPolicy] {
 		return fmt.Errorf("invalid AccessPolicy %q for setting %s", d.AccessPolicy, d.Key)
 	}
+	return d.validateTraegerLevel()
+}
+
+// validateTraegerLevel admits a Träger value only for definitions ADR 0086
+// section 3 allows: shared or admin_only, and never a password. Side-effect
+// handlers and locked or cross-field keys are checked where they are bound.
+func (d *Definition) validateTraegerLevel() error {
+	if d.Levels != "" && !validLevels[d.Levels] {
+		return fmt.Errorf("invalid Levels %q for setting %s", d.Levels, d.Key)
+	}
+	if !d.Levels.AtTraeger() {
+		if d.TraegerWriteRight != "" {
+			return fmt.Errorf("setting %s names a Träger right but has no Träger level", d.Key)
+		}
+		return nil
+	}
+	if d.TraegerWriteRight != "" && !validTraegerRights[d.TraegerWriteRight] {
+		return fmt.Errorf("invalid TraegerWriteRight %q for setting %s", d.TraegerWriteRight, d.Key)
+	}
+	if d.AccessPolicy != AccessShared && d.AccessPolicy != AccessAdminOnly {
+		return fmt.Errorf("setting %s with access policy %s cannot have a Träger level", d.Key, d.AccessPolicy)
+	}
+	if d.Type == FieldPassword {
+		return fmt.Errorf("password setting %s cannot have a Träger level", d.Key)
+	}
 	return nil
 }
 
@@ -259,6 +330,12 @@ func (r *Registry) Register(def Definition) {
 	}
 	if def.AccessPolicy == "" {
 		def.AccessPolicy = AccessShared
+	}
+	if def.Levels == "" {
+		def.Levels = LevelSchool
+	}
+	if def.Levels.AtTraeger() && def.TraegerWriteRight == "" {
+		def.TraegerWriteRight = TraegerRightSettings
 	}
 	if err := def.Validate(); err != nil {
 		panic(fmt.Sprintf("config: invalid setting definition: %v", err))

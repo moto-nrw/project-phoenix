@@ -317,6 +317,9 @@ type TraegerRoleStore interface {
 	InsertTraegerRole(ctx context.Context, organizationID, accountID int64, role string) (domain.OperationStats, error)
 	ListTraegerAccounts(ctx context.Context, organizationID int64, accountIDs []int64) ([]domain.TraegerAccount, domain.OperationStats, error)
 	DeleteTraegerSessions(ctx context.Context, organizationID int64) (int64, domain.OperationStats, error)
+	// FindTraegerSchoolRole resolves the school role a Träger school session
+	// holds (ADR 0084 section 5) with its effective permissions.
+	FindTraegerSchoolRole(ctx context.Context, name string, tenantID int64) (domain.RoleAssignment, []string, bool, domain.OperationStats, error)
 }
 
 // SchoolDirectory is the consumer-owned port over the Organisation & Tenancy

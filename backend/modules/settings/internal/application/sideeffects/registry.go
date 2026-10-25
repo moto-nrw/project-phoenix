@@ -53,6 +53,11 @@ func checkHandler(handlers map[string]KeyHandler, key string, handler KeyHandler
 	if _, exists := handlers[key]; exists {
 		return fmt.Errorf("sideeffects: handler already registered for key %q", key)
 	}
+	// A side effect runs in one school's transaction; a Träger value would
+	// change the setting for every school without it (ADR 0086 section 3).
+	if definition := settingsRecords.GetDefinition(key); definition != nil && definition.Levels.AtTraeger() {
+		return fmt.Errorf("sideeffects: key %q has a Träger level and cannot have a side effect", key)
+	}
 	return nil
 }
 

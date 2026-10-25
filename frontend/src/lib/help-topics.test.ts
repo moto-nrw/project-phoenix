@@ -332,7 +332,8 @@ describe("getParentHelpTopicForPath", () => {
     });
     // 42 seit #3821 („Eigenen Dienstplan ansehen“), 45 seit #4901
     // („Nutzungsanalyse erlauben oder ablehnen“, alle Rollen).
-    expect(caregiverTopics).toHaveLength(45);
+    // 46 seit #4781 („An einer Umfrage im Team teilnehmen“).
+    expect(caregiverTopics).toHaveLength(46);
     expect([...new Set(caregiverTopics.map((topic) => topic.group))]).toEqual([
       "einstieg",
       "tagesplanung",
@@ -511,7 +512,7 @@ describe("getParentHelpTopicForPath", () => {
           // unter die NFC- und die Anwesenheitsregel, wird also nur
           // einmal abgezogen.
           const expectedLength =
-            45 -
+            46 -
             (nfcEnabled ? 0 : 7) -
             (presenceMode === "binary" ? (nfcEnabled ? 6 : 5) : 0) -
             (groupMode === "open_care" ? 2 : 0);
@@ -555,7 +556,8 @@ describe("getParentHelpTopicForPath", () => {
     // 88 seit #4796: die Rückmeldung zu Hausaufgaben in der Lernzeit.
     // 89 seit #4901: die eigene Einwilligung zur Nutzungsanalyse.
     // 90 seit #4894: Welche Module hat meine Schule?
-    expect(leadTopics).toHaveLength(90);
+    // 92 seit #4781: Umfrage mit Fragebogen und das geteilte Teilnehmen.
+    expect(leadTopics).toHaveLength(92);
     expect(
       leadTopics.every(
         (topic) =>
@@ -581,7 +583,8 @@ describe("getParentHelpTopicForPath", () => {
     const visible = new Set(parentTopics.map((topic) => topic.id));
 
     // 24 seit #4901: die eigene Einwilligung zur Nutzungsanalyse.
-    expect(parentTopics).toHaveLength(24);
+    // 25 seit #4781 („An einer Umfrage teilnehmen“).
+    expect(parentTopics).toHaveLength(25);
     expect(
       parentTopics.every(
         (topic) =>
@@ -660,16 +663,19 @@ describe("getParentHelpTopicForPath", () => {
     expect(traegerTopics.map((topic) => topic.id)).toEqual([
       HELP_TOPICS.traegerInvitation,
       HELP_TOPICS.traegerLogin,
+      HELP_TOPICS.traegerSchoolSwitch,
       HELP_TOPICS.traegerTestSystem,
       HELP_TOPICS.traegerAccounts,
       HELP_TOPICS.traegerHolidayPeriod,
       HELP_TOPICS.traegerAccessLog,
+      HELP_TOPICS.traegerSettings,
       HELP_TOPICS.errorMessages,
     ]);
     expect([...new Set(traegerTopics.map((topic) => topic.group))]).toEqual([
       "einstieg",
       "anmeldeverwaltung",
       "auswertung",
+      "konfiguration",
       "probleme",
     ]);
     // Das Träger-Portal ist ein eigenes Portal: kein Verweis führt in die
@@ -681,7 +687,11 @@ describe("getParentHelpTopicForPath", () => {
     );
     expect(unreachable).toEqual([]);
     // Kein anderer Leser sieht die Träger-Artikel.
-    for (const id of [HELP_TOPICS.traegerLogin, HELP_TOPICS.traegerAccessLog]) {
+    for (const id of [
+      HELP_TOPICS.traegerLogin,
+      HELP_TOPICS.traegerAccessLog,
+      HELP_TOPICS.traegerSettings,
+    ]) {
       expect(traegerTopics.find((topic) => topic.id === id)?.audience).toBe(
         "traeger",
       );

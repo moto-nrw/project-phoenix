@@ -211,6 +211,12 @@ const mealOrderErasurePreflightSQL = `CREATE OR REPLACE FUNCTION platform.school
     users.guardian_phone_numbers,
     users.guardian_profiles,
     users.notification_preferences,
+    users.survey_answers,
+    users.survey_responses,
+    users.survey_participations,
+    users.survey_question_options,
+    users.survey_questions,
+    users.surveys,
     users.parent_announcement_declaration_submissions,
     users.parent_announcement_declaration_versions,
     users.parent_announcement_options,
@@ -294,7 +300,7 @@ const mealOrderErasurePreflightSQL = `CREATE OR REPLACE FUNCTION platform.school
      WHERE f.contype='f' AND pn.nspname || '.' || pc.relname IN
       (SELECT item->>'name' FROM jsonb_array_elements(v_plan) AS item)
      GROUP BY f.oid,cn.nspname,cc.relname,f.conname,pn.nspname,pc.relname,f.confdeltype
-    ) AS edge) <> '7a37568e1b0f71f955c039a4d3b6dca09c811160d04baa186b4cf3a14d451868' THEN
+    ) AS edge) <> 'dbbd44cb1bcdac1280ad8a68cdac99425c8ba1b46cd63313bbecce85afd09661' THEN
     RAISE EXCEPTION 'school erasure foreign keys changed; review plan' USING ERRCODE = '55000';
    END IF;
    -- Generated incoming-FK scope checks. Never cascade into foreign rows.
@@ -472,6 +478,22 @@ const mealOrderErasurePreflightSQL = `CREATE OR REPLACE FUNCTION platform.school
     SELECT 1 FROM users.care_withdrawal_completions AS c JOIN audit.enrollment_offering_adjustments AS p ON c."source_adjustment_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
     UNION ALL
     SELECT 1 FROM users.care_withdrawal_completions AS c JOIN enrollment.request_children AS p ON c."source_request_child_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
+    UNION ALL
+    SELECT 1 FROM users.survey_answers AS c JOIN users.survey_responses AS p ON c."response_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
+    UNION ALL
+    SELECT 1 FROM users.survey_answers AS c JOIN users.survey_questions AS p ON c."question_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
+    UNION ALL
+    SELECT 1 FROM users.survey_answers AS c JOIN users.survey_question_options AS p ON c."option_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
+    UNION ALL
+    SELECT 1 FROM users.survey_participations AS c JOIN users.surveys AS p ON c."survey_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
+    UNION ALL
+    SELECT 1 FROM users.survey_question_options AS c JOIN users.survey_questions AS p ON c."question_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
+    UNION ALL
+    SELECT 1 FROM users.survey_questions AS c JOIN users.surveys AS p ON c."survey_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
+    UNION ALL
+    SELECT 1 FROM users.survey_responses AS c JOIN users.surveys AS p ON c."survey_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
+    UNION ALL
+    SELECT 1 FROM users.surveys AS c JOIN users.parent_announcements AS p ON c."announcement_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
     UNION ALL
     SELECT 1 FROM users.parent_announcement_options AS c JOIN users.parent_announcements AS p ON c."announcement_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
     UNION ALL

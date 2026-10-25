@@ -64,16 +64,8 @@ func (s *AccountAuthentication) doRefreshTokenWithAudit(ctx context.Context, ref
 	if claims.Scope == domain.ScopeCaterer {
 		return s.refreshCatererSession(ctx, claims, ipAddress, userAgent)
 	}
-	if claims.TenantID > 0 {
-		if err := s.validateTenantAccess(ctx, claims); err != nil {
-			return nil, err
-		}
-	}
-	// A school token without a school is dead on arrival; refusing before
-	// the rotation keeps the caller's refresh token intact.
-	if claims.Scope == domain.ScopeSchool && claims.TenantID <= 0 {
-		s.logRefreshDecision("refresh_session_rejected", "school_token_without_tenant", claims.AccountID, claims.TenantID)
-		return nil, failed("refresh school session", identityaccess.ErrTenantAccessDenied)
+	if err := s.validateRefreshSchool(ctx, claims); err != nil {
+		return nil, err
 	}
 	// A portal whose module the school no longer books renews no session
 	// (#4895). Refused before the rotation, like the checks above.
@@ -111,6 +103,24 @@ func (s *AccountAuthentication) doRefreshTokenWithAudit(ctx context.Context, ref
 	return &refreshResult{accessToken: accessToken, refreshToken: refreshTokenString}, nil
 }
 
+// validateRefreshSchool refuses a refresh whose school access is gone before
+// the rotation, so the caller's refresh token stays intact.
+func (s *AccountAuthentication) validateRefreshSchool(ctx context.Context, claims domain.RefreshClaims) error {
+	// A Träger school session has no mapping at its school; its guard
+	// re-checks the Träger instead (ADR 0084 section 5).
+	if claims.TenantID > 0 && !traegerSchoolRefresh(claims) {
+		if err := s.validateTenantAccess(ctx, claims); err != nil {
+			return err
+		}
+	}
+	// A school token without a school is dead on arrival.
+	if claims.Scope == domain.ScopeSchool && claims.TenantID <= 0 {
+		s.logRefreshDecision("refresh_session_rejected", "school_token_without_tenant", claims.AccountID, claims.TenantID)
+		return failed("refresh school session", identityaccess.ErrTenantAccessDenied)
+	}
+	return nil
+}
+
 // refreshAuditContext is where a refresh is filed: at the tenant the refresh
 // validated against, since the route carries no tenant and the fallback
 // would attribute a multi-school account's refresh to its first mapping.
@@ -142,6 +152,13 @@ func (s *AccountAuthentication) refreshTenant(claims domain.RefreshClaims) succe
 // its Träger and never a school; its guard re-checks the membership and
 // reloads the roles (ADR 0084).
 func (s *AccountAuthentication) refreshMintGuard(claims domain.RefreshClaims, metadata **domain.AccountClaimsPayload) (mintGuard, error) {
+	if traegerSchoolRefresh(claims) {
+		if claims.TenantID <= 0 {
+			s.logRefreshDecision("refresh_session_rejected", "traeger_school_token_without_school", claims.AccountID, claims.TenantID)
+			return nil, failed("refresh Träger school session", identityaccess.ErrInvalidToken)
+		}
+		return s.traegerSchoolMintGuard(claims.OrgID, claims.TenantID, metadata), nil
+	}
 	switch claims.Scope {
 	case domain.ScopeSchool:
 		return s.schoolRefreshMintGuard(claims.AccountID, claims.TenantID, metadata), nil
@@ -154,6 +171,13 @@ func (s *AccountAuthentication) refreshMintGuard(claims domain.RefreshClaims, me
 	default:
 		return s.refreshClaimsGuard(claims.Scope, claims.TenantID, metadata), nil
 	}
+}
+
+// traegerSchoolRefresh reports the refresh of an OGS session the Träger-Büro
+// opened through the Absprung: a school-bound refresh token that names its
+// Träger. Other OGS refresh tokens name none.
+func traegerSchoolRefresh(claims domain.RefreshClaims) bool {
+	return domain.PersistedPortalScope(claims.Scope) == domain.PortalScopeTenant && claims.OrgID > 0
 }
 
 // refreshClaimsGuard assembles the claims of a non-school refresh (tenant and
@@ -255,6 +279,9 @@ func (r *refreshRotation) run(ctx context.Context) error {
 	if err := r.service.requireSessionMFA(ctx, r.account.ID, current.TenantID, current.PortalScope, current.MFAVerified); err != nil {
 		return err
 	}
+	if err := r.service.requireTraegerSchoolMFA(current); err != nil {
+		return err
+	}
 	return r.persist(ctx, current, wasRecovered, now)
 }
 
@@ -303,8 +330,9 @@ func (r *refreshRotation) presentedSession(ctx context.Context) (domain.AccountS
 
 func (r *refreshRotation) validatePresented(ctx context.Context, presented domain.AccountSession, now time.Time) error {
 	traegerToken, traegerSession := r.claims.Scope == domain.ScopeOrg, presented.PortalScope == domain.PortalScopeOrg
+	viaTraeger := traegerSchoolRefresh(r.claims) || domain.IsTraegerSchoolSession(presented)
 	if presented.AccountID != r.claims.AccountID || (r.claims.TenantID > 0 && presented.TenantID != r.claims.TenantID) ||
-		traegerToken != traegerSession || (traegerToken && presented.OrganizationID != r.claims.OrgID) {
+		traegerToken != traegerSession || ((traegerToken || viaTraeger) && presented.OrganizationID != r.claims.OrgID) {
 		return r.reject(ctx, presented, "claim_mismatch", "revoke mismatched refresh-token family", identityaccess.ErrInvalidToken)
 	}
 	if now.After(presented.Expiry) {

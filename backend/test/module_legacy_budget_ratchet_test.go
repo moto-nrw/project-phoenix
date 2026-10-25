@@ -159,7 +159,9 @@ var moduleLegacyFileBudgets = map[string]int{
 // (+13) and the Träger transaction binding of
 // modules/transactionruntime/compose (+4).
 // ADR 0106: the Träger-Büro account management adds exactly 24 LOC.
-const moduleComposeBudgetTotal = 12567
+// ADR 0107: the Träger settings of modules/settings/compose add exactly
+// 14 LOC.
+const moduleComposeBudgetTotal = 12581
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -208,10 +210,11 @@ var moduleComposeBudgets = map[string]int{
 	"modules/schoolcalendar/compose":        148,
 	"modules/schoolcalendar/portal/compose": 112,
 	// Raised by ADR 0076: the restricted administrative repair constructor.
-	"modules/schoolmembership/compose":                196,
-	"modules/schoolsetup/compose":                     56,
-	"modules/schoolstructure/compose":                 593,
-	"modules/settings/compose":                        308,
+	"modules/schoolmembership/compose": 196,
+	"modules/schoolsetup/compose":      56,
+	"modules/schoolstructure/compose":  593,
+	// Raised by ADR 0107: the Träger settings store, runtime and service.
+	"modules/settings/compose":                        322,
 	"modules/studentdirectoryview/compose":            9,
 	"modules/studentpresence/compose":                 243,
 	"modules/studentpresence/compose/presenceservice": 110,

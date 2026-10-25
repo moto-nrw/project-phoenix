@@ -162,6 +162,9 @@ func pushShapeFor(a *StaffParentAnnouncement) (notificationType, copyKind, deepL
 	if a.IsPoll() {
 		return parentAnnouncementNotificationType, ParentPollPublished, "/"
 	}
+	if a.IsSystem() && *a.SystemKind == StaffParentAnnouncementSystemKindSurvey {
+		return parentAnnouncementNotificationType, ParentPollPublished, careCancelledDeepLink
+	}
 	return parentAnnouncementNotificationType, ParentAnnouncementPublished, "/"
 }
 

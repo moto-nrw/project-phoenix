@@ -1,4 +1,5 @@
 import type { ResolvedSetting } from "~/lib/settings-api";
+import type { SettingsAudience } from "./settings-origin";
 
 /**
  * Löschfristen trägt das moto-Team je Schule ein, die Schule liest sie nur
@@ -22,7 +23,7 @@ function toDays(value: unknown): number | null {
 export function shortenedRetentionDays(
   setting: ResolvedSetting,
   next: unknown,
-  audience: "admin" | "operator",
+  audience: SettingsAudience,
 ): number | null {
   if (audience !== "operator" || !isOperatorManaged(setting)) return null;
   const current = toDays(setting.value);

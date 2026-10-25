@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"maps"
 	"math"
+	"time"
 )
 
 type settingsSnapshotContextKey struct{}
@@ -14,7 +15,23 @@ type snapshotValue struct {
 	value       any
 	hasOverride bool
 	err         error
+	// source names the level the effective value comes from; traegerSet
+	// and traegerChangedAt describe the Träger level beneath a school
+	// override as well, so a school can see what a reset would bring back.
+	source           ValueSource
+	inherited        any
+	traegerChangedAt *time.Time
 }
+
+// ValueSource names where an effective setting value comes from (ADR 0086
+// section 2).
+type ValueSource string
+
+const (
+	SourceDefault ValueSource = "default"
+	SourceTraeger ValueSource = "traeger"
+	SourceSchool  ValueSource = "school"
+)
 
 // SettingsSnapshot is an immutable, tenant-bound set of resolved settings.
 // It keeps override presence separate from the effective value so callers with
@@ -42,6 +59,15 @@ func SnapshotFromContext(ctx context.Context, tenantID int64, keys []string) *Se
 }
 
 func NewSettingsSnapshot(registry *Registry, tenantID int64, keys []string, stored []*SettingValue) (*SettingsSnapshot, error) {
+	return NewLayeredSettingsSnapshot(registry, tenantID, keys, stored, nil)
+}
+
+// NewLayeredSettingsSnapshot resolves registry default, then the Träger value,
+// then the school override (ADR 0086 section 2). traeger holds the values of
+// the school's own Träger only. A Träger value counts only for
+// a Träger-level definition; a school override of a Träger-only definition is
+// ignored, because the school cannot deviate from it.
+func NewLayeredSettingsSnapshot(registry *Registry, tenantID int64, keys []string, stored []*SettingValue, traeger []*TraegerSettingValue) (*SettingsSnapshot, error) {
 	values := make(map[string]snapshotValue, len(keys))
 	for _, key := range keys {
 		if _, exists := values[key]; exists {
@@ -54,29 +80,57 @@ func NewSettingsSnapshot(registry *Registry, tenantID int64, keys []string, stor
 				Err: &DefinitionNotFoundError{Key: key},
 			}
 		}
-		values[key] = snapshotValue{value: def.Default}
+		values[key] = snapshotValue{value: def.Default, source: SourceDefault, inherited: def.Default}
 	}
 
+	applyTraegerValues(registry, values, traeger)
+	applySchoolOverrides(registry, values, tenantID, stored)
+	return &SettingsSnapshot{tenantID: tenantID, values: values}, nil
+}
+
+// applyTraegerValues lays the Träger values over the registry defaults of the
+// requested Träger-level keys.
+func applyTraegerValues(registry *Registry, values map[string]snapshotValue, traeger []*TraegerSettingValue) {
+	for _, traegerValue := range traeger {
+		if traegerValue == nil {
+			continue
+		}
+		entry, requested := values[traegerValue.SettingKey]
+		if !requested || !registry.GetDefinition(traegerValue.SettingKey).Levels.AtTraeger() {
+			continue
+		}
+		value, err := decodeStoredValue(traegerValue.SettingKey, traegerValue.Value)
+		changedAt := traegerValue.UpdatedAt
+		entry.value, entry.inherited, entry.err = value, value, err
+		entry.source, entry.traegerChangedAt = SourceTraeger, &changedAt
+		values[traegerValue.SettingKey] = entry
+	}
+}
+
+// applySchoolOverrides lays the school's overrides over both levels beneath.
+// The override wins; a broken Träger value beneath it does not make the
+// effective value unreadable. A Träger-only key has no school override.
+func applySchoolOverrides(registry *Registry, values map[string]snapshotValue, tenantID int64, stored []*SettingValue) {
 	for _, storedValue := range stored {
 		if storedValue == nil || storedValue.GetTenantID() != tenantID {
 			continue
 		}
-		if _, requested := values[storedValue.SettingKey]; !requested {
+		entry, requested := values[storedValue.SettingKey]
+		if !requested || registry.GetDefinition(storedValue.SettingKey).Levels == LevelTraeger {
 			continue
 		}
-		var value any
-		err := json.Unmarshal(storedValue.Value, &value)
-		if err != nil {
-			err = fmt.Errorf("unmarshal value for %s: %w", storedValue.SettingKey, err)
-		}
-		values[storedValue.SettingKey] = snapshotValue{
-			value:       value,
-			hasOverride: true,
-			err:         err,
-		}
+		value, err := decodeStoredValue(storedValue.SettingKey, storedValue.Value)
+		entry.value, entry.hasOverride, entry.source, entry.err = value, true, SourceSchool, err
+		values[storedValue.SettingKey] = entry
 	}
+}
 
-	return &SettingsSnapshot{tenantID: tenantID, values: values}, nil
+func decodeStoredValue(key string, raw json.RawMessage) (any, error) {
+	var value any
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return nil, fmt.Errorf("unmarshal value for %s: %w", key, err)
+	}
+	return value, nil
 }
 
 // newSettingsSnapshotFromValues builds a snapshot from already-resolved
@@ -137,6 +191,18 @@ func (s *SettingsSnapshot) HasOverride(key string) (bool, error) {
 		}
 	}
 	return entry.hasOverride, nil
+}
+
+// Layer describes where key's effective value comes from: its source, the
+// value the school inherits without its own override (Träger value or
+// registry default), and when the Träger last changed its value (nil
+// without one).
+func (s *SettingsSnapshot) Layer(key string) (ValueSource, any, *time.Time, error) {
+	entry, err := s.entry(key)
+	if err != nil {
+		return "", nil, nil, err
+	}
+	return entry.source, entry.inherited, entry.traegerChangedAt, nil
 }
 
 // String resolves key with the same conversion semantics as ResolveString.

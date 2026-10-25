@@ -51,6 +51,17 @@ type AnnouncementResponse struct {
 	// the feed sorts it back to the top; read/acknowledged stay as they were.
 	ReminderSentAt *time.Time `json:"reminder_sent_at,omitempty"`
 	ReminderText   *string    `json:"reminder_text,omitempty"`
+
+	// Survey is set on the entry that carries a survey (#4781).
+	Survey *AnnouncementSurveyResponse `json:"survey,omitempty"`
+}
+
+// AnnouncementSurveyResponse is the survey state on a feed entry.
+type AnnouncementSurveyResponse struct {
+	SurveyID     string    `json:"survey_id"`
+	Anonymous    bool      `json:"anonymous"`
+	ClosesAt     time.Time `json:"closes_at"`
+	Participated bool      `json:"participated"`
 }
 
 // AnnouncementOption is one answer choice of a poll.
@@ -110,6 +121,16 @@ func toAnnouncementResponse(item *parentService.AnnouncementFeedItem) Announceme
 		ReminderSentAt:          item.ReminderSentAt,
 		ReminderText:            item.ReminderText,
 		Declaration:             toDeclarationResponse(item.Declaration),
+		Survey:                  toAnnouncementSurveyResponse(item.Survey),
+	}
+}
+
+func toAnnouncementSurveyResponse(s *parentService.SurveySummary) *AnnouncementSurveyResponse {
+	if s == nil {
+		return nil
+	}
+	return &AnnouncementSurveyResponse{
+		SurveyID: strconv.FormatInt(s.SurveyID, 10), Anonymous: s.Anonymous, ClosesAt: s.ClosesAt, Participated: s.Participated,
 	}
 }
 

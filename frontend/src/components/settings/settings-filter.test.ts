@@ -27,6 +27,8 @@ function setting(
     visible: true,
     sort_order: 0,
     access_policy: "shared",
+    levels: "schule",
+    source: "default",
     ...overrides,
   };
 }

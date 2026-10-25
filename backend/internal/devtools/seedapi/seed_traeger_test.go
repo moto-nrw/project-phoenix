@@ -109,3 +109,81 @@ func TestSeedTraegerHolidayPeriodStepPublishesAPeriodAtTheTraegerSchools(t *test
 	assert.Equal(t, float64(31), weeks[0].(map[string]any)["host_school_id"])
 	assert.Equal(t, float64(32), weeks[1].(map[string]any)["host_school_id"], "the weeks take turns at the Träger's schools")
 }
+
+func TestSeedTraegerSettingsStepSetsAValueThroughTheTraegerPortal(t *testing.T) {
+	t.Parallel()
+
+	var calls []string
+	var authorization string
+	var value map[string]any
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
+		calls = append(calls, r.Method+" "+r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		raw, err := io.ReadAll(r.Body)
+		assert.NoError(t, err)
+		if r.URL.Path == "/traeger/auth/login" {
+			_, _ = w.Write([]byte(`{"status":"authenticated","access_token":"traeger-token","refresh_token":"refresh"}`))
+			return
+		}
+		authorization = r.Header.Get("Authorization")
+		assert.NoError(t, json.Unmarshal(raw, &value))
+		_, _ = w.Write([]byte(`{"status":"success"}`))
+	})
+	defer srv.Close()
+
+	runtime := &Runtime{
+		Client:    newTestClient(srv.URL, false),
+		Bootstrap: &bootstrapSeedState{AdminEmail: "admin@example.test", AdminPassword: testpkg.NewTestPassword()},
+	}
+	require.NoError(t, (seedTraegerSettingsStep{}).Run(context.Background(), runtime))
+	assert.Equal(t, []string{"POST /traeger/auth/login", "PUT /traeger/settings/values/operations.parent_news_enabled"}, calls)
+	assert.Equal(t, "Bearer traeger-token", authorization, "the value is written with the Träger session")
+	assert.Equal(t, true, value["value"])
+}
+
+// Every Träger sign-in mails a second-factor code and Identity & Access mails
+// at most three per account in fifteen minutes (#4651), so the Träger steps
+// of one run share one session instead of signing in each.
+func TestSeedTraegerStepsShareOneTraegerSession(t *testing.T) {
+	t.Parallel()
+
+	var mu sync.Mutex
+	logins := 0
+	var traegerAuthorizations []string
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
+		mu.Lock()
+		defer mu.Unlock()
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/traeger/auth/login":
+			logins++
+			_, _ = w.Write([]byte(`{"status":"authenticated","access_token":"traeger-token","refresh_token":"r"}`))
+			return
+		case "/traeger/schools/":
+			_, _ = w.Write([]byte(`{"status":"success","data":[{"id":31}]}`))
+		case "/traeger/holiday-periods/":
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{"status":"success","data":{"id":5}}`))
+		default:
+			_, _ = w.Write([]byte(`{"status":"success","data":{"id":5}}`))
+		}
+		if r.URL.Path != "/operator/organizations/12/traeger-members" {
+			traegerAuthorizations = append(traegerAuthorizations, r.Header.Get("Authorization"))
+		}
+	})
+	defer srv.Close()
+
+	runtime := &Runtime{
+		Client:       newTestClient(srv.URL, false),
+		OperatorAuth: AuthRef{Kind: AuthBearer, Token: "operator-token"},
+		Bootstrap:    &bootstrapSeedState{OrganizationID: 12, AdminEmail: "admin@example.test", AdminPassword: testpkg.NewTestPassword()},
+	}
+	require.NoError(t, (seedTraegerBueroStep{}).Run(context.Background(), runtime))
+	require.NoError(t, (seedTraegerHolidayPeriodStep{}).Run(context.Background(), runtime))
+	require.NoError(t, (seedTraegerSettingsStep{}).Run(context.Background(), runtime))
+	assert.Equal(t, 1, logins, "the Träger steps sign in once")
+	require.NotEmpty(t, traegerAuthorizations)
+	for _, authorization := range traegerAuthorizations {
+		assert.Equal(t, "Bearer traeger-token", authorization, "every Träger request uses the shared session")
+	}
+}

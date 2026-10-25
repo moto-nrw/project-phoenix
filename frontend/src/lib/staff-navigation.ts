@@ -193,6 +193,7 @@ export const STAFF_NAV_CONCEPTS: Readonly<Record<string, MotoConceptKey>> = {
   "/meal-plan": "mealPlan",
   "/team-chat": "messages",
   "/tagesinformationen": "announcements",
+  "/umfragen": "polls",
   "/betreuungsplan": "carePlan",
   "/dienstplan": "staffPlan",
   "/vertretung": "substitution",

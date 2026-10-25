@@ -7971,7 +7971,7 @@
       "effect": "mutation",
       "classification": "debt",
       "adr": "0083",
-      "approval_adr": "0107",
+      "approval_adr": "0111",
       "reason": "Bounded coordination debt: Parent Portal locks and rechecks the People Directory contact, then invokes Care Plan's guarded pickup-permission command in the same tenant transaction. A dedicated workflow contract remains follow-up work."
     },
     {
@@ -7984,7 +7984,7 @@
       "effect": "lock",
       "classification": "debt",
       "adr": "0083",
-      "approval_adr": "0107",
+      "approval_adr": "0111",
       "reason": "Bounded coordination debt: Parent Portal locks and rechecks the stored one-day collector before Care Plan writes its dated pickup note in the same tenant transaction. A dedicated workflow contract remains follow-up work."
     },
     {
@@ -14496,7 +14496,7 @@
       "effect": "lock",
       "classification": "debt",
       "adr": "0083",
-      "approval_adr": "0107",
+      "approval_adr": "0111",
       "reason": "Bounded coordination debt: Parent Portal locks and rechecks the stored one-day collector before Care Plan writes its dated pickup note in the same tenant transaction. A dedicated workflow contract remains follow-up work."
     },
     {
@@ -15387,7 +15387,7 @@
       "effect": "mutation",
       "classification": "debt",
       "adr": "0083",
-      "approval_adr": "0107",
+      "approval_adr": "0111",
       "reason": "Bounded coordination debt: Parent Portal locks and rechecks the People Directory contact, then invokes Care Plan's guarded pickup-permission command in the same tenant transaction. A dedicated workflow contract remains follow-up work."
     },
     {
@@ -15575,7 +15575,7 @@
       "effect": "mutation",
       "classification": "debt",
       "adr": "0083",
-      "approval_adr": "0107",
+      "approval_adr": "0111",
       "reason": "Bounded coordination debt: Parent Portal locks and rechecks the People Directory contact, then invokes Care Plan's guarded pickup-permission command in the same tenant transaction. A dedicated workflow contract remains follow-up work."
     },
     {
@@ -24442,6 +24442,17 @@
       "effect": "query",
       "classification": "query",
       "reason": "Read-only newly exposed target: communication reaches modules/peopledirectory/internal/adapters/peoplepostgres.MessageableStaffRepository.StaffRoleKinds (people-directory) through modules/communication.StaffReadRecords.StaffRoleKindsForAccounts. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+    },
+    {
+      "source_owner": "communication",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.SurveyStaff.ListAddressableStaff",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication.StaffReadRecords.ListAddressableStaff",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/peoplepostgres.MessageableStaffRepository.ListMessageableStaff",
+      "target_owner": "people-directory",
+      "binding_digest": "4e1b590719545bfe215dd9e4e54504ba",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read-only: the surveys (#4781) read the school's staff audience through modules/communication.StaffReadRecords.ListAddressableStaff, the team chat's colleague relation in People Directory (MessageableStaffRepository.ListMessageableStaff). No persistent, lock or scope effect (ADR 0098)."
     },
     {
       "source_owner": "communication",
@@ -35773,11 +35784,23 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.AcceptTraegerInvitation",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "cf561391c095d764c720fd1cab767582",
+      "binding_digest": "7354cc8b6686b2cccc59e2f597432232",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.AcceptTraegerInvitation. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.AcceptTraegerInvitation. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the shared session mint it reaches now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.AcceptTraegerInvitation",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.AcceptTraegerInvitation",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "5c62ac40f368c86c85cea50a2795e4a2",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess/internal/application.engine.AcceptTraegerInvitation. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
     },
     {
       "source_owner": "identity-access",
@@ -35886,6 +35909,30 @@
       "classification": "platform",
       "adr": "0098",
       "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.InviteTraegerAccount. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.IssueTraegerTokensForVerifiedMFA",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.IssueTraegerTokensForVerifiedMFA",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "207567b389c6596a28363d8ed23ed917",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.IssueTraegerTokensForVerifiedMFA. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the Träger sign-in and its second factor (#4651) mint through the shared session mint, which now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.IssueTraegerTokensForVerifiedMFA",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.IssueTraegerTokensForVerifiedMFA",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "49a501a578ffa4ebde2f8bb6114ea688",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess/internal/application.engine.IssueTraegerTokensForVerifiedMFA. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the Träger sign-in and its second factor (#4651) mint through the shared session mint, which now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch."
     },
     {
       "source_owner": "identity-access",
@@ -36009,6 +36056,102 @@
     },
     {
       "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginSchoolAtTenantWithMFAGate",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "56c41eb0e9a73723dca3e7b4646534f5",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.LoginSchoolAtTenantWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginSchoolAtTenantWithMFAGate",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "6d6a97a8accb65b9ba5449291781b046",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess/internal/application.engine.LoginSchoolAtTenantWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolWithMFAGate",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginSchoolWithMFAGate",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "56c41eb0e9a73723dca3e7b4646534f5",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.LoginSchoolWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolWithMFAGate",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginSchoolWithMFAGate",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "6d6a97a8accb65b9ba5449291781b046",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess/internal/application.engine.LoginSchoolWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginTraeger",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginTraeger",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "207567b389c6596a28363d8ed23ed917",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.LoginTraeger. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the Träger sign-in and its second factor (#4651) mint through the shared session mint, which now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginTraeger",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginTraeger",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "49a501a578ffa4ebde2f8bb6114ea688",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess/internal/application.engine.LoginTraeger. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the Träger sign-in and its second factor (#4651) mint through the shared session mint, which now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginWithMFAGate",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginWithMFAGate",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "03650c38c6fc6d6ef37f7747c5417eb0",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.LoginWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginWithMFAGate",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginWithMFAGate",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "46ab4b37450f0ef43eff228e078a8a19",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess/internal/application.engine.LoginWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.PreviewTraegerInvitation",
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.PreviewTraegerInvitation",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
@@ -36018,6 +36161,30 @@
       "classification": "platform",
       "adr": "0098",
       "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.PreviewTraegerInvitation. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.RefreshTokenWithAudit",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.RefreshTokenWithAudit",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "adbdc338d590f4d9c6f6e2a206d8c179",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.RefreshTokenWithAudit. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.RefreshTokenWithAudit",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.RefreshTokenWithAudit",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "842e2d9845e5abf1e841ee946877a2f8",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess/internal/application.engine.RefreshTokenWithAudit. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
     },
     {
       "source_owner": "identity-access",
@@ -36066,6 +36233,102 @@
       "classification": "platform",
       "adr": "0098",
       "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.RevokeTraegerInvitation. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.StartTraegerSchoolSession",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.StartTraegerSchoolSession",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "f256ce28d4db23229068235ac3b9b206",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.StartTraegerSchoolSession. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.StartTraegerSchoolSession",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.StartTraegerSchoolSession",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "4cb361b52b5bb73b3b137545a9fd7ce7",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess/internal/application.engine.StartTraegerSchoolSession. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.SwitchTenant",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.SwitchTenant",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "36b744da6bd0d2d665fe6c93b628a5a8",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.SwitchTenant. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.SwitchTenant",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.SwitchTenant",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "134040070ec5211a5acd712821bbdaa1",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess/internal/application.engine.SwitchTenant. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.SchoolAccountLogin.LoginSchoolAtTenantWithMFAGate",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "56c41eb0e9a73723dca3e7b4646534f5",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.SchoolAccountLogin.LoginSchoolAtTenantWithMFAGate",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "6d6a97a8accb65b9ba5449291781b046",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.SchoolAccountLogin.LoginSchoolWithMFAGate",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolWithMFAGate",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "56c41eb0e9a73723dca3e7b4646534f5",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess.Owner.LoginSchoolWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.SchoolAccountLogin.LoginSchoolWithMFAGate",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolWithMFAGate",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "6d6a97a8accb65b9ba5449291781b046",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess.Owner.LoginSchoolWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
     },
     {
       "source_owner": "identity-access",
@@ -36217,15 +36480,75 @@
     },
     {
       "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.TraegerAccountLogin.IssueTraegerTokensForVerifiedMFA",
+      "binding": "github.com/moto-nrw/project-phoenix/api.TraegerPortalIdentity.IssueTraegerTokensForVerifiedMFA",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "207567b389c6596a28363d8ed23ed917",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through api.TraegerPortalIdentity.IssueTraegerTokensForVerifiedMFA. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the Träger sign-in and its second factor (#4651) mint through the shared session mint, which now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.TraegerAccountLogin.IssueTraegerTokensForVerifiedMFA",
+      "binding": "github.com/moto-nrw/project-phoenix/api.TraegerPortalIdentity.IssueTraegerTokensForVerifiedMFA",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "49a501a578ffa4ebde2f8bb6114ea688",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through api.TraegerPortalIdentity.IssueTraegerTokensForVerifiedMFA. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the Träger sign-in and its second factor (#4651) mint through the shared session mint, which now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.TraegerAccountLogin.LoginTraeger",
+      "binding": "github.com/moto-nrw/project-phoenix/api.TraegerPortalIdentity.LoginTraeger",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "207567b389c6596a28363d8ed23ed917",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through api.TraegerPortalIdentity.LoginTraeger. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the Träger sign-in and its second factor (#4651) mint through the shared session mint, which now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.TraegerAccountLogin.LoginTraeger",
+      "binding": "github.com/moto-nrw/project-phoenix/api.TraegerPortalIdentity.LoginTraeger",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "49a501a578ffa4ebde2f8bb6114ea688",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through api.TraegerPortalIdentity.LoginTraeger. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the Träger sign-in and its second factor (#4651) mint through the shared session mint, which now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch."
+    },
+    {
+      "source_owner": "identity-access",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.TraegerAccountManagement.AcceptTraegerInvitation",
       "binding": "github.com/moto-nrw/project-phoenix/api.TraegerPortalIdentity.AcceptTraegerInvitation",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "cf561391c095d764c720fd1cab767582",
+      "binding_digest": "7354cc8b6686b2cccc59e2f597432232",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through api.TraegerPortalIdentity.AcceptTraegerInvitation. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through api.TraegerPortalIdentity.AcceptTraegerInvitation. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the shared session mint it reaches now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.TraegerAccountManagement.AcceptTraegerInvitation",
+      "binding": "github.com/moto-nrw/project-phoenix/api.TraegerPortalIdentity.AcceptTraegerInvitation",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "5c62ac40f368c86c85cea50a2795e4a2",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through api.TraegerPortalIdentity.AcceptTraegerInvitation. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
     },
     {
       "source_owner": "identity-access",
@@ -36298,6 +36621,30 @@
       "classification": "platform",
       "adr": "0098",
       "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through api.TraegerPortalIdentity.RevokeTraegerInvitation. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.TraegerSchoolSessions.StartTraegerSchoolSession",
+      "binding": "github.com/moto-nrw/project-phoenix/api.TraegerPortalIdentity.StartTraegerSchoolSession",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "f256ce28d4db23229068235ac3b9b206",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through api.TraegerPortalIdentity.StartTraegerSchoolSession. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.TraegerSchoolSessions.StartTraegerSchoolSession",
+      "binding": "github.com/moto-nrw/project-phoenix/api.TraegerPortalIdentity.StartTraegerSchoolSession",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "4cb361b52b5bb73b3b137545a9fd7ce7",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through api.TraegerPortalIdentity.StartTraegerSchoolSession. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
     },
     {
       "source_owner": "identity-access",
@@ -36629,6 +36976,30 @@
     },
     {
       "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.IssueTraegerTokensForVerifiedMFA",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.IssueTraegerTokensForVerifiedMFA",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "207567b389c6596a28363d8ed23ed917",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess.Owner.IssueTraegerTokensForVerifiedMFA. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the Träger sign-in and its second factor (#4651) mint through the shared session mint, which now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.IssueTraegerTokensForVerifiedMFA",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.IssueTraegerTokensForVerifiedMFA",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "49a501a578ffa4ebde2f8bb6114ea688",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess.Owner.IssueTraegerTokensForVerifiedMFA. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the Träger sign-in and its second factor (#4651) mint through the shared session mint, which now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch."
+    },
+    {
+      "source_owner": "identity-access",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.ListPermissions",
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ListPermissions",
       "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
@@ -36698,6 +37069,174 @@
       "classification": "platform",
       "adr": "0098",
       "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess.Owner.ListRoles. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.LoginSchoolAtTenantWithMFAGate",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "56c41eb0e9a73723dca3e7b4646534f5",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.LoginSchoolAtTenantWithMFAGate",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "6d6a97a8accb65b9ba5449291781b046",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.LoginSchoolWithMFAGate",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolWithMFAGate",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "56c41eb0e9a73723dca3e7b4646534f5",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess.Owner.LoginSchoolWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.LoginSchoolWithMFAGate",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolWithMFAGate",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "6d6a97a8accb65b9ba5449291781b046",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess.Owner.LoginSchoolWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.LoginTraeger",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginTraeger",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "207567b389c6596a28363d8ed23ed917",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess.Owner.LoginTraeger. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the Träger sign-in and its second factor (#4651) mint through the shared session mint, which now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.LoginTraeger",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginTraeger",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "49a501a578ffa4ebde2f8bb6114ea688",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess.Owner.LoginTraeger. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the Träger sign-in and its second factor (#4651) mint through the shared session mint, which now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.LoginWithMFAGate",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginWithMFAGate",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "03650c38c6fc6d6ef37f7747c5417eb0",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess.Owner.LoginWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.LoginWithMFAGate",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginWithMFAGate",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "46ab4b37450f0ef43eff228e078a8a19",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess.Owner.LoginWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.RefreshTokenWithAudit",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.RefreshTokenWithAudit",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "adbdc338d590f4d9c6f6e2a206d8c179",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess.Owner.RefreshTokenWithAudit. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.RefreshTokenWithAudit",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.RefreshTokenWithAudit",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "842e2d9845e5abf1e841ee946877a2f8",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess.Owner.RefreshTokenWithAudit. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.StartTraegerSchoolSession",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.StartTraegerSchoolSession",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "f256ce28d4db23229068235ac3b9b206",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess.Owner.StartTraegerSchoolSession. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.StartTraegerSchoolSession",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.StartTraegerSchoolSession",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "4cb361b52b5bb73b3b137545a9fd7ce7",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess.Owner.StartTraegerSchoolSession. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.SwitchTenant",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.SwitchTenant",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "36b744da6bd0d2d665fe6c93b628a5a8",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess.Owner.SwitchTenant. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.SwitchTenant",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.SwitchTenant",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "134040070ec5211a5acd712821bbdaa1",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess.Owner.SwitchTenant. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
     },
     {
       "source_owner": "identity-access",
@@ -42335,6 +42874,17 @@
     {
       "source_owner": "identity-access",
       "port": "github.com/moto-nrw/project-phoenix/modules/traegerportal.TraegerRouter.TraegerRouter",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/settings/http.TraegerSettingsResource.TraegerRouter",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/http.TraegerSettingsResource.TraegerRouter",
+      "target_owner": "settings-platform",
+      "binding_digest": "f172fd969ba61892a47c0781ef61f3f2",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed construction method; no owned-row mutation or locking read at this terminal. Target modules/settings/http.TraegerSettingsResource.TraegerRouter mounts the Träger settings (ADR 0086, #4652); its operations open the shared Träger transaction themselves (ADR 0105, ADR 0107). May-bind method surface, not a production-call/liveness claim."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/traegerportal.TraegerRouter.TraegerRouter",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/traegerview/http.AccessLogResource.TraegerRouter",
       "target": "*github.com/moto-nrw/project-phoenix/modules/traegerview/http.AccessLogResource.TraegerRouter",
       "target_owner": "traeger-view",
@@ -42997,7 +43547,7 @@
       "effect": "mutation",
       "classification": "leaf",
       "adr": "0067",
-      "reason": "Guarded leaf command (ADR 0067 #4538 command participation): Identity \u0026 Access deletes the Träger sessions (auth.tokens, portal scope org) of the deactivated Träger on the operator's administrative unit, which the Träger deactivation of Organisation \u0026 Tenancy owns (ADR 0084 section 4, #4657). It refuses without that ambient administrative transaction and opens no unit, commit or scope switch itself."
+      "reason": "Guarded leaf command (ADR 0067 #4538 command participation): Identity \u0026 Access deletes the Träger sessions (auth.tokens, portal scope org) of the deactivated Träger and the OGS sessions opened through it (#4654) on the operator's administrative unit, which the Träger deactivation of Organisation \u0026 Tenancy owns (ADR 0084 section 4, #4657). It refuses without that ambient administrative transaction and opens no unit, commit or scope switch itself."
     },
     {
       "source_owner": "organization-tenancy",

@@ -2,8 +2,6 @@
   "_doc": "Client-JS je Route, komprimierte Bytes laut `next experimental-analyze` auf dem CI-Runner. Pflege: Artefakt `bundle-measured` aus dem Job frontend-build hierher kopieren (frontend/scripts/perf/bundle-ratchet.mjs, #2939).",
   "routes": {
     "/": 511778,
-    "/_global-error": 304892,
-    "/_not-found": 492907,
     "/[tenant]": 689326,
     "/[tenant]/[...not-found]": 572701,
     "/[tenant]/absences": 1037416,
@@ -101,8 +99,13 @@
     "/[tenant]/team-chat/[threadID]": 1000847,
     "/[tenant]/time-tracking": 1298034,
     "/[tenant]/timetables": 973937,
+    "/[tenant]/traeger-uebergabe": 582395,
+    "/[tenant]/umfragen": 1071791,
+    "/[tenant]/umfragen/[id]": 1070444,
     "/[tenant]/vertretung": 1103736,
     "/[tenant]/vertretungsplan": 973934,
+    "/_global-error": 304892,
+    "/_not-found": 492907,
     "/caterer": 761948,
     "/caterer/einladung/[schoolId]/[token]": 753854,
     "/caterer/login": 757671,
@@ -168,10 +171,11 @@
     "/traeger": 529030,
     "/traeger/access-log": 576870,
     "/traeger/accounts": 550403,
+    "/traeger/einstellungen": 686866,
     "/traeger/ferien": 531765,
     "/traeger/ferien/[id]": 590457,
     "/traeger/ferien/neu": 582557,
     "/traeger/invite": 529621,
-    "/traeger/login": 539004
+    "/traeger/login": 549764
   }
 }

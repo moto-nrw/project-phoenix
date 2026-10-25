@@ -4,6 +4,25 @@ import type {
   SchemaTab,
 } from "~/lib/settings-api";
 
+// German names for the backend tab keys. Shared by the school settings page
+// and the Träger portal (#4652), which shows the same tabs.
+export const TAB_LABELS: Record<string, string> = {
+  operations: "Betrieb",
+  meals: "Mittagessen",
+  reminders: "Erinnerungen",
+  gdpr: "Datenschutz",
+  devices: "Geräte",
+  enrollment: "Anmeldung",
+  system: "Kalender und Export",
+  general: "Allgemein",
+  security: "Sicherheit",
+  modules: "Module",
+};
+
+export function displayTabLabel(tab: SchemaTab): string {
+  return TAB_LABELS[tab.key] ?? tab.label;
+}
+
 // German headings for the backend category keys. The schema sends the raw
 // key as label; a key without an entry here falls back to it and gets
 // capitalized via CSS.

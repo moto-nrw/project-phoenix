@@ -15,10 +15,25 @@ func installSchoolErasurePreview(ctx context.Context, tx bun.Tx) error {
 // by the CLI tests. A migration adding a tenant table reinstalls it.
 const schoolErasurePreviewSQL = schoolErasurePreviewPart1SQL + ` v_counts := v_counts || jsonb_build_object('education.class_homework',(SELECT count(*) FROM education.class_homework AS r WHERE r.tenant_id = p_school));
 ` + schoolErasurePreviewPart2SQL + ` v_counts := v_counts || jsonb_build_object('education.homework_feedback',(SELECT count(*) FROM education.homework_feedback AS r WHERE r.tenant_id = p_school));
-` + schoolErasurePreviewPart3SQL
+` + schoolErasurePreviewPart3SQL + schoolErasurePreviewSurveysSQL + schoolErasurePreviewPart3bSQL
+
+// schoolErasurePreviewWithoutSurveysSQL is the definition before 1.15.568 (#4781), without the
+// survey tables; the survey rollback reinstalls it.
+const schoolErasurePreviewWithoutSurveysSQL = schoolErasurePreviewPart1SQL + ` v_counts := v_counts || jsonb_build_object('education.class_homework',(SELECT count(*) FROM education.class_homework AS r WHERE r.tenant_id = p_school));
+` + schoolErasurePreviewPart2SQL + ` v_counts := v_counts || jsonb_build_object('education.homework_feedback',(SELECT count(*) FROM education.homework_feedback AS r WHERE r.tenant_id = p_school));
+` + schoolErasurePreviewPart3SQL + schoolErasurePreviewPart3bSQL
 
 // The pre-1.15.510 definition shares the unchanged SQL sections.
-const schoolErasurePreviewWithoutHomeworkSQL = schoolErasurePreviewPart1SQL + schoolErasurePreviewPart2SQL + schoolErasurePreviewPart3SQL
+const schoolErasurePreviewWithoutHomeworkSQL = schoolErasurePreviewPart1SQL + schoolErasurePreviewPart2SQL + schoolErasurePreviewPart3SQL + schoolErasurePreviewPart3bSQL
+
+// The survey tables of 1.15.568 (#4781).
+const schoolErasurePreviewSurveysSQL = ` v_counts := v_counts || jsonb_build_object('users.survey_answers',(SELECT count(*) FROM users.survey_answers AS r WHERE r.tenant_id = p_school));
+ v_counts := v_counts || jsonb_build_object('users.survey_responses',(SELECT count(*) FROM users.survey_responses AS r WHERE r.tenant_id = p_school));
+ v_counts := v_counts || jsonb_build_object('users.survey_participations',(SELECT count(*) FROM users.survey_participations AS r WHERE r.tenant_id = p_school));
+ v_counts := v_counts || jsonb_build_object('users.survey_question_options',(SELECT count(*) FROM users.survey_question_options AS r WHERE r.tenant_id = p_school));
+ v_counts := v_counts || jsonb_build_object('users.survey_questions',(SELECT count(*) FROM users.survey_questions AS r WHERE r.tenant_id = p_school));
+ v_counts := v_counts || jsonb_build_object('users.surveys',(SELECT count(*) FROM users.surveys AS r WHERE r.tenant_id = p_school));
+`
 
 const schoolErasurePreviewPart1SQL = `
  CREATE OR REPLACE FUNCTION platform.school_erasure_preview(p_school BIGINT,p_operator BIGINT)
@@ -214,7 +229,9 @@ const schoolErasurePreviewPart3SQL = ` v_counts := v_counts || jsonb_build_objec
  v_counts := v_counts || jsonb_build_object('users.guardian_phone_numbers',(SELECT count(*) FROM users.guardian_phone_numbers AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('users.guardian_profiles',(SELECT count(*) FROM users.guardian_profiles AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('users.notification_preferences',(SELECT count(*) FROM users.notification_preferences AS r WHERE r.tenant_id = p_school));
- v_counts := v_counts || jsonb_build_object('users.parent_announcement_declaration_submissions',(SELECT count(*) FROM users.parent_announcement_declaration_submissions AS r WHERE r.tenant_id = p_school));
+`
+
+const schoolErasurePreviewPart3bSQL = ` v_counts := v_counts || jsonb_build_object('users.parent_announcement_declaration_submissions',(SELECT count(*) FROM users.parent_announcement_declaration_submissions AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('users.parent_announcement_declaration_versions',(SELECT count(*) FROM users.parent_announcement_declaration_versions AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('users.parent_announcement_options',(SELECT count(*) FROM users.parent_announcement_options AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('users.parent_announcement_reads',(SELECT count(*) FROM users.parent_announcement_reads AS r WHERE r.tenant_id = p_school));
@@ -271,5 +288,10 @@ const schoolErasurePreviewPart3SQL = ` v_counts := v_counts || jsonb_build_objec
 
 func restoreSchoolErasurePreviewBeforeHomework(ctx context.Context, tx bun.Tx) error {
 	_, err := tx.ExecContext(ctx, schoolErasurePreviewWithoutHomeworkSQL)
+	return err
+}
+
+func restoreSchoolErasurePreviewBeforeSurveys(ctx context.Context, tx bun.Tx) error {
+	_, err := tx.ExecContext(ctx, schoolErasurePreviewWithoutSurveysSQL)
 	return err
 }

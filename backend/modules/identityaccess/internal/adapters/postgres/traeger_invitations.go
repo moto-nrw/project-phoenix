@@ -227,10 +227,13 @@ func (s *Store) ReplaceTraegerRoles(ctx context.Context, organizationID, account
 	return stats, nil
 }
 
+// The account's Träger sessions and the school sessions it opened through
+// the Träger (ADR 0084 section 5): both name the Träger in organization_id.
 const deleteTraegerAccountSessionsQuery = `DELETE FROM auth.tokens
-	WHERE account_id = ? AND organization_id = ? AND portal_scope = 'org'`
+	WHERE account_id = ? AND organization_id = ?`
 
-// DeleteTraegerAccountSessions ends every session of the account at the Träger.
+// DeleteTraegerAccountSessions ends every session of the account at the
+// Träger, the school sessions of its Absprung included (#4654).
 func (s *Store) DeleteTraegerAccountSessions(ctx context.Context, organizationID, accountID int64) (domain.OperationStats, error) {
 	db, err := s.database(ctx)
 	if err != nil {

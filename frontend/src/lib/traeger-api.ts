@@ -5,6 +5,7 @@
  */
 
 import { apiErrorFromBody, transportFetch } from "./api-error";
+import type { SettingsSchema } from "./settings-api";
 import { filenameFromDisposition } from "./file-download";
 import { type TraegerRole, traegerRoles } from "./traeger-roles";
 
@@ -168,6 +169,35 @@ export async function fetchTraegerSchools(): Promise<TraegerSchool[]> {
     subdomain: school.subdomain,
     city: school.city ?? "",
   }));
+}
+
+/**
+ * Starts the Absprung into a school of the Träger (#4654) and returns the
+ * short-lived hand-off token the school's host redeems into its own session.
+ */
+export async function startTraegerSchoolSession(
+  schoolId: string,
+): Promise<string> {
+  const response = await transportFetch("/api/traeger/school-sessions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ school_id: Number(schoolId) }),
+  });
+  const data = await readJson(response);
+  if (!response.ok) {
+    throw apiErrorFromBody(
+      `Request failed (${response.status})`,
+      response.status,
+      data,
+    );
+  }
+  const token = (data as { data?: { handoff_token?: string } } | null)?.data
+    ?.handoff_token;
+  if (!token) {
+    throw apiErrorFromBody("School session without hand-off", 502, data);
+  }
+  return token;
 }
 
 // --- Ferienzeiträume (#4659) ---
@@ -653,6 +683,42 @@ export async function downloadTraegerAccessLog(
     blob: await response.blob(),
     filename: filenameFromDisposition(response),
   };
+}
+
+// --- Träger-Einstellungen (ADR 0086, #4652) ---
+
+const traegerSettingValuePath = (key: string) =>
+  `/api/traeger/settings/values/${encodeURIComponent(key)}`;
+
+/**
+ * The settings the Träger sets for all its schools: only settings with the
+ * levels `beide` or `traeger`, each with the Träger value or the registry
+ * default.
+ */
+export async function fetchTraegerSettingsSchema(): Promise<SettingsSchema> {
+  const schema = await traegerRequest<SettingsSchema | null>(
+    "/api/traeger/settings/schema",
+  );
+  return { tabs: schema?.tabs ?? [] };
+}
+
+/** Sets the Träger value of one setting. Throws an ApiError on failure. */
+export async function saveTraegerSettingValue(
+  key: string,
+  value: unknown,
+): Promise<void> {
+  await traegerRequest(traegerSettingValuePath(key), {
+    method: "PUT",
+    body: { value },
+  });
+}
+
+/**
+ * Removes the Träger value of one setting: schools fall back to the default
+ * or keep their own value. Throws an ApiError on failure.
+ */
+export async function clearTraegerSettingValue(key: string): Promise<void> {
+  await traegerRequest(traegerSettingValuePath(key), { method: "DELETE" });
 }
 
 /** The Träger of the session, as the portal frame names and marks it. */

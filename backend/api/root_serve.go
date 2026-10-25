@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 
 	birthdaysAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/birthdays"
@@ -422,7 +423,7 @@ func composeServeRoot(
 		},
 		func() (err error) {
 			parent, err = owners.BuildParentPortal(db, env, hub, settings.Service, people, portalReads, messaging, presence, carePlanRows,
-				carePlan, persons, mealPlan, schedules, requests, services, emitter, notifications, identity, enrollment, notices)
+				carePlan, persons, mealPlan, schedules, requests, services, emitter, notifications, identity, enrollment, notices, announcements)
 			return
 		},
 		func() (err error) {
@@ -552,9 +553,9 @@ func composeServeRoot(
 				membership, classListEntries, databaseStats, dataImports, persons, gradeTransition, enrollmentResource)
 			mountPeopleRoutes(tenant, db, logger, reports, renderer, persons, services.Guardian, identity, caller, feedback, mealPlan,
 				birthdays, emergency)
-			mountCommunicationRoutes(tenant, chat, announcements, reminders, deliveryDevices, communication)
 			mountCalendarRoutes(router, tenant, logger, calendarApp)
-			return mountDeliveryRoutes(router, tenant, logger, fileStore, parent, hub, caller, identity)
+			return errors.Join(mountCommunicationRoutes(tenant, chat, announcements, reminders, deliveryDevices, communication),
+				mountDeliveryRoutes(router, tenant, logger, fileStore, parent, hub, caller, identity))
 		},
 		func() error { return mountCatererPortal(router, tenant, limiters, identity, mealPlan, organizations) },
 		func() error {
@@ -565,7 +566,7 @@ func composeServeRoot(
 			}
 			mountPortalRoutes(router, limiters, newAccountResource(db, identity, organizations, services.CaregiverCapability, settings.Service),
 				operator, newParentResource(logger, identity, parent, calendarApp, flows, guardianProfiles, organizations, deliveryDevices, notifications))
-			return mountTraegerPortalRoutes(router, limiters, identity, organizations, persons, membership, TraegerAudit{Trail: audit.Persistence.AccessTrail, Log: audit.Persistence.DataAccessLog})
+			return mountTraegerPortalRoutes(router, limiters, identity, organizations, persons, membership, TraegerAudit{Trail: audit.Persistence.AccessTrail, Log: audit.Persistence.DataAccessLog}, settings.Traeger)
 		},
 	)
 	if err != nil {

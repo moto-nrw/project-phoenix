@@ -106,8 +106,11 @@ type SessionClaims struct {
 	ReadOnly      bool
 	ActingAdminID int64
 	PreviewID     string
-	ExpiresAt     int64
-	IssuedAt      int64
+	// ViaTraeger marks a school session opened through the Träger (ADR 0084
+	// section 5): its school access rests on the Träger, not on a mapping.
+	ViaTraeger bool
+	ExpiresAt  int64
+	IssuedAt   int64
 }
 
 // RefreshClaims is the parsed content of a refresh JWT. A Träger session
@@ -156,6 +159,7 @@ type AccountClaimsPayload struct {
 	TenantID    int64
 	OrgID       int64
 	Scope       string
+	ViaTraeger  bool
 }
 
 // PersistedPortalScope maps a JWT scope to the portal scope a refresh
@@ -292,13 +296,16 @@ const (
 	AuthEventTokenRevoked             = "token_revoked"
 	AuthEventAccountWideWipeCompleted = "account_wide_wipe_completed"
 	AuthEventTenantSwitch             = "tenant_switch"
-	AuthEventMFAEmailSent             = "mfa_email_sent"
-	AuthEventMFAVerified              = "mfa_verified"
-	AuthEventMFAFailed                = "mfa_failed"
-	AuthEventMFALocked                = "mfa_locked"
-	AuthEventMFADisabled              = "mfa_disabled"
-	AuthEventMFATrustedDeviceAdded    = "mfa_trusted_device_added"
-	AuthEventMFAAdminOverride         = "mfa_admin_override"
+	// AuthEventTraegerSchoolSwitch is the Absprung of the Träger-Büro into
+	// the school (ADR 0084 section 5, #4654), filed in the school's ledger.
+	AuthEventTraegerSchoolSwitch   = "traeger_school_switch"
+	AuthEventMFAEmailSent          = "mfa_email_sent"
+	AuthEventMFAVerified           = "mfa_verified"
+	AuthEventMFAFailed             = "mfa_failed"
+	AuthEventMFALocked             = "mfa_locked"
+	AuthEventMFADisabled           = "mfa_disabled"
+	AuthEventMFATrustedDeviceAdded = "mfa_trusted_device_added"
+	AuthEventMFAAdminOverride      = "mfa_admin_override"
 )
 
 // InternalRevocationAuditIP marks revocation evidence no client request
@@ -326,6 +333,8 @@ type AuthEvent struct {
 	CompletedWipe *CompletedWipeEvidence
 	// MFA is set on the mfa_* events (#3331).
 	MFA *MFAEvidence
+	// OrganizationID is the Träger of a traeger_school_switch event.
+	OrganizationID int64
 }
 
 // TenantAccessEvidence describes an operator-led change of the school

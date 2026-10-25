@@ -327,6 +327,12 @@ var queryBudgets = map[string]queryBudget{
 	// statement each, however many threads exist.
 	"modules.communication.parent_group_threads.list":              {max: 1, exact: true},
 	"modules.communication.parent_group_threads.list_for_guardian": {max: 1, exact: true},
+	// The surveys (#4781): the school's list with the participant counts and
+	// a staff member's open surveys in one statement each; the evaluation
+	// reads the survey, its questions, its options and three grouped counts.
+	"modules.communication.surveys.list":      {max: 1, exact: true},
+	"modules.communication.surveys.to_answer": {max: 1, exact: true},
+	"modules.communication.surveys.results":   {max: 6},
 	// database/repositories/users — due announcement reminders read their rows
 	// and targets in two batches, regardless of the number due in one tick.
 	"repositories.parent_announcements.due_reminders": {max: 2, exact: true},

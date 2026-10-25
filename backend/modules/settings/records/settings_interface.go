@@ -2,6 +2,7 @@ package records
 
 import (
 	"context"
+	"time"
 )
 
 // SettingsService defines operations for the schema-driven settings system.
@@ -248,6 +249,13 @@ type ResolvedSetting struct {
 	Visible      bool         `json:"visible"`
 	SortOrder    int          `json:"sort_order"`
 	AccessPolicy AccessPolicy `json:"access_policy"`
+	// Levels and Source tell where the value may come from and where it
+	// comes from (ADR 0086 section 6): "default", "traeger" or "school".
+	// TraegerChangedAt is the last change of the Träger value, nil without
+	// one; it stays set beneath a school override.
+	Levels           Level       `json:"levels"`
+	Source           ValueSource `json:"source"`
+	TraegerChangedAt *time.Time  `json:"traeger_changed_at,omitempty"`
 
 	Validation *ValidationRules `json:"validation,omitempty"`
 	DependsOn  *Dependency      `json:"depends_on,omitempty"`
