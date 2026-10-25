@@ -1060,6 +1060,16 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			})
 			return
 		}
+		// The Träger master data step (#4653) uploads a multipart logo and
+		// reads the bank accounts it already has.
+		if strings.HasPrefix(r.URL.Path, "/traeger/master-data/") {
+			data := any(map[string]any{})
+			if r.Method == seedHTTPMethodGet {
+				data = map[string]any{"bank_accounts": []any{}}
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": data})
+			return
+		}
 		if r.Method == seedHTTPMethodPost && r.URL.Path == "/operator/organizations/test-traeger" {
 			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{
 				"organization": map[string]any{"id": 9100, "test_system": true}, "schools": []any{},

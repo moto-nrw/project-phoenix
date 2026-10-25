@@ -96,6 +96,16 @@ func (m *weeklyProfileAPIMock) serve(t *testing.T, w seedHTTPResponseWriter, r *
 		_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{"periods": []any{}}})
 		return true
 	}
+	// The Träger master data step (#4653) uploads a multipart logo and reads
+	// the bank accounts it already has.
+	if strings.HasPrefix(r.URL.Path, "/traeger/master-data/") {
+		data := any(map[string]any{})
+		if r.Method == "GET" {
+			data = map[string]any{"bank_accounts": []any{}}
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": data})
+		return true
+	}
 	var body map[string]any
 	if r.Method == "POST" || r.Method == "PUT" {
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&body))

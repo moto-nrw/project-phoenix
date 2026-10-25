@@ -55,6 +55,14 @@ type masterDataProfile struct {
 	BankAccounts []masterDataBankAccount `json:"bank_accounts"`
 }
 
+// newMasterDataPortal mounts /traeger as the serving root does.
+func newMasterDataPortal(t *testing.T) (*bun.DB, *traegerPortalHandler) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	portal, _ := traegerPortalOn(t, db, testpkg.TenantRuntime(t, db))
+	return db, portal
+}
+
 func newMasterDataOffice(t *testing.T, db *bun.DB, router *traegerPortalHandler, name, role string) traegerOffice {
 	t.Helper()
 	office := newTraegerOffice(t, db, router, name, role)
@@ -123,7 +131,7 @@ const (
 
 func TestTraegerBankAccountsKeepOneDefault(t *testing.T) {
 	t.Parallel()
-	db, router := newHolidayPeriodPortal(t)
+	db, router := newMasterDataPortal(t)
 	office := newMasterDataOffice(t, db, router, "Träger Bissendorf Stammdaten", identityaccess.TraegerRoleAdministration)
 
 	profile := masterDataProfileOf(t, router, office)
@@ -178,7 +186,7 @@ func TestTraegerBankAccountsKeepOneDefault(t *testing.T) {
 
 func TestTraegerMasterDataRefusesInvalidInput(t *testing.T) {
 	t.Parallel()
-	db, router := newHolidayPeriodPortal(t)
+	db, router := newMasterDataPortal(t)
 	office := newMasterDataOffice(t, db, router, "Träger Prüfung Stammdaten", identityaccess.TraegerRoleAdministration)
 
 	rec := traegerJSON(t, router, office.token, http.MethodPost, "/traeger/master-data/bank-accounts", masterDataBankAccount{
@@ -226,7 +234,7 @@ func TestTraegerMasterDataRefusesInvalidInput(t *testing.T) {
 
 func TestTraegerLogoUploadChecksTypeSizeAndContent(t *testing.T) {
 	t.Parallel()
-	db, router := newHolidayPeriodPortal(t)
+	db, router := newMasterDataPortal(t)
 	office := newMasterDataOffice(t, db, router, "Träger Logo", identityaccess.TraegerRoleAdministration)
 	logo := pngLogo(t, 40, 20)
 
@@ -278,7 +286,7 @@ func TestTraegerLogoUploadChecksTypeSizeAndContent(t *testing.T) {
 
 func TestTraegerMasterDataNeedsTheSettingsRight(t *testing.T) {
 	t.Parallel()
-	db, router := newHolidayPeriodPortal(t)
+	db, router := newMasterDataPortal(t)
 	admin := newMasterDataOffice(t, db, router, "Träger Rechte Stammdaten", identityaccess.TraegerRoleAdministration)
 	rec := traegerJSON(t, router, admin.token, http.MethodPost, "/traeger/master-data/bank-accounts", masterDataBankAccount{
 		Label: "Elternbeiträge", AccountHolder: "Träger e.V.", IBAN: traegerTestIBAN,
@@ -307,7 +315,7 @@ func TestTraegerMasterDataNeedsTheSettingsRight(t *testing.T) {
 
 func TestTraegerMasterDataStaysWithItsTraeger(t *testing.T) {
 	t.Parallel()
-	db, router := newHolidayPeriodPortal(t)
+	db, router := newMasterDataPortal(t)
 	own := newMasterDataOffice(t, db, router, "Träger Hardt Stammdaten", identityaccess.TraegerRoleAdministration)
 	other := newMasterDataOffice(t, db, router, "Träger Willich Stammdaten", identityaccess.TraegerRoleAdministration)
 	rec := traegerJSON(t, router, own.token, http.MethodPost, "/traeger/master-data/bank-accounts", masterDataBankAccount{
@@ -331,6 +339,12 @@ func TestTraegerMasterDataStaysWithItsTraeger(t *testing.T) {
 	assert.Equal(t, "traeger.bank_account_not_found", refusalOf(t, rec).Code)
 	rec = traegerJSON(t, router, other.token, http.MethodDelete, bankAccountPath(account.ID), nil)
 	require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
+	rec = traegerJSON(t, router, other.token, http.MethodDelete, "/traeger/master-data/logo", nil)
+	require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
+	var otherRows int
+	require.NoError(t, db.NewRaw(`SELECT COUNT(*) FROM platform.traeger_profiles WHERE organization_id = ?`, other.organization).
+		Scan(context.Background(), &otherRows))
+	assert.Zero(t, otherRows, "a refused change writes nothing, although the route commits its 404")
 
 	profile = masterDataProfileOf(t, router, own)
 	require.Len(t, profile.BankAccounts, 1)
@@ -340,7 +354,7 @@ func TestTraegerMasterDataStaysWithItsTraeger(t *testing.T) {
 
 func TestTraegerMasterDataQueryBudget(t *testing.T) {
 	t.Parallel()
-	db, router := newHolidayPeriodPortal(t)
+	db, router := newMasterDataPortal(t)
 	office := newMasterDataOffice(t, db, router, "Träger Budget Stammdaten", identityaccess.TraegerRoleAdministration)
 	addAccount := func(label, iban string) {
 		rec := traegerJSON(t, router, office.token, http.MethodPost, "/traeger/master-data/bank-accounts", masterDataBankAccount{

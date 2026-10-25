@@ -87,7 +87,7 @@ func (m *TraegerMasterData) ReplaceLogo(ctx context.Context, organizationID, acc
 	if !ok {
 		return organizationtenancy.TraegerLogo{}, organizationtenancy.ErrTraegerLogoInvalid
 	}
-	_, old, err := m.store.LockProfile(ctx, organizationID)
+	_, old, err := m.store.LockProfile(ctx, organizationID, true)
 	if err != nil {
 		return organizationtenancy.TraegerLogo{}, err
 	}
@@ -108,7 +108,7 @@ func (m *TraegerMasterData) RemoveLogo(ctx context.Context, organizationID, acco
 	if organizationID <= 0 {
 		return errTraegerRequired
 	}
-	_, old, err := m.store.LockProfile(ctx, organizationID)
+	_, old, err := m.store.LockProfile(ctx, organizationID, false)
 	if err != nil {
 		return err
 	}
@@ -132,7 +132,7 @@ func (m *TraegerMasterData) UpdateContact(ctx context.Context, organizationID, a
 	if err := validateContact(contact); err != nil {
 		return organizationtenancy.TraegerContact{}, err
 	}
-	old, _, err := m.store.LockProfile(ctx, organizationID)
+	old, _, err := m.store.LockProfile(ctx, organizationID, true)
 	if err != nil {
 		return organizationtenancy.TraegerContact{}, err
 	}
@@ -155,7 +155,7 @@ func (m *TraegerMasterData) CreateBankAccount(ctx context.Context, organizationI
 	if err != nil {
 		return organizationtenancy.TraegerBankAccount{}, err
 	}
-	existing, err := m.lockedBankAccounts(ctx, organizationID)
+	existing, err := m.lockedBankAccounts(ctx, organizationID, true)
 	if err != nil {
 		return organizationtenancy.TraegerBankAccount{}, err
 	}
@@ -188,7 +188,7 @@ func (m *TraegerMasterData) UpdateBankAccount(ctx context.Context, organizationI
 	if err != nil {
 		return organizationtenancy.TraegerBankAccount{}, err
 	}
-	existing, err := m.lockedBankAccounts(ctx, organizationID)
+	existing, err := m.lockedBankAccounts(ctx, organizationID, false)
 	if err != nil {
 		return organizationtenancy.TraegerBankAccount{}, err
 	}
@@ -222,7 +222,7 @@ func (m *TraegerMasterData) DeleteBankAccount(ctx context.Context, organizationI
 	if organizationID <= 0 {
 		return errTraegerRequired
 	}
-	existing, err := m.lockedBankAccounts(ctx, organizationID)
+	existing, err := m.lockedBankAccounts(ctx, organizationID, false)
 	if err != nil {
 		return err
 	}
@@ -265,9 +265,10 @@ func (m *TraegerMasterData) promoteOldestBankAccount(ctx context.Context, organi
 }
 
 // lockedBankAccounts locks the Träger's profile row, then reads its bank
-// accounts.
-func (m *TraegerMasterData) lockedBankAccounts(ctx context.Context, organizationID int64) ([]organizationtenancy.TraegerBankAccount, error) {
-	if _, _, err := m.store.LockProfile(ctx, organizationID); err != nil {
+// accounts. A bank account exists only after its creation made the row, so
+// a change of an existing one finds the row to lock.
+func (m *TraegerMasterData) lockedBankAccounts(ctx context.Context, organizationID int64, create bool) ([]organizationtenancy.TraegerBankAccount, error) {
+	if _, _, err := m.store.LockProfile(ctx, organizationID, create); err != nil {
 		return nil, err
 	}
 	return m.store.ListBankAccounts(ctx, organizationID)

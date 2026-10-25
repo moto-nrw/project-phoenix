@@ -42776,6 +42776,17 @@
     {
       "source_owner": "identity-access",
       "port": "github.com/moto-nrw/project-phoenix/modules/traegerportal.TraegerRouter.TraegerRouter",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/organizationtenancy/inbound/traeger.MasterDataResource.TraegerRouter",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/organizationtenancy/inbound/traeger.MasterDataResource.TraegerRouter",
+      "target_owner": "organization-tenancy",
+      "binding_digest": "12384ae96e5b849e2fedc230a79e4ba1",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy/inbound/traeger.MasterDataResource.TraegerRouter mounts the Träger master data routes behind the Träger rights and the Träger transaction (#4653, ADR 0112). May-bind method surface, not a production-call/liveness claim."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/traegerportal.TraegerRouter.TraegerRouter",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/settings/http.TraegerSettingsResource.TraegerRouter",
       "target": "*github.com/moto-nrw/project-phoenix/modules/settings/http.TraegerSettingsResource.TraegerRouter",
       "target_owner": "settings-platform",

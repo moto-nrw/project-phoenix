@@ -14,11 +14,12 @@ type TraegerMasterDataStore interface {
 	// FindProfile reads the contact person and the logo description; a
 	// Träger without a row has neither.
 	FindProfile(ctx context.Context, organizationID int64) (organizationtenancy.TraegerContact, *organizationtenancy.TraegerLogo, error)
-	// LockProfile creates the row of the Träger where it is missing and
-	// locks it until the end of the transaction. Every change of the master
-	// data takes this lock first, so changes of one Träger run one after the
-	// other.
-	LockProfile(ctx context.Context, organizationID int64) (organizationtenancy.TraegerContact, *organizationtenancy.TraegerLogo, error)
+	// LockProfile locks the row of the Träger until the end of the
+	// transaction; create makes it first where it is missing. Every change
+	// of the master data takes this lock first, so changes of one Träger run
+	// one after the other. A change that may be refused as not found passes
+	// create false and writes nothing before it decides.
+	LockProfile(ctx context.Context, organizationID int64, create bool) (organizationtenancy.TraegerContact, *organizationtenancy.TraegerLogo, error)
 	SaveContact(ctx context.Context, organizationID, accountID int64, contact organizationtenancy.TraegerContact) error
 	SaveLogo(ctx context.Context, organizationID, accountID int64, logo domain.TraegerLogoWrite) (organizationtenancy.TraegerLogo, error)
 	ClearLogo(ctx context.Context, organizationID, accountID int64) error

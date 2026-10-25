@@ -130,14 +130,16 @@ func (s *TraegerMasterDataStore) FindProfile(ctx context.Context, organizationID
 	return firstProfile(rows)
 }
 
-// LockProfile creates the row where it is missing and locks it.
-func (s *TraegerMasterDataStore) LockProfile(ctx context.Context, organizationID int64) (organizationtenancy.TraegerContact, *organizationtenancy.TraegerLogo, error) {
+// LockProfile locks the row; create makes it first where it is missing.
+func (s *TraegerMasterDataStore) LockProfile(ctx context.Context, organizationID int64, create bool) (organizationtenancy.TraegerContact, *organizationtenancy.TraegerLogo, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
 		return organizationtenancy.TraegerContact{}, nil, err
 	}
-	if _, err := db.ExecContext(ctx, ensureTraegerProfileQuery, organizationID); err != nil {
-		return organizationtenancy.TraegerContact{}, nil, fmt.Errorf("organization tenancy postgres: create Träger profile: %w", err)
+	if create {
+		if _, err := db.ExecContext(ctx, ensureTraegerProfileQuery, organizationID); err != nil {
+			return organizationtenancy.TraegerContact{}, nil, fmt.Errorf("organization tenancy postgres: create Träger profile: %w", err)
+		}
 	}
 	var rows []traegerProfileRow
 	if err := db.NewRaw(lockTraegerProfileQuery, organizationID).Scan(ctx, &rows); err != nil {
