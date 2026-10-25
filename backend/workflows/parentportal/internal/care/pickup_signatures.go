@@ -158,27 +158,31 @@ func (s *Service) PickupSignatureStatement(ctx context.Context, accountID, stude
 		}
 		return statement, nil
 	case PickupSignatureStatementWeekly:
-		if len(input.Weekdays) == 0 {
-			return "", ErrPickupSignatureInvalid
-		}
-		weekdays, err := carerequests.NormalizeWeekdays(input.Weekdays)
-		if err != nil {
-			return "", ErrPickupSignatureInvalid
-		}
-		if len(weekdays) == 0 {
-			// NormalizeWeekdays uses nil for an unrestricted pickup permission.
-			// Here an input weekday represents an "alone" selection, so all
-			// weekdays still need the declaration and its signature.
-			weekdays = input.Weekdays
-		}
-		statement := WeeklyAloneStatement(child.StudentName, weekdays)
-		if statement == "" {
-			return "", ErrPickupSignatureInvalid
-		}
-		return statement, nil
+		return weeklyAloneSignatureStatement(child.StudentName, input.Weekdays)
 	default:
 		return "", ErrPickupSignatureInvalid
 	}
+}
+
+func weeklyAloneSignatureStatement(childName string, weekdays []int) (string, error) {
+	if len(weekdays) == 0 {
+		return "", ErrPickupSignatureInvalid
+	}
+	normalized, err := carerequests.NormalizeWeekdays(weekdays)
+	if err != nil {
+		return "", ErrPickupSignatureInvalid
+	}
+	if len(normalized) == 0 {
+		// NormalizeWeekdays uses nil for an unrestricted pickup permission.
+		// Here an input weekday represents an "alone" selection, so all
+		// weekdays still need the declaration and its signature.
+		normalized = weekdays
+	}
+	statement := WeeklyAloneStatement(childName, normalized)
+	if statement == "" {
+		return "", ErrPickupSignatureInvalid
+	}
+	return statement, nil
 }
 
 var statementWeekdays = [...]string{"", "montags", "dienstags", "mittwochs", "donnerstags", "freitags"}
