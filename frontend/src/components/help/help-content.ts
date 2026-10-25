@@ -6192,6 +6192,9 @@ function modulesTopic(): HelpTopic {
     notes: [
       "moto Basis hat jede OGS. Dazu gehören zum Beispiel Kinder, Gruppen, Räume, Anwesenheit und Kalender.",
       "Die Schalter sind nur zur Information. Welche Module Ihre OGS hat, steht im Vertrag mit moto.",
+      "Ohne `Eltern-App` gibt es kein Elternportal. Eltern können sich dort nicht anmelden. moto schickt ihnen keine E-Mails und Mitteilungen mehr, zum Beispiel zu Terminen.",
+      "Ohne `Unterricht am Vormittag` gibt es kein moto schule. Lehrkräfte können sich dort nicht anmelden.",
+      "Ohne `Online-Anmeldung` verschickt moto keine E-Mails zu Anmeldungen.",
     ],
     differences: [
       "Ein Menüpunkt hat ein Schloss? Dann gehört er zu einem Modul, das Ihre OGS nicht gebucht hat. Das Schloss sehen nur Sie als Leitung. Ihr Team sieht den Menüpunkt nicht.",
@@ -6413,6 +6416,7 @@ function parentLoginTopic(): HelpTopic {
       "Ein Passwortwechsel verkürzt diese Wartezeit nicht.",
       "moto sagt, das Konto gehöre zum Personal einer Schule? Dann melden Sie sich über die Schul-Anmeldung an.",
       "moto sagt, Ihr Konto sei deaktiviert? Wenden Sie sich an Ihre OGS.",
+      "moto sagt, Ihre Schule nutze das Elternportal zurzeit nicht? Dann bietet Ihre Schule das Elternportal nicht an. Fragen Sie bei Ihrer Schule nach.",
     ],
     related: [
       HELP_TOPICS.parentAccount,
@@ -7500,6 +7504,7 @@ function teacherLoginTopic(): HelpTopic {
     ],
     troubleshootingDetails: [
       "moto sagt, das Konto habe keinen Zugang zum Schul-Portal? Dann fehlt Ihnen die Rolle. Wenden Sie sich an die OGS-Verwaltung.",
+      "moto sagt, Ihre Schule nutze moto schule zurzeit nicht? Dann bietet Ihre Schule moto schule nicht an. Wenden Sie sich an die OGS-Verwaltung.",
       "moto sagt `Die E-Mail-Adresse oder das Passwort stimmt nicht.`? Prüfen Sie beides und versuchen Sie es erneut.",
     ],
     related: [
