@@ -299,7 +299,7 @@ export const FEATURES = Object.freeze([
     name: 'Anmeldung neuer Kinder',
     pages: {
       ogs: ['/admin/enrollments/**', '/enrollment-form', '/enrollment-phases/**', '/care-offerings', '/anmeldung/**'],
-      parents: ['/anmeldung/**'],
+      parents: ['/anmeldung/**', '/ferienanmeldung/**'],
     },
     events: ['enrollment_submitted'],
   },
